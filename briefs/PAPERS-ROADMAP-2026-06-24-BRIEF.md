@@ -20,6 +20,32 @@
 > debts on shipped papers are unchanged and live in `PAPERS-AUDIT.md`: the R2 26-night re-run
 > (un-DRAFTs §2.4/§2.5) and folding the three 2026-08 walls into `dead-ends` (§2.2).
 
+> **2026-09-05 — the MotionDex resp-acc headline is UNDER OWNER REVIEW; do not cite it as settled.**
+> `papers/acc-respiratory-rate.html` publishes **18,856 scored epochs** (abstract) and **MAE 1.01 /
+> 91.6 % within 2 brpm**. Two facts sit against that, both recorded in `RESIDUE.md`:
+> **(a)** a second figure, **19,193**, survives on 11 reader-facing surfaces against 18,856's 5 — one
+> regeneration reached one surface (#353); and **(b)** *both* predate the alignment fix of #1042, whose
+> own message records **nine of sixteen nights scored against noise**, and current code reproduces
+> **neither** — a 2026-09-05 re-run over the largest stageable cohort gives **8,057 epochs, MAE 1.10**.
+> The disagreement is deliberately **left visible**: it is presently the only signal that anything is
+> wrong, and harmonising it silently would remove the warning without fixing the cause. Publishing the
+> new numbers or retracting the old ones is an **owner decision**, escalated 2026-09-05. Until it lands,
+> the "not tool-reproduced" caution below **stands for every MotionDex resp-acc figure** — nothing has
+> been cleared.
+>
+> **2026-09-22 — the TOOLING precondition is now MET; what remains is the decision.** This preamble
+> names its own clearing route as *re-running the corpus end-to-end through `resp-acc-analysis.html`*,
+> and residue `2026-09-02-papers-remedy-unavailable` recorded that that route did not work — the
+> headless driver pegged a core for 2.5 h and read 2.5 MB of a 1.7 GB corpus, i.e. never ingested it.
+> **#2749's sandbox-first Playwright launch repaired it.** Executed 2026-09-22 (#2823): the full path,
+> `tools/resp-acc-headless.mjs <staged> --figures papers/figures`, over 50 staged `_ACC.txt` files →
+> 49 ACC/CPAP-paired nights → 14 scored, 8,057 epochs; three figures written and byte-identical to the
+> 2026-09-20 set on a second run; `papers/figures/cohort-manifest.json` and
+> `analysis/published-numbers/acc-resp-cohort-2026-09-22.json` written from that run. So the route this
+> preamble names is available and has been walked. **The caution still stands**, for the reason the
+> residue row never named: publishing the new numbers or retracting the old ones is the OWNER decision
+> escalated 2026-09-05, and it has not landed. Tooling was the blocker; it is not any more.
+
 > **2026-08-08 — a fourth wall for §2.2, and a caution on §2.8.** The `ms;hr;c` export contract made the
 > papers' own fused-weight three-cornered hat runnable from a committed artifact for the first time
 > (`tools/tch-fused-corpus.mjs`). Two things fell out, both belonging on this agenda: the
@@ -374,6 +400,16 @@ These are the real-validation front. Each names the **stack dependency** so sequ
     needs a human to drop EDF + annotation-XML pairs in. That is a materially cheaper unblock than
     building a node. **CANCELLED — owner, 2026-08-28: no DUA will be pursued; revisit only if
     records ever arrive** (see REM-STAGING-FOLLOWUPS-2026-08-02 §2b for the standing stamp).
+    ⊕ **THE REVISIT CONDITION HAS FIRED — 2026-09-04 (Osprey).** NSRR access was approved 2026-09-02
+    and **99 EDF + 5136 annotation XML are on disk** at `/srv/data/shhs/polysomnography/`, all 99 ids
+    paired. The DUA question is settled; the remaining gate is the owner's SEPARATE condition that NSRR
+    stays closed until the brief drain completes (**unmet: 73 open vs a ≤20 target**). So this item is no
+    longer cancelled-for-want-of-data — it is owner-gated.
+
+    ⊗ **THE DRAIN CONDITION IS CANCELLED — owner, 2026-09-12.** *"im canceling this condition now. proceed with it."* The owner's separate condition that **NSRR stays closed until the brief drain completes** is WITHDRAWN and is no longer a gate on anything. It was never met — 52 open against a ≤20 target at cancellation, down from the 73 recorded above — and the brief count is now irrelevant to NSRR work. **Do not re-derive it, do not re-measure the open-brief count as an NSRR precondition, and do not treat a high brief count as blocking this lane.** The only gate remaining on this work is `STRATEGIC-PRIORITIES` §P5, which covers **publication, not measurement** (owner ruling the same day). The staging arm is EXECUTED (#2423): 99/99 records scored, REM recall
+    32 % median. Inventory, boundaries and pre-stated bands:
+    `SHHS-EXTERNAL-VALIDATION-2026-09-04-BRIEF.md`. ⚠ It measures **PPG 0/99**, so the staging arm scoped
+    here is reachable while nothing PPG-derived is.
   - **Carry the domain-shift caveat:** NSRR is clinical PSG on a clinical population, not a consumer
     chest strap on a healthy sleeper at home. A detector tuned on NSRR and deployed on H10 data inherits
     a domain shift, and the real-night falsifiers remain the only check that survives the move — a good

@@ -43,8 +43,26 @@
  * labels are mostly missing (an unscored gap) is EXCLUDED rather than counted as a miss — the same
  * discipline as `pat-matchrate-strict`'s coverable-beat denominator.
  *
+ * ── THE VERDICT (tepna.verdict/1) — a DECLARED pool scorer ──────────────────────────────────────
+ * This scorer exports `CRITERION` + `verdict()`, so `nsrr-score-pool.mjs` emits a decided object for it
+ * rather than UNKNOWN; the same decision is emitted by `--dir` here. The band is the one PRE-STATED in
+ * `SHHS-EXTERNAL-VALIDATION-2026-09-04-BRIEF.md` §4 E1, published before #2423 ran it: **κ ≥ 0.60
+ * transfers · 0.40–0.60 partial · < 0.40 does not**. Mapping onto the closed enum:
+ *   PASS          pooled κ ≥ 0.60
+ *   FAIL          κ < 0.60 — the reason names WHICH pre-stated band it fell in (partial / does not
+ *                 transfer) and the per-stage recall E1 asks for beside the overall κ, because an
+ *                 overall κ hides the ~4× REM under-call
+ *   UNKNOWN       `populationMisalignment` says `suspect-shift`: every record peaks at the same
+ *                 non-zero lag, so the κ measures the PIPELINE, not the detector — no decision
+ *   UNDERPOWERED  fewer than BANDS.minRecords records (10 — the same floor the misalignment test
+ *                 needs, so a κ that could not be checked for a shift is not decided on)
+ *   NOT_RUN       no record scored
+ * Population = records: checked = records contributing a per-record κ, eligible = paired records.
+ * scope: internal — NSRR data under a DUA, P5.
+ *
  * USAGE
  *   node tools/nsrr-stage-validate.mjs --selftest          # prove the path, no records needed
+ *   node tools/nsrr-stage-validate.mjs --verdict-sample    # the object over synthetic rows — CI reads it
  *   node tools/nsrr-stage-validate.mjs --dir <psg-dir>     # score real records (EDF + XML pairs)
  *   node tools/nsrr-stage-validate.mjs --dir <psg-dir> --json
  */
@@ -65,7 +83,7 @@ const EPOCH_SEC = 30; // the expert grid
    `parseNsrrXml` queries (ScoredEvent elements with EventConcept/Start/Duration children), and it
    throws on anything else rather than silently returning an empty NodeList — a stub that quietly
    finds nothing would make every record score as "no labels" and look like a data problem. */
-function makeRealm() {
+export function makeRealm() {
   const sandbox = {};
   sandbox.window = sandbox;
   sandbox.self = sandbox;
@@ -154,6 +172,29 @@ function edfToEcgRec(edf) {
   return { rec: { int16, fs: sig.fs, t0Ms, durSec: Math.floor(data.length / (sig.fs || 1)), gaps: [] }, label: key };
 }
 
+/* ⚠️ A DETECTED STAGE IS AN OBJECT, NOT A STRING — and that silently zeroed every number this tool
+   ever produced. `ECGDSP.stageSleep` returns `{ tMin, stage, y }`, and `scoreRecord` selects between
+   `res.stages` and a direct `stageSleep` call — BOTH of which are that shape, so there was no
+   string branch to fall back to. Used as a label, the object stringifies to `[object Object]`, which
+   never equals 'REM': recall was STRUCTURALLY 0 and the confusion table keyed every expert stage to
+   a single `[object Object]` column.
+
+   Measured 2026-09-12 on real SHHS records — shhs1-200001/2/3 each reported REM recall 0.0 % against
+   expert REM fractions of 11 / 5 / 10 %, which reads exactly like a stager that never fires.
+
+   ⚠️ WHY NO GATE COULD SEE IT, which is the part worth keeping. `--selftest` REFUSES to compute
+   recall/precision from synthetic input — deliberately, because a synthetic record scored by the
+   detector's own assumptions is the circular oracle `REM-STAGING-FOLLOWUPS` §1 bans. That refusal is
+   correct and stays. But it meant the one computation that would have exposed this was never
+   exercised in the only mode that ever ran: a guard against a false POSITIVE created a blind spot for
+   a false NEGATIVE. The fix is not to weaken it — the new assertions score the JOIN against PLANTED
+   labels, which is arithmetic, never the detector. */
+export function stageLabel(s) {
+  if (s == null) return null;
+  if (typeof s === 'string') return s;
+  return typeof s.stage === 'string' ? s.stage : null;
+}
+
 /* ── the join: 5-min detector epochs ↔ 30 s expert epochs ───────────────────────────────────────
    Pure, and exported, so the gate can assert the arithmetic without an EDF. */
 export function joinToExpert(detEpochs, detStages, expertEpochs, t0Ms, epochMin, minCoverage) {
@@ -180,7 +221,7 @@ export function joinToExpert(detEpochs, detStages, expertEpochs, t0Ms, epochMin,
         bestN = counts[s];
         best = s;
       }
-    pairs.push({ tMin: detEpochs[i].tMin, expert: best, detected: detStages[i] || null, coverage: seen / per });
+    pairs.push({ tMin: detEpochs[i].tMin, expert: best, detected: stageLabel(detStages[i]), coverage: seen / per });
   }
   return pairs;
 }
@@ -279,6 +320,256 @@ function syntheticNight(minutes) {
 }
 
 /* ── one record, end to end ─────────────────────────────────────────────────────────────────────*/
+/* ── THE LIVE STATISTIC: pooled Cohen's kappa ─────────────────────────────────────────────────
+   What `nsrr-score-pool.mjs` shows in its heartbeat and stops on. Pooled over every record scored so
+   far, so a partial run of a hash-shuffled corpus carries a real kappa rather than a placeholder.
+
+   ⚠️ THE TWO LABEL SETS ARE NOT THE SAME VOCABULARY, and this is the whole difficulty. The expert
+   scores `Wake/N1/N2/N3/REM`; the detector emits `Wake/Light/Deep/REM`. A kappa computed over the
+   union of those would be a 9-class agreement in which `N2` and `Light` are DIFFERENT categories that
+   can never agree — the detector would score near zero no matter how right it was. The mapping is
+   therefore declared, not inferred, and it is the standard AASM collapse. This is `same-name-two-
+   populations` in its most expensive form: two label sets, one word "stage". */
+export const EXPERT_TO_DET = { Wake: 'Wake', N1: 'Light', N2: 'Light', N3: 'Deep', N4: 'Deep', REM: 'REM' };
+export const DET_CLASSES = ['Wake', 'Light', 'Deep', 'REM'];
+
+/* Cohen's kappa over a pooled confusion matrix, with the standard large-sample SE so the pool can
+   stop when it is precise enough. Returns null rather than a number when kappa is undefined —
+   pe === 1 means one class swallowed everything, and (po-pe)/(1-pe) is 0/0 there, not "perfect". */
+export function kappaFromMatrix(M) {
+  let N = 0;
+  const rs = {},
+    cs = {};
+  for (const e of DET_CLASSES)
+    for (const d of DET_CLASSES) {
+      const v = (M[e] && M[e][d]) || 0;
+      N += v;
+      rs[e] = (rs[e] || 0) + v;
+      cs[d] = (cs[d] || 0) + v;
+    }
+  if (!N) return null;
+  let po = 0,
+    pe = 0;
+  for (const c of DET_CLASSES) {
+    po += ((M[c] && M[c][c]) || 0) / N;
+    pe += (rs[c] / N) * (cs[c] / N);
+  }
+  if (!(pe < 1)) return null;
+  const k = (po - pe) / (1 - pe);
+  const se = Math.sqrt((po * (1 - po)) / (N * (1 - pe) * (1 - pe)));
+  const recall = {};
+  for (const c of DET_CLASSES) recall[c] = rs[c] ? +(((M[c] && M[c][c]) || 0) / rs[c]).toFixed(4) : null;
+  return { kappa: +k.toFixed(4), halfWidth: +(1.96 * se).toFixed(4), nEpochs: N, po: +po.toFixed(4), recall };
+}
+
+/* Pool every record's confusion matrix into one, mapping expert labels into the detector's
+   vocabulary on the way in. An expert label with no mapping is DROPPED and counted, never bucketed
+   into a default class — §∅: an unmapped category is absent, not "Wake". */
+export function poolConfusion(rows) {
+  const M = {},
+    unmapped = {};
+  for (const e of DET_CLASSES) {
+    M[e] = {};
+    for (const d of DET_CLASSES) M[e][d] = 0;
+  }
+  for (const r of rows || []) {
+    const c = r && r.score && r.score.confusion;
+    if (!c) continue;
+    for (const expert of Object.keys(c)) {
+      const me = EXPERT_TO_DET[expert];
+      if (!me) {
+        unmapped[expert] = (unmapped[expert] || 0) + 1;
+        continue;
+      }
+      for (const det of Object.keys(c[expert])) if (M[me][det] !== undefined) M[me][det] += c[expert][det];
+    }
+  }
+  return { M, unmapped };
+}
+
+/* ⚠️ EPOCHS ARE NOT INDEPENDENT, AND THE POOLED SE PRETENDS THEY ARE — measured 2026-09-13.
+   `kappaFromMatrix` returns the textbook large-sample SE, which assumes N independent observations.
+   Epochs within one night are heavily correlated (a stager that mistakes a subject's N2 for Light
+   does so for hundreds of consecutive epochs), so that SE is computed on an N that does not exist:
+   10 records reported n=976 and a half-width of +/-0.046, a precision the sample cannot support.
+
+   Left uncorrected, the pool's `--precision` would stop after a handful of records believing it had
+   converged — the same failure as a stopping rule that reports its own floor as a criterion, one
+   level deeper, because here the over-confidence is in the ARITHMETIC rather than in a guard.
+
+   So the half-width published for STOPPING is the between-RECORD spread of per-record kappa, whose
+   unit of independence is the night. The pooled kappa remains the headline estimate; only its
+   uncertainty changes. Both are reported so the difference is visible rather than chosen silently. */
+export function perRecordKappas(rows) {
+  const out = [];
+  for (const r of rows || []) {
+    if (!r || r.err || !r.score || !r.score.confusion) continue;
+    const k = kappaFromMatrix(poolConfusion([r]).M);
+    if (k && Number.isFinite(k.kappa)) out.push(k.kappa);
+  }
+  return out;
+}
+
+export function liveStat(rows) {
+  const { M, unmapped } = poolConfusion(rows);
+  const k = kappaFromMatrix(M);
+  if (!k) return { label: "Cohen's kappa (stager vs expert)", value: null, halfWidth: null, n: 0 };
+  /* between-record 95 % half-width: 1.96 * SE of the mean over nights. Below 5 nights it is null —
+     a spread estimated from four numbers is not a precision, and publishing one would re-introduce
+     exactly the false confidence this block exists to remove. */
+  const ks = perRecordKappas(rows);
+  let clusterHW = null;
+  if (ks.length >= 5) {
+    const mu = ks.reduce((a, b) => a + b, 0) / ks.length;
+    const sd = Math.sqrt(ks.reduce((a, b) => a + (b - mu) * (b - mu), 0) / (ks.length - 1));
+    clusterHW = +((1.96 * sd) / Math.sqrt(ks.length)).toFixed(4);
+  }
+  const det = [
+    'per-stage recall: ' + DET_CLASSES.map((c) => c + ' ' + (k.recall[c] != null ? (100 * k.recall[c]).toFixed(1) + '%' : '—')).join('  '),
+    'epochs ' + k.nEpochs + '  ·  raw agreement ' + (100 * k.po).toFixed(1) + '%' + (Object.keys(unmapped).length ? '  ·  UNMAPPED expert labels: ' + Object.keys(unmapped).join(',') : '')
+  ];
+  det.push(
+    'uncertainty: between-record +/-' +
+      (clusterHW != null ? clusterHW.toFixed(4) : '— (needs >=5 records)') +
+      '   [naive per-epoch +/-' +
+      k.halfWidth.toFixed(4) +
+      ' assumes independent epochs — it does not hold]'
+  );
+  /* `n` is the RECORD count, not the epoch count: it is what the stopping rule's floor must count. */
+  return { label: "Cohen's kappa (stager vs expert)", value: k.kappa, halfWidth: clusterHW, n: ks.length, detail: det };
+}
+
+/* ── the declared criterion (E1, pre-stated 2026-09-04) ──────────────────────────────────────────*/
+export const BANDS = Object.freeze({ transfer: 0.6, partial: 0.4, minRecords: 10 });
+export const CRITERION = Object.freeze({ name: 'cohen_kappa_4class_pooled', threshold: BANDS.transfer, unit: 'kappa', direction: 'gte' });
+/* The decision the pool applies: `stat` is this file's liveStat, `rows` the scored records. Pure. */
+export function verdict(stat, rows) {
+  const n = stat && Number.isFinite(stat.n) ? stat.n : 0;
+  if (!n || stat.value == null) return { status: 'NOT_RUN', reason: 'no record produced a kappa' };
+  if (n < BANDS.minRecords)
+    return { status: 'UNDERPOWERED', reason: n + ' record(s) < the pre-stated minimum of ' + BANDS.minRecords + ' (the misalignment check needs 10 to run, and an unchecked kappa is not decided on)' };
+  const mis = populationMisalignment(rows);
+  if (mis.verdict === 'suspect-shift')
+    return {
+      status: 'UNKNOWN',
+      reason:
+        'population misalignment: ' +
+        (100 * mis.modalShare).toFixed(0) +
+        ' % of records peak at lag ' +
+        mis.modalLag +
+        ' (uniform expectation ' +
+        (100 * mis.uniformExpected).toFixed(0) +
+        ' %) — the kappa measures the pipeline, not the detector'
+    };
+  const k = stat.value;
+  const recall = /per-stage recall: ([^\n]*)/.exec((stat.detail || []).join('\n'));
+  const tail = (recall ? '; per-stage recall ' + recall[1] : '') + ' (n=' + n + ' records)';
+  if (k >= BANDS.transfer) return { status: 'PASS', reason: null };
+  if (k >= BANDS.partial)
+    return { status: 'FAIL', reason: 'kappa ' + k + ' in the pre-stated PARTIAL band ' + BANDS.partial + '–' + BANDS.transfer + ' (transfer requires ≥ ' + BANDS.transfer + ')' + tail };
+  return { status: 'FAIL', reason: 'kappa ' + k + ' < ' + BANDS.partial + ' — the pre-stated DOES-NOT-TRANSFER band' + tail };
+}
+/* --verdict-sample: synthetic rows through the real liveStat and the real decision — no EDF, no
+   corpus, no git. Rows carry a confusion matrix and an alignment, which is all liveStat and
+   populationMisalignment read. */
+export function sampleRows(n, opts) {
+  opts = opts || {};
+  const agree = opts.agree == null ? 0.9 : opts.agree;
+  const EXPERT = ['Wake', 'N2', 'N3', 'REM']; // one expert label per detector class
+  const rows = [];
+  for (let i = 0; i < n; i++) {
+    const confusion = {};
+    EXPERT.forEach((e, ei) => {
+      confusion[e] = {};
+      DET_CLASSES.forEach((d, di) => {
+        confusion[e][d] = ei === di ? Math.round(120 * agree) : Math.round((120 * (1 - agree)) / 3);
+      });
+    });
+    rows.push({ id: 'syn-' + i, score: { confusion }, alignment: { bestLag: opts.lag == null ? 0 : opts.lag } });
+  }
+  return rows;
+}
+
+/* ── the pool adapter ─────────────────────────────────────────────────────────────────────────
+   `tools/nsrr-score-pool.mjs` hands a worker `{ id, edf, xml }` PATHS and expects one row back; this
+   file's own CLI already holds the bytes, so its `scoreRecord` takes buffers. Rather than change that
+   signature (and every caller with it), expose the path-taking shape the pool asks for by name. The
+   pool looks for this export explicitly and never sniffs arity — a sniff would quietly call the wrong
+   function the day either signature gains an optional argument.
+
+   This exists because 5136 records serially is ~5.9 h and the pool does it in ~37 min. */
+export function poolScoreRecord(ctx, rec) {
+  return { id: rec.id, ...scoreRecord(ctx, toArrayBuffer(readFileSync(rec.edf)), readFileSync(rec.xml, 'utf8')) };
+}
+
+/* ── ALIGNMENT DIAGNOSTIC ─────────────────────────────────────────────────────────────────────
+   A near-chance kappa has two very different causes, and a confusion matrix at lag 0 cannot tell
+   them apart: the detector genuinely disagrees, or it agrees but is SHIFTED in time. The second is a
+   bug in the join or the anchor and is recoverable; the first is a finding about the detector. This
+   tool previously reported only the lag-0 matrix, so it could grade agreement but never diagnose it.
+
+   Recompute kappa over a small window of lags. If it peaks at zero, a low kappa is a real
+   disagreement. If it peaks off zero — especially if it peaks HIGH — the grids are misaligned and
+   every number the tool has ever printed for that record is about the wrong pairing.
+
+   This is the counterpart to the brief's planted-shift control, and the two are not the same test:
+   the plant proves the scorer REACTS to a shift; this finds a shift nobody planted. */
+export function alignmentScan(pairs, maxLag) {
+  const L = maxLag == null ? 3 : maxLag;
+  const det = pairs.map((p) => p.detected);
+  const exp = pairs.map((p) => p.expert);
+  const out = [];
+  for (let lag = -L; lag <= L; lag++) {
+    const M = {};
+    for (const e of DET_CLASSES) {
+      M[e] = {};
+      for (const d of DET_CLASSES) M[e][d] = 0;
+    }
+    for (let i = 0; i < pairs.length; i++) {
+      const j = i + lag;
+      if (j < 0 || j >= pairs.length) continue;
+      const me = EXPERT_TO_DET[exp[i]] || (DET_CLASSES.includes(exp[i]) ? exp[i] : null);
+      const md = det[j];
+      if (!me || M[me][md] === undefined) continue;
+      M[me][md]++;
+    }
+    const k = kappaFromMatrix(M);
+    out.push({ lag, kappa: k ? k.kappa : null });
+  }
+  const scored = out.filter((o) => o.kappa != null);
+  if (!scored.length) return { lags: out, bestLag: null, bestKappa: null, kappa0: null, misaligned: null };
+  const best = scored.reduce((a, b) => (b.kappa > a.kappa ? b : a));
+  const zero = scored.find((o) => o.lag === 0);
+  /* ⚠️ THIS PER-RECORD FLAG OVER-FIRES AND MUST NOT BE COUNTED AS EVIDENCE — measured 2026-09-13.
+     Taking the MAXIMUM kappa over 7 lags and comparing it to lag 0 is a selection over 7 noisy
+     values: when true agreement is near chance, some lag beats lag 0 by >0.05 most of the time, for
+     nothing but sampling. On 24 real records it fired 9 times while the population showed no shift
+     at all. It is retained as a per-record HINT only; `populationMisalignment` below is the test.
+     Same family as a threshold tuned on the data it judges — the margin is not wrong, the
+     multiplicity is unaccounted for. */
+  const misaligned = best.lag !== 0 && zero != null && best.kappa - zero.kappa > 0.05;
+  return { lags: out, bestLag: best.lag, bestKappa: best.kappa, kappa0: zero ? zero.kappa : null, misaligned };
+}
+
+/* THE TEST THAT ACTUALLY DISCRIMINATES: a systematic misalignment is a property of the PIPELINE, so
+   it shows up as every record peaking at the SAME non-zero lag. Sampling noise scatters the peak
+   uniformly. Comparing the modal best-lag's share against the 1/(2L+1) a uniform scatter predicts
+   separates the two without any per-record threshold at all. */
+export function populationMisalignment(rows, maxLag) {
+  const L = maxLag == null ? 3 : maxLag;
+  const lags = (rows || []).map((r) => r && r.alignment && r.alignment.bestLag).filter((v) => v != null);
+  if (lags.length < 10) return { n: lags.length, verdict: 'insufficient', modalLag: null, modalShare: null };
+  const c = {};
+  for (const l of lags) c[l] = (c[l] || 0) + 1;
+  const modal = Object.entries(c).reduce((a, b) => (b[1] > a[1] ? b : a));
+  const share = modal[1] / lags.length;
+  const expected = 1 / (2 * L + 1);
+  /* a genuine pipeline shift concentrates nearly everything on one lag; 2x the uniform expectation is
+     the floor for calling it, and even that is stated as "suspect" rather than proven */
+  const verdict = Number(modal[0]) === 0 ? 'aligned' : share > 2 * expected ? 'suspect-shift' : 'no-systematic-shift';
+  return { n: lags.length, modalLag: Number(modal[0]), modalShare: +share.toFixed(3), uniformExpected: +expected.toFixed(3), verdict };
+}
+
 export function scoreRecord(ctx, edfBuffer, xmlText) {
   const { CpapEdf, ECGDSP, NSRR } = ctx;
   let edf;
@@ -312,6 +603,7 @@ export function scoreRecord(ctx, edfBuffer, xmlText) {
     detEpochMin: epochMin,
     nExpertEpochs: ann.epochs.filter(Boolean).length,
     expertRemFrac: ann.remFrac,
+    alignment: alignmentScan(pairs, 3),
     score: scoreREM(pairs, 'REM')
   };
 }
@@ -325,6 +617,25 @@ if (IS_CLI) {
     return i >= 0 && argv[i + 1] ? argv[i + 1] : d;
   };
   const JSON_OUT = argv.includes('--json');
+  if (argv.includes('--verdict-sample')) {
+    /* dynamic, CLI-only: a worker importing this scorer must never pull the pool in again */
+    const pool = await import('./nsrr-score-pool.mjs');
+    const rows = sampleRows(12);
+    console.log(
+      JSON.stringify(
+        pool.poolVerdict(
+          { CRITERION, verdict, liveStat },
+          liveStat(rows),
+          rows,
+          { total: 12 },
+          { scorerSpec: './nsrr-stage-validate.mjs', commit: null, commitReason: '--verdict-sample: synthetic rows, no code identity claimed', at: '2026-09-22T00:00:00Z' }
+        ),
+        null,
+        1
+      )
+    );
+    process.exit(0);
+  }
   const ctx = makeRealm();
 
   if (argv.includes('--selftest')) {
@@ -339,6 +650,93 @@ if (IS_CLI) {
     console.log(`  expert labels       ✓  ${out.nExpertEpochs} × 30 s epochs, REM fraction ${(out.expertRemFrac * 100).toFixed(0)}%`);
     console.log(`  shipped stager      ✓  ${out.detEpochMin}-min epochs`);
     console.log(`  join → graded pairs ✓  ${out.score.n}`);
+
+    /* ── THE JOIN'S ARITHMETIC, against PLANTED labels ──────────────────────────────────────────
+       These are NOT a detector rate and must never be read as one: both sides are supplied here, so
+       what is asserted is that the join maps labels correctly. That distinction is what lets them
+       live inside `--selftest` without touching the circular-oracle refusal below.
+       They exist because the refusal left a blind spot: recall was structurally 0 on every real
+       record for as long as this tool has existed, and no mode that ever ran computed it. */
+    let bad = 0;
+    const A = (name, cond, detail) => {
+      if (cond) console.log(`  ${name}  ✓`);
+      else {
+        bad++;
+        console.log(`  ${name}  ✕  ${detail}`);
+      }
+    };
+    A('stageLabel: unwraps stageSleep objects  ', stageLabel({ tMin: 0, stage: 'REM', y: 4 }) === 'REM');
+    A('stageLabel: passes a bare string through', stageLabel('REM') === 'REM');
+    A('stageLabel: refuses a shapeless value   ', stageLabel({ nope: 1 }) === null && stageLabel(null) === null);
+
+    // 4 detector epochs of 5 min = 40 expert epochs of 30 s. Plant perfect agreement.
+    const dEp = [{ tMin: 0 }, { tMin: 5 }, { tMin: 10 }, { tMin: 15 }];
+    const truth = ['REM', 'N2', 'REM', 'Wake'];
+    const exp = [];
+    for (const t of truth) for (let k = 0; k < 10; k++) exp.push(t);
+    // detected supplied as stageSleep's OBJECT shape — the exact shape that silently failed
+    const detObj = truth.map((s, i) => ({ tMin: i * 5, stage: s, y: 0 }));
+    const pPerfect = joinToExpert(dEp, detObj, exp, 0, 5, 0.5);
+    A(
+      'join: object-shaped stages yield string labels',
+      pPerfect.every((p) => typeof p.detected === 'string'),
+      JSON.stringify(pPerfect.map((p) => p.detected))
+    );
+    const sPerfect = scoreREM(pPerfect, 'REM');
+    A('join: planted perfect agreement scores recall 1', sPerfect.recall === 1 && sPerfect.precision === 1, `recall=${sPerfect.recall} prec=${sPerfect.precision}`);
+
+    // and the mirror, so the assertion above cannot pass vacuously
+    const detWrong = truth.map((_, i) => ({ tMin: i * 5, stage: 'Wake', y: 0 }));
+    const sWrong = scoreREM(joinToExpert(dEp, detWrong, exp, 0, 5, 0.5), 'REM');
+    A('join: planted total disagreement scores recall 0', sWrong.recall === 0, `recall=${sWrong.recall}`);
+    // the regression itself: a raw object must NOT survive into the confusion table
+    const sRaw = scoreREM(
+      joinToExpert(
+        dEp,
+        truth.map((s, i) => ({ tMin: i * 5, stage: s })),
+        exp,
+        0,
+        5,
+        0.5
+      ),
+      'REM'
+    );
+    A('join: no "[object Object]" reaches the confusion table', !JSON.stringify(sRaw.confusion).includes('object Object'), JSON.stringify(sRaw.confusion));
+    /* the verdict — E1's pre-stated band on synthetic rows, pinned against verdict.js */
+    {
+      const V = createRequire(import.meta.url)(join(ROOT, 'verdict.js'));
+      const pool = await import('./nsrr-score-pool.mjs');
+      const me = { CRITERION, verdict, liveStat };
+      const obj = (rows, total) =>
+        pool.poolVerdict(me, liveStat(rows), rows, { total: total == null ? rows.length : total }, { scorerSpec: './nsrr-stage-validate.mjs', commit: 'ec4e2d93', at: '2026-09-22T00:00:00Z' });
+      const val = (v) => (V.validate(v).ok ? true : V.validate(v).errors.join(' | '));
+      const good = obj(sampleRows(12, { agree: 0.9 }));
+      A('verdict: kappa above 0.60 on 12 aligned records → PASS, reason null', good.status === 'PASS' && good.reason === null, JSON.stringify({ s: good.status, v: good.result && good.result.value }));
+      A("verdict: …valid under verdict.js, criterion is E1's", val(good) === true && good.criterion.name === 'cohen_kappa_4class_pooled' && good.criterion.threshold === 0.6, String(val(good)));
+      const part = obj(sampleRows(12, { agree: 0.62 }));
+      A('verdict: kappa in 0.40–0.60 → FAIL naming the PARTIAL band and per-stage recall', part.status === 'FAIL' && /PARTIAL/.test(part.reason) && /per-stage recall/.test(part.reason), part.reason);
+      const no = obj(sampleRows(12, { agree: 0.4 }));
+      A('verdict: kappa < 0.40 → FAIL naming DOES-NOT-TRANSFER', no.status === 'FAIL' && /DOES-NOT-TRANSFER/.test(no.reason) && val(no) === true, no.reason);
+      const shifted = obj(sampleRows(12, { agree: 0.9, lag: 2 }));
+      A(
+        'verdict: every record peaking at lag 2 → UNKNOWN (pipeline, not detector), even with a high kappa',
+        shifted.status === 'UNKNOWN' && /lag 2/.test(shifted.reason) && val(shifted) === true,
+        shifted.reason
+      );
+      const few = obj(sampleRows(6), 8);
+      A(
+        'verdict: 6 records → UNDERPOWERED naming 6 and 10, population 6 of 8',
+        few.status === 'UNDERPOWERED' && /6 record/.test(few.reason) && /10/.test(few.reason) && few.population.checked === 6 && few.population.eligible === 8 && val(few) === true,
+        few.reason
+      );
+      const none = obj([], 3);
+      A('verdict: no record → NOT_RUN, result null', none.status === 'NOT_RUN' && none.result === null && val(none) === true, String(val(none)));
+    }
+    if (bad) {
+      console.error(`\nSELFTEST FAILED: ${bad} join assertion(s)\n`);
+      process.exit(1);
+    }
+
     console.log('\n  ⚠️  Recall/precision are DELIBERATELY NOT PRINTED here. The synthetic record is scored');
     console.log('     by the same assumptions the detector holds — the circular oracle REM-STAGING-FOLLOWUPS');
     console.log('     §1 bans for staging claims. This proves every link works; only --dir over real NSRR');
@@ -386,7 +784,16 @@ if (IS_CLI) {
     rows.push({ id: r.id, ...scoreRecord(ctx, toArrayBuffer(readFileSync(r.edf)), readFileSync(r.xml, 'utf8')) });
   }
   const ok = rows.filter((r) => !r.err);
-  if (JSON_OUT) console.log(JSON.stringify({ rows }, null, 2));
+  /* the same decision the pool would emit for this scorer, over these rows — one object per run */
+  const pool = await import('./nsrr-score-pool.mjs');
+  let commit = null;
+  try {
+    commit = (await import('node:child_process')).execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  } catch {
+    /* not a checkout → commit null with commitReason (the pool says so) */
+  }
+  const verdictObj = pool.poolVerdict({ CRITERION, verdict, liveStat }, liveStat(ok), ok, { total: rows.length }, { scorerSpec: './nsrr-stage-validate.mjs', commit, evidence: [DIR] });
+  if (JSON_OUT) console.log(JSON.stringify({ ...verdictObj, detail: { rows } }, null, 2));
   else {
     console.log('\nSHIPPED STAGER vs EXPERT PSG LABELS — REM\n');
     console.log('record                     epochs  recall  precis    F1   expert%  detected%');
@@ -410,5 +817,6 @@ if (IS_CLI) {
       console.log('\nCARRY THE DOMAIN SHIFT: NSRR is clinical PSG on a clinical population, not a consumer chest');
       console.log('strap on a healthy sleeper. A good number here does NOT retire the real-night falsifiers.');
     }
+    console.log('\nVERDICT (tepna.verdict/1): ' + JSON.stringify({ status: verdictObj.status, population: verdictObj.population, reason: verdictObj.reason }));
   }
 }

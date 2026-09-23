@@ -45,6 +45,74 @@ else
   echo "  ✗ updater units missing under $UPD_SRC"
 fi
 
+# THE PATIENT RESTART (§4), INSTALLED BUT NOT ENABLED. Its timer takes an owed restart within ~2 min of
+# the box going idle instead of within ~1 h — worth a median 8.27 h of running on-disk-but-not-loaded
+# code. It is deliberately left OFF: it changes when the daemon is restarted, and a restart drops every
+# live BLE link, so turning it on for a recording box is an owner decision and not an installer's.
+# Until it is enabled the hourly unit behaves exactly as it does today.
+if [ -f "$UPD_SRC/tepna-update-pending.service" ] && [ -f "$UPD_SRC/tepna-update-pending.timer" ]; then
+  install -m644 "$UPD_SRC/tepna-update-pending.service" /etc/systemd/system/tepna-update-pending.service
+  install -m644 "$UPD_SRC/tepna-update-pending.timer"   /etc/systemd/system/tepna-update-pending.timer
+  systemctl daemon-reload
+  # NOT enabled, and reported rather than faked: an installer that printed a tick here would be claiming
+  # a behaviour change nobody authorised.
+  echo "  ✓ tepna-update-pending units installed (NOT enabled — owner decision)"
+  echo "    → enable when wanted: systemctl enable --now tepna-update-pending.timer"
+else
+  echo "  ✗ patient-restart units missing under $UPD_SRC"
+fi
+
+# THE RADIO CLOCK (RADIO-CLOCK-SIDECAR-2026-09-07), INSTALLED BUT NOT ENABLED. It records the Nordic
+# controller's connection-event anchors beside the night as an optional second clock, on its own unit
+# with CAP_NET_RAW only — tepna-capture is not touched and keeps running without those capabilities,
+# which is the owner's first invariant. Left OFF for two independent reasons: `radio_clock.enabled` is
+# false by default in the config, and the unit is not enabled here. On a non-Nordic box it would exit 0
+# and write nothing anyway, but installing-and-enabling would still be asserting a capability nobody
+# measured on THIS box.
+if [ -f "$UPD_SRC/tepna-radioclock.service" ]; then
+  install -m644 "$UPD_SRC/tepna-radioclock.service" /etc/systemd/system/tepna-radioclock.service
+  systemctl daemon-reload
+  echo "  ✓ tepna-radioclock.service installed (NOT enabled — needs radio_clock.enabled and a Nordic radio)"
+  echo "    → enable when wanted: systemctl enable --now tepna-radioclock.service"
+else
+  echo "  ✗ radio-clock unit missing under $UPD_SRC"
+fi
+
+say "1c/5  nightly BLE air audit (VIGIL-BLUETOOTH-ADVERSARIAL-AUDIT D3)"
+# Same shape as the updater: an unprivileged oneshot on a timer, installed from the repo. It needs the
+# nRF Sniffer on the bus and the extcap under the vigil user's ~/.config/wireshark/extcap — neither
+# is installed here; on a box without them the unit FAILS visibly (exit 5/6), which is the point.
+if [ -f "$UPD_SRC/tepna-sniff.service" ] && [ -f "$UPD_SRC/tepna-sniff.timer" ]; then
+  install -m644 "$UPD_SRC/tepna-sniff.service" /etc/systemd/system/tepna-sniff.service
+  install -m644 "$UPD_SRC/tepna-sniff.timer"   /etc/systemd/system/tepna-sniff.timer
+  systemctl daemon-reload
+  systemctl enable --now tepna-sniff.timer >/dev/null 2>&1 \
+    && echo "  ✓ tepna-sniff.timer $(systemctl is-active tepna-sniff.timer)" \
+    || echo "  ✗ tepna-sniff.timer failed to enable"
+else
+  echo "  ✗ sniff units missing under $UPD_SRC"
+fi
+
+say "1d/5  morning report (one file per night, one line to the operator)"
+# ⚠️ USER SCOPE, unlike the units above. It needs no privilege — it reads finished files and posts one
+# webhook — and installing it system-wide would repeat the sniffer unit's confusion, where a user-scope
+# install silently no-ops `After=`/`User=`/`Group=`. Installed for the SERVICE user so its `--user`
+# manager owns it; a system install would also put the webhook token's reader under root for no gain.
+if [ -f "$UPD_SRC/tepna-report.service" ] && [ -f "$UPD_SRC/tepna-report.timer" ]; then
+  _ud="$(getent passwd "${TEPNA_USER:-vigil}" | cut -d: -f6)/.config/systemd/user"
+  install -d -o "${TEPNA_USER:-vigil}" -g "${TEPNA_USER:-vigil}" "$_ud"
+  install -m644 -o "${TEPNA_USER:-vigil}" -g "${TEPNA_USER:-vigil}" \
+    "$UPD_SRC/tepna-report.service" "$_ud/tepna-report.service"
+  install -m644 -o "${TEPNA_USER:-vigil}" -g "${TEPNA_USER:-vigil}" \
+    "$UPD_SRC/tepna-report.timer" "$_ud/tepna-report.timer"
+  # `--user` needs that user's own manager, and enabling it from here needs their bus. Reported rather
+  # than faked: an install step that cannot verify its own result must say so, not print a tick.
+  echo "  ✓ tepna-report units installed to $_ud"
+  echo "    → enable as ${TEPNA_USER:-vigil}: systemctl --user enable --now tepna-report.timer"
+else
+  echo "  ✗ report units missing under $UPD_SRC"
+fi
+
 say "2/5  mDNS so the origin is a NAME, not an IP"
 # PIN ONE ORIGIN. localStorage is per-origin, so http://vigil.local, http://localhost and
 # http://192.168.0.61 are THREE different profiles + longitudinal histories. A DHCP lease change would

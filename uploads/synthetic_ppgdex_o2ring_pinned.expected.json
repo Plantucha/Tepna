@@ -1,0 +1,18 @@
+{
+  "_comment": "§∅ PARITY FIXTURE. The span list both ports must produce from synthetic_ppgdex_o2ring_pinned.txt. A LIST, not a count: the JS and Python ports once agreed on total sample count to within ONE while their span counts differed by eight, so a count-based fixture reports success about boundaries it never examines.",
+  "input": "synthetic_ppgdex_o2ring_pinned.txt",
+  "column": 2,
+  "params": { "min_run": 5, "annotation_gap_max": 8, "annotations": [156], "rail_scan_values": 8, "rail_gap_max": 4, "rail_spike_min": 5, "plateau_lsb": 1 },
+  "rails": { "lo": 0, "hi": 199 },
+  "spans": [
+    [1501, 20, 0],
+    [2201, 20, 0],
+    [2901, 16, 199]
+  ],
+  "cases": {
+    "1501": "a 20-sample floor pin in the measured worst-severity band (10-40 samples, peak 40.2x sd at ~20)",
+    "2201": "the same pin SPLIT by an isolated 156 — must remain ONE span, or a sidecar emits 22% too many",
+    "2901": "a 199 ceiling pin carrying a 200 overshoot — ONE span across both, the tolerance being at-or-beyond the pin only",
+    "absent": "a 4-sample floor pin at row 3601 is deliberately NOT here: min_run drops it, and the plant proves the rail qualified first so the omission is a min_run verdict rather than a vacuous pass"
+  }
+}

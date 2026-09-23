@@ -31,6 +31,15 @@
  * announced "0 of 193 name-matching" three lines before the page grouped 188 nights from them.
  * The pre-flight now CALLS `sessionStamp`, so there is one rule and it cannot drift again.
  *
+ * WHICH PAPER GETS WHICH FIGURE (settled 2026-09-22, residue 2026-09-20-sibling-papers-have-no-figure-source):
+ *   · `papers/acc-respiratory-rate.html`  — Bland-Altman · coverage · per-night MAE   (3, since 2026-09-20)
+ *   · `papers/cpap-flow-reference.html`   — reference self-noise · clock drift        (2, added here)
+ *   · `papers/effort-typing-null.html`    — NONE, deliberately. The row left "does this paper NEED a
+ *     figure" explicitly NOT ASSESSED. Assessed: it is a negative result whose evidence is two tables,
+ *     with zero figure references in its text, and its DRAFT condition is the corpus regeneration, not
+ *     an image. Emitting something for it would be the fabricated close the row warned about, so this
+ *     tool writes nothing for it and says so here rather than leaving a silent absence.
+ *
  * Stage by HARDLINK, not copy — an ACC night is ~300 MB:
  *     T=/path/staged; mkdir -p "$T/CPAP/20260610"
  *     ln "<corpus>/Polar_H10_..._20260610_211538_ACC.txt" "$T/"
@@ -41,7 +50,9 @@
  *   node tools/resp-acc-headless.mjs <staged-dir> [--url http://127.0.0.1:8080] [--figures <out-dir>]
  *   (serve the repo first: python3 -m http.server 8080 --bind 127.0.0.1)
  *
- * `--figures <out-dir>` writes the page's three canvases — Bland-Altman, coverage, per-night MAE — as
+ * `--figures <out-dir>` writes the page's FIVE canvases — Bland-Altman, coverage and per-night MAE for
+ * `papers/acc-respiratory-rate.html`, plus reference self-noise and clock drift for
+ * `papers/cpap-flow-reference.html` (2026-09-22) — as
  * PNGs named exactly as the page's own download buttons name them, so a run reproduces the published
  * figures rather than a look-alike. Read straight off the live canvas via `toDataURL`; nothing is
  * re-plotted here, so there is no second drawing implementation to drift from the one on screen.
@@ -51,12 +62,15 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
+import { launch } from './pw-launch.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 const DIR = process.argv[2];
 const uArg = process.argv.indexOf('--url');
 const URL_ = uArg > 0 ? process.argv[uArg + 1] : 'http://127.0.0.1:8080';
+let wrote = 0;
+let blank = 0;
 const fArg = process.argv.indexOf('--figures');
 const FIGDIR = fArg > 0 ? process.argv[fArg + 1] : null;
 
@@ -126,7 +140,7 @@ if (!stampOf) {
   if (acc.length && !dated.length) console.log('  ⚠ none carry a recognisable stamp — expected _YYYYMMDD_HHMMSS_ACC.txt (phone) or _YYYYMMDDHHMMSS_ACC.txt (capture host)');
 }
 
-const b = await chromium.launch();
+const b = await launch(chromium);
 const p = await b.newPage();
 const errs = [];
 p.on('console', (m) => m.type() === 'error' && errs.push(m.text()));
@@ -173,6 +187,169 @@ const rows = await p.evaluate(() => document.querySelectorAll('table tbody tr').
 console.log(`\n▸ ${rows} table row(s) rendered · ${errs.length} console error(s)`);
 for (const e of errs.slice(0, 5)) console.log('    ✕ ' + e);
 
+/* COHORT MANIFEST — the NIGHT SET behind the n, written beside the figures.
+   `2026-09-02-papers-cohort-never-recorded`: a published n cannot be checked because the night set it
+   was computed over was never recorded, and that — not a transcription error — is how one quantity
+   comes to have two published values. Four sources were checked and none names the cohort; the
+   generating commit says "all 26 nights scored, 18,856 epochs", which is a COUNT, never a SET.
+
+   Every night appears with the stage it reached, so an n is checkable in both directions: which nights
+   produced it, and which were dropped and where. STAGED is read from the input directory rather than
+   from the page, because a night the picker never ingested is invisible to every DOM query — that
+   silent drop is the failure this manifest exists to make visible (`grouped 49` from `staged 50` is a
+   fact no table on the page states).
+
+   ⚠️ THE INCLUSION RULE IS QUOTED FROM THE PAGE, NEVER RESTATED HERE. Paraphrasing "coverage floor,
+   lock gate, head/tail trim" into this file would create a second statement of the rule that drifts
+   from the one that actually gated the run — the same reason the figures are read off the live canvas
+   instead of being re-plotted. `#driftSummary` / `#refSummary` / `#status` carry the page's own words
+   and go in verbatim.
+
+   ⚠️ A cohort-recorded n is NOT comparable to a cohort-less one, so `schema` is stamped and the
+   published 18,856 / 19,193 must not be printed beside a manifest-backed number as though they were
+   the same measurement (the row says this explicitly; see `2026-09-05-respacc-epochs-predate-alignment-fix`). */
+if (FIGDIR) {
+  const dom = await p.evaluate(() => {
+    const tableWhose = (needle) => {
+      for (const t of document.querySelectorAll('table')) {
+        const cap = ((t.previousElementSibling && t.previousElementSibling.textContent) || '').trim();
+        if (cap.includes(needle)) return t;
+      }
+      return null;
+    };
+    const grid = (t) => (t ? [...t.querySelectorAll('tr')].map((r) => [...r.children].map((c) => c.textContent.trim())) : []);
+    const asObjects = (rowsIn) => {
+      if (rowsIn.length < 2) return [];
+      const head = rowsIn[0];
+      return rowsIn.slice(1).map((r) => Object.fromEntries(r.map((v, i) => [head[i] || 'col' + i, v])));
+    };
+    const say = (id) => {
+      const e = document.getElementById(id);
+      return e ? e.textContent.trim() : null;
+    };
+    return {
+      clock: asObjects(grid(tableWhose('Offset recovered by cross-correlating'))),
+      scored: asObjects(grid(tableWhose('Per-night breakdown'))),
+      status: say('status'),
+      refSummary: say('refSummary'),
+      driftSummary: say('driftSummary')
+    };
+  });
+
+  const stagedAcc = fs
+    .readdirSync(DIR)
+    .filter((f) => /Polar_H10.*_ACC\.txt$/i.test(f))
+    .sort();
+  const scoredNights = dom.scored.map((r) => r.Night).filter(Boolean);
+  const manifest = {
+    schema: 'tepna.resp-acc-cohort/1',
+    generatedAt: new Date().toISOString(),
+    stagedDir: path.resolve(DIR),
+    inclusionRuleVerbatim: {
+      note: 'quoted from the page that gated this run; never restated by the harness',
+      status: dom.status,
+      refSummary: dom.refSummary,
+      driftSummary: dom.driftSummary
+    },
+    counts: {
+      stagedAccFiles: stagedAcc.length,
+      inClockTable: dom.clock.length,
+      scoredNights: scoredNights.length
+    },
+    stagedAccFiles: stagedAcc,
+    nights: dom.clock.map((r) => {
+      const night = r.Night || '';
+      const hit = dom.scored.find((s) => s.Night === night);
+      return {
+        night,
+        verdict: r.verdict || null,
+        scored: !!hit,
+        hours: hit ? hit.hours : null,
+        epochs: hit ? hit.epochs : null,
+        /* additive 2026-09-22 — the per-night agreement columns the page renders beside hours/epochs, so
+           the paper's section-5 range ("per-night bias …") can be a sourced CLAIM instead of prose read
+           off a screen (residue 2026-09-20-respacc-cohort-description-survived-correction) */
+        mae: hit && hit.MAE != null ? hit.MAE : null,
+        bias: hit && hit.bias != null ? hit.bias : null,
+        within2: hit && hit['\u22642 brpm'] != null ? hit['\u22642 brpm'] : null,
+        r: hit && hit.r != null ? hit.r : null
+      };
+    }),
+    scoredNights
+  };
+  fs.mkdirSync(FIGDIR, { recursive: true });
+  fs.writeFileSync(path.join(FIGDIR, 'cohort-manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
+  /* PUBLISHED-NUMBER RECORD (tepna.published-number-record/1) — the cohort numbers the paper's prose states,
+     at the precision it states them, so every one is a `CLAIM … FROM analysis/published-numbers/<this>#claims/<key>`
+     the table-provenance gate compares. Derived from the SAME dom tables as the manifest; nothing hand-typed. */
+  const num = (v) => {
+    const x = parseFloat(
+      String(v == null ? '' : v)
+        .replace(/[^0-9.+\u2212-]/g, '')
+        .replace('\u2212', '-')
+    );
+    return Number.isFinite(x) ? x : null;
+  };
+  const scoredRows = manifest.nights.filter((n) => n.scored);
+  const hoursSum = scoredRows.reduce((a, n) => a + (num(n.hours) || 0), 0);
+  const epochsSum = scoredRows.reduce((a, n) => a + (num(n.epochs) || 0), 0);
+  const biases = scoredRows.map((n) => num(n.bias)).filter((v) => v != null);
+  const maes = scoredRows.map((n) => num(n.mae)).filter((v) => v != null);
+  // the paper's median: the mean of the two middle values when n is even (14 scored nights)
+  const med = (a) => {
+    const s = [...a].sort((x, y) => x - y);
+    if (!s.length) return null;
+    return s.length % 2 ? s[s.length >> 1] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2;
+  };
+  const day = manifest.generatedAt.slice(0, 10);
+  const record = {
+    schema: 'tepna.published-number-record/1',
+    producer: 'tools/resp-acc-headless.mjs',
+    producerCommit: (() => {
+      try {
+        return createRequire(import.meta.url)('node:child_process')
+          .execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: REPO, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
+          .trim();
+      } catch {
+        return null;
+      }
+    })(),
+    invocation: `node tools/resp-acc-headless.mjs <staged-dir> --figures ${path.relative(REPO, FIGDIR) || FIGDIR}`,
+    generated: day,
+    inputs: {
+      path: path.resolve(DIR),
+      committed: false,
+      files: stagedAcc.length,
+      digest: null,
+      note: 'the staged ACC + CPAP corpus is gitignored (real recordings); the cohort manifest beside this record lists every staged file and every night verdict'
+    },
+    publishedIn: 'papers/acc-respiratory-rate.html (cohort description re-cut, correction block)',
+    claims: {
+      note: 'values EXACTLY as the prose states them, so CLAIM … FROM … #claims/<key> compares equal',
+      pairedNights: manifest.counts.inClockTable,
+      scoredNights: manifest.counts.scoredNights,
+      stagedAccFiles: manifest.counts.stagedAccFiles,
+      hours: +hoursSum.toFixed(1),
+      epochs: epochsSum,
+      perNightBiasMin: biases.length ? +Math.min(...biases).toFixed(2) : null,
+      perNightBiasMax: biases.length ? +Math.max(...biases).toFixed(2) : null,
+      perNightMaeMin: maes.length ? +Math.min(...maes).toFixed(2) : null,
+      perNightMaeMax: maes.length ? +Math.max(...maes).toFixed(2) : null,
+      perNightMaeMedian: maes.length ? +med(maes).toFixed(2) : null
+    },
+    result: { perNight: scoredRows }
+  };
+  const recDir = path.join(REPO, 'analysis', 'published-numbers');
+  fs.mkdirSync(recDir, { recursive: true });
+  const recPath = path.join(recDir, `acc-resp-cohort-${day}.json`);
+  fs.writeFileSync(recPath, `${JSON.stringify(record, null, 2)}\n`);
+  console.log(`▸ RECORD → ${recPath}`);
+  console.log(
+    `\n▸ COHORT → ${path.join(FIGDIR, 'cohort-manifest.json')}` +
+      `\n    staged ${manifest.counts.stagedAccFiles} ACC file(s) · ${manifest.counts.inClockTable} night(s) in the clock table · ${manifest.counts.scoredNights} scored`
+  );
+}
+
 /* FIGURES — read off the LIVE canvases, never re-plotted here. The names match the page's own
    download buttons (resp-acc-analysis-app.js), so what a run writes is what a human clicking Save
    would get. A canvas that never drew is reported as SKIPPED with its id, never written as a blank
@@ -182,7 +359,15 @@ if (FIGDIR) {
   const FIGS = [
     ['figBA', 'acc-resp-bland-altman.png'],
     ['figCov', 'acc-resp-coverage.png'],
-    ['figNights', 'acc-resp-per-night.png']
+    ['figNights', 'acc-resp-per-night.png'],
+    /* THE SIBLING PAPER'S TWO (residue 2026-09-20-sibling-papers-have-no-figure-source). Same page,
+       same run, same live canvases — `papers/cpap-flow-reference.html` §3.1 and §3.2 were plotted as
+       tables only, so the paper carried zero images while its own status line said it stays a DRAFT
+       until figures are emitted here. The third sibling, `papers/effort-typing-null.html`, is NOT in
+       this list and owes nothing: it is a negative result with two tables and no figure reference in
+       its text — see this tool's header note. */
+    ['figRefFloor', 'cpap-reference-self-noise.png'],
+    ['figDrift', 'cpap-clock-drift.png']
   ];
   fs.mkdirSync(FIGDIR, { recursive: true });
   console.log('\n▸ FIGURES → ' + FIGDIR);
@@ -205,14 +390,30 @@ if (FIGDIR) {
     }, id);
     if (!shot) {
       console.log(`    ⊘ ${name} — #${id} drew nothing (no figure written)`);
+      blank++;
       continue;
     }
     const buf = Buffer.from(shot.url.split(',')[1], 'base64');
     fs.writeFileSync(path.join(FIGDIR, name), buf);
+    wrote++;
     console.log(`    ✓ ${name}  ${shot.w}x${shot.h}  ${(buf.length / 1024).toFixed(0)} KB`);
   }
 }
 
 await b.close();
-// A run that rendered nothing is a failure even when nothing threw — the whole point is the render path.
-process.exit(rows > 0 && !errs.length ? 0 : 1);
+
+/* 🔴 A RUN THAT WROTE NO FIGURE IS NOT A PASS, and `rows > 0` could not see that. Measured on the full
+   79-night corpus: three `drew nothing` lines, an EMPTY `--figures` directory, 564 table rows, and
+   EXIT=0 — because the guard counted TABLE ROWS while the thing that failed was the RENDER. A caller
+   could not distinguish "the corpus produced no scoreable night" from "the run worked", by exit code or
+   by the presence of output, so an unattended invocation reads a total non-result as success.
+   The verdict is now stated in words as well as in the exit code: a count that is only a number is what
+   let this pass unread for a corpus run. Refusing to score off-model nights stays correct — what was
+   wrong was reporting that refusal as success. */
+if (FIGDIR) {
+  console.log(`\n  FIGURES: ${wrote} written, ${blank} blank of ${wrote + blank} canvas(es) → ${FIGDIR}`);
+  if (!wrote) console.log('  ⊘ NO FIGURE WAS WRITTEN — this run produced no scoreable output. Reporting FAILURE.');
+}
+console.log(`  TABLE: ${rows} row(s)${errs.length ? `  ·  ${errs.length} console error(s)` : ''}`);
+const okRun = rows > 0 && !errs.length && (!FIGDIR || wrote > 0);
+process.exit(okRun ? 0 : 1);

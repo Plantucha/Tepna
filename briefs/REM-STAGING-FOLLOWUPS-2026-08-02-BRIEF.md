@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED (NOT a code unit. ⚠ **The blocker CHANGED on 2026-09-02, it did not lift**: NSRR access was approved, so §2b is no longer blocked on *obtaining* records — it is now gated on the owner's condition that NSRR stays closed until the brief drain completes. Re-read this before assuming data-absence. Earlier verification 2026-08-31: §2a DONE 2026-08-03; §2b path BUILT+proven (`tools/nsrr-stage-validate.mjs`) and blocked on NSRR records under a signed DUA the suite cannot fetch — an owner lever, not code; §4 carries a standing don't-wire on `respCv`. Nothing to build until labeled records exist) · **Created:** 2026-08-02 · **Follows:** `REM-STAGING-REDESIGN-2026-07-28-BRIEF.md` (DONE — measured negative) · **Related:** `DEEP-STAGE-DESAT-CONFOUND` §9 · **Affects:** `nsrr-adapter.js`, `ecgdex-dsp.js`, `tests/dex-tests.js`
+**Status:** PROPOSED (re-verified 2026-09-21: §2b is EXECUTED — #2423, 99/99 records, REM recall 32 % median / precision 26 % — and was unstamped for nine days. The ONLY remainder is §2c, which is a DECISION the brief itself calls publishable — propose a detector change, or declare REM not recoverable from single-lead ECG + chest ACC — and is the owner's to make now that the number exists; no code is owed until it is made. Previously: NOT a code unit. ⚠ **The blocker CHANGED on 2026-09-02, it did not lift**: NSRR access was approved, so §2b is no longer blocked on *obtaining* records — it is now gated on the owner's condition that NSRR stays closed until the brief drain completes. Re-read this before assuming data-absence. Earlier verification 2026-08-31: §2a DONE 2026-08-03; §2b path BUILT+proven (`tools/nsrr-stage-validate.mjs`) and blocked on NSRR records under a signed DUA the suite cannot fetch — an owner lever, not code; §4 carries a standing don't-wire on `respCv`. Nothing to build until labeled records exist. ⚠ **SUPERSEDED IN PART 2026-09-04 (Osprey): THE RECORDS HAVE ARRIVED.** `/srv/data/shhs/polysomnography/` holds **99 EDF + 5136 annotation XML, all 99 ids paired** — so "nothing to build until labeled records exist" no longer describes the world, and neither does `PAPERS-ROADMAP` §3.2's *"revisit only if records ever arrive"*, whose trigger has fired. **What is still unmet is the OTHER condition in this same banner** — NSRR closed until the brief drain completes — measured **73 open briefs against a ≤20 target, 2026-09-04**. That is now the live gate and only the owner can lift it. Inventory, boundaries and pre-stated experiment bands: `SHHS-EXTERNAL-VALIDATION-2026-09-04-BRIEF.md`. ⚠ Note **PPG 0/99** there — §2b's staging arm is reachable, but nothing PPG-derived is. ⚠️ **SUPERSEDED AGAIN 2026-09-12 (Magpie): §2b IS EXECUTED, AND THE GATE IT NAMED IS GONE.** The drain condition recorded in this banner — NSRR closed until the brief drain completes — was still NOT met (52 open against ≤20, re-measured 2026-09-12) and was **superseded by the owner assigning the work directly**, which this banner said only the owner could do. §P5 was clarified the same day to gate PUBLICATION and not measurement. **Result: the shipped stager scores REM recall 32 % median, precision 26 %, over 99/99 SHHS1 records (#2423).** That is the number two staging efforts were short of and it now exists. ⚠️ Note the failure mode is NOT the one this brief assumes: the stager calls REM slightly MORE often than the experts do (16.3 % of epochs against 12.5 %), so it is a PLACEMENT failure, not the ~4× under-call recorded from consumer nights — a fix aimed at sensitivity would be aimed at the wrong thing. ⚠️ And `tools/nsrr-stage-validate.mjs`, described here as **BUILT+proven**, was built and NOT proven: it compared a stage object against a stage string, so REM recall was 0 BY CONSTRUCTION on every record it had ever seen. Its `--selftest` refuses to compute recall from synthetic input — correctly, per §1 — and that refusal is precisely why the defect survived unseen. ⊗ **THE DRAIN CONDITION IS CANCELLED — owner, 2026-09-12.** *"im canceling this condition now. proceed with it."* The owner's separate condition that **NSRR stays closed until the brief drain completes** is WITHDRAWN and is no longer a gate on anything. It was never met — 52 open against a ≤20 target at cancellation, down from the 73 recorded above — and the brief count is now irrelevant to NSRR work. **Do not re-derive it, do not re-measure the open-brief count as an NSRR precondition, and do not treat a high brief count as blocking this lane.** The only gate remaining on this work is `STRATEGIC-PRIORITIES` §P5, which covers **publication, not measurement** (owner ruling the same day).) · **Created:** 2026-08-02 · **Follows:** `REM-STAGING-REDESIGN-2026-07-28-BRIEF.md` (DONE — measured negative) · **Related:** `DEEP-STAGE-DESAT-CONFOUND` §9 · **Affects:** `nsrr-adapter.js`, `ecgdex-dsp.js`, `tests/dex-tests.js`
 
 # Two stages are now blocked on the same missing thing: a label. The adapter for it already exists.
 
@@ -68,8 +68,10 @@ re-bundle rather than causing one; this is that deferral, named rather than skip
   kills 1, first-block-wins-on-overlap kills 1). The browser-only legs were run headless rather than
   shipped unrun: 5070 passing, 0 failing.
 
-  **What 2b still needs is the records, and only the records.** No NSRR data is on this machine, and
-  none can be fetched — NSRR/PhysioNet require a signed DUA and the suite is 100 % local by construction.
+  **What 2b still needs is the records, and only the records.** ⚠️ **SUPERSEDED 2026-09-13 — the
+  records are now on this machine; see the stamp below.** The paragraph is kept because its reasoning
+  is still the right reading of the period it describes. No NSRR data was on this machine, and
+  none could be fetched — NSRR/PhysioNet require a signed DUA and the suite is 100 % local by construction.
   2b is unblocked on code and blocked on a human dropping EDF+XML pairs in. That is a materially different
   status from "the annotation files are the gap".
 
@@ -77,6 +79,45 @@ re-bundle rather than causing one; this is that deferral, named rather than skip
   deferral; revisit only if records are ever actually obtained). 2b's scoring path stays built and
   dormant — do not re-surface this as pending work, and do not re-argue the DUA's value; the
   decision was made with that value on the table.
+
+  ✅ **THE REVISIT CONDITION FIRED — records were obtained 2026-09-13, and §2b HAS NOW BEEN RUN.**
+  The cancellation above is unchanged and is not being re-argued: it names its own trigger ("revisit
+  only if records are ever actually obtained"), and that trigger is met. The full SHHS1 cohort —
+  **5136 records, EDF + expert-scored annotations, all paired** — is on local storage, and the
+  scoring path this brief left "built and dormant" ran across every one of them.
+
+  **The number §2b says has never existed now exists:**
+
+  | | |
+  |---|---|
+  | REM recall vs expert PSG | **23.9 %** |
+  | Wake · Light · Deep recall | 27.7 % · 56.5 % · 16.3 % |
+  | Cohen's kappa (4-class, AASM collapse) | **0.0967 +/- 0.0031** |
+  | n | 5134 records · 505 868 epochs |
+
+  Pre-stated bands (`SHHS-EXTERNAL-VALIDATION-2026-09-04-BRIEF.md` §4 E1, published before the run):
+  >=0.60 transfers · 0.40-0.60 partial · **<0.40 does not**. So the answer to §2b is **negative**, and
+  the conjunction does not transfer to clinical PSG. Misalignment was tested and excluded rather than
+  assumed — kappa recomputed over a window of lags scatters its peak instead of concentrating, and a
+  planted shift IS caught by the same test, so the negative comes from an instrument shown to react.
+
+  ⚠️ **§2c is therefore unblocked and its premise is inverted.** It reads "only then revisit a
+  detector change, with the falsifiers demoted from primary evidence to sanity checks". The labels now
+  exist and they say the shipped conjunction is near chance — so a detector change is no longer
+  *optional refinement*, it is what the real labels call for. That is a materially different starting
+  point from the one §2c anticipated, which assumed the labels would broadly confirm the falsifiers.
+
+  ⚠️ **`DEEP-AUDIT-V` F8 is unblocked too, by the same records, and nobody has said so.** The block
+  quote below already established that F8 needs these records and that §2a's parser delivers the
+  respiratory events it wants. Both conditions now hold. F8 remains unrun; this is a status
+  correction, not a claim that it is done.
+
+  🔴 **What is NOT settled, and is the owner's:** whether §2b/§2c resume as active work. The
+  cancellation was an owner decision taken with the value on the table; this stamp records only that
+  its stated condition has fired and what the run found. It does not reopen the item.
+
+  *(Aggregate figures only — per-record rows and NSRR record identifiers are excluded under the
+  derived-artifact ruling in `SHHS-EXTERNAL-VALIDATION-2026-09-04-BRIEF.md` §5, owner 2026-09-13.)*
 - **2b** Derive ECGDex's per-epoch feature vector (LF/HF, RMSSD, motionIndex, resp, respCv) from NSRR ECG
   on records that also carry expert staging, and evaluate the shipped conjunction against *real* labels.
   That single number — real recall/precision for REM — has never existed and is the thing every staging
@@ -130,7 +171,7 @@ irregularity-linked**, and any candidate built from stability proxies is a prior
 - [x] **2a** — **DONE 2026-08-03.** Established, and stronger than "labels or gap": the labels were being
       parsed and discarded. A per-epoch stage series is now emitted (+ a latent TST bug fixed), gated in
       both lanes, mutation-checked.
-- [~] **2b** — the shipped conjunction scored against **real** PSG labels; REM recall/precision recorded.
+- [x] **2b** — the shipped conjunction scored against **real** PSG labels; REM recall/precision recorded. **EXECUTED 2026-09-12 (#2423), stamped 2026-09-21:** 99/99 SHHS1 records scored through `tools/nsrr-stage-validate.mjs` — **REM recall 32 % median, precision 26 %** — after #2423 found the instrument had compared a stage OBJECT to a stage STRING and reported 0 % on every record it had ever seen (the join fix carries 11 assertions). §P5: measured, not quotable outside the repo. This box read `[~]` for nine days after the number existed. The remainder of this item's text below is the history of the path and stays as written:
       **The PATH IS BUILT AND PROVEN as of 2026-08-04** — `tools/nsrr-stage-validate.mjs` drives
       EDF bytes → `CpapEdf.readEDF` → ECG channel → `ECGDSP.analyze` (Pan-Tompkins, 5-min epochs) →
       `ECGDSP.stageSleep` → join to the 30 s expert grid → REM recall/precision/confusion, and

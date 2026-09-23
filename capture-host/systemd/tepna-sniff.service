@@ -1,0 +1,20 @@
+# tepna-sniff.service — Tepna Vigil
+# Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
+#
+# The nightly air audit (VIGIL-BLUETOOTH-ADVERSARIAL-AUDIT-2026-09-05 D3): a bounded nRF-sniffer
+# capture, then ble_sniff.py's verdict. Unprivileged (User=vigil: dialout covers the sniffer's serial
+# port, and the audit only READS). Type=oneshot so a failed audit — sniffer died early, a foreign
+# initiator connected to one of our devices, no sniffer on the bus — is a FAILED unit, visible in
+# `systemctl --failed` on a box nobody logs into. Nice=19: the extcap's capture loop spins a core.
+[Unit]
+Description=Tepna — nightly BLE air capture + audit
+After=tepna-capture.service
+
+[Service]
+Type=oneshot
+User=vigil
+Group=vigil
+Nice=19
+ExecStart=/opt/tepna/capture-host/tepna-sniff.sh
+# The window (600 s default) plus the extcap's handshake/teardown and the audit, with margin.
+TimeoutStartSec=900

@@ -1,6 +1,6 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 
-**Status:** IN-PROGRESS (parked 2026-09-02 — drain triage, Kestrel: **the remainder is a CAPTURE CAMPAIGN, not code** — the null night and perturbed targets 6–8 need new box nights recorded under the preregistered frame, which is owner-authorized vigil time; owner: Heron, next step: one perturbed night + one null night on the box when the owner schedules it. Two done-when items below are ticked on the FOLLOWUPS brief's evidence — target 1 on the deliberate O2Ring buzz marker (2026-08-20, outside this frame but the evaluation the item asks for) and adapter held fixed across 257/258 sessions (2026-08-18). Phase 1 EXECUTED 2026-08-14 with two confirmed defects; verified 2026-09-01: **Defect A is REMEDIATED and gate-backed** — the `deviceDrawn` refusals now sit in every tool that spends a clock and the suite's `drawn-axis · source-scan` group pins them (checked green this date, per the documented-failure-is-not-open-failure rule) — while the null night, targets 6–8, and target 1's aperiodic-marker evaluation remain OPEN; target 1 is now UNBLOCKED by the proven buzz fiducial (5/5 in H10 ACC and 5/5 in Verity ACC on the pairwise night) but has not been run in this experiment's preregistered frame) · **Created:** 2026-08-14 · **Follows:** `ALLAN-DEVIATION-2026-08-12-BRIEF.md`, `WEARABLE-HOST-AXIS-FOLLOWUPS-2026-08-02-BRIEF.md` · **Affects:** `capture-host/`, `clock.js` §7, `ecgdex-dsp.js`, `ppgdex-dsp.js`, `oxydex-dsp.js`
+**Status:** IN-PROGRESS — 2026-09-20 (OWNER RULED 2026-09-20: "yes, I will run the nights". ⚠️ **My 2026-09-02 stamp below was HALF WRONG** — "a capture campaign, not code" holds for the null night and targets 2·3·5·7·8, and does NOT hold for targets 1·4·6, which need the perturbation injector at the `capture.py` write path that §"known-perturbation injection ❌ does not exist" already said was absent; re-verified 2026-09-20: still absent. So: the null night and five natural targets run NOW on the owner's nights per §Protocol below; the injector is a capture-host code unit (unassigned) that gates the other three. ⟶ IN-PROGRESS (parked 2026-09-02 — drain triage, Kestrel: **the remainder is a CAPTURE CAMPAIGN, not code** — the null night and perturbed targets 6–8 need new box nights recorded under the preregistered frame, which is owner-authorized vigil time; owner: Heron, next step: one perturbed night + one null night on the box when the owner schedules it. Two done-when items below are ticked on the FOLLOWUPS brief's evidence — target 1 on the deliberate O2Ring buzz marker (2026-08-20, outside this frame but the evaluation the item asks for) and adapter held fixed across 257/258 sessions (2026-08-18). Phase 1 EXECUTED 2026-08-14 with two confirmed defects; verified 2026-09-01: **Defect A is REMEDIATED and gate-backed** — the `deviceDrawn` refusals now sit in every tool that spends a clock and the suite's `drawn-axis · source-scan` group pins them (checked green this date, per the documented-failure-is-not-open-failure rule) — while the null night, targets 6–8, and target 1's aperiodic-marker evaluation remain OPEN; target 1 is now UNBLOCKED by the proven buzz fiducial (5/5 in H10 ACC and 5/5 in Verity ACC on the pairwise night) but has not been run in this experiment's preregistered frame) · **Created:** 2026-08-14 · **Follows:** `ALLAN-DEVIATION-2026-08-12-BRIEF.md`, `WEARABLE-HOST-AXIS-FOLLOWUPS-2026-08-02-BRIEF.md` · **Affects:** `capture-host/`, `clock.js` §7, `ecgdex-dsp.js`, `ppgdex-dsp.js`, `oxydex-dsp.js` · **Owner ruling 2026-09-07:** the perturbed-clock night is **SCHEDULED** as box day 3. Order: attended ring session (2026-09-08) → RtPpg (`DEVICE-RATE-TRUTH` §5) → **perturbed-clock** → Polar Logger (`CAPTURE-HOST-FOLLOWUPS-II` V1/V2), one per night, each on a per-night go. No date beyond 09-08 is set. **DRAIN 2026-09-20 (Wren, box):** no campaign night has been recorded under the preregistered frame between 09-02 and 09-20 — no null night, no perturbed target 6–8 night; `/srv/tepna/captures/` carries no frame marks file and the only pre-registration on the box in that window is `LIVE-TESTS-2026-09-19-PM-PREREG.md`, a different experiment (O2Ring finger-off). Still a capture campaign, still owner-scheduled. Two field facts a scheduled night must plan around: 09-18 nothing was worn (3 of 4 devices `connected=0` across 243 polls), and 09-19 the H10 died at 10 % battery after 67 min — a perturbed night needs a charged H10 and someone wearing the kit, neither of which the frame's checklist states.
 
 > **Phase 1 EXECUTED 2026-08-14** — post-capture injection layer run against a real three-device box
 > night. Preregistered criteria, results, and two confirmed defects in **§Findings** below. The
@@ -115,12 +115,21 @@ A one-hop LAN chain from a real stratum-1 at 422 µs root delay and 0.011 ppm sk
 above, a better rate reference than the bound admits. The gate currently rejects the box it was
 written for.
 
-### 2.2 · The O2Ring is not a clock — so it is the **negative control**, not the third leg
+### 2.2 · The O2Ring's sample axis is not a clock — so it is the **negative control**, not the third leg
 
 The O2Ring's sensor timestamp is **synthesized** — constructed as `sample_index × an assumed rate`,
 not read from an oscillator (`o2ring-timestamp-is-drawn`; `clock.js` publishes `timingSource:'none'`
 for exactly this). Perturbing "the O2Ring's clock" and asking the pipeline to recover a frequency
-error is a **category error**: there is no frequency to err.
+error is a **category error**: that axis has no frequency to err.
+
+⚠️ **Scope corrected 2026-09-06 — the heading used to read "The O2Ring is not a clock", of the
+DEVICE, and that is false.** The ring carries `duration_s`, a 1 Hz session counter in every `0x04`
+frame, and on its clean nights it tracks the host to under 16 ppm. Nothing in this section changes:
+the control operates on the **sensor-timestamp column**, that column is drawn, and a recovered ppm
+from it is still the false positive described below. But the device-level phrasing propagated into
+four other places as a fact about the hardware, so it is scoped here rather than left to be quoted
+again. The counter's own rate is bimodal and stall-prone and is NOT a drop-in third leg — residue
+`2026-09-06-ring-duration-counter-bimodal`.
 
 This is not a reason to drop it. It is the **strongest single leg in the experiment**, reframed:
 
@@ -257,6 +266,79 @@ and *no* end-to-end timing test — outside the experiment entirely, which would
   `raw-corpus-is-all-phone-captured`). This experiment requires **new box-captured nights**.
 
 ---
+
+
+## Protocol — the owner's nights (added 2026-09-20, on the ruling "yes, I will run the nights")
+
+**Two halves. Only the first is runnable tonight.**
+
+### A · Runnable now — no injector needed
+
+| night | wear | do | what it tests |
+|---|---|---|---|
+| **null night** (≥1, blind) | all three devices, normal | **nothing unusual** — and do not tell the analyst which night this is; the label goes in a sealed note, opened after the report | Done-when 1: the pipeline must recover **no** perturbation from it. A pipeline that finds something here is fabricating |
+| natural night ×2 | all three, normal | normal sleep; note bed/wake times | targets **2** (ppm + span + anchor count), **3** (Allan slope class), **5** (`maxStepMs` localises a real BLE-dropout step), **8** (host floor — the 19.5 µs is always present) |
+| fixed-adapter night | all three | **same adapter per device as the previous natural night** — write the hci↔device map on the sealed note | target **7** (sensor noise is confounded with adapter unless the assignment is held fixed, §2.4) |
+
+Per night, the sealed note carries: date · which row above · hci↔device map · anything unusual. Nothing else. The analyst gets the recordings and the target list; the notes are opened only after all eight targets are reported.
+
+### B · Blocked on code — the injector
+
+Targets **1** (constant offset), **4** (packet loss), **6** (labelled beat FP/FN) require a **known perturbation injected at the `capture.py` write path** with the injected value recorded out-of-band, so recovery can be scored against truth. That injector **does not exist** (re-verified 2026-09-20). It is a capture-host unit: inject at write time, never rewrite a captured file (§∅ — captured bytes are immutable; the perturbation is applied to what is *written*, and the truth sidecar says so). Unassigned. Until it lands, targets 1·4·6 are not testable and the brief cannot close.
+
+**B.1 · Assigned to Heron 2026-09-20 — BUILT for targets 1 · 4 (2026-09-22, `capture-host/adversarial_capture.py`); target 6 deliberately NOT built, see B.2.** Two owner rulings, **relayed by Kestrel the
+same evening** (a peer relay is enough to design against and not enough to deploy against; the deploy of
+whatever this becomes is authorised by the owner directly, per §👥.0):
+
+1. *"Separate root, injector refuses production."* Injected nights are written to a root that **no corpus
+   tool walks** (`/srv/tepna/adversarial/` or similar), and the injector **exits non-zero if pointed anywhere
+   under the production capture tree.** A different tree, never a marker file. Reason: a labelled-but-co-located
+   perturbed night is walked by `find`, the folds, the end-of-night back-check, the nightly-triage timer and
+   `corpus-tier` (#2723) — which would symlink it into the NAS as a real night. Nothing on the box reads an
+   "adversarial" sidecar, because no such consumer exists; a label in a file nothing opens is the §∅ failure.
+2. *"No — shim or separate process."* The shipped daemon carries **no** path that fabricates data:
+   `capture.py`'s write path does not grow a branch a wrong config line can enable. An injecting shim between
+   device and writer, or a separately-launched process composing the same library code.
+
+**Scope, stated before the first line so a multi-writer diff is not read as creep:** the blast radius is
+**every writer, not one function.** §5's claim is that the capture pipeline itself is under test, and that is
+true only where `capture.py`'s write path, the sidecar writers and the arrival log all see the same perturbed
+stream. That place exists: **`capture.py:3205`, `for smp in samples:`** — the parsed PMD frame's sample list,
+dispatched to `write_ecg` / `write_acc` / `write_ppg`, with PMDARRIVAL written from the same frame a few lines
+above. Target 1 = offset `sensor_ns` / `t_ms`; target 4 = drop whole frames; target 6 = alter ECG values to add
+or flatten a QRS — the hardest, sized last, because a truth sidecar that is *approximately* right is a
+fabricated label.
+
+**The truth sidecar** lives beside the injected night in the adversarial root, never beside anything in
+production, and records what was **injected**, not what was measured (§∅ applies to it too).
+
+⚠️ **The trap, named before building into it:** reaching that seam from a separate process needs an
+injectable hook whose default is identity — the *injected-default-real-vs-noop* shape, where the same syntax
+means opposite things. Mitigation: a **positional callable the daemon never passes, never a config key**, and
+the PR must SHOW the shipped daemon cannot reach it. The refuse-production test is the plant that matters and
+is verified to fail without the guard before it is trusted.
+
+**B.2 · What landed (2026-09-22, Heron).** `capture-host/adversarial_capture.py` is a SEPARATE PROCESS that
+composes the shipped capture library unchanged: it replaces `bleak.BleakClient` in its own process with a
+subclass whose `start_notify` on the PMD data characteristic of a TARGETED address wraps the daemon's callback
+— every frame passes `inject()` before `capture.py` ever decodes it. **Target 1** adds a known `offset_ns` to
+the u64 device stamp at bytes 1..8 of every frame (decode, back-timing, the arrival sidecar, the watchdog and
+every writer see a device whose clock is offset by a known amount against the host's untouched arrival);
+**target 4** drops a frame before decode by a seeded hash of (seed, address, frame index) — deterministic and
+replayable. The truth sidecar `INJECTION-TRUTH-<stamp>.jsonl` (`tepna.injection-truth/1`) sits in the
+adversarial root, plan first, one row per perturbed frame with the original and injected stamps. Ruling 1 is
+`refuse_production`: exit 3 on any root that is, lies under, or lies ABOVE the config's `root` or `/srv/tepna`
+(vigil's, read 2026-09-22), or has no `adversarial` path component — so the default is the SIBLING
+`/srv/tepna-adversarial`, never `/srv/tepna/adversarial`, which every walker of `/srv/tepna` would find. The
+plant was shown load-bearing first: with the guard neutralised the same argv dry-runs INTO production. Ruling 2
+holds by construction: `capture.py` carries no hook, branch or config key (test-asserted by token absence), and
+the derived config switches off the alert webhook and the CPAP harvest. **Target 6 is not built**, on this
+brief's own sizing: flattening or inserting a QRS at a device time needs a truth that says whether a beat WAS
+there, and a sidecar that is approximately right is a fabricated label — it needs its own design (a live
+detector's verdict is not truth). Running the injector beside the production daemon is running two daemons on
+one box; the owner runs the clock nights and that is the owner's call.
+
+⚠️ **The O2Ring must return REFUSAL on every recovery target** (§"The O2Ring is the stream…"). A night on which the ring's stream yields a confident ppm is a finding about the pipeline, not about the ring.
 
 ## Done when
 

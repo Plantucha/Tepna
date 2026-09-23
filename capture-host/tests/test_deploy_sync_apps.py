@@ -201,7 +201,9 @@ def _tree(tmp_path, capture_user_repo="tepna", capture_user_etc="tepna"):
     # after the live box was found running a STALE root-owned tepna-clock.sh and tepna-restart.sh, with
     # tepna-usbreset.sh never installed at all — drift in the most privileged files on the box, invisible
     # because they were not on this list.
-    for u in ("tepna-update.service", "tepna-update.timer"):
+    for u in ("tepna-update.service", "tepna-update.timer", "tepna-sniff.service", "tepna-sniff.timer",
+              "tepna-update-pending.service", "tepna-update-pending.timer",
+              "tepna-radioclock.service"):
         (src / u).write_text(f"[Unit]\nDescription={u}\n")
         (systemd / u).write_text(f"[Unit]\nDescription={u}\n")
     lib = tmp_path / "lib-tepna"; lib.mkdir()
@@ -293,7 +295,9 @@ def _tree_two_sources(tmp_path, deploy_body, systemd_body, etc_body):
     (systemd / "tepna-capture.service").write_text(etc_body)
     # The privileged helpers, in sync — this fixture is about AMBIGUOUS SOURCES, so they must not be
     # the thing that reds it.
-    for u in ("tepna-update.service", "tepna-update.timer"):
+    for u in ("tepna-update.service", "tepna-update.timer", "tepna-sniff.service", "tepna-sniff.timer",
+              "tepna-update-pending.service", "tepna-update-pending.timer",
+              "tepna-radioclock.service"):
         (src / "systemd" / u).write_text(f"[Unit]\nDescription={u}\n")
         (systemd / u).write_text(f"[Unit]\nDescription={u}\n")
     lib = tmp_path / "lib-tepna"; lib.mkdir()
@@ -599,10 +603,40 @@ def test_no_test_executes_a_deploy_script_that_mutates_host_state_unguarded():
     # And the property that bounds all of it: the script NEVER self-elevates. It is the sudo TARGET, not
     # a sudo caller — the only `sudo` in the file is in the deploy comment. Run by the test user it has
     # exactly that user's authority, and `ip link set` / `dhcpcd` / `wpa_supplicant` all refuse it.
+    # tepna-btmon.sh added 2026-09-05 — the sixth NOPASSWD helper, and the first that WRITES A FILE THE
+    # CALLER NAMES, so the confirmation is about where that write can land rather than about /etc:
+    #   • the write destination is validated BEFORE btmon runs and confined to $TEPNA_BTMON_OUTROOT
+    #     (real default /srv/tepna/captures), which `_run()` sets unconditionally into tmp_path; a `..`
+    #     component is rejected outright, so an inside-by-prefix path cannot resolve outside, and an
+    #     EXISTING file is refused rather than truncated — a redirected run cannot even clobber a
+    #     fixture, let alone a real capture;
+    #   • $TEPNA_BTMON_SYSFS (real default /sys/class/bluetooth) is the only path READ, also redirected
+    #     unconditionally, and the adapter must exist there before anything runs;
+    #   • its entire external command surface is `btmon` and `timeout`, and `_run()` prepends a stub
+    #     btmon onto PATH — so the real monitor socket is never opened. That matters more here than
+    #     usual: unstubbed, btmon needs CAP_NET_RAW and would simply be REFUSED for the test user, which
+    #     is the property that bounds an unstubbed run to nothing;
+    #   • it contains no systemctl, udevadm, mount, install, ip, chmod or sudo. The one ownership call is
+    #     `chown --reference=<the output dir>` on the file it just created — inside the redirected root,
+    #     and `|| true` so a non-root run proceeds;
+    #   • it NEVER self-elevates: like tepna-wifi.sh it is the sudo TARGET, not a sudo caller.
+    # systemd/tepna-btattach.sh added 2026-09-12 — runs as root under its unit, so the confirmation is
+    # about what a test invocation can REACH rather than what root could do:
+    #   • its two inputs are the map ($TEPNA_BTATTACH_MAP, real default /etc/tepna/btattach.map) and the
+    #     tty class tree ($TEPNA_BTATTACH_TTY_SYSFS, real default /sys/class/tty); test_btattach_unit's
+    #     `_run()` sets BOTH into tmp_path unconditionally, and a source scan there pins that no other
+    #     `/sys/class/tty` literal exists — so no path through the script can find a real dongle;
+    #   • every privileged command (btattach, hcitool, hciconfig) is resolved through $PATH, and `_run()`
+    #     prepends stubs that exit 99 — a reach for real hardware is a visible failure, never a silent
+    #     success. Unstubbed, btattach/hcitool need CAP_NET_ADMIN and would be refused for the test user;
+    #   • it writes NO file: no install, no systemctl, no udevadm, no mount, no ip; the only state it
+    #     touches is an HCI controller's address, and only one found under the redirected tree;
+    #   • it NEVER self-elevates: it is the unit's ExecStart, not a sudo caller.
     assert executed <= {"check-system-files.sh", "sync-apps.sh", "sse-frames.sh", "enable-cpap-wifi.sh",
                         "tepna-clock.sh", "tepna-restart.sh", "tepna-rssi.sh",
                         "tepna-usbreset.sh", "tepna-btreset.sh", "tepna-wifi.sh", "check.sh",
-                        "tepna-update.sh", "vigil.sh"}, (
+                        "tepna-update.sh", "vigil.sh", "tepna-btmon.sh", "tepna-sniff.sh",
+                        "tepna-report.sh", "tepna-btattach.sh"}, (
         f"a test now executes {sorted(executed)} — confirm it cannot mutate real host state "
         f"(systemctl / udevadm / mount / ip / install into /etc) before adding it here")
 

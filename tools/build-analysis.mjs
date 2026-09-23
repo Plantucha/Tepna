@@ -53,14 +53,28 @@ const ONE = (() => {
 // The tool set (every *-analysis.html served surface). Kept explicit so a stray HTML never
 // gets silently rewritten.
 const TOOLS = [
+  /* not an analysis tool — a shared realm page. It is here because it loads node DSPs, and those
+     carry ES re-exports a classic <script src> cannot parse; inlining through `readJs` classicifies
+     them. See the comment block in the file. */
+  'cohort-harness.html',
   'cgm-hrv-coupling-analysis.html',
   'hrv-confound-analysis.html',
   'nights-icc-analysis.html',
   'odi-bias-analysis.html',
+  /* PAT Feasibility.html was a hand-copied page (2026-07-25) that loaded pat-gate.js + pat-feasibility.js from
+     the served root, whose worker then importScripts seven more — and the box's sync-apps serves only OWNED
+     output, so every one of them 404'd there and the monitor's PAT click could never process (Wren, 2026-09-21).
+     pat-feasibility-worker.js had said "DEAD in the build-analysis blob" since it was written: built to be
+     inlined, never listed. */
+  'PAT Feasibility.html',
   'qrs-equiv-analysis.html',
   'qrs-yield-analysis.html',
   'resp-acc-analysis.html',
   'sensor-trio-power-analysis.html',
+  /* the monitor's "3 corner hat" click lands here (2026-09-22): one night, solved and drawn on the suite's own
+     engines, instead of the power tool whose simulation panels stay empty for a single night. Same worker, so it
+     is bundled the same way — a page not in this list is never inlined and never served (see the PAT entry). */
+  'sensor-trio-night.html',
   'sigma-no-reference-analysis.html',
   'treatment-response-analysis.html'
 ];
@@ -158,6 +172,18 @@ function inlineScripts(html) {
     if (name === '__file-local-workers') return full; // handled separately
     if (!exists(name)) return full;
     return '<script data-inline-src="' + name + '">\n' + readJs(name) + '\n</script>';
+  });
+  // <link rel="stylesheet" href="x.css"> → <style data-inline-src="x.css"> (the build-core convention), and
+  // re-fill existing inline style blocks. A tool that links the design system must CARRY it: linked, it opens
+  // unstyled from a download (file://) and 404s on the box, which serves no loose CSS for the analysis tools.
+  html = html.replace(/<link\b([^>]*?)\brel="stylesheet"([^>]*?)\bhref="([^"]+)"([^>]*)>/gi, (full, a, b, href) => {
+    if (/^(https?:)?\/\//i.test(href) || /^data:/i.test(href)) return full; // external URL — leave
+    if (!exists(href)) return full; // unknown sibling — leave (surfaces as a real 404, not our concern)
+    return '<style data-inline-src="' + href + '">\n' + readFile(href) + '\n</style>';
+  });
+  html = html.replace(/<style\b[^>]*\bdata-inline-src="([^"]+)"[^>]*>[\s\S]*?<\/style>/gi, (full, name) => {
+    if (!exists(name)) return full;
+    return '<style data-inline-src="' + name + '">\n' + readFile(name) + '\n</style>';
   });
   return html;
 }

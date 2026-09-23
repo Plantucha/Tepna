@@ -38,6 +38,13 @@ watchdog:                               # auto-recover a WEDGED BLE controller (
   #                                     #     `ls /sys/bus/usb/devices/`. OFF by default.
   # exit_on_giveup: true                #   after exhausting cycles, exit non-zero so systemd re-execs with
   #                                     #     a fresh bleak/D-Bus stack instead of looping deaf all night.
+  spare_quarantine_sec: 900             #   before failing over onto a spare radio we ask it an HCI
+  #                                     #     round trip, because `UP RUNNING` is a CACHED kernel flag and
+  #                                     #     on 2026-09-11 a wedged radio reported it while HCI Reset
+  #                                     #     timed out. A spare that does not answer is skipped for this
+  #                                     #     long, then probed again — a cooldown, never a permanent
+  #                                     #     verdict. If EVERY spare is deaf the failover is refused
+  #                                     #     rather than spending the flap cap on a dead radio.
 
 link:                                   # weak-signal warning. Stream-rate health (packet rate vs nominal)
   rssi_enabled: true                    #   is always on & needs no privilege. RSSI dBm enrichment needs a
@@ -103,14 +110,23 @@ devices:
       # pedestal leaving, not a regression.
       acc: 26
 
-  # Muse S — raw EEG. Captured via a child tool, NOT bleak directly. Pick by firmware:
+  # Muse S — raw EEG. Captured via a child tool, NOT bleak directly. The switch is a PROCESS-MODEL
+  # split (one child, connects by address, writes one file — see capture.run_muse), verified against
+  # both upstreams at HEAD on 2026-09-20 (a dated snapshot, re-check before relying on it):
+  #   muselsl  → `muselsl record_direct` — Muse 2 / S gen 1-2 (the legacy GATT protocol). muse-lsl
+  #              v2.5.x DOES support the Athena, but only through `stream` (+ `record` over LSL), which
+  #              the daemon does not run; `record_direct` is legacy-only at HEAD.
+  #   openmuse → `OpenMuse record` — Muse S Athena ONLY (OpenMuse decodes nothing else). Unmaintained
+  #              since 2026-01-28 and carries open optics/PPG issues (#24, #27): EEG is the use here.
+  # Both are spawned with an explicit 24 h --duration (their defaults are 60 s / 30 s demos).
+  # ⚠️ Unexercised on the production box (no Muse configured, neither tool installed, 2026-09-20).
   - name: Muse S
     vendor: Muse
     model: S
     device_id: DDDDDDDD
     address: "ZZ:ZZ:ZZ:ZZ:ZZ:ZZ"
     streams: [eeg]
-    muse_tool: muselsl           # "muselsl" (Muse 2 / S gen 1-2) | "openmuse" (Muse S Athena)
+    muse_tool: muselsl           # "muselsl" (Muse 2 / S gen 1-2, record_direct) | "openmuse" (Muse S Athena)
 
   # Wellue O2Ring-S / T8520 (advertises as "S8-AW …") — LIVE SpO2 + pulse via the OxyII protocol
   # (run_oxyii; no bond, no vendor-app round-trip). Older O2Rings on the legacy Viatom protocol:
@@ -120,7 +136,26 @@ devices:
     model: O2Ring-S
     device_id: CCCCCCCC
     address: "WW:WW:WW:WW:WW:WW"        # Random-Static MAC — rotates on factory reset; re-scan if it changes
-    streams: [spo2]
+    streams: [spo2, ppg, acc]
+    # ⚠️ `acc` is a ZERO-ORDER HOLD and carries TWO rates that must not be conflated. The ring MEASURES
+    #    at 1.5625 Hz and the capture path writes ~9.979 Hz records, so ~84 % of records repeat the
+    #    previous value (measured two nights: 6.387-6.396 records per distinct value = 32/5). Coverage
+    #    is judged against the RECORD rate — that is what `measured_hz` reads off the file — while
+    #    anything counting independent samples, epochs or information content must use the MEASUREMENT
+    #    rate (`nightqc.measurement_hz`) or be 6.4x wrong. The repeats are real data at a real lower
+    #    rate (Clock Contract §7, a drawn axis), NOT absence: a run-length rule keyed on constant runs
+    #    would flag 99.8 % of the file and convict the device for working as designed.
+    # ⚠️ `_ACCRAW.txt`, `_PLETHA.txt` and `_PPG2W.txt` carry NO device clock, so their
+    #    `sensor timestamp [ns]` column is written BLANK. It is not `0`: a zero is in-band for a ns
+    #    counter and a reader that trusts it places every row at the epoch.
+    # serial: "2592302100"             # OPTIONAL identity check (VIGIL-BLUETOOTH-ADVERSARIAL-AUDIT §6.2
+                                       #   Mitigation C). The WIRE serial the ring answers in its 0xE1
+                                       #   GET_INFO reply — read it off the monitor's "peer identity" line
+                                       #   after one connect. NOT the same string as device_id: that is the
+                                       #   BLE-name id filenames carry. When set, a connected peer whose
+                                       #   serial differs is flagged on the monitor and the alerts webhook;
+                                       #   the link is unbonded + plaintext, so this is detection of a wrong
+                                       #   or cheaply spoofed ring, not proof of the right one. Unset = off.
 
 # Lingo (CGM) and CPAP (EDF) are NOT live-captured — drop their exports into captures/<night>/:
 #   - Lingo:  encrypted/locked  -> Health Connect / Apple Health export -> drop in   (how-to-collect/libre-cgm.md)
@@ -145,6 +180,9 @@ stream:
 power:                    # duty-cycle a Polar strap that reports NOT WORN, to save its battery overnight.
   drop_not_worn_sec: 180  #   continuous not-worn before dropping the link (0 = never drop on wear state)
   not_worn_recheck_sec: 90 #  once dropped, how often to reconnect and re-check for skin contact
+  reconnect_backoff_cap_sec: 180 # ceiling of the error backoff for a device that is simply not here (5 s doubling,
+                          #   reset only once data flows). Each attempt is a 30 s scan on the shared radio:
+                          #   60 was ~35-46 hopeless scans/hour per absent device; 180 ≈ 17/hour.
 o2ring:                   # Wellue O2Ring-S / T8520 specifics.
   ppg_fs: 125.738         #   per-unit 125 Hz pleth sample rate (2026-07-18 5.8 h calibration; overrides only
                           #   the timestamp step — the ring's true rate varies slightly per unit)
@@ -208,6 +246,23 @@ qc:
 # MIRROR each completed night (not tonight) to a destination — a NAS mount, the tepna-web served dir, a
 # backup disk — so finished nights land where they get analysed. Idempotent + resumable; never moves the
 # source (the storage guard prunes it on its own schedule).
+# NIGHT SEAL (CAPTURE-NIGHT-SEAL phase B, §13). Each SETTLED night is bagged, signed with the box's own
+# P-256 key and encrypted to the patient's card key, then written to `outbox/<boxId>-<night>.tepna`
+# (atomic); a post-close writer (back-check sidecar, late pull) gets a verified re-issue at revision+1.
+# Keys are generated once under `<root>/keys/` (0600, never exported); the card is written to the outbox
+# as a self-contained HTML the browser prints. DEFAULT OFF: a patient's night written into a folder a
+# sync client may watch is the owner's switch. Nothing here touches captures/ or any network.
+seal:
+  enabled: false
+  box_id: ""                 # empty ⇒ the hostname; appears on the card, in every seal header and file name
+  outbox: ""                 # empty ⇒ <root>/outbox
+  key_dir: ""                # empty ⇒ <root>/keys
+  poll_sec: 600
+  # Research consent, as ANSWERED at setup: true | false | null. null = NOT ASKED — never a default no
+  # (§∅ applies to consent); it is written as the literal `null` into bag-info and the seal header. The
+  # wording of the question is the owner's (brief §11); this field records the answer, nothing else.
+  research_consent: null
+
 archive:
   enabled: false
   dest: ""                # e.g. /mnt/nas/tepna  or  /srv/tepna/app/captures
@@ -302,6 +357,35 @@ cpap:                    # ResMed card auto-harvest over an ez Share Wi-Fi SD ad
     #   flow_eps_lpm: 0.5           # |flow| at or below this counts as "not breathing" (idle measured -0.01)
     #   hold_sec: 120.0             # continuous quiet REQUIRED, timed in samples (a dead link cannot age it)
 
+    # EVENT SUBSCRIPTION — the device's OWN session-boundary witness, recorded beside the stream. With
+    # auto_start the box had ONE witness for "therapy started" (the trigger fires on the shadow
+    # detector's own sighting, so detector and trigger cannot disagree). `SubscribeEvent` asks the AS11
+    # to push EventNotifications; two data ids are subscribed by default, each for a stated consumer:
+    #   UsageEvents-TherapyStatusEvents  TherapyStart/TherapyStop/MaskOn/MaskOff — the device's account
+    #   _ZLE                             Zero Leak Estimate 0/1 — rising = it accepts flow (data begins),
+    #                                    falling = end; a different subsystem from the therapy state.
+    # Every notification is written VERBATIM (host arrival stamp beside the device reportTime) to
+    # cpap-events-<UTC stamp>.jsonl under raw_record_dir (or edf_dir), and the gap line / acquisition
+    # envelope carry the `_ZLE` edges, the trigger's own start/stop, and the deltas between them —
+    # None when either side is absent, never 0. It does NOT replace auto_start/auto_stop; it records
+    # when they and the device disagree. READ-ONLY on the device (nothing is set), non-fatal (a
+    # declined subscription is recorded and the stream proceeds).
+    # 🔴 DEFAULT OFF. It changes what the radio carries beside a sleeping body, so it is armed by an
+    # explicit edit, never by shipping the code. The daemon logs its arming state either way.
+    # events:
+    #   enabled: false
+    #   data_ids: ["UsageEvents-TherapyStatusEvents", "_ZLE"]   # add an id only with its consumer named
+
+    # EXTRA STREAM IDS — requested in the SAME StartStream as PatientFlow/MaskPressure but PUBLISHED
+    # NOWHERE: no bus channel, no EDF channel. They land VERBATIM in the raw record (raw_record_dir is
+    # therefore REQUIRED — the daemon refuses this key without it) and in the gap line's byte counters,
+    # so the marginal cost of an id is measured (`bytes_json / frames_ok` with it on vs off) before any
+    # consumer is built on it, and its physical unit can be pinned from the recorded values first.
+    # First candidate: `_LKF` (Leak — the quantity `_ZLE` gates; the device holds each 2 s value across
+    # the 40 ms reports, so it costs the same as a third waveform channel until decimated).
+    # 🔴 DEFAULT OFF — it changes what the radio carries; armed by an explicit edit, never by code.
+    # extra_data_ids: ["_LKF"]
+
     # AUTO-START — the mirror of auto_stop: the live stream starts itself when therapy starts, instead
     # of waiting for someone to press a button. Ordered by the owner 2026-08-29 after two nights that
     # cost real data and reported nothing: 08-26, a full session with the stream never started (nobody
@@ -374,3 +458,52 @@ cpap:                    # ResMed card auto-harvest over an ez Share Wi-Fi SD ad
 as11_detector:
   enabled: false
   poll_interval_sec: 30
+
+# RADIO CLOCK — the Nordic controller's own connection-event anchor points, recorded as an OPTIONAL
+# second clock (RADIO-CLOCK-SIDECAR-2026-09-07). It writes `*_RADIOCLOCK.csv` beside the night and
+# CHANGES NOTHING ELSE: no consumer uses the anchors until the pre-stated bands in §4 admit them.
+#
+# WHAT IT IS FOR. Today the second clock on a box capture is the HOST ARRIVAL STAMP of each PMD packet,
+# which reaches Python through USB → kernel → BlueZ → D-Bus → bleak; `hostAxis` measures its spread at
+# 102–5124 ms on box nights. A Nordic controller can report the anchor point of every connection event
+# on its own clock, below all of that.
+#
+# 🔴 DEFAULT OFF, AND FEATURE-DETECTED EVEN WHEN ON. Turning this on does not assert that your box can
+# do it: the collector proves the controller is Nordic AND that the vendor enable command succeeds
+# before it opens a file, and on any miss it logs one line, exits 0 and writes NOTHING. A non-Nordic
+# controller is the common case, not an error — and absence is the absence of a FILE, never an empty one.
+#
+# ⚠️ `adapter` is an ADDRESS and defaults to the capture adapter above. Set it when the radio clock
+# lives on a DIFFERENT dongle from the one the daemon bonds through — a timing part rather than the
+# permanent fixture. Never `hciN`: that is an enumeration order which changes when a dongle is
+# re-plugged, and BLE identity here is address-only.
+#
+# It runs as its own unit (`tepna-radioclock.service`, CAP_NET_RAW only) and never touches capture.
+radio_clock:
+  enabled: false
+  # adapter: "XX:XX:XX:XX:XX:XX"
+
+# ── Session ELEVATION from a GNSS receiver (OPTIONAL, disabled by default) ─────────────────────────────
+# Almost nobody needs this: if the box never moves, type the elevation into the Dex profile once and
+# ignore this block. It exists for a TRAVELLING capture host, where a profile elevation typed at home
+# is wrong everywhere else — and wrong in the direction that invents findings.
+#
+# WHAT CONSUMES IT. The Dex profile's `elevation` is not decoration: OxyDex lowers the healthy SpO2
+# threshold by ~1.8 %/1000 m (Roach 1998 / AMS guidance), and HRVDex/ECGDex apply an altitude factor to
+# the Uth-Sorensen VO2max. A night recorded at 2500 m against a profile still saying 0 m reads as ~4.5 %
+# of desaturation that never happened.
+#
+# ABSENCE IS NULL. No receiver, no fix, or a poor fix (< 4 sats, HDOP > 5, or quality 6 = dead
+# reckoning) records NOTHING rather than 0 m. Zero is a legal elevation — the sea — so a fabricated
+# zero is indistinguishable from a measured one downstream.
+#
+# Any NMEA receiver works; no configuration is written to it, so one shared with a GPSDO or a radio is
+# safe. Tested against a QUESCAN UBX-M10050 (u-blox M10) on a CP2102 USB-TTL bridge at 38400 baud.
+geo:
+  enabled: false
+  port: /dev/ttyUSB0      # the receiver's serial port. /dev/serial/by-id/... is stabler across re-plug
+  baud: 38400             # u-blox M10 default. Many older receivers are 9600
+  read_sec: 5             # how long to listen at session start. The best (lowest-HDOP) fix in it wins
+  record_position: false  # PRIVACY: false records ELEVATION ONLY. The analysis has no use for
+                          # latitude/longitude, and a medical recording carrying coordinates to metre
+                          # precision is a disclosure nobody asked for. Opt in deliberately or not at all

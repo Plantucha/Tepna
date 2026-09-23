@@ -4,6 +4,33 @@ mypy>=2.3.1          # advisory type gate (PYTHON-TYPES-AND-FORMAT-2026-08-27) �
 ruff>=0.16.5           # lint (blocking) + `ruff format` (black-compatible style; changed-files advisory)
 pytest>=9.1.1
 pytest-cov>=7.1.0
+pytest-xdist>=3.8.0    # CI runs the suite `-n 4` (see capture-host-ci.yml); check.sh uses it when present
 pytest-asyncio>=1.4.0
 hypothesis>=6.165.10      # property tests for the clock surface — invariants over an input space,
                        # where a known-answer table cannot go (tests/test_clock_properties.py)
+mutmut==3.8.0          # tools/mutate_diff.py (the diff-scoped mutation gate) and tools/mutate.py.
+                       # ⚠️ PINNED EXACTLY, the only `==` in this file, on purpose (2026-09-21): the
+                       # mutant GENERATOR is the gate. `>=3.7.0` let CI install 3.8.0 against every
+                       # local venv at 3.7.0, and the two generate different mutant sets — on #2776 four
+                       # extra mutants under 3.8, one reaching a branch no local run had ever driven. A gate
+                       # that can disagree with its own local run by version is not a gate. Owner chose
+                       # 3.8.0 (the stricter generator) over 3.7.0 (what venvs had), 2026-09-21. Bumping this is a
+                       # deliberate change: upgrade every venv, re-run the gate on a known-clean module,
+                       # and re-baseline survivors — never a `pip install -U`.
+                       # CI installs it inline in the `mutation-diff` job, which is why this file could
+                       # omit it without CI noticing — but that made the gate UNRUNNABLE from the
+                       # documented local setup: `mutate_diff.py` refuses when mutmut is absent (rightly
+                       # — "a gate that cannot see must not report green"), so a contributor following
+                       # this file got a refusal with no indication that a dependency was missing.
+                       # `hypothesis` is listed here despite ALSO being installed inline in CI, so the
+                       # omission was an inconsistency rather than a policy.
+shellcheck-py>=0.11.0.1 # check.sh's `shellcheck` gate + tests/test_shell_surface.py. The SAME omission as
+                       # mutmut, with a worse symptom: mutmut refused and said why; a missing shellcheck
+                       # exits 127 inside check.sh, which reads as "the tool is absent on this box" —
+                       # an environment fact — and was explained away four times in one day (Wren,
+                       # 2026-09-06) while the gate reported on 5 of its 6 checks. check.sh now resolves
+                       # the binary beside the interpreter first, the way test_shell_surface.py does.
+detect-secrets>=1.5.0  # the `secrets` CI job (`detect-secrets audit --report` against .secrets.baseline).
+                       # Owner rule (2026-09-06): this file lists EVERY tool a CI job installs, so the
+                       # documented local setup can run every gate CI runs. tests/test_dev_requirements.py
+                       # reads the workflow's inline `pip install` lines and reds the day one drifts.

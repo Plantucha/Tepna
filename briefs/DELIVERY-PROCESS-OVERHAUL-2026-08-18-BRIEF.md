@@ -4,7 +4,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** IN-PROGRESS — 2026-09-02 (§1 §3 §4 executed in the founding PR; §2 §5 §6 owner-gated. ⚠ **§2's RAW FACTS, no bar applied — CORRECTED 2026-09-02.** ~~§2's ratified cadence is being BREACHED ~3×~~ was **my error, and it propagated.** §2 is headed **OWNER-GATED** and states its rule as ***"Proposed:** fold at ≥25 pending changesets or weekly"* — so calling it *ratified* upgraded a proposal, and the multiplier was then derived from the upgrade. **A header claim that outran its source**, in the governance layer, written by the session that spent that day cataloguing exactly that shape; a peer repeated the multiplier back within the hour. The count was also quoted with no window, the same defect as a ppm without its span — it read **78** when first measured and **89** hours later. **The facts, for the owner to apply their own bar to:** **89** pending changesets excluding README (`git ls-tree -r origin/main -- changes/`, measured 2026-09-02 evening); last release **v2.9.0** on **2026-08-30**; §2's PROPOSED trigger is *"≥25 pending or weekly"*, so the count clause is over and the time clause is not. Cutting v2.10.0 is not a session's call — §📦 forbids hand-picking a version and it sits in the owner's decision queue. **The consequence that outranks the count:** `CHANGELOG.md` is tool-owned and corrections land as NEW entries, so a deferred fold holds a verified-false CHANGELOG line live and greppable until someone cuts a release) · **Created:** 2026-08-18
+**Status:** DONE — 2026-09-17 (**§2's cadence was RATIFIED by the owner on 2026-09-07 — AS AMENDED, `attended` → UNATTENDED — which was the one thing holding this open; all six Done-when boxes were already ticked.** ⚠️ The ruling sat unstamped for ten days, and the cost was not a re-ask: the cadence read as awaiting a decision already made, so its DUTY was suspended and the trigger was breached 4.2× — 104 pending changesets against 25, measured 2026-09-17. v2.12.0 was cut under the amended rule that day, the first unattended fold. ⚠️ The amendment overrode this brief's OWN argument for `attended`, and §2 records why: v2.10.0 was hand-driven and four of its eleven post-stamp steps went wrong, so attended was the failing arm. Was: IN-PROGRESS — 2026-09-03 (§1 §3 §4 executed in the founding PR; **§2 alone is owner-gated.** ⚠️ The previous header said *"§2 §5 §6 owner-gated"* while its OWN boxes below tick §5 **CLOSED** and §6 **DRAINED** — a header contradicting its body, the same shape that left MOTIONDEX §6A false for a month. Both re-verified 2026-09-03 rather than taken from the ticks: **§5** merge queue is genuinely unavailable, not declined on cost — the GitHub API reports `owner.type=User` and no organization, and the feature is organization-only; **§6** the shared root holds 12 uncommitted paths against the 180 it was drained from. **§1/§3/§4 spot-checked by capability too**: `wt-done.mjs --selftest` 6/6 ok, 9 of 11 workflows carry a `concurrency:` guard, and the §5b WIP-cap text is present in CLAUDE.md. What actually holds this brief open is ONE thing: §2's fold cadence is stated as ***Proposed*** and awaits owner ratification — it is not a checkbox, which is why the brief cannot self-close. ⚠ **§2's RAW FACTS, no bar applied — CORRECTED 2026-09-02.** ~~§2's ratified cadence is being BREACHED ~3×~~ was **my error, and it propagated.** §2 is headed **OWNER-GATED** and states its rule as ***"Proposed:** fold at ≥25 pending changesets or weekly"* — so calling it *ratified* upgraded a proposal, and the multiplier was then derived from the upgrade. **A header claim that outran its source**, in the governance layer, written by the session that spent that day cataloguing exactly that shape; a peer repeated the multiplier back within the hour. The count was also quoted with no window, the same defect as a ppm without its span — it read **78** when first measured and **89** hours later. **The facts, for the owner to apply their own bar to:** **89** pending changesets excluding README (`git ls-tree -r origin/main -- changes/`, measured 2026-09-02 evening); last release **v2.9.0** on **2026-08-30**; §2's PROPOSED trigger is *"≥25 pending or weekly"*, so the count clause is over and the time clause is not. Cutting v2.10.0 is not a session's call — §📦 forbids hand-picking a version and it sits in the owner's decision queue. **The consequence that outranks the count:** `CHANGELOG.md` is tool-owned and corrections land as NEW entries, so a deferred fold holds a verified-false CHANGELOG line live and greppable until someone cuts a release) · **Created:** 2026-08-18 · **Owner ruling 2026-09-07:** §2 — fold at **≥25 pending changesets or weekly**, attended, on the corpus machine; **Kestrel** runs it. §2 was the last owner-gated item in this brief.
 
 # Delivery-process overhaul — the friction, measured, and what removes it
 
@@ -36,12 +36,33 @@ PR-only deliberately — cancelling on `main` leaves a cancelled required check 
 already cancelled. **Verified live in the founding PR:** a second push while the first run was in flight,
 then `gh run list` showing the superseded runs `cancelled` — the exact scenario that burned 43 min.
 
-## §2 · Release fold cadence — OWNER-GATED, and the largest single debt
+## §2 · Release fold cadence — ✅ RATIFIED 2026-09-07, **AS AMENDED**
+
+> ✅ **OWNER RULING 2026-09-07: "Release fold cadence: ≥25 pending changesets or weekly, Kestrel on the
+> corpus machine — UNATTENDED."** The trigger below was accepted verbatim. **The `attended` clause was
+> NOT** — and that is an override of this section's own reasoning, not a detail, so it is recorded as one.
+>
+> §2 argued against automation because *"the tool's refusal conditions need a human deciding regenerate
+> vs investigate, and an unattended fold that hits one would either die silently or be pressured into
+> `--force` culture."* The owner had counter-evidence this brief did not: **v2.10.0 was hand-driven and
+> four of its eleven post-stamp steps went wrong.** Attended was the failing arm, not the safe one.
+>
+> The silent-death objection is answered by machinery built since: `tools/release-land.mjs` runs 14
+> resumable steps with `--status` and `--resume`, so a refusal is a reported halt at a named step rather
+> than a dead process. That is what makes UNATTENDED safe here, and it is the part to re-check if the
+> mechanism ever changes.
+>
+> ⚠️ **AND THE TRIGGER WAS BREACHED WHILE THIS SECTION STILL READ "OWNER-GATED".** Measured 2026-09-17:
+> **104 pending changesets against a threshold of 25 — 4.2×.** The ruling was ten days old and unstamped,
+> so the cadence read as awaiting a decision that had already been made, and nobody checked the counter.
+> An unstamped ruling does not merely cost one re-ask; it suspends the duty it created. v2.12.0 was cut
+> under it on 2026-09-17 — the first fold under the amended rule.
+
 
 220 changesets is work cadence fully decoupled from release cadence. The machinery is fine
 (`tools/release.mjs` computes the version once from a green tree and refuses while corpus-backed
-fixtures are unverified); nobody runs it. **Proposed: fold at ≥25 pending changesets or weekly,
-whichever first, run attended on the box holding the corpus.** Not automated deliberately — the tool's
+fixtures are unverified); nobody runs it. **RATIFIED: fold at ≥25 pending changesets or weekly,
+whichever first — ~~run attended~~ run UNATTENDED on the box holding the corpus (owner, 2026-09-07).** Not automated deliberately — the tool's
 refusal conditions (red tree, unverified fixtures) need a human deciding *regenerate vs investigate*,
 and an unattended fold that hits one would either die silently or be pressured into `--force` culture.
 

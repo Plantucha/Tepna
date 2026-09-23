@@ -107,12 +107,30 @@ import { EPOCH_MS, MATCH_MS, HR_BIN_MS, MAX_LAG_MS, mean, sd, quantile, median, 
 export { hrEnvelope, envelopeLagMs, refineLagByMatch, matchBeats, refinePeaks, ppiJitterMs };
 
 /* ════════════════════════════════════════ SELFTEST ════════════════════════════════════════ */
+/* The usage string is a CONSTANT so the selftest can check it against the flags the tool actually
+   reads. `--device` shipped undocumented: it exists at the DEVICE line below and selects the Verity
+   leg, but `--help` never mentioned it, so a session looking for it found `--dir` only and concluded
+   the capability was absent. That is the discoverability failure one level below a missing index —
+   the flag is IN the tool and unreachable by anyone who did not read the source. */
+const USAGE = 'usage: node tools/ppi-jitter-vs-ecg.mjs --dir <captures> [--device o2ring|verity] ' + '[--min-epochs N] [--max-nights N] [--sleep-only] [--no-merge]  |  --selftest';
+
 function selftest() {
   let fail = 0;
   const ok = (n, c, d) => {
     console.log((c ? '  ok   ' : '  FAIL ') + n + (d != null && !c ? '  — ' + d : ''));
     if (!c) fail++;
   };
+  /* ⚠️ EVERY FLAG THE TOOL READS MUST APPEAR IN ITS USAGE STRING. Read from the source rather than a
+     hand-list, so a flag added tomorrow is covered without anyone remembering to update this. Derived,
+     not asserted: `--device` was undocumented for weeks and a session concluded the capability was
+     missing because `--help` did not name it. */
+  {
+    const src = readFileSync(new URL(import.meta.url).pathname, 'utf8');
+    const flags = [...src.matchAll(/(?:opt|has)\('(--[a-z-]+)'/g)].map((m) => m[1]);
+    const undocumented = [...new Set(flags)].filter((f) => USAGE.indexOf(f) < 0);
+    ok('every flag the tool reads is named in USAGE', undocumented.length === 0, undocumented.join(', ') || '');
+    ok('…and the flag scan actually found flags (anti-vacuity)', flags.length >= 3, flags.length + ' flag(s) scanned');
+  }
   // A synthetic beat train with an APERIODIC HR wander, a known PTT lag, and known jitter.
   const mk = (lagMs, jitterSd, seed) => {
     let s = seed || 1;
@@ -190,7 +208,7 @@ if (SELFTEST) process.exit(selftest());
 
 /* ════════════════════════════════════════ CORPUS RUN ════════════════════════════════════════ */
 if (!DIR) {
-  console.error('usage: node tools/ppi-jitter-vs-ecg.mjs --dir <captures> [--min-epochs N] [--max-nights N]  |  --selftest');
+  console.error(USAGE);
   process.exit(2);
 }
 const B = await import(join(ROOT, 'tools/build-core.js'));

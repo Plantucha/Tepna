@@ -1,5 +1,7 @@
 # tepna-capture — tests/test_nightqc.py
 # Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
+import json
+import logging
 import os
 import time
 
@@ -210,7 +212,12 @@ def test_summarize_flags_a_degraded_trickle(tmp_path):
     assert s["span_sec"] == 1000
     h10 = next(d for d in s["devices"] if d["name"] == "H10")
     assert h10["coverage"] == {"ecg": 1.0, "acc": 0.2, "hr": 1.0}
-    assert s["degraded"] == ["H10:acc 20%"] and s["ok"] is False    # nothing missing, but ACC trickled
+    # `(rate assumed)` is deliberate and is asserted, not tolerated: this fixture writes too few rows
+    # for `measured_hz` to read a rate, so coverage here is computed against the CONFIGURED rate. A
+    # degraded line is worth exactly what its rate is worth, and before `coverage_basis` the two were
+    # indistinguishable at the one place an operator actually reads.
+    assert s["degraded"] == ["H10:acc 20% (rate assumed)"] and s["ok"] is False
+    assert h10["coverage_basis"] == {"ecg": "expected", "acc": "expected", "hr": "expected"}
     assert s["missing"] == []
 
 
@@ -1077,13 +1084,48 @@ def test_dominant_share_is_a_VARIANCE_share_so_it_says_whether_the_fix_is_worth_
     assert u["dominant_share"] == pytest.approx(d * d / (d * d + q * q), abs=1e-6)
 
 
-def test_the_budget_reaches_the_per_stream_record(tmp_path):
-    """Wired, not merely defined — the defect this repo keeps finding one layer up."""
+def _arrival_night(tmp_path, n=400, base_s=0.5):
+    """A real `*_PMDARRIVAL.csv` with a crystal-scale wobble on the device axis — the same shape
+    `test_jitterfloor` plants — so `arrival_quality` has a stream to judge. An exact synthetic clock
+    is a DRAWN axis and would be refused, which is correct and useless here."""
     d = tmp_path / "2026-08-15"
     d.mkdir()
-    (d / "Polar_H10_02849638_20260815024240_ECG.csv").write_text("h\n" + "r\n" * 400)
-    rows = nightqc.arrival_quality(str(d))
-    assert all("u_time" in r for r in rows), rows
+    wobble = (0.31, -0.17, 0.23, -0.29, 0.11, -0.37, 0.19, -0.13)
+    jitter = (3, -3)
+    lines = ["Phone timestamp;device;meas;first_sensor_ns;last_sensor_ns;n_samples"]
+    for i in range(n):
+        host_s = i * base_s + jitter[i % 2] / 1000.0
+        dev_ns = int(i * base_s * 1e9 + wobble[i % 8] * 1e6)
+        stamp = "2026-08-15T02:%02d:%02d.%03d" % (int(host_s // 60), int(host_s % 60), int((host_s * 1000) % 1000))
+        lines.append("%s;Polar H10 02849638;ecg;%d;%d;73" % (stamp, dev_ns, dev_ns))
+    (d / "Polar_H10_02849638_20260815024240_PMDARRIVAL.csv").write_text("\n".join(lines) + "\n")
+    return d
+
+
+def test_the_budget_reaches_the_per_stream_record(tmp_path):
+    """Wired, not merely defined — the defect this repo keeps finding one layer up.
+    ⚠️ Until 2026-09-21 this test wrote an `_ECG.csv` and asserted over `arrival_quality`'s rows —
+    which lists only `*_PMDARRIVAL.csv`, so `rows == []` and `all()` was TRUE OVER NOTHING. It now
+    plants a real arrival file and pins that a row exists before pinning what it carries."""
+    rows = nightqc.arrival_quality(str(_arrival_night(tmp_path)))
+    assert len(rows) == 1, rows
+    assert "u_time" in rows[0], rows[0]
+
+
+def test_stability_provenance_reaches_the_qc_record(tmp_path):
+    """ALLAN-STABILITY-GAPS §2.3, at the level a reader meets it: the per-stream QC record's
+    `stability` block names its tau0, n, span, estimator and version — not only in `allan.py`."""
+    rows = nightqc.arrival_quality(str(_arrival_night(tmp_path)))
+    assert len(rows) == 1
+    st = rows[0]["stability"]
+    assert st["ok"] is True, st
+    for k in ("tau0", "n", "span_s", "estimator", "min_terms", "span_multiple", "version"):
+        assert k in st, k
+    assert st["n"] == 400 and st["estimator"] == "overlapping-adev"
+    # §2.2 step 2a reaches the record too: the instants were passed, so the hole policy is stated
+    for k in ("segments", "dropped_intervals", "pooled"):
+        assert k in st, k
+    assert st["segments"] == 1 and st["pooled"] is False  # this fixture has no hole; see the gap test
 
 
 # ── ppg2w_contact — the ring's independent coupling vote ───────────────────────────────────────────
@@ -1294,14 +1336,21 @@ def test_qc_digest_omits_rtc_when_absent():
 
 
 def test_summarize_attaches_ring_rtc_drift(tmp_path):
-    """The discovery path: a `_rtclog.csv` beside the ring's capture files is found by device id and
+    """The discovery path: a `_RTCLOG.csv` beside the ring's capture files is found by device id and
     rolled into that device's per-device entry — the false branch (no rtclog → rtc None) is already
-    covered by every other summarize test."""
+    covered by every other summarize test.
+
+    🔴 THIS FIXTURE USED TO SPELL THE FILE `_rtclog.csv`, LOWERCASE, and that is why the reader's
+    case bug survived. `capture_filename` upper-cases every stream tag, so no such file has ever
+    existed on the box — the fixture was written from the READER's string rather than the WRITER's
+    output, so it exercised the matcher against its own assumption and could not fail. Measured
+    2026-09-05: 29 real `_RTCLOG.csv` files on vigil that day, `rtc: null` for every device.
+    A fixture must be spelled the way the producing code spells it."""
     night = str(tmp_path / "2026-07-19"); os.makedirs(night)
     _cap(night, "Wellue_O2Ring-S_S8AW_20260719_SPO2.csv", 900)
     _cap(night, "Wellue_O2Ring-S_S8AW_20260719_PPG.txt", 8000)
     hdr = "Phone timestamp;event;rtc_offset_s;battery_state;battery_level;battery_raw2;battery_raw3\n"
-    (tmp_path / "2026-07-19" / "Wellue_O2Ring-S_S8AW_20260719_rtclog.csv").write_text(
+    (tmp_path / "2026-07-19" / "Wellue_O2Ring-S_S8AW_20260719_RTCLOG.csv").write_text(
         hdr + "2026-07-19T22:00:00.000;read;0.0;;;;\n2026-07-20T05:00:00.000;read;1.0;;;;\n", encoding="utf-8")
     s = nightqc.summarize(night, _devices())
     ring = next(d for d in s["devices"] if d["name"] == "Ring")
@@ -1684,3 +1733,1112 @@ def test_the_equality_is_SENSITIVE_to_the_span_it_asserts(tmp_path):
     assert cov_r != cov_f, (
         f"a fragment beyond the session gap must NOT score as the resumed night ({cov_r} == {cov_f}) "
         "— if these are equal, coverage is ignoring the span and the equality test proves nothing")
+
+
+# ── a configured stream name is not always its file tag (2026-09-05) ─────────────────────────────────
+# 🔴 THE FALSE ALARM THIS PREVENTS. The config asks for `acc`; capture.py writes the O2Ring's
+# accelerometer via StreamWriter(..., "accraw"), so the file is `..._ACCRAW.txt` while the Verity's
+# identical `acc` is `..._ACC.txt`. Measured on vigil 2026-09-05: QC reported
+# `missing stream(s): Wellue O2Ring-S:acc` every ~10 min against 38 ACCRAW files and 2.1 MB of live
+# accelerometer data. A false MISSING is the most expensive kind of wrong line here — it is the one
+# channel whose job is to announce data loss, and a reader who sees it nightly stops believing it.
+def _ring_acc_devices():
+    return [{"name": "Ring", "device_id": "S8AW", "streams": ["spo2", "acc"]},
+            {"name": "Verity", "device_id": "0C301E3F", "streams": ["acc"]}]
+
+
+def test_an_ACCRAW_file_satisfies_the_configured_acc_stream(tmp_path):
+    night = str(tmp_path / "2026-09-05"); os.makedirs(night)
+    _cap(night, "Wellue_O2Ring-S_S8AW_20260905_SPO2.csv", 900)
+    _cap(night, "Wellue_O2Ring-S_S8AW_20260905_ACCRAW.txt", 4000)
+    _cap(night, "Polar_VeritySense_0C301E3F_20260905_ACC.txt", 3000)
+    s = nightqc.summarize(night, _ring_acc_devices())
+    assert s["missing"] == [], f"acc arrived as ACCRAW; reporting it missing is the false alarm: {s['missing']}"
+    ring = next(d for d in s["devices"] if d["name"] == "Ring")
+    assert ring["streams"]["acc"] == 4000, "the ACCRAW rows must be COUNTED, not merely tolerated"
+
+
+def test_the_plain_ACC_tag_still_satisfies_acc_so_the_union_is_not_a_regression(tmp_path):
+    """The Verity writes `_ACC.txt` and must keep matching — the fix widens the accepted tags, it does
+    not move them."""
+    night = str(tmp_path / "2026-09-05"); os.makedirs(night)
+    _cap(night, "Polar_VeritySense_0C301E3F_20260905_ACC.txt", 3000)
+    s = nightqc.summarize(night, [{"name": "Verity", "device_id": "0C301E3F", "streams": ["acc"]}])
+    assert s["missing"] == []
+    assert s["devices"][0]["streams"]["acc"] == 3000
+
+
+def test_a_GENUINELY_absent_acc_is_still_reported_missing(tmp_path):
+    """The widened match must not become an unconditional pass — the alarm has to still fire when the
+    accelerometer really produced nothing, which is the whole reason the check exists."""
+    night = str(tmp_path / "2026-09-05"); os.makedirs(night)
+    _cap(night, "Wellue_O2Ring-S_S8AW_20260905_SPO2.csv", 900)
+    s = nightqc.summarize(night, [{"name": "Ring", "device_id": "S8AW", "streams": ["spo2", "acc"]}])
+    assert s["missing"] == ["Ring:acc"]
+
+
+def test_stream_file_tags_defaults_to_the_upper_cased_name():
+    assert nightqc.stream_file_tags("ecg") == ("ECG",)
+    assert nightqc.stream_file_tags("ppg2w") == ("PPG2W",)
+    assert set(nightqc.stream_file_tags("acc")) == {"ACC", "ACCRAW"}
+
+
+def test_rate_reality_reads_the_ring_acc_rate_out_of_an_ACCRAW_file(tmp_path):
+    """The SILENT half of the same defect. Coverage reported `acc` missing (loud and wrong); this
+    function simply found no candidate file and emitted NO ROW — so the O2Ring's accelerometer rate was
+    never checked against its config at all, and an absent row looks exactly like a stream nobody
+    configured. One cause, two consumers, two different wrong answers."""
+    step = int(1e9 / 50.0)
+    p = os.path.join(tmp_path, "Wellue_O2Ring-S_S8AW2100_20260905045318_ACCRAW.txt")
+    with open(p, "w") as fh:
+        fh.write("Phone timestamp;sensor timestamp [ns];X [raw];Y [raw];Z [raw]\n")
+        for i in range(1000):
+            fh.write(f"2026-09-05T04:53:18.000;{500_000_000_000 + i * step};1;2;3\n")
+    dev = {"name": "Wellue O2Ring-S", "device_id": "S8AW2100", "streams": ["acc"], "rates": {"acc": 50}}
+    rows = nightqc.rate_reality(str(tmp_path), [dev])
+    assert len(rows) == 1, "no row at all is the silent failure — the rate was never checked"
+    assert abs(rows[0]["measured_hz"] - 50.0) < 0.5
+    assert rows[0]["matches_config"] is True
+
+
+# ── the summary's own SHAPE, pinned (2026-09-05) ─────────────────────────────────────────────────────
+# These fields are the audit trail the verdict rests on — `judged_dir`, `judged_session`,
+# `searched_dirs` exist precisely so a reading can be checked against the ground it was computed from
+# (the 2026-07-28 scope failure, where `files: 2` was the tell nobody could see). Nothing asserted
+# their VALUES, so the whole block could be renamed, mis-scoped or emptied and the suite stayed green.
+def test_the_summary_reports_the_night_it_judged_and_the_session_it_used(tmp_path):
+    from datetime import datetime as _dt
+    night = str(tmp_path / "2026-07-19"); os.makedirs(night)
+    start = _dt.strptime("20260719220000", "%Y%m%d%H%M%S").timestamp()
+    _utime(_cap(night, "Polar_H10_02849638_20260719220000_HR.txt", 1800), start + 1800)
+    devs = [{"name": "H10", "device_id": "02849638", "streams": ["hr"]}]
+
+    # ⚠️ A TRAILING SLASH, deliberately. `os.path.basename` of a path ending in "/" is the EMPTY
+    # STRING, so `rstrip("/")` is load-bearing rather than cosmetic — and a night whose name reports
+    # as "" is a summary that cannot say which night it judged.
+    s = nightqc.summarize(night + "/", devs)
+    assert s["night"] == "2026-07-19", "the trailing slash must be stripped, not basenamed away"
+    assert s["judged_dir"] == "2026-07-19"
+    assert s["searched_dirs"] and all(isinstance(x, str) and x for x in s["searched_dirs"])
+    assert "2026-07-19" in s["searched_dirs"]
+
+    # The session actually judged, by value — start/end/rows, not merely present.
+    js = s["judged_session"]
+    assert js is not None and js["rows"] == 1800
+    assert js["start"] == round(start) and js["end"] == round(start + 1800)
+
+    # `sessions` carries the same triple for every session, oldest first.
+    assert s["sessions"] == [{"start": round(start), "end": round(start + 1800), "rows": 1800}]
+    assert "arrival" in s and "night_window" in s and "system_files" in s
+
+
+def test_a_night_with_no_data_reports_no_judged_session_rather_than_a_fabricated_one(tmp_path):
+    night = str(tmp_path / "2026-07-19"); os.makedirs(night)
+    _cap(night, "Tepna_20260719_LINK.csv", 5)          # a sidecar only — the box talking about itself
+    s = nightqc.summarize(night, [{"name": "H10", "device_id": "02849638", "streams": ["hr"]}])
+    assert s["judged_session"] is None, "no session judged is None, never a zero-length one"
+    assert s["night_window"] is None
+    assert s["sessions"] == [] and s["data_files"] == 0
+    # `span` is never reassigned on this path, so this is the ONLY place its initial value is
+    # observable — and it is read solely behind falsy guards (`round(span) if span else None`,
+    # `if hz and span`), which treat None and "" identically. Probe for the equivalence entry.
+    assert s["span_sec"] is None
+    assert all(d["coverage"] == {} or all(v is None for v in d["coverage"].values())
+               for d in s["devices"])
+
+
+# ── the invariant the gap-adjacency logic RESTS on (2026-09-05) ──────────────────────────────────────
+def test_merge_sessions_always_yields_DISJOINT_sessions_separated_by_more_than_the_gap():
+    """🔴 THIS IS THE PROPERTY THAT MAKES `summarize`'s before/after selection unambiguous, and nothing
+    asserted it. `merge_sessions` appends a new session only when `st > sessions[-1][1] + gap_sec`, so
+    the output is ordered by start AND strictly separated — no two sessions overlap or touch.
+
+    Everything downstream leans on it. In `summarize`, `before = [s for s in others if s[1] <= cur[0]]`
+    and `after = [s for s in others if s[0] >= cur[1]]` partition `others` exactly, and
+    `max(before, key=s[1])` picks the same element as max-by-start, because under disjoint ordering the
+    latest-ending session IS the latest-starting one. Those equivalences are recorded in
+    `tools/mutate-equivalence.json` as `no-distinguishing-input`, and THIS test is the probe they cite:
+    if the invariant ever breaks, the equivalence claims become false and this reds first.
+
+    A randomized sweep with a fixed seed rather than a hand-picked case — the claim is universal, so a
+    single example would not support it."""
+    import random
+    rng = random.Random(20260905)
+    gap = nightqc._SESSION_GAP_SEC
+    for _ in range(400):
+        files = []
+        for _i in range(rng.randint(1, 12)):
+            st_ = rng.uniform(0, 50_000)
+            files.append({"session": st_, "mtime": st_ + rng.uniform(0, 5_000), "rows": 1})
+        rng.shuffle(files)                      # order handed in must not matter
+        out = nightqc.merge_sessions(files)
+        assert out == sorted(out, key=lambda s: s[0]), "sessions must come back oldest first"
+        for a, b in zip(out, out[1:]):
+            assert b[0] > a[1] + gap, (
+                f"sessions must be strictly separated by more than the gap: {a[:2]} then {b[:2]}")
+            assert a[1] < b[0], "and therefore disjoint — no overlap, no touching"
+        # Under that separation, latest-ending == latest-starting, which is what makes
+        # `max(before, key=lambda s: s[1])` and max-by-start the same choice.
+        if len(out) > 1:
+            assert max(out, key=lambda s: s[1]) is max(out, key=lambda s: s[0])
+            assert min(out, key=lambda s: s[0]) is min(out, key=lambda s: s[1])
+
+
+# ── the ring-clock verdict actually reaches the summary (2026-09-05) ─────────────────────────────────
+def test_the_RTCLOG_sidecar_is_found_and_its_drift_reaches_the_device_block(tmp_path):
+    """🔴 THE READER LOOKED FOR THE WRONG CASE. `capture_filename` upper-cases every stream tag, so the
+    writer emits `..._RTCLOG.csv`; `summarize` matched `_rtclog.csv` and therefore matched nothing.
+    Measured on vigil 2026-09-05: 29 RTCLOG files on disk and `rtc: null` for every device, including
+    the ring that wrote them — so `drift_s`, `resets` and `pushes` had never been computed from a real
+    night, and nothing said so because a null there is indistinguishable from "no sidecar".
+
+    Same class as the ACCRAW tag mismatch in this file: the reader's filename expectation did not match
+    the writer's output, and no test compared the two."""
+    night = str(tmp_path / "2026-09-05"); os.makedirs(night)
+    _utime(_cap(night, "Wellue_O2Ring-S_S8AW_20260905045318_SPO2.csv", 900), 1_000_000)
+    # The real sidecar's shape, from vigil's own file.
+    with open(os.path.join(night, "Wellue_O2Ring-S_S8AW_20260905045318_RTCLOG.csv"), "w") as fh:
+        fh.write("Phone timestamp;event;rtc_offset_s;battery_state;battery_level;battery_raw2;battery_raw3\n")
+        fh.write("2026-09-05T04:53:52.321;push;;;;;\n")
+        fh.write("2026-09-05T04:53:53.365;read;-1.4;;;;\n")
+        fh.write("2026-09-05T05:53:53.365;read;-3.9;;;;\n")
+    s = nightqc.summarize(night, [{"name": "Ring", "device_id": "S8AW", "streams": ["spo2"]}])
+    rtc = s["devices"][0]["rtc"]
+    assert rtc is not None, "an RTCLOG on disk must produce a ring-clock verdict, not a null"
+    assert rtc["reads"] == 2 and rtc["pushes"] == 1
+    assert abs(rtc["drift_s"] - (-3.9 - -1.4)) < 1e-6, "drift is last minus first offset"
+
+
+def test_a_foreign_device_file_sorting_FIRST_does_not_end_the_sidecar_scan(tmp_path):
+    """The scan skips files belonging to other devices with `continue`. A `break` there would stop at
+    the first foreign file — and since the directory is walked in sorted order, one alphabetically
+    earlier device is enough to hide every sidecar this device wrote."""
+    night = str(tmp_path / "2026-09-05"); os.makedirs(night)
+    # "AAAA_..." sorts before "Wellue_...", and belongs to a device not in `dids`.
+    _utime(_cap(night, "AAAA_Other_99999999_20260905045318_HR.txt", 10), 1_000_000)
+    _utime(_cap(night, "Wellue_O2Ring-S_S8AW_20260905045318_SPO2.csv", 900), 1_000_000)
+    with open(os.path.join(night, "Wellue_O2Ring-S_S8AW_20260905045318_RTCLOG.csv"), "w") as fh:
+        fh.write("Phone timestamp;event;rtc_offset_s;battery_state;battery_level;battery_raw2;battery_raw3\n")
+        fh.write("2026-09-05T04:53:53.365;read;-1.4;;;;\n")
+        fh.write("2026-09-05T05:53:53.365;read;-3.9;;;;\n")
+    s = nightqc.summarize(night, [{"name": "Ring", "device_id": "S8AW", "streams": ["spo2"]}])
+    assert s["devices"][0]["rtc"] is not None, \
+        "the foreign file must be SKIPPED, not treated as the end of the scan"
+
+
+# ── the ring-clock verdict itself (2026-09-05) ───────────────────────────────────────────────────────
+# Until the case fix above, `rtc_drift_summary` was reached by NO real night — the caller looked for
+# `_rtclog.csv` and the writer produced `_RTCLOG.csv`. Its output now reaches an operator for the first
+# time, so the arithmetic it reports is worth pinning rather than inferring.
+def _rtclog(tmp_path, rows, name="Wellue_O2Ring-S_S8AW_20260905045318_RTCLOG.csv"):
+    p = os.path.join(str(tmp_path), name)
+    with open(p, "w", encoding="utf-8") as fh:
+        fh.write("Phone timestamp;event;rtc_offset_s;battery_state;battery_level;battery_raw2;battery_raw3\n")
+        for r in rows:
+            fh.write(r + "\n")
+    return p
+
+
+def test_rtc_drift_counts_every_push_and_reset_not_merely_whether_one_happened(tmp_path):
+    """`pushes`/`resets` are COUNTS. A night with three 0xC0 pushes and two battery-reset suspicions is
+    a different night from one with a single each — `+= 1` collapsed to `= 1` reports both as 1."""
+    p = _rtclog(tmp_path, [
+        "2026-09-05T00:00:00.000;push;;;;;",
+        "2026-09-05T00:10:00.000;read;0.0;;;;",
+        "2026-09-05T01:00:00.000;push;;;;;",
+        "2026-09-05T02:00:00.000;reset-suspect;5.0;;;;",
+        "2026-09-05T03:00:00.000;push;;;;;",
+        "2026-09-05T04:00:00.000;reset-suspect;9.0;;;;",
+        "2026-09-05T05:00:00.000;read;9.4;;;;",
+    ])
+    r = nightqc.rtc_drift_summary(p)
+    assert r["pushes"] == 3 and r["resets"] == 2
+    # `reads` counts every OFFSET-bearing row — reads and reset-suspects both carry one.
+    assert r["reads"] == 4
+    assert r["first_offset_s"] == 0.0 and r["last_offset_s"] == 9.4
+    assert r["drift_s"] == 9.4, "drift is last minus first offset, rounded to 0.1 s"
+
+
+def test_a_MALFORMED_row_is_skipped_and_the_rows_after_it_are_still_read(tmp_path):
+    """Both skip paths are `continue`, and a `break` in either silently truncates the night: every
+    later read is lost and the drift is computed over a narrower span that LOOKS like a real reading.
+    The short-row guard and the non-numeric-offset guard are tested separately because they are
+    different branches."""
+    short = _rtclog(tmp_path, [
+        "2026-09-05T00:00:00.000;read;0.0;;;;",
+        "truncated;row",                                    # < 3 fields — the short-row guard
+        "2026-09-05T05:00:00.000;read;4.0;;;;",
+    ])
+    r = nightqc.rtc_drift_summary(short)
+    assert r["reads"] == 2 and r["drift_s"] == 4.0, "a short row must not end the scan"
+
+    bad = _rtclog(tmp_path, [
+        "2026-09-05T00:00:00.000;read;0.0;;;;",
+        "2026-09-05T02:00:00.000;read;not-a-number;;;;",    # the ValueError guard
+        "2026-09-05T05:00:00.000;read;4.0;;;;",
+    ], name="Wellue_O2Ring-S_S8AW_20260905045319_RTCLOG.csv")
+    r2 = nightqc.rtc_drift_summary(bad)
+    assert r2["reads"] == 2 and r2["drift_s"] == 4.0, "an unparseable offset must not end the scan"
+
+
+def test_span_h_is_HOURS_and_is_None_when_the_stamps_cannot_be_read(tmp_path):
+    """The span is reported in hours; a wrong divisor is invisible on a normal night because rounding
+    to 0.1 h hides it, so this pins it over a span long enough to separate 3600 from its neighbours."""
+    p = _rtclog(tmp_path, [
+        "2026-09-05T00:00:00.000;read;0.0;;;;",
+        "2026-09-13T00:00:00.000;read;1.0;;;;",             # exactly 192 h later
+    ])
+    assert nightqc.rtc_drift_summary(p)["span_h"] == 192.0
+
+    # Unparseable stamps → span unknown. It must be None, never "" or 0: a zero-hour span reads as a
+    # measurement that was never made (§2.6 — a missing observation is visible, never fabricated).
+    q = _rtclog(tmp_path, [
+        "not-a-timestamp;read;0.0;;;;",
+        "also-not;read;1.0;;;;",
+    ], name="Wellue_O2Ring-S_S8AW_20260905045320_RTCLOG.csv")
+    out = nightqc.rtc_drift_summary(q)
+    assert out["span_h"] is None, "an unreadable span is None — not an empty string, not zero"
+    assert out["reads"] == 2 and out["drift_s"] == 1.0, "the offsets are still usable"
+
+
+def test_undecodable_bytes_do_not_kill_the_ring_clock_verdict(tmp_path):
+    """The sidecar is read with `errors="replace"`. A single corrupt byte — the O2Ring writes these
+    over BLE — must cost that row, not the night's whole clock verdict."""
+    p = os.path.join(str(tmp_path), "Wellue_O2Ring-S_S8AW_20260905045321_RTCLOG.csv")
+    with open(p, "wb") as fh:
+        fh.write(b"Phone timestamp;event;rtc_offset_s;battery_state;battery_level;battery_raw2;battery_raw3\n")
+        fh.write(b"2026-09-05T00:00:00.000;read;0.0;;;;\n")
+        fh.write(b"2026-09-05T01:00:00.000;read;\xff\xfe;;;;\n")     # undecodable, and not a float
+        fh.write(b"2026-09-05T05:00:00.000;read;4.0;;;;\n")
+    r = nightqc.rtc_drift_summary(p)
+    assert r is not None and r["reads"] == 2 and r["drift_s"] == 4.0
+
+
+# ── the .dat/SpO2 pairing is called correctly, or not at all (2026-09-05) ────────────────────────────
+def _spy_timefit(monkeypatch):
+    """Capture how `summarize` CALLS the cross-correlation, rather than what it returns. The tool needs
+    Node and a real binary .dat, so its return is None in a test either way — which makes the return
+    value useless as an observation and the ARGUMENTS the only thing that can be checked."""
+    calls = []
+
+    def _fake(dat_path, spo2_path, **kw):
+        calls.append((dat_path, spo2_path))
+        return {"lag_s": 1}
+    monkeypatch.setattr(nightqc, "dat_timefit_summary", _fake)
+    return calls
+
+
+def test_the_timefit_is_called_with_ABSOLUTE_paths(tmp_path, monkeypatch):
+    """`os.path.join(night_dir, fn)` builds the path the tool will open. Dropping `night_dir` yields a
+    bare filename that only resolves if the daemon's CWD happens to be the night folder — the same
+    CWD-dependence that wrote real AS11 spool data into the checkout on 2026-09-01."""
+    calls = _spy_timefit(monkeypatch)
+    night = str(tmp_path / "2026-09-05"); os.makedirs(night)
+    _utime(_cap(night, "Wellue_O2Ring-S_S8AW_20260905045318_SPO2.csv", 900), 1_000_000)
+    _cap(night, "Wellue_O2Ring-S_S8AW_20260905045318_STORED.dat", 10)
+    s = nightqc.summarize(night, [{"name": "Ring", "device_id": "S8AW", "streams": ["spo2"]}])
+    assert len(calls) == 1, "both sidecars present — the fit must be attempted exactly once"
+    dat, spo2 = calls[0]
+    assert os.path.isabs(dat) and os.path.isabs(spo2), f"paths must be absolute, got {dat!r} {spo2!r}"
+    assert dat.endswith("_STORED.dat") and spo2.endswith("_SPO2.csv"), "and the right file in each slot"
+    assert s["devices"][0]["datfit"] == {"lag_s": 1}
+
+
+def test_the_timefit_is_NOT_attempted_when_only_one_of_the_pair_is_present(tmp_path, monkeypatch):
+    """It cross-correlates two series. With one of them missing there is nothing to correlate, and
+    calling the tool with a missing path would spend a 30 s Node timeout per night to learn that."""
+    calls = _spy_timefit(monkeypatch)
+    night = str(tmp_path / "2026-09-05"); os.makedirs(night)
+    _utime(_cap(night, "Wellue_O2Ring-S_S8AW_20260905045318_SPO2.csv", 900), 1_000_000)
+    # no _STORED.dat
+    s = nightqc.summarize(night, [{"name": "Ring", "device_id": "S8AW", "streams": ["spo2"]}])
+    assert calls == [], "one sidecar is not a pair"
+    assert s["devices"][0]["datfit"] is None
+
+
+def test_a_NON_spo2_file_is_never_mistaken_for_the_spo2_half(tmp_path, monkeypatch):
+    """The elif guards `fn.endswith("_SPO2.csv") and spo2_path is None`. Loosened to `or`, the FIRST
+    file of any kind claims the SpO2 slot — here the PPG — and the fit then correlates the wrong
+    series while still returning a confident-looking lag."""
+    calls = _spy_timefit(monkeypatch)
+    night = str(tmp_path / "2026-09-05"); os.makedirs(night)
+    _cap(night, "Wellue_O2Ring-S_S8AW_20260905045318_PPG.txt", 8000)      # sorts before SPO2
+    _utime(_cap(night, "Wellue_O2Ring-S_S8AW_20260905045318_SPO2.csv", 900), 1_000_000)
+    _cap(night, "Wellue_O2Ring-S_S8AW_20260905045318_STORED.dat", 10)
+    nightqc.summarize(night, [{"name": "Ring", "device_id": "S8AW", "streams": ["spo2"]}])
+    assert len(calls) == 1
+    assert calls[0][1].endswith("_SPO2.csv"), f"the SpO2 slot must hold the SpO2 file, got {calls[0][1]}"
+
+
+def test_the_cross_midnight_pool_is_EXCLUSIVE_at_exactly_the_gap(tmp_path):
+    """The boundary of the pooling guard, which its own comment records getting wrong three times
+    (`0 <=` read a −190 s overlap as non-contiguous, and a 17-file night went unjudged). `< gap` and
+    `<= gap` differ on exactly one input: a previous folder whose last write is the gap away to the
+    second. Pinned so the next correction to this family cannot silently move the edge."""
+    from datetime import datetime as _dt
+    d21 = str(tmp_path / "2026-07-21"); os.makedirs(d21)
+    d22 = str(tmp_path / "2026-07-22"); os.makedirs(d22)
+    pre = _dt.strptime("20260721233000", "%Y%m%d%H%M%S").timestamp()
+    # the previous folder's LAST WRITE lands exactly 00:00:00; the new session opens exactly
+    # `_SESSION_GAP_SEC` later (3600 s → 01:00:00), so `<` excludes it and `<=` would pool it.
+    _utime(_cap(d21, "Polar_H10_02849638_20260721233000_HR.txt", 1800), pre + 1800)
+    post = _dt.strptime("20260722010000", "%Y%m%d%H%M%S").timestamp()
+    assert post - (pre + 1800) == nightqc._SESSION_GAP_SEC, "the fixture must sit ON the boundary"
+    _utime(_cap(d22, "Polar_H10_02849638_20260722010000_HR.txt", 1500), post + 1500)
+    s = nightqc.summarize(d22, [{"name": "H10", "device_id": "02849638", "streams": ["hr"]}])
+    assert s["devices"][0]["streams"]["hr"] == 1500, \
+        "a gap of exactly _SESSION_GAP_SEC is NOT contiguous — the earlier folder must stay excluded"
+
+
+def test_the_night_window_and_arrival_are_computed_from_THIS_night(tmp_path, monkeypatch):
+    """Both fields are handed collaborators that decide what they describe: `night_view(cur, cur[2])`
+    is scoped to the judged session AND its files, and `arrival_quality(night_dir)` to this night's
+    folder. Passing None to either still returns a shaped value, so the summary would carry a
+    confident block computed from nothing."""
+    seen = {}
+
+    def _nv(cur, files):
+        seen["nv"] = (cur, files)
+        return {"ok": 1}
+
+    def _aq(d):
+        seen["aq"] = d
+        return {"ok": 2}
+
+    monkeypatch.setattr(nightqc, "night_view", _nv)
+    monkeypatch.setattr(nightqc, "arrival_quality", _aq)
+    night = str(tmp_path / "2026-09-05"); os.makedirs(night)
+    _utime(_cap(night, "Polar_H10_02849638_20260905220000_HR.txt", 1800), 1_000_000)
+    s = nightqc.summarize(night, [{"name": "H10", "device_id": "02849638", "streams": ["hr"]}])
+    cur, files = seen["nv"]
+    assert files is not None and len(files) == 1, "night_view must receive the session's FILES"
+    assert files[0]["file"].endswith("_HR.txt")
+    assert seen["aq"] == night, "arrival_quality must be asked about this night's directory"
+    assert s["night_window"] == {"ok": 1} and s["arrival"] == {"ok": 2}
+
+
+def test_drift_is_reported_to_a_TENTH_of_a_second(tmp_path):
+    """The ring's own quantum is 1 s and the .dat cross-check reports integer seconds, so 0.1 s is the
+    resolution this verdict is meaningful at. A finer rounding publishes digits the measurement does
+    not have; a coarser one hides real drift."""
+    p = _rtclog(tmp_path, [
+        "2026-09-05T00:00:00.000;read;0.0;;;;",
+        "2026-09-05T05:00:00.000;read;1.25;;;;",
+    ], name="Wellue_O2Ring-S_S8AW_20260905045322_RTCLOG.csv")
+    assert nightqc.rtc_drift_summary(p)["drift_s"] == 1.2, "0.1 s resolution, not 0.01"
+
+
+def test_no_SPO2_means_no_fit_even_when_another_file_could_fill_the_slot(tmp_path, monkeypatch):
+    """The elif's `and spo2_path is None` is what stops a non-SpO2 file claiming the SpO2 half. With
+    a `.dat` present and NO `_SPO2.csv`, a loosened guard hands the PPG to the correlator and the fit
+    returns a confident lag computed from the wrong series — worse than no answer."""
+    calls = _spy_timefit(monkeypatch)
+    night = str(tmp_path / "2026-09-05"); os.makedirs(night)
+    _utime(_cap(night, "Wellue_O2Ring-S_S8AW_20260905045318_PPG.txt", 8000), 1_000_000)
+    _cap(night, "Wellue_O2Ring-S_S8AW_20260905045318_STORED.dat", 10)
+    s = nightqc.summarize(night, [{"name": "Ring", "device_id": "S8AW", "streams": ["ppg"]}])
+    assert calls == [], "no SpO2 series exists — nothing may be correlated against the .dat"
+    assert s["devices"][0]["datfit"] is None
+
+
+def test_the_sidecar_reader_does_not_depend_on_the_BOXES_locale(tmp_path):
+    """`open(..., encoding="utf-8")` is explicit so the verdict cannot change with the environment.
+    Dropping it falls back to the platform default, which on a differently-configured box is not
+    UTF-8 — a class of bug that never reproduces on the developer's machine.
+
+    The probe runs the REAL function in a subprocess under `LC_ALL=C PYTHONUTF8=0` and compares against
+    this process's result, rather than reasoning about what the default would be.
+
+    ⚠️ THE FIRST VERSION OF THIS TEST EXAMINED NOTHING. It fed non-ASCII text in a NOTE column, and both
+    the original and the `encoding=None` mutant produced the identical dict under the C locale — the
+    diff-scoped mutation job on #2219 reported exactly those two survivors (`encoding=None`, and the
+    argument dropped). The reason is structural: `errors="replace"` means no decoder can raise, and only
+    `float(rtc_offset_s)` and `fromisoformat(Phone timestamp)` reach the output, so garbage in a note
+    column is invisible to the verdict under EVERY decoding. The one field through which the decoder is
+    observable at all is the offset, and only because `float()` accepts non-ASCII Unicode digits
+    (`fromisoformat` does not): `٢.٥` decodes to 2.5 under utf-8 and to replacement characters under
+    the C locale's ASCII, where the row is then dropped and `reads` shrinks by one. Probed 2026-09-05:
+    identical dicts under utf-8 / None / omitted for the note-column input across three locales;
+    DIFFERS on the Unicode-digit input only. So that is the input this test uses — not because a ring
+    will ever write one (`RingClockLogWriter._f` emits `f"{v:.6f}"`, ASCII by construction) but because
+    a test that cannot distinguish the code it pins from its mutant is not pinning it."""
+    import subprocess, sys
+    p = _rtclog(tmp_path, [
+        "2026-09-05T00:00:00.000;read;0.0;;;;",
+        "2026-09-05T02:00:00.000;read;٢.٥;;;;",   # ARABIC-INDIC 2.5 — the one decoder-sensitive field
+        "2026-09-05T05:00:00.000;read;4.0;;;;",
+    ], name="Wellue_O2Ring-S_S8AW_20260905045323_RTCLOG.csv")
+    with open(p, "a", encoding="utf-8") as fh:
+        fh.write("2026-09-05T06:00:00.000;note;naïve — °C;;;;\n")
+    verdict = nightqc.rtc_drift_summary(p)
+    assert verdict["reads"] == 3, "the Unicode-digit offset must be PARSED here, or the probe below compares two drops"
+    here = json.dumps(verdict, sort_keys=True)
+    env = {**os.environ, "LC_ALL": "C", "LANG": "C", "PYTHONUTF8": "0", "PYTHONCOERCECLOCALE": "0"}
+    script = (f"import json,sys; sys.path.insert(0,{os.path.dirname(os.path.abspath(nightqc.__file__))!r});"
+              f"import nightqc; print(json.dumps(nightqc.rtc_drift_summary({p!r}), sort_keys=True))")
+    r = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, env=env)
+    assert r.returncode == 0, f"the probe itself failed, which says nothing about encoding:\n{r.stderr[-600:]}"
+    assert r.stdout.strip() == here, (
+        "the verdict must not depend on the ambient encoding:\n"
+        f"  C locale : {r.stdout.strip()}\n  this proc: {here}")
+
+
+# ── one sidecar per CONNECT SESSION, so the verdict pools them (2026-09-05, the first real night) ────
+# The case fix above made `rtc` non-null for the first time on vigil 2026-09-05 — and the verdict read
+# `reads 1 · pushes 11 · resets 0 · span_h 0.0` against 29 sidecars holding 15 reads, 63 pushes and TWO
+# reset-suspect events. `summarize` handed over the FIRST file (`and rtc is None`); the ring had
+# reconnected 29 times. A night summarised from its first few minutes hides the one event the field
+# exists to surface.
+def test_rtc_drift_summary_pools_every_sidecar_and_drops_each_files_header(tmp_path):
+    a = _rtclog(tmp_path, [
+        "2026-09-05T02:27:38.000;push;;;;;",
+        "2026-09-05T02:27:39.000;read;-1.3;;;;",
+    ], name="Wellue_O2Ring-S_S8AW_20260905022738_RTCLOG.csv")
+    b = _rtclog(tmp_path, [
+        "2026-09-05T04:00:00.000;read;-2.1;;;;",
+        "2026-09-05T04:10:00.000;reset-suspect;-151.0;;;;",
+    ], name="Wellue_O2Ring-S_S8AW_20260905040000_RTCLOG.csv")
+    c = _rtclog(tmp_path, [
+        "2026-09-05T06:27:39.000;push;;;;;",
+        "2026-09-05T06:27:40.000;read;0.2;;;;",
+    ], name="Wellue_O2Ring-S_S8AW_20260905062739_RTCLOG.csv")
+    r = nightqc.rtc_drift_summary([a, b, c])
+    assert r["files"] == 3
+    assert r["reads"] == 4 and r["pushes"] == 2 and r["resets"] == 1, \
+        "every sidecar's rows count — the reset in the SECOND session is the finding"
+    assert r["first_offset_s"] == -1.3 and r["last_offset_s"] == 0.2 and r["drift_s"] == 1.5
+    assert r["span_h"] == 4.0, "first read of the first file to last read of the last: 02:27→06:27"
+    # A later file's header row is `Phone timestamp;event;…` — three fields, so a naive pool would
+    # count it as a row with event "event"; it must be dropped per file, not once.
+    assert r["reads"] == 4                                  # not 4 + a header-shaped row
+
+
+def test_rtc_drift_summary_one_path_is_the_same_verdict_as_before(tmp_path):
+    """The str form is the pre-pooling contract, kept: one path → one file → `files: 1`."""
+    p = _rtclog(tmp_path, ["2026-09-05T02:27:39.000;read;-1.3;;;;",
+                           "2026-09-05T03:27:39.000;read;-1.9;;;;"])
+    r = nightqc.rtc_drift_summary(p)
+    assert r == nightqc.rtc_drift_summary([p])
+    assert r["files"] == 1 and r["reads"] == 2 and r["drift_s"] == -0.6
+
+
+def test_rtc_drift_summary_skips_an_unreadable_sidecar_rather_than_nulling_the_night(tmp_path):
+    good = _rtclog(tmp_path, ["2026-09-05T02:27:39.000;read;-1.3;;;;",
+                              "2026-09-05T05:27:39.000;read;-2.5;;;;"])
+    missing = os.path.join(str(tmp_path), "Wellue_O2Ring-S_S8AW_20260905030000_RTCLOG.csv")
+    r = nightqc.rtc_drift_summary([missing, good])
+    assert r is not None and r["files"] == 1 and r["reads"] == 2, \
+        "one torn sidecar must not null the other 28"
+    assert nightqc.rtc_drift_summary([missing]) is None, "no readable file → no verdict, as before"
+    assert nightqc.rtc_drift_summary([]) is None
+
+
+def test_summarize_pools_EVERY_rtclog_sidecar_of_the_ring_not_the_first(tmp_path):
+    """The real shape of 2026-09-05: many sidecars, the reset-suspect in a LATER one. With
+    `and rtc is None` the verdict came from the earliest file and read `resets 0`."""
+    night = str(tmp_path / "2026-09-05"); os.makedirs(night)
+    _utime(_cap(night, "Wellue_O2Ring-S_S8AW_20260905022738_SPO2.csv", 900), 1_000_000)
+    hdr = "Phone timestamp;event;rtc_offset_s;battery_state;battery_level;battery_raw2;battery_raw3\n"
+    with open(os.path.join(night, "Wellue_O2Ring-S_S8AW_20260905022738_RTCLOG.csv"), "w") as fh:
+        fh.write(hdr + "2026-09-05T02:27:38.000;push;;;;;\n2026-09-05T02:27:39.000;read;-1.3;;;;\n")
+    with open(os.path.join(night, "Wellue_O2Ring-S_S8AW_20260905041000_RTCLOG.csv"), "w") as fh:
+        fh.write(hdr + "2026-09-05T04:10:00.000;reset-suspect;-151.0;;;;\n")
+    with open(os.path.join(night, "Wellue_O2Ring-S_S8AW_20260905062739_RTCLOG.csv"), "w") as fh:
+        fh.write(hdr + "2026-09-05T06:27:40.000;read;0.2;;;;\n")
+    s = nightqc.summarize(night, [{"name": "Ring", "device_id": "S8AW", "streams": ["spo2"]}])
+    rtc = s["devices"][0]["rtc"]
+    assert rtc["files"] == 3, "all three sidecars, not the first"
+    assert rtc["resets"] == 1, "the reset in the second session must reach the night's verdict"
+    assert rtc["reads"] == 3 and rtc["pushes"] == 1 and rtc["span_h"] == 4.0
+
+
+# ── Class-B quality signatures: `clip` (pinned at an observed extreme) and `held` ────────────────
+# The rules and every constant below are measured, not chosen; the measurements are named in the
+# nightqc docstrings. These plants encode the four behaviours that were argued out on 2026-09-06.
+
+_MK = 156                      # the ring's beat marker: an out-of-band annotation riding in-band
+
+
+def _baseline(n=40):
+    """A baseline that is deliberately NOT at an extreme — see `test_clip_clean_night_...`."""
+    return [100 + int(8 * math.sin(i / 5.0)) for i in range(n)]
+
+
+_RAMP_DOWN = [87, 78, 68, 57, 47, 37, 28, 19, 10, 4]
+_RAMP_UP = [1, 4, 9, 14, 19, 24, 29, 35, 41, 47]
+
+
+def test_constant_runs_is_keyed_on_length_not_value():
+    # zero is a LEGAL sample; only the run length may decide.
+    assert nightqc.constant_runs([0, 1, 0, 1, 0], min_run=2) == []
+    assert nightqc.constant_runs([5, 0, 0, 0, 5], min_run=3) == [(1, 3, 0)]
+    with pytest.raises(ValueError):
+        nightqc.constant_runs([1, 1], min_run=1)
+
+
+def test_count_singletons_edges():
+    assert nightqc._count_singletons([]) == 0
+    assert nightqc._count_singletons([7]) == 1
+    assert nightqc._count_singletons([1, 1, 2, 3, 3]) == 1
+
+
+def test_held_stream_detects_zero_order_hold_and_refuses_a_short_stream():
+    # a 1.5625 Hz update emitted into a 10 Hz record stream: runs of 6 and 7, ratio 6.4
+    v = []
+    for k in range(60):
+        v += [k] * (6 if k % 5 else 7)
+    h = nightqc.held_stream(v)
+    assert h is not None and h["lengths"] == (6, 7)
+    assert 6.0 < h["ratio"] < 7.0 and h["share"] >= 0.90
+    assert nightqc.held_stream([1, 2, 3]) is None          # too few transitions to have a shape
+    assert nightqc.held_stream(list(range(400))) is None    # ragged, not a hold
+
+
+def test_held_stream_wants_records_not_columns():
+    """A per-column read splices runs across a record change and overstates the ratio.
+
+    Measured on the ring's real ACC: the triplet gives 6.387 (reproducing an independent measurement
+    exactly) while X, Y and Z alone read 6.579, 6.613 and 6.603.
+    """
+    recs = []
+    for k in range(120):
+        recs += [(k, k // 2)] * 6               # ch1 changes half as often as the record does
+    rec_ratio = nightqc.held_stream(recs)["ratio"]
+    col_ratio = nightqc.held_stream([r[1] for r in recs])["ratio"]
+    assert 5.5 < rec_ratio < 6.5
+    assert col_ratio > rec_ratio                # the column splices, so it reads a longer hold
+
+
+def test_clip_floor_is_one_region():
+    v = _baseline() + _RAMP_DOWN + [0] * 30 + _RAMP_UP + _baseline()
+    rows = nightqc.class_b_runs(v, stream="ppg", annotations=(_MK,))["rows"]
+    # exactly the 30 zeros: the `1` on the ramp-out is one LSB INWARD of the pin, a value the
+    # encoding could represent and the device did report, so the span stops short of it.
+    assert [(r["rule"], r["n_samples"], r["value"]) for r in rows] == [("clip", 30, 0)]
+
+
+def test_clip_marker_inside_a_plateau_stays_ONE_region():
+    """THE regression this rule exists to survive.
+
+    The ring's `156` marker lands inside plateaus. Left in, it splits one clip into two and the
+    population reads as a mixture of two mechanisms that does not exist (measured 2026-09-06: 67-79 %
+    of approach ramps read monotone with the marker present, 686/689 with it excluded).
+    """
+    plain = _baseline() + _RAMP_DOWN + [0] * 30 + _RAMP_UP + _baseline()
+    marked = _baseline() + _RAMP_DOWN + [0] * 14 + [_MK] + [0] * 15 + _RAMP_UP + _baseline()
+    got = nightqc.class_b_runs(marked, stream="ppg", annotations=(_MK,))["rows"]
+    want = nightqc.class_b_runs(plain, stream="ppg", annotations=(_MK,))["rows"]
+    assert [(r["first_index"], r["n_samples"]) for r in got] == \
+           [(r["first_index"], r["n_samples"]) for r in want]
+    # and the failure it prevents, so the assertion above cannot pass vacuously
+    unexcluded = nightqc.class_b_runs(marked, stream="ppg")["rows"]
+    assert len(unexcluded) == 2 and unexcluded[0]["n_samples"] < 30
+
+
+def test_clip_ceiling_is_the_positive_control():
+    """The ceiling is the rail this stream demonstrably hits; without it the floor has no control."""
+    up = [113, 124, 132, 143, 154, 166, 177, 188, 196]
+    v = _baseline() + up + [200] * 30 + up[::-1] + _baseline() + [0]
+    rows = [r for r in nightqc.class_b_runs(v, stream="ppg", annotations=(_MK,))["rows"]
+            if r["value"] == 200]
+    assert [(r["rule"], r["n_samples"]) for r in rows] == [("clip", 30)]
+    geo = [g for g in nightqc.clip_regions(v, annotations=(_MK,)) if g["rail"] == 200]
+    assert geo[0]["monotone_in"] and geo[0]["monotone_out"] and geo[0]["projects_beyond"]
+
+
+def test_clip_ignores_a_real_beat_crossing_zero():
+    beat = [int(100 + 90 * math.sin(i / 7.0)) for i in range(900)]
+    assert nightqc.class_b_runs(beat, stream="ppg", annotations=(_MK,))["rows"] == []
+
+
+def test_clip_does_not_flag_a_long_constant_run_at_BASELINE():
+    """Two-sided without a value list, proven.
+
+    The acceptance file carries a 12,411-sample run at value 100 with deviation 0.27 of the stream's
+    own scale. It is a `stuck` stream, not a clip, and nothing here names 0, 100 or 200 to know that —
+    100 is simply not an extreme.
+    """
+    v = [100] * 400 + [90, 110] * 200
+    assert nightqc.class_b_runs(v, stream="ppg", annotations=(_MK,))["rows"] == []
+
+
+def test_clip_finds_NOTHING_in_a_clean_stream():
+    """The negative control real data cannot supply, because every real file's extremes are anomalous
+    BY CONSTRUCTION — which is exactly why a clean synthetic stream is the only place this can be
+    asserted. (Magpie's port flagged 16 spans on 2,000 clean samples before the rail was qualified.)
+
+    A smooth signal genuinely lingers at its own turning point, so `min_run` alone will never reject it
+    and neither will the geometry: a turning point is approached monotonically AND projects beyond its
+    own extreme, just as a real rail does. The discriminator is that a rail is a histogram SPIKE.
+    Measured over eight files: real rails out-count their neighbour 9.0-43.0x, a clean quantised sine
+    only 2.3-2.4x, and a lone outlier 1.0x.
+    """
+    clean = [int(100 + 90 * math.sin(i / 23.0)) for i in range(2000)]
+    assert nightqc.rail_value(clean, toward_high=False) is None
+    assert nightqc.rail_value(clean, toward_high=True) is None
+    assert nightqc.clip_regions(clean, annotations=(_MK,)) == []
+    assert nightqc.class_b_runs(clean, stream="ppg", annotations=(_MK,))["rows"] == []
+
+
+def test_the_rail_is_the_histogram_spike_NOT_the_observed_extreme():
+    """🔴 The observed maximum is not the rail, and keying on it drops a whole class silently.
+
+    Measured on 20260905045318 the top of the range is 195:34 · 196:39 · 197:41 · 198:75 · 199:2596 ·
+    200:304 — the rail is 199 and 200 is a rare overshoot one quantum above it. A `max`-keyed rule
+    hunts at 200, weighs 304 against a 2,596-sample neighbour, and reports no ceiling at all; the
+    symptom is "the ceiling behaves unlike the floor", not an error. Found by Magpie against real
+    files, 2026-09-06.
+    """
+    # a rail at 199 with a thin overshoot to 200, exactly the real shape
+    v = ([100] * 40 + [150, 170, 185, 193] + [199] * 60 + [200] * 3 + [199] * 40
+         + [193, 185, 170, 150] + [100] * 40)
+    assert nightqc.rail_value(v, toward_high=True) == 199, "the spike, not the maximum"
+    rails = {r["rail"] for r in nightqc.clip_regions(v, annotations=(_MK,))}
+    assert 199 in rails and 200 not in rails
+
+
+def test_a_lone_outlier_is_not_a_rail():
+    """The Verity's minimum is a SINGLE sample 556 quanta from anything else — isolated, and not a
+    pin. Isolation alone must not qualify a rail or one stray reading invents a class."""
+    v = [100 + (i % 7) for i in range(500)] + [-9000]
+    assert nightqc.rail_value(v, toward_high=False) is None
+
+
+def test_class_b_runs_emit_seam_receives_the_sidecar_columns():
+    seen = []
+    v = _baseline() + _RAMP_DOWN + [0] * 30 + _RAMP_UP + _baseline()
+    nightqc.class_b_runs(v, stream="ppg", tick_ms=8.0, annotations=(_MK,),
+                         emit=lambda *a: seen.append(a))
+    assert len(seen) == 1
+    stream, value, first_index, n, dur_ms, closed, rule = seen[0]
+    assert (stream, value, n, rule) == ("ppg", 0, 30, "clip")
+    assert dur_ms == 30 * 8.0 and closed is True and first_index > 0
+
+
+def test_class_b_runs_multichannel_reports_per_channel_and_held_once():
+    recs = [(x, 50) for x in (_baseline() + _RAMP_DOWN + [0] * 30 + _RAMP_UP + _baseline())]
+    out = nightqc.class_b_runs(recs, stream="ppg", annotations=(_MK,))
+    assert any(r["stream"] == "ppg:ch0" and r["rule"] == "clip" for r in out["rows"])
+    held = []
+    nightqc.class_b_runs([(k // 6, 0) for k in range(600)], stream="acc",
+                         emit=lambda *a: held.append(a))
+    assert len(held) == 1 and held[0][6].startswith("held ratio=")
+
+
+# ── THE BOUNDED BACK-CHECK (residue 2026-09-21-capture-daemon-qc-digest-peaks-1-3gb) ──────────────
+# `class_b_quality` materialised one Python tuple per waveform ROW. Measured on vigil against the
+# real 2026-09-21 night (765 MB, four class-B files): VmHWM **1141 MB**, of which the ring's 5.26 M
+# two-channel PPG2W alone was 755 MB — inside the daemon that holds every BLE link, at 09:00. The
+# columns path costs 8 bytes a sample instead of ~143. These tests pin the two things that makes
+# safe: the cheap path must answer IDENTICALLY, and it must stay cheap. On that real night the two
+# readers were run against each other: **1116 MB -> 245 MB, and the four blocks compared byte for
+# byte identical** (2026-09-22, box-local, same 34 s runtime).
+
+def _stream_with_a_rail():
+    """A column the clip rule fires on: baseline, a ramp into a floor plateau, a ramp out."""
+    return _baseline() + _RAMP_DOWN + [0] * 30 + _RAMP_UP + _baseline()
+
+
+def test_class_b_runs_columns_equals_records():
+    """The SAME rows read the other way round give the same dict — rows, clips, held, everything.
+
+    This is the whole licence for the columns path. Without it "cheaper" would be a claim about a
+    second implementation of the rule rather than about the same rule's input shape."""
+    from array import array
+    col0 = _stream_with_a_rail()
+    col1 = [50] * len(col0)
+    recs = list(zip(col0, col1))
+    a = nightqc.class_b_runs(recs, stream="ppg", tick_ms=8.0, annotations=(_MK,))
+    b = nightqc.class_b_runs(columns=[array("q", col0), array("q", col1)],
+                             stream="ppg", tick_ms=8.0, annotations=(_MK,))
+    assert a == b and a["clips"] == {"ppg:ch0": 1, "ppg:ch1": 0}
+    assert [r["rule"] for r in a["rows"]] == ["clip"], "the fixture must actually fire, or this passes vacuously"
+    # single channel: the name has no :chN, and both paths still agree
+    one_r = nightqc.class_b_runs(col0, stream="ecg", annotations=(_MK,))
+    one_c = nightqc.class_b_runs(columns=[array("q", col0)], stream="ecg", annotations=(_MK,))
+    assert one_r == one_c and set(one_c["clips"]) == {"ecg"}
+
+
+def test_held_columns_matches_held_stream_exactly():
+    """A HOLD is a property of the RECORD — every channel freezing on the same tick — and the columns
+    path must not quietly become the per-column read that `test_held_stream_wants_records_not_columns`
+    measures as WRONG (it splices runs across record changes and overstates the ratio)."""
+    from array import array
+    recs = []
+    for k in range(120):
+        recs += [(k, k // 2)] * 6
+    cols = [array("q", [r[0] for r in recs]), array("q", [r[1] for r in recs])]
+    assert nightqc.held_columns(cols) == nightqc.held_stream(recs)
+    assert nightqc.held_columns(cols)["lengths"] == (6, 7)
+    # and it must still REFUSE what held_stream refuses
+    ragged = [array("q", list(range(400)))]
+    assert nightqc.held_columns(ragged) is nightqc.held_stream(list(range(400))) is None
+    assert nightqc.held_columns([array("q", [1, 2, 3])]) is None      # too few transitions
+    assert nightqc.held_columns([array("q", [])]) is None and nightqc.held_columns([]) is None
+
+
+def test_class_b_runs_refuses_an_ambiguous_or_ragged_call():
+    from array import array
+    import pytest as _pytest
+    with _pytest.raises(TypeError):
+        nightqc.class_b_runs(stream="ppg")                                   # neither
+    with _pytest.raises(TypeError):
+        nightqc.class_b_runs([1, 2], columns=[array("q", [1, 2])], stream="ppg")   # both
+    with _pytest.raises(ValueError):
+        nightqc.class_b_runs(columns=[], stream="ppg")                       # no channel at all
+    with _pytest.raises(ValueError):
+        nightqc.held_columns([array("q", [1, 2, 3]), array("q", [1, 2])])    # not one stream's channels
+
+
+def test_the_back_check_reads_a_night_without_HOLDING_it(tmp_path):
+    """The property the row is about, as a bound rather than a hope.
+
+    Measured here at ~40 000 rows x 2 channels: the records reader traced **5.8 MB** of live Python objects at its peak,
+    the columns reader **0.9 MB** (6.7x). The bound is 3 MB — comfortably above what
+    the bounded reader needs (it also holds the line buffer and the emitted rows) and far below what
+    one tuple per row costs, so this fails on the implementation it replaced rather than on noise.
+    """
+    import tracemalloc
+    night = tmp_path / "2026-09-21"
+    night.mkdir()
+    p = night / "Wellue_O2Ring-S_S8AW2100_20260921212350_PPG2W.txt"
+    tile = _stream_with_a_rail()          # the SAME shape the clip tests use, so the rule really fires
+    tiles = 40000 // len(tile)
+    ch0 = tile * tiles
+    rows = ["timestamp [ms];sensor timestamp [ns];channel 0;channel 1;motion"]
+    for i, v in enumerate(ch0):
+        rows.append("%d;%d;%d;%d;0" % (i * 8, i * 8000000, v, 120 + (i % 11)))
+    p.write_text("\n".join(rows) + "\n", encoding="utf-8")
+
+    tracemalloc.start()
+    blocks = nightqc.class_b_quality(str(night))
+    _cur, peak = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+    assert len(blocks) == 1 and blocks[0]["clips"], "the fixture must produce a real block"
+    assert blocks[0]["clips"].get("ppg2w:ch0") == tiles, "every planted floor must be found"
+    # ⚠️ 3 MB IS NOT A ROUND NUMBER, IT IS A SEPARATION. Run against origin/main's reader on this very
+    # fixture the peak is 5.8 MB and this assertion FAILS; on the columns reader it is 0.9 MB. A bound
+    # that passes on the implementation it replaced would be worth nothing — so before relaxing this
+    # threshold, re-measure both readers on the same fixture and keep the gap, or the test stops being
+    # able to tell the two apart and goes on reporting green about a reader it never examined.
+    assert peak < 3_000_000, f"the back-check held {peak / 1e6:.1f} MB of a 40 000-row file"
+
+
+def test_clip_regions_handles_empty_and_all_annotation_input():
+    assert nightqc.clip_regions([]) == []
+    assert nightqc.clip_regions([_MK] * 50, annotations=(_MK,)) == []
+
+
+def test_clip_at_a_file_edge_has_no_room_to_read_an_approach():
+    """A plateau touching the first or last sample cannot have its approach read, and the geometry
+    says so with `projects_beyond is None` rather than guessing a shape from a truncated window."""
+    head = [0] * 30 + _RAMP_UP + _baseline()
+    geo = [g for g in nightqc.clip_regions(head, annotations=(_MK,)) if g["first_index"] == 0]
+    assert geo and geo[0]["projects_beyond"] is None and geo[0]["monotone_in"] is False
+    tail = _baseline() + _RAMP_DOWN + [0] * 30
+    last = nightqc.clip_regions(tail, annotations=(_MK,))[-1]
+    assert last["monotone_out"] is False        # nothing after it to be monotone in
+    rows = nightqc.class_b_runs(tail, stream="ppg", annotations=(_MK,))["rows"]
+    assert rows[-1]["closed"] is False          # the run is still open at the end of the file
+
+
+def test_marker_inside_the_APPROACH_RAMP_is_stepped_over():
+    """The real-corpus signature, and the one the plateau plant does not cover.
+
+    Measured 2026-09-06 on 20260905045318: of the 26 zero events whose approach read non-monotone,
+    26/26 had a `156` in the approach WINDOW (and 0/95 of the monotone ones did). The marker breaks the
+    ramp from outside the plateau as well as from inside it, so both windows must step over it.
+
+    ⚠️ Note WHERE the marker sits. A 156 early in a descending ramp leaves it non-increasing (156 is
+    above everything after it) and breaks nothing; it is the marker ADJACENT to the plateau, after the
+    ramp has fallen below it, that inverts the last step — which is exactly the `[0, 0, 0, 0, 0, 156]`
+    window shape the corpus produced. A plant that puts it anywhere else passes while testing nothing.
+    """
+    exit_ramp = [1, 4, _MK, 9, 14, 19, 24, 29, 35, 41, 47]   # and one deeper in the departure
+    v = (_baseline() + _RAMP_DOWN + [_MK] + [0] * 30 + [_MK] + exit_ramp + _baseline())
+    geo = [g for g in nightqc.clip_regions(v, annotations=(_MK,)) if g["rail"] == 0]
+    assert geo, "the plateau is still found"
+    assert geo[0]["monotone_in"] and geo[0]["monotone_out"], \
+        "with the marker stepped over, the ramp either side reads monotone"
+    blind = [g for g in nightqc.clip_regions(v) if g["rail"] == 0]
+    assert blind and not blind[0]["monotone_in"] and not blind[0]["monotone_out"], \
+        "undeclared, the adjacent marker inverts the last step of the ramp on both sides"
+
+
+def test_annotation_gap_is_bounded_so_a_marker_burst_cannot_merge_two_plateaus():
+    """Unbounded stepping is safe on today's corpus and wrong in principle.
+
+    Consecutive-`156` runs on 20260905045318 are 1:5383 · 2:11 · 3:3 · 4:2 · 5:3 · 6:3 — max 6 — so the
+    bound of 8 never fires on real data. It bounds the case where a marker BURST separates two real
+    plateaus: merged, the region's span would be mostly annotation.
+    """
+    burst = _baseline() + _RAMP_DOWN + [0] * 12 + [_MK] * 20 + [0] * 12 + _RAMP_UP + _baseline()
+    at_floor = nightqc._rail_runs(burst, 0, toward_high=False, max_spread=1, min_run=8,
+                                  annotations=(_MK,),
+                                  annotation_gap_max=nightqc._ANNOTATION_GAP_MAX)
+    assert len(at_floor) == 2, "a 20-row burst is longer than the bound, so the plateaus stay apart"
+    assert all(r[1] < 20 for r in at_floor), "and no span swallows the 20 annotation rows"
+    # a burst SHORTER than the bound is still stepped over, giving one plateau spanning it
+    short = _baseline() + _RAMP_DOWN + [0] * 12 + [_MK] * 6 + [0] * 12 + _RAMP_UP + _baseline()
+    merged = nightqc._rail_runs(short, 0, toward_high=False, max_spread=1, min_run=8,
+                                annotations=(_MK,),
+                                annotation_gap_max=nightqc._ANNOTATION_GAP_MAX)
+    assert len(merged) == 1 and merged[0][1] >= 30, "12 + 6 markers + 12 reported as one span"
+
+
+def test_rail_value_refuses_a_stream_with_nothing_to_compare_against():
+    """A rail is defined RELATIVE to its neighbour, so a stream with no neighbour has no rail.
+
+    Both arms matter: an empty stream, and a stream of one repeated value — the latter is the flat-
+    lined case, which is a `stuck` stream and must not be re-reported here as a clip against itself.
+    """
+    assert nightqc.rail_value([], toward_high=True) is None
+    assert nightqc.rail_value([7] * 500, toward_high=True) is None
+    assert nightqc.rail_value([7] * 500, toward_high=False) is None
+    assert nightqc.clip_regions([7] * 500) == []
+
+
+def test_rail_needs_something_inward_of_the_spike():
+    """A two-valued stream whose commoner value is the HIGHER one has no floor rail: scanning from the
+    low edge, the spike is the top value and there is nothing inward of it to out-count."""
+    v = [1] * 20 + [2] * 300
+    assert nightqc.rail_value(v, toward_high=False) is None
+
+
+def _write_ppg(night, name, values, header="Phone timestamp;sensor timestamp [ns];channel 0\n"):
+    p = os.path.join(night, name)
+    with open(p, "w") as fh:
+        fh.write(header)
+        for i, v in enumerate(values):
+            fh.write(f"2026-09-05T04:53:{i % 60:02d}.000;0;{v}\n")
+    return p
+
+
+def test_class_b_quality_scans_a_night_and_reaches_the_seam(tmp_path):
+    """The production path: the per-night back-check finds the capture, runs the detector, and the
+    rows reach the sidecar seam. Without this the detector would be reachable only from tests."""
+    night = str(tmp_path)
+    clipped = _baseline() + _RAMP_DOWN + [0] * 30 + _RAMP_UP + _baseline()
+    _write_ppg(night, "Wellue_O2Ring-S_X_20260905045318_PPG.txt", clipped)
+    seen = []
+    blocks = nightqc.class_b_quality(night, emit=lambda *a: seen.append(a))
+    assert [b["file"] for b in blocks] == ["Wellue_O2Ring-S_X_20260905045318_PPG.txt"]
+    assert seen and seen[0][6] == "clip" and seen[0][1] == 0
+    # and the marker is declared for this tag, so a marker-split plateau is still ONE span
+    marked = _baseline() + _RAMP_DOWN + [0] * 14 + [_MK] + [0] * 15 + _RAMP_UP + _baseline()
+    _write_ppg(night, "Wellue_O2Ring-S_X_20260905045319_PPG2W.txt", marked)
+    got = []
+    nightqc.class_b_quality(night, emit=lambda *a: got.append(a))
+    ppg2w = [g for g in got if g[0] == "ppg2w"]
+    ppg = [g for g in got if g[0] == "ppg"]
+    assert len(ppg2w) == 1
+    # the marker-split plateau reports the SAME span as the unmarked one — the invariant that
+    # matters, not the magic number beside it.
+    assert ppg2w[0][3] == ppg[0][3] == 30
+
+
+def _write_rows(night, name, header, rows, preamble=""):
+    p = os.path.join(night, name)
+    with open(p, "w") as fh:
+        fh.write(preamble + header + "\n")
+        for i, r in enumerate(rows):
+            fh.write(f"2026-09-05T04:53:{i % 60:02d}.000;{';'.join(str(v) for v in r)}\n")
+    return p
+
+
+def test_class_b_quality_scans_waveform_columns_by_NAME_not_position(tmp_path):
+    """The third term beside sample and annotation: a STATUS column is not a waveform.
+
+    PPG2W's real row is `channel 0;channel 1;motion`, and `motion` is the ring's stillness byte whose
+    correct reading is a constant `0` — a rail by every distributional test. The reader took every
+    column after the two stamps by position, so a still night reported the 24-bit stream's stillest
+    hours as its worst (156 spans, a 700,409-sample run, ch0/ch1 clean, 2026-09-06). ECG's
+    `timestamp [ms]` was scanned the same way and pushed the real ECG to `ecg:ch1`. Both files also
+    open with the box's `# timebase=` line ahead of the header, which the old reader consumed AS the
+    header.
+    """
+    night = str(tmp_path)
+    clean = _baseline() * 4
+    n = len(clean)
+    # plant: a still ring — the motion byte as the ring writes it, 0 with a brief stir now and then,
+    # both PPG channels clean. The stirs matter: an all-zero column is refused by `rail_value` as a
+    # stream with nothing to compare against, so a constant plant would read clean under the OLD
+    # reader too and prove nothing (verified: this shape yields 2 `ppg2w:ch2` clips on it).
+    motion = [0 if i % 97 else 1 + i % 3 for i in range(n)]
+    _write_rows(night, "Wellue_O2Ring-S_X_20260905045318_PPG2W.txt",
+                "Phone timestamp;sensor timestamp [ns];channel 0;channel 1;motion",
+                [(0, 3_000_000 + v, 12_000 + v, m) for v, m in zip(clean, motion)],
+                preamble="# timebase=host-disciplined\n")
+    (block,) = nightqc.class_b_quality(night)
+    assert block["columns"] == ["channel 0", "channel 1"], "the status byte is not scanned"
+    assert block["rows"] == [] and set(block["clips"]) == {"ppg2w:ch0", "ppg2w:ch1"}, \
+        "a still ring is not a clipped one"
+    # the same plant with a REAL rail on channel 0 still reds — the exclusion did not blind the scan
+    railed = _baseline() + _RAMP_DOWN + [0] * 30 + _RAMP_UP + _baseline()
+    _write_rows(night, "Wellue_O2Ring-S_X_20260905045318_PPG2W.txt",
+                "Phone timestamp;sensor timestamp [ns];channel 0;channel 1;motion",
+                [(0, 3_000_000 + v, 12_000 + (i % 7), 0) for i, v in enumerate(railed)])
+    (block,) = nightqc.class_b_quality(night)
+    assert [r["stream"] for r in block["rows"]] == ["ppg2w:ch0"] and block["rows"][0]["n_samples"] == 30
+    # ECG: the device axis column is not a channel, so the H10's ECG is `ecg`, not `ecg:ch1`
+    _write_rows(night, "Polar_H10_X_20260905045318_ECG.txt",
+                "Phone timestamp;sensor timestamp [ns];timestamp [ms];ecg [uV]",
+                [(841982897265081688 + i, i * 7.692308, v) for i, v in enumerate(railed)])
+    ecg = [b for b in nightqc.class_b_quality(night) if b["stream"] == "ecg"]
+    assert ecg[0]["columns"] == ["ecg [uV]"] and set(ecg[0]["clips"]) == {"ecg"}
+    # a row whose width disagrees with the header is torn, not re-interpreted
+    with open(os.path.join(night, "Polar_H10_X_20260905045318_ECG.txt"), "a") as fh:
+        fh.write(f"2026-09-05T04:54:00.000;0;{n * 7.692308};5;extra\n")
+    assert [b for b in nightqc.class_b_quality(night) if b["stream"] == "ecg"][0]["rows"] == ecg[0]["rows"]
+    # a header naming NO waveform column is absent, not clean
+    _write_rows(night, "Wellue_O2Ring-S_Y_20260905045318_PPG2W.txt",
+                "Phone timestamp;sensor timestamp [ns];motion", [(0, 0)] * n)
+    assert all(b["file"] != "Wellue_O2Ring-S_Y_20260905045318_PPG2W.txt"
+               for b in nightqc.class_b_quality(night))
+    assert nightqc._waveform_columns("") == ()
+
+
+def test_class_b_quality_is_empty_when_the_night_holds_nothing_it_reads(tmp_path, caplog):
+    """Nothing to report is not everything healthy — an empty list, never a clean verdict."""
+    night = str(tmp_path)
+    assert nightqc.class_b_quality(night) == []
+    _write_ppg(night, "Polar_H10_X_20260905045318_RR.txt", [800, 810, 790])   # not a class-B tag
+    _write_ppg(night, "Wellue_O2Ring-S_X_20260905045318_PPG.txt", [5, 6, 7])  # too few rows
+    open(os.path.join(night, "Wellue_O2Ring-S_X_20260905045319_PPG.txt"), "w").close()  # 0 bytes
+    with caplog.at_level(logging.WARNING, logger="tepna-capture"):
+        assert nightqc.class_b_quality(night) == []
+    assert caplog.records == [], "a 0-byte open capture is too few rows, not a malformed header"
+    assert nightqc.class_b_quality(os.path.join(night, "does-not-exist")) == []
+    # the row floor is `<`: a file carrying exactly `_CLIP_MIN_RUN` rows IS scanned
+    _write_ppg(night, "Wellue_O2Ring-S_X_20260905045318_PPG.txt", [5, 6, 7, 8, 9][:nightqc._CLIP_MIN_RUN])
+    assert [b["file"] for b in nightqc.class_b_quality(night)] == ["Wellue_O2Ring-S_X_20260905045318_PPG.txt"]
+
+
+def test_class_b_quality_skips_a_row_or_a_file_without_ending_the_scan(tmp_path, caplog):
+    """Every `continue` in the scan is a SKIP, and a skip must not read as a stop.
+
+    Planted so that the thing after the skipped thing carries the verdict: a torn row sits in the
+    MIDDLE of the file ahead of the rail, and a too-short file sorts AHEAD of the railed one. A
+    reader that broke out at either would report the night clean. The box's preamble also carries a
+    byte that is not UTF-8 (a `\\xff` on the `# timebase=` line): the reader decodes with
+    `errors="replace"`, so that byte costs one character, not the file.
+    """
+    night = str(tmp_path)
+    railed = _baseline() + _RAMP_DOWN + [0] * 30 + _RAMP_UP + _baseline()
+    p = _write_rows(night, "Wellue_O2Ring-S_X_20260905045318_PPG2W.txt",
+                    "Phone timestamp;sensor timestamp [ns];channel 0;channel 1;motion",
+                    [(0, 3_000_000 + v, 12_000 + (i % 7), 0) for i, v in enumerate(railed)])
+    body = open(p, "rb").read().split(b"\n")
+    body.insert(5, b"2026-09-05T04:53:05.000;0;3000100;12000;0;extra")        # torn: too wide
+    body.insert(3, b"2026-09-05T04:53:03.000;0;not-a-number;12000;0")         # torn: unparsable
+    with open(p, "wb") as fh:
+        fh.write(b"# timebase=host-disciplined \xff\n" + b"\n".join(body))
+    _write_ppg(night, "Wellue_O2Ring-S_A_20260905045318_PPG.txt", [5, 6, 7])  # sorts first; too few
+    with caplog.at_level(logging.WARNING, logger="tepna-capture"):
+        blocks = nightqc.class_b_quality(night)
+    assert caplog.records == []
+    assert [b["file"] for b in blocks] == ["Wellue_O2Ring-S_X_20260905045318_PPG2W.txt"]
+    assert [r["stream"] for r in blocks[0]["rows"]] == ["ppg2w:ch0"] and blocks[0]["rows"][0]["n_samples"] == 30
+
+
+def test_class_b_quality_names_the_file_in_both_ABSENT_warnings(tmp_path, monkeypatch, caplog):
+    """The two absences are logged, and a log line that omits the file names nothing a reader can act on."""
+    night = str(tmp_path)
+    _write_rows(night, "Wellue_O2Ring-S_Y_20260905045318_PPG2W.txt",
+                "Phone timestamp;sensor timestamp [ns];motion", [(0, 0)] * 40)
+    _write_ppg(night, "Wellue_O2Ring-S_Z_20260905045318_PPG.txt", _baseline())   # sorts AFTER the bad file
+    later = ["Wellue_O2Ring-S_Z_20260905045318_PPG.txt"]
+    with caplog.at_level(logging.WARNING, logger="tepna-capture"):
+        assert [b["file"] for b in nightqc.class_b_quality(night)] == later, "an absent file skips, not stops"
+    (rec,) = caplog.records
+    assert rec.getMessage() == ("night-QC: Wellue_O2Ring-S_Y_20260905045318_PPG2W.txt names no waveform "
+                                "column in its header, so its class-B quality is ABSENT rather than clean")
+    caplog.clear()
+    real_open = open
+
+    def boom(path, *a, **k):
+        if str(path).endswith("_PPG2W.txt"):
+            raise OSError("unreadable")
+        return real_open(path, *a, **k)
+
+    monkeypatch.setattr("builtins.open", boom)
+    with caplog.at_level(logging.WARNING, logger="tepna-capture"):
+        assert [b["file"] for b in nightqc.class_b_quality(night)] == later, "an absent file skips, not stops"
+    (rec,) = caplog.records
+    assert rec.getMessage() == ("night-QC: Wellue_O2Ring-S_Y_20260905045318_PPG2W.txt is unreadable, so its "
+                                "class-B quality is ABSENT rather than clean — the two must not read alike")
+    assert rec.exc_info and rec.exc_info[0] is OSError, "the traceback travels with the warning"
+
+
+def test_class_b_quality_skips_torn_rows_and_survives_an_unreadable_file(tmp_path, monkeypatch):
+    """A torn row is expected at a live file's tail; an unreadable file is ABSENT, not clean."""
+    night = str(tmp_path)
+    p = _write_ppg(night, "Wellue_O2Ring-S_X_20260905045318_PPG.txt",
+                   _baseline() + _RAMP_DOWN + [0] * 30 + _RAMP_UP + _baseline())
+    with open(p, "a") as fh:
+        fh.write("2026-09-05T04:54:00.000;0;not-a-number\n")   # torn tail row, skipped
+        fh.write("short;row\n")                                # too few fields, skipped
+    assert nightqc.class_b_quality(night)[0]["rows"], "the torn rows did not erase the verdict"
+    real_open = open
+
+    def boom(path, *a, **k):
+        if str(path).endswith("_PPG.txt"):
+            raise OSError("unreadable")
+        return real_open(path, *a, **k)
+
+    monkeypatch.setattr("builtins.open", boom)
+    assert nightqc.class_b_quality(night) == []
+
+
+def test_the_rail_tolerance_is_OUTWARD_only():
+    """`_PLATEAU_LSB` exists for the OVERSHOOT past the pin, not for the approach to it.
+
+    The ring's ceiling rail is 199 and flickers up to 200; admitting that flicker is what merges one
+    plateau otherwise reported as 118 + 81 regions. A symmetric tolerance — which this file carried
+    until 2026-09-06 — also admits a 198 under a 199 ceiling and a 1 above a 0 floor, which are values
+    the encoding CAN represent and the device DID report. It extended every span by a sample at each
+    end and opened ceiling spans during the ramp. Making it outward-only brought this implementation
+    to exact parity with the independent JS port: 170 spans, floor 91, ceiling 79, 5,647 samples.
+    """
+    assert nightqc._at_rail(199, 199, True, 1) and nightqc._at_rail(200, 199, True, 1)
+    assert not nightqc._at_rail(198, 199, True, 1), "one LSB short of the pin is measured signal"
+    assert nightqc._at_rail(0, 0, False, 1)
+    assert not nightqc._at_rail(1, 0, False, 1), "and so is one LSB above a floor rail"
+
+
+def test_a_pin_shorter_than_min_run_is_not_reported():
+    """`_CLIP_MIN_RUN` is the floor on what reaches the sidecar.
+
+    ⚠️ The stream must carry a QUALIFYING rail, or this passes for the wrong reason. A first draft
+    used one short pin on a clean baseline and asserted no regions — which was true because
+    `rail_value` found no rail at all (3 zeros against 1 neighbour is a ratio of 3.0, under
+    `_RAIL_SPIKE_MIN`), so `min_run` was never consulted and the assertion tested nothing.
+    """
+    long_pins = (_baseline() + _RAMP_DOWN + [0] * 30 + _RAMP_UP) * 3
+    short_pin = _RAMP_DOWN + [0] * 3 + _RAMP_UP + _baseline()
+    v = long_pins + short_pin
+    assert nightqc.rail_value(v, toward_high=False) == 0, "the rail qualifies, so min_run is reached"
+    spans = nightqc.clip_regions(v, min_run=5, annotations=(_MK,))
+    assert [r["n_samples"] for r in spans] == [30, 30, 30], "the 3-sample pin is under the bar"
+    assert all(r["n_samples"] >= 5 for r in spans)
+
+
+def test_a_BLE_hole_in_the_arrival_record_is_CUT_not_compacted(tmp_path):
+    """§2.2 step 2a at the QC level: a 60 s hole in a 0.5 s cadence produces two segments and
+    `pooled: True` in the per-stream stability block — the ledger says how the curve treated it."""
+    d = tmp_path / "2026-08-15"
+    d.mkdir()
+    lines = ["Phone timestamp;device;meas;first_sensor_ns;last_sensor_ns;n_samples"]
+    wobble = (0.31, -0.17, 0.23, -0.29, 0.11, -0.37, 0.19, -0.13)
+    for i in range(600):
+        host_s = i * 0.5 + (3 if i % 2 == 0 else -3) / 1000.0 + (60.0 if i >= 300 else 0.0)
+        dev_ns = int(i * 0.5e9 + wobble[i % 8] * 1e6 + (60.0e9 if i >= 300 else 0))
+        stamp = "2026-08-15T02:%02d:%02d.%03d" % (int(host_s // 60), int(host_s % 60), int((host_s * 1000) % 1000))
+        lines.append("%s;Polar H10 02849638;ecg;%d;%d;73" % (stamp, dev_ns, dev_ns))
+    (d / "Polar_H10_02849638_20260815024240_PMDARRIVAL.csv").write_text("\n".join(lines) + "\n")
+    rows = nightqc.arrival_quality(str(d))
+    assert len(rows) == 1
+    st = rows[0]["stability"]
+    assert st["ok"] is True, st
+    assert st["pooled"] is True and st["segments"] == 2 and st["dropped_intervals"] == 1
+

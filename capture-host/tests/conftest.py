@@ -67,6 +67,21 @@ class _Completed:
         self.returncode, self.stdout, self.stderr = returncode, stdout, stderr
 
 
+@_pytest.fixture(autouse=True)
+def _fresh_power_engines():
+    """`capture._POWER` holds one per-ring power engine per process — the same object the daemon keeps
+    for a whole night. Left alone, a test that drives "Ring" into storm cooldown / backoff / synced-idle
+    silently DEFERS the next test's pull and that test fails on a gate it never touched. Guarded: many
+    test files never import capture (bleak-free lanes), and the fixture must not become the importer."""
+    mod = sys.modules.get("capture")
+    if mod is not None and hasattr(mod, "_POWER"):
+        mod._POWER.clear()
+    yield
+    mod = sys.modules.get("capture")
+    if mod is not None and hasattr(mod, "_POWER"):
+        mod._POWER.clear()
+
+
 @_pytest.fixture
 def recorded_run(monkeypatch):
     """Patches `subprocess.run` in the cpap_harvest module namespace and hands back the recorder."""
@@ -198,3 +213,217 @@ class AlertRecorder:
 def alert_recorder():
     """Factory, not an instance — several tests need more than one notifier, or one that refuses."""
     return AlertRecorder
+
+
+# ── leaked module-global events (residue `2026-09-06-runner-gate-events-leak-between-tests`) ─────────
+# `capture` carries three module-global `asyncio.Event`s — `_STOP`, `_RECOVER`, `_OXYII_PAUSE` — and
+# tests `.set()` them DIRECTLY rather than through `monkeypatch`, so nothing restores them. All three
+# gate the runners' loops (`while not _STOP.is_set() and not _RECOVER.is_set() and not
+# _OXYII_PAUSE.is_set()`), so one left set makes every later runner test spin in an outer idle gate and
+# reach NONE of the code it names — while still passing, because a test that observes nothing looks
+# exactly like a test whose subject behaved. Measured: planting either `_RECOVER` or `_OXYII_PAUSE`
+# reproduced a run-level plant recording zero observations, byte-identical to a full-suite failure.
+#
+# TWO MECHANISMS, DELIBERATELY, because they answer different questions:
+#   · the RESET (clear before) stops one test's leak reaching the next — it makes the suite correct;
+#   · the TRIPWIRE (assert after, naming the test) says WHO leaked — it keeps the suite honest.
+# A reset alone would silence this class forever without ever naming a new instance of it, which is
+# how the repo accumulates findings it cannot see recur.
+#
+# THE SET IS DISCOVERED, NOT LISTED. `_capture_events()` introspects the module, so a fourth event
+# added later is covered the day it appears. Hard-coding today's three would encode the count as the
+# invariant — and the count is exactly what a new leak changes. (Enumerating is also how `_STOP` was
+# found at all: grepping the failure only showed the two events that happened to be in one message.)
+import asyncio as _asyncio
+import threading as _threading
+
+
+def _capture_events():
+    """Every module-global Event on `capture`, as (name, event). Discovered, never listed."""
+    import capture as _capture
+
+    return sorted(
+        (n, getattr(_capture, n))
+        for n in dir(_capture)
+        if isinstance(getattr(_capture, n, None), (_threading.Event, _asyncio.Event))
+    )
+
+
+@_pytest.fixture(autouse=True)
+def _capture_events_are_not_leaked(request):
+    """Reset before, tripwire after. The tripwire runs BEFORE the trailing clear so it can still see
+    what the test left; the clear then runs regardless, so one leak cannot cascade."""
+    for _name, ev in _capture_events():
+        ev.clear()
+    yield
+    leaked = [n for n, ev in _capture_events() if ev.is_set()]
+    for _name, ev in _capture_events():
+        ev.clear()
+    if leaked and not request.node.get_closest_marker("sets_capture_events"):
+        raise AssertionError(
+            f"{request.node.nodeid} left {', '.join(leaked)} SET. These are module globals that gate "
+            f"the runner loops, so leaving one set makes later runner tests reach none of the code "
+            f"they name while still passing. Set them via `monkeypatch`, or clear them in the test. "
+            f"A test that sets one AS PART OF ITS SCENARIO declares that with "
+            f"`@pytest.mark.sets_capture_events` — the fixture is a reset, not a ban, and the marker "
+            f"is what keeps this tripwire silent on correct code and loud on a real leak."
+        )
+
+
+# ── leaked runner STATE dicts (residue `2026-09-09-alert-poller-test-order-dependent`) ───────────────
+# The sibling fixture above covers the module-global Events. These three are the other half: plain
+# `dict`/`set` globals that the runners accumulate into and that NOTHING restored, so a test's verdict
+# depended on which tests ran before it.
+#
+# THE MEASURED INSTANCE. `test_alert_poller_fires_on_a_sustained_offline_then_recovers` failed with
+# `sent == []` inside the diff-scoped mutation gate's clean run and passed in the full suite. The
+# mechanism is `_LAST_PULL_OK`: `alert_poller` suppresses the offline alert when a pull completed
+# recently (`alerts.powered_off_after_pull` — the ring powers off ~122 s after a doff, which is not an
+# outage), and with no alert latched the RECOVERY cannot fire either, so both notices vanish and the
+# list is empty. Planting `_LAST_PULL_OK["H10"]` reproduces `sent == []` exactly; planting
+# `_IDLE_TIMER_NAMED` does not. Measured over the whole suite, `_LAST_PULL_OK` does accumulate an
+# `"H10"` key, so the hazard is reachable and not theoretical.
+#
+# ⚠️ THE COST IS A GATE THAT REPORTS ON NOTHING. mutmut sees the clean run fail, generates the glob's
+# mutants and tests NONE of them, and `mutate_diff.py` then refuses — so the gate reported REFUSED
+# about a change it never examined, on a test unrelated to that change (CLAUDE.md §4b's shape).
+#
+# ⚠️ LISTED, NOT DISCOVERED — the opposite of the Events fixture above, deliberately. An `Event` is
+# unambiguously state, so introspection is safe there. A module-global `dict` may be a CONSTANT lookup
+# table, and clearing those would break the code under test rather than isolate it. So this set is
+# enumerated, and the cost is that a fourth state dict added later is not covered until someone adds it.
+#
+# ⚠️ RESET ONLY, NO TRIPWIRE — also the opposite of the Events fixture, and for a measured reason. The
+# Events tripwire is loud because zero correct tests leave an event set. Here a full-suite sweep counted
+# leaks left at teardown by legitimate tests: `_LAST_DATA` 4137, `_IDLE_TIMER_NAMED` 261, `_LAST_PULL_OK` 6.
+# A tripwire would convict all of them. (That sweep measured PRESENCE at teardown, not authorship — it
+# names the test that ran, not necessarily the one that wrote the key.)
+_RUNNER_STATE_GLOBALS = ("_LAST_DATA", "_LAST_PULL_OK", "_IDLE_TIMER_NAMED")
+
+
+@_pytest.fixture(autouse=True)
+def _runner_state_is_not_leaked():
+    """Clear the runner's accumulating state globals before AND after each test.
+
+    Before, so a predecessor cannot change this test's verdict; after, so a failure here cannot
+    cascade into the next test and be read as a second defect."""
+    import capture as _capture
+
+    for _name in _RUNNER_STATE_GLOBALS:
+        getattr(_capture, _name).clear()
+    yield
+    for _name in _RUNNER_STATE_GLOBALS:
+        getattr(_capture, _name).clear()
+
+
+@_pytest.fixture(autouse=True)
+def _sample_writer_count_is_not_leaked(request):
+    """`writers._open_sample_writers` is a PROCESS-GLOBAL counter (residue
+    2026-09-20-open-writer-counter-leaks-across-tests). A test that opens a StreamWriter and never closes
+    it leaves it > 0 for every later test in the process — and with it > 0, `capture._now()` takes its
+    ABSORB branch on a clock divergence instead of re-anchoring, so a fake-monotonic anchor leaked by an
+    earlier test becomes a permanent hours-off `_now()`. That was the second half of the #2715
+    mutation-lane failure; the first half (the anchor) is reset by the fixture above this one's sibling.
+
+    Same shape as `_capture_events_are_not_leaked`: reset before, tripwire after, marker to declare a
+    deliberate leftover. The reset is what fixes the contamination; the tripwire is what stops the
+    next leak from being invisible until a mutation run orders the tests differently."""
+    import writers as _w
+    _w._open_sample_writers = 0
+    yield
+    left = _w._open_sample_writers
+    _w._open_sample_writers = 0
+    if left and not request.node.get_closest_marker("leaves_writers_open"):
+        raise AssertionError(
+            f"{request.node.nodeid} left writers._open_sample_writers = {left}. It opened a sample writer "
+            f"and never closed it, which would make every later test's capture._now() absorb clock steps "
+            f"instead of re-anchoring. Close what you open (or use the writer as a context manager); a "
+            f"test whose SCENARIO ends with a file open declares that with "
+            f"`@pytest.mark.leaves_writers_open`."
+        )
+
+
+@_pytest.fixture(autouse=True)
+def _bonding_select_is_the_configured_address(request):
+    """`bonding.bluez_address` (2026-09-12) resolves the configured adapter to the address BlueZ lists,
+    through `link_rssi.dbus_hci` (a `/sys/class/bluetooth` glob + busctl) and `resolve_hci` (`hcitool dev`).
+    Every watchdog / bond / forget test would otherwise spawn those probes on the test host and get an
+    answer that depends on ITS radios. Pinned to identity here — the configured address is what
+    `select` gets — and the resolver itself is tested, unpinned, in test_bonding.py; test_link_rssi.py
+    exercises the sources directly. Guarded like `_fresh_power_engines`: never the importer.
+
+    Saved/restored by hand, NOT via `monkeypatch`: a conftest autouse fixture that REQUESTS
+    `monkeypatch` instantiates it ahead of every module-level autouse fixture, so `monkeypatch` is
+    torn down LAST — after a module's own reset fixture, which then meets whatever a test patched
+    in. Measured: `test_link_distress_wire._reset` called `.clear()` on the `None` its test had
+    planted into `_RADIO_EVENTS`."""
+    if request.module.__name__ in ("test_bonding", "test_link_rssi"):
+        yield
+        return
+    mod = sys.modules.get("bonding")
+    if mod is None:
+        yield
+        return
+
+    async def identity(adapter_mac):
+        return adapter_mac
+
+    saved = mod.bluez_address
+    mod.bluez_address = identity
+    try:
+        yield
+    finally:
+        mod.bluez_address = saved
+
+
+@_pytest.fixture(autouse=True)
+def _no_fsync_barrier_spans_tests():
+    """Drain the off-loop fsync worker between tests. Same discipline as the capture-event reset
+    above, for the same reason: a PROCESS-GLOBAL side effect that outlives the test that caused it.
+
+    🔴 THE FAILURE THIS CLOSES, measured on `main` 2026-09-10. `writers` runs one daemon thread for
+    the whole process (the barrier was moved off the event loop in #2382). A barrier queued by one
+    test can therefore fire DURING AN UNRELATED LATER TEST — and
+    `test_chaos_ordering.py::test_both_writers_fsync_the_file_BEFORE_the_directory` installs a spy on
+    the global `os.fsync`, so the stray barrier was recorded as an extra `'file'` call and the
+    ordering assertion read `['dir', 'file']` instead of ending on `'dir'`.
+
+    ⚠️ NOTHING WAS WRONG WITH THE ORDERING IT WAS CHECKING. `cpap_spool` is synchronous throughout —
+    `write_part` calls `os.fsync` directly and `promote` fsyncs only the directory — so the
+    transactional guarantee held the whole time. The failure was a true report about a false subject,
+    which is why it reproduced in CI and not locally: it depends on which tests share a worker
+    process and in what order, and xdist distributes them differently every run.
+
+    A drain, not a ban: tests that exercise the real worker are correct to queue barriers, and this
+    only guarantees none is still in flight when the next test starts."""
+    yield
+    import writers
+    writers._drain_fsync(timeout=5.0)
+
+
+@_pytest.fixture(autouse=True)
+def _capture_clock_anchor_is_not_leaked():
+    """Restore `capture._now()`'s anchor after every test. Same family as the two resets above: a
+    PROCESS-GLOBAL side effect written by the CODE, not by the test, so `monkeypatch` never sees it.
+
+    🔴 THE FAILURE THIS CLOSES, measured in the mutation lane of #2715 (2026-09-20). `_now()` predicts
+    wall time from an anchor — `_anchor_wall + (monotonic − _anchor_mono)` — and `_reanchor()` writes
+    those globals from inside the code. `test_capture_clock*.py` monkeypatch `capture._time` to a fake
+    monotonic counter and drive `_now()`; the patch on `_time` is restored, the anchor the code wrote
+    under it is not. Every later `_now()` in that process then predicts from a real wall anchor with a
+    FAKE monotonic origin — measured four hours off (a file stamped 18:23 UTC in a run at 14:3x UTC).
+    Downstream, `test_THE_RING_RESUMES_ITS_FILE_SET…` failed with the resume having HAPPENED (by
+    filename collision on the stale stamp) and the "resuming file-set" line never emitted, because
+    `resumable_set` judges its window against the leaked `now`. Under xdist the clock tests mostly
+    sit on another worker; mutmut's clean baseline is one sequential process, so it saw it every time.
+
+    ⚠️ FOUR NAMES, NOT THE POPULATION. These are the globals `_reanchor()` writes; `capture.py` holds
+    other module-level state that tests have been seen to leak the same way (`STATUS`, `ADAPTER`,
+    `_RADIO_EVENTS` — `test_failover_planted_wedge` 3/19 under one full run, 19/19 alone). That
+    population is not enumerated here; this fixture closes the clock leak it was written for.
+    Snapshot before, restore after — never `_reanchor()` here, which would itself write globals."""
+    import capture
+    keep = {k: getattr(capture, k) for k in ("_anchor_wall", "_anchor_mono", "_anchor_utcoff", "_civil_shift")}
+    yield
+    for k, v in keep.items():
+        setattr(capture, k, v)

@@ -60,6 +60,8 @@
  *   node tools/mutate.mjs --json                    # NDJSON, one line per file, streamed
  *   node tools/mutate.mjs --file X --dry-run       # list the mutants; run nothing, write nothing
  *   node tools/mutate.mjs --selftest                # known-answer, no repo mutation
+ *   node tools/mutate.mjs --verdict-sample          # the tepna.verdict/1 object over a SYNTHETIC result set — no
+ *                                                    # suite, no git; what tools/verdict-adoption.mjs reads in CI
  *   node tools/mutate.mjs --diff                    # GATE: only the lines changed vs origin/main
  *   node tools/mutate.mjs --diff <ref> --dry-run    # what the gate would test, running nothing
  *   node tools/mutate.mjs --file X --bail           # stop each suite run at its first failure
@@ -100,6 +102,7 @@
 import { readFileSync, writeFileSync, appendFileSync, existsSync, rmSync, readdirSync, mkdirSync, symlinkSync } from 'node:fs';
 import { cpus } from 'node:os';
 import { execFileSync, execSync, spawn } from 'node:child_process';
+import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, basename } from 'node:path';
 import { createHash } from 'node:crypto';
@@ -171,12 +174,54 @@ const STREAM = !has('--quiet-stream');
    to run no faster. `--jobs 1` also skips worktrees entirely and mutates in place, which is the right
    trade when there is nothing to parallelise over. An explicit `--jobs N` always wins, so a small box
    can still opt in. */
-export function defaultJobs(cores) {
+/* MEMORY IS THE SECOND DIMENSION, and it was the missing one. The core-derived figure above sizes a
+   CPU-bound pool; each worker here is a FULL node test suite, so the pool is memory-bound in practice
+   and the two can disagree badly. Measured 2026-09-14 on the 24-core box (`tepna-nightly-triage`
+   driving this tool at the core-derived 16): the unit's own cgroup reported a MemoryPeak of
+   **16.57 GB** for those 16 workers — **~1.04 GB per job end-to-end**.
+   ⚠️ Derive the per-job figure from the CGROUP PEAK, not from summing child RSS. A `ps` snapshot of
+   the same 16 workers totalled 7.88 GB (mean 504 MB, median 499, p90 749, max 1038) — less than HALF
+   the true peak, because workers spike at different moments and an instantaneous sum never sees the
+   overlap. Sizing from the snapshot would have doubled the pool that already hurt.
+   The consequence on a small machine is the one that matters: 16 workers × ~1 GB is fine on a 59 GB
+   box with nothing else running and fatal on a CI runner or a laptop, and nothing in the core-derived
+   form can tell those apart. */
+const JOB_BYTES = 1024 * 1024 * 1024; // ~1.04 GB measured, rounded down to 1 GiB
+/* Leave headroom rather than spending all of MemAvailable: this tool routinely runs BESIDE other
+   sessions' gates, and the 2026-09-13 incident was a pool sized to 72 % of available memory on a box
+   that was already committed elsewhere. 60 % is deliberately not tuned to a benchmark — it is the
+   share that leaves the rest of the machine usable. */
+const JOB_MEM_SHARE = 0.6;
+/* `availBytes` is OPTIONAL and the one-argument form is unchanged by construction: unknown memory
+   (a non-Linux host, an unreadable /proc) returns exactly what it returned before, so this can only
+   LOWER a job count on a machine that told us it is short, never raise one or change a platform that
+   cannot answer. */
+export function defaultJobs(cores, availBytes) {
   if (!(cores > 0)) return 1; // cpus() can report an empty list in constrained containers
   if (cores <= 2) return 1; // serial: no worktrees, no extra disk, no oversubscription
-  return Math.max(2, Math.round((cores * 2) / 3));
+  const byCores = Math.max(2, Math.round((cores * 2) / 3));
+  if (!(availBytes > 0)) return byCores; // memory unknown → the historical behaviour, unchanged
+  const byMem = Math.floor((availBytes * JOB_MEM_SHARE) / JOB_BYTES);
+  /* Too little memory to run even two workers takes the SERIAL path, for the same reason a 1-2 core
+     box does: a split that cannot fit buys nothing and costs a worktree apiece. Symmetric with the
+     low-core rule directly above rather than a second, differently-shaped floor. */
+  if (byMem < 2) return 1;
+  return Math.min(byCores, byMem);
 }
-const JOBS = Math.max(1, +opt('--jobs', String(defaultJobs(cpus().length))));
+/* MemAvailable, not MemFree — free memory excludes reclaimable page cache and would read a healthy
+   box as empty. This is the same signal `tepna-nightly-triage.sh`'s own pressure guard reads, so the
+   two agree about what "short" means. Returns null off Linux or if anything is unreadable; never
+   throws, because failing to size is not a reason to fail to run. */
+export function memAvailableBytes(readFile) {
+  try {
+    const txt = (readFile || readFileSync)('/proc/meminfo', 'utf8');
+    const m = /^MemAvailable:\s+(\d+)\s*kB/m.exec(txt);
+    return m ? +m[1] * 1024 : null;
+  } catch {
+    return null;
+  }
+}
+const JOBS = Math.max(1, +opt('--jobs', String(defaultJobs(cpus().length, memAvailableBytes()))));
 
 /* ── the operators ───────────────────────────────────────────────────────────────────────────
    Deliberately small and high-signal. Each is a change that a competent test SHOULD catch, and
@@ -897,7 +942,17 @@ export function loadEquivalence() {
   }
 }
 // The classes that genuinely cannot be killed, and therefore leave the distinguishable denominator.
-const EXCUSING = new Set(['no-distinguishing-input', 'untestable-by-design']);
+//
+// `equivalent` belongs here and was MISSING until 2026-09-07, which inverted the ledger's own
+// hierarchy: it is the STRONGEST claim in the vocabulary — a proof that original and mutant compute
+// the same function, stronger than `no-distinguishing-input`'s "every input we tried agreed" — and
+// it was the one class that did not excuse. Two consequences, both silent: such an entry stayed in
+// the distinguishable denominator, and, being neither excusing nor `real-gap`, it fell to the `else`
+// below and was reported AS a real gap — an instruction to write a test for a mutant carrying a
+// proof that no such test exists. The 2026-08-19 pass that UPGRADED entries from
+// `no-distinguishing-input` to `equivalent` with their proofs therefore made them weaker in effect;
+// strengthening the evidence silently downgraded the classification.
+const EXCUSING = new Set(['no-distinguishing-input', 'untestable-by-design', 'equivalent']);
 /* PURE, so the selftest can pin it without a sweep. Matched on (line, op, before) -- the same key
    `findCanary` uses; `after` is documentation, so changing an operator's output text cannot silently
    orphan an entry. */
@@ -1743,6 +1798,131 @@ async function runFile(file) {
 /* ── selftest: known answers, and it does NOT touch the repo ────────────────────────────────
    Mutant GENERATION is the part with a right answer; whether a given mutant survives depends on
    the suite and is not a fixed fact. So the selftest pins generation + thinning determinism. */
+/* ── THE VERDICT OBJECT — tepna.verdict/1 (VERDICT-CONTRACT §1; `verdict.js` is the authority) ────────
+   The JS half of the pair `capture-host/tools/mutate_diff.py` closed in #2802: the diff gate emits ONE
+   object at every exit, and the object — not the "✕ MUTATION GATE …" prose, which stays as explanation
+   — is the API. Statuses, in the order the gate already decides them:
+     · NOT_RUN         the diff could not be read, or no file could be measured — nothing examined
+     · NOT_APPLICABLE  no mutable source changed, or the changed lines carry no mutable operator — the
+                       criterion does not bind. ⚠️ This is the case that used to print "all 0 mutant(s)
+                       … were killed": a PASS over checked = 0 is the examined-nothing shape and the
+                       validator refuses it at the type level, so the gate now says what it is
+     · UNKNOWN         the canary survived (kills were not being detected) or mutants never ran — the
+                       run could not prove anything either way; never a kill, never a pass
+     · FAIL            a mutant on a changed line survived
+     · PASS            every mutant on the changed lines was killed, over checked > 0
+   Population is MUTANTS on the changed lines: eligible = tested, checked = tested − invalid,
+   excluded = invalid. Exit codes are unchanged (VOID/INCONCLUSIVE 3 · survivors 1 · else 0); the
+   object is added beside them, never instead. Pure — the selftest pins every status without a sweep. */
+export const VERDICT_STATUSES = Object.freeze(['PASS', 'FAIL', 'SHORTFALL', 'UNDERPOWERED', 'NOT_RUN', 'NOT_APPLICABLE', 'UNKNOWN']);
+export function verdictObject(status, { checked, eligible, result, reason, evidence, commit, commitReason, at, base }) {
+  if (!VERDICT_STATUSES.includes(status)) throw new Error('status ' + JSON.stringify(status) + ' is not in the closed enum');
+  if (status === 'PASS' && reason != null) throw new Error('PASS carries reason: null');
+  if (status !== 'PASS' && !(typeof reason === 'string' && reason.trim())) throw new Error(status + ' requires a reason');
+  const excluded = eligible - checked;
+  if (excluded < 0) throw new Error('checked ' + checked + ' > eligible ' + eligible);
+  const producedBy = { tool: 'tools/mutate.mjs', commit: commit == null ? null : commit };
+  if (commit == null) producedBy.commitReason = commitReason || 'not run inside a git checkout'; // ∅: a null commit says why
+  return {
+    schema: 'tepna.verdict/1',
+    gate: 'mutate-diff-js',
+    status,
+    scope: 'internal',
+    population: { checked, eligible, excluded },
+    criterion: { name: 'survivors_on_changed_lines', threshold: 0, unit: 'mutants', direction: 'lte' },
+    result: status === 'NOT_RUN' || status === 'NOT_APPLICABLE' ? null : result,
+    evidence,
+    reason: reason == null ? null : reason,
+    producedBy,
+    at: (at || new Date().toISOString()).replace(/\.\d{3}Z$/, 'Z'),
+    base: base == null ? null : base
+  };
+}
+/* The decision over a finished run: the SAME order as the exit block below, so the code and the status
+   cannot disagree. `results` are runFile() rows; `meta` = { base, commit, at }. Returns { verdict, code }. */
+export function diffVerdict(results, meta) {
+  meta = meta || {};
+  const ok = results.filter((r) => !r.error);
+  const files = results.map((r) => r.file);
+  const evidence = ['tools/mutate.mjs', ...files];
+  const mk = (status, fields) => verdictObject(status, { evidence, commit: meta.commit, commitReason: meta.commitReason, at: meta.at, base: meta.base, ...fields });
+  if (!ok.length) {
+    const why = results
+      .map(
+        (r) =>
+          r.file +
+          ': ' +
+          String(r.error || 'unknown')
+            .split('\n')[0]
+            .slice(0, 80)
+      )
+      .join('; ');
+    return { code: 0, verdict: mk('NOT_RUN', { checked: 0, eligible: 0, result: null, reason: results.length + ' file(s), none measured — ' + (why || 'no files') }) };
+  }
+  const surv = ok.flatMap((r) => r.survivors.map((s) => ({ file: r.file, ...s })));
+  const voided = ok.filter((r) => r.voided);
+  const unrun = ok.reduce((a, r) => a + r.invalid, 0);
+  const tested = ok.reduce((a, r) => a + r.tested, 0);
+  const killed = ok.reduce((a, r) => a + r.killed, 0);
+  const lines = ok.reduce((a, r) => a + (r.touchedLines || 0), 0);
+  const result = { tested, killed, survivors: surv.length, invalid: unrun, changedLines: lines, files: ok.length, skipped: results.length - ok.length };
+  const pop = { checked: tested - unrun, eligible: tested, result };
+  if (voided.length)
+    return {
+      code: 3,
+      verdict: mk('UNKNOWN', { ...pop, reason: 'canary survived on ' + voided.map((r) => r.file).join(', ') + ' — kills were not being detected, so "all killed" would prove nothing' })
+    };
+  if (unrun)
+    return { code: 3, verdict: mk('UNKNOWN', { ...pop, reason: unrun + ' of ' + tested + ' mutant(s) never ran (did not compile, or timed out under load) — nothing was proven about them' }) };
+  if (surv.length)
+    return {
+      code: 1,
+      verdict: mk('FAIL', {
+        ...pop,
+        reason:
+          surv.length +
+          ' of ' +
+          tested +
+          ' mutant(s) on ' +
+          lines +
+          ' changed line(s) survived: ' +
+          surv
+            .slice(0, 5)
+            .map((s) => s.file + ':' + s.line + ' [' + s.op + ']')
+            .join(', ') +
+          (surv.length > 5 ? ', …' : '')
+      })
+    };
+  if (!tested)
+    return {
+      code: 0,
+      verdict: mk('NOT_APPLICABLE', { ...pop, result: null, reason: lines + ' changed line(s) in ' + ok.length + ' file(s) carry no mutable operator — nothing to gate, not a pass over nothing' })
+    };
+  return { code: 0, verdict: mk('PASS', { ...pop, reason: null }) };
+}
+/* What the adoption gate runs: a synthetic result set through the real decision. Fixed `at`, no git. */
+export function verdictSample() {
+  return diffVerdict(
+    [
+      { file: 'clock.js', tested: 12, invalid: 0, killed: 12, survivors: [], voided: false, touchedLines: 4 },
+      { file: 'oxydex-dsp.js', tested: 3, invalid: 0, killed: 3, survivors: [], voided: false, touchedLines: 1 }
+    ],
+    { base: 'origin/main', commit: null, commitReason: '--verdict-sample: synthetic result set, no code identity claimed', at: '2026-09-22T00:00:00Z' }
+  ).verdict;
+}
+function emitVerdict(v) {
+  // VERDICT-CONTRACT §1: under --json the object is the last NDJSON line (it has no `file`, so the
+  // per-file readers skip it by shape); otherwise one labelled line on stdout beside the prose.
+  console.log(AS_JSON ? JSON.stringify(v) : 'VERDICT (tepna.verdict/1): ' + JSON.stringify(v));
+}
+function headCommit() {
+  try {
+    return execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  } catch {
+    return null;
+  }
+}
+
 function selftest() {
   let fail = 0;
   const ok = (n, c, d) => {
@@ -1816,6 +1996,35 @@ function selftest() {
   ok('an empty cpus() list → serial, not a crash', defaultJobs(0) === 1 && defaultJobs(undefined) === 1);
   ok('3 cores → 2 workers (parallel begins)', defaultJobs(3) === 2, 'got ' + defaultJobs(3));
   ok('24 cores → 16, the measured optimum on this box', defaultJobs(24) === 16, 'got ' + defaultJobs(24));
+  /* MEMORY DIMENSION (2026-09-14). The one-argument form must be BYTE-IDENTICAL to what it was, or
+     this change silently re-sizes every platform that cannot report memory — so that is asserted
+     first, against the same cases pinned above, rather than assumed from "the parameter is
+     optional". */
+  ok('unknown memory → the core-derived figure, unchanged', defaultJobs(24) === 16 && defaultJobs(24, null) === 16 && defaultJobs(24, undefined) === 16 && defaultJobs(24, 0) === 16);
+  /* A machine with plenty of memory is still CORE-bound: 64 GB available would allow 37 workers at
+     ~1 GiB and 60 %, and the answer must stay 16. The memory rule is a CEILING, never a licence. */
+  ok('memory never RAISES the pool above the core figure', defaultJobs(24, 64 * 1024 ** 3) === 16, 'got ' + defaultJobs(24, 64 * 1024 ** 3));
+  /* …and when memory is the binding constraint it WINS. 8 GB × 0.6 / 1 GiB = 4. This is the CI-runner
+     and laptop case the core-derived form could not see at all. */
+  ok('memory LOWERS the pool when it is the binding constraint', defaultJobs(24, 8 * 1024 ** 3) === 4, 'got ' + defaultJobs(24, 8 * 1024 ** 3));
+  /* The incident's own numbers, as a regression: 23 GB available on the 24-core box gave 16 workers
+     and a 16.57 GB peak. The same inputs must now give fewer. */
+  ok('the 2026-09-13 shape now sizes DOWN (23 GB avail, 24 cores)', defaultJobs(24, 23 * 1024 ** 3) < 16, 'got ' + defaultJobs(24, 23 * 1024 ** 3));
+  /* Too little memory for two workers takes the SERIAL path, symmetric with the 1-2 core rule — not
+     a floor of 2 that would hand a starved box two full worktrees it cannot feed. */
+  ok('memory too tight for two workers → serial', defaultJobs(24, 2 * 1024 ** 3) === 1, 'got ' + defaultJobs(24, 2 * 1024 ** 3));
+  ok('…and the low-core rule still wins regardless of free memory', defaultJobs(2, 999 * 1024 ** 3) === 1);
+  /* memAvailableBytes parses the real format and REFUSES rather than guessing. A reader that returned
+     0 or NaN on a malformed file would be worse than one that returns null, because null restores the
+     historical behaviour while a bogus number silently re-sizes the pool. */
+  ok('memAvailableBytes parses MemAvailable in kB → bytes', memAvailableBytes(() => 'MemTotal:  100 kB\nMemAvailable:   2048 kB\n') === 2 * 1024 * 1024);
+  ok('…returns null when the field is absent', memAvailableBytes(() => 'MemTotal: 100 kB\n') === null);
+  ok(
+    '…returns null instead of throwing when the file is unreadable',
+    memAvailableBytes(() => {
+      throw new Error('ENOENT');
+    }) === null
+  );
   ok(
     'scales monotonically and never exceeds core count',
     [4, 6, 8, 12, 16, 32].every((c, i, a) => defaultJobs(c) <= c && (i === 0 || defaultJobs(c) >= defaultJobs(a[i - 1])))
@@ -1949,6 +2158,16 @@ function selftest() {
     cls.excused.some((e) => e.class === 'real-gap'),
     false
   );
+  /* `equivalent` is the STRONGEST claim in the vocabulary and must excuse. It did not until
+     2026-09-07: being neither excusing nor `real-gap`, it fell through to the `else` and was reported
+     as a real gap — telling a reader to write a test for a mutant that carries a proof no such test
+     exists, and keeping it in the denominator. Pinned in BOTH directions, because the failure was
+     invisible in one: the entry appeared in `realGap` (a plausible place) rather than nowhere. */
+  const eqGen = [M(5, 'cmp <= → <', 'e')];
+  const eqCls = classifySurvivors([{ line: 5, op: 'cmp <= → <', before: 'e', class: 'equivalent' }], eqGen, eqGen);
+  ck('classify · a proven-equivalent survivor is EXCUSED', eqCls.excused.length, 1);
+  ck('classify · …and is NOT reported as a real gap', eqCls.realGap.length, 0);
+
   /* An empty classification must change nothing -- the mechanism is opt-in per file. */
   const none = classifySurvivors(undefined, survived, genAll);
   ck('classify · no entries ⇒ every survivor unclassified, nothing excused', none.unclassified.length + ':' + none.excused.length, '3:0');
@@ -2038,6 +2257,55 @@ function selftest() {
   ck('NULL CONTROL · …and refuses nothing', _full.ok, true);
   ck('E4b · a duplicated entry does not double-count its mutant', selectRecorded(_collide, [_collide[0], _collide[0]]).picked.length, 1);
 
+  console.log('\nverdict — tepna.verdict/1 at every diff-gate exit, pinned against verdict.js');
+  {
+    const V = createRequire(import.meta.url)('../verdict.js');
+    const row = (over) => ({ file: 'a.js', tested: 10, invalid: 0, killed: 10, survivors: [], voided: false, touchedLines: 3, ...over });
+    const meta = { base: 'origin/main', commit: 'ec4e2d93', at: '2026-09-22T00:00:00Z' };
+    const val = (v) => V.validate(v).ok || V.validate(v).errors.join(' | ');
+    const pass = diffVerdict([row()], meta);
+    ck('all killed → PASS, exit 0', pass.verdict.status + ':' + pass.code, 'PASS:0');
+    ck('…valid under verdict.js', val(pass.verdict), true);
+    ck('…population is an equality over mutants', JSON.stringify(pass.verdict.population), '{"checked":10,"eligible":10,"excluded":0}');
+    ck('…scope internal (P5)', pass.verdict.scope, 'internal');
+    const f = diffVerdict([row({ killed: 9, survivors: [{ line: 7, op: 'num → 0', before: 'x' }] })], meta);
+    ck('a survivor → FAIL, exit 1, reason names it', f.verdict.status + ':' + f.code + ':' + /a\.js:7/.test(f.verdict.reason), 'FAIL:1:true');
+    ck('…valid', val(f.verdict), true);
+    const u = diffVerdict([row({ invalid: 2, killed: 8 })], meta);
+    ck('never-ran mutants → UNKNOWN (not a kill, not a pass), exit 3', u.verdict.status + ':' + u.code, 'UNKNOWN:3');
+    ck('…excluded = the invalid ones', u.verdict.population.excluded, 2);
+    ck('…valid', val(u.verdict), true);
+    const vd = diffVerdict([row({ voided: true, killed: 10, survivors: [{ line: 1, op: 'x', before: 'y' }] })], meta);
+    ck('canary survived outranks survivors → UNKNOWN, exit 3', vd.verdict.status + ':' + vd.code + ':' + /canary/.test(vd.verdict.reason), 'UNKNOWN:3:true');
+    const na = diffVerdict([row({ tested: 0, killed: 0 })], meta);
+    ck('changed lines with no mutant → NOT_APPLICABLE, exit 0 — never PASS over checked 0', na.verdict.status + ':' + na.code + ':' + na.verdict.result, 'NOT_APPLICABLE:0:null');
+    ck('…valid', val(na.verdict), true);
+    const nr = diffVerdict([{ file: 'a.js', error: 'ENOENT' }], meta);
+    ck('every file errored → NOT_RUN with the error in the reason', nr.verdict.status + ':' + /ENOENT/.test(nr.verdict.reason), 'NOT_RUN:true');
+    ck('…valid', val(nr.verdict), true);
+    const smp = verdictSample();
+    ck(
+      '--verdict-sample: PASS over the synthetic set, no commit claimed, reason says synthetic',
+      smp.status + ':' + smp.producedBy.commit + ':' + /synthetic/.test(smp.producedBy.commitReason),
+      'PASS:null:true'
+    );
+    ck('…valid', val(smp), true);
+    let threw = null;
+    try {
+      verdictObject('GREEN', { checked: 1, eligible: 1, result: {}, reason: null, evidence: [] });
+    } catch (e) {
+      threw = e.message;
+    }
+    ck('an eighth status word is refused by the builder, not just the validator', /closed enum/.test(threw), true);
+    threw = null;
+    try {
+      verdictObject('PASS', { checked: 1, eligible: 1, result: {}, reason: 'fine', evidence: [] });
+    } catch (e) {
+      threw = e.message;
+    }
+    ck('PASS with a reason is refused', /reason: null/.test(threw), true);
+  }
+
   console.log(fail ? '\nselftest: ' + fail + ' FAILED' : '\nselftest: all green');
   return fail;
 }
@@ -2125,6 +2393,10 @@ function recoverStale() {
 recoverStale();
 
 if (has('--selftest')) process.exit(selftest());
+if (has('--verdict-sample')) {
+  console.log(JSON.stringify(verdictSample(), null, 1));
+  process.exit(0);
+}
 
 /* DIFF_LINES is read ONCE, here, and consulted per file inside runFile. Empty when --diff is off. */
 const DIFF_LINES = new Map();
@@ -2146,6 +2418,23 @@ if (DIFF) {
     // FAIL CLOSED. A gate that cannot see the diff must never report "nothing to test".
     console.error('--diff: cannot diff against ' + DIFF_BASE + ' — ' + String(e.message || e).split('\n')[0]);
     console.error('  Is the base fetched?   git fetch origin main');
+    emitVerdict(
+      verdictObject('NOT_RUN', {
+        checked: 0,
+        eligible: 0,
+        result: null,
+        reason:
+          'cannot diff against ' +
+          DIFF_BASE +
+          ': ' +
+          String(e.message || e)
+            .split('\n')[0]
+            .slice(0, 120),
+        evidence: ['tools/mutate.mjs'],
+        commit: headCommit(),
+        base: DIFF_BASE
+      })
+    );
     process.exit(2);
   }
   if (names.length) {
@@ -2170,6 +2459,17 @@ if (DIFF && !files.length) {
   if (!files.length) {
     // A real, honest pass: the change touched no mutable source. Say which, so it is not read as a skip.
     console.error('--diff: no mutable JS source changed vs ' + DIFF_BASE + ' (' + DIFF_LINES.size + ' file(s) in the diff) — nothing to gate.');
+    emitVerdict(
+      verdictObject('NOT_APPLICABLE', {
+        checked: 0,
+        eligible: 0,
+        result: null,
+        reason: 'no mutable JS source changed vs ' + DIFF_BASE + ' (' + DIFF_LINES.size + ' file(s) in the diff) — the criterion does not bind',
+        evidence: ['tools/mutate.mjs'],
+        commit: headCommit(),
+        base: DIFF_BASE
+      })
+    );
     process.exit(0);
   }
 }
@@ -2345,22 +2645,22 @@ if (DIFF) {
   const unrun = ok.reduce((a, r) => a + r.invalid, 0);
   const tested = ok.reduce((a, r) => a + r.tested, 0);
   const lines = ok.reduce((a, r) => a + (r.touchedLines || 0), 0);
+  /* ONE decision, made by diffVerdict (pure, selftest-pinned); the prose below explains it and the
+     process exits with the code it chose — status and exit code cannot drift apart. */
+  const { verdict, code } = diffVerdict(results, { base: DIFF_BASE, commit: headCommit() });
   if (voided.length) {
     console.error('\n✕ MUTATION GATE VOID — the canary survived on: ' + voided.map((r) => r.file).join(', '));
     console.error('  Kills are not being detected, so "all killed" would prove nothing. Not a pass.');
-    process.exit(3);
-  }
-  if (unrun) {
+  } else if (unrun) {
     console.error('\n✕ MUTATION GATE INCONCLUSIVE — ' + unrun + ' of ' + tested + ' mutants never ran.');
     console.error('  They did not compile, or timed out under load. Nothing was proven about them.');
-    process.exit(3);
-  }
-  if (surv.length) {
+  } else if (surv.length) {
     console.error('\n✕ MUTATION GATE — ' + surv.length + ' of ' + tested + ' mutants on your ' + lines + ' changed line(s) SURVIVED.');
     console.error('  Each is an edit you made that no test can see. Add an assertion, or explain why it is unobservable:\n');
     for (const s of surv.slice(0, 20)) console.error('    ' + s.file + ':' + s.line + '  [' + s.op + ']\n      ' + String(s.before).trim().slice(0, 100));
     if (surv.length > 20) console.error('    … and ' + (surv.length - 20) + ' more');
-    process.exit(1);
-  }
-  if (!AS_JSON) console.log('\n✓ mutation gate: all ' + tested + ' mutant(s) on ' + lines + ' changed line(s) were killed.');
+  } else if (verdict.status === 'PASS' && !AS_JSON) console.log('\n✓ mutation gate: all ' + tested + ' mutant(s) on ' + lines + ' changed line(s) were killed.');
+  else if (!AS_JSON) console.log('\n○ mutation gate ' + verdict.status + ' — ' + verdict.reason);
+  emitVerdict(verdict);
+  if (code) process.exit(code);
 }

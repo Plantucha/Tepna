@@ -930,8 +930,10 @@ function renderAll() {
       // Mini-metrics row
       html += '<div class="readiness-scores-grid">';
       if (s0.meanSpo2 != null) {
-        var spo2Cls = s0.meanSpo2 >= 95 - upSpo2Adj() ? 'ok' : s0.meanSpo2 >= 92 - upSpo2Adj() ? 'warn' : 'bad';
-        html += '<div class="readiness-subscore"><div class="rs-val ' + spo2Cls + '">' + evBadge('SpO₂') + s0.meanSpo2 + '%</div><div class="rs-label">SpO₂</div></div>';
+        var spo2Cls = sev(s0.meanSpo2, function (v) {
+          return v >= 95 - upSpo2Adj() ? 'ok' : v >= 92 - upSpo2Adj() ? 'warn' : 'bad';
+        });
+        html += '<div class="readiness-subscore"><div class="rs-val ' + spo2Cls + '">' + evBadge('SpO₂') + nzv(s0.meanSpo2, '%') + '</div><div class="rs-label">SpO₂</div></div>';
       }
       if (last.hrv && last.hrv.hrSdnn != null) {
         var hrvCls = last.hrv.hrSdnn >= 4 ? 'ok' : last.hrv.hrSdnn >= 2.5 ? 'warn' : 'bad';
@@ -940,7 +942,9 @@ function renderAll() {
       if (s0.durationMin) {
         var dh = Math.floor(s0.durationMin / 60),
           dm = Math.round(s0.durationMin % 60);
-        var durCls = s0.durationMin >= 360 ? 'ok' : s0.durationMin >= 300 ? 'warn' : 'bad';
+        var durCls = sev(s0.durationMin, function (v) {
+          return v >= 360 ? 'ok' : v >= 300 ? 'warn' : 'bad';
+        });
         html += '<div class="readiness-subscore"><div class="rs-val ' + durCls + '">' + evBadge('Sleep') + dh + 'h' + (dm < 10 ? '0' : '') + dm + 'm</div><div class="rs-label">Sleep</div></div>';
       }
       if (last.hrv && last.hrv.hrFloor != null) {
@@ -1093,7 +1097,7 @@ function renderAll() {
             color: C.amber,
             fill: true,
             values: nights.map(function (n) {
-              return n.odi4 ? n.odi4.rate : 0;
+              return n.odi4 ? n.odi4.rate : null;
             })
           }
         ],
@@ -1119,7 +1123,7 @@ function renderAll() {
               color: C.purple,
               fill: true,
               values: nights.map(function (n) {
-                return n.hrv ? n.hrv.hrSdnn : 0;
+                return n.hrv ? n.hrv.hrSdnn : null;
               })
             }
           ],
@@ -1143,7 +1147,7 @@ function renderAll() {
               color: C.teal,
               fill: true,
               values: nights.map(function (n) {
-                return n.hrv ? n.hrv.pnn3 : 0;
+                return n.hrv ? n.hrv.pnn3 : null;
               })
             }
           ],
@@ -1165,7 +1169,7 @@ function renderAll() {
               color: C.green,
               fill: true,
               values: nights.map(function (n) {
-                return n.hrv ? n.hrv.hrFloor : 0;
+                return n.hrv ? n.hrv.hrFloor : null;
               })
             }
           ],
@@ -1189,7 +1193,7 @@ function renderAll() {
               color: C.amber,
               fill: false,
               values: nights.map(function (n) {
-                return n.hrv ? n.hrv.hrSlope : 0;
+                return n.hrv ? n.hrv.hrSlope : null;
               })
             }
           ],
@@ -1220,7 +1224,7 @@ function renderAll() {
             label: 'Restless Win%',
             color: C.amber,
             values: nights.map(function (n) {
-              return n.motion ? n.motion.arousalIndex : 0;
+              return n.motion ? n.motion.arousalIndex : null;
             })
           }
         ],
@@ -1242,7 +1246,7 @@ function renderAll() {
             color: C.red,
             fill: true,
             values: nights.map(function (n) {
-              return n.hb ? n.hb.rate : 0;
+              return n.hb ? n.hb.rate : null;
             })
           }
         ],
@@ -1263,7 +1267,7 @@ function renderAll() {
             color: C.green,
             fill: true,
             values: nights.map(function (n) {
-              return n.stab ? n.stab.score : 0;
+              return n.stab ? n.stab.score : null;
             })
           }
         ],
@@ -1338,7 +1342,7 @@ function renderAll() {
             color: C.orange,
             fill: true,
             values: nights.map(function (n) {
-              return n.desat ? n.desat.deltaIndex : 0;
+              return n.desat ? n.desat.deltaIndex : null;
             })
           }
         ],
@@ -1382,7 +1386,7 @@ function renderAll() {
             color: C.teal,
             fill: true,
             values: nights.map(function (n) {
-              return n.motSleep ? n.motSleep.sleepEff : 0;
+              return n.motSleep ? n.motSleep.sleepEff : null;
             })
           }
         ],
@@ -1393,12 +1397,27 @@ function renderAll() {
 
       // Chart: 7-day rolling mean SpO2
       if (nights.length >= 3) {
+        /* §∅ — `s + null` COERCES TO `s`, so an unmeasured night was dropped from the NUMERATOR
+           while `w.length` still counted it in the denominator. One absent night in a 7-night window
+           of 97 % plotted as 83 % — a dramatic false DIP on a chart whose whole job is to show
+           drift, and the one direction a reader would act on. Reduced coverage ANNOTATES rather than
+           refuses (§∅'s 2026-09-17 ruling: the window is sparse, not discontinuous), so the mean is
+           taken over the nights that HAVE a value; a window with none is null and the renderer drops
+           the point, exactly as the other series do since #2938's chart pass. */
         var roll7spo2 = nights.map(function (n, i) {
           var w = nights.slice(Math.max(0, i - 6), i + 1);
+          var vals = w
+            .map(function (x) {
+              return x.stats ? x.stats.meanSpo2 : null;
+            })
+            .filter(function (v) {
+              return v != null && isFinite(v);
+            });
+          if (!vals.length) return null;
           return +(
-            w.reduce(function (s, x) {
-              return s + x.stats.meanSpo2;
-            }, 0) / w.length
+            vals.reduce(function (s, v) {
+              return s + v;
+            }, 0) / vals.length
           ).toFixed(2);
         });
         html += '<div class="chart-wrap">';
@@ -1441,7 +1460,7 @@ function renderAll() {
               color: C.orange,
               fill: true,
               values: nights.map(function (n) {
-                return n.spo2Adv ? n.spo2Adv.wtdsi : 0;
+                return n.spo2Adv ? n.spo2Adv.wtdsi : null;
               })
             }
           ],
@@ -1469,7 +1488,7 @@ function renderAll() {
               color: C.red,
               fill: true,
               values: nights.map(function (n) {
-                return n.comp ? n.comp.nsi : 0;
+                return n.comp ? n.comp.nsi : null;
               })
             }
           ],
@@ -1497,7 +1516,7 @@ function renderAll() {
               color: C.teal,
               fill: true,
               values: nights.map(function (n) {
-                return n.hrAdv ? n.hrAdv.rmssd : 0;
+                return n.hrAdv ? n.hrAdv.rmssd : null;
               })
             }
           ],
@@ -1525,7 +1544,7 @@ function renderAll() {
               color: C.amber,
               fill: true,
               values: nights.map(function (n) {
-                return n.comp ? n.comp.sfi : 0;
+                return n.comp ? n.comp.sfi : null;
               })
             }
           ],
@@ -1553,7 +1572,7 @@ function renderAll() {
               color: C.red,
               fill: true,
               values: nights.map(function (n) {
-                return n.sbii ? n.sbii.sbii : 0;
+                return n.sbii ? n.sbii.sbii : null;
               })
             }
           ],
@@ -1581,7 +1600,7 @@ function renderAll() {
               color: C.purple,
               fill: true,
               values: nights.map(function (n) {
-                return n.pred3p ? n.pred3p.pred3p : 0;
+                return n.pred3p ? n.pred3p.pred3p : null;
               })
             }
           ],
@@ -1609,7 +1628,7 @@ function renderAll() {
               color: C.orange,
               fill: true,
               values: nights.map(function (n) {
-                return n.desSev ? n.desSev.desSev : 0;
+                return n.desSev ? n.desSev.desSev : null;
               })
             }
           ],
@@ -1736,11 +1755,25 @@ function renderAll() {
             t4html += metric('PB Trend', pbLr.slope > 0 ? '+' + pbLr.slope : pbLr.slope, 'episodes/night', pbLr.slope < 0 ? 'good' : pbLr.slope < 1 ? 'warn' : 'bad');
           }
           // Worst-night recurrence
-          var poorNights = nights.filter(function (n) {
-            return n.stab && n.stab.score < 50;
+          /* §∅ — the NUMERATOR excluded nights with no stability score and the DENOMINATOR kept
+             them, so every unscored night silently counted as "not poor" and diluted the rate. The
+             denominator is now the SCORED nights, and the sub-label states that population rather
+             than the night count — a rate whose denominator is not the thing it was measured over is
+             not a rate. Coverage annotates (the nights are sparse, not discontinuous); with nothing
+             scored there is no rate to publish, so it refuses. */
+          var scoredNights = nights.filter(function (n) {
+            return n.stab && n.stab.score != null;
+          });
+          var poorNights = scoredNights.filter(function (n) {
+            return n.stab.score < 50;
           }).length;
-          var poorPct = +((poorNights / nights.length) * 100).toFixed(0);
-          t4html += metric('Poor Nights (<50)', poorPct + '%', poorNights + ' of ' + nights.length, poorPct < 20 ? 'good' : poorPct < 50 ? 'warn' : 'bad');
+          var poorPct = scoredNights.length ? +((poorNights / scoredNights.length) * 100).toFixed(0) : null;
+          t4html += metric(
+            'Poor Nights (<50)',
+            poorPct == null ? '—' : poorPct + '%',
+            poorPct == null ? 'no night carries a stability score' : poorNights + ' of ' + scoredNights.length + ' scored',
+            poorPct == null ? '' : poorPct < 20 ? 'good' : poorPct < 50 ? 'warn' : 'bad'
+          );
           // CPAP efficacy delta (ODI-4 change)
           var odi4Vals = nights
             .map(function (n) {
@@ -2023,8 +2056,11 @@ function renderSmartSummary(n) {
     return '<span class="' + cls + '">' + val + (unit || '') + '</span>';
   }
 
-  var durH = st ? Math.floor(st.durationMin / 60) : 0;
-  var durM = st ? Math.round(st.durationMin % 60) : 0;
+  /* §∅ — `Math.floor(null / 60)` is 0, so a night whose duration was never derived rendered
+     "0h 00m" and, at the KPI below, was graded **bad** on a measurement nobody made. `durationMin`
+     is nulled deliberately upstream (oxydex-dsp.js, the §∅ stats pass). Absent input refuses. */
+  var durH = st && st.durationMin != null ? Math.floor(st.durationMin / 60) : null;
+  var durM = st && st.durationMin != null ? Math.round(st.durationMin % 60) : null;
 
   var html = '<div class="smart-summary">';
   html += '<div class="ss-impression ' + sc + '">' + s.impression + '</div>';
@@ -2041,10 +2077,34 @@ function renderSmartSummary(n) {
   html += '<div class="proj-header">' + '<span class="cat-tag cat-ox">O₂</span>' + '<span class="proj-title">Oxygen</span>' + '</div>';
   html += '<div class="ss-kpi-grid">';
   if (st) {
-    html += ssKPI('Mean SpO₂', cv(st.meanSpo2, 93 - upSpo2Adj(), 95 - upSpo2Adj(), '%', true), st.meanSpo2 >= 95 - upSpo2Adj() ? 'good' : st.meanSpo2 >= 93 - upSpo2Adj() ? 'warn' : 'bad');
-    html += ssKPI('Min SpO₂', cv(st.minSpo2, 85 - upSpo2Adj(), 90 - upSpo2Adj(), '%', true), st.minSpo2 >= 90 - upSpo2Adj() ? 'good' : st.minSpo2 >= 85 - upSpo2Adj() ? 'warn' : 'bad');
-    html += ssKPI('T95% Time', cv(st.t95pct, 5, 15, '%'), st.t95pct < 5 ? 'good' : st.t95pct < 15 ? 'warn' : 'bad');
-    html += ssKPI('T90% Time', cv(st.t90pct, 0.5, 2, '%'), st.t90pct < 0.5 ? 'good' : st.t90pct < 2 ? 'warn' : 'bad');
+    html += ssKPI(
+      'Mean SpO₂',
+      cv(st.meanSpo2, 93 - upSpo2Adj(), 95 - upSpo2Adj(), '%', true),
+      sev(st.meanSpo2, function (v) {
+        return v >= 95 - upSpo2Adj() ? 'good' : v >= 93 - upSpo2Adj() ? 'warn' : 'bad';
+      })
+    );
+    html += ssKPI(
+      'Min SpO₂',
+      cv(st.minSpo2, 85 - upSpo2Adj(), 90 - upSpo2Adj(), '%', true),
+      sev(st.minSpo2, function (v) {
+        return v >= 90 - upSpo2Adj() ? 'good' : v >= 85 - upSpo2Adj() ? 'warn' : 'bad';
+      })
+    );
+    html += ssKPI(
+      'T95% Time',
+      cv(st.t95pct, 5, 15, '%'),
+      sev(st.t95pct, function (v) {
+        return v < 5 ? 'good' : v < 15 ? 'warn' : 'bad';
+      })
+    );
+    html += ssKPI(
+      'T90% Time',
+      cv(st.t90pct, 0.5, 2, '%'),
+      sev(st.t90pct, function (v) {
+        return v < 0.5 ? 'good' : v < 2 ? 'warn' : 'bad';
+      })
+    );
   }
   if (n.odi4) html += ssKPI('ODI-4 Rate', cv(n.odi4.rate, 5, 15, '/hr'), n.odi4.rate < 5 ? 'good' : n.odi4.rate < 15 ? 'warn' : 'bad');
   // ODI-3 IS NOT GRADED — there is no published ODI-3 severity band to grade it against
@@ -2071,9 +2131,27 @@ function renderSmartSummary(n) {
   html += '<div class="proj-header">' + '<span class="cat-tag cat-hr">HR</span>' + '<span class="proj-title">Cardio</span>' + '</div>';
   html += '<div class="ss-kpi-grid">';
   if (st) {
-    html += ssKPI('Mean HR', cv(st.meanHr, 60, 70, 'bpm'), st.meanHr < 60 ? 'good' : st.meanHr < 70 ? 'warn' : 'bad');
-    html += ssKPI('Min HR', cv(st.minHr, 35, 40, 'bpm', true), st.minHr >= 40 ? 'good' : st.minHr >= 35 ? 'warn' : 'bad');
-    html += ssKPI('Max HR', cv(st.maxHr, 90, 110, 'bpm'), st.maxHr < 90 ? 'good' : st.maxHr < 110 ? 'warn' : 'bad');
+    html += ssKPI(
+      'Mean HR',
+      cv(st.meanHr, 60, 70, 'bpm'),
+      sev(st.meanHr, function (v) {
+        return v < 60 ? 'good' : v < 70 ? 'warn' : 'bad';
+      })
+    );
+    html += ssKPI(
+      'Min HR',
+      cv(st.minHr, 35, 40, 'bpm', true),
+      sev(st.minHr, function (v) {
+        return v >= 40 ? 'good' : v >= 35 ? 'warn' : 'bad';
+      })
+    );
+    html += ssKPI(
+      'Max HR',
+      cv(st.maxHr, 90, 110, 'bpm'),
+      sev(st.maxHr, function (v) {
+        return v < 90 ? 'good' : v < 110 ? 'warn' : 'bad';
+      })
+    );
     // Perfusion index (OXYDEX-PULSE-RESOURCING §4 Phase 1) — rendered ONLY when the capture carried it
     // (Health-Box OXYFRAME). A ViHealth CSV night has meanPi === null and simply omits the card, rather
     // than showing a fabricated 0 or a "—" on every night that never had a PI sensor reading. The badge
@@ -2116,8 +2194,12 @@ function renderSmartSummary(n) {
   html += '<div class="proj-card proj-' + _cardSev + '">';
   html += '<div class="proj-header">' + '<span class="cat-tag cat-slp">SL</span>' + '<span class="proj-title">Sleep</span>' + '</div>';
   html += '<div class="ss-kpi-grid">';
-  var durStr = durH + 'h ' + (durM < 10 ? '0' : '') + durM + 'm';
-  html += ssKPI('Duration', '<span class="' + (durH >= 7 ? 'cv-good' : durH >= 6 ? 'cv-warn' : 'cv-bad') + '">' + durStr + '</span>', durH >= 7 ? 'good' : durH >= 6 ? 'warn' : 'bad');
+  var durStr = durH == null ? null : durH + 'h ' + (durM < 10 ? '0' : '') + durM + 'm';
+  html += ssKPI(
+    'Duration',
+    durStr == null ? '<span class="val-null">—</span>' : '<span class="' + (durH >= 7 ? 'cv-good' : durH >= 6 ? 'cv-warn' : 'cv-bad') + '">' + durStr + '</span>',
+    durStr == null ? 'neutral' : durH >= 7 ? 'good' : durH >= 6 ? 'warn' : 'bad'
+  );
   if (sa) {
     var _motPct = st ? st.motionPct : null;
     html += ssKPI('SOL', cv(sa.solMin, 15, 30, 'min'), sa.solMin == null ? 'neutral' : sa.solMin < 15 ? 'good' : sa.solMin < 30 ? 'warn' : 'bad');
@@ -2288,9 +2370,11 @@ function nrChip(label, val, cls) {
 }
 function nightRowInner(n) {
   var s = n.stats || {};
-  var durH = Math.floor((s.durationMin || 0) / 60),
-    durM = Math.round((s.durationMin || 0) % 60);
-  var durFmt = durH + 'h' + (durM < 10 ? '0' : '') + durM + 'm';
+  /* §∅ — the night-row twin of the KPI above: `|| 0` rendered an unrecorded duration as "0h00m"
+     in the row header, which reads as a measured zero-length night rather than an unknown one. */
+  var durH = s.durationMin != null ? Math.floor(s.durationMin / 60) : null,
+    durM = s.durationMin != null ? Math.round(s.durationMin % 60) : null;
+  var durFmt = durH == null ? '—' : durH + 'h' + (durM < 10 ? '0' : '') + durM + 'm';
 
   // ── Readiness pill ──
   var readScore = n.karv ? n.karv.readiness : n.stab ? n.stab.score : null;
@@ -2772,10 +2856,42 @@ function nightDetail(n, idx) {
        adding bare `mean`/`min` aliases is deliberate: those labels are section-relative and
        `meanHr`/`minHr` have an equal claim on them. It also keeps this render-only, so `computeHash`
        is provably stable and the change is export-inert by construction. */
-    metric('Mean SpO₂', s.meanSpo2 + '%', 'std ' + s.spo2Std, s.meanSpo2 >= 95 ? 'good' : s.meanSpo2 >= 92 ? 'warn' : 'bad', 'primary') +
-    metric('Min SpO₂', s.minSpo2 + '%', 'max ' + s.maxSpo2 + '%', s.minSpo2 >= 90 ? 'good' : s.minSpo2 >= 85 ? 'warn' : 'bad', 'primary') +
-    metric('T95', s.t95pct + '%', 'time <95%', s.t95pct < 5 ? 'good' : s.t95pct < 15 ? 'warn' : 'bad', 'primary') +
-    metric('T90', s.t90pct + '%', 'time <90%', s.t90pct > 1 ? 'bad' : s.t90pct > 0 ? 'warn' : 'good', 'primary') +
+    metric(
+      'Mean SpO₂',
+      nzv(s.meanSpo2, '%'),
+      'std ' + nzv(s.spo2Std),
+      sev(s.meanSpo2, function (v) {
+        return v >= 95 ? 'good' : v >= 92 ? 'warn' : 'bad';
+      }),
+      'primary'
+    ) +
+    metric(
+      'Min SpO₂',
+      nzv(s.minSpo2, '%'),
+      'max ' + nzv(s.maxSpo2, '%'),
+      sev(s.minSpo2, function (v) {
+        return v >= 90 ? 'good' : v >= 85 ? 'warn' : 'bad';
+      }),
+      'primary'
+    ) +
+    metric(
+      'T95',
+      nzv(s.t95pct, '%'),
+      'time <95%',
+      sev(s.t95pct, function (v) {
+        return v < 5 ? 'good' : v < 15 ? 'warn' : 'bad';
+      }),
+      'primary'
+    ) +
+    metric(
+      'T90',
+      nzv(s.t90pct, '%'),
+      'time <90%',
+      sev(s.t90pct, function (v) {
+        return v > 1 ? 'bad' : v > 0 ? 'warn' : 'good';
+      }),
+      'primary'
+    ) +
     '</div>';
   html += '</div>';
 
@@ -2979,8 +3095,12 @@ function nightDetail(n, idx) {
   html += '<div class="sec-section">';
   html += '<div class="sec-label">T-Index · Sleep Stability</div>';
   // T90 (clinically most-cited threshold) drives the headline severity
-  var _t90 = (n.tIdx && (n.tIdx[90] || n.tIdx['t90'])) || { pct: 0 };
-  var _tCls = _t90.pct < 1 ? 'good' : _t90.pct < 5 ? 'warn' : 'bad';
+  /* §∅ — `|| { pct: 0 }` and then `null < 1` both read as a PERFECT night: the first fabricates a
+     zero for a missing block, the second grades an unmeasured rate as good. T-index is now null when
+     no second was measured, so both arms are guarded and the card carries no verdict. */
+  var _t90 = (n.tIdx && (n.tIdx[90] || n.tIdx['t90'])) || null;
+  var _t90pct = _t90 && _t90.pct != null ? _t90.pct : null;
+  var _tCls = _t90pct == null ? 'neutral' : _t90pct < 1 ? 'good' : _t90pct < 5 ? 'warn' : 'bad';
   html += '<div class="proj-grid"><div class="proj-card proj-' + _tCls + '">';
   html +=
     '<div class="proj-header">' +
@@ -3096,8 +3216,15 @@ function nightDetail(n, idx) {
     // ODI-3 ungraded — no published band; see renderSmartSummary for the evidence. This site had shifted
     // ODI-4's ladder one notch; the other borrowed it unchanged. Neither was citable.
     (n.odi3 ? metric('ODI-3', n.odi3.rate, 'evt/hr · ' + n.odi3.count + ' total (ranges not established)', '') : '') +
-    metric('Mean HR', s.meanHr, 'bpm', '') +
-    metric('HR Range', s.minHr + '–' + s.maxHr, 'bpm', s.maxHr > 95 ? 'warn' : '') +
+    metric('Mean HR', nzv(s.meanHr), 'bpm', '') +
+    metric(
+      'HR Range',
+      s.minHr == null || s.maxHr == null ? '—' : s.minHr + '–' + s.maxHr,
+      'bpm',
+      sev(s.maxHr, function (v) {
+        return v > 95 ? 'warn' : '';
+      })
+    ) +
     '</div>';
 
   // HRV proxies — secondary tier (advanced mode)
@@ -3227,7 +3354,25 @@ function nightDetail(n, idx) {
     var mp = n.motion;
     html +=
       '<div class="grid">' +
-      metric('Motion %', n.stats ? n.stats.motionPct + '%' : '—', 'of recording', n.stats && n.stats.motionPct < 0.5 ? 'good' : n.stats && n.stats.motionPct < 2 ? 'warn' : 'bad') +
+      /* §∅ — THE PRODUCER ALREADY EMITTED NULL AND THIS CONSUMER NEVER MIGRATED. oxydex-dsp.js:2796
+         sets `stats.motionPct = null` deliberately when the motion column is condemned as stuck or
+         absent, and records WHICH fault in `stats.motionColumnAbsent`. Here that null was string-
+         concatenated into `null%` and then graded: `null < 0.5` is TRUE, so a night whose motion
+         channel was condemned rendered "null%" badged **good** — the fault reported as its own
+         absence of fault. `_oxyFmt`/`_oxySev` in oxydex-fusion.js already do the right thing with
+         null (— and no severity class), so this site was the odd one out, not the rule.
+         The sub-label NAMES the fault rather than borrowing "of recording", because §∅ requires a
+         refusal to state the real reason — and it gives `motionColumnAbsent` its first consumer:
+         the DSP has been distinguishing "no accelerometer on this device" from "the writer emitted
+         a stuck column" and nothing has ever read it. */
+      (function () {
+        var mp = n.stats ? n.stats.motionPct : null;
+        if (mp == null) {
+          var why = !n.stats ? 'of recording' : n.stats.motionColumnAbsent ? 'no motion column in this file' : 'motion column condemned as stuck';
+          return metric('Motion %', '—', why, '');
+        }
+        return metric('Motion %', mp + '%', 'of recording', mp < 0.5 ? 'good' : mp < 2 ? 'warn' : 'bad');
+      })() +
       metric('Restless Windows', mp.restlessWindows, 'of ' + mp.totalWindows + ' (30min)', mp.restlessWindows === 0 ? 'good' : mp.restlessWindows <= 2 ? 'warn' : 'bad') +
       metric('Arousal Index', mp.arousalIndex + '%', 'restless blocks', mp.arousalIndex < 20 ? 'good' : mp.arousalIndex < 40 ? 'warn' : 'bad') +
       '</div>';
@@ -3394,6 +3539,22 @@ function renderResearchMetrics(n) {
   );
 }
 
+/* §∅ RENDER HELPERS — absence must reach the eye as absence, never as a verdict.
+   `cv()` already returns "—" for a null VALUE. What it cannot do is stop the CARD being handed a
+   severity class computed separately from the same null, and JS coercion makes that silently wrong in
+   BOTH directions: `null >= 90` is false so Min SpO₂ reads **bad**, while `null < 5` is true so T95,
+   T90, Mean HR and Max HR all read **good** — a night nobody measured, displayed as a healthy one.
+   The flattering direction is the dangerous one and is the same failure as `maxSpo2 || 100`.
+
+   `nzv` guards the VALUE (string concatenation on null yields the literal "null%"), `sev` guards the
+   CLASS. Both are deliberately tiny and take the raw value, so a reader can see at each call site
+   which quantity is being tested for absence. */
+function nzv(v, suffix) {
+  return v == null ? '—' : v + (suffix || '');
+}
+function sev(v, fn) {
+  return v == null ? '' : fn(v); // '' → ssKPI/metric fall back to their neutral class
+}
 function metric(label, value, unit, cls, tier, extraAttr) {
   var tc = tier || 'primary';
   var wc = tc === 'hero' ? 'metric-hero' : tc === 'secondary' ? 'metric-secondary' : tc === 'research' ? 'metric-research' : 'metric-primary';
@@ -3430,6 +3591,9 @@ function stsCls(sev) {
   return 'neu';
 }
 function tiClass(pct, thr) {
+  /* §∅ — an ABSENT rate gets no class. Without this, `null === 0` is false and `null < 1` is true,
+     so an unmeasured threshold rendered 'warn' — a verdict on a measurement nobody made. */
+  if (pct == null) return '';
   if (thr >= 92) return pct === 0 ? 'good' : pct < 1 ? 'warn' : 'bad';
   if (thr >= 88) return pct === 0 ? 'good' : pct < 0.5 ? 'warn' : 'bad';
   return pct === 0 ? 'good' : pct < 0.1 ? 'warn' : 'bad';

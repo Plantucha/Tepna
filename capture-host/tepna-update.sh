@@ -52,7 +52,59 @@ RESTART_SH="${TEPNA_RESTART_SH:-/usr/local/lib/tepna/tepna-restart.sh}"
 #
 # ⚠️ It must NOT live inside $REPO_DIR: §1's cleanliness check (`git status --porcelain`) would see it
 # and refuse to update at all. That part of the original reasoning was right and still applies.
+#
+# HOW OFTEN THE DAEMON IS RESTARTED, AND BY WHOM — measured 2026-09-21 on vigil's journals over
+# 2026-08-07 → 09-21 (45 days), read-only, closing residue 2026-09-06-capture-daemon-restarts-nightly,
+# which recorded the rate (median 12.5 starts/night) and called the reason UNDETERMINED:
+#   • 541 stops in 45 days = 12.0/night. 535 are CLEAN (`Deactivated successfully`); 6 are crashes
+#     (`exit 1`, brought back by `Restart=always`, 5 s). The daemon never exits on its own — every clean
+#     stop is an external SIGTERM, and every one arrives through `tepna-restart.sh` (`restart` ×502,
+#     `radio` ×52, `deploy` ×168, `stop` ×39 in the sudo journal — the one narrow grant above).
+#   • Attributed by each caller's OWN log: this updater 242 (`daemon restarted on …`, 45 %); the cron
+#     watchdog 76 (33 daemon restarts + 43 `radio` resets, which restart the service too, 14 %); hands
+#     14 (tty `systemctl`, 3 %). That leaves ~209 (38 %) reaching the helper from a caller that logs to
+#     no unit — most likely the monitor page's apply/deploy button (`daemon_control` → helper), which
+#     records nothing. So the diagnosis is: deploys dominate, the watchdog is second, and one restart
+#     source is unattributable from the box's logs — which is a smaller defect than the row's
+#     "undetermined", and the one that remains.
+#   • What bounds it: the content gate (no restart for a docs-only delta) and the recording interlock
+#     (defer while recording), so restarts land when the box is idle. Whether ~12 idle restarts a night
+#     is acceptable — one per merge on a 50-merge day — is a cadence decision, not a defect here.
 DEPLOYED_MARK="${TEPNA_DEPLOYED_MARK:-/srv/tepna/.tepna-deployed-sha}"
+# The RUNNING daemon's own report of the sha it started on (`build_id.probe`, once at startup, served
+# as `/api/version` `{"git": ...}`). This is the quantity the content gate actually wants — see step 5.
+# A command, not a URL, so the test rig can stand in for the daemon the same way it stands in for
+# systemctl; the default is the box's monitor on its config.example port.
+VERSION_URL="${TEPNA_VERSION_URL:-http://127.0.0.1:8760/api/version}"
+VERSION_FETCH="${TEPNA_VERSION_FETCH:-curl -fsS --max-time 3 $VERSION_URL}"
+# CONSECUTIVE-FAILURE STATE — what makes a 9.3-hour outage look different from a blip.
+#
+# `systemctl status` shows `failed` identically for "failed once, the next tick recovered" and "failing
+# every tick since Tuesday". Measured over 30 days of `journalctl -u tepna-update` (2026-08-18):
+# 38 failure events against 300 success/defer, in consecutive runs of [30, 5, 3] — the longest spanning
+# 2026-08-04 22:00:37 → 07:20:44, i.e. 9.3 hours in which the box could not update. Nobody noticed,
+# because there was nothing to notice: every tick logged exactly what a single transient failure logs.
+#
+# Same directory and the same reasoning as DEPLOYED_MARK above — vigil-writable, NOT /run (root-owned
+# 0755, which is what made the deployed-SHA marker inert), and NOT inside $REPO_DIR (§1's cleanliness
+# check would see it and refuse to update at all).
+FAIL_MARK="${TEPNA_FAIL_MARK:-/srv/tepna/.tepna-update-fails}"
+# DEFERRAL STREAK — how long this box has been running code that is on disk but not loaded.
+#
+# `deferred` is this script WORKING, so it is INFO-level prose and must stay that way. What that line
+# cannot say is "…and it has been saying this since Tuesday". Measured over a 13-day window
+# (2026-08-18, VIGIL-AUTO-UPDATE-FOLLOWUPS §4): 17 closed streaks, median **8.27 h**, mean 12.72 h,
+# max **70.09 h**, totalling 216.2 h = **68.6 %** of the window. Sixteen of the seventeen exceed 4 h.
+#
+# 🔴 THAT DISTRIBUTION IS WHY THE BAR IS 24 HOURS AND NOT "LONGER THAN USUAL". A bar near the median
+# fires on the normal case: at 4 h it warns on 16 of 17 streaks, which is a warning that means nothing
+# and teaches its reader to skip it. Deferring across ONE night is the interlock doing its job. A debt
+# that outlives a whole DAY is a different statement — the box had an idle window and did not take it —
+# and that is a fault rather than the mechanism working. The bar therefore comes from what the box does
+# (a night is ~8-10 h; a day contains an idle window) and NOT from a percentile of the very
+# distribution being judged, which would define "normal" as whatever is currently happening.
+DEFER_MARK="${TEPNA_DEFER_MARK:-/srv/tepna/.tepna-update-defers}"
+DEFER_WARN_HOURS="${TEPNA_DEFER_WARN_HOURS:-24}"
 # A recording that has not been heard from in this long means the DAEMON is gone, not that the box is
 # idle — see the fail-safe in `recording_state`.
 MAX_STATUS_AGE="${TEPNA_MAX_STATUS_AGE:-60}"
@@ -66,6 +118,123 @@ say()  { printf '%s\n' "$*"; }
 warn() { printf 'WARN: %s\n' "$*" >&2; }
 die()  { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 
+# --- consecutive-failure accounting (see FAIL_MARK) ---------------------------------------------
+# 🔴 KEYED ON THE EXIT STATUS, NOT ON `die`. The foot of this script does `exit "$drifted"`, so a run
+# can leave the unit `failed` without ever calling `die` — and that path, "cannot establish whether the
+# box is recording", is precisely the one that can persist for a whole night. A counter hung off `die`
+# would have counted every kind of failure except the longest-running kind.
+#
+# The marker holds `<count> <epoch of the FIRST failure in the streak>`. Malformed content reads as
+# "no streak" rather than aborting the update: this is an observability aid, and it must never be the
+# reason the box stops updating.
+# shellcheck disable=SC2329  # reached through the EXIT trap below, which shellcheck's
+# reachability analysis does not follow (nor into the calls this makes).
+_streak_read() {
+  local n first
+  # 🔴 THE GUARD BELOW IS LOAD-BEARING, and `2>/dev/null` does NOT replace it. The shell performs the
+  # `<` redirection BEFORE running `read`, so a missing file is the SHELL's failure, reported on the
+  # shell's own stderr — which a redirect attached to the command cannot suppress. On a healthy box the
+  # marker is absent on EVERY run (a success clears it), so the unguarded form logged
+  # "No such file or directory" from this line on every successful tick, into the journal of the very
+  # unit this counter exists to make legible. Observed on vigil 2026-09-03 20:25:05.
+  [ -r "$FAIL_MARK" ] || { printf '0 0\n'; return; }
+  read -r n first < "$FAIL_MARK" 2>/dev/null || { printf '0 0\n'; return; }
+  case "$n"     in ''|*[!0-9]*) printf '0 0\n'; return ;; esac
+  case "$first" in ''|*[!0-9]*) printf '0 0\n'; return ;; esac
+  printf '%s %s\n' "$n" "$first"
+}
+
+# Timestamps are rendered in the box's LOCAL civil time on purpose: journalctl stamps its own lines the
+# same way, and these lines exist to be read against them in one view. (The Clock Contract's floating-
+# UTC rule governs recorded SIGNAL time, where a viewer's zone must not change what is displayed; this
+# is an operator log line about this box, compared only against this box's own journal.)
+# shellcheck disable=SC2329  # reached through the EXIT trap below, which shellcheck's
+# reachability analysis does not follow (nor into the calls this makes).
+_streak_stamp() { date -d "@$1" '+%F %T' 2>/dev/null || printf 'unknown'; }
+
+# shellcheck disable=SC2329  # reached through the EXIT trap below, which shellcheck's
+# reachability analysis does not follow (nor into the calls this makes).
+_streak_finish() {
+  local ec=$?
+  local n first now elapsed h m
+  read -r n first <<<"$(_streak_read)"
+  now="$(date +%s)"
+  elapsed=$(( now - first )); h=$(( elapsed / 3600 )); m=$(( (elapsed % 3600) / 60 ))
+
+  if [ "$ec" = 0 ]; then
+    # The recovery line is the other half of the ask. A per-tick failure line can only say "again";
+    # whoever reads the journal AFTER an outage needs to see how long it actually lasted, and by then
+    # every failing tick is behind them.
+    [ "$n" -gt 0 ] && say "recovered after ${n} consecutive failed run(s) spanning ${h}h${m}m — first failed at $(_streak_stamp "$first")"
+    rm -f "$FAIL_MARK" 2>/dev/null || warn "could not clear the failure streak at $FAIL_MARK"
+    return 0
+  fi
+
+  n=$(( n + 1 ))
+  if [ "$n" -le 1 ]; then first="$now"; h=0; m=0; fi
+  printf '%s %s\n' "$n" "$first" > "$FAIL_MARK" 2>/dev/null \
+    || warn "could not record the failure streak at $FAIL_MARK"
+  # A FIRST failure reports nothing extra: it is already visible, and the distinction this exists to
+  # draw does not exist yet. From the second onward the streak is named, so the line answers "since
+  # when" and not merely "again".
+  [ "$n" -gt 1 ] && warn "this is failure ${n} IN A ROW, spanning ${h}h${m}m — first failed at $(_streak_stamp "$first")"
+  return 0
+}
+# Installed before the MODE check, so every nonzero exit counts — including a hand-typed usage error.
+# That can only ever OVER-count, and over-counting is the safe direction: the failure being fixed is an
+# outage that reported nothing at all, and the very next successful run clears the marker.
+trap _streak_finish EXIT
+
+# --- the DEFERRAL streak ------------------------------------------------------------------------
+# The same marker shape and the same failure-tolerance as the failure streak above: `<count> <epoch of
+# the FIRST deferral in the streak>`, and malformed content reads as "no streak" rather than aborting.
+# This is an observability aid and must never be the reason the box stops updating.
+_defer_read() {
+  local n first
+  # The `[ -r ]` guard is load-bearing for the reason spelled out at `_streak_read`: the shell performs
+  # the `<` redirection before running `read`, so a missing file is the SHELL's error on the SHELL's
+  # stderr, which `2>/dev/null` on the command cannot suppress. On a box that is not deferring, this
+  # marker is absent on every run.
+  [ -r "$DEFER_MARK" ] || { printf '0 0\n'; return; }
+  read -r n first < "$DEFER_MARK" 2>/dev/null || { printf '0 0\n'; return; }
+  case "$n"     in ''|*[!0-9]*) printf '0 0\n'; return ;; esac
+  case "$first" in ''|*[!0-9]*) printf '0 0\n'; return ;; esac
+  printf '%s %s\n' "$n" "$first"
+}
+
+# Called from every deferral branch. Counts the tick, and escalates to WARN only once the debt has
+# outlived $DEFER_WARN_HOURS — see the bar's derivation at DEFER_MARK.
+_defer_note() {
+  local n first now elapsed h m
+  read -r n first <<<"$(_defer_read)"
+  now="$(date +%s)"
+  n=$(( n + 1 ))
+  # A first deferral starts the clock HERE. Reusing a stale `first` from a cleared streak would date
+  # the debt to a night that is already paid for, which over-states every subsequent line.
+  [ "$n" -le 1 ] && first="$now"
+  printf '%s %s\n' "$n" "$first" > "$DEFER_MARK" 2>/dev/null \
+    || warn "could not record the deferral streak at $DEFER_MARK"
+  elapsed=$(( now - first )); h=$(( elapsed / 3600 )); m=$(( (elapsed % 3600) / 60 ))
+  # Below the bar this stays silent: the deferral line itself has already been printed by the caller,
+  # and adding "for 3h20m" to a normal night is noise, not signal.
+  if [ "$h" -ge "$DEFER_WARN_HOURS" ]; then
+    warn "the daemon has been running code that is on disk but NOT LOADED for ${h}h${m}m across ${n} deferral(s) — first deferred at $(_streak_stamp "$first"); a debt older than ${DEFER_WARN_HOURS}h means an idle window was available and not taken"
+  fi
+}
+
+# Called when the debt is paid — by a restart, or by the §5b content gate proving it redundant. Prints
+# the span, because whoever reads the journal AFTER the fact needs the duration and by then every
+# deferring tick is behind them. Silent when there was no streak, so a healthy box says nothing.
+_defer_clear() {
+  local n first now elapsed h m
+  read -r n first <<<"$(_defer_read)"
+  [ "$n" -gt 0 ] || return 0
+  now="$(date +%s)"
+  elapsed=$(( now - first )); h=$(( elapsed / 3600 )); m=$(( (elapsed % 3600) / 60 ))
+  say "the deferral streak is over: ${n} deferral(s) spanning ${h}h${m}m — first deferred at $(_streak_stamp "$first")"
+  rm -f "$DEFER_MARK" 2>/dev/null || warn "could not clear the deferral streak at $DEFER_MARK"
+}
+
 # --- the restart MODE -------------------------------------------------------------------------
 # The timer passes nothing and gets the original behaviour. The two explicit modes exist for the
 # monitor's "Deploy now" button, which needs the two things a timer never does: to SEE the report
@@ -76,14 +245,61 @@ die()  { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 # daemon when the box is idle — which would kill the web server serving the button's response, so a
 # deploy that WORKED would present as a dropped connection. Reporting "a restart is owed" and letting
 # the operator press Restart is two clicks that never lie about what happened.
+#
+# ⏱️ `--pending-only` IS THE PATIENT CASE (VIGIL-AUTO-UPDATE-FOLLOWUPS §4, owner-ordered 2026-09-07).
+# `--force-restart` covers the impatient operator; nothing covered the box that merged at 23:50 and
+# then waited for a 30-minute tick to re-ask a question whose answer changed the moment the last
+# device stopped. Measured cost of that wait: median **8.27 h** of running on-disk-but-not-loaded
+# code, 68.6 % of a 13-day window, 16 of 17 streaks over four hours.
+#
+# It runs the SAME step 5 as every other mode — same interlock, same content gate, same fail-safes —
+# and skips only steps 1-4. That is what makes it safe to put on a two-minute timer: **no fetch, no
+# merge, no network**. It reads the marker and the local HEAD, and when they agree it exits silently,
+# which is the state a healthy box is in almost all of the time. There is no second copy of the
+# restart decision to drift out of sync with this one.
 MODE="${1-auto}"
 case "$MODE" in
-  auto|--no-restart|--force-restart) ;;
-  *) die "usage: $0 [--no-restart|--force-restart]" ;;
+  auto|--no-restart|--force-restart|--pending-only) ;;
+  *) die "usage: $0 [--no-restart|--force-restart|--pending-only]" ;;
 esac
 
+# --- ONE RUN AT A TIME ---------------------------------------------------------------------------
+# 🔴 THE LOCK IS TAKEN BEFORE THE MARKER IS READ, AND THAT ORDER IS THE WHOLE POINT. Two runs can now
+# overlap for the first time — the hourly `auto` tick and the two-minute `--pending-only` one — and the
+# restart decision is read-then-act on `$DEPLOYED_MARK`. Without a lock both read the OLD marker, both
+# conclude a restart is owed, and both restart: the daemon's BLE links drop TWICE, bonding re-runs
+# twice, for one debt. Locking after the read would not help, because by then both have already decided.
+#
+# `-n`, not a wait: whoever holds it is doing the same job, so the loser has nothing to add. A losing
+# `--pending-only` run is SILENT (the next tick is two minutes away and the debt is unchanged); a
+# losing `auto` run says so once, because an hour is long enough that a reader should know why a tick
+# produced nothing.
+#
+# Same directory and the same reasoning as the markers — vigil-writable, not /run (root-owned 0755,
+# which is what made the deployed-SHA marker inert), not inside $REPO_DIR (§1's cleanliness check).
+# It DEGRADES OPEN: no flock binary, or a lock file that cannot be created, and the run proceeds
+# exactly as it did before this existed. That is deliberate — a box that cannot lock must still be able
+# to finish a deploy, and the failure this guards against costs a reconnect, not a night.
+#
+# ⚠️ THE SUBSHELL AROUND THE PROBE IS LOAD-BEARING, and this file already says why 150 lines up: the
+# shell performs a redirection BEFORE running the command, so an unwritable path is the SHELL's failure
+# on the SHELL's own stderr, which a `2>/dev/null` attached to that command cannot suppress. Written
+# the obvious way, every run on a box without /srv/tepna printed
+# `tepna-update.sh: line 260: /srv/tepna/.tepna-update.lock: No such file or directory` — into the
+# journal of the unit this lock exists to keep quiet. Redirecting the SUBSHELL catches it, because the
+# redirect then belongs to the subshell rather than to the failing command inside it. Caught by
+# `test_pending_only_with_NOTHING_OWED_is_silent_and_costs_nothing`, which is the test whose entire
+# subject is that this path prints nothing.
+LOCK_FILE="${TEPNA_LOCK_FILE:-/srv/tepna/.tepna-update.lock}"
+if command -v flock >/dev/null 2>&1 && ( : > "$LOCK_FILE" ) 2>/dev/null && exec 9>"$LOCK_FILE"; then
+  if ! flock -n 9; then
+    [ "$MODE" = --pending-only ] || say "another tepna-update run holds the lock — skipping this tick"
+    exit 0
+  fi
+fi
+
 # --- the recording interlock -------------------------------------------------------------------
-# Prints one of: recording | idle | unknown:<why>
+# Prints one of: recording | harvesting | pulling | idle | unknown:<why>
 #
 # EVERY non-answer is `unknown`, and `unknown` blocks the restart. A missing, stale, truncated or
 # unparseable status.json is not evidence of an idle box; it is the absence of evidence, and the cost of
@@ -114,9 +330,96 @@ if missing or "recording" not in d:
           % len(missing))
     sys.exit(0)
 live = [n for n, v in devs.items() if v.get("recording")]
-print("recording" if (live or d.get("recording")) else "idle")
+if live or d.get("recording"):
+    print("recording")
+    sys.exit(0)
+# A CPAP HARVEST IS ALSO WORK IN FLIGHT, and restarting through one is not free. Measured on the box
+# 2026-09-06: the post-therapy harvest was armed at 07:31:02, THIS updater restarted the daemon at
+# 07:32:50 (a deploy — 127 restarts in six days, every one a clean exit, median 18/day), and the card
+# was not read until the 13:00 window, 5.5 h later. A harvest completes in 16-23 s, so deferring costs
+# at most one tick of an hourly timer; interrupting one cost five and a half hours of therapy data.
+#
+# ⚠️ TWO KINDS OF ABSENCE, and they get OPPOSITE answers — the distinction is the whole care here.
+#   · no `cpap` block at all  -> `idle`. There is no CPAP subsystem reporting, so there is no harvest to
+#     interrupt. Blocking here would refuse every restart forever on a box with no CPAP configured, and
+#     `tepna-restart.sh`'s own header names that failure by name: "a guard that is usually wrong is worse
+#     than an honest absence".
+#   · a `cpap` block WITHOUT `state` -> `unknown`, which blocks. That is a daemon that HAS the subsystem
+#     and predates the field, so its silence is ignorance rather than quiet — the same reasoning the
+#     `recording` check above applies to its own key.
+cp = d.get("cpap")
+if cp is not None and not isinstance(cp, dict):
+    print("unknown:status.json `cpap` is not an object")
+    sys.exit(0)
+if isinstance(cp, dict):
+    if "state" not in cp:
+        print("unknown:this daemon does not publish `cpap.state` — deploy the capture fix first")
+        sys.exit(0)
+    if cp.get("state") == "running":
+        print("harvesting")
+        sys.exit(0)
+# A RING .dat PULL IS ALSO WORK IN FLIGHT, and it is the one this guard was missing. `oxy_lifecycle`
+# publishes `pulling` (the autopull owns the link) and `paused_for_pull` (a stored-session pull does),
+# and NEITHER was a deferral condition — so the box read `idle` through a transactional sync and a
+# restart could land mid-transfer.
+#
+# ⚠️ WHY THIS BECAME LIKELY RATHER THAN MERELY POSSIBLE. The doff does two things at once: it ends the
+# recording (so the box turns idle) and it TRIGGERS the not-worn auto-pull. With the hourly timer alone
+# the restart landed in that window about one tick in thirty; with `tepna-update-pending.timer` enabled
+# (2026-09-12) it fires ~2 min after idle, which is squarely inside a pull that starts ~60-80 s after
+# the doff settle. The defect predates the timer; the timer is what made it routine.
+#
+# The cost is bounded rather than fatal, and that is why this is a deferral and not an alarm:
+# `oxy_transfer.resume_strategy` runs with `allow_resume=False`, so an interrupted transfer discards its
+# partial bytes and re-serves from the start. Nothing is corrupted — a harvest is wasted and retried.
+#
+# ⚠️ ABSENCE IS `idle` HERE, WHICH IS THE OPPOSITE OF THE `cpap.state` RULE ABOVE, deliberately.
+# `oxy_lifecycle` is a RING field: the Polars and the Coospo never publish it, so requiring it to be
+# present would make every non-ring device read `unknown` and refuse restarts forever on a box with no
+# O2Ring. A missing field here is a device without the subsystem, not a daemon hiding its state — the
+# same judgement `cpap`'s "no block at all -> idle" arm makes, for the same reason.
+_PULL_STATES = ("pulling", "paused_for_pull")
+pulling = [n for n, v in devs.items()
+           if isinstance(v, dict) and v.get("oxy_lifecycle") in _PULL_STATES]
+if pulling:
+    print("pulling")
+    sys.exit(0)
+print("idle")
 PY
 }
+
+# --- 0 · the PATIENT path: is a restart outstanding right now? ----------------------------------
+# `--pending-only` exists to be run often, so its cheap exit is the whole design. It answers one
+# question from two local reads — no fetch, no merge, no `check-system-files.sh` — and on a box with
+# nothing owed it prints nothing and exits 0.
+#
+# 🔴 IT MUST NOT SPEAK WHEN THERE IS NOTHING TO SAY. At a two-minute cadence a single line per tick is
+# 720 lines a day in the journal of the unit whose legibility §4 is about; the failure counter's own
+# "a first failure reports nothing extra" rule, applied to a much faster clock.
+#
+# ⚠️ THAT SILENCE NEEDS NO CODE HERE, and an earlier version of this block had some: an explicit
+# "marker equals HEAD, exit 0" short-circuit. It was redundant — step 5 already answers `restart_owed=0`
+# with `:` and says nothing — and being redundant it was UNKILLABLE: replacing its condition with
+# `false` left all 72 tests green, because the path it skipped is silent too. Deleted rather than
+# excused, for the same reason the divide-by-one went. The mode's cheapness comes from skipping steps
+# 1-4, which is where the fetch and the merge are; the short-circuit saved a few lines of arithmetic.
+#
+# The marker is the authority on what the daemon is running (see DEPLOYED_MARK), and in this mode it
+# is the ONLY one: nothing is fetched, so `before` and `after` are the same local HEAD and cannot
+# themselves reveal a debt. An ABSENT marker therefore means this mode has nothing to act on, and step
+# 5's `restart_owed=0` branch does exactly nothing, silently.
+#
+# ⚠️ That is an ACCELERATOR's contract, not an authority's, and the distinction is what makes it safe:
+# this mode only ever closes a debt the ordinary tick already RECORDED. It cannot discover one, and it
+# is not the backstop — the half-hourly `auto` run still is, and it establishes the marker on every
+# restart and every deferral. A lost marker blinds that path in exactly the same way (`running_sha`
+# falls back to `$before` there too), so this adds no new blind spot; it declines to invent one.
+if [ "$MODE" = --pending-only ]; then
+  [ -d "$REPO_DIR/.git" ] || die "no git checkout at $REPO_DIR"
+  before="$(git -C "$REPO_DIR" rev-parse HEAD 2>/dev/null)" || die "cannot read HEAD at $REPO_DIR"
+  after="$before"                      # nothing is fetched in this mode; disk is where it already was
+  drifted=0
+else
 
 # --- 1 · never clobber work done on the box ----------------------------------------------------
 [ -d "$REPO_DIR/.git" ] || die "no git checkout at $REPO_DIR"
@@ -140,22 +443,40 @@ if [ "$before" = "$after" ]; then
   say "up to date at ${after:0:12} — nothing to do"
 else
   say "updated ${before:0:12} → ${after:0:12}"
+fi
 
-  # --- 3 · a git pull is only HALF a deploy: the bundles are served separately ------------------
-  if [ -x "$REPO_DIR/capture-host/deploy/sync-apps.sh" ]; then
+# --- 3 · a git pull is only HALF a deploy: the bundles are served separately ------------------
+# Keyed on the STATE of the served tree, not on whether THIS run moved the ref. Two units fast-forward
+# this checkout — this one and `tepna-sync-main` (tools/sync-main.sh) — and when the other wins the
+# hour this tick reads "up to date — nothing to do" while the served tree is exactly as stale as before
+# (measured 2026-09-21 10:01/10:02: sync-main moved 7220e686 → abbbf15d one minute before the tick, the
+# tick found nothing to do, and 30 of 35 served bundles stayed stale under a fixed guard). So: ask
+# `sync-apps.sh --check` every tick, and sync only when it reports drift. `--check` is a hash compare
+# (cheap, read-only) and exits non-zero on any stale/missing bundle.
+# `-f`, NOT `-x`: the script is run through `bash`, so its mode is irrelevant to execution — and it
+# was committed 0644, so an `-x` guard here SKIPPED this step on every automatic deploy from the
+# day it was written (measured 2026-09-21: 29 of 34 served bundles stale, `sync-apps --check` red,
+# while every tick logged "updated a → b" and the daemon restarted). The exec-bit gate in
+# test_vigil_update covers systemd's execve; a bash-invoked script needs the opposite guard, and a
+# guard that can silently drop half a deploy is not a guard.
+if [ -f "$REPO_DIR/capture-host/deploy/sync-apps.sh" ]; then
+  if ! bash "$REPO_DIR/capture-host/deploy/sync-apps.sh" --check >/dev/null 2>&1; then
+    say "served bundles differ from ${after:0:12} — syncing"
     bash "$REPO_DIR/capture-host/deploy/sync-apps.sh" || { warn "bundle sync FAILED — the served apps are now older than the code"; drifted=1; }
   fi
 fi
 
 # --- 4 · report /etc + root-helper drift; NEVER install it (see the header) --------------------
 # Runs on every tick, not only after a move: #914's drift appeared without this checkout changing at all.
-if [ -x "$REPO_DIR/capture-host/deploy/check-system-files.sh" ]; then
+if [ -f "$REPO_DIR/capture-host/deploy/check-system-files.sh" ]; then   # -f, not -x: run via bash (see step 3)
   if ! out="$(bash "$REPO_DIR/capture-host/deploy/check-system-files.sh" 2>&1)"; then
     drifted=1
     warn "/etc or /usr/local/lib drift — a HUMAN must run check-system-files.sh --install:"
     printf '%s\n' "$out" >&2
   fi
 fi
+
+fi   # end of the non---pending-only path (steps 1-4)
 
 # --- 5 · restart, but only into an idle box ----------------------------------------------------
 # 🔴 "RESTART OWED" IS A STATE, NOT AN EVENT, AND THIS LINE USED TO TEST FOR THE EVENT.
@@ -172,25 +493,95 @@ fi
 # That is the same shape as the 2026-08-03 event in this file's own header (four days of stale code,
 # "the pull had happened, nothing restarted the unit"), re-entered through the deferral path.
 #
-# So the question is now the honest one: is the daemon on the checkout? `$DEPLOYED_MARK` records the
-# SHA the daemon is actually running — written on a successful restart, and written on a DEFERRAL too
-# (recording `$before`, the code the daemon keeps), so the outstanding restart survives into the next
-# tick instead of evaporating with the variable that described it.
+# So the question is now the honest one: is the daemon on the checkout? `$DEPLOYED_MARK` records what
+# the UPDATER last deployed — written on a successful restart, and written on a DEFERRAL too (recording
+# `$before`, the code the daemon keeps), so the outstanding restart survives into the next tick instead
+# of evaporating with the variable that described it. It is NOT the sha the daemon is running — that is
+# the process's own `/api/version` (below) — and the two part company after any restart the updater
+# did not make, or after a docs-only advance (residue 2026-09-06-update-log-prints-marker-as-daemon).
 # What the DAEMON is on, which is not `$before` once a deferral is outstanding. On a repeat deferral
 # `before` equals `after` (nothing merged this tick), so deferring with `$before` would write the DISK
-# sha and silently mark the debt paid — re-creating the bug one level down. The marker, when it holds
-# anything, is the authority on what the process is running.
-running_sha="$before"
-if [ -s "$DEPLOYED_MARK" ]; then
+# sha and silently mark the debt paid — re-creating the bug one level down.
+#
+# THREE SOURCES, IN ORDER OF AUTHORITY, and the order is the fix for residue
+# 2026-09-05-content-gate-diffs-from-a-stale-marker:
+#   1. the process itself — `/api/version` reports the sha it STARTED on. Nothing can be more right
+#      about what is running than the thing that is running.
+#   2. `$DEPLOYED_MARK` — what the UPDATER last deployed. It is stale after any restart the updater did
+#      not perform (measured 2026-09-05: marker 31064194 while the process served 487faf9c after three
+#      hand restarts), and then the content gate diffs code the daemon ALREADY HAS, judges a restart
+#      owed, and fires it — content-justified — at the first doff of the night. A fallback, and it says
+#      so on every tick it is used, so a daemon that stops answering is never mistaken for one that did.
+#   3. `$before` — when neither exists.
+# The marker keeps its other job: it is what a DEFERRAL records so the debt survives the tick.
+running_sha="$before"; running_label="the checkout is at"; fallback_note=""
+api_sha="$(bash -c "$VERSION_FETCH" 2>/dev/null | python3 -c 'import sys,json
+try: v = json.load(sys.stdin).get("git")
+except Exception: v = None
+print(v if isinstance(v, str) and v and v != "unknown" else "")' 2>/dev/null)"
+if [ -n "$api_sha" ]; then
+  running_sha="$api_sha"; running_label="the daemon is on"
+elif [ -s "$DEPLOYED_MARK" ]; then
   running_sha="$(cat "$DEPLOYED_MARK" 2>/dev/null)"
+  if [ -n "$running_sha" ]; then
+    running_label="the deploy marker says"
+    # Said only when a DECISION rests on it (below) — never as a heartbeat: `--pending-only` ticks
+    # every two minutes and a healthy box must print nothing at all.
+    fallback_note="daemon not answering at ${VERSION_URL} — using the deploy marker ${running_sha:0:12}, which records what the UPDATER last deployed and is stale after any restart it did not perform"
+  else
+    running_sha="$before"
+  fi
 fi
 
 restart_owed=0
 if [ "$before" != "$after" ]; then
   restart_owed=1                         # merged this tick
-elif [ -n "$running_sha" ] && [ "$running_sha" != "$after" ]; then
+elif [ "$running_sha" != "$after" ]; then
   restart_owed=1                         # an earlier tick merged and deferred; still owed
-  say "restart still OWED from an earlier tick — the daemon is on ${running_sha:0:12}, disk is at ${after:0:12}"
+  say "restart still OWED from an earlier tick — ${running_label} ${running_sha:0:12}, disk is at ${after:0:12}"
+fi
+# A restart judged from the fallback authority says so, once, beside the judgement it informed.
+[ "$restart_owed" = 1 ] && [ -n "$fallback_note" ] && say "$fallback_note"
+
+# --- 5b · the CONTENT gate: a sha that moved is not code that moved ------------------------------
+# Measured on vigil 2026-09-05 13:40:45: the daemon was restarted to deploy `93a17e27`, a docs-only
+# commit (VIGIL-BLUETOOTH-ADVERSARIAL-AUDIT-2026-09-05 C4). The night interlock above protected no
+# night, because it was daytime — and a daytime restart still drops every live BLE link (the ring's
+# charge-time sync, a Verity worn through the day) and re-runs bonding, at a repo cadence of 28
+# merges/day, for a process whose code had not changed by one byte. The daemon runs `capture-host/`
+# and nothing else: the bundles are served by Caddy out of `/srv/tepna/app` (step 3 keeps those
+# current on every merge, restart or not), and the root docs/briefs/tools are not on its import path.
+#
+# So the question is asked of the CONTENT: a restart is owed iff the daemon's sha ≠ HEAD **and**
+# `git diff --name-only <running>..HEAD -- capture-host/` is non-empty. That is the brief's §6.3 rule
+# verbatim, and it is deliberately coarse — a tests-only or a comment-only change under capture-host/
+# still restarts. Over-restarting is the safe direction; the gate exists to remove the gratuitous
+# case, not to be clever about the marginal one.
+#
+# 🔴 FAIL TOWARD RESTART. A marker sha git cannot resolve (the 40-zero stale marker, a rewritten
+# history, a hand-edited file) or a `git diff` that fails for any reason yields NO answer — and no
+# answer must restore the old behaviour, not skip the restart. The guarantee being preserved is
+# "the daemon never serves stale code"; this gate may only ever remove restarts it has PROVEN
+# redundant. `--force-restart` bypasses the gate entirely: the operator asked for a restart, not for
+# an opinion on whether one is needed.
+#
+# When the gate proves the delta docs-only the marker is ADVANCED to HEAD. The marker records what
+# code the daemon is running, and for `capture-host/` that is now HEAD's code even though the process
+# started on an older sha. `/api/version` keeps reporting the sha the process started on — that is
+# correct (build_id.py: what is RUNNING, probed once at startup), and it will read older than the
+# checkout after a docs-only deploy on purpose. Do not "fix" that by restarting.
+if [ "$restart_owed" = 1 ] && [ "$MODE" != "--force-restart" ]; then
+  # A sha git cannot resolve fails the diff itself (planted: the 40-zero marker), so the exit code is
+  # the whole "unknowable" test — there is no separate resolvability check to fall out of sync with it.
+  delta="$(git -C "$REPO_DIR" diff --name-only "$running_sha..$after" -- capture-host/ 2>/dev/null)"; delta_rc=$?
+  if [ "$delta_rc" != 0 ]; then
+    say "cannot establish what changed between ${running_sha:0:12} and ${after:0:12} — restarting rather than assuming nothing did"
+  elif [ -z "$delta" ]; then
+    printf '%s\n' "$after" > "$DEPLOYED_MARK" 2>/dev/null || warn "could not record the deployed SHA at $DEPLOYED_MARK"
+    say "no capture-host/ change between ${running_sha:0:12} and ${after:0:12} — the daemon's capture-host CODE is current (${running_label} ${running_sha:0:12}); marker advanced to ${after:0:12}, no restart"
+    _defer_clear
+    restart_owed=0
+  fi
 fi
 
 if [ "$restart_owed" = 0 ]; then
@@ -227,6 +618,7 @@ else
       "${SUDO[@]}" "$RESTART_SH" restart || die "restart FAILED — the box is now running NEW code on disk with the OLD process, which is the exact state this script exists to prevent"
       printf '%s\n' "$after" > "$DEPLOYED_MARK" 2>/dev/null || warn "could not record the deployed SHA at $DEPLOYED_MARK"
       say "daemon restarted on ${after:0:12}"
+      _defer_clear
       ;;
     recording)
       # NOT an error, and must never be reported as one: deferring is this script working. The code is
@@ -235,10 +627,30 @@ else
       # deferral is indistinguishable from having nothing to do, which is precisely how it was lost.
       printf '%s\n' "$running_sha" > "$DEPLOYED_MARK" 2>/dev/null || warn "could not record the deployed SHA at $DEPLOYED_MARK"
       say "deferred — a device is recording; the daemon keeps the old code until the box is idle"
+      _defer_note
+      ;;
+    harvesting)
+      # Its OWN branch, not the catch-all: a harvest in flight is a known, legitimate reason to wait,
+      # and the catch-all sets `drifted=1`, which fails the unit and reports root-level drift. Deferring
+      # for 16-23 s of card read is this script working exactly as designed, and must not look like a
+      # fault on a box nobody logs into. Same debt write as `recording` so the next tick still sees it.
+      printf '%s\n' "$running_sha" > "$DEPLOYED_MARK" 2>/dev/null || warn "could not record the deployed SHA at $DEPLOYED_MARK"
+      say "deferred — a CPAP harvest is running; the daemon keeps the old code until it finishes"
+      _defer_note
+      ;;
+    pulling)
+      # Its OWN branch for the same reason `harvesting` has one: a stored-session pull in flight is a
+      # legitimate reason to wait, and the catch-all would set `drifted=1` and report it as root-level
+      # drift on a box nobody logs into. A ring pull is seconds to a couple of minutes, so deferring
+      # costs at most one tick — against discarding a transfer that has to be re-served from byte zero.
+      printf '%s\n' "$running_sha" > "$DEPLOYED_MARK" 2>/dev/null || warn "could not record the deployed SHA at $DEPLOYED_MARK"
+      say "deferred — a ring .dat pull owns the link; the daemon keeps the old code until it finishes"
+      _defer_note
       ;;
     *)
       printf '%s\n' "$running_sha" > "$DEPLOYED_MARK" 2>/dev/null || true
       warn "deferred — cannot establish whether the box is recording (${state#unknown:}); refusing to restart blind"
+      _defer_note
       drifted=1
       ;;
   esac

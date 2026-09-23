@@ -774,7 +774,10 @@
       const _tanakaR = 208 - 0.7 * AGE;
       const _hrRestR = p_prof.hrrest_manual > 0 ? p_prof.hrrest_manual : r._hr;
       const hrmax_tanaka = p_prof.hrmax_manual > 0 && p_prof.hrmax_manual >= 140 && p_prof.hrmax_manual > _hrRestR + 45 ? p_prof.hrmax_manual : _tanakaR;
-      const _altFR = p_prof.elev <= 1500 ? 1 : Math.max(0.55, 1 - ((p_prof.elev - 1500) / 300) * 0.01);
+      /* §∅ — a NULL elevation is unmeasured, and an unmeasured altitude cannot correct anything: the
+         factor is 1 (no adjustment), which is what <= 1500 m also yields, so no shipped number moves —
+         but the two are now different states in the code rather than one coerced zero. */
+      const _altFR = p_prof.elev == null || !isFinite(p_prof.elev) ? 1 : p_prof.elev <= 1500 ? 1 : Math.max(0.55, 1 - ((p_prof.elev - 1500) / 300) * 0.01);
       // Method 1: Uth-Sørensen (2004) — resting HR ratio, altitude-corrected
       r.d_vo2_base = r._hr > 0 ? 15.3 * (hrmax_tanaka / r._hr) * _altFR : NaN;
       // Method 2: HRV-adjusted — rMSSD modulation ±8% band
@@ -1067,7 +1070,18 @@
       paraScore += Math.min(100, Math.log10(r._hf + 1) * 28);
       paraCount++;
     }
-    var paraAvg = paraCount ? paraScore / paraCount : 50;
+    /* §∅ — NO PARASYMPATHETIC INDICATOR IS A REFUSAL, NOT A MIDPOINT. This read
+       `paraCount ? paraScore / paraCount : 50`, and that 50 was not a conservative default: with
+       paraCount === 0 the whole score is CONSTANT. `sympPenalty` requires `_hf > 0`, and an `_hf > 0`
+       would itself have incremented paraCount — so the branch can only ever return exactly 50,
+       whatever else the row carries (pinned by a leg that sets `_lf = 9999` and still gets 50 from
+       the old code). A number that cannot vary with its input carries no information about the night,
+       and 50 is mid-scale on a 0-100 axis, so it rendered as an average night on ch_camq.
+       CAMQ is a parasympathetically-anchored composite: with nothing parasympathetic measured there
+       is no score to report. The consumer already filters `v != null` (hrvdex-render.js:1467), so the
+       point is dropped rather than drawn. Row hrvdex-dsp.js:1074 of ABSENCE-SURVEY-2026-09-22 (HIGH). */
+    if (!paraCount) return null;
+    var paraAvg = paraScore / paraCount;
 
     var sympPenalty = 0;
     if (r._hf > 0 && r._lf > 0) {

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-manifest-hash="edce2e232da0" data-compute-hash="c2f701d1851f">
 <head>
 <!--
   OxyDex.src.html — Tepna
@@ -10,10 +10,10 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-CNOVvL0rgtW4HsMGf9KUI693quAn6scT+2m6vEtOyG8=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-Mz2sO/ZQDqrFeY74I0xVBj9h1n3YeW6+cmlIhxPK+CQ=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-avsW1EcgQsMuBeTRHic8R11rdf49ixA1ntEzFVDVe2I=' 'sha256-bu/8g+c1sqihz95o6Zb4ahn/8KD9EG3brkl/c8qZWaU=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hfWm0E4m3miRXxd/D2vdNh3vekQBb+w35MUeysCvjS4=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-pmkM4GTQroQlb4GaUI6RBETJs7WVTR03G7v/A4s2QzA=' 'sha256-qpBTpfUMJwlHhnSP8ZnSfyZeoU1MHmVWQ80wCNrTvts=' 'sha256-y75M9k28IZsy0x1yuadtmxfiESGW/Mt7wopkXCi+Frc='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3bPuedJeHqlAtFRw9XCQUY2RL6IBWMfwvh6D9DWEXUc=' 'sha256-5DETw+3Srbdn2ZDWQw6tF/u5BFjNYN8WvJHQwtgatPw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7X0c9H3Fe2PxUA5Np/PhKRzKq/8P1KRQhuQj9eIYNTk=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-B8Nib+3whGreeCAiUl1L8T5q+BE2N1/ZMY5zaQXnfKc=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bwxxukjkbs0nkO3G9uCq7MyYlhNC6VN3RFwbf1JFHQI=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-qpBTpfUMJwlHhnSP8ZnSfyZeoU1MHmVWQ80wCNrTvts=' 'sha256-tyAgnfNFOTeVcNlJ02wwkhNdrboC2hjRoPCRq3h3xgk=' 'sha256-y75M9k28IZsy0x1yuadtmxfiESGW/Mt7wopkXCi+Frc='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
-<title>OxyDex — Nocturnal Oximetry Analyzer · v2.9.0</title>
+<title>OxyDex — Nocturnal Oximetry Analyzer · v2.13.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
 <style data-inline-src="licensing/dex-license.css">/*
  * dex-license.css — reusable Tepna license / attribution stamp styles
@@ -6127,7 +6127,7 @@ body.light .oxy-projcard { background:#fff; border-color:rgba(0,0,0,.07); }
     <div class="logo-badge"><svg viewBox="0 0 100 100" aria-hidden="true" style="width:23px;height:23px" fill="none" stroke="#06121A" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,33 52,33 60,15 66,49 71,33 86,33"/><line x1="49" y1="33" x2="49" y2="86"/></svg></div>
     <div>
       <div class="logo-title">OxyDex</div>
-      <div class="logo-sub">v2.9.0 · Tepna</div>
+      <div class="logo-sub">v2.13.0 · Tepna</div>
     </div>
   </div>
   <hr class="sidebar-logo-rule">
@@ -6167,7 +6167,7 @@ body.light .oxy-projcard { background:#fff; border-color:rgba(0,0,0,.07); }
 
 <div class="topbar">
   <div>
-    <div class="topbar-title">OxyDex <span class="version-badge">v2.9.0</span></div>
+    <div class="topbar-title">OxyDex <span class="version-badge">v2.13.0</span></div>
     <div class="topbar-sub" id="topbarSub">Nocturnal oximetry · SpO₂ · HR · HRV · 75+ metrics · Tepna</div>
   </div>
   <div class="topbar-actions">
@@ -8613,7 +8613,15 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       sbp: 120,
       dbp: 80, // ACC/AHA guideline-normal (type-only override)
       vo2: vo2Norm(age, sex),
-      elevation: 0,
+      /* §∅ — an ABSENT elevation is null, never 0 m. 0 m is a LEGAL elevation (a night at the coast),
+         so coercing "nobody typed one" to sea level makes the two indistinguishable, and every
+         consumer that grades on altitude then grades a 2500 m night as if it were at sea — inventing
+         ~4.5 % of desaturation that never happened. The norms this feeds (OxyDex's SpO₂ threshold
+         shift, HRVDex/ECGDex's Uth–Sørensen altitude factor) must see the null and decline to adjust,
+         which is what "no adjustment" already means numerically — the difference is that an absent
+         value can now SAY so instead of asserting sea level. `geo.py` already records a measured
+         elevation or nothing; this is that null surviving the profile layer. */
+      elevation: null,
       activity: 'light',
       betablk: 'no',
       afib: 'no',
@@ -11841,7 +11849,23 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       if (st > maxStep) maxStep = st;
     }
     var span = pts[n - 1].d - pts[0].d;
-    var ppm = span > 0 ? (sm[n - 1] / span) * 1e6 : 0;
+    /* A ZERO DEVICE SPAN IS NOT A CLOCK, AND A RATE OVER IT IS NOT 0 — refuse. This line used to read
+       `span > 0 ? … : 0`, which is the fabricated zero of CLAUDE.md §∅ at the rate: every anchor's
+       device stamp identical (the 50 `inapplicable` streams of `known-clock-recovery blindScore`, a
+       device column that was never a counter) came back `ok:true, ppm:0, independent:true` — the
+       spread gate is inert here because the HOST wanders, so the axis read as two agreeing clocks
+       and a caller reading `hostAxis` alone spent it as a second clock (residue
+       2026-09-02-hostaxis-accepts-drawn-axis). Same shape as the ±CK_AXIS_MAX_PPM refusal below and
+       the ≥3-anchor one above: when the input cannot be a rate, the answer is no rate, never 0.
+       ⚠ Deliberately NARROW. The general drawn case (a uniform counter with span > 0) is still
+       admitted and published as `deviceDrawn` — gating on it was tried and reverted (a synthetic
+       fixture's `devMs = i * 1000` is a legitimate uniform axis), and consumer migration is its own
+       row. Zero span has no such legitimate reading: no fixture, synthetic or real, is a clock that
+       never ticks. */
+    if (!(span > 0)) {
+      return { ok: false, reason: 'device axis has zero span across ' + n + ' anchors — the device column is not a clock, so there is no rate to measure', n: n, spanMs: span };
+    }
+    var ppm = (sm[n - 1] / span) * 1e6;
     /* IS THERE ACTUALLY A SECOND CLOCK HERE? (PAT-NO-VALID-ANCHOR §10, last item.)
        A ppm of ~0 has two completely different meanings and this function used to report them
        identically: (a) two INDEPENDENT clocks that happen to agree — the good case, and (b) the host
@@ -11981,6 +12005,14 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
           /* Published UNCONDITIONALLY, including when the type IS named — a caller with a wider
              tolerance can then decide for itself instead of being forced to accept this default. */
           slopeSE: cls.slopeSE,
+          /* ⚠️ THE SE'S OWN n — and it is NOT `taus`. `slopeSE` is a standard error, so it is
+             uninterpretable without the number of points it was fitted over: a tight SE from 3 τ
+             points and one from 12 are different claims. `_ckAllanSlope` fits only the points with
+             `adev > 0 && tau > 0`, so an exactly-flat τ (a frequency series periodic in that τ —
+             reachable, and gate-pinned) is dropped from the fit while still being counted in `taus`.
+             Reading `taus` as the SE's n therefore OVERSTATES it. Published because a consumer that
+             quotes the SE owes this beside it, the same way `ppm` owes its span. */
+          nTau: cls.nTau,
           noise: cls.noise,
           candidates: cls.candidates,
           meaning: cls.meaning,
@@ -12001,6 +12033,18 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
              place of one chosen by intuition. On a pure-jitter clock it is simply the longest τ
              measured, and saying so is more honest than implying a minimum was found. */
           optimalTauSec: curve[bestI].tau,
+          /* THE CURVE ITSELF (residue 2026-09-21-adev-curve-not-exported-by-either-node). Every scalar
+             above is a projection of it, and the projections cannot show WHERE the floor sits or
+             whether the slope was fitted over a straight run or across a KNEE — which is §7's whole
+             point: the slope names the mechanism, and one number cannot show a slope that changes.
+             `adevPpm` deliberately, NOT the `…Ms` misnomer above: the estimator is handed phase in ms
+             and τ in seconds, so `adev` is ms/s = 1e-3 dimensionless, and ×1000 is ppm. `n` is the
+             term count at that τ — a reader needs it to see the estimate widening as τ grows. The
+             ladder is octave-spaced and ends where `CK_ALLAN_MIN_TERMS` bites, so this is short
+             (≤ ~20 points) and bounded by construction. */
+          curve: curve.map(function (pt) {
+            return { tauSec: pt.tau, adevPpm: pt.adev * 1000, n: pt.n };
+          }),
           /* THE POINT OF THE EXERCISE: how much of the `ppm` above is real. σ_y at the recording's own
              span, expressed in ppm — quote the ppm WITH this or not at all. */
           ppmUncertainty: curve[curve.length - 1].adev * 1000,
@@ -12104,7 +12148,7 @@ let UP = {
   vo2GT: 0,
   hrmaxOverride: 0,
   hrRestOverride: 0,
-  elevation: 0, // metres above sea level; adjusts SpO₂ normal thresholds
+  elevation: null, // metres above sea level, or null = NOT MEASURED (§∅); adjusts SpO₂ normal thresholds
   cpap: 'no' // CPAP/BiPAP therapy — reframes apnea read as residual on therapy
 };
 // ESM-MIGRATION deep-3: profile is now an ES module, so this `let` is module-scoped — but
@@ -12144,7 +12188,7 @@ function upLoad() {
       UP.vo2GT = man.vo2 > 0 ? man.vo2 : 0;
       UP.hrmaxOverride = man.hrMax > 0 ? man.hrMax : 0;
       UP.hrRestOverride = man.hrRest > 0 ? man.hrRest : 0;
-      UP.elevation = p.elevation || 0;
+      UP.elevation = p.elevation != null && isFinite(p.elevation) ? p.elevation : null; // §∅ — absent stays absent
       UP.cpap = p.cpap || 'no';
     } catch (e) {}
     return;
@@ -12205,16 +12249,23 @@ function upToDOM() {
   sv('profVO2', UP.vo2GT || '');
   sv('profHRmax', UP.hrmaxOverride || 0);
   sv('profHRrest', UP.hrRestOverride || 0);
-  sv('profElevation', UP.elevation || 0);
+  sv('profElevation', UP.elevation != null ? UP.elevation : '');
   sv('profCPAP', UP.cpap || 'no');
 }
 
 // SpO₂ altitude correction — returns adjustment to subtract from normal thresholds
 // Formula: ~1.8% per 1000m (Roach 1998 / AMS guidelines), capped at 7%
 // e.g. Asheville 650m → adj≈1; Denver 1600m → adj≈3; La Paz 3600m → adj≈6 (cap 7)
+/* §∅ — NO elevation means NO adjustment, and that is a different state from "at sea level", even
+   though both yield 0. `upSpo2Adj()` returns the number (0 either way, so no shipped threshold moves
+   on this change); `upElevState()` says WHICH state produced it, and the disclosure below uses it so
+   a reader can tell an unmeasured profile from a measured coast. */
+function upElevState() {
+  return UP.elevation == null || !isFinite(UP.elevation) ? 'unmeasured' : 'measured';
+}
 function upSpo2Adj() {
-  var elv = UP.elevation || 0;
-  return Math.min(7, Math.round((elv / 1000) * 1.8));
+  if (upElevState() === 'unmeasured') return 0; // not measured ⇒ nothing to adjust by
+  return Math.min(7, Math.round((UP.elevation / 1000) * 1.8));
 }
 
 // Human-readable disclosure of the SpO₂ altitude adjustment, rendered next to the
@@ -12227,7 +12278,7 @@ function upSpo2Adj() {
 function spo2ElevNote() {
   var adj = upSpo2Adj();
   if (!adj) return '';
-  var elv = UP.elevation || 0;
+  var elv = UP.elevation;
   return (
     '<div class="srb-note mt-sm">Elevation ' +
     elv +
@@ -12482,9 +12533,17 @@ function profileDerivedUpdate() {
   // profileElevSub sub still needs them, so they are declared locally here (the #43
   // removal dropped the shared declarations and left this line referencing undefined
   // names → a ReferenceError that broke profileDerivedUpdate — regression hotfix).
-  var _elv = UP.elevation || 0;
+  var _elv = UP.elevation;
   var _adj = upSpo2Adj();
-  _sub('profileElevSub', _elv > 0 ? '∼ Roach 1998: −1.8%/1000m · adj −' + _adj + '% (norm ≥' + (95 - _adj) + '%)' : '0 = sea level · −1.8% SpO₂ per 1000m (Roach 1998), cap 7%');
+  /* Three states, three messages — an unmeasured profile must not read as a measured coast (§∅). */
+  _sub(
+    'profileElevSub',
+    _elv == null
+      ? '∼ not set — no altitude adjustment applied (enter your elevation; −1.8% SpO₂ per 1000 m, Roach 1998)'
+      : _elv > 0
+        ? '∼ Roach 1998: −1.8%/1000m · adj −' + _adj + '% (norm ≥' + (95 - _adj) + '%)'
+        : '0 m = sea level (measured) · −1.8% SpO₂ per 1000m (Roach 1998)'
+  );
 }
 
 function profileAutoDetectUpdate(allNights) {
@@ -14861,7 +14920,10 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     var spikeRate = spikes && spikes.length ? spikes.length / durationHr : 0;
     // postDipHrResponse is mean bpm arousal — normalize to [0-1] on 0-10 bpm scale
     var postDipAct = rolling && rolling.postDipHrResponse !== null ? Math.max(0, Math.min(1, rolling.postDipHrResponse / 10)) : 0;
-    var aaiLoad = cross ? cross.autoArousalIdx / 5 : 0; // normalise AAI 0-5 scale
+    /* ⚠️ `null / 5` is 0 in JS, so a bare `cross ? … : 0` would convert the absence above straight
+       back into a number — the fabrication moved one line down rather than removed. The guard is on
+       the VALUE, not on `cross` being present. */
+    var aaiLoad = cross && cross.autoArousalIdx != null ? cross.autoArousalIdx / 5 : 0; // normalise AAI 0-5 scale
     var ssi = +(spikeRate * 0.4 + postDipAct * 0.4 + aaiLoad * 0.2).toFixed(3);
     var label = ssi < 0.5 ? 'Low' : ssi < 1.5 ? 'Moderate' : 'High';
     return { ssi: ssi, ssiLabel: label };
@@ -15115,8 +15177,23 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     // Intra-night HR descent: (night mean - night floor) / night mean × 100
     // NOTE: true nocturnal dip requires daytime HR (unavailable here)
     // This measures how much HR drops from nightly mean to its lowest — NOT standard clinical dip
-    var refHR = stats.meanHr || 60;
-    var floor = hrv.hrFloor || refHR;
+    /* §∅ — TWO FABRICATED CONSTANTS PRODUCED A CLINICAL-SOUNDING VERDICT. `stats.meanHr || 60`
+       invented a reference heart rate and `hrv.hrFloor || refHR` then invented a floor EQUAL to it,
+       so a night with no HR data at all computed `dip = (60 - 60) / 60 = 0` and was labelled
+       "Low (intra-night)" — not a missing metric but a stated finding, manufactured from nothing.
+       BOTH fallbacks became REACHABLE by the §∅ passes that preceded this one: `stats.meanHr` is
+       null since the stats block was repaired, and `hrv.hrFloor` since #2937 stopped the JSONL
+       re-load synthesising a 0. Fixing a producer moved the fabrication one function downstream —
+       which is the half-wired shape in reverse, and the reason this sweep has to follow the value.
+       Absent INPUT refuses (§∅ 2026-09-17): there is no dip without a reference and a floor. Every
+       consumer already guards with `if (n.hrnDip)` — the CSV, the KPI, the score push and the
+       narrative line — so returning null needs no consumer change; it gives those guards back the
+       absence they were written for. `refHR <= 0` is refused too: `|| 60` had been masking a
+       division by zero. */
+    var refHR = stats.meanHr;
+    var floor = hrv.hrFloor;
+    if (refHR == null || !isFinite(refHR) || refHR <= 0) return null;
+    if (floor == null || !isFinite(floor)) return null;
     var dip = +(((refHR - floor) / refHR) * 100).toFixed(1);
     var label = dip > 10 ? 'Good (intra-night)' : dip > 5 ? 'Moderate (intra-night)' : 'Low (intra-night)';
     return { hrnDip: dip, hrnDipLabel: label };
@@ -15191,7 +15268,8 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       );
 
     // ── Hypoxic burden ──
-    if (n.hb) push('hbRate', 'Hypoxic Burden', n.hb.rate, n.hb.rate < 0.5 ? 0 : n.hb.rate < 2 ? 2 : n.hb.rate < 5 ? 5 : n.hb.rate < 10 ? 7 : 10, n.hb.rate + '%-min/hr');
+    /* §∅ — `null < 0.5` is TRUE, so an unmeasured burden would have scored the BEST bucket. */
+    if (n.hb && n.hb.rate != null) push('hbRate', 'Hypoxic Burden', n.hb.rate, n.hb.rate < 0.5 ? 0 : n.hb.rate < 2 ? 2 : n.hb.rate < 5 ? 5 : n.hb.rate < 10 ? 7 : 10, n.hb.rate + '%-min/hr');
     if (n.hypLoad) push('hypLoad', 'Hypoxic Load', n.hypLoad.hypoxicLoad, n.hypLoad.hypoxicLoad < 0.5 ? 0 : n.hypLoad.hypoxicLoad < 2 ? 2 : n.hypLoad.hypoxicLoad < 5 ? 5 : 9, n.hypLoad.hypoxicLoad);
 
     // ── AHI estimate ──
@@ -15213,7 +15291,8 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     // ── Autonomic / HR ──
     if (n.comp) push('nsi', 'NSI', n.comp.nsi, n.comp.nsi < 20 ? 0 : n.comp.nsi < 40 ? 2 : n.comp.nsi < 60 ? 5 : n.comp.nsi < 80 ? 7 : 10, n.comp.nsi);
     if (n.ssi) push('ssi', 'Symp Surge', n.ssi.ssi, n.ssi.ssi < 0.3 ? 0 : n.ssi.ssi < 0.8 ? 2 : n.ssi.ssi < 1.5 ? 5 : 8, n.ssi.ssi);
-    if (n.cross) push('aai', 'AAI', n.cross.autoArousalIdx, n.cross.autoArousalIdx < 1 ? 0 : n.cross.autoArousalIdx < 3 ? 2 : n.cross.autoArousalIdx < 6 ? 5 : 8, n.cross.autoArousalIdx);
+    if (n.cross && n.cross.autoArousalIdx != null)
+      push('aai', 'AAI', n.cross.autoArousalIdx, n.cross.autoArousalIdx < 1 ? 0 : n.cross.autoArousalIdx < 3 ? 2 : n.cross.autoArousalIdx < 6 ? 5 : 8, n.cross.autoArousalIdx);
     if (n.hrnDip)
       push(
         'hrnDip',
@@ -15359,7 +15438,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
         return n.dfa ? 'DFA α1 ' + n.dfa.alpha1 : 'DFA unavailable';
       },
       hbRate: function () {
-        return n.hb ? 'HB rate ' + n.hb.rate + ' %-min/hr' : 'HB unavailable';
+        return n.hb && n.hb.rate != null ? 'HB rate ' + n.hb.rate + ' %-min/hr' : 'HB unavailable';
       },
       oxyCrash: function () {
         return n.oxyCrash ? 'OxyCrash ' + n.oxyCrash.oxyCrashRate + '/hr' : 'OxyCrash unavailable';
@@ -15430,6 +15509,16 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     return parts.join(', ') + context + '.';
   }
 
+  /* ⚠️ processNight OWNS `rows` FROM HERE ON. `trimSensorWarmup` splices head and tail rows out of the
+     caller's array and `cleanArtifactHR` rewrites HR values in place — deliberately, so every reader
+     below sees one trimmed night (the block on trimSensorWarmup says why). The consequence for a
+     CALLER: after this returns, `rows` is shorter and shifted, so an index you took before the call no
+     longer names the sample it named. Measured 2026-09-20: the NSRR OX-stat validator masked `rows[i]`
+     against a status channel AFTER this call and was misaligned on every record the trim touched (10
+     rows on one, 164 on another) — residue 2026-09-20-processnight-mutates-its-input. If you need the
+     pre-call array, keep your own copy; if you read `rows` after the call, you are reading the night as
+     the detector saw it, which is the right population to pair with the verdicts (pb-operating-point
+     does exactly that, and says so). */
   function processNight(rows, fname) {
     var warmupTrim = trimSensorWarmup(rows); // FIRST — drop device warm-up/cool-down placeholder edge rows (OXYDEX-HR-ARTIFACT-RUNAWAY-FIX Fix 2)
     var artifactsCleaned = cleanArtifactHR(rows); // then clean HR before any analysis
@@ -15633,7 +15722,35 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     var spo2Over = computeSpO2Overshoot(rows, desat);
     var spo2Ac1 = computeSpO2Autocorr(rows);
     var hrFreq = computeHRFreqBands(rows);
-    var respRate = computeRespRateProxy(rows);
+    /* ── respRate is NOT PUBLISHED — it does not measure respiration rate ──────────────────────
+       Owner decision 2026-09-15, on measurement. `computeRespRateProxy` infers a breathing rate from
+       spectral content in 1 Hz heart rate. Validated against SHHS1's two independent inductance belts
+       (THOR RES + ABDO RES) over 300 records, 201 of them control-clean — the belts agreeing with each
+       other is what makes the disagreement attributable to the proxy:
+
+         proxy median 9.10 brpm   ·   belt reference median 14.34 brpm   ·   bias -5.32
+         Pearson r = 0.046 (Spearman 0.082)   ·   within 1 brpm of truth on 3.5 % of nights
+
+       r = 0.05 is noise, and a constant cannot repair it: removing the median offset lifts agreement
+       only to 33.8 %, because an estimator that does not track its target has nothing to calibrate.
+       Corroborated on the home corpus independently — 117 trio nights, proxy median 10.9, range
+       8.4-13.8, the same compressed low band against a sleeping-adult expectation of 12-16.
+
+       So the published value is `null`: a number carrying no information is the fabricated zero one
+       layer up (§∅), and the export is the cross-node currency where some future consumer could spend
+       it. ⚠️ Read this null as "not published", NOT as "the device could not measure it" — the
+       distinction is recorded here because nothing in the export can carry it.
+
+       ⚠️ THIS IS OXYDEX'S PROXY ONLY. PulseDex's `respRate` is a DIFFERENT metric from real RR
+       intervals via a Lomb-Scargle HF peak, it is gated by its own assertions, and NOTHING here
+       applies to it. Same name, two nodes.
+
+       `computeRespRateProxy` is deliberately KEPT and still exported: it is the subject of
+       `tools/nsrr-resprate-validate.mjs`, which needs the real kernel to demonstrate the defect
+       rather than a copy of its arithmetic — including that the kernel's 0.13-0.33 Hz scan makes its
+       own `Fast (>20)` label unreachable, since 0.33 Hz is 19.8 brpm.
+       Residue: 2026-09-15-proxy-resprate-uninformative. Instrument: tools/nsrr-resprate-validate.mjs */
+    var respRate = null;
     var hrAsym = computeHRAsymmetry(rows);
     var hrQuart = computeHRQuartileTrend(rows);
     var spo2HRLag = computeSpO2HRLag(rows);
@@ -15776,6 +15893,16 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
        runs fine and produces plausible numbers from the same exports.
        Same 1 Hz uniform grid + explicit holes as spo2Series, from the same rows. */
     night_obj.hrSeries = oxyBuildSpo2Series(rows, t0Ms, 'hr');
+    /* MEASUREMENT-PROVENANCE-ROADMAP §3 — the END of the measured window, from the last stamped row
+       (`stats.durationMin` is rounded to 0.1 min and would put the window edge up to 6 s off the
+       signal). Internal to the night object; the export reaches it only through the measurement block. */
+    night_obj.tEndMs = null;
+    for (var _te = rows.length - 1; _te >= 0; _te--) {
+      if (rows[_te] && rows[_te].tMs != null && isFinite(rows[_te].tMs)) {
+        night_obj.tEndMs = rows[_te].tMs;
+        break;
+      }
+    }
     night_obj.summary = computeSmartSummary(night_obj);
     // EXPORT-IDENTITY §2.1 / -FOLLOWUPS-II §1: deterministic, identity-free recording handle.
     // processNight is the ONE site BOTH the app (exportJSON→allNights→oxyBuildNightElement) AND
@@ -15799,15 +15926,28 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
   }
 
   function computeStats(rows) {
-    var spo2 = rows.map(function (r) {
-        return r.spo2;
-      }),
-      hr = rows.map(function (r) {
-        return r.hr;
-      }),
-      n = rows.length;
-    var mSpo2 = avg(spo2),
-      mHr = avg(hr);
+    /* §∅ — STATISTICS ARE COMPUTED OVER MEASURED SAMPLES, NEVER OVER ABSENT ONES. These arrays used to
+       carry every row's value including `null`, and three things happened to a null downstream: `avg`
+       summed it as 0 and divided by ALL rows (a night with 20 % dropouts under-read its mean SpO2 by
+       20 %); `v < 95` is TRUE for null, so every absent second counted as a desaturated one and T95/T90
+       were inflated by the dropout fraction; and `Math.min/max.apply` read it as 0. `parseCSV` drops
+       invalid rows, so the O2Ring CSV path never carried a null here — the NSRR adapter (`to1Hz` →
+       null), the self-ingest path and any SignalFrame do, and the SHHS lane's published T90 came
+       through this block. Residue 2026-09-13-oxydex-stats-block-absence-to-number, primary-builder half.
+       `spo2`/`hr` are now the MEASURED samples; `n` stays the row count for the duration/coverage
+       arithmetic below, and every rate below divides by the measured count, reporting null when there
+       is none — same rule as `meanPi` a few lines down, which was written this way from the start. */
+    var spo2 = [],
+      hr = [];
+    for (var _r = 0; _r < rows.length; _r++) {
+      var _sv = rows[_r].spo2,
+        _hv = rows[_r].hr;
+      if (_sv != null && isFinite(_sv)) spo2.push(_sv);
+      if (_hv != null && isFinite(_hv)) hr.push(_hv);
+    }
+    var n = rows.length;
+    var mSpo2 = spo2.length ? avg(spo2) : NaN,
+      mHr = hr.length ? avg(hr) : NaN;
     // Perfusion index (OXYDEX-PULSE-RESOURCING §4 Phase 1) — mean over the frames that actually
     // carry a reading. `r.pi` is null on the ViHealth CSV path (no column) and on the ring's
     // no-perfusion sentinel, so a night with no PI data yields meanPi = null, not a fabricated 0.
@@ -15850,33 +15990,42 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       durationInflated: _durInflated || undefined,
       start: fmtTime(rows[0].t),
       end: fmtTime(rows[n - 1].t),
-      meanSpo2: isFinite(mSpo2) ? +mSpo2.toFixed(1) : 0,
-      minSpo2: spo2.length ? Math.min.apply(null, spo2) : 0,
-      maxSpo2: spo2.length ? Math.max.apply(null, spo2) : 0,
-      spo2Std: +stdDev(spo2).toFixed(2),
+      /* §∅ — the PRIMARY builder's half of residue 2026-09-13-oxydex-stats-block-absence-to-number.
+         #2538 converted the self-ingest copies of these eight and fixed the render; this block still
+         reported a night with no valid SpO2 as mean 0 / min 0 / max 0 and no valid HR likewise — a
+         fabricated reading from the MAIN path, reached by every real file, not only re-ingested exports.
+         Same `null` form as `durationMin` above: absence is visible, a genuine 0 survives, and every
+         consumer already guards `!= null` (render since #2538; integrator carries `durationMin` null the
+         same way; oxydex-cross, nsrr-adapter and signal-orchestrate read through `? … : null`). */
+      meanSpo2: isFinite(mSpo2) ? +mSpo2.toFixed(1) : null,
+      minSpo2: spo2.length ? Math.min.apply(null, spo2) : null,
+      maxSpo2: spo2.length ? Math.max.apply(null, spo2) : null,
+      spo2Std: spo2.length > 1 ? +stdDev(spo2).toFixed(2) : null, // §∅: a spread needs two measured samples
+      /* T95/T90 over MEASURED seconds: numerator and denominator are both the measured set, so a
+         dropout is neither a desaturated second (the old `null < 95`) nor a normal one. */
       t95pct:
-        n > 0
+        spo2.length > 0
           ? +(
               (spo2.filter(function (v) {
                 return v < 95;
               }).length /
-                n) *
+                spo2.length) *
               100
             ).toFixed(1)
-          : 0,
+          : null,
       t90pct:
-        n > 0
+        spo2.length > 0
           ? +(
               (spo2.filter(function (v) {
                 return v < 90;
               }).length /
-                n) *
+                spo2.length) *
               100
             ).toFixed(1)
-          : 0,
-      meanHr: isFinite(mHr) ? +mHr.toFixed(1) : 0,
-      minHr: hr.length ? Math.min.apply(null, hr) : 0,
-      maxHr: hr.length ? Math.max.apply(null, hr) : 0,
+          : null,
+      meanHr: isFinite(mHr) ? +mHr.toFixed(1) : null,
+      minHr: hr.length ? Math.min.apply(null, hr) : null,
+      maxHr: hr.length ? Math.max.apply(null, hr) : null,
       // §4 Phase 1: mean perfusion index (%), or null when the input carried no PI (ViHealth CSV).
       // A NULL metric is honest absence — never coerced to 0, which would read as zero perfusion.
       meanPi: meanPi,
@@ -15896,17 +16045,31 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     };
   }
 
+  /* §∅ — THE SAME DEFECT `computeStats` ALREADY FIXED, IN THE FUNCTION NEXT DOOR. Its comment says
+     it outright: "`v < 95` is TRUE for null, so every absent second counted as a desaturated one and
+     T95/T90 were inflated by the dropout fraction" (residue 2026-09-13-oxydex-stats-block-absence-to-
+     number). That pass repaired the stats block and did not reach here — so this function, computing
+     the SAME class of metric over the SAME rows, still counted an absent second as below EVERY
+     threshold at once (`null < 80` is true), and fed the inflated `secs` into
+     `computeDesaturationProfile`'s weighted AUC as well.
+     Nulls do reach here: `parseCSV` drops invalid rows so the O2Ring CSV path carries none, but the
+     NSRR adapter (`to1Hz` → null), the self-ingest path and any SignalFrame do — and the SHHS lane's
+     published T90 came through this family.
+     Reduced coverage ANNOTATES (§∅ 2026-09-17): the rate is over the MEASURED seconds and `measured`
+     is published beside it, so a reader can see the denominator. Nothing measured ⇒ null, never 0. */
   function computeTIndex(rows) {
-    var spo2 = rows.map(function (r) {
-        return r.spo2;
-      }),
-      n = spo2.length,
+    var spo2 = [];
+    for (var _i = 0; _i < rows.length; _i++) {
+      var _v = rows[_i].spo2;
+      if (_v != null && isFinite(_v)) spo2.push(_v);
+    }
+    var n = spo2.length,
       out = {};
     [95, 94, 93, 92, 91, 90, 89, 88, 85, 80].forEach(function (t) {
       var s = spo2.filter(function (v) {
         return v < t;
       }).length;
-      out[t] = { secs: s, pct: n > 0 ? +((s / n) * 100).toFixed(2) : 0 };
+      out[t] = { secs: s, pct: n > 0 ? +((s / n) * 100).toFixed(2) : null, measured: n };
     });
     return out;
   }
@@ -16520,7 +16683,10 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     if (osc.episodeCount >= 4) f.push({ code: 'PERIODIC_BREATHING(' + osc.episodeCount + ')', sev: 'warn' });
     if (stats.maxHr > 105) f.push({ code: 'MAX_HR(' + stats.maxHr + ')', sev: 'warn' });
     if (hrv) {
-      if (hrv.pnn3 < 0.2) f.push({ code: 'HRV_LOW_pNN3(' + hrv.pnn3 + '%)', sev: 'warn' });
+      /* `null < 0.2` is TRUE, so an absent proxy would raise a LOW-pNN3 warning naming `null`.
+         The sibling comparisons below are safe by luck of direction (`null > 1.5` and
+         `null > 65` are both false); this one is guarded because it is not. */
+      if (hrv.pnn3 != null && hrv.pnn3 < 0.2) f.push({ code: 'HRV_LOW_pNN3(' + hrv.pnn3 + '%)', sev: 'warn' });
       if (hrv.hrSlope > 1.5) f.push({ code: 'HRV_HR_RISING(' + hrv.hrSlope + 'bpm/hr)', sev: 'warn' });
       if (hrv.hrFloor > 65) f.push({ code: 'HRV_FLOOR_HIGH(' + hrv.hrFloor + ')', sev: 'info' });
     }
@@ -16554,16 +16720,27 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
   // Hypoxic Burden: area-under-curve below SpO2=94% (%-min total & %-min/hr rate).
   // More sensitive than ODI for sustained mild desaturation patterns.
   // Clinical reference: >25 %-min/hr is considered elevated.
+  /* §∅ — `null < 94` is TRUE and `94 - null` is 94, so EVERY absent second added the maximum
+     possible burden, as though SpO2 had been 0. On a metric whose own reference is ">25 %-min/hr is
+     elevated" that turns dropout into severe hypoxia. Sibling of the `computeTIndex` case above and
+     of the `computeStats` fix that preceded both.
+     The sum and the duration are now both over MEASURED seconds — self-consistent, and the same rule
+     computeStats adopted ("every rate below divides by the measured count"). `measuredSec` is
+     published so the denominator is visible; nothing measured ⇒ null, never 0. */
   function computeHypoxicBurden(rows) {
     var burden = 0,
-      n = rows.length;
-    for (var i = 0; i < n; i++) {
-      if (rows[i].spo2 < 94) burden += 94 - rows[i].spo2;
+      measured = 0;
+    for (var i = 0; i < rows.length; i++) {
+      var v = rows[i].spo2;
+      if (v == null || !isFinite(v)) continue;
+      measured++;
+      if (v < 94) burden += 94 - v;
     }
-    var durationHr = n / 3600;
+    if (!measured) return { total: null, rate: null, measuredSec: 0 };
+    var durationHr = measured / 3600;
     var totalMin = +(burden / 60).toFixed(1);
-    var rate = durationHr > 0 ? +(totalMin / durationHr).toFixed(1) : 0;
-    return { total: totalMin, rate: rate };
+    var rate = durationHr > 0 ? +(totalMin / durationHr).toFixed(1) : null;
+    return { total: totalMin, rate: rate, measuredSec: measured };
   }
 
   // Motion Profile: divide night into 30-min windows, score each for motion %.
@@ -16876,7 +17053,15 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     // drifting on a private trailing-MEAN loop. The recovery look-forward (secs back to the
     // onset baseline − 1) + the oximeter self-gate are preserved on top of the shared set.
     var nadirEvents = detectDesatEvents(spo2, { dropPct: DexKernel.K.ODI_DROP, exitPct: DexKernel.K.ODI_DROP, blArr: blArr }).map(function (e) {
-      var recov = 0;
+      /* §∅ — AN IN-BAND SENTINEL THE FILE ITSELF READS TWO OPPOSITE WAYS. When the look-forward
+         window expires without SpO2 returning to baseline-1, recovery was NOT OBSERVED — but `0`
+         is a legal recovery time, so `meanRecovery` averaged it in as "recovered instantly" (and
+         `nadirRecov` is goodDirection:'down', so that is the FLATTERING direction), while
+         `oxyDesatConf` twenty lines down reads the SAME 0 as "no clean recovery" and withholds its
+         bonus. One value, two contradictory meanings, in one file — which is the argument for the
+         sentinel being the defect rather than its handling. Null is out of band and cannot be read
+         either way by accident. */
+      var recov = null;
       for (var k = e.endIdx; k < Math.min(e.endIdx + 120, n); k++) {
         if (spo2[k] >= e.baseline - 1) {
           recov = k - e.endIdx;
@@ -16891,7 +17076,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
         nadirIdx: e.nadirIdx,
         endIdx: e.endIdx,
         nadir: e.nadir,
-        recoverySlope: recov > 0 ? +((e.baseline - e.nadir) / recov).toFixed(3) : 0
+        recoverySlope: recov != null && recov > 0 ? +((e.baseline - e.nadir) / recov).toFixed(3) : null
       };
     });
     // ── OXIMETER SELF-GATE (Part A): flag optical/mechanical-artifact desats so
@@ -16913,13 +17098,25 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     var realEvents = nadirEvents.filter(function (e) {
       return !(/** @type {any} */ (e).artifact);
     });
-    var meanRecovery = realEvents.length
+    /* §∅ — the mean is over the events that RECOVERED, and the count of them is published beside it.
+       Averaging the unobserved ones in as 0 dragged the night toward "recovers instantly"; leaving
+       them null without filtering would have been worse still, because `s + null` coerces to `s`
+       and the divisor would have kept counting them (the same coercion that made a 7-night SpO2
+       window read 83 % in #2941). Reduced coverage ANNOTATES (§∅ 2026-09-17): these are real events
+       whose recovery was not seen, not missing measurements, so the subset mean is meaningful — but
+       only beside its denominator. No event recovered ⇒ null, never 0. */
+    var recoveredSecs = [];
+    for (var _re = 0; _re < realEvents.length; _re++) {
+      var _rv = realEvents[_re].recovery;
+      if (_rv != null && isFinite(_rv)) recoveredSecs.push(_rv);
+    }
+    var meanRecovery = recoveredSecs.length
       ? +(
-          realEvents.reduce(function (s, e) {
-            return s + e.recovery;
-          }, 0) / realEvents.length
+          recoveredSecs.reduce(function (s, v) {
+            return s + v;
+          }, 0) / recoveredSecs.length
         ).toFixed(0)
-      : 0;
+      : null;
     var meanDepth = realEvents.length
       ? +(
           realEvents.reduce(function (s, e) {
@@ -16970,7 +17167,10 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       tAucWeighted: tAucWeighted,
       auc90Total: auc90Total,
       auc90Rate: auc90Rate,
-      nadir: { count: realEvents.length, meanDepth: meanDepth, meanDuration: meanDuration, meanRecovery: meanRecovery },
+      /* §∅ — `recoveredCount` is meanRecovery's DENOMINATOR, published beside it: a mean over 2 of
+         11 events is a different statement from a mean over 11, and without the count a reader
+         cannot tell them apart. */
+      nadir: { count: realEvents.length, recoveredCount: recoveredSecs.length, meanDepth: meanDepth, meanDuration: meanDuration, meanRecovery: meanRecovery },
       events: realEvents, // SURVIVING desats only — feeds O2HR efficiency, nadir trend, IEI, recovery-CV, Integrator emit
       eventsAll: nadirEvents, // full set incl. self-gated artifacts (UI shows artifacts struck-through with .reason)
       artifactCount: artifactCount,
@@ -17166,7 +17366,12 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     var n = rows.length;
 
     // Autonomic Arousal Index: (HR spikes + ODI-4 events) / durationHr
-    var autoArousalIdx = durationHr > 0 ? +((spikes.length + odi4.count) / durationHr).toFixed(1) : 0;
+    /* §∅ — AN UNKNOWN DURATION IS NOT A QUIET NIGHT. This read `: 0`, so a recording whose duration
+       could not be established published an arousal index of 0 — in range, indistinguishable from a
+       genuinely calm night, and feeding a `HIGH_AROUSAL_IDX` flag that keys off `>= 5` and a
+       user-visible `AAI` metric graded `heuristic`. A rate whose denominator is unknown is not a
+       small rate; it is not a rate. */
+    var autoArousalIdx = durationHr > 0 ? +((spikes.length + odi4.count) / durationHr).toFixed(1) : null;
 
     // Cardiorespiratory Coupling: Pearson r of SpO2 and HR 5-min rolling means
     var WIN5 = 300,
@@ -17410,7 +17615,8 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     }).length;
     var t95pct = n > 0 ? (below95 / n) * 100 : 0;
     t95 = Math.min(t95pct / 15, 1);
-    var aai = cross ? Math.min(cross.autoArousalIdx / 5, 1) : 0;
+    /* same trap as `aaiLoad` above: `Math.min(null / 5, 1)` is 0, not absent */
+    var aai = cross && cross.autoArousalIdx != null ? Math.min(cross.autoArousalIdx / 5, 1) : 0;
     var nsi = +(((dip3 + hbR + t95 + aai) / 4) * 100).toFixed(0);
 
     return { couplingScore: couplingScore, sfi: sfi, nsi: nsi };
@@ -19362,19 +19568,37 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
           t0Ms: obj.t0Ms != null ? obj.t0Ms : s.startTs != null ? s.startTs : null,
           fname: obj.file || obj.date,
           stats: {
-            durationMin: s.durationMin || 0,
+            /* §∅ — `|| 0` made a night whose duration was NEVER RECORDED identical to a zero-duration
+               night, and a mean SpO2 of 0 is not merely wrong but impossible, so it cannot even be
+               caught downstream by a plausibility guard. Same reasoning and same shape as `meanPi` and
+               `motionPct` below, which already do this. Note `!= null` and not `||`: a genuine 0 must
+               survive, and that is exactly the value `||` cannot distinguish from absence.
+               Consumers already guard on falsiness (`(n.stats && n.stats.durationMin) || 0`,
+               `if (s0.durationMin)`, `s.durationMin ? … : ''`), so what changes is the RECORD, not the
+               render — it stops asserting a measurement nobody made. */
+            durationMin: s.durationMin != null ? s.durationMin : null,
             start: s.start || '',
             end: s.end || '',
             startTs: s.startTs != null ? s.startTs : null,
-            meanSpo2: s.meanSpo2 || 0,
-            minSpo2: s.minSpo2 || 0,
-            maxSpo2: s.maxSpo2 || 100,
-            spo2Std: s.spo2Std || 0,
-            t95pct: s.t95pct || 0,
-            t90pct: s.t90pct || 0,
-            meanHr: s.meanHr || 0,
-            minHr: s.minHr || 0,
-            maxHr: s.maxHr || 0,
+            meanSpo2: s.meanSpo2 != null ? s.meanSpo2 : null,
+            /* §∅ — the remaining eight. `maxSpo2 || 100` was the worst of the set: 100 is in-range
+               AND FLATTERING, so unlike a 0 it cannot be caught by a downstream plausibility guard —
+               a night nobody measured reported a perfect one. Same `!= null` form as `meanPi`,
+               `motionPct`, `durationMin` and `meanSpo2` above, and for the same reason: a genuine 0
+               must survive, and 0 is exactly the value `||` cannot tell from absence.
+               ⚠️ The render was fixed in the SAME change, not left to follow. Passing null to the old
+               consumers was silently wrong in BOTH directions — `null >= 90` is false so Min SpO₂ read
+               "bad", while `null < 5` is true so T95, T90, Mean HR and Max HR all read "good". Shipping
+               the producer half alone would have turned an unmeasured night into a healthy-looking
+               one, which is worse than the zero it replaced. */
+            minSpo2: s.minSpo2 != null ? s.minSpo2 : null,
+            maxSpo2: s.maxSpo2 != null ? s.maxSpo2 : null,
+            spo2Std: s.spo2Std != null ? s.spo2Std : null,
+            t95pct: s.t95pct != null ? s.t95pct : null,
+            t90pct: s.t90pct != null ? s.t90pct : null,
+            meanHr: s.meanHr != null ? s.meanHr : null,
+            minHr: s.minHr != null ? s.minHr : null,
+            maxHr: s.maxHr != null ? s.maxHr : null,
             // §4 Phase 1: perfusion index — null (NOT 0) when the input carried no PI, so a consumer
             // reading the export can tell "no PI sensor data" from "zero perfusion".
             meanPi: s.meanPi != null ? s.meanPi : null,
@@ -19386,20 +19610,34 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
             artifactHrCleaned: s.artifactHrCleaned || 0,
             artifactSpikesRemoved: s.artifactSpikesRemoved || 0
           },
-          odi4: obj.odi4 || { rate: 0, count: 0 },
-          odi3: obj.odi3 || { rate: 0, count: 0 },
+          /* §∅ — `|| { rate: 0, count: 0 }` DEFEATED guards that were already correct. Every
+             consumer tests the block for presence (`if (n.odi4)` at oxydex-render.js and
+             oxydex-fusion.js, `n.odi4 ? n.odi4.rate : ''` in the CSV, `: null` in oxydex-cross.js),
+             so a synthesised block made all of them true and a night that carries NO ODI-4 at all
+             rendered "ODI-4 Rate 0/hr" graded **good** — in-band, flattering, and indistinguishable
+             from a genuinely excellent night. Restoring null does not need a consumer change; it
+             gives the existing guards back the absence they were written for. */
+          odi4: obj.odi4 || null,
+          odi3: obj.odi3 || null,
           hrv: obj.hrv
             ? {
                 /* DEEP-AUDIT-IV §3-RESULT — `|| 0` turned an absent proxy into a measured 0.00 in the
                    export a consumer reads. The two proxies are still tried in order; what changes is
                    that "neither was measured" now leaves null instead of a number nobody computed. */
                 hrSdnn: obj.hrv.hrSdnnProxy != null && isFinite(obj.hrv.hrSdnnProxy) ? obj.hrv.hrSdnnProxy : obj.hrv.hrSdnn != null && isFinite(obj.hrv.hrSdnn) ? obj.hrv.hrSdnn : null,
-                pnn3: obj.hrv.pnn3 || 0,
-                hrFloor: obj.hrv.hrFloor || 0,
-                hrSlope: obj.hrv.hrSlope || 0,
-                rsaProxy: obj.hrv.rsaProxy || 0,
-                rmssd: obj.hrv.rmssd || 0,
-                maxHr: obj.hrv.maxHr || 0,
+                /* §∅ — the six siblings of `hrSdnn` directly above, which DEEP-AUDIT-IV §3-RESULT
+                   already fixed for exactly this reason; this finishes the pass it began. `|| 0`
+                   turned an absent proxy into a measured 0.00, and `hrFloor` was the costly one:
+                   oxydex-fusion.js:863 guards `if (hrv.hrFloor != null)` and then grades it against
+                   55/62, so an unmeasured floor of 0 rendered as a GOOD resting floor. `!= null`,
+                   never `||` — a genuine 0 must survive, and 0 is precisely the value `||` cannot
+                   tell from absence. */
+                pnn3: obj.hrv.pnn3 != null ? obj.hrv.pnn3 : null,
+                hrFloor: obj.hrv.hrFloor != null ? obj.hrv.hrFloor : null,
+                hrSlope: obj.hrv.hrSlope != null ? obj.hrv.hrSlope : null,
+                rsaProxy: obj.hrv.rsaProxy != null ? obj.hrv.rsaProxy : null,
+                rmssd: obj.hrv.rmssd != null ? obj.hrv.rmssd : null,
+                maxHr: obj.hrv.maxHr != null ? obj.hrv.maxHr : null,
                 n: obj.hrv.n || null
               }
             : null,
@@ -19425,10 +19663,35 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
           osc: obj.oscillations ? Object.assign({ windows: [] }, obj.oscillations) : { episodeCount: 0, totalCrossings: 0, meanAmplitude: 0, peakCrossings: 0, windows: [] },
           period: obj.hr_spikes && obj.hr_spikes.periodicity && obj.hr_spikes.periodicity.pattern ? obj.hr_spikes.periodicity : null,
           tIdx: (function () {
+            /* ── READ WHAT WAS EXPORTED. The exporter already publishes the honest answer ───────────
+               `computeTIndex` counts the SAMPLES below each threshold, and at the ring's 1 Hz a sample
+               count IS seconds — `research.tIdx[95].secs`. This path discarded it and recomputed from
+               two quantities on DIFFERENT BASES: `t95pct` is a fraction of SAMPLES, `durationMin` is
+               WALL clock. Their product attributes every dropped second to time-below-95, because the
+               samples that were never recorded are not in the numerator but their wall time is in the
+               multiplier. On a night with 20 % dropout that is a +25 % overstatement of T95 seconds.
+               The right number was in the file the whole time; the wrong one was derived from it. */
+            var ex = obj.research && obj.research.tIdx;
+            if (ex && typeof ex === 'object') {
+              var out = {};
+              for (var k in ex) {
+                if (!Object.prototype.hasOwnProperty.call(ex, k)) continue;
+                var e = ex[k];
+                if (e && (e.secs != null || e.pct != null)) out[k] = { pct: e.pct != null ? e.pct : null, secs: e.secs != null ? e.secs : null };
+              }
+              if (Object.keys(out).length) return out;
+            }
+            /* FALLBACK — a SUMMARY-MODE export that carries no `research` block at all. Seed from the
+               percentages, and use the RECORDED seconds when the export states them rather than the
+               wall span; `durationMin` is the last resort and is the base that made this wrong.
+               ⚠️ `tIdxBasis` says which one was used, so a consumer is never left inferring it from a
+               number that looks the same either way. */
             var idx = {};
-            // Seed T95 and T90 from summary stats — all that's available without raw rows
-            if (s.t95pct != null) idx[95] = { pct: s.t95pct, secs: Math.round((s.t95pct / 100) * (s.durationMin || 0) * 60) };
-            if (s.t90pct != null) idx[90] = { pct: s.t90pct, secs: Math.round((s.t90pct / 100) * (s.durationMin || 0) * 60) };
+            var recSec = s.n != null && isFinite(s.n) ? s.n : null; // rows actually recorded, 1 Hz
+            var basis = recSec != null ? recSec : (s.durationMin || 0) * 60;
+            if (s.t95pct != null) idx[95] = { pct: s.t95pct, secs: Math.round((s.t95pct / 100) * basis) };
+            if (s.t90pct != null) idx[90] = { pct: s.t90pct, secs: Math.round((s.t90pct / 100) * basis) };
+            if (Object.keys(idx).length) idx.tIdxBasis = recSec != null ? 'recorded-samples' : 'wall-duration';
             return idx;
           })(),
           // ── v18–v20 fields: restore from the export's descriptive key names ──
@@ -19458,7 +19721,13 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
           spo2Over: (obj.newMetrics || {}).spo2Overshoot || null,
           spo2Ac1: (obj.newMetrics || {}).spo2Ac1 || null,
           hrFreq: (obj.newMetrics || {}).hrFreqBands || null,
-          respRate: (obj.newMetrics || {}).respRate || null,
+          /* RETRACTED, and a retracted metric must not come back through the loader. `respRate` has
+             been `null` at compute since #2527 (r = 0.05 against two inductance belts — the proxy does
+             not measure respiration), but exports written BEFORE that still carry a number, and reading
+             it back here re-surfaced the "Respiratory Rate (RSA spectral proxy)" section on reload — an
+             unattributed proxy reaching a reader by the one path the retraction did not cover
+             (residue 2026-09-03-oxydex-proxy-resprate-unattributed / -has-no-consumer). */
+          respRate: null,
           hrAsym: (obj.newMetrics || {}).hrAsymmetry || null,
           hrQuart: (obj.newMetrics || {}).hrQuartiles || null,
           spo2HRLag: (obj.newMetrics || {}).spo2HRLag || null,
@@ -19707,9 +19976,107 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
   //  top-level file-input wiring is guarded so the module LOADS headless).
   // ═══════════════════════════════════════════════════════════════════════════
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  MEASUREMENT INSTANCE BLOCKS — MEASUREMENT-PROVENANCE-ROADMAP §3, the reference path.
+  //  OxyDex is the FIRST emitter of the `measurement` block specified by roadmap §1 and validated by
+  //  measurement-block.js (which is NOT bundled here — the emitter writes the shape, the gates validate
+  //  it). Four headline metrics, one block each, keyed by the registry id so a reader indexes by name and
+  //  every block still carries its own `metricId` (the contract's field). The values are the SAME numbers
+  //  the element already carries (stats.meanSpo2 / stats.t90pct / odi4.rate / hb.rate) — the block adds
+  //  LINEAGE, never a second computation, so numerical invariance is by construction.
+  //
+  //  code identity: the running bundle reads its own `data-manifest-hash` / `data-compute-hash` off the
+  //  <html> tag (stamped at build time OUTSIDE every inline block by tools/build-core.js, so the stamp is
+  //  manifestHash-invariant). A headless source-module run has no bundle and takes `opts.code`; with
+  //  neither, `code` is null WITH A REASON (§∅) and the block fails validation loudly rather than naming
+  //  a hash it does not have. The regen tool supplies the shipped bundle's hashes, which is what makes a
+  //  committed fixture's `code.computeHash` checkable against OxyDex.html.
+  //
+  //  evidence: `inputHash` is `contentId` — the SignalFrame content address of the decoded SpO2 samples
+  //  + t0Ms, the suite's 12-hex input identity (recomputable from the committed CSV; the raw file's
+  //  sha256[0:16] sits beside it in provenance.inputs[] / the ledger's inputHashes). `envelopeRef` is the
+  //  Acquisition Evidence envelope's session_id when one was attached (Phase C); a CSV/legacy input has
+  //  none and SAYS so.
+  //
+  //  basis (per-INSTANCE derivation kind, NOT the evidence ladder — LEXICON §4b): meanSpo2 and t90 are
+  //  statistics read straight off the measured samples → 'measured'; odi4 and hypoxicBurden are computed
+  //  through a model (event detection against a baseline; an AUC below a fixed line) → 'derived'.
+  // ═══════════════════════════════════════════════════════════════════════════
+  function oxyBundleCodeIdentity() {
+    try {
+      var ds = typeof document !== 'undefined' && document && document.documentElement && document.documentElement.dataset;
+      if (ds && /^[0-9a-f]{12}$/.test(String(ds.manifestHash || '')) && /^[0-9a-f]{12}$/.test(String(ds.computeHash || '')))
+        return { manifestHash: String(ds.manifestHash), computeHash: String(ds.computeHash) };
+    } catch (_e) {}
+    return null;
+  }
+  function oxyBuildMeasurementBlocks(n, opts) {
+    opts = opts || {};
+    var stats = n && n.stats;
+    if (!n || !stats) return null;
+    var t0 = n.t0Ms != null && isFinite(n.t0Ms) ? n.t0Ms : null;
+    var tEnd = n.tEndMs != null && isFinite(n.tEndMs) ? n.tEndMs : null;
+    if (t0 == null || tEnd == null || tEnd <= t0) return null; // no placeable window → no block (never fabricate one)
+    var code = opts.code && typeof opts.code === 'object' ? { manifestHash: opts.code.manifestHash, computeHash: opts.code.computeHash } : oxyBundleCodeIdentity();
+    var acq = n.acquisitionEvidence || null;
+    var envelopeRef = acq && acq.session_id ? String(acq.session_id) : null;
+    var evidence = {
+      envelopeRef: envelopeRef,
+      inputHash: n.contentId != null ? n.contentId : null
+    };
+    if (envelopeRef == null)
+      evidence.envelopeReason = acq ? 'acquisition envelope attached without a session_id' : 'no acquisition envelope for this input (CSV / legacy path — the envelope joins on the .dat session_id)';
+    if (evidence.inputHash == null) evidence.inputReason = 'contentId unavailable (SignalFrame not co-loaded)';
+    var window = {
+      startTMs: t0,
+      endTMs: tEnd,
+      clockDomain: 'device',
+      timingSource: n.timingSource || 'device',
+      spreadMs: null,
+      spreadReason:
+        n.rtcOffsetS != null && isFinite(n.rtcOffsetS)
+          ? 'single device clock; the host offset is DECLARED on recording.rtcOffsetS, never applied (no second stamp per sample to spread against)'
+          : 'single device clock — the O2Ring RTC is the only timebase on this input; no host stamp to measure spread against'
+    };
+    var quality = { n: stats.n != null ? stats.n : null, durationMin: stats.durationMin != null ? stats.durationMin : null };
+    var mk = function (metricId, value, basis) {
+      if (value == null || typeof value !== 'number' || !isFinite(value)) return null; // unmeasured ⇒ no block
+      var b = {
+        metricId: metricId,
+        value: value,
+        window: window,
+        sourceChannel: 'O2Ring:spo2',
+        code: code,
+        evidence: evidence,
+        basis: basis,
+        quality: quality,
+        uncertainty: null,
+        uncertaintyReason: 'not estimated — this node carries no uncertainty model for whole-night oximetry summaries'
+      };
+      if (code == null) b.codeReason = 'no bundle identity in this runtime (headless source-module run) — the shipped bundle stamps data-manifest-hash/data-compute-hash; pass opts.code';
+      return b;
+    };
+    var out = {};
+    var blocks = [
+      ['meanSpo2', stats.meanSpo2, 'measured'],
+      ['t90', stats.t90pct, 'measured'],
+      ['odi4', n.odi4 ? n.odi4.rate : null, 'derived'],
+      ['hypoxicBurden', n.hb ? n.hb.rate : null, 'derived']
+    ];
+    var any = false;
+    for (var i = 0; i < blocks.length; i++) {
+      var b = mk(blocks[i][0], blocks[i][1], blocks[i][2]);
+      if (b) {
+        out[blocks[i][0]] = b;
+        any = true;
+      }
+    }
+    return any ? out : null;
+  }
+
   // Per-night node-export ELEMENT — the single source of the export shape, shared
   // by oxydex-app.js exportJSON AND OxyDex.compute. opts: { provenance, kernel,
-  // ecgFusion, ansAge }. compute() passes ecgFusion/ansAge = null (no paired ECG).
+  // ecgFusion, ansAge, code }. compute() passes ecgFusion/ansAge = null (no paired ECG).
   function oxyBuildNightElement(n, opts) {
     opts = opts || {};
     var _prov = opts.provenance !== undefined ? opts.provenance : null;
@@ -19729,6 +20096,8 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       odi3: n.odi3 ? { rate: n.odi3.rate, count: n.odi3.count } : null,
       hrv: n.hrv,
       hypoxicBurden: n.hb,
+      // roadmap §3 — per-instance lineage for the four headline metrics (keyed by registry id)
+      measurement: oxyBuildMeasurementBlocks(n, { code: opts.code }),
       motionProfile: {
         motionPct: n.stats ? n.stats.motionPct : null,
         // §3 — present ONLY on a faulted night, so no healthy export moves. Without it a null
@@ -19869,6 +20238,11 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
           impulse: 'desat_event',
           node: 'OxyDex',
           conf: oxyDesatConf(d),
+          /* roadmap §2/§3 — the event names the night that produced it: `inputHash` is the recording's
+             contentId, `evidenceRef` the attached acquisition envelope's session_id (null + reason on a
+             CSV/legacy input). `t`-only / ref-less legacy consumers keep working. */
+          evidenceRef: n.acquisitionEvidence && n.acquisitionEvidence.session_id ? String(n.acquisitionEvidence.session_id) : null,
+          inputHash: n.contentId != null ? n.contentId : null,
           /* `tMs` is the NADIR — the event's instant for scoring, and that stays the contract. But the
              nadir is the wrong fiducial for TIMING: a desaturation begins when saturation starts
              falling and reaches its nadir a desaturation-duration later, so anything correlating
@@ -19939,7 +20313,24 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     for (var i = 0; i < arr.length; i++) {
       var r = arr[i];
       if (!r || r.tMs == null) continue;
-      out.push({ tMs: r.tMs, t: new Date(r.tMs), spo2: r.spo2, hr: r.hr, motion: r.motion || 0 });
+      /* §∅ — `motion: r.motion || 0` RE-FABRICATED the exact zero this file already fixed at parse
+         time, one path over. `parseCSV` deliberately writes `null` when the device has no Motion
+         column, and the block at the top of this file records what a 0 there costs, measured on a
+         real night with only that column removed:
+             motionPct 1.8 → 0 · sleepEff 98.2 → 100 · wasoPct 4 → 0 · stability 22 → 35
+         — "the body never moved", published as a perfect motion sub-score. `|| 0` reintroduces all of
+         it for every row that reaches OxyDex through `compute`/`oxyComputeNight` instead of through
+         the CSV parser: a SignalFrame, a rows array, a self-ingested export. `processNight`'s
+         `_motionAbsent` seam tests `r.motion != null`, so it is ALREADY able to handle the honest
+         value — it simply never saw one on this path. Note `|| 0` also swallows a real 0 and rewrites
+         it as 0, which is why this looked harmless: the fabricated and the genuine case are
+         indistinguishable in the output, and only the null one is wrong.
+
+         `pi` was dropped entirely by the same line. `computeStats` computes `meanPi` over rows
+         carrying a reading and returns null when none do — correct, and unreachable here, because the
+         key never survived the copy. Carried through now; absent stays absent (undefined ⇒ the same
+         null-ish the parser writes), so a source without perfusion still reports `meanPi: null`. */
+      out.push({ tMs: r.tMs, t: new Date(r.tMs), spo2: r.spo2, hr: r.hr, motion: r.motion == null ? null : r.motion, pi: r.pi == null ? null : r.pi });
     }
     return out;
   }
@@ -19997,12 +20388,33 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       .forEach(function (k) {
         var b = bins[k];
         if (b.hr.length < 60) return; // ≥1 min HR coverage in the 5-min window
-        var mh = _median(b.hr),
+        /* MEAN, NOT MEDIAN — owner ruling 2026-09-17 (D3), measured in R5-HR-TRIPLET-FOLLOWUPS §3.
+           OxyDex has no intervals: `parseCSV` yields a 1 Hz RATE column and nothing else, so
+           `60000/mean(RR)` — the statistic ECGDex and PpgDex publish — is not computable here. The
+           question was which aggregation of a rate series best estimates it, and it was answered over
+           726 paired epochs against ECGDex:
+
+               median(rate)  −0.244 bpm   5.7σ   spread SD 1.16   ← shipped until today
+               trimmed 20 %  −0.201       4.8σ             1.14
+               trimmed 10 %  −0.156       3.6σ             1.17
+               trimmed  5 %  −0.113       2.5σ             1.20
+               mean(rate)    +0.013 bpm   0.3σ             1.23   ← this
+
+           Monotonic and one-sided: the robustness the median bought cost 0.26 bpm of bias and saved
+           6 % of spread. The bias this brief family opened to remove is essentially gone.
+
+           ⚠️ THE THEORETICALLY-CORRECT ESTIMATOR LOSES, AND THE REASON IS MEASURED — do not "fix"
+           this to the harmonic mean on theory. For instantaneous rates the harmonic mean equals
+           `60000/mean(RR)` exactly, so it should win; it does not (−0.083, 1.9σ). The ring's `pr` is
+           ALREADY SMOOTHED — same overall SD as beat-to-beat ECG (4.09 vs 4.19) but 5.1× less
+           consecutive-sample jitter (0.256 vs 1.298 bpm) — and applying a convexity correction to a
+           series that has already absorbed one over-corrects. */
+        var mh = _mean(b.hr),
           mm = _mean(b.mo);
         /* `hrStat` — R5-HR-TRIPLET-FOLLOWUPS. This leg is the ODD ONE on statistic: ECGDex and
            PpgDex both publish 60000/mean(RR), this publishes the median of 1 Hz rates, and the two
            differ by 0.299 bpm on real RR — the size of the bias R5 attributed to the O2Ring itself. */
-        out.push({ tMin: k * 5, hr: mh != null ? +mh.toFixed(1) : null, hrStat: 'median-rate', motionIndex: mm != null ? +mm.toFixed(3) : null });
+        out.push({ tMin: k * 5, hr: mh != null ? +mh.toFixed(1) : null, hrStat: 'mean-rate', motionIndex: mm != null ? +mm.toFixed(3) : null });
       });
     return out;
   }
@@ -20121,11 +20533,13 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     var night = oxyComputeNight(input, fname);
     if (!night) return null;
     var kfmt = opts.kernel ? { version: opts.kernel.VERSION, hash: opts.kernel.HASH } : null;
-    var el = oxyBuildNightElement(night, { provenance: opts.provenance !== undefined ? opts.provenance : null, kernel: kfmt, ecgFusion: null, ansAge: null });
+    var el = oxyBuildNightElement(night, { provenance: opts.provenance !== undefined ? opts.provenance : null, kernel: kfmt, ecgFusion: null, ansAge: null, code: opts.code || null });
     var t0 = night.t0Ms != null ? night.t0Ms : null;
     var schema = {
       name: 'ganglior.node-export',
-      version: '2.0',
+      // 2.1 — the MINOR bump lands with the FIRST EMITTER of the `measurement` block (docs/EXPORT-SHAPES.md);
+      // additive, and consumers tolerating its absence remains the contract.
+      version: '2.1',
       node: 'OxyDex',
       nodeVersion: '1.0',
       multiNight: false,
@@ -20173,6 +20587,8 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
   };
   OxyDex.computeNight = oxyComputeNight;
   OxyDex.buildNightElement = oxyBuildNightElement;
+  OxyDex.buildMeasurementBlocks = oxyBuildMeasurementBlocks;
+  OxyDex.bundleCodeIdentity = oxyBundleCodeIdentity;
   OxyDex.buildGangliorEvents = oxyBuildGangliorEvents;
   OxyDex.buildTimeseriesBlock = oxyBuildTimeseriesBlock;
   OxyDex.buildEpochSeries = oxyBuildEpochSeries;
@@ -21723,8 +22139,10 @@ function renderAll() {
       // Mini-metrics row
       html += '<div class="readiness-scores-grid">';
       if (s0.meanSpo2 != null) {
-        var spo2Cls = s0.meanSpo2 >= 95 - upSpo2Adj() ? 'ok' : s0.meanSpo2 >= 92 - upSpo2Adj() ? 'warn' : 'bad';
-        html += '<div class="readiness-subscore"><div class="rs-val ' + spo2Cls + '">' + evBadge('SpO₂') + s0.meanSpo2 + '%</div><div class="rs-label">SpO₂</div></div>';
+        var spo2Cls = sev(s0.meanSpo2, function (v) {
+          return v >= 95 - upSpo2Adj() ? 'ok' : v >= 92 - upSpo2Adj() ? 'warn' : 'bad';
+        });
+        html += '<div class="readiness-subscore"><div class="rs-val ' + spo2Cls + '">' + evBadge('SpO₂') + nzv(s0.meanSpo2, '%') + '</div><div class="rs-label">SpO₂</div></div>';
       }
       if (last.hrv && last.hrv.hrSdnn != null) {
         var hrvCls = last.hrv.hrSdnn >= 4 ? 'ok' : last.hrv.hrSdnn >= 2.5 ? 'warn' : 'bad';
@@ -21733,7 +22151,9 @@ function renderAll() {
       if (s0.durationMin) {
         var dh = Math.floor(s0.durationMin / 60),
           dm = Math.round(s0.durationMin % 60);
-        var durCls = s0.durationMin >= 360 ? 'ok' : s0.durationMin >= 300 ? 'warn' : 'bad';
+        var durCls = sev(s0.durationMin, function (v) {
+          return v >= 360 ? 'ok' : v >= 300 ? 'warn' : 'bad';
+        });
         html += '<div class="readiness-subscore"><div class="rs-val ' + durCls + '">' + evBadge('Sleep') + dh + 'h' + (dm < 10 ? '0' : '') + dm + 'm</div><div class="rs-label">Sleep</div></div>';
       }
       if (last.hrv && last.hrv.hrFloor != null) {
@@ -21886,7 +22306,7 @@ function renderAll() {
             color: C.amber,
             fill: true,
             values: nights.map(function (n) {
-              return n.odi4 ? n.odi4.rate : 0;
+              return n.odi4 ? n.odi4.rate : null;
             })
           }
         ],
@@ -21912,7 +22332,7 @@ function renderAll() {
               color: C.purple,
               fill: true,
               values: nights.map(function (n) {
-                return n.hrv ? n.hrv.hrSdnn : 0;
+                return n.hrv ? n.hrv.hrSdnn : null;
               })
             }
           ],
@@ -21936,7 +22356,7 @@ function renderAll() {
               color: C.teal,
               fill: true,
               values: nights.map(function (n) {
-                return n.hrv ? n.hrv.pnn3 : 0;
+                return n.hrv ? n.hrv.pnn3 : null;
               })
             }
           ],
@@ -21958,7 +22378,7 @@ function renderAll() {
               color: C.green,
               fill: true,
               values: nights.map(function (n) {
-                return n.hrv ? n.hrv.hrFloor : 0;
+                return n.hrv ? n.hrv.hrFloor : null;
               })
             }
           ],
@@ -21982,7 +22402,7 @@ function renderAll() {
               color: C.amber,
               fill: false,
               values: nights.map(function (n) {
-                return n.hrv ? n.hrv.hrSlope : 0;
+                return n.hrv ? n.hrv.hrSlope : null;
               })
             }
           ],
@@ -22013,7 +22433,7 @@ function renderAll() {
             label: 'Restless Win%',
             color: C.amber,
             values: nights.map(function (n) {
-              return n.motion ? n.motion.arousalIndex : 0;
+              return n.motion ? n.motion.arousalIndex : null;
             })
           }
         ],
@@ -22035,7 +22455,7 @@ function renderAll() {
             color: C.red,
             fill: true,
             values: nights.map(function (n) {
-              return n.hb ? n.hb.rate : 0;
+              return n.hb ? n.hb.rate : null;
             })
           }
         ],
@@ -22056,7 +22476,7 @@ function renderAll() {
             color: C.green,
             fill: true,
             values: nights.map(function (n) {
-              return n.stab ? n.stab.score : 0;
+              return n.stab ? n.stab.score : null;
             })
           }
         ],
@@ -22131,7 +22551,7 @@ function renderAll() {
             color: C.orange,
             fill: true,
             values: nights.map(function (n) {
-              return n.desat ? n.desat.deltaIndex : 0;
+              return n.desat ? n.desat.deltaIndex : null;
             })
           }
         ],
@@ -22175,7 +22595,7 @@ function renderAll() {
             color: C.teal,
             fill: true,
             values: nights.map(function (n) {
-              return n.motSleep ? n.motSleep.sleepEff : 0;
+              return n.motSleep ? n.motSleep.sleepEff : null;
             })
           }
         ],
@@ -22186,12 +22606,27 @@ function renderAll() {
 
       // Chart: 7-day rolling mean SpO2
       if (nights.length >= 3) {
+        /* §∅ — `s + null` COERCES TO `s`, so an unmeasured night was dropped from the NUMERATOR
+           while `w.length` still counted it in the denominator. One absent night in a 7-night window
+           of 97 % plotted as 83 % — a dramatic false DIP on a chart whose whole job is to show
+           drift, and the one direction a reader would act on. Reduced coverage ANNOTATES rather than
+           refuses (§∅'s 2026-09-17 ruling: the window is sparse, not discontinuous), so the mean is
+           taken over the nights that HAVE a value; a window with none is null and the renderer drops
+           the point, exactly as the other series do since #2938's chart pass. */
         var roll7spo2 = nights.map(function (n, i) {
           var w = nights.slice(Math.max(0, i - 6), i + 1);
+          var vals = w
+            .map(function (x) {
+              return x.stats ? x.stats.meanSpo2 : null;
+            })
+            .filter(function (v) {
+              return v != null && isFinite(v);
+            });
+          if (!vals.length) return null;
           return +(
-            w.reduce(function (s, x) {
-              return s + x.stats.meanSpo2;
-            }, 0) / w.length
+            vals.reduce(function (s, v) {
+              return s + v;
+            }, 0) / vals.length
           ).toFixed(2);
         });
         html += '<div class="chart-wrap">';
@@ -22234,7 +22669,7 @@ function renderAll() {
               color: C.orange,
               fill: true,
               values: nights.map(function (n) {
-                return n.spo2Adv ? n.spo2Adv.wtdsi : 0;
+                return n.spo2Adv ? n.spo2Adv.wtdsi : null;
               })
             }
           ],
@@ -22262,7 +22697,7 @@ function renderAll() {
               color: C.red,
               fill: true,
               values: nights.map(function (n) {
-                return n.comp ? n.comp.nsi : 0;
+                return n.comp ? n.comp.nsi : null;
               })
             }
           ],
@@ -22290,7 +22725,7 @@ function renderAll() {
               color: C.teal,
               fill: true,
               values: nights.map(function (n) {
-                return n.hrAdv ? n.hrAdv.rmssd : 0;
+                return n.hrAdv ? n.hrAdv.rmssd : null;
               })
             }
           ],
@@ -22318,7 +22753,7 @@ function renderAll() {
               color: C.amber,
               fill: true,
               values: nights.map(function (n) {
-                return n.comp ? n.comp.sfi : 0;
+                return n.comp ? n.comp.sfi : null;
               })
             }
           ],
@@ -22346,7 +22781,7 @@ function renderAll() {
               color: C.red,
               fill: true,
               values: nights.map(function (n) {
-                return n.sbii ? n.sbii.sbii : 0;
+                return n.sbii ? n.sbii.sbii : null;
               })
             }
           ],
@@ -22374,7 +22809,7 @@ function renderAll() {
               color: C.purple,
               fill: true,
               values: nights.map(function (n) {
-                return n.pred3p ? n.pred3p.pred3p : 0;
+                return n.pred3p ? n.pred3p.pred3p : null;
               })
             }
           ],
@@ -22402,7 +22837,7 @@ function renderAll() {
               color: C.orange,
               fill: true,
               values: nights.map(function (n) {
-                return n.desSev ? n.desSev.desSev : 0;
+                return n.desSev ? n.desSev.desSev : null;
               })
             }
           ],
@@ -22529,11 +22964,25 @@ function renderAll() {
             t4html += metric('PB Trend', pbLr.slope > 0 ? '+' + pbLr.slope : pbLr.slope, 'episodes/night', pbLr.slope < 0 ? 'good' : pbLr.slope < 1 ? 'warn' : 'bad');
           }
           // Worst-night recurrence
-          var poorNights = nights.filter(function (n) {
-            return n.stab && n.stab.score < 50;
+          /* §∅ — the NUMERATOR excluded nights with no stability score and the DENOMINATOR kept
+             them, so every unscored night silently counted as "not poor" and diluted the rate. The
+             denominator is now the SCORED nights, and the sub-label states that population rather
+             than the night count — a rate whose denominator is not the thing it was measured over is
+             not a rate. Coverage annotates (the nights are sparse, not discontinuous); with nothing
+             scored there is no rate to publish, so it refuses. */
+          var scoredNights = nights.filter(function (n) {
+            return n.stab && n.stab.score != null;
+          });
+          var poorNights = scoredNights.filter(function (n) {
+            return n.stab.score < 50;
           }).length;
-          var poorPct = +((poorNights / nights.length) * 100).toFixed(0);
-          t4html += metric('Poor Nights (<50)', poorPct + '%', poorNights + ' of ' + nights.length, poorPct < 20 ? 'good' : poorPct < 50 ? 'warn' : 'bad');
+          var poorPct = scoredNights.length ? +((poorNights / scoredNights.length) * 100).toFixed(0) : null;
+          t4html += metric(
+            'Poor Nights (<50)',
+            poorPct == null ? '—' : poorPct + '%',
+            poorPct == null ? 'no night carries a stability score' : poorNights + ' of ' + scoredNights.length + ' scored',
+            poorPct == null ? '' : poorPct < 20 ? 'good' : poorPct < 50 ? 'warn' : 'bad'
+          );
           // CPAP efficacy delta (ODI-4 change)
           var odi4Vals = nights
             .map(function (n) {
@@ -22816,8 +23265,11 @@ function renderSmartSummary(n) {
     return '<span class="' + cls + '">' + val + (unit || '') + '</span>';
   }
 
-  var durH = st ? Math.floor(st.durationMin / 60) : 0;
-  var durM = st ? Math.round(st.durationMin % 60) : 0;
+  /* §∅ — `Math.floor(null / 60)` is 0, so a night whose duration was never derived rendered
+     "0h 00m" and, at the KPI below, was graded **bad** on a measurement nobody made. `durationMin`
+     is nulled deliberately upstream (oxydex-dsp.js, the §∅ stats pass). Absent input refuses. */
+  var durH = st && st.durationMin != null ? Math.floor(st.durationMin / 60) : null;
+  var durM = st && st.durationMin != null ? Math.round(st.durationMin % 60) : null;
 
   var html = '<div class="smart-summary">';
   html += '<div class="ss-impression ' + sc + '">' + s.impression + '</div>';
@@ -22834,10 +23286,34 @@ function renderSmartSummary(n) {
   html += '<div class="proj-header">' + '<span class="cat-tag cat-ox">O₂</span>' + '<span class="proj-title">Oxygen</span>' + '</div>';
   html += '<div class="ss-kpi-grid">';
   if (st) {
-    html += ssKPI('Mean SpO₂', cv(st.meanSpo2, 93 - upSpo2Adj(), 95 - upSpo2Adj(), '%', true), st.meanSpo2 >= 95 - upSpo2Adj() ? 'good' : st.meanSpo2 >= 93 - upSpo2Adj() ? 'warn' : 'bad');
-    html += ssKPI('Min SpO₂', cv(st.minSpo2, 85 - upSpo2Adj(), 90 - upSpo2Adj(), '%', true), st.minSpo2 >= 90 - upSpo2Adj() ? 'good' : st.minSpo2 >= 85 - upSpo2Adj() ? 'warn' : 'bad');
-    html += ssKPI('T95% Time', cv(st.t95pct, 5, 15, '%'), st.t95pct < 5 ? 'good' : st.t95pct < 15 ? 'warn' : 'bad');
-    html += ssKPI('T90% Time', cv(st.t90pct, 0.5, 2, '%'), st.t90pct < 0.5 ? 'good' : st.t90pct < 2 ? 'warn' : 'bad');
+    html += ssKPI(
+      'Mean SpO₂',
+      cv(st.meanSpo2, 93 - upSpo2Adj(), 95 - upSpo2Adj(), '%', true),
+      sev(st.meanSpo2, function (v) {
+        return v >= 95 - upSpo2Adj() ? 'good' : v >= 93 - upSpo2Adj() ? 'warn' : 'bad';
+      })
+    );
+    html += ssKPI(
+      'Min SpO₂',
+      cv(st.minSpo2, 85 - upSpo2Adj(), 90 - upSpo2Adj(), '%', true),
+      sev(st.minSpo2, function (v) {
+        return v >= 90 - upSpo2Adj() ? 'good' : v >= 85 - upSpo2Adj() ? 'warn' : 'bad';
+      })
+    );
+    html += ssKPI(
+      'T95% Time',
+      cv(st.t95pct, 5, 15, '%'),
+      sev(st.t95pct, function (v) {
+        return v < 5 ? 'good' : v < 15 ? 'warn' : 'bad';
+      })
+    );
+    html += ssKPI(
+      'T90% Time',
+      cv(st.t90pct, 0.5, 2, '%'),
+      sev(st.t90pct, function (v) {
+        return v < 0.5 ? 'good' : v < 2 ? 'warn' : 'bad';
+      })
+    );
   }
   if (n.odi4) html += ssKPI('ODI-4 Rate', cv(n.odi4.rate, 5, 15, '/hr'), n.odi4.rate < 5 ? 'good' : n.odi4.rate < 15 ? 'warn' : 'bad');
   // ODI-3 IS NOT GRADED — there is no published ODI-3 severity band to grade it against
@@ -22864,9 +23340,27 @@ function renderSmartSummary(n) {
   html += '<div class="proj-header">' + '<span class="cat-tag cat-hr">HR</span>' + '<span class="proj-title">Cardio</span>' + '</div>';
   html += '<div class="ss-kpi-grid">';
   if (st) {
-    html += ssKPI('Mean HR', cv(st.meanHr, 60, 70, 'bpm'), st.meanHr < 60 ? 'good' : st.meanHr < 70 ? 'warn' : 'bad');
-    html += ssKPI('Min HR', cv(st.minHr, 35, 40, 'bpm', true), st.minHr >= 40 ? 'good' : st.minHr >= 35 ? 'warn' : 'bad');
-    html += ssKPI('Max HR', cv(st.maxHr, 90, 110, 'bpm'), st.maxHr < 90 ? 'good' : st.maxHr < 110 ? 'warn' : 'bad');
+    html += ssKPI(
+      'Mean HR',
+      cv(st.meanHr, 60, 70, 'bpm'),
+      sev(st.meanHr, function (v) {
+        return v < 60 ? 'good' : v < 70 ? 'warn' : 'bad';
+      })
+    );
+    html += ssKPI(
+      'Min HR',
+      cv(st.minHr, 35, 40, 'bpm', true),
+      sev(st.minHr, function (v) {
+        return v >= 40 ? 'good' : v >= 35 ? 'warn' : 'bad';
+      })
+    );
+    html += ssKPI(
+      'Max HR',
+      cv(st.maxHr, 90, 110, 'bpm'),
+      sev(st.maxHr, function (v) {
+        return v < 90 ? 'good' : v < 110 ? 'warn' : 'bad';
+      })
+    );
     // Perfusion index (OXYDEX-PULSE-RESOURCING §4 Phase 1) — rendered ONLY when the capture carried it
     // (Health-Box OXYFRAME). A ViHealth CSV night has meanPi === null and simply omits the card, rather
     // than showing a fabricated 0 or a "—" on every night that never had a PI sensor reading. The badge
@@ -22909,8 +23403,12 @@ function renderSmartSummary(n) {
   html += '<div class="proj-card proj-' + _cardSev + '">';
   html += '<div class="proj-header">' + '<span class="cat-tag cat-slp">SL</span>' + '<span class="proj-title">Sleep</span>' + '</div>';
   html += '<div class="ss-kpi-grid">';
-  var durStr = durH + 'h ' + (durM < 10 ? '0' : '') + durM + 'm';
-  html += ssKPI('Duration', '<span class="' + (durH >= 7 ? 'cv-good' : durH >= 6 ? 'cv-warn' : 'cv-bad') + '">' + durStr + '</span>', durH >= 7 ? 'good' : durH >= 6 ? 'warn' : 'bad');
+  var durStr = durH == null ? null : durH + 'h ' + (durM < 10 ? '0' : '') + durM + 'm';
+  html += ssKPI(
+    'Duration',
+    durStr == null ? '<span class="val-null">—</span>' : '<span class="' + (durH >= 7 ? 'cv-good' : durH >= 6 ? 'cv-warn' : 'cv-bad') + '">' + durStr + '</span>',
+    durStr == null ? 'neutral' : durH >= 7 ? 'good' : durH >= 6 ? 'warn' : 'bad'
+  );
   if (sa) {
     var _motPct = st ? st.motionPct : null;
     html += ssKPI('SOL', cv(sa.solMin, 15, 30, 'min'), sa.solMin == null ? 'neutral' : sa.solMin < 15 ? 'good' : sa.solMin < 30 ? 'warn' : 'bad');
@@ -23081,9 +23579,11 @@ function nrChip(label, val, cls) {
 }
 function nightRowInner(n) {
   var s = n.stats || {};
-  var durH = Math.floor((s.durationMin || 0) / 60),
-    durM = Math.round((s.durationMin || 0) % 60);
-  var durFmt = durH + 'h' + (durM < 10 ? '0' : '') + durM + 'm';
+  /* §∅ — the night-row twin of the KPI above: `|| 0` rendered an unrecorded duration as "0h00m"
+     in the row header, which reads as a measured zero-length night rather than an unknown one. */
+  var durH = s.durationMin != null ? Math.floor(s.durationMin / 60) : null,
+    durM = s.durationMin != null ? Math.round(s.durationMin % 60) : null;
+  var durFmt = durH == null ? '—' : durH + 'h' + (durM < 10 ? '0' : '') + durM + 'm';
 
   // ── Readiness pill ──
   var readScore = n.karv ? n.karv.readiness : n.stab ? n.stab.score : null;
@@ -23565,10 +24065,42 @@ function nightDetail(n, idx) {
        adding bare `mean`/`min` aliases is deliberate: those labels are section-relative and
        `meanHr`/`minHr` have an equal claim on them. It also keeps this render-only, so `computeHash`
        is provably stable and the change is export-inert by construction. */
-    metric('Mean SpO₂', s.meanSpo2 + '%', 'std ' + s.spo2Std, s.meanSpo2 >= 95 ? 'good' : s.meanSpo2 >= 92 ? 'warn' : 'bad', 'primary') +
-    metric('Min SpO₂', s.minSpo2 + '%', 'max ' + s.maxSpo2 + '%', s.minSpo2 >= 90 ? 'good' : s.minSpo2 >= 85 ? 'warn' : 'bad', 'primary') +
-    metric('T95', s.t95pct + '%', 'time <95%', s.t95pct < 5 ? 'good' : s.t95pct < 15 ? 'warn' : 'bad', 'primary') +
-    metric('T90', s.t90pct + '%', 'time <90%', s.t90pct > 1 ? 'bad' : s.t90pct > 0 ? 'warn' : 'good', 'primary') +
+    metric(
+      'Mean SpO₂',
+      nzv(s.meanSpo2, '%'),
+      'std ' + nzv(s.spo2Std),
+      sev(s.meanSpo2, function (v) {
+        return v >= 95 ? 'good' : v >= 92 ? 'warn' : 'bad';
+      }),
+      'primary'
+    ) +
+    metric(
+      'Min SpO₂',
+      nzv(s.minSpo2, '%'),
+      'max ' + nzv(s.maxSpo2, '%'),
+      sev(s.minSpo2, function (v) {
+        return v >= 90 ? 'good' : v >= 85 ? 'warn' : 'bad';
+      }),
+      'primary'
+    ) +
+    metric(
+      'T95',
+      nzv(s.t95pct, '%'),
+      'time <95%',
+      sev(s.t95pct, function (v) {
+        return v < 5 ? 'good' : v < 15 ? 'warn' : 'bad';
+      }),
+      'primary'
+    ) +
+    metric(
+      'T90',
+      nzv(s.t90pct, '%'),
+      'time <90%',
+      sev(s.t90pct, function (v) {
+        return v > 1 ? 'bad' : v > 0 ? 'warn' : 'good';
+      }),
+      'primary'
+    ) +
     '</div>';
   html += '</div>';
 
@@ -23772,8 +24304,12 @@ function nightDetail(n, idx) {
   html += '<div class="sec-section">';
   html += '<div class="sec-label">T-Index · Sleep Stability</div>';
   // T90 (clinically most-cited threshold) drives the headline severity
-  var _t90 = (n.tIdx && (n.tIdx[90] || n.tIdx['t90'])) || { pct: 0 };
-  var _tCls = _t90.pct < 1 ? 'good' : _t90.pct < 5 ? 'warn' : 'bad';
+  /* §∅ — `|| { pct: 0 }` and then `null < 1` both read as a PERFECT night: the first fabricates a
+     zero for a missing block, the second grades an unmeasured rate as good. T-index is now null when
+     no second was measured, so both arms are guarded and the card carries no verdict. */
+  var _t90 = (n.tIdx && (n.tIdx[90] || n.tIdx['t90'])) || null;
+  var _t90pct = _t90 && _t90.pct != null ? _t90.pct : null;
+  var _tCls = _t90pct == null ? 'neutral' : _t90pct < 1 ? 'good' : _t90pct < 5 ? 'warn' : 'bad';
   html += '<div class="proj-grid"><div class="proj-card proj-' + _tCls + '">';
   html +=
     '<div class="proj-header">' +
@@ -23889,8 +24425,15 @@ function nightDetail(n, idx) {
     // ODI-3 ungraded — no published band; see renderSmartSummary for the evidence. This site had shifted
     // ODI-4's ladder one notch; the other borrowed it unchanged. Neither was citable.
     (n.odi3 ? metric('ODI-3', n.odi3.rate, 'evt/hr · ' + n.odi3.count + ' total (ranges not established)', '') : '') +
-    metric('Mean HR', s.meanHr, 'bpm', '') +
-    metric('HR Range', s.minHr + '–' + s.maxHr, 'bpm', s.maxHr > 95 ? 'warn' : '') +
+    metric('Mean HR', nzv(s.meanHr), 'bpm', '') +
+    metric(
+      'HR Range',
+      s.minHr == null || s.maxHr == null ? '—' : s.minHr + '–' + s.maxHr,
+      'bpm',
+      sev(s.maxHr, function (v) {
+        return v > 95 ? 'warn' : '';
+      })
+    ) +
     '</div>';
 
   // HRV proxies — secondary tier (advanced mode)
@@ -24020,7 +24563,25 @@ function nightDetail(n, idx) {
     var mp = n.motion;
     html +=
       '<div class="grid">' +
-      metric('Motion %', n.stats ? n.stats.motionPct + '%' : '—', 'of recording', n.stats && n.stats.motionPct < 0.5 ? 'good' : n.stats && n.stats.motionPct < 2 ? 'warn' : 'bad') +
+      /* §∅ — THE PRODUCER ALREADY EMITTED NULL AND THIS CONSUMER NEVER MIGRATED. oxydex-dsp.js:2796
+         sets `stats.motionPct = null` deliberately when the motion column is condemned as stuck or
+         absent, and records WHICH fault in `stats.motionColumnAbsent`. Here that null was string-
+         concatenated into `null%` and then graded: `null < 0.5` is TRUE, so a night whose motion
+         channel was condemned rendered "null%" badged **good** — the fault reported as its own
+         absence of fault. `_oxyFmt`/`_oxySev` in oxydex-fusion.js already do the right thing with
+         null (— and no severity class), so this site was the odd one out, not the rule.
+         The sub-label NAMES the fault rather than borrowing "of recording", because §∅ requires a
+         refusal to state the real reason — and it gives `motionColumnAbsent` its first consumer:
+         the DSP has been distinguishing "no accelerometer on this device" from "the writer emitted
+         a stuck column" and nothing has ever read it. */
+      (function () {
+        var mp = n.stats ? n.stats.motionPct : null;
+        if (mp == null) {
+          var why = !n.stats ? 'of recording' : n.stats.motionColumnAbsent ? 'no motion column in this file' : 'motion column condemned as stuck';
+          return metric('Motion %', '—', why, '');
+        }
+        return metric('Motion %', mp + '%', 'of recording', mp < 0.5 ? 'good' : mp < 2 ? 'warn' : 'bad');
+      })() +
       metric('Restless Windows', mp.restlessWindows, 'of ' + mp.totalWindows + ' (30min)', mp.restlessWindows === 0 ? 'good' : mp.restlessWindows <= 2 ? 'warn' : 'bad') +
       metric('Arousal Index', mp.arousalIndex + '%', 'restless blocks', mp.arousalIndex < 20 ? 'good' : mp.arousalIndex < 40 ? 'warn' : 'bad') +
       '</div>';
@@ -24187,6 +24748,22 @@ function renderResearchMetrics(n) {
   );
 }
 
+/* §∅ RENDER HELPERS — absence must reach the eye as absence, never as a verdict.
+   `cv()` already returns "—" for a null VALUE. What it cannot do is stop the CARD being handed a
+   severity class computed separately from the same null, and JS coercion makes that silently wrong in
+   BOTH directions: `null >= 90` is false so Min SpO₂ reads **bad**, while `null < 5` is true so T95,
+   T90, Mean HR and Max HR all read **good** — a night nobody measured, displayed as a healthy one.
+   The flattering direction is the dangerous one and is the same failure as `maxSpo2 || 100`.
+
+   `nzv` guards the VALUE (string concatenation on null yields the literal "null%"), `sev` guards the
+   CLASS. Both are deliberately tiny and take the raw value, so a reader can see at each call site
+   which quantity is being tested for absence. */
+function nzv(v, suffix) {
+  return v == null ? '—' : v + (suffix || '');
+}
+function sev(v, fn) {
+  return v == null ? '' : fn(v); // '' → ssKPI/metric fall back to their neutral class
+}
 function metric(label, value, unit, cls, tier, extraAttr) {
   var tc = tier || 'primary';
   var wc = tc === 'hero' ? 'metric-hero' : tc === 'secondary' ? 'metric-secondary' : tc === 'research' ? 'metric-research' : 'metric-primary';
@@ -24223,6 +24800,9 @@ function stsCls(sev) {
   return 'neu';
 }
 function tiClass(pct, thr) {
+  /* §∅ — an ABSENT rate gets no class. Without this, `null === 0` is false and `null < 1` is true,
+     so an unmeasured threshold rendered 'warn' — a verdict on a measurement nobody made. */
+  if (pct == null) return '';
   if (thr >= 92) return pct === 0 ? 'good' : pct < 1 ? 'warn' : 'bad';
   if (thr >= 88) return pct === 0 ? 'good' : pct < 0.5 ? 'warn' : 'bad';
   return pct === 0 ? 'good' : pct < 0.1 ? 'warn' : 'bad';
@@ -24413,7 +24993,8 @@ function oxyHeroBenchCard(n, ecg) {
     headVal = hb.rate;
     headUnit = '%·min/h';
     headLbl = 'hypoxic burden';
-    sev = hb.rate < 5 ? 'proj-good' : hb.rate < 25 ? 'proj-warn' : 'proj-bad';
+    /* §∅ — `null < 5` is TRUE, so an unmeasured burden graded 'proj-good'. */
+    sev = hb.rate == null ? '' : hb.rate < 5 ? 'proj-good' : hb.rate < 25 ? 'proj-warn' : 'proj-bad';
   } else if (od4 && od4.rate != null) {
     headVal = od4.rate;
     headUnit = '/hr';
@@ -26851,7 +27432,7 @@ function exportJSON() {
     kernel: _kernel,
     schema: {
       name: 'ganglior.node-export',
-      version: '2.0',
+      version: '2.1', // MINOR — the per-night `measurement` block (roadmap §3); additive, consumers tolerate absence
       node: 'OxyDex',
       nodeVersion: '1.0',
       multiNight: nights.length > 1,
@@ -26945,7 +27526,9 @@ function exportCSV() {
       'Mean HR (bpm),' + s.meanHr,
       'Min HR (bpm),' + s.minHr,
       'Max HR (bpm),' + s.maxHr,
-      'Motion (%),' + s.motionPct,
+      /* §∅ — an absent motionPct writes an EMPTY cell, never the text "null" and never a 0.
+         oxydex-dsp.js:2796 nulls this deliberately when the motion column is stuck or absent. */
+      'Motion (%),' + (s.motionPct != null ? s.motionPct : ''),
       ''
     ]);
     lines.push('', 'DEEP ANALYSIS', 'HR Spikes,' + n.spikes.length);
@@ -26968,7 +27551,7 @@ function exportCSV() {
     lines.push(
       '',
       'MOVEMENT',
-      'Motion %,' + (n.stats ? n.stats.motionPct : ''),
+      'Motion %,' + (n.stats && n.stats.motionPct != null ? n.stats.motionPct : ''),
       'Arousal Index %,' + (n.motion ? n.motion.arousalIndex : ''),
       'Restless Windows,' + (n.motion ? n.motion.restlessWindows : '')
     );
@@ -27215,7 +27798,7 @@ function exportCSV() {
     if (n.desatAsym) {
       lines.push('  Desaturation Asymmetry,' + n.desatAsym.desatAsym, '  Asym Label,' + n.desatAsym.asymLabel);
     }
-    lines.push('', 'HYPOXIC BURDEN', 'Total (%-min),' + (n.hb ? n.hb.total : ''), 'Rate (%-min/hr),' + (n.hb ? n.hb.rate : ''));
+    lines.push('', 'HYPOXIC BURDEN', 'Total (%-min),' + (n.hb && n.hb.total != null ? n.hb.total : ''), 'Rate (%-min/hr),' + (n.hb && n.hb.rate != null ? n.hb.rate : ''));
     lines.push('', 'SLEEP STABILITY', 'Score (0-100),' + (n.stab ? n.stab.score : ''), 'Grade,' + (n.stab ? n.stab.grade : ''));
     // Stability component subscores (same as JSONL)
     if (n.stab && n.stab.components) {
@@ -27232,13 +27815,22 @@ function exportCSV() {
     // HRV metrics (same as JSONL)
     lines.push('', 'HRV METRICS');
     if (n.hrv) {
+      /* §∅ — an absent proxy leaves the CELL EMPTY, never the text "null" and never a 0. `hrSdnn`
+         could already be null here (DEEP-AUDIT-IV §3-RESULT) and this row would have written the
+         string "null" into a spreadsheet; the other five become nullable in the same change, so the
+         emptiness is applied to all six at once. Same idiom as the ODI rows above
+         (`n.odi4 ? n.odi4.rate : ''`): a blank cell reads as "not measured" in every tool that opens
+         this file, while `null` and `0` both read as data. */
+      var _hv = function (v) {
+        return v != null ? v : '';
+      };
       lines.push(
-        '  HR-Var Proxy (SD bpm),' + n.hrv.hrSdnn,
-        '  pNN3 (%),' + n.hrv.pnn3,
-        '  RSA Proxy,' + n.hrv.rsaProxy,
-        '  HR Slope (bpm/hr),' + n.hrv.hrSlope,
-        '  HR Floor (p5 bpm),' + n.hrv.hrFloor,
-        '  Samples,' + n.hrv.n
+        '  HR-Var Proxy (SD bpm),' + _hv(n.hrv.hrSdnn),
+        '  pNN3 (%),' + _hv(n.hrv.pnn3),
+        '  RSA Proxy,' + _hv(n.hrv.rsaProxy),
+        '  HR Slope (bpm/hr),' + _hv(n.hrv.hrSlope),
+        '  HR Floor (p5 bpm),' + _hv(n.hrv.hrFloor),
+        '  Samples,' + _hv(n.hrv.n)
       );
     } else {
       lines.push('  (insufficient data)');
@@ -27958,6 +28550,6 @@ function toggleResearchAccordion(el) {
      sink that only survived because it ran on DOMContentLoaded, already fired in
      the bundle). Dropping raw-at-rest removes both the storage and the payload. -->
 
-<div data-tepna-ver style="position:fixed;right:8px;bottom:8px;z-index:2147483000;font:600 11px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:#dbeafe;background:rgba(15,23,34,.82);border:1px solid rgba(120,170,220,.4);border-radius:999px;padding:2px 9px;letter-spacing:.03em;box-shadow:0 1px 4px rgba(0,0,0,.3);pointer-events:none;user-select:none" title="Tepna suite version">v2.9.0</div>
+<div data-tepna-ver style="position:fixed;right:8px;bottom:8px;z-index:2147483000;font:600 11px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:#dbeafe;background:rgba(15,23,34,.82);border:1px solid rgba(120,170,220,.4);border-radius:999px;padding:2px 9px;letter-spacing:.03em;box-shadow:0 1px 4px rgba(0,0,0,.3);pointer-events:none;user-select:none" title="Tepna suite version">v2.13.0</div>
 </body>
 </html>

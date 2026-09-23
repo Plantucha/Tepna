@@ -71,10 +71,23 @@ CUR="$(g rev-parse --abbrev-ref HEAD 2>/dev/null)" || { say "cannot read HEAD"; 
 [ "$CUR" = "$BRANCH" ] || skip "checkout is on '$CUR', not '$BRANCH'"
 
 # 3 · MEASURE THE TREE, NOT THE REF (§👥.2b). `rev-list --count` returned 0 while the
-#     tree was 214 files stale; it answers a different question. Untracked files count:
-#     a stray file is someone else's in-flight work and a merge could collide with it.
-DIRT="$(g status --porcelain | wc -l | tr -d ' ')"
-[ "$DIRT" = "0" ] || skip "$DIRT uncommitted/untracked path(s) — never sync over someone's work"
+#     tree was 214 files stale; it answers a different question. A TRACKED modification
+#     is someone's in-flight work: never fast-forward underneath it.
+#
+#     UNTRACKED paths are different, and this line used to count them the same way. It
+#     read as the safe choice and was the opposite: the shared root ALWAYS carries a few
+#     stray untracked files (a probe script, a `deploy/` folder, a corpus night), so the
+#     timer skipped every run — `SKIP — 7 uncommitted/untracked path(s)` at 02:15 and
+#     `SKIP — 370` on the corpus clone, `Result=success` on both — and the root sat 42–103
+#     commits behind while the stale-brief hook measured against its frozen HEAD
+#     (RESIDUE `2026-09-05-sync-main-skips-while-root-dirty`). A fast-forward cannot touch
+#     an untracked path that no incoming commit names, and git refuses one that would
+#     overwrite an untracked file; step 4b makes that collision explicit and skips on it.
+MOD="$(g status --porcelain --untracked-files=no | wc -l | tr -d ' ')"
+[ "$MOD" = "0" ] || skip "$MOD uncommitted tracked path(s) — never sync over someone's work"
+# `--untracked-files=all` lists every file under an untracked directory (`?? deploy/`
+# alone would hide `deploy/x.sh` from the collision check below).
+UNTRACKED="$(g status --porcelain --untracked-files=all | sed -n 's/^?? //p')"
 
 # 4 · Fetch. This writes only remote-tracking refs; it cannot alter the tree.
 if ! g fetch --quiet origin "$BRANCH" 2>/dev/null; then
@@ -88,6 +101,14 @@ REMOTE="$(g rev-parse "origin/$BRANCH")"
 # 5 · Fast-forwardable only. If local carries commits origin does not, this is a real
 #     divergence: someone committed to `main` directly. Refuse and say so — the whole
 #     point is that this script never decides what to do with unpushed work.
+# 4b · An untracked path that an incoming commit ALSO names is a real collision: git's
+#      ff-merge would refuse it ("untracked working tree files would be overwritten"), but
+#      say so here, by name, instead of letting the merge's error be the report.
+if [ -n "$UNTRACKED" ]; then
+  COLLIDE="$(g diff --name-only "$BRANCH" "origin/$BRANCH" | grep -Fxf <(printf '%s\n' "$UNTRACKED") || true)"
+  [ -z "$COLLIDE" ] || skip "untracked path(s) also changed on origin/$BRANCH — never sync over someone's work: $(printf '%s' "$COLLIDE" | tr '\n' ' ')"
+fi
+
 AHEAD="$(g rev-list --count "origin/$BRANCH..$BRANCH")"
 BEHIND="$(g rev-list --count "$BRANCH..origin/$BRANCH")"
 if [ "$AHEAD" != "0" ]; then

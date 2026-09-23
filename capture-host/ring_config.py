@@ -36,6 +36,27 @@ class Chan:
                 self.q.put_nowait(f)
         await self.c.start_notify(oxyii.OXYII_NOTIFY, on)
 
+    async def ask_ack(self, want_op: int, timeout: float = 2.0) -> "oxyii.AckResult":
+        """Read the ACK for a command already written, and return its outcome.
+
+        Residue `2026-09-02-oxyii-acks-unparsed`: `0x01` SET_CONFIG is ack-only and its reply was never
+        read, so a REJECTED write looked exactly like an accepted one. The vendor puts the status in the
+        `pkgType`/`flag` byte (§2 of O2RING-PROTOCOL, `1` = success), which the old `decode()` discarded.
+
+        This CONSUMES THE SAME FRAME THE NEXT `ask()` WOULD HAVE DRAINED AND THROWN AWAY, so the flow is
+        unchanged — the ack was already being pulled off this queue and discarded; now it is read first.
+
+        A timeout yields `NO_REPLY`, and that is the caller's observation to make: `parse_ack` cannot
+        see a frame that never arrived."""
+        try:
+            while True:
+                f = await asyncio.wait_for(self.q.get(), timeout)
+                r = oxyii.decode_full(f)
+                if r and r.op == want_op:
+                    return oxyii.parse_ack(want_op, r)
+        except asyncio.TimeoutError:
+            return oxyii.parse_ack(want_op, None)
+
     async def ask(self, frame: bytes, want_op: int) -> bytes | None:
         await self.c.write_gatt_char(oxyii.OXYII_WRITE, frame, response=False)
         try:
@@ -113,6 +134,12 @@ async def run_set(address: str, field: str, value: int) -> int:
             print("  GET_CONFIG (before): NO REPLY — refusing to write blind")
             return 1
         await c.write_gatt_char(oxyii.OXYII_WRITE, frame, response=False)
+        # SURFACED, not acted on. The read-back below remains the verdict — it observes the device
+        # state rather than the device's opinion of our request — but the ack is now READ and REPORTED
+        # instead of silently drained, so a rejection is visible even when a read-back happens to agree.
+        # No retry or abort is added here: that would be a behaviour change on its own evidence.
+        ack = await ch.ask_ack(oxyii.OP_SET_CONFIG)
+        print(f"  SET_CONFIG ack: {ack.value}")
         await asyncio.sleep(0.6)                       # let the setting persist before the read-back
         after = await ch.ask(oxyii.config_frame(2), oxyii.OP_GET_CONFIG)
         if after is None:

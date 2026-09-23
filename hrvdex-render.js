@@ -985,9 +985,13 @@ function renderAllCharts(rows, sm) {
       label: 'rMSSD modifier (%)',
       data: rows.map((r) => (!isNaN(r.d_vo2_hrv) && !isNaN(r.d_vo2_base) && r.d_vo2_base > 0 ? (r.d_vo2_hrv / r.d_vo2_base - 1) * 100 : NaN)),
       borderColor: rgba('purple', 1),
+      /* Absence is NaN here, exactly as in `data` above — the two lines share a guard and
+         must share an encoding. A night with no VO2 pair is not a 0 % modifier: `0 >= 0`
+         painted it GREEN, i.e. absence read as improvement. Transparent is the honest
+         colour for a point that carries no value (CLAUDE.md §∅). */
       backgroundColor: rows.map((r) => {
-        const pct = !isNaN(r.d_vo2_hrv) && !isNaN(r.d_vo2_base) && r.d_vo2_base > 0 ? (r.d_vo2_hrv / r.d_vo2_base - 1) * 100 : 0;
-        return pct >= 0 ? rgba('green', 0.2) : rgba('red', 0.2);
+        const pct = !isNaN(r.d_vo2_hrv) && !isNaN(r.d_vo2_base) && r.d_vo2_base > 0 ? (r.d_vo2_hrv / r.d_vo2_base - 1) * 100 : NaN;
+        return isNaN(pct) ? rgba('purple', 0) : pct >= 0 ? rgba('green', 0.2) : rgba('red', 0.2);
       }),
       fill: true
     },

@@ -128,6 +128,23 @@ jobs:
         run: node tools/build.mjs --check
       - name: Self-contained analysis tools ≡ bundle(source) (file://-safe drift guard)
         run: node tools/build-analysis.mjs --check
+      # The FIFTH generated tree, and the one that had no guard here until 2026-09-13. `npm run check`
+      # has run `tools-index.mjs --check` as step 14/16 all along, so the drift guard EXISTS — it just
+      # ran for nobody, because CI checked the other four and never this one. The result is the failure
+      # CLAUDE.md §2b-bis describes: a guard protects only whoever happens to run it. Measured that day,
+      # `docs/TOOLS-INDEX.md` on main was missing `cohort-fit.mjs` (#2458) and `nsrr-score-pool.mjs`
+      # (#2457) — both PRs merged green — and the cost landed on the next contributor to run the full
+      # local gate, as a red in a file they had not touched. BLOCKING, like its three siblings above and
+      # unlike verify-fixtures below: it is deterministic, needs no corpus and no network, and an outside
+      # contributor can fix it by running the tool, so none of the reasons for informational apply.
+      - name: Tools index ≡ tools-index(source) (the fifth generated tree)
+        run: node tools/tools-index.mjs --check
+      # VERDICT-CONTRACT §3 — the producers of a verdict word, ENUMERATED on the tree and held equal to a
+      # committed manifest that bins every one (decides · already-json · word-only-with-reason · test).
+      # A new tool that prints PASS/FAIL and is in no bin is a red with its name; an adoption is READ
+      # (the object run or read, validated under verdict.js), never believed. Pure Node, no corpus.
+      - name: Verdict adoption ≡ enumerated producers (every one binned; every adoption read and valid)
+        run: node tools/verdict-adoption.mjs --check
       # The SERVED tree (docs/) is a build output of the root tree — and until 2026-07-14 NOTHING
       # guarded it, so it drifted twice, and both times the drift reached main AND the live site:
       #   · the 8 served docs/*.html APP BUNDLES fell behind their root twins (re-bundles moved the

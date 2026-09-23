@@ -43,6 +43,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
+import { printVerdict, undeclaredVerdict, verdictSample } from './verdict-undeclared.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -134,6 +135,14 @@ function runNight(night, labels) {
     evidence: night.pseudo ? 'heuristic' : null,
     axisProvenance: night.prov
   };
+  /* BEFORE the overlap verdict — an incomplete night has no overlap to report, and saying so in
+     overlap's words sends the reader to the wrong place (see classifyCompleteness). */
+  const incomplete = classifyCompleteness(
+    labels.filter((l) => Array.isArray(night.series[l]) && night.series[l].length > 0),
+    labels,
+    night.hasStamp !== false
+  );
+  if (incomplete) return { ...base, ok: false, incomplete: true, reason: incomplete };
   if (al.keys.length < 12) return { ...base, ok: false, reason: 'overlap ' + al.keys.length + ' < 12' };
 
   // align motion onto the SAME shared epoch keys the HR triplet resolved on
@@ -270,6 +279,36 @@ function synthCorpus() {
  * per-epoch `hr` and (for the motion-ρ) `motionIndex`, plus a floating `tMs`.
  * Node identity is read from schema.node / the filename (ECGDex/PpgDex/OxyDex).
  * ──────────────────────────────────────────────────────────────────────── */
+/* ⚠️ AN INCOMPLETE NIGHT IS NOT AN OVERLAP FAILURE, and before this it reported as one.
+   A `trio-batch` fold child that dies on a V8 heap-limit abort leaves the exports it had already
+   written in the night directory and no `.trio-stamp` (the stamp is written only at 3/3). This tool
+   is the consumer that lists such a directory — `readdirSync` + every `*.json` — and it never read
+   the stamp, so a 2-of-3 night fell through to `alignTriplet`, produced an empty intersection, and
+   was reported as `overlap 0 < 12`.
+
+   Measured 2026-09-12 on a planted 2-of-3 directory: exactly that string. It is the SAME string a
+   genuine three-corner night with no epoch overlap produces — one name, two causes, and the one a
+   reader would chase (epoch alignment) is not the one that happened (a fold that aborted).
+
+   Residue `2026-09-07-partial-exports-survive-child-abort`. The row proposed writer-side remedies
+   (temp name + rename, or a `.partial` marker) and blocked on "no such consumer has been shown to
+   exist". One does, and the protection it needs is already ON DISK: the fold's own stamp. So the fix
+   is that the reader USES it, not that the writer drops a second marker.
+
+   PURE so `--selftest` can pin it without a filesystem — the tool's real `--dir` path needs the
+   gitignored corpus, which is how the `prov` ReferenceError above reached main. */
+function classifyCompleteness(cornersPresent, labels, hasStamp) {
+  const missing = labels.filter((l) => cornersPresent.indexOf(l) < 0);
+  if (!missing.length) return null;
+  return (
+    'incomplete night — ' +
+    (cornersPresent.length ? cornersPresent.join('+') : 'no') +
+    ' corner(s) present, missing ' +
+    missing.join('+') +
+    (hasStamp ? '' : ' · no .trio-stamp in this directory, so the fold did not complete')
+  );
+}
+
 function readNightDir(dir) {
   const files = readdirSync(dir).filter((f) => /\.json$/i.test(f));
   const series = {},
@@ -327,7 +366,10 @@ function readNightDir(dir) {
     if (hr.length) series[node] = hr;
     if (mo.length) motion[node] = mo;
   }
-  return { label: dir.split('/').pop(), series, motion, marker, prov, pseudo };
+  /* Read, not inferred: the fold's own completion stamp. `.trio-stamp` is deliberately NOT `*.json`
+     (see `trio-batch.mjs`'s STAMP comment) precisely so the glob above cannot see it — which is why
+     it has to be asked for by name. */
+  return { label: dir.split('/').pop(), series, motion, marker, prov, pseudo, hasStamp: existsSync(join(dir, '.trio-stamp')) };
 }
 function nodeOf(j, fname) {
   const s = (j.schema && (j.schema.node || j.node)) || j.node || '';
@@ -352,6 +394,68 @@ function median(xs) {
   if (!a.length) return null;
   const m = a.length >> 1;
   return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
+}
+
+/* THE DENOMINATOR IS THE PRODUCT, so it is computed here and pinned by `--selftest` rather than
+   only formatted inline. Residue `2026-09-12-partial-fold-reads-as-zero-overlap`.
+
+   ⚠️ THE CONTROL IS WHAT MAKES THIS A RULE AND NOT A BLANKET. A night that failed for a REAL reason
+   — a genuine `overlap 0 < 12`, a degenerate solve — is a night this tool tried and could not
+   estimate, and it MUST keep counting in the denominator: excluding those would flatter the yield,
+   which is the same defect in the opposite direction. Only `incomplete` (the fold never produced
+   the corners) is excluded, and the count and the night names are printed on the same line as the
+   number they change, because a filter the reader cannot see is not an improvement over a wrong
+   denominator. */
+function distributionHeading(nSolved, rows) {
+  const incomplete = rows.filter((x) => x.incomplete);
+  const foldable = rows.length - incomplete.length;
+  return (
+    'distribution (' +
+    nSolved +
+    ' estimated / ' +
+    foldable +
+    ' foldable night(s)' +
+    (incomplete.length
+      ? ' · ' + incomplete.length + ' incomplete night(s) EXCLUDED from both counts — the fold never finished, so this is not an estimation failure: ' + incomplete.map((x) => x.label).join(', ')
+      : '') +
+    '):'
+  );
+}
+
+/* The statistic the verdict object carries — the same medians report() prints, as data. Pure. */
+function summarize(rows) {
+  const isBoundary = (x) => x.withRho.method === 'correlated' || x.withRho.method === 'classic-clamped';
+  const solvedAll = rows.filter((x) => x.ok && x.withRho.ok);
+  const solved = solvedAll.filter((x) => !isBoundary(x));
+  const culpritSig = solved.map((x) => (x.sigmaRho ? x.sigmaRho[x.withRho.culprit] : null)).filter((v) => v != null);
+  const medOf = (f) => {
+    const v = solved.map(f).filter((x) => x != null && isFinite(x));
+    return v.length ? +median(v).toFixed(3) : null;
+  };
+  const per = {};
+  for (const L of LABELS) per[L] = { classic: medOf((x) => x.sigmaClassic && x.sigmaClassic[L]), rhoOn: medOf((x) => x.sigmaRho && x.sigmaRho[L]) };
+  return {
+    nights: rows.length,
+    solved: solved.length,
+    degenerate: solvedAll.length - solved.length,
+    unsolved: rows.length - solvedAll.length,
+    medianCulpritSigmaRhoOnBpm: culpritSig.length ? +median(culpritSig).toFixed(3) : null,
+    medianSigmaBpm: per
+  };
+}
+/* VERDICT-CONTRACT §3b — this A/B never pre-stated a band on the σ medians (real-night numbers are on
+   record: §F3), so the object is UNKNOWN by design with summarize() in `result`; on the known-answer
+   corpus the checks decide the SELF-TEST (exit code), not the verdict. */
+function emitVerdict(rows, evidence) {
+  const st = summarize(rows);
+  printVerdict(
+    undeclaredVerdict({
+      tool: 'tools/tch-multinight.mjs',
+      stat: { label: 'IntegratorTCH multi-night σ medians (bpm), classic vs per-night motion-ρ', ...st },
+      population: { checked: st.solved, eligible: st.nights },
+      evidence
+    })
+  );
 }
 
 function report(rows, { json } = {}) {
@@ -417,11 +521,22 @@ function report(rows, { json } = {}) {
   /* BEFORE the medians, not after. §F3's PpgDex 2.71 → 3.44 was published and only later found to span
      different night sets; a reader must meet the corpus verdict before the number it qualifies. */
   const solvedSet = new Set(solved.map((x) => x.label));
-  const split = TchCorpus.cohortSplit(rows.map((x) => ({ night: x.label, marker: x.marker, solved: solvedSet.has(x.label) })));
+  /* ── A NIGHT THAT WAS NEVER FOLDED IS NOT A NIGHT THIS TOOL FAILED TO ESTIMATE.
+     Residue `2026-09-12-partial-fold-reads-as-zero-overlap`. The sibling fix taught the per-night
+     line to say `incomplete night` instead of `overlap 0 < 12`; the DENOMINATOR still counted it.
+     A `trio-batch` child that aborted mid-fold therefore degraded the reported estimation yield —
+     `1 estimated / 2 nights` where only one night was ever foldable — and inflated the corpus line
+     to `all 2 cohorted night(s)`. Two runs over the same recordings then disagree on yield because
+     of a heap limit, and nothing in the output says so.
+     Treated exactly like the degenerate-boundary nights above: reported, EXCLUDED, and the count
+     and reason printed on the same line as the number they change. Removing them silently would be
+     the mirror-image defect — a filter the reader cannot see. */
+  const foldable = rows.filter((x) => !x.incomplete);
+  const split = TchCorpus.cohortSplit(foldable.map((x) => ({ night: x.label, marker: x.marker, solved: solvedSet.has(x.label) })));
   const corpusVerdict = TchCorpus.corpusVerdict(split);
   const corpusLine = TchCorpus.corpusLine(split);
   if (corpusLine) console.log('\n' + corpusLine);
-  console.log('\n  distribution (' + solved.length + ' estimated / ' + rows.length + ' nights):');
+  console.log('\n  ' + distributionHeading(solved.length, rows));
   if (degenerate.length) {
     console.log(
       '    ' +
@@ -475,6 +590,49 @@ function verify(rows, corpus) {
   };
   const byLabel = Object.fromEntries(corpus.map((c) => [c.label, c]));
 
+  /* ── AN INCOMPLETE NIGHT MUST NOT REPORT AS AN OVERLAP FAILURE (residue
+     `2026-09-07-partial-exports-survive-child-abort`). Pinned here rather than on a directory
+     because `--dir` needs the gitignored corpus, and that gap is how a `ReferenceError` in
+     `readNightDir` reached main. `classifyCompleteness` is pure for exactly this reason.
+
+     ⚠️ THE CONTROL IS THE POINT, not the positive. Before the fix, a 2-of-3 night and a genuine
+     three-corner night with disjoint epochs BOTH printed `overlap 0 < 12` — measured side by side
+     2026-09-12. A rule that merely fires on the partial night would be indistinguishable from one
+     that fires on everything, so the completeness check must return null for a full corner set and
+     let overlap keep its own verdict. */
+  const _L = ['ECGDex', 'PpgDex', 'OxyDex'];
+  ok('completeness · a full corner set is NOT convicted — overlap keeps its own verdict', classifyCompleteness(_L, _L, false) === null, String(classifyCompleteness(_L, _L, false)));
+  ok('completeness · …and a full set with the fold stamp is equally uncontested', classifyCompleteness(_L, _L, true) === null);
+  const _p = classifyCompleteness(['ECGDex', 'PpgDex'], _L, false);
+  ok('completeness · a 2-of-3 night NAMES the missing corner instead of blaming overlap', /missing OxyDex/.test(_p || '') && !/overlap/.test(_p || ''), String(_p));
+  ok('completeness · …and says the corners it DID find, so the reader can see what the fold got through', /ECGDex\+PpgDex/.test(_p || ''), String(_p));
+  ok('completeness · an absent .trio-stamp is reported as the cause', /no \.trio-stamp/.test(_p || ''), String(_p));
+  /* A directory with the stamp but a missing corner is a DIFFERENT fault — a stamped fold that
+     nonetheless lacks a node — so the stamp sentence must not be appended where it is untrue. */
+  const _ps = classifyCompleteness(['ECGDex', 'PpgDex'], _L, true);
+  ok('completeness · a STAMPED night missing a corner is still incomplete, but is not blamed on the stamp', /missing OxyDex/.test(_ps || '') && !/trio-stamp/.test(_ps || ''), String(_ps));
+  ok('completeness · an empty directory names all three, not none', /missing ECGDex\+PpgDex\+OxyDex/.test(classifyCompleteness([], _L, false) || ''), String(classifyCompleteness([], _L, false)));
+
+  /* ── THE DENOMINATOR (residue `2026-09-12-partial-fold-reads-as-zero-overlap`). The sibling fix
+     taught the per-night line to stop blaming overlap; the yield still counted an unfolded night,
+     so a heap-limit abort silently degraded a run's reported estimation rate. */
+  const _rows = (...xs) => xs;
+  const _n = (label, extra) => ({ label: label, ...extra });
+  const _mixed = _rows(_n('a'), _n('b'), _n('bad-fold', { incomplete: true }));
+  ok('denominator · an unfolded night leaves the yield denominator', /2 foldable night\(s\)/.test(distributionHeading(2, _mixed)), distributionHeading(2, _mixed));
+  ok('denominator · …and the exclusion is STATED with its count, never applied silently', /1 incomplete night\(s\) EXCLUDED/.test(distributionHeading(2, _mixed)), distributionHeading(2, _mixed));
+  ok('denominator · …and the excluded night is NAMED, so the reader can go and look at it', /bad-fold/.test(distributionHeading(2, _mixed)), distributionHeading(2, _mixed));
+  /* ⚠️ THE CONTROL. A night that failed for a REAL reason — genuine zero overlap, a degenerate
+     solve — is one this tool TRIED and could not estimate. It must keep counting, or the yield
+     flatters itself: the same defect pointing the other way. */
+  const _tried = _rows(_n('a'), _n('no-overlap'), _n('degenerate'));
+  ok(
+    'denominator · CONTROL · a night that genuinely failed still counts — excluding it would flatter the yield',
+    /1 estimated \/ 3 foldable night\(s\)\)?:/.test(distributionHeading(1, _tried)),
+    distributionHeading(1, _tried)
+  );
+  ok('denominator · CONTROL · …and with nothing incomplete the line carries no exclusion clause at all', !/EXCLUDED/.test(distributionHeading(1, _tried)), distributionHeading(1, _tried));
+
   for (const row of rows) {
     const spec = byLabel[row.label];
     ok(row.label + ': A/B solved', row.ok && row.classic && row.withRho, row.reason || '');
@@ -524,6 +682,10 @@ function verify(rows, corpus) {
 function main() {
   const argv = process.argv.slice(2);
   const json = argv.includes('--json');
+  if (argv.includes('--verdict-sample')) {
+    console.log(JSON.stringify(verdictSample('tools/tch-multinight.mjs'), null, 1));
+    process.exit(0);
+  }
   const dirIx = argv.indexOf('--dir');
 
   console.log('IntegratorTCH multi-night A/B — kernel v' + TCH.VERSION + '  (classic vs per-night motion-ρ)');
@@ -544,6 +706,7 @@ function main() {
     const rows = subs.map((d) => runNight(readNightDir(d), LABELS));
     report(rows, { json });
     console.log('\n  (real nights: no planted truth → distribution is the verdict; compare median σ to the corpus reference.)');
+    emitVerdict(rows, [base]);
     return;
   }
 
@@ -551,6 +714,7 @@ function main() {
   const corpus = synthCorpus();
   const rows = corpus.map((c) => runNight(c, LABELS));
   report(rows, { json });
+  emitVerdict(rows, ['<synthetic known-answer corpus built in this tool: synthCorpus()>']);
   const checks = verify(rows, corpus);
   const pass = checks.filter((c) => c.pass).length,
     fail = checks.length - pass;

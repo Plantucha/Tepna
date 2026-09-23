@@ -2734,11 +2734,16 @@ self.onmessage = async (e) => {
     // headless ECGDex.compute() the Data Unifier / OverDex emit. ONE event source
     // (analyze→r.events), ONE envelope builder; kernel/provenance ride in via opts.
     const build = (window.ECGDSP && ECGDSP.buildNodeExport) || (window.ECGDex && ECGDex.buildNodeExport) || null;
+    // MEASUREMENT-PROVENANCE-ROADMAP §12 — the running bundle's code identity, read off the <html>
+    // stamp HERE (the app layer) and passed in, because the born-clean DSP may not touch `document`.
+    const ds = document.documentElement.dataset;
+    const code = /^[0-9a-f]{12}$/.test(ds.manifestHash || '') && /^[0-9a-f]{12}$/.test(ds.computeHash || '') ? { manifestHash: ds.manifestHash, computeHash: ds.computeHash } : null;
     const out = build
       ? build(r, {
           kernel: window.DexKernel ? { version: DexKernel.VERSION, hash: DexKernel.HASH } : null,
           provenance: window.GangliorProvenance ? GangliorProvenance.stamp() : null,
-          offsetMin: r.offsetMin ?? null
+          offsetMin: r.offsetMin ?? null,
+          code
         })
       : null;
     if (!out) {

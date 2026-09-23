@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED — 2026-09-02 (residue of executing all 18 DEEP-AUDIT-VI findings across five sessions in one night; §1 remainders are assigned-by-lane, §2–§3 are sweep/tool candidates awaiting a slot, §4 is the scope line DEEP-AUDIT-VII must open with) · **Created:** 2026-09-02 · **Spawned-from:** `DEEP-AUDIT-VI-2026-09-01-BRIEF.md` (DONE 2026-09-02)
+**Status:** DONE — 2026-09-17 (**§1.2a was DECLINED by the owner on 2026-09-07 — "NOT approved: resync file-set rotation" — and this brief carried it as its only executable remainder for ten days without recording that.** With the remainder declined rather than outstanding, nothing here is left to execute. ⚠️ DONE here means NOTHING IS OWED, not that every item shipped: §1.2's capture-side rotation was refused, §3 is process residue, and §4 is the scope line `DEEP-AUDIT-VII` opens with. ⚠️ The DETECTION §1.2 would have acted on now exists independently — `BLE-TIMEBASE-AT-THE-EDGE` §1.4's seam sidecar (#2581) emits a `clock_watchdog`-class step as a first-class event, proven on the 2026-08-27 file at residual 2.4e11 ms and silent across 6.6 M clean samples. So a future proposal to rotate the file set would no longer need to detect the resync first; that is the part that changed since the refusal, and it is the only thing that should reopen the question. Was: IN-PROGRESS — 2026-09-06; was PROPOSED — 2026-09-02: residue of executing all 18 DEEP-AUDIT-VI findings across five sessions in one night; §1 remainders are assigned-by-lane, §2–§3 are sweep/tool candidates awaiting a slot, §4 is the scope line DEEP-AUDIT-VII must open with. ⚠️ **PROPOSED had become wrong — it means UNSTARTED, and most of this brief is executed.** **DRAINED 2026-09-06 (Brief runner): §2's sweep candidates are DONE.** §2.2 swept and its sharpest instance repaired (#2306 — the `matchRecall` cross-site gate REQUIRED the duplication it polices, so single-sourcing would have reddened it); §2.3 re-checked and closed as a CONVENTION, not a gate, because gating it would itself be §2.2 (#2305); §2.4 swept and gated on the metric ID (#2303); §2.6 closed by asserting the label exemption's precondition (#2301). §2.1 · §2.5 · §2.5b · §2.5c were already closed. **§2.5d, §2.7 and §2.8 are RULES, not work** — each records a lesson whose instance already shipped (§2.8's sibling fixture is #2077), so there is nothing to execute in them. §3 is process residue of the same kind. **THE ONLY EXECUTABLE REMAINDER IS §1.2a**, a written spec for rotating the file set on a device clock resync — owner-authorized BOX work, not pickup-able from a dev checkout; §1.7a is CONFIRMED. **Owner: the owner for §1.2a. Next step:** none schedulable by a fleet session) · **Created:** 2026-09-02 · **Spawned-from:** `DEEP-AUDIT-VI-2026-09-01-BRIEF.md` (DONE 2026-09-02) · **Owner ruling 2026-09-07:** §1.2a **NOT approved** — unchanged. Recorded so it is not re-raised as though it were still open.
 
 # Executing the sixth audit: what the fixes found that the audit did not have
 
@@ -157,11 +157,47 @@ rate (exactly 0), ns counter still outranks the mean form.
 accumulator names, or copies, and for any assertion that greps a variable name or slices source text. Each
 is a candidate; the fix is to assert the property the copies were evidence *for*.
 
+**SWEPT 2026-09-06 — and the sharpest instance is REPAIRED.** The rule yields ~175 raw `>= [2-9]` /
+`=== [2-9]` hits, of which most are ANTI-VACUITY legs (a count asserting the SCAN can see anything) and
+legitimate — the discriminator is intent, not shape: an anti-vacuity count says *the search works*, a
+plural count says *N copies are required*. The genuine instance was `matchRecall cross-site`, which
+asserted `_crSeen.length === 2` and gated its whole body on `if (_crSeen.length === 2)`.
+`matchRecall` being implemented TWICE is a defect this repo wants removed
+([[CLOCK-AXIS-AND-RENDER-SURFACE-FOLLOWUPS-2026-08-02]] §3) — so **single-sourcing it, the actual fix,
+would have reddened the gate that exists to protect it.**
+⚠️ **The count was standing in for TWO different facts, and separating them IS the repair:** (a) lane
+coverage — every listed file must be in `env.sources`, or the scan reads nothing and passes by silence;
+(b) non-vacuity — at least ONE implementation must be visible. Neither needs two copies. The property
+legs then hold over EVERY site found (`=== _bodies.length`) rather than over exactly two, so one copy
+passes, two must agree, three must agree.
+Plant-tested both ways: simulated single-sourcing (rename one copy) now PASSES — *1 of 2 file(s) define
+matchRecall*, all legs green — where the old form would have reddened; and a real divergence (drop the
+inclusive edge in one copy) REDS with *got 1 · want 2*. ⚠️ The divergence plant PASSED on its first
+attempt because the pattern never landed — the file reads `d>=lo && d<=hi` with no spaces — a vacuous
+plant, caught only by grepping that the edit existed before believing the result.
+
 ### 2.3 "Structurally pinned because we cannot execute it" is a DATED claim
 The fallback group's note said the harness has no async group so the invariant is pinned structurally. The
 moment the scan became a DSP export (F2), DEEP-AUDIT-II §4.4's stale re-read became executable with a defect
 direction. Such comments should carry a **date and the condition** that makes them true, and be re-checked
 whenever the module boundary they lean on moves.
+
+**RE-CHECKED 2026-09-06 — 8 source-scan justifications in `tests/dex-tests.js`, none stale.** The two
+whose condition is a mechanically checkable EXPORT BOUNDARY were verified against the tree: `:14323`
+("the app's windowing function is not exported") — `pulsedex-app.js` still exports only `findWTRow`, so
+the claim holds; `:14828` ("no executable entry point spans both builders, `buildV2` is UI-layer") —
+`ecgdex-app.js buildV2` is still a local function with no runner surface, so the claim holds. The other
+six lean on structural facts that do not move with a boundary (formula length, `build.mjs` writing the
+artifact, trio-batch's night loop). The already-corrected instance is the fallback group at `:19494`,
+which now carries the executable version beside the structural one.
+
+⚠️ **AND THIS ONE MUST NOT BE GATED — gating it would BE §2.2.** The obvious mechanism is "assert the
+claimed inability still holds, so the scan gets upgraded the day it stops being true". That is exactly
+§2.2's inverse failure: a gate that goes RED WHEN THE CODE GETS BETTER. Exporting a function in order to
+make it testable would red CI, which trains the next author to leave it unexported — the gate would
+defend the weaker design. So §2.3 stays a CONVENTION (carry the date and the condition) with a periodic
+re-check like this one, and the two items are recorded as coupled so the mechanism is not proposed a
+second time.
 
 ### 2.4 Two `dormant:true` registry flags were false WHEN WRITTEN
 #1455 (2026-08-18) flagged `rraccRate` and `edrDisagree` dormant with a comment claiming a per-name sweep of
@@ -169,6 +205,22 @@ every surface; both had compute + surface sites since the initial commit (`accEx
 `ecgdex-app.js disagreementRatePct`). Examined-nothing family: a sweep that examined other surfaces than
 it claimed. **Sweep:** every `dormant:true` in every `<node>-registry.js`, checked against a grep of the id
 AND its aliases in the app/render files.
+
+**SWEPT AND GATED 2026-09-06 — 0 of 23 suspect, and the sweep is now a mechanism.** Run across all 8
+registries against each node's `render|app|fusion|overview|chartbadges` sources: **0** dormant ids or
+admissible aliases occur. The two #1455 flags are already corrected, so the sweep's finding is a clean
+negative — which is exactly why it is now an assertion rather than a one-off: the repo's habit is
+finding a defect and not gating it, and a swept-once invariant decays silently.
+⚠️ **THE FIRST RESULT WAS VACUOUS AND THE ANTI-VACUITY CONTROL CAUGHT IT.** A standalone version
+resolved several registries to ZERO source files and reported a confident *0 of 23* having examined
+nothing — `PPG_REGISTRY` (21 dormant) and `MOTION_REGISTRY` (2) both matched no source at all, i.e.
+every dormant entry in the fleet. The gate therefore carries a positive control: a live id must be
+findable by the SAME regex (316 of 497 today), or a clean result means only that the search is broken.
+⚠️ **AND IT IS THE SECOND SITE §2.6's RULE WAS ASKED TO GENERALISE TO.** Written without §2.6's alias
+admission rule, this scan's first run flagged `motiondex.uprightFrac via "upright"` — the identical
+`POS_ORDER` posture-enum false positive, reintroduced by a new scan that had not inherited the rule.
+The id is always admissible (a code identifier, not a word); an alias only if multi-word or ≥ 8 chars.
+Plant-tested both ways: mark a live surfaced metric `dormant:true` → reds naming it; restore → silent.
 
 ### 2.5 An UNREGISTERED surfaced label is an UNCHECKED grade
 The ECGDex Reference guide graded posture `ev-measured` for a mount-dependent convention — invisible because
@@ -280,6 +332,72 @@ composite", which is loose for a product with a log term — but its `.ft` state
 the 5 corrections. Recorded because the looser phrase is the kind of thing a future sweep will re-flag.)*
 
 ### 2.5b LEAD — nothing compares a card's DESCRIPTION against the code it describes
+**TRIAGED 2026-09-03 (Magpie) — HALF OF THIS IS ALREADY BUILT, and two of the numbers below are wrong.
+Read this block before sizing the item.**
+
+`tools/formula-constant-audit.mjs` already IS the numeral-keyed extractor this section proposes, and it
+already parses the **same `<div class="ft">`** element named here. Measured by running it, not inferred:
+
+| | |
+|---|---|
+| guides swept | **7 of 7** — every guide, not one |
+| formulas parsed | **388** |
+| constant-bearing | 68 |
+| flagged | 5 (the `6.7` family is a documented false positive in the tool's own header) |
+
+So **"The other 7 nodes are unswept" is FALSE for the `.ft` corpus** — that sweep exists, runs across
+every guide, and carries hard-won defences worth reusing rather than rediscovering (strict `&#xNN;`
+decoding, because a lenient decoder silently repaired an unterminated reference and reported a broken
+card clean; no trailing-zero trimming, because `660`→`66` matched any digits and lost two real flags;
+glob `<node>-*.js` and PRINT THE DENOMINATOR, because a hand-listed corpus read 2 of 8 files).
+
+**Also: there are SEVEN guides, not eight.** MotionDex has no reference guide at all — so the eighth is
+not unswept, it does not exist, and any gate keyed to "all eight" would pin a population that cannot be
+satisfied.
+
+**What is GENUINELY unbuilt, and it is the larger half.** The tool reads `.ft` and treats it as a
+formula; it never opens `.md`, which is where the sentence telling a user what a number MEANS actually
+lives — the thing this section is about. Measured per guide:
+
+```
+  CPAPDex   .ft=47   .md=47      OxyDex    .ft=114  .md=128
+  ECGDex    .ft=53   .md=54      PpgDex    .ft=41   .md=41
+  GlucoDex  .ft=38   .md=38      PulseDex  .ft=68   .md=68
+  HRVDex    .ft=28   .md=28
+  ── total  .ft=389 (swept)      .md=404 (UNSWEPT)
+```
+
+**404 descriptions, none of them ever compared to code.**
+
+🔴 **RE-SIZED 2026-09-03 by BUILDING it (#2147) — and "point the existing extractor at `.md`" turns out
+to be WRONG, including as I first wrote it one commit earlier. Measured:**
+
+```
+  404 descriptions · 108 claim-bearing · 161 claim values
+       33 checkable
+      128 REFUSED as unresolvable at whole-node corpus scope   (79%)
+```
+
+**A short integer cannot be checked against a whole node at all.** `constantPresent` is a substring test
+over ~717 kB of `<node>-*.js`, and a planted-WRONG `87` reports *present* under every strategy tried —
+plain, word-boundary, **and** comparison-context. Prose asserts precisely those: `below 90%`, `5-minute`,
+`1 Hz`. The `.ft` sweep is sound only because `distinctiveConstants` restricts it to floats or ≥3 digits,
+which is exactly the population prose does NOT use.
+
+So the reach is **21%**, not "most of it", and the remainder is **not blocked — it is a different and
+larger unit: scoping the code corpus per METRIC** (a card's claim checked against that metric's own
+implementation) rather than per node. Size it as that, not as a filter tweak. #2147 ships the extraction
+plus an explicit REFUSAL for the 128, so the shortfall is on the page rather than passing silently.
+
+The structural-claim blind spot below stays entirely open on top of this, and is the part no numeral key
+reaches at any corpus scope.
+
+⚠️ One caveat on reusing it directly: `.md` is prose, so its numerals are far more likely to be
+incidental ("n=2,743", a year, a citation page) than `.ft`'s are. Expect a worse false-positive rate
+than the 5-of-68 above and design the filter before quoting a hand rate from it.
+
+_Original text follows._
+
 `cohesion-badges` gates the tier, `registry-defs-parity` the crossnight projection, `citation-ledger` the
 DOI attribution. The sentence that tells a user what a number MEANS is ungated across all eight guides.
 Hand rate on the one node swept: **5 of 13 checkable numeric claims wrong**, plus 4 registry-side
@@ -348,10 +466,24 @@ branches ("a duration nothing measured stays unmeasured") are exactly the ones a
 enters, so a comment describing one is a claim nothing checks. **Rule: when a fix has a
 refuse/unmeasured branch, that branch owes a test leg, not a sentence.** Same family as 2.1.
 
-### 2.6 The dormant-surface alias matcher: an alias shorter than a word is not a surface token
+### 2.6 The dormant-surface alias matcher: an alias shorter than a word is not a surface token — **CLOSED 2026-09-06**
 MotionDex `uprightFrac`'s bare alias `upright` matched a posture ENUM value in `POS_ORDER` — a false
 positive. Matcher (#2072) now admits the label always, an alias only if multi-word or ≥ 8 chars; negative
 control keeps the ECGDex pair. Generalise to any label-driven scan.
+
+**MEASURED 2026-09-06 — there is nothing to generalise TO, and the real hole was elsewhere.**
+The suite contains exactly **ONE** alias-driven scan (this one), so "generalise to any label-driven
+scan" had no second site: a sweep would have found zero and read as thorough. What the measurement did
+find is that the rule is **asymmetric** — an alias needs multi-word-or-≥8-chars, the **label is admitted
+unconditionally** — and a bare short *label* would false-positive on a quoted enum value exactly as
+`upright` did, with nothing to stop it. Exposure today: **0 of 23** dormant entries carry such a label,
+so the exemption costs nothing now; but **116 of the fleet's 520 labels** are bare words under 8 chars
+(`ODI`, `SD1`, `T90`, `QTc`, …), so the day any one of them is marked dormant the gate starts crying
+wolf — which is how a gate gets deleted. Closed by asserting the **precondition** rather than sweeping
+for a hazard with no instance: a new assertion in the same group names any dormant entry whose label is
+a bare word < 8 chars. Plant-tested both ways (relabel a dormant entry `ODI` → reds and names it;
+restore → silent). It forbids no authoring — it reports that the scan cannot verify that entry, which
+is a fact about the gate, not about the metric.
 
 ### 2.7 A `rec.gaps` fold ADDS dead time to later beats rather than removing them
 A folded night keeps its active seconds and grows only its span (F3). Read this before writing another

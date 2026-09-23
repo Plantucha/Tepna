@@ -1,0 +1,17 @@
+# tepna-capture — the morning report's timer (USER scope; see the .service header)
+# Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
+#
+# 08:30 local, well after any plausible night has closed and after the sniffer's 03:00 audit has left
+# its verdict — the report reads that verdict, so running earlier would report `unknown` for an audit
+# that was about to run. Persistent so a box that was asleep at 08:30 still reports when it wakes: a
+# missed morning is exactly the morning someone wants the line for.
+[Unit]
+Description=Tepna — morning report timer
+
+[Timer]
+OnCalendar=*-*-* 08:30:00
+RandomizedDelaySec=5min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

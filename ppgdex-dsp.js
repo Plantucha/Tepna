@@ -245,16 +245,32 @@
     const ch = [];
     let amb = -1,
       ns = -1,
-      phone = -1;
+      phone = -1,
+      motion = -1;
     for (let i = 0; i < p.length; i++) {
       const h = p[i].trim().toLowerCase();
       if (/^(channel\s*\d|ppg\d)/.test(h)) ch.push(i);
       else if (/ambient/.test(h)) amb = i;
+      // `motion` is the dual-wavelength layout's 5th column. It is NOT optical and must never be
+      // read as a channel or mistaken for ambient — it is recorded here solely to identify the layout.
+      else if (/^motion$/.test(h)) motion = i;
       else if (/sensor\s+timestamp/.test(h)) ns = i;
       else if (/phone\s+timestamp/.test(h)) phone = i;
     }
     if (ch.length >= 3) return { chIdx: [ch[0], ch[1], ch[2]], amb, ns, phone };
     if (ch.length === 1) return { chIdx: [ch[0]], amb, ns, phone };
+    /* TWO channels are accepted ONLY as the O2Ring's raw dual-wavelength `_PPG2W.txt` (cmd 0x05), and
+       only on a POSITIVE identification of that layout: a `motion` column present AND no ambient.
+       The bare count stays refused, which is what the paragraph above requires — a shifted or
+       truncated 3-LED file has an ambient column or lacks motion, so it cannot reach this branch and
+       still cannot vote with itself. `capture-host/writers.py` emits exactly one header for this
+       stream and has since it existed: measured over the whole corpus, 1066 non-empty files carry ONE
+       distinct header line and a 5-field row, universally.
+       `dual` is a PROVENANCE flag, not a channel count: only the O2Ring writes this format, so it
+       carries the finger site the way `nCh === 1` does. Channel IDENTITY (which of the two is RED and
+       which IR) is deliberately NOT claimed here — the brief leaves it open, so they stay ch0/ch1 and
+       nothing downstream computes SpO2 from them. */
+    if (ch.length === 2 && motion >= 0 && amb < 0) return { chIdx: [ch[0], ch[1]], amb, ns, phone, dual: true };
     return null;
   }
   function ppgColsByTail(p) {
@@ -329,9 +345,391 @@
     // the crystal-timebase gate). `beats` is additive — the same rows, as positions rather than a count.
     return { gap, rejected, kept, beats };
   }
+  /* ── §∅ ABSENCE-AS-VALUE — PINNED SPANS ────────────────────────────────────────────────────
+     A sample held at the stream's OBSERVED RANGE EXTREME carries no measurement. Both ends are one
+     mechanism: on the O2Ring the floor (0) and the ceiling (199/200) are entered the same way, and
+     on the Verity the 2,096,921 ceiling is the same shape. Detection is on the LEVEL, never on a
+     value list — 0, 199 and 19600 are all facts about one device at one moment, and a rule that
+     names them cannot see the next device.
+
+     🔴 THE RULE IS NOT "CONSTANT RUN", AND THAT WAS MEASURED, NOT ASSUMED (2026-09-06, 04:53 file,
+     843,032 samples). Legitimate plateaus reach 5-9 samples ROUTINELY (p50=1, p90=4, p99=14,
+     p99.9=31, p99.99=48), and the damaging band is 10-40 — i.e. the two distributions OVERLAP, so
+     no run-length threshold separates them. Nor is it a transition rule: the events RAMP in and out
+     at ~7 LSB/sample (`75 68 62 55 48 41 34 27 21 14 8 3 | 0…0 | 1 7 16 27 36 46 55`), so there is
+     no entry step to key on. An earlier "zero runs have mean boundary step 71.93" was an ARTIFACT —
+     44.9 % of zero runs have a 156 beat marker adjacent, and the marker was the step.
+
+     ⚠️ MARKER EXCLUSION IS LOAD-BEARING. An isolated 156 is a DOCUMENTED INSERTED ROW (capture-host
+     `oxyii.py PPG_BEAT_MARKER`, one per ring-detected beat), not a sample. Left in, it sits INSIDE a
+     span and splits it: recall 95.8 % → 100 % on the acceptance file once markers are transparent,
+     and the sibling geometry test goes 60 % → 121/121. Removing it is DECODING the stream, not
+     filtering data — which is why it is keyed on the documented marker rule and not on the value 156
+     appearing anywhere. */
+  const PIN_MIN_RUN = 5; // samples; below the 10-40 damage band, above nothing legitimate at an extreme
+  const PIN_RAIL_SCAN_VALUES = 8; // occupied values scanned inward from the edge (capture-host _RAIL_SCAN_VALUES)
+  const PIN_RAIL_GAP_MAX = 4; // the scan stops at a value gap wider than this (_RAIL_GAP_MAX)
+  const PIN_RAIL_SPIKE_MIN = 5; // a rail out-counts its nearest occupied neighbour by this (_RAIL_SPIKE_MIN)
+  const PIN_MERGE = 8; // fragments this close are one event (23.8 % of zero runs are fragments)
+  /* ⚠️ These are the RECOMPUTE defaults. When a `_PPGRUNS.txt` sidecar is present its comment line
+     carries the parameters that actually produced the rows, and THE FILE WINS for what was observed
+     — a later default change must not be able to rewrite history. Single-sourcing with the Python
+     writer's defaults (kernel-constants.js + a parity gate reading both) lands with that writer;
+     until it exists there is nothing to pair with, and moving a constant into the spine churns all
+     8 bundles' manifestHash for no reader. */
+  /* ── §∅ P5 clause 2: READ `_PPGRUNS.txt`, AND CROSS-CHECK IT — never one witness ──────────────
+     Owner ruling (P5, 2026-09-12): read the sidecar AND cross-check it against the in-JS derivation,
+     because "the writer saw the live stream; the samples are a second witness", and **a DISAGREEMENT
+     IS ITSELF A FINDING** about one of the two that must surface rather than be silently resolved.
+     Clause 1 (exclude a pinned span like a gap) landed in #2531; this is the second witness that PR
+     was explicitly deferred from.
+
+     🔴 "THE FILE WINS" IS SCOPED TO WHAT THE FILE COULD SEE, AND THE SCOPING IS LOAD-BEARING.
+     `PIN_MIN_RUN`'s note above records that the sidecar's comment line carries the parameters that
+     produced its rows and that THE FILE WINS for what was observed — correct, and it stops a later
+     default change rewriting history. Applied without a scope it does the opposite of its purpose.
+     Measured over all 186 `_PPGRUNS.txt` in the corpus: the writer gates emission at `min_run=200`
+     (185 of 186 headers) while this file's recompute default is `PIN_MIN_RUN = 5`, and §∅ records the
+     O2Ring blanking as 149 runs, 105 of them >= 10 samples, longest 78. 78 < 200, so the sidecar
+     CANNOT observe the blanking P5 exists to exclude. One real file states it outright:
+     `total_runs=122003 mean_run=1.88 examined=228954` with `runs=0` — 229k samples examined, 122k
+     runs found, nothing emitted. Corpus-wide: 105,612,378 runs detected, 61 rows emitted.
+
+     So a bare "the file wins" would read that emptiness as "no blanking" and delete the exclusion on
+     147 of 186 files. A threshold-gated NON-OBSERVATION is not an observation of absence — §∅ one
+     layer up, at the precedence rule instead of at the value. The scoping:
+
+       - run length >= the FILE's own `min_run` -> the sidecar is authoritative (it looked, and what
+         it recorded is what the live writer actually saw);
+       - below the file's `min_run`             -> the sidecar is SILENT, not empty, so the in-JS
+         derivation stands there;
+       - header absent/unparseable              -> parameters UNKNOWN, so no cross-check is possible
+         and none is claimed, never a default.
+
+     ⚠️ THE CROSS-CHECK IS LIKE-FOR-LIKE OR IT IS NOISE. The in-JS side is re-derived at the FILE's
+     parameters, never at ours; comparing a min_run=5 derivation against a min_run=200 sidecar would
+     report a parameter difference as a disagreement on every file in the corpus — the
+     same-name-two-populations error with a threshold in place of a denominator. */
+  function parsePinnedRuns(text) {
+    if (typeof text !== 'string' || !text) return null;
+    const out = /** @type {any} */ ({
+      params: null,
+      minRun: null,
+      mergeGapMax: null,
+      rows: [],
+      byChannel: Object.create(null),
+      malformed: false,
+      emitted: 0,
+      runsDetected: null,
+      examined: null,
+      sawHeader: false,
+      comparable: false
+    });
+    const lines = text.split(/\r?\n/);
+    for (const raw of lines) {
+      const line = raw.trim();
+      if (!line) continue;
+      if (line.charAt(0) === '#') {
+        /* The RULE line. `min_run` is the only field precedence depends on, so it is the only one
+           whose absence makes the file uncomparable; the rest are carried for the report. */
+        if (!out.params && /\bstream=/.test(line) && /\bmin_run=/.test(line)) {
+          out.params = line.replace(/^#\s*/, '');
+          const mr = /\bmin_run=(\d+)/.exec(line);
+          const mg = /\bmerge_gap_max=(\d+)/.exec(line);
+          if (mr) out.minRun = +mr[1];
+          if (mg) out.mergeGapMax = +mg[1];
+        }
+        const fin = /\btotal_runs=(\d+)/.exec(line);
+        if (fin) out.runsDetected = (out.runsDetected || 0) + +fin[1];
+        const ex = /\bexamined=(\d+)/.exec(line);
+        if (ex) out.examined = (out.examined || 0) + +ex[1];
+        continue;
+      }
+      if (/^Phone timestamp;/.test(line)) {
+        out.sawHeader = true;
+        continue;
+      }
+      const c = line.split(';');
+      if (c.length < 8) {
+        out.malformed = true;
+        continue;
+      }
+      const first = +c[3];
+      const n = +c[4];
+      if (!isFinite(first) || !isFinite(n) || n <= 0) {
+        out.malformed = true;
+        continue;
+      }
+      const ch = (c[1] || '').trim();
+      const row = { stream: ch, value: +c[2], first: first, n: n };
+      out.rows.push(row);
+      if (!out.byChannel[ch]) out.byChannel[ch] = [];
+      out.byChannel[ch].push(row);
+      out.emitted++;
+    }
+    /* A sidecar with no rule line cannot be compared against anything; an EMPTY one that DOES carry
+       its rule is a real observation at that rule — the writer looked and emitted nothing. Those are
+       different facts and the flag keeps them apart. */
+    out.comparable = out.minRun != null;
+    return out;
+  }
+
+  /* ── §∅ P5 clause 2: TWO POPULATIONS, AND THEY ARE NOT COMPARABLE ─────────────────────────────
+     🔴 THIS FUNCTION USED TO REPORT `agreed`/`disagreed`. THAT WAS WRONG AND THE CORPUS SAYS SO.
+     The two producers do not apply the same rule:
+
+       `_PPGRUNS.txt`   rule=stuck   — a constant run at ANY value
+       `pinnedSpans`                 — a constant run at an observed RAIL (an extreme)
+
+     Measured on `…_20260910210517_PPG.txt`, observed range lo=0 hi=200: the sidecar's 5919-sample
+     (47 s) run sits at **value 100 — mid-range**, and the samples there read
+     `100,100,100,100,100,100,100,100,100,100`. `pinnedSpans` cannot see it and is not
+     malfunctioning; it is doing what it says. Across the 61 emitted rows in the corpus, **8 are at a
+     rail and 53 are mid-range** — 87 % structurally invisible to the rail rule.
+
+     So an `agreed`/`disagreed` axis would differ on 53 of 61 rows BY CONSTRUCTION and report a RULE
+     difference as a finding. That is one name over two populations, which is the error this file
+     keeps meeting; it does not become correct by being softened, so the words are gone rather than
+     renamed. A reader who sees "agreed" will compare, and the comparison has no meaning here.
+
+     ⚠️ AND THE GAP IS OURS, NOT THE SIDECAR'S. §∅: *"Key on RUN LENGTH, never on value
+     membership"*, because *"a hardcoded != 0 fixes zero and misses the next sentinel — an in-range
+     value can do the same thing."* `pinnedSpans` keys on being at an extreme, which IS value
+     membership, and a 47-second frozen mid-range reading is the next sentinel, already in the
+     corpus. On this evidence the sidecar's rule is the more §∅-conformant of the two. Widening the
+     in-JS detector is a SEPARATE unit — a PR that both narrows a claim and widens a detector is two
+     units wearing one number.
+
+     What this therefore publishes: each population under its own name with its rule stated, one
+     geometric overlap count that carries no epistemic claim, and the threshold question kept
+     separate because it is real and independent. */
+  function crossCheckPinned(sidecar, derivedAtFileParams) {
+    const v = /** @type {any} */ ({
+      /* NOT "comparable" — the rules differ, so the populations are never comparable in the sense
+         that word invites. This says only whether the file declared parameters we could read. */
+      sidecarReadable: false,
+      reason: /** @type {string | null} */ (null),
+      fileRule: 'stuck-any-value',
+      derivedRule: 'rail-pinned',
+      rulesComparable: false, // permanently false, and stated rather than implied
+      fileMinRun: null,
+      fileSpans: 0,
+      derivedSpans: 0,
+      /* Spans the two rules happened to cover the same samples for. GEOMETRIC ONLY — it says the
+         intervals overlap, never that two detectors agreed about a measurement. Named so it cannot
+         be read as corroboration. */
+      coincidentSpans: 0,
+      /* The threshold question, which IS real and independent of the rule difference: a derived span
+         shorter than the file's own `min_run` is one the writer never examined. Not a conflict. */
+      sidecarBlind: 0
+    });
+    if (!sidecar) {
+      v.reason = 'no-sidecar';
+      return v;
+    }
+    if (!sidecar.comparable) {
+      /* Header absent or unparseable — 1 of 186 in the corpus, so this is a real branch. We know
+         nothing about what the writer was looking for, so we assert nothing. */
+      v.reason = 'sidecar-parameters-unknown';
+      v.fileSpans = sidecar.emitted;
+      return v;
+    }
+    v.sidecarReadable = true;
+    v.fileMinRun = sidecar.minRun;
+    v.fileSpans = sidecar.emitted;
+    const fileRanges = sidecar.rows.map((r) => [r.first, r.first + r.n - 1]);
+    const derived = derivedAtFileParams || [];
+    v.derivedSpans = derived.length;
+    const overlaps = (a, b) => a[0] <= b[1] && b[0] <= a[1];
+    for (const d of derived) {
+      const n = d[1] - d[0] + 1;
+      if (n < sidecar.minRun) {
+        v.sidecarBlind++;
+        continue;
+      }
+      for (let i = 0; i < fileRanges.length; i++) {
+        if (overlaps(d, fileRanges[i])) {
+          v.coincidentSpans++;
+          break;
+        }
+      }
+    }
+    return v;
+  }
+
+  function pinnedSpans(x, opts) {
+    const o = opts || {};
+    const n = x.length;
+    if (!n) return { spans: [], lo: null, hi: null };
+    const minRun = o.minRun != null ? o.minRun : PIN_MIN_RUN;
+    const merge = o.merge != null ? o.merge : PIN_MERGE;
+    let lo = Infinity,
+      hi = -Infinity;
+    for (let i = 0; i < n; i++) {
+      const v = x[i];
+      if (v < lo) lo = v;
+      if (v > hi) hi = v;
+    }
+    if (!(hi > lo)) return { spans: [], lo, hi };
+    /* 🔴 AN EXTREME MUST BE HELD, NOT MERELY REACHED — or every peak is a span.
+       Found by the clean-stream assertion in `ppgdex-dsp · absence-as-value`, which six real files
+       could not have found: every real file tested carried anomalies, so its observed extremes were
+       anomalous BY CONSTRUCTION. On a genuinely clean quantised pleth the min and max ARE the
+       troughs and peaks, and a smooth signal LINGERS at its own peak (a 128-sample-period sine holds
+       its quantised max ~14 samples, past any min_run), so the first draft flagged 16 spans on 2000
+       clean samples.
+       The discriminator is the histogram, and it states the physics directly: a clean signal PASSES
+       THROUGH its extreme, so the extreme's count is comparable to its neighbours'; a pinned signal
+       is HELD there, so the extreme is a spike against a sparse approach. A percentile test does NOT
+       work here and was tried first — a planted anomaly large enough to matter contaminates the very
+       percentile meant to exclude it (30 samples in 2000 put p1 inside the anomaly). */
+    /* "Near" is the next few DISTINCT OCCUPIED values inward, never a fraction of the range. A
+       fraction breaks exactly where it matters: on a Verity stream the range is dominated by the
+       anomaly itself (−801,953 … 2,096,921), so 5 % of it is ~145,000 LSB and the approach window
+       swallows ordinary signal, making a real 41-sample rail event fail to qualify. The distinct-
+       value form is scale-free and works on an 8-bit ring and a 24-bit Verity unchanged. */
+    const freq = new Map();
+    for (let t = 0; t < n; t++) freq.set(x[t], (freq.get(x[t]) || 0) + 1);
+    const vals = Array.from(freq.keys()).sort((a, b) => a - b);
+    /* 🔴 THE RAIL IS NOT ALWAYS THE OBSERVED EXTREME. Measured on the 04:53 ring file: value 199
+       carries 2,596 samples, 200 carries 304 and 198 carries 75 — so the rail is 199 and the
+       observed MAXIMUM is a rare overshoot sitting one quantum above it. Keying on min/max would
+       look for the ceiling at 200, find 304 samples against a 2,596-sample neighbour, and conclude
+       the ceiling does not qualify — silently losing the entire ceiling class on every ring file.
+       So the rail is the HISTOGRAM SPIKE NEAREST THE EDGE, not the edge: scan the outermost few
+       occupied values and take the dominant one. On the floor that is the extreme itself (0); on
+       the ceiling it is one in. */
+    const steps = [];
+    for (let k = 1; k < vals.length; k++) steps.push(vals[k] - vals[k - 1]);
+    steps.sort((a, b) => a - b);
+    const quantum = steps.length ? steps[steps.length >> 1] || 1 : 1;
+    const railAt = (end) => {
+      const at = (k) => (end === 'lo' ? vals[k] : vals[vals.length - 1 - k]);
+      const cnt = (k) => freq.get(at(k)) || 0;
+      /* Scan inward from the edge, STOPPING at a value gap — so the window never reaches across an
+         empty region into the bulk and picks a bulk value as the "rail" (it did, and flagged every
+         clean peak). Then take the dominant value in the window. */
+      let take = 1;
+      while (take < Math.min(PIN_RAIL_SCAN_VALUES, vals.length) && Math.abs(at(take) - at(take - 1)) <= PIN_RAIL_GAP_MAX) take++;
+      let best = null,
+        bestC = -1;
+      for (let k = 0; k < take; k++)
+        if (cnt(k) > bestC) {
+          bestC = cnt(k);
+          best = at(k);
+        }
+      /* 🔴 AND IT MUST BE A SPIKE. Isolation alone is NOT sufficient, and the counter-example is
+         real: a Verity stream's minimum is a single sample sitting 556 quanta from anything else —
+         utterly isolated, and an outlier rather than a pin. Under "stands alone ⇒ rail" it invents
+         a floor class on every Verity file. Measured spike ratios against the nearest occupied
+         neighbour inward, over eight files: ring floor 34.3-43.0x · ring ceiling 16.4-38.4x ·
+         Verity ceiling 41.0x and 9.0x · clean sine 2.3-2.4x · Verity floor 1.0x. The 5x bound
+         clears clean signal by ~2x and sits ~1.8x below the weakest real rail — measured, not
+         chosen, and matched to capture-host `_RAIL_SPIKE_MIN` so the two ports agree. */
+      const neighbour = take < vals.length ? cnt(take) : 0;
+      return bestC >= PIN_RAIL_SPIKE_MIN * Math.max(1, neighbour) ? best : null;
+    };
+    const railLo = railAt('lo'),
+      railHi = railAt('hi');
+    const loQualifies = railLo != null,
+      hiQualifies = railHi != null;
+    /* ANNOTATION ROWS ARE A PER-STREAM PARAMETER, not a value this rule knows. `opts.annotations`
+       is the set of values the CAPTURE FORMAT inserts as rows rather than measures — the ring's
+       beat marker {156}, empty for a Verity. Passing it in is what makes the merge portable without
+       making it value-agnostic: a device that changes its marker changes the parameter, and a real
+       sample never becomes mergeable. (Ruled 2026-09-06 over a value-agnostic merge: the sidecar
+       asserts "not measured", and a real sample of value 1 inside a 0-run WAS measured, so merging
+       across it fabricates absence — §∅'s own mirror. The only measured basis for merging is the
+       22 % marker-split figure, taken with markers stripped, which this rule reproduces exactly.)
+       An annotation counts only when ISOLATED, matching capture-host's own definition; a RUN of the
+       marker value is signal that happens to sit there and must not be stepped over. */
+    const eightBit = lo >= 0 && hi <= 255;
+    const ann = o.annotations != null ? o.annotations : eightBit ? [O2_BEAT_MARKER] : [];
+    const isAnn = (v) => {
+      for (let k = 0; k < ann.length; k++) if (ann[k] === v) return true;
+      return false;
+    };
+    const skip = new Uint8Array(n);
+    if (ann.length) for (let t = 0; t < n; t++) if (isAnn(x[t]) && (t === 0 || !isAnn(x[t - 1])) && (t === n - 1 || !isAnn(x[t + 1]))) skip[t] = 1;
+    const pinned = (v) => (loQualifies && v <= railLo) || (hiQualifies && v >= railHi);
+    const spans = [];
+    let i = 0;
+    while (i < n) {
+      if (skip[i] || !pinned(x[i])) {
+        i++;
+        continue;
+      }
+      /* MERGE STEPS OVER ANNOTATION ROWS ONLY — never over real samples. Matched to capture-host
+         `nightqc.py _ANNOTATION_GAP_MAX = 8` so the two sidecars agree on span count, and it is the
+         more defensible rule on its own: stepping over a marker is DECODING (the row is not a
+         sample), while stepping over real samples is a judgement that the signal did not really
+         return. Priced on the 04:53 file: annotation-only gives 170 spans / 5,650 samples, gap-over-
+         any-non-pinned gives 166 / 5,968 — a 2.4 % span difference, so this is a semantic choice
+         rather than a tuning one. Observed marker runs there are 99.6 % singletons, max 6, so 8
+         clears the corpus and exists against a future burst. */
+      let j = i,
+        gap = 0;
+      while (j < n) {
+        if (pinned(x[j])) {
+          gap = 0;
+          j++;
+        } else if (skip[j]) {
+          gap++;
+          if (gap > merge) break;
+          j++;
+        } else break;
+      }
+      while (j > i && !pinned(x[j - 1])) j--; // a span ends on a pinned sample, never on annotation
+      if (j - i >= minRun) {
+        /* The label follows WHICH EXTREME the span's own samples sit at — not a comparison against
+           `lo`, which mislabels every ceiling span as 'hi' even when only the floor qualified. */
+        let atLoN = 0,
+          atHiN = 0;
+        for (let t = i; t < j; t++) {
+          if (loQualifies && x[t] <= railLo) atLoN++;
+          else if (hiQualifies && x[t] >= railHi) atHiN++;
+        }
+        spans.push({ first: i, n: j - i, value: x[i], end: atLoN >= atHiN ? 'lo' : 'hi', rule: 'pinned' });
+      }
+      i = Math.max(j, i + 1);
+    }
+    return { spans, lo, hi, railLo, railHi, loQualifies, hiQualifies, eightBit, annotations: ann };
+  }
+
+  /* ── SETTLING WIDENING — DERIVED, never a shipped constant ──────────────────────────────────
+     A span's damage is not confined to the span: the filter rings on either side of it. How far is
+     NOT a constant — it is LOGARITHMIC in the artifact's size, because settling to a FIXED threshold
+     takes t = tau · ln(A0 / A_thresh). Measured against the derivation:
+        ECG  derived 258 ms vs measured 320 ms (1.24x)   causal one-pole cascade, f_hp 5 Hz, 167 sd
+        PPG  derived 3.98 s vs measured 2.79 s (0.70x)   filtfilt biquad,  f_hp 0.5 Hz,  26 sd
+     A naive 3·tau understates ECG by 3.4x, which is exactly the unexplained factor an earlier note
+     recorded: 3·tau settles to 5 % of the INITIAL amplitude, while the measurement threshold is 5 %
+     of the SIGNAL's scale — for a 167-sd excursion that is 3340x down, i.e. 8.1·tau.
+
+     ⚠️ `scale` MUST NOT be a statistic the artifact inflates. A span raises the local (and the
+     whole-record) sd, so feeding that back in would RAISE the threshold and SHORTEN the widening
+     exactly where the artifact is largest. Pass a robust scale computed with the spans excluded.
+     ⚠️ `displacement` must be measured against the baseline OUTSIDE the marker-excluded window, or
+     an adjacent 156 inflates A0 and the log term with it. */
+  const PIN_WIDEN_MAX_TAU = 9; // ln(A0/A_thresh) stays in 6-9 for any plausible excursion — assert, don't tune
+  function settlingWidenSec(displacement, scale, fHp, zeroPhase) {
+    if (!(displacement > 0) || !(scale > 0) || !(fHp > 0)) return null;
+    const tau = (zeroPhase ? 2 : 1) / (2 * Math.PI * fHp);
+    const ratio = displacement / (0.05 * scale);
+    if (!(ratio > 1)) return 0;
+    return tau * Math.min(Math.log(ratio), PIN_WIDEN_MAX_TAU);
+  }
+
   // Host-anchor spacing, in accepted rows. 500 ≈ 2.8 s at 176 Hz, giving ~2400 anchors on a 190 min
   // file — the geometry the running-median window was tuned against (clock.js CK_AXIS_WIN).
   const PPG_AXIS_EVERY = 500;
+  /* Bounds for the mid-file device-counter resync discriminator in parsePPG / parseSensorXYZ below.
+     The SAME numbers ECGDex uses (`ECG_RESYNC_BOUND_MS` / `ECG_GAP_CEIL_MS`) and MotionDex mirrors
+     (`MOTION_RESYNC_BOUND_MS` / `MOTION_GAP_CEIL_MS`), because all three nodes are reading the same
+     step in the same device's several files and a second constant would eventually disagree with the
+     first. Gate-asserted equal to ECGDex's in the `ppgdex-clock-seam` group. */
+  const PPG_RESYNC_BOUND_MS = 60000;
+  const PPG_GAP_CEIL_MS = 86400000;
   /* opts.timebase (O2RING-ADAPTIVE-TIMEBASE Stage 2):
        undefined / 'host-disciplined'  the device ns axis disciplined to the capture host (today's path,
                                         and the default — behaviour is byte-identical when unset).
@@ -368,6 +766,17 @@
     let ns0 = null,
       t0Ms = null,
       firstTs = null; // lastTs is resolved lazily in the fs fallback (§P1)
+    /* MID-FILE RESYNC state (BLE-TIMEBASE-AT-THE-EDGE §2). `ns0` alone anchors the WHOLE file, so a
+       counter step mid-file is spanned rather than seen. The current clock SEGMENT re-anchors at a
+       seam; `prevPhoneRaw` holds the previous row's raw host stamp UNPARSED so the discriminator can
+       be evaluated without reintroducing the per-row parseTimestamp §P1 removed. */
+    let prevNsB = null,
+      prevPhoneRaw = null,
+      segNs0 = null,
+      segBaseNs = 0,
+      prevRelNs = NaN,
+      preResyncAnchorsDropped = 0;
+    const resyncs = [];
     let pcols = null;
     // Minimum data-row field count. 6 for the Verity layout; a single-optical-column file
     // (`phone;ns;ch0`) has only 3, so the floor drops once a 1-channel header resolves. Until
@@ -375,16 +784,28 @@
     // filter byte-identical.
     let minFields = 6;
     let nCh = 3,
+      dual = false,
       ch0Col = 2;
     for (let li = 0; li < lines.length; li++) {
       const line = lines[li].trim();
       if (!line) continue;
+      /* Leading `#` provenance comments (`# timebase=host-disciplined`) — the same convention as
+         LINK.csv, whose real header is on line 2. Measured across the corpus: 906 of 1066 non-empty
+         `_PPG2W.txt` carry one and 160 do not, so a parser that treats line 1 as the header mis-reads
+         85 % of them. Skipped EXPLICITLY rather than incidentally: today's two variants happen not to
+         contain the word "timestamp", so they fall through the header test by luck, and a future
+         comment that did would silently become the header. */
+      if (line.charCodeAt(0) === 35) continue;
       const p = line.split(';');
       if (/timestamp/i.test(line) && !pcols) {
         const hc = ppgColsFromHeader(line);
         if (hc) {
           pcols = hc;
           if (hc.chIdx.length === 1) minFields = 3;
+          // The dual-wavelength row is FIVE fields (phone;ns;ch0;ch1;motion). The default of 6 is the
+          // Verity layout's, and it is what actually refused these files before this branch existed —
+          // the header check alone was not enough, which a read of the code did not show and a run did.
+          else if (hc.dual) minFields = 5;
           continue;
         }
       }
@@ -393,8 +814,10 @@
       if (!pc) continue;
       // The layout the ACCEPTED rows actually carry (a headerless file resolves per-row via the tail).
       nCh = pc.chIdx.length;
+      dual = !!pc.dual;
       ch0Col = pc.chIdx[0];
       if (nCh === 1) minFields = 3;
+      else if (dual) minFields = 5;
       const v0 = parseFloat(p[pc.chIdx[0]]);
       if (!isFinite(v0)) {
         continue;
@@ -410,10 +833,17 @@
       // never admit a partial row, because the channel arrays are positional and must stay in step.
       let v1 = 0,
         v2 = 0;
-      if (pc.chIdx.length === 3) {
+      // Generalised from `=== 3` to "every companion column THIS layout claims", so the dual-wavelength
+      // layout gets the SAME row-atomic treatment rather than silently skipping validation and pushing
+      // nothing. The 3-channel path is unchanged: both companions are still validated together and the
+      // row is still dropped whole if either fails.
+      if (pc.chIdx.length >= 2) {
         v1 = parseFloat(p[pc.chIdx[1]]);
+        if (!isFinite(v1)) continue;
+      }
+      if (pc.chIdx.length === 3) {
         v2 = parseFloat(p[pc.chIdx[2]]);
-        if (!isFinite(v1) || !isFinite(v2)) continue;
+        if (!isFinite(v2)) continue;
       }
       // Ambient is DELIBERATELY NaN when the layout carries no ambient column (the O2Ring finger site,
       // which AC-couples on-device). Only a column that EXISTS and fails to parse makes the row bad —
@@ -421,20 +851,83 @@
       const va = pc.amb >= 0 ? parseFloat(p[pc.amb]) : NaN;
       if (pc.amb >= 0 && !isFinite(va)) continue;
       ch0.push(v0);
-      if (pc.chIdx.length === 3) {
-        ch1.push(v1);
-        ch2.push(v2);
-      }
+      if (pc.chIdx.length >= 2) ch1.push(v1);
+      if (pc.chIdx.length === 3) ch2.push(v2);
       amb.push(va);
       // sensor ns → relative seconds (BigInt: values exceed Number safe range)
       let relNs = 0;
       try {
         const b = BigInt(p[pcols && pcols.ns >= 0 ? pcols.ns : 1].trim());
         if (ns0 === null) ns0 = b;
-        relNs = Number(b - ns0);
+        /* ── MID-FILE CLOCK RESYNC on the DEVICE counter (BLE-TIMEBASE-AT-THE-EDGE-2026-09-16) ──────
+           `Number(b - ns0)` anchors every sample to the FIRST row of the file, so when the counter
+           steps mid-file the step lands in `relNs`, then in `relSec`, then in every duration, epoch
+           grid and export window downstream. Measured with the true F1 magnitude planted into a
+           `_PPG.txt`: a 16-second recording published a `relSec` span of **2.4159e8 s — 7.66 years**,
+           and `hostAxis` refused at ±50,000 ppm exactly as designed while doing so. That is Clock
+           Contract §7's rule in the negative: **a refusal guards the RATE, not the AXIS.** ECGDex
+           (`_clockResyncs`) and MotionDex (`parseSensorXYZ`) already split on this; PpgDex did not,
+           and the same night's files carry the step.
+
+           THE DISCRIMINATOR IS PHYSICAL, and it is the reason this cannot key on step size alone:
+           through a real BLE dropout BOTH clocks keep ticking, so the device delta ≈ the host delta;
+           only a clock step makes them disagree. MotionDex's census over 1278 ACC files found 137
+           whose worst step is a genuine dropout — the counter is RIGHT about those and re-anchoring
+           them would corrupt working recordings — against exactly 3 real resyncs. Identical
+           discriminator here, deliberately.
+
+           COST: the host stamp is parsed only when a CANDIDATE step fires (`devDeltaMs` over the
+           bound), which is 0–3 rows in a real file, so EFFICIENCY-AUDIT §P1's removal of the per-row
+           parseTimestamp stands — `prevPhoneRaw` carries the previous row's stamp as an unparsed
+           string reference (O(1), no parse on the hot path). */
+        if (prevNsB !== null) {
+          const devDeltaMs = Number(b - prevNsB) / 1e6;
+          if (devDeltaMs > PPG_RESYNC_BOUND_MS) {
+            const curTs = parseTimestamp(p[0]);
+            const prvTs = prevPhoneRaw != null ? parseTimestamp(prevPhoneRaw) : null;
+            const phoneDeltaMs = curTs && curTs.tMs != null && prvTs && prvTs.tMs != null ? Math.max(0, curTs.tMs - prvTs.tMs) : null;
+            if (phoneDeltaMs != null ? devDeltaMs - phoneDeltaMs > PPG_RESYNC_BOUND_MS : devDeltaMs > PPG_GAP_CEIL_MS) {
+              /* RE-ANCHOR ON THE HOST, NOT BY SUBTRACTING THE STEP — ONE DEVICE CLOCK PER AXIS
+                 (Clock Contract §7). The counter before the sync is a different oscillator state,
+                 not merely a shifted one, so imposing the host delta alone would carry the pre-seam
+                 segment's error forward as a constant for the whole night.
+                 BLIND SEAM: when the seam row's own stamp does not parse there is no host offset to
+                 anchor on, and falling back to `Number(b - ns0)` would re-admit the very step being
+                 removed. The honest anchor is then the PREVIOUS row's position — an unmeasured gap
+                 contributes nothing rather than a fabricated duration (§∅ / Clock Contract §2.6) —
+                 and the seam is recorded with `phoneDeltaMs: null` so the absence stays visible. */
+              segBaseNs = t0Ms != null && curTs && curTs.tMs != null ? (curTs.tMs - t0Ms) * 1e6 : isFinite(prevRelNs) ? prevRelNs : Number(b - ns0);
+              segNs0 = b;
+              /* ONE DEVICE CLOCK PER AXIS (Clock Contract §7). Re-anchoring `relNs` makes the axis
+                 CONTINUOUS; it does not make the pre-seam samples the same CLOCK. `hostAxis` measures
+                 every divergence relative to its FIRST anchor, so leaving pre-seam anchors in the set
+                 measures against a different oscillator state — and because the step is now gone from
+                 the axis, hostAxis no longer REFUSES, so that bad rate would reach `fs` instead of
+                 being rejected. ECGDex measured this exact path: anchor 0 inside the pre-seam segment,
+                 484.7 ppm quoted, the span gate let it through, fs 129.968 → 129.903 — 500 ppm off the
+                 same H10's sibling file. The pre-seam anchors are therefore DROPPED and COUNTED, never
+                 silently discarded.
+                 ⚠️ This half was NOT in the first draft of this fix, and the pre-existing
+                 `THE GUARD THAT WORKS · hostAxis REFUSES a stepped counter` leg is what caught it: the
+                 moment the axis was bounded, that refusal turned into `ok:true` — the refusal had been
+                 doing this work all along. */
+              preResyncAnchorsDropped += axisAnchors.length;
+              axisAnchors.length = 0;
+              resyncs.push({
+                idx: nsArr.length,
+                deviceStepMs: Math.round(devDeltaMs),
+                phoneDeltaMs: phoneDeltaMs == null ? null : Math.round(phoneDeltaMs)
+              });
+            }
+          }
+        }
+        prevNsB = b;
+        relNs = segNs0 === null ? Number(b - ns0) : segBaseNs + Number(b - segNs0);
+        prevRelNs = relNs;
       } catch (e) {
         relNs = NaN;
       }
+      prevPhoneRaw = p[0];
       nsArr.push(relNs);
       // Clock Contract: the FIRST stamp is load-bearing (t0Ms + offsetMin). The LAST stamp is
       // read ONLY by the degenerate `deltas.length<=20` fs fallback below, which a real capture (190k
@@ -484,9 +977,32 @@
 
        What DOES separate them is how much of the delta distribution sits on ONE value:
          drawn (16 files, ≤07-27) …… 100.0 %      measured (07-28 →) …… 0.6 – 8.8 %
-       Reported as a NUMBER, with `drawn` asserted only at ≥99 %. The middle of that range is genuinely
-       ambiguous on short fragments (a 15-min file has few deltas to be diverse with), and a binary that
-       pretends otherwise would be the same over-claim this whole brief family exists to remove. */
+       Reported as a NUMBER, never a bare binary. The middle of that range is genuinely ambiguous on
+       short fragments (a 15-min file has few deltas to be diverse with), and a binary that pretends
+       otherwise would be the same over-claim this whole brief family exists to remove.
+
+       ⚠️ THE CUT WAS 0.99 AND THAT WAS THE WRONG EDGE OF THIS GAP (2026-09-05). Any value from ~0.10
+       to ~1.00 separates the two populations ABOVE, so this file's own corpus could not choose between
+       them — and 0.99 is the one end that also demands near-perfection. Two independent measurements
+       say it is too high:
+
+         · `clock.js` CK_AXIS_DRAWN_SHARE, 381 box-tree sidecars: real streams reach **56.00 %**
+           (Verity ppg; H10 ecg 40.79 %) and drawn streams fall to **79.04 %** when anything interrupts
+           them. 0.67 sits in that gap, 0/25 missed with 0/356 false positives, and that comment ends
+           "Do not raise this back toward 99 %" — which is exactly where this line stood.
+         · residue `2026-09-04-drawn-rule-defeated-by-rounding`, 6 real `Polar_H10_*_ECG.txt`
+           fragments: top-delta share **98.63–98.65 %** over 10–13 distinct deltas, ZERO flagged. That
+           column IS `index × an assumed rate`; decimal rounding of 1000/130 = 7.6923 ms scatters it.
+           The 0.35 pp margin was not a safety margin, it was the width of a rounding artifact.
+
+       So a 0.99 cut measures the STAMP FORMAT and calls the answer provenance. Aligned to 0.67 below.
+       Verdicts on this file's own corpus are unchanged — 0.6–8.8 % stays below and 100 % stays above —
+       so the move costs nothing here and buys the rounded-rate and interrupted-drawn cases.
+
+       ⚠️ NOT delegated to `DexClock.CK_AXIS_DRAWN_SHARE`, deliberately: PpgDex is one of the three
+       bundles that do NOT inline `clock.js` (CLAUDE.md §✅), so `DexClock` is `undefined` here and a
+       bare reference is a ReferenceError, not a fallback. The constant is duplicated ON PURPOSE and
+       the two must be moved together. */
     let quantizedShare = null;
     /* Scan BACKWARD for the last row the main loop would have ACCEPTED and whose stamp parses —
        byte-identical to an eager `lastTs`, but paid for only where it is read. The row filter must
@@ -537,7 +1053,9 @@
        device contributed only sample ORDER. DRAWN + no anchors ⇒ `'none'`: the recording carries no
        timing information whatsoever and must never be spent as a clock leg — closure, three-cornered hat
        and PAT all silently accept such a leg today and measure a constant. */
-    const axisDrawn = quantizedShare != null && quantizedShare >= 0.99;
+    /* 0.67 — the same cut as `clock.js` CK_AXIS_DRAWN_SHARE, on that file's 381-sidecar measurement.
+       Kept as a literal because `DexClock` does not exist in this bundle; see the block above. */
+    const axisDrawn = quantizedShare != null && quantizedShare >= 0.67;
     // relSec per sample from ns, DISCIPLINED to the host clock (WEARABLE-HOST-AXIS §2); else index/fs.
     // The device crystal keeps the fine structure (the correction's own slope is ~30 ppm, i.e. 30 µs
     // per second, so RR/PPI intervals are untouched) while its RATE error is removed. If too few
@@ -556,7 +1074,15 @@
     } else {
       for (let i = 0; i < n; i++) relSec[i] = i / fs;
     }
-    const chArr = nCh === 1 ? [Float32Array.from(ch0)] : [Float32Array.from(ch0), Float32Array.from(ch1), Float32Array.from(ch2)];
+    const chArr = nCh === 1 ? [Float32Array.from(ch0)] : nCh === 2 ? [Float32Array.from(ch0), Float32Array.from(ch1)] : [Float32Array.from(ch0), Float32Array.from(ch1), Float32Array.from(ch2)];
+    /* §∅ P5 clause 2 — the `_PPGRUNS.txt` companion, when the ingest attached one. Parsed ONCE
+       here rather than per channel, and keyed by the writer's own channel LABEL (`channel 0`),
+       which is the same label `_PPG.txt`'s header uses — so the two sides are joined on a name
+       both files actually carry, not on an index one of them merely implies. */
+    const _runs = parsePinnedRuns(opts && opts.runsText);
+    const _chanKey = function (ci) {
+      return 'channel ' + ci;
+    };
     // SITE is a layout fact, not a guess — but COLUMN COUNT ALONE IS NOT THE LAYOUT. The O2Ring emits
     // BOTH a 1-column pleth and a 3-column file whose three columns are the SAME reading replicated
     // (`124;124;124;0`), and column-count-only classification therefore called the ring a Verity on
@@ -598,7 +1124,7 @@
        value (consumers gate on it and the sentinel pass genuinely is a device property), and
        `siteSource` now says where that value came from — so a reader can tell a DECLARED limb from a
        device default, and a grader can decline to award a site-validated tier to a default. */
-    const site = deriveSiteFromLayout(chArr, n);
+    const site = deriveSiteFromLayout(chArr, n, dual);
     // Sentinel pass runs ONLY on the finger layout — 156 is the O2Ring's marker and carries no meaning
     // in a Verity count stream (where it would be an ordinary, and astronomically rare, raw ADC value).
     // Keyed on SITE, not on nCh: a replicated 3-column O2Ring file is still an O2Ring, and keying on
@@ -681,6 +1207,13 @@
       fs,
       timebase,
       n,
+      /* PRESENT ONLY WHEN IT HAPPENED, so every clean stream keeps today's bytes and no clean fixture
+         moves (the `anchorsDroppedPreResync` discipline ECGDex uses, and MotionDex's `_clockResyncs`).
+         Each entry: { idx, deviceStepMs, phoneDeltaMs } — `phoneDeltaMs` null when the seam row's own
+         stamp did not parse, so an unmeasured gap reads as unmeasured rather than as zero. A consumer
+         that wants to refuse a duration spanning a seam has the seam; one that ignores the field gets
+         an axis that no longer silently spans it, which is the half that cannot be opted out of. */
+      clockResyncs: resyncs.length ? resyncs : undefined,
       t0Ms: t0Ms != null ? t0Ms : null,
       offsetMin: firstTs ? firstTs.offsetMin : null,
       /* NODE-EXPORT-DURATION-SEMANTICS §3 — the CLOCK position of the last sample, READ from the file,
@@ -701,10 +1234,83 @@
       })(),
       durSec: (n - 1) / fs,
       site,
+      /* PROVENANCE, published so the frame-routed path can reach the same site verdict as this one.
+         `deriveSiteFromLayout` cannot re-derive it from the samples — two real wavelengths are not
+         replicated — so an adapter that drops this flag would silently get 'wrist' for a finger file. */
+      dual,
       // 'device-default' until someone declares otherwise — see the block above.
       siteSource: 'device-default',
       // Per-sample missing mask (1 = rejected sentinel). Null for the wrist layout. Never filled.
       gap: sent ? sent.gap : null,
+      /* §∅ ABSENCE-AS-VALUE — spans where the stream was PINNED at a rail and therefore measured
+         nothing. Out of band beside the samples, never written into them: `parsePPG` rejects a row
+         row-atomically on a non-finite value (`:429` and siblings), so a NaN would delete the ROW
+         and turn an absence of VALUE into an absence of TIME, shifting every index after it. One
+         entry per optical channel, in channel order; `null` when the stream carries no qualifying
+         rail, which is the honest answer for a clean recording. */
+      spans: chArr.map(function (c, ci) {
+        /* §∅ P5 clause 2 — the sidecar is the FIRST witness where it could see, the recompute is
+           the second everywhere. `_runs` is null unless a `_PPGRUNS.txt` companion was ingested, so
+           the no-sidecar path is byte-identical to #2531's and needs no fixture to move. */
+        const derived = pinnedSpans(c);
+        if (!_runs || !_runs.comparable || _runs.minRun == null) return derived;
+        const _fileMinRun = _runs.minRun;
+        const fileSpans = (_runs.byChannel[_chanKey(ci)] || []).map(function (r) {
+          return { first: r.first, n: r.n };
+        });
+        /* THE FILE WINS WHERE THE FILE COULD SEE. Its rows replace the recompute's for runs at or
+           above its own `min_run`; below that threshold it never looked, so the recompute's shorter
+           spans are KEPT rather than deleted. Dropping them would read a threshold-gated
+           NON-observation as an observation of absence — §∅ at the precedence layer. */
+        const kept = /** @type {any[]} */ (derived.spans || []).filter(function (sp) {
+          return sp.n < _fileMinRun;
+        });
+        return { spans: fileSpans.concat(kept), lo: derived.lo, hi: derived.hi };
+      }),
+      /* §∅ P5 clause 2 — the cross-check VERDICT, published so a consumer sees which witness said
+         what instead of inferring it from a span count. Three states plus `comparable:false`;
+         `sidecarBlind` is NOT a disagreement and must never be folded into one — see
+         `crossCheckPinned`. The in-JS side is re-derived at the FILE's own `min_run`/`merge`, never
+         at `PIN_MIN_RUN`, so a parameter difference cannot masquerade as a finding. */
+      pinnedCrossCheck: (function () {
+        if (!_runs) return null;
+        const perCh = [];
+        for (let ci = 0; ci < chArr.length; ci++) {
+          const at = _runs.comparable ? pinnedSpans(chArr[ci], { minRun: _runs.minRun, merge: _runs.mergeGapMax }) : { spans: [] };
+          const ranges = (at.spans || []).map(function (sp) {
+            return [sp.first, sp.first + sp.n - 1];
+          });
+          perCh.push(
+            crossCheckPinned(
+              {
+                comparable: _runs.comparable,
+                minRun: _runs.minRun,
+                emitted: (_runs.byChannel[_chanKey(ci)] || []).length,
+                rows: _runs.byChannel[_chanKey(ci)] || []
+              },
+              ranges
+            )
+          );
+        }
+        /* Sidecar channels the stream has no column for. Reported, never dropped: a label the two
+           files disagree on is a finding about the pair, not a reason to ignore rows. */
+        const known = {};
+        for (let ci = 0; ci < chArr.length; ci++) known[_chanKey(ci)] = 1;
+        const unmatched = Object.keys(_runs.byChannel).filter(function (k) {
+          return !known[k];
+        });
+        return {
+          params: _runs.params,
+          fileMinRun: _runs.minRun,
+          comparable: _runs.comparable,
+          malformedRows: _runs.malformed,
+          emitted: _runs.emitted,
+          runsDetected: _runs.runsDetected,
+          examined: _runs.examined,
+          unmatchedChannels: unmatched,
+          perChannel: perCh
+        };
+      })(),
       sentinelRejected: sent ? sent.rejected : 0,
       sentinelKept: sent ? sent.kept : 0,
       /* The firmware's own beat fiducials, as TIMES on the published axis. Positions, not a count —
@@ -766,6 +1372,31 @@
             maxStepMs: hostAx.maxStepMs,
             drawn: axisSynthetic,
             quantizedShare,
+            /* Present ONLY when a seam dropped anchors, so a clean stream's export stays byte-identical
+               (ECGDex's discipline, and deliberately ECGDex's key NAME — a consumer should not have to
+               learn two spellings of one fact). */
+            anchorsDroppedPreResync: preResyncAnchorsDropped > 0 ? preResyncAnchorsDropped : undefined,
+            /* ⚠️ APPLIED IS OWNED BY THE DSP THAT APPLIES THE AXIS, and this one does — see the
+               `relSec[i] = (devMs + hostAx.correctionAt(devMs))` line above. Emitting it is not
+               cosmetic: `pat-drift-attribution.mjs effectivePpm` reads
+               `hostAxis.applied === true ? 0 : hostAxis.ppm`, so a MISSING key silently took the
+               ppm branch and credited this node's drift as an outstanding error the axis had
+               already absorbed — a double-count. ECGDex has always written it; PpgDex never did,
+               so the reader was correct by accident on one node and wrong on the other.
+               ⚠️ Inert in the SHIPPED BUNDLE and that is expected: `PpgDex.html` inlines no
+               `clock.js` (CLAUDE.md §✅ — `DexClock` is undefined there), so `hostAx.ok` is false
+               and this whole block never builds. It is live only where the analysis tools co-load
+               the spine in Node, which is exactly where the defect was.
+               ⚠️ The `fs` correction two lines up IS erased by the 2 dp rounding at `:557` (181.8 ppm
+               per step at 55 Hz), and that is NOT a reason to call this key false: the beat times the
+               PAT tools measure ride `relSec`, not `idx / fs`. Measured 2026-09-05 through
+               `pat-matchrate-strict.mjs`'s interpolating `timeAt`, over the three largest Verity
+               nights — 72514 of 72514 consensus feet resolve through `relSec`, 0 fall back.
+               ⚠️ `pat-feasibility-worker.js` is a DIFFERENT consumer and still reads `rel[idx] ??
+               idx / fs`, a raw subscript no fractional index can hit (PAT-FORENSICS-AXIS-LEG-
+               ASYMMETRY, 0/8948 feet — live, and about that file, not this path). This key does not
+               fix it and must not be read as saying it is fixed. */
+            applied: true,
             // Forwarded so a consumer can SEE the verdict instead of inferring it from a ~0 ppm.
             independent: hostAx.independent === undefined ? null : hostAx.independent,
             spreadMs: hostAx.spreadMs === undefined ? null : hostAx.spreadMs,
@@ -798,9 +1429,16 @@
      replicate one reading — measured 100 % identical across 526 O2Ring files vs 0 % across 261
      Verity files, perfect separation). Decided on the DATA, never the header, so a vendor renaming
      its columns changes nothing. Exact scan, stops at the first mismatch. */
-  function deriveSiteFromLayout(chArr, n) {
+  function deriveSiteFromLayout(chArr, n, dual) {
     const nCh = chArr ? chArr.length : 0;
     if (!nCh) return 'wrist';
+    /* The raw dual-wavelength layout is an O2Ring FINGER file by provenance: only the ring's cmd 0x05
+       writes `channel 0;channel 1;motion`, so the site is a fact about the format, exactly as it is
+       for the 1-column case below. It must NOT be left to the replication scan — two genuinely
+       different wavelengths are not byte-identical, so the scan would return 'wrist' and then the
+       sentinel pass would be skipped and a wrist-validated tier stamped onto a fingertip pleth, which
+       is the failure the comment above this function exists to prevent. */
+    if (dual) return 'finger';
     let replicated = nCh > 1;
     for (let c = 1; replicated && c < nCh; c++) {
       const a = chArr[0],
@@ -1728,7 +2366,12 @@
 
   // ════════════════════════════════════════════════════════════════════════
   //  PER-SECOND ARTIFACT CONFIDENCE  (TCH-FUSED-ROBUST-HAT-2026-07-14)
-  //  Byte-for-byte MIRROR of ECGDSP.beatConfidence — signal-agnostic (feet/beats + per-beat SQI →
+  //  CODE-IDENTICAL MIRROR of ECGDSP.beatConfidence — identical once comments are stripped (2135
+  //  chars each, measured 2026-09-17), NOT byte-for-byte: the comment blocks differ, so the raw
+  //  bodies are 2708 here against 3122 there. The old wording said "byte-for-byte", which a reader
+  //  can check and find false. Gated by `beatConfidence mirror` in tests/dex-tests.js.
+  //  ⚠️ THE TWO COPIES ARE DELIBERATE AND NEITHER IS REDUNDANT — see that gate's message.
+  //  signal-agnostic (feet/beats + per-beat SQI →
   //  per-second trust c = density_trust × quality_trust, AND-ed via min for AF-safety). For the
   //  Verity corner it catches any residual PPG over-detection (e.g. diastolic-notch doubling the
   //  optical-refractory fix leaves) exactly as it catches the ECG spurious-QRS burst: a window that
@@ -1847,7 +2490,8 @@
     // cascade the whole series to a constant).
     const out = [],
       ot = [],
-      flags = [];
+      flags = [],
+      keptIdx = []; // input index of each kept element — the bridge from `flags`'s frame to `nn`'s
     let nCorr = 0;
     // robust global baseline from in-range intervals
     const inRange = rr.filter((v) => v >= 300 && v <= 2000);
@@ -1905,19 +2549,42 @@
       if (v < 300 || v > 2000) bad = true;
       else if (Math.abs(v - ref) / ref > PPI_ECTOPY_THR) bad = true; // >30% off the local median
       if (bad) {
-        v = ref;
+        /* 🔴 EXCLUDE, NEVER FILL (punch list #2, owner-approved 2026-09-06). This used to do
+           `v = ref` — replace the rejected interval with the running median of the last 7 accepted —
+           and push it, so a FABRICATED value entered `nn` and flowed into SDNN, LF/HF, DFA-α1,
+           SampEn, CVHR, the epochs and `contentId`. At the file's own 28.8 % correction rate that is
+           roughly 29 % of the exported series being a filled constant presented as measurement.
+           A rejected interval is now DROPPED. The series gets shorter and honest; `tt` carries the
+           real times of what survived, so the tachogram stays correctly placed in time rather than
+           uniformly spaced by construction. */
         nCorr++;
         runBad++;
         flags.push(1);
-      } else {
-        accepted.push(v);
-        runBad = 0;
-        flags.push(0);
+        continue;
       }
+      accepted.push(v);
+      runBad = 0;
+      flags.push(0);
       out.push(v);
       ot.push(tt[i]);
+      keptIdx.push(i);
     }
-    return { nn: out, tt: ot, nCorr, flags };
+    /* ⚠️ DELIBERATE ASYMMETRY, and it is a footgun if you do not read it: `flags` is INPUT-aligned
+       (one entry per interval handed in, 1 = rejected) while `nn`/`tt` are the KEPT SUBSET. So
+       `flags[i]` does NOT index `nn[i]` — zipping them silently misaligns, which is exactly what
+       `sensor-trio-worker.js` did before this change and why it was migrated in the same commit.
+       flags stays input-aligned because `tools/beat-error-recovery.mjs` scores it against per-input
+       labels (precision/recall); an output-aligned flags would be all zeros and useless there.
+       `nDropped` is additive so a consumer can see the exclusion without recomputing it.
+       `keptIdx[j]` is the input index of `nn[j]` — the one honest way to carry any per-INPUT
+       property (SQI at the endpoints, a gap-straddle, `flags` itself) into `nn`'s frame. `analyze`
+       built its clean-interval mask by reading those input-frame arrays at `nn`'s index for the
+       whole of #2333's life: correct up to the first rejection, shifted by one per rejection after
+       it, so on a real night ~29 % of the pairs feeding rMSSD/SD1/LF:HF were judged by a neighbour's
+       quality. It also says which kept neighbours are NOT adjacent in the input — a dropped interval
+       between them makes their successive difference a non-measurement, exactly the pair the old
+       in-place fill used to exclude via its own `flags`. */
+    return { nn: out, tt: ot, nCorr, flags, nDropped: nCorr, keptIdx };
   }
   // CVHR — Cyclic Variation of Heart Rate (Hayano), the autonomic cardiac correlate of
   // apnea/hypopnea recovery. OXYDEX-PULSE-RESOURCING §Phase 4: a FINGER PPG capture is the O2Ring's
@@ -2058,7 +2725,13 @@
   // trust for beat-to-beat work: a NN measured across lost time spans an unknown number of absent
   // beats, so it must leave the whole-record dispersion too, not just rMSSD. Omitting it is not a
   // quality judgement, it is declining to invent a number. Absent/empty ⇒ byte-identical behaviour.
-  function timeDomain(nn, cleanMask, omit) {
+  /* `adj` (optional, LAST): `adj[i] === false` says `nn[i]` was NOT the input neighbour of `nn[i-1]`
+     — `correctRR` dropped an interval between them — so their successive difference spans a beat
+     that was never accepted and is not a beat-to-beat quantity. Since punch list #2 a rejection
+     REMOVES the interval instead of filling it in place, so the two survivors sit side by side in
+     `nn` with nothing in the array to say they were not side by side in the heart. Absent ⇒ every
+     pair is adjacent (legacy callers, and the epoch path's within-epoch slices). */
+  function timeDomain(nn, cleanMask, omit, adj) {
     if (nn.length < 2) return null;
     const keep = omit ? nn.filter((_, i) => !omit[i]) : nn;
     const base = keep.length >= 2 ? keep : nn; // never let the omission empty the record
@@ -2074,6 +2747,7 @@
       nn50 = 0;
     for (let i = 1; i < nn.length; i++) {
       if (cleanMask && !(cleanMask[i - 1] && cleanMask[i])) continue;
+      if (adj && adj[i] === false) continue; // a dropped interval sits between them — not a pair
       const d = nn[i] - nn[i - 1];
       sumSq += d * d;
       cnt++;
@@ -2101,13 +2775,15 @@
     const triIdx = mx ? nn.length / mx : null;
     return { meanRR: Math.round(meanRR), sdnn: r1(sdnn), rmssd: r1(rmssd), pnn50: r1(pnn50), hr: Math.round(hr), lnRMSSD: r2(Math.log(rmssd)), triIdx: triIdx ? r1(triIdx) : null };
   }
-  function poincare(nn, cleanMask) {
+  function poincare(nn, cleanMask, adj) {
     if (nn.length < 3) return null;
     // §4: SD1 (≈ short-term beat-to-beat) from the clean adjacent-pair successive
     // differences; SD2 keeps the whole-record SDNN identity. Mask absent → all pairs.
+    // `adj` as in `timeDomain`: a pair with a dropped interval between it is not a pair.
     const d = [];
     for (let i = 1; i < nn.length; i++) {
       if (cleanMask && !(cleanMask[i - 1] && cleanMask[i])) continue;
+      if (adj && adj[i] === false) continue;
       d.push(nn[i] - nn[i - 1]);
     }
     if (d.length < 2) {
@@ -2429,6 +3105,19 @@
     const out = [];
     let ns0 = null;
     let cols = null;
+    /* Same mid-file resync split as parsePPG above and as MotionDex's function OF THE SAME NAME.
+       ⚠️ This is a node-local copy, not shared code — nodes never import each other (ARCHITECTURE
+       -PRINCIPLES §2) and PpgDex does not inline motiondex-dsp.js. It is deliberately NOT held
+       byte-equal to MotionDex's by an assertion: a parity assertion over two copies read as evidence
+       of redundancy once before and cost a whole PR (#1232). The shared CONSTANTS are asserted equal
+       instead, which is the part that would actually drift into disagreement. */
+    let prevNsB = null,
+      prevRowTMs = null,
+      firstRowTMs = null,
+      segNs0 = null,
+      segBaseNs = 0,
+      prevRelNs = NaN;
+    const resyncs = [];
     for (const line of lines) {
       const t = line.trim();
       if (!t) continue;
@@ -2443,14 +3132,36 @@
       const x = parseFloat(p[c.x]);
       if (!isFinite(x)) continue;
       let relNs = NaN;
+      const ts = parseTimestamp(p[c.phone >= 0 ? c.phone : 0]);
       try {
         const b = BigInt(p[c.ns >= 0 ? c.ns : 1].trim());
         if (ns0 === null) ns0 = b;
-        relNs = Number(b - ns0);
+        if (prevNsB !== null) {
+          const devDeltaMs = Number(b - prevNsB) / 1e6;
+          if (devDeltaMs > PPG_RESYNC_BOUND_MS) {
+            const phoneDeltaMs = ts && ts.tMs != null && prevRowTMs != null ? Math.max(0, ts.tMs - prevRowTMs) : null;
+            if (phoneDeltaMs != null ? devDeltaMs - phoneDeltaMs > PPG_RESYNC_BOUND_MS : devDeltaMs > PPG_GAP_CEIL_MS) {
+              segBaseNs = firstRowTMs != null && ts && ts.tMs != null ? (ts.tMs - firstRowTMs) * 1e6 : isFinite(prevRelNs) ? prevRelNs : Number(b - ns0);
+              segNs0 = b;
+              resyncs.push({
+                idx: out.length,
+                deviceStepMs: Math.round(devDeltaMs),
+                phoneDeltaMs: phoneDeltaMs == null ? null : Math.round(phoneDeltaMs)
+              });
+            }
+          }
+        }
+        prevNsB = b;
+        relNs = segNs0 === null ? Number(b - ns0) : segBaseNs + Number(b - segNs0);
+        prevRelNs = relNs;
       } catch (e) {}
-      const ts = parseTimestamp(p[c.phone >= 0 ? c.phone : 0]);
+      if (ts && ts.tMs != null) {
+        if (firstRowTMs === null) firstRowTMs = ts.tMs;
+        prevRowTMs = ts.tMs;
+      }
       out.push({ relNs, tMs: ts ? ts.tMs : null, x, y: parseFloat(p[c.y]), z: parseFloat(p[c.z]) });
     }
+    if (resyncs.length) /** @type {any} */ (out)._clockResyncs = resyncs;
     return out;
   }
   /* DISCRETE MOVEMENT ONSETS from a motion grid — the fiducial an apnea's terminating arousal leaves
@@ -2902,6 +3613,42 @@
   }
   function _normPositionPPG(p) {
     return ['supine', 'prone', 'lateral', 'upright'].indexOf(p) >= 0 ? p : 'unknown';
+  }
+
+  /* ── SELF-PPI INTEROP TEXT — the Polar *_PPI.txt column layout, filled only where WE MEASURED ──
+     PpgDex derives its PPI optically; it does not have a Polar device's telemetry. Four of the seven
+     columns are that telemetry — `error estimate [ms]`, `blocker`, and the two `contact` flags — and
+     this writer used to emit a literal `0;0;1;1` for them on every single row. Read back through
+     `parseDevicePPI` that is `err:0, blocker:0, contact:1`: zero uncertainty, nothing blocked, skin
+     contact confirmed, asserted beat by beat about four quantities this node never measured. §∅ — a
+     value that was not measured is null, and in this format the null is an EMPTY FIELD, which
+     `parseDevicePPI` already maps back to `null` (`isFinite(err) ? err : null`, and the same for the
+     other two). The reader was ready for the honest answer before the writer gave it.
+
+     ⚠️ Deliberately NOT substituting a PpgDex quantity that looks similar. `ppiConf` is a 0–1 weight
+     and the column is MILLISECONDS — writing it there is a unit error wearing the shape of a fix. The
+     clean-interval mask is close in spirit to `blocker` but means something different (our SQI/gap
+     judgement, not the device flagging a beat), and quietly redefining another vendor's field is how
+     a consumer ends up comparing two things that share a name. Blank says what is true: we did not
+     measure this. And `contact` is the one to be most careful with — a fabricated 1 is a positive
+     claim about skin contact, and even the Verity's OWN contact bit reports worn in its charger.
+
+     Kept as a pure function so it is gate-able: the app owns the download, this owns the format. */
+  const SELF_PPI_HEADER = 'Phone Data RX timestamp;PP-interval [ms];error estimate [ms];blocker;contact;contact;hr [bpm]';
+  function buildSelfPPIText(r) {
+    let out = SELF_PPI_HEADER + '\n';
+    if (!r || !r.nn || !r.tt) return out;
+    for (let i = 0; i < r.nn.length; i++) {
+      const nn = r.nn[i];
+      if (!isFinite(nn) || nn <= 0) continue; // no interval ⇒ no row, rather than a row of zeros
+      const tMs = r.t0Ms != null && isFinite(r.tt[i]) ? r.t0Ms + Math.round(r.tt[i] * 1000) : null;
+      // §5 — floating tMs must be read back with the UTC family, and fmtDateTime is second-resolution,
+      // so the ISO form is built here to keep the milliseconds the device format carries.
+      const ts = tMs != null ? new Date(tMs).toISOString().replace('Z', '') : '';
+      // columns 3-6 are the device's telemetry: absent, therefore empty.
+      out += ts + ';' + Math.round(nn) + ';;;;;' + Math.round(60000 / nn) + '\n';
+    }
+    return out;
   }
 
   // ════════════════════════════════════════════════════════════════════════
@@ -3367,7 +4114,15 @@
     const dev = devicePPI.filter((d) => d.ppi > 300 && d.ppi < 2000 && (d.blocker == null || d.blocker === 0)).map((d) => d.ppi);
     if (dev.length < 3 || selfNN.length < 3) return { hasData: true, filePresent: true, usable: false, source, nDevice: dev.length };
     const devRaw = rmssdOf(dev);
-    const sC = _ppiCorrect(selfNN),
+    /* `selfNN` arrives ALREADY Malik-corrected — it is the export's `nn`. Passing it through
+       `_ppiCorrect` again was a SECOND pass, and correctRR is not idempotent: measured 2026-09-21 on a
+       real 24,898-interval H10 night, pass 1 corrected 19, pass 2 another 11, pass 3 one more. So
+       `selfEctopyCorrected` reported the second pass's count as the self side's artifact load (11 where
+       the real pass found 19), and `selfRMSSD`/`selfSDNN`/`nSelf` were computed on a twice-corrected
+       series against a once-corrected device series — an asymmetric comparison presented as symmetric.
+       Residue 2026-09-13-ppgdex-correctrr-not-idempotent. The self side is taken as-is; its correction
+       count is the caller's one real pass, or null when a caller cannot say (never a re-run's count). */
+    const sC = { out: selfNN, nc: opts && opts.selfCorrected != null ? opts.selfCorrected : null },
       dC = _ppiCorrect(dev);
     const self = sC.out,
       devc = dC.out;
@@ -3419,7 +4174,7 @@
   // ════════════════════════════════════════════════════════════════════════
   //  EPOCHS — 5-min windows over the corrected interval series
   // ════════════════════════════════════════════════════════════════════════
-  function buildEpochs(nn, tt, motion, perfWindow, cleanMask, agreeI) {
+  function buildEpochs(nn, tt, motion, perfWindow, cleanMask, agreeI, adj) {
     const epochs = [];
     if (nn.length < 2) return epochs;
     const epLen = 300; // sec
@@ -3432,7 +4187,9 @@
       if (idx.length < 5) continue;
       const seg = idx.map((i) => nn[i]);
       const segMask = cleanMask ? idx.map((i) => cleanMask[i]) : null; // §4: per-epoch clean adjacency
-      const td = timeDomain(seg, segMask);
+      // `idx` is a contiguous run of `nn` (tt is monotone), so the record-level adjacency slices 1:1
+      const segAdj = adj ? idx.map((i) => adj[i]) : null;
+      const td = timeDomain(seg, segMask, null, segAdj);
       if (!td) continue;
       const ls = lombScargle(
         idx.map((i) => tt[i]),
@@ -3713,8 +4470,20 @@
        killed the whole night's export. Refuse the span here rather than inside the mirror (which is
        genuinely count-bounded on ECG): ppiConf becomes null, which the export site already tolerates
        (`conf: … : null`), and the rest of the record survives. */
+    /* ⚠️ THE SEAM MUST STILL REFUSE, AND THIS IS WHY — BLE-TIMEBASE-AT-THE-EDGE, 2026-09-17.
+       F10's guard above keyed on the SPAN, and a clock rebase was detectable only BECAUSE it made the
+       span implausible. Re-anchoring the axis at the seam removes that symptom — so keying on span
+       alone would have SILENTLY REMOVED this guard: measured on F10's own plant, `ppiConf` came back
+       `[1,1,1,…]` (perfect confidence) and `cvhrIndex` `0` across a recording with an 86-second clock
+       discontinuity in it. A metric computed across a seam and reporting no problem is the §∅ failure
+       one layer up: a number that is computable from discontinuous input and carries no information.
+       So the refusal now keys on the SEAM ITSELF, which is what the Done-when actually asks for — "a
+       node consuming the stream cannot construct a duration across a seam without seeing it" — and the
+       reason NAMES the real state. `implausible-span` would be a fabricated explanation for a 249 s
+       span; the span is fine, the CLOCK is not. */
+    const _clockSeam = !!(rec.clockResyncs && rec.clockResyncs.length);
     const _confSpanS = _confSpine.length > 1 ? _confSpine[_confSpine.length - 1] - _confSpine[0] : 0;
-    const _confSpanOK = isFinite(_confSpanS) && _confSpanS <= PPG_MAX_SPAN_S;
+    const _confSpanOK = isFinite(_confSpanS) && _confSpanS <= PPG_MAX_SPAN_S && !_clockSeam;
     const _pConfMap = _confSpanOK
       ? beatConfidence(
           _confSpine.map((s) => Math.round(s * rec.fs)),
@@ -3744,7 +4513,10 @@
       const _d = corr.tt[k] - corr.tt[k - 1];
       if (_d > 0 && _d <= PPG_CVHR_GAP_S) _cvhrActiveSec += _d;
     }
-    const _cvhr = cvhrFromNN(corr.nn, corr.tt, _cvhrActiveSec);
+    /* Same seam refusal as F10's above. `cvhrFromNN` takes no record, so it cannot see the seam and
+       the gate belongs at the caller — it counts apnea-band events per hour of observed recording, and
+       an hour that spans a clock discontinuity is not an hour it observed. */
+    const _cvhr = _clockSeam ? { events: [], index: null, reason: 'clock-seam' } : cvhrFromNN(corr.nn, corr.tt, _cvhrActiveSec);
     // §4: per-interval CLEAN-adjacency mask — interval i (between beat i & i+1) is clean when it
     // was NOT correction-flagged AND both endpoint beats cleared SQI≥0.5 (SQI folds the 3-LED
     // agreement, §5). rMSSD/pNN50/SD1 are computed over clean adjacent pairs so sub-ectopy optical
@@ -3753,34 +4525,111 @@
     // real time passed with no signal, so the foot-to-foot difference across the hole may span one or
     // more absent beats. Excluded here rather than corrected, because there is nothing to correct to.
     // Fires on nothing without an honest gap in the source — every legacy file's grid is contiguous.
-    const spansTime = intervalsSpanningTimeGap(rec.relSec, rec.fs, footSpineOK ? det.feet : det.peaks, nn.length);
+    /* ── TWO FRAMES, and every per-interval property below is born in the INPUT one ──────────────
+       `rr`/`flags`/`sqi`/`bridged`/the foot grid are indexed by the interval HANDED TO `correctRR`
+       (one per adjacent pair of detected beats). `nn`/`tt` are its KEPT SUBSET (punch list #2 drops a
+       rejection instead of filling it). The mask, the gap-straddle and the LED agreement are all
+       computed here in the input frame and then PROJECTED onto `nn` through `corr.keptIdx`. Reading
+       an input-frame array at a kept index — which is what this block did from #2333 until now — is
+       exact up to the first rejection and one-off per rejection after it: on a real night at a 29 %
+       correction rate, most of the record's rMSSD/SD1/LF:HF pairs were being judged by a neighbour's
+       SQI and flag, and the gap-straddle test was run on the first `nn.length` input intervals only. */
+    const nIn = rr.length;
+    const spansTime = intervalsSpanningTimeGap(rec.relSec, rec.fs, footSpineOK ? det.feet : det.peaks, nIn);
     /* §4 — an interval that BRIDGES a beat §3 removed is the same kind of non-measurement, arrived at a
        different way: the beat between its endpoints was deleted, so the difference spans ~2 true
        intervals. It is invisible to `intervalsSpanningTimeGap`, which reads the SOURCE grid — and a
        dropped beat leaves no discontinuity in `relSec`, every sample is still present. (That blindness
        is by design, and is why §4 sat deferred behind `nGapSpanIntervals: 0 -> 0`: the counter watched
        to decide whether §4 fires is the one quantity guaranteed not to respond. §4a.) */
-    const spansGap = new Array(nn.length);
-    for (let i = 0; i < nn.length; i++) spansGap[i] = !!spansTime[i] || !!(bridged && bridged[i]);
-    let nGapSpanIntervals = 0;
-    const cleanMask = new Array(nn.length);
-    for (let i = 0; i < nn.length; i++) {
-      const q0 = sqi[i] != null ? sqi[i] : 1,
-        q1 = sqi[i + 1] != null ? sqi[i + 1] : 1;
-      if (spansGap[i]) nGapSpanIntervals++;
-      cleanMask[i] = corr.flags[i] === 0 && q0 >= 0.5 && q1 >= 0.5 && !spansGap[i];
-    }
-    // §5: per-interval mean LED agreement (null when single-channel) for the per-epoch ribbon
-    const agreeI = cons.singleChannel ? null : new Array(nn.length);
-    if (agreeI) {
-      for (let i = 0; i < nn.length; i++) {
-        const a0 = cons.agree[i],
-          a1 = cons.agree[i + 1];
-        agreeI[i] = a0 != null && a1 != null ? (a0 + a1) / 2 : a0 != null ? a0 : a1 != null ? a1 : null;
+    /* ── §∅: A PINNED SPAN IS AN ABSENCE, SO AN INTERVAL CROSSING ONE IS NOT A MEASUREMENT ───────
+       `pinnedSpans` has detected in-band blanking since #2317 and the export has REPORTED it as
+       `quality.pinnedCoverage` — but nothing ever SUBTRACTED it, so every rMSSD/SD1/LF:HF was
+       computed as though the blanked samples were signal. The detector and the reporting were built;
+       the consumption was not, which is the §∅ failure one layer up: a number that describes absence,
+       sitting beside numbers computed as if there were none.
+
+       Owner ruling (P5, 2026-09-12): a pinned span is an ABSENCE and is excluded LIKE A GAP. So this
+       is deliberately the same term in the same conjunction as `spansGapIn`, not a new mechanism —
+       an interval that crosses blanking is the identical kind of non-measurement as one that crosses
+       a delivery hole, and `BLE-TRANSPORT-REDESIGN` §1.2's Done-when is exactly that a planted
+       blanking run must reach a null-or-coverage-annotated metric and nothing else.
+
+       UNION ACROSS CHANNELS, and that choice is conservative on purpose. The beat train is a
+       consensus over the optical channels, so if ANY contributing channel was blanked across the
+       interval the consensus had nothing to agree about there. Taking the intersection would let a
+       single surviving channel launder a blanked consensus into a measurement — the same shape as a
+       fabricated value, arrived at by voting. The cost is over-exclusion where one channel blanks
+       alone, and the corpus figure for that is in the PR rather than assumed.
+
+       SAMPLE INDICES THROUGHOUT — no time conversion. A span is `{first, n}` over the raw channel
+       array and the fiducials are indices into that same array, so the overlap test is exact; going
+       via `relSec` would introduce a rounding question where there is not one. */
+    const pinFid = footSpineOK ? det.feet : det.peaks;
+    const pinRanges = [];
+    for (const sp of rec.spans || []) {
+      for (const r of (sp && sp.spans) || []) {
+        if (r && r.n > 0) pinRanges.push([r.first, r.first + r.n - 1]);
       }
     }
-    const td = /** @type {any} */ (timeDomain(nn, cleanMask, spansGap) || {});
-    const poin = poincare(nn, cleanMask);
+    pinRanges.sort((a, b) => a[0] - b[0]);
+    const spansPinIn = new Array(nIn);
+    let nPinSpanIntervals = 0;
+    for (let i = 0; i < nIn; i++) {
+      let hit = false;
+      if (pinRanges.length && pinFid && pinFid[i] != null && pinFid[i + 1] != null) {
+        const a = pinFid[i],
+          b = pinFid[i + 1];
+        for (const [lo0, hi0] of pinRanges) {
+          if (lo0 > b) break; // sorted ⇒ nothing later can overlap
+          if (hi0 >= a) {
+            hit = true;
+            break;
+          }
+        }
+      }
+      spansPinIn[i] = hit;
+      if (hit) nPinSpanIntervals++;
+    }
+
+    const spansGapIn = new Array(nIn);
+    const cleanIn = new Array(nIn);
+    let nGapSpanIntervals = 0; // over EVERY input interval — a straddle correctRR also rejected still straddled
+    for (let i = 0; i < nIn; i++) {
+      spansGapIn[i] = !!spansTime[i] || !!(bridged && bridged[i]);
+      if (spansGapIn[i]) nGapSpanIntervals++;
+      const q0 = sqi[i] != null ? sqi[i] : 1,
+        q1 = sqi[i + 1] != null ? sqi[i + 1] : 1;
+      cleanIn[i] = corr.flags[i] === 0 && q0 >= 0.5 && q1 >= 0.5 && !spansGapIn[i] && !spansPinIn[i];
+    }
+    // …projected onto the kept series: cleanMask[j] / spansGap[j] describe nn[j], not input interval j.
+    const kIdx = corr.keptIdx;
+    const spansGap = kIdx.map((i) => spansGapIn[i]);
+    const spansPin = kIdx.map((i) => spansPinIn[i]);
+    /* ⚠️ BOTH CONSUMERS, because `timeDomain` excludes through TWO separate channels and they feed
+       different metrics: `omit` filters the base that SDNN/meanRR/HR are computed over, while
+       `cleanMask` gates the successive-difference loop behind rMSSD/pNN50. Adding the pinned term to
+       `cleanIn` alone — which is where this change started — excluded blanking from rMSSD and left it
+       IN SDNN, a half-fix that would have read as done: the planted run would have moved one metric
+       and not the other, and no assertion watched the pair. `spansOmit` is the union, so an absence
+       is absent from both. */
+    const spansOmit = kIdx.map((i) => spansGapIn[i] || spansPinIn[i]);
+    const cleanMask = kIdx.map((i) => cleanIn[i]);
+    /* Pair adjacency in the kept frame: `adj[j]` is false when nn[j-1] and nn[j] were NOT input
+       neighbours, i.e. correctRR dropped ≥1 interval between them. Their successive difference then
+       spans an unaccepted beat — the very pair the pre-#2333 in-place fill excluded through its own
+       flag — and rMSSD/pNN50/SD1 must not count it. adj[0] is vacuous. */
+    const adj = kIdx.map((i, j) => j === 0 || i === kIdx[j - 1] + 1);
+    // §5: per-interval mean LED agreement (null when single-channel) for the per-epoch ribbon
+    const agreeI = cons.singleChannel
+      ? null
+      : kIdx.map((i) => {
+          const a0 = cons.agree[i],
+            a1 = cons.agree[i + 1];
+          return a0 != null && a1 != null ? (a0 + a1) / 2 : a0 != null ? a0 : a1 != null ? a1 : null;
+        });
+    const td = /** @type {any} */ (timeDomain(nn, cleanMask, spansOmit, adj) || {});
+    const poin = poincare(nn, cleanMask, adj);
     /* ── #2 treatment (1): the frequency domain must not see correctRR's substitutes ──────────────
        A rejected interval is replaced by the local-median reference and pushed into `nn`, so at this
        file's own correction rates a real share of the series is a repeated constant. `timeDomain`
@@ -3814,7 +4663,7 @@
     const perfWindow = () => (dc > 0 ? r2((100 * acAmp) / dc) : null);
 
     P(80, 'Epochs…');
-    const epochs = buildEpochs(nn, corr.tt, motion, perfWindow, cleanMask, agreeI);
+    const epochs = buildEpochs(nn, corr.tt, motion, perfWindow, cleanMask, agreeI, adj);
 
     // quality
     const meanSQI = sqi.length ? r2(mean(sqi)) : 0;
@@ -4097,7 +4946,7 @@
       ppiSeries = mk;
       ppiSource = 'o2ring-marker';
     }
-    const validation = validatePPI(nn, ppiSeries, { source: ppiSource });
+    const validation = validatePPI(nn, ppiSeries, { source: ppiSource, selfCorrected: corr.nCorr });
     /* The stability leg needs BOTH detectors' beat TIMES on ONE axis, which is true only for the
        marker source: those rows sit in the same file, on the same `relSec`, as the feet we detected.
        A `_PPI.txt` carries intervals plus the host's ARRIVAL stamps, so differencing against it would
@@ -4181,11 +5030,16 @@
       hrvConfidence,
       nn,
       tt: corr.tt,
-      // Aligned with nn/tt: correctRR returns flags for exactly the series it emitted.
+      // ⚠️ INPUT-aligned, NOT nn/tt-aligned (see correctRR's return note): one entry per interval
+      // handed in, so `ppiFlags.length === nn.length + nDropped`. `ppiKeptIdx[j]` is nn[j]'s index
+      // into it. (This line claimed alignment with nn from #2333 until the mask fix — it was wrong.)
       ppiFlags: corr.flags,
+      ppiKeptIdx: corr.keptIdx,
+      // nn-aligned: interval j is clean (unflagged, both endpoint SQI ≥ 0.5, no gap straddle)
+      ppiClean: cleanMask,
       // Aligned with nn/tt the same way — the fused-hat per-beat weight (see the block above).
       ppiConf,
-      ...(_confSpanOK ? {} : { ppiConfReason: 'implausible-span' }), // F10 — see the beatConfidence call
+      ...(_confSpanOK ? {} : { ppiConfReason: _clockSeam ? 'clock-seam' : 'implausible-span' }), // F10 + seam — see the beatConfidence call
       poincareNN: nn,
       sd1: poin ? poin.sd1 : null,
       sd2: poin ? poin.sd2 : null,
@@ -4198,6 +5052,8 @@
       meanSQI,
       cleanBeatPct,
       analyzablePct,
+      // §∅ raw span sets, per optical channel — projected into the export's `quality.pinnedCoverage`.
+      pinnedSpanSets: rec.spans || null,
       coveragePct: cleanBeatPct,
       correctionRate,
       nCorrected: corr.nCorr,
@@ -4253,6 +5109,27 @@
          0.001-0.088 measured), reported as a number so a reader can judge the borderline rather than
          inherit a verdict. */
       timingSource: (rec.hostAxis && rec.hostAxis.timingSource) || null,
+      /* The seam flag itself, so a consumer of `r` (the measurement emitter below) can refuse over a
+         discontinuity without re-deriving it from `ppiConfReason` — §∅ owner ruling 2026-09-17: a
+         DISCONTINUITY refuses, reduced coverage annotates. `clockResyncs` rides beside it so the
+         refusal can name the seam(s). */
+      clockSeam: _clockSeam,
+      clockResyncs: rec.clockResyncs || null,
+      /* ── THE AXIS OBJECT ITSELF, and why one scalar was not enough ──────────────────────────────
+         `ppgBuildNodeExport` has a whole `recording.hostAxis` block gated on `r.hostAxis && .ok`,
+         mirroring ECGDex field for field — and `analyze` never forwarded the object, so `r.hostAxis`
+         was `undefined` on every compute() and the block has never once emitted. The three scalars
+         above (`timingSource`, `axisDrawn`, `axisQuantizedShare`) were projected out one at a time as
+         each was needed, which is exactly how the object came to be dropped: each projection looked
+         like the fix for the field it added and none of them restored the source.
+         What was lost is everything the block names and no scalar carries: `ppm`, `anchors`,
+         `spreadMs`, `independent`, `inertReason`, `maxStepMs`, `stability`. `independent` is §7's
+         discriminator for whether a second clock exists at all, and `inertReason` is the sentence
+         DexClock wrote when it said no — a consumer reading `timingSource: 'host'` alone cannot tell
+         a measured refusal from a missing measurement.
+         The block is CONDITIONAL on `.ok`, so a recording without an axis still omits it and stays
+         byte-identical; this makes the condition reachable, it does not widen it. */
+      hostAxis: rec.hostAxis || null,
       // Which RATE reference governed this recording (O2RING-ADAPTIVE-TIMEBASE): 'device-crystal' (the
       // 125.000 ADC clock, markers deflated) or 'host-disciplined' (the host-referenced row axis) for an
       // O2Ring finger recording; null for a Verity (a real multi-oscillator device, not an either/or).
@@ -4268,7 +5145,20 @@
       // Intervals excluded because they STRADDLE a time discontinuity — real time the capture lost, so
       // the foot-to-foot difference may span absent beats (O2RING-PPG-GAP §2). Surfaced rather than
       // silently dropped: a night with many of these had a lossy link, and the reader should know.
+      /* ⚠️ THE DENOMINATOR, published because without it neither counter above is a rate.
+         `nGapSpanIntervals` has shipped since #2333 as a bare count and `nPinSpanIntervals` was
+         about to join it. Both are counted over EVERY INPUT interval while the export's series is
+         the KEPT subset, so dividing by `nn.length` mixes two populations — measured while writing
+         this, it produced a per-file "800 %", which is the only reason the mismatch was caught
+         before it reached a changeset. This is §1.5 of BLE-TRANSPORT-REDESIGN ("instrument the
+         DENOMINATOR, not the failures") applied to the two counters that needed it. */
+      nInputIntervals: nIn,
       nGapSpanIntervals,
+      /* Published beside its gap twin so the exclusion is VISIBLE. A silent exclusion and a silent
+         inclusion are the same defect facing opposite ways: this number is how a reader tells
+         "no blanking" from "blanking nobody subtracted", which is the distinction that did not
+         exist before this change. */
+      nPinSpanIntervals,
       hrvLowConfidence,
       hrvLowConfidenceReason,
       // §2 — WHY the confidence dropped, as a field rather than a substring of the reason. Coverage
@@ -4566,6 +5456,7 @@
     parsePPG,
     parseSensorXYZ,
     parseDevicePPI,
+    buildSelfPPIText,
     analyze,
     analyzeMotion,
     movementOnsets,
@@ -4596,6 +5487,11 @@
     cadenceSamples,
     beatRegularity,
     markO2BeatMarkers,
+    // §∅ absence-as-value: span detection + the DERIVED settling widening (never a constant).
+    pinnedSpans,
+    parsePinnedRuns,
+    crossCheckPinned,
+    settlingWidenSec,
     markO2Sentinels: markO2BeatMarkers, // back-compat alias — the old name asserted the wrong semantics
     refineFeet,
     detectChannelsAsync,
@@ -4643,8 +5539,118 @@
   //  and self-contained — kernel/provenance arrive via opts (typeof-guarded by the
   //  caller), never reached off window here (CONTRIBUTING.md §6 / brief §1B).
   // ════════════════════════════════════════════════════════════════════════
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  MEASUREMENT BLOCKS — the THIRD emitter of the roadmap §1 `measurement` block (roadmap §12, PpgDex
+  //  row; OxyDex first, ECGDex second — `ecgBuildMeasurementBlocks` is the recipe this mirrors). Two
+  //  headline metrics, one block each, keyed by the PPG registry id (`hr` = Pulse HR · `rmssd`), values =
+  //  the WHOLE-RECORD numbers `r.hr` / `r.rmssd` — `timeDomain(nn, cleanMask, spansOmit, adj)` over the
+  //  entire Malik-corrected NN train, the numbers the rich export already publishes as hrv.time.{hr,rmssd}
+  //  and the Integrator reads as its consensus axis. The block adds LINEAGE, never a second computation.
+  //
+  //  ⚠️ THE RULE THIS ROW EXISTS FOR (§12 PpgDex row; §∅ owner ruling 2026-09-17): a `clock-seam` refusal
+  //  ⇒ NO BLOCK. A capture-side resync (`rec.clockResyncs`) means the NN train spans two clocks; the
+  //  whole-record rMSSD/HR are still COMPUTED over it (the display path has always shown them), but a
+  //  number over a discontinuity describes no single stretch of signal, so it gets no lineage-bearing
+  //  measurement block — `measurement: null` with `measurementReason` naming the seam(s). Reduced
+  //  coverage (dropouts, pinned spans) is NOT a seam: it annotates through `quality`, never refuses.
+  //
+  //  basis: 'derived' (LEXICON §4b) — a statistic over a detected, corrected beat train.
+  //  window: [t0Ms, endEpochMs] (the parser's last stamped row); when absent the beat span stands in and
+  //  is named. clockDomain 'device'. spreadMs: PpgDex ships WITHOUT clock.js (CLAUDE.md §✅ — DexClock is
+  //  undefined in the bundle), so `r.hostAxis` is `{ok:false}` there and the spread is null WITH that
+  //  reason; a headless co-loaded run may carry a measured spread — the block reports whichever the
+  //  node-local axis actually produced, never a value the bundle could not have measured.
+  //  evidence: inputHash = the export's recording.contentId (SignalFrame content address of the NN train),
+  //  computed ONCE in ppgBuildNodeExport and shared. No acquisition envelope joins the PPG path today
+  //  (the capture-host envelope keys on the O2Ring .dat session_id; PpgDex reads the _PPG.txt) — null
+  //  with that reason. code: `opts.code` ONLY — this DSP is born-clean (no `document`); the APP layer and
+  //  the regen tool read the <html data-manifest-hash/data-compute-hash> stamp and pass it in.
+  // ═══════════════════════════════════════════════════════════════════════════
+  function ppgBuildMeasurementBlocks(r, opts) {
+    opts = opts || {};
+    if (!r || typeof r !== 'object') return null;
+    if (r.clockSeam === true) return null; // a discontinuity refuses — the caller names the seam (§∅ 2026-09-17)
+    var t0 = r.t0Ms != null && isFinite(r.t0Ms) ? r.t0Ms : null;
+    var tEnd = r.endEpochMs != null && isFinite(r.endEpochMs) ? r.endEpochMs : null;
+    var windowNote = null;
+    if (tEnd == null && t0 != null && r.durSec != null && isFinite(r.durSec) && r.durSec > 0) {
+      tEnd = t0 + Math.round(r.durSec * 1000);
+      windowNote = 'no parsed clock end on this input — endTMs is t0Ms + durSec (the sample span)';
+    }
+    if (t0 == null || tEnd == null || tEnd <= t0) return null; // no placeable window → no block (never fabricate one)
+    var code = opts.code && typeof opts.code === 'object' ? { manifestHash: opts.code.manifestHash, computeHash: opts.code.computeHash } : null;
+    var contentId = opts.contentId != null ? opts.contentId : null;
+    var evidence = {
+      envelopeRef: null,
+      envelopeReason: 'no acquisition envelope joins the PPG path — the capture-host envelope keys on the O2Ring .dat session_id; PpgDex reads the _PPG.txt stream',
+      inputHash: contentId
+    };
+    if (evidence.inputHash == null) evidence.inputReason = 'contentId unavailable (SignalFrame not co-loaded, or no NN train)';
+    var ha = r.hostAxis && r.hostAxis.ok ? r.hostAxis : null;
+    var window = {
+      startTMs: t0,
+      endTMs: tEnd,
+      clockDomain: 'device',
+      timingSource: ha && ha.timingSource ? ha.timingSource : 'device',
+      spreadMs: ha && ha.spreadMs != null && isFinite(ha.spreadMs) ? ha.spreadMs : null
+    };
+    if (window.spreadMs == null)
+      window.spreadReason = ha
+        ? 'host axis present but published no spread'
+        : typeof DexClock === 'undefined'
+          ? 'no DexClock in this bundle (PpgDex ships without clock.js — CLAUDE.md §✅) — the node-local axis measures no host spread'
+          : 'no host axis on this input (single device clock, or hostAxis refused) — nothing to measure spread against';
+    if (windowNote) window.windowReason = windowNote;
+    var quality = {
+      n: r.nBeats != null ? r.nBeats : null,
+      durationMin: r.durMin != null ? r.durMin : null,
+      analyzablePct: r.analyzablePct != null ? r.analyzablePct : null,
+      coveragePct: r.coveragePct != null ? r.coveragePct : null
+    };
+    var channel = (r.site === 'finger' ? 'O2Ring' : 'Verity') + ':ppg'; // the optical site the export already declares
+    var mk = function (metricId, value) {
+      if (value == null || typeof value !== 'number' || !isFinite(value)) return null; // unmeasured ⇒ no block
+      var b = {
+        metricId: metricId,
+        value: value,
+        window: window,
+        sourceChannel: channel,
+        code: code,
+        evidence: evidence,
+        basis: 'derived',
+        quality: quality,
+        uncertainty: null,
+        uncertaintyReason: 'not estimated — this node carries no uncertainty model for whole-record HRV summaries (the device-PPI cross-check in `validation` is a comparison, not an interval)'
+      };
+      if (code == null)
+        b.codeReason =
+          'no bundle identity passed (headless source-module run) — the app reads <html data-manifest-hash/data-compute-hash> and passes opts.code; the regen tool passes the shipped bundle’s';
+      return b;
+    };
+    var out = {};
+    var blocks = [
+      ['hr', r.hr],
+      ['rmssd', r.rmssd]
+    ];
+    var any = false;
+    for (var i = 0; i < blocks.length; i++) {
+      var b = mk(blocks[i][0], blocks[i][1]);
+      if (b) {
+        out[blocks[i][0]] = b;
+        any = true;
+      }
+    }
+    return any ? out : null;
+  }
+
   function ppgBuildNodeExport(r, opts) {
     opts = opts || {};
+    // EXPORT-IDENTITY §2.1: computed ONCE here and shared by recording.contentId and the measurement
+    // blocks' evidence.inputHash — one content address, two readers, no drift between them.
+    var _contentId =
+      typeof SignalFrame !== 'undefined' && SignalFrame && SignalFrame.computeContentId && r.nn && r.nn.length
+        ? SignalFrame.computeContentId({ signalType: 'ppg', kind: 'intervals', intervals: r.nn, t0Ms: r.t0Ms != null ? r.t0Ms : null, usable: true })
+        : null;
     // PPGDEX-FOLLOWUPS §3: preserve the per-event sqi axis (R7 — "SQI rides ALONGSIDE conf", a SEPARATE
     // quality axis, not folded into conf). buildEvents stamps sqi on EVERY event (a number for the per-beat-
     // quality impulses e.g. motion_artifact_segment via sqiAt(); null where it doesn't apply). The old
@@ -4671,7 +5677,7 @@
         : null,
       schema: {
         name: 'ganglior.node-export',
-        version: '2.0',
+        version: '2.1', // 2.1 — the MINOR bump lands with the `measurement` block (docs/EXPORT-SHAPES.md); OxyDex and ECGDex bumped first.
         node: 'PpgDex',
         nodeVersion: '1.0',
         bus: 'ganglior',
@@ -4683,10 +5689,7 @@
       // shared builder (both app exportGanglior + headless compute reach it). Folds the NN beat series.
       recording: {
         source: 'ppg',
-        contentId:
-          typeof SignalFrame !== 'undefined' && SignalFrame && SignalFrame.computeContentId && r.nn && r.nn.length
-            ? SignalFrame.computeContentId({ signalType: 'ppg', kind: 'intervals', intervals: r.nn, t0Ms: r.t0Ms != null ? r.t0Ms : null, usable: true })
-            : null,
+        contentId: _contentId,
         startEpochMs: r.t0Ms != null ? r.t0Ms : null,
         /* NODE-EXPORT-DURATION-SEMANTICS §3 — where the recording ENDS on the clock, beside how much
            signal it holds. `integrator-dsp normalizeFile` already prefers `endEpochMs` over every
@@ -4720,8 +5723,17 @@
         siteSource: r.siteSource || 'device-default'
       },
       ganglior_events: events,
-      reserved: { doc: 'Awaiting other fleet nodes; null until available.' }
+      reserved: { doc: 'Awaiting other fleet nodes; null until available.' },
+      // MEASUREMENT-PROVENANCE-ROADMAP §12 — the third emitter. On BOTH light and rich (the block adds
+      // lineage, not a rich payload). null ⇒ either no placeable window/metric, or a clock seam — the
+      // seam case is NAMED below, never silent (§∅ 2026-09-17: a discontinuity refuses).
+      measurement: ppgBuildMeasurementBlocks(r, { code: opts.code, contentId: _contentId })
     };
+    if (out.measurement == null && r.clockSeam === true)
+      out.measurementReason =
+        'clock-seam: ' +
+        (r.clockResyncs ? r.clockResyncs.length : 0) +
+        ' capture-side resync(s) — the NN train spans two clocks, so no whole-record number describes one continuous stretch of signal; no measurement block is emitted over a discontinuity (§∅ owner ruling 2026-09-17)';
     /* SPARSE COVERAGE — INTEGRATOR-GAP-AWARE-OVERLAP part 2. `durSec` above is the ENVELOPE this node
        records over; it does not say where inside that envelope the signal is. The Verity is the
        fleet's most fragmented stream — 24 segments in one night against the H10's 3 — and its envelope
@@ -4771,6 +5783,15 @@
               atLongestPpm: _v.stability.atLongestPpm,
               tauMaxSec: _v.stability.tauMaxSec,
               optimalTauSec: _v.stability.optimalTauSec,
+              /* THE CURVE (residue 2026-09-21-adev-curve-not-exported-by-either-node). The DSP has
+                 computed it all along; the EXPORT dropped it, so every reader got projections —
+                 `optimalTauSec` and `atLongest*` cannot show WHERE the floor sits or whether the
+                 slope was fitted across a KNEE, and §7's point is that the slope names the mechanism.
+                 Republished as `{tauSec, adevPpm, n}`: `adev` here is ms/s (phase in ms over τ in
+                 seconds), so ×1000 is ppm — the same unit as `atShortestPpm`, and never the `…Ms`
+                 misnomer the block above is stuck with. `n` is the term count at that τ, so a reader
+                 can see the estimate widen as τ grows. Octave ladder ⇒ ≤ ~20 points. */
+              curve: (_v.stability.curve || []).map((pt) => ({ tauSec: pt.tau, adevPpm: pt.adev * 1000, n: pt.n })),
               /* KEPT, with corrected text rather than deleted: a consumer may key on its presence, and
                  removing a published field is a contract change for a string that only needed to stop
                  lying. Before 2026-08-16 it warned that the label was unreliable near a boundary;
@@ -4821,6 +5842,79 @@
         ppiAgreementPct: nz(r.ppiAgreementPct),
         ppiCorrFootPct: nz(r.ppiCorrFootPct),
         ppiCorrPeakPct: nz(r.ppiCorrPeakPct),
+        /* §∅ PINNED COVERAGE — how much of each optical channel was a rail reporting NOTHING.
+           ⚠️ NAMED `pinnedCoverage`, NOT `coverage`: this export already publishes
+           `recording.coverage` (INTEGRATOR-GAP-AWARE-OVERLAP — TIME segments), and a first draft
+           called itself `coverage`, shadowed it, and reddened 14 assertions including the twin whose
+           whole purpose is declaring segment coverage. Two different absences — time not recorded vs
+           value not measured — must not share a name.
+           ⚠️ AND IT IS PUBLISHED HERE, in the EMITTER, not in `analyze`'s internal quality object.
+           The first attempt added it beside `sentinelRejected` on the assumption that block was the
+           exported one. It is not — `sentinelRejected` never reaches the export either — so the
+           field was INERT and every golden stayed byte-identical, which read as "export-inert" when
+           it was "not wired at all". The goldens passing is what exposed it.
+           Per CHANNEL because a hold is a property of a signal path: pooling lets one live channel
+           mask two pinned ones. `rail: null` is a clean stream, and is DISTINCT from a rail existing
+           with zero spans. Errs low — a consumer can filter `n` upward but can never recover a span
+           that was never emitted. */
+        pinnedCoverage: (r.pinnedSpanSets || []).map(function (sp, ci) {
+          /* ── §∅ SATURATION IS ITS OWN STATE (owner ruling 2026-09-18) ──────────────────────────
+             P5 ruled that a pinned span is an ABSENCE excluded like a gap. That ruling is now SCOPED
+             TO THE ZERO RAIL. A run at the TOP rail is a measurement AT ITS BOUND: the true value was
+             at-or-above the rail, which is strictly more than "not measured". Excluding it as absence
+             discards that; publishing it as data fabricates precision. So it is excluded exactly as
+             before AND labelled distinctly.
+
+             The detector has always known which rail — `pinnedSpans` stamps `end: 'lo' | 'hi'` per
+             span at its emit site — and this projection threw it away, pooling both into one
+             `samplesUnmeasured`. That is the §∅ shape one layer up, and the same one #2531 fixed for
+             absence while leaving it standing here: detected, reported, then collapsed at the point a
+             consumer would read it.
+
+             ⚠️ `samplesUnmeasured` IS KEPT AND STILL MEANS THE TOTAL. An existing consumer sees no
+             change, and the two new fields are additive. The name is now imprecise for the saturated
+             half — a saturated sample WAS measured — and it is deliberately NOT renamed, because
+             renaming a shipped field to improve a word breaks every reader of it.
+
+             🔴 THE LABEL IS DELIBERATELY INERT, AND THAT IS THE OWNER'S CALL, NOT AN OVERSIGHT.
+             Whether saturation should be excluded from a NARROWER set of statistics than absence was
+             put to the owner and DEFERRED (2026-09-18) until a controlled finger-off capture, so that
+             all three populations — floor, ceiling, and the non-rail run — are classified in ONE pass
+             rather than two. So `spansOmit` still excludes both rails identically to before, NOTHING
+             reads this label yet, and no computed statistic moves.
+
+             What the unit buys is that the decision becomes IMPLEMENTABLE. Today the exclusion set
+             cannot be narrowed for saturation at all: by the time `spansOmit` exists the rail is
+             already gone. After this, narrowing is a change at one site the moment the owner decides.
+
+             ⚠️ DO NOT "FINISH" THIS BY WIRING THE LABEL TO A DIFFERENT EXCLUSION. That is the deferred
+             decision, and taking it because the label now exists would be inferring an answer from the
+             shape of the enabling step.
+
+             NO THRESHOLD IS CHOSEN either: this re-labels what the shipped `PIN_MIN_RUN = 5` rail
+             detector already finds. The value-agnostic run-length rule needs a threshold, that
+             threshold is deferred to the same capture, and it is a separate unit. */
+          var lost = 0,
+            absent = 0,
+            saturated = 0;
+          for (var k = 0; k < sp.spans.length; k++) {
+            var sn = sp.spans[k].n;
+            lost += sn;
+            if (sp.spans[k].end === 'hi') saturated += sn;
+            else absent += sn;
+          }
+          return {
+            channel: ci,
+            rail: sp.railLo != null || sp.railHi != null ? { lo: sp.railLo, hi: sp.railHi } : null,
+            spans: sp.spans.length,
+            samplesUnmeasured: lost,
+            /* ABSENT — pinned at the FLOOR. Nothing was measured; §∅'s original case. */
+            samplesAbsent: absent,
+            /* SATURATED — pinned at the CEILING. A measurement at its bound: the true value was
+               at-or-above `rail.hi`, so a consumer needing a lower bound has one. */
+            samplesSaturated: saturated
+          };
+        }),
         /* ── TIMING PROVENANCE (WEARABLE-HOST-AXIS-FOLLOWUPS §F1) — additive, contract-safe ──
            A consumer that spends this export as a CLOCK LEG (three-cornered hat, three-source closure,
            PAT) must branch on `timingSource` BEFORE using ppi.tSec as a time base:
@@ -4872,12 +5966,34 @@
           drawn: r.hostAxis.drawn == null ? null : r.hostAxis.drawn,
           quantizedShare: nz(r.hostAxis.quantizedShare),
           timingSource: r.timingSource || null,
+          /* ⚠️ THE SOURCE KEYS ARE `tau0Sec` AND `noise`, NOT `tau0`/`noiseType`
+             (ALLAN-STABILITY-GAPS §2.1). This block read the EXPORTED names back off the spine object,
+             which never carried them, so `tau0` and `noiseType` were exported as PERMANENT null on
+             every recording — a fabricated absence rather than a measurement, and one that reads
+             exactly like "this pair has no second clock". The exported NAMES are kept for the
+             consumers that already read them; only the source keys are corrected.
+             `nTau` IS exported as of the spine forward (residue `2026-09-07-hostaxis-stability-
+             ntau-not-forwarded`) — it was withheld here only while `hostAxis.stability` dropped it,
+             because reading an absent key would have re-created this very defect one field over. It
+             is the n behind `slopeSE` and is NOT `taus`: the fit drops any τ whose `adev` is exactly
+             zero, so `taus` overstates the SE's sample. */
           stability: r.hostAxis.stability
             ? {
-                tau0: nz(r.hostAxis.stability.tau0),
-                noiseType: r.hostAxis.stability.noiseType || null,
+                tau0: nz(r.hostAxis.stability.tau0Sec),
+                noiseType: r.hostAxis.stability.noise || null,
                 slope: nz(r.hostAxis.stability.slope),
-                ppmUncertainty: nz(r.hostAxis.stability.ppmUncertainty)
+                slopeSE: nz(r.hostAxis.stability.slopeSE),
+                nTau: nz(r.hostAxis.stability.nTau),
+                candidates: r.hostAxis.stability.candidates || null,
+                optimalTauSec: nz(r.hostAxis.stability.optimalTauSec),
+                atLongestPpm: nz(r.hostAxis.stability.atLongestPpm),
+                ppmUncertainty: nz(r.hostAxis.stability.ppmUncertainty),
+                /* THE CURVE (residue 2026-09-21-adev-curve-not-exported-by-either-node) — every field
+                   above is a projection of exactly these points, and none of them can show a KNEE,
+                   which is the shape that makes `slope` unreadable (§7: the slope names the
+                   mechanism). Straight from the spine as `{tauSec, adevPpm, n}`; `[]` only if a spine
+                   older than the curve ever reaches here. */
+                curve: r.hostAxis.stability.curve || []
               }
             : null
         };
@@ -5018,16 +6134,26 @@
           ms: r.nn.map(function (v) {
             return Math.round(v);
           }),
-          /* WHICH INTERVALS ARE MEASUREMENTS. 1 = interpolated by correctRR, not observed. Without it
-             the series mixes the two and a consumer cannot tell — and rMSSD over interpolated beats is
-             not a measurement of anything. This one is not hypothetical here: the first four PPI of a
-             real night read 1190, 1190, 1190, 1190 — the running median, not four identical heartbeats. */
-          corrected:
-            r.ppiFlags && r.ppiFlags.length === r.nn.length
-              ? Array.prototype.map.call(r.ppiFlags, function (f) {
-                  return f ? 1 : 0;
-                })
-              : null,
+          /* WHICH INTERVALS ARE MEASUREMENTS. 1 = interpolated, not observed.
+             ↻ SINCE PUNCH LIST #2 THIS IS INVARIANTLY ZERO, and that is the fix rather than a
+             regression. `correctRR` no longer interpolates a rejected interval — it EXCLUDES it — so
+             the emitted series contains no fabricated beat and the mask's original job ("tell the two
+             apart, because rMSSD over interpolated beats is not a measurement of anything") is now
+             done BY CONSTRUCTION. The example that motivated it was real: the first four PPI of a
+             real night read 1190, 1190, 1190, 1190 — the running median, not four identical
+             heartbeats. Those intervals are simply absent now.
+             The field is KEPT rather than dropped: it is a published contract, a consumer that
+             branches on it still gets a correct and aligned answer, and a future path that
+             reintroduces interpolation would have somewhere honest to say so. How many were refused
+             is reported separately by `quality.correctionRatePct` / `correctRR().nDropped`.
+             ⚠️ It is built from `nn`, NOT from `ppiFlags`: flags stay INPUT-aligned (see correctRR's
+             return note) so `ppiFlags.length !== nn.length` after any rejection, and the old
+             length-guard here — correctly — refused to emit a misaligned mask and returned `null`.
+             That guard is what caught this change in `verify-fixtures` rather than in the corpus-less
+             suite, which cannot see it. */
+          corrected: r.nn.map(function () {
+            return 0;
+          }),
           /* HOW MUCH TO TRUST EACH BEAT — the fused-weight hat's `c` (TCH-FUSED-ROBUST-HAT).
              density × SQI vs the record's own medians, AF-safe; low only where beat-density is an
              upper outlier AND SQI is depressed — i.e. residual optical over-detection (the dicrotic
@@ -5062,9 +6188,27 @@
       var n = s.n != null ? s.n : s.ch[0] ? s.ch[0].length : 0;
       var fs = input.fs != null ? input.fs : s.fs;
       var relSec = s.relSec;
+      /* §∅ — A SAMPLE RATE THAT WAS NOT MEASURED IS NULL, NEVER 1. Both arms below used to read
+         `fs || 1`, so a frame carrying neither `input.fs` nor `samples.fs` silently got a 1 Hz axis:
+         measured on the synthetic Verity frame, a 540-second recording became 95,039 seconds — 176× —
+         and every beat time rode that axis through `rec.relSec` → `footSec`. An absent rate is not
+         reduced coverage, it is the absence of the time axis itself, so this REFUSES rather than
+         annotating (the 2026-09-17 ruling: a discontinuity refuses, reduced coverage annotates).
+         NARROW BY CONSTRUCTION: fs is only needed to BUILD an axis, so a frame that already carries
+         `relSec` and `durSec` never reaches this and is not convicted — pinned by two legs of the
+         `PpgDex §∅` group. Rows ppgdex-dsp.js:6193 / :6203 of ABSENCE-SURVEY-2026-09-22. */
+      var fsUsable = typeof fs === 'number' && isFinite(fs) && fs > 0;
+      var needFs = !relSec || (s.durSec == null && n > 1);
+      if (needFs && !fsUsable) {
+        throw new Error(
+          'PpgDex.compute: this ppg SignalFrame carries no usable sample rate (neither input.fs nor samples.fs) and ' +
+            (!relSec ? 'no relSec to read one from' : 'no durSec') +
+            ', so the time axis cannot be built — refusing rather than assuming 1 Hz (CLAUDE.md §∅: a rate that was not measured is null, never a number)'
+        );
+      }
       if (!relSec) {
         relSec = new Float64Array(n);
-        for (var i = 0; i < n; i++) relSec[i] = i / (fs || 1);
+        for (var i = 0; i < n; i++) relSec[i] = i / fs;
       }
       rec = {
         ch: s.ch,
@@ -5074,12 +6218,12 @@
         fs: fs,
         t0Ms: input.t0Ms != null ? input.t0Ms : s.t0Ms != null ? s.t0Ms : null,
         offsetMin: input.offsetMin != null ? input.offsetMin : null,
-        durSec: s.durSec != null ? s.durSec : n > 1 ? (n - 1) / (fs || 1) : 0,
+        durSec: s.durSec != null ? s.durSec : n > 1 ? (n - 1) / fs : 0,
         /* §1.4 — derive site here too, by the SAME rule as the text path. Omitting it let the export's
            `rec.site || 'wrist'` fallback stamp every frame-routed recording 'wrist'. A declared site
            (`s.site`) wins if an adapter ever carries one; otherwise it is the layout fact, and
            `siteSource` stays 'device-default' so a grader can still tell a default from a declaration. */
-        site: s.site || deriveSiteFromLayout(s.ch, n),
+        site: s.site || deriveSiteFromLayout(s.ch, n, s.dual),
         siteSource: s.siteSource || 'device-default',
         acc: input.acc || null,
         gyro: input.gyro || null,
@@ -5093,7 +6237,10 @@
       var text =
         typeof input === 'string' ? input : input && typeof input.text === 'string' ? input.text : input && input.samples && typeof input.samples.text === 'string' ? input.samples.text : null;
       if (text == null) throw new Error('PpgDex.compute: need a Polar Sense *_PPG.txt string, {text}, a parsed rec {ch:[…]}, or a ppg SignalFrame {samples:{ch:[…]}}.');
-      rec = parsePPG(text, { timebase: opts.timebase });
+      /* §∅ P5 clause 2 — `runsText` is the `_PPGRUNS.txt` companion's bytes when the caller
+         attached one. Added LAST and OPTIONAL: every existing caller keeps its exact behaviour and
+         `parsePinnedRuns(undefined)` returns null, so the no-sidecar path is unchanged. */
+      rec = parsePPG(text, { timebase: opts.timebase, runsText: opts.runsText });
     }
     if (opts.source) rec.source = opts.source;
     if (opts.fname && !rec.fname) rec.fname = opts.fname;
@@ -5158,7 +6305,15 @@
     };
   }
 
-  global.PpgDex = global.PpgDex || { compute: compute, parsePPG: parsePPG, analyze: analyze, buildNodeExport: ppgBuildNodeExport, _build: ppgBuildNodeExport, coverage: ppgCoverage };
+  global.PpgDex = global.PpgDex || {
+    compute: compute,
+    parsePPG: parsePPG,
+    analyze: analyze,
+    buildNodeExport: ppgBuildNodeExport,
+    _build: ppgBuildNodeExport,
+    coverage: ppgCoverage,
+    buildMeasurementBlocks: ppgBuildMeasurementBlocks
+  };
   global.PpgDex.loadOwnExport = ppgLoadOwnExport; // SELF-INGEST reload (review-mode clinical view)
   // scrub-for-sharing → the SHARED dexScrubExport (D1); lazy delegate, co-load order irrelevant.
   global.PpgDex.scrubExport = function (env) {

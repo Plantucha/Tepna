@@ -136,7 +136,12 @@ def test_write_hr_on_a_non_hr_writer_writes_no_orphan_rr_file(tmp_path):
     w = writers.StreamWriter(str(p), "ppi", fsync=False)
     w.write_hr(dt.datetime(2026, 7, 25, 22, 30, 0), 0, 55, [800, 810])
     w.close()
-    assert w.paths == [str(p)], "no RR sibling is owned, so none may be reported"
+    # Narrowed from `== [str(p)]` to the RR-specific claim this test is actually about. A writer may
+    # legitimately own OTHER siblings — `ppi` is device-clocked, so a clock-seam sidecar opens when a
+    # device clock arrives — and an exact-list assertion fails on those for a reason unrelated to the
+    # orphan it guards. The guarantee is unchanged: no RR sibling is owned or reported.
+    assert str(p) in w.paths
+    assert not any(q.endswith("_RR.txt") for q in w.paths), "no RR sibling is owned, so none may be reported"
     assert not any(f.endswith("_RR.txt") for f in os.listdir(tmp_path))
 
 
@@ -234,7 +239,7 @@ def test_a_frame_that_fails_its_crc_is_dropped_rather_than_queued(tmp_path, monk
     blob = b"\x01\x03" + bytes(range(256)) * 4
     ring = _CorruptingRing(["20260719010000"], blob)
     _install_ring(monkeypatch, ring)
-    got = _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, None, "0000"))
+    got = _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "latest", 0, None, "0000"))
     assert len(got) == 1
     assert open(got[0], "rb").read() == blob, "the good frames still round-trip exactly"
 
@@ -246,5 +251,5 @@ def test_a_large_transfer_without_a_progress_hook_still_completes(tmp_path, monk
     blob = b"\x01\x03" + b"n" * 60000
     ring = FakeRing(["20260719010000"], blob, chunk=512)
     _install_ring(monkeypatch, ring)
-    got = _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, None, "0000"))
+    got = _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "latest", 0, None, "0000"))
     assert len(got) == 1 and os.path.getsize(got[0]) == len(blob)

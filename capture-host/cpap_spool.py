@@ -35,6 +35,16 @@
 # overwrites), and appends the missing line. Duplicate (cursor_in, sha256) lines are deduped, which
 # also makes the steady-state NO_MORE re-poll a no-op instead of a slow leak.
 #
+# ⚠️ A DEDUPED ROUND IS NOT AN ABSENCE OF NEW DATA, and reading it as one stalled a live box for 17
+# days (residue 2026-09-17-cpap-spool-cursor-advanced-past-uncommitted). A NO_MORE row commits its
+# OWN input as `committed_cursor`, so every later pass re-asks that address; when the spool has since
+# grown, the device re-serves those identical bytes AND raises MORE with a new nextSpoolAddress. The
+# dedupe test fired first and the MORE signal was dropped, so 22 consecutive pulls reported
+# "no-new-data" and committed nothing. The loop now SKIPS an already-committed round and follows the
+# device's pointer; the ledger cursor is untouched by a skip, so nothing advances across an
+# unretrieved span. `stopped="no-new-data"` therefore means the device offered no way forward — not
+# merely that the round was familiar.
+#
 # Between-rounds drop (brief §6, capture still owed): predicted CLEAN — the committed cursor is
 # exactly the next round's input and the re-serve pin applies to any fromDateTime. The prediction is
 # carried behind ONE injectable seam (`revalidate`): if tomorrow's capture refutes it, the guard
@@ -42,6 +52,8 @@
 # localized change, not a rework.
 
 from __future__ import annotations
+
+from typing import Any
 
 import hashlib
 import json
@@ -234,8 +246,12 @@ async def sync_spool(pull_round, root: str, *, device: str, session: str,
     seen = {_row_key(r) for r in rows}
     round_seq = rows[-1]["round_seq"] + 1 if rows else 0
     cursor = rows[-1]["committed_cursor"] if rows else epoch_start
-    summary = {"rounds_committed": 0, "bytes": 0, "cursor": cursor,
-               "stopped": None, "failure": None}
+    # Heterogeneous by design — two counters, a cursor, and two nullable outcome slots. Without the
+    # annotation mypy joins the literal's value types to `object | None`, so `summary["bytes"] += len(...)`
+    # read as `None + int` AND `str + int` on the same line: four errors from one un-annotated literal,
+    # none of them a real defect.
+    summary: dict[str, Any] = {"rounds_committed": 0, "bytes": 0, "cursor": cursor,
+                               "stopped": None, "failure": None}
     if on_transition is not None:
         on_transition("SYNCING", f"spool sync from {cursor}")
     for _ in range(max_rounds):
@@ -264,8 +280,24 @@ async def sync_spool(pull_round, root: str, *, device: str, session: str,
         filename = round_filename(cursor, sha)
         committed_cursor = next_from if more else cursor
         if (cursor, sha) in seen:
-            # Steady-state re-poll of a NO_MORE cursor re-serves the committed round: adopt, no
-            # duplicate line, clean stop.
+            # This exact round is already committed: never re-promote it, never duplicate its line.
+            # But an already-committed round can still carry the device's MORE signal pointing PAST
+            # itself, and that is the STEADY STATE, not an edge case: a NO_MORE row's
+            # committed_cursor is its OWN input (there was nothing to advance to), so the next pass
+            # necessarily re-asks the committed address — and once later data exists the device
+            # answers with the same bytes plus a NEW nextSpoolAddress. Reading that as "no new data"
+            # parks the sync on that address permanently while the log says the pull completed.
+            # Consume the signal instead: skip the committed round and keep going.
+            #
+            # Only the IN-LOOP cursor moves here. The COMMITTED cursor still advances solely via
+            # append_ledger below, so it can never cross a span that was not actually retrieved —
+            # a crash mid-skip resumes from the unchanged ledger cursor and simply re-skips.
+            # `next_from != cursor` is load-bearing: a device that re-serves a round while pointing
+            # at the SAME address must still terminate, not spin to max_rounds.
+            if more and next_from and next_from != cursor:
+                summary["cursor"] = next_from
+                cursor = next_from
+                continue
             summary["stopped"] = "no-new-data"
             summary["cursor"] = committed_cursor
             break

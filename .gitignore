@@ -35,6 +35,7 @@ uploads/*
 # verify-provenance GATE B fixtures (== FIXTURE-PROVENANCE.json "fixtures" keys):
 !uploads/OxyDex_2026-06-13_1056_summary.json
 !uploads/OxyDex_2026-06-25_0439_summary.json
+!uploads/OxyDex_2026-09-19_2245_stored_summary.json
 !uploads/PulseDex_2026-06-25_equiv.node-export.json
 !uploads/PulseDex_2026-06-25_events.node-export.json
 !uploads/HRVDex_2026-06-25_equiv.node-export.json
@@ -97,6 +98,10 @@ uploads/*
 # O2Ring FINGER twin (PPGDEX-O2RING-FINGER-SITE §6) — single optical column, 8-bit, ~125.7 Hz,
 # carrying BOTH sentinel classes. Closed-form, no recording of any person.
 !uploads/synthetic_ppgdex_o2ring_finger.txt
+# §∅ the PINNED-SPAN plant and its expected span list. Committed so CI re-runs them and so the
+# Python back-check gates on the SAME BYTES — a parity fixture described in prose is not a fixture.
+!uploads/synthetic_ppgdex_o2ring_pinned.txt
+!uploads/synthetic_ppgdex_o2ring_pinned.expected.json
 !uploads/synthetic_ecgdex_h10.txt
 # FRAGMENTED H10 twin (INTEGRATOR-GAP-AWARE-OVERLAP part 2) — three recorded segments inside a 60 s
 # envelope. The only committed input in the repo that exercises `recording.coverage`; every other
@@ -127,6 +132,9 @@ uploads/*
 # tests/apnea-null-twins.js), so no privacy bar; committed because a fixture nothing can express is
 # the exposure this closes, and an uncommitted one would skip in CI exactly where it is needed.
 !uploads/integrator_apnea_null_twins.node-export.json
+!uploads/integrator_fusion_night_twins.node-export.json
+!uploads/integrator_respiration_fusion_twins.node-export.json
+!uploads/integrator_hrstat_class_twins.node-export.json
 
 # Trio TCH corpus — DERIVED per-night node-exports (tools/trio-batch.mjs), the §6 input contract
 # for `tools/tch-multinight.mjs --dir`. Tracked so a fresh clone reproduces the real σ distribution
@@ -237,6 +245,7 @@ coverage/
 # Machine-local and regenerated, never a source of truth — committing it would ship one box's
 # error list as if it were the repo's.
 capture-host/.mypy-latest.txt
+capture-host/.check-verdict.json
 
 # Hypothesis example database — per-machine and regenerated. ⚠️ Hypothesis ALREADY writes its own
 # `.gitignore` inside the directory, which is why `git status` never showed it while `git check-ignore`
@@ -244,3 +253,6 @@ capture-host/.mypy-latest.txt
 # entry is therefore belt-and-braces, stated as such: it makes the intent explicit at the repo level
 # rather than leaving it dependent on a tool's internal behaviour.
 capture-host/.hypothesis/
+
+# nsrr-criterion-sweep SpO2 cache — derived from the gitignored NSRR corpus, never committed
+.cache/

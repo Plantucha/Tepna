@@ -179,6 +179,24 @@ def current(rows: list[dict]) -> dict[str, dict]:
     return out
 
 
+def undrained(ledger_rows: list[dict], flash_sessions) -> list[str]:
+    """Flash sessions with no VERIFIED/COMMITTED row — what a drain still owes. PURE.
+
+    ⚠️ NOT `reconcile()`, and the difference is the axis. `reconcile` answers ledger-vs-DISK ("do the
+    bytes we hold still match what we recorded"); this answers ledger-vs-FLASH ("what is still on the
+    ring that we have never safely landed"). Same ledger, different other half, and conflating them
+    would have a drain skip a session whose bytes never left the ring because a row exists saying we
+    once saw it.
+
+    A DISCOVERED or PARTIAL or FAILED row therefore counts as UNDRAINED: those states mean the ring
+    listed it or a transfer began, not that anything survived. Only VERIFIED/COMMITTED retire a
+    session from the drain, which is the same bar `reconcile` uses for `verified` and for the same
+    reason — those are the two states in which bytes are known good."""
+    done = {str(r.get("session")) for r in (ledger_rows or [])
+            if isinstance(r, dict) and r.get("state") in (VERIFIED, COMMITTED)}
+    return sorted({str(x) for x in (flash_sessions or [])} - done)
+
+
 def reconcile(ledger_rows: list[dict], disk_listing: dict[str, int]) -> dict:
     """Ledger vs what is actually on disk → what G3's restart recovery must do. PURE.
 

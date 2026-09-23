@@ -39,7 +39,10 @@ COVERED = {
     "tepna-usbreset.sh": "test_tepna_usbreset_sh.py",
     "tepna-btreset.sh": "test_tepna_btreset_sh.py",
     "tepna-wifi.sh": "test_tepna_wifi_sh.py",
+    "tepna-btmon.sh": "test_tepna_btmon_sh.py",
     "tepna-update.sh": "test_vigil_update.py",
+    "tepna-sniff.sh": "test_tepna_sniff_sh.py",
+    "tepna-report.sh": "test_tepna_report_sh.py",
     "vigil.sh": "test_vigil_sh.py",
     "deploy/sync-apps.sh": "test_deploy_sync_apps.py",
     "deploy/check-system-files.sh": "test_deploy_sync_apps.py",
@@ -50,6 +53,7 @@ COVERED = {
     "deploy/enable-cpap-wifi.sh": "test_enable_cpap_wifi.py",
     "deploy/archive-pull.sh": "test_deploy_archive_pull.py",
     "systemd/tepna-usb-autosuspend.sh": "test_usb_autosuspend_unit.py",
+    "systemd/tepna-btattach.sh": "test_btattach_unit.py",
     # asserted below, in this module, against their source — see the docstrings for why each cannot run
     "deploy/enable-clock-control.sh": "test_shell_surface.py",
     "deploy/enable-restart-control.sh": "test_shell_surface.py",

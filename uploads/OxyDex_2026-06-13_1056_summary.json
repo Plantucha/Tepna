@@ -344,7 +344,126 @@
     },
     "hypoxicBurden": {
       "total": 28.6,
-      "rate": 3.9
+      "rate": 3.9,
+      "measuredSec": 26145
+    },
+    "measurement": {
+      "meanSpo2": {
+        "metricId": "meanSpo2",
+        "value": 95.9,
+        "window": {
+          "startTMs": 1781305216000,
+          "endTMs": 1781331360000,
+          "clockDomain": "device",
+          "timingSource": "device",
+          "spreadMs": null,
+          "spreadReason": "single device clock — the O2Ring RTC is the only timebase on this input; no host stamp to measure spread against"
+        },
+        "sourceChannel": "O2Ring:spo2",
+        "code": {
+          "manifestHash": "edce2e232da0",
+          "computeHash": "c2f701d1851f"
+        },
+        "evidence": {
+          "envelopeRef": null,
+          "inputHash": "8378b63c5fd1",
+          "envelopeReason": "no acquisition envelope for this input (CSV / legacy path — the envelope joins on the .dat session_id)"
+        },
+        "basis": "measured",
+        "quality": {
+          "n": 26145,
+          "durationMin": 435.7
+        },
+        "uncertainty": null,
+        "uncertaintyReason": "not estimated — this node carries no uncertainty model for whole-night oximetry summaries"
+      },
+      "t90": {
+        "metricId": "t90",
+        "value": 0.2,
+        "window": {
+          "startTMs": 1781305216000,
+          "endTMs": 1781331360000,
+          "clockDomain": "device",
+          "timingSource": "device",
+          "spreadMs": null,
+          "spreadReason": "single device clock — the O2Ring RTC is the only timebase on this input; no host stamp to measure spread against"
+        },
+        "sourceChannel": "O2Ring:spo2",
+        "code": {
+          "manifestHash": "edce2e232da0",
+          "computeHash": "c2f701d1851f"
+        },
+        "evidence": {
+          "envelopeRef": null,
+          "inputHash": "8378b63c5fd1",
+          "envelopeReason": "no acquisition envelope for this input (CSV / legacy path — the envelope joins on the .dat session_id)"
+        },
+        "basis": "measured",
+        "quality": {
+          "n": 26145,
+          "durationMin": 435.7
+        },
+        "uncertainty": null,
+        "uncertaintyReason": "not estimated — this node carries no uncertainty model for whole-night oximetry summaries"
+      },
+      "odi4": {
+        "metricId": "odi4",
+        "value": 1.9,
+        "window": {
+          "startTMs": 1781305216000,
+          "endTMs": 1781331360000,
+          "clockDomain": "device",
+          "timingSource": "device",
+          "spreadMs": null,
+          "spreadReason": "single device clock — the O2Ring RTC is the only timebase on this input; no host stamp to measure spread against"
+        },
+        "sourceChannel": "O2Ring:spo2",
+        "code": {
+          "manifestHash": "edce2e232da0",
+          "computeHash": "c2f701d1851f"
+        },
+        "evidence": {
+          "envelopeRef": null,
+          "inputHash": "8378b63c5fd1",
+          "envelopeReason": "no acquisition envelope for this input (CSV / legacy path — the envelope joins on the .dat session_id)"
+        },
+        "basis": "derived",
+        "quality": {
+          "n": 26145,
+          "durationMin": 435.7
+        },
+        "uncertainty": null,
+        "uncertaintyReason": "not estimated — this node carries no uncertainty model for whole-night oximetry summaries"
+      },
+      "hypoxicBurden": {
+        "metricId": "hypoxicBurden",
+        "value": 3.9,
+        "window": {
+          "startTMs": 1781305216000,
+          "endTMs": 1781331360000,
+          "clockDomain": "device",
+          "timingSource": "device",
+          "spreadMs": null,
+          "spreadReason": "single device clock — the O2Ring RTC is the only timebase on this input; no host stamp to measure spread against"
+        },
+        "sourceChannel": "O2Ring:spo2",
+        "code": {
+          "manifestHash": "edce2e232da0",
+          "computeHash": "c2f701d1851f"
+        },
+        "evidence": {
+          "envelopeRef": null,
+          "inputHash": "8378b63c5fd1",
+          "envelopeReason": "no acquisition envelope for this input (CSV / legacy path — the envelope joins on the .dat session_id)"
+        },
+        "basis": "derived",
+        "quality": {
+          "n": 26145,
+          "durationMin": 435.7
+        },
+        "uncertainty": null,
+        "uncertaintyReason": "not estimated — this node carries no uncertainty model for whole-night oximetry summaries"
+      }
     },
     "motionProfile": {
       "motionPct": 0.9,
@@ -443,9 +562,10 @@
       "auc90Rate": 0.25,
       "nadir": {
         "count": 14,
+        "recoveredCount": 5,
         "meanDepth": 6.1,
         "meanDuration": 32,
-        "meanRecovery": 2
+        "meanRecovery": 6
       },
       "events": [
         {
@@ -468,12 +588,12 @@
         {
           "depth": 12,
           "duration": 35,
-          "recovery": 0,
+          "recovery": null,
           "startIdx": 839,
           "nadirIdx": 860,
           "endIdx": 874,
           "nadir": 86,
-          "recoverySlope": 0,
+          "recoverySlope": null,
           "onset": 839,
           "artifact": false,
           "fallRate": 1,
@@ -485,12 +605,12 @@
         {
           "depth": 9,
           "duration": 30,
-          "recovery": 0,
+          "recovery": null,
           "startIdx": 887,
           "nadirIdx": 899,
           "endIdx": 917,
           "nadir": 89,
-          "recoverySlope": 0,
+          "recoverySlope": null,
           "onset": 887,
           "artifact": false,
           "fallRate": 1,
@@ -502,12 +622,12 @@
         {
           "depth": 4,
           "duration": 14,
-          "recovery": 0,
+          "recovery": null,
           "startIdx": 928,
           "nadirIdx": 928,
           "endIdx": 942,
           "nadir": 94,
-          "recoverySlope": 0,
+          "recoverySlope": null,
           "onset": 928,
           "artifact": false,
           "fallRate": 1,
@@ -519,12 +639,12 @@
         {
           "depth": 5,
           "duration": 27,
-          "recovery": 0,
+          "recovery": null,
           "startIdx": 950,
           "nadirIdx": 955,
           "endIdx": 977,
           "nadir": 93,
-          "recoverySlope": 0,
+          "recoverySlope": null,
           "onset": 950,
           "artifact": false,
           "fallRate": 1,
@@ -536,12 +656,12 @@
         {
           "depth": 5,
           "duration": 15,
-          "recovery": 0,
+          "recovery": null,
           "startIdx": 1010,
           "nadirIdx": 1013,
           "endIdx": 1025,
           "nadir": 93,
-          "recoverySlope": 0,
+          "recoverySlope": null,
           "onset": 1010,
           "artifact": false,
           "fallRate": 1,
@@ -553,12 +673,12 @@
         {
           "depth": 6,
           "duration": 12,
-          "recovery": 0,
+          "recovery": null,
           "startIdx": 11617,
           "nadirIdx": 11622,
           "endIdx": 11629,
           "nadir": 93,
-          "recoverySlope": 0,
+          "recoverySlope": null,
           "onset": 11617,
           "artifact": false,
           "fallRate": 1,
@@ -570,12 +690,12 @@
         {
           "depth": 6,
           "duration": 106,
-          "recovery": 0,
+          "recovery": null,
           "startIdx": 20505,
           "nadirIdx": 20518,
           "endIdx": 20611,
           "nadir": 91,
-          "recoverySlope": 0,
+          "recoverySlope": null,
           "onset": 20505,
           "artifact": false,
           "fallRate": 1,
@@ -587,12 +707,12 @@
         {
           "depth": 4,
           "duration": 17,
-          "recovery": 0,
+          "recovery": null,
           "startIdx": 20622,
           "nadirIdx": 20622,
           "endIdx": 20639,
           "nadir": 92,
-          "recoverySlope": 0,
+          "recoverySlope": null,
           "onset": 20622,
           "artifact": false,
           "fallRate": 1,
@@ -604,12 +724,12 @@
         {
           "depth": 4,
           "duration": 21,
-          "recovery": 0,
+          "recovery": null,
           "startIdx": 20645,
           "nadirIdx": 20645,
           "endIdx": 20666,
           "nadir": 92,
-          "recoverySlope": 0,
+          "recoverySlope": null,
           "onset": 20645,
           "artifact": false,
           "fallRate": 1,
@@ -708,12 +828,12 @@
         {
           "depth": 12,
           "duration": 35,
-          "recovery": 0,
+          "recovery": null,
           "startIdx": 839,
           "nadirIdx": 860,
           "endIdx": 874,
           "nadir": 86,
-          "recoverySlope": 0,
+          "recoverySlope": null,
           "onset": 839,
           "artifact": false,
           "fallRate": 1,
@@ -725,12 +845,12 @@
         {
           "depth": 9,
           "duration": 30,
-          "recovery": 0,
+          "recovery": null,
           "startIdx": 887,
           "nadirIdx": 899,
           "endIdx": 917,
           "nadir": 89,
-          "recoverySlope": 0,
+          "recoverySlope": null,
           "onset": 887,
           "artifact": false,
           "fallRate": 1,
@@ -742,12 +862,12 @@
         {
           "depth": 4,
           "duration": 14,
-          "recovery": 0,
+          "recovery": null,
           "startIdx": 928,
           "nadirIdx": 928,
           "endIdx": 942,
           "nadir": 94,
-          "recoverySlope": 0,
+          "recoverySlope": null,
           "onset": 928,
           "artifact": false,
           "fallRate": 1,
@@ -759,12 +879,12 @@
         {
           "depth": 5,
           "duration": 27,
-          "recovery": 0,
+          "recovery": null,
           "startIdx": 950,
           "nadirIdx": 955,
           "endIdx": 977,
           "nadir": 93,
-          "recoverySlope": 0,
+          "recoverySlope": null,
           "onset": 950,
           "artifact": false,
           "fallRate": 1,
@@ -776,12 +896,12 @@
         {
           "depth": 5,
           "duration": 15,
-          "recovery": 0,
+          "recovery": null,
           "startIdx": 1010,
           "nadirIdx": 1013,
           "endIdx": 1025,
           "nadir": 93,
-          "recoverySlope": 0,
+          "recoverySlope": null,
           "onset": 1010,
           "artifact": false,
           "fallRate": 1,
@@ -793,12 +913,12 @@
         {
           "depth": 6,
           "duration": 12,
-          "recovery": 0,
+          "recovery": null,
           "startIdx": 11617,
           "nadirIdx": 11622,
           "endIdx": 11629,
           "nadir": 93,
-          "recoverySlope": 0,
+          "recoverySlope": null,
           "onset": 11617,
           "artifact": false,
           "fallRate": 1,
@@ -810,12 +930,12 @@
         {
           "depth": 6,
           "duration": 106,
-          "recovery": 0,
+          "recovery": null,
           "startIdx": 20505,
           "nadirIdx": 20518,
           "endIdx": 20611,
           "nadir": 91,
-          "recoverySlope": 0,
+          "recoverySlope": null,
           "onset": 20505,
           "artifact": false,
           "fallRate": 1,
@@ -827,12 +947,12 @@
         {
           "depth": 4,
           "duration": 17,
-          "recovery": 0,
+          "recovery": null,
           "startIdx": 20622,
           "nadirIdx": 20622,
           "endIdx": 20639,
           "nadir": 92,
-          "recoverySlope": 0,
+          "recoverySlope": null,
           "onset": 20622,
           "artifact": false,
           "fallRate": 1,
@@ -844,12 +964,12 @@
         {
           "depth": 4,
           "duration": 21,
-          "recovery": 0,
+          "recovery": null,
           "startIdx": 20645,
           "nadirIdx": 20645,
           "endIdx": 20666,
           "nadir": 92,
-          "recoverySlope": 0,
+          "recoverySlope": null,
           "onset": 20645,
           "artifact": false,
           "fallRate": 1,
@@ -1052,14 +1172,7 @@
         "basis": "medianOf30minWindows",
         "windowsUsed": 14
       },
-      "respRate": {
-        "respRateBpm": 11,
-        "rsaPeakFreq": 0.1833,
-        "rsaPeakPow": 0.5,
-        "respRateLabel": "Normal (10-20)",
-        "basis": "medianOf30minWindows",
-        "windowsUsed": 14
-      },
+      "respRate": null,
       "hrAsymmetry": {
         "hrAccelAsym": 1.008,
         "meanUpBpm": 1.09,
@@ -1376,43 +1489,53 @@
       "tIdx": {
         "80": {
           "secs": 0,
-          "pct": 0
+          "pct": 0,
+          "measured": 26145
         },
         "85": {
           "secs": 0,
-          "pct": 0
+          "pct": 0,
+          "measured": 26145
         },
         "88": {
           "secs": 10,
-          "pct": 0.04
+          "pct": 0.04,
+          "measured": 26145
         },
         "89": {
           "secs": 39,
-          "pct": 0.15
+          "pct": 0.15,
+          "measured": 26145
         },
         "90": {
           "secs": 54,
-          "pct": 0.21
+          "pct": 0.21,
+          "measured": 26145
         },
         "91": {
           "secs": 66,
-          "pct": 0.25
+          "pct": 0.25,
+          "measured": 26145
         },
         "92": {
           "secs": 104,
-          "pct": 0.4
+          "pct": 0.4,
+          "measured": 26145
         },
         "93": {
           "secs": 327,
-          "pct": 1.25
+          "pct": 1.25,
+          "measured": 26145
         },
         "94": {
           "secs": 1112,
-          "pct": 4.25
+          "pct": 4.25,
+          "measured": 26145
         },
         "95": {
           "secs": 2649,
-          "pct": 10.13
+          "pct": 10.13,
+          "measured": 26145
         }
       },
       "period": null,

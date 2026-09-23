@@ -69,12 +69,6 @@
       "key": "- [0] * n_records) # values are recomputed on write; placeholders here | + [1] * n_records) # values are recomputed on write; placeholders here",
       "probe": "same lane, same reasoning: the placeholder value is never emitted.",
       "why": "A PROOF: the Crc16 lane's samples are placeholders that write_edf NEVER reads — it recomputes the checksum from the other signals' bytes per record (crc16_ccitt), and read-back overwrites them with those computed values. So [0], [1], or None all produce byte-identical output. No input distinguishes."
-    },
-    {
-      "class": "no-distinguishing-input",
-      "key": "- out += _pad(edf.version, 8) | + out = _pad(edf.version, 8)",
-      "probe": "out is empty here (line after `out = bytearray()`); replace vs extend-empty are equal.",
-      "why": "A PROOF: at this first header write `out` is a freshly-created empty bytearray, so `out = _pad(...)` (replace) yields the exact same bytes as `out += _pad(...)` (extend an empty); every subsequent `out += ...` and the final `bytes(out)` produce identical output."
     }
   ],
   "cpap_edf_writer.py": [
@@ -2380,6 +2374,42 @@
       "key": "- with open(ledger_path, encoding=\"utf-8\") as fh: | + with open(ledger_path, ) as fh:",
       "probe": "non-ASCII round-trip (\"réveil du capteur — 温度 drift, 0.5 °C\") through append_row → load_rows: byte-identical under encoding=\"utf-8\", encoding=None and the argument omitted. Also attempted and REJECTED as a distinguishing input: monkeypatching locale.getpreferredencoding to 'ascii' — CPython's open() does not consult the patched Python-level function, verified empirically.",
       "why": "`open()` with encoding=None uses the interpreter's locale-derived default, which on every host this runs on — the capture box, developer machines and CI, all UTF-8 — IS utf-8. So the mutant and the original select the SAME codec and no input distinguishes them. The explicit encoding is still correct: it is insurance against a non-UTF-8 host, and the ledger's `reason` field can carry a device name or path. But that host does not exist in this fleet, so no test here can observe it. ⚠ This is environment-scoped equivalence, not a proof over the input domain — on a latin-1 or C-locale host the mutant IS killable, and the entry should be revisited if the fleet ever gains one."
+    },
+    {
+      "line": 139,
+      "before": "with open(ledger_path, \"a\", encoding=\"utf-8\") as fh:",
+      "op": "kwarg encoding=\"utf-8\" → None",
+      "class": "untestable-by-design",
+      "brief": "OXYII-ACQUISITION-CHARTER G1",
+      "why": "The explicit encoding is REAL and worth keeping — the ledger is UTF-8 by intent and holds device-supplied filenames — but on this platform the default IS UTF-8, so no in-process assertion can distinguish the mutant: the bytes on disk are identical. The property is only observable with interpreter flags set at STARTUP, i.e. in a subprocess. ⚠️ Recorded as untestable-by-design rather than as a gap because the probe below KILLS it when run directly with MUTANT_UNDER_TEST set, and mutmut still reports it surviving — so the test exists and works, and mutmut never runs it for these mutants. The likely reason is coverage-directed test selection: the probe exercises append_row/load_rows in a SUBPROCESS, so the in-process tracer never records it touching this code. That deduction rests on two measurements (probe kills when invoked; mutmut reports survived); the selection mechanism is the hypothesis.",
+      "probe": "tests/test_oxy_inventory.py::test_the_ledger_names_its_encoding_under_warn_default_encoding — runs the module under `-X warn_default_encoding -W error::EncodingWarning` in a subprocess; verified to fail for both shapes (encoding=None and the omitted argument) by hand-planting each"
+    },
+    {
+      "line": 139,
+      "before": "with open(ledger_path, \"a\", encoding=\"utf-8\") as fh:",
+      "op": "kwarg encoding=\"utf-8\" → removed",
+      "class": "untestable-by-design",
+      "brief": "OXYII-ACQUISITION-CHARTER G1",
+      "why": "The explicit encoding is REAL and worth keeping — the ledger is UTF-8 by intent and holds device-supplied filenames — but on this platform the default IS UTF-8, so no in-process assertion can distinguish the mutant: the bytes on disk are identical. The property is only observable with interpreter flags set at STARTUP, i.e. in a subprocess. ⚠️ Recorded as untestable-by-design rather than as a gap because the probe below KILLS it when run directly with MUTANT_UNDER_TEST set, and mutmut still reports it surviving — so the test exists and works, and mutmut never runs it for these mutants. The likely reason is coverage-directed test selection: the probe exercises append_row/load_rows in a SUBPROCESS, so the in-process tracer never records it touching this code. That deduction rests on two measurements (probe kills when invoked; mutmut reports survived); the selection mechanism is the hypothesis.",
+      "probe": "tests/test_oxy_inventory.py::test_the_ledger_names_its_encoding_under_warn_default_encoding — runs the module under `-X warn_default_encoding -W error::EncodingWarning` in a subprocess; verified to fail for both shapes (encoding=None and the omitted argument) by hand-planting each"
+    },
+    {
+      "line": 152,
+      "before": "with open(ledger_path, encoding=\"utf-8\") as fh:",
+      "op": "kwarg encoding=\"utf-8\" → None",
+      "class": "untestable-by-design",
+      "brief": "OXYII-ACQUISITION-CHARTER G1",
+      "why": "The explicit encoding is REAL and worth keeping — the ledger is UTF-8 by intent and holds device-supplied filenames — but on this platform the default IS UTF-8, so no in-process assertion can distinguish the mutant: the bytes on disk are identical. The property is only observable with interpreter flags set at STARTUP, i.e. in a subprocess. ⚠️ Recorded as untestable-by-design rather than as a gap because the probe below KILLS it when run directly with MUTANT_UNDER_TEST set, and mutmut still reports it surviving — so the test exists and works, and mutmut never runs it for these mutants. The likely reason is coverage-directed test selection: the probe exercises append_row/load_rows in a SUBPROCESS, so the in-process tracer never records it touching this code. That deduction rests on two measurements (probe kills when invoked; mutmut reports survived); the selection mechanism is the hypothesis.",
+      "probe": "tests/test_oxy_inventory.py::test_the_ledger_names_its_encoding_under_warn_default_encoding — runs the module under `-X warn_default_encoding -W error::EncodingWarning` in a subprocess; verified to fail for both shapes (encoding=None and the omitted argument) by hand-planting each"
+    },
+    {
+      "line": 152,
+      "before": "with open(ledger_path, encoding=\"utf-8\") as fh:",
+      "op": "kwarg encoding=\"utf-8\" → removed",
+      "class": "untestable-by-design",
+      "brief": "OXYII-ACQUISITION-CHARTER G1",
+      "why": "The explicit encoding is REAL and worth keeping — the ledger is UTF-8 by intent and holds device-supplied filenames — but on this platform the default IS UTF-8, so no in-process assertion can distinguish the mutant: the bytes on disk are identical. The property is only observable with interpreter flags set at STARTUP, i.e. in a subprocess. ⚠️ Recorded as untestable-by-design rather than as a gap because the probe below KILLS it when run directly with MUTANT_UNDER_TEST set, and mutmut still reports it surviving — so the test exists and works, and mutmut never runs it for these mutants. The likely reason is coverage-directed test selection: the probe exercises append_row/load_rows in a SUBPROCESS, so the in-process tracer never records it touching this code. That deduction rests on two measurements (probe kills when invoked; mutmut reports survived); the selection mechanism is the hypothesis.",
+      "probe": "tests/test_oxy_inventory.py::test_the_ledger_names_its_encoding_under_warn_default_encoding — runs the module under `-X warn_default_encoding -W error::EncodingWarning` in a subprocess; verified to fail for both shapes (encoding=None and the omitted argument) by hand-planting each"
     }
   ],
   "oxy_transfer.py": [
@@ -4123,6 +4153,62 @@
       "key": "- hi = max((getattr(n, \"end_lineno\", lo) or lo) ...) | + getattr(n, \"end_lineno\", None)",
       "probe": "Direct: functions_covering() over a module-level function, a method, and a function nested inside a method, targeting the def line and body lines in each. Identical in every case. Also covered by the 2004-diff canary-validated corpus used for this module's other entries.",
       "why": "A PROOF: the getattr default is consumed immediately by `or lo`. If `end_lineno` is absent the original yields `lo or lo` and the mutant `None or lo` — both `lo`. The two can only differ if `lo` itself were falsy, and `lo` is `child.lineno`, a 1-based line number that is always >= 1. So no AST, and no input, distinguishes them."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- [\"git\", \"ls-files\", \"-z\"], cwd=str(root), capture_output=True, text=True, timeout=60, check=True | + [\"git\", \"ls-files\", \"-z\"], cwd=str(root), capture_output=True, text=True, timeout=None, check=True",
+      "probe": "ran the call both ways: cwd=<tmp non-repo> raises CalledProcessError in ms; cwd=None returns 530 paths in ms — no fixture reaches 60 s. Validated on the run that produced these survivors (#2872's branch): 14 → 6, no REFUTED.",
+      "why": "EQUIVALENT — the timeout VALUE is unobservable. `git ls-files` returns in milliseconds on every tree a fixture can build, so 60, 61, None and no-timeout-at-all take the same branch. Distinguishing them needs a `git` that hangs for a minute, which this suite cannot produce without a sleeping stub on PATH — a fixture that would test the stub, not this call.",
+      "brief": "#2872 — root_reads sees the whole read (entries filed in the follow-up)"
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- [\"git\", \"ls-files\", \"-z\"], cwd=str(root), capture_output=True, text=True, timeout=60, check=True | + [\"git\", \"ls-files\", \"-z\"], cwd=str(root), capture_output=True, text=True, check=True",
+      "probe": "ran the call both ways: cwd=<tmp non-repo> raises CalledProcessError in ms; cwd=None returns 530 paths in ms — no fixture reaches 60 s. Validated on the run that produced these survivors (#2872's branch): 14 → 6, no REFUTED.",
+      "why": "EQUIVALENT — the timeout VALUE is unobservable. `git ls-files` returns in milliseconds on every tree a fixture can build, so 60, 61, None and no-timeout-at-all take the same branch. Distinguishing them needs a `git` that hangs for a minute, which this suite cannot produce without a sleeping stub on PATH — a fixture that would test the stub, not this call.",
+      "brief": "#2872 — root_reads sees the whole read (entries filed in the follow-up)"
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- [\"git\", \"ls-files\", \"-z\"], cwd=str(root), capture_output=True, text=True, timeout=60, check=True | + [\"git\", \"ls-files\", \"-z\"], cwd=str(root), capture_output=True, text=True, timeout=61, check=True",
+      "probe": "ran the call both ways: cwd=<tmp non-repo> raises CalledProcessError in ms; cwd=None returns 530 paths in ms — no fixture reaches 60 s. Validated on the run that produced these survivors (#2872's branch): 14 → 6, no REFUTED.",
+      "why": "EQUIVALENT — the timeout VALUE is unobservable. `git ls-files` returns in milliseconds on every tree a fixture can build, so 60, 61, None and no-timeout-at-all take the same branch. Distinguishing them needs a `git` that hangs for a minute, which this suite cannot produce without a sleeping stub on PATH — a fixture that would test the stub, not this call.",
+      "brief": "#2872 — root_reads sees the whole read (entries filed in the follow-up)"
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- by_base[rel.rsplit(\"/\", 1)[-1]].append(rel) | + by_base[rel.rsplit(\"/\", )[-1]].append(rel)",
+      "probe": "2- and 3-segment paths through by_base; docs/deep/deep_fixture.txt is asserted to index as deep_fixture.txt in test_subdir_index_reads_GIT_when_the_root_is_a_checkout. Validated on #2872's branch: 14 → 6, no REFUTED.",
+      "why": "EQUIVALENT — `rsplit(sep, 1)` on a string CONTAINING `sep` yields exactly two elements, so `[-1]` and `[+1]` are the same element, and any maxsplit ≥ 1 (or the default -1) leaves the LAST element unchanged. `rel` always contains `/` here: the loop skips anything with fewer than two path segments.",
+      "brief": "#2872 — root_reads sees the whole read (entries filed in the follow-up)"
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- by_base[rel.rsplit(\"/\", 1)[-1]].append(rel) | + by_base[rel.rsplit(\"/\", 2)[-1]].append(rel)",
+      "probe": "2- and 3-segment paths through by_base; docs/deep/deep_fixture.txt is asserted to index as deep_fixture.txt in test_subdir_index_reads_GIT_when_the_root_is_a_checkout. Validated on #2872's branch: 14 → 6, no REFUTED.",
+      "why": "EQUIVALENT — `rsplit(sep, 1)` on a string CONTAINING `sep` yields exactly two elements, so `[-1]` and `[+1]` are the same element, and any maxsplit ≥ 1 (or the default -1) leaves the LAST element unchanged. `rel` always contains `/` here: the loop skips anything with fewer than two path segments.",
+      "brief": "#2872 — root_reads sees the whole read (entries filed in the follow-up)"
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- by_base[rel.rsplit(\"/\", 1)[-1]].append(rel) | + by_base[rel.rsplit(\"/\", 1)[+1]].append(rel)",
+      "probe": "2- and 3-segment paths through by_base; docs/deep/deep_fixture.txt is asserted to index as deep_fixture.txt in test_subdir_index_reads_GIT_when_the_root_is_a_checkout. Validated on #2872's branch: 14 → 6, no REFUTED.",
+      "why": "EQUIVALENT — `rsplit(sep, 1)` on a string CONTAINING `sep` yields exactly two elements, so `[-1]` and `[+1]` are the same element, and any maxsplit ≥ 1 (or the default -1) leaves the LAST element unchanged. `rel` always contains `/` here: the loop skips anything with fewer than two path segments.",
+      "brief": "#2872 — root_reads sees the whole read (entries filed in the follow-up)"
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- if lit.split(\"/\", 1)[0] == tree.name: | + if lit.split(\"/\", )[0] == tree.name:",
+      "probe": "2- and 3-segment capture-host/… literals; the 3-segment case kills the rsplit sibling, and neither maxsplit variant changes [0]. Validated on #2872's branch: 14 → 6, no REFUTED.",
+      "why": "EQUIVALENT — `[0]` is the FIRST segment whatever the maxsplit: `split('/', 1)[0]`, `split('/', 2)[0]` and `split('/')[0]` all return the text before the first separator. ⚠️ The sibling mutation `split(None, 1)` is NOT equivalent — it splits on whitespace — and is killed by test_root_reads_excludes_the_TREE_ITSELF_by_its_first_segment.",
+      "brief": "#2872 — root_reads sees the whole read (entries filed in the follow-up)"
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- if lit.split(\"/\", 1)[0] == tree.name: | + if lit.split(\"/\", 2)[0] == tree.name:",
+      "probe": "2- and 3-segment capture-host/… literals; the 3-segment case kills the rsplit sibling, and neither maxsplit variant changes [0]. Validated on #2872's branch: 14 → 6, no REFUTED.",
+      "why": "EQUIVALENT — `[0]` is the FIRST segment whatever the maxsplit: `split('/', 1)[0]`, `split('/', 2)[0]` and `split('/')[0]` all return the text before the first separator. ⚠️ The sibling mutation `split(None, 1)` is NOT equivalent — it splits on whitespace — and is killed by test_root_reads_excludes_the_TREE_ITSELF_by_its_first_segment.",
+      "brief": "#2872 — root_reads sees the whole read (entries filed in the follow-up)"
     }
   ],
   "mutation_pure.py": [
@@ -4155,6 +4241,279 @@
       "key": "- close(len(lines)) | + close(None)",
       "probe": "CANARY-VALIDATED DIFFERENTIAL, run 2026-08-28. Each mutation was applied to the real source (scoped to `harvest_text` via AST) and both versions run over a 10-file corpus covering: the target first / middle / last, a file ENDING INSIDE a body, a trailing dedented line, a preceding module statement, an `__mutmut_orig` sibling, a class-indented definition, one-space indentation, and an empty file — each with funcs=['foo'] and ['foo','bar']. ⚠️ THREE KNOWN-KILLABLE CANARIES WERE REQUIRED TO PASS FIRST (`keepends=False`, `start=None`, and a negated `__mutmut_orig` guard) — all three distinguished, so a no-difference result is evidence rather than a blind battery.",
       "why": "`close(len(lines))` differs from `close(None)` only when the scan ends with a body still OPEN — and `lines[start:None]` is `lines[start:]`, which is what `len(lines)` also yields. The two slices are equal for every input, so the final close cannot distinguish them."
+    }
+  ],
+  "ble_visibility.py": [
+    {
+      "class": "no-distinguishing-input",
+      "key": "- with open(path, \"a\", encoding=\"utf-8\") as fh: | + with open(path, \"a\", encoding=None) as fh:",
+      "probe": "ran the suite under LANG=C.UTF-8 and LANG=C: open(..., encoding=None) resolves to the locale codec, which is UTF-8 on this box and in CI, so no input distinguishes them here. The explicit encoding is a portability guard for a non-UTF-8 locale, which this environment cannot reproduce.",
+      "why": "A PROOF for THIS environment, not in general: the mutant differs only where locale.getpreferredencoding() is not UTF-8. Records are ASCII JSON, so even then the bytes would usually match. Keeping the explicit encoding is correct; killing the mutant is not possible without controlling the runner's locale."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- with open(path, \"a\", encoding=\"utf-8\") as fh: | + with open(path, \"a\", ) as fh:",
+      "probe": "ran the suite under LANG=C.UTF-8 and LANG=C: open(..., encoding=None) resolves to the locale codec, which is UTF-8 on this box and in CI, so no input distinguishes them here. The explicit encoding is a portability guard for a non-UTF-8 locale, which this environment cannot reproduce.",
+      "why": "A PROOF for THIS environment, not in general: the mutant differs only where locale.getpreferredencoding() is not UTF-8. Records are ASCII JSON, so even then the bytes would usually match. Keeping the explicit encoding is correct; killing the mutant is not possible without controlling the runner's locale."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- with open(path, encoding=\"utf-8\") as fh: | + with open(path, encoding=None) as fh:",
+      "probe": "ran the suite under LANG=C.UTF-8 and LANG=C: open(..., encoding=None) resolves to the locale codec, which is UTF-8 on this box and in CI, so no input distinguishes them here. The explicit encoding is a portability guard for a non-UTF-8 locale, which this environment cannot reproduce.",
+      "why": "A PROOF for THIS environment, not in general: the mutant differs only where locale.getpreferredencoding() is not UTF-8. Records are ASCII JSON, so even then the bytes would usually match. Keeping the explicit encoding is correct; killing the mutant is not possible without controlling the runner's locale."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- with open(path, encoding=\"utf-8\") as fh: | + with open(path, ) as fh:",
+      "probe": "ran the suite under LANG=C.UTF-8 and LANG=C: open(..., encoding=None) resolves to the locale codec, which is UTF-8 on this box and in CI, so no input distinguishes them here. The explicit encoding is a portability guard for a non-UTF-8 locale, which this environment cannot reproduce.",
+      "why": "A PROOF for THIS environment, not in general: the mutant differs only where locale.getpreferredencoding() is not UTF-8. Records are ASCII JSON, so even then the bytes would usually match. Keeping the explicit encoding is correct; killing the mutant is not possible without controlling the runner's locale."
+    }
+  ],
+  "nightqc.py": [
+    {
+      "class": "no-distinguishing-input",
+      "key": "- before = [s for s in others if s[1] <= cur[0]] | + before = [s for s in others if s[1] < cur[0]]",
+      "probe": "tests/test_nightqc.py::test_merge_sessions_always_yields_DISJOINT_sessions_separated_by_more_than_the_gap — 400 randomized file-sets (seed 20260905, 1-12 files per set, input order shuffled) assert b[0] > a[1] + gap for every consecutive pair, and assert that on the produced sessions max-by-end IS max-by-start and min-by-start IS min-by-end.",
+      "why": "`merge_sessions` starts a new session only when `st > sessions[-1][1] + gap_sec`, so its output is ordered by start AND strictly separated by more than the 300 s gap — sessions cannot overlap or touch. Under that invariant this mutation cannot move the partition: every earlier session ends more than a gap before `cur[0]` and every later one starts more than a gap after `cur[1]`, so neither the boundary form (`<`/`<=`, `>`/`>=`) nor which endpoint is compared can reclassify any session. Not a missing test — no night `merge_sessions` can produce distinguishes them."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- before = [s for s in others if s[1] <= cur[0]] | + before = [s for s in others if s[1] <= cur[1]]",
+      "probe": "tests/test_nightqc.py::test_merge_sessions_always_yields_DISJOINT_sessions_separated_by_more_than_the_gap — 400 randomized file-sets (seed 20260905, 1-12 files per set, input order shuffled) assert b[0] > a[1] + gap for every consecutive pair, and assert that on the produced sessions max-by-end IS max-by-start and min-by-start IS min-by-end.",
+      "why": "`merge_sessions` starts a new session only when `st > sessions[-1][1] + gap_sec`, so its output is ordered by start AND strictly separated by more than the 300 s gap — sessions cannot overlap or touch. Under that invariant this mutation cannot move the partition: every earlier session ends more than a gap before `cur[0]` and every later one starts more than a gap after `cur[1]`, so neither the boundary form (`<`/`<=`, `>`/`>=`) nor which endpoint is compared can reclassify any session. Not a missing test — no night `merge_sessions` can produce distinguishes them."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- after = [s for s in others if s[0] >= cur[1]] | + after = [s for s in others if s[1] >= cur[1]]",
+      "probe": "tests/test_nightqc.py::test_merge_sessions_always_yields_DISJOINT_sessions_separated_by_more_than_the_gap — 400 randomized file-sets (seed 20260905, 1-12 files per set, input order shuffled) assert b[0] > a[1] + gap for every consecutive pair, and assert that on the produced sessions max-by-end IS max-by-start and min-by-start IS min-by-end.",
+      "why": "`merge_sessions` starts a new session only when `st > sessions[-1][1] + gap_sec`, so its output is ordered by start AND strictly separated by more than the 300 s gap — sessions cannot overlap or touch. Under that invariant this mutation cannot move the partition: every earlier session ends more than a gap before `cur[0]` and every later one starts more than a gap after `cur[1]`, so neither the boundary form (`<`/`<=`, `>`/`>=`) nor which endpoint is compared can reclassify any session. Not a missing test — no night `merge_sessions` can produce distinguishes them."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- after = [s for s in others if s[0] >= cur[1]] | + after = [s for s in others if s[0] > cur[1]]",
+      "probe": "tests/test_nightqc.py::test_merge_sessions_always_yields_DISJOINT_sessions_separated_by_more_than_the_gap — 400 randomized file-sets (seed 20260905, 1-12 files per set, input order shuffled) assert b[0] > a[1] + gap for every consecutive pair, and assert that on the produced sessions max-by-end IS max-by-start and min-by-start IS min-by-end.",
+      "why": "`merge_sessions` starts a new session only when `st > sessions[-1][1] + gap_sec`, so its output is ordered by start AND strictly separated by more than the 300 s gap — sessions cannot overlap or touch. Under that invariant this mutation cannot move the partition: every earlier session ends more than a gap before `cur[0]` and every later one starts more than a gap after `cur[1]`, so neither the boundary form (`<`/`<=`, `>`/`>=`) nor which endpoint is compared can reclassify any session. Not a missing test — no night `merge_sessions` can produce distinguishes them."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- prev = max(before, key=lambda s: s[1]) | + prev = max(before, key=None)",
+      "probe": "tests/test_nightqc.py::test_merge_sessions_always_yields_DISJOINT_sessions_separated_by_more_than_the_gap — 400 randomized file-sets (seed 20260905, 1-12 files per set, input order shuffled) assert b[0] > a[1] + gap for every consecutive pair, and assert that on the produced sessions max-by-end IS max-by-start and min-by-start IS min-by-end.",
+      "why": "Same disjointness invariant, applied to the selection: with sessions ordered and strictly separated, the latest-ENDING session IS the latest-starting one and the earliest-starting IS the earliest-ending, so `key=s[1]`, `key=s[0]`, and natural tuple order all return the identical element. The probe asserts that identity directly (`is`, not `==`)."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- prev = max(before, key=lambda s: s[1]) | + prev = max(before, )",
+      "probe": "tests/test_nightqc.py::test_merge_sessions_always_yields_DISJOINT_sessions_separated_by_more_than_the_gap — 400 randomized file-sets (seed 20260905, 1-12 files per set, input order shuffled) assert b[0] > a[1] + gap for every consecutive pair, and assert that on the produced sessions max-by-end IS max-by-start and min-by-start IS min-by-end.",
+      "why": "Same disjointness invariant, applied to the selection: with sessions ordered and strictly separated, the latest-ENDING session IS the latest-starting one and the earliest-starting IS the earliest-ending, so `key=s[1]`, `key=s[0]`, and natural tuple order all return the identical element. The probe asserts that identity directly (`is`, not `==`)."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- nxt = min(after, key=lambda s: s[0]) | + nxt = min(after, key=None)",
+      "probe": "tests/test_nightqc.py::test_merge_sessions_always_yields_DISJOINT_sessions_separated_by_more_than_the_gap — 400 randomized file-sets (seed 20260905, 1-12 files per set, input order shuffled) assert b[0] > a[1] + gap for every consecutive pair, and assert that on the produced sessions max-by-end IS max-by-start and min-by-start IS min-by-end.",
+      "why": "Same disjointness invariant, applied to the selection: with sessions ordered and strictly separated, the latest-ENDING session IS the latest-starting one and the earliest-starting IS the earliest-ending, so `key=s[1]`, `key=s[0]`, and natural tuple order all return the identical element. The probe asserts that identity directly (`is`, not `==`)."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- nxt = min(after, key=lambda s: s[0]) | + nxt = min(after, )",
+      "probe": "tests/test_nightqc.py::test_merge_sessions_always_yields_DISJOINT_sessions_separated_by_more_than_the_gap — 400 randomized file-sets (seed 20260905, 1-12 files per set, input order shuffled) assert b[0] > a[1] + gap for every consecutive pair, and assert that on the produced sessions max-by-end IS max-by-start and min-by-start IS min-by-end.",
+      "why": "Same disjointness invariant, applied to the selection: with sessions ordered and strictly separated, the latest-ENDING session IS the latest-starting one and the earliest-starting IS the earliest-ending, so `key=s[1]`, `key=s[0]`, and natural tuple order all return the identical element. The probe asserts that identity directly (`is`, not `==`)."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- nxt = min(after, key=lambda s: s[0]) | + nxt = min(after, key=lambda s: s[1])",
+      "probe": "tests/test_nightqc.py::test_merge_sessions_always_yields_DISJOINT_sessions_separated_by_more_than_the_gap — 400 randomized file-sets (seed 20260905, 1-12 files per set, input order shuffled) assert b[0] > a[1] + gap for every consecutive pair, and assert that on the produced sessions max-by-end IS max-by-start and min-by-start IS min-by-end.",
+      "why": "Same disjointness invariant, applied to the selection: with sessions ordered and strictly separated, the latest-ENDING session IS the latest-starting one and the earliest-starting IS the earliest-ending, so `key=s[1]`, `key=s[0]`, and natural tuple order all return the identical element. The probe asserts that identity directly (`is`, not `==`)."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- span = None | + span = \"\"",
+      "probe": "tests/test_nightqc.py::test_a_night_with_no_data_reports_no_judged_session_rather_than_a_fabricated_one — the only path where the initial value survives; asserts span_sec is None and every coverage value unset.",
+      "why": "`span` is reassigned from the judged session whenever there IS data, so the initial value is observable only on a night with no capture files. On that path it is read in exactly two places, both behind a truthiness guard — `round(span) if span else None` and `if hz and span` — and \"\" and None are both falsy, so every output is byte-identical. Not a missing test: no input can separate them."
+    },
+    {
+      "class": "untestable-by-design",
+      "key": "- span_h = None | + span_h = \"\"",
+      "probe": "read of the code, not a battery: the assignment is dead on every path (see `why`). tests/test_nightqc.py::test_span_h_is_HOURS_and_is_None_when_the_stamps_cannot_be_read covers BOTH live paths — the computed span and the except-branch None.",
+      "why": "The initial value is never read. `span_h = None` is immediately followed by a try/except in which BOTH arms assign: the try sets `round((t1 - t0) / 3600, 1)` and the `except ValueError` sets None. `times` is non-empty whenever this line is reached (guarded by `if not offsets: return None`, and every offset appends a time), so there is no path that reaches the return with the initial binding intact. An argument about the CODE, not about the suite."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- names = [h.strip() for h in header.rstrip(\"\\n\").split(\";\")] | + names = [h.strip() for h in header.rstrip(None).split(\";\")]",
+      "probe": "a 1170-comparison probe (three header shapes × five line endings — \\n, \\r\\n, ' \\n', '', '\\t\\n' — × five row shapes incl. torn, unparsable and whitespace-only last field) run against the original and both mutants: identical (index, name) tuples and identical parsed rows in every case.",
+      "why": "Every name is `.strip()`ed after the split, so whatever trailing whitespace the outer rstrip did or did not remove is removed anyway; and `;` is not whitespace, so the column count is the same. No header can separate them."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- names = [h.strip() for h in header.rstrip(\"\\n\").split(\";\")] | + names = [h.strip() for h in header.lstrip(\"\\n\").split(\";\")]",
+      "probe": "a 1170-comparison probe (three header shapes × five line endings — \\n, \\r\\n, ' \\n', '', '\\t\\n' — × five row shapes incl. torn, unparsable and whitespace-only last field) run against the original and both mutants: identical (index, name) tuples and identical parsed rows in every case.",
+      "why": "With lstrip the trailing newline stays on the last name until the per-name `.strip()` removes it; a header never begins with a newline (the `#` preamble skip and `for line in fh` both stop at the first non-comment line, which by construction has content). Same tuple either way."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- parts = line.rstrip(\"\\n\").split(\";\") | + parts = line.rstrip(None).split(\";\")",
+      "probe": "a 1170-comparison probe (three header shapes × five line endings — \\n, \\r\\n, ' \\n', '', '\\t\\n' — × five row shapes incl. torn, unparsable and whitespace-only last field) run against the original and both mutants: identical (index, name) tuples and identical parsed rows in every case.",
+      "why": "`len(parts)` is the number of `;`-separated fields, which no whitespace stripping changes, and `float()` accepts surrounding whitespace, so a field of `12000\\n`, `12000 ` and `12000` parse to the same int. A whitespace-only last field raises ValueError under both and the row is skipped either way."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- parts = line.rstrip(\"\\n\").split(\";\") | + parts = line.lstrip(\"\\n\").split(\";\")",
+      "probe": "a 1170-comparison probe (three header shapes × five line endings — \\n, \\r\\n, ' \\n', '', '\\t\\n' — × five row shapes incl. torn, unparsable and whitespace-only last field) run against the original and both mutants: identical (index, name) tuples and identical parsed rows in every case.",
+      "why": "As above: the trailing `\\n` rides on the last field and `float()` tolerates it; the field count is unchanged; a data row never starts with a newline because `for line in fh` splits on it."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- columns: tuple = () | + columns: tuple = None",
+      "probe": "tests/test_nightqc.py::test_class_b_quality_is_empty_when_the_night_holds_nothing_it_reads — the 0-byte capture is the only path on which the initial binding survives (any file with a header line reassigns it); asserts no block and no warning.",
+      "why": "On that path `width` is still 0, so `if width and not columns` short-circuits before reading `columns`, `records` is empty and the too-few-rows arm skips the file — `columns` is never read. Not a missing test: no night can separate () from None here."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- width = 0 | + width = None",
+      "probe": "tests/test_nightqc.py::test_class_b_quality_is_empty_when_the_night_holds_nothing_it_reads — the 0-byte capture is the only path on which the initial binding survives; asserts no block and no warning.",
+      "why": "The initial value is read exactly once, as the truthiness guard `if width and not columns`, and 0 and None are both falsy; the second loop never runs on a headerless file so `len(parts) != width` is never evaluated against it. Every output is identical."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- with open(os.path.join(night_dir, name), \"r\", encoding=\"utf-8\", errors=\"replace\") as fh: | + with open(os.path.join(night_dir, name), \"r\", encoding=None, errors=\"replace\") as fh:",
+      "probe": "ran tests/test_nightqc.py -k class_b_quality under LANG=C.UTF-8, LANG=C and LANG=POSIX: locale.getpreferredencoding(False) is UTF-8 in all three (PEP 538 coercion), so open(..., encoding=None) resolves to the same codec as the explicit one on this box and in CI; no input distinguishes them here.",
+      "why": "Same class as the ble_visibility.py entries: the mutant differs only where the runner's preferred encoding is not UTF-8, which this environment cannot produce. errors=\"replace\" is unchanged by the mutant, so the \\xff byte the torn-row test plants still lands in the same replacement character. Keeping the explicit encoding is correct; killing the mutant would need control of the runner's locale."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- with open(os.path.join(night_dir, name), \"r\", encoding=\"utf-8\", errors=\"replace\") as fh: | + with open(os.path.join(night_dir, name), encoding=\"utf-8\", errors=\"replace\") as fh:",
+      "probe": "read of the code, not a battery: `\"r\"` is `open()`'s default mode, so the two calls are the same call by language definition; the class-B tests pass under both.",
+      "why": "Dropping the explicit mode leaves the default mode. Kept explicit for the reader; nothing can observe the difference."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- with open(os.path.join(night_dir, name), \"r\", encoding=\"utf-8\", errors=\"replace\") as fh: | + with open(os.path.join(night_dir, name), \"r\", errors=\"replace\") as fh:",
+      "probe": "ran tests/test_nightqc.py -k class_b_quality under LANG=C.UTF-8, LANG=C and LANG=POSIX: locale.getpreferredencoding(False) is UTF-8 in all three (PEP 538 coercion), so open(..., encoding=None) resolves to the same codec as the explicit one on this box and in CI; no input distinguishes them here.",
+      "why": "Same class as the ble_visibility.py entries: the mutant differs only where the runner's preferred encoding is not UTF-8, which this environment cannot produce. errors=\"replace\" is unchanged by the mutant, so the \\xff byte the torn-row test plants still lands in the same replacement character. Keeping the explicit encoding is correct; killing the mutant would need control of the runner's locale."
+    }
+  ],
+  "probe_ring_adv.py": [
+    {
+      "class": "no-distinguishing-input",
+      "key": "- self._fh = open(path, \"a\", encoding=\"utf-8\") | + self._fh = open(path, \"a\", encoding=None)",
+      "why": "`JsonlSink.write` serialises with json.dumps and the default ensure_ascii=True, so every byte the sink writes is ASCII BY CONSTRUCTION — a non-ASCII operator label is escaped to \\uXXXX before it reaches the file. ASCII is codec-invariant, so encoding=\"utf-8\", encoding=None and the argument omitted write identical bytes on any ASCII-superset locale. Proof over the reachable domain (the mmeta.py argument), not a fleet-is-UTF-8 assumption. The explicit encoding stays: it documents intent for the day the writer changes.",
+      "probe": "wrote {\"label\": \"prstýnek — ⚠ removed\"} through JsonlSink, read it back via load_rows under encoding=\"utf-8\", encoding=None and with the argument omitted: byte-identical file, equal rows, all three. Also ran the module's tests under LANG=C.UTF-8 and LANG=C — identical."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- self._fh = open(path, \"a\", encoding=\"utf-8\") | + self._fh = open(path, \"a\", )",
+      "why": "Omitting the argument selects the locale codec exactly as encoding=None does — the same equivalence as the sibling entry, one operator over. `JsonlSink.write` serialises with json.dumps and the default ensure_ascii=True, so every byte the sink writes is ASCII BY CONSTRUCTION — a non-ASCII operator label is escaped to \\uXXXX before it reaches the file. ASCII is codec-invariant, so encoding=\"utf-8\", encoding=None and the argument omitted write identical bytes on any ASCII-superset locale. Proof over the reachable domain (the mmeta.py argument), not a fleet-is-UTF-8 assumption. The explicit encoding stays: it documents intent for the day the writer changes.",
+      "probe": "wrote {\"label\": \"prstýnek — ⚠ removed\"} through JsonlSink, read it back via load_rows under encoding=\"utf-8\", encoding=None and with the argument omitted: byte-identical file, equal rows, all three. Also ran the module's tests under LANG=C.UTF-8 and LANG=C — identical."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- with open(path, encoding=\"utf-8\") as fh: | + with open(path, encoding=None) as fh:",
+      "why": "`load_rows` reads what `JsonlSink` wrote (ensure_ascii=True → ASCII by construction), and the test round-trip label \"prstýnek — ⚠ removed\" lands on disk as \\u escapes. ASCII is codec-invariant, so the three spellings of the open() decode identical bytes. A hand-edited non-ASCII JSONL would decode the same under any UTF-8 locale, which is every environment this tool runs in (box + CI). This key also matches the identical open() in `label_reader_for` (the operator's label file, typed in a shell under the same UTF-8 locale): same argument, same verdict.",
+      "probe": "wrote {\"label\": \"prstýnek — ⚠ removed\"} through JsonlSink, read it back via load_rows under encoding=\"utf-8\", encoding=None and with the argument omitted: byte-identical file, equal rows, all three. Also ran the module's tests under LANG=C.UTF-8 and LANG=C — identical."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- with open(path, encoding=\"utf-8\") as fh: | + with open(path, ) as fh:",
+      "why": "Omitting the argument selects the locale codec exactly as encoding=None does. `load_rows` reads what `JsonlSink` wrote (ensure_ascii=True → ASCII by construction), and the test round-trip label \"prstýnek — ⚠ removed\" lands on disk as \\u escapes. ASCII is codec-invariant, so the three spellings of the open() decode identical bytes. A hand-edited non-ASCII JSONL would decode the same under any UTF-8 locale, which is every environment this tool runs in (box + CI). This key also matches the identical open() in `label_reader_for` (the operator's label file, typed in a shell under the same UTF-8 locale): same argument, same verdict.",
+      "probe": "wrote {\"label\": \"prstýnek — ⚠ removed\"} through JsonlSink, read it back via load_rows under encoding=\"utf-8\", encoding=None and with the argument omitted: byte-identical file, equal rows, all three. Also ran the module's tests under LANG=C.UTF-8 and LANG=C — identical."
+    }
+  ],
+  "night_report.py": [
+    {
+      "brief": "MUTATION-EQUIVALENCE §3",
+      "class": "untestable-by-design",
+      "key": "- with open(os.path.join(root, night, \"NIGHT-REPORT.txt\"), \"w\", encoding=\"utf-8\") as fh: | + with open(os.path.join(root, night, \"NIGHT-REPORT.txt\"), \"w\", encoding=None) as fh:",
+      "probe": "read_night+render over 4 nights (real summary / truncated JSON / empty devices / non-ASCII verdict text) with open() forced to encoding=None and to the argument omitted: byte-identical output in both cases; locale UTF-8.",
+      "why": "The explicit encoding is REAL and worth keeping — the report carries the tick/cross glyphs and a night's own text, and dropping it would make the file's meaning depend on the ambient locale. It is untestable HERE because CI, the rig and vigil all run a UTF-8 locale, so no input distinguishes the mutant; what the argument guards against is a host that does not, which the suite cannot stand up. Same class and same reasoning as oxy_inventory.py's four entries."
+    },
+    {
+      "brief": "MUTATION-EQUIVALENCE §3",
+      "class": "untestable-by-design",
+      "key": "- with open(os.path.join(root, night, \"NIGHT-REPORT.txt\"), \"w\", encoding=\"utf-8\") as fh: | + with open(os.path.join(root, night, \"NIGHT-REPORT.txt\"), \"w\", ) as fh:",
+      "probe": "read_night+render over 4 nights (real summary / truncated JSON / empty devices / non-ASCII verdict text) with open() forced to encoding=None and to the argument omitted: byte-identical output in both cases; locale UTF-8.",
+      "why": "The explicit encoding is REAL and worth keeping — the report carries the tick/cross glyphs and a night's own text, and dropping it would make the file's meaning depend on the ambient locale. It is untestable HERE because CI, the rig and vigil all run a UTF-8 locale, so no input distinguishes the mutant; what the argument guards against is a host that does not, which the suite cannot stand up. Same class and same reasoning as oxy_inventory.py's four entries."
+    },
+    {
+      "brief": "MUTATION-EQUIVALENCE §3",
+      "class": "untestable-by-design",
+      "key": "- with open(os.path.join(captures_root, night, \"QC-SUMMARY.json\"), encoding=\"utf-8\") as fh: | + with open(os.path.join(captures_root, night, \"QC-SUMMARY.json\"), encoding=None) as fh:",
+      "probe": "read_night+render over 4 nights (real summary / truncated JSON / empty devices / non-ASCII verdict text) with open() forced to encoding=None and to the argument omitted: byte-identical output in both cases; locale UTF-8.",
+      "why": "The explicit encoding is REAL and worth keeping — the report carries the tick/cross glyphs and a night's own text, and dropping it would make the file's meaning depend on the ambient locale. It is untestable HERE because CI, the rig and vigil all run a UTF-8 locale, so no input distinguishes the mutant; what the argument guards against is a host that does not, which the suite cannot stand up. Same class and same reasoning as oxy_inventory.py's four entries."
+    },
+    {
+      "brief": "MUTATION-EQUIVALENCE §3",
+      "class": "untestable-by-design",
+      "key": "- with open(os.path.join(captures_root, night, \"QC-SUMMARY.json\"), encoding=\"utf-8\") as fh: | + with open(os.path.join(captures_root, night, \"QC-SUMMARY.json\"), ) as fh:",
+      "probe": "read_night+render over 4 nights (real summary / truncated JSON / empty devices / non-ASCII verdict text) with open() forced to encoding=None and to the argument omitted: byte-identical output in both cases; locale UTF-8.",
+      "why": "The explicit encoding is REAL and worth keeping — the report carries the tick/cross glyphs and a night's own text, and dropping it would make the file's meaning depend on the ambient locale. It is untestable HERE because CI, the rig and vigil all run a UTF-8 locale, so no input distinguishes the mutant; what the argument guards against is a host that does not, which the suite cannot stand up. Same class and same reasoning as oxy_inventory.py's four entries."
+    },
+    {
+      "brief": "MUTATION-EQUIVALENCE §3",
+      "class": "no-distinguishing-input",
+      "key": "- summary = None | + summary = \"\"",
+      "probe": "build()/back_check()/render() over both values against 4 shapes (real summary / truncated JSON / absent file / no sniffer dir): identical line and identical rendered file in every pairing.",
+      "why": "Both values mean 'no summary' to every consumer downstream: build() takes the devices list only when isinstance(summary, dict), and back_check() returns unknown for anything that is not a dict — so the empty string and None travel the same path and render the same word. Deliberately NOT 'fixed' by making them differ: an unreadable summary reading as absent is the behaviour, not an accident of which falsy value was chosen."
+    },
+    {
+      "brief": "MUTATION-EQUIVALENCE §3",
+      "class": "no-distinguishing-input",
+      "key": "- verdict = None | + verdict = \"\"",
+      "probe": "sniffer_verdict(None) vs sniffer_verdict('') — both return (unknown, unknown); read_night over 4 nights with and without a sniffer directory: output identical.",
+      "why": "The falsy-sniffer_dir path. Its only consumer is sniffer_verdict(), whose first line treats None and the empty string identically (an 'if not verdict_text' guard), so both render the word unknown — the correct answer for a box with no sniffer directory. No input distinguishes them."
+    },
+    {
+      "brief": "MUTATION-EQUIVALENCE §3",
+      "class": "untestable-by-design",
+      "key": "- with open(os.path.join(sniffer_dir, names[-1]), encoding=\"utf-8\") as fh: | + with open(os.path.join(sniffer_dir, names[-1]), encoding=None) as fh:",
+      "probe": "read_night+render over 4 nights (real summary / truncated JSON / empty devices / non-ASCII verdict text) with open() forced to encoding=None and to the argument omitted: byte-identical output in both cases; locale UTF-8.",
+      "why": "The explicit encoding is REAL and worth keeping — the report carries the tick/cross glyphs and a night's own text, and dropping it would make the file's meaning depend on the ambient locale. It is untestable HERE because CI, the rig and vigil all run a UTF-8 locale, so no input distinguishes the mutant; what the argument guards against is a host that does not, which the suite cannot stand up. Same class and same reasoning as oxy_inventory.py's four entries."
+    },
+    {
+      "brief": "MUTATION-EQUIVALENCE §3",
+      "class": "untestable-by-design",
+      "key": "- with open(os.path.join(sniffer_dir, names[-1]), encoding=\"utf-8\") as fh: | + with open(os.path.join(sniffer_dir, names[-1]), ) as fh:",
+      "probe": "read_night+render over 4 nights (real summary / truncated JSON / empty devices / non-ASCII verdict text) with open() forced to encoding=None and to the argument omitted: byte-identical output in both cases; locale UTF-8.",
+      "why": "The explicit encoding is REAL and worth keeping — the report carries the tick/cross glyphs and a night's own text, and dropping it would make the file's meaning depend on the ambient locale. It is untestable HERE because CI, the rig and vigil all run a UTF-8 locale, so no input distinguishes the mutant; what the argument guards against is a host that does not, which the suite cannot stand up. Same class and same reasoning as oxy_inventory.py's four entries."
+    }
+  ],
+  "oxyii.py": [
+    {
+      "brief": "O2RING-PROTOCOL-2026-07-17-BRIEF.md §9a (residue 2026-09-02-oxyii-timezone-hardcoded, #2370)",
+      "class": "no-distinguishing-input",
+      "key": "- tenths = (abs(sec) * 2 + 360) // 720 # floor(|sec| / 360 + 0.5) — half away from zero | + tenths = (abs(sec) * 2 + 361) // 720 # floor(|sec| / 360 + 0.5) — half away from zero",
+      "probe": "every integer offset from -15 h to +15 h (108,001 values), both formulas, zero differences",
+      "why": "A PROOF: `abs(sec) * 2` is even, so `2|sec| + 361` is odd and can never be a multiple of 720 — floor division by 720 therefore returns the same quotient for `+360` and `+361` on every integer input. `sec` is `int(total_seconds())`, so no non-integer reaches the line."
+    },
+    {
+      "brief": "O2RING-PROTOCOL-2026-07-17-BRIEF.md §9a (residue 2026-09-02-oxyii-timezone-hardcoded, #2370)",
+      "class": "no-distinguishing-input",
+      "key": "- if sec < 0: | + if sec <= 0:",
+      "probe": "every integer offset from -15 h to +15 h, zero differences; the only input the guards disagree on is sec == 0",
+      "why": "A PROOF: the guards differ only at `sec == 0`, where `tenths` is `(0 + 360) // 720 == 0` and negating 0 yields 0. Same output on every input."
+    },
+    {
+      "brief": "O2RING-PROTOCOL-2026-07-17-BRIEF.md §9a (residue 2026-09-02-oxyii-timezone-hardcoded, #2370)",
+      "class": "no-distinguishing-input",
+      "key": "- if sec < 0: | + if sec < 1:",
+      "probe": "every integer offset from -15 h to +15 h, zero differences; `sec` is an int so `< 1` and `<= 0` are the same guard",
+      "why": "A PROOF: `sec = int(off.total_seconds())`, so `sec < 1` is `sec <= 0`, and that guard differs from `sec < 0` only at zero, where negating `tenths == 0` changes nothing."
+    }
+  ],
+  "writers.py": [
+    {
+      "brief": "residue 2026-09-10-fsync-band-crossed-and-the-remedy-is-narrower (#2381, built in #2382)",
+      "class": "untestable-by-design",
+      "key": "-def _drain_fsync(timeout: float = 5.0) -> None: | +def _drain_fsync(timeout: float = 6.0) -> None:",
+      "probe": "ATTEMPTED AND REVERTED: `assert writers._drain_fsync.__defaults__ == (5.0,)`. Under mutmut the function is replaced by a dispatcher whose `__defaults__` is None, so that assertion fails on the CLEAN run too — it crashed four whole globs (_do_fsync, _drain_fsync, _fsync_worker, _submit_fsync) and mutate_diff REFUSED with `0 tested mutants`. Measured 2026-09-10; the test was removed rather than kept.",
+      "why": "The INVARIANT is that the exit drain is BOUNDED, and that is tested — test_THE_EXIT_DRAIN_IS_BOUNDED_SO_A_WEDGED_DISK_CANNOT_HOLD_SHUTDOWN kills `t.join(timeout)` -> `t.join(None)` by elapsed time. The specific number is a policy bound with no observable consequence at test scale: 5 s and 6 s both complete a healthy barrier and both give up on a wedged disk. The only way to assert the value is introspection of the function object, which is exactly what disables the mutation gate for the whole module — so a test here would trade one real mutant for four blinded functions."
+    }
+  ],
+  "probe_oxyii_0x03.py": [
+    {
+      "class": "no-distinguishing-input",
+      "key": "- for svc in getattr(cl, \"services\", []) or []: | + for svc in getattr(cl, \"services\", None) or []:",
+      "probe": "a client WITH `services` never consults the default; a client WITHOUT it yields `[] or []` under the original and `None or []` under the mutant — both `[]`, so the loop body runs zero times and the probe refuses with the same SystemExit either way (test_a_client_without_a_services_attribute_is_refused_not_crashed covers the sibling mutant that drops the default entirely, which DOES differ: AttributeError instead of the refusal)",
+      "why": "A PROOF over both reachable branches, not an unobserved value: `x or []` maps `[]` and `None` to the same `[]`, and the default is the only thing the mutation touches. The three other run() survivors after 2026-09-22 (mutants 18, 59, 60) are SystemExit message prose — string-only, which the diff gate excludes by rule and which is not equivalence, so no entry is filed for them.",
+      "brief": "residue 2026-09-06-probe-mutation-survivors-are-fixture-limited (run() drained 63 → 4 on 2026-09-22)"
     }
   ]
 }

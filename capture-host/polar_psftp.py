@@ -169,7 +169,16 @@ def _parse_directory(buf) -> list[tuple[str, int]]:
 # ── RFC76 framing ──
 class _Seq:
     __slots__ = ("seq",)
-    def __init__(self): self.seq = 0
+    # Split across two lines DELIBERATELY, and not for style. As `def __init__(self): self.seq = 0`
+    # this was the module's ONLY partial branch (`172->173`) and the last thing holding capture-host
+    # below the 100 % floor. It was never an untested branch: `_Seq` is instantiated at two call sites
+    # and by `test_psftp_protocol`, and `inc()` is exercised — coverage.py simply cannot express an arc
+    # for a same-line compound `def`, so line 172 carried both the definition and the body and one of
+    # its two successors was unreachable by construction. Verified by experiment: instantiating `_Seq`
+    # and calling `inc()` 17 times leaves the partial in place, and splitting the line clears it with
+    # no test change. Writing a test for it would have been writing a test for nothing.
+    def __init__(self):
+        self.seq = 0
     def inc(self): self.seq = self.seq + 1 if self.seq < 0x0F else 0
 
 # ── PS-FTP QUERY (as opposed to a file REQUEST) ─────────────────────────────────────────────────────
@@ -390,6 +399,7 @@ class PolarPsFtp:
             # MORE -> continue
 
     async def get(self, path: str, timeout: float = 60.0) -> bytes:
+        assert self._client is not None   # only reachable inside the `async with`, which connects first
         for pkt in _build_request_packets(_encode_operation(GET, path), self._frame_mtu):
             await self._client.write_gatt_char(MTU_CHAR, pkt, response=False)
         return await self._read_response(timeout)
@@ -406,6 +416,7 @@ class PolarPsFtp:
     async def query(self, query_id: int, params: bytes = b"", timeout: float = 20.0) -> bytes:
         """Send a PS-FTP QUERY. Restricted to the time ids (see _ALLOWED_QUERIES) — this is the ONLY
         write this module performs; everything else is strictly read-only."""
+        assert self._client is not None   # only reachable inside the `async with`, which connects first
         for pkt in _build_query_packets(query_id, params, self._frame_mtu):
             await self._client.write_gatt_char(MTU_CHAR, pkt, response=False)
         return await self._read_response(timeout)

@@ -8,6 +8,8 @@
 # monitor reported charging=False the whole way, and an O2Ring reached 77 % with its own batt_state flag
 # set to 1 in the sidecar. Two devices visibly charging, neither flagged.
 
+import pytest
+
 import oxyii
 import telemetry
 from tests._srcscan import module_source
@@ -69,6 +71,7 @@ def test_not_worn_and_charging_are_amber_or_blue_never_red():
 # The tests above are source scans. This one EXECUTES, because the defect it covers is a wiring
 # question — does a `True` from the predicate actually reach the flag — and a scan cannot answer that.
 
+@pytest.mark.sets_capture_events
 def test_a_FULL_flat_battery_sets_charging_where_the_rising_rule_is_blind(tmp_path, monkeypatch):
     """A full cell has nowhere to rise to, so `lvl > prev` can never fire at 100 %. Measured
     2026-08-14: the Verity streamed 80 min at 176 Hz with `battery` pinned at 100 and `charging` False
@@ -93,6 +96,12 @@ def test_a_FULL_flat_battery_sets_charging_where_the_rising_rule_is_blind(tmp_pa
     # in a module-level store so it can survive reconnects, and the predicate is called from telemetry's
     # namespace, where a patch on `capture.` cannot reach it.
     monkeypatch.setattr(capture, "note_flat_battery", lambda *_a, **_k: True)
+    # R2 (#2833): the flat-at-full inference fires only on a unit OBSERVED to charge. This test passed in
+    # the full suite only because an earlier test left `can_charge` recorded in the module-level devcaps
+    # store, and failed alone (residue 2026-09-22-charging-state-test-order-dependent). The capability is
+    # this scenario's own premise, so it is recorded here — the test no longer asserts a leak.
+    capture.devcaps.reset()
+    capture.devcaps.record("24:AC:AC:02:84:96", "can_charge", True, source="test: a unit observed to charge")
     c = T.FlexPolarClient(data_frames=[T._ppg_frame()], batt_level=100)
     T._inject_connect(monkeypatch, c)
     T._stop_after(monkeypatch, 130)          # past `secs % 120` → a SECOND battery read
@@ -103,6 +112,7 @@ def test_a_FULL_flat_battery_sets_charging_where_the_rising_rule_is_blind(tmp_pa
         f"a full, unmoving battery must set charging — this is the case `lvl > prev` cannot see: {st}")
 
 
+@pytest.mark.sets_capture_events
 def test_a_full_battery_that_has_NOT_been_flat_long_enough_sets_nothing(tmp_path, monkeypatch):
     """The complement, and the one that keeps the rule from becoming "at 100 % assume a charger".
 

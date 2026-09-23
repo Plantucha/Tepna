@@ -10,7 +10,132 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Chest-ACC respiratory rate vs CPAP flow — Tepna analysis</title>
-<link rel="stylesheet" href="licensing/dex-license.css">
+<style data-inline-src="licensing/dex-license.css">
+/*
+ * dex-license.css — reusable Tepna license / attribution stamp styles
+ * Copyright 2026 Michal Planicka
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Drop-in, self-contained stamps for every Tepna file. Class-prefixed `dxl-`
+ * to avoid collisions with ans-design.css. Reads the suite design tokens when
+ * present (var(--surface) etc.) and falls back to hard-coded values so the
+ * stamps render correctly even in static docs that don't load the design
+ * system. Fonts: SYSTEM monospace only — no bundled / CDN font.
+ *
+ * Variants:  .dxl-sidebar  (sidebar foot)   ·  .dxl-ribbon (full-width foot)
+ *            .dxl-oneline  (tight one-liner) ·  .dxl-credits (About/Credits)
+ * Markup samples: see dex-license-samples.html
+ */
+
+.dxl {
+  --dxl-surface:  var(--surface,  #121821);
+  --dxl-surface2: var(--surface2, #18212C);
+  --dxl-surface3: var(--surface3, #1E2835);
+  --dxl-border:   var(--border,   #1e2d42);
+  --dxl-text:     var(--text,     #F4F7FB);
+  --dxl-text2:    var(--text2,    #9FB0C3);
+  --dxl-text3:    var(--text3,    #8C9DB3);
+  --dxl-text4:    var(--text4,    #6E7F94);
+  --dxl-teal:     var(--teal,     #3DE0D0);
+  --dxl-blue:     var(--blue,     #58A6FF);
+  --dxl-green:    var(--green,    #39D98A);
+  --dxl-sans: var(--sans, 'Inter', system-ui, -apple-system, sans-serif);
+  --dxl-mono: ui-monospace, 'SFMono-Regular', Menlo, Consolas, 'Liberation Mono', monospace;
+  font-family: var(--dxl-sans);
+  color: var(--dxl-text);
+  box-sizing: border-box;
+  line-height: 1.5;
+}
+.dxl *, .dxl *::before, .dxl *::after { box-sizing: border-box; }
+.dxl .dxl-mono { font-family: var(--dxl-mono); font-variant-numeric: tabular-nums; }
+.dxl b, .dxl strong { color: var(--dxl-text); font-weight: 600; }
+
+/* SPDX shield — the canonical license chip. Never wraps. */
+.dxl-spdx {
+  display: inline-flex; align-items: stretch; flex: none; white-space: nowrap;
+  border: 1px solid var(--dxl-border); border-radius: 7px; overflow: hidden;
+  font-family: var(--dxl-mono); font-size: 11px; font-weight: 600;
+}
+.dxl-spdx .k { background: var(--dxl-surface3); color: var(--dxl-text3); padding: 5px 9px; white-space: nowrap; }
+.dxl-spdx .v { background: rgba(61,224,208,.12); color: var(--dxl-teal); padding: 5px 10px; white-space: nowrap; }
+
+/* Suite mark */
+.dxl-mark {
+  display: flex; align-items: center; justify-content: center; flex: none;
+  background: linear-gradient(135deg, var(--dxl-teal), var(--dxl-blue));
+  color: #041014; font-weight: 800; letter-spacing: -.02em;
+  border-radius: 9px; box-shadow: 0 0 16px rgba(61,224,208,.22);
+}
+
+.dxl-roles { color: var(--dxl-text3); }
+.dxl-colophon { font-family: var(--dxl-mono); font-size: 9.5px; color: var(--dxl-text4); letter-spacing: .02em; }
+.dxl hr.dxl-div { border: none; border-top: 1px solid var(--dxl-border); margin: 0; }
+
+/* ── Variant: sidebar foot ─────────────────────────────────────────────── */
+.dxl-sidebar {
+  background: var(--dxl-surface); border: 1px solid var(--dxl-border);
+  border-radius: 14px; padding: 14px 15px;
+  display: flex; flex-direction: column; gap: 10px; max-width: 260px;
+}
+.dxl-sidebar .dxl-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.dxl-sidebar .dxl-dot {
+  width: 6px; height: 6px; border-radius: 50%; background: var(--dxl-green);
+  box-shadow: 0 0 7px rgba(57,217,138,.7); flex: none;
+}
+
+/* ── Variant: full-width ribbon (app / paper foot) ─────────────────────── */
+.dxl-ribbon {
+  display: flex; align-items: stretch; flex-wrap: wrap;
+  background: var(--dxl-surface); border: 1px solid var(--dxl-border); border-radius: 12px;
+}
+.dxl-ribbon .dxl-seg { display: flex; align-items: center; gap: 11px; padding: 14px 20px; }
+.dxl-ribbon .dxl-seg + .dxl-seg { border-left: 1px solid var(--dxl-border); }
+.dxl-ribbon .dxl-grow { flex: 1; flex-direction: column; align-items: flex-start; gap: 3px; min-width: 220px; }
+.dxl-ribbon .dxl-mark { width: 34px; height: 34px; font-size: 16px; }
+
+/* ── Variant: one-liner (tight footers) ────────────────────────────────── */
+.dxl-oneline {
+  display: flex; align-items: center; gap: 9px; flex-wrap: wrap;
+  font-family: var(--dxl-mono); font-size: 11.5px; color: var(--dxl-text3);
+}
+.dxl-oneline .dxl-mark { width: 20px; height: 20px; font-size: 10px; border-radius: 6px; }
+.dxl-oneline .dxl-sep { color: var(--dxl-text4); }
+.dxl-oneline .dxl-lic { color: var(--dxl-teal); text-transform: uppercase; letter-spacing: .04em; font-size: 10px; }
+
+/* ── Variant: credits grid (About / reference-guide Credits) ───────────── */
+.dxl-credits { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.dxl-credits .dxl-col {
+  background: var(--dxl-surface2); border: 1px solid var(--dxl-border);
+  border-radius: 12px; padding: 16px 18px;
+}
+.dxl-credits .dxl-k {
+  font-family: var(--dxl-mono); font-size: 10px; text-transform: uppercase;
+  letter-spacing: .08em; color: var(--dxl-text4); margin-bottom: 9px;
+}
+.dxl-credits .dxl-name { font-size: 16px; font-weight: 700; margin-bottom: 5px; }
+.dxl-credits .dxl-cite { font-size: 11.5px; font-style: italic; color: var(--dxl-text4); margin-top: 9px; line-height: 1.6; }
+
+/* Disclaimer line — health / regulatory (short, inline) */
+.dxl-disclaimer { font-family: var(--dxl-mono); font-size: 9.5px; color: var(--dxl-text4); line-height: 1.6; }
+
+/* Disclaimer block — full intended-use / safety notice (About / first-run) */
+.dxl-notice {
+  border: 1px solid var(--dxl-border); border-left: 3px solid var(--dxl-teal);
+  border-radius: 10px; background: var(--dxl-surface2);
+  padding: 14px 16px; max-width: 640px;
+}
+.dxl-notice .dxl-k {
+  font-family: var(--dxl-mono); font-size: 10px; text-transform: uppercase;
+  letter-spacing: .08em; color: var(--dxl-teal); margin-bottom: 7px;
+}
+.dxl-notice p { margin: 0; font-size: 12px; color: var(--dxl-text3); line-height: 1.65; text-wrap: pretty; }
+.dxl-notice p b, .dxl-notice p strong { color: var(--dxl-text2); }
+
+@media (max-width: 768px) {
+  .dxl-ribbon .dxl-seg + .dxl-seg { border-left: none; border-top: 1px solid var(--dxl-border); }
+}
+
+</style>
 <style>
   :root { --bg:#0e1116; --card:#161b22; --ink:#e6edf3; --dim:#8b949e; --teal:#2dd4bf; --amber:#f0b429; --red:#f85149; --line:#30363d; }
   * { box-sizing:border-box; }
@@ -59,12 +184,16 @@
     <div class="note">Two independent estimators derived from the <em>same</em> flow signal: <code>60/median(period)</code> versus a plain breath count. Their disagreement bounds the reference's own precision.</div>
     <table id="tblRef"><thead><tr><th>Night</th><th>breaths</th><th>median period (s)</th><th>MAE med-vs-count</th><th>r</th></tr></thead><tbody></tbody></table>
     <div id="refSummary" class="note"></div>
+    <figure style="margin:14px 0 0"><canvas id="figRefFloor" width="820" height="330"></canvas>
+      <figcaption class="note">The floor, and the spread it was taken from — the figure <code>papers/cpap-flow-reference.html</code> §3.1 owes. <a href="#" id="dlRefFloor">&#10515; cpap-reference-self-noise.png</a></figcaption></figure>
   </div>
 
   <div class="card"><h2>2 · Clock — offset and drift</h2>
     <div class="note">Offset recovered by cross-correlating band-passed ACC against band-passed flow (±90 min, 1 s). Validity is <b>drift-model consistency</b>, not correlation magnitude.</div>
     <table id="tblClock"><thead><tr><th>Night</th><th>recovered (s)</th><th>predicted (s)</th><th>Δ (s)</th><th>peak |r|</th><th>sharpness</th><th>verdict</th></tr></thead><tbody></tbody></table>
     <div id="driftSummary" class="note"></div>
+    <figure style="margin:14px 0 0"><canvas id="figDrift" width="820" height="330"></canvas>
+      <figcaption class="note">What “on-model” looks like — the figure <code>papers/cpap-flow-reference.html</code> §3.2 owes. <a href="#" id="dlDrift">&#10515; cpap-clock-drift.png</a></figcaption></figure>
   </div>
 
   <div class="card"><h2>3 · Estimator agreement <span class="pill idle" id="nPill">0 epochs</span></h2>
@@ -616,7 +745,23 @@
       if (st > maxStep) maxStep = st;
     }
     var span = pts[n - 1].d - pts[0].d;
-    var ppm = span > 0 ? (sm[n - 1] / span) * 1e6 : 0;
+    /* A ZERO DEVICE SPAN IS NOT A CLOCK, AND A RATE OVER IT IS NOT 0 — refuse. This line used to read
+       `span > 0 ? … : 0`, which is the fabricated zero of CLAUDE.md §∅ at the rate: every anchor's
+       device stamp identical (the 50 `inapplicable` streams of `known-clock-recovery blindScore`, a
+       device column that was never a counter) came back `ok:true, ppm:0, independent:true` — the
+       spread gate is inert here because the HOST wanders, so the axis read as two agreeing clocks
+       and a caller reading `hostAxis` alone spent it as a second clock (residue
+       2026-09-02-hostaxis-accepts-drawn-axis). Same shape as the ±CK_AXIS_MAX_PPM refusal below and
+       the ≥3-anchor one above: when the input cannot be a rate, the answer is no rate, never 0.
+       ⚠ Deliberately NARROW. The general drawn case (a uniform counter with span > 0) is still
+       admitted and published as `deviceDrawn` — gating on it was tried and reverted (a synthetic
+       fixture's `devMs = i * 1000` is a legitimate uniform axis), and consumer migration is its own
+       row. Zero span has no such legitimate reading: no fixture, synthetic or real, is a clock that
+       never ticks. */
+    if (!(span > 0)) {
+      return { ok: false, reason: 'device axis has zero span across ' + n + ' anchors — the device column is not a clock, so there is no rate to measure', n: n, spanMs: span };
+    }
+    var ppm = (sm[n - 1] / span) * 1e6;
     /* IS THERE ACTUALLY A SECOND CLOCK HERE? (PAT-NO-VALID-ANCHOR §10, last item.)
        A ppm of ~0 has two completely different meanings and this function used to report them
        identically: (a) two INDEPENDENT clocks that happen to agree — the good case, and (b) the host
@@ -756,6 +901,14 @@
           /* Published UNCONDITIONALLY, including when the type IS named — a caller with a wider
              tolerance can then decide for itself instead of being forced to accept this default. */
           slopeSE: cls.slopeSE,
+          /* ⚠️ THE SE'S OWN n — and it is NOT `taus`. `slopeSE` is a standard error, so it is
+             uninterpretable without the number of points it was fitted over: a tight SE from 3 τ
+             points and one from 12 are different claims. `_ckAllanSlope` fits only the points with
+             `adev > 0 && tau > 0`, so an exactly-flat τ (a frequency series periodic in that τ —
+             reachable, and gate-pinned) is dropped from the fit while still being counted in `taus`.
+             Reading `taus` as the SE's n therefore OVERSTATES it. Published because a consumer that
+             quotes the SE owes this beside it, the same way `ppm` owes its span. */
+          nTau: cls.nTau,
           noise: cls.noise,
           candidates: cls.candidates,
           meaning: cls.meaning,
@@ -776,6 +929,18 @@
              place of one chosen by intuition. On a pure-jitter clock it is simply the longest τ
              measured, and saying so is more honest than implying a minimum was found. */
           optimalTauSec: curve[bestI].tau,
+          /* THE CURVE ITSELF (residue 2026-09-21-adev-curve-not-exported-by-either-node). Every scalar
+             above is a projection of it, and the projections cannot show WHERE the floor sits or
+             whether the slope was fitted over a straight run or across a KNEE — which is §7's whole
+             point: the slope names the mechanism, and one number cannot show a slope that changes.
+             `adevPpm` deliberately, NOT the `…Ms` misnomer above: the estimator is handed phase in ms
+             and τ in seconds, so `adev` is ms/s = 1e-3 dimensionless, and ×1000 is ppm. `n` is the
+             term count at that τ — a reader needs it to see the estimate widening as τ grows. The
+             ladder is octave-spaced and ends where `CK_ALLAN_MIN_TERMS` bites, so this is short
+             (≤ ~20 points) and bounded by construction. */
+          curve: curve.map(function (pt) {
+            return { tauSec: pt.tau, adevPpm: pt.adev * 1000, n: pt.n };
+          }),
           /* THE POINT OF THE EXERCISE: how much of the `ppm` above is real. σ_y at the recording's own
              span, expressed in ppm — quote the ppm WITH this or not at all. */
           ppmUncertainty: curve[curve.length - 1].adev * 1000,
@@ -1612,7 +1777,7 @@ function adaptEnvelopeNode(json, node, filename) {
       })
     };
   }
-  return [
+  var _envRecs = [
     {
       node: node,
       label: node + (t0Ms != null ? ' · ' + fmtDayShort(t0Ms) : ' · date unknown'),
@@ -1677,6 +1842,19 @@ function adaptEnvelopeNode(json, node, filename) {
       _src: filename
     }
   ];
+  /* §8 / §12 — the SECOND emitter lands here: a recording-level `measurement` map (ECGDex today) is consumed
+     exactly as adaptOxyDex consumes a night's, into REFS on the rec. The join is the export's
+     recording.contentId; the scalars are the consensus-axis numbers this adapter already read
+     (summary.rmssd/sdnn = wholeRecordRMSSD/SDNN — a light export has no hrv block, so the scalars are null
+     and only the block's own legs are checked). Conditional: a node without the block adds no key. */
+  if (json.measurement && typeof json.measurement === 'object') {
+    var _measEnv = consumeMeasurements(
+      { measurement: json.measurement, contentId: (json.recording && json.recording.contentId) || null },
+      { rmssd: summary.rmssd != null ? summary.rmssd : null, sdnn: summary.sdnn != null ? summary.sdnn : null }
+    );
+    if (_measEnv) _envRecs[0].measurements = _measEnv;
+  }
+  return _envRecs;
 }
 
 /* Absolute beat instants from the node-export's interval series (WEARABLE-HOST-AXIS-FOLLOWUPS §F6).
@@ -1855,6 +2033,67 @@ function _ecgPostureSeries(json, t0Ms) {
    top-level events) fall through to per-night SYNTHESIS of desat_event (from desatProfile.events)
    + autonomic_arousal (from hr_spikes). The tolerant reader accepts BOTH Array.isArray(json) (legacy)
    and json.nights[] (envelope), normalizing to nights[] internally — old fixtures keep ingesting. */
+/* ═══ MEASUREMENT-PROVENANCE-ROADMAP §8 — CONSUME the per-instance measurement block, don't rewrite it ═══
+   A node export may carry `measurement.<metricId>` blocks (roadmap §1; OxyDex emits them since §3,
+   2026-09-21). The Integrator READS them where present, tolerates their absence (a legacy export produces a
+   rec with no `measurements` key, so every existing fixture stays byte-identical), and carries the consumed
+   REFS forward in its own export — never a copy of the payload (§4: "references, never payloads").
+
+   FAIL CLOSED (§4): a block whose refs do not resolve is marked `provenance:'unresolved'` with the reason
+   named, LOUDLY — never silently accepted as a scalar, never silently dropped. "Resolve" here means what the
+   Integrator can check without the node's registry or the raw file: the code identity is a 12-hex pair,
+   the input hash is 12-hex AND equals the night's own contentId when the night carries one (a block that
+   names a different input than the element it sits in is the fabricated-lineage case), the window is
+   finite and positive, the value is finite, and the metricId names the key it sits under.
+
+   The summary scalars every existing consumer reads (`summary.odi4`, `.meanSpo2`, `.hypoxicBurden`) stay
+   sourced from the element — and a RESOLVED block whose value disagrees with that scalar is a defect the
+   block reports on itself (`unresolved: value disagrees…`), because the roadmap's §3 invariant is that the
+   block adds lineage and never a second number. A matching block is what lets a reader walk the scalar
+   back (docs/MEASUREMENT-WALKTHROUGH-OXYDEX-2026-09-21.md). No fusion-engine work here — interface only. */
+var _HEX12 = /^[0-9a-f]{12}$/;
+function consumeMeasurements(n, scalars) {
+  var m = n && n.measurement;
+  if (!m || typeof m !== 'object' || Array.isArray(m)) return null;
+  var ids = Object.keys(m);
+  if (!ids.length) return null;
+  var out = { blocks: {}, resolved: 0, unresolved: 0 };
+  ids.forEach(function (id) {
+    var b = m[id];
+    var why = [];
+    if (!b || typeof b !== 'object') why.push('block is not an object');
+    else {
+      if (b.metricId !== id) why.push('metricId ' + b.metricId + ' does not name the key it sits under (' + id + ')');
+      if (typeof b.value !== 'number' || !isFinite(b.value)) why.push('value is not a finite number');
+      var c = b.code;
+      if (!c || !_HEX12.test(String(c.manifestHash || '')) || !_HEX12.test(String(c.computeHash || '')))
+        why.push('code identity missing or not a 12-hex pair' + (b.codeReason ? ' (' + b.codeReason + ')' : ''));
+      var ev = b.evidence || {};
+      if (ev.inputHash == null) why.push('evidence.inputHash absent' + (ev.inputReason ? ' (' + ev.inputReason + ')' : ''));
+      else if (!_HEX12.test(String(ev.inputHash))) why.push('evidence.inputHash is not a 12-hex content address');
+      else if (n.contentId != null && ev.inputHash !== n.contentId) why.push('evidence.inputHash ' + ev.inputHash + ' names a different input than the element\u2019s contentId ' + n.contentId);
+      var w = b.window || {};
+      if (!(typeof w.startTMs === 'number' && isFinite(w.startTMs) && typeof w.endTMs === 'number' && isFinite(w.endTMs) && w.endTMs > w.startTMs)) why.push('window is not a finite positive span');
+      if (scalars && Object.prototype.hasOwnProperty.call(scalars, id) && scalars[id] != null && b.value !== scalars[id])
+        why.push('value ' + b.value + ' disagrees with the element scalar ' + scalars[id] + ' — the block must add lineage, not a second number');
+    }
+    var ref = {
+      metricId: id,
+      value: b && typeof b.value === 'number' ? b.value : null,
+      basis: b && b.basis != null ? b.basis : null,
+      window: b && b.window ? { startTMs: b.window.startTMs, endTMs: b.window.endTMs, clockDomain: b.window.clockDomain != null ? b.window.clockDomain : null } : null,
+      code: b && b.code ? { manifestHash: b.code.manifestHash != null ? b.code.manifestHash : null, computeHash: b.code.computeHash != null ? b.code.computeHash : null } : null,
+      evidence: b && b.evidence ? { inputHash: b.evidence.inputHash != null ? b.evidence.inputHash : null, envelopeRef: b.evidence.envelopeRef != null ? b.evidence.envelopeRef : null } : null,
+      provenance: why.length ? 'unresolved' : 'resolved'
+    };
+    if (why.length) ref.unresolvedReason = why.join('; ');
+    out.blocks[id] = ref;
+    if (why.length) out.unresolved++;
+    else out.resolved++;
+  });
+  return out;
+}
+
 function adaptOxyDex(json, filename) {
   var _topKernel = json && !Array.isArray(json) && json.kernel ? json.kernel : null;
   var nights = Array.isArray(json) ? json : Array.isArray(json.nights) ? json.nights : [json];
@@ -2019,6 +2258,8 @@ function adaptOxyDex(json, filename) {
     } else if (_remImplausible) {
       summary.stagingSuppressed = _sp.plausibilityNote || 'oximetry REM proxy implausible (' + _sp.remProxyPct + '% of the recording)';
     }
+    // §8 — consume the per-instance lineage where the night carries it; a legacy night adds no key.
+    var _meas = consumeMeasurements(n, { odi4: summary.odi4, meanSpo2: summary.meanSpo2, hypoxicBurden: summary.hypoxicBurden, t90: stats.t90pct != null ? stats.t90pct : null });
     recs.push({
       uid: 'OxyDex@' + (t0Ms || 'n' + ni),
       node: 'OxyDex',
@@ -2038,6 +2279,7 @@ function adaptOxyDex(json, filename) {
       raw: n,
       _src: filename
     });
+    if (_meas) recs[recs.length - 1].measurements = _meas; // conditional — absent on a legacy export, so nothing downstream moves
   });
   return recs;
 }
@@ -2169,6 +2411,29 @@ function normalizeFile(json, filename) {
    The stampless path closes a silent bug: file / file (1) / file (2) copies of a
    DATE-UNKNOWN recording have t0Ms=null every time, slipped the ±30 s guard, and
    were counted N times — inflating node lists, event/burden totals, and exports. */
+/* ── THE SENSOR SITE IS PART OF A RECORDING'S IDENTITY (owner ruling 2026-09-13) ─────────────────
+   A finger PPG and a wrist PPG are two DIFFERENT sensors on two different parts of the body, and
+   both export under `schema.node === 'PpgDex'`. The dedupe key was the node alone, so a night
+   carrying both collapsed to one on the ±30 s rule — measured over the 41-night trio corpus,
+   **15 of 41 nights lost one of the two**, and WHICH one it lost depended on load order: armband
+   first drops the finger (so `fusePulseCrossCheck` and every finger path never fire), finger first
+   drops the wrist HRV. That is not a double count being prevented, it is a whole recording being
+   discarded — the node's own `site` field was sitting right there, unread by this function.
+   Ruled against two alternatives: a first-class `PpgDexFinger` node (a MAJOR export-contract break)
+   and a deviceKey (scrubbed from exports by privacy policy at `dex-export.js:46`, which stays).
+   ⚠️ `summary.site` carries a `|| 'wrist'` default at its adapter, so a site-less export compares as
+   wrist. That is the SAFE direction here: an unknown site never merges with a known 'finger', so the
+   failure mode is keeping two recordings, never silently dropping one. */
+function _recSite(r) {
+  return (r && r.summary && r.summary.site) || null;
+}
+function _sameSite(a, b) {
+  var sa = _recSite(a),
+    sb = _recSite(b);
+  // unknown on either side ⇒ do not let site BLOCK a dedupe that the other rules would make;
+  // only a known-and-different pair is evidence of two distinct sensors.
+  return sa == null || sb == null ? true : sa === sb;
+}
 function _recSig(r) {
   // content fingerprint for a STAMPLESS recording (no clock to dedupe on).
   // Uses RAW events (which survive even when normalized events are dropped for
@@ -2181,7 +2446,9 @@ function _recSig(r) {
   var last = ev.length ? ev[ev.length - 1].t || ev[ev.length - 1].tMs || '' : '';
   var rm = r.summary && r.summary.rmssd != null ? r.summary.rmssd : '';
   var sd = r.summary && r.summary.sdnn != null ? r.summary.sdnn : '';
-  return r.node + '|n' + ev.length + '|' + first + '→' + last + '|' + rm + '/' + sd;
+  // site rides the signature too, so a stampless finger and a stampless wrist cannot collide on
+  // matching event counts — the same identity rule as the dated path, stated in one more place.
+  return r.node + '@' + (_recSite(r) || '?') + '|n' + ev.length + '|' + first + '→' + last + '|' + rm + '/' + sd;
 }
 function dedupeRecs(existing, incoming) {
   var kept = [],
@@ -2190,6 +2457,10 @@ function dedupeRecs(existing, incoming) {
     var nsig = nr.t0Ms == null ? _recSig(nr) : null;
     var dup = existing.concat(kept).find(function (e) {
       if (e.node !== nr.node) return false;
+      // …and the same SITE. Two sensors on different parts of the body are two recordings, however
+      // close their clocks are. Placed before the contentId branch deliberately: a site mismatch is
+      // decisive evidence of distinctness, so nothing below should be able to overrule it.
+      if (!_sameSite(e, nr)) return false;
       // EXPORT-IDENTITY-FOLLOWUPS-II §1: when BOTH carry an identity-free recording.contentId, that
       // content digest is the STRONGEST duplicate signal — same node + same contentId = the same
       // recording regardless of stamp (catches a re-load / cross-stamp dup the ±30 s and stampless-sig
@@ -3656,6 +3927,50 @@ function _tchRhoFromMotion(triplet, keys) {
 // Generic reference-free per-sensor hat for ONE metric ('rmssd' | 'hr'). PURE; {ok:false, reason}
 // when <3 nodes carry that per-epoch series (→ caller degrades). Estimates ρ from cross-node motion
 // (§1) and passes it to the estimator's external-ρ path; attaches per-node mean level for reconciling.
+/* ── THE `timingSource` VOCABULARY — ENUMERATED, AND UNKNOWN IS FAIL-CLOSED ────────────────────
+   🔴 THIS REPLACES A STRICT `!==` PAIR THAT WAS ALREADY WRONG IN PRODUCTION. The test here read
+   `s.timingSource !== 'device' && s.timingSource !== 'device+host'` — a CLOSED vocabulary written
+   as an open one. Any value outside those two literals marked the corner `pseudo`, i.e. "declares
+   no per-sample device timing", and OxyDex has emitted **`'device+host-verified'`** since #1643
+   (`oxydex-dsp.js` night.timingSource, RTC-verified against the `_rtclog.csv` sidecar). That is a
+   STRONGER provenance than `device+host`, and it has been silently downgrading the three-cornered
+   hat to a heuristic badge ever since — no red, no warning, because the failure direction is the
+   conservative-looking one. Pinned as a live case by `tests/dex-tests.js` ("a VERIFIED ANCHOR …
+   does NOT make the corner timed") and recorded in OXYDEX-PB-DETECTOR-FOLLOWUPS §3b.
+
+   So the fix is the CLASS, not the instance: every value an emitter can produce carries an
+   explicit `timed` decision here, and a value with no entry is `timed: false` — fail-closed, so an
+   unknown string can never be spent as a clock. The accompanying gate (`timingsource-vocabulary`)
+   scans the emitters for `timingSource` literals and REDS on any value missing from this table, so
+   adding a value without deciding what it means becomes impossible rather than merely discouraged.
+
+   ⚠️ `timed: true` means "this corner carries per-sample timing a σ solve may spend as a clock" —
+   NOT "this axis is accurate". A drawn axis placed on the host timeline is `'host'`: real timing
+   exists, but it came from the host and the device contributed sample ORDER only, so it is not an
+   independent corner (CLAUDE.md §🔒 §7, "a drawn axis is PLACED, never SPENT"). */
+const TIMING_SOURCE_VOCABULARY = {
+  /* ⚠️ `timed: FALSE`, and this entry is the reason the table exists rather than a prefix match.
+     A first draft of this vocabulary set it TRUE — "verified is strictly stronger than device+host"
+     — and the gate that exists for exactly this caught it: `tests/dex-tests.js` asserts a VERIFIED
+     ANCHOR does NOT make the corner timed. The assertion is right and the draft was wrong, because
+     THE TWO VALUES ANSWER DIFFERENT QUESTIONS. OxyDex's `'device+host-verified'` is an RTC-ANCHOR
+     verdict (the device's real-time clock agreed with a host-stamped `_rtclog.csv` sidecar at a
+     point); `timed` asks CLAUDE.md §🔒 §7's PER-SAMPLE question — did the device report real
+     per-sample stamps this σ solve may spend as an independent clock. An anchor agreeing once says
+     nothing about per-sample timing, so this stays FALSE until someone MEASURES that OxyDex's
+     per-sample axis is independent. Recorded in OXYDEX-PB-DETECTOR-FOLLOWUPS §3b; changing it is a
+     measurement, not a rename. */
+  'device+host-verified': { timed: false, why: 'an RTC-ANCHOR verdict, not a per-sample timing claim — see the note above; NOT the same question `timed` asks' },
+  'device+host': { timed: true, why: 'device reported real per-sample stamps, host-disciplined — an independent clock' },
+  device: { timed: true, why: 'device clock only, per-sample and real' },
+  host: { timed: false, why: 'the device column was DRAWN; all real timing came from the host, so this is not an INDEPENDENT corner' },
+  none: { timed: false, why: 'drawn AND no host anchors — no timing information exists in this recording' }
+};
+function timingSourceIsTimed(v) {
+  const e = Object.prototype.hasOwnProperty.call(TIMING_SOURCE_VOCABULARY, v) ? TIMING_SOURCE_VOCABULARY[v] : null;
+  return e ? e.timed === true : false; // unknown ⇒ NOT timed. Fail closed.
+}
+
 function _tchHat(like, ptsFn, metric) {
   var TCH = _tchEngine();
   if (!TCH) return null;
@@ -3776,6 +4091,15 @@ function _tchHat(like, ptsFn, metric) {
     });
   })([best.A, best.B, best.C]);
   var opts = { labels: _cornerIds, minN: 12 };
+  // The corner SOURCES, parallel to `_cornerIds`. A consumer cannot resolve a weight by node NAME:
+  // `_cornerIds` disambiguates duplicates ("PpgDex 1"/"PpgDex 2"), so two corners of the same node
+  // share a name and differ only by label. Published alongside so a lookup can match by IDENTITY,
+  // which is the only key that is unique. DEEP-AUDIT-V-FOLLOWUPS F5 required this re-key; it was
+  // stamped DONE with this half unbuilt, and the result was that BOTH PpgDex corners silently
+  // dropped out of the inverse-variance mean and the published figure was the remaining corner
+  // verbatim (measured 07-19: weights {0.0385, 0.4808, 0.4808}, values [45, 32.6, 31.7], published
+  // 31.7 — ECGDex's own value — against an honest label-aligned mean of 32.64).
+  var _cornerSrcs = [best.A, best.B, best.C];
   if (rho && rho.value > 0) opts.rho = rho.value;
   var r = TCH.threeCorneredHat(best.al.A, best.al.B, best.al.C, opts);
   if (!r.ok) {
@@ -3783,6 +4107,11 @@ function _tchHat(like, ptsFn, metric) {
     return r;
   }
   r.metric = metric;
+  r.cornerIds = _cornerIds;
+  // NON-ENUMERABLE for the same reason as `src` on a spread() value: these are the source RECORDS,
+  // internal wiring for identity lookup, and a plain field serialises every one of them into the
+  // published export. `cornerIds` stays enumerable — it is a list of strings and is readable output.
+  Object.defineProperty(r, 'cornerSrcs', { value: _cornerSrcs, enumerable: false, configurable: true });
   /* PSEUDO THREE-CORNERED HAT — the corner's axis, not the corner's crystal (2026-08-17).
      The `timingSource === 'none'` filter above removes a leg that declares it has no timing. It cannot
      see the commoner case: a leg that declares NOTHING. OxyDex emits no `quality` block at all, so it
@@ -3810,7 +4139,7 @@ function _tchHat(like, ptsFn, metric) {
     r.axisProvenance[_cornerIds[i]] = s.timingSource != null ? s.timingSource : null;
   });
   r.pseudo = [best.A, best.B, best.C].some(function (s) {
-    return s.timingSource !== 'device' && s.timingSource !== 'device+host';
+    return !timingSourceIsTimed(s.timingSource);
   });
   r.pseudoReason = r.pseudo ? 'a corner declares no per-sample device timing — σ is a ranking, not a calibrated instability' : null;
   r.coMotion = {};
@@ -4429,7 +4758,14 @@ function fuseHRVConsensus(recs, dtMs) {
         return {
           values: like
             .map(function (s) {
-              return { node: s.node, v: _cmpVal(s, key) };
+              // `src` is the SOURCE OBJECT, kept so a weight can be resolved by identity rather than
+              // by `node` — which is not unique once two corners share a node name. NON-ENUMERABLE:
+              // it is internal wiring, and a plain field would serialise the ENTIRE rec into the
+              // published export (caught by the equivalence gate, which reported
+              // `rmssd.values.0.src: {"node":"ECGDex","label":…}` against the committed golden).
+              var _o = { node: s.node, v: _cmpVal(s, key) };
+              Object.defineProperty(_o, 'src', { value: s, enumerable: false });
+              return _o;
             })
             .filter(function (o) {
               return o.v != null;
@@ -4462,7 +4798,11 @@ function fuseHRVConsensus(recs, dtMs) {
         var _ws = 0,
           _acc = 0;
         rm.values.forEach(function (o) {
-          var w = tch.weights[o.node];
+          // BY IDENTITY, not by name. `tch.weights` is keyed by the disambiguated corner label, so
+          // `tch.weights[o.node]` is undefined for every corner whose node name is shared — which is
+          // exactly the finger/wrist PpgDex pair this fusion exists to combine.
+          var _ci = tch.cornerSrcs ? tch.cornerSrcs.indexOf(o.src) : -1;
+          var w = _ci >= 0 ? tch.weights[tch.cornerIds[_ci]] : null;
           if (w != null) {
             _acc += w * o.v;
             _ws += w;
@@ -4502,7 +4842,11 @@ function fuseHRVConsensus(recs, dtMs) {
       var _hrStatSet = _hrStats.filter(function (v, i) {
         return v != null && _hrStats.indexOf(v) === i;
       });
-      var _hrStatMixed = _hrStatSet.length > 1 || _hrStats.indexOf(null) >= 0;
+      /* The decision is a pure, exported function — `hrStatMixed` at script scope. It is out there
+         rather than inline because this flag only publishes when the three-cornered hat resolves
+         (three nodes with epoch data), which made the inline version effectively untestable while
+         being the one part worth testing. */
+      var _hrStatMixed = hrStatMixed(_hrStats);
       var hrReconciled = null;
       if (tchHR && tchHR.ok && tchHR.levels) {
         // inverse-variance reconciled HR (weight ∝ 1/σ²)
@@ -6224,6 +6568,46 @@ function fitClockDrift(aTimes, bTimes, opts) {
   iq.sort(function (x, y) {
     return x - y;
   });
+  var _h = (function () {
+    if (rows.length < 6) return null;
+    /* ONLY WHEN THERE IS A TREND TO BE LINEAR ABOUT. A slope-ratio test is meaningless on a fit whose
+       true drift is ~0: the two halves then measure noise around zero, their ratio is random and their
+       signs are a coin flip, so the test refuses the CLEANEST case there is — a perfectly aligned pair
+       with a constant offset. (Caught by the existing planted-1.5 s-offset fixture, which is exactly
+       that case and which this gate failed on its first draft.) Require the excursion the fit CLAIMS
+       to clear the scatter it sits in before asking about its shape; below that, curvature is not
+       measurable and the leg stays silent rather than convicting. */
+    var _resid = _wrapped && _wrapped.residRmsMs != null ? _wrapped.residRmsMs : null;
+    if (_resid == null) return null;
+    var _span = rows[rows.length - 1].tMs - rows[0].tMs;
+    if (!(Math.abs(slope) * _span > 3 * _resid)) return null;
+    var mid = Math.floor(rows.length / 2);
+    var fit = function (rs) {
+      var n = rs.length;
+      if (n < 3) return null;
+      var sx = 0,
+        sy = 0;
+      rs.forEach(function (r) {
+        sx += r.tMs;
+        sy += r.off;
+      });
+      var mxx = sx / n,
+        myy = sy / n,
+        num = 0,
+        den = 0;
+      rs.forEach(function (r) {
+        num += (r.tMs - mxx) * (r.off - myy);
+        den += (r.tMs - mxx) * (r.tMs - mxx);
+      });
+      return den > 0 ? (num / den) * 1e6 : null;
+    };
+    var a = fit(rows.slice(0, mid)),
+      b = fit(rows.slice(mid));
+    if (a == null || b == null) return null;
+    var lo = Math.min(Math.abs(a), Math.abs(b)),
+      hi = Math.max(Math.abs(a), Math.abs(b));
+    return { firstPpm: +a.toFixed(1), secondPpm: +b.toFixed(1), sameSign: a * b > 0, ratio: hi > 0 ? +(lo / hi).toFixed(3) : null };
+  })();
   return {
     /* THE SERIES THE FIT WAS MADE FROM, which was being discarded. `off` at `tMs` is a PHASE series —
        the only input from which this leg's own rate uncertainty can be measured. Without it a consumer
@@ -6233,6 +6617,16 @@ function fitClockDrift(aTimes, bTimes, opts) {
        proportional model has no support; and naive OLS on these blocks underestimates the observed
        closure noise 10x, because consecutive block offsets share the same wander and OLS assumes
        independent residuals. A correlation-safe uncertainty needs the series, not a summary of it. */
+    /* CURVATURE — a linearity check the beat-match statistic structurally cannot make.
+       `confident` used to certify a fit on correspondence alone: how often the blocks agree about
+       WHICH beat pairs with which. That measures whether the pairing is real, not whether the offset
+       walks in a straight line, so a smoothly DECELERATING clock walk certified as a linear drift
+       (measured 2026-09-12: −137 ppm, confident:true, over a 0 → −2,030 ms decelerating walk; the
+       same shape on 08-26). A line has the SAME slope in both halves of its own blocks; a walk that
+       flattens does not. Split the fitted blocks, fit each half, and compare.
+       The ratio bound is deliberately loose (1/3) and is NOT corpus-tuned — it is set to refuse the
+       shape (a half that has flattened toward zero, or reversed) rather than to grade a fit. */
+    _halves: _h,
     blocks_: rows.map(function (b) {
       return { tMs: b.tMs, off: b.off };
     }),
@@ -6254,12 +6648,34 @@ function fitClockDrift(aTimes, bTimes, opts) {
        range mid-night and the regression flattens toward zero (measured: a planted 250 ppm reads 49).
        Published so a caller can tell "no drift" from "drift beyond my reach" — the distinction a bare
        number hides. */
-    maxDriftPpm: A[A.length - 1] > A[0] ? (searchMs / (A[A.length - 1] - A[0])) * 1e6 : null,
+    /* Over the FITTED BLOCK span, not A's full span. Using A's span understates the reach of a fit
+       that only spans part of the recording, and the error is in the dangerous direction: on
+       2026-09-12 A spans 387 min while the fitted blocks span 270, so reach read 129 ppm against a
+       true 185 and a −137 ppm walk was reported as "beyond my reach" while sitting well inside the
+       search window. The bound belongs to the blocks that were actually fitted. */
+    maxDriftPpm: (function () {
+      var f = rows.length ? rows[0].tMs : null,
+        l = rows.length ? rows[rows.length - 1].tMs : null;
+      return f != null && l > f ? (searchMs / (l - f)) * 1e6 : null;
+    })(),
     /* Correspondence must beat its OWN chance control by a clear margin — the block fit maximises the
        statistic it reports, so "high" alone means nothing. 2x is deliberately conservative: the
        measured pair sits at 90.6 % vs 21.3 %, a 4.3x margin. */
-    confident: chance != null && medFrac >= 2 * chance && medFrac >= 0.5,
-    reason: chance == null ? 'no control blocks' : medFrac < 2 * chance ? 'correspondence does not clear its own chance control' : null,
+    /* BOTH legs, and they answer different questions. Correspondence says the PAIRING is real; the
+       curvature says the walk is a LINE. A fit can pass the first and fail the second — that is
+       exactly the decelerating walk this gate was added for — and certifying it as a drift rate
+       publishes a ppm for something that is not a constant-rate clock. */
+    confident: chance != null && medFrac >= 2 * chance && medFrac >= 0.5 && !(_h && (!_h.sameSign || (_h.ratio != null && _h.ratio < 1 / 3))),
+    reason:
+      chance == null
+        ? 'no control blocks'
+        : medFrac < 2 * chance
+          ? 'correspondence does not clear its own chance control'
+          : _h && !_h.sameSign
+            ? 'the two halves of the fit drift in OPPOSITE directions — not a constant rate'
+            : _h && _h.ratio != null && _h.ratio < 1 / 3
+              ? 'the fit CURVES: half-slopes ' + _h.firstPpm + ' / ' + _h.secondPpm + ' ppm (ratio ' + _h.ratio + ') — a walk, not a drift'
+              : null,
     perBlock: rows
   };
 }
@@ -6614,6 +7030,20 @@ function readDetectorStability(nodeExport) {
     atShortestPpm: num(s.atShortestPpm),
     atLongestPpm: num(s.atLongestPpm),
     optimalTauSec: num(s.optimalTauSec),
+    /* THE CURVE, carried through UNCHANGED when the source shipped one (2026-09-22). The block above
+       forwards a detector's stability so a reader weighing an attribution has the fact that settles
+       it — and the scalars alone cannot show a KNEE, which is the one shape that makes `slope`
+       unreadable. Filtered to finite points so a malformed source cannot inject NaN into a consumer;
+       `[]` when the source carried none, never a fabricated default. */
+    curve: Array.isArray(s.curve)
+      ? s.curve
+          .filter(function (pt) {
+            return pt && isFinite(pt.tauSec) && isFinite(pt.adevPpm);
+          })
+          .map(function (pt) {
+            return { tauSec: pt.tauSec, adevPpm: pt.adevPpm, n: num(pt.n) };
+          })
+      : [],
     /* The one derived field, and it is a THRESHOLD RESTATEMENT rather than a fresh inference: a slope
        below the white/flicker-phase boundary (the same −0.75 midpoint `capture-host/allan.py` and
        `ppgdex-dsp.js` use) means averaging keeps paying, so a persistent divergence cannot be noise. */
@@ -7369,7 +7799,21 @@ function _beatSkewCheck(recs, pairs, opts) {
         B = withBeats[j];
       var fit = fitClockDrift(Array.prototype.slice.call(A.beats.tMs), Array.prototype.slice.call(B.beats.tMs), {});
       if (!fit || fit.offsetMs == null) {
-        out.push({ a: A.node, b: B.node, offsetSec: null, confident: false, reason: fit ? fit.reason : 'no fit' });
+        /* SAME KEYS ON THE REFUSAL ARM. A shape that changes with the outcome makes a consumer's
+           `'driftPpm' in pair` mean "a fit happened", not "a rate exists" — so the rate keys are
+           present and null here, exactly as §∅ requires absence to be represented. */
+        out.push({
+          a: A.node,
+          b: B.node,
+          offsetSec: null,
+          driftPpm: null,
+          wrappedDriftPpm: null,
+          wrappedConcentration: null,
+          maxDriftPpm: null,
+          spanMin: null,
+          confident: false,
+          reason: fit ? fit.reason : 'no fit'
+        });
         continue;
       }
       /* The event-derived lag for the SAME pair, if one was estimated, so the two observers can be
@@ -7389,6 +7833,25 @@ function _beatSkewCheck(recs, pairs, opts) {
         chance: fit.chanceCorrespondence,
         confident: fit.confident === true,
         reason: fit.reason,
+        /* THE RATE, AND THE FIELDS THAT SAY WHETHER IT IS ONE. This check reported an OFFSET and
+           nothing else, so a constant inter-node offset and an offset that WALKS were the same value
+           to it at every instant — it could not see the defect it reads as guarding against, and the
+           −137 ppm walk `fitClockDrift` reported `confident:true` passed it untouched. The producer
+           computed all of this and the seam dropped it, which is the same shape as `beatCheck` itself
+           being computed by `detectClockSkew` and dropped by `runFusion` (#2462).
+           ⚠️ A BARE `driftPpm` WOULD BE WORSE THAN NONE, and that is why four fields cross, not one.
+           `fitClockDrift`'s own contract says a ppm from it "is not evidence unless a closure residual
+           is quoted beside it" — it may carry whole-RR sawtooth, since no unwrap is performed. So the
+           phase-aware pair travels with it (`wrappedConcentration` near 1 = every block agrees on the
+           phase; low = undersampled, where the number is not a measurement), `maxDriftPpm` travels so
+           "no drift" is distinguishable from "drift beyond my reach", and `spanMin` travels because
+           §🔒.7 forbids quoting a ppm without its span. A consumer that wants the rate gets the means
+           to judge it; none of these is a verdict this function invented. */
+        driftPpm: fit.driftPpm != null ? +fit.driftPpm.toFixed(1) : null,
+        wrappedDriftPpm: fit.wrappedDriftPpm,
+        wrappedConcentration: fit.wrappedConcentration,
+        maxDriftPpm: fit.maxDriftPpm != null ? +fit.maxDriftPpm.toFixed(1) : null,
+        spanMin: fit.spanMin,
         eventLagSec: ev,
         /* DISAGREEMENT, against the coarse estimator's OWN resolution. The event lag is quoted off a
            30 s grid with a ±60 s match window, so anything inside that is agreement by construction;
@@ -7824,7 +8287,20 @@ function runFusion(recs, opts) {
     /* CROSS-DEVICE-CLOCK-SKEW §3.1 — always present, so a consumer can tell "checked, clean" from
        "never checked". `findings` names the offending node and the fitted offset; `applied` names
        what was actually shifted before fusing; `pairs` is the raw per-pair evidence. */
-    clockSkew: { findings: skew.findings, applied: skewApplied, pairs: skew.pairs, fits: skewFits, vetoes: skew.vetoes && skew.vetoes.length ? skew.vetoes : undefined },
+    /* `beatCheck` rides here with its siblings. `detectClockSkew` computed it and `runFusion` then
+       rebuilt `clockSkew` field-by-field WITHOUT it, so a beat-level cross-check on a verdict made
+       by a coarse 30 s grid was computed on every fusion and discarded — no consumer anywhere.
+       Wired rather than deleted because it joins a block that IS consumed (`fusion.clockSkew` is
+       passed up at the end of runFusion); publishing it into an unread key would have recreated
+       the defect one field over. */
+    clockSkew: {
+      findings: skew.findings,
+      applied: skewApplied,
+      pairs: skew.pairs,
+      fits: skewFits,
+      beatCheck: skew.beatCheck || null,
+      vetoes: skew.vetoes && skew.vetoes.length ? skew.vetoes : undefined
+    },
     hrSource: hrSource,
     pairs: pairs,
     apnea: apnea,
@@ -7842,7 +8318,11 @@ function runFusion(recs, opts) {
     findings: findings,
     unmatched: apnea ? apnea.unmatched : { desat: [], surge: [] },
     nodes: recs.map(function (r) {
-      return { node: r.node, label: r.label, date: r.dateStr, window: recWindow(r), nEvents: r.nEvents, dateUnknown: r.dateUnknown };
+      var card = { node: r.node, label: r.label, date: r.dateStr, window: recWindow(r), nEvents: r.nEvents, dateUnknown: r.dateUnknown };
+      /* §8/§4 — the consumed measurements' REFS ride forward on the node card (value + identity + join +
+         provenance verdict), never the block's payload. Conditional: a node that emitted no blocks adds no key. */
+      if (r.measurements) card.measurements = r.measurements;
+      return card;
     })
   };
 }
@@ -7868,7 +8348,7 @@ function buildFusionExport(recs, fusion) {
         nullModel:
           'confirmedApneaIndex is published (reportable=true) only when the confirmed count exceeds a per-night Poisson chance expectation; otherwise findings carry belowChance=true + pSpurious and the index is withheld (R5).',
         apneaCoupling:
-          'apneaCoupling is the EventCoupling shuffled-null verdict for desat⟷surge: circular time-shift surrogates vs a coverage-aware baseline (coverage = the recording overlap, so a desat outside the cardiac window is excluded, not a miss). Read real/lift ONLY when usable (neither underpowered=expectedHits<3 nor saturated=maxLift<1.5). Additive to the Poisson nullModel; does not change reportability (§P7).',
+          'apneaCoupling is the EventCoupling shuffled-null verdict for desat⟷surge: circular time-shift surrogates vs a coverage-aware baseline (coverage = the recording overlap, so a desat outside the cardiac window is excluded, not a miss). Read real/lift ONLY when usable (neither underpowered=expectedHits<3 nor saturated=maxLift<1.5). Additive to the Poisson nullModel; does not change reportability (§P7). ⚠️ SCALE STATEMENT (docs/COUPLING-BOUT-FPR-2026-09-20.md, 400 SHHS1 records): the circular-shift null cannot see SHARED MODULATION — two independent streams whose rates are both driven by one process FINER than the ±5–17 min shifts read as coupled, at 30 % of nights at the 5-min bout scale (87.6 % at 90 s, 13 % at 10 min, 4.4 % with none), and real OSA streams are bouted (median Fano 3.73). For desat⟷surge this is mostly moot — both are driven by the same apneas — but a significant lift on a pair whose only link is a shared bout process is the inherited kind about a third of the time. No per-record flag ships: the diagnostic was measured and rejected (AUC ≤ 0.76 vs a pre-registered 0.8).',
         window:
           'window.overlapMin / overlapUnionMin = merged-union minutes where ≥2 nodes coincide (NOT a sum of pairwise overlaps); intersectionMin = N-way all-node overlap; pairwiseSumMin retained for transparency; nodesExcluded = dated nodes overlapping nothing (R3).',
         hrvConsensus: 'HRV consensus compares whole-record SDNN/RMSSD/LF-HF across nodes (window-normalized; epoch-scoped variants kept separately); same-window only (R8).',
@@ -8002,8 +8482,54 @@ function gradeFor(node, id) {
   return GRADE_MIRROR[id] || 'experimental';
 }
 
+/* ── hrStatMixed(stats) — COMPARABILITY CLASSES, NOT NAME EQUALITY ───────────────────────────────
+   Owner ruling 2026-09-17 (D3). Pure and EXPORTED on purpose: the flag it computes only publishes
+   when the three-cornered hat resolves, which needs three nodes with epoch data, so the inline
+   version it replaced was effectively untestable while being the one part worth testing. Same
+   reasoning `capture-host/tools/mutate_diff.py` gives for keeping decision logic out of an IO layer —
+   if it can give a WRONG ANSWER rather than failing loudly, it belongs where a test reaches it.
+
+   It read `distinct(names).length > 1`, which was right for as long as the NAMES tracked the VALUES:
+   OxyDex published `median-rate`, biased -0.244 bpm (5.7 sigma) against ECGDex's `rate-of-mean` over
+   726 paired epochs, so a name difference WAS a real difference. D3 switched OxyDex to `mean-rate`
+   (+0.013 bpm, 0.3 sigma) and left the names still different — so a name-keyed flag would fire on
+   EVERY night while the bias it warns about is gone. A warning that always fires carries no information.
+
+   MEMBERSHIP IS A MEASUREMENT, NOT A TAXONOMY. `mean-rate` sits with `rate-of-mean` because the two
+   were MEASURED to agree to 0.3 sigma; `median-rate` is alone because it was measured NOT to. **Never
+   add a name here because it "should" agree** — a new statistic is its own class until somebody pairs
+   it against another on real epochs. That is why this is a named set and not a rule.
+
+   FAILS CLOSED, TWICE. An UNRECOGNISED name becomes its own class, so it reads MIXED rather than being
+   folded in with whatever it resembles; and a `null` or `undefined` is still mixed, because an absent
+   statistic name is not evidence that the legs agree. */
+var HR_STAT_CLASS = { 'rate-of-mean': 'mean-of-rr', 'mean-rate': 'mean-of-rr', 'median-rate': 'median-of-rate' };
+function hrStatMixed(stats) {
+  var list = stats || [];
+  if (list.indexOf(null) >= 0 || list.indexOf(undefined) >= 0) return true;
+  var named = list.filter(function (v, i) {
+    return v != null && list.indexOf(v) === i;
+  });
+  var classes = named.map(function (v, i) {
+    return HR_STAT_CLASS[v] || 'unrecognised:' + i;
+  });
+  return (
+    classes.filter(function (v, i) {
+      return classes.indexOf(v) === i;
+    }).length > 1
+  );
+}
+
 /* expose to other page scripts (plain global scope, but be explicit) */
 window.IntegratorDSP = {
+  /* D3 — exported so the comparability decision is testable without a full three-node fusion. */
+  hrStatMixed: hrStatMixed,
+  HR_STAT_CLASS: HR_STAT_CLASS,
+  /* §timingSource vocabulary — exported so the gate can assert that every value ANY emitter
+     produces has an explicit `timed` decision here. Without the export the table would be a
+     private convention and the next value could be added without anyone deciding. */
+  TIMING_SOURCE_VOCABULARY: TIMING_SOURCE_VOCABULARY,
+  timingSourceIsTimed: timingSourceIsTimed,
   segmentsOverlap: segmentsOverlap, // §6.2 — recorded-time overlap (sparse-aware); gate-visible
   overlapIntervals: overlapIntervals, // gap-aware intersected intervals — the quantity-bearing sibling
   recSegments: recSegments,
@@ -8018,6 +8544,7 @@ window.IntegratorDSP = {
   nodeColor,
   NODE_COLORS,
   normalizeFile,
+  consumeMeasurements,
   dedupeRecs,
   recWindow,
   overlapInterval,
@@ -8582,6 +9109,10 @@ window.IntegratorDSP = {
       var dyn = Math.abs(mags[i] - base[i]);
       if (dyn > MOVE_G) counts[idx] += dyn;
     }
+    /* the parser hangs the seam list on the row array itself (`out._clockResyncs`, :289), so the
+       signal is already in scope here — no signature change, and no new parameter for a caller to
+       forget to pass. */
+    var _seam = !!(accRows && accRows._clockResyncs && accRows._clockResyncs.length);
     var epochs = [],
       immobile = 0,
       covered = 0,
@@ -8605,7 +9136,28 @@ window.IntegratorDSP = {
       epochs: epochs,
       coveredEpochs: covered,
       totalCounts: total,
-      immobileFrac: covered ? immobile / covered : null,
+      /* ── §∅ REFUSE-VS-ANNOTATE (CLAUDE.md §∅, owner ruling 2026-09-17) ──────────────────────
+         "A DISCONTINUITY refuses; reduced COVERAGE annotates. The line is whether the window still
+         describes ONE continuous stretch of signal."
+
+         `immobileFrac` is a DURATION over the axis: epochs are assigned by
+         `Math.floor(relSecOf(...) / epoch)`, a TIME-DERIVED index. A device-clock seam is re-anchored
+         upstream, which makes the axis continuous again and therefore makes the discontinuity
+         INVISIBLE here — samples either side of the seam land in adjacent epochs as though no time
+         passed between them. The fraction over that stretch is not an observation anyone made.
+         Measured on ECGDex 2026-09-17: a metric fed SAMPLE indices is immune to this and needs no
+         guard; one fed time-derived indices is not. That is the criterion, not "does the node detect
+         seams" — see residue `2026-09-17-seam-exposure-is-input-provenance`.
+
+         `movementIndex` is a MAGNITUDE (mean dynamic-g per covered epoch), not a span, so it is left
+         published. And the COVERAGE half above is already what §∅ mandates — tri-state `moving`,
+         uncovered epochs outside the denominator — so it is deliberately untouched: conforming it
+         would be a change with no defect behind it.
+
+         The reason string is `clock-seam` VERBATIM, the spelling PpgDex established (#2600). Never a
+         second spelling of one fact. */
+      immobileFrac: _seam ? null : covered ? immobile / covered : null,
+      ...(_seam ? { immobileFracReason: 'clock-seam' } : {}),
       movementIndex: covered ? total / covered : null
     };
   }
@@ -8613,12 +9165,19 @@ window.IntegratorDSP = {
   /* ════════════════════════════════════════════════════════════════════════
      RESPIRATORY RATE — spectral ridge tracking (MOTIONDEX-RESPIRATORY-RATE-2026-07-21)
      ────────────────────────────────────────────────────────────────────────
-     Validated on 26 nights / 172 h / 19,193 epochs of Polar H10 chest ACC against
+     Validated on 49 ACC/CPAP-paired nights / 8,057 epochs of Polar H10 chest ACC against
      ResMed CPAP `Flow.40ms` breath-by-breath reference:
-        MAE 1.01 brpm (95% CI 0.91-1.12), 91.6% within 2 brpm, at 100% coverage;
-        MAE 0.56 / 97.8% at 70% coverage, i.e. AT the reference's own 0.70 brpm floor.
-     The predecessor zero-crossing estimator (still below, still exported) scored
-     MAE 3.59 on the same epochs — worse than predicting a constant (1.50).
+        MAE 1.10 brpm (95% CI 0.96-1.27), 90.8% within 2 brpm, at 100% coverage;
+        MAE 0.63 / 97.2% at 70% coverage, i.e. AT the reference's own 0.74 brpm floor.
+     The null baseline (predicting the corpus median) scores MAE 1.64 on the same epochs.
+
+     ⚠ RESTATED 2026-09-07, and note WHAT IS NOT RESTATED. The previous figures — 26 nights /
+     172 h / 19,193 epochs, MAE 1.01, 91.6% — predate the cross-device alignment fix of #1042,
+     whose own commit message records nine of sixteen nights scored against noise; they were
+     never reproducible from committed code. The predecessor zero-crossing comparison (MAE 3.59)
+     is WITHDRAWN rather than updated: the analysis tool no longer emits that configuration, so
+     it could not be reproduced, and carrying a number forward under corrected figures is the
+     precise thing the correction refuses to do.
 
      Design notes, each measured rather than assumed:
        · 3 band-passed acceleration axes. A tilt-ANGLE channel is NOT built: for a
@@ -11331,6 +11890,144 @@ const MotionDex = window.MotionDex;
     ctx.fillText(d[d.length - 1].mae.toFixed(2), sc.X(d.length - 1) - 8, sc.Y(d[d.length - 1].mae) - 6);
   }
 
+  /* ── THE TWO FIGURES `papers/cpap-flow-reference.html` OWES (residue
+     2026-09-20-sibling-papers-have-no-figure-source) ─────────────────────────────────────────────
+     That paper carried ZERO images while its own status callout said it stays a DRAFT "until the
+     figures are emitted into papers/figures/". The row correctly refused to call the item done for
+     three papers when the tool drew for one — and named the gap as a missing CHART LAYER rather than
+     a regeneration left undone. It is narrower than that: this page ALREADY COMPUTES both of the
+     paper's plottable claims (§3.1 the reference's self-noise per night, §3.2 the clock offset and
+     its drift model) and rendered them as TABLES ONLY, which is the same defect the page's own §1
+     comment records about itself before 2026-08-06. So the figures are drawn from the data already
+     on screen; nothing here re-derives a number the tables do not show.
+     ⚠ The sibling `papers/effort-typing-null.html` gets NO figure and that is deliberate — see the
+     note in this file's header table and the paper's own §Status: it is a negative result with two
+     tables and no figure reference anywhere in its text, and its DRAFT condition is the corpus
+     regeneration, not a missing image. Drawing one to fill a slot would be the fabricated close the
+     row warned about. */
+  function drawRefFloor(rows) {
+    var cv = $('figRefFloor');
+    if (!cv) return;
+    var ctx = figBase(
+      cv,
+      'Reference self-noise — the floor no algorithm may claim to beat',
+      rows.length + ' night(s): two estimators on the SAME flow signal, 60/median(period) vs a plain breath count'
+    );
+    if (!rows.length) return;
+    var box = { l: 54, r: cv.width - 34, t: 52, b: cv.height - 52 };
+    var d = rows.slice().sort(function (a, b) {
+      return a.mae - b.mae;
+    });
+    var ymax =
+      Math.max.apply(
+        null,
+        d.map(function (r) {
+          return r.mae;
+        })
+      ) * 1.2;
+    box.xticks = [];
+    for (var xi = 0; xi < d.length; xi++) box.xticks.push(xi);
+    var sc = figAxes(ctx, box, -0.5, d.length - 0.5, 0, ymax, 'night (sorted by self-noise)', 'MAE med-vs-count (br/min)', function (v) {
+      var rec = d[Math.round(v)];
+      if (!rec) return '';
+      var m = /(\d{4})(\d{2})(\d{2})/.exec(String(rec.name || ''));
+      return m ? m[2] + '-' + m[3] : String(Math.round(v) + 1);
+    });
+    var med = A.median(
+      d.map(function (r) {
+        return r.mae;
+      })
+    );
+    /* THE MEDIAN IS THE FLOOR THE PAPER QUOTES — drawn as the rule, so a reader sees the claim and
+       the spread it was taken from in one object instead of a single number in prose. */
+    var my = Math.round(sc.Y(med)) + 0.5;
+    ctx.strokeStyle = FIG.warn;
+    ctx.setLineDash([5, 4]);
+    ctx.beginPath();
+    ctx.moveTo(box.l, my);
+    ctx.lineTo(box.r, my);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = FIG.ink2;
+    ctx.font = FIG.mono;
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText('median floor ' + med.toFixed(2) + ' br/min', box.r, my - 4);
+    for (var i = 0; i < d.length; i++) figDot(ctx, sc.X(i), sc.Y(d[i].mae), 4.5, FIG.series);
+    ctx.fillStyle = FIG.ink;
+    ctx.textBaseline = 'bottom';
+    ctx.textAlign = 'left';
+    ctx.fillText(d[0].mae.toFixed(2), sc.X(0) + 8, sc.Y(d[0].mae) - 6);
+    ctx.textAlign = 'right';
+    ctx.fillText(d[d.length - 1].mae.toFixed(2), sc.X(d.length - 1) - 8, sc.Y(d[d.length - 1].mae) - 6);
+  }
+
+  /* §3.2 — the recovered offsets against the fitted drift model. The TABLE says which nights are
+     on-model; the figure says what "on-model" looks like, which is the whole validity argument
+     (consistency with a LINEAR drift, never correlation magnitude). Nights with no lock are absent
+     rather than plotted at zero — a fabricated point here would read as a perfect alignment. */
+  function drawDrift(done, drift) {
+    var cv = $('figDrift');
+    if (!cv) return;
+    var pts = [];
+    for (var i = 0; i < done.length; i++) {
+      var d = done[i];
+      if (!d.lock || !isFinite(d.dayNum)) continue;
+      var pred = drift ? drift.predict(d.dayNum) : Number.NaN;
+      pts.push({ day: d.dayNum, off: d.lock.off, pred: pred, onModel: isFinite(pred) ? Math.abs(d.lock.off - pred) < 5 : false, name: d.name });
+    }
+    var ctx = figBase(
+      cv,
+      'Clock offset and drift',
+      pts.length +
+        ' locked night(s)' +
+        (drift ? ' · fitted ' + drift.slopePerDay.toFixed(3) + ' s/day, residual SD ' + (isFinite(drift.residSD) ? drift.residSD.toFixed(2) + ' s' : '—') : ' · no drift fit')
+    );
+    if (!pts.length) return;
+    var box = { l: 62, r: cv.width - 34, t: 52, b: cv.height - 52 };
+    var xs = pts.map(function (p) {
+      return p.day;
+    });
+    var on = pts.filter(function (p) {
+      return p.onModel;
+    });
+    /* SCALE TO THE ON-MODEL NIGHTS, and say so: an off-model argmax can sit 80 minutes away (the
+       comment in the clock table records −5163 … +4804 s on the real corpus), and letting one set the
+       y-range collapses the 9-second spread the figure exists to show into a flat line. Off-model
+       points outside the range are drawn clamped at the edge, in the warn colour, so they are still
+       visible as "off the scale" rather than silently dropped. */
+    var base = (on.length ? on : pts).map(function (p) {
+      return p.off;
+    });
+    var lo = Math.min.apply(null, base);
+    var hi = Math.max.apply(null, base);
+    var pad = Math.max(2, (hi - lo) * 0.35);
+    var xmin = Math.min.apply(null, xs) - 0.5;
+    var xmax = Math.max.apply(null, xs) + 0.5;
+    var sc = figAxes(ctx, box, xmin, xmax, lo - pad, hi + pad, 'day number', 'recovered offset (s)', null, function (v) {
+      return v.toFixed(0);
+    });
+    if (drift) {
+      ctx.strokeStyle = FIG.warn;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(sc.X(xmin), sc.Y(drift.predict(xmin)));
+      ctx.lineTo(sc.X(xmax), sc.Y(drift.predict(xmax)));
+      ctx.stroke();
+      ctx.lineWidth = 1;
+    }
+    var clampY = function (v) {
+      var y = sc.Y(v);
+      return Math.max(box.t, Math.min(box.b, y));
+    };
+    for (var k = 0; k < pts.length; k++) figDot(ctx, sc.X(pts[k].day), clampY(pts[k].off), 4.5, pts[k].onModel ? FIG.series : FIG.warn);
+    ctx.fillStyle = FIG.ink2;
+    ctx.font = FIG.mono;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText(on.length + ' on-model (|Δ| < 5 s) · ' + (pts.length - on.length) + ' off-model, clamped to the axis', box.l, box.t - 16);
+  }
+
   function pngFrom(cv, name) {
     cv.toBlob(function (bl) {
       var u = URL.createObjectURL(bl),
@@ -11418,6 +12115,17 @@ const MotionDex = window.MotionDex;
       maes.push(n.selfAg.mae);
       row(tb, [n.name.replace(/Polar_H10_\d+_/, '').replace('_ACC.txt', ''), n.ref.nBreaths, fmt(A.median(n.ref.periods)), '<b>' + fmt(n.selfAg.mae) + '</b>', fmt(n.selfR, 3)]);
     }
+    /* The figure is drawn from the SAME rows the table just rendered (residue
+       2026-09-20-sibling-papers-have-no-figure-source) — one dataset, two renderings. */
+    drawRefFloor(
+      done
+        .filter(function (nn) {
+          return nn.selfAg;
+        })
+        .map(function (nn) {
+          return { name: nn.name, mae: nn.selfAg.mae };
+        })
+    );
     $('refSummary').innerHTML = maes.length
       ? 'Median self-noise across nights: <b>' + fmt(A.median(maes)) + ' br/min</b>. Treat this as the floor — an estimator scoring below it is not more accurate than the reference.'
       : '';
@@ -11427,10 +12135,20 @@ const MotionDex = window.MotionDex;
     var tc = $('tblClock').querySelector('tbody');
     tc.innerHTML = '';
     var okLocks = 0;
+    /* ONE LABELLING FOR ONE COLUMN. The no-lock branch used `d.name.slice(-22)` while the locked
+       branch below stripped the prefix and suffix by pattern — two spellings of the same identity in
+       the same table, and the magic 22 was off by one: `_ACC.txt` is 8 characters and the stamp 15,
+       so it needs 23 and ate the leading digit of the year. Every no-lock night rendered as
+       `0260611_173042_ACC.txt`. Measured 2026-09-05 on a 49-night run: 17 rows, a third of the table,
+       could not be joined back to the file that produced them — which is exactly what the cohort
+       manifest (`2026-09-02-papers-cohort-never-recorded`) exists to make possible. */
+    var nightLabel = function (name) {
+      return name.replace(/Polar_H10_\d+_/, '').replace('_ACC.txt', '');
+    };
     for (i = 0; i < done.length; i++) {
       var d = done[i];
       if (!d.lock) {
-        row(tc, [d.name.slice(-22), '—', '—', '—', '—', '—', '<span style="color:var(--red)">no lock</span>']);
+        row(tc, [nightLabel(d.name), '—', '—', '—', '—', '—', '<span style="color:var(--red)">no lock</span>']);
         continue;
       }
       var predOff = drift ? drift.predict(d.dayNum) : NaN;
@@ -11472,7 +12190,7 @@ const MotionDex = window.MotionDex;
       d.offsetUsed = good ? d.lock.off : pooledUsable ? -d.pooled.offsetSec : null;
       d.offsetFrom = good ? 'correlation' : pooledUsable ? 'pooled' : null;
       row(tc, [
-        d.name.replace(/Polar_H10_\d+_/, '').replace('_ACC.txt', ''),
+        nightLabel(d.name),
         d.lock.off,
         fmt(predOff, 1),
         fmt(delta, 1),
@@ -11488,6 +12206,7 @@ const MotionDex = window.MotionDex;
         })()
       ]);
     }
+    drawDrift(done, drift);
     $('driftSummary').innerHTML = drift
       ? 'Drift fit on ' +
         drift.n +
@@ -11497,7 +12216,26 @@ const MotionDex = window.MotionDex;
         fmt(drift.residSD) +
         ' s</b> (max ' +
         fmt(drift.residMax) +
-        ' s). ' +
+        /* 🔴 INTERCEPT AND x0 ARE WHAT MAKE THE VERDICT CHECKABLE. Every row above is judged
+           `|off - predict(day)| < 5`, and `predict` is `slope * (day - x0) + intercept` — so slope and
+           residual SD alone let a reader see the FIT but not REPRODUCE it. Residue
+           2026-09-04-respacc-verdict-not-reconstructable measured the cost: a re-fit from a run log put
+           11 of 20 rows inside tolerance while the run called all 20 off-model, and the disagreement was
+           unresolvable because the output did not carry the two terms needed to recompute a prediction.
+           ⚠️ That row says the run prints "no slope, intercept, n, or residual SD". Three of those four
+           WERE already printed here; the missing pair is intercept and x0. Corrected rather than
+           restated — the defect is real and narrower than recorded. */
+        ' s, intercept <b>' +
+        fmt(drift.intercept) +
+        ' s</b> at day <b>' +
+        drift.x0 +
+        '</b>, so predict(day) = ' +
+        fmt(drift.slopePerDay, 3) +
+        '·(day − ' +
+        drift.x0 +
+        ') + ' +
+        fmt(drift.intercept) +
+        '). ' +
         okLocks +
         ' of ' +
         done.length +
@@ -11616,7 +12354,11 @@ const MotionDex = window.MotionDex;
   [
     ['dlBA', 'figBA', 'acc-resp-bland-altman.png'],
     ['dlCov', 'figCov', 'acc-resp-coverage.png'],
-    ['dlNights', 'figNights', 'acc-resp-per-night.png']
+    ['dlNights', 'figNights', 'acc-resp-per-night.png'],
+    /* The two `papers/cpap-flow-reference.html` embeds — named for the paper that uses them, the same
+       convention `papers/figures/` already follows for the ACC paper's three. */
+    ['dlRefFloor', 'figRefFloor', 'cpap-reference-self-noise.png'],
+    ['dlDrift', 'figDrift', 'cpap-clock-drift.png']
   ].forEach(function (t) {
     var el = $(t[0]);
     if (el)

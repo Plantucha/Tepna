@@ -116,7 +116,7 @@ def test_the_ring_has_a_fixed_capturable_set_because_it_has_no_bitmask(tmp_path,
     the box, and it went a long time with no toggle at all."""
     body = _settings(tmp_path, [_dev(name="Ring", model="O2Ring-S", vendor=vendor)],
                      status={"Ring": {"pmd_supported": ["ecg"]}})
-    assert body["devices"][0]["supported"] == ["spo2", "ppg", "ppg2w", "acc"], \
+    assert body["devices"][0]["supported"] == ["spo2", "ppg", "ppg2w", "acc", "pletha"], \
         "the ring's set is fixed, and must not inherit a Polar bitmask"
 
 

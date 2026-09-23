@@ -215,7 +215,7 @@ def test_timesync_all_records_a_per_device_error(tmp_path):
 
 
 def test_pull_stored_surfaces_a_generic_error_as_502(tmp_path):
-    async def boom(which, ftype): raise RuntimeError("pull exploded")
+    async def boom(which): raise RuntimeError("pull exploded")   # ONE arg — capture._pull's real signature
     app, *_ = _mk(tmp_path, pull_stored=boom)
     async def go(c):
         r = await c.post("/api/pull", json={})
@@ -269,7 +269,7 @@ def test_timesync_all_names_a_synced_polar(tmp_path):
 
 
 def test_pull_malformed_body_is_tolerated(tmp_path):
-    async def puller(which, ftype): return {"files": []}
+    async def puller(which): return {"files": []}                # ONE arg — capture._pull's real signature
     app, *_ = _mk(tmp_path, pull_stored=puller)
     async def go(c):
         r = await c.post("/api/pull", data=b"{bad json", headers={"Content-Type": "application/json"})

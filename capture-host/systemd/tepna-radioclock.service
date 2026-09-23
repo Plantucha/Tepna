@@ -1,0 +1,47 @@
+# tepna-radioclock.service — Tepna Vigil
+# Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
+#
+# THE RADIO CLOCK (RADIO-CLOCK-SIDECAR-2026-09-07). Records the Nordic controller's own
+# connection-event anchor points beside the night, as an OPTIONAL second clock. It does not use them:
+# whether they are good enough to discipline the axis is decided later, against pre-stated bands.
+#
+# 🔴 A SEPARATE UNIT, AND tepna-capture.service IS NOT TOUCHED. The capture daemon runs without these
+# capabilities and must keep doing so — that is the owner's first invariant ("original functionality
+# must be kept"). This process only READS the HCI monitor channel, which is what btmon reads; it
+# transmits nothing except the one vendor enable command.
+#
+# ⚠️ CAP_NET_RAW ALONE, AND THAT IS MEASURED, NOT ASSUMED. On vigil 2026-09-07 a vendor-OGF command
+# went out on a RAW HCI socket from uid vigil holding CAP_NET_RAW only, and the controller answered
+# Command Complete status 0x00 in 0.8 ms with bluetoothd keeping the adapter. CAP_NET_ADMIN was tested
+# and is NOT required for the send — it only marks the socket "privileged" in btmon — so it is not
+# requested here. HCI_CHANNEL_USER is disqualified outright: it takes the adapter away from BlueZ,
+# which on this box means the capture daemon losing its links mid-night.
+#
+# Exit 0 on every "this box cannot": a non-Nordic controller is the common case, not a fault, and a
+# unit that went `failed` for it would leave a permanent red in `systemctl --failed`.
+[Unit]
+Description=Tepna — record the controller's connection-event anchors (optional second clock)
+After=bluetooth.service
+Wants=bluetooth.service
+
+[Service]
+Type=simple
+User=vigil
+Group=vigil
+AmbientCapabilities=CAP_NET_RAW
+CapabilityBoundingSet=CAP_NET_RAW
+WorkingDirectory=/opt/tepna/capture-host
+ExecStart=/opt/tepna/capture-host/.venv/bin/python /opt/tepna/capture-host/radioclock.py --config /opt/tepna/capture-host/config.yaml
+# It must never compete with capture for the radio or the CPU: this is telemetry about the night, and
+# the night itself outranks it.
+Nice=15
+Restart=on-failure
+RestartSec=30s
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/tepna
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS — 2026-08-15 (§4 RE-MEASURED: eight of its nine "still open" items are closed, F8 alone remains and is data-blocked. §1's three decisions are OWNER calls with the `no-fabricated-tier` ratchet holding meanwhile; §4 Tier-4 coverage debt RE-MEASURED 2026-08-20 — **3 of its 4 items are STALE**; only `cohort-worker.js` survives, and it is the row a grep count would have wrongly cleared) · **Created:** 2026-08-05 · **Follows:** `DEEP-AUDIT-V-2026-08-04-BRIEF.md` (DONE — 2026-08-15) · `DEEP-AUDIT-IV-2026-08-04-BRIEF.md` (IN-PROGRESS)
+**Status:** IN-PROGRESS — 2026-09-20 (ALL THREE OWNER CALLS RULED 2026-09-20, nothing here is owner-blocked any more. §1.1 the 68 tiles: **tier each one by review** — a session reads each descriptor against its method and evidence and writes a justified registry row; 68 rows, not a blanket, not a deny-set. §1.3 the 2 emoji heads: into `_META_DENY`, same PR. **⚠️ BOTH SPENT — ruled against a stale body; verified 2026-09-20 (Osprey) that `bb957d37` (2026-08-16) already did exactly this, owner re-ruled (a) nothing owed; see the box under §1.** F8: the NSRR DUA is SIGNED, F8 is unblocked as a diagnostic unit — **and MEASURED 2026-09-20 (Osprey, `tools/nsrr-coupling-bout-fpr.mjs`): reaches on real SHHS1 profiles at 13–30 % for 5–10 min shared features, 4.4 % under real clustering alone; the per-record diagnostic fails its own AUC bar and is not shipped. §4 row DONE; §1.1 remains the open item.** §1.2 was decided 2026-08-16 (option c). Lower `KNOWN_UNREGISTERED` as each lands. Executable by the fleet — the 68-row review is a multi-day unit and goes to whichever of Magpie/Osprey frees first, not squeezed in) · **Created:** 2026-08-05 · **Follows:** `DEEP-AUDIT-V-2026-08-04-BRIEF.md` (DONE — 2026-08-15) · `DEEP-AUDIT-IV-2026-08-04-BRIEF.md` (IN-PROGRESS) · 🔴 **RE-MEASURED 2026-09-03 — §1's HEADLINE NUMBER IS DISCHARGED. The evidence-badge debt is `0`, not 94.** Read from the gate rather than the prose: `no-fabricated-tier` reports *"0 labels render a tier no registry assigned"*, ⚠️ Its sibling assertion PRINTS *"debt is now 0; drop KNOWN_UNREGISTERED to match"*, and that is NOT a live instruction: `KNOWN_UNREGISTERED` is ALREADY `0` (`tests/dex-tests.js:47444 — the line MOVED from :47032 as the file grew; re-verified 2026-09-05 by `grep -n KNOWN_UNREGISTERED`, which is the durable query, and the constant is still `0``), so the cap is tight and nothing is slack. That string is a detail template the runner prints on PASS as well as on failure. I read it as an actionable and had written exactly that here before checking the constant — corrected in the same session. It is a live instance of residue `2026-09-03-pass-detail-reads-as-absence`, filed hours earlier by me and then walked into anyway, which is the argument for the row rather than against it. §1's three OWNER decisions are about tiering POLICY and remain owner calls; what is gone is the 94-label backlog they were framed around, so they are no longer urgent. **§4: F8 alone survives and is DATA-blocked** — it needs a real OSA stream and the trio corpus is healthy sleepers, so no amount of software work discharges it. Net: this brief has NO open software item; it waits on one owner policy call and one recording. · **RE-VERIFIED 2026-09-05 (Brief runner):** §1's discharge HOLDS — `no-fabricated-tier` green 10/10, *"0 labels render a tier no registry assigned"*, `KNOWN_UNREGISTERED = 0` and the not-slack leg passes, so the cap is tight. §4/F8 remains the only survivor and is still DATA-blocked (a real OSA stream; the trio corpus is healthy sleepers), so no software work discharges it. No open software item — unchanged from the 2026-09-03 stamp. · **Owner ruling 2026-09-07:** §1 CLOSED as **discharged** (debt 0, ratchet tight) — the three evidence-tiering policy calls are not owed. F8 remains DATA-blocked, unchanged. · 🔴 **RE-OPENED 2026-09-13 (Osprey) — the "NO open software item" verdict above was FALSE, and its falsifier was this brief's OWN row 118.** F5 ("collapsing corner labels") was stamped **DONE** against `integrator-tch.js:318`, which is the LABEL half. The fix needed two: disambiguate the corner labels AND re-key the consumer that reads weights by them. The second half was never built, so `integrator-dsp.js` went on resolving `tch.weights[o.node]` by the bare node name — `undefined` for BOTH corners of a node once `_cornerIds` had made their labels distinct — and the published "inverse-variance reconciled RMSSD" was the remaining corner VERBATIM whenever a finger and a wrist PpgDex export were loaded together. Measured on `uploads/trio` 07-19: published 31.7 (ECGDex's own) against an honest label-aligned mean of 32.64. Fixed 2026-09-13 by resolving through the corner SOURCE identity. ⚠️ The lesson is about the STAMP, not the defect: three successive re-verifications (2026-09-03, 2026-09-05, the 2026-09-07 owner ruling) each re-derived "no open software item" by reading the status COLUMN, and a half-covering DONE is invisible to that read — it is worse than no stamp, because it stops the re-derivation that would have found it. A DONE on a multi-part item must name every part. · **Residue:** 2026-09-13-f5-corner-rekey-half-unbuilt
 
 # Fixing the audit found a 94-label class, and it needs THREE decisions, not one
 
@@ -34,7 +34,18 @@ call sites, measured on the tree at 2026-08-05:
 | `row()` | **2** | the emoji column heads `🔗` / `💨` — not metrics at all |
 | | **94** | |
 
-**Three decisions, not one:**
+> ✅ **§1 IS SPENT — verified against the TREE 2026-09-20 (Osprey), owner-ruled (a) the same night.** All three
+> decisions below were executed on **2026-08-16 in `bb957d37`** ("the fabricated-tier debt is ZERO — it was 94
+> this morning", owner-ratified): **62 new `oxydex-registry.js` rows + 3 aliases + 3 denials**, each with a
+> cite, under the `ADJUDICATED 2026-08-16` block at `oxydex-registry.js:229`; the two emoji heads sit in
+> `cpapdex-registry.js:482 _META_DENY`; `KNOWN_UNREGISTERED = 0` (`tests/dex-tests.js`, "DEBT CLEARED
+> 2026-08-16") with the not-slack leg green; 4 registry commits since, none re-tiering. **The body below is
+> kept as the record of the question, not as an open item** — it was read as live on 2026-09-20 and a
+> "tier each by review" ruling was obtained against it, which cost one assignment and no code. A brief whose
+> header is stamped and whose body still enumerates open decisions is a cache in the other direction:
+> re-derive from the tree (`git log -S"KNOWN_UNREGISTERED = "`) before putting §1 to anyone again.
+
+**Three decisions, not one** *(all executed 2026-08-16 — see the box above)*:
 
 1. **The 68 metric tiles** (`metric`/`ssKPI`/`nrChip`) need registry rows. This is the real debt, and
    it is **the owner's call**: writing 68 rows means asserting 68 evidence tiers, and a tier is a
@@ -115,14 +126,14 @@ the code each cites, not by trusting a status header — the parent brief now ca
 | **F12** PpgDex gyro unit oracle | **REFUTED** | this brief's own §F12 — do not ship it |
 | **F16** PulseDex present-gates | **DONE** | `pulsedex-dsp.js:241` — *"AN UNCOMPUTABLE INDEX IS `null`, NEVER 0"* |
 | **F4** TCH AMBIGUOUS verdict | **DONE** | `integrator-dsp.js:2613` — *"THE SCREEN HAS THREE OUTCOMES; THIS IMPLEMENTED TWO"* |
-| **F5** collapsing corner labels | **DONE** | `integrator-tch.js:318` |
+| **F5** collapsing corner labels | **DONE** (both halves — 2026-09-13) | `integrator-tch.js:318` (labels) + `integrator-dsp.js` corner-identity re-key (consumer). ⚠️ This row read DONE against the labels alone from 2026-08-05 to 2026-09-13 while the consumer half was unbuilt; see the RE-OPENED note in the header. |
 | **F7** longitudinal sleep-date join | **DONE** | `integrator-longitudinal.js:231` |
 | **F13** `hostAxis.independent` dropped at the export boundary | **DONE** | `ppgdex-dsp.js:696` |
 | **F20+F21** ECGDex worker clock | **DONE** | `ecgdex-app.js` — and by a *better* route than either brief prescribed (see §3) |
 | **F18** capture-host `_PPI.txt` layout | **LANDED** #961 | already recorded below |
-| **F8** coupling bout-clustering | **OPEN — data-blocked** | needs a real OSA stream; the trio corpus is a healthy sleeper |
+| **F8** coupling bout-clustering | **DONE — MEASURED 2026-09-20 (Osprey)** | `tools/nsrr-coupling-bout-fpr.mjs` on 400 SHHS1 records: the null is exact under real clustering (crossed 4.4 %) and the shared-modulation FPR is a CURVE in the profile scale — 88 % at 90 s · 58 % at 3 min · **30 % at 5 min · 13 % at 10 min** · 7 % at 20 min; the synthetic 36–53 % sits at 3–5 min. The prescribed per-record density diagnostic does NOT discriminate (AUC ≤ 0.76 at bout scale, pre-registered bar 0.8) and is deliberately NOT shipped; p-value untouched. `docs/COUPLING-BOUT-FPR-2026-09-20.md` |
 
-**F8 is the only Tier-1/Tier-2 item left, and it is not waiting on code.** It waits on a recording this
+**F8 is CLOSED (measured 2026-09-20 — row above; the paragraph below is kept as the record of why it waited).** ~~F8 is the only Tier-1/Tier-2 item left, and it is not waiting on code.~~ It waits on a recording this
 machine does not have, which is a different kind of open from the rest of this list and should not be
 ranked beside them.
 

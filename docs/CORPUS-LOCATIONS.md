@@ -4,16 +4,18 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** REFERENCE (living) · **last-verified:** 2026-08-28 · **Serves:**
+**Status:** REFERENCE (living) · **last-verified:** 2026-09-20 · **Serves:**
 `FIXTURE-CORPUS-REACHABILITY-2026-08-09-BRIEF.md` §3
 
 # Where the raw recordings actually are
 
 The suite's real data is **gitignored** — personal overnight recordings, never committed. So "the
-corpus" is not a property of the repository, it is a property of the machine, and it lives in four
-places. The **CPAP corpus is a subdirectory of row 3** (`Ecg nightly/CPAP`) rather than a fifth
-location — see below, including how a wrong search term produced a false "it isn't here". None of them
-is discoverable from a checkout, which is why this file exists.
+corpus" is not a property of the repository, it is a property of the machine **and of the network** —
+four local locations plus **two NAS boxes** (added 2026-09-20; the count read "four places" until
+then, while the Synology already held a 189 GB cohort five tools consume). The **CPAP corpus is a
+subdirectory of row 3** (`Ecg nightly/CPAP`) rather than a fifth location — see below, including how a
+wrong search term produced a false "it isn't here". None of them is discoverable from a checkout,
+which is why this file exists.
 
 > **The one fact that costs the most time:** a fresh `git worktree` off `origin/main` contains the
 > **tracked** part of `uploads/` and none of the recordings. `CLAUDE.md` §👥.1 mandates that worktree
@@ -27,6 +29,14 @@ is discoverable from a checkout, which is why this file exists.
 > `DEX_UPLOADS` by hand for the primary-checkout case.
 
 ## 🟢 CONSOLIDATED 2026-08-28 — `/srv/data/tepna-corpus/` is THE canonical corpus (owner-ordered)
+
+> **Byte baseline (2026-09-21).** After the NAS migration and the first `corpus-tier` run, a second
+> instrument hashed every local regular file against its NAS twin and produced a SHA-256 manifest of
+> every NAS file: `/srv/data/tepna-corpus/.manifests/nas-sha256-2026-09-21.txt` (60,383 lines, SHA-256
+> `a274d619…ef2671`) and `local-vs-nas-2026-09-21.tsv` (14,091 lines). Numbers and limits in
+> [`audits/CORPUS-BYTE-AUDIT-2026-09-21.md`](../audits/CORPUS-BYTE-AUDIT-2026-09-21.md). The `.manifests/`
+> directory is undated by both of the tool's rules and is never tiered.
+
 
 Every local tree was merged into **one corpus root on the second disk**, each source verified
 contained before deletion, and every old path replaced by a **symlink** so existing tools and
@@ -58,6 +68,65 @@ Verification levels, stated per source: home `uploads/` and all small trees — 
 diffs before deletion); sdb archive — **checksum** clean (2 unique `.trio-stamp` files imported);
 `<647A>` — **presence+size** only. The historical sections below are kept: every lesson in them
 still applies, and several paths they name are now symlinks into the corpus.
+
+## 🔴 TWO NAS BOXES EXIST AND THIS FILE DID NOT NAME EITHER (added 2026-09-20)
+
+The section above was the whole backup story until today, and **both of its entries are degraded**:
+the sdb NTFS disk is the volume §"THE `data` VOLUME (sdb1) IS FAILING" says must not be remounted,
+and `<647A>` is a cold Windows volume verified by presence+size only. Meanwhile two network stores
+were carrying real data and appeared nowhere in the file whose stated purpose is that the corpus
+*"lives in four places … none of them is discoverable from a checkout, which is why this file
+exists."*
+
+| store | address | mount | holds | measured |
+|---|---|---|---|---|
+| **Synology** | `192.168.0.35:/volume1/MEDIA` | `/mnt/synology` (NFSv3, fstab) | **`nsrr-shhs1/` — 189 GB** | 11 TB vol, 7.1 TB free |
+| **TrueNAS** | `192.168.0.142:/mnt/Storage10TB/{tepna-corpus,vigil-archive,nsrr}` | `/mnt/nas/<dataset>` (NFSv4.2, fstab) | **VERIFIED FULL COPY of the canonical corpus, 2026-09-20** — 60,380 files, path+size parity both directions, 0 missing | **7.5 TB free** |
+
+⚠️ **`nsrr-shhs1` is not incidental media — it is a consumed corpus.** Five tools read it
+(`tools/nsrr-score-pool.mjs`, `nsrr-stage-validate.mjs`, `nsrr-effort-typing.mjs`,
+`nsrr-oxydex-odi.mjs`) plus `docs/ODI-BIAS-ANALYSIS-README.md`, and the ODI-4 paper's replication on
+5136 real PSG rests on it. A 189 GB cohort behind a published number sat outside the corpus map.
+
+**TrueNAS exports are rig-only** (`hosts: [192.168.0.57]`), rw, `mapall_user/group = truenas_admin`
+so NFS writes and vigil's ssh pushes share one owner. NFS was enabled 2026-09-20 on the owner's
+instruction; before that the host answered ping and SMB but **111 and 2049 were closed**, which is
+why an earlier probe concluded "no NAS" — a service-level negative that reads like a host-level one.
+⚠️ `truenas.local` does **not** resolve (no mDNS); the host is `192.168.0.142` on the LAN and also
+`truenas` → `100.83.91.77` on the tailnet. Probing the wrong name returns a clean, wrong negative.
+
+**The NAS copy was verified 2026-09-20 by path AND size, both directions, over 60,380 files** — 0 on
+the source missing from the NAS; 2 extras on the NAS (a 0-byte probe and a parked 93 MB git bundle).
+Method: `find -printf '%P\t%s'` on both roots, `comm` on the sorted pairs. **Not** by `df` — zstd
+makes `df` read ~40 % low and produced a "27 % done" progress report when the copy was ~80 % done.
+Apparent size is **173.8 GB**, not the 162 GB `du` reports in blocks. ⚠️ **This is a BACKUP, not the
+primary.** Every tool still resolves to `/srv/data/tepna-corpus/` through the 391 symlinks; repointing
+to NFS is an architecture decision (latency on a 60k-file tree), and until it is made, deleting the
+local copy would break every reader. `/srv/data` sits at 96 %, ~8 days of headroom at 0.6 GB/12 h.
+
+**Capacity is no longer the constraint; the local disk is.** The corpus grew **22.5 GB in the last
+30 days** (`find -mtime -30`), so 7.5 TB is ~27 years before zstd (3.75× on this data), while
+`/srv/data` runs at **95 %**. Read free space with `logicalused`, never `df` — compression makes
+`df` understate what a dataset actually holds.
+
+### ⚠️ `find -type f` DOES NOT SEE THE SYMLINKS, and that nearly cost two ECG nights
+
+The consolidation above left **391 symlinks** at the primary checkout's untracked `uploads/` paths.
+`find -type f` skips symlinks silently, so a comparison run that way measures the ~535 **tracked**
+files and reports on all of them. Measured 2026-09-20 while deciding whether a 13 GB superseded tree
+was safe to delete: that method reported **691 MB of recordings unique to the doomed tree, including
+two H10 raw-ECG nights**. Re-run against the canonical root — 33,074 files — **0 were missing**, and
+both "unique" nights were *more* complete in the corpus (30 and 29 files) than in the tree being
+protected. Real arithmetic, wrong population.
+
+**So: compare against `/srv/data/tepna-corpus/`, not against a checkout, and use `-type f -o -type
+l` or resolve through the links.** The same family is already recorded in
+`DEEP-AUDIT-VI-FOLLOWUPS`: *"The two read DIFFERENT corpus roots."*
+
+⚠️ **And duplication of CONTENT says nothing about working-tree STATE.** The same tree, proven
+byte-for-byte duplicated, still held a `.git` with **187 uncommitted modifications** that no bundle
+covered. Snapshot any tree carrying a `.git` before deleting it, however well duplicated its files
+are (`git bundle create … --all` after a temp-index `commit-tree`, per `CLAUDE.md` §👥.2).
 
 ## The four locations
 
@@ -119,7 +188,26 @@ export set:
 | path | nights | files | what it is |
 |---|---|---|---|
 | **`<647A>/Ecg nightly/CPAP`** | **192** (2026-01-11 → 07-21) | 1194 | the ResMed corpus, already in card layout — point `--root` straight at it |
-| `/run/media/michal/data/Ecg-nightly-archive/CPAP` | 192 | 1194 | a **byte-identical mirror** (0 name or size differences) on the second volume |
+| `/run/media/michal/data/Ecg-nightly-archive/CPAP` | 192 | 1194 | a **byte-identical mirror** (0 name or size differences) on the second volume — ⚠️ **as measured 2026-08-17, BEFORE the volume failed; see the box below** |
+
+> 🔴 **THE `data` VOLUME (sdb1) IS FAILING — DO NOT REMOUNT IT, AND DO NOT MEASURE AGAINST ITS MIRROR (2026-09-01).**
+> It threw Buffer I/O errors **with lost async page writes**, stopped, re-attached, and now sits unmounted
+> (kernel log 2026-09-01 10:21). Two separate facts, and they are about two DIFFERENT subtrees — do not
+> merge them:
+>
+> - **The `Ecg-nightly-archive` ECG portion is INCOMPLETE**: June 10–27 only, **15 of 31 scorable nights**.
+>   It is not a stale copy of a complete set, it is a partial one, and it **already flattered two candidates
+>   above their pre-stated bar** in the PPG-FOOT residual campaign before a canonical re-run on the primary
+>   corpus caught it (`PPG-FOOT-PLACEMENT-FOLLOWUPS-2026-09-01-BRIEF.md` §4). A subset measured as though it
+>   were the whole is exactly the shape no gate here can see.
+> - **The `CPAP` subtree row above** was verified byte-identical on 2026-08-17, which is *before* the I/O
+>   errors. That verdict is not evidence about the volume today and must not be re-quoted as current.
+>
+> **Ruling 2026-09-06** (owner expressed no preference; taken at session level, deliberately reversible):
+> the mirror is **kept, not deleted** — if the disk proves unrecoverable those 15 nights may be the only
+> copy, and deletion is the one choice that cannot be undone. What mattered was the misreading hazard, and
+> a coverage statement removes that without destroying bytes. Whether the disk itself is trustworthy, and
+> whether the partial mirror should eventually go, remain owner/hardware calls.
 
 > 🔴 **AN EARLIER VERSION OF THIS SECTION SAID THE CPAP CORPUS WAS ON THE *OTHER* VOLUME. IT WAS NOT —
 > and the misdiagnosis is more useful than the fact.** The sequence, 2026-08-17:

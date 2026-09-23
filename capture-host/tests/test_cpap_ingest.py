@@ -4,7 +4,7 @@
 # P3 of CPAP-ACQUISITION-HARDENING-AUDIT — the bounded ingest queue + gap-accounting counters + frame
 # classifier. Pure logic, 100% branch.
 import pytest
-from cpap_ingest import BoundedIngestQueue, FrameKind, GapCounters, classify_frame
+from cpap_ingest import SINK_SLOW_MS, BoundedIngestQueue, FrameKind, GapCounters, classify_frame
 
 
 def _sd(stream_id, data):
@@ -21,8 +21,20 @@ def test_a_foreign_streamid_is_foreign_not_ok():
     assert classify_frame(_sd(9, [{"PatientFlow": [1]}]), 7) is FrameKind.FOREIGN
 
 
-def test_a_non_streamdata_is_malformed():
-    assert classify_frame({"method": "HeartBeat", "params": {}}, 7) is FrameKind.MALFORMED
+def test_a_HeartBeat_is_a_NOTIFICATION_not_a_loss_and_a_methodless_frame_stays_malformed():
+    """Until 2026-09-19 the first line read `is FrameKind.MALFORMED`, and on every one of the 15 live
+    sessions the box had logged, `malformed` was frames_ok/150.0 — one HeartBeat per 30 s at 5 frames/s —
+    summed into `total_lost` as 689–1023 "lost" frames on nights that lost none. A notification the loop
+    does not decode is counted as what it is; a frame with no method at all is still MALFORMED."""
+    assert classify_frame({"method": "HeartBeat", "params": {}}, 7) is FrameKind.NOTIFICATION
+    assert classify_frame({"method": "SomethingNew"}, 7) is FrameKind.NOTIFICATION
+    assert classify_frame({"id": 16, "result": {}}, 7) is FrameKind.MALFORMED
+    assert classify_frame({"method": 5, "params": {}}, 7) is FrameKind.MALFORMED
+    c = GapCounters()
+    c.note_frame(FrameKind.NOTIFICATION, wire_bytes=48, json_bytes=31)
+    c.note_frame(FrameKind.MALFORMED, wire_bytes=16, json_bytes=2)
+    assert (c.notifications, c.malformed, c.total_lost) == (1, 1, 1)
+    assert (c.bytes_wire, c.bytes_json) == (64, 33), "bytes count for every kind — a HeartBeat costs airtime too"
 
 
 def test_a_streamdata_with_empty_data_is_malformed():
@@ -58,24 +70,52 @@ def test_note_frame_folds_each_kind_into_the_right_counter():
     assert c.foreign_stream == 1 and c.malformed == 1
 
 
-def test_total_lost_counts_overflow_malformed_and_tail_but_not_foreign():
-    """Foreign frames were never ours, so they are NOT loss. Overflow, malformed, and the post-drop tail
-    ARE the honest 'how much did we miss' — audit §16."""
-    c = GapCounters(overflow=3, malformed=2, post_drop_tail=1, foreign_stream=10, sink_errors=5)
-    assert c.total_lost == 6                # 3 + 2 + 1; foreign AND sink_errors excluded (different axes)
+def test_total_lost_sums_only_terms_that_can_move_and_names_the_rest():
+    """Foreign frames were never ours, so they are NOT loss. Overflow and malformed are.
+
+    ⚠️ `post_drop_tail` was in this sum and HAS NO DETECTOR, so `total_lost` was identically `malformed`
+    while documented as the honest "how much did we miss" number. Summing an unmeasured term does not
+    make a total more complete — it makes it a lie with more addends. The uncovered categories are named
+    in `lost_coverage` instead, so a reader can tell an honest partial from a complete one.
+    """
+    c = GapCounters(overflow=3, malformed=2, foreign_stream=10, sink_errors=5)
+    assert c.total_lost == 5                # 3 + 2; foreign AND sink_errors excluded (different axes)
+    assert c.lost_coverage == ["stalls", "post_drop_tail"]
+
+    # Supplying a measurement moves it out of the uncovered list — this is what "done" will look like.
+    c2 = GapCounters(overflow=3, malformed=2, post_drop_tail=1, stalls=0)
+    assert c2.lost_coverage == [] and c2.total_lost == 5, (
+        "total_lost still sums only the live terms; wiring a detector is what changes coverage")
 
 
 def test_summary_is_a_flat_stable_dict():
-    c = GapCounters(frames_ok=5, samples_ok=200, foreign_stream=1, malformed=2,
-                    overflow=1, stalls=1, post_drop_tail=1, sink_errors=3)
+    c = GapCounters(frames_ok=5, samples_ok=200, foreign_stream=1, malformed=2, events=4, notifications=6,
+                    bytes_wire=7000, bytes_json=6500, overflow=1, stalls=1, post_drop_tail=1, sink_errors=3)
     s = c.summary()
     assert s == {
-        "frames_ok": 5, "samples_ok": 200, "foreign_stream": 1, "malformed": 2,
-        "overflow": 1, "stalls": 1, "post_drop_tail": 1, "sink_errors": 3, "total_lost": 4,
+        "frames_ok": 5, "samples_ok": 200, "foreign_stream": 1, "malformed": 2, "events": 4,
+        "notifications": 6, "bytes_wire": 7000, "bytes_json": 6500,
+        "overflow": 1, "stalls": 1, "post_drop_tail": 1, "sink_errors": 3, "total_lost": 3,
+        "sink_max_ms": None, "sink_slow": None,
+        "lost_coverage_missing": [],
     }
     # key order is stable so two nights diff cleanly
-    assert list(s.keys()) == ["frames_ok", "samples_ok", "foreign_stream", "malformed",
-                              "overflow", "stalls", "post_drop_tail", "sink_errors", "total_lost"]
+    assert list(s.keys()) == ["frames_ok", "samples_ok", "foreign_stream", "malformed", "events",
+                              "notifications", "bytes_wire", "bytes_json",
+                              "overflow", "stalls", "post_drop_tail", "sink_errors",
+                              "sink_max_ms", "sink_slow", "total_lost", "lost_coverage_missing"]
+
+
+def test_the_DEFAULT_record_publishes_its_unmeasured_categories_as_None():
+    """The shape a real night produces today: nothing writes `stalls` or `post_drop_tail`, so both are
+    None rather than 0, and the summary says which categories the total does not cover.
+
+    A zero here would read as "counted, and none happened" — the same sentence `_counter` in
+    `acq_evidence_cpap` uses — when nothing looked."""
+    s = GapCounters().summary()
+    assert s["stalls"] is None and s["post_drop_tail"] is None
+    assert s["lost_coverage_missing"] == ["stalls", "post_drop_tail"]
+    assert s["total_lost"] == 0, "no loss measured is still a real 0 for the categories that ARE counted"
 
 
 # ── the bounded queue (spec §17 — backpressure, overflow recorded not silent) ──────────────────────
@@ -129,3 +169,43 @@ def test_queue_and_counters_share_the_overflow_record():
     q.offer("y")                            # dropped
     c.note_frame(FrameKind.OK, n_samples=40)
     assert c.overflow == 1 and c.frames_ok == 1 and c.total_lost == 1
+
+
+# ── sink timing: what makes a loop stall attributable ────────────────────────────────────────────────
+
+def test_an_UNTIMED_sink_reports_None_not_a_measured_zero():
+    """⚠️ The `or 0` defect this module already carries a fix for, in its newest field. A stream with no
+    `extra_sinks` times nothing, and `sink_max_ms: 0.0` would say "timed, and it was fast" — a
+    measurement nobody made. None says no write was timed."""
+    c = GapCounters()
+    assert c.sink_max_ms is None and c.sink_slow is None
+    assert c.summary()["sink_max_ms"] is None and c.summary()["sink_slow"] is None
+
+
+def test_a_FAST_sink_reports_a_real_zero_count_not_None():
+    """The mirror control. Once a write IS timed, `sink_slow` is a measured 0 — "counted, and none were
+    slow" — which is a different statement from None and must not collapse into it."""
+    c = GapCounters()
+    c.note_sink_write(0.4)
+    assert c.sink_max_ms == 0.4
+    assert c.sink_slow == 0, "a timed-and-fast sink is a measured zero, not an absence"
+
+
+def test_the_max_tracks_the_slowest_write_and_does_not_regress():
+    c = GapCounters()
+    for ms in (5.0, 120.0, 12.0):
+        c.note_sink_write(ms)
+    assert c.sink_max_ms == 120.0, "a later fast write must not lower the high-water mark"
+
+
+def test_sink_slow_counts_the_writes_that_could_HAVE_STALLED_the_loop():
+    """`SINK_SLOW_MS` is anchored to `capture.py`'s `_LOOP_LAG_WARN_MS`, not chosen: it is the size at
+    which a held loop is logged as a stall. A max alone tells you the worst write on the worst night;
+    the count is what distinguishes a mechanism from an outlier — the gate asks whether a sink EVER
+    holds the loop for ~1.5 s, which is the measured stall median."""
+    c = GapCounters()
+    c.note_sink_write(SINK_SLOW_MS - 0.001)   # just under — not slow
+    c.note_sink_write(SINK_SLOW_MS)           # exactly at the bound — slow
+    c.note_sink_write(1502.0)                             # the measured stall median
+    assert c.sink_slow == 2, "the bound is inclusive: a write AT the threshold could produce a stall"
+    assert c.sink_max_ms == 1502.0

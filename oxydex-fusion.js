@@ -165,7 +165,8 @@ function oxyHeroBenchCard(n, ecg) {
     headVal = hb.rate;
     headUnit = '%·min/h';
     headLbl = 'hypoxic burden';
-    sev = hb.rate < 5 ? 'proj-good' : hb.rate < 25 ? 'proj-warn' : 'proj-bad';
+    /* §∅ — `null < 5` is TRUE, so an unmeasured burden graded 'proj-good'. */
+    sev = hb.rate == null ? '' : hb.rate < 5 ? 'proj-good' : hb.rate < 25 ? 'proj-warn' : 'proj-bad';
   } else if (od4 && od4.rate != null) {
     headVal = od4.rate;
     headUnit = '/hr';

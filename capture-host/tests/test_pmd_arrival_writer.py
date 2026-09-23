@@ -289,8 +289,11 @@ def test_arrival_quality_skips_blank_and_malformed_rows(tmp_path):
         fh.write(";dev;ECG;1000;2000;10\n")                       # no timestamp
         fh.write("2026-08-11T22:00:00.000;dev;ECG;;;10\n")         # no device stamp
         fh.write("not-a-timestamp;dev;ECG;1000;2000;10\n")         # unparseable
+        # Counter starts at 1000, NOT 0: `i * 1000` made row 0 a device stamp of `0`, which is an
+        # ABSENT stamp (§∅) and is now dropped — so this loop was quietly planting a bad row among
+        # its "real" ones and asserting that all 150 survived.
         for i in range(150):                                       # enough real rows to be judgeable
-            fh.write(f"2026-08-11T22:00:{i // 10:02d}.{(i % 10) * 100:03d};dev;ECG;{i * 1000};{i * 1000};10\n")
+            fh.write(f"2026-08-11T22:00:{i // 10:02d}.{(i % 10) * 100:03d};dev;ECG;{(i + 1) * 1000};{(i + 1) * 1000};10\n")
     rows = nightqc.arrival_quality(str(tmp_path))
     assert len(rows) == 1 and rows[0]["rows"] == 150, rows
 
@@ -400,7 +403,13 @@ def test_arrival_quality_recovers_the_planted_offset(tmp_path):
     off = nightqc.arrival_quality(str(tmp_path))[0]["offset"]
     # The pairing is against the LAST sample in the packet, so the planted offset is measured from
     # there — `_write_long_sidecar` spans each packet 1 ms, and that 1 ms is not part of the link.
-    expected = _T0.timestamp() * 1000.0 - (_BASE_NS + 1_000_000) / 1e6 + 400.0
+    # THE DEVICE ANCHOR IS PART OF THE PLANT, and this line used to omit it — so the expectation and
+    # the code shared one misreading and agreed with each other. `_BASE_NS` counts from 2000-01-01
+    # UTC, not from 1970, so the epoch is subtracted here exactly as `arrival_quality` subtracts it;
+    # the two differed by 946 684 800 000 ms. Referenced through the module constant on purpose, so
+    # moving the anchor there reds this test instead of silently re-agreeing with it.
+    expected = (_T0.timestamp() * 1000.0
+                - (nightqc._POLAR_EPOCH_MS + (_BASE_NS + 1_000_000) / 1e6) + 400.0)
     assert off["ok"] is True and off["certified"] is True, off
     assert abs(off["offset_ms"] - expected) < 0.05, f"offset {off['offset_ms']} != planted {expected}"
     # nothing was planted to drift, so a rate here is an artefact of the axis and not a clock
@@ -460,8 +469,16 @@ def test_arrival_quality_fits_on_seconds_since_this_streams_first_packet(tmp_pat
     t_ref = sum(h - hs[0] for h in hs) / len(hs) / 1000.0
     assert abs(off["t_ref_sec"] - t_ref) < 0.06, f"{off['t_ref_sec']} is not {t_ref} s past packet 1"
     assert abs(off["span_sec"] - (hs[-1] - hs[0]) / 1000.0) < 0.06, off   # the field is rounded to 0.1 s
-    # ~2995 s clears SPAN_MIN_SEC, so the rate is quotable — a mis-scaled axis flips this too
-    assert off["skew_quotable"] is True, off
+    # ⚠️ ~2995 s is now BELOW SPAN_MIN_SEC, so the rate is NOT quotable. This assertion read `is True`
+    # until 2026-09-15, when the floor moved 2400 -> 3600 s: `skew_quotable` answers "is this ppm
+    # RESOLVED", and KNOWN-CLOCK-ADVERSARIAL-CAPTURE §517 answers that `no` under 1 h. The old 2400 was
+    # borrowed from `ecgdex-dsp.js`'s CORRECTION-APPLICATION gate, which answers a different question
+    # and keeps its own value. This fixture's span happens to sit inside the band the two lanes
+    # disagreed over, which is why it moved.
+    # The assertion's PURPOSE is unchanged — it is a canary for a mis-scaled axis, since a wrong axis
+    # gives a wrong span and flips this. It still flips; it flips the other way. The span itself is
+    # asserted directly on the line above, so the canary is belt-and-braces rather than the only check.
+    assert off["skew_quotable"] is False, off
 
 
 def test_arrival_quality_refuses_an_estimate_from_a_single_packet(tmp_path):
@@ -544,9 +561,9 @@ def test_arrival_quality_asks_for_tdev_at_the_FIXED_comparison_tau(tmp_path, mon
     seen = []
     real = nightqc.allan.stability
 
-    def spy(phase, tau0, tdev_tau=None):
+    def spy(phase, tau0, tdev_tau=None, **kw):
         seen.append(tdev_tau)
-        return real(phase, tau0, tdev_tau)
+        return real(phase, tau0, tdev_tau, **kw)
 
     monkeypatch.setattr(nightqc.allan, "stability", spy)
     _write_sidecar(os.path.join(tmp_path, "Tepna_9_PMDARRIVAL.csv"), "ECG",
@@ -1256,3 +1273,78 @@ def test_ratio_and_max_gap_are_kept_SEPARATE_because_they_disagree(tmp_path):
     assert u is not None
     assert abs(u["ratio"] - 1.0) < 0.9, u          # the mean barely moves
     assert u["max_gap"] >= 5.0, u                  # the peak does
+
+
+# ── B3 · THE DEVICE STAMP IS A COUNTER, NOT AN EPOCH-MS ────────────────────────────────────────────
+#
+# The two columns are anchored differently and BOTH anchors had to be read off the producer before
+# either of these tests could be written:
+#   * `last_sensor_ns` counts nanoseconds from 2000-01-01 **UTC** — `capture.py:_utcnow` states it
+#     outright ("Device clocks are set in UTC ... so skew is measured against UTC") and `_POLAR_EPOCH`
+#     is naive-UTC to match.
+#   * `Phone timestamp` is naive **LOCAL** civil time — `writers._phone_ts` ("Do not pass a UTC
+#     instant") and the write site passes `_now()`, not `_utcnow()`.
+# So the delay is `local-civil-as-true-epoch - (UTC-2000 + ns)`. Before the fix the device side was
+# spent as if it were already epoch-ms, which put the 1970->2000 delta — 946 684 800 000 ms — into
+# every delay. That is not a subtle bias: it is a confident number thirty years wrong, and nothing in
+# the old fixtures could see it, because `_T0` is 2026 while `_BASE_NS` is 500 s — so they only ever
+# exercised the SPREAD of the delay and never its absolute value.
+_POLAR_EPOCH_UTC = _dt.datetime(2000, 1, 1, tzinfo=_dt.timezone.utc)
+
+
+def _sidecar_at_true_instants(path, meas, start_utc, delays_ms, step_ms=500.0, device="dev"):
+    """Rows whose device counter and host stamp describe the SAME instant, plus a known delay.
+
+    Written through the REAL `PmdArrivalLogWriter`, and the host stamp is converted to system-local
+    civil time exactly as `_now()` would have produced it — so the fixture stays faithful under any
+    `TZ` rather than only under UTC, where the epoch bug and the correct code agree.
+    """
+    w = PmdArrivalLogWriter(path, fsync=False)
+    for i, extra in enumerate(delays_ms):
+        inst = start_utc + _dt.timedelta(milliseconds=i * step_ms)
+        dev_ns = int(round((inst - _POLAR_EPOCH_UTC).total_seconds() * 1e9))
+        arrival_local = (inst + _dt.timedelta(milliseconds=extra)).astimezone().replace(tzinfo=None)
+        w.write(arrival_local, device, meas, dev_ns, dev_ns, 10)
+    w.close()
+
+
+def test_the_device_counter_is_offset_from_the_polar_epoch_not_from_1970(tmp_path):
+    """The certified offset must be the LINK delay, not the delay plus thirty years.
+
+    Asserted as an absolute bound rather than a spread: 946 684 800 000 survives every spread-based
+    check, because adding a constant to every row moves none of them relative to each other. This is
+    the assertion the old fixtures could not make.
+    """
+    import nightqc
+    _sidecar_at_true_instants(
+        os.path.join(tmp_path, "Tepna_B3_PMDARRIVAL.csv"), "ECG",
+        _dt.datetime(2026, 8, 11, 22, 0, tzinfo=_dt.timezone.utc),
+        [250 + d for d in [0, 1, 2, 4, 7, 11, 18, 29, 47, 76] * 30])
+    rows = nightqc.arrival_quality(str(tmp_path))
+    assert len(rows) == 1, rows
+    off = rows[0]["offset"]
+    assert off.get("ok") is not False, off
+    assert off["offset_ms"] is not None, "the two estimators must agree on a clean synthetic link"
+    assert 200.0 < off["offset_ms"] < 400.0, off["offset_ms"]
+    # The bug's signature, stated as its own bound so a regression names itself.
+    assert off["offset_ms"] < 1e6, f"the 1970->2000 delta is still in the delay: {off['offset_ms']}"
+
+
+def test_a_zero_device_counter_is_absence_and_never_the_year_2000(tmp_path):
+    """`0` is a legal counter value, so it cannot be nulled by range — but `_POLAR_EPOCH + 0` is a
+    REAL instant, so spending it fabricates a 26-year delay out of a stamp that was never measured.
+
+    Not hypothetical: `arrival_quality`'s own docstring records every Verity `ppi` stream carrying
+    `last_sensor_ns` literally 0 for all 4864 packets. The row is DROPPED rather than re-paired
+    against `first_sensor_ns`, and that is deliberate — mixing the two pairings inside one stream
+    splits the population the offset is estimated over. Absent is absent.
+    """
+    import nightqc
+    p = os.path.join(tmp_path, "Tepna_B3zero_PMDARRIVAL.csv")
+    w = PmdArrivalLogWriter(p, fsync=False)
+    for i in range(400):
+        inst = _dt.datetime(2026, 8, 11, 22, 0, tzinfo=_dt.timezone.utc) + _dt.timedelta(seconds=i)
+        w.write(inst.astimezone().replace(tzinfo=None), "dev", "PPI", 0, 0, 10)
+    w.close()
+    assert nightqc.arrival_quality(str(tmp_path)) == [], \
+        "a stream whose device counter is 0 throughout has no arrival pair to report"

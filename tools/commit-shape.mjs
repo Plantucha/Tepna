@@ -48,10 +48,53 @@
  * USAGE
  *   node tools/commit-shape.mjs                 # scan full history, exit 1 on any flag
  *   node tools/commit-shape.mjs --range A..B    # scan a range (CI uses the PR's commits)
- *   node tools/commit-shape.mjs --json
+ *   node tools/commit-shape.mjs --json          # ONE tepna.verdict/1 object (VERDICT-CONTRACT §1) — the API
+ *
+ * VERDICT (wave 2 adopter): `--json` prints one `tepna.verdict/1` object and nothing else on stdout.
+ * PASS = every changeset-deleting commit in range is a release or a declared exemption; FAIL names the
+ * flagged shas; NOT_RUN on a shallow clone (history not present — a scan that sees nothing must not
+ * report green). The scan's own rows ride in `result` so a reader loses nothing over the old shape.
  * ════════════════════════════════════════════════════════════════════════ */
 
 import { execFileSync } from 'node:child_process';
+import { createRequire } from 'node:module';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const Verdict = createRequire(import.meta.url)(join(dirname(fileURLToPath(import.meta.url)), '..', 'verdict.js'));
+
+/** Build + validate the verdict object; an invalid one is a producer bug and throws rather than prints. */
+export function verdictOf({ status, rows, flagged, reason }) {
+  const commit = (() => {
+    try {
+      return execFileSync('git', ['rev-parse', '--short', 'HEAD'], { encoding: 'utf8' }).trim();
+    } catch {
+      return null;
+    }
+  })();
+  const scanned = rows ? rows.length : 0;
+  const v = Verdict.make({
+    gate: 'commit-shape',
+    status,
+    population: { checked: status === 'NOT_RUN' ? 0 : scanned, eligible: scanned, excluded: status === 'NOT_RUN' ? scanned : 0 },
+    criterion: { name: 'every-changeset-deleting-commit-is-a-release-or-declared-exempt', threshold: 0, unit: 'flagged commits', direction: 'eq' },
+    result:
+      status === 'NOT_RUN'
+        ? null
+        : {
+            scanned,
+            releases: rows.filter((r) => r.verdict === 'release').length,
+            exempt: rows.filter((r) => r.verdict === 'exempt').length,
+            flagged: (flagged || []).map((f) => ({ sha: f.sha, reason: f.reason }))
+          },
+    evidence: ['tools/commit-shape.mjs', 'changes/', 'suite.manifest.json', 'CHANGELOG.md', 'RELEASE-MANIFEST.json'],
+    reason: reason === undefined ? null : reason,
+    producedBy: commit ? { tool: 'tools/commit-shape.mjs', commit } : { tool: 'tools/commit-shape.mjs', commit: null, commitReason: 'git rev-parse unavailable' }
+  });
+  const check = Verdict.validate(v);
+  if (!check.ok) throw new Error(`commit-shape produced an invalid verdict: ${check.errors.join('; ')}`);
+  return v;
+}
 
 /** The three files a release always co-modifies. Absent together ⇒ no version was cut. */
 export const LEDGER = ['suite.manifest.json', 'CHANGELOG.md', 'RELEASE-MANIFEST.json'];
@@ -141,6 +184,7 @@ function main() {
     process.stderr.write('commit-shape: REFUSING — shallow clone, history not present.\n');
     process.stderr.write('  A scan of a shallow clone reports 0 flagged because it sees 0 commits.\n');
     process.stderr.write('  Set `fetch-depth: 0` on actions/checkout, or unshallow locally.\n');
+    if (asJson) process.stdout.write(`${JSON.stringify(verdictOf({ status: 'NOT_RUN', rows: [], reason: 'shallow clone — history not present, so the scan examined no commit' }), null, 1)}\n`);
     process.exit(2);
   }
 
@@ -152,7 +196,14 @@ function main() {
   const exempt = rows.filter((r) => r.verdict === 'exempt');
 
   if (asJson) {
-    process.stdout.write(`${JSON.stringify({ scanned: rows.length, flagged, releases: releases.length, exempt: exempt.length }, null, 1)}\n`);
+    // the object IS the verdict; the old {scanned, flagged, releases, exempt} fields ride in `result`
+    const v = verdictOf({
+      status: flagged.length ? 'FAIL' : 'PASS',
+      rows,
+      flagged,
+      reason: flagged.length ? `${flagged.length} commit(s) delete a changeset outside a release: ${flagged.map((f) => f.sha).join(', ')}` : null
+    });
+    process.stdout.write(`${JSON.stringify(v, null, 1)}\n`);
   } else {
     process.stdout.write(`commit-shape · ${rows.length} commit(s) deleting a changeset\n`);
     process.stdout.write(`  releases (changesets only + version bumped) : ${releases.length}\n`);

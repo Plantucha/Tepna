@@ -3,7 +3,11 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS · **TRIAGED 2026-09-01 (Osprey): tool BUILT (`tools/pat-axis-leg-audit.mjs`) and takes `<ppg-file>`, so it shares FIDUCIAL-JITTER's position — runnable locally, but against 2 files rather than the corpus. Not executed this pass.** · **Created:** 2026-08-28 · **Parent:** `PAT-ROOT-CAUSE-FORENSICS-2026-08-27-BRIEF.md` (phase (a) output: §2 trace + §3 classification) · **Interlocks:** `EXTERNAL-METHODS-SURVEY-2026-08-20-BRIEF.md` §1, `WEARABLE-HOST-AXIS` lineage · **DRAIN 2026-09-02 (Osprey):** re-verified — `tools/pat-axis-leg-audit.mjs` is present and takes `<ppg-file>`, so it is runnable locally against `/srv/data/tepna-corpus/`. Unchanged since the 2026-09-01 triage. **Owner: Osprey. Next step:** one corpus run, same shape as the WINDOW-ORACLE execute; it needs no new code.
+**Status:** DONE — 2026-09-21 (Osprey: the last box answered YES by a paired 58-night oracle run — 20 modes move, 2 verdicts flip, the invariant nights hold; the oracle now refines its ECG leg by default. Earlier header follows.) · PROPOSED (parked 2026-09-06 — one of two remaining Done-when items is ALREADY MET in the sibling brief; the other needs a remedy that is proposed, not built. Blocker and owner named in §5a) · ****RE-STAMPED 2026-09-05 (Papers) — PROPOSED (core BUILT and runnable at CORPUS scale, remainder unexecuted; verified 2026-09-05).** Inherits FIDUCIAL-JITTER's retraction: the 09-01 stamp placed this brief on a 2-file local sample, and **8 760 `_PPG.txt` (5 633 Verity) are reachable under `/srv/data/tepna-corpus/`**. `tools/pat-axis-leg-audit.mjs` takes `<ppg-file>`, so it is execution-bound, not data-bound. Not executed. ⚠️ ORIGINAL 09-01 STAMP, superseded: TRIAGED 2026-09-01 (Osprey): tool BUILT (`tools/pat-axis-leg-audit.mjs`) and takes `<ppg-file>`, so it shares FIDUCIAL-JITTER's position — runnable locally, but against 2 files rather than the corpus. Not executed this pass.** · **RE-TRIAGED 2026-09-14 (Kestrel) — the defect is UNCHANGED and live, and TWO of this brief's own claims are now stale.** (1) The named defect stands: `pat-feasibility-worker.js` still reads `rel[idx]` at an integer subscript with `idx = cons.feet[i]` fractional, so the PPG leg still falls back to `idx / fs`. Nothing in the 2026-09-13 audit touched it. (2) ⚠️ **The §3 table's `tMsAt` row is WRONG as written** — its formula `t0Ms + i·msPerSample + corrAt` no longer describes the function: `tMsAt` now counts gap dead-time (#2461 — it did NOT before, which this table's ✅ implicitly asserted it did, and the omission was worth −2522.8 s on a 33-hole night) and rides the device ns counter rather than a mean rate (#2477). (3) ⚠️ **AND THE ECG SIDE IS NOT FRACTIONAL-SAFE EITHER, on the very axis this brief marks ✅.** The row is true of the FUNCTION and false of the LEG: the worker builds `peaks` at `:91` from `ECGDSP.detectPeaks` — integer indices, never through `refinePeaks` — and hands those to `tMsAt` at `:99`. So sub-sample refinement is discarded on BOTH legs, and this brief bolds only the PPG one. (`refIdx` at `:113` is a channel selector, not a refined index — a name collision that reads like the opposite.) The asymmetry this brief is named for is therefore narrower than stated: both legs quantise to a whole sample; only the PPG leg additionally discards the measured axis. Owner unchanged (Osprey); the one corpus run is still the next step, and it should now cover the ECG caller as well as the PPG one. · **Created:** 2026-08-28 · **Parent:** `PAT-ROOT-CAUSE-FORENSICS-2026-08-27-BRIEF.md` (phase (a) output: §2 trace + §3 classification) · **Interlocks:** `EXTERNAL-METHODS-SURVEY-2026-08-20-BRIEF.md` §1, `WEARABLE-HOST-AXIS` lineage · **DRAIN 2026-09-02 (Osprey):** re-verified — `tools/pat-axis-leg-audit.mjs` is present and takes `<ppg-file>`, so it is runnable locally against `/srv/data/tepna-corpus/`. Unchanged since the 2026-09-01 triage. **Owner: Osprey. Next step:** one corpus run, same shape as the WINDOW-ORACLE execute; it needs no new code. · **RE-VERIFIED 2026-09-03 (Osprey):** unchanged since the 2026-09-01 triage — `tools/pat-axis-leg-audit.mjs` present and takes `<ppg-file>`. **Not touched by the published-number sweep**, which is a real negative rather than an unchecked one: this brief names no table the sweep's criterion could attribute to a producing tool, so it carries no drifted number. Owner: Osprey, next step unchanged (one corpus run, no new code). · **REMEDY CONFIRMED AT CORPUS SCALE 2026-09-05 (Brief runner) — §3c, defect UNCHANGED:** the fix this brief proposes (interpolate `relSec` across the fractional index, as `pat-matchrate-strict.mjs`'s `timeAt` already does) is measured working on the sibling path — **72514 of 72514 consensus feet resolve through `relSec`, 0 fall back**, all fractional, over the three largest Verity nights. §2/§3 are NOT retracted: `0/8948` is live and correct about **`pat-feasibility-worker.js`**, which still reads `rel[idx] ?? idx / fs`. ⚠️ Quote this brief's number about the WORKER and name the file — `tools/pat-drift-attribution.mjs` cited it to describe `ppgFootTimes` (a different, already-fixed consumer) and steered its `effectivePpm` on it for 8 days (residue `2026-09-05-one-citation-two-consumers`). Owner unchanged (Osprey); the one corpus run is still the next step. · 🔴 **DRAIN 2026-09-19 (Osprey) — CLAIM (1) IS STALE; THE DEFECT IS FIXED.** This header, re-triaged 2026-09-14, states *"the named defect stands: `pat-feasibility-worker.js` still reads `rel[idx]` at an integer subscript … so the PPG leg still falls back to `idx / fs`"*. **It does not.** `827d0b5a` (#2487) landed **2026-09-14 15:53 UTC** — hours after that re-triage — and replaced the subscript with linear interpolation: `i0 = Math.floor(idx)`, `fr = idx - i0`, `sec = a*(1-fr) + b*fr`, with `idx / fs` surviving only as the genuine stampless/synthetic fallback the brief's own §5a asked for. Verified in the tree at `pat-feasibility-worker.js:163-172`, and the commit's own diff adds both lines. **AND CLAIM (3) IS FIXED BY THE SAME COMMIT — I wrote "not re-checked" and that was wrong.** Claim (3) says the ECG leg is not fractional-safe either; #2487 exported `ECGDSP.refinePeaks` (previously unreachable, `ecgdex-dsp.js` +7) and the worker now takes `refined[k]` instead of the whole-sample `peaks[k]`, with 141 lines of new assertions. Both legs, one commit. Claim (2) — the §3 table's `tMsAt` formula — is about this brief's own TABLE rather than the code, and is NOT re-checked here.
+
+⚠️ **CLASSIFY THIS AS STALE-SINCE, NOT FALSE-WHEN-WRITTEN, and the distinction is load-bearing.** The re-triage was `a782c3d2` at **2026-09-14T12:11:41Z**; the fix `827d0b5a` at **15:53:19Z** — **3 h 42 m later**. It was TRUE when written. That indicts the clock, not the checker — unlike a stamp that was already false at the moment of stamping (a "confirmed absent" written days after the files landed), which indicts the check itself. Pooling the two teaches a reader to distrust the wrong stamps.
+
+🔴 **AND THE STAMP CAUSED WHAT STALED IT.** #2487 is titled *"both legs quantised — the ❌ leg to a synthesised axis, the ✅ leg to whole samples"*: that IS claim (3), written in this header that morning and fixed that afternoon. The triage did not go stale by accident — **it produced the work that superseded it**, which is the drain paying for itself and the reason a stale stamp here is not a failure to regret.**
 
 # The two legs of a PAT measurement ride different time axes — and Tepna introduces the difference
 
@@ -151,6 +155,32 @@ per-sample stamps, while `idx / fs` assumes a perfectly constant rate at the *es
 is the device's true sampling irregularity plus any error in `fs` — which is precisely the quantity
 §5 names as the PPG-axis suspect, and it is now measured rather than assumed.
 
+## 3c · The proposed remedy, confirmed at corpus scale on the sibling path (2026-09-05)
+
+§62–63 of `tools/pat-axis-leg-audit.mjs` names the intended fix — *interpolate `relSec` across the
+fractional index, as `tools/pat-matchrate-strict.mjs`'s `timeAt` already does*. That sibling path is
+now measured at corpus scale and it works:
+
+| | |
+|---|---|
+| consensus feet resolving through `relSec` | **72514 / 72514** |
+| falling back to `idx / fs` | **0** |
+| of which fractional indices | **all 72514** |
+| corpus | 3 largest Verity nights, `/srv/data/tepna-corpus/smoketest-captures` |
+
+So the remedy is **evidence-backed rather than argued**: the floor/ceil interpolation
+(`rel[lo] + fr * (rel[hi] - rel[lo])`, live since #1649, 2026-08-23) resolves every fractional foot
+this corpus produces, which is the case the raw subscript cannot hit even once.
+
+🔴 **This does NOT retract §2/§3, and the distinction cost a session an hour.** The `0/8948` finding
+is **live and correct** — it is about **`pat-feasibility-worker.js`**, which still reads
+`rel[idx] ?? idx / fs`. `timeAt` is a *different consumer* that was already fixed. Both functions map
+a foot index to a time, so a measurement of either reads as a measurement of "the PPG foot path", and
+one citation covering both is invisible: `tools/pat-drift-attribution.mjs` cited this brief's `0/8948`
+to describe `ppgFootTimes` and steered its `effectivePpm` on it for 8 days (residue
+`2026-09-05-one-citation-two-consumers`). **Quote this brief's number about the worker, and name the
+file every time.**
+
 ## 4 · What this does NOT yet establish
 
 - **Whether fixing it changes any night's verdict.** Not measured. The estimator's per-bin centring
@@ -161,11 +191,57 @@ is the device's true sampling irregularity plus any error in `fs` — which is p
 - ~~**Box vs phone nights.**~~ **RESOLVED — see §3b.** The memory holds, `correctionAt` is innocent,
   and the tension existed only because this brief conflated `hostAx.ok` with `hostAx.independent`.
 
+## 5a · PARKED 2026-09-06 — what remains, and who unblocks it
+
+**Item 1 is met** (above): the ECG refusal rate was re-measured on 448 fragments in the sibling brief.
+It sat unchecked only because the work landed in `FIDUCIAL-JITTER` rather than here — a cross-brief
+completion nothing was watching for.
+
+**Item 2 is NOT under one work-unit, and the reason is a dependency rather than effort.** §4 states the
+instrument correctly — *"§11's perfect-clock oracle is the instrument that answers this, not argument"* —
+but answering it needs **fixing it first**, and §3c calls the remedy *proposed*, confirmed at corpus scale
+on the sibling path, **not implemented**. So the item decomposes into: (a) implement §3c's remedy, (b)
+re-run `pat-window-oracle` over the corpus, (c) diff verdicts against the pre-fix baseline. (b) and (c)
+are cheap now — the oracle runs corpus-wide since #2034, and the 43-night pre-fix baseline is recorded in
+`PAT-FORENSICS-WINDOW-ORACLE` — but (a) is a behavioural change to the axis path and is its own unit.
+
+**Who unblocks:** whoever implements §3c's remedy. This brief cannot self-serve it, because a brief that
+both proposes a remedy and measures its own effect has no independent baseline.
+
+⚠️ **Parked, not blocked-on-data.** The corpus is local (48 box nights), the oracle works, and the
+baseline exists. Nothing here waits on access — only on a decision to build the remedy.
+
 ## 5 · Done when
 
 - [x] §2 trace with actual file:function names.
 - [x] §3 classification for the PAT path, verified-vs-claimed marked.
 - [x] Magnitude measured, reproducible tool committed, over-claim avoided.
-- [ ] ECG ppm refusal rate re-measured (the comment's 160/187 · 48 ms).
+- [x] ECG ppm refusal rate re-measured (the comment's 160/187 · 48 ms). **MET — measured in the sibling brief, not here:** `PAT-FORENSICS-FIDUCIAL-JITTER` §6 re-measured it on an independent **448-fragment** population and records the comparison directly — `160/187 = 85.6 %` against `371/448 = 82.8 %`. §4's "not yet re-measured" is stale as of 2026-09-05.
 - [x] `hostAx.ok` provenance on phone captures resolved against §17's labelling — memory holds.
-- [ ] Verdict-level impact via the §11 oracle — does fixing it move any night?
+- [x] Verdict-level impact via the §11 oracle — does fixing it move any night?
+      ✅ **YES — MEASURED 2026-09-21 (Osprey), paired run over the 67 box nights (58 scored, 9 refused).**
+      Two facts first. (1) The oracle never read the worker: it builds its trains through
+      `pat-matchrate-strict.mjs`, so #2487's fix to `pat-feasibility-worker.js` could not move it — and
+      the PPG leg there has been fractional since `timeAt`. (2) The oracle's OWN ECG leg had the same
+      defect this brief is named for: `ecgRpeakTimes` timed `detectPeaks`'s integer indices — one whole
+      sample, 7.7 ms at 130 Hz — with `refinePeaks` exported (#2487) and unused there. So the fix was
+      applied on the consumer the box names (`opts.refine` in `ecgRpeakTimes`; oracle `--ecg-refine`,
+      now the DEFAULT, `--no-ecg-refine` reproduces the old numbers) and the corpus run twice, whole-sample vs refined:
+
+      | | |
+      |---|---|
+      | mode + verdict identical | **38** of 58 |
+      | mode moved by exactly one 10-ms bin, verdict unchanged | **18** |
+      | **verdict flipped** | **2** — 2026-08-28 `ARTIFACT REFUSAL @ 1245` → `PARTIAL @ 545`; 2026-09-06 `NO RECOVERY` → `PARTIAL` at the same 485 ms |
+      | pre-registered invariant nights | held exactly: 07-24 405 → 405, 08-17 215 → 215 |
+      | narrowSD Δ | median 0.30 ms, max 18.1 ms |
+
+      A whole-sample quantisation on one leg is therefore VERDICT-LEVEL, not cosmetic: it moves a third
+      of the nights' modes by one bin and flips two verdicts. ⚠️ 08-28 is a bimodal night whose two
+      peaks are within one bin's mass of each other — its verdict is fragile under EITHER leg, and the
+      refined one is kept for consistency with the shipped worker, not because 545 is "the" answer.
+      ⚠️ NINE sibling tools also build their ECG train through `ecgRpeakTimes` and still take the
+      whole-sample default (`beat-correspondence`, `pat-literature-spec`, `pat-connection-stability`,
+      `pat-ecg-axis-residual`, `pat-drift-attribution`, `pat-residual-structure`, `pat-finger-coupler`,
+      `pat-dip-index`, `pat-matchrate-strict` itself); each carries published numbers, so each switches
+      when its numbers are next re-cut, not by a library-default flip that would move all nine at once.

@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-08-27 · **Owner-issued directive** (verbatim charter, relayed via the coordinator session; received complete, no truncation) · **Children/interlocks:** `O2RING-AUTONOMOUS-HARVEST-2026-08-26-BRIEF.md` (§10 preserves it), `OXYII-DAT-AUTO-HARVEST-REFINEMENT-2026-08-24-BRIEF.md`, `CPAP-ACQUISITION-HARDENING-AUDIT-2026-08-23-BRIEF.md` (§11's ground), the AS11 session-detection line, `CAPTURE-HOST-UNWIRED-MACHINERY-FOLLOWUPS-2026-08-15-BRIEF.md` · **Distinct from:** `STRATEGIC-PRIORITIES-2026-08-26-BRIEF.md` (competitive agenda) and `MEASUREMENT-PROVENANCE-ROADMAP-2026-08-26-BRIEF.md` (measurement layer) — this one is the OPERATIONAL/RELIABILITY umbrella · **Affects:** `capture-host/` orchestration, resource ownership, recovery, health telemetry
+**Status:** PROPOSED (parked 2026-09-05 — 🟢 **OWNER RULING 2026-09-06 — the §15 NULL RESULT DOES NOT CLOSE THE CHARTER; it stays OPEN for §13/§14.** Asked directly and answered: the audit establishes that every mechanism the roadmap proposes has an implementation, NOT that the system is unattended-ready, and whether those implementations hold over 72 unattended hours is exactly §13 (resource budget) and §14 (long-run behaviour) — untouched, and box-bound. **Owner:** Heron, on vigil, when the box is free; deploys there stay owner-authorized. Prior drain stamp, Magpie. This is the owner's verbatim charter, not a work-plan a session executes: its §1 audit and §15 ranking were executed in `OPERATIONAL-MATURITY-AUDIT-2026-08-27-BRIEF.md` and returned a NULL RESULT — all eight priorities already implemented, nothing ranks P0/P1, so under §15 the correct action is to build nothing. What the charter still owes is §13/§14 (resource budget, long-run tests) and §17's witnessed hardware validation, all of which need the box. **Owner:** the owner, for whether the null result closes the charter or §13/§14 re-open it; Heron for the box runs. **Next step:** none a rig session can schedule; the §17 checkboxes are ticked only from box evidence) · **Residue:** 2026-09-15-capture-rss-step-plateau · **§17 ticked 2026-09-15 (Kestrel, owner-directed): 13 of 18, each with its evidence inline; boxes 7, 8, 9, 16, 17 left OPEN with reasons. A tick means the TREE carries it, never that 72 unattended hours demonstrated it — 16 and 17 are the charter's actual gate.** · **Created:** 2026-08-27 · **Owner-issued directive** (verbatim charter, relayed via the coordinator session; received complete, no truncation) · **Children/interlocks:** `O2RING-AUTONOMOUS-HARVEST-2026-08-26-BRIEF.md` (§10 preserves it), `OXYII-DAT-AUTO-HARVEST-REFINEMENT-2026-08-24-BRIEF.md`, `CPAP-ACQUISITION-HARDENING-AUDIT-2026-08-23-BRIEF.md` (§11's ground), the AS11 session-detection line, `CAPTURE-HOST-UNWIRED-MACHINERY-FOLLOWUPS-2026-08-15-BRIEF.md` · **Distinct from:** `STRATEGIC-PRIORITIES-2026-08-26-BRIEF.md` (competitive agenda) and `MEASUREMENT-PROVENANCE-ROADMAP-2026-08-26-BRIEF.md` (measurement layer) — this one is the OPERATIONAL/RELIABILITY umbrella · **Affects:** `capture-host/` orchestration, resource ownership, recovery, health telemetry
 
 # Operational maturity roadmap — an unattended, self-recovering, multi-device instrument
 
@@ -151,6 +151,49 @@ duty cycle · CPU usage · RAM usage · disk throughput · network activity. Ide
 can interfere with real-time capture. Establish practical budgets only where measurements
 demonstrate that budgets are necessary. Do not optimize hypothetical bottlenecks.
 
+> ### MEASURED 2026-09-15/16 (Kestrel) — `tools/box-sample.mjs`, read-only ssh, 60 s cadence
+>
+> **538 samples across five process lifetimes**, including one uninterrupted 3.5 h night cycle with
+> three devices connected. §13 says to establish budgets ONLY where measurement demonstrates one is
+> necessary; exactly one is.
+>
+> | quantity | measured |
+> |---|---|
+> | **memory PEAK** (`VmHWM`) | **~760–769 MB**, reproducible across cycles · cgroup `memory.peak` 737.5 MB |
+> | memory steady state, 1 device (day) | ~250–320 MB |
+> | memory steady state, 3 devices (night) | ~420–500 MB |
+> | CPU, daemon | 1.3–6.8 % idle/day · 12–15 % under a 3-device night |
+> | BLE LE connections | 0–3 concurrent, `hci0` carrying all of them |
+> | load average | 0.02–0.54 |
+> | disk | 32 % of 233 G, flat across the window |
+>
+> 🔴 **THE ONE BUDGET THE MEASUREMENT DEMANDS: a `MemoryMax` must accommodate ~760 MB, NOT the
+> steady state.** A cap sized from steady-state RSS would sit at roughly a THIRD of the startup
+> transient and OOM the daemon on every start — the failure direction that kills the capture rather
+> than merely wasting headroom. **No cap is set here**; box config is owner-authorized.
+>
+> ⚠️ **SAMPLED RSS UNDERSTATES THE PEAK BY 32 %** — the 60 s series' own maximum was 514.6 MB against
+> a kernel `VmHWM` of 759.4 MB. A sampler cannot see a transient shorter than its cadence, so the two
+> instruments answer different questions and neither replaces the other: **sampling for the SHAPE,
+> `VmHWM`/`memory.peak` for the CAP.** Quoting either alone misleads.
+>
+> ⚠️ **NO LEAK.** The peak SATURATES (increments +580 → +47 → +33 → +2 → +11 → 0 MB) and then holds
+> flat for hours, including across a load increase that raised steady state by ~40 %. RSS itself
+> steps and plateaus and repeatedly comes DOWN — cumulative down exceeded cumulative up — which a
+> leak cannot do. Three earlier framings of this same data were wrong and are withdrawn: a rate
+> ("~39 MB/h"), an endpoint ("87 → 444 MB over 9.1 h"), and "the peak stops moving". Each was one
+> number standing in for a curve; only the dense series with `VmHWM` separated them.
+>
+> ⚠️ **CYCLE LENGTH IS NOT A PROPERTY OF THE DAEMON.** `tepna-update.timer` fired 17:35:43 EDT against
+> an `ActiveEnterTimestamp` of 17:35:48, and 4 stop/starts occurred in 6 h: restarts are
+> **deploy-driven**, so a session landing PRs truncates the very series it is measuring. **A 72 h
+> unattended run therefore requires a DEPLOY FREEZE, not merely a free box** — a constraint on §17.
+>
+> Not established: what allocates the ~580 MB startup transient (no attribution attempted); whether
+> that transient recurs mid-cycle; behaviour beyond ~3.5 h. Residue:
+> `2026-09-15-capture-rss-step-plateau` · `2026-09-15-capture-rss-peak-is-startup` ·
+> `2026-09-15-capture-rss-peak-saturates`.
+
 ### 14. TEST LONG-RUN BEHAVIOR
 
 Add tests for repeated operation, not only single success: 100 reconnects · repeated device
@@ -175,24 +218,34 @@ system.
 
 ### 17. ACCEPTANCE CRITERIA (verbatim checkbox skeleton)
 
-- [ ] Current architecture is audited before modification.
-- [ ] Existing functionality is reused rather than duplicated.
-- [ ] Important failure modes have explicit recovery behavior.
-- [ ] BLE/resource ownership is explicit where necessary.
-- [ ] Critical acquisition has priority over housekeeping.
-- [ ] Expensive operations are initiated opportunistically.
-- [ ] Device identity survives adapter renumbering/reboots.
-- [ ] Autonomous O2Ring harvesting integrates with the resource model.
-- [ ] CPAP acquisition can recover without manual intervention where safe.
-- [ ] Event-driven and reconciliation mechanisms converge safely.
-- [ ] Acquisition evidence remains authoritative.
-- [ ] Dex scientific logic remains unchanged.
-- [ ] Operational health is observable.
-- [ ] ENABLED / ARMED / EXECUTED / COMMITTED remain distinguishable.
-- [ ] Recovery is bounded and cannot loop forever.
-- [ ] Long-run/restart/race behavior is tested.
-- [ ] Physical hardware validates the most important autonomous paths.
-- [ ] No unnecessary framework or abstraction is introduced.
+> **Ticked 2026-09-15 (Kestrel), owner-directed, 13 of 18.** ⚠️ **READ THE TICK BASIS BEFORE TRUSTING A
+> TICK.** This header previously said the boxes tick *only from box evidence*. The owner directed a
+> verification-and-tick pass, so each box below carries the evidence that ticked it and **the five that
+> genuinely need the box are left UNTICKED with the reason** — a tick here means "the tree carries this",
+> never "72 unattended hours demonstrated it". Structural/mechanism evidence and behavioural evidence are
+> not interchangeable, which is the whole reason the original restriction existed.
+>
+> **The five open boxes are 7, 8, 9, 16, 17** — and 16/17 are the charter's real gate: the null result
+> established that every mechanism has an implementation, NOT that the system is unattended-ready.
+
+- [x] Current architecture is audited before modification. — **`OPERATIONAL-MATURITY-AUDIT` DONE 2026-09-15**, independently re-verified against main.
+- [x] Existing functionality is reused rather than duplicated. — **§15 returned a NULL RESULT**: all eight priorities already implemented, so nothing was built to duplicate anything.
+- [x] Important failure modes have explicit recovery behavior. — `keep_running` 21 · `backoff` 154, and the recovery is capped (see box 15).
+- [x] BLE/resource ownership is explicit where necessary. — `offline_lock` 68 · `blocking_devices` 40 · `_set_active_adapter` 4.
+- [x] Critical acquisition has priority over housekeeping. — `probe_justified` 9 · `pull_deadline` 24.
+- [x] Expensive operations are initiated opportunistically. — `probe_justified` gates the expensive probe on justification rather than on a schedule.
+- [ ] Device identity survives adapter renumbering/reboots. — **HALF met, so left open.** Renumbering IS tested: `test_resolve_cpap_adapter_maps_a_MAC_to_the_CURRENT_hci` (`tests/test_as11_shadow_wire.py:144`), plus `resolve_hci` 42 · `is_expected_ring` 22. **"Survives reboots" is a behavioural claim with no box evidence** — a mechanism being present is not the mechanism holding across a reboot.
+- [ ] Autonomous O2Ring harvesting integrates with the resource model. — **`O2RING-AUTONOMOUS-HARVEST-2026-08-26-BRIEF.md` is still PROPOSED.**
+- [ ] CPAP acquisition can recover without manual intervention where safe. — **`CPAP-ACQUISITION-HARDENING-AUDIT-2026-08-23-BRIEF.md` is still PROPOSED**; its §7 recovery model is settled, but the brief is not closed.
+- [x] Event-driven and reconciliation mechanisms converge safely. — reconciliation is present as the safety net across `acq_evidence.py` · `cpap_job.py` · `cpap_inventory_adapter.py` · `oxy_restart.py` (141 mentions).
+- [x] Acquisition evidence remains authoritative. — **`ACQ-EVIDENCE-CONTRACT-2026-08-24-BRIEF.md` DONE 2026-08-26.**
+- [x] Dex scientific logic remains unchanged. — ⚠️ **ticked STRUCTURALLY, and the naive check would have been WRONG.** The DSPs have changed a great deal since 2026-08-27 (`ecgdex-dsp.js` 16 commits, `ppgdex-dsp.js` 15, `integrator-dsp.js` 9, …), so "no DSP changed" is false. What holds is that **§15's null result means nothing was built under this roadmap**, and the §13/§14 work is `capture-host/` (Python) and `tools/` — neither is inlined into any Dex bundle, so it cannot move a `computeHash`. Those DSP commits descend from other work units.
+- [x] Operational health is observable. — `link_epoch` 71 · `last_sample` 12 · `data_stale_sec` 5.
+- [x] ENABLED / ARMED / EXECUTED / COMMITTED remain distinguishable. — `ENABLED` 13 · `ARMED` 36 · `EXECUTED` 2 · `COMMITTED` 76, plus `VERIFYING` 19 as a separate observable stage.
+- [x] Recovery is bounded and cannot loop forever. — capped in every path: `min(backoff * 2, 300)` (`capture.py:3547`), `_RECONNECT_BACKOFF_CAP_S` (`capture.py:3627`), `BACKOFF_MAX` (`cpap_live.py:25`), `backoff_cap` (`settings_schema.py:36`).
+- [ ] Long-run/restart/race behavior is tested. — **PARTIAL.** The software half is real (50 write attempts under `ENOSPC` in `test_resource_orchestration.py`, 1000 in `test_cpap_acq.py`, 120 in `test_link_distress_wire.py`). The **physical half is not started**, and §14's own objective is "failures that occur only after hours or days", which no unit test reaches. ⚠️ A grep count over-reads this: `bytes(range(60))` is a payload, not 60 reconnects.
+- [ ] Physical hardware validates the most important autonomous paths. — **No box evidence.** This is the charter's gate.
+- [x] No unnecessary framework or abstraction is introduced. — P#4's claim is an ABSENCE and it still holds: **0** `class *Manager`, **0** `class *Orchestrator`, **0** `Semaphore` in `capture-host/`.
 
 ### FINAL DESIGN PRINCIPLE
 

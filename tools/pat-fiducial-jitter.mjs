@@ -57,6 +57,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { makeVerdict } from './verdict-emit.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const BAND_MATERIAL_MS = 20;
@@ -147,6 +148,22 @@ export const FAMILIES = ['min', 'maxSlope', 'tangent', 'pct10', 'pct25', 'pct50'
 
 /* Pairwise, on the same beat: the clock cancels identically. Returns SD in ms of the beat-to-beat
    difference for every family pair. */
+/* Stratum key = NOMINAL rate (nearest Hz). Measured effFs differs by hundredths file to file and each
+   of those is one quantum, not a different one; 55.11 and 55.15 Hz are one stratum, 55 and 176 are two. */
+export function strataOf(perFile) {
+  return [...new Set(perFile.map((x) => String(Math.round(x.fs))))].sort((a, b) => a - b);
+}
+export function stratum(perFile, key) {
+  const members = perFile.filter((x) => String(Math.round(x.fs)) === key);
+  return {
+    members,
+    fsMedian: q(
+      members.map((x) => x.fs),
+      0.5
+    )
+  };
+}
+
 export function pairwiseJitter(beats, fs) {
   const msPer = 1000 / fs;
   const out = {};
@@ -194,6 +211,15 @@ function selftest() {
   ok(band(15) === 'INTERMEDIATE', 'band 15 -> INTERMEDIATE');
   ok(band(10) === 'INTERMEDIATE', 'band boundary 10 is INTERMEDIATE (closed, no gap)');
   ok(band(5) === 'NOT-DOMINANT', 'band 5 -> NOT-DOMINANT');
+  /* Residue 2026-09-05-fiducial-sd-quoted-without-its-sample-rate: strata are NOMINAL rates, one per
+     quantum — hundredths of measured effFs collapse, 55 and 176 do not, and each stratum quotes ITS fs. */
+  const pf = [{ fs: 55.11 }, { fs: 55.15 }, { fs: 176.2 }, { fs: 55.14 }, { fs: 176.41 }];
+  const st = strataOf(pf);
+  ok(st.length === 2 && st[0] === '55' && st[1] === '176', 'strata: 55.11/55.15/55.14 collapse to 55; 176.2/176.41 to 176; sorted numerically');
+  const s55 = stratum(pf, '55');
+  ok(s55.members.length === 3 && Math.abs(s55.fsMedian - 55.14) < 1e-9, 'stratum 55: three members, median measured fs 55.14');
+  ok(stratum(pf, '176').members.length === 2, 'stratum 176: two members');
+  ok(stratum(pf, '135').members.length === 0, 'an absent stratum has no members, not a fabricated one');
 
   /* A synthetic upstroke with a KNOWN tangent foot. Ramp from 0 to 1 over samples 10..20, so the
      max slope is constant on the ramp and the tangent meets the minimum level at sample 10. */
@@ -224,13 +250,104 @@ function selftest() {
   const t = tchTriple({ 'a|b': { sdMs: 1 }, 'a|c': { sdMs: 1 }, 'b|c': { sdMs: 10 } }, 'a', 'b', 'c');
   ok(t && !t.ok && t.negative.length > 0, 'an inconsistent triple must REFUSE, not clamp');
 
-  console.log(fails.length ? `SELFTEST FAIL (${fails.length})\n  ${fails.join('\n  ')}` : 'SELFTEST PASS (11/11)');
+  /* ── the verdict ──────────────────────────────────────────────────────────── */
+  const VAT = { at: '2026-09-22T00:00:00Z', commit: null, commitReason: 'selftest' };
+  const vStratum = (sd) => [{ fsHz: '100', fsMeasured: 100, quantumMs: 10, files: 3, pairs: [{ pair: 'min|pct50', sdMs: sd, samples: sd / 10, iqrMs: sd, betweenSdMs: null, band: band(sd) }] }];
+  const material = pfjVerdict({ filesGiven: 4, filesQualified: 3, beats: 300, strata: vStratum(25), tch: { stratumFsHz: '100', files: 3, triples: [], refused: 0 }, ...VAT });
+  ok(material.status === 'PASS' && material.result.strata[0].pairs[0].band === 'MATERIAL', 'verdict: a MATERIAL band is a FINDING in result — status is PASS, never FAIL');
+  ok(material.population.eligible === 4 && material.population.checked === 3 && material.population.excluded === 1, 'verdict: population in files, 4 = 3 qualified + 1 excluded');
+  const refused = pfjVerdict({
+    filesGiven: 3,
+    filesQualified: 3,
+    beats: 300,
+    strata: vStratum(6),
+    tch: { stratumFsHz: '100', files: 3, triples: [{ triple: 'a/b/c', ok: false, negative: ['b'], componentsMs: null }], refused: 1 },
+    ...VAT
+  });
+  ok(
+    refused.status === 'PASS' && refused.result.tch.refused === 1 && refused.result.tch.triples[0].negative[0] === 'b',
+    'verdict: a TCH negative variance is a NAMED refusal in result, never clamped, never a status'
+  );
+  const none = pfjVerdict({ filesGiven: 5, filesQualified: 0, beats: 7, strata: [], tch: null, ...VAT });
+  ok(none.status === 'NOT_RUN' && none.result === null && /0 of 5/.test(none.reason), 'verdict: no qualifying file is NOT_RUN with the counts in the reason');
+  ok(
+    /reachable from nothing/.test(material.criterion.name) && material.criterion.unit === 'fs strata' && material.criterion.threshold === 1,
+    "verdict: the criterion is the tool's own gate (>= 1 stratum) and says FAIL/UNKNOWN are unreachable"
+  );
+  ok(material.result.strata[0].quantumMs === 10 && material.result.strata[0].pairs[0].samples === 2.5, "verdict: every SD carries its stratum's quantum (row 2026-09-05, fixed #2749)");
+  const legs = 15 + 6; // the fixed legs above plus the six verdict legs — COUNTED, not written down
+  console.log(fails.length ? `SELFTEST FAIL (${fails.length})\n  ${fails.join('\n  ')}` : `SELFTEST PASS (${legs - fails.length}/${legs})`);
   return fails.length === 0;
+}
+
+/* ── THE VERDICT ─ a MEASUREMENT whose bands are FINDINGS, so the criterion is its own hard gate ────────
+   §7 asks "how much uncertainty does the foot introduce?" — a number in ms, not a pass/fail. The
+   pre-stated bands (MATERIAL / INTERMEDIATE / NOT-DOMINANT) are what the charter asked to be measured;
+   MATERIAL means "the charter's 20–50 ms concern is met", which is a result, not a defect. So the
+   status never encodes a band: the per-pair band rides in `result`, PER fs STRATUM, with the sample
+   quantum beside every SD (residue 2026-09-05-fiducial-sd-quoted-without-its-sample-rate, fixed
+   #2749 — an SD is a number of samples wearing ms and is comparable only within one fs).
+
+   THE CRITERION IS THE TOOL'S OWN HARD GATE, not a new one: at least one fs stratum with a within-file
+   SD (a file needs >= 10 usable beats; none qualifying is a refusal). Population in FILES: eligible =
+   files given, checked = files with >= 10 beats, excluded = unparseable or too few beats.
+
+   ⚠ A TCH REFUSAL (negative variance) IS A FINDING, NOT AN EXCLUSION. The header says the refusal
+   "is itself diagnostic, NOT because independence is believed" — so a refused triple stays in
+   `result` with its negative components named and counted, never clamped, and never moves the status.
+   FAIL and UNKNOWN are reachable from nothing here, and criterion.name says so. */
+export function pfjVerdict({ filesGiven, filesQualified, beats, strata, tch, at, commit, commitReason }) {
+  const base = {
+    tool: 'tools/pat-fiducial-jitter.mjs',
+    gate: 'pat-fiducial-jitter',
+    scope: 'internal',
+    criterion: {
+      name: ">= 1 sample-rate stratum reports a clock-free within-file fiducial SD (a file needs >= 10 usable beats). The tool's own hard gate, NOT a quality bar: the MATERIAL / INTERMEDIATE / NOT-DOMINANT bands are pre-stated FINDINGS the charter asked for and ride in result per stratum with each SD's sample quantum. FAIL and UNKNOWN are reachable from nothing; a TCH negative variance is a named refusal in result, never clamped, never a status",
+      direction: 'gte',
+      threshold: 1,
+      unit: 'fs strata'
+    },
+    evidence: ['tools/pat-fiducial-jitter.mjs', 'briefs/PAT-ROOT-CAUSE-FORENSICS-2026-08-27-BRIEF.md'],
+    at,
+    commit,
+    commitReason
+  };
+  const population = { eligible: filesGiven, checked: filesQualified, excluded: filesGiven - filesQualified };
+  if (!strata || !strata.length) {
+    return makeVerdict({
+      ...base,
+      status: 'NOT_RUN',
+      population: { eligible: filesGiven, checked: 0, excluded: filesGiven },
+      result: null,
+      reason: `no sample-rate stratum could report: ${filesQualified} of ${filesGiven} file(s) had >= 10 usable beats (${beats} beats in total) — refusing to report rather than quote an SD over too few beats`
+    });
+  }
+  return makeVerdict({ ...base, status: 'PASS', population, result: { beats, filesGiven, filesQualified, strata, tch } });
 }
 
 async function main() {
   const args = process.argv.slice(2);
   if (args.includes('--selftest')) process.exit(selftest() ? 0 : 1);
+  if (args.includes('--verdict-sample')) {
+    /* The PASS shape from an illustrative single stratum. No file is read and no number is claimed. */
+    console.log(
+      JSON.stringify(
+        pfjVerdict({
+          filesGiven: 12,
+          filesQualified: 10,
+          beats: 4200,
+          strata: [{ fsHz: '55', fsMeasured: 55.14, quantumMs: 18.14, files: 10, pairs: [{ pair: 'min|pct50', sdMs: 6.1, samples: 0.34, iqrMs: 5.2, betweenSdMs: 3.0, band: 'NOT-DOMINANT' }] }],
+          tch: { stratumFsHz: '55', files: 10, triples: [{ triple: 'tangent/pct25/pct50', ok: false, negative: ['pct25'], componentsMs: null }], refused: 1 },
+          at: '2026-09-22T00:00:00Z',
+          commit: null,
+          commitReason: '--verdict-sample: illustrative stratum, no file read'
+        }),
+        null,
+        2
+      )
+    );
+    process.exit(0);
+  }
   const files = args.filter((a) => !a.startsWith('--'));
   if (!files.length) {
     console.error('usage: node tools/pat-fiducial-jitter.mjs --selftest | <ppg-file> [...]');
@@ -240,7 +357,6 @@ async function main() {
   const { PPGDSP } = getDsps();
   const all = [];
   const byFile = [];
-  let fsSeen = 0;
   for (const f of files) {
     let rec;
     try {
@@ -249,7 +365,6 @@ async function main() {
       continue;
     }
     if (!rec || !rec.ch) continue;
-    fsSeen = rec.fs;
     const per = rec.ch.map((c) => PPGDSP.detectChannel(c, rec.fs));
     let refIdx = 0;
     let best = -1;
@@ -271,31 +386,71 @@ async function main() {
         mine.push(fam);
       }
     }
-    if (mine.length >= 10) byFile.push(mine);
+    if (mine.length >= 10) byFile.push({ beats: mine, fs: rec.fs });
   }
   if (all.length < 10) {
     console.error(`only ${all.length} usable beats — refusing to report`);
+    console.log(JSON.stringify(pfjVerdict({ filesGiven: files.length, filesQualified: byFile.length, beats: all.length, strata: [], tch: null })));
     process.exit(2);
   }
-  /* WITHIN-FILE, then median across files — see the pooling warning in the header. */
-  const perFile = byFile.map((beats) => pairwiseJitter(beats, fsSeen)).filter((x) => Object.keys(x).length);
-  const keys = [...new Set(perFile.flatMap((x) => Object.keys(x)))];
-  const pw = {};
-  for (const k of keys) {
-    const sds = perFile.map((x) => x[k]?.sdMs).filter(Number.isFinite);
-    const means = perFile.map((x) => x[k]?.meanMs).filter(Number.isFinite);
-    if (!sds.length) continue;
-    const betweenSd = means.length > 1 ? Math.sqrt(variance(means)) : Number.NaN;
-    pw[k] = { sdMs: q(sds, 0.5), iqrMs: q(perFile.map((x) => x[k]?.iqrMs).filter(Number.isFinite), 0.5), n: perFile.length, betweenSd };
-  }
-  console.log(`beats ${all.length} across ${byFile.length} files · fs ${fsSeen.toFixed(2)} Hz · one sample = ${(1000 / fsSeen).toFixed(2)} ms`);
-  console.log(`\nCLOCK-FREE beat-to-beat SD (ms), WITHIN file, median across ${perFile.length} files:`);
-  const rows = Object.entries(pw).sort((a, b) => a[1].sdMs - b[1].sdMs);
-  for (const [k, v] of rows)
+  /* WITHIN-FILE at THAT FILE'S fs, then median across files — see the pooling warning in the header.
+     ⚠️ Residue `2026-09-05-fiducial-sd-quoted-without-its-sample-rate`: this used to convert EVERY
+     file with the LAST file's fs (`fsSeen`), so a population mixing 55 Hz and 176 Hz Verity files
+     was scaled by one wrong quantum, and the dominance verdict moved with which file happened to be
+     read last. A fiducial SD is a number of SAMPLES wearing ms: it is comparable only within one fs,
+     so the report is STRATIFIED by fs, each stratum carrying its own quantum beside its SD. */
+  const perFile = byFile.map(({ beats, fs }) => ({ fs, pw: pairwiseJitter(beats, fs) })).filter((x) => Object.keys(x.pw).length);
+  /* stratum key = NOMINAL rate (nearest Hz): measured effFs differs by hundredths file to file and
+     each of those is one quantum, not a different one */
+  const strata = strataOf(perFile);
+  console.log(`beats ${all.length} across ${byFile.length} files · ${strata.length} sample-rate stratum/strata: ${strata.map((f) => f + ' Hz').join(', ')}`);
+  if (strata.length > 1) console.log('⚠️  mixed sample rates — SDs are reported PER STRATUM and must not be compared across them (one sample differs between strata).');
+  let pw = {};
+  let tchFs = null;
+  let tchN = -1;
+  const strataOut = [];
+  for (const fsKey of strata) {
+    const members = perFile.filter((x) => String(Math.round(x.fs)) === fsKey);
+    const inStratum = members.map((x) => x.pw);
+    const fsNum = q(
+      members.map((x) => x.fs),
+      0.5
+    ); // the stratum's MEDIAN measured fs, for the quantum
+    const keys = [...new Set(inStratum.flatMap((x) => Object.keys(x)))];
+    const pwS = {};
+    for (const k of keys) {
+      const sds = inStratum.map((x) => x[k]?.sdMs).filter(Number.isFinite);
+      const means = inStratum.map((x) => x[k]?.meanMs).filter(Number.isFinite);
+      if (!sds.length) continue;
+      const betweenSd = means.length > 1 ? Math.sqrt(variance(means)) : Number.NaN;
+      pwS[k] = { sdMs: q(sds, 0.5), iqrMs: q(inStratum.map((x) => x[k]?.iqrMs).filter(Number.isFinite), 0.5), n: inStratum.length, betweenSd };
+    }
     console.log(
-      `   ${k.padEnd(22)} within-SD ${v.sdMs.toFixed(2).padStart(7)}  IQR ${v.iqrMs.toFixed(2).padStart(7)}  between-file SD ${Number.isFinite(v.betweenSd) ? v.betweenSd.toFixed(2).padStart(7) : '      -'}   ${band(v.sdMs)}`
+      `\nfs ≈ ${fsKey} Hz (median measured ${fsNum.toFixed(2)}) · one sample = ${(1000 / fsNum).toFixed(2)} ms · CLOCK-FREE beat-to-beat SD (ms), WITHIN file, median across ${inStratum.length} files:`
     );
+    const rows = Object.entries(pwS).sort((a, b) => a[1].sdMs - b[1].sdMs);
+    strataOut.push({
+      fsHz: fsKey,
+      fsMeasured: fsNum,
+      quantumMs: 1000 / fsNum,
+      files: inStratum.length,
+      pairs: rows.map(([k, v]) => ({ pair: k, sdMs: v.sdMs, samples: v.sdMs / (1000 / fsNum), iqrMs: v.iqrMs, betweenSdMs: Number.isFinite(v.betweenSd) ? v.betweenSd : null, band: band(v.sdMs) }))
+    });
+    for (const [k, v] of rows)
+      console.log(
+        `   ${k.padEnd(22)} within-SD ${v.sdMs.toFixed(2).padStart(7)} (${(v.sdMs / (1000 / fsNum)).toFixed(2)} samples)  IQR ${v.iqrMs.toFixed(2).padStart(7)}  between-file SD ${Number.isFinite(v.betweenSd) ? v.betweenSd.toFixed(2).padStart(7) : '      -'}   ${band(v.sdMs)} @ ~${fsKey} Hz`
+      );
+    /* the TCH decomposition below runs on the LARGEST stratum only — a variance split across strata
+       would mix two quanta into one number, which is the row's defect one layer up */
+    if (inStratum.length > tchN) {
+      pw = pwS;
+      tchN = inStratum.length;
+      tchFs = fsKey;
+    }
+  }
+  if (strata.length > 1) console.log(`\n(TCH below: largest stratum only — fs ${tchFs} Hz, ${tchN} files)`);
   console.log(`\nTCH decomposition (independence NOT assumed — see header; negatives are refusals):`);
+  const triples = [];
   for (const [A, B, C] of [
     ['tangent', 'pct25', 'pct50'],
     ['min', 'tangent', 'pct50'],
@@ -305,8 +460,10 @@ async function main() {
     if (!t) continue;
     if (!t.ok) {
       console.log(`   ${A}/${B}/${C}: REFUSED — negative variance for ${t.negative.join(', ')}`);
+      triples.push({ triple: `${A}/${B}/${C}`, ok: false, negative: t.negative, componentsMs: null });
       continue;
     }
+    triples.push({ triple: `${A}/${B}/${C}`, ok: true, negative: [], componentsMs: Object.fromEntries(Object.entries(t.v).map(([k, x]) => [k, Math.sqrt(x)])) });
     console.log(
       `   ${A}/${B}/${C}: ` +
         Object.entries(t.v)
@@ -314,6 +471,17 @@ async function main() {
           .join(' · ')
     );
   }
+  console.log(
+    JSON.stringify(
+      pfjVerdict({
+        filesGiven: files.length,
+        filesQualified: byFile.length,
+        beats: all.length,
+        strata: strataOut,
+        tch: { stratumFsHz: tchFs, files: tchN, triples, refused: triples.filter((x) => !x.ok).length }
+      })
+    )
+  );
 }
 
 if (process.argv[1]?.endsWith('pat-fiducial-jitter.mjs')) await main();

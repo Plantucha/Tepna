@@ -266,3 +266,195 @@ def test_A_SECOND_FIRE_APPENDS_IT_DOES_NOT_REWRITE_THE_JOURNAL(tmp_path):
     assert both.startswith(first), "the second fire rewrote the first one away"
     assert both.count("fired_ms;") == 1, "the header was written twice"
     assert both.count("\n") == 3 and "first" in both and "second" in both
+
+
+# ── the REASON, not just the bucket (2026-09-05) ─────────────────────────────────────────────────────
+# 🔴 WHY THE CLASS ALONE IS NOT ENOUGH. `last_unreachable_class` separates BleakDeviceNotFoundError
+# from InProgress — two classes, two responses. It cannot separate anything INSIDE `As11Error`, and
+# every AS11 protocol fault is that one class: a rejected pairing key, a timeout and a malformed frame
+# are indistinguishable. Measured 2026-09-04 18:49 → 09-05 06:00: the AirSense stopped accepting our
+# masterPairKey and eleven hours of every-30 s failures read exactly like "the machine is off".
+class _As11Error(Exception):
+    """Stands in for as11_pull.As11Error — same shape: one class, many reasons."""
+
+
+def _fresh_cpap_status():
+    capture.STATUS["cpap"] = {"enabled": True}
+    capture._CPAP_UNREACHABLE_MEMO.clear()
+
+
+def test_THE_UNREACHABLE_MESSAGE_IS_RECORDED_NOT_JUST_THE_CLASS():
+    _fresh_cpap_status()
+    capture._note_cpap_unreachable(_As11Error("RPC 10 VerificationFailure"))
+    st = capture.STATUS["cpap"]
+    assert st["last_unreachable_class"] == "_As11Error"
+    assert st["last_unreachable_msg"] == "RPC 10 VerificationFailure", \
+        "the class is the bucket; only the message says WHY, and it was in hand at the raise"
+
+
+def test_A_MESSAGELESS_EXCEPTION_RECORDS_NULL_NOT_AN_EMPTY_STRING():
+    # An empty string renders as `As11Error: ` — a colon promising a reason that is not there. Null is
+    # the honest absence (§2.6: a missing observation is visible, never fabricated).
+    _fresh_cpap_status()
+    capture._note_cpap_unreachable(_As11Error(""))
+    assert capture.STATUS["cpap"]["last_unreachable_msg"] is None
+
+
+def test_A_LONG_MESSAGE_IS_TRUNCATED_SO_ONE_FAULT_CANNOT_FLOOD_THE_STATE():
+    _fresh_cpap_status()
+    capture._note_cpap_unreachable(_As11Error("x" * 5000))
+    assert len(capture.STATUS["cpap"]["last_unreachable_msg"]) == 200
+
+
+def test_THE_LOG_IS_RATE_LIMITED_BUT_NEVER_SILENT_ABOUT_A_CHANGE(caplog):
+    """The poll is every 30 s; a fault that runs all night is 1320 polls. Log the first, any CHANGE,
+    and hourly — never one line per poll, and never silence when the fault becomes a different one."""
+    _fresh_cpap_status()
+    with caplog.at_level("WARNING"):
+        capture._note_cpap_unreachable(_As11Error("RPC 10 VerificationFailure"))   # streak 1 → logs
+        for _ in range(30):                                                        # repeats → silent
+            capture._note_cpap_unreachable(_As11Error("RPC 10 VerificationFailure"))
+        first_phase = caplog.text.count("CPAP poll unreachable")
+        capture._note_cpap_unreachable(_As11Error("connection timed out"))         # CHANGED → logs
+    assert first_phase == 1, f"31 identical failures must log once, logged {first_phase}"
+    assert caplog.text.count("CPAP poll unreachable") == 2, "a changed fault is news and must log"
+    assert "connection timed out" in caplog.text
+    assert capture.STATUS["cpap"]["unreachable_streak"] == 32
+
+
+def test_THE_HOURLY_LINE_FIRES_SO_A_LONG_OUTAGE_LEAVES_PERIODIC_PROOF(caplog):
+    _fresh_cpap_status()
+    with caplog.at_level("WARNING"):
+        for _ in range(120):
+            capture._note_cpap_unreachable(_As11Error("RPC 10 VerificationFailure"))
+    # streak 1 (first) and streak 120 (hourly at a 30 s poll) — not the 118 in between.
+    assert caplog.text.count("CPAP poll unreachable") == 2, \
+        "one line at the start would scroll away; a line an hour is the evidence an outage leaves"
+
+
+def test_A_SUCCESSFUL_POLL_CLEARS_THE_MESSAGE_AND_THE_LOG_MEMO(caplog):
+    """The memo must not outlive the fault: a fault that heals and returns is a NEW outage, and its
+    first line is the one an operator reads."""
+    import types
+    _fresh_cpap_status()
+    capture._note_cpap_unreachable(_As11Error("RPC 10 VerificationFailure"))
+
+    class _D:
+        evidence = {"reachable": True, "fg_state": "Standby"}
+        state = types.SimpleNamespace(name="IDLE")
+        host_ms = 1.0
+
+    capture._publish_therapy_state(_D(), None)
+    assert capture.STATUS["cpap"]["last_unreachable_msg"] is None
+    assert "msg" not in capture._CPAP_UNREACHABLE_MEMO, \
+        "a healed fault must not suppress the first line of the next one"
+
+    # caplog captures WARNING by default, so the setup failure above is ALREADY in it — clear, or this
+    # counts a line from a phase it does not describe (it read 2 and the memo was working fine).
+    caplog.clear()
+    with caplog.at_level("WARNING"):
+        capture._note_cpap_unreachable(_As11Error("RPC 10 VerificationFailure"))
+    assert caplog.text.count("CPAP poll unreachable") == 1
+
+
+# ── THE HANDOFF AFTER THE BUDGET IS SPENT ─────────────────────────────────────────────────────────
+# Residue `2026-09-04-cpap-wedge-failover-masks-escalation`. Budget spent used to be the END of the
+# ladder: the rungs that fix a btusb-class wedge live in `adapter_watchdog` and arm only when a
+# scan returns ZERO devices, so a radio deaf to ONE device never reached them. These drive the branch
+# that hands off, because a recovery path whose first execution is during an incident is untested.
+_INTEL = "28:0C:50:0C:18:FD"
+
+
+def _poll_spent(monkeypatch, *, usb_id, extra_devices=None, status_extra=None, rebinds=None,
+                resets=None, handoffs=2, hci_reset=True):
+    """One poll with the per-device restart budget already SPENT, so the handoff branch is reached."""
+    from test_capture_runners import _dev, _run, _stop_after
+
+    _wire(monkeypatch, [])
+    monkeypatch.setattr(bluez_wedge, "restart_allowed", lambda n: (False, "budget spent (2/2 today)"))
+
+    async def fake_hci(spec=None):
+        return "hci9"
+
+    async def fake_rebind(dev_id):
+        (rebinds if rebinds is not None else []).append(dev_id)
+        return True
+
+    async def fake_cmd(argv, **kw):
+        (resets if resets is not None else []).append(list(argv))
+        return True
+
+    monkeypatch.setattr(capture, "adapter_hci", fake_hci)
+    monkeypatch.setattr(capture, "adapter_usb_id", lambda hci, **kw: usb_id)
+    monkeypatch.setattr(capture, "_usb_rebind", fake_rebind)
+    monkeypatch.setattr(capture, "_adapter_cmd", fake_cmd)
+
+    capture._STOP.clear()
+    _stop_after(monkeypatch, handoffs)
+    capture.STATUS["devices"] = {"H10": {"connected": True, "address": "24:AC:AC:02:84:96"}}
+    for k, v in (status_extra or {}).items():
+        capture.STATUS["devices"][k] = v
+    capture.STATUS["cpap"] = _cpap(streak=600, seen_min_ago=120)
+    capture.STATUS.pop("cpap_wedge", None)
+    cfg = {"watchdog": {"enabled": True, "interval_sec": 60, "hci_reset": hci_reset},
+           "devices": [_dev(name="H10")] + list(extra_devices or []),
+           "cpap": {"ble_stream": {"adapter": _INTEL}}}
+    _run(capture.adapter_watchdog("hci0", cfg))
+    capture._STOP.clear()
+
+
+def test_budget_spent_HANDS_OFF_to_the_adapter_ladder(monkeypatch):
+    """The rung the row says was unreachable. It must rebind the USB id DERIVED from the CPAP's own
+    adapter — never `watchdog.usb_path`, which on vigil named a third radio."""
+    rebinds, resets = [], []
+    _poll_spent(monkeypatch, usb_id="1-9", rebinds=rebinds, resets=resets, handoffs=1)
+    assert rebinds == ["1-9"], f"the derived USB id was not rebound: {rebinds}"
+    assert any("hciconfig" in " ".join(a) for a in resets), resets
+
+
+def test_the_handoff_is_ONE_PER_DAY_not_every_poll(monkeypatch, caplog):
+    """The branch runs on EVERY poll once the budget is spent, so without a bound this would
+    power-cycle the radio each minute — worse than the fault it fixes.
+
+    ⚠ `_stop_after(n)` counts SLEEP CALLS, not polls, and the escalate path sleeps TWICE of its own
+    accord. The first version of this test passed `n=3`, which the first handoff consumed by itself —
+    so the loop never reached a second poll and the test proved nothing about the bound. It is the
+    100% coverage floor that surfaced it, as line 5369 never executing. `n` is large enough for a
+    second poll now, and the "already spent" line is asserted POSITIVELY rather than inferred from
+    the absence of a second rebind."""
+    rebinds = []
+    with caplog.at_level("ERROR"):
+        _poll_spent(monkeypatch, usb_id="1-9", rebinds=rebinds, handoffs=12)
+    assert rebinds == ["1-9"], f"handoff repeated: {rebinds}"
+    assert any("already spent today" in r.getMessage() for r in caplog.records), \
+        "the second poll never reached the bound — this test would pass vacuously"
+
+
+def test_the_handoff_honours_hci_reset_disabled(monkeypatch):
+    """`hci_reset: false` must skip the controller reset and still rebind — the rung is the USB
+    re-enumeration, and the reset is an optional step before it."""
+    rebinds, resets = [], []
+    _poll_spent(monkeypatch, usb_id="1-9", rebinds=rebinds, resets=resets, handoffs=1,
+                hci_reset=False)
+    assert rebinds == ["1-9"], rebinds
+    assert resets == [], f"hci_reset was disabled but a reset ran: {resets}"
+
+
+def test_no_derivable_usb_path_REFUSES_the_rung(monkeypatch):
+    """An internal controller has no bus-port. Refuse and say so — never fall back to the static
+    `watchdog.usb_path`, which is how a wrong-radio rebind re-enters."""
+    rebinds = []
+    _poll_spent(monkeypatch, usb_id=None, rebinds=rebinds, handoffs=1)
+    assert rebinds == [], "refused rung still rebound something"
+
+
+def test_another_live_device_on_that_adapter_BLOCKS_the_handoff(monkeypatch):
+    """The gate's reason for existing: this can re-enumerate a radio, so it must not run while that
+    radio is serving someone."""
+    from test_capture_runners import _dev
+
+    rebinds = []
+    _poll_spent(monkeypatch, usb_id="1-9", rebinds=rebinds, handoffs=1,
+                extra_devices=[_dev(name="OnIntel", adapter=_INTEL)],
+                status_extra={"OnIntel": {"connected": True, "worn": True}})
+    assert rebinds == [], "handoff fired while another device on that adapter was streaming"

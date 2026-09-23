@@ -222,6 +222,8 @@ for (const f of files) {
       `(function(){ const B=window.OxyDex._bare;
          const rows=B.parseCSV(__csv,{name:__name});
          const nt=B.processNight(rows,__name);
+         /* rows is read AFTER processNight on purpose: it trims warm-up edges in place, so this
+            distribution describes the same night the oscEpisodes below were counted on. */
          const v=rows.map(r=>r.spo2).filter(x=>x>=40&&x<=100);
          const mean=v.reduce((a,b)=>a+b,0)/v.length;
          return JSON.stringify({ mean:+mean.toFixed(1),

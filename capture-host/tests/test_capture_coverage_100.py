@@ -15,6 +15,7 @@ fakes. No BLE hardware, no real subprocesses, no sleeping.
 """
 import asyncio
 import datetime as _dt
+import inspect
 import os
 import sys
 
@@ -27,7 +28,7 @@ import nightarchive  # noqa: E402
 _GLOBAL_SNAPSHOT = {k: getattr(capture, k) for k in
                     ("_DROP_NOT_WORN_SEC", "_NOT_WORN_RECHECK_S", "_OXYII_RTC_RESYNC_SEC",
                      "O2PPG_FS", "O2PPG_NS_STEP", "_STREAM_STALL_S", "O2PPG_GAP_MIN_S",
-                     "_O2_PASSIVE_SCAN")}
+                     "_O2_PASSIVE_SCAN", "_RECONNECT_BACKOFF_CAP_S")}
 
 
 @pytest.fixture(autouse=True)
@@ -44,6 +45,7 @@ def _clean_stop():
     capture._OPT_QUIET.clear()
     capture._CHARGER_SINCE.clear()
     capture._CHARGER_PULLED.clear()
+    capture._OXYII_RESTARTS.clear(); capture._OXYII_STORMS.clear(); capture._OXYII_HOLD_UNTIL.clear()
     capture._CFG.clear()
     capture.STATUS.clear()
     capture.STATUS["devices"] = {}
@@ -167,11 +169,14 @@ class _Dev:
         self.address, self.name = address, name
 
 
-def test_the_scan_filter_matches_on_address_or_on_an_advertised_name(monkeypatch):
+def test_the_scan_filter_matches_on_address_only_and_refuses_a_ring_named_stranger(monkeypatch):
     """The matcher is a callback — every existing test stubs `find_device_by_filter` and so never runs
-    it, which means the predicate deciding WHICH device we connect to was untested. It has to accept the
-    ring by MAC (case-insensitively — BlueZ upper-cases, config often does not) and by advertised name,
-    since a ring that has not been seen before has no address match to offer."""
+    it, which means the predicate deciding WHICH device we connect to was untested. It accepts the ring
+    by MAC (case-insensitively — BlueZ upper-cases, config often does not) and by NOTHING ELSE: until
+    2026-09-05 it also accepted any device whose advertised or cached name contained "o2ring"/"s8-aw"/…,
+    which let an arbitrary beacon in range summon a GATT connect from this host (standing address-only
+    ruling 2026-08-27, `oxy_presence.is_expected_ring`). The name must not even be read, so an advert
+    object without `.local_name` cannot abort the scan."""
     import bleak
     seen = {}
 
@@ -180,6 +185,7 @@ def test_the_scan_filter_matches_on_address_or_on_an_advertised_name(monkeypatch
         seen["by_adv_name"] = match(_Dev(address="AA:AA:AA:AA:AA:AA"), _Adv(local_name="O2Ring S8AW"))
         seen["by_dev_name"] = match(_Dev(address="AA:AA:AA:AA:AA:AA", name="o2ring"), _Adv())
         seen["stranger"] = match(_Dev(address="AA:AA:AA:AA:AA:AA", name="Someone's Fitbit"), _Adv())
+        seen["nameless_adv"] = match(_Dev(address="D1:98:62:7C:92:B3"), object())
         return None
     monkeypatch.setattr(bleak.BleakScanner, "find_device_by_filter", find)
 
@@ -193,8 +199,10 @@ def test_the_scan_filter_matches_on_address_or_on_an_advertised_name(monkeypatch
     with pytest.raises(Exception):
         _run(go())                       # not found — the point is what the matcher answered
     assert seen["by_addr"] is True, "MAC comparison must be case-insensitive"
-    assert seen["by_adv_name"] is True and seen["by_dev_name"] is True
+    assert seen["by_adv_name"] is False and seen["by_dev_name"] is False, \
+        "a ring-named device at another address is a stranger — the name is not identity"
     assert seen["stranger"] is False, "a stranger's device must not be connected to"
+    assert seen["nameless_adv"] is True, "the predicate must not read the advert's name at all"
 
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════════
@@ -247,6 +255,127 @@ def test_adapter_is_up_reads_the_radio_state_and_says_unknown_when_it_cannot(mon
         raise FileNotFoundError("hciconfig: not installed")
     monkeypatch.setattr(capture.asyncio, "create_subprocess_exec", boom)
     assert _run(capture._adapter_is_up("hci0")) is None, "an absent hciconfig is UNKNOWN, not 'down'"
+
+
+_VERSION_OK = (b"hci0:\tType: Primary  Bus: USB\n\tBD Address: 00:01:95:CC:53:02\n"
+               b"\tHCI Version: 4.0 (0x6)  Revision: 0x2031\n"
+               b"\tManufacturer: Cambridge Silicon Radio (10)\n")
+
+
+def test_adapter_responds_round_trips_and_a_HANG_is_False_while_everything_else_is_None(monkeypatch):
+    """`_adapter_is_up` reads the KERNEL'S CACHED FLAGS; this asks the CONTROLLER. The distinction is the
+    whole point and it is measured, not argued: on vigil 2026-09-18 `hciconfig hci0 version` incremented
+    that adapter's TX `commands:` counter by 1 and a plain `hciconfig hci0` incremented it by 0.
+
+    Four answers, and the ordering of the last two is what matters. A HANG is False — a wedged controller
+    does not reply, so mapping a timeout to 'undeterminable' would discard the one signal this probe was
+    built for. Everything else is None, so a probe that cannot RUN can never convict a healthy radio."""
+    async def ok(*cmd, **kw):
+        assert cmd[:3] == ("hciconfig", "hci0", "version"), "must be the round-trip form, not a state read"
+        return _Proc(0, _VERSION_OK)
+    monkeypatch.setattr(capture.asyncio, "create_subprocess_exec", ok)
+    assert _run(capture._adapter_responds("hci0")) is True
+
+    async def rc_fail(*cmd, **kw):
+        return _Proc(1, b"Can't init device: Connection timed out (110)\n")
+    monkeypatch.setattr(capture.asyncio, "create_subprocess_exec", rc_fail)
+    assert _run(capture._adapter_responds("hci0")) is False, "ran against a named adapter and failed"
+
+    async def no_marker(*cmd, **kw):
+        return _Proc(0, b"hci0:\tType: Primary  Bus: USB\n")
+    monkeypatch.setattr(capture.asyncio, "create_subprocess_exec", no_marker)
+    assert _run(capture._adapter_responds("hci0")) is None, \
+        "rc=0 carrying no controller-sourced field is UNKNOWN — do not convict on a changed tool"
+
+    async def boom(*cmd, **kw):
+        raise FileNotFoundError("hciconfig: not installed")
+    monkeypatch.setattr(capture.asyncio, "create_subprocess_exec", boom)
+    assert _run(capture._adapter_responds("hci0")) is None, "an absent hciconfig is UNKNOWN, never 'wedged'"
+
+
+def test_adapter_responds_maps_a_TIMEOUT_to_False_because_that_IS_the_wedge(monkeypatch):
+    """Split out because it is the load-bearing branch and it must not be reachable by accident: the
+    wedged controller's signature is that the command never comes back."""
+    async def spawn(*cmd, **kw):
+        return _Proc(0, b"")
+    monkeypatch.setattr(capture.asyncio, "create_subprocess_exec", spawn)
+
+    async def hang(_proc, _timeout, _stdin=None):
+        raise asyncio.TimeoutError()
+    monkeypatch.setattr(capture.proc_util, "communicate", hang)
+    assert _run(capture._adapter_responds("hci0")) is False
+
+
+def test_a_radio_that_does_not_ANSWER_is_wedged_even_while_its_flags_read_UP():
+    """THE 2026-09-11 INCIDENT, ENCODED. The radio wedged at 19:23:12 and the first wedge sign was logged
+    at 19:42:06 — ~19 minutes — because the InProgress inference is SUPPRESSED while `adapter_up is True`,
+    and the kernel flag stayed True until the radio finally went DOWN. With a round-trip verdict the
+    suppression can no longer be bought with a flag a wedged controller still passes."""
+    devs = [{"name": "H10", "address": "A", "connected": False,
+             "last_error": "BleakDBusError('org.bluez.Error.InProgress', ...)"}]
+
+    # PRE-CHANGE BEHAVIOUR, still exactly reproducible: the flag says UP, so InProgress is suppressed and
+    # the watchdog sees nothing. This is the bug, and it must stay reachable or the test below proves
+    # nothing about what changed.
+    blind = capture.classify_adapter_health(devs, adapter_up=True)
+    assert blind["wedged"] is False
+
+    # Same inputs, plus the round trip failing. Two independent things now fire: the suppression is gone,
+    # and the non-answering radio is wedge evidence on its own.
+    seeing = capture.classify_adapter_health(devs, adapter_up=True, adapter_responds=False)
+    assert seeing["wedged"] is True
+    assert "pinned adapter does not answer HCI" in seeing["reasons"]
+    assert any("InProgress" in r for r in seeing["reasons"]), "the suppression must be lifted, not merely outvoted"
+
+
+def test_a_round_trip_that_SUCCEEDS_still_suppresses_the_churn_it_always_did():
+    """The 2026-07-20 lesson is not repealed: a needless power-cycle is worse than the problem. A radio
+    that ANSWERS is positive proof, so lone InProgress churn stays suppressed — and it is now suppressed
+    on stronger evidence than before, since True here means the controller replied."""
+    devs = [{"name": "Ring", "address": "B", "connected": False,
+             "last_error": "BleakDBusError('org.bluez.Error.InProgress', ...)"}]
+    assert capture.classify_adapter_health(devs, adapter_up=True, adapter_responds=True)["wedged"] is False
+
+    # AND THE ASYMMETRY: a successful round trip must NOT buy suppression the flag did not already grant.
+    # A radio can answer HCI and still carry no link — deaf but alive — so if True licensed suppression on
+    # its own, this change would trade one blindness for another. It stays flagged, exactly as today.
+    assert capture.classify_adapter_health(devs, adapter_up=None, adapter_responds=True)["wedged"] is True
+    assert capture.classify_adapter_health(devs, adapter_up=None)["wedged"] is True, "…and unchanged from before"
+
+
+def test_a_LIVE_STREAM_outranks_a_failed_round_trip():
+    """THE GUARD THE PROBE'S OWN SIGNAL IS WRAPPED IN, and it had no test until a planted mutant showed
+    that: deleting `not any_streaming` from the `adapter_responds is False` branch left the whole suite
+    green. The guard is not decoration — it is what makes the probe SUPPRESSION-ONLY in the dangerous
+    direction. A radio carrying a live stream is demonstrably working whatever a round trip says, so a
+    probe misread must never be able to power-cycle it; that is the 2026-07-20 lesson ("a needless
+    power-cycle is worse than the problem") applied to a new signal, and the sibling `adapter_up is
+    False` branch states the same rule for itself.
+
+    `device_is_streaming` is the predicate: connected AND not charging AND not known-unworn — a sensor on
+    its charger reports connected=True while producing nothing, so `connected` alone would not do."""
+    streaming = {"name": "H10", "address": "A", "connected": True, "charging": False, "worn": True}
+    assert capture.device_is_streaming(streaming) is True, "the fixture must really stream, or this is vacuous"
+
+    # The radio does not answer HCI — and a device is streaming through it anyway. Not wedged.
+    assert capture.classify_adapter_health([streaming], adapter_responds=False)["wedged"] is False
+
+    # Same probe verdict, nothing streaming: now it IS wedged. Without this half the assertion above
+    # would also pass if the signal never fired at all.
+    idle = dict(streaming, connected=False)
+    h = capture.classify_adapter_health([idle], adapter_responds=False)
+    assert h["wedged"] is True and "pinned adapter does not answer HCI" in h["reasons"]
+
+
+def test_adapter_responds_None_changes_NOTHING_for_every_pre_existing_caller():
+    """Back-compat is the contract (CLAUDE.md §🧪: new params LAST and optional). None must reproduce the
+    pre-2026-09-18 verdict for both settings of the flag, or landing this would silently re-tier every
+    caller that does not probe."""
+    devs = [{"name": "H10", "address": "A", "connected": False,
+             "last_error": "BleakDBusError('org.bluez.Error.InProgress', ...)"}]
+    for flag in (True, False, None):
+        assert (capture.classify_adapter_health(devs, adapter_up=flag)
+                == capture.classify_adapter_health(devs, adapter_up=flag, adapter_responds=None))
 
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════════
@@ -445,11 +574,63 @@ def test_a_sustained_recovery_restores_the_power_cycle_BUDGET(monkeypatch, caplo
         "the budget was not restored — one early wedge disarmed the ladder for the rest of the night"
 
 
+def test_the_watchdog_power_cycles_the_adapter_by_its_BLUEZ_address(monkeypatch):
+    """The watchdog's `select` line — before the loop and at both failover repoints — comes from
+    `bonding.select_line`, i.e. the address BlueZ lists for the pinned radio. Measured 2026-09-12: a
+    Zephyr dongle pinned by its kernel address made `select` print "Controller … not available" and
+    bluetoothctl carried on on the DEFAULT controller, so the power-cycle aimed at the wedged radio
+    cycled the healthy one. Driven: the resolver is stubbed to a distinct address and every
+    bluetoothctl script the cycle sends must select THAT, never the configured value."""
+    _wedge_rig(monkeypatch, adapter_up=False)
+    scripts = []
+
+    async def btctl(script, timeout=8):
+        scripts.append(script)
+        return ""
+    monkeypatch.setattr(capture.bonding, "_btctl", btctl)
+
+    async def resolved(adapter_mac):
+        assert adapter_mac == "99:67:24:2E:CD:98"
+        return "select DA:44:2D:51:0F:54\n"
+    monkeypatch.setattr(capture.bonding, "select_line", resolved)
+
+    async def fake_cmd(cmd):
+        return True
+    monkeypatch.setattr(capture, "_adapter_cmd", fake_cmd)
+
+    async def no_spare(*a, **k):
+        return []
+    monkeypatch.setattr(capture, "list_adapters", no_spare)
+    _stop_after(monkeypatch, 40)
+    capture._EXIT_CODE[0] = 0
+    cfg = {"devices": [_dev(name="H10")],
+           "watchdog": {"interval_sec": 1, "grace_checks": 1, "max_adapter_cycles": 1,
+                        "exit_on_giveup": True}}
+    _run(capture.adapter_watchdog("99:67:24:2E:CD:98", cfg))
+    capture._EXIT_CODE[0] = 0
+    power = [s for s in scripts if "power off" in s or "power on" in s]
+    assert len(power) >= 2, scripts
+    assert all(s.startswith("select DA:44:2D:51:0F:54\n") for s in power), power
+    assert not any("99:67:24:2E:CD:98" in s for s in scripts), "the kernel address must never reach bluetoothctl"
+    src = inspect.getsource(capture.adapter_watchdog)
+    assert src.count("await bonding.select_line(adapter_mac)") == 3, \
+        "before the loop + both failover repoints — a hand-built select f-string is the defect returning"
+    assert 'f"select {adapter_mac}' not in src
+
+
 def test_the_last_power_cycle_escalates_to_hci_reset_and_a_usb_rebind(monkeypatch):
     """A soft power off/on does not clear an RTL8761B firmware hang — the radio comes back "powered but
     deaf" (VIGIL-DEEP-ANALYSIS §2D). So the LAST cycle before give-up escalates: HCI-reset the
-    controller, then re-enumerate the dongle on its configured bus-port."""
+    controller, then re-enumerate the dongle.
+
+    ⚠️ THIS TEST USED TO ASSERT THE CONFIGURED BUS-PORT, AND THAT WAS THE DEFECT WRITTEN DOWN AS THE
+    CONTRACT. `watchdog.usb_path` is one static value for the whole box; on vigil 2026-09-06 it named
+    the UB500 while this watchdog watched the Sena, so re-enumerating it would have yanked a radio
+    that was neither wedged nor monitored. The rung now derives its target from the watched adapter,
+    which is what `adapter_usb_id` has said all along, so the fixture derives a DIFFERENT port from
+    the configured one and the assertion is that the derived one wins."""
     _wedge_rig(monkeypatch, adapter_up=False)
+    monkeypatch.setattr(capture, "adapter_usb_id", lambda h, **k: "3-2")
     ran = []
 
     async def fake_cmd(cmd):
@@ -472,7 +653,8 @@ def test_the_last_power_cycle_escalates_to_hci_reset_and_a_usb_rebind(monkeypatc
                         "hci_reset": True, "usb_path": "1-1.2", "exit_on_giveup": True}}
     _run(capture.adapter_watchdog("AA:BB:CC:DD:EE:FF", cfg))
     assert ("cmd", ("hciconfig", "hci0", "reset")) in ran
-    assert ("rebind", "1-1.2") in ran
+    assert ("rebind", "3-2") in ran, "the rung did not follow the adapter it is watching"
+    assert ("rebind", "1-1.2") not in ran, "it reached for the static watchdog.usb_path"
     # ...and having exhausted the ladder it exits NON-ZERO so systemd re-execs with a fresh bleak/D-Bus
     # stack, rather than looping forever over a radio it cannot fix (§2C).
     assert capture._EXIT_CODE[0] == 1 and capture._STOP.is_set()
@@ -642,12 +824,12 @@ def test_an_unparseable_schedule_falls_back_to_after_settle(tmp_path, monkeypatc
     only a config comment to explain why."""
     ran = []
 
-    async def fake_transfer(captures, target, settle, schedule):
+    async def fake_transfer(captures, target, settle, schedule, subtrees=()):
         ran.append(schedule)
     monkeypatch.setattr(capture, "_archive_transfer", fake_transfer)
     _stop_after(monkeypatch, 1)
     cfg = {"archive": {"enabled": True, "poll_sec": 1, "schedule": {"mode": "whenever"},
-                       "target": {"kind": "transfer", "protocol": "rsync", "host": "nas"}}}
+                       "target": {"protocol": "rsync", "host": "nas", "share": "/tank/tepna"}}}
     with caplog.at_level("WARNING"):
         _run(capture.archive_poller(cfg, str(tmp_path)))
     assert any("bad schedule" in r.getMessage() for r in caplog.records)
@@ -659,13 +841,13 @@ def test_the_offload_waits_for_its_daily_window(tmp_path, monkeypatch):
     also carrying three live BLE streams. Outside the window the poller must do nothing at all."""
     ran = []
 
-    async def fake_transfer(captures, target, settle, schedule):
+    async def fake_transfer(captures, target, settle, schedule, subtrees=()):
         ran.append(1)
     monkeypatch.setattr(capture, "_archive_transfer", fake_transfer)
     monkeypatch.setattr(capture, "_now", lambda: _dt.datetime(2026, 7, 25, 3, 0, 0))   # 03:00
     _stop_after(monkeypatch, 1)
     cfg = {"archive": {"enabled": True, "poll_sec": 1, "schedule": {"mode": "daily", "at": "11:00"},
-                       "target": {"kind": "transfer", "protocol": "rsync", "host": "nas"}}}
+                       "target": {"protocol": "rsync", "host": "nas", "share": "/tank/tepna"}}}
     _run(capture.archive_poller(cfg, str(tmp_path)))
     assert ran == [], "03:00 is not inside the 11:00 window"
 
@@ -803,12 +985,12 @@ def test_a_device_going_on_the_charger_is_pulled_once_per_charge_session(tmp_pat
     address is marked BEFORE the await, so a slow pull cannot be started twice; taking it off the
     charger re-arms it."""
     ring = _dev(name="Ring", vendor="Wellue", model="O2Ring-S", address="D1:98:62:7C:92:B3")
-    cfg = {"pull": {"auto": True, "charger_settle_sec": 0, "ftype": 0}, "devices": [ring]}
+    cfg = {"pull": {"auto": True, "charger_settle_sec": 0}, "devices": [ring]}
     capture.STATUS["devices"]["Ring"] = {"charging": True}
     pulls = []
 
-    async def fake_pull(dev, root, which="latest", ftype=0):
-        pulls.append((dev["name"], which, ftype))
+    async def fake_pull(dev, root, which="latest", resume=False, *, trigger="manual"):
+        pulls.append((dev["name"], which, resume))
         return {"new_files": ["a.dat", "b.dat"]}
     monkeypatch.setattr(capture, "pull_oxyii_session", fake_pull)
     _stop_after(monkeypatch, 3)                    # three ticks — the pull must happen on ONE of them
@@ -828,20 +1010,20 @@ def test_a_DOFF_triggered_pull_reaches_pull_oxyii_session_as_LATEST(tmp_path, mo
     went out at `all`."""
     import time as _t
     ring = _dev(name="Ring", vendor="Wellue", model="O2Ring-S", address="D1:98:62:7C:92:B3")
-    cfg = {"pull": {"auto": True, "ftype": 0}, "devices": [ring]}
+    cfg = {"pull": {"auto": True}, "devices": [ring]}
     capture.STATUS["devices"]["Ring"] = {"worn": False, "charging": False}
     capture._NOTWORN_SINCE[ring["address"]] = _t.monotonic() - 10_000   # settle long since elapsed
     capture._NOTWORN_PULLED.discard(ring["address"])
     pulls = []
 
-    async def fake_pull(dev, root, which="latest", ftype=0):
-        pulls.append((dev["name"], which, ftype))
+    async def fake_pull(dev, root, which="latest", resume=False, *, trigger="manual"):
+        pulls.append((dev["name"], which, resume))
         return {"new_files": ["a.dat"]}
 
     monkeypatch.setattr(capture, "pull_oxyii_session", fake_pull)
     _stop_after(monkeypatch, 3)
     _run(capture.charger_pull_poller(cfg, str(tmp_path)))
-    assert pulls == [("Ring", "latest", 0)], f"doff pull must ask for latest, got {pulls}"
+    assert pulls[:1] == [("Ring", "latest", 0)], f"doff pull must ask for latest, got {pulls}"
     assert capture.STATUS["autopull"]["trigger"] == "not-worn"
 
 
@@ -852,7 +1034,7 @@ def test_coming_off_the_charger_re_arms_the_next_pull(tmp_path, monkeypatch):
     state = {"tick": 0}
     pulls = []
 
-    async def fake_pull(dev, root, which="latest", ftype=0):
+    async def fake_pull(dev, root, which="latest", resume=False, *, trigger="manual"):
         pulls.append(state["tick"])
         return {"new_files": []}
     monkeypatch.setattr(capture, "pull_oxyii_session", fake_pull)
@@ -896,7 +1078,7 @@ def test_a_busy_offline_slot_re_arms_and_a_transient_failure_does_not(tmp_path, 
     cfg = {"pull": {"auto": True, "charger_settle_sec": 0}, "devices": [ring]}
     capture.STATUS["devices"]["Ring"] = {"charging": True}
 
-    async def busy(dev, root, which="latest", ftype=0):
+    async def busy(dev, root, which="latest", resume=False, *, trigger="manual"):
         raise capture.offline_lock.OfflineBusy("held by Verity")
     monkeypatch.setattr(capture, "pull_oxyii_session", busy)
     _stop_after(monkeypatch, 2)
@@ -906,7 +1088,7 @@ def test_a_busy_offline_slot_re_arms_and_a_transient_failure_does_not(tmp_path, 
     capture._STOP = asyncio.Event()
     capture._CHARGER_SINCE.clear()
 
-    async def boom(dev, root, which="latest", ftype=0):
+    async def boom(dev, root, which="latest", resume=False, *, trigger="manual"):
         raise RuntimeError("device not advertising")
     monkeypatch.setattr(capture, "pull_oxyii_session", boom)
     _stop_after(monkeypatch, 2)
@@ -916,6 +1098,7 @@ def test_a_busy_offline_slot_re_arms_and_a_transient_failure_does_not(tmp_path, 
     assert any("hourly poller is the backstop" in r.getMessage() for r in caplog.records)
 
 
+@pytest.mark.sets_capture_events
 def test_the_charger_poller_holds_off_during_a_recovery(tmp_path, monkeypatch):
     """A pull needs the radio. Starting one mid-power-cycle fights the recovery for the adapter and both
     lose."""
@@ -925,7 +1108,7 @@ def test_the_charger_poller_holds_off_during_a_recovery(tmp_path, monkeypatch):
     capture._RECOVER.set()
     pulls = []
 
-    async def fake_pull(dev, root, which="latest", ftype=0):
+    async def fake_pull(dev, root, which="latest", resume=False, *, trigger="manual"):
         pulls.append(1)
         return {}
     monkeypatch.setattr(capture, "pull_oxyii_session", fake_pull)
@@ -1781,28 +1964,28 @@ def test_qc_digest_formats_ranges_and_absences():
 # CAPTURE-FILESET-RESUME — a reconnect inside the window reuses the set; outside it, fragments.
 # Each of the brief's §3 invariants is a test here, not a hope.
 # ═══════════════════════════════════════════════════════════════════════════════════════════
-def test_resumable_stamp_finds_the_set_inside_the_window(tmp_path):
+def test_resumable_set_legacy_finds_the_set_inside_the_window(tmp_path):
     import writers, datetime as dt, os, time
     d = str(tmp_path)
     f = tmp_path / "Polar_H10_02849638_20260819210000_ECG.txt"
     f.write_text("hdr\n1;2;3;4\n")
     now = dt.datetime.now()
-    got = writers.resumable_stamp(d, "Polar", "H10", "02849638", now, 300.0)
-    assert got == dt.datetime(2026, 8, 19, 21, 0, 0), got
+    got = writers.resumable_set(d, "Polar", "H10", "02849638", now, 300.0)
+    assert got[0] == dt.datetime(2026, 8, 19, 21, 0, 0), got
     # DENY twin: age the file past the window — a true outage must fragment
     old = time.time() - 400
     os.utime(str(f), (old, old))
-    assert writers.resumable_stamp(d, "Polar", "H10", "02849638", now, 300.0) is None
+    assert writers.resumable_set(d, "Polar", "H10", "02849638", now, 300.0) is None
     # and a different device's set is never adopted
-    assert writers.resumable_stamp(d, "Polar", "H10", "DEADBEEF", now, 300.0) is None
+    assert writers.resumable_set(d, "Polar", "H10", "DEADBEEF", now, 300.0) is None
     # missing dir refuses rather than raising
-    assert writers.resumable_stamp(str(tmp_path / "nope"), "Polar", "H10", "x", now, 300.0) is None
+    assert writers.resumable_set(str(tmp_path / "nope"), "Polar", "H10", "x", now, 300.0) is None
 
 
-def test_resumable_stamp_ignores_stampless_and_unparseable_names(tmp_path):
+def test_resumable_set_legacy_ignores_stampless_and_unparseable_names(tmp_path):
     import writers, datetime as dt
     (tmp_path / "Polar_H10_02849638_notes.txt").write_text("x\n")
-    assert writers.resumable_stamp(str(tmp_path), "Polar", "H10", "02849638",
+    assert writers.resumable_set(str(tmp_path), "Polar", "H10", "02849638",
                                    dt.datetime.now(), 300.0) is None
 
 
@@ -1873,13 +2056,154 @@ def test_resumed_hr_writer_appends_the_rr_sibling_too(tmp_path):
     assert sum(1 for x in rr if x.startswith("Phone timestamp")) == 1, rr
 
 
-def test_resumable_stamp_survives_races_and_junk_dates(tmp_path, monkeypatch):
+def _mkset(d, stamp, now, age_s=0.0, dev="02849638", stream="ECG"):
+    """Write one member of a file-set with an mtime `age_s` seconds before `now`. Returns the path.
+
+    ⚠️ The age is measured from the TEST's `now`, never from `time.time()`. These tests assert against a
+    synthetic midnight, so aging from the wall clock makes `now - mtime` NEGATIVE and the window check
+    passes no matter what it does — three of these tests were green for exactly that reason before a
+    fourth caught it. A test whose subject cannot fail it is not testing the subject."""
+    import os
+    os.makedirs(d, exist_ok=True)
+    f = os.path.join(d, f"Polar_H10_{dev}_{stamp}_{stream}.txt")
+    with open(f, "w") as fh:
+        fh.write("x\n")
+    t = now.timestamp() - age_s
+    os.utime(f, (t, t))
+    return f
+
+
+def test_prev_night_dir_is_civil_date_arithmetic_across_dst(tmp_path):
+    """The folder name is a CIVIL date, so the arithmetic that produces it must be civil.
+
+    ⚠️ The date that matters is 2026-03-09 — the day AFTER spring-forward, not the changeover day.
+    2026-03-08 is only 23 h long, so `fromtimestamp(local_midnight - 86400)` lands at 23:00 on 03-07 and
+    reports the wrong civil day. Measured: the changeover days themselves (03-08, 11-01) give the SAME
+    answer under both implementations, so a test keyed to them passes against the broken one. This test
+    was originally written that way and caught nothing."""
+    import writers
+    import os
+    cap = str(tmp_path / "captures")
+    # 🔴 the one that actually separates the implementations
+    assert os.path.basename(writers.prev_night_dir(os.path.join(cap, "2026-03-09"))) == "2026-03-08"
+    # the changeover days themselves — safe under both, kept as the contrast
+    assert os.path.basename(writers.prev_night_dir(os.path.join(cap, "2026-03-08"))) == "2026-03-07"
+    assert os.path.basename(writers.prev_night_dir(os.path.join(cap, "2026-11-01"))) == "2026-10-31"
+    assert os.path.basename(writers.prev_night_dir(os.path.join(cap, "2026-11-02"))) == "2026-11-01"
+    # month, year and leap-day boundaries
+    assert os.path.basename(writers.prev_night_dir(os.path.join(cap, "2026-01-01"))) == "2025-12-31"
+    assert os.path.basename(writers.prev_night_dir(os.path.join(cap, "2024-03-01"))) == "2024-02-29"
+    # the sibling stays in the same parent, and a trailing slash is not a different answer
+    assert os.path.dirname(writers.prev_night_dir(os.path.join(cap, "2026-03-08"))) == cap
+    assert writers.prev_night_dir(os.path.join(cap, "2026-03-08") + os.sep) == \
+           writers.prev_night_dir(os.path.join(cap, "2026-03-08"))
+
+
+def test_prev_night_dir_refuses_a_non_date_basename(tmp_path):
+    """A folder that is not a date has no previous day — None, never a guess."""
+    import writers
+    assert writers.prev_night_dir(str(tmp_path / "captures" / "scratch")) is None
+    assert writers.prev_night_dir(str(tmp_path / "captures" / "2026-13-45")) is None
+
+
+def test_resumable_set_finds_the_set_across_the_folder_boundary(tmp_path):
+    """🔴 THE MIDNIGHT FIX. A device reconnecting at 00:01 must find the set it wrote at 23:58.
+
+    night_dir() rolls by session start, so at midnight the folder changes under a recording that never
+    stopped; a one-directory scan then saw an empty folder and minted a fresh set. Measured over the
+    corpus: 16 of 29 sub-5-minute seams straddled a boundary."""
+    import writers
+    import datetime as dt
+    cap = tmp_path / "captures"
+    today, yday = str(cap / "2026-09-12"), str(cap / "2026-09-11")
+    now = dt.datetime(2026, 9, 12, 0, 1, 0)
+    _mkset(yday, "20260911235800", now, age_s=60.0)  # written 60 s ago, just before midnight
+    os.makedirs(today, exist_ok=True)                # today's folder exists and is EMPTY
+    got = writers.resumable_set(today, "Polar", "H10", "02849638", now, 300.0)
+    assert got is not None, "the set written 60 s ago must be resumable across the boundary"
+    stamp, where = got
+    assert stamp == dt.datetime(2026, 9, 11, 23, 58, 0)
+    # THE DIRECTORY IS THE LOAD-BEARING HALF: appending into today's folder under yesterday's stamp
+    # would put one set name in two directories, which is worse than the split being fixed.
+    assert where == yday
+
+
+def test_resumable_set_window_still_bounds_the_previous_folder(tmp_path):
+    """A genuine outage keeps fragmenting — crossing midnight is not a licence to resume anything."""
+    import writers
+    import datetime as dt
+    cap = tmp_path / "captures"
+    today, yday = str(cap / "2026-09-12"), str(cap / "2026-09-11")
+    now = dt.datetime(2026, 9, 12, 0, 1, 0)
+    _mkset(yday, "20260911200000", now, age_s=4000.0)   # last wrote over an hour ago
+    os.makedirs(today, exist_ok=True)
+    assert writers.resumable_set(today, "Polar", "H10", "02849638", now, 300.0) is None
+
+
+def test_resumable_set_newest_write_wins_not_newest_folder(tmp_path):
+    """Both folders hold a set: the one that WROTE most recently wins, wherever it lives.
+
+    Ordering by folder instead would let a stale set in today's folder outrank a live one still being
+    written last night — the inversion that makes a resume adopt the wrong stamp."""
+    import writers
+    import datetime as dt
+    cap = tmp_path / "captures"
+    today, yday = str(cap / "2026-09-12"), str(cap / "2026-09-11")
+    now = dt.datetime(2026, 9, 12, 0, 7, 0)
+    _mkset(yday, "20260911235800", now, age_s=5.0)     # yesterday's folder, 5 s ago  <- live
+    _mkset(today, "20260912000500", now, age_s=120.0)  # today's folder, 2 min ago    <- staler
+    stamp, where = writers.resumable_set(today, "Polar", "H10", "02849638", now, 300.0)
+    assert (stamp, where) == (dt.datetime(2026, 9, 11, 23, 58, 0), yday)
+    # the mirror: when today's is the live one, today's wins and no boundary hop happens
+    _mkset(today, "20260912000500", now, age_s=1.0)
+    stamp, where = writers.resumable_set(today, "Polar", "H10", "02849638", now, 300.0)
+    assert (stamp, where) == (dt.datetime(2026, 9, 12, 0, 5, 0), today)
+
+
+def test_resumable_set_ignores_another_devices_set_in_the_previous_folder(tmp_path):
+    """The prefix still scopes the search — a second device's live set next door is not ours."""
+    import writers
+    import datetime as dt
+    cap = tmp_path / "captures"
+    today, yday = str(cap / "2026-09-12"), str(cap / "2026-09-11")
+    now = dt.datetime(2026, 9, 12, 0, 1, 0)
+    _mkset(yday, "20260911235800", now, age_s=5.0, dev="DEADBEEF")
+    os.makedirs(today, exist_ok=True)
+    assert writers.resumable_set(today, "Polar", "H10", "02849638", now, 300.0) is None
+
+
+def test_resumable_set_rejects_a_junk_stamp_in_the_previous_folder(tmp_path):
+    """A filename whose stamp parses as digits but not as a date must not anchor a resume.
+
+    file_stamp accepts the 14-digit SHAPE; only strptime knows 20261345 is not a date."""
+    import writers
+    import datetime as dt
+    cap = tmp_path / "captures"
+    today, yday = str(cap / "2026-09-12"), str(cap / "2026-09-11")
+    now = dt.datetime(2026, 9, 12, 0, 1, 0)
+    _mkset(yday, "20261345995959", now, age_s=5.0)   # 14 digits, not a calendar instant
+    os.makedirs(today, exist_ok=True)
+    assert writers.resumable_set(today, "Polar", "H10", "02849638", now, 300.0) is None
+
+
+def test_resumable_set_works_when_the_folder_has_no_previous_day(tmp_path):
+    """A non-date folder yields no sibling; the search must still work on the folder it was given."""
+    import writers
+    import datetime as dt
+    d = str(tmp_path / "captures" / "scratch")
+    now = dt.datetime(2026, 9, 12, 0, 7, 0)
+    _mkset(d, "20260912000500", now, age_s=5.0)
+    stamp, where = writers.resumable_set(d, "Polar", "H10", "02849638", now, 300.0)
+    assert (stamp, where) == (dt.datetime(2026, 9, 12, 0, 5, 0), d)
+
+
+def test_resumable_set_legacy_survives_races_and_junk_dates(tmp_path, monkeypatch):
     """The unhappy paths: a file deleted between listdir and getmtime is skipped, not raised; a token
     that matches the stamp REGEX but is not a real date (month 13) refuses rather than crashing."""
     import writers, datetime as dt, os as _os
     (tmp_path / "Polar_H10_02849638_20261340000000_ECG.txt").write_text("h\n")   # month 13
     now = dt.datetime.now()
-    assert writers.resumable_stamp(str(tmp_path), "Polar", "H10", "02849638", now, 300.0) is None
+    assert writers.resumable_set(str(tmp_path), "Polar", "H10", "02849638", now, 300.0) is None
     (tmp_path / "Polar_H10_02849638_20260819210000_ECG.txt").write_text("h\n")
     real = _os.path.getmtime
 
@@ -1889,7 +2213,7 @@ def test_resumable_stamp_survives_races_and_junk_dates(tmp_path, monkeypatch):
         return real(p)
     monkeypatch.setattr(writers.os.path, "getmtime", flaky)
     # the raced file is skipped; the junk-date one is newest-by-mtime and then refuses on strptime
-    assert writers.resumable_stamp(str(tmp_path), "Polar", "H10", "02849638", now, 300.0) is None
+    assert writers.resumable_set(str(tmp_path), "Polar", "H10", "02849638", now, 300.0) is None
 
 
 def test_resumed_ecg_anchor_skips_comments_and_junk_rows(tmp_path):
@@ -1972,6 +2296,25 @@ def test_list_adapters_parses_the_probe(monkeypatch):
     assert {x["hci"] for x in a} == {"hci0", "hci1"}
 
 
+def test_list_adapters_runs_PLAIN_hciconfig_not_dash_a(monkeypatch):
+    """`hciconfig -a` issues the BR/EDR `Read Local Name` per controller and aborts the whole listing on
+    the first failure. An LE-only Zephyr/SDC dongle answers it with I/O error 5, so on 2026-09-12 vigil's
+    `-a` listed exactly ONE of its four controllers and the failover rung had no spare to offer. Plain
+    `hciconfig` lists all four, with every field parse_hciconfig reads."""
+    argv = []
+
+    class _P:
+        async def communicate(self, stdin=None):
+            return (_HCI_TWO.encode(), b"")
+
+    async def fake_exec(*a, **k):
+        argv.append(a)
+        return _P()
+    monkeypatch.setattr(capture.asyncio, "create_subprocess_exec", fake_exec)
+    assert len(_run(capture.list_adapters())) == 2
+    assert argv == [("hciconfig",)], argv
+
+
 def test_list_adapters_is_empty_when_hciconfig_is_missing(monkeypatch):
     async def boom(*a, **k):
         raise FileNotFoundError("hciconfig")
@@ -1979,10 +2322,20 @@ def test_list_adapters_is_empty_when_hciconfig_is_missing(monkeypatch):
     assert _run(capture.list_adapters()) == []
 
 
-def _failover_rig(monkeypatch, spare_list):
-    """A wedged pinned radio, quiet deafness probe, stubbed power-cycle, and `list_adapters` → spare_list."""
+def _failover_rig(monkeypatch, spare_list, *, spare_responds=True):
+    """A wedged pinned radio, quiet deafness probe, stubbed power-cycle, and `list_adapters` → spare_list.
+
+    `spare_responds` is the spare's answer to the HCI round trip `_pick_live_spare` asks before
+    migrating onto it. It MUST be stubbed: an unstubbed probe shells `hciconfig` at whatever `hci`
+    name the fixture invented, so the rig would be asking the developer's own hardware whether a
+    made-up radio is alive — and a spare these tests call healthy would be refused on some machines
+    and taken on others."""
     _wedge_rig(monkeypatch, adapter_up=False)
     _quiet_deafness_probe(monkeypatch)
+
+    async def responds(_hci):
+        return spare_responds
+    monkeypatch.setattr(capture, "_adapter_responds", responds)
 
     async def fake_cmd(cmd):
         return True
@@ -2025,14 +2378,25 @@ def test_the_watchdog_fails_over_to_a_healthy_spare_then_exhausts(monkeypatch, c
         capture._EXIT_CODE[0] = 0
 
 
-def test_failover_can_be_disabled_and_does_not_even_probe(monkeypatch):
-    """watchdog.failover:false must not so much as enumerate the adapters — the pinned-radio ladder
-    behaves exactly as before, exiting on give-up."""
+def test_failover_can_be_disabled_and_does_not_migrate(monkeypatch):
+    """watchdog.failover:false must not pick a spare or move the pin — the pinned-radio ladder behaves
+    exactly as before, exiting on give-up.
+
+    This asserted "must not so much as enumerate the adapters" until 2026-09-22: the adapter-hci REPORT
+    (`_record_adapter_hci`, residue 2026-09-11) now enumerates every radio on every poll to write its
+    row, independent of failover — so enumeration is no longer the tell. What failover:false forbids is
+    the MIGRATION, and that is what is asserted: `_pick_live_spare` is never called and ADAPTER stays."""
     probed = []
+    picked = []
 
     async def spare(*a, **k):
         probed.append(1)
         return [{"hci": "hci1", "mac": "SPARE", "up": True}]
+
+    async def pick(*a, **k):
+        picked.append(1)
+        return "SPARE"
+    monkeypatch.setattr(capture, "_pick_live_spare", pick)
     _wedge_rig(monkeypatch, adapter_up=False)
     _quiet_deafness_probe(monkeypatch)
 
@@ -2046,8 +2410,10 @@ def test_failover_can_be_disabled_and_does_not_even_probe(monkeypatch):
            "watchdog": {"interval_sec": 1, "grace_checks": 1, "max_adapter_cycles": 1,
                         "failover": False, "exit_on_giveup": True}}
     try:
+        capture.ADAPTER = "PIN"
         _run(capture.adapter_watchdog("PIN", cfg))
-        assert probed == [], "failover:false must not probe the adapters"
+        assert picked == [] and capture.ADAPTER == "PIN", "failover:false must not pick a spare or move the pin"
+        assert probed, "the adapter-hci report still enumerates the radios — enumeration is not failover"
         assert capture._EXIT_CODE[0] == 1
     finally:
         capture._EXIT_CODE[0] = 0
@@ -2076,3 +2442,35 @@ def test_failover_survives_a_bond_failure_on_the_spare(monkeypatch, caplog):
     finally:
         capture.ADAPTER = orig
         capture._EXIT_CODE[0] = 0
+
+
+def test_a_RESUMED_set_that_receives_nothing_is_KEPT_not_discarded(tmp_path, monkeypatch):
+    """🔴 The 2026-09-03 vigil data loss, driven through the real teardown.
+
+    `wr.rows` counts THIS instance; `discard()` unlinks the whole FILE. Identical while one session
+    owned one file — ended by CAPTURE-FILESET-RESUME §2, which reopens the same paths in append mode at
+    rows=0. On the box the 15:43 Verity set reached 21 MB and its stream files were gone by 17:47, while
+    PMDARRIVAL survived because `arr_wr` is closed above the loop, never discarded.
+
+    This drives `run_polar` with a PRE-SEEDED recent set so the writer genuinely resumes, then delivers
+    a frame carrying no samples. The sibling test above pins the opposite case — a set this session
+    created IS still pruned — so together they cover both arcs of the guard rather than restating it."""
+    dev = _pdev()
+    started = capture._now()
+    ndir = capture.night_dir(str(tmp_path), started)
+    os.makedirs(ndir, exist_ok=True)
+    seeded = os.path.join(ndir, capture.capture_filename(
+        dev["vendor"], dev["model"], dev["device_id"], started, "ecg"))
+    prior = "# earlier session\nt;v\n1;2\n"
+    with open(seeded, "w") as fh:
+        fh.write(prior)
+
+    _polar_common(monkeypatch)
+    _inject_connect(monkeypatch, _EmptyFramePolar(start_status=0x00))
+    _stop_after(monkeypatch, 1)
+    _run(capture.run_polar(dev, str(tmp_path)))
+
+    assert os.path.exists(seeded), (
+        "a resumed set that received no rows was DELETED — this is the vigil data loss: the writer "
+        "appended to bytes it did not write, then discarded the whole file on teardown")
+    assert open(seeded).read().startswith(prior), "the earlier session's bytes must be intact"

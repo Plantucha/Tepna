@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED (parked 2026-09-02 — the code arms are DONE: the RECORDING state machine f127d88c (#1751)/d9c66a91 (#1760), the T3 `VERIFYING` emit 954720bc (#1761), and the arming diagnostics with both-direction controls (`test_on_close_NEVER_INHERITS_unlike_on_doff`, `test_presence_wire.py:368`). What remains: **§24's real-ring tests** need a worn advertising/recording ring, and the **T-series ledger has never been written in production** — verify at the next auto-pull from `inventory.jsonl` on the box. ⚠ **Residue, unblocked and unassigned:** §22's restart matrix is 5 of 8; the 3 missing cases are the recording-axis ones and their dependency cleared when #1751 landed — three tests, nobody assigned. **Owner:** Heron · **Next step:** the 3 restart-matrix tests) · **Created:** 2026-08-24
+**Status:** PROPOSED (parked 2026-09-02 — the code arms are DONE: the RECORDING state machine f127d88c (#1751)/d9c66a91 (#1760), the T3 `VERIFYING` emit 954720bc (#1761), and the arming diagnostics with both-direction controls (`test_on_close_NEVER_INHERITS_unlike_on_doff`, `test_presence_wire.py:368`). What remains: **§24's real-ring tests** need a worn advertising/recording ring, and the **T-series ledger has never been written in production** — verify at the next auto-pull from `inventory.jsonl` on the box. 🔴 **RESIDUE CORRECTED 2026-09-03 — my 2026-09-02 note was WRONG and this brief carried it for a day.** It read: *"§22's restart matrix is 5 of 8; the 3 missing cases are the recording-axis ones and their dependency cleared when #1751 landed — three tests, nobody assigned."* **Do not write those three tests.** #1751 landed the recording STATE MACHINE; §10's cases 2, 3 and 7 need DURABILITY — something that survives a host restart. The two share a vocabulary and nothing else, and I called the capability present because the identifier had landed. Verified 2026-09-03: `oxy_lifecycle` has no load/restore path, nothing reads `OXYLIFE.csv` back, `oxy_restart.plan` reconciles ledger-vs-disk for downloaded `.dat` FILES rather than in-progress state, and there is no boot-time recovery for the ring. **The recording axis is write-only across a restart**, so §10's three cases are exactly as blocked as §10 already said. ✅ **And the worked example exists one lane over:** the CPAP path already does this — `_cpap_autostart_boot` walks the journal back at boot to reconstruct session state. So the real residue is not three tests but **"the ring's recording axis has no boot-time recovery, and CPAP is the pattern to copy"** — a design unit with a reference implementation, not a test-writing chore. **Owner:** unassigned · **Next step:** decide whether the ring needs boot recovery at all before anyone writes a line. **Owner:** Heron · **Next step:** the 3 restart-matrix tests. ✅ **T-SERIES LEDGER VERIFIED IN PRODUCTION 2026-09-05 (Heron, box read).** `captures/stored/inventory.jsonl` on vigil: 114 rows, **23 sessions since 2026-08-25**, every one `DISCOVERED→DOWNLOADING→VERIFYING→VERIFIED→COMMITTED` (22/23 carry the T3 `VERIFYING` emit; the 08-25 first predates #1761's deploy). Zero FAILED, zero QUARANTINE. The item above that read "never been written in production" was 11 days stale. 🔴 **And the read found a defect the ledger can show but not stop:** two sessions (`20260829030105`, `20260830110638`) are ledgered TWICE — once under `2592302100`, once under `device_id: 0000` — because `pull_session._pull_once` fell back to the AUTH serial (`"0000"`) when the 0xE1 identity read timed out (3 of 75 pulls). Under that key `oxy_restart.plan` sees no COMMITTED row, so the same bytes were pulled again 4 min after "committed and unchanged on disk — skipping", and the good sidecar (`device_serial: 2592302100`) was overwritten with a null one. Fixed 2026-09-05: the fallback is the caller's known `dev["device_id"]`, then the address, never the auth serial — `tests/test_pull_identity_key.py` replays the incident) · **Created:** 2026-08-24 · **Residue:** 2026-09-05-pull-identity-fallback-rekeys-ledger, 2026-09-07-refinement-brief-quotes-a-deleted-clamp **DRAIN 2026-09-20 (Wren, box):** the T-series ledger IS written in production — 56 sessions through 2026-09-19 22:45, T3 emitting on every session since the emit landed, and T3/T4 are distinct stamps (0/55 identical, 0.1–11.8 ms apart), so the §11 `[~]` is closed to `[x]` in the body. Remainder unchanged: §24's real-ring tests (bench) and §10's three durability cases (blocked on a restore path that does not exist — the 09-03 correction stands).
 
 # O2Ring `.dat` auto-harvest — and the event path that has never armed
 
@@ -120,13 +120,40 @@ the flag was False, it was that nothing said so.
       §5a. It yields the pull-duration half of the answer and a single uncontaminated data point, and
       it establishes that the tail needs a deliberate experiment. The three-way decision (sufficient /
       shorten the settle / hold-through-pull) is **still open**.
-- [ ] **§5's recording state machine** (`UNKNOWN → RECORDING → END_CANDIDATE → END_CONFIRMED`) on the
+- [x] **§5's recording state machine** (`UNKNOWN → RECORDING → END_CANDIDATE → END_CONFIRMED`) on the
       `duration_s` axis. ⚠️ **The recording axis is `OXYII-PRESENCE-MODEL`'s model** — coordinate the
       seam before locking the enum, and do not collide with that brief's in-flight `IDLE_UNWORN` emit.
-- [ ] **T0–T7 latency instrumentation — MAPPED in §11.** T1/T2/T4/T5 are already emitted (T4 via
+      **VERIFIED BUILT 2026-09-05 — `oxy_lifecycle.OxyRecState`**, and the seam warning is satisfied
+      rather than merely avoided. The enum carries FIVE states, not the four this line lists —
+      `NOT_RECORDING` ("duration_s observed 0") sits between UNKNOWN and RECORDING — with
+      `REC_LEGAL_TRANSITIONS` pinning the legal moves, including the one worth reading:
+      `END_CANDIDATE → RECORDING` for a ring re-donned before the old session's pull confirmed, whose
+      *"confirmation debt lives in the inventory ledger, not in this axis"*.
+      **The `IDLE_UNWORN` collision does not occur**: presence and recording are two SEPARATE enums in
+      the same module — `OxyLinkState` (holding `IDLE_UNWORN`) and `OxyRecState` — so the two briefs'
+      models coexist on their own axes instead of competing for one. That is the coordination this item
+      asked for, done at the seam rather than by one side deferring.
+- [x] **T0–T7 latency instrumentation — MAPPED in §11.** ✅ **CLOSED 2026-09-20 (Wren, box): T3 and T4 no longer share a stamp** — `stored/inventory.jsonl` now holds 56 sessions (279 rows, newest `2592302100/20260919224526`, DISCOVERED/DOWNLOADING/VERIFIED/COMMITTED 56 each, VERIFYING 55 — the one short predates the T3 emit); over the 55 sessions carrying both, `VERIFIED.at − VERIFYING.at` is **0/55 identical, min 0.1 ms · median 0.5 ms · max 11.8 ms**. The remaining `[~]` doubt below is settled by that number. T1/T2/T4/T5 are already emitted (T4 via
       `classify()` — corrected 2026-08-25); only **T3** needs an emit, and T3/T4 currently share one
-      timestamp. T6/T7 are downstream, T0 is the axis. ⚠️ §11(c): the ledger has never actually been
-      written in production — verify at the next auto-pull.
+      timestamp. T6/T7 are downstream, T0 is the axis. ~~⚠️ §11(c): the ledger has never actually been
+      written in production — verify at the next auto-pull.~~
+      **§11(c) ANSWERED 2026-09-05 — the ledger IS written in production, measured on the box.**
+      `/srv/tepna/captures/stored/inventory.jsonl`, 40 546 B, last written 2026-09-04 05:44:
+
+      | | |
+      |---|---|
+      | rows | **109** across **20 distinct sessions** |
+      | span | 2026-08-25 → 2026-09-04 |
+      | states | DISCOVERED 22 · DOWNLOADING 22 · **VERIFYING 21** · VERIFIED 22 · COMMITTED 22 |
+
+      So the transaction runs end to end in production, and **T3 is emitting**: 21 of 22. The single
+      exception is `20260824222502`, the EARLIEST session in the ledger (2026-08-25 05:12) — it
+      predates the T3 emit (954720bc, #1761) rather than showing a gap in it. Checked rather than
+      assumed, because "21 of 22" invites exactly the wrong inference.
+      ⚠️ **`[~]`, not `[x]`.** Two of this item's claims are settled — T3 emits, the ledger is written —
+      and one is NOT: whether **T3/T4 still share a timestamp** is unverified here. Ticking on the
+      strength of the settled half is the ticked-box-whose-first-clause-is-true defect §7 exists to
+      catch.
 - [ ] **§22's 8-case restart matrix — MAPPED in §10: 5 of 8 already built** by #1702's
       `crash_1…crash_10`. The residue (cases 2, 3, 7) is exactly the recording-axis cases and belongs
       with unit 2. Do not write eight new tests.
@@ -186,7 +213,7 @@ experiment, not a result, and it is the only reason §5's checkbox is not simply
 
 **⚠️ What the tail does NOT gate — the mistake is easy and I made it.** The tail bounds the *pull*,
 not the *observation of the close*. `_DROP_NOT_WORN_SEC = 180 s` (`capture-host/capture.py:1421`) and
-the settle is `max(notworn_settle_sec, _DROP_NOT_WORN_SEC + 30)`, so the link is deliberately **held
+the settle is `max(notworn_settle_sec, _DROP_NOT_WORN_SEC + 30)` *(⚠️ STALE since 2026-08-26 — that clamp was DELETED; `capture.py` "NO CLAMP": the configured `pull.notworn_settle_sec` IS the effective value, 45 s on the box — residue `2026-09-07-refinement-brief-quotes-a-deleted-clamp`)*, so the link is deliberately **held
 for 180 s** after not-worn — and the ring's close lands at ~10 s, well inside it. `observed_s` is
 therefore available whenever the daemon was connected at the doff moment, and it does not depend on
 the tail at all. The genuinely rare `source: "stored"` case is doff *during* a BLE outage, a smaller
@@ -309,9 +336,23 @@ mechanism that could not handle it.
 
 ## 7 · Done when
 
-- [ ] The two triggers are independently flagged, and no deployed behaviour changes silently.
-- [ ] `armed` / `NOT armed` prints at start with the governing flag and value named.
-- [ ] A control proves the diagnostic fires in both directions — the absent-line failure cannot recur.
+- [x] The two triggers are independently flagged, and no deployed behaviour changes silently.
+      **VERIFIED BUILT 2026-09-05** — `autopull_arming()` returns `charger`/`doff`/`close` separately
+      with a `why`. ⚠ The one silent path, `if not devices: return`, is a DECISION and not a gap:
+      `test_the_charger_poller_returns_when_no_device_can_be_pulled` pins it, because a Muse fleet has
+      no onboard recording and *"arming a poller with nothing to poll would log 'armed — pulling 0
+      device(s)', which is worse than silence"*. Recorded because I re-derived that question and tried
+      to "fix" it; their test reddened the change, which is what a defended decision is for.
+- [x] `armed` / `NOT armed` prints at start with the governing flag and value named.
+      **VERIFIED BUILT 2026-09-05** — both lines exist in `charger_pull_poller`; the armed one names
+      every flag with its value (`charger=on (15s) not-worn=on (210s) on-close=OFF presence=…`).
+- [x] A control proves the diagnostic fires in both directions — the absent-line failure cannot recur.
+      **DONE 2026-09-05 (#2200)** — `test_the_autopull_arming_line_fires_when_ARMED` /
+      `…_when_NOT_ARMED` in `tests/test_capture.py`. Paired deliberately: a one-directional test passes
+      against a diagnostic that prints the same string unconditionally. Verified to bite — removing
+      either line reds exactly its own test. The pre-existing test on `autopull_arming()` could not
+      cover this: it checks the DECISION, not that the decision is ever said, and the original defect
+      was an absence (0 `armed` lines against 312 poller lines on 2026-08-24).
 - [ ] Every item in §5 is built, or recorded as declined with a measured reason.
 
 ---

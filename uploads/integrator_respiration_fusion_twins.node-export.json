@@ -1,0 +1,25 @@
+{
+  "schema": {
+    "name": "ganglior.integrator-respiration-fusion-twins",
+    "version": "1.0",
+    "doc": "Committed synthetic twins for fuseRespirationRate (residue 2026-09-02-respiration-fusion-no-fixture). Inputs rebuilt in-code by tests/respiration-fusion-twins.js; only the FUSED verdicts are committed."
+  },
+  "twins": {
+    "agree": {
+      "n": 3,
+      "consensusBrpm": 14,
+      "spreadBrpm": 0.4,
+      "agree": true,
+      "overlapVerified": true,
+      "mechanisms": [
+        "RSA",
+        "RSA",
+        "chest-ACC"
+      ],
+      "mechanismsIndependent": true
+    },
+    "disjoint": null,
+    "sameNode": null,
+    "single": null
+  }
+}

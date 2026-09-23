@@ -232,7 +232,8 @@ def adapter_verdict(per_device: dict) -> dict:
     }
 
 
-def switch_event(*, device, from_mac, to_mac, verdict, cause="reconnect-rate"):
+def switch_event(*, device, from_mac, to_mac, verdict, cause="reconnect-rate",
+                 reserved=(), preemption=None):
     """The record a switch emits. PURE.
 
     🔴 IT CARRIES WHICH SIGNAL FIRED AND ITS VALUE, not merely that a switch happened. A switch that
@@ -251,6 +252,19 @@ def switch_event(*, device, from_mac, to_mac, verdict, cause="reconnect-rate"):
         "baseline_median_per_h": v.get("median"),
         "baseline_nights": v.get("nights"),
         "sustained_s": v.get("sustained_s"),
+        # BLE-TRANSPORT-REDESIGN §1.7: an adapter reservation is a LEASE, and taking a leased adapter
+        # must be RECORDED AS A DECISION. Before this, commandeering the CPAP's dedicated radio left
+        # only a log line — measured 60/67/65 times per night on 2026-09-05/06/07 — so "a reservation
+        # the code can override by writing a sentence" was invisible to anything that survives the
+        # night. Behaviour is unchanged: it still preempts, because refusing is a data-loss trade the
+        # brief explicitly does not make. What changes is that the preemption is now evidence.
+        #
+        # ⚠️ `reserved` rides along so `preemption: null` is READABLE rather than ambiguous:
+        #   reserved == []           -> nothing could be preempted
+        #   reserved != [], null     -> a lease existed and was RESPECTED
+        #   preemption != null       -> a lease was TAKEN, and this says whose and why
+        "reserved_adapters": [str(r) for r in reserved],
+        "preemption": preemption,
         "detail": v.get("detail"),
     }
 

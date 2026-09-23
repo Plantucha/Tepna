@@ -1,0 +1,27 @@
+# tepna-update-pending.service — Tepna Vigil
+# Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
+#
+# THE PATIENT RESTART (VIGIL-AUTO-UPDATE-FOLLOWUPS §4). The hourly tepna-update.service covers "has
+# anything been merged"; this covers "the box just went idle and a restart has been owed since 23:50".
+# Measured cost of not having it: median 8.27 h of running code that is on disk but not loaded, 68.6 %
+# of a 13-day window, 16 of 17 streaks over four hours.
+#
+# It runs the SAME script and the SAME step 5 — same interlock, same content gate, same fail-safes —
+# with --pending-only, which skips the fetch and the merge. So it does NO NETWORK, and on a box with
+# nothing owed it reads two local values and exits 0 in silence. That is what makes a two-minute timer
+# acceptable rather than rude.
+#
+# No network ordering (After=network-online.target) on purpose: this mode never reaches the network, so
+# waiting for it would delay the one thing this unit exists to do quickly.
+[Unit]
+Description=Tepna — take an owed restart the moment the box goes idle
+
+[Service]
+Type=oneshot
+User=vigil
+Group=vigil
+ExecStart=/opt/tepna/capture-host/tepna-update.sh --pending-only
+# Short by design: with no fetch and no merge, anything slow here is the restart itself, and the
+# interlock has already decided the box is idle. The hourly unit keeps its 600 s for the network path.
+TimeoutStartSec=120
+Nice=10

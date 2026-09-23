@@ -361,7 +361,38 @@ if (IS_CLI) {
     .sort();
   const rows = [],
     refusals = [];
+  /* EVERY NIGHT LEAVES A ROW OR A REFUSAL. The header's "REFUSALS ARE LOUD" was true of the four
+     mid-loop guards below and FALSE of the three exits around them, which emitted nothing at all.
+     That is the §∅ failure one level up: a night that was never evaluated reads exactly like a night
+     that yielded no coupling, and a reader counting rows cannot tell them apart.
+
+     Not a bookkeeping nicety, because the silent exits are NOT random with respect to what this tool
+     measures. Measured 2026-09-14 on `uploads/vigil-archive/captures`: 14 of the 43 nights
+     `pat-per-led` scores produced no row and no refusal here, and the overlap guard took
+     **2026-07-31** — the single SUB-BAR night of PAT-FORENSICS-WINDOW-REGIMES §3, the only night in
+     this corpus where PAT is measurable at all. Its H10 records in ~20-30 min fragments, so no
+     ECG×PPG pair spans one 120-minute window; at `--window 20` that same night scores **6 windows,
+     every one beating its own circular-shift null at p<0.05, legacy matchRate 99-100 %**. It was not
+     a weak night — it was the strongest night, dropped for a reason nothing printed.
+
+     And fragmentation means reconnections, which is link quality — the very thing `ppm` partly
+     measures on a stalled link (CLAUDE.md §7). So the silent exit filtered the scored set on a
+     variable correlated with the predictor, which makes it a selection effect on any correlation
+     computed downstream, not merely a missing row. WINDOW-REGIMES §8.6 records the consequence.
+
+     `nightSaidSomething` is the invariant, set by every refusal and every row and checked once per
+     night. It fails CLOSED: an exit path added later that forgets to report is caught by the check
+     rather than by whoever next notices a count looks thin. */
+  let nightSaidSomething = false;
+  const note = (msg) => {
+    refusals.push(msg);
+    nightSaidSomething = true;
+  };
   for (const night of nights) {
+    nightSaidSomething = false;
+    /* Best overlap across all pairs. Refusing per PAIR would emit up to CANDIDATES² lines for one
+       night and bury the four real refusal kinds; the night-level shortfall is one fact, not 16. */
+    let bestOverlapMs = -1;
     const dir = join(base, night);
     let E = [],
       P = [];
@@ -375,7 +406,13 @@ if (IS_CLI) {
         if (!pp.length) pp = biggest(dir, /_PPG\.txt$/i, CANDIDATES);
         P = pp;
       }
-    } catch {
+    } catch (e) {
+      note(`${night}: file scan failed — ${String((e && e.message) || e)}`);
+      continue;
+    }
+    if (!E.length || !P.length) {
+      const missing = [!E.length ? (REF_MODE === 'ppg-ppg' ? 'reference *_PPG.txt' : '*_ECG.txt') : null, !P.length ? '*_PPG.txt' : null].filter(Boolean);
+      note(`${night}: no candidate stream — missing ${missing.join(' and ')}`);
       continue;
     }
     for (const ef of E)
@@ -387,26 +424,30 @@ if (IS_CLI) {
         } catch (e) {
           // Reported, not swallowed — see the header. A `continue` here would let a detector failure
           // shrink the scored set silently, which reads as "these windows had no coupling".
-          refusals.push(`${night}: parse/detect — ${String((e && e.message) || e)}`);
+          note(`${night}: parse/detect — ${String((e && e.message) || e)}`);
           continue;
         }
         const lo = Math.max(er.t0Ms, pr.t0Ms);
         const hi = Math.min(er.t0Ms + er.durSec * 1000, pr.t0Ms + pr.durSec * 1000);
-        if (hi - lo < WINDOW_MIN * 60000) continue;
+        if (hi - lo < WINDOW_MIN * 60000) {
+          // Accumulated, not reported here — one night-level line below beats CANDIDATES² of them.
+          if (hi - lo > bestOverlapMs) bestOverlapMs = hi - lo;
+          continue;
+        }
         ea = hostAnchors(ef.f);
         pa = hostAnchors(pf.f);
         if (!ea.ok || !pa.ok) {
-          refusals.push(`${night}: anchors — ${!ea.ok ? 'ECG ' + ea.reason : 'PPG ' + pa.reason}`);
+          note(`${night}: anchors — ${!ea.ok ? 'ECG ' + ea.reason : 'PPG ' + pa.reason}`);
           continue;
         }
         const ax = DexClock.hostAxis(ea.anchors),
           px = DexClock.hostAxis(pa.anchors);
         if (!ax.ok || !px.ok) {
-          refusals.push(`${night}: hostAxis refused — ${!ax.ok ? 'ECG ' + ax.reason : 'PPG ' + px.reason}`);
+          note(`${night}: hostAxis refused — ${!ax.ok ? 'ECG ' + ax.reason : 'PPG ' + px.reason}`);
           continue;
         }
         if (!ax.independent || !px.independent) {
-          refusals.push(`${night}: NOT INDEPENDENT — ${!ax.independent ? 'ECG ' + ax.inertReason : 'PPG ' + px.inertReason}`);
+          note(`${night}: NOT INDEPENDENT — ${!ax.independent ? 'ECG ' + ax.inertReason : 'PPG ' + px.inertReason}`);
           continue;
         }
         /* AND THE DEVICE COLUMN MUST BE A CLOCK, which `independent` cannot tell you — it compares two
@@ -420,7 +461,7 @@ if (IS_CLI) {
            fabricated timebase and the offset it yields would be an artefact of the assumed rate. */
         if (ax.deviceDrawn === true || px.deviceDrawn === true) {
           const which = ax.deviceDrawn === true ? { tag: 'ECG', r: ax } : { tag: 'PPG', r: px };
-          refusals.push(`${night}: DRAWN AXIS — ${which.tag} ${which.r.drawnReason || 'device column is a synthesised counter, not a clock'}`);
+          note(`${night}: DRAWN AXIS — ${which.tag} ${which.r.drawnReason || 'device column is a synthesised counter, not a clock'}`);
           continue;
         }
         const eT = toHostAxis(er, hostCorrector(ax, ea.anchors[0].devMs), ea.anchors[0].devMs);
@@ -431,16 +472,16 @@ if (IS_CLI) {
           const fW = Float64Array.from(Array.from(fT).filter((t) => t >= w - 1000 && t < w1 + 1000));
           const win = Math.round((w - lo) / 60000);
           if (rW.length < 300 || fW.length < 200) {
-            refusals.push(`${night} win${win}: too few beats/feet in the window (R=${rW.length}, feet=${fW.length})`);
+            note(`${night} win${win}: too few beats/feet in the window (R=${rW.length}, feet=${fW.length})`);
             continue;
           }
           const sc = scoreWindow(rW, fW, N_SURR);
           if (sc.refused) {
-            refusals.push(`${night} win${win}: ${sc.refused}`);
+            note(`${night} win${win}: ${sc.refused}`);
             continue;
           }
           const extra = SCAN ? scanOffsets(rW, fW, SCAN_SURR, SCAN_LO, SCAN_HI, SCAN_STEP) : {};
-          if (extra.refused) refusals.push(`${night} win${win}: scan — ${extra.refused}`);
+          if (extra.refused) note(`${night} win${win}: scan — ${extra.refused}`);
           /* `maxStepMs` rides alongside `ppm` because they answer DIFFERENT questions and §3f.5
              eliminated only the one `ppm` asks. A ppm is a RATE, and integrating it over a window
              predicts a smooth accumulation — which is why §3f.5 could show differential drift is ~6x
@@ -449,18 +490,58 @@ if (IS_CLI) {
              slope and therefore hides. CLAUDE.md §7 records the O2Ring doing exactly that — sub-ppm
              for hours, then ~12.5 s/h from the first BLE dropout. Emitting it costs nothing (hostAxis
              already computes it) and it is the only field that can test the stalled-link candidate. */
+          nightSaidSomething = true;
           rows.push({
             night,
             win,
             ppmE: ax.ppm,
             ppmP: px.ppm,
+            /* 🔴 EACH `maxStep` TRAVELS WITH ITS ANCHOR COUNT, and that is not decoration.
+               These two values sit in ONE ROW for a human reader, and they are built at different
+               TEMPORAL densities: both nodes stride `AXIS_EVERY = 500` samples (`ecgdex-dsp.js`,
+               `ppgdex-dsp.js`), but at different sample rates, so ECG anchors land ~3.85 s apart at
+               130 Hz against PpgDex's ~4-5 s — roughly a 30 % gap.
+
+               MEASURED 2026-09-20 on 8 real H10 nights, rebuilding the axis from raw
+               `Phone timestamp`/`sensor timestamp [ns]` at stride 500 vs 650 (i.e. +30 % sparser):
+
+                 ratio(650/500)   1.25  1.06  1.03  1.02  1.01  0.85  0.77  0.54
+                 median 1.015     range 0.54 – 1.25
+
+               So a 30 % density difference carries NO systematic bias — the median is ~1.0 and the
+               direction is inconsistent — but it moves an INDIVIDUAL night by as much as −46 %/+25 %.
+               `maxStepMs` is an extreme-value statistic, and an extreme is a property of how often you
+               looked as much as of what happened. Comparing the two cells across that gap is therefore
+               unreliable at the tens-of-percent level while an aggregate over nights is not skewed.
+
+               The remedy is §7's own rule — *never quote `ppm` without the span beside it* — applied to
+               the other density-sensitive field: publish the denominator and let the reader see the
+               axes differ. A warning would have been the wrong shape; there is no systematic error to
+               warn about. `hostAxis` already returns `n`, so this costs nothing.
+               Residue: 2026-09-19-maxstep-juxtaposed-at-two-densities. */
             maxStepE: ax.maxStepMs,
             maxStepP: px.maxStepMs,
+            nE: ax.n,
+            nP: px.n,
             ...sc,
             ...(extra.refused ? {} : extra)
           });
         }
       }
+    /* THE INVARIANT. Named causes first, so the common case reads as a fact rather than a shrug —
+       and the overlap line carries the number AND the flag that fixes it, because "no pair spans one
+       window" is actionable only if you know by how much you missed. */
+    if (!nightSaidSomething) {
+      if (bestOverlapMs >= 0) {
+        const mins = bestOverlapMs / 60000;
+        note(
+          `${night}: no ECG×PPG pair spans one ${WINDOW_MIN}-min window — best overlap ${mins.toFixed(1)} min over ${E.length}×${P.length} pairs. ` +
+            `Fragmented capture, not absent coupling: re-run with --window ${Math.max(5, Math.floor(mins / 5) * 5)} to score it.`
+        );
+      } else {
+        note(`${night}: scored nothing and named no reason — ${E.length}×${P.length} pairs examined. This is a BUG in this tool, not a property of the night.`);
+      }
+    }
   }
   if (JSON_OUT) {
     console.log(JSON.stringify({ windowMin: WINDOW_MIN, surrogates: N_SURR, rows, refusals }, null, 2));

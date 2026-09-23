@@ -168,11 +168,156 @@
     FUSED_EXPORT = null;
 
   // ── walk + classify a dropped/picked pile ───────────────────────────────
+  /* ── SEALED NIGHTS (CAPTURE-NIGHT-SEAL phase C, brief §5) ──────────────────────────────────────
+     A `.tepna` in the drop is one self-protecting night. It is opened HERE, before classification:
+     read the clear header → recall (or ask for) the card key and pinned fingerprint for its
+     (boxId, keyId) → NightSeal.unseal → every `data/` stream becomes a File tagged
+     `<boxId>-<night>/<name>` and goes down the SAME path a folder's files take. The outcome is a
+     PROVENANCE BADGE on each stream, never a gate: a tampered stream reds by name and the rest of the
+     night still opens; a refused seal (wrong card, unknown key, forged header, …) lists the file under
+     `error` with the refusal kind — nothing refuses silently and nothing fabricates "verified". Files
+     that did not come out of a seal carry `unsealed folder — provenance unknown`. One tepna.verdict/1
+     per seal is kept on `SEALS` for the verifier / a machine reader. */
+  var SEALS = [];
+  var CARD_PROMPT = null; // set by the page: function(header) → Promise<{cardKeyHex, fingerprint}|null>
+  function isSeal(f) {
+    return /\.tepna$/i.test(WALK.relOf(f) || f.name || '');
+  }
+  function openSeal(file) {
+    var NS = window.NightSeal;
+    var rel = WALK.relOf(file);
+    var outcome = { file: rel, status: 'NOT_RUN', streams: { opened: 0, verified: 0, tampered: [] } };
+    if (!NS) {
+      outcome.detail = 'night-seal.js not loaded';
+      return Promise.resolve({ files: [], outcome: outcome });
+    }
+    return readBuffer(file)
+      .then(function (buf) {
+        var blob = new Uint8Array(buf);
+        var header = NS.readHeader(blob); // throws SealRefused on framing — caught below
+        outcome.header = header;
+        return NS.cards
+          .get(header.boxId, header.keyId)
+          .catch(function () {
+            return null;
+          })
+          .then(function (card) {
+            if (card) return card;
+            if (typeof CARD_PROMPT !== 'function') return null;
+            return CARD_PROMPT(header).then(function (entered) {
+              if (!entered) return null;
+              var rec = { cardKeyHex: entered.cardKeyHex, fingerprint: entered.fingerprint, knownRevision: null };
+              return NS.cards.put(header.boxId, header.keyId, rec).catch(function () {
+                return rec; // no IndexedDB (private window) — use it for this session only
+              });
+            });
+          })
+          .then(function (card) {
+            if (!card) {
+              outcome.status = 'NOT_RUN';
+              outcome.detail = 'no card key for box ' + header.boxId + ' (keyId ' + header.keyId + ') — not opened';
+              return { files: [], outcome: outcome };
+            }
+            return NS.unseal(blob, { cardKey: NS.fromHex(card.cardKeyHex), pinnedFingerprint: card.fingerprint, knownRevision: card.knownRevision == null ? null : card.knownRevision }).then(
+              function (r) {
+                outcome.consent = r.consent;
+                var names = Object.keys(r.files);
+                outcome.streams.opened = names.length;
+                // verify per stream — only what is opened; here every stream in the night is opened
+                return Promise.all(
+                  names.map(function (name) {
+                    return r
+                      .verify(name)
+                      .then(function () {
+                        outcome.streams.verified++;
+                        return { name: name, ok: true };
+                      })
+                      .catch(function (e) {
+                        outcome.streams.tampered.push(name);
+                        return { name: name, ok: false, kind: e && e.kind, detail: e && e.detail };
+                      });
+                  })
+                ).then(function (checks) {
+                  outcome.status = 'PASS';
+                  if (outcome.streams.tampered.length) {
+                    outcome.status = 'FAIL';
+                    outcome.kind = 'manifest:data/' + outcome.streams.tampered[0];
+                    outcome.detail = outcome.streams.tampered.length + ' stream(s) do not match manifest-sha256.txt';
+                  }
+                  // a newer revision seen ⇒ remember it, so a stale re-issue is refused next time
+                  if (card.knownRevision == null || r.header.revision > card.knownRevision) {
+                    card.knownRevision = r.header.revision;
+                    NS.cards.put(header.boxId, header.keyId, card).catch(function () {});
+                  }
+                  var prefix = header.boxId + '-' + header.night + '/';
+                  var files = checks.map(function (c) {
+                    var f = new File([r.files[c.name]], c.name);
+                    try {
+                      Object.defineProperty(f, 'relPath', { value: prefix + c.name, configurable: true });
+                    } catch (e) {
+                      f._relPath = prefix + c.name;
+                    }
+                    f.__seal = {
+                      boxId: header.boxId,
+                      night: header.night,
+                      closedAt: header.closedAt,
+                      revision: header.revision,
+                      consent: r.consent,
+                      verified: c.ok,
+                      tampered: !c.ok,
+                      kind: c.kind || null
+                    };
+                    return f;
+                  });
+                  return { files: files, outcome: outcome };
+                });
+              }
+            );
+          });
+      })
+      .catch(function (e) {
+        outcome.status = e && e.refused ? 'FAIL' : 'NOT_RUN';
+        outcome.kind = e && e.refused ? e.kind : undefined;
+        outcome.detail = e && e.refused ? e.detail : String((e && e.message) || e);
+        return { files: [], outcome: outcome };
+      })
+      .then(function (res) {
+        res.outcome.verdict = NS ? NS.verdict(res.outcome) : null;
+        res.outcome.badge = NS ? NS.badge(res.outcome) : null;
+        SEALS.push(res.outcome);
+        return res;
+      });
+  }
+  function expandSeals(files) {
+    var seals = files.filter(isSeal),
+      plain = files.filter(function (f) {
+        return !isSeal(f);
+      });
+    if (!seals.length) return Promise.resolve({ files: plain, refused: [] });
+    return Promise.all(seals.map(openSeal)).then(function (results) {
+      var out = plain.slice(),
+        refused = [];
+      results.forEach(function (r, i) {
+        out = out.concat(r.files);
+        if (!r.files.length) refused.push({ file: seals[i], outcome: r.outcome });
+      });
+      return { files: out, refused: refused };
+    });
+  }
+
   function ingest(files) {
     if (!files || !files.length) return;
     setStatus('reading ' + files.length + ' file' + (files.length === 1 ? '' : 's') + '…', 'run');
     FUSION = null;
     FUSED_EXPORT = null;
+    SEALS = [];
+    expandSeals(files).then(function (ex) {
+      return ingestFiles(ex.files, ex.refused);
+    });
+  }
+  function ingestFiles(files, refused) {
+    refused = refused || [];
+    if (!files.length && !refused.length) return;
     Promise.all(
       files.map(function (f) {
         return readText(f).then(
@@ -190,6 +335,17 @@
         );
       })
     ).then(function (items) {
+      // a refused seal is an item too: listed under `error` with its refusal kind, never dropped silently
+      refused.forEach(function (rf) {
+        var b = rf.outcome.badge || {};
+        items.push({
+          file: rf.file,
+          relPath: WALK.relOf(rf.file),
+          klass: 'error',
+          note: b.text || (rf.outcome.kind ? rf.outcome.kind + ': ' + rf.outcome.detail : rf.outcome.detail || 'seal not opened'),
+          seal: rf.outcome
+        });
+      });
       ITEMS = items;
       renderManifest();
       var counts = tally();
@@ -421,11 +577,31 @@
         else if (k === 'export') right = '<b>' + esc(it.node) + '</b> <span class="muted">' + (it.nRecs > 1 ? it.nRecs + ' recs' : '1 rec') + '</span>';
         else if (k === 'ambiguous') right = ambiguousControl(it);
         else right = '<span class="muted">' + esc(it.note || '') + '</span>';
-        html += '<div class="row"><span class="path">' + esc(it.relPath) + '</span><span class="rt">' + right + '</span></div>';
+        html += '<div class="row">' + sealBadge(it) + '<span class="path">' + esc(it.relPath) + '</span><span class="rt">' + right + '</span></div>';
       });
       html += '</div>';
     });
     manifestEl.innerHTML = html;
+  }
+
+  /* The provenance badge — inline, immediately BEFORE the label, the evidence-badge placement
+     (CLAUDE.md §🎫 placement 2). Three texts, none fabricated: a verified sealed stream, a tampered
+     stream by name, and the honest default for everything that did not come out of a seal. */
+  function sealBadge(it) {
+    var NS = window.NightSeal;
+    var f = it.file || {};
+    var s = f.__seal;
+    var b;
+    if (it.seal) b = it.seal.badge || (NS ? NS.badge(it.seal) : null);
+    else if (s)
+      b = s.tampered
+        ? { cls: 'seal-bad', text: 'TAMPERED: ' + f.name }
+        : NS
+          ? NS.badge({ status: 'PASS', header: { boxId: s.boxId, closedAt: s.closedAt }, streams: { opened: 1, verified: 1, tampered: [] } })
+          : null;
+    else b = { cls: 'seal-unknown', text: 'unsealed folder — provenance unknown' };
+    if (!b) return '';
+    return '<span class="seal ' + esc(b.cls) + '" title="' + esc(b.text) + '">' + esc(b.text) + '</span> ';
   }
 
   function ambiguousControl(it) {
@@ -647,11 +823,48 @@
       ingest(WALK.fromInput(dirInput.files));
       dirInput.value = '';
     });
-    if (fileInput)
+    if (fileInput) {
+      // a sealed night is one file — the loose-file picker accepts it beside anything else
+      var acc = fileInput.getAttribute('accept');
+      if (!acc || acc.indexOf('.tepna') < 0) fileInput.setAttribute('accept', (acc ? acc + ',' : '') + '.tepna,*/*');
       fileInput.addEventListener('change', function () {
         ingest(WALK.fromInput(fileInput.files));
         fileInput.value = '';
       });
+    }
+    // The card prompt: an inline form (never window.prompt), shown on the FIRST sight of a
+    // (boxId, keyId) and remembered in IndexedDB. The verifier bypasses it through OverDex.seals.setCard.
+    var cardEl = document.getElementById('cardPrompt');
+    CARD_PROMPT = function (header) {
+      if (!cardEl) return Promise.resolve(null);
+      return new Promise(function (resolve) {
+        cardEl.style.display = 'block';
+        cardEl.querySelector('.cp-box').textContent = header.boxId + ' · key ' + header.keyId + ' · night ' + header.night;
+        var code = cardEl.querySelector('.cp-code'),
+          fp = cardEl.querySelector('.cp-fp'),
+          err = cardEl.querySelector('.cp-err');
+        var done = function (val) {
+          cardEl.style.display = 'none';
+          ok.onclick = cancel.onclick = null;
+          resolve(val);
+        };
+        var ok = cardEl.querySelector('.cp-ok'),
+          cancel = cardEl.querySelector('.cp-cancel');
+        ok.onclick = function () {
+          try {
+            var key = window.NightSeal.decodeCardCode(code.value);
+            var f = String(fp.value || '').trim();
+            if (!/^sha256\/[0-9a-f]{64}$/.test(f)) throw new Error('the fingerprint is the sha256/… line printed on the card');
+            done({ cardKeyHex: window.NightSeal.hex(key), fingerprint: f });
+          } catch (e) {
+            err.textContent = String((e && e.message) || e);
+          }
+        };
+        cancel.onclick = function () {
+          done(null);
+        };
+      });
+    };
     runBtn.addEventListener('click', runAndFuse);
 
     // ambiguous-route confirmation
@@ -696,6 +909,18 @@
       },
       fusedExport: function () {
         return FUSED_EXPORT;
+      },
+      // CAPTURE-NIGHT-SEAL phase C — what the browser-gates leg reads and drives
+      seals: {
+        list: function () {
+          return SEALS;
+        },
+        setCard: function (boxId, keyId, card) {
+          return window.NightSeal.cards.put(boxId, keyId, card);
+        },
+        ingestFiles: function (files) {
+          return ingest(files);
+        }
       }
     };
   }

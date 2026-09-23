@@ -28,7 +28,11 @@ import polar_psftp
 import storage_targets
 import alerts
 import timeline as _timeline
+import nights_index as _nights
 import build_id
+import seal
+import sealbox
+import sealfmt
 import settings_schema
 import wifi_join
 import wifi_uplink
@@ -41,6 +45,12 @@ _log = logging.getLogger("tepna.webmon")
 # bluetoothctl stdin script (VIGIL-DEEP-ANALYSIS §2A) — so an address carrying a newline could inject
 # control commands (power off / remove <other-sensor>). Validate the EXACT MAC shape at this boundary.
 _MAC_RE = re.compile(r'^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$')
+
+# Timeline cache bounds. MODULE level, not locals inside `make_app`, so the relationship between the
+# TTL and monitor.html's poll interval is assertable — that relationship is the defect, not the value
+# (see the block above `_tl_cache`), and a constant a test cannot import is a constant nothing guards.
+_TL_CACHE_TTL_S = 300.0
+_TL_CACHE_MAX = 8
 
 
 def _valid_mac(a) -> bool:
@@ -208,6 +218,16 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                         "clock_synced": st.get("clock_synced"),
                         "device_time": st.get("device_time"),
                         "clock_skew_sec": st.get("clock_skew_sec"),
+                        # THE NUMBER THE WATCHDOG ACTUALLY DECIDES ON, beside the one an operator sees.
+                        # `clock_skew_sec` is a single frame's reading and carries that frame's delivery
+                        # latency; `clock_skew_floor_sec` is the envelope over CLOCK_SKEW_WINDOW_S and is
+                        # what `clock_watchdog` compares against tolerance. Surfacing only the first made
+                        # a re-sync look unexplained whenever the two disagreed — which is exactly when
+                        # the link was stalling. `_n` ships with it because the floor is None until the
+                        # window has CLOCK_SKEW_MIN_N samples, and "not measured yet" must be legible as
+                        # itself rather than as a clock that is fine.
+                        "clock_skew_floor_sec": st.get("clock_skew_floor_sec"),
+                        "clock_skew_n": st.get("clock_skew_n"),
                         # THE WATCHDOG'S GIVE-UP VERDICT, which until now reached nobody. `capture.py`
                         # sets it when the clock write has failed its whole budget and retracts it on the
                         # next successful sync — a fact with 7 tests pinning it and, before this line, no
@@ -245,6 +265,21 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                         # "connected" dot hides. A device that flaps all night reads "connected" at every
                         # sample yet has a climbing epoch; surfacing it is what makes that visible.
                         "link_epoch": st.get("link_epoch"),
+                        # The two OxyII lifecycle axes (charter G4): the LINK state the runner journals to
+                        # OXYLIFE.csv and the RECORDING state the duration_s engine derives. Both were
+                        # written to STATUS from the first G4 night (2026-08-24) and forwarded by nobody —
+                        # thirteen nights of journal on the box, and `/api/state` carried neither key,
+                        # so "liveness states visible in STATUS" was true of the dict and false of every
+                        # reader (verified against the live daemon 2026-09-05). Same class as `worn_why`
+                        # below: a STATUS field this allowlist omits is not published.
+                        "oxy_lifecycle": st.get("oxy_lifecycle"),
+                        "oxy_recording": st.get("oxy_recording"),
+                        # The restart-storm block (capture.oxy_storm_status). Forwarded because the hold
+                        # is otherwise witnessed ONLY by a log line: the storm watch had to count
+                        # "ring started a new recording session" out of the journal, and a hold that
+                        # fires overnight left nothing a monitor could show. Note the comment above —
+                        # this allowlist is exactly where such a field goes to die unpublished.
+                        "oxy_storm": st.get("oxy_storm"),
                         "worn": st.get("worn"),
                         # WHICH SOURCE DECIDED, and what the other one thought. `worn` alone is a bare
                         # True/False/None with no provenance, and on 2026-08-13 that was the entire
@@ -262,6 +297,34 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                         # it landed and how far the free-running RTC has wandered since.
                         "ring_rtc_offset_s": st.get("ring_rtc_offset_s"),
                         "ring_rtc_read": st.get("ring_rtc_read"),
+                        # WHO ANSWERED. The 0xE1 reply's wire serial + firmware (parsed since 2026-08-19,
+                        # published since 2026-09-05), and the audit §6.2 Mitigation C verdict when the
+                        # operator has configured `serial:` — a wrong ring streams SpO₂ exactly like the
+                        # right one, so this is the only field that can say the link is the wrong device.
+                        "ring_serial": st.get("ring_serial"),
+                        # `ring_firmware` is the vendor's BRANCH CODE and is kept under that name for
+                        # the card that already draws it; the correctly-named pair travels beside it so a
+                        # reader can tell `2D010002` (branch) from `1.13.1.0` (firmware) — residue
+                        # `2026-09-02-oxyii-branchcode-named-firmware`.
+                        "ring_firmware": st.get("ring_firmware"),
+                        "ring_branch_code": st.get("ring_branch_code"),
+                        "ring_firmware_version": st.get("ring_firmware_version"),
+                        "ring_identity_mismatch": st.get("ring_identity_mismatch"),
+                        # Clause 2 of the same mitigation: the run of connects that ANSWERED identity
+                        # and then delivered no frames, plus the alarm text once the run is long enough
+                        # to mean something. The count ships even at 0 — an absent field and a zero are
+                        # different facts, and this one is what the alarm beside it is counting.
+                        "ring_barren_connects": st.get("ring_barren_connects"),
+                        "ring_barren_alert": st.get("ring_barren_alert"),
+                        # THE ENCRYPTION VERDICT for this link, from the OP_AUTH reply (wired
+                        # 2026-09-07). `auth_mode` is "plaintext" / "encrypted" / "refuse" when the
+                        # ring answered, and the string "unknown" when it stayed silent — which is
+                        # every ring here, so the common case must be visible rather than absent.
+                        # `auth_unknown_links` counts the links that went undetermined: one is normal,
+                        # a night of them is the daemon never learning what it is talking to.
+                        "auth_mode": st.get("auth_mode"),
+                        "auth_reason": st.get("auth_reason"),
+                        "auth_unknown_links": st.get("auth_unknown_links"),
                         # The ring's settings struct AS THE RING REPORTS IT (0x00 read-back), plus the
                         # verdict of the last monitor-queued write. The requested value is deliberately
                         # not echoed anywhere — only what the device confirmed.
@@ -277,6 +340,17 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                         # not have reached the disk, so the card can read perfectly live while the
                         # night is being lost. Zero on every healthy device.
                         "flush_failures": st.get("flush_failures"),
+                        # Two sibling counters (RESOURCE-ORCHESTRATION-AUDIT S1/S2). `rows_lost` is
+                        # the number of ROWS a write refused (ENOSPC, EIO, closed handle) — the raw
+                        # data that did not land, counted per row, never folded into `rows`.
+                        # `fsync_max_ms` is the slowest fsync this stream has paid ON THE EVENT LOOP;
+                        # every live stream's host stamps waited behind it. Absent until reported.
+                        "rows_lost": st.get("rows_lost"),
+                        "fsync_max_ms": st.get("fsync_max_ms"),
+                        # The runner's CURRENT wait, while it waits: {attempt, why, wait_s, next_at_ms}.
+                        # Null outside a wait. Before this a runner in its 180 s backoff was
+                        # indistinguishable here from a dead one.
+                        "retry": st.get("retry"),
                         "last_error": st.get("last_error")})
         return out
 
@@ -349,6 +423,14 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             # this answers "is therapy running right now", from the AS11 shadow detector, aged HERE at
             # serve time. Null when there is no cpap block at all.
             "cpap_live": _cpap_live_block(status.get("cpap")),
+            # THIRD BLOCK, THIRD QUESTION — and it is a different ACTOR, not a different view of the
+            # same one. `cpap` is the daily harvest poller; this is the stored-spool pull, a second
+            # scheduled acquisition that defers on the same conditions. Forwarded because
+            # OPERATIONAL-MATURITY-AUDIT §4(1) names "two actors reporting `waiting` continuously
+            # across a whole window" as the falsification condition to watch, and that observation is
+            # impossible while one of the two actors publishes nowhere. Null until the pull is armed
+            # (default OFF) and has ticked once.
+            "cpap_spool": status.get("cpap_spool"),
             # PER-DEVICE reconnect distress against that device's own per-adapter baseline. Forwarded
             # so it EXISTS for a human at all: it was published to STATUS and read by nothing — not
             # this projection, not the monitor, not the failover ladder — so a distressed radio was
@@ -359,12 +441,40 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             # ≥2 rated links distressed together); it ships REPORT-ONLY behind
             # `watchdog.distress_failover` (default off — arming is the owner's, against the
             # criterion pre-stated in RADIO-FAILOVER-DISTRESS-SIGNAL §6).
+            # THE ONLY RUNTIME EVIDENCE A DOFF OR PRESENCE PULL EVER FIRED. `trigger` names which
+            # scheduler dispatched it and `drained` how many stranded fragments the follow-on sweep
+            # recovered — neither is recoverable from the night tree afterwards, because a file that
+            # arrives by presence and one that arrives by the hourly poller are byte-identical on
+            # disk. Published since the auto-pull landed and forwarded by nothing until now, so the
+            # doff trigger had no observable off the box at all.
+            "autopull": status.get("autopull"),
             "radio_distress": status.get("radio_distress"),
             "radio_distress_adapter": status.get("radio_distress_adapter"),
             # Every switch as an EVENT with its cause — the brief's item 4. Was published to STATUS
             # and read by nothing (the find_unwired top-level-STATUS blind spot, sibling of the
             # radio_distress case this same file records above).
             "radio_switches": status.get("radio_switches"),
+            # The O2Ring POWER axis (oxy_power) — per ring: power state, whether the radio is on and
+            # for whom, the scan policy in force, the strike/cooldown cache and the §21 counters
+            # (scan seconds, connection seconds, harvests, deferrals). Forwarded on the day it was
+            # written so it never joins the published-and-read-by-nothing class above. Null until a
+            # ring's capture task has started.
+            "power": status.get("power"),
+            # The daemon's own load and gate state (RESOURCE-ORCHESTRATION-AUDIT L1/L2/O2), forwarded
+            # for the same reason as the two blocks above: published to STATUS and read by nothing is
+            # not published. `loop` = event-loop lag {lag_last_ms, lag_max_ms, stalls, ticks};
+            # `gates` = which recovery/pause gates are held right now; `tasks` = per-supervised-task
+            # crash counts with the last error. Each null until its poller has ticked.
+            "loop": status.get("loop"),
+            "gates": status.get("gates"),
+            "tasks": status.get("tasks"),
+            # THE LIVE LOSS GUARD (residue 2026-09-20-no-loss-guard-during-live-capture): the files
+            # the daemon holds open, stat'd each status round against the last look — `findings` is
+            # THIS round, `last`/`last_at` the most recent event. Forwarded on the day it was written
+            # for the reason every block above it records: a guard whose only channel is a log line
+            # reaches nobody looking at the monitor, and this one exists precisely because a night was
+            # lost while every visible surface read healthy.
+            "live_loss": status.get("live_loss"),
         })
 
     # ── CPAP manual pull ────────────────────────────────────────────────────────────────────────
@@ -463,28 +573,45 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         return web.json_response({"scope": scope, **res})
 
     async def cpap_pair_h(req):
-        """POST /api/cpap/pair {passkey} — run the ResMed AS11 SRP-6a pairing using the passkey the
-        CPAP shows on its screen, and store the credentials for later BLE pulls (as11_creds.json).
+        """POST /api/cpap/pair — ResMed AS11 SRP-6a pairing, in TWO requests, because the CPAP shows its
+        passkey only AFTER the client's StartKeyExchange lands on an open link:
 
-        The pairing exchange is PLAINTEXT SRP (no AES, no extra dependency); the BLE handshake itself
-        runs on the daemon, which owns the radios — so a build without AS11 support answers 501, never
-        a 200 that paired nothing. The device must be in Bluetooth pairing mode (its menu → Bluetooth)
-        so it shows a passkey; without that there is nothing to enter here. The response carries whatever
-        the daemon's pairing op reports (verified/stored), never a bare 'queued' — pairing either
-        completed against the device or it did not."""
+            {action:"start", ble_addr?}   connect + StartKeyExchange; the LCD now shows the code; the
+                                          daemon HOLDS the link and answers {awaiting:"passkey", seconds_left}
+            {action:"passkey", passkey}   prove the code (M1), VERIFY the device's M2, store as11_creds.json
+            {action:"cancel"}             drop a pending exchange;  {action:"status"} what is pending
+            {action:"forget"}             DELETE the stored key — the machine must be re-paired
+            {passkey}                     (no action) is the passkey step — the pre-2026-09-05 single-shot shape
+
+        ⚠️ `cancel` and `forget` are not the same and were not both available: cancel drops an exchange
+        IN FLIGHT and stores nothing; forget removes a key already verified and written. Until
+        2026-09-06 nothing on this box deleted `as11_creds.json`, so a stale key could only be displaced
+        by a SUCCESSFUL re-pair — the one operation a stale key breaks (owner-reported).
+
+        The exchange is PLAINTEXT SRP (no AES, no extra dependency); the BLE handshake itself runs on the
+        daemon, which owns the radios — so a build without AS11 support answers 501, never a 200 that
+        paired nothing. The passkey is validated HERE (4–10 digits, or 400 before any BLE work) and the
+        response carries whatever the daemon's pairing session reports (verified/stored/live/
+        restart_required), never a bare 'queued' — pairing either completed against the device or it did
+        not, and nothing is stored until the device proved it holds the same key."""
         if cpap_pair is None:
             return web.json_response(
                 {"ok": False, "error": "CPAP BLE pairing is not wired on this daemon"}, status=501)
         body = await _body(req)
         if body is BAD_BODY:
             return _bad_body_response()
+        action = str(body.get("action") or ("passkey" if "passkey" in body else "")).strip()
+        if action not in ("start", "passkey", "cancel", "status", "forget"):
+            return web.json_response(
+                {"ok": False,
+                 "error": "action must be 'start', 'passkey', 'cancel', 'status' or 'forget'"}, status=400)
         passkey = str(body.get("passkey", "")).strip()
-        if not (passkey.isdigit() and 4 <= len(passkey) <= 10):
+        if action == "passkey" and not (passkey.isascii() and passkey.isdigit() and 4 <= len(passkey) <= 10):
             return web.json_response(
                 {"ok": False, "error": "passkey must be the 4–10 digit code shown on the CPAP screen"},
                 status=400)
         try:
-            res = await cpap_pair(passkey)
+            res = await cpap_pair(action, passkey=passkey or None, ble_addr=str(body.get("ble_addr") or ""))
         except Exception as e:            # noqa: BLE001 — a pairing attempt must never 500 the monitor
             return web.json_response({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=500)
         return web.json_response(res)
@@ -685,21 +812,29 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         # (one BLE link). Synchronous: returns when the pull completes (a night file is small, ~a minute).
         if not pull_stored:
             return web.json_response({"ok": False, "detail": "stored-session pull not available"}, status=400)
-        # DELIBERATELY TOLERANT, unlike the other POSTs. This body carries only which/ftype DEFAULTS —
+        # DELIBERATELY TOLERANT, unlike the other POSTs. This body carries only the `which` DEFAULT —
         # there is no state to half-apply and nothing to destroy — and two tests pin the tolerance as
         # the intended behaviour. Contrast `storage_post`, where the same leniency deleted the
         # configured offload target (CAPTURE-HOST-DEEP-AUDIT §D1). Non-object bodies are folded to the
         # defaults here rather than 500'ing on `.get`, which is §D3's half of the fix.
+        #
+        # 🔴 `ftype` IS GONE, AND THIS ENDPOINT COULD NEVER WORK WHILE IT WAS FORWARDED. The callback
+        # `capture.py` actually supplies is `async def _pull(which: str = "latest")` — ONE parameter —
+        # so `pull_stored(which, ftype)` raised `TypeError: _pull() takes from 0 to 1 positional
+        # arguments but 2 were given` on EVERY request, was caught by the broad handler below, and
+        # returned 500. The button has never downloaded anything.
+        #
+        # Removing the argument rather than widening `_pull` is the right direction because the value
+        # was never a file type: it is the type-0 START frame's trailing u32, a BYTE OFFSET
+        # (`oxyii.file_start_frame`), and `capture.py` already warns that a non-zero `pull.ftype` asks
+        # the oximetry store to begin reading mid-file. Accepting it here would keep a knob whose only
+        # effect is corruption.
         body = await _body(req)
         if body is BAD_BODY:
             body = {}
         which = body.get("which", "latest")
         try:
-            ftype = int(body.get("ftype", 0))
-        except (TypeError, ValueError):
-            ftype = 0
-        try:
-            return web.json_response(await pull_stored(which, ftype))
+            return web.json_response(await pull_stored(which))
         except offline_lock.OfflineBusy as e:
             # 409, not 500: another device owns the single download slot. Expected, retryable, not a fault.
             return web.json_response({"ok": False, "busy": e.holder, "detail": str(e)}, status=409)
@@ -933,6 +1068,23 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                     },
                     status=409,
                 )
+            # A CPAP HARVEST IS WORK IN FLIGHT TOO — same refusal, same force hatch, for the same
+            # reason. Measured on the box 2026-09-06: a deploy restart landed 108 s into a post-therapy
+            # harvest and the card was not read for another 5.5 h. A harvest runs 16-23 s, so this waits
+            # seconds and protects a night's therapy data. The deploy path — which is what actually fired
+            # that day — has the sibling guard in `tepna-update.sh`'s `recording_state`.
+            cpap_st = status.get("cpap")
+            if isinstance(cpap_st, dict) and cpap_st.get("state") == "running":
+                return web.json_response(
+                    {
+                        "ok": False,
+                        "verb": verb,
+                        "harvesting": True,
+                        "error": f"refusing to {verb} — a CPAP harvest is running (it takes ~20 s). "
+                        "Re-send with force:true if you mean it.",
+                    },
+                    status=409,
+                )
         if verb not in daemon_control.KILLS_SELF:
             # ⚠️ OFF THE EVENT LOOP. `daemon_control.run` is a blocking subprocess call, and the inline
             # verbs are not all fast: the helper sleeps 5 s inside `radio` and up to 11 s inside
@@ -984,7 +1136,7 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                 #
                 # The rule: anything `run_oxyii` can open a writer for MUST appear here, or enabling it
                 # is unreachable and keeping it is impossible. Gate-backed below.
-                supported = ["spo2", "ppg", "ppg2w", "acc"]
+                supported = ["spo2", "ppg", "ppg2w", "acc", "pletha"]
             # SDK MODE IS OFFERED ONLY WHERE THE DEVICE ADVERTISES IT (feature bit 0x9), and the
             # capability is DERIVED, never inferred from vendor or model: a switch that cannot work is
             # worse than an absent one, because the operator sets it and the config then claims a mode
@@ -1204,6 +1356,50 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                 out["ready"] = {"ready": False, "path": None, "reason": str(e)}
         return out
 
+    async def seal_card_get(_req):
+        """GET /api/seal/card — RE-DISPLAY the patient card (CAPTURE-NIGHT-SEAL §13 (2), "lost card").
+        The box already holds the plaintext; showing it again adds no exposure. 404 until the seal
+        poller is armed (no keys exist before then, and none are minted here)."""
+        st = status.get("seal") or {}
+        if not st.get("armed"):
+            return web.json_response({"ok": False, "error": "night seal is not armed on this box"}, status=404)
+        scfg = cfg.get("seal") or {}
+        root = cfg.get("root", "/srv/tepna")
+        key_dir = scfg.get("key_dir") or os.path.join(root, "keys")
+        try:
+            signing_key, _ = await asyncio.to_thread(sealbox.load_or_create_signing_key, key_dir)
+            store, _ = await asyncio.to_thread(sealbox.load_or_create_card_store, key_dir)
+        except sealbox.SealBoxError as e:
+            return web.json_response({"ok": False, "error": str(e)}, status=500)
+        kid, key = sealbox.current_card_key(store)
+        page = sealbox.render_card_html(box_id=st.get("box_id") or sealbox.box_id_of(cfg), key_id=kid, card_key=key,
+                                        fingerprint=sealfmt.fingerprint(seal.public_raw(signing_key)),
+                                        qr=sealbox.qr_svg(sealfmt.card_code_encode(key)))
+        return web.Response(text=page, content_type="text/html")
+
+    async def seal_rotate_h(_req):
+        """POST /api/seal/rotate — STOLEN card: mint keyId+1 and write the new card to the outbox. Old
+        keys stay in the store so old nights remain readable and re-issuable under their own keyId. The
+        seal poller re-reads the store on its next tick, so nights sealed from then on use the new key."""
+        st = status.get("seal") or {}
+        if not st.get("armed"):
+            return web.json_response({"ok": False, "error": "night seal is not armed on this box"}, status=404)
+        scfg = cfg.get("seal") or {}
+        root = cfg.get("root", "/srv/tepna")
+        key_dir = scfg.get("key_dir") or os.path.join(root, "keys")
+        outbox = scfg.get("outbox") or os.path.join(root, "outbox")
+        try:
+            signing_key, _ = await asyncio.to_thread(sealbox.load_or_create_signing_key, key_dir)
+            store, _ = await asyncio.to_thread(sealbox.load_or_create_card_store, key_dir)
+            store = await asyncio.to_thread(sealbox.rotate_card, key_dir, store)
+            card = await asyncio.to_thread(sealbox.write_card, outbox, box_id=st.get("box_id") or sealbox.box_id_of(cfg),
+                                           store=store, signing_key=signing_key)
+        except (sealbox.SealBoxError, OSError) as e:
+            return web.json_response({"ok": False, "error": str(e)}, status=500)
+        st["key_id"] = store["keyId"]
+        st["card"] = card
+        return web.json_response({"ok": True, "keyId": store["keyId"], "card": card})
+
     async def storage_get(_req):
         return web.json_response(_storage_cfg())
 
@@ -1331,9 +1527,43 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
 
     # ── Capture timeline (per-stream state strip + per-device dBm trace) ────────────────────────
     # Deliberately NOT folded into /api/state: state is polled every 5 s by every open tab, while this
-    # walks the night's files. Cached per (night, buckets) and recomputed at most every 60 s — a night
-    # is ~1500 files and re-counting rows on every poll is the stall #292 moved off the event loop.
+    # walks the night's files. Cached per (night, buckets) — a night is ~1500 files and re-counting
+    # rows on every poll is the stall #292 moved off the event loop.
+    #
+    # 🔴 THE TTL MUST EXCEED THE POLL INTERVAL, AND THE CACHE MUST HOLD MORE THAN ONE ENTRY. It did
+    # neither, and the two faults compounded into a monitor that visibly froze. Measured on the box
+    # 2026-09-07: a build costs 1.35 s for the night in progress and 2.05 s for a complete 1330 MB
+    # one, and the cost GROWS with the night, so it is worst by morning.
+    #   · `_tl_cache.clear()` ran before every insert, so the dict held exactly ONE entry despite the
+    #     line above promising "cached per (night, buckets)". A second viewer, or the same viewer on a
+    #     different `buckets`, evicted the other outright and both then rebuilt on every poll.
+    #   · the TTL equalled monitor.html's `setInterval(loadTimeline, 60000)`, so even the surviving
+    #     entry expired exactly as the next poll arrived — a coin flip, not a cache.
+    # The visible cost is not server latency (/api/state stays at 3 ms throughout, the build is
+    # already off the loop in a thread): it is that the page holds up to 4 permanent SSE connections
+    # of a browser's ~6 per-host HTTP/1.1 budget, so a two-second request occupies one of the two
+    # remaining slots and the 1 s `loadState` poll queues behind it.
+    #
+    # `_TL_CACHE_TTL_S` is chosen against the DISPLAY, not the poll: at the 600-bucket maximum over a
+    # ~10 h night one bucket is ~60 s wide, so sub-minute freshness cannot be rendered and is not
+    # worth a rebuild. Both bounds are module-level so a test can import them.
     _tl_cache: dict = {}
+
+    async def nights_get(req):
+        """The Ledger / Capture pages: every night on the box, per analyzer — bytes, hours covered, the
+        files a click would load (nights_index). Read-only; off the loop (it stats and head/tails a few
+        files per night); `n` caps how many nights, newest, are indexed."""
+        try:
+            n = max(1, min(400, int(req.query.get("n", 60))))
+        except (TypeError, ValueError):
+            n = 60
+        root = cfg.get("root", "/srv/tepna")
+        try:
+            rows = await asyncio.to_thread(_nights.index_nights, root, n)
+        except Exception as e:  # noqa: BLE001 — a listing that fails must say so, not 500 the page
+            return web.json_response({"error": f"{type(e).__name__}: {e}"}, status=500)
+        return web.json_response({"nights": rows, "columns": list(_nights.COLUMNS), "root": root,
+                                  "pending": _nights.pending_count(rows)})
 
     async def timeline_get(req):
         night = req.query.get("night") or ""
@@ -1365,15 +1595,19 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         key = (night, buckets)
         now = asyncio.get_event_loop().time()
         hit = _tl_cache.get(key)
-        if hit and now - hit[0] < 60:
+        if hit and now - hit[0] < _TL_CACHE_TTL_S:
             return web.json_response(hit[1])
         try:
             out = await asyncio.to_thread(_timeline.build,
                                           os.path.join(captures, night), cfg.get("devices", []), buckets)
         except Exception as e:      # a display aid must never 500 the monitor
             return web.json_response({"error": f"{type(e).__name__}: {e}"}, status=500)
-        _tl_cache.clear()
         _tl_cache[key] = (now, out)
+        # Bounded by EVICTING THE OLDEST, never by clearing: dropping everything is what made this a
+        # one-entry cache, and a second viewer must not be able to evict the first. The bound exists
+        # only so a long-lived process cannot accumulate entries for every night it is ever asked for.
+        if len(_tl_cache) > _TL_CACHE_MAX:
+            del _tl_cache[min(_tl_cache, key=lambda k: _tl_cache[k][0])]
         return web.json_response(out)
 
     async def timesync(req):
@@ -1574,6 +1808,9 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         web.post("/api/settings", settings_post),
         web.post("/api/daemon", daemon_post),
         web.get("/api/timeline", timeline_get),
+        web.get("/api/nights", nights_get),
+        web.get("/api/seal/card", seal_card_get),
+        web.post("/api/seal/rotate", seal_rotate_h),
         web.get("/api/storage", storage_get),
         web.get("/api/alerts", alerts_get),
         web.post("/api/alerts", alerts_post),

@@ -240,7 +240,7 @@ def test_read_rssi_none_when_both_privilege_modes_fail(monkeypatch):
 def test_pull_session_main_parses_argv_and_drives_pull(monkeypatch):
     """Every argv value must reach pull() at the RIGHT POSITION, and every default must be the
     documented one. The previous version of this test recorded all seven arguments and asserted two
-    (address, which), so `out`, `ftype`, `adapter`, `serial` and `wait` were captured and discarded —
+    (address, which), so `out`, the offset, `adapter`, `serial` and `wait` were captured and discarded —
     the exact shape that leaves code unobservable while coverage still reads 100% because the line
     ran. Mutation testing found ~30 survivors here: every argparse default, both `type=int` casts,
     `required=True` on both mandatory flags, and six re-orderings of the positional call.
@@ -270,10 +270,14 @@ def test_pull_session_main_parses_argv_and_drives_pull(monkeypatch):
     # ── 2 · full argv: pins that each flag reaches its OWN position, not merely that some did ─────
     monkeypatch.setattr(_sys, "argv",
                         ["pull_session.py", "--address", "CC:DD", "--out", "/tmp/y",
-                         "--which", "all", "--ftype", "7", "--adapter", "hci1",
+                         "--which", "all", "--adapter", "hci1",
                          "--serial", "1234", "--wait", "45"])
     pull_session.main()
-    assert seen["args"] == ("CC:DD", "/tmp/y", "all", 7, "hci1", "1234", 45)
+    # ⚠️ POSITION 3 IS NOW A CONSTANT 0, not an argv value. `--ftype` is gone: it was never a file
+    # type, it was this frame's byte OFFSET, and the daemon has no reason to resume mid-file. The
+    # position is still pinned — a transposition moving another value into it would fail — but this
+    # test no longer proves that slot is WIRED to anything, because nothing selects it.
+    assert seen["args"] == ("CC:DD", "/tmp/y", "all", 0, "hci1", "1234", 45)
     # every value distinct above, so a transposition cannot pass by coincidence
     assert len(set(map(str, seen["args"]))) == 7
 
@@ -300,3 +304,47 @@ def test_pull_session_main_requires_address_and_out(monkeypatch, missing):
         pull_session.main()
     assert e.value.code == 2, "argparse exits 2 on a missing required flag"
     assert not called, "pull() must not run when a required flag is absent"
+
+
+def test_pull_session_main_routes_the_ppg_probe_and_leaves_pull_UNTOUCHED(monkeypatch):
+    """`--probe-ppg-list` is the owner-authorised first contact with the raw-PPG family, and it must
+    reach `probe_ppg_list` with the argv values at the right positions — while `pull()` is never
+    called. Routing it into the ordinary pull would send FILE_START frames to an unprobed family,
+    which is the one thing the dry-path guard exists to prevent."""
+    seen = {}
+
+    async def fake_probe(*a, **k):
+        seen["args"], seen["kwargs"] = a, k
+        return []
+
+    def boom_pull(*a, **k):
+        raise AssertionError("the probe path must NOT drive pull()")
+
+    monkeypatch.setattr(pull_session, "probe_ppg_list", fake_probe)
+    monkeypatch.setattr(pull_session, "pull", boom_pull)
+    import sys as _sys
+    monkeypatch.setattr(_sys, "argv",
+                        ["pull_session.py", "--address", "EE:FF", "--out", "/tmp/z",
+                         "--adapter", "hci1", "--serial", "4321", "--probe-ppg-list"])
+    with pytest.raises(SystemExit) as exc:
+        pull_session.main()
+    assert exc.value.code == 0, "a completed probe exits clean"
+    assert seen["args"] == ("EE:FF", "hci1", "4321"), \
+        "argv -> probe_ppg_list must preserve (address, adapter, serial)"
+
+
+def test_pull_session_main_still_REFUSES_family_ppg_without_the_probe_flag(monkeypatch):
+    """The guard stays the default. Without `--probe-ppg-list`, `--family ppg` prints what it WOULD
+    send and exits without connecting — so an ordinary run can never become a live first contact by
+    accident, which is what deleting the guard would have allowed."""
+    def boom(*a, **k):
+        raise AssertionError("nothing may reach the ring on the dry path")
+    monkeypatch.setattr(pull_session, "pull", boom)
+    monkeypatch.setattr(pull_session, "probe_ppg_list", boom)
+    import sys as _sys
+    monkeypatch.setattr(_sys, "argv",
+                        ["pull_session.py", "--address", "EE:FF", "--out", "/tmp/z",
+                         "--family", "ppg", "--list"])
+    with pytest.raises(SystemExit) as exc:
+        pull_session.main()
+    assert exc.value.code == 0

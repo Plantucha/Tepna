@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED (parked 2026-09-02 — **every software rung is shipped**; what remains is field OBSERVATION, which is why this cannot be flipped DONE by a code search. Verified against artifacts: P1.1 hysteresis ba267b04 (#924); P1.2/P1.3 unbind/bind `tests/test_bluez_wedge.py` + `tepna-btreset.sh`; P1.4 startup self-test 804b5b9f; P1.5 dual-radio failover b364380e (#1583); P2.1 backoff `capture.py:2470-2496`; P2.2 `writers.resumable_stamp`; P3.2 prune gated on `nightarchive.unarchived_nights`; P3.3 dest validated at startup; `vigil.sh` under git with `tests/test_vigil_sh.py`. Open: **the ladder has been seen WORKING but never seen CLEARING A REAL WEDGE** — that waits on an event nobody can schedule; P0.1/P0.2's clean-night counts and the post-P2.2 flappy-night relink rate are box journal reads; and **P3.1's decision was never recorded** (P1.5 implements option (c), which makes (c) the de-facto answer — but inference is not a record). **Owner:** Heron · **Next step:** write P3.1's decision down) · **Created:** 2026-07-24
+**Status:** PROPOSED (parked 2026-09-05 — **every software rung is shipped, and §8 is now measured on the box** (journal + `/srv/tepna/captures`, 2026-07-25 → 09-05). **P0.1 ✅** 0 `adapter not found` on **42/42** nights since the udev pin; **P0.2** the `00:01:95:CC:53:02` dongle is the kept winner (internal `58:10:31:F3:2C:30` idle). **P1.x ✅** by test (`tests/test_bluez_wedge.py`, hysteresis ba267b04, self-test 804b5b9f, failover b364380e). **P2.2 ✅ on the flappy night 2026-09-03:** the H10 connected 90× and resumed 144×, minting only **4** ECG file-sets (17:24 · 19:19 · 04:40 · 20:40), each at a gap > the 300 s resume window — 'one file per stream' holds per session by design. **P2.1 ❌ was NOT met and the 2026-08-19 table was wrong:** it cited the OPTIONAL-device branch (`min(max(backoff,120),300)`), which mandatory devices never take; all three mandatory loops capped at **60 s**, a ~90 s cycle with the 30 s connect timeout, measured **27–35 (H10) / 36–46 (O2Ring) hopeless scans PER HOUR** against the §8 bound of < 20. **Fixed in this PR:** one constant `_RECONNECT_BACKOFF_CAP_S = 180` (≈ 17/h; `power.reconnect_backoff_cap_sec` overrides; `tests/test_reconnect_backoff_cap.py` drives all three runners against an absent device and holds the schedule 5→…→160→180→180). **Still open, both field witnesses:** (1) the first post-deploy absent-device day reading < 20/h in the journal, (2) the ladder clearing a REAL wedge — 2 `wedge sign` holds and 2 WEDGEFIRE cpap fires on the box so far, none a BlueZ wedge (the cpap fires were `BleakDeviceNotFoundError`, a pairing fault). P3.1 recorded 2026-09-03: `radio_switches` null (never fired), Polars single-copy = option (a) de facto, (c) the intent on a first observed switch, (b) = POLAR-ONBOARD-BACKUP §6 Q1. **Owner:** Heron · **Next step:** read the journal the day after the deploy; nothing else is schedulable · ⚠ **RE-VERIFIED 2026-09-19 (Wren, box + tree):** landed in the surface I checked since 09-05 (subjects /wedge|backoff|hopeless|ladder|reconnect/): #2245 (POWER axis, typed backoff), #2269 (a wedged CPAP adapter reaches the rungs), #2409 (a reconnect at 00:01 could not see the set it wrote at 23:58), #2623 (the ladder DID fire — refutes the residue row descended from here), #2643 (the rungs are btusb-shaped). BOX, open witness (1) MEASURED on an absent-H10 night after #2222 — 2026-09-18 22:00 → 09-19 06:00, H10 never connected: 24 `link error: TimeoutError(connect … timed out)` = **3.0/h** against the < 20/h bound; PLUS 132 `clock auto-sync deferred — device not found` = 16.5/h from the clock-sync loop, a DIFFERENT loop — if §8 counts those as scans the total is 19.5/h, at the bound. Which population §8 meant is the owner's reading; both numbers are here so neither has to be re-measured. Witness (2): 12 `wedge sign` holds since 09-05, 0 `WEDGEFIRE` — no real BlueZ wedge has been cleared on this box yet) · **Created:** 2026-07-24
 **P2.x VERIFIED IN CODE 2026-08-19, and five of six are SHIPPED — see the P2 verification block below.**
 Genuinely open: none of the software rungs. **P1.5 (dual-radio failover) IMPLEMENTED 2026-08-20** (the L3 rung: on a spent reset budget, repoint ADAPTER to a healthy spare + re-bond there — tested end to end, field-gated on observing it clear a REAL wedge). **P2.2 (resume file-set) SHIPPED** (`writers.resumable_stamp`). · **Created:** 2026-07-24
 
@@ -253,7 +253,7 @@ both a de-suspended dongle and the internal radio fail you.*
 >
 > | item | state |
 > |---|---|
-> | P2.1 backoff | ✅ `backoff = min(backoff*2, 300)` from 5 s, reset **only on a viable session** (E3 — a bare connect does not reset it, or a flapping link would pin it at the floor). `capture.py:2470-2496` |
+> | P2.1 backoff | ❌ **This row was WRONG (found 2026-09-05).** The `min(max(backoff,120),300)` it cited is the OPTIONAL-device branch; the three mandatory loops (`run_polar` · `run_viatom` · `run_oxyii`) capped at `min(backoff*2, 60)`. Measured on the box 2026-09-03/04: 27–35 (H10) and 36–46 (O2Ring) hopeless scans/hour, every hour the device was absent. Reset-only-on-viable (E3) was correct. **Fixed 2026-09-05:** `_RECONNECT_BACKOFF_CAP_S = 180` shared by all three (≈ 17/h), `power.reconnect_backoff_cap_sec` override, `tests/test_reconnect_backoff_cap.py`. |
 > | P2.2 resume file-set | ⛔ **OPEN** — reconnects still mint a new file-set (15 Verity sets on 2026-08-18 alone). The one real remaining P2 item, and an architecture change: gate it on its own brief. |
 > | P2.3 pull vs dead adapter | ✅ pulls gate on `_RECOVER`/pause state; the charger/doff pollers skip mid-recovery |
 > | P2.4 coverage rollup | ✅ per-stream `coverage_pct` (timeline), per-device coverage in `QC-SUMMARY.json`, monitor renders "% captured" — and the **morning digest** (2026-08-19) now pushes it daily via the webhook, which closed the "surfaced" half |
@@ -290,6 +290,39 @@ both a de-suspended dongle and the internal radio fail you.*
   Verity pull 0 files, H10 recordings `[]`). Options: (a) accept it and rely on P0/P1 to keep the radio up;
   (b) investigate periodic offline-record windows when the live view isn't critical; (c) treat dual-radio
   failover (P1.5) as their real protection. **Decision needed — document the choice.**
+
+  ✅ **DECIDED AND RECORDED 2026-09-03 (Heron). The answer is (c) as the INTENT and (a) as the measured
+  REALITY, with (b) still open — and it is deliberately not the one-word "(c)" this brief's own header
+  inferred.** That header said *"P1.5 implements option (c), which makes (c) the de-facto answer — but
+  inference is not a record"*, and then recorded the inference. Checked on the box instead:
+
+  | measured 2026-09-03 | value |
+  |---|---|
+  | `radio_switches` in `/api/state` | **`null`** — populated from `list(_RADIO_EVENTS)` (the sole writer of `STATUS["radio_switches"]` in `capture.py`; cited by symbol, not line — the first draft of this row said `:1345`, read off the shared root checkout, which is **103 commits behind `origin/main`** where the same statement sits at `:1355`), so **no failover event has ever been recorded** |
+  | Bluetooth adapters present | **3** (`hci0`/`hci1`/`hci2`) — the hardware for (c) exists |
+  | adapter in use | `00:01:95:CC:53:02` (a single one) |
+  | `radio_distress` · Polar Sense `0C301E3F` | **`distressed`** — 23.2/h against a band of 8.0/h, sustained 1085 s, over 14 nights |
+
+  So (c)'s machinery and hardware are both present and **(c) has never once operated**. That is the same
+  status this brief's header already grants the P0/P1 ladder — *"seen WORKING but never seen CLEARING A
+  REAL WEDGE"* — and an untriggered failover is not protection, it is an untested hypothesis about
+  protection. **Today the Polars run single-copy with no backup path: that is option (a), whether or not
+  anyone chose it.**
+
+  The decision is therefore recorded as: **(a) is the current posture and must be described that way in
+  any data-loss reasoning; (c) remains the intended protection and is CONDITIONAL on a first observed
+  switch; (b) is NOT rejected and is the only option that would produce an actual second copy.**
+
+  - **(b) is live work, not a discarded branch** — `POLAR-ONBOARD-BACKUP-2026-08-01` §6 Q1 (*does an idle
+    H10 accept a recording-start over the same link the box holds*) is exactly this option, its probe
+    endpoint shipped in #2042, and it waits on the owner-scheduled Phase B window. Recording "(c)" flatly
+    would have marked a question closed that another brief is actively trying to answer.
+  - ⚠️ **This is not academic.** The one device carrying live radio pathology — Polar Sense, 23.2/h over
+    band, sustained — is a device with **no second copy**. The exposure P3.1 was written about is
+    currently measurable, not hypothetical.
+  - **What would change this record:** a single entry appearing in `radio_switches` (promotes (c) from
+    intended to demonstrated), or the Phase B probe answering Q1 YES (makes (b) buildable and supersedes
+    both). Until one of those, (a) stands.
 - **P3.2 Gate retention pruning on a verified second copy.** `diskguard.plan_prune()` is purely age-based
   and does not consult `nightarchive`'s `.archived` marker; with the archive disk unmounted (below) it is
   one long absence from deleting the only copy of a night. Skip any night lacking `.archived`, or gate the

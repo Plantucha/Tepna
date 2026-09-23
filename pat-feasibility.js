@@ -74,10 +74,13 @@
       mo;
     // anchor the YYYYMMDD_HHMMSS immediately before the kind suffix — a loose \d{8}_\d{6}
     // scan grabs the H10 device serial (H10-01) instead of the date (the zero-nights bug).
-    if ((mo = n.match(/_(\d{8})_(\d{6})_ECG\.txt$/i))) return { role: 'ecg', stamp: mo[1] + mo[2] };
-    if ((mo = n.match(/_(\d{8})_(\d{6})_PPG\.txt$/i))) return { role: 'ppg', stamp: mo[1] + mo[2] };
+    // `_?` between date and time: the phone app writes YYYYMMDD_HHMMSS, the capture host the same
+    // 14 digits with no separator — one pattern per role, both layouts (2026-09-20; until then a box
+    // night indexed 0 of 134 files). Gated by capture-host test_the_tool_classifiers_accept_box_filenames.
+    if ((mo = n.match(/_(\d{8})_?(\d{6})_ECG\.txt$/i))) return { role: 'ecg', stamp: mo[1] + mo[2] };
+    if ((mo = n.match(/_(\d{8})_?(\d{6})_PPG\.txt$/i))) return { role: 'ppg', stamp: mo[1] + mo[2] };
     // ACC on BOTH devices → the cross-device drift anchor (H10 chest vs Verity arm)
-    if ((mo = n.match(/_(\d{8})_(\d{6})_ACC\.txt$/i))) return { role: /Polar_H10/i.test(n) ? 'ecgacc' : 'ppgacc', stamp: mo[1] + mo[2] };
+    if ((mo = n.match(/_(\d{8})_?(\d{6})_ACC\.txt$/i))) return { role: /Polar_H10/i.test(n) ? 'ecgacc' : 'ppgacc', stamp: mo[1] + mo[2] };
     return null;
   }
   // sessions starting before noon fold into the PREVIOUS evening (floating civil time)
@@ -101,11 +104,34 @@
         })
       : null;
   }
+  /* stamp (YYYYMMDDHHMMSS, floating civil time) → ms, for ordering sessions within a night */
+  function stampMs(st) {
+    return Date.UTC(+st.slice(0, 4), +st.slice(4, 6) - 1, +st.slice(6, 8), +st.slice(8, 10), +st.slice(10, 12), +st.slice(12, 14));
+  }
+  /* the candidate whose session START is nearest to an anchor's — the hat's own rule (sensor-trio-power-analysis.js
+     `nearest`), applied here for the same reason */
+  function nearestTo(a, anchorMs) {
+    if (!a || !a.length) return null;
+    if (anchorMs == null) return largest(a);
+    return a.reduce(function (b, x) {
+      return Math.abs(stampMs(x.stamp) - anchorMs) < Math.abs(stampMs(b.stamp) - anchorMs) ? x : b;
+    });
+  }
+  /* ONE SESSION PER DEVICE PER NIGHT IS A PHONE-APP ASSUMPTION. The capture host writes one file per BLE
+     session, so a box night holds several per device — measured 2026-09-19: five Verity PPG sessions and
+     two H10 ECG sessions. "Largest file per role" then pairs the 67-min ECG (19:20–20:28) with the 7-hour
+     PPG that started at 22:41, and the tool reports NO OVERLAP for a night whose 19:16–20:27 Verity session
+     overlaps the ECG almost exactly. The ECG stays the anchor (largest — the longest waveform is the most
+     R-peaks); the PPG and both ACCs are the sessions whose start is NEAREST to it. Nearest-start is a
+     heuristic, not an overlap computation — a session that started just before the anchor and ended before
+     it began would still win — but it is the hat's existing rule and it needs nothing the index does not
+     already carry. A pair that still does not overlap is reported as such by the coupling step, as before. */
   function resolvePair(nt) {
     var e = largest(nt.cand.ecg),
-      p = largest(nt.cand.ppg),
-      ea = largest(nt.cand.ecgacc),
-      pa = largest(nt.cand.ppgacc);
+      eMs = e ? stampMs(e.stamp) : null,
+      p = nearestTo(nt.cand.ppg, eMs),
+      ea = nearestTo(nt.cand.ecgacc, eMs),
+      pa = nearestTo(nt.cand.ppgacc, p ? stampMs(p.stamp) : eMs);
     nt.ecg = e ? e.file : null;
     nt.ppg = p ? p.file : null;
     nt.ecgAcc = ea ? ea.file : null;

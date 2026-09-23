@@ -16,16 +16,25 @@
  * The version is computed ONCE, here, at the end — parallel coders only ever drop changesets, so
  * they never collide on a number. NEVER hand-edit a version or a manifestHash snapshot.
  *
- *     node tools/release.mjs            # cut a release from the pending changesets
+ *     node tools/release.mjs --full     # ← THE release command: stamp → build → gate → PR → merge →
+ *                                       #   tag → GitHub Release → cleanup, detached (tools/release-land.mjs)
+ *     node tools/release.mjs            # the STAMP step alone (what --full runs inside its worktree)
  *     node tools/release.mjs --dry-run  # preview; write nothing
  *     node tools/release.mjs --skip-gates   # dev only: skip the pre-flight gate run
+ *
+ * `--full` exists because the eleven steps AFTER the stamp were done by hand on every release and
+ * on v2.10.0 four of them went wrong (bare `build.mjs` builds nothing; staging deleted changesets;
+ * the GitHub Release object was never created so "Latest" read the old version; the worktree was
+ * left behind). The chain is a program now — see release-land.mjs's header. Progress:
+ * `node tools/release-land.mjs --status`.
  */
-import { readdirSync, readFileSync, writeFileSync, unlinkSync, existsSync } from 'node:fs';
+import { readdirSync, readFileSync, writeFileSync, unlinkSync, existsSync, openSync, mkdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
@@ -34,6 +43,21 @@ const ProvenanceLedger = require(join(ROOT, 'provenance-ledger.js'));
 const args = process.argv.slice(2);
 const DRY = args.includes('--dry-run');
 const SKIP_GATES = args.includes('--skip-gates');
+const FULL = args.includes('--full');
+
+/* --full: hand the whole chain to release-land.mjs as a DETACHED process and return at once. The
+   chain outlives any operator tool-loop timeout (measured cap: 10 min; the chain: 45–90 min), so it
+   must not be a child of this shell. Its log + state file are printed here; nothing runs hidden. */
+function launchFull() {
+  const dir = join(tmpdir(), 'tepna-release-land');
+  mkdirSync(dir, { recursive: true });
+  const logFile = join(dir, 'launch-' + new Date().toISOString().replace(/[:.]/g, '-') + '.log');
+  const fd = openSync(logFile, 'a');
+  const pass = args.filter((a) => a !== '--full');
+  const child = spawn(process.execPath, [join(ROOT, 'tools', 'release-land.mjs'), '--foreground', ...pass], { cwd: ROOT, detached: true, stdio: ['ignore', fd, fd] });
+  child.unref();
+  console.log('release-land launched, pid ' + child.pid + '\n  log:    ' + logFile + '\n  status: node tools/release-land.mjs --status');
+}
 const p = (...a) => join(ROOT, ...a);
 const readJSON = (f) => JSON.parse(readFileSync(p(f), 'utf8'));
 
@@ -54,6 +78,88 @@ function readChangesets() {
       const body = text.replace(/^[\s\S]*?---[\s\S]*?---\s*/, '').trim() || text.trim();
       return { name, bump: (bump || '').toLowerCase(), type: (type || 'changed').toLowerCase(), brief, body };
     });
+}
+
+const stripAnsi = (s) => s.replace(/\x1b\[[0-9;]*m/g, '');
+const fmtInt = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+
+/* The capture lane's test count, by COLLECTION only (no run — check.sh owns the run). Reported as
+   "N,N00+" the way the README states it: a floor, so it stays true while the count grows. null when
+   the venv is absent — "not measured" is printed, never a number. */
+function countPyTests() {
+  const py = p('capture-host', '.venv', 'bin', 'python');
+  if (!existsSync(py)) return null;
+  const r = spawnSync(py, ['-m', 'pytest', '--co', '-q'], { cwd: p('capture-host'), encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  const m = (r.stdout || '').match(/(\d+) tests? collected/);
+  return m ? +m[1] : null;
+}
+
+/* ── README ACCURACY — the front page's ledger-derivable numbers are checked and stamped AT THE CUT ──
+   The version, badge and release count are build-docs' (its stampRules; do not copy them here). What
+   nothing projected until 2026-09-07 was everything ELSE the front page counts: pending changesets and
+   their split, assertions/groups, Python tests, and the "Since vX (dates, commits, changesets)" header of
+   the release narrative — five numbers that had each drifted by the time the 2.10.0 cut was previewed
+   (142→159 · 9,124→9,217 · 583→586 · 6,500+→6,800+ · 296→350). The rows below carry the README's
+   current text beside the measured value; --dry-run prints them, the cut writes them. Prose claims
+   inside the narrative are authored and are NOT checkable here — the last line says so every time. */
+function readmeAudit(txt, ctx) {
+  const rows = [];
+  // readme = what the front page says · now = what is true as this runs · cut = what the cut writes
+  const row = (what, readme, now, cut, apply) => rows.push({ what, readme, now, cut, apply: cut != null && apply ? apply : null });
+
+  const split = ctx.pendingSplit; // { n, minor, patch, major, level } of the changesets being consumed
+  const pend = txt.match(/with \*\*(\d+|no) changesets?\*\* pending since(?: \(([^)]*)\))?/);
+  row(
+    'pending changesets',
+    pend ? pend[1] + (pend[2] ? ' (' + pend[2] + ')' : '') : '(marker missing)',
+    split.n + ' (' + split.minor + ' minor · ' + split.patch + ' patch · ' + split.major + ' major — the next cut is a ' + split.level.toUpperCase() + ')',
+    '0 (the tree is exactly the release)',
+    pend ? (t) => t.replace(pend[0], 'with **0 changesets** pending since (the tree is exactly the release)') : null
+  );
+  const asr = txt.match(/\*\*([\d,]+) assertions\*\* across \*\*([\d,]+) groups\*\*/);
+  const asrNow = ctx.assertions != null ? fmtInt(ctx.assertions) + ' / ' + ctx.groups : null;
+  row(
+    'assertions / groups',
+    asr ? asr[1] + ' / ' + asr[2] : '(marker missing)',
+    asrNow,
+    asrNow,
+    asr ? (t) => t.replace(asr[0], '**' + fmtInt(ctx.assertions) + ' assertions** across **' + ctx.groups + ' groups**') : null
+  );
+  const pyt = txt.match(/\*\*([\d,]+)\+ Python tests\*\*/);
+  const pyFloor = ctx.pyTests != null ? fmtInt(Math.floor(ctx.pyTests / 100) * 100) + '+' : null;
+  row('Python tests', pyt ? pyt[1] + '+' : '(marker missing)', pyFloor, pyFloor, pyt ? (t) => t.replace(pyt[0], '**' + pyFloor + ' Python tests**') : null);
+  // The narrative header. "Since `X` (…)" is the between-releases form and is converted to the shipped
+  // form "In `Y` (…)" at the cut. An "In" form already present means the narrative was never rewritten
+  // after the LAST cut — it describes the previous release, and only its author can fix that.
+  const since = txt.match(/\*\*Since `(\d+\.\d+\.\d+)` \((\d{4}-\d{2}-\d{2}) → (\d{4}-\d{2}-\d{2}), (\d+) commits, (\d+) changesets\)\.\*\*/);
+  const inHdr = txt.match(/\*\*In `(\d+\.\d+\.\d+)` \(([^)]*)\)\.\*\*/);
+  const span = ctx.fromDate + ' → ' + ctx.date + ', ' + (ctx.commits == null ? '?' : ctx.commits) + ' commits, ' + split.n + ' changesets';
+  const cutHdr = 'In `' + ctx.to + '` (' + span + ')';
+  row(
+    'release narrative header',
+    since
+      ? 'Since `' + since[1] + '` (' + since[2] + ' → ' + since[3] + ', ' + since[4] + ' commits, ' + since[5] + ' changesets)'
+      : inHdr
+        ? 'In `' + inHdr[1] + '` (' + inHdr[2] + ')'
+        : '(marker missing)',
+    since ? 'Since `' + ctx.from + '` (' + span + ')' : inHdr ? 'STALE — describes ' + inHdr[1] + '; the ' + ctx.to + ' paragraph is authored prose, write it' : null,
+    since ? cutHdr : null,
+    since ? (t) => t.replace(since[0], '**' + cutHdr + '.**') : null
+  );
+  return rows;
+}
+
+function printReadmeAudit(rows, dry) {
+  console.log('\nREADME.md accuracy (ledger-derivable numbers; version · badge · release count are build-docs’):');
+  for (const r of rows) {
+    const ok = r.now != null && r.readme === r.now;
+    let line = '  ' + (r.now == null ? '?' : ok ? '=' : '≠') + ' ' + r.what.padEnd(25) + ' README: ' + r.readme;
+    if (r.now == null) line += '   (not measured)';
+    else if (!ok) line += '   → now: ' + r.now;
+    if (r.cut != null && r.cut !== r.now) line += (dry ? '   → cut writes: ' : '   → written: ') + r.cut;
+    console.log(line);
+  }
+  console.log('  ! prose claims in the release narrative are authored — re-read them; nothing here can check a sentence.');
 }
 
 function bumpVersion(v, level) {
@@ -86,18 +192,30 @@ function main() {
   //
   // This exact gate would have blocked v1.10.1, which shipped a GlucoDex fixture that current code no
   // longer reproduced, and with it a pre-fix DSP that reached real users' CGM data.
+  // The suite's own summary line is captured (and echoed) so the README's assertion count below is read
+  // off THE run that gated this cut — not typed from memory, which is how it sat at 9,124 for a week.
+  const measured = { assertions: null, groups: null, pyTests: null };
   if (!SKIP_GATES) {
     for (const cmd of [
       ['node', 'tests/run-tests.mjs'],
       ['node', 'tests/verify-manifest.mjs'],
       ['node', 'tools/verify-fixtures.mjs', '--check']
     ]) {
-      const r = spawnSync(cmd[0], cmd.slice(1), { cwd: ROOT, stdio: 'inherit' });
+      const r = spawnSync(cmd[0], cmd.slice(1), { cwd: ROOT, stdio: ['inherit', 'pipe', 'inherit'], encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
+      process.stdout.write(r.stdout || '');
       if (r.status !== 0) {
         console.error('\nGate failed: ' + cmd.join(' ') + ' — refusing to release. (--skip-gates is dev-only.)');
         process.exit(3);
       }
+      if (cmd[1] === 'tests/run-tests.mjs') {
+        const m = stripAnsi(r.stdout || '').match(/✓ all (\d+) assertions passed.*?\((\d+) groups\)/);
+        if (m) {
+          measured.assertions = +m[1];
+          measured.groups = +m[2];
+        }
+      }
     }
+    measured.pyTests = countPyTests();
   }
 
   const level = ['major', 'minor', 'patch'].find((l) => changesets.some((c) => c.bump === l));
@@ -134,9 +252,31 @@ function main() {
 
   const record = { version: to, date, bump: level, name: '', manifestHashes, briefs: [...new Set(changesets.map((c) => c.brief).filter((b) => b && b !== 'none'))], notes: '' };
 
+  // README accuracy rows — computed once, printed in both modes, written only on the cut.
+  const releasesSoFar = readJSON('RELEASE-MANIFEST.json').releases;
+  const prev = releasesSoFar.find((r) => r.version === from) || releasesSoFar[releasesSoFar.length - 1];
+  const rl = spawnSync('git', ['rev-list', '--count', 'v' + from + '..HEAD'], { cwd: ROOT, encoding: 'utf8' });
+  const commits = rl.status === 0 && /^\d+\s*$/.test(rl.stdout) ? +rl.stdout : null;
+  const count = (b) => changesets.filter((c) => c.bump === b).length;
+  const readmeText = existsSync(p('README.md')) ? readFileSync(p('README.md'), 'utf8') : null;
+  const readmeRows = readmeText
+    ? readmeAudit(readmeText, {
+        from,
+        to,
+        date,
+        fromDate: prev ? prev.date : '?',
+        commits,
+        pendingSplit: { n: changesets.length, minor: count('minor'), patch: count('patch'), major: count('major'), level },
+        assertions: measured.assertions,
+        groups: measured.groups,
+        pyTests: measured.pyTests
+      })
+    : [];
+
   if (DRY) {
     console.log('DRY RUN: ' + from + ' \u2192 ' + to + ' (' + level + ')\n\n' + section);
     console.log('Would consume: ' + changesets.map((c) => c.name).join(', '));
+    if (readmeRows.length) printReadmeAudit(readmeRows, true);
     return;
   }
 
@@ -173,6 +313,13 @@ function main() {
     }
   }
   writeFileSync(p('CHANGELOG.md'), cl);
+  // 3c · README — stamp the ledger-derivable counts (see readmeAudit); build-docs stamps the version.
+  if (readmeRows.length) {
+    let rd = readmeText;
+    for (const r of readmeRows) if (r.apply) rd = r.apply(rd);
+    if (rd !== readmeText) writeFileSync(p('README.md'), rd);
+    printReadmeAudit(readmeRows, false);
+  }
   // 4 · prune the consumed changesets. There are no committed list mirrors to regenerate: the
   //     docs-ledger / release-ledger gates read briefs/ + changes/ straight from the filesystem in
   //     the Node lane (the lane CI runs), so pruning changes/ needs no follow-up list write
@@ -180,25 +327,40 @@ function main() {
   for (const c of changesets) unlinkSync(join(CHANGE_DIR, c.name));
 
   console.log(
-    '\nReleased ' +
+    '\nStamped v' +
       to +
-      '. Now:\n\n    node tools/build.mjs        # \u00a7\ud83d\udce6 re-stamps the fleet displayed version (manifestHash-INVARIANT: zero fixtures move); build:check reds until run\n    node tools/build-docs.mjs   # projects v' +
+      '. This was the STAMP step only. The rest of the chain is `node tools/release.mjs --full`\n' +
+      '(tools/release-land.mjs) — if you are running the steps by hand, they are, in order:\n\n' +
+      '    node tools/build.mjs --all  # §📦 re-stamps the fleet displayed version (manifestHash-INVARIANT: zero fixtures move);\n' +
+      '                                #   build:check reds until run. ⚠ a BARE build.mjs builds NOTHING (measured, v2.10.0)\n' +
+      '    node tools/build-docs.mjs   # projects v' +
       to +
-      ' into the deploy surfaces, then PRINTS the exact `git add` line for what it wrote\n' +
-      '    # ↑ stage BOTH lists. The line below carries only what release.mjs itself wrote; every\n' +
-      '    #   deploy path belongs to build-docs and comes from the paths build-docs just printed.\n' +
-      '    #   Do not re-hardcode them here — a copy in this file drifted and silently omitted four.\n' +
-      '    git add suite.manifest.json CHANGELOG.md RELEASE-MANIFEST.json CITATION.cff changes/ \\\n' +
-      '      && git commit -m "release: v' +
+      ' into the served copies (docs/)\n' +
+      '    npm run check               # the FULL gate, once, on the final tree\n' +
+      '    git add -- <every modified path in git status --porcelain>       # stage by explicit path, never -A / -u;\n' +
+      '                                                                    #   the deploy surfaces are the paths build-docs just printed\n' +
+      '    git rm -q --cached -- $(git ls-files -d -- changes)               # the consumed changesets\n' +
+      '    git commit -m "release: v' +
       to +
-      '"\n    git tag -s v' +
+      '" && git push -u origin <branch> && gh pr create --title "release: v' +
+      to +
+      '"\n' +
+      '    # after the PR MERGES, at the MERGE sha (a squash rewrites the branch tip):\n' +
+      '    git tag -a v' +
       to +
       ' -m "v' +
       to +
-      '"   # -s = SIGNED → GitHub shows "Verified" (needs a GPG/SSH signing key; v1.8.0 was the last signed tag)\n' +
-      '    git push && git push origin v' +
+      '" <merge sha> && git push origin v' +
       to +
-      '\n'
+      '   # -s instead of -a when user.signingkey is configured\n' +
+      '    gh release create v' +
+      to +
+      ' --title "Tepna v' +
+      to +
+      '" --notes-file <the CHANGELOG [' +
+      to +
+      '] section> --verify-tag   # the object "Latest" reads; a tag alone is NOT a release\n' +
+      '    node tools/wt-done.mjs <worktree>\n'
   );
 }
 /* ⚠️ ENTRY GUARD — WITHOUT IT THIS FILE RUNS ITS CLI THE MOMENT ANYTHING IMPORTS IT.
@@ -206,4 +368,4 @@ function main() {
    `doc-search.mjs`'s `isEntryPoint` resolves rather than string-compares). Swept 2026-08-19 after
    `device-stability.mjs` was found unimportable for the sibling reason: of 143 `tools/*.mjs`, 48
    guarded, 90 have no entry point at all, and a handful executed on import. */
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) FULL ? launchFull() : main();

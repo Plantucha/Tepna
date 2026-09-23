@@ -27,6 +27,7 @@ badly"), and on two hand-picked windows it showed a 94x separation. Over 474 cor
 exceeds the worn maximum (0.882). Even at 176 Hz worn reaches 0.00089 while desk reaches 0.02234.
 Do not re-derive it. The refutation is recorded here so the next person spends no corpus time on it.
 """
+
 import os
 import sys
 
@@ -34,11 +35,12 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import telemetry  # noqa: E402
 
-WORN_SD = [1000.0 + (i % 3) * 8.0 for i in range(400)]        # SD ~3.3 — deep under 72
-DESK_SD = [1000.0 + (i % 7) * 900.0 for i in range(400)]      # SD ~2200 — far above 72
+WORN_SD = [1000.0 + (i % 3) * 8.0 for i in range(400)]  # SD ~3.3 — deep under 72
+DESK_SD = [1000.0 + (i % 7) * 900.0 for i in range(400)]  # SD ~2200 — far above 72
 
 
 # ── sd_calibrated_for ───────────────────────────────────────────────────────────────────────────────
+
 
 def test_an_unknown_rate_is_OUT_of_domain_here_unlike_the_level_detector():
     """The asymmetry is the point and it is deliberate. `calibrated_for` admits `None` because callers
@@ -62,6 +64,7 @@ def test_the_tolerance_is_inclusive_at_its_edge_and_excludes_just_past_it():
 
 
 # ── ambient_stability_worn ──────────────────────────────────────────────────────────────────────────
+
 
 def test_a_still_ambient_channel_reads_worn_and_a_noisy_one_reads_not_worn():
     assert telemetry.ambient_stability_worn(WORN_SD, fs=176.0) is True
@@ -88,9 +91,11 @@ def test_EXACTLY_min_samples_is_ENOUGH_and_one_fewer_is_not():
     n = telemetry._WORN_SD_MIN_SAMPLES
     at_the_edge = [1000.0 + (i % 3) * 8.0 for i in range(n)]
     assert telemetry.ambient_stability_worn(at_the_edge, fs=176.0) is True, (
-        f"exactly {n} samples must yield a verdict — the guard refuses FEWER than min_samples")
+        f"exactly {n} samples must yield a verdict — the guard refuses FEWER than min_samples"
+    )
     assert telemetry.ambient_stability_worn(at_the_edge[:-1], fs=176.0) is None, (
-        f"{n - 1} samples must not, or the boundary is off by one in the other direction")
+        f"{n - 1} samples must not, or the boundary is off by one in the other direction"
+    )
 
 
 def test_the_FLOOR_of_two_is_the_binding_term_when_a_caller_asks_for_less():
@@ -100,7 +105,8 @@ def test_the_FLOOR_of_two_is_the_binding_term_when_a_caller_asks_for_less():
     `max(2, 256)` and `max(3, 256)` the same number."""
     assert telemetry.ambient_stability_worn([1000.0, 1000.0], fs=176.0, min_samples=2) is True
     assert telemetry.ambient_stability_worn([1000.0], fs=176.0, min_samples=1) is None, (
-        "one sample can never be a spread, whatever the caller asks for")
+        "one sample can never be a spread, whatever the caller asks for"
+    )
 
 
 def test_None_and_NaN_samples_are_dropped_rather_than_poisoning_the_spread():
@@ -113,7 +119,7 @@ def test_the_threshold_is_measured_and_the_boundary_is_STRICTLY_below():
     exactly AT the threshold is not 'under skin' — the gap it sits in is empty, so the edge is free."""
     assert telemetry._WORN_AMBIENT_SD_MAX == 72.0
     n = telemetry._WORN_SD_MIN_SAMPLES * 2
-    at = [0.0 if i % 2 else 144.0 for i in range(n)]          # population SD exactly 72.0
+    at = [0.0 if i % 2 else 144.0 for i in range(n)]  # population SD exactly 72.0
     assert telemetry.ambient_stability_worn(at, fs=176.0) is False
     just_under = [0.0 if i % 2 else 143.9 for i in range(n)]
     assert telemetry.ambient_stability_worn(just_under, fs=176.0) is True
@@ -127,10 +133,12 @@ def test_it_uses_the_SPREAD_and_not_the_LEVEL_which_is_the_whole_reason_it_exist
     assert telemetry.ambient_stability_worn(pegged_and_still, fs=176.0) is True
     assert telemetry.optical_worn(pegged_and_still, fs=55.0) is False, (
         "the LEVEL detector calls this same worn armband not-worn — the two regimes are opposite, "
-        "which is why both detectors exist")
+        "which is why both detectors exist"
+    )
 
 
 # ── worn_verdict — the combiner ─────────────────────────────────────────────────────────────────────
+
 
 def test_no_available_detector_yields_None_and_SAYS_SO():
     verdict, why = telemetry.worn_verdict()
@@ -182,6 +190,7 @@ def test_an_abstaining_detector_does_not_veto_one_that_can_still_speak():
 
 
 # ── CHARGING AT FULL — the hole the rising rule cannot reach ────────────────────────────────────────
+
 
 def test_a_FULL_battery_that_has_not_moved_for_45_min_is_on_a_charger():
     """`capture._read_batt` infers charging from a RISING battery, which is unambiguous and works
@@ -239,12 +248,14 @@ def test_charging_decides_even_when_no_other_detector_has_an_opinion():
 def _pulse(n=telemetry._PULSE_MIN_SAMPLES, fs=176.0, hz=1.0, amp=100.0, noise=5.0, seed=7):
     import math
     import random
+
     r = random.Random(seed)
     return [amp * math.sin(2 * math.pi * hz * i / fs) + r.gauss(0, noise) for i in range(n)]
 
 
 def _noise(n=telemetry._PULSE_MIN_SAMPLES, sd=100.0, seed=11):
     import random
+
     r = random.Random(seed)
     return [r.gauss(0, sd) for _ in range(n)]
 
@@ -324,14 +335,16 @@ def test_an_out_of_domain_pulse_vote_leaves_the_ambient_votes_alone():
 
 # ─── §4.2 evidence-source independence ──────────────────────────────────────────────────────────
 
+
 def test_every_detector_name_the_combiner_can_emit_is_mapped_to_a_source():
     """THE test that will actually fire. An unmapped detector silently counts as its OWN source, which
     OVER-states independence — the wrong direction. This pins the map to the combiner: add a detector
     without a source and CI says so, rather than an operator reading a reason string that implies two
     pieces of evidence where there is one."""
     import re
+
     src = open(telemetry.__file__, encoding="utf-8").read()
-    body = src[src.index("def worn_verdict("):]
+    body = src[src.index("def worn_verdict(") :]
     body = body[: body.index("\ndef ", 1)]
     emitted = set(re.findall(r'votes\.append\(\("([a-z-]+)"', body))
     assert emitted, "the combiner appends no named votes — the scrape is wrong, not the code"
@@ -372,3 +385,43 @@ def test_correlated_agreement_is_REPORTED_as_one_source_when_it_occurs():
     assert v is True
     assert "hr-contact-bit, ppi-contact" in why
     assert "1 independent source(s): device-contact" in why
+
+
+# ── A HEARTBEAT OUTVOTES A NOT-WORN CONTACT BIT, one direction only ─────────────────────────────────
+
+
+def test_a_heartbeat_outvotes_a_contact_bit_that_says_not_worn():
+    """2026-09-20: contact=0 all night, 48–77 bpm in the same packets, 131 link drops. The rate is the
+    thing itself; the bit is a proxy for electrode contact quality."""
+    assert telemetry.worn_verdict(contact=False, beats=True) == (True, "worn per hr-beats")
+
+
+def test_no_heartbeat_is_not_a_vote():
+    """An absent beat can be a cold start or a bad second; the contact bit already speaks for the desk.
+    So beats=False changes nothing — the drop can only ever be PREVENTED by this signal, never caused."""
+    assert telemetry.worn_verdict(contact=False, beats=False) == telemetry.worn_verdict(contact=False)
+    assert telemetry.worn_verdict(contact=None, beats=False)[0] is None
+
+
+def test_a_MEASURED_charge_still_outranks_a_heartbeat_but_an_INFERRED_dock_does_not():
+    """2026-09-22 04:00 on vigil: the H10 on a chest at 62 bpm, `charging: True` from the flat-at-100 %
+    rule (a fresh CR2025 sits at 100 % for days), 140 link drops under 'not worn — on charger'. The
+    inference was written for the Verity's dock and cannot tell a dock from a coin cell; the strap's
+    own heartbeat can. A rising cell or the PMD's IN_CHARGER is a measurement and still wins."""
+    for why in ("rising", "pmd-in-charger", None):
+        v, reason = telemetry.worn_verdict(contact=False, beats=True, charging=True, charging_why=why)
+        assert v is False and "charger" in reason, why
+    v, reason = telemetry.worn_verdict(contact=False, beats=True, charging=True, charging_why="flat-at-full")
+    assert (v, reason) == (True, "worn per hr-beats")
+    # without a beat the inference still decides — the H10 on a desk at 100 % is dropped as before
+    v, reason = telemetry.worn_verdict(contact=False, beats=False, charging=True, charging_why="flat-at-full")
+    assert v is False and "charger" in reason
+
+
+def test_hr_beats_reads_the_packet_not_the_bit():
+    assert telemetry.hr_beats(57, 0) is True
+    assert telemetry.hr_beats(0, 2) is True  # RR intervals alone are beats
+    assert telemetry.hr_beats(0, 0) is False  # the off-body shape
+    assert telemetry.hr_beats(None, 0) is None  # no measurement, no vote
+    assert telemetry.hr_beats(300, 0) is False  # not a human rate
+    assert telemetry.hr_beats(29, 0) is False and telemetry.hr_beats(30, 0) is True

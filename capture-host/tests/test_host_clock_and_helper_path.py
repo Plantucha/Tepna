@@ -684,3 +684,18 @@ def test_a_SAFE_helper_is_skipped_while_the_unsafe_one_is_still_reported(monkeyp
                         lambda path: "not root-owned: " + path if "rewritable" in path else None)
     warns = capture._gather_helper_warnings()
     assert warns == ["not root-owned: /fake/rewritable.sh"], warns
+
+
+def test_the_btmon_helper_is_registered_in_the_one_place_that_gates_grants():
+    """`tepna-btmon.sh` (audit §D2) is operator-invoked rather than daemon-invoked, and is listed in
+    SUDO_HELPERS anyway: the sudoers grant is the `/usr/local/lib/tepna/*` wildcard that already covers
+    its six siblings, so from the moment it is installed the name IS granted — and an in-repo copy on a
+    vigil-writable mount is exactly the unsafe-location case `grant_warning` exists to announce.
+    Registering it is what puts it under the boot self-test.
+
+    Its GUARDS are not asserted here. An earlier version of this test scanned the script's source for
+    the guard strings, which was both weaker and brittle — it broke the moment the confinement root
+    became a variable, without any guard changing. The guards are exercised for real, by running the
+    script, in test_tepna_btmon_sh.py; this test owns only the registration."""
+    import helper_path as hp
+    assert "tepna-btmon.sh" in hp.SUDO_HELPERS

@@ -453,6 +453,7 @@ def test_re_anchoring_clears_the_reported_shift(monkeypatch):
     assert capture.absorbed_shift_sec() == 0.0, "a re-anchor discards the shift, so the report must too"
 
 
+@pytest.mark.sets_capture_events
 def test_the_absorbed_shift_REACHES_status_json(monkeypatch):
     """The accessor being right is not the point — the operator reading it is.
 

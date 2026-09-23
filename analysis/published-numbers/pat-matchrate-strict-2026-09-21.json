@@ -1,0 +1,228 @@
+{
+  "schema": "tepna.published-number-record/1",
+  "producer": "tools/pat-matchrate-strict.mjs",
+  "producerCommit": "2e9584e5",
+  "invocation": "node tools/pat-matchrate-strict.mjs --dir /srv/data/tepna-corpus/smoketest-captures --night <night> --json  (× 6 nights)",
+  "generated": "2026-09-21",
+  "inputs": {
+    "path": "/srv/data/tepna-corpus/smoketest-captures/<night>/",
+    "committed": false,
+    "note": "raw H10 ECG + Verity PPG + both ACC; gitignored, so this record can be FLAGGED by a re-run and never CLEARED from CI. The pair each night used is under result.<night> (nR, overlapMin, nAnchors)."
+  },
+  "deterministic": "verified 2026-09-21: a second run of 2026-07-23 was byte-identical (surrogate offsets are deterministic, no Math.random)",
+  "publishedIn": "briefs/PAT-UNDER-PERBLOCK-ALIGNMENT-2026-08-02-BRIEF.md §3a (re-cut table, 2026-09-21)",
+  "claims": {
+    "note": "values EXACTLY as the prose states them (ratios 2 dp, rates whole %), so CLAIM … FROM … #claims/<key> compares equal; full precision is under result",
+    "beats20260720": 18153,
+    "legacyRatio20260720": 2.42,
+    "strictRatio20260720": 2.48,
+    "legacyPct20260720": 46,
+    "strictPct20260720": 16,
+    "beats20260722": 13329,
+    "legacyRatio20260722": 1.41,
+    "strictRatio20260722": 0.6,
+    "legacyPct20260722": 28,
+    "strictPct20260722": 4,
+    "beats20260723": 1799,
+    "legacyRatio20260723": 1.85,
+    "strictRatio20260723": 0.6,
+    "legacyPct20260723": 34,
+    "strictPct20260723": 4,
+    "beats20260725": 7537,
+    "legacyRatio20260725": 1.99,
+    "strictRatio20260725": 1,
+    "legacyPct20260725": 39,
+    "strictPct20260725": 7,
+    "beats20260726": 12924,
+    "legacyRatio20260726": 1.88,
+    "strictRatio20260726": 0.56,
+    "legacyPct20260726": 45,
+    "strictPct20260726": 5,
+    "beats20260728": 8837,
+    "legacyRatio20260728": 0.96,
+    "strictRatio20260728": 0.27,
+    "legacyPct20260728": 17,
+    "strictPct20260728": 2
+  },
+  "result": {
+    "strictWindowMs": 40,
+    "blockMin": 5,
+    "surrogates": 100,
+    "nights": {
+      "2026-07-20": {
+        "night": "2026-07-20",
+        "nR": 18153,
+        "nFeet": 18052,
+        "overlapMin": 365,
+        "nAnchors": 17,
+        "hours": 6.08,
+        "legacy": {
+          "matchRate": 0.4555,
+          "residIQR": 11.3,
+          "chanceMean": 0.1883,
+          "chanceP95": 0.1985,
+          "ratio": 2.42,
+          "z": 39,
+          "pPerm": 0.0109,
+          "nSurr": 91
+        },
+        "strict": {
+          "matchRate": 0.1625,
+          "residIQR": 36.8,
+          "nBlocks": 49,
+          "chanceMean": 0.0656,
+          "chanceP95": 0.0692,
+          "ratio": 2.48,
+          "z": 34.3,
+          "pPerm": 0.0109,
+          "nSurr": 91
+        }
+      },
+      "2026-07-22": {
+        "night": "2026-07-22",
+        "nR": 13329,
+        "nFeet": 13325,
+        "overlapMin": 266.5,
+        "nAnchors": 9,
+        "hours": 4.44,
+        "legacy": {
+          "matchRate": 0.2836,
+          "residIQR": 8.3,
+          "chanceMean": 0.2018,
+          "chanceP95": 0.2178,
+          "ratio": 1.41,
+          "z": 8.7,
+          "pPerm": 0.0109,
+          "nSurr": 91
+        },
+        "strict": {
+          "matchRate": 0.0401,
+          "residIQR": 25.7,
+          "nBlocks": 35,
+          "chanceMean": 0.0662,
+          "chanceP95": 0.0719,
+          "ratio": 0.6,
+          "z": -7.6,
+          "pPerm": 1,
+          "nSurr": 91
+        }
+      },
+      "2026-07-23": {
+        "night": "2026-07-23",
+        "nR": 1799,
+        "nFeet": 1781,
+        "overlapMin": 36.5,
+        "nAnchors": 7,
+        "hours": 0.61,
+        "legacy": {
+          "matchRate": 0.3374,
+          "residIQR": 27.3,
+          "chanceMean": 0.1824,
+          "chanceP95": 0.2032,
+          "ratio": 1.85,
+          "z": 10.8,
+          "pPerm": 0.0109,
+          "nSurr": 91
+        },
+        "strict": {
+          "matchRate": 0.0389,
+          "residIQR": 35.6,
+          "nBlocks": 6,
+          "chanceMean": 0.0652,
+          "chanceP95": 0.0775,
+          "ratio": 0.6,
+          "z": -3.2,
+          "pPerm": 1,
+          "nSurr": 91
+        }
+      },
+      "2026-07-25": {
+        "night": "2026-07-25",
+        "nR": 7537,
+        "nFeet": 7528,
+        "overlapMin": 153.3,
+        "nAnchors": 7,
+        "hours": 2.55,
+        "legacy": {
+          "matchRate": 0.3861,
+          "residIQR": 8.4,
+          "chanceMean": 0.1941,
+          "chanceP95": 0.2109,
+          "ratio": 1.99,
+          "z": 20.7,
+          "pPerm": 0.0109,
+          "nSurr": 91
+        },
+        "strict": {
+          "matchRate": 0.0658,
+          "residIQR": 36.7,
+          "nBlocks": 21,
+          "chanceMean": 0.0656,
+          "chanceP95": 0.072,
+          "ratio": 1,
+          "z": 0.1,
+          "pPerm": 0.5,
+          "nSurr": 91
+        }
+      },
+      "2026-07-26": {
+        "night": "2026-07-26",
+        "nR": 12924,
+        "nFeet": 12242,
+        "overlapMin": 177,
+        "nAnchors": 29,
+        "hours": 2.95,
+        "legacy": {
+          "matchRate": 0.4502,
+          "residIQR": 18.5,
+          "chanceMean": 0.2392,
+          "chanceP95": 0.2506,
+          "ratio": 1.88,
+          "z": 29,
+          "pPerm": 0.0109,
+          "nSurr": 91
+        },
+        "strict": {
+          "matchRate": 0.0513,
+          "residIQR": 40.6,
+          "nBlocks": 31,
+          "chanceMean": 0.0913,
+          "chanceP95": 0.0975,
+          "ratio": 0.56,
+          "z": -12.5,
+          "pPerm": 1,
+          "nSurr": 91
+        }
+      },
+      "2026-07-28": {
+        "night": "2026-07-28",
+        "nR": 8837,
+        "nFeet": 8828,
+        "overlapMin": 182.5,
+        "nAnchors": 6,
+        "hours": 3.04,
+        "legacy": {
+          "matchRate": 0.171,
+          "residIQR": 12.2,
+          "chanceMean": 0.1777,
+          "chanceP95": 0.2024,
+          "ratio": 0.96,
+          "z": -0.4,
+          "pPerm": 0.6087,
+          "nSurr": 91
+        },
+        "strict": {
+          "matchRate": 0.0173,
+          "residIQR": 35.4,
+          "nBlocks": 13,
+          "chanceMean": 0.0638,
+          "chanceP95": 0.0703,
+          "ratio": 0.27,
+          "z": -12.1,
+          "pPerm": 1,
+          "nSurr": 91
+        }
+      }
+    }
+  }
+}

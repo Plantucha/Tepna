@@ -48,6 +48,10 @@ const ManifestGate = require(path.join(REPO, 'manifest-gate.js'));
 const DexBuild = require(path.join(REPO, 'tools', 'build-core.js'));
 const { tchGoldenInputs } = require(path.join(REPO, 'tests', 'tch-golden-inputs.js'));
 const { apneaNullTwins } = require(path.join(REPO, 'tests', 'apnea-null-twins.js'));
+const { respirationFusionTwins } = require(path.join(REPO, 'tests', 'respiration-fusion-twins.js'));
+const { fusionNightTwins } = require(path.join(REPO, 'tests', 'fusion-night-twins.js'));
+globalThis.tchGoldenInputs = tchGoldenInputs; // hrstat-class-twins builds ON the TCH night, so it needs the builder in scope
+const { hrStatClassTwins } = require(path.join(REPO, 'tests', 'hrstat-class-twins.js'));
 
 /* Integrator.src.html script order (headless subset — no render/app/DOM shell). */
 function realm() {
@@ -117,8 +121,11 @@ const ctx = realm();
    them as `ctx.adaptEnvelopeNode` / `ctx.fuseHRVConsensus`, not through window.IntegratorDSP), so read
    them the same way the gate's runner does — one seam, no second convention. */
 const adaptEnvelopeNode = ctx.adaptEnvelopeNode;
+const runFusion = ctx.runFusion;
+const buildFusionExport = ctx.buildFusionExport;
 const fuseHRVConsensus = ctx.fuseHRVConsensus;
 const fuseApneaEvents = ctx.fuseApneaEvents;
+const fuseRespirationRate = ctx.fuseRespirationRate;
 
 /* adapt → fuseHRVConsensus, exactly the seam the equivalence gate drives. */
 const buildTch = () => {
@@ -148,6 +155,35 @@ const buildTch = () => {
        cluster 12 s apart so they compete for one surge; elsewhere an exclusive and a non-exclusive
        scorer agree, so the central claim of §4.2b was unwitnessed.
    ONE fixture, four twins: any byte of any twin moving reds the ledger. */
+/* D3's twins (owner ruling 2026-09-17). Before these, NOTHING COMMITTED COULD EXPRESS THE RULING:
+   neither OxyDex GATE-B fixture carries `tchEpochs` or `hrStat` at all, and these Integrator goldens'
+   inputs are exports still labelled `median-rate`, so `hrStatMixed` read mixed before and after the
+   change. Both regen tools reported "0 moved" — silence by construction, exactly as the apnea twins
+   below were minted to close.
+   TWO nights because one direction can only half-fail: `comparable` catches a REVERT to name-equality
+   keying (three distinct names, legs agreeing to 0.3 sigma, flag must stay false); `incomparable`
+   catches a flag hard-wired to false, which would sail through the first twin with the guard gone. */
+const buildHrStatTwins = () => {
+  if (typeof adaptEnvelopeNode !== 'function' || typeof fuseHRVConsensus !== 'function') return null;
+  const out = {
+    schema: {
+      name: 'ganglior.integrator-hrstat-class-twins',
+      version: '1.0',
+      doc: "Committed synthetic twins for D3's comparability-keyed hrStatMixed. Inputs rebuilt in-code by tests/hrstat-class-twins.js on top of tests/tch-golden-inputs.js — the same night the equivalence gate uses, with only the per-epoch hrStat label differing between the two twins."
+    },
+    twins: {}
+  };
+  for (const k of ['comparable', 'incomparable']) {
+    const recs = hrStatClassTwins(k).map((x) => adaptEnvelopeNode(x.json, x.node, x.node)[0]);
+    const fused = fuseHRVConsensus(recs, 1000);
+    /* PER BLOCK, not top-level — `fuseHRVConsensus` publishes the flag inside `blocks[]`, and reading
+       `fused.hrStatMixed` yields undefined, which serialises to null and makes BOTH twins identical.
+       Caught by checking the minted bytes discriminated rather than trusting that they would. */
+    out.twins[k] = fused && Array.isArray(fused.blocks) ? fused.blocks.map((b) => ({ hrStats: b.hrStats || null, hrStatMixed: typeof b.hrStatMixed === 'boolean' ? b.hrStatMixed : null })) : null;
+  }
+  return out;
+};
+
 const buildApneaTwins = () => {
   if (typeof adaptEnvelopeNode !== 'function' || typeof fuseApneaEvents !== 'function') return null;
   const T = apneaNullTwins();
@@ -169,8 +205,117 @@ const buildApneaTwins = () => {
   return out;
 };
 
+const buildRespTwins = () => {
+  if (typeof adaptEnvelopeNode !== 'function' || typeof fuseRespirationRate !== 'function') return null;
+  const T = respirationFusionTwins();
+  const out = {
+    schema: {
+      name: 'ganglior.integrator-respiration-fusion-twins',
+      version: '1.0',
+      doc: 'Committed synthetic twins for fuseRespirationRate (residue 2026-09-02-respiration-fusion-no-fixture). Inputs rebuilt in-code by tests/respiration-fusion-twins.js; only the FUSED verdicts are committed.'
+    },
+    twins: {}
+  };
+  for (const k of ['agree', 'disjoint', 'sameNode', 'single']) {
+    const recs = T[k].map((x) => adaptEnvelopeNode(x.json, x.node, x.node)[0]);
+    const fused = fuseRespirationRate(recs);
+    /* Record what the function RETURNS, not what I assumed it returns. The first version of this
+       builder pinned `brpm` and `methods`; the real fields are `consensusBrpm` and `mechanisms`, so
+       the golden captured an undefined value and a null beside a perfectly good fusion — a fixture
+       that would have gone green while pinning nothing about the number it exists to protect. */
+    out.twins[k] = fused
+      ? {
+          n: fused.n,
+          consensusBrpm: fused.consensusBrpm,
+          spreadBrpm: fused.spreadBrpm,
+          agree: fused.agree,
+          overlapVerified: fused.overlapVerified,
+          mechanisms: fused.mechanisms || null,
+          mechanismsIndependent: fused.mechanismsIndependent
+        }
+      : null;
+  }
+  /* 🔴 ANTI-VACUITY, ENFORCED AT MINT TIME. The rate lives at a DIFFERENT path per node
+     (hrv.frequency.respRate vs motion.respRateBrpm); a twin that put it anywhere else yields zero
+     candidates and every downstream assertion passes on an empty fusion — which is precisely the
+     blindness this fixture exists to end. So refuse to write a golden whose positive control is null. */
+  if (!out.twins.agree) throw new Error('respiration twins: `agree` produced NO fusion — the fixture would be vacuous, refusing to write it');
+  return out;
+};
+
+/* NIGHT-LEVEL fusion — `runFusion` → `buildFusionExport`, the pair no code-gated fixture re-ran
+   (residue `2026-09-05-integrator-fusion-no-code-gated-fixture`). The sub-fuser twins above pin
+   their own fuser; this pins the assembled night.
+
+   ⚠ `generated` MUST be stripped at EVERY depth, not just the top. It appears twice — top level and
+   nested under `schema` — and stripping only the top one leaves two timestamp leaves that differ
+   between two calls in the SAME process, at identical byte LENGTH. That reads as nondeterminism and
+   would make this fixture flap in CI forever. */
+const VOLATILE_KEYS = new Set(['generated']);
+const stripVolatile = (v) => {
+  if (Array.isArray(v)) return v.map(stripVolatile);
+  if (v && typeof v === 'object') {
+    const c = {};
+    for (const k of Object.keys(v).sort()) if (!VOLATILE_KEYS.has(k)) c[k] = stripVolatile(v[k]);
+    return c;
+  }
+  return v;
+};
+
+const buildNightFusion = () => {
+  if (typeof adaptEnvelopeNode !== 'function' || typeof runFusion !== 'function' || typeof buildFusionExport !== 'function') return null;
+  const T = fusionNightTwins();
+  const out = {
+    schema: {
+      name: 'ganglior.integrator-fusion-night-twins',
+      version: '1.0',
+      doc: 'Committed synthetic multi-node nights re-run through runFusion -> buildFusionExport. Inputs rebuilt in-code by tests/fusion-night-twins.js, so inputHashes is {} and CI reproduces them with no corpus. `generated` is stripped at every depth: it appears at the top level and under schema, and both move per call.'
+    },
+    nights: {}
+  };
+  for (const k of ['apneaNight', 'uncoupledNight', 'hrvNight']) {
+    const recs = T[k].map((x) => adaptEnvelopeNode(x.json, x.node, x.node)[0]).filter(Boolean);
+    out.nights[k] = stripVolatile(buildFusionExport(recs, runFusion(recs, {})));
+  }
+  /* NON-VACUITY, in the shape the respiration builder already uses: a night that fused to nothing
+     would pin nothing while reading green. `hrvNight` is named explicitly because it is the ONLY
+     twin that populates hrvConsensus — if it ever stops, the pair silently loses that surface. */
+  const nEmpty = (v) => v == null || (Array.isArray(v) && !v.length) || (typeof v === 'object' && !Array.isArray(v) && !Object.keys(v).length);
+  for (const k of Object.keys(out.nights)) {
+    if (nEmpty(out.nights[k])) throw new Error('fusion-night twins: `' + k + '` produced NO export — refusing to write a vacuous fixture');
+  }
+  if (nEmpty(out.nights.hrvNight.hrvConsensus)) {
+    throw new Error('fusion-night twins: hrvNight no longer populates hrvConsensus — the pair would lose that surface silently');
+  }
+  if (JSON.stringify(out.nights.apneaNight) === JSON.stringify(out.nights.uncoupledNight)) {
+    throw new Error('fusion-night twins: coupled and uncoupled nights fused IDENTICALLY — the pair cannot express coupling');
+  }
+  return out;
+};
+
 const FIXTURES = [
   { name: 'integrator_tch_golden.node-export.json', real: false, build: buildTch },
+  { name: 'integrator_fusion_night_twins.node-export.json', real: false, build: buildNightFusion, newRecord: true },
+  {
+    name: 'integrator_respiration_fusion_twins.node-export.json',
+    real: false,
+    build: buildRespTwins,
+    newRecord: {
+      added: '2026-09-03',
+      inputs: [],
+      note: 'ADDED 2026-09-03 (residue 2026-09-02-respiration-fusion-no-fixture). The respiration-fusion path had NO committed fixture, so a value going missing from it was undetectable — not "nothing reflected the defect" but NOTHING COULD. That is why PpgDex\'s exported respiration reached no fusion for a month with every gate green. Four twins isolate the two guards fuseRespirationRate names: temporal overlap, and one-observer-per-node before the n>=2 floor.'
+    }
+  },
+  {
+    name: 'integrator_hrstat_class_twins.node-export.json',
+    real: false,
+    build: buildHrStatTwins,
+    newRecord: {
+      added: '2026-09-18',
+      inputs: [],
+      note: "ADDED 2026-09-18 (D3, owner ruling 2026-09-17; residue 2026-09-17-no-fixture-expresses-epoch-hrstat). OxyDex's epoch HR moved median->mean and the Integrator's mixed-statistic flag moved from NAME EQUALITY to measured COMPARABILITY — and both regen tools reported \"0 fixtures moved\", because NO committed artifact could express either half: neither OxyDex GATE-B fixture carries tchEpochs or hrStat at all, and these goldens' inputs are exports still labelled median-rate, so hrStatMixed read mixed before and after. Silence by construction, the same failure integrator_apnea_null_twins was minted to close. TWO twins because one direction can only half-fail: `comparable` (ECGDex+PpgDex rate-of-mean, OxyDex mean-rate) must read hrStatMixed FALSE and is what catches a revert to name-equality keying; `incomparable` (OxyDex median-rate) must read TRUE and is what catches a flag hard-wired false, which would pass the first twin with the guard gone. Inputs rebuilt in-code from tests/tch-golden-inputs.js — the same night the equivalence gate consumes — with ONLY the per-epoch hrStat label differing, so a byte difference between the twins can only be the label. Generated by re-running the real modules; never hand-edited."
+    }
+  },
   {
     name: 'integrator_apnea_null_twins.node-export.json',
     real: false,

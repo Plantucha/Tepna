@@ -10,7 +10,7 @@
 #   "needs MTU >= 517" note was a misread placeholder MTU, CORRECTED in oxyii.py 2026-07-18.)
 #
 #   python pull_session.py --address D1:98:62:7C:92:B3 --out /home/michal/tepna-smoketest/captures/stored
-#     [--which latest|all|<YYYYMMDDhhmmss>]  [--ftype N]  [--adapter hciX]
+#     [--which latest|all|new|<YYYYMMDDhhmmss>]  [--family oxy|ppg]  [--adapter hciX]
 
 from __future__ import annotations
 import argparse, asyncio, json, os
@@ -27,11 +27,10 @@ import oxy_inventory
 import oxy_restart
 import oxy_transfer
 import oxy_lifecycle
+import oxy_presence
+import oxy_power
 import acq_evidence
 import acq_evidence_o2ring
-
-_NAME_HINTS = ("o2ring", "s8-aw", "s8aw", "wellue", "checkme")
-
 
 async def _wait(q: asyncio.Queue, op: int, timeout: float = 20.0):
     """Await the next frame with opcode `op`, skipping interleaved live (0x04) frames.
@@ -52,14 +51,20 @@ async def _wait(q: asyncio.Queue, op: int, timeout: float = 20.0):
             return p
 
 
-async def pull(address, out_dir, which="latest", ftype=0, adapter=None, serial="0000", wait=0, on_progress=None):
-    """Returns the list of .dat paths written this call (empty if the ring never appeared / no sessions)."""
+async def pull(address, out_dir, which="latest", resume=False, adapter=None, serial="0000", wait=0, on_progress=None,
+               device_id=None):
+    """Returns the list of .dat paths written this call (empty if the ring never appeared / no sessions).
+
+    `serial` is the 4-byte AUTH payload (the portable "0000" default) and nothing else. `device_id` is the
+    caller's KNOWN identity of the ring (the daemon's `dev["device_id"]`), used to key the ledger when the
+    0xE1 identity read does not answer — see the fallback order in `_pull_once`."""
     os.makedirs(out_dir, exist_ok=True)
     loop = asyncio.get_running_loop()
     deadline = loop.time() + wait
     while True:
         try:
-            return await _pull_once(address, out_dir, which, ftype, adapter, serial, on_progress)
+            return await _pull_once(address, out_dir, which, resume, adapter, serial, on_progress,
+                                    device_id=device_id)
         except BleakDeviceNotFoundError:
             if loop.time() >= deadline:
                 print("ring never appeared — wake it (USB charger / press button / re-wear) and rerun.", flush=True)
@@ -68,18 +73,24 @@ async def pull(address, out_dir, which="latest", ftype=0, adapter=None, serial="
             await asyncio.sleep(2)
 
 
-async def _pull_once(address, out_dir, which, ftype, adapter, serial, on_progress=None, lifecycle=None):
+async def _pull_once(address, out_dir, which, resume, adapter, serial, on_progress=None, lifecycle=None,
+                     device_id=None):
+    # ⚠️ `resume` REPLACES what was called `ftype` here. That parameter's value went straight into
+    # `file_start_frame`'s trailing u32 — an OFFSET — so the name promised a file type and delivered
+    # a seek position. #2313 renamed the frame builder and removed the CLI flag but left THIS
+    # parameter, which is how a half-finished rename hides: it was always 0, so nothing broke and
+    # nothing pointed at it. The slot is now what it always was, a resume offset, decided per
+    # session by `oxy_transfer.resume_strategy`.
     # bluez={"adapter": ...}, not the deprecated bare `adapter=` kwarg (see capture.adapter_kw): when
     # bleak drops the shim the bare form is swallowed as an unknown kwarg rather than raised, so the
     # adapter pin would vanish silently and the pull would run on the wrong radio.
     kw = {"bluez": {"adapter": adapter}} if adapter else {}
     # EARLY-EXIT scan: return the instant the ring advertises. Its burst is short — a fixed-timeout
-    # discover() finds it but then the connect window has closed. Matches address OR name (MAC can rotate).
+    # discover() finds it but then the connect window has closed. ADDRESS-ONLY match (standing ruling
+    # 2026-08-27; rationale in `capture._connect_scan`'s block and `oxy_presence.is_expected_ring`) —
+    # the name OR this line carried until 2026-09-05 let any beacon in range summon a connection.
     device = await BleakScanner.find_device_by_filter(
-        lambda d, adv: (
-            d.address.upper() == address.upper()
-            or any(h in ((adv.local_name or d.name or "").lower()) for h in _NAME_HINTS)
-        ),
+        lambda d, adv: oxy_presence.is_expected_ring(d.address, address),
         timeout=25,
         **kw,
     )
@@ -96,7 +107,9 @@ async def _pull_once(address, out_dir, which, ftype, adapter, serial, on_progres
                 q.put_nowait(r)
 
     print(f"connecting to {device.address}  {device.name!r} …", flush=True)
-    async with BleakClient(device, **kw) as client:
+    # §9 — the CONNECT bound, named. bleak's own default is the same 30 s; passing it explicitly means
+    # the seven phase timeouts are seven declared numbers rather than six plus a library default.
+    async with BleakClient(device, timeout=oxy_power.TIMEOUTS.connect_s, **kw) as client:
         # Acquire the REAL ATT MTU before reporting it. On BlueZ bleak returns a placeholder 23 until a
         # characteristic is acquired, so printing mtu_size straight after connect always said "23" and
         # looked like a fatal MTU fault (2026-07-18: cost a long misdiagnosis — the real MTU is 247).
@@ -153,9 +166,16 @@ async def _pull_once(address, out_dir, which, ftype, adapter, serial, on_progres
             print(f"device: firmware={identity.get('firmware')!r} serial={identity.get('serial')!r}", flush=True)
         # The recording's stable identity is (device id, session stamp) — never a stamp alone (a stamp is
         # the ring's drifting RTC, and two rings could share one). The device id is the identity read's
-        # serial when we got one; when 0xE1 did not answer it falls back to the `serial` arg (else the
-        # address) so a ledger row can still be keyed rather than dropped.
-        device_id = (identity or {}).get("serial") or serial or address
+        # serial when we got one; when 0xE1 did not answer it falls back to the identity the CALLER
+        # already knows (the daemon's `dev["device_id"]`), else the address — so a ledger row can still
+        # be keyed rather than dropped, and keyed the SAME way the last pull keyed it.
+        # ⚠️ NEVER the auth `serial`. It is the 4-byte "0000" protocol default, not an identity, and
+        # until 2026-09-05 it was the fallback: on vigil a 0xE1 timeout (3 of 75 pulls) re-keyed the
+        # ledger as `0000/<stamp>`, `oxy_restart.plan` found no COMMITTED row under that key, and the
+        # same session was pulled AGAIN four minutes after "committed and unchanged on disk — skipping"
+        # (2026-08-29 22:24, 2026-08-30 21:23) — and its good sidecar (`device_serial: 2592302100`)
+        # was overwritten with a null one. A transient read failure must not change a stable key.
+        device_id = (identity or {}).get("serial") or device_id or address
 
         # 1) list recorded sessions
         await send(oxyii.file_list_frame())
@@ -168,7 +188,15 @@ async def _pull_once(address, out_dir, which, ftype, adapter, serial, on_progres
         saved_paths = []
         # The flash list is NOT chronologically ordered, so "latest" must pick the max stamp, not [-1].
         # Session stamps are YYYYMMDDhhmmss → lexical max == chronological latest.
-        targets = sessions if which == "all" else ([max(sessions)] if which == "latest" else [which])
+        if which == "new":
+            # LEDGER DIFF, and it is computed HERE because this is the one place that already holds
+            # both halves — the flash list from the frame just sent, and the ledger read below. A
+            # caller computing it would need its own connection to list the ring, which is the cost
+            # this scope exists to avoid.
+            targets = oxy_inventory.undrained(
+                oxy_inventory.load_rows(os.path.join(out_dir, "inventory.jsonl")), sessions)
+        else:
+            targets = sessions if which == "all" else ([max(sessions)] if which == "latest" else [which])
         safe_root = os.path.abspath(out_dir) + os.sep
 
         # ── THE TRANSACTIONAL PULL (OxyII acquisition charter G1) ─────────────────────────────────────
@@ -260,12 +288,26 @@ async def _pull_once(address, out_dir, which, ftype, adapter, serial, on_progres
                 oxy_inventory.make_row(device_id, ts, oxy_inventory.DISCOVERED, reason="listed on flash", path=path),
             )
             print(f"\n── session {ts} ──", flush=True)
-            await send(oxyii.file_start_frame(ts, ftype))
+            # ── RESUME OR RE-SERVE ────────────────────────────────────────────────────────────
+            # The decision lives in ONE place (oxy_transfer.resume_strategy, brief §5) and this is
+            # the caller that finally asks it. It was written months ago and reachable only from the
+            # pure planner; the download loop below always sent offset 0, so the whole policy was
+            # unreachable from the path that moves bytes.
+            #
+            # A first START is still sent at offset 0: the ring's reported SIZE is the input
+            # `resume_strategy` needs, and it arrives in the START reply. So the sequence is
+            # ask-at-0 → decide → re-START at the offset if resuming. That costs one extra START on
+            # a resume and keeps the decision fed by a measurement rather than by the file on disk.
+            await send(oxyii.file_start_frame(ts, 0))
             meta = await _wait(q, oxyii.OP_FILE_START)
             size = int.from_bytes(meta[:4], "little")
             print(f"  size = {size} bytes  (meta {meta[:16].hex()})", flush=True)
             if not (0 < size < 50_000_000):
-                print(f"  ⚠ implausible size — try a different --ftype (got {size}); skipping.", flush=True)
+                # NOT "try a different --ftype": that argument is this frame's OFFSET, so every
+                # value of it asked the OXIMETRY family to start mid-file. If a stored raw-PPG file
+                # is what is wanted, it lives behind a different COMMAND FAMILY (0x06-0x09).
+                print(f"  ⚠ implausible size ({size}) from the oximetry store; skipping. This is not "
+                      f"a file-type argument — see --family.", flush=True)
                 oxy_inventory.append_row(
                     ledger_path,
                     oxy_inventory.make_row(
@@ -288,8 +330,34 @@ async def _pull_once(address, out_dir, which, ftype, adapter, serial, on_progres
                 ),
             )
 
+            have = os.path.getsize(part) if os.path.exists(part) else 0
+            plan = oxy_transfer.resume_strategy(have, size, allow_resume=bool(resume))
             data = bytearray()
             off = 0
+            resumed_from = 0
+            if plan.mode == oxy_transfer.RESUME and 0 < plan.offset < size:
+                # SEEK THE RING, not just the file. A resume that repositions the local writer but
+                # keeps asking the ring from 0 would re-download everything and then splice it at
+                # the wrong place — the "right size, silently corrupt" failure §5 names.
+                await send(oxyii.file_start_frame(ts, plan.offset))
+                try:
+                    await _wait(q, oxyii.OP_FILE_START)
+                except asyncio.TimeoutError:
+                    print(f"  ⚠ resume START at {plan.offset} got no reply — re-serving from 0.", flush=True)
+                    plan = oxy_transfer.Resume(oxy_transfer.RESTART, 0, "resume START unanswered")
+                    await send(oxyii.file_start_frame(ts, 0))
+                    await _wait(q, oxyii.OP_FILE_START)
+            if plan.mode == oxy_transfer.RESUME and 0 < plan.offset < size:
+                with open(part, "rb") as fh:
+                    data += fh.read(plan.offset)
+                # ⚠️ READ EXACTLY `offset` BYTES, never the whole file. A stale `.part` LONGER than
+                # the resume point would otherwise contribute its tail, which is the splice
+                # oxy_transfer.download's `truncate` exists to prevent — the same defect one layer
+                # up, and it would not be caught by that module's control.
+                off = resumed_from = len(data)
+                print(f"  resuming at {off}/{size} B ({plan.reason})", flush=True)
+            else:
+                print(f"  full serve: {plan.reason}", flush=True)
             while off < size:
                 await send(oxyii.file_data_frame(off))
                 try:
@@ -327,6 +395,37 @@ async def _pull_once(address, out_dir, which, ftype, adapter, serial, on_progres
             complete = len(data) >= size
             with open(part, "wb") as f:
                 f.write(data)
+            # ── A RESUMED FILE MUST EARN ITS COMMIT ──────────────────────────────────────────────
+            # 🔴 A CLEAN PULL AND A RESUMED PULL ARE NOT EQUALLY TRUSTED, and treating them alike is
+            # the whole risk §5 weighs. A clean pull's failure mode is SHORT — visible in the byte
+            # count. A resumed pull's failure mode is a file of exactly the right size whose middle
+            # is wrong, which no length check can see. So a resumed file is validated before it is
+            # allowed to become a recording, and a failure DISCARDS the `.part` and re-serves from
+            # zero rather than committing bytes nobody vouched for.
+            #
+            # The predicate is the existing trailer parse — unchanged, and deliberately not a new
+            # one: inventing a second notion of "complete" here would let the two disagree.
+            if complete and resumed_from:
+                vr = oxy_transfer.verify(part, size, oxyii.parse_oxy_trailer)
+                if not vr.ok:
+                    print(f"  ⚠ resumed file failed verification ({vr.reason}) — discarding the "
+                          f".part and re-serving from 0 on the next pass.", flush=True)
+                    oxy_inventory.append_row(
+                        ledger_path,
+                        oxy_inventory.make_row(device_id, ts, oxy_inventory.FAILED,
+                                               reason=f"resume rejected: {vr.reason}",
+                                               reported_size=size, path=part),
+                    )
+                    # DISCARD, not keep. A `.part` that failed verification would otherwise be the
+                    # input to the NEXT resume, which would splice onto known-bad bytes and could
+                    # verify by luck the second time. Re-serving costs one acquisition; keeping it
+                    # risks a plausible corrupt recording, and that asymmetry is the whole of §5.
+                    try:
+                        os.remove(part)
+                    except OSError:
+                        pass   # best-effort: the next pass re-serves regardless, since the ledger
+                               # row above already says FAILED rather than PARTIAL
+                    continue
             # T3 — LAST BYTE RECEIVED (brief §11/§23). `VERIFYING` means exactly "bytes complete on disk,
             # validation in flight", so it is emitted ONLY for a complete transfer: a short pull's bytes are
             # NOT complete, and a VERIFYING row for one would assert the very completeness the classify call
@@ -449,17 +548,101 @@ async def _pull_once(address, out_dir, which, ftype, adapter, serial, on_progres
         return saved_paths
 
 
+
+async def probe_ppg_list(address, adapter=None, serial="0000"):
+    """FIRST CONTACT with the stored raw-PPG family (0x06-0x09): send LIST, record what comes back.
+
+    A PROBE, not a pull. It sends exactly ONE family frame — `ppg_file_list_frame()`, cmd 0x06 — and no
+    START/DATA/END, so nothing is read off flash and nothing on the device is altered. Never 0xE3/0xEE.
+
+    ⚠️ IT DOES NOT PARSE THE REPLY, and that is the point. `oxyii` has `parse_file_list` for the OXY
+    family and nothing for this one, because the layout has never been observed — this is the run that
+    observes it. Interpreting the bytes with the oxy parser would manufacture a "confirmed protocol" out
+    of an assumption, which is the exact collapse the dry-path guard exists to prevent. So: raw hex,
+    length, and the opcode that answered. A parser comes AFTER someone reads this output.
+
+    The auth + setup preamble mirrors the live flow, as `pull` does — the daemon sends the same two
+    frames on every connect, so they are the ordinary way to open a session, not an escalation."""
+    # `bluez={"adapter": ...}`, NOT the bare `adapter=` kwarg: bleak shims the latter today with a
+    # warning, and when the shim goes it will be SWALLOWED rather than raise — the pin would vanish
+    # silently and the probe would quietly use the wrong radio. `test_no_bare_bleak_adapter_kwarg`
+    # gates this, and caught exactly that in the first draft of this function.
+    kw = {"bluez": {"adapter": adapter}} if adapter else {}
+    device = await BleakScanner.find_device_by_address(address, timeout=10.0, **kw)
+    if device is None:
+        print(f"probe: {address} is not advertising — nothing to probe", flush=True)
+        return None
+    reasm = oxyii.Reassembler()
+    seen: list = []
+
+    def on_notify(_h, data):
+        for frame in reasm.feed(bytes(data)):
+            r = oxyii.decode(frame)
+            if r:
+                seen.append(r)
+
+    async with BleakClient(device, timeout=oxy_power.TIMEOUTS.connect_s, **kw) as client:
+        await client.start_notify(oxyii.OXYII_NOTIFY, on_notify)
+        await client.write_gatt_char(oxyii.OXYII_WRITE, oxyii.auth_frame(serial), response=False)
+        await asyncio.sleep(0.5)
+        await client.write_gatt_char(oxyii.OXYII_WRITE, oxyii.setup_frame(), response=False)
+        await asyncio.sleep(0.5)
+        frame = oxyii.ppg_file_list_frame()
+        print(f"probe: sending cmd 0x{oxyii.OP_PPG_FILE_LIST:02x} LIST  {frame.hex()}", flush=True)
+        seen.clear()
+        await client.write_gatt_char(oxyii.OXYII_WRITE, frame, response=False)
+        # Collect for a fixed window rather than awaiting ONE opcode: an unprobed family may answer with
+        # an opcode we do not predict, or not at all, and "nothing came back" is itself the finding.
+        await asyncio.sleep(8.0)
+        await client.stop_notify(oxyii.OXYII_NOTIFY)
+
+    live = sum(1 for op, _ in seen if op == oxyii.OP_LIVE)
+    other = [(op, pl) for op, pl in seen if op != oxyii.OP_LIVE]
+    print(f"probe: {len(seen)} frame(s) in 8 s — {live} live (0x04), {len(other)} other", flush=True)
+    for op, pl in other:
+        print(f"  op=0x{op:02x}  len={len(pl)}  {pl.hex()}", flush=True)
+    if not other:
+        print("  NO non-live reply — the ring ignored cmd 0x06, or answers on a channel we do not read",
+              flush=True)
+    return other
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--address", required=True)
     ap.add_argument("--out", required=True)
-    ap.add_argument("--which", default="latest", help="latest | all | <YYYYMMDDhhmmss>")
-    ap.add_argument("--ftype", type=int, default=0)
+    ap.add_argument("--which", default="latest", help="latest | all | new | <YYYYMMDDhhmmss>")
+    # `--ftype` is GONE rather than deprecated in the CLI: it never did what its name said, and a
+    # flag that silently means "byte offset" is worse than one that errors. argparse rejects it.
+    ap.add_argument("--family", choices=("oxy", "ppg"), default="oxy",
+                    help="which stored-file COMMAND FAMILY to speak: oxy (0xF1-0xF4, the default and "
+                         "the only probed one) or ppg (0x06-0x09, stored raw PPG, UNPROBED)")
+    ap.add_argument("--list", action="store_true",
+                    help="list the store and exit — the dry path, sends no START/DATA frames")
     ap.add_argument("--adapter", default=None, help="BlueZ adapter e.g. hci1 (omit = default)")
     ap.add_argument("--serial", default="0000")
     ap.add_argument("--wait", type=int, default=0, help="seconds to keep retrying if the ring is asleep")
+    # THE GUARD BELOW STAYS THE DEFAULT. This flag is the owner-authorised first contact and nothing
+    # else: it sends ONE frame (cmd 0x06 LIST) and records the raw reply. Deleting the refusal instead
+    # of gating past it would make every future `--family ppg` run a live probe by accident, which is
+    # what the refusal was written to prevent.
+    ap.add_argument("--probe-ppg-list", action="store_true",
+                    help="OWNER-AUTHORISED FIRST CONTACT: send cmd 0x06 LIST to the raw-PPG family and "
+                         "print the raw reply. Sends no START/DATA/END; writes nothing to the ring")
     a = ap.parse_args()
-    asyncio.run(pull(a.address, a.out, a.which, a.ftype, a.adapter, a.serial, a.wait))
+    if a.probe_ppg_list:
+        asyncio.run(probe_ppg_list(a.address, a.adapter, a.serial))
+        raise SystemExit(0)
+    if a.family == "ppg":
+        # DRY PATH ONLY. The frames exist and are tested; nothing has ever sent them to a ring, and
+        # the first probe is owner-authorised separately. Refusing here keeps "the code exists" and
+        # "the protocol is confirmed" from collapsing into each other.
+        print("--family ppg: the stored raw-PPG family (0x06-0x09) is built and UNPROBED. The first "
+              "ring contact is owner-authorised separately; no frame is sent.", flush=True)
+        if a.list:
+            print(f"  would send: {oxyii.ppg_file_list_frame().hex()}", flush=True)
+        raise SystemExit(0)
+    asyncio.run(pull(a.address, a.out, a.which, 0, a.adapter, a.serial, a.wait))
 
 
 if __name__ == "__main__":

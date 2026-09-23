@@ -3,9 +3,10 @@
 # SPDX-License-Identifier: Apache-2.0
 """O2Ring PPG honest-gap insertion (O2RING-PPG-GAP §1).
 
-The O2Ring streams samples with NO device clock, so the host lays them on a synthesized
+The O2Ring streams samples with NO PER-SAMPLE clock, so the host lays them on a synthesized
 ~125 Hz grid indexed by a running counter (seeded from O2PPG_FS_DEFAULT, then slewed to the
-observed rows). Before this fix that counter was purely
+observed rows). (The ring's 1 Hz `duration_s` session counter is a separate thing and cannot
+place 125 Hz samples — see the `O2PpgGrid` docstring, corrected 2026-09-06.) Before this fix that counter was purely
 contiguous: when BLE dropped a frame, the survivors were written back-to-back ACROSS the
 missing real time. The record was silently COMPRESSED — an interval spanning the loss is
 short by exactly the lost duration, so beat-to-beat variability is fabricated at every gap,

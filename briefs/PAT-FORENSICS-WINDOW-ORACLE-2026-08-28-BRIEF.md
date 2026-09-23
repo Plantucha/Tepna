@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS · **TRIAGED 2026-09-01 (Osprey): tool BUILT and selftest-clean (`tools/pat-window-oracle.mjs --selftest` = 8/8) but NEVER RUN on a corpus and its results are referenced in no brief, audit or doc. **CORRECTED 2026-09-01: NOT blocked — the raw corpus IS local.** My first stamp said this machine has zero `_ECG.txt`; that was wrong because I searched only the repo's `uploads/` tree, which holds node-export JSON. The canonical root is **`/srv/data/tepna-corpus/` (125 GB, 1131 raw `_ECG.txt`)** with per-night raw dirs under `smoketest-captures/` (box), `uploads/vigil-archive/captures/` (daily mirror) and `uploads/Ecg nightly/` (phone). Pointed at `uploads/trio` the oracle exits 0 with `TALLY: {}` — a WRONG-ROOT failure, not a negative result, which is what made the absence look real. Now running against the real root.** · **Created:** 2026-08-28 · **Parent:** `PAT-ROOT-CAUSE-FORENSICS-2026-08-27-BRIEF.md` (§11/§13 oracle) · **Interlocks:** `PAT-FORENSICS-WINDOW-REGIMES-2026-08-28-BRIEF.md` · **DRAIN 2026-09-02 (Osprey) — RE-RUN under #2082 executed; see the RE-RUN section.** Regression band held exactly (07-24 405->405, 08-17 215->215). Corpus is **48 nights, not 87** — the vigil mirror is a strict subset and one of its nights is an incomplete copy. The unscored-nights Done-when box is **CLOSED**. **Still IN-PROGRESS on one box only:** whether the 20-40 ms residual is slow physiology or an instrumental effect — a research question no run of this tool closes. **Owner: Osprey. Next step:** the phone root's flat-layout defect (50 `_ECG.txt` invisible to the oracle) is the one actionable residue. · **Residue:** 2026-09-02-oracle-flat-root-policy, 2026-09-02-pat-table-row-unreproducible · **2026-09-02 (Osprey):** the overlap split #2034 introduced is now RETURNED by `oracleNight` (`lo`/`mid`/`hi`) and consumed by both sibling tools — see PR body. It had been computed but not returned, so `pat-residual-structure.mjs` and `pat-drift-attribution.mjs` each recomputed the pre-fix ECG-extent midpoint and silently diverged from the oracle they read `mode` from. **A fix that lands in one place while its copies survive is this repo's recurring shape** — which is why the repair is the RETURN VALUE, not a third correct copy.
+**Status:** DONE — 2026-09-21 (Osprey: the oracle's charter is executed — window mis-specification shown, modes measured at corpus scale, halves diagnostic read, search bound and PHYS bar calibrated. The last box is CLOSED BY REFERENCE: it is `PAT-RESIDUAL-ATTRIBUTION`'s question, owner-parked as terminal; §-park's posture-covariate substitute is confounded and is not a cheaper route. Residue rows stay open on their own terms. Earlier header follows.) · PROPOSED (⚠️ 2026-09-14: the HALVES diagnostic this tool has always printed was never read — it disagrees on 90 % of scored nights, median 130/120 ms, and on EVERY SIGNAL RECOVERED night; 2026-08-12 crosses the PPG-FOOT-PLACEMENT rail depending on which half you read. See the 🔴 section. The recovered CONCENTRATION is untouched.) · PROPOSED (parked 2026-09-06 — core BUILT and EXECUTED at corpus scale; the one remaining item is a designed experiment, not an execution. Blocker in §-park) · ****RE-STAMPED 2026-09-05 (Papers) — PROPOSED (core BUILT AND EXECUTED, remainder owner-/cost-blocked; verified 2026-09-05: the 09-01 stamp below is superseded).** The tool has since been run twice on the real corpus and a defect it exposed is fixed in main: #2029 (±100 ms first corpus run + half-width sweep at w=50/200/300) and #2034 (`oracleNight` split scoped to the OVERLAP interval, not the ECG's own extent). Outcome: `UNDEFINED (n=0)` **6 → 0**, SIGNAL RECOVERED **2 → 4**, modes **215 · 315 · 355 · 405 ms**, and the two originally-invariant nights held exactly (405→405, 215→215) across a 6× width change. What remains is not tooling: the ±100 ms operating point is the only one whose null tracks `2w/√12` (w=300 misses by 11.2 %), and the 5 out-of-window modes (25/165/185/815/1245 ms) are recorded as a REFUSED-artifact candidate for the tool's owner-decision layer. ⚠️ ORIGINAL 09-01 STAMP, now false: TRIAGED 2026-09-01 (Osprey): tool BUILT and selftest-clean (`tools/pat-window-oracle.mjs --selftest` = 8/8) but NEVER RUN on a corpus and its results are referenced in no brief, audit or doc. **CORRECTED 2026-09-01: NOT blocked — the raw corpus IS local.** My first stamp said this machine has zero `_ECG.txt`; that was wrong because I searched only the repo's `uploads/` tree, which holds node-export JSON. The canonical root is **`/srv/data/tepna-corpus/` (125 GB, 1131 raw `_ECG.txt`)** with per-night raw dirs under `smoketest-captures/` (box), `uploads/vigil-archive/captures/` (daily mirror) and `uploads/Ecg nightly/` (phone). Pointed at `uploads/trio` the oracle exits 0 with `TALLY: {}` — a WRONG-ROOT failure, not a negative result, which is what made the absence look real. Now running against the real root.** · **Created:** 2026-08-28 · **Parent:** `PAT-ROOT-CAUSE-FORENSICS-2026-08-27-BRIEF.md` (§11/§13 oracle) · **Interlocks:** `PAT-FORENSICS-WINDOW-REGIMES-2026-08-28-BRIEF.md` · **DRAIN 2026-09-02 (Osprey) — RE-RUN under #2082 executed; see the RE-RUN section.** Regression band held exactly (07-24 405->405, 08-17 215->215). Corpus is **48 nights, not 87** — the vigil mirror is a strict subset and one of its nights is an incomplete copy. The unscored-nights Done-when box is **CLOSED**. **Still IN-PROGRESS on one box only:** whether the 20-40 ms residual is slow physiology or an instrumental effect — a research question no run of this tool closes. **Owner: Osprey. Next step:** the phone root's flat-layout defect (50 `_ECG.txt` invisible to the oracle) is the one actionable residue. · ✅ 2026-09-15: the mode SURVIVES its search bound (95/96 % identical across M=1000/2000/3000, median Δ 0) and the PHYS bar is CALIBRATED (real 70-74 % vs null 39-40 %, Δ 30-35 pts) — the median was the rail, the mode is not. · **Residue:** 2026-09-02-oracle-flat-root-policy, 2026-09-02-pat-table-row-unreproducible, 2026-09-14-oracle-mode-not-stable-across-halves · **2026-09-02 (Osprey):** the overlap split #2034 introduced is now RETURNED by `oracleNight` (`lo`/`mid`/`hi`) and consumed by both sibling tools — see PR body. It had been computed but not returned, so `pat-residual-structure.mjs` and `pat-drift-attribution.mjs` each recomputed the pre-fix ECG-extent midpoint and silently diverged from the oracle they read `mode` from. **A fix that lands in one place while its copies survive is this repo's recurring shape** — which is why the repair is the RETURN VALUE, not a third correct copy. · **SWEEP-FOLD 2026-09-03 (Osprey) — this brief's own published tables have DRIFTED, and it is the clearest case in the corpus.** The published-number sweep (`audits/PUBLISHED-NUMBER-DECAY-SWEEP-2026-09-03.md`) re-ran both tables this brief names. **§6's table: its "reproduces" verdict is WITHDRAWN as CIRCULAR** — I rewrote those values from my own re-run in `40474646` (#2111), so a later re-run tests determinism, not survival. Its real result stands and is **R10**: against the values standing *before* I touched it, **7 of 9 cells had moved**, including a sign-flipped shuffled control, with the qualitative verdict intact. **The drift table DIVERGES 5 of 8 rows**, attributable to my own #2114 picker fix — largest movement 07-18 ratio 33.74 → 7.25, on the most-fragmented night (110 ECG / 555 PPG), exactly where a size-sort and an overlap-sort disagree most. ⚠️ **"Predates a correctness fix" is NOT "was wrong"** — every verdict in that table still holds, and the distinction must survive any quotation. **Consequence for this header: do NOT stamp this brief cleared on either table.** Neither records the commit or the corpus that produced it, so neither can be aged, flagged, or re-derived without a hand re-run. Owner: Osprey; the corpus run remains the next step, and it now also owes a provenance line per table. · **DRAIN 2026-09-19 (Osprey): header STILL TRUE. Surface derived (the brief names no files in backticks, so: `tools/pat-window-oracle.mjs`, `tools/pat-residual-structure.mjs`, `tools/pat-drift-attribution.mjs`) — **0 landings since 2026-09-15**. The unread-HALVES finding is unaddressed.**
 
 # There IS signal under the window — the acceptance window is mis-specified, not merely wide
 
@@ -296,6 +296,28 @@ the vigil nights are the natural n. Residual attribution becomes its own brief r
 chased past the charter on two nights.
 
 
+## §-park · PARKED 2026-09-06 — what the last item actually requires
+
+The core is done: the tool runs corpus-wide (#2029), a defect it exposed is fixed (#2034), and the
+outcome is recorded above — `UNDEFINED` 6 → 0, SIGNAL RECOVERED 2 → 4, modes 215/315/355/405 ms,
+two nights window-invariant across a 6× sweep.
+
+**The remaining item — slow physiology (BP / vasomotor / posture / stage) versus an instrumental effect
+invisible to the host axis — is not an execution.** Both candidates predict the same thing the oracle
+measures: a mode that is stable within a night and differs between nights. **A statistic that both
+hypotheses predict cannot separate them**, so more oracle runs at more half-widths cannot answer it —
+that is the sweep already done, and it moved nothing.
+
+Separating them needs an input the oracle does not have: a covariate that moves with physiology and not
+with the instrument (stage from the CPAP/EEG side, posture from ACC, or a deliberate manipulation), or a
+night where the instrument is changed and the physiology is not. **That is a designed experiment and its
+own work-unit**, and it is the honest reason this is parked rather than run again.
+
+**Who unblocks:** whoever pairs the oracle output with a physiological covariate over the same nights —
+the ACC and CPAP legs both exist locally, so this is design work, not access.
+
+⚠️ **Parked, not blocked-on-data.** 48 box nights local, oracle working, baseline recorded.
+
 ## ⚠️ SUPERSEDED — computed under an INSTRUMENT DEFECT (kept for provenance)
 
 > 🔴 **Do not quote the table below.** It was computed with `oracleNight` splitting on the **ECG's own
@@ -520,6 +542,200 @@ recorded on 2026-09-01: the night's best pair really is disjoint, and the earlie
 FILE-span, not a train overlap.
 
 
+## 🔴 THE HALVES DIAGNOSTIC HAS NEVER BEEN READ — and it disagrees on 90 % of nights (2026-09-14, Kestrel)
+
+`pat-window-oracle.mjs` already computes `modeB`, the mode re-estimated on the night's **second** half,
+and its own comment calls it *"the out-of-sample invariance check a consumer can read off the verdict
+line."* The label carries `halves ≡` (|modeB − mode| ≤ `BIN_MS` = 10 ms) or `halves 315→195 ⚠`.
+
+**No brief has ever reported that tally.** Every published outcome here is a tally of BAND labels —
+`4 SIGNAL RECOVERED / 20 PARTIAL / …` — never of halves. The mechanism is wired, printed on every
+line, and unread. Measured now, on both capture trees:
+
+| | scored nights | `halves ≡` | ≤10 ms | 10–50 | 50–150 | >150 | median &#124;Δ&#124; | max |
+|---|---|---|---|---|---|---|---|---|
+| `uploads/vigil-archive` | 30 | **3 (10 %)** | 3 | 4 | 11 | 12 | **130 ms** | 590 |
+| `tepna-smoketest` | 35 | **5 (14 %)** | 5 | 9 | 11 | 10 | **120 ms** | 590 |
+
+Bands were stated before the runs finished: ≤10 invariant · 10–50 plausible physiological drift ·
+50–150 too large for transit · >150 not one quantity. **The median night sits in the third band on both
+trees**, and I predicted ≥ 80 % `≡` — **falsified**, which is recorded here because it was.
+
+### ⚠️ What this does NOT say — the recovered concentration is REAL
+
+The three box `SIGNAL RECOVERED` nights read `narrowSD` **16.5 / 18.0 / 17.6 ms** against `nullSD`
+**57.8 / 57.8 / 57.6**, and 57.7 is exactly `200/√12` — the null is uniform across the narrow band, as
+designed, and the real arm is three times tighter. **That concentration is not an artifact and this
+section does not touch it.** A night can hold a tight cluster near the first-half mode *and* a larger
+cluster elsewhere that wins the second half's global mode; both facts are true together.
+
+### What it does say — the quoted mode is a FIRST-HALF property, not a night property
+
+Every single `SIGNAL RECOVERED` night disagrees — **3 of 3 (box), 5 of 5 (smoke)** — by 80 to 160 ms:
+
+```
+2026-08-12   SIGNAL RECOVERED   mode 315 ms   halves 315 → 195  (Δ120)
+2026-08-17   SIGNAL RECOVERED   mode 215 ms   halves 215 → 315  (Δ100)
+2026-08-29   SIGNAL RECOVERED   mode 225 ms   halves 225 → 385  (Δ160)
+```
+
+`papers/null-calibration.html` states the reading: **"a constant that will not stay constant is a
+missing term."** The mode is quoted throughout this campaign as *the* location statistic precisely
+because it is `w`-invariant; `w`-invariance is not time-invariance, and only the first was ever checked.
+
+🔴 **And it changes a bar outcome, concretely.** `PPG-FOOT-PLACEMENT` §4a's re-stated bar is *SIGNAL
+RECOVERED with the mode inside a **200–500 ms** rail.* **2026-08-12's first half returns 315 ms (inside)
+and its second half 195 ms (OUTSIDE — below `PHYS_LO` itself).** That night passes or fails the bar
+according to which half of it you look at, and nothing in the pipeline surfaces the choice.
+
+### The confound was named in advance, and checked rather than assumed
+
+`ALLAN-DEVIATION-2026-08-12` warns that a halves comparison *"had to be redone because each half was
+quoted at its own centroid."* The concern here is that `mode` is taken from `rawLags(rA, fTimes)` and
+`modeB` from `rawLags(rB, fTimes)` — both against **all** feet, which looks asymmetric. It is not:
+`rawLags` takes the **nearest forward foot** per R, so each R is matched locally and "all feet" is
+inert. The two halves are constructed symmetrically and the comparison is sound.
+
+### The selftest cannot catch this, by construction
+
+The only assertion on `modeB` anywhere in the tree is `pat-window-oracle.mjs:379`, and it runs on a
+night synthesised as `F = R.map(r => r + 700 + rnd()*14)` — **a lag that is constant by construction.**
+`null-calibration.html`'s addendum names exactly this: *"a known-answer planted under the model's own
+assumptions is guaranteed to pass, however wrong the model is"*, prescribing *"plant your known-answer
+under a model you are not assuming."* A drifting-lag plant is owed and is logged as residue
+`2026-09-14-oracle-halves-plant-is-constant-by-construction`.
+
+Logged as `2026-09-14-oracle-mode-not-stable-across-halves`.
+
+## ✅ THE SEARCH BOUND VARIED — the mode is ROBUST and the bar is CALIBRATED (2026-09-15, Kestrel)
+
+The 🔴 section above found the *halves* diagnostic disagreeing on ~90 % of nights, and `WINDOW-REGIMES`
+§9 found the sibling statistic — the **median** — to be nothing but the interval it was computed over
+(slope 0.964/0.934 on the rail midpoint). That made one question urgent: **the mode is quoted
+campaign-wide as THE location statistic; does it depend on the interval IT is searched in?**
+
+§4a's invariance evidence sweeps `--half-width`, the band drawn **around** the mode.
+`MODE_SEARCH_MAX` is the interval the mode is **searched in**. They are independent, and only the first
+had ever been varied. `--search-max` and `--json` (#2516) make the question askable; defaults are
+unchanged and the shipped run reproduces `315 / 215 / 225` exactly.
+
+### Q1 — MODE IS ROBUST, on both trees
+
+| tree | n | identical at M = 1000/2000/3000 | median &#124;Δ&#124; | verdict |
+|---|---|---|---|---|
+| `uploads/vigil-archive` | 40 | **38 (95 %)** | 0 ms | MODE IS ROBUST |
+| `tepna-smoketest` | 46 | **44 (96 %)** | 0 ms | MODE IS ROBUST |
+
+Pre-stated: ROBUST at ≥ 90 % identical. **The mode is a real statistic. The median was not.** That
+asymmetry is not luck — a median is pulled toward the midpoint of whatever interval it is computed
+over, and a histogram mode has no such attractor.
+
+### ⚠️ The two nights that MOVE vindicate the shipped default
+
+Both are already `ARTIFACT REFUSAL` at M = 2000, and `2026-08-28` shows the mechanism:
+
+```
+2026-08-16   mode  985 / 1025 / 1025    never in PHYS at any bound
+2026-08-28   mode  545 / 1245 / 1245    IN PHYS at M=1000, OUT at 2000 and 3000
+```
+
+At M = 1000 the true modal peak at 1245 ms lies **outside the search**, so the histogram settles on a
+secondary peak at 545 ms — inside PHYS, and an artifact of truncation. **A narrower bound would
+manufacture a physiological-looking answer.** `MODE_SEARCH_MAX = 2000 // wider than the PHYS window ON
+PURPOSE` does exactly what its comment claims, and this is the measurement behind it.
+
+### Q2 — the bar is CALIBRATED, and the null is more structured than expected
+
+`papers/dead-ends.html` records this repo burned by a search whose acceptance threshold *"sits below
+the chance-maximum correlation over 24,001 candidate lags"*, prescribing **"calibrate the search before
+believing its null."** `MODE_SEARCH_MAX = 2000` at `BIN_MS = 10` picks among 200 bins and had no such
+calibration. Measured against the tool's own circular-shift null:
+
+| tree (M = 2000) | real mode in PHYS | null mode in PHYS | Δ |
+|---|---|---|---|
+| box | 70.0 % | 40.0 % | **30.0 pts** |
+| smoke | 73.9 % | 39.1 % | **34.8 pts** |
+
+Pre-stated: CALIBRATED at Δ ≥ 20 pts. It clears on both trees at every bound.
+
+⚠️ **But the null reaches PHYS 40 % of the time and that rate does not move with the bound** — 40/40/40
+against a uniform-chance baseline of 45/22/15 %. A circularly-shifted foot train is therefore **not**
+emitting random lags; it concentrates, and the concentration is bound-invariant (RR-periodicity
+aliasing — the assumption this tool's own header already flags as load-bearing for the metronome case).
+**So "the mode is in the rail" is meaningful in aggregate and weak on a single night**: roughly two in
+five shifted trains produce a physiological-looking mode. Any per-night claim resting on `modeInPhys`
+alone owes that caveat.
+
+### ⚠️ A circular first pass, kept because it nearly shipped
+
+My first Q2 filtered out refused nights and reported the real arm at **100 %**. That is circular:
+`ARTIFACT REFUSAL` is *defined* as a mode outside PHYS, so excluding refusals guaranteed the result.
+The honest figure over all nights carrying a mode is 70–76 %. The rule and the Q1 prediction were both
+written before any non-default bound ran; Q2 was pre-registered with **no** prediction, which was the
+honest state and is why nothing had to be retrofitted.
+
+Closes residue `2026-09-14-oracle-mode-search-bound-never-varied`.
+
+## ✅ THE HALVES SHIFT IS NOT THE CLOCK — right size, wrong pattern (2026-09-15, Kestrel)
+
+The 🔴 section measured the halves disagreement and deliberately did not attribute it. §7's open item
+asks the attribution question in its own words: *"slow physiology (BP/vasomotor/posture/stage) vs an
+instrumental effect invisible to the host axis."* This answers **half** of it.
+
+### The design, and the circularity it exists to avoid
+
+`INTEGRATOR-PAT-VASCULAR` is explicit: *"do NOT fit it out of PAT. That is circular: a linear PAT trend
+is exactly what a slow physiological drift also looks like... The drift must be measured INDEPENDENTLY
+of PAT. That is what `DexClock.hostAxis` exists for — **and it cannot run on this corpus**"* (that
+brief's nights are phone-captured, `independent=false`). Its prescribed next step is *"a corpus change,
+not a code change: re-run on **box captures**, where `independent = true`."*
+
+**Both datasets here are already box captures**, so the prescribed step was runnable with no new
+instrument. The predictor — `dPpm = ppmE − ppmP`, each device's own `sensor ns` against the capture
+host's stamp — never touches a foot, a lag or a mode.
+
+### Result: the clock is the right SIZE and the wrong PATTERN
+
+| tree | n | predicted from clock (median) | observed &#124;modeB−mode&#124; | ρ | p |
+|---|---|---|---|---|---|
+| box | 29 | 165.4 ms | 200.0 ms | 0.261 | 0.171 |
+| box, crystal-plausible only | 24 | 155.2 ms | 160.0 ms | 0.240 | 0.255 |
+| smoke | 33 | 162.2 ms | 130.0 ms | 0.141 | 0.437 |
+| smoke, crystal-plausible only | 29 | 151.4 ms | 120.0 ms | 0.030 | 0.880 |
+
+Pre-stated: CLOCK EXPLAINS needs |ρ| ≥ 0.5 **and** a plausible magnitude; **CLOCK DOES NOT EXPLAIN** at
+|ρ| < 0.3. **All four cells return DOES NOT EXPLAIN**, including after dropping the link-artifact
+nights (`|dPpm| ≥ 50`, which CLAUDE.md §🔒 §7 says are a stalled link rather than a crystal).
+
+⚠️ **And the magnitude gate says the opposite, which is the finding.** Predicted and observed medians
+agree within ~25 %: inter-device drift of ~13 ppm over half a 7 h night is ~165 ms, and the observed
+shift is 120–200 ms. **An analysis that stopped at magnitude would have concluded the clock explains
+it.** It does not — the nights where the clock drifts most are not the nights where the mode moves
+most. **Commensurate magnitude is not evidence of causation**, and this is the cleanest example of that
+in the campaign.
+
+⚠️ **The correlation is INDEPENDENT of the `dt` assumption; the magnitude is not.** `predictedMs =
+|dPpm| × 1e-6 × dt`, and a rank correlation is invariant under multiplication by a positive constant —
+so ρ is exactly `Spearman(|dPpm|, |modeB−mode|)` and does not depend on `dt` at all. The magnitude
+comparison **does**: `dt = 12600 s` (half a 7 h night) is a stated corpus-level figure, not per-night,
+so "within ~25 %" carries the spread of real night lengths and should be read as *commensurate*, never
+as a fit.
+
+### What this does NOT establish
+
+**It eliminates the instrumental effect that is VISIBLE to the host axis, and only that.** §7's item
+names two candidates — slow physiology, and *"an instrumental effect invisible to the host axis"*. This
+test speaks to neither: it removes a third candidate that sat between them. Physiology-versus-
+host-axis-invisible-instrument is untouched, and the sibling brief's warning is exactly why it cannot
+be settled by looking at the PAT trajectory itself.
+
+⚠️ **A falsified prediction, recorded because it was.** I pre-stated **CLOCK ELIMINATED on magnitude,
+~0.13–0.19 ms** — wrong by a factor of 1000, because I dropped the seconds→ms conversion while writing
+the rule: 13 ppm over 12600 s is 0.165 **seconds**. The data did not falsify the prediction; my own
+arithmetic did, and the pre-statement is what made that visible rather than absorbable.
+
+Done-when item 6 is therefore **narrowed, not closed**.
+
 ## 7 · Done when
 
 - [x] Out-of-sample design, circular-shift null, gate-asserted with a noise control.
@@ -527,7 +743,29 @@ FILE-span, not a train overlap.
 - [x] Mode-outside-window nights identified and counted.
 - [x] The 20–40 ms residual's SHAPE: a slow trend on 8/8 nights — not white, not respiratory, no coherent HR dependence.
 - [x] Its SOURCE, partially: the **inter-device clock is ELIMINATED** on 8/8 by sign, magnitude and non-linearity, robust to the effective-ppm assumption.
-- [ ] What remains: slow physiology (BP/vasomotor/posture/stage) vs an instrumental effect invisible to the host axis (warming, contact drift).
+- [x] What remains: slow physiology (BP/vasomotor/posture/stage) vs an instrumental effect invisible to
+      the host axis (warming, contact drift). ⛔ **CLOSED BY REFERENCE 2026-09-21 (Osprey) — this is not
+      the oracle's question, and the brief that owns it is owner-parked.** It is, word for word, the
+      question of `PAT-RESIDUAL-ATTRIBUTION-2026-08-28-BRIEF.md` §2 (the same two candidates), whose
+      sound design — two PPG sites against one ECG — needs ~29 clean two-site nights, of which the
+      corpora hold **0** (its §4b), and whose acquisition route the owner declined (its §6, TERMINAL,
+      "nobody should retry this"; kept off the 2026-09-20 list by the owner). §-park below proposed a
+      cheaper substitute — pair the mode with a POSTURE covariate from ACC — and that route is
+      **CONFOUNDED, not merely weaker**: a posture change moves the armband's skin contact as well as
+      blood pressure, so a step in the lag at a posture change is predicted by BOTH hypotheses, which is
+      the failure `PAT-RESIDUAL-ATTRIBUTION` §3 records for the amplitude covariate one row up. Stage
+      inferred from HRV is circular for the same reason. One route that uses existing data and is not on
+      that table is left here for whoever reopens the parent, NOT run: a sensor warms with a time
+      constant of minutes, so an instrumental settling predicts the trend's excursion CONCENTRATED in the
+      first ~30 min after donning with a τ that repeats night to night, while BP/vasomotor drift runs
+      over hours with night-specific shape — `pat-residual-structure.mjs` already fits the per-night
+      trend and could carry a τ-vs-time-since-donning fit. Sizing that is the parent's call. The oracle's
+      own charter — is the acceptance window mis-specified, and what mode does the data carry — is
+      fully executed above. **NARROWED 2026-09-15** — inter-device clock drift, the
+      candidate VISIBLE to the host axis, is eliminated as the driver of the halves shift: ρ 0.03–0.26
+      across four cells, all p > 0.17, on both trees. ⚠️ Eliminated on PATTERN, not on magnitude — the
+      clock predicts 151–165 ms against an observed 120–200 ms, so an analysis stopping at magnitude
+      would have concluded the opposite. The two named candidates are untouched.
 - [x] Whether the previously-unscored nights differ systematically from the scored — **ANSWERED
       2026-09-02 under #2082's pairing.** They do not form a systematic class: of 48 box nights only 5
       refuse, each for a named data reason (2 missing `_ECG.txt`, 2 below the 200-beat floor with counts,

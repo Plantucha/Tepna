@@ -38,6 +38,7 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { overlapSplit } from './pat-window-oracle.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const argv = process.argv.slice(2);
@@ -65,15 +66,18 @@ export function halvesMeanDiff(cSamples, lo, mid, hi) {
   return sb / nb - sa / na;
 }
 
-/* The oracle's overlap-split rule, re-stated (pat-window-oracle.mjs oracleNight does not export
-   its split): lo/hi from both trains' overlap, mid = median scored R. */
+/* The overlap split is IMPORTED, not re-stated. This file used to carry its own copy under the
+   comment "pat-window-oracle.mjs oracleNight does not export its split" — an accurate diagnosis of an
+   absent abstraction, and the reason residue `2026-09-02-oracle-split-duplicated` existed. The oracle
+   now exports it, so the copy is gone and the rule has one definition.
+
+   Kept as a thin wrapper rather than changing this file's callers: `overlapSplit` reports refusals as
+   `{ refusal }` (which is what makes the oracle's message self-evidencing), while this tool's two
+   call sites already branch on `null`. Mapping here preserves that contract without either tool
+   pretending the other's shape is its own. */
 export function oracleSplit(rTimes, fTimes) {
-  const lo = Math.max(rTimes[0], fTimes[0]);
-  const hi = Math.min(rTimes[rTimes.length - 1], fTimes[fTimes.length - 1]);
-  if (!(hi > lo)) return null;
-  const rIn = rTimes.filter((t) => t >= lo && t <= hi);
-  if (rIn.length < 200) return null;
-  return { lo, mid: rIn[Math.floor(rIn.length / 2)], hi };
+  const s = overlapSplit(rTimes, fTimes);
+  return s.refusal ? null : { lo: s.lo, mid: s.mid, hi: s.hi };
 }
 
 function selftest() {

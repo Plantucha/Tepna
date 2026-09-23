@@ -1,6 +1,6 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 
-**Status:** PROPOSED — re-triaged 2026-09-02 (**everything still open is owner-decision**; §1's body was STALE and is corrected in place — `clearSynthetic()`/`filterSynthetic()` ship at `integrator-longitudinal.js:296`/`:318`, verified, while the body still prescribed building them. §5.1/§5.2 remain data-gated, §5.4/§5.6 cosmetic-by-design — the last two *per Heron's read, not independently re-verified*. Prior: §1·§2·§3·§4.1·§4.2·§4.3·§6·§7 RESOLVED · §5.3 ANSWERED 2026-08-04 — everything still open is **owner-decision** (§4.4 ratification · §5.4–§5.6 cosmetic), **data-gated** (§5.1 no PSG set · §5.2 no Kubios/NeuroKit2 tooling) or **deferred** (§8); nothing is merely unstarted · ⚠️ **three earlier stamps here were WRONG, all corrected below**) · **Spawns:** `BLANK-ON-PRINT-FLEET-2026-08-03-BRIEF.md` · **Created:** (undated — pre-2026-07-03, grandfathered)
+**Status:** DONE — 2026-09-20 (the sole remaining item, §4.4 fusion-finding grade ratification, was ruled by the owner 2026-09-06 and recorded in this header; nothing executable remained. Verified on the drain of 2026-09-20 by reading the body: lines 12 and 131 name §4.4 as the only open item) · **Created:** (undated — pre-2026-07-03, grandfathered)
 
 > **2026-08-04 backlog sweep — what is left, and why none of it is "just do it":**
 > - **§4.3** — ✅ **EXECUTED**, see the §4.3 correction below. (This sweep independently reached the same

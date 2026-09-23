@@ -17,6 +17,15 @@
 <title>Tepna Vigil — Monitor</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22/%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%2358A6FF%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23g)%22/%3E%3Cpath%20d%3D%22M62%2028a26%2026%200%201%200%2012%2044%2020%2020%200%200%201-12-44z%22%20fill%3D%22%2306121A%22/%3E%3C/svg%3E">
 <style>
+/* The reconnect banner. `data-conn` was written by the boot retry and read by NOTHING — no rule, no
+   JS — so the "surface the waiting state instead of a blank grid" path left a blank grid. This is the
+   reader; the attribute is cleared on the first successful load. */
+body[data-conn="reconnecting"]::before{
+  content:"reconnecting to the box…";
+  position:fixed; inset:0 0 auto 0; z-index:9999;
+  padding:.5rem 1rem; text-align:center;
+  background:#8a6d1f; color:#fff; font:600 13px/1.4 system-ui,sans-serif;
+}
 /* ══════════════════════════════════════════════════════════════════════════
    Tepna design tokens — curated subset of ans-design.css §1 (dark) + §2 (light)
    ══════════════════════════════════════════════════════════════════════════ */
@@ -333,6 +342,52 @@ table.beat td.ev-cell{white-space:nowrap;color:var(--text3);font-size:11px;}
 .ev-experimental{background:transparent;box-shadow:0 0 0 1.5px var(--ev-ink) inset;}
 .ev-heuristic{background:transparent;border:1.5px dashed var(--ev-ink);width:12px;height:12px;}
 
+/* ── Nights (Ledger + Capture) ─────────────────────────────────────────────
+   Two views over ONE index (/api/nights): the LEDGER is the dense per-analyzer table, the CAPTURE
+   view is the same rows with device-grouped columns and a coverage bar per cell. A figure is a click
+   that opens the analyzer with that night's files already loaded — see openNight(). Figures are
+   monospace + tabular so columns of "MB / h" line up; an amber size is a stream that covered under
+   60 % of the night's longest stream (a strap that died, a late start) — shape and hue, never hue alone. */
+.nights-wrap{overflow-x:auto;margin:0 calc(-1*var(--sp-5));padding:0 var(--sp-5);}
+table.nights{width:100%;border-collapse:collapse;font-size:12.5px;font-variant-numeric:tabular-nums;}
+table.nights th,table.nights td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--border);white-space:nowrap;vertical-align:middle;}
+table.nights th{color:var(--text4);font-weight:700;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;position:sticky;top:0;background:var(--surface);z-index:1;}
+table.nights th.grp{color:var(--text3);letter-spacing:.12em;border-bottom:1px solid var(--border2);text-align:center;font-size:10px;}
+table.nights th.grp.polar{box-shadow:inset 0 -2px 0 var(--blue);}table.nights th.grp.wellue{box-shadow:inset 0 -2px 0 var(--teal);}
+table.nights th.grp.resmed{box-shadow:inset 0 -2px 0 var(--amber);}table.nights th.grp.fused{box-shadow:inset 0 -2px 0 var(--text4);}
+table.nights tr:hover td{background:rgba(61,224,208,.035);}
+body.light table.nights tr:hover td{background:rgba(61,224,208,.07);}
+table.nights td.date{font-family:ui-monospace,monospace;color:var(--text);font-weight:600;}
+table.nights td.date small{display:block;color:var(--text4);font-weight:400;font-size:10.5px;}
+.nfig{display:inline-flex;align-items:baseline;gap:5px;font-family:ui-monospace,monospace;color:var(--text);background:transparent;
+  border:1px solid transparent;border-radius:8px;padding:3px 7px;cursor:pointer;text-decoration:none;line-height:1.2;font:inherit;font-family:ui-monospace,monospace;}
+.nfig .mb{font-weight:700;}.nfig .h{color:var(--text3);font-size:11.5px;}
+.nfr{font-size:10.5px;color:var(--text3);white-space:nowrap;}.nfr.bad{color:var(--amber);}
+.nfig:hover,.nfig:focus-visible{border-color:rgba(61,224,208,.35);background:rgba(61,224,208,.06);color:var(--teal);outline:none;}
+.nfig:hover .h{color:var(--teal);}
+.nfig.partial .mb{color:var(--amber);}
+.nfig.static{cursor:default;color:var(--text2);}.nfig.static:hover{border-color:transparent;background:transparent;color:var(--text2);}
+.nfig.static:hover .h{color:var(--text3);}
+.nnone{color:var(--text4);font-family:ui-monospace,monospace;padding:3px 7px;display:inline-block;}
+.pill.click{cursor:pointer;}.pill.click:hover{filter:brightness(1.15);}
+.ncov{display:flex;flex-direction:column;gap:3px;min-width:78px;}
+.ncov .bar{height:4px;border-radius:2px;background:rgba(255,255,255,.07);overflow:hidden;}
+body.light .ncov .bar{background:rgba(0,0,0,.07);}
+.ncov .bar i{display:block;height:100%;background:var(--teal);border-radius:2px;}
+.ncov.polar .bar i{background:var(--blue);}.ncov.resmed .bar i{background:var(--amber);}.ncov .bar i.short{background:var(--amber);}
+tr.ndrawer td{background:var(--surface2)!important;padding:0!important;}
+.ndrawer-in{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px;padding:14px 12px;}
+.nan{background:var(--surface);border:var(--b);border-radius:var(--r-sm);padding:10px 12px;}
+.nan h4{margin:0 0 4px;font-size:12px;display:flex;justify-content:space-between;align-items:center;}
+.nan .files{font-family:ui-monospace,monospace;font-size:10.5px;color:var(--text3);line-height:1.5;word-break:break-all;}
+.nan .open{font:inherit;font-size:11px;font-weight:700;color:var(--teal);background:rgba(61,224,208,.12);border:1px solid rgba(61,224,208,.2);border-radius:999px;padding:2px 9px;cursor:pointer;}
+.nan.off{opacity:.55;}.nan.off .open{display:none;}
+.nlegend{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--text3);margin-top:10px;}
+.nlegend i{display:inline-block;width:10px;height:4px;border-radius:2px;margin-right:5px;vertical-align:middle;}
+.ntoast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--surface3);color:var(--text);border:1px solid rgba(61,224,208,.35);
+  border-radius:12px;padding:10px 14px;font-size:12.5px;max-width:min(680px,92vw);box-shadow:0 8px 24px rgba(0,0,0,.24);display:none;font-family:ui-monospace,monospace;line-height:1.45;word-break:break-all;z-index:50;}
+.ntoast.on{display:block;}.ntoast.err{border-color:var(--red);}
+
 /* ── View routing + responsive ─────────────────────────────────────────── */
 .view{display:none;}
 .view.active{display:block;animation:fadeIn .25s ease;}
@@ -378,6 +433,7 @@ table.beat td.ev-cell{white-space:nowrap;color:var(--text3);font-size:11px;}
     <div class="nav" id="nav">
       <div class="nav-item active" data-view="overview">◈ Overview <span class="nav-badge" id="navActiveN" style="display:none"></span></div>
       <div class="nav-item" data-view="scope">〜 Live scope</div>
+      <div class="nav-item" data-view="nights">🌙 Nights <span class="nav-badge" id="navNightsN" style="display:none"></span></div>
       <div class="nav-item" data-view="settings">⚙ Settings</div>
       <div class="nav-item" data-view="devices">📡 Devices <span class="nav-badge" id="navDevN" style="display:none"></span></div>
       <div class="nav-item" data-view="storage">🗄 Storage <span class="nav-badge" id="navStoreN" style="display:none"></span></div>
@@ -402,10 +458,30 @@ table.beat td.ev-cell{white-space:nowrap;color:var(--text3);font-size:11px;}
            adapter. It was computed nightly and published to status.json where NOTHING read it, so a
            radio in distress was invisible to every human and every machine. This is that consumer.
            It REPORTS, it does not switch: the verdict is per-device and the adapter pin is global. -->
+      <!-- AUTO-PULL. Which scheduler last dispatched a pull, and what it recovered. A file that
+           arrives by presence and one that arrives by the hourly poller are byte-identical on disk,
+           so `trigger` is the ONLY evidence the doff/presence path ever fired — and it was published
+           to STATUS and forwarded nowhere, which is the defect the comment further down this file
+           described without anyone fixing it. -->
+      <div class="sidebar-data-card" style="margin-bottom:8px" id="apCard" hidden
+           title="The last auto-pull: which trigger dispatched it, how many files it committed, and how many stranded fragments the follow-on ledger drain recovered.">
+        <div class="data-pill idle" id="apPill"><span class="data-dot"></span> <span id="apText">Auto-pull —</span></div>
+        <div class="sidebar-data-info" id="apDetail"></div>
+      </div>
       <div class="sidebar-data-card" style="margin-bottom:8px" id="rdCard" hidden
            title="Reconnects per hour against each device's own baseline for this adapter. Reporting only — nothing fails over on it.">
         <div class="data-pill idle" id="rdPill"><span class="data-dot"></span> <span id="rdText">Radio —</span></div>
         <div class="sidebar-data-info" id="rdDetail"></div>
+      </div>
+      <div class="sidebar-data-card" style="margin-bottom:8px" id="hlCard" hidden
+           title="The daemon's own event loop: every BLE notification and every host stamp runs on it, so a stall here delays EVERY live stream at once. Also which recovery/pause gates are held, and background tasks that have crashed and been restarted.">
+        <div class="data-pill idle" id="hlPill"><span class="data-dot"></span> <span id="hlText">Loop —</span></div>
+        <div class="sidebar-data-info" id="hlDetail"></div>
+      </div>
+      <div class="sidebar-data-card" style="margin-bottom:8px" id="llCard" hidden
+           title="The files this daemon currently holds open, checked every status round against the previous look: one that has vanished, lost bytes, or been replaced under its own name. It reports loss only — a file that grew is not a finding — and it watches only since this run started.">
+        <div class="data-pill idle" id="llPill"><span class="data-dot"></span> <span id="llText">Files —</span></div>
+        <div class="sidebar-data-info" id="llDetail"></div>
       </div>
       <div class="sidebar-data-card">
         <div class="data-pill idle" id="connPill"><span class="data-dot"></span> <span id="connText">No stream</span></div>
@@ -442,7 +518,12 @@ table.beat td.ev-cell{white-space:nowrap;color:var(--text3);font-size:11px;}
       <!-- Box health: disk + tonight's capture QC, from the guardrail pollers (hidden until they run). -->
       <div class="section-title" id="boxHealthTitle" style="display:none">Box health</div>
       <div class="ov-strip" id="boxHealth" style="display:none"></div>
-      <div class="section-title">Live streams</div>
+      <!-- The count is part of the TITLE because the grid deliberately shows a card per stream the box
+           is trying to capture, live or not (TelemetryBus.register: "shows it even before the first
+           frame"), so that a configured-and-failing stream is visible rather than absent. That is the
+           right behaviour and the wrong heading: "Live streams" over six IDLE cards reads as six live
+           streams. Owner-reported 2026-09-06. -->
+      <div class="section-title" id="ovGridTitle">Streams</div>
       <div class="ov-grid" id="ovGrid"></div>
       <p class="hint" style="color:var(--text4);font-size:12px;margin-top:16px;line-height:1.5">
         Each window shows a rolling ~5 s slice of the raw signal, auto-scaled to what's visible. Heart /
@@ -590,6 +671,8 @@ table.beat td.ev-cell{white-space:nowrap;color:var(--text3);font-size:11px;}
       <div class="card" id="cpapCard" style="display:none">
         <h3>CPAP <span style="font-weight:400;color:var(--text3);font-size:11px">· ResMed card harvested over Wi-Fi — files, not a stream</span></h3>
         <div class="clk-status" id="cpapStatus"><span class="spin">waiting for first run…</span></div>
+        <!-- Actor B: the stored-spool pull. Hidden until it publishes; see renderCpapSpool. -->
+        <div class="clk-status" id="cpapSpoolStatus" style="display:none"></div>
         <div style="display:flex;gap:.5rem;align-items:center;margin:12px 0 4px;flex-wrap:wrap">
           <button class="btn btn-primary" data-cpap="last">Download last night</button>
           <button class="btn btn-primary" data-cpap="week">Download last 7 nights</button>
@@ -597,24 +680,27 @@ table.beat td.ev-cell{white-space:nowrap;color:var(--text3);font-size:11px;}
           <span class="spin" id="cpapPullState"></span>
         </div>
         <p class="hint" id="cpapHint"></p>
-        <!-- HIDDEN 2026-08-30 — the whole pairing row, not just its button. The daemon answers
-             /api/cpap/pair with 501: `cpap_pair` is never passed to `webmon.make_app`, because
-             the SRP orchestration (connect -> StartKeyExchange -> prove -> ConfirmKeyExchange ->
-             write as11_creds.json) was never written. The primitives exist and the endpoint
-             exists; the middle does not, and `test_webmon_cpap_pair_contract` pins that 501 as
-             INTENDED. Offering a control that cannot work is its own small dishonesty, and the
-             owner does not need it — the AS11 is decoded and its creds are already on the box.
-             Hidden rather than deleted: restore it when the pairing op lands. -->
-        <div hidden data-unimplemented="cpap-pair">
+        <!-- ResMed BLE pairing — TWO steps, because the CPAP shows its 4-digit code only AFTER
+             StartKeyExchange lands on an open link (as11_pair.PairingSession). Start opens the link and
+             asks the machine; the code appears on its LCD; Confirm proves it (SRP-6a, M1/M2) and only a
+             verified M2 is written to as11_creds.json. Restored 2026-09-05 — hidden 2026-08-30 while the
+             orchestration did not exist. -->
         <div style="display:flex;gap:.5rem;align-items:center;margin:12px 0 2px;flex-wrap:wrap;border-top:1px solid var(--line,#2a2a2a);padding-top:12px">
           <span style="font-size:12px;color:var(--text3)">Pair over BLE:</span>
+          <button class="btn" id="cpapPairStartBtn">Start pairing</button>
           <input id="cpapPin" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="10" size="12"
-                 spellcheck="false" autocomplete="off" placeholder="PIN on CPAP screen">
-          <button class="btn" id="cpapPairBtn">Pair ResMed</button>
+                 spellcheck="false" autocomplete="off" placeholder="code on CPAP screen" disabled>
+          <button class="btn btn-primary" id="cpapPairBtn" disabled>Confirm</button>
+          <button class="btn" id="cpapPairCancelBtn" style="display:none">Cancel</button>
+          <button class="btn btn-destructive" id="cpapForgetBtn" style="display:none">Unpair</button>
           <span class="spin" id="cpapPairState"></span>
         </div>
-        <p class="hint">First put the CPAP in pairing mode (its menu → Bluetooth), then type the passkey it shows and press Pair. One-time; credentials are stored on the box for later BLE pulls.</p>
-        </div>
+        <!-- Which radio, and is a key stored: both were invisible, so "what adapter am I pairing to?"
+             could not be answered from this panel and a stale key could not be removed at all. -->
+        <p class="hint" id="cpapPairWho" style="margin-top:6px"></p>
+        <p class="hint">Put the CPAP in Bluetooth pairing mode (its menu → Bluetooth), press <b>Start pairing</b>, then type the code its screen shows and press <b>Confirm</b>. Re-pair the same way when the machine starts refusing the stored key. Credentials stay on the box; the live stream must be stopped first.</p>
+        <p class="hint"><b>Unpair</b> deletes the stored key from this box — it does not touch the CPAP, which keeps its own pairing entry until you clear it from the machine's Bluetooth menu. Use it when the machine starts refusing the key, so the next attempt starts clean instead of re-pairing over a credential that is already wrong. It refuses while the live stream is running.</p>
+        <p class="hint">⚠️ This is the ResMed <b>application</b> key (SRP-6a → <code>as11_creds.json</code>), which is <b>not</b> the same as a BlueZ bond. A device can hold one and not the other, and this panel only manages the first. Some radios cannot be paired against at all — a Zephyr/nRF52840 dongle reports an all-zero BD address and refuses a host-side public pin (<code>0x0c Not Supported</code>), so a key stored against it would never reconnect; the line above says so when the pinned adapter is one of those.</p>
         <div style="display:flex;gap:.5rem;align-items:center;margin:12px 0 2px;flex-wrap:wrap;border-top:1px solid var(--line,#2a2a2a);padding-top:12px">
           <span style="font-size:12px;color:var(--text3)">Live waveform:</span>
           <button class="btn btn-primary" id="cpapStreamBtn" data-streaming="0">▶ Start live stream</button>
@@ -693,6 +779,15 @@ table.beat td.ev-cell{white-space:nowrap;color:var(--text3);font-size:11px;}
         <div id="stDisk" class="hint">—</div>
       </div>
 
+      <div class="card" id="sealCard">
+        <div class="section-title">Night seal</div>
+        <div id="stSeal" class="hint">—</div>
+        <div class="row" style="margin-top:8px;gap:8px;display:flex;flex-wrap:wrap">
+          <button type="button" class="btn" id="sealShowCard">Show card</button>
+          <button type="button" class="btn danger" id="sealRotate">Rotate card (stolen)</button>
+        </div>
+      </div>
+
       <div class="card">
         <div class="section-title">Offload target</div>
         <p class="hint">Where finished nights go. A night is only released to the retention guard once a
@@ -751,8 +846,20 @@ table.beat td.ev-cell{white-space:nowrap;color:var(--text3);font-size:11px;}
       </div>
     </section>
 
+    <!-- NIGHTS · LEDGER — the per-analyzer table: one row per night on the box, one figure per tool. -->
+    <section class="view" id="view-nights">
+      <div class="ov-strip" id="nightsStrip"></div>
+      <div class="section-title">Nights on disk</div>
+      <div class="card">
+        <div class="nights-wrap"><table class="nights" id="nightsTable"></table></div>
+        <div class="hint">Each figure is that analyzer's input on disk for the night — size / hours spanned by its primary stream, then how many contiguous <b>fragments</b> that stream holds and the <b>coverage</b> — the share of the span it actually recorded (a link that drops and reconnects leaves the span intact and the coverage low: 2026-09-20 read 6.1 h and held 41 %). The bar is the coverage; amber = under 60 %. Click a figure to open the analyzer with those files loaded and processed; click the date for every file the night holds. ✓ = the fused tool's inputs are on disk — it opens, loads them and runs. Integrator figures are the raw input a fold would take — folds run on rig, not in the browser; HRVDex figures are the raw Polar input that reaches it through an ECGDex export. "…" = still counting fragments for that stream (the page keeps asking).</div>
+        <div class="nlegend"><span><i style="background:var(--blue)"></i>Polar</span><span><i style="background:var(--teal)"></i>Wellue</span><span><i style="background:var(--amber)"></i>ResMed</span><span><i style="background:var(--amber)"></i>&lt; 60 % coverage</span></div>
+      </div>
+    </section>
+
   </div>
 </div>
+<div class="ntoast" id="nightsToast" role="status" aria-live="polite"></div>
 
 <script>
 const $ = s => document.querySelector(s);
@@ -799,7 +906,18 @@ function clockStatus(dev){
   // clock that was fine. Out of tolerance IS worth a warning — and then we say so with the number.
   const sk = dev.clock_skew_sec;
   const measured = (sk != null && isFinite(sk));
-  if(measured && Math.abs(sk) > 2) return {cls:'warn', txt:'clock drifting'};
+  // 🔴 THE WARNING USES THE ENVELOPE; THE ALL-CLEAR MAY USE THE LIVE READING. The asymmetry is not a
+  // hedge — the two directions carry different evidence. `clock_skew_sec` is one frame's
+  // `device_stamp - host_now`, so it includes that frame's delivery latency, and latency is one-sided:
+  // it can only make the clock look WORSE. So a SMALL |sk| is conclusive (a late frame could not have
+  // produced it) while a LARGE |sk| is ambiguous between a drifting clock and a stalled link.
+  // Warning on the live value put "clock drifting" on the card every time the radio hiccuped — the same
+  // defect the daemon had, where it re-synced 341 times in 14 days on clocks that were fine.
+  // `clock_skew_floor_sec` is the maximum over a window, i.e. the least-delayed frame in it, and is the
+  // number `clock_watchdog` itself decides on. Absent (null until the window fills) ⇒ we have not
+  // measured drift, so we do not claim it.
+  const fl = dev.clock_skew_floor_sec;
+  if(fl != null && isFinite(fl) && Math.abs(fl) > 2) return {cls:'warn', txt:'clock drifting'};
   // ⚠️ ONLY WHEN NOTHING MEASURED CONTRADICTS IT. A clock we could not WRITE may still be RIGHT, and
   // the block above already settles that a measured agreement outranks "we set it hours ago". Letting
   // the give-up verdict override a sub-second measurement would repeat the exact mistake that comment
@@ -841,14 +959,57 @@ function witnessChip(d){
   return '<span class="dbadge '+(done?'on':'warn')+'" title="§19 execution witness">'
        + esc(d.presence_witness)+'</span>';
 }
+// OXYII-ACQUISITION-CHARTER G4 — the ring's two lifecycle axes, drawn for the same reason the presence
+// chips are: the daemon journalled both to OXYLIFE.csv and STATUS from 2026-08-24 and nothing rendered
+// them, so an operator could not tell a ring holding its link unworn ("idle_unworn") from one streaming
+// a wearer ("live"), nor a session the ring had just closed ("end_candidate") from one still open.
+// One chip per axis; a device without the axis (H10, Verity, AirSense) draws nothing.
+function oxyLifeChip(d){
+  const st = d && d.oxy_lifecycle;
+  if(!st) return '';
+  const s = String(st);
+  const cls = s==='live' ? 'on' : (/^(idle_unworn|interrupted|error|disconnected)$/.test(s) ? 'warn' : '');
+  return '<span class="dbadge '+cls+'" title="ring link state (OXYLIFE.csv link axis)">'+esc(s)+'</span>';
+}
+function oxyRecChip(d){
+  const st = d && d.oxy_recording;
+  if(!st) return '';
+  const s = String(st);
+  const cls = s==='recording' ? 'on' : (s==='end_candidate' ? 'warn' : '');
+  return '<span class="dbadge '+cls+'" title="ring onboard session state, from duration_s (OXYLIFE.csv rec axis)">'
+       + esc(s.replace(/^rec_/,''))+'</span>';
+}
+function oxyStormChip(d){
+  const st = d && d.oxy_storm;
+  if(!st) return '';
+  // HELD is the state an operator must see at a glance: the daemon is deliberately NOT talking to the
+  // ring, which otherwise looks identical to a link that has failed. Past trips stay drawn after the
+  // hold clears, because a hold that fires at 02:00 and ends at 02:15 is invisible by morning
+  // otherwise — and morning is when anyone reads this.
+  if(st.hold_remaining_s > 0){
+    const m = Math.round(st.hold_remaining_s/60);
+    return '<span class="dbadge warn" title="restart storm: the ring is being left alone deliberately'
+         + ' — not a failed link. Resumes at '+esc(st.hold_until||'?')+'">storm hold '+m+'m</span>';
+  }
+  if(st.trips && st.trips.length){
+    return '<span class="dbadge warn" title="restart storm(s) tripped tonight; hold has since cleared.'
+         + ' Last: '+esc(st.last_trip||'?')+'">storm ×'+st.trips.length+'</span>';
+  }
+  return '';
+}
 function clkChip(dev){
   const st = clockStatus(dev);
   if(!st) return '';
   const s = dev.clock_skew_sec;
+  const f = dev.clock_skew_floor_sec;
   const t = `device clock ${dev.device_time}`
           + (dev.clock_uncorrectable ? ' · AUTO-SYNC GAVE UP — the daemon could not write this clock' : '')
           + (dev.clock_synced ? ` · set from host at ${String(dev.clock_synced).slice(11,19)}` : ' · not set by us this session')
-          + (s!=null ? ` · sample-stamp offset ${s>=0?'+':''}${Math.abs(s)>=3600?(s/3600).toFixed(1)+'h':Math.round(s)+'s'} vs host` : '');
+          + (s!=null ? ` · sample-stamp offset ${s>=0?'+':''}${Math.abs(s)>=3600?(s/3600).toFixed(1)+'h':Math.round(s)+'s'} vs host` : '')
+          // The number the watchdog acts on, beside the live one. When they disagree the difference IS
+          // the delivery latency, which is the thing worth seeing — a re-sync explained by an envelope
+          // the operator cannot see reads as the daemon acting at random.
+          + (f!=null ? ` · windowed floor ${f>=0?'+':''}${Math.abs(f)>=3600?(f/3600).toFixed(1)+'h':Math.round(f)+'s'} over ${dev.clock_skew_n||0} frames` : ' · window not yet measured');
   return `<span class="clk ${st.cls}" title="${esc(t)}">🕐 ${st.txt}</span>`;
 }
 // Charging pill. A Polar on its dock REFUSES every PMD START with status 0x0D `in_charger` — that is
@@ -896,8 +1057,28 @@ function streamState(s, dev){
 // only place the operator can see it. Absent (not zero) means the daemon has not reported yet.
 function writeFailChip(dev){
   const n = dev ? dev.flush_failures : null;
-  if(!n) return '';
-  return `<span class="clk bad" title="${n} flush(es) to disk have FAILED for this device. Samples are arriving and may not be reaching the file — check the daemon log for the symbolic errno: ENOSPC means free space, EIO means the drive is failing and the data should be copied off now, EROFS means the filesystem went read-only.">⚠ write failing</span>`;
+  // `rows_lost` is the count that matters to the recording: rows the write REFUSED. `flush_failures`
+  // says the disk is unhappy; `rows_lost` says how much of the night is already gone. Either alone
+  // lights the chip; the lost count, when present, is named so the loss is never a silent number.
+  const lost = dev ? dev.rows_lost : null;
+  // A SLOW fsync is the third face of the same disk: nothing failed, but every live stream's host
+  // stamps waited behind it on the event loop. 250 ms is the daemon's own log threshold.
+  const fs = dev ? dev.fsync_max_ms : null;
+  if(!n && !lost && !(fs >= 250)) return '';
+  if(!n && !lost) return `<span class="clk idle" title="Slowest fsync for this stream so far: ${Math.round(fs)} ms, paid on the daemon's event loop — every live stream's host stamps waited that long behind it. Not a loss; a card getting slow is how ENOSPC and EIO announce themselves early.">⏳ fsync ${Math.round(fs)} ms</span>`;
+  const what = lost ? `${lost} row(s) LOST — refused by the write and not in the file` : `${n} flush(es) to disk have FAILED`;
+  return `<span class="clk bad" title="${what} for this device. Samples are arriving and may not be reaching the file — check the daemon log for the symbolic errno: ENOSPC means free space, EIO means the drive is failing and the data should be copied off now, EROFS means the filesystem went read-only.${fs ? ' Slowest fsync so far ' + Math.round(fs) + ' ms.' : ''}">⚠ ${lost ? lost + ' rows lost' : 'write failing'}</span>`;
+}
+
+// A runner WAITING between attempts used to look exactly like a dead one: the link is down and nothing
+// says a retry is scheduled. The daemon now publishes the wait itself — attempt number, cause and when
+// the next try fires — so the operator can tell "reconnecting in 3 min" from "given up".
+function retryChip(dev){
+  const r = dev ? dev.retry : null;
+  if(!r || !r.wait_s) return '';
+  const left = r.next_at_ms ? Math.max(0, Math.round((r.next_at_ms - Date.now()) / 1000)) : Math.round(r.wait_s);
+  const why = r.why === 'backoff' ? 'reconnect backoff' : String(r.why || 'wait');
+  return `<span class="clk idle" title="Attempt ${esc(r.attempt ?? '?')} — ${esc(why)}, ${Math.round(r.wait_s)} s wait. The link is down on purpose until then; a retry that fires early only lengthens the next wait.">↻ ${esc(why)} #${esc(r.attempt ?? '?')} · ${left}s</span>`;
 }
 
 function chargeChip(dev){
@@ -981,6 +1162,16 @@ function _devTag(d){
   return t.includes('h10') ? 'h10' : (t.includes('verity')||t.includes('sense')) ? 'vs' : 'o2';
 }
 function deviceForStream(key){
+  // OWNERSHIP FIRST. Since 2026-09-21 the daemon publishes `streams[].device` — the configured device
+  // name recorded where the stream is REGISTERED — so the join is by a field, not by parsing the key's
+  // spelling. Everything below this block is the older-daemon fallback: suffix/prefix rules that
+  // reverse-engineer the owner from the key, which is exactly the two-namespace join residue
+  // 2026-09-05-capture-status-joins-two-key-namespaces found matching 2 of 10 streams by accident.
+  const row = STREAMS.find(s=>s.key===key);
+  if(row && row.device != null){
+    const d = DEVICES.find(x=>x.name===row.device);
+    if(d) return d;
+  }
   const m = key.match(/_(vs|h10|o2)$/);
   if(m){ const d = DEVICES.find(x=>_devTag(x)===m[1]); if(d) return d; }
   const base = key.replace(/_(vs|h10|o2)$/,'');
@@ -1014,9 +1205,10 @@ function showView(v){
   VIEW = v;
   document.querySelectorAll('.view').forEach(el=>el.classList.toggle('active', el.id==='view-'+v));
   document.querySelectorAll('#nav .nav-item').forEach(el=>el.classList.toggle('active', el.dataset.view===v));
-  $('#viewTag').textContent = {overview:'Overview', scope:'Live scope', devices:'Devices', settings:'Settings', storage:'Storage'}[v] || v;
+  $('#viewTag').textContent = {overview:'Overview', scope:'Live scope', devices:'Devices', settings:'Settings', storage:'Storage', nights:'Nights'}[v] || v;
   if(v==='overview'){ ovStart(); scopeStop(); clkStop(); }
   else if(v==='scope'){ ovStop(); scopeResume(); clkStop(); }
+  else if(v==='nights'){ ovStop(); scopeStop(); clkStop(); loadNights(); }
   else if(v==='settings'){ ovStop(); scopeStop(); clkStop(); loadSettings(); loadAlerts(); }
   else if(v==='storage'){ ovStop(); scopeStop(); clkStop(); loadStorage(); }
   else {
@@ -1056,6 +1248,164 @@ function stSyncFields(){
   if(e && e.default_port && !$v('stPort')) $('#stPort').value = e.default_port;
 }
 
+// ══ Nights — Ledger + Capture ══
+// ONE index, two renderings. /api/nights is read on entering either view and cached for the session
+// (it stats every night; a night that finished since is one reload away). Every figure is a click that
+// opens the analyzer with the night's files loaded — see openNight below for how, and for why it
+// needs the monitor to be served from the same origin as the apps (vigil.local through Caddy).
+const NIGHT_COLS = ["ECGDex","OxyDex","PPGDex","PulseDex","CPAPDex","MotionDex","GlucoDex","HRVDex","EEGDex","Integrator"];
+const NIGHT_DERIVED = ["3 corner hat","PAT"];
+const NIGHT_CAPTURE_ORDER = ["ECGDex","HRVDex","PulseDex","PPGDex","MotionDex","OxyDex","CPAPDex","GlucoDex","EEGDex","Integrator"];
+const NIGHT_APP = {ECGDex:"ECGDex.html", OxyDex:"OxyDex.html", PPGDex:"PpgDex.html", PulseDex:"PulseDex.html", CPAPDex:"CPAPDex.html",
+  MotionDex:"MotionDex.html", GlucoDex:"GlucoDex.html", HRVDex:"HRVDex.html", EEGDex:"EEGDex.html", Integrator:"Integrator.html",
+  "3 corner hat":"sensor-trio-night.html", PAT:"PAT Feasibility.html"};
+// Which file input in each app takes which files. ECGDex splits its inputs by stream; every other app
+// takes everything through one `multiple` input.
+// Every loadable node names the input its night goes to. A node without a route REFUSES rather than
+// guessing: the first `input[type=file]` in a document is not the recording input — OxyDex's is its
+// ECG-export sidecar loader (#ecgJsonInput), and the first deployed click sent four SpO₂ CSVs there,
+// where they were silently dropped (measured 2026-09-20). test_webmon_nights checks each selector
+// against the app's own source, so an app renaming its input reds the gate instead of the click.
+const NIGHT_INPUT = {ECGDex:[["_ECG.txt","#ecgInput"],["_ACC.txt","#accInput"],["_RR.txt","#rrInput"],["_HR.txt","#hrInput"]],
+  OxyDex:"#fileInput", PPGDex:"#fileInput", PulseDex:"#rawInput", CPAPDex:"#fileInput", MotionDex:"#mxInput",
+  "3 corner hat":"#fileInput", PAT:"#fileInput"};
+// The two batch tools index the files and then WAIT for their Process button — the six analyzers process
+// on load. The owner's ask is "load and process without other clicking", so openNight presses that button
+// once the tool enables it (both enable it synchronously inside their change handler when a night is
+// eligible; measured 2026-09-21 on the box: "1 nights indexed from 10 files", button enabled, idle). If it
+// never enables, the tool found no eligible night and the toast says so instead of claiming processing.
+const NIGHT_RUN = {"3 corner hat":"#procBtn", PAT:"#run"};
+// Figure-only columns: the raw input on disk that reaches the app through another node, never a click.
+const NIGHT_WHY_NOT = {Integrator:"raw input of a fold — folds run on rig (tools/trio-batch.mjs), not in the browser",
+  HRVDex:"HRVDex reads Welltory CSV or an ECGDex export — this raw Polar input reaches it through ECGDex"};
+const NIGHT_GROUP = {ECGDex:"polar",HRVDex:"polar",PulseDex:"polar",PPGDex:"polar",MotionDex:"polar",OxyDex:"wellue",CPAPDex:"resmed",GlucoDex:"fused",EEGDex:"fused",Integrator:"fused"};
+let NIGHTS = null, NIGHTS_PENDING = 0;
+const nMB = b => b>=1e9 ? (b/1e9).toFixed(2)+' GB' : b>=1e6 ? Math.round(b/1e6)+' MB' : (b/1e3).toFixed(0)+' kB';
+const nHrs = h => h==null ? '?' : (h<1 ? Math.round(h*60)+' min' : h.toFixed(1)+' h');
+const nBase = f => f.split('/').pop();
+function nSpan(n){ return Math.max(0.1, ...NIGHT_COLS.map(c=>n[c]&&n[c].hours||0)); }
+function nToast(msg, err){ const t=$('#nightsToast'); t.textContent=msg; t.classList.toggle('err', !!err); t.classList.add('on');
+  clearTimeout(nToast._t); nToast._t=setTimeout(()=>t.classList.remove('on'), err?9000:5000); }
+function nFig(n, c){
+  const v=n[c]; if(v===undefined||v===null) return '<span class="nnone">—</span>';
+  // coverage = the share of the span the primary stream actually recorded (server: nights_index.stream_stats);
+  // it is the bar and the amber, because the span cannot see a torn night. Falls back to span-vs-longest
+  // only for streams that have no row stamps (EDF).
+  const s=nSpan(n);
+  const cov = v.coverage!=null ? v.coverage : (v.hours!=null && s>=1 ? Math.min(1, v.hours/s) : null);
+  const part = cov!=null && cov < 0.6;
+  const cls = 'nfig'+(part?' partial':'')+(v.loadable?'':' static');
+  const attrs = v.loadable ? ` data-night="${n.night}" data-node="${c}" title="open ${c} with this night loaded"` : ` title="${NIGHT_WHY_NOT[c]||'shown, not offered'}"`;
+  const frag = v.pending ? '<span class="nfr">…</span>'
+             : v.fragments!=null ? `<span class="nfr${part?' bad':''}">${v.fragments} fragment${v.fragments===1?'':'s'} · ${Math.round(100*v.coverage)} %</span>`
+             : '';
+  const pct = cov==null ? 0 : Math.round(100*cov);
+  return `<button type="button" class="${cls}"${attrs}><span class="ncov ${NIGHT_GROUP[c]}"><span><span class="mb">${nMB(v.bytes)}</span> <span class="h">/ ${nHrs(v.hours)}</span></span>${frag}<span class="bar"><i class="${part?'short':''}" style="width:${pct}%"></i></span></span></button>`;
+}
+// ✓ = every input the tool needs is on disk tonight, AND a click: since 2026-09-20 both tools' classifiers read the
+// capture-host names as well as the phone-app ones (RESIDUE 2026-09-20-tool-classifiers-phone-names, closed), so the
+// night the Ledger opens is the night the tool indexes. Gated by capture-host test_the_tool_classifiers_accept_box_filenames.
+function nDerived(n, k){ return n[k] ? `<span class="pill pill-green click" data-night="${n.night}" data-node="${k}" title="open ${k} with this night's inputs loaded">✓ open</span>` : '<span class="pill pill-gray" title="an input this tool needs is missing tonight">✗</span>'; }
+function nStrip(rows){
+  const tot=rows.reduce((a,n)=>a+NIGHT_COLS.reduce((b,c)=>b+(n[c]?n[c].bytes:0),0),0);
+  const trio=rows.filter(n=>n['3 corner hat']).length;
+  return `<div class="ov-stat"><div class="lab">Nights</div><div class="val">${rows.length}</div><div class="sub">${rows[rows.length-1].night} → ${rows[0].night}</div></div>`+
+         `<div class="ov-stat"><div class="lab">On disk</div><div class="val">${nMB(tot)}</div><div class="sub">all analyzer inputs</div></div>`+
+         `<div class="ov-stat"><div class="lab">Trio nights</div><div class="val">${trio}</div><div class="sub">ECG + PPG + ring — 3-corner-hat eligible</div></div>`;
+}
+function renderNights(){
+  if(!NIGHTS || !NIGHTS.length){ $('#nightsTable').innerHTML='<tbody><tr><td class="nnone">no nights on disk</td></tr></tbody>'; return; }
+  const rows=[...NIGHTS].reverse();
+  $('#navNightsN').style.display=''; $('#navNightsN').textContent=rows.length;
+  $('#nightsStrip').innerHTML = nStrip(rows);
+  const open = new Set([...document.querySelectorAll('.ndrawer:not([hidden])')].map(e=>e.id));   // keep drawers open across refreshes
+  let h='<thead><tr><th></th><th class="grp polar" colspan="5">Polar H10 · Verity</th><th class="grp wellue">Wellue O2Ring</th><th class="grp resmed">ResMed AS11</th><th class="grp fused" colspan="3">fused · absent</th><th class="grp fused" colspan="2">derived</th></tr>';
+  h+='<tr><th>Night</th>'+NIGHT_CAPTURE_ORDER.map(c=>`<th>${c}</th>`).join('')+NIGHT_DERIVED.map(d=>`<th>${d}</th>`).join('')+'</tr></thead><tbody>';
+  for(const n of rows){
+    const wd=new Date(n.night+'T00:00:00Z').toLocaleDateString('en-GB',{weekday:'short',timeZone:'UTC'});
+    h+=`<tr><td class="date"><button type="button" class="nfig" data-drawer="${n.night}" title="every file this night holds">${n.night}</button><small>${wd} · longest ${nHrs(nSpan(n))}</small></td>`+NIGHT_CAPTURE_ORDER.map(c=>`<td>${nFig(n,c)}</td>`).join('')+NIGHT_DERIVED.map(k=>`<td>${nDerived(n,k)}</td>`).join('')+'</tr>';
+    h+=`<tr class="ndrawer" id="ndr-${n.night}"${open.has('ndr-'+n.night)?'':' hidden'}><td colspan="${NIGHT_CAPTURE_ORDER.length+3}"><div class="ndrawer-in">`+[...NIGHT_CAPTURE_ORDER,...NIGHT_DERIVED].map(c=>{
+      const v=n[c]; const isTool=NIGHT_DERIVED.includes(c); const ok = isTool ? v===true : !!(v && v.loadable);
+      const files = v&&v.files ? v.files.map(nBase).join('<br>') : (isTool ? (v?'every input it needs is on disk':'an input is missing this night') : 'nothing captured');
+      const openBtn = ok ? `<button type="button" class="open" data-night="${n.night}" data-node="${c}">Open ▸</button>` : '';
+      return `<div class="nan${ok?'':' off'}"><h4>${c}${openBtn}</h4><div class="files">${files}</div></div>`; }).join('')+'</div></td></tr>';
+  }
+  h+='</tbody>'; $('#nightsTable').innerHTML=h;
+}
+let nightsPoll=null;
+async function loadNights(){
+  if(!NIGHTS){
+    try{ const r=await fetch('/api/nights?n=120'); const j=await r.json(); if(j.error) throw new Error(j.error); NIGHTS=j.nights; NIGHTS_PENDING=j.pending|0; }
+    catch(e){ nToast('nights index failed: '+e.message, true); NIGHTS=[]; NIGHTS_PENDING=0; }
+  }
+  renderNights();
+  // fragments/coverage are counted server-side within a time budget per request and cached per file;
+  // while any stream is still pending, ask again (the cache fills, the "…" cells resolve, nothing re-counts)
+  clearTimeout(nightsPoll);
+  if(NIGHTS_PENDING>0 && VIEW==='nights'){ nightsPoll=setTimeout(()=>{ NIGHTS=null; loadNights(); }, 4000); }
+}
+// THE LOAD. The apps and the monitor share one origin behind Caddy (vigil.local: apps at /, nights at
+// /captures/<night>/…, this page at /monitor), so this page can open the app, fetch the night's files
+// itself, and hand them to the app's own file input exactly as a drop would — the app's `change`
+// listener then runs its ingest and analysis with no further click. Nothing in any app bundle
+// changes for this. Served from anywhere else (127.0.0.1:8760 directly), the app window is a
+// different origin, the DOM is closed to us, and the click degrades to "opened, drop the files yourself".
+function nightFilesFor(n, node){
+  // the hat's three corners: H10 HR (in ECGDex's files), Verity PPG/PPI (PPGDex's), and the O2Ring's pulse from its
+  // _SPO2.csv — which is OxyDex's file, not PPGDex's; without it the tool indexes every night as ineligible
+  if(node==='3 corner hat') return [...(n.ECGDex?n.ECGDex.files:[]), ...(n.PPGDex?n.PPGDex.files:[]), ...(n.OxyDex?n.OxyDex.files:[])];
+  // PAT's roles are ecg · ppg · ecgacc · ppgacc: both devices' ACC are its cross-device drift anchor and the input
+  // of its ACC-corrected verdict, which the click withheld until 2026-09-21 (the ACCs sit under MotionDex, not PPGDex)
+  if(node==='PAT') return [...(n.ECGDex?n.ECGDex.files.filter(f=>f.endsWith('_ECG.txt')):[]), ...(n.PPGDex?n.PPGDex.files.filter(f=>/VeritySense.*_PPG\.txt$/.test(f)):[]),
+    ...(n.MotionDex?n.MotionDex.files.filter(f=>/Polar_(H10|VeritySense).*_ACC\.txt$/.test(f)):[])];
+  return n[node] ? n[node].files : [];
+}
+async function openNight(night, node){
+  const n = NIGHTS.find(x=>x.night===night); if(!n) return;
+  const rels = nightFilesFor(n, node); if(!rels.length){ nToast('nothing to load for '+node+' on '+night, true); return; }
+  const w = window.open('/'+NIGHT_APP[node], '_blank');
+  if(!w){ nToast('the browser blocked the analyzer window — allow pop-ups for this site', true); return; }
+  nToast('opening '+node+' — fetching '+rels.length+' file'+(rels.length>1?'s':'')+' from '+night+' …');
+  let files;
+  try{
+    files = await Promise.all(rels.map(async rel=>{ const r=await fetch('/captures/'+rel.split('/').map(encodeURIComponent).join('/')); if(!r.ok) throw new Error(r.status+' '+rel);
+      const b=await r.blob(); return new File([b], nBase(rel), {type: rel.endsWith('.edf')?'application/octet-stream':'text/plain', lastModified: Date.now()}); }));
+  }catch(e){ nToast('could not fetch the night\'s files: '+e.message, true); return; }
+  const total = files.reduce((a,f)=>a+f.size,0);
+  // wait for the app to finish loading — its listeners attach on DOMContentLoaded
+  await new Promise(res=>{ let tries=0; const t=setInterval(()=>{ let ready=false; try{ ready = w.document && w.document.readyState==='complete' && !!w.document.querySelector('input[type=file]'); }catch(_){ ready='foreign'; } if(ready||++tries>200){ clearInterval(t); res(); } }, 100); });
+  let doc; try{ doc = w.document; if(!doc.querySelector('input[type=file]')) doc=null; }catch(_){ doc=null; }
+  if(!doc){ nToast(node+' opened, but this page cannot reach it (different origin) — open the monitor at http://vigil.local/monitor, or drop the files yourself', true); return; }
+  const route = NIGHT_INPUT[node];
+  if(!route){ nToast(node+' opened, but the monitor has no input route for it — drop the files yourself', true); return; }
+  const groups = new Map();   // input element -> File[]
+  for(const f of files){
+    let sel = route;
+    if(Array.isArray(route)){ const hit=route.find(([suffix])=>f.name.endsWith(suffix)); sel = hit ? hit[1] : route[0][1]; }
+    const el = doc.querySelector(sel);
+    if(!el){ nToast(node+' opened, but its '+sel+' input is missing — the app changed; drop the files yourself', true); return; }
+    if(!groups.has(el)) groups.set(el, []); groups.get(el).push(f);
+  }
+  for(const [el, list] of groups){
+    const dt = new w.DataTransfer(); list.forEach(f=>dt.items.add(f));
+    el.files = dt.files; el.dispatchEvent(new w.Event('change', {bubbles:true}));
+  }
+  const loaded = node+': '+files.length+' file'+(files.length>1?'s':'')+' ('+nMB(total)+') loaded from '+night;
+  const runSel = NIGHT_RUN[node];
+  if(!runSel){ nToast(loaded+' — processing in the new tab'); return; }
+  // a batch tool: press Process for the user once the tool has indexed the night and enabled it
+  const btn = await new Promise(res=>{ let tries=0; const t=setInterval(()=>{ let b=null; try{ b=doc.querySelector(runSel); }catch(_){}
+    if((b && !b.disabled) || ++tries>100){ clearInterval(t); res(b && !b.disabled ? b : null); } }, 100); });
+  if(!btn){ nToast(loaded+', but the tool found no eligible night in them — it is open, check its night table', true); return; }
+  btn.click();
+  nToast(loaded+' — Process pressed, running in the new tab');
+}
+function nightsClick(e){
+  const dr=e.target.closest('[data-drawer]'); if(dr){ const r=document.getElementById('ndr-'+dr.dataset.drawer); if(r) r.hidden=!r.hidden; return; }
+  const f=e.target.closest('[data-node]'); if(f){ openNight(f.dataset.night, f.dataset.node); }
+}
+$('#nightsTable').addEventListener('click', nightsClick);
+
 async function loadStorage(){
   STORAGE = await api('/api/storage');
   const sel = $('#stProto');
@@ -1094,7 +1444,96 @@ function renderRingRtc(status) {
     + ' — the stored .dat timebase is suspect from here until the next verified clock push</span>';
 }
 
+// The ring's IDENTITY as the connected peer reported it (0xE1 wire serial + firmware), and the audit
+// §6.2 Mitigation C alarm when capture.py found it ≠ the configured `serial:`. Same extraction contract
+// as renderRingRtc: top-level, depends only on esc(), and every device-derived string is entity-encoded
+// before innerHTML. Renders the identity line whenever a serial or firmware has been read (id
+// #ring-identity), the alarm only when `ring_identity_mismatch` is set (id #ring-identity-alarm), and
+// NOTHING — no placeholder — before the first readback. A wrong ring streams SpO₂ like the right one,
+// so this line is the only place the monitor can say the link is the wrong device.
+function renderRingIdentity(status) {
+  if (!status) return '';
+  // `ring_branch_code` is the correctly-named field; `ring_firmware` is its DEPRECATED alias, kept
+  // because this card drew it before the parser learned the difference. Prefer the new name and
+  // fall back, so a box running an older daemon still renders — residue
+  // `2026-09-02-oxyii-branchcode-named-firmware`, the rename this comment used to be waiting for.
+  const sn = status.ring_serial, mm = status.ring_identity_mismatch;
+  const fw = status.ring_branch_code || status.ring_firmware;
+  const fwver = status.ring_firmware_version;
+  let out = '';
+  if (sn || fw) {
+    // "branch", NOT "firmware", and the distinction is the device's own: oxyii.py:272-278 records
+    // that the ring answers with branch 2D010001 AND firmware 1.13.1.0 — two different fields of one
+    // 0xE1 reply — and that `parse_get_info` returns the BRANCH under the key "firmware". Drawing it
+    // as a firmware version puts a number on the operator's screen under the wrong name, which is the
+    // failure this panel exists to prevent, one field over. The STATUS key keeps the parser's name so
+    // the two cannot disagree; renaming both is residue 2026-09-02-oxyii-branchcode-named-firmware
+    // and belongs with the parser.
+    out += `<div id="ring-identity" class="hint">peer identity: serial <b>${esc(String(sn || '—'))}</b>`
+      + ` · branch <b>${esc(String(fw || '—'))}</b>`
+      + (fwver ? ` · firmware <b>${esc(String(fwver))}</b>` : '')
+      + ` <span class="hint">(0xE1 wire serial + branch code — not the filename id, and not the firmware version)</span></div>`;
+  }
+  if (mm) {
+    out += `<div id="ring-identity-alarm" class="mb" style="color:#c55">⚠ RING IDENTITY MISMATCH — ${esc(String(mm))}`
+      + ' — data from this link is suspect until the serial matches</div>';
+  }
+  // Clause 2, in two steps. The RUN is drawn only while it is non-zero — a healthy box shows
+  // nothing at all rather than a `0` the operator learns to skip — and the ALARM appears once the
+  // run reaches the threshold, so the two-and-below case is visible without being loud.
+  //
+  // The count was NOT drawn at first, deliberately, and that was wrong: `find_unwired` reds a field
+  // webmon forwards and monitor.html never draws, which is the half-wired shape (O2RING §20 — a
+  // field that reaches /api/state and no further is exposed to nobody). Forwarding a number no
+  // surface shows is not restraint, it is the defect that scan exists to name.
+  if (Number(status.ring_barren_connects) > 0) {
+    out += `<div id="ring-barren" class="hint">connects that answered identity and served nothing:`
+      + ` <b>${esc(String(status.ring_barren_connects))}</b> in a row</div>`;
+  }
+  // The link's ENCRYPTION verdict. Drawn whenever we have one, including "unknown" — a ring that never
+  // answers 0xFF is the common case here, and rendering nothing for it would make the undetermined
+  // state look like a clean one. `encrypted`/`refuse` are red because the session ends on them.
+  if (status.auth_mode) {
+    const am = String(status.auth_mode);
+    const bad = am === 'encrypted' || am === 'refuse';
+    const unk = am === 'unknown';
+    out += `<div id="ring-auth" class="${bad ? 'mb' : 'hint'}"${bad ? ' style="color:#c55"' : ''}>`
+      + `link encryption: <b>${esc(am)}</b>`
+      + (status.auth_reason ? ` <span class="hint">${esc(String(status.auth_reason))}</span>` : '')
+      + (unk && status.auth_unknown_links ? ` <span class="hint">(${esc(String(status.auth_unknown_links))} link(s) undetermined)</span>` : '')
+      + '</div>';
+  }
+  if (status.ring_barren_alert) {
+    out += `<div id="ring-barren-alarm" class="mb" style="color:#c55">⚠ ${esc(String(status.ring_barren_alert))}`
+      + ' — the link is up and nothing is arriving over it</div>';
+  }
+  return out;
+}
+
+// NIGHT SEAL (CAPTURE-NIGHT-SEAL §13): what the box sealed, under which card key, and the two operator
+// actions — re-display (lost card) and rotate (stolen card). Reads STATUS.seal as the daemon publishes
+// it; "off" and "not armed because…" are different states and both are said.
+function renderSealStatus(){
+  const s = (STATE&&STATE.seal)||null; const el = $('#stSeal'); if(!el) return;
+  const on = !!(s&&s.armed);
+  $('#sealShowCard').disabled = !on; $('#sealRotate').disabled = !on;
+  if(!s){ el.innerHTML = 'off — <code>seal.enabled</code> is false (the owner\'s switch: a night written into a folder a sync client may watch)'; return; }
+  if(!on){ el.innerHTML = `<span class="bad">not armed</span> — ${esc(s.error||'')}`; return; }
+  const nights = Object.entries(s.nights||{}).sort().reverse().slice(0,7)
+    .map(([n,v])=>`${esc(n)} <span class="${v.status==='PASS'?'ok':(v.status==='NOT_APPLICABLE'?'':'bad')}">${esc(v.status)}</span>${v.revision?' r'+v.revision:''}`).join(' · ');
+  el.innerHTML = `box <b>${esc(s.box_id)}</b> · card key <b>${s.key_id}</b> · consent <b>${s.consent==null?'not asked':esc(String(s.consent))}</b><br>`
+    + `fingerprint <code>${esc(s.fingerprint||'')}</code><br>outbox <code>${esc(s.outbox||'')}</code>`
+    + (nights ? `<br>${nights}` : '<br>no settled night sealed yet');
+}
+$('#sealShowCard').addEventListener('click', ()=>{ window.open('/api/seal/card', '_blank'); });
+$('#sealRotate').addEventListener('click', async ()=>{
+  if(!confirm('Rotate the card key? Nights sealed from now on need the NEW card; old nights stay readable with the old one.')) return;
+  try{ const r = await fetch('/api/seal/rotate', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'}); const j = await r.json();
+    if(!j.ok) throw new Error(j.error||r.status); alert('Card rotated to key '+j.keyId+' — open Show card and print or photograph it.'); if(STATE&&STATE.seal){ STATE.seal.key_id=j.keyId; renderSealStatus(); } }
+  catch(e){ alert('rotate failed: '+e.message); }
+});
 function renderStorageStatus(){
+  renderSealStatus();
   const st = (STATE&&STATE.storage)||{}, r = (STORAGE&&STORAGE.ready)||null;
   const held = (st.retention_held||[]).length;
   $('#stDisk').innerHTML = st.free_gb==null ? '—' :
@@ -1332,6 +1771,24 @@ async function testStorage(btn){
 // RADIO DISTRESS — the worst device's verdict, because the question a glance asks is "is any link
 // in trouble", not "what is the mean". A device with no baseline yet reports UNKNOWN and is counted
 // as neither ok nor bad: an unmeasured radio is not a calm one.
+// AUTO-PULL EVIDENCE. Absent until one has fired — never a green "idle", because "no pull yet
+// tonight" and "the trigger is broken" are the two states this exists to tell apart, and a card that
+// looks the same in both would answer neither.
+function renderAutopull(ap){
+  const card = $('#apCard'), pill = $('#apPill'), txt = $('#apText'), det = $('#apDetail');
+  if(!card) return;
+  if(!ap || !ap.trigger){ card.hidden = true; return; }
+  card.hidden = false;
+  const n = ap.new || 0, drained = ap.drained || 0;
+  pill.className = 'data-pill ' + (n ? 'ok' : 'idle');
+  txt.textContent = `Auto-pull · ${ap.trigger}`;
+  // The COUNTS, because "fired" without "and landed what" is the half of the answer that misleads:
+  // a trigger that fires nightly and commits nothing reads as healthy on the trigger alone.
+  det.textContent = `${n} file${n === 1 ? '' : 's'}`
+                  + (drained ? ` · ${drained} stranded fragment${drained === 1 ? '' : 's'} drained` : '')
+                  + (ap.last ? ` · ${ap.last.slice(11, 16)}` : '');
+}
+
 function renderRadioDistress(rd, adapterV, switches){
   const card = $('#rdCard'), pill = $('#rdPill'), txt = $('#rdText'), det = $('#rdDetail');
   if(!card) return;
@@ -1366,6 +1823,54 @@ function renderRadioDistress(rd, adapterV, switches){
     .concat(av ? [`adapter: ${av.detail || '—'}`] : [])
     .concat(sw.map(e => `switch ${e.from} → ${e.to} (${e.cause}): ${e.detail || ''}`))
     .join('\n');
+}
+
+// The daemon's load and gates, as one sidebar card. Verdict order: a loop stall ≥ 1 s in the current
+// run outranks a held gate, which outranks a crashed task — a stall is already costing every stream
+// its host stamps; a gate merely defers connects; a crash has been restarted. Hidden until the loop
+// monitor has ticked once, so an old daemon never renders as "ok".
+function renderHostLoad(lp, gates, tasks){
+  const card = $('#hlCard'), pill = $('#hlPill'), txt = $('#hlText'), det = $('#hlDetail');
+  if(!card) return;
+  if(!lp || !lp.ticks){ card.hidden = true; return; }
+  card.hidden = false;
+  const g = gates || {};
+  const held = [g.recover ? 'recover' : '', g.oxyii_pause ? 'oxyii-pause' : '', g.stop ? 'stop' : '']
+    .concat((g.polar_paused || []).map(n => 'polar-paused:' + n))
+    .concat(g.offline_slot ? ['offline:' + g.offline_slot] : []).filter(Boolean);
+  const crashed = Object.entries(tasks || {}).filter(([, t]) => t && t.crashes);
+  const maxMs = Math.round(lp.lag_max_ms || 0), stalls = lp.stalls || 0;
+  const cls = maxMs >= 1000 ? 'bad' : (held.length || crashed.length || stalls) ? 'idle' : 'ok';
+  pill.className = 'data-pill ' + cls;
+  txt.textContent = maxMs >= 1000 ? `Loop STALLED · max ${maxMs} ms`
+                  : stalls ? `Loop · ${stalls} stall${stalls === 1 ? '' : 's'}, max ${maxMs} ms`
+                  : `Loop ok · max ${maxMs} ms`;
+  det.textContent = (held.length ? `gates held: ${held.join(', ')}` : 'no gate held')
+                  + (crashed.length ? ` · ${crashed.length} task${crashed.length === 1 ? '' : 's'} crashed+restarted` : '');
+  det.title = [`lag now ${Math.round(lp.lag_last_ms || 0)} ms · max ${maxMs} ms · ${stalls} stalls over ${lp.ticks} ticks`]
+    .concat(crashed.map(([n, t]) => `${n}: ${t.crashes}× — ${t.last_error || ''}`)).join('\n');
+}
+
+// The live loss guard, as one sidebar card. THE RESTING STATE IS THE POINT: a guard that only ever
+// appears when it fires is indistinguishable from one that never runs, so this says how many files are
+// being watched even when nothing is wrong. Three states, and the middle one is why `last` exists — a
+// file lost at 02:00 is still the night's fact at 08:00, long after `findings` has gone clean again.
+function renderLiveLoss(ll){
+  const card = $('#llCard'), pill = $('#llPill'), txt = $('#llText'), det = $('#llDetail');
+  if(!card) return;
+  if(!ll || ll.open_files == null){ card.hidden = true; return; }   // null until the guard has run once
+  card.hidden = false;
+  const now = ll.findings || [], last = ll.last || [];
+  const n = ll.open_files;
+  const say = f => `${f.kind} ${String(f.path||'').split('/').pop()} (${f.detail||''})`;
+  pill.className = 'data-pill ' + (now.length ? 'bad' : last.length ? 'warn' : 'ok');
+  txt.textContent = now.length ? `FILE LOST · ${now.length}`
+                  : last.length ? `Lost earlier · ${last.length}`
+                  : `Files ok · ${n} open`;
+  det.textContent = now.length ? now.map(say).join(' · ')
+                  : last.length ? `${ll.last_at || ''} — ${last.map(say).join(' · ')} · ${n} open now`
+                  : `${n} file${n === 1 ? '' : 's'} watched since this run started`;
+  det.title = (now.length ? now : last).map(f => `${f.path} — ${f.kind}: ${f.detail || ''}`).join('\n');
 }
 
 function renderStoragePill(st){
@@ -1430,7 +1935,52 @@ function renderCpap(c){
   // Name the offending files — "3 short reads" is not actionable, a filename is.
   (c.short||[]).forEach(s=>bits.push('SHORT READ '+s));
   (c.errors||[]).forEach(s=>bits.push('error '+s));
+  // 🔴 THE DETECTOR'S FAULT, NAMED. `last_unreachable_class` has been published to STATUS and
+  // forwarded since the wedge rung landed, and rendered by NOTHING — so an operator looking at this
+  // page could not tell a rejected pairing key from a switched-off machine. That is not hypothetical:
+  // the AirSense stopped accepting our key at 2026-09-04 18:49 and the box polled, and failed,
+  // every 30 s for eleven hours while this card said nothing at all.
+  //
+  // The MESSAGE is what carries the answer — every AS11 protocol fault shares the class `As11Error`,
+  // and only the message says `RPC 10 VerificationFailure`. Shown together: the class alone is the
+  // bucket, the message is the reason.
+  if(c.reachable === false && c.last_unreachable_class){
+    const why = c.last_unreachable_msg ? `${c.last_unreachable_class}: ${c.last_unreachable_msg}`
+                                       : c.last_unreachable_class;
+    const n = c.unreachable_streak;
+    bits.push(`detector unreachable — ${why}${n>1 ? ` (${n} polls)` : ''}`);
+  }
+  // textContent, not innerHTML: `last_unreachable_msg` is a device-supplied exception string and this
+  // is the one field here that did not exist when #2173 swept this file for interpolation into markup.
   $('#cpapHint').textContent = bits.join(' · ');
+}
+// The stored-spool pull is a SECOND scheduled actor, not another view of the harvest above, so it gets
+// its own line. Rendered because OPERATIONAL-MATURITY-AUDIT §4(1) names "two actors reporting `waiting`
+// continuously across a whole window" as the condition that would falsify the broadcast-coordination
+// verdict — an observation nobody can make while one of the two actors is invisible.
+//
+// ⚠️ VISIBILITY IS NOT CONDITIONED ON `cpap.enabled`. That flag belongs to the HARVEST actor; gating
+// this line on it would hide actor B behind actor A's switch and reproduce, one layer up, the exact
+// blindness this change exists to remove. It shows whenever the spool pull has published anything and
+// stays hidden while it is disarmed (the default), which is honest in both directions.
+function renderCpapSpool(s){
+  const el = $('#cpapSpoolStatus'); if(!el) return;
+  if(!s || !s.state){ el.style.display='none'; return; }
+  el.style.display='';
+  // The line lives inside #cpapCard, which renderCpap hides on `!cpap.enabled` — so revealing the card
+  // here is what makes the paragraph above true rather than merely intended. Order matters: this runs
+  // AFTER renderCpap in the update loop, so it re-opens a card that call may have just closed.
+  const card = $('#cpapCard'); if(card) card.style.display='';
+  // `detail` is daemon-supplied text (`pull_blocked`'s reason names streaming DEVICES, which are
+  // operator-settable through this monitor's own settings API) — so it goes through esc() like every
+  // other interpolating innerHTML site here. Same stored-XSS path #2173 closed on the harvest card.
+  const map = {
+    running: ['idle', '⟳ stored-spool pull running…'],
+    waiting: ['idle', `⏸ spool pull waiting — ${s.detail||'contended'}`],
+    error:   ['bad',  `✗ spool pull — ${s.detail||'failed'}`],
+  };
+  const [cls, label] = map[s.state] || ['idle', `spool pull · ${s.state}`];
+  el.innerHTML = `<span class="data-pill ${esc(cls)}"></span> ${esc(label)}`;
 }
 
 // Manual CPAP pulls. The 13:00 poller owns the routine case; these are for a missed night or a
@@ -1458,25 +2008,104 @@ document.addEventListener('click', async e => {
   loadState();
 });
 
-// ResMed BLE pairing. SRP-6a against the passkey the CPAP shows on its screen (its menu → Bluetooth).
-// The handshake is plaintext — nothing but the one-time PIN the operator reads off the device leaves
-// the box — and the daemon owns the radios, so a 501 means this daemon build has no AS11 support yet.
-// The button is disabled for the round-trip; the PIN never goes in a URL, only the POST body.
-$('#cpapPairBtn')?.addEventListener('click', async () => {
-  const pin = ($('#cpapPin').value || '').trim();
-  const st = $('#cpapPairState'), btn = $('#cpapPairBtn');
-  if(!/^\d{4,10}$/.test(pin)){ st.textContent = '✗ enter the 4–10 digit PIN shown on the CPAP'; return; }
-  btn.disabled = true; st.textContent = 'pairing… (put the CPAP in Bluetooth pairing mode)';
+// ResMed BLE pairing — two requests to /api/cpap/pair. `start` connects and runs StartKeyExchange (the
+// CPAP shows its code only then); `passkey` proves it (SRP-6a) and stores the key only after the machine's
+// own proof (M2) verifies. The code never goes in a URL, only the POST body. A 501 means this daemon
+// build has no pairing op; `restart_required` means a consumer skipped at boot (no creds then) cannot
+// pick the new key up until the daemon restarts — the page says so rather than implying it is live.
+async function cpapPair(body){
+  const r = await fetch('/api/cpap/pair', {method:'POST', headers:{'Content-Type':'application/json'},
+                                           body: JSON.stringify(body)});
+  return [r.status, await r.json()];
+}
+function cpapPairArm(pending){
+  $('#cpapPin').disabled = !pending; $('#cpapPairBtn').disabled = !pending;
+  $('#cpapPairStartBtn').disabled = pending;
+  $('#cpapPairCancelBtn').style.display = pending ? '' : 'none';
+  if(pending) $('#cpapPin').focus();
+}
+
+// Render what `status()` now reports: which radio this pairs on, whether a key is stored and for which
+// device, and whether the pinned radio can be paired against at all. Everything here comes from the
+// daemon — the page states no adapter and no paired-ness it was not told, because a panel that guesses
+// either is worse than one that says nothing.
+function cpapPairWho(j){
+  const el = $('#cpapPairWho'); if(!el) return;
+  const bits = [];
+  if(j.adapter) bits.push(`radio <code>${esc(String(j.adapter))}</code>`);
+  else          bits.push('radio <b>not pinned</b> — <code>cpap.ble_stream.adapter</code> is unset');
+  if(j.paired)  bits.push('key stored' + (j.creds_addr ? ` for <code>${esc(String(j.creds_addr))}</code>` : ''));
+  else if(j.paired === false) bits.push('<b>no key stored</b> — not paired');
+  if(j.adapter_usable === false)
+    bits.push('<b style="color:var(--bad,#f0736e)">⚠ this radio cannot be paired against</b> (no public BD address)');
+  el.innerHTML = bits.join(' · ');
+  // Offer Unpair only when there is something to delete — a button that reports "nothing to forget"
+  // teaches the operator to distrust it.
+  const fb = $('#cpapForgetBtn');
+  if(fb) fb.style.display = j.paired ? '' : 'none';
+}
+
+$('#cpapForgetBtn')?.addEventListener('click', async () => {
+  const st = $('#cpapPairState'), btn = $('#cpapForgetBtn');
+  if(!confirm('Delete the stored CPAP key from this box?\n\nThe machine keeps its own pairing entry — clear that from its Bluetooth menu too if you are re-pairing. The next session cannot connect until you pair again.')) return;
+  btn.disabled = true; st.textContent = 'forgetting…';
   try{
-    const r = await fetch('/api/cpap/pair', {method:'POST', headers:{'Content-Type':'application/json'},
-                                             body: JSON.stringify({passkey: pin})});
-    const j = await r.json();
-    if(r.status===501)      st.textContent = '✗ pairing not supported by this daemon build yet';
-    else if(!j.ok)          st.textContent = '✗ ' + (j.error || 'pairing failed');
-    else { st.textContent = '✓ paired'; $('#cpapPin').value = ''; }
+    const [status, j] = await cpapPair({action:'forget'});
+    if(status===501)  st.textContent = '✗ pairing not supported by this daemon build';
+    else if(!j.ok)    st.textContent = '✗ ' + (j.error || 'could not forget the key');
+    else if(j.forgotten) st.textContent = '✓ key removed' + (j.was_addr ? ` (was ${j.was_addr})` : '') + ' — re-pair before the next session';
+    else              st.textContent = '· nothing stored — already unpaired';
+    if(j && j.adapter !== undefined) cpapPairWho(j);
   }catch(err){ st.textContent = '✗ ' + err; }
   btn.disabled = false;
 });
+$('#cpapPairStartBtn')?.addEventListener('click', async () => {
+  const st = $('#cpapPairState'), btn = $('#cpapPairStartBtn');
+  btn.disabled = true; st.textContent = 'connecting… (CPAP must be in Bluetooth pairing mode)';
+  try{
+    const [status, j] = await cpapPair({action:'start'});
+    if(status===501)       { st.textContent = '✗ pairing not supported by this daemon build'; btn.disabled = false; }
+    else if(!j.ok)         { st.textContent = '✗ ' + (j.error || 'could not start pairing'); btn.disabled = false; }
+    else { cpapPairArm(true); st.textContent = '→ read the code on the CPAP screen and confirm it'
+                                             + (j.seconds_left ? ` (${Math.round(j.seconds_left)} s)` : ''); }
+  }catch(err){ st.textContent = '✗ ' + err; btn.disabled = false; }
+});
+$('#cpapPairBtn')?.addEventListener('click', async () => {
+  const pin = ($('#cpapPin').value || '').trim();
+  const st = $('#cpapPairState'), btn = $('#cpapPairBtn');
+  if(!/^\d{4,10}$/.test(pin)){ st.textContent = '✗ enter the 4–10 digit code shown on the CPAP'; return; }
+  btn.disabled = true; st.textContent = 'verifying…';
+  try{
+    const [status, j] = await cpapPair({action:'passkey', passkey: pin});
+    if(status===501)      st.textContent = '✗ pairing not supported by this daemon build';
+    else if(!j.ok){
+      st.textContent = '✗ ' + (j.error || 'pairing failed');
+      if(j.pending || status===400) btn.disabled = false;   // malformed code: the exchange is still open, retype
+      else cpapPairArm(false);                     // the machine refused / link dropped: start over
+    } else {
+      $('#cpapPin').value = ''; cpapPairArm(false);
+      st.textContent = '✓ paired · stored' + (j.restart_required ? ' — restart the daemon to use the new key everywhere'
+                                                                 : ' · live');
+    }
+  }catch(err){ st.textContent = '✗ ' + err; btn.disabled = false; }
+  loadState();
+});
+$('#cpapPairCancelBtn')?.addEventListener('click', async () => {
+  try{ await cpapPair({action:'cancel'}); }catch(err){}
+  $('#cpapPin').value = ''; cpapPairArm(false); $('#cpapPairState').textContent = 'cancelled';
+});
+// A page opened mid-exchange (or reloaded) picks the pending state back up instead of showing a dead form.
+(async () => {
+  if(!$('#cpapPairStartBtn')) return;
+  try{ const [status, j] = await cpapPair({action:'status'});
+       if(status===200){
+         // Radio + stored-key line on every load, not only when an exchange is open: the questions
+         // "which adapter is this?" and "is a key stored?" are asked when NOTHING is happening.
+         cpapPairWho(j);
+         if(j.pending){ cpapPairArm(true); $('#cpapPairState').textContent = '→ a pairing exchange is open — enter the code'; }
+       } }
+  catch(err){}
+})();
 
 // CPAP live waveform toggle. Start pushes flow+pressure onto the bus, so the Overview grid renders them
 // via the SAME SSE the wearables use — nothing to draw here. A 501 means this daemon build has no AS11
@@ -1540,8 +2169,12 @@ async function loadState(){
   renderSideStats();          // sidebar counters: every view, not just Overview
   renderBoxHealth(s.storage, s.qc, s.host, s.alerts, s.host_clock, s.cpap, s.cpap_live);
   renderStoragePill(s.storage);   // sidebar: visible in every view
+  renderAutopull(s.autopull);
   renderRadioDistress(s.radio_distress, s.radio_distress_adapter, s.radio_switches);
+  renderHostLoad(s.loop, s.gates, s.tasks);
+  renderLiveLoss(s.live_loss);
   renderCpap(s.cpap);
+  renderCpapSpool(s.cpap_spool);
   renderDownload(DEVICES);
   renderRemembered(DEVICES);
   renderStreamSel();
@@ -1611,15 +2244,17 @@ function renderRemembered(devs, settingsList){
   el.innerHTML = devs.map(d=>`
     <div class="dev">
       <div class="meta">
-        <div class="name">${esc(d.name)} ${d.connected?'<span class="dbadge on">live</span>':'<span class="dbadge warn">idle</span>'} ${chargeChip(d)} ${wornChip(d)} ${rateChip(d)} ${battChip(d.battery)} ${d.connected?(dh=>rssiChip(d.rssi,dh.health,dh.title))(deviceHealth(d)):''} ${clkChip(d)} ${presenceChip(d)} ${witnessChip(d)}</div>
+        <div class="name">${esc(d.name)} ${d.connected?'<span class="dbadge on">live</span>':'<span class="dbadge warn">idle</span>'} ${chargeChip(d)} ${wornChip(d)} ${rateChip(d)} ${battChip(d.battery)} ${d.connected?(dh=>rssiChip(d.rssi,dh.health,dh.title))(deviceHealth(d)):''} ${clkChip(d)} ${oxyLifeChip(d)} ${oxyRecChip(d)} ${oxyStormChip(d)} ${presenceChip(d)} ${witnessChip(d)}</div>
         <div class="sub">${esc(d.address||'')}${(d.rssi!=null&&isFinite(d.rssi))?(' · '+d.rssi+' dBm'):''} · ${(d.streams||[]).join(', ')}${lastSampleText(d)}${d.clock_synced?(' · clock '+esc(String(d.clock_synced).slice(11,19))):''}${(d.link_epoch>1)?(' · '+d.link_epoch+' reconnects'):''}${(d.last_error && !d.charging)?(' · '+esc(d.last_error)):''}</div>
       </div>
-      <button class="btn" onclick='syncTime(${JSON.stringify(d.address)}, this)' title="Set this device's INTERNAL clock from the host (it stamps every sample with device time). Pauses that device's capture for a few seconds.">🕐 Sync time</button>
+      <button class="btn" onclick='syncTime(${esc(JSON.stringify(d.address))}, this)' title="Set this device's INTERNAL clock from the host (it stamps every sample with device time). Pauses that device's capture for a few seconds.">🕐 Sync time</button>
       ${(d.vendor==='Wellue'||d.vendor==='Viatom')?`<button class="btn" onclick='pullStored(this)' title="Download the ring&#39;s onboard-recorded night off flash (pauses live SpO₂ for ~1 min)">Pull stored session</button>`:''}
-      ${d.vendor==='Polar'?`<button class="btn" onclick='pullRec(${JSON.stringify(d.address)}, this)' title="List &amp; download the Polar device&#39;s onboard offline recordings off flash (pause live capture first — one BLE link)">📥 Recordings</button>`:''}
-      <button class="btn btn-destructive" onclick='forget(${JSON.stringify(d.address)})'>Forget</button>
+      ${d.vendor==='Polar'?`<button class="btn" onclick='pullRec(${esc(JSON.stringify(d.address))}, this)' title="List &amp; download the Polar device&#39;s onboard offline recordings off flash (pause live capture first — one BLE link)">📥 Recordings</button>`:''}
+      <button class="btn btn-destructive" onclick='forget(${esc(JSON.stringify(d.address))})'>Forget</button>
     </div>${d.vendor==='Polar'?`<div class="rec-panel" id="${recPanelId(d.address)}" style="margin:0 0 .7rem;padding-left:.2rem;display:flex;flex-direction:column;gap:.35rem"></div>`:''}${settingsPanel(d, settingsList)}`).join('')
     + (devs.length ? `<div style="margin:.2rem 0 .8rem"><button class="btn btn-primary" id="devSaveBtn" onclick='saveSettings(this)'>Save device settings</button>
+         <button class="btn" id="devApplyBtn" style="display:none" onclick='applyRestart(this)'>Apply now — restart capture</button>
+         <span class="hint" id="devSetMsg"></span>
          <span class="hint">Streams, rates and device modes above are written to config.yaml. Some need a reconnect to take effect.</span></div>` : '');
 }
 
@@ -1668,8 +2303,8 @@ function renderDiscovered(list){
         <div class="name">${esc(label)} ${k?'<span class="dbadge on">configured</span>':''} ${d.bonded?'<span class="dbadge on">bonded</span>':''} ${d.health?'<span class="dbadge">sensor</span>':''}</div>
         <div class="sub">${esc(d.address)}${d.rssi!=null?(' · '+d.rssi+' dBm'):''}${k?(' · '+esc((k.streams||[]).join(', '))):''}</div>
       </div>
-      ${d.bonded?'':`<button class="btn" onclick='bond(${JSON.stringify(d.address)}, this)'>Bond</button>`}
-      ${k?'':`<button class="btn" onclick='remember(${JSON.stringify(d)}, this)'>Remember</button>`}
+      ${d.bonded?'':`<button class="btn" onclick='bond(${esc(JSON.stringify(d.address))}, this)'>Bond</button>`}
+      ${k?'':`<button class="btn" onclick='remember(${esc(JSON.stringify(d))}, this)'>Remember</button>`}
     </div>`;}).join('');
 }
 
@@ -1836,11 +2471,12 @@ function deviceSettingsBlock(d){
       const verdict = d.ring_config_verdict
         ? `<div class="rate-why"><b>${esc(d.ring_config_verdict)}</b></div>` : '';
       const rtcAlarm = renderRingRtc(d);   // the RTC-reset alarm; extractable top-level fn (see below)
+      const ident = renderRingIdentity(d); // who answered 0xE1, and the §6.2 Mitigation C verdict
       const bsel = [0,1,2].map(v =>
         `<option value="${v}" ${rc.brightness===v?'selected':''}>${['Low','Medium','High'][v]}</option>`).join('');
       return `<div class="setrow" style="display:block;margin-top:.4rem">
         <span class="k">ring device</span>
-        <span class="mb">${clock}</span>${rtcAlarm}
+        <span class="mb">${clock}</span>${rtcAlarm}${ident}
         <div style="margin-top:.3rem">
           display brightness
           <select class="ringcfg" data-addr="${esc(d.address)}" data-field="brightness">${bsel}</select>
@@ -1885,7 +2521,15 @@ async function loadSettings(){
       <span class="mb">${esc(f.help)} <em style="opacity:.75">(${esc(meta)})</em></span></label>`;
   }).join('');
   updateSetTotal();
-  sd.querySelectorAll('input,select').forEach(el=>el.addEventListener('change', updateSetTotal));
+  /* 🔴 DELEGATED, and a wider selector would NOT have been enough. Two independent reasons, both
+     already documented elsewhere in this file:
+       1. ORDER — `renderRemembered` runs in loadSettings' `.then()`, so the controls do not exist yet
+          when this line runs. A static query here matches nothing however wide it is.
+       2. LIFETIME — `#remembered` is replaced by `innerHTML` every 5 s, so an element-bound listener is
+          thrown away on the next repaint (the exact hazard the delegation comment in
+          `renderRemembered` was written for).
+     `sd` (`#setStreams`) has held no control since they moved onto the device cards. */
+  bindSetRecalc();
   bindRingCfg();
 }
 // The rate the daemon would pick with no override: its built-in preference if offered, else the max.
@@ -1901,9 +2545,7 @@ const PREF_RATE = {ecg:130, ppg:55, acc:50, gyro:52, mag:20};   // mirrors polar
 // So the tick appears only when the device actually lists that rate — see `rateAdvice`.
 const RATE_WHY = {
   ecg: 'the H10 offers only 130 Hz, and the shipped Pan–Tompkins is calibrated at it',
-  ppg: 'stable all night, and it is the only rate offered outside SDK mode. 176 Hz cuts beat-timing '
-     + 'quantisation from ~18 ms to ~5.7 ms — better for PAT and beat work — but needs SDK mode, which '
-     + 'makes PPI permanently invalid and drops the link about every 90 s',
+  ppg: 'stable all night, and the only rate offered outside SDK mode',
   acc: 'enough for posture, movement onsets and the worn/still checks; higher rates cost bytes and buy '
      + 'nothing this suite reads',
   gyro: 'the nearest offered value to the 50 Hz the motion code expects',
@@ -1920,6 +2562,11 @@ const RATE_WHY = {
 // (ppg2w everywhere in code and files); only the label a person reads changes.
 const STREAM_LABEL = {
   ppg2w: 'raw 2-wavelength optical (ppg2w)',
+  // cmd 0x03 — the ring's single-channel lossless pleth, MEASURED at 125.058 Hz on 2026-09-06
+  // (the 125.000 ADC to 0.05 %). Named "lossless" because every record is written including the
+  // inserted beat markers, which are FLAGGED in their own column rather than stripped: on this
+  // stream, unlike ppg2w, removing them moves the rate AWAY from the ADC.
+  pletha: 'raw pleth A, lossless 125 Hz (pletha)',
   spo2: 'oximetry (spo2)',
   pi: 'perfusion index (pi, %)',
   ppg: 'pleth waveform (ppg)'
@@ -1964,7 +2611,10 @@ function bpsFor(dev,k){
 }
 function updateSetTotal(){
   let bps=0;
-  document.querySelectorAll('#setStreams input[type=checkbox][data-stream]').forEach(el=>{
+  /* DOCUMENT-WIDE for the same reason the save collectors are (see `saveSettings`): the per-device
+     controls render into `#remembered`, and `#setStreams` holds only a hint paragraph. Scoped here, this
+     matched nothing and the total read a confident `~0 MB per 9 h night` — not a no-op, a WRONG number. */
+  document.querySelectorAll('input[type=checkbox][data-stream]').forEach(el=>{
     const dev = SETTINGS.devices.find(d=>d.address===el.dataset.addr);
     if(!dev) return;
     const b = bpsFor(dev, el.dataset.stream);
@@ -1977,9 +2627,25 @@ function updateSetTotal(){
 // Ring settings post IMMEDIATELY on change (not via the Save button): a device-state write with its own
 // read-back verdict is a different transaction from the config.yaml save, and folding it in would make
 // "saving…" claim success for a write whose fate only the ring's read-back can report.
+/* Recalculate the bandwidth total whenever a per-device control changes. Delegated on `#remembered`
+   for the lifetime reason above; wired once, guarded by a flag exactly as `renderRemembered` does. */
+function bindSetRecalc(){
+  const host = $('#remembered');
+  if (!host || host._setRecalcWired) return;
+  host._setRecalcWired = true;
+  host.addEventListener('change', (ev)=>{
+    const c = ev.target;
+    if (!c) return;
+    if ((c.matches && c.matches('input[type=checkbox][data-stream], input.sdksel, input.ratecarry, select.ratesel'))) updateSetTotal();
+  });
+}
 function bindRingCfg(){
-  document.querySelectorAll('#setStreams button.ringbuzz').forEach(el=>{
-    el.addEventListener('click', async (ev)=>{
+  const host = $('#remembered');
+  if (!host || host._ringWired) return;
+  host._ringWired = true;
+  host.addEventListener('click', async (ev)=>{
+    const el = ev.target && ev.target.closest ? ev.target.closest('button.ringbuzz') : null;
+    if (el) {
       ev.preventDefault();
       try{
         const r = await api('/api/ring/buzz', {method:'POST',
@@ -1987,10 +2653,11 @@ function bindRingCfg(){
           body: JSON.stringify({address: el.dataset.addr})});
         $('#setMsg').textContent = r.ok ? 'buzz queued — fires on the next poll (~1 s)' : `refused: ${r.error||'unknown'}`;
       }catch(e){ $('#setMsg').textContent = 'buzz failed: '+e; }
-    });
+    }
   });
-  document.querySelectorAll('#setStreams .ringcfg').forEach(el=>{
-    el.addEventListener('change', async ()=>{
+  host.addEventListener('change', async (ev)=>{
+    const el = ev.target && ev.target.closest ? ev.target.closest('.ringcfg') : null;
+    if (el) {
       const v = parseInt(el.value, 10);
       if(!Number.isFinite(v)) return;
       try{
@@ -2001,7 +2668,7 @@ function bindRingCfg(){
           ? `${el.dataset.field} queued — the ring's read-back will confirm`
           : `refused: ${r.error||'unknown'}`;
       }catch(e){ $('#setMsg').textContent = 'ring settings write failed: '+e; }
-    });
+    }
   });
 }
 /* The operator gets NO feedback today that a click is unsaved, which is half of why the revert was
@@ -2013,6 +2680,42 @@ function paintPending() {
   const n = pendingCount(PENDING);
   b.textContent = n ? `Save device settings (${n} unsaved)` : 'Save device settings';
   b.classList.toggle('btn-warn', n > 0);
+}
+
+// Both panels that host a save button get the result. Missing sinks are skipped rather than thrown on,
+// so this stays correct while only one panel is rendered.
+function setSaveMsg(text, isWarn){
+  for(const id of ['#setMsg','#devSetMsg']){
+    const el = $(id);
+    if(!el) continue;
+    el.textContent = text;
+    el.style.color = isWarn ? '#c55' : '';
+  }
+}
+
+// Revealed ONLY when the server said `restart_needed`. It is deliberately not shown by default: a
+// restart button standing permanently beside Save invites a restart after saves that do not need one,
+// and this daemon is writing a night.
+function showApplyRestart(show){
+  const b = $('#devApplyBtn');
+  if(b) b.style.display = show ? '' : 'none';
+}
+
+// The stream set is read at CONNECT — the PMD START negotiation and the ring's AUTO_RT_SWITCH push byte
+// both. So applying a stream change means reconnecting, and the only mechanism that reliably does that
+// for every device is a daemon restart. `/api/daemon` validates BEFORE it answers and fires on a short
+// delay precisely so the reply survives the restart it triggers; do not "simplify" this into a
+// fire-then-answer, which returns a cheerful 200 for an action that may never have been valid.
+async function applyRestart(btn){
+  const t0 = btn.textContent; btn.disabled = true; btn.textContent = 'restarting…';
+  try{
+    const r = await api('/api/daemon',{method:'POST',headers:{'content-type':'application/json'},
+                                       body:JSON.stringify({verb:'restart'})});
+    if(!r.ok){ setSaveMsg('restart rejected: '+(r.error||'failed'), true); return; }
+    setSaveMsg(r.detail || 'capture restarting — streams reappear as devices reconnect', false);
+    showApplyRestart(false);
+  }catch(e){ setSaveMsg('restart failed: '+e, true); }
+  finally{ btn.disabled=false; btn.textContent=t0; }
 }
 
 async function saveSettings(btn){
@@ -2068,11 +2771,17 @@ async function saveSettings(btn){
       paintPending();
     }
     const warn = (r.warnings||[]).length ? '  ⚠ ' + r.warnings.join(' · ') : '';
-    $('#setMsg').textContent = r.ok
-      ? (r.changed.length ? `saved: ${r.changed.join(', ')}${r.restart_needed?' — reconnect the device to apply':''}${warn}`
+    const msg = r.ok
+      ? (r.changed.length ? `saved: ${r.changed.join(', ')}${r.restart_needed?' — needs a reconnect to take effect':''}${warn}`
                           : (warn ? 'no changes' + warn : 'no changes'))
       : 'rejected: '+r.error;
-    $('#setMsg').style.color = (r.ok && warn) ? '#c55' : '';
+    // WRITE TO EVERY SINK, because this ONE function serves TWO panels. `#setMsg` lives in Settings and
+    // `#devSaveBtn` renders in Devices, so a save made from the Devices panel used to report into an
+    // element that panel does not show — the operator got no confirmation at all, which is half of why
+    // a working checkbox read as broken. Same shape as the dead `#setStreams` collectors: a selector
+    // that resolves somewhere the user is not looking fails silently and looks like a no-op.
+    setSaveMsg(msg, !!(r.ok && warn));
+    showApplyRestart(!!(r.ok && r.restart_needed));
   }catch(e){ $('#setMsg').textContent='failed: '+e; }
   btn.disabled=false; btn.textContent=t0;
 }
@@ -2151,7 +2860,7 @@ async function pullRec(address, btn){
     panel.innerHTML = r.recordings.map(s=>`
       <div style="display:flex;align-items:center;gap:.6rem;font-size:.85rem">
         <span style="flex:1">${esc(s.start_local||s.path)} · ${esc(s.kind)} · ${s.files.length} files · ${(s.total_bytes/1024).toFixed(1)} KB</span>
-        <button class="btn" onclick='doPull(${JSON.stringify(address)}, ${JSON.stringify(s.path)}, this)'>Download</button>
+        <button class="btn" onclick='doPull(${esc(JSON.stringify(address))}, ${esc(JSON.stringify(s.path))}, this)'>Download</button>
       </div>`).join('');
   }catch(e){ panel.innerHTML = '<span class="hint">error: '+esc(String(e))+'</span>'; }
   finally{ btn.disabled = false; btn.textContent = t0; }
@@ -2181,7 +2890,14 @@ function guessDevice(d){
   if(n.includes('h10')){ vendor='Polar'; model='H10'; streams=['ecg','acc','hr']; }
   else if(n.includes('sense')||n.includes('verity')){ vendor='Polar'; model='VeritySense'; streams=['ppg','acc','gyro','mag']; }
   else if(n.includes('muse')){ vendor='Muse'; model='S'; streams=['eeg']; }
-  else if(n.match(/o2ring|wellue|viatom|checkme/)){ vendor='Wellue'; model='O2Ring'; streams=['spo2']; }
+  // `acc` IS IN THE DEFAULT because the ring's 3-axis accelerometer is device-PUSHED and gated by
+  // AUTO_RT_SWITCH bit 3, which capture.py ORs in from this very list at connect. Left out, the stream
+  // is not merely off — nothing ever asks the ring to push, so `acc_o2` is never registered and the
+  // card cannot appear even after the operator ticks the box (the tick lands after the connect that
+  // reads it). Measured 2026-09-03: first ACC bytes ever observed from this hardware, 3 axes at an
+  // effective ~10.2 Hz, vector magnitude ~8192 counts at rest — i.e. it works, and only this list
+  // stood between the device and the data.
+  else if(n.match(/o2ring|wellue|viatom|checkme/)){ vendor='Wellue'; model='O2Ring'; streams=['spo2','acc']; }
   // Third-party chest straps speaking the standard Heart Rate Service (0x180D). They give HR + RR but NO
   // raw ECG — there is no PMD service — so 'hr' is the only stream to request, and asking for 'ecg' would
   // open a writer for a stream that can never start. A Coospo HRM808S advertises as "808S 0022265": the
@@ -2284,13 +3000,61 @@ const KIND_FOOT = { hr:'derived rate', scalar:'current', multi:'raw 3-axis', ppi
 
 // Live counters, rendered into the SIDEBAR so they persist across views. Driven by loadState (every
 // 5 s, any view) rather than ovRender (Overview only) — otherwise they froze on the other two views.
+// Why are devices LINKED but not streaming? The count says how many BLE links are up; it has never
+// said what that does or does not imply, and "connected" reads as "working". A Verity on the charger
+// holds its link all night and refuses PMD, so this tile read 1/3 beside STREAMS LIVE 0 with no reason
+// anywhere on the Overview — the reason was in the device row and the stream cards only. Owner-reported
+// 2026-09-06. The daemon already publishes it per device as `last_error`; this surfaces the distinct
+// reasons rather than inventing a new one, and says nothing when it does not know.
+// Uses `deviceForStream`, which since 2026-09-21 reads the stream row's `device` field first and only
+// falls back to key parsing for a daemon older than that field. (An earlier draft read `s.dev`, which
+// never existed — it would have made every linked device look quiet and printed a confident wrong
+// reason. The field is `device`, published by `TelemetryBus.meta()`; the fallback is the old map.)
+function linkedWhy(){
+  const linked = DEVICES.filter(d=>d.connected);
+  if(!linked.length) return 'linked — none';
+  const streaming = new Set(STREAMS.filter(s=>s.active).map(s=>deviceForStream(s.key)).filter(Boolean));
+  const quiet = linked.filter(d=>!streaming.has(d));
+  if(!quiet.length) return 'linked · all streaming';
+  // The daemon's own words, deduped, first clause only, and length-capped. Not every `last_error` is
+  // the tidy "charging — PMD streams unavailable…" form: a disconnected ring carries a whole
+  // `BleakDeviceNotFoundError('…')` repr, which would run the tile off the sidebar. Capping is honest
+  // here because the full text is already on the device row; this line only has to say WHY, not everything.
+  const why = [...new Set(quiet.map(d=>{
+    const t = String(d.last_error||'').split('—')[0].trim();
+    return t.length > 38 ? t.slice(0,37)+'…' : t;
+  }).filter(Boolean))];
+  return 'linked · ' + quiet.length + ' not streaming' + (why.length ? ' · ' + why.join(' · ') : '');
+}
+
 function renderSideStats(){
+  // ⚠️ `active` IS NOT LIVE. The bus sets it on the first push and clears it only on `unregister`,
+  // which the O2Ring path never calls on disconnect — so it means "produced data at some point THIS
+  // PROCESS", and a stream that went silent an hour ago still carries it. Owner-reported 2026-09-07:
+  // the heading read "Streams · 2 of 12 live" with the ring disconnected since 09:49, because
+  // `motion_o2` and `pi_o2` had pushed before it dropped and nothing retracts the flag. Both were
+  // `health:'stall'` at the time, and `/api/stream/motion_o2` served a buffer of zeros — the stale
+  // reading looked exactly like a live one.
+  //
+  // Liveness is `health`, which IS recomputed from the age of the last sample (telemetry
+  // `stream_health`: 'stall' = prolonged silence, 'idle' = never produced). So a claim of LIVE excludes
+  // stalled streams; `active` still gates which cards exist, because a stalled stream is worth showing.
   const active = STREAMS.filter(s=>s.active);
-  const weak = active.filter(s=>s.health==='weak'||s.health==='stall').length;
+  const live = active.filter(s=>s.health!=='stall');
+  // Weak among the LIVE — a stalled stream is not a weak one, it is a silent one, and counting it
+  // under both would double-report the same stream in one heading.
+  const weak = live.filter(s=>s.health==='weak').length;
+  // Say how many of the cards below are actually live, in the heading, where the claim is made.
+  const gt = $('#ovGridTitle');
+  if(gt) gt.textContent = STREAMS.length
+    ? `Streams · ${live.length} of ${STREAMS.length} live`
+    : 'Streams';
   $('#sideStats').innerHTML = [
-    ['Streams live', active.length,
-     (active.map(s=>s.key.split('_')[0].toUpperCase()).join(' · ')||'—') + (weak?`  ⚠ ${weak} weak`:''), ''],
-    ['Devices', DEVICES.filter(d=>d.connected).length+'/'+DEVICES.length, 'connected', ''],
+    ['Streams live', live.length,
+     (live.map(s=>s.key.split('_')[0].toUpperCase()).join(' · ')||'—') + (weak?`  ⚠ ${weak} weak`:''), ''],
+    // Value unchanged (it is a true count of links); only the sub-label changes, to say which
+    // question the number answers. See linkedWhy().
+    ['Devices', DEVICES.filter(d=>d.connected).length+'/'+DEVICES.length, linkedWhy(), ''],
     ['Adapter', '', (ADAPTER_MAC||'—'), 'addr']
   ].map(([lab,val,sub,sc])=>
     `<div class="side-stat"><div class="lab">${esc(lab)}</div>` +
@@ -2524,7 +3288,7 @@ function ovRender(){                             // (re)build the cards to match
           <div class="ov-tl-legend"><span id="ovcov-${s.key}">—</span><span id="ovdbm-${s.key}"></span></div>
         </div>
         <div class="ov-pills">
-          <span class="ov-wf" id="ovwf-${s.key}">${writeFailChip(dev)}</span>
+          <span class="ov-wf" id="ovwf-${s.key}">${writeFailChip(dev)}${retryChip(dev)}</span>
           <span class="ov-chg" id="ovchg-${s.key}">${chargeChip(dev)}</span>
           <span class="ov-batt" id="ovbatt-${s.key}">${battChip(dev?dev.battery:null)}</span>
           <span class="ov-sig" id="ovsig-${s.key}">${s.active?rssiChip(dev?dev.rssi:null, s.health, sigTitle(s)):''}</span>
@@ -2533,15 +3297,22 @@ function ovRender(){                             // (re)build the cards to match
       </div>`;
     }).join('');
     for(const s of STREAMS){
-      OV[s.key] = OV[s.key] || { buf:[], fs:s.fs||1, last:null, rate:null };
+      /* `??`, NEVER `||`. `fs === 0` is capture.py's sentinel for "irregular, rate unknown" — it is set
+     deliberately rather than guessed ("declaring a rate we have not measured would put a fabricated
+     number on the card"), and four streams use it: motion_o2, pi_o2, acc_o2, o2ppg2w. `||` folded 0
+     into 1, which made the `st.fs>0` event-path branches below UNREACHABLE and windowed those four as
+     1 Hz — cap 64 instead of 256. Note the `s.fs ? … : 'event'` test elsewhere is correct as written. */
+  OV[s.key] = OV[s.key] || { buf:[], fs:s.fs ?? 1, last:null, rate:null };
       OV[s.key].canvas = document.getElementById('ovcv-'+s.key);
-      OV[s.key].fs = s.fs || OV[s.key].fs || 1;
+      OV[s.key].fs = s.fs ?? OV[s.key].fs ?? 1;
     }
   } else {
     for(const s of STREAMS){                     // no rebuild: refresh battery + signal pills in place each poll
       const bc = document.getElementById('ovbatt-'+s.key), dev = deviceForStream(s.key);
       const cg = document.getElementById('ovchg-'+s.key);
       if(cg) cg.innerHTML = chargeChip(dev);
+      const wf = document.getElementById('ovwf-'+s.key);
+      if(wf) wf.innerHTML = writeFailChip(dev) + retryChip(dev);
       if(bc) bc.innerHTML = battChip(dev?dev.battery:null);
       const sg = document.getElementById('ovsig-'+s.key);
       if(sg) sg.innerHTML = s.active ? rssiChip(dev?dev.rssi:null, s.health, sigTitle(s)) : '';
@@ -2560,7 +3331,7 @@ function ovSubscribe(){                          // ONE multiplexed SSE for all 
   const es = new EventSource('/api/stream/_all');
   const on = ev=>{
     const d = JSON.parse(ev.data), key = d.stream; if(!key) return;
-    const st = OV[key] = OV[key] || { buf:[], fs:d.fs||1, last:null, rate:null };
+    const st = OV[key] = OV[key] || { buf:[], fs:d.fs ?? 1, last:null, rate:null };
     st.canvas = st.canvas || document.getElementById('ovcv-'+key);
     st.fs = d.fs || st.fs;
     const v = d.v || []; for(const x of v) st.buf.push(x);          // x is a number OR a [ch,...] array
@@ -2919,30 +3690,71 @@ const RPRE_MS=280, RPOST_MS=470;
 function corr(a,b){ const n=a.length; let sa=0,sb=0; for(let i=0;i<n;i++){sa+=a[i];sb+=b[i];} sa/=n;sb/=n;
   let num=0,da=0,db=0; for(let i=0;i<n;i++){const x=a[i]-sa,y=b[i]-sb; num+=x*y; da+=x*x; db+=y*y;}
   return (da&&db)? num/Math.sqrt(da*db):0; }
+// 5–15 Hz IIR bandpass: one RBJ constant-peak-gain biquad (f0 = √(5·15) ≈ 8.7 Hz, Q = f0/10) run TWICE in
+// cascade (4th order), causally, over a copy with the median removed first so the start-up transient is a
+// fraction of one beat, not a DC step. The QRS lives in this band; baseline wander (< 1 Hz) and T-waves
+// (< 5 Hz) do not — one biquad leaves ~2.7 % of a 0.2 Hz wander (4 mV → ~100 µV, comparable to a filtered
+// R), the cascade ~0.07 %. Below 4·hi the band would sit against Nyquist, so the signal passes through
+// unfiltered (returns s itself). VIGIL-DEEP-ANALYSIS §1.2 / residue 2026-09-02-box-detector-lacks-bandpass.
+function bandpassIIR(s,fs,lo=5,hi=15){
+  const n=s.length; if(n<3 || !(fs>=4*hi)) return s;
+  const srt=s.slice().sort((a,b)=>a-b), med = n%2 ? srt[(n-1)>>1] : (srt[n/2-1]+srt[n/2])/2;
+  const f0=Math.sqrt(lo*hi), q=f0/(hi-lo), w0=2*Math.PI*f0/fs, al=Math.sin(w0)/(2*q), cw=Math.cos(w0);
+  const a0=1+al, b0=al/a0, b2=-al/a0, a1=-2*cw/a0, a2=(1-al)/a0;
+  let x=Float64Array.from(s, v=>v-med);
+  for(let pass=0;pass<2;pass++){
+    const y=new Float64Array(n); let x1=0,x2=0,y1=0,y2=0;
+    for(let i=0;i<n;i++){ const xi=x[i], v=b0*xi+b2*x2-a1*y1-a2*y2; y[i]=v; x2=x1; x1=xi; y2=y1; y1=v; }
+    x=y;
+  }
+  return x;
+}
 function detectRs(s,fs){
   // Robust R-peak detection (VIGIL-DEEP-ANALYSIS §2B). The old detector keyed the threshold on the WINDOW
   // MAXIMUM (`thr = 0.55*max|s-mean|`), so ONE motion/electrode spike inflated `amax` and pushed the
   // threshold above every real R — HR read "—" for the whole 5-7 s window until the spike scrolled out
   // (proven live: one 12x spike → 0 beats). Median centre + MAD (median absolute deviation) scale is
   // robust: a spike is a single outlier that moves NEITHER the median nor the MAD. Validated live on real
-  // H10 ECG — clean / 1-spike / 5-spike all track ~54 bpm; a pathological baseline wander returns NO beats
-  // (an honest dash, not the old detector's fabricated ~205 bpm). Pure array math, no deps.
+  // H10 ECG — clean / 1-spike / 5-spike all track ~54 bpm. Detection runs on the 5–15 Hz BANDPASSED copy
+  // (residue 2026-09-02-box-detector-lacks-bandpass): on the raw buffer a baseline wander of a few R
+  // amplitudes over the window put every sample beyond 5·MAD of the median and the detector returned NO
+  // beats — an honest dash, but a dash for a signal that carried every beat. A bandpassed R is BIPHASIC,
+  // so a window-wide polarity vote can lock onto its trailing lobe: detection is on the RECTIFIED filtered
+  // signal and polarity is decided per beat on the raw window instead. The band also lowers the noise floor
+  // the 5·MAD threshold is cut from, so two guards the raw detector never needed: the first 0.25 s is
+  // skipped (filter settling) and a candidate under 35 % of the MEDIAN candidate amplitude is dropped (a
+  // T-wave's residual is ~15 % of R). The median, not a high percentile: spikes are a minority of the
+  // candidates, so they cannot move it — measured with five 12× spikes, a 75th percentile became a spike
+  // and dropped every R — and if T residuals ever outnumber R's the guard merely stops rejecting rather
+  // than rejecting beats. Each kept R is then
+  // refined to the raw extremum in [−120 ms, +50 ms] (the causal filter only ever LAGS) so the indices
+  // still point at the raw buffer the morphology windows are cut from. Pure array math, no deps.
   const n=s.length; if(n<20) return [];
-  const srt=s.slice().sort((a,b)=>a-b);
+  const f=bandpassIIR(s,fs);
+  const srt=f.slice().sort((a,b)=>a-b);
   const med = n%2 ? srt[(n-1)>>1] : (srt[n/2-1]+srt[n/2])/2;      // robust centre (a spike can't drag it)
-  const dev=new Array(n); for(let i=0;i<n;i++) dev[i]=s[i]-med;
-  const adev=dev.map(Math.abs).sort((a,b)=>a-b);
+  const dev=new Array(n); for(let i=0;i<n;i++) dev[i]=Math.abs(f[i]-med);
+  const adev=dev.slice().sort((a,b)=>a-b);
   const mad = n%2 ? adev[(n-1)>>1] : (adev[n/2-1]+adev[n/2])/2;   // robust scale (noise floor, not the peak)
   if(mad<1) return [];                                            // flat / near-DC → no beats (presence gate)
-  let sp=0,sn=0; for(let i=0;i<n;i++){ if(dev[i]>6*mad) sp++; else if(dev[i]<-6*mad) sn++; }
-  const pol=sp>=sn?1:-1, thr=5*mad, refr=Math.round(0.3*fs), half=Math.round(0.05*fs);
-  const peaks=[]; let last=-refr;
-  for(let i=1;i<n-1;i++){
-    if(dev[i]*pol>thr && i-last>refr){
-      let j=i,ext=dev[i]*pol;
-      for(let k=Math.max(0,i-half);k<Math.min(n,i+half);k++){ const e=dev[k]*pol; if(e>ext){ext=e;j=k;} }
-      peaks.push(j); last=j;
+  const thr=5*mad, refr=Math.round(0.3*fs), half=Math.round(0.05*fs), back=Math.round(0.12*fs);
+  const cand=[]; let last=-refr;
+  for(let i=Math.max(1,Math.round(0.25*fs));i<n-1;i++){
+    if(dev[i]>thr && i-last>refr){
+      let j=i,ext=dev[i];
+      for(let k=Math.max(0,i-half);k<Math.min(n,i+half);k++){ if(dev[k]>ext){ext=dev[k];j=k;} }
+      cand.push([j,ext]); last=j;
     }
+  }
+  if(!cand.length) return [];
+  const amps=cand.map(c=>c[1]).sort((a,b)=>a-b), aref=amps[amps.length>>1];
+  const peaks=[];
+  for(const [i,a] of cand){
+    if(a<0.35*aref) continue;
+    const lo=Math.max(0,i-back), hi=Math.min(n,i+half);
+    const w=s.slice(lo,hi).sort((a,b)=>a-b), lmed=w[w.length>>1];   // local raw baseline (wander-tolerant)
+    let j=i,ext=-1; for(let k=lo;k<hi;k++){ const e=Math.abs(s[k]-lmed); if(e>ext){ext=e;j=k;} }
+    peaks.push(j);
   }
   return peaks;
 }
@@ -3410,10 +4222,13 @@ loadBuild();
 // So: retry until the first load succeeds, and surface the waiting state instead of a blank grid.
 (function boot(){
   loadState()
-    .then(()=>{ showView('overview'); setInterval(loadState, 5000); setInterval(analyze, 900); })
+    .then(()=>{ document.body.removeAttribute('data-conn');
+                showView('overview'); setInterval(loadState, 5000); setInterval(analyze, 900); })
     .catch((e)=>{                       // box down / restarting / network blip — keep trying, and SAY SO
-      const t = document.getElementById('streamgrid') || document.body;
-      if (t) t.setAttribute('data-conn', 'reconnecting');
+      /* `#streamgrid` does not exist in this file — the `|| document.body` fallback made the dead
+         selector invisible, so this "surface the waiting state" path surfaced nothing. Marked on
+         <body>, which a CSS rule now actually renders, and cleared on the first success below. */
+      document.body.setAttribute('data-conn', 'reconnecting');
       console.warn('monitor: initial load failed, retrying —', e);
       setTimeout(boot, 2000);
     });

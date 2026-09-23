@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS — 2026-08-17 (**§6.6: CVHR RATIFIED at n = 13** — four new box nights cleared §3.1's ≥10-night bar, 12/13 in band; §1's two reference figures remain open — and §6.7 records that the Verity leg on these nights reads 4.98 ms, BEATING the 5.92 reference, so the non-reproduction is corpus-dependent rather than settled. **§6: all 4 boxes closed or decided** — the jitter bound is re-based on a re-derivation; the sdnnNote string and the RMSSD-surfacing question were both owner-decided 2026-08-04 (§5). CVHR is re-measured on an enlarged corpus (§6.5): **n = 9, 8/9 in band** — still short of the ≥10 bar, and the first out-of-band night has appeared.) · **Created:** 2026-08-03 · **Follows:** `O2RING-FINGER-HRV-VALIDATION-2026-07-21-BRIEF.md` §8/§8.6 · **Verdict doc:** `docs/PPGDEX-FINGER-HRV-VALIDATION-2026-08-03.md` · **Apparatus:** `tools/ppi-jitter-vs-ecg.mjs`
+**Status:** DONE — 2026-09-03 (**all five §5 "Done when" items are ticked and were VERIFIED by capability, not by their ticks, during the 2026-09-03 cluster triage.** ⚠️ The previous header — dated 2026-08-17 — said *"§1's two reference figures remain open"*, and was STALE AGAINST ITS OWN BODY: §1 was resolved **2026-08-18**, one day later, and records that BOTH figures reproduce (Verity PPI-jitter median 6.09 ms, IQR 4.57–7.54, containing the 5.92 reference; `sdnnRobust` median 1.84 %, inside the ±3.5 % bar; beat match median 100.00 %). The gap was the TOOL, not the corpus — `ppi-jitter-vs-ecg.mjs` matched only `VeritySense` while Polar Sensor Logger writes `Polar_Sense`, one device with two spellings and an identical serial, so the old pattern matched 0 of 1980 files and reported "nothing to report". **Re-verified 2026-09-03 that the fix is in the code and not merely described in a comment:** the live pattern is `/(?:VeritySense|Polar_Sense).*_PPG\.txt$/` and matches both spellings. §6.6 CVHR ratified at n=13. **The one genuine remainder is NOT a "Done when" item and does not block this brief** — §6.7's corpus-vs-apparatus question (whether the Verity leg's 4.98 ms on box nights vs 6.09 ms here is corpus or method) needs the two medians compared THROUGH their uncertainties at matched n, or the 15-night set re-run with `--device verity`. Rowed rather than held open here.) · **Residue:** 2026-09-03-verity-jitter-corpus-vs-apparatus
 
 # Two published PPG reference figures do not reproduce, and the jitter budget says why nothing can promote
 
@@ -105,6 +105,36 @@ three things that outlive it.
 >
 > **What still stands:** the tool was blind to 54 wrist files and now is not, and it now prints its
 > denominator. Neither depends on any of the above.
+>
+> 🔴 **SETTLED 2026-09-22 — "corpus-dependent" is WITHDRAWN as unsupported** (residue
+> `2026-09-03-verity-jitter-corpus-vs-apparatus`; record
+> [`audits/VERITY-JITTER-CORPUS-2026-09-22.json`](../audits/VERITY-JITTER-CORPUS-2026-09-22.json)).
+> The two medians above were never compared **through their uncertainties**, so the word was a label
+> on an unexplained gap. Re-run with the same flags (`--device verity --sleep-only`) on both corpora,
+> bands written before either run: **box n=14 median 5.10 ms · PSL n=19 median 6.28 ms · Δ −1.18 ms,
+> 95 % bootstrap CI [−2.46, +0.44] ms** (B=10 000, seed 20260922). **The CI contains zero**, and
+> P(a box night is quieter than a PSL night) = 0.590 over 266 pairs — a shift too small to separate
+> these corpora at this n. The pre-stated rule was "CI includes 0 ⇒ not established", so that is the
+> answer, not "no difference": the corpora are **not distinguishable here**, which is a different
+> claim from being the same.
+>
+> ⚠️ **The 2026-08-18 numbers do not reproduce exactly, and anyone citing them needs the date**:
+> box **4.71 → 5.10 ms** (n 11 → 14) and PSL **6.09 → 6.28 ms**. More nights are on disk and
+> `ppgdex-dsp.js` has moved again, which is the re-derivation form working as intended — but it means
+> 4.71 and 6.09 are readings of a particular day, not constants.
+>
+> 🔵 **AND THAT GENERALISES PAST THIS BRIEF: a corpus median quoted without its DATE and its n is a
+> number with no referent.** Both terms move on their own — nights keep arriving, and the DSP that
+> derives the number keeps changing — so the pair (median, IQR) alone cannot be re-found, compared, or
+> falsified by anyone who reads it later. Every figure in the table above now carries both. Anything
+> elsewhere in the docs citing a corpus median bare is in the same position, and that is precisely
+> what the re-derivation form exists to catch: a frozen constant would have hidden the 4.71 → 5.10
+> move instead of surfacing it.
+>
+> ⚠️ **And the comparison is UNPAIRED — zero night dates are shared between the two corpora.** Device
+> naming, capture host, fragmentation and date range all differ at once, so even a CI that had
+> excluded zero would have identified *"these two collections differ"*, never *"the corpus is the
+> cause"*. That limit was written down before the run, not after it.
 >
 > ⚠️ **The general fault, twice in one day, is asserting equivalence across an axis I had not checked.**
 > First corpus identity; then, having fixed that, I kept a conclusion that only one of the two corpora

@@ -1,0 +1,18 @@
+# tepna-sniff.timer — Tepna Vigil
+# Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
+#
+# Nightly, in the middle of the night on purpose: that is when the wearables are worn and connected,
+# when the daemon's reconnects happen (the connects the audit exists to attribute), and when a
+# stranger's connect to one of our devices would matter. Persistent=false, also on purpose: a night
+# the box slept through must NOT be "caught up" at 09:00 against a docked ring and an empty room —
+# that capture would answer a different question and read as a clean night.
+[Unit]
+Description=Tepna — nightly BLE air audit
+
+[Timer]
+OnCalendar=*-*-* 03:00:00
+RandomizedDelaySec=10min
+Persistent=false
+
+[Install]
+WantedBy=timers.target

@@ -24,7 +24,30 @@ git init -q .
 git config user.email t@t
 git config user.name t
 cp "$REPO/biome.json" .
-ln -s "$REPO/node_modules" node_modules          # the real, pinned Biome
+
+# ⚠ THIS HARNESS HAD THE DEFECT IT TESTS FOR. `ln -s "$REPO/node_modules"` is a
+# DANGLING symlink in a fresh worktree — which is the checkout CLAUDE.md §👥.1
+# mandates — so Biome silently was not there, every DENY case scored ALLOW, and the
+# run reported NINE failures that read as "the hook is broken". Measured 2026-09-22
+# while building the fix for exactly that blind spot. So resolve Biome the way the
+# hook now does (this checkout → $DEX_BIOME → the PRIMARY checkout, derived from git),
+# and SKIP loudly rather than reporting false failures if it is genuinely absent.
+_common="$(cd "$REPO" && git rev-parse --git-common-dir 2>/dev/null)"
+case "${_common:-}" in
+  /*) _PRIMARY="$(dirname "$_common")" ;;
+  '') _PRIMARY='' ;;
+  *)  _PRIMARY="$(cd "$REPO" && cd "$(dirname "$_common")" 2>/dev/null && pwd)" ;;
+esac
+NM=''
+for _c in "$REPO/node_modules" "${DEX_BIOME:+$(dirname "$(dirname "${DEX_BIOME}")")}" "${_PRIMARY:+$_PRIMARY/node_modules}"; do
+  [ -n "$_c" ] && [ -x "$_c/.bin/biome" ] && { NM="$_c"; break; }
+done
+if [ -z "$NM" ]; then
+  echo "  SKIP  guard-format.test.sh — no pinned Biome reachable; this test would certify nothing"
+  echo "        looked in: $REPO/node_modules · \$DEX_BIOME · ${_PRIMARY:-<no primary>}/node_modules"
+  exit 0
+fi
+ln -s "$NM" node_modules                         # the real, pinned Biome
 
 # UGLY is unformatted (Biome reflows it); TIDY is what Biome emits for the same code.
 printf 'export const a = {b:1,   c:2};\n' > ugly.js
@@ -42,12 +65,20 @@ expect() { # expect <want> <label> <command>
   if [ "$got" = "$1" ]; then printf '  ok    %-56s %s\n' "$2" "$got"
   else printf '  FAIL  %-56s got %s, want %s\n' "$2" "$got" "$1"; fail=$((fail+1)); fi
 }
+run_from() { # run_from <cwd> <command> ; like run, but with the hook's cwd set explicitly
+  ( cd "$1" && jq -nc --arg c "$2" '{tool_input:{command:$c}}' | bash "$H" >/dev/null 2>&1; [ $? -eq 2 ] && echo DENY || echo ALLOW )
+}
+expect_from() { # expect_from <cwd> <want> <label> <command>
+  local got; got="$(run_from "$1" "$4")"
+  if [ "$got" = "$2" ]; then printf '  ok    %-56s %s\n' "$3" "$got"
+  else printf '  FAIL  %-56s got %s, want %s\n' "$3" "$got" "$2"; fail=$((fail+1)); fi
+}
 
 echo "### the case it exists for"
 git add ugly.js >/dev/null
 expect DENY  "an unformatted .js is STAGED"                    "git commit -m wip"
 expect DENY  "…and through a -C form"                          "git -C . commit -m wip"
-expect DENY  "…and when it is not the first word"              "cd /tmp && git commit -m wip"
+expect DENY  "…and when it is not the first word"              "cd \"$W\" && git commit -m wip"
 
 echo
 echo "### the paired ALLOWs — each differs in exactly ONE property"
@@ -65,6 +96,31 @@ expect ALLOW "git commit-tree is not git commit"               "git commit-tree 
 expect ALLOW "asking for help never commits"                   "git commit --help"
 
 echo
+echo "### THE TREE IS THE COMMAND'S, NOT THE HOOK'S — driven from OUTSIDE the repo"
+# The hook runs with the SESSION's cwd (the shared root, for nearly every session);
+# the commit runs wherever the command sends it, and §👥.1 sends it to a worktree.
+# Before this leg the guard resolved the repo from its own cwd and examined the ROOT's
+# index for a worktree commit — inert for every `cd <wt> && git commit`, measured
+# 2026-09-22 with a staged unformatted plant that committed straight through.
+# W2 is a second repo with only a TIDY file staged, so each pair differs in the TREE alone.
+W2="$TMP/w2"; mkdir -p "$W2"
+( cd "$W2" && git init -q . && git config user.email t@t && git config user.name t \
+  && cp "$REPO/biome.json" . && ln -s "$NM" node_modules \
+  && printf 'export const a = { b: 1, c: 2 };\n' > tidy.js && git add tidy.js ) >/dev/null 2>&1
+expect_from "$TMP" DENY  "cd <ugly repo> && git commit — cwd OUTSIDE any repo"   "cd $W && git commit -m wip"
+expect_from "$TMP" ALLOW "cd <tidy repo> && git commit — same cwd"              "cd $W2 && git commit -m ok"
+expect_from "$TMP" DENY  "…the cd target quoted"                                "cd \"$W\" && git commit -m wip"
+expect_from "$TMP" DENY  "git -C <ugly repo> commit — cwd OUTSIDE"               "git -C $W commit -m wip"
+expect_from "$W2"  DENY  "git -C <ugly repo> commit — cwd inside the TIDY repo"  "git -C $W commit -m wip"
+expect_from "$W2"  ALLOW "…and the tidy repo's own plain commit stays clean"     "git commit -m ok"
+expect_from "$W"   DENY  "anti-vacuity: cwd IS the ugly repo, no cd, no -C"      "git commit -m wip"
+# Two RESIDUALS, pinned so they are known rather than discovered: with nothing in the
+# command naming a tree, the hook's cwd is all there is; and a tree the same command
+# CREATES does not exist at PreToolUse time, so there is nothing to ask.
+expect_from "$TMP" ALLOW "RESIDUAL: no cd, no -C, cwd outside ⇒ nothing to examine" "git commit -m wip"
+expect_from "$TMP" ALLOW "RESIDUAL: cd to a tree the command creates ⇒ fallback"   "git worktree add $TMP/nope && cd $TMP/nope && git commit -m wip"
+
+echo
 echo "### escape hatch + degenerate inputs"
 got="$(jq -nc --arg c 'git commit -m wip' '{tool_input:{command:$c}}' | CLAUDE_ALLOW_UNFORMATTED=1 bash "$H" >/dev/null 2>&1; [ $? -eq 2 ] && echo DENY || echo ALLOW)"
 if [ "$got" = ALLOW ]; then echo "  ok    CLAUDE_ALLOW_UNFORMATTED=1 releases it"
@@ -80,7 +136,7 @@ echo "### FAILS OPEN without Biome — the fresh-worktree case that decides usab
 # would be switched off within a day, and it guards formatting, not an invariant.
 rm node_modules
 expect ALLOW "no node_modules ⇒ ALLOW (CI is the backstop)"    "git commit -m wip"
-ln -s "$REPO/node_modules" node_modules
+ln -s "$NM" node_modules
 expect DENY  "…and it comes straight back when Biome returns"  "git commit -m wip"
 
 echo
@@ -103,6 +159,48 @@ if [ -f "$S" ]; then
 else
   echo "  FAIL  .claude/settings.json not found at $S"; fail=$((fail+1))
 fi
+
+echo
+echo "### a WORKTREE without node_modules — the guard now FINDS Biome instead of going silent"
+# The case the whole change exists for, exercised as a REAL worktree rather than by
+# deleting a symlink: 20 of 58 worktrees on this box had no node_modules when this was
+# written, and a worktree is what §👥.1 tells every session to make.
+git -C "$W" worktree add -q "$TMP/wt" -b wtbranch >/dev/null 2>&1
+if [ -d "$TMP/wt" ]; then
+  cp "$REPO/biome.json" "$TMP/wt/" 2>/dev/null
+  printf 'export const a = {b:1,   c:2};\n' > "$TMP/wt/ugly2.js"
+  git -C "$TMP/wt" add ugly2.js >/dev/null 2>&1
+  [ -e "$TMP/wt/node_modules" ] && echo "  FAIL  the test worktree has node_modules; it cannot exercise the case" && fail=$((fail+1))
+  got="$(cd "$TMP/wt" && jq -nc --arg c 'git commit -m wip' '{tool_input:{command:$c}}' | bash "$H" >/dev/null 2>&1; [ $? -eq 2 ] && echo DENY || echo ALLOW)"
+  if [ "$got" = DENY ]; then echo "  ok    no node_modules in the worktree, and it still DENIES — found the primary's Biome"
+  else echo "  FAIL  worktree commit got $got, want DENY (the search did not reach the primary)"; fail=$((fail+1)); fi
+else
+  echo "  SKIP  could not create a test worktree"
+fi
+
+echo
+echo "### Biome genuinely unreachable — ALLOW, but SAY so, and say it ONCE"
+# Absent and clean must not look identical. The notice is the whole point; it must not
+# become a denial, and it must not repeat on every commit.
+mk="$TMP/marker-home"; mkdir -p "$mk"
+absent() { # absent <n> ; echoes "<VERDICT> <notice-lines>"
+  out="$(cd "$W" && TMPDIR="$mk" CLAUDE_CODE_SESSION_ID=tsess DEX_BIOME=/nonexistent/biome \
+        env PATH="$PATH" bash -c 'mv node_modules nm.hidden 2>/dev/null; jq -nc --arg c "git commit -m wip" "{tool_input:{command:\$c}}" | bash '"$H"' 2>&1 >/dev/null; ec=$?; mv nm.hidden node_modules 2>/dev/null; exit $ec')"
+  printf '%s' "$out"
+}
+first="$(absent)"; first_ec=$?
+if printf '%s' "$first" | grep -qF 'was NOT format-checked'; then echo "  ok    absent Biome SAYS so — not a silent pass"
+else echo "  FAIL  absent Biome produced no notice"; fail=$((fail+1)); fi
+if printf '%s' "$first" | grep -qF 'Looked for it at:'; then echo "  ok    …and prints WHERE it looked, so 'absent' is checkable"
+else echo "  FAIL  notice does not say where it looked"; fail=$((fail+1)); fi
+second="$(absent)"
+if [ -z "$second" ]; then echo "  ok    …and says it ONCE per session, not on every commit"
+else echo "  FAIL  the notice repeated"; fail=$((fail+1)); fi
+# ⚠ Assert the EXIT CODE of the absent run itself — not a fresh `expect`, which runs with
+# node_modules restored and would correctly DENY. A first draft did exactly that and failed,
+# which is the harness testing a different command than the one under test.
+if [ "$first_ec" -eq 0 ]; then echo "  ok    …and it is a NOTICE, never a denial (exit 0)"
+else echo "  FAIL  absent Biome exited $first_ec, want 0 — it must never deny"; fail=$((fail+1)); fi
 
 echo
 echo "### file integrity"

@@ -11,6 +11,7 @@ real capture.py. It does bind one ephemeral port, because `start`'s success path
 to listen and a fake that never binds would only ever exercise the timeout branch. What is under test is
 the process bookkeeping, which is where all four bugs lived."""
 import os
+import pathlib
 import socket
 import subprocess
 import time
@@ -56,19 +57,69 @@ def _run(box, *args, timeout=60):
                           timeout=timeout)
 
 
+def _procs_on_port(port):
+    """PIDs of the stub servers bound to THIS box's port.
+
+    THE PORT IS THE OWNERSHIP TOKEN, and that is what makes this a safe sweep rather than a
+    pattern-kill. `_free_port` hands each box an ephemeral port the kernel has just confirmed is
+    free, so no other session's stub — and nothing else on the machine — can carry it. Matching
+    demands BOTH `http.server` and that exact port as whole argv entries, so a substring of some
+    other number cannot collide either.
+
+    A killed process's `cmdline` reads empty while it is a zombie, so a reaped stub stops matching
+    here without waiting for its parent.
+    """
+    out = []
+    for name in os.listdir("/proc"):
+        if not name.isdigit():
+            continue
+        try:
+            argv = (pathlib.Path("/proc") / name / "cmdline").read_bytes().split(b"\0")
+        except OSError:
+            continue        # the process exited between listdir and read — it is not a straggler
+        if b"http.server" in argv and str(port).encode() in argv:
+            out.append(int(name))
+    return out
+
+
 def _kill(box):
     """Kill the whole session, not the pid. `setsid` puts the daemon in its own session, so the
-    http.server it backgrounded is not reaped by killing the shell alone."""
+    http.server it backgrounded is not reaped by killing the shell alone.
+
+    🔴 AND THE NO-PIDFILE PATH IS THE ONE THAT LEAKED. This used to `return` bare when the pidfile
+    was absent or unparseable, attempting no kill at all — and that is precisely the state the
+    pidfile and restart tests are built to produce, so the tests most likely to strand a server were
+    the ones guaranteed not to reap it. Measured 2026-09-14 on rig-x870: two `python3 -m http.server`
+    stubs alive at 26 h and 54 h, cwd under `pytest-of-michal/.../test_the_pidfile_names_the_dae0`
+    and `.../test_restart_starts_a_stopped_0` — the two tests named by the mechanism. Both far
+    outlived the fixture's own `sleep 300` parent, so the server survived its shell rather than
+    losing a race.
+
+    ⚠️ IT COSTS MEMORY, NOT DISK. `/tmp` here is a tmpfs, so the stranded pytest tmpdir is RESIDENT
+    and belongs to no process — invisible to `ps`, and freed only by deleting the tree. Those two
+    held 238 MB. The harness watchdog reaps other sessions' gates when the box reads low on memory
+    (CLAUDE.md §4c), so a leaked stub is a cross-session cost.
+
+    The pid path stays first: it is precise, and it takes the whole process group. The port sweep is
+    the backstop for every path that reaches teardown with no usable pid.
+    """
+    p = None
     try:
         p = int(box["pid"].read_text().strip())
     except (OSError, ValueError):
-        return
-    for killer in (lambda: os.killpg(os.getpgid(p), 9), lambda: os.kill(p, 9)):
+        pass            # no usable pidfile — the leaking case; the port sweep below covers it
+    if p is not None:
+        for killer in (lambda: os.killpg(os.getpgid(p), 9), lambda: os.kill(p, 9)):
+            try:
+                killer()
+                break
+            except OSError:
+                continue   # this strategy cannot reach it; the sweep below is the real backstop
+    for stray in _procs_on_port(box["port"]):
         try:
-            killer()
-            return
+            os.kill(stray, 9)
         except OSError:
-            continue   # try the next kill strategy; the loop's end reports total failure
+            pass        # already gone between the scan and the kill — the outcome we wanted anyway
 
 
 # ── the four fixes, one test each ────────────────────────────────────────────────────────────────────
@@ -138,6 +189,30 @@ def test_a_recycled_pid_running_something_else_is_not_our_daemon(box):
         other.kill()
 
 
+def test_a_stranger_whose_cwd_cannot_be_read_is_NOT_our_daemon(box, tmp_path):
+    """THE CONCURRENCY HOLE (2026-09-22). `is_vigil` accepted an EMPTY cwd — "unreadable, so do not
+    convict" — and under pytest-xdist that is exactly what a neighbour's stub looks like for a moment:
+    `capture.py` in its argv, its box directory already torn down, `readlink -f /proc/<pid>/cwd` failing.
+    `running()`'s pgrep fallback then claimed it: `start` said "already running" and started nothing,
+    `status` said RUNNING on a cold box — 3 of 6 rounds red at -n 8, red across worktrees too.
+
+    Deterministic plant: a stranger with `capture.py` in argv whose cwd tree is removed under it, so the
+    readlink fails the way a torn-down neighbour's does. Verified red on the old script."""
+    nest = tmp_path / "gone" / "capture-host"
+    nest.mkdir(parents=True)
+    other = subprocess.Popen(["bash", "-c", "exec -a 'python capture.py --config x' sleep 300"], cwd=str(nest))
+    try:
+        nest.rmdir()
+        nest.parent.rmdir()
+        assert subprocess.run(["readlink", "-f", f"/proc/{other.pid}/cwd"], capture_output=True, text=True).stdout.strip() == "", \
+            "the plant did not reproduce: the stranger's cwd still resolves"
+        box["pid"].write_text(str(other.pid))
+        r = _run(box, "status")
+        assert r.returncode == 3 and "not running" in r.stdout.lower(), f"an unreadable cwd was accepted as ours: {r.stdout}"
+    finally:
+        other.kill()
+
+
 # ── read-only verbs must not start anything ──────────────────────────────────────────────────────────
 
 def test_url_prints_an_address_without_launching_a_daemon(box):
@@ -178,3 +253,33 @@ def test_every_path_vigil_sh_writes_is_redirectable():
     code = open(VIGIL, encoding="utf-8").read()
     for var in ("VIGIL_DIR", "VIGIL_CONFIG", "VIGIL_PY", "VIGIL_PIDFILE", "VIGIL_LOG"):
         assert f"${{{var}:-" in code, f"{var} is no longer an override — tests could hit the real default"
+
+
+def test_the_teardown_reaps_the_stub_when_the_pidfile_is_GONE(box):
+    """REGRESSION — the no-pidfile path used to attempt no kill at all, stranding the stub forever.
+
+    This reproduces the exact state the pidfile and restart tests leave behind: a started daemon whose
+    pidfile is unreadable by teardown. Before the fix `_kill` returned bare here and the backgrounded
+    `http.server` outlived the run — measured at 26 h and 54 h on two real stragglers, holding 238 MB
+    of tmpfs between them.
+
+    The assertion is on the PORT rather than on a pid, because the pid is precisely what is missing in
+    the failing case; the port is the one handle that survives it.
+    """
+    r = _run(box, "start", timeout=30)
+    assert r.returncode == 0, f"start failed: {r.stdout}{r.stderr}"
+    assert _procs_on_port(box["port"]), "the fixture never started a stub — the test would pass vacuously"
+    box["pid"].unlink()                      # the leaking state, reproduced exactly
+    try:
+        _kill(box)
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline and _procs_on_port(box["port"]):
+            time.sleep(0.05)
+        assert _procs_on_port(box["port"]) == [], \
+            "teardown left a stub bound to this box's port — it will outlive the run"
+    finally:
+        for stray in _procs_on_port(box["port"]):
+            try:
+                os.kill(stray, 9)
+            except OSError:
+                pass   # a failing assertion must not itself leak the thing it is complaining about

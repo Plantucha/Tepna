@@ -1478,7 +1478,11 @@ import { PPGUI } from './ppgdex-render.js';
     const _ts = list.map((x) => x.t0Ms).filter((v) => v != null);
     const _aT0 = _ts.length ? Math.min.apply(null, _ts) : null;
     const _aSpan = _ts.length > 1 ? Math.round((Math.max.apply(null, _ts) - Math.min.apply(null, _ts)) / 864e5) : null;
-    const stamp = { kernel: window.DexKernel ? { version: DexKernel.VERSION, hash: DexKernel.HASH } : null, provenance: window.GangliorProvenance ? GangliorProvenance.stamp() : null };
+    // MEASUREMENT-PROVENANCE-ROADMAP §12 — the running bundle's code identity, read off the <html>
+    // stamp HERE (the app layer) and passed in, because the born-clean DSP may not touch `document`.
+    const ds = document.documentElement.dataset;
+    const code = /^[0-9a-f]{12}$/.test(ds.manifestHash || '') && /^[0-9a-f]{12}$/.test(ds.computeHash || '') ? { manifestHash: ds.manifestHash, computeHash: ds.computeHash } : null;
+    const stamp = { kernel: window.DexKernel ? { version: DexKernel.VERSION, hash: DexKernel.HASH } : null, provenance: window.GangliorProvenance ? GangliorProvenance.stamp() : null, code };
     let out;
     if (list.length === 1) {
       // ONE shared builder (ppgdex-dsp.js) — the SAME node-export compute() emits, so the app
@@ -1514,12 +1518,11 @@ import { PPGUI } from './ppgdex-render.js';
   function exportPPI() {
     const r = allSessions[activeKey];
     if (!r) return;
-    let out = 'Phone Data RX timestamp;PP-interval [ms];error estimate [ms];blocker;contact;contact;hr [bpm]\n';
-    for (let i = 0; i < r.nn.length; i++) {
-      const tMs = r.t0Ms != null ? r.t0Ms + Math.round(r.tt[i] * 1000) : null;
-      const ts = tMs != null ? new Date(tMs).toISOString().replace('Z', '') : '';
-      out += `${ts};${Math.round(r.nn[i])};0;0;1;1;${Math.round(60000 / r.nn[i])}\n`;
-    }
+    /* The row format lives in DSP.buildSelfPPIText, not here — it is the one part of this function
+       that carries a CLAIM (which of the Polar columns we actually measured) and the app layer has no
+       test lane to hold it to. The four device-telemetry columns are now empty rather than `0;0;1;1`;
+       see that function for why a plausible-looking substitute is worse than a blank. */
+    const out = DSP.buildSelfPPIText(r);
     // INTEROP file (self-PPI in Polar device .txt format, for the PulseDex handoff) — stays OFF the
     // <Node>_<date>_<kind> scheme (EXPORT-HYGIENE-FOLLOWUPS §4), recording-anchored inline (getUTC* via
     // DSP.fmtDate), like ECGDex's computed-RR / PulseDex's welltory exports.

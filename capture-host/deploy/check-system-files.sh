@@ -108,6 +108,11 @@ JSON=0
 # tepna-restart.sh, the one thing that lets a deploy finish itself without an interactive password.
 # That is strictly worse than the drift it repairs, and it became reachable the moment these files
 # were made MANAGED. A file that is installed must be installed with the mode it needs to work.
+# ⚠️ tepna-report.service/.timer are DELIBERATELY ABSENT from this manifest. They are USER-scope units
+# (~/.config/systemd/user), so they never appear under /etc/systemd — a MANAGED row for them would
+# report them absent every run, forever, and a check that is always red is a check nobody reads.
+#
+# (The manifest below has NO comment syntax — every line in it is parsed as a row.)
 MANIFEST="
 systemd/99-tepna-btdongle.rules|$ETC_UDEV/99-tepna-btdongle.rules|MANAGED|0644
 systemd/99-tepna-hidraw.rules|$ETC_UDEV/99-tepna-hidraw.rules|MANAGED|0644
@@ -115,6 +120,11 @@ systemd/tepna-usb-autosuspend.service|$ETC_SYSTEMD/tepna-usb-autosuspend.service
 deploy/tepna-capture.service|$ETC_SYSTEMD/tepna-capture.service|MANAGED|0644
 systemd/tepna-update.service|$ETC_SYSTEMD/tepna-update.service|MANAGED|0644
 systemd/tepna-update.timer|$ETC_SYSTEMD/tepna-update.timer|MANAGED|0644
+systemd/tepna-update-pending.service|$ETC_SYSTEMD/tepna-update-pending.service|MANAGED|0644
+systemd/tepna-update-pending.timer|$ETC_SYSTEMD/tepna-update-pending.timer|MANAGED|0644
+systemd/tepna-radioclock.service|$ETC_SYSTEMD/tepna-radioclock.service|MANAGED|0644
+systemd/tepna-sniff.service|$ETC_SYSTEMD/tepna-sniff.service|MANAGED|0644
+systemd/tepna-sniff.timer|$ETC_SYSTEMD/tepna-sniff.timer|MANAGED|0644
 tepna-clock.sh|$LIB_TEPNA/tepna-clock.sh|MANAGED|0755
 tepna-restart.sh|$LIB_TEPNA/tepna-restart.sh|MANAGED|0755
 tepna-rssi.sh|$LIB_TEPNA/tepna-rssi.sh|MANAGED|0755

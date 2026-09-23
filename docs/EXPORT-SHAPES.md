@@ -39,6 +39,76 @@
 | **PpgDex** | Wrist PPG | `ppgBuildNodeExport` — **LIGHT** (recording + events; `opts.rich` orchestrate-only) | **`buildV2`/`exportSummary`** — RICH (recording + `hrv{time,frequency,nonlinear}` + `personalization` + `apnea`) | **`sessions[]`** | rich `buildV2` **or** light — reads whatever's present |
 | **EEGDex** *(planned)* | EEG | — decide at build time — | — decide at build time — | — | — |
 
+## The `measurement` block — per-instance lineage (additive, MINOR; OxyDex emits it since 2026-09-21, ECGDex and PpgDex since 2026-09-22)
+
+Specified by `MEASUREMENT-PROVENANCE-ROADMAP-2026-08-26` §1 and validated by **`measurement-block.js`**
+(`validateMeasurement(block, opts) → {ok, errors[], checked[]}`), which is the schema authority the way
+`signal-frame.js` is for the canonical intermediate.
+
+**It is a NEW BLOCK INSIDE `ganglior.node-export`, not a sibling artifact.** The gap it closes, in one
+line: Tepna can prove that a BUNDLE produced an EXPORT from an INPUT, byte for byte, years later — and
+cannot answer the same question about one number *inside* that export. Provenance is airtight at
+ARTIFACT granularity (`manifestHash`, `computeHash`, GATE A/B) and absent at INSTANCE granularity.
+
+**OxyDex is the first emitter (roadmap §3, 2026-09-21).** Every OxyDex night element carries
+`measurement: { meanSpo2, t90, odi4, hypoxicBurden }` — one block per headline metric, keyed by registry
+id (each block still carries its own `metricId`) — and its `schema.version` is **2.1**. The values are
+the element's own numbers (`stats.meanSpo2` / `stats.t90pct` / `odi4.rate` / `hypoxicBurden.rate`);
+the block adds lineage and recomputes nothing. `code` is read off the bundle's own `<html
+data-manifest-hash data-compute-hash>` stamp (build-time, outside every inline block); a headless
+source-module run has none and emits `code: null` + `codeReason`. `evidence.inputHash` is the
+recording's `contentId`; `evidence.envelopeRef` is the attached acquisition envelope's `session_id` or
+`null` + reason on a CSV. Desat events carry `inputHash` + `evidenceRef` (§2). Walk-through + tool:
+`docs/MEASUREMENT-WALKTHROUGH-OXYDEX-2026-09-21.md`, `tools/measurement-walk.mjs`. **ECGDex is the second
+emitter (roadmap §12, 2026-09-22):** the export carries a recording-level `measurement: { hr, rmssd, sdnn }`
+— the WHOLE-RECORD numbers (`hrv.time.wholeRecordHR/RMSSD/SDNN`, the Integrator's consensus axis), not the
+epoch-median display values; `basis: derived` on all three (a statistic over a detected, Malik-corrected beat
+train — LEXICON §4b); `sourceChannel: H10:ecg`; `window.spreadMs` is the host axis's measured spread on a box
+night (the H10 has a second clock, so this emitter can publish what OxyDex cannot) and null-with-reason on a
+phone export; `evidence.envelopeRef` is null with the reason that no acquisition envelope joins the ECG path
+yet. Present on BOTH the light and the rich export; `schema.version` 2.1. **PpgDex is the third emitter (roadmap
+§12, 2026-09-22):** `measurement: { hr, rmssd }` — the WHOLE-RECORD Pulse HR and rMSSD (`hrv.time.hr/rmssd`;
+single-site PPG, so the rich values ARE whole-record), `basis: derived`, `sourceChannel` `O2Ring:ppg` or
+`Verity:ppg` from the optical `site` the export already declares, `evidence.envelopeRef` null with the reason
+that no envelope joins the PPG path. **The rule the PpgDex row carries (§∅ owner ruling 2026-09-17): a
+`clock-seam` refusal ⇒ NO block.** A capture-side sensor-clock resync means the NN train spans two clocks, so
+the export carries `measurement: null` and a `measurementReason` that opens with `clock-seam:` and counts the
+resyncs — the whole-record numbers are still computed for display, but a number over a discontinuity gets no
+lineage claim. Reduced coverage (dropouts, pinned spans) is not a seam and annotates through `quality`.
+`window.spreadMs`: PpgDex ships WITHOUT `clock.js` (CLAUDE.md §✅), so in the bundle the node-local axis
+publishes null with that reason; a headless co-loaded run (the fixtures) carries the measured spread — a
+known headless/bundle divergence, the same one `recording.hostAxis` already has, recorded rather than hidden:
+**a PpgDex `spreadMs` NUMBER means "co-loaded run", never "the app"** — residue
+`2026-09-22-ppgdex-fixture-spread-not-bundle-reproducible` holds the two remedies.
+Emission is still staged per node — the other five do not emit it yet, and a missing block on THEIR exports is
+not a defect. **The Integrator consumes it (roadmap §8, 2026-09-21; the generic `adaptEnvelopeNode` too since
+2026-09-22, so an ECGDex export's recording-level map is consumed the same way):** `adaptOxyDex` turns each block into a
+REF on the rec (`measurements.blocks.<id>` = metricId · value · basis · window · code · evidence join ·
+`provenance: resolved | unresolved` + reason) and the fusion export's `nodes[].measurements` carries
+those refs forward — never the payload. Absence adds no key (a legacy export fuses byte-identically);
+a block whose refs do not resolve (inputHash ≠ the element's contentId, missing code identity, value ≠
+the element scalar, non-positive window) is marked `unresolved` loudly and never silently accepted.
+
+**Back-compat:** additive, so **consumers tolerating its absence is the contract**, gated the same way
+the `t`-only event tolerance already is. The `schema.version` MINOR bump lands with the FIRST EMITTER,
+not with the shape: a version announcing a block no node writes is a claim the artifact does not
+honour.
+
+Field rules a reviewer should know without reading the module:
+
+- **`metricId` resolves; it never carries `unit`/`label`/`evidence` inline.** Those are the registry's
+  (the metric contract's single source), and the validator REJECTS them inline. An id the registry does
+  not resolve is the fabricated-identity failure one layer below `no-fabricated-tier`.
+- **`basis` is NOT the evidence ladder.** `measured | derived | estimated` is per-INSTANCE derivation
+  kind; the ladder is per-METRIC epistemics. They share the word `measured` and nothing else, which is
+  exactly why the validator rejects the ladder's other four values *by name*.
+- **`code: {manifestHash, computeHash}` — a hash IS the version.** §📦 forbids a hand-typed version
+  string, so the validator accepts only a 12-hex content hash.
+- **∅ at every optional field.** `window.spreadMs`, `uncertainty` and `evidence.envelopeRef` are
+  `null` **with a reason beside them**, never `0` and never silently absent — "unknown" is a valid
+  state, and a `spreadMs: 0` asserts the two clocks agreed exactly, which is a claim nobody made.
+- **`window.clockDomain` is named** (`device | host | host-corrected`), never implied.
+
 ## Rules that fall out of this (for a new node / a reviewer)
 
 1. **Decide the clinical export shape up front.** If the node's value is a derived table (HRV rows, glycemic

@@ -92,7 +92,10 @@ def merge(root: str, cfg: dict | None, now_ms: int | None = None,
     implicit instance, so the same reader serves both deployments."""
     now_ms = int(time.time() * 1000) if now_ms is None else now_ms
     names = expected_instances(cfg)
-    out_inst, devices, streams, missing = {}, [], [], []
+    out_inst: dict[str, dict] = {}
+    devices: list = []
+    streams: list = []
+    missing: list[str] = []
     for name in (names or [None]):
         doc = read_instance(root, name)
         health = instance_health(doc, now_ms, stale_after_ms)

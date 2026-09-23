@@ -76,11 +76,39 @@
  *
  *   node tools/doc-search.mjs "has anyone measured the equivalent mutant ceiling?"
  *   node tools/doc-search.mjs --selftest
+ *
+ * ── EXTERNAL ROOTS — reference trees OUTSIDE the repo (owner-ordered 2026-09-06)
+ * The repo's own answer is not the only one worth ranking: a device's wire behaviour is often
+ * documented best by a vendor SDK, a sibling open-source project, or a protocol reference that lives
+ * outside this tree by design (third-party material is never vendored here). A local, per-machine
+ * config lists such trees and they join the SAME index, keyed `ext:<name>/<path>`:
+ *
+ *   <state dir>/doc-search-external.json
+ *   { "roots": [ { "name": "some-sdk", "path": "/abs/path", "exts": [".java", ".kt"] }, … ] }
+ *
+ * Walked RECURSIVELY (the repo dirs are flat by convention; a Gradle tree is not), `.git` /
+ * `node_modules` / `build` skipped, files over 256 KB skipped (generated giants, not documents).
+ * ⚠️ External CODE is indexed as FULL TEXT, not comments-only like the repo's `.js`: SDK code is
+ * often comment-free — its identifiers ARE the document — and the comments-only rule exists to keep
+ * repo code from burying repo decisions, which does not apply to a tree that has no prose to bury.
+ * `--no-ext` searches the repo alone; `--ext-only` searches the external roots alone. The config is
+ * per-machine like the model and the index: absent config ⇒ no external roots, silently — the repo
+ * corpus guard is unchanged.
+ *
+ * FRESHNESS IS THE SAME TIMER AS THE REPO'S (owner: "reindex on a regular basis like tepna is").
+ * `bge-reindex-driver.sh` runs one query hourly on the root checkout; the index is content-hashed,
+ * so an unchanged external tree costs one hash pass and "0 newly embedded". What a timer cannot do
+ * is move the trees: a clone stays at the commit it was cloned at. A root may therefore opt in
+ * with `"pull": true`, and the driver's `--pull-ext` fast-forwards exactly those (`git pull
+ * --ff-only`, quiet, best-effort, 60 s each) BEFORE the query. Opt-in, not default, because a root
+ * can be a WORKING tree (a peer's PR checkout, or a tree that is not a git repo at all) —
+ * pulling someone's checkout out from under them is §👥's whole failure class one directory over.
  */
+import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
-import { resolveStatePath, stateDirs } from './mutation-map.mjs';
+import { resolveStatePath, sharedStatePath, stateDirs } from './mutation-map.mjs';
 import { fileURLToPath } from 'node:url';
 import { stripCode } from './strip-markup.mjs';
 
@@ -90,6 +118,13 @@ const CACHE = resolveStatePath(ROOT, 'doc-search-index.json');
 const OLLAMA = process.env.DEX_OLLAMA || 'http://localhost:11434';
 const EMBED_MODEL = process.env.DEX_EMBED || 'bge-m3';
 const DIRS = ['briefs', 'audits', 'docs', 'papers', '.'];
+/* External roots (header §EXTERNAL ROOTS). Same state dir as the index, so one config serves every
+   worktree; absent ⇒ `[]`, never an error — the file is per-machine like the model. */
+const EXTERNAL_CONFIG = resolveStatePath(ROOT, 'doc-search-external.json');
+export const EXT_PREFIX = 'ext:';
+export const EXT_DEFAULT_EXTS = ['.md', '.java', '.kt', '.swift', '.py', '.c', '.cc', '.cpp', '.h', '.hpp', '.proto', '.js', '.ts', '.txt'];
+export const EXT_SKIP_DIRS = new Set(['.git', 'node_modules', 'build', '.gradle', '.idea', 'dist', 'target']);
+export const EXT_MAX_BYTES = 256 * 1024;
 
 /* Chunked, not whole-file: indexing only a document's opening finds TOPICS, and the thing you are
    usually looking for is a PASSAGE — a decision recorded in §7 of a brief about something else.
@@ -185,7 +220,9 @@ export function readDoc(path, raw) {
      them is what the comments are about. Provenance is the other half of the reason: a rationale
      found this way is attributed to `oxydex-registry.js`, where someone can act on it, rather than
      to a bundle that merely contains a copy of it. */
-  if (/\.mjs$|\.js$/i.test(path)) return jsComments(t);
+  /* External code is the document in full (header §EXTERNAL ROOTS): SDK code often has no
+     comments to prefer, and its identifiers are what a query about the wire format is made of. */
+  if (/\.mjs$|\.js$/i.test(path) && !path.startsWith(EXT_PREFIX)) return jsComments(t);
   if (!/\.html?$/i.test(path)) return t;
   /* `stripCode` INDEX-SCANS rather than pattern-matching. The regex that stood here missed `</script >`
      and `</script foo>` — both legal — and a leak is not cosmetic for THIS tool: the escaped body
@@ -264,6 +301,132 @@ export function listDocs(root, dirs = DIRS) {
   return out.sort();
 }
 
+/* The external-roots config, validated to the shape the header documents. A malformed file is
+   reported (stderr) and treated as empty rather than thrown: a broken local config must not take
+   the repo search down with it — that is the "search tool that is down" the fallback exists for. */
+export function readExternalConfig(path = EXTERNAL_CONFIG, readFn = readFileSync) {
+  let raw;
+  try {
+    raw = readFn(path, 'utf8');
+  } catch {
+    return [];
+  }
+  let roots;
+  try {
+    roots = JSON.parse(raw).roots;
+  } catch (e) {
+    process.stderr.write(`  ⚠ ${path}: unreadable (${e.message}) — external roots ignored\n`);
+    return [];
+  }
+  if (!Array.isArray(roots)) return [];
+  const out = [];
+  for (const r of roots) {
+    if (!r || typeof r.name !== 'string' || !/^[A-Za-z0-9._-]+$/.test(r.name) || typeof r.path !== 'string') {
+      process.stderr.write(`  ⚠ ${path}: root entry needs {name: [A-Za-z0-9._-]+, path} — skipped: ${JSON.stringify(r)}\n`);
+      continue;
+    }
+    const exts = Array.isArray(r.exts) && r.exts.length ? r.exts.map((x) => String(x).toLowerCase()) : EXT_DEFAULT_EXTS;
+    out.push({ name: r.name, path: resolve(r.path), exts, pull: r.pull === true });
+  }
+  return out;
+}
+
+/* `--pull-ext`: fast-forward the roots that opted in (header §EXTERNAL ROOTS). Best-effort by
+   design — a root that is offline, dirty, or not a git repo logs one line and the query still runs
+   on whatever is on disk; a stale index is cheap, a failed refresh must never be a failed search.
+   Injectable runner for the selftest, which must not touch git. Returns `[{ name, ok, note }]`. */
+export function pullExternalRoots(roots, run = (args) => execFileSync('git', args, { stdio: ['ignore', 'pipe', 'pipe'], timeout: 60_000 })) {
+  const out = [];
+  for (const r of roots) {
+    if (!r.pull) continue;
+    try {
+      run(['-C', r.path, 'pull', '--ff-only', '--quiet']);
+      out.push({ name: r.name, ok: true, note: 'fast-forwarded' });
+    } catch (e) {
+      const note = String((e && e.stderr) || (e && e.message) || e)
+        .trim()
+        .split('\n')[0];
+      out.push({ name: r.name, ok: false, note });
+    }
+  }
+  return out;
+}
+
+/* ── THE SESSION STAMP — what `.claude/hooks/guard-doc-search.sh` reads ─────────────────────────
+   CLAUDE.md §📌 has said "search before you size or build" since 2026-08-26 and it stayed a rule
+   nobody could be held to: measured 2026-09-12, a firmware TX + bond-layer diagnosis was done
+   grep-first, and the search that would have found the prior fix (CHANGELOG, `link_rssi.dbus_hci`)
+   ran only after the owner asked "did you use bge". The guard needs a FACT to read, so a successful
+   query leaves one: a stamp file named by the Claude Code session, in the SHARED state dir (the git
+   common dir — one place for every worktree, like the index itself). Its mtime is the freshness the
+   hook measures; the body is an audit line per query.
+
+   No session id ⇒ no stamp ⇒ nothing written: a human at a terminal has no session, and the hook
+   fails open for them anyway. Best-effort — a stamp that cannot be written must not fail a search. */
+export const SESSION_STAMP_DIR = 'doc-search-sessions';
+export function sessionStampPath(root, sessionId, shared = (r, n) => sharedStatePath(r, n)[0]) {
+  const id = String(sessionId || '').trim();
+  if (!id || !/^[A-Za-z0-9._-]+$/.test(id)) return null; // an id that is not a filename is not a key
+  return shared(root, join(SESSION_STAMP_DIR, id));
+}
+export function stampSession(root, sessionId, query, fs = { mkdirSync, writeFileSync }) {
+  const p = sessionStampPath(root, sessionId);
+  if (!p) return null;
+  try {
+    fs.mkdirSync(dirname(p), { recursive: true });
+    fs.writeFileSync(p, `${new Date().toISOString()}\t${String(query).replace(/\s+/g, ' ').trim()}\n`, { flag: 'a' });
+    return p;
+  } catch {
+    return null;
+  }
+}
+
+/* Recursive walk of one external root → `[{ key, abs }]`, key = `ext:<name>/<relative path>` with
+   forward slashes so the index key is stable across machines. Injectable fs for the selftest. */
+export function walkExternal(root, fs = { readdirSync, statSync }) {
+  const out = [];
+  const exts = new Set(root.exts);
+  const visit = (dir, rel) => {
+    let names = [];
+    try {
+      names = fs.readdirSync(dir);
+    } catch {
+      return;
+    }
+    for (const n of names.sort()) {
+      if (EXT_SKIP_DIRS.has(n)) continue;
+      const abs = join(dir, n);
+      const r = rel ? `${rel}/${n}` : n;
+      let st;
+      try {
+        st = fs.statSync(abs);
+      } catch {
+        continue;
+      }
+      if (st.isDirectory()) {
+        visit(abs, r);
+        continue;
+      }
+      const dot = n.lastIndexOf('.');
+      if (dot < 0 || !exts.has(n.slice(dot).toLowerCase())) continue;
+      if (st.size > EXT_MAX_BYTES) continue;
+      out.push({ key: `${EXT_PREFIX}${root.name}/${r}`, abs });
+    }
+  };
+  visit(root.path, '');
+  return out;
+}
+
+export function listExternalDocs(roots = readExternalConfig()) {
+  const out = [];
+  for (const r of roots) {
+    const docs = walkExternal(r);
+    if (!docs.length) process.stderr.write(`  ⚠ external root ${r.name} (${r.path}): no indexable files — path wrong or exts too narrow?\n`);
+    out.push(...docs);
+  }
+  return out;
+}
+
 async function embed(inputs) {
   const res = await fetch(`${OLLAMA}/api/embed`, {
     method: 'POST',
@@ -277,8 +440,12 @@ async function embed(inputs) {
 
 /* Incremental by CONTENT HASH. A brief that has not changed is not re-embedded, so the common case
    (one doc edited) costs one call rather than four hundred. */
-async function buildIndex(quiet) {
-  const files = listDocs(ROOT);
+/* `scope`: 'all' (default) · 'repo' (`--no-ext`) · 'ext' (`--ext-only`). The cache is shared across
+   scopes — an external chunk embedded once is not re-embedded when the next query is repo-only. */
+async function buildIndex(quiet, scope = 'all') {
+  const repo = scope === 'ext' ? [] : listDocs(ROOT).map((f) => ({ key: f, abs: join(ROOT, f) }));
+  const ext = scope === 'repo' ? [] : listExternalDocs();
+  const files = repo.concat(ext);
   let cache = { entries: {}, model: EMBED_MODEL };
   try {
     const c = JSON.parse(readFileSync(CACHE, 'utf8'));
@@ -286,10 +453,10 @@ async function buildIndex(quiet) {
   } catch {}
   const entries = [];
   const pending = [];
-  for (const f of files) {
+  for (const { key: f, abs } of files) {
     let body;
     try {
-      body = readDoc(f, readFileSync(join(ROOT, f), 'utf8'));
+      body = readDoc(f, readFileSync(abs, 'utf8'));
     } catch {
       continue;
     }
@@ -322,7 +489,10 @@ async function buildIndex(quiet) {
       writeFileSync(CACHE, JSON.stringify(cache));
     } catch {}
   }
-  if (!quiet) process.stderr.write(`  ${files.length} docs · ${entries.length} chunks · ${embedded} newly embedded${live ? '' : ' · EMBEDDER DOWN, token fallback'}\n`);
+  if (!quiet)
+    process.stderr.write(
+      `  ${files.length} docs (${repo.length} repo · ${ext.length} external) · ${entries.length} chunks · ${embedded} newly embedded${live ? '' : ' · EMBEDDER DOWN, token fallback'}\n`
+    );
   return { entries, live };
 }
 
@@ -427,16 +597,96 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
     stateDirs(ROOT).some((d) => CACHE.startsWith(d)),
     CACHE
   );
+  /* External roots: the config is optional, validated, and the walk is recursive with the repo's
+     skip-list — a fake fs so the test needs no vendor tree on the machine running it. */
+  ok('no external config ⇒ no roots, no error', readExternalConfig('/nonexistent/x.json').length === 0);
+  ok('a malformed config is ignored, not thrown', readExternalConfig('x', () => '{not json').length === 0);
+  ok(
+    'a root without a legal name is skipped',
+    readExternalConfig('x', () =>
+      JSON.stringify({
+        roots: [
+          { name: 'bad name', path: '/p' },
+          { name: 'ok', path: '/p' }
+        ]
+      })
+    ).length === 1
+  );
+  ok('a root with no exts gets the default set', readExternalConfig('x', () => JSON.stringify({ roots: [{ name: 'ok', path: '/p' }] }))[0].exts === EXT_DEFAULT_EXTS);
+  const fakeTree = {
+    '/v': ['.git', 'src', 'README.md', 'big.java'],
+    '/v/.git': ['HEAD'],
+    '/v/src': ['A.java', 'b.png', 'sub'],
+    '/v/src/sub': ['C.kt']
+  };
+  const fakeFs = {
+    readdirSync: (d) => fakeTree[d] || [],
+    statSync: (p) => ({ isDirectory: () => p in fakeTree, size: p.endsWith('big.java') ? EXT_MAX_BYTES + 1 : 10 })
+  };
+  const walked = walkExternal({ name: 'v', path: '/v', exts: ['.java', '.kt', '.md'] }, fakeFs).map((d) => d.key);
+  ok('walk is recursive and keyed ext:<name>/<path>', walked.includes('ext:v/src/sub/C.kt'), walked.join(','));
+  ok('…skips .git', !walked.some((k) => k.includes('.git/')));
+  ok('…skips extensions outside the set', !walked.some((k) => k.endsWith('.png')));
+  ok('…skips oversized files', !walked.includes('ext:v/big.java'), walked.join(','));
+  ok('…and keeps root-level docs', walked.includes('ext:v/README.md'));
+  ok('external code is indexed as full text, not comments-only', readDoc('ext:v/x.js', '/* c */ var sensorState = 1;').includes('sensorState'));
+  ok('…while repo code stays comments-only', !readDoc('x.js', '/* c */ var sensorState = 1;').includes('sensorState'));
+  /* --pull-ext: opt-in per root, best-effort, never touches git in the selftest. */
+  const cfgPull = readExternalConfig('x', () =>
+    JSON.stringify({
+      roots: [
+        { name: 'a', path: '/a', pull: true },
+        { name: 'b', path: '/b' },
+        { name: 'c', path: '/c', pull: 'yes' }
+      ]
+    })
+  );
+  ok('pull is opt-in and must be boolean true', cfgPull.map((r) => r.pull).join(',') === 'true,false,false', cfgPull.map((r) => r.pull).join(','));
+  const pulled = [];
+  const res = pullExternalRoots(cfgPull, (args) => {
+    pulled.push(args.join(' '));
+    if (args[1] === '/a') throw Object.assign(new Error('boom'), { stderr: 'fatal: not a git repository\nmore' });
+  });
+  ok('only opted-in roots are pulled, with --ff-only', pulled.length === 1 && pulled[0] === '-C /a pull --ff-only --quiet', pulled.join(' | '));
+  ok('a failed pull is reported, not thrown, first stderr line kept', res.length === 1 && res[0].ok === false && res[0].note === 'fatal: not a git repository', JSON.stringify(res));
+  /* The session stamp: keyed by the session, in the SHARED state dir, absent without a session. */
+  const sp = sessionStampPath('/repo', 'abc-123', (r, n) => `${r}/SHARED/${n}`);
+  ok('the stamp lives under the shared state dir, named by the session', sp === '/repo/SHARED/doc-search-sessions/abc-123', String(sp));
+  ok('no session id ⇒ no stamp path', sessionStampPath('/repo', '') === null && sessionStampPath('/repo', undefined) === null);
+  ok('a session id that is not a filename ⇒ no stamp path', sessionStampPath('/repo', '../x') === null && sessionStampPath('/repo', 'a b') === null);
+  const wrote = [];
+  const fakeStampFs = { mkdirSync: (d) => wrote.push('mkdir ' + d), writeFileSync: (f, body, o) => wrote.push(`${o && o.flag} ${f} ${body.trim()}`) };
+  const sres = stampSession('/repo', 'abc-123', '  what   moved\n', fakeStampFs);
+  ok(
+    'a stamp is appended, mkdir -p first, with the query on one line',
+    sres !== null && wrote.length === 2 && wrote[0].startsWith('mkdir ') && /^a .*doc-search-sessions\/abc-123 \d{4}-.*\twhat moved$/.test(wrote[1]),
+    wrote.join(' | ')
+  );
+  ok('no session ⇒ nothing written', stampSession('/repo', '', 'q', fakeStampFs) === null && wrote.length === 2);
+  ok(
+    'an unwritable stamp is null, not a failed search',
+    stampSession('/repo', 'abc-123', 'q', {
+      mkdirSync: () => {
+        throw new Error('ro');
+      },
+      writeFileSync: () => {}
+    }) === null
+  );
   console.log(fail ? '\n✗ ' + fail + ' failed, ' + pass + ' passed' : '\n✓ all ' + pass + ' selftests passed');
   process.exit(fail ? 1 : 0);
 }
 
 if (IS_MAIN && !process.argv.includes('--selftest')) {
-  const argv = process.argv.slice(2).filter((a) => a !== '--quiet');
+  const scope = process.argv.includes('--ext-only') ? 'ext' : process.argv.includes('--no-ext') ? 'repo' : 'all';
+  const pullExt = process.argv.includes('--pull-ext');
+  const argv = process.argv.slice(2).filter((a) => a !== '--quiet' && a !== '--no-ext' && a !== '--ext-only' && a !== '--pull-ext');
   const query = argv.join(' ').trim();
   if (!query) {
-    console.error('usage: node tools/doc-search.mjs "<what you are trying to find out>"');
+    console.error('usage: node tools/doc-search.mjs [--no-ext|--ext-only] [--pull-ext] "<what you are trying to find out>"');
     process.exit(2);
+  }
+  if (pullExt && scope !== 'repo') {
+    for (const r of pullExternalRoots(readExternalConfig())) console.error(`  ${r.ok ? '↻' : '⚠'} ext:${r.name} — ${r.note}`);
   }
   const problem = corpusProblem(listDocs(ROOT));
   if (problem) {
@@ -445,7 +695,7 @@ if (IS_MAIN && !process.argv.includes('--selftest')) {
     console.error('  one answer this tool must never fake. Fix the corpus rather than trusting the silence.');
     process.exit(2);
   }
-  const { entries, live } = await buildIndex(process.argv.includes('--quiet'));
+  const { entries, live } = await buildIndex(process.argv.includes('--quiet'), scope);
   let qv = null;
   if (live) {
     try {
@@ -463,6 +713,9 @@ if (IS_MAIN && !process.argv.includes('--selftest')) {
   console.log('    A FLAT FIELD IS NOT ABSENCE: similar scores mean shared vocabulary, not no match.');
   console.log('    Read all five before concluding a thing was never decided.');
   console.log('    because a plausible summary of a brief nobody opens is the failure it exists to prevent.\n');
+  /* The stamp the edit guard reads (see SESSION STAMP above). After the hits, so a refused or
+     crashed search leaves nothing — a stamp is evidence a search RAN, never that one was attempted. */
+  stampSession(ROOT, process.env.CLAUDE_CODE_SESSION_ID, query);
 }
 
 /* ⚠️ A THIRD BRANCH THAT CANNOT BE REACHED BY ACCIDENT. If this file is the entry point and neither

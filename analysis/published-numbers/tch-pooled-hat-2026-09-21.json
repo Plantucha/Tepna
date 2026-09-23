@@ -1,0 +1,80 @@
+{
+  "schema": "tepna.published-number-record/1",
+  "producer": "tools/tch-pooled-hat.mjs",
+  "producerCommit": "2e9584e5",
+  "invocation": "node tools/tch-pooled-hat.mjs --dir uploads/trio --json",
+  "generated": "2026-09-21",
+  "inputs": {
+    "path": "uploads/trio",
+    "committed": true,
+    "files": 441,
+    "digest": "19c31a194ec7",
+    "note": "sha256[0:12] over path\\0sha12(bytes) of every git-tracked file under uploads/trio at producerCommit — a RESOLVABLE upstream node: recompute it and a moved corpus is visible"
+  },
+  "publishedIn": "briefs/SENSOR-TRIO-NIGHTS-PAPER-BRIEF.md §11 (re-cut table, 2026-09-21)",
+  "claims": {
+    "note": "the values EXACTLY as the prose states them (9 dp), so CLAIM … FROM … #claims/<key> compares equal; full precision is under result",
+    "gapH10": 0.007835089,
+    "gapVerity": 0.002192679,
+    "gapO2": 0.016950839,
+    "lhsH10": 0.007835089,
+    "lhsVerity": 0.002192679,
+    "lhsO2": 0.016950839,
+    "nightsUsed": 63,
+    "pooledSeconds": 1054151
+  },
+  "identity": {
+    "note": "lhs = σ²_pooled − σ²_weighted (computed here); gap = ½(B_AB + B_AC − B_BC) (the tool); |Δ| between them",
+    "absDelta": {
+      "h10": 4.3194614551822497e-16,
+      "verity": 5.759281940243e-16,
+      "o2": 1.8041124150158794e-16
+    }
+  },
+  "result": {
+    "dir": "uploads/trio",
+    "nights": 63,
+    "skipped": 53,
+    "pairs": {
+      "N": 1054151,
+      "hv": {
+        "within": 4.209894672728686,
+        "B": 0.010027767911337072,
+        "pooled": 4.2199224406400235,
+        "meanMu": 0.024787403731486333
+      },
+      "ho": {
+        "within": 14.933061003575695,
+        "B": 0.024785927873943785,
+        "pooled": 14.95784693144964,
+        "meanMu": 0.20097749791811548
+      },
+      "vo": {
+        "within": 14.614982071631628,
+        "B": 0.01914351820783024,
+        "pooled": 14.634125589839458,
+        "meanMu": 0.17619009418662965
+      }
+    },
+    "pooled": {
+      "h10": 2.2718218911251027,
+      "verity": 1.9481005495149217,
+      "o2": 12.686025040324537
+    },
+    "weighted": {
+      "h10": 2.263986802336377,
+      "verity": 1.9459078703923094,
+      "o2": 12.669074201239319
+    },
+    "gap": {
+      "h10": 0.00783508878872531,
+      "verity": 0.002192679122611764,
+      "o2": 0.01695083908521848
+    },
+    "medianSigma": {
+      "h10": 1.2648427777354732,
+      "verity": 1.1420498849262137,
+      "o2": 3.3850715834878726
+    }
+  }
+}

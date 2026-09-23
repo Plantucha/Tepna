@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-manifest-hash="255946575f3f" data-compute-hash="909db498d480">
 <head>
 <!--
   HRVDex.src.html — Tepna
@@ -10,10 +10,10 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/Z7I3UUPEYVbJqKiogd2GpJzq5ymayoEqgifMJjbfTY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-D6xYyZ7MuqkiI/CCtXll6fjdTgw/eCjZyzMFtBaRaHQ=' 'sha256-DiTFOjjRe5vAMNXxkGgxYTzkC4+Kz2/105ZwEXGiwBA=' 'sha256-EUAm8HOe3qna7MaqXJZ2RjnuT3nxDMxTbc3GxMeGn40=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-FvE6kpPiOZOKf/shR8PEze9RQRPBsmlvDgLxIHG+CUc=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-RgOIfaxTWDtIkB+7YTZeGPlhxvjrWqtSovjwb4qSsRw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-avsW1EcgQsMuBeTRHic8R11rdf49ixA1ntEzFVDVe2I=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-pTsHiG3YU81obvJkalwdmUi5EMJKUcF94zWTj6ccHIo=' 'sha256-wSIy7RZCIYM9pqzZEyYipybzXeFfizctBahhpd6lXvg='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/Z7I3UUPEYVbJqKiogd2GpJzq5ymayoEqgifMJjbfTY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0sBgsT0FUUGnrESWUupXxRjP+ZNL/bPHjx7y4A2kzYQ=' 'sha256-3bPuedJeHqlAtFRw9XCQUY2RL6IBWMfwvh6D9DWEXUc=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-EUAm8HOe3qna7MaqXJZ2RjnuT3nxDMxTbc3GxMeGn40=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-FvE6kpPiOZOKf/shR8PEze9RQRPBsmlvDgLxIHG+CUc=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-RgOIfaxTWDtIkB+7YTZeGPlhxvjrWqtSovjwb4qSsRw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-mhIYIr/bW5ayeQ6ftKGinw9IBDfanHJPWPKd17ySd0A=' 'sha256-pTsHiG3YU81obvJkalwdmUi5EMJKUcF94zWTj6ccHIo=' 'sha256-vdXPVfN455FWrG4pGu5lvFOWdmGJ81mF23buz312xUA='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
-<title>HRVDex — Heart Rate Variability Analyzer · v2.9.0</title>
+<title>HRVDex — Heart Rate Variability Analyzer · v2.13.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
 <style data-inline-src="licensing/dex-license.css">/*
  * dex-license.css — reusable Tepna license / attribution stamp styles
@@ -3207,7 +3207,7 @@ body.light .topbar::after{ opacity:.25; }
       <div class="logo-badge"><svg viewBox="0 0 100 100" aria-hidden="true" style="width:23px;height:23px" fill="none" stroke="#06121A" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,33 52,33 60,15 66,49 71,33 86,33"/><line x1="49" y1="33" x2="49" y2="86"/></svg></div>
       <div>
         <div class="logo-title">HRVDex</div>
-        <div class="logo-sub">v2.9.0 · Tepna</div>
+        <div class="logo-sub">v2.13.0 · Tepna</div>
       </div>
     </div>
     <hr class="sidebar-logo-rule">
@@ -3261,7 +3261,7 @@ body.light .topbar::after{ opacity:.25; }
   <main class="main-content">
     <div class="topbar">
       <div>
-        <div class="topbar-title">HRVDex <span class="version-badge">v2.9.0</span></div>
+        <div class="topbar-title">HRVDex <span class="version-badge">v2.13.0</span></div>
         <div class="page-sub">ANS Analysis Engine &middot; 85+ Derived Metrics &middot; All processing local &middot; No data leaves your device</div>
       </div>
       <div class="topbar-actions">
@@ -6362,7 +6362,15 @@ body.light .topbar::after{ opacity:.25; }
       sbp: 120,
       dbp: 80, // ACC/AHA guideline-normal (type-only override)
       vo2: vo2Norm(age, sex),
-      elevation: 0,
+      /* §∅ — an ABSENT elevation is null, never 0 m. 0 m is a LEGAL elevation (a night at the coast),
+         so coercing "nobody typed one" to sea level makes the two indistinguishable, and every
+         consumer that grades on altitude then grades a 2500 m night as if it were at sea — inventing
+         ~4.5 % of desaturation that never happened. The norms this feeds (OxyDex's SpO₂ threshold
+         shift, HRVDex/ECGDex's Uth–Sørensen altitude factor) must see the null and decline to adjust,
+         which is what "no adjustment" already means numerically — the difference is that an absent
+         value can now SAY so instead of asserting sea level. `geo.py` already records a measured
+         elevation or nothing; this is that null surviving the profile layer. */
+      elevation: null,
       activity: 'light',
       betablk: 'no',
       afib: 'no',
@@ -8481,7 +8489,23 @@ body.light .topbar::after{ opacity:.25; }
       if (st > maxStep) maxStep = st;
     }
     var span = pts[n - 1].d - pts[0].d;
-    var ppm = span > 0 ? (sm[n - 1] / span) * 1e6 : 0;
+    /* A ZERO DEVICE SPAN IS NOT A CLOCK, AND A RATE OVER IT IS NOT 0 — refuse. This line used to read
+       `span > 0 ? … : 0`, which is the fabricated zero of CLAUDE.md §∅ at the rate: every anchor's
+       device stamp identical (the 50 `inapplicable` streams of `known-clock-recovery blindScore`, a
+       device column that was never a counter) came back `ok:true, ppm:0, independent:true` — the
+       spread gate is inert here because the HOST wanders, so the axis read as two agreeing clocks
+       and a caller reading `hostAxis` alone spent it as a second clock (residue
+       2026-09-02-hostaxis-accepts-drawn-axis). Same shape as the ±CK_AXIS_MAX_PPM refusal below and
+       the ≥3-anchor one above: when the input cannot be a rate, the answer is no rate, never 0.
+       ⚠ Deliberately NARROW. The general drawn case (a uniform counter with span > 0) is still
+       admitted and published as `deviceDrawn` — gating on it was tried and reverted (a synthetic
+       fixture's `devMs = i * 1000` is a legitimate uniform axis), and consumer migration is its own
+       row. Zero span has no such legitimate reading: no fixture, synthetic or real, is a clock that
+       never ticks. */
+    if (!(span > 0)) {
+      return { ok: false, reason: 'device axis has zero span across ' + n + ' anchors — the device column is not a clock, so there is no rate to measure', n: n, spanMs: span };
+    }
+    var ppm = (sm[n - 1] / span) * 1e6;
     /* IS THERE ACTUALLY A SECOND CLOCK HERE? (PAT-NO-VALID-ANCHOR §10, last item.)
        A ppm of ~0 has two completely different meanings and this function used to report them
        identically: (a) two INDEPENDENT clocks that happen to agree — the good case, and (b) the host
@@ -8621,6 +8645,14 @@ body.light .topbar::after{ opacity:.25; }
           /* Published UNCONDITIONALLY, including when the type IS named — a caller with a wider
              tolerance can then decide for itself instead of being forced to accept this default. */
           slopeSE: cls.slopeSE,
+          /* ⚠️ THE SE'S OWN n — and it is NOT `taus`. `slopeSE` is a standard error, so it is
+             uninterpretable without the number of points it was fitted over: a tight SE from 3 τ
+             points and one from 12 are different claims. `_ckAllanSlope` fits only the points with
+             `adev > 0 && tau > 0`, so an exactly-flat τ (a frequency series periodic in that τ —
+             reachable, and gate-pinned) is dropped from the fit while still being counted in `taus`.
+             Reading `taus` as the SE's n therefore OVERSTATES it. Published because a consumer that
+             quotes the SE owes this beside it, the same way `ppm` owes its span. */
+          nTau: cls.nTau,
           noise: cls.noise,
           candidates: cls.candidates,
           meaning: cls.meaning,
@@ -8641,6 +8673,18 @@ body.light .topbar::after{ opacity:.25; }
              place of one chosen by intuition. On a pure-jitter clock it is simply the longest τ
              measured, and saying so is more honest than implying a minimum was found. */
           optimalTauSec: curve[bestI].tau,
+          /* THE CURVE ITSELF (residue 2026-09-21-adev-curve-not-exported-by-either-node). Every scalar
+             above is a projection of it, and the projections cannot show WHERE the floor sits or
+             whether the slope was fitted over a straight run or across a KNEE — which is §7's whole
+             point: the slope names the mechanism, and one number cannot show a slope that changes.
+             `adevPpm` deliberately, NOT the `…Ms` misnomer above: the estimator is handed phase in ms
+             and τ in seconds, so `adev` is ms/s = 1e-3 dimensionless, and ×1000 is ppm. `n` is the
+             term count at that τ — a reader needs it to see the estimate widening as τ grows. The
+             ladder is octave-spaced and ends where `CK_ALLAN_MIN_TERMS` bites, so this is short
+             (≤ ~20 points) and bounded by construction. */
+          curve: curve.map(function (pt) {
+            return { tauSec: pt.tau, adevPpm: pt.adev * 1000, n: pt.n };
+          }),
           /* THE POINT OF THE EXERCISE: how much of the `ppm` above is real. σ_y at the recording's own
              span, expressed in ppm — quote the ppm WITH this or not at all. */
           ppmUncertainty: curve[curve.length - 1].adev * 1000,
@@ -9489,7 +9533,10 @@ body.light .topbar::after{ opacity:.25; }
       const _tanakaR = 208 - 0.7 * AGE;
       const _hrRestR = p_prof.hrrest_manual > 0 ? p_prof.hrrest_manual : r._hr;
       const hrmax_tanaka = p_prof.hrmax_manual > 0 && p_prof.hrmax_manual >= 140 && p_prof.hrmax_manual > _hrRestR + 45 ? p_prof.hrmax_manual : _tanakaR;
-      const _altFR = p_prof.elev <= 1500 ? 1 : Math.max(0.55, 1 - ((p_prof.elev - 1500) / 300) * 0.01);
+      /* §∅ — a NULL elevation is unmeasured, and an unmeasured altitude cannot correct anything: the
+         factor is 1 (no adjustment), which is what <= 1500 m also yields, so no shipped number moves —
+         but the two are now different states in the code rather than one coerced zero. */
+      const _altFR = p_prof.elev == null || !isFinite(p_prof.elev) ? 1 : p_prof.elev <= 1500 ? 1 : Math.max(0.55, 1 - ((p_prof.elev - 1500) / 300) * 0.01);
       // Method 1: Uth-Sørensen (2004) — resting HR ratio, altitude-corrected
       r.d_vo2_base = r._hr > 0 ? 15.3 * (hrmax_tanaka / r._hr) * _altFR : NaN;
       // Method 2: HRV-adjusted — rMSSD modulation ±8% band
@@ -9782,7 +9829,18 @@ body.light .topbar::after{ opacity:.25; }
       paraScore += Math.min(100, Math.log10(r._hf + 1) * 28);
       paraCount++;
     }
-    var paraAvg = paraCount ? paraScore / paraCount : 50;
+    /* §∅ — NO PARASYMPATHETIC INDICATOR IS A REFUSAL, NOT A MIDPOINT. This read
+       `paraCount ? paraScore / paraCount : 50`, and that 50 was not a conservative default: with
+       paraCount === 0 the whole score is CONSTANT. `sympPenalty` requires `_hf > 0`, and an `_hf > 0`
+       would itself have incremented paraCount — so the branch can only ever return exactly 50,
+       whatever else the row carries (pinned by a leg that sets `_lf = 9999` and still gets 50 from
+       the old code). A number that cannot vary with its input carries no information about the night,
+       and 50 is mid-scale on a 0-100 axis, so it rendered as an average night on ch_camq.
+       CAMQ is a parasympathetically-anchored composite: with nothing parasympathetic measured there
+       is no score to report. The consumer already filters `v != null` (hrvdex-render.js:1467), so the
+       point is dropped rather than drawn. Row hrvdex-dsp.js:1074 of ABSENCE-SURVEY-2026-09-22 (HIGH). */
+    if (!paraCount) return null;
+    var paraAvg = paraScore / paraCount;
 
     var sympPenalty = 0;
     if (r._hf > 0 && r._lf > 0) {
@@ -11158,9 +11216,13 @@ function renderAllCharts(rows, sm) {
       label: 'rMSSD modifier (%)',
       data: rows.map((r) => (!isNaN(r.d_vo2_hrv) && !isNaN(r.d_vo2_base) && r.d_vo2_base > 0 ? (r.d_vo2_hrv / r.d_vo2_base - 1) * 100 : NaN)),
       borderColor: rgba('purple', 1),
+      /* Absence is NaN here, exactly as in `data` above — the two lines share a guard and
+         must share an encoding. A night with no VO2 pair is not a 0 % modifier: `0 >= 0`
+         painted it GREEN, i.e. absence read as improvement. Transparent is the honest
+         colour for a point that carries no value (CLAUDE.md §∅). */
       backgroundColor: rows.map((r) => {
-        const pct = !isNaN(r.d_vo2_hrv) && !isNaN(r.d_vo2_base) && r.d_vo2_base > 0 ? (r.d_vo2_hrv / r.d_vo2_base - 1) * 100 : 0;
-        return pct >= 0 ? rgba('green', 0.2) : rgba('red', 0.2);
+        const pct = !isNaN(r.d_vo2_hrv) && !isNaN(r.d_vo2_base) && r.d_vo2_base > 0 ? (r.d_vo2_hrv / r.d_vo2_base - 1) * 100 : NaN;
+        return isNaN(pct) ? rgba('purple', 0) : pct >= 0 ? rgba('green', 0.2) : rgba('red', 0.2);
       }),
       fill: true
     },
@@ -11831,6 +11893,12 @@ function inferFromData() {
       DXP().prefillFrom({ hrRest: restingHR, vo2: vo2Est });
     } catch (e) {}
   }
+  /* ⚠️ NO READER — measured 2026-09-05, repo-wide: `_projVO2` occurs at exactly three sites and all
+     three are WRITES or comments in this file (:89, :520, :524). The live refresh at :524 is real and
+     is NOT the gap; what is missing is anything that READS the global. `renderANSAgeCard()` recomputes
+     from the profile rather than reading it. Kept, not deleted — a devtools console or a surface this
+     scan does not cover may read it, and "unreferenced by name" is not "unreachable"
+     (residue 2026-09-05-hrvdex-profile-globals-unread). */
   window._projVO2 = vo2Est;
 
   // Date range info
@@ -11964,7 +12032,7 @@ function getProfile() {
       vo2gt: detOr0('vo2'),
       hrmax_manual: n(man.hrMax, 0) > 0 ? n(man.hrMax, 0) : 0,
       hrrest_manual: detOr0('hrRest'),
-      elev: n(p.elevation, 0)
+      elev: p.elevation != null && isFinite(n(p.elevation, NaN)) ? n(p.elevation, 0) : null // §∅ — absent ≠ sea level
     };
   }
   return {
@@ -12014,7 +12082,9 @@ function getAgeBand(age) {
 }
 
 function applyAgeNorms(useIdeal) {
-  window._useIdeal = useIdeal; // remember last choice
+  /* "remember last choice" states an INTENT, not a mechanism: nothing reads `_useIdeal` back, so no
+     later call recovers the choice from it (measured 2026-09-05 — one site, this write). */
+  window._useIdeal = useIdeal;
   const p = getProfile();
   const band = getAgeBand(p.age);
   const norm = POP_NORMS[p.sex]?.[band];
@@ -12259,7 +12329,12 @@ function updateProfile() {
   // render here were removed 2026-08-19: HRVDex.src.html defines no lbl_ id at all, so
   // every write was a guarded no-op (DEAD-FIELD-HINTS-FLEET-2026-08-19-BRIEF.md).
   const altFactor = p.elev <= 1500 ? 1 : Math.max(0.55, 1 - ((p.elev - 1500) / 300) * 0.01);
-  window._hrvProfileAlt = altFactor; // consumed by VO₂ projection
+  /* 🔴 THE COMMENT HERE WAS FALSE AND IS THE REASON THIS ROW EXISTS. It read "consumed by VO₂
+     projection". No VO₂ projection reads it: the projection six lines below uses the LOCAL `altFactor`,
+     and `_hrvProfileAlt` occurs repo-wide at exactly three sites — this line plus its inlined copies in
+     `HRVDex.html` and `docs/HRVDex.html`. A comment asserting a consumer is what stops the next reader
+     from checking, which is the one failure a producing file cannot see about itself. */
+  window._hrvProfileAlt = altFactor;
 
   // Recompute the VO₂ projection live (inferFromData only runs at load, so
   // changing HRmax / Resting HR / Elevation must refresh _projVO2 + the hint here)
@@ -14539,6 +14614,6 @@ if (window.HRVDex && window.HRVDex.setHooks) window.HRVDex.setHooks({ setProgres
   </div>
 </nav>
 
-<div data-tepna-ver style="position:fixed;right:8px;bottom:8px;z-index:2147483000;font:600 11px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:#dbeafe;background:rgba(15,23,34,.82);border:1px solid rgba(120,170,220,.4);border-radius:999px;padding:2px 9px;letter-spacing:.03em;box-shadow:0 1px 4px rgba(0,0,0,.3);pointer-events:none;user-select:none" title="Tepna suite version">v2.9.0</div>
+<div data-tepna-ver style="position:fixed;right:8px;bottom:8px;z-index:2147483000;font:600 11px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:#dbeafe;background:rgba(15,23,34,.82);border:1px solid rgba(120,170,220,.4);border-radius:999px;padding:2px 9px;letter-spacing:.03em;box-shadow:0 1px 4px rgba(0,0,0,.3);pointer-events:none;user-select:none" title="Tepna suite version">v2.13.0</div>
 </body>
 </html>

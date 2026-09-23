@@ -137,6 +137,32 @@ export function verdict(baseText, headText, tipText) {
   const mutated = [];
   const added = [];
 
+  /* DUPLICATE IDS IN THE HEAD FILE ITSELF — checked FIRST, and independently of base/added.
+     Measured 2026-09-14 (Osprey, #2506): `briefs/RESIDUE.md` carries `merge=union`, and a union
+     driver cannot represent an EDIT — it keeps both sides' lines. Closing a row IS an edit (the
+     contract closes a row by changing only its state cell), so a rebase over a concurrently-closed
+     row yields the SAME key twice, once `OPEN` and once `fixed #NNNN`, contradicting each other
+     about whether the defect is live.
+
+     This tool reported `ok — 0 row(s) added, none colliding, none mutated` against exactly that
+     tree, and the reason is structural rather than an oversight: `added` is empty when both copies
+     already exist on the base, and the only uniqueness assertion below ran over `added` alone. The
+     `Map(head.map(...))` lookups compound it — a Map silently keeps the last of a duplicated key,
+     so every by-id comparison sees one row where the file has two.
+
+     `docs-ledger` check8c does catch it, so it cannot LAND unnoticed. But this tool is the
+     pre-push check whose name most suggests it would, and a checker that is blind exactly where a
+     merge puts the damage is the failure class it exists to prevent. Scope: this detects the
+     duplicate. Whether `merge=union` should stay is a real tradeoff (dropping it restores the
+     per-PR conflicts it was added to kill) and is deliberately NOT decided here — #2506. */
+  {
+    const seenHead = new Set();
+    for (const r of head) {
+      if (seenHead.has(r.id)) collisions.push(`${r.id} — appears MORE THAN ONCE in the ledger (a union merge cannot represent a close; see #2506)`);
+      seenHead.add(r.id);
+    }
+  }
+
   for (const r of head) {
     const prior = baseById.get(r.id);
     if (!prior) {
@@ -273,6 +299,17 @@ if (process.argv.includes('--selftest')) {
   //     independently choose the same words on the same day, and then it is a real duplicate.
   v = verdict([row(A)].join('\n'), [row(A), row(B)].join('\n'), [row(A), row(B, 'someone else’s row')].join('\n'));
   assert(v.collisions.length === 1 && v.collisions[0].includes('another branch'), 'a key minted concurrently on the tip FIRES');
+
+  /* 2b — THE UNION-MERGE DUPLICATE (#2506, measured 2026-09-14). A row closed on one branch while
+     the same row sits OPEN on main comes back from a `merge=union` rebase as TWO rows with one key,
+     contradicting each other. This tool reported `ok — none colliding, none mutated` against that
+     tree: `added` was empty because both copies already existed on the base, and the only uniqueness
+     assertion ran over `added`. The plant is the exact observed shape, not a synthetic one. */
+  v = verdict([row(A)].join('\n'), [row(A), row(A, 'd', 'fixed #2498')].join('\n'));
+  assert(v.collisions.length === 1 && v.collisions[0].includes('MORE THAN ONCE'), 'a duplicated id inside the head file FIRES');
+  /* …and the anti-vacuity half: an UNduplicated close must stay silent, or the check is just noise. */
+  v = verdict([row(A)].join('\n'), [row(A, 'd', 'fixed #2498')].join('\n'));
+  assert(v.collisions.length === 0 && v.mutated.length === 0, 'a plain close is not a duplicate');
 
   // 2b — BEHIND IS NOT DELETED. The branch predates a row that landed on the tip: no removal, and the
   //      tip's row is a collision only if the branch also minted that key itself.

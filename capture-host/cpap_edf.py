@@ -22,6 +22,7 @@
 # ASCII, left-justified, space-padded — reproduced verbatim so a re-encode is byte-exact.
 from __future__ import annotations
 
+import datetime as _dt
 import struct
 
 # ── CRC-16/CCITT-FALSE, table-driven (the ResMed EDF checksum) ────────────────────────────────────────
@@ -199,7 +200,46 @@ def write_edf(edf: Edf) -> bytes:
                 base = r * s.spr
                 rec += struct.pack(f"<{s.spr}h", *s.samples[base:base + s.spr])
         out += rec
-    return bytes(out)
+    return bytes(_stamp_header_crcs(out, hdr_bytes))
+
+
+# ── the TWO HEADER CRCs the AS11 writes into the patient field ────────────────────────────────────────
+# `patient` on a real card is "X X X X F69F D4BA", not the "X X X X" this writer used to emit — so a
+# written file was well-formed, opened correctly, and was still distinguishable from a device file at
+# byte 8. The module header claims output "byte-identical to what the device would have written"; until
+# this landed, the patient field was an unstated exception to that claim.
+#
+# MEASURED over the card, 1351 EDFs of all five types, re-verified before implementing:
+#   crc1 = CRC16/CCITT-FALSE over hdr[0x19:256]           1351 / 1351
+#   crc2 = CRC16/CCITT-FALSE over the signal block        1351 / 1351
+#   an all-zeros control                                     0 / 1351   (it discriminates)
+#
+# 🔴 WHY WRITING THE CRC CANNOT INVALIDATE IT, which is what makes this implementable: crc1 starts at
+# 0x19 = byte 25, and the longest such patient string ("X X X X F69F D4BA", 17 chars) ends at byte 24.
+# The covered range begins exactly one byte past the values being written. Bytes 25..87 are spaces
+# whatever the patient field holds, so the pre-state does not matter — three candidate pre-states were
+# tested and all matched 1351/1351: one hypothesis confirmed with its boundary explained, not three
+# hypotheses surviving.
+#
+# crc2 covers the signal-header block only, which is byte-identical across every BRP on the card — that
+# is why it reads as a per-device constant while crc1 varies with the dates in the header.
+_CRC1_FROM = 0x19          # [HW] one past the end of the longest patient string — see above
+_PATIENT_AT = 8
+_PATIENT_LEN = 80
+
+
+def _stamp_header_crcs(buf: bytearray, hdr_bytes: int) -> bytearray:
+    """Write `X X X X <crc1> <crc2>` into the patient field of an assembled EDF buffer, in place.
+
+    Called LAST, after every other byte is final, because crc1 covers the header and crc2 the signal
+    block — computing either earlier would hash a buffer still being appended to. A buffer too short to
+    carry a signal block is returned untouched, so a malformed input fails where it already failed."""
+    if len(buf) < hdr_bytes or hdr_bytes <= _MAIN:
+        return buf
+    crc1 = crc16_ccitt(bytes(buf[_CRC1_FROM:_MAIN]))
+    crc2 = crc16_ccitt(bytes(buf[_MAIN:hdr_bytes]))
+    buf[_PATIENT_AT:_PATIENT_AT + _PATIENT_LEN] = _pad(f"X X X X {crc1:04X} {crc2:04X}", _PATIENT_LEN)
+    return buf
 
 
 # ── Constructors: build files from DATA (BLE capture) with the exact ResMed signal specs ──────────────
@@ -301,6 +341,161 @@ def build_pld(channels, start, serial, *, record_seconds=60, mid=46, vid=3):
     sd, st, rd = _dates(*start)
     return Edf("0", "X X X X", _recording_id(rd, serial, mid, vid), sd, st, "EDF", n,
                f"{record_seconds}.00", signals)
+
+
+# ── SA2.edf — oximetry, the one ResMed type this box can fill ─────────────────────────────────────
+# The AS11 writes SA2.edf on every therapy night whether or not the optional wired oximeter is
+# attached; with none attached both channels are the sentinel for the whole session. So the CONTAINER
+# is exceptionally well evidenced even on a machine that never populates it, and the reverse
+# direction — put the O2Ring's SpO2 into the channel the machine leaves empty — is open precisely
+# because CPAP-SA2-OXIMETRY-SOURCE-2026-08-01 refuted the forward one.
+#
+#   [HW] over 294 SA2 files on this card: 2 signals + Crc16, record_seconds 60.00, spr 60 (1 Hz),
+#        Pulse.1s bpm phys 0..300 dig 0..300, SpO2.1s % phys 0..100 dig 0..100 — both 1:1.
+#   [HW] the absent-sample sentinel is -1, on every sample of every file.
+#   [INF] the encoding of REAL samples. The 1:1 mapping below is taken from the DECLARED ranges, not
+#        from observed samples — and that is now a measured limit rather than a local one.
+#
+#        MEASURED 2026-09-04, whole corpus rather than one card: 267 SA2.edf across
+#        `uploads/vigil-captures/cpap/DATALOG/*/`, every `SpO2.1s` and `Pulse.1s` channel decoded and
+#        histogrammed — **zero non-sentinel samples in any of them.** So the claim is not "the file I
+#        happened to open was empty"; there is no populated SA2 anywhere we can reach.
+#        CPAP-SA2-OXIMETRY-SOURCE records one 2.5 h populated session (2026-06-13) which is in none of
+#        these trees. ⚠️ RE-RUN THAT SCAN BEFORE TRUSTING THIS: the day a populated file appears, the
+#        mapping becomes checkable and this note is what tells you it was never checked.
+_SA2_SPECS = [("Pulse.1s", "bpm", "0.00", "300.00", "0", "300"),
+              ("SpO2.1s", "%", "0.00", "100.00", "0", "100")]
+
+SA2_ABSENT = -1          # [HW]; deliberately BELOW dig_min — see build_sa2
+
+
+def _sentinel_signal(spec, digital_values, spr):
+    """A Signal from DIGITAL values, bypassing `_digital`'s clamp.
+
+    🔴 `_num_signal` cannot be used for a channel that carries the AS11's -1 sentinel. It routes
+    every value through `_digital`, which clamps to [dmin, dmax]; SpO2.1s declares dmin 0, so -1
+    would clamp to 0 and every "no reading" would become a genuine 0 % — a fabricated desaturation,
+    written into a file that looks entirely normal. The card writes a sentinel outside its own
+    declared range on purpose, and reproducing the card means reproducing that.
+    """
+    label, dim, pmin_s, pmax_s, dmin_s, dmax_s = spec
+    return Signal(label, _EMPTY80, dim, pmin_s, pmax_s, dmin_s, dmax_s, _EMPTY80,
+                  spr, _RES32, list(digital_values))
+
+
+def device_start_from_host(host_start, clock_offset):
+    """Move a HOST-axis civil start onto the DEVICE axis, so a written EDF lands beside its siblings.
+
+    🔴 THIS IS THE ONE PLACE AN SA2 CROSSES CLOCKS, AND IT REFUSES RATHER THAN GUESSES.
+
+    `build_brp` is DEVICE-stamped — `cpap_edf_writer` takes the AS11's own civil stamp verbatim as
+    floating wall-clock, because the Clock Contract puts host-axis correction downstream and never at
+    the capture edge (§7/§12). So every file in a day folder sits on the AS11's clock. Oximetry fed
+    from the O2Ring does NOT: the ring is host-stamped. Handing a host start straight to `build_sa2`
+    writes a valid EDF onto the wrong timeline, and the AS11 runs ~21 min fast — `as11_clock.py` — so
+    the SA2 would miss its own BRP by that much while both files look perfectly well-formed.
+    `CPAP-SA2-OXIMETRY-SOURCE` §2 measured what that costs: r = 0.296 at a −79 min best lag.
+
+    ⚠️ SIGN. `ClockOffset.offset_sec` is POSITIVE when the DEVICE reads LATER than the reference. The
+    AS11 reads ~21 min fast, so it carries ~ +1260 s, and the instant the host calls 22:00:00 the
+    device calls 22:21:00 — hence PLUS. Do not re-derive this from `as11_clock.analyze`, which uses
+    the opposite convention (`median(host − device)`, negative when the device runs ahead) and is
+    negated once at its own boundary. Getting it backwards turns a 21-minute discrepancy into a
+    42-minute one, which still looks like a plausible clock story.
+
+    **An UNMEASURED offset raises.** `ClockOffset.unknown()` means nobody measured the difference, and
+    writing anyway would assert an alignment that was never established — the same fabrication
+    `offset_for_envelope` refuses when it declines to render `None` as a zero. A caller with no
+    measurement has no axis-correct SA2 to write, and that is the honest outcome rather than a file
+    that is wrong by an unknown amount.
+    """
+    if not clock_offset.measured:
+        raise ValueError(
+            "cannot place an SA2 on the device axis: the clock offset is UNKNOWN. The AS11 is "
+            "device-stamped and the ring is host-stamped, so without a measured offset any start "
+            "written here is wrong by an unmeasured amount — and the file would look correct. "
+            "Measure via AS11CLOCK.csv (as11_clock.offset_for_envelope) or do not write the file.")
+    base = _dt.datetime(*host_start) + _dt.timedelta(seconds=float(clock_offset.offset_sec))
+    return (base.year, base.month, base.day, base.hour, base.minute, base.second)
+
+
+def build_sa2(samples, device_start, serial, *, record_seconds=60, mid=46, vid=3):
+    """A ResMed-layout SA2.edf from 1 Hz oximetry. `device_start` is (y, mo, d, hh, mm, ss).
+
+    ⚠️ THE START IS ON THE **DEVICE** AXIS, and the parameter is named for it because the two axes are
+    structurally identical tuples. `build_brp` is device-stamped (`cpap_edf_writer`, Clock Contract
+    §7/§12), so an SA2 written beside it must be too. Oximetry sourced from the host-stamped O2Ring
+    must go through `device_start_from_host` FIRST — that function refuses on an unmeasured offset,
+    which is the point. This builder stays a pure encoder and applies no correction of its own.
+
+    `samples` is an iterable of `(offset_s, spo2_pct, pulse_bpm)` with `offset_s` whole seconds from
+    `device_start`; either reading may be None for "no value".
+
+    ⚠️ IT TAKES OFFSETS, NOT TWO LISTS, AND THAT IS THE POINT. Gaps are FILLED with the device's own
+    sentinel rather than closed up. A caller handing over a plain list with a dropout simply omitted
+    would shift every later sample earlier, and the file would look continuous while being wrong by
+    the length of the gap — the same silent-time-axis failure as assuming 1 Hz in `parse_dat`, and as
+    stepping a day with `t -= 86400`. Absence has to be representable or it gets compressed away.
+
+    The O2Ring is a native fit: `parse_dat` yields 1 Hz samples with None for finger-off. Check
+    `parse_dat.implied_interval_s` before trusting that a given .dat really is 1 Hz — the file does
+    not record its own cadence.
+    """
+    spr = record_seconds                       # 60 samples per 60 s record = 1 Hz [HW]
+    seen = {}
+    for offset, spo2, pulse in samples:
+        offset = int(offset)
+        if offset < 0:
+            raise ValueError(f"negative sample offset {offset}: a sample before the start instant "
+                             "cannot be placed on the record grid")
+        if offset in seen:
+            raise ValueError(f"duplicate sample offset {offset}: two readings claim the same second, "
+                             "so one would silently overwrite the other")
+        seen[offset] = (spo2, pulse)
+
+    n_seconds = max(seen) + 1 if seen else 0
+    n = -(-n_seconds // spr) if n_seconds else 0
+    total = n * spr
+    pulse_d, spo2_d = [], []
+    for i in range(total):
+        spo2, pulse = seen.get(i, (None, None))
+        pulse_d.append(SA2_ABSENT if pulse is None else int(pulse))
+        spo2_d.append(SA2_ABSENT if spo2 is None else int(spo2))
+
+    sd, st, rd = _dates(*device_start)
+    signals = [_sentinel_signal(_SA2_SPECS[0], pulse_d, spr),
+               _sentinel_signal(_SA2_SPECS[1], spo2_d, spr),
+               _crc_signal(n)]
+    return Edf("0", "X X X X", _recording_id(rd, serial, mid, vid), sd, st, "EDF", n,
+               f"{record_seconds}.00", signals)
+
+
+def declaration_matches(kind, header_signals, dictionary):
+    """Differences between a real file's signal block and the derived dictionary; [] means identical.
+
+    `header_signals` is a sequence of (label, unit, pmin, pmax, dmin, dmax, spr) read off disk, all
+    ASCII and **TRIMMED**. Returns human-readable differences rather than a bool: "it differs" is not
+    actionable, "Leak.2s dig_max 100 vs 200" is.
+
+    ⚠️ `read_edf` returns these fields space-padded to their EDF field widths and does not strip, so a
+    caller passing its output straight in gets a difference on every field. Trim first. The
+    dictionary holds trimmed ASCII because that is what the generator writes; comparing trimmed to
+    padded is the one mistake this function cannot detect for you, since a padded value really is
+    different text.
+    """
+    spec = dictionary.get(kind)
+    if spec is None:
+        return [f"{kind}: not in the dictionary (derived from a card that never wrote this type)"]
+    want = spec["signals"]
+    out = []
+    if len(header_signals) != len(want):
+        out.append(f"{kind}: {len(header_signals)} signals on disk, {len(want)} in the dictionary")
+    names = ("label", "unit", "phys_min", "phys_max", "dig_min", "dig_max", "spr")
+    for i, (got, exp) in enumerate(zip(header_signals, want)):
+        for j, field in enumerate(names):
+            if got[j] != exp[j]:
+                out.append(f"{kind} sig[{i}] {exp[0]} {field}: disk={got[j]!r} dict={exp[j]!r}")
+    return out
 
 
 def _tal_record(onset, duration, label, byte_width):

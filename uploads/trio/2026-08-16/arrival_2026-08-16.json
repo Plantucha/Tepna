@@ -54,5 +54,20 @@
       "t0HostMs": 1786918203503,
       "spanSec": 21937
     }
-  ]
+  ],
+  "datTimefit": {
+    "converged": true,
+    "attempts": 1,
+    "lagS": 30,
+    "datStartHostMs": 1786918172000,
+    "spo2LagS": 32,
+    "pulseLagS": 30,
+    "pulseErr": 1.364,
+    "dat": "Wellue_O2Ring-S_20260816221123_STORED.dat",
+    "csv": "Wellue_O2Ring-S_S8AW2100_20260816220921_SPO2.csv",
+    "reportedOffsetS": null,
+    "deltaS": null,
+    "driftAllowanceS": 0,
+    "disagrees": null
+  }
 }

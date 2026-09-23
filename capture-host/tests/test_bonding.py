@@ -76,6 +76,104 @@ def _stub(monkeypatch, *, delayed="", info_by_addr=None, record=None):
     monkeypatch.setattr(bonding, "_btctl", fake_btctl)
 
 
+def _bluez_view(monkeypatch, listed: dict, hci_of: dict | None = None):
+    """What BlueZ lists ({address: hciN}) and what the kernel address resolves to ({mac: hciN})."""
+    calls = []
+
+    async def dbus():
+        return dict(listed)
+
+    async def resolve(mac, refresh=False):
+        calls.append((mac, refresh))
+        return (hci_of or {}).get(mac)
+    monkeypatch.setattr(bonding.link_rssi, "dbus_hci", dbus)
+    monkeypatch.setattr(bonding.link_rssi, "resolve_hci", resolve)
+    return calls
+
+
+@pytest.fixture(autouse=True)
+def _empty_bluez_view(monkeypatch):
+    """⚠️ THIS WAS NAMED `_no_real_bluez` AND SILENTLY REPLACED THE FIXTURE OF THAT NAME ABOVE — a
+    module-level rebind, so the subprocess guard #937 added was dead from 2026-09-12 until it was
+    renamed here. Two autouse fixtures cannot share a name; the later one simply wins, and nothing
+    reports it but mypy's `no-redef`.
+
+    This module is exempt from conftest's identity pin so the resolver can be tested; the default
+    here is an EMPTY BlueZ view, so a test that does not set one up gets the configured address
+    passed through (the documented unresolvable path) and never touches D-Bus or hcitool."""
+    _bluez_view(monkeypatch, {})
+
+
+# ── bluez_address: the address bluetoothctl `select` actually accepts (2026-09-12) ─────────────────
+# A Zephyr dongle has two addresses — the kernel's (`hciconfig`, what an operator pins) and the
+# static-random one BlueZ assigned it (`bluetoothctl list`). `select <kernel address>` prints
+# "Controller … not available", exits 0, and CARRIES ON ON THE DEFAULT CONTROLLER. Measured on the box:
+# every bond/forget/power-cycle pinned to hci0's dongle ran on hci3's.
+def test_bluez_address_returns_the_configured_address_when_bluez_lists_it(monkeypatch):
+    calls = _bluez_view(monkeypatch, {"00:01:95:CC:53:02": "hci1"})
+    assert _run(bonding.bluez_address("00:01:95:cc:53:02")) == "00:01:95:CC:53:02"
+    assert calls == [], "a listed address needs no hci resolution"
+
+
+def test_bluez_address_maps_a_kernel_address_to_the_bluez_identity_of_the_same_hci(monkeypatch):
+    calls = _bluez_view(monkeypatch,
+                        {"DA:44:2D:51:0F:54": "hci0", "C5:0E:CF:AE:9D:FA": "hci3"},
+                        hci_of={"99:67:24:2E:CD:98": "hci0"})
+    assert _run(bonding.bluez_address("99:67:24:2E:CD:98")) == "DA:44:2D:51:0F:54"
+    assert calls == [("99:67:24:2E:CD:98", True)], "resolved FRESH — a stale hci map is a wrong radio"
+
+
+def test_bluez_address_unresolvable_passes_the_configured_value_through_with_a_warning(monkeypatch, caplog):
+    """Refusing would turn a resolver hiccup into a strap that never bonds; passing through keeps the
+    failure VISIBLE as `Controller X not available` in the transcript, and warns."""
+    _bluez_view(monkeypatch, {"DA:44:2D:51:0F:54": "hci0"}, hci_of={})
+    with caplog.at_level("WARNING", logger="tepna.bonding"):
+        assert _run(bonding.bluez_address("99:67:24:2E:CD:98")) == "99:67:24:2E:CD:98"
+    assert any("99:67:24:2E:CD:98" in r.getMessage() and "default controller" in r.getMessage()
+               for r in caplog.records)
+
+
+def test_bluez_address_resolved_hci_that_bluez_does_not_list_is_unresolvable(monkeypatch):
+    _bluez_view(monkeypatch, {"DA:44:2D:51:0F:54": "hci0"}, hci_of={"AA:AA:AA:AA:AA:AA": "hci7"})
+    assert _run(bonding.bluez_address("AA:AA:AA:AA:AA:AA")) == "AA:AA:AA:AA:AA:AA"
+
+
+def test_bluez_address_and_select_line_are_empty_when_unpinned():
+    assert _run(bonding.bluez_address(None)) is None
+    assert _run(bonding.bluez_address("")) is None
+    assert _run(bonding.select_line(None)) == ""
+
+
+def test_select_line_is_the_bluez_address(monkeypatch):
+    _bluez_view(monkeypatch, {"DA:44:2D:51:0F:54": "hci0"}, hci_of={"99:67:24:2E:CD:98": "hci0"})
+    assert _run(bonding.select_line("99:67:24:2E:CD:98")) == "select DA:44:2D:51:0F:54\n"
+
+
+def test_every_public_entry_point_selects_by_the_bluez_address(monkeypatch):
+    """scan · bond · is_bonded · trusted_flags · forget — all five reach bluetoothctl through the
+    resolver, so a pinned Zephyr dongle is addressed by the identity BlueZ has for it."""
+    _bluez_view(monkeypatch, {"DA:44:2D:51:0F:54": "hci0"}, hci_of={"99:67:24:2E:CD:98": "hci0"})
+    rec = []
+    _stub(monkeypatch, delayed=INFO_BONDED, record=rec)
+    k = "99:67:24:2E:CD:98"
+    _run(bonding.scan(k, seconds=0))
+    _run(bonding.bond("AA:BB:CC:DD:EE:FF", k))
+    _run(bonding.is_bonded("AA:BB:CC:DD:EE:FF", k))
+    _run(bonding.trusted_flags(["AA:BB:CC:DD:EE:FF"], k))
+    _run(bonding.forget("AA:BB:CC:DD:EE:FF", k))
+    # _delayed_script records (delay, line) tuples — one script per `select` line; _btctl records whole
+    # scripts. EVERY bluetoothctl session must open with the resolved select, including scan's
+    # per-device `info` enrichment, which was unselected until 2026-09-12 and read bond state off the
+    # default controller.
+    sessions = [r for r in rec if isinstance(r, str)]
+    selects = [r[1] for r in rec if isinstance(r, tuple) and r[1].startswith("select")]
+    assert len(selects) == 2, rec                                # scan + bond
+    assert len(sessions) >= 4, rec                               # scan's info · is_bonded · trusted · forget
+    assert all(s == "select DA:44:2D:51:0F:54" for s in selects), selects
+    assert all(s.startswith("select DA:44:2D:51:0F:54\n") for s in sessions), sessions
+    assert not any(k in r for r in sessions), "the kernel address must never reach bluetoothctl"
+
+
 # ── adapter selection ───────────────────────────────────────────────────────────────────────────────
 def test_adapter_prefix_selects_the_configured_radio_or_nothing():
     assert bonding._adapter_prefix("AA:AA:AA:AA:AA:AA") == [(0, "select AA:AA:AA:AA:AA:AA")]
@@ -226,8 +324,50 @@ def test_bond_registers_a_just_works_agent_before_pairing(monkeypatch):
     cmds = [c for _d, c in rec if isinstance(_d, (int, float))]
     assert "agent NoInputNoOutput" in cmds and "default-agent" in cmds
     assert cmds.index("agent NoInputNoOutput") < cmds.index("pair AA:BB:CC:DD:EE:FF")
-    assert cmds.index("trust AA:BB:CC:DD:EE:FF") < cmds.index("pair AA:BB:CC:DD:EE:FF"), \
-        "trust must precede pair — the verified 2026-07-16 sequence"
+
+
+def test_bond_never_sets_trust_and_still_untrusts_after_pair(monkeypatch):
+    """The §B2 leak window is CLOSED BY CONSTRUCTION (VIGIL-BLUETOOTH-ADVERSARIAL-AUDIT 2026-09-05).
+
+    The old script set `trust` ~10 s before revoking it, so a session death in between leaked the
+    flag permanently — measured on the live box: both Polars `Trusted: yes` months after the untrust
+    shipped. A script that never issues `trust` has no window to leak; the trailing `untrust` stays
+    as retrofit cleanup for flags left by the old script or an operator's hand-`trust`.
+    (Deliberately replaces the former 'trust must precede pair — 2026-07-16' assertion.)"""
+    rec = []
+    _stub(monkeypatch, delayed="Pairing successful", record=rec)
+    _run(bonding.bond("AA:BB:CC:DD:EE:FF"))
+    cmds = [c for _d, c in rec if isinstance(_d, (int, float))]
+    assert "trust AA:BB:CC:DD:EE:FF" not in cmds
+    assert cmds.index("pair AA:BB:CC:DD:EE:FF") < cmds.index("untrust AA:BB:CC:DD:EE:FF")
+
+
+# ── trusted_flags — the §B2 startup tripwire ────────────────────────────────────────────────────────
+def test_trusted_flags_returns_only_the_trusted_subset(monkeypatch):
+    _stub(monkeypatch, info_by_addr={
+        "AA:AA:AA:AA:AA:AA": "Paired: yes\n\tBonded: yes\n\tTrusted: yes",
+        "BB:BB:BB:BB:BB:BB": "Paired: yes\n\tBonded: yes\n\tTrusted: no",
+        "CC:CC:CC:CC:CC:CC": "Device CC:CC:CC:CC:CC:CC not available"})
+    got = _run(bonding.trusted_flags(
+        ["AA:AA:AA:AA:AA:AA", "BB:BB:BB:BB:BB:BB", "CC:CC:CC:CC:CC:CC"]))
+    assert got == ["AA:AA:AA:AA:AA:AA"]
+
+
+def test_trusted_flags_selects_the_configured_adapter(monkeypatch):
+    """Trust is PER-ADAPTER (the live box read Trusted:no on hci0 and yes on hci1 for the same
+    device) — an unselected query answers about the wrong radio and under-warns."""
+    rec = []
+    _stub(monkeypatch, delayed="Trusted: yes", record=rec)
+    got = _run(bonding.trusted_flags(["AA:AA:AA:AA:AA:AA"], "00:11:22:33:44:55"))
+    assert got == ["AA:AA:AA:AA:AA:AA"]
+    assert rec and rec[0].startswith("select 00:11:22:33:44:55\n")
+
+
+def test_trusted_flags_treats_a_read_failure_as_unknown_not_trusted(monkeypatch):
+    async def boom(script, timeout=20.0):
+        raise RuntimeError("bluetoothctl unavailable")
+    monkeypatch.setattr(bonding, "_btctl", boom)
+    assert _run(bonding.trusted_flags(["AA:AA:AA:AA:AA:AA"])) == []
 
 
 # ── forget ──────────────────────────────────────────────────────────────────────────────────────────

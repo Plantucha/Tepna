@@ -18,7 +18,7 @@
    ════════════════════════════════════════════════════════════════════════ */
 import { closeSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, readSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { classify as rebaseClassify, parsePorcelain as rebaseParsePorcelain, classifyStamps as rebaseClassifyStamps } from '../tools/rebase-safe.mjs';
+import { classify as rebaseClassify, parsePorcelain as rebaseParsePorcelain, classifyStamps as rebaseClassifyStamps, duplicateLedgerKeys as rebaseDuplicateLedgerKeys } from '../tools/rebase-safe.mjs';
 import { decide as landDecide } from '../tools/land-pr.mjs';
 import { classify as qdClassify, pick as qdPick, IDLE_MIN as QD_IDLE_MIN, STARVED_MIN as QD_STARVED_MIN } from '../tools/queue-doctor.mjs';
 import { classify as commitShape } from '../tools/commit-shape.mjs';
@@ -28,12 +28,20 @@ import { attenuateAndRecover, buildTemplate as beatBuildTemplate } from '../tool
 import * as deviceStability from '../tools/device-stability.mjs';
 import * as beatCorrespondence from '../tools/beat-correspondence.mjs';
 import * as circularStats from '../tools/circular-stats.mjs';
+import { suiteVerdict, unionVerdict } from '../tools/run-tests-verdict.mjs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
 import vm from 'node:vm';
 import { spawn, execSync } from 'node:child_process';
 import { cpus, tmpdir } from 'node:os';
-import { walkRepoPaths } from './docs-ledger-fs.mjs';
+/* Node-only handles for the `tools · wt-done · self-match` gate: it drives `usersOfPath`
+   against a SYNTHETIC /proc, so it needs real fs/os/path plus the tool. The browser lane
+   skips the group rather than receiving these. */
+import * as _nodeFs from 'node:fs';
+import * as _nodeOs from 'node:os';
+import * as _nodePath from 'node:path';
+import * as _wtDone from '../tools/wt-done.mjs';
+import { rootTrackedFiles, walkRepoPaths, walkRepoPathsAll } from './docs-ledger-fs.mjs';
 import { planShards, partitionViolations, readTimings } from './shard-plan.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -496,6 +504,12 @@ function makeSandbox() {
   sandbox.clearTimeout = clearTimeout;
   sandbox.addEventListener = noop; // RENDER-HARNESS §RN: ECGScope._bindEvents calls window.addEventListener
   sandbox.removeEventListener = noop;
+  /* CAPTURE-NIGHT-SEAL phase C — the Web APIs the in-page seal reader uses, lent from the host realm so
+     the node lane runs night-seal.js for REAL on the committed vector (WebCrypto, DecompressionStream,
+     TextEncoder/Decoder, atob, Response). Node ≥ 18 has them all as globals. Lent, not stubbed: a stub
+     would make the reader's green a vacuous one. */
+  for (const w of ['TextEncoder', 'TextDecoder', 'crypto', 'DecompressionStream', 'CompressionStream', 'Response', 'atob', 'btoa', 'Blob'])
+    if (typeof globalThis[w] !== 'undefined' && sandbox[w] === undefined) sandbox[w] = globalThis[w];
   return vm.createContext(sandbox);
 }
 
@@ -529,6 +543,17 @@ function readSources() {
        surface, so it is gated as TEXT. Its PAT target is the Wellue finger PPG, the one device whose
        axis is drawn on every stream measured (20/20). */
     'tools/pat-host-offset.mjs',
+    /* The cross-checkout guard is a process-level exit in this tool's preamble — it cannot be
+       imported, so it is gated as TEXT. Every git call in the tool is bound to its own ROOT, so a
+       future edit that resolves ROOT from the cwd instead would make the refusal unreachable and the
+       tool would silently act on whichever tree you happen to stand in. */
+    'tools/rebase-safe.mjs',
+    /* The §∅ pin-constant parity gate reads BOTH sides as text.  asks for exactly
+       this — "that constant must be asserted equal to this one by a gate that has been shown to RED
+       on a mismatch" — and a Python constant cannot be imported into the JS lane, so the pairing is
+       necessarily a source scan. */
+    'capture-host/writers.py',
+    'capture-host/nightqc.py',
     'tools/regen-integrator-goldens.mjs',
     /* §4.3 — the §3.1 bootstrap exemption is a CONTRACT BETWEEN TWO FILES: this tool matches the
        §3.1 assertion's label to recognise a first-generation fixture. A rename in dex-tests.js would
@@ -564,6 +589,10 @@ function readSources() {
     'pulsedex-app.js',
     'pulsedex-render.js',
     'motiondex-render.js',
+    /* EEGDex's staging engine. Added with the file itself: the `no NEW unscannable source layer`
+       ratchet exists precisely so a new runtime source cannot ship invisible to every lane, and it
+       caught this one on its first build. */
+    'eegdex-dsp.js',
     'hrvdex-app.js',
     'oxydex-app.js',
     'oxydex-render.js',
@@ -611,6 +640,10 @@ function readSources() {
     'manifest-gate.js',
     'sensor-trio-worker.js',
     'sensor-trio-power-analysis.js',
+    /* The monitor's per-night landing page (2026-09-22). Added with the file itself, as eegdex-dsp.js
+       was: the `no NEW unscannable source layer` ratchet reds a runtime source no lane can read, and it
+       caught this one on its first build too. */
+    'sensor-trio-night.js',
     'sensor-trio-gpu.js',
     'hrvdex-render.js',
     'pat-gate.js',
@@ -624,6 +657,12 @@ function readSources() {
        at the render step while every test stayed green. A layer nothing reads is a layer nothing
        checks. */
     'pat-feasibility.js',
+    /* The cohort HARNESS page — its authored boot script is the realm tripwire (refuse rather than serve
+       nulls, #2572); the gate drives it in a vm with the node's global absent and present, and pins its
+       two maps equal so a node cannot slip past the check unexamined. The DSP blocks inlined above the
+       tail are not evaluated by that gate. */
+    'cohort-harness.html',
+    'qrs-equiv-analysis.js',
     'signal-orchestrate.js',
     'dex-ingest.js',
     'cpapdex-dsp.js',
@@ -639,6 +678,9 @@ function readSources() {
     'dex-export.js',
     'ganglior-provenance.js',
     'signal-frame.js',
+    'measurement-block.js',
+    'verdict.js',
+    'night-seal.js',
     'glucodex-render.js',
     'glucodex-app.js',
     'cpapdex-render.js',
@@ -733,6 +775,28 @@ async function readComputeHashProbe() {
     render: await of(mk('compute(1)', 'paint(2)')), // display-only edit
     dsp: await of(mk('compute(2)', 'paint(1)')) // compute-path edit
   };
+}
+
+/* MEASUREMENT-PROVENANCE-ROADMAP §3 — the SHIPPED bundles' code identity, read off the artifacts by the
+   same projection GATE A uses. The `measurement · fixture code identity` group asserts a committed
+   OxyDex fixture's `measurement.*.code.computeHash` equals the bundle's — the roadmap's literal done-when
+   ("code.computeHash matches the shipped bundle"). Async (crypto.subtle) → computed here, asserted there;
+   an unbuilt or non-plain-inline bundle reads null and the group SKIPs by name rather than passing. */
+async function readBundleCodeIdentity() {
+  const MG = ManifestGate;
+  if (!MG || typeof MG.computeHashFromText !== 'function') return null;
+  const out = {};
+  for (const b of MG.MANIFEST_BUNDLES || []) {
+    const f = join(ROOT, b);
+    if (!existsSync(f)) continue;
+    try {
+      const text = readFileSync(f, 'utf8');
+      out[b] = { manifestHash: await MG.manifestHashFromText(text), computeHash: await MG.computeHashFromText(text) };
+    } catch {
+      /* unreadable → absent → the group skips by name */
+    }
+  }
+  return out;
 }
 
 // demo-inputs gate (CPAP-REAL-CORPUS-FOLLOWUPS-II §3): the git-tracked path set, so the group can
@@ -859,6 +923,34 @@ function readEquiv() {
   // an equiv leg, but _0439 shares the same code"), which is an instruction to a human, not a gate.
   // It has a leg now, so the claim is checked rather than asserted.
   pair('oxydex_0439', 'O2Ring S 2100_20260624222730.csv', 'OxyDex_2026-06-25_0439_summary.json');
+  /* The stored .dat night WITH its acquisition envelope (residue 2026-09-21-measurement-envelope-hop-
+     unexercised). A .dat is BYTES, not text, and the fixture's envelopeRef is joined from the sidecar,
+     so this pair carries both halves: `input = { bytes, fname, meta }`. Corpus-backed like the two
+     CSV summaries (real recording, gitignored) — ⊘ in CI, real locally. */
+  {
+    const datFile = 'Wellue_O2Ring-S_20260919224526_STORED.dat',
+      metaFile = datFile + '.meta.json';
+    const datP = join(UPLOADS, datFile),
+      metaP = join(UPLOADS, metaFile),
+      fxP = join(ROOT, 'uploads', 'OxyDex_2026-09-19_2245_stored_summary.json');
+    const rec = {};
+    if (existsSync(datP) && existsSync(metaP)) {
+      try {
+        rec.input = { bytes: new Uint8Array(readFileSync(datP)), fname: datFile, meta: JSON.parse(readFileSync(metaP, 'utf8')) };
+      } catch {
+        /* unreadable → absent */
+      }
+    }
+    if (existsSync(fxP)) {
+      try {
+        rec.fixture = JSON.parse(readFileSync(fxP, 'utf8'));
+      } catch {
+        /* unreadable → absent */
+      }
+    }
+    rec.fixtureFile = 'OxyDex_2026-09-19_2245_stored_summary.json';
+    if (rec.input !== undefined || rec.fixture !== undefined) out.oxydex_stored = rec;
+  }
   pair('pulsedex', 'Polar_H10_AAAAAAAA_20260613_204448_RR.txt', 'PulseDex_2026-06-25_equiv.node-export.json');
   pair('hrvdex', 'WELLTORY_HRV_DATA_EXPORT_20_May_2026_12_00_AM-17_Jun_2026_11_59_PM.csv', 'HRVDex_2026-06-25_equiv.node-export.json');
   // VII §2: event-byte-coverage cases (purpose-built inputs that emit ≥1 event of each impulse;
@@ -1118,6 +1210,46 @@ function readEquiv() {
       }
     }
   }
+  // residue 2026-09-02-respiration-fusion-no-fixture — the respiration-fusion twins. Fixture-only:
+  // the gate rebuilds all four cases in-code from tests/respiration-fusion-twins.js.
+  {
+    const fxR = join(ROOT, 'uploads', 'integrator_respiration_fusion_twins.node-export.json');
+    if (existsSync(fxR)) {
+      try {
+        out.integrator_respiration_fusion_twins = {
+          fixture: JSON.parse(readFileSync(fxR, 'utf8')),
+          fixtureFile: 'integrator_respiration_fusion_twins.node-export.json'
+        };
+      } catch {
+        /* gate self-skips */
+      }
+    }
+  }
+  // Night-level fusion twins (residue `2026-09-05-integrator-fusion-no-code-gated-fixture`): the
+  // ONLY code-gated fixture that re-runs `runFusion` -> `buildFusionExport`. Fixture-only; the gate
+  // rebuilds every night in-code, so CI reproduces it with no corpus.
+  {
+    const fxN = join(ROOT, 'uploads', 'integrator_fusion_night_twins.node-export.json');
+    if (existsSync(fxN)) {
+      try {
+        out.integrator_fusion_night_twins = { fixture: JSON.parse(readFileSync(fxN, 'utf8')), fixtureFile: 'integrator_fusion_night_twins.node-export.json' };
+      } catch {
+        /* gate asserts presence — a parse failure surfaces there, not as a silent skip */
+      }
+    }
+  }
+
+  // D3 — the hrStat comparability twins. Fixture-only: the gate rebuilds both nights in-code.
+  {
+    const fxH = join(ROOT, 'uploads', 'integrator_hrstat_class_twins.node-export.json');
+    if (existsSync(fxH)) {
+      try {
+        out.integrator_hrstat_class_twins = { fixture: JSON.parse(readFileSync(fxH, 'utf8')), fixtureFile: 'integrator_hrstat_class_twins.node-export.json' };
+      } catch {
+        /* gate self-skips */
+      }
+    }
+  }
   // §4.3 — the apnea chance-null twins. Fixture-only: the gate rebuilds all four nights in-code.
   {
     const fxA = join(ROOT, 'uploads', 'integrator_apnea_null_twins.node-export.json');
@@ -1195,6 +1327,189 @@ function readNodeSurfaces() {
    this reads the tree for the same number. Prose stays prose; only the number is load-bearing, so the
    gate cannot drift into policing wording. Node-lane only (fs reads) — the browser lane has no readdir,
    so `env.claudeMdClaims` is undefined there and the group SKIPs, mirroring docs-ledger/release-ledger. */
+/* TABLE PROVENANCE — PUBLISHED-NUMBER-PROVENANCE-2026-09-15 §4, phase 2.
+   `CLAIM` is right for a number in a sentence and far too heavy for a 20-number table. A table wants
+   ONE footer carrying GATE-B's triple — producer, inputs, output — in a form Markdown already holds:
+
+     <!-- TABLE-PROVENANCE producer=<path> invocation="<argv>" inputs=<path|12hex> [inputsDigest=<12hex>] output=<12hex> generated=<YYYY-MM-DD> -->
+   `inputsDigest=` (beside a resolvable `inputs=` path) is the upstream-DAG hash: recomputed over the
+   git-tracked files under that path on every run, so the stamp can CLEAR, not only flag.
+
+   THE OUTPUT HASH IS OVER THE TABLE TEXT ITSELF, and that is the load-bearing part. It makes the
+   exact failure the decay sweep measured — prose drifting from the artifact it reports — mechanically
+   visible, because hand-editing a cell without re-running the producer changes the text and breaks
+   the hash. Nothing else here needs the corpus, so it works in CI.
+
+   ⚠️ DO NOT extend this into a prose scanner. §2 of that brief BUILT one, measured it (45 flags, and
+   every one of 4 sampled a false positive, from four DISTINCT mechanisms), and refused it: statcheck's
+   precision comes from NHST's rigid convention, not from the checking, and discursive prose has
+   nothing for a parser to grip. The marker is not the cheaper option — it is the only one that works,
+   because it CREATES the stereotypy the method depends on. */
+/* CAPTURE-NIGHT-SEAL phase C — the committed tepna-seal/1 vector and its four sealer-built plants, as
+   bytes, so the node lane judges the in-page reader on the SAME bytes the Python and Node readers are
+   judged on. Node-lane only (fs); the browser lane runs the same reader through browser-gates. */
+function readSealVectors() {
+  try {
+    const dir = join(ROOT, 'capture-host', 'tests', 'vectors', 'tepna-seal-1');
+    const exp = JSON.parse(readFileSync(join(dir, 'expected.json'), 'utf8'));
+    const plantsExp = JSON.parse(readFileSync(join(dir, 'plants', 'expected.json'), 'utf8'));
+    const plants = {};
+    for (const [name, rec] of Object.entries(plantsExp)) plants[name] = { expect: rec.expect, bytes: new Uint8Array(readFileSync(join(dir, 'plants', rec.file))) };
+    return { expected: exp, vector: new Uint8Array(readFileSync(join(dir, exp.seal))), plants, kindsSource: readFileSync(join(ROOT, 'tools', 'verify-seals.mjs'), 'utf8') };
+  } catch (_) {
+    return null;
+  }
+}
+
+/* The harness is synchronous and WebCrypto is promise-only, so the reader RUNS HERE, in the same
+   co-loaded realm the suite tests (ctx.NightSeal), and the group asserts on what it returned. The
+   seven plants: four sealer-built (committed under plants/), three built here from the base vector
+   exactly as the browser-gates leg builds them (a wrong card key · a stale known revision · a forged
+   header). Nothing is stubbed: a failure to run is a result with `error`, not a skip. */
+async function runSealReader(ctx) {
+  const V = readSealVectors();
+  const NS = ctx.NightSeal;
+  if (!V || !NS) return null;
+  const exp = V.expected;
+  const good = { cardKey: NS.fromHex(exp.cardKeyHex), pinnedFingerprint: exp.boxKeyFingerprint };
+  const run = async (bytes, opts) => {
+    try {
+      const r = await NS.unseal(bytes, opts);
+      const tampered = [];
+      for (const name of Object.keys(r.files)) {
+        try {
+          await r.verify(name);
+        } catch (e) {
+          tampered.push({ name, kind: e.kind });
+        }
+      }
+      return { ok: true, consent: r.consent, files: Object.keys(r.files).sort(), oxum: r.bagInfo['Payload-Oxum'], tampered, header: r.header };
+    } catch (e) {
+      return { ok: false, kind: e && e.kind ? e.kind : null, detail: e && e.detail ? e.detail : String((e && e.message) || e), refused: !!(e && e.refused) };
+    }
+  };
+  const out = { expected: exp, kinds: NS.KINDS, kindsSource: V.kindsSource, vector: await run(V.vector, good), plants: {} };
+  for (const [name, pl] of Object.entries(V.plants)) out.plants[name] = { expect: pl.expect, ...(await run(pl.bytes, good)) };
+  out.plants['wrong card key'] = { expect: 'card-key', ...(await run(V.vector, { cardKey: NS.fromHex('101112131415161718191a1b1c1d1e1f'), pinnedFingerprint: exp.boxKeyFingerprint })) };
+  out.plants['stale revision'] = { expect: 'revision', ...(await run(V.vector, { ...good, knownRevision: 2 })) };
+  const blob = V.vector;
+  const n = 10,
+    dv = new DataView(blob.buffer, blob.byteOffset, blob.byteLength);
+  const hlen = dv.getUint32(n);
+  const hdr = JSON.parse(new TextDecoder().decode(blob.subarray(n + 4, n + 4 + hlen)));
+  hdr.night = '2026-09-21';
+  const nh = new TextEncoder().encode(JSON.stringify(hdr, Object.keys(hdr).sort()));
+  const forged = new Uint8Array(n + 4 + nh.length + (blob.length - (n + 4 + hlen)));
+  forged.set(blob.subarray(0, n), 0);
+  new DataView(forged.buffer).setUint32(n, nh.length);
+  forged.set(nh, n + 4);
+  forged.set(blob.subarray(n + 4 + hlen), n + 4 + nh.length);
+  out.plants['forged header'] = { expect: 'signature', ...(await run(forged, good)) };
+  // the verdict objects the page would emit, validated by the co-loaded verdict.js
+  out.verdicts = {
+    pass: NS.verdict({ status: 'PASS', header: out.vector.header || exp.header, consent: null, streams: { opened: 3, verified: 3, tampered: [] }, file: exp.seal }),
+    fail: NS.verdict({ status: 'FAIL', kind: 'manifest:data/x.csv', detail: '1 stream', header: exp.header, streams: { opened: 3, verified: 2, tampered: ['x.csv'] }, file: exp.seal }),
+    notRun: NS.verdict({ status: 'NOT_RUN', detail: 'no card key', streams: { opened: 0, verified: 0, tampered: [] }, file: exp.seal })
+  };
+  out.badges = {
+    pass: NS.badge({ status: 'PASS', header: exp.header, streams: { opened: 3, verified: 3, tampered: [] } }),
+    tampered: NS.badge({ status: 'FAIL', kind: 'manifest:data/a.csv', streams: { opened: 3, verified: 2, tampered: ['a.csv'] } }),
+    unknownKey: NS.badge({ status: 'FAIL', kind: 'fingerprint' }),
+    legacy: NS.badge(null)
+  };
+  return out;
+}
+
+function readTableProvenance() {
+  const crypto = require('node:crypto');
+  const sha12 = (t) => crypto.createHash('sha256').update(t, 'utf8').digest('hex').slice(0, 12);
+  const RE = /<!--\s*TABLE-PROVENANCE\s+([^>]*?)-->/g;
+  const out = { stamps: [], malformed: [], sha12 };
+  const roots = ['briefs', 'audits', 'docs'];
+  const files = [];
+  for (const r of roots) {
+    const d = join(ROOT, r);
+    if (!existsSync(d)) continue;
+    for (const f of readdirSync(d)) if (f.endsWith('.md')) files.push(join(r, f));
+  }
+  if (existsSync(join(ROOT, 'CLAUDE.md'))) files.push('CLAUDE.md');
+  for (const rel of files) {
+    const text = readFileSync(join(ROOT, rel), 'utf8');
+    const lines = text.split('\n');
+    RE.lastIndex = 0;
+    let m;
+    while ((m = RE.exec(text))) {
+      const attrs = {};
+      for (const a of m[1].matchAll(/(\w[\w-]*)=("([^"]*)"|\S+)/g)) attrs[a[1]] = a[3] !== undefined ? a[3] : a[2];
+      const lineNo = text.slice(0, m.index).split('\n').length;
+      /* The TABLE IS THE CONTIGUOUS `|` BLOCK IMMEDIATELY ABOVE the marker. Walking up from the
+         marker rather than down from a heading is what makes one file able to carry several. */
+      // A table inside a blockquote (`> | … |`, the house style for a dated correction block) is the
+      // same table: the quote prefix is stripped for detection AND for the hash, so quoting it does
+      // not move `output`.
+      const unquote = (l) => l.replace(/^\s*(?:>\s?)+/, '');
+      const isRow = (l) => unquote(l).trim().startsWith('|');
+      let i = lineNo - 2;
+      while (i >= 0 && !isRow(lines[i])) i--;
+      const end = i;
+      while (i >= 0 && isRow(lines[i])) i--;
+      const table =
+        end >= 0
+          ? lines
+              .slice(i + 1, end + 1)
+              .map(unquote)
+              .join('\n')
+          : null;
+      if (!attrs.producer || !attrs.output || !table) {
+        out.malformed.push(`${rel}:${lineNo} — ${!table ? 'no table immediately above the marker' : 'missing producer= or output='}`);
+        continue;
+      }
+      const st = { file: rel, line: lineNo, ...attrs, table, actualOutput: sha12(table) };
+      /* THE UPSTREAM-DAG HASH (PUBLISHED-NUMBER-PROVENANCE §4, the half of phase 2 that #2614 left
+         out — residue 2026-09-21-table-provenance-inputs-digest-never-recomputed). A stamp whose
+         `inputs=` names a COMMITTED path may also carry `inputsDigest=<12hex>`; the runner then
+         recomputes the digest over the GIT-TRACKED files under that path and the gate compares. That
+         is what lets a stamp CLEAR a churn flag rather than only raise one: a moved corpus moves a
+         number CI can see. Recipe (shared with analysis/published-numbers/*.json `inputs.digest`):
+         sha12 over `path\0sha12(bytes)` per file, joined by '\n', in `git ls-files` order. Tracked
+         files only — the primary checkout also holds gitignored raw nights under the same paths, and
+         a digest over those would differ from CI's for reasons that have nothing to do with the table.
+         A missing git or an unreadable file is a REASON, never a silent null: the gate reds on it. */
+      if (attrs.inputsDigest) {
+        if (!attrs.inputs || attrs.inputs.indexOf('/') < 0) st.inputsDigestReason = 'inputsDigest= needs a resolvable inputs= path';
+        else {
+          const tracked = trackedUnder(attrs.inputs);
+          if (tracked == null) st.inputsDigestReason = 'git ls-files unavailable — the tracked set cannot be enumerated';
+          else if (!tracked.length) st.inputsDigestReason = 'no git-tracked file under ' + attrs.inputs;
+          else {
+            try {
+              st.actualInputsDigest = digestOver(tracked.map((f) => ({ path: f, bytes: readFileSync(join(ROOT, f)) })));
+              st.inputsTracked = tracked.length;
+            } catch (e) {
+              st.inputsDigestReason = 'unreadable input: ' + String((e && e.message) || e).slice(0, 80);
+            }
+          }
+        }
+      }
+      out.stamps.push(st);
+    }
+  }
+  out.digestOver = digestOver;
+  return out;
+
+  function digestOver(entries) {
+    return sha12(entries.map((e) => e.path + '\0' + sha12(e.bytes)).join('\n'));
+  }
+  function trackedUnder(rel) {
+    try {
+      const out = execSync('git ls-files -z -- ' + JSON.stringify(rel), { cwd: ROOT, encoding: 'buffer', maxBuffer: 128 * 1024 * 1024 });
+      return out.toString('utf8').split('\0').filter(Boolean);
+    } catch (_) {
+      return null;
+    }
+  }
+}
+
 function readClaudeMdClaims() {
   const cm = join(ROOT, 'CLAUDE.md');
   if (!existsSync(cm)) return undefined;
@@ -1256,7 +1571,71 @@ function readClaudeMdClaims() {
        collapse to 0, which would read as "the builder owns nothing" and pass a wrong CLAIM. */
   }
 
-  return { claudeMd, claims, claimsMalformed, clockBundles, missingBundles, appBundles: APP_BUNDLES, ownedBundles, orchestrators };
+  /* ── SOURCED CLAIMS: `CLAIM <name> = <value> FROM <path>#<pointer>` ──────────────────────────────
+     The three claims above each need a BESPOKE resolver written into the gate, which is why there are
+     three of them and not thirty. A sourced claim carries its own resolver: the marker names the
+     committed artifact and the key inside it, so one generic checker covers any number any tool can
+     be made to emit.
+
+     WHY THIS SHAPE AND NOT A PROSE SCANNER. Measured 2026-09-15 over `briefs/ audits/ docs/`: a
+     statcheck-style scan for a ratio beside its percentage found 213 candidates and flagged 45, and
+     every one of the four sampled was a FALSE POSITIVE — a threshold (`28 of 28 fail the 80 % floor`),
+     a sequence (`nf = 219/220/221 — a 16 % swing`), a transition (`61/319 -> 118/319 = 36 %`, where the
+     percentage belongs to the second pair), and an adjacent table column supplying a different
+     denominator (15/179 = 8.4 %, not 15/164). Tightening until those die leaves 14 candidates and ZERO
+     disagreements — precise and empty. statcheck works because NHST reporting is rigidly stereotyped;
+     its precision comes from the CONVENTION, not from the checking. Tepna's briefs have no such
+     convention, so a marker that CREATES one is not the cheaper option, it is the only one that works.
+
+     REFUSAL IS LOUD AND IS THE POINT. An unresolvable source reds; it never skips. A claim whose
+     artifact vanished is exactly the stale number this exists to catch, and a checker that fell silent
+     there would report health about something it never examined. */
+  const sourced = [];
+  const CLAIM_FROM = /CLAIM\s+([A-Za-z][A-Za-z0-9_]*)\s*=\s*(-?\d+(?:\.\d+)?)\s+FROM\s+([^\s#`]+)#([A-Za-z0-9_./-]+)/g;
+  const claimFiles = [['CLAUDE.md', claudeMd]];
+  try {
+    const bd = join(ROOT, 'briefs');
+    if (existsSync(bd)) for (const f of readdirSync(bd).filter((x) => x.endsWith('.md'))) claimFiles.push(['briefs/' + f, readFileSync(join(bd, f), 'utf8')]);
+  } catch {
+    /* unreadable briefs/ ⇒ CLAUDE.md alone; the non-vacuity assertion notices if nothing was scanned */
+  }
+  /* 2026-09-22 — the preprints too: a re-cut correction block states its numbers as sourced CLAIMs against
+     analysis/published-numbers/*.json (owner ruling D9.1), and a marker that no gate reads is prose. Opt-in,
+     so a paper with no marker adds nothing to the scan. */
+  try {
+    const pd = join(ROOT, 'papers');
+    if (existsSync(pd)) for (const f of readdirSync(pd).filter((x) => x.endsWith('.html'))) claimFiles.push(['papers/' + f, readFileSync(join(pd, f), 'utf8')]);
+  } catch {
+    /* unreadable papers/ ⇒ the briefs + CLAUDE.md scan stands */
+  }
+  for (const [where, text] of claimFiles) {
+    for (const m of text.matchAll(CLAIM_FROM)) {
+      const [, name, raw, file, pointer] = m;
+      const rec = { name, where, file, pointer, stated: Number(raw), actual: null, reason: null };
+      const abs = join(ROOT, file);
+      if (!existsSync(abs)) rec.reason = 'source file not found: ' + file;
+      else {
+        try {
+          let cur = JSON.parse(readFileSync(abs, 'utf8'));
+          for (const seg of pointer.split('/')) {
+            if (cur == null || typeof cur !== 'object' || !(seg in cur)) {
+              cur = undefined;
+              break;
+            }
+            cur = cur[seg];
+          }
+          if (cur === undefined) rec.reason = 'pointer did not resolve: #' + pointer;
+          else if (typeof cur !== 'number') rec.reason = 'pointer resolved to ' + typeof cur + ', not a number';
+          else rec.actual = cur;
+        } catch (e) {
+          rec.reason = 'unreadable/invalid JSON: ' + String((e && e.message) || e).slice(0, 80);
+        }
+      }
+      sourced.push(rec);
+    }
+  }
+
+  return { claudeMd, claims, claimsMalformed, clockBundles, missingBundles, appBundles: APP_BUNDLES, ownedBundles, orchestrators, sourced, claimFilesScanned: claimFiles.length };
 }
 
 /* N1 (PRIVACY-SECURITY-AUDIT-FINDINGS-2026-07-13): the standalone, unbundled analysis/research pages +
@@ -1270,6 +1649,7 @@ function readNonBundleCsp() {
     'hrv-confound-analysis.html',
     'nights-icc-analysis.html',
     'sensor-trio-power-analysis.html',
+    'sensor-trio-night.html',
     'treatment-response-analysis.html',
     'sigma-no-reference-analysis.html',
     'qrs-equiv-analysis.html',
@@ -1301,6 +1681,77 @@ function readNonBundleCsp() {
   return out;
 }
 
+/* CAPTURE-FILENAME SUFFIX PARITY (#2215 · #2219 · #2221) — every reader of the capture-host layout, as
+   TEXT. `writers.capture_filename` upper-cases the stream tag, and three readers written from a brief's
+   lowercase spelling (`*_rtclog.csv`) matched NOTHING on any real night; the gate that covered one of
+   them asserted the same lowercase literal, so it encoded the defect. The group derives the EMITTED set
+   from the writer's own call sites and checks every comparison in every reader against it — writers and
+   readers both, because the class is "nobody compared the two". Scope is DERIVED (every root `*.js`,
+   `tools/`, `capture-host/` + its `tools/`), never curated: a curated list is how `trio-batch.mjs` sat
+   outside `env.sources` for its first months. Tests are out — they name a wrong form on purpose.
+   Node-lane only; the browser lane SKIPs (mirrors docs-ledger / release-ledger). */
+/* CODEGEN MANIFESTS — the authored manifests the three generators project from. Read as RAW TEXT
+   as well as parsed, because the `status` retirement is asserted on the presence of the KEY: a
+   re-added `"status": null` would parse to a falsy value and slip a value-based check, which is the
+   same shape as the field it replaced — a claim nothing examines. */
+/* SERVED MARKDOWN TWINS — every `docs/**.md` that also exists at the repo root. build-docs.mjs
+   writes a docs/ file only where a root twin exists AND the extension survives its asset filter,
+   which drops Markdown entirely — so an `.md` twin is a SERVED COPY that no builder maintains,
+   sitting beside an `.html` twin that one does. Report the whole population, not just the twins,
+   so the gate can pin the set as an equality rather than trusting a floor. */
+function readDocsMdTwins() {
+  const dir = join(ROOT, 'docs');
+  if (!existsSync(dir)) return null;
+  const out = [];
+  let total = 0;
+  const walkMd = (d) => {
+    for (const name of readdirSync(d).sort()) {
+      const abs = join(d, name);
+      if (statSync(abs).isDirectory()) walkMd(abs);
+      else if (name.endsWith('.md')) {
+        total++;
+        const rel = abs.slice(join(ROOT, 'docs').length + 1);
+        const rootTwin = join(ROOT, rel);
+        if (existsSync(rootTwin)) out.push({ rel, equal: readFileSync(abs, 'utf8') === readFileSync(rootTwin, 'utf8') });
+      }
+    }
+  };
+  walkMd(dir);
+  return { total, twins: out };
+}
+
+function readCodegenManifests() {
+  const dir = join(ROOT, 'codegen/manifests');
+  if (!existsSync(dir)) return null;
+  const files = readdirSync(dir)
+    .filter((f) => f.endsWith('.manifest.json'))
+    .map((f) => {
+      const text = readFileSync(join(dir, f), 'utf8');
+      let json = null;
+      try {
+        json = JSON.parse(text);
+      } catch {
+        /* a malformed manifest is a different gate's finding — report the raw text either way */
+      }
+      return { name: f, warning: (json && json.warning) || null, hasStatusKey: /"status"\s*:/.test(text) };
+    });
+  return { dir: 'codegen/manifests', files };
+}
+
+function readCaptureFilenameScan() {
+  const pick = (dir, re) => {
+    const d = join(ROOT, dir);
+    if (!existsSync(d)) return [];
+    return readdirSync(d)
+      .filter((f) => re.test(f))
+      .map((f) => (dir ? `${dir}/${f}` : f));
+  };
+  const files = [...pick('', /\.js$/), ...pick('tools', /\.(?:m?js|py)$/), ...pick('capture-host', /\.py$/), ...pick('capture-host/tools', /\.py$/)];
+  const out = {};
+  for (const f of files) out[f] = readFileSync(join(ROOT, f), 'utf8');
+  return out;
+}
+
 // analysis-tools self-contained gate (LOCAL-DOWNLOAD / file:// fix): the 9 science tools are bundled to
 // self-contained single-file HTML by tools/build-analysis.mjs so they run when downloaded to disk. This
 // reads each committed tool HTML so the group can assert the file://-safe invariant (no external <script
@@ -1314,6 +1765,7 @@ function readAnalysisTools() {
     'qrs-equiv-analysis.html',
     'qrs-yield-analysis.html',
     'sensor-trio-power-analysis.html',
+    'sensor-trio-night.html',
     'sigma-no-reference-analysis.html',
     'treatment-response-analysis.html'
   ];
@@ -1473,6 +1925,11 @@ function readDocsLedger() {
   // fsPaths — the whole-tree link inventory recomputed from disk (F2); check4b resolves DOCS-INDEX +
   // root-doc links against it.
   const fsPaths = walkRepoPaths(ROOT);
+  // fsPathsAll — the same walk with dot-entries admitted, for check8d's DIFFERENT question: a residue
+  // source cell asks "does this repo path exist?", not "is this a link target?". `.claude/hooks/*` and
+  // `.github/workflows/*` are tracked and are where the guards and CI gates live, so resolving them
+  // against the LINK inventory made every guard uncitable (measured 2026-09-10).
+  const fsPathsAll = walkRepoPathsAll(ROOT);
   // X3 (EFFICIENCY-AUDIT-FINDINGS-2026-07-12): the OTHER root docs, so check4b's markdown-link
   // resolution extends from DOCS-INDEX.md to the whole constitution set (a moved target the prose
   // missed is otherwise ungated).
@@ -1488,7 +1945,10 @@ function readDocsLedger() {
   const crossSpec = existsSync(csP) ? readFileSync(csP, 'utf8') : '';
   const longP = join(ROOT, 'integrator-longitudinal.js');
   const longHeader = existsSync(longP) ? readFileSync(longP, 'utf8').slice(0, 1600) : '';
-  return { briefs, indexText, rootBriefNames, fsBriefNames, fsPaths, rootDocs, crossSpec, longHeader };
+  /* The root's tracked file names — the population for the root-set check. null when git is
+     unreadable, which the check SKIPs on rather than reading as a clean root. */
+  const rootFiles = rootTrackedFiles(ROOT);
+  return { briefs, indexText, rootBriefNames, fsBriefNames, fsPaths, fsPathsAll, rootDocs, rootFiles, crossSpec, longHeader };
 }
 
 // release-ledger gate (CONTROLLED-RELEASES-2026-07-05): controlled releases machine-checked. Node-lane
@@ -1530,9 +1990,18 @@ function readReleaseLedger() {
    them rather than trusting a comment. */
 function readPreflight() {
   const pkgP = join(ROOT, 'package.json'),
-    ciP = join(ROOT, '.github', 'workflows', 'tests.yml');
+    ciP = join(ROOT, '.github', 'workflows', 'tests.yml'),
+    rcP = join(ROOT, 'tools', 'run-check.mjs');
   if (!existsSync(pkgP) || !existsSync(ciP)) return null;
-  return { pkgText: readFileSync(pkgP, 'utf8'), ciText: readFileSync(ciP, 'utf8') };
+  /* `check` delegates to run-check.mjs, whose STEPS is the single source of order (the `&&` chain was
+     removed so two ordered lists could not drift). The parity gate therefore needs that file too —
+     it reads the real list, exactly as it reads the CI workflow rather than a copy of it. Absent is
+     tolerated so the gate can say WHICH input is missing instead of silently comparing to ''. */
+  return {
+    pkgText: readFileSync(pkgP, 'utf8'),
+    ciText: readFileSync(ciP, 'utf8'),
+    runCheckText: existsSync(rcP) ? readFileSync(rcP, 'utf8') : null
+  };
 }
 
 function readDiscoverability() {
@@ -1584,7 +2053,8 @@ async function runForked(jobs) {
   const self = fileURLToPath(import.meta.url);
   const passthru = process.argv.slice(2).filter((a) => !/^--?(jobs?|json|timings?|quiet|q|verbose|no-quiet)(=|$)/i.test(a));
   const t0 = Date.now();
-  console.log(paint(`▸ --jobs=${jobs}`, C.cyan) + paint(`  forking ${jobs} shard(s) over the same partition CI uses…`, C.dim));
+  const say = AS_JSON ? (m) => console.error(m) : (m) => console.log(m); // --json: stdout carries ONE payload
+  say(paint(`▸ --jobs=${jobs}`, C.cyan) + paint(`  forking ${jobs} shard(s) over the same partition CI uses…`, C.dim));
 
   const child = (i) =>
     new Promise((res) => {
@@ -1598,6 +2068,8 @@ async function runForked(jobs) {
 
   const results = await Promise.all(Array.from({ length: jobs }, (_, k) => child(k + 1)));
   const groups = [];
+  const shards = []; // §3d: each shard's OWN object (or null when it died) — the union aggregates these
+  let dead = null;
   for (const r of results) {
     let j = null;
     try {
@@ -1606,15 +2078,27 @@ async function runForked(jobs) {
       /* fall through to the hard failure below */
     }
     if (!j || !Array.isArray(j.groups)) {
-      console.error(paint(`\n✗ shard ${r.i}/${jobs} produced no parseable result (exit ${r.code}) — refusing to report a partial gate as a pass.`, C.red));
-      console.error((r.err || r.out || '').split('\n').slice(0, 15).join('\n'));
-      process.exit(2);
+      shards.push({ i: r.i, code: r.code, verdict: null });
+      dead = dead || r;
+      continue;
     }
+    shards.push({ i: r.i, code: r.code, verdict: j.verdict || null });
     groups.push(...j.groups);
   }
+  const verdict = unionVerdict(shards, jobs, { groupFilter: GROUP_FILTER || null });
+  if (dead) {
+    /* UNCHANGED failure path — exit 2, never a pass over the shards that finished. The union object
+       says the same thing in the contract's shape: the dead shard is an undeclared NOT_RUN child and
+       the union is UNKNOWN (§3d, §4c made structural). */
+    console.error(paint(`\n✗ shard ${dead.i}/${jobs} produced no parseable result (exit ${dead.code}) — refusing to report a partial gate as a pass.`, C.red));
+    console.error((dead.err || dead.out || '').split('\n').slice(0, 15).join('\n'));
+    console.error(paint(`  tepna.verdict/1: ${verdict.status} — ${verdict.reason}`, C.yellow));
+    if (AS_JSON) console.log(JSON.stringify({ verdict }));
+    process.exit(2);
+  }
   groups.sort((a, b) => a.index - b.index); // declaration order, so the report reads like a serial run
-  console.log(paint(`  ${groups.length} groups in ${((Date.now() - t0) / 1000).toFixed(1)} s\n`, C.dim));
-  return groups;
+  say(paint(`  ${groups.length} groups in ${((Date.now() - t0) / 1000).toFixed(1)} s\n`, C.dim));
+  return { groups, verdict };
 }
 
 async function main() {
@@ -1647,6 +2131,9 @@ async function main() {
       'pat-align.js',
       'signal-spec.js',
       'signal-frame.js',
+      'measurement-block.js',
+      'verdict.js',
+      'night-seal.js',
       'dex-export.js',
       'signal-adapters.js',
       'adapters/polar-rr.js',
@@ -1872,7 +2359,29 @@ async function main() {
     console.error(paint('  ! pat-host-offset failed to load: ' + e.message, C.yellow));
   }
 
+  /* §∅ cross-language constant parity reads SOURCE TEXT on both sides — the Python file cannot be
+     imported here, and the JS constants are module-private. `nightqc.py` is optional: absent, the
+     gate still pins the JS half and asserts the Python side carries NONE of the names, so a partial
+     landing cannot slip through as a skip. */
+  const _readOpt = (rel) => {
+    try {
+      return readFileSync(join(ROOT, rel), 'utf8');
+    } catch {
+      return null;
+    }
+  };
   const env = {
+    ppgdexDspSource: _readOpt('ppgdex-dsp.js'),
+    nodeFs: _nodeFs,
+    nodeOs: _nodeOs,
+    nodePath: _nodePath.default || _nodePath,
+    wtDone: _wtDone,
+    /* §timingSource vocabulary gate — the EMITTERS' source, scanned for `timingSource` string
+       literals so a value added without a vocabulary entry reds. Source text rather than imports
+       because the literals live inside functions the suite never calls on every path. */
+    ecgdexDspSource: _readOpt('ecgdex-dsp.js'),
+    oxydexDspSource: _readOpt('oxydex-dsp.js'),
+    nightqcSource: _readOpt('capture-host/nightqc.py'),
     PatStrict: PatStrict,
     PatFiducial: PatFiducial,
     CohortWorker: CohortWorker,
@@ -1929,6 +2438,10 @@ async function main() {
     MotionDex: ctx.MotionDex,
     MOTIONDSP: ctx.MOTIONDSP,
     SignalFrame: ctx.SignalFrame,
+    MeasurementBlock: ctx.MeasurementBlock,
+    Verdict: ctx.Verdict, // VERDICT-CONTRACT §2 — the tepna.verdict/1 validator
+    NightSeal: ctx.NightSeal, // CAPTURE-NIGHT-SEAL phase C — the in-page tepna-seal/1 reader (Node runs it for real: crypto.subtle + DecompressionStream are globals)
+    sealRun: await runSealReader(ctx), // the in-page reader RUN on the committed vector + all seven plants, results for the (synchronous) group (Node-lane only)
     DexExport: ctx.DexExport,
     exportName: ctx.exportName,
     EXPORT_KINDS: ctx.EXPORT_KINDS,
@@ -1979,6 +2492,7 @@ async function main() {
     fuseHRVConsensus: ctx.fuseHRVConsensus,
     // §4.3 — the apnea fusion, so the twins' equiv leg drives the same seam the regen tool does.
     fuseApneaEvents: ctx.fuseApneaEvents,
+    fuseRespirationRate: ctx.fuseRespirationRate,
     fusePeriodicBreathing: ctx.fusePeriodicBreathing,
     dedupeRecs: ctx.dedupeRecs,
     runFusion: ctx.runFusion,
@@ -2061,6 +2575,10 @@ async function main() {
        fire on any branch with a deliberately-unverified fixture, and a warning that cries when nothing
        is wrong is one people scroll past — leaving the failure where it was, plus noise. */
     rebaseClassifyStamps: rebaseClassifyStamps,
+    /* The union-merge blind spot's detector. `rebase-safe`'s model is CONFLICT-driven, and a
+       `merge=union` path never conflicts — so the STOP branch cannot fire and the tool reports success
+       over a corrupted ledger. Pure, so the suite can hold both controls. */
+    rebaseDuplicateLedgerKeys: rebaseDuplicateLedgerKeys,
     /* land-pr's PURE decision core. Same shape and same reason as rebaseClassify above: the tool's
        value is a state machine that must not be re-derived by hand in every session, and a state
        machine is only trustworthy if something drives it. Node-lane only (an ESM import of a tool),
@@ -2225,9 +2743,70 @@ async function main() {
     })(),
     // §4.3 — the apnea-null twins' input builder, shared with tools/regen-integrator-goldens.mjs so
     // the gate and the tool cannot drift (the sibling-divergence class §F1.5 fixed for the TCH golden).
+    // Night-level fusion twins' input builder, shared with tools/regen-integrator-goldens.mjs so the
+    // gate and the tool cannot drift — the sibling-divergence class §F1.5 fixed for the TCH golden.
+    fusionNightTwins: (() => {
+      try {
+        return require(join(ROOT, 'tests', 'fusion-night-twins.js')).fusionNightTwins;
+      } catch {
+        return null;
+      }
+    })(),
+    hrStatClassTwins: (() => {
+      try {
+        globalThis.tchGoldenInputs = require(join(ROOT, 'tests', 'tch-golden-inputs.js')).tchGoldenInputs;
+        return require(join(ROOT, 'tests', 'hrstat-class-twins.js')).hrStatClassTwins;
+      } catch {
+        return null;
+      }
+    })(),
     apneaNullTwins: (() => {
       try {
         return require(join(ROOT, 'tests', 'apnea-null-twins.js')).apneaNullTwins;
+      } catch {
+        return null;
+      }
+    })(),
+    respirationFusionTwins: (() => {
+      try {
+        return require(join(ROOT, 'tests', 'respiration-fusion-twins.js')).respirationFusionTwins;
+      } catch {
+        return null;
+      }
+    })(),
+    /* THE TWIN BUILDERS' BROWSER SHAPE — the one property `require` structurally hides.
+       Residue `2026-09-06-twin-builders-three-export-shapes`. The four entries above load these files
+       as CommonJS, where `module.exports` answers whatever the file put on the global, so the Node
+       lane could not tell a bare global from a namespace object from a leak. The browser loads the
+       SAME files as classic scripts, where that difference is the whole contract — and it surfaced as
+       `(intermediate value)(...) is not a function` on `browser-gates` alone, naming neither the
+       builder nor the lane.
+       Evaluated here in a bare `vm` context, which is classic-script semantics with no `module` and no
+       `require`, so `Object.keys(ctx)` IS what a `<script src>` tag would put on `window`.
+       ⚠️ BOTH lists are READ FROM THE LOADERS, never hand-kept: the registry from this file's own
+       `require(join(ROOT, 'tests', …))` sites, the load order from `Dex-Test-Suite.html`'s script
+       tags. A fifth builder wired into either is picked up with no edit here, and one wired into only
+       ONE of them is exactly what the cross-check reports. */
+    twinBuilders: (() => {
+      try {
+        const selfSrc = readFileSync(join(ROOT, 'tests', 'run-tests.mjs'), 'utf8');
+        const htmlSrc = readFileSync(join(ROOT, 'Dex-Test-Suite.html'), 'utf8');
+        const htmlFiles = Array.from(htmlSrc.matchAll(/<script src="tests\/([a-z0-9-]+\.js)"><\/script>/g), (m) => m[1]);
+        const seen = new Set();
+        return Array.from(selfSrc.matchAll(/require\(join\(ROOT, 'tests', '([a-z0-9-]+\.js)'\)\)\.(\w+)/g))
+          .filter((m) => !seen.has(m[1]) && seen.add(m[1]))
+          .map((m) => {
+            const file = m[1],
+              name = m[2];
+            const ctx = vm.createContext({});
+            let threw = null;
+            try {
+              vm.runInContext(readFileSync(join(ROOT, 'tests', file), 'utf8'), ctx, { filename: file });
+            } catch (e) {
+              threw = String((e && e.message) || e);
+            }
+            return { file: file, name: name, globals: Object.keys(ctx), threw: threw, inHtml: htmlFiles.indexOf(file) >= 0 };
+          });
       } catch {
         return null;
       }
@@ -2241,6 +2820,7 @@ async function main() {
     // is passed for the (sync) closure-membership self-tests.
     ManifestGate,
     computeHashProbe: await readComputeHashProbe(),
+    bundleCodeIdentity: await readBundleCodeIdentity(), // roadmap §3 — shipped bundles' {manifestHash, computeHash}
     fixtures: readFixtures(),
     equiv: readEquiv(),
     odiPilot: readOdiPilot(),
@@ -2248,7 +2828,21 @@ async function main() {
     srcHtml: readSrcHtml(),
     nodeSurfaces: readNodeSurfaces(),
     nonBundleCsp: readNonBundleCsp(),
+    captureFilenameScan: readCaptureFilenameScan(),
+    codegenManifests: readCodegenManifests(),
+    docsMdTwins: readDocsMdTwins(),
     claudeMdClaims: readClaudeMdClaims(),
+    tableProvenance: readTableProvenance(),
+    /* Does this repo-relative path exist in the tree? Used by the TABLE-PROVENANCE gate to red on a
+       dead producer or an unresolvable committed input, rather than skipping — a stamp naming a tool
+       that no longer exists is the stale attribution the gate is for. */
+    treeHas: (rel) => {
+      try {
+        return typeof rel === 'string' && rel.length > 0 && existsSync(join(ROOT, rel));
+      } catch {
+        return false;
+      }
+    },
     onGroup: PROGRESS ? progressReporter() : undefined,
     /* XMT GROUND TRUTH (analysis/xmt-fixture.js) — loaded through the SAME `loadInto` path the DSPs
        use, so c8 attributes per-function coverage to it exactly as it does for a DSP. That matters:
@@ -2310,8 +2904,16 @@ async function main() {
   }
 
   if (__covPost && !process.env.DEX_IV_NODISCARD && !process.env.DEX_IV_COUNTS) await __covPost('Profiler.takePreciseCoverage'); // DISCARD: the load-time baseline (skipped in COUNTS mode — see intervalToCounts)
-  const forked = JOBS && !SHARD && !AS_JSON && !LIST_ONLY && !INTERVAL_COV ? await runForked(JOBS) : null;
-  const { groups, totalGroups, groupFilter } = forked ? { groups: forked, totalGroups: forked.length, groupFilter: GROUP_FILTER || null } : runDexTests(env);
+  const forked = JOBS && !SHARD && !LIST_ONLY && !INTERVAL_COV ? await runForked(JOBS) : null;
+  const { groups, totalGroups, groupFilter } = forked ? { groups: forked.groups, totalGroups: forked.groups.length, groupFilter: GROUP_FILTER || null } : runDexTests(env);
+  /* §3d — ONE object per process. A forked run's object is the UNION over its shard objects; any other
+     run's is over the groups it ran (a --group= or --shard= run is a declared exclusion ⇒ filtered).
+     The skip budget is judged here for the object; the human lane judges it again below for the exit. */
+  const verdict = forked
+    ? forked.verdict
+    : LIST_ONLY
+      ? null
+      : suiteVerdict({ groups, totalGroups, groupFilter: groupFilter || null, shard: SHARD ? SHARD.label : null, skipViolations: auditSkips(groups, EXPECTED_SKIPS.allow || []).violations });
   if (__covPost && process.env.DEX_IV_COUNTS) {
     const iv = await __covPost('Profiler.takePreciseCoverage');
     writeFileSync(INTERVAL_COV, JSON.stringify({ groupIndices: GROUP_INDICES ? [...GROUP_INDICES] : null, counts: intervalToCounts(iv) }));
@@ -2339,6 +2941,7 @@ async function main() {
         listOnly: LIST_ONLY,
         shard: SHARD ? SHARD.label : null,
         groupFilter: groupFilter || null,
+        verdict, // §3d — the tepna.verdict/1 object; a superset of the shape verify-shard-union reads
         groups: groups.map((g) => ({
           index: g.index,
           title: g.title,
@@ -2380,6 +2983,20 @@ async function main() {
     fail = 0,
     skip = 0,
     n = 0;
+  /* ── PASSING assertions whose DETAIL reads as absence ─────────────────────────────────────────
+     `T.ok(name, cond, detail)` prints `detail` on PASS as well as on failure, and authors write it
+     as the FAILURE explanation. So a green run prints lines like "✓ the worker catch-fallback exists
+     — catch block not found", which are correct and read as broken.
+     WHY THIS MATTERS BEYOND TIDINESS: hunting VACUOUS gates by reading suite output is one of this
+     repo's main defect-finding methods, and 255 such lines drown the one signal that would identify a
+     genuinely vacuous assertion. Measured 2026-09-03 while chasing exactly that, and the chase cost a
+     retraction.
+     ⚠️ COUNTED AT RENDER, NOT SCANNED FROM SOURCE, and that is the whole design. Of 4189 `T.ok` call
+     sites only 509 pass a LITERAL detail; 3680 are computed expressions and invisible to any static
+     scan. A source-level gate would therefore police 12 % of the population while reporting on all of
+     it — measuring a proxy, not the thing. The rendered string is the thing. */
+  const ABSENCE_DETAIL = /\b(not found|no [a-z-]+ found|did the [a-z ]+ change shape)\b/i;
+  let absenceOnPass = 0;
   const lines = [];
   const failures = []; // D3: collected for the tail recap
   for (const g of groups) {
@@ -2403,6 +3020,7 @@ async function main() {
       // QUIET (D3): only failing assertions get a line; the passing/skip tree is suppressed.
       if (QUIET && (t.pass || t.skip)) continue;
       const mk = t.skip ? paint('  ⊘', C.yellow) : t.pass ? paint('  ✓', C.green) : paint('  ✕', C.red);
+      if (t.pass && !t.skip && t.detail && ABSENCE_DETAIL.test(String(t.detail))) absenceOnPass++;
       const detail = t.detail ? paint('  — ' + t.detail, t.skip ? C.yellow : t.pass ? C.dim : C.yellow) : '';
       lines.push(mk + ' ' + t.name + detail);
     }
@@ -2471,6 +3089,28 @@ async function main() {
     ? paint('✕ ' + fail + ' failing', C.red) + paint('  ·  ' + pass + ' passing', C.dim) + (skip ? paint('  ·  ' + skip + ' skipped', C.yellow) : '')
     : paint('✓ all ' + pass + ' assertions passed', C.green) + (skip ? paint('  ·  ' + skip + ' skipped', C.yellow) : '');
   console.log(paint('Tepna test suite', C.cyan) + '  ' + summary + paint('  (' + groups.length + ' groups)', C.dim) + (groupFilter ? paint('  [FILTERED — not the full gate]', C.yellow) : ''));
+  /* §3d — the object's one-line reading, so the human lane cannot say "all green" without it. The
+     object itself is on stdout under --json; the exit code below is unchanged. */
+  if (verdict) {
+    const p = verdict.population;
+    console.log(
+      paint(
+        `  tepna.verdict/1: ${verdict.status}  ·  ${p.checked} checked / ${p.eligible} eligible / ${p.excluded} excluded${verdict.result && verdict.result.filtered ? '  ·  FILTERED (' + verdict.result.excludedBy + ') — not the gate' : ''}`,
+        verdict.status === 'PASS' ? C.green : verdict.status === 'FAIL' ? C.red : C.yellow
+      ) + (verdict.reason ? paint('  — ' + verdict.reason.slice(0, 200), C.dim) : '')
+    );
+  }
+  /* PUBLISH THE DEBT, then RATCHET it. Printing the count is what makes the number falsifiable —
+     a cap with no visible measurement is a claim. The cap is the count as measured on a full green
+     run; it may only ever go DOWN, and lowering it when the debt shrinks is the point. A run that
+     covers only some groups (a shard, a --group filter) sees fewer and must not red on that, so the
+     ratchet applies to a FULL run only. */
+  if (absenceOnPass) {
+    console.log(
+      paint('  ' + absenceOnPass + ' passing assertion(s) print an absence-shaped detail', C.dim) +
+        paint('  — green output that reads as broken; see residue 2026-09-03-pass-detail-reads-as-absence', C.dim)
+    );
+  }
   // exitCode, not process.exit() — stdout is async to a PIPE, and CI captures stdout through one, so
   // exiting immediately after printing the full report can truncate its tail (incl. the summary line).
   process.exitCode = fail ? 1 : 0;

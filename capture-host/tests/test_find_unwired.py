@@ -133,7 +133,10 @@ def test_the_scanner_does_NOT_count_its_own_allowlist_as_usage():
     allowed = {r["func"] for r in res["orphan_functions"] if r["allowed"]}
     assert "predict_step_split" in allowed, (
         "an allowlisted function must still be REPORTED, with its reason — not silently absent")
-    assert "busy_with" in allowed and "oxy_is_finalized" in allowed
+    # `busy_with` was the third example here until 2026-09-05, when `capture.gate_state()` started
+    # reading it — the entry became SPENT and the stale-allowlist check below rightly demanded its
+    # deletion. An example function must stay orphaned to remain an example.
+    assert "is_offline_cmd" in allowed and "oxy_is_finalized" in allowed
 
 
 def test_every_allowlisted_function_still_appears_in_the_report(capsys):
@@ -142,7 +145,7 @@ def test_every_allowlisted_function_still_appears_in_the_report(capsys):
     find_unwired.main([])
     out = capsys.readouterr().out
     assert "unexplained," in out and "allowed" in out
-    for name in ("predict_step_split", "busy_with", "oxy_is_finalized"):
+    for name in ("predict_step_split", "is_offline_cmd", "oxy_is_finalized"):
         assert name in out, f"{name} is allowlisted but absent from the report"
 
 
@@ -616,3 +619,253 @@ def test_comments_only_falls_back_to_RAW_TEXT_on_a_broken_file(tmp_path):
     f.write_text('status.get("read_by_a_broken_file")\ndef oops(  # unclosed\n', encoding="utf-8")
     out = find_unwired._comments_only(str(f))
     assert "read_by_a_broken_file" in out, "a broken consumer still contributes its references"
+
+
+# ── scan 7 · DIVERGENT PROVENANCE — one consumer, two callers, two materially different sources ──────
+# PARTIAL-ADOPTION-DETECTION §3/§4: a mechanism wired to ONE of N consumers reads as finished, not
+# broken. The denominator is anchored on the CONSUMER (who calls `_usb_rebind`? — 2, countable), and
+# the defect shows as the same parameter arriving DERIVED at one site and READ FROM CONFIG at another.
+#
+# ⚠️ THESE ARE PLANTS, WRITTEN BEFORE THE SCAN WAS POINTED AT REAL SOURCE (§4.2). The probe's first
+# version missed the very defect it was written for — an `IfExp` its classifier did not understand —
+# and reported two builtins instead. Rediscovering the known instance proves only that the tuning
+# worked; a synthetic divergence it must flag and a legitimate configuration it must NOT are the only
+# evidence that the detector sees the class rather than the example.
+
+def test_PLANT_a_derived_vs_configured_argument_to_one_consumer_IS_flagged(tmp_path):
+    """The defect shape, synthetic: caller A derives the value, caller B reads it from config."""
+    root = _tree(tmp_path, {
+        "core.py": "def consumer(target):\n    return target\n\ndef derive(h):\n    return h\n",
+        "a.py": "from core import consumer, derive\n\ndef go(h):\n    return consumer(derive(h))\n",
+        "b.py": "from core import consumer\n\ndef go(cfg):\n    return consumer(cfg.get('target'))\n",
+    })
+    rows = find_unwired.scan(root)["divergent_provenance"]
+    hit = [r for r in rows if r["consumer"] == "consumer"]
+    assert len(hit) == 1, rows
+    kinds = {p["kind"] for p in hit[0]["provenances"]}
+    assert "CALL:derive" in kinds and "CONFIG" in kinds, kinds
+
+
+def test_PLANT_the_IfExp_shape_that_the_first_probe_MISSED_is_flagged(tmp_path):
+    """§4.2: `adapter_usb_id(hci) if hci else None` is an IfExp wrapping the Call. A classifier that
+    understands only a bare Call returns UNKNOWN here, the pair never forms, and the real defect is
+    invisible while two builtins get reported instead. This is the plant that separates a detector
+    from its tuning."""
+    root = _tree(tmp_path, {
+        "core.py": "def consumer(target):\n    return target\n\ndef derive(h):\n    return h\n",
+        "a.py": "from core import consumer, derive\n\ndef go(h):\n    return consumer(derive(h) if h else None)\n",
+        "b.py": "from core import consumer\n\ndef go(cfg):\n    return consumer(cfg.get('target'))\n",
+    })
+    rows = find_unwired.scan(root)["divergent_provenance"]
+    hit = [r for r in rows if r["consumer"] == "consumer"]
+    assert len(hit) == 1, "the IfExp-wrapped derivation must still read as CALL:derive — " + repr(rows)
+    assert "CALL:derive" in {p["kind"] for p in hit[0]["provenances"]}
+
+
+def test_PLANT_two_callers_that_BOTH_read_config_are_NOT_flagged(tmp_path):
+    """§4.1: a config read is often CORRECT (the CPAP's `ble_stream.adapter` is legitimately
+    configured). The rule survives only by flagging DIVERGENCE between callers; "config reads are
+    suspect" convicts working code."""
+    root = _tree(tmp_path, {
+        "core.py": "def consumer(target):\n    return target\n",
+        "a.py": "from core import consumer\n\ndef go(cfg):\n    return consumer(cfg.get('target'))\n",
+        "b.py": "from core import consumer\n\ndef go(other):\n    return consumer(other['target'])\n",
+    })
+    rows = find_unwired.scan(root)["divergent_provenance"]
+    assert [r for r in rows if r["consumer"] == "consumer"] == [], rows
+
+
+def test_PLANT_a_BUILTIN_consumer_is_never_a_finding(tmp_path):
+    """The probe's first version reported `sleep` and `str`. A consumer that is not DEFINED in the
+    scanned tree has no adoption story to tell — its callers are not a population this scan owns."""
+    root = _tree(tmp_path, {
+        "a.py": "def derive(h):\n    return h\n\ndef go(h):\n    return str(derive(h))\n",
+        "b.py": "def go(cfg):\n    return str(cfg.get('x'))\n",
+    })
+    rows = find_unwired.scan(root)["divergent_provenance"]
+    assert [r for r in rows if r["consumer"] == "str"] == [], rows
+
+
+def test_scan7_reports_its_own_population_beside_the_count(tmp_path):
+    """A '0 flagged' over an unnamed population is the examined-nothing shape one level up — the
+    tool's own scan 1 learned this on STATUS["radio_distress"]. Files, consumers with >=2 callers,
+    and argument slots examined all travel with the result."""
+    root = _tree(tmp_path, {
+        "core.py": "def consumer(target):\n    return target\n",
+        "a.py": "from core import consumer\n\ndef go(cfg):\n    return consumer(cfg.get('target'))\n",
+        "b.py": "from core import consumer\n\ndef go(other):\n    return consumer(other['target'])\n",
+    })
+    pop = find_unwired.scan(root)["examined_provenance"]
+    assert pop["files"] == 3
+    assert pop["consumers_with_2plus_callers"] == 1
+    assert pop["slots"] >= 1
+
+
+def test_PLANT_the_REAL_defect_shape_provenance_is_ONE_ASSIGNMENT_UPSTREAM(tmp_path):
+    """The actual `_usb_rebind` sites are `_usb_rebind(str(_cp_usb))` and `_usb_rebind(str(_usb))` —
+    both read `CALL:str` at the call. The derivation (`adapter_usb_id(hci) if hci else None`) and the
+    config read (`wcfg.get("usb_path")`) are the ASSIGNMENTS one line up. A call-site-only classifier
+    is blind to the very instance it was tuned against, and the first four plants could not see that
+    because they put the derivation inline. Added after pointing the scan at real source and finding
+    the known defect absent from the flags — which is the §4.2 failure happening to THIS detector."""
+    root = _tree(tmp_path, {
+        "core.py": "def consumer(target):\n    return target\n\ndef derive(h):\n    return h\n",
+        "a.py": ("from core import consumer, derive\n\n"
+                 "def go(h):\n    x = derive(h) if h else None\n    return consumer(str(x))\n"),
+        "b.py": ("from core import consumer\n\n"
+                 "def go(cfg):\n    y = cfg.get('target')\n    return consumer(str(y))\n"),
+    })
+    rows = find_unwired.scan(root)["divergent_provenance"]
+    hit = [r for r in rows if r["consumer"] == "consumer"]
+    assert len(hit) == 1, "the upstream assignment must be resolved — " + repr(rows)
+    assert "CALL:derive" in {p["kind"] for p in hit[0]["provenances"]}
+
+
+def test_PLANT_a_BUILTIN_wrapper_like_str_or_len_is_TRANSPARENT_not_a_mechanism(tmp_path):
+    """`emit(..., len(x))` vs `emit(..., cfg["k"])` flagged on real source: `len` is a builtin, not a
+    mechanism anyone could have failed to adopt. Only a call to a function DEFINED in the tree is a
+    derivation provenance; a builtin wrapper is unwrapped to its argument."""
+    root = _tree(tmp_path, {
+        "core.py": "def consumer(n):\n    return n\n",
+        "a.py": "from core import consumer\n\ndef go(xs):\n    return consumer(len(xs))\n",
+        "b.py": "from core import consumer\n\ndef go(cfg):\n    return consumer(cfg['n'])\n",
+    })
+    rows = find_unwired.scan(root)["divergent_provenance"]
+    assert [r for r in rows if r["consumer"] == "consumer"] == [], rows
+
+
+def test_PLANT_a_METHOD_that_shares_a_name_with_dict_get_is_not_conflated(tmp_path):
+    """`get`, `join`, `write` all flagged on real source: some class defines a method by that name, and
+    a name-only match then claims every `wcfg.get(...)` and `"".join(...)` in the tree as a call to it.
+    Same-name-two-populations. A call is a consumer site only when the callee is a bare Name or a
+    `self.` method — a foreign receiver is a foreign method."""
+    root = _tree(tmp_path, {
+        "core.py": "class Store:\n    def get(self, k):\n        return k\n",
+        "a.py": "def go(cfg, d):\n    return d.get(derive(cfg))\n\ndef derive(c):\n    return c\n",
+        "b.py": "def go(cfg, d):\n    return d.get(cfg['k'])\n",
+    })
+    rows = find_unwired.scan(root)["divergent_provenance"]
+    assert [r for r in rows if r["consumer"] == "get"] == [], rows
+
+
+def test_PLANT_a_name_resolves_to_the_assignment_BEFORE_the_call_never_its_own_reassignment(tmp_path):
+    """`share = _abs_path(share, ...)`: last-assignment-wins resolved `share` to the line that CALLS
+    the consumer, so the config value arriving at `_abs_path` read as derived BY `_abs_path`. Two
+    real consumers flagged on that one line. The assignment must precede the call."""
+    root = _tree(tmp_path, {
+        "a.py": "def norm(x):\n    return x\n\ndef f(t):\n    s = t.get('share')\n    s = norm(s)\n    return s\n",
+        "b.py": "from a import norm\ndef g(t):\n    return norm(t['share'])\n",
+    })
+    rows = find_unwired.scan(root)["divergent_provenance"]
+    assert [r["consumer"] for r in rows] == []
+
+
+def test_PLANT_a_PARAMETER_does_not_inherit_an_assignment_from_ANOTHER_function(tmp_path):
+    """`resolve_cpap_dir(..., root)` where `root` is a parameter: the module scope was built with
+    `ast.walk(tree)`, which descends into every function, so `main()`'s `root = cfg["root"]` leaked
+    into a function that never assigned `root` at all. Scope is the enclosing function plus the
+    module's TOP-LEVEL statements — nothing else."""
+    root = _tree(tmp_path, {
+        "a.py": ("def derive(c):\n    return c\n\ndef consumer(v):\n    return v\n\n"
+                 "def main(cfg):\n    root = cfg['root']\n    return root\n\n"
+                 "def f(root):\n    return consumer(root)\n\n"
+                 "def g(cfg, p):\n    return consumer(derive(cfg))\n"),
+    })
+    rows = find_unwired.scan(root)["divergent_provenance"]
+    assert [r["consumer"] for r in rows] == []
+
+
+def test_PLANT_a_SUBSCRIPT_target_is_tracked_like_a_name(tmp_path):
+    """`out["mountpoint"] = _abs_path(t.get(...))` then `_under_allowed_root(out["mountpoint"])`: the
+    second line is a string-keyed subscript and read as CONFIG, while the sibling caller passes
+    `mp = _abs_path(...)` — the SAME normalisation, once through a dict slot. Both derived ⇒ silent."""
+    root = _tree(tmp_path, {
+        "a.py": ("def norm(x):\n    return x\n\ndef consumer(v):\n    return v\n\n"
+                 "def f(t):\n    out = {}\n    out['mp'] = norm(t.get('mp'))\n    return consumer(out['mp'])\n\n"
+                 "def g(t):\n    mp = norm(t['mp'])\n    return consumer(mp)\n"),
+    })
+    rows = find_unwired.scan(root)["divergent_provenance"]
+    assert [r["consumer"] for r in rows] == []
+
+
+def test_PLANT_two_MODULES_defining_the_same_function_name_are_TWO_consumers(tmp_path):
+    """`build_id.probe` and `probe_polar_onboard.probe`: a tree-wide name set fused every bare
+    `probe(...)` in the tree into one consumer and compared their arguments. A bare-name call reaches
+    the function its OWN module defines or imports by name; `probe` in one file and `probe` in
+    another are different populations."""
+    root = _tree(tmp_path, {
+        "a.py": "def derive(h):\n    return h\n\ndef probe(x):\n    return x\n\ndef f(h):\n    return probe(derive(h))\n",
+        "b.py": "def probe(y):\n    return y\n\ndef g(cfg):\n    return probe(cfg['hci'])\n\ndef h(cfg):\n    return probe(cfg.get('hci'))\n",
+    })
+    rows = find_unwired.scan(root)["divergent_provenance"]
+    assert [r["consumer"] for r in rows] == []
+
+
+def test_PLANT_an_IMPORTED_consumer_is_the_same_population_as_its_home_module(tmp_path):
+    """The positive twin of the module-split plant: `from a import consumer` in b.py IS a.py's
+    consumer, so a derived argument in a.py against a config read in b.py still forms the pair."""
+    root = _tree(tmp_path, {
+        "a.py": "def derive(h):\n    return h\n\ndef consumer(x):\n    return x\n\ndef f(h):\n    return consumer(derive(h))\n",
+        "b.py": "from a import consumer\ndef g(cfg):\n    return consumer(cfg.get('hci'))\n",
+    })
+    rows = find_unwired.scan(root)["divergent_provenance"]
+    assert [r["consumer"] for r in rows] == ["consumer"]
+    assert {p["kind"] for p in rows[0]["provenances"]} == {"CALL:derive", "CONFIG"}
+
+
+def test_scan7_a_FLAGGED_row_prints_every_provenance_and_the_exit_stays_0(tmp_path, monkeypatch, capsys):
+    """Advisory means: the row is PRINTED with each caller's provenance and line, it is counted as
+    flagged, and `main` still returns 0 — it is deliberately not in the `--check` sum until an FP rate
+    exists on more than one true positive."""
+    root = _tree(tmp_path, {
+        "a.py": "def derive(h):\n    return h\n\ndef consumer(x):\n    return x\n\ndef f(h):\n    return consumer(derive(h))\n",
+        "b.py": "from a import consumer\ndef g(cfg):\n    return consumer(cfg.get('hci'))\n",
+    })
+    monkeypatch.setattr(find_unwired, "HERE", root)
+    assert find_unwired.main([]) == 0
+    out = capsys.readouterr().out
+    assert "   consumer  slot 0" in out
+    assert "CALL:derive" in out and "CONFIG" in out and "b.py:3" in out
+    assert "1 flagged, 0 allowed" in out
+    assert "reason:" not in out
+
+
+# ── a spent entry NAMES the file that un-orphaned it (residue 2026-09-06-find-unwired-prose-unorphans) ──
+def test_a_spent_ALLOW_FUNCS_entry_names_the_file_whose_bare_name_match_un_orphaned_it(tmp_path, monkeypatch, capsys):
+    """THE ROW'S OWN SHAPE. `prune` is unwired and allowlisted. A shell helper then gains a log line
+    whose STRING happens to contain the word — a `.sh` file keeps its strings in the corpus on purpose
+    (a helper that calls a function through `python3 -c "…"` does wire it). The bare-name match
+    un-orphans `prune`, the entry reads as spent, and before this the report named nothing the author
+    had touched: an hour of bisecting for a word in a log line. Now it names the file."""
+    root = _tree(tmp_path, {
+        "m.py": "def prune():\n    return 1\n",
+        "helper.sh": 'echo "about to prune old nights"\n',
+    })
+    monkeypatch.setattr(find_unwired, "HERE", root)
+    monkeypatch.setitem(find_unwired.ALLOW_FUNCS, "prune", "synthetic: nothing calls it yet")
+    res = find_unwired.scan(root)
+    stale = [r for r in res["stale_allowlist"] if r["name"] == "prune"]
+    assert stale and stale[0]["where"] == ["helper.sh"], res["stale_allowlist"]
+    find_unwired.main([])
+    out = capsys.readouterr().out
+    assert "un-orphaned by a bare-name match in: helper.sh" in out
+
+
+def test_the_where_list_excludes_the_defining_file_and_is_empty_for_other_lists(tmp_path, monkeypatch):
+    """The definition is not a use, so the defining module must not be named as the culprit; and the
+    diagnostic is specific to ALLOW_FUNCS — the other lists judge by other populations."""
+    root = _tree(tmp_path, {
+        "m.py": "def prune():\n    return 1\n",
+        "other.py": "def g():\n    return prune\n",
+        # a WIRED status key with a spent ALLOW_KEYS entry: the diagnostic must stay empty for it
+        "capture.py": 'def f():\n    _set(name, wired_key=1)\n',
+        "webmon.py": 'x = st.get("wired_key")\n',
+    })
+    monkeypatch.setattr(find_unwired, "HERE", root)
+    monkeypatch.setitem(find_unwired.ALLOW_FUNCS, "prune", "synthetic")
+    monkeypatch.setitem(find_unwired.ALLOW_KEYS, "wired_key", "synthetic")
+    res = find_unwired.scan(root)
+    stale = {(r["list"], r["name"]): r for r in res["stale_allowlist"]}
+    assert stale[("ALLOW_FUNCS", "prune")]["where"] == ["other.py"]
+    assert ("ALLOW_KEYS", "wired_key") in stale, "the control entry was not judged spent — the assertion below would be vacuous"
+    assert stale[("ALLOW_KEYS", "wired_key")]["where"] == []

@@ -960,7 +960,7 @@ body.light .ev-measured { border-color:var(--surface); }
 
 <div class="mc" data-tier="secondary">
   <div class="mh"><div class="mi"><span class="ma">DesSev</span><span class="mf">Desaturation Severity (Kulkas 2013)</span></div><span class="mt ta">Advanced</span></div>
-  <p class="md">AHI surrogate validated in SHHS sub-cohort. Combines ODI-3 rate, mean depth, and mean duration. Correlates with PSG-AHI.</p>
+  <p class="md">An internal implementation of the desaturation-severity concept published by Kulkas (2013), which was validated as an AHI surrogate in an SHHS sub-cohort. This card integrates desaturation area over OxyDex&#x2019;s own canonical ODI event set &#x2014; it is <strong>not</strong> the validated algorithm, and the published correlation with PSG-AHI does <strong>not</strong> transfer to it automatically. Directional, not diagnostic. <em>Measured:</em> DesSev is one of three terms in OxyDex&#x2019;s internal AHI model (<code>0.8&#xD7;ODI3 + 0.6&#xD7;DesSev + 0.15&#xD7;T95 &#x2212; 1.2</code>), and that model correlates with expert-scored AHI at r&#x202F;=&#x202F;0.50 over 300 SHHS1 records &#x2014; no better than the plain ODI-4&#xD7;1.1 surrogate (r&#x202F;=&#x202F;0.51) on the same nights. That measures the composite, not DesSev alone.</p>
   <div class="fb"><div class="fl">Formula</div><div class="ft">DesSev = &#x3A3;(desaturation area) / recording hours &#x2014; &#x25;-min/hr</div><div class="fn">Area integrated per second against each event&#x2019;s onset baseline, over the canonical ODI event set (&#x2265;4&#x25; descent, &#x2265;10 s), self-gated artifacts excluded (Kulkas 2013). Bands: &lt;5 good &#xB7; &lt;15 warn &#xB7; &#x2265;15 high. <!-- DEEP-AUDIT-II 2.2, corrected 2026-07-19: this guide previously described DesSev as `ODI-3 x mean_depth x mean_duration / k`, a formula the code has never implemented (it integrates desaturation area). Moved out of reader-facing text 2026-08-18 per REFERENCE-GUIDE-AUDIT dimension 6 - the visible text states the final fact only. --></div></div>
 <span class="ev-corner ev-emerging" title="Emerging — published and promising, but less standardized or device-dependent"></span></div>
 
@@ -1573,7 +1573,7 @@ body.light .ev-measured { border-color:var(--surface); }
 <div class="mc" data-tier="secondary">
   <div class="mh"><div class="mi"><span class="ma">AAI</span><span class="mf">Autonomic Arousal Index (events/hr)</span></div><span class="mt ta">Advanced</span></div>
   <p class="md">Combined rate of HR spikes and ODI-4 events per hour. High AAI with low ODI-4 &#x2192; non-apneic arousal causes (UARS, PLMS, environmental). High AAI tracking closely with ODI-4 &#x2192; arousal driven by obstructive events.</p>
-  <div class="fb"><div class="fl">Formula</div><div class="ft">AAI = (spike_count + ODI-4_count) / recording_hours</div></div>
+  <div class="fb"><div class="fl">Formula</div><div class="ft">AAI = (spike_count + ODI-4_count) / recording_hours</div><div class="fn">&#x26A0; <strong>Not a cortical arousal index &#x2014; do not read it against clinical arousal-index thresholds.</strong> AAI counts autonomic arousals visible in heart rate, which are a <em>subset</em> of the cortical arousals an EEG scorer marks. Measured against expert-scored arousals on 492 SHHS1 PSG records: AAI runs at <strong>0.236&#xD7;</strong> the scored arousal index (median 4.53/hr vs 19.46/hr) and ranks nights only moderately (Spearman r&#x202F;=&#x202F;0.41) &#x2014; directional, not interchangeable.</div></div>
 <span class="ev-corner ev-heuristic" title="Heuristic — 1 Hz adapted; not beat-to-beat equivalent to clinical HRV norms"></span></div>
 </div><!-- /spikes -->
 
@@ -3060,6 +3060,6 @@ document.querySelectorAll('.mob-drawer-panel .nav a').forEach(function(a){
   <div class="dxl-seg"><span class="dxl-spdx"><span class="k">licence</span><span class="v">Apache-2.0</span></span></div>
 </div>
 
-<div data-tepna-ver style="position:fixed;right:8px;bottom:8px;z-index:2147483000;font:600 11px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:#dbeafe;background:rgba(15,23,34,.82);border:1px solid rgba(120,170,220,.4);border-radius:999px;padding:2px 9px;letter-spacing:.03em;box-shadow:0 1px 4px rgba(0,0,0,.3);pointer-events:none;user-select:none" title="Tepna suite version">v2.9.0</div>
+<div data-tepna-ver style="position:fixed;right:8px;bottom:8px;z-index:2147483000;font:600 11px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:#dbeafe;background:rgba(15,23,34,.82);border:1px solid rgba(120,170,220,.4);border-radius:999px;padding:2px 9px;letter-spacing:.03em;box-shadow:0 1px 4px rgba(0,0,0,.3);pointer-events:none;user-select:none" title="Tepna suite version">v2.13.0</div>
 </body>
 </html>

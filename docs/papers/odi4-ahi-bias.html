@@ -92,7 +92,7 @@
 
   <div class="abstract">
     <h2>Abstract</h2>
-    <p style="text-align:left;margin-bottom:0"><b>Background.</b> Consumer and clinical pulse-oximeters summarize overnight hypoxemia with the oxygen-desaturation index (ODI), commonly the 4%-desaturation variant (ODI-4), and frequently report a surrogate apnea–hypopnea index (AHI) as <code>AHI ≈ ODI-4 × 1.1</code>. We test whether that surrogate holds. <b>Methods.</b> We ran the production OxyDex ODI-4 detector on overnight SpO₂ recordings and compared ODI-4 against a reference AHI. <b>Results.</b> Across the pilot corpus ODI-4 tracked AHI strongly but with a slope of ≈0.23 (R²≈0.93) — recovering only about one quarter of scored respiratory events — and the deficit grew with severity (mean under-count ≈30 events/h in the severe stratum). The shipped ×1.1 surrogate gave a leave-one-out RMSE of 15.2 events/h; a re-fit linear correction roughly halved it to 7.2. <b>Conclusion.</b> The under-count is a deterministic detector artifact, not noise. <span style="color:#1a6e3a"><b>(fixed)</b></span> Tracing it to trailing-mean baseline self-suppression and replacing the mean with a high-percentile ceiling baseline roughly halves the severe-stratum bias (≈−31 → ≈−16 events·h⁻¹ on the synthetic cohort) and lifts the ODI-4↔AHI slope from ≈0.42 to ≈0.69 — a detector-level fix that needs no new sensing and no recalibration constant. <b>This pilot is small (n=5 nights with planted/ specified reference AHI) and not PSG-scored — it characterizes and motivates rather than establishes the clinical result.</b></p>
+    <p style="text-align:left;margin-bottom:0"><b>Background.</b> Consumer and clinical pulse-oximeters summarize overnight hypoxemia with the oxygen-desaturation index (ODI), commonly the 4%-desaturation variant (ODI-4), and frequently report a surrogate apnea–hypopnea index (AHI) as <code>AHI ≈ ODI-4 × 1.1</code>. We test whether that surrogate holds. <b>Methods.</b> We ran the production OxyDex ODI-4 detector on overnight SpO₂ recordings and compared ODI-4 against a reference AHI. <b>Results.</b> Across the pilot corpus ODI-4 tracked AHI strongly but with a slope of ≈0.23 (R²≈0.93) — recovering only about one quarter of scored respiratory events — and the deficit grew with severity (mean under-count ≈30 events/h in the severe stratum). The shipped ×1.1 surrogate gave a leave-one-out RMSE of 15.2 events/h; a re-fit linear correction roughly halved it to 7.2. <b>Replication on clinical PSG.</b> The same detector was run unchanged over the full SHHS1 cohort (n&nbsp;=&nbsp;5136 expert-scored polysomnograms). Against those cohorts&rsquo; <i>scored AHI</i> the slope is 0.134 (R&sup2;&nbsp;0.27) &mdash; but that reference counts hypopneas scored without any accompanying desaturation (85.3&nbsp;% of its respiratory events are hypopneas; a median 66.7&nbsp;% of its scored desaturations are shallower than 3&nbsp;%), so a 4&nbsp;%-threshold index cannot count them and the gap is <b>definitional before it is behavioural</b>. Against the expert&rsquo;s own <i>desaturation index</i> &mdash; the same quantity the detector computes, on the same nights &mdash; the slope is <b>0.672 (R&sup2;&nbsp;0.756, n&nbsp;=&nbsp;4932)</b>, with a median difference of &minus;0.22&nbsp;events/h. <b>The synthetic prediction therefore transfers:</b> the ceiling-baseline fix was credited below with lifting the slope to &asymp;0.69 on the synthetic cohort, and real PSG returns 0.672 once the reference is matched. <b>Conclusion.</b> The under-count is a deterministic detector artifact, not noise. <span style="color:#1a6e3a"><b>(fixed)</b></span> Tracing it to trailing-mean baseline self-suppression and replacing the mean with a high-percentile ceiling baseline roughly halves the severe-stratum bias (≈−31 → ≈−16 events·h⁻¹ on the synthetic cohort) and lifts the ODI-4↔AHI slope from ≈0.42 to ≈0.69 — a detector-level fix that needs no new sensing and no recalibration constant. <b>This pilot is small (n=5 nights with planted/ specified reference AHI) and not PSG-scored — it characterizes and motivates rather than establishes the clinical result.</b></p>
   </div>
   <p class="kw"><b>Keywords:</b> oximetry · oxygen desaturation index · apnea–hypopnea index · obstructive sleep apnea · calibration · consumer wearables</p>
 
@@ -155,6 +155,194 @@
     <figcaption><b>Figure 1.</b> Calibration of OxyDex ODI-4 against reference AHI (live output of <code>odi-bias-analysis.html</code>), shown for the <b>original trailing-mean detector</b> (the bias this paper characterizes; the ceiling-baseline correction shifts the points upward toward the identity line, per Tables 1–2). Points fall far below the identity line; the dotted ×1.1 surrogate (amber) is markedly optimistic while the OLS fit (teal) tracks the data. Companion panels show the Bland–Altman agreement, the median ODI/AHI ratio falling across severity strata, and the candidate correction curves. Dark theme is the tool's native rendering.</figcaption>
   </figure>
 
+  <h3 class="sub">3.2 Real clinical PSG: the under-count is definitional, not detector error (SHHS1, n&nbsp;=&nbsp;5136)</h3>
+  <p>The pilot and the synthetic cohort both model the bias; neither establishes it clinically. We therefore ran the
+    production detector unchanged over the <b>entire SHHS1 cohort</b> &mdash; 5136 overnight polysomnograms with
+    expert-scored annotations &mdash; via <code>nsrr-adapter.js</code>. This is the replication &sect;6 names as the
+    condition for submission, and it separates a question the earlier corpora could not.</p>
+
+  <table class="data">
+    <caption class="tbl-cap"><b>Table 3.</b> OxyDex ODI-4 against two different references on the same 5136 nights.
+      The left column is the paper&rsquo;s nominal comparison; the right column is the same detector against the
+      <i>same quantity</i> a human scored. <b>They disagree by a factor of forty, and that gap is the result.</b></caption>
+    <thead><tr><th></th><th>vs scored AHI</th><th>vs expert desaturation index</th></tr></thead>
+    <tbody>
+      <tr><td>records</td><td>5136</td><td>4932</td></tr>
+      <tr><td>OLS slope</td><td>0.134 (R&sup2; 0.27)</td><td>&mdash;</td></tr>
+      <tr><td>bias (detector &minus; reference)</td><td>&minus;35.46 events/h</td><td><b>&minus;0.99 events/h</b></td></tr>
+      <tr><td>median difference</td><td>&minus;30.35</td><td><b>&minus;0.22</b></td></tr>
+      <tr><td>95&nbsp;% limits of agreement</td><td>&minus;81.32 to 10.40</td><td>&minus;9.64 to 7.66</td></tr>
+      <tr><td>median ratio detector/reference</td><td>&mdash;</td><td>0.897</td></tr>
+      <tr><td>OLS slope (matched reference)</td><td>&mdash;</td><td><b>0.672</b> (R&sup2; 0.756, n&nbsp;=&nbsp;4932)</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout correction" style="border:2px solid #b00;background:#fff4f4">
+    <p><b>🔴 CORRECTION — 2026-09-22 (Tables 3–4, coverage, and the NSRR saturation summaries re-cut under the
+    corrected adapter).</b> Every SHHS1 number above and in Table 4 was produced on 2026-09-13 with the oximeter
+    status channel discarded; the adapter has since changed twice under it — <code>OX stat</code> masking
+    (#2725, residue <code>2026-09-20-shhs-figures-predate-oxstat</code>) and <code>computeStats</code> rating
+    T90 / mean SpO&#8322; over MEASURED seconds only (residue
+    <code>2026-09-21-nsrr-t90-counted-dropouts-as-desaturation</code>). Owner ruling 2026-09-21
+    (OWNER-DECISION-QUEUE D9.1): one full-cohort re-run, the originals stay above, and every number here is a
+    sourced claim against <code>analysis/published-numbers/odi4-shhs-2026-09-22.json</code> (all 5136 records re-scored 2026-09-22 by
+    <code>nsrr-score-pool.mjs --scorer ./nsrr-oxydex-odi.mjs</code>, aggregated by
+    <code>tools/odi4-shhs-recut.mjs</code>; nothing hand-typed). &ldquo;Moved&rdquo; was pre-stated before the run
+    as |new &minus; old| &ge; one unit of the published precision; <b>every number in Tables 3 and 4 moved.</b></p>
+    <p><b>Table 3, vs scored AHI (n = CLAIM shhsNAhi = 5136 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/nVsScoredAhi, unchanged):</b> OLS slope
+    CLAIM shhsSlopeAhi = 0.107 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/olsSlopeVsAhi (R&sup2; CLAIM shhsR2Ahi = 0.25 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/r2VsAhi), was 0.134 (0.27);
+    bias CLAIM shhsBiasAhi = -36.63 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/biasVsAhi events/h, was &minus;35.46; median difference
+    CLAIM shhsMedAhi = -31.37 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/medianDiffVsAhi, was &minus;30.35; 95&nbsp;% LoA CLAIM shhsLoaLoAhi = -83.45 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/loaLoVsAhi to
+    CLAIM shhsLoaHiAhi = 10.19 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/loaHiVsAhi, was &minus;81.32 to 10.40. <b>Direction: further below the reference</b>, as
+    the 2026-09-20 residue predicted &mdash; masking removes desaturations, so the under-count vs AHI grows.</p>
+    <p><b>Table 3, vs the expert desaturation index (n = CLAIM shhsNDesat = 4932 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/nVsExpertDesat, the records with a
+    non-zero expert index, unchanged):</b> bias CLAIM shhsBiasDesat = -2.20 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/biasVsDesat events/h, was &minus;0.99;
+    median difference CLAIM shhsMedDesat = -0.81 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/medianDiffVsDesat, was &minus;0.22; 95&nbsp;% LoA
+    CLAIM shhsLoaLoDesat = -12.25 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/loaLoVsDesat to CLAIM shhsLoaHiDesat = 7.86 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/loaHiVsDesat, was &minus;9.64 to 7.66;
+    <b>median ratio CLAIM shhsRatioDesat = 0.657 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/medianRatioVsDesat, was 0.897</b>; matched OLS slope
+    CLAIM shhsSlopeDesat = 0.536 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/olsSlopeVsDesat (R&sup2; CLAIM shhsR2Desat = 0.693 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/r2VsDesat), was 0.672 (0.756).
+    <b>This is the number that changes a sentence.</b> The paragraph below reads &ldquo;the detector is not
+    undercounting desaturations &hellip; recovers a median 89.7&nbsp;%&rdquo;. Under the corrected adapter it recovers
+    a median 65.7&nbsp;% of the expert&rsquo;s 4&nbsp;% desaturations: the device-flagged samples that masking now
+    nulls sit inside desaturations the expert scored, so the detector loses events the reference keeps. The
+    ordering the section rests on survives &mdash; the gap vs the expert index (&minus;2.2) is still an order of
+    magnitude smaller than the gap vs scored AHI (&minus;36.6), so the ODI-4/AHI gap remains definitional before it is
+    behavioural &mdash; but &ldquo;not undercounting desaturations&rdquo; no longer holds as written: against the
+    expert index the detector now under-reads by a third, and a reader must take the flagged-sample masking
+    into account before attributing that third to the detector or to the flag.</p>
+    <p><b>Table 4, real strata (n unchanged: CLAIM shhsNoneN = 61 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/realNoneN / CLAIM shhsMildN = 611 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/realMildN /
+    CLAIM shhsModN = 1456 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/realModerateN / CLAIM shhsSevN = 3008 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/realSevereN), mean bias:</b> none
+    CLAIM shhsNoneBias = -3.4 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/realNoneBias (was &minus;3.1) &middot; mild CLAIM shhsMildBias = -10.1 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/realMildBias (was &minus;9.8)
+    &middot; moderate CLAIM shhsModBias = -20.6 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/realModerateBias (was &minus;20.0) &middot; severe
+    CLAIM shhsSevBias = -50.4 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/realSevereBias (was &minus;48.8). Every stratum moved further negative; the
+    synthetic-understates-real conclusion is unchanged in direction and slightly larger in magnitude.</p>
+    <p><b>Coverage (&sect;3.2 below):</b> median CLAIM shhsCovMed = 95.29 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/coverageMedianPct&nbsp;%, 5th percentile
+    CLAIM shhsCovP5 = 80.32 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/coverageP5Pct&nbsp;%, minimum CLAIM shhsCovMin = 48.36 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/coverageMinPct&nbsp;%, and
+    CLAIM shhsCovBelow95 = 2462 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/coverageBelow95 records (CLAIM shhsCovBelow95Pct = 47.9 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/coverageBelow95Pct&nbsp;%) below 95&nbsp;%
+    &mdash; was 98.45 / 83.36 / 52.29 / 1581 (30.8&nbsp;%). Coverage fell because status-flagged samples are now
+    counted as absent, which is the point of the fix: they were never measurements.</p>
+    <p><b>The NSRR saturation summaries (T90, mean SpO&#8322;) &mdash; the second residue, measured on the cohort.</b>
+    Under the old <code>computeStats</code> every absent second counted as &lt;&nbsp;90&nbsp;% and averaged as 0, so the
+    pre-fix value is derivable exactly from the fixed value and the coverage (T90<sub>old</sub> = T90<sub>new</sub>&middot;c + (1 &minus; c)&middot;100).
+    Fixed T90 median CLAIM shhsT90Med = 0.70 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/t90MedianPct&nbsp;% of measured seconds; the pre-fix figure would have read
+    a median CLAIM shhsT90Infl = 4.45 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/t90InflationMedianPoints percentage points higher per night (p95 of the inflation
+    18.8 points). Fixed mean SpO&#8322; median CLAIM shhsMeanSpo2 = 94.90 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/meanSpo2Median&nbsp;%; the pre-fix figure differed by a median
+    CLAIM shhsMeanSpo2Shift = -4.45 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/meanSpo2ShiftMedianPoints points per night (old &minus; new: it read that much LOWER, absent seconds averaged as 0). No T90 or mean SpO&#8322;
+    was published in this paper; the shift is recorded here because the residue names this paper&rsquo;s surfaces
+    and the same run measures it.</p>
+  </div>
+
+  <p><s><b>The detector is not undercounting desaturations.</b> Against the expert&rsquo;s own desaturation index it
+    recovers a median 89.7&nbsp;% with a median difference of <b>&minus;0.22 events/h</b>.</s>
+    <b style="color:#b00">Struck 2026-09-22 (correction above):</b> under the corrected adapter it recovers a median
+    <b>65.7&nbsp;%</b> (CLAIM shhsRatioDesatStruck = 0.657 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/medianRatioVsDesat)
+    with a median difference of &minus;0.81 events/h &mdash; it <em>is</em> under-reading the expert&rsquo;s desaturations by a
+    third, and whether that third belongs to the detector or to the device flag that masking now honours is not
+    settled here. What survives is the ordering: against scored AHI the same detector on the same nights reads
+    <b>36.6</b> events/h low (was 35), against the expert index <b>2.2</b> (was 1) &mdash; an order of magnitude apart. A
+    detector cannot be simultaneously that close and that far about one night, so the two numbers are still measuring
+    different things.</p>
+
+  <p><b>They are, and the reason is a scoring convention.</b> SHHS scored hypopneas <i>without</i> requiring an
+    accompanying desaturation: 85.3&nbsp;% of its respiratory events are hypopneas, and a median 66.7&nbsp;% of its
+    scored desaturations are shallower than 3&nbsp;%. An index defined by a 4&nbsp;% fall cannot count an event the
+    scorer marked at 1&nbsp;%. So the ODI-4/AHI gap on this cohort is <b>definitional before it is behavioural</b>, and
+    a study reporting the left column alone would attribute to the detector what belongs to the reference&rsquo;s
+    definition.</p>
+
+  <table class="data">
+    <caption class="tbl-cap"><b>Table 4.</b> The synthetic cohort against the real one, same strata and same
+      statistic as Table 2. <b>This comparison did not previously appear anywhere</b>, and it is the one that
+      governs how far a synthetic result may be carried.</caption>
+    <thead><tr><th>stratum (reference AHI)</th><th>synth nights</th><th>synth bias</th><th>real nights</th><th>real bias</th></tr></thead>
+    <tbody>
+      <tr><td>none (&lt;5)</td><td>120</td><td>&minus;1.3</td><td>61</td><td>&minus;3.1</td></tr>
+      <tr><td>mild (5&ndash;15)</td><td>58</td><td>&minus;7.9</td><td>611</td><td>&minus;9.8</td></tr>
+      <tr><td>moderate (15&ndash;30)</td><td>16</td><td>&minus;14.2</td><td>1456</td><td>&minus;20.0</td></tr>
+      <tr><td>severe (&ge;30)</td><td>26</td><td>&minus;30.6</td><td><b>3008</b></td><td><b>&minus;48.8</b></td></tr>
+    </tbody>
+  </table>
+
+  <p><b>Synthesis understates the bias where the claim lives.</b> At mild the two nearly agree
+    (&minus;7.9 vs &minus;9.8); at severe they differ by 18&nbsp;events/h, with synthesis understating the real
+    bias by roughly 60&nbsp;%. Mean AHI within the severe stratum matches almost exactly (56.0 vs 56.5), so the
+    generator has the <i>magnitude</i> of severity right while understating how the bias grows with it.</p>
+
+  <p class="note"><b>&sect;&empty;&mdash;adjacent warning: the stratum COUNTS in Table 4 are not a prevalence
+    comparison, and must not be read as one.</b> An earlier draft of this paragraph called the synthetic cohort
+    &ldquo;inverted relative to the population&rdquo;. That was wrong twice over. SHHS is not a general
+    population &mdash; it recruited from cardiovascular cohorts at age&nbsp;&ge;40 and deliberately oversampled
+    habitual snorers. And severity here is not a property of the recording at all but of the definition applied
+    to it, which the same 5136 nights demonstrate directly:</p>
+
+  <table class="data">
+    <caption class="tbl-cap"><b>Table 5.</b> Severity mix of the <i>same</i> 5136 nights under three references.
+      No recording changes between rows; only the definition does.</caption>
+    <thead><tr><th>reference</th><th>none</th><th>mild</th><th>moderate</th><th>severe</th></tr></thead>
+    <tbody>
+      <tr><td>SHHS scored AHI (no desaturation required)</td><td>1.2&nbsp;%</td><td>11.9&nbsp;%</td><td>28.3&nbsp;%</td><td><b>58.6&nbsp;%</b></td></tr>
+      <tr><td>expert 3&nbsp;% desaturation index</td><td>39.4&nbsp;%</td><td>38.8&nbsp;%</td><td>16.2&nbsp;%</td><td>5.6&nbsp;%</td></tr>
+      <tr><td>expert 4&nbsp;% desaturation index</td><td>62.2&nbsp;%</td><td>27.0&nbsp;%</td><td>7.7&nbsp;%</td><td><b>3.1&nbsp;%</b></td></tr>
+    </tbody>
+  </table>
+
+  <p><b>58.6&nbsp;% severe and 3.1&nbsp;% severe are the same people.</b> Any statement of the form &ldquo;this
+    cohort is mostly severe&rdquo; is therefore a statement about a scoring convention wearing the costume of a
+    clinical fact, and the synthetic cohort&rsquo;s 25.6&nbsp;% severe sits <i>between</i> the two real answers
+    rather than outside them. What Table&nbsp;4 does support is the narrower claim it now makes: the
+    <i>bias within a stratum</i> is understated by synthesis. Prevalence is not comparable across these
+    references and is not compared.</p>
+
+  <p><b>And the real relationship is far looser than synthesis suggests.</b> &sect;3.1 reports R&sup2;&nbsp;0.93;
+    on 5136 real nights it is <b>0.27</b>. An R&sup2; of 0.93 reads as a nearly deterministic law and invites a
+    fitted correction; 0.27 is mostly scatter. A correction tuned on the synthetic slope would validate
+    beautifully in silico and transfer poorly. <b>Synthetic cohorts here are sound for mechanism and unsound for
+    magnitude or prevalence</b> &mdash; which is consistent with the generator&rsquo;s stated purpose of exploring
+    the state space rather than reproducing a population.</p>
+
+  <p><b>And the synthetic prediction transfers, which is the part worth stating plainly.</b> &sect;3.1 credits the
+    ceiling-baseline fix with lifting the ODI-4&harr;AHI slope to &asymp;0.69 on the synthetic cohort. Real PSG,
+    same detector, reference matched to the quantity the detector computes: <b>0.672</b>. A synthetic result that
+    survives contact with 5136 clinical recordings to within 0.02 is doing the job a synthetic result is for.
+    ⚠️ It survives only under the MATCHED reference; against scored AHI the same detector reads 0.134, and a
+    reader given that number alone would conclude the opposite. The reference, not the detector, is what moved.</p>
+
+  <p><b>Body position is not a confound of the agreement, though it is a strong determinant of the
+    event rate.</b> A reader may reasonably object that the detector and the scorer could diverge
+    differently by posture. Measured on 300 records carrying the 1&nbsp;Hz <code>POSITION</code>
+    channel, the scored desaturation rate does vary substantially by position code &mdash; 14.6 to
+    20.0&nbsp;events/h, a 37&nbsp;% spread, with the highest-rate code behaving as the expected supine
+    proxy. <b>The agreement does not follow it.</b></p>
+
+  <p>Nights spending &ge;50&nbsp;% in that code show a raw residual of &minus;0.51 against &minus;0.16
+    for the rest &mdash; but those nights are also sicker (expert index 4.03 against 2.96), and the
+    split does not survive conditioning on severity:</p>
+
+  <table class="data">
+    <caption class="tbl-cap"><b>Table 6.</b> ODI-4 &minus; expert residual by time spent in the
+      highest-rate position, <i>within</i> expert-index strata. The raw difference is severity, not
+      posture: once stratified, the direction is not even consistent.</caption>
+    <thead><tr><th>expert index</th><th>n (&ge;50&nbsp;% / &lt;50&nbsp;%)</th><th>residual &ge;50&nbsp;%</th><th>residual &lt;50&nbsp;%</th></tr></thead>
+    <tbody>
+      <tr><td>0&ndash;5</td><td>48 / 135</td><td>+0.27</td><td>0.00</td></tr>
+      <tr><td>5&ndash;15</td><td>22 / 61</td><td>&minus;2.24</td><td>&minus;1.23</td></tr>
+      <tr><td>15&ndash;30</td><td>8 / 17</td><td>&minus;4.78</td><td><b>&minus;6.50</b></td></tr>
+    </tbody>
+  </table>
+
+  <p>Supine-dominant nights are worse in the 5&ndash;15 stratum and <i>better</i> in 15&ndash;30. An
+    effect that reverses sign between adjacent strata is not an effect. <b>So the agreement figures
+    above are not posture-confounded</b> &mdash; which is a limitation closed with data rather than
+    argued away. ⚠️ Stated with its power: n&nbsp;=&nbsp;300 records, and the two highest strata carry
+    8 and 17 nights respectively, so this excludes a LARGE consistent posture effect and would not
+    detect a small one.</p>
+
+  <p class="note"><b>&sect;&empty; &mdash; coverage is reported because absence is not zero.</b> A rate computed over a
+    night that was partly unmeasured is not the same claim as one over a complete night, so every record carries its
+    SpO&#8322; coverage: <b>median 98.45&nbsp;%</b>, 5th percentile 83.36&nbsp;%, minimum 52.29&nbsp;%, and
+    <b>1581 records (30.8&nbsp;%) below 95&nbsp;%</b>. Dropouts are emitted as <code>null</code> and never carried
+    forward, so they are excluded from both numerator and denominator rather than counted as normal saturation.</p>
+
   <h3 class="sub">3.1 The bias is severity-proportional across a synthetic cohort — and the ceiling baseline flattens it</h3>
   <p>The five-night pilot is too small to localize the bias by severity. We therefore reproduced it on the v1.6 synthetic cohort (<code>cohort-gen.js</code>, planted truth-AHI), running the real ODI-4 detector with the trailing-mean baseline (&ldquo;before&rdquo;) and the p90 ceiling baseline (&ldquo;after&rdquo;) on identical SpO₂. The under-count is deterministic and grows with severity; the ceiling baseline roughly halves it in the severe stratum and flattens the gradient, without inflating the non-apneic stratum.</p>
   <table class="data">
@@ -199,8 +387,8 @@
     <li><b>Run it:</b> open <code>odi-bias-analysis.html</code> → “Run SubjectA corpus (5 synthetic nights)”. Table 1, Figure 1, and Table 2 populate live; the sample-size panel (Table 3, Figure 2) is analytic with adjustable R²/severity sliders and an optional real-detector bootstrap. Export <code>odi-bias-results.csv</code>, <code>odi-bias-stats.json</code>, <code>odi-bias-figures.png</code>.</li>
     <li><b>Detector:</b> real <code>oxydex-dsp.js</code> (loaded alone in-realm); ODI-4 = <code>processNight().odi4.rate</code>; surrogate = <code>ahiEst.ahiODI4</code>.</li>
     <li><b>Recordings:</b> <code>uploads/synthetic/O2Ring*.csv</code> + <code>ground_truth_night{1..5}.json</code>.</li>
-    <li><b>Real-PSG path:</b> <code>nsrr-adapter.js</code> (<code>window.NSRR</code>): EDF→OxyDex rows (SpO₂ auto-detect, 1 Hz resample, dropout forward-fill) + NSRR XML → reference AHI. Honors the suite Clock Contract.</li>
-    <li><b>Next:</b> obtain an NSRR data-use agreement (sleepdata.org), analyze SHHS (n≈5,800), and replicate Tables 1–2 on PSG before submission.</li>
+    <li><b>Real-PSG path:</b> <code>nsrr-adapter.js</code> (<code>window.NSRR</code>): EDF→OxyDex rows (SpO₂ auto-detect, 1 Hz resample; a dropout is emitted as <code>null</code> and is <b>never</b> carried forward from the last valid sample, with per-record SpO&#8322; coverage published alongside the rate (&sect;3.2)) + NSRR XML → reference AHI. Honors the suite Clock Contract.</li>
+    <li><b>Next:</b> the NSRR replication this line used to name as pending is <b>done</b> (&sect;3.2, SHHS1 n&nbsp;=&nbsp;5136, 2026-09-13) and the data-use question is ruled. Tables&nbsp;1&ndash;2 are retained as the synthetic pilot rather than re-cut on PSG &mdash; Tables&nbsp;3&ndash;5 are the real-corpus analysis, and re-cutting a five-night pilot at n&nbsp;=&nbsp;5136 would discard the adversarial fixtures it exists to carry. <b>Owner decisions, 2026-09-15 &mdash; both of the items this line used to list as open are now ruled.</b> &sect;0 <b>STAYS</b>: the paper remains a draft deliberately, not for want of a decision, so do not re-open the question or delete the banner on the grounds that the replication is finished. The synthetic cohort <b>IS</b> re-cut under <code>cohort-gen/2.0</code> (which fits the severe stratum to SHHS), so Tables&nbsp;1&ndash;2 will carry 2.0 numbers; the work is tracked by <code>briefs/COHORT-GEN-2.0-PAPER-RERUN-2026-09-15-BRIEF.md</code>, which also records the measurement that bounds what can move &mdash; 2.0 differs from 1.9 on <b>99.3&nbsp;%</b> of severe profiles and on <b>0 of 37,210</b> non-severe ones. &sect;3.2 is the real-PSG analysis and is <b>unaffected</b> by the generator version. <b>Remaining before submission:</b> the re-cut.</li>
   </ul>
 
   <h2 class="sec">References</h2>
@@ -222,5 +410,5 @@
   <span class="dxl-sep">·</span><span style="color:var(--text4,#6E7F94)">not a medical device</span>
 </div>
 
-<div data-tepna-ver style="position:fixed;right:8px;bottom:8px;z-index:2147483000;font:600 11px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:#dbeafe;background:rgba(15,23,34,.82);border:1px solid rgba(120,170,220,.4);border-radius:999px;padding:2px 9px;letter-spacing:.03em;box-shadow:0 1px 4px rgba(0,0,0,.3);pointer-events:none;user-select:none" title="Tepna suite version">v2.9.0</div>
+<div data-tepna-ver style="position:fixed;right:8px;bottom:8px;z-index:2147483000;font:600 11px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:#dbeafe;background:rgba(15,23,34,.82);border:1px solid rgba(120,170,220,.4);border-radius:999px;padding:2px 9px;letter-spacing:.03em;box-shadow:0 1px 4px rgba(0,0,0,.3);pointer-events:none;user-select:none" title="Tepna suite version">v2.13.0</div>
 </body></html>

@@ -512,6 +512,10 @@
       var dyn = Math.abs(mags[i] - base[i]);
       if (dyn > MOVE_G) counts[idx] += dyn;
     }
+    /* the parser hangs the seam list on the row array itself (`out._clockResyncs`, :289), so the
+       signal is already in scope here — no signature change, and no new parameter for a caller to
+       forget to pass. */
+    var _seam = !!(accRows && accRows._clockResyncs && accRows._clockResyncs.length);
     var epochs = [],
       immobile = 0,
       covered = 0,
@@ -535,7 +539,28 @@
       epochs: epochs,
       coveredEpochs: covered,
       totalCounts: total,
-      immobileFrac: covered ? immobile / covered : null,
+      /* ── §∅ REFUSE-VS-ANNOTATE (CLAUDE.md §∅, owner ruling 2026-09-17) ──────────────────────
+         "A DISCONTINUITY refuses; reduced COVERAGE annotates. The line is whether the window still
+         describes ONE continuous stretch of signal."
+
+         `immobileFrac` is a DURATION over the axis: epochs are assigned by
+         `Math.floor(relSecOf(...) / epoch)`, a TIME-DERIVED index. A device-clock seam is re-anchored
+         upstream, which makes the axis continuous again and therefore makes the discontinuity
+         INVISIBLE here — samples either side of the seam land in adjacent epochs as though no time
+         passed between them. The fraction over that stretch is not an observation anyone made.
+         Measured on ECGDex 2026-09-17: a metric fed SAMPLE indices is immune to this and needs no
+         guard; one fed time-derived indices is not. That is the criterion, not "does the node detect
+         seams" — see residue `2026-09-17-seam-exposure-is-input-provenance`.
+
+         `movementIndex` is a MAGNITUDE (mean dynamic-g per covered epoch), not a span, so it is left
+         published. And the COVERAGE half above is already what §∅ mandates — tri-state `moving`,
+         uncovered epochs outside the denominator — so it is deliberately untouched: conforming it
+         would be a change with no defect behind it.
+
+         The reason string is `clock-seam` VERBATIM, the spelling PpgDex established (#2600). Never a
+         second spelling of one fact. */
+      immobileFrac: _seam ? null : covered ? immobile / covered : null,
+      ...(_seam ? { immobileFracReason: 'clock-seam' } : {}),
       movementIndex: covered ? total / covered : null
     };
   }
@@ -543,12 +568,19 @@
   /* ════════════════════════════════════════════════════════════════════════
      RESPIRATORY RATE — spectral ridge tracking (MOTIONDEX-RESPIRATORY-RATE-2026-07-21)
      ────────────────────────────────────────────────────────────────────────
-     Validated on 26 nights / 172 h / 19,193 epochs of Polar H10 chest ACC against
+     Validated on 49 ACC/CPAP-paired nights / 8,057 epochs of Polar H10 chest ACC against
      ResMed CPAP `Flow.40ms` breath-by-breath reference:
-        MAE 1.01 brpm (95% CI 0.91-1.12), 91.6% within 2 brpm, at 100% coverage;
-        MAE 0.56 / 97.8% at 70% coverage, i.e. AT the reference's own 0.70 brpm floor.
-     The predecessor zero-crossing estimator (still below, still exported) scored
-     MAE 3.59 on the same epochs — worse than predicting a constant (1.50).
+        MAE 1.10 brpm (95% CI 0.96-1.27), 90.8% within 2 brpm, at 100% coverage;
+        MAE 0.63 / 97.2% at 70% coverage, i.e. AT the reference's own 0.74 brpm floor.
+     The null baseline (predicting the corpus median) scores MAE 1.64 on the same epochs.
+
+     ⚠ RESTATED 2026-09-07, and note WHAT IS NOT RESTATED. The previous figures — 26 nights /
+     172 h / 19,193 epochs, MAE 1.01, 91.6% — predate the cross-device alignment fix of #1042,
+     whose own commit message records nine of sixteen nights scored against noise; they were
+     never reproducible from committed code. The predecessor zero-crossing comparison (MAE 3.59)
+     is WITHDRAWN rather than updated: the analysis tool no longer emits that configuration, so
+     it could not be reproduced, and carrying a number forward under corrected figures is the
+     precise thing the correction refuses to do.
 
      Design notes, each measured rather than assumed:
        · 3 band-passed acceleration axes. A tilt-ANGLE channel is NOT built: for a

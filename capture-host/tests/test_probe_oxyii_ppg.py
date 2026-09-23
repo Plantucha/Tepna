@@ -87,3 +87,19 @@ def test_probe_ignores_a_non_live_reply(monkeypatch, capsys):
     _install(monkeypatch, _Ring())
     _run(probe.main("D1:98:62:7C:92:B3", 2))
     assert "captured 0 live" in capsys.readouterr().out    # the non-live frames were skipped
+
+
+def test_the_probe_scan_is_address_only(monkeypatch):
+    """The probe's scan predicate decides which peer it connects to. Since 2026-09-05 it is
+    ADDRESS-ONLY (`oxy_presence.is_expected_ring`, standing ruling 2026-08-27): a ring-named beacon
+    at another address is a stranger, and the advert's name is never read."""
+    cap = {}
+
+    async def find(predicate, *a, **k):
+        cap["p"] = predicate
+        return None
+    monkeypatch.setattr(probe.BleakScanner, "find_device_by_filter", find)
+    _run(probe.main("D1:98:62:7C:92:B3", 3))
+    p = cap["p"]
+    assert p(_FakeDevice(), object()) is True
+    assert p(_FakeDevice("FF:FF:FF:FF:FF:FF", "O2Ring S8AW"), object()) is False

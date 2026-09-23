@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-08-20 · **Follows:** `O2RING-TIME-CAPABILITY-WIRING-2026-08-19-BRIEF.md`, `O2RING-BUZZ-FIDUCIAL-2026-08-19-BRIEF.md`, `VIGIL-OVERNIGHT-FINDINGS-2026-07-24-BRIEF.md`, `CAPTURE-FILESET-RESUME-2026-08-19-BRIEF.md`, `KNOWN-CLOCK-ADVERSARIAL-CAPTURE-FOLLOWUPS-2026-08-14-BRIEF.md`, `DEEP-AUDIT-V-FOLLOWUPS-2026-08-05-BRIEF.md`
+**Status:** IN-PROGRESS — 2026-09-21 (re-verified: the only open box is §C, and it is FIELD-GATED — C3 and C4 recorded (CAPTURE-FILESET-RESUME DONE 09-03; DEVICE-RATE-TRUTH DONE 09-21), C1/C2 need a supervised box evening and cannot be executed from rig. Previously 2026-09-03: **TRIAGED 2026-09-03, and §A's premise is STALE — verified end to end rather than read off the brief.** §A says of the time-capability wiring *"nothing downstream reads it"*. It is wired at BOTH ends today: the producer, `oxydex-app.js:217-220`, carries `timingSource` / `rtcOffsetS` / `rtcVerifiedAtMs` / `rtcResetSuspect` inside the `ganglior.node-export` envelope; the consumer, `integrator-dsp.js:733-742`, reads `json.timingSource` — and its own comment records that the guard was INERT until `quality.timingSource` was added 2026-08-17, i.e. the very gap §A describes was closed three days before this brief was written. ⚠️ Checked by CAPABILITY at both ends, because a producer cannot attest its own consumer. **§B1 landed 2026-08-22** (ticked, unchanged). **§C is the only genuinely open item and it is not code** — four field results needing one box evening, which is Heron's lane and cannot be discharged from this checkout. So the brief is blocked on hardware time, not on software work, and should not be read as an open software queue.) · **Created:** 2026-08-20 · **Follows:** `O2RING-TIME-CAPABILITY-WIRING-2026-08-19-BRIEF.md`, `O2RING-BUZZ-FIDUCIAL-2026-08-19-BRIEF.md`, `VIGIL-OVERNIGHT-FINDINGS-2026-07-24-BRIEF.md`, `CAPTURE-FILESET-RESUME-2026-08-19-BRIEF.md`, `KNOWN-CLOCK-ADVERSARIAL-CAPTURE-FOLLOWUPS-2026-08-14-BRIEF.md`, `DEEP-AUDIT-V-FOLLOWUPS-2026-08-05-BRIEF.md`
 
 # Improvements to finished work — the consolidated program (owner-requested survey, 2026-08-20)
 
@@ -89,7 +89,49 @@ first. The capture half is complete (#1543 readback · #1544 settings · #1548 m
      Integrator input) never re-enters this render. ⚠️ **Its safety is a property of the producer,
      not of the render** — a future re-import path, or a producer that returns bare `{conf}`, makes
      it live. Left as-is; noted so a change there is understood to have this consequence.
-2. **Retention prune gated on `.archived` (VIGIL-OVERNIGHT §P3.2).** `diskguard.plan_prune` is purely
+### §B RE-TRIAGED 2026-09-13 — three of six are DONE and were never stamped
+
+Verified against the tree, not read off the brief. Each item was traced to the code that discharges
+it AND to the consumer that reaches it, because an existing function is not a wired one.
+
+| item | state | evidence |
+|---|---|---|
+| B1 | **DONE** (already stamped) | #1626 + the 8-layer sibling scan below |
+| B2 | **DONE — and corrected on the way** | `nightarchive.unarchived_nights`, wired at `capture.py:6275` |
+| B3 | **HALF** — decision taken, residual not computed | `O2RING-TIME-CAPABILITY-WIRING-2026-08-19-BRIEF.md:57` |
+| B4 | **DONE 2026-09-03** (`49a774a6`) | `tools/trio-batch.mjs:1530`, surfaced at `:1416` |
+| B5 | open — procedural, needs two sessions | — |
+| B6 | open — needs the three absent nights located | — |
+
+**B2 landed BETTER than this brief specified, and the difference is the point.** §B2 asked to "skip
+any night lacking the marker". `nightarchive.py:130` records why that rule is not sufficient: the
+marker says a copy was once MADE, not that it still EXISTS, and on the real box 2026-07-25 **6 of 10
+nights carried the marker while the backup volume was absent** — a marker-only gate would have deleted
+the on-box copy of a night whose mirror had gone with the disk, losing both. The shipped gate therefore
+requires the marker AND `dest/<night>` present, and treats a missing `dest` as protecting everything.
+Wired end to end: `capture.py:6275` computes the blocked set and unions it into `protect` before
+`diskguard.prune_old_nights`.
+
+**B4's implementing commit names this item in its own comment** — `trio-batch.mjs:1521` reads
+"THE CROSS-CHECK B4 ASKS FOR" — so the work and the brief were never connected by anything but that
+line. It computes `disagrees` from the fitted lag against the ring's reported offset plus its drift
+allowance, tri-state so "the two agree" is distinguishable from "there is only one measurement", and
+surfaces `dat-timefit: <lag>s` in the fold output.
+
+**B3 is half done and the halves are in different briefs.** The adopt-or-decline is settled —
+`O2RING-TIME-CAPABILITY-WIRING:57`, "**adopted**: the RTC is declined as a corner, the fiducial network
+is the TCH direction". The second half, a first closure residual for that network from the run-C /
+morning-calibration captures, is not evidently computed; closure residuals exist in
+`CLOCK-LEG-SIGN-CONTRADICTION` and `CROSS-DEVICE-DRIFT-AND-CLOSURE` and the machinery exists
+(`tools/beat-leg-closure.mjs`, `tools/closure-tol-hac.mjs`), but none of them is that measurement.
+
+⚠️ **This is the fourth brief item found executed-but-unstamped in one sweep**, and the cost lands on
+whoever picks the brief up: each of B2 and B4 took a full trace to disprove as outstanding. §📌 already
+requires a triage to stamp the brief it triaged; nothing requires the SESSION THAT EXECUTES an item to
+tick the box it just discharged, which is where all four were lost.
+
+2. **Retention prune gated on `.archived` (VIGIL-OVERNIGHT §P3.2).** ✅ **DONE — see the re-triage
+   table above; shipped as `nightarchive.unarchived_nights` with a stronger rule than asked.** `diskguard.plan_prune` is purely
    age-based; the bypass is latent only because retention is OFF (`keep_nights: 0` — memory
    `vigil-retention-deletes-without-a-copy`). Close it before anyone enables retention: skip any night
    lacking the marker; test that a stale unarchived night never enters the plan.
@@ -97,7 +139,8 @@ first. The capture half is complete (#1543 readback · #1544 settings · #1548 m
    (±1 s quantum, 2–3 orders above the noise); the recorded alternative is the buzz three-way leg as a
    FIDUCIAL NETWORK. Adopt or decline, and if adopted compute a first closure residual from the
    existing run-C / morning-calibration captures (H10↔Verity pooled +140 ± 35 ms already measured).
-4. **Run `o2ring-dat-timefit` routinely.** Its header claims "AUTOMATIC… runs on every night on disk…
+4. **Run `o2ring-dat-timefit` routinely.** ✅ **DONE 2026-09-03 (`49a774a6`) — the fold invokes it;
+   see the re-triage table above.** Its header claims "AUTOMATIC… runs on every night on disk…
    VALIDATES the 0xC0 time-push, which nothing else measures" — yet nothing invokes it. Hook it where
    stored `.dat`s are visible; surface the fit beside #1578's RTC digest line and flag disagreement
    beyond ±1 s + drift. The two are independent measurements of the same clock error.
@@ -279,7 +322,7 @@ self-measures).
       - **B5 · a genuinely blind KNOWN-CLOCK scoring run** remains open and is **procedural: it cannot
         be discharged by one session** — its whole point is that one operator ran both legs — so a
         single session ticking it would reproduce the defect it exists to fix.
-- [ ] C: all four field results recorded in their home briefs after one box session.
+- [ ] C: all four field results recorded in their home briefs after one box session. **RE-VERIFIED AGAINST THE TREE 2026-09-21 — 1 of 4 recorded, 3 FIELD-GATED:** C3 (fileset-resume night) is discharged — `CAPTURE-FILESET-RESUME` flipped DONE 2026-09-03 with its measured number. C1 (wedge drill): `CONNECT-LOCK-DUTY-CYCLE` still records "none a BlueZ wedge" — no real wedge has been cleared. C2 (buzz prescription): no CLEAN/MARGINAL/SWAMPED verdict recorded anywhere; `pat-buzz-stability.mjs` still reads UNRESOLVED. C4 (ppg2w battery night): **RECORDED 2026-09-21 (`13f073e1`)** — `DEVICE-RATE-TRUTH` closed on it: 58 box nights of `LINK.csv battery_pct`, 8 with ppg2w live at 4.05 %/h against 4.25 %/h without, cost not detectable. (This sentence read "carries no first-night cost" for about an hour: true when written, stale by the next merge.) **So §C stands at 2 of 4.** C1 and C2 need a person at the box with the hardware — a supervised evening — and cannot be ticked from rig.
 - [~] D items: opened as their own executable units when picked up; this brief only orders them.
       **`nightqc.ok` DONE 2026-08-23 (#1664)** — see its row in §D for the result, the `outside-band`
       naming correction, and the eight mutation kills. **`o2ring-dat-timefit` routine invocation is

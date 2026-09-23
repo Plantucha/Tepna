@@ -36,6 +36,7 @@ user; "windows" outlived its machine; "Mutator" read as the mutation lane (which
 | **Osprey** | Papers | rig-x870 | mutation program + analysis |
 | **Magpie** | Brief runner | rig-x870 | JS surface + sweeps |
 | **Finch** | windows | roaming (bridge) | special-collab / hardware RE, engaged on-demand |
+| **Wren** | — (created 2026-09-05) | vigil | resident on the capture box — box-local measurement + capture-host work; persists across reboot via a user systemd unit (`claude-wren.service` + linger, tmux `wren`). Deploys/daemon restarts remain owner-authorized. The box holds no gh/push credentials, so its branches land through a relay (`Fleet-Session: Wren (relay: <Name>)`) — a property of the lane, not a temporary state |
 
 - **`Fleet-Session: <Name>` goes in every commit message and PR body** — live 2026-08-31,
   forward-only (never backfill a merged PR; a CI lap for a label fails the cost test). Git history
@@ -383,6 +384,62 @@ must know the discarded part cannot change the verdict.** For a gate summary it 
 The family (`grep -q` exit codes, `npx` no-op greens, a child's JSON truncated through a pipe) all share
 one shape: **the check ran, and reported success about something it never examined.**
 
+### 4c · A GATE THAT DIES WITH NO VERDICT IS NOT YOUR DIFF — detach anything over ~100 s
+
+§4 and §4b are about a check that reported the wrong answer. This is about one that reports **no**
+answer: a long run is SIGKILLed mid-suite, the task ends with no exit code and no failing test, and it
+reads like the gate hanging on your change. It is not — it is the **Claude Code harness watchdog**
+reaping harness-tracked background tasks when the BOX is low on memory. Measured 2026-09-13 across
+three sessions in one afternoon: **five** deaths — `check.sh` at 106 s and 40 s against a completed
+464 s run of the same command minutes earlier, and `verify-fixtures` twice, once at group 126/594.
+
+Three things that cost the fleet an afternoon to establish, so you do not have to:
+
+- **A `MemoryMax` cgroup cap does NOT protect you.** One of the killed runs was single-threaded under
+  `MemoryMax=8G/MemorySwapMax=0`. The watchdog reads the box, not the cgroup. Capping is false comfort;
+  **`setsid nohup <gate> > log 2>&1 &` plus an `EXIT=` sentinel is the only shape that survived** — the
+  same prescription §4 gives for a different reason.
+- **Rule out the kernel with `journalctl -k`, NEVER `dmesg`.** `dmesg` on rig-x870 returns
+  `read kernel buffer failed: Operation not permitted`, so its silence is an unreadable source, not a
+  negative (§4b's family). `journalctl -k` is readable and carries 63 historical OOM kills — that is the
+  positive control proving the instrument can see them, which is what makes "zero in the window" a real
+  negative.
+- **Load alone is NOT this.** Contention makes an 8-minute gate take 30; it does not stop it at 43 %. A
+  death at an arbitrary time with no verdict means something signalled. (A death at exactly 114 s or
+  600 s is the tool timeout instead — a different thing, §4's arithmetic tell.)
+
+⚠️ **And the memory pressure may be nobody's session.** That afternoon it was
+`tepna-nightly-triage.service` — a systemd **user timer**, 10.4 GB resident, running `mutate.mjs
+--jobs 16` for 2 h 31 m. Two sessions independently blamed each other from a `ps -eo pid,ppid` walk,
+because every session's cwd is the shared root and one hop up lands on `mutation-crawl.mjs`, *the same
+tool a session would run*. **Read `/proc/<pid>/cgroup`, and walk the ppid chain to the TOP** — an
+`app.slice/<unit>.service` is a timer, a `tmux-spawn-….scope` is a session. Stopping one hop early
+produces a confident wrong attribution, and `kill-only-owned-pids` cuts both ways: a timer unit is the
+owner's, not yours.
+
+⚠️ **THAT ATTRIBUTION IS INCOMPLETE, AND THE MISSING TERM IS INVISIBLE TO EVERY `ps` YOU WILL RUN.**
+Re-measured 2026-09-14: the timer was ONE term on a box that was **already ~21 GB down before it
+started**. `/tmp` here is a **30 GB tmpfs**, i.e. RAM, and it was sitting at **21 GB used** — held by
+files that NO PROCESS OWNS and that shrink only when something deletes them. It is reported by `free`
+as `shared`, never as any process's RSS, so the whole `ps -eo pid,rss` method both sessions used that
+afternoon could not see it even in principle. A single abandoned test directory
+(`/tmp/snt_edf_test_sAks1r`, 8.1 GB, zero open handles) outweighed everything the two sessions were
+arguing about. **Before blaming a process, run `df -h /tmp /dev/shm` and read `free`'s `shared`
+column** — deleting the orphans returned **9 GB** and took MemAvailable from 23 GB to 32 GB, more than
+bounding the timer did. ⚠️ Deleting is the owner's call, not yours (§👥.2): check `lsof +D <dir>` first,
+because two of those trees were the live cwd of leaked stub servers and one was root-owned firmware
+build output that `rm` could not touch anyway.
+
+⚠️ **"A `MemoryMax` cap does not protect you" is about the VICTIM, not the CAUSE — do not read it as
+"cgroup caps are useless".** Both halves are true and they point opposite ways: a cap on YOUR gate
+cannot save it, because the watchdog reads the box; a cap on the CONSUMER is the only thing that
+bounds the box at all, and it is where the fix belongs. And size it to the right quantity — the
+triage unit's own cgroup reported `memory.swap.current = **0**`. It never swapped; it EVICTED, by
+taking resident memory, and other processes' pages are what landed in swap. So a swap fence on the
+consumer would have fenced a mechanism that was not operating, while `MemoryHigh`/`MemoryMax` on it
+does the work. A first draft of that fix got this backwards and was corrected only by reading the
+cgroup.
+
 ### 5 · LANDING: `main` moves faster than CI, so every extra PR is another lost race
 
 **Re-measured 2026-08-16 — state the WINDOW with any of these numbers, because the value depends on it.**
@@ -671,6 +728,116 @@ Status lives in a one-line header block on the first content line (just after an
   relocation is `docs-archive/` for a *truly dead* doc, done deliberately with a redirect stub, never
   automatically on stamp.
 
+## ∅ ABSENCE IS NULL — never a number (non-negotiable, owner-reinforced 2026-09-06)
+
+**A value that was not measured is `null`. It is never `0`, never a default, never a sentinel that lives
+inside the value's own range — at EVERY layer: capture writer · sidecar · parser · DSP · export · render.**
+This was a founding rule of the suite. It was written down twice — the Clock Contract §2.6 (*"a missing
+stamp must be visible (null), never fabricated"*) and `parse_live`'s scalars (SpO₂ outside 50–100 → null,
+PR outside 20–250 → null) — and both held. **It was never written for the raw waveform bytes**, and that is
+where it failed, after two thousand commits: the O2Ring's `_PPG.txt` (2026-09-05, `S8AW2100`) carries
+**3048 samples of exact `0` in 149 runs, 105 of them ≥ 10 consecutive, the longest 78 samples (0.62 s)**,
+against a modal baseline of 114–119, sitting INSIDE complete 127-sample frames — in-band blanking, not a
+delivery gap. No consumer guards it (`PPG_INVALID` is an alias for the `156` beat marker — a name that
+sounds like the guard and is a different thing). Every fixture reproduced the zeros faithfully because
+that is what was on disk, so every gate was green. Owner, on finding it: *"zero appearance in data for
+compute is reprehensible … this is absolute priority for everyone because it breaks basic."*
+
+What the rule means when the sentinel is IN-BAND, which is the case the two earlier statements never had
+to face:
+
+- **A consumer cannot null what it cannot distinguish.** `0` is a legal u8. So the fix is never a
+  `!= 0` in a DSP — that invents a sentinel and convicts every stream where zero is a real value (ECG µV
+  crosses zero on every beat; an ACC axis rests at 0 mG). **Validity must travel OUT-OF-BAND**: the
+  emitter, or the capture path, or an end-of-night back-check records *where the signal was absent* in a
+  **sidecar** (a span list is orders of magnitude smaller than the data), and consumers read the sidecar.
+- **Captured bytes are immutable.** A recording is evidence; it is never rewritten to "fix" it, not even
+  to replace a fabricated `0` with a null. Correction lives beside the file, dated and attributed.
+- **Detection is distributional, not a literal.** The test that finds fabricated absence is a run-length
+  signature against the stream's OWN value distribution — a pleth does not sit at exactly one value for
+  78 samples — and it must run **on every device, from day 1 of the corpus**, and then stand as a
+  tripwire that reds the day a new stream first carries it. A hardcoded `!= 0` fixes zero and misses the
+  next sentinel (an in-range value can do the same thing); a rule that flags deliberate working behaviour
+  is the wrong rule, not a finding. **Key on RUN LENGTH, never on value membership** (Heron,
+  2026-09-06, independently on a second file of the same night: 2738 zeros in 125 runs ≈ 22 per run,
+  versus the ring's `156` beat markers — 5455 of them in 5405 runs, singletons by construction). A
+  value-keyed detector would flag every beat marker as corruption and bury the real signal 2:1; run
+  length separates the two populations by itself and generalises to the next constant nobody has met.
+- **An output computed over absent input reports the absence.** A metric over a window that contained
+  blanking carries its coverage (`n`, the excluded span) or is itself `null`. A number that is computable
+  from fabricated input and carries no information is the zero one layer up.
+  🔴 **WHICH of those two — owner ruling 2026-09-17, and it is now a RULE rather than a choice:**
+  **a DISCONTINUITY refuses; reduced COVERAGE annotates.**
+  - **Discontinuous or absent input → `null` + a named reason.** A clock seam, a blanking run, an
+    absent span: the window does not describe one stretch of signal, so no number over it means
+    anything. Name the real state — `clock-seam`, not a borrowed reason that happens to fire.
+  - **Merely reduced coverage → the value, with `n` / the covered span beside it.** Dropouts and short
+    windows leave the signal *sparse*, not *discontinuous*, and refusing them would null a large share
+    of real nights (the Verity alone recorded 24 dropout segments in one corpus night).
+  - **The line is whether the window still describes ONE continuous stretch of signal**, not how much
+    of it is missing — a 120 s dropout keeps a metric, a 0.6 s clock seam does not.
+  ⚠️ This codifies what already shipped rather than changing it: PpgDex refuses a seam with
+  `clock-seam` (#2600) and F10 refused before it. The measured argument for the refusal half is that
+  the annotate-everything alternative was *tried by accident* — with the seam removed from the axis but
+  no seam-keyed guard, `ppiConf` came back `[1,1,1,…]` across an 86-second clock discontinuity: a
+  number computable from broken input, carrying no information, reporting no problem. That is this
+  section's own failure one layer up.
+  ⚠️ **It is a data-loss trade, taken deliberately and ONLY for the discontinuous case.**
+  `BLE-TRANSPORT-REDESIGN` §1.7 declined the same trade for adapter leases and was right to: there the
+  alternative was losing a night's CAPTURE, here it is declining to publish a meaningless number.
+  Do not generalise this ruling into "refuse when in doubt".
+- **Ask "the device emitted it" vs "our path manufactured it" BEFORE proposing the remedy.** They are
+  different fixes with different blast radii. For the O2Ring this is CUT (Wren, 2026-09-06): **the ring
+  emits the zeros** — `oxyii.py:838` returns `payload[26:26+n]` untransformed and `capture.py:4293` writes
+  `v` straight through; no default, no fill, no failure path yields 0. So the bytes are a faithful record
+  and the missing thing is the interpretation layer, which is exactly why the sidecar is the remedy and
+  not a compromise. ⚠️ That does NOT establish what `0` means *to the ring* (LED off, ADC underflow, a
+  deliberate sentinel) — the distribution says it is not signal, not what the device meant; that needs
+  vendor documentation or a controlled finger-off capture, a separate unit. Fit no story to the signal
+  before cutting it.
+
+**The mechanism is pending the owner's review** (all-hands 2026-09-06: survey every device → sidecar
+proposal → fix after review → refold → check which goldens and which PAT numbers moved → prevention on
+the fly with an end-of-night back-check). Nothing in this section authorises a fix to land before that
+review. What it authorises — requires — is that **no new writer, parser, DSP or export ever again
+represents "not measured" as a number**, and that a reviewer who sees a `0` default, a `?? 0`, a
+`.get(k, 0)` or a zero-filled buffer standing in for absence reads it as the bug this section records.
+Same family as §🔒 §2.6 (stamps), §🎫's "never upgrade a badge on prose" (authority), and §4b's "reported
+success about something it never examined" (gates): a fabricated value, a fabricated tier, a fabricated
+pass — all one shape.
+
+## 🧾 VERDICTS ARE MACHINE-READABLE — prose is explanation, not the API (owner, standing requirement 2026-09-21)
+
+**Every gate, oracle, audit, harness or study that decides something emits ONE JSON object of a fixed
+shape beside its prose** — `tepna.verdict/1`, defined once in `verdict.js` and specified in
+`briefs/VERDICT-CONTRACT-2026-09-21-BRIEF.md`. The owner's framing, verbatim: *"A human can determine the
+truth from the evidence, but a downstream machine cannot reliably distinguish PASS / FAIL / NOT RUN / NOT
+APPLICABLE / UNDERPOWERED / SHORTFALL / UNKNOWN without parsing prose. That is dangerous. … Then prose
+becomes explanation, not the API."* The sealed-night reader (`CAPTURE-NIGHT-SEAL`) will be an independent
+consumer of this suite's verdicts; a clinician or a machine must never regex a paragraph to decide whether
+evidence is trustworthy.
+
+```json
+{ "schema": "tepna.verdict/1", "gate": "oracle-ecg-firmware-rr", "status": "PASS",
+  "population": { "checked": 52, "eligible": 52, "excluded": 0 },
+  "criterion": { "name": "rr_delta_median", "threshold": 8, "unit": "ms", "direction": "lte" },
+  "result": { "median": 0.45 }, "evidence": ["tools/oracle-ecg-firmware-rr.mjs"], "reason": null,
+  "producedBy": { "tool": "tools/oracle-ecg-firmware-rr.mjs", "commit": "3c0dbdec" }, "at": "2026-09-21T18:40:12Z" }
+```
+
+- **`status` is a closed enum of EXACTLY seven** — `PASS · FAIL · SHORTFALL · UNDERPOWERED · NOT_RUN ·
+  NOT_APPLICABLE · UNKNOWN`. `NOT_RUN` (nothing examined) and `NOT_APPLICABLE` (examined; rule does not
+  bind) are different states and both read as green to a naive reader — which is why they are named.
+- **`population` is an equality** (`checked + excluded = eligible`); a `PASS` over `checked: 0` is invalid
+  by schema — §4b's examined-nothing shape refused at the type level. A `PASS` with empty `evidence` is
+  invalid. Every non-`PASS` carries a `reason`; `PASS` carries none.
+- **`criterion` is pre-stated** (threshold, unit, direction written before the measurement); a threshold
+  derived from the data it judges is `UNKNOWN`, not `PASS`.
+- **Prose stays** — tables, bands, explanations are for humans. The object is what the next tool reads.
+  Never the reverse: a verdict that exists only as a sentence is the defect this section records.
+- **Adoption is a named set with a gate**, not a sweep (`PARTIAL-ADOPTION-DETECTION`): a tool that prints
+  a status word and is not in the set is a red with the tool's name.
+
 ## 📏 Units — the metric system is superior and is the default (non-negotiable)
 SI / metric is the **canonical and preferred** unit system across the whole suite. **Store and
 compute in metric, always** — kg, cm, °C, mmol/L (or the clinical metric unit a field conventionally
@@ -742,7 +909,7 @@ detectPeaks`) is the honest H10 leg — derive H10 HR from `_ECG.txt`, not `_HR.
 fusion consuming these must derive HR from the raw waveform, not the onboard summary.
 
 **A real tri-device corpus exists** — O2Ring + Polar H10 (device `H10-01`) + Polar Verity Sense
-(device `VERITY-01`), 2026-06-10 → 2026-07-05, **20 eligible nights** (~10 with clean Verity). It is
+(device `VERITY-01`), 2026-06-10 → 2026-07-05, **CLAIM trioEligibleNights = 20 FROM analysis/tri_device_nights.json#count eligible nights** (~10 with clean Verity). It is
 the ground truth behind the reference-free σ work (`sensor-trio-power-analysis.html` /
 `sigma-no-reference-analysis.html`) and unblocks several `PAPERS-ROADMAP` real-validation items.
 
@@ -818,19 +985,34 @@ node tools/build.mjs --app OxyDex     # edit the *.js / .src.html first, then re
 npm run check                         # ← the FULL gate. Not `build.mjs --check` alone.
 ```
 
-⚠️ **`node tools/build.mjs --check` is NOT the drift guard — it is one of THREE.** There are three
-generated trees, and re-bundling can staleness any of them:
+⚠️ **`node tools/build.mjs --check` is NOT the drift guard — it is one of FOUR.** There are four
+generated trees, and a change can staleness any of them:
 
 | tree | built by | checked by |
 |---|---|---|
 | the 11 owned bundles | `tools/build.mjs` | `npm run build:check` |
 | **`docs/` — SERVED COPIES of those same bundles** | **`tools/build-docs.mjs`** | **`npm run verify:docs`** |
 | the analysis tools | `tools/build-analysis.mjs` | `npm run verify:analysis` |
+| **`docs/TOOLS-INDEX.md`** | **`tools/tools-index.mjs`** | **`npm run verify:tools-index`** |
 
-`npm run check` runs all three (plus typecheck · lint · `test:par` · `verify:shard-union` ·
+⚠️ **The fourth row is not stalened by a re-bundle — it is stalened by `tools/`.** `tools-index.mjs`
+reads every tool's header comment, so **adding a tool stales it AND so does reflowing an existing
+tool's purpose line.** Measured 2026-09-13: #2457/#2458 added `cohort-fit.mjs` + `nsrr-score-pool.mjs`,
+the index stayed at "178 tools" against an actual 180, and `verify:tools-index` (step 14/16) then failed
+on **`origin/main` itself** — so every branch cut from it inherited a red that looks like the brancher's
+fault. Fixed in #2465.
+
+That row read as absent for a specific reason, and it is the reason to distrust any list here that
+*looks* complete: this table said THREE, so a careful author checked three builders, ran a hand-picked
+subset, and shipped. Same shape as `clockBundles` reading "every bundle" while being 5 of 8 (§✅). The
+enumeration is `package.json` — `grep -E '"(verify|build):' package.json` — not memory, and not this
+table if you have any reason to think it has drifted again.
+
+`npm run check` runs all four (plus typecheck · lint · `test:par` · `verify:shard-union` ·
 `test:build-core` · `verify:manifest`) and is exactly what CI gates on. **Run it, not a hand-picked
-subset.** `CONTRIBUTING.md` has carried the full builder table all along — this line exists so the
-file you read *first* points at it too.
+subset** — a rule keyed to the full gate fires on every cause of drift, where "after adding a tool,
+regenerate the index" under-fires on all the others. `CONTRIBUTING.md` has carried the full builder
+table all along — this line exists so the file you read *first* points at it too.
 
 ⚠️ **FORMAT BEFORE YOU BUNDLE, not after.** `npm run check` puts `typecheck` and `lint` first by design:
 they cost seconds, and everything after them costs minutes. A one-line type error or a Biome reflow
@@ -1052,6 +1234,13 @@ hand-typed version onto source files — `manifestHash` already identifies code 
   removal); **MINOR** adds backwards-compatibly (node/metric/adapter/gate/additive field); **PATCH**
   fixes without changing a contract shape (a moved fixture output is still PATCH but MUST regenerate
   fixtures per §🔏).
+- **The release is ONE command and runs unattended — `node tools/release.mjs --full`** (owner-ordered
+  2026-09-07 after v2.10.0 was hand-driven and four of its eleven post-stamp steps went wrong). It
+  launches `tools/release-land.mjs` detached: stamp → `build.mjs --all` → `build-docs` → `npm run check`
+  → explicit-path stage → PR → merge → tag at the merge sha → **GitHub Release object** (the thing
+  "Latest" reads — a tag alone is not a release) → `wt-done`. `node tools/release-land.mjs --status`
+  shows the step; `--resume` continues after a fix. Do not run those steps by hand from memory; if the
+  tool cannot do one, fix the tool. Cadence: ≥25 pending changesets or weekly, on the corpus machine.
 - **Parallel coders never hand-pick a number.** Each work-unit drops a collision-free **changeset** as
   its last action (`changes/*.md` — `bump`/`type`/`brief`; see `changes/README.md`). `tools/release.mjs`
   folds all pending changesets, computes the version ONCE from a **green tree**, stamps

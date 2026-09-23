@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED (parked 2026-09-02 — drain triage, Kestrel: a PROGRAM PLAN awaiting owner ratification; the only piece that runs without it is the P0 idle-lane DSP review, which is already the standing qwen idle behaviour and needs no brief to continue. Owner: the owner (ratify or decline); next step: none for the fleet until ratified. Previously: program plan for owner ratification; P0 items are idle-lane-safe to start) · **Created:** 2026-08-27 · **Owner-issued charter** (direct, 2026-08-27 — condensed capture in the Appendix) · **Interlocks:** `MUTATION-FLEET-EXPANSION-2026-08-25-BRIEF.md` (§0 invariant), `OPERATIONAL-MATURITY-ROADMAP-2026-08-27-BRIEF.md` (§22 echoes its charter), `DEVELOPMENT-METHODOLOGY-2026-08-27-BRIEF.md` §7
+**Status:** DONE — 2026-09-20 (SHELVED — owner ruling 2026-09-20: the program is not ratified and not now. The plan stays in this file for reference; its P0 idle-time piece is not greenlit either. Reopen only by an explicit owner ruling) · **Created:** 2026-08-27 · **Owner-issued charter** (direct, 2026-08-27 — condensed capture in the Appendix) · **Interlocks:** `MUTATION-FLEET-EXPANSION-2026-08-25-BRIEF.md` (§0 invariant), `OPERATIONAL-MATURITY-ROADMAP-2026-08-27-BRIEF.md` (§22 echoes its charter), `DEVELOPMENT-METHODOLOGY-2026-08-27-BRIEF.md` §7
 
 # The qwen engineering program — Tech Lead audit + plan
 
@@ -136,8 +136,8 @@ Jobs 6–10 are additional lenses/modes on C1+C2 once precision data exists — 
 | P0 | C1 findings ledger + precision metrics | per-finding | coordinator triage writes status | L1 |
 | P0 | C2 lens runner conversion | nightly + per-push | per-lens, per §2.5 bands | L1 |
 | P0 | draft-pipeline fixes (projection charset, recompute-fallback) | with each crawl | by construction | L1→L2 |
-| P0 | suite-realm re-verification of drafts before adoption (amendment §2.1 — 2/48 realm-divergent, 4/48 non-round-tripping) | per adoption batch | re-execution in the consuming realm | L1 |
-| P0 | adopt the 57 existing drafts (realizes the pipeline's value; the first metric datum) | once | `npm run check` + mutation re-run | normal PR |
+| P0 | suite-realm re-verification of drafts before adoption (amendment §2.1 — **RE-MEASURED 2026-09-18: 9/371 realm-divergent ≈ 2.4 %**, against the 2/48 recorded here; see §7-bis) | per adoption batch | re-execution in the consuming realm | L1 |
+| P0 | adopt the **376** existing drafts (**not 57 — re-counted 2026-09-18, see §7-bis**; realizes the pipeline's value; the first metric datum) | batches | `npm run check` + mutation re-run | normal PR |
 | P1 | state-machine adversary (job 3) | nightly rotation | read-one-function check → pytest case | L1 |
 | P1 | test-gap detector (job 4) | per-push | gap is binary-checkable | L1→L2 |
 | P1 | nightly report (C3, §19) | nightly | it IS the triage surface | L1 |
@@ -173,11 +173,199 @@ with the 4 exclusions and one surviving planted mutant recorded there); mutants 
 state-machine findings; regressions caught. Explicitly NOT success metrics, per charter: token
 counts, agent counts, finding counts. Kill criteria per §2.5.
 
+## 7-bis · RE-MEASURED 2026-09-18 (Osprey) — the pile, the divergence rate, and a figure I got wrong
+
+Measured in the authoritative realm, `node tests/run-tests.mjs --verify-drafts` — not the tool-local
+one, whose own banner reads "APPROXIMATE — not adoption-grade" and records an imitation realm
+certifying drafts the suite failed.
+
+    TOTAL  verified 321 · divergent 50 · unexecutable 5     across 29 drafts files
+
+**1 · The pile is 376, not 57** — a 6.6× sizing error. The crawl kept running after this brief was
+written. That is the difference between "a batch" and a programme of batches, and the rows above are
+corrected in place rather than appended.
+
+**2 · 🔴 A FIGURE THAT CIRCULATED AND IS SUPERSEDED — recorded rather than quietly replaced.** On
+2026-09-18 I reported, and it was relayed to the owner, that *"divergence moved 4 % → 13.3 %, the
+hazard did not stay put."* **That is wrong.** The two figures count different populations:
+
+    gross          50 / 371   (13.3 %)
+    of which       41         `out.schema.generated` — a wall-clock stamp
+    real realm      9 / 371   (≈ 2.4 %)   against the original 4 %
+
+**The hazard did not grow; it may have shrunk.** I compared two aggregates whose composition had
+changed underneath one name — and did it in the message correcting someone else's numbers. What
+survives, narrowly: a measured divergence rate has a shelf life **because its composition drifts**, so
+re-verify per batch rather than reusing a figure. The reason is composition, not a growing hazard.
+
+**3 · The cause is ONE KEY in THREE MODULES — not four environments, and not a general realm effect.**
+41 of 50 divergences are the single projection `out.schema.generated`: a timestamp recording the instant
+the draft was made, which cannot reproduce in any realm, ever. It diverges by construction. Those 41 sit
+in exactly three files and in no others:
+
+    cpapdex-fusion   21 of its 21 divergences are schema.generated
+    ppgdex-dsp       14 of 16
+    hrvdex-dsp        6 of 7
+
+⚠️ **A second claim of mine, measured and withdrawn HERE rather than quietly dropped.** Drafting this
+section I wrote *"files emitting no `schema.generated` have zero divergences."* **That is false.**
+`cpapdex-cross`, `motiondex-dsp`, `oxydex-cross` and `oxydex-dsp` each diverge without ever emitting the
+key. It is the same shape as §2 one level down — the count of 41 was measured, the inference about the
+other 9 never was — and it is left visible because a brief that shows only the surviving claims teaches
+nothing about how the wrong one got in.
+
+    the residual 9, per file and per key — a bounded list, not a rate:
+      oxydex-dsp     3   out.mos · out.autoArousalIdx · out
+      ppgdex-dsp     2   out.nn[0] · out.nn[2]
+      oxydex-cross   1   out.nights[0].date
+      cpapdex-cross  1   out          hrvdex-dsp  1  out          motiondex-dsp  1  out
+
+⚠️ **Determinism control — this is what makes the above a cause rather than a plausible story.** Three
+independent verifications, two hours apart and then a third, returned **321 / 50 / 5 each time**, with
+the same per-file split. Divergence that reproduces to the unit is consistent with a structural artifact
+and inconsistent with a flaky realm; a flaky realm would not land on the same integers three times.
+
+**Actionable consequence.** Stripping one volatile key at drafting time clears **41 of the 50** blockers
+pile-wide and moves `cpapdex-fusion` from 11/32 adoptable to 32/32. The residual 9 are genuine per-draft
+divergences needing individual re-recording; they are enumerated above so nobody re-derives them.
+
+**4 · The repo already holds the remedy, and the drafting pipeline is the one place not applying it.**
+
+    tests/dex-tests.js:40627   EXCL = { file, provenance, kernel, generated, … }
+    tests/dex-tests.js:41248   _VOL = { generated: 1 }
+    tests/dex-tests.js:41223   "stripped at EVERY depth … top-level AND under `schema`"
+
+The equivalence gate solved this; a grep for any strip/volatile/exclude of `generated` on the drafting
+side returns nothing. **Consequence for C1–C3: if divergence is structural, the remedy belongs at
+DRAFTING time.** Adoption-side re-verification catches it without stopping it being generated, and a
+programme that only filters at adoption pays that cost forever. ⚠️ Reported, NOT fixed — the drafting
+harness is programme work and the programme is owner-gated pending ratification of this map.
+
+## 7-ter · THE DRAFTS' OWN GUARANTEE IS NOT TRUE, measured 2026-09-18 (Osprey, #2656)
+
+§7-bis corrected what the pile IS. This corrects what a draft CLAIMS. Every drafted assertion is
+stamped, by `tools/mutation-suite.mjs`, with:
+
+> *"Every PROJECTION below was machine-verified to discriminate the real code from its mutant."*
+
+**Kill-verified on the 15 drafts adopted in batch 2 — each mutant planted into the real source and
+re-run in the suite realm — 13 kill it and TWO DO NOT.** Neither is fixable by re-recording, because
+neither fails by accident:
+
+    detectCVHR(0,0)   `tEnd > MAX` → `>=`   guard is `!isFinite(tEnd) || tEnd > MAX`; tEnd is
+                                            non-finite, the FIRST disjunct fires, and the mutated
+                                            one is never evaluated
+    crossNight([])    `n < 2` → `<=`        n is 0; `0 < 2` and `0 <= 2` are both true.
+                                            Identical branch — arithmetic, not a measurement
+
+⚠️ The first was proven rather than inferred: disabling the *first* disjunct alone makes the guard stop
+firing entirely. That separates **"never evaluated"** from **"evaluated and equal"** — two explanations
+for one SURVIVED that need opposite responses.
+
+**THE STRUCTURAL POINT, which generalises past drafts.** `verify-drafts` answers *"does this projection
+reproduce its recorded value in the realm that will run it"*. That is **silent** about whether the value
+can tell the code from its mutant. **Realm-divergence and discrimination are different properties, and
+only the first has been gated.** A draft can pass every realm check and pin nothing at all — so a green
+`DIVERGENT 0` is necessary and not sufficient.
+
+**Bar change (Kestrel, 2026-09-18 — a discipline change, not programme work): no batch is adopted on a
+realm check alone. Each draft's mutant is planted and must be shown to kill.** Drafts that survive are
+either dropped or kept and labelled **VALUE-PINNED ONLY**, never left reading as mutation-backed. Both
+survivors above were kept — they pin genuine §∅ behaviour on their own merit.
+
+### 7-ter.1 · A drafted test that would PUNISH a correctness fix
+
+Two `ecgdex-cross` drafts were rejected, and the reason is worth more than the rejection. Both call:
+
+    ECGCross.mannKendall("mannKendall([1,2,1])")
+
+That argument is a 21-character **string** where an array belongs — **the drafting model fed its own
+prompt text in as the input**. It "works" only because `mannKendall` reads `y.length` and then
+subtracts characters: `d` is NaN, every comparison is false, S stays 0, and tau/p come back 0 and 1.
+The values are real, reproduce in every realm, and discriminate the mutant.
+
+**Adopting it would pin the accidental duck-typing of a string as an array.** Anyone later adding an
+`Array.isArray` guard — a strict improvement — would red the suite and reasonably conclude they were
+wrong. That is the draft header's own warning (*"a projection can discriminate and still pin a bug in
+place"*) arriving in its most expensive form: **not a test that fails to catch a defect, but a test that
+actively defends one.** It is the §🔒 "oracle" position — the layer nothing checks, because checking it
+is what everything else is for.
+
+**Consequence for C1–C3:** a rail on drafted INPUTS is owed alongside the rail on drafted values — an
+argument whose text appears in the prompt, or whose type contradicts the parameter's use, is
+disqualifying regardless of how well the assertion verifies.
+
+✅ **That rail now EXISTS as an advisory screen — `tools/screen-draft-inputs.mjs`, shipped with this
+section.** It flags candidates for a human read and does not decide (exit 0 even when flagging;
+`--strict` is opt-in), because a screen that decides is a second oracle with the same failure modes —
+and the screen that failed tonight is the cautionary case. **On the real pile it flags 17 of 376
+(4.5 %), and the prompt-text defect is in THREE nodes, not one:**
+
+    SELF-REFERENTIAL   ECGCross.mannKendall("mannKendall([1,2,1])")
+    SELF-REFERENTIAL   PulseCross.mannKendall("mannKendall([1,1,1])")
+    SELF-REFERENTIAL   CpapEdf.sampleTMs("sampleTMs",1000,5,2,44100)
+
+Two of those three are in files nobody has read, and would have been adopted blind in a later batch.
+The other 14 flags are TYPE-DISAGREEMENT — a string at an argument position the same callee is drafted
+with an array or number elsewhere, so one of the two drafts is wrong and both are worth reading. The
+tool's false-negative surface is stated in its header AND asserted in its selftest (a singly-drafted
+plain-string argument is pinned as a documented NON-flag), so the caveat cannot rot into a claim the
+code does not honour.
+
+⚠️ **And the screen that was supposed to catch this did not.** My own earlier pass recorded
+`ecgdex-cross` as "0 of 9 alleging a defect"; draft 5's property alleges one outright (*"the calculation
+is incorrect due to improper handling of tied values"*). The screen pattern-matched the property lines
+instead of reading them, and was then relayed onward as established. **A cheap screen standing in for
+the read it exists to trigger fails silently and upstream of every later check** — it decides what a
+human ever looks at. Adoption counts: batch 1 nine, batch 2 fifteen, **24 of 376**.
+
+### 7-ter.2 · MEASURED OVER THE WHOLE PILE 2026-09-19, and the guarantee is mostly UNCHECKABLE
+
+§7-ter reported 2 of 15 from a hand pass. `tools/verify-draft-kills.mjs` (new, this PR) now does it
+mechanically — plant the mutant into the real source, run the drafted call **as written**, compare the
+drafted projection — over all 376 drafts:
+
+    KILLED 68 · SURVIVED 6 · UNPLANTABLE 188 · UNPAIRED 114
+
+**Only 74 of 376 (20 %) can be checked at all**, and that is the larger finding. The pipeline records a
+mutant's identity as a **line number plus a 100-character truncation of the source line**, and a line
+number rots: **135** drafts point at a line that no longer carries the probed text, and **114** cannot
+be paired to a unique journal record. So for four fifths of the pile the headline guarantee is not
+false — it is **unfalsifiable**, which is worse, because nothing can ever red.
+
+🔴 **AND 5 OF THE 6 FAILURES ARE ONE DEFECT IN FIVE NODES, not scattered noise:**
+
+    CPAPCross · ECGCross · OXYCross · PPGCross · PulseCross
+      crossNight([])  ·  `n < 2` → `n <= 2`  ·  out.slopePerRecording  ·  both sides null
+
+Every crossnight module shares the same `if (n < 2) return {…}` early guard, so the probe proposed the
+same non-discriminating draft five times — with n = 0, `0 < 2` and `0 <= 2` are the same branch. A
+sixth is distinct: `HRVDex._bare.persistHRVRows("",null)` → `out.ok`, `bool || → &&`, both `true`.
+
+**WHY THE GUARD DID NOT CATCH THEM, which is the root cause and is NOT a bug in the guard.**
+`projectionDiscriminates` is correct: re-run today on `crossNight([])`'s real outputs it returns
+*"projection does NOT discriminate — both sides give null"*, on a file with **zero commits** since the
+probe. It is invoked on `(projection, c.orig, c.mutant)` recorded during PROBING, and never on the
+assertion that is rendered. **The artifact and the verified object are different things** — the same
+shape as `verifiedUnder` before §🔒 made export-inertness computed rather than asserted.
+
+**So the guarantee is worth providing and the code owes it** (the alternative — weakening the header to
+match — would be editing the assertion to fit the defect). The remedy is to verify the RENDERED draft,
+which is what this tool does; wiring it into `--draft` so a non-discriminating draft is never written
+is the remaining work, and is NOT done here.
+
+⚠️ **The tool fails CLOSED and its own limits are counted, not hidden.** UNPLANTABLE and UNPAIRED are
+reported separately and are neither passes nor failures. It checks that the probed line still carries
+the probed text before mutating — added after the known-answer test caught the tool reporting a **false
+SURVIVED** for `parseDeviceHR(0)`, where the stale line number landed the plant on a different,
+mutatable line. That is the defect the tool exists to find, committed by the tool, and caught only
+because it was run against a hand-measured answer first.
+
 ## 7 · Done when
 
 - [ ] Owner ratifies the priority map (or amends ranks in place).
 - [ ] C1 + C2 + C3 built and the first nightly report produced.
-- [ ] The 57-draft adoption PR lands (value realized, metric unblocked).
+- [ ] The draft adoption lands (value realized, metric unblocked). ⚠️ **376 drafts, not 57** — a batch programme, not one PR; first batch landed #2652. See §7-bis.
 - [ ] First precision numbers exist for ≥2 lenses; §2.5 bands applied once.
 - [ ] Follow-up brief records what the first month of precision data says about which
       charter sections earned expansion.

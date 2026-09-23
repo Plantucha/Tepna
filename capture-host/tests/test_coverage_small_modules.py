@@ -27,8 +27,10 @@ def test_live_frame_and_set_time_frame_encode():
     assert oxyii.live_frame()[:2] == bytes([0xA5, oxyii.OP_LIVE])
     f = oxyii.set_time_frame(dt.datetime(2026, 7, 19, 3, 4, 5))
     assert f[:2] == bytes([0xA5, oxyii.OP_SET_TIME])
-    # the payload carries the civil components + the vendor 0xCE tail
-    assert 0xCE in f
+    # the payload carries the civil components + the DERIVED timezone byte (§9a, oxyii.tz_tenths).
+    # This asserted `0xCE in f`, which held for two reasons at once — the byte was hardcoded, and `in`
+    # searches the whole frame rather than the field it means. It now names both position and source.
+    assert f[14] == (oxyii.tz_tenths(dt.datetime(2026, 7, 19, 3, 4, 5)) & 0xFF)
 
 
 def test_reassembler_joins_a_frame_split_across_notifications():

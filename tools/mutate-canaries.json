@@ -17,6 +17,15 @@
       "CPAPDex co-import — a surge corroborates ONE apnea, and lands on the right night (§6.3/§6.4)"
     ]
   },
+  "cpapdex-cross.js": {
+    "line": 44,
+    "op": "negate: drop !",
+    "before": "const r2 = (v) => (v == null || !isFinite(v) ? null : Math.round(v * 100) / 100);",
+    "after": "const r2 = (v) => (v == null || isFinite(v) ? null : Math.round(v * 100) / 100);",
+    "killers": [
+      "Cross-night slope basis — an index slope is never a per-day slope (DEEP-AUDIT-II §9.4)"
+    ]
+  },
   "cpapdex-dsp.js": {
     "line": 37,
     "op": "eq !== → ===",
@@ -24,6 +33,15 @@
     "after": "var _EDF = typeof require === 'undefined' ? /** @type {any} */ (require)('./cpapdex-edf.js') : root ",
     "killers": [
       "CPAPDex §6.2 — ODI is rated over ANALYZABLE oximeter time, not the therapy span"
+    ]
+  },
+  "cpapdex-edf.js": {
+    "line": 57,
+    "op": "bool || → &&",
+    "before": "var d = /^(\\d{2})\\.(\\d{2})\\.(\\d{2})$/.exec(String(startdate || '').trim());",
+    "after": "var d = /^(\\d{2})\\.(\\d{2})\\.(\\d{2})$/.exec(String(startdate && '').trim());",
+    "killers": [
+      "Leaf-module coverage — CPAPDex DSP/EDF self-tests + morphology"
     ]
   },
   "cpapdex-fusion.js": {
@@ -51,6 +69,15 @@
     "after": "const weightOf = opts.weightOf && (() => 1);",
     "killers": [
       "Cross-night significance — CI-includes-0 (#1)"
+    ]
+  },
+  "ecgdex-cross.js": {
+    "line": 22,
+    "op": "negate: drop !",
+    "before": "const r1 = (v) => (v == null || !isFinite(v) ? null : Math.round(v * 10) / 10);",
+    "after": "const r1 = (v) => (v == null || isFinite(v) ? null : Math.round(v * 10) / 10);",
+    "killers": [
+      "Cross-night baseline mean/sd published (#7)"
     ]
   },
   "ecgdex-dsp.js": {
@@ -148,6 +175,15 @@
       "Tri Index carries its duration precondition; MotionDex badges fail CLOSED"
     ]
   },
+  "oxydex-cross.js": {
+    "line": 26,
+    "op": "num → 0",
+    "before": "const r3 = (v) => (v == null || !isFinite(v) ? null : Math.round(v * 1000) / 1000);",
+    "after": "const r3 = (v) => (v == null || !isFinite(v) ? null : Math.round(v * 1000) / 0);",
+    "killers": [
+      "Cross §1 — per-node crossNightBlock + helpers (VARYING series)"
+    ]
+  },
   "oxydex-dsp.js": {
     "line": 72,
     "op": "eq === → !==",
@@ -168,6 +204,15 @@
       "OxyDex node-export v2.0 envelope + ganglior_events"
     ]
   },
+  "ppgdex-cross.js": {
+    "line": 22,
+    "op": "num → 0",
+    "before": "const r1 = (v) => (v == null || !isFinite(v) ? null : Math.round(v * 10) / 10);",
+    "after": "const r1 = (v) => (v == null || !isFinite(v) ? null : Math.round(v * 0) / 10);",
+    "killers": [
+      "Cross §1 — per-node crossNightBlock + helpers (VARYING series)"
+    ]
+  },
   "ppgdex-dsp.js": {
     "line": 31,
     "op": "bool || → &&",
@@ -184,6 +229,15 @@
     "after": "if (global.MetricRegistry) return '';",
     "killers": [
       "PpgDex finger site — single-channel parse, honest agreement, sentinel gaps (O2RING-FINGER-SITE)"
+    ]
+  },
+  "pulsedex-cross.js": {
+    "line": 24,
+    "op": "num → 0",
+    "before": "const r2 = (v) => (v == null || !isFinite(v) ? null : Math.round(v * 100) / 100);",
+    "after": "const r2 = (v) => (v == null || !isFinite(v) ? null : Math.round(v * 100) / 0);",
+    "killers": [
+      "Cross-night slope basis — an index slope is never a per-day slope (DEEP-AUDIT-II §9.4)"
     ]
   },
   "pulsedex-dsp.js": {

@@ -1,5 +1,14 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS · **Created:** 2026-08-14 · **DRAIN 2026-09-02 (Osprey):** verified **9 of 10** Done-when boxes ticked — the closest brief in this family to DONE. The single remainder is section 1c's uncorrected-denominator hypothesis for `cpapdex`/`glucodex`/`hrvdex`/`motiondex`, which still sit at **zero ledger entries** so their denominators remain uncorrected. **Owner: Osprey. Next step:** sweep those nodes to non-zero ledger entries, then the box closes and the brief flips DONE — one work-unit, no blocker.
+**Status:** DONE — 2026-09-07 · **Created:** 2026-08-14 · **Residue:** 2026-09-07-drain-stamp-asserted-a-count-it-never-read, 2026-09-07-equivalent-class-did-not-excuse
+
+> 🔴 **RETRACTION — the 2026-09-02 drain stamp on this brief was WRONG, and it sized work that did not exist.**
+> It said `cpapdex`/`glucodex`/`hrvdex`/`motiondex` "still sit at **zero ledger entries**" and set the next
+> step as "sweep those nodes to non-zero ledger entries — one work-unit". Measured 2026-09-07: the four
+> carry **26 / 48 / 71 / 100** entries and did so on the day the stamp was written. A second session was
+> queued to execute that sweep and would have regenerated 245 committed entries. Retracted by the session
+> that wrote it. The failure was procedural, not arithmetic: the count was carried forward from an earlier
+> reading instead of being re-read at stamp time, and a triage stamp is evidence-shaped, so the next reader
+> spends it as measured.
 
 # MUTATION — COVERAGE-DIRECTED SELECTION, AND WHAT THE REBOOT MUST NOT COST AGAIN
 
@@ -141,6 +150,41 @@ unlikely to be a coincidence and is worth testing before more test-writing is ai
 
 ---
 
+## 1c-bis · THE STRONGEST CLASS WAS THE ONE THAT DID NOT EXCUSE (found 2026-09-07, fixed)
+
+Chasing the §1c box surfaced a live defect in `mutate.mjs`, and it is the more useful half of this
+brief's remainder. `EXCUSING` — the classes that leave the distinguishable denominator — was:
+
+```js
+const EXCUSING = new Set(['no-distinguishing-input', 'untestable-by-design']);   // before
+```
+
+**`equivalent` was missing, and it is the strongest claim in the vocabulary.** `no-distinguishing-input`
+means *every input we tried agreed*; `equivalent` means *original and mutant compute the same function*,
+carried with a proof. The weaker class excused and the stronger one did not.
+
+Two consequences, both silent:
+
+1. An `equivalent` entry stayed **in** the denominator, so the rate under-reported.
+2. `classifySurvivors` ends `if (EXCUSING.has(e.class)) out.excused.push(e); else out.realGap.push(e);`
+   — so such an entry was reported **as a real gap**: a TODO instructing someone to write a test that
+   kills a mutant whose own entry carries a proof that no such test exists. It landed in a plausible
+   bucket rather than nowhere, which is why nothing looked wrong.
+
+⚠️ **The 2026-08-19 pass that UPGRADED entries from `no-distinguishing-input` to `equivalent` "with
+their proofs" therefore made them weaker in effect.** Strengthening the evidence silently downgraded
+the classification. Four entries were affected: `hrvdex-dsp.js` 755 and 1096, `pulsedex-dsp.js` 448,
+`ecgdex-dsp.js` 1283 — the last two being the declared-equivalent HRV-geometry twins.
+
+The class was also **absent from the ledger's own `_README` vocabulary**, which lists only
+`no-distinguishing-input`, `untestable-by-design` and `real-gap`. So the data carried a class the code
+did not know and the documentation did not define — added in the same change.
+
+Fixed and **pinned in both directions**: the selftest now asserts a proven-equivalent survivor is
+excused AND is not reported as a real gap. Plant-verified — reverting `EXCUSING` reds both assertions
+(`got 0 want 1`), so the test detects the defect rather than merely passing beside it. That check
+matters here more than usual: the failure produced a *plausible* classification, not a missing one.
+
 ## 2 · WHAT WAS BUILT (committed; see the changeset)
 
 - **`tools/per-group-coverage.mjs`** — the map: which group executes which line. One c8 run per
@@ -273,8 +317,16 @@ installed pytest-cov and would replace the heuristic with a measured mapping.
       merely acceptable. Full-fleet wall-clock now measured rather than estimated.
 - [x] `oxydex` · `ecgdex` · `integrator` swept. ecgdex+integrator RE-swept after §3a; both canaries
       pass and invalid fell 1324 -> 15 and 178 -> 8.
-- [ ] The uncorrected-denominator hypothesis (§1c) still untested — those three remain at ZERO
-      ledger entries, so their denominators are still uncorrected even though their sweeps are fresh.
+- [x] **The uncorrected-denominator hypothesis (§1c) is FALSIFIED — measured 2026-09-07.** The four
+      nodes were never at zero: `tools/mutate-equivalence.json` carries **cpapdex 26 · glucodex 48 ·
+      hrvdex 71 · motiondex 100** entries, and `git log --since=2026-08-25` on that file is EMPTY, so
+      they were already there when the 2026-09-02 drain stamp said "zero". The stamp was wrong on the
+      day, not overtaken since — verified by reading the file at the 09-02 commit itself, where the
+      four counts are identical. The correction mechanism is real and wired: `mutate.mjs`
+      `classifySurvivors` splits entries by class and the score subtracts them —
+      `distinguishable = picked − canary − invalid − excused` — so 243 of those 245 entries
+      (`no-distinguishing-input`, an EXCUSING class) do leave the denominator.
+      ⚠️ **The other 2 did not, and that was a defect this box surfaced** — see §1c-bis.
 - [~] ~~`cpapdex` · `glucodex` · `hrvdex` · `motiondex` re-swept WITH selection~~ — **OVERTAKEN
       2026-08-19 by `MUTATION-SUITE-FOLLOWUPS` §3d**: selection is quarantined (opt-in only) after
       interval coverage was built and per-line selection still lost 7 of 38 real kills on paired

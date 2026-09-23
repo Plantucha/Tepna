@@ -5,6 +5,7 @@ error, it may return nothing, but it must never 500 the page and must never repo
 that did not happen. A config write that silently failed is the `VIGIL-DEEP-ANALYSIS §2A` finding.
 """
 import os
+import pathlib
 import sys
 
 import pytest
@@ -434,3 +435,81 @@ def test_the_written_config_says_it_does_not_keep_comments(tmp_path):
     assert "config.example.yaml" in body, "it must say where notes survive"
     assert "# keep_nights: my own note" not in body, "the loss is real — the banner does not prevent it"
     assert _yaml.safe_load(body) is not None, "and the file must still parse"
+
+
+# ── the timeline cache: a one-entry cache with a TTL equal to the poll is not a cache ───────────────
+def test_two_DIFFERENT_timelines_are_both_cached(tmp_path, monkeypatch):
+    """🔴 The regression. `_tl_cache.clear()` ran before every insert, so the dict held exactly ONE
+    entry while the comment above it promised "cached per (night, buckets)". A second viewer — or the
+    same viewer on a different `buckets` — evicted the other outright, and both then rebuilt on every
+    poll. Measured on the box 2026-09-07: a build is 1.35 s for the night in progress, 2.05 s for a
+    complete 1330 MB one, and the cost grows with the night.
+
+    The existing sibling test asks only that ONE key caches, which the broken code also satisfied —
+    it could not see this. Two keys is the discriminating case."""
+    app, *_ = _mk(tmp_path)
+    for n in ("2026-07-25", "2026-07-26"):
+        (tmp_path / "captures" / n).mkdir(parents=True)
+    calls = {"n": 0}
+
+    def counted(*a, **k):
+        calls["n"] += 1
+        return {"night": "x"}
+    monkeypatch.setattr(webmon._timeline, "build", counted)
+
+    async def go(c):
+        await c.get("/api/timeline?night=2026-07-25")
+        await c.get("/api/timeline?night=2026-07-26")     # a second viewer
+        await c.get("/api/timeline?night=2026-07-25")     # the first must STILL be cached
+        await c.get("/api/timeline?night=2026-07-25&buckets=120")   # a different bucket count
+        await c.get("/api/timeline?night=2026-07-25")
+        return None
+
+    _serve(app, go)
+    assert calls["n"] == 3, "one build per distinct (night, buckets), not one per request"
+
+
+def test_the_cache_is_BOUNDED_and_evicts_the_oldest_not_everything(tmp_path, monkeypatch):
+    """Bounded so a long-lived daemon cannot accumulate an entry for every night it is ever asked
+    for — but by evicting the OLDEST, never by clearing, because clearing is the defect above.
+
+    Asserted through BEHAVIOUR rather than by reaching into the dict: `_tl_cache` is a closure local
+    of `make_app`, and exposing it just to assert on it would add API surface the daemon does not
+    need. An evicted key rebuilds; a live one does not."""
+    app, *_ = _mk(tmp_path)
+    (tmp_path / "captures" / "2026-07-25").mkdir(parents=True)
+    calls = {"n": 0}
+
+    def counted(*a, **k):
+        calls["n"] += 1
+        return {"night": "x"}
+    monkeypatch.setattr(webmon._timeline, "build", counted)
+    first, last = 20, 20 + webmon._TL_CACHE_MAX          # MAX+1 distinct keys -> exactly one eviction
+
+    # ONE `_serve`: it builds a fresh event loop per call and aiohttp refuses to reuse an
+    # Application across loops, so the two phases have to share a client.
+    async def go(c):
+        for b in range(first, last + 1):
+            await c.get(f"/api/timeline?night=2026-07-25&buckets={b}")
+        filled = calls["n"]
+        await c.get(f"/api/timeline?night=2026-07-25&buckets={last}")     # newest — still cached
+        await c.get(f"/api/timeline?night=2026-07-25&buckets={first}")    # oldest — was evicted
+        return filled, calls["n"]
+
+    filled, after = _serve(app, go)
+    assert filled == webmon._TL_CACHE_MAX + 1, "every distinct key built once"
+    assert after == filled + 1, "the newest survives; the OLDEST is the one dropped"
+
+
+def test_the_TTL_EXCEEDS_the_pages_poll_interval(tmp_path):
+    """The second half of the defect, and the half a value-based assertion would miss. The TTL was
+    60 s while monitor.html polls `loadTimeline` every 60 000 ms, so the entry expired exactly as the
+    next poll arrived — a coin flip, not a cache. What must hold is the RELATIONSHIP, so this reads
+    the interval out of the page rather than restating a number: change either side and this reds."""
+    import re as _re
+    page = (pathlib.Path(webmon._HERE) / "monitor.html").read_text(encoding="utf-8")
+    m = _re.search(r'setInterval\(\s*loadTimeline\s*,\s*(\d+)', page)
+    assert m, "monitor.html no longer polls loadTimeline on an interval — re-derive this bound"
+    poll_s = int(m.group(1)) / 1000.0
+    assert webmon._TL_CACHE_TTL_S > poll_s, (
+        f"TTL {webmon._TL_CACHE_TTL_S}s must exceed the {poll_s}s poll or every poll misses")

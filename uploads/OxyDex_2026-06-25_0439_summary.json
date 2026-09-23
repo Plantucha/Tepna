@@ -344,7 +344,126 @@
     },
     "hypoxicBurden": {
       "total": 5.2,
-      "rate": 0.9
+      "rate": 0.9,
+      "measuredSec": 21794
+    },
+    "measurement": {
+      "meanSpo2": {
+        "metricId": "meanSpo2",
+        "value": 96.6,
+        "window": {
+          "startTMs": 1782340050000,
+          "endTMs": 1782361843000,
+          "clockDomain": "device",
+          "timingSource": "device",
+          "spreadMs": null,
+          "spreadReason": "single device clock — the O2Ring RTC is the only timebase on this input; no host stamp to measure spread against"
+        },
+        "sourceChannel": "O2Ring:spo2",
+        "code": {
+          "manifestHash": "edce2e232da0",
+          "computeHash": "c2f701d1851f"
+        },
+        "evidence": {
+          "envelopeRef": null,
+          "inputHash": "4aae89d16d90",
+          "envelopeReason": "no acquisition envelope for this input (CSV / legacy path — the envelope joins on the .dat session_id)"
+        },
+        "basis": "measured",
+        "quality": {
+          "n": 21794,
+          "durationMin": 363.2
+        },
+        "uncertainty": null,
+        "uncertaintyReason": "not estimated — this node carries no uncertainty model for whole-night oximetry summaries"
+      },
+      "t90": {
+        "metricId": "t90",
+        "value": 0,
+        "window": {
+          "startTMs": 1782340050000,
+          "endTMs": 1782361843000,
+          "clockDomain": "device",
+          "timingSource": "device",
+          "spreadMs": null,
+          "spreadReason": "single device clock — the O2Ring RTC is the only timebase on this input; no host stamp to measure spread against"
+        },
+        "sourceChannel": "O2Ring:spo2",
+        "code": {
+          "manifestHash": "edce2e232da0",
+          "computeHash": "c2f701d1851f"
+        },
+        "evidence": {
+          "envelopeRef": null,
+          "inputHash": "4aae89d16d90",
+          "envelopeReason": "no acquisition envelope for this input (CSV / legacy path — the envelope joins on the .dat session_id)"
+        },
+        "basis": "measured",
+        "quality": {
+          "n": 21794,
+          "durationMin": 363.2
+        },
+        "uncertainty": null,
+        "uncertaintyReason": "not estimated — this node carries no uncertainty model for whole-night oximetry summaries"
+      },
+      "odi4": {
+        "metricId": "odi4",
+        "value": 1.2,
+        "window": {
+          "startTMs": 1782340050000,
+          "endTMs": 1782361843000,
+          "clockDomain": "device",
+          "timingSource": "device",
+          "spreadMs": null,
+          "spreadReason": "single device clock — the O2Ring RTC is the only timebase on this input; no host stamp to measure spread against"
+        },
+        "sourceChannel": "O2Ring:spo2",
+        "code": {
+          "manifestHash": "edce2e232da0",
+          "computeHash": "c2f701d1851f"
+        },
+        "evidence": {
+          "envelopeRef": null,
+          "inputHash": "4aae89d16d90",
+          "envelopeReason": "no acquisition envelope for this input (CSV / legacy path — the envelope joins on the .dat session_id)"
+        },
+        "basis": "derived",
+        "quality": {
+          "n": 21794,
+          "durationMin": 363.2
+        },
+        "uncertainty": null,
+        "uncertaintyReason": "not estimated — this node carries no uncertainty model for whole-night oximetry summaries"
+      },
+      "hypoxicBurden": {
+        "metricId": "hypoxicBurden",
+        "value": 0.9,
+        "window": {
+          "startTMs": 1782340050000,
+          "endTMs": 1782361843000,
+          "clockDomain": "device",
+          "timingSource": "device",
+          "spreadMs": null,
+          "spreadReason": "single device clock — the O2Ring RTC is the only timebase on this input; no host stamp to measure spread against"
+        },
+        "sourceChannel": "O2Ring:spo2",
+        "code": {
+          "manifestHash": "edce2e232da0",
+          "computeHash": "c2f701d1851f"
+        },
+        "evidence": {
+          "envelopeRef": null,
+          "inputHash": "4aae89d16d90",
+          "envelopeReason": "no acquisition envelope for this input (CSV / legacy path — the envelope joins on the .dat session_id)"
+        },
+        "basis": "derived",
+        "quality": {
+          "n": 21794,
+          "durationMin": 363.2
+        },
+        "uncertainty": null,
+        "uncertaintyReason": "not estimated — this node carries no uncertainty model for whole-night oximetry summaries"
+      }
     },
     "motionProfile": {
       "motionPct": 0.2,
@@ -433,6 +552,7 @@
       "auc90Rate": 0,
       "nadir": {
         "count": 7,
+        "recoveredCount": 7,
         "meanDepth": 5.3,
         "meanDuration": 19,
         "meanRecovery": 34
@@ -840,14 +960,7 @@
         "basis": "medianOf30minWindows",
         "windowsUsed": 12
       },
-      "respRate": {
-        "respRateBpm": 11.9,
-        "rsaPeakFreq": 0.1983,
-        "rsaPeakPow": 0.4,
-        "respRateLabel": "Normal (10-20)",
-        "basis": "medianOf30minWindows",
-        "windowsUsed": 12
-      },
+      "respRate": null,
       "hrAsymmetry": {
         "hrAccelAsym": 0.977,
         "meanUpBpm": 1.11,
@@ -1165,43 +1278,53 @@
       "tIdx": {
         "80": {
           "secs": 0,
-          "pct": 0
+          "pct": 0,
+          "measured": 21794
         },
         "85": {
           "secs": 0,
-          "pct": 0
+          "pct": 0,
+          "measured": 21794
         },
         "88": {
           "secs": 0,
-          "pct": 0
+          "pct": 0,
+          "measured": 21794
         },
         "89": {
           "secs": 0,
-          "pct": 0
+          "pct": 0,
+          "measured": 21794
         },
         "90": {
           "secs": 0,
-          "pct": 0
+          "pct": 0,
+          "measured": 21794
         },
         "91": {
           "secs": 6,
-          "pct": 0.03
+          "pct": 0.03,
+          "measured": 21794
         },
         "92": {
           "secs": 23,
-          "pct": 0.11
+          "pct": 0.11,
+          "measured": 21794
         },
         "93": {
           "secs": 49,
-          "pct": 0.22
+          "pct": 0.22,
+          "measured": 21794
         },
         "94": {
           "secs": 235,
-          "pct": 1.08
+          "pct": 1.08,
+          "measured": 21794
         },
         "95": {
           "secs": 630,
-          "pct": 2.89
+          "pct": 2.89,
+          "measured": 21794
         }
       },
       "period": null,

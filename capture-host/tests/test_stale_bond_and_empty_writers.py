@@ -20,6 +20,7 @@ import os
 import pytest
 
 import bonding
+import writers
 from tests._srcscan import module_source
 
 
@@ -131,7 +132,11 @@ def test_the_teardown_deletes_only_empty_writers():
     src = module_source("capture.py")   # skips on a mutmut file — see tests/_srcscan.py
     # 2000, not 1200: the explanatory comment above the loop grew, and a fixed character window that
     # happens to end mid-comment turns a source scan into a test of comment length.
-    tail = src.split("DISCARD HEADER-ONLY FILES")[1][:2000]
+    # ANCHORED ON THE LOOP, not a character count. This window was 1200, then 2000, and was widened
+    # each time the comment above the loop grew — a source scan measured in characters is a test of
+    # comment length. Split on the `for wr in` line so the assertions below read the CODE regardless of
+    # how much prose precedes it (widened a third time 2026-09-03; fixed instead).
+    tail = src.split("DISCARD HEADER-ONLY FILES")[1].split("for wr in ", 1)[1][:1200]
     assert "not wr.rows" in tail, "emptiness must be judged by rows, not file size"
     # `os.remove(path)` USED TO BE ASSERTED HERE, and asserting it is what kept CAPTURE-HOST-DEEP-AUDIT
     # §C8 alive: `wr.path` names only the writer's PRIMARY file, so removing it left the `hr` writer's
@@ -165,3 +170,258 @@ def test_discarding_a_single_file_writer_is_unchanged(tmp_path):
     w.discard()
     assert not p.exists()
     assert list(tmp_path.iterdir()) == []
+
+
+# ── the header-only pruner must not delete a file it only RESUMED (2026-09-03 data loss) ────────────
+def test_a_RESUMED_writer_with_no_rows_keeps_the_file(tmp_path):
+    """🔴 `rows` counts THIS writer instance; `discard()` unlinks the whole FILE. One session per file
+    made those the same thing and CAPTURE-FILESET-RESUME §2 ended it.
+
+    Measured on vigil 2026-09-03: the 15:43 Verity set reached 21 MB and its PPG/ACC/GYRO/MAG were gone
+    by 17:47, while its PMDARRIVAL survived (that writer is closed, never discarded). 55 resumes that
+    afternoon. This pins the two facts the fix rests on: a writer that reopens a non-empty file reports
+    `resumed`, and `discard()` on it would destroy bytes it did not write."""
+    p = tmp_path / "Polar_VeritySense_X_20260903154354_PPG.txt"
+    first = writers.StreamWriter(str(p), "ppg")
+    first.write_row(1000, [1.0, 2.0, 3.0]) if hasattr(first, "write_row") else None
+    first.close()
+    assert p.stat().st_size > 0, "precondition: the first session left bytes"
+    before = p.read_bytes()
+
+    resumed = writers.StreamWriter(str(p), "ppg")
+    assert resumed.resumed is True, "a writer reopening a non-empty file must report resumed"
+    assert not resumed.rows, "precondition: this instance wrote nothing — the old pruner's whole test"
+
+    # The guard's exact predicate. `not rows` alone is TRUE here, which is the bug.
+    assert (not resumed.rows) is True, "the OLD condition fires on this writer"
+    assert (not resumed.rows and not resumed.resumed) is False, "the NEW condition must NOT fire"
+    resumed.close()
+    assert p.read_bytes() == before, "a resumed no-row session must leave earlier bytes untouched"
+
+
+def test_a_writer_that_CREATED_its_file_still_gets_pruned(tmp_path):
+    """The narrowing must not disable the pruner. A device on its dock refuses START every retry and
+    would otherwise litter one header-only set per minute (observed 2026-07-19, a 76-byte Verity PPG)."""
+    p = tmp_path / "Polar_VeritySense_X_20260903180000_PPG.txt"
+    fresh = writers.StreamWriter(str(p), "ppg")
+    assert fresh.resumed is False, "a writer that created its own file has nothing to protect"
+    assert (not fresh.rows and not fresh.resumed) is True, "the pruner must still fire here"
+    fresh.discard()
+    assert not p.exists(), "discard() removes a file this writer created"
+
+
+def test_the_teardown_consults_resumed_and_says_so_when_it_keeps(tmp_path):
+    """Pins the wiring and the visibility. The old discard logged at DEBUG on a box running INFO, so
+    the deletions left NO trace — the one line that would have named the loss was invisible."""
+    src = module_source("capture.py")
+    # Anchored on the loop for the same reason as the scan above — and I wrote this one with a fixed
+    # [:2600] window first, which failed on my own comment. Third instance of the identical mistake in
+    # one file; the character count is the defect, not its size.
+    block = src.split("DISCARD HEADER-ONLY FILES")[1].split("for wr in ", 1)[1][:1500]
+    assert "if not wr.rows and not wr.resumed:" in block, "the pruner must consult resumed"
+    assert "log.info(" in block, "keeping a resumed empty set must be visible at INFO, not DEBUG"
+
+
+def test_the_START_REJECTED_branch_also_refuses_to_delete_a_resumed_set():
+    """SECOND SITE (Heron, 2026-09-03). The `truly unsupported settings` branch discarded with NO rows
+    guard at all — correct before resume, where a rejected START could only leave a header-only file.
+
+    Live path, not theoretical: with sdk_mode on, a pass that fails to re-enter SDK mode leaves the
+    device offering PPG at 55 while 176 is still negotiated, which arrives as invalid_sample_rate — i.e.
+    exactly this branch — on a set earlier sessions filled.
+
+    Anchored on the branch, not a character offset (see the two scans above; the count is the defect)."""
+    src = module_source("capture.py")
+    # TWO CONTENT ANCHORS, no character count. Three scans in this file used a fixed window and all
+    # three broke when a comment grew — including, twice, mine. A region is bounded by what ENDS it.
+    branch = src.split("truly unsupported settings", 1)[1].split("del writers[meas]", 1)[0]
+    assert "if writers[meas].resumed:" in branch, "the rejected-START branch must check resumed"
+    assert "writers[meas].close()" in branch, "a resumed set is closed, never discarded"
+    assert "writers[meas].discard()" in branch, "a set this session created must still be pruned"
+    assert branch.index("if writers[meas].resumed:") < branch.index("writers[meas].discard()"), \
+        "the guard must precede the discard, not follow it"
+
+
+# ── the same branch, EXECUTED — not scanned ─────────────────────────────────────────────────────────
+# The scan above pins the shape; the two drives below pin the behaviour, and they exist because the
+# branch was otherwise reached by accident. Measured 2026-09-09 (#2366, py3.12 leg): its only executor
+# was test_run_polar_live_contract's blanket status-name check, whose SECOND drive re-used the first
+# drive's tmp_path and so happened to open a pre-existing ECG file — `resumed` by coincidence, and on
+# one CI lap the coincidence did not hold: `capture.py` 3272-3277 uncovered, 99.99 %, the gate red on
+# a diff that never touched them. A branch covered only incidentally is covered until the incident
+# changes. These pin the path by CONSTRUCTION: `_now` is fixed, so `started` is fixed, so the writer's
+# filename is fixed, and the file is planted at that name before the session opens it.
+_FIXED = dt.datetime(2026, 9, 9, 3, 0, 0)
+# The runners' module-global reset, re-exported so it is autouse HERE too (the live-contract file does the
+# same): `run_polar` leaves `_STOP` set, and conftest's tripwire fails the test that leaks it.
+import test_capture_runners as _T   # noqa: E402  — sits with the drives it serves, not the header
+_clean_stop = _T._clean_stop
+_SEED = "Phone timestamp;sensor timestamp [ns];timestamp [ms];ecg [uV]\n2026-09-09T02:59:00.000;1;0;123\n"
+
+
+def _ecg_path_for(tmp_path, dev):
+    ndir = writers.night_dir(str(tmp_path), _FIXED)
+    return os.path.join(ndir, writers.capture_filename(dev["vendor"], dev["model"], dev["device_id"],
+                                                       _FIXED, "ecg", "txt"))
+
+
+def _drive_rejected_start(monkeypatch, tmp_path, dev):
+    import capture
+    import test_capture_runners as T
+    monkeypatch.setattr(capture, "_now", lambda: _FIXED)
+    T._polar_common(monkeypatch)
+    # 0x03 = the "truly unsupported settings" answer — neither transient (0x0C/0x0D) nor NO_ACK, so the
+    # session lands in the branch under test rather than the charging hold or the keep-and-wait path.
+    # No data frames: a stream whose START was rejected delivers none, and a planted frame would append
+    # rows to the resumed set and turn "closed untouched" into an assertion about the fake.
+    c = T.FlexPolarClient(data_frames=[], start_status=0x03)
+    T._inject_connect(monkeypatch, c)
+    T._stop_after(monkeypatch, 1)
+    _run(capture.run_polar(dev, str(tmp_path)))
+
+
+def test_a_rejected_START_on_a_RESUMED_set_keeps_the_file_and_says_so(tmp_path, monkeypatch, caplog):
+    import test_capture_runners as T
+    dev = T._pdev(streams=["ecg"])
+    p = _ecg_path_for(tmp_path, dev)
+    with open(p, "w", newline="\n") as fh:
+        fh.write(_SEED)                       # an earlier session's rows: the thing the branch protects
+    with caplog.at_level("WARNING", logger="tepna-capture"):
+        _drive_rejected_start(monkeypatch, tmp_path, dev)
+    assert os.path.exists(p), "a rejected START deleted a set earlier sessions filled"
+    with open(p, newline="\n") as fh:
+        assert fh.read() == _SEED, "the resumed set must be closed untouched — not truncated, not re-headed"
+    assert any("START rejected on a RESUMED set" in r.getMessage() and os.path.basename(p) in r.getMessage()
+               for r in caplog.records), "keeping the file must be visible at WARNING, naming the file"
+
+
+def test_a_rejected_START_on_a_FRESH_set_still_prunes_it(tmp_path, monkeypatch):
+    """The twin: no pre-existing set → `resumed` is False → the header-only file this session created
+    is discarded, exactly as before resume existed. Together the pair executes BOTH arms."""
+    import test_capture_runners as T
+    dev = T._pdev(streams=["ecg"])
+    p = _ecg_path_for(tmp_path, dev)
+    assert not os.path.exists(p)
+    _drive_rejected_start(monkeypatch, tmp_path, dev)
+    assert not os.path.exists(p), "a set THIS session created must still be pruned on a rejected START"
+
+
+# ── THIRD AND FOURTH SITES: the ring runners (2026-09-12 live data loss) ───────────────────────────
+# The fix above landed on run_polar on 2026-09-03 and never reached run_oxyii, whose comment read
+# "exactly as run_polar does". Measured on vigil 2026-09-12: a LIVE ring session (worn since 17:45)
+# was resumed six times between 18:20 and 18:29; two of those episodes delivered 0 rows for SPO2 and
+# ACCRAW, and the pruner deleted `_SPO2.csv` and an 800 KB `_ACCRAW.txt` holding the earlier episodes.
+# Unrecoverable. The PPG survived only because every episode wrote at least one PPG frame.
+#
+# Two independent facts are pinned: (1) EVERY writer class in the ring prune tuples exposes `resumed`
+# — before this only StreamWriter did, so a guard written against it would have kept ACCRAW and still
+# deleted SPO2; (2) the two sites consult it, default to KEEP when it is absent, and say so at INFO.
+_RING_SEED_SPO2 = "Time,Oxygen Level,Pulse Rate,Motion\n17:45:20 12/09/2026,97,61,3\n"
+
+
+@pytest.mark.parametrize("cls, seed", [
+    ("Spo2CsvWriter", _RING_SEED_SPO2),
+    ("RingClockLogWriter", "Phone timestamp;event;rtc_offset_s;battery_state;battery_level;"
+                           "battery_raw2;battery_raw3\n2026-09-12T17:45:20.000;rtc;0.1;0;90;0;0\n"),
+    ("OxyFrameLogWriter", "# seed\nx\n"),
+])
+def test_every_ring_prune_tuple_writer_reports_resumed(tmp_path, cls, seed):
+    """The SPO2 case is the one that was lost: `Spo2CsvWriter` computed resume state locally (it
+    already appended instead of truncating) and threw the value away, so the teardown could not ask."""
+    p = tmp_path / f"Wellue_O2Ring-S_S8AW_20260912174518_{cls}.csv"
+    fresh = getattr(writers, cls)(str(p), fsync=False)
+    assert fresh.resumed is False, "a writer that created its own file has nothing to protect"
+    fresh.close()
+    p.write_text(seed, newline="\n")
+    again = getattr(writers, cls)(str(p), fsync=False)
+    assert again.resumed is True, f"{cls} reopening a non-empty file must report resumed"
+    assert not again.rows
+    again.close()
+    assert p.read_text() == seed, "a resumed writer with no rows must leave the earlier bytes untouched"
+
+
+def _ring_block(src, site):
+    """The two ring sites, each bounded by CONTENT: the pruner comment that opens it and the loop
+    keyword that closes it. No character offsets — see the three scans above that broke on a comment."""
+    if site == "oxyii":
+        return src.split("DISCARD HEADER-ONLY FILES")[2].split("for _w in ", 1)[1].split("ACQUISITION EVIDENCE", 1)[0]
+    return src.split("INCLUDING its `resumed` guard", 1)[1].split("if not _STOP.is_set()", 1)[0]
+
+
+@pytest.mark.parametrize("site, var", [("oxyii", "_w"), ("viatom", "wr")])
+def test_the_ring_teardowns_consult_resumed_and_default_to_KEEP(site, var):
+    """`getattr(..., False)` is the reflex fix and the wrong one: it would have shipped green against a
+    StreamWriter test and deleted SPO2 exactly as before. Unknown ⇒ keep — the wrong keep costs a
+    header-only file, the wrong delete costs the night."""
+    block = _ring_block(module_source("capture.py"), site)
+    assert f'getattr({var}, "resumed", True)' in block, "absent `resumed` must fail toward KEEP"
+    assert "if _empty and not _resumed:" in block, "the pruner must consult resumed"
+    assert "log.info(" in block and "RESUMED" in block, "keeping a resumed empty set must be visible at INFO"
+
+
+def test_ring_pruner_discards_through_the_writer_when_it_can():
+    """A StreamWriter owns sidecars (its RUNS ledger); removing `path` alone orphans them (§C8 shape).
+    Where the writer knows its own files, the teardown must ask it."""
+    block = _ring_block(module_source("capture.py"), "oxyii")
+    assert '_w.discard()' in block and 'hasattr(_w, "discard")' in block
+
+
+def _ring_path(tmp_path, dev, stream, ext):
+    ndir = writers.night_dir(str(tmp_path), _FIXED)
+    os.makedirs(ndir, exist_ok=True)
+    return os.path.join(ndir, writers.capture_filename(dev["vendor"], dev["model"], dev["device_id"],
+                                                       _FIXED, stream, ext))
+
+
+def test_run_oxyii_keeps_a_RESUMED_spo2_and_accraw_that_this_episode_left_empty(tmp_path, monkeypatch, caplog):
+    """The night itself, executed: a ring episode that connects, decodes nothing, and tears down —
+    over SPO2 and ACCRAW files an earlier episode filled. Both must survive, byte-identical, and the
+    keep must be named at INFO. This is the drive that was missing on 2026-09-12."""
+    import capture
+    import test_capture_runners as T
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    monkeypatch.setattr(capture, "_now", lambda: _FIXED)
+    dev = T._o2dev(streams=["spo2", "acc"])
+    spo2 = _ring_path(tmp_path, dev, "spo2", "csv")
+    acc = _ring_path(tmp_path, dev, "accraw", "txt")
+    acc_seed = writers.StreamWriter.HEADERS["accraw"] + "\n2026-09-12T17:45:20.000;1;2;3;4\n"
+    with open(spo2, "w", newline="\n") as fh:
+        fh.write(_RING_SEED_SPO2)
+    with open(acc, "w", newline="\n") as fh:
+        fh.write(acc_seed)
+    T._inject_connect_scan(monkeypatch, T.FakeGattClient())     # never answers → zero rows
+    T._stop_after(monkeypatch, 4)
+    with caplog.at_level("INFO", logger="tepna-capture"):
+        _run(capture.run_oxyii(dev, str(tmp_path)))
+    assert os.path.exists(spo2) and os.path.exists(acc), "a 0-row episode deleted a resumed ring file"
+    with open(spo2, newline="\n") as fh:
+        assert fh.read() == _RING_SEED_SPO2
+    with open(acc, newline="\n") as fh:
+        assert fh.read() == acc_seed
+    kept = [r.getMessage() for r in caplog.records if "keeping RESUMED" in r.getMessage()]
+    assert any(os.path.basename(spo2) in m for m in kept), "the SPO2 keep must be visible by name"
+    assert any(os.path.basename(acc) in m for m in kept), "the ACCRAW keep must be visible by name"
+
+
+def test_run_viatom_keeps_a_RESUMED_spo2_that_this_episode_left_empty(tmp_path, monkeypatch, caplog):
+    """The legacy-protocol twin. It does not resume file-sets today, but its writer self-detects a
+    non-empty file, so a planted name is enough to reach the branch — and enough to lose a file."""
+    import capture
+    import test_capture_runners as T
+    async def bonded(*a, **k): return True
+    monkeypatch.setattr(capture.bonding, "ensure_bonded", bonded)
+    monkeypatch.setattr(capture, "_now", lambda: _FIXED)
+    dev = T._viatom_dev()
+    spo2 = _ring_path(tmp_path, dev, "spo2", "csv")
+    with open(spo2, "w", newline="\n") as fh:
+        fh.write(_RING_SEED_SPO2)
+    c = T.FakeGattClient(); c.services = [T._ViatomService()]
+    T._inject_connect(monkeypatch, c)
+    T._stop_after(monkeypatch, 1)
+    with caplog.at_level("INFO", logger="tepna-capture"):
+        _run(capture.run_viatom(dev, str(tmp_path)))
+    assert os.path.exists(spo2), "a 0-row viatom episode deleted a resumed SPO2 file"
+    with open(spo2, newline="\n") as fh:
+        assert fh.read() == _RING_SEED_SPO2
+    assert any("keeping RESUMED" in r.getMessage() and os.path.basename(spo2) in r.getMessage()
+               for r in caplog.records)

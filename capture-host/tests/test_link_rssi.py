@@ -181,3 +181,81 @@ def test_read_rssi_refuses_without_a_device_or_without_the_helper(monkeypatch, t
 
     monkeypatch.setattr(link_rssi.os.path, "exists", lambda p: False)
     assert _run(link_rssi.read_rssi("AA:BB:CC:DD:EE:FF", "AA:BB")) is None, "no helper -> refuse"
+
+
+# ── THE DEPENDENCY-FREE LAYER IS GONE, SO THE OVERLAY MUST BE REACHABLE ────────────────────────────
+# residue 2026-09-12-sysfs-hci-address-attr-gone. `sysfs_hci` returns {} on a current kernel (the
+# `address` attribute was REMOVED, measured on both boxes), so on a box without `hcitool` the cheap
+# sources yield nothing at all — and the old overlay guard asked D-Bus only on behalf of a PINNED
+# adapter. With nothing pinned, `resolve_hci` returned None with no error.
+
+
+def _hci_env(monkeypatch, *, sysfs, hcitool, dbus):
+    """Drive resolve_hci's three sources independently and COUNT the D-Bus calls, because the cost
+    argument in the code ("the common case still costs one subprocess") is part of the contract."""
+    import link_rssi
+
+    calls = {"dbus": 0}
+
+    async def _fake_run(argv):
+        return hcitool if argv and argv[0] == "hcitool" else None
+
+    async def _fake_dbus():
+        calls["dbus"] += 1
+        return dict(dbus)
+
+    monkeypatch.setattr(link_rssi, "sysfs_hci", lambda *a, **k: dict(sysfs))
+    monkeypatch.setattr(link_rssi, "_run", _fake_run)
+    monkeypatch.setattr(link_rssi, "dbus_hci", _fake_dbus)
+    link_rssi._HCI_CACHE.clear()
+    return calls
+
+
+def test_resolve_hci_asks_dbus_WHEN_THE_CHEAP_SOURCES_ANSWERED_NOTHING(monkeypatch):
+    """THE DEFECT. The Pi 5 target: sysfs dead, no hcitool, no `adapter:` pinned. `key` is "", so the
+    old `key and key not in devs` guard was False and D-Bus was never asked — resolve_hci returned None
+    and RSSI read as simply unavailable, with nothing logged."""
+    calls = _hci_env(monkeypatch, sysfs={}, hcitool=None, dbus={"C6:CF:3C:4E:75:F0": "hci0"})
+    assert _run(link_rssi.resolve_hci(None)) == "hci0"
+    assert calls["dbus"] == 1
+
+
+def test_resolve_hci_does_NOT_ask_dbus_WHEN_A_CHEAP_SOURCE_ANSWERED(monkeypatch):
+    """The cost guarantee, and the reason the guard is `not devs` rather than an unconditional overlay.
+    This is also the vigil case — `hcitool dev` lists controllers there — so the change is inert on the
+    production box by the same assertion that pins the cost."""
+    calls = _hci_env(monkeypatch, sysfs={}, hcitool="Devices:\n\thci0\t00:01:95:CC:53:02\n", dbus={})
+    assert _run(link_rssi.resolve_hci(None)) == "hci0"
+    assert calls["dbus"] == 0, "a cheap source answered; D-Bus must not be paid for"
+
+
+def test_resolve_hci_STILL_asks_dbus_for_a_pinned_adapter_the_cheap_sources_missed(monkeypatch):
+    """The pre-existing behaviour the widening must not disturb: a static-random controller is invisible
+    to sysfs/hcitool, so a pinned key absent from `devs` still reaches the overlay."""
+    calls = _hci_env(
+        monkeypatch, sysfs={}, hcitool="Devices:\n\thci0\t00:01:95:CC:53:02\n", dbus={"C6:CF:3C:4E:75:F0": "hci1"}
+    )
+    assert _run(link_rssi.resolve_hci("c6:cf:3c:4e:75:f0")) == "hci1"
+    assert calls["dbus"] == 1
+
+
+def test_resolve_hci_is_still_None_when_NO_source_knows_anything(monkeypatch):
+    """Widening the guard must not invent an answer: every source empty still resolves to None, and the
+    overlay is asked exactly once rather than in a loop."""
+    calls = _hci_env(monkeypatch, sysfs={}, hcitool=None, dbus={})
+    assert _run(link_rssi.resolve_hci(None)) is None
+    assert calls["dbus"] == 1
+
+
+def test_sysfs_hci_returns_EMPTY_when_the_kernel_publishes_no_address_attribute(tmp_path):
+    """The measured state of a current kernel, as a positive control: the nodes are LISTED and carry
+    `device power reset rfkill0 subsystem uevent` with no `address`. The function must return {} — an
+    honest "I know nothing" — rather than raising or inventing an entry."""
+    import link_rssi
+
+    base = tmp_path / "bt"
+    for n in ("hci0", "hci1"):
+        d = base / n
+        d.mkdir(parents=True)
+        (d / "uevent").write_text("DEVTYPE=host\n")  # exactly what kernel 7.0 exposes
+    assert link_rssi.sysfs_hci(str(base)) == {}

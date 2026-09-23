@@ -4,7 +4,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** IN-PROGRESS — 2026-08-01 (**§2, §3 and §4 are now GATED — see §2a.** All three fixes existed
+**Status:** IN-PROGRESS (parked 2026-09-05 — drain stamp, Magpie, on top of the 2026-09-01 triage below, which holds. Nothing here is open to code. What remains is owner- and data-shaped: **§1's paper-editorial leg** is the owner's publish-vs-retract call — the 2026-09-05 local re-run produced 8,057 epochs / MAE 1.10 against the published 18,856 / 1.01, and the replication is recorded with the residues `2026-09-05-respacc-epochs-predate-alignment-fix` and `2026-09-05-playwright-blocked-by-apparmor-userns` (#2239, Osprey, carries the paper-side record); **§6 and §7** need a second subject; the `nativeHz` spine helper stays deliberately unbuilt (§2a). **Owner:** the owner for §1's headline; **next step:** none a session can schedule — the brief flips to DONE in the PR that records the owner's ruling on the preprint figures. Not PROPOSED: §2·§3·§4·§5·§8·§10 are executed and gated) · Previous header, kept verbatim: IN-PROGRESS — 2026-08-01 (**§2, §3 and §4 are now GATED — see §2a.** All three fixes existed
 
 > **TRIAGE 2026-09-01 — every section resolved; nothing is open to code.** §2·§3·§4 gated and
 > mutation-verified (§2a). §5 is a recorded CAVEAT, not a build item (the confidence gate is not an
@@ -27,7 +27,7 @@ the window is already right — measured over 3 box nights, and REPLICATED on th
 nights, whose clock drifts the opposite way. The remaining ceiling — the 5 s drift-consistency gate —
 was then MEASURED and is LOAD-BEARING: loosening it buys 5.7x the epochs but costs MAE 0.84 -> ~1.0,
 so n here is a precision trade, not a cap that can be lifted.** **NOT done:** §2's proposed shared `nativeHz`
-spine helper — deliberately deferred, see §2a. §1 and §6–§9 are untouched.) · **Created:** 2026-07-22
+spine helper — deliberately deferred, see §2a. §1 and §6–§9 are untouched.) ⚠️ **DRAIN R2 2026-09-19 — 43 landings, surface 16 files.** Surface taken from the files this brief NAMES (`*-dsp.js`, `*-analysis.js`, `papers/acc-respiratory-rate.html`, `papers/papers.html`, `pat-gate.js`, `provenance-ledger.js`, `pulsedex-app.js`, `tools/build-docs.mjs`), globs resolved. ⚠️ A first pass derived the surface from the brief's SUBJECT instead — 2 files, 2 landings. **Landings recorded, NOT assessed.** · **Created:** 2026-07-22
 
 # Respiratory-rate follow-ups — what executing the estimator brief surfaced
 

@@ -177,7 +177,29 @@ def test_every_emitted_header_matches_a_real_polar_sensor_logger_export():
     # that downstream SpO2 math would silently trust.
     assert writers.StreamWriter.HEADERS["ppg2w"] == \
         "Phone timestamp;sensor timestamp [ns];channel 0;channel 1;motion"
-    assert set(writers.StreamWriter.HEADERS) == set(psl) | {"ppg1", "ppg2w"}, \
+    # `accraw` is ours BY DESIGN, and the UNIT is the whole reason it is not `acc`. PSL never talked to
+    # an O2Ring, and more importantly Polar publishes a scale factor while Wellue does not: `acc` can
+    # honestly say `mg`, these are counts with no calibrated scale. Writing ring rows under the `acc`
+    # header would publish a FABRICATED UNIT that a reader would multiply as milli-g. The column stays
+    # `raw` until a six-orientation calibration measures the factor — the same discipline `ppg2w` uses
+    # in refusing `ir;red` for a wavelength assignment it has not verified.
+    assert writers.StreamWriter.HEADERS["accraw"] == \
+        "Phone timestamp;sensor timestamp [ns];X [raw];Y [raw];Z [raw]"
+    assert "[mg]" not in writers.StreamWriter.HEADERS["accraw"], \
+        "the ring's ACC has no measured scale — a mg column here would be a fabricated unit"
+    # `pletha` is ours BY DESIGN — cmd 0x03, which PSL never saw either. Two decisions are pinned here
+    # because both are measurements rather than preferences. (1) `sample` is unitless: the ring streams
+    # 8-bit optical counts with no published scale, and the accraw reasoning applies unchanged — a unit
+    # in this header would be fabricated. (2) `beat` is a FLAG column, and it exists because the 156
+    # marker on THIS stream is not the rate-inflating insertion it is on 0x05: measured 2026-09-06,
+    # markers arrive at 0.534/s against 62.0 bpm and subtracting them moves the rate AWAY from the
+    # 125.000 ADC (125.058 -> 124.444). So the sample is written as it arrived and the flag says what
+    # it is, rather than the file quietly omitting rows a consumer would need to recover the waveform.
+    assert writers.StreamWriter.HEADERS["pletha"] == \
+        "Phone timestamp;sensor timestamp [ns];sample;beat"
+    assert "[" not in writers.StreamWriter.HEADERS["pletha"].split(";")[2], \
+        "the ring's 8-bit optical counts have no published scale — a unit here would be fabricated"
+    assert set(writers.StreamWriter.HEADERS) == set(psl) | {"ppg1", "ppg2w", "accraw", "pletha"}, \
         "a new stream needs its header checked against a real export, or this gate stops covering it"
 
 
@@ -277,9 +299,7 @@ def test_the_remember_api_gates_on_identity_before_it_persists():
     """SOURCE SCAN, because webmon.py needs aiohttp and the test env has none — a skipped test here
     would be no gate at all, and this leg is exactly the one that was missing (the daemon checked,
     the API did not). Asserts the ordering that matters: reject BEFORE the config write."""
-    import os
-    src = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                            "webmon.py")).read()
+    src = module_source("webmon.py")   # skips on a mutmut file — see tests/_srcscan.py
     body = src[src.index("async def remember("):]
     body = body[:body.index("\n    async def ")]
     assert "missing_identity(" in body, "Remember API no longer validates device identity"
@@ -628,3 +648,68 @@ def test_pmd_live_meta_units_appear_in_the_psl_headers():
         unit = _norm(capture._LIVE_META[meta_key][1])
         header = _norm(writers.StreamWriter.HEADERS[hdr_key])
         assert f"[{unit}]" in header, f"{meta_key}: bus unit {unit!r} not bracketed in header {header!r}"
+
+
+def test_write_pletha_round_trips_through_the_parser(tmp_path):
+    """The 0x03 join, pinned the way the ppg2w one is — parser output feeds the writer unchanged.
+
+    Includes an isolated 156 (a beat marker) and a RUN of 156 (real signal), because the flag column
+    is the only thing separating them and a column swap here would turn waveform into fiducials."""
+    import struct
+    vals = [10, 156, 20, 156, 156, 30]
+    payload = b"\x00\x00\x00\x00" + struct.pack("<H", len(vals)) + bytes(vals)
+    parsed = oxyii.parse_samples_a(payload)
+
+    p = str(tmp_path / "Oxy_S8AW_20260906_010203_pletha.txt")
+    w = writers.StreamWriter(p, "pletha", fsync=False)
+    for v, beat in parsed:
+        w.write_pletha(_PHONE, 0, v, beat)
+    w.close()
+
+    rows = open(p).read().strip().split("\n")
+    assert rows[0] == "Phone timestamp;sensor timestamp [ns];sample;beat"
+    assert rows[1] == f"{_PTS};0;10;0"
+    assert rows[2] == f"{_PTS};0;156;1"          # isolated -> a beat
+    assert rows[4] == f"{_PTS};0;156;0"          # run -> signal, not a beat
+    assert rows[5] == f"{_PTS};0;156;0"
+    # Every sample survives: the row count IS the record count (markers flagged, never stripped).
+    assert len(rows) - 1 == len(vals)
+    # No device clock on this opcode; a non-zero ns column would be invented.
+    assert all(r.split(";")[1] == "0" for r in rows[1:])
+
+
+def test_clock_sidecar_carries_the_session_elevation_only_when_it_was_MEASURED(tmp_path):
+    """The `geo=` header on HostClockLogWriter — a per-session constant, so a comment rather than a
+    column (LinkLogWriter's `# adapter=` pattern), and no line at all when nothing was measured.
+
+    ∅ The absent case is the one that matters. OxyDex lowers the healthy SpO2 threshold ~1.8 %/1000 m
+    and HRVDex/ECGDex scale VO2max by an altitude factor, so a header reading `elevation_m=0` on a
+    night with no fix would be indistinguishable from a night measured at sea level — and 0 m is a
+    legal elevation. Absence must therefore be SILENT, not zero."""
+    import writers
+
+    got = {"elevation_m": 619.7, "fix_quality": 2, "sats": 12, "hdop": 0.62, "source": "gnss"}
+    p = tmp_path / "with_geo_CLOCK.csv"
+    w = writers.HostClockLogWriter(str(p), fsync=False, geo=got)
+    w.close()
+    head = p.read_text().splitlines()
+    assert head[0] == "# elevation_m=619.7 fix=2 sats=12 hdop=0.62 source=gnss"
+    assert head[1].startswith("Phone timestamp;"), "the column header must still follow"
+
+    for absent in (None, {}):
+        q = tmp_path / f"no_geo_{absent!r}_CLOCK.csv".replace("'", "")
+        w2 = writers.HostClockLogWriter(str(q), fsync=False, geo=absent)
+        w2.close()
+        first = q.read_text().splitlines()[0]
+        assert first.startswith("Phone timestamp;"), "no receiver ⇒ NO header line, not a zero"
+        assert "elevation" not in q.read_text()
+
+
+def test_the_geo_header_defaults_to_absent_so_existing_callers_are_unchanged(tmp_path):
+    """The parameter is keyword-with-default and LAST, so every existing construction site keeps its
+    behaviour byte-for-byte — the suite's back-compat rule for an added argument."""
+    import writers
+    p = tmp_path / "legacy_CLOCK.csv"
+    w = writers.HostClockLogWriter(str(p), fsync=False)
+    w.close()
+    assert p.read_text().splitlines()[0].startswith("Phone timestamp;")

@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED (parked 2026-09-02 — §2a's design is delivered and option (C)'s *make the drift loud* half is SHIPPED (`nightqc.system_file_drift`, `monitor.html:2301-2313`, `tests/test_system_file_drift.py`). What is missing is the **owner's A/B/C pick on the box's privilege model** — no decision is recorded anywhere, and nothing else in this brief can move until it is. §4's restart-at-next-idle is likewise an owner call; the 68.6 % number it needed is already measured. ⚠ **Residue, unblocked and unassigned:** §5's consecutive-failure counter is plain desk work — nothing implements it (no counter in `daemon_control.py`/`telemetry.py`/`alerts.py`), and it is what distinguishes *failed once, recovered* from *failing every tick since Tuesday*. Box-side today: `tepna-update.timer` is healthy, last fired 12:41, next 13:45. **Owner:** owner (privilege model) / Heron (§5 counter) · **Next step:** the §5 counter, which needs nobody's permission) · **Created:** 2026-08-14
+**Status:** DONE — 2026-09-17 (**every item is delivered, and this closing pass verified it IN THE FILES rather than reading it off the brief.** §2a — the owner's 2026-09-07 ruling picked **(C)**, which makes the helper-install gap *explicitly accepted*; that is exactly what §6's first box asks for, and the *make the drift loud* half was already shipped. §3 verified 2026-09-02. §4 — `tepna-update.sh --pending-only` is present, with `tepna-update-pending.timer` at `OnUnitActiveSec=2min` / `OnBootSec=3min`. §5 — `FAIL_MARK` + `_streak_finish` are present. `capture-host/tests/test_vigil_update.py` **78 passed** (2026-09-17). ⚠️ **AND THIS HEADER READ `PROPOSED` FOR THE TEN DAYS AFTER THE RULING THAT UNBLOCKED IT.** The ruling was *appended* to this line while the verdict and the *"no session can advance this brief further without it"* next-step were left standing, so one line asserted both at once — and a reader who stopped at the status saw an owner-blocked brief with nothing to do. **An appended ruling is not a status flip** (§📌 *TRIAGE STAMPS THE BRIEF*). The identical shape was corrected in `DELIVERY-PROCESS-OVERHAUL-2026-08-18-BRIEF.md` on 2026-09-16 (#2595), from the same 2026-09-07 ruling session; a sweep of every open brief on 2026-09-17 for a status line that claims blocked-on-owner *and* records a ruling found these two and no third. It is deliberately NOT gated — a brief that legitimately says "§2 ruled, §4 still needs the owner" matches the same two phrases, so the rule would convict working briefs. HISTORY FOLLOWS. — parked 2026-09-02: §2a's design is delivered and option (C)'s *make the drift loud* half is SHIPPED (`nightqc.system_file_drift`, `monitor.html:2301-2313`, `tests/test_system_file_drift.py`). What is missing is the **owner's A/B/C pick on the box's privilege model** — no decision is recorded anywhere, and nothing else in this brief can move until it is. §4's restart-at-next-idle is likewise an owner call; the 68.6 % number it needed is already measured. ✅ **§5's consecutive-failure counter is BUILT (2026-09-03, Heron)** — `tepna-update.sh` `FAIL_MARK` + `_streak_finish`, keyed on the exit status rather than on `die` so it also counts the "cannot establish whether the box is recording" path, which is the one that can run all night; 9 tests, each watched failing against a mutated implementation. That was this brief's only unblocked item, so what remains is **entirely owner decisions**: the A/B/C privilege-model pick (§2a, nothing else in this brief moves until it is recorded) and §4's restart-at-next-idle, whose 68.6 % number is already measured. **Owner:** owner (privilege model + §4) · **Next step:** the A/B/C pick — no session can advance this brief further without it) · **Created:** 2026-08-14 · **Owner ruling 2026-09-07:** §2a — option **(C)**: do not automate root; the *make the drift loud* half already shipped is the delivery. §4 — BUILD restart-at-next-idle, assigned **Heron**. This supersedes the *Next step* above: the A/B/C pick is MADE, so §4's build is the only open item and it now has an owner.
 
 > Spawned by closing `VIGIL-AUTO-UPDATE-2026-08-04-BRIEF.md` (DONE 2026-08-14, §6 met with 41 observed
 > unattended restarts). Everything here was found by *running* the machinery that brief built, mostly on
@@ -99,6 +99,11 @@ path, `/etc` untouched, sudoers stays a human act — and it attacks the actual 
 It is also the same trade this session made under a live incident: *detection you can perform beats
 remediation you cannot.* A watcher with no write permission is still a real safety layer.
 
+> 🟢 **RULED 2026-09-07 — the owner picked (C).** Do not automate the privileged step. The *make the drift loud*
+> half already shipped (`nightqc.system_file_drift`, `monitor.html:2301-2313`, `tests/test_system_file_drift.py`)
+> **IS** the delivery — there is no second half owed. This also closes §6's first box: the helper-install gap is
+> **explicitly accepted**, not open. Do not re-open the A/B/C question without a new ruling.
+
 **What I have NOT done:** nothing is applied to the box, no sudoers file is written, no unit is edited.
 This is a design for sign-off, as directed.
 
@@ -167,7 +172,7 @@ PID 1 *is* reachable from inside (the `reload` verb's `daemon-reload` proves it)
 spends a large fraction of its life running code that is on disk but not loaded**, bounded only by when
 the subject stops wearing a sensor.
 
-- [ ] Decide whether that is acceptable, or whether a deploy should be able to say "restart at the next
+- [x] Decide whether that is acceptable, or whether a deploy should be able to say "restart at the next
       idle moment" rather than waiting for the next 30-minute tick to re-check. The `--force-restart`
       mode added 2026-08-14 covers the impatient case but not the patient one.
       **📊 MEASURED 2026-08-18 — the decision now has its number, and "a large fraction" is 68.6 %.**
@@ -192,8 +197,87 @@ the subject stops wearing a sensor.
       that can say *"restart at the next idle moment"* would collapse the median from ~8 h to minutes, and
       it is the 16-of-17 that it fixes, not the outlier. Left unticked deliberately: this supplies the
       number the box asked for, it does not make the call.
-- [ ] `deferred` is currently INFO-level prose in a journal. If a deploy matters, nothing surfaces "this
+- [x] `deferred` is currently INFO-level prose in a journal. If a deploy matters, nothing surfaces "this
       box has been deferring the same commit for 9 hours".
+
+
+### ✅ §4 BUILT 2026-09-07 (Heron) — both boxes, under the owner's ruling of the same day
+
+**The patient restart — `tepna-update.sh --pending-only`.** `--force-restart` covered the impatient
+operator; nothing covered the box that merged at 23:50 and then waited **up to an hour** to re-ask a
+question whose answer changed the moment the last device stopped. (⚠️ The prose above this section says
+"the next 30-minute tick". That figure is stale: `tepna-update.timer` is `OnUnitActiveSec=1h` with
+`RandomizedDelaySec=5min`, so the real wait is up to ~65 min — which makes the gap *larger* than the
+section argues, not smaller. Read the unit, not the paragraph.) The new mode runs the **same step 5**
+— same interlock, same content gate, same fail-safes — and skips only steps 1-4, so there is no second
+copy of the restart decision to drift out of sync with the first. That is what makes it safe on a
+two-minute timer: **no fetch, no merge, no network.** It reads the marker and the local HEAD, and when
+they agree it does **nothing, silently** — a healthy box's state almost all of the time (720 journal
+lines a day would be the same noise this section is about, one clock faster).
+
+⚠️ That silence needed no new code, and the first version had some: an explicit "marker equals HEAD,
+exit 0" short-circuit. It was redundant — step 5 already answers `restart_owed=0` with `:` and says
+nothing — and being redundant it was **unkillable**: replacing its condition with `false` left all 72
+tests green, because the path it skipped is silent too. Deleted rather than excused. The mode's
+cheapness comes from skipping steps 1-4, where the fetch and the merge are; the short-circuit was
+saving a few lines of arithmetic and adding a branch no test could ever hold to account.
+
+⚠️ **It is an ACCELERATOR, not an authority, and the distinction is load-bearing.** Nothing is fetched,
+so `before` and `after` are the same local HEAD and cannot themselves reveal a debt — the marker is the
+only witness. An **absent** marker therefore means this mode has nothing to act on and it does nothing.
+That reads like a violation of §5b's fail-toward-restart rule and is not: this mode only ever closes a
+debt the ordinary tick already RECORDED, the half-hourly `auto` run is still the backstop, and it writes
+the marker on every restart and every deferral. A lost marker blinds that path identically
+(`running_sha` falls back to `$before` there too), so this adds no blind spot rather than inventing a
+debt out of no information.
+
+**The deferral streak — `DEFER_MARK` + `_defer_note`/`_defer_clear`,** mirroring §5's failure counter
+(same marker shape `<count> <epoch of the first>`, same "malformed reads as no streak, and must never
+be the reason the box stops updating"). Deferring stays INFO-level prose, because deferring is this
+script working; what it could not say before is *"…and it has been saying this since Tuesday"*.
+
+🔴 **The bar is 24 hours, and it is NOT derived from the measured distribution.** At 4 h it would warn
+on **16 of 17** real streaks — a warning that means nothing and teaches its reader to skip it — and the
+median streak is 8.27 h, so any bar near the middle is measuring "a night happened". Deferring across
+ONE night is the interlock doing its job. A debt that outlives a whole DAY is a different statement: the
+box had an idle window and did not take it. So the bar comes from what the box **does** (a night is
+~8-10 h; a day contains an idle window) rather than from a percentile of the very distribution being
+judged, which would define "normal" as whatever is currently happening. Override with
+`TEPNA_DEFER_WARN_HOURS`.
+
+⚠️ **Flagged to the owner, and it belongs with the result rather than after it:** collapsing the median
+from ~8 h to ~2 min changes *when* restarts happen, not *whether* they can hurt. A restart drops every
+live BLE link and re-runs bonding, and "idle" is `recording_state`'s reading of `status.json` — so a
+faster trigger exercises that reading roughly 240× more per unit of debt. The fail-safe direction is
+already right (`unknown` is never idle, and the §5b content gate removed the gratuitous docs-only
+case), but the exposure is new and is stated here rather than discovered later.
+
+**Tests:** 19 added to `tests/test_vigil_update.py` (53 → 72),
+including the silent-and-no-fetch guarantee, the interlock still deferring under the fast timer, the
+content gate holding, and the absent-marker contract. Four mutation plants each named the right test
+red: never escalating past the bar, escalating on every deferral, re-stamping the streak's start every
+tick, and a restart not clearing it.
+
+**ONE RUN AT A TIME, and the lock is taken BEFORE the marker is read.** Two runs can now overlap for the
+first time — the hourly tick and the two-minute one — and the restart decision is read-then-act on
+`$DEPLOYED_MARK`. Without a lock both read the OLD marker, both conclude a restart is owed, and both
+restart: the daemon's BLE links drop TWICE and bonding re-runs twice, for ONE debt. Locking after the
+read would not help, because by then both have already decided. `flock -n`, because whoever holds it is
+doing the same job; a losing `--pending-only` run is silent (the next tick is two minutes away), a
+losing hourly run says so once. It degrades OPEN — no `flock`, or an uncreatable lock file, and the run
+proceeds exactly as before, because a box that cannot lock must still be able to finish a deploy and the
+cost being guarded against is a reconnect, not a night.
+
+⚠️ The probe for that lock file is wrapped in a SUBSHELL, and this brief's own §5 counter explains why
+150 lines earlier: a redirection failure is the SHELL's, on the shell's own stderr, and a `2>/dev/null`
+attached to the command cannot suppress it. Written the obvious way it printed `No such file or
+directory` on every run — into the journal of the unit the lock exists to keep quiet. The test whose
+subject is that this path prints nothing is what caught it.
+
+**NOT enabled.** `tepna-update-pending.service` + `.timer` are installed by `install-services.sh` and
+left OFF, with the installer reporting that rather than printing a tick it has not earned. Turning them
+on for vigil is an owner act, like every other deploy to that box — and specifically because this
+changes *when* the daemon is restarted on a box that is recording.
 
 ## 5 · Transient network failure is handled, and is worth a counter
 
@@ -202,8 +286,26 @@ went `failed` and the next tick recovered. §5 of the parent brief argues a nonz
 what makes drift visible, so this is working — but a *single* transient failure and a *persistent* one
 look identical in `systemctl status`.
 
-- [ ] Distinguish "failed once, recovered" from "failing every tick since Tuesday". A consecutive-failure
+- [x] Distinguish "failed once, recovered" from "failing every tick since Tuesday". A consecutive-failure
       count in the report, or a `RESTART-OWED`-style marker, would do it.
+      **✅ BUILT 2026-09-03 — `tepna-update.sh` `FAIL_MARK` + `_streak_finish`, 9 tests in
+      `test_vigil_update.py`.** A `RESTART-OWED`-style marker, as this line suggested. Three decisions
+      worth recording, because each was a fork where the obvious choice was the wrong one:
+      - **Keyed on the EXIT STATUS, not on `die`.** The script ends `exit "$drifted"`, so a run can leave
+        the unit `failed` without calling `die` — and that path ("cannot establish whether the box is
+        recording") is the one that can persist for a whole night. A counter hung off `die` would have
+        counted every kind of failure *except* the longest-running kind. Gate-locked: mutating the
+        implementation back to a `die`-only counter reds 3 tests.
+      - **Silent on the FIRST failure, named from the second.** One failure is already visible; a line on
+        every isolated blip is how a new signal becomes noise. The report appears exactly when the
+        distinction this section asks for starts to exist.
+      - **A recovery line on the run that clears the streak**, carrying the count and the span. This is
+        the half that would actually have surfaced 2026-08-04: whoever reads the journal does so *after*
+        the outage, when every failing tick is already behind them.
+      ⚠ The counter cannot be read off `daemon_control.py`/`webmon.py` — the timer's outcome has **no web
+      surface at all**; the monitor only learns about updates when someone presses *Deploy now*. The
+      journal is the consumer, which is what this section names as the surface where the two cases look
+      identical. Giving the timer a web surface is a real item, but it is a different one.
       **📊 MEASURED 2026-08-18 — "failing every tick since Tuesday" is not hypothetical. It happened.**
       Classifying 30 days of `journalctl -u tepna-update`: **38 failure events against 300 success/defer**,
       with consecutive-failure runs of **[30, 5, 3]**.
@@ -223,7 +325,11 @@ look identical in `systemctl status`.
 
 ## 6 · Done when
 
-- [ ] The helper-install gap is either closed by §2's design **or** explicitly accepted by the owner and
-      recorded here, so it stops being rediscovered.
+- [x] The helper-install gap is either closed by §2's design **or** explicitly accepted by the owner and
+      recorded here, so it stops being rediscovered. **Met by ACCEPTANCE, not by closure — owner ruling 2026-09-07:
+      option (C), do not automate root. Recorded in §2a at the option itself, so a reader of the option meets the
+      ruling rather than having to reach the header.**
 - [x] §3's audit is run and its answer written down. **Stale-unchecked — §3's own two boxes are both closed with the per-helper writes table; verified 2026-09-02.**
-- [ ] §4 and §5 are decided, not merely noted.
+- [x] §4 and §5 are decided, not merely noted. **Both DECIDED *and* BUILT — §5 on 2026-09-03, §4 on 2026-09-07
+      (Heron, both boxes). Verified present 2026-09-17 by the identifiers, not the prose; `test_vigil_update.py`
+      78 passed.**

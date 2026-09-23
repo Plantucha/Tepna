@@ -33,6 +33,7 @@ SETTINGS: dict[str, tuple] = {
     "o2ring.ppg_fs":            (float, 100,  200,  True, 125.000,  "O2Ring pleth ADC sample rate (crystal 125.000; the observed ~125.7 row rate is marker-inflated, see capture.O2PPG_FS_DEFAULT)"),
     "power.drop_not_worn_sec":  (float, 0,    3600, True, 180.0, "Drop a not-worn strap after this many seconds to save its battery (0 = never)"),
     "power.not_worn_recheck_sec": (float, 30,  1800, True, 90.0, "How often to reconnect and check whether a dropped strap is back on"),
+    "power.reconnect_backoff_cap_sec": (float, 60, 900, True, 180.0, "Ceiling of the reconnect backoff for an absent device (each attempt is a 30 s scan; 180 ≈ 17 attempts/hour)"),
     "o2ring.rtc_resync_sec":    (float, 60,   604800, True, 21600.0, "O2Ring RTC drift-backstop interval (s); the RTC is otherwise synced only on first contact + each new recording session"),
 }
 

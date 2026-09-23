@@ -87,6 +87,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(HERE))
+from mutation_diff import refresh_scratch, root_reads, stage_root_reads  # noqa: E402  (after the sys.path fix above)
 from mutation_sweep import (  # noqa: E402
     BUDGET_OK, budget_verdict, deselect_args, deselect_notes, select_tests,
 )
@@ -239,7 +240,7 @@ def clean_run_seconds(tests: list[str]) -> tuple[float, bool]:
 
 def run_one(module: str, only: str | None = None, tests_override: list[str] | None = None,
             timeout: int | None = None, budget: int = 0, estimate_only: bool = False,
-            reuse: bool = True) -> dict:
+            reuse: bool = True, clean: tuple[float, bool] | None = None) -> dict:
     """`only` is a mutant-name glob, `tests_override` a hand-picked selection.
 
     Both exist for capture.py, where the name-substring heuristic in `tests_for` is useless — "capture"
@@ -272,23 +273,35 @@ def run_one(module: str, only: str | None = None, tests_override: list[str] | No
     tests = tests_override or tests_for(module)
     if not tests:
         return {"module": module, "error": "no test file names this module"}
-    _beat("timing the clean baseline suite  (mutmut not started)")
-    clean, clean_ok = clean_run_seconds(tests)
+    # `clean` = a clean run the CALLER already timed for this module. mutate_diff invokes run_one once
+    # per FUNCTION glob and this used to re-time the whole selection on every call — for capture.py
+    # (76 of 78 test files, 936.7 s per clean run, measured 2026-09-21) five globs meant 78 minutes of
+    # re-timing before a single mutant existed. That, not the functions' size, was the 98-minute
+    # "Generating mutants" of #2590. Timed once by the caller, passed here; `None` keeps the old path.
+    clean_sec: float
+    clean_ok: bool
+    if clean is None:
+        _beat("timing the clean baseline suite  (mutmut not started)")
+        clean_sec, clean_ok = clean_run_seconds(tests)
+    else:
+        clean_sec, clean_ok = clean
+    cap: int
     if timeout is not None:
         cap = timeout
     else:
-        bverdict, cap, bdetail = budget_verdict(clean, clean_ok)
-        if bverdict != BUDGET_OK:
+        bverdict, _cap, bdetail = budget_verdict(clean_sec, clean_ok)
+        if bverdict != BUDGET_OK or _cap is None:
             # REFUSE rather than fall back to the floor. Taking the floor here is precisely how a
             # module gets an under-sized budget from a measurement that never happened, and then
             # reports timeouts that read as an honest result.
             return {"module": module, "error": f"no budget: {bdetail}"}
-    plan = {"module": module, "tests": tests, "clean_run_sec": round(clean, 2),
+        cap = _cap
+    plan = {"module": module, "tests": tests, "clean_run_sec": round(clean_sec, 2),
             "timeout_sec": cap, "derived": timeout is None}
-    if budget and clean > budget:
+    if budget and clean_sec > budget:
         # LOUD, with the numbers and the way out — the mjs sibling's --budget, same reasoning: a module
         # silently skipped is indistinguishable from one that passed.
-        return {**plan, "skipped": f"clean run {clean:.1f}s exceeds --budget {budget}s",
+        return {**plan, "skipped": f"clean run {clean_sec:.1f}s exceeds --budget {budget}s",
                 "advice": f"narrow it: --tests '{tests[0]},...' (currently {len(tests)} files), "
                           f"or scope it: --only '{module[:-3]}.x_<func>__mutmut_*'"}
     if estimate_only:
@@ -329,17 +342,34 @@ def run_one(module: str, only: str | None = None, tests_override: list[str] | No
         plan["pruned_scratches"] = pruned
     if reuse and (reusable / "work" / "mutants" / module).exists():
         scratch, work = reusable, reusable / "work"
-        # REFRESH THE WHOLE tests/ TREE, not just the selected files. Copying only the selection was a
-        # real bug: `tests/_srcscan.py` is a HELPER, never named in a selection, so a scratch predating
-        # it kept an old tests/ and every run died with `ModuleNotFoundError: tests._srcscan` — which
-        # mutmut reports as "Failed to collect list of tests", i.e. a beautiful, meaningless 100%.
-        # Any new conftest, fixture module or helper would have done the same. tests/ is small; copy it.
-        for sub in ("", "mutants"):
-            dest_root = work / sub / "tests" if sub else work / "tests"
-            shutil.rmtree(dest_root, ignore_errors=True)
-            shutil.copytree(HERE / "tests", dest_root,
-                            ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+        # REFRESH EVERY SIBLING, not just tests/. The cache key is the MUTATED MODULE's hash alone,
+        # which is right for the mutants (a pure function of that module) and blind to everything else
+        # in the scratch — so a change to a sibling module, a shell script, a fixture or any data file
+        # does not move the key and did not get copied. The run then executed the NEW tests against the
+        # OLD sibling, and the verdict can be wrong in EITHER direction: a fixed bug still reported, or
+        # a fresh one not seen. Measured 2026-09-07 on `night_report.py` — three consecutive runs
+        # reported a baseline failure already fixed, byte-identical each time, because the scratch's
+        # `tepna-report.sh` predated the fix (`grep -c TEPNA_PYTHON`: 1 in the tree, 0 in the scratch,
+        # while its refreshed `tests/` had 3).
+        #
+        # This subsumes the tests/-only refresh it replaces, which existed for the same reason one
+        # level down: `tests/_srcscan.py` is a HELPER never named in a selection, so a scratch
+        # predating it died with `ModuleNotFoundError: tests._srcscan` — which mutmut reports as
+        # "Failed to collect list of tests", i.e. a beautiful, meaningless 100%.
+        #
+        # `extras` is the SAME list the initial copy uses, so reuse and creation cannot drift about
+        # what a scratch contains — the bug above was exactly that drift. The mutated module is absent
+        # from it by construction, which is what protects mutmut's generated `mutants/<module>` (835 KB
+        # against the original's 15 KB) from being overwritten by the unmutated source.
+        #
+        # ⚠️ Copy-only: a sibling DELETED from the tree still lingers in a reused scratch. That is the
+        # same class and is not handled here, because pruning unknown entries risks removing mutmut's
+        # own bookkeeping; `--no-reuse` is the escape hatch until it is measured to matter.
+        plan["refreshed_siblings"] = refresh_scratch(HERE, work, extras)
         plan["reused_scratch"] = str(scratch)
+        # A reused scratch refreshes the root reads too — the same drift class as the siblings.
+        plan["root_reads"] = root_reads(HERE)
+        plan["root_reads_staged"] = stage_root_reads(HERE, work, plan["root_reads"])
     else:
         scratch = reusable if reuse else Path(tempfile.mkdtemp(prefix=f"mut-{module[:-3]}-"))
         work = scratch / "work"
@@ -352,6 +382,13 @@ def run_one(module: str, only: str | None = None, tests_override: list[str] | No
         _beat("copying scratch tree  (mutmut not started)")
         shutil.copytree(HERE, work, ignore=shutil.ignore_patterns(
             ".venv", "mutants", "__pycache__", "*.pyc", ".coverage*", "htmlcov"))
+        # THE COPY STOPS AT capture-host/, AND ONE TEST READS ABOVE IT. `tests/test_seam_sidecar.py`
+        # opens `../ecgdex-dsp.js` (seam-bound parity with ECGDex); absent from the scratch, the baseline
+        # fails and every mutant of the module reports "0 tested" (measured 2026-09-19, #2675 — and the
+        # same line sits in #2581's log, hidden then by the refusal not yet existing). The set is DERIVED
+        # from the tests each run, never listed by hand (`mutation_diff.root_reads`).
+        plan["root_reads"] = root_reads(HERE)
+        plan["root_reads_staged"] = stage_root_reads(HERE, work, plan["root_reads"])
     # `--deselect <nodeid>` rides in the same pytest arg list as the file selection. It is appended
     # HERE rather than inside `tests_for` because that function's result is also counted as "test
     # file(s)" by `--list`, where CLI flags would corrupt the count.

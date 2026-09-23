@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED (drain triage 2026-09-02 — SURVIVES as a real owner-mandated work-unit, not parked. Owner: Kestrel (P0 heap profile of one box night through `trio-batch`, on rig-x870, at a fresh-budget window) → Heron (the protected-tenant units on the box, owner-authorized). Next step: P0 — measure where the 17–25 GB/worker goes before designing anything) · **Created:** 2026-09-01
+**Status:** PROPOSED · **Residue:** 2026-09-06-folding-brief-assumes-8gb, 2026-09-20-capture-daemon-startup-peak-1-3gb · (**DRAIN 2026-09-20 (Wren, box): the Done-when cannot be attempted on vigil today for a reason no header names — `node` is NOT INSTALLED on the box** (`which node` empty; the memory `vigil box capabilities` has said so since 09-07), so acceptance 1–4 "on vigil itself" is blocked on the owner installing a Node runtime on the production box before any fold unit can exist. Also measured: no fold/trio systemd unit exists; the capture daemon runs with `MemoryMax=infinity` and `OOMScoreAdjust=0`, so acceptance 2's protected-tenant settings are not in place either (owner-side, `tepna-capture.service`). ⚠️ And the tenant itself has moved: `tepna-capture` today reads **VmHWM 1.30 GB / VmRSS 447 MB** (steady over a minute, 44 min after a clean 07:06 restart) against the **89 MB** this header cites from 09-06 — a startup transient of ~1.3 GB and a ~5× larger steady state, unattributed (the end-of-night back-check #2315 landed 09-07 and is the candidate, not the finding) → residue. Box RAM 15.4 GB total / 13 GB available, unchanged. #2702's retention gate and the NAS path do not touch folding; a fold on the box reads the local captures tree.) (**P0 EXECUTED 2026-09-11 (Osprey) and its PREMISE IS REFUTED — acceptance 1 is already MET; remainder is BOX-blocked, not memory-blocked.** The "~17-25 GB per trio-batch worker" in §What-is-measured is a correct measurement of code that no longer exists: it predates #2030 (`cardiorespCoupling refuses an implausible span`, 09-01 08:06, 91 min after this brief was written) and #2061 (the PpgDex sibling, 09-01 22:04) — both "refuses an implausible span instead of ALLOCATING it", which IS the 17-25 GB mechanism. Reproduced: pre-#2030 code SIGKILLs on the 2026-08-23 trigger night, post-fix folds it in 0.79 GB. Four real box nights on current code, child process, `/usr/bin/time -v`: **2026-08-31 (THE OOM night, 92 files) 1.61 GB · 2026-08-13 (1388 files, this brief's own "~1400-file night") 1.82 GB · 2026-07-18 (2282 files) 2.28 GB · 2026-08-06 (260 MB single ECG) 2.68 GB** — all exit 0, all under the 4 GB bar. ⚠️ P0's three-way question (a/b/c) therefore has NO COST LEFT TO ATTRIBUTE and was deliberately not run as a heap profile; bands and a refusal clause for exactly this case were written BEFORE measuring. What the sweep DID find: peak RSS tracks the heap CEILING V8 is given, not live data — 1.80 GB at a 1536 MB cap vs 2.67 GB at 8192, wall time FLAT at ~2:35 for identical exports — so the child cap is now a measured 2048 MB (#2350, `CHILD_HEAP_MB`), saving ~0.66 GB/child for nothing lost. **P1/P2 have no measured need: re-open only if a night exceeds 4 GB.** Hypothesis (a) "whole-night text dominates" is separately REFUTED — a bounded lazy ECG reader moved peak -1 % and wall -37 %. Remainder: acceptance 2-4 (systemd unit, MemoryMax, OOMScoreAdjust, scheduling) are BOX work on vigil, owner-authorized, and Wren's 09-06 box measurement (15.4 GB total / 12.9 available, not the 8 GB this brief assumes) stands as the authority there. Note 12 x 2.7 GB still exceeds 15.4 GB, so trio-batch AUTO `--jobs` sizing remains load-bearing. Owner: Heron (box side). Superseding the earlier line: drain triage 2026-09-02 — SURVIVES as a real owner-mandated work-unit, not parked. Owner: Kestrel (P0 heap profile of one box night through `trio-batch`, on rig-x870, at a fresh-budget window) → Heron (the protected-tenant units on the box, owner-authorized). Next step: P0 — measure where the 17–25 GB/worker goes before designing anything) · **P0 BOX-SIDE MEASURED 2026-09-06 (Wren, on vigil, read-only, bands pre-stated before measuring):** the box is **15.4 GB total / 12.9 GB available**, NOT the 8 GB this brief assumes — see §P0-box below, and the 8 GB premise is logged as `2026-09-06-folding-brief-assumes-8gb`. Verdict **INFEASIBLE AS-IS**: a 17–25 GB fold exceeds physical RAM, so P1/P2 reduction is mandatory rather than optional, and the reduced target must peak **under ~10 GB**. Capture is NOT the constraint — the daemon's peak RSS is **89 MB** (VmHWM; systemd MemoryPeak 71.6 MB), i.e. 0.6 % of RAM. Disk and CPU are both FEASIBLE with wide margin (167 GB free against 1.3 GB/night; 78.9 % idle). The rig-side heap profile — which allocation dominates — remains Kestrel's and is untouched by this) · **Created:** 2026-09-01 · **Owner ruling 2026-09-07:** **P0 APPROVED** — the rig-side heap profile, **Kestrel**.
 
 # Vigil self-sustained folding — fit a night's fold into an 8 GB box that is also capturing
 
@@ -49,6 +49,42 @@ design: production vigil = capture + fold + QC on 8 GB RAM, alone.
   frees the RAM). Which allocation dominates: (a) fragment concatenation / whole-night text held at
   once, (b) per-row parse objects inside the DSPs, (c) retained per-night results in the child?
   Decide P1 vs P2 from evidence, not the hypothesis above.
+### P0 box-side — what the box actually has (measured 2026-09-06, Wren)
+
+Read-only, on the live box, nothing restarted and nothing competing with a recording. **Bands were
+stated before the numbers were taken**, because a headroom verdict is exactly the kind that gets
+fitted to whatever is measured: FEASIBLE ≥ 26 GB available · MARGINAL 10–26 GB · INFEASIBLE < 10 GB ·
+disk needs ≥ 2× a night's raw bytes · CPU needs ≥ 50 % sustained idle.
+
+| quantity | measured | source |
+|---|---|---|
+| RAM total / available | **15 366 MB / 12 924 MB** | `free -m`, idle, no device recording |
+| swap | 4 095 MB, **16 KB used** | `swapon --show`, `/proc/meminfo` |
+| CommitLimit / Committed_AS | 11 470 MB / 2 607 MB (8.9 GB headroom) | `/proc/meminfo`, `overcommit_memory=0` (heuristic) |
+| daemon RSS (peak) | **89 MB** VmRSS = VmHWM | `/proc/<MainPID>/status` |
+| daemon peak, systemd | 71.6 MB; per-run 67.4–68.1 MB across last night | `MemoryPeak`, journal run summaries |
+| disk free (`/srv`, `/opt` — one volume) | **167 GB** of 233 GB | `df -h` |
+| one night's raw bytes | 1.3 GB (2026-09-05, 10 h, 4 devices + CPAP) | `du -sh` |
+| CPU idle | **78.9 %** cumulative, 4 cores | `/proc/stat`, 5 s sample |
+
+**Verdict: INFEASIBLE AS-IS on RAM; FEASIBLE on disk and CPU.** A 17–25 GB fold does not fit in
+15.4 GB of physical RAM, and 12.9 GB available plus 4 GB of swap (16.9 GB) only reaches the bottom of
+that range while guaranteeing thrash — so P1/P2 are not optimisations here, they are the gate. A
+reduced fold should target a peak **under ~10 GB** to run beside capture with the page cache intact.
+
+**Capture is not what is squeezing the box, and that is the load-bearing finding for the design.** The
+daemon's high-water mark is 89 MB — 0.6 % of RAM — so folding does not need to be scheduled around
+capture's memory at all; the whole 12.9 GB is available to it. The interesting constraint is CPU
+contention and I/O, not co-residency, and both measure comfortable (78.9 % idle, 128× disk headroom).
+
+⚠️ **THE 8 GB PREMISE DOES NOT DESCRIBE THIS BOX.** The brief designs against "8 GB RAM, alone";
+vigil measures 15.4 GB. Two readings are possible and they lead to different designs, so this is
+recorded rather than resolved here: either the 8 GB refers to FUTURE production hardware (the
+`HP 800 G3 mini` / `MINIX Z100` choice still open in `VIGIL-OFFLOAD-AND-RETENTION`), in which case the
+headroom is *worse* than measured and the under-10 GB target becomes an under-5 GB one; or it is a
+stale assumption about this machine, in which case there is ~60 % more room than the plan assumes.
+**Which box the requirement targets is an owner question, and the P1/P2 sizing depends on the answer.**
+
 - **P1 — per-fragment sequencing in trio-batch** (if P0 blames concatenation): feed each parser only
   its own fragment file, release between; peak drops from whole-night to largest-fragment. No DSP
   contract change.

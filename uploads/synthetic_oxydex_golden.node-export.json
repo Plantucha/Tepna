@@ -334,7 +334,126 @@
   },
   "hypoxicBurden": {
     "total": 9.1,
-    "rate": 4.5
+    "rate": 4.5,
+    "measuredSec": 7200
+  },
+  "measurement": {
+    "meanSpo2": {
+      "metricId": "meanSpo2",
+      "value": 96.5,
+      "window": {
+        "startTMs": 1781391616000,
+        "endTMs": 1781398815000,
+        "clockDomain": "device",
+        "timingSource": "device",
+        "spreadMs": null,
+        "spreadReason": "single device clock — the O2Ring RTC is the only timebase on this input; no host stamp to measure spread against"
+      },
+      "sourceChannel": "O2Ring:spo2",
+      "code": {
+        "manifestHash": "edce2e232da0",
+        "computeHash": "c2f701d1851f"
+      },
+      "evidence": {
+        "envelopeRef": null,
+        "inputHash": "21d9ddfbdabc",
+        "envelopeReason": "no acquisition envelope for this input (CSV / legacy path — the envelope joins on the .dat session_id)"
+      },
+      "basis": "measured",
+      "quality": {
+        "n": 7200,
+        "durationMin": 120
+      },
+      "uncertainty": null,
+      "uncertaintyReason": "not estimated — this node carries no uncertainty model for whole-night oximetry summaries"
+    },
+    "t90": {
+      "metricId": "t90",
+      "value": 0.9,
+      "window": {
+        "startTMs": 1781391616000,
+        "endTMs": 1781398815000,
+        "clockDomain": "device",
+        "timingSource": "device",
+        "spreadMs": null,
+        "spreadReason": "single device clock — the O2Ring RTC is the only timebase on this input; no host stamp to measure spread against"
+      },
+      "sourceChannel": "O2Ring:spo2",
+      "code": {
+        "manifestHash": "edce2e232da0",
+        "computeHash": "c2f701d1851f"
+      },
+      "evidence": {
+        "envelopeRef": null,
+        "inputHash": "21d9ddfbdabc",
+        "envelopeReason": "no acquisition envelope for this input (CSV / legacy path — the envelope joins on the .dat session_id)"
+      },
+      "basis": "measured",
+      "quality": {
+        "n": 7200,
+        "durationMin": 120
+      },
+      "uncertainty": null,
+      "uncertaintyReason": "not estimated — this node carries no uncertainty model for whole-night oximetry summaries"
+    },
+    "odi4": {
+      "metricId": "odi4",
+      "value": 2,
+      "window": {
+        "startTMs": 1781391616000,
+        "endTMs": 1781398815000,
+        "clockDomain": "device",
+        "timingSource": "device",
+        "spreadMs": null,
+        "spreadReason": "single device clock — the O2Ring RTC is the only timebase on this input; no host stamp to measure spread against"
+      },
+      "sourceChannel": "O2Ring:spo2",
+      "code": {
+        "manifestHash": "edce2e232da0",
+        "computeHash": "c2f701d1851f"
+      },
+      "evidence": {
+        "envelopeRef": null,
+        "inputHash": "21d9ddfbdabc",
+        "envelopeReason": "no acquisition envelope for this input (CSV / legacy path — the envelope joins on the .dat session_id)"
+      },
+      "basis": "derived",
+      "quality": {
+        "n": 7200,
+        "durationMin": 120
+      },
+      "uncertainty": null,
+      "uncertaintyReason": "not estimated — this node carries no uncertainty model for whole-night oximetry summaries"
+    },
+    "hypoxicBurden": {
+      "metricId": "hypoxicBurden",
+      "value": 4.5,
+      "window": {
+        "startTMs": 1781391616000,
+        "endTMs": 1781398815000,
+        "clockDomain": "device",
+        "timingSource": "device",
+        "spreadMs": null,
+        "spreadReason": "single device clock — the O2Ring RTC is the only timebase on this input; no host stamp to measure spread against"
+      },
+      "sourceChannel": "O2Ring:spo2",
+      "code": {
+        "manifestHash": "edce2e232da0",
+        "computeHash": "c2f701d1851f"
+      },
+      "evidence": {
+        "envelopeRef": null,
+        "inputHash": "21d9ddfbdabc",
+        "envelopeReason": "no acquisition envelope for this input (CSV / legacy path — the envelope joins on the .dat session_id)"
+      },
+      "basis": "derived",
+      "quality": {
+        "n": 7200,
+        "durationMin": 120
+      },
+      "uncertainty": null,
+      "uncertaintyReason": "not estimated — this node carries no uncertainty model for whole-night oximetry summaries"
+    }
   },
   "motionProfile": {
     "motionPct": 0.1,
@@ -378,6 +497,7 @@
     "auc90Rate": 0.8,
     "nadir": {
       "count": 4,
+      "recoveredCount": 4,
       "meanDepth": 8.5,
       "meanDuration": 34,
       "meanRecovery": 4
@@ -649,14 +769,7 @@
       "basis": "medianOf30minWindows",
       "windowsUsed": 4
     },
-    "respRate": {
-      "respRateBpm": 7.8,
-      "rsaPeakFreq": 0.13,
-      "rsaPeakPow": 0.3,
-      "respRateLabel": "Slow (<10)",
-      "basis": "medianOf30minWindows",
-      "windowsUsed": 4
-    },
+    "respRate": null,
     "hrAsymmetry": {
       "hrAccelAsym": 1,
       "meanUpBpm": 1,
@@ -956,43 +1069,53 @@
     "tIdx": {
       "80": {
         "secs": 0,
-        "pct": 0
+        "pct": 0,
+        "measured": 7200
       },
       "85": {
         "secs": 0,
-        "pct": 0
+        "pct": 0,
+        "measured": 7200
       },
       "88": {
         "secs": 0,
-        "pct": 0
+        "pct": 0,
+        "measured": 7200
       },
       "89": {
         "secs": 28,
-        "pct": 0.39
+        "pct": 0.39,
+        "measured": 7200
       },
       "90": {
         "secs": 66,
-        "pct": 0.92
+        "pct": 0.92,
+        "measured": 7200
       },
       "91": {
         "secs": 88,
-        "pct": 1.22
+        "pct": 1.22,
+        "measured": 7200
       },
       "92": {
         "secs": 106,
-        "pct": 1.47
+        "pct": 1.47,
+        "measured": 7200
       },
       "93": {
         "secs": 122,
-        "pct": 1.69
+        "pct": 1.69,
+        "measured": 7200
       },
       "94": {
         "secs": 138,
-        "pct": 1.92
+        "pct": 1.92,
+        "measured": 7200
       },
       "95": {
         "secs": 150,
-        "pct": 2.08
+        "pct": 2.08,
+        "measured": 7200
       }
     },
     "period": null,

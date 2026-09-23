@@ -59,7 +59,21 @@ install on a Pi-class capture host.
 
 # The refusal thresholds. Each mirrors an existing house constant rather than inventing a number.
 MIN_POINTS = 100          # as `writers.PmdArrivalLogWriter.floor_ms` — too few to have an edge at all
-SPAN_MIN_SEC = 2400.0     # as `ecgdex-dsp.js` span-gates its fs correction: a rate needs a baseline
+# ⚠️ 3600, NOT 2400, AND THE DIFFERENCE IS THE WHOLE POINT. This line used to read 2400 "as
+# `ecgdex-dsp.js` span-gates its fs correction" — borrowing a CORRECTION-APPLICATION threshold to
+# decide a PUBLICATION question. `KNOWN-CLOCK-ADVERSARIAL-CAPTURE-2026-08-14-BRIEF.md` §517 separates
+# those two by name and answers them differently for the same span:
+#     is the rate RESOLVED — quotable as distinguishable from zero?   |ppm| vs sigma_y   → NO under 1 h
+#     does applying the correction REDUCE ERROR?                      |est-truth|        → YES (82 %)
+# `skew_quotable` governs the FIRST question — its own docstring says so: "the ppm is a rate quoted off
+# too short a baseline". So it takes the resolvability answer, 3600 s, and agrees with
+# `tools/dual-clock-rate.mjs:118`, which refuses the same quantity under 60 min with the reason string
+# "not a rate". Before this, one lane called a 40-minute rate quotable while the other called it not a
+# rate at all. Residue `2026-09-13-skew-quotable-floor-is-a-correction-threshold`.
+# ⚠️ ecgdex-dsp.js's own 2400 is NOT changed and must not be: §517 measured it net-beneficial where it
+# stands (82 % of truncations helped, median error 8.41 ppm against 22.27 uncorrected). Two questions,
+# two thresholds, both right — the defect was one number doing both jobs.
+SPAN_MIN_SEC = 3600.0     # RESOLVABILITY floor (publication), not the correction-application floor
 MAX_PPM = 50000.0         # as `CK_AXIS_MAX_PPM` (Clock Contract §7) — beyond 5% these are not two clocks
 PAXSON_SUBSETS = 20       # with MIN_POINTS=100 that is >=5 points per subset minimum
 AGREE_MAX_MS = 10.0       # the precision PAT needs. NOT a claim about what the estimators achieve.

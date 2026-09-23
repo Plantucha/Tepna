@@ -1,0 +1,25 @@
+# tepna-update-pending.timer — Tepna Vigil
+# Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
+#
+# Two minutes, and it is cheap enough to mean it: the service it starts does no network, reads two
+# local values, and exits silently when nothing is owed — which is a healthy box's state almost all of
+# the time. The frequency is the point. An owed restart is taken within ~2 min of the box going idle
+# instead of within ~1 h, which is the whole of §4.
+#
+# Persistent=false, deliberately, and it is the opposite choice from tepna-update.timer. A missed
+# CATCH-UP is worth replaying; a missed "is the box idle right now" is not — the answer has moved on,
+# and the next tick is two minutes away. Persisting it would fire a burst of stale checks at boot.
+#
+# ⚠️ INSTALLED, NOT ENABLED. Turning this on for vigil is an owner act, like every other deploy to that
+# box. Until then it changes nothing: the hourly unit behaves exactly as it does today.
+[Unit]
+Description=Tepna — check every 2 min whether an owed restart can be taken
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=2min
+Persistent=false
+AccuracySec=30s
+
+[Install]
+WantedBy=timers.target

@@ -298,9 +298,26 @@ def test_EVERY_link_error_site_routes_through_the_one_formatter():
                                 if t.type != tokenize.COMMENT])
     assert 'log.warning("%s link error: %r", name, e)' not in code, (
         "a link-error site is still logging the unclassified form")
-    assert code.count("link_error_text(e)") == 3, (
-        "expected all three sites to route through the formatter, found %d"
-        % code.count("link_error_text(e)"))
+    # FOUR since the auto-pull drain's own handler joined them (2026-09-06). ⚠️ Note what this count
+    # does and does not buy: it catches a formatter call being REMOVED, and it does not catch a NEW
+    # site logging some other unclassified form — only the assertion above does that, and only for
+    # the one form it names. The number is the weak half of this test; the `not in code` is the guard.
+    # ⚠️ WAS `count("link_error_text(e)") == 4`. Three of those four sites now route through
+    # `_log_link_error`, which calls the formatter ONCE on their behalf and additionally counts the
+    # condition so 913 occurrences of one not-worn strap stop producing 913 lines. The formatter is
+    # still reached from every site; what changed is that three reach it indirectly.
+    #
+    # The count is replaced rather than re-tuned, because this test's own comment already called the
+    # number "the weak half". Asserting the named sites route through the helper is strictly stronger:
+    # it catches a NEW runner that logs its own form, which a count never could.
+    assert code.count("link_error_text(") >= 2, "the formatter must still be reached"
+    assert "def _log_link_error(" in code, "the shared reporter must exist"
+    import capture as _cap
+    for site in _cap.LINK_ERROR_SITES:
+        i = code.index(f"def {site}(")
+        nxt = code.find("\nasync def ", i + 1)
+        body = code[i:nxt if nxt > 0 else len(code)]
+        assert "_log_link_error(" in body, f"{site} must report through the shared reporter"
 
 
 # ── NOT-WORN PULL TRIGGER (POLAR-ONBOARD-BACKUP-FOLLOWUPS §4) ────────────────────────────────
@@ -560,3 +577,61 @@ def test_the_SCAN_runs_under_the_adapter_lock(monkeypatch):
     _run_async(_both())
     assert order == ["scan", "done", "scan", "done"], f"scans overlapped on the adapter: {order}"
 
+
+
+# ── §7's third done-when: the arming diagnostic must be proven in BOTH directions ─────────────────
+# OXYII-DAT-AUTO-HARVEST-REFINEMENT §7 asks for "a control [that] proves the diagnostic fires in both
+# directions — the absent-line failure cannot recur". Both LINES exist (`auto-pull: armed` and
+# `auto-pull: NOT armed`, each naming its governing flags); until now nothing asserted either.
+#
+# That gap is the same shape as the defect the lines were added for. The original failure was an
+# ABSENCE — measured on the box 2026-08-24, `auto-pull: armed` appeared 0 times against 312 poller
+# lines — and an absence is what an unasserted log line degrades back into the moment someone edits
+# the branch above it. A test on `autopull_arming()` alone cannot see that: it checks the decision,
+# not that the decision is ever SAID.
+#
+# Paired deliberately. A one-directional test passes just as well against a diagnostic that prints
+# the same string unconditionally, which is the failure mode that would hide a wrongly-armed poller.
+_PULL_DEV = {"name": "Wellue O2Ring-S", "vendor": "Wellue", "model": "O2Ring",
+             "device_id": "S8AW2100", "address": "AA:BB:CC:DD:EE:FF"}
+
+
+def _run_poller_once(cfg, caplog):
+    """Emit the arming line and stop. The line is logged BEFORE `while not _STOP.is_set()`, so a
+    pre-set stop flag yields exactly one pass with no sleeping and no device I/O."""
+    was_set = capture._STOP.is_set()
+    capture._STOP.set()
+    try:
+        with caplog.at_level("INFO"):
+            _aio.run(capture.charger_pull_poller(cfg, "/tmp"))
+    finally:
+        if not was_set:
+            capture._STOP.clear()
+    return caplog.text
+
+
+def test_the_autopull_arming_line_fires_when_ARMED(caplog):
+    text = _run_poller_once({"pull": {"auto": True}, "devices": [_PULL_DEV]}, caplog)
+    assert "auto-pull: armed" in text, f"the armed half never printed: {text!r}"
+    # ...and it names the governing flags with their values, which is what makes it actionable.
+    assert "charger=" in text and "not-worn=" in text
+
+
+def test_the_autopull_arming_line_fires_when_NOT_ARMED(caplog):
+    text = _run_poller_once(
+        {"pull": {"auto": True, "on_charger": False, "on_doff": False, "on_close": False},
+         "devices": [_PULL_DEV]},
+        caplog,
+    )
+    assert "auto-pull: NOT armed" in text, f"the NOT-armed half never printed: {text!r}"
+    assert "armed —" not in text.replace("NOT armed", ""), "the two halves must be exclusive"
+
+# ⚠️ NO THIRD LINE FOR "armed, but nothing eligible" — and this is a DECISION, not an omission.
+# Writing this control I hit that silent path (`if not devices: return`) and started to name it, on
+# the reasoning that silence there is indistinguishable from a poller that never started. That is
+# already answered: `test_the_charger_poller_returns_when_no_device_can_be_pulled` pins the silence
+# deliberately — "a fleet of Muse headbands has no onboard recording to fetch; arming a poller with
+# nothing to poll would log 'armed — pulling 0 device(s)', which is worse than silence."
+# Recorded here because I re-derived the question and the answer already existed one test file over,
+# which is the cost this repo keeps paying. The gate caught the contradiction: my line reddened THEIR
+# assertion, which is what a deliberate decision defended by a test is supposed to do.

@@ -1,0 +1,69 @@
+{
+  "night": "2026-09-07",
+  "tolBpm": 15,
+  "quality": {
+    "tolBpm": 3,
+    "flagged": 3,
+    "compared": 74,
+    "flaggedPct": 4.1
+  },
+  "nodes": [
+    "PpgDex",
+    "ECGDex",
+    "OxyDex"
+  ],
+  "compared": 74,
+  "adjudicable": 74,
+  "droppedFragments": 1,
+  "flagged": 2,
+  "flaggedPct": 2.7,
+  "fault": {
+    "PpgDex": 0,
+    "ECGDex": 2,
+    "OxyDex": 0
+  },
+  "epochs": [
+    {
+      "tMs": 1788819637801,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 56
+        },
+        {
+          "node": "ECGDex",
+          "hr": 39.8
+        },
+        {
+          "node": "OxyDex",
+          "hr": 56.4
+        }
+      ],
+      "median": 56,
+      "spreadBpm": 16.6,
+      "adjudicated": true,
+      "outlier": "ECGDex"
+    },
+    {
+      "tMs": 1788819937801,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 57
+        },
+        {
+          "node": "ECGDex",
+          "hr": 36.5
+        },
+        {
+          "node": "OxyDex",
+          "hr": 57.5
+        }
+      ],
+      "median": 57,
+      "spreadBpm": 21,
+      "adjudicated": true,
+      "outlier": "ECGDex"
+    }
+  ]
+}

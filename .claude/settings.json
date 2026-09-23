@@ -29,6 +29,12 @@
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-ruff.sh\"",
             "timeout": 15,
             "statusMessage": "checking staged capture-host Python is ruff-clean"
+          },
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-memory-stale.sh\" pre",
+            "timeout": 10,
+            "statusMessage": "checking a Bash write to memory was read this session"
           }
         ]
       },
@@ -40,6 +46,53 @@
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-stale-brief.sh\"",
             "timeout": 10,
             "statusMessage": "checking the brief has not moved on origin/main"
+          },
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-doc-search.sh\"",
+            "timeout": 10,
+            "statusMessage": "checking a doc-search ran this session"
+          },
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-memory-stale.sh\" pre",
+            "timeout": 10,
+            "statusMessage": "checking the memory file was read this session and has not changed since"
+          }
+        ]
+      },
+      {
+        "matcher": "Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-memory-stale.sh\" pre",
+            "timeout": 10,
+            "statusMessage": "recording the memory file's mtime for this session"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-memory-stale.sh\" post",
+            "timeout": 10,
+            "statusMessage": "re-recording the memory file's mtime after this session's own write"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-memory-stale.sh\" post",
+            "timeout": 10,
+            "statusMessage": "checking whether a memory file moved during that command"
           }
         ]
       }

@@ -191,7 +191,11 @@ def _drive(monkeypatch, root, skew, cycles, sync=None):
         return None
     monkeypatch.setattr(capture, "sync_device_time", sync or _ok)
     dev = [{"name": "H10", "address": "AA:BB:CC:DD:EE:FF", "vendor": "Polar"}]
-    capture.STATUS["devices"] = {"H10": {"clock_skew_sec": skew, "connected": True}}
+    # `clock_skew_floor_sec` is the key `clock_watchdog` decides on — the envelope over a window
+    # rather than one frame's reading, which carries that frame's delivery latency. Seeded to the
+    # same value so these tests drive the watchdog with exactly the skew they always did.
+    capture.STATUS["devices"] = {"H10": {"clock_skew_sec": skew, "clock_skew_floor_sec": skew,
+                                         "connected": True}}
     capture._CLOCK_FRESHLY_SYNCED.clear()
     n = {"i": 0}
 

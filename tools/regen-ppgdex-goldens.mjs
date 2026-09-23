@@ -119,12 +119,25 @@ function realm() {
 
 const { PpgDex } = realm();
 
+/* MEASUREMENT-PROVENANCE-ROADMAP §12 — PpgDex is the THIRD emitter; its fixtures' `measurement.*.code` names
+   the SHIPPED bundle, read off PpgDex.html by manifest-gate.js's projection (same recipe as
+   regen-ecgdex-goldens). Build BEFORE regenerating. */
+async function bundleCode() {
+  const bp = path.join(REPO, 'PpgDex.html');
+  if (!fs.existsSync(bp)) throw new Error('PpgDex.html is not built — run `node tools/build.mjs --app PpgDex` first (the fixtures stamp its code identity)');
+  const text = fs.readFileSync(bp, 'utf8');
+  const code = { manifestHash: await ManifestGate.manifestHashFromText(text), computeHash: await ManifestGate.computeHashFromText(text) };
+  if (!code.manifestHash || !code.computeHash) throw new Error('PpgDex.html is not a plain-inline owned bundle — refusing to stamp a null code identity');
+  return code;
+}
+const CODE = await bundleCode();
+
 /* Polar Verity *_PPG.txt → compute({ text }) → the node-export (the equiv gate's pick is identity),
    or null when the input is absent (gitignored recording). */
 const fromPPG = (file) => {
   const p = path.join(CORPUS, file);
   if (!fs.existsSync(p)) return null;
-  return PpgDex.compute({ text: fs.readFileSync(p, 'utf8') });
+  return PpgDex.compute({ text: fs.readFileSync(p, 'utf8') }, { code: CODE });
 };
 
 /* The RICH export — `compute(input, { rich: true })`. Only `signal-orchestrate.emitPpgNodeExport`
@@ -132,7 +145,7 @@ const fromPPG = (file) => {
 const fromPPGRich = (file) => {
   const p = path.join(CORPUS, file);
   if (!fs.existsSync(p)) return null;
-  return PpgDex.compute({ text: fs.readFileSync(p, 'utf8') }, { rich: true });
+  return PpgDex.compute({ text: fs.readFileSync(p, 'utf8') }, { rich: true, code: CODE });
 };
 
 const FIXTURES = [

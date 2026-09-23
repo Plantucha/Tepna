@@ -93,3 +93,62 @@ def test_the_clock_write_stays_behind_the_policy():
     helper = src.split("async def _rtc_sync(")[1].split("\n\n")[0]
     assert "set_time_frame(" in helper, "the clock write moved out of _rtc_sync — policy bypassed"
     assert "_OXYII_RTC_AT[addr]" in helper, "_rtc_sync must record the write, or the policy cannot age it"
+
+
+# ── the AES-session guard fires on the BRANCH, and DIS is never the gate ──────────────────────────
+# Residue `2026-09-05-dis-firmware-compared-to-a-branch-code`.
+import capture as _capture
+
+
+def _payload(branch: str) -> bytes:
+    return bytes((2, 0, 1, 13, 1)) + bytes(4) + branch.encode() + bytes(60 - 17)
+
+
+def test_the_guard_constant_is_a_branch_code_and_is_named_so():
+    """Renamed from `O2RING_PLAINTEXT_FW`: `2D010002` is a branch code, and the old name is what made
+    comparing it to a DIS firmware string look reasonable."""
+    assert _capture.O2RING_PLAINTEXT_BRANCH == "2D010002"
+    assert not hasattr(_capture, "O2RING_PLAINTEXT_FW")
+
+
+def test_plant_1_a_different_branch_is_flagged_whatever_the_firmware_says():
+    """branch 2D010001 + any firmware → the guard's condition holds. The firmware version is reported
+    ALONGSIDE, never compared."""
+    i = oxyii.parse_get_info(_payload("2D010001"))
+    assert i["branch_code"] != _capture.O2RING_PLAINTEXT_BRANCH
+    assert i["firmware_version"] == "1.13.1.0"
+
+
+def test_plant_2_the_measured_plaintext_branch_does_not_fire_even_with_DIS_present():
+    """branch 2D010002 + a DIS string like "1.13.1.0" present → no warning. A guard comparing DIS to
+    the constant would fire here on every connect, because a version string never equals a branch."""
+    i = oxyii.parse_get_info(_payload("2D010002"))
+    assert i["branch_code"] == _capture.O2RING_PLAINTEXT_BRANCH
+    assert "1.13.1.0" != _capture.O2RING_PLAINTEXT_BRANCH   # the comparison that could never be true
+
+
+def test_plant_3_DIS_ABSENT_and_branch_2D010001_still_fires():
+    """THE CASE THAT IS SILENT TODAY, and the one that must red the wrong fix.
+
+    This box's ring exposes no DIS at all, so a guard keyed on the DIS string never runs. The branch
+    code comes from GET_INFO, which EVERY ring answers in our own handshake, so the check exists on
+    every link. Asserted through the GUARD's own predicate rather than through parser output — a test
+    that only reads `parse_get_info` cannot tell which field the guard is keyed on, which is exactly
+    how a wrong fix would slip past it."""
+    i = oxyii.parse_get_info(_payload("2D010001"))
+    assert _capture.aes_session_suspect(i["branch_code"]) is True
+
+
+def test_the_predicate_cannot_be_keyed_on_a_firmware_version_by_mistake():
+    """The paired opposite. A firmware version handed to this predicate is simply not the measured
+    branch, so it reads suspect — which is why the SIGNATURE matters: it takes the branch alone, and a
+    guard that cannot see a firmware version cannot compare against one."""
+    assert _capture.aes_session_suspect("1.13.1.0") is True
+    assert _capture.aes_session_suspect(_capture.O2RING_PLAINTEXT_BRANCH) is False
+
+
+def test_an_unanswered_GET_INFO_is_not_suspect():
+    """Absence of evidence is not evidence of an encrypted session — and warning on it would fire on
+    every link before identity arrives."""
+    assert _capture.aes_session_suspect(None) is False
+    assert _capture.aes_session_suspect("") is False

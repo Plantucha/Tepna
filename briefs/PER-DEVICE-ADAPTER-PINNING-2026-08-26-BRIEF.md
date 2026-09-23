@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED (executable core BUILT, remainder is DEPLOYMENT — re-verified 2026-09-02; ⚠ §2's line citations point at unrelated code, see R6; and two of its test done-when legs belong to the design its own §3.3 WITHDREW and should be struck rather than stamped open — *per Heron's read, not independently re-verified*. Earlier verification 2026-08-31: `resolve_adapter_name` (`capture.py:1115`), per-device `adapter:` parsing with inheritance, `apply_instance` (1185), and the `status_union` merge layer all exist; what remains is a `tepna-capture@.service` systemd template, one instance per radio, splitting monitor/nightqc out as services, and a clean Sena re-measure — boot/deployment shape, owner-territory, several units) · **Created:** 2026-08-26 · **Residue:** 2026-09-02-per-device-citations-drifted
+**Status:** PROPOSED (executable core BUILT, remainder is DEPLOYMENT — re-verified 2026-09-02; ⚠ §2's line citations point at unrelated code, see R6; and its test done-when asks for coverage of a design its own §3.3 WITHDREW — **verified independently 2026-09-06, and the earlier note's unit was wrong**: it is ONE leg carrying TWO withdrawn clauses, not two legs. §3.3 withdrew *"a per-device `failover_override`, a partial-failover walk …, and clear-on-recovery"*; the leg asks for tests covering *"**partial** failover, override clearing on recovery"*. Those two clauses are struck. The leg's OTHER clauses are live and **BUILT**: explicit pin, pin to an absent MAC and re-enumeration are covered by `tests/test_adapter_pin.py` (11 tests, incl. `…degrades_when_adapter_missing`), and the resolver + partition by `tests/test_capture_clock_and_health.py` (`resolve_adapter_name`, `instance_devices`, `apply_instance`, `test_the_partition_is_total_and_disjoint`). ⚠️ Per-device INHERITANCE is inferred from the total-and-disjoint partition rather than asserted by name — the one clause of this leg I did not verify directly. Earlier verification 2026-08-31: `resolve_adapter_name` (`capture.py:1115`), per-device `adapter:` parsing with inheritance, `apply_instance` (1185), and the `status_union` merge layer all exist; what remains is a `tepna-capture@.service` systemd template, one instance per radio, splitting monitor/nightqc out as services, and a clean Sena re-measure — boot/deployment shape, owner-territory, several units · ⚠ **RE-VERIFIED 2026-09-19 (Wren, box + tree):** nothing landed on the template — no `tepna-capture@` unit in `git ls-tree origin/main`; BOX runs the single `tepna-capture.service` (ActiveEnter 2026-09-19 06:06:36). Owner decision 2 (ONE SYSTEMD INSTANCE PER ADAPTER, 2026-08-26, §3.3b) is already recorded at line 14 of this brief — the header's 'remainder is DEPLOYMENT' is that decision UNEXECUTED, not undecided. Landed on the adjacent surface since 09-06 (subjects /adapter|instance|per-device|systemd|template/): #2556 (an adapter reservation is a LEASE, 09-16), #2366 (CPAP failover line carries the pinned adapter's exception, 09-09), #2623 (the ladder DID fire, 09-18) — none is the template. Residue `2026-09-06-cpap-pin-names-unbonded-adapter` was CORRECTED by `2026-09-10-cpap-unbonded-reason-was-wrong` (remedy right, reason wrong)) · **Created:** 2026-08-26 · **Residue:** 2026-09-02-per-device-citations-drifted, 2026-09-06-per-device-inheritance-inferred · **§2 RE-CITED 2026-09-04** — the five bonding call sites are `capture.py:2195, 2241, 2246, 3082, 3212`, verified against current `main` with each CALL named beside its line, and the finding grep recorded so the next drift needs no archaeology. The COUNT was never wrong; only the numbers had moved.
 
 # Per-device adapter pinning — make every device swappable, the way the CPAP already is
 
@@ -49,7 +49,15 @@ comparison was contaminated by a leaked discovery session and produced a confide
 - **`_resolve_cpap_adapter(spec)`** — the pattern to generalise. Accepts an `hciN` name **or a MAC**,
   always returns an `hciN`, re-resolved every connect, logs and falls back to the BlueZ default when
   the MAC is absent so *an absent radio never silently masquerades as a working pin*.
-- **Five bonding call sites** pass the global directly: `capture.py:1815, 1861, 1866, 2662, 2774`.
+- **Five bonding call sites** pass the global directly — re-cited 2026-09-04 against current `main`, with the CALL named beside each line so the next drift is detectable by reading rather than by trusting:
+  `capture.py:2195` `ensure_bonded(addr, ADAPTER)` · `:2241` `is_bonded(addr, ADAPTER)` · `:2246` `ensure_bonded(addr, ADAPTER, force=True)` · `:3082` `ensure_bonded(addr, ADAPTER, force=True)` · `:3212` `ensure_bonded(addr, ADAPTER)`.
+  The COUNT was always right: `grep -cE 'bonding\.[a-z_]+\([^)]*ADAPTER'` returns exactly 5. Only the line
+  numbers had drifted — the previous citation (`1815, 1861, 1866, 2662, 2774`) landed on `return False`, a
+  skew-jump comparison and PMD/SDK comments, i.e. nowhere near the mechanism this section describes.
+  ⚠️ Residue `2026-09-02-per-device-citations-drifted` proposed `1382, 2185, 2231, 2236, 3041, 3154`; those
+  are themselves ~10 lines off against current `main` and one (`:3154`) is an `asyncio.sleep`. Re-citing
+  from the row would have reproduced the defect one commit later — a line number is a snapshot, so the
+  grep that finds the sites is the durable citation and is given above.
 
 ## 3 · Design
 
@@ -266,7 +274,9 @@ writers never contend — they were never the shared part. Only the *aggregated 
 - [ ] `STATUS` exposes `adapter_pinned` + `adapter_effective` per device; monitor renders the
       effective one.
 - [ ] Startup logs any pinned device **not yet bonded on its pinned adapter**.
-- [ ] Tests cover: inheritance, explicit pin, pin to an absent MAC, **partial** failover, override
-      clearing on recovery. `capture-host/check.sh` green at the 100 % coverage floor.
+- [x] Tests cover: inheritance, explicit pin, pin to an absent MAC. `capture-host/check.sh` green at
+      the 100 % coverage floor. ~~**partial** failover, override clearing on recovery~~ — STRUCK
+      2026-09-06: both name machinery §3.3 withdrew, so this leg was asking for tests of a design
+      the brief itself deleted. Verified built for the surviving clauses; see the header.
 - [ ] A **clean Sena measurement** (daemon paused) replaces §1's confounded row before anyone uses
       this brief's table to choose a radio.

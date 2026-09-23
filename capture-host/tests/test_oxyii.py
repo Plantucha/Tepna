@@ -1,6 +1,11 @@
 # tepna-capture — oxyii protocol tests
 # Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
 # Fixtures are real/verified O2Ring-S (OxyII) bytes — see O2RING-PROTOCOL-2026-07-17-BRIEF.md.
+import datetime as dt
+import os
+import time
+import zoneinfo
+
 import oxyii
 
 
@@ -51,14 +56,14 @@ def test_parse_live_offsets():
     # SpO2 CSV's Motion column, which OxyDex filters on). p[7] is PI, p[11] is motion; see
     # oxyii.parse_live for the vendor-parser evidence and the corroborating corpus measurement.
     p = bytearray(24)
-    p[5], p[6], p[7], p[11], p[13] = 0x03, 97, 5, 9, 88
+    p[5], p[6], p[7], p[11], p[13] = 0x01, 97, 5, 9, 88
     p[8:10] = (62).to_bytes(2, "little")
     v = oxyii.parse_live(bytes(p))
     # Pin the OFFSETS, not the exact dict: parse_live is allowed to gain fields (the contract is
     # additive — new data goes in a NEW key, per CLAUDE.md §🧪), and asserting equality would red on
     # every additive change.
     for k, exp in {"spo2": 97, "pr": 62, "pi": 0.5, "motion": 9, "batt": 88,
-                   "contact": 0x03, "worn": True}.items():
+                   "contact": 0x01, "worn": True}.items():
         assert v[k] == exp, f"{k} offset moved"
 
 
@@ -745,3 +750,288 @@ def test_AN_OUT_OF_RANGE_TIMESTAMP_DOES_NOT_RAISE():
     # frame must not become an exception in 2106, or on a box whose clock is nonsense.
     for ts in (2 ** 33, 0, 2 ** 32 - 1):
         assert len(oxyii.auth_payload("0000", ts)) == 16
+
+
+# ── branchCode is not a firmware version ──────────────────────────────────────────────────────────
+# Residues `2026-09-02-oxyii-branchcode-named-firmware` + `2026-09-05-dis-firmware-compared-to-a-
+# branch-code`. One confusion, two sites: the parser named the branch "firmware", and the AES-session
+# guard compared the DIS Firmware Revision String to a BRANCH CODE.
+
+def _info_payload(branch: str = "2D010002", ver=(2, 0, 1, 13, 1)) -> bytes:
+    """A 60-byte GET_INFO reply: hwV at [0], version bytes at [1..4] read as [4].[3].[2].[1],
+    bootloader [8]..[5], branch code at [9:17] (§3c)."""
+    return bytes(ver) + bytes(4) + branch.encode() + bytes(60 - 17)
+
+
+def test_parse_get_info_exposes_the_branch_and_the_real_version_separately():
+    i = oxyii.parse_get_info(_info_payload())
+    assert i["branch_code"] == "2D010002"
+    assert i["firmware_version"] == "1.13.1.0"      # §3a: the two COEXIST on one ring
+    assert i["hw_version"] == 2
+    assert i["bootloader"] == "0.0.0.0"
+
+
+def test_the_deprecated_firmware_key_keeps_its_branch_value():
+    """`firmware` is persisted by pull_session into a sidecar as `device_firmware`. Changing what the
+    key MEANS would rewrite the meaning of records already on disk while every consumer kept reading
+    the same name — so the alias stays, deprecated, identical to `branch_code`."""
+    i = oxyii.parse_get_info(_info_payload())
+    assert i["firmware"] == i["branch_code"] == "2D010002"
+
+
+def test_a_short_payload_yields_None_not_a_half_parsed_identity():
+    assert oxyii.parse_get_info(b"\x00" * 4) is None
+# ── ACK-ONLY COMMANDS: the reply is READ now ──────────────────────────────────────────────────────
+# Residue `2026-09-02-oxyii-acks-unparsed`. Five of thirteen opcodes are ack-only (0x10, 0xC0, 0xF2,
+# 0xF4, 0x01) and none had a reply parser, so a REJECTED command was indistinguishable from an
+# accepted one. The status is the vendor's `pkgType` = the `flag` header byte (§2, `1` = success),
+# which the old `decode()` discarded before any caller could see it.
+#
+# ⚠ VALIDATED AGAINST THE SPEC AND SYNTHETIC FRAMES, NOT THE CORPUS — and that is a measured fact,
+# not a shortcut: `decode()` dropped `flag`, nothing persists raw device→host frames, and
+# `probe_oxyii_opcodes.py --json` has no committed output anywhere in the repo, uploads/ or the
+# corpus. There are no recorded acks to test against.
+
+
+def test_decode_full_carries_the_header_bytes_decode_threw_away():
+    f = oxyii.encode(0xC0, b"\x2a", seq=7, flag=1)
+    full = oxyii.decode_full(f)
+    assert (full.op, full.flag, full.seq, full.payload) == (0xC0, 1, 7, b"\x2a")
+
+
+def test_decode_stays_byte_identical_over_the_same_frame():
+    """The wrapper must not change what existing callers see — new data arrives through a NEW method."""
+    for op, payload, seq, flag in ((0xC0, b"\x01", 3, 1), (0x04, b"", 0, 0), (0xF1, b"\x00" * 5, 9, 1)):
+        f = oxyii.encode(op, payload, seq=seq, flag=flag)
+        assert oxyii.decode(f) == (op, payload)
+        assert oxyii.decode_full(f).payload == payload
+    assert oxyii.decode(b"\xa5\x10") is None and oxyii.decode_full(b"\xa5\x10") is None
+
+
+def test_a_rejected_set_utc_time_is_no_longer_indistinguishable_from_an_accepted_one():
+    """THE ROW'S PLANT. A wrong clock would previously have shipped silently."""
+    ok = oxyii.decode_full(oxyii.encode(oxyii.OP_SET_TIME, b"", flag=1))
+    bad = oxyii.decode_full(oxyii.encode(oxyii.OP_SET_TIME, b"", flag=0))
+    assert oxyii.parse_ack(oxyii.OP_SET_TIME, ok) is oxyii.AckResult.OK
+    assert oxyii.parse_ack(oxyii.OP_SET_TIME, bad) is oxyii.AckResult.REJECTED
+    assert oxyii.parse_ack(oxyii.OP_SET_TIME, ok) != oxyii.parse_ack(oxyii.OP_SET_TIME, bad)
+
+
+def test_a_success_flag_on_the_WRONG_opcode_is_MISMATCH_not_OK():
+    """THE MIRROR. Without this, any ack in flight would vouch for whatever command we were waiting
+    on — the fix would 'pass' its own plant while being wrong."""
+    other = oxyii.decode_full(oxyii.encode(oxyii.OP_SET_CONFIG, b"", flag=1))
+    assert oxyii.parse_ack(oxyii.OP_SET_TIME, other) is oxyii.AckResult.MISMATCH
+
+
+def test_no_reply_is_NO_REPLY_and_never_REJECTED():
+    """The distinction the harvesting state machine turns on: an `0xF1` reply with an EMPTY payload is
+    an EMPTY LIST (a fact about the ring); no reply at all is silence (a fact about the link). They
+    must never collapse to one value."""
+    assert oxyii.parse_ack(oxyii.OP_SET_TIME, None) is oxyii.AckResult.NO_REPLY
+    assert oxyii.parse_ack(oxyii.OP_SET_TIME, None) is not oxyii.AckResult.REJECTED
+    empty_list = oxyii.decode_full(oxyii.encode(oxyii.OP_FILE_LIST, b"", flag=1))
+    assert oxyii.parse_ack(oxyii.OP_FILE_LIST, empty_list) is oxyii.AckResult.OK
+    assert empty_list.payload == b""
+
+
+def test_an_unspecified_status_byte_is_surfaced_not_guessed():
+    """§2 documents only `1` = success. What 2..255 mean is unknown, so they are reported as
+    UNKNOWN_STATUS rather than folded into REJECTED — reading 'not 1' as 'failed' would invent a
+    semantics the protocol notes do not support."""
+    for weird in (2, 9, 255):
+        f = oxyii.decode_full(oxyii.encode(oxyii.OP_SET_TIME, b"", flag=weird))
+        assert oxyii.parse_ack(oxyii.OP_SET_TIME, f) is oxyii.AckResult.UNKNOWN_STATUS
+
+
+# ── cmd=0x03 LIVE_SAMPLES_A (O2RING-RAW-DUAL-WAVELENGTH-FOLLOWUPS §7.4, measured 2026-09-06) ─────────
+# The layout here is not read off a doc: over two worn runs (596 and 592 replies) `payload_len minus
+# declared_count` was 6 on EVERY reply and `body_len == declared_count` on every reply, which is what
+# fixes the 6-byte header and the one-byte sample. The rate was 125.058 Hz, the 125.000 ADC to 0.05 %.
+
+def _samples_a_payload(vals, count=None, trailer=b""):
+    """A real 0x03 reply: 4 opaque header bytes, u16 LE count at [4:6], then 8-bit samples."""
+    import struct
+    n = len(vals) if count is None else count
+    return b"\x00\x00\x00\x00" + struct.pack("<H", n) + bytes(vals) + trailer
+
+
+def test_parse_samples_a_decodes_8bit_samples_with_no_marker():
+    assert oxyii.parse_samples_a(_samples_a_payload([10, 20, 30])) == [(10, 0), (20, 0), (30, 0)]
+
+
+def test_an_isolated_156_is_flagged_as_a_beat_marker():
+    assert oxyii.parse_samples_a(_samples_a_payload([10, 156, 20])) == [(10, 0), (156, 1), (20, 0)]
+
+
+def test_a_RUN_of_156_is_signal_not_beats():
+    """6 % of the 156s measured were NOT isolated. On a 0-255 waveform that is what a real sample equal
+    to 156 looks like, so flagging a run as beats would invent fiducials out of signal — and stripping
+    by value would delete the samples themselves."""
+    got = oxyii.parse_samples_a(_samples_a_payload([10, 156, 156, 20]))
+    assert got == [(10, 0), (156, 0), (156, 0), (20, 0)]
+
+
+def test_a_marker_at_a_reply_boundary_is_still_a_marker():
+    """A reply edge is an edge, not evidence. Requiring both neighbours to exist would silently drop
+    every marker that happened to land first or last in a buffer."""
+    assert oxyii.parse_samples_a(_samples_a_payload([156, 10]))[0] == (156, 1)
+    assert oxyii.parse_samples_a(_samples_a_payload([10, 156]))[1] == (156, 1)
+
+
+def test_samples_are_never_stripped_so_the_row_count_is_the_record_count():
+    """The rate on THIS stream is the raw row rate: measured 2026-09-06, markers arrive at 0.534/s
+    against 62.0 bpm and subtracting them moves the rate AWAY from the ADC (125.058 -> 124.444), the
+    opposite of the 0x05 stream. A parser that dropped markers would build that error in."""
+    vals = [1, 156, 2, 156, 3]
+    assert len(oxyii.parse_samples_a(_samples_a_payload(vals))) == len(vals)
+
+
+def test_parse_samples_a_ignores_a_trailer_of_any_size():
+    for trailer in (b"", b"\xff", b"\xde\xad\xbe\xef"):
+        assert oxyii.parse_samples_a(_samples_a_payload([7, 8], trailer=trailer)) == [(7, 0), (8, 0)]
+
+
+def test_a_declared_count_longer_than_the_body_is_bounded_by_the_buffer():
+    """A truncated reply must yield the bytes that arrived, never read past them."""
+    assert oxyii.parse_samples_a(_samples_a_payload([1, 2], count=9)) == [(1, 0), (2, 0)]
+
+
+def test_a_payload_too_short_for_the_header_yields_nothing():
+    for short in (b"", b"\x01", b"\x01\x02\x03\x04\x05"):
+        assert oxyii.parse_samples_a(short) == []
+
+
+def test_a_zero_count_reply_is_empty_not_an_error():
+    assert oxyii.parse_samples_a(_samples_a_payload([], count=0)) == []
+
+
+def test_samples_a_frame_is_the_standard_envelope():
+    f = oxyii.samples_a_frame()
+    assert f[0] == 0xA5 and f[1] == oxyii.OP_SAMPLES_A and f[2] == (~oxyii.OP_SAMPLES_A) & 0xFF
+    assert oxyii.decode(f) == (oxyii.OP_SAMPLES_A, oxyii.SAMPLES_A_ARG)
+
+
+# ── RtParam byte [5] sensorState, corrected 2026-09-06 ────────────────────────────────────────────
+def test_the_contact_enum_is_FOUR_states_and_only_ONE_of_them_is_worn():
+    """Per vendor SDK sources (OxyII family): 0 lead-off · 1 normal · 2 probe unplugged · 3 fault.
+
+    Until 2026-09-06 the code read `(0, 1, 3)` as "no finger, idle-present, file open", which was
+    wrong in both directions — a 3 (probe FAULT) counted as WORN, so a faulted probe would have been
+    recorded as a worn finger, and a 2 (probe unplugged) was outside the enum, so it fed the
+    ciphertext heuristic as evidence of encryption. The old test asserted `contact 0x03 -> worn True`;
+    that was the CODE's belief mirrored into an assertion, not evidence — the vendor-parser citation
+    beside it is about the PI/motion offsets, not about this byte."""
+    for value, worn in ((0, False), (1, True), (2, False), (3, False)):
+        v = oxyii.parse_live(_live_frame(contact=value))
+        assert v["contact"] == value
+        assert v["worn"] is worn, f"sensorState {value}: worn should be {worn}"
+
+
+def test_a_probe_fault_or_an_unplugged_probe_is_NOT_ciphertext_evidence():
+    """All four states are in-enum, so none of them is suspicious. A ring reporting a real fault must
+    not be read as an encrypted session — that is a device problem being renamed as a protocol one."""
+    for value in (0, 1, 2, 3):
+        parsed = oxyii.parse_live(_live_frame(contact=value))
+        assert oxyii.frame_looks_like_ciphertext(parsed) is False, f"sensorState {value} read as cipher"
+
+
+def test_alarm_raw_is_byte_14_recorded_raw_and_ABSENT_when_the_frame_is_short():
+    """Byte [14]'s four 2-bit subfields (&3 invalid-IV, >>2 SpO2 alarm, >>4 HR alarm, >>6 motion) are
+    recorded whole and uninterpreted, like `flag_raw`. A frame too short to carry it yields None —
+    never 0, which would read as "all alarms clear" on evidence that does not exist."""
+    b = bytearray(_live_frame())
+    b[14] = 0b11_01_10_01
+    assert oxyii.parse_live(bytes(b))["alarm_raw"] == 0b11_01_10_01
+    short = oxyii.parse_live(bytes(bytearray(_live_frame())[:14]))
+    assert short is not None and short["alarm_raw"] is None, "an absent byte is not a quiet alarm"
+
+
+# ── SET_UTC_TIME byte [7]: the timezone, derived instead of hardcoded (2026-09-06) ──────────────────
+# §9a decodes the byte as tenths of an hour, SIGNED. The offsets asserted below are arithmetic over
+# that encoding, not measurements of the ring; what IS measured is that this ring ignores the byte
+# entirely (six stored files: trailer epoch == the filename's local wall clock, +0.00 h on all six).
+# So these tests pin an honest value, not a behaviour change at the device.
+
+def test_the_box_in_winter_still_sends_the_byte_it_always_sent():
+    """No regression where the constant happened to be right: New York in January is UTC-5 == 0xCE."""
+    winter = dt.datetime(2026, 1, 15, 22, 0, tzinfo=zoneinfo.ZoneInfo("America/New_York"))
+    assert oxyii.tz_tenths(winter) == -50
+    assert oxyii.set_time_frame(winter)[14] == 0xCE
+
+
+def test_the_same_box_in_summer_no_longer_claims_a_winter_offset():
+    """The defect itself: EDT is UTC-4, and the hardcoded 0xCE asserted UTC-5 for half of every year."""
+    summer = dt.datetime(2026, 7, 15, 22, 0, tzinfo=zoneinfo.ZoneInfo("America/New_York"))
+    assert oxyii.tz_tenths(summer) == -40
+    assert oxyii.set_time_frame(summer)[14] == 0xD8 == (-40 & 0xFF)
+
+
+def test_east_of_utc_is_positive_and_utc_itself_is_zero():
+    east = dt.datetime(2026, 7, 15, 22, 0, tzinfo=zoneinfo.ZoneInfo("Europe/Warsaw"))
+    assert oxyii.tz_tenths(east) == 20                                   # CEST = UTC+2
+    assert oxyii.set_time_frame(east)[14] == 20
+    assert oxyii.tz_tenths(dt.datetime(2026, 7, 15, 22, 0, tzinfo=dt.timezone.utc)) == 0
+
+
+def test_a_half_hour_zone_is_exact_and_a_45_minute_zone_rounds_symmetrically():
+    """+5:30 is 55 tenths exactly. +5:45 is 57.5 and NOT representable, so it must round away from zero
+    in BOTH directions — `round()`'s banker's rule would send +5:45 as 57 and -5:45 as -58."""
+    half = dt.timezone(dt.timedelta(hours=5, minutes=30))
+    q45_east = dt.timezone(dt.timedelta(hours=5, minutes=45))
+    q45_west = dt.timezone(-dt.timedelta(hours=5, minutes=45))
+    assert oxyii.tz_tenths(dt.datetime(2026, 7, 1, tzinfo=half)) == 55
+    assert oxyii.tz_tenths(dt.datetime(2026, 7, 1, tzinfo=q45_east)) == 58
+    assert oxyii.tz_tenths(dt.datetime(2026, 7, 1, tzinfo=q45_west)) == -58
+
+
+def test_an_offset_past_the_byte_is_clamped_never_wrapped():
+    """Kiritimati is UTC+14 = 140 tenths against a field that holds 127. Clamping is 1.3 h out; wrapping
+    would be 25.6 h out and would arrive as a plausible NEGATIVE offset — wrong AND convincing."""
+    far_east = dt.datetime(2026, 7, 1, tzinfo=dt.timezone(dt.timedelta(hours=14)))
+    far_west = dt.datetime(2026, 7, 1, tzinfo=dt.timezone(-dt.timedelta(hours=14)))
+    assert oxyii.tz_tenths(far_east) == oxyii.TZ_TENTHS_MAX == 127
+    assert oxyii.tz_tenths(far_west) == oxyii.TZ_TENTHS_MIN == -128
+    assert oxyii.set_time_frame(far_east)[14] == 127
+
+
+def test_a_naive_datetime_is_read_as_host_local_time_at_that_wall_clock():
+    """`set_time_frame` is handed naive local civil time, so the zone must be resolved AT THAT INSTANT
+    — resolving it once at import is how a process started in winter keeps sending winter all summer."""
+    prev = os.environ.get("TZ")
+    try:
+        os.environ["TZ"] = "Europe/Warsaw"
+        time.tzset()
+        assert oxyii.tz_tenths(dt.datetime(2026, 7, 1, 12, 0)) == 20      # CEST, same process
+        assert oxyii.tz_tenths(dt.datetime(2026, 1, 1, 12, 0)) == 10      # CET,  same process
+    finally:
+        if prev is None:
+            os.environ.pop("TZ", None)
+        else:
+            os.environ["TZ"] = prev
+        time.tzset()
+
+
+def test_the_civil_components_are_untouched_by_the_timezone_change():
+    """Payload byte [7] — frame index 14 — is the only byte that moved. The seven civil fields the
+    ring actually stores must stay byte-identical to what this function has always produced."""
+    when = dt.datetime(2026, 7, 19, 3, 4, 5, tzinfo=zoneinfo.ZoneInfo("America/New_York"))
+    pl = oxyii.set_time_frame(when)[7:15]
+    assert pl[:7] == bytes([2026 & 0xFF, 2026 >> 8, 7, 19, 3, 4, 5])
+
+
+def test_setup_frame_still_disables_every_push_stream():
+    """The AUTO_RT_SWITCH row is documentation only: the byte we send is unchanged, deliberately, and
+    changing it is a device-behaviour decision that belongs to the owner and a night on the box."""
+    assert oxyii.setup_frame()[7] == 0x00
+    assert (oxyii.RT_PUSH_PARAM, oxyii.RT_PUSH_WAVE, oxyii.RT_PUSH_PPG, oxyii.RT_PUSH_ACC) == (1, 2, 4, 8)
+
+
+def test_set_time_frame_seq_defaults_to_zero_and_is_forwarded():
+    """The sequence byte (frame index 4) rides `seq` straight into `encode`: default 0, and a caller's
+    value lands verbatim. Pinned because the mutation gate showed the default and the forwarding were
+    both invisible to the suite (2026-09-09)."""
+    when = dt.datetime(2026, 7, 19, 3, 4, 5, tzinfo=dt.timezone.utc)
+    assert oxyii.set_time_frame(when)[4] == 0
+    assert oxyii.set_time_frame(when, seq=7)[4] == 7
+    assert oxyii.set_time_frame(when, 7)[7:15] == oxyii.set_time_frame(when)[7:15]

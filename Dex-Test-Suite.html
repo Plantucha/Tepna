@@ -142,6 +142,9 @@
 <!-- CORE adapter spine (DOM-free; adapters self-register at load) -->
 <script src="signal-spec.js"></script>
 <script src="signal-frame.js"></script>
+<script src="measurement-block.js"></script>
+<script src="verdict.js"></script>
+<script src="night-seal.js"></script>
 <script src="dex-export.js"></script>
 <script src="signal-adapters.js"></script>
 <script src="adapters/polar-rr.js"></script>
@@ -178,7 +181,12 @@
 <!-- §F1.5 — the TCH golden's input builder, shared with tools/regen-integrator-goldens.mjs. MUST load
      BEFORE dex-tests.js: the equivalence gate reads it as a global in this lane. -->
 <script src="tests/tch-golden-inputs.js"></script>
+<script src="tests/hrstat-class-twins.js"></script>
 <script src="tests/apnea-null-twins.js"></script>
+<script src="tests/respiration-fusion-twins.js"></script>
+<!-- AFTER the three above: fusion-night-twins.js composes their inputs and reads them as
+     globals in this lane, so load order is load-bearing here. -->
+<script src="tests/fusion-night-twins.js"></script>
 <script src="tests/dex-tests.js"></script>
 
 <script>
@@ -193,7 +201,7 @@ const SOURCE_FILES = ['tools/trio-batch.mjs','tools/pat-host-offset.mjs','tools/
   'ecgdex-cross.js','oxydex-cross.js','pulsedex-cross.js','ppgdex-cross.js',
   'crossnight-envelope.js','ecgdex-app.js','ppgdex-app.js','pulsedex-app.js','pulsedex-render.js','motiondex-render.js','hrvdex-app.js','oxydex-app.js','oxydex-render.js','oxydex-fusion.js','dex-escape.js','dex-forget.js','dex-actions.js','dex-profile.js','sensor-trio-worker.js','sensor-trio-power-analysis.js','sensor-trio-gpu.js','hrvdex-render.js','pat-gate.js','pat-align.js','manifest-gate.js','tools/build.mjs','tools/verify-fixtures.mjs','tools/regen-goldens.mjs','tools/regen-goldens-core.mjs','tools/regen-oxydex-goldens.mjs','tools/regen-ecgdex-goldens.mjs','tools/regen-ppgdex-goldens.mjs','tools/regen-pulsedex-goldens.mjs','tools/regen-hrvdex-goldens.mjs','tools/regen-glucodex-goldens.mjs','tools/regen-cpap-goldens.mjs','tools/regen-motiondex-goldens.mjs','signal-orchestrate.js','dex-ingest.js',
   'cpapdex-dsp.js','cpapdex-cross.js','cpapdex-edf.js','cpapdex-app.js','cpapdex-fusion.js','ecgdex-morph.js','ppgdex-morph.js','dex-export.js',
-  'ganglior-provenance.js','signal-frame.js','glucodex-render.js','glucodex-app.js',
+  'ganglior-provenance.js','signal-frame.js','measurement-block.js','verdict.js','night-seal.js','glucodex-render.js','glucodex-app.js',
   'cpapdex-render.js','pulsedex-overview.js','ecgdex-profile.js','glucodex-profile.js','ppgdex-profile.js',
  // motiondex-dsp.js is EVAL'd into the realm above (line ~239) but its TEXT was never in env.sources,
  // so every source-mirror assertion about MotionDex silently had nothing to read in this lane. The
@@ -472,6 +480,23 @@ async function main(){
     try { fixture = await fetchJSON('uploads/' + encodeURIComponent(fxF)); } catch (e) { /* committed → normally present */ }
     setEquiv(k, input, fixture, fxF);
   }
+  /* The stored .dat night WITH its acquisition envelope (residue 2026-09-21-measurement-envelope-hop-
+     unexercised) — the fourth OxyDex fixture, code-gated, so it needs a leg in THIS lane too or the
+     fixture-reproducibility gate reads its manifestHash claim as decoration (it did, on #2798's first
+     lap: the node lane had the pair, this one did not). Its input is BINARY plus a JSON sidecar, both
+     corpus-backed (gitignored, like the two CSV summaries) — fetched as bytes here, and the FIXTURE
+     registers even when the input is absent, so the leg exists everywhere and runs where the corpus is. */
+  {
+    const datF = 'Wellue_O2Ring-S_20260919224526_STORED.dat', metaF = datF + '.meta.json', fxF = 'OxyDex_2026-09-19_2245_stored_summary.json';
+    let input = null, fixture = null;
+    try {
+      const r = await fetch('uploads/' + encodeURIComponent(datF));
+      const m = await fetch('uploads/' + encodeURIComponent(metaF));
+      if (r.ok && m.ok) input = { bytes: new Uint8Array(await r.arrayBuffer()), fname: datF, meta: await m.json() };
+    } catch (e) { /* gitignored recording → this leg skips */ }
+    try { fixture = await fetchJSON('uploads/' + encodeURIComponent(fxF)); } catch (e) { /* committed → normally present */ }
+    setEquiv('oxydex_stored', input, fixture, fxF);
+  }
 
   // ── CPAPDex REAL-EDF legs (FIXTURE-REPRODUCIBILITY §1) — binary, multi-session ───────────────
   // Both were CODE-GATED (a manifestHash claiming "reproducible under this code") while NOTHING
@@ -507,7 +532,10 @@ async function main(){
     ['cpapdex_golden', 'cpapdex_synthetic_golden.node-export.json'],
     ['cpapdex_multinight_golden', 'cpapdex_synthetic_multinight_golden.node-export.json'],
     ['integrator_tch_golden', 'integrator_tch_golden.node-export.json'],
-    ['integrator_apnea_null_twins', 'integrator_apnea_null_twins.node-export.json']
+    ['integrator_fusion_night_twins', 'integrator_fusion_night_twins.node-export.json'],
+    ['integrator_hrstat_class_twins', 'integrator_hrstat_class_twins.node-export.json'],
+    ['integrator_apnea_null_twins', 'integrator_apnea_null_twins.node-export.json'],
+    ['integrator_respiration_fusion_twins', 'integrator_respiration_fusion_twins.node-export.json']
   ]) {
     try { setEquiv(k, null, await fetchJSON('uploads/' + encodeURIComponent(fxF)), fxF); } catch (e) { /* self-skips */ }
   }
@@ -624,6 +652,7 @@ async function main(){
     MotionDex: window.MotionDex,
     MOTIONDSP: window.MOTIONDSP,
     SignalFrame: window.SignalFrame,
+    MeasurementBlock: window.MeasurementBlock, Verdict: window.Verdict, NightSeal: window.NightSeal, // measurement-instance + verdict contracts (schema authorities)
     DexExport: window.DexExport, exportName: window.exportName, EXPORT_KINDS: window.EXPORT_KINDS,
     SignalSpec: window.SignalSpec,
     SignalAdapters: window.SignalAdapters,
@@ -659,7 +688,10 @@ async function main(){
     // §4.3 — the apnea fusion + the twins' input builder, so the browser lane runs the same equiv
     // leg the Node lane does rather than self-skipping (a skip here is a gate that examines nothing).
     fuseApneaEvents: window.fuseApneaEvents,
+    fuseRespirationRate: window.fuseRespirationRate,
+    hrStatClassTwins: (typeof hrStatClassTwins !== 'undefined' ? hrStatClassTwins : null),
     apneaNullTwins: (typeof apneaNullTwins !== 'undefined' ? apneaNullTwins : null),
+    respirationFusionTwins: (typeof respirationFusionTwins !== 'undefined' ? respirationFusionTwins : null),
     recWindow: window.recWindow,
     overlapInterval: window.overlapInterval,
     fuseHRVConsensus: window.fuseHRVConsensus,

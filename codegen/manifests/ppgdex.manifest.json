@@ -5,7 +5,6 @@
   "accentColor": "var(--blue)",
   "accentHex": "#58A6FF",
   "version": "1.0.0",
-  "status": "planned",
   "description": "Pulse waveform morphology analysis from high-sampling-rate PPG — systolic upstroke dynamics, dicrotic notch features, waveform complexity, and vascular health proxies.",
   "warning": "PPG waveform shape is influenced by sensor placement, skin pigmentation, peripheral perfusion, and ambient light. Morphological metrics are directional indicators only.",
 

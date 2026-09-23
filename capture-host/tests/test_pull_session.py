@@ -128,7 +128,15 @@ class FakeRing:
             slots = b"".join(s.encode() + b"\x00\x00" for s in self.sessions)
             self._reply(oxyii.OP_FILE_LIST, bytes([len(self.sessions)]) + slots)
         elif op == oxyii.OP_FILE_START:
-            self.off = 0                                  # each session streams from its own start
+            # HONOUR THE REQUESTED OFFSET. The trailing u32 of the START payload is a seek position
+            # (#2313), and a fixture that pinned it to 0 could not tell a working resume from one
+            # that re-downloads everything and splices — the exact failure the resume path exists to
+            # avoid. 14-char stamp + 2 pad, then the u32.
+            # `frame`, not `payload` — the latter is a LOCAL of the GET_INFO branch above and was
+            # still in scope, so reading it here silently produced garbage offsets that broke 38
+            # tests at once. oxyii.encode: 7-byte header, then the payload.
+            _pl = frame[7:-1]
+            self.off = int.from_bytes(_pl[16:20], "little") if len(_pl) >= 20 else 0
             if self.declared_seq:
                 self.declared = self.declared_seq.pop(0)
             # The size is the FIRST FOUR bytes; the meta bytes that follow are NOT zero on real
@@ -209,7 +217,7 @@ def test_a_complete_download_writes_the_dat_and_its_sidecar(tmp_path, monkeypatc
     blob = b"\x01\x03" + bytes(range(256)) * 8      # format_a marker + body
     ring = FakeRing(["20260719010000"], blob)
     _install(monkeypatch, ring)
-    got = _run(pull_session._pull_once("AA:BB:CC:DD:EE:FF", str(tmp_path), "latest", 0, None, "0000"))
+    got = _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "latest", 0, None, "0000"))
 
     assert len(got) == 1 and got[0].endswith("Wellue_O2Ring-S_20260719010000_STORED.dat")
     assert open(got[0], "rb").read() == blob, "bytes must round-trip exactly"
@@ -238,7 +246,7 @@ def test_a_finalized_recording_carries_the_devices_own_session_summary(tmp_path,
     blob = hdr + body + bytes(t)
     ring = FakeRing(["20260720020000"], blob)
     _install(monkeypatch, ring)
-    got = _run(pull_session._pull_once("AA:BB:CC:DD:EE:FF", str(tmp_path), "latest", 0, None, "0000"))
+    got = _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "latest", 0, None, "0000"))
     meta = json.load(open(got[0] + ".meta.json"))
     assert meta["finalized"] is True
     ds = meta["device_summary"]
@@ -260,7 +268,7 @@ def test_the_transfer_survives_frames_split_across_notifications(tmp_path, monke
     blob = b"\x01\x03" + bytes(range(200)) * 3
     ring = FakeRing(["20260719010000"], blob, split_frames=True)
     _install(monkeypatch, ring)
-    got = _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, None, "0000"))
+    got = _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "latest", 0, None, "0000"))
     assert open(got[0], "rb").read() == blob
 
 
@@ -281,8 +289,11 @@ def test_adapter_pin_reaches_bleak_in_the_bluez_form(tmp_path, monkeypatch):
     async def no_sleep(_s):
         return None
     monkeypatch.setattr(pull_session.asyncio, "sleep", no_sleep)
-    _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, "hci1", "0000"))
-    assert seen["client"] == {"bluez": {"adapter": "hci1"}}
+    _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "latest", 0, "hci1", "0000"))
+    assert seen["client"] == {"bluez": {"adapter": "hci1"}, "timeout": 30.0}, (
+        "the connect timeout is a DECLARED bound (oxy_power.TIMEOUTS.connect_s), not bleak's default — "
+        "the same 30 s, but named, so all seven phase bounds of the power lifecycle are numbers a reader "
+        "can find")
     assert seen["scan"] == {"timeout": 25, "bluez": {"adapter": "hci1"}}, (
         "the adapter pin must reach the SCAN too — scanning on the default radio and then connecting on "
         "hci1 finds a device the pinned adapter may not see. 25 s is measured, not arbitrary: FILE_LIST "
@@ -295,21 +306,21 @@ def test_latest_picks_the_chronologically_newest_not_the_last_listed(tmp_path, m
     the newest night — sessions[-1] would grab whatever happened to be last."""
     ring = FakeRing(["20260719230000", "20260720010000", "20260718120000"], b"\x01\x03" + b"z" * 90)
     _install(monkeypatch, ring)
-    got = _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, None, "0000"))
+    got = _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "latest", 0, None, "0000"))
     assert got[0].endswith("20260720010000_STORED.dat")
 
 
 def test_all_pulls_every_session(tmp_path, monkeypatch):
     ring = FakeRing(["20260719010000", "20260720010000"], b"\x01\x03" + b"y" * 90)
     _install(monkeypatch, ring)
-    got = _run(pull_session._pull_once("A", str(tmp_path), "all", 0, None, "0000"))
+    got = _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "all", 0, None, "0000"))
     assert len(got) == 2 and len(_dat(tmp_path)) == 2
 
 
 def test_no_sessions_returns_empty_and_still_disconnects(tmp_path, monkeypatch):
     ring = FakeRing([], b"")
     _install(monkeypatch, ring)
-    assert _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, None, "0000")) == []
+    assert _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "latest", 0, None, "0000")) == []
     assert _dat(tmp_path) == []
     assert ring.ended is True, "the early return must still leave the BLE link closed"
 
@@ -321,7 +332,7 @@ def test_an_implausible_declared_size_skips_the_session_without_writing(tmp_path
     believes is a night; skipping is correct, and it must leave NOTHING behind."""
     ring = FakeRing(["20260719010000"], b"\x01\x03" + b"q" * 100, declared=declared)
     _install(monkeypatch, ring)
-    got = _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, None, "0000"))
+    got = _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "latest", 0, None, "0000"))
     assert got == [] and _dat(tmp_path) == []
 
 
@@ -341,7 +352,7 @@ def test_the_largest_plausible_size_is_still_accepted(tmp_path, monkeypatch):
                 raise asyncio.TimeoutError("stop")
         return await real_wait(q, op, timeout=timeout)
     monkeypatch.setattr(pull_session, "_wait", flaky)
-    got = _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, None, "0000"))
+    got = _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "latest", 0, None, "0000"))
     assert len(got) == 1, "a size just under the cap must not be rejected"
 
 
@@ -363,7 +374,7 @@ def test_a_truncated_transfer_still_writes_but_the_sidecar_shows_the_shortfall(t
         return await real_wait(q, op, timeout=timeout)
     monkeypatch.setattr(pull_session, "_wait", cut_off)
 
-    got = _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, None, "0000"))
+    got = _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "latest", 0, None, "0000"))
     assert len(got) == 1, "the partial data must still be saved"
     meta = json.load(open(got[0] + ".meta.json"))
     assert meta["bytes"] < meta["declared_size"], "the shortfall must be visible in the sidecar"
@@ -374,7 +385,7 @@ def test_an_empty_chunk_stops_the_transfer_rather_than_looping_forever(tmp_path,
     """A zero-length FILE_DATA reply never advances the offset; without the guard this spins forever."""
     ring = FakeRing(["20260719010000"], b"", declared=5000)
     _install(monkeypatch, ring)
-    got = _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, None, "0000"))
+    got = _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "latest", 0, None, "0000"))
     assert len(got) == 1 and os.path.getsize(got[0]) == 0
 
 
@@ -384,7 +395,7 @@ def test_a_ring_that_never_advertises_raises_device_not_found(tmp_path, monkeypa
         return None
     monkeypatch.setattr(pull_session.BleakScanner, "find_device_by_filter", find)
     with pytest.raises(pull_session.BleakDeviceNotFoundError):
-        _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, None, "0000"))
+        _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "latest", 0, None, "0000"))
 
 
 def test_pull_gives_up_immediately_when_not_waiting(tmp_path, monkeypatch):
@@ -443,7 +454,7 @@ def test_a_raising_progress_callback_does_not_break_the_transfer(tmp_path, monke
 
     def bad(*a, **k):
         raise ValueError("ui exploded")
-    got = _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, None, "0000", on_progress=bad))
+    got = _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "latest", 0, None, "0000", on_progress=bad))
     assert len(got) == 1 and os.path.getsize(got[0]) == len(blob)
 
 
@@ -452,7 +463,7 @@ def test_progress_reports_a_percentage_during_a_large_transfer(tmp_path, monkeyp
     blob = b"\x01\x03" + b"n" * 60000
     ring = FakeRing(["20260719010000"], blob, chunk=512)
     _install(monkeypatch, ring)
-    _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, None, "0000",
+    _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "latest", 0, None, "0000",
                                  on_progress=lambda *a: seen.append(a)))
     assert seen, "a 60 kB transfer must report progress at least once"
 
@@ -461,7 +472,7 @@ def test_progress_reports_a_percentage_during_a_large_transfer(tmp_path, monkeyp
 def test_a_tiny_file_reports_zero_samples_and_no_trailer(tmp_path, monkeypatch):
     ring = FakeRing(["20260719010000"], b"\x01\x03tiny")
     _install(monkeypatch, ring)
-    got = _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, None, "0000"))
+    got = _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "latest", 0, None, "0000"))
     meta = json.load(open(got[0] + ".meta.json"))
     assert meta["approx_samples"] == 0, "too short to contain samples — must not report a fabricated count"
     assert meta["trailer"] == ""
@@ -470,7 +481,7 @@ def test_a_tiny_file_reports_zero_samples_and_no_trailer(tmp_path, monkeypatch):
 def test_format_a_is_false_without_the_marker(tmp_path, monkeypatch):
     ring = FakeRing(["20260719010000"], b"\xff\xffnot-format-a" + b"k" * 80)
     _install(monkeypatch, ring)
-    got = _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, None, "0000"))
+    got = _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "latest", 0, None, "0000"))
     assert json.load(open(got[0] + ".meta.json"))["format_a"] is False
 
 
@@ -481,11 +492,11 @@ def test_pull_skips_a_session_already_on_disk_at_the_same_size(tmp_path, monkeyp
     blob = b"\x01\x03" + b"z" * 90
     ts = "20260719010000"
     _install(monkeypatch, FakeRing([ts], blob))
-    got1 = _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, None, "0000"))
+    got1 = _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "latest", 0, None, "0000"))
     assert len(got1) == 1 and os.path.exists(tmp_path / f"Wellue_O2Ring-S_{ts}_STORED.dat")
     # same session, same dir, a fresh ring → skipped (already on disk at the same size)
     _install(monkeypatch, FakeRing([ts], blob))
-    got2 = _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, None, "0000"))
+    got2 = _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "latest", 0, None, "0000"))
     assert got2 == [], "a session already on disk at the same size must be skipped, not re-downloaded"
 
 
@@ -496,7 +507,7 @@ def test_pull_rejects_a_which_that_escapes_the_output_dir(tmp_path, monkeypatch)
     import os
     _install(monkeypatch, FakeRing(["20260719010000"], b"\x01\x03" + b"z" * 90))
     # enough `..` to resolve ABOVE out_dir whatever its depth — the containment guard must reject it
-    got = _run(pull_session._pull_once("A", str(tmp_path), "../" * 40 + "evil", 0, None, "0000"))
+    got = _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "../" * 40 + "evil", 0, None, "0000"))
     assert got == [], "a which whose path escapes out_dir must be skipped, not turned into a path"
     assert not os.path.exists("/evil_STORED.dat")
 
@@ -505,25 +516,29 @@ def test_pull_skips_a_contained_but_nonstamp_which(tmp_path, monkeypatch):
     """A `which` that stays inside out_dir but is not a YYYYMMDDhhmmss stamp (e.g. 'notadate') passes the
     containment guard, then is rejected by the stamp-shape check — never sent to the device."""
     _install(monkeypatch, FakeRing(["20260719010000"], b"\x01\x03" + b"z" * 90))
-    got = _run(pull_session._pull_once("A", str(tmp_path), "notadate", 0, None, "0000"))
+    got = _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "notadate", 0, None, "0000"))
     assert got == [], "a non-stamp `which` must be skipped"
 
 
 # ── the device-match predicate ──────────────────────────────────────────────────────────────────────
 # This lambda decides WHICH radio peer the pull connects to. Until the fake scanner started applying it
 # (see _install), nothing in this file ran it at all: every mutation of it survived a 100 %-covered
-# suite, including `or` → `and`, which would strand the pull whenever the ring's MAC had rotated.
+# suite. Since 2026-09-05 it is ADDRESS-ONLY (`oxy_presence.is_expected_ring`, standing ruling
+# 2026-08-27): the name arm it carried — "a MAC can rotate" — let any beacon in range summon a connect.
 def test_the_scan_matches_the_ring_by_address(tmp_path, monkeypatch):
     match = _predicate(monkeypatch, tmp_path, address="D1:98:62:7C:92:B3")
     # advertises nothing recognisable, but it is the exact MAC we asked for
     assert match(FakeDevice("D1:98:62:7C:92:B3", "BLE-4C21"), FakeAdv(None)) is True
 
 
-def test_the_scan_matches_the_ring_by_name_when_its_mac_has_rotated(tmp_path, monkeypatch):
-    """The two arms are an OR precisely because a BLE MAC can rotate. Requiring BOTH — the `and` this
-    kills — means a re-randomised ring is never found, and the pull reports 'ring never appeared'."""
+def test_the_scan_refuses_a_ring_named_device_at_another_address(tmp_path, monkeypatch):
+    """The name is attacker-controlled. A stranger's device (or a stranger's ring) broadcasting
+    'O2Ring S8AW' from an address we did not pair with must NOT be connected to — that is the whole of
+    the address-only ruling, and this is the arm the old `or` used to accept."""
     match = _predicate(monkeypatch, tmp_path, address="D1:98:62:7C:92:B3")
-    assert match(FakeDevice("FF:FF:FF:FF:FF:FF", "junk"), FakeAdv("O2Ring S8AW")) is True
+    assert match(FakeDevice("FF:FF:FF:FF:FF:FF", "junk"), FakeAdv("O2Ring S8AW")) is False
+    assert match(FakeDevice("11:22:33:44:55:66", "O2Ring S8AW"), FakeAdv(None)) is False
+    assert match(FakeDevice("11:22:33:44:55:66", "junk"), FakeAdv("O2RING S8AW")) is False
 
 
 def test_the_scan_is_case_insensitive_on_both_sides_of_the_mac(tmp_path, monkeypatch):
@@ -533,19 +548,13 @@ def test_the_scan_is_case_insensitive_on_both_sides_of_the_mac(tmp_path, monkeyp
     assert match(FakeDevice("D1:98:62:7C:92:B3", "junk"), FakeAdv(None)) is True
 
 
-def test_the_scan_lowercases_the_advertised_name_before_matching(tmp_path, monkeypatch):
-    """The hints are lowercase, so the advertised name is folded down to meet them — a ring shouting
-    O2RING must match as readily as one whispering o2ring."""
-    match = _predicate(monkeypatch, tmp_path, address="FF:FF:FF:FF:FF:FF")
-    assert match(FakeDevice("11:22:33:44:55:66", "junk"), FakeAdv("O2RING S8AW")) is True
-
-
-def test_the_scan_falls_back_to_the_device_name_when_the_advert_carries_none(tmp_path, monkeypatch):
-    """Plenty of adverts carry no local_name; the cached device name is the fallback, and a device with
-    neither must be a clean no-match rather than an AttributeError that aborts the whole scan."""
-    match = _predicate(monkeypatch, tmp_path, address="FF:FF:FF:FF:FF:FF")
-    assert match(FakeDevice("11:22:33:44:55:66", "O2Ring S8AW"), FakeAdv(None)) is True
-    assert match(FakeDevice("11:22:33:44:55:66", None), FakeAdv(None)) is False
+def test_the_scan_never_reads_the_name_at_all(tmp_path, monkeypatch):
+    """A device with neither an advertised nor a cached name must be a clean address decision — and
+    the predicate must not touch `.local_name`/`.name`, so an advert object without them cannot abort
+    the scan with an AttributeError."""
+    match = _predicate(monkeypatch, tmp_path, address="D1:98:62:7C:92:B3")
+    assert match(FakeDevice("D1:98:62:7C:92:B3", None), object()) is True
+    assert match(FakeDevice("11:22:33:44:55:66", None), object()) is False
 
 
 def test_the_scan_ignores_an_unrelated_device(tmp_path, monkeypatch):
@@ -579,7 +588,7 @@ def test_the_real_mtu_is_acquired_before_it_is_reported(tmp_path, monkeypatch):
     ring._backend = Backend()
     ring.mtu_size = 23
     _install(monkeypatch, ring)
-    _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, None, "0000"))
+    _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "latest", 0, None, "0000"))
     assert acquired == [True], "the placeholder MTU must be refreshed before it is reported"
 
 
@@ -592,7 +601,7 @@ def test_one_implausible_session_does_not_abandon_the_rest_of_the_flash(tmp_path
     ring = FakeRing(["20260719010000", "20260720010000"], blob,
                     declared_seq=[0, len(blob)])          # the FIRST session reports a nonsense size
     _install(monkeypatch, ring)
-    got = _run(pull_session._pull_once("A", str(tmp_path), "all", 0, None, "0000"))
+    got = _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "all", 0, None, "0000"))
     assert len(got) == 1 and got[0].endswith("20260720010000_STORED.dat"), \
         "the good session behind the bad one must still be pulled"
 
@@ -604,9 +613,9 @@ def test_a_session_already_on_disk_does_not_abandon_the_rest_of_the_flash(tmp_pa
     blob = b"\x01\x03" + b"z" * 90
     first, second = "20260719010000", "20260720010000"
     _install(monkeypatch, FakeRing([first], blob))
-    assert len(_run(pull_session._pull_once("A", str(tmp_path), "all", 0, None, "0000"))) == 1
+    assert len(_run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "all", 0, None, "0000"))) == 1
     _install(monkeypatch, FakeRing([first, second], blob))
-    got = _run(pull_session._pull_once("A", str(tmp_path), "all", 0, None, "0000"))
+    got = _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "all", 0, None, "0000"))
     assert len(got) == 1 and got[0].endswith(f"{second}_STORED.dat"), \
         "the already-present session is skipped, and the genuinely new one is still pulled"
 
@@ -617,7 +626,7 @@ def test_a_date_only_session_id_is_still_a_plausible_stamp(tmp_path, monkeypatch
     a session exists is the device's answer to give, not this guard's."""
     blob = b"\x01\x03" + b"z" * 90
     _install(monkeypatch, FakeRing(["20260719010000"], blob))
-    got = _run(pull_session._pull_once("A", str(tmp_path), "20260719", 0, None, "0000"))
+    got = _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "20260719", 0, None, "0000"))
     assert len(got) == 1 and got[0].endswith("20260719_STORED.dat")
 
 
@@ -625,7 +634,7 @@ def test_an_over_long_session_id_is_rejected(tmp_path, monkeypatch):
     """14 is the HIGH boundary — a full YYYYMMDDhhmmss stamp. Fifteen digits is not a stamp, and this
     value reaches a filesystem path, so the guard must not stretch to fit it."""
     _install(monkeypatch, FakeRing(["20260719010000"], b"\x01\x03" + b"z" * 90))
-    got = _run(pull_session._pull_once("A", str(tmp_path), "202607190100001", 0, None, "0000"))
+    got = _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "202607190100001", 0, None, "0000"))
     assert got == [] and _dat(tmp_path) == []
 
 
@@ -633,7 +642,7 @@ def test_a_single_byte_session_is_still_pulled(tmp_path, monkeypatch):
     """Boundary: the size guard is `0 < size`, so one byte is the smallest thing the ring can legitimately
     report. Rejecting it would silently discard the shortest recordings as 'implausible'."""
     _install(monkeypatch, FakeRing(["20260719010000"], b"\x7f", declared=1, chunk=1))
-    got = _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, None, "0000"))
+    got = _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "latest", 0, None, "0000"))
     assert len(got) == 1 and os.path.getsize(got[0]) == 1
 
 
@@ -643,7 +652,7 @@ def test_the_sidecar_reports_whole_samples_and_a_fixed_width_header(tmp_path, mo
     consumer of it. The header is a fixed 10-byte prefix, so its hex is exactly 20 characters."""
     blob = b"\x01\x03" + b"s" * 200
     _install(monkeypatch, FakeRing(["20260719010000"], blob))
-    got = _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, None, "0000"))
+    got = _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "latest", 0, None, "0000"))
     meta = json.load(open(got[0] + ".meta.json"))
     assert isinstance(meta["approx_samples"], int), "a sample count must not be a float"
     assert meta["approx_samples"] == (len(blob) - 10 - 48) // 3
@@ -657,7 +666,7 @@ def test_exactly_forty_eight_bytes_still_yields_a_trailer(tmp_path, monkeypatch)
     blob = bytes(range(48))
     ring = FakeRing(["20260719010000"], blob, chunk=48)
     _install(monkeypatch, ring)
-    got = _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, None, "0000"))
+    got = _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "latest", 0, None, "0000"))
     meta = json.load(open(got[0] + ".meta.json"))
     assert meta["trailer"] == blob.hex() and len(meta["trailer"]) == 96
     assert len([w for w in ring.writes if w[1] == oxyii.OP_FILE_DATA]) == 1
@@ -670,7 +679,7 @@ def test_progress_reports_once_per_20_kb_with_the_offset_and_the_total(tmp_path,
     seen = []
     blob = b"\x01\x03" + b"n" * 60000                     # 60 002 B in 512 B chunks
     _install(monkeypatch, FakeRing(["20260719010000"], blob, chunk=512))
-    _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, None, "0000",
+    _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "latest", 0, None, "0000",
                                  on_progress=lambda off, size: seen.append((off, size))))
     assert seen == [(20480, len(blob)), (40960, len(blob))]
 
@@ -692,7 +701,11 @@ def test_pull_hands_every_argument_to_the_attempt_in_order(tmp_path, monkeypatch
     _run(pull_session.pull("D1:98:62:7C:92:B3", str(tmp_path), "20260719010000", 3, "hci1", "1234",
                            0, on_progress=cb))
     assert seen["args"] == ("D1:98:62:7C:92:B3", str(tmp_path), "20260719010000", 3, "hci1", "1234", cb)
-    assert seen["kwargs"] == {}
+    # `device_id` rides as a keyword, None when the caller has no identity to offer (the CLI) — the
+    # ledger then keys on the address, never on the auth serial (test_pull_identity_key).
+    assert seen["kwargs"] == {"device_id": None}
+    _run(pull_session.pull("D1:98:62:7C:92:B3", str(tmp_path), device_id="2592302100"))
+    assert seen["kwargs"] == {"device_id": "2592302100"}
 
 
 def test_pull_defaults_are_the_ones_the_cli_documents(tmp_path, monkeypatch):
@@ -712,30 +725,25 @@ def test_pull_defaults_are_the_ones_the_cli_documents(tmp_path, monkeypatch):
 
 
 # ── the --ftype argument must actually reach the wire ───────────────────────────────────────────────
-def test_ftype_reaches_the_file_start_frame(tmp_path, monkeypatch):
-    """`_pull_once(..., ftype, ...)` builds the FILE_START frame with `oxyii.file_start_frame(ts, ftype)`,
-    and that parameter DEFAULTS to 0. Every other test in this file pulls with ftype=0, so dropping the
-    argument entirely is invisible to all of them — the frame comes out byte-identical. It is not
-    The verifiable consequence is a DEAD CONFIG KNOB: capture.py reads `ftype` from config.yaml
-    (`int(pcfg.get("ftype", 0))`) and threads it down to this frame, so dropping the argument pins the
-    wire value to 0 no matter what the operator configured — the setting silently stops working. What
-    a non-zero ftype actually returns is the device's business and is NOT asserted here: the vigil box
-    runs `ftype: 0` and all 15 stored pulls used it, so there is no observation on hand, and the
-    "selects a different file type" reading comes only from the flag's help text and the
-    "try a different --ftype" error message.
+def test_the_START_FRAME_CARRIES_THE_RESUME_OFFSET_NOT_A_FILE_TYPE(tmp_path, monkeypatch):
+    """This test used to assert that `--ftype 7` reached the wire, on the reading that the trailing
+    u32 selects a file type. ⚠️ ITS OWN DOCSTRING RECORDED THE EVIDENCE AS WEAK — "the 'selects a
+    different file type' reading comes only from the flag's help text and the error message" — and
+    that reading was wrong: the u32 is an OFFSET (#2313), so `ftype: 7` asked the ring to start at
+    byte 7 of the oximetry file.
 
-    Asserting on the encoded payload rather than on a spy: the four little-endian bytes after the
-    14-char stamp + 2 pad ARE the wire contract (oxyii.file_start_frame)."""
+    What is worth pinning is unchanged and is kept: the four little-endian bytes after the 14-char
+    stamp + 2 pad ARE the wire contract. Only the claim about what they MEAN has moved."""
     ring = FakeRing(["20260720010000"], b"\x01\x03" + b"z" * 90)
     _install(monkeypatch, ring)
-    _run(pull_session._pull_once("A", str(tmp_path), "all", 7, None, "0000"))
+    _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "all", False, None, "0000"))
 
     starts = [w for w in ring.writes if w[1] == oxyii.OP_FILE_START]
     assert starts, "the pull must have sent a FILE_START"
     payload = starts[0][7:-1]                       # oxyii.encode: 7-byte header, payload, 1 CRC byte
     assert payload[:14] == b"20260720010000", "stamp must lead the payload"
-    assert int.from_bytes(payload[16:20], "little") == 7, \
-        "the requested --ftype must reach the device; a dropped argument silently defaults it to 0"
+    assert int.from_bytes(payload[16:20], "little") == 0, \
+        "a clean pull must open the file at offset 0 — a non-zero value here starts mid-file"
 
 
 def test_a_too_small_mtu_warns_loudly_instead_of_failing_silently(tmp_path, monkeypatch, capsys):
@@ -751,7 +759,7 @@ def test_a_too_small_mtu_warns_loudly_instead_of_failing_silently(tmp_path, monk
     ring._backend = Backend()
     ring.mtu_size = 23
     _install(monkeypatch, ring)
-    _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, None, "0000"))
+    _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "latest", 0, None, "0000"))
     out = capsys.readouterr().out
     assert "MTU is 23" in out and "may fail silently" in out
 
@@ -761,7 +769,7 @@ def test_a_healthy_mtu_does_not_warn(tmp_path, monkeypatch, capsys):
     good pull). FakeRing defaults to mtu_size=517."""
     ring = FakeRing(["20260719010000"], b"\x01\x03" + b"z" * 90)
     _install(monkeypatch, ring)
-    _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, None, "0000"))
+    _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "latest", 0, None, "0000"))
     assert "may fail silently" not in capsys.readouterr().out
 
 
@@ -773,7 +781,7 @@ def _pull_one(tmp_path, monkeypatch, answer_info=True):
     ring = FakeRing(["20260720020000"], blob)
     ring.answer_info = answer_info
     _install(monkeypatch, ring)
-    got = _run(pull_session._pull_once("AA:BB:CC:DD:EE:FF", str(tmp_path), "latest", 0, None, "0000"))
+    got = _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "latest", 0, None, "0000"))
     return json.load(open(got[0] + ".meta.json"))
 
 def test_the_pull_records_WHICH_FIRMWARE_produced_the_bytes(tmp_path, monkeypatch):
@@ -813,7 +821,7 @@ def test_a_completed_download_records_the_full_ledger_lifecycle(tmp_path, monkey
     ts = "20260719010000"
     blob = b"\x01\x03" + b"z" * 90
     _install(monkeypatch, FakeRing([ts], blob))
-    got = _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, None, "0000"))
+    got = _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "latest", 0, None, "0000"))
     assert len(got) == 1 and got[0].endswith(f"{ts}_STORED.dat")
     rows = inv.load_rows(str(tmp_path / "inventory.jsonl"))
     states = [r["state"] for r in rows if r["session"] == ts]
@@ -832,7 +840,7 @@ def test_a_finalized_download_classifies_VERIFIED_before_committing(tmp_path, mo
     blob = hdr + bytes([96, 50, 0]) * 60 + bytes(t)
     ts = "20260720020000"
     _install(monkeypatch, FakeRing([ts], blob))
-    _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, None, "0000"))
+    _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "latest", 0, None, "0000"))
     states = [r["state"] for r in inv.load_rows(str(tmp_path / "inventory.jsonl")) if r["session"] == ts]
     assert states == [inv.DISCOVERED, inv.DOWNLOADING, inv.VERIFYING, inv.VERIFIED, inv.COMMITTED], states
 
@@ -846,7 +854,7 @@ def test_a_committed_recording_is_skipped_by_the_ledger_not_by_size(tmp_path, mo
     _seed(tmp_path, inv.make_row(DEV, ts, inv.COMMITTED, size=len(blob), at=1.0))
     ring = FakeRing([ts], blob)
     _install(monkeypatch, ring)
-    got = _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, None, "0000"))
+    got = _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "latest", 0, None, "0000"))
     assert got == [], "a committed, size-matching recording must be skipped"
     assert [w for w in ring.writes if w[1] == oxyii.OP_FILE_START] == [], "INTACT must not re-pull"
     assert _ledger_state(tmp_path, ts) == inv.COMMITTED, "and its state must not regress"
@@ -864,7 +872,7 @@ def test_a_verified_but_never_committed_recording_is_committed_without_a_repull(
           inv.make_row(DEV, ts, inv.VERIFIED, size=len(blob), at=2.0))
     ring = FakeRing([ts], blob)
     _install(monkeypatch, ring)
-    got = _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, None, "0000"))
+    got = _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "latest", 0, None, "0000"))
     assert len(got) == 1 and got[0].endswith(f"{ts}_STORED.dat"), "the recovered recording is surfaced"
     assert [w for w in ring.writes if w[1] == oxyii.OP_FILE_START] == [], "COMMIT must not re-download"
     assert final.read_bytes() == blob, "the already-committed bytes are untouched"
@@ -881,7 +889,7 @@ def test_a_recording_whose_bytes_drifted_under_a_verified_row_is_quarantined(tmp
     _seed(tmp_path, inv.make_row(DEV, ts, inv.COMMITTED, size=92, at=1.0))
     ring = FakeRing([ts], blob)
     _install(monkeypatch, ring)
-    got = _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, None, "0000"))
+    got = _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "latest", 0, None, "0000"))
     assert got == [], "a drifted recording is neither trusted nor re-pulled"
     assert [w for w in ring.writes if w[1] == oxyii.OP_FILE_START] == [], "QUARANTINE must not re-pull"
     assert final.read_bytes() == b"x" * 50, "the drifted bytes are preserved as evidence"
@@ -896,7 +904,7 @@ def test_a_leftover_part_forces_a_repull_and_is_never_adopted(tmp_path, monkeypa
     _seed(tmp_path, inv.make_row(DEV, ts, inv.PARTIAL, size=40, at=1.0))
     ring = FakeRing([ts], blob)
     _install(monkeypatch, ring)
-    got = _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, None, "0000"))
+    got = _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "latest", 0, None, "0000"))
     assert len(got) == 1 and got[0].endswith(f"{ts}_STORED.dat"), "the leftover .part is re-pulled"
     assert (tmp_path / f"Wellue_O2Ring-S_{ts}_STORED.dat").read_bytes() == blob
     assert [w for w in ring.writes if w[1] == oxyii.OP_FILE_START], "a re-pull DID send FILE_START"
@@ -923,7 +931,7 @@ def test_a_truncated_transfer_emits_NO_VERIFYING_row(tmp_path, monkeypatch):
         return await real_wait(q, op, timeout=timeout)
 
     monkeypatch.setattr(pull_session, "_wait", cut_off)
-    _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, None, "0000"))
+    _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "latest", 0, None, "0000"))
     states = [r["state"] for r in inv.load_rows(str(tmp_path / "inventory.jsonl")) if r["session"] == ts]
     assert inv.VERIFYING not in states, f"a short pull claimed bytes-complete: {states}"
     assert states == [inv.DISCOVERED, inv.DOWNLOADING, inv.PARTIAL], states
@@ -946,14 +954,14 @@ def test_a_truncated_transfer_is_recorded_PARTIAL_and_re_pulled_next_run(tmp_pat
                 raise asyncio.TimeoutError("link died mid-transfer")
         return await real_wait(q, op, timeout=timeout)
     monkeypatch.setattr(pull_session, "_wait", cut_off)
-    got = _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, None, "0000"))
+    got = _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "latest", 0, None, "0000"))
     assert got[0].endswith(".part"), "an incomplete pull is surfaced under its .part name"
     assert _ledger_state(tmp_path, ts) == inv.PARTIAL, "and recorded PARTIAL, never COMMITTED"
 
     # next run, full transfer available → the .part is re-pulled and committed
     monkeypatch.setattr(pull_session, "_wait", real_wait)
     _install(monkeypatch, FakeRing([ts], blob, chunk=512))
-    got2 = _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, None, "0000"))
+    got2 = _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "latest", 0, None, "0000"))
     assert got2[0].endswith(f"{ts}_STORED.dat") and not got2[0].endswith(".part")
     assert _ledger_state(tmp_path, ts) == inv.COMMITTED
 
@@ -964,7 +972,7 @@ def test_the_pull_emits_the_PULLING_lifecycle_state(tmp_path, monkeypatch):
     every edge legal, never forced."""
     lc = oxy_lifecycle.OxyLifecycle()
     _install(monkeypatch, FakeRing(["20260719010000"], b"\x01\x03" + b"z" * 90))
-    _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, None, "0000", lifecycle=lc))
+    _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "latest", 0, None, "0000", lifecycle=lc))
     seq = [t.new for t in lc.history]
     assert oxy_lifecycle.OxyState.PULLING in seq, "the pull must emit PULLING"
     assert seq[:2] == [oxy_lifecycle.OxyState.PAUSED_FOR_PULL, oxy_lifecycle.OxyState.PULLING]
@@ -976,5 +984,212 @@ def test_no_sessions_leaves_the_lifecycle_untouched(tmp_path, monkeypatch):
     fires before the lifecycle is driven at all."""
     lc = oxy_lifecycle.OxyLifecycle()
     _install(monkeypatch, FakeRing([], b""))
-    assert _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, None, "0000", lifecycle=lc)) == []
+    assert _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "latest", 0, None, "0000", lifecycle=lc)) == []
     assert lc.history == [] and lc.state is oxy_lifecycle.OxyState.NOT_SEEN
+
+
+# ── which="new" — the ledger-diff scope (residue 2026-09-05-doff-pull-latest-strands-fragments) ─────
+def test_which_NEW_pulls_only_what_the_ledger_does_not_already_hold(tmp_path, monkeypatch):
+    """The drain's whole point: a night whose main session already landed must not re-pull it over
+    the slow BLE link, and the fragment that never landed must not be skipped because a DISCOVERED
+    row exists for it."""
+    import oxy_inventory as INV
+    blob = b"\x01\x03" + bytes(range(256)) * 8
+    ledger = os.path.join(str(tmp_path), "inventory.jsonl")
+    INV.append_row(ledger, {"session": "20260828232644", "state": INV.COMMITTED,
+                            "id": "x/20260828232644"})
+    INV.append_row(ledger, {"session": "20260829015107", "state": INV.DISCOVERED,
+                            "id": "x/20260829015107"})
+    ring = FakeRing(["20260828232644", "20260829015107"], blob)
+    _install(monkeypatch, ring)
+    got = _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "new", 0, None, "0000"))
+
+    assert len(got) == 1, f"expected only the undrained session, got {got}"
+    assert got[0].endswith("Wellue_O2Ring-S_20260829015107_STORED.dat")
+
+
+def test_which_NEW_with_nothing_owed_is_a_cheap_no_op(tmp_path, monkeypatch):
+    """The common case once a night is fully drained. It must cost a listing and nothing else —
+    this is what makes the follow-on sweep safe to dispatch unconditionally after every event pull."""
+    import oxy_inventory as INV
+    INV.append_row(os.path.join(str(tmp_path), "inventory.jsonl"),
+                   {"session": "20260828232644", "state": INV.VERIFIED, "id": "x/20260828232644"})
+    ring = FakeRing(["20260828232644"], b"\x01\x03" + bytes(range(256)) * 8)
+    _install(monkeypatch, ring)
+    assert _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "new", 0, None, "0000")) == []
+
+
+# ── probe_ppg_list: FIRST CONTACT with the stored raw-PPG family (0x06-0x09) ────────────────────────
+class _ProbeRing:
+    """Minimal ring for the probe path: answers cmd 0x06 with genuine oxyii-encoded frames, or with
+    nothing. Speaks the real 0xA5 wire format, so the reply goes through the real Reassembler."""
+
+    def __init__(self, reply: bytes | None = None, live: int = 0):
+        self.reply, self.live, self.notify = reply, live, None
+        self.writes: list[bytes] = []
+        self.responses: list[bool] = []      # `response=` per write — a True here is a protocol change
+        self.ctor_kwargs: dict = {}          # what BleakClient was CONSTRUCTED with (the adapter pin)
+        self.notified: list = []             # characteristics subscribed, in order
+        self.mtu_size = 517
+        self.stopped = False
+
+    async def __aenter__(self): return self
+    async def __aexit__(self, *a): return False
+    async def start_notify(self, u, cb):
+        self.notified.append(u)
+        self.notify = cb
+    async def stop_notify(self, _u): self.stopped = True
+
+    async def write_gatt_char(self, _u, data, response=False):
+        self.writes.append(bytes(data))
+        self.responses.append(response)
+        if bytes(data)[1] == oxyii.OP_PPG_FILE_LIST:
+            for _ in range(self.live):
+                self.notify(0, oxyii.encode(oxyii.OP_LIVE, b"\x00" * 8))
+            if self.reply is not None:
+                self.notify(0, oxyii.encode(oxyii.OP_PPG_FILE_LIST, self.reply))
+
+
+def _probe_ble(monkeypatch, ring, device=object()):
+    scan = {}
+    async def find(_addr, **k):
+        scan.update(k)
+        return device
+    monkeypatch.setattr(pull_session.BleakScanner, "find_device_by_address", find)
+    def _client(dev, **kw):
+        ring.ctor_kwargs = kw            # RECORDED, not discarded — see the adapter-pin test
+        return ring
+    monkeypatch.setattr(pull_session, "BleakClient", _client)
+    async def no_sleep(_s): return None
+    monkeypatch.setattr(pull_session.asyncio, "sleep", no_sleep)
+    return scan
+
+
+def test_probe_records_the_raw_reply_and_sends_ONE_frame(monkeypatch, capsys):
+    """MEASURED FIRST CONTACT, 2026-09-07 on S8AW2100: the family answered cmd 0x06 with
+    `0132303236303832393034303531310000` — a count byte, a 14-char ASCII stamp, two pad bytes.
+
+    Two things are asserted and the second is the point: exactly ONE frame reaches the ring (LIST; no
+    START/DATA/END, nothing written to flash), and the reply is reported as RAW HEX rather than parsed.
+    An unprobed family has no confirmed layout, and interpreting the bytes here would manufacture one."""
+    body = bytes.fromhex("0132303236303832393034303531310000")
+    ring = _ProbeRing(reply=body)
+    _probe_ble(monkeypatch, ring)
+    out = _run(pull_session.probe_ppg_list("D1:98:62:7C:92:B3"))
+    printed = capsys.readouterr().out
+    assert [w[1] for w in ring.writes] == [oxyii.OP_AUTH, oxyii.OP_SETUP, oxyii.OP_PPG_FILE_LIST], \
+        "auth + setup + LIST, and NOTHING else — no START, no DATA, no END"
+    assert out and out[0][0] == oxyii.OP_PPG_FILE_LIST
+    assert body.hex() in printed, "the raw reply must be reported verbatim"
+    assert ring.stopped
+
+
+def test_probe_reports_SILENCE_as_a_finding(monkeypatch, capsys):
+    """A family that ignores the frame is a result, not an error. Saying so beats a traceback, because
+    'the ring did not answer 0x06' is exactly what a first probe might be there to learn."""
+    ring = _ProbeRing(reply=None)
+    _probe_ble(monkeypatch, ring)
+    out = _run(pull_session.probe_ppg_list("D1:98:62:7C:92:B3"))
+    assert out == []
+    assert "NO non-live reply" in capsys.readouterr().out
+
+
+def test_probe_does_not_count_live_frames_as_the_answer(monkeypatch, capsys):
+    """The ring streams 0x04 continuously. Counting those as a reply would report success for a family
+    that said nothing — the same shape as reading a truncated gate as a pass."""
+    ring = _ProbeRing(reply=None, live=3)
+    _probe_ble(monkeypatch, ring)
+    out = _run(pull_session.probe_ppg_list("D1:98:62:7C:92:B3"))
+    assert out == []
+    assert "3 live (0x04), 0 other" in capsys.readouterr().out
+
+
+def test_probe_says_so_when_the_ring_is_not_advertising(monkeypatch, capsys):
+    """The ring powers itself off ~122 s after a doff, so 'not advertising' is its ordinary resting
+    state rather than a fault — the probe reports it and returns instead of raising."""
+    async def find(_addr, **k): return None
+    monkeypatch.setattr(pull_session.BleakScanner, "find_device_by_address", find)
+    assert _run(pull_session.probe_ppg_list("D1:98:62:7C:92:B3")) is None
+    assert "not advertising" in capsys.readouterr().out
+
+
+def test_probe_discards_a_frame_that_does_not_decode(monkeypatch, capsys):
+    """A corrupt frame must be dropped, not counted. `decode` returns None for a bad checksum, and
+    letting that through would put a `None` in the reply list and report a frame the ring never sent —
+    an invented observation in the one run whose whole purpose is to observe honestly."""
+    class _Corrupt(_ProbeRing):
+        async def write_gatt_char(self, _u, data, response=False):
+            self.writes.append(bytes(data))
+            if bytes(data)[1] == oxyii.OP_PPG_FILE_LIST:
+                bad = bytearray(oxyii.encode(oxyii.OP_PPG_FILE_LIST, b"\x01"))
+                bad[-1] ^= 0xFF                      # corrupt the checksum
+                self.notify(0, bytes(bad))
+    ring = _Corrupt(reply=None)
+    _probe_ble(monkeypatch, ring)
+    assert _run(pull_session.probe_ppg_list("D1:98:62:7C:92:B3")) == []
+    assert "NO non-live reply" in capsys.readouterr().out
+
+
+def test_probe_ADAPTER_PIN_actually_reaches_the_scanner_and_the_client(monkeypatch):
+    """🔴 THE SURVIVOR THAT MATTERED. Dropping `**kw` from `BleakClient(...)` — which deletes the
+    adapter pin outright — passed all five earlier probe tests, because they observed the OUTPUT and
+    the routing and never the CALL.
+
+    That is the same defect the pin exists to prevent, one layer up: `test_no_bare_bleak_adapter_kwarg`
+    checks the FORM of the kwarg and cannot see whether it is passed at all. Measured 2026-09-07 —
+    three connect attempts failed identically at service discovery because the probe used the default
+    adapter while the ring is bonded to hci1, so an unpinned probe does not fail loudly, it fails as a
+    puzzling timeout."""
+    ring = _ProbeRing(reply=bytes.fromhex("0100"))
+    scan = _probe_ble(monkeypatch, ring)
+    _run(pull_session.probe_ppg_list("D1:98:62:7C:92:B3", adapter="hci1"))
+    assert scan.get("bluez") == {"adapter": "hci1"}, "the SCAN must be pinned to the right radio"
+    assert ring.ctor_kwargs.get("bluez") == {"adapter": "hci1"}, \
+        "and so must the CLIENT — a scan-only pin connects on whichever adapter bleak picks"
+    assert "adapter" not in ring.ctor_kwargs, "never the bare kwarg: the shim will one day swallow it"
+
+
+def test_probe_without_an_adapter_pins_NOTHING_rather_than_guessing_one(monkeypatch):
+    """The mirror. With no `--adapter` the probe must pass no bluez kwarg at all and let bleak choose,
+    rather than defaulting to a hardcoded radio that happens to be right on this box."""
+    ring = _ProbeRing(reply=bytes.fromhex("0100"))
+    scan = _probe_ble(monkeypatch, ring)
+    _run(pull_session.probe_ppg_list("D1:98:62:7C:92:B3"))
+    # `timeout` is legitimately passed to both and is not a pin — assert on the pin specifically,
+    # not on an empty dict. (The first draft asserted `== {}` and failed on the timeout: an
+    # over-specified assertion that would have read as a defect in the code.)
+    assert "bluez" not in scan, "no --adapter: the scan must not invent one"
+    assert "bluez" not in ring.ctor_kwargs, "nor the client"
+    assert "adapter" not in scan and "adapter" not in ring.ctor_kwargs
+
+
+def test_probe_sends_EXACTLY_three_frames_in_order_and_none_expects_a_response(monkeypatch):
+    """WHAT REACHES THE RING is the contract of a probe, and it was unpinned: `response=True` on the
+    LIST write survived, as did changes to the auth/setup frame arguments. The earlier test asserted
+    the opcodes; it did not assert the frames' CONTENT or the write mode.
+
+    `response=False` is write-without-response, which is how the daemon speaks to this ring. Flipping
+    it to True changes the ATT operation — a different thing on the wire, for a family whose behaviour
+    is exactly what is being probed."""
+    ring = _ProbeRing(reply=bytes.fromhex("0100"))
+    _probe_ble(monkeypatch, ring)
+    _run(pull_session.probe_ppg_list("D1:98:62:7C:92:B3", serial="4321"))
+    assert ring.writes == [oxyii.auth_frame("4321"), oxyii.setup_frame(),
+                           oxyii.ppg_file_list_frame()], \
+        "auth(serial) + setup + LIST, byte-for-byte — and NOTHING else reaches the ring"
+    assert ring.responses == [False, False, False], "write-without-response, as the daemon does"
+    assert ring.notified == [oxyii.OXYII_NOTIFY], "subscribed once, to the notify characteristic"
+
+
+def test_probe_reports_the_reply_LENGTH_and_OPCODE_not_merely_some_hex(monkeypatch, capsys):
+    """A dropped or blanked reply must not read as the "silence" finding. `q.put_nowait(None)` survived,
+    and silence is a RESULT here — "the ring ignored cmd 0x06" is a thing a first probe may exist to
+    learn, so a bug that manufactures it is worse than one that crashes."""
+    body = bytes.fromhex("0132303236303832393034303531310000")
+    ring = _ProbeRing(reply=body)
+    _probe_ble(monkeypatch, ring)
+    out = _run(pull_session.probe_ppg_list("D1:98:62:7C:92:B3"))
+    printed = capsys.readouterr().out
+    assert out == [(oxyii.OP_PPG_FILE_LIST, body)], "the decoded frame is returned verbatim"
+    assert f"len={len(body)}" in printed and body.hex() in printed
+    assert "NO non-live reply" not in printed, "a real reply must never render as silence"

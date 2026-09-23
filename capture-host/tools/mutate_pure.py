@@ -42,6 +42,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from typing import Any
+
 import argparse
 import importlib
 import inspect
@@ -71,14 +74,18 @@ def harvest(mutants_file: str, funcs: list[str]) -> dict[str, list[tuple[str, st
     return harvested
 
 
-def load_cases(test_files: list[str]) -> list[tuple[str, callable]]:
+# Returns `(cases, skipped)`. ⚠️ The return type said `list[...]` when this returns a TUPLE of two
+# lists — my own annotation from the previous batch, wrong on the first read and caught by mypy
+# rather than by review. It then errored the caller's unpack as well: a wrong signature does not
+# stay local, it convicts every correct call site downstream.
+def load_cases(test_files: list[str]) -> tuple[list[tuple[str, Callable[[], Any]]], list[str]]:
     """Every zero-fixture `test_*` in the given files, with `@pytest.mark.parametrize` expanded.
 
     Deliberately NOT pytest.main(): re-collecting per mutant costs more than the tests themselves and
     would make this tool slower than the thing it exists to beat. Tests that need fixtures are SKIPPED
     AND REPORTED — silently dropping them would understate the survivor count.
     """
-    cases: list[tuple[str, callable]] = []
+    cases: list[tuple[str, Callable[[], Any]]] = []
     skipped: list[str] = []
     sys.path.insert(0, str(HERE))
 

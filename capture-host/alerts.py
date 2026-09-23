@@ -244,6 +244,88 @@ def offline_alert_suppressed(optional: bool, ever_connected: bool) -> bool:
     return bool(optional) and not ever_connected
 
 
+def ring_identity_mismatch(expected, seen) -> str | None:
+    """PURE impostor-shape check (VIGIL-BLUETOOTH-ADVERSARIAL-AUDIT §6.2 Mitigation C).
+
+    `expected` is the operator-configured WIRE serial — `serial:` on the O2Ring device entry, the string
+    the ring returns in its 0xE1 GET_INFO reply (2592302100 on the corpus ring). It is NOT the BLE-name
+    id the capture filenames carry (`S8AW2100`); the two are different strings for one ring, and the
+    audit brief's first draft named the wrong one. `seen` is what the connected peer actually answered.
+    Returns the alert text when they differ, None when they match.
+
+    No expectation configured ⇒ None. This is detection the operator opts into by writing the serial
+    down; with nothing to compare against there is nothing to say, and a check that fires unconfigured
+    would fire on every box that has not read this docstring. An EMPTY or ABSENT reply against a
+    configured serial IS a mismatch — a peer that answers the identity query with no identity is
+    exactly the shape of something that is not the ring.
+
+    Detection, not prevention. The link is unbonded and the reply is plaintext, so an impostor that has
+    read this repo can echo the right serial; what this catches is the cheap impostor and the WRONG RING
+    — a replaced unit, a neighbour's O2Ring, a re-scanned random-static address that landed on the
+    wrong device — and it says so on the monitor and the webhook instead of letting that link's data
+    into the corpus unremarked."""
+    exp = str(expected).strip() if expected is not None else ""
+    if not exp:
+        return None
+    got = str(seen).strip() if seen is not None else ""
+    if got == exp:
+        return None
+    shown = repr(got) if got else "no serial at all"
+    return f"connected peer reports {shown}, config expects {exp!r}"
+
+
+# Consecutive connects that ANSWERED the identity query and then delivered nothing. At the ring
+# runner's 5→60 s reconnect backoff three of them is at least a minute of a peer that talks to us and
+# never serves data. One is an ordinary dropped link and two is a reconnect landing on a drop, so
+# neither earns an operator's attention; a run of three is the shape that is not the ring doing its job.
+RING_BARREN_ALERT_N = 3
+
+
+def ring_barren_connects(n: int, threshold: int = RING_BARREN_ALERT_N, *,
+                         storm_age_s: float | None = None, restarts_recent: int = 0) -> str | None:
+    """PURE check for the OTHER half of the impostor shape (§6.2 Mitigation C, clause 2).
+
+    Clause 1 asks whether the peer says the right serial; this asks whether it does the right thing.
+    A peer that answers the `0xE1` identity query and then never sends a single decodable frame is not
+    a ring doing its job: the real one talks whether or not it is worn — frames are the LINK's
+    heartbeat, which is exactly why the runner's stall guard counts frames and not vitals rows — so
+    "identity, then silence" is not the signature of an unworn ring, an idle one, or a charging one.
+
+    The two clauses are complementary rather than redundant, and each sees what the other cannot: an
+    impostor that echoes the configured serial passes clause 1 and, if it cannot actually produce
+    Viatom frames, fails this one; a wrong-but-real O2Ring streams perfectly and fails only clause 1.
+
+    `n` is a run of CONSECUTIVE such episodes, reset by any episode that delivered a frame — and NOT
+    reset by a connect that never reached identity. That is a link failure, which the offline alarm
+    already reports; letting it clear this counter would let an alternating failure hide forever.
+
+    ⚠️ THE FIRING IS THE SAME; THE EXPLANATION BRANCHES. An O2Ring restart storm produces exactly this
+    shape — connect, identity, the ring restarts, no frames — so the alarm is a true positive either
+    way (the link IS reaching something that serves no data). What must not happen is an operator
+    being sent after an impostor when a KNOWN storm is the cause. `storm_age_s` is seconds since the
+    last declared storm and `restarts_recent` counts recent session restarts; both are the CALLER's
+    judgement, because the caller owns the attribution window (`capture.py`'s `_OXYII_STORM_MEMORY_S`)
+    and mirroring it here would make two sources of truth for one number. Pass `storm_age_s=None`
+    when no storm is attributable.
+
+    ⚠️ CLAUSE 1's SILENCE IS DELIBERATELY *NOT* A DISCRIMINATOR, though it looks like the strongest
+    one: a storming ring still answers `0xE1` with the configured serial, so "clause 2 fired and
+    clause 1 did not" reads as evidence for a storm. It is evidence ONLY where a `serial:` is
+    configured — unconfigured, clause 1 is inert and its silence means nothing whatever. Measured on
+    vigil 2026-09-05: **zero** `serial:` keys in the box's config, so on the box that owns this
+    hardware the inference would have been vacuous every time it was drawn."""
+    if n < threshold:
+        return None
+    head = f"{n} consecutive connects answered the identity query and delivered no frames"
+    if storm_age_s is not None:
+        return (f"{head} — a restart storm tripped {storm_age_s / 60:.0f} min ago, so this is very "
+                "likely the ring restarting, not an impostor")
+    if restarts_recent:
+        return (f"{head} — the ring reported {restarts_recent} session restart(s) recently, a likelier "
+                "cause than an impostor")
+    return f"{head} — this link reaches something that is not serving data"
+
+
 # WHY THIS EXISTS, AND WHY IT IS NOT `missing`.
 #
 # On 2026-07-25 the Verity acknowledged four PMD streams `ok` at 23:51:23 and wrote nothing until
@@ -322,3 +404,66 @@ def frozen_devices(qc: dict, live: dict, threshold_sec: float) -> list[str]:
             continue
         out.append(name)
     return out
+
+
+# ── THE RING POWERS ITSELF OFF AFTER A DOFF, AND THAT IS NOT AN OUTAGE ──────────────────────────────
+# MEASURED on device S8AW2100 over 244 harvested sessions (2026-07-25 → 2026-09-07), taking each
+# session's last worn frame → its last frame. The ~120 s figure itself is NOT new here: it was recorded
+# on 2026-07-17 (`briefs/O2RING-PROTOCOL-2026-07-17-BRIEF.md`, "powers off ~120 s after doff … the
+# harvest window is therefore that ~120 s"). What this block adds is the distribution, the 2026-08-27
+# discontinuity below, and the consequence that the figure is no longer observable on recent nights.
+#
+#     the ring's OWN power-off timer   n=23   min 116.7  median 121.9  max 123.0  sd 1.18
+#     our doff-triggered PULL settle   n=18   min  46.4  median  47.9  max  57.6  sd 2.33
+#
+# ⚠️ THE SECOND BAND IS THE PULL SETTLE, NOT THE POWER DROP — this said "our not-worn drop" until
+# 2026-09-07 and that named the wrong knob. `pull.notworn_settle_sec` (45 s, capture.py:7001) is what
+# produces 47.9 s; `power.drop_not_worn_sec` is 180 s and is a different mechanism entirely. The
+# distinction is not cosmetic: 180 s is LONGER than the ring's own ~121.9 s idle timer, so the power
+# drop can never fire for this device — it has powered itself off first. `capture.py:6863` states it
+# outright, that `notworn_pull_due` is "the only reachable trigger for a coin-cell device". A reader
+# who wanted to move that 48 s would therefore change `drop_not_worn_sec` and see nothing happen.
+#
+# ⚠️ THE TWO BANDS ARE SEPARATED IN TIME, NOT MIXED, and that is what makes 121.9 s a HARDWARE figure
+# rather than a mixture of the ring and us: every 110-130 s observation is on or before 2026-08-26, and
+# every 40-60 s observation is on or after 2026-08-27. Since 08-27 the doff pull takes the link at
+# ~48 s and so we no longer reach the ring's timer at all. Do not re-derive this number from recent
+# nights — it is not observable there any more.
+#
+# So the sequence after a doff is: contact lost → we drop at ~48 s → connect + pull `latest` (27 s
+# measured 2026-09-07) → the ring's own idle timer expires at ~122 s and IT POWERS OFF. From then on it
+# does not advertise, and every scan correctly reports absence. The daemon read that absence as a fault:
+# a 180 s reconnect backoff spent against a radio that is off, and at 5 minutes
+#
+#     WARNING  alert: Wellue O2Ring-S has been offline for ~5 min — capture is missing it
+#
+# which is false twice over — the ring is not missing, and capture is not missing anything, because the
+# pull that preceded the power-off already took the data off it.
+RING_IDLE_TIMER_S = 121.9           # the measured power-off timer (n=23, sd 1.18) — see above
+RING_IDLE_EXPECT_MAX_S = 8 * 3600   # how long "expected" may last before it becomes a real absence
+
+
+def powered_off_after_pull(last_pull_ok_sec: float | None, now: float,
+                           expiry_sec: float = RING_IDLE_EXPECT_MAX_S) -> bool:
+    """Is a non-advertising device in its EXPECTED post-doff power-off, rather than genuinely missing?
+
+    True only when a pull for this device SUCCEEDED and that success is recent. Both halves are
+    load-bearing and they fail in opposite directions:
+
+    · **The pull must have SUCCEEDED.** A doff whose pull failed or ran partial leaves data on the ring
+      that we still need, so its silence IS something to alert about. Licensing the quiet state on the
+      doff alone would suppress exactly the alert that matters — the night we did not collect.
+
+    · **It must EXPIRE.** A ring that has not advertised for well past its timer AND past any plausible
+      re-wear is no longer explained by the idle timer; it is a flat battery, a ring left in a bag, or a
+      radio that died. Without the bound the first quiet night would silence this device permanently,
+      which is a worse failure than the false alert it replaces — a false alarm is noise, a false all-
+      clear is the absence of the alarm. 8 h is chosen to span a night plus a morning: longer than any
+      sleep session, shorter than a day left uncharged.
+
+    `last_pull_ok_sec` is the monotonic time of the last SUCCESSFUL pull for this device, or None if it
+    has never had one (never pulled, or every attempt failed) — in which case this is never expected."""
+    if last_pull_ok_sec is None:
+        return False
+    age = now - last_pull_ok_sec
+    return 0 <= age < expiry_sec

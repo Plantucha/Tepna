@@ -96,7 +96,23 @@ function ecgRpeakTimes(text) {
      48 ms on refused fragments (max 1479 ms), against 0.1 ms where the ppm had already applied. A
      48 ms axis error is not survivable against a 60 ms PAT bar. `tMsAt` falls back to device time when
      there is no independent second clock, so this can never fabricate one. */
-  for (var i = 0; i < peaks.length; i++) t[i] = typeof rec.tMsAt === 'function' ? rec.tMsAt(peaks[i]) : rec.t0Ms + (peaks[i] / rec.fs) * 1000;
+  /* ── AND THE POSITION MUST BE SUB-SAMPLE, or the axis work above is spent on a rounded input ──────
+     `detectPeaks` returns INTEGER indices. `tMsAt` accepts a fractional one — its own comment says
+     sub-sample R positions "must not be rounded before the correction is applied" — and this caller
+     handed it whole samples anyway, so the refinement the node performs for its own beat series was
+     discarded on the way to PAT. PAT-FORENSICS-AXIS-LEG-ASYMMETRY marks this leg ✅ fractional-safe;
+     that is true of the FUNCTION and was false of the LEG.
+     Measured 2026-09-14 on a real H10 night (35 305 beats): integer vs sub-sample differ p50 1.85 ms,
+     p95 6.09 ms, max 7.70 ms — one whole sample at 129.99 Hz, against a 60 ms PAT bar and a lag that
+     is a DIFFERENCE of two legs, so the two quantisations do not cancel.
+     `refinePeaks` needed exporting from ECGDSP to reach it; it was unreachable, which is why this
+     read as a choice rather than a limitation. */
+  var refined = typeof ECGDSP.refinePeaks === 'function' ? ECGDSP.refinePeaks(bp, peaks, rec.fs).refIdx : null;
+  var posAt = function (k) {
+    var p = refined && isFinite(refined[k]) ? refined[k] : peaks[k];
+    return p;
+  };
+  for (var i = 0; i < peaks.length; i++) t[i] = typeof rec.tMsAt === 'function' ? rec.tMsAt(posAt(i)) : rec.t0Ms + (posAt(i) / rec.fs) * 1000;
   /* FORWARDED, because this reshape drops anything it does not name — the lesson ppgdex-dsp.js states
      three lines above `timingSource`'s own definition, re-applied one layer down. `parseECG` already
      decided this fragment's axis provenance and it died here, which is why `PATGate.verdict`'s
@@ -123,9 +139,39 @@ function ppgFootTimes(text) {
     fs = rec.fs,
     t0 = rec.t0Ms,
     t = new Float64Array(cons.feet.length);
+  /* ── `rel[idx]` AT A FRACTIONAL idx IS ALWAYS `undefined`, SO THIS ALWAYS FELL BACK ───────────────
+     `cons.feet` are sub-sample foot positions. An array subscript with a fractional index misses every
+     time, so the `rel[idx] != null` guard was never satisfied and EVERY foot took the `idx / fs`
+     branch — discarding the measured per-sample axis for a synthesised constant-rate one. Not a
+     refinement lost: a MEASUREMENT lost, which is the correction PAT-FORENSICS-AXIS-LEG-ASYMMETRY
+     makes to its own first draft. Measured 0 / 8948 feet on 8 fragments there; re-measured
+     2026-09-14 as 26 035 / 26 035 on a 7.2 h Verity night.
+
+     The cost decomposes into two errors that a single lookup fix removes together:
+       SLOW  per-5-min-bin median p50 660 ms, p95 928, max 955 — the synthesised axis walking away
+             from the measured one. That file has ZERO gaps and its two spans agree exactly (432.9 min
+             both ways), so this is a mean rate matching the endpoints while drifting in between —
+             the same shape as the ECG abscissa defect (#2477), on the other leg.
+       FAST  within-bin residual p50 10.71 ms, p95 41.43 — sub-sample quantisation. Independently
+             reproduces the brief's 10.47 ms median-of-medians / 40.4 ms max on different files.
+     Against a 60 ms PAT bar the slow term alone is 11-16x.
+
+     Interpolate, as `tools/pat-matchrate-strict.mjs timeAt` already does and as the corpus run
+     confirmed at scale (72 514 / 72 514 feet resolving through `relSec`). Fall back to `idx / fs` only
+     where `relSec` genuinely cannot answer — a stampless or synthetic record — so the synthetic axis
+     remains reachable but is no longer the default by accident. */
+  var relN = rel ? rel.length : 0;
   for (var i = 0; i < cons.feet.length; i++) {
     var idx = cons.feet[i];
-    var sec = rel && rel[idx] != null && isFinite(rel[idx]) ? rel[idx] : idx / fs;
+    var sec;
+    var i0 = Math.floor(idx);
+    if (relN > 1 && i0 >= 0 && i0 < relN) {
+      var i1 = Math.min(relN - 1, i0 + 1),
+        fr = idx - i0;
+      var a = rel[i0],
+        b = rel[i1];
+      sec = isFinite(a) && isFinite(b) ? a * (1 - fr) + b * fr : isFinite(a) ? a : idx / fs;
+    } else sec = idx / fs;
     t[i] = t0 + sec * 1000;
   }
   // Forwarded for the same reason as the ECG leg above — this is the leg that can actually be DRAWN.
@@ -510,7 +556,13 @@ self.onmessage = function (e) {
             };
           };
           out.detail = pack(cp);
-          out.detailCorr = pack(cpCorr);
+          /* `detailCorr = pack(cpCorr)` used to be emitted here too — computed, sent across the
+             boundary, read by nobody (residue 2026-09-02-pat-detailcorr-unread, the same class as
+             `vdCorr` before #2117). Its parent finding, ENGINE-VERIFICATION §1.5, closed as MOOT:
+             "re-instrumenting a feasibility tool whose feasibility question has a final answer would
+             be work with no consumer" — so the field is deleted rather than given a surface. The
+             corrected coupling's SUMMARY (`cpCorr`, `vdCorr`, `accSync`) is read and stays. The
+             `dead-cross-boundary` gate now holds the known-dead set at ZERO. */
         }
         self.postMessage(out);
       } catch (err) {

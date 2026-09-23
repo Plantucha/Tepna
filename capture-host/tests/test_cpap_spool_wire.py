@@ -177,6 +177,19 @@ def test_a_nonterminal_stop_is_reported_in_the_line(caplog):
     assert "stopped=data-unavailable" in caplog.text
 
 
+def _unwrap_supervised(coro):
+    """The coroutine `_maybe_start_cpap_spool_pull` hands to `create_task` is `keep_running(make_coro,
+    label)` since RESOURCE-ORCHESTRATION-AUDIT-2026-09-05 §O2 — the loop is supervised, so a crash
+    restarts it instead of ending the night's pull silently. The wiring under test is what the
+    FACTORY builds, so call it and inspect that; the supervisor frame carries only `make_coro`/`label`.
+    Returns the inner coroutine and closes the outer one unrun."""
+    mk = coro.cr_frame.f_locals.get("make_coro")
+    assert callable(mk), "the spool pull must be started under keep_running (supervised), not bare"
+    inner = mk()
+    coro.close()
+    return inner
+
+
 def test_every_documented_spool_pull_key_is_actually_READ(tmp_path, caplog):
     """A key documented in config.example.yaml that no code reads is this repo's recurring defect —
     `cpap.wifi_profile` is the standing example (consulted ONLY on the nmcli backend, silently inert
@@ -185,9 +198,10 @@ def test_every_documented_spool_pull_key_is_actually_READ(tmp_path, caplog):
     seen = {}
 
     def _create_task(coro):
-        coro.cr_frame  # noqa: B018 — touch it so a bad coroutine surfaces here, not at GC
-        seen["kw"] = coro.cr_frame.f_locals
-        coro.close()
+        inner = _unwrap_supervised(coro)
+        inner.cr_frame  # noqa: B018 — touch it so a bad coroutine surfaces here, not at GC
+        seen["kw"] = inner.cr_frame.f_locals
+        inner.close()
         return "TASK"
 
     async def _connect():  # pragma: no cover — injected; the bleak edge is never built
@@ -231,3 +245,60 @@ def test_a_loop_started_during_shutdown_does_nothing_at_all():
     finally:
         capture._STOP.clear()
     assert calls == []
+
+# ── the PRODUCTION wiring hands the loop a real status writer ────────────────────────────────────────
+# 🔴 THE TESTS ABOVE CANNOT CATCH THIS, AND THAT IS THE POINT. `_drive` injects
+# `st=lambda **kw: states.append(kw)` and asserts on what it collected, so every state assertion in this
+# file passed while the production call site omitted `st` entirely — the loop fell back to its own
+# `st = st or (lambda **kw: None)` and published NOWHERE on the box. Covered machinery, inert in prod.
+# So this test drives `_maybe_start_cpap_spool_pull` (the real caller) and inspects what it PASSED,
+# rather than passing its own.
+def test_the_production_wiring_hands_the_loop_a_working_STATUS_writer(tmp_path, monkeypatch):
+    seen = {}
+
+    async def _noop():
+        pass
+
+    # ⚠️ A PLAIN `def`, NOT `async def`. An async spy records NOTHING here: calling it only builds a
+    # coroutine, its body runs on await, and `_create_task` below closes it unrun — so `seen` stays
+    # empty and the assertion reds whether or not the fix is present. A test that fails in BOTH
+    # directions proves nothing; this one was written that way first and caught in review.
+    def _spy(**kw):                       # stands in for _cpap_spool_loop; records the kwargs
+        seen.update(kw)
+        return _noop()                    # a real coroutine for the caller to close
+
+    monkeypatch.setattr(capture, "_cpap_spool_loop", _spy)
+
+    def _create_task(coro):
+        _unwrap_supervised(coro).close()   # the factory call is what runs `_spy`
+        return object()
+
+    async def _connect():  # pragma: no cover — injected so the bleak edge is never built
+        raise AssertionError
+
+    before_cpap = capture.STATUS.get("cpap")
+    capture.STATUS.pop("cpap_spool", None)
+    try:
+        capture._maybe_start_cpap_spool_pull(
+            ARMED, "cfg.yaml", str(tmp_path), _Ctl(), [],
+            load_creds=lambda _p: CREDS, connect_factory=_connect, create_task=_create_task)
+
+        st = seen.get("st")
+        assert callable(st), (
+            "the production caller must pass `st` — without it the loop takes its own no-op default "
+            "and every state it publishes is discarded, which is how this shipped")
+
+        st(state="waiting", detail="streaming: H10")
+        assert capture.STATUS.get("cpap_spool", {}).get("state") == "waiting", \
+            "the writer must reach STATUS, where webmon can project it"
+        assert capture.STATUS["cpap_spool"]["detail"] == "streaming: H10"
+
+        # SEPARATE KEY, asserted. Merging into `cpap` would let the harvest actor's next write hide
+        # this one, and "two actors both waiting" — OPERATIONAL-MATURITY-AUDIT §4(1)'s falsification
+        # condition — is unobservable from a single shared slot.
+        assert capture.STATUS.get("cpap") == before_cpap, \
+            "the spool actor must not write into the harvest actor's block"
+    finally:
+        capture.STATUS.pop("cpap_spool", None)
+        if before_cpap is not None:
+            capture.STATUS["cpap"] = before_cpap

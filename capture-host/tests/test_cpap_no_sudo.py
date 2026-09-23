@@ -160,8 +160,12 @@ def test_the_teardown_never_closes_a_link_it_did_not_open(tmp_path, monkeypatch)
     thing to measure is the IN-LOOP teardown: it must fire on the associated path and not on the
     direct one, because tearing down on the direct path would attack the SYSTEM supplicant sharing
     that interface — the collateral the private ctrl_interface exists to prevent."""
-    direct = _drive(monkeypatch, tmp_path, reachable=True)["down"]
-    associated = _drive(monkeypatch, tmp_path, reachable=False)["down"]
+    # A ROOT EACH. Both drives share a frozen clock, so with one root the first run completes a
+    # harvest job stamped for that window and the second is correctly skipped by reconciliation
+    # (§6, 2026-09-06) — which zeroes the in-loop teardown this test is counting. Two runs, two boxes.
+    (tmp_path / "a").mkdir(); (tmp_path / "b").mkdir()
+    direct = _drive(monkeypatch, tmp_path / "a", reachable=True)["down"]
+    associated = _drive(monkeypatch, tmp_path / "b", reachable=False)["down"]
     assert associated - direct == 1, (
         f"exactly one extra teardown belongs to the associated path (direct={direct}, "
         f"associated={associated})")

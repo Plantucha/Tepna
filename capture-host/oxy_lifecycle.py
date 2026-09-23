@@ -17,6 +17,7 @@ The failure taxonomy is NOT forked: it is the shared `cpap_acq.FailureClass`, wh
 already imports — one taxonomy across both Bluetooth arms.
 """
 import time as _time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
@@ -114,8 +115,11 @@ class Transition:
     and the FailureClass on an edge into ERROR/INTERRUPTED. `as_row` matches the writers.LinkLogWriter
     sidecar idiom the wiring writes to `OXYLIFE.csv`."""
 
-    prev: "OxyState | OxyRecState"
-    new: "OxyState | OxyRecState"
+    # The record is shared by every axis on the journal — LINK (OxyState), RECORDING (OxyRecState) and
+    # POWER (oxy_power.PowerState, which imports this module and so cannot be named here). Any Enum
+    # whose values are disjoint from the other axes' rides the same row; the `axis` column says which.
+    prev: "OxyState | OxyRecState | Enum"
+    new: "OxyState | OxyRecState | Enum"
     reason: str
     host_monotonic: float
     host_wall: str
@@ -159,8 +163,8 @@ class OxyLifecycle:
     session_id: str | None = None
     state: OxyState = OxyState.NOT_SEEN
     history: list = field(default_factory=list)
-    mono: "callable" = _time.monotonic
-    wall: "callable" = _default_wall
+    mono: "Callable[[], float]" = _time.monotonic
+    wall: "Callable[[], str]" = _default_wall
 
     def can(self, to: OxyState) -> bool:
         return (self.state, to) in LEGAL_TRANSITIONS
@@ -264,8 +268,8 @@ class OxyRecEngine:
     #: read at close. The pull path compares the trailer against THIS (duration_check.observed_s).
     closed_at_duration: int | None = None
     history: list = field(default_factory=list)
-    mono: "callable" = _time.monotonic
-    wall: "callable" = _default_wall
+    mono: "Callable[[], float]" = _time.monotonic
+    wall: "Callable[[], str]" = _default_wall
 
     def _to(self, new: OxyRecState, reason: str) -> Transition:
         if (self.state, new) not in REC_LEGAL_TRANSITIONS:

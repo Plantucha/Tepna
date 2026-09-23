@@ -908,3 +908,76 @@ def test_no_raw_sink_returns_CLEANLY_rather_than_raising_into_the_handler(caplog
     assert not [r for r in caplog.records if "acquisition-evidence emit failed" in r.message], (
         "a missing raw sink is an expected shape, not a failure to log — it must return, not raise"
     )
+
+
+def test_an_UNMEASURED_gap_category_makes_its_aggregate_UNKNOWN_not_zero():
+    """🔴 THE DEFECT THIS CLOSES. `transport_gaps` is `overflow + post_drop_tail`, and NOTHING increments
+    `post_drop_tail` — measured 2026-09-18, no writer anywhere. `_counter` summed it with `or 0`, so the
+    acquisition evidence surface published a forensic category as `0`, which by this module's own words
+    means "counted, and none happened". A reader concluded no transport loss occurred; the truth is that
+    transport loss was never looked for.
+
+    That is §∅ at the evidence layer — an absence wearing the shape of a measurement, and worse than a
+    missing field because a missing field is visible and a zero is not.
+
+    One unmeasured term makes the SUM unmeasured: a partial total published as a total is the same lie
+    in smaller print.
+    """
+    ev = cpap.assemble_live(_facts(), counters=_counters(post_drop_tail=None))
+    assert ev.transport_gaps == ae.UNKNOWN, "an unmeasured term must not be summed as zero"
+    assert ev.transport_gaps != 0
+    # decode_gaps does NOT depend on the unmeasured term, so it stays a real measurement — the absence
+    # must propagate exactly as far as it reaches and no further.
+    assert ev.decode_gaps == 0
+
+
+def test_a_measured_category_beside_an_unmeasured_one_still_reports(): 
+    """The bound on the rule above. `overflow` being live must not be erased by `post_drop_tail` being
+    absent anywhere the two are not summed together — otherwise the fix would trade one blind spot for
+    a wider one."""
+    ev = cpap.assemble_live(_facts(), counters=_counters(malformed=7, post_drop_tail=None))
+    assert ev.decode_gaps == 7 and ev.transport_gaps == ae.UNKNOWN
+
+
+# ── INV8 · continuity_status — wired by the BUILDER, not behind a config key ──────────────────────
+def test_the_builder_ALWAYS_wires_a_continuity_tracker_regardless_of_config(tmp_path):
+    """🔴 The half-wired trap, pinned. `raw_record_dir` is a config key and is OFF on the production box,
+    so INV9's centrepiece is not in effect there. INV8 must not join it: the tracker is constructed by
+    the builder unconditionally — an empty config, no root, no raw record — so a real recovery on any box
+    lands a verdict. A tracker only tests could construct would be `AcqLifecycle` all over again."""
+    import capture
+    import cpap_continuity
+    for cfg in ({"cpap": {}}, {"cpap": {"ble_stream": {}}}, {"cpap": {"ble_stream": {"raw_record_dir": str(tmp_path)}}}):
+        ctl = capture._build_cpap_controller(object(), cfg, str(tmp_path / "config.yaml"))
+        assert isinstance(ctl._continuity, cpap_continuity.ContinuityTracker), cfg
+        assert ctl.continuity_resume_hint is False, "no root ⇒ no record ⇒ no hint (no claim)"
+
+
+def test_the_builder_reads_the_resume_hint_from_the_real_autostart_record(tmp_path):
+    """∅ A daemon restarted mid-therapy must open its first session `resumed-unverified`. The only
+    cross-restart memory is the auto-start record; the builder reads it ONCE and hands the hint to the
+    controller, which consumes it on the first start. Both halves asserted: an open session ⇒ hint,
+    a closed/absent one ⇒ no hint."""
+    import json
+    import capture
+    root = tmp_path / "root"; (root / "captures").mkdir(parents=True)
+    cfgp = str(tmp_path / "config.yaml")
+
+    (root / "captures" / "cpap-autostart-session.json").write_text(json.dumps({"session_ms": 1789719792589.3}))
+    ctl = capture._build_cpap_controller(object(), {"root": str(root), "cpap": {}}, cfgp)
+    assert ctl.continuity_resume_hint is True
+
+    (root / "captures" / "cpap-autostart-session.json").write_text(json.dumps({"session_ms": None, "manual_stop": False}))
+    ctl2 = capture._build_cpap_controller(object(), {"root": str(root), "cpap": {}}, cfgp)
+    assert ctl2.continuity_resume_hint is False
+
+    (root / "captures" / "cpap-autostart-session.json").unlink()
+    ctl3 = capture._build_cpap_controller(object(), {"root": str(root), "cpap": {}}, cfgp)
+    assert ctl3.continuity_resume_hint is False, "no record ⇒ no claim"
+
+
+def test_the_envelope_carries_None_not_a_default_when_no_tracker_was_wired():
+    """∅ `assemble_live` with no `continuity=` must record absence, never `continuous`."""
+    import acq_evidence_cpap
+    env = acq_evidence_cpap.assemble_live({"session_id": "s", "device_id": "d"}, counters=None)
+    assert env.provenance["continuity"] is None

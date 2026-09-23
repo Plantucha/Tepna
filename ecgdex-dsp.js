@@ -33,10 +33,14 @@
     for (let i = 0; i < a.length; i++) s += (a[i] - m) * (a[i] - m);
     return Math.sqrt(s / (a.length - 1));
   }; // sample SD (÷N−1) — HRV Task Force / Kubios convention, unified fleet-wide 2026-06-24
-  const rmssd = (a) => {
+  /* `skip` (optional): `skip[i]` truthy ⇒ the pair (i-1, i) is not a successive difference — the two
+     beats are separated by a dropout, so real time passed with no signal between them. Absent ⇒ every
+     pair, which is the legacy behaviour and every contiguous recording. */
+  const rmssd = (a, skip) => {
     let s = 0,
       n = 0;
     for (let i = 1; i < a.length; i++) {
+      if (skip && skip[i]) continue;
       const d = a[i] - a[i - 1];
       s += d * d;
       n++;
@@ -63,10 +67,26 @@
     _ckZoneMin = DexClock._ckZoneMin,
     _ckDMY = DexClock._ckDMY,
     parseTimestamp = DexClock.parseTimestamp;
-  const pnn50 = (a) => {
-    let n = 0;
-    for (let i = 1; i < a.length; i++) if (Math.abs(a[i] - a[i - 1]) > 50) n++;
-    return a.length > 1 ? (n / (a.length - 1)) * 100 : 0;
+  /* ── ONE SEAM BOUND FOR THE WHOLE NODE ───────────────────────────────────────────────────────────
+     Hoisted from `ecgTimingResolve` (where it lived as a local) so the ECG stream and its `_ACC`
+     COMPANION judge a device-clock seam by the same number. Two constants for one question is how
+     they come to disagree — B5's finding, and the ACC parser had no bound at all rather than a
+     different one. Its rationale is unchanged and lives at the resync branch that consumes it: the
+     device delta and the phone delta track each other across a DROPOUT and disagree only across a
+     STEP, and 60 s leaves orders of headroom over the largest real dropout disagreement measured
+     (29 s) while the one real step in the corpus disagrees by 2.4e11 ms. */
+  var ECG_RESYNC_BOUND_MS = 60000;
+  /* `skip` as in `rmssd` — and the DENOMINATOR must shrink with the numerator, or excluding a pair
+     silently lowers the percentage instead of leaving it out of the population. */
+  const pnn50 = (a, skip) => {
+    let n = 0,
+      d = 0;
+    for (let i = 1; i < a.length; i++) {
+      if (skip && skip[i]) continue;
+      d++;
+      if (Math.abs(a[i] - a[i - 1]) > 50) n++;
+    }
+    return d ? (n / d) * 100 : 0;
   };
   const nn50c = (a) => {
     let n = 0;
@@ -881,12 +901,149 @@
     m4 /= n;
     return m2 > 0 ? m4 / (m2 * m2) : 0;
   }
+  /* ── §∅ THE RAIL IS A PER-FILE QUANTITY, NOT A CONSTANT ───────────────────────────────────────
+     `computeSQI`'s rail leg keyed on `|int16| > 31000`. Measured over 597 deduplicated ECG files:
+     it fires on **0 of 112** real saturation runs, because the H10 saturates at **~18,100-19,500**,
+     at a rail that differs PER FILE — 29 distinct values across the 62 files that carry one. A
+     global constant is the wrong SHAPE here, not merely the wrong number: any single value repeats
+     the defect at a different magnitude. (`ECG-SATURATION-ABSENCE-2026-09-18-BRIEF.md`.)
+
+     THE RULE IS `nightqc.rail_value`'s, PORTED: the rail is the HISTOGRAM SPIKE NEAREST THE EDGE,
+     not the edge. Scan the outermost few occupied values, stopping at a value gap so the window
+     never reaches across an empty region into the bulk, then take the dominant one — and require it
+     to OUT-COUNT its nearest occupied neighbour, because isolation alone is not a pin (a lone
+     outlier sample is isolated and is not a rail).
+
+     ⚠️ THE PORT WAS MEASURED BEFORE IT WAS WRITTEN, because these constants were tuned on u8 pleth
+     and this is int16 µV. Over the same 62 files: a rail QUALIFIES on 62 of 62, `railHi` equals the
+     observed maximum on 58 and differs on 4 — so the spike search is doing real work rather than
+     degenerating to min/max — and the median gap between occupied values is 3 against `GAP_MAX = 4`.
+     That last figure is the port's margin and it is thin: a lower-amplitude recording with sparser
+     occupied values would stop the scan at the edge. Recorded so the next person does not have to
+     rediscover that the port holds *here* without holding everywhere.
+
+     🔴 AND AN UNQUALIFIED RAIL IS `null`, NEVER A FALLBACK TO THE EXTREME. A file whose rail cannot
+     be qualified is UNMEASURED for saturation — it is not "no saturation". Falling back to min/max
+     would manufacture a rail out of an absence, which is §∅ at the classifier: the same shape as
+     reporting `disagreed` where the sidecar never looked, and as a run at no rail being filed as
+     mid-range. `railAbsent` is the honest third state and `quality.ecgRail` publishes it. */
+  function ecgRails(int16) {
+    const freq = new Map();
+    for (let i = 0; i < int16.length; i++) freq.set(int16[i], (freq.get(int16[i]) || 0) + 1);
+    const vals = Array.from(freq.keys()).sort((a, b) => a - b);
+    if (vals.length < 2) return { railLo: null, railHi: null, mirrorLo: null, mirrorHi: null, values: [], absent: true };
+    const RAIL_SCAN_VALUES = 8, // capture-host `_RAIL_SCAN_VALUES`
+      RAIL_GAP_MAX = 4, // capture-host `_RAIL_GAP_MAX`
+      RAIL_SPIKE_MIN = 5; // capture-host `_RAIL_SPIKE_MIN`
+    const railAt = (end) => {
+      const at = (k) => (end === 'lo' ? vals[k] : vals[vals.length - 1 - k]);
+      const cnt = (k) => freq.get(at(k)) || 0;
+      let take = 1;
+      while (take < Math.min(RAIL_SCAN_VALUES, vals.length) && Math.abs(at(take) - at(take - 1)) <= RAIL_GAP_MAX) take++;
+      let best = null,
+        bestC = -1;
+      for (let k = 0; k < take; k++)
+        if (cnt(k) > bestC) {
+          bestC = cnt(k);
+          best = at(k);
+        }
+      const neighbour = take < vals.length ? cnt(take) : 0;
+      return bestC >= RAIL_SPIKE_MIN * Math.max(1, neighbour) ? best : null;
+    };
+    /* 🔴 A VALUE HOLDING MOST OF THE RECORD IS THE BASELINE, NOT A RAIL. Without this the rule
+       convicts a silent baseline: an idealised beat train on an exact-zero floor makes 0 both the
+       edge value AND 93.4 % of the record, so it out-counts its neighbour by far more than
+       `RAIL_SPIKE_MIN` and qualifies — and then EVERY beat window contains baseline samples, so
+       every beat trips `flatBad`. Found by this change reddening the composite-SQI weight group,
+       which is a gate on working behaviour and therefore a true positive about the rule.
+
+       ⚠️ THE DISCRIMINATOR IS SHARE, NOT IDENTITY. "The rail must not be the modal value" was tried
+       first and is WRONG: on real ECG a heavily-saturated file legitimately has its rail as the mode,
+       and that guard loses **19 of 62** real files. The populations separate on SHARE instead, with
+       room to spare — global-mode share is **0.78-11.53 %** across the 62 real files carrying
+       saturation, against **93.4 %** for the synthetic baseline. The cut sits between them at a half,
+       ~4x clear of the real maximum and ~2x below the synthetic: measured, not chosen. */
+    const half = int16.length / 2;
+    const notBaseline = (v) => v != null && (freq.get(v) || 0) <= half;
+    const railLo = notBaseline(railAt('lo')) ? railAt('lo') : null,
+      railHi = notBaseline(railAt('hi')) ? railAt('hi') : null;
+    /* ── THE RAIL IS MATCHED BY MAGNITUDE (owner ruling 2026-09-21, D9.3) ─────────────────────────
+       The H10 saturates POSITIVE at the magnitude of its NEGATIVE rail, minus the int16 asymmetry.
+       Measured on every file the residue row named plus the two it did not: -18033 ↔ 18031,
+       -18133 ↔ 18131, -18733 ↔ 18731, -18233 ↔ 18231, -18600 ↔ 18597 — the positive pin sits 2-3 µV
+       under |railLo| on 5 of 5. On three of those files the edge search above NEVER REACHES IT: a
+       handful of stray samples ABOVE the real pin (18 at 18064 on 09-16, 2 at 18597 on 09-12, 8 at
+       18731 on 09-15 — the file's opening samples, at what looks like the previous session's rail)
+       are the outermost occupied value, the scan stops at the first value gap, and `railHi` comes
+       back as that startup spike (09-16) or as null (09-12, 09-15). The real positive rail — 1381,
+       1968 and 703 samples — is invisible to an edge-anchored search and to an exact-equality
+       matcher alike. Three positive saturation runs of the census fell outside the population
+       entirely: not caught, not counted (`2026-09-20-positive-saturation-at-negated-low-rail`).
+
+       So each qualified rail is MIRRORED: the histogram spike within `RAIL_GAP_MAX` of its negated
+       value is a rail too, under the SAME qualification (out-count the nearest occupied neighbour
+       outside the window by `RAIL_SPIKE_MIN`, and not the baseline). The window is the scan's own
+       adjacency width, not a new tolerance — the 2-3 µV asymmetry sits inside it with margin, and a
+       lone stray sample at |railLo| does not qualify because it out-counts nothing. Emission stays
+       EXACT-VALUE against the qualified set (`values`): "within N of the rail" would admit signal
+       under the pin, the one-sided rule the PPG side adopted after measurement. */
+    const mirrorOf = (rail) => {
+      if (rail == null) return null;
+      const c = -rail;
+      let best = null,
+        bestC = 0;
+      for (let v = c - RAIL_GAP_MAX; v <= c + RAIL_GAP_MAX; v++) {
+        const k = freq.get(v) || 0;
+        if (k > bestC) {
+          bestC = k;
+          best = v;
+        }
+      }
+      if (best == null || !notBaseline(best)) return null;
+      // the nearest occupied value just OUTSIDE the window on either side — the edge search's
+      // "neighbour", so the mirror is held to the same bar as the rail it mirrors
+      let below = null,
+        above = null;
+      for (let i = 0; i < vals.length; i++) {
+        if (vals[i] < c - RAIL_GAP_MAX) below = vals[i];
+        else if (vals[i] > c + RAIL_GAP_MAX) {
+          above = vals[i];
+          break;
+        }
+      }
+      const nb = Math.max(below == null ? 0 : freq.get(below), above == null ? 0 : freq.get(above));
+      return bestC >= RAIL_SPIKE_MIN * Math.max(1, nb) ? best : null;
+    };
+    const mirrorLo = mirrorOf(railLo),
+      mirrorHi = mirrorOf(railHi);
+    const values = [];
+    for (const v of [railLo, railHi, mirrorLo, mirrorHi]) if (v != null && values.indexOf(v) < 0) values.push(v);
+    return {
+      railLo: railLo,
+      railHi: railHi,
+      // the positive spike at |railLo| / the negative spike at -|railHi|; null when none qualifies
+      mirrorLo: mirrorLo,
+      mirrorHi: mirrorHi,
+      // every qualified rail value — the set the matcher keys on
+      values: values,
+      absent: values.length === 0
+    };
+  }
 
   // ════════════════════════════════════════════════════════════════════════
   //  PER-BEAT SQI  (composite 0..1 → Ganglior conf)
   //  flatline/rail · kurtosis · two-detector agreement (bSQI) · RR plausibility · range
   // ════════════════════════════════════════════════════════════════════════
   function computeSQI(int16, fs, peaks, times, peaksB) {
+    /* ONCE per record, not per beat: a rail is a property of the whole signal's histogram, and
+       computing it inside the ±130 ms beat window would ask 130 samples what the recording's
+       saturation level is. */
+    const rails = ecgRails(int16);
+    /* COUNTED once over the whole record, not only inside beat windows: a saturation run with no
+       detected beat near it is exactly the one the per-beat leg never examines, and the count is
+       what makes that population visible (`quality.ecgRail.samples`). */
+    let railSamples = 0;
+    if (!rails.absent) for (let i = 0; i < int16.length; i++) if (rails.values.indexOf(int16[i]) >= 0) railSamples++;
     const n = peaks.length;
     const sqi = new Float32Array(n);
     // RR (ms) from refined times
@@ -935,7 +1092,9 @@
           flatRun++;
           if (flatRun > maxFlat) maxFlat = flatRun;
         } else flatRun = 0;
-        if (Math.abs(int16[j]) > 31000) railHit++;
+        /* AT the file's own rail, not above a constant. `absent` ⇒ this leg contributes nothing
+           and says so through `quality.ecgRail`, rather than reading as clean signal. */
+        if (!rails.absent && rails.values.indexOf(int16[j]) >= 0) railHit++;
         prev = int16[j];
       }
       const flatBad = maxFlat > 0.2 * fs || railHit > 3; // >200 ms flat
@@ -984,7 +1143,16 @@
       ampOK: mean(sumA),
       flatBadPct: n > 0 ? +((100 * nFlat) / n).toFixed(2) : null
     };
-    return { sqi, rr, terms };
+    const ecgRail = {
+      lo: rails.railLo,
+      hi: rails.railHi,
+      mirrorLo: rails.mirrorLo,
+      mirrorHi: rails.mirrorHi,
+      absent: rails.absent,
+      // null, not 0, when no rail qualified: an unmeasured record is not an unsaturated one (§∅)
+      samples: rails.absent ? null : railSamples
+    };
+    return { sqi, rr, terms, ecgRail };
   }
 
   // ════════════════════════════════════════════════════════════════════════
@@ -1012,18 +1180,46 @@
     // NB: start at k=0 — the FIRST beat (sensor-contact startup artifact, e.g. a 474 ms
     // beat ≈127 bpm against a ~1200 ms mean) must be range/relative-gated too, or it
     // survives into minRR/maxHR. The local median uses forward neighbours for k=0.
+    /* §∅ — AN INTERVAL THAT STRADDLES A DROPOUT IS NOT A CORRUPTED BEAT, IT IS AN ABSENCE ─────────
+       Every rule below repairs a beat that was MIS-MEASURED: low SQI, out of physiological range, or
+       ectopic. A beat separated from its predecessor by a 74-second hole is none of those. It is a
+       true statement — that much time really did pass with no signal — and it is out of range for
+       exactly that reason, so `rangeBad` fires and the local median gets written over it. Measured on
+       a real H10 night (2026-08-25, 5 dropouts): **5 of 5 gap-straddling intervals were median-filled**,
+       each a multi-second absence replaced by a plausible ~1 s heartbeat that then fed rMSSD and SDNN
+       as if it were a measurement. Same class as PpgDex punch list #2, still live here.
+
+       THE FIX IS NEITHER TO FILL IT BETTER NOR TO DROP IT. The raw value is the honest one — leave it.
+       What it is NOT is a beat-to-beat measurement, so it is marked (`spansGap`) and excluded from the
+       successive-difference statistics, exactly as PpgDex's `cleanMask` does. Nothing is fabricated
+       and nothing is discarded: `nn`/`tt` keep their length and their meaning, and a consumer wanting
+       whole-record dispersion still has every interval.
+
+       The cut is buildNN's own `GAP_S`, hoisted so the interval this excludes and the interval that
+       lands in `gapSec` can never disagree — two constants for one question eventually diverge. */
+    // GAP_S is module-scope (declared beside CVHR_MAX_SPAN_S) — ONE cut for the whole file.
+    const spansGap = new Uint8Array(n);
+    for (let k = 1; k < n; k++) if (times[k] - times[k - 1] > GAP_S) spansGap[k] = 1;
     for (let k = 0; k < n; k++) {
       const seg = [];
+      // …and an absence must not be a NEIGHBOUR either: it would drag the local median it is judged against.
       for (let j = Math.max(0, k - 5); j < Math.min(n, k + 6); j++) {
-        if (j !== k && sqi[j] >= sqiThr && rr[j] >= 300 && rr[j] <= 2000) seg.push(rr[j]);
+        if (j !== k && !spansGap[j] && sqi[j] >= sqiThr && rr[j] >= 300 && rr[j] <= 2000) seg.push(rr[j]);
       }
       seg.sort((a, b) => a - b);
       const med = seg.length ? seg[seg.length >> 1] : 0;
       const dev = med ? Math.abs(nn[k] - med) / med : 0; // deviation from local median (relative-plausibility gate)
       const rangeBad = sqi[k] < sqiThr || nn[k] < 300 || nn[k] > 2000;
       const ectopic = med && dev > ectopyThr;
+      if (spansGap[k]) continue; // an absence is not a correctable beat — see the block above
       if (rangeBad || ectopic) {
-        nn[k] = med || nn[k + 1] || nn[k - 1] || 1000;
+        /* ⚠️ `|| 1000` was the last resort and it is a FABRICATION — a hardcoded 60 bpm written into
+           the series precisely when the record is least trustworthy, because it is reachable only
+           where the entire ±5-beat neighbourhood failed the gate and there is nothing to interpolate
+           from. Keeping the measured value and flagging it (`corrected`) says "do not trust this"
+           without inventing a heart rate. */
+        const repl = med || nn[k + 1] || nn[k - 1];
+        if (repl) nn[k] = repl;
         corrected[k] = 1;
         if (ectopic && !rangeBad) nEctopy++;
       }
@@ -1035,8 +1231,7 @@
     // ── gap-aware coverage ──────────────────────────────────────────────────────
     // A real recording with the strap off (or a sensor dropout) leaves big inter-beat
     // gaps. tt[N-1] then over-states duration and % clean-beats hides the dead time.
-    // GAP_S: any inter-beat interval longer than this is a coverage gap, not a missed beat.
-    const GAP_S = 10;
+    // GAP_S is declared above, where the same cut decides which intervals are absences.
     let activeSec = 0,
       gapSec = 0,
       nGaps = 0;
@@ -1057,6 +1252,12 @@
       nn,
       tt,
       corrected,
+      /* nn-aligned: 1 where interval k straddles a >GAP_S dropout, i.e. real time passed with no
+         signal between beat k-1 and beat k. Such an interval is a true elapsed time and NOT a
+         beat-to-beat measurement, so every successive-difference statistic must skip the pair.
+         All-zero on a contiguous recording, which is every committed fixture. */
+      spansGap,
+      nSpansGap: spansGap.reduce((a, b) => a + b, 0),
       correctionRate: +((nCorr / n) * 100).toFixed(2),
       analyzablePct,
       cleanBeatPct,
@@ -1468,25 +1669,63 @@
   // ════════════════════════════════════════════════════════════════════════
   //  5-MIN EPOCH ENGINE — window the NN series; per-epoch short-term suite.
   // ════════════════════════════════════════════════════════════════════════
-  function epochEngine(nn, tt, winSec, sqiPerBeat) {
+  /* §∅ — THE EPOCH IS NOT EXEMPT. `spansGap` is the kept-frame mask analyze() builds (1 where interval i
+     straddles a dropout or a filtered-out beat); `seamSec` the beat-axis positions of device-clock
+     resyncs; `refusedOut` receives the windows this engine declines to score. The whole-record
+     statistics honoured that mask since the §∅ block in analyze(); this engine sliced the SAME `nn`
+     without it, so an epoch containing a dropout carried the dropout as an RR interval. Measured on the
+     owner's 2026-09-21 H10 night — 177 reconnects in 68 epochs: whole-record rMSSD 28.1 ms (masked),
+     per-epoch median 10,608.5 ms (unmasked), and it is the median that is DISPLAYED and SCORED. The
+     score read it as "Primed · strong autonomic reserve". Same defect two consumers along, and the
+     fixture corpus could not see it: its nights carry ≤5 dropouts, so the median epoch was clean.
+
+     Owner ruling 2026-09-17 (CLAUDE.md §∅): a DISCONTINUITY refuses, reduced COVERAGE annotates.
+       · dropout inside the window  ⇒ the straddling interval leaves every statistic (rMSSD/pNN50 via
+         the pair mask, mean/SDNN/spectrum via the kept set) and the epoch says `gaps: <n>`.
+       · clock seam inside the window ⇒ the window does not describe ONE stretch of signal: refused,
+         `reason: 'clock-seam'`, the epoch is absent from the series and present in `refusedOut`.
+       · fewer than 20 scorable beats  ⇒ refused, `reason: 'too-few-beats'` (was a silent skip).
+     A window with no beats at all is a dropout hole, already counted in gapSec, and stays silent. */
+  function epochEngine(nn, tt, winSec, sqiPerBeat, spansGap, seamSec, refusedOut) {
     winSec = winSec || 300;
     const N = nn.length,
       tEnd = tt[N - 1];
     const epochs = [];
+    const _seams = Array.isArray(seamSec) ? seamSec.filter((v) => Number.isFinite(v)) : [];
     let i = 0;
     for (let w0 = 0; w0 <= tEnd; w0 += winSec) {
       const w1 = w0 + winSec,
         seg = [],
         segT = [],
-        segQ = [];
+        segQ = [],
+        /* pair mask in the KEPT frame: 1 on the first survivor after a removed interval, so the
+           difference (previous survivor, this) — which spans the absence — is not a successive
+           difference. Same widening rule as analyze()'s `_gapPair`. */
+        segSkip = [];
+      let nAll = 0,
+        gaps = 0,
+        dropped = false;
       while (i < N && tt[i] < w1) {
+        nAll++;
+        if (spansGap && spansGap[i]) {
+          gaps++;
+          dropped = true;
+          i++;
+          continue;
+        }
         seg.push(nn[i]);
         segT.push(tt[i]);
+        segSkip.push(dropped ? 1 : 0);
+        dropped = false;
         if (sqiPerBeat && Number.isFinite(sqiPerBeat[i])) segQ.push(sqiPerBeat[i]);
         i++;
       }
-      // back up i so windows that share a boundary still see beats (non-overlap, simple advance is fine)
-      if (seg.length >= 20) {
+      const seamHere = _seams.some((v) => v >= w0 && v < w1);
+      if (seamHere || seg.length < 20) {
+        if (refusedOut && nAll > 0) refusedOut.push({ tMin: +(w0 / 60).toFixed(1), n: nAll, reason: seamHere ? 'clock-seam' : 'too-few-beats' });
+        continue;
+      }
+      {
         const m = mean(seg);
         const ls = lombScargle(seg, segT, 160);
         epochs.push({
@@ -1510,11 +1749,11 @@
              `rate-of-mean` = 60000 / mean(RR); the alternatives are `median-rate` and `mean-rate`. */
           hrStat: 'rate-of-mean',
           meanRR: +m.toFixed(1),
-          rmssd: +rmssd(seg).toFixed(1),
+          rmssd: +rmssd(seg, segSkip).toFixed(1),
           sdnn: +std(seg).toFixed(1),
           // vlf/tp carried too (DEEP-AUDIT §10): the exported spectrum is the 5-min epoch median, and it
           // must report ALL FOUR bands on that one scale — see the spec block in analyze().
-          pnn: +pnn50(seg).toFixed(1),
+          pnn: +pnn50(seg, segSkip).toFixed(1),
           lf: ls.lf,
           hf: ls.hf,
           vlf: ls.vlf,
@@ -1522,6 +1761,8 @@
           lfhf: ls.lfhf,
           resp: ls.respRate
         });
+        // present only when drawn (the `anchorsDroppedPreResync` discipline): a clean epoch keeps its bytes
+        if (gaps) Object.assign(epochs[epochs.length - 1], { gaps });
       }
     }
     return epochs;
@@ -1673,10 +1914,26 @@
     }
     return o;
   }
+  /* Resample onto a uniform grid AND SAY WHICH CELLS WERE MEASURED.
+     Returns `{ v, flag }` — `flag[i]` is `GRID_FLAG.OK` when the cell sits inside a real inter-beat
+     interval, `GRID_FLAG.GAP_LONG` when it was drawn across an absence and never measured.
+
+     🔴 WHY IT GREW A SECOND RETURN. This used to return a bare `Float64Array`, so an interpolated
+     cell was INDISTINGUISHABLE from a measured one — §∅ fabrication at per-sample granularity, and
+     the same defect SomnoTrace's `session_writer.c` carries in its short-gap hold. Two ways it bit:
+     `tt` is the gap-ACCUMULATED beat-time axis (see `cardiorespCoupling`'s span guard), so a
+     multi-minute dropout was interpolated straight through; and `Math.max(0, Math.min(1, f))` CLAMPS
+     outside the data range, which is a literal HOLD of the endpoint value. Both fed four series into
+     seven published coupling metrics whose return carried `nGrid` — the denominator — and no count
+     of what was drawn. GlucoDex already solved this with a per-cell flag; this is that contract,
+     applied to the node that lacked it. */
   function _interpGrid(xs, ys, grid) {
     const N = xs.length,
       M = grid.length,
-      o = new Float64Array(M);
+      o = new Float64Array(M),
+      fl = new Int8Array(M);
+    const lo = xs[0],
+      hi = xs[N - 1];
     let j = 0;
     for (let i = 0; i < M; i++) {
       const g = grid[i];
@@ -1687,8 +1944,12 @@
         y1 = ys[j + 1];
       const f = x1 > x0 ? (g - x0) / (x1 - x0) : 0;
       o[i] = y0 + (y1 - y0) * Math.max(0, Math.min(1, f));
+      /* OUTSIDE the data range the clamp holds an endpoint — never a measurement. INSIDE, the cell is
+         measured only if its bracketing interval is within the coverage cut; `GAP_S` is that cut and
+         is the file's single one, shared with `buildNN`. */
+      fl[i] = g < lo || g > hi || !(x1 - x0 <= GAP_S) ? GRID_FLAG.GAP_LONG : GRID_FLAG.OK;
     }
-    return o;
+    return { v: o, flag: fl };
   }
   function _maHalf(x, half) {
     const N = x.length,
@@ -1763,7 +2024,8 @@
     if (M < 16) return null;
     const grid = new Float64Array(M);
     for (let i = 0; i < M; i++) grid[i] = t0 + i / FS;
-    const edrU = _interpGrid(tt, edr, grid);
+    const _edrG = _interpGrid(tt, edr, grid);
+    const edrU = _edrG.v;
     /* CPC needs the UNDETRENDED series. `edr`/`hrR` above are `_detrendMov(x, 40)` — a 40-BEAT moving
        high-pass, ~48 s at a 50 bpm sleep rate — and `edrB`/`hrB` below are `_bandResp`, which by its
        own comment drops everything under ~0.1 Hz. Measured retention through those filters:
@@ -1777,9 +2039,9 @@
        negative result. That is the same failure as `lfhf` being structurally blind to the VLF band
        (DEEP-STAGE-DESAT-CONFOUND §8.3), caught before shipping this time rather than after.
        `hrAbsU` is already the raw HR on this grid; the raw R-amplitude needs its own interpolation. */
-    const edrRawU = _interpGrid(tt, amp, grid);
-    const hrU = _interpGrid(tt, hrR, grid);
-    const hrAbsU = _interpGrid(tt, hrAbs, grid);
+    const edrRawU = _interpGrid(tt, amp, grid).v;
+    const hrU = _interpGrid(tt, hrR, grid).v;
+    const hrAbsU = _interpGrid(tt, hrAbs, grid).v;
     const edrB = _bandResp(edrU, FS),
       hrB = _bandResp(hrU, FS);
     // 3) respiration rate measured DIRECTLY from the EDR band (dominant period via
@@ -1886,10 +2148,19 @@
     }
     // CPC on the RAW grids (see the edrRawU note) — never on edrB/hrB, which retain 0-22 % of LFC.
     const cpc = _cpc(hrAbsU, edrRawU, FS);
+    /* COVERAGE — §∅: "an output computed over absent input reports the absence". Every metric below
+       is computed over the uniform grid, and some of that grid was DRAWN rather than measured. All
+       four series share one `grid` and one `tt`, so one flag array describes them all. `nGrid` alone
+       was the denominator with no numerator, which is exactly what made its silence a defect. */
+    let _gapCells = 0;
+    for (let i = 0; i < M; i++) if (_edrG.flag[i] === GRID_FLAG.GAP_LONG) _gapCells++;
+    const gridGapFrac = M ? +(_gapCells / M).toFixed(4) : null;
     return {
       cpc,
       respFromEDR,
       respFromEDRReason,
+      nGridGap: _gapCells,
+      gridGapFrac,
       rsaEfficiencyRatio: +rsaRatio.toFixed(2),
       rsaAmplitudeBpm: +rsaAmp.toFixed(1),
       crcPLV: +plv.toFixed(3),
@@ -1912,6 +2183,19 @@
   // grid — TWO consumers: `detectCVHR` (the #1800 refusal below) and `cardiorespCoupling` (the
   // sibling guard added after 2026-08-23's +2792-day sensor rebase OOM-killed the fold there).
   // 48 h — over twice any real recording, so a gappy night still fits.
+  const GAP_S = 10; // any inter-beat interval longer than this is a coverage gap, not a missed beat
+  /* HOISTED TO MODULE SCOPE 2026-09-19. It was `buildNN`-local, and `cardiorespCoupling` needed the
+     same cut to say which interpolated grid cells were drawn across an absence. Copying the literal
+     would have been the second constant for one question that this cut's own comment warns about —
+     and `gap-cut-parity` already gates it against PpgDex's `PPG_CVHR_GAP_S`. One declaration, two
+     readers. */
+  /* GRID FLAGS — a MIRROR of `glucodex-dsp.js`'s `FLAG`, names and numbering identical, deliberately
+     not a second vocabulary. GlucoDex already solved "which resampled cells were measured": OK is a
+     cell backed by real samples, GAP_LONG is one drawn across an absence and never measured. ECGDex
+     needs no middle `GAP` tier because `GAP_S` is already the cut between a missed beat (sound to
+     interpolate) and a coverage gap — inventing a third tier here would be coining. The two files
+     cannot share a constant (no common spine), so `grid-flag-parity` gates them equal instead. */
+  const GRID_FLAG = { OK: 0, GAP_LONG: 4 };
   const CVHR_MAX_SPAN_S = 48 * 3600;
   // `activeSec` (OPTIONAL, added LAST for back-compat per CLAUDE.md §🧪) is the beat-COVERED time
   // the caller measured (nnRes.activeSec — inter-beat deltas ≤ GAP_S summed); when it is > 0 it is
@@ -2411,6 +2695,31 @@
   //  FULL PIPELINE — orchestrates everything from an Int16 ECG buffer.
   //  onProgress(pct,msg) optional.
   // ════════════════════════════════════════════════════════════════════════
+  /* ── THE UNIT OF EVERY UNIT-BEARING FIELD `analyze()` RETURNS, declared once.
+     Residue `2026-09-12-ecgdsp-analyze-mixes-seconds-and-ms`. `analyze` returns SECONDS and
+     MILLISECONDS on the same object and none of the five array fields carries its unit in its name,
+     while every scalar beside them does (`durSec`, `durMin`, `spanMin`, `gapMin`, `artifactSec`).
+     A consumer comparing `times` to a ms timebase is off by 1000x, and the error is invisible to the
+     assertion shape people actually write: #2413's own end-to-end selftest shipped that exact bug and
+     PASSED, because it asserted only that both beat trains were non-empty.
+
+     ⚠️ A DECLARED UNIT THAT IS WRONG IS WORSE THAN NO UNIT, so this map holds only fields whose unit
+     the gate PROVES from the data — `nn` against the difference of consecutive `tt`, `times` against
+     `refIdx / fs`. `corrected`, `nnCorrected` and `nnConf` are deliberately ABSENT: the first two are
+     per-beat masks and the third is a [0.5, 1] confidence, none of them a physical quantity. Reading
+     this map is not a substitute for reading them.
+
+     The names `times`/`tt`/`nn`/`peaks`/`refIdx` are the published return shape and a consumer
+     contract, so they are NOT renamed (CLAUDE.md §📦 back-compat). The unit-suffixed aliases below
+     are additive and share the same array reference — no copy, no second source of truth. */
+  const ANALYZE_UNITS = Object.freeze({
+    times: 's',
+    tt: 's',
+    nn: 'ms',
+    peaks: 'sampleIndex',
+    refIdx: 'sampleIndexFractional'
+  });
+
   function analyze(rec, onProgress) {
     const prog = onProgress || (() => {});
     const { int16, fs } = rec;
@@ -2422,6 +2731,34 @@
     const peaksB = detectPeaksB(bp, fs);
     prog(34, 'Sub-sample peak refinement…');
     const { times, refIdx } = refinePeaks(bp, peaks, fs);
+    /* ── THE BEAT CLOCK RIDES THE DEVICE COUNTER WHERE THERE IS ONE ─────────────────────────────────
+       `refinePeaks` returns `idx / fs`: one mean rate spent as a position. The file's own ns counter
+       records where each sample actually sat, and `parseECG` now exposes it as `devMsAt` (see the
+       block at its definition). Measured over the 8 largest H10 nights, the index axis diverges from
+       the counter by 0.56-2.62 s (median ~1.05 s), on gapless nights as much as gappy ones — so it is
+       crystal drift, not dropout accounting, and it is the input that made `fitClockDrift` certify a
+       -137 ppm "inter-device drift" that neither device exhibits.
+
+       ⚠️ AND THE DEAD-TIME FOLD BELOW IS THEN A DOUBLE COUNT. The counter spans a dropout by itself —
+       7042-17875 nominal steps across the five holes of 2026-08-25 — so folding `deadSec` on top adds
+       the night's 398 s twice. The fold is therefore the ELSE branch, not an unconditional step: it
+       exists to make the INDEX axis span a hole, and the counter needs no such help. */
+    const _devMsAt = typeof rec.devMsAt === 'function' ? rec.devMsAt : null;
+    let beatAxis = 'index';
+    if (_devMsAt && _devMsAt(0) != null) {
+      let ok = true;
+      for (let k = 0; k < times.length; k++) {
+        const d = _devMsAt(refIdx[k]);
+        if (d == null || !isFinite(d)) {
+          ok = false;
+          break;
+        }
+        times[k] = d / 1000;
+      }
+      // A partial rewrite would leave half the series on each axis — the worst of both. All or none.
+      if (ok) beatAxis = 'device-counter';
+      else for (let k = 0; k < times.length; k++) times[k] = refIdx[k] / fs;
+    }
     // DEEP-AUDIT-II §4.2 (#6): fold raw-sample gaps (dropped ECG samples, carried on rec.gaps from the
     // parse) into the beat clock. Beat time is sample-index/fs, which silently UNDER-counts wall-clock
     // across a dropout — so a gappy record would read ~100 % coverage with every later beat time-shifted
@@ -2429,7 +2766,7 @@
     // inter-beat interval span the gap, so the existing gap-aware coverage + NN gate see it. A monotonic
     // single pass (peaks are index-ordered). INERT when rec.gaps is empty — the clean-recording,
     // synthetic, and committed-fixture path is byte-identical.
-    if (rec.gaps && rec.gaps.length) {
+    if (beatAxis === 'index' && rec.gaps && rec.gaps.length) {
       const step = 1000 / fs;
       const g = rec.gaps.slice().sort((a, b) => a.idx - b.idx);
       let gi = 0,
@@ -2443,7 +2780,7 @@
       }
     }
     prog(46, 'Per-beat signal-quality scoring…');
-    const { sqi, rr, terms: sqiTerms } = computeSQI(int16, fs, peaks, times, peaksB);
+    const { sqi, rr, terms: sqiTerms, ecgRail } = computeSQI(int16, fs, peaks, times, peaksB);
     prog(56, 'Gating + NN interpolation…');
     const nnRes = buildNN(times, rr, sqi);
     // TCH-FUSED-ROBUST-HAT: exclude SUSTAINED-artifact windows the per-beat gate misses (a burst of
@@ -2471,7 +2808,18 @@
          reading a committed export can only run the UNWEIGHTED hat, so the σ the papers publish
          (fused-weight) was not reproducible from the corpus. Surviving beats span [0.5, 1] by
          construction; a beat below that is not down-weighted, it is gone (and counted in artifactSec). */
-      nnConf = [];
+      nnConf = [],
+      /* §∅, aligned with nn/tt the same way: 1 where this interval straddles a dropout. Carried
+         THROUGH the confidence filter rather than re-derived after it — `nnRes.spansGap` indexes the
+         unfiltered series, and reading it at the filtered index is the frame error that shipped in
+         PpgDex for a fortnight (#2333 → the kept-frame fix). Rebuilt here in the kept frame instead:
+         a pair is a non-measurement if it straddled a gap OR if the filter removed a beat between its
+         endpoints, since the survivors are then adjacent in the array and not in time. */
+      nnSpansGap = [],
+      /* sample index of each KEPT beat, same frame — the only way to place a clock seam (a SAMPLE
+         index, `rec.clockResyncs[].idx`) on the beat axis after the filter has thinned it. */
+      nnPeak = [];
+    let _lastKept = -1;
     let artifactSec = 0,
       _pSec = null;
     for (let i = 0; i < nnRes.nn.length; i++) {
@@ -2482,7 +2830,12 @@
         tt.push(nnRes.tt[i]);
         nnCorr.push(nnRes.corrected[i] ? 1 : 0);
         nnSqi.push(Number.isFinite(sqi[i]) ? sqi[i] : null);
+        nnPeak.push(peaks[i]);
         nnConf.push(Number.isFinite(c) ? +c.toFixed(3) : 1);
+        // straddled a dropout in the source frame, OR the filter dropped a beat between this one and
+        // the previous survivor (first survivor has no predecessor, so its pair is vacuous)
+        nnSpansGap.push(nn.length === 1 ? 0 : (nnRes.spansGap && nnRes.spansGap[i]) || i !== _lastKept + 1 ? 1 : 0);
+        _lastKept = i;
       } else if (secAbs !== _pSec) {
         artifactSec++;
         _pSec = secAbs;
@@ -2492,10 +2845,34 @@
     if (N < 12) throw new Error('Too few clean R-peaks after artifact gating — signal may be all-artifact.');
 
     prog(64, 'HRV suite…');
-    const meanRR = mean(nn),
-      sdnn = std(nn),
-      rm = rmssd(nn),
-      pn = pnn50(nn);
+    /* §∅ — A GAP-STRADDLING INTERVAL IS NOT AN RR INTERVAL, so it leaves EVERY HRV statistic ────────
+       `buildNN` no longer median-fills it (see its §∅ block), so the honest value — tens of seconds —
+       now reaches here. That fix upstream creates the obligation here, and doing one without the
+       other is worse than doing neither: measured on the 2026-08-25 H10 night, excluding the fill but
+       not the statistic moved rMSSD 45.3 → 1020.2 ms, trading a quiet fabrication for a loud one.
+
+       TWO THINGS THE FIRST ATTEMPT GOT WRONG, both caught by that measurement:
+
+       1 · A bad interval at k poisons TWO successive differences — (k−1,k) AND (k,k+1) — because it
+           is an endpoint of both. Masking only the pair it indexes leaves the other one, which is why
+           rMSSD stayed at 1020 after the first cut. `_gapPair` widens the mask by one on each side.
+       2 · meanRR and SDNN are not exempt. They are whole-record CENTRAL TENDENCY and DISPERSION over
+           RR intervals, and a 74-second absence is not an RR interval at all — including it is the
+           same category error one statistic along. PpgDex already does this (`timeDomain(nn,
+           cleanMask, spansGap)` omits from its dispersion base); ECGDex now matches, which is also
+           what keeps the two nodes comparable.
+
+       All-zero mask ⇒ every pair and every interval, so a contiguous recording is byte-identical. */
+    // `skip[i]` governs the pair (i-1, i), whose ENDPOINTS are intervals i-1 and i — so a bad interval
+    // at k must set skip[k] (pair k-1,k) and skip[k+1] (pair k,k+1). Widening the other way (i, i+1)
+    // leaves the second pair live and rMSSD stayed at 1020 ms, which is how this was caught.
+    const _gapPair = nnSpansGap.length ? nnSpansGap.map((_, i) => (nnSpansGap[i] || nnSpansGap[i - 1] ? 1 : 0)) : nnSpansGap;
+    const _rrOnly = nnSpansGap.some((v) => v) ? nn.filter((_, i) => !nnSpansGap[i]) : nn;
+    const _base = _rrOnly.length >= 2 ? _rrOnly : nn; // never let the omission empty the record
+    const meanRR = mean(_base),
+      sdnn = std(_base),
+      rm = rmssd(nn, _gapPair),
+      pn = pnn50(nn, _gapPair);
     const hr = +(60000 / meanRR).toFixed(1);
     // Duration = ACTIVE (beat-covered) time, not raw span. Stray beats detected in
     // noise hours after the strap comes off must NOT inflate duration or the tier.
@@ -2505,7 +2882,17 @@
     const lowCoverage = nnRes.coveragePct != null && nnRes.coveragePct < 80;
 
     prog(72, '5-min epoch engine…');
-    const epochs = epochEngine(nn, tt, 300, nnSqi);
+    /* A clock seam on the beat axis: the first kept beat at or after the resync's sample index. §7
+       "ONE DEVICE CLOCK PER AXIS" re-anchors the axis across it, which makes the axis continuous —
+       not the same clock; the epoch containing it is refused, not annotated (see epochEngine). */
+    const _seamSec = [];
+    for (const c of rec.clockResyncs || []) {
+      let k = 0;
+      while (k < N && nnPeak[k] < c.idx) k++;
+      if (k < N) _seamSec.push(tt[k]);
+    }
+    const epochsRefused = [];
+    const epochs = epochEngine(nn, tt, 300, nnSqi, nnSpansGap, _seamSec, epochsRefused);
 
     // representative window for advanced metrics (epoch with rmssd closest to median)
     let repSeg = nn,
@@ -2530,6 +2917,7 @@
         seg = [],
         segT = [];
       for (let i = 0; i < N; i++) {
+        if (nnSpansGap[i]) continue; // §∅ — not an RR interval (see epochEngine)
         if (tt[i] >= w0 && tt[i] < w1) {
           seg.push(nn[i]);
           segT.push(tt[i]);
@@ -2632,7 +3020,7 @@
     // Poincaré — geometric SD1/SD2 from the exact array that gets plotted.
     // Overnight: use the representative 5-min window (standard short-term Poincaré, norms apply);
     // shorter records: use the whole NN series. Guarantees ellipse == cloud.
-    const poincareNN = longRec && repSeg.length >= 20 ? repSeg : nn;
+    const poincareNN = longRec && repSeg.length >= 20 ? repSeg : _rrOnly; // §∅ — `_rrOnly`, never the gap-carrying `nn`
     const pg = poincareGeo(poincareNN);
     /* `.toFixed` on a refusal would throw, and `+null` would silently become 0 — the fabrication
        re-entering one line after the guard that removed it. Carry the null through. */
@@ -2733,6 +3121,8 @@
 
     prog(100, 'Done');
 
+    /* ONE converted array, referenced by both `times` and `timesSec` — see ANALYZE_UNITS. */
+    const timesArr = Array.from(times);
     return {
       source: rec.source,
       fs,
@@ -2764,15 +3154,32 @@
       bp,
       peaks,
       refIdx,
-      times: Array.from(times),
+      times: timesArr,
       sqi: Array.from(sqi),
       nn,
       tt,
+      /* Unit-suffixed ALIASES of the five fields in ANALYZE_UNITS. They share the SAME reference as
+         the legacy name — `timesArr` is the one converted array, not a second copy — so the two names
+         cannot drift and the gate asserts IDENTITY rather than equality. New code should prefer these.
+         `sqi`, `corrected`, `nnCorrected` and `nnConf` get no alias because they carry no unit. */
+      units: ANALYZE_UNITS,
+      timesSec: timesArr,
+      ttSec: tt,
+      nnMs: nn,
+      peaksIdx: peaks,
+      refIdxFrac: refIdx,
       corrected: Array.from(nnRes.corrected),
       // Filter-aligned twin of `corrected`, safe to publish beside nn/tt (see the loop above).
       nnCorrected: nnCorr,
       // Filter-aligned per-beat fused-hat confidence — same alignment contract as nnCorrected.
       nnConf,
+      /* §∅, filter-aligned like the two above: 1 where interval i straddles a dropout or a beat the
+         confidence filter removed. The headline rMSSD/SDNN already exclude these (`_gapPair` /
+         `_rrOnly` above); until 2026-09-21 the mask stopped there and `validateRR`/`alignFirmwareRR`
+         were handed the raw `nn` — a 20-minute dropout counted as one beat-to-beat interval made the
+         export's `validation.dRMSSDPct` read 65 797.8 on 2026-09-03 (oracle-ecg-firmware-rr). Published
+         so every consumer can exclude what the node itself calls a non-measurement. */
+      nnSpansGap,
       // quality
       analyzablePct: nnRes.analyzablePct,
       correctionRate: nnRes.correctionRate,
@@ -2784,6 +3191,9 @@
          a THRESHOLD count of the composite and cannot say WHICH term moved it, so a term pinned at 0
          and a term doing real work produce the same `cleanBeatPct` story. */
       sqiTerms,
+      /* The file's own saturation rails (`ecgRails`), matched by magnitude, and how many samples sit
+         at them over the WHOLE record. `absent: true` + `samples: null` is "unmeasured", never clean. */
+      ecgRail,
       nGaps: nnRes.nGaps,
       artifactSec,
       spanMin: +(spanSec / 60).toFixed(1),
@@ -2854,6 +3264,7 @@
       lnrmssd: +Math.log(longRec ? dispRm : rm).toFixed(3),
       // epochs + sleep + cvhr + events
       epochs,
+      epochsRefused,
       stages,
       stageMin,
       totSleep: +totSleep.toFixed(0),
@@ -4215,6 +4626,14 @@
     stampEpochPositions,
     bandpass,
     detectPeaks,
+    ecgRails,
+    /* Additive export for the PAT worker. `detectPeaks` returns INTEGER sample indices; `refinePeaks`
+       is what turns them into the sub-sample R positions the rest of this node uses, and it was
+       unreachable from outside — so every external consumer was silently stuck on whole samples, with
+       no way to tell. Measured 2026-09-14 on a real H10 night (35 305 beats): integer vs sub-sample
+       beat times differ by p50 1.85 ms, p95 6.09 ms, max 7.70 ms — one full sample at 129.99 Hz.
+       Negligible against a heartbeat, not negligible against a 60 ms PAT bar. */
+    refinePeaks,
     /* Additive, same contract rule as the block above. DEEP-SCOUT-HOLLOW-GATES-FOLLOWUPS §EP-rest could
        not reach the composite per-beat SQI weights (0.30·kSQI + 0.28·bSQI + 0.24·rrPlaus + 0.18·ampOK)
        through `analyze`, because `genSynthetic` — even `scenario:'ambulatory'` — emits beats at sqi≈1,
@@ -4241,6 +4660,7 @@
     /* Exported so their refusal guards are directly assertable. Additive only — no existing caller
        reaches them through this surface, and the internal call sites are unchanged. */
     poincareGeo,
+    epochEngine, // §∅ epoch gap-exclusion + seam refusal, gated directly
     detectCVHR,
     cardiorespCoupling,
     dfaAlpha1,
@@ -4438,7 +4858,7 @@
        all the way to the export. When the phone stamps at the seam do not parse, a delta over the
        24 h ceiling still re-anchors — with `phoneDeltaMs: null` and NO gap entry, because a
        duration nothing measured must stay visible as unmeasured (§2.6), never fabricated. */
-    var ECG_RESYNC_BOUND_MS = 60000;
+    // ECG_RESYNC_BOUND_MS is hoisted to module scope — the `_ACC` companion judges a seam by the same bound.
     var ECG_GAP_CEIL_MS = 86400000;
     /* THE RECORDING'S ANCHOR — Clock Contract §4: `t0Ms` is the tMs of the FIRST VALID sample, i.e.
        the first stamp that PARSES. A malformed leading row invalidates that ROW, not the night, so
@@ -4464,9 +4884,21 @@
     var relOffsetMs = 0,
       nsOffsetMs = 0;
     var offsetAt = []; // {idx, relOffsetMs, nsOffsetMs} AFTER the seam at that row — for the anchors
+    /* ⚠️ SEAM ANCHORS FOR THE DEVICE ABSCISSA — a step BETWEEN two anchors is otherwise smeared.
+       `devMsAt` interpolates linearly between anchors sampled every ECG_ANCHOR_EVERY rows. A dropout
+       is a STEP in the counter, and if it falls between two anchors the interpolation spreads it
+       uniformly across that whole stride instead of placing it where it happened. Measured
+       2026-09-13 on `synthetic_ecgdex_h10_gapped.txt`: two 20 s holes at rows 870 and 1741, anchors
+       at stride 500 — the holes vanished from the beat times, every inter-beat delta fell under
+       `GAP_S`, and `recording.durSec` inflated 17.07 → 59.40 s, i.e. the 60 s ENVELOPE reported as
+       recorded time. That is a worse defect than the drift being fixed.
+       So every seam contributes its own two anchors — the last sample before it and the first after —
+       taken from the candidate's OWN ns readings, which is where the step's true size lives. */
+    var seamAnchors = [];
     var msStep = scan.msStep;
     for (var ci = 0; ci < scan.candidates.length; ci++) {
       var c = scan.candidates[ci];
+      var nsOffsetBefore = nsOffsetMs; // the offset governing the sample BEFORE this seam
       var prevAdj = c.prevRawMs + relOffsetMs;
       /* The phone stamps are parsed lazily, only at candidates. `pdc` clamps the known
          non-monotonic host stamps (≤287 ms backward) to zero rather than letting a negative
@@ -4501,6 +4933,14 @@
            under first-after: a beat landing ON the boundary sample is after the hole and must carry
            the dead time. Pinned by the `gaps[].idx` leg in tests/dex-tests.js. */
         gaps.push({ idx: c.idx, ms: c.d, atRelMs: prevAdj, endRelMs: c.rawMs + relOffsetMs });
+      }
+      /* Both sides of the seam, on the ns axis, with the offset in force on each side — the BEFORE
+         sample predates this seam's re-anchor, so it takes the offset as it stood on entry. Recorded
+         for every candidate, gap or resync alike: a resync is a step too, and the reason the abscissa
+         must not interpolate across it is the same. */
+      if (c.rawNsMs != null && c.prevRawNsMs != null) {
+        seamAnchors.push({ idx: c.idx - 1, ns: c.prevRawNsMs + nsOffsetBefore });
+        seamAnchors.push({ idx: c.idx, ns: c.rawNsMs + nsOffsetMs });
       }
       offsetAt.push({ idx: c.idx, relOffsetMs: relOffsetMs, nsOffsetMs: nsOffsetMs });
     }
@@ -4571,6 +5011,104 @@
           : null;
       parsedAnchors.push({ idx: a.idx, devMs: devVal, hostMs: aTs.tMs - t0Ms });
     }
+    /* ── THE DEVICE ABSCISSA — where a sample SITS, read from the counter instead of counted ────────
+       `fs` above is ONE mean period for the whole file, and a sample's position was derived from it as
+       `idx / fs` (+ folded gap dead-time). That is a RATE spent as a POSITION, and the crystal does not
+       hold one rate all night. Measured against each file's own ns counter over the 8 largest H10
+       nights (2026-09-13): the shipped axis diverges by **0.56 s to 2.62 s**, median ~1.05 s — and it
+       fires on nights with ZERO dropouts (5 of the 8), so this is crystal drift and not a gap
+       artifact. The 2.4 s the audit recorded reproduces on 2026-08-07, at the upper tail.
+
+       The counter is already in the file, one column over. These anchors carry it per row, so a
+       sample's position is INTERPOLATED between measured stamps instead of extrapolated from a mean.
+
+       ⚠️ THREE THINGS THAT WOULD EACH BE A DIFFERENT BUG:
+       1 · Unlike `parsedAnchors` below, this list is NOT filtered to post-resync and does NOT require a
+           parseable host stamp. Those two filters serve `hostAxis`, which measures host↔device
+           divergence and needs one oscillator state and a host reading. An ABSCISSA needs neither: the
+           seam arithmetic above has already made the counter continuous across a resync, and a row with
+           an unreadable Phone stamp still has a perfectly good device stamp.
+       2 · The counter SPANS A DROPOUT — measured on 2026-08-25, the five holes read 7042, 9490, 9560,
+           7787 and 17875 nominal steps, not one step each. So the dead time is ALREADY in it, and the
+           `deadSec` fold that `analyze` applies to the index axis must be SKIPPED on this one or the
+           night is counted twice (+398 s on that file). Same for `tMsAt`.
+       3 · Flat outside the anchors, never extrapolated along a slope — Clock Contract §7's rule for
+           `correctionAt`, for the same reason: past the last anchor there is no measurement, and
+           continuing a rate there fabricates one. */
+    var devAnchorIdx = null,
+      devAnchorMs = null;
+    if (nsUsable && scan.firstNsMs != null) {
+      var _dIdx = [],
+        _dMs = [];
+      // stride anchors carry the drift; seam anchors carry the steps. Merged and sorted, because a
+      // step between two stride anchors is exactly what a linear interpolation cannot represent.
+      var _cand = [];
+      for (var da = 0; da < scan.anchors.length; da++) {
+        var an = scan.anchors[da];
+        if (an.rawNsMs == null) continue;
+        var dOff = 0;
+        for (var doi = 0; doi < offsetAt.length; doi++) if (offsetAt[doi].idx <= an.idx) dOff = offsetAt[doi].nsOffsetMs;
+        _cand.push({ idx: an.idx, ns: an.rawNsMs + dOff });
+      }
+      for (var sa = 0; sa < seamAnchors.length; sa++) _cand.push(seamAnchors[sa]);
+      _cand.sort(function (x, y) {
+        return x.idx - y.idx;
+      });
+      /* ⚠️ A COUNTER THAT GOES BACKWARDS IS NOT A COUNTER — refuse the whole abscissa, never a
+         truncated one. The seam arithmetic above closes every LEGITIMATE step (resync, dropout), so a
+         remaining backward move means this column is not the quantity we think it is — Clock Contract
+         §7's "the two columns are not the two clocks we think they are", where the sanctioned response
+         is to refuse rather than to correct.
+         Dropping the offending anchors and keeping the rest is the tempting middle and it is the worst
+         option: it leaves an anchor set that covers a PREFIX of the record and then flat-extrapolates
+         the nominal step across everything after it, which is the index axis wearing the counter's
+         name. Measured 2026-09-13 on the suite's tiled long-record synthetic — it repeats a 60 s twin
+         92× advancing only the ms column, so its ns column resets 92 times; the truncated set covered
+         the first 60 s of a 92-minute file and the apnea path stopped being reached at all.
+         Fail closed: no abscissa, and `analyze`/`tMsAt` fall back to the index axis + dead-time fold,
+         which is exactly right for a file whose counter cannot be trusted. */
+      var nonMonotone = false;
+      for (var ca = 0; ca < _cand.length; ca++) {
+        var dv = _cand[ca].ns - scan.firstNsMs;
+        if (_dIdx.length && !(dv > _dMs[_dMs.length - 1] && _cand[ca].idx > _dIdx[_dIdx.length - 1])) {
+          // an anchor at the SAME index is a duplicate (a seam row also sampled by the stride), not a
+          // reversal — skip it silently; anything that moves BACKWARD disqualifies the column.
+          if (_cand[ca].idx === _dIdx[_dIdx.length - 1] && dv >= _dMs[_dMs.length - 1]) continue;
+          nonMonotone = true;
+          break;
+        }
+        _dIdx.push(_cand[ca].idx);
+        _dMs.push(dv);
+      }
+      if (nonMonotone) {
+        _dIdx = [];
+        _dMs = [];
+      }
+      if (_dIdx.length >= 2) {
+        devAnchorIdx = _dIdx;
+        devAnchorMs = _dMs;
+      }
+    }
+    var _devStepMs = 1000 / fs;
+    /* Device-axis position of sample `i`, in ms from the first sample. `i` may be fractional —
+       `refinePeaks` returns sub-sample R positions. Null when there is no counter to read, which is
+       the signal to fall back to the index axis rather than to guess. */
+    function devMsAt(i) {
+      if (!devAnchorIdx) return null;
+      var lo = 0,
+        hi = devAnchorIdx.length - 1;
+      if (i <= devAnchorIdx[0]) return devAnchorMs[0] + (i - devAnchorIdx[0]) * _devStepMs;
+      if (i >= devAnchorIdx[hi]) return devAnchorMs[hi] + (i - devAnchorIdx[hi]) * _devStepMs;
+      while (lo + 1 < hi) {
+        var mid = (lo + hi) >> 1;
+        if (devAnchorIdx[mid] <= i) lo = mid;
+        else hi = mid;
+      }
+      var span = devAnchorIdx[hi] - devAnchorIdx[lo];
+      if (!(span > 0)) return devAnchorMs[lo];
+      return devAnchorMs[lo] + ((i - devAnchorIdx[lo]) / span) * (devAnchorMs[hi] - devAnchorMs[lo]);
+    }
+
     var lastResyncRow = clockResyncs.length ? clockResyncs[clockResyncs.length - 1].idx : null;
     var preResyncAnchorsDropped = 0;
     if (lastResyncRow !== null && parsedAnchors.length) {
@@ -4626,6 +5164,9 @@
        Refused ⇒ fs keeps the DEVICE crystal, the pre-WEARABLE-HOST-AXIS behaviour: wrong by ~25 ppm,
        where the ungated correction was wrong by up to 24036. The refusal is REPORTED, never silent. */
     var ECG_AXIS_MIN_SPAN_MS = 2400e3; // 40 min — the knee in the table above
+    // A single anchor gap carrying more than this is a host clock STEP, not delivery jitter — see the
+    // refusal arm below for the derivation (§7's 287 ms worst wander; 138.4 ms worst measured here).
+    var ECG_AXIS_MAX_STEP_MS = 1000;
     var ecgHostAx = typeof DexClock !== 'undefined' && DexClock.hostAxis ? DexClock.hostAxis(ecgAxisAnchors, {}) : { ok: false };
     /* Span from the anchors themselves — they are pushed in row order, so first→last IS the baseline
        the rate was divided by. Computed here rather than added to `DexClock.hostAxis` on purpose:
@@ -4645,7 +5186,76 @@
        every `fs` correction applied to them was derived from a column that is not a clock.
        `ok` is not enough and neither is the span gate: both are satisfied by a derived column. */
     var fsDevice = fs; // BEFORE any rate correction — `tMsAt` below needs the RAW device rate
-    if (ecgHostAx.ok && ecgHostAx.independent !== false && isFinite(ecgHostAx.ppm) && ecgAxisSpanMs >= ECG_AXIS_MIN_SPAN_MS) {
+    /* A DRAWN device axis (§7: inter-anchor deltas concentrated on one value — `sample_index × an
+       assumed rate`, no oscillator behind it) is NOT refused here, and that is deliberate. The
+       Contract's line is "it may be placed on the host timeline, but it must never be SPENT as a second
+       clock". Correcting `fs` by `ppm` and riding `correctionAt` IS placing it on the host timeline —
+       the host is then the only clock there is, and refusing would leave every sample on the assumed
+       rate, which is strictly worse. PpgDex does the same (`relSec` takes `correctionAt` on a drawn
+       axis and labels the result `'host'`). What "spending it" means, and what changes below on a drawn
+       axis: `timingSource` reads `'host'` (never `'device+host'` — there is no second clock to agree
+       with), `stability` is null (a σ_y(τ) curve over an assumed rate describes the writer's
+       arithmetic, not a crystal), and `deviceDrawn`/`drawnShare` are forwarded so the verdict is
+       visible rather than inferred from a ~0 ppm. The `independent` gate stays: a drawn axis with an
+       INERT host column has no clock at all, and `ppm` there is rounding.
+       Measured before this landed (2026-09-05, RESIDUE `2026-09-05-drawn-share-is-anchor-level`): on 25
+       real `Polar_H10_*_ECG.txt` across 25 dates `drawnShare` is 0.0038–0.0677, `deviceDrawn` false on
+       every one — the H10 counter is a real clock, so this arm is reached by no shipped H10 recording.
+       It exists for the axis that IS drawn (an O2Ring counter, a Verity PPI stream) should one ever
+       reach this parser, and so that `timingSource` cannot over-claim on it.
+       `ecgAxisRefusal` names the ACTUAL cause. Until 2026-09-05 every refusal was reported as "span …
+       too short" — including the independence refusal that fires on every phone-captured H10 night
+       (spread ≈ one quantum), whose span is hours. A reason that names a different gate than the one
+       that fired is worse than no reason. */
+    var ecgAxisDrawn = ecgHostAx.ok && ecgHostAx.deviceDrawn === true;
+    var ecgAxisRefusal = null;
+    if (!ecgHostAx.ok)
+      ecgAxisRefusal = null; // the ok:false branch below carries the spine's own reason
+    else if (ecgHostAx.independent === false)
+      ecgAxisRefusal =
+        'host column is not a second clock (residual spread ' +
+        (ecgHostAx.spreadMs != null ? ecgHostAx.spreadMs.toFixed(2) : '?') +
+        ' ms, within one stamp quantum — the host stamp is the device stamp rounded), fs left on the device clock';
+    else if (!isFinite(ecgHostAx.ppm)) ecgAxisRefusal = 'no finite host/device rate, fs left on the device clock';
+    /* ── A STEP IS NOT A RATE, and the span gate below cannot see one ────────────────────────────────
+       `ECG_AXIS_MIN_SPAN_MS` asks whether the baseline is long enough to resolve a crystal. It says
+       nothing about whether the divergence ACCUMULATED like a rate or arrived all at once. A host-side
+       clock step — an NTP correction, a suspend/resume, a stalled writer — lands in ONE anchor gap,
+       and `hostAxis` then divides it by the whole span, turning a jump into a fabricated ppm. Clock
+       Contract §7 already says `maxStepMs` "surfaces a genuine clock STEP smeared across one anchor
+       gap rather than hiding it in a slope" — it is published for exactly this, and nothing read it.
+
+       ⚠️ THE RATIO VERSION OF THIS RULE WAS WRONG, and it is recorded because it looked right and
+       fired correctly on the real offender. The first cut refused when |maxStepMs| exceeded
+       |totalMs| — one gap carrying more than the night's whole divergence. It is unsound: **a step
+       inflates its own denominator.** `totalMs` is the NET end-to-end divergence, so a step ALIGNED
+       with the drift adds to it and the ratio collapses. Caught by a planted control — 3006 ms step,
+       3606 ms total, ratio 0.83, no refusal — and it only worked on 2026-08-26 because there the step
+       (+3000 ms) and the drift oppose and net to −313 ms. A rule that holds by an accident of sign is
+       not a rule.
+
+       So bound the STEP ITSELF, which carries a physical meaning the ratio never had. Host delivery
+       jitter is a tens-to-low-hundreds-of-ms quantity: Clock Contract §7 records host-stamp wander
+       "up to 287 ms observed" on this corpus, and the 8 largest H10 nights measured 2026-09-13 top out
+       at 138.4 ms (16.5 · 17.0 · 19.6 · 27.2 · 33.0 · 42.5 · 138.4). A second-scale jump is not
+       delivery jitter, it is a clock event. 2026-08-26 carries 2999.7 ms.
+
+           ECG_AXIS_MAX_STEP_MS = 1000   — 3.5x above §7's worst recorded wander,
+                                           7.2x above the worst measured here,
+                                           3.0x below the offender.
+
+       Corroborated independently of any threshold: 08-26 quotes -10.02 ppm where the SAME DEVICE reads
+       -19.8 to -23.0 on all seven other nights — one step ate half the crystal. After this gate 08-26
+       is the ONLY one of the eight whose fs moves (-10.02 ppm, back onto the device clock); the other
+       seven are inert to 0.00 ppm.
+       ⚠️ This gates the RATE only. `tMsAt` rides the device counter (#2477) and `correctionAt` is an
+       interpolation whose residual is bounded by what it observed — §7 is explicit that neither takes
+       a span or step gate. Refusing here leaves `fs` on the device clock, which is the honest axis. */ else if (isFinite(ecgHostAx.maxStepMs) && Math.abs(ecgHostAx.maxStepMs) > ECG_AXIS_MAX_STEP_MS)
+      ecgAxisRefusal =
+        'one anchor gap carries a ' + Math.round(ecgHostAx.maxStepMs) + ' ms step (> ' + ECG_AXIS_MAX_STEP_MS + ' ms) — a host clock STEP, not a crystal rate, fs left on the device clock';
+    else if (ecgAxisSpanMs < ECG_AXIS_MIN_SPAN_MS)
+      ecgAxisRefusal = 'span ' + Math.round(ecgAxisSpanMs / 1000) + ' s < ' + ECG_AXIS_MIN_SPAN_MS / 1000 + ' s — too short to resolve a crystal rate, fs left on the device clock';
+    if (ecgHostAx.ok && ecgAxisRefusal == null) {
       fs = fs / (1 + ecgHostAx.ppm / 1e6);
       ecgAxisApplied = true;
     }
@@ -4677,6 +5287,60 @@
        correction rather than an amplified one. That boundedness is precisely what `.ppm` lacks. */
     var _ecgCorrAt = ecgHostAx.ok && ecgHostAx.independent !== false && typeof ecgHostAx.correctionAt === 'function' ? ecgHostAx.correctionAt : null;
     var _ecgMsPerSample = 1000 / fsDevice;
+    /* ── A SAMPLE INDEX IS NOT A CLOCK ACROSS A DROPOUT ───────────────────────────────────────────
+       `analyze` has folded gap dead-time into its beat times since DEEP-AUDIT-II §4.2 (#6) — "beat
+       time is sample-index/fs, which silently UNDER-counts wall-clock across a dropout". `tMsAt` was
+       written later, for the same axis, and never learned it: it is pure index arithmetic, so on a
+       gappy night it under-reads by the whole accumulated dead time while `analyze`'s own series does
+       not. Measured on 2026-09-12 (H10, 33 holes, Σ 2525 s): tMsAt − export = −260.7 s / −628.3 s /
+       −2522.8 s at three tracked beats — the folded deadSec, exactly.
+
+       It matters because `tMsAt` is what the PAT legs read (`pat-feasibility-worker.js:99`,
+       `sensor-trio-worker.js:763`), while the PPG leg reads `relSec`, which SPANS its gaps. The first
+       hole of that night lands 20 s in, so from there on the two legs are on different axes and every
+       pair is mis-lagged by the dead time — pairs vanish rather than come out wrong, which is why PAT
+       reads null on box nights instead of reading badly.
+
+       Same rule as `analyze`, deliberately: a gap contributes `max(0, ms − one nominal step)`, because
+       one step of the interval is the sample that WOULD have arrived and is already counted by the
+       index arithmetic. The step here is the RAW device step, since `tMsAt` builds the device axis and
+       applies the host interpolation on top of it (see `fsDevice` above); `analyze` uses the corrected
+       `fs`, a difference of ~1e-5 ms per step against gaps measured in seconds.
+
+       No consumer folds gaps itself, so nothing double-counts: the export's `rr.tSec` comes from
+       `analyze`'s `times`, not from here, and every committed golden is contiguous. */
+    var _ecgGaps =
+      gaps && gaps.length
+        ? gaps.slice().sort(function (a, b) {
+            return a.idx - b.idx;
+          })
+        : null;
+    var _ecgDeadPrefix = null;
+    if (_ecgGaps) {
+      _ecgDeadPrefix = new Float64Array(_ecgGaps.length);
+      var _dead = 0;
+      for (var _gk = 0; _gk < _ecgGaps.length; _gk++) {
+        _dead += Math.max(0, _ecgGaps[_gk].ms - _ecgMsPerSample);
+        _ecgDeadPrefix[_gk] = _dead;
+      }
+    }
+    /* Dead ms accumulated at or before sample `i`. Binary search, because `tMsAt` is called per beat
+       and per sample by `geometry-scan`; a linear scan would be O(beats x gaps). `i` may be fractional
+       — a gap AT the sample counts, matching `analyze`'s `g[gi].idx <= refIdx[k]`. */
+    function _ecgDeadMsBefore(i) {
+      if (!_ecgGaps) return 0;
+      var lo = 0,
+        hi = _ecgGaps.length - 1,
+        ans = -1;
+      while (lo <= hi) {
+        var mid = (lo + hi) >> 1;
+        if (_ecgGaps[mid].idx <= i) {
+          ans = mid;
+          lo = mid + 1;
+        } else hi = mid - 1;
+      }
+      return ans < 0 ? 0 : _ecgDeadPrefix[ans];
+    }
     // endEpochMs — the CLOCK position of the last sample, read from the file, never derived. Null when
     // the row carries no parseable stamp (§2.6: a missing stamp is visible, never fabricated). Kept
     // ALONGSIDE durSec, not instead of it: durSec answers "how much signal do I have", endEpochMs
@@ -4704,14 +5368,24 @@
     var deviceEpoch = deviceEpochOffsetMs !== null ? { offsetMs: Math.round(deviceEpochOffsetMs), plausible: Math.abs(deviceEpochOffsetMs) <= 48 * 3600e3 } : null;
     return {
       fs: fs,
-      /* Absolute floating wall-clock ms of sample `i`, host-disciplined where a second clock exists.
-         `i` may be fractional — `refinePeaks` returns sub-sample R positions and they must not be
-         rounded before the correction is applied. Consumers that need a TIME use this; consumers that
-         need a RATE keep using `fs`. */
+      /* Absolute floating wall-clock ms of sample `i`, host-disciplined where a second clock exists
+         and GAP-AWARE (see `_ecgDeadMsBefore` above — a sample index does not count the wall-clock a
+         dropout consumed). `i` may be fractional — `refinePeaks` returns sub-sample R positions and
+         they must not be rounded before the correction is applied. Consumers that need a TIME use
+         this; consumers that need a RATE keep using `fs`. */
       tMsAt: function (i) {
-        var devMs = i * _ecgMsPerSample;
+        /* THE COUNTER FIRST, the index only as a fallback. `devMsAt` reads where the sample actually
+           sat; `i * _ecgMsPerSample` derives it from one mean rate and needs the dead-time fold to
+           reach the same place approximately (#2461). The counter ALREADY spans a dropout — measured
+           7042-17875 nominal steps per hole — so adding `_ecgDeadMsBefore` on top of it would count
+           the night twice. That is why the fold lives in the fallback branch and nowhere else. */
+        var devMs = devMsAt(i);
+        if (devMs == null) devMs = i * _ecgMsPerSample + _ecgDeadMsBefore(i);
         return t0Ms + devMs + (_ecgCorrAt ? _ecgCorrAt(devMs) : 0);
       },
+      /* Device-axis ms of sample `i` (null when the file carries no usable counter) — exposed so
+         `analyze` can build its beat clock on the same axis instead of re-deriving one. */
+      devMsAt: devMsAt,
       /* Whether `tMsAt` is actually disciplined. Reported so a caller can tell a corrected axis from a
          device-clock one WITHOUT re-deriving the condition — and so `applied:false` on `hostAxis`
          (a REFUSED ppm) is never mistaken for "the time axis is uncorrected too". They are different
@@ -4742,13 +5416,21 @@
                never had a second clock — different problems with different remedies. */
             independent: ecgHostAx.independent != null ? ecgHostAx.independent : null,
             spreadMs: ecgHostAx.spreadMs != null ? ecgHostAx.spreadMs : null,
-            /* PpgDex's provenance lattice (Clock Contract §7), restricted to the arms this layout can
-               reach: the ECG axis is a REAL per-sample device counter here — never drawn — so the
-               'host'/'none' arms do not arise. `independent === false` (every phone capture: the host
-               column is the device stamp rounded, spread ≈ one quantum) means one clock ⇒ 'device';
-               a genuinely independent host column ⇒ 'device+host'. NOTE this says which clocks set the
-               RATE/RELATIVE axis — `deviceEpoch` above is the orthogonal ABSOLUTE-origin fact. */
-            timingSource: ecgHostAx.independent === false ? 'device' : 'device+host',
+            /* PpgDex's provenance lattice (Clock Contract §7). `independent === false` (every phone
+               capture: the host column is the device stamp rounded, spread ≈ one quantum) means one
+               clock ⇒ 'device'; a genuinely independent host column ⇒ 'device+host'; a DRAWN device
+               axis under an independent host ⇒ 'host' — the counter carried no timing of its own, so
+               whatever the host stamps say is all the timing there is (PpgDex's arm, verbatim). This
+               block used to say the ECG axis is "never drawn, so the 'host' arm does not arise" — true
+               of every real H10 file measured (see the fs block), and precisely the claim a producer
+               must not hard-code about its input: the spine now measures it, so read the measurement.
+               NOTE this says which clocks set the RATE/RELATIVE axis — `deviceEpoch` above is the
+               orthogonal ABSOLUTE-origin fact. */
+            timingSource: ecgHostAx.independent === false ? 'device' : ecgAxisDrawn ? 'host' : 'device+host',
+            /* The verdict itself, forwarded (this block RENAMES, so an unlisted field is dropped — see
+               `stability` below). Read `deviceDrawn` before quoting `ppm` as a crystal figure. */
+            deviceDrawn: ecgHostAx.deviceDrawn === true,
+            drawnShare: ecgHostAx.drawnShare != null ? ecgHostAx.drawnShare : null,
             totalMs: ecgHostAx.totalMs,
             ppm: ecgHostAx.ppm,
             maxStepMs: ecgHostAx.maxStepMs,
@@ -4763,14 +5445,15 @@
                that 2400 s is too permissive was measured and WITHDRAWN (HOSTAXIS-STABILITY §3 —
                6.8-32.7 ppm uncertainty against 20-90 ppm errors is marginal, not wrong). Revisiting it
                needs a bound derived for the estimator `fs` actually uses, which ADEV is not. */
-            stability: ecgHostAx.stability || null,
+            // Null on a DRAWN axis even when the spine produced a curve: σ_y(τ) over `index × rate`
+            // describes the writer's arithmetic, not a clock (PpgDex nulls it on the same ground).
+            stability: ecgAxisDrawn ? null : ecgHostAx.stability || null,
             /* ONE DEVICE CLOCK PER AXIS (see the resync block above): anchors read off the pre-resync
                counter were not fed to the spine. Present only when it happened, so clean fixtures keep
                today's bytes; a consumer reading `anchors` beside this knows the count is post-seam. */
             anchorsDroppedPreResync: preResyncAnchorsDropped > 0 ? preResyncAnchorsDropped : undefined,
-            reason: ecgAxisApplied
-              ? undefined
-              : 'span ' + Math.round(ecgAxisSpanMs / 1000) + ' s < ' + ECG_AXIS_MIN_SPAN_MS / 1000 + ' s — too short to resolve a crystal rate, fs left on the device clock'
+            // The gate that actually fired (see `ecgAxisRefusal` in the fs block) — never a stock string.
+            reason: ecgAxisApplied ? undefined : ecgAxisRefusal || undefined
           }
         : {
             ok: false,
@@ -4800,7 +5483,17 @@
   //  analyze(): { int16, fs, gaps, t0Ms, offsetMin, source, durSec, … }.
   // ════════════════════════════════════════════════════════════════════════
   function parseECGText(text) {
-    var lines = String(text == null ? '' : text).split(/\r?\n/);
+    // Whole-text entry point — UNCHANGED contract, kept for the browser and every existing caller.
+    // It delegates so there is exactly ONE parse body: a second copy would drift, and the two would
+    // disagree about a real recording before anyone noticed.
+    return parseECGLines(String(text == null ? '' : text).split(/\r?\n/));
+  }
+
+  // LINE-FEED entry point. Takes any ITERABLE of lines, so a Node caller can stream a file in bounded
+  // chunks instead of materialising it: a 260 MB `_ECG.txt` costs a 260 MB string PLUS ~3.4 M line
+  // objects under `split()`, and both die at once here. The numeric result is identical — the loop
+  // below never looked at anything but one line at a time.
+  function parseECGLines(lines) {
     var cap = 1 << 16,
       arr = new Int16Array(cap),
       n = 0;
@@ -4815,8 +5508,8 @@
       }
       arr[n++] = v;
     }
-    for (var li = 0; li < lines.length; li++) {
-      var line = lines[li].trim();
+    for (var line0 of lines) {
+      var line = String(line0).trim();
       if (!line) continue;
       var p = line.split(/[;\t,]/);
       var v = parseFloat(p[p.length - 1]);
@@ -4835,7 +5528,15 @@
     return {
       int16: arr.slice(0, n),
       fs: t.fs,
+      /* ⚠️ THIS IS A RESHAPE AND IT DROPS WHATEVER IT DOES NOT NAME. `ecgTimingResolve` returns the
+         node's whole timing product; this literal copies a fixed list out of it, so a field added
+         there is INERT until it is added here too — silently, with no error and no failing test.
+         `devMsAt` was added upstream and lost exactly here (2026-09-13), and PpgDex's export block
+         carries the same warning after the same thing happened to `recording.hostAxis` (#2463). The
+         `ecgdex-dsp · timing-reshape` group asserts this list against the resolver's own keys, so the
+         next omission reds instead of vanishing. */
       tMsAt: t.tMsAt,
+      devMsAt: t.devMsAt,
       tMsCorrected: t.tMsCorrected,
       clockResyncs: t.clockResyncs,
       gaps: t.gaps,
@@ -5087,7 +5788,43 @@
         break;
       }
     }
-    if (anchor >= 0) {
+    /* ── A COUNTER THAT REBASES IS NOT ONE CLOCK, AND THIS PARSER HAD NO WAY TO NOTICE ──────────────
+       The rebuild below anchors ONCE on a phone stamp and spaces every later sample by the device
+       counter. That is right, and it is right only while the counter is ONE continuous clock. The ECG
+       stream of the same recording gets a full seam walk (`ecgTimingResolve`: candidates, resyncs,
+       offsets, `clockResyncs` carried to the export); its `_ACC` companion got none, so a mid-file
+       rebase shifted every sample after it, silently, by the size of the step.
+
+       ⚠️ A BIG DEVICE JUMP IS NOT A STEP. Across a DROPOUT the counter legitimately advances by the
+       whole gap — the property #2477 relies on — so jump size alone cannot decide. The discriminator
+       is the SIBLING COLUMN: device and phone advance together across a dropout and disagree only
+       across a rebase. Measured over the 8 largest real `_ACC` files (2026-09-14):
+
+           2026-08-25   device 137 507 ms · phone 137 553 ms          → dropout (46 ms apart)
+           2026-09-05   device 172 113 ms · phone 163 555 ms          → dropout
+           2026-08-26   device 241 497 524 545 ms · phone 56 503 ms   → STEP (7.65 years)
+
+       That last is the H10's 2019-origin firmware default adopting real time mid-file. One real step
+       across the sample, and the SAME NIGHT's ECG stream handles it correctly while the ACC did not.
+
+       THIS REFUSES, IT DOES NOT REPAIR. Re-anchoring the ACC axis across a seam is the ECG path's job
+       and a unit of its own; a tripwire that reds the day a stream first carries a step is what
+       FOLLOWUPS-VI §1.1/§1.3 asks of a node that has none. So a stepped counter is treated exactly as
+       the already-handled "absent or sparse" case — keep the per-row PHONE stamps, which jitter but
+       stay continuous — and the step is REPORTED rather than absorbed. */
+    var accClockSteps = 0,
+      accMaxStepMs = 0;
+    for (var s1 = 1; s1 < out.length; s1++) {
+      var pr = out[s1 - 1],
+        cu = out[s1];
+      if (!(isFinite(pr.relNs) && isFinite(cu.relNs) && isFinite(pr.tsMs) && isFinite(cu.tsMs))) continue;
+      var disagree = Math.abs((cu.relNs - pr.relNs) / 1e6 - (cu.tsMs - pr.tsMs));
+      if (disagree > ECG_RESYNC_BOUND_MS) {
+        accClockSteps++;
+        if (disagree > accMaxStepMs) accMaxStepMs = disagree;
+      }
+    }
+    if (anchor >= 0 && accClockSteps === 0) {
       var nNs = 0;
       for (var b = 0; b < out.length; b++) if (isFinite(out[b].relNs)) nNs++;
       if (nNs > out.length * 0.9) {
@@ -5117,7 +5854,11 @@
       /** @type {any} */
       (out)._relBase = true;
     }
-    return { acc: out, accFs: fs };
+    /* `accClockSteps` is the tripwire's whole product: 0 on every clean file, so a consumer that does
+       not read it is unaffected, and non-zero says the device axis was NOT spent — the samples carry
+       host arrival times instead. `accAxis` names which axis the caller is actually holding, because
+       "device" and "host" here are the same numbers to look at and different things to trust. */
+    return { acc: out, accFs: fs, accClockSteps: accClockSteps, accMaxStepMs: accClockSteps ? Math.round(accMaxStepMs) : null, accAxis: accClockSteps ? 'host' : 'device' };
   }
 
   // ════════════════════════════════════════════════════════════════════════
@@ -5131,8 +5872,118 @@
   //  signal-spec.ecg declares — NOT PpgDex's packed multi-channel `samples` object
   //  (PPGDEX-FOLLOWUPS §8); compute() reads samples+fs straight off the frame.
   // ════════════════════════════════════════════════════════════════════════
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  MEASUREMENT BLOCKS — the SECOND emitter of the roadmap §1 `measurement` block (roadmap §12, ECGDex
+  //  row; OxyDex is the first, `oxyBuildMeasurementBlocks`). Same discipline, one recording instead of
+  //  one night element: three headline metrics, one block each, keyed by the ECG registry id (`hr` ·
+  //  `rmssd` · `sdnn`), values = the WHOLE-RECORD numbers the rich export already publishes as
+  //  hrv.time.wholeRecordHR/RMSSD/SDNN and the Integrator already reads as its consensus axis (R8) — the
+  //  block adds LINEAGE, never a second computation, so numerical invariance is by construction. The
+  //  epoch-median DISPLAY values (hrv.time.hr/rmssd/sdnn) are deliberately NOT blocks: two numbers under
+  //  one metric id would be the "one name, two populations" defect with lineage attached.
+  //
+  //  basis: all three are 'derived' (LEXICON §4b) — a statistic over a beat train that a detector
+  //  produced and Malik-corrected, not a reading off the sampled signal; the `measured` basis is for
+  //  numbers read straight off samples (OxyDex's meanSpo2). Not the evidence ladder.
+  //
+  //  window: [t0Ms, endEpochMs] — the recording's CLOCK span (the parser's last stamped row), not the
+  //  active-seconds duration; when the parsed end is absent (a `{int16,fs}` rec with no stamps) the beat
+  //  span stands in and is named. clockDomain stays 'device': a host-disciplined night still expresses
+  //  its axis in the device's counter (hostAxis interpolates onto it, §7), and its measured `spreadMs`
+  //  is the one thing this emitter can publish that OxyDex cannot — the H10 has a second clock.
+  //
+  //  evidence: `inputHash` is the export's `recording.contentId` (SignalFrame content address of the NN
+  //  train + t0Ms). No acquisition envelope joins the ECG path today — the capture-host envelope keys on
+  //  the O2Ring .dat session_id — so `envelopeRef` is null WITH that reason, never a fabricated ref.
+  //  code identity: `opts.code` ONLY. This DSP is BORN-CLEAN (the purity gate holds it DOM-free, unlike
+  //  OxyDex's allow-listed file), so it never reads the bundle's <html data-manifest-hash> stamp itself —
+  //  the APP layer (ecgdex-app.js exportGanglior) and the regen tool read the stamp and pass it in; a
+  //  headless source-module run passes nothing and gets `code: null` + reason, loudly.
+  // ═══════════════════════════════════════════════════════════════════════════
+  function ecgBuildMeasurementBlocks(r, opts) {
+    opts = opts || {};
+    if (!r || typeof r !== 'object') return null;
+    var t0 = r.t0Ms != null && isFinite(r.t0Ms) ? r.t0Ms : null;
+    var tEnd = r.endEpochMs != null && isFinite(r.endEpochMs) ? r.endEpochMs : null;
+    var windowNote = null;
+    if (tEnd == null && t0 != null && r.spanMin != null && isFinite(r.spanMin) && r.spanMin > 0) {
+      tEnd = t0 + Math.round(r.spanMin * 60000);
+      windowNote = 'no parsed clock end on this input — endTMs is t0Ms + the beat-train span';
+    }
+    if (t0 == null || tEnd == null || tEnd <= t0) return null; // no placeable window → no block (never fabricate one)
+    var code = opts.code && typeof opts.code === 'object' ? { manifestHash: opts.code.manifestHash, computeHash: opts.code.computeHash } : null;
+    var contentId = opts.contentId != null ? opts.contentId : null;
+    var acq = r.acquisitionEvidence || null;
+    var envelopeRef = acq && acq.session_id ? String(acq.session_id) : null;
+    var evidence = { envelopeRef: envelopeRef, inputHash: contentId };
+    if (envelopeRef == null)
+      evidence.envelopeReason = acq
+        ? 'acquisition envelope attached without a session_id'
+        : 'no acquisition envelope joins the ECG path — the capture-host envelope keys on the O2Ring .dat session_id; the H10 stream carries none';
+    if (evidence.inputHash == null) evidence.inputReason = 'contentId unavailable (SignalFrame not co-loaded, or no NN train)';
+    var ha = r.hostAxis && r.hostAxis.ok ? r.hostAxis : null;
+    var window = {
+      startTMs: t0,
+      endTMs: tEnd,
+      clockDomain: 'device',
+      timingSource: ha && ha.timingSource ? ha.timingSource : 'device',
+      spreadMs: ha && ha.spreadMs != null && isFinite(ha.spreadMs) ? ha.spreadMs : null
+    };
+    if (window.spreadMs == null)
+      window.spreadReason = ha
+        ? 'host axis present but published no spread'
+        : 'single device clock — no host stamp column on this input (phone export or parsed rec), nothing to measure spread against';
+    if (windowNote) window.windowReason = windowNote;
+    var quality = {
+      n: r.nBeats != null ? r.nBeats : null,
+      durationMin: r.spanMin != null ? r.spanMin : null,
+      analyzablePct: r.analyzablePct != null ? r.analyzablePct : null,
+      coveragePct: r.coveragePct != null ? r.coveragePct : null
+    };
+    var mk = function (metricId, value) {
+      if (value == null || typeof value !== 'number' || !isFinite(value)) return null; // unmeasured ⇒ no block
+      var b = {
+        metricId: metricId,
+        value: value,
+        window: window,
+        sourceChannel: 'H10:ecg',
+        code: code,
+        evidence: evidence,
+        basis: 'derived',
+        quality: quality,
+        uncertainty: null,
+        uncertaintyReason: 'not estimated — this node carries no uncertainty model for whole-record HRV summaries (the firmware cross-check in `validation` is a comparison, not an interval)'
+      };
+      if (code == null)
+        b.codeReason =
+          'no bundle identity passed (headless source-module run) — the app reads <html data-manifest-hash/data-compute-hash> and passes opts.code; the regen tool passes the shipped bundle\u2019s';
+      return b;
+    };
+    var out = {};
+    var blocks = [
+      ['hr', r.hr],
+      ['rmssd', r.rmssd],
+      ['sdnn', r.sdnn]
+    ];
+    var any = false;
+    for (var i = 0; i < blocks.length; i++) {
+      var b = mk(blocks[i][0], blocks[i][1]);
+      if (b) {
+        out[blocks[i][0]] = b;
+        any = true;
+      }
+    }
+    return any ? out : null;
+  }
+
   function ecgBuildNodeExport(r, opts) {
     opts = opts || {};
+    // EXPORT-IDENTITY §2.1: computed ONCE here and shared by recording.contentId and the measurement
+    // blocks' evidence.inputHash — one content address, two readers, no drift between them.
+    var _contentId =
+      typeof SignalFrame !== 'undefined' && SignalFrame && SignalFrame.computeContentId && r.nn && r.nn.length
+        ? SignalFrame.computeContentId({ signalType: 'ecg', kind: 'intervals', intervals: r.nn, t0Ms: r.t0Ms != null ? r.t0Ms : null, usable: true })
+        : null;
     // strip the internal _sec helper (surge events carry it for late-ACC re-stamp) —
     // mirrors buildV2's event map so the LIGHT Ganglior stream matches the rich one.
     var events = (r.events || []).map(function (ev) {
@@ -5151,7 +6002,8 @@
         : null,
       schema: {
         name: 'ganglior.node-export',
-        version: '2.0',
+        // 2.1 — the MINOR bump lands with the `measurement` block (docs/EXPORT-SHAPES.md); OxyDex bumped first.
+        version: '2.1',
         node: 'ECGDex',
         nodeVersion: '1.0',
         bus: 'ganglior',
@@ -5163,10 +6015,7 @@
       // shared builder (both app exportGanglior + headless compute reach it). Folds the NN beat series.
       recording: {
         source: 'ecg',
-        contentId:
-          typeof SignalFrame !== 'undefined' && SignalFrame && SignalFrame.computeContentId && r.nn && r.nn.length
-            ? SignalFrame.computeContentId({ signalType: 'ecg', kind: 'intervals', intervals: r.nn, t0Ms: r.t0Ms != null ? r.t0Ms : null, usable: true })
-            : null,
+        contentId: _contentId,
         startEpochMs: r.t0Ms != null ? r.t0Ms : null,
         // Declare the recording LENGTH so the Integrator can place a real window on this leg.
         // CAPTURE-HOST-INTEGRATOR-FOLD §2: without a duration key, integrator-dsp adaptEnvelopeNode
@@ -5184,6 +6033,10 @@
         offsetMin: r.offsetMin != null ? r.offsetMin : opts.offsetMin != null ? opts.offsetMin : null,
         events: events.length
       },
+      // roadmap §12 — per-instance lineage for the three headline HRV metrics (keyed by registry id); null
+      // when no window can be placed. Present on BOTH the light and the rich export: lineage is not a
+      // rich-only luxury, and the Integrator reads the light one.
+      measurement: ecgBuildMeasurementBlocks(r, { code: opts.code, contentId: _contentId }),
       ganglior_events: events,
       reserved: { doc: 'Awaiting other fleet nodes; null until available.' }
     };
@@ -5222,14 +6075,32 @@
           ? {
               slope: r.hostAxis.stability.slope,
               slopeSE: r.hostAxis.stability.slopeSE,
+              /* The SE's own n. Without it `slopeSE` is not a claim a reader can size — and it is NOT
+                 `taus`: the log-log fit drops any τ whose `adev` is exactly zero. */
+              nTau: r.hostAxis.stability.nTau,
               noise: r.hostAxis.stability.noise,
               candidates: r.hostAxis.stability.candidates,
               optimalTauSec: r.hostAxis.stability.optimalTauSec,
-              tauMaxSec: r.hostAxis.stability.tauMaxSec
+              tauMaxSec: r.hostAxis.stability.tauMaxSec,
+              /* THE CURVE (residue 2026-09-21-adev-curve-not-exported-by-either-node), straight from
+                 `clock.js`'s builder as `{tauSec, adevPpm, n}`. The scalars beside it are projections
+                 of exactly these points: `slope` is the log-log fit over them, `optimalTauSec` the τ
+                 of the minimum, `ppmUncertainty` the last point. Publishing them without the curve
+                 leaves a reader unable to see a KNEE — a slope fitted across one describes neither
+                 side of it (§7: the slope names the mechanism). */
+              curve: r.hostAxis.stability.curve || []
             }
           : null,
         note: 'quote `ppm` WITH `ppmUncertainty`; `stability:null` means there was no second clock (host column ≡ device stamp), not that the clock was perfect'
       };
+      /* PRESENT ONLY WHEN DRAWN (the `anchorsDroppedPreResync` discipline: clean fixtures keep their
+         bytes — and the KEY is absent, not `undefined`, so a deep-equal sees the same shape as JSON
+         does). A consumer that finds `deviceDrawn:true` here must not spend `ppm` or this device as a
+         clock — `integrator-dsp arrivalPairOffsets` already refuses on exactly this key. */
+      if (r.hostAxis.deviceDrawn === true) {
+        out.recording.hostAxis.deviceDrawn = true;
+        out.recording.hostAxis.drawnShare = r.hostAxis.drawnShare;
+      }
     }
     /* TIMING PROVENANCE on the Integrator-facing surface (H10-2019-ORIGIN, 2026-09-01). ATTACHED ONLY
        WHEN PRESENT, same discipline as `hostAxis`/`validation` above: a null key is still a changed
@@ -5255,13 +6126,32 @@
         if (c.hostOffsetMs != null) rs.hostOffsetMs = c.hostOffsetMs;
         return rs;
       });
+    /* §∅ — 5-min windows the epoch engine REFUSED to score (a clock seam inside the window, or too
+       few scorable beats). Attached only when one exists, same no-null-key discipline, so clean
+       fixtures keep today's bytes. A consumer counting `timeseries.epochs` against the span now has
+       the holes named rather than inferred. */
+    if (Array.isArray(r.epochsRefused) && r.epochsRefused.length)
+      out.recording.epochsRefused = r.epochsRefused.map(function (e) {
+        return { tMin: e.tMin, n: e.n, reason: e.reason };
+      });
     if (r.deviceRR && r.deviceRR.length) {
-      const _v = validateRR(r.nn, r.deviceRR);
+      /* AN OUTPUT COMPUTED OVER ABSENT INPUT REPORTS THE ABSENCE (§∅). The self train handed to the
+         cross-check excludes the intervals `analyze` marked as straddling a dropout — the same
+         exclusion the headline rMSSD/SDNN make — so the comparison is measurement against measurement.
+         Fed the raw train, a single 1 232 840 ms "interval" (a 20-minute dropout, 2026-09-03) put the
+         published dRMSSDPct at 65 797.8 against 7.1 % on the gap-cut train; a consumer reading
+         `validation` as "does our detector agree with the strap" got NO on every gappy night for a
+         reason that had nothing to do with either detector. `gapCutBeats` says how many were cut. */
+      const _gapMask = Array.isArray(r.nnSpansGap) && r.nnSpansGap.length === r.nn.length ? r.nnSpansGap : null;
+      const _nnCut = _gapMask ? r.nn.filter((_, i) => !_gapMask[i]) : r.nn;
+      const _v = validateRR(_nnCut, r.deviceRR);
       if (_v) {
-        const _al = alignFirmwareRR(r.nn, r.deviceRR, { fs: r.fs });
+        const _al = alignFirmwareRR(_nnCut, r.deviceRR, { fs: r.fs });
         out.validation = {
           source: 'device-rr',
           beatsCompared: _v.nSelf,
+          // intervals the node marked as straddling a dropout, excluded from BOTH legs of this block
+          gapCutBeats: r.nn.length - _nnCut.length,
           nDevice: _v.nDev,
           dMeanPct: _v.dMean,
           dRMSSDPct: _v.dRMSSD,
@@ -5316,7 +6206,7 @@
       var amb = !!r.ambulatory,
         lng = !!r.longRec;
       var _geom = baevskyGeom(r.nn); // Baevsky-SI inputs for the envelope (FOLLOWUP-FINDINGS P4)
-      out.quality = { analyzablePct: nz(r.analyzablePct), cleanBeatPct: nz(r.cleanBeatPct), coveragePct: nz(r.coveragePct) };
+      out.quality = { analyzablePct: nz(r.analyzablePct), cleanBeatPct: nz(r.cleanBeatPct), coveragePct: nz(r.coveragePct), ecgRail: r.ecgRail || null };
       out.hrv = {
         time: {
           hr: nz(r.dispHr),
@@ -5372,6 +6262,14 @@
              golden's equiv leg caught exactly that), so the key is present iff the rate is refused.
              `respFromEDR: null` alone already marks the refusal; this is its diagnostic. */
           ...(r.crc && r.crc.respFromEDRReason ? { respFromEDRReason: r.crc.respFromEDRReason } : {}),
+          /* COVERAGE REACHES THE EXPORT, so the flag is consumed rather than merely computed. Emitted
+             ONLY when some of the coupling grid was drawn rather than measured — a `0` on every clean
+             night is noise, and the same argument the neighbouring reason field already makes.
+             ⚠️ It REPORTS and does not yet REFUSE: nulling the coupling metrics above some coverage
+             would need the corpus distribution of `gridGapFrac`, which nobody has measured. Inventing
+             that cut here would be a planted density, so the number is published and the judgement is
+             left to a consumer that can see it. */
+          ...(r.crc && r.crc.nGridGap ? { couplingGridGapCells: r.crc.nGridGap, couplingGridGapFrac: r.crc.gridGapFrac } : {}),
           respFromEDRMethod: 'EDR (R-peak amplitude modulation)'
         }
       };
@@ -5612,6 +6510,7 @@
   }
 
   global.ECGDSP.parseECG = parseECGText;
+  global.ECGDSP.parseECGLines = parseECGLines; // bounded/streaming callers (Node fold path)
   /* THE TWO HALVES OF THE TIMING WALK, exported because the APP LANE IS A CONSUMER (DEEP-AUDIT-VI F2)
      — not merely for assertability. `ecgdex-app.js` builds its streaming Worker from
      `ecgTimingScan.toString()` and calls `ecgTimingResolve` on the scan the Worker ships back, so
@@ -5693,9 +6592,11 @@
   global.ECGDex = global.ECGDex || {
     compute: compute,
     parseECG: parseECGText,
+    parseECGLines: parseECGLines,
     analyze: analyze,
     genSynthetic: genSynthetic,
     buildNodeExport: ecgBuildNodeExport,
+    buildMeasurementBlocks: ecgBuildMeasurementBlocks, // roadmap §12 — the builder seam, so the plants can reach it
     _build: ecgBuildNodeExport,
     parseDeviceRR: parseDeviceRR,
     parseDeviceHR: parseDeviceHR,

@@ -14,6 +14,8 @@
 
 from __future__ import annotations
 import hashlib, struct, time
+from enum import Enum
+from typing import Any, NamedTuple
 
 OXYII_SERVICE = "e8fb0001-a14b-98f9-831b-4e2941d01248"
 OXYII_WRITE   = "e8fb0002-a14b-98f9-831b-4e2941d01248"   # write-without-response
@@ -91,6 +93,23 @@ OP_RT_ACC = 0x14          # device-PUSHED 3-axis accelerometer; enabled via AUTO
 # obtained by polling because of it. See O2RING-PROTOCOL §3 and residue 2026-09-02-oxyii-autortswitch-unexamined.
 RT_PUSH_PARAM, RT_PUSH_WAVE, RT_PUSH_PPG, RT_PUSH_ACC = 0x01, 0x02, 0x04, 0x08
 
+# WHAT EACH BIT SWITCHES (residue 2026-09-02-oxyii-autortswitch-unexamined). Set = the ring sends
+# that stream unprompted for the rest of the session; clear = it answers only when polled.
+#
+#   bit 0  RT_PUSH_PARAM  0x01  the 0x02 RT_PARAM body, pushed — the vitals half (SpO2/HR/PI/motion).
+#                               ⚠️ Pushing it is NOT a way to reach the on-device sleep staging: that
+#                               lives in a >= 80-byte POLLED 0x02 reply (§3c), and what we poll today
+#                               is 0x04, whose parser is handed payload[0:20].
+#   bit 1  RT_PUSH_WAVE   0x02  the 0x03 RT_WAVE body, pushed — the waveform half of 0x04.
+#   bit 2  RT_PUSH_PPG    0x04  the 0x05 RT_PPG body, pushed — the raw two-channel optical buffer
+#                               `parse_rt_ppg` decodes (signed 24-bit pairs).
+#   bit 3  RT_PUSH_ACC    0x08  the 0x14 AUTO_RT_ACC body, pushed — 3-axis accelerometer, `parse_rt_acc`.
+#
+# ⚠️ THE MAPPING IS THE VENDOR SDK'S, NOT A MEASUREMENT. No ring here has ever been asked to push, so
+# whether a pushed stream beats polling on throughput, battery or gap behaviour is untested — it needs a
+# night on the box. That the per-night `*_OXYFRAME.txt` sidecars carry one decoded 0x04 row per poll and
+# no unsolicited-opcode rows is the visible record that every sample so far was polled.
+
 
 def setup_frame(push: int = 0x00) -> bytes:
     """AUTO_RT_SWITCH (0x10) — which device-pushed streams the ring should send unprompted.
@@ -141,16 +160,60 @@ def live_frame() -> bytes:
     return encode(OP_LIVE, b"")
 
 
+# `0xC0` byte [7] is the UTC offset in TENTHS OF AN HOUR, SIGNED (§9a) — 0xCE = -50 = UTC-5. One byte
+# spans -12.8 h .. +12.7 h, which is NARROWER than the inhabited range of real offsets, and it cannot
+# express a 45-minute zone at all. Both facts are handled explicitly below rather than left to overflow.
+TZ_TENTHS_MIN, TZ_TENTHS_MAX = -128, 127
+
+
+def tz_tenths(dt) -> int:
+    """`dt`'s UTC offset in signed tenths of an hour, clamped to what the one byte can carry.
+
+    An AWARE `dt` is asked for its own offset. A NAIVE one is read as host local civil time — which is
+    exactly what `set_time_frame` is given — and `astimezone()` resolves the host zone AT THAT WALL
+    TIME, so the DST answer is the one in force for the timestamp being sent rather than the one in
+    force when the process started.
+
+    ROUNDING IS HALF-AWAY-FROM-ZERO, in integer arithmetic, and that is a choice worth stating: a
+    45-minute zone (Kathmandu +5:45, Chatham +12:45) is 57.5 tenths and not representable at all, and
+    Python's `round()` is banker's rounding, which would send +5:45 as 57 and -5:45 as -58 — an
+    asymmetry no reader would predict from the code. The honest behaviour is a documented 3-minute
+    rounding that is symmetric about zero.
+
+    CLAMPED, NOT WRAPPED, at the byte's edge: Kiritimati (+14 h = 140 tenths) and Apia (+13 h) exceed
+    the field. Clamping lands 1.3 h out; wrapping would land 25.6 h out AND would arrive as a plausible
+    NEGATIVE offset, which is the worse failure — a wrong value that reads as a right one."""
+    off = dt.utcoffset() if dt.tzinfo is not None else dt.astimezone().utcoffset()
+    sec = int(off.total_seconds())
+    tenths = (abs(sec) * 2 + 360) // 720          # floor(|sec| / 360 + 0.5) — half away from zero
+    if sec < 0:
+        tenths = -tenths
+    return max(TZ_TENTHS_MIN, min(TZ_TENTHS_MAX, tenths))
+
+
 def set_time_frame(dt, seq: int = 0) -> bytes:
     """SET_UTC_TIME (0xC0): push the wall clock to the ring's onboard RTC so its STORED-session .dat
     timestamps line up with the NTP-synced host (the ring's RTC free-runs and drifts — measured ~+151 s
     2026-07-17; it also resets on any battery/factory event). 8-byte payload: year(u16 LE), month, day,
-    hour, minute, second, then the vendor tail byte 0xCE (0x00 also accepted). The ring stores the fields
+    hour, minute, second, then the timezone byte (§9a — derived by `tz_tenths`). The ring stores the fields
     VERBATIM with no timezone conversion, so pass LOCAL CIVIL time per the Clock Contract — the same wall
     clock the file-list `YYYYMMDDhhmmss` stamps use. Sent after the 0xFF→0x10 handshake, plaintext, in the
-    standard 0xA5+CRC-8 envelope. Ref: github.com/nglessner/o2ring-s-protocol (SET_UTC_TIME)."""
+    standard 0xA5+CRC-8 envelope. Ref: github.com/nglessner/o2ring-s-protocol (SET_UTC_TIME).
+
+    ⚠️ BYTE [7] IS DERIVED FROM `dt`, NOT HARDCODED (2026-09-06 · residue
+    2026-09-02-oxyii-timezone-hardcoded). It was the constant 0xCE = UTC-5: right for this box in
+    winter, one hour out every summer, wrong anywhere else. This is the ONLY change in the unit that
+    alters a byte SENT TO THE RING, so be exact about what it does and does not do:
+      * On this box in winter it sends the byte it has always sent — 0xCE. The tests pin that.
+      * MEASURED HARMLESS EITHER WAY: across six stored files the trailer epoch equals the filename's
+        local wall clock to +0.00 h, so this ring does not apply the offset we send at all (§9a). The
+        defect was latent and the fix keeps it latent — what changes is that the value stops lying.
+      * NOTHING DOWNSTREAM MAY START TRUSTING THE RING TO APPLY IT. `start_t_ms` remains a FLOATING
+        wall-clock epoch, read with `getUTC*` semantics and no zone conversion (§9a, CLAUDE.md §🔒.1).
+        Deriving the byte correctly is not evidence that the ring consumes it."""
     y = int(dt.year)
-    pl = bytes([y & 0xFF, (y >> 8) & 0xFF, dt.month, dt.day, dt.hour, dt.minute, dt.second, 0xCE])
+    tz = tz_tenths(dt) & 0xFF
+    pl = bytes([y & 0xFF, (y >> 8) & 0xFF, dt.month, dt.day, dt.hour, dt.minute, dt.second, tz])
     return encode(OP_SET_TIME, pl, seq)
 
 
@@ -161,6 +224,19 @@ def set_time_frame(dt, seq: int = 0) -> bytes:
 # printing bleak's PLACEHOLDER mtu_size (23 on BlueZ until a characteristic is acquired) plus a 6 s
 # timeout against a ~4.1 s FILE_LIST reply. Do not re-introduce an MTU precondition.
 OP_FILE_LIST, OP_FILE_START, OP_FILE_DATA, OP_FILE_END = 0xF1, 0xF2, 0xF3, 0xF4
+
+# 🔴 THE STORED FILE TYPE IS NOT A WIRE FIELD — IT SELECTS THE COMMAND FAMILY. Vendor SDK sources
+# (OxyII family; S8AW2100 — NOT gen-1 O2Ring) carry TWO transfer families over the same envelope:
+#
+#   oximetry store (type 0) → the OP_FILE_* block above, which is what this module has always spoken
+#   raw-PPG store  (type 1) → these four, which nothing here spoke until now
+#
+# So the long-standing advice "try a different --ftype" could never have worked: `ftype` was written
+# into a payload slot of the type-0 START frame (see `file_start_frame`), which is an OFFSET and is 0
+# in every vendor call. A different number there asks the SAME family for a different byte offset.
+# Reaching the PPG store needs different OPCODES, not a different argument.
+OP_PPG_FILE_LIST, OP_PPG_FILE_START = 0x06, 0x07
+OP_PPG_FILE_DATA, OP_PPG_FILE_END = 0x08, 0x09
 OP_GET_CONFIG, OP_GET_INFO, OP_GET_BATTERY = 0x00, 0xE1, 0xE4   # read-only device queries
 # ⚠️ NEVER IMPLEMENT — persistent DESTRUCTIVE writes. Named so the opcodes are not reused:
 #   0xE3 FACTORY_RESET     — wipes settings AND every recording; no settings-only path
@@ -178,8 +254,22 @@ OP_RT_PPG = 0x05          # raw TWO-CHANNEL optical buffer (see parse_rt_ppg + W
 def file_list_frame(seq: int = 0) -> bytes:
     return encode(OP_FILE_LIST, b"", seq)
 
-def file_start_frame(ts14: str, ftype: int = 0, seq: int = 0) -> bytes:
-    pl = ts14.encode("ascii")[:14].ljust(14, b"\x00") + b"\x00\x00" + int(ftype).to_bytes(4, "little")
+def file_start_frame(ts14: str, offset: int = 0, seq: int = 0, *, ftype: int | None = None) -> bytes:
+    """Open a type-0 (oximetry) stored file at `offset`.
+
+    ⚠️ THE TRAILING u32 IS AN OFFSET, NOT A FILE TYPE. It was named `ftype` here, and the whole
+    "try a different --ftype" folklore descends from that one wrong name: every value it was given
+    asked this SAME family to start reading at byte N. The vendor passes 0. `ftype=` survives as a
+    deprecated keyword that must be 0 — it RAISES on anything else rather than silently sending an
+    offset, because sending one quietly is exactly how the misreading lasted."""
+    if ftype is not None:
+        if int(ftype) != 0:
+            raise ValueError(
+                "file_start_frame(ftype=%r): `ftype` was always this frame's OFFSET, never a file "
+                "type — a non-zero value asks the oximetry family to start mid-file. The raw-PPG "
+                "store is a different COMMAND FAMILY (ppg_file_*_frame, opcodes 0x06-0x09)." % ftype)
+        offset = 0
+    pl = ts14.encode("ascii")[:14].ljust(14, b"\x00") + b"\x00\x00" + int(offset).to_bytes(4, "little")
     return encode(OP_FILE_START, pl, seq)
 
 def file_data_frame(offset: int, seq: int = 0) -> bytes:
@@ -187,6 +277,69 @@ def file_data_frame(offset: int, seq: int = 0) -> bytes:
 
 def file_end_frame(seq: int = 0) -> bytes:
     return encode(OP_FILE_END, b"", seq)
+
+
+# ── type 1 · the stored raw-PPG family (0x06-0x09) ───────────────────────────────────────────────
+# UNPROBED. These are built from vendor SDK sources and have never been sent to a ring: the first
+# probe is owner-authorised separately. They are here so the family EXISTS and is testable, not
+# because the wire behaviour is confirmed — do not read a passing test as a confirmed protocol.
+def ppg_file_list_frame(seq: int = 0) -> bytes:
+    """List stored raw-PPG files. Empty payload, exactly as the type-0 list is."""
+    return encode(OP_PPG_FILE_LIST, b"", seq)
+
+
+def ppg_file_start_frame(name16: bytes | str, seq: int = 0) -> bytes:
+    """Open a stored raw-PPG file by NAME — 16 bytes — with the trailing u32 offset at 0.
+
+    The name is 16 BYTES, not a timestamp string: type 0 addresses a file by its `YYYYMMDDhhmmss`
+    stamp, type 1 by whatever the list reply hands back. Truncating or padding to 16 here keeps the
+    frame well-formed whichever it turns out to be, and does not invent a format for it."""
+    raw = name16.encode("ascii") if isinstance(name16, str) else bytes(name16)
+    return encode(OP_PPG_FILE_START, raw[:16].ljust(16, b"\x00") + (0).to_bytes(4, "little"), seq)
+
+
+def ppg_file_data_frame(offset: int, seq: int = 0) -> bytes:
+    """Request the stored raw-PPG chunk at `offset` (u32 LE), as the type-0 data frame does."""
+    return encode(OP_PPG_FILE_DATA, int(offset).to_bytes(4, "little"), seq)
+
+
+def ppg_file_end_frame(seq: int = 0) -> bytes:
+    return encode(OP_PPG_FILE_END, b"", seq)
+
+
+#: Vendor SDK default for the stored raw-PPG rate. NOT a fallback — see `parse_ppg_file_header`.
+PPG_FILE_DEFAULT_RATE_HZ = 150
+#: Samples begin here in the stored-PPG header (vendor SDK).
+PPG_FILE_SAMPLE_OFFSET = 138
+#: `accuracy` sentinel → bytes per sample. All-ones at three widths, else one byte.
+_PPG_ACCURACY_BYTES = {0xFFFFFFFF: 4, 16777215: 3, 65535: 2}
+
+
+def parse_ppg_file_header(buf: bytes):
+    """Stored raw-PPG file header → `{sample_rate, sample_size, lead_size, sample_bytes}`, or None.
+
+    🔴 RETURNS None, NEVER A DEFAULT. The SDK's 150 Hz is what the vendor uses when it has a header;
+    substituting it for a header we could not read would manufacture a rate, and a fabricated rate is
+    the one error this corpus has paid for repeatedly — every duration, every epoch grid and every
+    export window downstream inherits it silently. `PPG_FILE_DEFAULT_RATE_HZ` is exported for a
+    caller that wants to COMPARE against the vendor default, not to stand in for a missing one.
+
+    Layout (vendor SDK sources, OxyII family): [16:18] u16 sample rate · [18:22] u32 sample count ·
+    [22] lead size · [35:39] u32 accuracy sentinel · samples from byte 138.
+
+    Implausible is refused as firmly as short: a zero rate, a rate past the Nyquist of anything this
+    hardware streams, or a zero sample count are not a header we understand, and reporting them as
+    one would put a number nobody can defend at the head of a decode."""
+    if not buf or len(buf) < 39:
+        return None                      # cannot even reach `accuracy`; there is nothing to report
+    rate = int.from_bytes(buf[16:18], "little")
+    size = int.from_bytes(buf[18:22], "little")
+    lead = buf[22]
+    acc = int.from_bytes(buf[35:39], "little")
+    if not (0 < rate <= 4000) or size <= 0:
+        return None
+    return {"sample_rate": rate, "sample_size": size, "lead_size": lead,
+            "sample_bytes": _PPG_ACCURACY_BYTES.get(acc, 1)}
 
 
 def parse_file_list(payload: bytes) -> list[str]:
@@ -239,14 +392,85 @@ class Reassembler:
         return out
 
 
-def decode(frame: bytes):
-    """Validate one complete frame → (opcode, payload) or None."""
+class Frame(NamedTuple):
+    """A validated frame with EVERY header field the wire carries, not just the two we happened to use.
+
+    `flag` is the vendor's `pkgType` (§2 of O2RING-PROTOCOL): on a host→device request it is 0, and on a
+    device→host REPLY it is the STATUS byte — `1` = success. The old `decode()` returned only
+    `(op, payload)`, so that byte was destroyed at the decoder and no caller could see it even if it
+    wanted to. That is why a rejected `SET_UTC_TIME` was indistinguishable from an accepted one.
+
+    `seq` is carried for the same reason: it costs nothing here and it is the echo a caller needs to
+    match a reply to its request."""
+
+    op: int
+    flag: int
+    seq: int
+    payload: bytes
+
+
+def decode_full(frame: bytes) -> "Frame | None":
+    """Validate one complete frame → `Frame` or None.
+
+    THE ONE VALIDATOR. `decode()` is a wrapper over this rather than a second copy of the checks:
+    two validators drift, and a frame that one accepts and the other rejects is the worst outcome
+    available here."""
     if len(frame) < 8 or frame[0] != 0xA5 or frame[2] != (~frame[1]) & 0xFF:
         return None
     ln = frame[5] | (frame[6] << 8)
     if len(frame) != 7 + ln + 1 or crc8(frame[:-1]) != frame[-1]:
         return None
-    return frame[1], frame[7:7 + ln]
+    return Frame(op=frame[1], flag=frame[3], seq=frame[4], payload=frame[7:7 + ln])
+
+
+def decode(frame: bytes):
+    """Validate one complete frame → (opcode, payload) or None.
+
+    BACK-COMPAT WRAPPER, unchanged in behaviour: new return data arrives via `decode_full`, existing
+    callers are untouched (CLAUDE.md §🧪 — add new data through a NEW method, never by changing an
+    existing return shape)."""
+    f = decode_full(frame)
+    return (f.op, f.payload) if f else None
+
+
+class AckResult(Enum):
+    """The outcome of an ack-only command. An ENUM, not a boolean, because there are five distinct
+    states and collapsing any two of them loses the thing a caller needs.
+
+    🔴 `NO_REPLY` IS NOT `REJECTED`, and for the file path that distinction is the whole point: an
+    `0xF1` reply with an EMPTY payload means "the ring has no stored files", while no reply at all
+    means the ring never answered. The harvesting state machine must never see those as one value —
+    an empty list is a fact about the ring, a silence is a fact about the link.
+
+    `UNKNOWN_STATUS` exists because §2 documents only `1` = success. What 2..255 mean is not known, so
+    they are surfaced rather than guessed: reading "not 1" as "failed" would invent a semantics the
+    protocol notes do not support."""
+
+    OK = "ok"
+    REJECTED = "rejected"
+    NO_REPLY = "no_reply"
+    MISMATCH = "mismatch"
+    UNKNOWN_STATUS = "unknown_status"
+
+
+def parse_ack(req_op: int, reply: "Frame | None") -> AckResult:
+    """Interpret the reply to an ack-only command (`0x10`, `0xC0`, `0xF2`, `0xF4`, `0x01`).
+
+    ABSENCE IS THE CALLER'S OBSERVATION, NOT THE PARSER'S: a parser cannot see a frame that never
+    arrived, so `reply=None` is passed in by the wait/timeout at the call site and returned as
+    `NO_REPLY`. Building "no reply" into the parser would mean inventing a timeout it cannot observe.
+
+    A `flag == 1` on the WRONG opcode is `MISMATCH`, never `OK` — otherwise any successful ack in
+    flight would vouch for whatever command we happened to be waiting on."""
+    if reply is None:
+        return AckResult.NO_REPLY
+    if reply.op != req_op:
+        return AckResult.MISMATCH
+    if reply.flag == 1:
+        return AckResult.OK
+    if reply.flag == 0:
+        return AckResult.REJECTED
+    return AckResult.UNKNOWN_STATUS
 
 
 # ── Encrypted-session guard (Gen2 newer firmware) ───────────────────────────────────────────────────
@@ -357,7 +581,15 @@ def classify_auth_reply(payload: bytes | None) -> tuple[str, bytes | None, str]:
 # type rather than borrowing the handshake's.
 
 _MAX_PLAUSIBLE_DURATION_S = 7 * 24 * 3600  # a week; real ring sessions are hours
-_CONTACT_VALUES = (0x00, 0x01, 0x03)  # no finger, idle-present, file open
+# RtParam byte [5] `sensorState`, per vendor SDK sources (OxyII family — the S8AW2100 that this box
+# runs; NOT gen-1 O2Ring, whose byte means something else):
+#   0 = no finger / lead-off   1 = normal   2 = probe unplugged   3 = sensor or probe fault
+# ⚠️ Tepna read this as `(0, 1, 3)` labelled "no finger, idle-present, file open" until 2026-09-06,
+# which was wrong twice over: a 3 (probe FAULT) counted as WORN, and a 2 (probe unplugged) was outside
+# the enum entirely, so it fed `frame_looks_like_ciphertext` as evidence of encryption. All four are
+# in-enum now; only 1 is worn. Corpus-latent: 150.8M rows carry only 0 and 1, so no recorded night
+# changes — this is the first night with the right labels rather than a repair of past data.
+_CONTACT_VALUES = (0, 1, 2, 3)
 CIPHERTEXT_RUN = 5  # consecutive suspect frames before we call it
 
 
@@ -432,8 +664,16 @@ def parse_live(payload: bytes) -> dict | None:
 
     `[1]`=104 was never a constant: it is duration's second byte (104*256 ~ 7.4 h into a session), with
     the low byte ticking +1/s. `[10]`=199 (0xC7) is not a constant either; the SDK reads only bit 0.
-    `[14]` carries four 2-bit subfields the SDK parses but does not expose in RtParam — left unparsed
-    rather than surfaced under a name we cannot defend.
+    `[14]` carries four 2-bit subfields. ⚠️ CORRECTED 2026-09-06: vendor SDK sources show the OxyII
+    RtParam DOES expose all four (`&3` invalid-value state, `>>2` SpO2, `>>4` HR, `>>6` motion); the
+    earlier note here said the DTO discards them. **Tepna records the whole byte as `alarm_raw` since
+    2026-09-06** — raw and uninterpreted, because the byte is defensible and the per-field reading is
+    not yet; nothing here decodes it. Scope: OxyII family (O2Ring S / S8-AW / SF / SP; NOT the gen-1
+    O2Ring protocol).
+
+    Legends for the neighbouring raw columns, recorded once so no reader re-derives them:
+    `run_status` (payload[4]) 0 = prep · 1 = measure-prep · 2 = measuring · 3 = ended;
+    `batt_state` (payload[12]) 0 = normal · 1 = charging · 2 = full · 3 = low (<10 %).
     """
     if len(payload) < 14:
         return None
@@ -458,8 +698,12 @@ def parse_live(payload: bytes) -> dict | None:
         "batt": payload[13],
         "batt_state": payload[12],                     # 0 = not charging
         "run_status": payload[4],
-        "contact": contact,                            # 0x00 no finger, 0x01 idle-present, 0x03 file open
-        "worn": contact in (0x01, 0x03),
+        "contact": contact,                            # 0 lead-off · 1 normal · 2 probe unplugged · 3 fault
+        "worn": contact == 1,                          # ONLY 1; 2 and 3 are faults, not wear
+        # Byte [14]'s four 2-bit subfields (&3 invalid-IV state, >>2 SpO2 alarm, >>4 HR alarm,
+        # >>6 motion alarm), recorded RAW and uninterpreted — same discipline as `flag_raw`. None,
+        # never 0, when the frame is too short to carry it: an absent byte is not a quiet alarm.
+        "alarm_raw": payload[14] if len(payload) > 14 else None,
     }
 
 
@@ -639,6 +883,57 @@ RT_PPG_REC = 9                       # i32 LE chA | i32 LE chB | u8 motion  (SIG
 # class is built on. A single wrapped 4.29e9 in a mean destroys it; the first shipped revision of this
 # parser read unsigned and its AC/DC statistics were wrong by an order of magnitude because of it.
 
+# ── cmd=0x03 LIVE_SAMPLES_A — the single-channel lossless pleth ─────────────────────────────────────
+# MEASURED on device S8AW2100 2026-09-06, two worn runs (596 and 592 replies), not read off a doc:
+#   * `payload_len - declared_count == 6` on EVERY reply, no exceptions -> the header is exactly 6 B;
+#   * `body_len == declared_count` on every reply -> exactly ONE BYTE PER SAMPLE (8-bit);
+#   * u16 LE declared count at [4:6], capped at 250 records per reply.
+# Rate: 125.058 Hz over 119.7 s with 1/592 replies saturated — the 125.000 ADC to 0.05 %. (The
+# previously recorded 112.9 Hz came from a 403 s fragment and does not reproduce; O2RING-RAW-DUAL-
+# WAVELENGTH-FOLLOWUPS §7.4.)
+OP_SAMPLES_A = 0x03
+SAMPLES_A_ARG = bytes([0x07, 0x01])   # same "give me the buffer" argument shape as RT_PPG_ARG
+SAMPLES_A_CAP = 250                   # a reply AT the cap is a saturated drain, not a fast device
+SAMPLES_A_HDR = 6
+
+
+def samples_a_frame(seq: int = 0) -> bytes:
+    """cmd=0x03 — ask for the single-channel 8-bit optical buffer."""
+    return encode(OP_SAMPLES_A, SAMPLES_A_ARG, seq)
+
+
+def parse_samples_a(payload: bytes) -> list[tuple[int, int]]:
+    """cmd=0x03 reply -> [(sample, is_beat_marker), ...], or [] when there are no records.
+
+    ⚠️ THE MARKER IS FLAGGED, NEVER STRIPPED, and both halves of that are measured rather than chosen.
+    `PPG_BEAT_MARKER` (156) is an INSERTED row on the sibling 0x04/0x05 streams, where removing it is what
+    recovers the 125.000 ADC from a 126.06 row rate. On 0x03 it does NOT play that role: measured
+    2026-09-06 over 119.9 s, markers arrive at 0.534/s against a reported 62.0 bpm — about HALF a
+    marker per beat, where 0x04 measured almost exactly one — and subtracting them moves the rate AWAY
+    from the ADC (125.058 -> 124.444). So on this stream the raw row rate is the better estimate and a
+    consumer must not "correct" it. They are kept because they are beat fiducials worth having.
+
+    And stripping would be wrong twice over: 6 % of the 156s measured were NOT isolated (neighboured by
+    another 156), which on a 0-255 waveform is what a real sample equal to 156 looks like. A value-based
+    strip would delete signal. Isolation is therefore the flag, judged on the neighbours the reply
+    actually has — a reply boundary is an edge, and dropping edge markers would lose real ones.
+
+    The count is taken from the device's own field and the slice is bounded by the buffer, so a trailer
+    of any size is ignored rather than absorbed into the body (the rule parse_rt_ppg follows)."""
+    if len(payload) < SAMPLES_A_HDR:
+        return []
+    n = int.from_bytes(payload[4:6], "little")
+    body = payload[SAMPLES_A_HDR:SAMPLES_A_HDR + n]
+    out: list[tuple[int, int]] = []
+    last = len(body) - 1
+    for i, v in enumerate(body):
+        iso = (v == PPG_BEAT_MARKER
+               and (i == 0 or body[i - 1] != PPG_BEAT_MARKER)
+               and (i == last or body[i + 1] != PPG_BEAT_MARKER))
+        out.append((v, 1 if iso else 0))
+    return out
+
+
 def rt_ppg_frame(seq: int = 0) -> bytes:
     """cmd=0x05 — ask for the raw two-channel optical buffer (see WHICH-IS-WHICH: not proven to be
     two wavelengths, and not proven to be a plethysmogram)."""
@@ -763,7 +1058,29 @@ def parse_get_info(payload: bytes) -> dict | None:
             rtc = {"year": y, "month": mo, "day": d, "hour": h, "minute": mi, "second": s}
         except ValueError:                     # out-of-range component — §2.7: absence, never a rolled instant
             rtc = None
-    return {"firmware": fw, "serial": sn, "rtc": rtc, "raw_len": len(payload)}
+    # ── THE FIELD WE CALLED "firmware" IS THE VENDOR'S branchCode ─────────────────────────────────
+    # Residue `2026-09-02-oxyii-branchcode-named-firmware`. §3c: `payload[9:17]` is an 8-character
+    # BRANCH CODE (`2D010002`); the firmware VERSION is a separate dotted string from bytes
+    # `[4].[3].[2].[1]`, with `hwV = [0]` and a bootloader from `[8]..[5]`. The two COEXIST — the §3a
+    # ring is branch `2D010001` AND firmware `1.13.1.0` — so a log line reading `firmware 2D010002`
+    # could never be compared against a vendor-reported version.
+    #
+    # 🔴 `"firmware"` KEEPS ITS CURRENT (BRANCH) VALUE, deprecated but unchanged. It is persisted:
+    # `pull_session.py` writes it into a session sidecar as `device_firmware`, so silently changing
+    # what the key MEANS would rewrite the meaning of records already on disk while every consumer
+    # kept reading the same name. New data arrives through NEW fields instead.
+    ver = ".".join(str(payload[i]) for i in (4, 3, 2, 1)) if len(payload) > 4 else None
+    boot = ".".join(str(payload[i]) for i in (8, 7, 6, 5)) if len(payload) > 8 else None
+    return {
+        "firmware": fw,          # DEPRECATED alias of `branch_code` — kept for on-disk compatibility
+        "branch_code": fw,       # the same 8 ASCII chars, under the name the vendor uses
+        "firmware_version": ver,  # the REAL version, "[4].[3].[2].[1]"
+        "hw_version": payload[0] if payload else None,
+        "bootloader": boot,
+        "serial": sn,
+        "rtc": rtc,
+        "raw_len": len(payload),
+    }
 
 
 # GET_CONFIG field layout (first 20 of the 40-byte reply). Bytes 20+ are firmware-variant; opaque.
@@ -804,7 +1121,9 @@ def parse_battery(payload: bytes) -> dict | None:
 # only the full-struct diff can judge the effect. Value ranges: BRIGHTNESS is documented (0/1/2);
 # every other range is UNDOCUMENTED upstream — a byte is accepted and the mandatory read-back is the
 # real validator (upstream's own advice: discover ranges empirically via GET_CONFIG before/after).
-SET_CONFIG_FIELDS = {
+# Annotated: each row mixes ints with a nullable `readback` string, which mypy joins to `object` —
+# so `spec["max"]` read as indexing an object rather than a record lookup. Three errors, one table.
+SET_CONFIG_FIELDS: dict[str, dict[str, Any]] = {
     "spo2_switch":  {"index": 1, "max": 255, "readback": None},
     "spo2_low":     {"index": 2, "max": 255, "readback": "spo2_low"},
     "hr_switch":    {"index": 3, "max": 255, "readback": None},

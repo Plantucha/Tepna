@@ -38,13 +38,15 @@ def test_oxyframe_header_and_row_layout(tmp_path):
     head, row = _lines(str(p))[0], _rows(str(p))[0]
     assert head.split(";") == ["Phone timestamp", "duration_s", "pi_pct", "motion", "spo2", "pr",
                               "contact", "battery_pct", "batt_state", "flag",
-                              "ppg_n", "ppg_dur_step", "ppg_offset", "flag_raw", "run_status"]
+                              "ppg_n", "ppg_dur_step", "ppg_offset", "flag_raw", "alarm_raw",
+                              "run_status"]
     cells = row.split(";")
     assert cells[0] == "2026-07-19T03:04:05.678"
     # The appended columns are blank: this caller passed no `ppg`, no `flag_raw` and no `run_status`, and
     # the ORIGINAL ten columns are unmoved — the append-never-insert rule, asserted rather than assumed
     # (O2RING-FRAME-SAMPLE-LOCK, extended by DEVICE-RATE-TRUTH §6.1 and OXYII-PRESENCE-MODEL §5).
-    assert cells[1:] == ["900", "1.4", "0", "96", "54", "1", "73", "0", "0", "", "", "", "", ""]
+    assert cells[1:] == ["900", "1.4", "0", "96", "54", "1", "73", "0", "0",
+                         "", "", "", "", "", ""]
     assert len(cells) == len(head.split(";")), "row must have exactly as many cells as the header"
 
 
@@ -59,10 +61,15 @@ def test_oxyframe_records_the_ring_stream_offset_and_the_whole_flag_byte(tmp_pat
     w.close()
     rows = [r.split(";") for r in _rows(str(p))]
     # offset 0 on the first frame is a READING, not an absence — it must not render blank
-    assert rows[0][-3] == "0"
-    assert rows[1][-3] == "126"
-    assert [r[-2] for r in rows] == ["199", "199"]     # 0xC7, reported as the whole byte
-    assert [r[-1] for r in rows] == ["", ""]           # run_status: absent from `live` ⇒ blank, never 0
+    # BY NAME. These read `[-3]`/`[-2]`/`[-1]` until 2026-09-06, when appending `alarm_raw` moved every
+    # one of them onto a different column — the tail has no positional contract, only the header does.
+    _h = _lines(str(p))[0].split(";")
+    _c = lambda r, name: r[_h.index(name)]  # noqa: E731
+    assert _c(rows[0], "ppg_offset") == "0"
+    assert _c(rows[1], "ppg_offset") == "126"
+    assert [_c(r, "flag_raw") for r in rows] == ["199", "199"]   # 0xC7, reported as the whole byte
+    assert [_c(r, "alarm_raw") for r in rows] == ["", ""]        # absent from `live` ⇒ blank, never 0
+    assert [_c(r, "run_status") for r in rows] == ["", ""]       # same rule, same reason
 
 
 def test_oxyframe_offset_is_blank_when_the_ppg_stream_is_off(tmp_path):
@@ -74,8 +81,12 @@ def test_oxyframe_offset_is_blank_when_the_ppg_stream_is_off(tmp_path):
     w.write(WHEN, {"duration": 900, "flag": 1, "flag_raw": 0xC7})   # no `ppg` dict at all
     w.close()
     cells = _rows(str(p))[0].split(";")
-    assert cells[-3] == "", "ppg_offset must be blank, never 0, when the stream is off"
-    assert cells[-2] == "199", "flag_raw comes off `live`, so it survives a PPG-less frame"
+    # BY NAME, not by a negative index: the previous form read `cells[-3]`/`cells[-2]`, which silently
+    # pointed at different columns the moment `alarm_raw` was appended (2026-09-06). The header is the
+    # addressing scheme this format publishes; a positional reader of the TAIL has no such contract.
+    _h = _lines(str(p))[0].split(";")
+    assert cells[_h.index("ppg_offset")] == "", "ppg_offset must be blank, never 0, when the stream is off"
+    assert cells[_h.index("flag_raw")] == "199", "flag_raw comes off `live`, so it survives a PPG-less frame"
 
 
 def test_oxyframe_records_run_status_when_the_frame_carries_it(tmp_path):
@@ -410,7 +421,11 @@ import os as _os
 import writers as _w
 
 
-ALL_WRITERS = [
+# Renamed from ALL_WRITERS, which the table at the top of this file already owns. That one is
+# (class, write-action); this one is (class, constructor kwargs) — a different table with a
+# different shape, and it silently shadowed the first for every use below this line. mypy
+# reported it as six incompatible rows, which is the collision seen from the type side.
+WRITER_CTOR_KWARGS: list[tuple[type, dict[str, str]]] = [
     (_w.StreamWriter, {"stream": "ecg"}),
     (OxyFrameLogWriter, {}),
     (HostClockLogWriter, {}),
@@ -419,7 +434,7 @@ ALL_WRITERS = [
 ]
 
 
-@pytest.mark.parametrize("cls,kw", ALL_WRITERS, ids=lambda v: getattr(v, "__name__", ""))
+@pytest.mark.parametrize("cls,kw", WRITER_CTOR_KWARGS, ids=lambda v: getattr(v, "__name__", ""))
 def test_every_writer_fsyncs_by_default(tmp_path, monkeypatch, cls, kw):
     """The `fsync=True` default in all five writers, plus `self._fsync` being stored at all.
 
@@ -431,6 +446,10 @@ def test_every_writer_fsyncs_by_default(tmp_path, monkeypatch, cls, kw):
     # patching writers.os alone would miss it
     synced = []
     monkeypatch.setattr(_os, "fsync", lambda fd: synced.append(fd))
+    # The barrier is queued to a worker since 2026-09-10 (writers._submit_fsync), so run it inline —
+    # otherwise this asserts against a thread that has not been scheduled yet and is a race, not a
+    # test. What it pins is unchanged: the DEFAULT is fsync=True and flush() reaches the platform.
+    monkeypatch.setattr(_w, "_submit_fsync", lambda dup, health: _w._do_fsync(dup, health))
     w = cls(str(tmp_path / "x.dat"), **kw)          # no fsync= — the default is the subject
     try:
         assert w._fsync is True, "durability is opt-OUT, never opt-in"
@@ -499,7 +518,7 @@ def test_the_link_header_records_which_radio_captured_the_night(tmp_path):
     assert _lines(str(r))[0].startswith("Phone timestamp;")
 
 
-@pytest.mark.parametrize("cls,kw", ALL_WRITERS, ids=lambda v: getattr(v, "__name__", ""))
+@pytest.mark.parametrize("cls,kw", WRITER_CTOR_KWARGS, ids=lambda v: getattr(v, "__name__", ""))
 def test_a_writer_remembers_the_path_it_opened(tmp_path, cls, kw):
     """`self.path = None` survived in every writer. `nightqc`, the archiver and the monitor all ask a
     live writer where it is writing; None there is a night that cannot be found while it is being
@@ -692,6 +711,43 @@ def test_oxylife_writer_header_and_rows(tmp_path):
     assert w.rows == 2
 
 
+def test_oxylife_writer_APPENDS_across_daemon_restarts_instead_of_wiping_the_night(tmp_path):
+    """Until 2026-09-20 this writer opened `OXYLIFE.csv` with "w". The file is one fixed name per night
+    and the daemon restarts ~11–15 times a day, so each restart erased every earlier process's rows —
+    the 2026-09-10 file held 21 connect attempts against ~250 in the journal. A second open on a
+    non-empty file must CONTINUE it: one preamble, one header, every row from both processes, and the
+    writer says which case it is in (`resumed`)."""
+    import writers
+    p = tmp_path / "OXYLIFE.csv"
+    w1 = writers.OxyLifeLogWriter(str(p), device="O2R-01")
+    assert w1.resumed is False
+    w1.write(_FakeTransition("W;1.0;not_seen;connecting;scan;O2R-01;s1;"))
+    w1.write(_FakeTransition("W;2.0;connecting;disconnected;session ended;O2R-01;s1;device_unavailable"))
+    w1.close()
+    w2 = writers.OxyLifeLogWriter(str(p), device="O2R-01")             # the daemon restarted
+    assert w2.resumed is True
+    w2.write(_FakeTransition("W;3.0;not_seen;connecting;scan;O2R-01;s2;"))
+    w2.close()
+    lines = p.read_text().splitlines()
+    assert lines[0] == "# device=O2R-01" and lines[1].startswith("host_wall;")
+    assert sum(ln.startswith("# device=") for ln in lines) == 1 and sum(ln.startswith("host_wall;") for ln in lines) == 1
+    assert [ln.split(";")[1] for ln in lines[2:]] == ["1.0", "2.0", "3.0"], "all three rows, in order, nothing wiped"
+    assert w2.rows == 1, "the counter is per process; the FILE is per night"
+
+
+def test_oxylife_writer_treats_an_EMPTY_existing_file_as_fresh(tmp_path):
+    """A zero-byte file (a crash between open and header) gets the preamble + header, not a headerless
+    append — the same rule as `SessionSidecar`'s `fresh` test."""
+    import writers
+    p = tmp_path / "OXYLIFE.csv"
+    p.write_text("")
+    w = writers.OxyLifeLogWriter(str(p), device="O2R-01")
+    assert w.resumed is False
+    w.write(_FakeTransition("W;1.0;a;b;r;;;"))
+    w.close()
+    assert p.read_text().splitlines()[:2] == ["# device=O2R-01", "host_wall;host_monotonic;prev;new;reason;device;session;failure;axis"]
+
+
 def test_oxylife_writer_omits_the_device_comment_when_absent(tmp_path):
     import writers
     p = tmp_path / "OXYLIFE.csv"
@@ -742,3 +798,68 @@ def test_oxylife_writer_close_swallows_a_raising_handle(tmp_path):
 
     w._fh = _Boom()
     w.close()          # the except swallows it — no raise
+
+
+def test_alarm_raw_round_trips_into_the_oxyframe_sidecar(tmp_path):
+    """RT_PARAM byte [14], appended 2026-09-06. Two rows: one carrying the byte, one whose frame was
+    too short to have it — the second must land BLANK, not `0`, because a zero there reads as "no
+    alarms" on a measurement that never happened."""
+    p = tmp_path / "f.txt"
+    w = OxyFrameLogWriter(str(p), fsync=False)
+    w.write(WHEN, {"duration": 1, "spo2": 96, "pr": 60, "contact": 1,
+                   "alarm_raw": 0b11_01_10_01, "run_status": 2})
+    w.write(WHEN, {"duration": 2, "spo2": 96, "pr": 60, "contact": 1,
+                   "alarm_raw": None, "run_status": 2})
+    w.close()
+    lines = _lines(str(p))
+    hdr = lines[0].split(";")
+    assert hdr == list(OXYFRAME_COLUMNS), "the header must be the single source, not a hand-written copy"
+    i = hdr.index("alarm_raw")
+    assert lines[1].split(";")[i] == str(0b11_01_10_01)
+    assert lines[2].split(";")[i] == "", "an absent byte writes blank, never 0"
+    assert hdr[-1] == "run_status", "append-only: alarm_raw went BEFORE run_status, matching writers.py"
+
+
+# ── CAPTURE-FILESET-RESUME for the RING (residue 2026-09-06-ring-never-resumes) ────────────────────
+# The trap the residue row names: the ring's three sidecar writers opened "w", so adding the resume
+# decision ALONE would truncate the very file it resumes onto. #2166 already cost one writer that way.
+
+import pytest as _pytest
+
+import writers as _w
+
+
+@_pytest.mark.parametrize("cls,header_frag", [
+    (_w.Spo2CsvWriter, "Oxygen Level"),
+    (_w.RingClockLogWriter, "rtc_offset_s"),
+    (_w.OxyFrameLogWriter, None),          # header is OXYFRAME_HEADER, matched by first-line identity
+])
+def test_RING_SIDECAR_WRITERS_APPEND_ONTO_A_RESUMED_FILE_INSTEAD_OF_TRUNCATING_IT(tmp_path, cls, header_frag):
+    """🔴 Open "w" here and the resumed set loses everything written before the reconnect.
+
+    This is the half of the ring-resume fix that has nothing to do with resuming: the decision to reuse
+    a stamp is upstream, but if these writers still truncate then reusing it DESTROYS data rather than
+    continuing it — strictly worse than the fragmentation it was meant to remove."""
+    p = str(tmp_path / "x.csv")
+    w1 = cls(p)
+    w1.close()                        # read AFTER close: the header sits in a 64 KB buffer until then
+    before = open(p, encoding="utf-8").read()
+    assert before.strip(), "the first open must have written a header to resume onto"
+
+    w2 = cls(p)                       # same path == the resumed set
+    w2.close()
+    after = open(p, encoding="utf-8").read()
+
+    assert after.startswith(before), "resumed open TRUNCATED the file it was appending to"
+    assert len(after.splitlines()) == len(before.splitlines()), "header re-emitted mid-file on resume"
+    hdr = before.splitlines()[0]
+    assert after.splitlines().count(hdr) == 1, "exactly one header must survive a resume"
+
+
+def test_A_FRESH_PATH_STILL_GETS_ITS_HEADER(tmp_path):
+    """The control for the test above: self-detection must not suppress the header on a NEW file.
+    Without this leg, a writer that never emitted a header at all would pass the resume assertions."""
+    for cls in (_w.Spo2CsvWriter, _w.RingClockLogWriter, _w.OxyFrameLogWriter):
+        p = str(tmp_path / f"{cls.__name__}.csv")
+        w = cls(p); w.close()
+        assert _os.path.getsize(p) > 0, f"{cls.__name__} wrote no header to a fresh file"

@@ -61,6 +61,9 @@
  *     --force            recompute everything, stamp or no stamp (beats --skip-existing)
  *     --jobs <n>         nights to compute in parallel (default: AUTO — probed from the host)
  *     --dry-run          plan only: print the night/file plan, compute nothing, write nothing
+ *     --json             also print the run-level tepna.verdict/1 object (the per-night ones are always
+ *                        written to <out>/trio-batch-verdicts.json on a real run — VERDICT-CONTRACT §3b #7)
+ *     --verdict-sample   emit one synthetic run-level verdict and exit (the adoption gate's corpus-free probe)
  *     --selftest         known-answer checks for the nocturnal gate (no corpus, no I/O)
  *
  * PARALLELISM + MEMORY. Nights run as CHILD PROCESSES, pool-capped. The cap is PROBED, not assumed:
@@ -72,11 +75,13 @@
  * --max-old-space-size is needed on the command line: the parent sizes each child's heap to the host.
  */
 import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync, statSync, openSync, readSync, closeSync } from 'node:fs';
-import { join, dirname, resolve, basename } from 'node:path';
+/* t0 from the file's first data row — see tools/trio-anchor.mjs for the rule and why the name is not it. */
+import { anchoredRec, startOf } from './trio-anchor.mjs';
+import { join, dirname, resolve, basename, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 import os from 'node:os';
-import { spawn } from 'node:child_process';
+import { spawn, execSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { createHash } from 'node:crypto';
 import { fitDatToSpo2Csv, readDat, readSpo2Csv, timefitDisagrees } from './o2ring-dat-timefit.mjs';
@@ -109,6 +114,9 @@ const SRC = opt('--src', null);
 const OUT = resolve(ROOT, opt('--out', 'uploads/trio'));
 const ONLY = optAll('--night');
 const LIMIT = parseInt(opt('--limit', '0'), 10) || 0;
+/* the QUALITY tolerance beside the 15 bpm fault gate — the value the residue measured with, above the
+   ~0.44–1 bpm σ the corpus estimates and below any fault a device could produce */
+const HR_QUALITY_TOL_BPM = 3;
 const MIN_HOURS = parseFloat(opt('--min-hours', '3'));
 // Three-way overlap floor. NOT invented: tch-multinight needs ≥12 five-min epochs (= 1 h) to solve a
 // night, and sensor-trio-worker.js:307 floors at 1000 s. 1 h satisfies both. Do not raise it without
@@ -228,6 +236,176 @@ function redoReason(stamp, nJson, inputsDigest, codeDigest) {
  * Known answers for the nocturnal gate, on hand-built windows — no corpus, no I/O, CI-safe. The gate
  * decides whether a window is a night, and it got that wrong on real data once (2026-07-26); every
  * case below is either that bug or a window it must NOT reject. */
+/* ── 2b · GATE VERDICTS — tepna.verdict/1 for every night the plan DECIDES on (VERDICT-CONTRACT §3b #7) ──
+   Every `⊘`/`✗`/`✓` line above is a decision about what enters the corpus, and until now it existed only as
+   prose. One object per night, plus one run-level object over the night population, written to
+   `<out>/trio-batch-verdicts.json` (never into a night directory — the committed exports are the DSPs'
+   bytes, and the gate's opinion about a night is not part of the night). Statuses, mapped from the gate as
+   it stands — nothing here changes which nights fold:
+     PASS            the night entered the fold (three-way overlap ≥ MIN_OVERLAP h, majority-nocturnal)
+     NOT_APPLICABLE  not a trio night — no O2Ring anchor, or fewer legs than the run requires (the rule
+                     does not bind; nothing was judged)
+     FAIL            judged and rejected — a leg had no concurrent recording, no block was majority-nocturnal,
+                     or the three-way overlap fell under MIN_OVERLAP (reason names which, with the hours)
+     NOT_RUN         no nights under --src (a dry run still runs the gate; it only skips the write)
+   The population is LEGS for a night (ECG · PPG · SpO2 · H10 ACC · Verity ACC · GYRO · MAGN · O2Ring PPG:
+   checked = legs judged against the anchor, excluded = legs the night did not offer) and NIGHTS for the
+   run. `criterion` is the run's own gate: three-way overlap ≥ MIN_OVERLAP h, direction gte. */
+const Verdict = createRequire(import.meta.url)('../verdict.js');
+const GATE_LEGS = ['oxy', 'ecg', 'ppg', 'accH10', 'accVer', 'gyro', 'magn', 'o2ppg'];
+const nightVerdicts = [];
+let _gitCommit = null;
+try {
+  _gitCommit =
+    execSync('git rev-parse --short HEAD', { cwd: ROOT, stdio: ['ignore', 'pipe', 'ignore'] })
+      .toString()
+      .trim() || null;
+} catch (_e) {
+  _gitCommit = null;
+}
+const gateCriterion = () => ({ name: 'three_way_nocturnal_overlap_h', threshold: MIN_OVERLAP, unit: 'h', direction: 'gte' });
+const gateProducer = () => ({ tool: 'tools/trio-batch.mjs', commit: _gitCommit, ...(_gitCommit ? {} : { commitReason: 'not run inside a git tree' }) });
+// The files a night's verdict was read from — every session of every judged leg, by name; the capture
+// root is on the run-level object, so a reader can open each one. Capped per leg so an O2Ring night of
+// 300 fragments does not make the verdict larger than the night's own export.
+function legEvidence(pick) {
+  const out = ['tools/trio-batch.mjs'];
+  for (const l of GATE_LEGS) {
+    const list = pick[l];
+    if (!list || !list.length) continue;
+    for (const f of list.slice(0, 6)) out.push(f.name);
+    if (list.length > 6) out.push(`… +${list.length - 6} more ${l} session(s)`);
+  }
+  return out;
+}
+/* WHAT A FINISHED CHILD PRINTS — pure, so `--selftest` can pin the rule that was broken. The bug it
+   exists to prevent: the failure tail used to be emitted only when `body` was EMPTY, so a child that
+   died after printing its per-node results had its abort message discarded — the one case where it was
+   the only evidence. The rule now: a non-zero exit ALWAYS contributes the child's last `tailLines`
+   lines, whatever else it said. `body` is the filtered result lines, `out` the child's raw stdout+stderr. */
+/* A HEAP DEATH IS NOT A FAILED NIGHT — it is a night that needs a bigger cap, and telling the two
+   apart is what lets the remedy reach one night instead of all of them. Pure, so `--selftest` pins it.
+
+   Measured 2026-09-22 on 2026-07-19, the one night of 139 that died in the clean re-fold (the #2860
+   diagnostic named it: `Ineffective mark-compacts near heap limit`). Driving the child directly at
+   descending caps, peak RSS beside each:
+
+     cap 2048 -> OOM (2.34 GB)   cap 3200 -> OOM (3.83)   cap 3328 -> ok (4.07)   cap 4096 -> ok (4.35)
+
+   so its abort edge is (3200, 3328] and RETRY_HEAP_MB is set a full notch above it, not one. The
+   comment on CHILD_HEAP_MB warns that the old 1536 floor "sat one notch above the abort edge with no
+   observed margin"; 3328 would repeat that.
+
+   ⚠️ WHY THIS IS A RETRY AND NOT A RAISED CEILING. `childHeapMB` is max(floor, min(ceiling, perJobMB))
+   and perJobMB on a dev rig is ~13.8 GB, so the CEILING binds and a raise hands the new cap to EVERY
+   child. That is not free: a LIGHT night (2026-07-17) peaks 2.27 GB at cap 2048 and 3.03 GB at 4096 —
+   +33 % for a night that never needed it. At --jobs 3 that is 9.1 GB of box residency for typical
+   nights, over the owner's 8 GB standing rule, to serve 0.7 % of the corpus. The retry instead leaves
+   138 of 139 nights at ~2.3 GB and gives the one night 4096 while NOTHING ELSE RUNS. */
+const RETRY_HEAP_MB = 4096;
+
+function isHeapOom(code, text) {
+  // V8 aborts on heap exhaustion: SIGABRT -> 134, or a null code when the signal is reported instead.
+  // EITHER signal is enough, and that is deliberate rather than sloppy: 134 is also an ordinary
+  // assert, so this DOES convict a non-heap abort. The asymmetry is the reason — a wasted retry
+  // costs one run of one night, while a heap death missed (a child killed before it could print)
+  // costs the night entirely and leaves it unstamped. The selftest names that case as ACCEPTED, not
+  // as rejected, so the trade stays visible to whoever narrows this later.
+  const said = /(heap out of memory|Ineffective mark-compacts|Reached heap limit|FATAL ERROR: .*[Aa]llocation failed)/.test(String(text || ''));
+  return said || code === 134;
+}
+
+function childReport(code, body, out, tailLines = 12) {
+  const parts = [];
+  if (body) parts.push(body);
+  if (code !== 0) {
+    const tail = String(out || '')
+      .trim()
+      .split('\n')
+      .slice(-tailLines)
+      .map((l) => '    ! ' + l)
+      .join('\n');
+    if (tail) parts.push(tail);
+  }
+  return parts.join('\n');
+}
+
+function nightVerdict(key, status, { offered, judged, result, reason, evidence }) {
+  const v = Verdict.make({
+    gate: 'trio-batch-night',
+    status,
+    population: { checked: judged, eligible: offered, excluded: offered - judged },
+    criterion: gateCriterion(),
+    result: result === undefined ? null : result,
+    evidence: evidence || [],
+    reason: reason === undefined ? null : reason,
+    producedBy: gateProducer()
+  });
+  v.night = key; // an extension field — the contract allows extras, the validator ignores them
+  const chk = Verdict.validate(v);
+  if (!chk.ok) throw new Error(`trio-batch: night verdict for ${key} is invalid under verdict.js — ${chk.errors.join(' | ')}`);
+  nightVerdicts.push(v);
+  return v;
+}
+function runVerdict(list, { dry }) {
+  const nights = list.length;
+  const folded = list.filter((v) => v.status === 'PASS').length;
+  const failed = list.filter((v) => v.status === 'FAIL').length;
+  const na = list.filter((v) => v.status === 'NOT_APPLICABLE').length;
+  const judged = folded + failed;
+  let status, reason;
+  // A dry run still RUNS the gate — the plan stage decides every night; only the fold is skipped — so
+  // the verdict is the same as a real run's and simply is not written (see writeVerdicts).
+  if (!nights) {
+    status = 'NOT_RUN';
+    reason = 'no nights under --src (no date-keyed capture directories found)';
+  } else if (!judged) {
+    status = 'NOT_APPLICABLE';
+    reason = `${nights} night(s), none a trio night (no O2Ring anchor or too few legs) — the gate judged nothing`;
+  } else if (failed) {
+    status = 'SHORTFALL';
+    reason = `${folded} of ${judged} judged night(s) entered the fold; ${failed} rejected (see per-night verdicts)`;
+  } else {
+    status = 'PASS';
+    reason = null;
+  }
+  const v = Verdict.make({
+    gate: 'trio-batch',
+    status,
+    population: { checked: judged, eligible: nights, excluded: nights - judged },
+    criterion: gateCriterion(),
+    // NOT_RUN examined nothing and NOT_APPLICABLE judged nothing — neither measured anything (validator rules);
+    // the per-night list still travels in `reason` for the second, so the reader can see which nights were not trio
+    result: status === 'NOT_RUN' || status === 'NOT_APPLICABLE' ? null : { folded, rejected: failed, notTrio: na, nights: list.map((n) => ({ night: n.night, status: n.status })) },
+    evidence: ['tools/trio-batch.mjs', SRC ? `${SRC} (capture root)` : 'no --src'],
+    reason,
+    producedBy: gateProducer()
+  });
+  const chk = Verdict.validate(v);
+  if (!chk.ok) throw new Error(`trio-batch: run verdict is invalid under verdict.js — ${chk.errors.join(' | ')}`);
+  return v;
+}
+function writeVerdicts(list, { dry }) {
+  const run = runVerdict(list, { dry });
+  if (!dry && !DRY) {
+    mkdirSync(OUT, { recursive: true });
+    writeFileSync(join(OUT, 'trio-batch-verdicts.json'), JSON.stringify({ run, nights: list }, null, 1) + '\n');
+  }
+  if (flag('--json')) console.log(JSON.stringify(run));
+  return run;
+}
+/* --verdict-sample: the manifest's corpus-free emission (VERDICT-CONTRACT §3, `emits.cmd`) — one PASS night
+   and one FAIL night from synthetic decisions, through the same builder the real run uses, no --src. */
+if (flag('--verdict-sample')) {
+  nightVerdict('2026-01-01', 'PASS', { offered: 8, judged: 5, result: { overlapH: 7.2, nocturnalFrac: 0.98, legs: ['ECG', 'PPG', 'SpO2'] }, evidence: ['synthetic'] });
+  nightVerdict('2026-01-02', 'FAIL', { offered: 8, judged: 3, result: { overlapH: 0.4 }, reason: 'three-way merged overlap 0.4 h < 1 h', evidence: ['synthetic'] });
+  const run = runVerdict(nightVerdicts, { dry: false });
+  run.producedBy.commit = null;
+  run.producedBy.commitReason = 'synthetic sample for the adoption gate — no tree claimed';
+  console.log(JSON.stringify(run));
+  process.exit(0);
+}
+
 if (flag('--selftest')) {
   const D = Date.UTC(2026, 6, 25); // floating wall-clock midnight, per the Clock Contract
   const at = (day, h, m = 0) => D + day * 86400e3 + h * 3600e3 + m * 60e3;
@@ -327,6 +505,111 @@ if (flag('--selftest')) {
   eq('more nights than slots ⇒ do not split', shouldSplitNodes(8, 11), false);
   eq('2 slots, 1 night ⇒ split (the modest-host win)', shouldSplitNodes(2, 1), true);
 
+  // ── gate verdicts (VERDICT-CONTRACT §3b #7) — the builder, pinned against verdict.js, corpus-free ──
+  {
+    const V = createRequire(import.meta.url)('../verdict.js');
+    const eq = (name, got, want) => {
+      const good = got === want;
+      if (!good) fail++;
+      console.log(`  ${good ? '✓' : '✗'} ${name}  got=${JSON.stringify(got)} want=${JSON.stringify(want)}`);
+    };
+    const val = (v) => (V.validate(v).ok ? true : V.validate(v).errors.join(' | '));
+    const before = nightVerdicts.length;
+    const pass = nightVerdict('2026-01-01', 'PASS', { offered: 8, judged: 5, result: { overlapH: 7.2 }, evidence: ['synthetic'] });
+    eq('PASS night validates', val(pass), true);
+    eq('…population is an equality over legs', JSON.stringify(pass.population), '{"checked":5,"eligible":8,"excluded":3}');
+    eq('…scope internal (P5)', pass.scope, 'internal');
+    eq('…the night key rides as an extension field', pass.night, '2026-01-01');
+    const f = nightVerdict('2026-01-02', 'FAIL', { offered: 8, judged: 3, result: { overlapH: 0.4 }, reason: 'three-way merged overlap 0.4 h < 1 h', evidence: ['synthetic'] });
+    eq('FAIL night validates, reason names the hours', val(f) === true && /0\.4 h/.test(f.reason), true);
+    // THE FAILURE TAIL IS NOT CONDITIONAL ON SILENCE (2026-09-22). `childReport` used to be an
+    // `if (!body)` at the call site, so a child that died AFTER printing results said nothing about why.
+    const withBoth = childReport(1, '    ✓ ECGDex 80 epochs', 'noise\nFATAL ERROR: Reached heap limit', 12);
+    eq('a failed child that ALSO printed results still shows its tail', /Reached heap limit/.test(withBoth) && /✓ ECGDex/.test(withBoth), true);
+    eq('…the tail is marked so it cannot be read as a result line', /^ {4}! /m.test(withBoth), true);
+    eq('a failed child that said nothing else still shows its tail', /heap/.test(childReport(null, '', 'boom: heap', 12)), true);
+    eq('a SUCCESSFUL child shows its results and no tail', childReport(0, '    ✓ ok', 'chatter\nmore chatter', 12), '    ✓ ok');
+    eq('a successful silent child prints nothing at all', childReport(0, '', 'chatter', 12), '');
+    eq('the tail is bounded to the requested number of lines', childReport(1, '', 'a\nb\nc\nd', 2).split('\n').length, 2);
+
+    // A heap death must be distinguishable from every other failure, or the retry reaches the wrong
+    // nights and the box-residency argument for retrying at all stops holding.
+    eq('the real 07-19 message is recognised', isHeapOom(134, 'FATAL ERROR: Ineffective mark-compacts near heap limit Allocation failed - JavaScript heap out of memory'), true);
+    eq('a heap death reported by signal, code null', isHeapOom(null, 'FATAL ERROR: Reached heap limit Allocation failed'), true);
+    eq('a bare 134 with no heap message IS retried — a wasted retry beats a missed night', isHeapOom(134, 'Assertion failed: bad fixture'), true);
+    eq('a plain non-zero exit is NOT a heap death', isHeapOom(1, 'TypeError: x is not a function'), false);
+    eq('a SUCCESSFUL child is never a heap death', isHeapOom(0, 'all good'), false);
+    eq('empty output does not throw or match', isHeapOom(2, ''), false);
+    /* ── ONE RECORDING, INGESTED ONCE (2026-09-22) ──────────────────────────────────────────────
+       The planted case is the real one: the same basename reached the walk from six roots. The
+       property the separation depends on is stated so nobody relaxes it later — a capture basename
+       carries device + stream + full start timestamp, so two files sharing one ARE one recording. */
+    const six = ['uploads/Ecg nightly', '.mrr-full-hrn', '.mrr-10', '.mrr-eve-test', '.mrr-pilot-hrn', '.stage-respacc-papers'].map((d) => ({
+      name: 'Polar_H10_02849638_20260606_220647_ACC.txt',
+      full: d + '/Polar_H10_02849638_20260606_220647_ACC.txt',
+      bytes: 341_312_512
+    }));
+    const d6 = dedupeStream(six);
+    eq('six copies of one recording collapse to ONE (main ingests all 6)', JSON.stringify([six.length, d6.kept.length]), '[6,1]');
+    eq('…and the dropped paths are a NAMED SET, not a count', d6.dropped.length === 5 && d6.dropped.every((p) => /^\./.test(p)), true);
+    eq('…the copy kept is the CORPUS file, never a staging copy', d6.kept[0].full, 'uploads/Ecg nightly/Polar_H10_02849638_20260606_220647_ACC.txt');
+    eq('…and no conflict is raised when the copies agree', d6.conflicts.length, 0);
+    // The bytes a duplicate ingest would have claimed: 6 × 325.5 MB for 325.5 MB of data.
+    eq('the inflation the drop removes', Math.round((six.reduce((t, r) => t + r.bytes, 0) / d6.kept[0].bytes) * 10) / 10, 6);
+    // DIFFERENT sizes under one basename is an AMBIGUITY, not a copy — refuse, never guess (§∅).
+    const clash = dedupeStream([
+      { name: 'Polar_H10_x_20260606_220647_ECG.txt', full: 'a/Polar_H10_x_20260606_220647_ECG.txt', bytes: 100 },
+      { name: 'Polar_H10_x_20260606_220647_ECG.txt', full: 'b/Polar_H10_x_20260606_220647_ECG.txt', bytes: 101 }
+    ]);
+    eq(
+      'same basename, DIFFERENT size ⇒ a conflict naming both paths and both sizes',
+      JSON.stringify([clash.conflicts.length, clash.conflicts[0].keptBytes, clash.conflicts[0].otherBytes]),
+      '[1,100,101]'
+    );
+    eq(
+      '…and the night is refused rather than folded from a guess',
+      clash.conflicts[0].kept + '|' + clash.conflicts[0].other,
+      'a/Polar_H10_x_20260606_220647_ECG.txt|b/Polar_H10_x_20260606_220647_ECG.txt'
+    );
+    // Distinct recordings are UNTOUCHED — the rule must not convict working behaviour.
+    const distinct = dedupeStream([
+      { name: 'Polar_H10_x_20260717213258_ECG.txt', full: 'a/Polar_H10_x_20260717213258_ECG.txt', bytes: 25 },
+      { name: 'Polar_H10_x_20260717222753_ECG.txt', full: 'a/Polar_H10_x_20260717222753_ECG.txt', bytes: 1 }
+    ]);
+    eq('two DIFFERENT recordings of one night are both kept', JSON.stringify([distinct.kept.length, distinct.dropped.length, distinct.conflicts.length]), '[2,0,0]');
+    eq('a single file is returned unchanged', dedupeStream([{ name: 'x.txt', full: 'a/x.txt', bytes: 1 }]).kept.length, 1);
+    const na = nightVerdict('2026-01-03', 'NOT_APPLICABLE', { offered: 2, judged: 0, reason: 'not a trio night — no O2Ring anchor' });
+    eq('NOT_APPLICABLE night: checked 0, result null, reason present', val(na) === true && na.population.checked === 0 && na.result === null, true);
+    // …AND THE SHAPE THE REAL CALL SITE USED TO PASS IS REFUSED. It handed a `result` with the legs in
+    // it, which the validator forbids for NOT_APPLICABLE, so every non-trio night threw — while the
+    // assertion above passed, because it used a shape the caller never did.
+    let naThrew = null;
+    try {
+      nightVerdict('2026-01-05', 'NOT_APPLICABLE', { offered: 2, judged: 0, result: { legs: ['ECG'] }, reason: 'not a trio night' });
+    } catch (e) {
+      naThrew = e.message;
+    }
+    eq('a NOT_APPLICABLE night carrying a result is REFUSED (the crash this tool shipped with)', /result: null/.test(naThrew || ''), true);
+    let threw = null;
+    try {
+      nightVerdict('2026-01-04', 'PASS', { offered: 8, judged: 5, result: {} }); // no evidence
+    } catch (e) {
+      threw = e.message;
+    }
+    eq('PASS with no evidence is REFUSED by the builder (a claim with nothing to open)', /empty evidence/.test(threw), true);
+    const run = runVerdict(nightVerdicts.slice(before, before + 3), { dry: false });
+    eq('run: one rejected among judged ⇒ SHORTFALL, population = nights', run.status + ':' + JSON.stringify(run.population), 'SHORTFALL:{"checked":2,"eligible":3,"excluded":1}');
+    eq('…valid', val(run), true);
+    eq('…result counts folded/rejected/notTrio', JSON.stringify([run.result.folded, run.result.rejected, run.result.notTrio]), '[1,1,1]');
+    const runNa = runVerdict([na], { dry: false });
+    eq('run over nights the gate never judged ⇒ NOT_APPLICABLE, never PASS over checked 0', runNa.status + ':' + runNa.population.checked, 'NOT_APPLICABLE:0');
+    const runNone = runVerdict([], { dry: false });
+    eq('run over zero nights ⇒ NOT_RUN with result null', runNone.status + ':' + runNone.result, 'NOT_RUN:null');
+    eq('…valid', val(runNone), true);
+    const allPass = runVerdict([pass], { dry: false });
+    eq('run with every judged night folded ⇒ PASS, reason null', allPass.status + ':' + allPass.reason, 'PASS:null');
+    nightVerdicts.length = before;
+  }
   console.log(fail ? `\n  ${fail} FAILED` : '\n  all green');
   process.exit(fail ? 1 : 0);
 }
@@ -347,7 +630,22 @@ const CHILD = flag('--child'); // internal: this process computes ONE night and 
  * a concurrent agent. We leave a reserve so we degrade to slower-but-correct instead of being OOM-killed.
  */
 const GB = 1024 ** 3;
-const PER_JOB_GB = 1.2; // measured ~0.9 GB peak/night + headroom
+/* Peak RSS of ONE child, measured — not the heap cap, and not a guess. `--max-old-space-size` bounds
+   V8's old space; the PROCESS holds that plus the young generation, external buffers (a Verity
+   `_PPG.txt` is ~330 MB of them) and the binary, so RSS runs above the cap wherever the workload
+   saturates it. Measured 2026-09-22 at the shipped cap of 2048 MB: 2.27 GB on an ordinary night
+   (2026-07-17), 2.34 GB on the heaviest (2026-07-19, at the moment it aborted).
+
+   ⚠️ 1.2 was stale by ~1.9x and it is the constant that decides HOW MANY children start, so the
+   error compounded: at --jobs 3 the fold held ~6.9 GB while the planner believed 3.6. It did not
+   bite on a 59 GB dev rig, which is why it survived — the failure it is guarding against shows up
+   on a small box, and the comment above (`the box may already be hosting a browser, an IDE, and a
+   concurrent agent`) is describing THIS machine, rig-x870, not the capture box.
+
+   ⚠️ Do NOT re-derive this from the sweep figures in RETRY_HEAP_MB's comment. Those are peaks at
+   RAISED caps (3.7-4.8 GB) and are true about the sweep, not about the fold: a peak measured at a
+   cap production never uses says nothing about production. Re-measure at the cap actually shipped. */
+const PER_JOB_GB = 2.4;
 const RESERVE_GB = 2.0; // never consume the host's last 2 GB
 const HARD_CAP = 8; // beyond this the disk/parse becomes the bottleneck anyway
 function planConcurrency() {
@@ -365,9 +663,34 @@ function planConcurrency() {
   return { cores, totalGB, freeGB, budgetGB, byCpu, byMem, auto, jobs, forced: asked > 0 };
 }
 // Child heap: enough for one night with room for the filter scratch, but never more than the host has.
+// The child heap cap is a MEASURED constant, not a share of free RAM, because peak RSS tracks the
+// ceiling V8 is given rather than the live data — and the extra memory buys nothing. Swept on
+// 2026-08-06 (103 files, one 260 MB `_ECG.txt`), each run in its own 8 GB cgroup with swap off:
+//
+//     heapMB   outcome  exports   peak GB     wall
+//        384   ABORT      0 / 5      0.57   0:05.9
+//       1024   ABORT      2 / 5      1.56   0:53
+//       1536   ok         5 / 5      1.80   2:38
+//       2048   ok         5 / 5      2.01   2:35
+//       3072   ok         5 / 5      2.21   2:35
+//       4096   ok         5 / 5      2.65   2:35
+//       8192   ok         5 / 5      2.67   2:42
+//
+// Wall time is FLAT across every completing run while peak climbs 1.80 -> 2.67 GB for identical work
+// (exports re-checked over the UNION of filenames against the 8192 reference: same five, none
+// missing, content identical volatile-stripped). So the old 8192 ceiling cost ~0.66 GB per child and
+// bought nothing — which matters on the 15.4 GB capture box, where several children run at once.
+//
+// ⚠️ The OLD 1536 floor sat one notch above the abort edge on the heaviest night measured (1024
+// aborts, 1536 completes with no observed margin), so it is raised rather than kept: an abort wastes
+// the whole fold and leaves partial exports behind. Both bounds are 2048 deliberately — if a night is
+// ever found that needs more, raise the ceiling on THAT evidence; the failure is loud (the parent
+// sees `code !== 0`, counts it failed and leaves the night unstamped for redo), so it will be seen.
+const CHILD_HEAP_MB = 2048;
+
 function childHeapMB(planned) {
   const perJobMB = Math.floor((planned.budgetGB / Math.max(1, planned.jobs)) * 1024 * 0.9);
-  return Math.max(1536, Math.min(8192, perJobMB));
+  return Math.max(CHILD_HEAP_MB, Math.min(CHILD_HEAP_MB, perJobMB));
 }
 
 if (!SRC || !existsSync(SRC)) {
@@ -434,6 +757,47 @@ function loadInto(ctx, file) {
   vm.runInContext(DexBuild.classicify(readFileSync(p, 'utf8')), ctx, { filename: file });
 }
 
+// ── BOUNDED LAZY LINE READER ──────────────────────────────────────────────────────────────────
+// The fold's dominant allocation was `readFileSync(f, 'utf8')` handed to a parser that then did
+// `split(/\r?\n/)`. For the H10 ECG files in this corpus (up to 260 MB) that is the whole file as one
+// string PLUS ~3.4 M line objects, both live at once, per file.
+//
+// This reads the file in bounded chunks and yields complete lines, so the working set is the chunk
+// plus one line — never the file. The parser side is `ECGDSP.parseECGLines`, an ADDITIVE entry point:
+// `parseECG` still takes whole text for the browser and every existing caller, and both share one
+// parse body so the two cannot drift. Verified export-inert on a real night (2026-08-23): the
+// volatile-stripped `node-export` JSONs are identical before and after.
+const LINE_CHUNK_BYTES = 16 * 1024 * 1024; // 16 MB — the bound on the read buffer
+
+function* readLinesBounded(path, chunkBytes = LINE_CHUNK_BYTES) {
+  const fd = openSync(path, 'r');
+  try {
+    const buf = Buffer.allocUnsafe(chunkBytes);
+    const dec = new TextDecoder('utf-8');
+    let carry = '';
+    for (;;) {
+      const got = readSync(fd, buf, 0, chunkBytes, null);
+      if (got <= 0) break;
+      // `stream: true` so a multi-byte character split across a chunk boundary is not corrupted —
+      // silently mangling one row is worse than failing, because the parse still succeeds.
+      const text = carry + dec.decode(buf.subarray(0, got), { stream: true });
+      let start = 0;
+      for (;;) {
+        const nl = text.indexOf('\n', start);
+        if (nl < 0) break;
+        const end = nl > start && text.charCodeAt(nl - 1) === 13 ? nl - 1 : nl;
+        yield text.slice(start, end);
+        start = nl + 1;
+      }
+      carry = text.slice(start);
+    }
+    carry += dec.decode();
+    if (carry.length) yield carry; // a final line with no trailing newline is still a row
+  } finally {
+    closeSync(fd);
+  }
+}
+
 // LAZY — the DSP realm is built only by a process that actually COMPUTES. A dispatching parent never
 // loads it (it only plans + spawns), which keeps the coordinator at a few MB instead of carrying a full
 // DSP realm for the whole run.
@@ -494,6 +858,59 @@ const parse8_6 = (d, t) => utc(+d.slice(0, 4), +d.slice(4, 6), +d.slice(6, 8), +
 // of the same sleep collapse onto one key. See NIGHT BOUNDARY above.
 const nightKeyOf = (tMs) => new Date(tMs - 12 * 3600e3).toISOString().slice(0, 10);
 
+/* ── ONE PHYSICAL RECORDING IS INGESTED ONCE (2026-09-22) ────────────────────────────────────────
+   A capture basename carries device + stream + the full start timestamp, so TWO FILES SHARING A
+   BASENAME ARE THE SAME RECORDING BY CONSTRUCTION. There is no legitimate second case, which is what
+   makes this a detector rather than a heuristic: it cannot convict working behaviour.
+
+   It was not theoretical. A fold pointed at the corpus ROOT ingested `Polar_H10_..._20260606_220647_
+   ACC.txt` SIX times — once from `uploads/Ecg nightly/` and once from each of five staging copies
+   (`.mrr-full-hrn` 4.0 GB / 284 capture files, `.stage-respacc-papers`, `.mrr-10`, `.mrr-eve-test`,
+   `.mrr-pilot-hrn`) — reporting "6 session(s), 1952.8 MB" for 325.5 MB of unique data, and the night
+   then needed 6 GB of heap it does not need. The scoping check that was supposed to catch a bad root
+   compared NIGHT SETS and passed: a set comparison is insensitive to MULTIPLICITY, so "both roots
+   agree on 140 nights" could never have seen a 6× ingest.
+
+   The rule, per stream list:
+     · same basename, same size  ⇒ keep ONE (first by sorted path — deterministic), report the drop
+     · same basename, DIFFERENT size ⇒ REFUSE the night. That is not a copy; it is an ambiguity about
+       which bytes are the recording, and §∅'s ruling applies — a discontinuity refuses, reduced
+       coverage annotates. Guessing here would silently pick one night's data over another's.
+   Drops are a NAMED SET on the night (`n.dropped`), never a count, so the offending paths are visible
+   on the first run rather than on the sixth ingest; `n.conflicts` carries the refusing kind. */
+function dedupeStream(recs) {
+  const byName = new Map();
+  /* Order decides WHICH copy is kept, so it is not arbitrary: a path with no hidden segment wins over
+     one that has (a staging copy must never displace the corpus file), then lexicographic for
+     determinism. The dot-skip in the walk usually removes hidden copies before they reach here; this
+     is what makes the choice right when they do — e.g. a `--src` pointed INSIDE a staging tree. */
+  const hiddenPath = (r) =>
+    String(r.full)
+      .split(sep)
+      .some((seg) => seg.startsWith('.') && seg.length > 1)
+      ? 1
+      : 0;
+  for (const r of [...recs].sort((a, b) => hiddenPath(a) - hiddenPath(b) || String(a.full).localeCompare(String(b.full)))) {
+    const k = basename(r.name || r.full);
+    const seen = byName.get(k);
+    if (!seen) {
+      byName.set(k, { keep: r, dropped: [], conflict: null });
+      continue;
+    }
+    if (Number(seen.keep.bytes) === Number(r.bytes)) seen.dropped.push(r.full);
+    else seen.conflict = { name: k, kept: seen.keep.full, keptBytes: seen.keep.bytes, other: r.full, otherBytes: r.bytes };
+  }
+  const kept = [];
+  const dropped = [];
+  const conflicts = [];
+  for (const v of byName.values()) {
+    kept.push(v.keep);
+    dropped.push(...v.dropped);
+    if (v.conflict) conflicts.push(v.conflict);
+  }
+  return { kept, dropped, conflicts };
+}
+
 const nights = new Map();
 const bump = (key) => {
   if (!nights.has(key)) nights.set(key, { key, ecg: [], acc_h10: [], ppg: [], acc_ver: [], gyro: [], magn: [], oxy: [], o2ppg: [] });
@@ -502,11 +919,29 @@ const bump = (key) => {
 
 // RECURSE: the Polar Sensor Logger corpus is one FLAT folder, but the capture-host daemon writes one
 // SUBDIRECTORY PER NIGHT (plus a `stored/` dir of onboard .dat backups). Walk the tree so both layouts
+
 // ingest from the same `--src` — the regexes match on the BASENAME, and `readdirSync(recursive:true)`
 // on a flat folder still returns bare filenames, so this is back-compat for the Polar corpus.
+/* HIDDEN DIRECTORIES ARE NOT CAPTURE TREES — and the skip SAYS SO, by name. Five staging copies at a
+   corpus root (`.mrr-full-hrn`, `.stage-respacc-papers`, `.mrr-10`, `.mrr-eve-test`, `.mrr-pilot-hrn`)
+   were silently ingested as extra sessions on 2026-09-22. This is HYGIENE, not the mechanism: a copy in
+   `staging/` or `backup-2026-06/` carries no leading dot and is caught by the de-dup rule above, which
+   is the actual guarantee. A SILENT skip would be the same defect one directory over, so every skipped
+   directory is printed — an unprinted one would have hidden exactly the five dirs that caused this. */
+const skippedDirs = new Set();
 for (const rel of readdirSync(SRC, { recursive: true })) {
   const name = basename(rel);
   const full = join(SRC, rel);
+  /* Only DIRECTORY segments are named: a hidden FILE (`.trio-stamp`, a `.…PPG.txt.Ll1fHj` temp) is
+     never a capture, and listing it would make the line claim a directory that does not exist — the
+     message must be as honest as the skip. Hidden files are dropped silently; directories are named. */
+  const segs = String(rel).split(sep);
+  const hiddenDir = segs.slice(0, -1).find((seg) => seg.startsWith('.') && seg !== '.' && seg !== '..');
+  if (hiddenDir) {
+    skippedDirs.add(hiddenDir);
+    continue;
+  }
+  if (segs[segs.length - 1].startsWith('.')) continue;
   let st;
   try {
     st = statSync(full);
@@ -531,8 +966,8 @@ for (const rel of readdirSync(SRC, { recursive: true })) {
     stream = m[4] === 'MAG' ? 'MAGN' : m[4];
   }
   if (dev) {
-    const rec = { name, full, t0, bytes: st.size, dev, stream };
-    const n = bump(nightKeyOf(t0));
+    const rec = anchoredRec({ name, full, t0, bytes: st.size, dev, stream });
+    const n = bump(nightKeyOf(rec.t0));
     if (dev === 'H10' && stream === 'ECG') n.ecg.push(rec);
     else if (dev === 'H10' && stream === 'ACC') n.acc_h10.push(rec);
     else if (dev === 'Sense' && stream === 'PPG') n.ppg.push(rec);
@@ -545,7 +980,8 @@ for (const rel of readdirSync(SRC, { recursive: true })) {
   m = RE_O2.exec(name) || RE_O2_CH.exec(name);
   if (m) {
     t0 = parse14(m[1]);
-    bump(nightKeyOf(t0)).oxy.push({ name, full, t0, bytes: st.size, dev: 'O2Ring', stream: 'SPO2', kind: 'csv', stamp: m[1] });
+    const rec = anchoredRec({ name, full, t0, bytes: st.size, dev: 'O2Ring', stream: 'SPO2', kind: 'csv', stamp: m[1] });
+    bump(nightKeyOf(rec.t0)).oxy.push(rec);
     continue;
   }
   // O2Ring finger plethysmogram → PpgDex's FINGER site (not OxyDex: it is an optical waveform, and
@@ -554,14 +990,17 @@ for (const rel of readdirSync(SRC, { recursive: true })) {
   m = RE_O2_PPG_CH.exec(name);
   if (m) {
     t0 = parse14(m[1]);
-    bump(nightKeyOf(t0)).o2ppg.push({ name, full, t0, bytes: st.size, dev: 'O2Ring', stream: 'PPG', kind: 'txt', stamp: m[1] });
+    const rec = anchoredRec({ name, full, t0, bytes: st.size, dev: 'O2Ring', stream: 'PPG', kind: 'txt', stamp: m[1] });
+    bump(nightKeyOf(rec.t0)).o2ppg.push(rec);
     continue;
   }
   // O2Ring onboard binary — bare "<14>.dat" OR capture-host "Wellue_O2Ring-S_…_STORED.dat".
   m = RE_O2_DAT.exec(name) || RE_O2_DAT_CH.exec(name);
   if (m) {
     t0 = parse14(m[1]);
-    bump(nightKeyOf(t0)).oxy.push({ name, full, t0, bytes: st.size, dev: 'O2Ring', stream: 'SPO2', kind: 'dat', stamp: m[1] });
+    // a .dat keeps the name: `startOf` returns null for it, and `endOf` derives its end FROM t0
+    const rec = anchoredRec({ name, full, t0, bytes: st.size, dev: 'O2Ring', stream: 'SPO2', kind: 'dat', stamp: m[1] });
+    bump(nightKeyOf(rec.t0)).oxy.push(rec);
   }
 }
 
@@ -569,6 +1008,39 @@ for (const rel of readdirSync(SRC, { recursive: true })) {
    the .dat for one recording under the same 14-digit stamp, and they carry the same samples (the brief
    pins it: 24,040 rows, zero mismatches on SpO₂/pulse/motion). Keep the CSV — it is the corpus's
    established provenance — and drop its .dat twin, so one recording never appears as two anchors. */
+if (skippedDirs.size) {
+  console.log(`\n  skipped ${skippedDirs.size} hidden directory/ies under --src (not capture trees): ${[...skippedDirs].sort().join(', ')}`);
+}
+
+/* Applied once, after the walk, to every stream list of every night — before any planning reads a
+   session count, an overlap or a byte total, all of which a duplicate inflates. */
+const DEDUPE_LISTS = ['ecg', 'acc_h10', 'ppg', 'acc_ver', 'gyro', 'magn', 'oxy', 'o2ppg'];
+for (const n of nights.values()) {
+  n.dropped = [];
+  n.conflicts = [];
+  for (const list of DEDUPE_LISTS) {
+    if (!Array.isArray(n[list]) || n[list].length < 2) continue;
+    const { kept, dropped, conflicts } = dedupeStream(n[list]);
+    n[list] = kept;
+    n.dropped.push(...dropped);
+    n.conflicts.push(...conflicts);
+  }
+}
+const dupNights = [...nights.values()].filter((n) => n.dropped.length);
+const conflictNights = [...nights.values()].filter((n) => n.conflicts.length);
+if (dupNights.length) {
+  const files = dupNights.reduce((t, n) => t + n.dropped.length, 0);
+  console.log(`\n  de-duplicated: ${files} file(s) across ${dupNights.length} night(s) were the SAME recording ingested twice — one copy kept per basename`);
+  for (const n of dupNights.slice(0, 6)) console.log(`    ${n.key}: ${n.dropped.length} dropped, e.g. ${n.dropped[0]}`);
+  if (dupNights.length > 6) console.log(`    … +${dupNights.length - 6} more night(s)`);
+}
+for (const n of conflictNights) {
+  for (const c of n.conflicts)
+    console.log(
+      `  ✗ ${n.key}: ${c.name} exists twice with DIFFERENT sizes (${c.keptBytes} vs ${c.otherBytes}) — which bytes are the recording is ambiguous; night REFUSED\n      ${c.kept}\n      ${c.other}`
+    );
+}
+
 for (const n of nights.values()) {
   const csvStamps = new Set(n.oxy.filter((r) => r.kind === 'csv').map((r) => r.stamp));
   n.oxy = n.oxy.filter((r) => r.kind !== 'dat' || !csvStamps.has(r.stamp));
@@ -692,6 +1164,9 @@ const concurrentSet = (arr, anchorIv, label, key, minOverlapH) => {
 
 /* ── 3 · plan ────────────────────────────────────────────────────────────── */
 let plan = [...nights.values()].sort((a, b) => a.key.localeCompare(b.key));
+// A night whose inputs are AMBIGUOUS never reaches the planner: printing the refusal and then folding
+// it anyway would be the loudest possible way to ship a guess (§∅ — a discontinuity refuses).
+plan = plan.filter((n) => !(n.conflicts && n.conflicts.length));
 if (ONLY.length) plan = plan.filter((n) => ONLY.includes(n.key));
 
 // The worker's hard floor is 1000 s of simultaneous coverage (sensor-trio-worker.js:307). Require
@@ -712,6 +1187,11 @@ for (const n of plan) {
   const anchorIv = mergeIv(n.oxy);
   if (!anchorIv.length) {
     console.log(`  ⊘ ${n.key} — not a trio night (no O2Ring anchor)`);
+    nightVerdict(n.key, 'NOT_APPLICABLE', {
+      offered: GATE_LEGS.filter((l) => n[{ oxy: 'oxy', ecg: 'ecg', ppg: 'ppg', accH10: 'acc_h10', accVer: 'acc_ver', gyro: 'gyro', magn: 'magn', o2ppg: 'o2ppg' }[l]]?.length).length,
+      judged: 0,
+      reason: 'not a trio night — no O2Ring anchor; the gate judges nothing without one'
+    });
     continue;
   }
   const pick = {
@@ -731,6 +1211,10 @@ for (const n of plan) {
     o2ppg: concurrentSet(n.o2ppg, anchorIv, 'O2Ring PPG', n.key, 0)
   };
   const have = [pick.ecg && 'ECG', pick.ppg && 'PPG', pick.oxy.length && 'SpO2'].filter(Boolean);
+  const offeredLegs = GATE_LEGS.filter(
+    (l) => (l === 'oxy' ? n.oxy : n[{ ecg: 'ecg', ppg: 'ppg', accH10: 'acc_h10', accVer: 'acc_ver', gyro: 'gyro', magn: 'magn', o2ppg: 'o2ppg' }[l]])?.length
+  ).length;
+  const judgedLegs = GATE_LEGS.filter((l) => pick[l] && pick[l].length).length;
   /* THREE IS A FUSION PRECONDITION, NOT A DATA ONE (POOLED-CLOCK-FIT-FOLLOWUPS §4).
      `tch-multinight` needs a genuine three-way overlap, so this tool has always required one. The
      CLOCK FIT needs no such thing — it consumes CPAP anchors plus whatever wearable channels exist,
@@ -741,6 +1225,16 @@ for (const n of plan) {
      `--allow-partial` admits them; default OFF, so every existing analysis is byte-unchanged. */
   if (have.length < (ALLOW_PARTIAL ? 1 : 3)) {
     console.log(`  ⊘ ${n.key} — not a concurrent trio night (have: ${have.join('+') || 'none'})`);
+    // NO `result` — the validator refuses one on NOT_APPLICABLE (the criterion does not bind, so
+    // nothing was measured). The legs ride in the reason, where they already were. ⚠️ This CRASHED the
+    // tool on every non-trio night (measured 2026-09-22 re-folding 2026-08-24): the selftest above
+    // builds a NOT_APPLICABLE with no result and passed, so the assertion covered a shape the real
+    // call site never used — `the-named-suite-is-not-the-spec`, one line apart.
+    nightVerdict(n.key, 'NOT_APPLICABLE', {
+      offered: offeredLegs,
+      judged: judgedLegs,
+      reason: `not a concurrent trio night — have ${have.join('+') || 'none'}, the run requires ${ALLOW_PARTIAL ? 1 : 3}`
+    });
     continue;
   }
   if (ALLOW_PARTIAL && have.length < 3) console.log(`    · ${n.key}: PARTIAL night — ${have.join('+')} only; fittable for the clock, NOT a fusion trio`);
@@ -797,6 +1291,12 @@ for (const n of plan) {
         `${chosenH.toFixed(1)} h (${chosenH > 0 ? ((chosenNoct / chosenH) * 100).toFixed(0) : 0}%) inside ${bh(BAND_A)}–${bh(BAND_B)} — ` +
         `no block is majority-nocturnal (pass --keep-daytime to fold it anyway)`
     );
+    nightVerdict(n.key, 'FAIL', {
+      offered: offeredLegs,
+      judged: judgedLegs,
+      result: { spanH: +chosenH.toFixed(2), nocturnalH: +chosenNoct.toFixed(2), legs: have },
+      reason: `NOT NOCTURNAL — only ${chosenNoct.toFixed(1)} h of ${chosenH.toFixed(1)} h inside ${bh(BAND_A)}–${bh(BAND_B)}; no block is majority-nocturnal`
+    });
     continue;
   }
   const ov = ivSpan(threeIv) / 3600e3;
@@ -814,6 +1314,12 @@ for (const n of plan) {
   }
   if (ov < MIN_OVERLAP) {
     console.log(`  ⊘ ${n.key} — three-way merged overlap ${ov.toFixed(1)} h < ${MIN_OVERLAP} h${trimmed.length ? ' (after the nocturnal trim above)' : ''}`);
+    nightVerdict(n.key, 'FAIL', {
+      offered: offeredLegs,
+      judged: judgedLegs,
+      result: { overlapH: +ov.toFixed(2), nocturnalFrac: +noctFrac.toFixed(3), legs: have },
+      reason: `three-way merged overlap ${ov.toFixed(1)} h < ${MIN_OVERLAP} h${trimmed.length ? ' after the nocturnal trim' : ''}`
+    });
     continue;
   }
   if (clusters.length > 1) {
@@ -835,8 +1341,20 @@ for (const n of plan) {
     `  ✓ ${n.key} — ${have.length < 3 ? 'PARTIAL (' + have.join('+') + ')' : 'concurrent trio'}, ${ov.toFixed(1)} h ${have.length < 3 ? 'overlap' : 'three-way overlap'} (merged sessions)` +
       (KEEP_DAYTIME ? '' : `, ${(noctFrac * 100).toFixed(0)}% nocturnal`)
   );
+  nightVerdict(n.key, 'PASS', {
+    offered: offeredLegs,
+    judged: judgedLegs,
+    result: { overlapH: +ov.toFixed(2), nocturnalFrac: +noctFrac.toFixed(3), legs: have, partial: have.length < 3 },
+    evidence: legEvidence(pick)
+  });
   trio.push(pick);
 }
+// the run-level object; on a dry run it is computed and printed under --json but not written
+const gateRun = writeVerdicts(nightVerdicts, { dry: DRY });
+if (!DRY)
+  console.log(
+    `gate verdict  : ${gateRun.status} — ${gateRun.result.folded} folded · ${gateRun.result.rejected} rejected · ${gateRun.result.notTrio} not trio → ${join(OUT, 'trio-batch-verdicts.json')}`
+  );
 
 console.log(`\ntrio nights: ${trio.length}${LIMIT ? ` (limiting to ${LIMIT})` : ''}`);
 let work = LIMIT ? trio.slice(0, LIMIT) : trio;
@@ -980,9 +1498,16 @@ if (!CHILD && work.length >= 1 && (work.length > 1 || planConcurrency().jobs > 1
   const nightOutcome = new Map(); // night key → { ok, total } so the parent can stamp a fully-green night
   let done = 0,
     failed = 0;
-  const runOne = ({ p, node }) =>
+  const oomRetry = []; // nights that died of heap exhaustion, retried ALONE after the pool drains
+  const runOne = ({ p, node }, opts = {}) =>
     new Promise((res) => {
-      const args = [`--max-old-space-size=${heapMB}`, __filename, '--src', SRC, '--out', OUT, '--night', p.key, '--child', '--min-hours', String(MIN_HOURS), '--min-overlap', String(MIN_OVERLAP)];
+      /* `cap` is hoisted rather than inlined so the array below stays ONE line. That is not
+         cosmetic: the `trio-batch forwards its night-selection flags to the child` gate anchors on
+         the head of this array as a single string, and inlining `opts.heapMB || heapMB` pushed the
+         line past Biome's width, which wrapped the array and blinded the gate. It said so rather
+         than passing — "the dispatch shape changed — this gate is reading nothing". */
+      const cap = opts.heapMB || heapMB;
+      const args = [`--max-old-space-size=${cap}`, __filename, '--src', SRC, '--out', OUT, '--night', p.key, '--child', '--min-hours', String(MIN_HOURS), '--min-overlap', String(MIN_OVERLAP)];
       if (node) args.push('--only-node', node);
       if (KEEP_DAYTIME) args.push('--keep-daytime');
       if (ALLOW_PARTIAL) args.push('--allow-partial');
@@ -1035,25 +1560,25 @@ if (!CHILD && work.length >= 1 && (work.length > 1 || planConcurrency().jobs > 1
       });
       ch.on('close', (code) => settle(code, null));
       function finish(code) {
-        done++;
+        if (!opts.retry) done++;
         // Print each night's block whole, so interleaved children never shred each other's output.
         const body = out
           .split('\n')
           .filter((l) => /^\s{4,}[✓✗⊘·⏱⚖]/.test(l)) // `{4,}`, ⏱ and ⚖: deeper-indented fit/agreement lines — an exact-4 filter silently ate the first, and a missing ⚖ ate the second
           .join('\n');
-        console.log(`\n▸ ${p.key}${node ? ` · ${node}` : ''}  [${done}/${queue0}]${code === 0 ? '' : `  ✗ child exit ${code}`}`);
-        if (body) console.log(body);
+        // A retry is not an (n+1)th job: counting it in the denominator printed `[4/3]`, which reads
+        // as a miscount rather than as a second attempt at a job already counted.
+        const tag = opts.retry ? 'heap retry' : `${done}/${queue0}`;
+        console.log(`\n▸ ${p.key}${node ? ` · ${node}` : ''}  [${tag}]${code === 0 ? '' : `  ✗ child exit ${code}`}`);
+        const report = childReport(code, body, out);
+        if (report) console.log(report);
         if (code !== 0) {
           failed++;
-          if (!body)
-            console.log(
-              out
-                .trim()
-                .split('\n')
-                .slice(-3)
-                .map((l) => '    ' + l)
-                .join('\n')
-            );
+          /* A heap death is deferred to the retry phase rather than retried here. Retrying in place
+             would put the big-cap child beside its siblings — which is the failure mode this whole
+             design exists to avoid, and it would still LOOK fine on a run where the siblings
+             happened to have finished. */
+          if (!opts.retry && isHeapOom(code, out)) oomRetry.push({ p, node });
         }
         // A split night is only STAMPED once every one of its nodes has come back 0 — the same rule the
         // in-child path uses (all three exports landed), enforced here because no single child can see
@@ -1097,6 +1622,30 @@ if (!CHILD && work.length >= 1 && (work.length > 1 || planConcurrency().jobs > 1
     while (queue.length) await runOne(queue.shift());
   });
   await Promise.all(workers);
+
+  /* ── RETRY A HEAP DEATH, ALONE ─────────────────────────────────────────────────────────────────
+     "Alone" is the entire argument for retrying rather than raising the ceiling (see RETRY_HEAP_MB),
+     so it is ENFORCED here rather than hoped for. `Promise.all(workers)` resolves only once every
+     worker loop has exited, which happens only when the queue is empty AND its last child has
+     settled — so at this line nothing of ours is running, and the loop below awaits each retry in
+     turn. A retry therefore holds RETRY_HEAP_MB while the box holds nothing else of this run's.
+
+     ⚠️ Do NOT move this into the worker pool or run it with `Promise.all`. A big-cap child beside
+     two ordinary ones is ~8.7 GB against today's ~6.9 — worse than not retrying at all, and on a
+     run where the siblings happen to finish first it would look identical to this code. "It was
+     alone" and "it is guaranteed alone" are indistinguishable on a passing run; only one of them
+     survives a busy box. */
+  if (oomRetry.length) {
+    console.log(`\n${'─'.repeat(64)}`);
+    console.log(`heap retry    : ${oomRetry.length} night(s) died of heap exhaustion at ${heapMB} MB — retrying ALONE at ${RETRY_HEAP_MB} MB`);
+    for (const job of oomRetry) {
+      const before = failed;
+      await runOne(job, { heapMB: RETRY_HEAP_MB, retry: true });
+      if (failed === before)
+        failed--; // it succeeded on retry: un-count the first death, don't double-count
+      else console.log(`    ✗ ${job.p.key} failed again at ${RETRY_HEAP_MB} MB — this is not a cap problem`);
+    }
+  }
 
   const secs = (Date.now() - t0) / 1000;
   const complete = readdirSync(OUT, { withFileTypes: true }).filter((d) => d.isDirectory() && countTrioExports(join(OUT, d.name)) === TRIO_NODES.length).length;
@@ -1480,7 +2029,7 @@ function readDatTimefit(dirs, winLo, winHi, ringClock) {
   };
 }
 
-/* Roll every `*_rtclog.csv` in the arrival scope into ONE ring-clock verdict, or null when no sidecar
+/* Roll every `*_RTCLOG.csv` in the arrival scope into ONE ring-clock verdict, or null when no sidecar
    is present or holds a readable row. Mirrors `nightqc.rtc_drift_summary` (Python) exactly:
      • reads / pushes / resets / batteries — per-event counts across every file, WINDOW-scoped.
      • firstOffsetS / lastOffsetS — the first and last periodic READ offset (push has no offset).
@@ -1492,7 +2041,13 @@ function readRingClockLog(dirs, inWindow, DexClock) {
   const files = [];
   for (const d of dirs) {
     try {
-      for (const n of readdirSync(d)) if (n.endsWith('_rtclog.csv')) files.push(join(d, n));
+      /* CASE-INSENSITIVE, and that is the fix. `capture_filename` upper-cases every stream tag, so the
+         daemon writes `…_RTCLOG.csv`; this line read `endsWith('_rtclog.csv')` from 699bfc0e (#1635)
+         until 2026-09-05 and matched NOTHING on any real night — 0 of 18 local arrival sidecars carried
+         a `ringClock` while the box held 29 logs a day. The gate asserted the lowercase literal, so it
+         encoded the defect. Same class as #2219 (nightqc) and #2215: writer and reader named the file
+         differently and nothing compared them. Mirrors oxydex-dsp's `/_rtclog\.csv$/i`. */
+      for (const n of readdirSync(d)) if (/_rtclog\.csv$/i.test(n)) files.push(join(d, n));
     } catch {
       /* unreadable dir → simply no sidecar from it */
     }
@@ -1586,11 +2141,21 @@ function writeAgreement(dir, key) {
     console.log(`    ⚖ agreement: ${r && r.reason ? r.reason : 'not computed'}`);
     return null;
   }
+  /* TWO STATISTICS, because one number was doing two jobs (residue
+     `2026-09-16-agreement-gate-is-15x-coarser-than-sigma`). The 15 bpm default is a FAULT gate — the
+     wrong device, a harmonic double — and at that tolerance 59 of 63 corpus nights flag 0.0 %, which
+     then reads as "the nodes agree" while the σ the corpus actually estimates is ~0.44–1 bpm. The
+     same primitive at HR_QUALITY_TOL_BPM answers the quality question and has spread to report
+     (0–61 % over the same nights). Reported ALONGSIDE, never instead: the gate keeps its meaning. */
+  const q = ctx.IntegratorDSP.hrAgreement(sources, { tolBpm: HR_QUALITY_TOL_BPM });
+  const fine = q && q.ok ? { tolBpm: q.tolBpm, flagged: q.flagged, compared: q.compared, flaggedPct: q.flaggedPct } : null;
   const worst = Object.keys(r.fault).sort((a, b) => r.fault[b] - r.fault[a])[0];
   const named = r.fault[worst] > 0 ? `  worst=${worst} (${r.fault[worst]})` : '';
   const dropNote = r.droppedFragments ? `  dropped=${r.droppedFragments} fragment(s)` : '';
+  const fineNote = fine ? `  · quality: ${fine.flagged}/${fine.compared} >${fine.tolBpm} bpm (${fine.flaggedPct} %)` : '';
   console.log(
-    `    ⚖ HR agreement: ${r.flagged}/${r.compared} epoch(s) disagree >${r.tolBpm} bpm (${r.flaggedPct} %)` + `  adjudicable=${r.adjudicable}${dropNote}${named}  nodes=${r.nodes.join('/')}`
+    `    ⚖ HR agreement (fault gate): ${r.flagged}/${r.compared} epoch(s) disagree >${r.tolBpm} bpm (${r.flaggedPct} %)` +
+      `  adjudicable=${r.adjudicable}${dropNote}${named}  nodes=${r.nodes.join(',')}${fineNote}`
   );
   // Only the SUMMARY plus the flagged epochs — a full per-epoch dump would be most of the night.
   const outPath = join(dir, `agreement_${key}.json`);
@@ -1600,6 +2165,8 @@ function writeAgreement(dir, key) {
       {
         night: key,
         tolBpm: r.tolBpm,
+        // the fine statistic beside the gate — same primitive at HR_QUALITY_TOL_BPM; its flagged epochs are not kept
+        quality: fine,
         nodes: r.nodes,
         compared: r.compared,
         adjudicable: r.adjudicable,
@@ -1987,7 +2554,9 @@ for (const p of work) {
      never going to exist. A missing leg is a fact about the night, not a failure. */
   if (wantNode('ECGDex') && p.ecg && p.ecg.length)
     try {
-      const rec = mergeEcg(p.ecg.map((f) => ECGDex.parseECG(readFileSync(f.full, 'utf8'))));
+      // STREAMED, not slurped — see readLinesBounded. `map` runs one file at a time, so peak is
+      // one chunk plus the compact Int16Array the parser accumulates, not the whole text.
+      const rec = mergeEcg(p.ecg.map((f) => ECGDex.parseECGLines(readLinesBounded(f.full))));
       if (p.accH10 && p.accH10.length) {
         /* ALL concurrent ACC sessions, laid on ONE UNIFORM GRID with the silence between them padded.
            `[0]` was wrong (the earliest session is often a settling fragment: 2026-07-27 had 7 sessions

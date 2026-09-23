@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED (parked 2026-09-02 — 4 of 5 done-when items are closed and the mechanism is built and armed (`oxy_presence.py`, `pull.on_doff` at `capture.py:5911-5940`, arming reported at `:6056`). The last item is a COMPARISON, not a build: whether presence-aware scheduling actually beats the hourly poller, measured against the 2026-08-23 cadence baseline over ≥3 nights of worn-ring doff cycles. The data does not exist in the repo and cannot — it is firing counts from OXYLIFE/journal on the box. **Owner:** Heron · **Next step:** collect 3 worn nights, then compare firings against the 2026-08-23 baseline — and record it even if presence LOSES) · **Created:** 2026-08-23
+**Status:** DONE — 2026-09-05 (Heron: the last done-when item — the comparison against the 2026-08-23 poller baseline — is now MEASURED over 10 worn nights, §6-MEASURED: presence wins on the night's session, median close→commit **1.6 min** vs the poller's ~30 min expected / 60 worst, at 4.5 pulls/day vs ~24; it loses on same-night earlier fragments, which the `latest` doff scope leaves to the hourly poller — 4 of 22 sessions, 6.5–10.8 h late) · **Residue:** 2026-09-05-doff-pull-latest-strands-fragments · **Created:** 2026-08-23
 
 # The ring's presence is a state we can MEASURE, not one we infer from advertising
 
@@ -243,9 +243,55 @@ rather than to a log line's absence. **An absence in a log is bounded by where a
 - [x] The probe's opcode set is confined to `O2RING-OPCODE-SURFACE`'s read-only list, cited per opcode.
       *(2026-08-25: no probe was needed — every presence/recording signal (contact, duration_s,
       run_status) rides the existing cmd 0x04 live poll the daemon already sends; zero new opcodes.)*
-- [ ] Recorded whether presence-aware scheduling actually beats the hourly poller, measured against
+- [x] Recorded whether presence-aware scheduling actually beats the hourly poller, measured against
       the 2026-08-23 cadence baseline rather than assumed to. *(2026-08-25: the event path is LIVE —
       `pull.on_doff` enabled (owner-flipped), armed line printing, first firings this morning (one
       link-contention failure gracefully deferred to the backstop; one clean Verity no-op). The
       comparison against the 2026-08-23 poller baseline accrues from tonight's first full
       event-driven doff cycle — measure after ≥3 nights rather than on the first.)*
+      *(DONE 2026-09-05 — §6-MEASURED below: it does, on the session the doff closes; and the measured
+      cost is the `latest` scope, not the schedule.)*
+
+### §6-MEASURED, 2026-09-05 (Heron, box read) — presence-aware scheduling vs the hourly poller
+
+**Window:** `pull.on_doff` flipped 2026-08-25 → 2026-09-05, 12 days, **10 worn nights** (sessions ≥ 3 h),
+22 committed O2Ring sessions. Source: vigil system journal (`auto-pull (not-worn)` / `new onboard session`
+lines) joined to `captures/stored/inventory.jsonl` (first COMMITTED row per session; close = session
+stamp + `duration_s`, or `approx_samples` where the sidecar predates `device_summary`). Box local time.
+
+**Baseline (2026-08-23, this brief §0):** hourly blind poller, 409 pulls, median inter-pull gap 3601 s. Under a
+free-running hourly tick the close→harvest latency is uniform on 0–60 min: **expected ~30 min, worst 60**, plus
+a whole extra hour per tick that lands while the ring is asleep (the 08-24 case in §5: doff 04:38, harvest 05:45
+= 67 min).
+
+**Measured, presence-aware (doff trigger, `which=latest`):**
+
+| | poller baseline | doff trigger, 10 nights |
+|---|---|---|
+| close → commit, the night's main session | ~30 min expected, 60 worst | **median 1.6 min**; 7/10 ≤ 2.2 min; 8/10 ≤ 15 min |
+| pulls dispatched per day at the O2Ring | ~24 (409 / 17 d) | **4.5** (54 in 12 d: 36 ok + 18 `BleakDBusError`) |
+| productive pulls | — | 16 of 36 ok pulls landed ≥ 1 file (18 files) |
+
+Latencies (min), main session per night: 1.0 · 1.0 · 1.1 · 1.2 · 1.3 · 1.9 · 2.2 · 14.6 · 238.1 · 836.2.
+The three that exceed the 45 s debounce + p90 pull by more than a minute are NOT the scheduler: 09-05 (14.6 min)
+is the post-doff **restart storm** — 11 "ring started a new recording session" lines in 02:27:51–02:29:13 holding
+the link (the #2209 storm hold merged 2026-09-05 and reached the box at 09:30 today, inside `c3d26d7c`; tonight is its
+first night); 08-26 (238 min) was the first morning — two doff pulls failed on
+`org.bluez.Error.InProgress` (link contention with the daemon's own reconnect, the failure §5 predicted) and the
+third at 09:35 landed 3 files; 08-27 (836 min) the ring went **not-advertising** at 07:34 and stayed unreachable
+until the owner picked it up at 21:16 — in those 14 h the hourly poller fired into the same silence. A sleeping
+unworn ring is invisible to BOTH schedulers; that miss is charged to neither (§5's "wake-dependence", now
+measured once). **Presence WINS on the night's session, by ~20× in latency and ~5× in pulls.**
+
+🔴 **What it LOSES, measured — and it is a scope choice, not a scheduling one.** `pull_scope_for('not-worn')`
+returns `latest` (§14b: the doff pull races the post-drop advertising window; `all` does not fit it). On a
+night with several onboard fragments the trigger commits only the newest; the earlier ones wait for the hourly
+`which=all` poller — which then only reaches an unworn ring while it is awake. Measured: **4 of 22 sessions reached
+disk via the poller alone**, 6.5–10.8 h after close — 08-28/29 (a **2.3 h** session, 8308 s, and a 268 s fragment:
+404 / 393 min late, poller 08:29) and 09-03/04 (4556 s + 772 s: 647 / 632 min late, poller 05:44). The night's
+main session was on disk within 2 min both times. Residue `2026-09-05-doff-pull-latest-strands-fragments`.
+
+**Done-when item 5 is closed: recorded, and presence beats the poller — on the session the doff closes.** The
+brief's own caution ("measure rather than assume") was right in the direction nobody expected: the cost is not
+missed doffs, it is the `latest` scope leaving the night's OTHER files to the mechanism presence was meant to
+replace.

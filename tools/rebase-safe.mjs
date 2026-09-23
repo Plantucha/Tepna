@@ -29,6 +29,23 @@
  *     conflict in a GENERATED path  →  auto-resolve, then rebuild from source, then verify
  *     conflict in ANY other path    →  STOP. Abort the rebase. Name the files. Exit non-zero.
  *
+ * ⚠️ THAT SECOND LINE IS NOT ABSOLUTE, AND READING IT AS ABSOLUTE IS HOW A LEDGER GETS CORRUPTED.
+ * The whole model above is CONFLICT-DRIVEN: it enumerates `--diff-filter=U` and can only act on paths
+ * git reports as unmerged. A path carrying `merge=union` in `.gitattributes` NEVER CONFLICTS — the
+ * driver keeps both sides — so it cannot appear in that list, the STOP branch cannot fire, and this
+ * tool sails through reporting success. `.gitattributes` already says so at the `briefs/RESIDUE.md`
+ * rule ("rebase-safe treats the file as source and now finds no conflict"); it is restated here because
+ * a reader trusting the contract above will not go and open `.gitattributes`.
+ *
+ * A union driver cannot represent an EDIT. Appends merge fine, which is what the attribute is for; but
+ * editing a line — closing a RESIDUE row's state cell — leaves BOTH the old and the new line, and the
+ * ledger then contradicts itself about whether a defect is live. A REBASE replays your diff through the
+ * same driver, so it is not a way around this: measured 2026-09-15, `#2506`'s own rebase duplicated a
+ * row. For those paths the safe move is to REBUILD the edit on a fresh branch off the target, which
+ * sends the file through no merge driver at all.
+ *
+ * `checkUnionPaths` below turns that from a footnote into a local failure.
+ *
  * THE GENERATED SET IS ASKED FOR, NEVER GUESSED. A glob would be the second version of this bug:
  * `*.html` would match the authored `*.src.html`, every hand-written reference guide and `Science.html`
  * — and auto-resolving one of those is exactly the silent revert this tool exists to prevent. The set
@@ -43,12 +60,68 @@
  *   node tools/rebase-safe.mjs --no-build      # skip the rebuild (classification + rebase only)
  * ═══════════════════════════════════════════════════════════════════════════════════════════ */
 import { execFileSync } from 'node:child_process';
+import { parseRows as parseLedgerRows } from './residue-ids.mjs';
 import { readFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+
+/* 🔴 THIS TOOL ACTS ON THE CHECKOUT IT LIVES IN, NOT THE ONE YOU ARE STANDING IN — and every git call
+   below is bound to `ROOT`, including `git rebase --continue` and the builders. So invoking ANOTHER
+   checkout's copy does not merely read the wrong tree, it would REBASE the wrong tree and run
+   `build.mjs --check` inside it.
+
+   Measured 2026-09-15: `node /home/michal/Tepna/tools/rebase-safe.mjs` run from a worktree refused
+   with "working tree is not clean" while that worktree was spotless — it was reporting the SHARED
+   ROOT's cleanliness. That refusal is permanent, because the shared root is essentially never clean,
+   and a permanent refusal looks like a tool bug, so the natural response is to work around it.
+
+   ⚠️ IT FAILS SAFE *BECAUSE* THE SHARED ROOT IS DIRTY, WHICH IS WHAT MAKES IT DANGEROUS. The luck is
+   load-bearing and inverts the moment someone tidies the root: on a CLEAN shared root the guard
+   passes and the tool proceeds to rebase `main` in the checkout five other sessions are standing in.
+   That is CLAUDE.md §👥.2b's hazard reached through a different door — not a hand ref-move, but a tool
+   operating on its own checkout instead of yours.
+
+   THE FIX IS TO REFUSE, NOT TO RETARGET. Deriving `ROOT` from `git rev-parse --show-toplevel` would
+   make `node /other/checkout/tools/rebase-safe.mjs` silently act on the cwd instead — surprising in
+   the opposite direction, and a tool that quietly retargets itself is its own hazard. An ambiguous
+   invocation reports as ambiguous and names both paths, which is the same honest-absence rule §∅
+   applies to a missing measurement. `--show-toplevel` is used to DETECT the mismatch, never to
+   resolve it. */
+{
+  let cwdTop = null;
+  try {
+    /* stderr IGNORED: outside a checkout git writes a multi-line 'fatal: not a git repository'
+       before this catch can run, and a guard that is silent by design must not leak the probe it used
+       to decide it had nothing to say. */
+    cwdTop = execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: process.cwd(), encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  } catch {
+    /* not a git checkout at all ⇒ let the normal paths report it; this guard only speaks to the
+       TWO-CHECKOUT case, and inventing a second failure mode here would obscure the first. */
+  }
+  if (cwdTop) {
+    let rootTop = ROOT;
+    try {
+      rootTop = execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: ROOT, encoding: 'utf8' }).trim();
+    } catch {
+      /* unreadable ⇒ compare the literal paths below rather than skipping the check entirely */
+    }
+    if (rootTop !== cwdTop) {
+      process.stderr.write(
+        `rebase-safe: REFUSED — you are standing in one checkout and ran another one's copy.\n` +
+          `  your checkout : ${cwdTop}\n` +
+          `  this script's : ${rootTop}\n` +
+          `Every git call in this tool is bound to the script's own checkout, so continuing would\n` +
+          `rebase ${rootTop} and run its builders — not the tree you are in. Run YOUR copy:\n` +
+          `  cd ${cwdTop} && node tools/rebase-safe.mjs\n`
+      );
+      process.exit(4);
+    }
+  }
+}
+
 const require = createRequire(import.meta.url);
 const C = { red: '[31m', grn: '[32m', yel: '[33m', bold: '[1m', off: '[0m' };
 const paint = (s, c) => (process.stdout.isTTY ? c + s + C.off : s);
@@ -348,6 +421,99 @@ async function reportStampDamage(before) {
   }
 }
 
+/**
+ * THE BACKSTOP FOR THE CONFLICT-DRIVEN MODEL'S ONE BLIND SPOT (see the header).
+ *
+ * A `merge=union` path never conflicts, so it cannot reach the `--diff-filter=U` machinery above. After
+ * a clean rebase this asks git which of the rebased paths actually carry the attribute and reports any
+ * row key that now appears more than once — the signature of an EDIT replayed through a union driver,
+ * which keeps both the old line and the new one.
+ *
+ * Reads the COMMITTED HEAD, never the working tree. A working tree that has not been touched yet
+ * answers truthfully about itself and tells you nothing about what you are holding — that false
+ * negative was measured on 2026-09-15 while diagnosing exactly this class.
+ *
+ * The attribute comes from `git check-attr`, never from parsing `.gitattributes`: the file has
+ * precedence rules and, as of today, two of its three union rules are vestigial (the
+ * `tests/*-list.txt` snapshots were retired in 2026-07), so a hand-rolled parse would be both wrong and
+ * stale. Asking git costs one call and cannot drift.
+ *
+ * Keys are `| <key> |` leading table cells, the shape the only live union path uses. A union file with
+ * no such rows produces no keys and is reported clean rather than guessed at — this check is a
+ * duplicate-detector for keyed ledgers, not a general union linter, and it says so rather than
+ * pretending to cover a file whose shape it does not know.
+ */
+/**
+ * PURE (exported for the suite): the dated ledger keys that appear MORE THAN ONCE in `text`.
+ *
+ * This is the signature of an EDIT replayed through a `merge=union` driver — the driver keeps both the
+ * old line and the new one, so a closed row survives twice and the ledger contradicts itself about
+ * whether the defect is live.
+ *
+ * ⚠️ THE ROW SHAPE IS `residue-ids.mjs`'s, NOT A SECOND COPY OF IT. `parseRows` is imported rather
+ * than reimplemented, because a row-shape disagreement between the checker and the rebaser would be
+ * this very bug one level up: two tools quietly differing on what counts as a row, with neither able
+ * to see the other's blind spot. It keys on DATED slugs (`YYYY-MM-DD-slug`), the documented residue
+ * key shape. A looser "first table cell" pattern also matches the file's OWN row-contract table —
+ * `| key |`, `| logged |`, `| state |` — and those legitimately recur, so an earlier draft of this
+ * reported a duplicate on a CLEAN `origin/main`.
+ * That was caught by running the detector against clean main as a NEGATIVE CONTROL before shipping it:
+ * a check that fires on a healthy tree blocks every rebase and gets disabled, which is worse than not
+ * having it. The positive control is the real union-merged tree measured 2026-09-15, where it finds
+ * exactly the two keys that were duplicated and nothing else.
+ */
+export function duplicateLedgerKeys(text) {
+  const seen = new Map();
+  for (const r of parseLedgerRows(text)) seen.set(r.id, (seen.get(r.id) || 0) + 1);
+  return [...seen.entries()].filter(([, n]) => n > 1).map(([k]) => k);
+}
+
+function checkUnionPaths(onto) {
+  const touched = git('diff', '--name-only', onto + '...HEAD')
+    .split('\n')
+    .filter(Boolean);
+  if (!touched.length) return;
+  let attrs = '';
+  try {
+    attrs = git('check-attr', 'merge', '--', ...touched);
+  } catch {
+    return; // check-attr unavailable/errored — this is a backstop, never a blocker
+  }
+  const union = attrs
+    .split('\n')
+    .filter((l) => /: merge: union$/.test(l))
+    .map((l) => l.replace(/: merge: union$/, ''));
+  if (!union.length) return;
+
+  const bad = [];
+  for (const p of union) {
+    let text = '';
+    try {
+      text = git('show', 'HEAD:' + p);
+    } catch {
+      continue; // path deleted by the rebase — nothing to duplicate
+    }
+    const dups = duplicateLedgerKeys(text);
+    if (dups.length) bad.push({ path: p, dups });
+  }
+  if (!bad.length) {
+    console.log(paint('  union-merge paths checked (' + union.length + '): no duplicated key', C.grn));
+    return;
+  }
+  console.error(paint('\n✕ UNION-MERGE DUPLICATE — the rebase reported success and corrupted a ledger:', C.red));
+  for (const b of bad) {
+    console.error('    ' + b.path);
+    b.dups.forEach((k) => console.error('      ' + k + ' appears more than once'));
+  }
+  console.error(paint('\n  This is NOT a conflict you resolve — a union driver keeps BOTH sides, so an', C.yel));
+  console.error(paint('  EDIT (closing a row) survives twice and the ledger contradicts itself.', C.yel));
+  console.error('\n  REBUILD the edit on a fresh branch off ' + onto + ' instead of merging or rebasing onto it:');
+  console.error('    git checkout -b <branch>-v2 ' + onto + '   # then re-apply the one-cell edit by hand');
+  console.error('  Assert the current state before re-applying — if the row is already closed, the work');
+  console.error('  is already done and the duplicate is what you were about to create.');
+  process.exit(1);
+}
+
 async function main() {
   const argv = process.argv.slice(2);
   const gen = generatedSet();
@@ -420,6 +586,8 @@ async function main() {
     void cont;
   }
   console.log(paint('  rebase complete', C.grn));
+
+  checkUnionPaths(onto);
 
   if (doBuild) {
     console.log(paint('▸ rebuilding every generated tree from source', C.bold));

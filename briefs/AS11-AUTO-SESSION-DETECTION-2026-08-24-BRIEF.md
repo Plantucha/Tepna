@@ -1,5 +1,5 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED (parked 2026-09-02 — three open items ALL need an attended box session and one needs code first: the ~40 s debounce confirmation over several natural mask-offs (measurable from `/srv/tepna/SESSIONDETECT.csv`, 10195 rows as of today — the data exists, the analysis is unwritten); `Leak`-validity promotion timing, which is NOT YET INSTRUMENTED (`cpap_shadow_runner.py` polls only FGState/MaskPressure/MachineMetrics — add `Leak` to the poll set first); and the `SubscribeEvent` (0x3a) yes/no, which needs a read-only probe scheduled OUTSIDE a capture night because of the AS11 single-connection limit. The clock investigation is ANSWERED and closed — `as11_clock.py` + `probe_as11_clock.py`, ca19e084 (#1956). **Owner:** Heron · **Next step:** measure debounce from SESSIONDETECT.csv — no hardware needed, only the analysis) · **Created:** 2026-08-24 · **Follows:** AS11-SESSION-DETECTOR-IMPLEMENTATION-2026-08-24
+**Status:** PROPOSED (parked 2026-09-02 — three open items ALL need an attended box session and one needs code first: the ~40 s debounce confirmation over several natural mask-offs (⚠ **the "measurable from `/srv/tepna/SESSIONDETECT.csv`" claim is WITHDRAWN 2026-09-03 — analysis written, see §7/§10.** Its sample interval is p50 34.8 s against a ~40 s event, so the instrument cannot resolve the quantity; the 25 Hz `BRP.edf` remains the only one that can. The attempt surfaced a **larger defect**: the detector reads `Standby`/`0.1` throughout nights when therapy provably ran, and slows 7× — the documented AS11 single-connection constraint below does not merely BLOCK the detector during a capture, it makes it report a confident wrong answer that is indistinguishable from a quiet night. ⚠ Active rows/day fall 64·409·334 → 0·3·3·1·2·0 across 08-29, **which reads as the earlier flapping having been fixed and is not** — in this file "no transitions" and "no false transitions" are the same shape, and therapy ran on those nights. Do not take the quiet as a repair. **Do not promote to acting mode on this evidence**); `Leak`-validity promotion timing, which is NOT YET INSTRUMENTED (`cpap_shadow_runner.py` polls only FGState/MaskPressure/MachineMetrics — add `Leak` to the poll set first); and the `SubscribeEvent` (0x3a) yes/no, which needs a read-only probe scheduled OUTSIDE a capture night because of the AS11 single-connection limit. The clock investigation is ANSWERED and closed — `as11_clock.py` + `probe_as11_clock.py`, ca19e084 (#1956). **Owner:** Heron · **Next step:** the debounce box is CLOSED (see Open items, 2026-09-19); what remains is `Leak` in the poll set (code first) and the `SubscribeEvent` probe (owner-scheduled) · ⚠ **RE-VERIFIED 2026-09-19 (Wren, box + tree):** nothing landed in the surface I checked since 09-03 (paths `cpap_supervisor.py`, `cpap_shadow_runner.py`, `cpap_detect.py`, `tests/test_as11_detector_read_only.py`; subjects /session.detect|shadow|supervisor|leak|acting|SubscribeEvent|debounce|standby/ → only #2160, the 09-03 analysis itself). `Leak` is STILL not polled — `cpap_shadow_runner.py:37 POLL_ITEMS = [FGState, MaskPressure, MachineMetrics]`. BOX — ⚠ CORRECTED THE SAME DAY (Wren, T1 in HOST time): an earlier draft of this note said the detector "reported last night as quiet"; that was a WINDOW ERROR — the EDF's 00:41 start is the AS11's DEVICE stamp (~+21 min against the host; the journal logs that EDF start at host 00:20:32), so device-stamped bounds were applied to host-stamped rows and pre/post-therapy rows counted as "during". Re-measured over every therapy session the journal bounds (11 sessions ≥10 min, 2026-08-31 → 09-19, auto-start era): the detector sighted `Therapy` **3–17 s BEFORE the stream started on 11/11** — its sighting IS what triggers `auto_start` (journal: "therapy sighted 0s ago") — and wrote **0 rows during therapy on 11/11**, because `cpap_shadow_runner` defers while the controller streams (it writes nothing, not Standby). The two witnesses are ONE witness, and it was right. The 09-03 clause above ("reads Standby/0.1 throughout nights when therapy provably ran") predates auto-start and was derived against EDF bounds; it must be re-derived in host time before it is cited again — it may describe the same window error. ⚠ The header contradicts itself: its **Next step** says *measure debounce from SESSIONDETECT.csv* and its own 09-03 clause WITHDRAWS that instrument (p50 34.8 s against a ~40 s event). The instrument it names instead — the 25 Hz `BRP.edf` — now EXISTS on the box EVERY NIGHT (`cpap-ble/DATALOG/<date>/`, since the EDF sink went live), so the debounce measurement no longer needs an attended session, only an analysis over recorded nights' mask-off events. The `SubscribeEvent` probe remains owner-scheduled and not checkable from code) · **Created:** 2026-08-24 · **Follows:** AS11-SESSION-DETECTOR-IMPLEMENTATION-2026-08-24
 
 # AS11 automatic therapy-session detection — research program + §23 hardware-matrix findings
 
@@ -54,6 +54,59 @@ BEYOND that (recommend 60–90 s). This evidences — not assumes — the owner'
 "stop needs stronger sustained evidence" rules. **MEASURED (n=1; refine tonight over several natural
 mask-offs).**
 
+🔴 **2026-09-03 — THE REFINEMENT CANNOT BE MADE FROM `SESSIONDETECT.csv`, and attempting it surfaced a
+larger defect. Three independent reasons, each sufficient.** The header's claim that this item is
+*"measurable from `/srv/tepna/SESSIONDETECT.csv` — the data exists, the analysis is unwritten"* is
+withdrawn: the data exists and does not answer this question.
+
+1. **The instrument's resolution is the size of the thing being measured.** Sample interval over all
+   12 374 rows: **p50 34.8 s · p90 45.4 s · max 275 s**, against a ~40 s mask-off ramp. A 40 s event on
+   a ~35 s grid is frequently spanned by zero or one sample. The n=1 figure that this section already
+   has came from the 25 Hz `BRP.edf` (Flow.40ms/Press.40ms) — **that remains the only instrument in the
+   system that can resolve it**, and the refinement needs more recorded mask-offs, not more polling.
+2. **The one period rich in transitions is an artifact, not a record of mask events.** Of 543 `stop`
+   transitions, **541 were issued while `mask_pressure` ≥ 4.0 cmH₂O** (p50 **7.8**, max 11.9) — i.e.
+   the detector declared a stop while its own row reported full therapy pressure. All 543 came from
+   `trigger=device_verdict`. They are concentrated in **2026-08-26 → 08-28** (47 · 272 · 222) and stop
+   almost completely afterwards (1 on 08-30, 1 on 08-31). Active-episode durations: **p50 69 s, and 532
+   of 543 under 120 s**, against exactly **one** episode over 180 s (31 271 s ≈ 8.7 h — the single real
+   night in the file). Any statistic taken over the whole file is dominated by this burst.
+   *(A duration debounce would suppress it wholesale — ≥60 s: 43.8 %, ≥90 s: 92.8 %, ≥120 s: 98.0 %. But
+   note these stops are refutable on **level alone**: the pressure never fell. §7/§10's "duration, not
+   level" is right about a genuine mask-off and does not cover this class, which needs no timer.)*
+3. 🔴 **THE DETECTOR GOES BLIND WHILE A CAPTURE IS STREAMING — measured on a night with independent
+   ground truth.** Therapy provably ran 2026-09-02 23:01 → 06:23 (a 2 305 792-byte
+   `20260902_232306_BRP.edf` written by the live stream, plus `CPAP harvest armed by therapy end
+   (therapy ended and held for 3883s)` at 06:30). Across that window the detector logged **109 rows, of
+   which 107 read `fg_state=Standby` with `mask_pressure=0.1`** and 2 read Therapy — both in the first
+   minute. It also **slowed 7×**: 109 samples over 7.5 h is one per ~248 s against its 34.8 s median.
+   Same device both sides (`AC:A7:F1:29:9D:1D` in the shadow banner and in the CPAP spool arm).
+   Fleet-wide the pattern holds — active rows per day collapse from 64 · 409 · 334 (08-26→28) to
+   **0 · 3 · 3 · 1 · 2 · 0** (08-29→09-03) while the file keeps logging 1200–1800 rows/day.
+
+   ⚠️ **The quiet since 08-29 therefore is NOT the flapping being fixed** — that is the reading to
+   avoid, because "no transitions" and "no false transitions" are the same shape in this file. Therapy
+   ran on those nights and the detector recorded Standby through it.
+
+   **Contention with the live stream is the hypothesis that fits, and this brief's own header already
+   supplies the mechanism** — it schedules the `SubscribeEvent` probe *"OUTSIDE a capture night because
+   of the AS11 single-connection"*. So the constraint was known. **What was not known is its
+   SIGNATURE**: contention does not make the detector fail loudly or go absent, it makes it answer
+   `Standby`/`0.1` — a confident wrong reading that is byte-identical to a genuinely quiet night. A
+   known constraint plus an unknown failure signature is why this sat unnoticed for six days while the
+   file kept logging 1700 rows a day. The attribution is still INFERRED, not measured; what is measured
+   is the coincidence of the blindness, the 7× cadence collapse, the shared MAC, and the onset matching
+   eager-start capture arming nightly. The discriminating test is one night with the
+   detector running and **no** live stream: if it tracks therapy normally, contention is confirmed; if
+   it still reads Standby, the fault is in the detector's own AS11 read path. That night needs no
+   hardware beyond the usual — only the stream disarmed — so it is cheaper than the mask-off exercise
+   this section was waiting on.
+
+   **Consequence for the acting-mode decision (§increment 3): do not promote this detector to acting on
+   its current evidence.** In shadow it is harmless. Acting, the 08-26→28 behaviour would have started
+   and stopped capture 543 times, and the 08-29→09-03 behaviour would have captured nothing at all —
+   the two failure modes are opposite and both present in two weeks of one file.
+
 ### §11 Disconnection semantics — connection outlives therapy
 Turning the blower OFF did **not** end the stream/connection — it persisted (beacon stayed absent) until
 the monitor stream was explicitly stopped. **A dropped/held connection ≠ therapy state.** **MEASURED.**
@@ -98,7 +151,7 @@ ACTIVE  ──(engage the live stream; stop-detection from the STREAM'S OWN flow
    is nearly free), so any file is recoverable to either clock. **Fix follows understanding.**
 
 ## Open items — tonight's natural sleep run refines
-- Debounce **n**: confirm the ~40 s mask-off self-ramp over several natural mask-offs.
+- ✅ Debounce **n** — CLOSED 2026-09-19 ON PRODUCTION EVIDENCE (owner/lead ruling via Kestrel; measured by Wren, read-only over the recorded EDFs). The natural-mask-off population is EMPTY: over 23 recorded therapy nights (31 EDFs on the box, 23 with ≥0.5 h and therapy pressure) there are **0** low-pressure episodes that recover within 10 min — and the instrument is not the reason (25 Hz pressure resolves the 08-25 37 s dip trivially; that test is the positive control). What closed the box is the debounce ACTING in production: `auto_stop` (`hold_sec` 120, `flow_eps_lpm` 0.1) ended **12 sessions** with trailing-low of **118–176 s** (the hold plus 0–55 s of ramp-down) and **zero resumptions** — re-starts within 60 min of an end are 4/30 gaps, all ≈0 min, i.e. immediate split files, not mask-offs. A hold that has ended twelve real nights and never cut one that resumed has been tested by the thing it exists to survive; staged mask-offs would be a smaller sample under chosen conditions. ⚠ What the record contains INSTEAD, un-named on purpose: 5–6 sessions (08-30 · 09-02 · 09-03 · 09-06 · 09-09 · 09-13) with pressure < 3 cmH2O for 18–100 min while |flow| ran 0.28–0.65 L/s — auto-stop cannot see them by construction, and they contradict this brief's n=1 model *"flow → ~0 for the ~40 s the mask was off"*. What the machine was doing needs the owner's memory of those nights or the device's own event log; it is with the owner.
 - `Leak`-validity timing: does it flip fast/clean enough to promote from corroborator to primary?
 - The `SubscribeEvent` (0x3a) rider (`CPAP-BLE-CAPTURE` follow-up) still rides for §5 completeness — its
   measured yes/no is owed even though §4 already answers the state question.

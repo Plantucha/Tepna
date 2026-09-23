@@ -252,3 +252,48 @@ def test_switch_field_happy_path_has_no_restore_hint(monkeypatch, capsys):
     out = capsys.readouterr().out
     assert "bitfield change" in out
     assert "restore with" not in out
+
+
+# ── ask_ack: the SET_CONFIG ack is read instead of silently drained ────────────────────────────────
+# Residue `2026-09-02-oxyii-acks-unparsed`. `0x01` SET_CONFIG is ack-only and its reply was never read,
+# so a REJECTED write looked exactly like an accepted one.
+
+
+def test_ask_ack_reads_a_success_ack():
+    ch = rc.Chan(None)
+    ch.q.put_nowait(oxyii.encode(oxyii.OP_SET_CONFIG, b"", flag=1))
+    assert _run(ch.ask_ack(oxyii.OP_SET_CONFIG)) is oxyii.AckResult.OK
+
+
+def test_ask_ack_reads_a_rejection_as_REJECTED_not_as_silence():
+    """The distinction the row exists for: a rejected write must not read like an accepted one, and
+    must not read like a missing one either."""
+    ch = rc.Chan(None)
+    ch.q.put_nowait(oxyii.encode(oxyii.OP_SET_CONFIG, b"", flag=0))
+    got = _run(ch.ask_ack(oxyii.OP_SET_CONFIG))
+    assert got is oxyii.AckResult.REJECTED
+    assert got is not oxyii.AckResult.NO_REPLY
+
+
+def test_ask_ack_times_out_to_NO_REPLY():
+    """Absence is observed HERE, at the wait — `parse_ack` cannot see a frame that never arrived. The
+    timeout is short so the test costs nothing; the production default is 2 s."""
+    ch = rc.Chan(None)
+    assert _run(ch.ask_ack(oxyii.OP_SET_CONFIG, timeout=0.01)) is oxyii.AckResult.NO_REPLY
+
+
+def test_ask_ack_skips_frames_for_other_opcodes_until_its_own():
+    """It drains the same frames the following `ask()` would have drained, so the flow is unchanged —
+    but it must not mistake another opcode's success for its own."""
+    ch = rc.Chan(None)
+    ch.q.put_nowait(oxyii.encode(oxyii.OP_GET_CONFIG, b"\x00" * 4, flag=1))
+    ch.q.put_nowait(oxyii.encode(oxyii.OP_SET_CONFIG, b"", flag=0))
+    assert _run(ch.ask_ack(oxyii.OP_SET_CONFIG, timeout=0.2)) is oxyii.AckResult.REJECTED
+
+
+def test_ask_ack_ignores_a_corrupt_frame_and_keeps_waiting():
+    """A frame failing CRC/magic decodes to None and must not be read as an ack of any kind."""
+    ch = rc.Chan(None)
+    ch.q.put_nowait(b"\xa5\x01\xfe\x00\x00\x00\x00\x00")  # bad CRC
+    ch.q.put_nowait(oxyii.encode(oxyii.OP_SET_CONFIG, b"", flag=1))
+    assert _run(ch.ask_ack(oxyii.OP_SET_CONFIG, timeout=0.2)) is oxyii.AckResult.OK

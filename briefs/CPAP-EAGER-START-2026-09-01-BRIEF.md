@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-**Status:** DONE — 2026-09-02 (code BUILT 2026-09-01; bar (1) MEASURED 2026-09-02 on the 2026-09-01 night at `alignmentOffsetSec` 9.12/9.16 s against ≤ ~30 s, with the pre-stated instrument and with provenance that the night ran under the code. Bar (2) REOPENED 2026-09-02: still not exercised in the field, AND the claim that it was "pinned behaviourally" was false — the test stubbed the very seam the bar names, and the real discard path would have crashed the auto-start loop on the first false start. Fixed and pinned against the real sinks the same day; the bar itself stays open until a real false start is observed) · **Created:** 2026-09-01
+**Status:** DONE — 2026-09-02 (code BUILT 2026-09-01; bar (1) MEASURED 2026-09-02 on the 2026-09-01 night at `alignmentOffsetSec` 9.12/9.16 s against ≤ ~30 s, with the pre-stated instrument and with provenance that the night ran under the code. Bar (2) REOPENED 2026-09-02: still not exercised in the field, AND the claim that it was "pinned behaviourally" was false — the test stubbed the very seam the bar names, and the real discard path would have crashed the auto-start loop on the first false start. Fixed and pinned against the real sinks the same day; the bar itself stays open until a real false start is observed. ⚠ **2026-09-03: a reported sighting of bar (2) closing was checked on the box and DOES NOT HOLD** — the cited 7 KB EDF is still on disk (a discard would have unlinked it), there are zero discard events in three days of journal, and that session was ended by a deliberate service restart ~46 s in, so the 120 s rule was never reached; the cited "23:22:14" is a device-stamp FILENAME, ~21 min ahead of the box clock, not a wall-clock instant. Bar (2) stays open, and the check surfaced a NEW unassigned item: a restart inside the eager window orphans the artifact, which the discard path structurally cannot clean because it dies with the loop) · **Created:** 2026-09-01
 
 # CPAP eager start — the 120 s rule moves from the gate to retention
 
@@ -100,5 +100,35 @@ Two supporting changes the inversion forced:
       three tests against the real `RawRecordSink`/`EdfSink`, each watched failing without the fix.
       **The BAR is not: it needs a real false start on hardware, and this box stays open until one is
       observed.**
+      🔴 **2026-09-03 — a reported sighting of this bar closing was CHECKED AND DOES NOT HOLD. The bar
+      stays open.** The report was that the discard "fired correctly" on the 2026-09-02 night, citing a
+      7 KB session one minute before the real one. Three artifacts say otherwise, and the first is
+      sufficient on its own:
+      - **The 7 KB file is still on disk** — `/srv/tepna/captures/cpap-ble/DATALOG/20260902/20260902_232214_BRP.edf`,
+        7026 bytes. A discard that ran would have unlinked it. Its continued existence is evidence the
+        path did **not** run, not that it did.
+      - **Zero `discard` events in three days** of `journalctl -u tepna-capture` (the ARMED banner
+        contains the word "discarded" and is the only match; excluded).
+      - **The session was ended by a deliberate service restart, not by the retention rule** — systemd
+        `Stopping`/`Deactivated successfully` at 23:01:38 and again at 23:01:40, ~46 s after the eager
+        start at 23:00:52. The 120 s question was never reached, so the discard was never the mechanism
+        in play. (The 23:06:53 `tepna-update` tick is not the culprit either: it correctly logged
+        *"deferred — a device is recording"*, which is the §4 interlock working.)
+      ⚠️ **The "23:22:14" in the report is a FILENAME, not a wall-clock instant.** EDF files are named
+      from the device stamp — `device stamp 2026-09-03T03:22:14.226Z resolved to local civil 2026-09-02
+      23:22:14` — while the box's own clock read 23:00:55, a ~21 min device-ahead offset. The two files
+      are `232214` and `232306`, i.e. **52 s apart in device time**, both from the wall-clock minute
+      around 23:01. Reading the name as a clock is what makes them look a minute apart on the box.
+- [ ] **NEW, found while checking the above: a restart inside the eager window ORPHANS the artifact, and
+      the discard path structurally cannot clean it.** The discard lives in `_cpap_autostart_loop`; a
+      restart kills the process holding it, so the short EDF is left with nothing that will ever revisit
+      it. This is not bar (2) wearing a different hat — it needs no false start at all, and the
+      2026-09-02 night is a worked instance of it sitting on disk right now.
+      **The pattern to imitate is one lane over and already shipped:** `_cpap_autostart_boot`
+      reconstructs session state at boot by walking the journal backwards (*"cpap auto-start boot:
+      therapy appears to be running (began 1 min ago)"*, same night, 23:01:38). A boot-time sweep for
+      short unclaimed EDFs is that same move applied to artifacts rather than to state. **Unassigned** —
+      worth sizing before building; the cheaper half may be to have the boot path ADOPT an in-progress
+      file rather than start a second one beside it.
 - [x] Bar (3) — therapy-end auto-stop and #2027's night-scoped accounting behaved normally on the same
       night: `CPAP harvest armed by therapy end (therapy ended and held for 3882s)` at 06:23.

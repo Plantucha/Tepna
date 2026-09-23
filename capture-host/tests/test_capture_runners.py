@@ -10,6 +10,7 @@
 import asyncio
 import contextlib
 import logging
+import os
 
 import pytest
 
@@ -20,9 +21,18 @@ from tests._srcscan import module_source
 _DROP_DEFAULT = capture._DROP_NOT_WORN_SEC
 # main() also tunes these process-wide constants from config; snapshot them so a main() test cannot leak an
 # override into an unrelated test module (test_drop_not_worn / test_settings_schema assert the defaults).
-_GLOBAL_SNAPSHOT = {k: getattr(capture, k) for k in
-                    ("_DROP_NOT_WORN_SEC", "_NOT_WORN_RECHECK_S", "_OXYII_RTC_RESYNC_SEC",
-                     "O2PPG_FS", "O2PPG_NS_STEP", "_STREAM_STALL_S")}
+_GLOBAL_SNAPSHOT = {
+    k: getattr(capture, k)
+    for k in (
+        "_DROP_NOT_WORN_SEC",
+        "_NOT_WORN_RECHECK_S",
+        "_OXYII_RTC_RESYNC_SEC",
+        "O2PPG_FS",
+        "O2PPG_NS_STEP",
+        "_STREAM_STALL_S",
+        "_RECONNECT_BACKOFF_CAP_S",
+    )
+}
 
 
 @pytest.fixture(autouse=True)
@@ -38,6 +48,12 @@ def _clean_stop():
     capture._POLAR_PAUSED.clear()
     capture._WORN_SINCE.clear()
     capture._OXYII_RTC_AT.clear()
+    # The restart-storm state: a hold left by one test parks EVERY later run_oxyii test on the hold
+    # instead of connecting (measured: 35 unrelated failures on the first full run of that group).
+    capture._OXYII_RESTARTS.clear()
+    capture._OXYII_STORMS.clear()
+    capture._OXYII_HOLD_UNTIL.clear()
+    capture._OXYII_LAST_DURATION.clear()
     capture._CHARGING.clear()
     capture._CFG.clear()
     capture.STATUS.clear()
@@ -48,7 +64,7 @@ def _clean_stop():
     yield
     capture._STOP.set()
     capture._STOP.clear()
-    for k, v in _GLOBAL_SNAPSHOT.items():   # restore after too, so the next module starts from defaults
+    for k, v in _GLOBAL_SNAPSHOT.items():  # restore after too, so the next module starts from defaults
         setattr(capture, k, v)
 
 
@@ -60,52 +76,126 @@ def _stop_after(monkeypatch, n=1):
     """Run the loop `n` iterations, then set _STOP on the next sleep so it exits. Patches capture's
     asyncio.sleep to a no-op that counts and trips _STOP — the runners never really wait."""
     calls = {"n": 0}
+
     async def fake_sleep(_secs):
         calls["n"] += 1
         if calls["n"] >= n:
             capture._STOP.set()
+
     monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
     return calls
 
 
 def _dev(**kw):
-    d = {"name": "Dev", "vendor": "Polar", "model": "H10", "device_id": "12345678",
-         "address": "24:AC:AC:02:84:96", "streams": ["ecg"]}
+    d = {
+        "name": "Dev",
+        "vendor": "Polar",
+        "model": "H10",
+        "device_id": "12345678",
+        "address": "24:AC:AC:02:84:96",
+        "streams": ["ecg"],
+    }
     d.update(kw)
     return d
 
 
 # ── run_muse (subprocess supervisor, no bleak) ──────────────────────────────────────────────────────
 class _FakeProc:
-    def __init__(self, rc=0): self.returncode = rc
-    async def wait(self): return self.returncode
-    def terminate(self): pass
+    def __init__(self, rc=0):
+        self.returncode = rc
+
+    async def wait(self):
+        return self.returncode
+
+    def terminate(self):
+        pass
+
+    def send_signal(self, sig):
+        pass
 
 
-def test_run_muse_spawns_the_record_tool(tmp_path, monkeypatch):
-    spawned = {}
+def _exec_writing(spawned, rc=0, nbytes=1):
+    """A fake tool that, like a real one, leaves `nbytes` on disk at the path it was told to write."""
+
     async def fake_exec(*cmd, **k):
         spawned["cmd"] = cmd
-        return _FakeProc(rc=0)
-    monkeypatch.setattr(capture.asyncio, "create_subprocess_exec", fake_exec)
-    _stop_after(monkeypatch, 1)
-    _run(capture.run_muse(_dev(vendor="Muse", model="S", streams=["eeg"], muse_tool="muselsl"),
-                          str(tmp_path)))
-    assert "muselsl" in spawned["cmd"] and "record" in spawned["cmd"]
+        out = cmd[cmd.index("--filename") + 1] if "--filename" in cmd else cmd[cmd.index("--outfile") + 1]
+        os.makedirs(os.path.dirname(out), exist_ok=True)
+        with open(out, "wb") as fh:
+            fh.write(b"x" * nbytes)
+        return _FakeProc(rc=rc)
+
+    return fake_exec
 
 
-def test_run_muse_openmuse_variant(tmp_path, monkeypatch):
+def test_run_muse_spawns_muselsl_record_direct_by_address_with_a_night_long_duration(tmp_path, monkeypatch):
+    """`muselsl record` takes no `--address` (argparse exit 2, read at upstream HEAD 2026-09-20) and is
+    an LSL consumer that needs a running `stream`; the one-process by-address path is `record_direct`,
+    whose default duration is a 60 s demo. The argv must be the one that can record a night."""
     spawned = {}
-    async def fake_exec(*cmd, **k):
-        spawned["cmd"] = cmd; return _FakeProc(0)
-    monkeypatch.setattr(capture.asyncio, "create_subprocess_exec", fake_exec)
+    monkeypatch.setattr(capture.asyncio, "create_subprocess_exec", _exec_writing(spawned))
+    _stop_after(monkeypatch, 1)
+    _run(capture.run_muse(_dev(vendor="Muse", model="S", streams=["eeg"], muse_tool="muselsl"), str(tmp_path)))
+    cmd = list(spawned["cmd"])
+    assert cmd[:2] == ["muselsl", "record_direct"]
+    assert cmd[cmd.index("--address") + 1] == "24:AC:AC:02:84:96"
+    assert "--filename" in cmd and cmd[cmd.index("--duration") + 1] == str(capture.MUSE_RECORD_DURATION_S)
+    assert capture.MUSE_RECORD_DURATION_S == 24 * 3600
+    assert "record" not in cmd[2:], "the LSL-consumer subcommand must not reappear"
+
+
+def test_run_muse_spawns_OpenMuse_record_with_an_explicit_duration(tmp_path, monkeypatch):
+    """OpenMuse's `record` defaults to a 30 s demo; without `--duration` the loop would have produced
+    ~100 half-minute files a night. `--address` / `--outfile` are its real flags (README + cli.py)."""
+    spawned = {}
+    monkeypatch.setattr(capture.asyncio, "create_subprocess_exec", _exec_writing(spawned))
     _stop_after(monkeypatch, 1)
     _run(capture.run_muse(_dev(vendor="Muse", model="S", muse_tool="openmuse"), str(tmp_path)))
-    assert "OpenMuse" in spawned["cmd"]
+    cmd = list(spawned["cmd"])
+    assert cmd[:2] == ["OpenMuse", "record"]
+    assert "--address" in cmd and "--outfile" in cmd
+    assert cmd[cmd.index("--duration") + 1] == str(capture.MUSE_RECORD_DURATION_S)
+
+
+def test_run_muse_reports_an_exit_0_that_wrote_NOTHING(tmp_path, monkeypatch):
+    """Both tools return 0 on "could not find / connect to the Muse" — `record_direct` prints and
+    returns, `record` returns when no LSL stream answers — so exit 0 with no bytes on disk was a green
+    respawn loop forever. The file is the evidence, not the code."""
+    spawned = {}
+    monkeypatch.setattr(capture.asyncio, "create_subprocess_exec", _exec_writing(spawned, rc=0, nbytes=0))
+    _stop_after(monkeypatch, 1)
+    _run(capture.run_muse(_dev(name="Muse", vendor="Muse", model="S", muse_tool="muselsl"), str(tmp_path)))
+    st = capture.STATUS["devices"]["Muse"]
+    assert st["connected"] is False and "exited 0 but wrote nothing" in st["last_error"]
+
+    # ...and a file that was never created at all reads the same way
+    async def fake_exec(*cmd, **k):
+        return _FakeProc(rc=0)
+
+    monkeypatch.setattr(capture.asyncio, "create_subprocess_exec", fake_exec)
+    capture._STOP.clear()  # the first run tripped it; this is a second loop
+    _stop_after(monkeypatch, 1)
+    _run(
+        capture.run_muse(
+            _dev(name="Muse2", vendor="Muse", model="S", device_id="87654321", muse_tool="openmuse"), str(tmp_path)
+        )
+    )
+    assert "exited 0 but wrote nothing" in capture.STATUS["devices"]["Muse2"]["last_error"]
+
+
+def test_run_muse_exit_0_WITH_a_file_is_a_clean_end(tmp_path, monkeypatch):
+    spawned = {}
+    monkeypatch.setattr(capture.asyncio, "create_subprocess_exec", _exec_writing(spawned, rc=0, nbytes=4096))
+    _stop_after(monkeypatch, 1)
+    _run(capture.run_muse(_dev(name="Muse", vendor="Muse", model="S", muse_tool="muselsl"), str(tmp_path)))
+    st = capture.STATUS["devices"]["Muse"]
+    assert st["connected"] is False and not st.get("last_error")
 
 
 def test_run_muse_reports_a_missing_tool(tmp_path, monkeypatch):
-    async def boom(*cmd, **k): raise FileNotFoundError("no muselsl")
+    async def boom(*cmd, **k):
+        raise FileNotFoundError("no muselsl")
+
     monkeypatch.setattr(capture.asyncio, "create_subprocess_exec", boom)
     _stop_after(monkeypatch, 1)
     _run(capture.run_muse(_dev(vendor="Muse", model="S", name="Muse"), str(tmp_path)))
@@ -125,6 +215,7 @@ def test_status_loop_publishes_the_ALERT_TRANSPORTS_OWN_HEALTH(tmp_path, monkeyp
     2026-08-11: 32 alerts fired in 24 h and the journal held ONE delivery outcome in 48 h — nothing
     said whether the rest landed, because success was silent and nothing was published anywhere."""
     import alerts as _alerts
+
     monkeypatch.setattr(capture, "_NOTIFIER", _alerts.Notifier(url="https://hook", enabled=True))
     capture.STATUS.pop("alerts", None)
     _stop_after(monkeypatch, 1)
@@ -147,17 +238,18 @@ def test_status_loop_works_with_NO_notifier_configured(tmp_path, monkeypatch):
 
 # ── adapter_watchdog ────────────────────────────────────────────────────────────────────────────────
 def test_adapter_watchdog_disabled_returns_immediately(monkeypatch):
-    _run(capture.adapter_watchdog("hci0", {"watchdog": {"enabled": False}}))   # early return, no loop
+    _run(capture.adapter_watchdog("hci0", {"watchdog": {"enabled": False}}))  # early return, no loop
 
 
 def test_adapter_watchdog_runs_a_healthy_check(monkeypatch):
-    async def fake_btctl(script, timeout=6): return "Connected: yes\n"
+    async def fake_btctl(script, timeout=6):
+        return "Connected: yes\n"
+
     monkeypatch.setattr(capture.bonding, "_btctl", fake_btctl)
     _stop_after(monkeypatch, 1)
-    cfg = {"watchdog": {"enabled": True, "interval_sec": 60},
-           "devices": [_dev(name="H10")]}
+    cfg = {"watchdog": {"enabled": True, "interval_sec": 60}, "devices": [_dev(name="H10")]}
     capture.STATUS["devices"]["H10"] = {"connected": True, "address": "24:AC:AC:02:84:96"}
-    _run(capture.adapter_watchdog("hci0", cfg))       # one healthy pass -> no recovery, no crash
+    _run(capture.adapter_watchdog("hci0", cfg))  # one healthy pass -> no recovery, no crash
 
 
 # ── clock_watchdog ──────────────────────────────────────────────────────────────────────────────────
@@ -167,12 +259,23 @@ def test_clock_watchdog_disabled_returns_immediately():
 
 def test_clock_watchdog_resyncs_on_a_drifted_device(monkeypatch):
     synced = {}
-    async def fake_sync(addr): synced["addr"] = addr; return {"ok": True}
+
+    async def fake_sync(addr):
+        synced["addr"] = addr
+        return {"ok": True}
+
     monkeypatch.setattr(capture, "sync_device_time", fake_sync)
     _stop_after(monkeypatch, 1)
-    cfg = {"time": {"auto_sync_devices": True, "drift_check_sec": 300, "resync_jump_sec": 30},
-           "devices": [_dev(name="H10")]}
-    capture.STATUS["devices"]["H10"] = {"connected": True, "clock_skew_sec": 99, "address": "24:AC:AC:02:84:96"}
+    cfg = {
+        "time": {"auto_sync_devices": True, "drift_check_sec": 300, "resync_jump_sec": 30},
+        "devices": [_dev(name="H10")],
+    }
+    capture.STATUS["devices"]["H10"] = {
+        "connected": True,
+        "clock_skew_sec": 99,
+        "clock_skew_floor_sec": 99,
+        "address": "24:AC:AC:02:84:96",
+    }
     _run(capture.clock_watchdog(cfg))
     assert synced.get("addr") == "24:AC:AC:02:84:96", "a 99 s skew must trigger a re-sync"
 
@@ -181,6 +284,7 @@ def test_clock_watchdog_resyncs_on_a_drifted_device(monkeypatch):
 def test_host_clock_poller_records_state(tmp_path, monkeypatch):
     async def fake_state():
         return {"trust": "disciplined", "absolute_ok": True, "server": "pool.ntp.org"}
+
     monkeypatch.setattr(capture.host_clock, "read_state", fake_state)
     _stop_after(monkeypatch, 1)
     _run(capture.host_clock_poller({}, str(tmp_path)))
@@ -189,7 +293,9 @@ def test_host_clock_poller_records_state(tmp_path, monkeypatch):
 
 # ── rssi_poller ─────────────────────────────────────────────────────────────────────────────────────
 def test_rssi_poller_logs_a_connected_device(tmp_path, monkeypatch):
-    async def fake_rssi(adapter, addr): return -55
+    async def fake_rssi(adapter, addr):
+        return -55
+
     monkeypatch.setattr(capture.link_rssi, "read_rssi", fake_rssi)
     _stop_after(monkeypatch, 1)
     cfg = {"link": {"rssi_enabled": True, "log_enabled": True, "rssi_interval_sec": 25}}
@@ -203,6 +309,7 @@ def test_rssi_poller_logs_a_connected_device(tmp_path, monkeypatch):
 # ── sync_device_time + polar_offline_op (PS-FTP, reusing the fake client) ───────────────────────────
 def test_sync_device_time_sets_the_h10_clock(monkeypatch):
     from tests.test_polar_psftp_client import FakeClient, _install as _ps_install
+
     c = FakeClient()
     _ps_install(monkeypatch, c)
     capture.STATUS["devices"]["H10"] = {"address": "24:AC:AC:02:84:96"}
@@ -213,7 +320,10 @@ def test_sync_device_time_sets_the_h10_clock(monkeypatch):
 
 def test_polar_offline_op_pauses_and_resumes(monkeypatch):
     capture._POLAR_PAUSED.clear()
-    async def op(): return "done"
+
+    async def op():
+        return "done"
+
     assert _run(capture.polar_offline_op("24:AC:AC:02:84:96", op)) == "done"
     assert "24:AC:AC:02:84:96" not in capture._POLAR_PAUSED
 
@@ -223,13 +333,19 @@ import oxyii
 
 
 class _Char:
-    def __init__(self, uuid): self.uuid = uuid; self.handle = 0; self.properties = ["notify", "write"]
+    def __init__(self, uuid):
+        self.uuid = uuid
+        self.handle = 0
+        self.properties = ["notify", "write"]
+
     @property
-    def characteristics(self): return [self]
+    def characteristics(self):
+        return [self]
 
 
 class _Service:
-    def __init__(self, chars): self.characteristics = chars
+    def __init__(self, chars):
+        self.characteristics = chars
 
 
 class FakeGattClient:
@@ -238,23 +354,30 @@ class FakeGattClient:
         self._connected = True
         self.services = [_Service([_Char(oxyii.OXYII_WRITE), _Char(oxyii.OXYII_NOTIFY)])]
         self.writes = []
-        self.on_live = None            # callable(write_char) -> feed a reply
+        self.on_live = None  # callable(write_char) -> feed a reply
 
     @property
-    def is_connected(self): return self._connected
+    def is_connected(self):
+        return self._connected
 
-    async def start_notify(self, _c, cb): self.notify = cb
-    async def stop_notify(self, _c): pass
+    async def start_notify(self, _c, cb):
+        self.notify = cb
+
+    async def stop_notify(self, _c):
+        pass
+
     # Dispatches on UUID: the runner reads BOTH the battery and (once per connection) the Firmware
     # Revision String, and a fake that returns the battery byte for every characteristic would hand the
     # firmware reader a one-character version it never saw on a device.
-    fw = b"2D010002"                                       # what this box's ring actually reports
+    fw = b"2D010002"  # what this box's ring actually reports
+
     async def read_gatt_char(self, c):
         if str(c).lower() == capture.FIRMWARE_UUID:
             if isinstance(self.fw, Exception):
                 raise self.fw
             return self.fw
-        return b"\x64"                                     # battery 100
+        return b"\x64"  # battery 100
+
     async def write_gatt_char(self, char, data, response=False):
         self.writes.append(bytes(data))
         if self.on_live:
@@ -267,10 +390,10 @@ def _o2ring_live_reply(spo2=96, pr=55, worn=True, batt=90, batt_state=0, duratio
     # [10] left every runner test driving the UNWORN contact path (found by the rec-axis coverage run).
     hdr[5] = 0x01 if worn else 0x00
     hdr[6] = spo2
-    hdr[7] = 14                 # PI (non-zero)
+    hdr[7] = 14  # PI (non-zero)
     hdr[8] = pr & 0xFF
     hdr[10] = 0x01 if worn else 0x00
-    hdr[11] = 0                 # motion
+    hdr[11] = 0  # motion
     hdr[12] = batt_state
     hdr[13] = batt
     hdr[0:4] = int(duration).to_bytes(4, "little")
@@ -291,16 +414,24 @@ def _inject_connect(monkeypatch, client):
 
 
 def _o2dev(**kw):
-    d = {"name": "Ring", "vendor": "Wellue", "model": "O2Ring-S", "device_id": "S8AW",
-         "address": "D1:98:62:7C:92:B3", "streams": ["spo2"]}
+    d = {
+        "name": "Ring",
+        "vendor": "Wellue",
+        "model": "O2Ring-S",
+        "device_id": "S8AW",
+        "address": "D1:98:62:7C:92:B3",
+        "streams": ["spo2"],
+    }
     d.update(kw)
     return d
 
 
 def test_run_oxyii_captures_a_live_reply(tmp_path, monkeypatch):
-    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
     c = FakeGattClient()
-    c.on_live = lambda data: (c.notify(0, _o2ring_live_reply()) if data[1] == oxyii.OP_LIVE else None)
+    c.on_live = lambda data: c.notify(0, _o2ring_live_reply()) if data[1] == oxyii.OP_LIVE else None
     _inject_connect_scan(monkeypatch, c)
     # sleeps before the first live reply: auth(0.6) + setup(0.6) + RTC(0.4), then the poll writes
     # live_frame and sleeps(1.0) -> that 4th sleep stops the loop AFTER the reply was fed.
@@ -316,16 +447,18 @@ def test_run_oxyii_journals_both_axes_worn_flip_and_recording_close(tmp_path, mo
     witness, not a helper test): worn advancing frames → link LIVE + rec RECORDING; an unworn frame with
     duration reset → link IDLE_UNWORN + rec END_CANDIDATE, all journalled to OXYLIFE.csv with the axis
     column distinguishing the rows."""
-    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
     replies = [
-        _o2ring_live_reply(worn=True, duration=900),    # UNKNOWN holds (first positive reading)
-        _o2ring_live_reply(worn=True, duration=901),    # advancing → RECORDING; worn → LIVE
-        _o2ring_live_reply(worn=False, duration=0),     # reset → END_CANDIDATE; unworn → IDLE_UNWORN
+        _o2ring_live_reply(worn=True, duration=900),  # UNKNOWN holds (first positive reading)
+        _o2ring_live_reply(worn=True, duration=901),  # advancing → RECORDING; worn → LIVE
+        _o2ring_live_reply(worn=False, duration=0),  # reset → END_CANDIDATE; unworn → IDLE_UNWORN
     ]
     c = FakeGattClient()
-    c.on_live = lambda data: (c.notify(0, replies.pop(0)) if data[1] == oxyii.OP_LIVE and replies else None)
+    c.on_live = lambda data: c.notify(0, replies.pop(0)) if data[1] == oxyii.OP_LIVE and replies else None
     _inject_connect_scan(monkeypatch, c)
-    _stop_after(monkeypatch, 6)     # auth + setup + RTC sleeps, then three polls
+    _stop_after(monkeypatch, 6)  # auth + setup + RTC sleeps, then three polls
     _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
     st = capture.STATUS["devices"]["Ring"]
     # After the runner exits, the finally path fired observe_link_lost: the axis HONESTLY reads UNKNOWN
@@ -340,10 +473,149 @@ def test_run_oxyii_journals_both_axes_worn_flip_and_recording_close(tmp_path, mo
     assert any(r[3] == "live" for r in link) and any(r[3] == "idle_unworn" for r in link)
 
 
+def _oxylife_link_rows(tmp_path):
+    (life,) = list((tmp_path / "captures").rglob("OXYLIFE.csv"))
+    rows = [ln.split(";") for ln in life.read_text().splitlines() if ln and not ln.startswith(("#", "host_wall"))]
+    return [r for r in rows if r[-1] == ""]
+
+
+def test_run_oxyii_an_unworn_ring_streaming_frames_holds_IDLE_UNWORN_instead_of_flapping(tmp_path, monkeypatch):
+    """THE vigil 2026-08-28 oscillator, through the production loop. A connected ring on the desk answers
+    every ~1 Hz poll with contact=0: the live callback votes IDLE_UNWORN, then the loop's stall guard saw
+    a new frame and re-asserted LIVE ("frames flowing"), and the next poll voted IDLE_UNWORN again —
+    17,688 episodes, 32k rows each way, median dwell 1.0 s, on a night the ring was never worn. A frame
+    from an unworn ring is a heartbeat of the LINK; only the contact vote may move the worn edge."""
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
+    replies = [_o2ring_live_reply(worn=False, duration=0) for _ in range(5)]
+    c = FakeGattClient()
+    c.on_live = lambda data: c.notify(0, replies.pop(0)) if data[1] == oxyii.OP_LIVE and replies else None
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 8)  # auth + setup + RTC, then five polls — five chances to flap
+    _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
+    link = [r[3] for r in _oxylife_link_rows(tmp_path)]
+    worn_axis = [x for x in link if x in ("live", "idle_unworn")]
+    assert worn_axis == ["idle_unworn"], (
+        f"five unworn frames must journal ONE idle_unworn hold, not a live/idle oscillation: {link}"
+    )
+    assert capture.STATUS["devices"]["Ring"]["oxy_lifecycle"] != "live", (
+        "STATUS must not end on a 'live' the ring never earned"
+    )
+
+
+def test_run_oxyii_the_contact_vote_still_owns_the_worn_edge_in_both_directions(tmp_path, monkeypatch):
+    """The control for the hold above: holding IDLE_UNWORN against frames must not weld the ring there.
+    A worn frame after the unworn ones flips it back to LIVE (the callback's vote), and an unworn one
+    flips it to IDLE_UNWORN again — one row per real change, none per frame."""
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
+    replies = [
+        _o2ring_live_reply(worn=True, duration=900),
+        _o2ring_live_reply(worn=False, duration=0),
+        _o2ring_live_reply(worn=False, duration=0),
+        _o2ring_live_reply(worn=True, duration=10),
+        _o2ring_live_reply(worn=True, duration=11),
+        _o2ring_live_reply(worn=False, duration=0),
+    ]
+    c = FakeGattClient()
+    c.on_live = lambda data: c.notify(0, replies.pop(0)) if data[1] == oxyii.OP_LIVE and replies else None
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 10)
+    _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
+    link = [r[3] for r in _oxylife_link_rows(tmp_path)]
+    worn_axis = [x for x in link if x in ("live", "idle_unworn")]
+    assert worn_axis == ["live", "idle_unworn", "live", "idle_unworn"], link
+
+
+# ── the OXYLIFE `failure` column on the LINK axis (row 2026-09-10-ring-connect-yield-is-not-a-failure-rate) ──
+def _oxyii_connect_raises(monkeypatch, exc):
+    """Make the production connect path raise, so the DISCONNECTED row is written by the real `finally`."""
+
+    def _boom(addr, *a, **k):
+        raise exc
+
+    monkeypatch.setattr(capture, "_connect_scan", _boom)
+
+
+def test_run_oxyii_journals_WHY_a_connect_attempt_failed(tmp_path, monkeypatch):
+    """🔴 THE COLUMN THAT WAS NEVER WRITTEN. `OXYLIFE.csv` has carried a `failure` field since the file
+    was created and, measured on vigil 2026-09-10 over 18 nights, it was populated on **0** of the link
+    axis's rows — 1389 connect attempts, 392 sessions, and no statement of why any of the other 997
+    ended. That is what makes the yield uninterpretable rather than merely bad: an attempt against a
+    ring on its charger SHOULD fail, and nothing in the file separated it from a radio that could not
+    answer.
+
+    Driven through `run_oxyii` rather than `_oxy_emit`, because the defect was never in the emit helper
+    (which has always accepted `failure=`) — it was in the caller, which had no value to give it."""
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
+
+    class BleakDeviceNotFoundError(Exception):
+        """Matched by NAME, as `oxy_power.classify_exception` does — the tests import no bleak."""
+
+    _oxyii_connect_raises(monkeypatch, BleakDeviceNotFoundError("device not found"))
+    _stop_after(monkeypatch, 2)
+    _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
+    rows = _oxylife_link_rows(tmp_path)
+    ended = [r for r in rows if r[3] == "disconnected"]
+    assert ended, "a failed attempt still journals the DISCONNECTED transition"
+    assert ended[0][7] == "device_unavailable", f"the row must name WHY, using the shared cpap_acq taxonomy: {ended[0]}"
+    # ...and the reason vocabulary is UNCHANGED, because 997 historical rows and every existing count
+    # key on it. The new information belongs in the column that had a place for it.
+    assert ended[0][4] == "session ended"
+
+
+@pytest.mark.parametrize(
+    "exc,want",
+    [
+        (OSError("dbus: le-connection-abort-by-local"), "transport_failure"),
+        (TimeoutError("timed out"), "timeout"),
+    ],
+)
+def test_run_oxyii_different_causes_get_DIFFERENT_classes(tmp_path, monkeypatch, exc, want):
+    """The column earns nothing if every failure lands in one bucket — that is the state it replaces.
+    Two different causes must produce two different labels, or the classification is decorative.
+
+    ⚠️ PARAMETRIZED, not looped. A loop reuses one `monkeypatch` and one `_stop_after` counter across
+    both cases, and the second run then never starts — which presents as a missing OXYLIFE.csv rather
+    than as a wrong class, i.e. the test fails for a reason that has nothing to do with the assertion."""
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
+    _oxyii_connect_raises(monkeypatch, exc)
+    _stop_after(monkeypatch, 2)
+    _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
+    got = [r[7] for r in _oxylife_link_rows(tmp_path) if r[3] == "disconnected"]
+    assert got and got[0] == want, f"{type(exc).__name__} must classify as {want}, got {got}"
+
+
+def test_run_oxyii_a_clean_session_end_carries_NO_failure_class(tmp_path, monkeypatch):
+    """∅ THE CONTROL, and the reason `link_failure` is initialised before the `try` rather than inside
+    the handler. A session that ended without an exception has no failure class, and the honest record
+    of that is an EMPTY cell — not a class meaning 'nothing went wrong', which would make the column
+    unusable as a denominator the moment anyone counted populated cells."""
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
+    c = FakeGattClient()
+    replies = [_o2ring_live_reply(worn=True, duration=900)]
+    c.on_live = lambda data: c.notify(0, replies.pop(0)) if data[1] == oxyii.OP_LIVE and replies else None
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 5)
+    _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
+    ended = [r for r in _oxylife_link_rows(tmp_path) if r[3] == "disconnected"]
+    assert ended and ended[0][7] == "", f"a clean end must leave the cell EMPTY: {ended[0]}"
+
+
 def test_run_oxyii_reports_a_ring_in_recording_mode(tmp_path, monkeypatch):
     """No OxyII characteristics present -> the 'ring in recording mode' hint, no crash."""
-    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear()
-    c = FakeGattClient(); c.services = [_Service([])]      # no write/notify chars
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    c = FakeGattClient()
+    c.services = [_Service([])]  # no write/notify chars
     _inject_connect_scan(monkeypatch, c)
     _stop_after(monkeypatch, 1)
     _run(capture.run_oxyii(_o2dev(name="Ring"), str(tmp_path)))
@@ -358,29 +630,39 @@ import viatom
 
 class _ViatomService:
     uuid = viatom.VIATOM_SERVICE
+
     def __init__(self):
-        w = _Char(viatom.VIATOM_WRITE); w.properties = ["write"]
-        n = _Char(viatom.VIATOM_NOTIFY); n.properties = ["notify"]
+        w = _Char(viatom.VIATOM_WRITE)
+        w.properties = ["write"]
+        n = _Char(viatom.VIATOM_NOTIFY)
+        n.properties = ["notify"]
         self.characteristics = [n, w]
 
 
 def _viatom_packet(spo2=97, pr=58, batt=80, worn=True):
     p = bytearray(20)
-    p[7] = spo2; p[8] = pr; p[14] = batt; p[16] = 0; p[17] = 14; p[18] = 1 if worn else 0
+    p[7] = spo2
+    p[8] = pr
+    p[14] = batt
+    p[16] = 0
+    p[17] = 14
+    p[18] = 1 if worn else 0
     return bytes(p)
 
 
 def test_run_viatom_captures_a_packet(tmp_path, monkeypatch):
-    async def bonded(*a, **k): return True
+    async def bonded(*a, **k):
+        return True
+
     monkeypatch.setattr(capture.bonding, "ensure_bonded", bonded)
     c = FakeGattClient()
     c.services = [_ViatomService()]
-    c.on_live = lambda data: c.notify(0, _viatom_packet())   # any write -> feed one real-time packet
+    c.on_live = lambda data: c.notify(0, _viatom_packet())  # any write -> feed one real-time packet
     _inject_connect(monkeypatch, c)
     _stop_after(monkeypatch, 1)
     _run(capture.run_viatom(_o2dev(name="Ring", protocol="legacy"), str(tmp_path)))
     st = capture.STATUS["devices"]["Ring"]
-    assert st["spo2"] == 97 and st["pr"] == 58   # the spo2-present path (worn is set only when off)
+    assert st["spo2"] == 97 and st["pr"] == 58  # the spo2-present path (worn is set only when off)
 
 
 def test_run_viatom_backoff_grows_when_the_link_carries_no_data(tmp_path, monkeypatch):
@@ -394,11 +676,14 @@ def test_run_viatom_backoff_grows_when_the_link_carries_no_data(tmp_path, monkey
     """
     from bleak.exc import BleakError
 
-    async def bonded(*a, **k): return True
+    async def bonded(*a, **k):
+        return True
+
     monkeypatch.setattr(capture.bonding, "ensure_bonded", bonded)
 
     class _RaisingServices:
         """Iterating the service list is where the real failure surfaces, just after connect()."""
+
         def __iter__(self):
             raise BleakError("failed to discover services, device disconnected")
 
@@ -407,11 +692,13 @@ def test_run_viatom_backoff_grows_when_the_link_carries_no_data(tmp_path, monkey
     _inject_connect(monkeypatch, c)
 
     slept = []
+
     async def fake_sleep(secs):
-        if secs and secs >= 5:                           # the reconnect backoff, not poll sleeps
+        if secs and secs >= 5:  # the reconnect backoff, not poll sleeps
             slept.append(secs)
             if len(slept) >= 2:
                 capture._STOP.set()
+
     monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
 
     _run(capture.run_viatom(_o2dev(name="Ring", protocol="legacy"), str(tmp_path)))
@@ -430,8 +717,9 @@ import polar_pmd as pmd
 class FakePolarClient:
     """A Polar PMD device: answers control-point commands (STOP/GET_SETTINGS/START) with real
     parse_settings_response / START-ack frames, and feeds one ECG data frame once PMD_DATA is subscribed."""
+
     def __init__(self, start_status=0x00, hr_frame=None, sdk_start_ok=True):
-        self.cbs = {}                  # uuid -> notify callback
+        self.cbs = {}  # uuid -> notify callback
         self._connected = True
         self.writes = []
         self.start_status = start_status
@@ -444,14 +732,18 @@ class FakePolarClient:
         self.sdk_mode_on = False
 
     @property
-    def is_connected(self): return self._connected
+    def is_connected(self):
+        return self._connected
 
-    async def connect(self): self._connected = True
-    async def disconnect(self): self._connected = False
+    async def connect(self):
+        self._connected = True
+
+    async def disconnect(self):
+        self._connected = False
 
     async def read_gatt_char(self, uuid):
         if uuid == pmd.PMD_CONTROL:
-            return bytes([0x0F, 0xFF, 0xFF])            # feature bitmask: all supported
+            return bytes([0x0F, 0xFF, 0xFF])  # feature bitmask: all supported
         if uuid == capture.BATTERY_UUID:
             return bytes([80])
         return b""
@@ -459,14 +751,19 @@ class FakePolarClient:
     async def start_notify(self, uuid, cb):
         key = getattr(uuid, "uuid", uuid)
         self.cbs[key] = cb
-        if key == pmd.PMD_DATA:                          # data channel live -> feed one ECG frame
-            frame = bytes([pmd.ECG]) + (1_000_000_000).to_bytes(8, "little") + bytes([0x00]) + \
-                b"".join((7).to_bytes(3, "little", signed=True) for _ in range(3))
+        if key == pmd.PMD_DATA:  # data channel live -> feed one ECG frame
+            frame = (
+                bytes([pmd.ECG])
+                + (1_000_000_000).to_bytes(8, "little")
+                + bytes([0x00])
+                + b"".join((7).to_bytes(3, "little", signed=True) for _ in range(3))
+            )
             cb(0, frame)
         if key == capture.HR_UUID and self.hr_frame is not None:
             cb(0, self.hr_frame)
 
-    async def stop_notify(self, uuid): pass
+    async def stop_notify(self, uuid):
+        pass
 
     async def write_gatt_char(self, uuid, cmd, response=False):
         self.writes.append(bytes(cmd))
@@ -483,19 +780,20 @@ class FakePolarClient:
             ctrl(0, bytes([0xF0, op, pmd.SDK_MODE, 0x00, 0x00, int(self.sdk_mode_on)]))
             return
         meas = cmd[1]
-        if op == 0x01:                                    # GET_SETTINGS
+        if op == 0x01:  # GET_SETTINGS
             # In SDK mode the device answers with a LARGER menu — that is the entire point of the mode,
             # so a fake answering identically either way could not tell the two states apart.
             rates = [130, 176] if self.sdk_mode_on else [130]
-            resp = (bytes([0xF0, 0x01, meas, 0x00, 0x00, 0x00, len(rates)])
-                    + b"".join(r.to_bytes(2, "little") for r in rates))
-        elif op == 0x02:                                  # START
+            resp = bytes([0xF0, 0x01, meas, 0x00, 0x00, 0x00, len(rates)]) + b"".join(
+                r.to_bytes(2, "little") for r in rates
+            )
+        elif op == 0x02:  # START
             if meas == pmd.SDK_MODE:
                 self.sdk_mode_on = self.sdk_start_ok
                 resp = bytes([0xF0, 0x02, meas, 0x00 if self.sdk_start_ok else pmd.INVALID_STATE])
             else:
                 resp = bytes([0xF0, 0x02, meas, self.start_status])
-        else:                                             # STOP
+        else:  # STOP
             if meas == pmd.SDK_MODE:
                 self.sdk_mode_on = False
             resp = bytes([0xF0, op, meas, 0x00])
@@ -503,17 +801,28 @@ class FakePolarClient:
 
 
 def _pdev(**kw):
-    d = {"name": "H10", "vendor": "Polar", "model": "H10", "device_id": "12345678",
-         "address": "24:AC:AC:02:84:96", "streams": ["ecg"]}
+    d = {
+        "name": "H10",
+        "vendor": "Polar",
+        "model": "H10",
+        "device_id": "12345678",
+        "address": "24:AC:AC:02:84:96",
+        "streams": ["ecg"],
+    }
     d.update(kw)
     return d
 
 
 def _polar_common(monkeypatch):
-    async def bonded(*a, **k): return True
+    async def bonded(*a, **k):
+        return True
+
     monkeypatch.setattr(capture.bonding, "ensure_bonded", bonded)
-    capture._CFG.clear(); capture._CFG.update({"time": {"auto_sync_devices": False}})   # skip clock sync
-    capture._POLAR_PAUSED.clear(); capture._RECOVER.clear(); capture._WORN_SINCE.clear()
+    capture._CFG.clear()
+    capture._CFG.update({"time": {"auto_sync_devices": False}})  # skip clock sync
+    capture._POLAR_PAUSED.clear()
+    capture._RECOVER.clear()
+    capture._WORN_SINCE.clear()
 
 
 def test_run_polar_negotiates_pmd_and_captures_an_ecg_frame(tmp_path, monkeypatch):
@@ -549,10 +858,12 @@ def test_a_stream_the_device_will_not_serve_does_not_make_the_DEVICE_charging(tm
     _inject_connect(monkeypatch, c)
     _stop_after(monkeypatch, 1)
     _run(capture.run_polar(_pdev(), str(tmp_path)))
-    assert capture.STATUS["devices"]["H10"].get("charging") is not True, \
+    assert capture.STATUS["devices"]["H10"].get("charging") is not True, (
         "a per-measurement refusal claimed the whole device was on the charger"
-    assert "charging" not in (capture.STATUS["devices"]["H10"].get("last_error") or ""), \
+    )
+    assert "charging" not in (capture.STATUS["devices"]["H10"].get("last_error") or ""), (
         "the device was labelled charging on the strength of one stream"
+    )
 
 
 def test_the_two_transients_are_not_the_same_state():
@@ -567,7 +878,7 @@ def test_the_two_transients_are_not_the_same_state():
 def test_run_polar_sets_worn_from_the_hr_contact_bit(tmp_path, monkeypatch):
     """An HR frame with contact-supported-but-absent (flags 0x04) drives worn=False."""
     _polar_common(monkeypatch)
-    c = FakePolarClient(start_status=0x00, hr_frame=bytes([0x04, 57]))   # contact supported, not worn
+    c = FakePolarClient(start_status=0x00, hr_frame=bytes([0x04, 0]))  # contact absent, HR 0: off body
     _inject_connect(monkeypatch, c)
     _stop_after(monkeypatch, 1)
     _run(capture.run_polar(_pdev(streams=["ecg", "hr"]), str(tmp_path)))
@@ -577,19 +888,31 @@ def test_run_polar_sets_worn_from_the_hr_contact_bit(tmp_path, monkeypatch):
 # ── _connect / _connect_scan (the real context managers) ────────────────────────────────────────────
 def test_connect_context_manager(monkeypatch):
     import bleak
+
     events = []
+
     class _BC:
-        def __init__(self, addr, **kw): self.addr = addr
-        async def connect(self): events.append("connect")
-        async def disconnect(self): events.append("disconnect")
+        def __init__(self, addr, **kw):
+            self.addr = addr
+
+        async def connect(self):
+            events.append("connect")
+
+        async def disconnect(self):
+            events.append("disconnect")
+
     monkeypatch.setattr(bleak, "BleakClient", _BC)
-    async def no_kw(): return {}
+
+    async def no_kw():
+        return {}
+
     monkeypatch.setattr(capture, "adapter_kw", no_kw)
 
     async def go():
         async with capture._connect("24:AC:AC:02:84:96") as c:
             events.append("used")
         return c
+
     _run(go())
     assert events == ["connect", "used", "disconnect"]
 
@@ -597,36 +920,59 @@ def test_connect_context_manager(monkeypatch):
 def test_connect_scan_raises_when_the_device_is_not_found(monkeypatch):
     import bleak
     from bleak.exc import BleakDeviceNotFoundError
-    async def find(*a, **k): return None
+
+    async def find(*a, **k):
+        return None
+
     monkeypatch.setattr(bleak.BleakScanner, "find_device_by_filter", find)
-    async def no_kw(): return {}
+
+    async def no_kw():
+        return {}
+
     monkeypatch.setattr(capture, "adapter_kw", no_kw)
 
     async def go():
         async with capture._connect_scan("D1:98:62:7C:92:B3"):
             pass
+
     with pytest.raises(BleakDeviceNotFoundError):
         _run(go())
 
 
 def test_connect_scan_connects_a_found_device(monkeypatch):
     import bleak
+
     class _Dev:
-        address = "D1:98:62:7C:92:B3"; name = "S8-AW"
+        address = "D1:98:62:7C:92:B3"
+        name = "S8-AW"
+
     events = []
+
     class _BC:
-        def __init__(self, dev, **kw): pass
-        async def connect(self): events.append("c")
-        async def disconnect(self): events.append("d")
-    async def find(*a, **k): return _Dev()
+        def __init__(self, dev, **kw):
+            pass
+
+        async def connect(self):
+            events.append("c")
+
+        async def disconnect(self):
+            events.append("d")
+
+    async def find(*a, **k):
+        return _Dev()
+
     monkeypatch.setattr(bleak.BleakScanner, "find_device_by_filter", find)
     monkeypatch.setattr(bleak, "BleakClient", _BC)
-    async def no_kw(): return {}
+
+    async def no_kw():
+        return {}
+
     monkeypatch.setattr(capture, "adapter_kw", no_kw)
 
     async def go():
         async with capture._connect_scan("D1:98:62:7C:92:B3"):
             events.append("u")
+
     _run(go())
     assert events == ["c", "u", "d"]
 
@@ -639,58 +985,88 @@ def test_connect_scan_connects_a_found_device(monkeypatch):
 def _passive_refuser(found, calls):
     """A find_device_by_filter that rejects passive exactly as bleak's BlueZ backend does."""
     from bleak.exc import BleakError
+
     async def find(*a, **k):
         calls.append(k.get("scanning_mode"))
         if k.get("scanning_mode") == "passive":
             raise BleakError("passive scanning mode requires bluez or_patterns")
         return found
+
     return find
 
 
 def test_connect_scan_falls_back_to_active_when_bluez_refuses_passive(monkeypatch):
     import bleak
+
     class _Dev:
-        address = "D1:98:62:7C:92:B3"; name = "S8-AW"
+        address = "D1:98:62:7C:92:B3"
+        name = "S8-AW"
+
     events, calls = [], []
+
     class _BC:
-        def __init__(self, dev, **kw): pass
-        async def connect(self): events.append("c")
-        async def disconnect(self): events.append("d")
+        def __init__(self, dev, **kw):
+            pass
+
+        async def connect(self):
+            events.append("c")
+
+        async def disconnect(self):
+            events.append("d")
+
     monkeypatch.setattr(capture, "_O2_PASSIVE_SCAN", True)
     monkeypatch.setattr(bleak.BleakScanner, "find_device_by_filter", _passive_refuser(_Dev(), calls))
     monkeypatch.setattr(bleak, "BleakClient", _BC)
-    async def no_kw(): return {}
+
+    async def no_kw():
+        return {}
+
     monkeypatch.setattr(capture, "adapter_kw", no_kw)
 
     async def go():
         async with capture._connect_scan("D1:98:62:7C:92:B3"):
             events.append("u")
+
     _run(go())
-    assert calls == ["passive", None]        # tried passive, then re-scanned actively
-    assert events == ["c", "u", "d"]         # …and the ring still got connected
+    assert calls == ["passive", None]  # tried passive, then re-scanned actively
+    assert events == ["c", "u", "d"]  # …and the ring still got connected
     assert capture._O2_PASSIVE_SCAN is False  # refusal is remembered — no wasted attempt next cycle
 
 
 def test_connect_scan_skips_passive_once_the_stack_has_refused_it(monkeypatch):
     import bleak
+
     class _Dev:
-        address = "D1:98:62:7C:92:B3"; name = "S8-AW"
+        address = "D1:98:62:7C:92:B3"
+        name = "S8-AW"
+
     calls = []
+
     class _BC:
-        def __init__(self, dev, **kw): pass
-        async def connect(self): pass
-        async def disconnect(self): pass
-    monkeypatch.setattr(capture, "_O2_PASSIVE_SCAN", False)   # as left by an earlier refusal
+        def __init__(self, dev, **kw):
+            pass
+
+        async def connect(self):
+            pass
+
+        async def disconnect(self):
+            pass
+
+    monkeypatch.setattr(capture, "_O2_PASSIVE_SCAN", False)  # as left by an earlier refusal
     monkeypatch.setattr(bleak.BleakScanner, "find_device_by_filter", _passive_refuser(_Dev(), calls))
     monkeypatch.setattr(bleak, "BleakClient", _BC)
-    async def no_kw(): return {}
+
+    async def no_kw():
+        return {}
+
     monkeypatch.setattr(capture, "adapter_kw", no_kw)
 
     async def go():
         async with capture._connect_scan("D1:98:62:7C:92:B3"):
             pass
+
     _run(go())
-    assert calls == [None]                   # one active scan, no passive retry
+    assert calls == [None]  # one active scan, no passive retry
 
 
 def test_connect_scan_propagates_a_real_scan_error(monkeypatch):
@@ -698,32 +1074,44 @@ def test_connect_scan_propagates_a_real_scan_error(monkeypatch):
     second scan on the same broken radio."""
     import bleak
     from bleak.exc import BleakError
+
     calls = []
+
     async def find(*a, **k):
         calls.append(k.get("scanning_mode"))
         raise BleakError("org.freedesktop.DBus.Error.NoReply")
+
     monkeypatch.setattr(capture, "_O2_PASSIVE_SCAN", True)
     monkeypatch.setattr(bleak.BleakScanner, "find_device_by_filter", find)
-    async def no_kw(): return {}
+
+    async def no_kw():
+        return {}
+
     monkeypatch.setattr(capture, "adapter_kw", no_kw)
 
     async def go():
         async with capture._connect_scan("D1:98:62:7C:92:B3"):
             pass
+
     with pytest.raises(BleakError):
         _run(go())
-    assert calls == ["passive"]               # no fallback rescan
-    assert capture._O2_PASSIVE_SCAN is True   # and passive is NOT blamed for it
+    assert calls == ["passive"]  # no fallback rescan
+    assert capture._O2_PASSIVE_SCAN is True  # and passive is NOT blamed for it
 
 
 # ── pull_oxyii_session ──────────────────────────────────────────────────────────────────────────────
 def test_pull_oxyii_session_pauses_and_pulls(tmp_path, monkeypatch):
     capture._OXYII_PAUSE.clear()
     import pull_session
+
     async def fake_pull(address, out_dir, **kw):
         return [str(tmp_path / "x.dat")]
+
     monkeypatch.setattr(pull_session, "pull", fake_pull)
-    async def no_sleep(_s): return None
+
+    async def no_sleep(_s):
+        return None
+
     monkeypatch.setattr(capture.asyncio, "sleep", no_sleep)
     capture.STATUS["devices"]["Ring"] = {"connected": False}
     r = _run(capture.pull_oxyii_session(_o2dev(name="Ring"), str(tmp_path)))
@@ -734,29 +1122,55 @@ def test_pull_oxyii_session_pauses_and_pulls(tmp_path, monkeypatch):
 # ── main() ──────────────────────────────────────────────────────────────────────────────────────────
 def test_main_wires_up_and_stops(tmp_path, monkeypatch):
     import yaml as _yaml
-    cfg = {"adapter": "AC:A7:F1:29:9D:1D", "root": str(tmp_path),
-           "web": {"enabled": True, "host": "127.0.0.1", "port": 0},
-           "devices": [_pdev()]}
+
+    cfg = {
+        "adapter": "AC:A7:F1:29:9D:1D",
+        "root": str(tmp_path),
+        "web": {"enabled": True, "host": "127.0.0.1", "port": 0},
+        "devices": [_pdev()],
+    }
     cfgp = tmp_path / "config.yaml"
     cfgp.write_text(_yaml.safe_dump(cfg))
 
-    async def noop_runner(dev, root): return None
-    for r in ("run_polar", "run_oxyii", "run_viatom", "run_muse", "status_loop",
-              "adapter_watchdog", "rssi_poller", "clock_watchdog", "host_clock_poller"):
-        async def _n(*a, **k): return None
+    async def noop_runner(dev, root):
+        return None
+
+    for r in (
+        "run_polar",
+        "run_oxyii",
+        "run_viatom",
+        "run_muse",
+        "status_loop",
+        "adapter_watchdog",
+        "rssi_poller",
+        "clock_watchdog",
+        "host_clock_poller",
+    ):
+
+        async def _n(*a, **k):
+            return None
+
         monkeypatch.setattr(capture, r, _n)
-    async def fake_hci(mac, refresh=False): return "hci2"
+
+    async def fake_hci(mac, refresh=False):
+        return "hci2"
+
     monkeypatch.setattr(capture.link_rssi, "resolve_hci", fake_hci)
 
     import webmon
+
     class _Runner:
-        async def cleanup(self): pass
+        async def cleanup(self):
+            pass
+
     async def fake_start(app, host, port):
-        capture._STOP.set()                      # let main proceed straight to teardown
+        capture._STOP.set()  # let main proceed straight to teardown
         return _Runner()
+
     monkeypatch.setattr(webmon, "start", fake_start)
 
     import sys as _sys
+
     monkeypatch.setattr(_sys, "argv", ["capture.py", "--config", str(cfgp)])
     capture._STOP.clear()
     _run(capture.main())
@@ -771,29 +1185,53 @@ def test_main_with_an_instance_serves_only_that_radios_devices(tmp_path, monkeyp
     If it silently kept the global, every instance would capture on the same adapter — three daemons
     fighting over one radio, which looks healthy from each one's own log."""
     import yaml as _yaml
-    cfg = {"adapter": "AC:A7:F1:29:9D:1D", "root": str(tmp_path),
-           "adapters": {"sena": "00:01:95:CC:53:02", "ub500": "AC:A7:F1:29:9D:1D"},
-           "web": {"enabled": True, "host": "127.0.0.1", "port": 0},
-           "devices": [_pdev()]}
+
+    cfg = {
+        "adapter": "AC:A7:F1:29:9D:1D",
+        "root": str(tmp_path),
+        "adapters": {"sena": "00:01:95:CC:53:02", "ub500": "AC:A7:F1:29:9D:1D"},
+        "web": {"enabled": True, "host": "127.0.0.1", "port": 0},
+        "devices": [_pdev()],
+    }
     cfgp = tmp_path / "config.yaml"
     cfgp.write_text(_yaml.safe_dump(cfg))
 
-    for r in ("run_polar", "run_oxyii", "run_viatom", "run_muse", "status_loop",
-              "adapter_watchdog", "rssi_poller", "clock_watchdog", "host_clock_poller"):
-        async def _n(*a, **k): return None
+    for r in (
+        "run_polar",
+        "run_oxyii",
+        "run_viatom",
+        "run_muse",
+        "status_loop",
+        "adapter_watchdog",
+        "rssi_poller",
+        "clock_watchdog",
+        "host_clock_poller",
+    ):
+
+        async def _n(*a, **k):
+            return None
+
         monkeypatch.setattr(capture, r, _n)
-    async def fake_hci(mac, refresh=False): return "hci2"
+
+    async def fake_hci(mac, refresh=False):
+        return "hci2"
+
     monkeypatch.setattr(capture.link_rssi, "resolve_hci", fake_hci)
 
     import webmon
+
     class _Runner:
-        async def cleanup(self): pass
+        async def cleanup(self):
+            pass
+
     async def fake_start(app, host, port):
         capture._STOP.set()
         return _Runner()
+
     monkeypatch.setattr(webmon, "start", fake_start)
 
     import sys as _sys
+
     monkeypatch.setattr(_sys, "argv", ["capture.py", "--config", str(cfgp), "--instance", "sena"])
     capture._STOP.clear()
     _run(capture.main())
@@ -810,23 +1248,28 @@ def test_run_polar_drops_a_stream_the_device_rejects(tmp_path, monkeypatch):
     _inject_connect(monkeypatch, c)
     _stop_after(monkeypatch, 1)
     _run(capture.run_polar(_pdev(), str(tmp_path)))
-    assert "rejected" in (capture.STATUS["devices"]["H10"].get("last_error") or "").lower() \
-        or capture.STATUS["devices"]["H10"]["connected"] in (True, False)
+    assert "rejected" in (capture.STATUS["devices"]["H10"].get("last_error") or "").lower() or capture.STATUS[
+        "devices"
+    ]["H10"]["connected"] in (True, False)
 
 
 def test_run_polar_drops_the_link_when_not_worn_too_long(tmp_path, monkeypatch):
     """The not-worn power drop: an HR frame reports not-worn and _WORN_SINCE is already old, so the poll
     loop trips should_drop_not_worn and breaks with the battery-saving message."""
     _polar_common(monkeypatch)
-    monkeypatch.setattr(capture, "_DROP_NOT_WORN_SEC", 0.001)     # trip immediately
-    capture._WORN_SINCE["24:AC:AC:02:84:96"] = 0.0               # not-worn since the epoch
-    c = FakePolarClient(start_status=0x00, hr_frame=bytes([0x04, 57]))
+    monkeypatch.setattr(capture, "_DROP_NOT_WORN_SEC", 0.001)  # trip immediately
+    capture._WORN_SINCE["24:AC:AC:02:84:96"] = 0.0  # not-worn since the epoch
+    capture.devcaps.reset()
+    capture.devcaps.record("24:AC:AC:02:84:96", "can_charge", True, source="test: a unit observed to charge")
+    c = FakePolarClient(start_status=0x00, hr_frame=bytes([0x04, 0]))  # contact absent, HR 0: off body
     _inject_connect(monkeypatch, c)
     calls = {"n": 0}
+
     async def fake_sleep(_s):
         calls["n"] += 1
-        if calls["n"] >= 3:            # allow the poll loop to reach the drop check, then hard-stop
+        if calls["n"] >= 3:  # allow the poll loop to reach the drop check, then hard-stop
             capture._STOP.set()
+
     monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
     _run(capture.run_polar(_pdev(streams=["ecg", "hr"]), str(tmp_path)))
     assert "save battery" in (capture.STATUS["devices"]["H10"].get("last_error") or "")
@@ -837,14 +1280,19 @@ def test_adapter_watchdog_recovers_a_phantom_link(monkeypatch):
     """A device BlueZ reports Connected while the daemon sees it disconnected = a phantom link → the
     watchdog clears it (L1). Grace 1 so the next check power-cycles (L2)."""
     disconnects = []
+
     async def fake_btctl(script, timeout=6):
         if "disconnect" in script or "power off" in script or "power on" in script:
-            disconnects.append(script); return ""
-        return "Connected: yes\n"                    # BlueZ says connected...
+            disconnects.append(script)
+            return ""
+        return "Connected: yes\n"  # BlueZ says connected...
+
     monkeypatch.setattr(capture.bonding, "_btctl", fake_btctl)
     capture._RECOVER.clear()
-    cfg = {"watchdog": {"enabled": True, "interval_sec": 1, "grace_checks": 1, "max_adapter_cycles": 3},
-           "devices": [_dev(name="H10")]}
+    cfg = {
+        "watchdog": {"enabled": True, "interval_sec": 1, "grace_checks": 1, "max_adapter_cycles": 3},
+        "devices": [_dev(name="H10")],
+    }
     capture.STATUS["devices"]["H10"] = {"connected": False, "address": "24:AC:AC:02:84:96"}  # ...we say no
     _stop_after(monkeypatch, 1)
     _run(capture.adapter_watchdog("AC:A7:F1:29:9D:1D", cfg))
@@ -854,30 +1302,43 @@ def test_adapter_watchdog_recovers_a_phantom_link(monkeypatch):
 # ── main: no adapter, web disabled ──────────────────────────────────────────────────────────────────
 def test_main_without_an_adapter_or_web(tmp_path, monkeypatch):
     import yaml as _yaml
+
     cfg = {"root": str(tmp_path), "web": {"enabled": False}, "devices": []}
-    cfgp = tmp_path / "c.yaml"; cfgp.write_text(_yaml.safe_dump(cfg))
+    cfgp = tmp_path / "c.yaml"
+    cfgp.write_text(_yaml.safe_dump(cfg))
     for r in ("status_loop", "adapter_watchdog", "rssi_poller", "clock_watchdog", "host_clock_poller"):
-        async def _n(*a, **k): return None
+
+        async def _n(*a, **k):
+            return None
+
         monkeypatch.setattr(capture, r, _n)
     import sys as _sys
+
     monkeypatch.setattr(_sys, "argv", ["capture.py", "--config", str(cfgp)])
     capture._STOP.clear()
+
     async def stopper():
         capture._STOP.set()
+
     # web disabled -> main never calls webmon.start, so trip _STOP via a background task
     import asyncio as _a
+
     def go():
         async def run():
             _a.get_event_loop().call_soon(capture._STOP.set)
             await capture.main()
+
         _a.run(run())
+
     go()
     assert capture.ADAPTER is None
 
 
 # ── rssi_poller variants ────────────────────────────────────────────────────────────────────────────
 def test_rssi_poller_logs_a_disconnected_device_and_rssi_unavailable(tmp_path, monkeypatch):
-    async def no_rssi(adapter, addr): return None          # RSSI can't be read -> misses
+    async def no_rssi(adapter, addr):
+        return None  # RSSI can't be read -> misses
+
     monkeypatch.setattr(capture.link_rssi, "read_rssi", no_rssi)
     _stop_after(monkeypatch, 1)
     cfg = {"link": {"rssi_enabled": True, "log_enabled": True, "rssi_interval_sec": 25}}
@@ -896,10 +1357,11 @@ def test_rssi_poller_disabled_logging_writes_no_sidecar(tmp_path, monkeypatch):
 
 # ── run_oxyii not-worn + PPG + session restart ──────────────────────────────────────────────────────
 def test_run_oxyii_reports_no_finger_contact(tmp_path, monkeypatch):
-    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
     c = FakeGattClient()
-    c.on_live = lambda data: (c.notify(0, _o2ring_live_reply(spo2=0, worn=False))
-                              if data[1] == oxyii.OP_LIVE else None)
+    c.on_live = lambda data: c.notify(0, _o2ring_live_reply(spo2=0, worn=False)) if data[1] == oxyii.OP_LIVE else None
     _inject_connect_scan(monkeypatch, c)
     _stop_after(monkeypatch, 4)
     _run(capture.run_oxyii(_o2dev(name="Ring"), str(tmp_path)))
@@ -907,14 +1369,22 @@ def test_run_oxyii_reports_no_finger_contact(tmp_path, monkeypatch):
 
 
 def test_run_oxyii_captures_the_ppg_waveform(tmp_path, monkeypatch):
-    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
+
     # a live reply with a PPG body after the 24-B header
     def reply():
-        hdr = bytearray(24); hdr[6] = 96; hdr[8] = 55; hdr[10] = 1; hdr[13] = 90
+        hdr = bytearray(24)
+        hdr[6] = 96
+        hdr[8] = 55
+        hdr[10] = 1
+        hdr[13] = 90
         hdr[0:4] = (900).to_bytes(4, "little")
         return oxyii.encode(oxyii.OP_LIVE, bytes(hdr) + bytes(range(60)))
+
     c = FakeGattClient()
-    c.on_live = lambda data: (c.notify(0, reply()) if data[1] == oxyii.OP_LIVE else None)
+    c.on_live = lambda data: c.notify(0, reply()) if data[1] == oxyii.OP_LIVE else None
     _inject_connect_scan(monkeypatch, c)
     _stop_after(monkeypatch, 4)
     _run(capture.run_oxyii(_o2dev(name="Ring", streams=["spo2", "ppg"]), str(tmp_path)))
@@ -933,7 +1403,9 @@ def test_run_oxyii_reports_the_ppg_frame_ledger_at_session_end(tmp_path, monkeyp
     Asserting the shipped line's WORDING matters as much as its numbers: it is the only place a reader
     meets these counters, and "not lost frames" is the clause that stops a `+2` step being re-read as
     loss for the fourth time (see the ledger's own class docstring)."""
-    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
     N = 126
     body = N.to_bytes(2, "little") + bytes(i % 256 for i in range(N))
     # 900 -> 901 -> 903: an ordinary tick, then the +2 step this whole brief is about.
@@ -942,12 +1414,16 @@ def test_run_oxyii_reports_the_ppg_frame_ledger_at_session_end(tmp_path, monkeyp
     def reply():
         d = secs[min(seen[0], len(secs) - 1)]
         seen[0] += 1
-        hdr = bytearray(24); hdr[6] = 96; hdr[8] = 55; hdr[10] = 1; hdr[13] = 90
+        hdr = bytearray(24)
+        hdr[6] = 96
+        hdr[8] = 55
+        hdr[10] = 1
+        hdr[13] = 90
         hdr[0:4] = d.to_bytes(4, "little")
         return oxyii.encode(oxyii.OP_LIVE, bytes(hdr) + body)
 
     c = FakeGattClient()
-    c.on_live = lambda data: (c.notify(0, reply()) if data[1] == oxyii.OP_LIVE else None)
+    c.on_live = lambda data: c.notify(0, reply()) if data[1] == oxyii.OP_LIVE else None
     _inject_connect_scan(monkeypatch, c)
     # 8, not 4: the auth/setup/RTC handshake burns three sleeps before the poll loop starts, so a
     # smaller budget delivers ONE frame and one frame closes no step at all.
@@ -963,37 +1439,63 @@ def test_run_oxyii_reports_the_ppg_frame_ledger_at_session_end(tmp_path, monkeyp
 # ── connect except-guards (disconnect raises in the finally) ────────────────────────────────────────
 def test_connect_swallows_a_disconnect_error_in_teardown(monkeypatch):
     import bleak
+
     class _BC:
-        def __init__(self, addr, **kw): pass
-        async def connect(self): pass
-        async def disconnect(self): raise RuntimeError("disc boom")
+        def __init__(self, addr, **kw):
+            pass
+
+        async def connect(self):
+            pass
+
+        async def disconnect(self):
+            raise RuntimeError("disc boom")
+
     monkeypatch.setattr(bleak, "BleakClient", _BC)
-    async def no_kw(): return {}
+
+    async def no_kw():
+        return {}
+
     monkeypatch.setattr(capture, "adapter_kw", no_kw)
+
     async def go():
         async with capture._connect("AA:BB"):
             pass
-    _run(go())                          # the disconnect error in finally must be swallowed
+
+    _run(go())  # the disconnect error in finally must be swallowed
 
 
 # ── run_muse terminate path ─────────────────────────────────────────────────────────────────────────
 def test_run_muse_terminates_a_running_child_on_stop(tmp_path, monkeypatch):
     terminated = {"n": 0}
+
     class _Proc:
-        returncode = None                # still running -> forces the terminate path
-        async def wait(self): raise asyncio.TimeoutError
-        def terminate(self): terminated["n"] += 1; self.returncode = -15
-    async def fake_exec(*cmd, **k): return _Proc()
+        returncode = None  # still running -> forces the terminate path
+
+        async def wait(self):
+            raise asyncio.TimeoutError
+
+        def terminate(self):
+            terminated["n"] += 1
+            self.returncode = -15
+
+    async def fake_exec(*cmd, **k):
+        return _Proc()
+
     monkeypatch.setattr(capture.asyncio, "create_subprocess_exec", fake_exec)
     # stop after the inner wait times out once, so the loop sees _STOP and terminates the child
     calls = {"n": 0}
+
     async def fake_wait_for(coro, timeout):
         calls["n"] += 1
         coro.close()
         capture._STOP.set()
         raise asyncio.TimeoutError
+
     monkeypatch.setattr(capture.asyncio, "wait_for", fake_wait_for)
-    async def no_sleep(_s): return None
+
+    async def no_sleep(_s):
+        return None
+
     monkeypatch.setattr(capture.asyncio, "sleep", no_sleep)
     _run(capture.run_muse(_dev(vendor="Muse", model="S", name="Muse"), str(tmp_path)))
     assert terminated["n"] >= 1
@@ -1002,9 +1504,11 @@ def test_run_muse_terminates_a_running_child_on_stop(tmp_path, monkeypatch):
 def _stop_on_big_sleep(monkeypatch, threshold=5.0):
     """Let the runner complete a full session + reach its teardown; set _STOP only on the LARGE
     reconnect/retry/charge sleep (>= threshold), so the small poll/negotiation sleeps run normally."""
+
     async def fake_sleep(secs):
         if secs and secs >= threshold:
             capture._STOP.set()
+
     monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
 
 
@@ -1016,10 +1520,12 @@ def _stop_after_slept(monkeypatch, seconds):
     for a single big sleep can no longer see it — and would hang forever waiting.
     """
     t = {"s": 0.0}
+
     async def fake_sleep(secs):
         t["s"] += secs
         if t["s"] >= seconds:
             capture._STOP.set()
+
     monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
     return t
 
@@ -1037,18 +1543,21 @@ def test_run_polar_charging_recheck_uses_the_charge_cadence_not_the_error_backof
     starts = [w for w in c.writes if w and w[0] == 0x02]
     assert 3 <= len(starts) <= 5, (
         f"{len(starts)} STARTs in 2.5x CHARGE_RETRY_S — expected one per recheck period; the error "
-        "backoff would be far more frequent")
+        "backoff would be far more frequent"
+    )
 
 
 def test_run_polar_reconnect_backoff(tmp_path, monkeypatch):
     """A link error mid-session → the except path → teardown takes the exponential backoff sleep."""
     _polar_common(monkeypatch)
     c = FakePolarClient(start_status=0x00)
+
     async def boom_notify(uuid, cb):
         raise RuntimeError("link error: device disconnected")
+
     c.start_notify = boom_notify
     _inject_connect(monkeypatch, c)
-    _stop_on_big_sleep(monkeypatch, threshold=3)      # backoff starts at 5
+    _stop_on_big_sleep(monkeypatch, threshold=3)  # backoff starts at 5
     _run(capture.run_polar(_pdev(), str(tmp_path)))
     assert "link error" in (capture.STATUS["devices"]["H10"].get("last_error") or "")
 
@@ -1056,35 +1565,54 @@ def test_run_polar_reconnect_backoff(tmp_path, monkeypatch):
 # ── clock_watchdog: adrift vs jumped ────────────────────────────────────────────────────────────────
 def test_clock_watchdog_resyncs_on_absolute_drift(monkeypatch):
     synced = []
-    async def fake_sync(addr): synced.append(addr); return {"ok": True}
+
+    async def fake_sync(addr):
+        synced.append(addr)
+        return {"ok": True}
+
     monkeypatch.setattr(capture, "sync_device_time", fake_sync)
     _stop_after(monkeypatch, 1)
-    cfg = {"time": {"auto_sync_devices": True, "drift_check_sec": 300, "resync_jump_sec": 30},
-           "devices": [_dev(name="H10")]}
+    cfg = {
+        "time": {"auto_sync_devices": True, "drift_check_sec": 300, "resync_jump_sec": 30},
+        "devices": [_dev(name="H10")],
+    }
     # a small, steady skew beyond CLOCK_TOLERANCE_S (2 s) — "adrift", not "jumped"
-    capture.STATUS["devices"]["H10"] = {"connected": True, "clock_skew_sec": 5, "address": "24:AC:AC:02:84:96"}
+    capture.STATUS["devices"]["H10"] = {
+        "connected": True,
+        "clock_skew_sec": 5,
+        "clock_skew_floor_sec": 5,
+        "address": "24:AC:AC:02:84:96",
+    }
     _run(capture.clock_watchdog(cfg))
     assert synced, "an absolute skew past tolerance must re-sync even without a jump"
 
 
 def test_clock_watchdog_ignores_a_disconnected_or_unskewed_device(monkeypatch):
     synced = []
-    async def fake_sync(addr): synced.append(addr)
+
+    async def fake_sync(addr):
+        synced.append(addr)
+
     monkeypatch.setattr(capture, "sync_device_time", fake_sync)
     _stop_after(monkeypatch, 1)
     cfg = {"time": {"auto_sync_devices": True}, "devices": [_dev(name="H10")]}
-    capture.STATUS["devices"]["H10"] = {"connected": False, "clock_skew_sec": 99}
+    capture.STATUS["devices"]["H10"] = {"connected": False, "clock_skew_sec": 99, "clock_skew_floor_sec": 99}
     _run(capture.clock_watchdog(cfg))
     assert not synced, "a disconnected device must not be re-synced"
 
 
 # ── host_clock_poller trust transition ──────────────────────────────────────────────────────────────
 def test_host_clock_poller_logs_a_trust_transition(tmp_path, monkeypatch):
-    states = [{"trust": "disciplined", "absolute_ok": True, "reason": "ok"},
-              {"trust": "holdover", "absolute_ok": False, "reason": "ntp refused"}]
-    async def fake_state(): return states.pop(0) if len(states) > 1 else states[0]
+    states = [
+        {"trust": "disciplined", "absolute_ok": True, "reason": "ok"},
+        {"trust": "holdover", "absolute_ok": False, "reason": "ntp refused"},
+    ]
+
+    async def fake_state():
+        return states.pop(0) if len(states) > 1 else states[0]
+
     monkeypatch.setattr(capture.host_clock, "read_state", fake_state)
-    _stop_after(monkeypatch, 2)          # two iterations -> a disciplined->holdover transition
+    _stop_after(monkeypatch, 2)  # two iterations -> a disciplined->holdover transition
     _run(capture.host_clock_poller({}, str(tmp_path)))
     assert list((tmp_path / "captures").rglob("*_CLOCK.csv"))
 
@@ -1092,19 +1620,26 @@ def test_host_clock_poller_logs_a_trust_transition(tmp_path, monkeypatch):
 # ── main: spawn skips a device missing identity ─────────────────────────────────────────────────────
 def test_main_skips_a_device_missing_identity(tmp_path, monkeypatch):
     import yaml as _yaml
-    bad = {"name": "Nameless", "address": "AA:BB", "streams": ["ecg"]}   # no vendor/model/device_id
+
+    bad = {"name": "Nameless", "address": "AA:BB", "streams": ["ecg"]}  # no vendor/model/device_id
     cfg = {"root": str(tmp_path), "web": {"enabled": False}, "devices": [bad]}
-    cfgp = tmp_path / "c.yaml"; cfgp.write_text(_yaml.safe_dump(cfg))
-    for r in ("run_polar", "status_loop", "adapter_watchdog", "rssi_poller",
-              "clock_watchdog", "host_clock_poller"):
-        async def _n(*a, **k): return None
+    cfgp = tmp_path / "c.yaml"
+    cfgp.write_text(_yaml.safe_dump(cfg))
+    for r in ("run_polar", "status_loop", "adapter_watchdog", "rssi_poller", "clock_watchdog", "host_clock_poller"):
+
+        async def _n(*a, **k):
+            return None
+
         monkeypatch.setattr(capture, r, _n)
     import sys as _sys, asyncio as _a
+
     monkeypatch.setattr(_sys, "argv", ["capture.py", "--config", str(cfgp)])
     capture._STOP.clear()
+
     async def run():
         _a.get_event_loop().call_soon(capture._STOP.set)
         await capture.main()
+
     _a.run(run())
     # the nameless device was refused a runner and flagged
     assert capture.STATUS["devices"].get("Nameless", {}).get("last_error", "").startswith("not captured")
@@ -1144,17 +1679,28 @@ def _mag_frame(ns=1_000_000_000):
 
 def _ppi_frame(ns=1_000_000_000):
     # one beat: hr(u8), ppInMs(u16 LE), ppErrMs(u16 LE), flags(u8)
-    return _pmd_frame(pmd.PPI, ns, 0x00, bytes([60]) + (850).to_bytes(2, "little")
-                      + (5).to_bytes(2, "little") + bytes([0x06]))
+    return _pmd_frame(
+        pmd.PPI, ns, 0x00, bytes([60]) + (850).to_bytes(2, "little") + (5).to_bytes(2, "little") + bytes([0x06])
+    )
 
 
 class FlexPolarClient(FakePolarClient):
     """A FakePolarClient that feeds a caller-supplied list of PMD data frames (any measurement) once
     PMD_DATA is subscribed, plus optional battery level, a raising feature/battery read, and a spurious
     extra control indication — the levers the deep on_pmd / negotiation branches need."""
-    def __init__(self, data_frames=None, hr_frame=None, batt_level=80, raise_feature=False,
-                 raise_batt=False, spurious_ctrl=False, start_status=0x00,
-                 stop_notify=False, wrong_op_ctrl=False):
+
+    def __init__(
+        self,
+        data_frames=None,
+        hr_frame=None,
+        batt_level=80,
+        raise_feature=False,
+        raise_batt=False,
+        spurious_ctrl=False,
+        start_status=0x00,
+        stop_notify=False,
+        wrong_op_ctrl=False,
+    ):
         super().__init__(start_status=start_status, hr_frame=hr_frame)
         self.data_frames = data_frames if data_frames is not None else [_ecg_frame()]
         self.batt_level = batt_level
@@ -1210,7 +1756,7 @@ class FlexPolarClient(FakePolarClient):
             resp = bytes([0xF0, op, meas, 0x00])
         self._ctrl_writes += 1
         if self.spurious_ctrl and self._ctrl_writes == 1:
-            ctrl(0, resp)                 # an extra, stale indication → the NEXT _ctrl drains it (L589)
+            ctrl(0, resp)  # an extra, stale indication → the NEXT _ctrl drains it (L589)
         if self.stop_notify and self._ctrl_writes == 1:
             # The device pushing ONLINE_MEASUREMENT_STOPPED (0x01, NOT 0xF0) between our write and its
             # indication. This used to be returned AS the response.
@@ -1252,20 +1798,20 @@ def test_run_polar_reports_a_frame_decode_error(tmp_path, monkeypatch):
     """A frame decode_frame cannot parse (ACC with an ECG-style frame_type) raises ValueError, which
     on_pmd surfaces as last_error and swallows (508-509)."""
     _polar_common(monkeypatch)
-    bad = _pmd_frame(pmd.ACC, 1_000_000_000, 0x00, b"\x00" * 6)   # ACC needs base==1; 0x00 → ValueError
+    bad = _pmd_frame(pmd.ACC, 1_000_000_000, 0x00, b"\x00" * 6)  # ACC needs base==1; 0x00 → ValueError
     c = FlexPolarClient(data_frames=[bad], start_status=0x00)
     _inject_connect(monkeypatch, c)
     _stop_after(monkeypatch, 1)
     _run(capture.run_polar(_pdev(streams=["acc"]), str(tmp_path)))
-    assert capture.STATUS["devices"]["H10"].get("last_error")   # the ValueError text landed on the card
+    assert capture.STATUS["devices"]["H10"].get("last_error")  # the ValueError text landed on the card
 
 
 def test_run_polar_hr_worn_pushes_rr_and_bpm(tmp_path, monkeypatch):
     """An HR frame that is worn (contact detected) with an RR interval drives the worn-clear, RR-push and
     BPM-push branches (561-562, 565-568)."""
     _polar_common(monkeypatch)
-    capture._WORN_SINCE["24:AC:AC:02:84:96"] = 123.0             # a stale not-worn ts that worn must clear
-    hr = bytes([0x06, 57]) + (870).to_bytes(2, "little")        # flags: contact supported+detected; one RR
+    capture._WORN_SINCE["24:AC:AC:02:84:96"] = 123.0  # a stale not-worn ts that worn must clear
+    hr = bytes([0x06, 57]) + (870).to_bytes(2, "little")  # flags: contact supported+detected; one RR
     c = FlexPolarClient(data_frames=[_ecg_frame()], hr_frame=hr, start_status=0x00)
     _inject_connect(monkeypatch, c)
     _stop_after(monkeypatch, 1)
@@ -1281,7 +1827,7 @@ def test_run_polar_feature_read_failure_is_logged(tmp_path, monkeypatch):
     _inject_connect(monkeypatch, c)
     _stop_after(monkeypatch, 1)
     _run(capture.run_polar(_pdev(), str(tmp_path)))
-    assert capture.STATUS["devices"]["H10"]["connected"] is True   # feature read failing didn't abort
+    assert capture.STATUS["devices"]["H10"]["connected"] is True  # feature read failing didn't abort
 
 
 def test_run_polar_drains_a_stale_control_indication(tmp_path, monkeypatch):
@@ -1303,13 +1849,15 @@ def test_run_polar_start_without_an_ack_keeps_the_stream(tmp_path, monkeypatch):
     _polar_common(monkeypatch)
     c = FlexPolarClient(data_frames=[_ecg_frame()], start_status=0x00)
     _inject_connect(monkeypatch, c)
+
     async def timeout_wait_for(coro, timeout):
         # start_notify is now bounded too (VIGIL-DEEP-ANALYSIS §1.1) — let it COMPLETE and time out only
         # the control round-trips (ctrl_q.get), which is what produces the NO_ACK this test exercises.
         if getattr(getattr(coro, "cr_code", None), "co_name", "") == "start_notify":
             return await coro
-        coro.close()                                  # don't leave the ctrl_q.get() pending
+        coro.close()  # don't leave the ctrl_q.get() pending
         raise capture.asyncio.TimeoutError
+
     monkeypatch.setattr(capture.asyncio, "wait_for", timeout_wait_for)
     _stop_after(monkeypatch, 1)
     _run(capture.run_polar(_pdev(), str(tmp_path)))
@@ -1324,8 +1872,10 @@ def test_run_polar_start_rejected_removes_the_file(tmp_path, monkeypatch):
     _polar_common(monkeypatch)
     c = FlexPolarClient(data_frames=[_ecg_frame()], start_status=0x03)
     _inject_connect(monkeypatch, c)
+
     def boom_remove(_p):
         raise OSError("cannot remove")
+
     monkeypatch.setattr(capture.os, "remove", boom_remove)
     _stop_after(monkeypatch, 1)
     _run(capture.run_polar(_pdev(), str(tmp_path)))
@@ -1335,7 +1885,7 @@ def test_run_polar_start_rejected_removes_the_file(tmp_path, monkeypatch):
 def test_run_polar_infers_charging_from_a_rising_battery(tmp_path, monkeypatch):
     """A battery reading HIGHER than the last stored value infers charging=True (683-684)."""
     _polar_common(monkeypatch)
-    capture.STATUS["devices"]["H10"] = {"battery": 50}            # seed a lower prior reading
+    capture.STATUS["devices"]["H10"] = {"battery": 50}  # seed a lower prior reading
     c = FlexPolarClient(data_frames=[_ecg_frame()], batt_level=80, start_status=0x00)
     _inject_connect(monkeypatch, c)
     _stop_after(monkeypatch, 1)
@@ -1371,10 +1921,12 @@ def test_run_polar_periodic_battery_refresh_in_the_hold_loop(tmp_path, monkeypat
     c = FlexPolarClient(data_frames=[_ecg_frame()], batt_level=80, start_status=0x00)
     _inject_connect(monkeypatch, c)
     calls = {"n": 0}
+
     async def fake_sleep(_s):
         calls["n"] += 1
-        if calls["n"] >= 123:            # 1 negotiation sleep + 120 hold sleeps reaches secs==120
+        if calls["n"] >= 123:  # 1 negotiation sleep + 120 hold sleeps reaches secs==120
             capture._STOP.set()
+
     monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
     _run(capture.run_polar(_pdev(), str(tmp_path)))
     assert capture.STATUS["devices"]["H10"]["battery"] == 80
@@ -1388,16 +1940,20 @@ def _skip_while_loop():
 
 
 def test_run_polar_reports_a_failed_bond(tmp_path, monkeypatch):
-    async def not_bonded(*a, **k): return False
+    async def not_bonded(*a, **k):
+        return False
+
     monkeypatch.setattr(capture.bonding, "ensure_bonded", not_bonded)
     capture._CFG.update({"time": {"auto_sync_devices": False}})
     _skip_while_loop()
-    _run(capture.run_polar(_pdev(), str(tmp_path)))          # ecg → needs_pmd → the bond path runs
+    _run(capture.run_polar(_pdev(), str(tmp_path)))  # ecg → needs_pmd → the bond path runs
     assert "bond failed" in capture.STATUS["devices"]["H10"]["last_error"]
 
 
 def test_run_polar_reports_a_bond_error(tmp_path, monkeypatch):
-    async def boom(*a, **k): raise RuntimeError("bluetoothctl exploded")
+    async def boom(*a, **k):
+        raise RuntimeError("bluetoothctl exploded")
+
     monkeypatch.setattr(capture.bonding, "ensure_bonded", boom)
     capture._CFG.update({"time": {"auto_sync_devices": False}})
     _skip_while_loop()
@@ -1406,17 +1962,25 @@ def test_run_polar_reports_a_bond_error(tmp_path, monkeypatch):
 
 
 def _auto_sync_common(monkeypatch):
-    async def bonded(*a, **k): return True
+    async def bonded(*a, **k):
+        return True
+
     monkeypatch.setattr(capture.bonding, "ensure_bonded", bonded)
     capture._CFG.update({"time": {"auto_sync_devices": True}})
-    async def no_sleep(_s): return None
+
+    async def no_sleep(_s):
+        return None
+
     monkeypatch.setattr(capture.asyncio, "sleep", no_sleep)
 
 
 def test_run_polar_auto_sync_succeeds(tmp_path, monkeypatch):
     """auto_sync_devices → sync_device_time succeeds first try and stamps clock_synced (431-433)."""
     _auto_sync_common(monkeypatch)
-    async def ok(addr): return {"ok": True}
+
+    async def ok(addr):
+        return {"ok": True}
+
     monkeypatch.setattr(capture, "sync_device_time", ok)
     _skip_while_loop()
     _run(capture.run_polar(_pdev(), str(tmp_path)))
@@ -1426,13 +1990,16 @@ def test_run_polar_auto_sync_succeeds(tmp_path, monkeypatch):
 def test_run_polar_auto_sync_retries_on_busy(tmp_path, monkeypatch):
     """A first OfflineBusy is a wait-your-turn, not a failure: it retries and then succeeds (434-435)."""
     import offline_lock
+
     _auto_sync_common(monkeypatch)
     calls = {"n": 0}
+
     async def busy_then_ok(addr):
         calls["n"] += 1
         if calls["n"] == 1:
             raise offline_lock.OfflineBusy("other device")
         return {"ok": True}
+
     monkeypatch.setattr(capture, "sync_device_time", busy_then_ok)
     _skip_while_loop()
     _run(capture.run_polar(_pdev(), str(tmp_path)))
@@ -1442,7 +2009,10 @@ def test_run_polar_auto_sync_retries_on_busy(tmp_path, monkeypatch):
 def test_run_polar_auto_sync_retries_a_transient_ble_error_then_gives_up(tmp_path, monkeypatch):
     """A transient BLE error retries all 12 attempts, then the loop's else logs 'gave up' (439-443, 446-447)."""
     _auto_sync_common(monkeypatch)
-    async def always_busy(addr): raise RuntimeError("org.bluez.Error.InProgress")   # transient
+
+    async def always_busy(addr):
+        raise RuntimeError("org.bluez.Error.InProgress")  # transient
+
     monkeypatch.setattr(capture, "sync_device_time", always_busy)
     _skip_while_loop()
     _run(capture.run_polar(_pdev(), str(tmp_path)))
@@ -1461,9 +2031,11 @@ def test_run_polar_auto_sync_does_NOT_spend_the_ladder_on_an_absent_device(tmp_p
     happens when the device IS reachable — the reconnect loop is already the retry mechanism for absence."""
     _auto_sync_common(monkeypatch)
     calls = {"n": 0}
+
     async def absent(addr):
         calls["n"] += 1
         raise RuntimeError("BleakDeviceNotFoundError: not advertising")
+
     monkeypatch.setattr(capture, "sync_device_time", absent)
     _skip_while_loop()
     _run(capture.run_polar(_pdev(), str(tmp_path)))
@@ -1474,7 +2046,10 @@ def test_run_polar_auto_sync_does_NOT_spend_the_ladder_on_an_absent_device(tmp_p
 def test_run_polar_auto_sync_gives_up_on_a_hard_failure(tmp_path, monkeypatch):
     """A non-transient error (a genuine protocol refusal) is fatal to the sync — break, no retry (444-445)."""
     _auto_sync_common(monkeypatch)
-    async def refused(addr): raise RuntimeError("error 201 NOT_IMPLEMENTED")   # non-transient
+
+    async def refused(addr):
+        raise RuntimeError("error 201 NOT_IMPLEMENTED")  # non-transient
+
     monkeypatch.setattr(capture, "sync_device_time", refused)
     _skip_while_loop()
     _run(capture.run_polar(_pdev(), str(tmp_path)))
@@ -1482,12 +2057,15 @@ def test_run_polar_auto_sync_gives_up_on_a_hard_failure(tmp_path, monkeypatch):
 
 
 # ── run_polar: the paused-for-a-pull branch at the top of the capture loop (450-454) ────────────────────
+@pytest.mark.sets_capture_events
 def test_run_polar_waits_while_the_adapter_is_recovering(tmp_path, monkeypatch):
     """_RECOVER set at the loop top → the device idles in the pause-wait until _STOP (450-454)."""
     _polar_common(monkeypatch)
     capture._RECOVER.set()
+
     async def fake_sleep(_s):
-        capture._STOP.set()               # break the inner pause-wait on its first tick
+        capture._STOP.set()  # break the inner pause-wait on its first tick
+
     monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
     _run(capture.run_polar(_pdev(streams=["hr"]), str(tmp_path)))
     assert capture.STATUS["devices"]["H10"]["last_error"] == "adapter recovering"
@@ -1498,7 +2076,7 @@ def test_run_polar_finally_swallows_a_remove_error(tmp_path, monkeypatch):
     """A session that opens a writer but records no rows leaves a header-only file; the finally removes it,
     and an OSError there is swallowed (746-747)."""
     _polar_common(monkeypatch)
-    c = FlexPolarClient(data_frames=[], start_status=0x00)     # negotiates, but no data → empty writer
+    c = FlexPolarClient(data_frames=[], start_status=0x00)  # negotiates, but no data → empty writer
     _inject_connect(monkeypatch, c)
     monkeypatch.setattr(capture.os, "remove", lambda _p: (_ for _ in ()).throw(OSError("nope")))
     _stop_after(monkeypatch, 1)
@@ -1515,7 +2093,7 @@ def test_run_polar_pmd_frame_probe_records_frames(tmp_path, monkeypatch):
     monkeypatch.setattr(capture, "_PMD_PROBE", str(probe))
     monkeypatch.setattr(capture, "_PMD_PROBE_N", 1)
     capture._pmd_probe_seen.clear()
-    c = FlexPolarClient(data_frames=[_ecg_frame(), _ecg_frame()], start_status=0x00)   # 2 frames, N=1
+    c = FlexPolarClient(data_frames=[_ecg_frame(), _ecg_frame()], start_status=0x00)  # 2 frames, N=1
     _inject_connect(monkeypatch, c)
     _stop_after(monkeypatch, 1)
     _run(capture.run_polar(_pdev(), str(tmp_path)))
@@ -1535,22 +2113,26 @@ def test_pmd_probe_returns_when_the_probe_is_unset(monkeypatch):
     monkeypatch.setattr(capture, "_PMD_PROBE", None)
     capture._pmd_probe_seen.clear()
     import datetime as _dt
+
     capture._pmd_probe(pmd.ECG, _ecg_frame(), 3, _dt.datetime(2026, 7, 19, 1, 2, 3))
     assert capture._pmd_probe_seen == {}, "an unarmed probe must not even count the frame"
 
 
 def test_pmd_probe_swallows_a_write_error(tmp_path, monkeypatch):
     """A diagnostic must never disturb capture: an unwritable probe path is swallowed (1298-1299)."""
-    monkeypatch.setattr(capture, "_PMD_PROBE", str(tmp_path))     # a DIRECTORY → open(...,'a') raises
+    monkeypatch.setattr(capture, "_PMD_PROBE", str(tmp_path))  # a DIRECTORY → open(...,'a') raises
     monkeypatch.setattr(capture, "_PMD_PROBE_N", 5)
     capture._pmd_probe_seen.clear()
     import datetime as _dt
-    capture._pmd_probe(pmd.ECG, _ecg_frame(), 3, _dt.datetime(2026, 7, 19, 1, 2, 3))   # must not raise
+
+    capture._pmd_probe(pmd.ECG, _ecg_frame(), 3, _dt.datetime(2026, 7, 19, 1, 2, 3))  # must not raise
 
 
 # ── run_muse: a non-FileNotFound spawn error (792-793) ─────────────────────────────────────────────────
 def test_run_muse_reports_a_generic_spawn_error(tmp_path, monkeypatch):
-    async def boom(*cmd, **k): raise RuntimeError("exec failed")
+    async def boom(*cmd, **k):
+        raise RuntimeError("exec failed")
+
     monkeypatch.setattr(capture.asyncio, "create_subprocess_exec", boom)
     _stop_after(monkeypatch, 1)
     _run(capture.run_muse(_dev(vendor="Muse", model="S", name="Muse"), str(tmp_path)))
@@ -1559,21 +2141,27 @@ def test_run_muse_reports_a_generic_spawn_error(tmp_path, monkeypatch):
 
 # ── run_viatom: bond outcomes + on_data branches + teardown (806-863) ──────────────────────────────────
 def test_run_viatom_reports_a_failed_bond(tmp_path, monkeypatch):
-    async def not_bonded(*a, **k): return False
+    async def not_bonded(*a, **k):
+        return False
+
     monkeypatch.setattr(capture.bonding, "ensure_bonded", not_bonded)
-    c = FakeGattClient(); c.services = [_ViatomService()]
+    c = FakeGattClient()
+    c.services = [_ViatomService()]
     c.on_live = lambda data: c.notify(0, _viatom_packet())
     _inject_connect(monkeypatch, c)
     _stop_after(monkeypatch, 1)
     _run(capture.run_viatom(_o2dev(name="Ring", protocol="legacy"), str(tmp_path)))
     st = capture.STATUS["devices"]["Ring"]
-    assert st["spo2"] == 97   # bond-failed message was set, but capture still proceeds and reads a packet
+    assert st["spo2"] == 97  # bond-failed message was set, but capture still proceeds and reads a packet
 
 
 def test_run_viatom_reports_a_bond_error(tmp_path, monkeypatch):
-    async def boom(*a, **k): raise RuntimeError("bctl error")
+    async def boom(*a, **k):
+        raise RuntimeError("bctl error")
+
     monkeypatch.setattr(capture.bonding, "ensure_bonded", boom)
-    c = FakeGattClient(); c.services = [_ViatomService()]
+    c = FakeGattClient()
+    c.services = [_ViatomService()]
     c.on_live = lambda data: c.notify(0, _viatom_packet())
     _inject_connect(monkeypatch, c)
     _stop_after(monkeypatch, 1)
@@ -1583,21 +2171,29 @@ def test_run_viatom_reports_a_bond_error(tmp_path, monkeypatch):
 
 def test_run_viatom_ignores_an_undecodable_packet(tmp_path, monkeypatch):
     """decode_packet returns None → on_data returns early (834-835)."""
-    async def bonded(*a, **k): return True
+
+    async def bonded(*a, **k):
+        return True
+
     monkeypatch.setattr(capture.bonding, "ensure_bonded", bonded)
-    c = FakeGattClient(); c.services = [_ViatomService()]
-    c.on_live = lambda data: c.notify(0, b"\x00\x01")     # too short → decode_packet None
+    c = FakeGattClient()
+    c.services = [_ViatomService()]
+    c.on_live = lambda data: c.notify(0, b"\x00\x01")  # too short → decode_packet None
     _inject_connect(monkeypatch, c)
     _stop_after(monkeypatch, 1)
     _run(capture.run_viatom(_o2dev(name="Ring", protocol="legacy"), str(tmp_path)))
-    assert capture.STATUS["devices"]["Ring"].get("spo2") is None   # nothing written from a bad packet
+    assert capture.STATUS["devices"]["Ring"].get("spo2") is None  # nothing written from a bad packet
 
 
 def test_run_viatom_reports_not_on_finger(tmp_path, monkeypatch):
     """A packet with no SpO2 (off finger) takes the else branch and reports worn=False (845)."""
-    async def bonded(*a, **k): return True
+
+    async def bonded(*a, **k):
+        return True
+
     monkeypatch.setattr(capture.bonding, "ensure_bonded", bonded)
-    c = FakeGattClient(); c.services = [_ViatomService()]
+    c = FakeGattClient()
+    c.services = [_ViatomService()]
     c.on_live = lambda data: c.notify(0, _viatom_packet(spo2=0, worn=False))
     _inject_connect(monkeypatch, c)
     _stop_after(monkeypatch, 1)
@@ -1607,36 +2203,54 @@ def test_run_viatom_reports_not_on_finger(tmp_path, monkeypatch):
 
 def test_run_viatom_start_cmd_write_failure_is_logged(tmp_path, monkeypatch):
     """A start-cmd write that raises is swallowed — some models auto-stream (851-852)."""
-    async def bonded(*a, **k): return True
+
+    async def bonded(*a, **k):
+        return True
+
     monkeypatch.setattr(capture.bonding, "ensure_bonded", bonded)
-    c = FakeGattClient(); c.services = [_ViatomService()]
-    async def boom_write(char, data, response=False): raise RuntimeError("write refused")
+    c = FakeGattClient()
+    c.services = [_ViatomService()]
+
+    async def boom_write(char, data, response=False):
+        raise RuntimeError("write refused")
+
     c.write_gatt_char = boom_write
     _inject_connect(monkeypatch, c)
     _stop_after(monkeypatch, 1)
     _run(capture.run_viatom(_o2dev(name="Ring", protocol="legacy"), str(tmp_path)))
-    assert capture.STATUS["devices"]["Ring"]["connected"] is True   # write failing didn't abort the session
+    assert capture.STATUS["devices"]["Ring"]["connected"] is True  # write failing didn't abort the session
 
 
 def test_run_viatom_reconnect_backoff_after_a_disconnect(tmp_path, monkeypatch):
     """The hold loop exits on a device disconnect → finally closes the writer → the reconnect backoff sleep
     runs (855-863). A link error inside also lands on the card."""
-    async def bonded(*a, **k): return True
+
+    async def bonded(*a, **k):
+        return True
+
     monkeypatch.setattr(capture.bonding, "ensure_bonded", bonded)
-    c = FakeGattClient(); c.services = [_ViatomService()]
-    c._connected = False                                  # is_connected False → hold loop never spins
+    c = FakeGattClient()
+    c.services = [_ViatomService()]
+    c._connected = False  # is_connected False → hold loop never spins
     _inject_connect(monkeypatch, c)
-    _stop_on_big_sleep(monkeypatch, threshold=3)          # backoff (5) trips _STOP; poll sleeps don't
+    _stop_on_big_sleep(monkeypatch, threshold=3)  # backoff (5) trips _STOP; poll sleeps don't
     _run(capture.run_viatom(_o2dev(name="Ring", protocol="legacy"), str(tmp_path)))
     assert "Ring" in capture.STATUS["devices"]
 
 
 def test_run_viatom_link_error_is_reported(tmp_path, monkeypatch):
     """An exception inside the session lands on last_error (855-857)."""
-    async def bonded(*a, **k): return True
+
+    async def bonded(*a, **k):
+        return True
+
     monkeypatch.setattr(capture.bonding, "ensure_bonded", bonded)
-    c = FakeGattClient(); c.services = [_ViatomService()]
-    async def boom_notify(_char, cb): raise RuntimeError("notify boom")
+    c = FakeGattClient()
+    c.services = [_ViatomService()]
+
+    async def boom_notify(_char, cb):
+        raise RuntimeError("notify boom")
+
     c.start_notify = boom_notify
     _inject_connect(monkeypatch, c)
     _stop_on_big_sleep(monkeypatch, threshold=3)
@@ -1645,11 +2259,14 @@ def test_run_viatom_link_error_is_reported(tmp_path, monkeypatch):
 
 
 # ── run_oxyii: pause branch + non-live/short/probe/session-restart on_data branches (874-963, 1021-1022) ─
+@pytest.mark.sets_capture_events
 def test_run_oxyii_waits_while_paused_for_a_pull(tmp_path, monkeypatch):
     """_OXYII_PAUSE set at the loop top → the runner idles in the pause-wait until _STOP (874-878)."""
     capture._OXYII_PAUSE.set()
+
     async def fake_sleep(_s):
         capture._STOP.set()
+
     monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
     _run(capture.run_oxyii(_o2dev(name="Ring"), str(tmp_path)))
     assert capture.STATUS["devices"]["Ring"]["last_error"] == "paused — pulling stored session"
@@ -1661,22 +2278,28 @@ def _oxyii_frame(op, body):
 
 def test_run_oxyii_ignores_a_non_live_frame(tmp_path, monkeypatch):
     """A decoded frame that is not OP_LIVE is skipped (925-926)."""
-    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
     c = FakeGattClient()
-    c.on_live = lambda data: (c.notify(0, _oxyii_frame(oxyii.OP_SETUP, b"\x00"))
-                              if data[1] == oxyii.OP_LIVE else None)
+    c.on_live = lambda data: c.notify(0, _oxyii_frame(oxyii.OP_SETUP, b"\x00")) if data[1] == oxyii.OP_LIVE else None
     _inject_connect_scan(monkeypatch, c)
     _stop_after(monkeypatch, 4)
     _run(capture.run_oxyii(_o2dev(name="Ring"), str(tmp_path)))
-    assert capture.STATUS["devices"]["Ring"].get("spo2") is None   # a non-live frame yields no vitals
+    assert capture.STATUS["devices"]["Ring"].get("spo2") is None  # a non-live frame yields no vitals
 
 
 def test_run_oxyii_ignores_a_short_live_body(tmp_path, monkeypatch):
     """A LIVE frame whose body is too short for parse_live yields None and is skipped (949-950)."""
-    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
     c = FakeGattClient()
-    c.on_live = lambda data: (c.notify(0, _oxyii_frame(oxyii.OP_LIVE, b"\x00" * 8))   # <14 → parse_live None
-                              if data[1] == oxyii.OP_LIVE else None)
+    c.on_live = lambda data: (
+        c.notify(0, _oxyii_frame(oxyii.OP_LIVE, b"\x00" * 8))  # <14 → parse_live None
+        if data[1] == oxyii.OP_LIVE
+        else None
+    )
     _inject_connect_scan(monkeypatch, c)
     _stop_after(monkeypatch, 4)
     _run(capture.run_oxyii(_o2dev(name="Ring"), str(tmp_path)))
@@ -1701,14 +2324,17 @@ def _oxyii_live_body(duration=100, spo2=96, pr=55, worn=True, motion=0, batt=90,
 def test_run_oxyii_ppg_probe_dumps_frames(tmp_path, monkeypatch):
     """With OXYII_PPG_PROBE armed, on_data dumps the raw frame body to the probe file and logs on the
     final frame (927-936)."""
-    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
     monkeypatch.setattr(capture, "_PPG_PROBE", True)
     monkeypatch.setattr(capture, "_PPG_PROBE_N", 1)
     monkeypatch.setattr(capture, "_PPG_PROBE_FILE", str(tmp_path / "ppgprobe.jsonl"))
     monkeypatch.setattr(capture, "_ppg_probe_n", [0])
     c = FakeGattClient()
-    c.on_live = lambda data: (c.notify(0, _oxyii_frame(oxyii.OP_LIVE, _oxyii_live_body()))
-                              if data[1] == oxyii.OP_LIVE else None)
+    c.on_live = lambda data: (
+        c.notify(0, _oxyii_frame(oxyii.OP_LIVE, _oxyii_live_body())) if data[1] == oxyii.OP_LIVE else None
+    )
     _inject_connect_scan(monkeypatch, c)
     _stop_after(monkeypatch, 4)
     _run(capture.run_oxyii(_o2dev(name="Ring"), str(tmp_path)))
@@ -1718,67 +2344,199 @@ def test_run_oxyii_ppg_probe_dumps_frames(tmp_path, monkeypatch):
 def test_run_oxyii_syncs_rtc_on_a_new_session(tmp_path, monkeypatch):
     """A live duration that goes BACKWARDS is a new recording session → sets _rtc_due, which the poll loop
     services with an RTC sync (957-963, 1020-1022)."""
-    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
-    capture._OXYII_LAST_DURATION["D1:98:62:7C:92:B3"] = 5000     # a big prior duration...
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
+    capture._OXYII_LAST_DURATION["D1:98:62:7C:92:B3"] = 5000  # a big prior duration...
     c = FakeGattClient()
-    c.on_live = lambda data: (c.notify(0, _oxyii_frame(oxyii.OP_LIVE, _oxyii_live_body(duration=10)))
-                              if data[1] == oxyii.OP_LIVE else None)   # ...now tiny → restart
+    c.on_live = lambda data: (
+        c.notify(0, _oxyii_frame(oxyii.OP_LIVE, _oxyii_live_body(duration=10))) if data[1] == oxyii.OP_LIVE else None
+    )  # ...now tiny → restart
     _inject_connect_scan(monkeypatch, c)
     _stop_after(monkeypatch, 5)
     _run(capture.run_oxyii(_o2dev(name="Ring"), str(tmp_path)))
-    assert capture.STATUS["devices"]["Ring"].get("clock_synced")   # the RTC re-sync stamped it
+    assert capture.STATUS["devices"]["Ring"].get("clock_synced")  # the RTC re-sync stamped it
+
+
+# ── restart STORM: 4 session restarts in 120 s → drop the link, hold off, resume when the hold expires ──
+import time as _time  # noqa: E402
+
+_RING = "D1:98:62:7C:92:B3"
+
+
+def _clear_storm_state():
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
+    capture._OXYII_LAST_DURATION.pop(_RING, None)
+    capture._OXYII_RESTARTS.clear()
+    capture._OXYII_STORMS.clear()
+    capture._OXYII_HOLD_UNTIL.clear()
+
+
+def _storming_ring():
+    """A ring whose session duration goes 900 → 0 → 900 → 0 …: every downward step is a restart (the
+    09-05 shape — a ring stuck at run_status 1 that cannot find a pulse and restarts on every poll)."""
+    c = FakeGattClient()
+    seq = {"i": 0}
+
+    def reply(data):
+        if data[1] != oxyii.OP_LIVE:
+            return
+        seq["i"] += 1
+        c.notify(0, _o2ring_live_reply(duration=0 if seq["i"] % 2 == 0 else 900))
+
+    c.on_live = reply
+    return c, seq
+
+
+def test_run_oxyii_restart_storm_drops_the_link_and_holds(tmp_path, monkeypatch, caplog):
+    """The execution witness for oxyii_restart_storm inside run_oxyii: the 4th restart latches _storm_hit,
+    the poll loop breaks BEFORE the next live poll (no 9th 0x04 write), the outer loop parks on the hold
+    with connected=False and a storm last_error, and the storm is recorded for escalation."""
+    _clear_storm_state()
+    c, seq = _storming_ring()
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 40)  # far past the break — STOP trips INSIDE the hold wait
+    with caplog.at_level(logging.WARNING):
+        _run(capture.run_oxyii(_o2dev(name="Ring"), str(tmp_path)))
+    assert "restart storm" in caplog.text and "4 session restarts" in caplog.text
+    assert seq["i"] == 8  # 4 restarts = 8 polls; the loop broke before a 9th
+    assert _RING in capture._OXYII_HOLD_UNTIL and capture._OXYII_HOLD_UNTIL[_RING] > _time.monotonic()
+    assert len(capture._OXYII_STORMS[_RING]) == 1 and capture._OXYII_RESTARTS[_RING] == []
+    st = capture.STATUS["devices"]["Ring"]
+    assert st["connected"] is False and st["last_error"].startswith("restart storm")
+    assert "15 min" in st["last_error"]  # the first hold is the base 900 s
+
+
+def test_run_oxyii_second_storm_holds_twice_as_long(tmp_path, monkeypatch):
+    """A storm 20 min ago doubles the hold: 30 min, not 15."""
+    _clear_storm_state()
+    capture._OXYII_STORMS[_RING] = [_time.monotonic() - 1200.0]
+    c, _ = _storming_ring()
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 40)
+    _run(capture.run_oxyii(_o2dev(name="Ring"), str(tmp_path)))
+    assert "30 min" in capture.STATUS["devices"]["Ring"]["last_error"]
+    assert len(capture._OXYII_STORMS[_RING]) == 2
+
+
+def test_run_oxyii_resumes_when_the_hold_has_expired(tmp_path, monkeypatch, caplog):
+    """An expired hold is popped, the restart count starts over, and the ring is captured normally."""
+    _clear_storm_state()
+    capture._OXYII_HOLD_UNTIL[_RING] = _time.monotonic() - 1.0
+    capture._OXYII_RESTARTS[_RING] = [_time.monotonic() - 30.0]  # stale count from before the hold
+    c = FakeGattClient()
+    c.on_live = lambda data: c.notify(0, _o2ring_live_reply()) if data[1] == oxyii.OP_LIVE else None
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 4)
+    with caplog.at_level(logging.INFO):
+        _run(capture.run_oxyii(_o2dev(name="Ring"), str(tmp_path)))
+    assert "restart-storm hold over" in caplog.text
+    assert _RING not in capture._OXYII_HOLD_UNTIL and _RING not in capture._OXYII_RESTARTS
+    assert any(w[1] == oxyii.OP_LIVE for w in c.writes)  # live capture ran
+
+
+@pytest.mark.sets_capture_events
+def test_run_oxyii_hold_yields_to_a_stored_pull(tmp_path, monkeypatch):
+    """_OXYII_PAUSE set during a hold ends the wait without ending the hold: the pull path takes the link
+    (the one interaction measured NOT to restart the ring) and the hold is re-evaluated afterwards."""
+    _clear_storm_state()
+    capture._OXYII_HOLD_UNTIL[_RING] = _time.monotonic() + 3600.0
+    c = FakeGattClient()
+    _inject_connect_scan(monkeypatch, c)
+    calls = {"n": 0}
+
+    async def fake_sleep(_s):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            capture._OXYII_PAUSE.set()  # a pull wants the link mid-hold
+        elif calls["n"] >= 3:
+            capture._STOP.set()
+
+    monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
+    _run(capture.run_oxyii(_o2dev(name="Ring"), str(tmp_path)))
+    assert c.writes == []  # never connected: the hold never reached the link
+    assert capture._OXYII_HOLD_UNTIL[_RING] > _time.monotonic()  # the hold itself is intact
 
 
 # ── pull_oxyii_session: waits for the live link to drop, reports progress, reads .meta.json (1057-1074) ──
 def test_pull_oxyii_session_waits_progress_and_meta(tmp_path, monkeypatch):
     capture._OXYII_PAUSE.clear()
     import pull_session
-    datf = tmp_path / "s.dat"; datf.write_text("x")
+
+    datf = tmp_path / "s.dat"
+    datf.write_text("x")
     (tmp_path / "s.dat.meta.json").write_text('{"session": "abc"}')
+
     async def fake_pull(address, out_dir, **kw):
         if kw.get("on_progress"):
-            kw["on_progress"](25, 100)                # drives the _prog closure (1060-1062)
+            kw["on_progress"](25, 100)  # drives the _prog closure (1060-1062)
         return [str(datf)]
+
     monkeypatch.setattr(pull_session, "pull", fake_pull)
     # first poll sees the device still connected (1057 sleeps), then it drops
     state = {"connected": True}
     capture.STATUS["devices"]["Ring"] = state
+
     async def fake_sleep(_s):
-        state["connected"] = False                    # link torn down after the first wait tick
+        state["connected"] = False  # link torn down after the first wait tick
+
     monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
     r = _run(capture.pull_oxyii_session(_o2dev(name="Ring"), str(tmp_path)))
-    assert r["ok"] is True and r["sessions"] == [{"session": "abc"}]   # meta.json parsed (1073-1074)
+    assert r["ok"] is True and r["sessions"] == [{"session": "abc"}]  # meta.json parsed (1073-1074)
 
 
 # ── polar_offline_op: waits for the live link to drop before taking the slot (1124) ────────────────────
 def test_polar_offline_op_waits_for_the_link_to_drop(monkeypatch):
     capture._POLAR_PAUSED.clear()
     capture.STATUS["devices"]["H10"] = {"address": "24:AC:AC:02:84:96", "connected": True}
+
     async def fake_sleep(_s):
-        capture.STATUS["devices"]["H10"]["connected"] = False   # drops after the first 0.1 s wait tick
+        capture.STATUS["devices"]["H10"]["connected"] = False  # drops after the first 0.1 s wait tick
+
     monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
-    async def op(): return "ok"
+
+    async def op():
+        return "ok"
+
     assert _run(capture.polar_offline_op("24:AC:AC:02:84:96", op)) == "ok"
 
 
 # ── _connect_scan: a disconnect error in teardown is swallowed (294-295) ────────────────────────────────
 def test_connect_scan_swallows_a_disconnect_error(monkeypatch):
     import bleak
+
     class _Dev:
-        address = "D1:98:62:7C:92:B3"; name = "S8-AW"
+        address = "D1:98:62:7C:92:B3"
+        name = "S8-AW"
+
     class _BC:
-        def __init__(self, dev, **kw): pass
-        async def connect(self): pass
-        async def disconnect(self): raise RuntimeError("disc boom")
-    async def find(*a, **k): return _Dev()
+        def __init__(self, dev, **kw):
+            pass
+
+        async def connect(self):
+            pass
+
+        async def disconnect(self):
+            raise RuntimeError("disc boom")
+
+    async def find(*a, **k):
+        return _Dev()
+
     monkeypatch.setattr(bleak.BleakScanner, "find_device_by_filter", find)
     monkeypatch.setattr(bleak, "BleakClient", _BC)
-    async def no_kw(): return {}
+
+    async def no_kw():
+        return {}
+
     monkeypatch.setattr(capture, "adapter_kw", no_kw)
+
     async def go():
         async with capture._connect_scan("D1:98:62:7C:92:B3"):
             pass
-    _run(go())                          # the disconnect error in the finally must be swallowed
+
+    _run(go())  # the disconnect error in the finally must be swallowed
 
 
 # ── run_polar: a stale-bond re-pair after two consecutive service-discovery failures (716-726) ─────────
@@ -1787,21 +2545,27 @@ def test_run_polar_repairs_a_stale_bond(tmp_path, monkeypatch):
     (716-724). The first hit alone must NOT re-pair (that is ordinary flapping)."""
     _polar_common(monkeypatch)
     repairs = {"n": 0}
+
     async def bonded(addr, adapter=None, force=False):
         if force:
             repairs["n"] += 1
         return True
+
     monkeypatch.setattr(capture.bonding, "ensure_bonded", bonded)
+
     class _StaleClient(FlexPolarClient):
         async def start_notify(self, uuid, cb):
-            raise RuntimeError("failed to discover services")   # a stale-bond-shaped error
+            raise RuntimeError("failed to discover services")  # a stale-bond-shaped error
+
     c = _StaleClient(data_frames=[_ecg_frame()])
     _inject_connect(monkeypatch, c)
     calls = {"n": 0}
+
     async def fake_sleep(_s):
         calls["n"] += 1
-        if calls["n"] >= 2:              # let two sessions fail (hits==2) before stopping
+        if calls["n"] >= 2:  # let two sessions fail (hits==2) before stopping
             capture._STOP.set()
+
     monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
     _run(capture.run_polar(_pdev(), str(tmp_path)))
     assert repairs["n"] == 1, "the forced re-pair fires exactly once, on the SECOND stale hit"
@@ -1810,82 +2574,113 @@ def test_run_polar_repairs_a_stale_bond(tmp_path, monkeypatch):
 def test_run_polar_repair_error_is_swallowed(tmp_path, monkeypatch):
     """A forced re-pair that itself raises is logged, not propagated (725-726)."""
     _polar_common(monkeypatch)
+
     async def bonded(addr, adapter=None, force=False):
         if force:
             raise RuntimeError("re-pair failed")
         return True
+
     monkeypatch.setattr(capture.bonding, "ensure_bonded", bonded)
+
     class _StaleClient(FlexPolarClient):
         async def start_notify(self, uuid, cb):
             raise RuntimeError("insufficient authentication")
+
     c = _StaleClient(data_frames=[_ecg_frame()])
     _inject_connect(monkeypatch, c)
     calls = {"n": 0}
+
     async def fake_sleep(_s):
         calls["n"] += 1
         if calls["n"] >= 2:
             capture._STOP.set()
+
     monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
     _run(capture.run_polar(_pdev(), str(tmp_path)))
-    assert "H10" in capture.STATUS["devices"]   # the re-pair error did not crash the loop
+    assert "H10" in capture.STATUS["devices"]  # the re-pair error did not crash the loop
 
 
 # ── run_oxyii: a PPG-probe write error is swallowed (933-934) ──────────────────────────────────────────
 def test_run_oxyii_ppg_probe_write_error_is_swallowed(tmp_path, monkeypatch):
-    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
     monkeypatch.setattr(capture, "_PPG_PROBE", True)
     monkeypatch.setattr(capture, "_PPG_PROBE_N", 5)
-    monkeypatch.setattr(capture, "_PPG_PROBE_FILE", str(tmp_path))   # a DIRECTORY → open(...,'a') raises
+    monkeypatch.setattr(capture, "_PPG_PROBE_FILE", str(tmp_path))  # a DIRECTORY → open(...,'a') raises
     monkeypatch.setattr(capture, "_ppg_probe_n", [0])
     c = FakeGattClient()
-    c.on_live = lambda data: (c.notify(0, _oxyii_frame(oxyii.OP_LIVE, _oxyii_live_body()))
-                              if data[1] == oxyii.OP_LIVE else None)
+    c.on_live = lambda data: (
+        c.notify(0, _oxyii_frame(oxyii.OP_LIVE, _oxyii_live_body())) if data[1] == oxyii.OP_LIVE else None
+    )
     _inject_connect_scan(monkeypatch, c)
     _stop_after(monkeypatch, 4)
     _run(capture.run_oxyii(_o2dev(name="Ring"), str(tmp_path)))
-    assert capture.STATUS["devices"]["Ring"]["spo2"] == 96   # probe write failing didn't disturb capture
+    assert capture.STATUS["devices"]["Ring"]["spo2"] == 96  # probe write failing didn't disturb capture
 
 
 # ── status_loop: a write error is logged, not fatal (1152-1153) ────────────────────────────────────────
 def test_status_loop_swallows_a_write_error(tmp_path, monkeypatch):
-    def boom(*a, **k): raise OSError("disk full")
+    def boom(*a, **k):
+        raise OSError("disk full")
+
     monkeypatch.setattr(capture.os, "makedirs", boom)
     _stop_after(monkeypatch, 1)
-    _run(capture.status_loop(str(tmp_path)))     # the write error must be caught, not raised
+    _run(capture.status_loop(str(tmp_path)))  # the write error must be caught, not raised
 
 
 # ── sync_device_time: a non-H10 device whose GET_LOCAL_TIME read-backs both fail (1179-1180, 1187-1188) ─
 def test_sync_device_time_non_h10_readback_failures(monkeypatch):
     import polar_psftp
+
     capture._CFG.clear()
     capture._CFG.update({"devices": [{"address": "AA:BB", "name": "Verity", "model": "Verity Sense"}]})
     capture.STATUS["devices"]["Verity"] = {"address": "AA:BB"}
+
     class _FS:
-        async def __aenter__(self): return self
-        async def __aexit__(self, *a): return False
-        async def get_local_time(self): raise RuntimeError("no local time")   # both before + after raise
-        async def set_local_time(self, with_system_time=True): return None
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            return False
+
+        async def get_local_time(self):
+            raise RuntimeError("no local time")  # both before + after raise
+
+        async def set_local_time(self, with_system_time=True):
+            return None
+
     monkeypatch.setattr(polar_psftp, "PolarPsFtp", lambda *_a, **_k: _FS())
-    async def hci(): return "hci0"
+
+    async def hci():
+        return "hci0"
+
     monkeypatch.setattr(capture, "adapter_hci", hci)
-    async def _on_air(_a, _b): return True   # presence check is not what this test is about
+
+    async def _on_air(_a, _b):
+        return True  # presence check is not what this test is about
+
     monkeypatch.setattr(capture, "_device_on_air", _on_air)
     r = _run(capture.sync_device_time("AA:BB"))
-    assert r["ok"] is True and r["readback"] is False   # neither read-back succeeded, but the set did
+    assert r["ok"] is True and r["readback"] is False  # neither read-back succeeded, but the set did
 
 
 # ── adapter_watchdog: skip-while-paused, info error, healthy-again, disconnect error, cycle cap ─────────
+@pytest.mark.sets_capture_events
 def test_adapter_watchdog_skips_while_paused(monkeypatch):
     """A pull in flight (_OXYII_PAUSE) → the watchdog skips its diagnosis for that tick (1228-1229)."""
     capture._OXYII_PAUSE.set()
     _stop_after(monkeypatch, 1)
     cfg = {"watchdog": {"enabled": True, "interval_sec": 1}, "devices": [_dev(name="H10")]}
-    _run(capture.adapter_watchdog("hci0", cfg))    # one tick, all skipped, no crash
+    _run(capture.adapter_watchdog("hci0", cfg))  # one tick, all skipped, no crash
 
 
 def test_adapter_watchdog_swallows_a_btctl_info_error(monkeypatch):
     """A bluetoothctl `info` that raises is treated as 'not BlueZ-connected' (1237-1238)."""
-    async def boom(script, timeout=6): raise RuntimeError("btctl down")
+
+    async def boom(script, timeout=6):
+        raise RuntimeError("btctl down")
+
     monkeypatch.setattr(capture.bonding, "_btctl", boom)
     _stop_after(monkeypatch, 1)
     cfg = {"watchdog": {"enabled": True, "interval_sec": 1}, "devices": [_dev(name="H10")]}
@@ -1897,44 +2692,52 @@ def test_adapter_watchdog_logs_recovery_and_survives_a_disconnect_error(monkeypa
     """Iteration 1 is wedged (phantom link) so the disconnect L1 runs — and here _btctl raises for the
     disconnect (1254-1255); iteration 2 is healthy, logging 'adapter healthy again' (1244-1245)."""
     calls = {"n": 0}
+
     async def fake_btctl(script, timeout=6):
         if "disconnect" in script:
-            raise RuntimeError("disconnect failed")     # exercises the L1 except (1254-1255)
+            raise RuntimeError("disconnect failed")  # exercises the L1 except (1254-1255)
         if "info" in script:
             calls["n"] += 1
-            return "Connected: yes\n" if calls["n"] == 1 else "Connected: no\n"   # wedge then clear
+            return "Connected: yes\n" if calls["n"] == 1 else "Connected: no\n"  # wedge then clear
         return ""
+
     monkeypatch.setattr(capture.bonding, "_btctl", fake_btctl)
     _stop_after(monkeypatch, 2)
-    cfg = {"watchdog": {"enabled": True, "interval_sec": 1, "grace_checks": 5},
-           "devices": [_dev(name="H10")]}
+    cfg = {"watchdog": {"enabled": True, "interval_sec": 1, "grace_checks": 5}, "devices": [_dev(name="H10")]}
     capture.STATUS["devices"]["H10"] = {"connected": False, "address": "24:AC:AC:02:84:96"}
     _run(capture.adapter_watchdog("hci0", cfg))
-    assert calls["n"] >= 2   # both checks ran; the second read healthy
+    assert calls["n"] >= 2  # both checks ran; the second read healthy
 
 
 def test_adapter_watchdog_stops_after_the_power_cycle_cap(monkeypatch):
     """Past max_adapter_cycles the watchdog logs CRITICAL and stops auto-recovering (1258-1260)."""
+
     async def fake_btctl(script, timeout=6):
         if "info" in script:
-            return "Connected: yes\n"        # permanently phantom → wedged every check
+            return "Connected: yes\n"  # permanently phantom → wedged every check
         return ""
+
     monkeypatch.setattr(capture.bonding, "_btctl", fake_btctl)
 
     async def no_spare(*a, **k):
-        return []                                # P1.5: no healthy spare → the give-up STOP path (1258-60)
+        return []  # P1.5: no healthy spare → the give-up STOP path (1258-60)
+
     monkeypatch.setattr(capture, "list_adapters", no_spare)
     # Count only the top-of-loop interval sleep (1.0 s), not the power-cycle's internal 1.5/2/3 s sleeps,
     # so the loop reaches a SECOND wedged check with cycles already at the cap.
     ticks = {"n": 0}
+
     async def fake_sleep(secs):
         if secs == 1:
             ticks["n"] += 1
             if ticks["n"] >= 2:
                 capture._STOP.set()
+
     monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
-    cfg = {"watchdog": {"enabled": True, "interval_sec": 1, "grace_checks": 1, "max_adapter_cycles": 1},
-           "devices": [_dev(name="H10")]}
+    cfg = {
+        "watchdog": {"enabled": True, "interval_sec": 1, "grace_checks": 1, "max_adapter_cycles": 1},
+        "devices": [_dev(name="H10")],
+    }
     capture.STATUS["devices"]["H10"] = {"connected": False, "address": "24:AC:AC:02:84:96"}
     _run(capture.adapter_watchdog("AC:A7:F1:29:9D:1D", cfg))
 
@@ -1944,20 +2747,36 @@ def test_clock_watchdog_skips_while_paused(monkeypatch):
     capture._POLAR_PAUSED.add("x")
     _stop_after(monkeypatch, 1)
     cfg = {"time": {"auto_sync_devices": True, "drift_check_sec": 1}, "devices": [_dev(name="H10")]}
-    _run(capture.clock_watchdog(cfg))       # the pull-in-progress skip (1319-1320)
+    _run(capture.clock_watchdog(cfg))  # the pull-in-progress skip (1319-1320)
 
 
 def test_clock_watchdog_ignores_non_polar_and_in_tolerance_devices(monkeypatch):
     synced = []
-    async def fake_sync(addr): synced.append(addr)
+
+    async def fake_sync(addr):
+        synced.append(addr)
+
     monkeypatch.setattr(capture, "sync_device_time", fake_sync)
     _stop_after(monkeypatch, 1)
-    cfg = {"time": {"auto_sync_devices": True, "drift_check_sec": 1},
-           "devices": [_dev(name="Ring", vendor="Wellue"),        # non-Polar → skipped (1323-1324)
-                       _dev(name="H10")]}
-    capture.STATUS["devices"]["Ring"] = {"connected": True, "clock_skew_sec": 99, "address": "R"}
-    capture.STATUS["devices"]["H10"] = {"connected": True, "clock_skew_sec": 0.1,   # in tolerance, steady
-                                        "address": "24:AC:AC:02:84:96"}
+    cfg = {
+        "time": {"auto_sync_devices": True, "drift_check_sec": 1},
+        "devices": [
+            _dev(name="Ring", vendor="Wellue"),  # non-Polar → skipped (1323-1324)
+            _dev(name="H10"),
+        ],
+    }
+    capture.STATUS["devices"]["Ring"] = {
+        "connected": True,
+        "clock_skew_sec": 99,
+        "clock_skew_floor_sec": 99,
+        "address": "R",
+    }
+    capture.STATUS["devices"]["H10"] = {
+        "connected": True,
+        "clock_skew_sec": 0.1,
+        "clock_skew_floor_sec": 0.1,  # in tolerance, steady
+        "address": "24:AC:AC:02:84:96",
+    }
     _run(capture.clock_watchdog(cfg))
     assert synced == [], "neither a non-Polar nor an in-tolerance steady device is re-synced"
 
@@ -1965,93 +2784,121 @@ def test_clock_watchdog_ignores_non_polar_and_in_tolerance_devices(monkeypatch):
 def test_clock_watchdog_resyncs_on_a_jump(monkeypatch):
     """A skew that CHANGES by more than resync_jump_sec between checks is a jump → re-sync (1343-1344)."""
     synced = []
+
     async def fake_sync(addr):
-        synced.append(addr); capture._STOP.set(); return {"ok": True}   # one sync ends the loop
+        synced.append(addr)
+        capture._STOP.set()
+        return {"ok": True}  # one sync ends the loop
+
     monkeypatch.setattr(capture, "sync_device_time", fake_sync)
-    st = {"connected": True, "clock_skew_sec": 0.0, "address": "24:AC:AC:02:84:96"}
+    st = {"connected": True, "clock_skew_sec": 0.0, "clock_skew_floor_sec": 0.0, "address": "24:AC:AC:02:84:96"}
     capture.STATUS["devices"]["H10"] = st
     calls = {"n": 0}
+
     async def fake_sleep(_s):
         calls["n"] += 1
         if calls["n"] >= 2:
-            st["clock_skew_sec"] = 40.0     # check 1 is a 0-skew baseline; check 2 sees the jump
+            # BOTH keys: the watchdog decides on `clock_skew_floor_sec` (the envelope over a window),
+            # and a jump is a jump in the quantity it decides on. Moving only the per-frame key left
+            # the floor at 0.0 forever, so this loop — which ends only when a sync fires — hung.
+            st["clock_skew_sec"] = 40.0  # check 1 is a 0-skew baseline; check 2 sees the jump
+            st["clock_skew_floor_sec"] = 40.0
+
     monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
-    cfg = {"time": {"auto_sync_devices": True, "drift_check_sec": 1, "resync_jump_sec": 30},
-           "devices": [_dev(name="H10")]}
+    cfg = {
+        "time": {"auto_sync_devices": True, "drift_check_sec": 1, "resync_jump_sec": 30},
+        "devices": [_dev(name="H10")],
+    }
     _run(capture.clock_watchdog(cfg))
     assert synced == ["24:AC:AC:02:84:96"]
 
 
 def _clock_watchdog_error_case(monkeypatch, raiser):
-    async def fake_sync(addr): raise raiser
+    async def fake_sync(addr):
+        raise raiser
+
     monkeypatch.setattr(capture, "sync_device_time", fake_sync)
     _stop_after(monkeypatch, 1)
-    cfg = {"time": {"auto_sync_devices": True, "drift_check_sec": 1},
-           "devices": [_dev(name="H10")]}
-    capture.STATUS["devices"]["H10"] = {"connected": True, "clock_skew_sec": 5,   # adrift → attempt sync
-                                        "address": "24:AC:AC:02:84:96"}
+    cfg = {"time": {"auto_sync_devices": True, "drift_check_sec": 1}, "devices": [_dev(name="H10")]}
+    capture.STATUS["devices"]["H10"] = {
+        "connected": True,
+        "clock_skew_sec": 5,
+        "clock_skew_floor_sec": 5,  # adrift → attempt sync
+        "address": "24:AC:AC:02:84:96",
+    }
     _run(capture.clock_watchdog(cfg))
 
 
 def test_clock_watchdog_handles_a_busy_slot(monkeypatch):
     import offline_lock
-    _clock_watchdog_error_case(monkeypatch, offline_lock.OfflineBusy("busy"))   # 1350-1351
+
+    _clock_watchdog_error_case(monkeypatch, offline_lock.OfflineBusy("busy"))  # 1350-1351
 
 
 def test_clock_watchdog_handles_a_transient_error(monkeypatch):
-    _clock_watchdog_error_case(monkeypatch, RuntimeError("org.bluez.Error.InProgress"))   # 1353-1355
+    _clock_watchdog_error_case(monkeypatch, RuntimeError("org.bluez.Error.InProgress"))  # 1353-1355
 
 
 def test_clock_watchdog_handles_a_hard_error(monkeypatch):
-    _clock_watchdog_error_case(monkeypatch, RuntimeError("error 201 NOT_IMPLEMENTED"))    # 1356-1357
+    _clock_watchdog_error_case(monkeypatch, RuntimeError("error 201 NOT_IMPLEMENTED"))  # 1356-1357
 
 
 # ── host_clock_poller: a read error is swallowed (1387-1388) ───────────────────────────────────────────
 def test_host_clock_poller_swallows_a_read_error(tmp_path, monkeypatch):
-    async def boom(): raise RuntimeError("timedatectl gone")
+    async def boom():
+        raise RuntimeError("timedatectl gone")
+
     monkeypatch.setattr(capture.host_clock, "read_state", boom)
     _stop_after(monkeypatch, 1)
-    _run(capture.host_clock_poller({}, str(tmp_path)))   # the poll error must not take capture down
+    _run(capture.host_clock_poller({}, str(tmp_path)))  # the poll error must not take capture down
 
 
 def test_host_clock_poller_rolls_the_night_at_midnight(tmp_path, monkeypatch):
     """A session running past midnight must start a fresh CLOCK.csv in the NEW night's folder, not keep
     appending to the folder it opened at boot."""
     import datetime as _dtm
-    async def fake_state(): return {"trust": "disciplined", "absolute_ok": True}
+
+    async def fake_state():
+        return {"trust": "disciplined", "absolute_ok": True}
+
     monkeypatch.setattr(capture.host_clock, "read_state", fake_state)
     day = {"n": 0}
-    monkeypatch.setattr(capture, "_now",
-                        lambda: _dtm.datetime(2026, 7, 18 + day["n"], 23, 30, 0))
+    monkeypatch.setattr(capture, "_now", lambda: _dtm.datetime(2026, 7, 18 + day["n"], 23, 30, 0))
+
     async def fake_sleep(_s):
-        day["n"] += 1                      # each poll advances one calendar day → forces a roll
+        day["n"] += 1  # each poll advances one calendar day → forces a roll
         if day["n"] >= 2:
             capture._STOP.set()
+
     monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
     _run(capture.host_clock_poller({}, str(tmp_path)))
     nights = {p.parent.name for p in (tmp_path / "captures").rglob("*_CLOCK.csv")}
-    assert nights == {"2026-07-18", "2026-07-19"}   # one CSV per night, each in its own folder
+    assert nights == {"2026-07-18", "2026-07-19"}  # one CSV per night, each in its own folder
 
 
 # ── rssi_poller: writer-create failure, pause-skip, the device loop, and idle/resume (1416-1458) ───────
 def test_rssi_poller_swallows_a_writer_create_error(tmp_path, monkeypatch):
-    def boom(path): raise OSError("cannot open link log")
+    def boom(path):
+        raise OSError("cannot open link log")
+
     monkeypatch.setattr(capture, "LinkLogWriter", boom)
     _stop_after(monkeypatch, 1)
     cfg = {"link": {"rssi_enabled": True, "log_enabled": True, "rssi_interval_sec": 25}}
-    _run(capture.rssi_poller("hci0", cfg, str(tmp_path)))   # writer stays None; the loop still runs (1416-1417)
+    _run(capture.rssi_poller("hci0", cfg, str(tmp_path)))  # writer stays None; the loop still runs (1416-1417)
 
 
 def test_rssi_poller_rolls_the_link_at_midnight(tmp_path, monkeypatch):
     """Crossing midnight rolls LINK.csv into the new night's folder — the writer opened at boot must not
     keep appending to the first night's directory forever."""
     import datetime as _dtm
+
     day = {"n": 0}
-    monkeypatch.setattr(capture, "_now",
-                        lambda: _dtm.datetime(2026, 7, 18 + day["n"], 23, 45, 0))
+    monkeypatch.setattr(capture, "_now", lambda: _dtm.datetime(2026, 7, 18 + day["n"], 23, 45, 0))
+
     async def fake_sleep(_s):
-        day["n"] += 1                      # advance a day AND stop; the body still rolls before exit
+        day["n"] += 1  # advance a day AND stop; the body still rolls before exit
         capture._STOP.set()
+
     monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
     cfg = {"link": {"rssi_enabled": False, "log_enabled": True, "rssi_interval_sec": 25}}
     _run(capture.rssi_poller("hci0", cfg, str(tmp_path)))
@@ -2062,48 +2909,64 @@ def test_rssi_poller_rolls_the_link_at_midnight(tmp_path, monkeypatch):
 def test_rssi_poller_skips_while_paused(tmp_path, monkeypatch):
     capture._POLAR_PAUSED.add("x")
     _stop_after(monkeypatch, 1)
-    cfg = {"link": {"rssi_enabled": True, "log_enabled": False, "rssi_interval_sec": 25},
-           "devices": [_dev(name="H10")]}
-    _run(capture.rssi_poller("hci0", cfg, str(tmp_path)))   # 1425-1426
+    cfg = {"link": {"rssi_enabled": True, "log_enabled": False, "rssi_interval_sec": 25}, "devices": [_dev(name="H10")]}
+    _run(capture.rssi_poller("hci0", cfg, str(tmp_path)))  # 1425-1426
 
 
 def test_rssi_poller_reads_and_logs_the_configured_devices(tmp_path, monkeypatch):
     """The per-device loop: a nameless device is skipped, a disconnected one is cleared, a connected one is
     read + logged (1431-1447)."""
-    async def fake_rssi(adapter, addr): return -60
+
+    async def fake_rssi(adapter, addr):
+        return -60
+
     monkeypatch.setattr(capture.link_rssi, "read_rssi", fake_rssi)
     _stop_after(monkeypatch, 1)
-    cfg = {"link": {"rssi_enabled": True, "log_enabled": True, "rssi_interval_sec": 25},
-           "devices": [_dev(name="H10"),
-                       _dev(name="Gone", address="AA:BB:CC"),
-                       {"streams": ["ecg"]}]}                # nameless → skipped (1432-1433)
+    cfg = {
+        "link": {"rssi_enabled": True, "log_enabled": True, "rssi_interval_sec": 25},
+        "devices": [_dev(name="H10"), _dev(name="Gone", address="AA:BB:CC"), {"streams": ["ecg"]}],
+    }  # nameless → skipped (1432-1433)
     capture.STATUS["devices"]["H10"] = {"connected": True}
     capture.STATUS["devices"]["Gone"] = {"connected": False, "rssi": -70}
     _run(capture.rssi_poller("hci0", cfg, str(tmp_path)))
     assert capture.STATUS["devices"]["H10"]["rssi"] == -60
-    assert capture.STATUS["devices"]["Gone"]["rssi"] is None   # stale reading cleared on the dropped device
+    assert capture.STATUS["devices"]["Gone"]["rssi"] is None  # stale reading cleared on the dropped device
 
 
 def test_rssi_poller_goes_idle_then_resumes(tmp_path, monkeypatch):
     """Three consecutive unavailable reads flip RSSI polling to idle (1449-1454); a later success resumes
     it (1455-1458)."""
     seq = [None, None, None, -55]
-    async def fake_rssi(adapter, addr): return seq.pop(0) if seq else -55
+
+    async def fake_rssi(adapter, addr):
+        return seq.pop(0) if seq else -55
+
     monkeypatch.setattr(capture.link_rssi, "read_rssi", fake_rssi)
     _stop_after(monkeypatch, 5)
-    cfg = {"link": {"rssi_enabled": True, "log_enabled": False,
-                    "rssi_interval_sec": 25, "rssi_retry_sec": 0},   # retry immediately so idle re-probes
-           "devices": [_dev(name="H10")]}
+    cfg = {
+        "link": {
+            "rssi_enabled": True,
+            "log_enabled": False,
+            "rssi_interval_sec": 25,
+            "rssi_retry_sec": 0,
+        },  # retry immediately so idle re-probes
+        "devices": [_dev(name="H10")],
+    }
     capture.STATUS["devices"]["H10"] = {"connected": True}
     _run(capture.rssi_poller("hci0", cfg, str(tmp_path)))
-    assert capture.STATUS["devices"]["H10"]["rssi"] == -55   # resumed and read a real value
+    assert capture.STATUS["devices"]["H10"]["rssi"] == -55  # resumed and read a real value
 
 
 # ── device-runner registry (register_runner / unregister_runner): one runner per BLE link ──────────────
 class _FakeTask:
-    def __init__(self, done=False): self._done, self.cancelled = done, False
-    def done(self): return self._done
-    def cancel(self): self.cancelled = True
+    def __init__(self, done=False):
+        self._done, self.cancelled = done, False
+
+    def done(self):
+        return self._done
+
+    def cancel(self):
+        self.cancelled = True
 
 
 def test_register_runner_dedupes_a_re_remember_by_address():
@@ -2112,28 +2975,32 @@ def test_register_runner_dedupes_a_re_remember_by_address():
     capture.register_runner(dt, tasks, "AA", t1)
     assert dt == {"AA": t1} and tasks == [t1]
     t2 = _FakeTask()
-    capture.register_runner(dt, tasks, "AA", t2)          # same address again → replace, not duplicate
+    capture.register_runner(dt, tasks, "AA", t2)  # same address again → replace, not duplicate
     assert t1.cancelled and dt == {"AA": t2} and tasks == [t2]
 
 
 def test_register_runner_leaves_a_finished_incumbent_alone():
     dt, tasks = {}, []
-    done = _FakeTask(done=True); dt["AA"] = done; tasks.append(done)
+    done = _FakeTask(done=True)
+    dt["AA"] = done
+    tasks.append(done)
     new = _FakeTask()
     capture.register_runner(dt, tasks, "AA", new)
-    assert not done.cancelled and dt["AA"] is new and new in tasks   # nothing live to cancel
+    assert not done.cancelled and dt["AA"] is new and new in tasks  # nothing live to cancel
 
 
 def test_register_runner_without_address_tracks_task_only():
     dt, tasks = {}, []
     t = _FakeTask()
     capture.register_runner(dt, tasks, None, t)
-    assert tasks == [t] and dt == {}                      # no key to dedupe on, but still shut down
+    assert tasks == [t] and dt == {}  # no key to dedupe on, but still shut down
 
 
 def test_unregister_runner_cancels_and_clears_the_card():
     dt, tasks = {}, []
-    t = _FakeTask(); dt["AA"] = t; tasks.append(t)
+    t = _FakeTask()
+    dt["AA"] = t
+    tasks.append(t)
     sd = {"Ring": {"address": "AA"}, "Other": {"address": "BB"}}
     capture.unregister_runner(dt, tasks, sd, "AA")
     assert t.cancelled and tasks == [] and dt == {} and sd == {"Other": {"address": "BB"}}
@@ -2141,7 +3008,7 @@ def test_unregister_runner_cancels_and_clears_the_card():
 
 def test_unregister_runner_unknown_address_is_a_noop():
     dt, tasks, sd = {}, [], {}
-    capture.unregister_runner(dt, tasks, sd, "ZZ")        # nothing registered — must not raise
+    capture.unregister_runner(dt, tasks, sd, "ZZ")  # nothing registered — must not raise
     assert tasks == [] and dt == {} and sd == {}
 
 
@@ -2149,6 +3016,7 @@ def test_main_forget_stops_the_runner(tmp_path, monkeypatch):
     """The forget_device callback main() hands webmon must actually cancel the device's runner and clear
     its status card — otherwise the orphaned task reconnects a device the operator just dropped."""
     import webmon as _wm
+
     captured = {}
 
     def fake_make_app(bus, cfg, cfgpath, adapter, status, spawn, **kw):
@@ -2157,51 +3025,93 @@ def test_main_forget_stops_the_runner(tmp_path, monkeypatch):
 
     async def fake_start(app, host, port):
         capture.STATUS["devices"]["Ring"] = {"address": "D1:98:62:7C:92:B3"}
-        captured["forget"]("D1:98:62:7C:92:B3")           # forget while the runner task is live
+        captured["forget"]("D1:98:62:7C:92:B3")  # forget while the runner task is live
+
         class _R:
-            async def cleanup(self): pass
+            async def cleanup(self):
+                pass
+
         return _R()
 
     monkeypatch.setattr(_wm, "make_app", fake_make_app)
     monkeypatch.setattr(_wm, "start", fake_start)
-    cfg = {"root": str(tmp_path), "web": {"enabled": True},
-           "devices": [{"name": "Ring", "vendor": "Wellue", "model": "O2Ring-S",
-                        "device_id": "S8AW", "address": "D1:98:62:7C:92:B3", "streams": ["spo2"]}]}
+    cfg = {
+        "root": str(tmp_path),
+        "web": {"enabled": True},
+        "devices": [
+            {
+                "name": "Ring",
+                "vendor": "Wellue",
+                "model": "O2Ring-S",
+                "device_id": "S8AW",
+                "address": "D1:98:62:7C:92:B3",
+                "streams": ["spo2"],
+            }
+        ],
+    }
     _main_with_cfg(tmp_path, monkeypatch, cfg)
-    assert "Ring" not in capture.STATUS["devices"]         # card cleared by the forget path
+    assert "Ring" not in capture.STATUS["devices"]  # card cleared by the forget path
 
 
 # ── main(): config overrides, the Wellue ppg migration, and the spawn dispatch (1479-1539) ─────────────
 def _main_with_cfg(tmp_path, monkeypatch, cfg, extra_stubs=()):
     import yaml as _yaml, sys as _sys, asyncio as _a
-    cfgp = tmp_path / "config.yaml"; cfgp.write_text(_yaml.safe_dump(cfg))
-    for r in ("run_polar", "run_oxyii", "run_viatom", "run_muse", "status_loop",
-              "adapter_watchdog", "rssi_poller", "clock_watchdog", "host_clock_poller") + tuple(extra_stubs):
-        async def _n(*a, **k): return None
+
+    cfgp = tmp_path / "config.yaml"
+    cfgp.write_text(_yaml.safe_dump(cfg))
+    for r in (
+        "run_polar",
+        "run_oxyii",
+        "run_viatom",
+        "run_muse",
+        "status_loop",
+        "adapter_watchdog",
+        "rssi_poller",
+        "clock_watchdog",
+        "host_clock_poller",
+    ) + tuple(extra_stubs):
+
+        async def _n(*a, **k):
+            return None
+
         monkeypatch.setattr(capture, r, _n)
     monkeypatch.setattr(_sys, "argv", ["capture.py", "--config", str(cfgp)])
     capture._STOP.clear()
+
     async def run():
         _a.get_event_loop().call_soon(capture._STOP.set)
         await capture.main()
+
     _a.run(run())
 
 
 def test_main_applies_overrides_and_migrates_wellue_ppg(tmp_path, monkeypatch):
     """main() adds the implicit 'ppg' stream to a Wellue device (1479-1482) and applies the o2ring/power
     config overrides (1491, 1495, 1497), then dispatches run_oxyii for it (1524-1526)."""
-    cfg = {"root": str(tmp_path), "web": {"enabled": False},
-           "o2ring": {"rtc_resync_sec": 3600},
-           "power": {"drop_not_worn_sec": 120, "not_worn_recheck_sec": 45},
-           "stream": {"stall_sec": 45},
-           "write": {"resume_window_sec": 120},
-           "devices": [{"name": "Ring", "vendor": "Wellue", "model": "O2Ring-S",
-                        "device_id": "S8AW", "address": "D1:98:62:7C:92:B3", "streams": ["spo2"]}]}
+    cfg = {
+        "root": str(tmp_path),
+        "web": {"enabled": False},
+        "o2ring": {"rtc_resync_sec": 3600},
+        "power": {"drop_not_worn_sec": 120, "not_worn_recheck_sec": 45, "reconnect_backoff_cap_sec": 240},
+        "stream": {"stall_sec": 45},
+        "write": {"resume_window_sec": 120},
+        "devices": [
+            {
+                "name": "Ring",
+                "vendor": "Wellue",
+                "model": "O2Ring-S",
+                "device_id": "S8AW",
+                "address": "D1:98:62:7C:92:B3",
+                "streams": ["spo2"],
+            }
+        ],
+    }
     _main_with_cfg(tmp_path, monkeypatch, cfg)
     assert capture._OXYII_RTC_RESYNC_SEC == 3600
     assert capture._DROP_NOT_WORN_SEC == 120 and capture._NOT_WORN_RECHECK_S == 45
+    assert capture._RECONNECT_BACKOFF_CAP_S == 240
     assert capture._STREAM_STALL_S == 45
-    assert capture._RESUME_WINDOW_S == 120.0   # CAPTURE-FILESET-RESUME: write.resume_window_sec applies
+    assert capture._RESUME_WINDOW_S == 120.0  # CAPTURE-FILESET-RESUME: write.resume_window_sec applies
     ring = next(d for d in capture._CFG["devices"] if d["name"] == "Ring")
     assert "ppg" in ring["streams"], "the implicit 125 Hz pleth was made explicit"
     assert capture.STATUS["host"]["started_at"] and capture.STATUS["host"]["adapter_ok"] is True
@@ -2209,14 +3119,37 @@ def test_main_applies_overrides_and_migrates_wellue_ppg(tmp_path, monkeypatch):
 
 def test_main_dispatches_muse_and_legacy_viatom(tmp_path, monkeypatch):
     """_spawn routes a Muse device to run_muse (1522-1523) and a legacy-protocol Wellue to run_viatom (1526)."""
-    cfg = {"root": str(tmp_path), "web": {"enabled": False},
-           "devices": [{"name": "Muse", "vendor": "Muse", "model": "S", "device_id": "MU01",
-                        "address": "00:55:DA:B0:00:01", "streams": ["eeg"]},
-                       {"name": "OldRing", "vendor": "Viatom", "model": "O2Ring", "device_id": "V1",
-                        "address": "D1:98:62:7C:92:B4", "streams": ["spo2"], "protocol": "legacy"}]}
+    cfg = {
+        "root": str(tmp_path),
+        "web": {"enabled": False},
+        "devices": [
+            {
+                "name": "Muse",
+                "vendor": "Muse",
+                "model": "S",
+                "device_id": "MU01",
+                "address": "00:55:DA:B0:00:01",
+                "streams": ["eeg"],
+            },
+            {
+                "name": "OldRing",
+                "vendor": "Viatom",
+                "model": "O2Ring",
+                "device_id": "V1",
+                "address": "D1:98:62:7C:92:B4",
+                "streams": ["spo2"],
+                "protocol": "legacy",
+            },
+        ],
+    }
     spawned = {"muse": 0, "viatom": 0}
-    async def fake_muse(dev, root): spawned["muse"] += 1
-    async def fake_viatom(dev, root): spawned["viatom"] += 1
+
+    async def fake_muse(dev, root):
+        spawned["muse"] += 1
+
+    async def fake_viatom(dev, root):
+        spawned["viatom"] += 1
+
     monkeypatch.setattr(capture, "run_muse", fake_muse)
     monkeypatch.setattr(capture, "run_viatom", fake_viatom)
     _main_with_cfg(tmp_path, monkeypatch, cfg, extra_stubs=())
@@ -2231,34 +3164,71 @@ def test_main_pull_closure_dispatches_and_errors(tmp_path, monkeypatch):
     (1536, 1539); with no such device it raises (1537-1538). Driven by making webmon.start invoke the
     pull_stored callback it is handed."""
     import webmon, yaml as _yaml, sys as _sys
+
     calls = {"n": 0}
-    async def fake_pull_oxyii(dev, root, which, ftype): calls["n"] += 1; return {"ok": True}
+
+    async def fake_pull_oxyii(dev, root, which, **kw):
+        calls["n"] += 1
+        return {"ok": True}
+
     monkeypatch.setattr(capture, "pull_oxyii_session", fake_pull_oxyii)
-    for r in ("run_polar", "run_oxyii", "run_viatom", "run_muse", "status_loop",
-              "adapter_watchdog", "rssi_poller", "clock_watchdog", "host_clock_poller"):
-        async def _n(*a, **k): return None
+    for r in (
+        "run_polar",
+        "run_oxyii",
+        "run_viatom",
+        "run_muse",
+        "status_loop",
+        "adapter_watchdog",
+        "rssi_poller",
+        "clock_watchdog",
+        "host_clock_poller",
+    ):
+
+        async def _n(*a, **k):
+            return None
+
         monkeypatch.setattr(capture, r, _n)
-    async def fake_hci(mac, refresh=False): return "hci2"
+
+    async def fake_hci(mac, refresh=False):
+        return "hci2"
+
     monkeypatch.setattr(capture.link_rssi, "resolve_hci", fake_hci)
 
     holder = {}
+
     def fake_make_app(bus, cfg, cfgpath, adapter, status, spawn, **kw):
         holder["pull"] = kw.get("pull_stored")
         return object()
+
     class _Runner:
-        async def cleanup(self): pass
+        async def cleanup(self):
+            pass
+
     async def fake_start(app, host, port):
-        await holder["pull"]("latest")       # invoke the closure → 1534-1539
+        await holder["pull"]("latest")  # invoke the closure → 1534-1539
         capture._STOP.set()
         return _Runner()
+
     monkeypatch.setattr(webmon, "make_app", fake_make_app)
     monkeypatch.setattr(webmon, "start", fake_start)
 
-    cfg = {"adapter": "AC:A7:F1:29:9D:1D", "root": str(tmp_path),
-           "web": {"enabled": True, "host": "127.0.0.1", "port": 0},
-           "devices": [{"name": "Ring", "vendor": "Wellue", "model": "O2Ring-S", "device_id": "S8AW",
-                        "address": "D1:98:62:7C:92:B3", "streams": ["spo2"]}]}
-    cfgp = tmp_path / "config.yaml"; cfgp.write_text(_yaml.safe_dump(cfg))
+    cfg = {
+        "adapter": "AC:A7:F1:29:9D:1D",
+        "root": str(tmp_path),
+        "web": {"enabled": True, "host": "127.0.0.1", "port": 0},
+        "devices": [
+            {
+                "name": "Ring",
+                "vendor": "Wellue",
+                "model": "O2Ring-S",
+                "device_id": "S8AW",
+                "address": "D1:98:62:7C:92:B3",
+                "streams": ["spo2"],
+            }
+        ],
+    }
+    cfgp = tmp_path / "config.yaml"
+    cfgp.write_text(_yaml.safe_dump(cfg))
     monkeypatch.setattr(_sys, "argv", ["capture.py", "--config", str(cfgp)])
     capture._STOP.clear()
     _run(capture.main())
@@ -2268,17 +3238,38 @@ def test_main_pull_closure_dispatches_and_errors(tmp_path, monkeypatch):
 def test_main_pull_closure_without_a_ring_raises(tmp_path, monkeypatch):
     """With no Wellue/Viatom device configured, the pull closure raises rather than pulling (1538-1539)."""
     import webmon, yaml as _yaml, sys as _sys
-    for r in ("run_polar", "run_oxyii", "run_viatom", "run_muse", "status_loop",
-              "adapter_watchdog", "rssi_poller", "clock_watchdog", "host_clock_poller"):
-        async def _n(*a, **k): return None
+
+    for r in (
+        "run_polar",
+        "run_oxyii",
+        "run_viatom",
+        "run_muse",
+        "status_loop",
+        "adapter_watchdog",
+        "rssi_poller",
+        "clock_watchdog",
+        "host_clock_poller",
+    ):
+
+        async def _n(*a, **k):
+            return None
+
         monkeypatch.setattr(capture, r, _n)
-    async def fake_hci(mac, refresh=False): return "hci2"
+
+    async def fake_hci(mac, refresh=False):
+        return "hci2"
+
     monkeypatch.setattr(capture.link_rssi, "resolve_hci", fake_hci)
     holder = {}
+
     def fake_make_app(bus, cfg, cfgpath, adapter, status, spawn, **kw):
-        holder["pull"] = kw.get("pull_stored"); return object()
+        holder["pull"] = kw.get("pull_stored")
+        return object()
+
     class _Runner:
-        async def cleanup(self): pass
+        async def cleanup(self):
+            pass
+
     async def fake_start(app, host, port):
         try:
             await holder["pull"]("latest")
@@ -2286,12 +3277,17 @@ def test_main_pull_closure_without_a_ring_raises(tmp_path, monkeypatch):
             holder["err"] = str(e)
         capture._STOP.set()
         return _Runner()
+
     monkeypatch.setattr(webmon, "make_app", fake_make_app)
     monkeypatch.setattr(webmon, "start", fake_start)
-    cfg = {"adapter": "AC:A7:F1:29:9D:1D", "root": str(tmp_path),
-           "web": {"enabled": True, "host": "127.0.0.1", "port": 0},
-           "devices": [_pdev()]}                             # a Polar device, no ring
-    cfgp = tmp_path / "config.yaml"; cfgp.write_text(_yaml.safe_dump(cfg))
+    cfg = {
+        "adapter": "AC:A7:F1:29:9D:1D",
+        "root": str(tmp_path),
+        "web": {"enabled": True, "host": "127.0.0.1", "port": 0},
+        "devices": [_pdev()],
+    }  # a Polar device, no ring
+    cfgp = tmp_path / "config.yaml"
+    cfgp.write_text(_yaml.safe_dump(cfg))
     monkeypatch.setattr(_sys, "argv", ["capture.py", "--config", str(cfgp)])
     capture._STOP.clear()
     _run(capture.main())
@@ -2322,57 +3318,55 @@ def test_storage_poller_updates_status_and_prunes(tmp_path, monkeypatch):
 def test_storage_poller_alerts_once_when_disk_is_low(tmp_path, monkeypatch, alert_recorder):
     """A low-free-space episode fires exactly one alert (edge-triggered), even across polls."""
     rec = alert_recorder()
-    _stop_after(monkeypatch, 2)                       # two polls; the alert must fire only once
-    cfg = {"storage": {"keep_nights": 0, "min_free_gb": 1e9, "poll_sec": 1}}   # always "low"
+    _stop_after(monkeypatch, 2)  # two polls; the alert must fire only once
+    cfg = {"storage": {"keep_nights": 0, "min_free_gb": 1e9, "poll_sec": 1}}  # always "low"
     _run(capture.storage_poller(cfg, str(tmp_path), rec))
     assert rec.titles == ["Tepna: disk low"]
 
 
-def test_the_disk_low_alert_states_the_free_space_the_right_way_round(tmp_path, monkeypatch,
-                                                                     alert_recorder):
+def test_the_disk_low_alert_states_the_free_space_the_right_way_round(tmp_path, monkeypatch, alert_recorder):
     """THE MESSAGE — which every previous notifier double discarded.
 
     Found by `tools/find_blindspots.py` (the doubles dropped `message`), then confirmed by mutation:
     swapping `free_gb` and `free_pct` in capture.py's alert body survives the ENTIRE suite — 2851
     passed — so "Only 3 GB free (87%)" for a box at 87 GB and 3% was unobservable. GB and % are not
     interchangeable to the person reading that alert, who is its only audience."""
-    monkeypatch.setattr(capture.diskguard, "disk_report",
-                        lambda *_a, **_k: {"low": True, "free_gb": 3.5, "free_pct": 87.0})
+    monkeypatch.setattr(
+        capture.diskguard, "disk_report", lambda *_a, **_k: {"low": True, "free_gb": 3.5, "free_pct": 87.0}
+    )
     rec = alert_recorder()
     _stop_after(monkeypatch, 1)
-    _run(capture.storage_poller({"storage": {"keep_nights": 0, "min_free_gb": 1e9, "poll_sec": 1}},
-                                str(tmp_path), rec))
+    _run(capture.storage_poller({"storage": {"keep_nights": 0, "min_free_gb": 1e9, "poll_sec": 1}}, str(tmp_path), rec))
     body = rec.messages[0]
     assert "3.5 GB free" in body, f"the GB figure must be the GB figure — got {body!r}"
     assert "(87.0%)" in body, f"the percentage must be the percentage — got {body!r}"
 
 
-def test_the_disk_low_alert_gives_the_advice_that_would_actually_help(tmp_path, monkeypatch,
-                                                                     alert_recorder):
+def test_the_disk_low_alert_gives_the_advice_that_would_actually_help(tmp_path, monkeypatch, alert_recorder):
     """capture.py:3243 says a bare "disk low" on a box whose pruning is HELD by a dead backup volume is
     "actively misleading — it reads as 'raise keep_nights', which is the one action that would not
     help". That entire piece of reasoning was carried in the discarded `message`: inverting the held
     sentence AND inverting its no-hold counterpart both survived the suite. Now asserted."""
-    monkeypatch.setattr(capture.diskguard, "disk_report",
-                        lambda *_a, **_k: {"low": True, "free_gb": 1.0, "free_pct": 2.0})
+    monkeypatch.setattr(
+        capture.diskguard, "disk_report", lambda *_a, **_k: {"low": True, "free_gb": 1.0, "free_pct": 2.0}
+    )
     rec = alert_recorder()
     _stop_after(monkeypatch, 1)
-    _run(capture.storage_poller({"storage": {"keep_nights": 0, "min_free_gb": 1e9, "poll_sec": 1}},
-                                str(tmp_path), rec))
+    _run(capture.storage_poller({"storage": {"keep_nights": 0, "min_free_gb": 1e9, "poll_sec": 1}}, str(tmp_path), rec))
     body = rec.messages[0]
     # Nothing is held here, so the advice must be the actionable one — and must not claim a hold.
     assert "free space or raise keep_nights" in body, f"got {body!r}"
     assert "Retention is HELD" not in body, "nothing is held; naming a hold sends the wrong fix"
 
 
-def test_the_disk_low_alert_names_the_HELD_BACKUP_when_that_is_the_real_cause(tmp_path, monkeypatch,
-                                                                             alert_recorder):
+def test_the_disk_low_alert_names_the_HELD_BACKUP_when_that_is_the_real_cause(tmp_path, monkeypatch, alert_recorder):
     """The other arm, and the one capture.py:3243 actually argues for. When retention is HELD by a dead
     backup volume, telling the operator to raise keep_nights is the one action that cannot help — so
     the alert must name the backup instead. Inverting this sentence survived the whole suite, because
     the arm was never driven AND the message was discarded: two independent reasons it was invisible."""
-    monkeypatch.setattr(capture.diskguard, "disk_report",
-                        lambda *_a, **_k: {"low": True, "free_gb": 1.0, "free_pct": 2.0})
+    monkeypatch.setattr(
+        capture.diskguard, "disk_report", lambda *_a, **_k: {"low": True, "free_gb": 1.0, "free_pct": 2.0}
+    )
     monkeypatch.setattr(capture.nightarchive, "unarchived_nights", lambda *_a, **_k: {"2026-01-01"})
     monkeypatch.setattr(capture.nightarchive, "uncovered_subtrees", lambda *_a, **_k: [])
     monkeypatch.setattr(capture.diskguard, "list_nights", lambda *_a, **_k: ["2026-01-01"])
@@ -2382,8 +3376,10 @@ def test_the_disk_low_alert_names_the_HELD_BACKUP_when_that_is_the_real_cause(tm
     _stop_after(monkeypatch, 1)
     # `archive` is a TOP-LEVEL key, not a member of `storage` (capture.py:3169) — nesting it leaves
     # archive_enabled False, so `blocked` is never computed and the held arm silently cannot fire.
-    cfg = {"storage": {"keep_nights": 1, "min_free_gb": 1e9, "poll_sec": 1},
-           "archive": {"enabled": True, "dest": "/mnt/backup"}}
+    cfg = {
+        "storage": {"keep_nights": 1, "min_free_gb": 1e9, "poll_sec": 1},
+        "archive": {"enabled": True, "dest": "/mnt/backup"},
+    }
     _run(capture.storage_poller(cfg, str(tmp_path), rec))
     body = rec.messages[0]
     assert "Retention is HELD on 1 unmirrored night(s)" in body, f"got {body!r}"
@@ -2392,10 +3388,11 @@ def test_the_disk_low_alert_names_the_HELD_BACKUP_when_that_is_the_real_cause(tm
 
 
 def test_storage_poller_swallows_an_error(tmp_path, monkeypatch):
-    monkeypatch.setattr(capture.diskguard, "disk_report",
-                        lambda *_a, **_k: (_ for _ in ()).throw(RuntimeError("statvfs boom")))
+    monkeypatch.setattr(
+        capture.diskguard, "disk_report", lambda *_a, **_k: (_ for _ in ()).throw(RuntimeError("statvfs boom"))
+    )
     _stop_after(monkeypatch, 1)
-    _run(capture.storage_poller({"storage": {}}, str(tmp_path)))   # must not raise
+    _run(capture.storage_poller({"storage": {}}, str(tmp_path)))  # must not raise
 
 
 def test_alert_poller_fires_on_a_sustained_offline_then_recovers(monkeypatch):
@@ -2405,24 +3402,31 @@ def test_alert_poller_fires_on_a_sustained_offline_then_recovers(monkeypatch):
     `_LAST_DATA`, exactly as the real stream paths do. Keying this on `connected` alone is what let a
     4.5 h outage report itself recovered four times (see `alerts.device_is_recording`)."""
     sent = []
+
     class _N:
         # `enabled` and a truthy return are part of Notifier's interface, and the poller now reads
         # BOTH — it latches on the delivery outcome (CAPTURE-HOST-DEEP-AUDIT §C1). A double that
         # omits them is not standing in for the real thing.
         enabled = True
-        async def send(self, title, message, **kw): sent.append(title); return True
+
+        async def send(self, title, message, **kw):
+            sent.append(title)
+            return True
+
     cfg = {"alerts": {"poll_sec": 1, "offline_sec": 0}, "devices": [_dev(name="H10")]}
     st = {"connected": False}
     capture.STATUS["devices"]["H10"] = st
     capture._LAST_DATA.pop("H10", None)
     calls = {"n": 0}
+
     async def fake_sleep(_s):
         calls["n"] += 1
         if calls["n"] == 2:
-            st["connected"] = True               # it comes back on the 2nd poll…
-            capture._LAST_DATA["H10"] = 1000.0   # …and, crucially, streams → recovery alert
+            st["connected"] = True  # it comes back on the 2nd poll…
+            capture._LAST_DATA["H10"] = 1000.0  # …and, crucially, streams → recovery alert
         if calls["n"] >= 3:
             capture._STOP.set()
+
     monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
     monkeypatch.setattr(capture._time, "monotonic", lambda: 1000.0)
     _run(capture.alert_poller(cfg, _N()))
@@ -2436,36 +3440,51 @@ def test_alert_poller_does_NOT_call_a_silent_link_recovered(monkeypatch):
     sent four "recovered" notices while not one byte was written after 23:48. A link that produces no
     data must STAY in alarm."""
     sent = []
+
     class _N:
         enabled = True
-        async def send(self, title, message, **kw): sent.append(title); return True
+
+        async def send(self, title, message, **kw):
+            sent.append(title)
+            return True
+
     cfg = {"alerts": {"poll_sec": 1, "offline_sec": 0}, "devices": [_dev(name="H10")]}
     st = {"connected": False}
     capture.STATUS["devices"]["H10"] = st
-    capture._LAST_DATA.pop("H10", None)          # never streamed this session — the real state that night
+    capture._LAST_DATA.pop("H10", None)  # never streamed this session — the real state that night
     calls = {"n": 0}
+
     async def fake_sleep(_s):
         calls["n"] += 1
         if calls["n"] == 2:
-            st["connected"] = True               # linked, but still silent
+            st["connected"] = True  # linked, but still silent
         if calls["n"] >= 4:
             capture._STOP.set()
+
     monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
     monkeypatch.setattr(capture._time, "monotonic", lambda: 1000.0)
     _run(capture.alert_poller(cfg, _N()))
-    assert "Tepna: sensor recovered" not in sent, \
+    assert "Tepna: sensor recovered" not in sent, (
         "a link recording nothing was called recovered — the exact 2026-07-29 false all-clear"
+    )
     assert sent == ["Tepna: sensor offline"], "and the outage must still be reported, once"
 
 
 def test_alert_poller_skips_a_nameless_device_and_a_connected_one(monkeypatch):
     sent = []
+
     class _N:
         enabled = True
-        async def send(self, title, message, **kw): sent.append(title); return True
-    cfg = {"alerts": {"poll_sec": 1, "offline_sec": 300},
-           "devices": [{"streams": ["ecg"]}, _dev(name="H10")]}   # first is nameless → skipped
-    capture.STATUS["devices"]["H10"] = {"connected": True}         # connected → never alerts
+
+        async def send(self, title, message, **kw):
+            sent.append(title)
+            return True
+
+    cfg = {
+        "alerts": {"poll_sec": 1, "offline_sec": 300},
+        "devices": [{"streams": ["ecg"]}, _dev(name="H10")],
+    }  # first is nameless → skipped
+    capture.STATUS["devices"]["H10"] = {"connected": True}  # connected → never alerts
     _stop_after(monkeypatch, 1)
     _run(capture.alert_poller(cfg, _N()))
     assert sent == []
@@ -2474,8 +3493,7 @@ def test_alert_poller_skips_a_nameless_device_and_a_connected_one(monkeypatch):
 def test_sd_watchdog_pings_when_configured(monkeypatch):
     pings = {"n": 0}
     monkeypatch.setattr(capture.sdnotify, "watchdog_period_sec", lambda: 30.0)
-    monkeypatch.setattr(capture.sdnotify, "sd_notify",
-                        lambda state: pings.__setitem__("n", pings["n"] + 1) or True)
+    monkeypatch.setattr(capture.sdnotify, "sd_notify", lambda state: pings.__setitem__("n", pings["n"] + 1) or True)
     _stop_after(monkeypatch, 1)
     _run(capture.sd_watchdog())
     assert pings["n"] >= 1
@@ -2483,34 +3501,67 @@ def test_sd_watchdog_pings_when_configured(monkeypatch):
 
 def test_sd_watchdog_is_a_noop_without_a_configured_watchdog(monkeypatch):
     monkeypatch.setattr(capture.sdnotify, "watchdog_period_sec", lambda: None)
-    _run(capture.sd_watchdog())                       # returns immediately, no loop, no _stop needed
+    _run(capture.sd_watchdog())  # returns immediately, no loop, no _stop needed
 
 
 def test_main_signals_ready_and_announces_start(tmp_path, monkeypatch):
     """main() sends systemd READY=1 and (with a webhook configured) a 'capture started' alert."""
     import webmon, yaml as _yaml, sys as _sys
+
     signals = []
     monkeypatch.setattr(capture.sdnotify, "sd_notify", lambda s: signals.append(s) or True)
     posts = []
-    async def fake_post(url, payload): posts.append(payload); return True
+
+    async def fake_post(url, payload):
+        posts.append(payload)
+        return True
+
     monkeypatch.setattr(capture.alerts, "_http_post", fake_post)
-    for r in ("run_polar", "run_oxyii", "run_viatom", "run_muse", "status_loop", "adapter_watchdog",
-              "rssi_poller", "clock_watchdog", "host_clock_poller", "storage_poller", "alert_poller",
-              "qc_poller", "archive_poller", "sd_watchdog"):
-        async def _n(*a, **k): return None
+    for r in (
+        "run_polar",
+        "run_oxyii",
+        "run_viatom",
+        "run_muse",
+        "status_loop",
+        "adapter_watchdog",
+        "rssi_poller",
+        "clock_watchdog",
+        "host_clock_poller",
+        "storage_poller",
+        "alert_poller",
+        "qc_poller",
+        "archive_poller",
+        "sd_watchdog",
+    ):
+
+        async def _n(*a, **k):
+            return None
+
         monkeypatch.setattr(capture, r, _n)
-    async def fake_hci(mac, refresh=False): return "hci2"
+
+    async def fake_hci(mac, refresh=False):
+        return "hci2"
+
     monkeypatch.setattr(capture.link_rssi, "resolve_hci", fake_hci)
+
     class _Runner:
-        async def cleanup(self): pass
+        async def cleanup(self):
+            pass
+
     async def fake_start(app, host, port):
-        capture._STOP.set(); return _Runner()
+        capture._STOP.set()
+        return _Runner()
+
     monkeypatch.setattr(webmon, "start", fake_start)
-    cfg = {"adapter": "AC:A7:F1:29:9D:1D", "root": str(tmp_path),
-           "web": {"enabled": True, "host": "127.0.0.1", "port": 0},
-           "alerts": {"enabled": True, "webhook_url": "https://hook"},
-           "devices": [_pdev()]}
-    cfgp = tmp_path / "config.yaml"; cfgp.write_text(_yaml.safe_dump(cfg))
+    cfg = {
+        "adapter": "AC:A7:F1:29:9D:1D",
+        "root": str(tmp_path),
+        "web": {"enabled": True, "host": "127.0.0.1", "port": 0},
+        "alerts": {"enabled": True, "webhook_url": "https://hook"},
+        "devices": [_pdev()],
+    }
+    cfgp = tmp_path / "config.yaml"
+    cfgp.write_text(_yaml.safe_dump(cfg))
     monkeypatch.setattr(_sys, "argv", ["capture.py", "--config", str(cfgp)])
     capture._STOP.clear()
     _run(capture.main())
@@ -2523,13 +3574,14 @@ def test_qc_poller_summarizes_the_current_night(tmp_path, monkeypatch):
     """The poller writes QC-SUMMARY.json + status.json `qc` for tonight's directory, and logs missing
     streams."""
     import datetime as _dtm
+
     monkeypatch.setattr(capture, "_now", lambda: _dtm.datetime(2026, 7, 19, 23, 0, 0))
-    night = tmp_path / "captures" / "2026-07-19"; night.mkdir(parents=True)
+    night = tmp_path / "captures" / "2026-07-19"
+    night.mkdir(parents=True)
     with open(night / "Polar_H10_02849638_20260719_ECG.txt", "w") as f:
-        f.write("h\n1\n2\n3\n")                             # 3 rows
+        f.write("h\n1\n2\n3\n")  # 3 rows
     # ACC declared but never produced → missing
-    cfg = {"qc": {"poll_sec": 600},
-           "devices": [{"name": "H10", "device_id": "02849638", "streams": ["ecg", "acc"]}]}
+    cfg = {"qc": {"poll_sec": 600}, "devices": [{"name": "H10", "device_id": "02849638", "streams": ["ecg", "acc"]}]}
     _stop_after(monkeypatch, 1)
     _run(capture.qc_poller(cfg, str(tmp_path)))
     assert capture.STATUS["qc"]["night"] == "2026-07-19"
@@ -2540,6 +3592,7 @@ def test_qc_poller_summarizes_the_current_night(tmp_path, monkeypatch):
 def test_qc_poller_skips_when_no_night_dir_yet(tmp_path, monkeypatch):
     """Nothing captured tonight → the poller must not create an empty night folder."""
     import datetime as _dtm
+
     monkeypatch.setattr(capture, "_now", lambda: _dtm.datetime(2026, 7, 19, 23, 0, 0))
     _stop_after(monkeypatch, 1)
     _run(capture.qc_poller({"devices": []}, str(tmp_path)))
@@ -2550,7 +3603,7 @@ def test_qc_poller_skips_when_no_night_dir_yet(tmp_path, monkeypatch):
 def test_qc_poller_skips_when_the_night_raced_away(tmp_path, monkeypatch):
     """_current_night names a night from the listing, but it can be gone by the stat a line later — skip,
     don't summarise a missing dir."""
-    monkeypatch.setattr(capture, "_current_night", lambda *a: "2026-07-19")   # never actually on disk
+    monkeypatch.setattr(capture, "_current_night", lambda *a: "2026-07-19")  # never actually on disk
     _stop_after(monkeypatch, 1)
     _run(capture.qc_poller({"devices": []}, str(tmp_path)))
     assert "qc" not in capture.STATUS
@@ -2558,19 +3611,21 @@ def test_qc_poller_skips_when_the_night_raced_away(tmp_path, monkeypatch):
 
 def test_qc_poller_swallows_an_error(tmp_path, monkeypatch):
     import datetime as _dtm
+
     monkeypatch.setattr(capture, "_now", lambda: _dtm.datetime(2026, 7, 19, 23, 0, 0))
     (tmp_path / "captures" / "2026-07-19").mkdir(parents=True)
-    monkeypatch.setattr(capture.nightqc, "summarize",
-                        lambda *_a, **_k: (_ for _ in ()).throw(RuntimeError("qc boom")))
+    monkeypatch.setattr(capture.nightqc, "summarize", lambda *_a, **_k: (_ for _ in ()).throw(RuntimeError("qc boom")))
     _stop_after(monkeypatch, 1)
-    _run(capture.qc_poller({"devices": []}, str(tmp_path)))     # must not raise
+    _run(capture.qc_poller({"devices": []}, str(tmp_path)))  # must not raise
 
 
 def _qc_night(tmp_path, monkeypatch, missing=True):
     """A tmp night dir with an ECG file; ACC declared-but-absent when missing=True."""
     import datetime as _dtm
+
     monkeypatch.setattr(capture, "_now", lambda: _dtm.datetime(2026, 7, 19, 23, 0, 0))
-    night = tmp_path / "captures" / "2026-07-19"; night.mkdir(parents=True)
+    night = tmp_path / "captures" / "2026-07-19"
+    night.mkdir(parents=True)
     with open(night / "Polar_H10_02849638_20260719_ECG.txt", "w") as f:
         f.write("h\n1\n2\n")
     if not missing:
@@ -2580,36 +3635,64 @@ def _qc_night(tmp_path, monkeypatch, missing=True):
     # digest_hour: -1 — these tests exercise the MISSING-STREAM ALERT path and assert exact `sent`
     # contents; the unconditional morning digest (own tests in test_capture_coverage_100) would
     # otherwise make them time-of-day dependent: green before 09:00 local, red after.
-    return {"qc": {"poll_sec": 1, "alert_after_sec": 3600, "digest_hour": -1},
-            "devices": [{"name": "H10", "device_id": "02849638", "streams": streams}]}
+    return {
+        "qc": {"poll_sec": 1, "alert_after_sec": 3600, "digest_hour": -1},
+        "devices": [{"name": "H10", "device_id": "02849638", "streams": streams}],
+    }
+
+
+_real_summarize = capture.nightqc.summarize   # bound BEFORE any test patches the module attribute
 
 
 def test_qc_poller_alerts_once_on_a_gap_past_the_grace(tmp_path, monkeypatch):
     """A stream still missing after alert_after_sec fires exactly one alert for the night."""
     sent = []
+
     class _N:
-        async def send(self, title, message, **kw): sent.append(title); return True
+        async def send(self, title, message, **kw):
+            sent.append(title)
+            return True
+
     cfg = _qc_night(tmp_path, monkeypatch, missing=True)
     clock = {"t": 0.0}
     monkeypatch.setattr(capture._time, "monotonic", lambda: clock["t"])
+    # A frozen global clock and a spawned child cannot coexist: `multiprocessing` reads `time.monotonic`
+    # for its deadlines, so the child's result never arrives (measured 2026-09-23: a spawn pool under a
+    # constant monotonic times out at 12 s; under the real clock it answers in 0.03 s). This test is
+    # about the alert grace, not about isolation — route the REAL scan through a wrapper the child cannot
+    # import by name, so it runs on a thread with the same computation; the isolation legs live in
+    # tests/test_qc_offload.py.
+    monkeypatch.setattr(capture.nightqc, "summarize", lambda n, d: _real_summarize(n, d))
     calls = {"n": 0}
+
     async def fake_sleep(_s):
         calls["n"] += 1
-        clock["t"] += 4000                 # each poll advances well past the 3600 s grace
+        clock["t"] += 4000  # each poll advances well past the 3600 s grace
         if calls["n"] >= 3:
             capture._STOP.set()
+
     monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
     _run(capture.qc_poller(cfg, str(tmp_path), _N()))
-    assert sent == ["Tepna: night has a gap"]   # once, despite 3 polls all seeing the gap
+    assert sent == ["Tepna: night has a gap"]  # once, despite 3 polls all seeing the gap
 
 
 def test_qc_poller_holds_the_alert_during_the_grace(tmp_path, monkeypatch):
     """Within the grace window a missing stream must NOT alert — a just-started night is legitimately empty."""
     sent = []
+
     class _N:
-        async def send(self, title, message, **kw): sent.append(title)
+        async def send(self, title, message, **kw):
+            sent.append(title)
+
     cfg = _qc_night(tmp_path, monkeypatch, missing=True)
-    monkeypatch.setattr(capture._time, "monotonic", lambda: 100.0)   # never advances past grace
+    monkeypatch.setattr(capture._time, "monotonic", lambda: 100.0)  # never advances past grace
+    # A frozen global clock and a spawned child cannot coexist: `multiprocessing` reads `time.monotonic`
+    # for its deadlines, so the child's result never arrives (measured 2026-09-23: a spawn pool under a
+    # constant monotonic times out at 12 s; under the real clock it answers in 0.03 s). This test is
+    # about the alert grace, not about isolation — route the REAL scan through a wrapper the child cannot
+    # import by name, so it runs on a thread with the same computation; the isolation legs live in
+    # tests/test_qc_offload.py.
+    monkeypatch.setattr(capture.nightqc, "summarize", lambda n, d: _real_summarize(n, d))
     _stop_after(monkeypatch, 1)
     _run(capture.qc_poller(cfg, str(tmp_path), _N()))
     assert sent == []
@@ -2617,10 +3700,20 @@ def test_qc_poller_holds_the_alert_during_the_grace(tmp_path, monkeypatch):
 
 def test_qc_poller_no_alert_when_complete(tmp_path, monkeypatch):
     sent = []
+
     class _N:
-        async def send(self, title, message, **kw): sent.append(title)
-    cfg = _qc_night(tmp_path, monkeypatch, missing=False)            # every declared stream present
+        async def send(self, title, message, **kw):
+            sent.append(title)
+
+    cfg = _qc_night(tmp_path, monkeypatch, missing=False)  # every declared stream present
     monkeypatch.setattr(capture._time, "monotonic", lambda: 999999.0)
+    # A frozen global clock and a spawned child cannot coexist: `multiprocessing` reads `time.monotonic`
+    # for its deadlines, so the child's result never arrives (measured 2026-09-23: a spawn pool under a
+    # constant monotonic times out at 12 s; under the real clock it answers in 0.03 s). This test is
+    # about the alert grace, not about isolation — route the REAL scan through a wrapper the child cannot
+    # import by name, so it runs on a thread with the same computation; the isolation legs live in
+    # tests/test_qc_offload.py.
+    monkeypatch.setattr(capture.nightqc, "summarize", lambda n, d: _real_summarize(n, d))
     _stop_after(monkeypatch, 1)
     _run(capture.qc_poller(cfg, str(tmp_path), _N()))
     assert sent == [] and capture.STATUS["qc"]["ok"] is True
@@ -2628,25 +3721,28 @@ def test_qc_poller_no_alert_when_complete(tmp_path, monkeypatch):
 
 # ── archive_poller ────────────────────────────────────────────────────────────────────────────────────
 def test_archive_poller_disabled_returns_immediately(tmp_path, monkeypatch):
-    _run(capture.archive_poller({"archive": {"enabled": False}}, str(tmp_path)))   # early return, no loop
-    _run(capture.archive_poller({"archive": {"enabled": True}}, str(tmp_path)))    # no dest → also returns
+    _run(capture.archive_poller({"archive": {"enabled": False}}, str(tmp_path)))  # early return, no loop
+    _run(capture.archive_poller({"archive": {"enabled": True}}, str(tmp_path)))  # no dest → also returns
 
 
 def test_archive_poller_mirrors_completed_nights(tmp_path, monkeypatch):
     import datetime as _dtm
+
     monkeypatch.setattr(capture, "_now", lambda: _dtm.datetime(2026, 7, 19, 2, 0, 0))
     cap = tmp_path / "captures"
-    (cap / "2026-07-18").mkdir(parents=True)                    # a completed night: settled (old writes)
-    old = cap / "2026-07-18" / "Polar_H10_1_ECG.txt"; old.write_text("rows\n")
-    _os.utime(old, (0, _dtm.datetime(2026, 7, 19).timestamp() - 3600))   # last write well past the settle
-    (cap / "2026-07-19").mkdir()                                # tonight — freshly written, still active
+    (cap / "2026-07-18").mkdir(parents=True)  # a completed night: settled (old writes)
+    old = cap / "2026-07-18" / "Polar_H10_1_ECG.txt"
+    old.write_text("rows\n")
+    _os.utime(old, (0, _dtm.datetime(2026, 7, 19).timestamp() - 3600))  # last write well past the settle
+    (cap / "2026-07-19").mkdir()  # tonight — freshly written, still active
     (cap / "2026-07-19" / "Polar_H10_1_ECG.txt").write_text("live\n")
-    dest = tmp_path / "backup"; dest.mkdir()                    # operator pre-creates it on the backup disk
+    dest = tmp_path / "backup"
+    dest.mkdir()  # operator pre-creates it on the backup disk
     cfg = {"archive": {"enabled": True, "dest": str(dest), "poll_sec": 1}}
     _stop_after(monkeypatch, 1)
     _run(capture.archive_poller(cfg, str(tmp_path)))
     assert (dest / "2026-07-18" / "Polar_H10_1_ECG.txt").exists()
-    assert not (dest / "2026-07-19").exists()                   # active night left alone
+    assert not (dest / "2026-07-19").exists()  # active night left alone
     assert capture.STATUS["archive"]["last"] == "2026-07-18"
     assert capture.STATUS["archive"]["dest_present"] is True
 
@@ -2655,12 +3751,14 @@ def test_archive_poller_skips_when_dest_is_not_mounted(tmp_path, monkeypatch):
     """A dest whose backup volume is unmounted must be SKIPPED, never created — blindly makedirs-ing the
     tree would mirror the night onto the boot filesystem and fill it."""
     import datetime as _dtm
+
     monkeypatch.setattr(capture, "_now", lambda: _dtm.datetime(2026, 7, 19, 2, 0, 0))
     cap = tmp_path / "captures"
     (cap / "2026-07-18").mkdir(parents=True)
-    f = cap / "2026-07-18" / "Polar_H10_1_ECG.txt"; f.write_text("rows\n")
+    f = cap / "2026-07-18" / "Polar_H10_1_ECG.txt"
+    f.write_text("rows\n")
     _os.utime(f, (0, _dtm.datetime(2026, 7, 19).timestamp() - 3600))
-    dest = tmp_path / "gone"                                    # never created → "volume not mounted"
+    dest = tmp_path / "gone"  # never created → "volume not mounted"
     cfg = {"archive": {"enabled": True, "dest": str(dest), "poll_sec": 1}}
     _stop_after(monkeypatch, 1)
     _run(capture.archive_poller(cfg, str(tmp_path)))
@@ -2680,32 +3778,36 @@ def test_archive_poller_copy_does_not_block_the_event_loop(tmp_path, monkeypatch
     """
     import datetime as _dtm
     import time as _t
+
     monkeypatch.setattr(capture, "_now", lambda: _dtm.datetime(2026, 7, 19, 2, 0, 0))
     cap = tmp_path / "captures"
-    (cap / "2026-07-18").mkdir(parents=True)                    # settled: aged past the settle window
-    f18 = cap / "2026-07-18" / "Polar_H10_1_ECG.txt"; f18.write_text("rows\n")
+    (cap / "2026-07-18").mkdir(parents=True)  # settled: aged past the settle window
+    f18 = cap / "2026-07-18" / "Polar_H10_1_ECG.txt"
+    f18.write_text("rows\n")
     _os.utime(f18, (0, _dtm.datetime(2026, 7, 19).timestamp() - 3600))
-    (tmp_path / "b").mkdir()                                    # dest present (mounted)
+    (tmp_path / "b").mkdir()  # dest present (mounted)
 
     ticks = []
 
     def slow_archive(captures, night, dest, **kw):
-        _t.sleep(0.25)                       # a BLOCKING dest — the whole point
+        _t.sleep(0.25)  # a BLOCKING dest — the whole point
         return 1
 
     monkeypatch.setattr(capture.nightarchive, "archive_night", slow_archive)
 
     async def scenario():
-        async def ticker():                  # stands in for every other loop task
+        async def ticker():  # stands in for every other loop task
             for _ in range(10):
                 await asyncio.sleep(0.02)
                 ticks.append(1)
+
         cfg = {"archive": {"enabled": True, "dest": str(tmp_path / "b"), "poll_sec": 0.01}}
         t = asyncio.ensure_future(ticker())
         await asyncio.wait_for(capture.archive_poller(cfg, str(tmp_path)), timeout=5)
         t.cancel()
 
     import asyncio
+
     capture._STOP.clear()
 
     async def stopper():
@@ -2720,17 +3822,19 @@ def test_archive_poller_copy_does_not_block_the_event_loop(tmp_path, monkeypatch
 
     # Inline, the 0.25 s copy would have starved the 0.02 s ticker for its whole duration.
     assert len(ticks) >= 5, (
-        f"only {len(ticks)} tick(s) ran while archive_night blocked for 0.25 s — the copy is still "
-        "on the event loop"
+        f"only {len(ticks)} tick(s) ran while archive_night blocked for 0.25 s — the copy is still on the event loop"
     )
 
 
-@pytest.mark.parametrize("poller,cfg_key,mod,fn,extra,night", [
-    # qc_poller only summarises TONIGHT's dir; storage_poller only prunes OLD ones — so each needs its
-    # own fixture night, or the poller hits an early `continue` and the test passes vacuously.
-    ("qc_poller", "qc", "nightqc", "summarize", {}, "2026-07-19"),
-    ("storage_poller", "storage", "diskguard", "prune_old_nights", {"keep_nights": 1}, "2026-07-18"),
-])
+@pytest.mark.parametrize(
+    "poller,cfg_key,mod,fn,extra,night",
+    [
+        # qc_poller only summarises TONIGHT's dir; storage_poller only prunes OLD ones — so each needs its
+        # own fixture night, or the poller hits an early `continue` and the test passes vacuously.
+        ("qc_poller", "qc", "nightqc", "summarize", {}, "2026-07-19"),
+        ("storage_poller", "storage", "diskguard", "prune_old_nights", {"keep_nights": 1}, "2026-07-18"),
+    ],
+)
 def test_pollers_do_their_filesystem_work_off_the_loop(tmp_path, monkeypatch, poller, cfg_key, mod, fn, extra, night):
     """QC's newline count and retention's rmtree are filesystem work, not arithmetic — same rule as
     archive_night. summarize() re-reads the WHOLE growing night every poll_sec (~48 GB across a night
@@ -2739,14 +3843,19 @@ def test_pollers_do_their_filesystem_work_off_the_loop(tmp_path, monkeypatch, po
     import asyncio as _a
     import datetime as _dtm
     import time as _t
+
     monkeypatch.setattr(capture, "_now", lambda: _dtm.datetime(2026, 7, 19, 2, 0, 0))
     (tmp_path / "captures" / night).mkdir(parents=True)
 
     def slow(*a, **k):
-        _t.sleep(0.25)                                   # blocking storage, the whole point
+        _t.sleep(0.25)  # blocking storage, the whole point
         # A REALISTIC shape: qc_poller reads summ["night"] downstream, and a stub missing it would be
         # swallowed by the poller's `except` — the test would still pass while exercising half the path.
-        return [] if fn == "prune_old_nights" else {"night": night, "ok": True, "devices": [], "missing": [], "files": 0, "total_rows": 0}
+        return (
+            []
+            if fn == "prune_old_nights"
+            else {"night": night, "ok": True, "devices": [], "missing": [], "files": 0, "total_rows": 0}
+        )
 
     monkeypatch.setattr(getattr(capture, mod), fn, slow)
     ticks = []
@@ -2774,13 +3883,15 @@ def test_pollers_do_their_filesystem_work_off_the_loop(tmp_path, monkeypatch, po
 
 def test_archive_poller_swallows_an_error(tmp_path, monkeypatch):
     import datetime as _dtm
+
     monkeypatch.setattr(capture, "_now", lambda: _dtm.datetime(2026, 7, 19, 2, 0, 0))
-    monkeypatch.setattr(capture.nightarchive, "pending_nights",
-                        lambda *_a, **_k: (_ for _ in ()).throw(RuntimeError("archive boom")))
-    (tmp_path / "b").mkdir()                                    # dest present → past the mount guard
+    monkeypatch.setattr(
+        capture.nightarchive, "pending_nights", lambda *_a, **_k: (_ for _ in ()).throw(RuntimeError("archive boom"))
+    )
+    (tmp_path / "b").mkdir()  # dest present → past the mount guard
     cfg = {"archive": {"enabled": True, "dest": str(tmp_path / "b"), "poll_sec": 1}}
     _stop_after(monkeypatch, 1)
-    _run(capture.archive_poller(cfg, str(tmp_path)))            # must not raise
+    _run(capture.archive_poller(cfg, str(tmp_path)))  # must not raise
 
 
 # ── BLE robustness: bounded awaits, task supervision, and the stall watchdog ────────────────────────
@@ -2793,44 +3904,70 @@ def test_connect_timeout_disconnects_the_half_open_link(monkeypatch):
     forever and every other device task queues behind it for the night. It must time out AND tear the
     half-open link down rather than leaking it."""
     import bleak
+
     events = []
+
     class _BC:
-        def __init__(self, addr, **kw): pass
-        async def connect(self): await asyncio.sleep(3600)      # never returns — the wedge
-        async def disconnect(self): events.append("disconnect")
+        def __init__(self, addr, **kw):
+            pass
+
+        async def connect(self):
+            await asyncio.sleep(3600)  # never returns — the wedge
+
+        async def disconnect(self):
+            events.append("disconnect")
+
     monkeypatch.setattr(bleak, "BleakClient", _BC)
-    async def no_kw(): return {}
+
+    async def no_kw():
+        return {}
+
     monkeypatch.setattr(capture, "adapter_kw", no_kw)
     monkeypatch.setattr(capture, "_BLE_CONNECT_TIMEOUT_S", 0.01)
 
     async def go():
         with pytest.raises(asyncio.TimeoutError):
             async with capture._connect("AA"):
-                pass                                            # pragma: no cover — connect never yields
+                pass  # pragma: no cover — connect never yields
+
     _run(go())
     assert events == ["disconnect"]
-    assert not capture._CONNECT_LOCK.locked()                   # released, so other devices can proceed
+    assert not capture._CONNECT_LOCK.locked()  # released, so other devices can proceed
 
 
 def test_connect_scan_timeout_disconnects_the_half_open_link(monkeypatch):
     """_connect_scan (the O2Ring path) carries the same bound as _connect."""
     import bleak
+
     events = []
+
     class _BC:
-        def __init__(self, dev, **kw): pass
-        async def connect(self): await asyncio.sleep(3600)
-        async def disconnect(self): events.append("disconnect")
-    async def find(*a, **k): return object()
+        def __init__(self, dev, **kw):
+            pass
+
+        async def connect(self):
+            await asyncio.sleep(3600)
+
+        async def disconnect(self):
+            events.append("disconnect")
+
+    async def find(*a, **k):
+        return object()
+
     monkeypatch.setattr(bleak, "BleakClient", _BC)
     monkeypatch.setattr(bleak.BleakScanner, "find_device_by_filter", staticmethod(find))
-    async def no_kw(): return {}
+
+    async def no_kw():
+        return {}
+
     monkeypatch.setattr(capture, "adapter_kw", no_kw)
     monkeypatch.setattr(capture, "_BLE_CONNECT_TIMEOUT_S", 0.01)
 
     async def go():
         with pytest.raises(asyncio.TimeoutError):
             async with capture._connect_scan("AA"):
-                pass                                            # pragma: no cover — connect never yields
+                pass  # pragma: no cover — connect never yields
+
     _run(go())
     assert events == ["disconnect"]
 
@@ -2838,10 +3975,13 @@ def test_connect_scan_timeout_disconnects_the_half_open_link(monkeypatch):
 def test_safe_disconnect_swallows_a_hanging_disconnect(monkeypatch):
     """Teardown runs against the same wedged stack that caused the failure, so a disconnect that never
     returns must be abandoned — otherwise the timeout that saved us becomes a second deadlock."""
+
     class _C:
-        async def disconnect(self): await asyncio.sleep(3600)
+        async def disconnect(self):
+            await asyncio.sleep(3600)
+
     monkeypatch.setattr(capture, "_BLE_DISCONNECT_TIMEOUT_S", 0.01)
-    _run(capture._safe_disconnect(_C()))                        # returns, does not raise
+    _run(capture._safe_disconnect(_C()))  # returns, does not raise
 
 
 def test_run_polar_forces_stop_and_restart_on_already_streaming(tmp_path, monkeypatch):
@@ -2854,8 +3994,8 @@ def test_run_polar_forces_stop_and_restart_on_already_streaming(tmp_path, monkey
     _inject_connect(monkeypatch, c)
     _stop_after(monkeypatch, 1)
     _run(capture.run_polar(_pdev(), str(tmp_path)))
-    stops = [w for w in c.writes if w and w[0] == 0x03]         # _OP_STOP
-    starts = [w for w in c.writes if w and w[0] == 0x02]        # _OP_START
+    stops = [w for w in c.writes if w and w[0] == 0x03]  # _OP_STOP
+    starts = [w for w in c.writes if w and w[0] == 0x02]  # _OP_START
     # One unconditional STOP before negotiation, plus the forced one the already_streaming ACK triggers,
     # and a second START demanding the stream back for THIS subscriber.
     assert len(stops) >= 2 and len(starts) >= 2, f"no forced STOP+re-START: {c.writes!r}"
@@ -2866,7 +4006,10 @@ def test_run_polar_ctrl_write_failure_is_not_a_rejection(tmp_path, monkeypatch):
     rejected stream."""
     _polar_common(monkeypatch)
     c = FlexPolarClient(data_frames=[_ecg_frame()], start_status=0x00)
-    async def boom(*a, **k): raise RuntimeError("dbus wedged")
+
+    async def boom(*a, **k):
+        raise RuntimeError("dbus wedged")
+
     c.write_gatt_char = boom
     _inject_connect(monkeypatch, c)
     _stop_after(monkeypatch, 1)
@@ -2880,29 +4023,31 @@ def test_run_polar_stall_watchdog_drops_a_silent_session(tmp_path, monkeypatch):
     loop used to run on client.is_connected alone, so it had no reason to ever end. Now the session is
     torn down so the reconnect re-negotiates against a device that has just freed the stream."""
     _polar_common(monkeypatch)
-    c = FlexPolarClient(data_frames=[], start_status=0x00)      # ACKed, then total silence
+    c = FlexPolarClient(data_frames=[], start_status=0x00)  # ACKed, then total silence
     _inject_connect(monkeypatch, c)
     # The patched sleep does not advance the wall clock, so drive monotonic() forward by hand. This
     # exercises the REAL 90 s default rather than a shrunk-to-nothing grace.
     clock = {"t": 0.0}
+
     def fake_monotonic():
         clock["t"] += 50.0
         return clock["t"]
+
     monkeypatch.setattr(capture._time, "monotonic", fake_monotonic)
     _stop_after(monkeypatch, 6)
     _run(capture.run_polar(_pdev(), str(tmp_path)))
     # The session was torn down and a SECOND negotiation ran — which is the whole point: the reconnect
     # is what makes the device free the stream. (last_error is deliberately not asserted here: the new
     # session clears it on entry, so it says nothing about whether the watchdog fired.)
-    starts = [w for w in c.writes if w and w[0] == 0x02]        # _OP_START
+    starts = [w for w in c.writes if w and w[0] == 0x02]  # _OP_START
     assert len(starts) >= 2, f"stall did not force a re-negotiation: {c.writes!r}"
 
 
 def test_stream_is_stalled_is_pure():
     """Off when disabled, off before anything started, off inside the grace, on past it."""
-    assert capture.stream_is_stalled(0.0, 100.0, 0) is False        # feature off
-    assert capture.stream_is_stalled(None, 100.0, 90) is False      # nothing started yet
-    assert capture.stream_is_stalled(50.0, 100.0, 90) is False      # still inside the grace
+    assert capture.stream_is_stalled(0.0, 100.0, 0) is False  # feature off
+    assert capture.stream_is_stalled(None, 100.0, 90) is False  # nothing started yet
+    assert capture.stream_is_stalled(50.0, 100.0, 90) is False  # still inside the grace
     assert capture.stream_is_stalled(0.0, 100.0, 90) is True
 
 
@@ -2910,15 +4055,19 @@ def test_keep_running_restarts_a_crashing_task(monkeypatch):
     """A background task that raises must not retire silently — main() never gathers until shutdown, so
     the traceback is not even retrieved and the box loses that capability for the night."""
     calls = {"n": 0}
+
     async def flaky():
         calls["n"] += 1
         if calls["n"] == 1:
             raise RuntimeError("boom")
         capture._STOP.set()
+
     seen = []
+
     async def go():
         await capture.keep_running(flaky, "flaky", on_error=seen.append)
-    _real_sleep = asyncio.sleep                      # capture BEFORE patching — the lambda would recurse
+
+    _real_sleep = asyncio.sleep  # capture BEFORE patching — the lambda would recurse
     monkeypatch.setattr(capture.asyncio, "sleep", lambda _s: _real_sleep(0))
     _run(go())
     assert calls["n"] == 2 and seen and "boom" in seen[0]
@@ -2927,8 +4076,10 @@ def test_keep_running_restarts_a_crashing_task(monkeypatch):
 def test_keep_running_returns_on_a_clean_exit():
     """A plain return means _STOP was observed — nothing to restart."""
     calls = {"n": 0}
+
     async def once():
         calls["n"] += 1
+
     _run(capture.keep_running(once, "once"))
     assert calls["n"] == 1
 
@@ -2937,12 +4088,16 @@ def test_supervise_surfaces_a_runner_crash_on_the_device_card(monkeypatch):
     """A crashed runner has to show up where the operator looks — the device's monitor card — and push an
     alert, because a device dying at 02:00 is otherwise invisible until morning."""
     sent = []
+
     class _N:
-        async def send(self, title, body): sent.append((title, body))
+        async def send(self, title, body):
+            sent.append((title, body))
+
     async def boom(_dev, _root):
         capture._STOP.set()
         raise OSError("read-only filesystem")
-    _real_sleep = asyncio.sleep                      # capture BEFORE patching — the lambda would recurse
+
+    _real_sleep = asyncio.sleep  # capture BEFORE patching — the lambda would recurse
     monkeypatch.setattr(capture.asyncio, "sleep", lambda _s: _real_sleep(0))
     _run(capture.supervise(boom, _dev(name="H10"), "/tmp", _N()))
     assert "runner crashed" in capture.STATUS["devices"]["H10"]["last_error"]
@@ -2954,9 +4109,15 @@ def test_pull_oxyii_session_is_bounded(tmp_path, monkeypatch):
     out of range mid-transfer left _OXYII_PAUSE SET for the night — and adapter_watchdog, clock_watchdog
     and rssi_poller all skip while it is set, so the wedge disabled the ladder that recovers from it."""
     import pull_session
-    async def never(*a, **k): await asyncio.sleep(3600)
+
+    async def never(*a, **k):
+        await asyncio.sleep(3600)
+
     monkeypatch.setattr(pull_session, "pull", never)
-    async def hci(): return None
+
+    async def hci():
+        return None
+
     monkeypatch.setattr(capture, "adapter_hci", hci)
     monkeypatch.setattr(capture, "_OFFLINE_OP_TIMEOUT_S", 0.01)
     dev = {"name": "Ring", "address": "AA", "vendor": "Wellue", "model": "O2Ring-S", "device_id": "S1"}
@@ -2964,9 +4125,10 @@ def test_pull_oxyii_session_is_bounded(tmp_path, monkeypatch):
     async def go():
         with pytest.raises(asyncio.TimeoutError):
             await capture.pull_oxyii_session(dev, str(tmp_path))
+
     _run(go())
-    assert not capture._OXYII_PAUSE.is_set()        # resumed — the night is not lost
-    assert not capture._CONNECT_LOCK.locked()       # and the radio is free for everyone else
+    assert not capture._OXYII_PAUSE.is_set()  # resumed — the night is not lost
+    assert not capture._CONNECT_LOCK.locked()  # and the radio is free for everyone else
 
 
 def test_run_polar_silent_control_point_is_not_a_rejection(tmp_path, monkeypatch):
@@ -2975,8 +4137,10 @@ def test_run_polar_silent_control_point_is_not_a_rejection(tmp_path, monkeypatch
     the indication timeout specifically, and it must still read as NO_ACK rather than a rejection."""
     _polar_common(monkeypatch)
     c = FlexPolarClient(data_frames=[], start_status=0x00)
+
     async def silent_write(uuid, cmd, response=False):
-        c.writes.append(bytes(cmd))                       # accepted, but no ctrl callback is ever invoked
+        c.writes.append(bytes(cmd))  # accepted, but no ctrl callback is ever invoked
+
     c.write_gatt_char = silent_write
     _inject_connect(monkeypatch, c)
     monkeypatch.setattr(capture, "_PMD_CTRL_TIMEOUT_S", 0.01)
@@ -2996,6 +4160,7 @@ def test_run_polar_stall_baseline_resets_when_rows_advance(tmp_path, monkeypatch
     monkeypatch.setattr(capture._time, "monotonic", lambda: clock.__setitem__("t", clock["t"] + 50.0) or clock["t"])
     # Feed a frame on every hold tick, so rows keep advancing past what would otherwise be the grace.
     calls = {"n": 0}
+
     async def feeding_sleep(_secs):
         calls["n"] += 1
         cb = c.cbs.get(pmd.PMD_DATA.uuid if hasattr(pmd.PMD_DATA, "uuid") else pmd.PMD_DATA)
@@ -3003,6 +4168,7 @@ def test_run_polar_stall_baseline_resets_when_rows_advance(tmp_path, monkeypatch
             cb(0, bytearray(_ecg_frame()))
         if calls["n"] >= 5:
             capture._STOP.set()
+
     monkeypatch.setattr(capture.asyncio, "sleep", feeding_sleep)
     _run(capture.run_polar(_pdev(), str(tmp_path)))
     starts = [w for w in c.writes if w and w[0] == 0x02]
@@ -3014,16 +4180,20 @@ def test_keep_running_backoff_doubles_between_crashes(monkeypatch):
     all night."""
     delays = []
     calls = {"n": 0}
+
     async def always_boom():
         calls["n"] += 1
         if calls["n"] >= 3:
             capture._STOP.set()
             return
         raise RuntimeError("boom")
+
     _real_sleep = asyncio.sleep
+
     async def rec_sleep(secs):
         delays.append(secs)
         await _real_sleep(0)
+
     monkeypatch.setattr(capture.asyncio, "sleep", rec_sleep)
     _run(capture.keep_running(always_boom, "boomy"))
     assert delays == [5, 10], f"expected a doubling backoff, got {delays}"
@@ -3033,9 +4203,9 @@ def test_clock_resync_reason_is_pure():
     """A jump always wins; a steady offset is chased only until proven uncorrectable; in-tolerance is
     left alone entirely."""
     R = capture.clock_resync_reason
-    assert R(0.5, 0.4, 30, 2.0) is None                     # steady and in tolerance
-    assert R(120.0, 0.0, 30, 2.0) == "jump"                 # moved by >= jump
-    assert R(10.0, 10.0, 30, 2.0) == "adrift"               # steady but out of tolerance
+    assert R(0.5, 0.4, 30, 2.0) is None  # steady and in tolerance
+    assert R(120.0, 0.0, 30, 2.0) == "jump"  # moved by >= jump
+    assert R(10.0, 10.0, 30, 2.0) == "adrift"  # steady but out of tolerance
     assert R(10.0, 10.0, 30, 2.0, failed_adrift=3) is None  # already proven unfixable -> stop
     # ...but a device we gave up on still gets corrected when its clock actually MOVES.
     assert R(120.0, 0.0, 30, 2.0, failed_adrift=99) == "jump"
@@ -3047,16 +4217,25 @@ def test_clock_watchdog_stops_chasing_an_uncorrectable_offset(monkeypatch):
     so it re-synced every drift_check_sec forever, each attempt pausing capture and holding the connect
     lock. It must give up, exactly once, and say so."""
     syncs = []
+
     async def fake_sync(addr):
-        syncs.append(addr)                                   # never moves the skew — the real behaviour
+        syncs.append(addr)  # never moves the skew — the real behaviour
+
     monkeypatch.setattr(capture, "sync_device_time", fake_sync)
-    capture.STATUS["devices"]["Verity"] = {"connected": True, "clock_skew_sec": 14400.0}
-    cfg = {"time": {"drift_check_sec": 1, "resync_jump_sec": 30},
-           "devices": [{"name": "Verity", "vendor": "Polar", "address": "AA"}]}
-    _stop_after(monkeypatch, 12)                             # ~12 drift-check cycles
+    capture.STATUS["devices"]["Verity"] = {
+        "connected": True,
+        "clock_skew_sec": 14400.0,
+        "clock_skew_floor_sec": 14400.0,
+    }
+    cfg = {
+        "time": {"drift_check_sec": 1, "resync_jump_sec": 30},
+        "devices": [{"name": "Verity", "vendor": "Polar", "address": "AA"}],
+    }
+    _stop_after(monkeypatch, 12)  # ~12 drift-check cycles
     _run(capture.clock_watchdog(cfg))
-    assert len(syncs) == capture.CLOCK_ADRIFT_GIVEUP, \
+    assert len(syncs) == capture.CLOCK_ADRIFT_GIVEUP, (
         f"expected exactly {capture.CLOCK_ADRIFT_GIVEUP} attempts, got {len(syncs)}"
+    )
     assert capture.STATUS["devices"]["Verity"].get("clock_uncorrectable") is True
 
 
@@ -3065,17 +4244,27 @@ def test_clock_watchdog_still_resyncs_a_real_jump_after_giving_up(monkeypatch):
     dropping to its 2019 firmware default mid-night is still a real fault worth correcting."""
     syncs = []
     skews = iter([14400.0] * 8 + [0.0, 3600.0] + [3600.0] * 20)
+
     async def fake_sync(addr):
         syncs.append(addr)
+
     monkeypatch.setattr(capture, "sync_device_time", fake_sync)
-    cfg = {"time": {"drift_check_sec": 1, "resync_jump_sec": 30},
-           "devices": [{"name": "Verity", "vendor": "Polar", "address": "AA"}]}
+    cfg = {
+        "time": {"drift_check_sec": 1, "resync_jump_sec": 30},
+        "devices": [{"name": "Verity", "vendor": "Polar", "address": "AA"}],
+    }
     calls = {"n": 0}
+
     async def stepping_sleep(_s):
         calls["n"] += 1
-        capture.STATUS["devices"]["Verity"] = {"connected": True, "clock_skew_sec": next(skews, 3600.0)}
+        capture.STATUS["devices"]["Verity"] = {
+            "connected": True,
+            "clock_skew_sec": (_s := next(skews, 3600.0)),
+            "clock_skew_floor_sec": _s,
+        }
         if calls["n"] >= 14:
             capture._STOP.set()
+
     monkeypatch.setattr(capture.asyncio, "sleep", stepping_sleep)
     _run(capture.clock_watchdog(cfg))
     # 3 adrift attempts, then it gives up — and then the skew MOVES, which must trigger again.
@@ -3086,12 +4275,13 @@ def test_run_oxyii_stall_watchdog_drops_a_frameless_link(tmp_path, monkeypatch):
     """A ring that holds its link but decodes NO frames — auth or setup never accepted, every frame
     failing CRC, a handler raising inside bleak's dispatch — used to sit there until dawn with
     `connected: True` and an empty file. The Polar path got a stall guard; the ring did not."""
-    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
-    c = FakeGattClient()                                   # on_live stays None → never answers
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
+    c = FakeGattClient()  # on_live stays None → never answers
     _inject_connect_scan(monkeypatch, c)
     clock = {"t": 0.0}
-    monkeypatch.setattr(capture._time, "monotonic",
-                        lambda: clock.__setitem__("t", clock["t"] + 50.0) or clock["t"])
+    monkeypatch.setattr(capture._time, "monotonic", lambda: clock.__setitem__("t", clock["t"] + 50.0) or clock["t"])
     _stop_after(monkeypatch, 8)
     _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
     assert "no frames" in (capture.STATUS["devices"]["Ring"].get("last_error") or "").lower()
@@ -3101,15 +4291,15 @@ def test_run_oxyii_unworn_ring_is_not_torn_down(tmp_path, monkeypatch):
     """CRITICAL COUNTER-CASE. Vitals stop the instant the ring leaves the finger (spo2 → None) while the
     link and the frames carry on. Guarding on ROWS would drop a healthy link every time it was taken off;
     the guard watches decoded FRAMES precisely so an unworn ring is left alone."""
-    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
     c = FakeGattClient()
     # Worn=False, spo2 absent → no SpO2 rows are written, but frames keep decoding.
-    c.on_live = lambda data: (c.notify(0, _o2ring_live_reply(spo2=0, worn=False))
-                              if data[1] == oxyii.OP_LIVE else None)
+    c.on_live = lambda data: c.notify(0, _o2ring_live_reply(spo2=0, worn=False)) if data[1] == oxyii.OP_LIVE else None
     _inject_connect_scan(monkeypatch, c)
     clock = {"t": 0.0}
-    monkeypatch.setattr(capture._time, "monotonic",
-                        lambda: clock.__setitem__("t", clock["t"] + 50.0) or clock["t"])
+    monkeypatch.setattr(capture._time, "monotonic", lambda: clock.__setitem__("t", clock["t"] + 50.0) or clock["t"])
     _stop_after(monkeypatch, 8)
     _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
     err = (capture.STATUS["devices"]["Ring"].get("last_error") or "").lower()
@@ -3119,26 +4309,32 @@ def test_run_oxyii_unworn_ring_is_not_torn_down(tmp_path, monkeypatch):
 def test_run_oxyii_poll_write_failure_drops_the_link(tmp_path, monkeypatch):
     """The live-frame write is the only thing that makes the ring emit data. Unbounded, a wedged stack
     parks the runner here forever with writers open and the monitor showing `connected`."""
-    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
     c = FakeGattClient()
     calls = {"n": 0}
+
     async def flaky_write(char, data, response=False):
         calls["n"] += 1
-        if calls["n"] > 3:                                 # let auth/setup/RTC through, then wedge
+        if calls["n"] > 3:  # let auth/setup/RTC through, then wedge
             raise RuntimeError("dbus wedged")
         c.writes.append(bytes(data))
+
     c.write_gatt_char = flaky_write
     _inject_connect_scan(monkeypatch, c)
     _stop_after(monkeypatch, 6)
     _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
-    assert calls["n"] >= 4                                 # it tried, failed, and broke out
+    assert calls["n"] >= 4  # it tried, failed, and broke out
 
 
 def test_run_oxyii_discards_header_only_files(tmp_path, monkeypatch):
     """A session that ends without data must not leave a header-only file behind — it is
     indistinguishable from a real capture until opened, and the Dex ingest walks this directory."""
-    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
-    c = FakeGattClient()                                   # never answers → zero rows
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
+    c = FakeGattClient()  # never answers → zero rows
     _inject_connect_scan(monkeypatch, c)
     _stop_after(monkeypatch, 4)
     _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
@@ -3147,14 +4343,18 @@ def test_run_oxyii_discards_header_only_files(tmp_path, monkeypatch):
 
 def test_run_oxyii_header_only_remove_error_is_swallowed(tmp_path, monkeypatch):
     """Tidying up must never take capture down: an os.remove that fails is skipped, not fatal."""
-    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
     c = FakeGattClient()
     _inject_connect_scan(monkeypatch, c)
+
     def boom_remove(_p):
         raise OSError("cannot remove")
+
     monkeypatch.setattr(capture.os, "remove", boom_remove)
     _stop_after(monkeypatch, 4)
-    _run(capture.run_oxyii(_o2dev(), str(tmp_path)))        # must not raise
+    _run(capture.run_oxyii(_o2dev(), str(tmp_path)))  # must not raise
     assert capture.STATUS["devices"]["Ring"]["connected"] is True
 
 
@@ -3162,33 +4362,44 @@ def _viatom_dev():
     return _o2dev(name="Ring", protocol="legacy")
 
 
+@pytest.mark.sets_capture_events
 def test_run_viatom_idles_during_adapter_recovery(tmp_path, monkeypatch):
     """This loop was the ONLY one that ignored _RECOVER: it kept hammering connects at a radio the
     watchdog was powering off, and could hold the global connect lock when the power-off landed."""
-    async def bonded(*a, **k): return True
+
+    async def bonded(*a, **k):
+        return True
+
     monkeypatch.setattr(capture.bonding, "ensure_bonded", bonded)
     capture._RECOVER.set()
     calls = {"n": 0}
+
     async def fake_sleep(_s):
         calls["n"] += 1
         if calls["n"] >= 2:
             capture._STOP.set()
+
     monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
-    _inject_connect(monkeypatch, FakeGattClient())          # must never be reached
+    _inject_connect(monkeypatch, FakeGattClient())  # must never be reached
     _run(capture.run_viatom(_viatom_dev(), str(tmp_path)))
     assert capture.STATUS["devices"]["Ring"]["last_error"] == "adapter recovering"
 
 
 def test_run_viatom_idles_during_a_stored_pull(tmp_path, monkeypatch):
     """_OXYII_PAUSE means something else owns the ring's single link."""
-    async def bonded(*a, **k): return True
+
+    async def bonded(*a, **k):
+        return True
+
     monkeypatch.setattr(capture.bonding, "ensure_bonded", bonded)
     capture._OXYII_PAUSE.set()
     calls = {"n": 0}
+
     async def fake_sleep(_s):
         calls["n"] += 1
         if calls["n"] >= 2:
             capture._STOP.set()
+
     monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
     _inject_connect(monkeypatch, FakeGattClient())
     _run(capture.run_viatom(_viatom_dev(), str(tmp_path)))
@@ -3199,14 +4410,21 @@ def test_run_viatom_idles_during_a_stored_pull(tmp_path, monkeypatch):
 def test_run_viatom_warns_when_no_write_characteristic(tmp_path, monkeypatch, caplog):
     """notify_char has a documented-UUID fallback; write_char has none. A model that puts its control
     point elsewhere never gets START_CMD and then never streams — with a live link and no error."""
-    async def bonded(*a, **k): return True
+
+    async def bonded(*a, **k):
+        return True
+
     monkeypatch.setattr(capture.bonding, "ensure_bonded", bonded)
     c = FakeGattClient()
-    class _NotifyOnlyService:                                # notify discoverable, write char absent
+
+    class _NotifyOnlyService:  # notify discoverable, write char absent
         uuid = viatom.VIATOM_SERVICE
+
         def __init__(self):
-            n = _Char(viatom.VIATOM_NOTIFY); n.properties = ["notify"]
+            n = _Char(viatom.VIATOM_NOTIFY)
+            n.properties = ["notify"]
             self.characteristics = [n]
+
     c.services = [_NotifyOnlyService()]
     _inject_connect(monkeypatch, c)
     _stop_after(monkeypatch, 1)
@@ -3217,13 +4435,16 @@ def test_run_viatom_warns_when_no_write_characteristic(tmp_path, monkeypatch, ca
 
 def test_run_viatom_stall_watchdog_drops_a_silent_link(tmp_path, monkeypatch):
     """Connected, subscribed, and no rows — the silent-night shape, now ended rather than ridden out."""
-    async def bonded(*a, **k): return True
+
+    async def bonded(*a, **k):
+        return True
+
     monkeypatch.setattr(capture.bonding, "ensure_bonded", bonded)
-    c = FakeGattClient(); c.services = [_ViatomService()]   # no on_live → never sends a packet
+    c = FakeGattClient()
+    c.services = [_ViatomService()]  # no on_live → never sends a packet
     _inject_connect(monkeypatch, c)
     clock = {"t": 0.0}
-    monkeypatch.setattr(capture._time, "monotonic",
-                        lambda: clock.__setitem__("t", clock["t"] + 50.0) or clock["t"])
+    monkeypatch.setattr(capture._time, "monotonic", lambda: clock.__setitem__("t", clock["t"] + 50.0) or clock["t"])
     _stop_after(monkeypatch, 6)
     _run(capture.run_viatom(_viatom_dev(), str(tmp_path)))
     assert "no data" in (capture.STATUS["devices"]["Ring"].get("last_error") or "").lower()
@@ -3231,9 +4452,13 @@ def test_run_viatom_stall_watchdog_drops_a_silent_link(tmp_path, monkeypatch):
 
 def test_run_viatom_discards_header_only_files(tmp_path, monkeypatch):
     """A session with no rows must not leave a header-only CSV for the Dex ingest to pick up."""
-    async def bonded(*a, **k): return True
+
+    async def bonded(*a, **k):
+        return True
+
     monkeypatch.setattr(capture.bonding, "ensure_bonded", bonded)
-    c = FakeGattClient(); c.services = [_ViatomService()]
+    c = FakeGattClient()
+    c.services = [_ViatomService()]
     _inject_connect(monkeypatch, c)
     _stop_after(monkeypatch, 1)
     _run(capture.run_viatom(_viatom_dev(), str(tmp_path)))
@@ -3242,12 +4467,18 @@ def test_run_viatom_discards_header_only_files(tmp_path, monkeypatch):
 
 def test_run_viatom_header_only_remove_error_is_swallowed(tmp_path, monkeypatch):
     """Tidying up must never take capture down."""
-    async def bonded(*a, **k): return True
+
+    async def bonded(*a, **k):
+        return True
+
     monkeypatch.setattr(capture.bonding, "ensure_bonded", bonded)
-    c = FakeGattClient(); c.services = [_ViatomService()]
+    c = FakeGattClient()
+    c.services = [_ViatomService()]
     _inject_connect(monkeypatch, c)
+
     def boom_remove(_p):
         raise OSError("cannot remove")
+
     monkeypatch.setattr(capture.os, "remove", boom_remove)
     _stop_after(monkeypatch, 1)
     _run(capture.run_viatom(_viatom_dev(), str(tmp_path)))  # must not raise
@@ -3255,20 +4486,25 @@ def test_run_viatom_header_only_remove_error_is_swallowed(tmp_path, monkeypatch)
 
 def test_run_viatom_stall_baseline_resets_when_rows_advance(tmp_path, monkeypatch):
     """A ring that IS delivering must never be torn down by the stall guard."""
-    async def bonded(*a, **k): return True
+
+    async def bonded(*a, **k):
+        return True
+
     monkeypatch.setattr(capture.bonding, "ensure_bonded", bonded)
-    c = FakeGattClient(); c.services = [_ViatomService()]
+    c = FakeGattClient()
+    c.services = [_ViatomService()]
     _inject_connect(monkeypatch, c)
     clock = {"t": 0.0}
-    monkeypatch.setattr(capture._time, "monotonic",
-                        lambda: clock.__setitem__("t", clock["t"] + 50.0) or clock["t"])
+    monkeypatch.setattr(capture._time, "monotonic", lambda: clock.__setitem__("t", clock["t"] + 50.0) or clock["t"])
     calls = {"n": 0}
-    async def feeding_sleep(_s):                       # a packet on every hold tick
+
+    async def feeding_sleep(_s):  # a packet on every hold tick
         calls["n"] += 1
         if c.notify:
             c.notify(0, bytearray(_viatom_packet()))
         if calls["n"] >= 5:
             capture._STOP.set()
+
     monkeypatch.setattr(capture.asyncio, "sleep", feeding_sleep)
     _run(capture.run_viatom(_viatom_dev(), str(tmp_path)))
     err = (capture.STATUS["devices"]["Ring"].get("last_error") or "").lower()
@@ -3281,20 +4517,31 @@ def test_connect_timeout_error_says_what_it_means(monkeypatch):
     2026-07-20 05:07 as `Polar H10 link error: TimeoutError()`. Keep the bound, restore the meaning —
     and keep the class name so transient_ble_error() still matches on repr()."""
     import bleak
+
     class _BC:
-        def __init__(self, addr, **kw): pass
-        async def connect(self): await asyncio.sleep(3600)
-        async def disconnect(self): pass
+        def __init__(self, addr, **kw):
+            pass
+
+        async def connect(self):
+            await asyncio.sleep(3600)
+
+        async def disconnect(self):
+            pass
+
     monkeypatch.setattr(bleak, "BleakClient", _BC)
-    async def no_kw(): return {}
+
+    async def no_kw():
+        return {}
+
     monkeypatch.setattr(capture, "adapter_kw", no_kw)
     monkeypatch.setattr(capture, "_BLE_CONNECT_TIMEOUT_S", 0.01)
 
     async def go():
         with pytest.raises(TimeoutError) as ei:
             async with capture._connect("24:AC:AC:02:84:96"):
-                pass                                       # pragma: no cover — connect never yields
+                pass  # pragma: no cover — connect never yields
         return ei.value
+
     err = _run(go())
     assert "24:AC:AC:02:84:96" in str(err) and "out of range" in str(err)
     assert capture.transient_ble_error(err), "must still classify as retryable, not a hard failure"
@@ -3304,19 +4551,31 @@ def test_connect_non_timeout_failure_also_tears_down(monkeypatch):
     """A connect that FAILS (rather than hangs) must still not leak a half-open link, and its own error
     must propagate untouched — only the bare-timeout case gets re-worded."""
     import bleak
+
     events = []
+
     class _BC:
-        def __init__(self, addr, **kw): pass
-        async def connect(self): raise RuntimeError("le-connection-abort-by-local")
-        async def disconnect(self): events.append("disconnect")
+        def __init__(self, addr, **kw):
+            pass
+
+        async def connect(self):
+            raise RuntimeError("le-connection-abort-by-local")
+
+        async def disconnect(self):
+            events.append("disconnect")
+
     monkeypatch.setattr(bleak, "BleakClient", _BC)
-    async def no_kw(): return {}
+
+    async def no_kw():
+        return {}
+
     monkeypatch.setattr(capture, "adapter_kw", no_kw)
 
     async def go():
         with pytest.raises(RuntimeError, match="abort-by-local"):
             async with capture._connect("AA"):
-                pass                                       # pragma: no cover — connect never yields
+                pass  # pragma: no cover — connect never yields
+
     _run(go())
     assert events == ["disconnect"]
 
@@ -3324,21 +4583,35 @@ def test_connect_non_timeout_failure_also_tears_down(monkeypatch):
 def test_connect_scan_non_timeout_failure_also_tears_down(monkeypatch):
     """_connect_scan carries the same teardown guarantee as _connect."""
     import bleak
+
     events = []
+
     class _BC:
-        def __init__(self, dev, **kw): pass
-        async def connect(self): raise RuntimeError("le-connection-abort-by-local")
-        async def disconnect(self): events.append("disconnect")
-    async def find(*a, **k): return object()
+        def __init__(self, dev, **kw):
+            pass
+
+        async def connect(self):
+            raise RuntimeError("le-connection-abort-by-local")
+
+        async def disconnect(self):
+            events.append("disconnect")
+
+    async def find(*a, **k):
+        return object()
+
     monkeypatch.setattr(bleak, "BleakClient", _BC)
     monkeypatch.setattr(bleak.BleakScanner, "find_device_by_filter", staticmethod(find))
-    async def no_kw(): return {}
+
+    async def no_kw():
+        return {}
+
     monkeypatch.setattr(capture, "adapter_kw", no_kw)
 
     async def go():
         with pytest.raises(RuntimeError, match="abort-by-local"):
             async with capture._connect_scan("AA"):
-                pass                                       # pragma: no cover — connect never yields
+                pass  # pragma: no cover — connect never yields
+
     _run(go())
     assert events == ["disconnect"]
 
@@ -3346,22 +4619,35 @@ def test_connect_scan_non_timeout_failure_also_tears_down(monkeypatch):
 def test_connect_scan_timeout_error_says_what_it_means(monkeypatch):
     """The ring path carries the same restored message."""
     import bleak
+
     class _BC:
-        def __init__(self, dev, **kw): pass
-        async def connect(self): await asyncio.sleep(3600)
-        async def disconnect(self): pass
-    async def find(*a, **k): return object()
+        def __init__(self, dev, **kw):
+            pass
+
+        async def connect(self):
+            await asyncio.sleep(3600)
+
+        async def disconnect(self):
+            pass
+
+    async def find(*a, **k):
+        return object()
+
     monkeypatch.setattr(bleak, "BleakClient", _BC)
     monkeypatch.setattr(bleak.BleakScanner, "find_device_by_filter", staticmethod(find))
-    async def no_kw(): return {}
+
+    async def no_kw():
+        return {}
+
     monkeypatch.setattr(capture, "adapter_kw", no_kw)
     monkeypatch.setattr(capture, "_BLE_CONNECT_TIMEOUT_S", 0.01)
 
     async def go():
         with pytest.raises(TimeoutError) as ei:
             async with capture._connect_scan("D1:98:62:7C:92:B3"):
-                pass                                       # pragma: no cover — connect never yields
+                pass  # pragma: no cover — connect never yields
         return ei.value
+
     err = _run(go())
     assert "D1:98:62:7C:92:B3" in str(err) and "out of range" in str(err)
 
@@ -3370,13 +4656,26 @@ def test_connect_scan_timeout_error_says_what_it_means(monkeypatch):
 def _main_cfg(tmp_path, monkeypatch):
     """main() wired with every runner/poller stubbed out — the shared setup for the shutdown tests."""
     import yaml as _yaml, sys as _sys
-    cfg = {"root": str(tmp_path), "web": {"enabled": True, "host": "127.0.0.1", "port": 0},
-           "devices": []}
+
+    cfg = {"root": str(tmp_path), "web": {"enabled": True, "host": "127.0.0.1", "port": 0}, "devices": []}
     cfgp = tmp_path / "config.yaml"
     cfgp.write_text(_yaml.safe_dump(cfg))
-    for r in ("status_loop", "adapter_watchdog", "rssi_poller", "clock_watchdog", "host_clock_poller",
-              "storage_poller", "alert_poller", "qc_poller", "archive_poller", "sd_watchdog"):
-        async def _n(*a, **k): return None
+    for r in (
+        "status_loop",
+        "adapter_watchdog",
+        "rssi_poller",
+        "clock_watchdog",
+        "host_clock_poller",
+        "storage_poller",
+        "alert_poller",
+        "qc_poller",
+        "archive_poller",
+        "sd_watchdog",
+    ):
+
+        async def _n(*a, **k):
+            return None
+
         monkeypatch.setattr(capture, r, _n)
     monkeypatch.setattr(_sys, "argv", ["capture.py", "--config", str(cfgp)])
     capture._STOP.clear()
@@ -3390,11 +4689,15 @@ def test_shutdown_abandons_a_web_server_that_will_not_close(tmp_path, monkeypatc
     mid-write. Bound it, name it, and carry on."""
     _main_cfg(tmp_path, monkeypatch)
     import webmon
+
     class _Runner:
-        async def cleanup(self): await asyncio.sleep(3600)     # the browser tab that never goes away
+        async def cleanup(self):
+            await asyncio.sleep(3600)  # the browser tab that never goes away
+
     async def fake_start(app, host, port):
         capture._STOP.set()
         return _Runner()
+
     monkeypatch.setattr(webmon, "start", fake_start)
     monkeypatch.setattr(capture, "_SHUTDOWN_PHASE_S", 0.05)
     with caplog.at_level("ERROR"):
@@ -3406,6 +4709,7 @@ def test_shutdown_names_a_task_that_ignores_cancellation(tmp_path, monkeypatch, 
     """A task that swallows CancelledError used to hang `gather()` forever with nothing in the log. Now
     it is abandoned after a bounded wait and NAMED, so the operator knows which one to look at."""
     _main_cfg(tmp_path, monkeypatch)
+
     async def stubborn(*a, **k):
         seen = {"n": 0}
         while True:
@@ -3413,12 +4717,16 @@ def test_shutdown_names_a_task_that_ignores_cancellation(tmp_path, monkeypatch, 
                 await asyncio.sleep(0.01)
             except asyncio.CancelledError:
                 seen["n"] += 1
-                if seen["n"] >= 2:               # yield on the second ask so asyncio.run() can finish
+                if seen["n"] >= 2:  # yield on the second ask so asyncio.run() can finish
                     raise
+
     monkeypatch.setattr(capture, "status_loop", stubborn)
     import webmon
+
     class _Runner:
-        async def cleanup(self): pass
+        async def cleanup(self):
+            pass
+
     async def fake_start(app, host, port):
         # Yield first: `_STOP.wait()` on an ALREADY-set event returns without suspending, so main would
         # cancel the background tasks before they had ever run — and a task that never started cannot
@@ -3426,6 +4734,7 @@ def test_shutdown_names_a_task_that_ignores_cancellation(tmp_path, monkeypatch, 
         await asyncio.sleep(0.05)
         capture._STOP.set()
         return _Runner()
+
     monkeypatch.setattr(webmon, "start", fake_start)
     monkeypatch.setattr(capture, "_SHUTDOWN_PHASE_S", 0.05)
     with caplog.at_level("ERROR"):
@@ -3438,35 +4747,96 @@ def test_run_muse_kills_a_child_that_ignores_terminate(tmp_path, monkeypatch):
     """On shutdown the child MUST be reaped. CancelledError is a BaseException, so the old `except`
     clauses never ran and terminate() was skipped entirely — leaving muselsl alive holding the Muse's
     BLE link, so the NEXT daemon start could not connect. A child that also ignores SIGTERM gets killed
-    rather than left owning the radio."""
+    rather than left owning the radio. SIGINT comes FIRST: `muselsl record_direct` saves its CSV only
+    on the KeyboardInterrupt branch, so SIGTERM-first was a night recorded and never written."""
+    import signal as _signal
+
     events = []
+
     class _Stubborn:
-        def __init__(self): self.returncode = None
+        def __init__(self):
+            self.returncode = None
+
         async def wait(self):
             await asyncio.sleep(0)
-            return None                                  # never exits on its own
-        def terminate(self): events.append("terminate")  # ...and ignores SIGTERM
-        def kill(self): events.append("kill"); self.returncode = -9
-    async def fake_exec(*cmd, **k): return _Stubborn()
+            return None  # never exits on its own
+
+        def send_signal(self, sig):
+            events.append("SIGINT" if sig == _signal.SIGINT else str(sig))
+
+        def terminate(self):
+            events.append("terminate")  # ...and ignores SIGTERM
+
+        def kill(self):
+            events.append("kill")
+            self.returncode = -9
+
+    async def fake_exec(*cmd, **k):
+        return _Stubborn()
+
     monkeypatch.setattr(capture.asyncio, "create_subprocess_exec", fake_exec)
     _real_wait_for = asyncio.wait_for
-    async def fast_wait_for(coro, timeout):              # don't really wait 5 s in a unit test
+
+    async def fast_wait_for(coro, timeout):  # don't really wait 5 s in a unit test
         return await _real_wait_for(coro, 0.05)
+
     monkeypatch.setattr(capture.asyncio, "wait_for", fast_wait_for)
     _stop_after(monkeypatch, 1)
     _run(capture.run_muse(_dev(vendor="Muse", model="S", muse_tool="muselsl"), str(tmp_path)))
-    assert events == ["terminate", "kill"], events
+    assert events == ["SIGINT", "terminate", "kill"], events
+
+
+def test_run_muse_a_child_that_saves_on_SIGINT_is_never_terminated(tmp_path, monkeypatch):
+    """The `record_direct` shape: ignores nothing, exits 0 on SIGINT after writing its file. The
+    escalation must stop at the first signal — a terminate here would be the data-loss path."""
+    import signal as _signal
+
+    events = []
+
+    class _Polite:
+        def __init__(self, out):
+            self.returncode = None
+            self.out = out
+
+        async def wait(self):
+            await asyncio.sleep(0)
+            return self.returncode
+
+        def send_signal(self, sig):
+            events.append("SIGINT" if sig == _signal.SIGINT else str(sig))
+            with open(self.out, "wb") as fh:
+                fh.write(b"csv")
+            self.returncode = 0
+
+        def terminate(self):
+            events.append("terminate")
+
+        def kill(self):
+            events.append("kill")
+
+    async def fake_exec(*cmd, **k):
+        out = cmd[cmd.index("--filename") + 1]
+        os.makedirs(os.path.dirname(out), exist_ok=True)
+        return _Polite(out)
+
+    monkeypatch.setattr(capture.asyncio, "create_subprocess_exec", fake_exec)
+    _stop_after(monkeypatch, 1)
+    _run(capture.run_muse(_dev(name="Muse", vendor="Muse", model="S", muse_tool="muselsl"), str(tmp_path)))
+    assert events == ["SIGINT"], events
+    assert not capture.STATUS["devices"]["Muse"].get("last_error")
 
 
 def test_run_muse_reports_a_child_that_exits_with_an_error(tmp_path, monkeypatch):
     """A tool that dies on the first line — device off, bad address, no LSL stream — used to leave a
     GREEN card all night while the loop respawned it every 5 s, and alert_poller keys on `connected`,
     so nothing ever fired."""
-    async def fake_exec(*cmd, **k): return _FakeProc(rc=2)
+
+    async def fake_exec(*cmd, **k):
+        return _FakeProc(rc=2)
+
     monkeypatch.setattr(capture.asyncio, "create_subprocess_exec", fake_exec)
     _stop_after(monkeypatch, 1)
-    _run(capture.run_muse(_dev(name="Muse", vendor="Muse", model="S", muse_tool="muselsl"),
-                          str(tmp_path)))
+    _run(capture.run_muse(_dev(name="Muse", vendor="Muse", model="S", muse_tool="muselsl"), str(tmp_path)))
     st = capture.STATUS["devices"]["Muse"]
     assert st["connected"] is False and "exited with code 2" in st["last_error"]
 
@@ -3476,30 +4846,31 @@ def test_set_counts_a_reconnect_edge_the_poller_would_miss():
     """A drop+reconnect BETWEEN two 25 s LINK samples reads connected=1 at both ends, so the sidecar used
     to under-count dropouts. _set counts the False→True edge at the source, so the reconnect count moves
     even when no poll observed the drop."""
-    capture.STATUS.clear(); capture.STATUS["devices"] = {}
+    capture.STATUS.clear()
+    capture.STATUS["devices"] = {}
     capture._LINK_EPOCH.clear()
-    capture._set("Ring", connected=True, address="AA")         # first connect
+    capture._set("Ring", connected=True, address="AA")  # first connect
     assert capture.STATUS["devices"]["Ring"]["link_epoch"] == 1
-    capture._set("Ring", connected=False)                      # a drop the poller never sampled...
-    capture._set("Ring", connected=True)                       # ...and the reconnect
+    capture._set("Ring", connected=False)  # a drop the poller never sampled...
+    capture._set("Ring", connected=True)  # ...and the reconnect
     assert capture.STATUS["devices"]["Ring"]["link_epoch"] == 2, "the missed dropout is still counted"
-    capture._set("Ring", spo2=97)                              # a non-connection update must not bump it
+    capture._set("Ring", spo2=97)  # a non-connection update must not bump it
     assert capture.STATUS["devices"]["Ring"]["link_epoch"] == 2
-    capture._set("Ring", connected=True)                       # already connected — no new edge
+    capture._set("Ring", connected=True)  # already connected — no new edge
     assert capture.STATUS["devices"]["Ring"]["link_epoch"] == 2
 
 
 def test_link_epoch_reaches_the_sidecar(tmp_path, monkeypatch):
     """rssi_poller writes the per-device reconnect count into LINK.csv."""
-    capture.STATUS.clear(); capture.STATUS["devices"] = {}
+    capture.STATUS.clear()
+    capture.STATUS["devices"] = {}
     capture._LINK_EPOCH.clear()
     capture._set("Ring", connected=True, address="AA")
-    cfg = {"link": {"rssi_enabled": False, "rssi_interval_sec": 1},
-           "devices": [{"name": "Ring", "address": "AA"}]}
+    cfg = {"link": {"rssi_enabled": False, "rssi_interval_sec": 1}, "devices": [{"name": "Ring", "address": "AA"}]}
     _stop_after(monkeypatch, 1)
     _run(capture.rssi_poller(None, cfg, str(tmp_path)))
     link = list((tmp_path / "captures").rglob("*_LINK.csv"))[0].read_text().splitlines()
-    assert link[0].endswith("link_epoch;address")   # address appended 2026-07-26, link_epoch unmoved
+    assert link[0].endswith("link_epoch;address")  # address appended 2026-07-26, link_epoch unmoved
     assert link[1].split(";")[7] == "1", "the reconnect count is in the sidecar"
     assert link[1].split(";")[8] == "AA", "the address travels with it — a rename must not split history"
 
@@ -3509,19 +4880,27 @@ def test_run_oxyii_backoff_grows_when_connect_then_drops_without_data(tmp_path, 
     """THE E3 FIX. A ring that connects then drops during discovery (never sends a frame) must BACK OFF,
     not reset to 5 s and hammer every ~21 s. With no data, backoff climbs 5→10→…"""
     from bleak.exc import BleakError
-    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
+    monkeypatch.setattr(capture, "_RETRY_JITTER", 0.0)  # the SCHEDULE is under test, not the jitter
     slept = []
+
     class _DropClient(FakeGattClient):
-        async def start_notify(self, _c, cb):            # connect ok, but drop before any data
+        async def start_notify(self, _c, cb):  # connect ok, but drop before any data
             raise BleakError("failed to discover services, device disconnected")
+
     c = _DropClient()
     _inject_connect_scan(monkeypatch, c)
     _real = asyncio.sleep
+
     async def rec_sleep(s):
         slept.append(s)
         if len(slept) >= 3:
             capture._STOP.set()
         await _real(0)
+
     monkeypatch.setattr(capture.asyncio, "sleep", rec_sleep)
     _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
     # the reconnect-backoff sleeps (5, then 10) — growing, because no session was ever viable
@@ -3531,24 +4910,31 @@ def test_run_oxyii_backoff_grows_when_connect_then_drops_without_data(tmp_path, 
 
 def test_run_oxyii_backoff_resets_once_data_flows(tmp_path, monkeypatch):
     """A ring that actually streams is viable — its backoff resets to 5 so a later drop recovers fast."""
-    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
-    capture.STATUS.clear(); capture.STATUS["devices"] = {}
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
+    capture.STATUS.clear()
+    capture.STATUS["devices"] = {}
     c = FakeGattClient()
-    c.on_live = lambda data: (c.notify(0, _o2ring_live_reply()) if data[1] == oxyii.OP_LIVE else None)
+    c.on_live = lambda data: c.notify(0, _o2ring_live_reply()) if data[1] == oxyii.OP_LIVE else None
     _inject_connect_scan(monkeypatch, c)
     # let it connect, stream a couple of replies, then stop — never entering the backoff path
     _stop_after(monkeypatch, 5)
     _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
-    assert capture.STATUS["devices"]["Ring"].get("spo2") == 96   # data flowed → the viable path ran
+    assert capture.STATUS["devices"]["Ring"].get("spo2") == 96  # data flowed → the viable path ran
 
 
 # ── autopull_poller — auto-pull the O2Ring onboard .dat (belt-and-suspenders for a lossy live link) ──
 def test_autopull_off_by_default_is_a_noop(tmp_path, monkeypatch):
     """No-op unless pull.auto is set — never surprises a deployment that didn't opt in."""
     calls = []
-    async def fake_pull(*a, **k): calls.append(1); return {"new_files": []}
+
+    async def fake_pull(*a, **k):
+        calls.append(1)
+        return {"new_files": []}
+
     monkeypatch.setattr(capture, "pull_oxyii_session", fake_pull)
-    cfg = {"devices": [_o2dev()]}                      # no pull.auto
+    cfg = {"devices": [_o2dev()]}  # no pull.auto
     _run(capture.autopull_poller(cfg, str(tmp_path)))  # returns immediately
     assert calls == []
 
@@ -3556,9 +4942,13 @@ def test_autopull_off_by_default_is_a_noop(tmp_path, monkeypatch):
 def test_autopull_skips_while_the_ring_is_actively_worn(tmp_path, monkeypatch):
     """It must NEVER interrupt a live sleep capture — an actively worn+streaming ring is left alone."""
     calls = []
-    async def fake_pull(*a, **k): calls.append(1); return {"new_files": []}
+
+    async def fake_pull(*a, **k):
+        calls.append(1)
+        return {"new_files": []}
+
     monkeypatch.setattr(capture, "pull_oxyii_session", fake_pull)
-    capture.STATUS["devices"]["Ring"] = {"connected": True, "worn": True}   # actively worn
+    capture.STATUS["devices"]["Ring"] = {"connected": True, "worn": True}  # actively worn
     cfg = {"pull": {"auto": True, "auto_interval_sec": 1}, "devices": [_o2dev(name="Ring")]}
     _stop_after(monkeypatch, 1)
     _run(capture.autopull_poller(cfg, str(tmp_path)))
@@ -3568,8 +4958,11 @@ def test_autopull_skips_while_the_ring_is_actively_worn(tmp_path, monkeypatch):
 def test_autopull_pulls_when_off_the_finger(tmp_path, monkeypatch):
     """Off the finger (worn False) → it pulls which=all."""
     seen = []
-    async def fake_pull(dev, root, which="latest", ftype=0):
-        seen.append(which); return {"new_files": ["Wellue_O2Ring-S_x_STORED.dat"], "out_dir": root}
+
+    async def fake_pull(dev, root, which="latest", resume=False, *, trigger="manual"):
+        seen.append(which)
+        return {"new_files": ["Wellue_O2Ring-S_x_STORED.dat"], "out_dir": root}
+
     monkeypatch.setattr(capture, "pull_oxyii_session", fake_pull)
     capture.STATUS["devices"]["Ring"] = {"connected": True, "worn": False}
     cfg = {"pull": {"auto": True, "auto_interval_sec": 1, "auto_retries": 1}, "devices": [_o2dev(name="Ring")]}
@@ -3582,9 +4975,11 @@ def test_autopull_retries_to_drain_the_ring_then_stops(tmp_path, monkeypatch):
     """The ring's flash is small + FIFO — a missed session is lost once new ones pile on. So it retries
     until a pass finds nothing new (drained), capped at auto_retries. Here two passes find sessions, the
     third finds none → it stops without using a 4th."""
-    passes = [["a.dat", "b.dat"], ["c.dat"], []]      # pull returns new files, then nothing
-    async def fake_pull(dev, root, which="latest", ftype=0):
+    passes = [["a.dat", "b.dat"], ["c.dat"], []]  # pull returns new files, then nothing
+
+    async def fake_pull(dev, root, which="latest", resume=False, *, trigger="manual"):
         return {"new_files": passes.pop(0) if passes else [], "out_dir": root}
+
     monkeypatch.setattr(capture, "pull_oxyii_session", fake_pull)
     capture.STATUS["devices"]["Ring"] = {"connected": False, "worn": False}
     cfg = {"pull": {"auto": True, "auto_interval_sec": 1, "auto_retries": 5}, "devices": [_o2dev(name="Ring")]}
@@ -3596,28 +4991,40 @@ def test_autopull_retries_to_drain_the_ring_then_stops(tmp_path, monkeypatch):
 def test_autopull_survives_an_unreachable_ring(tmp_path, monkeypatch):
     """An out-of-range ring (pull raises) must not take the poller down — it retries, then next cycle."""
     from bleak.exc import BleakError
-    async def boom(*a, **k): raise BleakError("not advertising")
+
+    async def boom(*a, **k):
+        raise BleakError("not advertising")
+
     monkeypatch.setattr(capture, "pull_oxyii_session", boom)
     capture.STATUS["devices"]["Ring"] = {"connected": False, "worn": False}
     cfg = {"pull": {"auto": True, "auto_interval_sec": 1, "auto_retries": 2}, "devices": [_o2dev(name="Ring")]}
     _stop_after(monkeypatch, 1)
-    _run(capture.autopull_poller(cfg, str(tmp_path)))   # must not raise
+    _run(capture.autopull_poller(cfg, str(tmp_path)))  # must not raise
 
 
 def test_autopull_noop_when_no_ring_configured(tmp_path, monkeypatch):
     """pull.auto on but no Wellue/Viatom device → returns immediately."""
     calls = []
-    async def fake_pull(*a, **k): calls.append(1); return {"new_files": []}
+
+    async def fake_pull(*a, **k):
+        calls.append(1)
+        return {"new_files": []}
+
     monkeypatch.setattr(capture, "pull_oxyii_session", fake_pull)
-    cfg = {"pull": {"auto": True}, "devices": [_pdev()]}   # only an H10, no ring
+    cfg = {"pull": {"auto": True}, "devices": [_pdev()]}  # only an H10, no ring
     _run(capture.autopull_poller(cfg, str(tmp_path)))
     assert calls == []
 
 
+@pytest.mark.sets_capture_events
 def test_autopull_skips_during_recovery(tmp_path, monkeypatch):
     """No pull while the adapter watchdog is recovering (_RECOVER) — don't fight the radio reset."""
     calls = []
-    async def fake_pull(*a, **k): calls.append(1); return {"new_files": []}
+
+    async def fake_pull(*a, **k):
+        calls.append(1)
+        return {"new_files": []}
+
     monkeypatch.setattr(capture, "pull_oxyii_session", fake_pull)
     capture.STATUS["devices"]["Ring"] = {"connected": False, "worn": False}
     capture._RECOVER.set()
@@ -3630,8 +5037,13 @@ def test_autopull_skips_during_recovery(tmp_path, monkeypatch):
 def test_autopull_yields_the_slot_on_offline_busy(tmp_path, monkeypatch):
     """If another offline op holds the single slot, back off to next cycle (don't hammer)."""
     import offline_lock
+
     n = {"c": 0}
-    async def busy(*a, **k): n["c"] += 1; raise offline_lock.OfflineBusy("held")
+
+    async def busy(*a, **k):
+        n["c"] += 1
+        raise offline_lock.OfflineBusy("held")
+
     monkeypatch.setattr(capture, "pull_oxyii_session", busy)
     capture.STATUS["devices"]["Ring"] = {"connected": False, "worn": False}
     cfg = {"pull": {"auto": True, "auto_interval_sec": 1, "auto_retries": 5}, "devices": [_o2dev(name="Ring")]}
@@ -3640,26 +5052,32 @@ def test_autopull_yields_the_slot_on_offline_busy(tmp_path, monkeypatch):
     assert n["c"] == 1, "OfflineBusy breaks the retry loop immediately (no hammering)"
 
 
-
-
 # ── VIGIL-DEEP-ANALYSIS §1.1 — every post-connect setup await is bounded by _bounded_setup, so a
 #    wedged StartNotify/auth-write raises TimeoutError (→ runner retries) instead of freezing all night. ──
 def test_bounded_setup_times_out_a_hanging_await(monkeypatch):
     monkeypatch.setattr(capture, "_BLE_SETUP_TIMEOUT_S", 0.05)
+
     async def go():
         async def hang():
-            await asyncio.Event().wait()          # never fires (the wedged-StartNotify case)
+            await asyncio.Event().wait()  # never fires (the wedged-StartNotify case)
+
         import pytest
+
         with pytest.raises(asyncio.TimeoutError):
             await capture._bounded_setup(hang())
+
     asyncio.run(go())
 
 
 def test_bounded_setup_passes_a_prompt_await_through(monkeypatch):
     monkeypatch.setattr(capture, "_BLE_SETUP_TIMEOUT_S", 1.0)
+
     async def go():
-        async def ok(): return "done"
+        async def ok():
+            return "done"
+
         assert await capture._bounded_setup(ok()) == "done"
+
     asyncio.run(go())
 
 
@@ -3667,9 +5085,11 @@ def test_bounded_setup_passes_a_prompt_await_through(monkeypatch):
 def _count_connects(monkeypatch, client):
     """Inject the fake client and count how many BLE sessions run_polar opens."""
     n = {"connects": 0}
+
     def _mk(addr, *a, **k):
         n["connects"] += 1
         return _fake_scan_ctx(client)
+
     monkeypatch.setattr(capture, "_connect", _mk)
     return n
 
@@ -3686,7 +5106,7 @@ def test_a_charging_polar_retries_start_on_the_link_it_already_holds(tmp_path, m
     so the retry can happen in place.
     """
     _polar_common(monkeypatch)
-    c = FakePolarClient(start_status=0x0D)          # in_charger, for the whole test
+    c = FakePolarClient(start_status=0x0D)  # in_charger, for the whole test
     n = _count_connects(monkeypatch, c)
     _stop_after_slept(monkeypatch, capture.CHARGE_RETRY_S * 3.5)
     _run(capture.run_polar(_pdev(), str(tmp_path)))
@@ -3695,7 +5115,8 @@ def test_a_charging_polar_retries_start_on_the_link_it_already_holds(tmp_path, m
     assert len(starts) >= 3, f"the charging retry must keep re-attempting START; saw {len(starts)}"
     assert n["connects"] == 1, (
         f"{n['connects']} BLE connects for {len(starts)} START retries — a charging device must be "
-        "polled over the link it already holds, not re-connected every cycle")
+        "polled over the link it already holds, not re-connected every cycle"
+    )
 
 
 # ── charging_retry_in_place: when the held link must be given back ───────────────────────────────────
@@ -3733,18 +5154,22 @@ def test_a_charging_polar_releases_the_held_link_promptly_when_a_pull_asks_for_i
     _count_connects(monkeypatch, c)
 
     sleeps, mark = [], {}
+
     async def fake_sleep(secs):
         sleeps.append(secs)
         if sum(sleeps) >= capture.CHARGE_RETRY_S * 3:
             capture._STOP.set()
+
     monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
 
     orig_write = c.write_gatt_char
+
     async def hooked(uuid, cmd, response=False):
         await orig_write(uuid, cmd, response=response)
-        if cmd and cmd[0] == 0x02 and "at" not in mark:      # the first START refusal
+        if cmd and cmd[0] == 0x02 and "at" not in mark:  # the first START refusal
             capture._POLAR_PAUSED.add(addr)
             mark["at"] = len(sleeps)
+
     c.write_gatt_char = hooked
 
     try:
@@ -3753,10 +5178,11 @@ def test_a_charging_polar_releases_the_held_link_promptly_when_a_pull_asks_for_i
         capture._POLAR_PAUSED.clear()
 
     assert "at" in mark, "the START refusal never happened — the test set nothing up"
-    held = sum(s for s in sleeps[mark["at"]:] if s == 1)     # ticks spent still holding the link
+    held = sum(s for s in sleeps[mark["at"] :] if s == 1)  # ticks spent still holding the link
     assert held <= 2, (
         f"held the link for {held} tick(s) after the pull asked for it — a pull that cannot get the "
-        "link fails with InProgress, so the charging wait must check the pause every tick")
+        "link fails with InProgress, so the charging wait must check the pause every tick"
+    )
 
 
 # ══ UNBOUNDED GATT AWAITS — the 4h25m Verity freeze of 2026-07-25 ═════════════════════════════
@@ -3779,22 +5205,26 @@ def test_a_charging_polar_releases_the_held_link_promptly_when_a_pull_asks_for_i
 # downstream of the thing that is stuck. QC logged `missing stream(s)` at 00:02 and 00:12 and nothing
 # consumed it.
 
+
 class HangingPolarClient(FakePolarClient):
     """A Polar whose battery characteristic never answers — a flaky link BlueZ never fails."""
+
     def __init__(self, hang_uuid, **kw):
         super().__init__(**kw)
         self.hang_uuid = hang_uuid
 
     async def read_gatt_char(self, uuid):
         if uuid == self.hang_uuid:
-            await asyncio.Event().wait()          # never returns, never raises
+            await asyncio.Event().wait()  # never returns, never raises
         return await super().read_gatt_char(uuid)
 
 
 def _run_bounded(coro, seconds=5.0):
     """Run with a hard wall-clock cap so a regression FAILS instead of hanging the suite forever."""
+
     async def go():
         return await asyncio.wait_for(coro, seconds)
+
     return asyncio.run(go())
 
 
@@ -3838,10 +5268,12 @@ def test_an_hr_subscribe_that_never_answers_cannot_freeze_the_device_task(tmp_pa
     monkeypatch.setattr(capture, "_BLE_SETUP_TIMEOUT_S", 0.05)
     c = FakePolarClient(start_status=0x00)
     orig = c.start_notify
+
     async def hang(uuid, cb):
         if getattr(uuid, "uuid", uuid) == capture.HR_UUID:
             await asyncio.Event().wait()
         return await orig(uuid, cb)
+
     c.start_notify = hang
     _inject_connect(monkeypatch, c)
     _stop_after(monkeypatch, 3)
@@ -3853,9 +5285,13 @@ def test_no_post_connect_gatt_await_in_run_polar_is_left_unbounded():
     Every start_notify / read_gatt_char inside run_polar must carry a bound."""
     src = module_source("capture.py")
     body = src.split("async def run_polar")[1].split("\nasync def ")[0]
-    bare = [ln.strip() for ln in body.splitlines()
-            if ("client.start_notify(" in ln or "client.read_gatt_char(" in ln)
-            and "_bounded_setup" not in ln and "wait_for" not in ln]
+    bare = [
+        ln.strip()
+        for ln in body.splitlines()
+        if ("client.start_notify(" in ln or "client.read_gatt_char(" in ln)
+        and "_bounded_setup" not in ln
+        and "wait_for" not in ln
+    ]
     assert not bare, "unbounded post-connect GATT await(s) in run_polar:\n  " + "\n  ".join(bare)
 
 
@@ -3866,11 +5302,14 @@ def test_a_failed_webhook_does_not_silence_the_offline_alert_for_the_episode(mon
     ONE failed POST silenced the alert for the whole offline episode — which, for the dead-battery case
     the alert exists for, is the whole night. Measured pre-fix: 40 poll iterations, ONE attempt."""
     attempts = []
+
     class _N:
         enabled = True
+
         async def send(self, title, message, **kw):
             attempts.append(title)
-            return False                       # the webhook is down
+            return False  # the webhook is down
+
     cfg = {"alerts": {"poll_sec": 1, "offline_sec": 0}, "devices": [_dev(name="H10")]}
     capture.STATUS["devices"]["H10"] = {"connected": False}
     _stop_after(monkeypatch, 4)
@@ -3878,16 +5317,21 @@ def test_a_failed_webhook_does_not_silence_the_offline_alert_for_the_episode(mon
     with caplog.at_level("WARNING"):
         _run(capture.alert_poller(cfg, _N()))
     assert len(attempts) >= 3, f"a failed delivery must be retried, got {len(attempts)} attempt(s)"
-    assert any("offline" in r.message for r in caplog.records), \
+    assert any("offline" in r.message for r in caplog.records), (
         "the condition must reach the journal even when delivery fails"
+    )
 
 
 def test_the_offline_condition_reaches_the_journal_with_no_webhook_configured(monkeypatch, caplog):
     """A box without a webhook has exactly one alerting surface, and it is the journal. `qc_poller`'s
     frozen-device path already said so in a comment one function down; this path did not."""
+
     class _N:
         enabled = False
-        async def send(self, title, message, **kw): return False
+
+        async def send(self, title, message, **kw):
+            return False
+
     cfg = {"alerts": {"poll_sec": 1, "offline_sec": 0}, "devices": [_dev(name="H10")]}
     capture.STATUS["devices"]["H10"] = {"connected": False}
     _stop_after(monkeypatch, 3)
@@ -3903,10 +5347,10 @@ def test_the_low_disk_edge_reaches_the_journal_without_a_webhook(tmp_path, monke
     the low-free-space condition anywhere in capture.py. On a webhook-less box the edge existed solely
     in status.json and /api/storage — both PULL surfaces. diskguard's own header says the emergency
     signal is meant to be loud."""
-    cfg = {"storage": {"keep_nights": 0, "min_free_gb": 1e9, "poll_sec": 1}}   # always "low"
+    cfg = {"storage": {"keep_nights": 0, "min_free_gb": 1e9, "poll_sec": 1}}  # always "low"
     _stop_after(monkeypatch, 2)
     with caplog.at_level("WARNING"):
-        _run(capture.storage_poller(cfg, str(tmp_path), None))                # NO notifier
+        _run(capture.storage_poller(cfg, str(tmp_path), None))  # NO notifier
     lows = [r for r in caplog.records if "LOW" in r.message]
     assert len(lows) == 1, f"edge-triggered: one line per low episode, got {len(lows)}"
     assert "GB free" in lows[0].message
@@ -3916,8 +5360,10 @@ def test_notifier_logs_a_swallowed_delivery_failure(caplog):
     """Swallowing the exception must not also swallow the evidence. The webhook must never crash
     capture — that stays — but a delivery that never happened has to be findable afterwards."""
     import alerts as _alerts
+
     async def _boom(url, payload):
         raise OSError("connection refused")
+
     n = _alerts.Notifier(url="http://x/", enabled=True, _post=_boom)
     with caplog.at_level("WARNING"):
         assert _run(n.send("Tepna: sensor offline", "body")) is False
@@ -3926,8 +5372,10 @@ def test_notifier_logs_a_swallowed_delivery_failure(caplog):
 
 def test_notifier_logs_a_non_2xx_rejection(caplog):
     import alerts as _alerts
+
     async def _rejects(url, payload):
         return False
+
     n = _alerts.Notifier(url="http://x/", enabled=True, _post=_rejects)
     with caplog.at_level("WARNING"):
         assert _run(n.send("Tepna: disk low", "body")) is False
@@ -3947,25 +5395,32 @@ def test_an_unreadable_rssi_poll_writes_a_blank_not_the_last_good_value(tmp_path
     INCREASED how often the stale value was logged instead of a blank. `timeline.bucket_link` then
     medians the column and the monitor renders it as the night's signal trace."""
     reads = iter([-55, None, None, None])
+
     async def _read(_adapter, _addr):
         return next(reads, None)
+
     monkeypatch.setattr(capture.link_rssi, "read_rssi", _read)
-    async def _hci(mac, refresh=False): return "hci0"
+
+    async def _hci(mac, refresh=False):
+        return "hci0"
+
     monkeypatch.setattr(capture.link_rssi, "resolve_hci", _hci)
     capture.STATUS["devices"]["H10"] = {"connected": True}
-    cfg = {"link": {"rssi_interval_sec": 1, "log_enabled": True},
-           "devices": [_dev(name="H10", address="AA:BB:CC:DD:EE:FF")]}
+    cfg = {
+        "link": {"rssi_interval_sec": 1, "log_enabled": True},
+        "devices": [_dev(name="H10", address="AA:BB:CC:DD:EE:FF")],
+    }
     _stop_after(monkeypatch, 4)
     _run(capture.rssi_poller("AA:BB:CC:DD:EE:00", cfg, str(tmp_path)))
 
     import glob
+
     links = glob.glob(str(tmp_path / "captures" / "*" / "*_LINK.csv"))
     assert links, "the sidecar must have been written"
     rows = [r for r in open(links[0]).read().splitlines()[1:] if r]
     dbm = [r.split(";")[3] for r in rows]
     assert dbm[0] == "-55", "a real reading is recorded"
-    assert all(v == "" for v in dbm[1:]), (
-        f"an unreadable poll must write a blank, not the last good value — got {dbm}")
+    assert all(v == "" for v in dbm[1:]), f"an unreadable poll must write a blank, not the last good value — got {dbm}"
 
 
 def test_alert_poller_stays_quiet_for_an_optional_device_that_never_joined(monkeypatch):
@@ -3975,17 +5430,23 @@ def test_alert_poller_stays_quiet_for_an_optional_device_that_never_joined(monke
     every service start. An alert channel that cries over a non-event is one an operator learns to
     ignore — which costs the alerts that matter."""
     sent = []
+
     class _N:
         enabled = True
-        async def send(self, title, message, **kw): sent.append(title); return True
-    cfg = {"alerts": {"poll_sec": 1, "offline_sec": 0},
-           "devices": [dict(_dev(name="COOSPO"), optional=True)]}
+
+        async def send(self, title, message, **kw):
+            sent.append(title)
+            return True
+
+    cfg = {"alerts": {"poll_sec": 1, "offline_sec": 0}, "devices": [dict(_dev(name="COOSPO"), optional=True)]}
     capture.STATUS["devices"]["COOSPO"] = {"connected": False}
     calls = {"n": 0}
+
     async def fake_sleep(_s):
         calls["n"] += 1
         if calls["n"] >= 3:
             capture._STOP.set()
+
     monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
     monkeypatch.setattr(capture._time, "monotonic", lambda: 1000.0)
     _run(capture.alert_poller(cfg, _N()))
@@ -3997,22 +5458,28 @@ def test_alert_poller_DOES_alert_an_optional_device_that_joined_then_dropped(mon
     went offline is a real event — precisely what this alert is for. Silence is only correct for one that
     never showed up at all, so the loop has to remember which happened."""
     sent = []
+
     class _N:
         enabled = True
-        async def send(self, title, message, **kw): sent.append(title); return True
-    cfg = {"alerts": {"poll_sec": 1, "offline_sec": 0},
-           "devices": [dict(_dev(name="COOSPO"), optional=True)]}
-    st = {"connected": True}                       # it IS here to begin with
+
+        async def send(self, title, message, **kw):
+            sent.append(title)
+            return True
+
+    cfg = {"alerts": {"poll_sec": 1, "offline_sec": 0}, "devices": [dict(_dev(name="COOSPO"), optional=True)]}
+    st = {"connected": True}  # it IS here to begin with
     capture.STATUS["devices"]["COOSPO"] = st
     calls = {"n": 0}
+
     async def fake_sleep(_s):
         # The loop sleeps BEFORE it reads state, so poll 1 must observe it connected — that is what
         # records "this device did join". Dropping it any earlier would test the never-joined path.
         calls["n"] += 1
         if calls["n"] == 2:
-            st["connected"] = False                # …and then it drops
+            st["connected"] = False  # …and then it drops
         if calls["n"] >= 4:
             capture._STOP.set()
+
     monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
     monkeypatch.setattr(capture._time, "monotonic", lambda: 1000.0)
     _run(capture.alert_poller(cfg, _N()))
@@ -4032,6 +5499,7 @@ def test_alert_poller_DOES_alert_an_optional_device_that_joined_then_dropped(mon
 # clock column is empty; `smp.t_ms` nulled loses the relative-ms column ECGDex infers fs from (the
 # ~10 % HR bug `test_writers` was written for); `v[0]` nulled writes a null sample value.
 # ═══════════════════════════════════════════════════════════════════════════════════════════════════
+
 
 def _ecg_row(tmp_path):
     """Drive one real ECG frame through run_polar and return the written data row, split."""
@@ -4080,8 +5548,9 @@ def test_every_ecg_sample_in_a_frame_is_written(tmp_path, monkeypatch):
     data = f.read_text().splitlines()[1:]
     assert len(data) == 3, f"the fixture frame carries three samples, got {len(data)}"
     assert [r.split(";")[3] for r in data] == ["7", "7", "7"], "each sample's value, in order"
-    assert capture.STATUS["devices"]["H10"][f"rows_{pmd.ECG}"] == 3, \
+    assert capture.STATUS["devices"]["H10"][f"rows_{pmd.ECG}"] == 3, (
         "and the surfaced row count matches what was written"
+    )
 
 
 def test_the_live_bus_push_carries_the_sample_values_not_the_sample_objects(tmp_path, monkeypatch):
@@ -4090,8 +5559,7 @@ def test_the_live_bus_push_carries_the_sample_values_not_the_sample_objects(tmp_
     it concludes the sensor is dead when it is recording perfectly."""
     _polar_common(monkeypatch)
     pushed = []
-    monkeypatch.setattr(capture.BUS, "push",
-                        lambda k, v, hz=None, dev_ns=None: pushed.append((k, v, hz, dev_ns)))
+    monkeypatch.setattr(capture.BUS, "push", lambda k, v, hz=None, dev_ns=None: pushed.append((k, v, hz, dev_ns)))
     c = FakePolarClient(start_status=0x00)
     _inject_connect(monkeypatch, c)
     _stop_after(monkeypatch, 1)
@@ -4120,6 +5588,7 @@ def test_a_strap_with_no_pmd_stream_is_never_bonded(tmp_path, monkeypatch):
     async def spy_bond(addr, adapter):
         seen.append((addr, adapter))
         return True
+
     monkeypatch.setattr(capture.bonding, "ensure_bonded", spy_bond)
     c = FakePolarClient(start_status=0x00)
     _inject_connect(monkeypatch, c)
@@ -4138,13 +5607,15 @@ def test_a_pmd_device_is_bonded_with_its_own_address_and_the_pinned_adapter(tmp_
     async def spy_bond(addr, adapter):
         seen.append((addr, adapter))
         return True
+
     monkeypatch.setattr(capture.bonding, "ensure_bonded", spy_bond)
     c = FakePolarClient(start_status=0x00)
     _inject_connect(monkeypatch, c)
     _stop_after(monkeypatch, 1)
     _run(capture.run_polar(_pdev(), str(tmp_path)))
-    assert seen and seen[0] == ("24:AC:AC:02:84:96", capture.ADAPTER), \
+    assert seen and seen[0] == ("24:AC:AC:02:84:96", capture.ADAPTER), (
         "the device's own address, and the pinned adapter"
+    )
 
 
 # ── MULTI-SESSION: the state run_polar infers ACROSS reconnects (2026-08-03) ─────────────────────────
@@ -4160,6 +5631,7 @@ def test_a_pmd_device_is_bonded_with_its_own_address_and_the_pinned_adapter(tmp_
 # at these tests kept reading the FIRST session's battery. `_next_session` gives each cycle a fresh
 # Event, and a fresh one per cycle is also required because every `_run` is a new event loop.
 
+
 def _next_session(monkeypatch, client, rounds=1):
     """Arm one more connect cycle: fresh _STOP (new loop each time), fresh sleep counter, this client."""
     capture._STOP = asyncio.Event()
@@ -4169,6 +5641,7 @@ def _next_session(monkeypatch, client, rounds=1):
 
 class _BatteryPolarClient(FakePolarClient):
     """A Polar reporting a fixed battery percentage."""
+
     def __init__(self, level, **kw):
         super().__init__(**kw)
         self._level = level
@@ -4235,8 +5708,9 @@ def test_only_a_STRICT_rise_infers_charging(tmp_path, monkeypatch):
     capture.STATUS["devices"].pop("H10", None)
     _battery_session(tmp_path, monkeypatch, 50)
     assert _battery_session(tmp_path, monkeypatch, 61)["charging"] is True, "a rise infers charging"
-    assert _battery_session(tmp_path, monkeypatch, 61)["charging"] is not True, \
+    assert _battery_session(tmp_path, monkeypatch, 61)["charging"] is not True, (
         "an UNCHANGED level is not a rise — equality infers nothing"
+    )
 
 
 def test_a_first_reading_cannot_imply_a_direction(tmp_path, monkeypatch):
@@ -4261,6 +5735,7 @@ def test_a_first_reading_cannot_imply_a_direction(tmp_path, monkeypatch):
 # never elapse — the strap would drain forever. That persistence is the contract, and it is invisible to
 # any single-session fixture: within one session, set-if-absent and set-always are identical.
 
+
 def _hr_session(tmp_path, monkeypatch, hr_frame, clear=False):
     """One connect cycle delivering `hr_frame`. `_WORN_SINCE` deliberately persists between calls —
     that is the behaviour under test."""
@@ -4268,18 +5743,26 @@ def _hr_session(tmp_path, monkeypatch, hr_frame, clear=False):
         capture._WORN_SINCE.clear()
         capture.STATUS["devices"].pop("H10", None)
     capture._STOP = asyncio.Event()
+
     async def bonded(*a, **k):
         return True
+
     monkeypatch.setattr(capture.bonding, "ensure_bonded", bonded)
-    capture._CFG.clear(); capture._CFG.update({"time": {"auto_sync_devices": False}})
+    capture._CFG.clear()
+    capture._CFG.update({"time": {"auto_sync_devices": False}})
     _inject_connect(monkeypatch, FakePolarClient(start_status=0x00, hr_frame=hr_frame))
     _stop_after(monkeypatch, 1)
     _run(capture.run_polar(_pdev(streams=["ecg", "hr"]), str(tmp_path)))
     return capture.STATUS["devices"]["H10"]
 
 
-_NOT_WORN = bytes([0x04, 57])      # contact supported, absent
-_WORN     = bytes([0x06, 57])      # contact supported, present
+# The OFF-BODY frame carries HR 0 — that is what a strap on a desk reports (1 695 such rows in the corpus
+# since August; one 08-04 session is 193/193 zeros). `[0x04, 57]` — contact absent WITH a 57 bpm rate —
+# is the dry/loose-electrode shape measured all night on 2026-09-20 (48–77 bpm, contact=0, 131 drops),
+# and it is worn: see test_a_dry_strap_reporting_a_heartbeat_is_worn_and_is_not_dropped.
+_NOT_WORN = bytes([0x04, 0])  # contact supported, absent, no heartbeat — off body
+_DRY = bytes([0x04, 57])  # contact supported, absent, 57 bpm — on a chest, dry electrodes
+_WORN = bytes([0x06, 57])  # contact supported, present
 
 
 def test_a_not_worn_strap_starts_the_grace_clock_once(tmp_path, monkeypatch):
@@ -4290,9 +5773,24 @@ def test_a_not_worn_strap_starts_the_grace_clock_once(tmp_path, monkeypatch):
     st = _hr_session(tmp_path, monkeypatch, _NOT_WORN, clear=True)
     assert st["worn"] is False
     first = capture._WORN_SINCE[addr]
-    _hr_session(tmp_path, monkeypatch, _NOT_WORN)          # a second not-worn probe
-    assert capture._WORN_SINCE[addr] == first, \
+    _hr_session(tmp_path, monkeypatch, _NOT_WORN)  # a second not-worn probe
+    assert capture._WORN_SINCE[addr] == first, (
         "the grace clock must NOT restart on each reconnect, or the grace never elapses"
+    )
+
+
+def test_a_dry_strap_reporting_a_heartbeat_is_worn_and_is_not_dropped(tmp_path, monkeypatch):
+    """THE 2026-09-20 NIGHT. The H10 reported contact=0 for six hours while every packet carried a
+    plausible sleep rate and RR intervals; the not-worn drop trusted the bit and cut the link 131
+    times (3.6 h of 6.1 h lost, 41 % of the ECG kept). A heartbeat is the strap's own measurement that
+    it is on a body — it outvotes the contact bit, the grace clock never starts, and the drop cannot
+    fire. Same frame with HR 0 (off body) still starts the clock — the plant is the rate, not the bit."""
+    addr = _pdev()["address"]
+    st = _hr_session(tmp_path, monkeypatch, _DRY, clear=True)
+    assert st["worn"] is True and "hr-beats" in st["worn_why"], st
+    assert addr not in capture._WORN_SINCE, "a strap reporting a heartbeat must not accumulate not-worn time"
+    st = _hr_session(tmp_path, monkeypatch, _NOT_WORN, clear=True)
+    assert st["worn"] is False and addr in capture._WORN_SINCE
 
 
 def test_putting_the_strap_back_on_clears_the_grace_clock(tmp_path, monkeypatch):
@@ -4312,7 +5810,7 @@ def test_a_strap_with_no_contact_bit_is_never_given_a_grace_clock(tmp_path, monk
     is honest — but an unknown must also never start the drop clock, or a strap that CANNOT report
     contact would be dropped for power on a timer while recording perfectly."""
     addr = _pdev()["address"]
-    st = _hr_session(tmp_path, monkeypatch, bytes([0x00, 57]), clear=True)   # no contact-support bit
+    st = _hr_session(tmp_path, monkeypatch, bytes([0x00, 57]), clear=True)  # no contact-support bit
     assert st.get("worn") is None, "unknown, not fabricated as False"
     assert addr not in capture._WORN_SINCE, "and no grace clock — it can never be known not-worn"
 
@@ -4323,6 +5821,7 @@ def test_a_strap_with_no_contact_bit_is_never_given_a_grace_clock(tmp_path, monk
 # `_live_key`. Nothing asserted the key it registers under, the SHAPE it pushes, or that what it
 # registers is what it later unregisters — so a stream could be published under one key and torn down
 # under another, leaving a dead card in the monitor for the daemon's lifetime.
+
 
 def test_the_live_key_is_device_qualified_except_for_ecg():
     """Issue #410, recorded in the docstring: `ppg` WAS in the unique set and is not any more, because
@@ -4336,8 +5835,9 @@ def test_the_live_key_is_device_qualified_except_for_ecg():
     assert capture._live_key("ppg", "verity") == "ppg_verity", "ppg is NOT unique; it must be qualified"
     assert capture._live_key("acc", "h10") == "acc_h10"
     assert capture._live_key("ppi", "verity") == "ppi_verity"
-    assert capture._live_key("ppg", "ring") != capture._live_key("ppg", "verity"), \
+    assert capture._live_key("ppg", "ring") != capture._live_key("ppg", "verity"), (
         "two devices streaming ppg must not collide — that collision IS #410"
+    )
 
 
 def test_what_is_registered_is_what_is_unregistered(monkeypatch):
@@ -4400,10 +5900,12 @@ def test_run_oxyii_captures_the_raw_two_wavelength_buffer(tmp_path, monkeypatch)
     `OP_LIVE` gate — a 0x05 reply routed through the live path would be dropped as a short frame, and a
     parser-only test cannot see that.
     """
-    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
     recs = [(1000 + i, 2000 + i, i) for i in range(4)]
     body = b"".join(a.to_bytes(4, "little") + b.to_bytes(4, "little") + bytes([m]) for a, b, m in recs)
-    payload = len(recs).to_bytes(2, "little") + body + b"\xff\xff"   # the real reply's 2-byte trailer
+    payload = len(recs).to_bytes(2, "little") + body + b"\xff\xff"  # the real reply's 2-byte trailer
 
     c = FakeGattClient()
 
@@ -4426,18 +5928,27 @@ def test_run_oxyii_captures_the_raw_two_wavelength_buffer(tmp_path, monkeypatch)
     # Asserting the MULTIPLE (not a fixed total) keeps the trailer check sharp without pinning the test
     # to the loop count: absorbing the 2-byte trailer would yield 5 records per cycle, and 5 per cycle
     # is not a multiple of 4.
-    assert len(rows) - 1 > 0 and (len(rows) - 1) % len(recs) == 0, \
-        "one row per record, and the trailer is not a record"
-    assert [r.split(";")[2:] for r in rows[1:1 + len(recs)]] == [["1000", "2000", "0"], ["1001", "2001", "1"],
-                                                                 ["1002", "2002", "2"], ["1003", "2003", "3"]]
-    assert all(r.split(";")[1] == "0" for r in rows[1:]), "no device clock exists on this opcode"
+    assert len(rows) - 1 > 0 and (len(rows) - 1) % len(recs) == 0, "one row per record, and the trailer is not a record"
+    assert [r.split(";")[2:] for r in rows[1 : 1 + len(recs)]] == [
+        ["1000", "2000", "0"],
+        ["1001", "2001", "1"],
+        ["1002", "2002", "2"],
+        ["1003", "2003", "3"],
+    ]
+    # BLANK, not "0". The refusal to invent per-sample instants was always right; the ENCODING was
+    # wrong — `0` is in-band for a ns counter, so absence read as the instant zero and a reader that
+    # trusts the column placed every row at the epoch (measured: PPG2W 303109/303109 rows at exactly 0
+    # in one real session). This assertion used to pin the defect as the contract.
+    assert all(r.split(";")[1] == "" for r in rows[1:]), "absence must be written as absence, not as 0"
 
 
 def test_run_oxyii_writes_no_two_wavelength_file_when_the_stream_is_off(tmp_path, monkeypatch):
     """Opt-in means opt-in: an experimental stream must not appear on a plain spo2 night."""
-    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
     c = FakeGattClient()
-    c.on_live = lambda data: (c.notify(0, _o2ring_live_reply()) if data[1] == oxyii.OP_LIVE else None)
+    c.on_live = lambda data: c.notify(0, _o2ring_live_reply()) if data[1] == oxyii.OP_LIVE else None
     _inject_connect_scan(monkeypatch, c)
     _stop_after(monkeypatch, 4)
     _run(capture.run_oxyii(_o2dev(name="Ring"), str(tmp_path)))
@@ -4450,7 +5961,9 @@ def test_run_oxyii_survives_an_empty_two_wavelength_reply(tmp_path, monkeypatch)
     The ring answers this way while the finger is off the sensor, so it is the ordinary case rather
     than a corruption case — and the empty file is then pruned at teardown like any other.
     """
-    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
     c = FakeGattClient()
 
     def on_live(data):
@@ -4472,7 +5985,9 @@ def test_run_oxyii_keeps_the_link_when_the_two_wavelength_poll_fails(tmp_path, m
     re-establish it; doing that for an optional experimental stream would let `ppg2w` cost a night of
     oximetry. The refusal must cost its own samples and nothing else.
     """
-    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
     c = FakeGattClient()
     real_write = c.write_gatt_char
 
@@ -4482,7 +5997,7 @@ def test_run_oxyii_keeps_the_link_when_the_two_wavelength_poll_fails(tmp_path, m
         return await real_write(ch, data, response=response)
 
     c.write_gatt_char = write
-    c.on_live = lambda data: (c.notify(0, _o2ring_live_reply()) if data[1] == oxyii.OP_LIVE else None)
+    c.on_live = lambda data: c.notify(0, _o2ring_live_reply()) if data[1] == oxyii.OP_LIVE else None
     _inject_connect_scan(monkeypatch, c)
     _stop_after(monkeypatch, 8)
     _run(capture.run_oxyii(_o2dev(name="Ring", streams=["spo2", "ppg2w"]), str(tmp_path)))
@@ -4505,10 +6020,12 @@ def test_auto_sync_ladder_stops_at_its_wall_clock_budget(tmp_path, monkeypatch):
     calls = {"n": 0}
     clock = {"t": 0.0}
     monkeypatch.setattr(capture._time, "monotonic", lambda: clock["t"])
+
     async def busy_and_slow(addr):
         calls["n"] += 1
-        clock["t"] += 45.0                      # each attempt burns the op ceiling
-        raise RuntimeError("org.bluez.Error.InProgress")   # CONTENTION, not absence
+        clock["t"] += 45.0  # each attempt burns the op ceiling
+        raise RuntimeError("org.bluez.Error.InProgress")  # CONTENTION, not absence
+
     monkeypatch.setattr(capture, "sync_device_time", busy_and_slow)
     _skip_while_loop()
     _run(capture.run_polar(_pdev(), str(tmp_path)))
@@ -4525,11 +6042,13 @@ def test_the_budget_does_not_cut_a_fast_contention_recovery_short(tmp_path, monk
     calls = {"n": 0}
     clock = {"t": 0.0}
     monkeypatch.setattr(capture._time, "monotonic", lambda: clock["t"])
+
     async def busy_then_ok(addr):
         calls["n"] += 1
-        clock["t"] += 2.0                       # a fast, realistic contention clear
+        clock["t"] += 2.0  # a fast, realistic contention clear
         if calls["n"] < 4:
             raise RuntimeError("org.bluez.Error.InProgress")
+
     monkeypatch.setattr(capture, "sync_device_time", busy_then_ok)
     _skip_while_loop()
     _run(capture.run_polar(_pdev(), str(tmp_path)))
@@ -4541,6 +6060,7 @@ def test_the_budget_is_measured_monotonically():
     """`_now()` is civil-time-anchored and re-anchors on an NTP step — which this daemon does, twice in
     one week on the live box. An elapsed-time bound read off it could go negative or jump."""
     import inspect
+
     src = inspect.getsource(capture.auto_sync_clock)
     assert "_time.monotonic()" in src, "elapsed time must come from a monotonic source"
     assert "_now()" not in src.split("started =")[1].split("for attempt")[0]
@@ -4551,6 +6071,7 @@ def test_the_budget_is_measured_monotonically():
 # 45 s doomed connect that held _CONNECT_LOCK the whole time. Measured on the box: 53 % duty cycle even
 # with the ladder fixed. Absence is a scan; it was being paid for at connect-timeout prices.
 
+
 def _offline_env(monkeypatch, on_air, connected=False):
     """polar_offline_op with the adapter/slot machinery stubbed and the scanner answering `on_air`."""
     capture.STATUS.setdefault("devices", {})["H10"] = {"address": "AA:BB", "connected": connected}
@@ -4560,17 +6081,68 @@ def _offline_env(monkeypatch, on_air, connected=False):
 
 
 def _aio_val(v):
-    async def _c(): return v
+    async def _c():
+        return v
+
     return _c()
+
+
+def test_a_device_that_never_advertised_is_EXCLUDED_from_the_denominator(monkeypatch):
+    """THE ABSENT-vs-FAILING COLLAPSE, answered by WHERE the counter sits (residue
+    2026-09-19-ble-rate-cannot-see-absence).
+
+    `blestats.attempt("offline_op", …)` is placed AFTER the `_device_on_air` guard, so a device that
+    never advertised contributes NOTHING — not an attempt, not a failure. Counting it would put "the
+    device was not there" and "the op failed" into one denominator, and the resulting rate would fall
+    every night the hardware sat in its dock: an alert that fires on absence is the one that gets muted.
+
+    This is §∅'s out-of-band validity in its cheapest possible form — the guard decides presence, and
+    the counter measures only what presence admitted. No sentinel inside the value's range."""
+    import blestats
+
+    blestats.reset()
+    _offline_env(monkeypatch, on_air=False)
+
+    async def op():
+        return "never"
+
+    async def go():
+        return await capture.polar_offline_op("AA:BB", op, presence_check_s=1.0)
+
+    with pytest.raises(capture.DeviceNotAdvertising):
+        _run(go())
+    assert blestats.snapshot()["ops"] == {}, "an absent device must not appear in the counters at all"
+    blestats.reset()
+
+
+def test_an_offline_op_that_RUNS_is_counted_as_an_attempt_and_a_success(monkeypatch):
+    """The other half: once presence admitted it, the op carries a real denominator, so its rate means
+    "of the ops we actually ran against a device that was there, this many worked"."""
+    import blestats
+
+    blestats.reset()
+    _offline_env(monkeypatch, on_air=True)
+
+    async def op():
+        return "done"
+
+    assert _run(capture.polar_offline_op("AA:BB", op, presence_check_s=1.0)) == "done"
+    row = blestats.snapshot()["ops"]["offline_op/AA:BB"]
+    assert row["attempts"] == 1 and row["successes"] == 1 and row["rate"] == 1.0
+    blestats.reset()
 
 
 def test_an_absent_device_never_takes_the_connect_lock(monkeypatch):
     """THE FIX. The op must not run and the global lock must not be touched — the whole cost is a scan."""
     _offline_env(monkeypatch, on_air=False)
     ran = {"op": False}
-    async def op(): ran["op"] = True
+
+    async def op():
+        ran["op"] = True
+
     async def go():
         return await capture.polar_offline_op("AA:BB", op, presence_check_s=1.0)
+
     with pytest.raises(capture.DeviceNotAdvertising):
         _run(go())
     assert ran["op"] is False, "the op must not run for an absent device"
@@ -4587,9 +6159,13 @@ def test_the_absence_error_flows_through_the_existing_predicates(monkeypatch):
     message no predicate matches — the exact 'assertion encodes shape, not contract' failure, caught by
     re-applying that mutant."""
     _offline_env(monkeypatch, on_air=False)
-    async def op(): pass
+
+    async def op():
+        pass
+
     async def go():
         return await capture.polar_offline_op("AA:BB", op, presence_check_s=1.0)
+
     with pytest.raises(capture.DeviceNotAdvertising) as ei:
         _run(go())
     e = ei.value
@@ -4601,10 +6177,14 @@ def test_the_presence_check_runs_BEFORE_anything_exclusive_is_taken():
     """Structural, because ordering is the entire value. Moving the check below `offline_lock.slot()`
     would keep every test above green while restoring the 45 s-under-lock cost it exists to remove."""
     import inspect
+
     # CODE, not prose. The comment above the check names all three of these while explaining why they
     # must come after it — so a whole-source scan finds them FIRST and fails on correct code. (It did.)
-    src = "\n".join(l for l in inspect.getsource(capture.polar_offline_op).splitlines()
-                    if l.strip() and not l.lstrip().startswith("#"))
+    src = "\n".join(
+        l
+        for l in inspect.getsource(capture.polar_offline_op).splitlines()
+        if l.strip() and not l.lstrip().startswith("#")
+    )
     i_check = src.index("presence_check_s and not")
     for taken in ("offline_lock.slot(", "_POLAR_PAUSED.add(", "_CONNECT_LOCK"):
         assert i_check < src.index(taken), f"presence check must precede {taken}"
@@ -4613,11 +6193,14 @@ def test_the_presence_check_runs_BEFORE_anything_exclusive_is_taken():
 def test_a_present_device_proceeds_normally(monkeypatch):
     _offline_env(monkeypatch, on_air=True)
     ran = {"op": False}
+
     async def op():
         ran["op"] = True
         return "result"
+
     async def go():
         return await capture.polar_offline_op("AA:BB", op, presence_check_s=1.0)
+
     assert _run(go()) == "result"
     assert ran["op"] is True
 
@@ -4628,9 +6211,13 @@ def test_an_UNANSWERABLE_scan_proceeds_rather_than_skipping(monkeypatch):
     silently stops every clock sync on the box."""
     _offline_env(monkeypatch, on_air=None)
     ran = {"op": False}
-    async def op(): ran["op"] = True
+
+    async def op():
+        ran["op"] = True
+
     async def go():
         return await capture.polar_offline_op("AA:BB", op, presence_check_s=1.0)
+
     _run(go())
     assert ran["op"] is True, "an unanswerable presence question must not skip the op"
 
@@ -4640,9 +6227,13 @@ def test_a_CONNECTED_device_is_never_scanned_for(monkeypatch):
     case that is certainly present — and would skip the op for the device most obviously reachable."""
     _offline_env(monkeypatch, on_air=False, connected=True)
     ran = {"op": False}
-    async def op(): ran["op"] = True
+
+    async def op():
+        ran["op"] = True
+
     async def go():
         return await capture.polar_offline_op("AA:BB", op, presence_check_s=1.0)
+
     _run(go())
     assert ran["op"] is True, "a connected device must skip the presence check, not the op"
 
@@ -4652,9 +6243,13 @@ def test_the_check_is_OPT_IN_so_user_pulls_are_unchanged(monkeypatch):
     second-guessed by it. Only the unattended clock sync opts in."""
     _offline_env(monkeypatch, on_air=False)
     ran = {"op": False}
-    async def op(): ran["op"] = True
+
+    async def op():
+        ran["op"] = True
+
     async def go():
-        return await capture.polar_offline_op("AA:BB", op)      # no presence_check_s
+        return await capture.polar_offline_op("AA:BB", op)  # no presence_check_s
+
     _run(go())
     assert ran["op"] is True, "without presence_check_s the behaviour must be exactly as before"
 
@@ -4768,9 +6363,11 @@ def test_run_oxyii_writes_the_arrival_sidecar(tmp_path, monkeypatch):
     offset estimator too. ⚠️ 1 s quantised, so it must be FITTED, not min-filtered — which is why the
     `meas` column names it and nightqc refuses to floor-judge it.
     """
-    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
     c = FakeGattClient()
-    c.on_live = lambda data: (c.notify(0, _o2ring_live_reply()) if data[1] == oxyii.OP_LIVE else None)
+    c.on_live = lambda data: c.notify(0, _o2ring_live_reply()) if data[1] == oxyii.OP_LIVE else None
     _inject_connect_scan(monkeypatch, c)
     _stop_after(monkeypatch, 4)
     _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
@@ -4787,7 +6384,9 @@ def test_run_oxyii_swallows_a_raising_arrival_writer(tmp_path, monkeypatch):
     share `_stop_after`'s counter and the module globals, and the second silently produced nothing —
     which read as a swallow failure when it was fixture bleed.
     """
-    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
 
     class _Boom(capture.PmdArrivalLogWriter):
         def write(self, *a, **k):
@@ -4795,7 +6394,7 @@ def test_run_oxyii_swallows_a_raising_arrival_writer(tmp_path, monkeypatch):
 
     monkeypatch.setattr(capture, "PmdArrivalLogWriter", _Boom)
     c = FakeGattClient()
-    c.on_live = lambda data: (c.notify(0, _o2ring_live_reply()) if data[1] == oxyii.OP_LIVE else None)
+    c.on_live = lambda data: c.notify(0, _o2ring_live_reply()) if data[1] == oxyii.OP_LIVE else None
     _inject_connect_scan(monkeypatch, c)
     _stop_after(monkeypatch, 4)
     _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
@@ -4809,6 +6408,7 @@ def test_the_autopull_gate_now_asks_on_body_not_worn_alone():
     2026-07-26: "the gate was unreachable on any evening the sensors were charging, which is precisely
     when a pull is safest"."""
     from tests._srcscan import function_source, strip_comments
+
     # ⚠️ BOUNDED ON THE FUNCTION, NOT ON A BYTE WINDOW. This used to slice `code[i:i + 4000]`, and the
     # function is 4907 chars — so the window was ALREADY cutting off its last 907 characters, and the
     # `not in` assertion below was guarding only 82 % of the code it names. A negative assertion under
@@ -4850,9 +6450,11 @@ def test_the_autopull_gate_now_asks_on_body_not_worn_alone():
 # finding — and `_run_bounded` so a regression FAILS instead of hanging the suite.
 def _stop_shortly(cap, after=0.05):
     """A task that sets `_STOP` on the real clock — the shutdown a running daemon actually receives."""
+
     async def go():
         await asyncio.sleep(after)
         cap._STOP.set()
+
     return go
 
 
@@ -4870,8 +6472,9 @@ def test_stop_ends_a_live_session_even_with_a_real_sleep(tmp_path, monkeypatch):
             await capture.run_polar(_pdev(), str(tmp_path))
         finally:
             t.cancel()
+
     try:
-        _run_bounded(go(), 6.0)                      # returns ⇒ shutdown reached the loop
+        _run_bounded(go(), 6.0)  # returns ⇒ shutdown reached the loop
     finally:
         capture._STOP.set()
     assert c.is_connected, "it must exit on _STOP, not by waiting for the link to go down"
@@ -4886,7 +6489,7 @@ def test_stop_ends_a_PAUSED_session_even_with_a_real_sleep(tmp_path, monkeypatch
     _inject_connect(monkeypatch, c)
     capture._STOP.clear()
     dev = _pdev()
-    capture._POLAR_PAUSED.add(dev["address"])        # a pull owns the link, and never lets go
+    capture._POLAR_PAUSED.add(dev["address"])  # a pull owns the link, and never lets go
 
     async def go():
         t = asyncio.create_task(_stop_shortly(capture)())
@@ -4894,6 +6497,7 @@ def test_stop_ends_a_PAUSED_session_even_with_a_real_sleep(tmp_path, monkeypatch
             await capture.run_polar(dev, str(tmp_path))
         finally:
             t.cancel()
+
     try:
         _run_bounded(go(), 6.0)
     finally:
@@ -4922,6 +6526,7 @@ def _o2_config_reply(brightness=0, motor=60):
 def _o2_ring_responder(c, cfg_state):
     """A ring that answers live, info, and config — and APPLIES a 0x01 settings write to cfg_state
     (write-field 9 → brightness, 6 → motor), exactly as the real firmware was measured to."""
+
     def on(data):
         op = data[1]
         if op == oxyii.OP_LIVE:
@@ -4938,6 +6543,7 @@ def _o2_ring_responder(c, cfg_state):
                 cfg_state["brightness"] = val
             elif fld == 6:
                 cfg_state["motor"] = val
+
     return on
 
 
@@ -4951,6 +6557,7 @@ def test_ring_clock_offset_is_component_arithmetic():
 def test_queue_ring_config_validates_at_enqueue():
     """Nothing invalid may sit in the queue waiting for a link: the whitelist raises HERE."""
     import pytest
+
     capture._OXYII_CFG_PENDING.clear()
     with pytest.raises(ValueError):
         capture.queue_ring_config("AA:BB:CC:DD:EE:FF", "factory_reset", 1)
@@ -4958,14 +6565,16 @@ def test_queue_ring_config_validates_at_enqueue():
         capture.queue_ring_config("AA:BB:CC:DD:EE:FF", "brightness", 3)
     assert capture._OXYII_CFG_PENDING == {}, "a refused write must leave no queue entry"
     capture.queue_ring_config("AA:BB:CC:DD:EE:FF", "brightness", 1)
-    capture.queue_ring_config("AA:BB:CC:DD:EE:FF", "brightness", 2)   # last click wins
+    capture.queue_ring_config("AA:BB:CC:DD:EE:FF", "brightness", 2)  # last click wins
     assert capture._OXYII_CFG_PENDING["AA:BB:CC:DD:EE:FF"] == ("brightness", 2)
     capture._OXYII_CFG_PENDING.clear()
 
 
 def test_run_oxyii_publishes_the_ring_rtc_offset(tmp_path, monkeypatch):
     """The session's first poll reads GET_INFO; on_data publishes ring-vs-host offset to STATUS."""
-    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
     capture._OXYII_CFG_PENDING.clear()
     c = FakeGattClient()
     c.on_live = _o2_ring_responder(c, {"brightness": 0, "motor": 60})
@@ -4974,35 +6583,207 @@ def test_run_oxyii_publishes_the_ring_rtc_offset(tmp_path, monkeypatch):
     _stop_after(monkeypatch, 4)
     _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
     st = capture.STATUS["devices"]["Ring"]
-    assert st["ring_rtc_offset_s"] == -5.0            # ring reads 21:50:00 vs host 21:50:05
+    assert st["ring_rtc_offset_s"] == -5.0  # ring reads 21:50:00 vs host 21:50:05
     assert st["ring_rtc_read"].startswith("2026-08-19T21:50")
     # the session-start config read populated the struct without any write happening
     assert st["ring_config"]["brightness"] == 0 and st["ring_config"]["motor"] == 60
 
 
-def test_run_oxyii_unset_rtc_publishes_none_not_year_zero(tmp_path, monkeypatch):
-    """Clock Contract §2.7 at the STATUS boundary: an unset RTC region is absence, never arithmetic."""
-    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
-    c = FakeGattClient()
+# ── run_oxyii: IDENTITY from the same 0xE1 reply (VIGIL-BLUETOOTH-ADVERSARIAL-AUDIT §6.2 Mitigation C) ──
+def _o2_info_reply_from(serial: str, fw: bytes = b"2D010002"):
+    """A GET_INFO reply carrying a WIRE serial at [37]/[38:], as the real ring lays it out."""
+    p = bytearray(60)
+    p[9:17] = fw
+    p[24:31] = bytes([2026 & 0xFF, 2026 >> 8, 8, 19, 21, 50, 0])
+    sn = serial.encode("ascii")
+    p[37] = len(sn)
+    p[38 : 38 + len(sn)] = sn
+    return oxyii.encode(oxyii.OP_GET_INFO, bytes(p))
+
+
+def _o2_identity_responder(c, serial, fw: bytes = b"2D010002"):
     def on(data):
         op = data[1]
         if op == oxyii.OP_LIVE:
             c.notify(0, _o2ring_live_reply())
         elif op == oxyii.OP_GET_INFO:
-            c.notify(0, oxyii.encode(oxyii.OP_GET_INFO, bytes(60)))   # zeros: unset RTC
+            c.notify(0, _o2_info_reply_from(serial, fw))
+
+    return on
+
+
+def _run_ring_session(tmp_path, monkeypatch, dev, serial_on_air, fw: bytes = b"2D010002"):
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
+    capture.STATUS["devices"].pop("Ring", None)
+    c = FakeGattClient()
+    c.on_live = _o2_identity_responder(c, serial_on_air, fw)
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 4)
+    _run(capture.run_oxyii(dev, str(tmp_path)))
+    return capture.STATUS["devices"]["Ring"]
+
+
+def test_run_oxyii_PUBLISHES_the_wire_serial_and_firmware_it_used_to_drop(tmp_path, monkeypatch):
+    """Until 2026-09-05 parse_get_info's serial/firmware were computed in on_data and kept by nobody."""
+    st = _run_ring_session(tmp_path, monkeypatch, _o2dev(), "2592302100")
+    assert st["ring_serial"] == "2592302100"
+    assert st["ring_firmware"] == "2D010002"
+    assert st["ring_identity_mismatch"] is None, "no `serial:` configured — the check is inert, not firing"
+
+
+def test_run_oxyii_a_MATCHING_configured_serial_publishes_no_mismatch(tmp_path, monkeypatch):
+    st = _run_ring_session(tmp_path, monkeypatch, _o2dev(serial=2592302100), "2592302100")  # YAML int
+    assert st["ring_identity_mismatch"] is None
+
+
+def test_run_oxyii_a_WRONG_RING_is_flagged_in_STATUS_and_the_journal(tmp_path, monkeypatch, caplog):
+    """The impostor shape: the peer at the configured address answers 0xE1 with a different serial. It
+    streams SpO₂ like the real ring, so every other field reads healthy — this flag is the only one
+    that can say the link is the wrong device. ERROR in the journal on the transition, once."""
+    import logging
+
+    caplog.set_level(logging.ERROR, logger="tepna-capture")
+    st = _run_ring_session(tmp_path, monkeypatch, _o2dev(serial="2592302100"), "2592399999")
+    assert st["ring_serial"] == "2592399999"
+    assert st["ring_identity_mismatch"], "a wrong serial must publish the mismatch"
+    assert "2592399999" in st["ring_identity_mismatch"] and "2592302100" in st["ring_identity_mismatch"]
+    hits = [r for r in caplog.records if "RING IDENTITY MISMATCH" in r.getMessage()]
+    assert len(hits) == 1, f"journal on the TRANSITION only, got {len(hits)}"
+
+
+def test_run_oxyii_journals_a_PERSISTING_mismatch_once_not_per_readback(tmp_path, monkeypatch, caplog):
+    """GET_INFO is re-read every _OXYII_INFO_EVERY_S all night. A wrong ring that stays connected would
+    otherwise write an ERROR line per readback — hours of identical lines that bury the one that matters.
+    The journal gets the TRANSITION; STATUS carries the standing state. Planted: dropping the guard
+    survived the single-read tests above, so this one forces several readbacks in one session."""
+    import logging
+
+    caplog.set_level(logging.ERROR, logger="tepna-capture")
+    monkeypatch.setattr(capture, "_OXYII_INFO_EVERY_S", 0)  # re-read on every loop pass
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
+    capture.STATUS["devices"].pop("Ring", None)
+    c = FakeGattClient()
+    served = {"info": 0}
+    inner = _o2_identity_responder(c, "2592399999")
+
+    def on(data):
+        if data[1] == oxyii.OP_GET_INFO:
+            served["info"] += 1
+        inner(data)
+
+    c.on_live = on
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 6)
+    _run(capture.run_oxyii(_o2dev(serial="2592302100"), str(tmp_path)))
+    assert served["info"] >= 2, f"the fixture must exercise repeated readbacks; served {served['info']}"
+    hits = [r for r in caplog.records if "RING IDENTITY MISMATCH" in r.getMessage()]
+    assert len(hits) == 1, f"{served['info']} readbacks of one persisting mismatch must journal ONCE, got {len(hits)}"
+    assert capture.STATUS["devices"]["Ring"]["ring_identity_mismatch"], "…while STATUS keeps carrying it"
+
+
+def test_run_oxyii_a_peer_with_NO_serial_against_a_configured_one_is_a_mismatch(tmp_path, monkeypatch):
+    """A 60-byte reply with an empty serial field (the unset-RTC fixture's shape) is not a pass when the
+    operator has said which ring to expect."""
+    st = _run_ring_session(tmp_path, monkeypatch, _o2dev(serial="2592302100"), "")
+    assert st["ring_serial"] is None, "an empty serial is published as absence, not as ''"
+    assert st["ring_identity_mismatch"] and "no serial at all" in st["ring_identity_mismatch"]
+
+
+def test_alert_poller_carries_an_identity_mismatch_to_the_webhook_ONCE_and_clears_on_match(monkeypatch):
+    """The wrong ring is `recording`, so the offline path never speaks — the identity clause must. One
+    webhook per episode, latched on delivery; the latch clears when the mismatch clears so a later wrong
+    ring alerts again."""
+    sent = []
+
+    class _N:
+        enabled = True
+
+        async def send(self, title, message, **kw):
+            sent.append((title, message))
+            return True
+
+    cfg = {"alerts": {"poll_sec": 1, "offline_sec": 1e9}, "devices": [_o2dev()]}
+    st = {"connected": True, "ring_identity_mismatch": "connected peer reports '9', config expects '1'"}
+    capture.STATUS["devices"]["Ring"] = st
+    capture._LAST_DATA["Ring"] = 1000.0  # streaming — a wrong ring records like the right one
+    calls = {"n": 0}
+
+    async def fake_sleep(_s):
+        calls["n"] += 1
+        if calls["n"] == 3:
+            st["ring_identity_mismatch"] = None  # the right ring is back
+        if calls["n"] == 4:
+            st["ring_identity_mismatch"] = "connected peer reports '8', config expects '1'"  # new episode
+        if calls["n"] >= 5:
+            capture._STOP.set()
+
+    monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(capture._time, "monotonic", lambda: 1000.0)
+    _run(capture.alert_poller(cfg, _N()))
+    capture._LAST_DATA.pop("Ring", None)
+    titles = [t for t, _ in sent]
+    assert titles == ["Tepna: ring identity mismatch", "Tepna: ring identity mismatch"], titles
+    assert "'9'" in sent[0][1] and "'8'" in sent[1][1]
+    assert "Ring" in sent[0][1]
+
+
+def test_alert_poller_RETRIES_an_undelivered_identity_alert_next_poll(monkeypatch):
+    """Latch on the OUTCOME (CAPTURE-HOST-DEEP-AUDIT §C1): a failed POST is retried, not remembered as told."""
+    sent = []
+
+    class _N:
+        enabled = True
+
+        async def send(self, title, message, **kw):
+            sent.append(title)
+            return len(sent) >= 2
+
+    cfg = {"alerts": {"poll_sec": 1, "offline_sec": 1e9}, "devices": [_o2dev()]}
+    capture.STATUS["devices"]["Ring"] = {
+        "connected": True,
+        "ring_identity_mismatch": "peer reports '9', config expects '1'",
+    }
+    capture._LAST_DATA["Ring"] = 1000.0
+    _stop_after(monkeypatch, 4)
+    monkeypatch.setattr(capture._time, "monotonic", lambda: 1000.0)
+    _run(capture.alert_poller(cfg, _N()))
+    capture._LAST_DATA.pop("Ring", None)
+    assert sent == ["Tepna: ring identity mismatch"] * 2, f"one failed attempt, one delivery, then latched: {sent}"
+
+
+def test_run_oxyii_unset_rtc_publishes_none_not_year_zero(tmp_path, monkeypatch):
+    """Clock Contract §2.7 at the STATUS boundary: an unset RTC region is absence, never arithmetic."""
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
+    c = FakeGattClient()
+
+    def on(data):
+        op = data[1]
+        if op == oxyii.OP_LIVE:
+            c.notify(0, _o2ring_live_reply())
+        elif op == oxyii.OP_GET_INFO:
+            c.notify(0, oxyii.encode(oxyii.OP_GET_INFO, bytes(60)))  # zeros: unset RTC
+
     c.on_live = on
     _inject_connect_scan(monkeypatch, c)
     _stop_after(monkeypatch, 4)
     _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
     st = capture.STATUS["devices"]["Ring"]
     assert st["ring_rtc_offset_s"] is None
-    assert st["ring_rtc_read"] is not None            # the READ happened; the value is honestly absent
+    assert st["ring_rtc_read"] is not None  # the READ happened; the value is honestly absent
 
 
 def test_run_oxyii_applies_a_queued_settings_write_and_verifies_it(tmp_path, monkeypatch):
     """queue_ring_config → the live loop sends 0x01 + a 0x00 read-back → on_data publishes the verdict
     from what the RING reports. The fake ring APPLIES the write, so the verdict must be 'applied'."""
-    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
     capture._OXYII_CFG_PENDING.clear()
     dev = _o2dev()
     cfg_state = {"brightness": 0, "motor": 60}
@@ -5021,10 +6802,13 @@ def test_run_oxyii_applies_a_queued_settings_write_and_verifies_it(tmp_path, mon
 
 def test_run_oxyii_reports_a_settings_write_the_ring_ignored(tmp_path, monkeypatch, caplog):
     """The ring acks nothing and applies nothing: the verdict must say NOT applied, loudly."""
-    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
     capture._OXYII_CFG_PENDING.clear()
     dev = _o2dev()
     c = FakeGattClient()
+
     def on(data):
         op = data[1]
         if op == oxyii.OP_LIVE:
@@ -5032,7 +6816,8 @@ def test_run_oxyii_reports_a_settings_write_the_ring_ignored(tmp_path, monkeypat
         elif op == oxyii.OP_GET_INFO:
             c.notify(0, _o2_info_reply())
         elif op == oxyii.OP_GET_CONFIG:
-            c.notify(0, _o2_config_reply(brightness=0))     # never changes — the write was ignored
+            c.notify(0, _o2_config_reply(brightness=0))  # never changes — the write was ignored
+
     c.on_live = on
     _inject_connect_scan(monkeypatch, c)
     capture.queue_ring_config(dev["address"], "brightness", 2)
@@ -5046,19 +6831,25 @@ def test_run_oxyii_reports_a_settings_write_the_ring_ignored(tmp_path, monkeypat
 
 def test_run_oxyii_settings_write_failure_surfaces_in_the_verdict(tmp_path, monkeypatch):
     """The 0x01 write itself raises: the verdict says so instead of silently retrying forever."""
-    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
     capture._OXYII_CFG_PENDING.clear()
     dev = _o2dev()
     c = FakeGattClient()
     real_write = c.write_gatt_char
+
     async def write(char, data, response=False):
         if data[1] == oxyii.OP_SET_CONFIG:
             raise RuntimeError("gatt refused")
         await real_write(char, data, response)
+
     c.write_gatt_char = write
+
     def on(data):
         if data[1] == oxyii.OP_LIVE:
             c.notify(0, _o2ring_live_reply())
+
     c.on_live = on
     _inject_connect_scan(monkeypatch, c)
     capture.queue_ring_config(dev["address"], "brightness", 1)
@@ -5071,18 +6862,24 @@ def test_run_oxyii_settings_write_failure_surfaces_in_the_verdict(tmp_path, monk
 
 def test_run_oxyii_rtc_poll_failure_costs_only_the_reading(tmp_path, monkeypatch):
     """The GET_INFO write raises: vitals continue, the link survives, no offset is published."""
-    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
     capture._OXYII_CFG_PENDING.clear()
     c = FakeGattClient()
     real_write = c.write_gatt_char
+
     async def write(char, data, response=False):
         if data[1] == oxyii.OP_GET_INFO:
             raise RuntimeError("gatt refused the info read")
         await real_write(char, data, response)
+
     c.write_gatt_char = write
+
     def on(data):
         if data[1] == oxyii.OP_LIVE:
             c.notify(0, _o2ring_live_reply())
+
     c.on_live = on
     _inject_connect_scan(monkeypatch, c)
     _stop_after(monkeypatch, 4)
@@ -5094,9 +6891,12 @@ def test_run_oxyii_rtc_poll_failure_costs_only_the_reading(tmp_path, monkeypatch
 
 def test_run_oxyii_unparseable_config_reply_publishes_nothing(tmp_path, monkeypatch):
     """A short 0x00 reply parses to None: no ring_config, no verdict — never a partial struct."""
-    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
     capture._OXYII_CFG_PENDING.clear()
     c = FakeGattClient()
+
     def on(data):
         op = data[1]
         if op == oxyii.OP_LIVE:
@@ -5104,70 +6904,142 @@ def test_run_oxyii_unparseable_config_reply_publishes_nothing(tmp_path, monkeypa
         elif op == oxyii.OP_GET_INFO:
             c.notify(0, _o2_info_reply())
         elif op == oxyii.OP_GET_CONFIG:
-            c.notify(0, oxyii.encode(oxyii.OP_GET_CONFIG, bytes(4)))    # 4 B — too short to parse
+            c.notify(0, oxyii.encode(oxyii.OP_GET_CONFIG, bytes(4)))  # 4 B — too short to parse
+
     c.on_live = on
     _inject_connect_scan(monkeypatch, c)
     _stop_after(monkeypatch, 4)
     _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
     st = capture.STATUS["devices"]["Ring"]
     assert st.get("ring_config") is None and st.get("ring_config_verdict") is None
+
+
 def test_run_polar_resumes_a_recent_fileset(tmp_path, monkeypatch, caplog):
     """CAPTURE-FILESET-RESUME §2 wiring: when this device's newest set wrote within the window, the
     runner adopts its stamp — so every capture_filename() regenerates the identical names. Tested at
     the decision point (resumable_stamp is consulted and `started` replaced) rather than by driving the
     whole BLE stack: the writers' append behaviour has its own tests."""
     import datetime as dt
+
     calls = {}
 
     def spy(ndir, vendor, model, device_id, now, window):
         calls["args"] = (vendor, model, device_id, window)
-        return dt.datetime(2026, 8, 19, 21, 0, 0)
-    monkeypatch.setattr(capture, "resumable_stamp", spy)
+        return dt.datetime(2026, 8, 19, 21, 0, 0), ndir
+
+    monkeypatch.setattr(capture, "resumable_set", spy)
 
     async def _bonded(addr, adapter, force=False):
         return True
+
     monkeypatch.setattr(capture.bonding, "ensure_bonded", _bonded)
     monkeypatch.setattr(capture.bonding, "is_bonded", _bonded)
 
     async def _no_sync(name, addr, root=None):
-        return None                        # the real one runs a ~30 s BLE discovery — not in a unit test
+        return None  # the real one runs a ~30 s BLE discovery — not in a unit test
+
     monkeypatch.setattr(capture, "auto_sync_clock", _no_sync)
+
     def _no_ble(addr):
-        raise RuntimeError("stop before BLE")   # _connect is the first thing after the resume decision
+        raise RuntimeError("stop before BLE")  # _connect is the first thing after the resume decision
+
     monkeypatch.setattr(capture, "_connect", _no_ble)
     monkeypatch.setattr(capture, "night_dir", lambda root, when: str(tmp_path))
-    dev = {"name": "H10", "address": "C2:11:44:AB:9E:01", "vendor": "Polar",
-           "model": "H10", "device_id": "02849638", "streams": ["ecg"]}
+    dev = {
+        "name": "H10",
+        "address": "C2:11:44:AB:9E:01",
+        "vendor": "Polar",
+        "model": "H10",
+        "device_id": "02849638",
+        "streams": ["ecg"],
+    }
     _stop_after(monkeypatch, 1)
     with caplog.at_level("INFO"):
         _run(capture.run_polar(dev, str(tmp_path)))
     assert calls["args"] == ("Polar", "H10", "02849638", capture._RESUME_WINDOW_S)
     msgs = [r.getMessage() for r in caplog.records]
-    assert any("resuming file-set 20260819210000" in m for m in msgs), \
+    assert any("resuming file-set 20260819210000" in m for m in msgs), (
         f"the adopt decision must be logged: {[m for m in msgs if 'resum' in m.lower()]}"
+    )
+
+
+def test_run_polar_resume_logs_and_adopts_the_previous_folder(tmp_path, monkeypatch, caplog):
+    """The Polar call site must adopt the DIRECTORY too, not just the stamp — and say it crossed.
+
+    run_polar stops at _connect, so the observable is the log plus the fact that the directory adopted
+    is the one resumable_set named rather than the one night_dir returned."""
+    import datetime as dt
+    import os
+
+    yday = str(tmp_path / "captures" / "2026-09-11")
+    today = str(tmp_path / "captures" / "2026-09-12")
+    os.makedirs(yday, exist_ok=True)
+    os.makedirs(today, exist_ok=True)
+    monkeypatch.setattr(capture, "resumable_set", lambda *a: (dt.datetime(2026, 9, 11, 23, 58, 0), yday))
+
+    async def _bonded(addr, adapter, force=False):
+        return True
+
+    monkeypatch.setattr(capture.bonding, "ensure_bonded", _bonded)
+    monkeypatch.setattr(capture.bonding, "is_bonded", _bonded)
+
+    async def _no_sync(name, addr, root=None):
+        return None
+
+    monkeypatch.setattr(capture, "auto_sync_clock", _no_sync)
+
+    def _no_ble(addr):
+        raise RuntimeError("stop before BLE")
+
+    monkeypatch.setattr(capture, "_connect", _no_ble)
+    monkeypatch.setattr(capture, "night_dir", lambda root, when: today)
+    dev = {
+        "name": "H10",
+        "address": "C2:11:44:AB:9E:01",
+        "vendor": "Polar",
+        "model": "H10",
+        "device_id": "02849638",
+        "streams": ["ecg"],
+    }
+    _stop_after(monkeypatch, 1)
+    with caplog.at_level("INFO"):
+        _run(capture.run_polar(dev, str(tmp_path)))
+    msgs = [r.getMessage() for r in caplog.records]
+    assert any("ACROSS the folder boundary" in m and "2026-09-11" in m for m in msgs), (
+        f"the boundary hop must name the folder it moved into: {[m for m in msgs if 'resum' in m.lower()]}"
+    )
 
 
 def test_run_polar_resume_disabled_by_zero_window(tmp_path, monkeypatch):
     """DENY twin: write.resume_window_sec 0 must not even consult the resolver."""
     consulted = []
-    monkeypatch.setattr(capture, "resumable_stamp", lambda *a: consulted.append(a))
+    monkeypatch.setattr(capture, "resumable_set", lambda *a: consulted.append(a))
 
     async def _bonded(addr, adapter, force=False):
         return True
+
     monkeypatch.setattr(capture.bonding, "ensure_bonded", _bonded)
     monkeypatch.setattr(capture.bonding, "is_bonded", _bonded)
 
     async def _no_sync(name, addr, root=None):
-        return None                        # the real one runs a ~30 s BLE discovery — not in a unit test
+        return None  # the real one runs a ~30 s BLE discovery — not in a unit test
+
     monkeypatch.setattr(capture, "auto_sync_clock", _no_sync)
 
     def _no_ble(addr):
-        raise RuntimeError("stop before BLE")   # _connect is the first thing after the decision
+        raise RuntimeError("stop before BLE")  # _connect is the first thing after the decision
+
     monkeypatch.setattr(capture, "_connect", _no_ble)
     monkeypatch.setattr(capture, "night_dir", lambda root, when: str(tmp_path))
     monkeypatch.setattr(capture, "_RESUME_WINDOW_S", 0.0)
-    dev = {"name": "H10", "address": "C2:11:44:AB:9E:01", "vendor": "Polar",
-           "model": "H10", "device_id": "02849638", "streams": ["ecg"]}
+    dev = {
+        "name": "H10",
+        "address": "C2:11:44:AB:9E:01",
+        "vendor": "Polar",
+        "model": "H10",
+        "device_id": "02849638",
+        "streams": ["ecg"],
+    }
     _stop_after(monkeypatch, 1)
     _run(capture.run_polar(dev, str(tmp_path)))
     assert consulted == [], "window 0 must not consult the resolver"
@@ -5176,7 +7048,9 @@ def test_run_polar_resume_disabled_by_zero_window(tmp_path, monkeypatch):
 def test_run_oxyii_fires_a_queued_buzz_exactly_once(tmp_path, monkeypatch):
     """queue_ring_buzz → ONE 0x83 on the next poll, the command instant published to STATUS. Exactly
     one: the fiducial is a marker, and a repeat would write a second artifact into every stream."""
-    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
     capture._OXYII_BUZZ_PENDING.clear()
     dev = _o2dev()
     c = FakeGattClient()
@@ -5192,19 +7066,25 @@ def test_run_oxyii_fires_a_queued_buzz_exactly_once(tmp_path, monkeypatch):
 
 
 def test_run_oxyii_buzz_write_failure_is_reported_not_retried(tmp_path, monkeypatch, caplog):
-    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
     capture._OXYII_BUZZ_PENDING.clear()
     dev = _o2dev()
     c = FakeGattClient()
     real_write = c.write_gatt_char
+
     async def write(char, data, response=False):
         if data[1] == 0x83:
             raise RuntimeError("gatt refused the buzz")
         await real_write(char, data, response)
+
     c.write_gatt_char = write
+
     def on(data):
         if data[1] == oxyii.OP_LIVE:
             c.notify(0, _o2ring_live_reply())
+
     c.on_live = on
     _inject_connect_scan(monkeypatch, c)
     capture.queue_ring_buzz(dev["address"])
@@ -5228,7 +7108,9 @@ def _rtclog_rows(tmp_path):
 def test_run_oxyii_writes_the_ring_clock_sidecar(tmp_path, monkeypatch):
     """A session writes read + battery rows (the first poll fires both), and the 0xC0 first-contact
     push writes its claim row — history on disk, not just the latest value in STATUS."""
-    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
     capture._OXYII_LAST_RTC_OFF.clear()
     c = FakeGattClient()
     c.on_live = _o2_ring_responder(c, {"brightness": 0, "motor": 60})
@@ -5244,24 +7126,29 @@ def test_run_oxyii_writes_the_ring_clock_sidecar(tmp_path, monkeypatch):
     read = next(r for r in rows if r[1] == "read")
     assert read[2] != "", "a decoded RTC read carries its offset"
     batt = next(r for r in rows if r[1] == "battery")
-    assert batt[4] == "100" and batt[5] == "242" and batt[6] == "16", \
+    assert batt[4] == "100" and batt[5] == "242" and batt[6] == "16", (
         "battery level + the ANALOG raw2 byte + const raw3 land as data, not assumptions"
+    )
 
 
 def test_run_oxyii_flags_an_rtc_jump_as_a_battery_reset(tmp_path, monkeypatch, caplog):
     """The offset moved > _OXYII_RTC_JUMP_S between reads with no push of ours: reset-suspect is
     published, the sidecar rows say so, and the re-push is queued by clearing _OXYII_RTC_AT."""
-    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
     capture._OXYII_LAST_RTC_OFF.clear()
     dev = _o2dev()
-    capture._OXYII_LAST_RTC_OFF[dev["address"]] = 0.0     # a previous session read the RTC on time
+    capture._OXYII_LAST_RTC_OFF[dev["address"]] = 0.0  # a previous session read the RTC on time
     c = FakeGattClient()
+
     def on(data):
         op = data[1]
         if op == oxyii.OP_LIVE:
             c.notify(0, _o2ring_live_reply())
         elif op == oxyii.OP_GET_INFO:
-            c.notify(0, _o2_info_reply(h=19, mi=0, s=0))   # ring says 19:00:00 — hours off the host
+            c.notify(0, _o2_info_reply(h=19, mi=0, s=0))  # ring says 19:00:00 — hours off the host
+
     c.on_live = on
     _inject_connect_scan(monkeypatch, c)
     monkeypatch.setattr(capture, "_now", lambda: _dt.datetime(2026, 8, 19, 21, 50, 0))
@@ -5279,17 +7166,21 @@ def test_run_oxyii_flags_an_rtc_jump_as_a_battery_reset(tmp_path, monkeypatch, c
 
 def test_run_oxyii_small_drift_is_a_read_not_a_reset(tmp_path, monkeypatch):
     """The DENY twin: a 1 s move between reads (quantum-level) must stay an ordinary read row."""
-    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
     capture._OXYII_LAST_RTC_OFF.clear()
     dev = _o2dev()
     capture._OXYII_LAST_RTC_OFF[dev["address"]] = -6.0
     c = FakeGattClient()
+
     def on(data):
         op = data[1]
         if op == oxyii.OP_LIVE:
             c.notify(0, _o2ring_live_reply())
         elif op == oxyii.OP_GET_INFO:
-            c.notify(0, _o2_info_reply(h=21, mi=49, s=55))   # host 21:50:00 → offset −5.0 (Δ=1.0 s)
+            c.notify(0, _o2_info_reply(h=21, mi=49, s=55))  # host 21:50:00 → offset −5.0 (Δ=1.0 s)
+
     c.on_live = on
     _inject_connect_scan(monkeypatch, c)
     monkeypatch.setattr(capture, "_now", lambda: _dt.datetime(2026, 8, 19, 21, 50, 0))
@@ -5304,9 +7195,12 @@ def test_run_oxyii_small_drift_is_a_read_not_a_reset(tmp_path, monkeypatch):
 
 def test_run_oxyii_short_battery_reply_logs_blanks_not_fabrications(tmp_path, monkeypatch):
     """A 2-byte 0xE4 reply has no raw2/raw3: the sidecar row carries blanks, never invented bytes."""
-    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
     capture._OXYII_LAST_RTC_OFF.clear()
     c = FakeGattClient()
+
     def on(data):
         op = data[1]
         if op == oxyii.OP_LIVE:
@@ -5314,7 +7208,8 @@ def test_run_oxyii_short_battery_reply_logs_blanks_not_fabrications(tmp_path, mo
         elif op == oxyii.OP_GET_INFO:
             c.notify(0, _o2_info_reply())
         elif op == oxyii.OP_GET_BATTERY:
-            c.notify(0, oxyii.encode(oxyii.OP_GET_BATTERY, bytes([0, 87])))   # state+level only
+            c.notify(0, oxyii.encode(oxyii.OP_GET_BATTERY, bytes([0, 87])))  # state+level only
+
     c.on_live = on
     _inject_connect_scan(monkeypatch, c)
     _stop_after(monkeypatch, 4)
@@ -5327,9 +7222,12 @@ def test_run_oxyii_short_battery_reply_logs_blanks_not_fabrications(tmp_path, mo
 def test_run_oxyii_unparseable_battery_reply_writes_no_row(tmp_path, monkeypatch):
     """A 1-byte 0xE4 reply parses to None: no sidecar row at all — a row of blanks would claim a
     reading happened when nothing was decoded."""
-    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
     capture._OXYII_LAST_RTC_OFF.clear()
     c = FakeGattClient()
+
     def on(data):
         op = data[1]
         if op == oxyii.OP_LIVE:
@@ -5337,7 +7235,8 @@ def test_run_oxyii_unparseable_battery_reply_writes_no_row(tmp_path, monkeypatch
         elif op == oxyii.OP_GET_INFO:
             c.notify(0, _o2_info_reply())
         elif op == oxyii.OP_GET_BATTERY:
-            c.notify(0, oxyii.encode(oxyii.OP_GET_BATTERY, bytes([0])))   # 1 byte — unparseable
+            c.notify(0, oxyii.encode(oxyii.OP_GET_BATTERY, bytes([0])))  # 1 byte — unparseable
+
     c.on_live = on
     _inject_connect_scan(monkeypatch, c)
     _stop_after(monkeypatch, 4)
@@ -5354,10 +7253,13 @@ def test_run_oxyii_drains_the_raw_buffer_twice_per_cycle(tmp_path, monkeypatch):
     making capture complete and every night's counts a fill-rate measurement). The vitals cadence is
     untouched: 0x04 still rides the full cycle. Without the stream, no raw asks at all — and the loop
     keeps its original single sleep."""
-    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
     counts = {"live": 0, "raw": 0}
     payload = (2).to_bytes(2, "little") + b"".join(
-        a.to_bytes(4, "little") + b.to_bytes(4, "little") + bytes([m]) for a, b, m in [(1, 2, 0), (3, 4, 1)])
+        a.to_bytes(4, "little") + b.to_bytes(4, "little") + bytes([m]) for a, b, m in [(1, 2, 0), (3, 4, 1)]
+    )
 
     c = FakeGattClient()
 
@@ -5390,6 +7292,7 @@ def test_run_oxyii_drains_the_raw_buffer_twice_per_cycle(tmp_path, monkeypatch):
             c2.notify(0, _o2ring_live_reply())
         elif data[1] == oxyii.OP_RT_PPG:
             counts2["raw"] += 1
+
     c2.on_live = on_live2
     _inject_connect_scan(monkeypatch, c2)
     _stop_after(monkeypatch, 6)
@@ -5401,6 +7304,7 @@ def test_run_oxyii_drains_the_raw_buffer_twice_per_cycle(tmp_path, monkeypatch):
 def test_oxy_emit_is_guarded_and_writes_the_row_and_status(tmp_path):
     import oxy_lifecycle
     import writers
+
     lc = oxy_lifecycle.OxyLifecycle(device_id="d", session_id="s", mono=lambda: 1.0, wall=lambda: "W")
     w = writers.OxyLifeLogWriter(str(tmp_path / "OXYLIFE.csv"))
     capture._oxy_emit(lc, w, "RingX", oxy_lifecycle.OxyState.CONNECTING, "scan")
@@ -5415,13 +7319,15 @@ def test_oxy_emit_is_guarded_and_writes_the_row_and_status(tmp_path):
 
 def test_oxy_emit_tolerates_no_writer():
     import oxy_lifecycle
+
     lc = oxy_lifecycle.OxyLifecycle(mono=lambda: 1.0, wall=lambda: "W")
-    capture._oxy_emit(lc, None, "RingY", oxy_lifecycle.OxyState.CONNECTING, "scan")   # writer=None
+    capture._oxy_emit(lc, None, "RingY", oxy_lifecycle.OxyState.CONNECTING, "scan")  # writer=None
     assert capture.STATUS["devices"]["RingY"]["oxy_lifecycle"] == "connecting"
 
 
 def test_run_oxyii_journals_a_paused_state(tmp_path, monkeypatch):
-    capture._OXYII_PAUSE.set(); capture._RECOVER.clear()
+    capture._OXYII_PAUSE.set()
+    capture._RECOVER.clear()
     _stop_after(monkeypatch, 1)
     try:
         _run(capture.run_oxyii(_o2dev(name="RingP"), str(tmp_path)))
@@ -5431,7 +7337,8 @@ def test_run_oxyii_journals_a_paused_state(tmp_path, monkeypatch):
 
 
 def test_run_oxyii_journals_an_adapter_recovery_state(tmp_path, monkeypatch):
-    capture._OXYII_PAUSE.clear(); capture._RECOVER.set()
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.set()
     _stop_after(monkeypatch, 1)
     try:
         _run(capture.run_oxyii(_o2dev(name="RingR"), str(tmp_path)))
@@ -5441,10 +7348,12 @@ def test_run_oxyii_journals_an_adapter_recovery_state(tmp_path, monkeypatch):
 
 
 def test_run_oxyii_journals_an_interruption_on_a_stall(tmp_path, monkeypatch):
-    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
-    c = FakeGattClient()                          # NO live reply -> frames never advance -> the stall elif
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
+    c = FakeGattClient()  # NO live reply -> frames never advance -> the stall elif
     _inject_connect_scan(monkeypatch, c)
-    monkeypatch.setattr(capture, "stream_is_stalled", lambda *a, **k: True)   # force the stall branch
+    monkeypatch.setattr(capture, "stream_is_stalled", lambda *a, **k: True)  # force the stall branch
     _stop_after(monkeypatch, 6)
     _run(capture.run_oxyii(_o2dev(name="RingS"), str(tmp_path)))
     life = (tmp_path / "captures").rglob("OXYLIFE.csv")
@@ -5464,7 +7373,10 @@ def test_run_oxyii_absent_ring_does_not_claim_an_unflushed_arrival_tail(tmp_path
     true the whole time.
     """
     from bleak.exc import BleakDeviceNotFoundError
-    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
 
     def _boom(addr, *a, **k):
         raise BleakDeviceNotFoundError("O2Ring not advertising (wear it finger-in + close the phone app)")
@@ -5473,23 +7385,32 @@ def test_run_oxyii_absent_ring_does_not_claim_an_unflushed_arrival_tail(tmp_path
     _stop_after(monkeypatch, 1)
     with caplog.at_level(logging.WARNING):
         _run(capture.run_oxyii(_o2dev(name="RingGone"), str(tmp_path)))
-    assert "BleakDeviceNotFoundError" in capture.STATUS["devices"]["RingGone"]["last_error"], \
+    assert "BleakDeviceNotFoundError" in capture.STATUS["devices"]["RingGone"]["last_error"], (
         "the link error is still reported — this test must not pass by skipping the failure path"
-    assert not any("arrival writer did not close" in r.getMessage() for r in caplog.records), \
+    )
+    assert not any("arrival writer did not close" in r.getMessage() for r in caplog.records), (
         "no writer was opened, so there is no tail to warn about"
-    assert not any(r.exc_info and r.exc_info[0] is UnboundLocalError for r in caplog.records), \
+    )
+    assert not any(r.exc_info and r.exc_info[0] is UnboundLocalError for r in caplog.records), (
         "the finally must not read an unbound local"
+    )
 
 
 def test_run_oxyii_still_warns_when_a_real_arrival_close_fails(tmp_path, monkeypatch, caplog):
     """The guard is not being removed: a writer that WAS opened and fails to close still warns,
     because that message describes a real unflushed tail."""
-    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
 
     class _BadClose:
         rows = []
-        def write(self, *a, **k): pass
-        def close(self): raise OSError("disk went away")
+
+        def write(self, *a, **k):
+            pass
+
+        def close(self):
+            raise OSError("disk went away")
 
     monkeypatch.setattr(capture, "PmdArrivalLogWriter", lambda *a, **k: _BadClose())
     c = FakeGattClient()
@@ -5497,14 +7418,17 @@ def test_run_oxyii_still_warns_when_a_real_arrival_close_fails(tmp_path, monkeyp
     _stop_after(monkeypatch, 2)
     with caplog.at_level(logging.WARNING):
         _run(capture.run_oxyii(_o2dev(name="RingBad"), str(tmp_path)))
-    assert any("arrival writer did not close" in r.getMessage() for r in caplog.records), \
+    assert any("arrival writer did not close" in r.getMessage() for r in caplog.records), (
         "a genuine close failure must still be reported"
+    )
 
 
 # ── ring firmware revision (the observable the AES-session trigger needs) ────────────────────────────
 def test_run_oxyii_publishes_the_rings_firmware_revision(tmp_path, monkeypatch):
     """The measured-plaintext firmware reaches STATUS and says nothing alarming."""
-    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
     c = FakeGattClient()
     _inject_connect_scan(monkeypatch, c)
     _stop_after(monkeypatch, 1)
@@ -5512,29 +7436,50 @@ def test_run_oxyii_publishes_the_rings_firmware_revision(tmp_path, monkeypatch):
     assert capture.STATUS["devices"]["RingFw"]["firmware"] == "2D010002"
 
 
-def test_run_oxyii_names_an_unmeasured_firmware_rather_than_letting_it_surface_as_a_stall(
-        tmp_path, monkeypatch, caplog):
-    """A newer firmware keys an AES session after AUTH, and AUTH is written fire-and-forget with no
-    reply to inspect — so the ONLY way the box can state it is this read. Without it the failure
-    arrives as 'connects, auths, no decoded frames', which reads as a bad link."""
-    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
-    c = FakeGattClient(); c.fw = b"2D010099"
+def test_run_oxyii_publishes_DIS_as_a_diagnostic_and_does_NOT_gate_on_it(tmp_path, monkeypatch, caplog):
+    """DIS IS NO LONGER THE GATE — residue `2026-09-05-dis-firmware-compared-to-a-branch-code`.
+
+    This test previously fed a BRANCH-CODE-shaped string through the DIS Firmware Revision
+    characteristic and required the AES warning, which encoded the defect: DIS 0x2A26 carries a
+    firmware VERSION (`1.13.1.0`), not a branch code, so the old comparison could never be true on a
+    ring that implements DIS — and this box's ring does not implement it at all, so the guard never
+    ran on any link.
+
+    The guard now keys on the branch code from GET_INFO, which every ring answers in our own
+    handshake (`capture.aes_session_suspect`, unit-tested with the branch plants). DIS keeps
+    publishing as a DIAGNOSTIC — a real version string is useful beside the branch — but it decides
+    nothing.
+
+    The premise the old test defended is unchanged and still holds: an AES session after AUTH surfaces
+    as "connects, auths, no decoded frames", which reads as a bad link. Only the field that detects it
+    was wrong."""
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
+    c = FakeGattClient()
+    c.fw = b"1.13.1.0"  # a REAL DIS version string, as a DIS ring reports
     _inject_connect_scan(monkeypatch, c)
     _stop_after(monkeypatch, 1)
     with caplog.at_level(logging.WARNING):
         _run(capture.run_oxyii(_o2dev(name="RingNew"), str(tmp_path)))
-    assert capture.STATUS["devices"]["RingNew"]["firmware"] == "2D010099"
+    assert capture.STATUS["devices"]["RingNew"]["firmware"] == "1.13.1.0", (
+        "the DIS string must still be published — it is a diagnostic, not a secret"
+    )
     msg = " ".join(r.getMessage() for r in caplog.records)
-    assert "2D010099" in msg and "AES" in msg, \
-        "an unmeasured firmware must be named at connect, with the decode failure it predicts"
+    assert "AES" not in msg, (
+        "a DIS firmware version must not raise the AES-session warning: that comparison was the defect"
+    )
 
 
 def test_run_oxyii_treats_an_unreadable_firmware_as_a_skip_not_a_lost_session(tmp_path, monkeypatch):
     """A ring that does not implement DIS must still record. And the field must stay ABSENT rather than
     becoming a fabricated 'unknown', which would read as a measurement that was taken."""
-    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
-    c = FakeGattClient(); c.fw = RuntimeError("no such characteristic")
-    c.on_live = lambda data: (c.notify(0, _o2ring_live_reply()) if data[1] == oxyii.OP_LIVE else None)
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
+    c = FakeGattClient()
+    c.fw = RuntimeError("no such characteristic")
+    c.on_live = lambda data: c.notify(0, _o2ring_live_reply()) if data[1] == oxyii.OP_LIVE else None
     _inject_connect_scan(monkeypatch, c)
     _stop_after(monkeypatch, 4)
     _run(capture.run_oxyii(_o2dev(name="RingNoDis"), str(tmp_path)))
@@ -5548,8 +7493,11 @@ def test_run_oxyii_does_not_publish_an_empty_firmware_string(tmp_path, monkeypat
     """A padded or empty DIS value is not a version. Same rule as above: absent beats fabricated.
     Both shapes are exercised because they leave the reader by DIFFERENT branches — a falsy read
     never reaches the decode, a padded one is only empty after stripping."""
-    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
-    c = FakeGattClient(); c.fw = raw
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
+    c = FakeGattClient()
+    c.fw = raw
     _inject_connect_scan(monkeypatch, c)
     _stop_after(monkeypatch, 1)
     _run(capture.run_oxyii(_o2dev(name="RingBlank"), str(tmp_path)))
@@ -5560,12 +7508,13 @@ def test_run_oxyii_publishes_the_perfusion_index(tmp_path, monkeypatch):
     """PI is the field that says WHY an SpO2 reading is poor. It was parsed and written to the sidecar
     for weeks without ever being published, so no card could exist. Driven through the production
     callback rather than scanned for in the source."""
-    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
     seen = []
-    monkeypatch.setattr(capture.BUS, "push",
-                        lambda stream, values, *a, **k: seen.append((stream, values)))
+    monkeypatch.setattr(capture.BUS, "push", lambda stream, values, *a, **k: seen.append((stream, values)))
     c = FakeGattClient()
-    c.on_live = lambda data: (c.notify(0, _o2ring_live_reply()) if data[1] == oxyii.OP_LIVE else None)
+    c.on_live = lambda data: c.notify(0, _o2ring_live_reply()) if data[1] == oxyii.OP_LIVE else None
     _inject_connect_scan(monkeypatch, c)
     _stop_after(monkeypatch, 4)
     _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
@@ -5579,17 +7528,18 @@ def test_run_oxyii_treats_a_zero_perfusion_index_as_a_READING(tmp_path, monkeypa
 
     ⚠️ The frame is REBUILT, never patched in place: editing an encoded frame invalidates its CRC-8, so
     `decode()` drops it and nothing is published — which reads exactly like the guard working."""
-    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
     seen = []
-    monkeypatch.setattr(capture.BUS, "push",
-                        lambda stream, values, *a, **k: seen.append((stream, values)))
+    monkeypatch.setattr(capture.BUS, "push", lambda stream, values, *a, **k: seen.append((stream, values)))
     body = bytearray(24)
     body[5] = body[10] = 0x01
     body[6], body[8], body[13] = 96, 55, 90
-    body[7] = 0                                     # the PI byte under test
+    body[7] = 0  # the PI byte under test
     reply = oxyii.encode(oxyii.OP_LIVE, bytes(body))
     c = FakeGattClient()
-    c.on_live = lambda data: (c.notify(0, reply) if data[1] == oxyii.OP_LIVE else None)
+    c.on_live = lambda data: c.notify(0, reply) if data[1] == oxyii.OP_LIVE else None
     _inject_connect_scan(monkeypatch, c)
     _stop_after(monkeypatch, 4)
     _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
@@ -5607,10 +7557,11 @@ def _o2ring_acc_reply(samples=((-2000, 16, 1000),)):
 def test_run_oxyii_captures_a_pushed_acc_frame_when_acc_was_requested(tmp_path, monkeypatch):
     """The ring's 3-axis accelerometer arrives UNSOLICITED — nothing polls it; it appears only because
     the AUTO_RT_SWITCH handshake asked for it. Driven through the production callback."""
-    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
     seen, reg = [], []
-    monkeypatch.setattr(capture.BUS, "push",
-                        lambda stream, values, *a, **k: seen.append((stream, values)))
+    monkeypatch.setattr(capture.BUS, "push", lambda stream, values, *a, **k: seen.append((stream, values)))
     monkeypatch.setattr(capture.BUS, "register", lambda key, *a, **k: reg.append((key, a, k)))
     c = FakeGattClient()
 
@@ -5624,8 +7575,9 @@ def test_run_oxyii_captures_a_pushed_acc_frame_when_acc_was_requested(tmp_path, 
     _stop_after(monkeypatch, 4)
     _run(capture.run_oxyii(_o2dev(streams=["spo2", "acc"]), str(tmp_path)))
     acc = [v for s, v in seen if s == "acc_o2"]
-    assert acc and [list(map(int, r)) for r in acc[0]] == [[-2000, 16, 1000]], \
+    assert acc and [list(map(int, r)) for r in acc[0]] == [[-2000, 16, 1000]], (
         f"a requested ACC push must parse as signed 3-axis, got {acc}"
+    )
     decl = [k for k in reg if k[0] == "acc_o2"]
     assert decl, "acc_o2 must be REGISTERED before it is pushed — the bus treats shape as declared"
     assert decl[0][2].get("chans") == 3, "three axes, like the H10's"
@@ -5638,17 +7590,18 @@ def test_run_oxyii_drops_an_acc_frame_nobody_asked_for(tmp_path, monkeypatch, ca
 
     Its own session, deliberately: two `run_oxyii` runs inside one test share module state and the second
     silently does not drive the callback, which reads exactly like the drop working."""
-    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
     seen = []
-    monkeypatch.setattr(capture.BUS, "push",
-                        lambda stream, values, *a, **k: seen.append((stream, values)))
+    monkeypatch.setattr(capture.BUS, "push", lambda stream, values, *a, **k: seen.append((stream, values)))
     c = FakeGattClient()
 
     def _feed(data):
         if data[1] == oxyii.OP_LIVE:
             c.notify(0, _o2ring_live_reply())
             c.notify(0, _o2ring_acc_reply())
-            c.notify(0, _o2ring_acc_reply())      # a second one must NOT log again
+            c.notify(0, _o2ring_acc_reply())  # a second one must NOT log again
 
     c.on_live = _feed
     _inject_connect_scan(monkeypatch, c)
@@ -5667,19 +7620,1257 @@ def test_run_oxyii_ignores_an_EMPTY_acc_frame_without_publishing(tmp_path, monke
     frame with samples in it, so the empty path was reachable code nothing had reached. An empty push
     would put a zero-length frame on the bus, which `push()` drops anyway, but `note_data` would still
     mark the stream as having delivered — a stream reporting liveness on no data."""
-    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
     seen = []
-    monkeypatch.setattr(capture.BUS, "push",
-                        lambda stream, values, *a, **k: seen.append((stream, values)))
+    monkeypatch.setattr(capture.BUS, "push", lambda stream, values, *a, **k: seen.append((stream, values)))
     c = FakeGattClient()
 
     def _feed(data):
         if data[1] == oxyii.OP_LIVE:
             c.notify(0, _o2ring_live_reply())
-            c.notify(0, _o2ring_acc_reply(samples=()))     # count 0, no records
+            c.notify(0, _o2ring_acc_reply(samples=()))  # count 0, no records
 
     c.on_live = _feed
     _inject_connect_scan(monkeypatch, c)
     _stop_after(monkeypatch, 4)
     _run(capture.run_oxyii(_o2dev(streams=["spo2", "acc"]), str(tmp_path)))
     assert not [v for s, v in seen if s == "acc_o2"], "an empty ACC frame must publish nothing"
+
+
+# ── run_oxyii: connects that REACH IDENTITY and deliver nothing (Mitigation C, clause 2) ────────────
+def _o2_identity_then_drop(c, serial, episodes, *, answer=True):
+    """Answer 0xE1, then drop the link: the clause-2 shape, once per reconnect.
+
+    The real ring talks whether or not it is worn, so "answered identity, then silence" is not any
+    healthy state — it is a peer that responds to our queries and never serves data. With
+    `answer=False` the same link drops at the same point WITHOUT answering: a plain failed connect,
+    which must not enter this counter at all.
+    """
+
+    def on(data):
+        if data[1] == oxyii.OP_GET_INFO:
+            if answer:
+                c.notify(0, _o2_info_reply_from(serial))
+            c._connected = False
+            episodes.append(1)
+
+    return on
+
+
+def _rearming_scan(monkeypatch, c):
+    """Every reconnect gets a LIVE client again — otherwise the second episode connects to a client
+    already marked down and the run is one episode wearing the shape of many."""
+
+    @contextlib.asynccontextmanager
+    async def ctx(_addr, *a, **k):
+        c._connected = True
+        yield c
+
+    monkeypatch.setattr(capture, "_connect_scan", ctx)
+
+
+def _run_barren(tmp_path, monkeypatch, sleeps, *, deliver_on=None, answer_identity=True):
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
+    capture.STATUS["devices"].pop("Ring", None)
+    c = FakeGattClient()
+    episodes: list[int] = []
+    barren_on = _o2_identity_then_drop(c, "2592302100", episodes, answer=answer_identity)
+
+    def on(data):
+        # `deliver_on` names the episode (1-based) that behaves like a real ring: one live frame, then
+        # the same drop. That is the reset arm — a delivering connect ends the run.
+        if deliver_on is not None and len(episodes) + 1 == deliver_on and data[1] == oxyii.OP_LIVE:
+            c.notify(0, _o2ring_live_reply())
+        barren_on(data)
+
+    c.on_live = on
+    _rearming_scan(monkeypatch, c)
+    _stop_after(monkeypatch, sleeps)
+    _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
+    return capture.STATUS["devices"]["Ring"], len(episodes)
+
+
+def test_run_oxyii_one_connect_that_serves_nothing_is_counted_and_NOT_alerted(tmp_path, monkeypatch):
+    """A single barren connect is an ordinary dropped link. The count is published from the first one
+    — the number is the alarm's denominator and an absent field would hide it — but nothing fires."""
+    st, eps = _run_barren(tmp_path, monkeypatch, sleeps=4)
+    assert eps >= 1
+    assert st["ring_barren_connects"] == 1, st["ring_barren_connects"]
+    assert st["ring_barren_alert"] is None, "one is not a run"
+
+
+def test_run_oxyii_a_RUN_of_identity_only_connects_alerts_once(tmp_path, monkeypatch, caplog):
+    """The clause-2 finding: three consecutive connects answered identity and delivered no frames.
+    Journalled on the transition only — the run keeps growing and the operator gets one line."""
+    import logging
+
+    caplog.set_level(logging.ERROR, logger="tepna-capture")
+    st, eps = _run_barren(tmp_path, monkeypatch, sleeps=17)
+    assert eps >= 4, f"the fixture must produce a RUN, not a single episode (got {eps})"
+    assert st["ring_barren_connects"] >= 3
+    assert st["ring_barren_alert"] and "delivered no frames" in st["ring_barren_alert"]
+    hits = [r for r in caplog.records if "delivered no frames" in r.getMessage()]
+    assert len(hits) == 1, (
+        f"the ERROR belongs to the TRANSITION INTO the alerting state, got {len(hits)}: "
+        + "; ".join(r.getMessage() for r in hits)
+    )
+
+
+def test_run_oxyii_a_connect_that_DELIVERS_ends_the_run(tmp_path, monkeypatch):
+    """The reset arm. Without it the counter is a lifetime total and every long-running box eventually
+    alerts — the finding is a RUN of barren connects, not their sum since boot."""
+    st, eps = _run_barren(tmp_path, monkeypatch, sleeps=17, deliver_on=3)
+    assert eps >= 4
+    assert st["ring_barren_connects"] < 3, (
+        f"a delivering connect must reset the run, got {st['ring_barren_connects']} after {eps} episodes"
+    )
+    assert st["ring_barren_alert"] is None
+
+
+def test_alert_poller_carries_a_barren_run_to_the_webhook_ONCE_and_says_when_it_recovers(monkeypatch):
+    """Its own latch and its own recovery line: the ring is NOT offline while this fires (it connects,
+    every poll), so the offline alarm never speaks for it, and an operator told the link is dead is
+    owed the news that it is serving again."""
+    sent = []
+
+    class _N:
+        enabled = True
+
+        async def send(self, title, message, **kw):
+            sent.append((title, message))
+            return True
+
+    cfg = {"alerts": {"poll_sec": 1, "offline_sec": 1e9}, "devices": [_o2dev()]}
+    st = {
+        "connected": True,
+        "ring_barren_alert": "3 consecutive connects answered the identity "
+        "query and delivered no frames — this link reaches something that is not serving data",
+    }
+    capture.STATUS["devices"]["Ring"] = st
+    capture._LAST_DATA["Ring"] = 1000.0
+    calls = {"n": 0}
+
+    async def fake_sleep(_s):
+        calls["n"] += 1
+        if calls["n"] == 3:
+            st["ring_barren_alert"] = None  # a connect delivered — the run ended
+        if calls["n"] >= 5:
+            capture._STOP.set()
+
+    monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(capture._time, "monotonic", lambda: 1000.0)
+    _run(capture.alert_poller(cfg, _N()))
+    capture._LAST_DATA.pop("Ring", None)
+    titles = [t for t, _ in sent]
+    assert titles == ["Tepna: ring connects but serves nothing", "Tepna: ring serving again"], titles
+    assert "Ring" in sent[0][1] and "delivered no frames" in sent[0][1]
+
+
+def test_run_oxyii_a_connect_that_never_REACHED_identity_is_not_counted(tmp_path, monkeypatch):
+    """The counter's subject is "answered us, then served nothing", not "failed". A link that drops
+    before the identity reply is an ordinary connect failure — the offline alarm's business — and
+    counting it here would let a flapping radio raise an impostor-shaped alarm about itself."""
+    st, eps = _run_barren(tmp_path, monkeypatch, sleeps=17, answer_identity=False)
+    assert eps >= 4, f"the fixture must produce several failed connects (got {eps})"
+    assert st["ring_barren_connects"] == 0, st["ring_barren_connects"]
+    assert st["ring_barren_alert"] is None
+
+
+def test_alert_poller_RETRIES_a_barren_webhook_that_was_not_delivered(monkeypatch):
+    """The latch closes on DELIVERY, never on the attempt (CAPTURE-HOST-DEEP-AUDIT §C1). A webhook
+    that failed to send must be tried again on the next poll — latching on the attempt would turn one
+    transient network error into permanent silence about a link that is serving nothing."""
+    sent = []
+
+    class _N:
+        enabled = True
+
+        async def send(self, title, message, **kw):
+            sent.append(title)
+            return False  # every attempt fails
+
+    cfg = {"alerts": {"poll_sec": 1, "offline_sec": 1e9}, "devices": [_o2dev()]}
+    capture.STATUS["devices"]["Ring"] = {
+        "connected": True,
+        "ring_barren_alert": "3 consecutive connects answered the identity query and delivered no frames",
+    }
+    capture._LAST_DATA["Ring"] = 1000.0
+    calls = {"n": 0}
+
+    async def fake_sleep(_s):
+        calls["n"] += 1
+        if calls["n"] >= 3:
+            capture._STOP.set()
+
+    monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(capture._time, "monotonic", lambda: 1000.0)
+    _run(capture.alert_poller(cfg, _N()))
+    capture._LAST_DATA.pop("Ring", None)
+    assert sent.count("Tepna: ring connects but serves nothing") == 3, (
+        f"an undelivered alarm must be retried every poll, got {sent}"
+    )
+
+
+def test_run_oxyii_attributes_a_barren_run_to_a_STORM_the_daemon_itself_declared(tmp_path, monkeypatch):
+    """The wiring half: the daemon holds `_OXYII_STORMS` in memory, so the alert can name the cause
+    without waiting for that state to be published anywhere. A storm inside the attribution window
+    (`_OXYII_STORM_MEMORY_S`, the same span the hold escalates over) changes the sentence."""
+    addr = _o2dev()["address"]
+    capture._OXYII_STORMS[addr] = [_time.monotonic() - 300.0]
+    try:
+        st, eps = _run_barren(tmp_path, monkeypatch, sleeps=17)
+        assert eps >= 4
+        assert st["ring_barren_alert"] and "restart storm tripped 5 min ago" in st["ring_barren_alert"]
+    finally:
+        capture._OXYII_STORMS.pop(addr, None)
+
+
+def test_a_storm_OUTSIDE_the_window_no_longer_excuses_the_run(tmp_path, monkeypatch):
+    """An hours-old storm is not an explanation for what the link is doing now. The window is the
+    daemon's own `_OXYII_STORM_MEMORY_S`; past it the neutral wording returns."""
+    addr = _o2dev()["address"]
+    capture._OXYII_STORMS[addr] = [_time.monotonic() - (capture._OXYII_STORM_MEMORY_S + 60)]
+    try:
+        st, _ = _run_barren(tmp_path, monkeypatch, sleeps=17)
+        assert st["ring_barren_alert"] and "storm" not in st["ring_barren_alert"]
+    finally:
+        capture._OXYII_STORMS.pop(addr, None)
+
+
+# ── the AES-session guard fires on the BRANCH from GET_INFO ───────────────────────────────────────
+# Residue `2026-09-05-dis-firmware-compared-to-a-branch-code`. The guard used to key on the DIS
+# Firmware Revision String, so it never ran on this box's ring (no DIS) and could never be true on a
+# ring that has it. GET_INFO is answered by EVERY ring in our own handshake.
+
+
+def test_an_unmeasured_BRANCH_raises_the_AES_warning(tmp_path, monkeypatch, caplog):
+    with caplog.at_level(logging.WARNING):
+        st = _run_ring_session(tmp_path, monkeypatch, _o2dev(), "2592302100", fw=b"2D010001")
+    assert st["ring_branch_code"] == "2D010001"
+    msg = " ".join(r.getMessage() for r in caplog.records)
+    assert "2D010001" in msg and "AES" in msg, "an unmeasured branch must be named on the link that reported it"
+    # the REAL version is reported beside it, never compared
+    assert st["ring_firmware_version"] == "0.0.0.0", st.get("ring_firmware_version")
+
+
+def test_the_measured_BRANCH_stays_silent(tmp_path, monkeypatch, caplog):
+    """The discriminator. A guard keyed on a firmware VERSION would fire here too, because a version
+    string never equals a branch code — so this is the case that reds the wrong fix, not the one
+    above."""
+    with caplog.at_level(logging.WARNING):
+        st = _run_ring_session(tmp_path, monkeypatch, _o2dev(), "2592302100", fw=b"2D010002")
+    assert st["ring_branch_code"] == "2D010002"
+    assert "AES" not in " ".join(r.getMessage() for r in caplog.records), (
+        "the measured-plaintext branch must not raise the warning"
+    )
+
+
+def test_the_branch_warning_fires_on_the_TRANSITION_not_once_per_reply(tmp_path, monkeypatch, caplog):
+    """The ring answers GET_INFO on every poll, so an unconditional warning would fill the journal with
+    one line per reply and bury the transition that matters. Asserted by running a SECOND session on a
+    ring already published as `2D010001`: the branch has not changed, so it must stay silent."""
+    capture.STATUS["devices"]["Ring"] = {"ring_branch_code": "2D010001"}
+    with caplog.at_level(logging.WARNING):
+        st = _run_ring_session_keep(tmp_path, monkeypatch, _o2dev(), "2592302100", fw=b"2D010001")
+    assert st["ring_branch_code"] == "2D010001"
+    assert "AES" not in " ".join(r.getMessage() for r in caplog.records), (
+        "an unchanged branch must not re-warn — the guard reports the transition, not the state"
+    )
+
+
+def _run_ring_session_keep(tmp_path, monkeypatch, dev, serial_on_air, fw: bytes = b"2D010002"):
+    """`_run_ring_session` clears the device's STATUS first; this one PRESERVES it, so a test can set
+    the previous branch and observe the transition logic rather than a first sighting."""
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
+    c = FakeGattClient()
+    c.on_live = _o2_identity_responder(c, serial_on_air, fw)
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 4)
+    _run(capture.run_oxyii(dev, str(tmp_path)))
+    return capture.STATUS["devices"]["Ring"]
+
+
+def test_run_oxyii_captures_the_single_channel_pleth(tmp_path, monkeypatch):
+    """The `pletha` stream end-to-end through the REAL runner: cmd 0x03 reply -> decoded -> written.
+
+    Same reason this goes through `run_oxyii` rather than the parser alone as its `ppg2w` sibling: the
+    0x03 decode branch sits AHEAD of the `OP_LIVE` gate, and a parser-only test cannot see a reply
+    being routed into the live path and dropped as a short frame.
+
+    The body deliberately carries BOTH marker shapes, because the flag column is the only thing that
+    separates them and the file is what a consumer reads: an isolated 156 (a beat) and a RUN of 156
+    (real signal that merely equals the marker value). Measured 2026-09-06, 6 % of this ring's 156s are
+    non-isolated, so a decoder that stripped by value would delete waveform."""
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
+    vals = [10, 156, 20, 156, 156, 30]
+    payload = b"\x00\x00\x00\x00" + len(vals).to_bytes(2, "little") + bytes(vals) + b"\xff"
+
+    c = FakeGattClient()
+
+    def on_live(data):
+        if data[1] == oxyii.OP_LIVE:
+            c.notify(0, _o2ring_live_reply())
+        elif data[1] == oxyii.OP_SAMPLES_A:
+            c.notify(0, oxyii.encode(oxyii.OP_SAMPLES_A, payload))
+
+    c.on_live = on_live
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 6)
+    _run(capture.run_oxyii(_o2dev(name="Ring", streams=["spo2", "pletha"]), str(tmp_path)))
+
+    hits = list((tmp_path / "captures").rglob("*_PLETHA.txt"))
+    assert hits, "a PLETHA file must be written when the stream is enabled"
+    rows = hits[0].read_text().strip().split("\n")
+    assert rows[0] == "Phone timestamp;sensor timestamp [ns];sample;beat"
+    # One row per record and the trailer is not a record — the ppg2w check, same reasoning.
+    assert len(rows) - 1 > 0 and (len(rows) - 1) % len(vals) == 0
+    assert [r.split(";")[2:] for r in rows[1 : 1 + len(vals)]] == [
+        ["10", "0"],
+        ["156", "1"],
+        ["20", "0"],
+        ["156", "0"],
+        ["156", "0"],
+        ["30", "0"],
+    ]
+
+
+def test_the_pleth_stream_is_off_unless_configured(tmp_path, monkeypatch):
+    """Opt-in, and it must stay that way: this costs ~125 rows/s of file and one more control write per
+    poll, and `capture.py`'s own storm analysis names OUR PRESENCE as what keeps the ring restarting.
+    A stream that switched itself on would spend that budget without anyone choosing to."""
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
+    c = FakeGattClient()
+    asked = []
+
+    def on_live(data):
+        asked.append(data[1])
+        if data[1] == oxyii.OP_LIVE:
+            c.notify(0, _o2ring_live_reply())
+
+    c.on_live = on_live
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 6)
+    _run(capture.run_oxyii(_o2dev(name="Ring", streams=["spo2"]), str(tmp_path)))
+
+    assert not list((tmp_path / "captures").rglob("*_PLETHA.txt"))
+    assert oxyii.OP_SAMPLES_A not in asked, "the 0x03 poll must not be sent when the stream is not configured"
+
+
+def test_a_failed_pleth_poll_costs_only_its_own_samples(tmp_path, monkeypatch):
+    """The optional-stream contract, which is the whole reason this poll is wrapped: a refusal on 0x03
+    must cost this stream's samples and NOTHING else. A vitals poll that fails ends the session — if
+    an experimental optical stream could do the same, enabling it would let it cost a night."""
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
+    c = FakeGattClient()
+    real_write = c.write_gatt_char
+
+    async def flaky(ch, data, response=False):
+        if len(data) > 1 and data[1] == oxyii.OP_SAMPLES_A:
+            raise RuntimeError("gatt refused the 0x03 write")
+        return await real_write(ch, data, response=response)
+
+    c.write_gatt_char = flaky
+
+    def on_live(data):
+        if data[1] == oxyii.OP_LIVE:
+            c.notify(0, _o2ring_live_reply())
+
+    c.on_live = on_live
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 6)
+    _run(capture.run_oxyii(_o2dev(name="Ring", streams=["spo2", "pletha"]), str(tmp_path)))
+
+    # The vitals stream survived the optical refusal — that is the property under test.
+    assert list((tmp_path / "captures").rglob("*_SPO2.csv")), "a failed 0x03 poll ended the session"
+    err = capture.STATUS["devices"]["Ring"].get("last_error") or ""
+    assert "pleth" not in err.lower(), f"an optional stream's refusal became the device error: {err!r}"
+
+
+def test_an_empty_pleth_reply_writes_no_rows_and_does_not_crash(tmp_path, monkeypatch):
+    """A reply declaring zero records is a legitimate answer from an idle buffer, not an error. It must
+    write nothing rather than a row of nothing — an empty row would be indistinguishable downstream
+    from a real sample of value 0."""
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
+    empty = b"\x00\x00\x00\x00" + (0).to_bytes(2, "little")
+    c = FakeGattClient()
+
+    def on_live(data):
+        if data[1] == oxyii.OP_LIVE:
+            c.notify(0, _o2ring_live_reply())
+        elif data[1] == oxyii.OP_SAMPLES_A:
+            c.notify(0, oxyii.encode(oxyii.OP_SAMPLES_A, empty))
+
+    c.on_live = on_live
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 6)
+    _run(capture.run_oxyii(_o2dev(name="Ring", streams=["spo2", "pletha"]), str(tmp_path)))
+
+    hits = list((tmp_path / "captures").rglob("*_PLETHA.txt"))
+    # Empty writers are cleaned up on close, so either no file or a header-only file is correct —
+    # what must NOT happen is a data row.
+    for h in hits:
+        body = [r for r in h.read_text().strip().split("\n") if r and not r.startswith("Phone")]
+        assert not body, f"an empty reply produced rows: {body[:2]}"
+
+
+def test_alert_poller_stays_QUIET_for_a_ring_that_powered_off_after_a_completed_pull(monkeypatch):
+    """MEASURED FALSE ALARM, 2026-09-07 06:18: "Wellue O2Ring-S has been offline for ~5 min — capture is
+    missing it", four minutes after a pull that succeeded. Capture was missing nothing — the ring runs
+    its own ~121.9 s idle timer after a doff and powers off, and the night was already on disk.
+
+    The wiring is what this pins: the pure predicate cannot show that the poller CONSULTS it."""
+    sent = []
+
+    class _N:
+        enabled = True
+
+        async def send(self, title, message, **kw):
+            sent.append(title)
+            return True
+
+    cfg = {"alerts": {"poll_sec": 1, "offline_sec": 0}, "devices": [_dev(name="O2Ring")]}
+    capture.STATUS["devices"]["O2Ring"] = {"connected": False}
+    capture._LAST_DATA.pop("O2Ring", None)
+    capture._IDLE_TIMER_NAMED.discard("O2Ring")
+    capture._LAST_PULL_OK["O2Ring"] = 1000.0  # a pull COMPLETED, one minute ago
+    calls = {"n": 0}
+
+    async def fake_sleep(_s):
+        calls["n"] += 1
+        if calls["n"] >= 3:
+            capture._STOP.set()
+
+    monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(capture._time, "monotonic", lambda: 1060.0)
+    _run(capture.alert_poller(cfg, _N()))
+    capture._LAST_PULL_OK.pop("O2Ring", None)
+    capture._IDLE_TIMER_NAMED.discard("O2Ring")
+    assert sent == [], "an expected power-off must not alert"
+
+
+def test_alert_poller_STILL_alerts_when_the_pull_did_not_succeed(monkeypatch):
+    """The mirror, and the one that matters. Same silence, same doff — but no completed pull, so the
+    night is still ON the ring. That is exactly the alert worth having, and licensing the quiet state
+    on the doff alone would have suppressed it."""
+    sent = []
+
+    class _N:
+        enabled = True
+
+        async def send(self, title, message, **kw):
+            sent.append(title)
+            return True
+
+    cfg = {"alerts": {"poll_sec": 1, "offline_sec": 0}, "devices": [_dev(name="O2Ring")]}
+    capture.STATUS["devices"]["O2Ring"] = {"connected": False}
+    capture._LAST_DATA.pop("O2Ring", None)
+    capture._LAST_PULL_OK.pop("O2Ring", None)  # no pull ever completed for it
+    capture._IDLE_TIMER_NAMED.discard("O2Ring")
+    calls = {"n": 0}
+
+    async def fake_sleep(_s):
+        calls["n"] += 1
+        if calls["n"] >= 3:
+            capture._STOP.set()
+
+    monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(capture._time, "monotonic", lambda: 1060.0)
+    _run(capture.alert_poller(cfg, _N()))
+    assert sent == ["Tepna: sensor offline"]
+
+
+def test_a_ring_quiet_PAST_the_expiry_goes_back_to_alerting(monkeypatch):
+    """The state must not become a permanent silence. Same completed pull, but 9 h ago — past the 8 h
+    bound — so this is no longer explained by the idle timer and the real alert returns."""
+    sent = []
+
+    class _N:
+        enabled = True
+
+        async def send(self, title, message, **kw):
+            sent.append(title)
+            return True
+
+    cfg = {"alerts": {"poll_sec": 1, "offline_sec": 0}, "devices": [_dev(name="O2Ring")]}
+    capture.STATUS["devices"]["O2Ring"] = {"connected": False}
+    capture._LAST_DATA.pop("O2Ring", None)
+    capture._IDLE_TIMER_NAMED.discard("O2Ring")
+    capture._LAST_PULL_OK["O2Ring"] = 1000.0
+    calls = {"n": 0}
+
+    async def fake_sleep(_s):
+        calls["n"] += 1
+        if calls["n"] >= 3:
+            capture._STOP.set()
+
+    monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(capture._time, "monotonic", lambda: 1000.0 + 9 * 3600)
+    _run(capture.alert_poller(cfg, _N()))
+    capture._LAST_PULL_OK.pop("O2Ring", None)
+    assert sent == ["Tepna: sensor offline"]
+
+
+def test_run_oxyii_NAMES_an_expected_power_off_instead_of_warning_about_it(tmp_path, monkeypatch, caplog):
+    """The reconnect loop's half of the same fact. A ring that stopped advertising AFTER its pull
+    succeeded is running its own idle timer, not failing — measured 2026-09-07, where this path filled
+    the journal with `link error: BleakDeviceNotFoundError` every backoff cycle for a ring that was
+    simply off. The loop still looks; this changes what the operator is TOLD."""
+    import logging
+
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
+    capture._IDLE_TIMER_NAMED.discard("Ring")
+    capture._LAST_PULL_OK["Ring"] = capture._time.monotonic()  # a pull COMPLETED, just now
+
+    def _boom(addr, *a, **k):
+        raise capture.DeviceNotAdvertising("O2Ring not advertising (wear it finger-in)")
+
+    monkeypatch.setattr(capture, "_connect_scan", _boom)
+    _stop_after(monkeypatch, 1)
+    with caplog.at_level(logging.INFO):
+        _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
+    capture._LAST_PULL_OK.pop("Ring", None)
+    capture._IDLE_TIMER_NAMED.discard("Ring")
+    assert "idle timer" in caplog.text, "the state must be named"
+    assert "link error" not in caplog.text, "and NOT reported as a link fault"
+    assert capture.STATUS["devices"]["Ring"]["last_error"] == "powered off — idle timer"
+
+
+def test_run_oxyii_STILL_warns_when_no_pull_succeeded(tmp_path, monkeypatch, caplog):
+    """The mirror. Same absence, no completed pull — the night is still on the ring, so this is a real
+    link error and must read as one."""
+    import logging
+
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
+    capture._IDLE_TIMER_NAMED.discard("Ring")
+    capture._LAST_PULL_OK.pop("Ring", None)
+
+    def _boom(addr, *a, **k):
+        raise capture.DeviceNotAdvertising("O2Ring not advertising (wear it finger-in)")
+
+    monkeypatch.setattr(capture, "_connect_scan", _boom)
+    _stop_after(monkeypatch, 1)
+    with caplog.at_level(logging.INFO):
+        _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
+    assert "link error" in caplog.text
+    assert "idle timer" not in caplog.text
+
+
+def test_run_oxyii_names_the_idle_timer_ONCE_not_every_backoff_cycle(tmp_path, monkeypatch, caplog):
+    """The latch is the reason this is an improvement rather than a re-wording. The reconnect loop
+    retries on a capped backoff for as long as the ring is off — on 2026-09-07 that was one line every
+    ~3 minutes, all night. Naming the state on every cycle would swap one stream of noise for another,
+    so the log fires once per power-off and the latch clears when the ring records again."""
+    import logging
+
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
+    capture._LAST_PULL_OK["Ring"] = capture._time.monotonic()
+    capture._IDLE_TIMER_NAMED.add("Ring")  # already told the operator on an earlier cycle
+
+    def _boom(addr, *a, **k):
+        raise capture.DeviceNotAdvertising("O2Ring not advertising (wear it finger-in)")
+
+    monkeypatch.setattr(capture, "_connect_scan", _boom)
+    _stop_after(monkeypatch, 1)
+    with caplog.at_level(logging.INFO):
+        _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
+    capture._LAST_PULL_OK.pop("Ring", None)
+    capture._IDLE_TIMER_NAMED.discard("Ring")
+    assert "idle timer" not in caplog.text, "already named — must not repeat every cycle"
+    assert "link error" not in caplog.text, "and still must not read as a fault"
+    assert capture.STATUS["devices"]["Ring"]["last_error"] == "powered off — idle timer", (
+        "the STATE is still published even when the log stays quiet"
+    )
+
+
+# ── OP_AUTH as the PRIMARY encryption decision (wired 2026-09-07) ─────────────────────────────────
+def _auth_key_blob(key: bytes = b"K" * 16, *, type_byte: int = 0x01, key_len: int = 16) -> bytes:
+    import hashlib
+
+    lepu = hashlib.md5(b"lepucloud").digest()
+    plain = bytes([type_byte, key_len, 0x00, 0x00]) + key
+    return bytes(b ^ lepu[i % 16] for i, b in enumerate(plain))
+
+
+def _run_auth_session(tmp_path, monkeypatch, *, auth_reply=None, sleeps=6):
+    """Drive one link whose ring answers 0xFF with `auth_reply` (None = stays silent, the real case)
+    and then streams ordinary vitals behind it."""
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
+    capture.STATUS["devices"].pop("Ring", None)
+    c = FakeGattClient()
+
+    def on(data):
+        op = data[1]
+        if op == oxyii.OP_AUTH and auth_reply is not None:
+            c.notify(0, oxyii.encode(oxyii.OP_AUTH, auth_reply))
+        elif op == oxyii.OP_LIVE:
+            c.notify(0, _o2ring_live_reply(spo2=96, pr=61))
+        elif op == oxyii.OP_GET_INFO:
+            c.notify(0, _o2_info_reply_from("2592302100"))
+
+    c.on_live = on
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, sleeps)
+    _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
+    return capture.STATUS["devices"]["Ring"]
+
+
+def test_an_ENCRYPTED_auth_reply_ends_the_session_before_any_vitals_are_read(tmp_path, monkeypatch, caplog):
+    """THE PLANT THIS WIRING EXISTS FOR. The ring negotiates a session key and then streams frames the
+    parser would happily read as SpO2 and pulse — `decode()` computes its CRC over the envelope, so
+    ciphertext passes every structural check. With no decryptor on the live path, reading on means
+    publishing invented vitals. The session must END instead."""
+    import logging
+
+    caplog.set_level(logging.ERROR, logger="tepna-capture")
+    st = _run_auth_session(tmp_path, monkeypatch, auth_reply=_auth_key_blob())
+    assert st["auth_mode"] == oxyii.AUTH_ENCRYPTED
+    # `.get`, not `[...]`: the strongest outcome is that the keys were never published at all, which a
+    # subscript would turn into a KeyError instead of a pass. Absent and None are both "never read".
+    assert st.get("spo2") is None and st.get("pr") is None, (
+        "vitals-shaped bytes arrived behind the key blob and MUST NOT have reached the vitals path"
+    )
+    assert "auth: encrypted" in str(st.get("last_error"))
+    assert any("Ending the session rather than reading ciphertext as vitals" in r.getMessage() for r in caplog.records)
+
+
+def test_an_UNPARSABLE_key_negotiation_also_ends_it(tmp_path, monkeypatch):
+    """AUTH_REFUSE: a negotiation this build does not understand is the case that risks fabricated
+    vitals most, because the ring HAS switched to ciphertext."""
+    st = _run_auth_session(tmp_path, monkeypatch, auth_reply=_auth_key_blob(type_byte=0x09))
+    assert st["auth_mode"] == oxyii.AUTH_REFUSE
+    assert st.get("spo2") is None
+    assert "auth: refused" in str(st.get("last_error"))
+
+
+def test_a_SILENT_ring_is_UNKNOWN_not_plaintext_and_keeps_capturing(tmp_path, monkeypatch):
+    """Every ring in this project stays silent on 0xFF. `classify_auth_reply(None)` returns
+    AUTH_PLAINTEXT — a positive claim — so it must not be called at all here: silence is UNDETERMINED,
+    it is counted so a night of it is visible, and capture proceeds exactly as before the wiring."""
+    st = _run_auth_session(tmp_path, monkeypatch, auth_reply=None)
+    assert st["auth_mode"] == "unknown", "silence must never be recorded as plaintext"
+    assert st["auth_unknown_links"] >= 1, "an undetermined link is COUNTED, not merely absent"
+    assert st["spo2"] == 96 and st["pr"] == 61, "an undetermined link still captures"
+    assert "auth" not in str(st.get("last_error") or ""), "silence is not an error"
+
+
+def test_a_SHORT_auth_reply_is_answered_PLAINTEXT_and_is_not_the_same_as_silence(tmp_path, monkeypatch):
+    """The measured middle case, and the one the whole wiring exists to separate from silence: a ring
+    that ANSWERS 0xFF with a reply too short to carry a key blob. On the branch-2D010001 ring in the
+    cited run this was a 16-byte reply and the plaintext session then worked end to end — so it must
+    read as a POSITIVE plaintext finding, distinct from the `unknown` a silent ring gets, and capture
+    must proceed."""
+    st = _run_auth_session(tmp_path, monkeypatch, auth_reply=b"\x01" * 16)
+    assert st["auth_mode"] == oxyii.AUTH_PLAINTEXT, "an answered short reply IS a plaintext finding"
+    assert st["auth_mode"] != "unknown", "…and must not be confused with a ring that said nothing"
+    assert "too short to carry a key blob" in st["auth_reason"]
+    assert st.get("auth_unknown_links") is None, "an answered link is not counted as undetermined"
+    assert st["spo2"] == 96 and st["pr"] == 61, "a plaintext session captures normally"
+
+
+# ── the RING file-set resume: the grid must CARRY, not restart (residue 2026-09-06-ring-never-resumes) ──
+def test_A_CARRIED_GRID_BRIDGES_A_RECONNECT_GAP_INSTEAD_OF_RESTARTING_THE_TIMELINE():
+    """🔴 THE CLOCK-CONTRACT HALF of the ring resume, and the reason it is not a one-line change.
+
+    The ring publishes no per-sample clock, so `O2PpgGrid` IS the `sensor timestamp [ns]` column. If a
+    resumed file-set reuses the path but rebuilds the grid, `ns` restarts at 0 inside a file that is
+    being APPENDED to — two overlapping synthesized timelines in one column, which is a fabricated
+    timebase and strictly worse than the fragmentation the resume was meant to remove.
+
+    Carrying it needs no new machinery: `frame()` measures elapsed against the session anchor `t0` and
+    already inserts an honest gap when `target` outruns `idx`. A reconnect gap is exactly that case —
+    time passed that carries no samples."""
+    import datetime as dt
+
+    g = capture.O2PpgGrid()
+    t = dt.datetime(2026, 9, 12, 1, 0, 0)
+    step = 1.0 / g.nominal_fs
+    before = []
+    for k in range(5):  # ~5 frames of 127 samples, back to back
+        before += g.frame(t + dt.timedelta(seconds=k * 127 * step), 127)
+    last, gaps_before = before[-1], g.gaps
+
+    # …the link drops for 28 s (the measured median seam) and the SAME grid absorbs the next frame.
+    after = g.frame(t + dt.timedelta(seconds=5 * 127 * step + 28.0), 127)
+
+    assert after[0] > last, "carried grid went BACKWARDS across the reconnect"
+    assert g.gaps == gaps_before + 1, "the reconnect gap was not recorded as a gap"
+    # the jump must be ~28 s of grid, not one sample-step: the hole is honest, not compressed away
+    jump_s = (after[0] - last) / 1e9
+    assert 20.0 < jump_s < 36.0, f"gap spanned {jump_s:.1f}s, expected ~28s of inserted grid"
+    assert after == sorted(after) and len(set(after)) == len(after), "ns must be strictly increasing"
+
+    # CONTROL: a REBUILT grid is what the bug looks like — it restarts at 0 and collides with the
+    # rows already in the file. Without this leg the assertions above could pass on a no-op.
+    fresh = capture.O2PpgGrid()
+    restarted = fresh.frame(t + dt.timedelta(seconds=5 * 127 * step + 28.0), 127)
+    assert restarted[0] < last, "control failed: a rebuilt grid should restart below the carried one"
+
+
+# ── ∅ an ABSENT device stamp must never become a clock (the 26.7-year skew) ────────────────────────
+def test_AN_IMPLAUSIBLE_SKEW_NEVER_TRIGGERS_A_RESYNC():
+    """🔴 A re-sync DROPS THE LINK, which mints a new file-set. Acting on a physically impossible skew
+    is therefore strictly worse than waiting for the next sample.
+
+    Measured on vigil over 14 days: 22 reads beyond a year on one device, every one bracketed by a sane
+    skew, i.e. transient absence — while 288 H10 device-clock events produced ZERO. The two populations
+    do not overlap anywhere near the bound, so this is not a tuned threshold."""
+    jump, tol = 2.0, 2.0
+    # the real shape: -842505658.4 s, from a previous skew of -1.3
+    assert capture.clock_resync_reason(-842505658.4, -1.3, jump, tol) is None
+    assert capture.clock_resync_reason(842505658.4, -1.3, jump, tol) is None
+    assert capture.clock_resync_reason(None, -1.3, jump, tol) is None
+
+    # CONTROL — the bound must not swallow the errors this machinery exists for.
+    # a real jump: the delta must reach `jump`, which -2.9 from -1.3 does NOT (1.6 < 2.0) — that
+    # case is `adrift`, and getting it wrong here is how a control stops controlling anything.
+    assert capture.clock_resync_reason(-5.0, -1.3, jump, tol) == "jump"
+    assert capture.clock_resync_reason(-2.9, -1.3, jump, tol) == "adrift"  # last night's H10
+    assert capture.clock_resync_reason(-9.0, -9.0, jump, tol) == "adrift"  # steady, out of tolerance
+    assert capture.clock_resync_reason(-1.0, -1.0, jump, tol) is None  # in tolerance
+
+
+def test_A_ZERO_SENSOR_STAMP_IS_ABSENCE_NOT_THE_POLAR_EPOCH():
+    """∅ `_POLAR_EPOCH + 0 ns` is a REAL instant — 2000-01-01 — so a zero stamp does not look absent
+    downstream, it looks like a device 26.7 years slow. This pins the arithmetic that made the bug
+    invisible, so nobody 'simplifies' the guard away later."""
+    import datetime as dt
+
+    assert capture._POLAR_EPOCH == dt.datetime(2000, 1, 1)
+    fabricated = capture._POLAR_EPOCH + dt.timedelta(microseconds=0 / 1000)
+    assert fabricated == dt.datetime(2000, 1, 1), "a zero stamp resolves to a real instant, not to None"
+    # and that instant is ~26.7 years before now, i.e. exactly the skew observed in the journal
+    skew = (fabricated - dt.datetime(2026, 9, 12, 1, 21)).total_seconds()
+    assert -8.5e8 < skew < -8.3e8, f"expected the observed ~-8.42e8 s skew, got {skew:.3e}"
+    assert capture.clock_resync_reason(skew, -1.3, 2.0, 2.0) is None, "the guard must refuse exactly this"
+
+
+def test_THE_RING_RESUMES_ITS_FILE_SET_INSTEAD_OF_MINTING_A_NEW_ONE(tmp_path, monkeypatch, caplog):
+    """🔴 residue `2026-09-06-ring-never-resumes`: the Polar path has consulted `resumable_stamp` since
+    #1532 and the ring never did — 11.3x the fragmentation, from that asymmetry alone.
+
+    Drives the ring twice against the same night dir. The second episode must ADOPT the first set's
+    stamp, so the SpO2 sidecar count does not grow: a reconnect inside the window is one recording."""
+    import logging
+
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
+    capture._CLOCK_ABSENT.clear()
+
+    def _one_episode():
+        # ⚠️ `_stop_after` SETS `_STOP`, and `run_oxyii` loops on `while not _STOP.is_set()` — so
+        # without this the second call returns instantly and the whole test passes on a no-op.
+        capture._STOP.clear()
+        c = FakeGattClient()
+        c.on_live = lambda data: c.notify(0, _o2ring_live_reply()) if data[1] == oxyii.OP_LIVE else None
+        _inject_connect_scan(monkeypatch, c)
+        _stop_after(monkeypatch, 4)
+        _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
+
+    _one_episode()
+    first = sorted(p.name for p in (tmp_path / "captures").rglob("*_SPO2.csv"))
+    assert len(first) == 1, f"expected one set from the first episode, got {first}"
+
+    before_sz = str(next((tmp_path / "captures").rglob("*_SPO2.csv")).stat().st_size)
+    with caplog.at_level(logging.INFO):
+        _one_episode()  # the reconnect, moments later — inside the resume window
+    second = sorted(p.name for p in (tmp_path / "captures").rglob("*_SPO2.csv"))
+
+    assert second == first, (
+        f"the ring minted a NEW file-set on reconnect: {first} -> {second}. The resume decision did not "
+        "reach the ring path."
+    )
+    # identical names alone would also be satisfied by a second episode that wrote NOTHING, so the
+    # file must have GROWN — that is what distinguishes an append from a no-op.
+    assert (tmp_path / "captures").rglob("*_SPO2.csv"), "no sidecar at all"
+    grew = [p for p in (tmp_path / "captures").rglob("*_SPO2.csv") if p.stat().st_size > len(before_sz)]
+    assert grew, f"the resumed set did not grow — episode 2 appended nothing (size {before_sz!r})"
+    assert any("resuming file-set" in r.getMessage() for r in caplog.records), (
+        "a resume must say so — a silent one cannot be told from never having fragmented"
+    )
+
+
+def test_ring_resumes_across_the_midnight_folder_boundary(tmp_path, monkeypatch, caplog):
+    """🔴 THE MIDNIGHT FIX, end to end: a reconnect after 00:00 must append to YESTERDAY's folder.
+
+    night_dir() rolls by session start, so at midnight the folder changes under a recording that never
+    stopped — and a one-directory search then saw an empty folder and minted a fresh set. Measured over
+    the corpus: 16 of 29 sub-5-minute seams straddled a boundary.
+
+    Episode 1 writes into 2026-09-11; the clock then 'passes midnight' and episode 2 is handed
+    2026-09-12. It must stay ONE set, in the folder it started in — adopting the stamp while writing
+    into today's folder would put one set name in two directories, which is worse than the split."""
+    import logging
+    import os
+
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
+    capture._CLOCK_ABSENT.clear()
+    cap = tmp_path / "captures"
+    yday, today = str(cap / "2026-09-11"), str(cap / "2026-09-12")
+    which = [yday]
+
+    def _nd(root, when):
+        os.makedirs(which[0], exist_ok=True)
+        return which[0]
+
+    monkeypatch.setattr(capture, "night_dir", _nd)
+
+    def _one_episode():
+        capture._STOP.clear()
+        c = FakeGattClient()
+        c.on_live = lambda data: c.notify(0, _o2ring_live_reply()) if data[1] == oxyii.OP_LIVE else None
+        _inject_connect_scan(monkeypatch, c)
+        _stop_after(monkeypatch, 4)
+        _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
+
+    _one_episode()
+    first = sorted(p.name for p in cap.rglob("*_SPO2.csv"))
+    assert len(first) == 1, f"expected one set from episode 1, got {first}"
+    assert os.path.dirname(str(next(cap.rglob("*_SPO2.csv")))) == yday
+    before = next(cap.rglob("*_SPO2.csv")).stat().st_size
+
+    which[0] = today  # -- midnight --
+    os.makedirs(today, exist_ok=True)
+    with caplog.at_level(logging.INFO):
+        _one_episode()
+
+    sets = sorted(cap.rglob("*_SPO2.csv"))
+    assert len(sets) == 1, (
+        f"the ring minted a NEW set across the folder boundary: {[str(x.relative_to(cap)) for x in sets]}"
+    )
+    assert os.path.dirname(str(sets[0])) == yday, f"the resumed set was written into the wrong folder: {sets[0]}"
+    assert sets[0].stat().st_size > before, (
+        "episode 2 appended nothing — identical names alone would also be satisfied by a no-op"
+    )
+    assert any("ACROSS the folder boundary" in r.getMessage() for r in caplog.records), (
+        "a boundary-crossing resume must say so; a silent one cannot be told from a fresh set"
+    )
+
+
+def test_SETTING_THE_RESUME_WINDOW_TO_ZERO_DISABLES_RING_RESUME(tmp_path, monkeypatch, caplog):
+    """`write.resume_window_sec: 0` disables resume entirely — the documented escape hatch. The ring
+    path must honour it exactly as the Polar path does, otherwise the switch reads as working while one
+    device quietly ignores it, which is the asymmetry this whole fix exists to remove."""
+    import logging
+
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
+    monkeypatch.setattr(capture, "_RESUME_WINDOW_S", 0.0)
+
+    def _one_episode():
+        capture._STOP.clear()
+        c = FakeGattClient()
+        c.on_live = lambda data: c.notify(0, _o2ring_live_reply()) if data[1] == oxyii.OP_LIVE else None
+        _inject_connect_scan(monkeypatch, c)
+        _stop_after(monkeypatch, 4)
+        _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
+
+    _one_episode()
+    with caplog.at_level(logging.INFO):
+        _one_episode()
+    assert not any("resuming file-set" in r.getMessage() for r in caplog.records), (
+        "resume fired with the window set to 0 — the disable switch does not reach the ring path"
+    )
+
+
+# ── C2 · THE ABSENT-STAMP REFUSAL MUST STAY AUDIBLE WITHOUT BEING PER-FRAME ─────────────────────────
+
+
+def test_the_first_absent_stamp_is_always_logged():
+    """Onset is the signal. Delaying the first line to save volume would hide the very transition the
+    guard exists to announce.
+
+    ⚠️ This assertion does NOT discriminate the fix — it passes under the old per-frame behaviour too,
+    by construction. It is here to lock the invariant against a FUTURE cadence change that starts
+    counting from 0 and swallows the first line; the two tests below are the ones that red on a revert.
+    """
+    assert capture.absent_stamp_should_log(1) is True
+
+
+def test_the_absent_stamp_line_then_repeats_on_a_cadence():
+    """After the first, one line every `ABSENT_STAMP_LOG_EVERY` — each carrying its running count, so
+    the RATE is still recoverable from the journal."""
+    every = capture.ABSENT_STAMP_LOG_EVERY
+    assert capture.absent_stamp_should_log(2) is False
+    assert capture.absent_stamp_should_log(every) is False, "the cadence counts from the FIRST, not from 0"
+    assert capture.absent_stamp_should_log(1 + every) is True
+    assert capture.absent_stamp_should_log(1 + 2 * every) is True
+    logged = [n for n in range(1, 1 + 4 * every) if capture.absent_stamp_should_log(n)]
+    assert logged == [1, 1 + every, 1 + 2 * every, 1 + 3 * every], logged
+
+
+def test_the_measured_day_collapses_to_a_readable_number_of_lines():
+    """THE NUMBER THAT MOTIVATED THIS. 4589 absent stamps landed on 2026-09-13 alone, one line each,
+    all from one device — against a comment claiming 22 in 14 days, a figure transposed from a count of
+    22 refused STREAMS over 5 NIGHTS in `nightqc`'s offline analysis.
+
+    The assertion is a bound rather than an exact count so the cadence can be retuned without editing a
+    magic number here — what must hold is that a day of this no longer floods the journal, and that it
+    still produces more than one line so the rate remains visible.
+    """
+    lines = sum(1 for n in range(1, 4590) if capture.absent_stamp_should_log(n))
+    assert lines < 20, f"a day of absent stamps still costs {lines} journal lines"
+    assert lines > 1, "collapsing to a single line would lose the rate, which is the interesting signal"
+
+
+def test_log_absent_stamp_emits_on_the_first_and_holds_its_tongue_on_the_second(caplog):
+    """Both arms of the cadence decision, driven directly.
+
+    The callback calls this unconditionally so that this branch is reachable from a test at all: with the
+    `if` at the call site, the False arm needed a second absent frame inside one run and no test could
+    get there.
+    """
+    with caplog.at_level("WARNING"):
+        assert capture.log_absent_stamp("Verity", 1) is True
+        assert capture.log_absent_stamp("Verity", 2) is False
+    lines = [r for r in caplog.records if "device stamp ABSENT" in r.getMessage()]
+    assert len(lines) == 1, [r.getMessage() for r in lines]
+    msg = lines[0].getMessage()
+    assert "Verity" in msg and "1 so far this run" in msg
+    assert str(capture.ABSENT_STAMP_LOG_EVERY) in msg, "the line must say what cadence follows it"
+
+
+# ── C1 · A LATE PACKET IS NOT A DRIFTING CLOCK ──────────────────────────────────────────────────────
+#
+# `clock_skew_sec` is `device_stamp - host_now` at the moment a frame LANDS, so it is the clock offset
+# MINUS the delivery latency. Latency is one-sided, so a single reading can only ever understate the
+# offset, and a stalled link is indistinguishable from drift at one sample. Measured on vigil over the
+# 14 days to 2026-09-13: 341 adrift re-syncs, every one negative, H10 median -3.6 s against a true link
+# delay of ~0.23 s off the PMDARRIVAL sidecars — and 0 give-ups, so the loop never stopped.
+
+
+def test_a_late_packet_on_a_flat_clock_does_not_look_like_drift():
+    """THE PLANT: one 2.5 s-late frame inside a window of a perfectly synced clock.
+
+    2.5 s is chosen to sit just past `CLOCK_TOLERANCE_S` (2.0), which is exactly where the real triggers
+    landed — the median was -3.6 s. Reading that one frame re-syncs a clock that is fine; reading the
+    window's envelope does not.
+    """
+    now = 1000.0
+    samples = [(now - 100 + i, 0.01) for i in range(40)]  # a flat, healthy clock
+    samples.insert(20, (now - 80.0, -2.5))  # one frame delivered 2.5 s late
+    est = capture.clock_skew_estimate(samples, now)
+    assert est is not None and est["n"] == 41, est
+    assert est["skew"] == 0.01, "the envelope is the least-delayed frame, not the latest and not the worst"
+    assert abs(est["skew"]) <= capture.CLOCK_TOLERANCE_S, "a flat clock must not read as adrift"
+
+
+def test_the_estimate_refuses_a_window_too_thin_to_have_an_envelope():
+    """Below `CLOCK_SKEW_MIN_N` the maximum is just one latency-contaminated read wearing the shape of
+    a statistic. Absent is None, never a number (§∅)."""
+    now = 1000.0
+    thin = [(now - 1, -3.0)] * (capture.CLOCK_SKEW_MIN_N - 1)
+    assert capture.clock_skew_estimate(thin, now) is None
+    ok = [(now - 1, -3.0)] * capture.CLOCK_SKEW_MIN_N
+    assert capture.clock_skew_estimate(ok, now)["n"] == capture.CLOCK_SKEW_MIN_N
+
+
+def test_the_estimate_drops_samples_older_than_the_window():
+    """A verdict about now must not be carried by frames from an hour ago — the link state that
+    produced them is gone."""
+    now = 1000.0
+    stale = [(now - capture.CLOCK_SKEW_WINDOW_S - 1, 5.0)] * 20
+    fresh = [(now - 1, -0.2)] * 10
+    est = capture.clock_skew_estimate(stale + fresh, now)
+    assert est["n"] == 10 and est["skew"] == -0.2, est
+
+
+def test_the_estimate_recovers_a_device_that_is_AHEAD():
+    """Sign-agnostic by construction: latency only ever subtracts, so the maximum approaches the true
+    offset whichever side of the host the device sits on. A `min` or a mean would not."""
+    now = 1000.0
+    s = [(now - i, 5.0 - (i % 4)) for i in range(20)]  # true offset +5, latency 0..3
+    assert capture.clock_skew_estimate(s, now)["skew"] == 5.0
+
+
+def test_clock_watchdog_ignores_a_latency_spike_and_reads_the_envelope(monkeypatch):
+    """The integration half of the plant: the decision must come off the floor, not the last frame."""
+    synced = []
+
+    async def fake_sync(addr):
+        synced.append(addr)
+
+    monkeypatch.setattr(capture, "sync_device_time", fake_sync)
+    _stop_after(monkeypatch, 2)
+    cfg = {
+        "time": {"auto_sync_devices": True, "drift_check_sec": 300, "resync_jump_sec": 30},
+        "devices": [_dev(name="H10")],
+    }
+    capture.STATUS["devices"]["H10"] = {
+        "connected": True,
+        "clock_skew_sec": -2.5,  # THIS frame landed late — well past tolerance
+        "clock_skew_floor_sec": -0.01,  # the window says the clock itself is fine
+        "address": "24:AC:AC:02:84:96",
+    }
+    _run(capture.clock_watchdog(cfg))
+    assert synced == [], "a late packet re-synced a healthy clock — the watchdog read the wrong key"
+
+
+def test_clock_watchdog_declines_to_act_before_the_window_has_measured(monkeypatch):
+    """`clock_skew_floor_sec` is None until the window holds `CLOCK_SKEW_MIN_N` frames. Not-measured is
+    not a fault, and it is not zero — the watchdog must do NOTHING, however alarming the live reading."""
+    synced = []
+
+    async def fake_sync(addr):
+        synced.append(addr)
+
+    monkeypatch.setattr(capture, "sync_device_time", fake_sync)
+    _stop_after(monkeypatch, 2)
+    cfg = {
+        "time": {"auto_sync_devices": True, "drift_check_sec": 300, "resync_jump_sec": 30},
+        "devices": [_dev(name="H10")],
+    }
+    capture.STATUS["devices"]["H10"] = {
+        "connected": True,
+        "clock_skew_sec": 99,
+        "clock_skew_floor_sec": None,
+        "address": "24:AC:AC:02:84:96",
+    }
+    _run(capture.clock_watchdog(cfg))
+    assert synced == [], "acted on a quantity the window had not measured"
+
+
+def test_a_fresh_sync_does_not_discharge_the_give_up_budget(monkeypatch):
+    """A successful WRITE is not a successful CORRECTION.
+
+    `failed_adrift` counts corrections that did not move the skew and is the only thing that can stop an
+    unfixable device being re-synced all night. The reconnect ladder records every successful write in
+    `_CLOCK_FRESHLY_SYNCED`, and the watchdog used to zero the budget on finding it there — so on a box
+    where the device reconnects constantly (445 `connected` events in 14 days, against 341 adrift
+    re-syncs and **0** give-ups) the budget could never reach `CLOCK_ADRIFT_GIVEUP`.
+
+    Here the ladder "succeeds" on EVERY cycle while the skew never moves — the observed shape. The
+    give-up must still arrive.
+    """
+    syncs = []
+
+    async def fake_sync(addr):
+        syncs.append(addr)
+
+    monkeypatch.setattr(capture, "sync_device_time", fake_sync)
+    cfg = {
+        "time": {"drift_check_sec": 1, "resync_jump_sec": 30},
+        "devices": [{"name": "Verity", "vendor": "Polar", "address": "AA"}],
+    }
+    calls = {"n": 0}
+
+    async def stepping_sleep(_s):
+        calls["n"] += 1
+        capture._CLOCK_FRESHLY_SYNCED.add("AA")  # the reconnect ladder, every cycle
+        capture.STATUS["devices"]["Verity"] = {
+            "connected": True,
+            "clock_skew_sec": 14400.0,
+            "clock_skew_floor_sec": 14400.0,
+        }
+        if calls["n"] >= 14:
+            capture._STOP.set()
+
+    monkeypatch.setattr(capture.asyncio, "sleep", stepping_sleep)
+    _run(capture.clock_watchdog(cfg))
+    assert len(syncs) <= capture.CLOCK_ADRIFT_GIVEUP, (
+        f"the give-up never arrived: {len(syncs)} re-syncs in 14 cycles — a fresh sync is discharging "
+        "a budget it did not earn"
+    )
+    assert capture.STATUS["devices"]["Verity"].get("clock_uncorrectable") is True
+
+
+def test_the_skew_window_is_bounded_and_drops_the_OLDEST():
+    """A per-device ring that grew without bound would be a slow leak on a daemon that runs for weeks.
+
+    Exercised at a small `cap` on purpose: at the real `_CLOCK_SKEW_CAP` (4096) this needs a
+    four-minute fixture, which is exactly how a bound ends up shipping untested.
+    """
+    win = []
+    for i in range(5):
+        capture.clock_skew_record(win, float(i), float(i), cap=3)
+    assert [v for _, v in win] == [2.0, 3.0, 4.0], "the window must keep the NEWEST readings"
+    assert len(win) == 3
+    # Below the cap it is a plain append.
+    w2 = capture.clock_skew_record([], 1.0, -0.5, cap=3)
+    assert w2 == [(1.0, -0.5)]
+
+
+# ── PPI carries no sample time BY DESIGN (residue 2026-09-13-verity-emits-absent-stamps-at-scale) ──────
+def test_a_ZERO_PPI_stamp_is_the_vendors_documented_shape_not_an_absent_measurement(tmp_path, monkeypatch, caplog):
+    """THE PLANT, from the vendor's own words: Polar's TimeSystemExplained says PPI/HR sample time
+    "is either zero or missing", and the SDK's PpiData parser branches on `timeStamp != 0`. So a Verity
+    PPI frame stamped 0 must NOT be counted or logged as an absent stamp — the guard's first day counted
+    7283 of exactly these — and must be declared, ONCE, as what it is."""
+    import logging
+
+    _polar_common(monkeypatch)
+    capture._CLOCK_ABSENT.clear()
+    capture._NO_SAMPLE_TIME_SAID.clear()
+    c = FlexPolarClient(data_frames=[_ppi_frame(ns=0), _ppi_frame(ns=0), _ppi_frame(ns=0)], start_status=0x00)
+    _inject_connect(monkeypatch, c)
+    _stop_after(monkeypatch, 1)
+    with caplog.at_level(logging.INFO):
+        _run(capture.run_polar(_pdev(streams=["ppi"]), str(tmp_path)))
+    assert capture._CLOCK_ABSENT == {}, f"a by-design zero was counted as a refusal: {capture._CLOCK_ABSENT}"
+    assert "absent device stamp" not in caplog.text.lower()
+    said = [r for r in caplog.records if "no sample time by design" in r.getMessage()]
+    assert len(said) == 1, f"declared {len(said)} times — once per stream, on onset"
+    assert "PPI" in said[0].getMessage()
+    assert list((tmp_path / "captures").rglob("*_PPI.txt")), "the PPI rows themselves must still be written"
+
+
+def test_a_zero_ECG_stamp_is_STILL_refused_and_counted(tmp_path, monkeypatch):
+    """The control. The by-design rule is a named set of ONE measurement type; every stream that does
+    carry a sample time keeps the guard exactly as it was."""
+    _polar_common(monkeypatch)
+    capture._CLOCK_ABSENT.clear()
+    c = FlexPolarClient(data_frames=[_ecg_frame(ns=0)], start_status=0x00)
+    _inject_connect(monkeypatch, c)
+    _stop_after(monkeypatch, 1)
+    _run(capture.run_polar(_pdev(streams=["ecg"]), str(tmp_path)))
+    assert capture._CLOCK_ABSENT.get(_pdev()["name"]) == 1, capture._CLOCK_ABSENT
+    capture._CLOCK_ABSENT.clear()
+
+
+def test_the_by_design_set_is_exactly_PPI_and_cites_the_vendor():
+    """A set, not a device name: the vendor's rule is about the measurement type, and a rule keyed to
+    the Verity would miss the next device that streams PPI. And the citation is load-bearing — a
+    reader who cannot check it should treat the rule as a guess."""
+    assert capture._NO_SAMPLE_TIME_BY_DESIGN == frozenset({pmd.PPI})
+    src = module_source("capture.py")
+    assert "TimeSystemExplained.md" in src and "PpiData.kt" in src
+
+
+def test_the_H10_on_a_chest_with_a_FULL_flat_battery_is_worn_not_docked(tmp_path, monkeypatch):
+    """THE 2026-09-22 NIGHT. A fresh CR2025 sits at 100 % for days; after 45 min flat the flat-at-full
+    rule (written for the Verity's dock) set `charging: True`, charging outranked the heartbeat vote of
+    #2781, and the strap on a chest reporting 62 bpm was dropped 140 times as 'on charger'. The
+    inference is now named (`charging_why: flat-at-full`) and a beat outvotes it; a MEASURED rise still
+    wins, and without a beat the inference still drops a strap on a desk.
+
+    STATUS is seeded the way the daemon holds it by the SECOND HR frame of a session (the battery read
+    and its verdict precede the frame under test); one frame then decides `worn`."""
+    _polar_common(monkeypatch)
+    addr = _pdev()["address"]
+
+    def frame(hr, charging, why):
+        capture._WORN_SINCE.clear()
+        capture.STATUS["devices"]["H10"] = {"battery": 100, "charging": charging, "charging_why": why}
+        capture._BATT_FLAT_SINCE["H10"] = -10_000.0  # flat at 100 for longer than 45 min
+        c = FlexPolarClient(data_frames=[_ecg_frame()], hr_frame=bytes([0x04, hr]), batt_level=100, start_status=0x00)
+        _inject_connect(monkeypatch, c)
+        capture._STOP = asyncio.Event()
+        _stop_after(monkeypatch, 1)
+        _run(capture.run_polar(_pdev(streams=["ecg", "hr"]), str(tmp_path)))
+        return capture.STATUS["devices"]["H10"]
+
+    st = frame(62, True, "flat-at-full")  # tonight: a beat under an inferred dock
+    assert st["worn"] is True and "hr-beats" in st["worn_why"], st
+    assert addr not in capture._WORN_SINCE
+    # R2 (CAPTURE-LOSS-PRECEDENCE-AUDIT): the inference itself no longer fires on a unit never observed
+    # to charge — the seeded `charging: True` above is what a PRE-R2 daemon had published; a fresh read
+    # here on the same battery clears nothing (the flat rule is skipped) and the beat still decides
+    capture.devcaps.reset()
+    assert capture.devcaps.get(addr, "can_charge") is None
+    st = frame(0, True, "flat-at-full")  # no beat: a strap on a desk is still dropped
+    assert st["worn"] is False and "charger" in st["worn_why"] and addr in capture._WORN_SINCE
+    st = frame(62, True, "rising")  # a MEASURED charge outranks even a beat
+    assert st["worn"] is False and "charger" in st["worn_why"]
+    capture._STOP.clear()
+
+
+def test_a_unit_never_observed_to_charge_is_NEVER_dropped_for_power(tmp_path, monkeypatch):
+    """CAPTURE-LOSS-PRECEDENCE-AUDIT R1 (owner ruling 2026-09-22). The drop protects a dock's charge
+    budget; the H10's coin cell read 100 % after 14 nights of streaming and the drop cost it 557 minutes
+    over 33 nights. `can_charge` is measured per unit (a battery that ROSE, or a PMD IN_CHARGER); absent
+    is null, not a dock. Same session shape as the drop test above, capability unrecorded ⇒ no drop."""
+    _polar_common(monkeypatch)
+    monkeypatch.setattr(capture, "_DROP_NOT_WORN_SEC", 0.001)
+    capture._WORN_SINCE["24:AC:AC:02:84:96"] = 0.0
+    capture.devcaps.reset()
+    assert capture.devcaps.get("24:AC:AC:02:84:96", "can_charge") is None
+    c = FakePolarClient(start_status=0x00, hr_frame=bytes([0x04, 0]))
+    _inject_connect(monkeypatch, c)
+    calls = {"n": 0}
+
+    async def fake_sleep(_s):
+        calls["n"] += 1
+        if calls["n"] >= 3:
+            capture._STOP.set()
+
+    monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
+    _run(capture.run_polar(_pdev(streams=["ecg", "hr"]), str(tmp_path)))
+    assert "save battery" not in (capture.STATUS["devices"]["H10"].get("last_error") or "")
+    assert capture.STATUS["devices"]["H10"]["worn"] is False  # the VERDICT still stands; only the link is kept
+
+
+def test_the_capability_is_recorded_where_charging_is_MEASURED_and_gates_the_flat_inference(tmp_path, monkeypatch):
+    """R2. A battery that ROSE records `can_charge` for the unit (source named); the flat-at-100 %
+    inference fires only on such a unit. The Verity-on-a-wrist-in-SDK-mode plant: 100 % flat for 45 min,
+    no PPI, no rise ever observed ⇒ no `charging`, no drop — the 09-22 shape on the other Polar."""
+    _polar_common(monkeypatch)
+    addr = _pdev()["address"]
+    capture.devcaps.reset()
+    # (a) flat at 100 % on a unit never observed to charge: the inference does NOT fire
+    capture.STATUS["devices"]["H10"] = {"battery": 100}
+    capture._BATT_FLAT_SINCE["H10"] = -10_000.0
+    c = FlexPolarClient(data_frames=[_ecg_frame()], batt_level=100, start_status=0x00)
+    _inject_connect(monkeypatch, c)
+    _stop_after(monkeypatch, 1)
+    _run(capture.run_polar(_pdev(), str(tmp_path)))
+    assert capture.STATUS["devices"]["H10"].get("charging") is not True
+    assert capture.devcaps.get(addr, "can_charge") is None
+    # (b) a rise records the capability with its source
+    capture._STOP = asyncio.Event()
+    capture.STATUS["devices"]["H10"] = {"battery": 50}
+    c = FlexPolarClient(data_frames=[_ecg_frame()], batt_level=80, start_status=0x00)
+    _inject_connect(monkeypatch, c)
+    _stop_after(monkeypatch, 1)
+    _run(capture.run_polar(_pdev(), str(tmp_path)))
+    assert (
+        capture.devcaps.get(addr, "can_charge") is True and capture.devcaps.source(addr, "can_charge") == "battery-rose"
+    )
+    # (c) now the same flat-at-100 % session DOES infer a dock — the Verity's real case
+    capture._STOP = asyncio.Event()
+    capture.STATUS["devices"]["H10"] = {"battery": 100}
+    capture._BATT_FLAT_SINCE["H10"] = -10_000.0
+    c = FlexPolarClient(data_frames=[_ecg_frame()], batt_level=100, start_status=0x00)
+    _inject_connect(monkeypatch, c)
+    _stop_after(monkeypatch, 1)
+    _run(capture.run_polar(_pdev(), str(tmp_path)))
+    assert (
+        capture.STATUS["devices"]["H10"]["charging"] is True
+        and capture.STATUS["devices"]["H10"]["charging_why"] == "flat-at-full"
+    )
+    capture._STOP.clear()
+
+
+def test_a_pmd_in_charger_answer_records_the_capability(tmp_path, monkeypatch):
+    _polar_common(monkeypatch)
+    capture.devcaps.reset()
+    c = FakePolarClient(start_status=0x0D)  # START ack 0x0D: in_charger
+    _inject_connect(monkeypatch, c)
+    _stop_after(monkeypatch, 1)
+    _run(capture.run_polar(_pdev(), str(tmp_path)))
+    assert capture.devcaps.get(_pdev()["address"], "can_charge") is True
+    assert capture.devcaps.source(_pdev()["address"], "can_charge") == "pmd-in-charger"

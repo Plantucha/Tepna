@@ -59,7 +59,9 @@
  *   node tools/pat-residual-structure.mjs --selftest
  *   node tools/pat-residual-structure.mjs --dir <captures root> [--half-width 100]
  * ══════════════════════════════════════════════════════════════════════════════════════════════ */
+import { execSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -153,6 +155,89 @@ export function shapeVerdict(xs) {
   return { zc, shape: zc < 2 ? 'FAST/NOISY' : 'SLOW-OSC' };
 }
 
+/* ── THE RUN AS ONE tepna.verdict/1 OBJECT ───────────────────────────────────────────────────
+   The criterion is this tool's OWN pre-stated band, printed in the header of every run:
+   `rho1 >= BAND_STRUCTURED` (0.30). Nothing new is invented here.
+
+   ⚠️ PASS/FAIL NAME CRITERION SATISFACTION, NOT GOODNESS, and in this tool they point the
+   OPPOSITE way to instinct: a STRUCTURED residual means the leftover 20–40 ms is PHYSIOLOGICAL PAT
+   VARIATION — the quantity the measurement exists to capture — while UNSTRUCTURED means the budget
+   has a hole nothing has named. A reader who spends `FAIL` as "the tool failed" has inverted the
+   campaign's §14 question. The `reason` says which way it went; the status only says whether the
+   band was met.
+
+     PASS          every checked night at or above the band
+     SHORTFALL     some at or above it, some not — the reason names the split
+     FAIL          none reach it
+     UNDERPOWERED  nights were eligible and NONE could be scored
+     NOT_RUN       no nights at all
+     UNKNOWN       a night scored to an UNDEFINED band
+
+   `population` is NIGHTS, and `excluded` is the NAMED skip census — the five bare `continue`s this
+   replaces made the denominator an unstated filter. PURE. */
+export function runVerdict(tally, excludedBy, eligible, { commit = null, evidence = [] } = {}) {
+  const Verdict = createRequire(import.meta.url)(join(HERE, '..', 'verdict.js'));
+  const n = (k) => tally[k] || 0;
+  const excluded = Object.values(excludedBy).reduce((a, b) => a + b, 0);
+  const structured = n('STRUCTURED');
+  const undef = n('UNDEFINED');
+  const checked = Object.values(tally).reduce((a, b) => a + b, 0);
+  let status;
+  let reason;
+  if (eligible === 0) {
+    status = 'NOT_RUN';
+    reason = 'no night directories under the root';
+  } else if (checked === 0) {
+    status = 'UNDERPOWERED';
+    reason = `all ${eligible} eligible night(s) were skipped before scoring (minimum to decide: 1) — ${JSON.stringify(excludedBy)}`;
+  } else if (undef > 0) {
+    status = 'UNKNOWN';
+    reason = `${undef} of ${checked} scored night(s) landed in the UNDEFINED band — rho1 was not finite`;
+  } else if (structured === checked) {
+    status = 'PASS';
+    reason = null;
+  } else if (structured === 0) {
+    status = 'FAIL';
+    reason = `0 of ${checked} scored night(s) reach rho1 >= ${BAND_STRUCTURED} — the residual is not autocorrelated at lag 1 on any of them: ${JSON.stringify(tally)}`;
+  } else {
+    status = 'SHORTFALL';
+    reason = `${structured} of ${checked} scored night(s) reach rho1 >= ${BAND_STRUCTURED}; ${checked - structured} did not: ${JSON.stringify(tally)}`;
+  }
+  const v = Verdict.make({
+    gate: 'pat-residual-structure',
+    status,
+    scope: 'internal',
+    population: { checked, eligible, excluded },
+    criterion: { name: 'residual_lag1_autocorrelation', threshold: BAND_STRUCTURED, unit: '', direction: 'gte' },
+    /* NOT_RUN carries result null by contract — nothing examined, nothing measured. */
+    result: status === 'NOT_RUN' ? null : { tally, structured, scored: checked, excludedBy },
+    evidence: ['tools/pat-residual-structure.mjs', ...evidence],
+    reason,
+    producedBy: { tool: 'tools/pat-residual-structure.mjs', commit, ...(commit ? {} : { commitReason: 'not read from a git tree' }) }
+  });
+  const chk = Verdict.validate(v);
+  if (!chk.ok) throw new Error(`pat-residual-structure: verdict invalid under verdict.js — ${chk.errors.join(' | ')}`);
+  return v;
+}
+
+function gitCommitShort() {
+  try {
+    return (
+      execSync('git rev-parse --short HEAD', { cwd: join(HERE, '..'), stdio: ['ignore', 'pipe', 'ignore'] })
+        .toString()
+        .trim() || null
+    );
+  } catch {
+    return null; // §∅: not in a git tree is an ABSENCE; the verdict says so in commitReason
+  }
+}
+
+/** The corpus-free sample the adoption gate runs: a mixed corpus with a named skip census, which is
+ *  the SHORTFALL arm and the shape a real run most often lands in. */
+export function sampleRun() {
+  return { tally: { STRUCTURED: 3, PARTIAL: 1, UNSTRUCTURED: 1 }, excludedBy: { 'oracle-refused': 2, 'fewer-than-50-accepted-lags': 1 }, eligible: 8 };
+}
+
 export function band(r) {
   if (!Number.isFinite(r)) return 'UNDEFINED';
   if (r >= BAND_STRUCTURED) return 'STRUCTURED';
@@ -185,7 +270,10 @@ function selftest() {
   };
   /* WHITE series -> rho1 ~ 0. */
   let s = 3;
-  const rnd = () => ((s = (s * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff - 0.5) * 2;
+  const rnd = () => {
+    s = (s * 1103515245 + 12345) & 0x7fffffff;
+    return (s / 0x7fffffff - 0.5) * 2;
+  };
   const white = Array.from({ length: 2000 }, () => rnd() * 30);
   ok(Math.abs(autocorr1(white)) < 0.1, `white series rho1 ~ 0, got ${autocorr1(white).toFixed(3)}`);
   ok(band(autocorr1(white)) === 'UNSTRUCTURED', 'white reads UNSTRUCTURED');
@@ -223,13 +311,39 @@ function selftest() {
   ok(sd2.shape === 'DRIFT-LIKE', `a monotone ramp must read DRIFT-LIKE, got ${sd2.shape} (zc ${sd2.zc})`);
   ok(autocorr1(drift) > 0.95 && autocorr1(osc) > 0.8, 'both give a high rho1 — which is exactly why rho1 alone is insufficient');
 
-  console.log(fails.length ? `SELFTEST FAIL (${fails.length})\n  ${fails.join('\n  ')}` : 'SELFTEST PASS (12/12)');
+  /* ── the run as ONE tepna.verdict/1 object, every arm ────────────────────────────────────────
+     The criterion is this tool's own BAND_STRUCTURED, so these pin a MAPPING, never a threshold. */
+  {
+    const V = createRequire(import.meta.url)(join(HERE, '..', 'verdict.js'));
+    const s = sampleRun();
+    const sh = runVerdict(s.tally, s.excludedBy, s.eligible);
+    ok(sh.status === 'SHORTFALL' && /3 of 5/.test(sh.reason), `a mixed corpus → SHORTFALL naming the split, got ${sh.status}: ${sh.reason}`);
+    /* PLANT — the population is an EQUALITY, and it is what forces the five formerly-bare
+       `continue`s to be counted: a skipped night must land in `excluded`, not vanish. */
+    ok(sh.population.checked + sh.population.excluded === sh.population.eligible, 'checked + excluded = eligible, so a skipped night cannot vanish');
+    ok(sh.population.excluded === 3 && sh.result.excludedBy['oracle-refused'] === 2, 'the skip census travels WITH the verdict, by name');
+    ok(runVerdict({ STRUCTURED: 2 }, {}, 2).status === 'PASS', 'every scored night at or above the band → PASS');
+    ok(runVerdict({ STRUCTURED: 2 }, {}, 2).reason === null, 'a PASS carries no reason');
+    ok(runVerdict({ PARTIAL: 2 }, {}, 2).status === 'FAIL', 'no night reaching the band → FAIL');
+    ok(runVerdict({}, { 'oracle-refused': 3 }, 3).status === 'UNDERPOWERED', 'nights eligible and none scorable → UNDERPOWERED, not FAIL');
+    ok(runVerdict({}, {}, 0).status === 'NOT_RUN', 'no nights at all → NOT_RUN, not an empty PASS');
+    ok(runVerdict({}, {}, 0).result === null, 'PLANT: NOT_RUN carries result null — nothing examined, nothing measured');
+    ok(runVerdict({ UNDEFINED: 1, STRUCTURED: 1 }, {}, 2).status === 'UNKNOWN', 'an UNDEFINED band → UNKNOWN, never a quotable band');
+    ok(V.validate(sh).ok && V.validate(runVerdict({}, {}, 0)).ok, 'every emitted arm validates under verdict.js');
+  }
+
+  console.log(fails.length ? `SELFTEST FAIL (${fails.length})\n  ${fails.join('\n  ')}` : `SELFTEST PASS (${23 - fails.length}/23)`);
   return fails.length === 0;
 }
 
 async function main() {
   const argv = process.argv.slice(2);
   if (argv.includes('--selftest')) process.exit(selftest() ? 0 : 1);
+  if (argv.includes('--verdict-sample')) {
+    const s = sampleRun();
+    console.log(JSON.stringify(runVerdict(s.tally, s.excludedBy, s.eligible, { commit: gitCommitShort(), evidence: ['<sample>'] }), null, 2));
+    return;
+  }
   const DIR = argv[argv.indexOf('--dir') + 1];
   const HW = Number(argv.includes('--half-width') ? argv[argv.indexOf('--half-width') + 1] : 100);
   if (!DIR || !existsSync(DIR)) {
@@ -243,15 +357,27 @@ async function main() {
   console.log('⚠️ censoring biases both statistics TOWARD zero — a high value is strong, a low one is weak.\n');
   console.log('night          n     SD    rho1   rho5  rho20  shuffled  zeroX  shape         rho(RR,lag)  verdict');
   const tally = {};
+  /* ⚠️ EVERY SKIP IS NAMED AND COUNTED. Five bare `continue`s used to drop a night out of the TALLY
+     with no record, so the denominator was an unstated filter: a corpus line count that does not
+     reconcile with the directory count is a filter nobody stated. The verdict's population is an
+     EQUALITY (checked + excluded = eligible), which is what forces this to be true rather than
+     merely intended. */
+  const excludedBy = {};
+  let eligible = 0;
+  const skip = (why) => {
+    excludedBy[why] = (excludedBy[why] || 0) + 1;
+  };
   const ONLY = argv.includes('--only') ? new Set(argv[argv.indexOf('--only') + 1].split(',')) : null;
   for (const n of readdirSync(DIR)
     .filter((x) => /^2026-/.test(x) && (!ONLY || ONLY.has(x)))
     .sort()) {
     const dir = join(DIR, n);
+    eligible++;
     let files;
     try {
       files = readdirSync(dir);
     } catch {
+      skip('unreadable-night-dir');
       continue;
     }
     /* The oracle's picker, imported — NOT a third local copy. This file used to carry its own
@@ -259,7 +385,10 @@ async function main() {
        fragmented night it paired the largest ECG with the largest PPG from a different hour and
        then scored the result. See `pickPair`'s header. */
     const paired = pickPair(dir, files);
-    if (paired.missing) continue;
+    if (paired.missing) {
+      skip('missing-stream');
+      continue;
+    }
     const { eF, pF } = paired;
     let E;
     let P;
@@ -267,18 +396,25 @@ async function main() {
       E = ecgRpeakTimes(readFileSync(eF, 'utf8'));
       P = ppgFootTimes(readFileSync(pF, 'utf8'));
     } catch {
+      skip('parse-error');
       continue;
     }
     const R = Array.from(E.times);
     const F = Array.from(P.times);
     const orc = oracleNight(R, F, HW);
-    if (!orc || orc.refusal || !Number.isFinite(orc.narrowSd)) continue; // a named refusal is a truthy object
+    if (!orc || orc.refusal || !Number.isFinite(orc.narrowSd)) {
+      skip('oracle-refused'); // a named refusal is a truthy object
+      continue;
+    }
     /* The oracle's OWN split, not a recomputed one — it derives `mid` from the two trains' overlap
        and its second half is bounded by `hi`, so scoring `t >= mid` over all of R would re-admit the
        beats after the PPG ends that #2034 removed. */
     const rB = R.filter((t) => t >= orc.mid && t <= orc.hi);
     const { lags, rrs } = acceptedSeries(rB, F, orc.mode, HW);
-    if (lags.length < 50) continue;
+    if (lags.length < 50) {
+      skip('fewer-than-50-accepted-lags');
+      continue;
+    }
     const r1 = autocorr1(lags);
     const r1s = autocorr1(shuffled(lags));
     const rhr = spearman(rrs, lags);
@@ -291,6 +427,8 @@ async function main() {
     );
   }
   console.log('\nTALLY:', JSON.stringify(tally));
+  console.log('SKIPPED:', JSON.stringify(excludedBy));
+  console.log('VERDICT ' + JSON.stringify(runVerdict(tally, excludedBy, eligible, { commit: gitCommitShort(), evidence: [DIR] })));
 }
 
 if (process.argv[1]?.endsWith('pat-residual-structure.mjs')) await main();

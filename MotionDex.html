@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-manifest-hash="1e49f78cd566" data-compute-hash="c75cfa64a9c1">
 <head>
 <!--
   MotionDex.src.html — Tepna
@@ -12,10 +12,10 @@
 <!-- CSP: browser-enforces the no-network invariant. connect-src 'none' blocks every outbound request;
      script-src is STRICT ('self' + per-inline-script sha256, NO 'unsafe-inline'). MotionDex ships zero
      inline scripts (all init lives in motiondex-app.js), so the hash list is empty by construction. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-LK5VOOBa0EEy7ufo1WyQm1kSFnDsFWmUvZ1fThFN8ws=' 'sha256-LNL2HIbq1MolWykSbNRcVM1IXWPE1b23gr8wWMcU+sA=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-avsW1EcgQsMuBeTRHic8R11rdf49ixA1ntEzFVDVe2I=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-i3reGRzkJM7QjIg1lbF4DPDdb5yytZOi+1xN8393YJc=' 'sha256-qrP75q2RaLPbMsjTwkX9LYv+0WulLvr9R/XTAfT9VZY='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-A5IOHO4TVAjxMeWYBbqHuYMVdTRsVI1H8TBxvzdcv4w=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-LK5VOOBa0EEy7ufo1WyQm1kSFnDsFWmUvZ1fThFN8ws=' 'sha256-LNL2HIbq1MolWykSbNRcVM1IXWPE1b23gr8wWMcU+sA=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-s/Nk1bqiBjE0ZX5O987aEfmh+0ye89VWIlc+r/sLjXo='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
-<title>MotionDex — Motion / IMU Analyzer · v2.9.0</title>
+<title>MotionDex — Motion / IMU Analyzer · v2.13.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M18%2062%20L34%2040%20L46%2058%20L62%2028%20L74%2050%20L84%2038%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
 <style data-inline-src="licensing/dex-license.css">/*
  * dex-license.css — reusable Tepna license / attribution stamp styles
@@ -4347,13 +4347,17 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
       unit: 'br/min',
       goodDirection: 'down',
       depth: 'advanced',
-      /* emerging, NOT validated: real-corpus validated (26 nights / 172 h / 19,193 epochs of
-         chest ACC vs ResMed CPAP `Flow.40ms` breath-by-breath reference — MAE 1.01 br/min,
-         95% CI 0.91–1.12; 91.6% within 2 br/min) but on a SINGLE subject, which does not meet
+      /* emerging, NOT validated: real-corpus validated (49 ACC/CPAP-paired nights / 8,057
+         epochs of chest ACC vs ResMed CPAP `Flow.40ms` breath-by-breath reference — MAE
+         1.10 br/min, 95% CI 0.96–1.27; 90.8% within 2 br/min) but on a SINGLE subject, which does not meet
          the Literature-Use Policy bar for `validated`. Posture robustness is untested (corpus
-         gravity-roll IQR 13.1–17.9°, i.e. one posture). */
+         gravity-roll IQR 13.1–17.9°, i.e. one posture).
+         ⚠ FIGURES RESTATED 2026-09-07. The previous 26 nights / 172 h / 19,193 epochs / MAE 1.01 /
+         91.6% predate the cross-device alignment fix of #1042 and were never reproducible from
+         committed code; a tier justified by an unreproducible number is the fabricated authority
+         §🎫 exists to prevent. See the correction notice in `papers/acc-respiratory-rate.html`. */
       evidence: 'emerging',
-      cite: 'Chest-ACC spectral ridge tracking (Viterbi) validated against CPAP flow, 26 nights — MAE 1.01 br/min; time-domain blend per Charlton 2016, Physiol Meas 37(4):610'
+      cite: 'Chest-ACC spectral ridge tracking (Viterbi) validated against CPAP flow, 49 nights — MAE 1.10 br/min; time-domain blend per Charlton 2016, Physiol Meas 37(4):610'
     },
     effortAmp: {
       label: 'Effort amplitude',
@@ -5001,7 +5005,23 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
       if (st > maxStep) maxStep = st;
     }
     var span = pts[n - 1].d - pts[0].d;
-    var ppm = span > 0 ? (sm[n - 1] / span) * 1e6 : 0;
+    /* A ZERO DEVICE SPAN IS NOT A CLOCK, AND A RATE OVER IT IS NOT 0 — refuse. This line used to read
+       `span > 0 ? … : 0`, which is the fabricated zero of CLAUDE.md §∅ at the rate: every anchor's
+       device stamp identical (the 50 `inapplicable` streams of `known-clock-recovery blindScore`, a
+       device column that was never a counter) came back `ok:true, ppm:0, independent:true` — the
+       spread gate is inert here because the HOST wanders, so the axis read as two agreeing clocks
+       and a caller reading `hostAxis` alone spent it as a second clock (residue
+       2026-09-02-hostaxis-accepts-drawn-axis). Same shape as the ±CK_AXIS_MAX_PPM refusal below and
+       the ≥3-anchor one above: when the input cannot be a rate, the answer is no rate, never 0.
+       ⚠ Deliberately NARROW. The general drawn case (a uniform counter with span > 0) is still
+       admitted and published as `deviceDrawn` — gating on it was tried and reverted (a synthetic
+       fixture's `devMs = i * 1000` is a legitimate uniform axis), and consumer migration is its own
+       row. Zero span has no such legitimate reading: no fixture, synthetic or real, is a clock that
+       never ticks. */
+    if (!(span > 0)) {
+      return { ok: false, reason: 'device axis has zero span across ' + n + ' anchors — the device column is not a clock, so there is no rate to measure', n: n, spanMs: span };
+    }
+    var ppm = (sm[n - 1] / span) * 1e6;
     /* IS THERE ACTUALLY A SECOND CLOCK HERE? (PAT-NO-VALID-ANCHOR §10, last item.)
        A ppm of ~0 has two completely different meanings and this function used to report them
        identically: (a) two INDEPENDENT clocks that happen to agree — the good case, and (b) the host
@@ -5141,6 +5161,14 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
           /* Published UNCONDITIONALLY, including when the type IS named — a caller with a wider
              tolerance can then decide for itself instead of being forced to accept this default. */
           slopeSE: cls.slopeSE,
+          /* ⚠️ THE SE'S OWN n — and it is NOT `taus`. `slopeSE` is a standard error, so it is
+             uninterpretable without the number of points it was fitted over: a tight SE from 3 τ
+             points and one from 12 are different claims. `_ckAllanSlope` fits only the points with
+             `adev > 0 && tau > 0`, so an exactly-flat τ (a frequency series periodic in that τ —
+             reachable, and gate-pinned) is dropped from the fit while still being counted in `taus`.
+             Reading `taus` as the SE's n therefore OVERSTATES it. Published because a consumer that
+             quotes the SE owes this beside it, the same way `ppm` owes its span. */
+          nTau: cls.nTau,
           noise: cls.noise,
           candidates: cls.candidates,
           meaning: cls.meaning,
@@ -5161,6 +5189,18 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
              place of one chosen by intuition. On a pure-jitter clock it is simply the longest τ
              measured, and saying so is more honest than implying a minimum was found. */
           optimalTauSec: curve[bestI].tau,
+          /* THE CURVE ITSELF (residue 2026-09-21-adev-curve-not-exported-by-either-node). Every scalar
+             above is a projection of it, and the projections cannot show WHERE the floor sits or
+             whether the slope was fitted over a straight run or across a KNEE — which is §7's whole
+             point: the slope names the mechanism, and one number cannot show a slope that changes.
+             `adevPpm` deliberately, NOT the `…Ms` misnomer above: the estimator is handed phase in ms
+             and τ in seconds, so `adev` is ms/s = 1e-3 dimensionless, and ×1000 is ppm. `n` is the
+             term count at that τ — a reader needs it to see the estimate widening as τ grows. The
+             ladder is octave-spaced and ends where `CK_ALLAN_MIN_TERMS` bites, so this is short
+             (≤ ~20 points) and bounded by construction. */
+          curve: curve.map(function (pt) {
+            return { tauSec: pt.tau, adevPpm: pt.adev * 1000, n: pt.n };
+          }),
           /* THE POINT OF THE EXERCISE: how much of the `ppm` above is real. σ_y at the recording's own
              span, expressed in ppm — quote the ppm WITH this or not at all. */
           ppmUncertainty: curve[curve.length - 1].adev * 1000,
@@ -5738,6 +5778,10 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
       var dyn = Math.abs(mags[i] - base[i]);
       if (dyn > MOVE_G) counts[idx] += dyn;
     }
+    /* the parser hangs the seam list on the row array itself (`out._clockResyncs`, :289), so the
+       signal is already in scope here — no signature change, and no new parameter for a caller to
+       forget to pass. */
+    var _seam = !!(accRows && accRows._clockResyncs && accRows._clockResyncs.length);
     var epochs = [],
       immobile = 0,
       covered = 0,
@@ -5761,7 +5805,28 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
       epochs: epochs,
       coveredEpochs: covered,
       totalCounts: total,
-      immobileFrac: covered ? immobile / covered : null,
+      /* ── §∅ REFUSE-VS-ANNOTATE (CLAUDE.md §∅, owner ruling 2026-09-17) ──────────────────────
+         "A DISCONTINUITY refuses; reduced COVERAGE annotates. The line is whether the window still
+         describes ONE continuous stretch of signal."
+
+         `immobileFrac` is a DURATION over the axis: epochs are assigned by
+         `Math.floor(relSecOf(...) / epoch)`, a TIME-DERIVED index. A device-clock seam is re-anchored
+         upstream, which makes the axis continuous again and therefore makes the discontinuity
+         INVISIBLE here — samples either side of the seam land in adjacent epochs as though no time
+         passed between them. The fraction over that stretch is not an observation anyone made.
+         Measured on ECGDex 2026-09-17: a metric fed SAMPLE indices is immune to this and needs no
+         guard; one fed time-derived indices is not. That is the criterion, not "does the node detect
+         seams" — see residue `2026-09-17-seam-exposure-is-input-provenance`.
+
+         `movementIndex` is a MAGNITUDE (mean dynamic-g per covered epoch), not a span, so it is left
+         published. And the COVERAGE half above is already what §∅ mandates — tri-state `moving`,
+         uncovered epochs outside the denominator — so it is deliberately untouched: conforming it
+         would be a change with no defect behind it.
+
+         The reason string is `clock-seam` VERBATIM, the spelling PpgDex established (#2600). Never a
+         second spelling of one fact. */
+      immobileFrac: _seam ? null : covered ? immobile / covered : null,
+      ...(_seam ? { immobileFracReason: 'clock-seam' } : {}),
       movementIndex: covered ? total / covered : null
     };
   }
@@ -5769,12 +5834,19 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
   /* ════════════════════════════════════════════════════════════════════════
      RESPIRATORY RATE — spectral ridge tracking (MOTIONDEX-RESPIRATORY-RATE-2026-07-21)
      ────────────────────────────────────────────────────────────────────────
-     Validated on 26 nights / 172 h / 19,193 epochs of Polar H10 chest ACC against
+     Validated on 49 ACC/CPAP-paired nights / 8,057 epochs of Polar H10 chest ACC against
      ResMed CPAP `Flow.40ms` breath-by-breath reference:
-        MAE 1.01 brpm (95% CI 0.91-1.12), 91.6% within 2 brpm, at 100% coverage;
-        MAE 0.56 / 97.8% at 70% coverage, i.e. AT the reference's own 0.70 brpm floor.
-     The predecessor zero-crossing estimator (still below, still exported) scored
-     MAE 3.59 on the same epochs — worse than predicting a constant (1.50).
+        MAE 1.10 brpm (95% CI 0.96-1.27), 90.8% within 2 brpm, at 100% coverage;
+        MAE 0.63 / 97.2% at 70% coverage, i.e. AT the reference's own 0.74 brpm floor.
+     The null baseline (predicting the corpus median) scores MAE 1.64 on the same epochs.
+
+     ⚠ RESTATED 2026-09-07, and note WHAT IS NOT RESTATED. The previous figures — 26 nights /
+     172 h / 19,193 epochs, MAE 1.01, 91.6% — predate the cross-device alignment fix of #1042,
+     whose own commit message records nine of sixteen nights scored against noise; they were
+     never reproducible from committed code. The predecessor zero-crossing comparison (MAE 3.59)
+     is WITHDRAWN rather than updated: the analysis tool no longer emits that configuration, so
+     it could not be reproduced, and carrying a number forward under corrected figures is the
+     precise thing the correction refuses to do.
 
      Design notes, each measured rather than assumed:
        · 3 band-passed acceleration axes. A tilt-ANGLE channel is NOT built: for a

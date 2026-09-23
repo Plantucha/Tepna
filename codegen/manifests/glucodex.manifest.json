@@ -5,7 +5,6 @@
   "accentColor": "var(--amber)",
   "accentHex": "#FFB84D",
   "version": "1.0.0",
-  "status": "planned",
   "description": "Analysis of continuous glucose monitoring data — glycemic control, variability, time-in-range, risk indices, and overnight glucose dynamics for metabolic health assessment.",
   "warning": "CGM accuracy varies by sensor type (Dexcom, Libre, Medtronic). Interstitial glucose lags blood glucose by 5–15 minutes. Metrics are not equivalent to HbA1c or venous glucose measurements.",
 

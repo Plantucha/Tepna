@@ -898,9 +898,61 @@ def test_build_controller_coexistence_gate_defaults_DISABLED_and_config_can_enab
 
 
 # ── capture._cpap_ble_connect (the bleak I/O edge, mocked) ───────────────────────
+class _Char:
+    def __init__(self, uuid, handle): self.uuid, self.handle = uuid, handle
+
+
+class _Svc:
+    def __init__(self, uuid, chars): self.uuid, self.characteristics = uuid, chars
+
+
+_GATT_TX_UUID = "a6220002-35f1-4b20-afae-cb089d2044aa"
+_GATT_RX_UUID = "a6220003-35f1-4b20-afae-cb089d2044aa"
+_GAP_SVC = "00001801-0000-1000-8000-00805f9b34fb"
+_VENDOR_SVC = "0000fd56-0000-1000-8000-00805f9b34fb"
+
+# What a COMPLETE publish looks like, and what a snapshot caught mid-publish looked like on vigil
+# 2026-09-09 — six of seven events byte-identical: the Generic Attribute service alone, LOWEST handles
+# and therefore first on the wire, carrying nothing. Transcribed from the journal rather than invented,
+# because a partial tree guessed as "the vendor service minus one characteristic" is the shape #2170's
+# docstrings predicted and the box refuted.
+_FULL_TREE = [_Svc(_GAP_SVC, [_Char("00002a05-0000-1000-8000-00805f9b34fb", 0x0002)]),
+              _Svc(_VENDOR_SVC, [_Char(_GATT_TX_UUID, 0x0020), _Char(_GATT_RX_UUID, 0x0022)])]
+_MID_PUBLISH_TREE = [_Svc(_GAP_SVC, [])]
+
+
+class _FakeBackend:
+    """bleak's `BleakClientBlueZDBus`, modelled on the two facts `capture._gatt_rebuild` turns on.
+
+    `services` is a plain, public, SETTABLE attribute (`bleak/backends/client.py:41`), and
+    `_get_services` returns it untouched unless it is None (`bleak/backends/bluezdbus/client.py:670`).
+    Clearing it is therefore the entire rebuild mechanism, and a stub that made `services` a read-only
+    property — the obvious simplification — would make the fix untestable while looking tidier."""
+
+    def __init__(self, publish):
+        self.services = None
+        self._publish = publish
+
+    async def _get_services(self):
+        if self.services is None:
+            self.services = self._publish()
+        return self.services
+
+
 class _FakeBleak:
-    """Records the bleak calls _cpap_ble_connect makes and lets a test drive the notify callback."""
+    """Records the bleak calls _cpap_ble_connect makes and lets a test drive the notify callback.
+
+    🔴 `disconnect()` NULLS `services`, AND THAT IS LOAD-BEARING — do not "simplify" it away. Real
+    bleak's `disconnect()` ends with `assert self.services is None` (`_cleanup_all` resets the
+    collection), so a stub that keeps its snapshot across the close lets a diagnostic that reads the
+    snapshot AFTER disconnecting pass here while returning nothing on the box. That is exactly what
+    happened: #2365's probe shipped green through this file and printed the byte-identical
+    `no service snapshot (BleakError)` for 98 of 98 real events. The stub modelled the calls bleak
+    receives and not the state bleak KEEPS, so the test encoded the shape and not the contract."""
     instances: "list[_FakeBleak]" = []
+    # Annotated, not inferred: a bare `= None` types the attribute as `None`, so a subclass holding a
+    # real service list is a mypy [assignment] error — and that count may only go DOWN.
+    _services: "list | None" = _FULL_TREE   # class-level; a subclass overrides it or grows it per publish
 
     def __init__(self, addr, timeout=None, bluez=None):
         self.addr, self.bluez = addr, bluez
@@ -908,10 +960,31 @@ class _FakeBleak:
         self.notify_cb = None
         self.written = []
         self.mtu_size = 100
+        self.publishes = 0            # how many times BlueZ was asked for the object tree
+        self._backend = _FakeBackend(self._publish)
         _FakeBleak.instances.append(self)
+
+    def _publish(self):
+        """The GATT objects BlueZ has exported SO FAR. Constant here; a subclass grows it per call,
+        which is the whole of #2170's mechanism — see `_LatePublishBleak`."""
+        self.publishes += 1
+        return self._services
+
+    @property
+    def is_connected(self):
+        return self.connected
+
+    @property
+    def services(self):
+        # bleak's own `BleakClient.services` (bleak/__init__.py:711): reads the BACKEND's attribute and
+        # raises rather than handing back an empty collection.
+        if not self._backend.services:
+            raise RuntimeError("Service Discovery has not been performed yet")
+        return self._backend.services
 
     async def connect(self):
         self.connected = True
+        await self._backend._get_services()   # bleak's backend connect does this (bluezdbus/client.py:325)
 
     async def start_notify(self, uuid, cb):
         self.notify_cb = cb
@@ -921,6 +994,7 @@ class _FakeBleak:
 
     async def disconnect(self):
         self.connected = False
+        self._backend.services = None   # bleak: `_cleanup_all` resets it — see the class docstring
 
 
 def test_cpap_ble_connect_wires_write_recv_and_disconnect(monkeypatch):
@@ -956,6 +1030,342 @@ def test_cpap_ble_connect_without_an_adapter_passes_no_bluez_kwarg(monkeypatch):
     async def go():
         await capture._cpap_ble_connect("04:CD:15:3A:0B:BD", None)
         assert _FakeBleak.instances[-1].bluez is None, "no hci → no bluez adapter kwarg"
+    _run(go())
+
+
+# ── #2170: bleak's snapshot lacks the notify characteristic → close, reconnect ONCE on the same adapter ──
+class BleakCharacteristicNotFoundError(Exception):
+    """Same NAME as bleak's — capture matches by class name so the stubbed-bleak lanes need no bleak.exc."""
+
+
+class _MissingCharBleak(_FakeBleak):
+    """Raises the #2170 exception on the first N start_notify calls (class attribute), then behaves.
+
+    Its snapshot holds the vendor service carrying only the WRITE characteristic — mechanism (b) of
+    #2170, a collection bleak built before BlueZ published the notify characteristic. `_FakeBleak`
+    drops it on `disconnect()`, so this snapshot is only readable BEFORE the leak guard closes.
+
+    ⚠️ Its tree NEVER grows, so `_settle_gatt_chars` exhausts its rebuilds and the retry below is what
+    recovers — which is the point: these tests pin the BACKSTOP, and deleting the settle must not turn
+    any of them green by accident."""
+    fail_first = 1
+    _services = [_Svc(_VENDOR_SVC, [_Char(_GATT_TX_UUID, 0x0020)])]
+
+    async def start_notify(self, uuid, cb):
+        if len(_FakeBleak.instances) <= _MissingCharBleak.fail_first:
+            raise BleakCharacteristicNotFoundError(uuid)
+        await super().start_notify(uuid, cb)
+
+
+class _LatePublishBleak(_FakeBleak):
+    """BlueZ finishing the publish AFTER bleak snapshotted — #2170's actual mechanism, and the one
+    thing `_settle_gatt_chars` exists to survive.
+
+    The first publish returns the mid-publish tree the box logged (GAP alone, no characteristics);
+    the `publish_at`-th returns the complete one. `start_notify` is NOT rigged to fail: if the settle
+    works, the notify characteristic is simply there, and nothing in the retry path ever runs. That
+    asymmetry is deliberate — a stub that also raised would let the retry rescue the test and the
+    settle could be deleted without anything going red."""
+    publish_at = 2
+
+    def _publish(self):
+        self.publishes += 1
+        return _FULL_TREE if self.publishes >= type(self).publish_at else _MID_PUBLISH_TREE
+
+
+def test_cpap_ble_connect_retries_once_when_the_snapshot_lacks_the_notify_char(monkeypatch, caplog):
+    import capture
+    import bleak
+    _FakeBleak.instances.clear()
+    _MissingCharBleak.fail_first = 1
+    monkeypatch.setattr(capture, "_GATT_SETTLE_STEP_S", 0)   # its tree never grows; do not sleep through the settle
+    monkeypatch.setattr(bleak, "BleakClient", _MissingCharBleak)
+
+    async def go():
+        with caplog.at_level(logging.WARNING, logger="capture"):
+            write, recv_frame, disconnect = await capture._cpap_ble_connect("04:CD:15:3A:0B:BD", "hci2")
+        first, second = _FakeBleak.instances
+        assert not first.connected, "the leak guard closed the failed link before the retry"
+        assert second.connected and second.bluez == {"adapter": "hci2"}, "the retry rides the SAME adapter"
+        assert second.notify_cb is not None
+        msg = next(r.getMessage() for r in caplog.records if "#2170" in r.getMessage())
+        # the snapshot names what bleak HELD: service, characteristic uuid@handle — the write char only
+        assert "0000fd56-0000-1000-8000-00805f9b34fb[a6220002-35f1-4b20-afae-cb089d2044aa@0x0020]" in msg
+        assert "a6220003-35f1-4b20-afae-cb089d2044aa" in msg and "on hci2" in msg
+        await disconnect()
+    _run(go())
+
+
+def test_cpap_ble_connect_retry_is_one_retry_not_a_loop(monkeypatch):
+    import capture
+    import bleak
+    _FakeBleak.instances.clear()
+    _MissingCharBleak.fail_first = 99
+    monkeypatch.setattr(capture, "_GATT_SETTLE_STEP_S", 0)   # its tree never grows; do not sleep through the settle
+    monkeypatch.setattr(bleak, "BleakClient", _MissingCharBleak)
+
+    async def go():
+        with pytest.raises(BleakCharacteristicNotFoundError):
+            await capture._cpap_ble_connect("04:CD:15:3A:0B:BD", "hci2")
+    _run(go())
+    assert len(_FakeBleak.instances) == 2, "exactly one retry — a second identical failure raises, no loop"
+    assert all(not c.connected for c in _FakeBleak.instances), "both links closed (#1770 leak guard)"
+
+
+def test_cpap_ble_connect_retry_can_be_declined_and_other_errors_never_retry(monkeypatch):
+    import capture
+    import bleak
+    _FakeBleak.instances.clear()
+    _MissingCharBleak.fail_first = 99
+    monkeypatch.setattr(capture, "_GATT_SETTLE_STEP_S", 0)   # its tree never grows; do not sleep through the settle
+    monkeypatch.setattr(bleak, "BleakClient", _MissingCharBleak)
+    with pytest.raises(BleakCharacteristicNotFoundError):
+        _run(capture._cpap_ble_connect("04:CD:15:3A:0B:BD", "hci2", retry_missing_char=False))
+    assert len(_FakeBleak.instances) == 1, "retry_missing_char=False → no second connect"
+
+    class _OtherErrorBleak(_FakeBleak):
+        async def start_notify(self, uuid, cb):
+            raise RuntimeError("not the #2170 class")
+    _FakeBleak.instances.clear()
+    monkeypatch.setattr(bleak, "BleakClient", _OtherErrorBleak)
+    with pytest.raises(RuntimeError):
+        _run(capture._cpap_ble_connect("04:CD:15:3A:0B:BD", "hci2"))
+    assert len(_FakeBleak.instances) == 1 and not _FakeBleak.instances[0].connected
+
+
+# ── #2170, the REMEDY: rebuild bleak's snapshot instead of the link (capture._settle_gatt_chars) ──
+def test_settle_rebuilds_the_snapshot_and_the_retry_never_runs(monkeypatch, caplog):
+    """THE FIX, end to end. BlueZ publishes late; the settle rebuilds; `start_notify` finds the
+    characteristic that was not there a moment ago; the link is never thrown away.
+
+    ⚠️ The plant is `_LatePublishBleak` NOT rigging `start_notify` to raise. If it did, the #2365
+    retry would rescue this test and `_settle_gatt_chars` could be deleted with everything still
+    green — which is exactly how #2365's own diagnostic shipped blind."""
+    import capture
+    import bleak
+    _FakeBleak.instances.clear()
+    monkeypatch.setattr(capture, "_GATT_SETTLE_STEP_S", 0)
+    monkeypatch.setattr(bleak, "BleakClient", _LatePublishBleak)
+
+    async def go():
+        with caplog.at_level(logging.INFO, logger="tepna-capture"):   # capture.py:89 — the logger is named for the SERVICE
+            _w, _r, disconnect = await capture._cpap_ble_connect("04:CD:15:3A:0B:BD", "hci2")
+        assert len(_FakeBleak.instances) == 1, "ONE connect — the link was never thrown away"
+        client = _FakeBleak.instances[0]
+        assert client.connected and client.notify_cb is not None
+        msg = next(r.getMessage() for r in caplog.records if "#2170" in r.getMessage())
+        assert "appeared after 1 rebuild(s)" in msg and "BlueZ had not published" in msg
+        assert "could not find" not in msg, "the retry path must not have run"
+        await disconnect()
+    _run(go())
+
+
+def test_settle_is_silent_and_free_when_the_first_snapshot_is_complete(monkeypatch, caplog):
+    """The ~95 % path: nothing missing ⇒ no rebuild, no sleep, no log line. A settle that chattered on
+    every healthy connect would bury the ~98 lines a night that are the actual measurement."""
+    import capture
+    import bleak
+    _FakeBleak.instances.clear()
+    monkeypatch.setattr(bleak, "BleakClient", _FakeBleak)   # full tree, published once at connect
+
+    async def go():
+        with caplog.at_level(logging.INFO, logger="tepna-capture"):   # capture.py:89 — the logger is named for the SERVICE
+            _w, _r, disconnect = await capture._cpap_ble_connect("04:CD:15:3A:0B:BD", "hci2")
+        client = _FakeBleak.instances[0]
+        assert client.publishes == 1, "no rebuild was attempted"
+        assert not [r for r in caplog.records if "#2170" in r.getMessage()]
+        await disconnect()
+    _run(go())
+
+
+def test_settle_gives_up_after_a_bounded_number_of_rebuilds_and_says_so(monkeypatch):
+    """A tree that never completes must NOT loop: bounded rebuilds, then the phrase that names the
+    give-up, which the #2170 warning then carries beside the snapshot."""
+    import capture
+    monkeypatch.setattr(capture, "_GATT_SETTLE_STEP_S", 0)
+    client = _MissingCharBleak("04:CD:15:3A:0B:BD")
+    _run(client.connect())
+    out = _run(capture._settle_gatt_chars(client, (_GATT_RX_UUID, _GATT_TX_UUID)))
+    assert out.startswith(f"STILL absent after {capture._GATT_SETTLE_REBUILDS} rebuilds")
+    assert _GATT_RX_UUID in out and _GATT_TX_UUID not in out, "names ONLY what is missing"
+    # 1 publish at connect + one per rebuild — the bound is on rebuilds, not wall-clock
+    assert client.publishes == 1 + capture._GATT_SETTLE_REBUILDS
+
+
+def test_settle_reports_the_missing_char_in_the_2170_warning(monkeypatch, caplog):
+    """When the settle cannot close the window the retry still runs — and the warning now says which
+    of the two it was. Without `settle:` the line cannot distinguish "we never looked" from "we
+    looked, waited, and it never came", and those want different next steps."""
+    import capture
+    import bleak
+    _FakeBleak.instances.clear()
+    _MissingCharBleak.fail_first = 1
+    monkeypatch.setattr(capture, "_GATT_SETTLE_STEP_S", 0)
+    monkeypatch.setattr(bleak, "BleakClient", _MissingCharBleak)
+
+    async def go():
+        with caplog.at_level(logging.WARNING, logger="capture"):
+            _w, _r, disconnect = await capture._cpap_ble_connect("04:CD:15:3A:0B:BD", "hci2")
+        msg = next(r.getMessage() for r in caplog.records if "could not find" in r.getMessage())
+        assert "settle: STILL absent after" in msg
+        await disconnect()
+    _run(go())
+
+
+def test_gatt_missing_reports_unreadable_as_none_never_as_absent():
+    """∅ The distinction the whole settle rests on. A client with no snapshot has not told us the
+    characteristic is missing — it has told us nothing, and returning `()` there would read as
+    "everything present" while returning the uuids would fabricate the finding."""
+    import capture
+
+    class _NoSnapshot:
+        @property
+        def services(self):
+            raise RuntimeError("Service Discovery has not been performed yet")
+
+    assert capture._gatt_missing(_NoSnapshot(), (_GATT_RX_UUID,)) is None
+    assert _run(capture._settle_gatt_chars(_NoSnapshot(), (_GATT_RX_UUID,))) == "snapshot unreadable"
+
+    complete = _FakeBleak("04:CD:15:3A:0B:BD")
+    _run(complete.connect())
+    assert capture._gatt_missing(complete, (_GATT_RX_UUID, _GATT_TX_UUID)) == ()
+    # UUID case is not a fact about the device — bleak normalizes, the fake does not
+    assert capture._gatt_missing(complete, (_GATT_RX_UUID.upper(),)) == ()
+
+
+def test_settle_degrades_when_bleak_exposes_no_rebuild(monkeypatch):
+    """A bleak that renames `_backend` or `_get_services` must fall back to the #2365 reconnect, not
+    raise a new exception type into the leak guard. The getattr guards are the whole reason a private
+    attribute is acceptable here."""
+    import capture
+    monkeypatch.setattr(capture, "_GATT_SETTLE_STEP_S", 0)
+    client = _MissingCharBleak("04:CD:15:3A:0B:BD")
+    _run(client.connect())
+
+    class _NoRebuildBackend:            # a snapshot that READS but exposes no `_get_services`
+        services = _MissingCharBleak._services
+
+    client._backend = _NoRebuildBackend()
+    assert _run(capture._gatt_rebuild(client)) is False
+    out = _run(capture._settle_gatt_chars(client, (_GATT_RX_UUID,)))
+    assert out == "absent, and this bleak exposes no way to rebuild the snapshot"
+    # and the snapshot is untouched — a degraded rebuild must not destroy the evidence either
+    assert capture._gatt_snapshot(client).startswith(_VENDOR_SVC)
+
+    client._backend = None              # `_backend` itself renamed away: unreadable, NOT absent
+    assert capture._gatt_missing(client, (_GATT_RX_UUID,)) is None
+
+
+def test_a_failed_rebuild_puts_the_snapshot_back(monkeypatch):
+    """🔴 The rebuild clears `services` BEFORE it can fail, so a raise would leave the client with no
+    snapshot at all — and `_gatt_snapshot` would then print "no service snapshot" for a reason that
+    has nothing to do with the failure being diagnosed. That is #2365's blindness with a new cause,
+    so the collection is restored on the way out."""
+    import capture
+    monkeypatch.setattr(capture, "_GATT_SETTLE_STEP_S", 0)
+    client = _MissingCharBleak("04:CD:15:3A:0B:BD")
+    _run(client.connect())
+    held = client._backend.services
+
+    async def _boom():
+        raise OSError("bus went away mid-rebuild")
+    client._backend._get_services = _boom
+    with pytest.raises(OSError):
+        _run(capture._gatt_rebuild(client))
+    assert client._backend.services is held, "the evidence survived the failed rebuild"
+    out = _run(capture._settle_gatt_chars(client, (_GATT_RX_UUID,)))
+    assert out == "absent; the rebuild raised OSError on attempt 1"
+
+
+def test_settle_reports_a_rebuild_that_left_nothing_readable(monkeypatch):
+    """The rebuild succeeded and the client STILL cannot be read — the link dropped underneath it.
+    Distinct from "still absent": nothing was examined, so nothing may be claimed about the tree."""
+    import capture
+    monkeypatch.setattr(capture, "_GATT_SETTLE_STEP_S", 0)
+    client = _MissingCharBleak("04:CD:15:3A:0B:BD")
+    _run(client.connect())
+
+    async def _empties():
+        client._backend.services = None
+        return None
+    client._backend._get_services = _empties
+    assert _run(capture._settle_gatt_chars(client, (_GATT_RX_UUID,))) == "unreadable after 1 rebuild(s)"
+
+
+def test_gatt_snapshot_names_what_bleak_held_or_says_it_held_nothing():
+    import capture
+
+    class _NoSnapshot:
+        @property
+        def services(self):
+            raise RuntimeError("Service Discovery has not been performed yet")
+
+    class _Empty:
+        services = []
+
+    class _Held:
+        services = _MissingCharBleak._services
+
+    assert capture._gatt_snapshot(_NoSnapshot()) == "no service snapshot (RuntimeError)"
+    assert capture._gatt_snapshot(_Empty()) == "empty snapshot"
+    assert capture._gatt_snapshot(_Held()) == (
+        "0000fd56-0000-1000-8000-00805f9b34fb[a6220002-35f1-4b20-afae-cb089d2044aa@0x0020]")
+
+
+def test_gatt_link_state_separates_a_dropped_link_from_an_unreadable_one():
+    """∅ The three answers are `connected`, `DISCONNECTED` and `unknown` — and the third may never
+    collapse into the second. bleak's `is_connected` raises once the backend is torn down, so a
+    `except: return False` here would report "the peer dropped" every time the probe merely could not
+    look, manufacturing the exact finding #2170 is trying to measure."""
+    import capture
+
+    class _Up:
+        is_connected = True
+
+    class _Down:
+        is_connected = False
+
+    class _Unreadable:
+        @property
+        def is_connected(self):
+            raise RuntimeError("backend is gone")
+
+    assert capture._gatt_link_state(_Up()) == "connected"
+    assert capture._gatt_link_state(_Down()) == "DISCONNECTED"
+    assert capture._gatt_link_state(_Unreadable()) == "unknown (RuntimeError)"
+
+
+def test_the_snapshot_and_link_state_are_read_BEFORE_the_leak_guard_closes_the_link(monkeypatch, caplog):
+    """🔴 THE #2365 DEFECT, pinned. `client.disconnect()` nulls bleak's service collection — it ends
+    with `assert self.services is None` — so a diagnostic that reads the snapshot AFTER the close can
+    only ever print "no service snapshot", whatever happened. Measured on vigil 2026-09-09: 98 of 98
+    events byte-identical, from a probe that never examined its subject.
+
+    The assertion is that the log carries what bleak HELD AT THE FAILURE, which is unreachable once
+    the guard has run — `_FakeBleak.disconnect()` drops `_services` exactly as bleak does, so this
+    test REDS against the old ordering rather than passing on a stub that kept its state."""
+    import capture
+    import bleak
+    _FakeBleak.instances.clear()
+    _MissingCharBleak.fail_first = 1
+    monkeypatch.setattr(capture, "_GATT_SETTLE_STEP_S", 0)   # its tree never grows; do not sleep through the settle
+    monkeypatch.setattr(bleak, "BleakClient", _MissingCharBleak)
+
+    async def go():
+        with caplog.at_level(logging.WARNING, logger="capture"):
+            _w, _r, disconnect = await capture._cpap_ble_connect("04:CD:15:3A:0B:BD", "hci2")
+        first = _FakeBleak.instances[0]
+        # The evidence is genuinely GONE by the time the guard finishes — so a log line that still
+        # names it can only have read it beforehand. This is the plant: without it the assertions
+        # below pass against either ordering.
+        assert capture._gatt_snapshot(first) == "no service snapshot (RuntimeError)"
+        assert capture._gatt_link_state(first) == "DISCONNECTED"
+
+        msg = next(r.getMessage() for r in caplog.records if "#2170" in r.getMessage())
+        assert "a6220002-35f1-4b20-afae-cb089d2044aa@0x0020" in msg, "the snapshot bleak held at failure"
+        assert "link at failure: connected" in msg, "the link WAS up — mechanism (b), not a peer drop"
+        assert "although the link is up" not in msg, "the retired claim was asserted, never measured"
+        await disconnect()
     _run(go())
 
 
@@ -1002,6 +1412,41 @@ def test_a_sink_write_failure_is_counted_and_the_stream_survives(caplog):
     assert len(bus.pushed) == 4                     # the bus STILL got every push (failure didn't block it)
     assert "'sink_errors': 2" in caplog.text         # the gap-accounting summary carries the count
     assert "sink_errors=1" in caplog.text            # each failure logged loudly as it happened
+    # ⚠️ A FAILING SINK IS STILL TIMED. The timing sits in a `finally`, so a write that raises is
+    # counted up to the failure rather than vanishing from the record — otherwise the slowest
+    # writes, the ones that time out and then raise, would be exactly the ones never measured.
+    assert "'sink_max_ms'" in caplog.text
+
+
+class _QuietSink:
+    def __init__(self): self.batches = 0
+    def open(self, channels, fs): pass
+    def on_batch(self, batch): self.batches += 1
+    def close(self): pass
+
+
+def test_a_CLEAN_sink_write_logs_NOTHING_at_error_level(caplog):
+    """THE PLANT for #2641's regression: the timing `finally` was inserted between the `except` and
+    its `_log.exception`, which moved the log INTO the finally — so every successful write logged
+    "CPAP durable sink failed … (sink_errors=0)" with `NoneType: None` for a traceback. Measured on
+    vigil 2026-09-19: 12,772 ERROR lines in 48 min. The loud-failure contract is only a contract if
+    success is quiet; this pins that a clean batch produces zero ERROR records and `sink_errors` 0,
+    while the write is still timed."""
+    sink = _QuietSink()
+    dev = FakeDev(_handshake() + [_ack(), _data([0.1], [5.0]), _data([0.2], [5.1])])
+    bus = FakeBus()
+    with caplog.at_level(logging.INFO):
+        delivered = _run(CS.stream_to_bus(bus, dev.write, dev.recv_frame, PAIR_KEY, "cid",
+                                          cipher_factory=_identity_factory, max_batches=2,
+                                          extra_sinks=[sink]))
+    assert delivered == 2 and sink.batches == 2
+    errors = [r for r in caplog.records if r.levelno >= logging.ERROR]
+    assert errors == [], [r.getMessage() for r in errors]
+    assert "durable sink failed" not in caplog.text
+    assert "'sink_errors': 0" in caplog.text
+    assert "'sink_max_ms'" in caplog.text            # timing still taken on the success path
+    assert "'sink_max_ms': None" not in caplog.text, (
+        "a sink that raised was still entered and left — it must be timed, not unmeasured")
 
 
 def test_controller_hands_both_sinks_to_the_pump_raw_record_first():
@@ -1320,3 +1765,194 @@ def test_last_sink_paths_is_resolved_when_asked_not_snapshotted_at_start(tmp_pat
     before, after = _run(go())
     assert before == [], "no name yet ⇒ nothing to discard"
     assert after == [str(tmp_path / "20260902_230000_BRP.edf")], "a later name must be seen"
+
+
+def test_a_connect_that_records_NO_gatt_table_logs_nothing_about_it(monkeypatch, caplog):
+    """GATT-HANDLE-MAP-2026-09-17, the quiet half. `_gatt_record_table` is best-effort and returns ""
+    when there was nothing to record — an unreadable or empty snapshot, or a map that refused the
+    write. That path must be SILENT, not log an empty phrase: this runs on every CPAP connect, and a
+    line that says nothing on a healthy box is the noise §14's night report exists to avoid.
+
+    It is also the branch no other test reaches — every fake client here publishes a non-empty tree,
+    so without this the `if recorded:` false arm is never taken and coverage reports a partial."""
+    import capture
+    import bleak
+    _FakeBleak.instances.clear()
+    monkeypatch.setattr(bleak, "BleakClient", _FakeBleak)
+
+    async def _nothing(_client, _addr):
+        return ""
+    monkeypatch.setattr(capture, "_gatt_record_table", _nothing)
+
+    async def go():
+        with caplog.at_level(logging.INFO, logger="capture"):
+            _w, _r, disconnect = await capture._cpap_ble_connect("04:CD:15:3A:0B:BD", "hci2")
+        assert not [r for r in caplog.records if "GATT table recorded" in r.getMessage()]
+        await disconnect()
+    _run(go())
+
+
+# ── THE ORACLE — GATT-HANDLE-MAP-2026-09-17 §2b③ ───────────────────────────────────────────────────
+def _settle_args(monkeypatch, capture_mod):
+    """Capture what `_settle_gatt_chars` is asked to wait for, without running it."""
+    seen = {}
+
+    async def _spy(_client, uuids):
+        seen["uuids"] = tuple(uuids)
+        return ""
+    monkeypatch.setattr(capture_mod, "_settle_gatt_chars", _spy)
+    return seen
+
+
+def test_ORACLE_a_device_with_NO_record_waits_on_exactly_todays_two_uuids(monkeypatch):
+    """THE SAFETY PROPERTY that lets this land dormant. `wait_hint` returns None, the union collapses
+    to the two named UUIDs, and the behaviour is byte-for-byte what it was before the oracle existed.
+    If this ever fails, the oracle stopped being opt-in and started changing every connect."""
+    import capture
+    import bleak
+    import gattmap
+    gattmap.reset()
+    _FakeBleak.instances.clear()
+    monkeypatch.setattr(bleak, "BleakClient", _FakeBleak)
+    seen = _settle_args(monkeypatch, capture)
+
+    async def go():
+        _w, _r, disconnect = await capture._cpap_ble_connect("04:CD:15:3A:0B:BD", "hci2")
+        await disconnect()
+    _run(go())
+    assert seen["uuids"] == (_GATT_RX_UUID, _GATT_TX_UUID)
+
+
+def test_ORACLE_a_recorded_device_waits_on_the_WHOLE_table(monkeypatch):
+    """The point of the unit. A tree carrying both named characteristics while the rest is still in
+    flight reads as SETTLED to the two-UUID wait — that is the 2026-09-09 failure shape. With a table
+    recorded, the settle waits for all of it."""
+    import capture
+    import bleak
+    import gattmap
+    gattmap.reset()
+    extra = "0000fd56-0000-1000-8000-00805f9b34fb"
+    gattmap.record("04:CD:15:3A:0B:BD", "abcd",
+                   {_GATT_RX_UUID: 0x11, _GATT_TX_UUID: 0x13, extra: 0x20}, source="test")
+    _FakeBleak.instances.clear()
+    monkeypatch.setattr(bleak, "BleakClient", _FakeBleak)
+    seen = _settle_args(monkeypatch, capture)
+
+    async def go():
+        _w, _r, disconnect = await capture._cpap_ble_connect("04:CD:15:3A:0B:BD", "hci2")
+        await disconnect()
+    _run(go())
+    gattmap.reset()
+    assert extra in seen["uuids"]
+    assert set(seen["uuids"]) >= {_GATT_RX_UUID, _GATT_TX_UUID, extra}
+
+
+class _RawStub:
+    """The least a sink needs to count as THE raw record for `_emit_acq_evidence`: `acq_facts()`."""
+    def open(self, channels, fs): pass
+    def on_batch(self, batch): pass
+    def close(self): pass
+    def acq_facts(self):
+        return {"session_id": "s", "device_id": "d", "path": None, "size": None, "records": 0,
+                "first_device_start": None, "closed_cleanly": True}
+
+
+# ── INV8 · continuity_status rides the pump end to end ─────────────────────────────────────────
+def _data_at(stamp, n=10, stream_id=1):
+    """`_data` with a chosen device `startTime` — the continuity verification reads that field."""
+    return _enc({"jsonrpc": "2.0", "method": "StreamData", "params": {
+        "data": [{"PatientFlow": [0.1] * n}, {"MaskPressure": [5.0] * n}],
+        "intervalMs": 40, "startTime": stamp, "streamId": stream_id}})
+
+
+def test_continuity_verdict_reaches_the_envelope_AND_the_gap_accounting_log(caplog):
+    """End to end through the real pump and the real handshake: session 1 streams two frames and the
+    link DROPS (the deque runs dry); session 2's first frame lands 5.4 s after the sample session 1
+    was owed. The verdict must reach BOTH surfaces — the evidence envelope, and the gap-accounting
+    log line, which is the only acquisition surface live on a box with `raw_record_dir` unset (the
+    production box, measured 2026-09-18)."""
+    import logging
+    import cpap_continuity
+
+    tracker = cpap_continuity.ContinuityTracker()
+    envelopes = []
+    T0 = "2026-08-23T01:30:28.730Z"
+
+    async def session(frames, *, expect_drop):
+        dev = FakeDev(_handshake() + [_ack()] + frames)
+        tracker.note_start()
+        if expect_drop:
+            with pytest.raises(IndexError):
+                await CS.stream_to_bus(FakeBus(), dev.write, dev.recv_frame, PAIR_KEY, "cid",
+                                       cipher_factory=_identity_factory, extra_sinks=[_RawStub()],
+                                       acq_evidence_out=envelopes.append, continuity=tracker)
+        else:
+            await CS.stream_to_bus(FakeBus(), dev.write, dev.recv_frame, PAIR_KEY, "cid",
+                                   cipher_factory=_identity_factory, max_batches=1, extra_sinks=[_RawStub()],
+                                   acq_evidence_out=envelopes.append, continuity=tracker)
+
+    with caplog.at_level(logging.INFO, logger="tepna.cpap"):
+        # session 1: T0 and T0+400 ms, then the link drops → the next sample was owed at T0+800
+        _run(session([_data_at(T0), _data_at("2026-08-23T01:30:29.130Z")], expect_drop=True))
+        assert tracker.status is cpap_continuity.Continuity.CONTINUOUS, "session 1's own verdict"
+        assert envelopes[-1].provenance["continuity"] == {"continuity_status": "continuous",
+                                                          "continuity_gap_ms": None}
+        # session 2: first frame at T0+800+5400 → a MEASURED 5.4 s gap
+        _run(session([_data_at("2026-08-23T01:30:34.930Z")], expect_drop=False))
+
+    assert tracker.status is cpap_continuity.Continuity.VERIFIED_GAP and tracker.gap_ms == 5400
+    assert envelopes[-1].provenance["continuity"] == {"continuity_status": "verified-gap",
+                                                      "continuity_gap_ms": 5400}
+    # the log line — the surface that is live on vigil — carries the same verdict
+    lines = [r.getMessage() for r in caplog.records if "gap accounting" in r.getMessage()]
+    assert any("'continuity_status': 'verified-gap'" in ln and "'continuity_gap_ms': 5400" in ln for ln in lines), lines
+
+
+def test_the_pump_without_a_tracker_is_byte_identical_to_before(caplog):
+    """The additive contract: no `continuity=` ⇒ no field in the log line and None in the envelope."""
+    import logging
+    envelopes = []
+    dev = FakeDev(_handshake() + [_ack(), _data([0.1], [5.0])])
+    with caplog.at_level(logging.INFO, logger="tepna.cpap"):
+        _run(CS.stream_to_bus(FakeBus(), dev.write, dev.recv_frame, PAIR_KEY, "cid",
+                              cipher_factory=_identity_factory, max_batches=1, extra_sinks=[_RawStub()],
+                              acq_evidence_out=envelopes.append))
+    assert envelopes[-1].provenance["continuity"] is None
+    assert not any("continuity_status" in r.getMessage() for r in caplog.records)
+
+
+def test_the_controller_opens_each_session_in_the_tracker_and_forwards_it_to_the_pump():
+    """The controller-level half of INV8, the part the pump tests cannot see: `_start` resolves the
+    session's OPENING continuity state, forwards the tracker to the pump under `continuity=`, and
+    surfaces the state in `op("start")`'s result — the one place a caller (the auto-start loop, the
+    monitor button) sees it without the evidence surface, which is off on the production box.
+    The resume hint is consumed on the first start and must not leak into the second."""
+    import cpap_continuity
+    seen = {}
+
+    async def pump(bus, write, recv_frame, pk, cid, *, channels=None, should_stop=None, continuity=None):
+        seen["continuity"] = continuity
+        while should_stop is None or not should_stop.is_set():
+            await asyncio.sleep(0.005)
+        return 0
+
+    async def go():
+        tracker = cpap_continuity.ContinuityTracker()
+        connect, _events = _connector()
+        c = CS.LiveStreamController(_ControllerBus(), connect, _creds, _idle_devices, pump=pump, continuity=tracker)
+        c.continuity_resume_hint = True                      # "the daemon came up mid-therapy"
+
+        started = await c.op("start")
+        await asyncio.sleep(0.02)                            # let the pump task actually run
+        assert seen["continuity"] is tracker, "the tracker must reach the pump under continuity="
+        assert started["continuity_status"] == "resumed-unverified", "a hinted first start is a RESUME"
+        assert started["continuity_gap_ms"] is None
+        assert c.continuity_resume_hint is False, "the hint is one-shot"
+        await c.op("stop")
+
+        # a deliberate stop clears the slate: the next start is a fresh acquisition
+        tracker.note_end(clean=True)
+        again = await c.op("start")
+        assert again["continuity_status"] == "continuous"
+        await c.op("stop")
+    _run(go())

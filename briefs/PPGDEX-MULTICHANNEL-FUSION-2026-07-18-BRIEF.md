@@ -1,13 +1,31 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-09-02 (re-triaged: ambient subtraction is not merely unbuilt but **collected and discarded** — see R5; fusion itself is REFUTED by a 20-night null, sign test p=0.359, so §§2-4 read as WITHDRAWN rather than pending. Previously stamped 2026-08-27 (⚠️ **date corrected from 2026-07-18; the body carries 2026-08-04 measurements.** Checked 2026-08-27 and NOT flipped — the corpus cannot yet decide subtraction: only 6 of 12 nights give a plausible rMSSD, which is a data blocker, not an unfinished write-up. **§2 Phase 1 MEASURED 2026-08-04: the ambient column is read, carried, gated — and never subtracted. Subtraction is NOT inert (median 3.2 ms but +101 % on one night); however only 6 of 12 corpus nights give a plausible rMSSD at all, so the corpus cannot yet decide. See §2.** **§4 Phase 3 — the degenerate-channel guard — EXECUTED** ahead of · **Residue:** 2026-09-02-ppgdex-ambient-collected-unused
+**Status:** IN-PROGRESS — 2026-09-02 (re-triaged: ambient subtraction is not merely unbuilt but **collected and discarded** — see R5; fusion itself is REFUTED by a 20-night null, sign test p=0.359, so §§2-4 read as WITHDRAWN rather than pending. Previously stamped 2026-08-27 (⚠️ **date corrected from 2026-07-18; the body carries 2026-08-04 measurements.** Checked 2026-08-27 and NOT flipped — the corpus cannot yet decide subtraction: only 6 of 12 nights give a plausible rMSSD, which is a data blocker, not an unfinished write-up. **§2 Phase 1 MEASURED 2026-08-04: the ambient column is read, carried, gated — and never subtracted. Subtraction is NOT inert (median 3.2 ms but +101 % on one night); however only 6 of 12 corpus nights give a plausible rMSSD at all, so the corpus cannot yet decide. See §2.** **§4 Phase 3 — the degenerate-channel guard — EXECUTED** ahead of · **Residue:** 2026-09-02-ppgdex-ambient-collected-unused · **DRAIN 2026-09-11 (Brief runner) — RE-VERIFIED, UNCHANGED.** No commit since the 2026-09-02 re-triage. §§2-4 remain WITHDRAWN rather than pending — fusion is REFUTED by a 20-night null (sign test p = 0.359), and a refuted section is a recorded answer, not outstanding work. Status stays IN-PROGRESS for the ambient-subtraction remainder only.
 Phases 1–2, because it is the honesty half and was fixing a live defect: the capture host replicates the
 O2Ring's single finger pleth across `ppg0/1/2`, so `ledAgreementPct` reported a structurally-guaranteed
 `100` at `measured` tier. `analyze` now dedupes bit-identical channels before the consensus vote and takes
 the honest `nCh < 2` path at one distinct channel. Both directions mutation-verified; the real-corpus
 PpgDex equiv fixture reproduced byte-identical, so genuine Verity captures are provably untouched.
 **Phases 1, 2 and 4 — ambient subtraction, linear combining, per-channel reporting — remain unexecuted**,
+
+> **DISPOSITION OF THE AMBIENT COLUMN — RETAINED, 2026-09-20.** Residue
+> `2026-09-02-ppgdex-ambient-collected-unused` left two honest options: withdraw the column or
+> state why it is retained. Re-measured on `origin/main`: `.amb` has **8** reads and every one is
+> plumbing — two column-index guards, three pass-throughs into a sample object, three test
+> assertions that the column is the *right* column. Controls in the same sweep: `.green` 42,
+> `.red` 36, `.motion` 87, so the instrument finds real consumption where it exists. The ambient
+> values never enter an arithmetic expression anywhere.
+>
+> **It is retained, and the promise that would have consumed it is refuted, not pending.** §2's
+> ambient subtraction was scored against 20 nights of paired chest-ECG ground truth and costs
+> ~0.5 % SNR, because ambient's within-minute std is a hardware constant (34.66–35.16 counts
+> across all 53 non-daylight sessions). So there is no consumer to build. Removal is declined on
+> cost, not on doubt: `ppgdex-dsp.js` is in the compute closure, so deleting a parsed column moves
+> `computeHash`, owes fixture re-verification across PpgDex's six fixtures, and touches two
+> adapters and three test assertions — all to change **no output**. A collected-and-unused column
+> that is documented as such is cheaper than a compute-path change that buys nothing.
+
 and §0's line refs still need re-locating against PR #218's `parsePPG` rewrite. One residue surfaced while
-executing: see §4's *middle-case residue* note.) · **Created:** 2026-07-18
+executing: see §4's *middle-case residue* note.) ⚠️ **DRAIN 2026-09-19 — 17 landings in `ppgdex-dsp.js` since the 2026-09-02 re-triage**, including #2645 #2636 #2600 #2531 #2465 #2463 #2456. The header's two substantive claims are unaffected by count: ambient is still collected-and-discarded (re-verified 2026-09-18 during the pinned-span work — `amb` is parsed, stored and forwarded, and appears in no arithmetic), and the fusion refutation rests on a 20-night null rather than on the code. **Landings recorded, NOT assessed.** · **Created:** 2026-07-18
 
 > **⚠️ 2026-07-21 — Phases 1–2 are REFUTED by measurement.** `PPGDEX-ALGORITHM-DEEP-DIVE-2026-07-21-BRIEF.md` scored ambient subtraction and linear channel combining against 20 nights of paired chest-ECG ground truth. Waveform fusion **loses** out-of-sample (mean-of-3 0.95×, PCA-1 0.95×, max-SNR GEV 0.97× vs best-single-channel; foot-to-foot PPI sd 158.9 ms for ch0 alone vs 163.7 fused), and overnight ambient subtraction costs ~0.5 % SNR because ambient's within-minute std is a hardware constant (34.66–35.16 counts across all 53 non-daylight sessions). This brief's premise that the channels correlate at r 0.62–0.68 does not reproduce — the pulse-band correlation is **0.95–1.00 at zero lag**, which is exactly why averaging cannot help. **§4 (the degenerate-channel guard, EXECUTED) stands and is unaffected.** Do not execute Phases 1–2 as written.
 

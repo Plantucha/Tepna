@@ -851,15 +851,19 @@ function ppgHrMapReal(text, onPhase) {
       self.__ppgErr = 'buildPPI <20';
       return null;
     }
+    /* ⚠️ `corr.tt`, NOT `b.tt`. Since punch list #2, `correctRR` EXCLUDES rejected intervals rather
+       than filling them, so `nn` is the kept subset and is SHORTER than the input. Pairing it with
+       the input's `b.tt` by index would silently misalign every beat after the first rejection — and
+       `flags` is still INPUT-aligned, so the old `if (fl[i]) continue` would skip the wrong entries.
+       Both are fixed here: take the corrected time axis, and drop the skip because the corrector has
+       already removed what it rejected. */
     var corr = PPGDSP.correctRR(b.rr, b.tt),
       nn = corr.nn,
-      tt = b.tt,
-      fl = corr.flags || [],
+      tt = corr.tt,
       t0 = rec.t0Ms || 0,
       pairs = [],
       i;
     for (i = 0; i < nn.length; i++) {
-      if (fl[i]) continue;
       var hr = 60000 / nn[i];
       if (!(hr >= HR_MIN && hr <= HR_MAX)) continue;
       pairs.push([secFloor(t0 + tt[i] * 1000), hr]);
@@ -1091,6 +1095,150 @@ self.onmessage = function (ev) {
         if (tchSigmas(win.h10, win.verity, win.o2).neg) neg++;
       }
       self.postMessage({ type: 'done', reqId: m.reqId, neg: neg, count: m.count });
+      return;
+    }
+    if (m.kind === 'nightDerive') {
+      // sensor-trio-night.html — the per-night derivations that need the ALIGNED series runRealNight
+      // returned with `wantSeries` (which skips blockCI): the bootstrap CI it skipped, a running hat over
+      // growing prefixes, the sd of each pairwise difference (the hat's three inputs), the mean per-corner
+      // confidence, and one-minute display bins. Same FUSED estimator as runRealNight's point, same seed
+      // discipline; nothing new is estimated, so the landing page carries no estimator of its own to drift.
+      seed(m.seed >>> 0 || 0x51f0);
+      var hh = m.hh || [],
+        vv = m.vv || [],
+        oo = m.oo || [],
+        ks = m.keys || [];
+      if (!hh.length || hh.length !== vv.length || hh.length !== oo.length || ks.length !== hh.length) {
+        self.postMessage({ type: 'done', reqId: m.reqId, error: 'nightDerive: series missing or unequal' });
+        return;
+      }
+      // DEEP-AUDIT-VI F16 (PR #2070): the CI's estimator FOLLOWS the point's. runRealNight solved this night
+      // with the FUSED hat (tchSigmasFused — per-corner DSP confidence and the Tukey consensus trust), so every
+      // replicate resamples the confidences in LOCKSTEP with the same block indices and runs the same estimator,
+      // and so does every running prefix (the last one must equal the point). Classic only when no confidence
+      // arrays came back — then the point was classic too. Mirrors AnalysisStats.tchBlockBootstrapCI, which
+      // this worker cannot import; 30-s blocks and ≥20 replicates as blockCI above.
+      var cH = m.cH || null,
+        cV = m.cV || null,
+        cO = m.cO || null,
+        fused = !!(cH && cV && cO);
+      var hatOn = function (a, b, c, x, y, z) {
+        return fused ? tchSigmasFused(a, b, c, x, y, z) : tchSigmas(a, b, c);
+      };
+      var B = m.B || 400,
+        n = hh.length,
+        bl = Math.min(n, 30),
+        nb = Math.ceil(n / bl),
+        acc = { h10: [], verity: [], o2: [] },
+        bi,
+        kk,
+        j;
+      for (bi = 0; bi < B; bi++) {
+        var H = [],
+          V = [],
+          O = [],
+          CH = fused ? [] : null,
+          CV = fused ? [] : null,
+          CO = fused ? [] : null;
+        for (kk = 0; kk < nb; kk++) {
+          var st = Math.floor(rnd() * (n - bl + 1));
+          for (j = 0; j < bl; j++) {
+            H.push(hh[st + j]);
+            V.push(vv[st + j]);
+            O.push(oo[st + j]);
+            if (fused) {
+              CH.push(cH[st + j]);
+              CV.push(cV[st + j]);
+              CO.push(cO[st + j]);
+            }
+          }
+        }
+        var sb = hatOn(H, V, O, CH, CV, CO);
+        for (var di = 0; di < DKEYS.length; di++) {
+          if (sb[DKEYS[di]] != null) acc[DKEYS[di]].push(sb[DKEYS[di]]);
+        }
+      }
+      var ci = {};
+      for (var dj = 0; dj < DKEYS.length; dj++) {
+        var sorted = acc[DKEYS[dj]].sort(function (p, q) {
+          return p - q;
+        });
+        ci[DKEYS[dj]] = sorted.length >= 20 ? { lo: pct(sorted, 0.025), hi: pct(sorted, 0.975) } : null;
+      }
+      var stepS = Math.max(60, m.stepSec || 300),
+        running = [],
+        e;
+      var prefix = function (arr, k) {
+        return arr ? arr.slice(0, k) : null;
+      };
+      for (e = stepS; e < hh.length; e += stepS) {
+        var sp = hatOn(hh.slice(0, e), vv.slice(0, e), oo.slice(0, e), prefix(cH, e), prefix(cV, e), prefix(cO, e));
+        running.push({ n: e, o2: sp.o2, h10: sp.h10, verity: sp.verity, neg: sp.neg });
+      }
+      var sf = hatOn(hh, vv, oo, cH, cV, cO);
+      running.push({ n: hh.length, o2: sf.o2, h10: sf.h10, verity: sf.verity, neg: sf.neg });
+      var dHV = [],
+        dHO = [],
+        dVO = [],
+        i;
+      for (i = 0; i < hh.length; i++) {
+        dHV.push(hh[i] - vv[i]);
+        dHO.push(hh[i] - oo[i]);
+        dVO.push(vv[i] - oo[i]);
+      }
+      var pairSd = { hv: Math.sqrt(variance(dHV)), ho: Math.sqrt(variance(dHO)), vo: Math.sqrt(variance(dVO)) };
+      var meanOf = function (a) {
+        if (!a || !a.length) return null; // ABSENCE IS NULL — no confidence array means no mean, not 0
+        var t = 0;
+        for (var j = 0; j < a.length; j++) t += a[j];
+        return t / a.length;
+      };
+      var conf = { h10: meanOf(m.cH), verity: meanOf(m.cV), o2: meanOf(m.cO) };
+      // one-minute bins keyed by the floating wall-clock minute — a minute with no three-way overlap is
+      // ABSENT from the bin map and comes out null, so the renderer draws a gap, never a bridge
+      var bins = {},
+        order = [];
+      for (i = 0; i < ks.length; i++) {
+        var mk = Math.floor(ks[i] / 60);
+        var b = bins[mk];
+        if (!b) {
+          b = bins[mk] = { n: 0, h: 0, v: 0, o: 0 };
+          order.push(mk);
+        }
+        b.n++;
+        b.h += hh[i];
+        b.v += vv[i];
+        b.o += oo[i];
+      }
+      order.sort(function (p, q) {
+        return p - q;
+      });
+      var minute = { sec: [], h10: [], verity: [], o2: [], hv: [], ho: [], vo: [] };
+      var mk0 = order[0],
+        mk1 = order[order.length - 1];
+      for (var mm = mk0; mm <= mk1; mm++) {
+        var bb = bins[mm];
+        minute.sec.push(mm * 60);
+        if (!bb) {
+          minute.h10.push(null);
+          minute.verity.push(null);
+          minute.o2.push(null);
+          minute.hv.push(null);
+          minute.ho.push(null);
+          minute.vo.push(null);
+          continue;
+        }
+        var mh = bb.h / bb.n,
+          mv = bb.v / bb.n,
+          mo = bb.o / bb.n;
+        minute.h10.push(mh);
+        minute.verity.push(mv);
+        minute.o2.push(mo);
+        minute.hv.push(mh - mv);
+        minute.ho.push(mh - mo);
+        minute.vo.push(mv - mo);
+      }
+      self.postMessage({ type: 'done', reqId: m.reqId, ci: ci, running: running, pairSd: pairSd, conf: conf, minute: minute });
       return;
     }
   }

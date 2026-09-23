@@ -18,6 +18,7 @@
 
 from __future__ import annotations
 
+import ast
 import re
 from pathlib import Path
 
@@ -68,6 +69,51 @@ def _mutatable_modules() -> set[str]:
     return {p.name for p in HERE.glob("*.py") if p.name not in skip}
 
 
+# The three read shapes the gate keys on, as CALL names. Kept beside `READ_CALL` (the text form) because
+# the AST scan below matches on the call's own callee, not on the whole segment — an outer call that
+# merely CONTAINS a read (`json.loads(open(...).read())`) must not be reported twice.
+READ_CALLEES = {"open", "read_text", "getsource"}
+
+
+def raw_reads(src: str, mods: set[str]) -> list[tuple[int, str]]:
+    """Every raw read of a mutatable module in one test file's source: `[(lineno, reason)]`.
+
+    ⚠️ STATEMENT-SCOPED VIA `ast`, NOT PER PHYSICAL LINE — residue `2026-09-17-mutation-hygiene-misses-
+    a-split-read`. The per-line scan saw a `READ_CALL` with no module name on one line and a module
+    name with no read call on the next, and reported nothing; #2589 shipped exactly that read, and a
+    sweep on 2026-09-21 found THREE more already live (`test_seam_sidecar.py` ×2 on `writers.py`,
+    `test_writers.py` on `webmon.py`) — 3 of the suite's 8 multi-line read calls targeted a mutatable
+    module, and all three passed the gate. The unit is now the CALL: `ast.get_source_segment` hands back
+    the whole `open(os.path.join(..., \n "writers.py"))` expression however it is wrapped.
+
+    ⚠️ This keeps the PER-STATEMENT exemption the per-line design was written for, and does not widen it
+    back to per-file: `SANCTIONED` is looked for inside the call's own text, so one routed read still
+    exempts nothing but itself. Comments fall out for free — `ast` does not see them — which is what the
+    `line.lstrip().startswith("#")` guard used to do by hand."""
+    out: list[tuple[int, str]] = []
+    for node in ast.walk(ast.parse(src)):
+        if not isinstance(node, ast.Call):
+            continue
+        f = node.func
+        callee = f.id if isinstance(f, ast.Name) else f.attr if isinstance(f, ast.Attribute) else ""
+        if callee not in READ_CALLEES:
+            continue
+        seg = ast.get_source_segment(src, node) or ""
+        if SANCTIONED in seg or not READ_CALL.search(seg):
+            continue
+        probe = SELF_REF.sub('""', seg)
+        named = [m for m in mods if f'"{m}"' in probe or f"'{m}'" in probe]
+        if named:
+            out.append((node.lineno, f"reads {named[0]} directly"))
+            continue
+        obj = MODULE_OBJ.search(probe)
+        if obj and f"{obj.group(1)}.py" in mods:
+            out.append((node.lineno, f"reads {obj.group(1)}.py via the module object "
+                                     f"`inspect.getsource({obj.group(1)})` — names no file, so the "
+                                     f"filename match above cannot see it"))
+    return out
+
+
 def test_no_test_reads_a_mutatable_module_source_raw():
     """Every source scan of a mutatable module must go through `tests/_srcscan.module_source`.
 
@@ -79,37 +125,39 @@ def test_no_test_reads_a_mutatable_module_source_raw():
     for t in sorted(TESTS.glob("test_*.py")):
         if t.name in DRIVER_EXCLUDED:
             continue
-        src = t.read_text(encoding="utf-8")
-        for n, line in enumerate(src.split("\n"), 1):
-            # ⚠️ PER-LINE, NOT PER-FILE. This was `if SANCTIONED in src: continue` — one routed read
-            # anywhere in a file exempted every OTHER read in it. `test_capture_runners.py` imports the
-            # helper on line 17 and raw-read `capture.py` on line 4657, and the gate never saw it: the
-            # largest file in the suite held a blanket exemption earned by its own import line.
-            # A file adopting the helper is precisely the file most likely to have missed a site.
-            if SANCTIONED in line:
-                continue
-            # A commented-out read cannot execute, so prose is not an offence. This matters once the
-            # check is per-line: THIS file explains the failure in comments that name `capture.py`, and
-            # the per-file exemption used to hide them. Pure comment lines only — a trailing `#` after
-            # real code leaves the code on the line, and that code still reads.
-            if line.lstrip().startswith("#"):
-                continue
-            if not READ_CALL.search(line):
-                continue
-            probe = SELF_REF.sub('""', line)
-            named = [m for m in mods if f'"{m}"' in probe or f"'{m}'" in probe]
-            if named:
-                offenders.append(f"{t.name}:{n} reads {named[0]} directly")
-                continue
-            obj = MODULE_OBJ.search(probe)
-            if obj and f"{obj.group(1)}.py" in mods:
-                offenders.append(f"{t.name}:{n} reads {obj.group(1)}.py via the module object "
-                                 f"`inspect.getsource({obj.group(1)})` — names no file, so the "
-                                 f"filename match above cannot see it")
+        for n, why in raw_reads(t.read_text(encoding="utf-8"), mods):
+            offenders.append(f"{t.name}:{n} {why}")
     assert not offenders, (
         "read a mutatable module's source via tests/_srcscan.module_source(), which skips on a "
         "mutmut-generated file — a raw read makes the whole module unmeasurable and reports it as "
         "'failed to collect stats':\n  " + "\n  ".join(offenders))
+
+
+def test_the_gate_sees_a_read_split_across_lines():
+    """THE PLANT for residue `2026-09-17-mutation-hygiene-misses-a-split-read`: the exact read #2589
+    shipped, wrapped across two lines, must be reported — and the single-line spelling must be reported
+    at the same line, so the two are one offence with two layouts. A comment naming the module is not
+    an offence, a routed read is not, and a read of a NON-mutatable file is not. Each negative is a
+    control that the positive cannot pass vacuously."""
+    mods = {"capture.py", "writers.py"}
+    split = (
+        "import os\n"
+        "def test_x():\n"
+        "    src = open(os.path.join(os.path.dirname(__file__), '..',\n"
+        "                            'capture.py')).read()\n"
+    )
+    assert [n for n, _ in raw_reads(split, mods)] == [3], raw_reads(split, mods)
+    # …and the per-line scan the gate used to run genuinely misses it (the mechanism, not a story)
+    perline = [n for n, line in enumerate(split.split("\n"), 1)
+               if READ_CALL.search(line) and any(f"'{m}'" in line for m in mods)]
+    assert perline == [], "the per-line scan now catches a split read — this plant is stale"
+    joined = "import os\ndef test_x():\n    src = open(os.path.join(os.path.dirname(__file__), '..', 'capture.py')).read()\n"
+    assert [n for n, _ in raw_reads(joined, mods)] == [3]
+    assert raw_reads("# reads capture.py here\nx = 1\n", mods) == []
+    assert raw_reads("from tests._srcscan import module_source\nsrc = module_source(\n    'capture.py')\n", mods) == []
+    assert raw_reads("js = open(os.path.join(d,\n    '..', 'ecgdex-dsp.js')).read()\n", mods) == []
+    assert raw_reads("import inspect, capture\nsrc = inspect.getsource(\n    capture)\n", mods) != []
+    assert raw_reads("import inspect, capture\nsrc = inspect.getsource(\n    capture.run_polar)\n", mods) == []
 
 
 def test_the_helper_actually_skips_on_a_generated_file(tmp_path, monkeypatch):
@@ -127,3 +175,37 @@ def test_the_helper_actually_skips_on_a_generated_file(tmp_path, monkeypatch):
     with pytest.raises(BaseException) as e:          # pytest.skip raises Skipped, not Exception
         ss.module_source("gen.py")
     assert "mutmut" in str(e.value) or e.typename == "Skipped"
+    # The skip must be allowed at MODULE level: `test_ring_acc_recording.py` calls the helper at import.
+    # Without the flag pytest turns the skip into a collection ERROR, and under mutate_diff's `-x` that
+    # is "failed to collect stats" for the whole capture.py run (#2209/#2214 mutation jobs, 2026-09-05).
+    # `Skipped` carries the flag as an attribute; the previous assertion accepted either form.
+    assert getattr(e.value, "allow_module_level", False) is True
+
+
+def test_a_module_level_scan_of_a_generated_file_is_a_skip_not_a_collection_error(tmp_path):
+    """The failure as it actually happened, reproduced end to end: a test file that scans a mutatable
+    module at import time, collected by a REAL pytest against a file carrying mutmut's marker. This must
+    collect as SKIPPED. The pre-fix helper made it a collection error — pytest's message is literally
+    'Using pytest.skip outside of a test will skip the entire module' — which mutate_diff (running -x)
+    reports as 'failed to collect stats' and refuses on. Run in a subprocess because the property under
+    test is pytest's collection behaviour, not the helper's return value."""
+    import shutil
+    import subprocess
+    import sys
+
+    root = tmp_path / "repo"
+    (root / "tests").mkdir(parents=True)
+    shutil.copy(HERE / "tests" / "_srcscan.py", root / "tests" / "_srcscan.py")
+    (root / "gen.py").write_text("def x_f__mutmut_orig(): pass\n", encoding="utf-8")
+    (root / "tests" / "test_scan.py").write_text(
+        "from _srcscan import module_source\n"
+        "SRC = module_source('gen.py')\n"          # module scope — the shape test_ring_acc_recording uses
+        "def test_x():\n    assert 'mutmut' in SRC\n", encoding="utf-8")
+    r = subprocess.run([sys.executable, "-m", "pytest", "-q", "-x", "-p", "no:cacheprovider",
+                        "--rootdir", str(root), str(root / "tests" / "test_scan.py")],
+                       cwd=str(root / "tests"), capture_output=True, text=True, timeout=120)
+    out = r.stdout + r.stderr
+    assert "error" not in out.lower() and "allow_module_level" not in out, out
+    # exit 5 = "no tests collected" — the one file in this run skipped whole, which is the intent; a
+    # collection error exits 2 (and mutmut's `-x` run dies with it). Alongside real tests, exit is 0.
+    assert r.returncode == 5 and "1 skipped" in out, out

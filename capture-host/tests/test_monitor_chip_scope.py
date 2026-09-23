@@ -18,10 +18,12 @@ passed against the broken file.
 """
 
 import os
+import re
 import shutil
 import subprocess
 
 import pytest
+from _monitor_chips import derive_chips, _body  # noqa: E402
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MON = os.path.join(HERE, "monitor.html")
@@ -84,18 +86,10 @@ def _typeofs(names):
     return json.loads(r.stdout)
 
 
-CHIPS = [
-    "chargeChip",
-    "wornChip",
-    "rateChip",
-    "battChip",
-    "deviceHealth",
-    "rssiChip",
-    "clkChip",
-    "presenceChip",
-    "witnessChip",
-    "clockStatus",
-]
+# DERIVED from the template, closed over callees — never a hand list. See tests/_monitor_chips.py and
+# residue 2026-09-05-monitor-chip-registries: the hand-kept copy went stale the day `oxyStormChip`
+# landed, and only reddened on a machine that had node.
+CHIPS = derive_chips()
 
 
 def test_every_chip_renderRemembered_calls_is_reachable_at_top_level():
@@ -131,3 +125,37 @@ def test_the_probe_can_actually_SEE_a_nested_function():
     got = json.loads(r.stdout)
     assert got["outer"] == "function", "the probe cannot see a top-level function"
     assert got["inner"] == "undefined", "the probe reports a NESTED function as reachable — it is blind"
+
+
+# ── the derivation itself is under test, or a derivation that sees nothing passes everything ──────
+def _src():
+    return open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                             "monitor.html"), encoding="utf-8").read()
+
+
+def test_a_chip_ADDED_to_the_template_is_derived_without_anyone_listing_it():
+    """THE PLANT. This is the exact 2026-09-05 shape: a new `${fooChip(d)}` in renderRemembered's
+    template. The old hand lists did not know; the derivation must."""
+    src = _src()
+    planted = src.replace("${wornChip(d)}", "${wornChip(d)} ${fooChip(d)}", 1)
+    assert planted != src
+    assert "fooChip" in derive_chips(planted)
+    assert "fooChip" not in derive_chips(src)
+
+
+def test_a_chip_reachable_only_THROUGH_another_chip_is_still_derived():
+    """clockStatus is called by clkChip, not by renderRemembered — the nesting whose history opened this
+    file. A derivation that stopped at direct calls would drop it and the scope probe would go blind
+    to exactly the function it was written for."""
+    src = _src()
+    assert "clockStatus" in derive_chips(src)
+    assert "clockStatus" not in re.findall(r"\b(\w+)\(", _body(src, "renderRemembered") or "")
+
+
+def test_the_derivation_matches_what_the_page_ships_today():
+    """Not a pinned list — an equality against the template's own call set, so the day a chip is added
+    or removed this reads the new truth and the two consumers follow. The count is printed on failure
+    so a reader sees WHAT moved, not that something did."""
+    got = derive_chips()
+    assert got == sorted(set(got)) and got, got
+    assert all(n.endswith(("Chip", "Health", "Status")) for n in got), got

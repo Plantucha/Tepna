@@ -45,7 +45,7 @@ node cpapdex-tests.js    # runs the synthetic assertions (last sample run: 12 pa
   "node": "CPAPDex",
   "modality": "CPAP / PAP Therapy",      // dex-test-gen branches on this substring
   "icon": "🫁", "accentColor": "var(--cyan)", "accentHex": "#3DE0D0",
-  "version": "1.0.0", "status": "alpha",
+  "version": "1.0.0",
   "description": "...", "warning": "...",
   "dataModel": { "fields": { "pressure": "Float32Array — cmH₂O, 1 Hz", ... } },
   "eventTypes": { "OA": "Obstructive Apnea", "CA": "Central Apnea", ... },

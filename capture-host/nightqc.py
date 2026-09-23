@@ -11,6 +11,7 @@
 # every writer emits exactly one header line, so rows = newlines − 1.
 from __future__ import annotations
 
+from array import array as _array
 import json
 import cmath
 import math
@@ -20,8 +21,11 @@ import subprocess
 
 import allan
 import clock_offset
+import polar_pmd
 import writers
-from datetime import datetime, timedelta
+from collections.abc import Sequence
+from datetime import datetime, timedelta, timezone
+from localstamp import LocalStampResolver
 
 log = logging.getLogger("tepna-capture")
 
@@ -222,9 +226,15 @@ def night_view(session, files) -> "dict | None":
         st = f.get("session")
         if st is None:
             continue
-        dur = float(f.get("span_sec") or 0.0)
+        # `or 0.0` here would collapse UNKNOWN into ZERO — precisely what `file_span_sec`'s contract
+        # forbids ("Callers must treat None as unknown, never as zero"). The two are the same arm in
+        # this function, because a file whose span we cannot measure has to be placed SOMEWHERE and a
+        # point at its start stamp is the only defensible choice — but they are separated here so the
+        # distinction survives, and so a future caller reading this does not learn the wrong idiom.
+        raw = f.get("span_sec")
+        dur = 0.0 if raw is None else float(raw)
         if dur <= 0:
-            rows += f["rows"] if b0 <= st < b1 else 0.0      # a zero-span file is a point in time
+            rows += f["rows"] if b0 <= st < b1 else 0.0      # unknown or zero span ⇒ a point in time
             continue
         rows += f["rows"] * _overlap(st, st + dur, b0, b1) / dur
     total = sum(f["rows"] for f in files)
@@ -290,13 +300,33 @@ def _midnight_of(night_dir: str):
 # rates in webmon's _BPS_BY_MODEL (the second tuple element); duplicated rather than imported because
 # nightqc is a pure, dependency-light reporter. A device config's own `rates` override wins over this (the
 # Verity ACC is configured at 52 Hz, not its 200 Hz nominal), so this is only the fallback default.
-_NOMINAL_HZ = {
+# Annotated because the literals mix int and float ("hr": 1 beside "ppg": 125.738), which mypy
+# joins to `object` — so `_NOMINAL_HZ[model].get(stream)` read as a call on `object`. The values
+# are all rates; float is the honest common type.
+_NOMINAL_HZ: dict[str, dict[str, float]] = {
     "H10":    {"ecg": 130, "acc": 200, "hr": 1},
     "Verity": {"ppg": 55, "acc": 52, "gyro": 52, "mag": 50, "ppi": 1},
     # O2Ring ppg is the observed ROW rate (~125.7), NOT the 125.000 ADC clock: the file counts one row per
     # sample PLUS one per inserted `156` beat marker, and a coverage figure divides ROW count by span — so
     # the honest denominator here is the row rate. DEVICE-RATE-TRUTH §2; distinct from capture.O2PPG_FS_DEFAULT.
-    "O2Ring": {"spo2": 1, "ppg": 125.738},
+    # O2Ring `acc` is the RECORD rate (~9.979), and that is deliberate for the same reason `ppg` above
+    # is a row rate: `measured_hz` reads rows off the file and `_expected_hz` is what it is compared
+    # against, so a denominator that is not the row rate reports a healthy stream as mismatched. The
+    # ring's ACC is a ZERO-ORDER HOLD — it MEASURES at 1.5625 Hz and the capture path writes 10 Hz
+    # records, so ~84 % of records repeat the previous value (measured over two nights: record rate
+    # 9.979–10.000, distinct-value rate 1.562–1.565, 6.387–6.396 records per distinct value = 32/5).
+    # Coverage asks "did the stream keep arriving", which the record rate answers. Anything asking
+    # "how much was MEASURED" — epoch grids, independent-sample counts, information content — must use
+    # `_MEASUREMENT_HZ` below instead, or it is 6.4x wrong.
+    "O2Ring": {"spo2": 1, "ppg": 125.738, "acc": 9.979},
+}
+
+# The rate at which a device actually MEASURES, where that differs from the rate it emits records at.
+# Separate from `_NOMINAL_HZ` on purpose: they answer different questions and conflating them is the
+# defect this table exists to prevent. Absent ⇒ the two are the same and the record rate is the
+# measurement rate. NEVER use this as a coverage denominator against a row count.
+_MEASUREMENT_HZ = {
+    "O2Ring": {"acc": 1.5625},
 }
 
 # Below this fraction of the expected rows a stream that DID produce data is still "degraded" — the trickle
@@ -304,6 +334,16 @@ _NOMINAL_HZ = {
 # died at hour one) but is not a healthy night. Coverage is an ESTIMATE (span from file mtimes), so the bar
 # is deliberately generous — it flags a real hole, not normal jitter.
 _DEGRADED_BELOW = 0.5
+
+#: The Polar device epoch, in Unix milliseconds. Device stamps are ns since 2000-01-01
+#: (polar-ble-sdk `TimeSystemExplained.md`; `capture.py:_POLAR_EPOCH` carries the same instant), and
+#: `Phone timestamp` is a Unix instant — so an arrival offset MUST difference them on one epoch.
+#: Anchored in UTC deliberately, and both halves are stated by the producer: the device counter is UTC
+#: (`capture.py:_utcnow` — "Device clocks are set in UTC ... so skew is measured against UTC") while the
+#: host column is naive LOCAL civil time (`writers._phone_ts`, written from `_now()`), so `.timestamp()`
+#: converts the host side and this constant converts the device side. 946 684 800 000 ms is the
+#: 1970→2000 delta, and it is exactly what was being added to every reading before this was subtracted.
+_POLAR_EPOCH_MS = datetime(2000, 1, 1, tzinfo=timezone.utc).timestamp() * 1000.0
 _MIN_SPAN_SEC = 300.0    # too little elapsed capture to judge a rate — report coverage as unknown, not low
 
 
@@ -327,6 +367,27 @@ def _recognised_model(dev: dict):
         if any(m in blob for m in marks):
             return name
     return None
+
+
+def measurement_hz(dev: dict, stream: str):
+    """The rate this device MEASURES `stream` at, when that differs from the rate it writes records.
+
+    The O2Ring's ACC is the case this exists for: it measures at 1.5625 Hz and the capture path writes
+    ~10 Hz records, so 84 % of records are a zero-order hold of the previous value. That is the §7
+    DRAWN-AXIS shape and NOT the §∅ absence shape — the held value is real data at a real, lower rate,
+    so it must not be recorded as absence, and a run-length rule keyed on constant runs would convict
+    the device for working as designed (99.8 % of its runs are length 6 or 7).
+
+    None ⇒ no separate measurement rate is known, so the record rate IS the measurement rate. A caller
+    computing independent samples, an epoch grid or information content must use this and not
+    `_expected_hz`; a caller computing coverage must use `_expected_hz` and not this."""
+    dev_rate = (dev.get("measurement_rates") or {}).get(stream)
+    if dev_rate:
+        return float(dev_rate)
+    model = _recognised_model(dev)
+    if model is None:
+        return None
+    return _MEASUREMENT_HZ.get(model, {}).get(stream)
 
 
 def _expected_hz(dev: dict, stream: str):
@@ -450,6 +511,85 @@ def _rate_key(dev: dict) -> str:
     return dev.get("name") or dev.get("model") or dev.get("device_id") or "?"
 
 
+# 🔴 A CONFIGURED STREAM NAME IS NOT ALWAYS ITS FILE TAG, and assuming so is silent in BOTH
+# directions. The config asks for `acc`; `capture.py` writes the O2Ring's accelerometer through
+# `StreamWriter(accraw_path, "accraw")`, so the file lands as `..._ACCRAW.txt` while the Polar
+# Verity's identical `acc` lands as `..._ACC.txt`. Two devices, one config word, two tags.
+#
+# Measured on vigil 2026-09-05: `stream.upper()` matched neither the 38 ACCRAW files on disk nor
+# 2.1 MB of accelerometer data in the live session, so QC reported `missing stream(s):
+# Wellue O2Ring-S:acc` every ~10 min against data that was arriving perfectly. That is a false
+# alarm in the ONE channel whose whole job is to announce data loss — the cost is not the wrong
+# line, it is that a reader who sees it nightly stops believing the true one.
+#
+# The two consumers fail differently from the same cause, which is why this is a shared helper and
+# not a patch at one site: coverage reports a stream MISSING (loud and wrong), while `rate_reality`
+# finds no candidate file and emits no row at all (silent and wrong).
+_STREAM_FILE_TAGS = {"acc": ("ACC", "ACCRAW")}
+
+
+def stream_file_tags(stream: str) -> tuple[str, ...]:
+    """Every file tag a configured stream may legitimately be written under, upper-case.
+
+    Default is the name upper-cased, which is right for every stream but the exception above. A
+    UNION rather than a per-device mapping on purpose: no device writes both tags (verified on the
+    real corpus — 38 `_ACCRAW.` against 2 `_ACC.` on 2026-09-05, disjoint by device), so accepting
+    either cannot mask one device's loss with another's data, and a device that changes which it
+    writes does not silently become `missing`."""
+    return _STREAM_FILE_TAGS.get(stream, (stream.upper(),))
+
+
+def pmd_negotiations(night_dir: str) -> dict:
+    """`(device, stream) -> {"chosen": hz|None, "offered": str|None, "starts": n}` from `PMDNEG.csv`.
+
+    The middle term `rate_reality` never had. Until this sidecar existed it compared the CONFIG against
+    the FILE, so "the device refused the rate" and "the link dropped packets" arrived at the reader as
+    the same disagreement. What the device agreed to sits between them.
+
+    ⚠️ ONLY STARTED negotiations count toward `chosen`, and the vocabulary is DERIVED from
+    `polar_pmd`, never restated here — a second copy of "which ack means started" is how the sidecar
+    and the daemon would come to disagree about the same night. Refused starts still raise `starts`,
+    so a stream that negotiated five times and began none reports its count with a null rate.
+
+    ⚠️ Disagreeing starts give **None**, not a first or a majority: a session that began at 55 Hz and
+    reconnected at 176 was not captured at either, and averaging them would invent a rate no sample
+    was taken at (§∅). The count is published beside it so the reader sees the denominator."""
+    started = {polar_pmd.CTRL_STATUS[c] for c in polar_pmd.CTRL_STATUS if polar_pmd.is_started(c)}
+    out: dict = {}
+    path = os.path.join(night_dir, writers.PMDNEG_NAME)
+    try:
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            rows = fh.read().splitlines()
+    except OSError:
+        return out
+    for line in rows[1:]:
+        p = line.split(";")
+        if len(p) < 9:
+            continue                      # a torn row is skipped, exactly as every sidecar reader does
+        key = (p[1], p[3])
+        rec = out.setdefault(key, {"chosen": None, "offered": None, "starts": 0, "_seen": set(), "_menus": set()})
+        rec["starts"] += 1
+        # THE MENU IS A PROPERTY OF THE DEVICE, NOT OF THE OUTCOME, so it is read from every row —
+        # a refused START still carries the settings block the device reported before refusing.
+        # Measured on the box the day this shipped: a Verity left on its charger refused 63 ACC
+        # starts in an hour, every row recording `offered 52`, and this reported `offered: None`
+        # while the file said 52 sixty-three times — a null where a measurement exists, which is
+        # §∅ inverted. `chosen` stays started-only (below): what was captured at IS an outcome.
+        if p[5]:
+            rec["_menus"].add(p[5])
+        if p[7] not in started:
+            continue
+        try:
+            rec["_seen"].add(int(p[6]))
+        except ValueError:
+            pass                          # a blank or torn rate is an ABSENCE, not a zero
+    for rec in out.values():
+        rec["chosen"] = next(iter(rec["_seen"])) if len(rec["_seen"]) == 1 else None
+        rec["offered"] = next(iter(rec["_menus"])) if len(rec["_menus"]) == 1 else None
+        del rec["_seen"], rec["_menus"]
+    return out
+
+
 def rate_reality(night_dir: str, devices: list[dict]) -> list[dict]:
     """Per stream: the rate ASKED FOR against the rate the file actually carries.
 
@@ -478,22 +618,24 @@ def rate_reality(night_dir: str, devices: list[dict]) -> list[dict]:
     judged at all rather than judged wrong. A device with no configured rate is likewise unjudged,
     which is the correct answer for a sensor this suite has never seen.
     """
-    out = []
+    out: list = []
     try:
         names = sorted(os.listdir(night_dir))
     except OSError:
         return out
+    negotiated = pmd_negotiations(night_dir)
     for dev in devices or []:
         for stream in sorted((dev.get("streams") or [])):
             want = _expected_hz(dev, stream)
-            suffix = "_" + stream.upper() + ".txt"
-            cand = [n for n in names if n.endswith(suffix) and _dev_matches(n, dev)]
+            suffixes = tuple("_" + t + ".txt" for t in stream_file_tags(stream))
+            cand = [n for n in names if n.endswith(suffixes) and _dev_matches(n, dev)]
             if not cand:
                 continue
             # the LARGEST file of the session — the shortest ones are re-connect fragments whose few
             # hundred rows cannot settle a rate, and would report a spurious mismatch
             path = max((os.path.join(night_dir, n) for n in cand), key=lambda p: _size(p))
             got = measured_hz(path)
+            meas = measurement_hz(dev, stream)
             ok = None
             if got is not None and want:
                 ok = bool(abs(got - want) <= _RATE_MISMATCH_TOL * want)
@@ -503,8 +645,27 @@ def rate_reality(night_dir: str, devices: list[dict]) -> list[dict]:
                 "requested_hz": want,
                 "measured_hz": None if got is None else round(got, 2),
                 "matches_config": ok,
+                # Where a device MEASURES more slowly than it emits records, the two rates are reported
+                # side by side and the ratio is named. Without this a reader has only the record rate
+                # and no way to know that 6.4 of every 7 rows repeat the previous value — the ring's
+                # ACC writes ~9.979 Hz records from a 1.5625 Hz sensor. `held_ratio` is records per
+                # measurement: 1.0 (or None) means every record is its own measurement.
+                "measurement_hz": meas,
+                "held_ratio": None if not (meas and want) else round(want / meas, 3),
+                # THE MIDDLE TERM (PMDNEG.csv). `requested_hz` is what the config asked for and
+                # `measured_hz` what the file carries; between them is what the DEVICE agreed to and
+                # the menu it agreed from. Null where the night has no sidecar — an older night, or a
+                # stream that never negotiated — which is an absence, not an agreement.
+                **_negotiated_fields(negotiated.get((dev.get("name"), stream))),
             })
     return out
+
+
+def _negotiated_fields(rec) -> dict:
+    """The three sidecar fields, null-shaped when the night has no negotiation for this stream."""
+    if not rec:
+        return {"negotiated_hz": None, "offered_hz": None, "negotiated_starts": 0}
+    return {"negotiated_hz": rec["chosen"], "offered_hz": rec["offered"], "negotiated_starts": rec["starts"]}
 
 
 def _size(p: str) -> int:
@@ -591,7 +752,15 @@ def file_span_sec(path: str) -> float | None:
     for line in reversed(tail):
         last = _ns_at(line, idx)
         if last is not None and last >= first:
-            return (last - first) / 1e9
+            span = (last - first) / 1e9
+            # A span of EXACTLY zero is not a duration, it is a column that never moved — the shape a
+            # stream with no device clock leaves behind (the three O2Ring raw-buffer opcodes wrote a
+            # literal 0 on every row until 2026-09-07). Returning 0.0 hands the caller a measurement
+            # of no elapsed time; None says the file cannot answer, which is the truth and is what
+            # every caller is documented to expect. Kept for a BLANK column too — `_ns_at` returns
+            # None there, so first is None and we never reach here — this guards the legacy files
+            # already on disk, which will carry literal zeros forever.
+            return span if span > 0 else None
     return None
 
 
@@ -655,6 +824,55 @@ def scan_night(night_dir: str) -> list[dict]:
                     # Callers must treat None as "unknown", never as zero — see file_span_sec.
                     "span_sec": file_span_sec(path)})
     return out
+
+
+def daemon_starts(night_dir: str, files: list[dict] | None = None) -> dict:
+    """`{"starts": n, "inside_capture": m, "stamps": [...]}` — the night's daemon starts, and how many
+    of them landed INSIDE a signal-carrying file's span.
+
+    ⚠️ THE COUNT NEVER TRAVELS ALONE, and that is the finding this function exists to carry rather
+    than to re-open. A high restart count was read as evidence of fragmentation until the harm was
+    measured: over four nights, 9 restarts fell in capture hours and **0** of them landed inside a
+    live capture, because the deploy path gates on idleness. So the pair is the observation — a count
+    beside the number of them that could have interrupted anything.
+
+    The predicate is the row's own: a start whose stamp falls within `[filename stamp, mtime]` of a
+    data file that carries rows. `files` defaults to a fresh `scan_night`; callers that already have
+    it pass it rather than walking the night twice.
+
+    ⚠️ It bounds interruption of CAPTURE, not of WEAR: a restart while a device was worn but its link
+    was already down reads as outside, which is benign for this question (there was nothing to
+    interrupt) and is not the same statement. Absent sidecar ⇒ `starts: None`, never 0 — a night whose
+    daemon predates the sidecar did not restart zero times, it did not say."""
+    path = os.path.join(night_dir, writers.STARTS_NAME)
+    try:
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            rows = fh.read().splitlines()[1:]
+    except OSError:
+        return {"starts": None, "inside_capture": None, "stamps": []}
+    stamps = []
+    for line in rows:
+        p_ = line.split(";")
+        if len(p_) < 5:
+            continue                       # a torn row is skipped, as in every sidecar reader here
+        t = _parse_phone_ts(p_[0])
+        if t is not None:
+            stamps.append(t)
+    if files is None:
+        files = scan_night(night_dir)
+    spans = [(f["session"], f["mtime"]) for f in (files or [])
+             if f.get("rows") and f.get("stream") not in _SIDECAR_TAGS]
+    inside = sum(1 for t in stamps if any(a <= t <= b for a, b in spans))
+    return {"starts": len(stamps), "inside_capture": inside, "stamps": sorted(stamps)}
+
+
+def _parse_phone_ts(raw: str) -> float | None:
+    """The sidecar's own stamp format back to an epoch, or None. Never `now` for an unparseable
+    stamp — a start we cannot place is not a start that happened at this instant (§2.6)."""
+    try:
+        return datetime.strptime(raw.strip()[:23], "%Y-%m-%dT%H:%M:%S.%f").timestamp()
+    except (ValueError, TypeError):
+        return None
 
 
 def newest_data_mtime(night_dir: str) -> float | None:
@@ -1022,7 +1240,13 @@ def connection_lattice(delays: list[float], *, device_axis_is_clock: bool = True
     step = max(1, len(x) // CK_LATTICE_MAX_POINTS)
     xs = x[::step]
     n = len(xs)
-    best_r, best_s = 0.0, None
+    # `best_s` starts at a REAL candidate rather than None. Every `r` is an `abs()`, so it is >= 0 and
+    # never exceeds the initial 0.0 when the vector sum cancels exactly — with None that left the refine
+    # loop below multiplying None, and mypy was right to flag it. Seeding `lo` removes the crash without
+    # adding a branch nobody can reach to test: a scan that finds nothing returns `R: 0.0`, which is
+    # already this function's signal for "no periodicity", rather than a fabricated peak.
+    best_r: float = 0.0
+    best_s: float = lo
     grid = 1600
     for i in range(grid):
         s = lo * (hi / lo) ** (i / (grid - 1))
@@ -1121,14 +1345,19 @@ def arrival_quality(night_dir: str) -> list[dict]:
     The ring is unaffected: its writer passes the same `_dur_ns` as both first and last.
     """
     import csv as _csv
-    out = []
+    out: list = []
     try:
         names = [n for n in sorted(os.listdir(night_dir)) if n.endswith("_PMDARRIVAL.csv")]
     except OSError:
         return out
     for name in names:
         path = os.path.join(night_dir, name)
-        per: dict[tuple[str, str], list[float]] = {}
+        # (host_ms, host_ms - device_ms, device_ns) per packet — a TRIPLE, not a float. The
+        # annotation said `list[float]` while every append has been a 3-tuple, so mypy reported
+        # the append AND everything downstream that unpacks it ("float is not iterable", "not
+        # indexable") — six errors from one wrong declaration, none of them a real defect.
+        per: dict[tuple[str, str], list[tuple[float, float, int]]] = {}
+        folds: dict[tuple[str, str], LocalStampResolver] = {}
         try:
             with open(path, newline="", encoding="utf-8", errors="replace") as fh:
                 for row in _csv.DictReader(fh, delimiter=";"):
@@ -1141,12 +1370,55 @@ def arrival_quality(night_dir: str) -> list[dict]:
                     # lacking a column the ring path happens to write identically to both.
                     ns = row.get("last_sensor_ns") or row.get("first_sensor_ns") or ""
                     ts = row.get("Phone timestamp") or ""
+                    meas = row.get("meas", "")
                     if not ns or not ts:
                         continue                      # blank is "absent", never a fabricated 0
+                    # 🔴 `0` IS ABSENT TOO, AND THE LINE ABOVE USED TO SAY SO WHILE ACCEPTING IT.
+                    # `row.get(...)` yields the STRING "0", which is truthy, so `if not ns` let it
+                    # through and `host_ms - 0` recorded the whole Unix epoch as an arrival offset.
+                    # It is not a rare shape: the docstring above records every Verity `ppi` stream
+                    # carrying `last_sensor_ns` literally 0 for all 4864 packets, and the ring writes
+                    # zeros too — measured 2026-09-13 on the real 2026-08-11 capture, 132 of its
+                    # 24 289 `OXYLIVE_DURATION_S` rows are `0` (the rest carry a real, INCREMENTING
+                    # duration, so they are not a frozen stamp and this guard is not what catches them).
+                    #
+                    # ⚠️ AND THIS COLUMN CARRIES TWO DIFFERENT KINDS OF NUMBER. For a Polar stream it is
+                    # a device TIMESTAMP (ns since 2000-01-01); for the ring's `OXYLIVE_DURATION_S` rows
+                    # `capture.py:4530` passes a DURATION as both first and last, which has no epoch and
+                    # so no arrival offset. Those rows are NOT excluded by `meas` here, and excluding
+                    # them was tried first: this module's contract is that ring rows are REPORTED and
+                    # merely not floor-judged (see the docstring — `offset` runs "on EVERY device
+                    # including the ring"), so dropping them is LESS honest than the refusal the ring
+                    # already gets. `quantised` publishes `ok: False` WITH a reason; a dropped row
+                    # publishes nothing. Five existing assertions defend that and caught the exclusion.
                     try:
-                        host_ms = datetime.fromisoformat(ts).timestamp() * 1000.0
-                        per.setdefault((row.get("device", ""), row.get("meas", "")), []).append(
-                            (host_ms, host_ms - int(ns) / 1e6, int(ns)))
+                        # Folded into the SAME try as the stamp parse rather than given its own: both
+                        # failures mean "this row is unusable", the handler below already explains why
+                        # swallowing that is correct, and a second bare handler would be one more
+                        # unexplained swallow — `test_silent_except` caught exactly that when this was
+                        # two blocks.
+                        dev_ns = int(ns)
+                        if dev_ns <= 0:
+                            continue
+                        # The fall-back hour is decided by host−device continuity, per stream, never
+                        # by `fold=0` (residue 2026-09-13-dst-fallback-splits-the-host-axis).
+                        host_ms = folds.setdefault((row.get("device", ""), meas), LocalStampResolver()) \
+                            .resolve_ms(datetime.fromisoformat(ts), dev_ms=_POLAR_EPOCH_MS + dev_ns / 1e6)
+                        # 🔴 SUBTRACT THE DEVICE EPOCH. `host_ms` counts from 1970 and `dev_ns` from
+                        # 2000, so differencing them raw added the 946 684 800 000 ms between the two
+                        # epochs to every reading — and CERTIFIED it, because nothing downstream
+                        # range-checks a number this far out and a constant added to every row leaves
+                        # the slope and every spread-based check untouched.
+                        #
+                        # Measured 2026-09-13 on the real 2026-08-11 H10 capture, 50 192 ECG rows: the
+                        # old path's minimum delay read 946 684 799 461.936 ms, where with the epoch
+                        # subtracted it is -538.064 ms (median -183.623) — a difference of exactly
+                        # 946 684 800 000.0 ms. The corrected median agrees in sign and order with the
+                        # docstring table above, which has carried H10 ecg at -228.7 ms since
+                        # 2026-08-11: the code and its own documentation had disagreed by thirty years.
+                        device_ms = _POLAR_EPOCH_MS + dev_ns / 1e6
+                        per.setdefault((row.get("device", ""), meas), []).append(
+                            (host_ms, host_ms - device_ms, dev_ns))
                     except (ValueError, TypeError):
                         continue      # a torn or half-written row is EXPECTED in a live journal and
                                       # is not evidence about arrival quality; `rows` below reports
@@ -1168,7 +1440,11 @@ def arrival_quality(night_dir: str) -> list[dict]:
             offset = clock_offset.estimate([((h - t0) / 1000.0, d) for h, d, _ in pairs])
             # Hoisted so the uncertainty budget below composes them rather than recomputing.
             jit = host_jitter(diffs)
-            stab = allan.stability(diffs, _tau0_of(pairs), _TDEV_TAU_S)
+            # §2.2 step 2a: the host instants go in so a BLE hole is CUT, not compacted — measured
+            # 2026-09-21 over 34 box nights, max_gap ≤ 4× median held on only 22.8 % of the ECG/PPG
+            # legs (H10 ecg median 97×), and a compacted hole inflates every ADEV level by the step's
+            # size (8× at a 500σ step, slope untouched). Seconds, the unit `_tau0_of` returns.
+            stab = allan.stability(diffs, _tau0_of(pairs), _TDEV_TAU_S, sample_times=[(h - pairs[0][0]) / 1000.0 for h, _, _ in pairs])
             out.append({
                 "file": name, "device": device, "meas": meas, "rows": len(diffs),
                 "quantised": quantised,
@@ -1413,22 +1689,473 @@ def ppg2w_contact_quality(night_dir: str) -> list:
     return out
 
 
-def rtc_drift_summary(path: str) -> dict | None:
-    """Roll a `_rtclog.csv` (RingClockLogWriter) into one night's ring-clock verdict, or None when there
-    is no readback to summarise. The daemon watches the O2Ring's RTC against the host every ~10 min and
-    logs each event; STATUS keeps only the latest, so WITHOUT this the night's drift and any battery-reset
-    live only in a CSV nobody opens. Fields: `reads` (periodic readbacks), `drift_s` (last − first
-    offset — the free-run the 0xC0 push corrects), `span_h` (first→last read), `resets` (offset jumped
-    past threshold = a battery event that silently ruins the stored .dat's timebase), `pushes` (0xC0
-    sent). Rows are `Phone timestamp;event;rtc_offset_s;…`; PURE-ish (reads a path)."""
-    try:
-        lines = open(path, encoding="utf-8", errors="replace").read().splitlines()
-    except OSError:
+_CLIP_MIN_RUN = 5               # the shortest plateau REPORTED. It is a sensitivity knob only, and
+                                # measurably not a specificity one: the clean-stream control yields 0
+                                # regions at min_run 5, 6 and 8 alike, because `rail_value` rejects an
+                                # unqualified rail before this is ever consulted. So raising it buys
+                                # nothing and costs real events.
+                                # ⚠️ IT COSTS DAMAGE, and the curve is why it is 5 and not 8. Magpie
+                                # measured the excursion a pin puts into the bandpassed signal against
+                                # the clean signal's own sd (2026-09-06):
+                                #     len  1 →  5.7x     20 → 40.2x (peak)
+                                #     len  5 → 25.4x     40 → 33.1x
+                                #     len 10 → 38.6x     94 → 22.1x
+                                # A 5-sample pin is a 25x-sd excursion — comparable to a 94-sample one
+                                # at 22x — so a "tidy" raise to 8 silently drops 9 spans on 045318 that
+                                # do real damage. Do not raise this without re-measuring that curve.
+_PLATEAU_LSB = 1                # a rail plateau flickers by one quantisation step, so the region is
+                                # NEAR-constant, not constant. Measured 2026-09-06 on the ring: exact
+                                # equality split one ceiling population into 118 regions at 200 and 81
+                                # at 199 and would have reported one plateau as two findings.
+_RAMP_SAMPLES = 6               # samples either side used to read the approach. One ring beat's rising
+                                # edge at 125 Hz — enough to see monotonicity, short enough not to
+                                # reach the neighbouring beat.
+_HELD_NEAR_DELTA = 0.90         # >= this share of runs on two ADJACENT lengths => a zero-order HOLD,
+                                # not a defect. Measured on the ring's `_ACCRAW.txt` (2026-09-06, three
+                                # sessions / two nights): 99.8 % of runs are 6 or 7, ratio 6.387-6.396,
+                                # because a 1.5625 Hz update is emitted into a 10 Hz record stream.
+
+
+def constant_runs(values, *, min_run: int = 2):
+    """Maximal runs of ONE repeated value that reach `min_run`, as `(first_index, n, value)`.
+
+    Keyed on length and never on value membership. A `!= 0` test — or any list of known-bad constants
+    — convicts every stream where the constant is real: ECG microvolts cross zero on every beat and an
+    ACC axis rests at 0 mG. This function has no opinion about the value; callers decide.
+    """
+    out = []
+    if min_run < 2:
+        raise ValueError("min_run must be at least 2 — a single sample is not a run")
+    i, n = 0, len(values)
+    while i < n:
+        j = i + 1
+        while j < n and values[j] == values[i]:
+            j += 1
+        if j - i >= min_run:
+            out.append((i, j - i, values[i]))
+        i = j
+    return out
+
+
+def _count_singletons(values) -> int:
+    """Values differing from BOTH neighbours — the runs `constant_runs` cannot return.
+
+    The held test reasons over the whole transition population; dropping singletons would let a stream
+    with one long hold and thousands of single samples read as a near-delta.
+    """
+    n = len(values)
+    if n <= 1:
+        return n
+    c = 0
+    for i in range(n):
+        prev_same = i > 0 and values[i - 1] == values[i]
+        next_same = i + 1 < n and values[i + 1] == values[i]
+        if not prev_same and not next_same:
+            c += 1
+    return c
+
+
+def held_stream(values, *, near_delta: float = _HELD_NEAR_DELTA):
+    """Is this stream a ZERO-ORDER HOLD of a slower measurement, rather than a damaged one?
+
+    A held stream repeats every value by construction, so a run-length rule would flag essentially the
+    whole file — 99.8 % of runs on the ring's ACC — and report working behaviour as corruption. The
+    discriminator is the SHAPE of the run-length distribution: a hold produces a near-delta at the two
+    integers bracketing a fixed ratio (6 and 7 for 6.4), because an integer number of records cannot
+    realise a non-integer ratio any other way. Damage is ragged and its short runs do not vanish.
+
+    Computed rather than configured ON PURPOSE. An exclusion list naming `acc` would keep protecting a
+    stream that stopped being held and would miss the next held stream nobody added to it.
+
+    FEED IT A RECORD, NOT A COLUMN, for a multi-column stream. Two axes change on the same tick, but
+    either alone also repeats across a change by coincidence, splicing neighbouring runs together.
+    Measured on the ring's ACC: the triplet gives ratio 6.387 / share 0.998 — reproducing an
+    independently measured 6.387 exactly — while X, Y and Z alone read 6.579, 6.613 and 6.603.
+
+    `None` when not held. Otherwise the ratio, which is the number a consumer needs: the record rate
+    OVERSTATES the measurement rate by exactly this factor.
+    """
+    return _held_shape([n for _i, n, _v in constant_runs(values, min_run=2)],
+                       _count_singletons(values), near_delta=near_delta)
+
+
+def held_columns(columns, *, near_delta: float = _HELD_NEAR_DELTA):
+    """`held_stream` over PER-CHANNEL columns instead of materialised records — the same rule, read
+    the other way round.
+
+    A record repeats iff EVERY channel repeats on that tick, which is a property this can test
+    column by column without ever building the tuple. That matters because building it is what the
+    back-check's memory was: a night's 5.26 M two-channel rows cost 755 MB as tuples of ints and
+    84 MB as two `array('q')` (measured on vigil, the 2026-09-21 night).
+
+    ⚠️ THE RULE IS NOT DUPLICATED HERE, deliberately — both paths end in `_held_shape`, and
+    `test_held_columns_matches_held_stream_exactly` asserts the two agree on the same data. A second
+    copy of the shape logic is how the two would drift into answering differently about one night."""
+    n = len(columns[0]) if columns else 0
+    if n <= 1:
+        return _held_shape([], n, near_delta=near_delta)
+    # One pass building the record-level change mask: same[i] is True when record i repeats i-1.
+    same = bytearray(n)
+    for col in columns:
+        if len(col) != n:
+            raise ValueError("columns must be the same length — they are one stream's channels")
+    for i in range(1, n):
+        same[i] = 1 if all(col[i] == col[i - 1] for col in columns) else 0
+    runs = []
+    singles = 0
+    i = 1
+    run = 1
+    while i <= n:
+        if i < n and same[i]:
+            run += 1
+        else:
+            if run >= 2:
+                runs.append(run)
+            else:
+                singles += 1     # `run` starts at 1 and resets to 1, so the only other case IS 1 —
+            run = 1              # an `elif run == 1` here reads as a guard and is an unreachable branch
+        i += 1
+    return _held_shape(runs, singles, near_delta=near_delta)
+
+
+def _held_shape(runs, singles, *, near_delta: float = _HELD_NEAR_DELTA):
+    """THE hold rule, in one place: is the run-length distribution a near-delta at two adjacent
+    integers? Called with run lengths and a singleton count, however they were counted."""
+    total = len(runs) + singles
+    if total < 20:
+        return None                      # too few transitions to have a shape at all
+    best = None
+    for a in sorted({n for n in runs}):
+        share = (sum(1 for n in runs if n in (a, a + 1)) + (singles if a == 1 else 0)) / total
+        if best is None or share > best[1]:
+            best = ((a, a + 1), share)
+    if best is None or best[1] < near_delta:
+        return None
+    return {"held": True, "ratio": (sum(runs) + singles) / total,
+            "lengths": best[0], "share": best[1]}
+
+
+_ANNOTATION_GAP_MAX = 8         # the longest run of consecutive annotation rows a plateau may be
+                                # merged ACROSS. Measured on 20260905045318, consecutive-`156` run
+                                # lengths are 1:5383 · 2:11 · 3:3 · 4:2 · 5:3 · 6:3 — 99.6 % singletons,
+                                # max 6, 5455 marker rows in 5405 runs. Eight clears that max without
+                                # room to spare being the point: unbounded stepping is safe on THIS
+                                # corpus and would silently merge two plateaus across any future
+                                # marker burst, reporting a span that is mostly annotation.
+
+
+def _ramp(values, first, n, *, toward_high, ramp=_RAMP_SAMPLES, annotations=()):
+    """Approach/departure shape around a plateau: `(monotone_in, monotone_out, projects_beyond)`.
+
+    `projects_beyond` continues the approach slope across the plateau and asks whether it would have
+    left the observed range — the question a rail answers YES to and a flat stretch of signal answers
+    NO to, with no threshold on the value.
+
+    ⚠️ The projection is LINEAR over a plateau that may be long, so it indicates DIRECTION, not depth.
+    Never quote its magnitude as the excursion the device would have recorded.
+    """
+    skip = frozenset(annotations)
+    a, b = [], []
+    k = first - 1
+    while k >= 0 and len(a) < ramp:
+        if values[k] not in skip:
+            a.append(values[k])
+        k -= 1
+    a.reverse()
+    k = first + n
+    while k < len(values) and len(b) < ramp:
+        if values[k] not in skip:
+            b.append(values[k])
+        k += 1
+    mono_in = mono_out = False
+    beyond = None
+    if len(a) == ramp:
+        mono_in = all(a[t + 1] >= a[t] for t in range(ramp - 1)) if toward_high \
+            else all(a[t + 1] <= a[t] for t in range(ramp - 1))
+        slope = (a[-1] - a[0]) / float(ramp - 1)
+        proj = a[-1] + slope * n
+        beyond = proj > values[first] if toward_high else proj < values[first]
+    if len(b) == ramp:
+        mono_out = all(b[t + 1] <= b[t] for t in range(ramp - 1)) if toward_high \
+            else all(b[t + 1] >= b[t] for t in range(ramp - 1))
+    return mono_in, mono_out, beyond
+
+
+_RAIL_SCAN_VALUES = 8           # how many OCCUPIED values inward from an edge are considered when
+                                # locating the rail.
+_RAIL_GAP_MAX = 4               # a wider gap than this between occupied values means the edge value
+                                # stands alone, so it IS the rail and no spike search is run.
+_RAIL_SPIKE_MIN = 5             # a rail must OUT-COUNT its nearest occupied neighbour by this factor.
+                                # Measured 2026-09-06 over eight files: real rails run 9.0-43.0x (ring
+                                # floor 34.3-43.0, ring ceiling 16.4-38.4, Verity ceiling 41.0 and 9.0),
+                                # a clean quantised sine reaches only 2.3-2.4x because a smooth signal
+                                # genuinely lingers at its own turning point, and the Verity's lone
+                                # minimum sample scores 1.0x. Five clears clean signal by ~2x and sits
+                                # ~1.8x under the weakest real rail.
+
+
+def rail_value(values, *, toward_high, scan=_RAIL_SCAN_VALUES, gap_max=_RAIL_GAP_MAX,
+               spike_min: float = _RAIL_SPIKE_MIN):
+    """The rail is the HISTOGRAM SPIKE NEAREST THE EDGE, not the edge.
+
+    🔴 The observed extreme is not the rail, and using it silently drops a whole class. Measured on
+    20260905045318, the top of the range is 195:34 · 196:39 · 197:41 · 198:75 · **199:2596** · 200:304 —
+    the rail is 199 and the maximum is a rare overshoot one quantum above it. A rule keyed on `max`
+    hunts for the ceiling at 200, weighs 304 samples against a 2,596-sample neighbour, and concludes
+    the ceiling is not pinned. The failure presents as "the ceiling behaves differently from the floor",
+    which is exactly the asymmetry the marker exclusion already had to dissolve once. (Found by Magpie
+    building the JS port against real files, 2026-09-06; this implementation had the same bug in a
+    milder form — a one-quantum tolerance caught the 199 class by accident while LABELLING it 200.)
+
+    The gap clause keeps this general: if the stream jumps away from the extreme, a spike search across
+    that gap would walk into the bulk of the distribution and return a value that is not a rail at all.
+    The Verity's 2 096 921 sits alone that way; the ring's 199 does not.
+    """
+    counts: dict[int, int] = {}
+    for v in values:
+        counts[v] = counts.get(v, 0) + 1
+    if not counts:
+        return None
+    occupied = sorted(counts, reverse=toward_high)
+    if len(occupied) < 2:
+        return None
+    edge = occupied[0]
+    window = [edge]
+    for v in occupied[1:scan]:
+        if abs(v - window[-1]) > gap_max:
+            break
+        window.append(v)
+    rail = max(window, key=lambda v: counts[v])
+    # `occupied` is sorted outward-edge first, so the first survivor is the NEAREST neighbour inward.
+    inward = [v for v in occupied if v < rail] if toward_high else [v for v in occupied if v > rail]
+    if not inward:
+        return None                      # the spike sits at the far end of a stream with only a
+                                         # couple of distinct values, so there is nothing inward of it
+                                         # to be a spike ABOVE. That is a flat/binary stream, not a rail.
+    neighbour = inward[0]
+    if counts[rail] < spike_min * counts[neighbour]:
+        return None                      # not a spike: a smooth signal lingering at its own turning
+                                         # point, or a lone outlier. This stream has no rail on this
+                                         # side, so it has no clip regions on this side either.
+    return rail
+
+
+def _at_rail(v, rail, toward_high, max_spread):
+    """At-or-BEYOND the pin, never short of it.
+
+    The tolerance exists for the OVERSHOOT: the ring's ceiling rail is 199 and it flickers up
+    to 200, and admitting that flicker is what merges one plateau reported as 118 + 81 regions
+    into one. It was never for the approach. A sample one LSB SHORT of the pin — a 198 under a
+    199 ceiling, a 1 above a 0 floor — is a value the encoding could represent and the device
+    did report, so a span covering it claims territory where the signal was still measuring.
+    Making the tolerance symmetric (an earlier draft here) extended every span by a sample at
+    each end and started ceiling spans during the ramp.
+    """
+    if toward_high:
+        return rail <= v <= rail + max_spread
+    return rail - max_spread <= v <= rail
+
+
+def _rail_runs(values, rail, *, toward_high, max_spread, min_run, annotations, annotation_gap_max):
+    """Runs of samples AT THE RAIL, grouped from the rail outward — not filtered out of generic
+    near-constant regions.
+
+    🔴 THE GENERIC SCAN GETS THE BOUNDARY WRONG, and this function exists because of it. A greedy
+    maximal near-constant scan is non-overlapping, so a sample that IS at the rail can be absorbed
+    into a shorter preceding region and lost from the plateau. Measured on 20260905045318 at 9294:
+    `190, 193, 196, 198, 199, 200, 199, 199 …` — the greedy scan emits `[9297, 9298] = (198, 199)`,
+    two samples, dropped by `min_run`, and the real plateau then opens at 9299 on the 200. The span
+    start therefore depended on WHAT PRECEDED the plateau rather than on the rail, which is
+    indefensible under any tolerance rule. (Found by Magpie diffing span lists, 2026-09-06.)
+
+    Grouping outward from the rail makes the boundary a property of the rail alone. Annotations stay
+    transparent up to `annotation_gap_max`, as everywhere else.
+    """
+    skip = frozenset(annotations)
+    n = len(values)
+    out = []
+    i = 0
+    while i < n:
+        if values[i] in skip or not _at_rail(values[i], rail, toward_high, max_spread):
+            i += 1
+            continue
+        first = last = i
+        j = i + 1
+        gap = 0
+        while j < n:
+            if values[j] in skip:
+                gap += 1
+                if gap > annotation_gap_max:
+                    break
+                j += 1
+                continue
+            if not _at_rail(values[j], rail, toward_high, max_spread):
+                break
+            gap = 0
+            last = j
+            j += 1
+        if last - first + 1 >= min_run:
+            out.append((first, last - first + 1))
+        i = max(j, first + 1)
+    return out
+
+
+_NO_SAMPLE = object()   # "the filtered column is empty" — distinct from every value a column can hold
+
+
+def clip_regions(values, *, min_run: int = _CLIP_MIN_RUN, max_spread: int = _PLATEAU_LSB,
+                 ramp: int = _RAMP_SAMPLES, annotations=()):
+    """Plateaus PINNED AT AN OBSERVED EXTREME, at BOTH rails, with their approach shape measured.
+
+    Both extremes are read from the data and tested identically, which is what makes the ring's 0 and
+    the Verity's 2 096 921 the same rule rather than two entries on a list. There is no declared bound
+    to test against — the ring's 200 is not an encoding extreme — so the observed range is the only
+    honest reference, and that is why this is a whole-night back-check and not live-computable.
+
+    THE CEILING IS THE POSITIVE CONTROL. On 20260905045318 the ceiling scores 115/118 monotone-in and
+    113/118 monotone-out, so the shape test is known to fire on a rail this stream really does hit; the
+    floor's numbers are then a measurement against a working instrument rather than a hopeful
+    threshold. A rule with no positive control cannot tell "clean" from "blind".
+
+    ⚠️ THE GEOMETRY IS EVIDENCE, NOT THE DISCRIMINATOR. It rides with each region and it does not
+    decide which regions are emitted — the pin does. A slow turning point is approached monotonically
+    AND projects beyond its own extreme (the approach slope is non-zero), so both flags fire on clean
+    signal too; on the real corpus the ceiling projects beyond in only 54-62 % of regions while reading
+    94-97 % monotone. Anyone tempted to filter on these flags should read
+    `test_clip_clean_night_reports_the_signals_own_turning_points` first — an earlier draft of this
+    docstring claimed the separation and the test falsified it.
+    """
+    if len(values) == 0:
+        return []
+    skip = frozenset(annotations)
+    # A GENERATOR, NOT A COPY. `rail_value` only iterates, and this list was a second full copy of the
+    # column — 5.26 M samples of it on the real 2026-09-21 ring file. Rebuilt per rail because an
+    # exhausted iterator would silently hand the second call an empty distribution, which reads as
+    # "no rail on this side" — a clean verdict from an examination that never happened (§4b).
+    def _real():
+        return (v for v in values if v not in skip)
+    if next(_real(), _NO_SAMPLE) is _NO_SAMPLE:
+        return []
+    out = []
+    for toward_high in (False, True):
+        rail = rail_value(_real(), toward_high=toward_high)
+        if rail is None:
+            continue                     # no rail on this side — a clean stream has none on either
+        for first, n in _rail_runs(values, rail, toward_high=toward_high, max_spread=max_spread, min_run=min_run,
+                                   annotations=skip, annotation_gap_max=_ANNOTATION_GAP_MAX):
+            mono_in, mono_out, beyond = _ramp(values, first, n, toward_high=toward_high,
+                                              ramp=ramp, annotations=skip)
+            out.append({"first_index": first, "n_samples": n, "rail": rail,
+                        "toward_high": toward_high, "monotone_in": mono_in,
+                        "monotone_out": mono_out, "projects_beyond": beyond})
+    out.sort(key=lambda r: r["first_index"])
+    return out
+
+
+def class_b_runs(records=None, *, columns=None, stream: str, min_run: int = _CLIP_MIN_RUN,
+                 tick_ms: float | None = None, annotations=(), emit=None) -> dict:
+    """Class-B (QUALITY) signatures for one stream: `clip` regions, or a `held` mark, never both.
+
+    Class A is ABSENCE — a value that was not measured, which must reach a consumer as null. Class B is
+    a value that WAS measured and is untrustworthy: an input pinned at a rail carries no information
+    while looking exactly like data. The rule name is what lets a consumer tell them apart, which is
+    why it travels in the row rather than being inferred from the stream's name.
+
+    `records` is one entry per ROW — a tuple for a multi-channel stream, a scalar for one channel. A
+    HOLD is a property of the record (every channel freezes on the same tick); a RAIL is a property of
+    one channel (an ADC saturates by itself). Measuring either at the other's level is quietly wrong.
+
+    There is deliberately NO `collapse` rule. It was specified, built and then measured away: after
+    excluding the beat marker, the population of deviating near-constant regions that are not at a rail
+    is 3-17 regions in 843,032 samples (0.006-0.020 %) at any defensible minimum, and the survivors sit
+    a few LSB short of the ceiling — the same mechanism not quite reaching the rail, not a second one.
+    A detector with no population is a parameter with no evidence.
+
+    `emit` is the seam the sidecar writer fills — `emit(stream, value, first_index, n, dur_ms, closed,
+    rule)`. It defaults to collecting the rows, so a test sees the real rows rather than a no-op that
+    would pass while writing nothing.
+
+    ⚠️ `columns=` IS THE SAME INPUT READ THE OTHER WAY ROUND — one sequence per channel instead of one
+    record per row — and it exists for memory, not for expressiveness. The caller that reads a night
+    off disk (`class_b_quality`) fills `array('q')` columns, which cost 8 bytes a sample against the
+    ~143 the equivalent tuple-of-ints record cost: measured on vigil's 2026-09-21 night, the ring's
+    5.26 M-row two-channel file alone took **755 MB** as records, inside the daemon that holds every
+    BLE link. Run against each other on that night the two readers peak at **1116 MB and 245 MB** and
+    produce byte-identical blocks. Records stay the documented input and every existing caller works;
+    `test_class_b_runs_columns_equals_records` pins that the two produce the identical dict, so the
+    cheap path can never quietly become a different rule.
+    """
+    if (records is None) == (columns is None):
+        raise TypeError("class_b_runs takes exactly one of records= or columns=")
+    if columns is not None:
+        columns = list(columns)
+        if not columns:
+            raise ValueError("columns= must name at least one channel")
+    rows = []
+    if emit is None:
+        def emit(stream, value, first_index, n, dur_ms, closed, rule):
+            rows.append({"stream": stream, "value": value, "first_index": first_index,
+                         "n_samples": n, "dur_ms": dur_ms, "closed": closed, "rule": rule})
+    n_records = len(columns[0]) if columns is not None else len(records)
+    held = held_columns(columns) if columns is not None else held_stream(records)
+    if held is not None:
+        # Reported ONCE, as what it is. Emitting its runs would bury a real finding under thousands of
+        # rows describing the device working as designed.
+        emit(stream, None, 0, n_records, None, True, "held ratio=%.2f" % held["ratio"])
+        return {"stream": stream, "held": held, "rows": rows, "clips": {}}
+    if columns is not None:
+        wide = len(columns) > 1
+        channels = columns
+    else:
+        wide = bool(records) and isinstance(records[0], tuple)
+        channels = list(zip(*records)) if wide else [records]
+    last = n_records - 1
+    clips = {}
+    for c, col in enumerate(channels):
+        name = "%s:ch%d" % (stream, c) if wide else stream
+        found = clip_regions(col, min_run=min_run, annotations=annotations)
+        clips[name] = len(found)
+        for r in found:
+            dur_ms = None if tick_ms is None else r["n_samples"] * tick_ms
+            closed = (r["first_index"] + r["n_samples"] - 1) != last
+            emit(name, r["rail"], r["first_index"], r["n_samples"], dur_ms, closed, "clip")
+    return {"stream": stream, "held": None, "rows": rows, "clips": clips}
+
+
+def rtc_drift_summary(path: str | Sequence[str]) -> dict | None:
+    """Roll a night's `_RTCLOG.csv` sidecars (RingClockLogWriter) into one ring-clock verdict, or None
+    when there is no readback to summarise. The daemon watches the O2Ring's RTC against the host every
+    ~10 min and logs each event; STATUS keeps only the latest, so WITHOUT this the night's drift and any
+    battery-reset live only in a CSV nobody opens. Fields: `reads` (periodic readbacks), `drift_s`
+    (last − first offset — the free-run the 0xC0 push corrects), `span_h` (first→last read), `resets`
+    (offset jumped past threshold = a battery event that silently ruins the stored .dat's timebase),
+    `pushes` (0xC0 sent), `files` (sidecars pooled). Rows are `Phone timestamp;event;rtc_offset_s;…`;
+    PURE-ish (reads paths).
+
+    ⚠️ ONE SIDECAR PER CONNECT SESSION, NOT PER NIGHT — so this takes every sidecar the ring wrote and
+    pools their rows in filename order (the capture stamp, chronological). The first real night this
+    reached (vigil 2026-09-05, the first after the case fix) had 29 sidecars: the ring reconnected 29
+    times, and the caller handed over the FIRST file only. The verdict read `reads 1 · pushes 11 ·
+    resets 0 · span_h 0.0` while the 29 files held 15 reads, 63 pushes and TWO reset-suspect events —
+    the one finding this field exists to surface, invisible because the night was summarised from its
+    first few minutes. A path that cannot be read is skipped, not fatal: on a 29-file night one torn
+    sidecar must not null the other 28."""
+    paths = [path] if isinstance(path, str) else list(path)
+    lines: list[str] = []
+    files = 0
+    for p_ in paths:
+        try:
+            body = open(p_, encoding="utf-8", errors="replace").read().splitlines()
+        except OSError:  # one torn sidecar of 29 must not null the night — and it is not hidden:
+            continue  # `files` counts only what was read, so 28-of-29 lands in the record
+        files += 1
+        lines.extend(body[1:])            # each file carries its own header row
+    if not files:
         return None
     offsets: list[float] = []
     times: list[str] = []
     resets = pushes = 0
-    for ln in lines[1:]:
+    for ln in lines:
         p = ln.split(";")
         if len(p) < 3:
             continue
@@ -1449,14 +2176,17 @@ def rtc_drift_summary(path: str) -> dict | None:
         return None
     span_h = None
     try:
-        t0 = datetime.fromisoformat(times[0]).timestamp()
-        t1 = datetime.fromisoformat(times[-1]).timestamp()
+        # The endpoints alone cannot resolve a fall-back seam; walking the series with the
+        # monotonicity rule can, so the span is the last resolved stamp minus the first.
+        r = LocalStampResolver()
+        walked = [r.resolve_ms(datetime.fromisoformat(t)) for t in times]
+        t0, t1 = walked[0] / 1000.0, walked[-1] / 1000.0
         span_h = round((t1 - t0) / 3600, 1)
     except ValueError:
         span_h = None
     return {"reads": len(offsets), "first_offset_s": offsets[0], "last_offset_s": offsets[-1],
             "drift_s": round(offsets[-1] - offsets[0], 1), "span_h": span_h,
-            "resets": resets, "pushes": pushes}
+            "resets": resets, "pushes": pushes, "files": files}
 
 
 def dat_timefit_summary(dat_path: str, spo2_path: str,
@@ -1714,13 +2444,17 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
         opt = bool(d.get("optional"))          # a known-but-not-expected backup — its absence is not a fault
         streams: dict[str, int] = {}
         coverage: dict[str, float] = {}
+        #: Per stream: "measured" when its rate was observed off the file, "expected" when the
+        #: configured rate was substituted because none could be measured. The coverage number is
+        #: worth exactly what its rate is worth, and before this the two were indistinguishable.
+        coverage_basis: dict[str, str] = {}
         for s in d.get("streams") or []:
-            tag = s.upper()
+            tags = stream_file_tags(s)
             # Everything is the CURRENT SESSION (the `current` set, unified across midnight) — so a stream
             # is `missing` only if it produced nothing THIS session, and its row count + coverage reflect
             # the session, never an earlier daytime or previous-night one.
             rows = sum(f["rows"] for f in current
-                       if writers.file_device_id(f["file"]) in dids and f["stream"] == tag)
+                       if writers.file_device_id(f["file"]) in dids and f["stream"] in tags)
             streams[s] = rows
             if rows == 0:
                 # An OPTIONAL backup device that did not join is EXPECTED, not a gap — it stays out of
@@ -1739,12 +2473,29 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
             # NOT tautological: `measured_hz` reads a contiguous head of the file (median inter-sample
             # delta over ~4000 rows), while coverage counts EVERY row against the whole session span —
             # so a stream that dies at hour one still reports low coverage at its own correct rate.
-            hz = _measured_hz_of.get((_rate_key(d), s)) or _expected_hz(d, s)
+            # 🔴 THE BASIS IS PUBLISHED, BECAUSE THE NUMBER ALONE CANNOT BE TRUSTED OR DISCARDED.
+            # This read `measured or expected`, so a stream whose rate was never measured borrowed the
+            # EXPECTED one and its coverage was indistinguishable from one computed against an actual
+            # observation — reaching `degraded`, the `ok` verdict and the alerts identically.
+            #
+            # ⚠️ DELETING THE FALLBACK IS THE OBVIOUS FIX AND IT IS THE WRONG ONE. Measured on the
+            # 2026-09-12 night: of 9 rate rows, 4 carry a measured rate and 5 do not. Null-propagating
+            # would therefore have deleted coverage for five of nine streams — and coverage is how a
+            # stream that DIED becomes visible, so that trades a fabricated number for a blind spot.
+            # §∅ requires that an unmeasured quantity not masquerade as a measured one, not that it be
+            # thrown away. So the number stays and `coverage_basis` says where its rate came from.
+            # `or` is still gone — it swallowed a genuine 0.0 — and `measured` wins whenever it exists.
+            hz = _measured_hz_of.get((_rate_key(d), s))
+            basis = "measured"
+            if hz is None:
+                hz, basis = _expected_hz(d, s), "expected"
             if hz and span:
                 cov = round(rows / (hz * span), 2)
                 coverage[s] = cov
+                coverage_basis[s] = basis
                 if cov < _DEGRADED_BELOW:
-                    degraded.append(f"{name}:{s} {int(cov * 100)}%")
+                    degraded.append(f"{name}:{s} {int(cov * 100)}%"
+                                    + ("" if basis == "measured" else " (rate assumed)"))
         # SECONDS SINCE THIS DEVICE LAST WROTE, measured against the night's NEWEST write rather
         # than wall-clock now(). Two reasons: reading an old night back must not report every
         # device as frozen, and the question that matters is always "silent while the others were
@@ -1764,18 +2515,35 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
         # .dat's 1 s quantum. None means either sidecar is absent or Node/tool are.
         datfit = None
         dat_path = spo2_path = None
+        rtc_paths: list[str] = []
         for fn in sorted(os.listdir(night_dir)) if os.path.isdir(night_dir) else []:
             if writers.file_device_id(fn) not in dids:
                 continue
-            if fn.endswith("_rtclog.csv") and rtc is None:
-                rtc = rtc_drift_summary(os.path.join(night_dir, fn))
+            # ⚠️ UPPERCASE. `capture_filename` upper-cases every stream tag, so the writer emits
+            # `..._RTCLOG.csv` — this matched `_rtclog.csv` and therefore matched NOTHING. Measured on
+            # vigil 2026-09-05: 29 RTCLOG files on disk that day and `rtc: null` for every device,
+            # including the ring that wrote them. The ring-clock verdict this function exists to
+            # produce — drift_s, resets, pushes — has never been computed from a real night.
+            # Same class as the ACCRAW mismatch above: the reader's filename expectation did not
+            # match the writer's output, and nothing compared the two.
+            # ⚠️ EVERY sidecar, not the first. The ring writes one `_RTCLOG.csv` per CONNECT SESSION,
+            # and `and rtc is None` here summarised the night from its earliest one. Measured on vigil
+            # 2026-09-05, the first night the case fix above reached: 29 sidecars, verdict
+            # `reads 1 · pushes 11 · resets 0 · span_h 0.0` against 15 reads, 63 pushes and TWO
+            # reset-suspect events on disk. The pooled roll-up is `rtc_drift_summary`'s job; this
+            # loop only collects.
+            if fn.endswith("_RTCLOG.csv"):
+                rtc_paths.append(os.path.join(night_dir, fn))
             elif fn.endswith("_STORED.dat") and dat_path is None:
                 dat_path = os.path.join(night_dir, fn)
             elif fn.endswith("_SPO2.csv") and spo2_path is None:
                 spo2_path = os.path.join(night_dir, fn)
+        if rtc_paths:
+            rtc = rtc_drift_summary(rtc_paths)
         if dat_path and spo2_path:
             datfit = dat_timefit_summary(dat_path, spo2_path)
         per_device.append({"name": name, "streams": streams, "coverage": coverage,
+                           "coverage_basis": coverage_basis,
                            "silent_sec": silent, "rtc": rtc, "datfit": datfit})
     return {
         "night": os.path.basename(night_dir.rstrip("/")),
@@ -1836,10 +2604,277 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
         # RING CONTACT from the raw 0x05 pair — the independent coupling vote (constants + validation
         # documented at ppg2w_contact). A session list, not a verdict; empty when never captured.
         "ppg2w_contact": ppg2w_contact_quality(night_dir),
+        # CLASS-B QUALITY — `clip` spans pinned at each stream's own observed rails, and a computed
+        # `held` mark. Whole-night because the rail is not knowable until the night is complete.
+        # Reported, never folded into `ok`: a clipped stretch is a defect of the SIGNAL, not of the
+        # capture, and conflating them would make a good recording read as a capture failure — the
+        # same separation `arrival` above is kept out of `ok` for.
+        "class_b": class_b_quality(night_dir),
+        # OBSERVABILITY (residue 2026-09-10-daemon-restarts-are-idle-gated): the night's daemon
+        # starts and how many fell inside a capture — `scanned` is passed so the night is not walked
+        # a second time for it.
+        "daemon": daemon_starts(night_dir, scanned),
         # What rate the files ACTUALLY carry, against what was asked for. Coverage notices a rate swap
         # only as `degraded`, which names it a link fault; this names it a rate fault.
         "rates": _rate_rows,
     }
+
+
+# ── VERDICTS — one `tepna.verdict/1` object per gate per night (VERDICT-CONTRACT §3b, wave 1) ──────────
+# Both criteria are PRE-STATED here as constants, written from what the code decided BEFORE the objects
+# existed (2026-09-21): a tool that computes its threshold from the data it judges cannot emit a PASS.
+_QC_GATE = "night-qc"
+_QC_CRITERION = {"name": "stream_coverage", "threshold": _DEGRADED_BELOW, "unit": "fraction", "direction": "gte"}
+_QC_VERDICT_NAME = "QC-VERDICT.json"
+_BACKCHECK_GATE = "night-backcheck"
+_BACKCHECK_CRITERION = {"name": "clip_regions_plus_held_streams", "threshold": 0, "unit": "count", "direction": "lte"}
+_BACKCHECK_VERDICT_NAME = "BACKCHECK-VERDICT.json"
+_TOOL = "capture-host/nightqc.py"
+
+
+def qc_verdict(summary: dict, devices: list[dict], *, night_dir: str = "") -> dict:
+    """The `night-qc` verdict from a `summarize()` result. The rule is summarize's own `ok`, split into
+    the states a machine must not confuse:
+
+      PASS          every declared stream on every non-optional device delivered rows this session at
+                    coverage ≥ 0.5 of rate × span, and no session inside the night window was excluded
+      FAIL          a stream is missing or degraded (reason names each, with its %)
+      SHORTFALL     the headline held but a session inside the night was excluded from the judgement
+                    (`gaps_in_night`) — met on the whole, not on a stated sub-population
+      UNDERPOWERED  span < _MIN_SPAN_SEC: coverage is unknown there, not low
+      NOT_RUN       no device is configured — nothing was declared, so nothing was examined
+
+    Population = declared streams: checked are those on non-optional devices, excluded those on
+    `optional` backups (declared, not judged), eligible = both. A crash → UNKNOWN naming it.
+    """
+    import verdict as _v
+    ev = [_TOOL, os.path.join(night_dir, _SUMMARY_NAME) if night_dir else _SUMMARY_NAME]
+    try:
+        checked = sum(len(d.get("streams") or []) for d in devices if not d.get("optional"))
+        excluded = sum(len(d.get("streams") or []) for d in devices if d.get("optional"))
+        pop = {"checked": checked, "eligible": checked + excluded, "excluded": excluded}
+        cov = {f"{d['name']}:{s}": c for d in summary.get("devices") or [] for s, c in (d.get("coverage") or {}).items()}
+        result = {"coverage": cov, "missing": list(summary.get("missing") or []),
+                  "degraded": list(summary.get("degraded") or []),
+                  "gaps_in_night": list(summary.get("gaps_in_night") or []),
+                  "span_sec": summary.get("span_sec")}
+        span = summary.get("span_sec")
+        if checked == 0:
+            return _v.make(gate=_QC_GATE, status="NOT_RUN", population=pop, criterion=_QC_CRITERION, result=None,
+                           evidence=ev, reason="no device is configured — nothing was declared to judge", tool=_TOOL)
+        if result["missing"] or result["degraded"]:
+            parts = ([f"missing: {', '.join(result['missing'])}"] if result["missing"] else []) + \
+                    ([f"degraded (< {int(_DEGRADED_BELOW * 100)} %): {', '.join(result['degraded'])}"] if result["degraded"] else [])
+            return _v.make(gate=_QC_GATE, status="FAIL", population=pop, criterion=_QC_CRITERION, result=result,
+                           evidence=ev, reason="; ".join(parts), tool=_TOOL)
+        if span is None or span < _MIN_SPAN_SEC:
+            return _v.make(gate=_QC_GATE, status="UNDERPOWERED", population=pop, criterion=_QC_CRITERION,
+                           result=result, evidence=ev, tool=_TOOL,
+                           reason=f"span {span if span is not None else 'unknown'} s is under the {int(_MIN_SPAN_SEC)} s "
+                                  "minimum — coverage is unknown, not low")
+        if result["gaps_in_night"]:
+            return _v.make(gate=_QC_GATE, status="SHORTFALL", population=pop, criterion=_QC_CRITERION,
+                           result=result, evidence=ev, tool=_TOOL,
+                           reason="every stream met coverage, but a capture session inside the night window was "
+                                  "excluded from the judgement: " + "; ".join(result["gaps_in_night"]))
+        return _v.make(gate=_QC_GATE, status="PASS", population=pop, criterion=_QC_CRITERION, result=result,
+                       evidence=ev, reason=None, tool=_TOOL)
+    except Exception as exc:  # noqa: BLE001 — a crash is not a verdict; it is UNKNOWN with the exception named
+        return _v.unknown(gate=_QC_GATE, criterion=_QC_CRITERION, evidence=ev, tool=_TOOL, exc=exc)
+
+
+def backcheck_verdict(night_dir: str, summary: dict) -> dict:
+    """The `night-backcheck` verdict: no class-B block carries a clipped region or a held stream.
+
+    ⚠️ THE POPULATION IS THE NEW INFORMATION. `class_b_quality` SKIPS a file it cannot judge — unreadable,
+    no waveform column in its header, under the minimum run — with `continue`, so a night in which every
+    PPG file was skipped produced an empty list, which `night_report.back_check` read as "0 spans, ok".
+    Here eligible = every PPG/PPG2W/ECG capture in the directory, checked = those with a block, and
+    excluded = the difference — so a clean verdict about files nobody examined cannot be written:
+    eligible > 0 with checked == 0 is UNKNOWN, and a night with no class-B file at all is NOT_RUN.
+    """
+    import verdict as _v
+    ev = [_TOOL, os.path.join(night_dir, _SUMMARY_NAME)]
+    try:
+        names = sorted(os.listdir(night_dir)) if os.path.isdir(night_dir) else []
+        eligible_files = [n for n in names if (parse_capture_name(n) or ("", ""))[0] in _CLASS_B_TAGS]
+        blocks = [b for b in (summary.get("class_b") or []) if isinstance(b, dict)]
+        checked = sum(1 for b in blocks if b.get("file") in eligible_files)
+        pop = {"checked": checked, "eligible": len(eligible_files), "excluded": len(eligible_files) - checked}
+        per_file = {}
+        clips = held = 0
+        for b in blocks:
+            raw = b.get("clips")
+            got: dict = raw if isinstance(raw, dict) else {}
+            c = sum(int(v) for v in got.values() if isinstance(v, int) and not isinstance(v, bool) and v > 0)
+            h = b.get("held") is not None
+            per_file[str(b.get("file"))] = {"clip_regions": c, "held": h}
+            clips += c
+            held += 1 if h else 0
+        result = {"clip_regions": clips, "held_streams": held, "files": per_file}
+        if not eligible_files:
+            return _v.make(gate=_BACKCHECK_GATE, status="NOT_RUN", population=pop, criterion=_BACKCHECK_CRITERION,
+                           result=None, evidence=ev, tool=_TOOL,
+                           reason="the night holds no PPG/PPG2W/ECG capture — nothing to back-check")
+        if checked == 0:
+            return _v.make(gate=_BACKCHECK_GATE, status="UNKNOWN", population=pop, criterion=_BACKCHECK_CRITERION,
+                           result=result, evidence=ev, tool=_TOOL,
+                           reason=f"all {len(eligible_files)} class-B file(s) were skipped by the check "
+                                  "(unreadable, no waveform column, or under the minimum run) — nothing was examined")
+        if clips or held:
+            bad = [f"{f}: {v['clip_regions']} clip region(s)" + (", held" if v["held"] else "")
+                   for f, v in per_file.items() if v["clip_regions"] or v["held"]]
+            return _v.make(gate=_BACKCHECK_GATE, status="FAIL", population=pop, criterion=_BACKCHECK_CRITERION,
+                           result=result, evidence=ev, tool=_TOOL,
+                           reason=f"{clips} clipped region(s) and {held} held stream(s) over {checked} file(s): " + "; ".join(bad))
+        return _v.make(gate=_BACKCHECK_GATE, status="PASS", population=pop, criterion=_BACKCHECK_CRITERION,
+                       result=result, evidence=ev, reason=None, tool=_TOOL)
+    except Exception as exc:  # noqa: BLE001 — a crash is not a verdict
+        return _v.unknown(gate=_BACKCHECK_GATE, criterion=_BACKCHECK_CRITERION, evidence=ev, tool=_TOOL, exc=exc)
+
+
+def adapter_hci_verdict(night_dir: str, summary: dict) -> dict:
+    """The `adapter-hci` verdict (adapter_hci.py — the pre-stated rule lives there) over the rows of
+    `<root>/ADAPTERHCI.csv` that fall inside the night's session window. The root is the night dir's
+    grandparent (`<root>/captures/<night>`); a night with no session window has no rows to read and
+    is NOT_RUN by the builder's own rule."""
+    import adapter_hci
+    root = os.path.dirname(os.path.dirname(os.path.abspath(night_dir)))
+    night = os.path.basename(night_dir.rstrip("/"))
+    sessions = [s for s in (summary.get("sessions") or []) if isinstance(s, dict)]
+    try:
+        if not sessions:
+            rows: list[dict] = []
+        else:
+            start = min(int(s["start"]) for s in sessions) * 1000
+            end = max(int(s["end"]) for s in sessions) * 1000
+            rows = adapter_hci.read_rows(root, start, end)
+        return adapter_hci.verdict_object(rows, night=night, root=root)
+    except Exception as exc:  # noqa: BLE001 — a crash is not a verdict
+        import verdict as _v
+        return _v.unknown(gate=adapter_hci.GATE, criterion=adapter_hci.CRITERION,
+                          evidence=[adapter_hci.TOOL, os.path.join(root, adapter_hci.FILE_NAME)], tool=adapter_hci.TOOL, exc=exc)
+
+
+def write_verdicts(night_dir: str, summary: dict, devices: list[dict]) -> None:
+    """The three objects beside QC-SUMMARY.json. Never raises: a verdict that cannot be written is
+    logged, and the summary write it accompanies must not be lost to it."""
+    import adapter_hci
+    import verdict as _v
+    for name, obj in ((_QC_VERDICT_NAME, qc_verdict(summary, devices, night_dir=night_dir)),
+                      (_BACKCHECK_VERDICT_NAME, backcheck_verdict(night_dir, summary)),
+                      (adapter_hci.VERDICT_NAME, adapter_hci_verdict(night_dir, summary))):
+        try:
+            _v.write(os.path.join(night_dir, name), obj)
+        except (OSError, ValueError):
+            log.warning("night-QC: could not write %s beside the summary", name, exc_info=True)
+
+
+_STREAM_ANNOTATIONS = {
+    # Values that are NOT SAMPLES, by capture FORMAT rather than by defect. Keyed on the file tag.
+    # ⚠️ This is a value list, and the detectors refuse to be value lists — the difference is that
+    # this declares a property of the format, knowable in advance, rather than a property of the data.
+    # The O2Ring writes its beat marker into the sample column of its PPG streams; the Verity and the
+    # H10 write no such thing, so their entries are deliberately absent rather than empty-by-oversight.
+    "PPG": (156,),
+    "PPG2W": (156,),
+}
+_CLASS_B_TAGS = ("PPG", "PPG2W", "ECG")
+# Columns that are NOT WAVEFORMS, by capture FORMAT — the third term the detector needs beside
+# sample and annotation. A status or orientation column travels in the same row as the samples
+# and is not one: PPG2W's `motion` is the ring's u8 stillness byte, whose CORRECT reading — `0`,
+# still — is a rail by every distributional test, and ECG's `timestamp [ms]` is a device axis.
+# Both were being scanned because the reader took every column after the two stamps by POSITION;
+# measured 2026-09-07 on the 2026-09-06 night, `ppg2w:ch2` carried 156 spans and a 700,409-sample
+# run on a file whose two real channels were clean, and the H10's ECG was labelled `ecg:ch1`
+# behind its own timestamp. Declared by header NAME, never by position, so a format that gains a
+# column cannot silently become a waveform. Like `_STREAM_ANNOTATIONS` this is a property of the
+# format knowable in advance, not a value list; and it is a DENYLIST on purpose — a forgotten
+# status column over-flags, whereas a forgotten waveform in an allowlist would go unscanned.
+_NON_WAVEFORM_COLUMNS = frozenset({
+    "Phone timestamp", "sensor timestamp [ns]", "timestamp [ms]", "motion", "beat",
+})
+
+
+def _waveform_columns(header: str) -> tuple:
+    """`((index, name), …)` of the columns a class-B scan reads, from the file's own header row."""
+    names = [h.strip() for h in header.rstrip("\n").split(";")]
+    return tuple((i, n) for i, n in enumerate(names) if n and n not in _NON_WAVEFORM_COLUMNS)
+
+
+def class_b_quality(night_dir: str, *, emit=None) -> list:
+    """One class-B block per PPG/ECG capture in the night — the END-OF-NIGHT back-check.
+
+    Empty list when nothing was captured: nothing to report is not the same as everything healthy, so
+    the key holds sessions rather than a verdict, exactly as `ppg2w_contact_quality` does.
+
+    Whole-night by necessity, not by preference. `clip` is pinned at the stream's OWN observed rails
+    and there is no declared bound to test against — the ring's ceiling is 199 with a thin overshoot to
+    200, which is not an encoding extreme — so the rail cannot be known until the night is complete.
+    That is precisely the half the live writer cannot do.
+
+    Rows that do not parse are SKIPPED, not fatal: a mid-file repeated header is a real rotation
+    artifact and one torn row must not erase a session's verdict.
+
+    The columns scanned are chosen from the file's OWN header by name (`_NON_WAVEFORM_COLUMNS`), and
+    the block records them as `columns` so a `<stream>:chN` row is resolvable to a column name: `chN`
+    indexes `columns`, not the file. A file whose header names no waveform column is skipped with a
+    warning — absent, not clean.
+    """
+    out = []
+    for name in sorted(os.listdir(night_dir) if os.path.isdir(night_dir) else []):
+        parsed = parse_capture_name(name)
+        if parsed is None or parsed[0] not in _CLASS_B_TAGS:
+            continue
+        tag = parsed[0]
+        # ONE ARRAY PER CHANNEL, NOT ONE TUPLE PER ROW. `array('q')` holds a sample in 8 bytes; the
+        # tuple-of-ints record it replaces cost ~143 (measured: 755 MB for the 5.26 M-row two-channel
+        # PPG2W of vigil's 2026-09-21 night, inside the daemon that holds every BLE link). The rows
+        # are the same rows and `class_b_runs(columns=…)` computes the same verdict from them — see
+        # its note, and `test_class_b_runs_columns_equals_records`.
+        chans: list = []
+        columns: tuple = ()
+        width = 0
+        try:
+            with open(os.path.join(night_dir, name), "r", encoding="utf-8", errors="replace") as fh:
+                for line in fh:
+                    if not line.startswith("#"):    # `# timebase=…` precedes the header on box files
+                        columns = _waveform_columns(line)
+                        width = len(line.rstrip("\n").split(";"))
+                        break
+                for line in fh:
+                    parts = line.rstrip("\n").split(";")
+                    if len(parts) != width:
+                        continue
+                    try:
+                        cols = [int(float(parts[i])) for i, _ in columns]
+                    except ValueError:
+                        continue      # a torn row is expected at a live file's tail and a repeated
+                                      # mid-file header is a real rotation artifact; the spans are
+                                      # built from the rows that parsed, and `_CLIP_MIN_RUN` plus the
+                                      # rail qualification refuse a verdict built from too few
+                    if not chans:
+                        chans = [_array("q") for _ in cols]
+                    for ch, v in zip(chans, cols):
+                        ch.append(v)
+        except OSError:
+            log.warning("night-QC: %s is unreadable, so its class-B quality is ABSENT rather than "
+                        "clean — the two must not read alike", name, exc_info=True)
+            continue
+        if width and not columns:
+            log.warning("night-QC: %s names no waveform column in its header, so its class-B quality "
+                        "is ABSENT rather than clean", name)
+            continue
+        if not chans or len(chans[0]) < _CLIP_MIN_RUN:
+            continue        # includes a file with no header yet — a 0-byte open capture (seen on
+                            # the box: a Verity session file 30 s old), which is too few rows, not
+                            # a malformed header, and is not worth a warning per scan
+        block = class_b_runs(columns=chans, stream=tag.lower(),
+                             annotations=_STREAM_ANNOTATIONS.get(tag, ()), emit=emit)
+        block["file"] = name
+        block["columns"] = [n for _, n in columns]
+        out.append(block)
+    return out
 
 
 def qc_digest(summ) -> str | None:

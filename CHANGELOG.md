@@ -30,6 +30,494 @@ changesets.)
 
 ---
 
+## [2.13.0] — 2026-09-21
+
+### Added
+- Seam exposure is decided by **input provenance**, not by whether a node detects seams — measured, so
+- CPAP-ACQ P3 executable brief — the phase the charter has named as its next step since 2026-09-02, and a (`CPAP-ACQ-P3-GAP-ACCOUNTING-2026-09-18-BRIEF.md`)
+- **INV11 — one acquisition owner per device.** Verified before building: **zero occurrences** of any owner (`CPAP-ACQ-P3-GAP-ACCOUNTING-2026-09-18-BRIEF.md`)
+- INV8 `continuity_status` — a recovered CPAP acquisition now says whether it was verified to have lost (`CPAP-ACQ-P3-GAP-ACCOUNTING-2026-09-18-BRIEF.md`)
+- Times the CPAP sink write, so a loop stall becomes **attributable**. (`CPAP-ACQ-P3-GAP-ACCOUNTING-2026-09-18-BRIEF.md`)
+- Promotes residue row `2026-09-18-ecg-saturation-unflagged` into a brief; the row closes pointing at (`ECG-SATURATION-ABSENCE-2026-09-18-BRIEF.md`)
+- `capture-host` gains `_adapter_responds` — an HCI command ROUND TRIP, closing §7's third item ("post-recovery (`CAPTURE-HOST-RESOURCE-ORCHESTRATION-AUDIT-2026-09-05-BRIEF.md`)
+- Committed adversarial twins for D3's comparability-keyed hrStatMixed — the ruling had no fixture that could express it in either direction. (`R5-HR-TRIPLET-FOLLOWUPS-2026-08-04-BRIEF.md`)
+- Measurement brief: a "pinned span" is three phenomena and `pinnedSpans` is rail-keyed, so it sees one (`PINNED-SPAN-POPULATIONS-2026-09-18-BRIEF.md`)
+- PpgDex reads the `_PPGRUNS.txt` sidecar and reports it as a SECOND POPULATION — not as a second (`PPG-ABSENCE-AS-VALUE-2026-09-06-BRIEF.md`)
+- A SATURATED span is labelled distinctly from an ABSENT one — owner ruling 2026-09-18, which scopes (`PPG-ABSENCE-AS-VALUE-2026-09-06-BRIEF.md`)
+- A published table can name the run that produced it — TABLE-PROVENANCE stamps, with the output hash over the table text so a hand-edited cell reds. (`PUBLISHED-NUMBER-PROVENANCE-2026-09-15-BRIEF.md`)
+- Advisory gates now emit a machine-readable verdict beside the prose one, so a downstream reader keys
+- The AS11's OWN session-boundary witness, recorded beside the live stream (WU4 core; owner "implement (`CPAP-AS11-BLE-WIRE-NOW-2026-09-07-BRIEF.md`)
+- The constant-run sidecar names what a span IS — two measured kinds, `unknown` everywhere else (`PPG-ABSENCE-AS-VALUE-2026-09-06-BRIEF.md`)
+- `tools/verify-draft-kills.mjs` — verifies that a drafted assertion, as written, actually kills its (`QWEN-ENGINEERING-PROGRAM-2026-08-27-BRIEF.md`)
+- `tools/corpus-tier.mjs`: keeps the 30 most recent nights of the canonical corpus local and replaces (`CORPUS-TIER-30-NIGHTS-2026-09-20-BRIEF.md`)
+- Residue: the guard hook's quote/heredoc stripping is wired into one of its twelve rules, so a
+- Two new pages in the vigil monitor's sidebar — **Ledger** and **Capture** — one index behind both
+- Resolve a changeset's `brief:` at write time, and point authors at the 4-second check that already
+- Names the failure class where machinery exists, is correct, is tested, and one of its several (`PARTIAL-ADOPTION-DETECTION-2026-09-20-BRIEF.md`)
+- **The respiratory-rate paper has figures, seven weeks after the tool that draws them.** (`MOTIONDEX-RESPIRATORY-RATE-2026-07-21-BRIEF.md`)
+- ALLAN-STABILITY-GAPS closes. capture-host: holes in an arrival series are segmented at k×median and pooled (n-weighted σ² per τ), stability() carries provenance (tau0, n, span, estimator, version) and a real answer for a constant series, nightqc passes the host instants, the night report gets one clock line per stream. Measured on the box: max_gap ≤ 4× median holds on only 22.8 % of ECG/PPG arrival legs. The brief's prediction that a compacted hole reads as τ⁺¹ drift is corrected — a phase step is τ⁻¹ᐟ² energy, it inflates the level. Node lane: a PAT↛clock source-scan gate and §2.1's file-path export test. A nightqc test that passed over zero rows now plants a real night. (`ALLAN-STABILITY-GAPS-2026-09-07-BRIEF.md`)
+- tools/nsrr-coupling-bout-fpr.mjs measures DEEP-AUDIT-V F8 on 400 SHHS1 nights, XML only: event-coupling's circular-shift null is exact under real within-stream clustering (4.4 %) and its shared-modulation false-positive rate is a curve in the shared profile's scale — 88 % at 90 s, 58 % at 3 min, 30 % at 5 min, 13 % at 10 min, 7 % at 20 min; the synthetic 36–53 % sits at 3–5 min. The per-record density diagnostic the punch list prescribed fails its pre-registered AUC bar (≤ 0.76 vs 0.8) and is not shipped; the p-value is untouched. docs/COUPLING-BOUT-FPR-2026-09-20.md; F8 row DONE; residue for the header caveat. (`DEEP-AUDIT-V-FOLLOWUPS-2026-08-05-BRIEF.md`)
+- Integrator consumes per-instance measurement blocks behind a tolerant, fail-closed adapter — refs (value, code, input join, provenance verdict) ride forward on the fusion export's node cards; a legacy export fuses byte-identically. (`MEASUREMENT-PROVENANCE-ROADMAP-2026-08-26-BRIEF.md`)
+- The measurement-provenance programme's final report and F-section — what it proves with the gate named, and twelve limits it does not, each labelled found vs assumed. (`MEASUREMENT-PROVENANCE-ROADMAP-2026-08-26-BRIEF.md`)
+- The vigil monitor Ledger ✓ presses the batch tool Process button after loading the night, so the 3-corner-hat and PAT run from the click without another one; when the tool finds no eligible night the toast says so.
+- tools/oracle-ecg-firmware-rr.mjs — MEASUREMENT-PROVENANCE §5's oracle harness, ECG leg: ECGDex's Pan–Tompkins against the H10 firmware detector on every real night carrying both trains, with pre-stated bands and §5's caveats machine-printed. Over 52 nights: mean RR Δ 0.40 %, rMSSD Δ 1.2 % (consistent); per-beat pairing bimodal — 20 nights within one sample, 25 unpaired by the ±60-beat index alignment when the firmware's surplus exceeds it (limit named, time-anchored pairing scoped). Found ECGDex's validateRR / export validation block comparing gap-spanning intervals (65 797 % dRMSSD on a gappy night) — filed as residue, fix separate. (`MEASUREMENT-PROVENANCE-ROADMAP-2026-08-26-BRIEF.md`)
+- Oracle harness time-anchored pairing: firmware RR placed on the host axis (envelope anchors + per-window coincidence latency, stepping at reconnections), paired 1:1 within ±150 ms — 98.7 % matched, RR |Δ| 0.45 ms on 52 real nights, bands pre-stated. (`MEASUREMENT-PROVENANCE-ROADMAP-2026-08-26-BRIEF.md`)
+- OxyDex emits per-instance measurement blocks (meanSpo2, t90, odi4, hypoxicBurden) with window, channel, code identity and input lineage — schema 2.1; bundles carry their own manifestHash/computeHash on the html tag; the backward walk-through is checkable via tools/measurement-walk.mjs. (`MEASUREMENT-PROVENANCE-ROADMAP-2026-08-26-BRIEF.md`)
+- find_unwired.py scan 7 (advisory): one consumer whose callers hand it the same parameter DERIVED by a defined function at one site and READ FROM CONFIG at another — the one-of-N adoption shape that reads as done. 13 plants, each planted red on a shape a real-source run exposed (IfExp, one assignment upstream, builtin wrappers, dict.get vs a method get, a binding after the call, a parameter inheriting another function's binding, subscript targets, same name in two modules). main: 692 slots, 1 FP allowlisted with reason; the tree before #2716: the known _usb_rebind instance flagged. Not in the --check sum. AUDIT-PROMPT class 16 asks the one-of-how-many question for the two populations no tool covers. (`PARTIAL-ADOPTION-DETECTION-2026-09-20-BRIEF.md`)
+- **The "isolated 156 is a marker" heuristic is scored against the ring's own beat flag — and holds,
+
+### Changed
+- Resource-orchestration §7 — the adapter ladder DID fire on 2026-09-11, so residue row (`CAPTURE-HOST-RESOURCE-ORCHESTRATION-AUDIT-2026-09-05-BRIEF.md`)
+- The clock-sync gate now keys on a MEASURED per-unit capability instead of a configured vendor string — (`BLE-TRANSPORT-REDESIGN-2026-09-10-BRIEF.md`)
+- Resource-orchestration §7 — the post-fix fsync measurement the brief said was owed, taken on vigil. The (`CAPTURE-HOST-RESOURCE-ORCHESTRATION-AUDIT-2026-09-05-BRIEF.md`)
+- `mutate_diff.py` printed nothing for a function whose mutants were all killed, which is the common (`RESIDUE.md`)
+- Stamp the CPAP-ACQ-P3 brief's status header to the state its own items reached today: W1 (#2626), W2(a) (`CPAP-ACQ-P3-GAP-ACCOUNTING-2026-09-18-BRIEF.md`)
+- Stamp the resource-orchestration header: §7's post-recovery radio verification is BUILT (#2624, (`CAPTURE-HOST-RESOURCE-ORCHESTRATION-AUDIT-2026-09-05-BRIEF.md`)
+- The residue row claiming the GATT oracle settled for the weaker half of Robust Caching is withdrawn: (`GATT-HANDLE-MAP-2026-09-17-BRIEF.md`)
+- The UNDECIDED refusal reported a total and six sample mutant names, which cannot separate "all of them (`RESIDUE.md`)
+- Two AS11 boxes closed on measured evidence, and the run-length baseline for the three un-named sidecar (`AS11-AUTO-SESSION-DETECTION-2026-08-24-BRIEF.md`)
+- The live CPAP stream's cost is MEASURED before any dataId is added (Unit 2 of the 2026-09-19 ruling; (`CPAP-AS11-BLE-WIRE-NOW-2026-09-07-BRIEF.md`)
+- Capture-host brief drain: three absence claims were false, and **two of the three were false when they
+- Round-2 drain of the five stalest capture-host briefs — and the headline is not a stamp: **the ~17 days
+- Brief drain, box round 2 — four briefs re-verified against the tree AND the capture box; one
+- Brief drain, device/box partition — six briefs re-verified against the tree AND the box, headers
+- Drain stamp: the brief's done-when count dates from 2026-09-11 and five PRs have since landed in its own (`MUTATION-PIPELINE-INTEGRITY-2026-08-24-BRIEF.md`)
+- Ledger-only: records that the BLE counters cannot tell an absent device from a failing one, and that
+- The run sidecar emits the measurement and names nothing: `absence` / `in-wear-rail` (one afternoon (`PPG-ABSENCE-AS-VALUE-2026-09-06-BRIEF.md`)
+- Brief drain, round 3, box lane — four briefs re-triaged on the box's own record (2026-09-20, Wren), (`O2RING-POWER-AWARE-BLE-LIFECYCLE-2026-09-05-BRIEF.md`)
+- Brief drain, round 4, box lane — four briefs re-triaged on the box (2026-09-20, Wren), each next-step (`VIGIL-SELF-SUSTAINED-FOLDING-2026-09-01-BRIEF.md`)
+- Brief drain round 5: thirteen headers re-stamped from the owner's rulings of 2026-09-20. Five DONE
+- Round-3 drain. **Three of the four assigned briefs were already DONE** — the assignment selected by
+- Three genuinely open briefs re-verified against current `main`. **Two stamped, one unchanged.**
+- CORPUS-LOCATIONS now names both NAS boxes, the 189 GB NSRR cohort five tools read, and the
+- CORPUS-LOCATIONS records the TrueNAS copy as a verified full duplicate of the canonical corpus
+- Log a residue row: a guard denial cancels the **whole Bash invocation**, and nothing says which clauses
+- **`codegen` manifests: the `status` maturity enum is retired.** One hand-maintained word
+- Four residue rows re-verified against current `main`. **All four stay OPEN** — their premises hold — and
+- Two rows the sweep asked for: the narrower live-capture loss-guard claim (the old row falsified, (`RESIDUE-ABSENCE-EVIDENCE-SWEEP-2026-09-18-BRIEF.md`)
+- Three owner rulings on DEEP-AUDIT-V-FOLLOWUPS recorded at the point of use (68 tiles by review,
+- DEVICE-RATE-TRUTH closes: the RtPpg battery night is measured on the box from LINK.csv battery_pct over 58 nights — with ppg2w live since 2026-09-07 the O2Ring drains 4.05 %/h against 4.25 %/h the fortnight before, so the stream's cost is not detectable (≤ 0.3 %/h, ≤ 2.5 % per 8-h night); an unrelated +0.9 %/h drift across August is recorded, not explained. §8's 'ring has no ACC' doubt is answered by the tree (ACCRAW.txt captured nightly). (`DEVICE-RATE-TRUTH-2026-08-05-BRIEF.md`)
+- Drain: PAT-FORENSICS-WINDOW-ORACLE closes (its last box is PAT-RESIDUAL-ATTRIBUTION's owner-parked question, closed by reference; the posture-covariate substitute its own §-park proposed is confounded). COHORT-GEN-2.0-PAPER-RERUN's table corrected — rmssd-equivalence re-cut in #2584, treatment-response is an owner decision; two cohort-harness residue rows close as fixed #2582. (`PAT-FORENSICS-WINDOW-ORACLE-2026-08-28-BRIEF.md`)
+- Make `find_unwired` name the file whose bare-name match un-orphaned a function when its allowlist entry reads as spent, so an English word in a new shell log line costs one look instead of an hour of bisecting a file the author never touched.
+- Derive the monitor page's chip-function list from `renderRemembered`'s own template (closed over callees) for both node-lane tests that consumed a hand-kept copy, so a chip added to the page is stubbed and scope-checked without anyone editing a list — the copies went stale the day `oxyStormChip` landed and only reddened on a machine that had node.
+- PAT-OFFSET-ESTIMATOR-FOLLOWUPS closes: within-connection constancy of the PMD-arrival offset measured by halves over 96 box-night Polar streams — 67 of 69 certified streams agree at the connection midpoint within 10 ms (median 1.6 ms ECG, 2.0 ms PPG); the one 75 ms outlier is a stream the full-connection fit already refuses to certify. The anatomical-sign re-check is closed as not executable: the ring leg still has no certifiable arrival offset (2026-09-19 sidecar, estimators 1930 ms apart), so by elimination the 7-of-10 sign failure is not the per-connection offset. (`PAT-OFFSET-ESTIMATOR-FOLLOWUPS-2026-08-12-BRIEF.md`)
+- **`OxyDex.processNight`'s mutating contract is stated at its own signature.** It splices warm-up
+
+### Fixed
+- MotionDex refuses `immobileFrac` across a clock seam, and the `beatConfidence` mirror claim is now
+- capture-host's mypy count drops **100 → 68** and the ratchet is banked (`MYPY_BASELINE` 99 → 68). The (`PYTHON-TYPES-AND-FORMAT-2026-08-27-BRIEF.md`)
+- OxyDex's epoch HR is the mean of its 1 Hz rates, not the median — removing a −0.244 bpm cross-node bias — and the Integrator's mixed-statistic flag now keys on measured comparability rather than name equality. (`R5-HR-TRIPLET-FOLLOWUPS-2026-08-04-BRIEF.md`)
+- Re-anchor PpgDex's axis at a mid-file device-counter resync instead of spanning it — a planted step published a 7.66-year night while the rate guard read green. (`BLE-TIMEBASE-AT-THE-EDGE-2026-09-16-BRIEF.md`)
+- Two published CPAP aggregates were built from counters that nothing can increment, so they reported (`CPAP-ACQ-P3-GAP-ACCOUNTING-2026-09-18-BRIEF.md`)
+- The CPAP spool loop treated an already-committed round as "no new data" and dropped the device's (`CPAP-ACQ-P4-SPOOL-TRANSACTION-2026-08-23-BRIEF.md`)
+- The blind spot reported for `@property` is mutmut's rule for every decorated function, not a property (`RESIDUE.md`)
+- The ECG rail leg keyed on a global constant and fired on nothing. `computeSQI`'s flatline/rail check (`ECG-SATURATION-ABSENCE-2026-09-18-BRIEF.md`)
+- Corrects §5.2 of the pinned-span brief, which merged (#2640) carrying a refuted claim. (`PINNED-SPAN-POPULATIONS-2026-09-18-BRIEF.md`)
+- The GATT table recorder writes and logs only on a first sighting or a real change — it was re-recording an identical table every 34 seconds. (`GATT-HANDLE-MAP-2026-09-17-BRIEF.md`)
+- The GATT table recorder now runs on the WEARABLE rails, not only on CPAP. Measured by Wren on vigil (`GATT-HANDLE-MAP-2026-09-17-BRIEF.md`)
+- `resolve_hci` could not reach its last surviving source on the one deployment its guard was written
+- Correct the adapter recovery ladder's docstring — its rungs are btusb-shaped, not RTL8761B-shaped — and state where the ladder stops reaching.
+- `mmeta.generated_under_glob` matched `^def` at column 0, so it counted zero mutants for every class (`RESIDUE.md`)
+- capture-host's mypy count drops **58 → 41**; `MYPY_BASELINE` banked. Re-measured before starting: **58 in (`PYTHON-TYPES-AND-FORMAT-2026-08-27-BRIEF.md`)
+- capture-host's mypy count drops **68 → 58**; `MYPY_BASELINE` banked 68 → 58. Re-measured before starting, (`PYTHON-TYPES-AND-FORMAT-2026-08-27-BRIEF.md`)
+- CPAP-ACQ-P3 W1 — `as11_pull.stream` now calls `classify_frame` instead of re-deciding inline, so the (`CPAP-ACQ-P3-GAP-ACCOUNTING-2026-09-18-BRIEF.md`)
+- Pin the `not any_streaming` guard on the new `adapter_responds is False` wedge signal (#2624). Found by (`CAPTURE-HOST-RESOURCE-ORCHESTRATION-AUDIT-2026-09-05-BRIEF.md`)
+- mutmut generates no mutants for an `@property`, so the diff-scoped gate reported those functions as (`RESIDUE.md`)
+- Verification sweep of the residue ledger's absence-shaped rows, and a fix to the index's own (`RESIDUE-ABSENCE-EVIDENCE-SWEEP-2026-09-18-BRIEF.md`)
+- The gate that exists because unclosed-writer tail loss is invisible could itself only see **4 of 13** (`CAPTURE-HOST-RESOURCE-ORCHESTRATION-AUDIT-2026-09-05-BRIEF.md`)
+- My #2672 test asserted a property of the **branch** rather than of the code, so it failed for anyone
+- Correction to #2679: the AS11 detector did NOT report last night's therapy as quiet — the claim was a (`AS11-AUTO-SESSION-DETECTION-2026-08-24-BRIEF.md`)
+- Two BLE ops counted their failures into a dict `snapshot()` could not read, so `link` and `offline_op`
+- Brief drain, DSP/node lane: six briefs whose status headers assert an absence, re-checked against
+- Brief drain round 2, DSP/node lane: four briefs re-checked against landings in the files they NAME.
+- The CPAP sink-failure log fired on every SUCCESSFUL write — `#2641`'s timing `finally` was inserted
+- ECGDex's coupling grid now says which cells were measured. `_interpGrid` returned a bare Float64Array,
+- The AS11 link computed both frame CRCs on send and verified **neither** on receive. Both are now
+- `gattmap.configure()` dropped `recorded_at` on reload — the provenance stamp #2611 added lived only
+- Four shipped nodes' codegen manifests declared `"status": "planned"`. ECGDex, PpgDex, PulseDex and
+- Withdraws `2026-09-16-maxstepms-names-two-populations` and logs a narrower successor.
+- `how-to-collect/muse-eeg.md` warned about a constraint that stopped existing on the day it was
+- `function_of_mutant` could not read the only name format it is ever given, so the mutation gate's
+- The mutation scratch now carries the repo-root files a test reads — the `writers.py` lane had been
+- The mypy ratchet was right and `main` had drifted past it. **The baseline is not re-banked — the
+- A drain stamp merged this morning cited a span-kind vocabulary that was falsified the same evening.
+- The diff-scoped mutation gate scoped what it RAN to the changed functions but harvested UNDECIDED (`RUN-POLAR-MUTATION-PASS-2026-08-08-BRIEF.md`)
+- **Three corpus tools reported a finding when their input directory did not exist.** Each defaults
+- `tools/analysis-rerun.mjs` drove the treatment-response rerun at the page's default minimum of 6
+- A config-authored rsync archive target never started the offload — and said nothing. `archive_poller`
+- Derive the adapter watchdog's last recovery rung (USB unbind/bind) from the radio being watched instead of the single static `watchdog.usb_path`, so it can no longer re-enumerate a radio that is neither wedged nor monitored while leaving the wedged one untouched; when nothing is derivable the rung refuses rather than falling back.
+- Ask a spare radio an HCI round trip before failing over onto it, so a controller that reports `UP RUNNING` while answering nothing can no longer cost every wearable a disconnect, a re-bond and a hole in the recording; a spare that does not answer is quarantined for a cooldown, and a box whose every spare is deaf refuses the migration instead of spending its flap cap. (`CAPTURE-HOST-RESOURCE-ORCHESTRATION-AUDIT-2026-09-05-BRIEF.md`)
+- `tools/pat-host-offset.mjs` juxtaposes `maxStepE` and `maxStepP` in one row at a ~30% temporal density
+- `run_muse`'s `muse_tool` switch, re-read against BOTH upstreams at HEAD (2026-09-20). Residue
+- **The NSRR adapter now reads the oximeter's own validity channel.** SHHS1 ships `OX stat` — a 1 Hz
+- The O2Ring's passive scan now SENDS the filter BlueZ requires — owner ruling 2026-09-20 ("or_patterns (`O2RING-POWER-AWARE-BLE-LIFECYCLE-2026-09-05-BRIEF.md`)
+- `OXYLIFE.csv` — the O2Ring lifecycle journal every connect-yield number in the residue ledger rests (`O2RING-POWER-AWARE-BLE-LIFECYCLE-2026-09-05-BRIEF.md`)
+- The 0x03 probe's test fixtures accepted the link arguments and dropped them — `BleakClient`'s kwargs
+- **`docs-ledger` check8h/check8i named the wrong object when a residue row was malformed.**
+- **A shipped bundle published retracted validation figures for thirteen days.**
+- **The published site carried claims and withheld their corrections for over a month.**
+- Stop `_pick_live_spare` binding two different things to the name `mac` in one scope, which had pushed capture-host's mypy advisory count one above its baseline.
+- A test that faked `time.monotonic` could move `capture._now()` for every later test in the same
+- **Both fused tools now read the capture host's filenames, so the Ledger's ✓ is a click that
+- The rsync-over-ssh archive target (`archive.target: {protocol: rsync}`) — the direct vigil → NAS push
+- allan.stability() on a constant phase series now returns a classification record saying 'no measurable instability' (noise None, slope None) instead of classification: None, which was the shape of an unmade fit; determinism (J) and the degenerate input (A) from ALLAN-STABILITY-GAPS §2.5 are pinned by tests. (`ALLAN-STABILITY-GAPS-2026-09-07-BRIEF.md`)
+- Let the doff-path drain settle and retry, bounded, when BlueZ refuses it with `InProgress` because the predecessor pull's teardown has not finished — 9 of 32 drains since 09-07 were refused that way and left fragments for a poller lap up to an hour away — and record the drain's outcome in `autopull` status so "nothing stranded" and "refused" no longer both read as zero.
+- Resolve the DST fall-back hour when reading the box's naive local `Phone timestamp` — by host−device continuity where a device stamp rides along, by monotonicity otherwise — so the host axis no longer steps backwards by an hour inside a series on the one night a year the wall clock repeats; the next such night for the box is 2026-11-01 and this code had never been through one.
+- cohort-harness's realm tripwire (#2572) is now gate-backed by a plant: the authored boot script is driven in a vm with the node's global absent (ready WITH error, naming the global) and present (clean ready); REQUIRED_GLOBAL and SCRIPTS key sets are pinned equal, and the tripwire's fallback to an empty list — under which a node with no entry passed with nothing examined — is removed; every iframe consumer is scanned for reading the error. The same driver on the pre-#2572 harness produces no refusal, so the gate discriminates. (`COHORT-GEN-2.0-PAPER-RERUN-2026-09-15-BRIEF.md`)
+- The vigil monitor live strip detects R-peaks on a 5–15 Hz bandpassed copy (rectified, per-beat polarity, median-amplitude guard, raw-extremum refinement): a baseline wander no longer dashes the live HR. Validated per 7 s window against the H10 RR stream on two real nights (within-3-bpm 3168 → 3257 of 3457; 563 → 568 of 568). (`VIGIL-DEEP-ANALYSIS-2026-07-22-BRIEF.md`)
+- Nights pages: every click names its input (OxyDex was going to its ECG-sidecar loader and dropping the night); one CPAP tree per night (SD set, else the BLE pull) so CPAPDex no longer doubles a session; HRVDex is figure-only (it reads Welltory CSV or an ECGDex export); the 3-corner-hat and PAT marks are on-disk eligibility, not a click, until their classifiers read capture-host filenames (residue 2026-09-20-tool-classifiers-phone-names, tripwire test).
+- pat-window-oracle refines its ECG leg by default (ECGDSP.refinePeaks through a new opts.refine on pat-matchrate-strict's ecgRpeakTimes; --no-ecg-refine reproduces earlier numbers). Paired over 58 scored box nights the whole-sample quantisation was verdict-level: 20 modes move (18 by one 10-ms bin), 2 verdicts flip, the two invariant nights hold. Closes PAT-FORENSICS-AXIS-LEG-ASYMMETRY's last box; nine sibling tools still take the whole-sample default and switch when re-cut. (`PAT-FORENSICS-AXIS-LEG-ASYMMETRY-2026-08-28-BRIEF.md`)
+- **OxyDex's primary stats builder counted a dropout as a reading.** `computeStats` mapped every row's
+- **`PAT Feasibility.html` was never in `build-analysis`'s `TOOLS`, so the box could not serve it.**
+- **The PAT tool paired sessions by file size and reported NO OVERLAP for a night that overlapped.**
+- **`validatePPI` ran Malik correction a second time on the export's already-corrected `nn`, and
+- Stop counting a Verity PPI frame's zero device stamp as an absent measurement — Polar documents that PPI/HR sample time "is either zero or missing" by design, and its SDK parser branches on exactly that — so the stream is declared timestamp-less once at onset instead of refused 7283 times a day, while every stream that does carry a sample time keeps the guard unchanged.
+- Run `test_the_config_path_DEFAULTS_when_no_argument_is_given` from an empty directory so its verdict no longer depends on whether the machine carries a gitignored operator `config.yaml` — it failed on a dev box with `radio_clock.enabled: false` while CI's fresh clone stayed green.
+- Record which configured device owns each telemetry stream where the stream is registered and publish it as `streams[].device`, so `capture_status.py` and the monitor page join streams to devices by ownership instead of by key spelling — which matched 2 of 10 streams on the live box by accident and rendered a Verity writing 16.8 MB as idle; an unmatched configured name now renders as UNMATCHED, never as idle.
+- Three tools/ residue rows fixed: a shared Playwright launch (tools/pw-launch.mjs) that keeps the sandbox where it works and relaunches --no-sandbox only on the AppArmor user-namespace failure, naming it; pat-fiducial-jitter stratifies by sample rate and quotes each SD's size in samples instead of scaling every file by the last file's fs; trio-batch reports a 3-bpm quality statistic beside the 15-bpm HR fault gate.
+- Make the box updater read the sha the daemon is actually running from the daemon's own `/api/version` instead of from the deploy marker — which records what the updater last deployed and goes stale after any restart it did not make, so the content gate then diffed code the daemon already had and fired a redundant restart at the first doff of the night; the marker remains the fallback, labelled as such whenever a restart decision rests on it, and every log line now says whose sha it is quoting.
+- tepna-update.sh runs sync-apps.sh and check-system-files.sh whenever they exist (-f), not only when executable (-x): both are committed 0644 and run through bash, so the serve-bundles half of every automatic deploy had been skipped silently (29 of 34 served bundles stale on the box) and /etc drift never reported. Two plant tests at the real mode 0644.
+- tepna-update.sh syncs the served bundles whenever sync-apps.sh --check reports drift, on every tick — not only when this run fast-forwarded the checkout. tepna-sync-main also fast-forwards it, and when it won the hour the tick read nothing-to-do while 30 of 35 served bundles stayed stale.
+- ECGDex's firmware cross-check (validateRR / alignFirmwareRR and the export's validation block) is computed on the gap-cut NN train, not the raw one: an interval that straddles a dropout is a non-measurement and is excluded exactly as the headline rMSSD/SDNN already exclude it; nnSpansGap is published on the analyze result and validation.gapCutBeats says how many were cut. A 20-minute dropout counted as one interval had put validation.dRMSSDPct at 65 797.8 on a real night (7.1 % gap-cut). Planted gate; ECGDex re-bundled, the corpus-backed fixture re-verified. (`MEASUREMENT-PROVENANCE-ROADMAP-2026-08-26-BRIEF.md`)
+- Reset the process-global open-sample-writer counter before every capture-host test and trip after any test that leaves it raised, closing the ten writers ten tests left open — the leak that made `capture._now()` absorb clock steps instead of re-anchoring in the #2715 mutation lane.
+
+---
+
+## [2.12.0] — 2026-09-17
+
+### Added
+- `tools/cohort-fit.mjs` — compares `cohort-gen.js`'s synthetic patients against a real scored cohort (`COHORT-VALIDATION-BRIEF.md`)
+- `tools/ecg-rate-transfer.mjs` — experiment E3: does Pan–Tompkins transfer from the H10's 130 Hz to (`SHHS-EXTERNAL-VALIDATION-2026-09-04-BRIEF.md`)
+- `tools/nsrr-fetch.sh` — fetch an NSRR signal set in N parallel streams. Resumable, idempotent, safe to (`SHHS-EXTERNAL-VALIDATION-2026-09-04-BRIEF.md`)
+- `tools/nsrr-score-pool.mjs` — parallel, resumable, observable corpus scoring, with a sequential
+- `docs/SHHS-COHORT-REFERENCE.md` — what the SHHS1 cohort contains, measured over all 5136 scored (`SHHS-EXTERNAL-VALIDATION-2026-09-04-BRIEF.md`)
+- `briefs/TOOL-BUILD-STANDARD-2026-09-13-BRIEF.md` — a standing reference for what any long-running (`TOOL-BUILD-STANDARD-2026-09-13-BRIEF.md`)
+- `eegdex-dsp.js` — EEGDex's staging engine: band powers, a 30 s hypnogram, sleep architecture. (`EEGDEX-BUILD-BRIEF.md`)
+- `tools/nsrr-effort-typing.mjs` — measures, on SHHS1 RIP belts, the figure `integrator-dsp.js` and
+- `tools/pat-per-led.mjs` takes `--phys-lo` / `--phys-hi`. **Defaults are unchanged** at the `[200, 650]` (`PAT-FORENSICS-WINDOW-REGIMES-2026-08-28-BRIEF.md`)
+- `tools/nsrr-aai-validate.mjs` — a POOL SCORER (not a standalone tool) that validates OxyDex's
+- The second AHI estimate had never been measured, because the adapter didn't surface it.
+- `tools/analysis-rerun.mjs` drives the synthetic analysis tools headlessly and captures the result (`COHORT-GEN-2.0-PAPER-RERUN-2026-09-15-BRIEF.md`)
+- Optional GNSS session elevation — the one profile field a travelling box cannot guess, recorded as a
+- `pat-window-oracle.mjs` gains `--search-max` and `--json`. The first varies the interval the mode is (`PAT-FORENSICS-WINDOW-ORACLE-2026-08-28-BRIEF.md`)
+- `pat-window-oracle.mjs`'s halves-invariance diagnostic — `modeB`, the lag mode re-estimated on a (`PAT-FORENSICS-WINDOW-ORACLE-2026-08-28-BRIEF.md`)
+- SHHS1 ships the out-of-band validity signal §∅ asks for, and nothing in this repo reads it.
+- **The parity gate both sides asked for in writing.** `capture-host/writers.py:70-73`, above `T_STUCK`: (`PPG-ABSENCE-AS-VALUE-2026-09-06-BRIEF.md`)
+- OxyDex publishes a respiration rate that does not measure respiration rate.
+- `CLAIM <name> = <value> FROM <path>#<pointer>` — a published number that names the committed artifact
+- `analysis-rerun --cohort-gen` runs a tool against an old generator, which settles what the generator (`COHORT-GEN-2.0-PAPER-RERUN-2026-09-15-BRIEF.md`)
+- capture-host: taking a reserved adapter during failover is now recorded as a decision on the (`BLE-TRANSPORT-REDESIGN-2026-09-10-BRIEF.md`)
+- `analysis-rerun` captures figures, records run scale, and returns the first paper-scale result. (`COHORT-GEN-2.0-PAPER-RERUN-2026-09-15-BRIEF.md`)
+- capture-host: BLE operation counters — attempts, successes, failure classes and retries-by-cause — (`BLE-TRANSPORT-REDESIGN-2026-09-10-BRIEF.md`)
+- capture-host: clock seams are now emitted where the clocks arrive. Every device-clocked writer feeds (`BLE-TIMEBASE-AT-THE-EDGE-2026-09-16-BRIEF.md`)
+- `cohort-harness.html` has been throwing on every node it supports for two months, and the pages that (`COHORT-GEN-2.0-PAPER-RERUN-2026-09-15-BRIEF.md`)
+- capture-host: per-unit device capability records (`devcaps.py`), keyed by BLE address and persisted (`BLE-TRANSPORT-REDESIGN-2026-09-10-BRIEF.md`)
+- `hrv-confound-analysis` built a complete result object and never published it, so the sixth paper (`COHORT-GEN-2.0-PAPER-RERUN-2026-09-15-BRIEF.md`)
+- A re-cut that looked ready was hiding two of its three headline comparisons, and a fabricated zero. (`COHORT-GEN-2.0-PAPER-RERUN-2026-09-15-BRIEF.md`)
+- The re-cut assumes the generator is the only thing that changed since each paper was published. For (`COHORT-GEN-2.0-PAPER-RERUN-2026-09-15-BRIEF.md`)
+- The claim that the node DSPs collide — which decides whether the harness remedy is one page or three — (`COHORT-GEN-2.0-PAPER-RERUN-2026-09-15-BRIEF.md`)
+- The `treatment-response` count gap is **not** a cohort-gen artifact. One whole branch of the search is (`COHORT-GEN-2.0-PAPER-RERUN-2026-09-15-BRIEF.md`)
+- Three artifacts claim three different cohort sizes for `treatment-response`, and no two agree. The (`COHORT-GEN-2.0-PAPER-RERUN-2026-09-15-BRIEF.md`)
+
+### Changed
+- Three confirmed findings from the 2026-09-13 capture-to-Integrator signal audit recorded in
+- `cohort-gen/2.0` — the severe stratum draws a shifted log-normal fitted to SHHS1 (μ=3.076, σ=0.731 on
+- The SHHS desaturation-scoring convention is re-measured at cohort scale, correcting a figure taken (`SHHS-EXTERNAL-VALIDATION-2026-09-04-BRIEF.md`)
+- E1 executed against the full SHHS1 corpus: the ECG-only stager does **not** transfer to clinical PSG. (`SHHS-EXTERNAL-VALIDATION-2026-09-04-BRIEF.md`)
+- The SpO₂ cache builder is incremental and truncation-aware, so extraction can run against a corpus (`SHHS-EXTERNAL-VALIDATION-2026-09-04-BRIEF.md`)
+- The Node fold path streams `_ECG.txt` in bounded chunks instead of reading the whole file and (`VIGIL-SELF-SUSTAINED-FOLDING-2026-09-01-BRIEF.md`)
+- `papers/odi4-ahi-bias.html` §3.2: the ODI-4/AHI bias is replicated on the full SHHS1 cohort (5136 (`PAPER-ODI4-REPRODUCIBILITY-2026-07-31-BRIEF.md`)
+- §2b's revisit condition has fired and §2b has been run. The brief's NSRR cancellation named its own (`REM-STAGING-FOLLOWUPS-2026-08-02-BRIEF.md`)
+- `papers/odi4-ahi-bias.html` §3.2 Table 6: body position is **not** a confound of the ODI-4 agreement,
+- `eegdex-dsp.js`: records a second measured negative on REM detection, and the structural reason both (`EEGDEX-BUILD-BRIEF.md`)
+- `eegdex-dsp.js`: temporal smoothing of the hypnogram — an isolated epoch flanked by two of another (`EEGDEX-BUILD-BRIEF.md`)
+- `eegdex-dsp.js`: records that EOG conjugacy was tried as a REM feature and is deliberately not used. (`EEGDEX-BUILD-BRIEF.md`)
+- `cgm-hrv-coupling.html` is re-cut under `cohort-gen 2.0`. Every conclusion holds; one correlation moved. (`COHORT-GEN-2.0-PAPER-RERUN-2026-09-15-BRIEF.md`)
+- `eegdex-dsp.js` justified its staging ceiling — and its leak heuristic, that scoring 0.8 would be (`LITERATURE-USE-POLICY-2026-07-11-BRIEF.md`)
+- `hrv-age-confound.html` is re-cut under `cohort-gen 2.0`, and **every headline quantity is unchanged**. (`COHORT-GEN-2.0-PAPER-RERUN-2026-09-15-BRIEF.md`)
+- `nights-icc.html` is re-cut under `cohort-gen 2.0`, and its central conclusion reverses. (`COHORT-GEN-2.0-PAPER-RERUN-2026-09-15-BRIEF.md`)
+- The drift is dated, the last configuration question is settled, and `qrs-yield` is re-cut. (`COHORT-GEN-2.0-PAPER-RERUN-2026-09-15-BRIEF.md`)
+- capture-host: the offline-op timeout is now counted and logged by CONDITION rather than by (`BLE-TRANSPORT-REDESIGN-2026-09-10-BRIEF.md`)
+- The re-cut brief now **requires** the 1.9 A/B before any delta may be attributed to the generator, and (`COHORT-GEN-2.0-PAPER-RERUN-2026-09-15-BRIEF.md`)
+- `rmssd-equivalence.html` is re-cut. Its electrical equivalence claim reproduces; its optical figures (`COHORT-GEN-2.0-PAPER-RERUN-2026-09-15-BRIEF.md`)
+
+### Fixed
+- The absent-device-stamp refusal logged one journal line per frame, on the stated basis that it was rare —
+- The Integrator's cross-node beat check reported an OFFSET and never a RATE, so a constant inter-node (`RESIDUE.md`)
+- `clock_watchdog` re-synced Polar device clocks on **delivery latency**, not on drift. (`VIGIL-BLE-ROBUSTNESS-2026-07-19-BRIEF.md`)
+- A DOCS-INDEX row states its status twice, and only one of them was checked. (`DOCS-LEDGER-HEADER-REFS-2026-08-27-BRIEF.md`)
+- Build ECGDex beat times from the device's own ns counter instead of `sample index ÷ one global fs` — measured over the 8 largest H10 nights the mean-rate axis drifts 0.56–2.62 s from the counter, on gapless nights as much as gappy ones, and that divergence is what made the Integrator certify a −137 ppm "inter-device drift" neither device exhibits.
+- Stop median-filling an ECGDex interval that straddles a dropout — a 74-second absence was being written into the NN series as a plausible ~1 s heartbeat (5 of 5 on a real H10 night) and flagged `corrected` as though the beat had merely been mis-measured; the honest elapsed time now survives, marked `spansGap` and excluded from rMSSD, pNN50, meanRR and SDNN.
+- Refuse to spend a host clock STEP as a crystal rate — `hostAxis` divides a single multi-second jump by the whole span and hands back a fabricated ppm that was applied to `fs`; on 2026-08-26 one 3.0 s step quoted −10.02 ppm where the same device reads −19.8 to −23.0 on every other night.
+- Make `ECGDSP.parseECG`'s `tMsAt` count the wall-clock a dropout consumed, as `analyze`'s beat clock has since DEEP-AUDIT-II §4.2 — the two describe the same axis and diverged by the accumulated dead time (−2522.8 s at the end of a 33-hole night), putting the two PAT legs on different axes from the first hole onwards.
+- `tools/nsrr-fetch.sh` skipped on existence, not completeness — so a truncated file was skipped forever. (`SHHS-EXTERNAL-VALIDATION-2026-09-04-BRIEF.md`)
+- `jitterfloor._folded_base` picked the wrong base interval on a stream with dropped frames, because its (`ZEPHYR-INSTRUMENT-2026-08-23-BRIEF.md`)
+- Three Integrator defects from the end-to-end signal audit. The inverse-variance reconciled RMSSD (`DEEP-AUDIT-V-FOLLOWUPS-2026-08-05-BRIEF.md`)
+- Include the sensor `site` in the Integrator's de-duplication key — a finger PPG and a wrist PPG both export as `PpgDex`, so a night carrying both collapsed to one on the ±30 s rule and 15 of 41 trio nights silently lost a whole recording, with load order deciding which.
+- `jitterfloor`'s drawn-axis guard missed the O2Ring — the device whose axis is the canonical drawn one. (`ZEPHYR-INSTRUMENT-2026-08-23-BRIEF.md`)
+- `nightqc.arrival_quality` spent the device column as if it were already epoch-milliseconds. It is a
+- `papers/odi4-ahi-bias.html`: the abstract reported only synthetic figures (slope ≈0.23, R² 0.93) while (`PAPER-ODI4-REPRODUCIBILITY-2026-07-31-BRIEF.md`)
+- `papers/odi4-ahi-bias.html` described its real-PSG path as using "dropout forward-fill". The adapter (`PAPER-ODI4-REPRODUCIBILITY-2026-07-31-BRIEF.md`)
+- Stop `_oxyEnsureRows` re-fabricating the absent-motion zero `parseCSV` deliberately writes as null — `motion: r.motion || 0` reintroduced "the body never moved" (motionPct 1.8→0, sleepEff 98.2→100, stability 22→35) for every row reaching OxyDex as a SignalFrame, a rows array or a self-ingested export, and the same line silently dropped `pi` so `meanPi` could never see a perfusion reading on that path.
+- OxyDex's self-ingest path coerced two absent scalars to 0, so a night whose duration was never (`RESIDUE.md`)
+- Index PpgDex's clean-interval mask by the kept NN series, not by the intervals handed to `correctRR` — since the rejection became a drop, the SQI and gap-straddle tests were read one index off per rejection, so rMSSD/SD1/LF:HF pairs were judged by a neighbour's quality (real night: rMSSD 36.6 → 34.8, SD1 25.9 → 24.6).
+- Forward `rec.hostAxis` out of PpgDex's `analyze` so the `recording.hostAxis` export block can actually run — it was written, gated and field-checked but never once emitted, because only three scalars were projected out of the axis and the object itself was dropped, taking `ppm`, `anchors`, `spreadMs`, `independent` and `inertReason` with it.
+- Leave the four Polar device-telemetry columns EMPTY in PpgDex's self-PPI interop export instead of writing a literal `0;0;1;1` — read back through `parseDevicePPI` that asserted zero uncertainty, nothing blocked and skin contact confirmed, beat by beat, about quantities an optically-derived PPI never measured.
+- 🔴 **The updater could restart the daemon in the middle of a ring `.dat` transfer.** (`OXYII-G1-TRANSACTIONAL-SYNC-FOLLOWUPS-2026-08-23-BRIEF.md`)
+- §∅: `oxydex-dsp.js`'s Autonomic Arousal Index published **0** when the recording duration could not be
+- Refuse the device counter in the `_ACC` companion parser when it rebases mid-file — on 2026-08-26 the H10's 2019-origin default adopted real time partway through and the accelerometer stream came out spanning 67,091 hours with its last sample dated 2034-04-22, while the same night's ECG stream handled the seam correctly.
+- `pat-host-offset.mjs`'s header says **"REFUSALS ARE LOUD"**. That was true of the four mid-loop guards (`PAT-FORENSICS-WINDOW-REGIMES-2026-08-28-BRIEF.md`)
+- `mutate.mjs` sized its worker pool from core count alone, but each worker is a full node test suite, (`RESIDUE.md`)
+- `nsrr-oxydex-odi.mjs` enumerated the corpus once at startup and rescored every record from scratch on (`RESIDUE.md`)
+- Read T95/T90 seconds from the exported `research.tIdx` on self-ingest instead of re-deriving them as `pct × durationMin × 60` — a sample-fraction times a wall-clock span, which hands every dropped second to time-below-95 (+25 % on a 20 %-dropout night).
+- Resolve both PAT legs at sub-sample positions on the measured axis — the PPG leg's `rel[idx]` lookup missed on every fractional foot and silently fell back to a synthesised `idx / fs` (660 ms median divergence, 955 ms max), and the ECG leg handed `tMsAt` integer `detectPeaks` output because `refinePeaks` was never exported. (`PAT-FORENSICS-AXIS-LEG-ASYMMETRY-2026-08-28-BRIEF.md`)
+- `tools/residue-ids.mjs` reported **`ok — 0 row(s) added, none colliding, none mutated`** against a
+- `test_vigil_sh.py`'s `_kill` teardown attempted **no kill at all** when the pidfile was absent or
+- The SHHS1 saturation finding from #2524 does not transfer to the corpus OxyDex actually serves, and the
+- The AAI card invited a reading its own numbers do not support, and nobody had ever measured the gap.
+- `tools/cohort-fit.mjs` ran its CLI on **import**, so the one reusable thing in it was unreachable. (`COHORT-GEN-2.0-PAPER-RERUN-2026-09-15-BRIEF.md`)
+- The `DesSev` card claimed a validation that belongs to the published metric, not to OxyDex's
+- `odi4-ahi-bias.html` listed two items as "Remaining before submission" that are now both ruled, and a (`COHORT-GEN-2.0-PAPER-RERUN-2026-09-15-BRIEF.md`)
+- The remaining eight OxyDex self-ingest scalars coerced absence to a number, `maxSpo2 || 100` worst (`RESIDUE.md`)
+- **A pinned span was detected, reported, and never subtracted.** `pinnedSpans` has found O2Ring in-band (`BLE-TRANSPORT-REDESIGN-2026-09-10-BRIEF.md`)
+- `tools/rebase-safe.mjs` acts on the checkout it **lives in**, not the one you are standing in — and
+- `rebase-safe`'s contract says *"conflict in a GENERATED path → auto-resolve; conflict in ANY other path
+- The rerun brief told the next session to build six DOM scrapers for a capability five of the six tools (`COHORT-GEN-2.0-PAPER-RERUN-2026-09-15-BRIEF.md`)
+- `briefs/RESIDUE.md` was merged with `merge=union`, which appends correctly and cannot represent an (`RESIDUE.md`)
+- OxyDex no longer publishes a respiration rate, because the number was not one.
+- `clock_offset.SPAN_MIN_SEC` decided whether a ppm rate is publishable using a threshold borrowed from (`RESIDUE.md`)
+- `cohort-harness.html` now **refuses** when a node fails to initialise, instead of serving nulls for (`COHORT-GEN-2.0-PAPER-RERUN-2026-09-15-BRIEF.md`)
+- All six analysis tools now carry their paper's cohort size — and one paper's stated size does not (`COHORT-GEN-2.0-PAPER-RERUN-2026-09-15-BRIEF.md`)
+- capture-host: the run-sidecar hold classifier was inverted. It keyed on run-length concentration, (`PPG-ABSENCE-AS-VALUE-2026-09-06-BRIEF.md`)
+- tools: `selftest-all` discovered selftests by matching three hard-coded call spellings, so a fourth (`TOOL-BUILD-STANDARD-2026-09-13-BRIEF.md`)
+- tools: `selftest-all`'s summary parser recognised one output format, so 22 tools that report an (`TOOL-BUILD-STANDARD-2026-09-13-BRIEF.md`)
+- The last rung of the adapter recovery ladder was armed against a USB device that is not on the bus, and
+- `cohort-harness.html` scores again. It was broken **twice over**, and the second break is the one that (`COHORT-GEN-2.0-PAPER-RERUN-2026-09-15-BRIEF.md`)
+- `nights-icc.html` blamed cohort-gen 2.0 for a reversal the generator did not cause. Corrected on (`COHORT-GEN-2.0-PAPER-RERUN-2026-09-15-BRIEF.md`)
+
+---
+
+## [2.11.0] — 2026-09-13
+
+### Added
+- **A night either happened or it did not, and the only way to know was to open the box and read four
+- **The box spends most of its life running code that is on disk but not loaded, and now it can stop.** (`VIGIL-AUTO-UPDATE-FOLLOWUPS-2026-08-14-BRIEF.md`)
+- **The controller's own connection-event anchors, recorded as an OPTIONAL second clock.** Today the (`RADIO-CLOCK-SIDECAR-2026-09-07-BRIEF.md`)
+- Add the §2 coexistence-matrix harness — the measurement that earns `scan_coexistence_verified` and unblocks the presence trigger. (`O2RING-PRESENCE-TRIGGER-IMPL-2026-08-26-BRIEF.md`)
+- A systemd template unit that attaches a Zephyr HCI-UART controller and re-issues its BD address,
+- `tools/ecg-physionet-differential.mjs` — score ECGDex's Pan–Tompkins against independently annotated
+- `ECGDSP.analyze()` returned seconds and milliseconds on one object with no field naming its unit.
+- `tools/nsrr-criterion-sweep.mjs` — derive the desaturation criterion from expert-scored PSG instead of (`SHHS-EXTERNAL-VALIDATION-2026-09-04-BRIEF.md`)
+- `tools/nsrr-oxydex-odi.mjs` — the second NSRR arm: OxyDex's ODI-4 → AHI estimate scored against (`SHHS-EXTERNAL-VALIDATION-2026-09-04-BRIEF.md`)
+- The O2Ring raw dual-wavelength FILL rate, measured for the first time: median 200 Hz.
+- `wt-done`'s in-use check is gated — the first test it has ever had.
+- The residue ledger gains a fourth closing state, `withdrawn <key>` — owner ruling 2026-09-13.
+
+### Changed
+- **The morning report's mutation survivors, worked rather than excused: 26 → 0.** Twelve were real
+- **27 surviving mutants closed on the radio-clock collector and the night report — no production code (`RADIO-CLOCK-SIDECAR-2026-09-07-BRIEF.md`)
+- `tools/doc-search.mjs` leaves a per-session stamp after every search that ran; a new PreToolUse
+- §P5's public-benchmark gate is recorded as covering PUBLICATION, not MEASUREMENT. (`STRATEGIC-PRIORITIES-2026-08-26-BRIEF.md`)
+
+### Fixed
+- The `0xC0` timezone byte was a constant, and the `0x10` bitfield had never been written down.
+- PpgDex exported `hostAxis.stability.tau0` and `.noiseType` as permanent null. (`ALLAN-STABILITY-GAPS-2026-09-07-BRIEF.md`)
+- The Integrator's three-cornered-hat tested `timingSource !== 'device' && !== 'device+host'` — a (`OXYDEX-PB-DETECTOR-FOLLOWUPS-2026-08-17-BRIEF.md`)
+- 🔴 **The morning report was fabricating a clean verdict.** `back_check` read `b["clip"]` — singular,
+- Retry the CPAP BLE connect ONCE on the same adapter when bleak's service snapshot lacks the notify
+- The CPAP discovery-failover warning now carries the pinned adapter's exception TEXT (one line, capped at 160 chars) beside its type — a bare `BleakError` names no verdict without it (#2170).
+- Rebuild bleak's GATT snapshot in place when BlueZ published it late, instead of throwing the CPAP link away and reconnecting (#2170).
+- Read the GATT snapshot and link state **before** the leak guard closes the link — #2170's diagnostic
+- Move the writers' disk barrier off the event loop, so one stream's fsync no longer delays every other stream's host stamps.
+- Fix the monitor's "Pull stored session" button, which raised TypeError on every request and returned 500.
+- Record WHY an O2Ring connect attempt ended in `OXYLIFE.csv`'s link-axis `failure` column, which had never been populated.
+- 🔴 **The anchor enable does not survive a controller reset, and the collector sent it once.** `0xfd1f` (`RADIO-CLOCK-SIDECAR-2026-09-07-BRIEF.md`)
+- `wt-done`'s in-use check no longer counts its own invocation as a user of the tree.
+- **A pinned Zephyr HCI dongle was bonded, forgotten and power-cycled on the WRONG radio.** The dongle
+- `hostAxis.stability` published `slopeSE` without the n it was computed over. (`ALLAN-STABILITY-GAPS-2026-09-07-BRIEF.md`)
+- A night that was never folded counted in the estimation yield.
+- An incomplete night reported as an overlap failure — one string for two causes.
+- The expert desaturation index is computed at a matched DEPTH threshold, not from the raw event count. (`SHHS-EXTERNAL-VALIDATION-2026-09-04-BRIEF.md`)
+- `nsrr-adapter.js` no longer fabricates absent SpO₂ and heart rate. (`SHHS-EXTERNAL-VALIDATION-2026-09-04-BRIEF.md`)
+- `nsrr-stage-validate` compared a stage OBJECT against a stage STRING, so every number it ever (`SHHS-EXTERNAL-VALIDATION-2026-09-04-BRIEF.md`)
+- Three gates counted call sites in source text as a proxy for a structural property. A count is wrong
+- A reconnect that crosses midnight no longer mints a fresh file-set. `night_dir()` rolls by the
+- The ring now resumes its file-set across a short reconnect, as the Polar path has since
+- **The ring's header-only pruner deleted resumed files — a live session lost its `_SPO2.csv` and an
+- The four committed twin-input builders exposed three different browser shapes, and the Node lane
+
+---
+
+## [2.10.0] — 2026-09-07
+
+### Added
+- Persist per-night device clock-sync outcomes (`CLOCKSYNC.csv` sidecar) and annotate 2019-origin H10 recordings in the ECGDex export (`recording.deviceEpoch` + `recording.timingSource`) — annotate, never refuse; also wires the previously dead `recording.hostAxis` export block through analyze().
+- Add the H10 onboard-recording control surface — PS-FTP REQUEST_START/STOP/RECORDING_STATUS behind a second deliberate allowlist (firmware-update id unreachable from every path) plus `POST /api/polar/recording` through the daemon's connect-lock wrapper, with a status readback after every write — making the §6 Q1 RR-acceptance probe runnable against the live daemon. (`POLAR-ONBOARD-BACKUP-FOLLOWUPS-2026-08-11-BRIEF.md`)
+- Fold the per-device radio-distress verdicts into a per-ADAPTER verdict (≥2-link corroboration — one storming link is device-local and moves with the device) and wire it to the failover ladder behind `watchdog.distress_failover` DEFAULT OFF via the switch dance now shared with the wedge cause; arming is the owner's, against the brief's pre-stated §6 criterion. En route: the monitor's distress renderer ranked a `bad` state the producer never emits, so a real storm rendered as "Radio ok" — fixed, with the rank now asserted against the module constants. (`RADIO-FAILOVER-DISTRESS-SIGNAL-2026-08-29-BRIEF.md`)
+- capture-host: the O2Ring's Firmware Revision String is read once per connection into STATUS, and an unmeasured version is named at connect — newer firmware keys an AES session after an AUTH that is written fire-and-forget with no reply to inspect, so without this read the failure would arrive as "connects, auths, no decoded frames" and read as a bad link.
+- `check-stranded.mjs` answers "did the merge carry everything", and every path through it addressed the (`AGENT-NEUTRAL-GUARDS-2026-08-15-BRIEF.md`)
+- Two gates for two defect classes this repo keeps finding by hand and re-finding later. Both were (`ENGINE-VERIFICATION-FINDINGS-2026-07-18-BRIEF.md`)
+- A standing gate compares every DECIDABLE `goodDirection` against the code that decides good/bad, across (`DEEP-AUDIT-VI-FOLLOWUPS-2026-09-02-BRIEF.md`)
+- Four committed synthetic twins for the Integrator's apnea chance-null, closing §4.3 — the Integrator's (`DEEP-AUDIT-VI-FOLLOWUPS-2026-09-02-BRIEF.md`)
+- Two O2Ring monitor cards. The perfusion index has been parsed and written to the SpO2 sidecar since the (`O2RING-PROTOCOL-2026-07-17-BRIEF.md`)
+- `parse_oxy_trailer` never read the recording start time. `T+8` is a u32 present in every stored `.dat`, (`O2RING-PROTOCOL-2026-07-17-BRIEF.md`)
+- The residue ledger's uniqueness check asserted ids were unique within the file it could see — one tree.
+- `selftest-all` prints per-tool wall time, and the machine's load average at sweep start and at every (`DEEP-AUDIT-VI-FOLLOWUPS-2026-09-02-BRIEF.md`)
+- capture-host: the AS11 session detector's READ-ONLY property is now enforced rather than asserted in a comment — a source scan across all three detector modules forbids `Set…`/`Enter…` protocol verbs, stripping comments while keeping string literals because an AS11 operation is a method string, not a Python attribute. (`AS11-SESSION-DETECTOR-IMPLEMENTATION-2026-08-24-BRIEF.md`)
+- The gate now says which tree it examined.
+- capture-host: §3.1's invariant is now gated — a night captured as one resumed file-set and the same night captured as the two fragments the pre-resume writer would have produced score identical nightqc coverage, paired with a control that requires the number to MOVE when the fragments fall beyond the session gap, so the equality cannot pass against a span-blind summarize. (`CAPTURE-FILESET-RESUME-2026-08-19-BRIEF.md`)
+- Two guards held the wrong halves of one problem: `docs-ledger` check 8 resolved row↔brief and could not
+- capture-host: `tepna-update.sh` now counts consecutive failed runs, so a 9.3-hour outage stops looking exactly like a blip — `systemctl status` reported the same thing for both, and the measured 30-run streak of 2026-08-04 went unnoticed for most of a night. The counter is keyed on the exit status rather than on `die`, because the script's own `exit "$drifted"` can fail the unit without calling `die` and that path is the one that runs longest; the streak is silent on the first failure and named from the second, and the run that clears it reports the count and span. (`VIGIL-AUTO-UPDATE-FOLLOWUPS-2026-08-14-BRIEF.md`)
+- New `capture-host · filename-case · source-scan` gate: the emitted `_<TAG>.<ext>` set is read off `capture_filename`'s own call sites, and every comparison in every reader (root `*.js`, `tools/`, `capture-host/`) is checked against it in both directions — a lowercase suffix with no case-fold (the #2219/#2221 defect, which matched nothing on any real night) and an uppercase suffix no writer emits both red, with `file:line`; plant-tested in both languages. (`O2RING-TIME-CAPABILITY-WIRING-2026-08-19-BRIEF.md`)
+- The O2Ring acquisition path gains a fourth axis — **POWER** (`oxy_power.py`) — beside LINK, RECORDING and (`O2RING-POWER-AWARE-BLE-LIFECYCLE-2026-09-05-BRIEF.md`)
+- Make capture-host raw-data loss, backoff, gate and event-loop state observable and every radio-recovery gate failure-safe: `rows_lost` + `fsync_max_ms` on all 8 writers, `_retry_sleep` publishing attempt / next-retry with ±10 % jitter, `_RECOVER` cleared on every exit path, `STATUS.gates` / `.loop` / `.tasks`, tree walks off the loop, four bare tasks supervised. (`CAPTURE-HOST-RESOURCE-ORCHESTRATION-AUDIT-2026-09-05-BRIEF.md`)
+- ECGDex reads `hostAxis.deviceDrawn`: a drawn device column is placed on the host timeline, relabelled `timingSource:'host'` with `stability:null`, and exports `deviceDrawn`/`drawnShare` (present only when drawn) — never spent as a second clock; and the fs-correction refusal reason now names the gate that fired (host column not a second clock · no finite rate · span), instead of always "span too short". (`WEARABLE-HOST-AXIS-FOLLOWUPS-2026-08-02-BRIEF.md`)
+- Nothing re-ran the Integrator's night-level fusion against committed bytes.
+- The O2Ring restart-storm machinery publishes its state as `oxy_storm` on the ring's `/api/state` device object (`trips`, `last_trip`, `hold_until`, `hold_remaining_s`, `restarts_in_window`, `restarts_total`) — the hold shipped with its whole state in module dicts and one log line, so a hold that fired overnight left no trace a monitor or watcher could read, and "the hold worked" was indistinguishable from "the ring never stormed". (`VIGIL-BLUETOOTH-ADVERSARIAL-AUDIT-2026-09-05-BRIEF.md`)
+- `resp-acc-headless.mjs --figures` now writes `cohort-manifest.json` beside the figures: the night list (`PAPERS-ROADMAP-2026-06-24-BRIEF.md`)
+- The O2Ring's `0xE1` GET_INFO reply carries a wire serial and a firmware string; `run_oxyii` read it (`VIGIL-BLUETOOTH-ADVERSARIAL-AUDIT-2026-09-05-BRIEF.md`)
+- **The air is now a monitored surface: `tepna-sniff.timer` captures a bounded window every night and (`VIGIL-BLUETOOTH-ADVERSARIAL-AUDIT-2026-09-05-BRIEF.md`)
+- `tepna-btmon.sh` — a bounded, argument-validated, read-only HCI capture helper (audit §D2), because the O2Ring restart storm is not decidable from the daemon journal: the ring's restart and the RTC write it triggers are logged at the same instant, so cause and consequence emit identical lines and only the on-the-wire ordering separates them. Needs `CAP_NET_RAW` (verified refused unprivileged), so it follows the `tepna-rssi.sh` pattern — root-owned install plus one sudoers line — and is inert until an owner installs it. (`VIGIL-BLUETOOTH-ADVERSARIAL-AUDIT-2026-09-05-BRIEF.md`)
+- CPAP pairing can now be UNDONE and says what it is pairing to: `/api/cpap/pair {action:"forget"}` deletes the stored ResMed key (held under the pairing lock so it cannot race a confirm about to write one; refuses while the live stream holds the link or an exchange is open, and reports "nothing stored" as success rather than an error), and `PairingSession.status()` additionally reports the radio it pairs on, whether a key is stored and for which device, and whether that radio can be paired against at all — a Zephyr/nRF52840 reports an all-zero BD address and refuses a host-side public pin, which `capture._addressable` already guarded in the failover ladder while the pairing panel showed nothing. The monitor surfaces all of it, states plainly that the ResMed SRP key is not a BlueZ bond (one word had conflated them), and stops overclaiming elsewhere: the Overview grid is titled `Streams · N of M live` instead of "Live streams" over cards that are deliberately shown before their first frame, and the sidebar's device tile keeps its true count of BLE links but now reads `linked · N not streaming · <the daemon's own reason>` instead of the bare "connected" that made a charging Verity look like a working one.
+- Night-QC class-B quality signatures: `clip` regions pinned at a stream's own observed extremes (both
+- Five ack-only O2Ring commands never had their replies read.
+- capture-host: the O2Ring's `cmd 0x03` lossless single-channel pleth is captured as an opt-in `pletha` (`O2RING-RAW-DUAL-WAVELENGTH-FOLLOWUPS-2026-08-05-BRIEF.md`)
+- Optical streams now write a constant-run sidecar (`<base>RUNS.txt`) recording spans where the wave (`PPG-ABSENCE-AS-VALUE-2026-09-06-BRIEF.md`)
+- PpgDex publishes §∅ absence-as-value spans: stretches where the optical stream was PINNED at a (`DEEP-AUDIT-VI-FOLLOWUPS-2026-09-02-BRIEF.md`)
+- PpgDex reads the O2Ring's raw dual-wavelength `_PPG2W.txt` (cmd 0x05). (`O2RING-RAW-DUAL-WAVELENGTH-2026-08-05-BRIEF.md`)
+- **The ungated `*-app.js` / `*-render.js` / `integrator-*` surface, swept for producer-dependent
+
+### Changed
+- Six bug classes proven on 2026-08-31 folded into the deep-audit charter, each with the PR that proved it.
+- MUTATION-FLEET-EXPANSION closed for Phases 1 and 2, and its guard-count row corrected rather than left to be acted on. (`MUTATION-FLEET-EXPANSION-2026-08-25-BRIEF.md`)
+- §6 told the next reader to build a thing that exists and was rejected for fabricating findings. (`MUTATION-PROGRAM-FOLLOWUPS-2026-08-11-BRIEF.md`)
+- "`capture.py` is unaudited" invited the next reader to spend a day rediscovering that it is cost-prohibitive. (`MUTATION-PROGRAM-FOLLOWUPS-2026-08-11-BRIEF.md`)
+- CFD re-scored against the window-oracle reference and rejected; the reference reproduces from `main`. (`PPG-FOOT-PLACEMENT-2026-08-12-BRIEF.md`)
+- CPAP auto-start is now EAGER — the live stream starts at the first Therapy sighting (removing the measured 147 s head gap: ~120 s gate + ~27 s stacked poll latency), and the 120 s continuous-therapy rule becomes a RETENTION decision: a session whose stream lives < retain_s + auto-stop hold is judged a false start from its own lifetime, its fragment discarded with a journal line per file, and an attempt spent from the same per-session budget — which now survives note_started, or repeated false starts could never exhaust it. (`CPAP-EAGER-START-2026-09-01-BRIEF.md`)
+- The PAT acceptance bar was never satisfiable; re-stated on a statistic that is measurably window-invariant. (`PPG-FOOT-PLACEMENT-2026-08-12-BRIEF.md`)
+- The PAT forensics wave triaged and stamped — it is tooled and unexecuted, and the corpus is local after all. (`PAT-ROOT-CAUSE-FORENSICS-2026-08-27-BRIEF.md`)
+- The half-width sweep resolved against its pre-registered bands, and the six `n=0` nights localised to the matcher. (`PAT-FORENSICS-WINDOW-ORACLE-2026-08-28-BRIEF.md`)
+- The residual 2.2–13.2 ms spread closes under a pre-registered design: bounded, unexplained, all (`PPG-FOOT-PLACEMENT-2026-08-12-BRIEF.md`)
+- Full-corpus trio refold under the fixed code generation (owner-ordered 2026-09-01): 193 exports
+- The slow-wander seed, measured under a frozen, peer-reviewed pre-registration: H_axis fails (`PPG-FOOT-PLACEMENT-FOLLOWUPS-2026-09-01-BRIEF.md`)
+- §4 item 1 ("the browser lane was not booted") closes. It was true of the audit SESSION and false of the (`DEEP-AUDIT-VI-FOLLOWUPS-2026-09-02-BRIEF.md`)
+- Brief drain, audit + node-DSP family: 11 briefs stamped with verified state, 4 residue rows logged, (`DEEP-AUDIT-IV-2026-08-04-BRIEF.md`)
+- `edrResp` (EDR respiration rate) re-tiered **emerging → experimental** — adjudicated against an (`DEEP-AUDIT-VI-FOLLOWUPS-2026-09-02-BRIEF.md`)
+- §4 item 2 measured — the Integrator fusion arithmetic finally has an executed lens after three audits. (`DEEP-AUDIT-VI-FOLLOWUPS-2026-09-02-BRIEF.md`)
+- The O2Ring protocol brief gains the vendor opcode map (33 commands, 13 implemented), the AES-128 session (`O2RING-PROTOCOL-2026-07-17-BRIEF.md`)
+- The residue ledger's row key moves from a sequential `R<n>` counter to `YYYY-MM-DD-short-slug`, matching
+- Two residue rows and one header correction of my own error. (`PAPERS-ROADMAP-2026-06-24-BRIEF.md`)
+- §3.4 records the first observation from the `selftest-all` instrument (#2093), and corrects the (`DEEP-AUDIT-VI-FOLLOWUPS-2026-09-02-BRIEF.md`)
+- The O2Ring's AES key blob appears only on the PAIRING connect — reproduced across both public (`O2RING-PROTOCOL-2026-07-17-BRIEF.md`)
+- **The nightly air audit would have failed every night on a hardware limit, and named a crash that (`VIGIL-BLUETOOTH-ADVERSARIAL-AUDIT-2026-09-05-BRIEF.md`)
+- The dormant-flag sweep is now a gate, keyed on the metric ID rather than its rendered label. (`DEEP-AUDIT-VI-FOLLOWUPS-2026-09-02-BRIEF.md`)
+- The dormant-surface scan now asserts the precondition its label exemption depends on. (`DEEP-AUDIT-VI-FOLLOWUPS-2026-09-02-BRIEF.md`)
+- **The daemon asked the ring whether the session was encrypted and never read the answer.** The `0xFF`
+- `correctRR` EXCLUDES a rejected interval instead of replacing it with the running median of the (`PPGDEX-ALGORITHM-DEEP-DIVE-2026-07-21-BRIEF.md`)
+
+### Fixed
+- A single runaway mutant could hang the whole audit, because the only bound was per MODULE.
+- The gate that keeps `capture.py` measurable had two holes, and both offenders it was built to catch walked through it.
+- CPAP capture-host L/s unit hygiene: corrected the auto-stop log and standby comments that labeled L/s flow as L/min; migrated the misleading auto-stop config key `flow_eps_lpm` to `flow_eps_lps` (legacy key still accepted with the SAME value — never divided by 60 — plus a deprecation warning); and locked the MaskPressure (bus↔EDF) and PMD (`_LIVE_META`↔PSL-header) unit pairs with differential regressions so two representations of one channel cannot silently diverge.
+- The refusal reported an assertion's headline and dropped its body — which is the half that says what failed.
+- The mutation baseline ran a different selection than the mutants, so `capture.py` could never be measured at all.
+- The mutation gate's refusal now names the test that caused it, instead of only that one did.
+- CPAP flow bus label read L/min for L/s data — a ~60x unit mislabel on the monitor; corrected to L/s with a differential regression pinning it to the EDF flow unit. (`CPAP-EDF-WRITER-FOLLOWUPS-2026-08-23-BRIEF.md`)
+- The guarantee census reported "0 promises ungated" because its survivor file never parsed. (`CPAP-AUTOHARVEST-FOLLOWUPS-II-2026-08-03-BRIEF.md`)
+- The mutation job resolved a different shellcheck than the rest of CI, so its baseline failed on findings no other lane produces.
+- The shell-surface tests walked mutmut's generated tree, which is why `capture.py` could never be mutation-tested.
+- **Brief sweep, capture-host batch — six headers stamped with verified state; two flip DONE, and two
+- capture-host DEEP-AUDIT-VI F18 + F17: the night-QC stream watchdog now admits the auto-start attempt record only when its session key matches a Therapy-run onset the journal observed inside the night window (a marker from a failed night days earlier no longer relabels tonight's NEVER_STARTED as AUTOSTART_FAILED); and `cpap.ble_stream.creds_path` resolves against the config directory while `edf_dir` / `raw_record_dir` resolve against the box root — never the daemon's cwd — with the resolved absolutes logged once at wiring. (`DEEP-AUDIT-VI-2026-09-01-BRIEF.md`)
+- capture-host: a night the O2Ring is not worn no longer logs a traceback and a false "the arrival writer did not close cleanly — its tail may be unflushed" once per reconnect — `oxy_arr_wr` was the one writer missing from the pre-`try` None binding, so the teardown read an unbound local and warned about a tail that was never opened; a genuine close failure still warns.
+- `oxydex-profile.js` is inside the `computeHash` closure again (DEEP-AUDIT-VI F14). (`DEEP-AUDIT-VI-2026-09-01-BRIEF.md`)
+- CPAPDex `oximetryLane` no longer fabricates a clean oximetry night when the SA2 file carries SpO2 (`DEEP-AUDIT-VI-2026-09-01-BRIEF.md`)
+- A CPAP session set that lost its PLD file no longer publishes `usageHours 0.000` (DEEP-AUDIT-VI F8). (`DEEP-AUDIT-VI-2026-09-01-BRIEF.md`)
+- The ACC Cross-Check card badges every number it surfaces — and the grade behind the badge is now a (`DEEP-AUDIT-VI-2026-09-01-BRIEF.md`)
+- The ECGDex app and the gated headless parser now resolve ONE time axis — the browser's Blob worker (`DEEP-AUDIT-VI-2026-09-01-BRIEF.md`)
+- `cardiorespCoupling` now refuses an implausible beat-time span — #1800's guard reached its sibling,
+- ECGDex's `cvhrIndex` counts events per hour of OBSERVED recording, not per hour of wall span — a (`DEEP-AUDIT-VI-2026-09-01-BRIEF.md`)
+- A mid-file H10 clock resync is no longer a 2.41e8-second "dropout" — the gap walk asks the phone (`DEEP-AUDIT-VI-2026-09-01-BRIEF.md`)
+- Legacy t-only `ganglior_events` are no longer thrown +24 h by a single jittered row when OxyDex or (`DEEP-AUDIT-VI-2026-09-01-BRIEF.md`)
+- The capture host's fixed-name sidecars and the H10's `_RR` companion no longer fail OPEN into a (`DEEP-AUDIT-VI-2026-09-01-BRIEF.md`)
+- Integrator consensus grouping no longer depends on the order the files were selected in (DEEP-AUDIT-VI F11). (`DEEP-AUDIT-VI-2026-09-01-BRIEF.md`)
+- nightqc's cross-midnight pooling no longer rejects an OVERLAPPING neighbour — the guard now does
+- `pat-window-oracle` handed a quotable band verdict to nights whose recovered mode sits outside the (`PAT-FORENSICS-WINDOW-ORACLE-2026-08-28-BRIEF.md`)
+- `pat-window-oracle`'s catch swallowed refusals — the defect #2047 filed with this tool's owner after (`PAT-FORENSICS-WINDOW-ORACLE-2026-08-28-BRIEF.md`)
+- The window oracle split on the ECG's own extent while scoring against the PPG, silently zeroing six corpus nights. (`PAT-FORENSICS-WINDOW-ORACLE-2026-08-28-BRIEF.md`)
+- `pat-per-led`'s SNR column prints a real value for the first time — the guarded read of an (`PPG-FOOT-PLACEMENT-FOLLOWUPS-2026-09-01-BRIEF.md`)
+- A PpgDex night whose sensor clock rebases mid-file no longer loses its whole export to a span-sized (`DEEP-AUDIT-VI-2026-09-01-BRIEF.md`)
+- A scrubbed export no longer names its upload (DEEP-AUDIT-VI F13, SELF-INGEST §5 acceptance). (`DEEP-AUDIT-VI-2026-09-01-BRIEF.md`)
+- A relative `cpap.spool_pull.root` now resolves against the box root, never the daemon's cwd — the verbatim consumption wrote the only copy of a pulled AS11 spool into vigil's /opt checkout on 2026-09-01, which then silently blocked every hourly auto-deploy (dirty-tree refusal); the example config carried the trap and now documents the semantics.
+- `tch-multinight`'s cohort classifier read a night with NO wearable export as `pre-host-axis` — the
+- FOLLOWUPS §1.9 — `detectBreaths().breathRate` divided breaths by the WHOLE RECORDING while every (`DEEP-AUDIT-VI-FOLLOWUPS-2026-09-02-BRIEF.md`)
+- capture-host: the liveness heartbeat is stamped from real wall time instead of the capture frame, so a DST transition with a recording open no longer breaks the up-but-wedged check — measured end-to-end, a daemon wedged for 30 minutes read `live, age_ms 0` for the whole session after fall-back, and a healthy one read `stale, age 3600000` from ~61 minutes after spring-forward. (`DEEP-AUDIT-VI-FOLLOWUPS-2026-09-02-BRIEF.md`)
+- capture-host: the CPAP false-start discard path named `[None]` instead of its artifacts — the raw record was filtered out because it publishes `_path` rather than `path`, the EDF had no name yet because the snapshot ran before its first batch, and the resulting `unlink(None)` raised a TypeError that escaped the loop's guard and would have killed the auto-start task for the rest of the night on the first false start. Paths now resolve when asked, a falsy path can never reach `unlink`, and the acquisition-evidence sidecar is removed with the fragment it describes. (`CPAP-EAGER-START-2026-09-01-BRIEF.md`)
+- FOLLOWUPS §1.10 — `respFromEDR` stacked TWO unmarked substitutions behind a surfaced number: no (`DEEP-AUDIT-VI-FOLLOWUPS-2026-09-02-BRIEF.md`)
+- An absent value is no longer rendered, exported, or recorded as a measured zero. DEEP-AUDIT-IV (`DEEP-AUDIT-IV-2026-08-04-BRIEF.md`)
+- capture-host: `find_unwired.py` no longer counts a COMMENT as a consumer — the unwired-field gate read its consumer corpus as raw text, so a status key named in prose registered as a key that reached somebody, and the prose doing it was a `monitor.html` comment recording that `STATUS["autopull"]` reaches nobody. Two real orphans were masked this way and are now visible.
+- `locateColumns` picked Dexcom Clarity's serial **Index** column as the glucose column the moment ONE (`DEEP-AUDIT-VI-2026-09-01-BRIEF.md`)
+- DEEP-AUDIT-VI F5 — a derived DISPERSION statistic is not an RR interval, and routing one through the (`DEEP-AUDIT-VI-2026-09-01-BRIEF.md`)
+- The Integrator's apnea chance-null is now a surrogate test scored through the SAME greedy matching (`DEEP-AUDIT-VI-FOLLOWUPS-2026-09-02-BRIEF.md`)
+- A mid-file device-clock resync no longer makes MotionDex publish a 7.66-year night — the ACC sibling (`DEEP-AUDIT-VI-FOLLOWUPS-2026-09-02-BRIEF.md`)
+- #2124 claimed the live reply's `[20:24]` sample offset was "not yet read by `oxyii.parse_ppg`". It has (`O2RING-PROTOCOL-2026-07-17-BRIEF.md`)
+- **Four tools were choosing their input files four different ways.** #2082 fixed the ECG/PPG fragment (`PAT-FORENSICS-WINDOW-ORACLE-2026-08-28-BRIEF.md`)
+- `pat-window-oracle.mjs` built its night list as `readdirSync(DIR).filter(n => /^2026-/.test(n))`, so (`PAT-FORENSICS-WINDOW-ORACLE-2026-08-28-BRIEF.md`)
+- `pat-window-oracle.mjs pick()` selected the LARGEST `_ECG.txt` and the LARGEST Verity `_PPG.txt` in (`DEEP-AUDIT-VI-FOLLOWUPS-2026-09-02-BRIEF.md`)
+- #2034 moved `oracleNight`'s fit/score split onto the **overlap** of the two beat trains — but only (`PAT-FORENSICS-WINDOW-ORACLE-2026-08-28-BRIEF.md`)
+- The 8 OxyDex tiers #2083 deliberately held below its own grading rule are ruled and raised — each on a (`DEEP-AUDIT-VI-FOLLOWUPS-2026-09-02-BRIEF.md`)
+- All 35 unregistered OxyDex metrics are registered and graded from the code — and the cards they grade (`DEEP-AUDIT-VI-FOLLOWUPS-2026-09-02-BRIEF.md`)
+- PpgDex's `cvhrIndex` counts events per hour of OBSERVED recording, matching ECGDex — so the two (`DEEP-AUDIT-VI-2026-09-01-BRIEF.md`)
+- PpgDex's node export published the host-axis VERDICT and dropped every measurement behind it. (`WEARABLE-HOST-AXIS-FOLLOWUPS-2026-08-02-BRIEF.md`)
+- PpgDex's RSA respiration rate now reaches the fusion. It was computed, exported since 2026-08-01, (`MULTI-SENSOR-DERIVATIONS-FOLLOWUPS-2026-07-18-BRIEF.md`)
+- `selftest-all` now reports WHY a tool failed. It could not before, which is why two reproductions of a (`DEEP-AUDIT-VI-FOLLOWUPS-2026-09-02-BRIEF.md`)
+- DEEP-AUDIT-VI F16 — the sigma-no-reference live path rendered a FUSED-hat point (per-second DSP (`DEEP-AUDIT-VI-2026-09-01-BRIEF.md`)
+- DEEP-AUDIT-VI F15 — `tchSigmasPairwiseFromVars` silently returned ONE of multiple admissible σ (`DEEP-AUDIT-VI-2026-09-01-BRIEF.md`)
+- `pat-feasibility-worker.js` evaluates the promotion gate a second time on ACC-corrected drift and (`ENGINE-VERIFICATION-FINDINGS-2026-07-18-BRIEF.md`)
+- A NEW code-gated fixture with `inputs: []` could not be landed at all — `verify-fixtures.mjs` now (`DEEP-AUDIT-VI-FOLLOWUPS-2026-09-02-BRIEF.md`)
+- The bootstrap exemption's audit line counted one fixture as two. Found by its own first real run. (`DEEP-AUDIT-VI-FOLLOWUPS-2026-09-02-BRIEF.md`)
+- tools: the trio fold now READS the ring-clock cross-check it writes — `datTimefit.disagrees` compared two independent measurements of the ring's clock offset, was serialized into `arrival_<night>.json`, and was consumed by nothing, so a verdict that read as a check never was one; the fold's end-of-run block now names the nights that disagree, and reports an unreadable sidecar rather than skipping it.
+- The shared-tree guard's checkout rule keyed on a FILE EXTENSION, so `git checkout <ref> -- briefs/X.md`
+- The §6A attribution box stayed `[x]` while the Status header had said "§6A's attribution box is UNTICKED" (`MOTIONDEX-RESPIRATORY-RATE-2026-07-21-BRIEF.md`)
+- MotionDex knew which estimator produced its respiration rate and no consumer could find out.
+- ble_sniff.py reads the nRF CRC flag — CRC-bad records (14 % of the real overnight capture; they inflated 12 CONNECT_INDs to 262) are excluded from every counter and the exclusion is stated even at zero — and the report opens with the first→last packet span in UTC, which is what would have exposed the capture that died 2 h into a 7.4 h window. (`VIGIL-BLUETOOTH-ADAPTERS-2026-09-05-BRIEF.md`)
+- bond() never sets `trust` (the old set-then-revoke window leaked the flag permanently on session death — measured: both Polars `Trusted: yes` on the capture adapter months after the untrust shipped), and a startup tripwire (`bonding.trusted_flags` → `defense_warnings`) now names any configured sensor left Trusted on the capture adapter, so the §B2 kernel-vs-daemon ACL race can never sit silent again. (`VIGIL-BLUETOOTH-ADVERSARIAL-AUDIT-2026-09-05-BRIEF.md`)
+- capture-host: the OxyII lifecycle journal no longer oscillates `idle_unworn↔live` at the poll rate for an unworn, connected ring — the stall guard's "frames flowing" re-asserted LIVE against every contact=0 vote (vigil 2026-08-28: 17,688 episodes, ~32k rows each way); a frame is now a heartbeat of the link and leaves an IDLE_UNWORN hold alone. Both lifecycle axes (`oxy_lifecycle`, `oxy_recording`) now reach `/api/state` and the monitor — they were written to STATUS from the first G4 night and forwarded by nobody. (`OXYII-ACQUISITION-CHARTER-2026-08-23-BRIEF.md`)
+- capture-host: a stored-session pull whose 0xE1 identity read timed out keyed the inventory ledger on the auth serial (`"0000"`), so `oxy_restart.plan` could not see the session was already COMMITTED and pulled it again, overwriting a good sidecar with `device_serial: null` (vigil, 2 of 23 sessions); `pull_session.pull()` now takes the caller's `device_id` as the fallback key (address after it, the auth serial never) and `pull_oxyii_session` passes the ring's configured id. (`OXYII-DAT-AUTO-HARVEST-REFINEMENT-2026-08-24-BRIEF.md`)
+- capture-host: an absent mandatory device (H10 / O2Ring) no longer costs 27–46 hopeless 30 s scans per hour on the shared radio — the three mandatory reconnect loops capped their error backoff at 60 s (the brief's 2026-08-19 check had read the optional-device branch); one shared `_RECONNECT_BACKOFF_CAP_S = 180` (≈ 17/h, `power.reconnect_backoff_cap_sec` overrides) replaces the three literals, reset-on-viable-session unchanged. (`VIGIL-OVERNIGHT-FINDINGS-2026-07-24-BRIEF.md`)
+- capture-host: the three O2Ring scan filters (`capture._connect_scan`, `pull_session._pull_once`, `probe_oxyii_ppg`) matched on configured address **or** a local-name hint, so any "O2Ring"/"Checkme O2"-named beacon in range could summon a GATT connect and a stored-session pull from the wrong ring; all three now delegate to `oxy_presence.is_expected_ring` (address only, the standing BLE-identity ruling) and the name is display metadata in a log line. (`O2RING-AUTONOMOUS-HARVEST-2026-08-26-BRIEF.md`)
+- `npm run check` reported a verdict about ten steps it never ran.
+- PpgDex's drawn-axis test cut at ≥99 % of inter-sample deltas on one value, which is the wrong edge of (`WEARABLE-HOST-AXIS-FOLLOWUPS-2026-08-02-BRIEF.md`)
+- The oracle's overlap-split rule had two definitions.
+- `npm run check` read doc-search output, which CLAUDE.md §📌 forbids for any gate.
+- The night's ring-clock verdict was read off the FIRST `_RTCLOG.csv` sidecar and stopped there.
+- `guard-stale-brief.sh` documented one failure direction and had two.
+- trio-batch now finds the ring-clock sidecar the daemon actually writes (`_RTCLOG.csv`, upper-cased by `capture_filename`) — the reader matched lowercase only, so `arrival_<night>.json` never carried a `ringClock` block on any real night; the gate now RUNS the reader's matcher against the writer's real filename instead of asserting the defective literal. (`O2RING-TIME-CAPABILITY-WIRING-2026-08-19-BRIEF.md`)
+- `tepna-update.sh` restarted the capture daemon whenever the deployed SHA moved — measured on vigil (`VIGIL-BLUETOOTH-ADVERSARIAL-AUDIT-2026-09-05-BRIEF.md`)
+- The doff/presence auto-pull asked for `which=latest`, so a night with several onboard sessions (`O2RING-AUTONOMOUS-HARVEST-2026-08-26-BRIEF.md`)
+- A branch code was called a firmware version, and a guard compared the wrong two fields.
+- capture-host tests: a leaked module-global event can no longer hollow out a later test.
+- A post-therapy CPAP harvest is now a durable job rather than a fired flag, so a restart mid-harvest re-queues the night instead of reporting it done: the therapy-end trigger persists `therapy_ended → harvest_requested → harvest_attempted → harvest_completed` (or `harvest_deferred`, with the reason) to an append-only fsynced `cpap-harvest-jobs.jsonl`, only a completion carrying a completion stamp can stop a future harvest, and every other state — including an unreadable record or one claiming completion with no stamp — re-queues. The 13:00 window is demoted from primary trigger to reconciliation: an outstanding job now drives the loop immediately, and the window asks the job store before paying for a card read so it cannot double-harvest. Two restart paths learned to wait for a harvest the way they already wait for a recording — `tepna-update.sh`'s interlock reports `harvesting` and defers with its own branch (the catch-all would have failed the unit for what is correct behaviour), and the monitor's restart/stop/reboot endpoint answers 409 with a `force` hatch. The legacy `cpap-therapy-end-fired.json` is migrated once, as a re-queue rather than a completion, and deleted, because it only ever recorded that a trigger fired. Measured cause of the incident behind this: 127 daemon restarts in six days, every one a clean exit, median 18/day, all deploys — one landed 108 s into a harvest and the card was not read for another 5.5 h.
+- A wedged CPAP adapter could not reach the rungs that would have fixed it.
+- An inherited global `adapter:` written as a declared NAME inherited nothing.
+- The matchRecall cross-site gate no longer requires the duplication it exists to police. (`DEEP-AUDIT-VI-FOLLOWUPS-2026-09-02-BRIEF.md`)
+- **A faulted O2Ring probe was being recorded as a worn finger, and an unplugged one was being read as
+- The stored file type selects a COMMAND FAMILY; it was never a wire field. `file_start_frame`'s
+- capture-host: a runner waiting to retry no longer publishes `connected: true`. (`CAPTURE-HOST-RESOURCE-ORCHESTRATION-AUDIT-2026-09-05-BRIEF.md`)
+- The ring's ACC is a zero-order hold: it measures at 1.5625 Hz while the capture path writes ~9.979 Hz (`PPG-ABSENCE-AS-VALUE-2026-09-06-BRIEF.md`)
+- The end-of-night class-B back-check scanned STATUS columns as waveforms.
+- `equivalent` — the strongest class in the mutation equivalence ledger — was missing from `EXCUSING`, (`MUTATION-COVERAGE-SELECTION-2026-08-14-BRIEF.md`)
+- `resume_strategy` has decided re-serve-vs-resume since G1 and was reachable only from the pure (`OXYII-G1-TRANSACTIONAL-SYNC-2026-08-23-BRIEF.md`)
+- The O2Ring powers itself off about two minutes after it is taken off, and the daemon read that as an outage — a reconnect backoff spent against a radio that is off, and a false "capture is missing it" alert five minutes later, for a ring whose night had already been pulled. Measured over 244 harvested sessions: the ring's own idle timer runs 121.9 s (n=23, sd 1.18) from the last worn frame, while our not-worn drop fires at 47.9 s (n=18, sd 2.33) — and the two bands are separated in time, not mixed, every observation of the ring's timer falling on or before 2026-08-26 and every observation of our drop on or after 2026-08-27, which is what makes 121.9 s a hardware figure rather than a measurement of ourselves. A non-advertising ring whose stored session has been pulled is now named `ring powered off — idle timer`, expected until re-wear or charger, logged once instead of every backoff cycle and carrying no alert. Two bounds keep that from becoming a permanent silence: only a pull that actually COMPLETED licenses it, so a doff whose pull failed or ran partial still alerts with the night's data still on the device; and the state expires after 8 hours, after which a ring that is genuinely flat or forgotten goes back to alerting, because a false all-clear is worse than the false alarm it replaces.
+- The monitor's `Streams · N of M live` counted streams that had ever produced data rather than streams that were flowing, so it read "2 of 12 live" with every device disconnected. The two were the O2Ring's `motion_o2` and `pi_o2`, which pushed before the ring dropped at 09:49 and kept the bus's `active` flag: that flag is documented as "streams that have produced data this session", is set on the first push, and is cleared only by `unregister` — which the O2Ring path never calls on disconnect. The stall was visible the whole time in a field the heading did not consult, `health`, which IS recomputed from the age of the last sample. The claim of liveness now excludes `health:'stall'`, and `weak` is counted among the live rather than alongside them, because a silent stream is not a degraded one and the previous code reported the same two streams as both live and weak in one heading. The denominator deliberately stays every declared stream, so a configured-and-failing stream is still visible rather than vanishing from the count.
+- The monitor's timeline cache held exactly one entry and expired exactly as the page re-polled it, so most polls paid a full rebuild — 1.35 s for the night in progress and 2.05 s for a complete 1330 MB one, growing as the night grows. `_tl_cache.clear()` ran before every insert, defeating the "cached per (night, buckets)" the comment above it promised: a second viewer, or the same viewer on a different bucket count, evicted the other outright. The TTL was also 60 s against `monitor.html`'s 60 000 ms `loadTimeline` interval, so even the surviving entry expired as the next poll arrived. The cost is not server latency — the build is already off the event loop in a thread and `/api/state` holds at 3 ms throughout — it is that the page keeps up to 4 permanent SSE connections of a browser's ~6 per-host HTTP/1.1 budget, so a two-second request occupies one of the two remaining slots and the 1 s state poll queues behind it, which is what makes the page visibly stop. The cache now evicts the oldest entry past a bound of 8 rather than clearing, and the TTL is 300 s — chosen against the display (at the 600-bucket maximum over a ~10 h night one bucket is ~60 s wide, so sub-minute freshness cannot be rendered), not against the poll. Both bounds moved to module scope so a test can assert the TTL against the interval read out of the page itself.
+- **§B1's sibling scan is done: a clean negative across all eight render layers, and the negative is (`FINISHED-WORK-IMPROVEMENTS-2026-08-20-BRIEF.md`)
+- **The badge gate scans literal labels only — and a user's meal name renders a fabricated evidence
+- **Brief sweep, batch 1 — five bare IN-PROGRESS headers stamped with verified state. Triage only, no
+- **Triaged, not built: every section of the Integrator↔OxyDex adapter-gap followups is closed, and (`INTEGRATOR-OXYDEX-ADAPTER-GAP-FOLLOWUPS-2026-07-22-BRIEF.md`)
+- **Two IN-PROGRESS briefs stamped with their verified state: the code is complete, and everything (`MOTIONDEX-RESPIRATORY-RATE-2026-07-21-BRIEF.md`)
+
+---
+
 ## [2.9.0] — 2026-08-30
 
 ### Added
@@ -2020,7 +2508,11 @@ and establishes the release-governance layer over it.
 - **The shared test suite** (`Dex-Test-Suite.html` + `tests/dex-tests.js`) and the build/provenance
   manifests.
 
-[Unreleased]: https://github.com/Plantucha/Tepna/compare/v2.9.0...HEAD
+[Unreleased]: https://github.com/Plantucha/Tepna/compare/v2.13.0...HEAD
+[2.13.0]: https://github.com/Plantucha/Tepna/compare/v2.12.0...v2.13.0
+[2.12.0]: https://github.com/Plantucha/Tepna/compare/v2.11.0...v2.12.0
+[2.11.0]: https://github.com/Plantucha/Tepna/compare/v2.10.0...v2.11.0
+[2.10.0]: https://github.com/Plantucha/Tepna/compare/v2.9.0...v2.10.0
 [2.9.0]: https://github.com/Plantucha/Tepna/compare/v2.8.0...v2.9.0
 [2.8.0]: https://github.com/Plantucha/Tepna/compare/v2.7.0...v2.8.0
 [2.7.0]: https://github.com/Plantucha/Tepna/compare/v2.6.0...v2.7.0
