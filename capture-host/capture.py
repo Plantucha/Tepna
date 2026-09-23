@@ -7830,9 +7830,21 @@ async def loss_poller(cfg: dict, root: str):
             for night in nights[-int(lcfg.get("max_nights", 14)):]:
                 nd = os.path.join(captures, night)
                 vpath = os.path.join(nd, loss_audit.VERDICT_NAME)
-                newest = await asyncio.to_thread(_newest_mtime, nd)
+                # THE NIGHT'S DATA, NOT THE NIGHT'S DIRECTORY. `nightqc.newest_data_mtime` ranks
+                # DEVICE-CAPTURE files only and excludes sidecars deliberately — its docstring says
+                # that exclusion is the whole point. A directory-wide max counts every marker any
+                # other actor writes, and the archive mirror writes `.archived` per night on every
+                # verified push: measured on vigil 2026-09-23, that marker made **12 settled nights**
+                # read as "changed" on every 30-minute poll, re-reading ~1.9 GB of H10 ECG alone
+                # (more with the other devices), re-running a journal subprocess per device, and
+                # rewriting 24 files — forever, for nights whose data had not moved in days. The
+                # docstring above already promised "the night's PRIMARY files"; this is the code
+                # doing what it said.
+                newest = await asyncio.to_thread(nightqc.newest_data_mtime, nd)
+                if newest is None:
+                    continue                                   # no capture file: nothing to audit
                 if os.path.exists(vpath) and os.path.getmtime(vpath) >= newest:
-                    continue                                   # audited since the night last changed
+                    continue                                   # audited since the night's DATA last changed
                 obj = await asyncio.to_thread(loss_audit.write_night, nd, cfg.get("devices", []), commit=commit)
                 STATUS.setdefault("loss", {})[night] = {"status": obj["status"], "at": obj["at"],
                                                         "daemon_caused_min": (obj.get("result") or {}).get("daemon_caused_min")}
@@ -7842,18 +7854,6 @@ async def loss_poller(cfg: dict, root: str):
                                 night, dc, obj.get("reason"))
         except Exception:  # noqa: BLE001 — one bad night must not stop the poller
             log.warning("loss-audit: poll failed", exc_info=True)
-
-
-def _newest_mtime(night_dir: str) -> float:
-    newest = 0.0
-    for n in os.listdir(night_dir):
-        if n in (loss_audit.AUDIT_NAME, loss_audit.VERDICT_NAME):
-            continue
-        try:
-            newest = max(newest, os.path.getmtime(os.path.join(night_dir, n)))
-        except OSError:
-            continue  # a file that vanished between listdir and stat is not newer than anything
-    return newest
 
 
 async def seal_poller(cfg: dict, root: str):
