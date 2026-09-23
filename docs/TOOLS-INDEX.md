@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**215 tools** · 213 with a purpose line · **2 without**
+**216 tools** · 214 with a purpose line · **2 without**
 
 | tool | purpose |
 |---|---|
@@ -137,6 +137,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`pat-hrv-windows.mjs`](../tools/pat-hrv-windows.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════════ PAT THE WAY HRV IS DONE — 5-minute windows, artifact segments discarded, report the… |
 | [`pat-literature-spec.mjs`](../tools/pat-literature-spec.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════════ PAT MEASURED TO THE PUBLISHED SPEC, PLUS AN ERROR BUDGET THAT WORKS BACKWARDS FROM IT. |
 | [`pat-matchrate-strict.mjs`](../tools/pat-matchrate-strict.mjs) | WHY THE SHIPPED matchRate HAS A 60 % FLOOR — two independent reasons, and only the first is the one the brief names: |
+| [`pat-mode-posture.mjs`](../tools/pat-mode-posture.mjs) | // // pat-mode-posture.mjs — does the PAT lag mode follow the BODY or the CLOCK-ON-THE-WALL? |
 | [`pat-per-led.mjs`](../tools/pat-per-led.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════════ EACH LED AS AN INDEPENDENT DETECTOR — and a three-cornered hat that measures FIDUCIAL JITTER… |
 | [`pat-ppg-ppg-control.mjs`](../tools/pat-ppg-ppg-control.mjs) | ⚠️ SENSOR PLACEMENT IS PART OF THE RESULT AND MUST BE STATED. |
 | [`pat-residual-structure.mjs`](../tools/pat-residual-structure.mjs) | PAT-ROOT-CAUSE-FORENSICS §14: is the leftover 20–40 ms ERROR or SIGNAL? |
