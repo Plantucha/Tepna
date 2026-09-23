@@ -13520,6 +13520,104 @@
        ("per hour of analyzable recording"). Both the unit surface (the optional `activeSec` arg) and
        the analyze() wiring are pinned, and the DEFECT direction is asserted alongside the fix so a
        future "simplification" back to the span cannot pass. */
+    group('ECGDex epoch engine — a gap-straddling interval leaves every EPOCH statistic too, and a clock seam REFUSES the epoch (§∅)', 'ecgdex-dsp · epochs · gap-exclusion', function (T) {
+      var D = env.ECGDSP;
+      if (!(D && typeof D.epochEngine === 'function')) {
+        T.skip('ECGDSP.epochEngine available', 'not loaded');
+        return;
+      }
+      /* 30 min at 60 bpm with a 0.25 Hz ±40 ms respiratory modulation — rMSSD is a known, epoch-stable
+         number. A dropout is planted the way analyze() sees one: the beat after it carries the whole
+         elapsed time as its interval and the kept-frame mask flags exactly that interval. */
+      function plant(gaps, endSec) {
+        var nn = [],
+          tt = [],
+          mask = [],
+          t = 0,
+          prev = 0;
+        while (t < (endSec || 1800)) {
+          var rr = 1000 + 40 * Math.sin(2 * Math.PI * 0.25 * t);
+          t += rr / 1000;
+          for (var g = 0; g < gaps.length; g++) if (prev < gaps[g].at && t >= gaps[g].at) t += gaps[g].sec;
+          nn.push((t - prev) * 1000);
+          tt.push(t);
+          mask.push(t - prev > 10 ? 1 : 0);
+          prev = t;
+        }
+        // the loop overshoots by one beat; a lone beat past the end would open a 7th window
+        while (tt.length && tt[tt.length - 1] >= (endSec || 1800)) {
+          nn.pop();
+          tt.pop();
+          mask.pop();
+        }
+        return { nn: nn, tt: tt, mask: mask };
+      }
+      var ctrl = plant([]),
+        refC = [],
+        eC = D.epochEngine(ctrl.nn, ctrl.tt, 300, null, ctrl.mask, [], refC);
+      var R0 = eC.length > 2 ? eC[2].rmssd : NaN;
+      T.ok(
+        'control · gap-free: 6 epochs, none refused, rMSSD epoch-stable',
+        eC.length === 6 && refC.length === 0 && R0 > 5 && Math.abs(eC[5].rmssd - R0) < 0.15 * R0,
+        'epochs ' + eC.length + ' refused ' + refC.length + ' R0 ' + R0
+      );
+      var gp = plant([
+        { at: 700, sec: 100 },
+        { at: 1300, sec: 125 }
+      ]);
+      T.ok('the plant is REAL: exactly two straddling intervals flagged', gp.mask.filter(Boolean).length === 2, String(gp.mask.filter(Boolean).length));
+      var old = D.epochEngine(gp.nn, gp.tt, 300, null); // no mask ⇒ the pre-fix path, byte-for-byte
+      T.ok(
+        'the plant is SEEN: without the mask the two gap epochs read as thousands of ms (the 2026-09-21 shape)',
+        old[2].rmssd > 1000 && old[4].rmssd > 1000 && Math.abs(old[0].rmssd - R0) < 0.15 * R0,
+        'ep2 ' + old[2].rmssd + ' ep4 ' + old[4].rmssd
+      );
+      var ref = [],
+        e = D.epochEngine(gp.nn, gp.tt, 300, null, gp.mask, [], ref);
+      T.ok(
+        'with the mask: the two gap epochs are within 15 % of the control',
+        e.length === 6 && Math.abs(e[2].rmssd - R0) < 0.15 * R0 && Math.abs(e[4].rmssd - R0) < 0.15 * R0,
+        'ep2 ' + e[2].rmssd + ' ep4 ' + e[4].rmssd + ' R0 ' + R0
+      );
+      T.ok('…and they SAY so: gaps=1 on those two, the key absent on a clean epoch', e[2].gaps === 1 && e[4].gaps === 1 && e[0].gaps === undefined && e[3].gaps === undefined);
+      T.ok(
+        'mean/SDNN/pNN50 exclude it too — SDNN within 15 % of the control epoch',
+        Math.abs(e[2].sdnn - eC[2].sdnn) < 0.15 * eC[2].sdnn + 1 && Math.abs(e[2].meanRR - eC[2].meanRR) < 5,
+        'sdnn ' + e[2].sdnn + ' vs ' + eC[2].sdnn + ' meanRR ' + e[2].meanRR + ' vs ' + eC[2].meanRR
+      );
+      T.ok('nothing refused: a dropout is reduced COVERAGE, not a discontinuity', ref.length === 0, String(ref.length));
+      var ref2 = [],
+        e2 = D.epochEngine(ctrl.nn, ctrl.tt, 300, null, ctrl.mask, [1000], ref2);
+      T.ok(
+        'a clock seam at 1000 s REFUSES the epoch at tMin 15 with a named reason — absent from the series, present in the refusals',
+        e2.length === 5 &&
+          ref2.length === 1 &&
+          ref2[0].reason === 'clock-seam' &&
+          ref2[0].tMin === 15 &&
+          ref2[0].n > 250 &&
+          !e2.some(function (x) {
+            return x.tMin === 15;
+          }),
+        JSON.stringify(ref2)
+      );
+      var thin = plant([], 1515),
+        ref3 = [],
+        e3 = D.epochEngine(thin.nn, thin.tt, 300, null, thin.mask, [], ref3);
+      T.ok(
+        'a window with fewer than 20 scorable beats is refused by NAME, not skipped silently',
+        e3.length === 5 && ref3.length === 1 && ref3[0].reason === 'too-few-beats' && ref3[0].tMin === 25,
+        JSON.stringify(ref3)
+      );
+      var P = env.ECGProfile;
+      if (P && typeof P.hrvScore === 'function') {
+        T.eq('hrvScore(60) is the calibrated 76', P.hrvScore(60), 76);
+        T.eq('hrvScore(250) is still scored (the bound is inclusive)', P.hrvScore(250), 100);
+        T.eq('hrvScore(10608.5) — the 2026-09-21 value — REFUSES (null), it does not read Primed', P.hrvScore(10608.5), null);
+        T.eq('hrvScore(251) refuses: outside the calibrated range', P.hrvScore(251), null);
+        T.eq('hrvScore(NaN) refuses', P.hrvScore(NaN), null);
+      } else T.skip('ECGProfile.hrvScore exported', 'not loaded');
+    });
+
     group('ECGDex cvhrIndex divides by OBSERVED time — a dropout no longer halves the index (DEEP-AUDIT-VI F3)', 'ecgdex-dsp · cvhr · denominator', function (T) {
       var D = env.ECGDSP;
       if (!(D && typeof D.detectCVHR === 'function')) {

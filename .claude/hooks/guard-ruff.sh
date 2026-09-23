@@ -59,7 +59,35 @@ cmd="$(printf '%s' "$payload" | jq -r '.tool_input.command // empty' 2>/dev/null
 printf '%s' "$cmd" | grep -qE '(^|[;&|]|\s)git\s+(-[^ ]+\s+|-C\s+\S+\s+)*commit(\s|$)' || exit 0
 printf '%s' "$cmd" | grep -qE '\-\-help|\-h\b' && exit 0
 
-root="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
+# ── WHICH TREE? THE COMMAND'S, NOT THE HOOK'S. ──────────────────────────────────
+# The hook runs with the SESSION's cwd — the shared root, for nearly every session —
+# while the commit runs wherever the command sends it: CLAUDE.md §👥.1 mandates a
+# worktree, so the fleet's normal form is `cd <worktree> && git commit` or
+# `git -C <worktree> commit`. Resolving the repo from the hook's own cwd therefore
+# examined the ROOT's index for a commit happening in a worktree, found nothing
+# staged there, and ALLOWED. Measured 2026-09-22 with an unformatted staged plant:
+# run with its cwd inside the worktree this guard denies (exit 2); the live
+# `cd <wt> && git commit` from the root went straight through. The guard had been
+# inert for every worktree commit since it was written, and read as compliance.
+# Same defect and same fix as guard-stale-brief.sh
+# (STALE-BRIEF-GUARD-MEASURES-THE-WRONG-TREE-2026-08-18-BRIEF §4), one guard over.
+#   1. `git -C <dir> … commit` names the tree exactly — take it.
+#   2. else the FIRST `cd <dir>` in the command — later ones are subdirectory hops,
+#      and the toplevel resolves the same from either.
+#   3. else the hook's cwd — the pre-fix behaviour, now the fallback, not the rule.
+# A dir that does not exist yet (`git worktree add X && cd X && git commit`) keeps
+# the fallback: at PreToolUse time there is no tree to ask. That residual is the
+# same one the stale-brief guard documents, and it is narrow — a commit in the
+# same command that creates the tree.
+tree="$(printf '%s' "$cmd" \
+  | grep -oE '(^|[;&|]|\s)git\s+(-[^ ]+\s+)*-C\s+\S+\s+(-[^ ]+\s+)*commit(\s|$)' \
+  | head -1 | sed -E 's/^.*-C[[:space:]]+([^[:space:]]+).*$/\1/' | tr -d '\042\047')"
+[ -z "$tree" ] && tree="$(printf '%s' "$cmd" \
+  | grep -oE '(^|[;&|][[:space:]]*)cd[[:space:]]+([^[:space:];&|]+)' \
+  | head -1 | sed -E 's/^.*cd[[:space:]]+//' | tr -d '\042\047')"
+tree="${tree/#\~/$HOME}"
+{ [ -n "$tree" ] && [ -d "$tree" ]; } || tree="."
+root="$(git -C "$tree" rev-parse --show-toplevel 2>/dev/null)" || exit 0
 [ -z "$root" ] && exit 0
 
 # Only capture-host Python that is actually going into this commit.

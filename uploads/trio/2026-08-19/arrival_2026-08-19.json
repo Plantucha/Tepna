@@ -1,41 +1,24 @@
 {
   "night": "2026-08-19",
-  "packets": 136798,
-  "files": 74,
+  "packets": 108909,
+  "files": 71,
   "devices": [
     {
       "device": "Polar H10 02849638",
-      "anchors": 71467,
+      "anchors": 70420,
       "ok": true,
       "independent": true,
       "spreadMs": 20597.11,
-      "ppm": -1,
+      "ppm": -10,
       "maxStepMs": 17433.3,
       "plausibleCrystal": true,
       "deviceDrawn": false,
       "drawnShare": 0.014,
-      "offsetMs": 946670400030.4,
-      "offsetMadMs": 105.4,
+      "offsetMs": 946670400027.2,
+      "offsetMadMs": 106.5,
       "t0DevMs": 840507430937,
       "t0HostMs": 1787177831047,
-      "spanSec": 22903
-    },
-    {
-      "device": "Polar Verity Sense",
-      "anchors": 42903,
-      "ok": true,
-      "independent": true,
-      "spreadMs": 2682.04,
-      "ppm": -28.6,
-      "maxStepMs": 147.5,
-      "plausibleCrystal": true,
-      "deviceDrawn": false,
-      "drawnShare": 0.003,
-      "offsetMs": 946670401152.3,
-      "offsetMadMs": 163.4,
-      "t0DevMs": 840507403718,
-      "t0HostMs": 1787177805215,
-      "spanSec": 24212
+      "spanSec": 22160
     },
     {
       "device": "Wellue O2Ring-S",
@@ -53,6 +36,38 @@
       "t0DevMs": 32000,
       "t0HostMs": 1787177918224,
       "spanSec": 22624
+    },
+    {
+      "device": "Polar Verity Sense",
+      "anchors": 16061,
+      "ok": true,
+      "independent": true,
+      "spreadMs": 1553.61,
+      "ppm": -16.7,
+      "maxStepMs": 128,
+      "plausibleCrystal": true,
+      "deviceDrawn": false,
+      "drawnShare": 0.003,
+      "offsetMs": 946670401355.1,
+      "offsetMadMs": 100.1,
+      "t0DevMs": 840507403718,
+      "t0HostMs": 1787177805215,
+      "spanSec": 9461
     }
-  ]
+  ],
+  "datTimefit": {
+    "converged": true,
+    "attempts": 14,
+    "lagS": 1121,
+    "datStartHostMs": 1787167790000,
+    "spo2LagS": 1122,
+    "pulseLagS": 1121,
+    "pulseErr": 0.14,
+    "dat": "Wellue_O2Ring-S_20260819193004_STORED.dat",
+    "csv": "Wellue_O2Ring-S_S8AW2100_20260819194828_SPO2.csv",
+    "reportedOffsetS": null,
+    "deltaS": null,
+    "driftAllowanceS": 0,
+    "disagrees": null
+  }
 }
