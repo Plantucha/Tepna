@@ -314,3 +314,30 @@ def test_a_sidecar_resuming_its_OWN_non_empty_file_does_not_re_emit_the_header(t
     assert body.count("rule=clock-seam") == 1, "the header must not be re-emitted on resume"
     assert body.startswith(first), "the earlier session's bytes must survive verbatim"
     assert body.count("# final") == 2, "one per session"
+
+
+def test_CONTROL_an_EMPTY_sidecar_file_is_NOT_a_resume_and_gets_its_header(tmp_path):
+    """The box's actual symptom, pinned: a sidecar path that EXISTS but is 0 bytes.
+
+    ⚠️ A CONTROL, not a plant — it PASSES on origin/main, where a direct construction defaults to
+    `resumed=False` and writes the header regardless. Its job is the self-detection branch: drop
+    `and os.path.getsize(self.path) > 0` and an empty file reads as a resume, appending headerless
+    forever. `mutate_diff` flagged exactly that mutant as surviving, and this is what sees it.
+
+    `os.path.exists` alone would call that a resume and append headerless forever — the very state
+    Wren found (an ECGSEAMS with no header). Size is what separates "a file is there" from "a file
+    has something in it", and only the second is a resume. It is also the case neither the
+    absent-file plant nor the non-empty-append test reaches."""
+    import writers
+    p = str(tmp_path / "X_ECG.txt")
+    seams = p[:-4] + "SEAMS.txt"
+    open(seams, "w").close()                       # exists, 0 bytes — the observed state
+    assert os.path.exists(seams) and os.path.getsize(seams) == 0
+
+    sc = writers._SeamSidecar(p, "ecg")
+    sc.feed(dt.datetime(2026, 9, 23, 1, 0, 0), 1_000_000_000)
+    sc.close()
+
+    body = open(seams).read()
+    assert body.startswith("# stream=ecg rule=clock-seam"), f"an empty file is not a resume: {body!r}"
+    assert "phone_ts;idx;device_step_ms" in body, body
