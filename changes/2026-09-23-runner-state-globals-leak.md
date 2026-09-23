@@ -1,6 +1,0 @@
----
-bump: patch
-type: fixed
-brief: none
----
-Three of `capture`'s module-global state containers — `_LAST_DATA`, `_LAST_PULL_OK` and `_IDLE_TIMER_NAMED` — were restored by nothing between tests, so a test's verdict depended on which tests had run before it. The measured instance: `test_alert_poller_fires_on_a_sustained_offline_then_recovers` failed with `sent == []` inside the diff-scoped mutation gate's clean run while passing in the full suite. `alert_poller` suppresses the offline alert when a pull completed recently (the ring powers itself off ~122 s after a doff, which is not an outage), and with no alert latched the **recovery** cannot fire either — so a leaked `_LAST_PULL_OK["H10"]` empties both notices at once. The cost was a gate reporting on nothing: mutmut saw the clean run fail, generated the glob's mutants, tested **none**, and `mutate_diff.py` refused — REFUSED about a change it never examined, on a test unrelated to that change. A conftest autouse fixture now clears the three before and after every test. Reset only, no tripwire, and listed rather than discovered — both choices are the opposite of the sibling Events fixture and both are measured rather than assumed; the reasoning is in the fixture's comment.
