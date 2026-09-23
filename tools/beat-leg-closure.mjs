@@ -34,6 +34,7 @@ import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { makeVerdict } from './verdict-emit.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
@@ -217,6 +218,84 @@ export function legC(H, V, opts = {}) {
   return { ok: true, ppm, boundPpm, maxBoundPpm: maxBound, slopeSpreadPpm: ppmUncertainty, wanderMs, signalMs, residualMs, snr, spanMin: span, blocks: pts.length, seed, pts };
 }
 
+/* ── THE VERDICT ─ the bar is the BOUND, and FAIL is reachable from nothing ─────────────────────────
+   The pre-stated bar this tool already applies is BL_MAX_BOUND_PPM (a contract constant, NOT derived
+   from the night under test): `legC` refuses to return a ppm at all when the rate half-width the
+   unexplained excursion implies is wider than that. So the criterion is `boundPpm <= maxBound`, and
+   PASS carries `ppm` and `boundPpm` TOGETHER — the tool's own rule is never to quote one without the
+   other. `--pred` prints a closure residual and declares nothing, so this tool asserts no verdict
+   about whether the legs agree: FAIL is reachable from nothing, and criterion.name says so — a reader
+   reads "beat-leg-closure: FAIL" as "the clocks disagree", which it never says.
+
+   THE REFUSALS SPLIT BY WHAT THEY MEAN, not by exit code:
+     too few beats · blocks < 4 · no slope pairs >= 60 min · bound above max  -> UNDERPOWERED
+       (the criterion would bind; this night cannot resolve it — the bound case is a measurement that
+        exists but is too imprecise to quote, which is under-powered, not failed)
+     no seed                                                          -> UNKNOWN
+       (the block alignment could not establish the comparison at all)
+     beat extraction failed                                           -> NOT_RUN
+
+   POPULATION UNIT = the night-pair: the tool decides ONE thing per H10+Verity pair, and its refusal
+   object does not expose the blocks it formed, so a blocks-unit equality cannot be stated honestly
+   on the refusal paths. eligible 1, checked 1 on PASS / 0 on any refusal; blocks and beat counts
+   ride in `result`. Thin, and stated rather than dressed up. */
+export function blcVerdict({ h10Beats: hb, verityBeats: vb, r, pred, at, commit, commitReason }) {
+  const maxBound = r && Number.isFinite(r.maxBoundPpm) ? r.maxBoundPpm : BL_MAX_BOUND_PPM;
+  const base = {
+    tool: 'tools/beat-leg-closure.mjs',
+    gate: 'beat-leg-closure',
+    scope: 'internal',
+    criterion: {
+      name: 'leg C (V−H, device axes) is reportable: the rate half-width implied by the unexplained excursion is <= BL_MAX_BOUND_PPM (a contract constant, not derived from the night). PASS carries ppm AND boundPpm together, never one without the other. FAIL is reachable from nothing — --pred prints a closure residual and declares no agreement verdict; a bound too wide to quote is UNDERPOWERED, not failed',
+      direction: 'lte',
+      threshold: maxBound,
+      unit: 'ppm'
+    },
+    evidence: ['tools/beat-leg-closure.mjs'],
+    at,
+    commit,
+    commitReason
+  };
+  if (!hb || !vb)
+    return makeVerdict({
+      ...base,
+      status: 'NOT_RUN',
+      population: { eligible: 1, checked: 0, excluded: 1 },
+      result: null,
+      reason: 'beat extraction failed on ' + (!hb && !vb ? 'both files' : !hb ? 'the H10 ECG' : 'the Verity PPG') + ' — nothing was measured'
+    });
+  if (!r || !r.ok) {
+    const reason = (r && r.reason) || 'refused';
+    const status = /no seed/.test(reason) ? 'UNKNOWN' : 'UNDERPOWERED';
+    const detail = /too few beats/.test(reason) ? ` (H10 ${hb} beats, Verity ${vb} beats; minimum 100 each)` : '';
+    return makeVerdict({
+      ...base,
+      status,
+      population: { eligible: 1, checked: 0, excluded: 1 },
+      result: null,
+      reason:
+        'leg C REFUSED: ' + reason + detail + (status === 'UNDERPOWERED' ? ' — the criterion would bind; this night cannot resolve it' : ' — the block alignment could not establish the comparison')
+    });
+  }
+  const result = {
+    ppm: r.ppm,
+    boundPpm: r.boundPpm,
+    maxBoundPpm: maxBound,
+    slopeSpreadPpm: r.slopeSpreadPpm,
+    blocks: r.blocks,
+    h10Beats: hb,
+    verityBeats: vb,
+    residualMs: r.residualMs,
+    wanderMs: r.wanderMs,
+    signalMs: r.signalMs,
+    snr: r.snr,
+    spanMin: r.spanMin,
+    predictedPpm: pred == null ? null : pred,
+    closureResidualPpm: pred == null ? null : r.ppm - pred
+  };
+  return makeVerdict({ ...base, status: 'PASS', population: { eligible: 1, checked: 1, excluded: 0 }, result });
+}
+
 function realm() {
   const DB = require(join(ROOT, 'tools', 'build-core.js'));
   const noop = () => {};
@@ -349,6 +428,39 @@ function selftest() {
     if (refused) console.log('    reason: ' + r.reason);
   }
 
+  /* ── the verdict ──────────────────────────────────────────────────────────── */
+  const VAT = { at: '2026-09-22T00:00:00Z', commit: null, commitReason: 'selftest' };
+  const okR = { ok: true, ppm: -20.3, boundPpm: 1.9, maxBoundPpm: BL_MAX_BOUND_PPM, slopeSpreadPpm: 0.8, blocks: 9, residualMs: 42, wanderMs: 310, signalMs: 8, snr: 38, spanMin: 373 };
+  const vPass = blcVerdict({ h10Beats: 21000, verityBeats: 20800, r: okR, pred: -20.1, ...VAT });
+  const vWide = blcVerdict({
+    h10Beats: 21000,
+    verityBeats: 20800,
+    r: { ok: false, reason: 'rate bound +/-6.2 ppm exceeds BL_MAX_BOUND_PPM 4 — unexplained excursion 450 ms over 120 min' },
+    pred: null,
+    ...VAT
+  });
+  const vFew = blcVerdict({ h10Beats: 80, verityBeats: 90, r: { ok: false, reason: 'too few beats' }, pred: null, ...VAT });
+  const vSeed = blcVerdict({ h10Beats: 21000, verityBeats: 20800, r: { ok: false, reason: 'no seed' }, pred: null, ...VAT });
+  const vNR = blcVerdict({ h10Beats: 0, verityBeats: 20800, r: null, pred: null, ...VAT });
+  const vk = (c, m) => {
+    c ? pass++ : fail++;
+    console.log(`  ${c ? 'ok  ' : 'FAIL'} ${m}`);
+  };
+  vk(vPass.status === 'PASS' && vPass.result.ppm === -20.3 && vPass.result.boundPpm === 1.9, 'verdict: inside the bound is PASS with ppm AND boundPpm together');
+  vk(Math.abs(vPass.result.closureResidualPpm - -0.2) < 1e-9, 'verdict: --pred yields a closure RESIDUAL in result, not a verdict');
+  vk(
+    vPass.criterion.threshold === BL_MAX_BOUND_PPM && vPass.criterion.direction === 'lte' && vPass.criterion.unit === 'ppm',
+    "verdict: the criterion IS BL_MAX_BOUND_PPM — the tool's own contract constant, not a new bar"
+  );
+  vk(
+    vWide.status === 'UNDERPOWERED' && vWide.result === null && /exceeds BL_MAX_BOUND_PPM/.test(vWide.reason),
+    'verdict: a bound above max is UNDERPOWERED with no ppm — too imprecise to quote, not failed'
+  );
+  vk(vFew.status === 'UNDERPOWERED', 'verdict: too few beats is UNDERPOWERED');
+  vk(vSeed.status === 'UNKNOWN', 'verdict: no seed is UNKNOWN — the comparison could not be established');
+  vk(vNR.status === 'NOT_RUN' && /H10 ECG/.test(vNR.reason), 'verdict: extraction failure is NOT_RUN naming the file');
+  vk(/FAIL is reachable from nothing/.test(vPass.criterion.name), 'verdict: FAIL-unreachable is stated IN the object');
+  for (const v of [vPass, vWide, vFew, vSeed, vNR]) vk(v.population.eligible === v.population.checked + v.population.excluded, `verdict: ${v.status} population is an equality`);
   console.log(`\n${fail === 0 ? '✓' : '✗'} selftest — ${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 }
@@ -365,6 +477,25 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     return i >= 0 ? argv[i + 1] : null;
   };
   if (argv.includes('--selftest')) selftest();
+  if (argv.includes('--verdict-sample')) {
+    /* The PASS shape from illustrative figures inside the bound. No file is read and no rate is claimed. */
+    console.log(
+      JSON.stringify(
+        blcVerdict({
+          h10Beats: 21000,
+          verityBeats: 20800,
+          r: { ok: true, ppm: -20.3, boundPpm: 1.9, maxBoundPpm: BL_MAX_BOUND_PPM, slopeSpreadPpm: 0.8, blocks: 9, residualMs: 42, wanderMs: 310, signalMs: 8, snr: 38, spanMin: 373 },
+          pred: -20.1,
+          at: '2026-09-22T00:00:00Z',
+          commit: null,
+          commitReason: '--verdict-sample: illustrative figures, no file read'
+        }),
+        null,
+        2
+      )
+    );
+    process.exit(0);
+  }
   const hp = arg('--h10'),
     vp = arg('--verity');
   if (!hp || !vp) {
@@ -376,6 +507,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     V = verityBeats(vp, ctx);
   if (!H || !V) {
     console.error('beat extraction failed');
+    console.log(JSON.stringify(blcVerdict({ h10Beats: H ? H.length : 0, verityBeats: V ? V.length : 0, r: null, pred: null })));
     process.exit(1);
   }
   const hr = 60 / ((H[H.length - 1] - H[0]) / H.length);
@@ -385,6 +517,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     /* Exit 1 with the figures on stderr. A refusal must be unmistakable at the CLI too — there is
        deliberately no ppm printed and no fallback path to one. */
     console.error('leg C REFUSED: ' + r.reason);
+    console.log(JSON.stringify(blcVerdict({ h10Beats: H.length, verityBeats: V.length, r, pred: arg('--pred') != null ? Number(arg('--pred')) : null })));
     process.exit(1);
   }
   console.log(`H10 ${H.length} beats · Verity ${V.length} beats · ${r.blocks} blocks`);
@@ -399,4 +532,5 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     console.log(`predicted from host legs                   = ${p.toFixed(1)} ppm`);
     console.log(`CLOSURE RESIDUAL                           = ${(r.ppm - p).toFixed(1)} ppm`);
   }
+  console.log(JSON.stringify(blcVerdict({ h10Beats: H.length, verityBeats: V.length, r, pred: pred != null ? Number(pred) : null })));
 }
