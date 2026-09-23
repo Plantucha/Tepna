@@ -361,8 +361,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "edce2e232da0",
-          "computeHash": "c2f701d1851f"
+          "manifestHash": "72226a409092",
+          "computeHash": "16eee2f06a5d"
         },
         "evidence": {
           "envelopeRef": null,
@@ -390,8 +390,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "edce2e232da0",
-          "computeHash": "c2f701d1851f"
+          "manifestHash": "72226a409092",
+          "computeHash": "16eee2f06a5d"
         },
         "evidence": {
           "envelopeRef": null,
@@ -419,8 +419,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "edce2e232da0",
-          "computeHash": "c2f701d1851f"
+          "manifestHash": "72226a409092",
+          "computeHash": "16eee2f06a5d"
         },
         "evidence": {
           "envelopeRef": null,
@@ -448,8 +448,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "edce2e232da0",
-          "computeHash": "c2f701d1851f"
+          "manifestHash": "72226a409092",
+          "computeHash": "16eee2f06a5d"
         },
         "evidence": {
           "envelopeRef": null,
@@ -1087,7 +1087,8 @@
     "composite": {
       "couplingScore": 0,
       "sfi": 0.4,
-      "nsi": 55
+      "nsi": 55,
+      "nsiComponents": 4
     },
     "sbii": {
       "sbii": 47.787,

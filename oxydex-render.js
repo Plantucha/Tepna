@@ -2409,8 +2409,9 @@ function nightRowInner(n) {
     chipsArr.push(nrChip('HRsl', (h.hrSlope > 0 ? '+' : '') + h.hrSlope, h.hrSlope < 0 ? 'g' : h.hrSlope < 1 ? 'w' : 'r'));
   }
   if (n.odi3) chipsArr.push(nrChip('ODI-3', n.odi3.rate + '/h', n.odi3.rate < 5 ? 'g' : n.odi3.rate < 15 ? 'w' : 'r'));
-  if (n.comp) chipsArr.push(nrChip('NSI', n.comp.nsi, n.comp.nsi < 30 ? 'g' : n.comp.nsi < 60 ? 'w' : 'r'));
-  if (n.comp) chipsArr.push(nrChip('SFI', n.comp.sfi, n.comp.sfi < 1 ? 'g' : n.comp.sfi < 3 ? 'w' : 'r'));
+  /* §∅ — `null < 30` is TRUE, so an NSI nobody could compute would have rendered GREEN. */
+  if (n.comp && n.comp.nsi != null) chipsArr.push(nrChip('NSI', n.comp.nsi, n.comp.nsi < 30 ? 'g' : n.comp.nsi < 60 ? 'w' : 'r'));
+  if (n.comp && n.comp.sfi != null) chipsArr.push(nrChip('SFI', n.comp.sfi, n.comp.sfi < 1 ? 'g' : n.comp.sfi < 3 ? 'w' : 'r'));
   if (n.motSleep) chipsArr.push(nrChip('SleepEff', n.motSleep.sleepEff + '%', n.motSleep.sleepEff >= 90 ? 'g' : n.motSleep.sleepEff >= 80 ? 'w' : 'r'));
   if (n.sleepArch && n.sleepArch.wasoMin != null) chipsArr.push(nrChip('WASO', n.sleepArch.wasoMin + 'm', n.sleepArch.wasoMin < 10 ? 'g' : n.sleepArch.wasoMin < 30 ? 'w' : 'r'));
   if (n.hrAdv) chipsArr.push(nrChip('RMSSD', n.hrAdv.rmssd, n.hrAdv.rmssd >= 2 ? 'g' : n.hrAdv.rmssd >= 1 ? 'w' : 'r'));
@@ -2999,9 +3000,10 @@ function nightDetail(n, idx) {
       html += '<div class="sec-label">Composite Scores</div>';
       html +=
         '<div class="grid">' +
-        metric('NSI', cp.nsi, '/100 stress load', cp.nsi < 30 ? 'good' : cp.nsi < 60 ? 'warn' : 'bad', 'secondary') +
+        /* §∅ — the card twin of the chip above: an absent NSI showed as a blank value badged GOOD. */
+        metric('NSI', cp.nsi != null ? cp.nsi : '—', '/100 stress load', cp.nsi == null ? '' : cp.nsi < 30 ? 'good' : cp.nsi < 60 ? 'warn' : 'bad', 'secondary') +
         (cp.couplingScore != null ? metric('Coupling', cp.couplingScore + '%', 'desat→HR link', cp.couplingScore >= 50 ? 'good' : cp.couplingScore >= 20 ? 'warn' : 'bad', 'secondary') : '') +
-        metric('Frag Index', cp.sfi, '/hr fragmentation', cp.sfi < 3 ? 'good' : cp.sfi < 6 ? 'warn' : 'bad', 'secondary') +
+        metric('Frag Index', cp.sfi != null ? cp.sfi : '—', '/hr fragmentation', cp.sfi == null ? '' : cp.sfi < 3 ? 'good' : cp.sfi < 6 ? 'warn' : 'bad', 'secondary') +
         '</div>';
     }
     if (n.spo2Adv && n.spo2Adv.nadirBins) {
