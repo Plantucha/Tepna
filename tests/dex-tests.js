@@ -22059,6 +22059,58 @@
        hand against the source: zeroing `_meanRR` must take out `d_cv_calc` (it divides by it) and
        `_rmssd` must take out `d_lnrmssd` (`log` of a non-positive is not finite). Both hold. The
        rest are pinned so that any change becomes visible, which is the point. */
+    /* ── §∅ · AN ABSENT SUBJECTIVE STRESS IS NOT A STRESS OF ZERO ──────────────────────────────
+       `!isNaN(null)` is TRUE — null coerces to 0 — so an absent `_stress` survived the window
+       filters and entered as a real 0. The pNN50 sibling one line below the 7-day filter was
+       repaired for exactly this and NAMES the mechanism ("`!isNaN(null)` was true → a blank pNN50
+       polluted the slope as 0"); `rmssd7`/`sdnn7` are safe only because `v > 0` happens to exclude
+       null. `stress7` was the sibling that pass did not reach.
+       Every ECGDex/Ganglior-ingested row lacks the Welltory Stress column, so this is the common
+       case, not an edge. */
+    group('HRVDex §∅ — an absent subjective Stress is not a Stress of zero', 'hrvdex-dsp · stress · absence', function (T) {
+      var D = (env.HRVDex && env.HRVDex._bare) || env.HRVDex;
+      if (!D || typeof D.computeDerived !== 'function') {
+        T.skip('computeDerived available', 'HRVDex._bare not loaded');
+        return;
+      }
+      var DAY = 86400000;
+      var mk = function (stressAt) {
+        var rows = [];
+        for (var n = 0; n < 7; n++) {
+          rows.push({ _tMs: Date.UTC(2026, 5, 10, 3, 0, 0) + n * DAY, _rmssd: 41, _sdnn: 54, _pnn50: 18.5, _stress: stressAt(n) });
+        }
+        D.computeDerived(rows);
+        return rows[rows.length - 1];
+      };
+
+      /* CONTROL FIRST — with a reading every day the AUC is a real sum, or the case below passes
+         for the wrong reason (an empty window rather than an absent column). */
+      var present = mk(function () {
+        return 3;
+      });
+      T.eq('ANTI-VACUITY · seven days of Stress 3 sum to an AUC of 21', present.d_stress_auc, 21);
+
+      /* THE CASE: the column is absent on every day — the ECGDex/Ganglior shape. */
+      var absent = mk(function () {
+        return null;
+      });
+      T.ok('a week with NO subjective Stress refuses, rather than reporting an AUC of 0', Number.isNaN(absent.d_stress_auc), 'got ' + absent.d_stress_auc);
+      T.eq('…and 0 is what it used to report — "no stress" for a week with no data', 0, 0 + null);
+
+      /* PARTIAL coverage: the sum is over the days that carry a reading. */
+      var partial = mk(function (n) {
+        var odd = n % 2;
+        if (odd === 1) return null;
+        return 3;
+      });
+      T.eq('four readings of 3 and three absences ⇒ 12, not 12-plus-three-zeros', partial.d_stress_auc, 12);
+
+      /* THE COERCION ITSELF, so the guards above cannot end up guarding nothing. */
+      T.eq('`!isNaN(null)` is TRUE — which is how absence passed the old filter', !Number.isNaN(Number(null)), true);
+      T.eq('…while `Number.isFinite(null)` is FALSE — the filter that tells them apart', Number.isFinite(null), false);
+      T.eq('…and a REAL 0 still passes, because 0 is a legitimate Stress reading', Number.isFinite(0), true);
+    });
+
     group('HRVDex computeDerived — the GUARDS, one seed absent at a time', 'hrvdex-dsp · known-answer · mutation-pinned', function (T) {
       var D = (env.HRVDex && env.HRVDex._bare) || env.HRVDex;
       if (!D || typeof D.computeDerived !== 'function') {
