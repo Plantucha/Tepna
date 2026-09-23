@@ -25646,6 +25646,36 @@
        "recovered instantly" — and `nadirRecov` is goodDirection:'down', so that is the flattering
        direction — while `oxyDesatConf` read the same 0 as "no clean recovery" and withheld its
        bonus. Null is out of band and cannot be read either way by accident. */
+    /* ── §∅ · NSI IS A MEAN OF THE COMPONENTS THAT EXIST ───────────────────────────────────────
+       Every corpus night carries all four terms, so the goldens cannot express this: `nsi` is
+       unchanged on all four and only `nsiComponents` is added. The PARTIAL case is the one that
+       matters and it lives here. `nsi` is goodDirection:'down', so each component silently
+       substituted as 0 pulled the score toward the healthiest reading. */
+    group('OxyDex §∅ — NSI averages the components it has, not four', 'oxydex-dsp · composite · aggregate-over-absence', function (T) {
+      var NS = env.OxyDex;
+      if (!NS || !NS._bare || !NS._bare.computeComposite) {
+        T.skip('OxyDex._bare.computeComposite in env', 'not wired in this lane');
+        return;
+      }
+      var rows = [];
+      for (var i = 0; i < 600; i++) rows.push({ spo2: 97, hr: 60, tMs: i * 1000, motion: 0 });
+      /* desat present, cross ABSENT — three terms computable, one not. */
+      var desat = { dip3Rate: 5, auc90Rate: 2, nadir: { count: 0 } };
+      var part = NS._bare.computeComposite(rows, [], desat, null, null, 1);
+      T.ok('ANTI-VACUITY · the partial night produced an NSI at all', part && part.nsi != null, JSON.stringify(part && part.nsi));
+      T.eq('…over THREE components, not four', part.nsiComponents, 3);
+      /* dip3 = min(5/5,1) = 1, hbR = min(2/2,1) = 1, t95 = 0 (97 % is never below 95). The mean of
+         the three present terms is 2/3 → 67. Averaging a fabricated 0 for the absent AAI would give
+         2/4 → 50 — a materially healthier score for a night that measured no arousals at all. */
+      T.eq('…so the score is the mean of what exists: 67', part.nsi, 67);
+      T.eq('…and NOT the 50 that a fabricated fourth term would have produced', part.nsi === 50, false);
+
+      var none = NS._bare.computeComposite([]);
+      T.eq('no component at all ⇒ NSI REFUSES', none.nsi, null);
+      T.eq('…and says so', none.nsiComponents, 0);
+      T.eq('…because `nsi` is goodDirection:down, 0 would have been the BEST possible reading', 0 < 30, true);
+    });
+
     group('OxyDex §∅ — an unobserved recovery is null, not an instant one', 'oxydex-dsp · desat-profile · in-band-sentinel', function (T) {
       var NS = env.OxyDex;
       var R = String((env.sources || {})['oxydex-dsp.js'] || '');
@@ -60197,13 +60227,23 @@
          qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The behavior that ensures the sfi field is properly initialized to 0 instead of causing a runtime error when n */
       {
         var out = NS._bare.computeComposite([]);
-        T.eq('OxyDex._bare.computeComposite([]) → out.sfi', JSON.stringify(out.sfi), '0');
+        /* §∅ — a per-hour rate with no duration to divide by is undefined, and 0/hr is the
+           healthiest possible fragmentation reading. */
+        T.eq('OxyDex._bare.computeComposite([]) → out.sfi REFUSES', JSON.stringify(out.sfi), 'null');
       }
       /* mutant: cmp > → >=  @ var t95pct = n > 0 ? (below95 / n) * 100 : 0;
          qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The behavior that distinguishes whether the nsi field is null or 0 when the input array is empty, which occurs */
       {
+        /* §∅ RECONCILED 2026-09-23 — the property's own text names the very distinction it then gets
+           backwards: "whether the nsi field is null or 0 when the input array is empty". With no rows
+           there is no component to average, so 0 is not a low stress score, it is a score over nothing —
+           and `nsi` is goodDirection:'down', so 0 was the BEST possible reading of an empty night.
+           ⚠️ The mutant this property targeted (`n > 0` → `n >= 0` on the t95pct line) no longer exists:
+           that line was replaced by a measured-sample count, so the comparison is gone rather than
+           merely guarded. Recorded here so the next mutation sweep is not read as having lost a kill. */
         var out = NS._bare.computeComposite([]);
-        T.eq('OxyDex._bare.computeComposite([]) → out.nsi', JSON.stringify(out.nsi), '0');
+        T.eq('OxyDex._bare.computeComposite([]) → out.nsi REFUSES', JSON.stringify(out.nsi), 'null');
+        T.eq('…and says no component contributed', JSON.stringify(out.nsiComponents), '0');
       }
       /* mutant: bool || → &&  @ if (!bytes || bytes.length < 40) return false;
          qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The behaviour this protects is ensuring that the function handles null inputs gracefully without throwing a Ty */
