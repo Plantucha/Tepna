@@ -238,12 +238,22 @@ export function emittedDecisionLines(src, isPy) {
    approval: each is owed an adoption with its own criterion, and the ratchet may only SHRINK — a
    row that stops emitting, or that leaves `word-only`, reds until it is removed here. */
 export const WO_CLAIM_RATCHET = new Set([
-  /* ⚠️ `beat-leg-closure` carries the "prose inside code" reason, NOT the copy-pasted one — which
-     is why this check keys on EMISSION and never on the reason text. A sweep keyed on the 47
-     duplicated strings would have found eight of these nine and left this one behind, still
-     asserting in the manifest something its source had stopped supporting. */
-  /* `tools/pat-window-oracle.mjs` was the ninth; it ADOPTED, so the ratchet shrank by one. */
-  'tools/probe-equivalence.mjs'
+  /* ⚠️ EMPTY, and that is the finished state — residue `2026-09-22-word-only-claims-go-stale`
+     closed here. It held the nine `word-only` rows measured to still print a decision about data on
+     a reachable path; each was owed an adoption with its OWN criterion, because mutants, claims,
+     nights and kappa are four different populations and a shared bar would have got one of them
+     wrong. All nine adopted: pat-window-oracle, pb-agreement (#2888), buzz-fiducial-correlate
+     (#2894), formula-constant-audit (#2899), pat-residual-structure, pat-fiducial-jitter (#2903),
+     probe-clock-equivalence (#2908), probe-equivalence (#2910), beat-leg-closure (this PR).
+
+     KEPT AT ZERO RATHER THAN DELETED: the ratchet may only shrink, so an empty set is a floor —
+     `checkWordOnlyClaim` still reds if a NEW word-only row starts emitting, and there is now no
+     allowlist to hide it in.
+
+     ⚠️ The check keys on EMISSION, never on the reason text, and `beat-leg-closure` is why: its row
+     carried a rewritten "prose inside code" reason rather than the copy-pasted one, so a sweep over
+     the 47 duplicated strings would have found the other eight and left exactly that one asserting
+     something its source had stopped supporting. */
 ]);
 
 /** Judge every `word-only` row that CLAIMS nothing is emitted. Returns the population as an
