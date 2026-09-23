@@ -888,7 +888,67 @@ class _FakePsFtp:
         # Mirrors the real manifest shape: a truncated file is reported under `short` and is NOT in
         # `new_files` (audit F3) — a short read is not a valid file, so it was never pulled.
         sh = self._short.get(path, [])
-        return {"new_files": self._files.get(path, []), "short": sh, "ok": not sh}
+        if path in getattr(self, "_no_manifest", ()):
+            return None                      # a session that answered with NOTHING
+        # `unenumerated` (2026-09-23): the real manifest publishes its verdict's DENOMINATOR, so the
+        # fake must be able to express "the listing did not answer" — otherwise the aggregate's
+        # refusal branch has no way to be reached from here.
+        un = getattr(self, "_unenumerated", {}).get(path, 0)
+        return {"new_files": self._files.get(path, []), "short": sh,
+                "unenumerated": un, "ok": not sh and not un}
+
+
+def _offline_all(tmp_path, monkeypatch, fake):
+    """Drive the real `pull_polar_offline_all` against a fake PS-FTP module."""
+    monkeypatch.setitem(sys.modules, "polar_psftp", fake)
+
+    async def fake_hci():
+        return "hci0"
+
+    monkeypatch.setattr(capture, "adapter_hci", fake_hci)
+
+    async def run_op(address, op, timeout=None, **_kw):
+        return await op()
+
+    monkeypatch.setattr(capture, "polar_offline_op", run_op)
+    return _run(capture.pull_polar_offline_all(_dev(device_id="0C301E3F"), str(tmp_path)))
+
+
+# ── §∅ ACROSS THE FOLD (2026-09-23) ────────────────────────────────────────────────────────────
+# ABSENCE-SURVEY row polar_psftp.py:736 reaches here too: this aggregate RECOMPUTED `ok` from
+# `short` alone rather than reading the per-session verdict, so a producer-side refusal could never
+# be published; and `(m or {}).get(...)` meant a session that returned NOTHING contributed no shorts
+# and read as clean.
+def test_PLANT_an_unenumerated_session_refuses_the_aggregate_verdict(tmp_path, monkeypatch):
+    fake = _FakePsFtp(sessions=[{"path": "/U/0/A/", "date": "20260725", "time": "220000"}],
+                      files={"/U/0/A/": ["ECG.txt"]})
+    fake._unenumerated = {"/U/0/A/": 2}          # the listing did not fully answer
+    res = _offline_all(tmp_path, monkeypatch, fake)
+    assert res["short"] == [], "no file was short — the refusal is about the SET"
+    assert res["unenumerated"] == 2
+    assert res["ok"] is False, "a producer-side refusal must reach the caller, not be recomputed away"
+    assert res["new_files"] == ["ECG.txt"], "what DID answer is still reported"
+
+
+def test_PLANT_a_session_that_returned_no_manifest_is_counted_not_ignored(tmp_path, monkeypatch):
+    fake = _FakePsFtp(sessions=[{"path": "/U/0/A/", "date": "20260725", "time": "220000"}],
+                      files={"/U/0/A/": ["ECG.txt"]})
+    fake._no_manifest = ("/U/0/A/",)
+    res = _offline_all(tmp_path, monkeypatch, fake)
+    assert res["unanswered_sessions"] == 1
+    assert res["ok"] is False, "a missing manifest is an unanswered session, not a quiet one"
+
+
+def test_CONTROL_a_clean_multi_session_pull_still_reports_ok(tmp_path, monkeypatch):
+    """A verdict that is never true says nothing; the refusal must not fire on the ordinary case.
+
+    A REAL control: asserts only `ok` and `new_files`, both of which exist on either side of this
+    change, so it runs against origin/main and PASSES there."""
+    fake = _FakePsFtp(sessions=[{"path": "/U/0/A/", "date": "20260725", "time": "220000"},
+                                {"path": "/U/0/B/", "date": "20260726", "time": "010000"}],
+                      files={"/U/0/A/": ["ECG.txt"], "/U/0/B/": ["ACC.txt"]})
+    res = _offline_all(tmp_path, monkeypatch, fake)
+    assert res["ok"] is True and res["new_files"] == ["ECG.txt", "ACC.txt"]
 
 
 def test_every_onboard_recording_is_pulled_into_its_own_stamped_directory(tmp_path, monkeypatch):
@@ -911,7 +971,7 @@ def test_every_onboard_recording_is_pulled_into_its_own_stamped_directory(tmp_pa
     monkeypatch.setattr(capture, "polar_offline_op", run_op)
     res = _run(capture.pull_polar_offline_all(_dev(device_id="0C301E3F"), str(tmp_path)))
     assert res == {"sessions": 3, "pulled": 2, "new_files": ["ECG.txt", "ACC.txt"],
-                   "short": [], "ok": True}
+                   "short": [], "unenumerated": 0, "unanswered_sessions": 0, "ok": True}
     outs = [o for _p, o in fake.pulled]
     assert outs[0].endswith(os.path.join("captures", "stored", "Polar_Offline_0C301E3F_20260725220000"))
     assert outs[1].endswith("Polar_Offline_0C301E3F_20260726010000")

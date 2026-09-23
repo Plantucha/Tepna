@@ -1543,7 +1543,13 @@ def test_the_manifest_describes_every_file_it_wrote(monkeypatch, tmp_path):
 
     # the exact key set, because mutants 17-20 misspell an INITIAL key: the later assignment then adds
     # the correct one beside the junk, so every individual lookup still works and only the shape shows it
-    assert set(m) == {"session", "out_dir", "files", "new_files", "short", "ok", "total_bytes"}
+    assert set(m) == {"session", "out_dir", "files", "new_files", "short", "ok", "total_bytes",
+                      "unreadable_dirs", "truncated_dirs", "unenumerated"}
+    # The three added 2026-09-23 are the verdict's DENOMINATOR: `ok` is published only over reads
+    # that answered, so a caller can tell "nothing was missing" from "we could not tell". On a clean
+    # pull they are empty and zero — and that is what makes `ok: True` mean something here.
+    assert m["unreadable_dirs"] == [] and m["truncated_dirs"] == []
+    assert m["unenumerated"] == 0 and m["ok"] is True
     assert m["session"] == "/U/0/20260719/E/034500/"
     assert m["out_dir"] == str(tmp_path)
     assert sorted(m["new_files"]) == ["BPM.GZ", "PLETH.GZ"], "a first pull reports both files as new"
@@ -1766,3 +1772,62 @@ def test_the_pull_cli_marks_a_truncated_file_as_a_mismatch(monkeypatch, tmp_path
     assert "        12  BPM.GZ  OK" in lines
     assert "         9  PLETH.GZ  MISMATCH" in lines
     assert "  2 files, 21 bytes" in lines
+
+
+# ── §∅ · A POSITIVE VERDICT ONLY OVER ANSWERED READS (2026-09-23) ──────────────────────────────
+# ABSENCE-SURVEY row polar_psftp.py:736, `aggregate-over-absence`. `manifest["ok"] = not short` was
+# computed over the files that were ENUMERATED. Two absences never reached it: a TRUNCATED listing
+# (recorded on the client as `truncated_dirs` and read by nobody) and a listing that RAISED (yielded
+# as size -1 and dropped by an `s >= 0` filter). Either leaves the pull running over a subset of
+# unknown size while it reports success.
+def test_PLANT_a_TRUNCATED_listing_refuses_the_ok_verdict(monkeypatch, tmp_path):
+    c = _fs_with_one_session()
+    _install(monkeypatch, c)
+    real_walk = ps.PolarPsFtp.walk
+
+    async def walk_with_truncation(self, *a, **kw):
+        async for row in real_walk(self, *a, **kw):
+            yield row
+        self.truncated_dirs.append("/U/0/20260719/E/")     # what list_dir_ex records on a short list
+
+    monkeypatch.setattr(ps.PolarPsFtp, "walk", walk_with_truncation)
+    m = _run(ps.pull_recording("AA:BB", "/U/0/20260719/E/034500/", str(tmp_path)))
+
+    assert m["short"] == [], "no file was short — the refusal is about the SET, not a file"
+    assert m["truncated_dirs"] == ["/U/0/20260719/E/"]
+    assert m["unenumerated"] == 1
+    assert m["ok"] is False, "a pull over a file set of unknown size cannot report ok"
+
+
+def test_PLANT_a_listing_that_RAISED_refuses_the_ok_verdict(monkeypatch, tmp_path):
+    """`walk` yields (path, -1, False) when a directory listing raises. The `s >= 0` filter dropped
+    that row silently, so an unreadable subtree was indistinguishable from an empty one."""
+    c = _fs_with_one_session()
+    _install(monkeypatch, c)
+    real_walk = ps.PolarPsFtp.walk
+
+    async def walk_with_unreadable(self, *a, **kw):
+        async for row in real_walk(self, *a, **kw):
+            yield row
+        yield ("/U/0/20260719/E/BROKEN/", -1, False)
+
+    monkeypatch.setattr(ps.PolarPsFtp, "walk", walk_with_unreadable)
+    m = _run(ps.pull_recording("AA:BB", "/U/0/20260719/E/034500/", str(tmp_path)))
+
+    assert m["unreadable_dirs"] == ["/U/0/20260719/E/BROKEN/"]
+    assert m["unenumerated"] == 1
+    assert m["ok"] is False
+    assert [f["name"] for f in m["files"]], "the files that DID answer are still pulled and reported"
+
+
+def test_CONTROL_a_clean_pull_still_reports_ok(monkeypatch, tmp_path):
+    """The refusal must not fire on the ordinary case — a verdict that is never true says nothing.
+
+    A REAL control: it asserts only `ok`, which exists on both sides of this change, so it runs
+    against origin/main and PASSES there. The new keys are asserted in the shape test above, which
+    is a contract test and cannot run against main by construction — keeping the two apart is what
+    lets this one prove the refusal does not over-fire."""
+    c = _fs_with_one_session()
+    _install(monkeypatch, c)
+    m = _run(ps.pull_recording("AA:BB", "/U/0/20260719/E/034500/", str(tmp_path)))
+    assert m["ok"] is True
