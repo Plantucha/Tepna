@@ -468,7 +468,10 @@ def test_the_REAL_suite_has_exactly_the_root_reads_we_know_about():
     Nights-page tripwire that reds the day a fused tool's classifier accepts a box filename.
     2026-09-21: `verdict.js` — a REAL read, from two suites: test_seal.py validates both sealed-night
     readers' verdict objects through the contract's own validator rather than a hand-written copy of its
-    rules, and test_verdict cross-validates the Python half (verdict.py) against the same JS contract."""
+    rules, and test_verdict cross-validates the Python half (verdict.py) against the same JS contract.
+    2026-09-22: `sensor-trio-night.js` — a MENTION, not a read: test_webmon_nights.py names it as the
+    classifier-gate key for the monitor's per-night landing page, the same over-flag the power tool's
+    entry already costs (one small copy each)."""
     from pathlib import Path
     import pytest
     here = Path(__file__).resolve().parent.parent
@@ -502,7 +505,8 @@ def test_the_REAL_suite_has_exactly_the_root_reads_we_know_about():
     assert got == ["Dex-Test-Suite.html", "README.md",
                    "briefs/CAPTURE-LOSS-PRECEDENCE-AUDIT-2026-09-22-BRIEF.md", "dex-badges.css",
                    "ecgdex-dsp.js", "index.html", "pat-feasibility.js", "provenance/_meta.json",
-                   "provenance/index.json", "sensor-trio-power-analysis.js", "suite.manifest.json",
+                   "provenance/index.json", "sensor-trio-night.js", "sensor-trio-power-analysis.js",
+                   "suite.manifest.json",
                    "tests/dex-tests.js", "tools/mutate-equivalence.json", "tools/o2ring-dat-timefit.mjs",
                    "tools/verdict-adoption.json", "tools/verify-seals.mjs",
                    "uploads/synthetic_ecgdex_h10.txt", "uploads/synthetic_motiondex_acc.txt",

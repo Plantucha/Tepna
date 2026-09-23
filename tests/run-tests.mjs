@@ -41,7 +41,7 @@ import * as _nodeFs from 'node:fs';
 import * as _nodeOs from 'node:os';
 import * as _nodePath from 'node:path';
 import * as _wtDone from '../tools/wt-done.mjs';
-import { walkRepoPaths, walkRepoPathsAll } from './docs-ledger-fs.mjs';
+import { rootTrackedFiles, walkRepoPaths, walkRepoPathsAll } from './docs-ledger-fs.mjs';
 import { planShards, partitionViolations, readTimings } from './shard-plan.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -640,6 +640,10 @@ function readSources() {
     'manifest-gate.js',
     'sensor-trio-worker.js',
     'sensor-trio-power-analysis.js',
+    /* The monitor's per-night landing page (2026-09-22). Added with the file itself, as eegdex-dsp.js
+       was: the `no NEW unscannable source layer` ratchet reds a runtime source no lane can read, and it
+       caught this one on its first build too. */
+    'sensor-trio-night.js',
     'sensor-trio-gpu.js',
     'hrvdex-render.js',
     'pat-gate.js',
@@ -1645,6 +1649,7 @@ function readNonBundleCsp() {
     'hrv-confound-analysis.html',
     'nights-icc-analysis.html',
     'sensor-trio-power-analysis.html',
+    'sensor-trio-night.html',
     'treatment-response-analysis.html',
     'sigma-no-reference-analysis.html',
     'qrs-equiv-analysis.html',
@@ -1760,6 +1765,7 @@ function readAnalysisTools() {
     'qrs-equiv-analysis.html',
     'qrs-yield-analysis.html',
     'sensor-trio-power-analysis.html',
+    'sensor-trio-night.html',
     'sigma-no-reference-analysis.html',
     'treatment-response-analysis.html'
   ];
@@ -1939,7 +1945,10 @@ function readDocsLedger() {
   const crossSpec = existsSync(csP) ? readFileSync(csP, 'utf8') : '';
   const longP = join(ROOT, 'integrator-longitudinal.js');
   const longHeader = existsSync(longP) ? readFileSync(longP, 'utf8').slice(0, 1600) : '';
-  return { briefs, indexText, rootBriefNames, fsBriefNames, fsPaths, fsPathsAll, rootDocs, crossSpec, longHeader };
+  /* The root's tracked file names — the population for the root-set check. null when git is
+     unreadable, which the check SKIPs on rather than reading as a clean root. */
+  const rootFiles = rootTrackedFiles(ROOT);
+  return { briefs, indexText, rootBriefNames, fsBriefNames, fsPaths, fsPathsAll, rootDocs, rootFiles, crossSpec, longHeader };
 }
 
 // release-ledger gate (CONTROLLED-RELEASES-2026-07-05): controlled releases machine-checked. Node-lane

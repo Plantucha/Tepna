@@ -37,6 +37,13 @@
       "offsetMs": -235343518661,
       "plausible": false
     },
+    "epochsRefused": [
+      {
+        "tMin": 0,
+        "n": 20,
+        "reason": "too-few-beats"
+      }
+    ],
     "coverage": {
       "kind": "sparse",
       "spanSec": 60,
@@ -73,8 +80,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "27096773d007",
-        "computeHash": "43d23116dc6c"
+        "manifestHash": "f4e2e97593da",
+        "computeHash": "eeeb5a6351c0"
       },
       "evidence": {
         "envelopeRef": null,
@@ -103,8 +110,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "27096773d007",
-        "computeHash": "43d23116dc6c"
+        "manifestHash": "f4e2e97593da",
+        "computeHash": "eeeb5a6351c0"
       },
       "evidence": {
         "envelopeRef": null,
@@ -133,8 +140,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "27096773d007",
-        "computeHash": "43d23116dc6c"
+        "manifestHash": "f4e2e97593da",
+        "computeHash": "eeeb5a6351c0"
       },
       "evidence": {
         "envelopeRef": null,

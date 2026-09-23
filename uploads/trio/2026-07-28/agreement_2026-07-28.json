@@ -1,20 +1,65 @@
 {
   "night": "2026-07-28",
   "tolBpm": 15,
+  "quality": {
+    "tolBpm": 3,
+    "flagged": 5,
+    "compared": 94,
+    "flaggedPct": 5.3
+  },
   "nodes": [
     "PpgDex",
     "ECGDex",
     "OxyDex"
   ],
-  "compared": 95,
+  "compared": 94,
   "adjudicable": 88,
   "droppedFragments": 1,
-  "flagged": 0,
-  "flaggedPct": 0,
+  "flagged": 2,
+  "flaggedPct": 2.1,
   "fault": {
     "PpgDex": 0,
-    "ECGDex": 0,
+    "ECGDex": 1,
     "OxyDex": 0
   },
-  "epochs": []
+  "epochs": [
+    {
+      "tMs": 1785272630193,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 55
+        },
+        {
+          "node": "ECGDex",
+          "hr": 27.2
+        },
+        {
+          "node": "OxyDex",
+          "hr": 55.8
+        }
+      ],
+      "median": 55,
+      "spreadBpm": 28.6,
+      "adjudicated": true,
+      "outlier": "ECGDex"
+    },
+    {
+      "tMs": 1785274130193,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 52
+        },
+        {
+          "node": "ECGDex",
+          "hr": 9
+        }
+      ],
+      "median": 30.5,
+      "spreadBpm": 43,
+      "adjudicated": false,
+      "outlier": null
+    }
+  ]
 }
