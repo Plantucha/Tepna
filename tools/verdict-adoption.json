@@ -1355,6 +1355,18 @@
         ]
       },
       "note": "counts a file pattern across EVERY documented corpus root and names the scope it searched. Residue 2026-09-05-triage-stamps-searched-the-repo-tree-only: two triage stamps asserted this machine held zero _ECG.txt and two _PPG.txt after counting only the repo's uploads/ tree, which licensed a \"blocked on data locality\" verdict across four briefs. `population` is ROOTS (checked + excluded = documented), a root that is not on this machine counts null and never 0, and every root unreachable emits UNDERPOWERED rather than a zero-file PASS — which is exactly the stamp that shipped."
+    },
+    "tools/pat-mode-posture.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/pat-mode-posture.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "residue 2026-09-06-a-statistic-both-hypotheses-predict: the posture covariate the §-park note asked for. Population = NIGHTS (checked + excluded = night dirs, every skip named); criterion = per-night median |Δmode| over same-posture pairs / adjacent different-posture pairs, bands pre-registered in the header before the first corpus run (PHYS median ≤ 0.5 & ≥ 70 % of nights < 1 → PASS · TIME median ≥ 1 → FAIL · between → UNKNOWN · < 5 nights → UNDERPOWERED). PASS/FAIL are the contract's words, not goodness."
     }
   }
 }
