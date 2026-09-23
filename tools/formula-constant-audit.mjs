@@ -62,6 +62,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
+import { makeVerdict } from './verdict-emit.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -199,6 +200,88 @@ function nodeSourceFor(guideFile) {
 
 /* The `.md` sweep — same corpus discipline as main(): glob the node's sources, print the denominator,
    and SKIP loudly where no source matched rather than reporting the guide clean. */
+/* ── THE VERDICT ─ the bar is on the INSTRUMENT, and FAIL is unreachable ────────────────────────────────
+   Two modes, one builder, both wired — an adoption that covered one would be half-wired.
+   `--descriptions` carries two PRE-REGISTERED calibration bands and refuses to publish outside them:
+   claim-bearing >= 40 (floor), flagged rate <= 30 % (ceiling); out of band it says, in its own words,
+   "REDESIGN, not a finding; do not publish a rate". The default formula mode carries no bands.
+   In both, the criterion binds on the EXTRACTOR, never on the corpus — an adoption must not change
+   what a tool decides.
+
+   ⚠ A BAND VIOLATION IS `UNKNOWN`, NOT `FAIL`. The reader reads the GATE NAME: `formula-constant-audit:
+   FAIL` reaches every regex-reader as "the guide constants are wrong", which is the finding this tool
+   declines to assert. UNKNOWN is the contract's word for "the instrument cannot answer", and that is
+   what a miscalibrated filter is. FAIL is therefore REACHABLE FROM NOTHING — stated in criterion.name
+   so nobody later adds a FAIL branch keyed on flag count: flags are QUESTIONS to hand-verify, and they
+   travel in `result`, never as failures.
+
+   ⚠ POPULATION IN ONE UNIT. D counts descriptions (or formulas); K and U count claim VALUES; mixing them
+   in one equality would be two populations under one name. eligible = D, checked = Ck (items with >= 1
+   checkable value), excluded = (D - C) dropped as non-claim-bearing + (C - Ck) claim-bearing but every
+   value refused. The filter's selectivity — the thing the bands calibrate — is visible in the equality,
+   not only in the floor. The value-level split (K / U) rides in `result`. */
+export function fcaVerdict({ mode, D, C, Ck, K, U, flagged, rate, guides, guidesSkipped, hits, at, commit, commitReason }) {
+  const bands = mode === 'descriptions';
+  const violated = [];
+  if (bands && C < 40) violated.push(`FILTER TOO TIGHT: ${C} claim-bearing of ${D} descriptions, pre-registered floor is 40`);
+  if (bands && C >= 40 && rate > 0.3) violated.push(`FILTER TOO LOOSE: ${(rate * 100).toFixed(0)}% of claim-bearing flagged, pre-registered ceiling is 30%`);
+  const base = {
+    tool: 'tools/formula-constant-audit.mjs',
+    gate: bands ? 'formula-constant-audit --descriptions' : 'formula-constant-audit',
+    scope: 'internal',
+    criterion: {
+      name: bands
+        ? 'the extractor is within its PRE-REGISTERED calibration bands (claim-bearing >= 40, flagged <= 30%). A bar on the INSTRUMENT, not the corpus: out of band the tool cannot answer (UNKNOWN), and FAIL is reachable from nothing — flags are questions to hand-verify, never failures'
+        : 'formula mode carries NO calibration bands: PASS means the sweep ran over >= 1 formula and its flags are questions in result. FAIL is reachable from nothing — a flag is a QUESTION, never a failure',
+      direction: 'eq',
+      threshold: 0,
+      unit: 'calibration bands violated'
+    },
+    evidence: ['tools/formula-constant-audit.mjs', 'audits/CITATION-VERIFICATION-2026-08-05.md'],
+    at,
+    commit,
+    commitReason
+  };
+  const unit = bands ? 'descriptions' : 'formulas';
+  if (!D)
+    return makeVerdict({
+      ...base,
+      status: 'NOT_RUN',
+      population: { eligible: 0, checked: 0, excluded: 0 },
+      result: null,
+      reason: `no ${unit} examined: ${guides} guide(s) found, ${guidesSkipped} skipped for having no matching <node>-*.js source`
+    });
+  const dropped = D - C;
+  const allRefused = C - Ck;
+  const population = { eligible: D, checked: Ck, excluded: dropped + allRefused };
+  const result = {
+    mode,
+    unit,
+    items: D,
+    claimBearing: C,
+    checkedItems: Ck,
+    droppedNonClaimBearing: dropped,
+    claimBearingAllRefused: allRefused,
+    claimValuesCheckable: K,
+    claimValuesRefused: U,
+    flagged,
+    flaggedRate: rate,
+    guides,
+    guidesSkipped,
+    bandsViolated: violated.length,
+    questions: hits.map((h) => ({ guide: h.guide, name: h.name, missing: h.missing }))
+  };
+  if (violated.length)
+    return makeVerdict({
+      ...base,
+      status: 'UNKNOWN',
+      population,
+      result,
+      reason: violated.join(' · ') + ' — "This is a REDESIGN, not a finding. Do not publish a rate from this run." The instrument cannot answer; nothing is asserted about the guides.'
+    });
+  return makeVerdict({ ...base, status: 'PASS', population, result });
+}
+
 function mainDescriptions() {
   const guides = readdirSync(ROOT)
     .filter((f) => /Reference\.html$/.test(f))
@@ -208,12 +291,15 @@ function mainDescriptions() {
   let K = 0;
   let U = 0;
   let flagged = 0;
+  let Ck = 0; // descriptions with >= 1 CHECKABLE value — the population's `checked`, in ONE unit
+  let guidesSkipped = 0;
   console.log(`DENOMINATOR: ${guides.length} guide(s) — DESCRIPTIONS (<p class="md">)\n`);
   const hitsAll = [];
   for (const g of guides) {
     const { files, code } = nodeSourceFor(g);
     if (!files.length) {
       console.log(`  ${g} — no matching <node>-*.js source, SKIPPED (not "clean")`);
+      guidesSkipped++;
       continue;
     }
     const cards = parseGuideDescriptions(readFileSync(join(ROOT, g), 'utf8'));
@@ -235,6 +321,7 @@ function mainDescriptions() {
       const unresolvable = claims.filter((x) => !(x.includes('.') || x.length >= 3));
       U += unresolvable.length;
       K += checkable.length;
+      if (checkable.length) Ck++;
       const missing = checkable.filter((x) => !constantPresent(x, code));
       if (missing.length) hits.push({ guide: g, name, missing, description });
     }
@@ -255,14 +342,17 @@ function mainDescriptions() {
   /* ⚠️ THE PRE-REGISTERED BANDS, CHECKED BY THE TOOL rather than by the reader's judgement after the
      fact. Written before the first run precisely so a bad filter cannot be reported as a finding. */
   const rate = C ? flagged / C : 0;
+  const V = fcaVerdict({ mode: 'descriptions', D, C, Ck, K, U, flagged, rate, guides: guides.length, guidesSkipped, hits: hitsAll });
   if (C < 40) {
     console.log(`\n🔴 FILTER TOO TIGHT — ${C} claim-bearing of ${D} descriptions, pre-registered floor is 40.`);
     console.log('   This is a REDESIGN, not a finding. Do not publish a rate from this run.');
+    console.log(JSON.stringify(V));
     return 0;
   }
   if (rate > 0.3) {
     console.log(`\n🔴 FILTER TOO LOOSE — ${(rate * 100).toFixed(0)}% of claim-bearing flagged, pre-registered ceiling is 30%.`);
     console.log('   Incidental numerals are dominating. REDESIGN; do not publish a hand rate from this run.');
+    console.log(JSON.stringify(V));
     return 0;
   }
   console.log(`\nWithin the pre-registered bands (${C} claim-bearing >= 40, ${(rate * 100).toFixed(0)}% flagged <= 30%).`);
@@ -272,6 +362,7 @@ function mainDescriptions() {
     console.log(`            ${h.description.slice(0, 104)}`);
   }
   if (hitsAll.length > 40) console.log(`        … and ${hitsAll.length - 40} more`);
+  console.log(JSON.stringify(V));
   return 0;
 }
 
@@ -282,11 +373,14 @@ function main() {
   let F = 0;
   let C = 0;
   let flagged = 0;
+  let guidesSkipped = 0;
+  const hitsAll = [];
   console.log(`DENOMINATOR: ${guides.length} guide(s)\n`);
   for (const g of guides) {
     const { files, code } = nodeSourceFor(g);
     if (!files.length) {
       console.log(`  ${g} — no matching <node>-*.js source, SKIPPED (not "clean")`);
+      guidesSkipped++;
       continue;
     }
     const cards = parseGuide(readFileSync(join(ROOT, g), 'utf8'));
@@ -302,11 +396,13 @@ function main() {
     F += cards.length;
     C += withConst;
     flagged += hits.length;
+    hitsAll.push(...hits);
     console.log(`  ${g.padEnd(26)} ${files.length} src · ${String(cards.length).padStart(3)} formulas · ${String(withConst).padStart(2)} with constants · ${hits.length} flagged`);
     for (const h of hits) console.log(`        ⚠ ${h.name.slice(0, 26).padEnd(26)} missing ${JSON.stringify(h.missing)}\n            ${h.formula.slice(0, 100)}`);
   }
   console.log(`\n${flagged} flagged of ${C} constant-bearing formula(s), across ${F} formula(s) in ${guides.length} guide(s).`);
   console.log('A flag is a QUESTION — read the card before treating it as a defect (see the header).');
+  console.log(JSON.stringify(fcaVerdict({ mode: 'formula', D: F, C, Ck: C, K: null, U: null, flagged, rate: C ? flagged / C : 0, guides: guides.length, guidesSkipped, hits: hitsAll })));
   return 0;
 }
 
@@ -318,6 +414,32 @@ function main() {
    "refuse a run finding fewer than ten" floor cannot see it either — the floor was met by the other 44.
    The banner must also read `all N selftests passed`: that is the string the runner parses for the
    COUNT, and a count is what makes a suite silently shrinking from 12 legs to 3 visible. */
+if (process.argv.includes('--verdict-sample')) {
+  /* The --descriptions PASS shape from illustrative counts inside both bands. No guide is read. */
+  console.log(
+    JSON.stringify(
+      fcaVerdict({
+        mode: 'descriptions',
+        D: 300,
+        C: 120,
+        Ck: 90,
+        K: 140,
+        U: 210,
+        flagged: 18,
+        rate: 18 / 120,
+        guides: 7,
+        guidesSkipped: 0,
+        hits: [],
+        at: '2026-09-22T00:00:00Z',
+        commit: null,
+        commitReason: '--verdict-sample: illustrative counts, no guide read'
+      }),
+      null,
+      2
+    )
+  );
+  process.exit(0);
+}
 if (process.argv.includes('--selftest') || process.argv.includes('--self-test')) {
   /* The pass count is COUNTED, never written down — a hardcoded "8/8" survives the ninth leg being added
      and then reports a number about a set it no longer describes. */
@@ -361,6 +483,35 @@ if (process.argv.includes('--selftest') || process.argv.includes('--self-test'))
   eq(fx('<b>a</b><i>b</i>') === 'ab', 'tags stripped to fixpoint');
   const struck = parseGuide('<div class="mh"><span class="ma">S</span><div class="ft">now 0.88 <s>was 0.87</s></div></div>');
   eq(struck[0].formula.includes('0.88') && !struck[0].formula.includes('0.87'), 'struck text is dropped, not merely untagged');
+  /* ── the verdict ──────────────────────────────────────────────────────────── */
+  const VAT = { at: '2026-09-22T00:00:00Z', commit: null, commitReason: 'selftest' };
+  const mk = (o) => fcaVerdict({ mode: 'descriptions', guides: 7, guidesSkipped: 0, hits: [], ...o, ...VAT });
+  const inBand = mk({ D: 300, C: 120, Ck: 90, K: 140, U: 210, flagged: 18, rate: 18 / 120 });
+  const tight = mk({ D: 300, C: 12, Ck: 9, K: 14, U: 21, flagged: 1, rate: 1 / 12 });
+  const loose = mk({ D: 300, C: 120, Ck: 90, K: 140, U: 210, flagged: 60, rate: 0.5 });
+  const none = mk({ D: 0, C: 0, Ck: 0, K: 0, U: 0, flagged: 0, rate: 0, guides: 3, guidesSkipped: 3 });
+  eq(inBand.status === 'PASS', 'verdict: inside both bands is PASS');
+  eq(
+    inBand.population.eligible === 300 && inBand.population.checked === 90 && inBand.population.excluded === 210,
+    'verdict: population in ONE unit: 300 descriptions = 90 checked + 180 dropped + 30 all-refused'
+  );
+  eq(inBand.population.eligible === inBand.population.checked + inBand.population.excluded, 'verdict: population is an equality');
+  eq(tight.status === 'UNKNOWN' && /TOO TIGHT/.test(tight.reason), 'verdict: floor violated is UNKNOWN naming the band — not FAIL, the reader reads the gate name');
+  eq(loose.status === 'UNKNOWN' && /TOO LOOSE/.test(loose.reason), 'verdict: ceiling violated is UNKNOWN naming the band');
+  eq(/REDESIGN, not a finding/.test(tight.reason), "verdict: UNKNOWN quotes the tool's own refusal to publish");
+  eq(none.status === 'NOT_RUN' && none.result === null, 'verdict: no descriptions is NOT_RUN');
+  eq(/FAIL is reachable from nothing/.test(inBand.criterion.name), 'verdict: FAIL-unreachable is stated IN the object, so flags never become failures');
+  const withFlag = mk({ D: 300, C: 120, Ck: 90, K: 140, U: 210, flagged: 1, rate: 1 / 120, hits: [{ guide: 'OxyDex Reference.html', name: 'ODI', missing: ['0.88'], description: 'x' }] });
+  eq(
+    withFlag.status === 'PASS' && withFlag.result.questions.length === 1 && withFlag.result.questions[0].missing[0] === '0.88',
+    'verdict: a flag is a QUESTION in result and does not move the status'
+  );
+  /* formula mode: no bands, so a 50 % flag rate that would be UNKNOWN in --descriptions is a PASS with 50 % questions */
+  const fm = fcaVerdict({ mode: 'formula', D: 40, C: 20, Ck: 20, K: null, U: null, flagged: 10, rate: 0.5, guides: 7, guidesSkipped: 0, hits: [], ...VAT });
+  eq(
+    fm.status === 'PASS' && fm.gate === 'formula-constant-audit' && /NO calibration bands/.test(fm.criterion.name),
+    'verdict: formula mode has no bands — a rate that is UNKNOWN in --descriptions is PASS-with-questions here, and the object says why'
+  );
   console.log(`all ${legs} selftests passed`);
   process.exit(0);
 }
