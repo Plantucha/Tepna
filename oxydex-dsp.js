@@ -1352,7 +1352,15 @@
 
   function computeODI1(rows, blArr) {
     var n = rows.length;
-    if (n < 60) return { odi1Rate: 0, odi1Total: 0 };
+    /* §∅ — TOO SHORT TO COMPUTE IS NOT "NO EVENTS". A recording under 60 samples cannot yield an
+       ODI-1 at all, and returning a rate of 0 published the healthiest possible index for a night
+       that was never long enough to index. `computeSpO2Percentiles` nine lines below carries the
+       IDENTICAL `n < 60` precondition and already returns null — two functions, one guard, opposite
+       answers, in the same file. Absent input refuses (§∅ 2026-09-17).
+       Every consumer is already written for it: `computeNightExtras` tests `odi1.odi1Rate > 0`
+       before taking the ODI-4/ODI-1 ratio, and `computeODRI` opens with `if (!odi1 || !odi3) return
+       null`. The score push is the one that was not, and is guarded here. */
+    if (n < 60) return null;
     var spo2 = rows.map(function (r) {
       return r.spo2;
     });
@@ -1361,7 +1369,9 @@
     // primitive instead of a private trailing-mean loop. (DEX-EVENT-UNIFY Task A)
     var events = detectDesatEvents(spo2, { dropPct: 1, exitPct: 0.5, minSec: 0, blArr: blArr }).length;
     var durationHr = n / 3600;
-    return { odi1Rate: durationHr > 0 ? +(events / durationHr).toFixed(1) : 0, odi1Total: events };
+    /* §∅ — the second fabrication in the same function: a per-hour RATE with no duration to divide
+       by is undefined, not zero. The event COUNT survives — it was really counted. */
+    return { odi1Rate: durationHr > 0 ? +(events / durationHr).toFixed(1) : null, odi1Total: events };
   }
 
   // ── Literature Scores ──────────────────────────────────────────
@@ -2410,7 +2420,8 @@
     // ── ODI ──
     if (n.odi4) push('odi4', 'ODI-4/hr', n.odi4.rate, n.odi4.rate < 2 ? 0 : n.odi4.rate < 5 ? 2 : n.odi4.rate < 15 ? 5 : n.odi4.rate < 30 ? 8 : 10, n.odi4.rate + '/hr');
     if (n.odi3) push('odi3', 'ODI-3/hr', n.odi3.rate, n.odi3.rate < 3 ? 0 : n.odi3.rate < 8 ? 2 : n.odi3.rate < 20 ? 5 : n.odi3.rate < 35 ? 8 : 10, n.odi3.rate + '/hr');
-    if (n.odi1) push('odi1', 'ODI-1/hr', n.odi1.odi1Rate, n.odi1.odi1Rate < 10 ? 0 : n.odi1.odi1Rate < 20 ? 2 : n.odi1.odi1Rate < 40 ? 5 : 8, n.odi1.odi1Rate + '/hr');
+    /* §∅ — `null < 10` is TRUE, so an unindexable night would have taken the BEST bucket. */
+    if (n.odi1 && n.odi1.odi1Rate != null) push('odi1', 'ODI-1/hr', n.odi1.odi1Rate, n.odi1.odi1Rate < 10 ? 0 : n.odi1.odi1Rate < 20 ? 2 : n.odi1.odi1Rate < 40 ? 5 : 8, n.odi1.odi1Rate + '/hr');
 
     // ── Breathing disruption ──
     if (n.osc)
