@@ -583,13 +583,22 @@ function exportCSV() {
     // HRV metrics (same as JSONL)
     lines.push('', 'HRV METRICS');
     if (n.hrv) {
+      /* §∅ — an absent proxy leaves the CELL EMPTY, never the text "null" and never a 0. `hrSdnn`
+         could already be null here (DEEP-AUDIT-IV §3-RESULT) and this row would have written the
+         string "null" into a spreadsheet; the other five become nullable in the same change, so the
+         emptiness is applied to all six at once. Same idiom as the ODI rows above
+         (`n.odi4 ? n.odi4.rate : ''`): a blank cell reads as "not measured" in every tool that opens
+         this file, while `null` and `0` both read as data. */
+      var _hv = function (v) {
+        return v != null ? v : '';
+      };
       lines.push(
-        '  HR-Var Proxy (SD bpm),' + n.hrv.hrSdnn,
-        '  pNN3 (%),' + n.hrv.pnn3,
-        '  RSA Proxy,' + n.hrv.rsaProxy,
-        '  HR Slope (bpm/hr),' + n.hrv.hrSlope,
-        '  HR Floor (p5 bpm),' + n.hrv.hrFloor,
-        '  Samples,' + n.hrv.n
+        '  HR-Var Proxy (SD bpm),' + _hv(n.hrv.hrSdnn),
+        '  pNN3 (%),' + _hv(n.hrv.pnn3),
+        '  RSA Proxy,' + _hv(n.hrv.rsaProxy),
+        '  HR Slope (bpm/hr),' + _hv(n.hrv.hrSlope),
+        '  HR Floor (p5 bpm),' + _hv(n.hrv.hrFloor),
+        '  Samples,' + _hv(n.hrv.n)
       );
     } else {
       lines.push('  (insufficient data)');
