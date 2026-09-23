@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="255946575f3f" data-compute-hash="909db498d480">
+<html lang="en" data-manifest-hash="6d7378c839d6" data-compute-hash="909db498d480">
 <head>
 <!--
   HRVDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/Z7I3UUPEYVbJqKiogd2GpJzq5ymayoEqgifMJjbfTY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0sBgsT0FUUGnrESWUupXxRjP+ZNL/bPHjx7y4A2kzYQ=' 'sha256-3bPuedJeHqlAtFRw9XCQUY2RL6IBWMfwvh6D9DWEXUc=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-EUAm8HOe3qna7MaqXJZ2RjnuT3nxDMxTbc3GxMeGn40=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-FvE6kpPiOZOKf/shR8PEze9RQRPBsmlvDgLxIHG+CUc=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-RgOIfaxTWDtIkB+7YTZeGPlhxvjrWqtSovjwb4qSsRw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-mhIYIr/bW5ayeQ6ftKGinw9IBDfanHJPWPKd17ySd0A=' 'sha256-pTsHiG3YU81obvJkalwdmUi5EMJKUcF94zWTj6ccHIo=' 'sha256-vdXPVfN455FWrG4pGu5lvFOWdmGJ81mF23buz312xUA='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/Z7I3UUPEYVbJqKiogd2GpJzq5ymayoEqgifMJjbfTY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0sBgsT0FUUGnrESWUupXxRjP+ZNL/bPHjx7y4A2kzYQ=' 'sha256-3bPuedJeHqlAtFRw9XCQUY2RL6IBWMfwvh6D9DWEXUc=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-EUAm8HOe3qna7MaqXJZ2RjnuT3nxDMxTbc3GxMeGn40=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-FvE6kpPiOZOKf/shR8PEze9RQRPBsmlvDgLxIHG+CUc=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-RgOIfaxTWDtIkB+7YTZeGPlhxvjrWqtSovjwb4qSsRw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-ipb0GdWaCKvjd/h6uLR78a3da/TQxiDGge8Gzma5I+4=' 'sha256-mhIYIr/bW5ayeQ6ftKGinw9IBDfanHJPWPKd17ySd0A=' 'sha256-pTsHiG3YU81obvJkalwdmUi5EMJKUcF94zWTj6ccHIo='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>HRVDex — Heart Rate Variability Analyzer · v2.14.0</title>
@@ -12182,7 +12182,10 @@ function updateProfile() {
   const z5_lo = Math.round(hrRest + 0.9 * hrr);
 
   // VO2max absolute (L/min)
-  const vo2_abs = ((p.vo2gt * p.weight) / 1000).toFixed(2);
+  /* §∅ — `0 × weight / 1000` printed "0.00 L/min" for an unset VO₂. The FORMULA hint beside it
+     already guarded on `p.vo2gt > 0`; the VALUE did not, so the card explained that no ground
+     truth was entered while stating one. */
+  const vo2_abs = p.vo2gt > 0 ? ((p.vo2gt * p.weight) / 1000).toFixed(2) + ' L/min' : '—';
 
   // Use shared calcVo2Cat() — no duplicate table needed
   const vo2CatStr = p.vo2gt > 0 ? calcVo2Cat(p.vo2gt, p.age, p.sex) : '(enter VO₂ GT)';
@@ -12279,6 +12282,15 @@ function updateProfile() {
         [40, 95]
       ]
     };
+    /* §∅ — AN UNSET VO₂ WAS RANKED, NOT REFUSED. `p.vo2gt` is 0 when no ground truth was entered and
+       none was detected — a documented PROTOCOL value from `detOr0` ("else 0 ⇒ node auto"), not a
+       measurement. This function had no unset branch: 0 sits below the first Cooper point, so the
+       interpolation loop never matched and the tail `: 1` published the **1st percentile** — the
+       worst possible fitness ranking, derived from no data at all.
+       The protocol 0 is deliberate and is NOT changed here; what was wrong is a display layer that
+       turned it into a reported number. `vo2CatStr` one line from the other site already refuses
+       with "(enter VO₂ GT)", so the idiom was in the file. */
+    if (!(vo2 > 0) || !isFinite(vo2)) return null;
     const bin = age < 30 ? '20-29' : age < 40 ? '30-39' : age < 50 ? '40-49' : age < 60 ? '50-59' : '60-69';
     const table = sex === 'M' ? mPerc : fPerc;
     const pts = table[bin] || table['40-49'];
@@ -12316,11 +12328,11 @@ function updateProfile() {
     ) +
     grp(
       'Respiratory / fitness',
-      di('VO₂ absolute', vo2_abs + ' L/min', p.vo2gt > 0 ? 'VO₂·weight/1000 = ' + p.vo2gt + '·' + p.weight + '/1000' : 'enter VO₂max ground truth') +
+      di('VO₂ absolute', vo2_abs, p.vo2gt > 0 ? 'VO₂·weight/1000 = ' + p.vo2gt + '·' + p.weight + '/1000' : 'enter VO₂max ground truth') +
         di('VO₂ category', vo2CatStr, 'ACSM age·sex norms') +
         di(
           'VO₂ percentile',
-          '~' + vo2Perc + 'th',
+          vo2Perc != null ? '~' + vo2Perc + 'th' : '—',
           'Cooper bands (' + (p.age < 30 ? '20s' : p.age < 40 ? '30s' : p.age < 50 ? '40s' : p.age < 60 ? '50s' : '60+') + ' ' + (p.sex === 'M' ? 'M' : 'F') + ')'
         )
     );

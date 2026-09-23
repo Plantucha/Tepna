@@ -375,7 +375,10 @@ function updateProfile() {
   const z5_lo = Math.round(hrRest + 0.9 * hrr);
 
   // VO2max absolute (L/min)
-  const vo2_abs = ((p.vo2gt * p.weight) / 1000).toFixed(2);
+  /* §∅ — `0 × weight / 1000` printed "0.00 L/min" for an unset VO₂. The FORMULA hint beside it
+     already guarded on `p.vo2gt > 0`; the VALUE did not, so the card explained that no ground
+     truth was entered while stating one. */
+  const vo2_abs = p.vo2gt > 0 ? ((p.vo2gt * p.weight) / 1000).toFixed(2) + ' L/min' : '—';
 
   // Use shared calcVo2Cat() — no duplicate table needed
   const vo2CatStr = p.vo2gt > 0 ? calcVo2Cat(p.vo2gt, p.age, p.sex) : '(enter VO₂ GT)';
@@ -472,6 +475,15 @@ function updateProfile() {
         [40, 95]
       ]
     };
+    /* §∅ — AN UNSET VO₂ WAS RANKED, NOT REFUSED. `p.vo2gt` is 0 when no ground truth was entered and
+       none was detected — a documented PROTOCOL value from `detOr0` ("else 0 ⇒ node auto"), not a
+       measurement. This function had no unset branch: 0 sits below the first Cooper point, so the
+       interpolation loop never matched and the tail `: 1` published the **1st percentile** — the
+       worst possible fitness ranking, derived from no data at all.
+       The protocol 0 is deliberate and is NOT changed here; what was wrong is a display layer that
+       turned it into a reported number. `vo2CatStr` one line from the other site already refuses
+       with "(enter VO₂ GT)", so the idiom was in the file. */
+    if (!(vo2 > 0) || !isFinite(vo2)) return null;
     const bin = age < 30 ? '20-29' : age < 40 ? '30-39' : age < 50 ? '40-49' : age < 60 ? '50-59' : '60-69';
     const table = sex === 'M' ? mPerc : fPerc;
     const pts = table[bin] || table['40-49'];
@@ -509,11 +521,11 @@ function updateProfile() {
     ) +
     grp(
       'Respiratory / fitness',
-      di('VO₂ absolute', vo2_abs + ' L/min', p.vo2gt > 0 ? 'VO₂·weight/1000 = ' + p.vo2gt + '·' + p.weight + '/1000' : 'enter VO₂max ground truth') +
+      di('VO₂ absolute', vo2_abs, p.vo2gt > 0 ? 'VO₂·weight/1000 = ' + p.vo2gt + '·' + p.weight + '/1000' : 'enter VO₂max ground truth') +
         di('VO₂ category', vo2CatStr, 'ACSM age·sex norms') +
         di(
           'VO₂ percentile',
-          '~' + vo2Perc + 'th',
+          vo2Perc != null ? '~' + vo2Perc + 'th' : '—',
           'Cooper bands (' + (p.age < 30 ? '20s' : p.age < 40 ? '30s' : p.age < 50 ? '40s' : p.age < 60 ? '50s' : '60+') + ' ' + (p.sex === 'M' ? 'M' : 'F') + ')'
         )
     );
