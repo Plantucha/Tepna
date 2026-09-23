@@ -23684,6 +23684,63 @@
      hrv.time.{rmssd,sdnn} (single-site PPG → whole-record directly), hrv.frequency.lfhf,
      quality.analyzablePct, and the limb-acc timeseries.epochs[].position grid. Same four locks as the
      ECG twin (default-light unchanged · rich consensus axis · Integrator picks it up · posture wires). ════ */
+    /* ════ §∅ — a SignalFrame with NO SAMPLE RATE must REFUSE, not invent 1 Hz.
+       `ABSENCE-SURVEY-2026-09-22` rows ppgdex-dsp.js:6193 and :6203, both HIGH and both the same
+       shape: `i / (fs || 1)` and `(n - 1) / (fs || 1)`. When a frame carries neither `input.fs` nor
+       `samples.fs`, `fs || 1` fabricates a 1 Hz axis — so at a real ~135 Hz a 740-second recording
+       becomes a 27-HOUR one, and every beat time rides that axis through `rec.relSec` → `footSec`.
+       CLAUDE.md §∅: a rate that was not measured is null, never 1, and an absent axis is a
+       DISCONTINUITY (no continuous stretch of signal is described), so it REFUSES rather than
+       annotating. The refusal is narrow by construction and the last two legs are what pin that:
+       fs is only needed when the frame supplies neither `relSec` nor `durSec`. ════ */
+    group('PpgDex §∅ — a frame with no sample rate refuses instead of inventing 1 Hz', 'ppgdex-dsp', function (T) {
+      var PG = env.PpgDex,
+        SY = env.SYNTH;
+      if (!(PG && typeof PG.compute === 'function' && SY && typeof SY.renderPPG === 'function')) {
+        T.ok('PpgDex.compute + SYNTH available', false, 'not loaded');
+        return;
+      }
+      var tl = SY.buildTimelines()[0];
+      var parsed = PG.parsePPG(SY.renderPPG(tl, SY.pickWindow(tl)));
+      var frame = function (over) {
+        var s = { ch: parsed.ch, n: parsed.n, amb: parsed.amb || null };
+        for (var k in over || {}) s[k] = over[k];
+        return { samples: s, t0Ms: parsed.t0Ms };
+      };
+      var grab = function (input) {
+        try {
+          return { ok: true, out: PG.compute(input) };
+        } catch (e) {
+          return { ok: false, msg: String((e && e.message) || e) };
+        }
+      };
+      /* POSITIVE CONTROL FIRST — the harness must be able to make compute SUCCEED on this shape, or
+         every refusal below is indistinguishable from a frame it could never have handled. */
+      var withFs = grab({ samples: { ch: parsed.ch, n: parsed.n, amb: parsed.amb || null, fs: parsed.fs }, t0Ms: parsed.t0Ms });
+      T.ok('control: the SAME frame WITH fs computes (else the refusals below prove nothing)', withFs.ok === true, withFs.ok ? '' : withFs.msg);
+      var trueDur = (parsed.n - 1) / parsed.fs;
+
+      var noFs = grab(frame({}));
+      T.ok('a frame carrying NO fs REFUSES', noFs.ok === false, noFs.ok ? 'computed instead of refusing' : '');
+      T.ok('…and the refusal NAMES the sample rate as the thing that is missing', noFs.ok === false && /sample rate|\bfs\b/.test(noFs.msg), noFs.msg);
+      /* The number the fabrication would have produced, stated so the cost is in the record rather
+         than in a comment: at 1 Hz the duration is the SAMPLE COUNT in seconds. */
+      T.ok(
+        'the 1 Hz fabrication this replaces was ' + Math.round((parsed.n - 1) / trueDur) + '× the true duration',
+        noFs.ok === false,
+        'true ' + trueDur.toFixed(0) + ' s vs fabricated ' + (parsed.n - 1) + ' s'
+      );
+
+      /* NARROWNESS — fs is needed only to BUILD an axis. A frame that already carries one does not
+         need it, and refusing there would convict working code. */
+      var rel = new Float64Array(parsed.n);
+      for (var i = 0; i < parsed.n; i++) rel[i] = i / parsed.fs;
+      var carried = grab(frame({ relSec: rel, durSec: trueDur }));
+      T.ok('a frame with relSec AND durSec but no fs still computes — the refusal is narrow', carried.ok === true, carried.ok ? '' : carried.msg);
+      var relOnly = grab(frame({ relSec: rel }));
+      T.ok('…but relSec alone, with durSec still to derive, refuses', relOnly.ok === false, relOnly.ok ? 'computed instead of refusing' : '');
+    });
+
     group('Integrator ingests the RICH PpgDex export — HRV consensus + posture (HANDOFF §1)', 'ppgdex-dsp · integrator-dsp', function (T) {
       var PG = env.PpgDex,
         SY = env.SYNTH,
