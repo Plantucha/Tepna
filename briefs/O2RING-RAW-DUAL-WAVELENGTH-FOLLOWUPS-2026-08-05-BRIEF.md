@@ -2,7 +2,7 @@
 Copyright 2026 Michal Planicka
 SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED (parked 2026-09-02 — this is the protocol-TRUTH record and it survives alongside its parent, which owns the BUILD questions; do not retire either (they overlap only on the upstream contribution). The shipped signed-read defect is fixed (340166f5) and the stream is captured nightly (`ppg2wr` at `capture.py:3520`, `nightqc.ppg2w_contact`). Open: **§7.2 wavelength identity** needs an optical stimulus the lab cannot supply (§5's catch-22) — the named cheapest route is the ring WORN on a daylight walk with capture running; ✅ **§7.3 MEASURED 2026-09-05 (Heron, box read-only, 7 worn sessions):** on `0x04` the isolated `156` is ONE ROW PER BEAT (ratio 0.986–0.996 on every long night, modal row gap = 125 × 60/PR + 1, PERIODIC refuted) — §2.1's 1.22 was a 403 s fragment; the `0x03` 1.96 half and ~~**§7.4's 112.9-vs-125 Hz**~~ **§7.4 MEASURED 2026-09-06 (Wren): 125.058 Hz over 119.7 s, the 125.000 ADC to 0.05 % — the 112.9 does not reproduce, and marker subtraction makes it WORSE on this stream (124.444), opposite to `0x05`. `0x03` is now captured nightly as the opt-in `pletha` stream (#2282).** The `0x03` marker half is answered with it (0.534/s against 62.0 bpm, ~0.5 per beat, not 1.96). **Owner:** owner (daylight walk) / Heron (§7.4 probe, needs the ring worn outside a capture night) · **Next step:** the daylight walk — it is the only one needing weather. ⚠ **TRIAGED 2026-09-06 (Finch, offline, no device; verified on main 2026-09-09, Kestrel): §7.1's rate discrepancy is ALREADY RESOLVED IN CODE and this brief never recorded it.** #1596 (`a2ab5a7f`) measured **282,402 of 284,420 buffers pinned at the 102-record reply cap across 39 real files** — the device fills faster than a 1 Hz drain empties it, so the nightly ~100 Hz is `CAP × poll rate` and not a property of the stream, and the excess was being silently lost. The second mid-cycle drain fixed the loss. §7.1's *'153 × ⅔ = 102'* note is therefore a numerical coincidence rather than the mechanism, and `~153 Hz` is the origin-forced estimator's bias against a 7.9-record intercept (`oxyii.parse_rt_ppg` records 125.7 Hz by least squares over 35 unsaturated replies — consistent with the 125.000 ADC). What is left is not a puzzle but a measurement nobody takes → residue `2026-09-06-ppg2w-fill-rate-unmeasured` · ⚠ **RE-VERIFIED 2026-09-19 (Wren, box + tree):** landed in the surface I checked since 09-09 (subjects /ppg2w|dual|wavelength|fill.rate|0x05|pletha/): #2433 (2026-09-12) measured the ppg2w FILL rate for the first time (~200 Hz) and residue `2026-09-06-ppg2w-fill-rate-unmeasured` is closed `fixed #2433`; #2436 (09-13) records that the 200 Hz was already written down and two briefs disagreed. §7.2 (wavelength identity, daylight walk) has no landing and is the only open item. BOX: `ppg2w` still captured nightly (2026-09-17: 4,451,693 rows). Corpus note from the 2026-09-18 census (56 nights): the ppg2w channels produce ZERO constant runs ≥ 5 at any threshold — values in the ~10^6 range never repeat — so the §∅ run-length sidecar is inert on this stream by construction; the ring's 0 / 199 / 100 populations live on `0x03` `channel 0` only) · **Residue:** 2026-09-06-ppg2w-fill-rate-unmeasured · **Created:** 2026-08-05
+**Status:** PROPOSED (2026-09-24: §8 adds the vendor [SDK] facts on stuck values and a PRE-REGISTERED capture design, NOT RUN, whose retrospective arm (§8.5) is the next step · parked 2026-09-02 — this is the protocol-TRUTH record and it survives alongside its parent, which owns the BUILD questions; do not retire either (they overlap only on the upstream contribution). The shipped signed-read defect is fixed (340166f5) and the stream is captured nightly (`ppg2wr` at `capture.py:3520`, `nightqc.ppg2w_contact`). Open: **§7.2 wavelength identity** needs an optical stimulus the lab cannot supply (§5's catch-22) — the named cheapest route is the ring WORN on a daylight walk with capture running; ✅ **§7.3 MEASURED 2026-09-05 (Heron, box read-only, 7 worn sessions):** on `0x04` the isolated `156` is ONE ROW PER BEAT (ratio 0.986–0.996 on every long night, modal row gap = 125 × 60/PR + 1, PERIODIC refuted) — §2.1's 1.22 was a 403 s fragment; the `0x03` 1.96 half and ~~**§7.4's 112.9-vs-125 Hz**~~ **§7.4 MEASURED 2026-09-06 (Wren): 125.058 Hz over 119.7 s, the 125.000 ADC to 0.05 % — the 112.9 does not reproduce, and marker subtraction makes it WORSE on this stream (124.444), opposite to `0x05`. `0x03` is now captured nightly as the opt-in `pletha` stream (#2282).** The `0x03` marker half is answered with it (0.534/s against 62.0 bpm, ~0.5 per beat, not 1.96). **Owner:** owner (daylight walk) / Heron (§7.4 probe, needs the ring worn outside a capture night) · **Next step:** the daylight walk — it is the only one needing weather. ⚠ **TRIAGED 2026-09-06 (Finch, offline, no device; verified on main 2026-09-09, Kestrel): §7.1's rate discrepancy is ALREADY RESOLVED IN CODE and this brief never recorded it.** #1596 (`a2ab5a7f`) measured **282,402 of 284,420 buffers pinned at the 102-record reply cap across 39 real files** — the device fills faster than a 1 Hz drain empties it, so the nightly ~100 Hz is `CAP × poll rate` and not a property of the stream, and the excess was being silently lost. The second mid-cycle drain fixed the loss. §7.1's *'153 × ⅔ = 102'* note is therefore a numerical coincidence rather than the mechanism, and `~153 Hz` is the origin-forced estimator's bias against a 7.9-record intercept (`oxyii.parse_rt_ppg` records 125.7 Hz by least squares over 35 unsaturated replies — consistent with the 125.000 ADC). What is left is not a puzzle but a measurement nobody takes → residue `2026-09-06-ppg2w-fill-rate-unmeasured` · ⚠ **RE-VERIFIED 2026-09-19 (Wren, box + tree):** landed in the surface I checked since 09-09 (subjects /ppg2w|dual|wavelength|fill.rate|0x05|pletha/): #2433 (2026-09-12) measured the ppg2w FILL rate for the first time (~200 Hz) and residue `2026-09-06-ppg2w-fill-rate-unmeasured` is closed `fixed #2433`; #2436 (09-13) records that the 200 Hz was already written down and two briefs disagreed. §7.2 (wavelength identity, daylight walk) has no landing and is the only open item. BOX: `ppg2w` still captured nightly (2026-09-17: 4,451,693 rows). Corpus note from the 2026-09-18 census (56 nights): the ppg2w channels produce ZERO constant runs ≥ 5 at any threshold — values in the ~10^6 range never repeat — so the §∅ run-length sidecar is inert on this stream by construction; the ring's 0 / 199 / 100 populations live on `0x03` `channel 0` only) · **Residue:** 2026-09-06-ppg2w-fill-rate-unmeasured · **Created:** 2026-08-05
 
 > **TRIAGED 2026-09-01 — one open question, and it is a MEASUREMENT question.** §1's defect (signed channels read unsigned) is stated; §2 CONFIRMED `rows − markers = 124.91 Hz`, independently reproducing the 125.000 ADC, and §2.1a's 2026-08-20 update REFUTES the 100 Hz reading — the delivered rate is the **cap**, not the device. §3 is WITHDRAWN (again) — 'AC/DC is ten times too large' does not hold. §4 identifies `0x03` as the real waveform, a different stream from `0x05`. **§2.1 is the sole open item: the marker rate is not the heart rate**, and settling it needs device time rather than code.
 
@@ -293,3 +293,128 @@ Searched the DIY/paper literature and Chinese sources (Viatom is Shenzhen-based;
 5. **Upstream contribution** to `nglessner/o2ring-s-protocol`: the purpose of `0x05` is still unknown, but
    three things are now checkable and worth sending — the **record base offset of 2** (`u16` count where
    the reference reads a `u8`), the **signed 24-bit** field format, and that the argument is irrelevant.
+
+## 8 · What a stuck value means TO the ring — vendor facts + a PRE-REGISTERED capture (2026-09-24, Finch)
+
+**Status of this section: DESIGN ONLY. Nothing below has been run.** The predictions in §8.4 were written
+before anyone looked at a `PPG2W` or `ACCRAW` sample from the segments they describe, and they are
+committed before the retrospective arm (§8.5) or any new capture is scored. Relayed via Kestrel; the
+fleet unit was *"what does a stuck value mean to the O2Ring?"*.
+
+### 8.1 · Already answered — read these first, do not re-derive
+
+- `docs/O2RING-FINGER-OFF-2026-09-19.md` (owner + Wren, pre-registered): **settled finger-off ⇒ exactly
+  100**, one run per stretch, 2,690–15,023 samples. **0 and 199 are in-wear events**, arriving together
+  as short full-scale excursions when the pulsatile signal is disturbed. The stream falls to flat 100
+  under disturbance as well, so **100 means "no pulsatile AC", and no-finger is only one cause of it.**
+  Of 164 corpus 100-runs ≥ `T_STUCK`, 139 are explained by file position (idle tails, reconnects) and
+  **3 are bracketed by pulsatile signal on both sides (worn)**: 221 / 411 / 3,968 samples (2026-08-05 ·
+  08-31 · 09-11). The only stimulus that produced a worn run ≥ 200 on demand was the **phone flashlight
+  (672 @ 100)**.
+- `briefs/PPG-ABSENCE-AS-VALUE-2026-09-06-BRIEF.md` §2 / §4b / §4c: why `T_STUCK` = 200; `stuck` and
+  `clip` are different predicates; `ppg2w` has zero constant runs ≥ 5 over 56 nights; the `accraw`
+  maximum is 45 (worn).
+
+The open part is therefore narrower than the question as posed: **when the WORN ring emits flat 100 for
+≥ 200 samples, is that the optical front end losing the signal, or the ring's pleth pipeline declaring
+"no AC" while the front end still sees a pulse?** `_PPG` alone cannot tell those apart. `PPG2W`, the
+raw signed 24-bit AFE channels (§1), can.
+
+### 8.2 · Vendor side [SDK] — `lepu-blepro-1.3.9`, the OxyII real-time wave reply (`OxyIIBleInterface`, `RT_WAVE`)
+
+The facts are stated here; no code is reproduced (the upstream has no licence).
+
+1. **The wave is u8 with exactly ONE special value.** The SDK replaces every **156** with the average of
+   its neighbours (at an edge it copies the one neighbour it has) before handing the wave to the app.
+   **No other value is treated as special.** 0, 100 and 199/200 pass through unmodified. So the vendor's
+   own app draws the 0/199 excursions and the flat 100 as signal: **the vendor defines no in-band
+   invalid value for the pleth.** This confirms, from the vendor side, that `PPG_INVALID` (156) is a
+   marker the app smooths over and not a blanking code.
+2. **The app plots the wave inverted** (displayed = 127 − byte). That is a display fact only, and it
+   gives 100 no special meaning.
+3. **Validity travels out-of-band in the vendor's own design.** The 1 Hz real-time parameter reply
+   carries `sensorState` and `runStatus` fields beside SpO₂, PR, PI and motion. That is the §∅ sidecar
+   pattern (validity beside the data, never inside it), and Tepna's contact byte is the same kind of
+   signal, joined to span rows since #2685. *Not verified here:* whether Tepna's contact byte
+   (`oxyii.py:680`) is the same byte as the SDK's `sensorState`. Settling that is a one-frame check if
+   anyone needs it.
+4. The legacy (non-OxyII) oxy parser in the same AAR also smooths **246**. **246 occurs 0 times** in
+   the four 2026-09-19 `S8AW2100` `_PPG.txt` files (156: 912–21,100 per file), so on this ring it is
+   inert. It is recorded here so a future ring that emits it is recognised as a marker and not read as a
+   rail.
+5. **TI AFE44xx** (the front end §1 matched): the output registers are 24-bit two's complement, and
+   the datasheet has no "invalid" code. A saturated photodiode shows up as a value **at or near full
+   scale**, not as a sentinel. So on `PPG2W`, loss of the optical signal predicts *pinned near a rail*
+   and absence of a finger predicts *no pulsatile component*. Neither predicts a zero.
+
+**What a stuck value means to the ring, then:** nothing. Neither the firmware protocol nor the SDK
+assigns any meaning to a constant pleth value. A flat 100 is the pipeline's output when it has no AC
+component to report, 0 and 199 are the ends of its u8 range, and the ring's own statement about
+validity is the 1 Hz state field. Consumers should keep keying on run length plus that out-of-band
+field, exactly as §∅ already rules.
+
+### 8.3 · Capture design (not execution)
+
+**One variable at a time; everything else as on 2026-09-19.** Same ring (`S8AW2100`), same finger as a
+normal night, hand resting on a table at heart height, room lights on, no direct sun, box settings
+identical to a night except **`ppg2w` enabled**. `ACCRAW` and `OXYFRAME` are on by default. `pletha`
+(`0x03`) stays **off** because it takes a second poll's airtime and would change the conditions the 09-19
+baselines were taken under. Marks are typed in chat and the times are taken from the files' own
+transitions (the 09-19 protocol).
+
+**Time anchor:** three sharp taps on the ring about 1 s apart at the START of every segment. They show
+as three transients in `ACCRAW` and give each segment a start time that does not depend on the pleth
+being scored.
+
+| seg | condition | duration | what it isolates |
+|---|---|---|---|
+| S0 | worn, still | 120 s | baseline for this session |
+| S1 | **flashlight**: phone torch pressed to the finger opposite the sensor | 60 s | the ONE known on-demand worn run ≥ 200 |
+| S2 | worn, still (washout) | 60 s | return to baseline |
+| S3 | **occlusion**: firm pressure with the other hand at the finger base. Not a tourniquet; stop on any discomfort | 45 s | low perfusion without a light change |
+| S4 | worn, still (washout) | 60 s | — |
+| S5 | **finger-off in the dark**: ring removed and placed in a closed opaque box, sensor up | until idle-off | no finger AND no light |
+| S6 | **finger-off in room light**: the 09-19 condition, repeated with `PPG2W` on | until idle-off | no finger, light present |
+
+**S5/S6 caveat:** the doff-pull pauses capture 25–58 s after removal, and the post-reconnect stream then
+runs about 120 s to the ring's idle timer (09-19). The off-finger reading comes from that post-reconnect
+window. **LED-off is not realisable:** no known command switches the ring's LEDs, so S5 (no light at
+all) is the nearest substitute and is labelled as such.
+
+### 8.4 · Predictions — written before any data, scored per segment
+
+`_PPG` run lengths are counted with the `156` marker excluded, as in 09-19 §B. "Row" means a `stuck`
+row in the sidecar at `min_run` = `T_STUCK` = 200.
+
+| seg | `_PPG` (value / longest run / sidecar row?) | `PPG2W` | `ACCRAW` | contact |
+|---|---|---|---|---|
+| S0 | modal ~100–120, longest run < 60, **no row** | no constant run ≥ 5, pulsatile | held 6/7, max run < 50 | worn |
+| S1 | **≥ 1 run @ 100 of ≥ 200 → a row with `bracket=varied/varied`** | **≥ 1 channel pinned near a rail (constant run ≥ 5), the first in the corpus** | held; tap transients only | **worn** |
+| S3 | pulsatility collapses toward 100; runs @ 100 up to ~100 samples, **no row**; short 0/199 runs present | AC reduced but present, no constant run ≥ 5 | held | worn |
+| S5 | one run @ 100 for the whole post-reconnect window (≈ 15,000), **a row, `closed=0`** | no pulsatile component; low variance near the channels' offset; no run ≥ 200 | **≥ 1 run ≥ 200 (first ever): a ring lying still on a table** | **not worn** |
+| S6 | as S5 (reproduces 09-19) | as S5, but variance ABOVE S5's (ambient light reaches the photodiode) | as S5 | not worn |
+
+**The decision the whole capture exists for is S1:**
+
+- **`PPG2W` pinned while `_PPG` sits at 100 ⇒ OPTICAL.** The front end saturated and the pipeline
+  reported no AC. A worn run ≥ 200 is then a real loss of measurement, and the 3 bracketed corpus runs
+  are candidates for it (checkable by the same `PPG2W` read on those nights, if `ppg2w` was enabled then; not verified here).
+- **`PPG2W` still pulsatile and unpinned while `_PPG` sits at 100 ⇒ ALGORITHMIC.** The pipeline lost
+  lock while the optics still carried a pulse, so a worn flat 100 is recoverable from `PPG2W` and is
+  *not* an absence of signal at the sensor. That would change what a `stuck` row on `ppg1` should be
+  allowed to claim.
+- Anything else (for example `PPG2W` also flat but not near a rail) is a third outcome. It gets
+  reported as observed, with no mechanism attached.
+
+Pre-stated confidence: S1 optical, moderate (a torch is far brighter than the LEDs' ambient-cancellation
+headroom); S5 `ACCRAW` ≥ 200, moderate (one LSB of accelerometer noise would break the run, in which
+case the prediction fails and the observed maximum is reported); all others high.
+
+### 8.5 · Retrospective arm — run BEFORE a new capture, AFTER this section merges
+
+The 2026-09-19 sessions `…103348` (finger-off morning) and `…184006` (evening disturbances) already
+carry `PPG2W` and `ACCRAW` beside `_PPG`. Nobody has read them for these segments; this author has not
+either. Scoring §8.4's S1, S3 and S6 rows against those files using the 09-19 marks costs no
+hardware time. A new capture is needed only for what they cannot answer: S5 (no light), and the tap
+anchors (the 09-19 marks were typed in chat, not tapped). **If the retrospective arm settles the S1
+decision, S5 is the only segment left worth a session.**
