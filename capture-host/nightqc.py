@@ -1566,41 +1566,57 @@ def arrival_quality(night_dir: str) -> list[dict]:
 PPG2W_CH1_FLOOR = 15388
 PPG2W_RATIO_LO = 0.5
 PPG2W_RATIO_HI = 3.0
-_PPG2W_ROWS_PER_EPOCH = 100     # the stream is back-timed on a 10 ms grid -> 1 s epochs
-_PPG2W_MIN_EPOCHS = 60          # under a minute cannot establish a worn band -> refuse, never report
-_PPG2W_RUN_EPOCHS = 10          # a sustained off-run, vs single-epoch flicker; also the bar for
-                                # "ended off-finger" — a tail is a doffing when the trailing off-run
-                                # is itself sustained, not when some window's majority tips (a
-                                # majority-of-last-minute definition sat exactly on a tie in the first
-                                # planted test, which is what a window boundary does)
+# ⚠️ AN EPOCH IS ONE SECOND OF WALL CLOCK, read from each row's phone stamp — NOT a fixed row count. It was
+# `_PPG2W_ROWS_PER_EPOCH = 100` ("a 10 ms grid"), and the stream is not 100 rows/s: measured per file on the box
+# (Wren, 2026-09-24) it ran ~101.6 rows/s through 2026-08-21 and ~199 rows/s from 2026-08-23. So every "second"
+# was 0.98 s and then 0.5 s, `doff_at = first + (epochs - trailing)` drifted 1.6 % of the file's length in the
+# derivation regime (up to ~9 min) and ~2x after it — HOURS late (2026-09-22: 09:59:38 for a finger out at
+# 04:22:34), and the 60-epoch minimum and the 10-epoch run were halved in real seconds. The PER-ROW predicate
+# and its constants above are rate-independent and unchanged; only time is now read from the clock.
+# VALIDATED against an EXTERNAL label on every night (the SpO2 file's last row: the ring stops SpO2 when the
+# finger leaves), clock-aligned `doff_at` minus that row, over the 50 sustained off-tails 2026-08-06 → 09-23:
+# +5 to +7 s on every tail at ~101.6 rows/s, 0 to +4 s on every tail at ~199 rows/s; two land EARLY — 2026-09-07
+# 08:01:28 (-80 s) and 2026-09-11 20:15:24 (-202 s) — where the two-channel signal left the finger before the
+# ring stopped writing SpO2. Reported as observed.
+_PPG2W_MIN_EPOCHS = 60  # under a minute cannot establish a worn band -> refuse, never report
+_PPG2W_RUN_EPOCHS = 10  # a sustained off-run, vs single-epoch flicker; also the bar for
+# "ended off-finger" — a tail is a doffing when the trailing off-run
+# is itself sustained, not when some window's majority tips (a
+# majority-of-last-minute definition sat exactly on a tie in the first
+# planted test, which is what a window boundary does)
 
 
-def ppg2w_contact(ch0, ch1):
+def ppg2w_contact(ch0, ch1, secs):
     """Worn/off-finger summary from the 0x05 channel pair. PURE — the file walk is in the caller.
 
     worn(row) := ch1 > PPG2W_CH1_FLOOR and PPG2W_RATIO_LO <= ch0/ch1 <= PPG2W_RATIO_HI.
-    An epoch (1 s = 100 rows) is OFF when the MAJORITY of its rows fail that predicate — a single
-    glitch row must not flip a second.
+    An epoch is ONE SECOND of wall clock — every row whose `secs[i]` (its phone stamp to the second) is that
+    second, wherever it falls in the file — and is OFF when the MAJORITY of its rows fail that predicate: a single glitch row
+    must not flip a second. `tail_start` is the label of the trailing off-run's first second (None when the
+    tail is worn): the doff time, read off the clock rather than computed from a count.
 
     Returns None when fewer than _PPG2W_MIN_EPOCHS epochs exist: a block that cannot be computed is
     ABSENT, never `off_epochs_pct: 0` — zero is the healthy end of that scale, and missing data
     reading as healthy is the exact failure class this file already documents for actigraphy.
     """
-    n_ep = min(len(ch0), len(ch1)) // _PPG2W_ROWS_PER_EPOCH
+    # Rows are BACK-TIMED per frame, so their stamps are not monotonic across a second boundary: grouping
+    # CONSECUTIVE equal labels split one second into ~3 epochs (60 478 "epochs" in a 20 859 s file). Group by
+    # the label's VALUE and order the seconds by label (an ISO stamp to the second sorts chronologically).
+    per: dict = {}
+    worn_ratios = []
+    for i in range(min(len(ch0), len(ch1), len(secs))):
+        cell = per.setdefault(secs[i], [0, 0])
+        cell[1] += 1
+        c1 = ch1[i]
+        if c1 > PPG2W_CH1_FLOOR and PPG2W_RATIO_LO * c1 <= ch0[i] <= PPG2W_RATIO_HI * c1:
+            worn_ratios.append(ch0[i] / c1)
+        else:
+            cell[0] += 1
+    labels = sorted(per)
+    n_ep = len(labels)
     if n_ep < _PPG2W_MIN_EPOCHS:
         return None
-    worn_ratios = []
-    ep_off = []
-    for e in range(n_ep):
-        lo = e * _PPG2W_ROWS_PER_EPOCH
-        bad = 0
-        for i in range(lo, lo + _PPG2W_ROWS_PER_EPOCH):
-            c1 = ch1[i]
-            if c1 > PPG2W_CH1_FLOOR and PPG2W_RATIO_LO * c1 <= ch0[i] <= PPG2W_RATIO_HI * c1:
-                worn_ratios.append(ch0[i] / c1)
-            else:
-                bad += 1
-        ep_off.append(bad * 2 > _PPG2W_ROWS_PER_EPOCH)
+    ep_off = [per[k][0] * 2 > per[k][1] for k in labels]
     runs, cur = [], 0
     for off in ep_off:
         if off:
@@ -1626,6 +1642,7 @@ def ppg2w_contact(ch0, ch1):
         "off_runs_sustained": sum(1 for r in runs if r >= _PPG2W_RUN_EPOCHS),
         "tail_off": tail_off,
         "trailing_off_epochs": trail,
+        "tail_start": labels[n_ep - trail] if tail_off else None,
         # The worn band is reported so drift OUT of it is visible before it becomes misses: these two
         # numbers are the detector auditing itself night by night.
         "worn_ratio_median": round(worn_ratios[m // 2], 3) if m else None,
@@ -1646,8 +1663,11 @@ def ppg2w_contact_quality(night_dir: str) -> list:
     for name in sorted(os.listdir(night_dir) if os.path.isdir(night_dir) else []):
         if not name.endswith("_PPG2W.txt"):
             continue
-        ch0, ch1 = [], []
-        first_ts = None
+        # Memory, because this runs inside the daemon over ~4 M rows a night: the channels are machine ints, and
+        # every row of one second shares ONE label object (consecutive rows repeat it), so `secs` is pointers
+        # into ~20 k strings rather than 4 M of them.
+        ch0, ch1, secs = _array("q"), _array("q"), []
+        prev = ""
         try:
             with open(os.path.join(night_dir, name), "r", encoding="utf-8", errors="replace") as fh:
                 for line in fh:
@@ -1657,63 +1677,65 @@ def ppg2w_contact_quality(night_dir: str) -> list:
                     try:
                         a, b = int(parts[2]), int(parts[3])
                     except ValueError:
-                        continue      # a torn row is expected at a live file's tail; the epoch count
-                                      # is computed from the rows that parsed, and `_PPG2W_MIN_EPOCHS`
-                                      # refuses a block built from too few
-                    if first_ts is None:
-                        first_ts = parts[0]
+                        continue  # a torn row is expected at a live file's tail; the epoch count
+                        # is computed from the rows that parsed, and `_PPG2W_MIN_EPOCHS`
+                        # refuses a block built from too few
+                    label = parts[0][:19]
+                    if label != prev:
+                        prev = label
+                    secs.append(prev)
                     ch0.append(a)
                     ch1.append(b)
         except OSError:
-            log.warning("night-QC: %s is unreadable, so its contact quality is ABSENT rather than "
-                        "poor — the two must not read alike", name, exc_info=True)
+            log.warning(
+                "night-QC: %s is unreadable, so its contact quality is ABSENT rather than "
+                "poor — the two must not read alike",
+                name,
+                exc_info=True,
+            )
             continue
-        block = ppg2w_contact(ch0, ch1)
+        block = ppg2w_contact(ch0, ch1, secs)
         if block is None:
             out.append({"file": name, "usable": False, "reason": f"under {_PPG2W_MIN_EPOCHS} s of rows"})
             continue
         block["file"] = name
         block["usable"] = True
-        # Doff wall-clock: first timestamp + (epochs - trailing_off) seconds, on the file's own
-        # back-timed axis. Only when the tail IS off — a doff time on a worn tail would be fabricated.
-        if block["tail_off"] and block["trailing_off_epochs"] and first_ts:
-            try:
-                t0 = datetime.fromisoformat(first_ts)
-                doff = t0 + timedelta(seconds=block["epochs"] - block["trailing_off_epochs"])
-                block["doff_at"] = doff.isoformat(timespec="seconds")
-            except ValueError:
-                block["doff_at"] = None
-        else:
+        # Doff wall-clock: the trailing off-run's FIRST SECOND, read off the rows' own stamps — never computed
+        # from an epoch count (see the constants). A label that is not a time is not a doff time.
+        tail = block.pop("tail_start")
+        try:
+            block["doff_at"] = datetime.fromisoformat(tail).isoformat(timespec="seconds") if tail else None
+        except ValueError:
             block["doff_at"] = None
         out.append(block)
     return out
 
 
-_CLIP_MIN_RUN = 5               # the shortest plateau REPORTED. It is a sensitivity knob only, and
-                                # measurably not a specificity one: the clean-stream control yields 0
-                                # regions at min_run 5, 6 and 8 alike, because `rail_value` rejects an
-                                # unqualified rail before this is ever consulted. So raising it buys
-                                # nothing and costs real events.
-                                # ⚠️ IT COSTS DAMAGE, and the curve is why it is 5 and not 8. Magpie
-                                # measured the excursion a pin puts into the bandpassed signal against
-                                # the clean signal's own sd (2026-09-06):
-                                #     len  1 →  5.7x     20 → 40.2x (peak)
-                                #     len  5 → 25.4x     40 → 33.1x
-                                #     len 10 → 38.6x     94 → 22.1x
-                                # A 5-sample pin is a 25x-sd excursion — comparable to a 94-sample one
-                                # at 22x — so a "tidy" raise to 8 silently drops 9 spans on 045318 that
-                                # do real damage. Do not raise this without re-measuring that curve.
-_PLATEAU_LSB = 1                # a rail plateau flickers by one quantisation step, so the region is
-                                # NEAR-constant, not constant. Measured 2026-09-06 on the ring: exact
-                                # equality split one ceiling population into 118 regions at 200 and 81
-                                # at 199 and would have reported one plateau as two findings.
-_RAMP_SAMPLES = 6               # samples either side used to read the approach. One ring beat's rising
-                                # edge at 125 Hz — enough to see monotonicity, short enough not to
-                                # reach the neighbouring beat.
-_HELD_NEAR_DELTA = 0.90         # >= this share of runs on two ADJACENT lengths => a zero-order HOLD,
-                                # not a defect. Measured on the ring's `_ACCRAW.txt` (2026-09-06, three
-                                # sessions / two nights): 99.8 % of runs are 6 or 7, ratio 6.387-6.396,
-                                # because a 1.5625 Hz update is emitted into a 10 Hz record stream.
+_CLIP_MIN_RUN = 5  # the shortest plateau REPORTED. It is a sensitivity knob only, and
+# measurably not a specificity one: the clean-stream control yields 0
+# regions at min_run 5, 6 and 8 alike, because `rail_value` rejects an
+# unqualified rail before this is ever consulted. So raising it buys
+# nothing and costs real events.
+# ⚠️ IT COSTS DAMAGE, and the curve is why it is 5 and not 8. Magpie
+# measured the excursion a pin puts into the bandpassed signal against
+# the clean signal's own sd (2026-09-06):
+#     len  1 →  5.7x     20 → 40.2x (peak)
+#     len  5 → 25.4x     40 → 33.1x
+#     len 10 → 38.6x     94 → 22.1x
+# A 5-sample pin is a 25x-sd excursion — comparable to a 94-sample one
+# at 22x — so a "tidy" raise to 8 silently drops 9 spans on 045318 that
+# do real damage. Do not raise this without re-measuring that curve.
+_PLATEAU_LSB = 1  # a rail plateau flickers by one quantisation step, so the region is
+# NEAR-constant, not constant. Measured 2026-09-06 on the ring: exact
+# equality split one ceiling population into 118 regions at 200 and 81
+# at 199 and would have reported one plateau as two findings.
+_RAMP_SAMPLES = 6  # samples either side used to read the approach. One ring beat's rising
+# edge at 125 Hz — enough to see monotonicity, short enough not to
+# reach the neighbouring beat.
+_HELD_NEAR_DELTA = 0.90  # >= this share of runs on two ADJACENT lengths => a zero-order HOLD,
+# not a defect. Measured on the ring's `_ACCRAW.txt` (2026-09-06, three
+# sessions / two nights): 99.8 % of runs are 6 or 7, ratio 6.387-6.396,
+# because a 1.5625 Hz update is emitted into a 10 Hz record stream.
 
 
 def constant_runs(values, *, min_run: int = 2):

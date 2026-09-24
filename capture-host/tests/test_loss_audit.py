@@ -566,9 +566,9 @@ def test_files_that_cannot_be_judged_say_why_and_never_supply_the_worn_end(tmp_p
         loss_audit, "epoch_stats", lambda p, c: (_ for _ in ()).throw(OSError("eio")) if "231000" in p else real(p, c)
     )
     assert loss_audit.wear_ends(str(d), "H10")["ends"][1]["reason"].startswith("unreadable")
-    assert loss_audit.wear_ends(str(d), "O2Ring-S") == {
+    assert loss_audit.wear_ends(str(d), "CPAP") == {
         "available": False,
-        "reason": "no wear-end rule for model 'O2Ring-S'",
+        "reason": "no wear-end rule for model 'CPAP'",
     }
 
 
@@ -828,3 +828,121 @@ def test_an_acc_row_at_the_next_epochs_first_millisecond_is_not_in_the_final_epo
     _rows(str(p), rows, header=None)
     want = statistics.pstdev([_m.sqrt(x * x + y * y + z * z) for x, y, z in xyz])
     assert abs(loss_audit._final_acc_sd(str(p), start) - want) < 1e-9
+
+
+# ── the ring: two of the device's own witnesses — the PPG2W off-finger tail AND the SpO2 stream stopping there ──
+R0 = dt.datetime(2026, 9, 22, 22, 39, 24)
+RING_HDR = "Phone timestamp;sensor timestamp [ns];channel 0;channel 1;motion\n"
+
+
+def _ring(d, start, worn_s, off_s, spo2_s, per_sec=199):
+    """A ring session opened at `start`: PPG2W worn for `worn_s` then off-finger for `off_s` (per_sec rows each
+    second), and an SpO2 file reading 1 Hz for `spo2_s` seconds from `start`."""
+    stamp = start.strftime("%Y%m%d%H%M%S")
+    with open(d / f"Wellue_O2Ring-S_S8AW2100_{stamp}_PPG2W.txt", "w") as fh:
+        fh.write(RING_HDR)
+        for sec in range(worn_s + off_s):
+            a, b = (1_650_000, 1_500_000) if sec < worn_s else (3_400_000, 150)
+            for k in range(per_sec):
+                t = start + dt.timedelta(seconds=sec + k / per_sec)
+                fh.write(f"{t.isoformat(timespec='milliseconds')};0;{a};{b};0\n")
+    with open(d / f"Wellue_O2Ring-S_S8AW2100_{stamp}_SPO2.csv", "w") as fh:
+        fh.write("Time,Oxygen Level,Pulse Rate,Motion\n")
+        for sec in range(spo2_s):
+            fh.write((start + dt.timedelta(seconds=sec)).strftime("%H:%M:%S %d/%m/%Y") + ",97,58,0\n")
+
+
+def _ring_dir(tmp_path):
+    d = tmp_path / "captures" / "2026-09-22"
+    d.mkdir(parents=True)
+    return d
+
+
+def test_a_ring_doff_is_the_tails_first_second_when_the_spo2_stream_stopped_there(tmp_path):
+    d = _ring_dir(tmp_path)
+    _ring(d, R0, worn_s=120, off_s=40, spo2_s=119)  # SpO2's last row at +118 s; the tail starts at +120 s
+    w = loss_audit.wear_ends(str(d), "O2Ring-S")
+    (e,) = w["ends"]
+    assert e["reason"] == "doff" and e["tail_off"] is True and e["ppg2w_contradicted"] is False
+    assert e["doff_at"] == e["worn_end_at"] == (R0 + dt.timedelta(seconds=120)).isoformat()
+    assert e["end_at"] == (R0 + dt.timedelta(seconds=118)).isoformat()
+    assert e["ppg2w_file"] == "Wellue_O2Ring-S_S8AW2100_20260922223924_PPG2W.txt" and e["ppg2w_unusable"] is None
+    assert w["worn_end"] == {"at": e["worn_end_at"], "reason": "doff", "file": e["file"]}
+
+
+def test_a_ring_tail_the_spo2_stream_contradicts_is_published_and_is_not_a_doff(tmp_path):
+    # 2026-09-11 20:15: the ratio drifted over the band with the finger IN — SpO2 kept reading 202 s past the "doff".
+    d = _ring_dir(tmp_path)
+    _ring(d, R0, worn_s=100, off_s=202, spo2_s=302)
+    _ring(d, R0 + dt.timedelta(seconds=320), worn_s=70, off_s=0, spo2_s=70)  # the next file, 18 s later
+    e = loss_audit.wear_ends(str(d), "O2Ring-S")["ends"][0]
+    assert e["tail_off"] is True and e["ppg2w_contradicted"] is True
+    assert e["reason"] == "link-loss" and e["relink_gap_s"] == 19
+    assert e["worn_end_at"] == e["end_at"] == (R0 + dt.timedelta(seconds=301)).isoformat()
+
+
+def test_ring_end_doff_agreement_bound_is_inclusive_and_absence_is_none():
+    last = dt.datetime(2026, 9, 23, 4, 22, 34)
+    at = lambda s: last + dt.timedelta(seconds=s)  # noqa: E731
+    assert loss_audit.ring_end_doff(True, at(-loss_audit.RING_DOFF_SPO2_AGREE_S), last) is True
+    assert loss_audit.ring_end_doff(True, at(-loss_audit.RING_DOFF_SPO2_AGREE_S - 1), last) is False
+    assert loss_audit.ring_end_doff(True, None, last) is False  # a tail whose second is not a time cannot place a doff
+    assert loss_audit.ring_end_doff(False, at(0), last) is False
+    assert loss_audit.ring_end_doff(None, None, last) is None
+
+
+def test_a_ring_end_without_a_usable_ppg2w_witness_says_which_and_never_calls_a_doff(tmp_path):
+    d = _ring_dir(tmp_path)
+    _ring(d, R0, worn_s=30, off_s=10, spo2_s=40)  # 40 s of PPG2W: under the detector's minute
+    os.remove(d / "Wellue_O2Ring-S_S8AW2100_20260922223924_PPG2W.txt")
+    e = loss_audit.wear_ends(str(d), "O2Ring-S")["ends"][0]
+    assert e["ppg2w_file"] is None and e["ppg2w_unusable"] == "no paired PPG2W file"
+    assert e["tail_off"] is None and e["reason"] == "quiet-end-unclassified" and e["ppg2w_contradicted"] is False
+    _ring(d, R0, worn_s=30, off_s=10, spo2_s=40)
+    e = loss_audit.wear_ends(str(d), "O2Ring-S")["ends"][0]
+    assert e["ppg2w_unusable"] == "under 60 s of rows" and e["tail_off"] is None and e["doff_at"] is None
+
+
+def test_an_spo2_file_with_no_stamped_row_is_not_an_end(tmp_path):
+    d = _ring_dir(tmp_path)
+    (d / "Wellue_O2Ring-S_S8AW2100_20260922223924_SPO2.csv").write_text("Time,Oxygen Level,Pulse Rate,Motion\n")
+    w = loss_audit.wear_ends(str(d), "O2Ring-S")
+    assert w["ends"] == [
+        {"file": "Wellue_O2Ring-S_S8AW2100_20260922223924_SPO2.csv", "usable": False, "reason": "no stamped SpO2 row"}
+    ]
+    assert w["worn_end"] is None
+
+
+def test_the_ring_last_row_is_read_from_the_tail_of_a_long_file(tmp_path):
+    d = _ring_dir(tmp_path)
+    _ring(d, R0, worn_s=0, off_s=0, spo2_s=3000)  # ~90 KB: the last stamp is beyond the first 4 KB
+    assert loss_audit._last_stamp(str(d / "Wellue_O2Ring-S_S8AW2100_20260922223924_SPO2.csv")) == R0 + dt.timedelta(
+        seconds=2999
+    )
+
+
+def test_a_ring_end_pairs_with_the_ppg2w_of_ITS_OWN_session(tmp_path):
+    d = _ring_dir(tmp_path)
+    _ring(d, R0, worn_s=120, off_s=40, spo2_s=119)  # session 1 ends doffed
+    s2 = R0 + dt.timedelta(hours=1)
+    _ring(d, s2, worn_s=90, off_s=0, spo2_s=90)  # session 2: no tail
+    e1, e2 = loss_audit.wear_ends(str(d), "O2Ring-S")["ends"]
+    assert e1["ppg2w_file"] == "Wellue_O2Ring-S_S8AW2100_20260922223924_PPG2W.txt" and e1["tail_off"] is True
+    assert e2["ppg2w_file"] == "Wellue_O2Ring-S_S8AW2100_20260922233924_PPG2W.txt" and e2["tail_off"] is False
+
+
+def test_only_the_ring_pays_for_the_ppg2w_pass(tmp_path, monkeypatch):
+    monkeypatch.setattr(loss_audit.nightqc, "ppg2w_contact_quality", lambda d: pytest.fail("H10 read PPG2W"))
+    assert loss_audit.wear_ends(str(tmp_path), "H10") == {"available": True, "ends": [], "worn_end": None}
+
+
+def test_the_last_stamp_of_a_one_row_file_keeps_its_first_character(tmp_path):
+    p = tmp_path / "one.csv"
+    p.write_text("22:39:24 22/09/2026,97,58,0\n")
+    assert loss_audit._last_stamp(str(p)) == dt.datetime(2026, 9, 22, 22, 39, 24)
+
+
+def test_a_byte_that_is_not_utf8_in_the_tail_does_not_hide_the_last_stamp(tmp_path):
+    p = tmp_path / "bad.csv"
+    p.write_bytes(b"Time,Oxygen Level,Pulse Rate,Motion\n22:39:24 22/09/2026,97,58,\xff\n22:39:25 22/09/2026,97,58,0\n")
+    assert loss_audit._last_stamp(str(p)) == dt.datetime(2026, 9, 22, 22, 39, 25)
