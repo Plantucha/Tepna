@@ -116,6 +116,23 @@ work; UI, storage, security; P1–P4. Deploys and daemon restarts stay owner-aut
 > one, and this section is re-ranked from the re-audited files before any Heron unit is chosen from it.
 > Until then the ranking is a hypothesis about the order, not the order.
 >
+> 🟢 **RE-AUDITED (Wren, 2026-09-24 00:5x, all 28 nights under #2977, code 67c850ca; each previous audit
+> kept beside the new one as `LOSS-AUDIT.prev-2026-09-23.json`; `lost_min` unchanged on every row, only
+> the attribution moved).** Two classes became visible: **`daemon:pull paused live`** (the #2982 churn)
+> **34.4 min over 28 nights, 72 % of it on 08-27** — Verity 0 → 24.9 of 33.3 lost (8.4 still
+> unattributed), 08-28 Verity 0 → 6.9, two small H10 pieces on the battery nights; nothing on 09-18 or
+> 09-19. So #2982 WAS capture work, with one exemplar night, and small elsewhere. **`daemon:clock
+> re-sync`** (the #2459 storm) **154.6 min across 16 device-nights** — H10 09-05 40.6 · 09-04 38.0 ·
+> 08-29 25.5 · 09-12 20.7 · 09-11 8.9 — the instrument now reads what Wren's scan had found by hand
+> (147.3), plus the Verity-side resyncs. Unchanged: 09-03 H10 104.9, 09-12 Verity 127.1 (pre-wear,
+> correct), 09-20/21 H10 battery 210/244.
+>
+> **Re-ranked work order:** every daemon-caused class in the corpus is now attributed to a mechanism
+> already fixed (#2833 battery inference, #2459 resync storm, #2982/#2983 churn) or to correct
+> behaviour. What remains unexplained is small: 08-27 Verity 8.4 min and the Verity's other
+> unattributed minutes. The phase's next capture units therefore come from NEW nights scored by the
+> verdict, not from this table — which is what the exit criterion is for.
+>
 > **08-27 is the box-failure exemplar, not no-wear (Heron, 2026-09-24):** ring 428.3 min recorded, 0.3
 > lost — wear proven — while the Verity got 34.2 min in 17 fragments and lost 33.3 (49 %), every minute
 > `unattributed`, 123 connects, 243 pauses on its address. The first place the re-audit looks.
