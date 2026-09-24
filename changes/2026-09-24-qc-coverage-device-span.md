@@ -55,6 +55,20 @@ span could be bounded — so the alert never quietly depends on a file carrying 
 way. The four new tests use `_cap_timed`, which carries real device stamps — the same fixture-fidelity gap
 that let three tests pass on a full sha where production supplies an abbreviation.
 
+⚠️ **The three new tests first passed in EDT and failed in CI's UTC by exactly 14,400 s.** `_session_of`
+turns the `_YYYYMMDDHHMMSS_` filename stamp into an epoch with `datetime.strptime(...).timestamp()` — a
+NAIVE datetime, so the conversion uses the reader's zone — while `mtime` is an absolute epoch that does
+not move. Pairing a hardcoded epoch with a civil filename stamp is self-consistent only in the zone the
+epoch was chosen in. The fixture now derives the session end from the stamp's own epoch plus the span, so
+it holds in any zone, and the twin is parametrized over `UTC` and `America/New_York` so it cannot pass in
+one zone again. Verified with `TZ=UTC ./check.sh`, which is what CI runs.
+
+⚠️ **A production observation that follows and is NOT fixed here:** because that conversion uses the
+reader's zone, `nightqc.summarize`'s session span is correct on the capture box (reader and writer share
+a zone) and wrong by the zone delta for anyone running it over copied nights elsewhere. On-box behaviour
+is unchanged by this PR; the off-box case is worth a row of its own rather than a silent widening of this
+one.
+
 The in-recording loss is planted and still reads as a loss: a Verity keeping its full span and losing 40 %
 of its rows in one block reads **0.60** with `stopped_early_s = 0`, and a deeper loss still reaches
 `degraded`. A device-span denominator that blinded that case would have traded one artifact for a real
