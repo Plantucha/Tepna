@@ -25,6 +25,17 @@ WHAT IT PINS, and the three are separable on purpose:
      seconds. The test asserts the lock AGE, not just the survival — the age is the reason, and a
      bare survival assertion would pass for the wrong reason on a box that happened to be idle.
 
+⚠️ WHAT THIS FILE DOES NOT COVER, STATED SO IT IS NOT MISREAD AS COVERAGE. Every session here is
+a plain `pytest` subprocess. It does NOT go through mutmut's runner, and there is a measured
+tool-level effect it therefore cannot see: Wren's A/B over one real glob (350 decided mutants, same
+tree, only the policy varied) found `all` and `failed` per-mutant IDENTICAL, while `none` converted
+**29 survivors into kills** — concentrated in a single function, which looks like one fixture rather
+than a diffuse cascade. That mechanism is NOT reproduced below and is not claimed to be. Anyone
+asking "can the retention policy fake a kill?" must read that A/B; this file answers only "can a
+sweep's sessions reap each other's directories", which is a different question that four of us spent
+an evening conflating with it. A probe that quietly widened its own scope would be the exact defect
+it exists to prevent.
+
 🔴 AND IT CARRIES ITS OWN POSITIVE CONTROL. Six cells of zeros from an instrument nobody proved
 could see a reaping are worth nothing. `test_the_probe_can_see_a_reaping` deletes a live session's
 basetemp from outside and REQUIRES the probe to report it; if that test ever fails, every negative
@@ -207,3 +218,74 @@ def test_the_probe_can_see_a_reaping(tmp_path):
         or not out.exists()
         or json.loads(out.read_text()).get("sentinel_survived") is False
     ), "THE PROBE IS BLIND — it did not notice its own directory being removed, so every negative in this file is void"
+
+
+# ── The policy's PER-TEST semantics, which are the opposite of how everyone read them ────────────
+PERTEST_SRC = """
+import json, os
+from pathlib import Path
+
+SEEN = {}
+
+def test_a(tmp_path):
+    (tmp_path / "f").write_text("a")
+    SEEN["a"] = tmp_path
+
+def test_b(tmp_path):
+    Path(os.environ["RACE_OUT"]).write_text(json.dumps(
+        {"earlier_test_dir_still_there": SEEN["a"].exists()}))
+"""
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize(
+    "policy,earlier_dir_survives",
+    [("all", True), ("failed", False), ("none", True)],
+)
+def test_retention_policy_is_per_test_and_failed_is_the_AGGRESSIVE_one(tmp_path, policy, earlier_dir_survives):
+    """`failed` deletes a passing test's dir IMMEDIATELY, mid-session. `none` does not.
+
+    🔴 THIS IS BACKWARDS FROM HOW FOUR SESSIONS READ IT, INCLUDING ME. The names invite
+    "all keeps everything, failed keeps failures, none keeps nothing, so `none` is the most
+    destructive during a run" — and every hazard argument on 2026-09-24 was built on that. Measured,
+    the order is inverted: under `failed` an earlier passing test's `tmp_path` is ALREADY GONE by the
+    time a later test in the same session runs, while under `none` it is still there. `none` retains
+    through the session and cleans up at the end; `failed` cleans up per test, as each one passes.
+
+    Why it is pinned rather than written in a comment: a test whose fixture reads a DIRECTORY and
+    treats an absent one as empty — `nightqc.ppg2w_contact_quality(str(tmp_path))`, whose suite
+    asserts `(tmp_path / "absent") == []` — is exactly the shape that a mid-session deletion turns
+    from a real observation into a vacuous one, and which policy does that is not guessable from the
+    name. Wren's A/B over 350 mutants found `all` and `failed` per-mutant IDENTICAL while `none`
+    converted 29 survivors into kills, so the tool-level consequence does NOT follow the per-test
+    semantics either. Both facts are counterintuitive and both are now measured rather than argued.
+    """
+    sf = tmp_path / "test_pertest_session.py"
+    sf.write_text(PERTEST_SRC)
+    out = tmp_path / "pertest.json"
+    env = dict(os.environ, RACE_OUT=str(out), TMPDIR=str(tmp_path / "tmproot"))
+    (tmp_path / "tmproot").mkdir()
+    subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "-q",
+            "-p",
+            "no:cacheprovider",
+            "-o",
+            f"tmp_path_retention_policy={policy}",
+            str(sf),
+        ],
+        capture_output=True,
+        text=True,
+        env=env,
+        cwd=tmp_path,
+    )
+    assert out.exists(), "the probe session did not run"
+    got = json.loads(out.read_text())["earlier_test_dir_still_there"]
+    assert got is earlier_dir_survives, (
+        f"policy={policy}: earlier test's tmp_path present={got}, expected "
+        f"{earlier_dir_survives}. pytest changed its retention semantics — every hazard argument "
+        "that cites this file needs re-reading before it is quoted again."
+    )
