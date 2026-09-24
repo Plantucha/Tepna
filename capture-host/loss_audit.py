@@ -29,8 +29,11 @@ from __future__ import annotations
 import bisect
 import datetime as _dt
 import glob
+import itertools
+import math
 import os
 import re
+import statistics
 import subprocess
 
 import nights_index as _ni
@@ -195,6 +198,253 @@ def _has_worn_evidence(night_dir: str, model: str) -> bool | None:
     return False
 
 
+# ── WEAR ENDS — WHY EACH H10 / VERITY FILE ENDED, AND WHERE THE WORN INTERVAL STOPS ─────────────────
+# The loss ledger above says whether a stream had GAPS. It cannot say whether the device was WORN: on
+# 2026-09-23 the H10 came off at 04:21:47 and streamed an empty strap (HR 82→172 bpm, ACC flat) for 27½
+# min with 0.0 lost; on 2026-09-22 the same for 102 min — that window held 2 766 of the night's 2 767
+# "PVCs" (#3001). File span is therefore not the worn interval, and this block reports the interval's END
+# per device with a NAMED reason, never a bare boolean:
+#   `doff`                    the device's own signal shows the removal (H10: an off-body tail; Verity: the
+#                             removal burst in the final epoch)
+#   `link-loss`               no removal signature, and the same stream's next file starts within
+#                             WEAR_RELINK_S — the external label the thresholds below were validated against
+#   `quiet-end-unclassified`  neither: no signature and no reconnect. Stated, not guessed.
+# Reported, gated by NOTHING (the ring's `ppg2w_contact` precedent): a night the wearer ended early is not
+# a capture failure. The ring's end is that block's `doff_at`, in nightqc.
+#
+# MEASURED vs CHOSEN, with the derivation AND the held-out record — including every miss — so the next miss
+# is read against this record rather than re-tuned around (Wren, 2026-09-24; survey + pre-registrations in
+# the measurer's notes on the box, thresholds frozen BEFORE the held-out nights were read):
+#
+#   H10 — epoch = 10 s, clock-aligned; rel = epoch ECG sd / the FILE's own median epoch ECG sd.
+#   tail_off := the file's trailing run of rel >= H10_TAIL_REL_MIN is >= H10_TAIL_RUN_EPOCHS long.
+#   H10_TAIL_REL_MIN = 5      CHOSEN between the worn upper edge (p99 1.2–2.2x, runs to 3x) and the off-body
+#                             MINIMUM, 9.8x (n = 10 tails): sqrt(2.2 x 9.8) = 4.6, rounded up.
+#   H10_TAIL_RUN_EPOCHS = 6   CHOSEN: 2 above the longest SUSTAINED worn run at >= 5x in derivation (4 epochs,
+#                             2026-09-03 19:19).
+#   derivation 2026-08-25..09-10, 26 files: off-body tails caught 9/10 — the miss, 2026-09-06 00:07, had a
+#     4-epoch (40 s) tail: out of range before any sustained run could exist, a limit of every sustained
+#     rule. Worn runs reaching 6 epochs: 0/26.
+#   HELD-OUT 2026-09-11..09-23, 17 files: the one labelled night (09-23) flagged, doff 04:21:47 against a
+#     pre-registered 04:21:40–04:22:40. ⚠️ THE MARGIN ON RUN LENGTH IS ZERO: one held-out file (2026-09-13
+#     21:35) has a WORN run of exactly 6 epochs mid-file. It is not a false TAIL (only the trailing run is
+#     read), but a worn run of 6 at a file's end would be called a doff. `max_worn_run` is published on
+#     every block so the margin is visible night by night — do not raise the run length on one new miss;
+#     re-derive on a fresh held-out set.
+#   ACC stillness is NOT a condition: off-body tails read 0.8–1.7 mG sd, a still sleeping body's p10 is
+#     1.2–4.7 mG. They overlap.
+#
+#   VERITY — why neither live vote is used: `optical_worn` (median |ambient| < 5000) is blind in a dark room
+#   (2026-09-23's removal moved ambient -185 → -98), and `pulse_prominence` refuses under 4096 samples (74 s
+#   at 55 Hz) while the Verity stops streaming ~10 s after removal, so any prominence window at the end is
+#   mostly worn signal.
+#   ⚠️ THE WINDOW IS BINDING: the FINAL EPOCH is the last CLOCK-ALIGNED 10-s bin (floor of the phone stamp's
+#   seconds-of-day / 10) holding at least half the file's median epoch fill. On 2026-09-23 this window gives
+#   an ambient ratio of 3.2; a trailing-10-s window ending at the last row gave 20.6 on the same file. The
+#   verdict held under both; the value did not, and the thresholds were validated on the clock-aligned one.
+#   doff := final ambient-sd ratio (vs the file's median epoch) >= VERITY_END_AMB_RATIO_MIN
+#           OR final-epoch ACC |a| sd >= VERITY_END_ACC_SD_MIN
+#   VERITY_END_AMB_RATIO_MIN = 1.5   CHOSEN between the link-loss ends' max (1.11) and the dark-room doff min (1.84)
+#   VERITY_END_ACC_SD_MIN = 150      CHOSEN between the link-loss ends' max (23.3 mG) and the motion-only doff
+#                                    min (170.4 mG). Worn p99 50.8, p99.9 257 — turning in bed; the label, not
+#                                    motion, is what a link loss is judged by.
+#   label = the gap to the stream's next file: > 1 h ended for the night, < 30 min link loss.
+#   derivation 2026-08-25..09-10, 27 ends: night-ends called doff 14/15 — miss 2026-08-28 06:18 (ambient
+#     0.98, ACC 2.2: no removal signature; a quiet end). Link-loss ends called doff 0/12.
+#   HELD-OUT 2026-09-11..09-23, 18 ends: night-ends 13/14, link-loss ends 0/4. The miss, 2026-09-19 06:04
+#     (ambient 0.96, ACC 139.5 mG), sits against a LINK-LOSS end the same night at 20:27 with ACC 131.8 mG:
+#     motion alone cannot separate them and no threshold on it would. A feature limit, stated, not tuned.
+WEAR_EPOCH_S = 10  # an INT: epoch keys and starts are integer arithmetic end to end
+H10_TAIL_REL_MIN = 5.0
+H10_TAIL_RUN_EPOCHS = 6
+H10_MIN_EPOCHS = 60  # the derivation's floor: under 10 min there is no file baseline to judge against
+VERITY_END_AMB_RATIO_MIN = 1.5
+VERITY_END_ACC_SD_MIN = 150.0
+VERITY_MIN_EPOCHS = 30  # the derivation's floor for a Verity file
+WEAR_RELINK_S = 1800.0  # the label: a next file within 30 min is a reconnect
+_ACC_TAIL_BYTES = 262_144  # the final epoch's ACC rows sit in the last ~25 KB at 52 Hz; 256 KB is generous
+_ACC_MIN_ROWS = 50  # fewer ACC rows in the final epoch is not a motion measurement
+_WEAR_STREAM = {"H10": ("Polar_H10_*_ECG.txt", [3]), "VeritySense": ("Polar_VeritySense_*_PPG.txt", [5])}
+_STAMP_IN_NAME = re.compile(r"_(\d{14})_")
+
+
+def h10_tail(epoch_sd: list[float]) -> dict | None:
+    """The off-body tail rule over one file's epoch ECG sds, in order. PURE. `None` when the file is too short
+    to have a baseline, or has no variance to judge against — never a tail_off=False it did not measure."""
+    n = len(epoch_sd)
+    if n < H10_MIN_EPOCHS:
+        return None
+    med = statistics.median(epoch_sd)
+    if not med > 0:
+        return None
+    rel = [s / med for s in epoch_sd]
+    trail = sum(1 for _ in itertools.takewhile(lambda r: r >= H10_TAIL_REL_MIN, reversed(rel)))
+    best = cur = 0
+    for r in rel[: n - trail]:
+        cur = cur + 1 if r >= H10_TAIL_REL_MIN else 0
+        best = max(best, cur)
+    return {"epochs": n, "trailing_off_epochs": trail, "tail_off": trail >= H10_TAIL_RUN_EPOCHS, "max_worn_run": best}
+
+
+def verity_end_doff(final_amb_ratio: float | None, final_acc_sd: float | None) -> bool | None:
+    """The Verity final-epoch rule. PURE. `None` only when neither feature was measured."""
+    if final_amb_ratio is None and final_acc_sd is None:
+        return None
+    amb = final_amb_ratio is not None and final_amb_ratio >= VERITY_END_AMB_RATIO_MIN
+    acc = final_acc_sd is not None and final_acc_sd >= VERITY_END_ACC_SD_MIN
+    return amb or acc
+
+
+def end_reason(doff: bool | None, relink_gap_s: float | None) -> str:
+    """The named reason for one file end. PURE: the device's own evidence first, the reconnect label second."""
+    if doff:
+        return "doff"
+    if relink_gap_s is not None and relink_gap_s <= WEAR_RELINK_S:
+        return "link-loss"
+    return "quiet-end-unclassified"
+
+
+def epoch_stats(path: str, cols: list[int]) -> tuple[list[tuple[_dt.datetime, int, float]], _dt.datetime | None]:
+    """One capture file → clock-aligned WEAR_EPOCH_S epochs [(start, rows, sd)] and the last row's stamp.
+    Streaming (a running Welford mean/M2 per epoch), because an H10 ECG file is ~300 MB. Three columns are
+    read as a vector magnitude (ACC). An epoch holding under half the file's median fill is dropped — a
+    torn edge is not a measurement. Keys are absolute (day ordinal x 86400 + seconds of day), so a file that
+    crosses midnight bins on one clock without a per-file origin."""
+    bins: dict[int, list[float]] = {}
+    width = max(cols)
+    with open(path, "rb") as fh:
+        for raw in fh:
+            parts = raw.decode("utf-8", "replace").split(";")
+            stamp = parts[0]
+            if len(parts) <= width or len(stamp) < 19:
+                continue  # the header, a row missing its value column, a stamp without a time: not samples
+            try:
+                vals = [float(parts[c]) for c in cols]
+                day = _dt.date.fromisoformat(stamp[:10]).toordinal()
+                sec = int(stamp[11:13]) * 3600 + int(stamp[14:16]) * 60 + float(stamp[17:23])
+            except ValueError:
+                continue  # a torn row at a live file's tail, a repeated header — skipped, not fatal
+            v = vals[0] if len(vals) == 1 else math.sqrt(sum(x * x for x in vals))
+            key = int(day * 86400 + sec) // WEAR_EPOCH_S
+            b = bins.get(key)
+            if b is None:
+                bins[key] = [1, v, 0.0]
+            else:
+                b[0] += 1
+                delta = v - b[1]
+                b[1] += delta / b[0]
+                b[2] += delta * (v - b[1])
+            last = stamp[:23]
+    if not bins:
+        return [], None
+    fill = statistics.median(b[0] for b in bins.values())
+    out = []
+    for key in sorted(bins):
+        n, _mean, m2 = bins[key]
+        if n < 0.5 * fill or n < 2:
+            continue
+        day, sod = divmod(key * WEAR_EPOCH_S, 86400)
+        start = _dt.datetime.fromordinal(day) + _dt.timedelta(seconds=sod)
+        out.append((start, int(n), math.sqrt(m2 / n)))
+    return out, _dt.datetime.fromisoformat(last)
+
+
+def _final_acc_sd(acc_path: str, start: _dt.datetime) -> float | None:
+    """|a| sd over the ACC rows inside one epoch [start, start + WEAR_EPOCH_S), read from the file's TAIL."""
+    if not os.path.exists(acc_path):
+        return None
+    lo = start.isoformat(timespec="milliseconds")
+    hi = (start + _dt.timedelta(seconds=WEAR_EPOCH_S)).isoformat(timespec="milliseconds")
+    mags = []
+    with open(acc_path, "rb") as fh:
+        fh.seek(max(0, os.path.getsize(acc_path) - _ACC_TAIL_BYTES))
+        for raw in fh.read().decode("utf-8", "replace").splitlines():
+            parts = raw.split(";")
+            if len(parts) < 5 or not (lo <= parts[0] < hi):
+                continue
+            try:
+                mags.append(math.sqrt(sum(float(parts[c]) ** 2 for c in (2, 3, 4))))
+            except ValueError:
+                continue  # a torn ACC row is skipped, never counted as motion
+    return statistics.pstdev(mags) if len(mags) > _ACC_MIN_ROWS else None
+
+
+def _relink_gap(night_dir: str, pattern: str, end: _dt.datetime) -> float | None:
+    """Seconds from `end` to the next file of the same stream — this night's folder and the next day's."""
+    try:
+        nxt_day = (
+            _dt.datetime.strptime(os.path.basename(night_dir.rstrip("/")), "%Y-%m-%d") + _dt.timedelta(days=1)
+        ).strftime("%Y-%m-%d")
+        dirs = [night_dir, os.path.join(os.path.dirname(night_dir.rstrip("/")), nxt_day)]
+    except ValueError:
+        dirs = [night_dir]
+    starts = []
+    for d in dirs:
+        for f in glob.glob(os.path.join(d, pattern)):
+            m = _STAMP_IN_NAME.search(os.path.basename(f))
+            if m:
+                starts.append(_dt.datetime.strptime(m.group(1), "%Y%m%d%H%M%S"))
+    later = [s for s in starts if s > end - _dt.timedelta(seconds=5)]
+    return (min(later) - end).total_seconds() if later else None
+
+
+def _wear_end(path: str, night_dir: str, model: str) -> dict:
+    pattern, cols = _WEAR_STREAM[model]
+    base = os.path.basename(path)
+    ep, last = epoch_stats(path, cols)
+    floor = H10_MIN_EPOCHS if model == "H10" else VERITY_MIN_EPOCHS
+    if len(ep) < floor or last is None:
+        return {"file": base, "usable": False, "reason": f"under {floor} epochs of {WEAR_EPOCH_S:.0f} s"}
+    gap = _relink_gap(night_dir, pattern, last)
+    if model == "H10":
+        t = h10_tail([e[2] for e in ep])
+        if t is None:
+            return {"file": base, "usable": False, "reason": "no ECG variance to judge a tail against"}
+        doff = t["tail_off"]
+        worn_end = ep[len(ep) - t["trailing_off_epochs"]][0] if doff else last
+        detail = t
+    else:
+        med = statistics.median(e[2] for e in ep)
+        final = ep[-1]
+        amb = final[2] / med if med > 0 else None
+        acc = _final_acc_sd(path[: -len("_PPG.txt")] + "_ACC.txt", final[0])
+        doff = verity_end_doff(amb, acc)
+        worn_end = last  # the Verity stops ~10 s after removal: the removal IS the final epoch
+        detail = {
+            "epochs": len(ep),
+            "final_epoch_at": final[0].isoformat(timespec="seconds"),
+            "final_amb_ratio": None if amb is None else round(amb, 2),
+            "final_acc_sd": None if acc is None else round(acc, 1),
+        }
+    return {
+        "file": base,
+        "usable": True,
+        "end_at": last.isoformat(timespec="seconds"),
+        "worn_end_at": worn_end.isoformat(timespec="seconds"),
+        "reason": end_reason(doff, gap),
+        "relink_gap_s": None if gap is None else round(gap),
+        **detail,
+    }
+
+
+def wear_ends(night_dir: str, model: str) -> dict:
+    """Every H10 / Verity file end in the night with its named reason, and the device's worn-interval END —
+    the latest usable end. A model without a rule says so in words, never a bare null."""
+    spec = _WEAR_STREAM.get(model)
+    if spec is None:
+        return {"available": False, "reason": f"no wear-end rule for model {model!r}"}
+    ends = []
+    for f in sorted(glob.glob(os.path.join(night_dir, spec[0]))):
+        try:
+            ends.append(_wear_end(f, night_dir, model))
+        except OSError as exc:
+            ends.append({"file": os.path.basename(f), "usable": False, "reason": f"unreadable: {exc!r}"})
+    usable = [e for e in ends if e["usable"]]
+    last = max(usable, key=lambda e: e["end_at"]) if usable else None
+    worn_end = {"at": last["worn_end_at"], "reason": last["reason"], "file": last["file"]} if last else None
+    return {"available": True, "ends": ends, "worn_end": worn_end}
+
+
 def audit_night(night_dir: str, devices: list[dict], *, journal=read_journal) -> dict:
     """The LOSS-AUDIT.json body: per device, the primary stream's gaps by cause, span, and whether the
     device's own evidence says it was worn that night."""
@@ -242,6 +492,8 @@ def audit_night(night_dir: str, devices: list[dict], *, journal=read_journal) ->
             "worn_evidence": worn,
             "worn_lost_min": round(lost, 1) if worn else (0.0 if worn is False else None),
             "daemon_caused_min": round(sum(v for k, v in by_cause.items() if k.startswith("daemon:")), 1),
+            # where the WORN interval ends, per device, with its reason — gaps above are not wear
+            "wear": wear_ends(night_dir, model),
         }
     return out
 

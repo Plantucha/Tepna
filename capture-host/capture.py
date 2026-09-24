@@ -2352,6 +2352,57 @@ _NOT_WORN_RECHECK_S = 90.0          # how often to reconnect-and-check once drop
 _WORN_SINCE: dict[str, float] = {}  # addr -> monotonic ts contact went False (absent = worn/unknown)
 
 
+# addr -> (worn, why, monotonic of the last row written). The worn decision is published to live STATUS
+# on every evaluation, and STATUS is a snapshot the next write erases — so which vote held for the 27.5
+# min of not-worn on 2026-09-23, and the 102 min on 2026-09-22, is readable nowhere. This is the state
+# that record is written from; see `writers.append_worn_decision`.
+_WORN_RECORD: dict = {}
+# A cadence row every minute per device. The cost is the reason it is a minute and not ten seconds:
+# 8 h x 3 devices at ~125 B a row is ~180 KB a night, against ~1.8 MB at a 10 s cadence and against the
+# gigabytes of samples beside it. Finer buys nothing — the quantity is a VERDICT that changes a handful
+# of times a night, and the cadence rows exist to prove it was still being watched, not to sample it.
+_WORN_RECORD_EVERY_S = 60.0
+
+
+def record_worn_decision(root, device, addr, worn, why, votes, now_mono) -> str | None:
+    """Write the worn decision if it earns a row, and return the trigger that earned it (or None).
+
+    ⚠️ MODULE LEVEL, AND THAT IS NOT A STYLE CHOICE. Inside `run_polar` the name `writers` is a LOCAL
+    dict of open StreamWriters, shadowing the module of the same name — so a `writers.append_*` call
+    written there raises `'dict' object has no attribute ...`, is swallowed by the notification handler's
+    own `except Exception`, and takes the rest of that callback with it. Measured while building this:
+    the PPI file stopped being written entirely, and the only symptom was a `link error` line. The
+    module's own scope has no such shadow, so the call lives here and the runner calls this.
+
+    Owns `_WORN_RECORD` so the cadence state and the write cannot drift apart."""
+    trig = worn_record_trigger(_WORN_RECORD.get(addr), worn, why, now_mono, _WORN_RECORD_EVERY_S)
+    if trig:
+        writers.append_worn_decision(root, _now(), device, addr, worn, why, trig, votes)
+        _WORN_RECORD[addr] = (worn, why, now_mono)
+    return trig
+
+
+def worn_record_trigger(prev, worn, why, now_mono, every_s):
+    """PURE: `"change"`, `"cadence"`, or None — whether this decision earns a row, and which kind.
+
+    A CHANGE is the event. A CADENCE row is the proof that the state was still being observed between
+    events: without it, a verdict that legitimately held for four hours and a daemon that stopped
+    evaluating produce the same file, and the second is the failure worth catching.
+
+    `why` participates in the comparison, not just `worn`: the same verdict reached by a different vote
+    is a different fact about the night, and it is exactly the fact this record exists to preserve — a
+    device that goes from `worn per contact, hr-beats` to `worn per hr-beats` has lost a detector while
+    the published boolean never moves."""
+    if prev is None:
+        return "change"
+    if prev[0] is not worn or prev[1] != why:
+        return "change"
+    if now_mono - prev[2] >= every_s:
+        return "cadence"
+    return None
+
+
+
 def should_drop_not_worn(worn_since, now, grace, pull_in_flight: bool = False,
                          can_charge: bool | None = True) -> bool:
     """PURE: has a strap been continuously not-worn long enough to drop for power? False when the feature
@@ -3316,7 +3367,7 @@ async def run_polar(dev: dict, root: str):
                 # ~2900 identical lines a night and bury the one that matters.
                 _worn_conflict_said = False
 
-                def _publish_worn(worn: bool | None, why: str) -> None:
+                def _publish_worn(worn: bool | None, why: str, votes=None) -> None:
                     """One publish path for every source of `worn`, so the power bookkeeping cannot
                     diverge between them. The `_WORN_SINCE` handling mirrors the HR branch exactly: set
                     ONCE on the first not-worn and left alone, because `should_drop_not_worn` measures
@@ -3341,6 +3392,12 @@ async def run_polar(dev: dict, root: str):
                         _WORN_SINCE.pop(addr, None)
                     elif addr not in _WORN_SINCE:
                         _WORN_SINCE[addr] = _time.monotonic()
+                    # THE RECORD, taken here because this is the ONE publish path — the same reason the
+                    # power bookkeeping lives here. Written AFTER the publish and feeding nothing back:
+                    # `should_drop_not_worn` reads `_WORN_SINCE`, set above and untouched by any of this.
+                    # `votes` is the same mapping handed to `worn_verdict`, so the row cannot disagree
+                    # with the decision it describes.
+                    record_worn_decision(root, name, addr, worn, why, votes, _time.monotonic())
 
                 # PMD data handler — one char carries all PMD streams; route by measurement type.
                 def on_pmd(_sender, data: bytearray):
@@ -3519,10 +3576,12 @@ async def run_polar(dev: dict, root: str):
                         # which is why they are separate detectors and not one widened threshold.
                         # `stream_fs` is what the device actually AGREED to, not what the config asked
                         # for, and only the agreed number describes these samples.
-                        _worn, _why = worn_verdict(
+                        # ONE dict, used for the decision AND for the record, so the two cannot drift.
+                        _votes = dict(
                             ppi_flags=_ppi_flags, ambient=list(_amb), fs=stream_fs.get(pmd.PPG),
                             charging=STATUS["devices"].get(name, {}).get("charging"),
                             ppg=list(_ppg_win))
+                        _worn, _why = worn_verdict(**_votes)
                         _amb.clear()
                         if _has_contact_bit:
                             # A contact bit owns `worn`. Publish the optical opinion ALONGSIDE it and
@@ -3543,7 +3602,7 @@ async def run_polar(dev: dict, root: str):
                         else:
                             # Published unconditionally, INCLUDING None. See _publish_worn: skipping the
                             # publish is what let a stale `True` survive ten hours of desk streaming.
-                            _publish_worn(_worn, _why)
+                            _publish_worn(_worn, _why, _votes)
                     # Live push — RAW, per-stream shape (no on-box DSP):
                     key, hz = _live_key(pmd.MEAS_NAME[meas], tag), stream_fs.get(meas) or pmd.SAMPLE_HZ.get(meas)
                     # The frame's LAST sample on the DEVICE's own counter. `effFs` is measured off this
@@ -3613,11 +3672,12 @@ async def run_polar(dev: dict, root: str):
                         # A heartbeat in the same packet outvotes a contact bit that says not-worn
                         # (telemetry.hr_beats): 2026-09-20 the strap read contact=0 for 6 h while
                         # reporting 48–77 bpm, and the 180 s drop cut the link 131 times.
-                        _publish_worn(*worn_verdict(
+                        _votes = dict(
                             contact=contact,
                             beats=hr_beats(bpm, len(rr)),
                             charging=STATUS["devices"].get(name, {}).get("charging"),
-                            charging_why=STATUS["devices"].get(name, {}).get("charging_why")))
+                            charging_why=STATUS["devices"].get(name, {}).get("charging_why"))
+                        _publish_worn(*worn_verdict(**_votes), votes=_votes)
                     if rr:                        # raw RR intervals to the monitor (no HRV computed on-box)
                         BUS.push(_live_key("hr", tag), [float(x) for x in rr], 0)
                     if bpm:
