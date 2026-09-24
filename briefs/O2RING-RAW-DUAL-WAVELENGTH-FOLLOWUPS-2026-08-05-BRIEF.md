@@ -324,20 +324,23 @@ raw signed 24-bit AFE channels (§1), can.
 
 The facts are stated here; no code is reproduced (the upstream has no licence).
 
-1. **The wave is u8 with exactly ONE special value.** The SDK replaces every **156** with the average of
-   its neighbours (at an edge it copies the one neighbour it has) before handing the wave to the app.
-   **No other value is treated as special.** 0, 100 and 199/200 pass through unmodified. So the vendor's
+1. **The wave is u8 with exactly ONE special value.** That the SDK replaces every **156** with the mean
+   of its neighbours is already recorded in `DEVICE-RATE-TRUTH-2026-08-05-BRIEF.md` (vendor corroboration,
+   `doad/Cthrow.java:44`). What this section adds is the negative: **no other value is treated as
+   special.** 0, 100 and 199/200 pass through unmodified. So the vendor's
    own app draws the 0/199 excursions and the flat 100 as signal: **the vendor defines no in-band
    invalid value for the pleth.** This confirms, from the vendor side, that `PPG_INVALID` (156) is a
-   marker the app smooths over and not a blanking code.
+   marker the app smooths over and not a blanking code. The SDK smooths **every** 156, isolated or not.
+   That is a vendor-side data point for `RESIDUE.md` `2026-09-06-marker-isolation-heuristic-unvalidated`,
+   offered as a pointer only: it does not score that heuristic.
 2. **The app plots the wave inverted** (displayed = 127 − byte). That is a display fact only, and it
    gives 100 no special meaning.
 3. **Validity travels out-of-band in the vendor's own design.** The 1 Hz real-time parameter reply
-   carries `sensorState` and `runStatus` fields beside SpO₂, PR, PI and motion. That is the §∅ sidecar
-   pattern (validity beside the data, never inside it), and Tepna's contact byte is the same kind of
-   signal, joined to span rows since #2685. *Not verified here:* whether Tepna's contact byte
-   (`oxyii.py:680`) is the same byte as the SDK's `sensorState`. Settling that is a one-frame check if
-   anyone needs it.
+   carries `runStatus` `[4]` and `sensorState` `[5]` beside SpO₂, PR, PI and motion. The mapping, with
+   the enum `sensorState` 0 no finger · 1 normal · 2 probe pulled out · 3 sensor/probe fault, is already
+   verified in `O2RING-PROTOCOL-2026-07-17-BRIEF.md`. **Tepna's contact byte IS `sensorState`**
+   (`oxyii.py:680` reads `payload[5]`), and #2685 joins it to span rows. That is the §∅ sidecar pattern
+   (validity beside the data, never inside it), and the vendor built it in.
 4. The legacy (non-OxyII) oxy parser in the same AAR also smooths **246**. **246 occurs 0 times** in
    the four 2026-09-19 `S8AW2100` `_PPG.txt` files (156: 912–21,100 per file), so on this ring it is
    inert. It is recorded here so a future ring that emits it is recognised as a marker and not read as a
@@ -386,13 +389,13 @@ all) is the nearest substitute and is labelled as such.
 `_PPG` run lengths are counted with the `156` marker excluded, as in 09-19 §B. "Row" means a `stuck`
 row in the sidecar at `min_run` = `T_STUCK` = 200.
 
-| seg | `_PPG` (value / longest run / sidecar row?) | `PPG2W` | `ACCRAW` | contact |
+| seg | `_PPG` (value / longest run / sidecar row?) | `PPG2W` | `ACCRAW` | `sensorState` |
 |---|---|---|---|---|
-| S0 | modal ~100–120, longest run < 60, **no row** | no constant run ≥ 5, pulsatile | held 6/7, max run < 50 | worn |
-| S1 | **≥ 1 run @ 100 of ≥ 200 → a row with `bracket=varied/varied`** | **≥ 1 channel pinned near a rail (constant run ≥ 5), the first in the corpus** | held; tap transients only | **worn** |
-| S3 | pulsatility collapses toward 100; runs @ 100 up to ~100 samples, **no row**; short 0/199 runs present | AC reduced but present, no constant run ≥ 5 | held | worn |
-| S5 | one run @ 100 for the whole post-reconnect window (≈ 15,000), **a row, `closed=0`** | no pulsatile component; low variance near the channels' offset; no run ≥ 200 | **≥ 1 run ≥ 200 (first ever): a ring lying still on a table** | **not worn** |
-| S6 | as S5 (reproduces 09-19) | as S5, but variance ABOVE S5's (ambient light reaches the photodiode) | as S5 | not worn |
+| S0 | modal ~100–120, longest run < 60, **no row** | no constant run ≥ 5, pulsatile | held 6/7, max run < 50 | 1 |
+| S1 | **≥ 1 run @ 100 of ≥ 200 → a row with `bracket=varied/varied`** | **≥ 1 channel pinned near a rail (constant run ≥ 5), the first in the corpus** | held; tap transients only | **1** (the ring believes it is worn) |
+| S3 | pulsatility collapses toward 100; runs @ 100 up to ~100 samples, **no row**; short 0/199 runs present | AC reduced but present, no constant run ≥ 5 | held | 1 |
+| S5 | one run @ 100 for the whole post-reconnect window (≈ 15,000), **a row, `closed=0`** | no pulsatile component; low variance near the channels' offset; no run ≥ 200 | **≥ 1 run ≥ 200 (first ever): a ring lying still on a table** | **0** |
+| S6 | as S5 (reproduces 09-19) | as S5, but variance ABOVE S5's (ambient light reaches the photodiode) | as S5 | 0 |
 
 **The decision the whole capture exists for is S1:**
 
