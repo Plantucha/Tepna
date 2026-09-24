@@ -9616,12 +9616,12 @@ async def heap_probe(cfg: dict, root: str):
     OFF by default; arming is the owner's restart. Every snapshot is written as it is taken rather than
     at the end, so a daemon that restarts mid-window leaves the rows it did reach instead of nothing."""
     hcfg = cfg.get("heap_probe") or {}
-    # `.get("enabled")` with NO literal default, like every other default-OFF section here (seal,
-    # archive, cpap, as11_detector). `test_schema_defaults_match_the_daemon_fallbacks` scans capture.py
-    # for `.get("leaf", <literal>)` keyed on the LEAF ALONE, so a literal `False` here joins the same
-    # set as `watchdog.enabled`'s `True` and reds that test — naming `watchdog`, which the author of a
-    # heap probe has not touched. Absent ⇒ falsy ⇒ off, which is the same behaviour without the trap.
-    if not hcfg.get("enabled"):
+    # The literal is WRITTEN OUT, not left implicit, so the schema scan can compare it against
+    # `settings_schema.SETTINGS["heap_probe.enabled"]`. It had to be dropped when that scan was keyed on
+    # the bare leaf — a literal `False` here joined `watchdog.enabled`'s `True` and red that test while
+    # naming watchdog — and dropping it removed this section from the scan's reach entirely. The scan is
+    # now attributed by section, so the default can be stated where a reader and a gate both see it.
+    if not hcfg.get("enabled", False):
         log.info("heap probe: OFF — heap_probe.enabled is false")
         return
     import tracemalloc

@@ -6,8 +6,8 @@
 # itself out of its own radio, web surface or storage with no way back except editing the file by hand.
 # So these tests are about the boundary (what may be written, and within what range), not about coverage.
 
+import ast
 import math
-import re
 
 import pytest
 
@@ -155,23 +155,139 @@ def test_every_declared_default_is_a_valid_value_for_its_own_setting():
         assert coerce(key, dflt) == dflt, f"{key}'s default is not accepted by its own validator"
 
 
+# How many schema defaults the source scan can currently reach and verify. See the equality below.
+SOURCE_CHECKED_PATHS = 16   # 11 before heap_probe's five keys joined (#2999); see the equality below
+
+
+def _cfg_section_of(node):
+    """`cfg.get("sec")`, `cfg.get("sec") or {}`, `cfg.get("sec", {})` -> "sec"; anything else -> None."""
+    if isinstance(node, ast.BoolOp) and isinstance(node.op, ast.Or):
+        node = node.values[0]
+    if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "get" and isinstance(node.func.value, ast.Name)
+            and node.func.value.id == "cfg" and node.args
+            and isinstance(node.args[0], ast.Constant) and isinstance(node.args[0].value, str)):
+        return node.args[0].value
+    return None
+
+
+def _config_fallbacks(src):
+    """{"section.leaf": {"<literal source>", ...}} for every `<section-bound>.get("leaf", <default>)`.
+
+    Scoped per function, because the same variable name is bound to different sections in different
+    functions — see the test's docstring for the four paths that proves it on."""
+    out = {}
+
+    def visit(body, inherited):
+        bind, subs = dict(inherited), []
+        for node in body:
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                subs.append(node)
+                continue
+            for n in ast.walk(node):
+                if isinstance(n, ast.Assign) and len(n.targets) == 1 and isinstance(n.targets[0], ast.Name):
+                    sec = _cfg_section_of(n.value)
+                    if sec:
+                        bind[n.targets[0].id] = sec
+        for node in body:
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            for n in ast.walk(node):
+                if not (isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+                        and n.func.attr == "get" and len(n.args) == 2
+                        and isinstance(n.args[0], ast.Constant) and isinstance(n.args[0].value, str)):
+                    continue
+                holder = n.func.value
+                sec = bind.get(holder.id) if isinstance(holder, ast.Name) else _cfg_section_of(holder)
+                if sec:
+                    out.setdefault(f"{sec}.{n.args[0].value}", set()).add(ast.unparse(n.args[1]).strip())
+        for fn in subs:
+            visit(fn.body, bind)
+
+    visit(ast.parse(src).body, {})
+    return out
+
+
+def test_two_sections_sharing_a_leaf_keep_their_own_defaults():
+    """THE PLANT for residue 2026-09-24-schema-default-scan-keys-on-the-leaf-alone. Keyed on the bare
+    leaf, these two collapse into one set {True, False} and the failure is reported against whichever
+    section happens to be in the schema — which is how adding `heap_probe.enabled` red `watchdog.enabled`
+    in a PR that never touched the watchdog."""
+    src = (
+        "def a(cfg):\n"
+        "    wcfg = cfg.get('watchdog') or {}\n"
+        "    return wcfg.get('enabled', True)\n"
+        "def b(cfg):\n"
+        "    hcfg = cfg.get('heap_probe') or {}\n"
+        "    return hcfg.get('enabled', False)\n")
+    found = _config_fallbacks(src)
+    assert found["watchdog.enabled"] == {"True"}
+    assert found["heap_probe.enabled"] == {"False"}
+
+
+def test_one_variable_name_bound_to_two_sections_is_not_one_section():
+    """The scope half, and it produced a FALSE FINDING before it was fixed: a function-blind version of
+    this scan reported `seal.poll_sec` holding both 600 and 300, and `archive.poll_sec` both 3600 and 60
+    — four real paths rendered as two conflicts in capture.py that do not exist. `scfg` is `storage` in
+    one function and `seal` in another; `acfg` is `alerts` in one and `archive` in another."""
+    src = (
+        "def storage_poller(cfg):\n"
+        "    scfg = cfg.get('storage') or {}\n"
+        "    return scfg.get('poll_sec', 300)\n"
+        "def seal_poller(cfg):\n"
+        "    scfg = cfg.get('seal') or {}\n"
+        "    return scfg.get('poll_sec', 600)\n")
+    found = _config_fallbacks(src)
+    assert found["storage.poll_sec"] == {"300"}
+    assert found["seal.poll_sec"] == {"600"}
+    assert not any(len(v) > 1 for v in found.values()), f"no path may hold two literals here: {found}"
+
+
+def test_the_real_capture_source_has_no_path_read_with_two_different_defaults():
+    """Having separated the sections, the conflicts the flat scan reported are gone — and a REAL one
+    would now be visible rather than hidden inside a leaf bucket."""
+    found = _config_fallbacks(module_source("capture.py"))
+    multi = {k: v for k, v in found.items() if len(v) > 1}
+    assert not multi, f"one config path read with two different fallbacks: {multi}"
+
+
+def test_a_chained_cfg_get_is_attributed_without_a_variable():
+    """`(cfg.get("x") or {}).get("leaf", d)` reads inline, with no name to bind."""
+    found = _config_fallbacks("def f(cfg):\n    return (cfg.get('as11_detector') or {}).get('poll_sec', 7)\n")
+    assert found["as11_detector.poll_sec"] == {"7"}
+
+
+def test_a_get_on_something_that_is_not_a_config_section_is_ignored():
+    """`STATUS`, a dict of devices, a JSON body — a two-argument `.get` is everywhere. Only names bound
+    to a `cfg.get(...)` count, or the scan would invent sections out of unrelated dictionaries."""
+    found = _config_fallbacks("def f(d, cfg):\n    other = d.get('x') or {}\n    return other.get('enabled', True)\n")
+    assert found == {}
+
+
 def test_schema_defaults_match_the_daemon_fallbacks():
     """THE claim in the module header: "The default is the SINGLE SOURCE OF TRUTH — it is the same value
     the daemon falls back to." Prose, until now. capture.py reads config with `.get("leaf", <fallback>)`;
     if the two drift, the monitor advertises a default the daemon does not actually use, and a user who
     "resets to default" silently changes behaviour. Scanned from source because importing capture and
-    reaching those lines needs a running BLE daemon."""
+    reaching those lines needs a running BLE daemon.
+
+    ⚠️ ATTRIBUTED BY SECTION, NOT BY LEAF (residue 2026-09-24-schema-default-scan-keys-on-the-leaf-alone).
+    This used to be one regex keyed on the bare leaf, which had two costs. It blamed the wrong section —
+    adding `heap_probe.enabled: False` reds `watchdog.enabled`, because both are `enabled` — and the only
+    way past that failure was to DELETE the literal, after which the scan could not see the new section
+    at all. A gate satisfied by removing the evidence it compares trains the next author to remove it.
+
+    The binding is resolved INSIDE the enclosing function, and that is not a nicety: `scfg` is
+    `cfg.get("storage")` in one function and `cfg.get("seal")` in another, `acfg` is `alerts` in one and
+    `archive` in another. A function-blind version of this scan reported `seal.poll_sec` holding both 600
+    and 300 and `archive.poll_sec` holding both 3600 and 60 — four real paths collapsed into two
+    fabricated conflicts. Scoped, it separates them: storage 300, seal 600, alerts 60, archive 3600."""
     src = module_source("capture.py")   # skips on a mutmut file — see tests/_srcscan.py
-    found = {}
-    for leaf, raw in re.findall(r'\.get\(\s*"([a-z_]+)"\s*,\s*([^)\n,]+?)\s*\)', src):
-        found.setdefault(leaf, set()).add(raw.strip())
+    found = _config_fallbacks(src)
 
     checked = 0
     for key, (typ, _lo, _hi, _r, dflt, _h) in ss.SETTINGS.items():
-        leaf = key.split(".")[-1]
-        if leaf not in found:
-            continue                                  # not read via a literal .get fallback (e.g. ppg_fs)
-        for raw in found[leaf]:
+        for raw in found.get(key, ()):
             if raw in ("True", "False"):
                 actual = raw == "True"
             else:
@@ -183,7 +299,14 @@ def test_schema_defaults_match_the_daemon_fallbacks():
                 f"{key}: schema default {dflt!r} != capture.py fallback {raw!r} — "
                 "the monitor would advertise a default the daemon does not use")
             checked += 1
-    assert checked >= 8, f"expected to verify most fallbacks against source, only matched {checked}"
+    # AN EQUALITY, NOT A FLOOR. `>= 8` cannot notice a key falling out of the scan's reach — which is
+    # exactly what happened when the leaf-keyed version was worked around by deleting a literal. Pinning
+    # the population means a key that stops being checked reds here instead of going quiet. Adding a
+    # schema key with a literal fallback in capture.py raises this number, deliberately.
+    assert checked == SOURCE_CHECKED_PATHS, (
+        f"{checked} schema defaults verified against capture.py source, expected "
+        f"{SOURCE_CHECKED_PATHS} — a key that stopped being reachable from source is the failure this "
+        f"equality exists to show, and a key that became reachable is a number to update here")
 
 
 def test_the_two_named_constant_defaults_match_capture():
