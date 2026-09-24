@@ -2871,10 +2871,14 @@ def _end_0923():
     return nightqc._session_of("X_20260923231318_PPG.txt", 0.0) + _SPAN_0923
 
 
-@pytest.fixture(params=["UTC", "America/New_York"])
+@pytest.fixture(params=["UTC", "America/New_York", "Asia/Kolkata"])
 def _tz(request):
     """Run a test in a named zone. CI is UTC and the rig is EDT, and a span that depends on the reader's
-    zone passes in one and fails in the other — which is how this arrived."""
+    zone passes in one and fails in the other — which is how this arrived.
+
+    `Asia/Kolkata` is the third on purpose: it is a HALF-HOUR offset, so it catches a sign error or a
+    rounding-to-the-hour that two whole-hour zones agree on. `loss_audit`'s suite was verified across the
+    same three before being declared zone-safe."""
     old_tz = os.environ.get("TZ")
     os.environ["TZ"] = request.param
     time.tzset()
@@ -3011,3 +3015,109 @@ def test_a_clockless_file_falls_back_to_the_session_span_and_SAYS_SO(tmp_path):
     h10 = next(d for d in nightqc.summarize(night, _devices())["devices"] if d["name"] == "H10")
     assert h10["span_basis"] == {"ecg": "session", "acc": "session"}
     assert h10["span_sec"] is None, "an unbounded span is None, never a number"
+
+
+# ── FIXTURE FIDELITY: a time claim must be made on a fixture that carries time ─────────────────────
+#
+# `_cap` writes clockless `i;i` rows, so `writers.file_span_sec` returns None for every file it makes
+# and no device span can be computed from one. That is correct for a test whose claim is about SESSION
+# grouping — which is decided by filename stamps and mtimes, both of which `_cap` + `_utime` model
+# faithfully — and wrong for a test whose claim is about a device's own span, rate or coverage basis.
+#
+# THE GAP THIS CLOSES, measured 2026-09-24: all 170 tests in this file passed IDENTICALLY before and
+# after #3009 changed the coverage denominator from the session span to the device's own span, because
+# every fixture fell back to the session span and the new path was never reached. The suite could not
+# see a live behavioural change, and the zone defect that came with it surfaced only in CI. A green
+# suite said nothing, which is the most expensive thing a suite can say.
+#
+# ⚠️ THE ANSWER IS NOT "MOVE THEM ALL". Two of the entries below assert the ASSUMED-RATE path on
+# purpose — `_cap` writes too few rows for `measured_hz` to read a rate, so coverage is computed
+# against the configured one and the row reads `(rate assumed)`. Moving those onto timed fixtures would
+# turn their basis to `measured` and delete the coverage they exist to provide. A third is the
+# fallback test itself, whose whole claim is that a clockless file falls back and says so.
+#
+# So each time-claiming test on `_cap` is listed here with the reason its claim does not need stamps,
+# and the scan below fails on any that is not — and on any entry that no longer matches a real test,
+# so the list cannot rot into a rubber stamp.
+_TIME_CLAIM_WORDS = (r"\b(span|coverage|gap|stop|stopped|rate|hz|clock|stamp|zone|session|early"
+                     r"|duration|silent|drift|epoch|minute|hour|second)\b")
+
+_CLOCKLESS_BY_DESIGN = {
+    # SESSION-LEVEL CLAIMS. Decided by filename stamps and mtimes; a device clock plays no part, and
+    # the outputs asserted (`span_sec` at the session level, `gaps`, pooling) are computed without one.
+    "test_summarize_unifies_a_cross_midnight_session": "session grouping across a date-folder boundary",
+    "test_summarize_does_not_pool_a_mid_day_session": "session grouping — pooling refusal",
+    "test_summarize_scopes_coverage_to_the_current_session": "session SCOPING; its epochs derive from the same strptime().timestamp() production uses, so it is zone-invariant by construction",
+    "test_a_box_wide_outage_does_not_get_the_night_graded_green": "session splitting at _SESSION_GAP_SEC",
+    "test_an_uninterrupted_night_reports_no_gap_and_stays_green": "the no-gap control",
+    "test_summarize_pools_when_the_reconnect_took_longer_than_the_gap": "pooling by contiguity",
+    "test_summarize_pools_when_the_neighbour_was_still_writing_at_wake": "pooling by overlap",
+    "test_summarize_does_not_pool_a_non_contiguous_small_hours_session": "pooling refusal by contiguity",
+    "test_span_at_exactly_the_minimum_is_judgeable": "the SESSION span floor _MIN_SPAN_SEC",
+    "test_an_in_night_hole_BEFORE_the_judged_half_also_reds": "gap classification against the night band",
+    "test_pooling_boundary_exactly_at_midnight_pools": "pooling boundary, lower",
+    "test_pooling_boundary_exactly_at_the_gap_does_not_pool": "pooling boundary, upper",
+    "test_the_night_band_is_chosen_by_the_sessions_MIDPOINT": "which band a gap is judged against",
+    "test_a_foreign_device_file_sorting_FIRST_does_not_end_the_sidecar_scan": "file-scan continuation",
+    "test_the_cross_midnight_pool_is_EXCLUSIVE_at_exactly_the_gap": "pooling boundary, exclusive",
+    "test_the_night_window_and_arrival_are_computed_from_THIS_night": "collaborator scoping",
+    # NO FILES AT ALL — there is no span to carry.
+    "test_summarize_no_data_files_span_is_none": "a night of only a sidecar has no capture span",
+    # THE ASSUMED-RATE PATH, ON PURPOSE. Timed fixtures would make the basis `measured` and delete the
+    # coverage these provide; both assert `(rate assumed)` / `coverage_basis == expected` explicitly.
+    "test_summarize_flags_a_degraded_trickle": "asserts the CONFIGURED-rate path and its `(rate assumed)` label",
+    "test_summarize_coverage_uses_configured_rate_and_skips_unknown": "asserts the configured-rate denominator and the skip when no rate is known",
+    # THE FALLBACK ITSELF.
+    "test_a_clockless_file_falls_back_to_the_session_span_and_SAYS_SO": "its claim IS that a clockless file falls back and reports `span_basis: session`",
+}
+
+
+def _time_claiming_clockless_tests():
+    """Every test in this file whose docstring makes a time claim and which builds its night with the
+    CLOCKLESS `_cap` only. Keyed on the FIXTURE CALL, not on a name or a leaf: what a test is made of
+    is the property in question, and a name-keyed scan would be the wrong tool for the same reason the
+    schema scanner's leaf key was."""
+    import ast
+    import re
+
+    tree = ast.parse(open(__file__).read())
+    out = {}
+    for t in ast.walk(tree):
+        if not (isinstance(t, ast.FunctionDef) and t.name.startswith("test_")):
+            continue
+        calls = {c.func.id for c in ast.walk(t) if isinstance(c, ast.Call) and isinstance(c.func, ast.Name)}
+        if "_cap" in calls and "_cap_timed" not in calls and re.search(
+                _TIME_CLAIM_WORDS, ast.get_docstring(t) or "", re.I):
+            out[t.name] = True
+    return out
+
+
+def test_every_time_claiming_test_on_a_clockless_fixture_is_declared():
+    """A time claim made on a fixture that carries no time is the gap this file had: 170 tests passed
+    identically across #3009's change of denominator because every one of them fell back to the session
+    span. Any new test that claims time on `_cap` must either move to `_cap_timed` or say here why its
+    claim does not need stamps."""
+    found = _time_claiming_clockless_tests()
+    undeclared = sorted(set(found) - set(_CLOCKLESS_BY_DESIGN))
+    assert not undeclared, (
+        "these make a time claim on the clockless `_cap`: move them to `_cap_timed` (and take the `_tz` "
+        f"fixture), or declare why the claim needs no stamps: {undeclared}")
+
+
+def test_no_declaration_outlives_the_test_it_excuses():
+    """The other half, and the one that rots silently: an entry for a test that was renamed, deleted or
+    already moved to `_cap_timed` is a line nobody reads that makes the list look considered. Spent
+    entries are the failure mode of every allowlist in this repo."""
+    found = _time_claiming_clockless_tests()
+    spent = sorted(set(_CLOCKLESS_BY_DESIGN) - set(found))
+    assert not spent, f"declared but no longer a time-claiming clockless test: {spent}"
+
+
+def test_the_scan_can_actually_see_one():
+    """The anti-vacuity control. Both assertions above pass over an EMPTY population if the scan is
+    broken — an AST walk that matches nothing reports the same green as a file with nothing to find,
+    which is this repo's most-repeated defect. So the scan must find the population it is scanning."""
+    found = _time_claiming_clockless_tests()
+    assert len(found) >= 15, f"the scan found {len(found)} — it is not seeing the file"
+    assert "test_a_clockless_file_falls_back_to_the_session_span_and_SAYS_SO" in found, \
+        "the deliberately-clockless test must be visible to the scan that excuses it"
