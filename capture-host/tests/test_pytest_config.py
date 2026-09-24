@@ -1,6 +1,7 @@
 # tepna-capture — tests/test_pytest_config.py
 # Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
 """The pytest configuration itself, where a setting can break a GATE rather than a test."""
+
 import os
 import re
 
