@@ -245,8 +245,10 @@ no sidecar recorded. So a WAVEFORM stream with no run rule is **UNKNOWN, reason
 the stream gets a rule; Heron has the ECG run sidecar as a writer unit. Event streams (RR, PPI, HR) take
 their validity from their parent waveform, as they take completeness under A2.
 
-**A5 · The timebase step band is a PERSISTENT, UNRECORDED shift** (2026-09-24, measured over 36 clean
-nights). Supersedes §3.4's "a step > 1000 ms that is not a recorded seam" and specifies A3's measure.
+**A5 · An unrecorded clock step is a TRIPWIRE, not a scored FAIL — and persistence needs two guards**
+(2026-09-24, measured over 36 clean nights; **revised the same day**, after a trajectory showed the only
+remaining positive was a false one). Supersedes §3.4's "a step > 1000 ms that is not a recorded seam" and
+specifies A3's measure.
 
 - **Sign convention — binding.** Residual = **host ARRIVAL time − device time**, one value per BATCH anchor.
   The Polar `Phone timestamp` is synthesised per row (batch arrival + k/fs, rounded to 1 ms), so anchors
@@ -257,14 +259,27 @@ nights). Supersedes §3.4's "a step > 1000 ms that is not a recorded seam" and s
 - **The measure.** Split the anchors at re-anchors > 60 s (the capture's own seam bound). Take a width-21
   running median. **Persistence = the median level 60–120 s after a candidate minus the level 30–90 s
   before it.**
-- **FAIL:** |persistence| ≥ **1 s** with **no record** in the seam sidecar, the journal, or `CLOCKSYNC.csv`
-  (`synced` / `resynced`). **The journal's record set is every clock-event line for the device:** `off host
-  (tolerance`, `device clock JUMPED`, `re-sync busy` and `device clock unreadable`. A FAILED re-sync is
-  still a record that a clock event happened. The first cut counted only `off host` and so FAILed a night
-  the daemon had logged (08-18, below).
+- **The TRIPWIRE:** |persistence| ≥ **1 s**, passing **both guards below**, with **no record** in the seam
+  sidecar, the journal, or `CLOCKSYNC.csv` (`synced` / `resynced`). When it fires it **reds the tripwire**,
+  and the night's timebase is **UNKNOWN `unrecorded-shift-candidate`**, flagged for review. **It is not a
+  FAIL:** the clean corpus holds **zero** true unrecorded steps (below), so the detector has never been
+  validated against the thing it would convict. **The journal's record set is every clock-event line for
+  the device:** `off host (tolerance`, `device clock JUMPED`, `re-sync busy` and `device clock unreadable`. A
+  FAILED re-sync is still a record that a clock event happened. The first cut counted only `off host` and
+  so flagged a night the daemon had logged (08-18, below).
 - **UNKNOWN `clock-sets too dense to attribute`:** when recorded clock-sets are so dense that the
   persistence windows straddle several of them — the 08-28 → 09-12 resync storm, one set every ~5.5 min,
   where ±15–30 s flips minutes apart cannot be assigned to one another.
+- **Guard 1 — delivery rate.** A candidate whose before- or after-window row rate departs from the stream's
+  nominal rate (the seam sidecar's negotiated rate) by more than **10 %** (judgement) is a **latency regime**
+  ⇒ UNKNOWN `latency regime`, never a tripwire fire. A clock step keeps delivery at the nominal rate while
+  the level moves; a latency backlog **collapses the row rate** (09-19: 25–90 % of nominal throughout its
+  ramp). A 10 s window at 130 Hz holds 17–18 batches of ~73 rows, so healthy bins sit within about ±3 %,
+  and 10 % is roughly three times that quantisation. **The row rate is the discriminator the residual
+  alone lacks.**
+- **Guard 2 — gap.** A candidate whose after-window contains, or ends within 10 s of, a gap longer than the
+  gap cut or the end of the stream **cannot establish persistence** ⇒ UNKNOWN `persistence across a gap`.
+  The level "after" must be measured on data that exists and is flowing normally.
 - **Why persistence and never the windowed peak.** Over the corpus, **1,237 of 1,756** windowed-shift events
   above 1 s (**70 %**) were delivery-latency **TRANSIENTS**: late batches after a stall or pull pause raise
   the residual, and it **returns**. A 30 s windowed peak cannot tell them from a step — it fails the
@@ -274,12 +289,12 @@ nights). Supersedes §3.4's "a step > 1000 ms that is not a recorded seam" and s
   journal alone missed half the recorded clock-sets, and matching `off host` alone missed the `JUMPED` line
   that recorded 08-18.
 - **The bar, with its n.** Over **n = 36 clean nights** (08-01 → 08-27 and 09-13 → 09-23; storm nights excluded
-  as unadjudicable) the quiet windowed-shift p99.9 is **81 ms** (median per file), and the smallest real
-  unrecorded step is **14.5 s**. So 1 s sits **~12× above the noise and ~15× below the signal**. The exact
-  value barely matters, and it is not to be tuned.
-- **What it found — restated after the record set was widened.** An unrecorded persistent step on **1 of 36**
-  clean nights: **09-19 20:26, ≈ +14.5 s, on the H10's axis** (from `Polar_H10_02849638_20260919192038_ECG.txt`;
-  one event seen in three overlapping windows). **None in the 1–2 s band**, so the "walk below the watchdog"
+  as unadjudicable) the quiet windowed-shift p99.9 is **81 ms** (median per file), so 1 s sits **~12× above
+  the noise**. **There is no measured signal side:** the clean corpus contains no true unrecorded step to
+  calibrate against (below) — which is exactly why this is a tripwire and not a band. That the detector
+  fires on a real step at all rests on the 08-27 positive control, a RECORDED re-anchor of −7.66 years.
+- **What it found: 36 clean nights, 0 unrecorded steps, 2 candidates, both explained** — one recorded
+  under another phrase, one a latency backlog. **None in the 1–2 s band**, so the "walk below the watchdog"
   class is absent from the clean corpus.
   - **08-18 04:08 was RECORDED, not unrecorded.** The journal logged `device clock JUMPED -41.0s (-0.1 ->
     -41.1) — re-syncing` at 04:09:08, then `re-sync busy (TimeoutError)` at 04:10:01 (Wren). The first
@@ -290,9 +305,27 @@ nights). Supersedes §3.4's "a step > 1000 ms that is not a recorded seam" and s
     sync`, 71 re-arms since 08-07). The last re-arm before each instant was **08-17 14:58:04** (13 h before
     08-18) and **09-17 21:37:41** (47 h before 09-19). A burst window closes within about an hour, so neither
     instant sits inside one and the host could not have stepped (Wren).
-  - **09-19 is therefore a device-side event the watchdog did not log.** No clock line exists on the box.
-    The H10 was off the link 20:28–20:33 (`auto-sync deferred — device not found` ×4). The shift looks like
-    a **reconnect with a different device clock**, unrecorded. Routed to Heron.
+  - **09-19 20:26 was a FALSE POSITIVE of the persistence test — a latency backlog, not a step.** This is
+    the night that shaped both guards. The H10's own stream (`Polar_H10_02849638_20260919192038_ECG.txt`),
+    residual = host arrival − device, relative to the file's first row, in 10 s bins:
+
+    | window | residual median | rows / 10 s | reading |
+    |---|---|---|---|
+    | 20:24:00 → 20:26:00 | −73 … −108 ms | ~1,300 (nominal) | flat baseline |
+    | 20:26:10 → 20:27:20 | −40 → **+17,756 ms** | 336 – 1,973, erratic | ramp |
+    | 20:27:30 → 20:28:10 | 16,203 → **13,321 ms** | 679 – 1,858 | decaying |
+    | 20:28:20 → 20:34 | — | **0** | the file ends: off the link, never resumes here |
+
+    It ramps and was already recovering when the link was cut, while the row rate collapsed to 25–90 % of
+    nominal. A clock step would hold its new level at the nominal rate. The persistence after-window
+    (20:27:09–20:28:09) sat **inside the backlog**, just before the disconnect. Heron's reading was right:
+    dropout disagreements in this corpus reach 29 s (`writers.py:884`), and 14.5 s sits inside that
+    population.
+  - **Correction of record.** An earlier cut of this amendment called 09-19 "a device-side event the
+    watchdog did not log — a reconnect with a different device clock" and routed it to Heron to build a
+    reconnect log line. The trajectory refuted that **before any code was written**; no log line is
+    warranted from 09-19. What had been claimed as a measured false negative was an unmeasured false
+    positive, found only because the coordinator asked for the plot.
 - **What the fixed reading would have done, measured.** A per-anchor raw jump > 1000 ms has only **1.78×
   headroom** on a quiet night (09-23: max 562 ms) and is **blind** to 08-27's +1,508 ms pre-seam walk,
   which spreads over ~17 anchors at ~89 ms each. It fails both ways.
