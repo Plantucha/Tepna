@@ -3589,6 +3589,27 @@ def test_qc_poller_summarizes_the_current_night(tmp_path, monkeypatch):
     assert (night / "QC-SUMMARY.json").exists()
 
 
+def test_qc_poller_refuses_a_scan_result_that_is_not_a_dict(tmp_path, monkeypatch, caplog):
+    """A measurement that is not the shape it claims is a fabricated value reaching a consumer, and the
+    honest response at the edge is to name it. Before this, a non-dict crossed the boundary and failed
+    three frames later inside `alerts.*` with `'str' object has no attribute 'get'` — naming neither the
+    producer nor the value, which is how it reddened three PRs on main unattributably."""
+    import datetime as _dtm
+
+    monkeypatch.setattr(capture, "_now", lambda: _dtm.datetime(2026, 7, 19, 23, 0, 0))
+    monkeypatch.setattr(capture.nightqc, "summarize", lambda n, d: "not a summary")
+    night = tmp_path / "captures" / "2026-07-19"
+    night.mkdir(parents=True)
+    with open(night / "Polar_H10_02849638_20260719_ECG.txt", "w") as f:
+        f.write("h\n1\n")
+    _stop_after(monkeypatch, 1)
+    with caplog.at_level("WARNING"):
+        _run(capture.qc_poller({"qc": {"poll_sec": 600}, "devices": []}, str(tmp_path)))
+    msgs = [r.getMessage() for r in caplog.records]
+    assert any("returned str, not dict" in m for m in msgs), msgs
+    assert any("not a summary" in m for m in msgs), "it names the VALUE, not only the type"
+
+
 def test_qc_poller_skips_when_no_night_dir_yet(tmp_path, monkeypatch):
     """Nothing captured tonight → the poller must not create an empty night folder."""
     import datetime as _dtm
