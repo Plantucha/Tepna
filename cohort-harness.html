@@ -3137,6 +3137,12 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
   // Grade 3: ODI-4 > 15 OR CT<90 > 5min, one criterion
   // Grade 4: both criteria exceeded
   function computeMOS(odi4Rate, ct90Sec) {
+    /* ∅ `null >= K` is false and `null / 60` is 0, so an absent ODI-4 and an absent CT90 fell
+       through every branch to score 1 — "Normal". A McGill grade of Normal is a CLINICAL claim, and
+       this one was made about a night neither input described. Refuse if EITHER is absent: the
+       Normal verdict specifically requires knowing that BOTH are low, and over-refusing is the safe
+       direction here (the consumer at `oxydex-render.js:321` already tests `mos.mos != null`). */
+    if (odi4Rate == null || ct90Sec == null) return { mos: null, mosLabel: null, reason: 'inputs-absent' };
     var ct90Min = ct90Sec / 60;
     var odiHigh = odi4Rate >= DexKernel.K.MOS_LONG;
     var ctHigh = ct90Min >= 5;
@@ -4625,14 +4631,20 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
        ultradian figures are HR-derived and stay measured. */
     if (_motionUnusable && sleepArch) sleepArch.wasoMin = /** @type {any} */ (null);
     var odi1 = computeODI1(rows, blArr);
-    var odi4Rate = odi4 ? odi4.rate : 0;
-    var odi3Rate = odi3 ? odi3.rate : 0;
+    /* ∅ THE NULL-NOT-ZERO FIX BELOW WAS APPLIED TO ONE OF FIVE INPUTS. `desSevRate` got it right,
+       and said why; its four siblings on these lines kept defaulting an ABSENT index to 0, which
+       `computeAHIestimates` and `computeMOS` then read as a measured zero. Both consumers are
+       already built to refuse on null — `ahiODI4` returns null for a null ODI-4 and says
+       "null * 1.1 is 0 … the most reassuring possible reading of a measurement that never
+       happened" — so the guards existed and these four lines fed past them. */
+    var odi4Rate = odi4 && odi4.rate != null ? odi4.rate : null;
+    var odi3Rate = odi3 && odi3.rate != null ? odi3.rate : null;
     /* Propagate the refusal. `desSev.desSev` may now be null, and `0.6 * null` is 0 inside
        computeAHIestimates — which would silently drop the DesSev term and UNDER-estimate AHI,
        i.e. fail toward the reassuring answer, which is the bias this whole change exists to end. */
     var desSevRate = desSev ? desSev.desSev : null;
-    var t95Pct = stats ? stats.t95pct : 0;
-    var ct90Sec = ctPrec ? ctPrec.ct90s || 0 : 0;
+    var t95Pct = stats && stats.t95pct != null ? stats.t95pct : null;
+    var ct90Sec = ctPrec && ctPrec.ct90s != null ? ctPrec.ct90s : null;
     var mos = computeMOS(odi4Rate, ct90Sec);
     var ahiEst = computeAHIestimates(odi4Rate, odi3Rate, desSevRate, t95Pct);
     var flags = buildFlags(stats, spikes, period, osc, odi4, odi3, hrv, motion, stab, hrProf, cross, spo2Adv, comp, sbii, pred3p);
@@ -8760,8 +8772,9 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
           // Recompute MOS + AHI estimates from available scalars — no raw rows needed
           mos: (function () {
             try {
-              var o4r = obj.odi4 && obj.odi4.rate != null ? obj.odi4.rate : 0;
-              var ct90s = obj.ctPrecise && obj.ctPrecise.ct90s != null ? obj.ctPrecise.ct90s : 0;
+              // ∅ an imported summary that carries no ODI-4 or CT90 is not a night without them
+              var o4r = obj.odi4 && obj.odi4.rate != null ? obj.odi4.rate : null;
+              var ct90s = obj.ctPrecise && obj.ctPrecise.ct90s != null ? obj.ctPrecise.ct90s : null;
               return computeMOS(o4r, ct90s);
             } catch (e) {
               return null;
@@ -8769,12 +8782,12 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
           })(),
           ahiEst: (function () {
             try {
-              var o4r = obj.odi4 && obj.odi4.rate != null ? obj.odi4.rate : 0;
-              var o3r = obj.odi3 && obj.odi3.rate != null ? obj.odi3.rate : 0;
+              var o4r = obj.odi4 && obj.odi4.rate != null ? obj.odi4.rate : null;
+              var o3r = obj.odi3 && obj.odi3.rate != null ? obj.odi3.rate : null;
               /* null, not 0 — see computeAHIestimates: substituting 0 for an unmeasured DesSev
                  drops its term from the Kulkas estimate and under-reports AHI. */
               var dsev = obj.desSev && obj.desSev.desSev != null ? obj.desSev.desSev : null;
-              var t95 = obj.stats && obj.stats.t95pct != null ? obj.stats.t95pct : 0;
+              var t95 = obj.stats && obj.stats.t95pct != null ? obj.stats.t95pct : null;
               return computeAHIestimates(o4r, o3r, dsev, t95);
             } catch (e) {
               return null;
