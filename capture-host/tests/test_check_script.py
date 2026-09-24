@@ -38,7 +38,8 @@ def _write_exec(path, body):
     os.chmod(path, os.stat(path).st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
 
 
-def _sandbox(tmp_path, *, ruff_rc=0, shellcheck_rc=0, pytest_rc=0, mypy_found=None):
+def _sandbox(tmp_path, *, ruff_rc=0, shellcheck_rc=0, pytest_rc=0, mypy_found=None,
+             timeout_plugin=True):
     """A PATH where each gate is a stub that records that it ran and exits as scripted."""
     binn = tmp_path / "bin"
     binn.mkdir()
@@ -56,6 +57,9 @@ def _sandbox(tmp_path, *, ruff_rc=0, shellcheck_rc=0, pytest_rc=0, mypy_found=No
         f"""#!/usr/bin/env bash
 for a in "$@"; do
   case "$a" in
+    # The plugin PROBE, scripted: this fake exits 0 for any arg it does not match, so a MISSING
+    # pytest-timeout would otherwise be unrepresentable here and the announcement untestable.
+    "import pytest_timeout") exit {0 if timeout_plugin else 1} ;;
     ruff)   echo ruff   >> "{log}"; exit {ruff_rc} ;;
     pytest) echo pytest >> "{log}"; exit {pytest_rc} ;;
     mypy)   {mypy_emit}; exit 0 ;;   # NOT logged: `ran` is the BLOCKING gate set, and mypy is advisory
@@ -170,6 +174,48 @@ def test_it_actually_names_all_three_gates(monkeypatch):
     # missing tool still fails visibly instead of being pointed at a path that does not exist.
     assert '"$(dirname "$PY")/shellcheck"' in src, "shellcheck must be looked up beside $PY first"
     assert "|| SC=shellcheck" in src, "the PATH fallback keeps a missing tool visible (127)"
+
+
+# ── the per-test bound: a hang must have a verdict, and a missing bound must have a voice ────────
+
+def test_the_per_test_bound_is_passed_to_pytest(tmp_path):
+    """The bound itself. Without it a hanging test has no upper limit — measured 2026-09-24 as a
+    four-hour 99 %-CPU run for an already-merged PR, with no exit code and no failing test."""
+    env, _ = _sandbox(tmp_path)
+    env["PYTEST_TIMEOUT_S"] = "77"
+    p = subprocess.run([CHECK], env=env, capture_output=True, text=True, timeout=120)
+    assert p.returncode == 0, p.stdout + p.stderr
+    src = open(CHECK, encoding="utf-8").read()
+    assert '--timeout="$PYTEST_TIMEOUT_S"' in src, "the bound must reach pytest, not merely be defined"
+    assert 'PYTEST_TIMEOUT_S="${PYTEST_TIMEOUT_S:-' in src, "and stay overridable for a slow box"
+
+
+def test_a_MISSING_bound_is_ANNOUNCED_not_silent(tmp_path):
+    """The plant, and the whole difference from the `XDIST` line above it: a venv without xdist runs
+    the identical gate slower, so silence is honest there. A venv without pytest-timeout runs it with
+    NO BOUND, and a guard that is absent and says nothing is the defect the bound exists to fix."""
+    env, _ = _sandbox(tmp_path, timeout_plugin=False)
+    p = subprocess.run([CHECK], env=env, capture_output=True, text=True, timeout=120)
+    out = p.stdout + p.stderr
+    assert "pytest-timeout ABSENT" in out, out[-2000:]
+    assert "no verdict" in out, "it must say WHAT is lost, not merely that a package is missing"
+    assert p.returncode == 0, "and it is a warning, not a gate failure — a contributor can still run it"
+
+
+def test_the_bound_agrees_with_the_one_CI_runs():
+    """TWO invocations, ONE number. CI runs its own `pytest` line (not check.sh), so the bound is
+    written twice — the same shape as the mutmut pin, which lives in requirements-dev.txt AND in the
+    workflow with a test asserting they agree. A bound that holds locally and not in CI is half-wired,
+    and the half that is missing is the one nobody watches."""
+    wf = pathlib.Path(HERE).parent / ".github" / "workflows" / "capture-host-ci.yml"
+    if not wf.exists():                                    # pragma: no cover - lane shipped alone
+        pytest.skip("workflow not present in this checkout")
+    src = open(CHECK, encoding="utf-8").read()
+    local = re.search(r'PYTEST_TIMEOUT_S="\$\{PYTEST_TIMEOUT_S:-(\d+)\}"', src)
+    assert local, "check.sh must define the bound as a named, overridable default"
+    ci = re.findall(r"--timeout=(\d+)", wf.read_text(encoding="utf-8"))
+    assert ci, "the CI pytest job must carry the bound too — it does not run check.sh"
+    assert set(ci) == {local.group(1)}, f"check.sh says {local.group(1)}, CI says {sorted(set(ci))}"
 
 
 def test_it_is_not_set_e(monkeypatch):
