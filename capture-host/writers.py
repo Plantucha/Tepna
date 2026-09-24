@@ -76,12 +76,44 @@ T_STUCK = 200
 # Which streams get a sidecar, and at what threshold. A stream absent from this map gets none — but
 # note ACC is PRESENT: it is not excluded by name, it is CLASSIFIED (below), so a firmware change
 # that stops it being a zero-order hold starts producing rows without anyone editing this list.
+# THE H10's ECG NEEDS ITS OWN MINIMUM, AND IT IS DERIVED FROM THE STREAM'S OWN DISTRIBUTION.
+#
+# §∅ requires the run-length detector on every device, keyed on RUN LENGTH against the stream's own
+# distribution and never on a value — an ECG in µV crosses zero on every beat, so a `!= 0` rule is
+# exactly inverted here. Until this key existed the H10 ECG had no run sidecar at all, so its validity
+# band could only ever read UNKNOWN.
+#
+# MEASURED over the whole H10 ECG corpus on vigil, 2026-09-24: **304 files, 196,172,536 samples**. Run
+# lengths of identical consecutive µV, split by whether the held value is near baseline or at high
+# amplitude (the file's own rail is ±19,165 µV; its modal value is 18 µV):
+#
+#   run length   runs        held at |µV| >= 10000
+#   05-09        226,661     455        (0.2 %)
+#   10-19          4,207     357        (8.5 %)
+#   20-29            172     167       (97.1 %)
+#   30-49            155     155      (100.0 %)
+#   50+              312     312      (100.0 %)
+#
+# Two populations, and they separate at 20-30: below it a run is the ordinary quantization of a real
+# ECG near baseline; at 30 and above the corpus contains NO near-baseline run at all. 30 is therefore
+# the smallest threshold whose natural population is EMPTY over 196 M samples — zero false positives
+# measured, not argued — and it catches 467 runs. 20 would catch 639 and admit 5 near-baseline runs;
+# `T_STUCK` (200) would catch only 101 and miss 366 of the 467, which is why ECG does not simply reuse it.
+#
+# THE FALSE NEGATIVE, stated because a new gate owes it: a constant episode SHORTER than 30 samples
+# (231 ms at 130 Hz) is not reported. And every run this rule catches today sits at |µV| >= 10000, i.e.
+# the amplifier at or near its rail — in-band constant blanking has NEVER occurred on this stream at any
+# length >= 30 in this corpus. So on the H10 this is a saturation/lead-off detector in practice, and it
+# stands as the tripwire that reds the day in-band blanking first appears, which is what §∅ asks for.
+ECG_RUN_MIN = 30
+
 RUN_MIN_BY_STREAM = {
     "ppg1":   T_STUCK,   # O2Ring, single reflectance column
     "ppg":    T_STUCK,   # Verity 3-LED (same writer, 3-column branch)
     "ppg2w":  T_STUCK,   # O2Ring raw dual-wavelength (cmd 0x05)
     "acc":    T_STUCK,   # Polar ACC
     "accraw": T_STUCK,   # O2Ring ACC — a zero-order hold; the classifier catches it
+    "ecg":    ECG_RUN_MIN,   # Polar H10 — derived above; NOT T_STUCK, and the table says why
 }
 
 # ── BRACKETING — the sidecar EMITS THE MEASUREMENT and names nothing (owner ruling D5, 2026-09-19) ────
@@ -241,6 +273,7 @@ ANNOTATIONS_BY_STREAM = {
     "accraw": frozenset(),                            # no annotation is inserted into the ring's ACC
     "ppg":    frozenset(),                            # Verity: no inserted rows
     "acc":    frozenset(),                            # Polar: none
+    "ecg":    frozenset(),                            # Polar H10: no inserted rows either
 }
 
 HELD_WARMUP_RUNS = 64          # runs per WINDOW: the class is decided per window at this grain (below)
@@ -1723,6 +1756,13 @@ class StreamWriter:
 
     def write_ecg(self, phone: _dt.datetime, sensor_ns: int, t_ms: float, uv: int) -> None:
         self._seams.feed(phone, sensor_ns)
+        # THE FEED IS THE HALF THAT IS EASY TO FORGET, and forgetting it has shipped here before: a
+        # stream with a `RUN_MIN_BY_STREAM` key but no `feed` call writes a sidecar reading `runs=0
+        # examined=0`, which is indistinguishable from "looked and found nothing" (see the `examined`
+        # counter in `_RunSidecar.close`). The channel label is this stream's own value column, so a
+        # run row can never name a column the data file does not have.
+        if self._runs is not None:
+            self._runs.feed("ecg [uV]", uv, phone)
         self._row(f"{_phone_ts(phone)};{sensor_ns};{self._rel_ms(sensor_ns)};{uv}\n")
 
     def write_acc(self, phone: _dt.datetime, sensor_ns: int | None, t_ms: float,
