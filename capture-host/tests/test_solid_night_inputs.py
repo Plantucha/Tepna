@@ -15,13 +15,35 @@ BASE = "Polar_H10_02849638_20260920230000"
 T0 = dt.datetime(2026, 9, 20, 23, 0, 0)
 
 
-def _ecg(d, seconds=200, rate=2.0, name=BASE, skip=()):
+BATCH = 4  # rows per synthetic BLE batch: the residual is constant inside one, so anchors = batches
+
+
+def _ecg(d, seconds=200, rate=2.0, name=BASE, skip=(), dev_jit=True, host_jit=True, dev_ppm=0.0):
+    """A synthetic ECG stream with a REALISTIC device axis, which is a requirement and not a nicety.
+
+    `clock.js` (CK_AXIS_DRAWN_SHARE) says a uniform synthetic device column is by construction
+    indistinguishable from a fabricated one, and instructs a consumer moving to `deviceDrawn` to re-cut
+    its fixtures. This column used to advance by exactly 1 ns per row, so every night built from it
+    would have scored as a DRAWN axis. `dev_jit=False` re-creates that column deliberately, for the
+    test that asserts the drawn detector fires.
+
+    The host stamp follows the brief's model — one arrival per batch, `arrival + k/fs` within it — so
+    the residual is constant inside a batch and steps between them. Jitter is NON-POSITIVE and skips
+    the first and last batch, so no row crosses a second boundary and the completeness arithmetic that
+    every other test in this file depends on is unchanged.
+    """
     rows = ["Phone timestamp;sensor timestamp [ns];timestamp [ms];ecg [uV]"]
-    for i in range(int(seconds * rate) + 1):
+    n = int(seconds * rate) + 1
+    for i in range(n):
         if i in skip:
             continue
-        t = T0 + dt.timedelta(seconds=i / rate)
-        rows.append(f"{t.isoformat(timespec='milliseconds')};{i};{i};100")
+        ns = int(i / rate * 1e9 * (1.0 + dev_ppm / 1e6)) + ((i * 7919) % 211 if dev_jit else 0)
+        # POSITIVE, deliberately: `rows_between` truncates to whole seconds, so a NEGATIVE jitter on a
+        # row landing exactly on a second pulls it into the previous bucket and changes a completeness
+        # count. Rows here sit at .000/.500, so +1..+5 ms cannot cross a boundary in either direction.
+        jit = 0 if (not host_jit or i < BATCH or i >= n - BATCH) else (1 + (i // BATCH) % 5)
+        t = T0 + dt.timedelta(seconds=i / rate, milliseconds=jit)
+        rows.append(f"{t.isoformat(timespec='milliseconds')};{ns};{i};100")
     (d / f"{name}_ECG.txt").write_text("\n".join(rows) + "\n")
 
 
@@ -68,7 +90,11 @@ def test_a_clean_h10_passes_every_term_but_timebase_which_names_what_it_waits_fo
     b = _bands(tmp_path)[H10["name"]]["bands"]
     assert {k: v["status"] for k, v in b.items()} == {
         "continuity": "PASS", "completeness": "PASS", "validity": "PASS", "clocks": "PASS", "timebase": "UNKNOWN"}
-    assert b["timebase"]["reason"] == si.TIMEBASE_PENDING
+    # The reason CHANGED with PR-B and the change is the point: the band no longer says the scan is
+    # unbuilt, it says the axis was measured — an independent clock at a plausible rate — and names the
+    # ONE term still outstanding. Whole-band UNKNOWN is still correct while A5 has not run (§∅).
+    assert "A5 step tripwire has not run" in b["timebase"]["reason"]
+    assert "ppm" in b["timebase"]["reason"]
 
 
 def test_an_absent_primary_is_no_wear_or_radio_down_never_a_pass(tmp_path):
@@ -307,3 +333,119 @@ def test_read_json_refuses_absent_broken_and_non_object_files(tmp_path):
     assert si.read_json(str(tmp_path / "bad.json")) is None
     (tmp_path / "list.json").write_text("[1]")
     assert si.read_json(str(tmp_path / "list.json")) is None
+
+
+# ── §3.4 timebase · the residual pass (PR-B) ────────────────────────────────────────────────────────
+def _tb(d, **kw):
+    _ecg(d, **kw)
+    _seams(d)
+    _runs(d, "ECG")
+    _runs(d, "ACC")
+    _audit(d)
+    return _bands(d)[H10["name"]]["bands"]["timebase"]
+
+
+def test_the_realistic_fixture_is_not_read_as_drawn(tmp_path):
+    """A CONTROL ON THE FIXTURE ITSELF. Every timebase assertion below is vacuous if the re-cut axis
+    still concentrates: the drawn branch would short-circuit them all with a passing-looking UNKNOWN."""
+    _ecg(tmp_path)
+    scan = si.residual_scan(str(tmp_path / f"{BASE}_ECG.txt"), None, None)
+    assert scan["reason"] is None
+    assert scan["drawn_share"] < si.TB_DRAWN_SHARE, scan["drawn_share"]
+
+
+def test_a_uniform_device_column_is_drawn_and_never_yields_a_rate(tmp_path):
+    """`independent` CANNOT see this — a coarse counter reads as MORE independent, not less."""
+    tb = _tb(tmp_path, dev_jit=False)
+    assert tb["status"] == "UNKNOWN"
+    assert "DRAWN" in tb["reason"]
+
+
+def test_a_host_column_that_only_rounds_the_device_is_not_a_second_clock(tmp_path):
+    tb = _tb(tmp_path, host_jit=False)
+    assert tb["status"] == "UNKNOWN"
+    assert "no second clock" in tb["reason"]
+
+
+def test_an_implausible_rate_is_refused_never_corrected(tmp_path):
+    tb = _tb(tmp_path, dev_ppm=200000.0)
+    assert tb["status"] == "FAIL"
+    assert "ppm" in tb["reason"]
+
+
+def test_a_stream_with_no_device_column_says_so_rather_than_scoring_it(tmp_path):
+    _ecg(tmp_path)
+    (tmp_path / f"{BASE}_ECG.txt").write_text("Phone timestamp;ecg [uV]\n2026-09-20T23:00:00.000;100\n")
+    _seams(tmp_path)
+    _runs(tmp_path, "ECG")
+    _runs(tmp_path, "ACC")
+    _audit(tmp_path)
+    tb = _bands(tmp_path)[H10["name"]]["bands"]["timebase"]
+    assert tb["status"] == "UNKNOWN"
+    assert "no device clock" in tb["reason"]
+
+
+def test_anchors_are_batches_not_rows(tmp_path):
+    """The brief's model: the residual is constant inside a batch, so one boundary = one anchor. A
+    per-row anchor set would be BATCH times larger and would be an interpolation, not a measurement."""
+    # At a REALISTIC row rate: the 1 s floor exists for a 130 Hz stream, where it is far coarser than
+    # the batch period. At this file's usual 2 Hz the floor would fire every other row and the batch
+    # structure would be invisible — a property of the fixture, not of the detector.
+    _ecg(tmp_path, seconds=100, rate=20.0)
+    scan = si.residual_scan(str(tmp_path / f"{BASE}_ECG.txt"), None, None)
+    rows = 2001
+    assert len(scan["anchors"]) < rows / 2, len(scan["anchors"])
+
+
+def test_a_healthy_axis_stops_at_the_unbuilt_step_scan_rather_than_passing(tmp_path):
+    """§∅: the A5 tripwire has not run, so the band must not claim a clean one."""
+    tb = _tb(tmp_path)
+    assert tb["status"] == "UNKNOWN"
+    assert "A5 step tripwire has not run" in tb["reason"]
+
+
+def test_an_unreadable_stream_is_named_not_scored(tmp_path):
+    scan = si.residual_scan(str(tmp_path / "nope_ECG.txt"), None, None)
+    assert "could not be opened" in scan["reason"]
+
+
+def test_short_and_unparseable_rows_are_skipped_never_defaulted(tmp_path):
+    """§∅: a row that measures nothing contributes nothing — it is not a zero anchor."""
+    f = tmp_path / "x.txt"
+    f.write_text(
+        "Phone timestamp;sensor timestamp [ns];ecg\n"
+        "2026-09-20T23:00:00.000\n"  # short: no ns column at all
+        "not-a-stamp;5;1\n"  # unparseable stamp
+        "2026-09-20T23:00:01.000;not-an-int;1\n"  # unparseable ns
+        "2026-09-20T23:00:02.000;2000000000;1\n"
+        "2026-09-20T23:00:03.000;3000000123;1\n"
+        "2026-09-20T23:00:04.000;4000000456;1\n"
+    )
+    scan = si.residual_scan(str(f), None, None)
+    assert scan["reason"] is None
+    assert len(scan["anchors"]) == 3  # only the three well-formed rows
+
+
+def test_too_few_anchors_says_how_many(tmp_path):
+    _ecg(tmp_path, seconds=0.5)
+    _seams(tmp_path)
+    _runs(tmp_path, "ECG")
+    _runs(tmp_path, "ACC")
+    _audit(tmp_path)
+    tb = _bands(tmp_path)[H10["name"]]["bands"]["timebase"]
+    assert tb["status"] == "UNKNOWN" and "anchor(s)" in tb["reason"]
+
+
+def test_anchors_that_span_no_time_yield_no_rate(tmp_path):
+    """Every row stamped the same instant: a residual exists, a RATE cannot."""
+    name = f"{BASE}_ECG.txt"
+    (tmp_path / name).write_text(
+        "Phone timestamp;sensor timestamp [ns];ecg\n"
+        + "".join(f"2026-09-20T23:00:00.000;{ns};1\n" for ns in (0, 5_000_000, 12_000_000, 21_000_000))
+    )
+    _seams(tmp_path)
+    _runs(tmp_path, "ECG")
+    _runs(tmp_path, "ACC")
+    _audit(tmp_path)
+    tb = _bands(tmp_path)[H10["name"]]["bands"]["timebase"]
+    assert tb["status"] == "UNKNOWN" and "span no time" in tb["reason"]
