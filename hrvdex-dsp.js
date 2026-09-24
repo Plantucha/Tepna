@@ -856,8 +856,21 @@
         return;
       }
       const prev = arr[i - 1];
-      const dayGap = isFinite(r._tMs) && isFinite(prev._tMs) ? Math.round((r._tMs - prev._tMs) / 86400000) : 1;
-      r.d_rmssd_delta_pct = dayGap === 1 && prev._rmssd > 0 && !isNaN(r._rmssd) ? ((r._rmssd - prev._rmssd) / prev._rmssd) * 100 : NaN;
+      /* §∅ — ONE LINE, TWO GUARDS, AND ONLY ONE OF THEM WORKED. `prev._rmssd > 0` correctly excludes
+         an absent previous night (null > 0 is false). `!isNaN(r._rmssd)` does NOT exclude an absent
+         CURRENT one: `isNaN(null)` is `isNaN(0)` — false — so null passed, and
+         `((null - prev) / prev) * 100` is exactly **−100 %**. A night whose rMSSD was never recorded
+         reported a total day-to-day collapse: the table renders "−100.0%" and the chart paints the
+         bar RED. Absence manufacturing an alarming finding, rather than a flattering one.
+         The current row now uses the SAME `> 0` test as the previous one — symmetric, and the
+         symmetry is the point: an asymmetric pair of guards on one expression is what hid this.
+         Both consumers already read NaN as absent (`isNaN(v) ? '—'`), so this needs no change
+         downstream; it gives those guards back the absence they were written for.
+         ⚠️ The day gap defaulted to 1 when either stamp was unparseable, so two undated rows were
+         treated as CONSECUTIVE DAYS and got a day-to-day reactivity reading they had no basis for.
+         An unknown gap is null, and `null === 1` is false, so the column refuses. */
+      const dayGap = isFinite(r._tMs) && isFinite(prev._tMs) ? Math.round((r._tMs - prev._tMs) / 86400000) : null;
+      r.d_rmssd_delta_pct = dayGap === 1 && prev._rmssd > 0 && r._rmssd > 0 ? ((r._rmssd - prev._rmssd) / prev._rmssd) * 100 : NaN;
     });
 
     // Rolling windows  (`_rows`, not `allRows` — see the note on the pass above)
