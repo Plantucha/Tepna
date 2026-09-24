@@ -170,19 +170,35 @@ def stream_gaps(path: str) -> tuple[list[tuple[_dt.datetime, float]], float, flo
     return gaps, max(0.0, span), cut
 
 
-def attribute(gaps, events) -> dict[str, float]:
-    """Minutes per cause. `events` None ⇒ every gap 'unattributed (no journal)'."""
-    out: dict[str, float] = {}
+def attribute_gaps(gaps, events) -> list[tuple[_dt.datetime, float, str]]:
+    """[(gap start, seconds, cause)], one per gap. `events` None ⇒ every gap 'unattributed (no journal)'.
+
+    Published per gap (not only summed) because a consumer judging the WORN interval must count the gaps
+    INSIDE it: the SOLID-NIGHT verdict's continuity band counts unattributed gaps by number as well as
+    minutes, and only inside the worn interval (SOLID-NIGHT §3.4). A per-cause sum over the whole file
+    can answer neither."""
     if events is None:
-        for _, g in gaps:
-            out["unattributed (no journal)"] = out.get("unattributed (no journal)", 0.0) + g / 60.0
-        return out
+        return [(t0, g, "unattributed (no journal)") for t0, g in gaps]
     ts = [e[0] for e in events]
+    out = []
     for t0, g in gaps:
         i = bisect.bisect_right(ts, t0) - 1
         cause = events[i][1] if i >= 0 and (t0 - ts[i]).total_seconds() <= ATTRIB_WINDOW_S else "unattributed"
+        out.append((t0, g, cause))
+    return out
+
+
+def by_cause_of(per_gap) -> dict[str, float]:
+    """Minutes per cause, summed from `attribute_gaps`' list — the one list both published keys come from."""
+    out: dict[str, float] = {}
+    for _, g, cause in per_gap:
         out[cause] = out.get(cause, 0.0) + g / 60.0
     return out
+
+
+def attribute(gaps, events) -> dict[str, float]:
+    """Minutes per cause — the sum of `attribute_gaps`, so the two can never disagree."""
+    return by_cause_of(attribute_gaps(gaps, events))
 
 
 def _has_worn_evidence(night_dir: str, model: str) -> bool | None:
@@ -581,7 +597,8 @@ def audit_night(night_dir: str, devices: list[dict], *, journal=read_journal) ->
         ev = journal((name, address) if address else name, since, until)
         if ev is None:
             out["journal"] = "unavailable — every gap is unattributed"
-        by_cause = attribute(gaps, ev)
+        per_gap = attribute_gaps(gaps, ev)
+        by_cause = by_cause_of(per_gap)
         lost = sum(by_cause.values())
         worn = _has_worn_evidence(night_dir, model)
         out["devices"][name] = {
@@ -592,6 +609,12 @@ def audit_night(night_dir: str, devices: list[dict], *, journal=read_journal) ->
             "fragments": len(gaps) + 1,
             "lost_min": round(lost, 1),
             "by_cause": {k: round(v, 1) for k, v in sorted(by_cause.items(), key=lambda kv: -kv[1])},
+            # every gap with its start, length and cause — what `by_cause` sums, kept so a consumer can
+            # count gaps inside the worn interval (SOLID-NIGHT §3.4) rather than over the whole file.
+            # ⚠️ Gaps of `primary` ONLY: a fragmented night's other files are not audited yet
+            # (residue 2026-09-24-loss-audit-audits-only-the-largest-file), so an empty list is "none in
+            # this file", never "none in the night".
+            "gaps": [{"at": t.isoformat(timespec="seconds"), "s": round(g, 1), "cause": c} for t, g, c in per_gap],
             "worn_evidence": worn,
             "worn_lost_min": round(lost, 1) if worn else (0.0 if worn is False else None),
             "daemon_caused_min": round(sum(v for k, v in by_cause.items() if k.startswith("daemon:")), 1),
