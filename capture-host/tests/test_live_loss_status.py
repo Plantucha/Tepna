@@ -10,6 +10,11 @@ from tests.test_capture_coverage_100 import _run, _stop_after
 
 
 def _loop(monkeypatch, tmp_path, notifier=None):
+    # HERMETIC: status_loop walks STATUS["devices"], and this helper used to inherit whatever the previous
+    # test on the same xdist worker left there. #3010's CI failed on exactly that (`'str' object has no
+    # attribute 'get'` at publish_recording) on the MERGE of two halves that were each green — which makes
+    # it an isolation defect in this helper, not in either half. Reset like its ~15 siblings do.
+    monkeypatch.setitem(capture.STATUS, "devices", {})
     capture._STOP = asyncio.Event()
     _stop_after(monkeypatch, 1)
     capture._NOTIFIER = notifier
