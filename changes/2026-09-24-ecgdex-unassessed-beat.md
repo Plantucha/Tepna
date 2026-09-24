@@ -3,23 +3,26 @@ bump: patch
 type: fixed
 brief: none
 ---
-A beat too noisy to classify was typed **'N' — normal**, and then counted as one.
+**A strap on a table reported 42 ventricular runs.** On the owner's 2026-09-22 night, 2,766 of 2,767 PVCs sat in the window where the H10 was off the body — 7.93 % PVC burden, 330 couplets, bigeminy 396, from an empty strap. (Found and measured by Wren, capture-host lane.)
 
-Declining to call ectopy on a dirty beat is correct and deliberate: the guard's own comment says *"only call ectopy on clean beats (avoids artifact-driven false runs)"*, and that half is kept. The defect is the second half — the beat was then assigned the type `'N'`, asserting the normality the code had just declined to establish.
+The gate for exactly this case already existed and had no consumer. `ecgdex-dsp.js:2791` computes `beatConfidence`, whose own comment says why: *"a burst of spurious detections passes SQI≥0.30 individually yet is collectively nonsense … c<0.5 = confirmed artifact ⇒ drop, so it no longer inflates RMSSD/SDNN/epochs."* The HRV path consults it. The morphology call at `:3081` passed raw `sqi` and never did, so an empty strap was classified beat by beat. Its `artifactSec` of 6148 s = 102.5 min matches an independently measured off-body window of 102.2 min — the right seconds were already identified.
 
-**Both consequences ran the same way, toward reassurance:**
+**Two halves, and both are required.** This PR carries them together because measurement showed that shipping either alone is wrong:
 
-- a real PVC inside a noisy stretch was counted as a normal beat, so it never reached the numerator;
-- and it still counted in `pvcBurden = (nV / n) * 100`, where `n` was **every** beat — so each unassessable beat strictly diluted the rate.
+| | nPVC | burden |
+|---|---|---|
+| before | 2767 | 7.93 % |
+| `'U'` typing alone | 2767 | **11.69 %** |
+| + confidence mask | **1** | **0.01 %** |
 
-Measured on a planted record of 40 beats with 8 dirty ones: the old code reported **10.0 %** where the beats actually assessed give **12.5 %** — a 20 % understatement, in a figure whose severity bands sit at 0.5 % and 3 %.
+The `'U'` typing correctly stops an unclassifiable beat being counted as normal and removes it from the burden denominator — but alone it *shrinks the denominator while the artifact numerator stands*, making the owner's visible number worse. That is why this began as two PRs and ships as one.
 
-`bigemCycles` carried a third form of it: the test `types[k - 1] === 'N'` let an unassessed beat *complete* a bigeminy pattern it was never shown to be part of. `'N'` must mean a beat observed to be normal.
+Masking by `_conf` reproduces Wren's doff-cut exactly on all six morphology figures; the two runs differ only in how the off-body window is excluded (timestamp cut before parse vs confidence mask after), so this validates **the mask, not the classifier** — it is not evidence that the surviving 1 PVC is real.
 
-Unclassifiable beats now take their own state `'U'`, the burdens rate over `beatsAssessed`, and `beatsAssessed`/`beatsUnassessed` publish the basis. Per §∅'s 2026-09-17 ruling this is reduced **coverage**, which annotates rather than refuses — the burden still publishes, with what it rests on beside it. If nothing was assessable the rate is null, not 0.
+**Also fixed, the original survey row:** a beat too noisy to classify was typed `'N'` and counted as one. Declining to call ectopy on a dirty beat is correct and kept; asserting normality it had just declined to establish is not. Unclassifiable beats now take `'U'`, burdens rate over `beatsAssessed`, and `beatsAssessed`/`beatsUnassessed` publish the basis. `bigemCycles` no longer lets an unassessed beat complete a pattern it was never shown to be part of.
 
-**Traced before writing, both directions.** `types` has exactly one consumer outside the classifier — `tWaveAlternans` — and its own `sqi[k] < 0.6` filter already dominates the 0.55 classify threshold, so the new state changes nothing there. Verified rather than assumed.
+⚠️ **The twin took three attempts, and the first two would have shipped green either way.** They reproduced the false PVCs (42, then 23) with `beatsArtifactMasked: 0` — the gate never fired. `beatConfidence` is a robust z-score against the record's *own* median and MAD, and needs **both** an upper-outlier density and depressed SQI (`min(sD, sQ)`, which is what makes it AF-safe). The committed plant is therefore sized from the real file's proportions — a minority tail at ~4 detections/s against the worn 1/s — and leads with an anti-vacuity assertion (`beatsArtifactMasked > 500`), because without it a future change that simply stopped *detecting* the tail would also pass: no beats, no ectopy, green for the wrong reason.
 
-⚠️ **I predicted fixture movement and was wrong, so the reason is recorded rather than the prediction quietly dropped.** The morph burdens are carried through the reshape but are **not selected into the node-export**, so no golden can move: all four moved by `manifestHash`/`computeHash` only. The fix is live where a reader actually sees it — the ectopy KPI and the PVC severity band (`ecgdex-app.js:580`, `:803`, `:1373`) — and the twin is its only coverage.
+Measured on that plant: mask bypassed → 45 PVCs at 6.16 % burden; mask applied → 0.
 
-The twin plants five PVCs with the fifth inside the noise, and the **control proves that beat is real**: with every beat clean, `nPVC` is 5 rather than 4. Neither version can detect it while it is noisy — the difference is that the old one called it normal. Reverting the module reds 5 of 6, with `{"N":36,"V":4}` and burden `10` verbatim.
+⚠️ No golden can move on any of this: ECGDex's morph burdens are carried through the reshape but never selected into the node-export, which is why a burden regression on the owner's own night was invisible to CI. Logged separately as `2026-09-24-the-corpus-cannot-falsify-a-refusal-fix`.

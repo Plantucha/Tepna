@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="321a50560b49" data-compute-hash="b6e100114040">
+<html lang="en" data-manifest-hash="6e24d87e6f33" data-compute-hash="0d85603634fe">
 <head>
 <!--
   ECGDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+9D55WVzbDEo+NFobRHGpgzLjOctIxv5faJH6AFRjDI=' 'sha256-+DMxKj19C+r2oJ2mME0Wfi50h62Tqn+Adk/bA3XjY0I=' 'sha256-/b9Ty7sct7IZSflzeAYsdGJ90rYCMoXabF1e68y+EfI=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3bPuedJeHqlAtFRw9XCQUY2RL6IBWMfwvh6D9DWEXUc=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-E8qFHEt2A6a/g3xPUBa8iqmzqmNG2VpjPKUOtnJNDh0=' 'sha256-En5BnuJSrtGOQBjOAV0zmA/L43X1TvIisTxD5fCA3Bs=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-HzcMD559zyZ4lPmJYAOq3HzW49Kn+6Xu5u6HjrhiB+8=' 'sha256-IgKf+YEi7LmrdT3D04V12zZGeSw0FDC163m2Yj3NmLM=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-b+hR2i2ViyedwmAqqTitKUOQmoT7nrMmSb+ENDSMNws=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+9D55WVzbDEo+NFobRHGpgzLjOctIxv5faJH6AFRjDI=' 'sha256-+DMxKj19C+r2oJ2mME0Wfi50h62Tqn+Adk/bA3XjY0I=' 'sha256-/b9Ty7sct7IZSflzeAYsdGJ90rYCMoXabF1e68y+EfI=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3bPuedJeHqlAtFRw9XCQUY2RL6IBWMfwvh6D9DWEXUc=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-E8qFHEt2A6a/g3xPUBa8iqmzqmNG2VpjPKUOtnJNDh0=' 'sha256-En5BnuJSrtGOQBjOAV0zmA/L43X1TvIisTxD5fCA3Bs=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-IgKf+YEi7LmrdT3D04V12zZGeSw0FDC163m2Yj3NmLM=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-b+hR2i2ViyedwmAqqTitKUOQmoT7nrMmSb+ENDSMNws=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-fInNay7YkfBshcU/Ov4Qzft5gkilNkKZmGQu83EwLzo='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>ECGDex — Raw ECG Analyzer · v2.14.0</title>
@@ -11745,7 +11745,32 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     let morph = null;
     if (global.ECGMorph) {
       try {
-        morph = global.ECGMorph.analyze(int16, bp, fs, refIdx, rr, Array.from(sqi));
+        /* ∅ THE ARTIFACT GATE THAT CLEANS HRV MUST REACH ECTOPY TOO. `beatConfidence` at :2791
+           exists for exactly this case — its own comment: "a burst of spurious detections passes
+           SQI≥0.30 INDIVIDUALLY yet is collectively nonsense … c<0.5 = confirmed artifact ⇒ drop, so
+           it no longer inflates RMSSD/SDNN/epochs". The HRV path consults `_conf`; this call passed
+           raw `sqi` and never did, so an empty strap was classified beat by beat.
+           Found by Wren on the owner's 2026-09-22 night: 2,766 of 2,767 PVCs sit in the window where
+           the H10 was off the body — 42 ventricular runs and bigeminy 396 from a strap on a table.
+           `artifactSec` 6148 s = 102.5 min against an independently measured off-body window of
+           102.2 min, so `_conf` already identified the right seconds and nothing consumed them here.
+           Masking to 0 puts those beats below the classifier's SQI floor: they are not typed as
+           ectopic, and (with the 'U' state below) they leave the burden denominator instead of
+           diluting it. Both halves are required — the denominator fix ALONE moves this night
+           7.93 % → 11.69 %, because it shrinks the denominator while the artifact numerator stands. */
+        const _t0c = rec.t0Ms || 0;
+        const _sqiMorph = Array.from(sqi);
+        let _maskedBeats = 0;
+        for (let k = 0; k < _sqiMorph.length && k < peaks.length; k++) {
+          const _s = Math.floor((_t0c + (peaks[k] / fs) * 1000) / 1000);
+          const _c = _conf.has(_s) ? _conf.get(_s) : 1;
+          if (_c < 0.5) {
+            _sqiMorph[k] = 0;
+            _maskedBeats++;
+          }
+        }
+        morph = global.ECGMorph.analyze(int16, bp, fs, refIdx, rr, _sqiMorph);
+        if (morph) morph.beatsArtifactMasked = _maskedBeats;
       } catch (e) {
         morph = null;
       }

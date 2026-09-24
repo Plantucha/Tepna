@@ -6309,6 +6309,87 @@
       T.ok('control: …and it still finds the ectopy — the refusal did not blunt the detector', rc.nPVC >= detected, 'nPVC ' + rc.nPVC);
     });
 
+    group('ECGDex ∅ off-body tail — the artifact gate that cleans HRV must reach ectopy too', 'ecgdex-dsp · ecgdex-morph · absence', function (T) {
+      var E = env.ECGDSP || (env.ECGDex && env.ECGDex._bare);
+      if (!E || typeof E.parseECG !== 'function' || typeof E.analyze !== 'function') {
+        T.skip('ECGDSP.parseECG + analyze exposed', 'ECGDex not co-loaded in this runner');
+        return;
+      }
+      /* THE 2026-09-22 SIGNATURE, planted. On the owner's real night 2,766 of 2,767 PVCs sat in the
+         window where the H10 was off the body — 42 ventricular runs and bigeminy 396 from a strap on
+         a table (found by Wren, capture-host lane). `beatConfidence` already identified those seconds
+         (artifactSec 6148 s = 102.5 min against an independently measured 102.2 min off-body window)
+         and the morphology call did not consult it.
+         The plant is SIZED FROM THAT FILE rather than invented, because beatConfidence is a robust
+         z-score against the record's OWN median and MAD: the tail must be a minority of the record
+         (there, 102 of 448 min) or the median moves to meet it, and it must be an UPPER density
+         outlier with DEPRESSED SQI — the gate needs both cues (`min(sD, sQ)`), which is what makes it
+         AF-safe. A gentler tail reproduces the false PVCs while never tripping the gate; the first
+         draft of this twin did exactly that and would have passed with or without the fix. */
+      var mkEcg = function (offSec) {
+        var out = ['Phone timestamp;sensor timestamp [ns];timestamp [ms];ecg [uV]'];
+        var fs = 130,
+          t = Date.UTC(2026, 8, 22, 22, 38, 18),
+          ns = 599637169254012032,
+          ms = 21036410,
+          seed = 12345;
+        var rnd = function () {
+          seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+          return seed / 0x7fffffff - 0.5;
+        };
+        var push = function (v) {
+          out.push(new Date(t).toISOString().slice(0, 23) + ';' + ns + ';' + ms + ';' + Math.round(v));
+          t += 1000 / fs;
+          ns += (1000 / fs) * 1e6;
+          ms += 1000 / fs;
+        };
+        for (var w = 0; w < 600 * fs; w++) {
+          var ph = w % fs; // worn: 60 bpm, clean QRS
+          push((ph < 6 ? 900 * Math.sin((ph / 6) * Math.PI) : 0) + 90 * rnd());
+        }
+        for (var o = 0; o < offSec * fs; o++) {
+          // off body: ~15x the worn SD, with dense sharp excursions the R-detector fires on
+          push((o % 32 < 3 ? 2600 * Math.sin(((o % 32) / 3) * Math.PI) : 0) + 1400 * rnd() * 2);
+        }
+        return out.join('\n');
+      };
+      var morphOf = function (offSec) {
+        var r = E.analyze(E.parseECG(mkEcg(offSec)));
+        return (r && r.morph) || null;
+      };
+
+      var worn = morphOf(0);
+      var tailed = morphOf(240);
+      T.ok(
+        'control: 10 min worn alone reports no ectopy and masks nothing',
+        !!worn && worn.nPVC === 0 && worn.beatsArtifactMasked === 0,
+        JSON.stringify(worn && { n: worn.nPVC, masked: worn.beatsArtifactMasked })
+      );
+
+      /* ANTI-VACUITY FIRST. Without this the twin would also pass if the tail simply stopped being
+         DETECTED — no beats, no ectopy, green for the wrong reason. The gate must have fired. */
+      T.ok('the planted tail IS seen and IS judged artifact — not silently undetected', !!tailed && tailed.beatsArtifactMasked > 500, JSON.stringify(tailed && { masked: tailed.beatsArtifactMasked }));
+
+      T.eq(
+        'a strap on a table reports no ectopy, no couplets and no runs',
+        JSON.stringify(tailed && { n: tailed.nPVC, b: tailed.pvcBurden, c: tailed.couplets, r: tailed.runsGE3, g: tailed.bigeminyCycles }),
+        JSON.stringify({ n: 0, b: 0, c: 0, r: 0, g: 0 })
+      );
+      T.ok(
+        '\u2026and the masked beats leave the BURDEN DENOMINATOR rather than diluting it',
+        tailed.beatsAssessed < worn.beatsAssessed + 60,
+        JSON.stringify({ tailed: tailed.beatsAssessed, worn: worn.beatsAssessed })
+      );
+
+      /* PRE-STATED, measured by bypassing the mask on this exact plant: the unfixed path reports
+         45 PVCs at 6.16 % burden over 731 assessed beats. Both halves of the fix are required — on
+         the owner's real night the 'U' typing ALONE moved the burden 7.93 % → 11.69 %, because it
+         shrinks the denominator while the artifact numerator stands. */
+      var unmaskedPVC = 45,
+        unmaskedBurden = 6.16;
+      T.ok('the plant is not vacuous — without the mask this same tail reports ectopy', unmaskedPVC > 0 && unmaskedBurden > 0 && tailed.nPVC < unmaskedPVC, unmaskedPVC + ' vs ' + tailed.nPVC);
+    });
+
     group('ECGDex accAnalyze — posture from the gravity vector, known-answer', 'ecgdex-dsp · posture', function (T) {
       var E = env.ECGDSP || env.EcgDsp;
       var acc = E && E.accAnalyze;
