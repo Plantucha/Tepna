@@ -1,6 +1,6 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 
-**Status:** IN-PROGRESS — 2026-09-23 (owner-ratified programme; assignments issued the same evening; the first ranking below is measured from the box's own loss audits, the verdict is Magpie's unit; **§3's bands STATED 2026-09-24 (Magpie) before any night is scored** — the verdict's code in `nightqc.py` and the monitor line are next, and Wren refutes the judgement bands against the re-audited 28 nights first) · **Created:** 2026-09-23 · **Relates:** `STRATEGIC-PRIORITIES-2026-08-26-BRIEF.md` (P1–P4 deferred by this programme; P5's "two error-free weeks" is this programme's exit) · `OPERATIONAL-MATURITY-ROADMAP-2026-08-27-BRIEF.md` · `ABSENCE-SURVEY-2026-09-22-BRIEF.md` (the one processing lane that continues) · `SAMPLE-VALIDITY-ENVELOPE-2026-09-17-BRIEF.md` · CLAUDE.md §∅ and §🔒 §7
+**Status:** IN-PROGRESS — 2026-09-23 (owner-ratified programme; assignments issued the same evening; the first ranking below is measured from the box's own loss audits, the verdict is Magpie's unit; **§3's bands STATED 2026-09-24 (Magpie) before any night is scored** — the composition core landed (#3004, #3008); **the NIGHTLY runner is built (verified 2026-09-24, Magpie, §3.7 A6): `capture.loss_poller` writes `SOLID-VERDICT.json` on the loss audit's own trigger, with the run in `result.run`, and every night reads UNKNOWN on the timebase term until the residual pass lands**; the residual pass and the monitor line are next, and Wren refutes the judgement bands against the re-audited 28 nights first) · **Created:** 2026-09-23 · **Relates:** `STRATEGIC-PRIORITIES-2026-08-26-BRIEF.md` (P1–P4 deferred by this programme; P5's "two error-free weeks" is this programme's exit) · `OPERATIONAL-MATURITY-ROADMAP-2026-08-27-BRIEF.md` · `ABSENCE-SURVEY-2026-09-22-BRIEF.md` (the one processing lane that continues) · `SAMPLE-VALIDITY-ENVELOPE-2026-09-17-BRIEF.md` · CLAUDE.md §∅ and §🔒 §7
 
 # SOLID NIGHT — capture quality first, scored by one nightly verdict, exit at fourteen consecutive solid nights
 
@@ -329,6 +329,36 @@ specifies A3's measure.
 - **What the fixed reading would have done, measured.** A per-anchor raw jump > 1000 ms has only **1.78×
   headroom** on a quiet night (09-23: max 562 ms) and is **blind** to 08-27's +1,508 ms pre-seam walk,
   which spreads over ~17 anchors at ~89 ms each. It fails both ways.
+
+**A6 · What the nightly verdict reads, where §3.4 named no input** (2026-09-24, Magpie, stated with the
+runner before it scores a night; `capture-host/solid_night_inputs.py`).
+
+- **The worn-interval START is the primary stream's first row.** A1 wants wear evidence at both ends, and
+  nothing measures a wear-evidence start yet. This choice is **one-directional**: a longer interval can
+  only add gaps and lower completeness, so it can make a false FAIL and never a false PASS. It is replaced
+  the day a start is measured.
+- **The worn-interval END is the loss audit's `wear.worn_end`, and only a `doff` ends it.** `link-loss` and
+  `quiet-end-unclassified` are §3.3's "doff or loss — indistinguishable", so every interval-bound term is
+  UNKNOWN on such a night. The ring has no wear rule in the audit until #3030 deploys, so its interval terms
+  read UNKNOWN until then.
+- **Continuity is counted only when the audited file covers the interval.** The loss audit reads one
+  primary file per device, and on 2026-09-10 that file was the previous night's tail (Wren; residue
+  `2026-09-24-loss-audit-audits-only-the-largest-file`). An empty gap list from a file that does not span
+  the worn interval is "not examined", so the term is UNKNOWN. It is also UNKNOWN until the audit
+  publishes per-gap times (Wren's `gaps` list): a per-cause sum over the whole file cannot be counted
+  inside the interval.
+- **The ring's SpO₂ rate is the one its writer declared** (`signal: spo2_hr_motion@1Hz` in the acquisition
+  evidence). It is not a PMD stream, so it has no negotiated rate, and reading §3.4 literally would make it
+  UNKNOWN by construction (A2's trap).
+- **Scope, stated:** continuity and completeness are scored on each device's PRIMARY stream (ECG, Verity
+  PPG, ring SpO₂); validity on every waveform file of the model (its RUNS sidecar must publish its own
+  `min_run=`: the H10 ECG's is 30, #3006); clocks from a seam sidecar that `examined` rows, or the ring's
+  RTCLOG `read`. The timebase term is UNKNOWN, reason `timebase scan not built`, until the residual pass
+  (`independent`, hostAxis-ok, the A5 tripwire). **So every night reads UNKNOWN until that pass lands, and
+  the run stays at 0: that is the verdict being honest, not a defect.**
+- **The run** (§3.1) rides in each verdict's `result.run` and in the daemon's STATUS, as of that night. A
+  settled night with no verdict after the first one is UNKNOWN (unassessed, so it resets); nights before the
+  first verdict are not counted.
 
 **Open — found by scoring 09-23, NOT decided here:**
 - **BACKCHECK-VERDICT has no mapping into the night.** 09-23's is FAIL on 107 clipped regions (26 on the

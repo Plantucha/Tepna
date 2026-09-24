@@ -45,8 +45,25 @@
     },
     "capture-host/solid_night.py": {
       "bin": "decides",
-      "status": "pending",
-      "note": "the SOLID-NIGHT verdict's composition core (SOLID-NIGHT-2026-09-23-BRIEF §3.1): builds one tepna.verdict/1 per night through verdict.make, and nothing runs it yet. PENDING the same NAMED consumer as its find_unwired entry: the QC poller's child process in nightqc.py (#2936). It flips to adopted when that path emits a night's verdict, and the emits cmd then names it. NOT band-less: its criterion is 'failing band decisions' eq 0, pre-stated in §3 before any night was scored."
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "python3",
+          "capture-host/night_verdicts.py",
+          "--sample-json",
+          "solid-night"
+        ]
+      },
+      "note": "solid-night (SOLID-NIGHT-2026-09-23-BRIEF §3.1): one tepna.verdict/1 per settled night, composed from band decisions made by solid_night_inputs.py and written as SOLID-VERDICT.json beside the loss audit by capture.loss_poller on the audit's own trigger; the §3.1 run ('S solid of N nights over D days') rides in result.run. Criterion 'failing band decisions' eq 0, pre-stated in §3 before any night was scored. The sample is a clean synthetic H10 night: four terms PASS from their real inputs and the night is UNKNOWN on the timebase term, as every real night is until the residual pass lands."
+    },
+    "capture-host/solid_night_inputs.py": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "the band SUPPLIERS: per-term PASS/FAIL/UNKNOWN decisions handed to solid_night.compose, never emitted on their own; the emitting producer is capture-host/solid_night.py (adopted)"
+    },
+    "capture-host/tests/test_solid_night_inputs.py": {
+      "bin": "test",
+      "status": "exempt"
     },
     "capture-host/loss_audit.py": {
       "bin": "decides",

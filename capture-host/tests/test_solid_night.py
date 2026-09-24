@@ -210,3 +210,60 @@ def test_the_exit_is_fourteen_solid_nights():
     assert sn.consecutive(_days(1, [P] * 13))["exit"] is False
     r = sn.consecutive(_days(1, [P] * 14))
     assert r["exit"] is True and r["statement"] == "14 solid of 14 nights over 14 days"
+
+
+# ── the nightly runner: night_verdict · history · write_night ───────────────────────────────────────
+
+
+def _verdict_file(captures, night, status, reason=None):
+    d = captures / night
+    d.mkdir(parents=True, exist_ok=True)
+    (d / sn.VERDICT_NAME).write_text(__import__("json").dumps({"status": status, "reason": reason}))
+    return d
+
+
+def test_history_starts_at_the_first_verdict_and_reads_a_missing_one_after_it_as_unassessed(tmp_path):
+    _verdict_file(tmp_path, "2026-09-02", "PASS")
+    _verdict_file(tmp_path, "2026-09-04", "FAIL", "bad")
+    nights = ["2026-09-01", "2026-09-02", "2026-09-03", "2026-09-04", "2026-09-05"]
+    h = sn.history(str(tmp_path), nights, active={"2026-09-05"})
+    assert h == [
+        ("2026-09-02", "PASS", None),
+        ("2026-09-03", "UNKNOWN", sn.NO_VERDICT),  # settled, never assessed: it cannot bridge a run
+        ("2026-09-04", "FAIL", "bad"),
+        ("2026-09-05", "UNKNOWN", sn.NOT_SETTLED),
+    ]
+    assert sn.history(str(tmp_path), ["2026-09-01"], active={"2026-09-01"}) == []  # before the programme
+
+
+def test_write_night_writes_a_valid_verdict_beside_the_night_with_the_run_as_of_it(tmp_path):
+    _verdict_file(tmp_path, "2026-09-18", "PASS")
+    _verdict_file(tmp_path, "2026-09-19", "NOT_APPLICABLE", "in_charger")
+    nd = tmp_path / "2026-09-20"
+    nd.mkdir()
+    obj, run = sn.write_night(str(nd), [], nights=["2026-09-18", "2026-09-19", "2026-09-20", "2026-09-21"],
+                              active={"2026-09-21"}, commit=SHA)
+    on_disk = __import__("json").loads((nd / sn.VERDICT_NAME).read_text())
+    js_validate(on_disk)
+    assert on_disk["status"] == "UNKNOWN" and "no expected device" in on_disk["reason"]  # devices [] this test
+    # the night itself is a settled UNKNOWN ⇒ it RESETS the run, and a LATER active night never counts in it
+    assert on_disk["result"]["run"] == run and run["solid"] == 0 and run["pending"] is None
+    assert not (nd / (sn.VERDICT_NAME + ".tmp")).exists()
+
+
+def test_write_night_hands_back_the_run_when_the_verdict_has_no_result_to_hold_it(tmp_path, monkeypatch):
+    """NOT_APPLICABLE carries `result: null` by contract — the run still reaches the caller."""
+    nd = tmp_path / "2026-09-20"
+    nd.mkdir()
+    na = sn.compose(night="2026-09-20", settled=True, devices={"H10": {"applicable": False, "reason": "in_charger"}},
+                    evidence=EV, commit=SHA, at=AT)
+    monkeypatch.setattr(sn, "night_verdict", lambda *a, **k: na)
+    obj, run = sn.write_night(str(nd), [], nights=["2026-09-20"], active=set())
+    assert obj["result"] is None and run["solid"] == 0 and run["nights"] == 0
+
+
+def test_night_verdict_scores_the_configured_devices_from_the_files(tmp_path):
+    v = sn.night_verdict(str(tmp_path / "2026-09-20"), [{"name": "Polar H10 x", "model": "H10"}], commit=SHA, at=AT)
+    js_validate(v)
+    assert v["result"]["night"] == "2026-09-20"
+    assert v["status"] == "UNKNOWN" and "no-wear or radio down" in v["reason"]
