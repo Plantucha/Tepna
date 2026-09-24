@@ -10,7 +10,9 @@ failure up to 12 times, and every retry bought another pause at the same price.
 
 Measured on vigil for the night of 2026-09-18 (18:00→12:00, journal): **146 attempts took the device,
 113 of them abandoned at the op ceiling (77 %)**. Counting the `retry N/12` lines by index splits that
-146 into **80 first attempts and 66 retries** — the 66 are pure lost signal. A pause also disables
+146 into **80 first attempts and 66 retries** — the 66 are pure WASTE. Whether a given pause cost
+SIGNAL depends on whether the device was streaming when it was taken, which the nightly loss audit
+measures and this does not; the claim here is bounded to the pause count. A pause also disables
 `adapter_watchdog` and `clock_watchdog`, both of which skip while `_POLAR_PAUSED` is set, so the
 mechanism that corrects a drifting clock is stood down by the mechanism that syncs it.
 
@@ -42,6 +44,25 @@ took the device. The new plants drive the real `polar_offline_op`, and on `origi
 reports `assert (12 - 0) == 1` — twelve live-capture pauses for one flaky device. A second test in the
 same file asserted the budget OVERRUN as the specification ("the 3rd attempt's check sees 135 s and
 stops"); it now asserts the spend, not the attempt count.
+
+Re-measured across three nights with one query, 18:00→12:00 (09-18 is the calibrated control and
+reproduces exactly: 80 / 66 / 12 / 113):
+
+| night | pauses | ladder attempts that took the device | retries | budget give-ups | abandoned | daemon starts |
+|---|---|---|---|---|---|---|
+| 2026-08-27 | 386 | 207 (85 + 122) | **122** | 31 | 173 | 6 |
+| 2026-09-18 | 174 | 146 (80 + 66) | 66 | 12 | 113 | 12 |
+| 2026-09-19 | 147 | 110 (63 + 47) | 47 | 12 | 89 | 13 |
+
+08-27 is the same mechanism, larger and more retry-heavy — **1.44 retries per ladder against 0.83** —
+and its pauses fell 243/143 on the Verity versus the H10, where 09-19 is even (74/73). It predates
+`CLOCKSYNC.csv` (the channel began 2026-09-01), so its decomposition rests on the journal alone.
+
+⚠️ **The ladder fires ~424–509 times a night and 89–94 % of those end `deferred-absent`** (09-18:
+377/424 · 09-19: 476/509 · 09-20: 437/465). The device is unreachable for most of these nights, so a
+pause count is not a loss figure. The accounting does close on the pause side: 09-18's 174 pauses ≈ 146
+transient-failing attempts + the 32 `synced` rows, and a SUCCESSFUL sync emits no journal line at all,
+which is why the per-night ledger and not the journal is what decomposes this.
 
 ⚠️ `clock_watchdog` is a SECOND, independent caller of `polar_offline_op` — it calls `sync_device_time`
 directly, with no ladder — and is **untouched here**. `2026-09-23-loss-audit-resync-and-address.md`
