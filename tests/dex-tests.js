@@ -22107,6 +22107,46 @@
        null. `stress7` was the sibling that pass did not reach.
        Every ECGDex/Ganglior-ingested row lacks the Welltory Stress column, so this is the common
        case, not an edge. */
+    /* ── §∅ · AN UNRECORDED rMSSD IS NOT A 100 % COLLAPSE ──────────────────────────────────────
+       One line carried two guards and only one worked. `prev._rmssd > 0` excludes an absent previous
+       night; `!isNaN(r._rmssd)` does not exclude an absent CURRENT one, because `isNaN(null)` is
+       `isNaN(0)` — false. So null passed, and `((null - prev) / prev) * 100` is exactly −100 %: the
+       table rendered "−100.0%" and the chart painted the bar RED for a night that simply has no
+       rMSSD. An asymmetric pair of guards on one expression is what hid it. */
+    group('HRVDex §∅ — an unrecorded rMSSD is absent, not a −100 % collapse', 'hrvdex-dsp · delta · absence', function (T) {
+      var D = (env.HRVDex && env.HRVDex._bare) || env.HRVDex;
+      if (!D || typeof D.computeDerived !== 'function') {
+        T.skip('computeDerived available', 'HRVDex._bare not loaded');
+        return;
+      }
+      var DAY = 86400000;
+      var D0 = Date.UTC(2026, 5, 10, 3, 0, 0);
+      var run = function (secondRmssd, stamps) {
+        var rows = [
+          { _tMs: stamps ? D0 : Number.NaN, _rmssd: 50, _sdnn: 54, _pnn50: 18.5 },
+          { _tMs: stamps ? D0 + DAY : Number.NaN, _rmssd: secondRmssd, _sdnn: 54, _pnn50: 18.5 }
+        ];
+        D.computeDerived(rows);
+        return rows[1].d_rmssd_delta_pct;
+      };
+
+      /* CONTROL FIRST — two consecutive days with real readings must produce a real delta, or the
+         cases below pass for the wrong reason (a column that never computes at all). */
+      T.eq('ANTI-VACUITY · 50 → 60 across one day is a +20 % change', run(60, true), 20);
+      T.eq('…and 50 → 40 is −20 %', run(40, true), -20);
+
+      /* THE CASE: the second night carries no rMSSD. */
+      T.ok('an absent rMSSD REFUSES rather than reporting −100 %', Number.isNaN(run(null, true)), 'got ' + run(null, true));
+
+      /* THE DAY-GAP HALF: two undated rows were treated as consecutive days. */
+      T.ok('an unparseable pair of stamps refuses too — an unknown gap is not a gap of 1', Number.isNaN(run(60, false)), 'got ' + run(60, false));
+
+      /* THE COERCIONS, so the guards cannot end up guarding nothing. */
+      T.eq('`isNaN(null)` is FALSE — which is how absence passed the old guard', isNaN(null), false);
+      T.eq('…and the arithmetic it let through is exactly −100', ((null - 50) / 50) * 100, -100);
+      T.eq('…while `null > 0` is FALSE — the test the PREVIOUS night already used', null > 0, false);
+    });
+
     group('HRVDex §∅ — an absent subjective Stress is not a Stress of zero', 'hrvdex-dsp · stress · absence', function (T) {
       var D = (env.HRVDex && env.HRVDex._bare) || env.HRVDex;
       if (!D || typeof D.computeDerived !== 'function') {
