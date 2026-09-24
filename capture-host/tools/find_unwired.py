@@ -40,6 +40,7 @@ Usage:
     python3 tools/find_unwired.py --json     # machine-readable
     python3 tools/find_unwired.py --check    # exit 1 on anything unexplained (run by check.sh)
 """
+
 from __future__ import annotations
 
 import ast
@@ -54,8 +55,16 @@ HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # Modules that CONSUME device status. A key published by capture.py and named in none of these reaches
 # no operator, no alert and no report — which is the whole finding.
-CONSUMERS = ("webmon.py", "alerts.py", "nightqc.py", "timeline.py", "telemetry.py",
-             "diskguard.py", "cpap_harvest.py", "monitor.html")
+CONSUMERS = (
+    "webmon.py",
+    "alerts.py",
+    "nightqc.py",
+    "timeline.py",
+    "telemetry.py",
+    "diskguard.py",
+    "cpap_harvest.py",
+    "monitor.html",
+)
 
 # Known-intentional, with the reason. Anything here is reported as ALLOWED rather than silently dropped:
 # a suppression you cannot see is how the next real finding gets hidden behind a stale entry.
@@ -67,30 +76,30 @@ ALLOW_KEYS = {
     #    scan below will say so.
     # ── top-level shape (STATUS[key]= / setdefault) — covered since 2026-09-01 ──────────────────────
     "heartbeat_ms": "read by status_union.read_instance (staleness verdict) — the §3.6 merge layer of "
-                    "PER-DEVICE-ADAPTER-PINNING, itself in ALLOW_MODULES as PENDING with its missing "
-                    "producer named; when that brief lands or is retired, this entry goes with it",
+    "PER-DEVICE-ADAPTER-PINNING, itself in ALLOW_MODULES as PENDING with its missing "
+    "producer named; when that brief lands or is retired, this entry goes with it",
     "instance": "same consumer and same pending brief as heartbeat_ms directly above — the identity "
-                "field status_union folds N instances by",
+    "field status_union folds N instances by",
     "devcaps": "BLE-TRANSPORT-REDESIGN §1.3 per-unit capability record (devcaps.snapshot). The record "
-               "has a real PRODUCER (the hr-flags-bit2 measurement in run_polar writes both arms per "
-               "address) and persists across restarts, and status.json is where an operator reads it. "
-               "⚠️ What it does NOT yet have is a CAPABILITY BRANCH consuming it — §1.3 done-when 1 is "
-               "OPEN, deliberately and not by oversight: the one true per-unit capability in the daemon, "
-               "`_has_contact_bit`, is a SESSION fact ('have we seen the bit this session'), not a "
-               "capability, so seeding it from the record would coerce an unmeasured None into False — "
-               "the exact defect devcaps.get refuses. Converting a branch needs a capability whose "
-               "absence can be PROBED on demand, which `is_polar`-gated clock-sync would be once a "
-               "clock-sync probe exists. Residue 2026-09-16-devcaps-has-no-branch-consumer",
+    "has a real PRODUCER (the hr-flags-bit2 measurement in run_polar writes both arms per "
+    "address) and persists across restarts, and status.json is where an operator reads it. "
+    "⚠️ What it does NOT yet have is a CAPABILITY BRANCH consuming it — §1.3 done-when 1 is "
+    "OPEN, deliberately and not by oversight: the one true per-unit capability in the daemon, "
+    "`_has_contact_bit`, is a SESSION fact ('have we seen the bit this session'), not a "
+    "capability, so seeding it from the record would coerce an unmeasured None into False — "
+    "the exact defect devcaps.get refuses. Converting a branch needs a capability whose "
+    "absence can be PROBED on demand, which `is_polar`-gated clock-sync would be once a "
+    "clock-sync probe exists. Residue 2026-09-16-devcaps-has-no-branch-consumer",
     "ble": "BLE-TRANSPORT-REDESIGN §1.5/§1.6 counters (blestats.snapshot). status.json IS the report "
-           "the done-when requires — 'no rate in a report or alert is derived from a log line count' — "
-           "and an operator reads it directly, as for `storage`. The MONITOR DRAW is a tracked "
-           "follow-up (residue 2026-09-16-ble-counters-not-drawn): a rising retry rate is only an "
-           "alert once something renders the series, and until then this entry is the honest state "
-           "rather than a claim that §1.6 is finished",
+    "the done-when requires — 'no rate in a report or alert is derived from a log line count' — "
+    "and an operator reads it directly, as for `storage`. The MONITOR DRAW is a tracked "
+    "follow-up (residue 2026-09-16-ble-counters-not-drawn): a rising retry rate is only an "
+    "alert once something renders the series, and until then this entry is the honest state "
+    "rather than a claim that §1.6 is finished",
     "cpap_wedge": "the DURABLE record is the on-disk WEDGEFIRE journal (_wedge_fire_record), written "
-                  "at the same site — this STATUS copy is the live snapshot for a monitor draw that "
-                  "is a tracked follow-up (bluez_wedge.py's own comment names the journal as the "
-                  "outcome channel precisely because status.json snapshots cannot be one)",
+    "at the same site — this STATUS copy is the live snapshot for a monitor draw that "
+    "is a tracked follow-up (bluez_wedge.py's own comment names the journal as the "
+    "outcome channel precisely because status.json snapshots cannot be one)",
 }
 # Fields the API publishes that the monitor does not draw — either for a consumer OTHER than the monitor,
 # or a monitor draw that is PENDING and tracked. `/api/state` is not the monitor's private channel — but
@@ -104,6 +113,15 @@ ALLOW_JS: dict = {}
 # SCAN 6's allowlist: modules nothing imports. Keyed by MODULE, not by function — the whole point is
 # that the module is unreachable, so exempting it function-by-function would restate the bug.
 ALLOW_MODULES = {
+    "solid_night": (
+        "the SOLID-NIGHT verdict's composition core (SOLID-NIGHT-2026-09-23-BRIEF §3.1): precedence, the "
+        "population equality, the settle trigger and the consecutive count over band decisions already made. "
+        "PENDING its consumer, which is NAMED: the QC poller's child process in nightqc.py (#2936) calls "
+        "compose() per settled night once the band suppliers are wired — the loss audit's per-gap causes, the "
+        "seam sidecar's `# pmd` rate line, the acquisition envelope, the RUNS sidecar and ADAPTERHCI. Landed "
+        "first on purpose so the §3.1 rules are fixed and tested before any supplier can shape them. Retire "
+        "this entry when nightqc.py imports it."
+    ),
     "unseal": (
         "the tepna-seal/1 READER (CAPTURE-NIGHT-SEAL phase A, #TBD). PENDING its consumer, which is NAMED: "
         "phase B wires seal.py at night close on the box and phase C gives the Dex a browser reader; the "
@@ -115,14 +133,16 @@ ALLOW_MODULES = {
         "the §3.6 merge layer of PER-DEVICE-ADAPTER-PINNING-2026-08-26-BRIEF. PENDING, and the "
         "consumer it waits on is NAMED: nothing yet writes the per-instance status.<instance>.json "
         "that read_instance() expects, because the systemd-instance half of that brief is unbuilt. "
-        "Retires when the writer lands; if that brief is abandoned, DELETE this module with the entry"),
+        "Retires when the writer lands; if that brief is abandoned, DELETE this module with the entry"
+    ),
     "adapter_ab": (
         "an offline A/B analysis tool, not daemon code — it answers 'which radio receives better' "
         "from real per-advertisement scans and is invoked by hand, which is why it has no importer "
         "and why tools/mutate.py SKIPs it. LIVE, not dead: it produced the three-adapter table in "
         "PER-DEVICE-ADAPTER-PINNING-2026-08-26-BRIEF §1. Its individual functions already carry the "
         "same reason in ALLOW_FUNCS; this entry says it at the module level, which is the level at "
-        "which it is unreachable"),
+        "which it is unreachable"
+    ),
     "ble_visibility": (
         "the adapter-visibility log's record format + reader. HALF LIVE, HALF PENDING, both named. "
         "LIVE: main() is a hand-invoked reporter like adapter_ab — `ble_visibility.py "
@@ -133,12 +153,14 @@ ALLOW_MODULES = {
         "periodic per-adapter scan belongs in the daemon, and that touches production capture, "
         "which is an owner call rather than a drafting one. RETIRE this entry when that scan lands "
         "and imports make_record/append_record; if the daemon never collects, DELETE the module "
-        "with the entry, because a reader with nothing to read is dead code"),
+        "with the entry, because a reader with nothing to read is dead code"
+    ),
     "adapter_pool": (
         "swappability's per-device reassignment core. ASPIRATIONAL for the same architecture reason "
         "its individual functions already carry: the daemon repoints ONE global ADAPTER pin, so a "
         "{device: adapter} map has no consumer and cannot have one without per-device pinning. Kept "
-        "for the design it encodes; DELETE with this entry if per-device pinning is not taken up"),
+        "for the design it encodes; DELETE with this entry if per-device pinning is not taken up"
+    ),
 }
 
 # scan 7 — a consumer whose callers hand it the same parameter by DIFFERENT provenances, and a human has
@@ -155,13 +177,13 @@ ALLOW_PROVENANCE: dict[str, str] = {
 
 ALLOW_FUNCS = {
     "precedence_table_md": "telemetry — CAPTURE-LOSS-PRECEDENCE-AUDIT R3's doc gate is its consumer: the "
-                           "worn-precedence test renders it and diffs the brief's §2a against the output, so a "
-                           "vote added in code without a brief line reds by name. A production caller would be "
-                           "the wrong wiring — this renders documentation, not a decision",
+    "worn-precedence test renders it and diffs the brief's §2a against the output, so a "
+    "vote added in code without a brief line reds by name. A production caller would be "
+    "the wrong wiring — this renders documentation, not a decision",
     "card_code_decode": "sealfmt — the read half of the card code pair whose write half (card_code_encode) "
-                        "tools/seal_vectors.py uses to print the test card. Its consumer is the Dex's code entry "
-                        "(phase C, browser) and the box's card re-display (phase B); the seal tests exercise both "
-                        "directions. Retire when either phase lands",
+    "tools/seal_vectors.py uses to print the test card. Its consumer is the Dex's code entry "
+    "(phase C, browser) and the box's card re-display (phase B); the seal tests exercise both "
+    "directions. Retire when either phase lands",
     # ── The stored raw-PPG command family (type 1, opcodes 0x06-0x09), added 2026-09-06 ────────────
     # BUILT AND DELIBERATELY UNDISPATCHED. These frames have never been sent to a ring: the first
     # probe is owner-authorised separately, and wiring them into the daemon to satisfy this scan
@@ -175,11 +197,11 @@ ALLOW_FUNCS = {
     # block should shrink to nothing rather than be edited. If the family is abandoned instead,
     # delete the functions with these entries.
     "ppg_file_start_frame": "stored raw-PPG family (0x07) — built, UNPROBED, not dispatched pending "
-                            "an owner-authorised first ring contact",
+    "an owner-authorised first ring contact",
     "ppg_file_data_frame": "stored raw-PPG family (0x08) — same; retires with the authorised probe",
     "ppg_file_end_frame": "stored raw-PPG family (0x09) — same; retires with the authorised probe",
     "parse_ppg_file_header": "reads the stored raw-PPG file header; its only caller would be the "
-                             "pull path above, which cannot exist until the family is probed",
+    "pull path above, which cannot exist until the family is probed",
     # ── Swappability pure core (2026-08-30). ⚠️ THE ORIGINAL REASON HERE WAS WRONG AND IS CORRECTED.
     # It said the bluez hotplug watch "that calls them is unit 1's second half", implying these would
     # be discharged by wiring that watch. Tracing to the CONSUMER showed otherwise, twice over:
@@ -221,7 +243,6 @@ ALLOW_FUNCS = {
     "build_sa2": "cpap_edf — writes the ResMed SA2 oximetry container the AS11 leaves empty when no wired sensor is attached. PENDING an SA2 sink that feeds it from the O2Ring; delete with declaration_matches if that never lands",
     "device_start_from_host": "cpap_edf — the ONE boundary where an SA2 crosses from the host-stamped ring onto the AS11's device axis, so it lands beside its device-stamped BRP (Clock Contract §7/§12). Unwired for the SAME reason as build_sa2 above: no SA2 sink exists yet. It is deliberately NOT inlined into build_sa2 — the builder stays a pure encoder under declare-never-correct, and this refuses on an unmeasured offset rather than writing a well-formed file wrong by an unknown amount. RETIRE with build_sa2; if the ring is never written into the CPAP tree, delete all three together.",
     "declaration_matches": "cpap_edf — diffs a real file's signal block against the derived cpap_edf_dict. Used by the card test today; PENDING a runtime check that verifies a written EDF against the dictionary before it reaches the harvest tree",
-
     "compare": "adapter_ab analysis tool",
     "unattributable": "adapter_ab analysis tool",
     # ── investigated 2026-08-14 (brief §5). Each is CAPABILITY THAT EXISTS ELSEWHERE, not a gap. The
@@ -267,27 +288,27 @@ ALLOW_FUNCS = {
     # is passed at capture.py's cpap_poller" — and that moment has arrived, so the entry is gone rather
     # than left behind as a spent suppression describing a handover that has completed.
     "assemble_spool": "acq_evidence_cpap Phase B — the spool evidence assembler, honestly recorded as "
-                      "tested-not-witnessed; its consumer is the FIRST WITNESSED PULL (CPAP-SPOOL-"
-                      "ACQUISITION Do-1/Do-2), which needs the device. Retire this when that pull lands",
+    "tested-not-witnessed; its consumer is the FIRST WITNESSED PULL (CPAP-SPOOL-"
+    "ACQUISITION Do-1/Do-2), which needs the device. Retire this when that pull lands",
     "hdev": "allan.py — overlapping HADAMARD deviation (Baugh 1971 / Riley SP 1065). Its sibling `adev` "
-            "IS wired (nightqc); hdev is the drift-tolerant variant, available for an analysis that has "
-            "not yet needed it. Retire this when a caller quotes H-sigma, or delete if none ever does",
+    "IS wired (nightqc); hdev is the drift-tolerant variant, available for an analysis that has "
+    "not yet needed it. Retire this when a caller quotes H-sigma, or delete if none ever does",
     "read_edf": "cpap_edf — the round-trip partner of `write_edf` (which IS wired, cpap_edf_writer). It "
-                "exists so `write_edf(read_edf(x)) == x` is provable byte-for-byte; the tests are its "
-                "legitimate consumer. Retire only if that property stops being asserted",
+    "exists so `write_edf(read_edf(x)) == x` is provable byte-for-byte; the tests are its "
+    "legitimate consumer. Retire only if that property stops being asserted",
     "list_sessions": "oxy_transfer §2 — read-only 'what the ring says it has', committing to nothing. "
-                     "Fourth of the unit-2 family with pull_deadline/flush_gate/resume_target, all "
-                     "landed ahead of the async shell that drives them. Retires with that shell",
+    "Fourth of the unit-2 family with pull_deadline/flush_gate/resume_target, all "
+    "landed ahead of the async shell that drives them. Retires with that shell",
     "close_harvest_decision": "oxy_transfer §14 — composes pull_deadline + flush_gate into the "
-                              "close-triggered sequence; standalone until the async shell drives it. "
-                              "Deliberately landed ahead of that shell: the ORDERING is the design, and "
-                              "an ordering bug inside an await loop is nearly untestable — all four "
-                              "orderings are pinned here by mutation instead",
+    "close-triggered sequence; standalone until the async shell drives it. "
+    "Deliberately landed ahead of that shell: the ORDERING is the design, and "
+    "an ordering bug inside an await loop is nearly untestable — all four "
+    "orderings are pinned here by mutation instead",
     "resume_target": "oxy_transfer §8b — which link state a finished held-link pull hands back to "
-                     "(contact at exit: worn → LIVE, unworn → IDLE_UNWORN); standalone until unit 2's "
-                     "orchestration calls it. Third of the trio with pull_deadline and flush_gate — the "
-                     "link table PERMITS both targets and deliberately does not choose, so the choosing "
-                     "lives here and is testable before a caller exists",
+    "(contact at exit: worn → LIVE, unworn → IDLE_UNWORN); standalone until unit 2's "
+    "orchestration calls it. Third of the trio with pull_deadline and flush_gate — the "
+    "link table PERMITS both targets and deliberately does not choose, so the choosing "
+    "lives here and is testable before a caller exists",
     # ⚠️ THE NAMED MODULE WAS WRONG. This read "pull_session.py already gates re-pulls … via
     # parse_trailer"; `pull_session.py` exists and contains NO `parse_trailer` at all. The gate is
     # `oxy_inventory.classify` (`if parse_trailer(data) is None: return PARTIAL, "not finalised: no
@@ -309,24 +330,24 @@ ALLOW_FUNCS = {
     # the functions and this entry together — a refusal nothing reads is worse than no guard, because
     # it reads like protection.
     "sustained_ciphertext": "PENDING capture.py's OxyII live poll — the PRIMARY landed (#2312's "
-                            "successor wired classify_auth_reply at connect), and this probabilistic "
-                            "secondary is still unclaimed. `frame_looks_like_ciphertext` is its only "
-                            "caller and rides this row. The corroborator actually running today is "
-                            "aes_session_suspect (capture.py's GET_INFO branch), which is an inference "
-                            "from a firmware label rather than a reading of this session",
+    "successor wired classify_auth_reply at connect), and this probabilistic "
+    "secondary is still unclaimed. `frame_looks_like_ciphertext` is its only "
+    "caller and rides this row. The corroborator actually running today is "
+    "aes_session_suspect (capture.py's GET_INFO branch), which is an inference "
+    "from a firmware label rather than a reading of this session",
     "oxy_is_finalized": "redundant — `oxy_inventory.classify` already gates on finalisation via "
-                        "`parse_trailer` (and `oxy_transfer` reads the same trailer), which those "
-                        "callers need anyway for the device summary",
+    "`parse_trailer` (and `oxy_transfer` reads the same trailer), which those "
+    "callers need anyway for the device summary",
     "predict_step_split": "research helper from O2RING-FRAME-SAMPLE-LOCK-FOLLOWUPS §2, driven by its "
-                          "brief rather than by the daemon — same shape as blind_spots.analyze",
+    "brief rather than by the daemon — same shape as blind_spots.analyze",
     "is_offline_cmd": "the READ half of a write/read pair whose write half IS used — `as_offline` sets "
-                      "the bit in probe_verity_offline and probe_verity_survey; nothing needs to ask "
-                      "the question back. Same shape as busy_with",
+    "the bit in probe_verity_offline and probe_verity_survey; nothing needs to ask "
+    "the question back. Same shape as busy_with",
     "iter_packets": "ble_sniff's payload-only iteration, kept when summarise() moved to iter_records "
-                    "for the capture span (VIGIL-BLUETOOTH-ADAPTERS F2): the payload-bytes contract "
-                    "its tests pin and the shape a hand analysis reaches for when time is not the "
-                    "question. A one-line wrapper is cheaper than repointing every caller at tuple "
-                    "unpacking; DELETE with its tests if ble_sniff ever drops the payload-only view",
+    "for the capture span (VIGIL-BLUETOOTH-ADAPTERS F2): the payload-bytes contract "
+    "its tests pin and the shape a hand analysis reaches for when time is not the "
+    "question. A one-line wrapper is cheaper than repointing every caller at tuple "
+    "unpacking; DELETE with its tests if ble_sniff ever drops the payload-only view",
     # `start_key_exchange` / `confirm_key_exchange` (as11_link) LEFT this list 2026-09-05: their consumer
     # — as11_pair.py's connect → StartKeyExchange → prove → ConfirmKeyExchange → verify M2 → write
     # as11_creds.json orchestration, wired into the daemon as webmon's `cpap_pair` — now exists, so they
@@ -334,13 +355,13 @@ ALLOW_FUNCS = {
     # 2026-09-05 as "foundation of an unbuilt feature", after a FALSE earlier reason claimed a pairing
     # probe used them; that history is in git, not re-narrated here.)
     "pull_spool": "as11_pull — SUPERSEDED, and retained as the protocol-level reference its tests pin. "
-                  "⚠️ THE PREVIOUS REASON WAS FALSE: it claimed the operator probe calls this, and "
-                  "code-uses measured ZERO. Production drives the spool through cpap_spool.sync_spool "
-                  "-> as11_pull.pull_spool_round, which adds the ledger/promote/cursor transaction this "
-                  "bare multi-round loop has no notion of; cpap_spool.py's own header records that it "
-                  "was built because this function was wired into nothing. Retire by deleting it (with "
-                  "its tests) once nobody wants a transaction-free reference driver — a decision, not a "
-                  "cleanup.",
+    "⚠️ THE PREVIOUS REASON WAS FALSE: it claimed the operator probe calls this, and "
+    "code-uses measured ZERO. Production drives the spool through cpap_spool.sync_spool "
+    "-> as11_pull.pull_spool_round, which adds the ledger/promote/cursor transaction this "
+    "bare multi-round loop has no notion of; cpap_spool.py's own header records that it "
+    "was built because this function was wired into nothing. Retire by deleting it (with "
+    "its tests) once nobody wants a transaction-free reference driver — a decision, not a "
+    "cleanup.",
     "build_pld": "CPAP EDF writer — constructs a bit-accurate PLD.edf (derived 2 s channels) from captured data",
     "build_eve": "CPAP EDF writer — constructs a bit-accurate EVE.edf (EDF+ event annotations) from captured data",
     # `classify_frame` WAS excused here as "wired by the P1+P3 ingestion touch next". That touch is
@@ -386,15 +407,18 @@ def _code_only(path: str) -> str:
     repo from one bad parse. Over-counting uses (the old behaviour) is the safe direction here."""
     try:
         src = open(path, encoding="utf-8", errors="replace").read()
-    except OSError:      # pragma: no cover - unreadable file; contributes nothing either way
+    except OSError:  # pragma: no cover - unreadable file; contributes nothing either way
         return ""
     if not path.endswith(".py"):
-        return re.sub(r"#.*", "", src)          # shell: strip comments; it has no string-literal AST
+        return re.sub(r"#.*", "", src)  # shell: strip comments; it has no string-literal AST
     try:
-        return " ".join(t.string for t in tokenize.generate_tokens(io.StringIO(src).readline)
-                        if t.type not in (tokenize.COMMENT, tokenize.STRING))
+        return " ".join(
+            t.string
+            for t in tokenize.generate_tokens(io.StringIO(src).readline)
+            if t.type not in (tokenize.COMMENT, tokenize.STRING)
+        )
     except (tokenize.TokenError, IndentationError, SyntaxError):
-        return src                               # see the docstring: fail toward OVER-counting uses
+        return src  # see the docstring: fail toward OVER-counting uses
 
 
 def _comments_only(path: str) -> str:
@@ -417,17 +441,18 @@ def _comments_only(path: str) -> str:
     strip costs a missed orphan, a wrong strip invents one."""
     try:
         src = open(path, encoding="utf-8", errors="replace").read()
-    except OSError:      # pragma: no cover - unreadable file; contributes nothing either way
+    except OSError:  # pragma: no cover - unreadable file; contributes nothing either way
         return ""
     if path.endswith(".py"):
         try:
-            return " ".join(t.string for t in tokenize.generate_tokens(io.StringIO(src).readline)
-                            if t.type != tokenize.COMMENT)
+            return " ".join(
+                t.string for t in tokenize.generate_tokens(io.StringIO(src).readline) if t.type != tokenize.COMMENT
+            )
         except (tokenize.TokenError, IndentationError, SyntaxError):
-            return src                           # fail toward over-counting uses, as `_code_only` does
-    src = re.sub(r"<!--.*?-->", " ", src, flags=re.S)      # HTML
-    src = re.sub(r"/\*.*?\*/", " ", src, flags=re.S)       # JS/CSS block
-    src = re.sub(r"(?m)^[ \t]*//.*$", " ", src)            # JS line comment, line-initial only
+            return src  # fail toward over-counting uses, as `_code_only` does
+    src = re.sub(r"<!--.*?-->", " ", src, flags=re.S)  # HTML
+    src = re.sub(r"/\*.*?\*/", " ", src, flags=re.S)  # JS/CSS block
+    src = re.sub(r"(?m)^[ \t]*//.*$", " ", src)  # JS line comment, line-initial only
     return src
 
 
@@ -445,7 +470,7 @@ def status_keys(src: str) -> set[str]:
         if not (isinstance(fn, ast.Name) and fn.id == "_set"):
             continue
         for kw in node.keywords:
-            if kw.arg:                       # `**{...}` has arg=None; those are handled below
+            if kw.arg:  # `**{...}` has arg=None; those are handled below
                 keys.add(kw.arg)
         # `_set(name, **{f"rows_{meas}": …, "last_sample": …})` — literal keys inside a splat still count
         for kw in node.keywords:
@@ -474,14 +499,24 @@ def top_status_keys(src: str) -> set[str]:
     for node in ast.walk(tree):
         if isinstance(node, ast.Assign):
             for t in node.targets:
-                if (isinstance(t, ast.Subscript) and isinstance(t.value, ast.Name)
-                        and t.value.id == "STATUS" and isinstance(t.slice, ast.Constant)
-                        and isinstance(t.slice.value, str)):
+                if (
+                    isinstance(t, ast.Subscript)
+                    and isinstance(t.value, ast.Name)
+                    and t.value.id == "STATUS"
+                    and isinstance(t.slice, ast.Constant)
+                    and isinstance(t.slice.value, str)
+                ):
                     keys.add(t.slice.value)
-        if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
-                and node.func.attr == "setdefault" and isinstance(node.func.value, ast.Name)
-                and node.func.value.id == "STATUS" and node.args
-                and isinstance(node.args[0], ast.Constant) and isinstance(node.args[0].value, str)):
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "setdefault"
+            and isinstance(node.func.value, ast.Name)
+            and node.func.value.id == "STATUS"
+            and node.args
+            and isinstance(node.args[0], ast.Constant)
+            and isinstance(node.args[0].value, str)
+        ):
             keys.add(node.args[0].value)
     return keys
 
@@ -518,7 +553,6 @@ def public_functions(src: str) -> set[str]:
     return out
 
 
-
 # ── SCAN 6's population helper ────────────────────────────────────────────────────────────────────
 def importers(root: str, module: str) -> set:
     """Files under `root` that IMPORT `module`, excluding tests and the module itself. PURE-ish.
@@ -541,7 +575,9 @@ def importers(root: str, module: str) -> set:
     esc = re.escape(module)
     pat = re.compile(
         r"^\s*(?:import\s+%s(?:\s+as\s+\w+)?\s*$|from\s+%s\s+import\b)" % (esc, esc)
-        + r"|spec_from_file_location\(\s*[\'\"]%s[\'\"]" % esc, re.M)
+        + r"|spec_from_file_location\(\s*[\'\"]%s[\'\"]" % esc,
+        re.M,
+    )
     found = set()
     for dirpath, _dirs, names in os.walk(root):
         if os.sep + "tests" in dirpath or "node_modules" in dirpath or os.sep + ".venv" in dirpath:
@@ -558,8 +594,8 @@ def importers(root: str, module: str) -> set:
                 if pat.search(decommented):
                     found.add(os.path.relpath(os.path.join(dirpath, n), root))
             except OSError:
-                continue   # a file we cannot read cannot be shown to import anything, so this scan
-                           # FAILS TOWARD "unwired" — toward reporting, never toward hiding
+                continue  # a file we cannot read cannot be shown to import anything, so this scan
+                # FAILS TOWARD "unwired" — toward reporting, never toward hiding
     return found
 
 
@@ -661,8 +697,12 @@ def _assign_key(target: ast.AST) -> "str | None":
     CALL, a false pair). Anything else binds nothing this classifier follows."""
     if isinstance(target, ast.Name):
         return target.id
-    if (isinstance(target, ast.Subscript) and isinstance(target.value, ast.Name)
-            and isinstance(target.slice, ast.Constant) and isinstance(target.slice.value, str)):
+    if (
+        isinstance(target, ast.Subscript)
+        and isinstance(target.value, ast.Name)
+        and isinstance(target.slice, ast.Constant)
+        and isinstance(target.slice.value, str)
+    ):
         return "%s[%r]" % (target.value.id, target.slice.value)
     return None
 
@@ -738,7 +778,7 @@ def divergent_provenance(files: list[str], src: dict) -> tuple[list[dict], dict]
     and two callers that both read config are exactly the case that must NOT flag."""
     defined: set[str] = set()
     trees: dict = {}
-    home: dict[str, dict[str, str]] = {}          # file → {bare name → owning module}
+    home: dict[str, dict[str, str]] = {}  # file → {bare name → owning module}
     for f in files:
         trees[f] = ast.parse(src[f])
         funcs, methods = _all_functions(src[f])
@@ -774,10 +814,14 @@ def divergent_provenance(files: list[str], src: dict) -> tuple[list[dict], dict]
                 if fn.lineno <= call.lineno <= (fn.end_lineno or fn.lineno):
                     scope.update(_scope_at(assigns, call.lineno))
             for i, a in enumerate(call.args):
-                sites.setdefault(consumer, []).append({"slot": i, "kind": provenance(a, defined, scope), "file": f, "line": call.lineno})
+                sites.setdefault(consumer, []).append(
+                    {"slot": i, "kind": provenance(a, defined, scope), "file": f, "line": call.lineno}
+                )
             for kw in call.keywords:
                 if kw.arg:
-                    sites.setdefault(consumer, []).append({"slot": kw.arg, "kind": provenance(kw.value, defined, scope), "file": f, "line": call.lineno})
+                    sites.setdefault(consumer, []).append(
+                        {"slot": kw.arg, "kind": provenance(kw.value, defined, scope), "file": f, "line": call.lineno}
+                    )
     rows: list[dict] = []
     consumers_2plus = 0
     slots = 0
@@ -794,9 +838,15 @@ def divergent_provenance(files: list[str], src: dict) -> tuple[list[dict], dict]
             provs = by_slot[slot]
             kinds = {e["kind"] for e in provs}
             if any(k.startswith("CALL:") for k in kinds) and "CONFIG" in kinds:
-                rows.append({"consumer": consumer.split(":", 1)[1], "module": consumer.split(":", 1)[0], "slot": slot,
-                             "provenances": [{"kind": e["kind"], "file": e["file"], "line": e["line"]} for e in provs],
-                             "allowed": ALLOW_PROVENANCE.get(consumer.split(":", 1)[1])})
+                rows.append(
+                    {
+                        "consumer": consumer.split(":", 1)[1],
+                        "module": consumer.split(":", 1)[0],
+                        "slot": slot,
+                        "provenances": [{"kind": e["kind"], "file": e["file"], "line": e["line"]} for e in provs],
+                        "allowed": ALLOW_PROVENANCE.get(consumer.split(":", 1)[1]),
+                    }
+                )
     return rows, {"files": len(files), "consumers_with_2plus_callers": consumers_2plus, "slots": slots}
 
 
@@ -830,8 +880,10 @@ def scan(root: "str | None" = None) -> dict:
         # "0 unexplained" that does not name what it enumerated is the examined-nothing shape one
         # level up (the top-level shape was invisible here while STATUS["radio_distress"] and then
         # STATUS["radio_switches"] sat unread).
-        for shape, population in (("_set(name, key=…)", pop_keys),
-                                  ("STATUS[key]= / STATUS.setdefault(key,…)", pop_top_keys - pop_keys)):
+        for shape, population in (
+            ("_set(name, key=…)", pop_keys),
+            ("STATUS[key]= / STATUS.setdefault(key,…)", pop_top_keys - pop_keys),
+        ):
             for key in sorted(population):
                 if re.search(r"\b%s\b" % re.escape(key), consumers):
                     continue
@@ -880,8 +932,12 @@ def scan(root: "str | None" = None) -> dict:
             # FAIL LOUD, NOT OPEN. An anchor that stops matching returns an empty set, and an empty set
             # reports "0 unexplained" forever — a scan that examines nothing and calls it clean, which is
             # the failure this whole tool exists to name. Losing the anchor must red, not go quiet.
-            orphan_rendered.append({"key": "<projection not found — the AST anchor in projected_keys() "
-                                           "no longer matches webmon.py>", "allowed": None})
+            orphan_rendered.append(
+                {
+                    "key": "<projection not found — the AST anchor in projected_keys() no longer matches webmon.py>",
+                    "allowed": None,
+                }
+            )
         # 🔴 STRIP COMMENTS FIRST. A word-boundary match over the raw file counts a MENTION as a
         # rendering — and `autopull` was mentioned in monitor.html only inside a comment describing
         # this exact defect class, so the scan reported it drawn while nothing drew it. A gate fooled
@@ -949,8 +1005,9 @@ def scan(root: "str | None" = None) -> dict:
             continue
         if importers(root, mod):
             continue
-        orphan_modules.append({"module": mod, "funcs": sorted(public_functions(text)),
-                               "allowed": ALLOW_MODULES.get(mod)})
+        orphan_modules.append(
+            {"module": mod, "funcs": sorted(public_functions(text)), "allowed": ALLOW_MODULES.get(mod)}
+        )
 
     # ── SCAN 5 · A SUPPRESSION THAT EXCUSES NOTHING ─────────────────────────────────────────────────
     # THE BLIND SPOT IN THIS TOOL'S OWN DESIGN, found 2026-08-26 while wiring `cpap_spool.sync_spool`.
@@ -992,39 +1049,54 @@ def scan(root: "str | None" = None) -> dict:
         # the entry. (A first attempt gated on "is this the full tree", which was the wrong axis: a
         # fixture that sets HERE to itself IS the full tree by that test, and still knows nothing
         # about `close_harvest_decision`.)
-        applies = {"ALLOW_FUNCS": defined, "ALLOW_KEYS": pop_keys | pop_top_keys,
-                   "ALLOW_RENDERED": pop_rendered, "ALLOW_JS": pop_js,
-                   # a provenance entry applies only to a consumer scan 7 actually saw with 2+ callers
-                   "ALLOW_PROVENANCE": {r["consumer"] for r in divergent} | set(ALLOW_PROVENANCE) & defined}[label]
+        applies = {
+            "ALLOW_FUNCS": defined,
+            "ALLOW_KEYS": pop_keys | pop_top_keys,
+            "ALLOW_RENDERED": pop_rendered,
+            "ALLOW_JS": pop_js,
+            # a provenance entry applies only to a consumer scan 7 actually saw with 2+ callers
+            "ALLOW_PROVENANCE": {r["consumer"] for r in divergent} | set(ALLOW_PROVENANCE) & defined,
+        }[label]
         for name in sorted((set(allow) & applies) - reported):
             # WHERE the un-orphaning match lives, for ALLOW_FUNCS: every corpus file whose code carries
             # the bare name without defining it. A stale entry then costs one look instead of a bisect,
             # and a match in a .sh string or an unrelated module reads as what it is.
-            where = sorted(f for f, t in corpus.items()
-                           if re.search(r"\b%s\b" % re.escape(name), t)
-                           and not re.search(r"def\s+%s\b" % re.escape(name), t)) if label == "ALLOW_FUNCS" else []
-            stale.append({"list": label, "name": name, "allowed": None, "where": where,
-                          "reason": allow[name]})
+            where = (
+                sorted(
+                    f
+                    for f, t in corpus.items()
+                    if re.search(r"\b%s\b" % re.escape(name), t) and not re.search(r"def\s+%s\b" % re.escape(name), t)
+                )
+                if label == "ALLOW_FUNCS"
+                else []
+            )
+            stale.append({"list": label, "name": name, "allowed": None, "where": where, "reason": allow[name]})
 
-    return {"orphan_status_keys": orphan_keys, "orphan_functions": orphan_funcs,
-            # The FILTER, beside the count it qualifies: which publication shapes scan 1 enumerated,
-            # and how many keys each contributed. "0 unexplained" without this is a claim about an
-            # unnamed population — the exact hole the top-level shape hid in.
-            "examined_status_shapes": {"_set(name, key=…)": len(pop_keys),
-                                       "STATUS[key]= / STATUS.setdefault(key,…)": len(pop_top_keys - pop_keys)},
-            "orphan_modules": orphan_modules,
-            "orphan_rendered": orphan_rendered, "orphan_js": orphan_js,
-            # scan 7, with its population beside it: files scanned, consumers that had 2+ call sites,
-            # and argument slots compared. A "0 flagged" without these is the examined-nothing shape.
-            "divergent_provenance": divergent,
-            "examined_provenance": examined_prov,
-            "stale_allowlist": stale,
-            # ⚠️ STALENESS IS ONLY MEANINGFUL AGAINST THE TREE THE ALLOWLIST DESCRIBES. `ALLOW_FUNCS`
-            # is a module constant about THIS repo; point `scan()` at a fixture tree or a subtree and
-            # every entry matches nothing and reads as spent. The count would be a property of the
-            # ROOT, not of the allowlist. So the scan reports staleness always (visibility costs
-            # nothing) and `--check` only ENFORCES it on a full-repo scan.
-            "full_tree": os.path.abspath(root) == os.path.abspath(HERE)}
+    return {
+        "orphan_status_keys": orphan_keys,
+        "orphan_functions": orphan_funcs,
+        # The FILTER, beside the count it qualifies: which publication shapes scan 1 enumerated,
+        # and how many keys each contributed. "0 unexplained" without this is a claim about an
+        # unnamed population — the exact hole the top-level shape hid in.
+        "examined_status_shapes": {
+            "_set(name, key=…)": len(pop_keys),
+            "STATUS[key]= / STATUS.setdefault(key,…)": len(pop_top_keys - pop_keys),
+        },
+        "orphan_modules": orphan_modules,
+        "orphan_rendered": orphan_rendered,
+        "orphan_js": orphan_js,
+        # scan 7, with its population beside it: files scanned, consumers that had 2+ call sites,
+        # and argument slots compared. A "0 flagged" without these is the examined-nothing shape.
+        "divergent_provenance": divergent,
+        "examined_provenance": examined_prov,
+        "stale_allowlist": stale,
+        # ⚠️ STALENESS IS ONLY MEANINGFUL AGAINST THE TREE THE ALLOWLIST DESCRIBES. `ALLOW_FUNCS`
+        # is a module constant about THIS repo; point `scan()` at a fixture tree or a subtree and
+        # every entry matches nothing and reads as spent. The count would be a property of the
+        # ROOT, not of the allowlist. So the scan reports staleness always (visibility costs
+        # nothing) and `--check` only ENFORCES it on a full-repo scan.
+        "full_tree": os.path.abspath(root) == os.path.abspath(HERE),
+    }
 
 
 def main(argv: list[str]) -> int:
@@ -1033,18 +1105,24 @@ def main(argv: list[str]) -> int:
         print(json.dumps(res, indent=2))
         return 0
     for label, rows, fmt in (
-            ("status keys published by capture.py and read by nothing",
-             res["orphan_status_keys"], lambda r: "%-24s via %s" % (r["key"], r.get("shape", "?"))),
-            ("public functions referenced only by tests",
-             res["orphan_functions"], lambda r: "%s  %s" % (r["module"], r["func"])),
-            ("fields webmon forwards that monitor.html never draws",
-             res["orphan_rendered"], lambda r: r["key"]),
-            ("monitor.html handlers with no control that calls them",
-             res["orphan_js"], lambda r: r["func"]),
-            ("modules NOTHING imports — every public function in them is unreachable",
-             res.get("orphan_modules", []),
-             lambda r: "%s  (%d public fn%s)" % (r["module"], len(r["funcs"]),
-                                                 "" if len(r["funcs"]) == 1 else "s"))):
+        (
+            "status keys published by capture.py and read by nothing",
+            res["orphan_status_keys"],
+            lambda r: "%-24s via %s" % (r["key"], r.get("shape", "?")),
+        ),
+        (
+            "public functions referenced only by tests",
+            res["orphan_functions"],
+            lambda r: "%s  %s" % (r["module"], r["func"]),
+        ),
+        ("fields webmon forwards that monitor.html never draws", res["orphan_rendered"], lambda r: r["key"]),
+        ("monitor.html handlers with no control that calls them", res["orphan_js"], lambda r: r["func"]),
+        (
+            "modules NOTHING imports — every public function in them is unreachable",
+            res.get("orphan_modules", []),
+            lambda r: "%s  (%d public fn%s)" % (r["module"], len(r["funcs"]), "" if len(r["funcs"]) == 1 else "s"),
+        ),
+    ):
         live = [r for r in rows if not r["allowed"]]
         print("\n== %s ==" % label)
         for r in live:
@@ -1056,8 +1134,9 @@ def main(argv: list[str]) -> int:
         if rows is res["orphan_status_keys"]:
             # The count's FILTER, printed beside it: which shapes were enumerated, and how many keys
             # each held. A "0 unexplained" over an unnamed population is the examined-nothing shape.
-            print("   shapes examined: " + " · ".join(
-                "%s ×%d" % (s, n) for s, n in res["examined_status_shapes"].items()))
+            print(
+                "   shapes examined: " + " · ".join("%s ×%d" % (s, n) for s, n in res["examined_status_shapes"].items())
+            )
     # ── SCAN 7 · divergent provenance — ADVISORY, and deliberately NOT in the --check sum ──────────
     #
     # The sibling scans gate because their FP rate was curated to 0 on a real population. This one's
@@ -1078,8 +1157,10 @@ def main(argv: list[str]) -> int:
         if r["allowed"]:
             print("       reason: %s" % r["allowed"])
     ep = res["examined_provenance"]
-    print("   %d flagged, %d allowed  ·  population: %d files · %d consumer(s) with 2+ callers · %d slot(s) compared"
-          % (len(live), len(rows) - len(live), ep["files"], ep["consumers_with_2plus_callers"], ep["slots"]))
+    print(
+        "   %d flagged, %d allowed  ·  population: %d files · %d consumer(s) with 2+ callers · %d slot(s) compared"
+        % (len(live), len(rows) - len(live), ep["files"], ep["consumers_with_2plus_callers"], ep["slots"])
+    )
     print("\n== allowlist entries that excuse nothing (the suppression is spent) ==")
     for r in res["stale_allowlist"]:
         print("   %s[%r] — %s" % (r["list"], r["name"], r["reason"][:90]))
@@ -1109,11 +1190,20 @@ def main(argv: list[str]) -> int:
         # execute is the same class of thing this tool reports; a fixture tree that should not be
         # judged says so through `ALLOW_MODULES`, which is visible, rather than through a condition
         # that silently never fires.
-        n = sum(1 for r in res["orphan_status_keys"] + res["orphan_functions"]
-                + res["orphan_rendered"] + res["orphan_js"] + res["orphan_modules"]
-                if not r["allowed"])
+        n = sum(
+            1
+            for r in res["orphan_status_keys"]
+            + res["orphan_functions"]
+            + res["orphan_rendered"]
+            + res["orphan_js"]
+            + res["orphan_modules"]
+            if not r["allowed"]
+        )
         if n:
-            print("\n✖ %d unexplained — wire it, or allowlist it WITH A REASON in ALLOW_KEYS/ALLOW_FUNCS/ALLOW_MODULES" % n)
+            print(
+                "\n✖ %d unexplained — wire it, or allowlist it WITH A REASON in ALLOW_KEYS/ALLOW_FUNCS/ALLOW_MODULES"
+                % n
+            )
             return 1
         # A spent suppression REDS, at the same severity as an unwired function, and deliberately so:
         # its cost is not cosmetic. The entry names a symbol, so it pre-silences any FUTURE finding
@@ -1124,12 +1214,16 @@ def main(argv: list[str]) -> int:
         # red, on a tool whose entire subject is suppressions nobody re-checks. The scoping lives in
         # scan(), where `applies` judges an entry only against the population its own scan enumerated.
         if res["stale_allowlist"]:
-            print("\n✖ %d allowlist entr%s excuse nothing — DELETE them; a spent suppression silences the "
-                  "next real finding that reuses the name"
-                  % (len(res["stale_allowlist"]), "y" if len(res["stale_allowlist"]) == 1 else "ies"))
+            print(
+                "\n✖ %d allowlist entr%s excuse nothing — DELETE them; a spent suppression silences the "
+                "next real finding that reuses the name"
+                % (len(res["stale_allowlist"]), "y" if len(res["stale_allowlist"]) == 1 else "ies")
+            )
             return 1
-        print("\n✓ 0 unexplained — every published key and public function is wired or explained,"
-              " and every allowlist entry still excuses something")
+        print(
+            "\n✓ 0 unexplained — every published key and public function is wired or explained,"
+            " and every allowlist entry still excuses something"
+        )
     return 0
 
 
