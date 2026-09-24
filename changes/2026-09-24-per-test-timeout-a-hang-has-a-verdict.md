@@ -32,4 +32,4 @@ repo including the mutation gate's, silently converting a hanging mutant from it
 KILL — and `RUN-POLAR-MUTATION-STOP-HERE-2026-08-09-BRIEF.md` §7 decided the opposite ("a hang is now
 its own verdict, never a kill"). Changing a mutation-ledger semantic is not this unit's to make.
 
-Residue row `2026-09-24-a-hanging-test-had-no-verdict` closed by this change.
+Residue row `2026-09-24-a-hanging-test-had-no-verdict` closed by this change (#3047).
