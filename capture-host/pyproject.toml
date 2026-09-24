@@ -3,13 +3,22 @@
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-# A PASSING RUN KEEPS NOTHING. pytest's default retains the last three `tmp_path` roots whatever the
-# outcome, which is a debugging convenience that becomes a shared-resource failure here: /tmp on the
-# rig is one quota across every fleet session, a full nightqc run retains ~1.7 GB, and a mutation run
-# spawns one pytest per mutant. On 2026-09-24 that reached 37 retained directories, exhausted the
-# quota, and every session's gates began failing with EDQUOT — including writes that had nothing to do
-# with pytest. "failed" keeps exactly the runs someone would actually open.
-tmp_path_retention_policy = "failed"
+# ⚠️ DO NOT SET `tmp_path_retention_policy` HERE. Not "none", and NOT "failed" either — this file
+# carried "failed" for a few hours on 2026-09-24 and it made the mutation gate report FALSE KILLS.
+#
+# pytest removes the WHOLE basetemp, not merely the passing tests' directories, when the run is green
+# (`_pytest/tmpdir.py`, `pytest_sessionfinish`: "remove base directory if all the tests passed, the
+# policy is 'failed', and the basetemp is not specified by a user" — the guard is
+# `exitstatus == 0 and policy == "failed"`). mutmut runs one pytest session with a forked child per
+# mutant, all sharing that basetemp. So the first child whose mutant SURVIVES exits 0, deletes the
+# basetemp, and every later mutant fails at SETUP and is scored killed. A surviving mutant reads as
+# dead, which is the one failure a mutation gate must not have.
+#
+# The retention policy was never the load-bearing half of the /tmp fix anyway. Shrinking the fixtures
+# took one nightqc run from 2,097,737,728 to 63,004,672 bytes; pytest keeps three basetemps by
+# default, so ~189 MB steady state against a quota that 21 GB exhausted. The last 63 MB is not worth
+# a gate that cannot be trusted. To bound a single mutation run, put `TMPDIR` on disk — never
+# `--basetemp`, which is wiped at each new session's start and has the same effect.
 markers = [
   "sets_capture_events: this test sets a capture module-global Event as part of its scenario; the autouse fixture scopes it",
   "leaves_writers_open: this test ends with a sample writer open as part of its scenario; the autouse counter tripwire is silenced for it",
