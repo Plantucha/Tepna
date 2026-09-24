@@ -320,41 +320,53 @@ The open part is therefore narrower than the question as posed: **when the WORN 
 "no AC" while the front end still sees a pulse?** `_PPG` alone cannot tell those apart. `PPG2W`, the
 raw signed 24-bit AFE channels (§1), can.
 
-### 8.2 · Vendor side [SDK] — `lepu-blepro-1.3.9`, the OxyII real-time wave reply (`OxyIIBleInterface`, `RT_WAVE`)
+### 8.2 · Vendor side [SDK] — `lepu-blepro-1.3.9`, the OxyII wave parser
 
-The facts are stated here; no code is reproduced (the upstream has no licence).
+**Prior art — this is NOT a new finding.** The vendor answer was established on 2026-09-06 by the
+owner-ordered decompile (`/home/michal/lepu-decompile/`, kept outside the repo) and recorded in the
+fleet memory `zero-in-data-all-hands` ("0/199 are signal to the vendor"), with pieces of it in
+`DEVICE-RATE-TRUTH-2026-08-05-BRIEF.md` (the 156 smoothing, `doad/Cthrow.java:44`) and
+`O2RING-PROTOCOL-2026-07-17-BRIEF.md` (the `sensorState` mapping). It had never been written into a
+brief as one statement, and this section does only that. Facts only: the upstream has no licence, so
+no code is reproduced.
 
-1. **The wave is u8 with exactly ONE special value.** That the SDK replaces every **156** with the mean
-   of its neighbours is already recorded in `DEVICE-RATE-TRUTH-2026-08-05-BRIEF.md` (vendor corroboration,
-   `doad/Cthrow.java:44`). What this section adds is the negative: **no other value is treated as
-   special.** 0, 100 and 199/200 pass through unmodified. So the vendor's
-   own app draws the 0/199 excursions and the flat 100 as signal: **the vendor defines no in-band
-   invalid value for the pleth.** This confirms, from the vendor side, that `PPG_INVALID` (156) is a
-   marker the app smooths over and not a blanking code. The SDK smooths **every** 156, isolated or not.
-   That is a vendor-side data point for `RESIDUE.md` `2026-09-06-marker-isolation-heuristic-unvalidated`,
-   offered as a pointer only: it does not score that heuristic.
+1. **The wave is u8 with exactly ONE special value.** The SDK's OxyII wave parser serves both `0x03`
+   (RT_WAVE) and the wave half of `0x04` (RT_DATA, the `_PPG` stream). It replaces every **156** with
+   the mean of its neighbours and treats **no other value as special**. 0, 100 and 199 pass through
+   unmodified, so the vendor's own app draws them as signal. **The vendor defines no in-band invalid
+   value for the pleth.** `PPG_INVALID` (156) is a marker the app smooths over, not a blanking code.
+   The SDK smooths **every** 156, isolated or not. That is a vendor-side data point for `RESIDUE.md`
+   `2026-09-06-marker-isolation-heuristic-unvalidated`, offered as a pointer only: it does not score
+   that heuristic.
 2. **The app plots the wave inverted** (displayed = 127 − byte). That is a display fact only, and it
    gives 100 no special meaning.
-3. **Validity travels out-of-band in the vendor's own design.** The 1 Hz real-time parameter reply
-   carries `runStatus` `[4]` and `sensorState` `[5]` beside SpO₂, PR, PI and motion. The mapping, with
-   the enum `sensorState` 0 no finger · 1 normal · 2 probe pulled out · 3 sensor/probe fault, is already
-   verified in `O2RING-PROTOCOL-2026-07-17-BRIEF.md`. **Tepna's contact byte IS `sensorState`**
-   (`oxyii.py:680` reads `payload[5]`), and #2685 joins it to span rows. That is the §∅ sidecar pattern
-   (validity beside the data, never inside it), and the vendor built it in.
+3. **An out-of-band state field exists, and it does NOT attest in-wear blanking.** The 1 Hz
+   parameter reply carries `runStatus` `[4]` and `sensorState` `[5]` (0 no finger · 1 normal · 2 probe
+   pulled out · 3 sensor/probe fault; mapping verified in `O2RING-PROTOCOL`). **Tepna's contact byte IS
+   `sensorState`** (`oxyii.py` reads `payload[5]`), and #2685 joins it to span rows. However, Wren's
+   full-corpus co-timing (285 files, 2026-09-06, same memory) found **~98 % of all 0/199 occur while
+   `sensorState` reads worn**, and 0 is 15× MORE common worn than off-finger. So the field
+   distinguishes finger-off from finger-on. It does not flag blanking during real wear, and the
+   run-length detector remains the only instrument for that.
+   **Unread:** the same reply carries `[14]&3` `invalidIvState`, which Tepna does not decode. Whether
+   it moves during 0/199 or flat-100 runs is unknown. §8.3 records it, because it is the one
+   vendor-side validity bit nobody has looked at.
 4. The legacy (non-OxyII) oxy parser in the same AAR also smooths **246**. **246 occurs 0 times** in
    the four 2026-09-19 `S8AW2100` `_PPG.txt` files (156: 912–21,100 per file), so on this ring it is
    inert. It is recorded here so a future ring that emits it is recognised as a marker and not read as a
    rail.
-5. **TI AFE44xx** (the front end §1 matched): the output registers are 24-bit two's complement, and
-   the datasheet has no "invalid" code. A saturated photodiode shows up as a value **at or near full
-   scale**, not as a sentinel. So on `PPG2W`, loss of the optical signal predicts *pinned near a rail*
-   and absence of a finger predicts *no pulsatile component*. Neither predicts a zero.
+5. **The front end** (general AFE44xx behaviour, the part §1 matched; not re-read from the datasheet
+   for this section): the outputs are 24-bit two's complement, and saturation shows as values at or
+   near full scale, not as a sentinel. So on `PPG2W`, optical loss predicts *pinned near a rail* and
+   absence of a finger predicts *no pulsatile component*. Neither predicts a zero. Background: the
+   same memory notes that 0 and 199 are absent from the 24-bit `_PPG2W.txt` (a field-width argument).
+   That does not say what `PPG2W` does DURING an 8-bit excursion, which is the question §8.4 S1 asks.
 
-**What a stuck value means to the ring, then:** nothing. Neither the firmware protocol nor the SDK
-assigns any meaning to a constant pleth value. A flat 100 is the pipeline's output when it has no AC
-component to report, 0 and 199 are the ends of its u8 range, and the ring's own statement about
-validity is the 1 Hz state field. Consumers should keep keying on run length plus that out-of-band
-field, exactly as §∅ already rules.
+**What a stuck value means to the ring, then:** nothing. Neither the protocol nor the SDK assigns any
+meaning to a constant pleth value. Flat 100 is what the stream shows when there is no pulsatile AC
+(09-19: finger-off and disturbance alike), 0 and 199 are the ends of its u8 range, and the ring's
+state field separates finger-off from worn but not blanking from signal. Consumers should keep keying
+on run length, exactly as §∅ already rules.
 
 ### 8.3 · Capture design (not execution)
 
@@ -364,6 +376,11 @@ identical to a night except **`ppg2w` enabled**. `ACCRAW` and `OXYFRAME` are on 
 (`0x03`) stays **off** because it takes a second poll's airtime and would change the conditions the 09-19
 baselines were taken under. Marks are typed in chat and the times are taken from the files' own
 transitions (the 09-19 protocol).
+
+**Not recordable today:** `invalidIvState` (`[14]&3`, §8.2 item 3). `OXYFRAME` keeps decoded fields
+(`contact`, `run_status`, `flag_raw`, …) and has no column for it, so neither this capture nor the
+retrospective arm can read it. Adding it is a decoder change, and it is left to its own unit rather
+than folded into a docs PR.
 
 **Time anchor:** three sharp taps on the ring about 1 s apart at the START of every segment. They show
 as three transients in `ACCRAW` and give each segment a start time that does not depend on the pleth
