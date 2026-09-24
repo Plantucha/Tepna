@@ -36,14 +36,21 @@
 #   Every fail-open leg is pinned in the self-test, paired with the DENY it differs from by
 #   ONE property, so a guard that fires on nothing scores as red as one that fires on everything.
 #
-# ⚠ SCOPE: the `Edit|Write` matcher only. A computed edit through Bash (`sed -i`, a heredoc)
-#   is NOT gated — the same residual gap `guard-stale-brief.sh` §3 documents, left open here
-#   rather than closed with a write-shape heuristic over every Bash command (that guard already
-#   costs false denials on reads). Say so; do not describe this as covering Bash.
+# ⚠ SCOPE (widened 2026-09-24, owner-ordered "find a way to enforce usage"): THREE shapes.
+#   · `Edit|Write` of a repo file — the original.
+#   · Bash `git commit` — the choke point. A computed edit through Bash (`sed -i`, a heredoc) is
+#     still not gated at write time (a write-shape heuristic over every Bash command costs false
+#     denials on reads, as guard-stale-brief.sh §3 records), but it has to be COMMITTED, and the
+#     commit is. Only a commit: never reads, status, fetch, push.
+#   · `SendMessage` — a coordinator's product is a ruling to a peer, not an edit. Measured
+#     2026-09-24: twelve rulings on one search, two of them wrong and refuted by peers' measurements.
+#   Each shape resolves the tree from ITS target (the file's dir; the command's `git -C`/`cd`, else
+#   the payload cwd; the payload cwd), never this process's cwd.
 #
-# Escape hatch: CLAUDE_ALLOW_NO_DOC_SEARCH=1 — EXPORTED (an Edit/Write carries no command text,
-# so an inline prefix cannot reach this process; see guard-stale-brief.sh's header). Use it for a
-# deliberate one-line fix you have already searched for in another session, and say so in the PR.
+# Escape hatch: CLAUDE_ALLOW_NO_DOC_SEARCH=1 — EXPORTED for Edit/Write/SendMessage (those carry no
+# command text, so an inline prefix cannot reach this process; see guard-stale-brief.sh's header);
+# for a `git commit` the inline form on the command line is ALSO read. Use it for a deliberate
+# one-line fix you have already searched for in another session, and say so in the PR.
 # ═══════════════════════════════════════════════════════════════════════════════
 set -uo pipefail
 
@@ -55,15 +62,50 @@ MAX_AGE_S="${DOC_SEARCH_MAX_AGE_S:-10800}"   # 3 h — overridable so the self-t
 
 payload="$(cat 2>/dev/null)" || exit 0
 f="$(printf '%s' "$payload" | jq -r '.tool_input.file_path // empty' 2>/dev/null)"
-[ -z "$f" ] && exit 0
+cmd="$(printf '%s' "$payload" | jq -r '.tool_input.command // empty' 2>/dev/null)"
+tool="$(printf '%s' "$payload" | jq -r '.tool_name // empty' 2>/dev/null)"
+pcwd="$(printf '%s' "$payload" | jq -r '.cwd // empty' 2>/dev/null)"
+
+# ── THREE SHAPES, ONE FACT (owner-ordered 2026-09-24, "find a way to enforce usage"). ───────────
+#   1. Edit/Write of a repo file — the original scope.
+#   2. Bash `git commit` — the choke point every PR-bound change passes through, which closes the
+#      `sed -i` / heredoc gap the header above declares: a computed edit still has to be committed.
+#      Only a COMMIT is gated (never reads, status, fetch) so the false-denial cost of a write-shape
+#      heuristic over every Bash command is not paid. The tree is resolved from the command's own
+#      `git -C <dir>` / leading `cd <dir>`, then the payload's cwd — never this process's cwd
+#      (guard-stale-brief.sh's lesson: the hook runs with the SESSION cwd).
+#   3. SendMessage — the coordinator's product is a RULING sent to a peer, not an edit; measured
+#      2026-09-24: one session issued a dozen rulings on one search, two of them wrong and refuted
+#      by peers' measurements. A ruling is gated exactly like an edit: the session must have searched
+#      within the window, in the repo its cwd sits in.
+what=""; target_dir=""
+if [ -n "$f" ]; then
+  what="editing '$f'"
+  target_dir="$(dirname "$f")"                       # the file may not exist yet (a Write)
+elif [ -n "$cmd" ]; then
+  # a commit, and not merely the word in prose: `git` … `commit` as separate words on one line
+  printf '%s\n' "$cmd" | grep -qE '(^|[;&|(]|then |do )[[:space:]]*(sudo[[:space:]]+)?(env[[:space:]]+[^ ]+[[:space:]]+)*git([[:space:]]+-[A-Za-z]+([[:space:]]+[^ ]+)?)*[[:space:]]+commit([[:space:]]|$)' || exit 0
+  # inline hatch on the command line itself (an Edit/Write cannot carry one; a command can)
+  printf '%s\n' "$cmd" | grep -qE '(^|[[:space:]])CLAUDE_ALLOW_NO_DOC_SEARCH=1([[:space:]]|$)' && exit 0
+  what="committing (\`$(printf '%s' "$cmd" | head -c 60 | tr '\n' ' ')…\`)"
+  target_dir="$(printf '%s\n' "$cmd" | grep -oE 'git[[:space:]]+-C[[:space:]]+[^ ;&|]+' | head -1 | awk '{print $3}')"
+  [ -z "$target_dir" ] && target_dir="$(printf '%s\n' "$cmd" | grep -oE '^[[:space:]]*cd[[:space:]]+[^ ;&|]+' | head -1 | awk '{print $2}')"
+  [ -z "$target_dir" ] && target_dir="$pcwd"
+  target_dir="${target_dir/#\~/$HOME}"
+elif [ "$tool" = "SendMessage" ]; then
+  what="sending a ruling to a peer (SendMessage)"
+  target_dir="$pcwd"
+else
+  exit 0                                             # not a shape this guard judges
+fi
+[ -z "$target_dir" ] && exit 0
 sid="$(printf '%s' "$payload" | jq -r '.session_id // empty' 2>/dev/null)"
 [ -z "$sid" ] && sid="${CLAUDE_CODE_SESSION_ID:-}"
 [ -z "$sid" ] && exit 0
 case "$sid" in *[!A-Za-z0-9._-]*) exit 0 ;; esac   # not a filename ⇒ no stamp could exist ⇒ not ours to judge
 
-# ── WHICH TREE — from the edited file, never the hook's cwd (guard-stale-brief.sh's lesson). ─────
-#    The file may not exist yet (a Write), so resolve from its directory.
-edit_dir="$(dirname "$f")"
+# ── WHICH TREE — from the target, never the hook's cwd (guard-stale-brief.sh's lesson). ─────────
+edit_dir="$target_dir"
 [ -d "$edit_dir" ] || exit 0
 root="$(git -C "$edit_dir" rev-parse --show-toplevel 2>/dev/null)" || exit 0
 [ -z "$root" ] && exit 0
@@ -86,9 +128,9 @@ else
   why="no search has run in this session"
 fi
 
-rel="${f#"$root"/}"
+[ -n "$f" ] && what="editing '${f#"$root"/}'"
 cat >&2 <<EOF
-BLOCKED: editing '$rel' without a semantic search this session — $why.
+BLOCKED: $what without a semantic search this session — $why.
 
 CLAUDE.md §📌 / MEMORY.md rule #0: run the search BEFORE any analysis, diagnosis, sizing or build,
 and name the query + top hits in the first line of your report. Measured 2026-09-12: a diagnosis

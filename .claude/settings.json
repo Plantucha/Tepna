@@ -35,6 +35,23 @@
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-memory-stale.sh\" pre",
             "timeout": 10,
             "statusMessage": "checking a Bash write to memory was read this session"
+          },
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-doc-search.sh\"",
+            "timeout": 10,
+            "statusMessage": "checking a doc-search ran this session before this commit"
+          }
+        ]
+      },
+      {
+        "matcher": "SendMessage",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-doc-search.sh\"",
+            "timeout": 10,
+            "statusMessage": "checking a doc-search ran this session before this ruling"
           }
         ]
       },

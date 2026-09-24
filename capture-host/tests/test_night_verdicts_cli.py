@@ -100,3 +100,13 @@ def test_sample_json_night_loss_is_UNKNOWN_with_the_number(capsys):
     verdict.validate(o)
     assert js_validate(o)["ok"] and o["gate"] == "night-loss" and o["status"] == "UNKNOWN"
     assert o["result"]["daemon_caused_min"] == 2.0 and "no bar has been set" in o["reason"]
+
+
+def test_sample_json_solid_night_passes_four_terms_and_names_the_one_it_waits_for(capsys):
+    """The adoption gate's corpus-free object: a clean synthetic H10 night through the REAL suppliers."""
+    assert night_verdicts.main(["--sample-json", "solid-night"]) == 0
+    o = json.loads(capsys.readouterr().out)
+    verdict.validate(o)
+    assert js_validate(o)["ok"] and o["gate"] == "solid-night" and o["status"] == "UNKNOWN"
+    assert o["reason"] == "Polar H10 SAMPLE — timebase: " + __import__("solid_night_inputs").TIMEBASE_PENDING
+    assert o["result"]["failing"] == 0 and o["result"]["unknown"] == 1

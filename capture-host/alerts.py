@@ -378,6 +378,13 @@ def arrival_canary(qc: dict, live: dict) -> list[str]:
     """
     out = []
     for name, st in (live or {}).items():
+        # A NON-DICT STATUS IS NAMED, NOT STEPPED OVER. `st.get` on a str raises an error naming neither
+        # the device nor the value, and the poller's handler swallows it — which is how `'str' object has
+        # no attribute 'get'` reddened three PRs on main with nobody able to say which device produced
+        # it. Reported as what it is: a status entry that is not a status. `None` stays legal — an absent
+        # status is an unknown state, which both functions already read as no evidence.
+        if st is not None and not isinstance(st, dict):
+            raise TypeError(f"live status for {name!r} is {type(st).__name__}, not dict: {st!r:.120}")
         if not st or not st.get("connected"):
             continue
         rows, arr = st.get("rows"), st.get("arrival_rows")
@@ -395,11 +402,30 @@ def frozen_devices(qc: dict, live: dict, threshold_sec: float) -> list[str]:
     write measured against the night's newest write). `live` is STATUS["devices"]. A device missing
     from `live` is never reported — an unknown state is not evidence of a fault."""
     out = []
-    for d in qc.get("devices") or []:
+    # THE SUMMARY SIDE OF THE GUARD BELOW, and it was the half still open. The `live` check further
+    # down names a non-dict status; this one names a non-dict SUMMARY, and until it existed the exact
+    # error that check was written to abolish — `'str' object has no attribute 'get'` — still had a
+    # live path through `d.get("name")`. It reddened three PRs and `main` itself three times on
+    # 2026-09-24, and nobody could say which value produced it, because the message names neither the
+    # producer nor the object.
+    #
+    # ⚠️ THE TYPE IS CHECKED BEFORE THE LOOP, NOT ONLY INSIDE IT, and that is the interesting half: a
+    # STRING is iterable. `for d in "H10"` is perfectly legal, yields 'H', '1', '0', and would report a
+    # fault about devices that do not exist rather than failing outright — a fabricated finding, which
+    # is worse than a crash (§∅).
+    devs = qc.get("devices") or []
+    if not isinstance(devs, (list, tuple)):
+        raise TypeError(f"qc summary 'devices' is {type(devs).__name__}, not a list: {devs!r:.120}")
+    for i, d in enumerate(devs):
+        if not isinstance(d, dict):
+            raise TypeError(f"qc summary device[{i}] is {type(d).__name__}, not dict: {d!r:.120}")
         name, silent = d.get("name"), d.get("silent_sec")
         if not name or silent is None or silent < threshold_sec:
             continue
         st = live.get(name)
+        # named, not stepped over — see the same guard in `arrival_canary`
+        if st is not None and not isinstance(st, dict):
+            raise TypeError(f"live status for {name!r} is {type(st).__name__}, not dict: {st!r:.120}")
         if not st or not st.get("connected") or st.get("charging"):
             continue
         out.append(name)

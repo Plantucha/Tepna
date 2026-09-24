@@ -255,6 +255,38 @@ def _session_of(fname: str, mtime: float) -> float:
     return mtime
 
 
+def _worn_end(wear: dict | None, name: object) -> dict | None:
+    """One device's `worn_end` out of a `loss_audit.wear_ends`-shaped mapping, or None.
+
+    `name` is typed `object` rather than `str` because it arrives as `dev.get("name")`, which is
+    legitimately None for a device configured without one — and a missing key is exactly the "cannot say"
+    this function already answers with None, so there is nothing to narrow it to.
+
+    ⚠️ ABSENCE IS NULL AT EVERY HOP, and there are four of them: no mapping was supplied, the device is
+    not in it, its wear block is unavailable (no usable file), or the block has no `worn_end`. Each is a
+    different reason for not knowing and NONE of them is "the device was worn to the end", so every one
+    returns None rather than a value the caller could mistake for a measurement."""
+    if not isinstance(wear, dict):
+        return None
+    block = wear.get(name)
+    if not isinstance(block, dict):
+        return None
+    end = block.get("worn_end")
+    return end if isinstance(end, dict) else None
+
+
+def _worn_end_reason(wear: dict | None, name: object) -> str | None:
+    end = _worn_end(wear, name)
+    reason = end.get("reason") if end else None
+    return reason if isinstance(reason, str) and reason else None
+
+
+def _worn_end_at(wear: dict | None, name: object) -> str | None:
+    end = _worn_end(wear, name)
+    at = end.get("at") if end else None
+    return at if isinstance(at, str) and at else None
+
+
 def _folder_date(night_dir: str):
     """The datetime.date a YYYY-MM-DD night folder is named for, or None if the basename isn't a date."""
     try:
@@ -2269,7 +2301,7 @@ def dat_timefit_summary(dat_path: str, spo2_path: str,
     }
 
 
-def summarize(night_dir: str, devices: list[dict]) -> dict:
+def summarize(night_dir: str, devices: list[dict], wear: dict | None = None) -> dict:
     """Roll the CURRENT capture session up against the configured devices. The session is scoped by
     file-activity (see _SESSION_GAP_SEC) and unified across midnight (see below), NOT the whole date
     folder — so a box that also ran earlier the same day, or an overnight that crossed midnight, is judged
@@ -2285,7 +2317,15 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
     `sessions` with the hole between them in `prior_gap_sec` and a human-readable line in `gaps`.
     `ok` is true only when every declared stream produced data, none is degraded, AND no session was
     excluded — because `ok` is a claim about the night, and it cannot be made about a night half of
-    which was left out of the judgement."""
+    which was left out of the judgement.
+
+    `wear` is OPTIONAL and is `{device name: loss_audit.wear_ends(...) result}`. Supplied, it names WHY
+    a device stopped early (`stopped_early_reason`) and where its worn interval ended (`worn_end_at`).
+    Omitted — the default, and the case for every caller with no loss audit to hand — both read None,
+    which means "not determined" and never "worn to the end". It is a parameter rather than a call into
+    `loss_audit` because that module reads each wear stream end to end: measured 6.9 s on the 794 MB
+    2026-09-23 night (H10 5.0 s, Verity 1.9 s), which is worth paying once beside the caller's own
+    audit rather than every time anything summarizes a night."""
     scanned = scan_night(night_dir)
     data = [f for f in scanned if f["stream"] not in _SIDECAR_TAGS]
     # CROSS-MIDNIGHT: an overnight begun before midnight is split into TWO date folders, because night_dir
@@ -2628,12 +2668,26 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
                            "span_sec": round(dev_span) if dev_span else None,
                            "stopped_early_s": stopped_early_s,
                            "session_end": round(cur[1]) if span is not None else None,
-                           # WHY it stopped — doff, link loss — is Wren's wear-end unit and is not
-                           # inferred here. The slot is named so the consumer contract does not change
-                           # when it arrives, and `None` means "not determined", never "no reason".
+                           # WHY it stopped, from `loss_audit.wear_ends`'s `worn_end.reason` — NEVER
+                           # inferred here, and `None` still means "not determined" rather than "no
+                           # reason". Three things this deliberately does not do:
+                           #   · it does not GUESS when no wear block was supplied (`wear=None`, the
+                           #     default, and every caller that has no loss audit to hand);
+                           #   · it does not name a reason for a device that did NOT stop early. A
+                           #     reason for a 0-second early stop would read as a fault where there is
+                           #     none — the H10 that defines the session end is the normal case;
+                           #   · it does not MAP the vocabulary. `quiet-end-unclassified` travels
+                           #     verbatim: it is the wear unit's way of saying it could not tell, and
+                           #     translating it into anything shorter would manufacture a verdict.
                            "stopped_early_reason": None,
+                           # The wear boundary itself, whether or not the device stopped early — so the
+                           # off-body tail is READABLE rather than inferred. The H10 on 2026-09-23 has
+                           # `stopped_early_s = 0` because it defines the session end, and still came off
+                           # 28 min before its file did; that window held 2,766 of the night's 2,767
+                           # "PVCs" (#3001). Without this field a reader has to join two files to see it.
+                           "worn_end_at": None,
                            "silent_sec": silent, "rtc": rtc, "datfit": datfit})
-    return {
+    return attach_wear({
         "night": os.path.basename(night_dir.rstrip("/")),
         # Reported beside the capture verdict, never folded into it — see the note on system_file_drift.
         "system_files": system_file_drift(),
@@ -2705,7 +2759,7 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
         # What rate the files ACTUALLY carry, against what was asked for. Coverage notices a rate swap
         # only as `degraded`, which names it a link fault; this names it a rate fault.
         "rates": _rate_rows,
-    }
+    }, wear)
 
 
 # ── VERDICTS — one `tepna.verdict/1` object per gate per night (VERDICT-CONTRACT §3b, wave 1) ──────────
@@ -2842,6 +2896,39 @@ def adapter_hci_verdict(night_dir: str, summary: dict) -> dict:
         import verdict as _v
         return _v.unknown(gate=adapter_hci.GATE, criterion=adapter_hci.CRITERION,
                           evidence=[adapter_hci.TOOL, os.path.join(root, adapter_hci.FILE_NAME)], tool=adapter_hci.TOOL, exc=exc)
+
+
+def attach_wear(summary: dict, wear: dict | None) -> dict:
+    """Fill each device's `stopped_early_reason` / `worn_end_at` from a `loss_audit.wear_by_device`
+    mapping. PURE, returns the same object, and is the ONE place wear reaches a QC summary.
+
+    It is a separate function rather than an argument threaded through the scan because of WHERE the two
+    halves run. `capture.qc_poller` offloads the scan to a spawned child (`_qc_offload`) so QC never
+    costs the recording; the wear scan runs on a THREAD beside it — the precedent is `write_night` in the
+    same file, which already runs `wear_ends` for every device through `asyncio.to_thread` — and the two
+    results are joined here by pure arithmetic over dicts.
+
+    ⚠️ NEITHER THIS NOR THE WEAR SCAN MAY BECOME AN OFFLOAD TARGET, and that is a measured trap rather
+    than a style note. `_importable_by_reference` decides child-versus-thread by whether the target's
+    module still binds that name to that object, and several poller tests patch `nightqc.summarize` with
+    a LAMBDA precisely so that check fails and the poll runs on a thread — a frozen `time.monotonic` and
+    a spawned child cannot coexist, because `multiprocessing` reads it for its deadlines and the child's
+    result never arrives. Offloading any OTHER module-level name steps out from under those patches.
+    Measured twice: `check.sh` wedged at 98 % with all 24 xdist workers idle and the controller in
+    `futex_do_wait`, and a single test hung with a `multiprocessing` queue feeder alive beside it.
+
+    Absent, the fields stay None, which means "not determined" and never "worn to the end"."""
+    for dev in summary.get("devices") or []:
+        if not isinstance(dev, dict):
+            continue
+        name = dev.get("name")
+        # A reason belongs only to a device that DID stop early — naming one for a 0-second early stop
+        # reads as a fault where there is none, and the device defining the session end is the normal
+        # case. The boundary is published either way, so an off-body tail stays readable.
+        if dev.get("stopped_early_s"):
+            dev["stopped_early_reason"] = _worn_end_reason(wear, name)
+        dev["worn_end_at"] = _worn_end_at(wear, name)
+    return summary
 
 
 def write_verdicts(night_dir: str, summary: dict, devices: list[dict]) -> None:

@@ -4,7 +4,7 @@
 
     night_verdicts.py <captures_root> <night>        # from the night's QC-SUMMARY.json, beside it
     night_verdicts.py --sample <out_dir>             # both objects from synthetic input, into a directory
-    night_verdicts.py --sample-json night-qc|night-backcheck|night-seal|night-loss
+    night_verdicts.py --sample-json night-qc|night-backcheck|night-seal|night-loss|solid-night
                                                      # ONE object from synthetic input, to stdout — the
                                                      # corpus-free `emits.cmd` the adoption gate
                                                      # (tools/verdict-adoption.mjs) runs in CI
@@ -55,6 +55,10 @@ def sample_object(gate: str) -> dict:
         import loss_audit
 
         return loss_audit.sample_object()
+    if gate == "solid-night":
+        import solid_night
+
+        return solid_night.sample_object()
     if gate == nightqc._BACKCHECK_GATE:
         # the back-check reads the directory: a scratch one holding the file the sample summary names
         import tempfile
@@ -62,7 +66,9 @@ def sample_object(gate: str) -> dict:
         with tempfile.TemporaryDirectory() as d:
             open(os.path.join(d, "Wellue_O2Ring-S_S8AW_sample_PPG.txt"), "a", encoding="utf-8").close()
             return nightqc.backcheck_verdict(d, SAMPLE_SUMMARY)
-    raise ValueError(f"unknown gate {gate!r}: {nightqc._QC_GATE} | {nightqc._BACKCHECK_GATE} | night-seal | night-loss")
+    raise ValueError(
+        f"unknown gate {gate!r}: {nightqc._QC_GATE} | {nightqc._BACKCHECK_GATE} | night-seal | night-loss | solid-night"
+    )
 
 
 def seal_sample() -> dict:
