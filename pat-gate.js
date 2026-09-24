@@ -141,7 +141,7 @@
         }
       };
     if (!cp || !cp.ok) return { tier: 'no', label: 'NOT COUPLED', why: null };
-    if (!sc || !sc.ok) return { tier: 'no', label: 'NOT SIMULTANEOUS', why: null };
+    if (!sc || !sc.ok) return { tier: 'no', label: 'NOT SIMULTANEOUS', why: sc ? simultaneityWhy(sc) : null };
     /* REFUSE A NIGHT THE WINDOW HAS EATEN. `[PHYS_LO, PHYS_HI]` was treated as a plausibility filter;
        it is a censoring cut, and where the inter-device offset puts the true lag outside it the window
        keeps an edge-biased remnant and every leg below is computed on that. This is a REFUSAL, not a
@@ -213,11 +213,80 @@
      comparing against a pre-2026-08-10 run needs to see the old numbers; they simply no longer decide. */
   var SC_RATE_TOL = 0.12, // was the beat-COUNT tolerance; same number, now on rates
     SC_MIN_OVERLAP_MIN = 5; // a common interval shorter than this cannot support a night's verdict
+  /* A REFUSAL SAYS WHAT IT MEASURED. Every sibling refusal in `verdict` names its quantity; this one
+     returned `why: null`, so the page could only print "NOT SIMULTANEOUS" beside a lag it had computed
+     and the reader could not tell a real clock failure from a leg that miscounted. 2026-09-22 (owner):
+     the ECG leg counted 77.9 R/min against 41.6 PPG feet/min — 46.5 % apart — because an artifact
+     burst in the last 2.5 h of the strap's signal was being detected as beats. Owner's ruling on such a
+     night: show it, with a visible "not certified" signature and the reason, never a silent refusal. */
+  function simultaneityWhy(sc) {
+    var fin = function (v, k) {
+      return isFinite(v) ? +(v * (k || 1)).toFixed(3) : null;
+    };
+    var short = !(sc.overlapMin >= SC_MIN_OVERLAP_MIN);
+    var ecgMin = fin(sc.ecgHz, 60),
+      ppgMin = fin(sc.ppgHz, 60),
+      pct = isFinite(sc.rateRatio) ? (sc.rateRatio * 100).toFixed(1) : null;
+    return {
+      overlapMin: fin(sc.overlapMin),
+      minOverlapMin: SC_MIN_OVERLAP_MIN,
+      rateRatio: fin(sc.rateRatio),
+      tolerance: SC_RATE_TOL,
+      ecgPerMin: ecgMin,
+      ppgPerMin: ppgMin,
+      reason: short
+        ? 'the two recordings share ' + (isFinite(sc.overlapMin) ? Math.max(0, sc.overlapMin).toFixed(1) : '—') + ' min, below the ' + SC_MIN_OVERLAP_MIN + '-min floor a night verdict needs'
+        : 'the two legs count different beat rates — ECG ' +
+          (ecgMin == null ? '—' : ecgMin.toFixed(1)) +
+          '/min vs PPG ' +
+          (ppgMin == null ? '—' : ppgMin.toFixed(1)) +
+          '/min, ' +
+          pct +
+          ' % apart against a ' +
+          (SC_RATE_TOL * 100).toFixed(0) +
+          ' % tolerance — so they are not counting the same heartbeats, and a lag between them is not certified as a PTT'
+    };
+  }
+
+  /* THE ECG LEG MUST NOT COUNT ARTIFACT AS BEATS — ECGDex's own rule, reused, not re-derived.
+     `detectPeaks` alone is the raw detector. ECGDex's `analyze` then drops every second whose
+     `beatConfidence` (density-outlier AND SQI-depressed, both vs the record's own medians — AF-safe)
+     is below 0.5; PAT's leg never did. Measured 2026-09-22: 34 871 raw peaks, 9 649 in one hour (161/min)
+     during an artifact burst from ~03:40, against ECGDex's 18 663 beats and 18 646 PPG feet on the same
+     night — which is what `sharedClock` then refused as a 46.5 % rate disagreement.
+     `conf` is `ECGDSP.hrConfidence(...)`'s Map(absoluteSecond → c), keyed exactly as `analyze` keys it.
+     No `conf` (a DSP without the helper) ⇒ nothing is dropped and `applied: false` says so. */
+  var ARTIFACT_CONF_MIN = 0.5; // ecgdex-dsp.js analyze(): `if (c >= 0.5)` keeps the beat — same number
+  function dropArtifactPeaks(peaks, conf, fs, t0Ms) {
+    var n = peaks ? peaks.length : 0;
+    if (!conf || typeof conf.get !== 'function' || !(fs > 0)) return { kept: peaks || [], nRaw: n, nDropped: 0, artifactSec: 0, applied: false };
+    var t0 = t0Ms || 0,
+      kept = [],
+      dropped = new Set();
+    for (var k = 0; k < n; k++) {
+      var sec = Math.floor((t0 + (peaks[k] / fs) * 1000) / 1000);
+      var c = conf.has(sec) ? conf.get(sec) : 1;
+      if (c >= ARTIFACT_CONF_MIN) kept.push(peaks[k]);
+      else dropped.add(sec);
+    }
+    return { kept: kept, nRaw: n, nDropped: n - kept.length, artifactSec: dropped.size, applied: true };
+  }
+
   function sharedClock(ecg, ppg, ov) {
     var dT0 = Math.abs(ecg.t0Ms - ppg.t0Ms),
       beatRatio = Math.abs(ecg.n - ppg.n) / Math.max(ecg.n, ppg.n, 1);
-    var ecgHz = ecg.durSec > 0 ? ecg.n / ecg.durSec : NaN,
-      ppgHz = ppg.durSec > 0 ? ppg.n / ppg.durSec : NaN;
+    /* A RATE IS BEATS OVER THE TIME THE LEG MEASURED. Once the ECG leg drops artifact seconds
+       (`dropArtifactPeaks`), dividing its kept beats by the WHOLE file duration counts those seconds as
+       beat-less time and under-reads the rate by exactly the dropped share: 2026-09-22, 18 663 beats over
+       448 min = 41.7/min, against 54.0 PPG feet/min — a 22.8 % "disagreement" manufactured by the
+       denominator. Over the 346 min the ECG actually measured it is 53.9/min. A leg that dropped nothing
+       (no `artifactSec`) divides by its full duration exactly as before. */
+    var measured = function (leg) {
+      var s = leg.durSec - (isFinite(leg.artifactSec) && leg.artifactSec > 0 ? leg.artifactSec : 0);
+      return s > 0 ? s : NaN;
+    };
+    var ecgHz = ecg.durSec > 0 ? ecg.n / measured(ecg) : NaN,
+      ppgHz = ppg.durSec > 0 ? ppg.n / measured(ppg) : NaN;
     var rateRatio = isFinite(ecgHz) && isFinite(ppgHz) && Math.max(ecgHz, ppgHz) > 0 ? Math.abs(ecgHz - ppgHz) / Math.max(ecgHz, ppgHz) : Infinity;
     /* No `ov` ⇒ derive the common interval here. pat-gate deliberately does not import the worker's
        `overlap()`; duplicating three lines is cheaper than a dependency in the other direction. */
@@ -356,10 +425,13 @@
     verdictCell: verdictCell,
     worstAxis: worstAxis,
     sharedClock: sharedClock,
+    simultaneityWhy: simultaneityWhy,
+    dropArtifactPeaks: dropArtifactPeaks,
+    ARTIFACT_CONF_MIN: ARTIFACT_CONF_MIN,
     driftStats: driftStats,
     BIN_MATCH_MIN: BIN_MATCH_MIN,
     SC_RATE_TOL: SC_RATE_TOL,
     SC_MIN_OVERLAP_MIN: SC_MIN_OVERLAP_MIN,
-    VERSION: '1.2.0'
+    VERSION: '1.3.0'
   };
 })(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);
