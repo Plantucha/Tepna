@@ -244,3 +244,133 @@ def test_read_journal_takes_a_name_or_every_key_and_ignores_an_empty_one():
     assert causes("Polar H10 0284") == ["daemon:clock re-sync"]
     assert causes(("Polar H10 0284", _ADDR)) == ["daemon:clock re-sync", "daemon:pull paused live"]
     assert causes(("Polar H10 0284", "")) == ["daemon:clock re-sync"]
+
+
+# #2977's diff-scoped mutation run mutated audit_night and read_journal WHOLE (a changed line puts the
+# function in scope) and 49 mutants survived — behaviour the original tests never observed. Each test
+# below names the survivors it kills.
+
+
+def test_the_journal_window_is_the_night_minus_6h_to_plus_30h_and_a_trailing_slash_is_the_same_night(tmp_path):
+    # kills: the rstrip("/") mutants, the ±6 h / +30 h window mutants, the undated-night midnight mutants
+    d = _night(tmp_path)
+    seen = []
+    a = loss_audit.audit_night(d + "/", DEV, journal=lambda keys, since, until: seen.append((since, until)) or [])
+    assert a["night"] == "2026-09-20"
+    assert seen == [(dt.datetime(2026, 9, 19, 18, 0), dt.datetime(2026, 9, 21, 6, 0))]
+    odd = tmp_path / "captures" / "not-a-date"
+    odd.mkdir()
+    _stream(str(odd / "Polar_H10_0284_20260920220000_ECG.txt"), ())
+    seen.clear()
+    loss_audit.audit_night(str(odd), DEV, journal=lambda keys, since, until: seen.append((since, until)) or [])
+    ((since, until),) = seen
+    assert (since.hour, since.minute, since.second, since.microsecond) == (18, 0, 0, 0)
+    assert until - since == dt.timedelta(hours=36)
+
+
+def test_the_journal_is_asked_for_the_name_alone_or_the_name_and_the_address(tmp_path):
+    d = _night(tmp_path)
+    keys = []
+    j = lambda k, since, until: keys.append(k) or []  # noqa: E731
+    a = loss_audit.audit_night(d, DEV, journal=j)
+    loss_audit.audit_night(d, [{"name": "Polar H10 0284", "model": "H10", "address": _ADDR}], journal=j)
+    assert keys == ["Polar H10 0284", ("Polar H10 0284", _ADDR)]
+    assert a["journal"] == "read"  # a journal that answered is said to have been read
+
+
+def test_published_numbers_are_rounded_exactly_and_causes_are_ordered_by_minutes(tmp_path):
+    # kills: span/lost/worn_lost rounding (round(x, None) is an INT — 10 == 10.0 would pass), the by_cause
+    # sort key. Span 590 s = 9.8 min; gaps 31 s (first, alphabetically first) and 101 s (second).
+    d = tmp_path / "captures" / "2026-09-20"
+    d.mkdir(parents=True)
+    _stream(str(d / "Polar_H10_0284_20260920220000_ECG.txt"), ((100, 130), (200, 300)), n=591)
+    (d / "Polar_H10_0284_20260920220000_HR.txt").write_text("Phone timestamp;HR [bpm]\n" + T0.isoformat() + ";62\n")
+    planted = [
+        (T0 + dt.timedelta(seconds=98), "daemon:clock re-sync"),
+        (T0 + dt.timedelta(seconds=198), "link:dbus busy"),
+    ]
+    v = loss_audit.audit_night(str(d), DEV, journal=lambda *a: planted)["devices"]["Polar H10 0284"]
+    assert v["span_min"] == 9.8 and v["lost_min"] == 2.2 and v["worn_lost_min"] == 2.2
+    assert all(type(v[k]) is float for k in ("span_min", "lost_min", "worn_lost_min"))
+    assert list(v["by_cause"].items()) == [("link:dbus busy", 1.7), ("daemon:clock re-sync", 0.5)]
+
+
+def test_the_gap_cut_is_published_to_two_decimals(tmp_path):
+    # kills the round(cut, 2) mutants: a 0.457 s cadence gives a cut with a third decimal
+    d = tmp_path / "captures" / "2026-09-20"
+    d.mkdir(parents=True)
+    p = str(d / "Polar_H10_0284_20260920220000_ECG.txt")
+    _stream(p, (), n=300, step=0.457)
+    cut = loss_audit._ni._cadence_gap(p)
+    assert round(cut, 2) != round(cut, 3)  # the fixture can tell the mutants apart (else this test is vacuous)
+    v = loss_audit.audit_night(str(d), DEV, journal=lambda *a: [])["devices"]["Polar H10 0284"]
+    assert v["gap_cut_s"] == round(cut, 2) and type(v["gap_cut_s"]) is float
+
+
+def test_the_largest_primary_is_audited_and_an_unreadable_one_does_not_end_the_night(tmp_path, monkeypatch):
+    d = _night(tmp_path)
+    # a SMALLER file that sorts LAST: max(files) without the size key would pick it
+    _stream(os.path.join(d, "Polar_H10_0284_20260920235959_ECG.txt"), (), n=5)
+    a = loss_audit.audit_night(d, DEV, journal=lambda *a: [])
+    assert a["devices"]["Polar H10 0284"]["file"] == "Polar_H10_0284_20260920220000_ECG.txt"
+    _stream(os.path.join(d, "Wellue_O2Ring-S_S8_20260920220000_SPO2.csv"), ())
+    real = loss_audit.stream_gaps
+
+    def eio_for_the_h10(p):
+        if "H10" in os.path.basename(p):
+            raise OSError("eio")
+        return real(p)
+
+    monkeypatch.setattr(loss_audit, "stream_gaps", eio_for_the_h10)
+    devs = DEV + [{"name": "Ring", "model": "O2Ring-S"}]
+    a = loss_audit.audit_night(d, devs, journal=lambda *a: [])
+    assert "unreadable" in a["devices"]["Polar H10 0284"]["reason"] and a["devices"]["Ring"]["fragments"] == 1
+
+
+def test_read_journal_asks_journalctl_for_exactly_the_capture_unit_and_the_window():
+    calls = []
+
+    class R:
+        returncode = 0
+        stdout = ""
+
+    def run(*a, **k):
+        calls.append((a, k))
+        return R()
+
+    loss_audit.read_journal("x", T0, T0 + dt.timedelta(hours=1), run=run)
+    assert calls == [
+        (
+            (
+                [
+                    "journalctl",
+                    "-u",
+                    "tepna-capture",
+                    "--no-pager",
+                    "-o",
+                    "short-iso",
+                    "--since",
+                    "2026-09-20 22:00:00",
+                    "--until",
+                    "2026-09-20 23:00:00",
+                ],
+            ),
+            {"capture_output": True, "text": True, "timeout": 120},
+        )
+    ]
+
+
+def test_a_junk_entry_or_an_unknown_model_does_not_end_the_night_and_absent_wear_evidence_is_null(tmp_path):
+    # kills the `continue` → `break` mutants on the two early skips (the original test put them LAST, where
+    # a break is invisible), and the no-evidence branch of worn_lost_min
+    d = _night(tmp_path)
+    a = loss_audit.audit_night(d, ["junk", {"name": "Muse", "model": "Athena"}] + DEV, journal=lambda *a: [])
+    assert a["devices"]["Polar H10 0284"]["fragments"] == 2
+    v = a["devices"]["Polar H10 0284"]
+    assert v["worn_evidence"] is True and v["worn_lost_min"] == 2.0
+    os.unlink(os.path.join(d, "Polar_H10_0284_20260920220000_HR.txt"))
+    v = loss_audit.audit_night(d, DEV, journal=lambda *a: [])["devices"]["Polar H10 0284"]
+    assert v["worn_evidence"] is None and v["worn_lost_min"] is None
+    (tmp_path / "captures" / "2026-09-20" / "Polar_H10_0284_20260920220000_HR.txt").write_text("h\n1;0\n")
+    v = loss_audit.audit_night(d, DEV, journal=lambda *a: [])["devices"]["Polar H10 0284"]
+    assert v["worn_evidence"] is False and v["worn_lost_min"] == 0.0 and type(v["worn_lost_min"]) is float
