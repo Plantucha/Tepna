@@ -639,6 +639,122 @@
        night with no valid SpO2 as mean 0 / min 0 / max 0, and no valid HR likewise — the main path every real
        file takes. A night nobody measured read as a night of zeros. Driven through the real `processNight`
        with a control beside it, so the assertion is about behaviour and not about a literal. */
+    group('∅ clock seam — a discontinuity refuses; the bound is SHARED, not re-invented', 'pulsedex-dsp · oxydex-dsp · absence', function (T) {
+      /* The 2026-09-17 ruling applied across the nodes. A DISCONTINUITY refuses (null + a named
+         reason); reduced COVERAGE annotates (the value, with n beside it). The line is whether the
+         window still describes ONE continuous stretch of signal.
+
+         Planted per node and measured, 8 nodes: PulseDex FAILED — a 7-year clock jump left
+         rmssd/sdnn/pnn50 byte-identical to the continuous record with coverage 0 beside them, which
+         is §∅'s "a number computable from broken input, reporting no problem". ECGDex, PpgDex and
+         MotionDex pass via their parsers (device-counter step → one resync each). OxyDex and
+         GlucoDex pass with named annotations. HRVDex and CPAPDex are structurally exempt — see the
+         CPAPDex pin at the end, which exists so the next session does not plant a seam that cannot
+         be expressed. */
+      var P = (env.PulseDex && env.PulseDex._bare) || null;
+      if (!P || typeof P.pdComputeResult !== 'function') {
+        T.skip('PulseDex._bare.pdComputeResult exposed', 'PulseDex not co-loaded in this runner');
+      } else {
+        /* THE REALISTIC SEAM: every RR value stays physiological and the CLOCK jumps. That is what a
+           capture-side resync looks like, and it is invisible to the RR-domain statistics by
+           construction — rmssd/sdnn/pnn50 read the VALUES and never touch tsMs. A seam planted as a
+           giant RR value instead would be smoothed away by artifactClean's local-median replacement
+           and would test nothing; the next reader will reach for that form, so it is named here. */
+        var rr = [];
+        for (var i = 0; i < 120; i++) rr.push(900 + 40 * Math.sin(i / 5));
+        var t0 = Date.UTC(2026, 5, 10, 22, 0, 0);
+        var stamps = function (seamMs) {
+          var ts = [],
+            acc = t0;
+          for (var k = 0; k < rr.length; k++) {
+            if (k === 60 && seamMs) acc += seamMs;
+            ts.push(acc);
+            acc += rr[k];
+          }
+          return ts;
+        };
+        var clean = P.pdComputeResult({ vals: rr, tsMs: stamps(0), t0Ms: t0 });
+        var seamed = P.pdComputeResult({ vals: rr, tsMs: stamps(7 * 365 * 24 * 3600e3), t0Ms: t0 });
+
+        T.ok(
+          'control: a continuous record still computes every HRV metric',
+          clean && clean.rmssd > 0 && clean.sdnn > 0 && clean.coverage === 100,
+          JSON.stringify(clean && { r: clean.rmssd, s: clean.sdnn, c: clean.coverage })
+        );
+        T.eq('a clock seam REFUSES the whole-record variability metrics', JSON.stringify({ r: seamed.rmssd, s: seamed.sdnn, p: seamed.pnn50 }), JSON.stringify({ r: null, s: null, p: null }));
+        T.eq('\u2026with the reason NAMED — an absent figure a reader cannot explain is half a refusal', seamed.hrvReason, 'clock-seam');
+        T.ok(
+          '\u2026and the seam itself is published, not just its consequence',
+          !!seamed.clockSeams && seamed.clockSeams.n >= 1 && seamed.clockSeams.boundMs === 60000,
+          JSON.stringify(seamed.clockSeams)
+        );
+        /* The PER-BEAT averages are kept deliberately. classifyRecording and adaptEnvelopeNode consume
+           the duration immediately, and collapsing it is the DEEP-AUDIT-III §6.2 regression HRVDex
+           already paid for once — the same split PpgDex makes, nulling the CVHR index and leaving the
+           rest of the record alone. */
+        T.ok('the per-beat averages survive — the refusal is scoped to what spans the seam', seamed.meanRR > 0 && seamed.hr > 0, JSON.stringify({ m: seamed.meanRR, h: seamed.hr }));
+        T.ok('the plant is not vacuous — the SAME rr values compute fine without the seam', clean.rmssd > 0 && seamed.rmssd === null, JSON.stringify({ clean: clean.rmssd, seamed: seamed.rmssd }));
+      }
+
+      /* PARITY — the bound is SHARED, and that is the point. ECGDex, PpgDex and MotionDex already
+         assert theirs equal in the `ppgdex-clock-seam` group because all these nodes read the same
+         step in the same device's several files; a second constant would eventually disagree with
+         the first. PulseDex reuses it rather than inventing one. */
+      var srcOf = function (f) {
+        return ((env.sources || {})[f] || '')
+          .split('\n')
+          .filter(function (ln) {
+            var t = ln.trim();
+            return t.indexOf('//') !== 0 && t.indexOf('*') !== 0 && t.indexOf('/*') !== 0;
+          })
+          .join('\n');
+      };
+      var boundOf = function (f, name) {
+        var m = srcOf(f).match(new RegExp(name + '\\s*=\\s*(\\d+)'));
+        return m ? +m[1] : null;
+      };
+      var pd = boundOf('pulsedex-dsp.js', 'PD_RESYNC_BOUND_MS'),
+        ppg = boundOf('ppgdex-dsp.js', 'PPG_RESYNC_BOUND_MS'),
+        ecg = boundOf('ecgdex-dsp.js', 'ECG_RESYNC_BOUND_MS');
+      if (pd == null || ppg == null || ecg == null) {
+        T.skip('resync bounds readable from source', 'sources not provided in this runner');
+      } else {
+        T.eq('PulseDex reuses the SHARED resync bound — it did not invent a second one', JSON.stringify({ pd: pd, ppg: ppg, ecg: ecg }), JSON.stringify({ pd: 60000, ppg: 60000, ecg: 60000 }));
+      }
+
+      /* OXYDEX — `sparse` and `discontinuous` are different claims. The shared builder can only make
+         the first (`DexExport.coverageFromSegments` labels every multi-segment record `sparse`), and
+         `clockNonMonotonic` is the OxyDex stat that separates them, so the relabel is applied at
+         OxyDex's call site. Doing it in dex-export.js would serialise a fleet-wide re-verification
+         for a label nothing currently reads. */
+      var oSrc = srcOf('oxydex-dsp.js');
+      if (!oSrc.trim()) {
+        T.skip('oxydex-dsp.js source', 'sources not provided in this runner');
+      } else {
+        T.ok(
+          'a clock-stepped night is labelled discontinuous, not sparse',
+          /_oxyLabelCoverage/.test(oSrc) && /'discontinuous'/.test(oSrc) && /clockNonMonotonic !== true/.test(oSrc),
+          'relabel absent'
+        );
+      }
+
+      /* CPAPDEX PIN — a PROPERTY, not a detector. An EDF timeline is CONSTRUCTED from the header
+         (startdate/starttime + recordIndex × recDurSec), which is §7's "a device whose axis was DRAWN
+         is not a clock". There is no second clock in one EDF, so the two-clock discriminator cannot
+         run and there is no form in which to plant a seam. This pins that so the next session does
+         not spend a tick planting one that cannot exist. */
+      var cSrc = srcOf('cpapdex-edf.js');
+      if (!cSrc.trim()) {
+        T.skip('cpapdex-edf.js source', 'sources not provided in this runner');
+      } else {
+        T.ok(
+          'the EDF axis is header-derived: one clock, so no seam is expressible',
+          /recDurSec/.test(cSrc) && /startdate/.test(cSrc) && !/RESYNC_BOUND_MS/.test(cSrc),
+          'cpapdex-edf.js now carries a resync bound — if it grew a second clock, this pin is stale and the seam plant must be re-run for it'
+        );
+      }
+    });
+
     group('OxyDex §∅ — an ABSENT oximetry index is not a measured zero, and Normal is a claim', 'oxydex-dsp · absence', function (T) {
       var _odn = env.OxyDex || env.OxyDSP || env.OXYDSP;
       var OD = (_odn && _odn._bare) || _odn;
