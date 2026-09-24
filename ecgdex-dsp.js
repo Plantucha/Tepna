@@ -6010,7 +6010,7 @@
       analyzablePct: r.analyzablePct != null ? r.analyzablePct : null,
       coveragePct: r.coveragePct != null ? r.coveragePct : null
     };
-    var mk = function (metricId, value) {
+    var mk = function (metricId, value, qualityOverride) {
       if (value == null || typeof value !== 'number' || !isFinite(value)) return null; // unmeasured ⇒ no block
       var b = {
         metricId: metricId,
@@ -6020,7 +6020,7 @@
         code: code,
         evidence: evidence,
         basis: 'derived',
-        quality: quality,
+        quality: qualityOverride || quality,
         uncertainty: null,
         uncertaintyReason: 'not estimated — this node carries no uncertainty model for whole-record HRV summaries (the firmware cross-check in `validation` is a comparison, not an interval)'
       };
@@ -6029,15 +6029,45 @@
           'no bundle identity passed (headless source-module run) — the app reads <html data-manifest-hash/data-compute-hash> and passes opts.code; the regen tool passes the shipped bundle\u2019s';
       return b;
     };
+    /* ∅ THE ECTOPY FIGURES REACH A GOLDEN. They were computed, rendered, and selected into NOTHING
+       — `morph` rides through the reshape and stopped here, so `pvcBurden`/`ectopyBurden` appeared in
+       no fixture and no regeneration of them could ever move. That is not a cosmetic gap: the
+       artifact-gate defect fixed in #3002 made the owner's own night report 2,767 PVCs and 42
+       ventricular runs from a strap lying off the body, and NOTHING in CI could have reddened,
+       before the defect or after the fix (residue `2026-09-24-the-corpus-cannot-falsify-a-refusal-fix`).
+
+       The metricIds are the REGISTERED ones, not invented: `ectopy` is the registry's burden metric
+       (label "Ectopy", `measured`, and its alias table already resolves "pvc burden" → `ectopy`),
+       and `pvc` is the count in beats. A `pvcBurden` metricId would be a fabricated metric identity,
+       which is the §🎫 failure this node has paid for before.
+
+       THE BURDEN'S DENOMINATOR IS NOT THE HRV ONE. `quality.n` above is `nBeats`, the beats that
+       survived confidence-dropping for HRV; a burden is rated over `beatsAssessed`, the beats the
+       CLASSIFIER could judge. Publishing the HRV count beside a burden would misstate its basis —
+       the exact error #3002 exists to end — so these blocks carry their own. */
+    var _m = r.morph || {};
+    var _burdenQuality =
+      _m.beatsAssessed != null
+        ? {
+            n: _m.beatsAssessed,
+            durationMin: quality.durationMin,
+            analyzablePct: quality.analyzablePct,
+            coveragePct: quality.coveragePct,
+            unassessedBeats: _m.beatsUnassessed != null ? _m.beatsUnassessed : null,
+            artifactMaskedBeats: _m.beatsArtifactMasked != null ? _m.beatsArtifactMasked : null
+          }
+        : null;
     var out = {};
     var blocks = [
-      ['hr', r.hr],
-      ['rmssd', r.rmssd],
-      ['sdnn', r.sdnn]
+      ['hr', r.hr, null],
+      ['rmssd', r.rmssd, null],
+      ['sdnn', r.sdnn, null],
+      ['ectopy', _m.ectopyBurden, _burdenQuality],
+      ['pvc', _m.nPVC, _burdenQuality]
     ];
     var any = false;
     for (var i = 0; i < blocks.length; i++) {
-      var b = mk(blocks[i][0], blocks[i][1]);
+      var b = mk(blocks[i][0], blocks[i][1], blocks[i][2]);
       if (b) {
         out[blocks[i][0]] = b;
         any = true;
