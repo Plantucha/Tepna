@@ -49178,6 +49178,66 @@
       );
     });
 
+    group('PAT — a refusal says what it measured, and the ECG leg drops artifact exactly as ECGDex does', 'pat · sharedclock · artifact · regression', function (T) {
+      var G = env.PATGate;
+      if (!G || !G.sharedClock) {
+        T.skip('PATGate not in env', 'wire pat-gate.js into both runners');
+        return;
+      }
+      /* ANTI-VACUITY: a missing export FAILS here — gating the skip on the new functions would make this
+         group skip, not fail, on exactly the code it exists to catch. */
+      /* 2026-09-22, the counts the owner saw: 34 871 raw R-peaks against 18 646 PPG feet over 448 min,
+         files 41.1 s apart. The lag was computed (100 % coupled, 493 ms) and the page said only
+         "NOT SIMULTANEOUS" with `why: null`. */
+      var ecg = { t0Ms: 41100, durSec: 26868, n: 34871 },
+        ppg = { t0Ms: 0, durSec: 26880, n: 18646 };
+      var sc = G.sharedClock(ecg, ppg, { min: 447 });
+      var vd = G.verdict({ min: 447 }, { ok: true }, sc);
+      T.eq('the 09-22 counts are refused as NOT SIMULTANEOUS', vd.label, 'NOT SIMULTANEOUS');
+      T.ok('…and the refusal now CARRIES what it measured (was why: null)', vd.why && vd.why.rateRatio > 0.46 && vd.why.rateRatio < 0.47, JSON.stringify(vd.why));
+      T.ok(
+        '…naming both rates, the gap and the tolerance in its reason',
+        vd.why.reason.indexOf('ECG 77.9/min vs PPG 41.6/min, ' + (vd.why.rateRatio * 100).toFixed(1) + ' % apart against a 12 % tolerance') >= 0,
+        vd.why.reason
+      );
+      var short = G.verdict({ min: 2 }, { ok: true }, G.sharedClock(ecg, ppg, { min: 2 }));
+      T.ok('a too-short overlap names the floor, not a rate', /2\.0 min, below the 5-min floor/.test(short.why.reason), short.why.reason);
+
+      /* The artifact rule is ECGDex analyze()'s, keyed the same way: absolute second
+         floor((t0Ms + idx/fs·1000)/1000), kept iff c >= 0.5. One peak a second for 100 s at 130 Hz,
+         t0Ms 5000 so the key is offset — a helper that ignored t0Ms would drop the wrong ten. */
+      T.ok('PATGate exports dropArtifactPeaks', typeof G.dropArtifactPeaks === 'function');
+      if (typeof G.dropArtifactPeaks !== 'function') return;
+      var fs = 130,
+        t0 = 5000,
+        peaks = [];
+      for (var k = 0; k < 100; k++) peaks.push(k * fs);
+      var conf = new Map();
+      for (var s = 55; s < 65; s++) conf.set(s, 0.49); // recording seconds 50–59 → absolute 55–64
+      conf.set(65, 0.5); // recording second 60: exactly the threshold — ECGDex KEEPS it
+      var g = G.dropArtifactPeaks(peaks, conf, fs, t0);
+      T.eq('ten artifact seconds drop ten peaks', g.nDropped, 10);
+      T.eq('…counted as ten artifact seconds', g.artifactSec, 10);
+      T.ok(
+        '…the RIGHT ten: recording seconds 50–59, with 60 (c = 0.5) kept',
+        g.kept.indexOf(49 * fs) >= 0 && g.kept.indexOf(50 * fs) < 0 && g.kept.indexOf(59 * fs) < 0 && g.kept.indexOf(60 * fs) >= 0
+      );
+      T.eq('the threshold is the one ECGDex analyze() uses', G.ARTIFACT_CONF_MIN, 0.5);
+      T.ok('…and nRaw reports what the detector found before the gate', g.nRaw === 100 && g.kept.length === 90 && g.applied === true);
+      /* …and the rate is taken over the time the leg MEASURED. The real 09-22 legs after the gate:
+         18 663 kept R over a 448-min file with 6 148 artifact seconds dropped, against 18 646 feet over the
+         Verity's 345 min. Over the whole ECG file that reads 41.7 vs 54.0/min and is refused; over the time
+         it measured it is 53.9 vs 54.0 and is one heart. */
+      var ecgG = { t0Ms: 41100, durSec: 26868, n: 18663, artifactSec: 6148 },
+        ppgV = { t0Ms: 0, durSec: 20715, n: 18646 };
+      var scG = G.sharedClock(ecgG, ppgV, { min: 345 });
+      T.ok('the gated 09-22 ECG leg is simultaneous with its PPG', scG.ok === true, 'ecg ' + (scG.ecgHz * 60).toFixed(1) + '/min vs ppg ' + (scG.ppgHz * 60).toFixed(1) + '/min');
+      var scW = G.sharedClock({ t0Ms: 41100, durSec: 26868, n: 18663 }, ppgV, { min: 345 });
+      T.ok('ANTI-VACUITY · the same beats over the WHOLE file (dropped seconds counted) are refused', scW.ok === false && scW.rateRatio > 0.2, 'rateRatio=' + scW.rateRatio.toFixed(3));
+      var none = G.dropArtifactPeaks(peaks, null, fs, t0);
+      T.ok('no confidence map ⇒ nothing dropped, and it SAYS the gate was not applied', none.kept.length === 100 && none.nDropped === 0 && none.applied === false);
+    });
+
     /* ── THE HALF-AMPLITUDE FIDUCIAL (EXTERNAL-METHODS-SURVEY §1) ──────────────────────────────
        Gated here rather than left to the tool's own `--selftest` because that selftest was GREEN
        while the function refused 15295 of 15295 real beats: it planted INTEGER foot indices, and

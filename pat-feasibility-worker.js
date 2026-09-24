@@ -88,7 +88,12 @@ function ecgRpeakTimes(text) {
   var rec = ECGDSP.parseECG(text);
   if (rec.t0Ms == null) throw new Error('ECG file carried no phone timestamp.');
   var bp = ECGDSP.bandpass(rec.int16, rec.fs);
-  var peaks = ECGDSP.detectPeaks(rec.int16, bp, rec.fs);
+  var raw = ECGDSP.detectPeaks(rec.int16, bp, rec.fs);
+  /* artifact seconds out BEFORE refinement — ECGDex's own rule (pat-gate.js dropArtifactPeaks) */
+  var conf = typeof ECGDSP.hrConfidence === 'function' ? ECGDSP.hrConfidence(rec.int16, bp, raw, rec.fs, rec.t0Ms) : null;
+  var gated =
+    typeof PATGate !== 'undefined' && PATGate.dropArtifactPeaks ? PATGate.dropArtifactPeaks(raw, conf, rec.fs, rec.t0Ms) : { kept: raw, nRaw: raw.length, nDropped: 0, artifactSec: 0, applied: false };
+  var peaks = gated.kept;
   var t = new Float64Array(peaks.length);
   /* R-peak TIME, not rate: ride the host-disciplined axis when one exists. `i / fs` is the DEVICE
      clock, and on 160 of 187 real ECG fragments the ppm path is REFUSED by its 40-min span gate — so
@@ -118,7 +123,17 @@ function ecgRpeakTimes(text) {
      decided this fragment's axis provenance and it died here, which is why `PATGate.verdict`'s
      NO SHARED CLOCK / DRAWN AXIS refusals had a caller that never passed an axis and so had never
      fired in the shipped runtime. */
-  return { t0Ms: rec.t0Ms, fs: rec.fs, durSec: rec.durSec, times: t, n: peaks.length, hostAxis: rec.hostAxis || null };
+  return {
+    t0Ms: rec.t0Ms,
+    fs: rec.fs,
+    durSec: rec.durSec,
+    times: t,
+    n: peaks.length,
+    nRaw: gated.nRaw,
+    artifactSec: gated.artifactSec,
+    artifactGate: gated.applied,
+    hostAxis: rec.hostAxis || null
+  };
 }
 function ppgFootTimes(text) {
   var rec = PPGDSP.parsePPG(text);
@@ -509,7 +524,7 @@ self.onmessage = function (e) {
           type: 'result',
           key: key,
           label: m.label,
-          ecg: { t0Ms: ecg.t0Ms, fs: ecg.fs, n: ecg.n, durSec: ecg.durSec },
+          ecg: { t0Ms: ecg.t0Ms, fs: ecg.fs, n: ecg.n, durSec: ecg.durSec, nRaw: ecg.nRaw, artifactSec: ecg.artifactSec, artifactGate: ecg.artifactGate },
           ppg: { t0Ms: ppg.t0Ms, fs: ppg.fs, n: ppg.n, durSec: ppg.durSec },
           ov: ov,
           sc: sc,
