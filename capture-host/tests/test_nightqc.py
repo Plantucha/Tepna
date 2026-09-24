@@ -1166,6 +1166,7 @@ def test_stability_provenance_reaches_the_qc_record(tmp_path):
 # hours late once the stream ran at ~199 rows/s (2026-08-23 on), and a test that only asked `doff_at is not
 # None` let that ship. So the doff second is asserted EXACTLY here, at both measured rates.
 _T0 = datetime(2026, 1, 1, 0, 0, 0)
+RING_HDR_NQ = "Phone timestamp;sensor timestamp [ns];channel 0;channel 1;motion\n"
 
 
 def _secs(n_rows, per_sec=100, t0=_T0):
@@ -1331,6 +1332,101 @@ def test_ppg2w_an_off_run_that_ENDS_midsession_is_counted_and_is_not_a_doffing()
     assert b["off_runs_sustained"] == 1
     assert b["tail_off"] is False and b["tail_start"] is None
     assert b["trailing_off_epochs"] == 0
+
+
+def _rows_of(pattern, per_sec=1):
+    """ch0/ch1/secs from a per-second list of (ch0, ch1) rows — one list entry per row, `per_sec` rows a second."""
+    ch0 = [a for a, _ in pattern]
+    ch1 = [b for _, b in pattern]
+    return ch0, ch1, _secs(len(pattern), per_sec=per_sec)
+
+
+_ON, _OFF = (1_650_000, 1_500_000), (3_400_000, 150)
+
+
+def test_ppg2w_the_row_count_is_the_SHORTEST_of_the_three_lists():
+    ch0, ch1 = _worn_rows(70)
+    secs = _secs(len(ch0))
+    cut = 65 * 100
+    for lists in ((ch0[:cut], ch1, secs), (ch0, ch1[:cut], secs), (ch0, ch1, secs[:cut])):
+        assert nightqc.ppg2w_contact(*lists)["epochs"] == 65
+
+
+def test_ppg2w_a_second_is_off_only_when_MORE_than_half_its_rows_are():
+    one_off = [_OFF, _ON, _ON] * 70  # 1 of 3 rows off in every second -> every second worn
+    two_off = [_OFF, _OFF, _ON] * 70  # 2 of 3 -> every second off
+    half = ([_OFF] * 50 + [_ON] * 50) * 70  # exactly half of 100 -> NOT more than half -> worn
+    assert nightqc.ppg2w_contact(*_rows_of(one_off, per_sec=3))["off_epochs_pct"] == 0.0
+    assert nightqc.ppg2w_contact(*_rows_of(two_off, per_sec=3))["off_epochs_pct"] == 100.0
+    assert nightqc.ppg2w_contact(*_rows_of(half, per_sec=100))["off_epochs_pct"] == 0.0
+
+
+def test_ppg2w_the_ratio_band_is_inclusive_at_both_edges_and_the_ch1_floor_is_exclusive():
+    def pct(a, b):
+        return nightqc.ppg2w_contact(*_rows_of([(a, b)] * 70))["off_epochs_pct"]
+
+    floor = nightqc.PPG2W_CH1_FLOOR
+    assert pct(floor, floor) == 100.0  # ch1 AT the floor is not above it
+    assert pct(floor + 1, floor + 1) == 0.0
+    assert pct(1_000_000, 2_000_000) == 0.0  # ratio exactly PPG2W_RATIO_LO (0.5)
+    assert pct(3_000_000, 1_000_000) == 0.0  # ratio exactly PPG2W_RATIO_HI (3.0)
+    assert pct(800_000, 2_000_000) == 100.0  # 0.4, under the band
+
+
+def test_ppg2w_off_runs_are_counted_at_their_exact_length():
+    # 9 (short, at the START) · 10 (exactly sustained) · 9 (short, after worn) -> exactly ONE sustained run.
+    seq = [_OFF] * 9 + [_ON] * 20 + [_OFF] * 10 + [_ON] * 20 + [_OFF] * 9 + [_ON] * 20
+    b = nightqc.ppg2w_contact(*_rows_of(seq))
+    assert b["off_runs_sustained"] == 1 and b["tail_off"] is False and b["trailing_off_epochs"] == 0
+    tail = nightqc.ppg2w_contact(*_rows_of([_ON] * 60 + [_OFF] * nightqc._PPG2W_RUN_EPOCHS))
+    assert tail["tail_off"] is True and tail["trailing_off_epochs"] == nightqc._PPG2W_RUN_EPOCHS  # exactly the bar
+
+
+def test_ppg2w_the_worn_band_is_reported_to_three_places_from_the_exact_quartiles():
+    # 100 worn seconds, ratios 1.00041 + k * 0.0001234: median r[50] = 1.00658, IQR r[75] - r[25] = 0.00617.
+    rows = [(round(10_000_000 * (1.00041 + k * 0.0001234)), 10_000_000) for k in reversed(range(100))]
+    b = nightqc.ppg2w_contact(*_rows_of(rows))
+    assert b["worn_ratio_median"] == 1.007
+    assert b["worn_ratio_iqr"] == 0.006
+    # m == 4 is the smallest band that has an IQR: r[3] - r[1] over four worn rows among 60 seconds.
+    four = [(1_100_000, 1_000_000), (1_200_000, 1_000_000), (1_300_000, 1_000_000), (1_400_000, 1_000_000)]
+    b = nightqc.ppg2w_contact(*_rows_of(four + [_OFF] * 56))
+    assert b["worn_ratio_iqr"] == 0.2 and b["worn_ratio_median"] == 1.3
+
+
+def test_ppg2w_quality_an_unusable_session_does_not_end_the_night(tmp_path):
+    (tmp_path / "Wellue_O2Ring-S_TEST_20260101000000_PPG2W.txt").write_text(RING_HDR_NQ + "2026-01-01T00:00:00.000;0;1;1;0\n")
+    w0, w1 = _worn_rows(70)
+    _write_ppg2w(tmp_path / "Wellue_O2Ring-S_TEST_20260101010000_PPG2W.txt", w0, w1, t0=_T0 + timedelta(hours=1))
+    out = nightqc.ppg2w_contact_quality(str(tmp_path))
+    assert [b["usable"] for b in out] == [False, True]
+
+
+def test_ppg2w_quality_reads_channel_0_and_channel_1_from_their_own_columns(tmp_path):
+    ch0, ch1 = _worn_rows(70, ratio=5.0)  # ch1 healthy, ch0 five times it: out of band
+    _write_ppg2w(tmp_path / "Wellue_O2Ring-S_TEST_20260101000000_PPG2W.txt", ch0, ch1)
+    assert nightqc.ppg2w_contact_quality(str(tmp_path))[0]["off_epochs_pct"] == 100.0
+
+
+def test_ppg2w_quality_a_byte_that_is_not_utf8_does_not_lose_the_session(tmp_path):
+    p = tmp_path / "Wellue_O2Ring-S_TEST_20260101000000_PPG2W.txt"
+    w0, w1 = _worn_rows(70)
+    _write_ppg2w(p, w0, w1)
+    p.write_bytes(p.read_bytes() + b"2026-01-01T00:01:10.000;0;1650000;1500000;\xff\n")
+    assert nightqc.ppg2w_contact_quality(str(tmp_path))[0]["usable"] is True
+
+
+def test_ppg2w_quality_an_unreadable_session_is_LOGGED_by_name_with_its_exception(tmp_path, caplog):
+    name = "Wellue_O2Ring-S_TEST_20260101000000_PPG2W.txt"
+    (tmp_path / name).mkdir()
+    w0, w1 = _worn_rows(70)
+    later = "Wellue_O2Ring-S_TEST_20260101010000_PPG2W.txt"  # sorts AFTER the unreadable one
+    _write_ppg2w(tmp_path / later, w0, w1, t0=_T0 + timedelta(hours=1))
+    with caplog.at_level(logging.WARNING):
+        assert [b["file"] for b in nightqc.ppg2w_contact_quality(str(tmp_path))] == [later]
+    (rec,) = [r for r in caplog.records if "unreadable" in r.getMessage()]
+    assert name in rec.getMessage() and "ABSENT rather than poor" in rec.getMessage()
+    assert rec.exc_info and rec.exc_info[0] is not None
 
 
 def test_ppg2w_a_truncated_row_is_skipped_like_the_repeated_header(tmp_path):

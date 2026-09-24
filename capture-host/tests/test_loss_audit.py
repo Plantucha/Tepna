@@ -919,3 +919,30 @@ def test_the_ring_last_row_is_read_from_the_tail_of_a_long_file(tmp_path):
     assert loss_audit._last_stamp(str(d / "Wellue_O2Ring-S_S8AW2100_20260922223924_SPO2.csv")) == R0 + dt.timedelta(
         seconds=2999
     )
+
+
+def test_a_ring_end_pairs_with_the_ppg2w_of_ITS_OWN_session(tmp_path):
+    d = _ring_dir(tmp_path)
+    _ring(d, R0, worn_s=120, off_s=40, spo2_s=119)  # session 1 ends doffed
+    s2 = R0 + dt.timedelta(hours=1)
+    _ring(d, s2, worn_s=90, off_s=0, spo2_s=90)  # session 2: no tail
+    e1, e2 = loss_audit.wear_ends(str(d), "O2Ring-S")["ends"]
+    assert e1["ppg2w_file"] == "Wellue_O2Ring-S_S8AW2100_20260922223924_PPG2W.txt" and e1["tail_off"] is True
+    assert e2["ppg2w_file"] == "Wellue_O2Ring-S_S8AW2100_20260922233924_PPG2W.txt" and e2["tail_off"] is False
+
+
+def test_only_the_ring_pays_for_the_ppg2w_pass(tmp_path, monkeypatch):
+    monkeypatch.setattr(loss_audit.nightqc, "ppg2w_contact_quality", lambda d: pytest.fail("H10 read PPG2W"))
+    assert loss_audit.wear_ends(str(tmp_path), "H10") == {"available": True, "ends": [], "worn_end": None}
+
+
+def test_the_last_stamp_of_a_one_row_file_keeps_its_first_character(tmp_path):
+    p = tmp_path / "one.csv"
+    p.write_text("22:39:24 22/09/2026,97,58,0\n")
+    assert loss_audit._last_stamp(str(p)) == dt.datetime(2026, 9, 22, 22, 39, 24)
+
+
+def test_a_byte_that_is_not_utf8_in_the_tail_does_not_hide_the_last_stamp(tmp_path):
+    p = tmp_path / "bad.csv"
+    p.write_bytes(b"Time,Oxygen Level,Pulse Rate,Motion\n22:39:24 22/09/2026,97,58,\xff\n22:39:25 22/09/2026,97,58,0\n")
+    assert loss_audit._last_stamp(str(p)) == dt.datetime(2026, 9, 22, 22, 39, 25)
