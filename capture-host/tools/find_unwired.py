@@ -104,15 +104,6 @@ ALLOW_JS: dict = {}
 # SCAN 6's allowlist: modules nothing imports. Keyed by MODULE, not by function — the whole point is
 # that the module is unreachable, so exempting it function-by-function would restate the bug.
 ALLOW_MODULES = {
-    "solid_night": (
-        "the SOLID-NIGHT verdict's composition core (SOLID-NIGHT-2026-09-23-BRIEF §3.1): precedence, the "
-        "population equality, the settle trigger and the consecutive count over band decisions already made. "
-        "PENDING its consumer, which is NAMED: the QC poller's child process in nightqc.py (#2936) calls "
-        "compose() per settled night once the band suppliers are wired — the loss audit's per-gap causes, the "
-        "seam sidecar's `# pmd` rate line, the acquisition envelope, the RUNS sidecar and ADAPTERHCI. Landed "
-        "first on purpose so the §3.1 rules are fixed and tested before any supplier can shape them. Retire "
-        "this entry when nightqc.py imports it."
-    ),
     "unseal": (
         "the tepna-seal/1 READER (CAPTURE-NIGHT-SEAL phase A, #TBD). PENDING its consumer, which is NAMED: "
         "phase B wires seal.py at night close on the box and phase C gives the Dex a browser reader; the "
@@ -163,12 +154,6 @@ ALLOW_PROVENANCE: dict[str, str] = {
 }
 
 ALLOW_FUNCS = {
-    "compose": "solid_night — the SOLID-NIGHT verdict's per-night composition (SOLID-NIGHT-2026-09-23-BRIEF "
-    "§3.1). PENDING the same NAMED consumer as its module entry in ALLOW_MODULES: the QC poller's child "
-    "in nightqc.py (#2936), once the band suppliers are wired. Retire with that entry. Its sibling "
-    "`consecutive` is EQUALLY unwired but is not flagged here: this scan matches bare names and "
-    "'consecutive' is an ordinary word in alerts.py, bluez_wedge.py and others — a false negative of the "
-    "scan, not a consumer. It cannot be allowlisted without tripping the stale-allowlist scan",
     "precedence_table_md": "telemetry — CAPTURE-LOSS-PRECEDENCE-AUDIT R3's doc gate is its consumer: the "
                            "worn-precedence test renders it and diffs the brief's §2a against the output, so a "
                            "vote added in code without a brief line reds by name. A production caller would be "
