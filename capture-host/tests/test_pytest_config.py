@@ -14,32 +14,34 @@ def _pyproject() -> str:
 
 
 def test_tmp_path_retention_policy_is_not_set():
-    """⚠️ DO NOT SET THIS. It is removed on cost, and the mechanism first cited for removing it was
-    WRONG — both are recorded here so neither is re-derived.
+    """⚠️ THE HAZARD IS `none`, NOT `failed` — and this docstring claimed the opposite twice before
+    anyone ran a controlled A/B. The key is refused so that neither can be reached by editing a value.
 
-    ESTABLISHED (pytest source): under `failed`, a GREEN run removes that session's ENTIRE basetemp,
-    not merely the passing tests' directories (`_pytest/tmpdir.py`, `pytest_sessionfinish`, guarded by
-    `exitstatus == 0 and policy == "failed"`). On a green run `failed` IS `none`, which is not how it
-    reads — measured here as 0 bytes retained after 183 passing tests.
+    `none` FAKES KILLS. A/B over one glob, 116 mutants, same tree, only this setting varied (Wren,
+    2026-09-24): `none` scored 116/116 "killed", including a mutant that merely drops `open()`'s "r"
+    mode and passes all 234 tests by hand. `all` scored 87 killed / 29 survived. A gate that reports
+    every mutant dead is the one failure a mutation gate must not have, and nothing else sees it.
 
-    REFUTED, and this docstring asserted it twice before anyone measured: that the policy lets one
-    mutant's session delete another's directory and so makes a SURVIVING mutant read as killed. Osprey's
-    2x2 — 50 pytest sessions in mutmut's own shape, jobs 1/8/16 x both policies, survivor first, with a
-    positive control that deletes a live basetemp externally and IS detected — found every session with
-    its own numbered basetemp (8/8, 16/16), 0 reaped, 0 setup errors, and no live directory removed by
-    keep-3 (each `.lock` 6 s old against a 3 h timeout). The policy does not mask survivors.
+    `failed` is EXONERATED. Same A/B: 87 / 29, byte-identical to `all` at per-mutant granularity across
+    all 350 decided mutants. 146 of those sessions ended green, so 146 basetemp deletions happened
+    under `failed` with no effect on a later mutant — `tools/mutate.py` passes no `--basetemp`, so each
+    session owns its numbered directory. What IS true of `failed` is narrower than it sounds: on a green
+    run pytest removes that session's whole basetemp (`_pytest/tmpdir.py`, `pytest_sessionfinish`,
+    guarded by `exitstatus == 0 and policy == "failed"`), so `failed` IS `none` for one session — just
+    not across them.
 
-    WHY IT IS REFUSED ANYWAY: shrinking the fixtures took a nightqc run from 2,097,737,728 to
-    63,004,672 bytes, so three retained basetemps fall from 6.29 GB to 189 MB and the 37 directories
-    that exhausted /tmp would now be 2.33 GB of a 30 GB tmpfs. The SHRINK is the mitigation, by 33x.
-    The policy adds 189 MB — 0.63 % of tmpfs — on top of that, and carries an unexplained perturbation
-    of the mutation gate (identical verdict at `all`, decided count off by one). That is not a trade
-    worth making on the one gate whose job is to say whether a test can see a change.
+    The key is refused on HYGIENE, not on a defect. The setting saves 189 MB, 0.63 % of a 30 GB tmpfs,
+    because the fixture shrink already took a nightqc run from 2,097,737,728 to 63,004,672 bytes. A
+    setting worth 0.63 %, one word from one that blinds a gate, is better absent than tuned.
 
-    Bound a single run with `TMPDIR` on disk instead; not `--basetemp`, which pytest clears at start."""
+    ⚠️ The `none` mechanism is REAL AND UNEXPLAINED. Three accounts were proposed and refuted in one
+    evening — a shared-basetemp cascade, pytest's keep-3 reaper, its stale `.lock` — and it does not
+    reproduce under plain concurrent pytest, only through mutmut's runner. Do not add a fourth without
+    the controlled A/B that tests it."""
     assert not re.search(r"^\s*tmp_path_retention_policy\s*=", _pyproject(), re.M), (
         "tmp_path_retention_policy must not be set — see this test's docstring; on a green run it "
-        "deletes the whole basetemp and perturbs a mutation sweep for 0.63% of tmpfs"
+        "its `none` value makes a mutation sweep report 116/116 mutants killed, and the key "
+        "is worth only 0.63% of tmpfs"
     )
 
 
