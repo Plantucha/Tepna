@@ -8210,14 +8210,24 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     scores.rmssd = rmssdScore;
 
     // 2. SpO2 / hypoxic load component (25 pts)
-    var spo2Score = 0;
-    var odi4Rate = odi4 ? odi4.rate : 0;
-    var hd94Rate = hypDose ? hypDose.hd94PerHr : 0;
-    if (odi4Rate < 2 && hd94Rate < 30) spo2Score = 25;
-    else if (odi4Rate < 5 && hd94Rate < 60) spo2Score = 20;
-    else if (odi4Rate < 10 && hd94Rate < 120) spo2Score = 13;
-    else if (odi4Rate < 20) spo2Score = 7;
-    else spo2Score = 2;
+    /* ∅ ABSENCE SCORED THE MAXIMUM. `odi4 ? odi4.rate : 0` and `hypDose ? … : 0` turned an
+       UNANALYSED night into 0 and 0, which falls into the first branch and awards the full 25 — the
+       best obtainable score on the hypoxic-load component, for a night whose hypoxic load was never
+       measured. That inflates a READINESS total whose tiers carry a training recommendation
+       ("Full training. Threshold, intervals, or VO₂max work appropriate."), so the fabrication did
+       not stop at a number. `computeHypoxicDose` returns null below 60 rows, so this is a live path.
+       An unmeasurable component is now NULL and is DROPPED from the total, with the remaining
+       weights renormalised — the shape `mageR` and `autoRisk` already use. */
+    var spo2Score = null;
+    var odi4Rate = odi4 && odi4.rate != null ? odi4.rate : null;
+    var hd94Rate = hypDose && hypDose.hd94PerHr != null ? hypDose.hd94PerHr : null;
+    if (odi4Rate != null && hd94Rate != null) {
+      if (odi4Rate < 2 && hd94Rate < 30) spo2Score = 25;
+      else if (odi4Rate < 5 && hd94Rate < 60) spo2Score = 20;
+      else if (odi4Rate < 10 && hd94Rate < 120) spo2Score = 13;
+      else if (odi4Rate < 20) spo2Score = 7;
+      else spo2Score = 2;
+    }
     scores.spo2 = spo2Score;
 
     // 3. Sleep architecture (20 pts): duration + REM + deep estimates
@@ -8257,12 +8267,61 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     } else hrSlopeScore = 5;
     scores.hrSlope = hrSlopeScore;
 
-    var readiness = rmssdScore + spo2Score + sleepScore + hrFloorScore + hrSlopeScore;
-    readiness = Math.min(100, Math.max(0, readiness));
+    /* Sum only the components that were MEASURED, and rescale by the weight actually present.
+       ⚠ Renormalising is itself an assumption — it treats the missing component as resembling the
+       rest — so the basis is PUBLISHED rather than hidden: `readinessBasis` says which components
+       scored and how many of the 100 points they covered, so a 78 over three components is
+       distinguishable from a 78 over five. If nothing scored, readiness is null, not 0. */
+    var _rdParts = [
+      { k: 'rmssd', v: rmssdScore, w: 30 },
+      { k: 'spo2', v: spo2Score, w: 25 },
+      { k: 'sleep', v: sleepScore, w: 20 },
+      { k: 'hrFloor', v: hrFloorScore, w: 15 },
+      { k: 'hrSlope', v: hrSlopeScore, w: 10 }
+    ];
+    var _rdPresent = [];
+    for (var _rp = 0; _rp < _rdParts.length; _rp++) {
+      var _rv = _rdParts[_rp].v;
+      if (_rv != null && isFinite(_rv)) _rdPresent.push({ k: _rdParts[_rp].k, v: +_rv, w: _rdParts[_rp].w });
+    }
+    var _rdWeight = _rdPresent.reduce(function (a, p) {
+      return a + p.w;
+    }, 0);
+    var readinessBasis = {
+      scored: _rdPresent.map(function (p) {
+        return p.k;
+      }),
+      weightPresent: _rdWeight,
+      weightTotal: 100
+    };
+    var readiness =
+      _rdWeight === 0
+        ? null
+        : Math.min(
+            100,
+            Math.max(
+              0,
+              Math.round(
+                (_rdPresent.reduce(function (a, p) {
+                  return a + p.v;
+                }, 0) /
+                  _rdWeight) *
+                  100
+              )
+            )
+          );
 
     // ── Readiness tier ─────────────────────────────────────────────
     var readinessTier, readinessColor, zoneRec, trainingNote;
-    if (readiness >= 85) {
+    /* ∅ The tier must refuse alongside the score. Every comparison below is false against null, so
+       an unscored night would have fallen through to "Rest Day" — advising rest on the strength of
+       a measurement that does not exist, which is this fix's own defect pointing the other way. */
+    if (readiness == null) {
+      readinessTier = null;
+      readinessColor = 'neutral';
+      zoneRec = null;
+      trainingNote = 'Not scored — no readiness component could be measured for this night.';
+    } else if (readiness >= 85) {
       readinessTier = 'Optimal';
       readinessColor = 'good';
       zoneRec = 'z4_z5';
@@ -8301,7 +8360,11 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     // Widely used aerobic base-building ceiling
     var mafHR = 180 - age;
     var mafAdj = '';
-    if (readiness >= 85) {
+    /* ∅ `null >= 85` is false and `null < 55` is TRUE, so an unscored night would have taken a
+       10 bpm recovery-deficit penalty off a readiness that does not exist. */
+    if (readiness == null) {
+      mafAdj = 'no adjustment (readiness not scored)';
+    } else if (readiness >= 85) {
       mafAdj = '+5 (recovering well)';
       mafHR += 5;
     } else if (readiness < 55) {
@@ -8321,6 +8384,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       zones: zones,
       allZones: [zones.z1, zones.z2, zones.z3, zones.z4, zones.z5],
       readiness: readiness,
+      readinessBasis: readinessBasis,
       readinessTier: readinessTier,
       readinessColor: readinessColor,
       recZones: recZones,

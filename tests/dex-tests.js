@@ -693,7 +693,7 @@
            DIFFERENT fix shape (a composite term to drop and renormalise, not a null to pass
            through), so it is logged as residue rather than widened into this diff. Pinning it as an
            EQUALITY means a new site still reds; this list may only shrink. */
-        T.eq('the MOS/AHI call paths are clean, and exactly ONE known sibling remains (logged, spo2Score)', JSON.stringify(bad), JSON.stringify(['var odi4Rate = odi4 \\? odi4\\.rate : 0']));
+        T.eq('the MOS/AHI call paths are clean, and exactly ONE known sibling remains (logged, spo2Score)', JSON.stringify(bad), '[]');
         T.ok(
           'the anti-vacuity control — the scan can still SEE those lines\u2019 successors',
           /odi4 && odi4\.rate != null/.test(src) && /obj\.odi4 && obj\.odi4\.rate != null/.test(src),
@@ -58671,7 +58671,44 @@
       T.eq('hd94 120 alone ⇒ 7', sc(null, { rate: 1 }, { hd94PerHr: 120 }).spo2, 7);
       T.eq('odi4 20 ⇒ 2, the floor', sc(null, { rate: 20 }, { hd94PerHr: 0 }).spo2, 2);
       T.eq('odi4 19.9 ⇒ 7, so the 20 boundary is exclusive', sc(null, { rate: 19.9 }, { hd94PerHr: 999 }).spo2, 7);
-      T.eq('no odi4 and no hypDose ⇒ both read 0 ⇒ the TOP rung, 25', sc(null, null, null).spo2, 25);
+      /* ⚠ RECONCILED — this line USED TO PIN THE DEFECT AS THE SPEC. `sc(null, null, null).spo2`
+         was asserted to be 25, i.e. an unanalysed night scoring the MAXIMUM on the hypoxic-load
+         component, because `odi4 ? odi4.rate : 0` fed the top rung two zeros. The ladder rungs
+         above are untouched and remain the controls; only the ABSENT case changes. */
+      T.eq('no odi4 and no hypDose ⇒ the component is NOT SCORED — it no longer wins the top rung', sc(null, null, null).spo2, null);
+      T.eq('\u2026and either input alone being absent is enough to unscore it', JSON.stringify([sc(null, { rate: 1 }, null).spo2, sc(null, null, { hd94PerHr: 29 }).spo2]), '[null,null]');
+
+      /* ∅ THE TOTAL DROPS AN UNSCORED COMPONENT AND RENORMALISES, AND PUBLISHES THE BASIS.
+         Renormalising is itself an assumption — it treats the missing component as resembling the
+         rest — which is exactly why `readinessBasis` is published rather than hidden: a 78 over
+         three components must be distinguishable from a 78 over five. */
+      var full = function (hrv, odi4, hypDose, stageProxy, hint) {
+        return K(null, hrv || { rmssd: 2.3 }, { hrRest: 60 }, odi4, hypDose, null, stageProxy, 49, hint) || {};
+      };
+      var allPresent = full(null, { rate: 1 }, { hd94PerHr: 29 });
+      var spo2Absent = full(null, null, null);
+      T.eq('with every component measured the basis is the whole 100 points', JSON.stringify(allPresent.readinessBasis.weightPresent), '100');
+      T.eq(
+        'CONTROL · and the total is then IDENTICAL to the plain sum it always was — renormalising by 100 is the identity',
+        allPresent.readiness,
+        allPresent.scores.rmssd + allPresent.scores.spo2 + allPresent.scores.sleep + allPresent.scores.hrFloor + allPresent.scores.hrSlope
+      );
+      T.eq(
+        'an unscored component leaves the basis, and says which ones did score',
+        JSON.stringify({ w: spo2Absent.readinessBasis.weightPresent, s: spo2Absent.readinessBasis.scored }),
+        '{"w":75,"s":["rmssd","sleep","hrFloor","hrSlope"]}'
+      );
+      var _sA = spo2Absent.scores;
+      T.eq(
+        '\u2026and the total is rescaled over the 75 points that were measured, not padded to 100',
+        spo2Absent.readiness,
+        Math.round(((_sA.rmssd + _sA.sleep + _sA.hrFloor + _sA.hrSlope) / 75) * 100)
+      );
+      T.ok(
+        'the unscored night is not silently WORSE either — dropping 25 fabricated points would have',
+        spo2Absent.readiness > allPresent.readiness - 25,
+        JSON.stringify({ absent: spo2Absent.readiness, present: allPresent.readiness })
+      );
 
       /* ── Sleep ladder: duration rungs 420/360/300, plus stage bonuses ───────────────────────── */
       T.eq('no stageProxy ⇒ neutral +5, and 420 min ⇒ 10 ⇒ 15', sc(null, null, null, null, 420).sleep, 15);
