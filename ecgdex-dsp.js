@@ -2200,7 +2200,19 @@
   // `activeSec` (OPTIONAL, added LAST for back-compat per CLAUDE.md §🧪) is the beat-COVERED time
   // the caller measured (nnRes.activeSec — inter-beat deltas ≤ GAP_S summed); when it is > 0 it is
   // the index denominator instead of the wall span. See the "events per hour" comment at the bottom.
-  function detectCVHR(nn, tt, activeSec) {
+  /* §∅ — THE CVHR SCREEN IS NOT EXEMPT EITHER. `spansGap` is the mask analyze() already builds: 1
+     where an interval straddles a >GAP_S dropout, i.e. real time passed with no beat. buildNN marks
+     it and excludes those intervals from the successive-difference statistics; `epochEngine` takes
+     it as a parameter and skips them ("THE EPOCH IS NOT EXEMPT", :1672). This function resampled the
+     SAME intervals onto a 1 Hz grid and never asked.
+     The resample walks beats, so every second inside a dropout keeps the last pre-gap interval —
+     `hr[s] = 60000 / nn[j]` with `j` frozen. A five-minute strap-off therefore produced 300 seconds
+     of invented, perfectly constant HR, which `hrSeries` exports and the CVHR card draws as a flat
+     measured line. Reduced coverage ANNOTATES (§∅ 2026-09-17): the seconds are marked absent in the
+     exported series, events landing on them are not counted, and `coveredSec` is published.
+     `spansGap` is OPTIONAL and LAST so every existing caller keeps working (§🧪); without it the
+     mask is all-covered and behaviour is exactly as before. */
+  function detectCVHR(nn, tt, activeSec, spansGap) {
     const N = nn.length;
     /* REFUSE (§2.6). `index: 0` IS the exported `cvhrIndex`, and 0 reads as "we looked for cyclic
        variation and there was none" — a clinically meaningful negative — when the truth is that
@@ -2225,11 +2237,26 @@
        for cyclic variation and found none", the exact fabricated negative §2.6 forbids. */
     if (!isFinite(tEnd) || tEnd > CVHR_MAX_SPAN_S) return { events: [], index: null, hrSeries: [], reason: 'implausible-span' };
     const hr = new Float64Array(M);
+    /* `covered[s]` is 0 where the interval serving second `s` straddles a dropout. `hr` KEEPS the
+       held value: the band-pass below is a chain of moving averages and a null there would poison
+       every window it touches, which is a worse answer than a flat stretch that produces no event.
+       The fabrication is contained instead — excluded from the exported series and from the event
+       count — which is the same shape buildNN chose for `spansGap` ("neither fill it better nor
+       drop it; the raw value is the honest one — mark it"). */
+    const covered = new Uint8Array(M);
     let j = 0;
     for (let s = 0; s < M; s++) {
       while (j < N - 1 && tt[j + 1] < s) j++;
-      hr[s] = 60000 / nn[Math.min(j, N - 1)];
+      const k = Math.min(j, N - 1);
+      hr[s] = 60000 / nn[k];
+      /* `spansGap` is nn-ALIGNED and marks the interval ENDING at beat k (buildNN:
+         `if (times[k] - times[k-1] > GAP_S) spansGap[k] = 1`). Second `s` sits between beats j and
+         j+1, so the entry that describes it is `spansGap[j + 1]`, not `spansGap[j]` — indexing the
+         pre-gap beat would have marked the dropout COVERED and left the fix inert. */
+      covered[s] = spansGap && spansGap[Math.min(j + 1, N - 1)] ? 0 : 1;
     }
+    let coveredSec = 0;
+    for (let s = 0; s < M; s++) coveredSec += covered[s];
     // smooth (5 s) for the display series
     const sm = new Float64Array(M);
     for (let s = 0; s < M; s++) {
@@ -2294,6 +2321,7 @@
     const events = [];
     let lastT = -100;
     for (let s = 8; s < M - 8; s++) {
+      if (!covered[s]) continue; // §∅ — a dropout's held HR is not a measurement to detect a surge in
       if (env[s] < ENV_ON) continue; // not a sustained oscillation → skip (rejects sporadic LF)
       if (res[s] < res[s - 1] && res[s] <= res[s + 1] && res[s] < -2.4) {
         let pk = -Infinity,
@@ -2325,7 +2353,16 @@
     const denomSec = activeSec > 0 ? activeSec : tEnd;
     const hours = denomSec / 3600;
     const index = hours > 0 ? +(events.length / hours).toFixed(1) : 0;
-    return { events, index, hrSeries: Array.from(sm), resSeries: Array.from(res), M, denomSec };
+    /* §∅ — the EXPORTED series carries the absence. A held stretch is indistinguishable from a
+       measured steady HR once it is a number in an array, and the CVHR card draws it with
+       `UI.lineChart`, so the chart is where the fabrication reached a reader. `null` there, and
+       `lineChart` breaks the path rather than ruling a line across the gap.
+       ⚠️ LIMIT, STATED: the ±2 s smoothing window means the two seconds either side of a gap still
+       mix held and measured samples. Nulling those too would widen every gap by 4 s on the display;
+       the boundary contamination is bounded and named instead. */
+    const hrOut = new Array(M);
+    for (let s = 0; s < M; s++) hrOut[s] = covered[s] ? sm[s] : null;
+    return { events, index, hrSeries: hrOut, resSeries: Array.from(res), M, denomSec, coveredSec };
   }
 
   // ════════════════════════════════════════════════════════════════════════
@@ -3029,7 +3066,9 @@
 
     prog(92, 'CVHR / apnea detection…');
     // Denominator = the same ACTIVE seconds `durSec` is built from (F3): dead time is not observed time.
-    const cvhrRaw = detectCVHR(nn, tt, nnRes.activeSec);
+    /* §∅ — `nnRes.spansGap` was already on hand here and simply not passed; `epochEngine` takes
+       the same mask a thousand lines up. */
+    const cvhrRaw = detectCVHR(nn, tt, nnRes.activeSec, nnRes.spansGap);
     // MOTION BEFORE STAGING (see epochMotion). The chest ACC is parsed and on hand here; computing
     // it after the stager — as this did — is what left the classifier blind to the one feature that
     // most improves it.
