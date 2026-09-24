@@ -108,5 +108,9 @@ def test_sample_json_solid_night_passes_four_terms_and_names_the_one_it_waits_fo
     o = json.loads(capsys.readouterr().out)
     verdict.validate(o)
     assert js_validate(o)["ok"] and o["gate"] == "solid-night" and o["status"] == "UNKNOWN"
-    assert o["reason"] == "Polar H10 SAMPLE — timebase: " + __import__("solid_night_inputs").TIMEBASE_PENDING
+    # PR-B replaced `TIMEBASE_PENDING` with a measured reason: the sample's axis is now a realistic
+    # (jittered) device column, so the term reports an independent clock at a plausible rate and names
+    # the one outstanding sub-term. The night is still UNKNOWN, which is what this test is really about.
+    assert o["reason"].startswith("Polar H10 SAMPLE — timebase: ")
+    assert "A5 step tripwire has not run" in o["reason"]
     assert o["result"]["failing"] == 0 and o["result"]["unknown"] == 1
