@@ -3571,11 +3571,18 @@
       const s = Math.round(a.sec);
       if (s >= 0 && s < M) dev[s] = a.row.hr;
     }
-    let last = NaN;
-    for (let s = 0; s < M; s++) {
-      if (isFinite(dev[s])) last = dev[s];
-      else if (isFinite(last)) dev[s] = last;
-    }
+    // ── ∅ ABSENCE IS NULL — a HELD device sample must not enter the comparison ────────────
+    //  `_alignDevSeconds` leaves NaN wherever the device reported nothing for that second. This
+    //  used to hold the last reading forward across those seconds, which made the two series agree
+    //  BY CONSTRUCTION: the CVHR grid this is compared against holds forward too, so a stretch
+    //  where NEITHER sensor measured anything contributed a delta of ~0 to the mean-absolute
+    //  error — biasing a VALIDATION toward agreement, the one direction that hides a fault.
+    //  PpgDex's `holdOverGaps` does hold, and says exactly why it is allowed to: a hold may shape
+    //  a filter tail, but "no REPORTED measurement rests on it". Every number this function
+    //  returns is a reported measurement, so nothing is held — uncovered seconds stay NaN,
+    //  `_rollMedian` skips them, and the `isFinite(d)` pairing guard below drops them.
+    let devMeasuredSec = 0;
+    for (let s = 0; s < M; s++) if (isFinite(dev[s])) devMeasuredSec++;
     // device HR is firmware-smoothed; smooth the ECG instantaneous HR the same way + clip
     // to a physiological window around the record's own median so artifact false-peaks
     // (burst-noise spans → spurious 150–180 bpm) don't pollute the comparison.
@@ -3631,8 +3638,16 @@
     const step = Math.max(1, Math.floor(M / 240)),
       overlay = [];
     for (let s = 0; s < M; s += step) overlay.push({ t: s, ecg: isFinite(ecgS[s]) ? +ecgS[s].toFixed(1) : null, dev: isFinite(devS[s]) ? +devS[s].toFixed(1) : null });
+    // The compared count means nothing without the count it was drawn FROM (MotionDex publishes
+    // the same denominator beside its rate coverage): `n` of `comparableSec` seconds carried a
+    // real reading on BOTH sides. No threshold is imposed on `coverage` — a bar not derived from
+    // data would be a fabricated authority; the reader is given the number instead.
+    const comparableSec = Math.max(0, M - lead);
     return {
       n: xs.length,
+      comparableSec,
+      devMeasuredSec,
+      coverage: comparableSec > 0 ? +(xs.length / comparableSec).toFixed(3) : null,
       ecgMean: +me.toFixed(1),
       devMean: +md.toFixed(1),
       dMean: +Math.abs(me - md).toFixed(1),
