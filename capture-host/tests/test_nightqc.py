@@ -23,6 +23,28 @@ def _cap(night, name, rows, header="h1;h2\n"):
     return p
 
 
+# THE PRODUCTION FILENAME SHAPE, and the mtime that has to come with it.
+#
+# `writers.capture_filename()` embeds a 14-digit `_YYYYMMDDHHMMSS_` stamp — the instant the connection
+# opened — and `_session_of` turns it into the file's session start. A test that plants an 8-digit DATE
+# instead takes `_session_of`'s MTIME FALLBACK, which is a supported legacy case and is NOT the path any
+# real file takes: it makes session start == mtime, so the span is always 0 and always unjudgeable.
+#
+# Giving a test the production shape therefore costs an mtime as well as a stamp. Session start comes
+# from the civil stamp and session end from the absolute mtime, so pairing a July stamp with a
+# written-just-now mtime produced a span of 5,752,585 s — 66 days — rather than a night. `_stamp_epoch`
+# expresses the relationship instead of a number, exactly as `_end_0923` does, which is what keeps it
+# true in every zone; the tests that use it carry `_tz` for the same reason.
+_STAMP_0719 = "20260719220000"
+
+
+def _stamp_epoch(stamp=_STAMP_0719):
+    """The epoch a `_YYYYMMDDHHMMSS_` filename stamp resolves to FOR THIS READER — the same naive
+    conversion `_session_of` makes, so a fixture's mtimes stay in a civil-time relationship with its
+    filenames whatever zone the suite runs in."""
+    return nightqc._session_of(f"X_{stamp}_ECG.txt", 0.0)
+
+
 def test_parse_capture_name():
     assert nightqc.parse_capture_name("Polar_H10_02849638_20260719000000_ECG.txt") == ("ECG", "txt")
     assert nightqc.parse_capture_name("Wellue_O2Ring-S_S8AW_20260719_SPO2.csv") == ("SPO2", "csv")
@@ -43,17 +65,17 @@ def test_count_rows(tmp_path):
     assert nightqc.count_rows(str(tmp_path / "does-not-exist")) == 0  # missing → 0 (OSError swallowed)
 
 
-def test_scan_night_lists_capture_files_only(tmp_path):
+def test_scan_night_lists_capture_files_only(tmp_path, _tz):
     night = str(tmp_path / "2026-07-19"); os.makedirs(night)
-    _cap(night, "Polar_H10_02849638_20260719_ECG.txt", 3)
-    _cap(night, "Tepna_20260719_LINK.csv", 2)                      # a sidecar — tagged, still listed
+    _cap(night, "Polar_H10_02849638_20260719220000_ECG.txt", 3)
+    _cap(night, "Tepna_20260719220000_LINK.csv", 2)                      # a sidecar — tagged, still listed
     open(os.path.join(night, "notes.md"), "w").write("x")          # no `_`+ext capture shape → ignored
     open(os.path.join(night, nightqc._SUMMARY_NAME), "w").write("{}")  # the QC file itself → skipped
     os.mkdir(os.path.join(night, "weird_x_ACC.txt"))               # a DIR with a capture name → not isfile
     scanned = nightqc.scan_night(night)
     files = {r["file"]: r for r in scanned}
-    assert set(files) == {"Polar_H10_02849638_20260719_ECG.txt", "Tepna_20260719_LINK.csv"}
-    assert files["Polar_H10_02849638_20260719_ECG.txt"]["rows"] == 3
+    assert set(files) == {"Polar_H10_02849638_20260719220000_ECG.txt", "Tepna_20260719220000_LINK.csv"}
+    assert files["Polar_H10_02849638_20260719220000_ECG.txt"]["rows"] == 3
 
 
 def test_scan_night_missing_dir_is_empty():
@@ -65,14 +87,16 @@ def _devices():
             {"name": "Ring", "device_id": "S8AW", "streams": ["spo2", "ppg"]}]
 
 
-def test_summarize_all_present_is_ok(tmp_path):
+def test_summarize_all_present_is_ok(tmp_path, _tz):
     night = str(tmp_path / "2026-07-19"); os.makedirs(night)
-    _cap(night, "Polar_H10_02849638_20260719_ECG.txt", 100)
-    _cap(night, "Polar_H10_02849638_20260719_ACC.txt", 50)
-    _cap(night, "Polar_H10_02849638_20260719_HR.txt", 10)
-    _cap(night, "Wellue_O2Ring-S_S8AW_20260719_SPO2.csv", 900)
-    _cap(night, "Wellue_O2Ring-S_S8AW_20260719_PPG.txt", 8000)
-    _cap(night, "Tepna_20260719_LINK.csv", 5)
+    just_started = _stamp_epoch() + 10          # a capture 10 s old: stamped, and not yet judgeable
+    for name, rows in [("Polar_H10_02849638_20260719220000_ECG.txt", 100),
+                       ("Polar_H10_02849638_20260719220000_ACC.txt", 50),
+                       ("Polar_H10_02849638_20260719220000_HR.txt", 10),
+                       ("Wellue_O2Ring-S_S8AW_20260719220000_SPO2.csv", 900),
+                       ("Wellue_O2Ring-S_S8AW_20260719220000_PPG.txt", 8000),
+                       ("Tepna_20260719220000_LINK.csv", 5)]:
+        _utime(_cap(night, name, rows), just_started)
     s = nightqc.summarize(night, _devices())
     assert s["ok"] is True and s["missing"] == []
     assert s["night"] == "2026-07-19" and s["files"] == 6
@@ -82,15 +106,19 @@ def test_summarize_all_present_is_ok(tmp_path):
     assert h10["streams"] == {"ecg": 100, "acc": 50, "hr": 10}
 
 
-def test_summarize_flags_a_missing_and_header_only_stream(tmp_path):
+def test_summarize_flags_a_missing_and_header_only_stream(tmp_path, _tz):
     night = str(tmp_path / "2026-07-19"); os.makedirs(night)
-    _cap(night, "Polar_H10_02849638_20260719_ECG.txt", 100)
-    _cap(night, "Polar_H10_02849638_20260719_ACC.txt", 0)         # header-only → counts as missing
+    just_started = _stamp_epoch() + 10
+    _utime(_cap(night, "Polar_H10_02849638_20260719220000_ECG.txt", 100), just_started)
+    _utime(_cap(night, "Polar_H10_02849638_20260719220000_ACC.txt", 0), just_started)  # header-only → missing
     # HR file absent entirely → also missing; Ring produced nothing at all
     s = nightqc.summarize(night, _devices())
     assert s["ok"] is False
     assert set(s["missing"]) == {"H10:acc", "H10:hr", "Ring:spo2", "Ring:ppg"}
-    assert s["span_sec"] is None                                  # freshly written → too short to judge
+    # A capture 10 s into its session is too short to judge — the `< _MIN_SPAN_SEC` branch. This used to
+    # read None because a stampless name made session start == mtime, so the span was 0 by construction
+    # and this assertion could not distinguish "just started" from "no stamp".
+    assert s["span_sec"] is None
 
 
 def _utime(p, t):
@@ -195,16 +223,16 @@ def test_summarize_scopes_coverage_to_the_current_session(tmp_path):
     assert s["gaps_in_night"] == [], "nothing was excluded from the night itself"
 
 
-def test_summarize_flags_a_degraded_trickle(tmp_path):
+def test_summarize_flags_a_degraded_trickle(tmp_path, _tz):
     """A stream that produced data but only a fraction of its rate — the Verity IMU at ~40%, a stream that
     died at hour one — is `degraded`, not a green `ok`. Coverage is delivered rows vs rate × span."""
     night = str(tmp_path / "2026-07-19"); os.makedirs(night)
-    base = 1_000_000.0
-    ecg = _cap(night, "Polar_H10_02849638_20260719_ECG.txt", 130000)   # 130 Hz nominal → ~full
-    acc = _cap(night, "Polar_H10_02849638_20260719_ACC.txt", 40000)    # 200 Hz nominal → ~20%
-    hr = _cap(night, "Polar_H10_02849638_20260719_HR.txt", 1000)       # 1 Hz nominal → full
-    spo2 = _cap(night, "Wellue_O2Ring-S_S8AW_20260719_SPO2.csv", 1000)  # O2Ring branch, 1 Hz → full
-    ppg = _cap(night, "Wellue_O2Ring-S_S8AW_20260719_PPG.txt", 125738)  # 125.738 Hz → full
+    base = _stamp_epoch()
+    ecg = _cap(night, "Polar_H10_02849638_20260719220000_ECG.txt", 130000)   # 130 Hz nominal → ~full
+    acc = _cap(night, "Polar_H10_02849638_20260719220000_ACC.txt", 40000)    # 200 Hz nominal → ~20%
+    hr = _cap(night, "Polar_H10_02849638_20260719220000_HR.txt", 1000)       # 1 Hz nominal → full
+    spo2 = _cap(night, "Wellue_O2Ring-S_S8AW_20260719220000_SPO2.csv", 1000)  # O2Ring branch, 1 Hz → full
+    ppg = _cap(night, "Wellue_O2Ring-S_S8AW_20260719220000_PPG.txt", 125738)  # 125.738 Hz → full
     # a 1000 s span: ACC last written at session start (died early), ECG current
     for p in (acc, hr, spo2, ppg):
         _utime(p, base)
@@ -222,13 +250,13 @@ def test_summarize_flags_a_degraded_trickle(tmp_path):
     assert s["missing"] == []
 
 
-def test_summarize_coverage_uses_configured_rate_and_skips_unknown(tmp_path):
+def test_summarize_coverage_uses_configured_rate_and_skips_unknown(tmp_path, _tz):
     """A device's own `rates` override the nominal denominator; a stream with no reference rate makes no
     coverage claim (better silent than fabricated)."""
     night = str(tmp_path / "2026-07-19"); os.makedirs(night)
-    base = 1_000_000.0
-    acc = _cap(night, "Polar_VeritySense_0C30_20260719_ACC.txt", 52000)   # configured 52 Hz → full
-    foo = _cap(night, "Polar_VeritySense_0C30_20260719_FOO.txt", 10)      # no nominal → no coverage
+    base = _stamp_epoch()
+    acc = _cap(night, "Polar_VeritySense_0C30_20260719220000_ACC.txt", 52000)   # configured 52 Hz → full
+    foo = _cap(night, "Polar_VeritySense_0C30_20260719220000_FOO.txt", 10)      # no nominal → no coverage
     _utime(acc, base); _utime(foo, base + 1000)
     devs = [{"name": "Verity", "device_id": "0C30", "model": "VeritySense",
              "streams": ["acc", "foo"], "rates": {"acc": 52}}]
@@ -238,20 +266,22 @@ def test_summarize_coverage_uses_configured_rate_and_skips_unknown(tmp_path):
     assert s["degraded"] == [] and s["ok"] is True
 
 
-def test_summarize_no_data_files_span_is_none(tmp_path):
+def test_summarize_no_data_files_span_is_none(tmp_path, _tz):
     """A night with only a sidecar has no capture span to measure — coverage stays unknown, not zero."""
     night = str(tmp_path / "2026-07-19"); os.makedirs(night)
-    _cap(night, "Tepna_20260719_LINK.csv", 5)                     # sidecar only, no device data
+    _cap(night, "Tepna_20260719220000_LINK.csv", 5)                     # sidecar only, no device data
     s = nightqc.summarize(night, [{"name": "H10", "device_id": "X", "streams": ["ecg"]}])
     assert s["span_sec"] is None and s["missing"] == ["H10:ecg"]
 
 
 # ── VIGIL: an OPTIONAL backup device that did not join is NOT a fault (known-but-not-expected) ──
-def test_summarize_optional_device_absence_is_not_missing_and_stays_ok(tmp_path):
+def test_summarize_optional_device_absence_is_not_missing_and_stays_ok(tmp_path, _tz):
     night = str(tmp_path / "2026-07-19"); os.makedirs(night)
-    _cap(night, "Polar_H10_02849638_20260719_ECG.txt", 100)
-    _cap(night, "Polar_H10_02849638_20260719_ACC.txt", 50)
-    _cap(night, "Polar_H10_02849638_20260719_HR.txt", 10)
+    just_started = _stamp_epoch() + 10   # stamped files need a matching mtime or the span is 66 days
+    for name, rows in [("Polar_H10_02849638_20260719220000_ECG.txt", 100),
+                       ("Polar_H10_02849638_20260719220000_ACC.txt", 50),
+                       ("Polar_H10_02849638_20260719220000_HR.txt", 10)]:
+        _utime(_cap(night, name, rows), just_started)
     devices = [{"name": "H10", "device_id": "02849638", "streams": ["ecg", "acc", "hr"]},
                {"name": "COOSPO", "device_id": "COOSPO01", "streams": ["hr"], "optional": True}]
     s = nightqc.summarize(night, devices)
@@ -260,11 +290,11 @@ def test_summarize_optional_device_absence_is_not_missing_and_stays_ok(tmp_path)
     assert s["optional_absent"] == ["COOSPO:hr"]            # but it is still recorded as known-and-absent
 
 
-def test_summarize_a_NON_optional_absence_still_fails(tmp_path):
+def test_summarize_a_NON_optional_absence_still_fails(tmp_path, _tz):
     night = str(tmp_path / "2026-07-19"); os.makedirs(night)
-    _cap(night, "Polar_H10_02849638_20260719_ECG.txt", 100)
-    _cap(night, "Polar_H10_02849638_20260719_ACC.txt", 50)
-    _cap(night, "Polar_H10_02849638_20260719_HR.txt", 10)
+    _cap(night, "Polar_H10_02849638_20260719220000_ECG.txt", 100)
+    _cap(night, "Polar_H10_02849638_20260719220000_ACC.txt", 50)
+    _cap(night, "Polar_H10_02849638_20260719220000_HR.txt", 10)
     devices = [{"name": "H10", "device_id": "02849638", "streams": ["ecg", "acc", "hr"]},
                {"name": "Belt", "device_id": "BELT01", "streams": ["hr"]}]    # NOT optional
     s = nightqc.summarize(night, devices)
@@ -912,7 +942,7 @@ def test_night_window_is_published_WITHOUT_clobbering_the_existing_night_key(tmp
 # ── Level B survivors handed over by the QC author (#1307's advisory mutation gate). Three clusters,
 # ── each a BOUNDARY the existing fixtures step over rather than land on.
 
-def test_span_at_exactly_the_minimum_is_judgeable(tmp_path):
+def test_span_at_exactly_the_minimum_is_judgeable(tmp_path, _tz):
     """`_MIN_SPAN_SEC` is a FLOOR, not a bar to clear.
 
     `span = span if span >= _MIN_SPAN_SEC else None` — at exactly the floor the span IS judgeable, and
@@ -920,9 +950,9 @@ def test_span_at_exactly_the_minimum_is_judgeable(tmp_path):
     -> `>` mutant survives them all: it only changes behaviour for a span of exactly 300 s, which is
     reachable (a 5-minute capture) and turns a real coverage number into `unknown`."""
     night = str(tmp_path / "2026-07-19"); os.makedirs(night)
-    base = 1_000_000.0
-    ecg = _cap(night, "Polar_H10_02849638_20260719_ECG.txt", 39000)   # 130 Hz x 300 s -> exactly 1.0
-    hr = _cap(night, "Polar_H10_02849638_20260719_HR.txt", 300)
+    base = _stamp_epoch()
+    ecg = _cap(night, "Polar_H10_02849638_20260719220000_ECG.txt", 39000)   # 130 Hz x 300 s -> exactly 1.0
+    hr = _cap(night, "Polar_H10_02849638_20260719220000_HR.txt", 300)
     _utime(hr, base)
     _utime(ecg, base + nightqc._MIN_SPAN_SEC)
     s = nightqc.summarize(night, [{"name": "H10", "device_id": "02849638", "streams": ["ecg", "hr"]}])
@@ -931,7 +961,7 @@ def test_span_at_exactly_the_minimum_is_judgeable(tmp_path):
     assert h10["coverage"].get("ecg") == 1.0, f"a span of exactly the floor must be judged: {h10['coverage']}"
 
 
-def test_coverage_exactly_at_the_degraded_threshold_is_not_degraded(tmp_path):
+def test_coverage_exactly_at_the_degraded_threshold_is_not_degraded(tmp_path, _tz):
     """`_DEGRADED_BELOW` is exclusive, and the rounding that feeds it is to 2 dp.
 
     Two mutants live on this one line pair and both need the SAME fixture to die: `cov < _DEGRADED_BELOW`
@@ -941,9 +971,9 @@ def test_coverage_exactly_at_the_degraded_threshold_is_not_degraded(tmp_path):
     Rows are chosen so the raw ratio is 0.495100 — `round(_, 2)` is 0.5 and NOT degraded, `round(_, 3)`
     is 0.495 and degraded. One fixture, opposite verdicts, so neither mutant can hide."""
     night = str(tmp_path / "2026-07-19"); os.makedirs(night)
-    base = 1_000_000.0
-    ecg = _cap(night, "Polar_H10_02849638_20260719_ECG.txt", 64363)   # 64363 / (130*1000) = 0.495100
-    hr = _cap(night, "Polar_H10_02849638_20260719_HR.txt", 1000)
+    base = _stamp_epoch()
+    ecg = _cap(night, "Polar_H10_02849638_20260719220000_ECG.txt", 64363)   # 64363 / (130*1000) = 0.495100
+    hr = _cap(night, "Polar_H10_02849638_20260719220000_HR.txt", 1000)
     _utime(hr, base)
     _utime(ecg, base + 1000)
     s = nightqc.summarize(night, [{"name": "H10", "device_id": "02849638", "streams": ["ecg", "hr"]}])
@@ -968,7 +998,7 @@ def _cap_timed(night, name, rows, hz, t0_ns=1_000_000_000_000):
     return p
 
 
-def test_coverage_judges_against_the_MEASURED_rate_not_the_configured_one(tmp_path):
+def test_coverage_judges_against_the_MEASURED_rate_not_the_configured_one(tmp_path, _tz):
     """A device configured for one rate and delivering another must be judged against what it DID.
 
     `hz = _measured_hz_of.get((name, s)) or _expected_hz(d, s)` — the measured rate wins, and six
@@ -983,9 +1013,9 @@ def test_coverage_judges_against_the_MEASURED_rate_not_the_configured_one(tmp_pa
     ⚠️ This needs `_cap_timed`, not `_cap`: without a device-clock column the measured rate is
     unsayable, the fallback fires for a legitimate reason, and the test would pass for the wrong one."""
     night = str(tmp_path / "2026-07-19"); os.makedirs(night)
-    base = 1_000_000.0
-    ecg = _cap_timed(night, "Polar_H10_02849638_20260719_ECG.txt", 130000, 130.0)
-    hr = _cap(night, "Polar_H10_02849638_20260719_HR.txt", 1000)
+    base = _stamp_epoch()
+    ecg = _cap_timed(night, "Polar_H10_02849638_20260719220000_ECG.txt", 130000, 130.0)
+    hr = _cap(night, "Polar_H10_02849638_20260719220000_HR.txt", 1000)
     _utime(hr, base)
     _utime(ecg, base + 1000)
     dev = [{"name": "H10", "device_id": "02849638", "streams": ["ecg", "hr"], "rates": {"ecg": 260}}]
@@ -998,7 +1028,7 @@ def test_coverage_judges_against_the_MEASURED_rate_not_the_configured_one(tmp_pa
         f"{h10['coverage']}")
 
 
-def test_a_device_without_a_name_is_keyed_by_its_device_id(tmp_path):
+def test_a_device_without_a_name_is_keyed_by_its_device_id(tmp_path, _tz):
     """`name = d.get("name") or did` — a device may carry no name, and then its ID IS its name.
 
     That fallback is what `_measured_hz_of` is keyed on, so `did = d.get("device_id")` -> `did = None`
@@ -1007,10 +1037,10 @@ def test_a_device_without_a_name_is_keyed_by_its_device_id(tmp_path):
     and coverage silently falls back to the CONFIGURED rate — the same observable as the rest of the
     rate-reality cluster, reached through a different door."""
     night = str(tmp_path / "2026-07-19"); os.makedirs(night)
-    base = 1_000_000.0
-    ecg = _cap_timed(night, "Polar_H10_02849638_20260719_ECG.txt", 130000, 130.0)
+    base = _stamp_epoch()
+    ecg = _cap_timed(night, "Polar_H10_02849638_20260719220000_ECG.txt", 130000, 130.0)
     _utime(ecg, base + 1000)
-    hr = _cap(night, "Polar_H10_02849638_20260719_HR.txt", 1000)
+    hr = _cap(night, "Polar_H10_02849638_20260719220000_HR.txt", 1000)
     _utime(hr, base)
     dev = [{"device_id": "02849638", "streams": ["ecg", "hr"], "rates": {"ecg": 260}}]   # no "name"
     s = nightqc.summarize(night, dev)
@@ -1389,7 +1419,7 @@ def test_qc_digest_omits_rtc_when_absent():
     assert "H10 99%" in line and "RTC" not in line
 
 
-def test_summarize_attaches_ring_rtc_drift(tmp_path):
+def test_summarize_attaches_ring_rtc_drift(tmp_path, _tz):
     """The discovery path: a `_RTCLOG.csv` beside the ring's capture files is found by device id and
     rolled into that device's per-device entry — the false branch (no rtclog → rtc None) is already
     covered by every other summarize test.
@@ -1401,10 +1431,10 @@ def test_summarize_attaches_ring_rtc_drift(tmp_path):
     2026-09-05: 29 real `_RTCLOG.csv` files on vigil that day, `rtc: null` for every device.
     A fixture must be spelled the way the producing code spells it."""
     night = str(tmp_path / "2026-07-19"); os.makedirs(night)
-    _cap(night, "Wellue_O2Ring-S_S8AW_20260719_SPO2.csv", 900)
-    _cap(night, "Wellue_O2Ring-S_S8AW_20260719_PPG.txt", 8000)
+    _cap(night, "Wellue_O2Ring-S_S8AW_20260719220000_SPO2.csv", 900)
+    _cap(night, "Wellue_O2Ring-S_S8AW_20260719220000_PPG.txt", 8000)
     hdr = "Phone timestamp;event;rtc_offset_s;battery_state;battery_level;battery_raw2;battery_raw3\n"
-    (tmp_path / "2026-07-19" / "Wellue_O2Ring-S_S8AW_20260719_RTCLOG.csv").write_text(
+    (tmp_path / "2026-07-19" / "Wellue_O2Ring-S_S8AW_20260719220000_RTCLOG.csv").write_text(
         hdr + "2026-07-19T22:00:00.000;read;0.0;;;;\n2026-07-20T05:00:00.000;read;1.0;;;;\n", encoding="utf-8")
     s = nightqc.summarize(night, _devices())
     ring = next(d for d in s["devices"] if d["name"] == "Ring")
@@ -1493,7 +1523,7 @@ def test_dat_timefit_summary_returns_none_on_timeout(tmp_path, monkeypatch):
     assert nightqc.dat_timefit_summary(str(dat), str(csv), tool_path=str(tool)) is None
 
 
-def test_summarize_attaches_the_dat_fit_when_both_sidecars_land(tmp_path, monkeypatch):
+def test_summarize_attaches_the_dat_fit_when_both_sidecars_land(tmp_path, monkeypatch, _tz):
     """The discovery path inside summarize: a `_STORED.dat` (onboard pull) AND a `_SPO2.csv` (live)
     for the same ring → `datfit` attached to that device's entry. `dat_timefit_summary` itself is
     stubbed — the DISCOVERY is under test, and stubbing one level down (subprocess) left the test
@@ -1502,8 +1532,8 @@ def test_summarize_attaches_the_dat_fit_when_both_sidecars_land(tmp_path, monkey
     was ever reached, and the mutation gate's baseline run failed on a test that passes everywhere
     else (found via #1929, pre-existing)."""
     night = str(tmp_path / "2026-07-19"); os.makedirs(night)
-    _cap(night, "Wellue_O2Ring-S_S8AW_20260719_SPO2.csv", 900)
-    (tmp_path / "2026-07-19" / "Wellue_O2Ring-S_S8AW_20260719_STORED.dat").write_bytes(b"\x00" * 100)
+    _cap(night, "Wellue_O2Ring-S_S8AW_20260719220000_SPO2.csv", 900)
+    (tmp_path / "2026-07-19" / "Wellue_O2Ring-S_S8AW_20260719220000_STORED.dat").write_bytes(b"\x00" * 100)
     seen = {}
     def _fit(dat_path, spo2_path, **k):
         seen["dat"], seen["spo2"] = dat_path, spo2_path
@@ -1801,32 +1831,32 @@ def _ring_acc_devices():
             {"name": "Verity", "device_id": "0C301E3F", "streams": ["acc"]}]
 
 
-def test_an_ACCRAW_file_satisfies_the_configured_acc_stream(tmp_path):
+def test_an_ACCRAW_file_satisfies_the_configured_acc_stream(tmp_path, _tz):
     night = str(tmp_path / "2026-09-05"); os.makedirs(night)
-    _cap(night, "Wellue_O2Ring-S_S8AW_20260905_SPO2.csv", 900)
-    _cap(night, "Wellue_O2Ring-S_S8AW_20260905_ACCRAW.txt", 4000)
-    _cap(night, "Polar_VeritySense_0C301E3F_20260905_ACC.txt", 3000)
+    _cap(night, "Wellue_O2Ring-S_S8AW_20260905220000_SPO2.csv", 900)
+    _cap(night, "Wellue_O2Ring-S_S8AW_20260905220000_ACCRAW.txt", 4000)
+    _cap(night, "Polar_VeritySense_0C301E3F_20260905220000_ACC.txt", 3000)
     s = nightqc.summarize(night, _ring_acc_devices())
     assert s["missing"] == [], f"acc arrived as ACCRAW; reporting it missing is the false alarm: {s['missing']}"
     ring = next(d for d in s["devices"] if d["name"] == "Ring")
     assert ring["streams"]["acc"] == 4000, "the ACCRAW rows must be COUNTED, not merely tolerated"
 
 
-def test_the_plain_ACC_tag_still_satisfies_acc_so_the_union_is_not_a_regression(tmp_path):
+def test_the_plain_ACC_tag_still_satisfies_acc_so_the_union_is_not_a_regression(tmp_path, _tz):
     """The Verity writes `_ACC.txt` and must keep matching — the fix widens the accepted tags, it does
     not move them."""
     night = str(tmp_path / "2026-09-05"); os.makedirs(night)
-    _cap(night, "Polar_VeritySense_0C301E3F_20260905_ACC.txt", 3000)
+    _cap(night, "Polar_VeritySense_0C301E3F_20260905220000_ACC.txt", 3000)
     s = nightqc.summarize(night, [{"name": "Verity", "device_id": "0C301E3F", "streams": ["acc"]}])
     assert s["missing"] == []
     assert s["devices"][0]["streams"]["acc"] == 3000
 
 
-def test_a_GENUINELY_absent_acc_is_still_reported_missing(tmp_path):
+def test_a_GENUINELY_absent_acc_is_still_reported_missing(tmp_path, _tz):
     """The widened match must not become an unconditional pass — the alarm has to still fire when the
     accelerometer really produced nothing, which is the whole reason the check exists."""
     night = str(tmp_path / "2026-09-05"); os.makedirs(night)
-    _cap(night, "Wellue_O2Ring-S_S8AW_20260905_SPO2.csv", 900)
+    _cap(night, "Wellue_O2Ring-S_S8AW_20260905220000_SPO2.csv", 900)
     s = nightqc.summarize(night, [{"name": "Ring", "device_id": "S8AW", "streams": ["spo2", "acc"]}])
     assert s["missing"] == ["Ring:acc"]
 
@@ -1886,9 +1916,9 @@ def test_the_summary_reports_the_night_it_judged_and_the_session_it_used(tmp_pat
     assert "arrival" in s and "night_window" in s and "system_files" in s
 
 
-def test_a_night_with_no_data_reports_no_judged_session_rather_than_a_fabricated_one(tmp_path):
+def test_a_night_with_no_data_reports_no_judged_session_rather_than_a_fabricated_one(tmp_path, _tz):
     night = str(tmp_path / "2026-07-19"); os.makedirs(night)
-    _cap(night, "Tepna_20260719_LINK.csv", 5)          # a sidecar only — the box talking about itself
+    _cap(night, "Tepna_20260719220000_LINK.csv", 5)          # a sidecar only — the box talking about itself
     s = nightqc.summarize(night, [{"name": "H10", "device_id": "02849638", "streams": ["hr"]}])
     assert s["judged_session"] is None, "no session judged is None, never a zero-length one"
     assert s["night_window"] is None
@@ -2908,6 +2938,20 @@ _DEV_0923 = [{"name": "H10", "device_id": "02849638", "streams": ["ecg"]},
              {"name": "Verity", "device_id": "0C301E3F", "streams": ["ppg"]},
              {"name": "Ring", "device_id": "S8AW2100", "streams": ["ppg"]}]
 _SPAN_0923 = 20200                   # 23:13:18 -> 04:49:58, the real session span
+# THE SAMPLE RATE IS THE FREE PARAMETER HERE, AND THE SPANS ARE NOT.
+#
+# Every number the 09-23 tests below assert is a coverage RATIO or an absolute count of SECONDS, and
+# coverage is `rows / (measured_hz * span)` where `rows` is written as `own_s * hz`. The rate therefore
+# CANCELS: 0.9945 / 0.9158 / 0.9257, the 0.6 in-recording loss, the 0.55 session denominator and the
+# 1701 / 1501 `stopped_early_s` are all properties of the geometry alone. The real 130 / 55 / 125 Hz
+# bought nothing except bytes — 6 million rows, and `_cap_timed` writes one line each.
+#
+# It bought 1.6 GB, measured: those tests plus their three-zone parametrization retained
+# 1,684,021,248 bytes of `tmp_path`, ~1.7 GB per retained run. A mutation run spawns a pytest per
+# mutant, so 37 retained directories exhausted the rig's shared /tmp quota on 2026-09-24 and every
+# session's gates began failing with EDQUOT. Holding the spans and dropping the rate to 2 Hz keeps
+# every asserted value identical — verified, not assumed — at 1/53 of the bytes.
+_QC_HZ = 2.0
 
 
 def _end_0923():
@@ -2951,10 +2995,14 @@ def _night_0923(tmp_path, h10_early=0):
     device's OWN recording extent as it really was."""
     night = str(tmp_path / "2026-09-23"); os.makedirs(night)
     for name, own, hz, early in [
-            ("Polar_H10_02849638_20260923231432_ECG.txt", 20089, 130.0, h10_early),
-            ("Polar_VeritySense_0C301E3F_20260923231318_PPG.txt", 18499, 55.0, 1701),
-            ("Wellue_O2Ring-S_S8AW2100_20260923231349_PPG.txt", 18699, 125.0, 1501)]:
-        _utime(_cap_timed(night, name, int(own * hz), hz), _end_0923() - early)
+            ("Polar_H10_02849638_20260923231432_ECG.txt", 20089, _QC_HZ, h10_early),
+            ("Polar_VeritySense_0C301E3F_20260923231318_PPG.txt", 18499, _QC_HZ, 1701),
+            ("Wellue_O2Ring-S_S8AW2100_20260923231349_PPG.txt", 18699, _QC_HZ, 1501)]:
+        # `+ 1`: `_cap_timed` stamps row i at i/hz, so N rows span (N-1)/hz. One extra row makes the
+        # device span EXACTLY `own` instead of one sample short of it. At 130 Hz that shortfall was
+        # 1/130 s and rounded away; at any lower rate it does not, and the Verity's 18,499 s read 18,498.
+        # The geometry should not depend on the sample rate, which is the whole point of `_QC_HZ`.
+        _utime(_cap_timed(night, name, int(own * hz) + 1, hz), _end_0923() - early)
     return night
 
 
@@ -3011,9 +3059,9 @@ def test_an_IN_RECORDING_loss_still_reads_as_a_loss_under_the_new_denominator(tm
     number. A deeper loss must still reach `degraded`, which is the alert path — `_DEGRADED_BELOW` is
     unchanged at 0.5."""
     night = str(tmp_path / "2026-09-23"); os.makedirs(night)
-    _utime(_cap_timed(night, "Polar_H10_02849638_20260923231432_ECG.txt", 20089 * 130, 130.0), _end_0923())
+    _utime(_cap_timed(night, "Polar_H10_02849638_20260923231432_ECG.txt", int(20089 * _QC_HZ), _QC_HZ), _end_0923())
     _utime(_cap_timed_with_gap(night, "Polar_VeritySense_0C301E3F_20260923231318_PPG.txt",
-                               55.0, 18499, 0.6), _end_0923())
+                               _QC_HZ, 18499, 0.6), _end_0923())
     by = {d["name"]: d for d in nightqc.summarize(night, _DEV_0923)["devices"] if d.get("coverage")}
     assert by["Verity"]["coverage"] == {"ppg": 0.6}, "an in-recording loss is still a loss"
     assert by["Verity"]["stopped_early_s"] == 0, "it did not stop early — it dropped rows"
@@ -3023,9 +3071,9 @@ def test_an_IN_RECORDING_loss_still_reads_as_a_loss_under_the_new_denominator(tm
     # A SECOND night in its own subdir, keeping the 09-23 stamps: a filename stamp that POSTDATES the
     # mtime is not a session at all, and reusing 09-24 names with an 09-24 04:49 mtime made one.
     night2 = str(tmp_path / "deeper" / "2026-09-23"); os.makedirs(night2)
-    _utime(_cap_timed(night2, "Polar_H10_02849638_20260923231432_ECG.txt", 20089 * 130, 130.0), _end_0923())
+    _utime(_cap_timed(night2, "Polar_H10_02849638_20260923231432_ECG.txt", int(20089 * _QC_HZ), _QC_HZ), _end_0923())
     _utime(_cap_timed_with_gap(night2, "Polar_VeritySense_0C301E3F_20260923231318_PPG.txt",
-                               55.0, 18499, 0.4), _end_0923())
+                               _QC_HZ, 18499, 0.4), _end_0923())
     s2 = nightqc.summarize(night2, _DEV_0923)
     assert any("Verity:ppg" in line for line in s2["degraded"]), \
         f"a deep in-recording loss must still reach the alert path: {s2['degraded']}"
@@ -3043,9 +3091,9 @@ def test_a_stream_that_DIED_EARLY_now_reads_as_an_early_stop_and_not_as_lost_pac
     stop is a fault depends on WHY (a doff is correct behaviour, a link loss is not), which is Wren's
     wear-end unit and the `stopped_early_reason` slot above."""
     night = str(tmp_path / "2026-09-23"); os.makedirs(night)
-    _utime(_cap_timed(night, "Polar_H10_02849638_20260923231432_ECG.txt", 20089 * 130, 130.0), _end_0923())
+    _utime(_cap_timed(night, "Polar_H10_02849638_20260923231432_ECG.txt", int(20089 * _QC_HZ), _QC_HZ), _end_0923())
     # the Verity records one hour and stops, five hours before the H10 does
-    _utime(_cap_timed(night, "Polar_VeritySense_0C301E3F_20260923231318_PPG.txt", 3600 * 55, 55.0),
+    _utime(_cap_timed(night, "Polar_VeritySense_0C301E3F_20260923231318_PPG.txt", int(3600 * _QC_HZ), _QC_HZ),
            _end_0923() - 16489)
     s = nightqc.summarize(night, _DEV_0923)
     by = {d["name"]: d for d in s["devices"] if d.get("coverage")}
@@ -3058,14 +3106,14 @@ def test_a_stream_that_DIED_EARLY_now_reads_as_an_early_stop_and_not_as_lost_pac
     assert any("Verity:ppg" in line for line in s["degraded"]), s["degraded"]
 
 
-def test_a_clockless_file_falls_back_to_the_session_span_and_SAYS_SO(tmp_path):
+def test_a_clockless_file_falls_back_to_the_session_span_and_SAYS_SO(tmp_path, _tz):
     """§∅ in the direction that matters here: a file carrying no device clock cannot bound its own start,
     and dropping such files from the span would move the start later, shorten the span and INFLATE
     coverage. So the denominator falls back to the session span and `span_basis` reports it — the same
     shape `coverage_basis` uses for an unmeasured rate."""
     night = str(tmp_path / "2026-07-19"); os.makedirs(night)
-    _utime(_cap(night, "Polar_H10_02849638_20260719_ECG.txt", 130000), 1_000_000.0 + 1000)
-    _utime(_cap(night, "Polar_H10_02849638_20260719_ACC.txt", 40000), 1_000_000.0)
+    _utime(_cap(night, "Polar_H10_02849638_20260719220000_ECG.txt", 130000), _stamp_epoch() + 1000)
+    _utime(_cap(night, "Polar_H10_02849638_20260719220000_ACC.txt", 40000), _stamp_epoch())
     h10 = next(d for d in nightqc.summarize(night, _devices())["devices"] if d["name"] == "H10")
     assert h10["span_basis"] == {"ecg": "session", "acc": "session"}
     assert h10["span_sec"] is None, "an unbounded span is None, never a number"

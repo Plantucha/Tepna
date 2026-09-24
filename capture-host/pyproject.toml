@@ -3,6 +3,13 @@
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# A PASSING RUN KEEPS NOTHING. pytest's default retains the last three `tmp_path` roots whatever the
+# outcome, which is a debugging convenience that becomes a shared-resource failure here: /tmp on the
+# rig is one quota across every fleet session, a full nightqc run retains ~1.7 GB, and a mutation run
+# spawns one pytest per mutant. On 2026-09-24 that reached 37 retained directories, exhausted the
+# quota, and every session's gates began failing with EDQUOT — including writes that had nothing to do
+# with pytest. "failed" keeps exactly the runs someone would actually open.
+tmp_path_retention_policy = "failed"
 markers = [
   "sets_capture_events: this test sets a capture module-global Event as part of its scenario; the autouse fixture scopes it",
   "leaves_writers_open: this test ends with a sample writer open as part of its scenario; the autouse counter tripwire is silenced for it",
