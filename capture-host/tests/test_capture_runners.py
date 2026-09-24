@@ -6015,7 +6015,17 @@ def test_auto_sync_ladder_stops_at_its_wall_clock_budget(tmp_path, monkeypatch):
     2026-08-09 the loop still ran at a 59 % duty cycle.
 
     Uses a CONTENTION error on purpose: `device_absent_error` must not be what saves us here. If the
-    budget is what stops the ladder, it stops even for the error the ladder is legitimately for."""
+    budget is what stops the ladder, it stops even for the error the ladder is legitimately for.
+
+    ⚠️ THIS TEST USED TO ASSERT THE OVERRUN (fixed 2026-09-23). It expected THREE attempts, with the
+    comment "the 3rd attempt's check sees 135 s and stops" — i.e. it pinned a bound of 120 s being
+    exceeded by 25 % as the specification, because `spent >= budget` can only notice an overspend after
+    the money is gone. The box agreed with the test: `gave up after 153s of a 120s budget`, twelve times
+    on the night of 2026-09-18. The check now asks whether the NEXT attempt fits (see
+    `clock_sync_attempt_affordable`), so two attempts run and the spend lands INSIDE the budget.
+
+    It asserts the SPEND and not just the count, because the count is a proxy: the bound is denominated
+    in seconds, and a test that only counts attempts cannot tell 2 cheap ones from 2 that overran."""
     _auto_sync_common(monkeypatch)
     calls = {"n": 0}
     clock = {"t": 0.0}
@@ -6029,8 +6039,11 @@ def test_auto_sync_ladder_stops_at_its_wall_clock_budget(tmp_path, monkeypatch):
     monkeypatch.setattr(capture, "sync_device_time", busy_and_slow)
     _skip_while_loop()
     _run(capture.run_polar(_pdev(), str(tmp_path)))
-    # 120 s budget / 45 s per attempt -> the 3rd attempt's check sees 135 s and stops.
-    assert calls["n"] == 3, f"budget must cap the ladder well short of 12 (got {calls['n']})"
+    # 120 s budget, 45 s per attempt: attempt 2 is affordable (45 + a measured 45 <= 120) and attempt 3
+    # is not (90 + 45 = 135), so it is never STARTED. Before the fix the 3rd ran and the ladder spent 135 s.
+    assert calls["n"] == 2, f"budget must cap the ladder well short of 12 (got {calls['n']})"
+    assert clock["t"] <= 120.0, (
+        f"the ladder must spend INSIDE its 120 s budget, not merely notice afterwards (spent {clock['t']}s)")
     assert capture.STATUS.get("devices", {}).get("H10", {}).get("clock_synced") is None
 
 

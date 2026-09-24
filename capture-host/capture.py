@@ -960,6 +960,10 @@ _USB_DRIVER_DIR = os.environ.get("TEPNA_USB_DRIVER", "/sys/bus/usb/drivers/usb")
 # task-local, so a fresh sync had no way to reach it — leaving a device that was written off while on
 # its charger permanently `clock_uncorrectable`, even after coming off the dock and syncing cleanly.
 _CLOCK_FRESHLY_SYNCED: set = set()
+# addr -> (consecutive ladder failures, monotonic deadline before which not to ask again). The
+# CROSS-LADDER half of the pause bound — see `clock_sync_backoff_s`. Keyed by address like
+# `_POLAR_PAUSED` and `blestats`, because the pause is an address-level fact.
+_CLOCK_SYNC_COOLDOWN: dict = {}
 
 # name -> monotonic time SAMPLES last arrived. The alert loop keys on this instead of `connected`,
 # because a link is not a recording: an unbonded H10 connects for 1-2 s, streams nothing and is torn
@@ -2578,7 +2582,7 @@ def clock_sync_capable(psftp, is_polar) -> bool:
     return bool(is_polar) if psftp is None else bool(psftp)
 
 
-def clock_sync_due(capable, enabled, charging, first_attempt) -> bool:
+def clock_sync_due(capable, enabled, charging, first_attempt, cooling=False) -> bool:
     """PURE: should we (re-)write this device's clock before the next connection attempt?
 
     RE-SYNC ON EVERY RECONNECT, not once per task. The sync used to run exactly once, ahead of the
@@ -2600,8 +2604,91 @@ def clock_sync_due(capable, enabled, charging, first_attempt) -> bool:
 
     `capable` was named `is_polar` until the §1.3 conversion; it is now `clock_sync_capable`'s verdict —
     a measured capability where one exists, the vendor string only while unmeasured. Positional callers
-    are unaffected."""
-    return bool(capable and enabled and not charging and not first_attempt)
+    are unaffected.
+
+    `cooling` is the CROSS-LADDER backoff (see `clock_sync_backoff_s`), added LAST and defaulting to
+    False so every existing positional caller keeps its behaviour. It is the only one of these five that
+    is about repetition rather than eligibility: a device that cannot take a clock write is re-asked on
+    every reconnect, and each ask costs a live-capture pause. Measured 2026-09-18/19 on vigil:
+    **80 ladders in 18 h**, every one of them paying that pause, 77 % of them abandoned at the op ceiling."""
+    return bool(capable and enabled and not charging and not first_attempt and not cooling)
+
+
+def clock_sync_attempt_affordable(spent, budget, worst_attempt_s) -> bool:
+    """PURE: is there room left in the ladder's budget to START another attempt?
+
+    THE BUDGET USED TO BE CHECKED AFTER THE ATTEMPT, which is a different question and gives a different
+    answer. `spent >= budget` asks "have I overspent?" — by then the money is gone. Measured 2026-09-18
+    on vigil: `gave up after 153s of a 120s budget`, twelve times that night, a 27 % overrun on a bound
+    whose own comment reads "120 s ≈ two attempts at the 45 s ceiling". Three attempts ran, because the
+    check that let the third start could not see what it was about to cost.
+
+    `worst_attempt_s` is MEASURED — the longest attempt this ladder has actually run — not a constant.
+    A constant would have to enumerate an attempt's parts (the presence scan, the wait for run_polar to
+    drop its link, BlueZ's teardown settle, then the op ceiling) and would silently rot when any of them
+    moved. The worst observed attempt is a better estimator than any of those sums and needs no coupling
+    to `polar_offline_op`'s internals. Monotone at the call site, so the bound only ever tightens; the
+    one case that can still overrun is an attempt costing more than every attempt before it, which is an
+    overrun of one attempt's GROWTH rather than of a whole attempt."""
+    return bool(spent + worst_attempt_s <= budget)
+
+
+def clock_sync_backoff_s(consecutive_failures, base, cap) -> float:
+    """PURE: how long to leave a repeatedly-failing device's clock alone. 0.0 after a success.
+
+    THE BOUND `_CLOCK_SYNC_LADDER_BUDGET_S` COULD NOT DRAW. That budget bounds ONE ladder; `clock_sync_due`
+    re-arms the ladder on EVERY reconnect, and a reconnect is ~70-110 s. So a device that cannot take a
+    clock write pays a live-capture pause per reconnect cycle, all night, and the per-ladder budget is
+    working correctly while it happens.
+
+    `CONNECT-LOCK-DUTY-CYCLE-2026-08-09-BRIEF.md` tabulates FIVE previous bounds on this same mechanism.
+    Every one of them is denominated in lock-seconds or in attempts; none is denominated in PAUSED
+    CAPTURE, which is the quantity the operator actually loses. That brief's own lesson — "a bound on
+    time spent is not a bound on exclusion, and the number that kept not moving was the one nobody was
+    measuring" — applies to it one axis further out.
+
+    Measured 2026-09-18/19 (18 h, one night, journal), by retry index: 146 attempts took the device, of
+    which **80 were a ladder's first attempt and 66 were retries**. Declining after the pause removes the
+    66. The 80 are 80 separate ladders and only a cross-ladder backoff touches them: at these constants a
+    permanently-failing device runs ~22 ladders in 18 h instead of 80.
+
+    Doubling from `base`, capped — the standard shape, chosen here because the cost of waiting is
+    NEGLIGIBLE and asymmetric with the cost of asking. An hour of an H10's measured -20 ppm is 72 ms of
+    skew; an asked-and-abandoned sync is up to `_CLOCK_SYNC_TIMEOUT_S` of paused capture. Cleared on
+    success, so a transient failure costs one short wait and nothing more — this DEFERS a sync, it never
+    abandons one, which is the same argument the absent-device deferral makes."""
+    if consecutive_failures <= 0:
+        return 0.0
+    return float(min(base * (2 ** (consecutive_failures - 1)), cap))
+
+
+def _clock_sync_note_outcome(addr, ok, paid_a_pause, now_mono) -> None:
+    """Record one ladder's outcome for the cross-ladder backoff. Only a failure THAT PAID A PAUSE cools
+    the device down, and that distinction is the whole design.
+
+    395 of the 553 sync attempts on the measured night (2026-09-18/19) were `deferred-absent`: a 6 s
+    scan, outside every lock, no pause, and the device genuinely not on the air. Cooling on those would
+    delay the sync for a device that is about to come back — and coming back IS the reconnect that
+    re-arms the ladder, so backing off on absence would fight the mechanism that makes absence cheap.
+    The 146 that took the device are the ones that cost signal; they are the ones counted here.
+
+    A success CLEARS the count rather than decaying it: the device demonstrably takes a clock write now,
+    so its history is not evidence about its present."""
+    if ok:
+        _CLOCK_SYNC_COOLDOWN.pop(addr, None)
+        return
+    if not paid_a_pause:
+        return
+    fails = _CLOCK_SYNC_COOLDOWN.get(addr, (0, 0.0))[0] + 1
+    _CLOCK_SYNC_COOLDOWN[addr] = (
+        fails, now_mono + clock_sync_backoff_s(fails, _CLOCK_SYNC_BACKOFF_BASE_S,
+                                               _CLOCK_SYNC_BACKOFF_CAP_S))
+
+
+def _clock_sync_cooling(addr, now_mono) -> bool:
+    """Is this device inside its backoff window? Reads the module's cooldown table; the ARITHMETIC is in
+    `clock_sync_backoff_s`, which is pure and tested on its own."""
+    return bool(now_mono < _CLOCK_SYNC_COOLDOWN.get(addr, (0, 0.0))[1])
 
 
 def rebond_due(needs_pmd, bonded, iteration, attempts, every, limit) -> bool:
@@ -2644,18 +2731,39 @@ async def auto_sync_clock(name, addr, root=None) -> bool:
     evidence channel (see `writers.append_clock_sync_event`): STATUS is a snapshot and journald
     rotates, which is how 84 nights on the H10's 2019 firmware default went unnoticed for two months.
 
-    BOUNDED BY WALL CLOCK, not just by attempt count — see `_CLOCK_SYNC_LADDER_BUDGET_S`."""
+    BOUNDED BY WALL CLOCK, not just by attempt count — see `_CLOCK_SYNC_LADDER_BUDGET_S`.
+
+    AND BOUNDED IN PAUSES, which is the bound the wall-clock one does not draw. Every attempt that gets
+    past the presence guard and the offline slot PAUSES LIVE CAPTURE — that is how it takes the device's
+    single BLE link — so the ladder's cost is not only lock-seconds, it is lost signal. See the transient
+    branch below and `clock_sync_backoff_s` for the per-ladder and cross-ladder halves of that bound."""
     started = _time.monotonic()
+    # THE LADDER's pause snapshot, as against `paused_before`'s per-ATTEMPT one: the backoff asks whether
+    # this whole ladder cost signal, the transient branch asks whether this attempt did.
+    ladder_paused_before = blestats.attempts("offline_op", addr)
+    worst = 0.0                      # the longest attempt SO FAR; the budget's estimator, measured
     for attempt in range(12):
+        # THE PAUSE COUNTER, observed rather than predicted. `blestats.attempt("offline_op", …)` is
+        # incremented inside `polar_offline_op` immediately after `_POLAR_PAUSED.add(address)` — after
+        # the presence guard and after the offline slot — so a move in it is exactly "this attempt took
+        # the device, and live capture stopped". Nothing new is counted: the placement of that existing
+        # denominator already means what this needs, and one op at a time across all devices (the global
+        # offline slot) is what makes the before/after delta unambiguous.
+        paused_before = blestats.attempts("offline_op", addr)
+        attempt_started = _time.monotonic()
         try:
             await sync_device_time(addr)
             _set(name, clock_synced=_now().isoformat(timespec="seconds"), clock_uncorrectable=False)
             _CLOCK_FRESHLY_SYNCED.add(addr)
             append_clock_sync_event(root, _now(), name, addr, "synced", detail=f"attempt {attempt + 1}")
+            _clock_sync_note_outcome(addr, True, blestats.attempts("offline_op", addr) > ladder_paused_before,
+                                     _time.monotonic())
             return True
         except offline_lock.OfflineBusy:
+            worst = max(worst, _time.monotonic() - attempt_started)
             await asyncio.sleep(5)
         except Exception as e:
+            worst = max(worst, _time.monotonic() - attempt_started)
             # ABSENT: the scan did not find it. Do NOT spend the ladder — every attempt costs up to
             # _CLOCK_SYNC_TIMEOUT_S of the global _CONNECT_LOCK, blocking every other device's reconnect,
             # and cannot succeed. `clock_sync_due` fires again on the next reconnect, which only happens
@@ -2665,6 +2773,8 @@ async def auto_sync_clock(name, addr, root=None) -> bool:
                          "loop will re-trigger it when the device is back", name, attempt + 1)
                 append_clock_sync_event(root, _now(), name, addr, "deferred-absent",
                                         detail=f"attempt {attempt + 1}")
+                _clock_sync_note_outcome(addr, False, blestats.attempts("offline_op", addr) > ladder_paused_before,
+                                         _time.monotonic())
                 return False
             # BUSY: a transient BlueZ state is a signal from a different layer, not a failure.
             # Surrendering here left the device stamping samples from an unsynced clock all night.
@@ -2686,24 +2796,59 @@ async def auto_sync_clock(name, addr, root=None) -> bool:
                 # line runs up to 12 times per ladder.
                 log.info("%s clock auto-sync busy (%s) — retry %d/12: %s",
                          name, type(e).__name__, attempt + 1, repr(e)[:160])
-                # THE BUDGET — the bound that does not depend on classifying the error correctly.
-                # Every attempt above runs through `polar_offline_op`, which holds the GLOBAL
-                # `_CONNECT_LOCK`, so the ladder's real cost is measured in lock-seconds, not in tries.
+                # A RETRY THAT ALREADY PAID A PAUSE IS NOT A RETRY, IT IS A SECOND OUTAGE.
+                #
+                # This branch is here for `org.bluez.Error.InProgress` after a restart, which clears in
+                # seconds (2026-07-18 — the failure that motivated retrying at all). But a transient
+                # error is raised in two structurally different places, and the ladder could not tell
+                # them apart: BEFORE the device is taken (the presence scan could not answer, an adapter
+                # is missing) costs nothing and is worth retrying immediately, while AFTER it costs a
+                # live-capture pause, and retrying then buys another one at the same price.
+                #
+                # Measured 2026-09-18/19 on vigil, 18 h, by retry index: 146 attempts took the device —
+                # **80 first attempts and 66 retries** — 113 of them abandoned at the op ceiling. The 66
+                # are this line. Nothing is lost by declining: `clock_sync_due` re-arms on the next
+                # reconnect, which is the same reasoning the absent branch above already uses, and the
+                # cross-ladder backoff then bounds how often that re-arming may pay the pause again.
+                if blestats.attempts("offline_op", addr) > paused_before:
+                    log.info("%s clock auto-sync deferred after one pause — the attempt took the device "
+                             "and failed (%s); retrying here would pause live capture again, and the "
+                             "reconnect loop will re-trigger it", name, type(e).__name__)
+                    append_clock_sync_event(root, _now(), name, addr, "deferred-after-pause",
+                                            detail=f"attempt {attempt + 1} ({type(e).__name__})")
+                    _clock_sync_note_outcome(addr, False, blestats.attempts("offline_op", addr) > ladder_paused_before,
+                                             _time.monotonic())
+                    return False
+                # THE BUDGET, ASKED AS A QUESTION ABOUT THE NEXT ATTEMPT RATHER THAN THE LAST ONE.
+                # Every attempt runs through `polar_offline_op`, which holds the GLOBAL `_CONNECT_LOCK`,
+                # so the ladder's cost is lock-seconds and not tries. The check STAYS HERE, before the
+                # sleep, because this is where the decision is: deciding at the top of the next iteration
+                # instead would pay the backoff sleep for an attempt that is never going to run.
+                # What changed is the QUESTION — see `clock_sync_attempt_affordable`. `spent >= budget`
+                # asks "have I overspent?", which can only be answered once the money is gone, and that
+                # is the 153s-of-120s overrun this fixes.
                 spent = _time.monotonic() - started
-                if spent >= _CLOCK_SYNC_LADDER_BUDGET_S:
-                    log.info("%s clock auto-sync gave up after %.0fs of a %.0fs budget (attempt %d/12) — "
-                             "the reconnect loop will re-trigger it", name, spent,
-                             _CLOCK_SYNC_LADDER_BUDGET_S, attempt + 1)
+                if not clock_sync_attempt_affordable(spent, _CLOCK_SYNC_LADDER_BUDGET_S, worst):
+                    log.info("%s clock auto-sync gave up after %.0fs of a %.0fs budget (attempt %d/12, "
+                             "worst attempt %.0fs) — the reconnect loop will re-trigger it", name, spent,
+                             _CLOCK_SYNC_LADDER_BUDGET_S, attempt + 1, worst)
                     append_clock_sync_event(root, _now(), name, addr, "gave-up-budget",
                                             detail=f"{spent:.0f}s of {_CLOCK_SYNC_LADDER_BUDGET_S:.0f}s")
+                    _clock_sync_note_outcome(
+                        addr, False, blestats.attempts("offline_op", addr) > ladder_paused_before,
+                        _time.monotonic())
                     return False
                 await asyncio.sleep(min(5 * (attempt + 1), 30))
                 continue
             log.warning("%s clock auto-sync failed: %r", name, e)
             append_clock_sync_event(root, _now(), name, addr, "sync-failed", detail=repr(e)[:120])
+            _clock_sync_note_outcome(addr, False, blestats.attempts("offline_op", addr) > ladder_paused_before,
+                                     _time.monotonic())
             return False
     log.warning("%s clock auto-sync gave up — device stayed unreachable/busy", name)
     append_clock_sync_event(root, _now(), name, addr, "gave-up-busy", detail="12 attempts")
+    _clock_sync_note_outcome(addr, False, blestats.attempts("offline_op", addr) > ladder_paused_before,
+                             _time.monotonic())
     return False
 
 
@@ -2972,7 +3117,8 @@ async def run_polar(dev: dict, root: str):
         # give-up budget. Coming off the dock IS a reconnect, so the sync lands then.
         if clock_sync_due(_clock_gate(name, addr, is_polar),
                           (_CFG.get("time") or {}).get("auto_sync_devices", True),
-                          STATUS["devices"].get(name, {}).get("charging"), first_attempt):
+                          STATUS["devices"].get(name, {}).get("charging"), first_attempt,
+                          _clock_sync_cooling(addr, _time.monotonic())):
             await auto_sync_clock(name, addr, root)
         first_attempt = False
         # RE-BOND A LOST BOND. Also before `_connect`, and for the same reason the clock write is: the
@@ -5759,6 +5905,11 @@ _AUTOPULL_PRESENCE_S = 6.0
 # all), so two attempts spend the contention case without funding the hopeless one. Monotonic, not `_now()`:
 # this measures elapsed time, and `_now()` is civil-time-anchored and re-anchors on an NTP step.
 _CLOCK_SYNC_LADDER_BUDGET_S = 120.0
+# The cross-ladder backoff's first step and its ceiling. 120 s is one reconnect cycle-and-a-bit, so a
+# single transient failure costs one skipped cycle; the 60 min cap is sized against what waiting COSTS,
+# which is 72 ms of H10 skew per hour against up to 45 s of paused capture per ask.
+_CLOCK_SYNC_BACKOFF_BASE_S = 120.0
+_CLOCK_SYNC_BACKOFF_CAP_S = 3600.0
 
 
 class DeviceNotAdvertising(Exception):

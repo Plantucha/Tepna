@@ -86,6 +86,68 @@ def test_predicate_is_pure():
         assert capture.clock_sync_due(True, True, True, False) is False
 
 
+# ------------------------------------------- the two bounds on how often the ladder may run (2026-09-23)
+#
+# Both come out of one night on vigil (2026-09-18/19, 18 h): the automatic clock sync takes the device
+# through `polar_offline_op`, which PAUSES live capture, and it did so 146 times — 113 of them abandoned
+# at the op ceiling. Counting the `retry N/12` lines by index splits that 146 into **80 first attempts
+# and 66 retries**, which is why there are two bounds and not one: the retries are inside a ladder, the
+# 80 are 80 separate ladders that `clock_sync_due` re-armed on every reconnect.
+
+def test_a_cooling_device_is_not_asked_again():
+    """The cross-ladder bound, at the gate. Everything else about the device says sync it."""
+    assert capture.clock_sync_due(True, True, False, False, True) is False
+
+
+def test_the_cooling_argument_is_last_and_optional():
+    """Added LAST and defaulting False, so every existing positional caller keeps its behaviour — the
+    back-compat rule the suite applies to any contract change."""
+    assert capture.clock_sync_due(True, True, False, False) is True
+
+
+def test_the_budget_asks_about_the_NEXT_attempt_not_the_last_one():
+    """THE 153s-OF-A-120s-BUDGET DEFECT. `spent >= budget` can only be answered once the money is gone:
+    at 90 s spent with attempts costing 45 s it reads "still inside the budget" and funds an attempt that
+    lands at 135. Measured on the box twelve times that night, and the suite's own budget test asserted
+    the overrun as the specification. The predicate asks whether the next attempt FITS."""
+    assert capture.clock_sync_attempt_affordable(45.0, 120.0, 45.0) is True
+    assert capture.clock_sync_attempt_affordable(90.0, 120.0, 45.0) is False
+    assert capture.clock_sync_attempt_affordable(75.0, 120.0, 45.0) is True, "exactly the budget fits"
+
+
+def test_the_budget_estimator_is_measured_not_assumed():
+    """`worst_attempt_s` is the longest attempt THIS ladder has run, not a constant. A ladder that has
+    not yet learned what an attempt costs must not be refused on a guess — and a constant would have to
+    enumerate an attempt's parts (presence scan, link-drop wait, teardown settle, op ceiling) and would
+    rot silently when any of them moved."""
+    assert capture.clock_sync_attempt_affordable(0.0, 120.0, 0.0) is True
+    assert capture.clock_sync_attempt_affordable(119.0, 120.0, 0.0) is True
+    assert capture.clock_sync_attempt_affordable(0.0, -1.0, 0.0) is False, "a negative budget is no ladder"
+
+
+def test_the_backoff_is_zero_until_something_has_failed():
+    """§∅ in its usual direction: no failures is a measurement of zero, and it must not produce a wait."""
+    assert capture.clock_sync_backoff_s(0, 120.0, 3600.0) == 0.0
+    assert capture.clock_sync_backoff_s(-1, 120.0, 3600.0) == 0.0
+
+
+def test_the_backoff_doubles_from_the_base_and_is_capped():
+    """Doubling because the cost of waiting is negligible and asymmetric with the cost of asking: an hour
+    of an H10's measured -20 ppm is 72 ms of skew, against up to 45 s of paused capture per ask. The cap
+    is what makes a permanently-failing device cost ~22 ladders in 18 h instead of 80."""
+    assert capture.clock_sync_backoff_s(1, 120.0, 3600.0) == 120.0
+    assert capture.clock_sync_backoff_s(2, 120.0, 3600.0) == 240.0
+    assert capture.clock_sync_backoff_s(5, 120.0, 3600.0) == 1920.0
+    assert capture.clock_sync_backoff_s(9, 120.0, 3600.0) == 3600.0, "capped, not unbounded"
+    assert capture.clock_sync_backoff_s(40, 120.0, 3600.0) == 3600.0
+
+
+def test_the_backoff_is_pure():
+    """Called from the reconnect path; the cooldown TABLE is module state but the arithmetic is not."""
+    for _ in range(3):
+        assert capture.clock_sync_backoff_s(3, 120.0, 3600.0) == 480.0
+
+
 # ---------------------------------------------------------------- the sync helper
 
 def _run(coro):
