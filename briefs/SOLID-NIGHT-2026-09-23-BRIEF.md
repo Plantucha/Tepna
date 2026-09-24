@@ -121,6 +121,10 @@ days first → last, so a run stretched by weeks of skips stays visible.
 
 ### 3.3 · The worn interval — and why both of its ends need evidence
 
+> ⚠️ **AMENDED 2026-09-24 — see §3.7 A1, forced by night 09-23.** "Beat evidence" below is not enough: a
+> beat row exists whether a heart or noise produced it. The interval comes from WEAR evidence (motion,
+> orientation, signal amplitude against the night's own baseline). The text below is kept as stated.
+
 Loss is counted only inside the worn interval, taken from the device's own beat evidence (§2, the Verity
 09-12 case). ⚠️ **The END of that interval has the same flaw the no-wear rule fixed:** "last pulsatile
 window" looks identical when the wearer took the device off and when the device or its link died. A
@@ -155,6 +159,8 @@ hour 5.
 | **validity** | the `…RUNS.txt` sidecar present for every stream that has a writer (present-and-empty = verified no absences) | — | sidecar absent (never FAIL, never PASS — CLAUDE.md §∅, #2950) | Blanking the sidecar records does NOT make a night not solid: the ring's in-band blanking is device behaviour made visible (§5 item 5), and consumers exclude it. |
 | **clocks** | offset vs host known for every scored device (`AS11CLOCK.csv`; host-axis anchors for Polar / ring) | — | any scored device without an offset | criterion 5 |
 
+> ⚠️ The **completeness**, **timebase** and **validity** rows are AMENDED by §3.7 A2, A3 and A4 (all forced by night 09-23).
+
 **Inputs are read by exact name** — `QC-VERDICT.json`, `BACKCHECK-VERDICT.json`,
 `ADAPTERHCI-VERDICT.json`, `LOSS-VERDICT.json`, `LOSS-AUDIT.json` — **never by glob.** The re-audit left a
 pre-#2977 copy of each audit beside the live one (`LOSS-AUDIT.prev-2026-09-23.json`); a
@@ -182,6 +188,74 @@ interval, with `daemon:charging hold` as doff evidence (an earlier cut of this s
 loss audit's own cause list); link drop "any" → < 1 %; completeness gains a 101 % ceiling; timebase gains
 `independent: true` and the > 1000 ms unrecorded-step FAIL, and drops the ppm band implied by "ok";
 UNKNOWN gains a count rule (settled UNKNOWN resets the run).
+
+### 3.7 · Amendments — each with the night that forced it
+
+**A1 · The worn interval comes from WEAR evidence, not beat rows** (2026-09-24, forced by 09-23; measured
+by Wren, `vigil:/home/vigil/wren-notes/ends.py`). Supersedes §3.3's "taken from the device's own beat
+evidence".
+
+- **The measurement.** The H10 was removed 04:21:40–04:22:20 (ACC sd 48 → 269 mG, ECG sd to 8,774 µV) and
+  then lay **motionless in a new orientation until the file end, 04:49:57**, still emitting RR — with HR
+  climbing as junk, 82 → 172 bpm. An RR, PPI or "pulsatile" row exists whether a heart or noise produced
+  it, so beat-row evidence would have credited the H10 with **27½ worn minutes of junk**. It is the same
+  both-hypotheses flaw §3.3 fixed at the interval's end, one level deeper: the beat evidence itself does
+  not discriminate.
+- **The rule.** Both ends of the worn interval come from **wear evidence against the night's own
+  baseline**: **pulse prominence** and **motion** (ACC sd), with orientation. A removal signature is a
+  step in those, and a strap on a table is flat in motion after it. ⚠️ **Never an ambient-light LEVEL:**
+  `telemetry.optical_worn` (ambient < 5000) would NOT have seen 09-23's Verity doff in a dark room —
+  ambient went only −185 → −98 (Wren). An ambient STEP can corroborate; a level threshold cannot decide.
+  Wren's nightly doff script keys on pulse prominence + motion for the same reason.
+- **A removal signature is device-positive doff evidence** for §3.3's End clause 1, alongside
+  `in_charger`, "finger-in" and lost contact. All three 09-23 ends carry one, within 04:21:29–04:22:20:
+  the Verity's last row at 04:21:42 (ambient sd 38 → 781, PPG ch0 sd 8 k → 372 k, ACC sd 2 → 432 mG in the
+  final 10 s); the ring's last SpO₂ row at 04:21:29 then "ring started a new recording session" at
+  04:21:40 (finger out); the H10 as above. The 30-min clause stays as the fallback when no signature is
+  found.
+- **Two inputs this night showed are NOT wear evidence.** (i) The daemon's not-worn detection **did not
+  fire** for the H10 in those 27½ min (Wren is filing the row). (ii) The loss audit's `lost_min` measures
+  GAPS: its 0.0 for the H10 was right about gaps and silent about wear. The verdict needs both — continuity
+  from the audit, the interval from wear evidence.
+- **Correction of record.** The verdict's author, reading 09-23 before Wren's measurement, took the H10's
+  last RR row as its last worn beat and put the Verity's end **28.1 min** before its sibling — inside the
+  30-min clause by 1.9 min. The real spread of the three doffs was **under a minute**. The judgement band
+  never decided that night; a phantom sibling nearly did.
+
+**A2 · Completeness is defined for FIXED-RATE streams only** (2026-09-24, forced by 09-23). An event stream
+— RR, PPI, HR: one row per beat — carries `# pmd … negotiated=no rate=` **by construction** (09-23's
+Verity PPI). Read literally, §3.4 makes such a stream UNKNOWN on every night, so no night could ever PASS:
+the same "UNKNOWN by construction" failure the COOSPO ruling was written to prevent. An event stream takes
+its completeness from its parent waveform (RR ← ECG, PPI ← PPG) and is not scored for completeness itself.
+
+**A3 · A timebase step is "recorded" if it is in the seam sidecar OR the clock-sync log** (2026-09-24,
+forced by 09-23). The capture's seam sidecar records only steps above its own bound — `rule=clock-seam
+bound_ms=60000` on every 09-23 stream — while §3.4 FAILs an unrecorded step above 1,000 ms. Read literally,
+every 1–60 s step would be "unrecorded" by construction, including the watchdog's legitimate resyncs. Those
+land in `CLOCKSYNC.csv` / `Tepna_*_CLOCK.csv`. So: a step above 1,000 ms found in **neither** ⇒ FAIL. Not
+yet exercised on a real resync; the unrecorded-step scan is not built.
+
+**A4 · A waveform with no run rule is UNKNOWN, never exempt** (2026-09-24, forced by 09-23). §3.4's
+validity row requires the RUNS sidecar "for every stream that has a writer", and `writers.py`'s
+`RUN_MIN_BY_STREAM` gives one only to `ppg1`, `ppg`, `ppg2w`, `acc` and `accraw`. Read literally, a
+waveform with no run rule is EXEMPT and passes validity having been examined for nothing. The H10's ECG is
+exactly that stream, and on 09-23 BACKCHECK found **26 clipped regions** in it: real in-band absences that
+no sidecar recorded. So a WAVEFORM stream with no run rule is **UNKNOWN, reason
+`no-run-rule-for-stream`** — absence of a writer is not absence of absences (CLAUDE.md §∅). It clears when
+the stream gets a rule; Heron has the ECG run sidecar as a writer unit. Event streams (RR, PPI, HR) take
+their validity from their parent waveform, as they take completeness under A2.
+
+**Open — found by scoring 09-23, NOT decided here:**
+- **BACKCHECK-VERDICT has no mapping into the night.** 09-23's is FAIL on 107 clipped regions (26 on the
+  H10 ECG). Clipping is signal saturation — closest to validity, which by §3.4 does not fail a night — but
+  §2 says the verdict *composes* the four existing verdicts, and §3.4 composes from criteria without saying
+  what each verdict's status contributes.
+- **QC-VERDICT's `coverage` has an unknown denominator.** On 09-23 it reads ≈ 0.89–0.92 on every stream,
+  including streams that stopped at different times, which suggests a fixed night window rather than the
+  worn interval. It is not usable as completeness until its denominator is known.
+- **The settle trigger's wording.** §2 says "N+1's first data write"; that fired at **05:46:22** on 09-24,
+  from a morning ring reconnect. Wren's acceptance measures from "the first ECG write". They name different
+  events. 09-23's loss audit had not landed at 05:50.
 
 ## 4 · Assignments (issued 2026-09-23 ~19:30)
 

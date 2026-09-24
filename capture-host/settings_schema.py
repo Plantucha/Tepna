@@ -25,6 +25,14 @@ SETTINGS: dict[str, tuple] = {
     "time.drift_check_sec":     (float, 60,   3600, False, 300, "How often to check for a device-clock jump"),
     "time.resync_jump_sec":     (float, 5,    600,  False, 30, "Skew change that triggers a re-sync"),
     # BLE adapter watchdog
+    # The heap probe (#2999). Advertised so the window can be set without editing code, and so its
+    # defaults are compared against capture.py by the source scan — the check this section lost when it
+    # had to drop its literal to get past the leaf-keyed version of that scan.
+    "heap_probe.enabled":       (bool,  None, None, True,  False, "Trace what accumulates on the heap during a night (owner-armed; costs allocation time)"),
+    "heap_probe.start_after_min": (float, 0,   240,  True,  30, "Minutes to wait AFTER capture starts before tracing — not after boot"),
+    "heap_probe.interval_min":  (float, 1,    240,  True,  60, "Minutes between heap snapshots"),
+    "heap_probe.snapshots":     (int,   1,    12,   True,  2, "How many snapshots to take before stopping"),
+    "heap_probe.top":           (int,   1,    50,   True,  15, "How many growth rows to record per snapshot"),
     "watchdog.enabled":         (bool,  None, None, False, True, "Auto-recover a wedged BLE controller"),
     "watchdog.interval_sec":    (float, 15,   600,  False, 60, "Watchdog check interval"),
     "watchdog.grace_checks":    (int,   1,    10,   False, 2, "Consecutive wedged checks before a power-cycle"),
