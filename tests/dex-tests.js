@@ -19872,6 +19872,114 @@
        signal's own name ends `.2s` and a 2-second period IS 0.5 Hz, and the two agree. A draft whose
        only support is "the code currently returns this" was not adopted, however green: that is the
        shape that pins a bug as intended behaviour. */
+    group('CPAPDex EDF geometry — ∅ an unreadable header field REFUSES, it never becomes a number', 'cpapdex-edf · absence', function (T) {
+      var E = env.CpapEdf;
+      if (!E || typeof E._buildSyntheticEDF !== 'function' || typeof E.readEDF !== 'function') {
+        T.skip('CpapEdf._buildSyntheticEDF + readEDF exposed', 'CpapEdf not co-loaded in this runner');
+        return;
+      }
+      // Offsets derived, not memorised: the EDF signal header is ns-strided blocks of
+      // label16 + transducer80 + dim8 + physMin8 + physMax8 + digMin8 + digMax8 + prefilter80,
+      // so samples-per-record begins at 256 + 216*ns. The synthetic set is 1 numeric + 1 annotation.
+      var NS = 2,
+        SPR_OFF = 256 + 216 * NS,
+        DMAX_OFF = 256 + 128 * NS,
+        RECDUR_OFF = 244;
+      var spaces = function (u8, at) {
+        for (var i = 0; i < 8; i++) u8[at + i] = 0x20;
+      };
+      var write8 = function (u8, at, str) {
+        for (var i = 0; i < 8; i++) u8[at + i] = i < str.length ? str.charCodeAt(i) : 0x20;
+      };
+      var mutated = function (mut) {
+        var b = E._buildSyntheticEDF({ records: 5 });
+        mut(new Uint8Array(b));
+        return b;
+      };
+      var refusal = function (mut) {
+        try {
+          E.readEDF(mutated(mut));
+          return 'NO REFUSAL — the file parsed';
+        } catch (e) {
+          return e.message;
+        }
+      };
+
+      // ── CONTROL ── the well-formed file still parses, and its samples are REAL NUMBERS, so the
+      //    NaN asserted further down is a change rather than the status quo.
+      var okRec = E.readEDF(E._buildSyntheticEDF({ records: 5 }));
+      var press = okRec.signals['Press.40ms'];
+      T.ok('control: a well-formed EDF parses — 10 Hz × 5 records', !!press && press.data.length === 50 && press.fs === 10, 'len ' + (press && press.data.length) + ' fs ' + (press && press.fs));
+      T.ok('control: its samples are finite, and its scale is the real 25.5/255', isFinite(press.data[10]) && Math.abs(press.data[10] - 1.0) < 1e-6, 'got ' + (press && press.data[10]));
+      T.eq('control: it reports itself calibrated', press.calibrated, true);
+
+      // ── 1 · SAMPLES-PER-RECORD is the STRIDE OF EVERY LATER SIGNAL, not one signal's property.
+      //    Absorbed as 0, it made bytesPerRecord too small, numRecords (from -1) too large, and left
+      //    the decode pointer un-advanced — so every later signal in every record read from the wrong
+      //    offset. The output was not missing data; it was a full set of plausible, wrong numbers.
+      T.ok(
+        'an unreadable samples-per-record REFUSES the file',
+        /samples-per-record/.test(
+          refusal(function (u8) {
+            spaces(u8, SPR_OFF);
+          }) || ''
+        ),
+        'no refusal'
+      );
+      T.ok(
+        '\u2026including the ANNOTATION signal, which occupies record bytes like any other',
+        /samples-per-record/.test(
+          refusal(function (u8) {
+            spaces(u8, SPR_OFF + 8);
+          }) || ''
+        ),
+        'no refusal'
+      );
+
+      // ── 2 · RECORD DURATION is the denominator of every sampling rate.
+      T.ok(
+        'an unreadable record duration REFUSES — every fs would be a guess',
+        /record duration/.test(
+          refusal(function (u8) {
+            spaces(u8, RECDUR_OFF);
+          }) || ''
+        ),
+        'no refusal'
+      );
+      // ⚠ A ZERO duration is the VENDOR'S OWN VALUE, not an unreadable field: the real
+      //   `20260612_222819_EVE.edf` writes `0.00` with labels ["EDF Annotations","Crc16"]. A blanket
+      //   `!(recDur > 0)` refusal rejected TWO REAL CORPUS NIGHTS in regen — caught there, not here,
+      //   because every synthetic set has a positive duration. It must be ACCEPTED, with fs NULL.
+      var zeroDur = E.readEDF(
+        mutated(function (u8) {
+          write8(u8, RECDUR_OFF, '0');
+        })
+      );
+      T.ok('a ZERO record duration is ACCEPTED — ResMed EVE/CSL event files write 0.00', !!zeroDur.signals['Press.40ms'], 'threw, or dropped the signal');
+      T.eq('\u2026and its fs is NULL — not 0, which reads as a measured rate, and not spr/0 = Infinity', zeroDur.signals['Press.40ms'].fs, null);
+      T.ok(
+        'a NEGATIVE duration is still refused — that is not a duration at all',
+        /negative record duration/.test(
+          refusal(function (u8) {
+            write8(u8, RECDUR_OFF, '-1');
+          }) || ''
+        ),
+        'no refusal'
+      );
+
+      // ── 3 · A DEGENERATE DIGITAL RANGE is ONE signal's absence, not the file's — reduced coverage
+      //    annotates, a missing stride refuses. `|| 1` used to rescale the signal by a factor of
+      //    (digMax-digMin), and because `NaN || 1` is 1 an ABSENT range took the same path.
+      var degen = E.readEDF(
+        mutated(function (u8) {
+          write8(u8, DMAX_OFF, '0');
+        })
+      );
+      var dp = degen.signals['Press.40ms'];
+      T.eq('a degenerate digital range marks THAT SIGNAL uncalibrated, and the file still parses', dp.calibrated, false);
+      T.ok('\u2026and its samples are NaN, not rescaled by a fabricated denominator of 1', isNaN(dp.data[10]), 'got ' + dp.data[10]);
+    });
+
     group('CPAPDex synthetic EDF — the .2s signals declare the rate their names promise (adopted drafts, batch 1)', 'cpapdex-dsp · adopted-drafts · mutation-pinned', function (T) {
       var C = env.CpapDsp;
       if (!C || typeof C._synthEdfSet !== 'function') {
@@ -49176,6 +49284,66 @@
         Math.abs(G.sharedClock(ecg, ppg).overlapMin - wantMin) < 1e-9,
         'derived=' + G.sharedClock(ecg, ppg).overlapMin.toFixed(2) + ' want=' + wantMin.toFixed(2)
       );
+    });
+
+    group('PAT — a refusal says what it measured, and the ECG leg drops artifact exactly as ECGDex does', 'pat · sharedclock · artifact · regression', function (T) {
+      var G = env.PATGate;
+      if (!G || !G.sharedClock) {
+        T.skip('PATGate not in env', 'wire pat-gate.js into both runners');
+        return;
+      }
+      /* ANTI-VACUITY: a missing export FAILS here — gating the skip on the new functions would make this
+         group skip, not fail, on exactly the code it exists to catch. */
+      /* 2026-09-22, the counts the owner saw: 34 871 raw R-peaks against 18 646 PPG feet over 448 min,
+         files 41.1 s apart. The lag was computed (100 % coupled, 493 ms) and the page said only
+         "NOT SIMULTANEOUS" with `why: null`. */
+      var ecg = { t0Ms: 41100, durSec: 26868, n: 34871 },
+        ppg = { t0Ms: 0, durSec: 26880, n: 18646 };
+      var sc = G.sharedClock(ecg, ppg, { min: 447 });
+      var vd = G.verdict({ min: 447 }, { ok: true }, sc);
+      T.eq('the 09-22 counts are refused as NOT SIMULTANEOUS', vd.label, 'NOT SIMULTANEOUS');
+      T.ok('…and the refusal now CARRIES what it measured (was why: null)', vd.why && vd.why.rateRatio > 0.46 && vd.why.rateRatio < 0.47, JSON.stringify(vd.why));
+      T.ok(
+        '…naming both rates, the gap and the tolerance in its reason',
+        vd.why.reason.indexOf('ECG 77.9/min vs PPG 41.6/min, ' + (vd.why.rateRatio * 100).toFixed(1) + ' % apart against a 12 % tolerance') >= 0,
+        vd.why.reason
+      );
+      var short = G.verdict({ min: 2 }, { ok: true }, G.sharedClock(ecg, ppg, { min: 2 }));
+      T.ok('a too-short overlap names the floor, not a rate', /2\.0 min, below the 5-min floor/.test(short.why.reason), short.why.reason);
+
+      /* The artifact rule is ECGDex analyze()'s, keyed the same way: absolute second
+         floor((t0Ms + idx/fs·1000)/1000), kept iff c >= 0.5. One peak a second for 100 s at 130 Hz,
+         t0Ms 5000 so the key is offset — a helper that ignored t0Ms would drop the wrong ten. */
+      T.ok('PATGate exports dropArtifactPeaks', typeof G.dropArtifactPeaks === 'function');
+      if (typeof G.dropArtifactPeaks !== 'function') return;
+      var fs = 130,
+        t0 = 5000,
+        peaks = [];
+      for (var k = 0; k < 100; k++) peaks.push(k * fs);
+      var conf = new Map();
+      for (var s = 55; s < 65; s++) conf.set(s, 0.49); // recording seconds 50–59 → absolute 55–64
+      conf.set(65, 0.5); // recording second 60: exactly the threshold — ECGDex KEEPS it
+      var g = G.dropArtifactPeaks(peaks, conf, fs, t0);
+      T.eq('ten artifact seconds drop ten peaks', g.nDropped, 10);
+      T.eq('…counted as ten artifact seconds', g.artifactSec, 10);
+      T.ok(
+        '…the RIGHT ten: recording seconds 50–59, with 60 (c = 0.5) kept',
+        g.kept.indexOf(49 * fs) >= 0 && g.kept.indexOf(50 * fs) < 0 && g.kept.indexOf(59 * fs) < 0 && g.kept.indexOf(60 * fs) >= 0
+      );
+      T.eq('the threshold is the one ECGDex analyze() uses', G.ARTIFACT_CONF_MIN, 0.5);
+      T.ok('…and nRaw reports what the detector found before the gate', g.nRaw === 100 && g.kept.length === 90 && g.applied === true);
+      /* …and the rate is taken over the time the leg MEASURED. The real 09-22 legs after the gate:
+         18 663 kept R over a 448-min file with 6 148 artifact seconds dropped, against 18 646 feet over the
+         Verity's 345 min. Over the whole ECG file that reads 41.7 vs 54.0/min and is refused; over the time
+         it measured it is 53.9 vs 54.0 and is one heart. */
+      var ecgG = { t0Ms: 41100, durSec: 26868, n: 18663, artifactSec: 6148 },
+        ppgV = { t0Ms: 0, durSec: 20715, n: 18646 };
+      var scG = G.sharedClock(ecgG, ppgV, { min: 345 });
+      T.ok('the gated 09-22 ECG leg is simultaneous with its PPG', scG.ok === true, 'ecg ' + (scG.ecgHz * 60).toFixed(1) + '/min vs ppg ' + (scG.ppgHz * 60).toFixed(1) + '/min');
+      var scW = G.sharedClock({ t0Ms: 41100, durSec: 26868, n: 18663 }, ppgV, { min: 345 });
+      T.ok('ANTI-VACUITY · the same beats over the WHOLE file (dropped seconds counted) are refused', scW.ok === false && scW.rateRatio > 0.2, 'rateRatio=' + scW.rateRatio.toFixed(3));
+      var none = G.dropArtifactPeaks(peaks, null, fs, t0);
+      T.ok('no confidence map ⇒ nothing dropped, and it SAYS the gate was not applied', none.kept.length === 100 && none.nDropped === 0 && none.applied === false);
     });
 
     /* ── THE HALF-AMPLITUDE FIDUCIAL (EXTERNAL-METHODS-SURVEY §1) ──────────────────────────────

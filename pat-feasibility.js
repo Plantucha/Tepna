@@ -348,7 +348,14 @@
     var totalBeats = oks.reduce(function (s, m) {
       return s + (m.cp.nCoupled || 0);
     }, 0);
-    cards.push(hcard('eligible nights', String(nNights), '', oks.length + ' coupled · ' + Object.keys(NIGHTS).length + ' indexed', C.ink));
+    var refused = Object.keys(RESULTS)
+      .map(function (k) {
+        return RESULTS[k];
+      })
+      .filter(refusedButComputed);
+    cards.push(
+      hcard('eligible nights', String(nNights), '', oks.length + ' coupled · ' + (refused.length ? refused.length + ' not certified · ' : '') + Object.keys(NIGHTS).length + ' indexed', C.ink)
+    );
     cards.push(hcard('coupled beats (ΣN)', totalBeats.toLocaleString(), '', 'across all coupled nights', C.blue));
     if (oks.length) {
       var ppm = agg(oks, function (m) {
@@ -437,8 +444,23 @@
       }
       el('aggConcl').innerHTML = '<b style="color:' + (go === oks.length ? C.green : C.amber) + '">Across ' + oks.length + ' nights:</b> ' + concl;
     } else {
-      el('aggConcl').innerHTML = '<span class="muted">No night produced a coupled result — check that each night has BOTH a Polar H10 _ECG.txt and a Verity _PPG.txt from the same session.</span>';
+      el('aggConcl').innerHTML = refused.length
+        ? '<span class="muted">No night is certified.</span>'
+        : '<span class="muted">No night produced a coupled result — check that each night has BOTH a Polar H10 _ECG.txt and a Verity _PPG.txt from the same session.</span>';
     }
+    if (refused.length)
+      el('aggConcl').innerHTML +=
+        '<div class="ncsig"><b>' +
+        refused.length +
+        ' night' +
+        (refused.length > 1 ? 's' : '') +
+        ' computed but NOT CERTIFIED</b> — excluded from every figure above: ' +
+        refused
+          .map(function (m) {
+            return escHtml(m.key + ' · ' + m.vd.label + (m.vd.why && m.vd.why.reason ? ' — ' + m.vd.why.reason : ''));
+          })
+          .join('; ') +
+        '</div>';
     el('aggCards').innerHTML = cards.join('');
   }
 
@@ -465,6 +487,23 @@
     detailWorker.postMessage({ type: 'job', key: k, label: k, ecgFile: nt.ecg, ppgFile: nt.ppg, ecgAccFile: nt.ecgAcc, ppgAccFile: nt.ppgAcc, detail: true });
   }
 
+  /* COMPUTED BUT NOT CERTIFIED (owner, 2026-09-23): when the gate refuses a night whose lag WAS
+     computed, the numbers stay on screen and the refusal is signed — a visible NOT CERTIFIED with the
+     gate's own reason — never a bare label the reader has to decode. */
+  function refusedButComputed(m) {
+    return !!(m && m.vd && m.vd.tier === 'no' && m.cp && m.cp.ok);
+  }
+  function notCertifiedSig(m) {
+    if (!refusedButComputed(m)) return '';
+    var why = m.vd.why && m.vd.why.reason ? m.vd.why.reason : 'the gate gave no reason';
+    return '<div class="ncsig"><b>NOT CERTIFIED</b> — the lag below was computed but is not a certified PAT: ' + escHtml(why) + '</div>';
+  }
+  function escHtml(s) {
+    return String(s).replace(/[&<>"]/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+    });
+  }
+
   function renderFocus(m) {
     var cp = m.cp,
       sc = m.sc;
@@ -475,7 +514,9 @@
       fmtClock(m.ecg.t0Ms) +
       '</b> · ' +
       m.ecg.n +
-      ' R @ ' +
+      ' R' +
+      (m.ecg.nRaw > m.ecg.n ? ' (of ' + m.ecg.nRaw + ' detected · ' + (m.ecg.artifactSec / 60).toFixed(0) + ' min of artifact dropped)' : '') +
+      ' @ ' +
       m.ecg.fs +
       ' Hz · ' +
       (m.ecg.durSec / 60).toFixed(0) +
@@ -490,7 +531,7 @@
       ' Hz';
     var vc = el('focusVerdict');
     vc.className = 'verdict ' + m.vd.tier;
-    vc.innerHTML = '<div class="vlabel" style="color:' + tierColor(m.vd.tier) + '">' + m.vd.label + '</div>';
+    vc.innerHTML = '<div class="vlabel" style="color:' + tierColor(m.vd.tier) + '">' + m.vd.label + '</div>' + notCertifiedSig(m);
     var cards = [];
     cards.push(hcard('shared clock', sc.ok ? 'YES' : 'NO', '', 'Δstart ' + (sc.dT0 / 1000).toFixed(1) + ' s · beats ' + (sc.beatRatio * 100).toFixed(1) + '%', sc.ok ? C.green : C.red));
     if (cp.ok) {

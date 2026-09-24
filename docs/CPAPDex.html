@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="b91242c4af2e" data-compute-hash="5da46902895d">
+<html lang="en" data-manifest-hash="2b7a11628cad" data-compute-hash="e1d7d61cf829">
 <head>
 <!--
   CPAPDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-1L7/G1EvG76HKsQWQSX8ZbDbDHAP6ISMTWQglc609cM=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-VpWuZ12v6gKyhjlOT8TLlSMYiBs1ZGSWaJlXOiFIlAo=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-h6h5P//RbelDud05c/HcsYeUxGoEXGat4RJkGjquIWE=' 'sha256-hFN3d6Ke9mKeSsSID6rgxplMx6RAa1spfETtfDksUfY=' 'sha256-k+RI3eu7O1dogNihbuES+Db93asgjhSxBjBsgNI3xYs=' 'sha256-mj10h/YL+APHDH63Cf0GOj2V1PkBzWSTOsXSR+ASVTM='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-1L7/G1EvG76HKsQWQSX8ZbDbDHAP6ISMTWQglc609cM=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-GMmPvLCp12nTB2A3edxKqYW9nOEcn4mUbSDIB8uSFEI=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-VpWuZ12v6gKyhjlOT8TLlSMYiBs1ZGSWaJlXOiFIlAo=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-h6h5P//RbelDud05c/HcsYeUxGoEXGat4RJkGjquIWE=' 'sha256-hFN3d6Ke9mKeSsSID6rgxplMx6RAa1spfETtfDksUfY=' 'sha256-k+RI3eu7O1dogNihbuES+Db93asgjhSxBjBsgNI3xYs=' 'sha256-mj10h/YL+APHDH63Cf0GOj2V1PkBzWSTOsXSR+ASVTM='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>CPAPDex — PAP Therapy Analyzer · v2.14.0</title>
@@ -5307,9 +5307,36 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     sampPerRec = blockInt(8);
     /* reserved  */ o += ns * 32;
 
+    /* ── ∅ ABSENCE IS NULL — RECORD GEOMETRY REFUSES, IT DOES NOT DEFAULT ───────────────────
+       An EDF is read BY POSITION, so `samples-per-record` is not one signal's property — it is the
+       stride of every signal after it. `asciiInt` returns null for a blank or garbage field, and
+       absorbing that null as 0 used to corrupt the WHOLE FILE, not just its own signal: the record
+       size came out too small, `numRecords` computed from it was too large, and in the decode loop
+       the pointer did not advance for that signal, so every later signal in every record read from
+       the wrong offset. The result is not missing data — it is a full set of plausible numbers that
+       are all wrong, which is the one outcome no consumer can detect.
+       Annotation signals are included deliberately: they occupy record bytes like any other.
+       This is the refusal the file already makes for `ns` and for a short header, one field later. */
+    for (var g = 0; g < ns; g++) {
+      if (sampPerRec[g] == null) throw new Error('EDF: unreadable samples-per-record for signal ' + g + ' ("' + (labels[g] || '') + '") — record geometry unknown');
+    }
+    /* ⚠ A ZERO record duration is NOT the same absence, and measuring the corpus is what said so.
+       `20260612_222819_EVE.edf` writes `0.00` with labels ["EDF Annotations","Crc16"] — ResMed's
+       event files carry no periodic sampling, and EDF+ allows a 0 duration for them. A blanket
+       `!(recDurSec > 0)` refusal rejected two REAL nights, which is the defect this section exists
+       to prevent, one level up: a rule that convicts working behaviour. So the cases split the way
+       ∅ splits them — a field that could not be READ is absent; one that was read and says zero is
+       a measurement:
+         null ⇒ refuse (geometry unknown)
+         0    ⇒ accept, and every fs is NULL — there is no rate to state. Never 0, which reads as a
+                 measured rate, and never spr/0 = Infinity. */
+    if (recDurSec == null) throw new Error('EDF: unreadable record duration — every sampling rate and the whole timeline would be a guess');
+    if (recDurSec < 0) throw new Error('EDF: negative record duration (' + recDurSec + ') — not a duration');
+
     // ── derive record geometry ──
+    // every entry is a number by the guard above, so nothing is absorbed here
     var samplesPerRecTotal = sampPerRec.reduce(function (a, b) {
-      return a + (b || 0);
+      return a + b;
     }, 0);
     var bytesPerRecord = samplesPerRecTotal * 2; // int16
     var dataStart = headerBytes;
@@ -5330,10 +5357,18 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     var signals = {};
     for (var s2 = 0; s2 < ns; s2++) {
       if (annIdx[s2]) continue;
-      var spr = sampPerRec[s2] || 0;
+      var spr = sampPerRec[s2];
+      // the digital range is the DENOMINATOR of the physical scale. A blank or degenerate
+      // calibration header used to fall back on `|| 1`, which silently rescales the signal by a
+      // factor of (digMax-digMin) — and `NaN || 1` is 1, so an ABSENT range took that path too.
+      // An uncalibrated signal cannot be converted to physical units, so it is null, not rescaled.
+      var _dr = digMax[s2] - digMin[s2];
+      var _cal = digMin[s2] != null && digMax[s2] != null && physMin[s2] != null && physMax[s2] != null && _dr !== 0;
       signals[labels[s2]] = {
         data: new Float32Array(spr * recordsRead),
-        fs: recDurSec ? spr / recDurSec : 0,
+        fs: recDurSec > 0 ? spr / recDurSec : null, // 0 ⇒ no periodic sampling: absent, not zero
+        calibrated: _cal,
+        _scale: _cal ? (physMax[s2] - physMin[s2]) / _dr : null,
         dim: dims[s2],
         physMin: physMin[s2],
         physMax: physMax[s2],
@@ -5351,7 +5386,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     for (var r = 0; r < recordsRead; r++) {
       var p = dataStart + r * bytesPerRecord;
       for (var sg = 0; sg < ns; sg++) {
-        var spr2 = sampPerRec[sg] || 0;
+        var spr2 = sampPerRec[sg]; // non-null by the geometry guard above
         if (annIdx[sg]) {
           var annBytes = new Uint8Array(buf, p, spr2 * 2);
           var tals = parseTAL(annBytes);
@@ -5377,14 +5412,13 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
         // numeric signal — int16 LE → physical scaling
         var sig = signals[labels[sg]];
         var dMin = digMin[sg],
-          dMax = digMax[sg],
           pMin = physMin[sg],
-          pMax = physMax[sg];
-        var scale = (pMax - pMin) / (dMax - dMin || 1);
+          scale = sig._scale;
         for (var i2 = 0; i2 < spr2; i2++) {
           var dig = dv.getInt16(p, true);
           p += 2;
-          sig.data[sig._w++] = (dig - dMin) * scale + pMin;
+          // an uncalibrated signal yields NaN, never a number scaled by a fabricated denominator
+          sig.data[sig._w++] = scale === null ? NaN : (dig - dMin) * scale + pMin;
         }
       }
     }
