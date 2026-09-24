@@ -4389,6 +4389,12 @@
       "key": "- with open(os.path.join(night_dir, name), \"r\", encoding=\"utf-8\", errors=\"replace\") as fh: | + with open(os.path.join(night_dir, name), \"r\", errors=\"replace\") as fh:",
       "probe": "ran tests/test_nightqc.py -k class_b_quality under LANG=C.UTF-8, LANG=C and LANG=POSIX: locale.getpreferredencoding(False) is UTF-8 in all three (PEP 538 coercion), so open(..., encoding=None) resolves to the same codec as the explicit one on this box and in CI; no input distinguishes them here.",
       "why": "Same class as the ble_visibility.py entries: the mutant differs only where the runner's preferred encoding is not UTF-8, which this environment cannot produce. errors=\"replace\" is unchanged by the mutant, so the \\xff byte the torn-row test plants still lands in the same replacement character. Keeping the explicit encoding is correct; killing the mutant would need control of the runner's locale."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- prev = \"\" | + prev = None",
+      "probe": "ran the real ppg2w_contact_quality against a copy with only this line changed, over five PPG2W files: an empty stamp on the FIRST row, empty stamps mid-file, every stamp empty, normal 10-rows-a-second stamps, and date-only 10-character labels. Outputs identical on all five (2026-09-24).",
+      "why": "`prev` only chooses WHICH string object is appended, never its value: a label equal to prev appends prev (== label), a different one first becomes prev. With prev = None the first label always differs and is appended as itself; with prev = \"\" an empty first label is appended as the equal \"\". Same list of values either way."
     }
   ],
   "probe_ring_adv.py": [
