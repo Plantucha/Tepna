@@ -99,6 +99,10 @@ def _run_session(session_file, out, tag, verdict, tmpdir, policy, basetemp, sink
             "exit": r.returncode,
             "reached_body": bool(rec),
             "basetemp": rec.get("basetemp"),
+            # Carried through explicitly. Dropping it is what made the 2x2's own reaped-check vacuous:
+            # `reached_body and not basetemp` can never be true, because a session that reaches its body
+            # always records a basetemp. See the `none` cells below, which are what exposed it.
+            "sentinel_survived": rec.get("sentinel_survived"),
             # A session that never reached its body died at SETUP — exit 1 too, and the shape that would
             # let a masked survivor read as killed. Counted separately from a real assertion failure.
             "setup_error": not rec and "passed" not in body,
@@ -135,7 +139,7 @@ def test_no_session_loses_its_own_tmp_dir(tmp_path, jobs, policy):
     """The 2x2. Zero reaped, zero setup errors, and one basetemp PER SESSION."""
     sink, _ = _cell(tmp_path, jobs, policy)
     assert len(sink) == jobs, "a session did not report at all"
-    reaped = [r for r in sink if r["reached_body"] and not r["basetemp"]]
+    reaped = [r for r in sink if r["reached_body"] and r["sentinel_survived"] is False]
     assert reaped == [], f"a session lost its own tmp dir: {reaped}"
     assert [r for r in sink if r["setup_error"]] == [], "a session died at setup, not at its assertion"
     # THE LOAD-BEARING ONE: no shared directory exists, so no cascade can travel through one.
@@ -288,4 +292,36 @@ def test_retention_policy_is_per_test_and_failed_is_the_AGGRESSIVE_one(tmp_path,
         f"policy={policy}: earlier test's tmp_path present={got}, expected "
         f"{earlier_dir_survives}. pytest changed its retention semantics — every hazard argument "
         "that cites this file needs re-reading before it is quoted again."
+    )
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("jobs", [8, 16])
+def test_policy_none_DOES_reap_live_siblings_which_is_why_it_fakes_kills(tmp_path, jobs):
+    """🔴 THE POSITIVE. `none` sets `keep=0`, and a starting session then reaps LIVE siblings.
+
+    `_pytest/tmpdir.py:210` — `keep = self._retention_count`, then `if policy == "none": keep = 0`,
+    passed to `make_numbered_dir_with_cleanup`. With `keep=3` the newest three are spared before the
+    `.lock` ever matters; with `keep=0` nothing is spared and the lock is the ONLY guard, and it does
+    not hold. Measured here: 4 of 8 and 15 of 16 sessions lost their own directory mid-run, while
+    `all` and `failed` lose none — and the reaped cells report a lock age of 0, because the sibling's
+    lock file is taken along with its directory.
+
+    THIS IS THE MECHANISM BEHIND THE FAKE KILLS. Under mutmut there is one session per mutant, all in
+    flight together. A session whose tmp dir is reaped fails — and a failing session is a KILLED
+    mutant. So a mutant that genuinely SURVIVES gets scored dead, which is what Wren measured
+    end-to-end: `none` converted 29 survivors into kills over one real glob while `all` and `failed`
+    were per-mutant identical. This test is the unit-level half of that.
+
+    ⚠️ It is also what proved the 2x2 above was asking its question properly. Until this cell existed
+    every policy in the matrix was negative, the reaped-check was `reached_body and not basetemp` —
+    which is never true — and the suite was green on an assertion that could not fail. A file full of
+    negatives needs at least one case that must come back POSITIVE, or it is measuring nothing.
+    """
+    sink, _ = _cell(tmp_path, jobs, "none")
+    reaped = [r for r in sink if r["reached_body"] and r["sentinel_survived"] is False]
+    assert reaped, (
+        "policy=none reaped nothing — either pytest changed `keep=0` at session creation, or this "
+        "harness has stopped being able to see a reaping. Do NOT read this as `none` being safe "
+        "until the positive control and this cell have both been re-checked."
     )
