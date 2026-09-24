@@ -13,6 +13,7 @@ of this programme uses — and that placement is what puts it under the 100 % fl
 `__init__.py`, so coverage never descends into it: `tools/mutate.py` is invisible to the floor until
 a test imports it, and the first such import would drop a 246-statement audit tool (24 % covered)
 under a gate it has never met. A small root module that IS fully covered keeps the floor honest."""
+
 from __future__ import annotations
 
 import os
@@ -24,8 +25,26 @@ HOLDER = ".mut-holder"
 PROC = Path("/proc")
 
 
+def _ticks_from_stat(data: bytes):
+    """Field 22 (starttime) of a /proc/<pid>/stat line, or None if the line is short.
+
+    Split from the read so its correctness is ASSERTABLE: the diff-scoped mutation gate on #3027
+    showed five surviving mutants here — `rfind`→`find`, `+2`→`-2`, `>19`→`>=19`/`>20`, and an
+    `or True` — every one of which returns a plausible WRONG string rather than raising. A wrong
+    start time is worse than no start time: it makes two different processes compare equal, which is
+    precisely the pid-reuse confusion this pairing exists to prevent. Tests that only check
+    truthiness cannot see any of them, so this function takes bytes and is checked against a known
+    answer.
+
+    Field 2 (comm) is parenthesised and may itself contain spaces AND ')' — `(sh (weird) name)` is a
+    legal comm — so the split point is the LAST ')', never the first, and the two fields before it
+    are not in `tail`: starttime is field 22, i.e. index 19 of what follows."""
+    tail = data[data.rfind(b")") + 2 :].split()
+    return tail[19].decode() if len(tail) > 19 else None
+
+
 def _proc_start_ticks(pid: int):
-    """That pid's start time, or None if it is gone. Field 22 of /proc/<pid>/stat.
+    """That pid's start time, or None if it is gone.
 
     A bare `pid alive?` check is wrong the first time the OS wraps a pid onto a new process, and it
     fails in the worst direction: it reports a dead holder as live, so a stale scratch is never
@@ -36,9 +55,7 @@ def _proc_start_ticks(pid: int):
             data = fh.read()
     except OSError:
         return None
-    # comm is field 2 and may contain spaces or ')'; everything after the LAST ')' is positional.
-    tail = data[data.rfind(b")") + 2:].split()
-    return tail[19].decode() if len(tail) > 19 else None
+    return _ticks_from_stat(data)
 
 
 def _claim(d: Path) -> None:
@@ -83,16 +100,21 @@ def prune_stale_scratches(tmpdir: Path, stem: str, keep: Path):
 
     Extracted from run_one so the concurrency case is testable without a mutmut pass: the defect it
     fixes only appears with two runs in flight, and a fix whose only proof requires a 20-minute
-    mutation run is a fix nobody re-checks."""
-    pruned, left = [], []
+    mutation run is a fix nobody re-checks.
+
+    `ignore_errors=True` is deliberate — an undeletable orphan (root-owned build output, a tree under
+    a read-only parent) must not crash a mutation run that has nothing to do with it. But swallowing
+    the error made the RETURN VALUE a claim rather than a fact: a dir that could not be removed was
+    still reported as pruned. So the removal is CHECKED afterwards, and a survivor goes in `left`
+    where it belongs. Absence of a crash is not evidence of a deletion."""
+    pruned: list[str] = []
+    left: list[str] = []
     for old_dir in sorted(Path(tmpdir).glob(f"mut-{stem}-*")):
         if old_dir == keep or not old_dir.is_dir():
             continue
         if _holder_alive(old_dir):
             left.append(old_dir.name)
             continue
-        pruned.append(old_dir.name)
         shutil.rmtree(old_dir, ignore_errors=True)
+        (left if old_dir.exists() else pruned).append(old_dir.name)
     return pruned, left
-
-

@@ -10,6 +10,7 @@ nothing, and nothing reads as an EMPTY SURVIVOR LIST — a clean verdict for mut
 Every test here drives the real predicate against a REAL live process, because the defect exists only
 with two runs in flight; a fix whose only proof needs a 20-minute mutation pass is one nobody
 re-checks."""
+
 from __future__ import annotations
 
 import os
@@ -172,3 +173,93 @@ def test_a_plain_file_matching_the_glob_is_left_alone(tmp_path):
     pruned, left = M.prune_stale_scratches(tmp_path, "w", keep=tmp_path / "keep")
     assert pruned == [] and left == []
     assert stray.exists()
+
+
+# ── the twelve survivors the diff-scoped gate reported on #3027 ──────────────────────────────────
+# Every assertion below exists because a mutant of the line it covers survived: tests that checked
+# only truthiness, only the happy ordering, or only "it did not raise" could not see any of them.
+
+# A real /proc line, comm deliberately containing BOTH a space and a ')', which is legal and is why
+# the parser splits on the LAST ')'. starttime is field 22 → index 19 after the comm.
+_STAT = (
+    b"4242 (sh (weird) name) S 1 4242 4242 0 -1 4194560 812 0 12 0 "
+    b"3 7 0 0 20 0 1 0 987654321 4526080 512 18446744073709551615 1 1 0 0 0 0 0 0 0\n"
+)
+
+
+def test_ticks_are_parsed_from_the_right_field():
+    """The VALUE, against a known answer — not merely that something non-empty came back."""
+    assert M._ticks_from_stat(_STAT) == "987654321"
+
+
+def test_ticks_split_on_the_LAST_paren_not_the_first():
+    """`rfind`→`find` returns a plausible wrong string; a truthiness check cannot tell them apart."""
+    from_first = _STAT[_STAT.find(b")") + 2 :].split()
+    assert from_first[19].decode() != "987654321"  # the mutant's answer, proven different
+
+
+def test_ticks_are_None_when_the_line_is_too_short():
+    """Boundary, both sides: 20 fields after the comm is exactly enough, 19 is not."""
+    head = _STAT[: _STAT.rfind(b")") + 2]
+    assert M._ticks_from_stat(head + b" ".join(str(i).encode() for i in range(20))) is not None
+    assert M._ticks_from_stat(head + b" ".join(str(i).encode() for i in range(19))) is None
+    assert M._ticks_from_stat(b"1 (x) S") is None
+
+
+def test_claim_creates_missing_parents(tmp_path):
+    """`parents=True` — a scratch two levels below an absent dir must still be markable."""
+    nested = tmp_path / "absent" / "alsoabsent" / "mut-p-1"
+    M._claim(nested)
+    assert (nested / M.HOLDER).exists()
+    assert M._holder_alive(nested) is True
+
+
+def test_the_scan_continues_past_a_dir_it_must_not_touch(tmp_path):
+    """`continue`→`break` would stop at the first skip; `keep` is named to sort FIRST."""
+    keep = _scratch(tmp_path, "mut-q-0-keep")
+    stale = _scratch(tmp_path, "mut-q-1-stale")
+    assert sorted(p.name for p in tmp_path.glob("mut-q-*"))[0] == keep.name
+    pruned, left = M.prune_stale_scratches(tmp_path, "q", keep=keep)
+    assert pruned == [stale.name] and left == []
+    assert keep.exists() and not stale.exists()
+
+
+def test_an_undeletable_scratch_is_reported_as_LEFT_not_pruned(tmp_path):
+    """`ignore_errors=True` must not crash the run — and must not claim a deletion that failed.
+
+    `ignore_errors=False` would raise here instead, taking down a mutation run over an orphan that
+    is none of its business; reporting it as `pruned` would be the opposite lie."""
+    if os.geteuid() == 0:
+        import pytest
+
+        pytest.skip("root ignores the directory permissions this test relies on")
+    stale = _scratch(tmp_path, "mut-r-1")
+    (stale / "child").write_text("x")
+    os.chmod(stale, 0o500)  # no write on the parent → the child cannot be unlinked
+    try:
+        pruned, left = M.prune_stale_scratches(tmp_path, "r", keep=tmp_path / "keep")
+        assert pruned == [] and left == ["mut-r-1"]  # not a crash, and not a false claim
+        assert stale.exists()
+    finally:
+        os.chmod(stale, 0o700)
+
+
+def test_a_live_holder_does_not_stop_the_scan(tmp_path):
+    """The SECOND `continue`: a live dir must be skipped, not treated as the end of the sweep.
+
+    `continue`→`break` there survived the first round of these tests, because every one of them had
+    at most one live dir and none had a prunable dir AFTER it. Sorting is by name, so the live dir
+    is named to come first."""
+    holder = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
+    try:
+        live = _scratch(tmp_path, "mut-s-0-live")
+        (live / M.HOLDER).write_text(f"{holder.pid} {M._proc_start_ticks(holder.pid)}\n")
+        stale = _scratch(tmp_path, "mut-s-1-stale")
+        assert sorted(p.name for p in tmp_path.glob("mut-s-*"))[0] == live.name
+        pruned, left = M.prune_stale_scratches(tmp_path, "s", keep=tmp_path / "keep")
+        assert pruned == [stale.name], "the sweep stopped at the live dir"
+        assert left == [live.name]
+        assert live.exists() and not stale.exists()
+    finally:
+        holder.kill()
+        holder.wait()
