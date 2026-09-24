@@ -201,8 +201,7 @@ def test_a_confirmed_recording_is_confirmed_by_the_DEVICE_not_by_the_ack(monkeyp
         _ack(0x00, op=0x03),                                 # pre-stop
         b"\xf0\x01\x02\x00\x00",                             # get_settings (empty -> fixed START)
         _ack(0x00),                                          # start
-        _status(acc=pmd.OFFLINE_ACTIVE),                     # status_during
-        _status(acc=pmd.OFFLINE_ACTIVE),                     # status re-read for the verdict
+        _status(acc=pmd.OFFLINE_ACTIVE),                     # status_during — AND the verdict's evidence
         _ack(0x00, op=0x03),                                 # stop
         _status(acc=pmd.NO_MEASUREMENT),                     # status_after
     ])
@@ -217,7 +216,7 @@ def test_an_ok_ack_without_a_recording_is_not_reported_as_success(monkeypatch):
     """The dangerous false positive: the device accepts the request and records nothing."""
     c = _FakeClient([
         _status(acc=pmd.NO_MEASUREMENT), _ack(0x00, op=0x03), b"\xf0\x01\x02\x00\x00", _ack(0x00),
-        _status(acc=pmd.NO_MEASUREMENT), _status(acc=pmd.NO_MEASUREMENT),
+        _status(acc=pmd.NO_MEASUREMENT),
         _ack(0x00, op=0x03), _status(acc=pmd.NO_MEASUREMENT),
     ])
     _install(monkeypatch, c)
@@ -225,6 +224,48 @@ def test_an_ok_ack_without_a_recording_is_not_reported_as_success(monkeypatch):
     assert out["recording_confirmed_by_device"] is False
     assert "CONFIRMED" not in out["verdict"]
     assert "does not report recording" in out["verdict"]
+
+
+def test_PLANT_a_silent_status_read_is_not_a_device_saying_no(monkeypatch):
+    """§∅ — the same defect as the survey's, in the file that already had the honest form.
+
+    `parse_status_response(b"")` is `{}` and `is_recording({}, meas)` is False, so a status query the
+    device never answered published `recording_confirmed_by_device: False` AND the verdict "the device
+    does not report recording" — an assertion about the device drawn from silence. `_status_of`, eighty
+    lines above, has returned `{"error": "no reply to status"}` for exactly this case all along.
+    """
+    monkeypatch.setattr(probe, "CP_REPLY_TIMEOUT_S", 0.05)
+    c = _FakeClient([
+        _status(acc=pmd.NO_MEASUREMENT), _ack(0x00, op=0x03), b"\xf0\x01\x02\x00\x00", _ack(0x00),
+        None,                                                # the status read goes UNANSWERED
+        _ack(0x00, op=0x03), _status(acc=pmd.NO_MEASUREMENT),
+    ])
+    _install(monkeypatch, c)
+    out = _run(probe.run("AA:BB", None, pmd.ACC, force=True, seconds=0))
+    assert out["recording_confirmed_by_device"] is None, (
+        f"unanswered is not the device saying no: got {out['recording_confirmed_by_device']!r}")
+    assert out["status_during"] == {"error": "no reply to status"}, (
+        "and the published status must show the silence, not an empty reading")
+    assert "does not report recording" not in out["verdict"], out["verdict"]
+    assert "NOT established" in out["verdict"], out["verdict"]
+
+
+def test_PLANT_the_published_status_is_the_evidence_for_the_verdict(monkeypatch):
+    """A PLANT, not a control: it cannot pass on main, because main read status twice.
+
+    One read, not two. The status this probe PUBLISHES must be the one the boolean was drawn from —
+    it used to send `status_cmd()` twice, so a disagreement between them was unobservable."""
+    c = _FakeClient([
+        _status(acc=pmd.NO_MEASUREMENT), _ack(0x00, op=0x03), b"\xf0\x01\x02\x00\x00", _ack(0x00),
+        _status(acc=pmd.OFFLINE_ACTIVE),                     # the ONLY status read of the forced path
+        _ack(0x00, op=0x03), _status(acc=pmd.NO_MEASUREMENT),
+    ])
+    _install(monkeypatch, c)
+    out = _run(probe.run("AA:BB", None, pmd.ACC, force=True, seconds=0))
+    assert out["recording_confirmed_by_device"] is True
+    assert out["status_during"]["acc"] == "offline", out["status_during"]
+    assert [w for w in c.writes if w == pmd.status_cmd()] != [], "it must ask for status"
+    assert out["status_after"]["acc"] == "none", "the queue must still line up for the stop + re-read"
 
 
 def test_in_charger_is_reported_as_a_device_state_not_a_protocol_failure(monkeypatch):

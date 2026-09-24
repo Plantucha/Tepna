@@ -33,7 +33,10 @@ The terms, per device:
                  30 samples, #3006). Absent ⇒ UNKNOWN, never PASS or FAIL (#2950).
   clocks       — the device clock was compared against the host: a seam sidecar that `examined` rows, or
                  the ring's RTCLOG `read` with an offset.
-  timebase     — UNKNOWN until the residual pass lands (`independent`, hostAxis-ok, the A5 tripwire).
+  timebase     — the host-vs-device residual, one anchor per BLE batch: the device axis is a CLOCK and
+                 not a drawn counter, an independent host disciplined it, and its rate is plausible.
+                 The A5 step tripwire is a separate unit, so the band still ends UNKNOWN (§∅) — but it
+                 now names what it measured, and FAILs an implausible rate rather than waiting.
 """
 
 from __future__ import annotations
@@ -85,7 +88,16 @@ UNATTRIBUTED_MAX_S = 60.0  # §3.4: total < 60 s …
 UNATTRIBUTED_MAX_N = 5  # … and count < 5
 LINK_MAX_FRACTION = 0.01  # §3.4: link drops < 1 % of the worn interval
 COMPLETE_LO, COMPLETE_HI = 0.99, 1.01  # §3.4 completeness band
-TIMEBASE_PENDING = "timebase scan not built — needs the residual pass (independent, hostAxis-ok, the A5 tripwire)"
+# §3.4 timebase — PARITY WITH `clock.js hostAxis`, whose constants these are. They are properties of the
+# DATA, measured there over 381 box sidecars, not knobs: keep them equal or the detector and the emitter
+# disagree about what a second clock IS.
+TB_MIN_ANCHORS = 3  # §7: two points fit a line through any jitter and cannot be checked
+TB_INERT_MS = 2.0  # CK_AXIS_INERT_MS — twice the 1 ms phone-stamp quantum
+TB_DRAWN_SHARE = 0.67  # CK_AXIS_DRAWN_SHARE — real streams max 56 %, drawn min 79 %; nothing between
+TB_MAX_PPM = 50000.0  # CK_AXIS_MAX_PPM — a refusal bound with 16x headroom over the worst real device
+TB_FLOOR_S = 1.0  # take an anchor at least this often even when the residual never moves
+TB_WIN = 21  # CK_AXIS_WIN — running-median width, odd so the median is a real sample
+_SENSOR_NS_COL = "sensor timestamp [ns]"
 
 _PMD_RATE = re.compile(r"^# pmd stream=\S+ negotiated=yes rate=(\d+(?:\.\d+)?)\b")
 _EXAMINED = re.compile(r"^# final stream=\S+ seams=\d+ examined=(\d+)")
@@ -290,6 +302,135 @@ def clocks(night_dir: str, model: str) -> dict:
     return _decision("UNKNOWN", "no device-vs-host clock comparison recorded this night")
 
 
+def _median(v: list[float]) -> float:
+    q = sorted(v)
+    m = len(q) // 2
+    return q[m] if len(q) % 2 else (q[m - 1] + q[m]) / 2.0
+
+
+def residual_scan(path: str, start, end) -> dict:
+    """ONE streaming pass over a two-clock stream → the residual anchors and the drawn-axis share.
+
+    TWO POPULATIONS, DELIBERATELY DIFFERENT, and conflating them is the trap this docstring exists for:
+
+      · the DRAWN test reads the device's OWN inter-sample deltas, at FULL row resolution. Sampling it
+        at the anchor cadence would manufacture its own answer — one row per second means the device
+        delta is (samples skipped) x (sample period), which varies by about one sample and so
+        concentrates on two or three values, reading as drawn for every healthy stream.
+      · the RESIDUAL reads one anchor per second, so consecutive anchors land in DIFFERENT BLE frames.
+        `Phone timestamp` is BACK-TIMED within a frame (`arrival - back/fs`, writers.py), so the rows of
+        one frame share a single real host measurement; treating each as an anchor would fabricate
+        anchors out of an interpolation.
+
+    Keyed on the integer `sensor_ns` delta, which is equal to or finer than `clock.js`'s `String(devMs)`.
+    Finer keying can only LOWER a share, so it cannot invent a drawn verdict for a real stream; a
+    counter synthesised as `index x rate` still lands at ~100 %, so it does not cost a detection either.
+
+    Memory is bounded by the delta tally, which clusters (a real 130 Hz stream jitters over a narrow
+    band). `rows` is never held; the file is read line by line (a night's ECG is ~160 MB).
+    """
+    try:
+        fh = open(path, encoding="utf-8", errors="replace")
+    except OSError:
+        return {"reason": f"`{os.path.basename(path)}` could not be opened"}
+    with fh:
+        header = fh.readline()
+        cols = header.rstrip("\n").split(";")
+        if _SENSOR_NS_COL not in cols:
+            return {"reason": f"`{os.path.basename(path)}` carries no `{_SENSOR_NS_COL}` column — no device clock"}
+        ns_at = cols.index(_SENSOR_NS_COL)
+        tally: dict[int, int] = {}
+        top = total = 0
+        prev_ns: int | None = None
+        anchors: list[tuple[float, float]] = []
+        prev_r: float | None = None
+        last_at = _dt.datetime.min
+        for line in fh:
+            parts = line.split(";")
+            if len(parts) <= ns_at:
+                continue  # a short row measures nothing; it is skipped, never defaulted (§∅)
+            try:
+                host = _dt.datetime.fromisoformat(parts[0])
+                ns = int(parts[ns_at])
+            except ValueError:
+                continue  # an unparseable row is not a zero
+            if prev_ns is not None:
+                d = ns - prev_ns
+                c = tally[d] = tally.get(d, 0) + 1
+                total += 1
+                if c > top:
+                    top = c
+            prev_ns = ns
+            if start is not None and (host < start or host > end):
+                continue
+            # ONE ANCHOR PER BATCH, derived rather than guessed. SOLID-NIGHT §A5: `Phone timestamp` is
+            # synthesised per row as `batch arrival + k/fs` while the device advances by the SAME k/fs,
+            # so the residual is CONSTANT inside a batch and moves only at a boundary. A change in the
+            # residual therefore IS a batch boundary — no frame size assumed, and no cadence imposed.
+            # Quantised to the host stamp's OWN 1 ms resolution. The device carries its own sub-ms
+            # jitter, so the residual is not bit-constant inside a batch — it is constant to within
+            # what the host can express, which is the resolution the model is stated at. Merging is
+            # the SAFE direction: a boundary whose arrival jitter is under 1 ms joins its neighbour,
+            # so this can only report FEWER anchors, never invent one.
+            r = round(host.timestamp() * 1000.0 - ns / 1e6)
+            # ... OR once a second regardless. Without the floor an INERT host column (one that only
+            # rounds the device) never changes its residual, yields a single anchor, and is reported as
+            # "too few anchors" — true, but it names the symptom instead of the cause. The floor keeps
+            # the anchor set populated so the spread test can say what is actually wrong with it.
+            if prev_r is None or r != prev_r or (host - last_at).total_seconds() >= TB_FLOOR_S:
+                anchors.append((host.timestamp() * 1000.0, ns / 1e6))
+                prev_r, last_at = r, host
+    return {"anchors": anchors, "drawn_share": (top / total) if total else None, "reason": None}
+
+
+def timebase(night_dir: str, model: str, primaries: list[str], start, end) -> dict:
+    """§3.4 timebase: the device axis is a CLOCK, it was disciplined by an independent host, its rate is
+    plausible, and it carries no step. Judged on the largest primary file inside the worn interval."""
+    if start is None:
+        return _decision("UNKNOWN", "no worn interval, so no stretch of the axis could be judged")
+    path = max(primaries, key=os.path.getsize)
+    scan = residual_scan(path, start, end)
+    if scan.get("reason"):
+        return _decision("UNKNOWN", scan["reason"])
+    who = os.path.basename(path)
+    anchors = scan["anchors"]
+    if len(anchors) < TB_MIN_ANCHORS:
+        return _decision("UNKNOWN", f"`{who}` gave {len(anchors)} anchor(s) inside the worn interval — under {TB_MIN_ANCHORS}")
+    # `drawn_share` cannot be None here: it is None only when the file has under two rows, and under
+    # three rows the anchor check above has already returned. Coverage found the branch unreachable and
+    # it is removed rather than given a test that could never fail.
+    share = scan["drawn_share"]
+    if share >= TB_DRAWN_SHARE:
+        # NOT a FAIL: a drawn axis is the ABSENCE of a second clock, not a bad one (§∅). `clock.js` says
+        # a new consumer must gate on this rather than on `independent`, which reads TRUE for a drawn
+        # O2Ring axis (its 1 s-granular counter gives a 22,335 ms spread).
+        return _decision("UNKNOWN", f"`{who}`'s device axis was DRAWN ({100 * share:.1f} % modal delta) — not a clock")
+    r0 = anchors[0][0] - anchors[0][1]
+    res = [((h - anchors[0][0]) / 1000.0, (h - d) - r0) for h, d in anchors]
+    vals = [r for _, r in res]
+    spread = max(vals) - min(vals)
+    if spread <= TB_INERT_MS:
+        return _decision("UNKNOWN", f"`{who}` residual spread {spread:.2f} ms — the host column adds nothing beyond rounding, so there is no second clock")
+    span_s = res[-1][0] - res[0][0]
+    if span_s <= 0:
+        return _decision("UNKNOWN", f"`{who}` anchors span no time")
+    half = TB_WIN // 2
+    lead = _median(vals[: TB_WIN]) if len(vals) >= TB_WIN else _median(vals[: max(1, half)])
+    tailv = _median(vals[-TB_WIN:]) if len(vals) >= TB_WIN else _median(vals[-max(1, half) :])
+    ppm = (tailv - lead) / 1000.0 / span_s * 1e6
+    if abs(ppm) >= TB_MAX_PPM:
+        return _decision("FAIL", f"`{who}` host-vs-device rate {ppm:+.0f} ppm over {span_s / 60:.0f} min — beyond the plausibility bound, so the two columns are not the two clocks")
+    # A5 IS A SEPARATE UNIT AND IS DELIBERATELY NOT HALF-BUILT HERE. SOLID-NIGHT §A5 makes the
+    # unrecorded-shift detector a TRIPWIRE whose fire is UNKNOWN `unrecorded-shift-candidate`, never a
+    # FAIL — "the clean corpus holds zero true unrecorded steps, so the detector has never been
+    # validated against the thing it would convict" — and it needs a no-record check across three
+    # sources (seam sidecar, journal clock-event lines, CLOCKSYNC `synced`/`resynced`) plus two guards
+    # that each yield their OWN named UNKNOWN (`latency regime`, `persistence across a gap`). A partial
+    # version would emit exactly the verdict the brief forbids, so the band stops here and says so: the
+    # rate is plausible and the axis is a disciplined clock, and no step scan has run.
+    return _decision("UNKNOWN", f"`{who}`: axis is an independent clock at {ppm:+.0f} ppm over {span_s / 60:.0f} min — the A5 step tripwire has not run")
+
+
 def expected_devices(night_dir: str, devices: list) -> list[dict]:
     """§3.2: the configured devices minus `optional` backups — an optional one only on a night it captured."""
     out = []
@@ -336,6 +477,6 @@ def score_devices(night_dir: str, devices: list) -> dict:
             bands["completeness"] = completeness(night_dir, name, model, primaries, start, end)
         bands["validity"] = validity(night_dir, model)
         bands["clocks"] = clocks(night_dir, model)
-        bands["timebase"] = _decision("UNKNOWN", TIMEBASE_PENDING)
+        bands["timebase"] = timebase(night_dir, model, primaries, start, end)
         out[name] = {"bands": bands}
     return out
