@@ -24,6 +24,7 @@ reason — the verdict contract would refuse a PASS over `checked: 0` anyway, an
 from __future__ import annotations
 
 import datetime as _dt
+from typing import Any
 
 import verdict as _v
 
@@ -79,14 +80,14 @@ def compose(
     outcomes = {n: device_outcome(d.get("bands") or {}) for n, d in scored.items()}
     failing = {n: rs for n, (st, rs) in outcomes.items() if st == "FAIL"}
     unknown = {n: rs for n, (st, rs) in outcomes.items() if st == "UNKNOWN"}
-    result = {
+    result: dict[str, Any] = {
         "night": night,
         "devices": {n: {"status": st, "reasons": rs} for n, (st, rs) in outcomes.items()},
         "not_applicable": {n: d.get("reason") for n, d in na.items()},
         "failing": sum(len(rs) for rs in failing.values()),
         "unknown": sum(len(rs) for rs in unknown.values()),
     }
-    common = {
+    common: dict[str, Any] = {
         "gate": GATE,
         "population": {"checked": len(scored), "eligible": len(devices), "excluded": len(na)},
         "criterion": CRITERION,
