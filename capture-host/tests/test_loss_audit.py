@@ -9,6 +9,8 @@ import json
 import os
 import statistics
 
+import pytest
+
 import loss_audit
 import verdict
 from tests.test_verdict import js_validate
@@ -135,17 +137,56 @@ def test_no_journal_is_said_not_hidden_and_worn_evidence_is_tri_state(tmp_path):
     assert a["devices"]["Polar H10 0284"]["worn_evidence"] is None  # no evidence file at all ⇒ null, not False
     o = loss_audit.night_verdict(a, night_dir=d)
     assert o["result"]["worn_but_not_recorded_fraction"] is None and o["status"] == "UNKNOWN"
-    # an unreadable evidence file and a garbled row are skipped, not fatal
-    (tmp_path / "captures" / "2026-09-20" / "Polar_H10_0284_20260920220000_HR.txt").write_text(
-        "h\nx;notanumber\n1;0;3\nshort\n"
-    )
+    # a garbled row is skipped, not fatal -- the column is still read, so the verdict is still ours to give
+    hr = tmp_path / "captures" / "2026-09-20" / "Polar_H10_0284_20260920220000_HR.txt"
+    hr.write_text("Phone timestamp;HR [bpm]\nx;notanumber\n1;0;3\nshort\n")
     assert loss_audit._has_worn_evidence(d, "H10") is False
-    os.chmod(os.path.join(d, "Polar_H10_0284_20260920220000_HR.txt"), 0)
+    # a file that could not be OPENED examined nothing, so it reports null rather than "not worn"
+    os.chmod(hr, 0)
     try:
-        assert loss_audit._has_worn_evidence(d, "H10") is False  # unreadable file: skipped, not fatal
+        assert loss_audit._has_worn_evidence(d, "H10") is None
     finally:
-        os.chmod(os.path.join(d, "Polar_H10_0284_20260920220000_HR.txt"), 0o644)
+        os.chmod(hr, 0o644)
+    # ... and so does a header that names no such column, and an empty file
+    hr.write_text("h\nx;notanumber\n1;0;3\nshort\n")
+    assert loss_audit._has_worn_evidence(d, "H10") is None
+    hr.write_text("")
+    assert loss_audit._has_worn_evidence(d, "H10") is None
     assert loss_audit._has_worn_evidence(d, "Athena") is None
+
+
+# The two column orders the corpus actually holds for `_PPI.txt`, headers verbatim off the box. The box
+# wrote the first until 2026-08-05 and the second after; a positional reader of column 1 gets the beat
+# interval from one and `sensor timestamp [ns]` -- 0 on every row ever written -- from the other.
+_PPI_BOX = "Phone timestamp;sensor timestamp [ns];HR [bpm];PP-interval [ms];error estimate [ms];blocker;skin contact;skin contact supported"
+_PPI_PHONE = "Phone Data RX timestamp;PP-interval [ms];error estimate [ms];blocker;contact;contact;hr [bpm]"
+
+
+@pytest.mark.parametrize(
+    "header,row",
+    [
+        (_PPI_BOX, "2026-08-04T23:00:57.020;0;0;393;30;1;1;1"),
+        (_PPI_PHONE, "2026-08-19T22:33:10.377;363;30;1;1;1;0"),
+    ],
+    ids=["box-layout-through-2026-08-05", "phone-layout-after"],
+)
+def test_a_measured_beat_is_wear_evidence_in_either_PPI_column_order(tmp_path, header, row):
+    """Both rows carry a real beat. Read positionally, the box row's column 1 is a fabricated 0 and the
+    night -- 24 997 such rows on 2026-08-04 -- scored `worn_evidence: False`."""
+    d = tmp_path / "captures" / "2026-08-04"
+    d.mkdir(parents=True)
+    (d / "Polar_VeritySense_0C30_20260804230037_PPI.txt").write_text(header + "\n" + row + "\n")
+    assert loss_audit._has_worn_evidence(str(d), "VeritySense") is True
+
+
+def test_a_PPI_file_of_nothing_but_absent_intervals_is_not_wear_evidence(tmp_path):
+    """The other direction: the column is found and every value in it is absent. That IS a verdict."""
+    d = tmp_path / "captures" / "2026-08-04"
+    d.mkdir(parents=True)
+    (d / "Polar_VeritySense_0C30_20260804230037_PPI.txt").write_text(
+        _PPI_BOX + "\n" + "\n".join("2026-08-04T23:00:57.020;0;0;0;30;1;1;1" for _ in range(3)) + "\n"
+    )
+    assert loss_audit._has_worn_evidence(str(d), "VeritySense") is False
 
 
 def test_write_night_puts_both_files_beside_the_summary_and_a_crash_is_UNKNOWN(tmp_path, monkeypatch):
@@ -372,9 +413,16 @@ def test_a_junk_entry_or_an_unknown_model_does_not_end_the_night_and_absent_wear
     os.unlink(os.path.join(d, "Polar_H10_0284_20260920220000_HR.txt"))
     v = loss_audit.audit_night(d, DEV, journal=lambda *a: [])["devices"]["Polar H10 0284"]
     assert v["worn_evidence"] is None and v["worn_lost_min"] is None
-    (tmp_path / "captures" / "2026-09-20" / "Polar_H10_0284_20260920220000_HR.txt").write_text("h\n1;0\n")
+    # a file whose named column was read and held nothing but absent values IS a "not worn" verdict ...
+    (tmp_path / "captures" / "2026-09-20" / "Polar_H10_0284_20260920220000_HR.txt").write_text(
+        "Phone timestamp;HR [bpm]\n1;0\n"
+    )
     v = loss_audit.audit_night(d, DEV, journal=lambda *a: [])["devices"]["Polar H10 0284"]
     assert v["worn_evidence"] is False and v["worn_lost_min"] == 0.0 and type(v["worn_lost_min"]) is float
+    # ... where one whose header names no such column examined nothing, and says so
+    (tmp_path / "captures" / "2026-09-20" / "Polar_H10_0284_20260920220000_HR.txt").write_text("h\n1;0\n")
+    v = loss_audit.audit_night(d, DEV, journal=lambda *a: [])["devices"]["Polar H10 0284"]
+    assert v["worn_evidence"] is None and v["worn_lost_min"] is None
 
 
 # ── WEAR ENDS ─────────────────────────────────────────────────────────────────────────────────────
