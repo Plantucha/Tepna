@@ -638,9 +638,23 @@ def noise_id(phase, dmax=3):
     matters more than the derivation: AllanTools implements the same identification, so this has a real
     reference rather than a re-derivation, which is what `allan.py` was otherwise short of.
 
-    Returns `{alpha, noise, differences, rho}`. `alpha` is clamped to [-2, +2]: outside that range the
-    series is not one of the five power laws this names, and a sixth label would be invented rather
-    than measured.
+    Returns `{alpha, noise, differences, rho}` on a successful identification, or a REFUSAL record
+    `{alpha: None, noise: None, ok: False, reason, raw_alpha, differences, rho}` when the identification
+    lands outside the five laws — the shape `stability` already uses for `too-few-taus`, and `noise:
+    None` is what a caller branches on either way.
+
+    ⚠️ `alpha` WAS CLAMPED to [-2, +2], and the docstring justified it with the right argument for the
+    wrong operation: "a sixth label would be invented rather than measured". True — but clamping does
+    not decline to name it, it assigns the NEAREST of the five, so a series that is none of them was
+    reported as `random-walk-frequency` with no mark. That is §∅ exactly: the identification failed and
+    the failure was published as a measurement.
+
+    ⚠️ AND IT IS NOT AN EDGE CASE, which the clamp's framing hides. `alpha = round(-2*(rho + d) + 2)`
+    with `rho >= 0`, so staying inside [-2, +2] needs `rho + d <= 2.25` — i.e. **every series that needs
+    d = 3 differences is unnameable**, decorrelated or not. `dmax` DEFAULTS to 3, so the function's own
+    default admits a depth whose result its five labels cannot express. Measured: `[i**3 for i in
+    range(600)]` decorrelates cleanly at d=3 (rho 0.0) and was reported random-walk FM; a quartic
+    (rho 0.4987, raw -4.997) likewise.
     """
     x = _clean(phase)
     if len(x) < 32:
@@ -652,7 +666,15 @@ def noise_id(phase, dmax=3):
         if rho < 0.25 or d >= dmax:
             raw = -2.0 * (rho + d) + 2.0
             alpha = int(round(raw))
-            alpha = 2 if alpha > 2 else (-2 if alpha < -2 else alpha)
+            if alpha not in _ALPHA_NAMES:
+                # Keyed on the NAME TABLE rather than on a literal [-2, 2], so the bound cannot drift
+                # away from the labels it is about: add a sixth law to `_ALPHA_NAMES` and this admits it
+                # automatically. `raw_alpha` travels so a reader sees HOW far outside, which is the
+                # difference between "just past the edge" and "this series is not a power law at all".
+                return {"alpha": None, "noise": None, "ok": False,
+                        "reason": "alpha-outside-the-named-power-laws",
+                        "raw_alpha": round(raw, 4),
+                        "differences": d, "rho": round(rho, 4)}
             return {"alpha": alpha, "noise": _ALPHA_NAMES[alpha],
                     "differences": d, "rho": round(rho, 4)}
         nxt = [x[i + 1] - x[i] for i in range(len(x) - 1)]
