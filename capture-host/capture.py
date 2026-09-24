@@ -7924,6 +7924,28 @@ async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = N
             if not isinstance(summ, dict):
                 raise TypeError(f"qc scan returned {type(summ).__name__}, not dict: "
                                 f"{summ!r:.200} (isolation={_QC_ISOLATION})")
+            # THE WEAR SCAN RUNS ON A THREAD, not in a second child, and the precedent is in this file:
+            # `loss_audit.write_night` below already runs `wear_ends` for every device through
+            # `asyncio.to_thread`. A second `_qc_offload` would be a stricter standard than the codebase
+            # applies to the same work, and it is not free — `_importable_by_reference` sends a
+            # module-level function to a SPAWNED child, and several poller tests freeze `time.monotonic`,
+            # under which a spawn pool's deadlines never elapse and the child's result never arrives.
+            # Measured: adding that second offload wedged `check.sh` twice at 98 % with all 24 xdist
+            # workers idle and the controller in `futex_do_wait`.
+            #
+            # The cost is 6.9 s of GIL per poll — measured on the 794 MB 2026-09-23 night (H10 5.0 s,
+            # Verity 1.9 s), once on a page-cached tree, so treat it as an order of magnitude and not a
+            # distribution. Against `summarize`'s 51 s of pure-Python CPU that justified the child, and a
+            # 600 s poll interval, it is ~1 % duty.
+            #
+            # Its failure is not the night's: a wear scan that raises leaves `stopped_early_reason` None,
+            # which already means "not determined".
+            try:
+                _wear = await asyncio.to_thread(loss_audit.wear_by_device, night, cfg.get("devices", []))
+            except Exception as e:                 # noqa: BLE001 - a wear scan is a REPORT, not the QC
+                log.warning("qc: wear scan failed, reasons unavailable: %s", e)
+                _wear = None
+            summ = nightqc.attach_wear(summ, _wear)
             summ["isolation"] = _QC_ISOLATION      # how this scan was produced, beside what it found
             # ── DID THE LIVE CPAP STREAM RECORD THE SESSION? ─────────────────────────────────────
             # On 2026-08-26 the machine ran a full night, `edf_dir` stayed empty, and NOTHING said so
