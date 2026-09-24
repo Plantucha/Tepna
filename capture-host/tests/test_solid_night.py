@@ -200,6 +200,12 @@ def test_input_order_does_not_matter():
     assert (r["solid"], r["nights"], r["first"], r["last"]) == (2, 3, "2026-09-02", "2026-09-04")
 
 
+def test_a_night_given_twice_is_refused():
+    """Which of two verdicts for one night counts would be a guess, so neither does."""
+    with pytest.raises(ValueError, match="twice"):
+        sn.consecutive([*_days(1, [P, F]), ("2026-09-02", *P)])
+
+
 def test_the_exit_is_fourteen_solid_nights():
     assert sn.consecutive(_days(1, [P] * 13))["exit"] is False
     r = sn.consecutive(_days(1, [P] * 14))
