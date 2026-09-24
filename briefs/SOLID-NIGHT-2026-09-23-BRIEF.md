@@ -159,7 +159,7 @@ hour 5.
 | **validity** | the `…RUNS.txt` sidecar present for every stream that has a writer (present-and-empty = verified no absences) | — | sidecar absent (never FAIL, never PASS — CLAUDE.md §∅, #2950) | Blanking the sidecar records does NOT make a night not solid: the ring's in-band blanking is device behaviour made visible (§5 item 5), and consumers exclude it. |
 | **clocks** | offset vs host known for every scored device (`AS11CLOCK.csv`; host-axis anchors for Polar / ring) | — | any scored device without an offset | criterion 5 |
 
-> ⚠️ The **completeness**, **timebase** and **validity** rows are AMENDED by §3.7 A2, A3 and A4 (all forced by night 09-23).
+> ⚠️ The **completeness**, **timebase** and **validity** rows are AMENDED by §3.7 A2, A3 and A4 (all forced by night 09-23), and the **timebase** row again by **A5** (the step band, measured over 36 clean nights).
 
 **Inputs are read by exact name** — `QC-VERDICT.json`, `BACKCHECK-VERDICT.json`,
 `ADAPTERHCI-VERDICT.json`, `LOSS-VERDICT.json`, `LOSS-AUDIT.json` — **never by glob.** The re-audit left a
@@ -244,6 +244,44 @@ no sidecar recorded. So a WAVEFORM stream with no run rule is **UNKNOWN, reason
 `no-run-rule-for-stream`** — absence of a writer is not absence of absences (CLAUDE.md §∅). It clears when
 the stream gets a rule; Heron has the ECG run sidecar as a writer unit. Event streams (RR, PPI, HR) take
 their validity from their parent waveform, as they take completeness under A2.
+
+**A5 · The timebase step band is a PERSISTENT, UNRECORDED shift** (2026-09-24, measured over 36 clean
+nights). Supersedes §3.4's "a step > 1000 ms that is not a recorded seam" and specifies A3's measure.
+
+- **Sign convention — binding.** Residual = **host ARRIVAL time − device time**, one value per BATCH anchor.
+  The Polar `Phone timestamp` is synthesised per row (batch arrival + k/fs, rounded to 1 ms), so anchors
+  are batch boundaries — about 73 rows, ~0.56 s at 130 Hz — not rows. A **negative** persistent shift is
+  the device moving forward relative to the host: the normal watchdog resync of a device that fell behind.
+  A **positive** one is the host moving forward or the device moving back — a different mechanism at the
+  same magnitude, which is why the sign belongs in the band.
+- **The measure.** Split the anchors at re-anchors > 60 s (the capture's own seam bound). Take a width-21
+  running median. **Persistence = the median level 60–120 s after a candidate minus the level 30–90 s
+  before it.**
+- **FAIL:** |persistence| ≥ **1 s** with **no record** in the seam sidecar, the journal (`off host
+  (tolerance`), or `CLOCKSYNC.csv` (`synced` / `resynced`).
+- **UNKNOWN `clock-sets too dense to attribute`:** when recorded clock-sets are so dense that the
+  persistence windows straddle several of them — the 08-28 → 09-12 resync storm, one set every ~5.5 min,
+  where ±15–30 s flips minutes apart cannot be assigned to one another.
+- **Why persistence and never the windowed peak.** Over the corpus, **1,237 of 1,756** windowed-shift events
+  above 1 s (**70 %**) were delivery-latency **TRANSIENTS**: late batches after a stall or pull pause raise
+  the residual, and it **returns**. A 30 s windowed peak cannot tell them from a step — it fails the
+  both-hypotheses test. **Do not re-tune this band to the windowed peak.**
+- **Why all three records.** The journal carries 338 H10 resync warnings; `CLOCKSYNC.csv` carries 386
+  `synced` + 290 `resynced`. Matching the journal alone missed half the recorded clock-sets.
+- **The bar, with its n.** Over **n = 36 clean nights** (08-01 → 08-27 and 09-13 → 09-23; storm nights excluded
+  as unadjudicable) the quiet windowed-shift p99.9 is **81 ms** (median per file), and the smallest real
+  unrecorded step is **14.5 s**. So 1 s sits **~12× above the noise and ~15× below the signal**. The exact
+  value barely matters, and it is not to be tuned.
+- **What it found.** Unrecorded persistent steps on **2 of 36** clean nights: **08-18 04:08, +28.6 s** (no
+  clock-set within two days) and **09-19 20:26, ≈ +14.5 s** (one event in three overlapping windows; nearest
+  clock-set 66 min before). **None in the 1–2 s band**, so the "walk below the watchdog" class is absent from
+  the clean corpus. Both are **positive** and both exceed the watchdog's 2.0 s tolerance yet logged no
+  resync. That is consistent with a **host-side** step — a chrony/timesyncd correction — which a
+  device-versus-host watchdog cannot see by construction. **Not diagnosed here:** Wren is checking the box's
+  own clock at both instants, and the watchdog question goes to Heron after that answer.
+- **What the fixed reading would have done, measured.** A per-anchor raw jump > 1000 ms has only **1.78×
+  headroom** on a quiet night (09-23: max 562 ms) and is **blind** to 08-27's +1,508 ms pre-seam walk,
+  which spreads over ~17 anchors at ~89 ms each. It fails both ways.
 
 **Open — found by scoring 09-23, NOT decided here:**
 - **BACKCHECK-VERDICT has no mapping into the night.** 09-23's is FAIL on 107 clipped regions (26 on the
