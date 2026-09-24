@@ -2854,6 +2854,20 @@ _DEV_0923 = [{"name": "H10", "device_id": "02849638", "streams": ["ecg"]},
              {"name": "Verity", "device_id": "0C301E3F", "streams": ["ppg"]},
              {"name": "Ring", "device_id": "S8AW2100", "streams": ["ppg"]}]
 _SPAN_0923 = 20200                   # 23:13:18 -> 04:49:58, the real session span
+# THE SAMPLE RATE IS THE FREE PARAMETER HERE, AND THE SPANS ARE NOT.
+#
+# Every number the 09-23 tests below assert is a coverage RATIO or an absolute count of SECONDS, and
+# coverage is `rows / (measured_hz * span)` where `rows` is written as `own_s * hz`. The rate therefore
+# CANCELS: 0.9945 / 0.9158 / 0.9257, the 0.6 in-recording loss, the 0.55 session denominator and the
+# 1701 / 1501 `stopped_early_s` are all properties of the geometry alone. The real 130 / 55 / 125 Hz
+# bought nothing except bytes — 6 million rows, and `_cap_timed` writes one line each.
+#
+# It bought 1.6 GB, measured: those tests plus their three-zone parametrization retained
+# 1,684,021,248 bytes of `tmp_path`, ~1.7 GB per retained run. A mutation run spawns a pytest per
+# mutant, so 37 retained directories exhausted the rig's shared /tmp quota on 2026-09-24 and every
+# session's gates began failing with EDQUOT. Holding the spans and dropping the rate to 2 Hz keeps
+# every asserted value identical — verified, not assumed — at 1/53 of the bytes.
+_QC_HZ = 2.0
 
 
 def _end_0923():
@@ -2897,10 +2911,14 @@ def _night_0923(tmp_path, h10_early=0):
     device's OWN recording extent as it really was."""
     night = str(tmp_path / "2026-09-23"); os.makedirs(night)
     for name, own, hz, early in [
-            ("Polar_H10_02849638_20260923231432_ECG.txt", 20089, 130.0, h10_early),
-            ("Polar_VeritySense_0C301E3F_20260923231318_PPG.txt", 18499, 55.0, 1701),
-            ("Wellue_O2Ring-S_S8AW2100_20260923231349_PPG.txt", 18699, 125.0, 1501)]:
-        _utime(_cap_timed(night, name, int(own * hz), hz), _end_0923() - early)
+            ("Polar_H10_02849638_20260923231432_ECG.txt", 20089, _QC_HZ, h10_early),
+            ("Polar_VeritySense_0C301E3F_20260923231318_PPG.txt", 18499, _QC_HZ, 1701),
+            ("Wellue_O2Ring-S_S8AW2100_20260923231349_PPG.txt", 18699, _QC_HZ, 1501)]:
+        # `+ 1`: `_cap_timed` stamps row i at i/hz, so N rows span (N-1)/hz. One extra row makes the
+        # device span EXACTLY `own` instead of one sample short of it. At 130 Hz that shortfall was
+        # 1/130 s and rounded away; at any lower rate it does not, and the Verity's 18,499 s read 18,498.
+        # The geometry should not depend on the sample rate, which is the whole point of `_QC_HZ`.
+        _utime(_cap_timed(night, name, int(own * hz) + 1, hz), _end_0923() - early)
     return night
 
 
@@ -2957,9 +2975,9 @@ def test_an_IN_RECORDING_loss_still_reads_as_a_loss_under_the_new_denominator(tm
     number. A deeper loss must still reach `degraded`, which is the alert path — `_DEGRADED_BELOW` is
     unchanged at 0.5."""
     night = str(tmp_path / "2026-09-23"); os.makedirs(night)
-    _utime(_cap_timed(night, "Polar_H10_02849638_20260923231432_ECG.txt", 20089 * 130, 130.0), _end_0923())
+    _utime(_cap_timed(night, "Polar_H10_02849638_20260923231432_ECG.txt", int(20089 * _QC_HZ), _QC_HZ), _end_0923())
     _utime(_cap_timed_with_gap(night, "Polar_VeritySense_0C301E3F_20260923231318_PPG.txt",
-                               55.0, 18499, 0.6), _end_0923())
+                               _QC_HZ, 18499, 0.6), _end_0923())
     by = {d["name"]: d for d in nightqc.summarize(night, _DEV_0923)["devices"] if d.get("coverage")}
     assert by["Verity"]["coverage"] == {"ppg": 0.6}, "an in-recording loss is still a loss"
     assert by["Verity"]["stopped_early_s"] == 0, "it did not stop early — it dropped rows"
@@ -2969,9 +2987,9 @@ def test_an_IN_RECORDING_loss_still_reads_as_a_loss_under_the_new_denominator(tm
     # A SECOND night in its own subdir, keeping the 09-23 stamps: a filename stamp that POSTDATES the
     # mtime is not a session at all, and reusing 09-24 names with an 09-24 04:49 mtime made one.
     night2 = str(tmp_path / "deeper" / "2026-09-23"); os.makedirs(night2)
-    _utime(_cap_timed(night2, "Polar_H10_02849638_20260923231432_ECG.txt", 20089 * 130, 130.0), _end_0923())
+    _utime(_cap_timed(night2, "Polar_H10_02849638_20260923231432_ECG.txt", int(20089 * _QC_HZ), _QC_HZ), _end_0923())
     _utime(_cap_timed_with_gap(night2, "Polar_VeritySense_0C301E3F_20260923231318_PPG.txt",
-                               55.0, 18499, 0.4), _end_0923())
+                               _QC_HZ, 18499, 0.4), _end_0923())
     s2 = nightqc.summarize(night2, _DEV_0923)
     assert any("Verity:ppg" in line for line in s2["degraded"]), \
         f"a deep in-recording loss must still reach the alert path: {s2['degraded']}"
@@ -2989,9 +3007,9 @@ def test_a_stream_that_DIED_EARLY_now_reads_as_an_early_stop_and_not_as_lost_pac
     stop is a fault depends on WHY (a doff is correct behaviour, a link loss is not), which is Wren's
     wear-end unit and the `stopped_early_reason` slot above."""
     night = str(tmp_path / "2026-09-23"); os.makedirs(night)
-    _utime(_cap_timed(night, "Polar_H10_02849638_20260923231432_ECG.txt", 20089 * 130, 130.0), _end_0923())
+    _utime(_cap_timed(night, "Polar_H10_02849638_20260923231432_ECG.txt", int(20089 * _QC_HZ), _QC_HZ), _end_0923())
     # the Verity records one hour and stops, five hours before the H10 does
-    _utime(_cap_timed(night, "Polar_VeritySense_0C301E3F_20260923231318_PPG.txt", 3600 * 55, 55.0),
+    _utime(_cap_timed(night, "Polar_VeritySense_0C301E3F_20260923231318_PPG.txt", int(3600 * _QC_HZ), _QC_HZ),
            _end_0923() - 16489)
     s = nightqc.summarize(night, _DEV_0923)
     by = {d["name"]: d for d in s["devices"] if d.get("coverage")}
