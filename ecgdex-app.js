@@ -587,7 +587,8 @@ self.onmessage = async (e) => {
       personalized.push({
         l: 'AF Screen',
         v: { 'no-af': 'Clear', 'occasional-irregular': 'Watch', 'possible-af': 'Flag', insufficient: '—' }[af],
-        sub: r.morph.af.suspiciousPct + '% irregular',
+        /* §∅ — an insufficient screen has no percentage; printing "null% irregular" states one. */
+        sub: r.morph.af.suspiciousPct != null ? r.morph.af.suspiciousPct + '% irregular' : 'not screened',
         s: { 'no-af': 'ok', 'occasional-irregular': 'warn', 'possible-af': 'bad', insufficient: 'neutral' }[af]
       });
     }
@@ -851,9 +852,9 @@ self.onmessage = async (e) => {
     })()}
     <div class="gang-summary" style="margin-top:12px">
       <div class="gang-pill" style="border-color:var(--${afColor === 'ok' ? 'green' : afColor === 'warn' ? 'amber' : afColor === 'bad' ? 'red' : 'blue'});color:var(--${afColor === 'ok' ? 'green' : afColor === 'warn' ? 'amber' : afColor === 'bad' ? 'red' : 'blue'})"><b>AF screen:</b> ${afLabel}</div>
-      <div class="gang-pill">irregularity ${af.irregIndex}</div>
-      <div class="gang-pill">ΔRR entropy ${af.shannon}</div>
-      <div class="gang-pill">${af.suspiciousPct}% windows flagged</div>
+      <div class="gang-pill">irregularity ${af.irregIndex != null ? af.irregIndex : '—'}</div>
+      <div class="gang-pill">ΔRR entropy ${af.shannon != null ? af.shannon : '—'}</div>
+      <div class="gang-pill">${af.suspiciousPct != null ? af.suspiciousPct + '% windows flagged' : 'not screened'}</div>
     </div>
     <div class="q-note" style="margin-top:10px"><b>Directional, not diagnostic.</b> A single lead at 130 Hz resolves QRS/QT/PR/ST as <b>within-subject overnight trends</b>, not 12-lead clinical measurements. AF screen is RR-irregularity-based — P-wave morphology is weak at this rate, so it screens only and never diagnoses.</div>`;
     $('morphSection').style.display = 'block';
@@ -1002,7 +1003,7 @@ self.onmessage = async (e) => {
     <table><thead><tr><th>Metric</th><th>ECG-derived</th><th>Device HR</th><th>Δ / verdict</th></tr></thead><tbody>
     <tr><td>Mean HR</td><td class="mono">${v.ecgMean}</td><td class="mono">${v.devMean}</td><td class="mono ${v.dMean < 2 ? 'ok' : v.dMean < 5 ? 'warn' : 'bad'}">Δ ${v.dMean} bpm</td></tr>
     <tr><td>Range (bpm)</td><td class="mono">${v.ecgMin}–${v.ecgMax}</td><td class="mono">${v.devMin}–${v.devMax}</td><td>—</td></tr>
-    <tr><td>Mean abs error</td><td class="mono" colspan="2" style="text-align:center">${v.mae} bpm <span style="color:var(--text3)">(max ${v.maxErr})</span></td><td>${v.mae < 2 ? '<span class="pill pill-green">tight</span>' : v.mae < 5 ? '<span class="pill pill-yellow">close</span>' : '<span class="pill pill-red">off</span>'}</td></tr>
+    <tr><td>Mean abs error</td><td class="mono" colspan="2" style="text-align:center">${v.mae} bpm <span style="color:var(--text3)">(max ${v.maxErr}${v.coverage != null ? ` · over ${v.n} of ${v.comparableSec}s` : ''})</span></td><td>${v.mae < 2 ? '<span class="pill pill-green">tight</span>' : v.mae < 5 ? '<span class="pill pill-yellow">close</span>' : '<span class="pill pill-red">off</span>'}</td></tr>
     <tr><td>Correlation r</td><td class="mono" colspan="2" style="text-align:center">${v.rMeaningful ? v.r : '—'}</td><td>${rPill}</td></tr>
     </tbody></table>
     <div class="mini-h" style="margin-top:12px">HR across the recording <span class="mini-sub"><span style="color:${UI.COLORS.teal}">●</span> ECG-derived&nbsp;&nbsp;<span style="color:${UI.COLORS.amber}">●</span> device</span></div>
@@ -1406,7 +1407,9 @@ self.onmessage = async (e) => {
               '—',
               'Clear',
               { 'no-af': 'ok', 'occasional-irregular': 'warn', 'possible-af': 'bad', insufficient: 'neutral' }[r.morph.af.verdict],
-              r.morph.af.suspiciousPct + '% windows irregular · ΔRR entropy ' + r.morph.af.shannon + ' · screen only'
+              r.morph.af.suspiciousPct != null
+                ? r.morph.af.suspiciousPct + '% windows irregular · ΔRR entropy ' + r.morph.af.shannon + ' · screen only'
+                : 'no window carried enough usable beats to screen'
             ]
           ]
         : []),
@@ -1608,11 +1611,25 @@ self.onmessage = async (e) => {
     const mode = g.mode == null ? '' : g.mode,
       amo50 = g.amo50 == null ? '' : g.amo50,
       mxdmn = g.mxDMn == null ? '' : g.mxDMn;
-    const t0 = r.t0Ms != null ? r.t0Ms : 0; // §1 (FOLLOWUPS): undated recording → relative-from-0 (1970 epoch, deterministic), NEVER now()
-    const d = new Date(t0),
-      p = (x) => String(x).padStart(2, '0');
+    /* §∅ — AN UNDATED RECORDING EXPORTS AN EMPTY DATE CELL, NOT 1970-01-01. The old comment was
+       half right and is kept in spirit: `now()` would be the worse fabrication (Clock Contract §2.6),
+       and refusing it was correct. But 0 is not a refusal — `new Date(0)` renders
+       "1970-01-01 00:00:00", an in-band, perfectly valid-looking instant that a consumer reads as the
+       recording's date and sorts before every real one.
+       The repo already settled this everywhere else, with tests: "§∅ · no recording anchor ⇒ the
+       timestamp is null, not 1970", "null never coerces to a 1970 stamp", "RRacc epoch times stay
+       relative (never 1970-ms)". The two CSV/text exports are what that pass did not reach.
+       The `num()` helper on the very next line already emits '' for an absent number; this gives the
+       Date column the same honesty. */
+    const p = (x) => String(x).padStart(2, '0');
     // CLOCK-UNIFY: floating wall-clock → ISO (no zone) via getUTC*; HRVDex.parseTimestamp reads it verbatim.
-    const ts = d.getUTCFullYear() + '-' + p(d.getUTCMonth() + 1) + '-' + p(d.getUTCDate()) + ' ' + p(d.getUTCHours()) + ':' + p(d.getUTCMinutes()) + ':' + p(d.getUTCSeconds());
+    const ts =
+      r.t0Ms != null
+        ? (() => {
+            const d = new Date(r.t0Ms);
+            return d.getUTCFullYear() + '-' + p(d.getUTCMonth() + 1) + '-' + p(d.getUTCDate()) + ' ' + p(d.getUTCHours()) + ':' + p(d.getUTCMinutes()) + ':' + p(d.getUTCSeconds());
+          })()
+        : '';
     const num = (v) => (v == null || v === '' || !isFinite(v) ? '' : v);
     return [ts, num(r.hr), num(r.meanRR), num(r.sdnn), num(r.rmssd), num(r.pnn50), num(amo50), num(mode), num(r.tp), num(r.hf), num(r.lf), num(r.vlf), num(mxdmn)];
   }
@@ -1637,10 +1654,14 @@ self.onmessage = async (e) => {
   function exportRR() {
     if (!RESULT) return;
     const r = RESULT;
-    const t0 = r.t0Ms != null ? r.t0Ms : 0; // §1 (FOLLOWUPS): undated → relative-from-0, never now()
+    /* §∅ — the same 1970 fabrication, and here the function already CONTRADICTED ITSELF: the
+       filename below says `_undated` while every row inside carried a 1970-based absolute stamp.
+       An undated recording now writes an EMPTY timestamp field, which is the shape PulseDex's
+       handoff parser is built for — "A row with no parseable stamp yields NaN (never now())" — and
+       the RR value stays the last ';'-separated field, which is what that parser reads. */
     const lines = ['Phone timestamp;RR-interval [ms]'];
     for (let i = 0; i < r.nn.length; i++) {
-      const ts = new Date(t0 + r.tt[i] * 1000).toISOString().replace('Z', '');
+      const ts = r.t0Ms != null ? new Date(r.t0Ms + r.tt[i] * 1000).toISOString().replace('Z', '') : '';
       lines.push(ts + ';' + Math.round(r.nn[i]));
     }
     dl(lines.join('\n'), 'ecgdex_computed_RR_' + (r.t0Ms != null ? new Date(r.t0Ms).toISOString().slice(0, 10) : 'undated') + '.txt', 'text/plain');

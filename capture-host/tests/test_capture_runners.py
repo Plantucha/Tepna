@@ -3576,6 +3576,9 @@ def test_qc_poller_summarizes_the_current_night(tmp_path, monkeypatch):
     import datetime as _dtm
 
     monkeypatch.setattr(capture, "_now", lambda: _dtm.datetime(2026, 7, 19, 23, 0, 0))
+    # The wear scan reads real files and none of these tests is about wear — stub it so they stay about
+    # the alert grace. The wear legs live in test_nightqc.py.
+    monkeypatch.setattr(capture.loss_audit, "wear_by_device", lambda night_dir, devices: {})
     night = tmp_path / "captures" / "2026-07-19"
     night.mkdir(parents=True)
     with open(night / "Polar_H10_02849638_20260719_ECG.txt", "w") as f:
@@ -3587,6 +3590,55 @@ def test_qc_poller_summarizes_the_current_night(tmp_path, monkeypatch):
     assert capture.STATUS["qc"]["night"] == "2026-07-19"
     assert capture.STATUS["qc"]["missing"] == ["H10:acc"] and capture.STATUS["qc"]["ok"] is False
     assert (night / "QC-SUMMARY.json").exists()
+
+
+def test_qc_poller_keeps_the_night_when_the_wear_scan_raises(tmp_path, monkeypatch, caplog):
+    """A wear scan is a REPORT, not the QC. If it raises, the night still gets its summary and every
+    `stopped_early_reason` stays None — which already means "not determined", never "worn to the end".
+    The failure is LOGGED rather than swallowed silently, because a reason that is permanently absent for
+    a mechanical reason should be visible somewhere."""
+    import datetime as _dtm
+
+    monkeypatch.setattr(capture, "_now", lambda: _dtm.datetime(2026, 7, 19, 23, 0, 0))
+
+    def _boom(night_dir, devices):
+        raise OSError("wear stream unreadable")
+
+    monkeypatch.setattr(capture.loss_audit, "wear_by_device", _boom)
+    night = tmp_path / "captures" / "2026-07-19"
+    night.mkdir(parents=True)
+    with open(night / "Polar_H10_02849638_20260719_ECG.txt", "w") as f:
+        f.write("h\n1\n2\n3\n")
+    cfg = {"qc": {"poll_sec": 600},
+           "devices": [{"name": "H10", "device_id": "02849638", "streams": ["ecg"]}]}
+    _stop_after(monkeypatch, 1)
+    with caplog.at_level("WARNING"):
+        _run(capture.qc_poller(cfg, str(tmp_path)))
+    assert capture.STATUS["qc"]["night"] == "2026-07-19", "the night is still summarised"
+    assert (night / "QC-SUMMARY.json").exists()
+    assert all(d.get("stopped_early_reason") is None for d in capture.STATUS["qc"]["devices"])
+    assert any("wear scan failed" in r.message for r in caplog.records), "and it says so"
+
+
+def test_qc_poller_refuses_a_scan_result_that_is_not_a_dict(tmp_path, monkeypatch, caplog):
+    """A measurement that is not the shape it claims is a fabricated value reaching a consumer, and the
+    honest response at the edge is to name it. Before this, a non-dict crossed the boundary and failed
+    three frames later inside `alerts.*` with `'str' object has no attribute 'get'` — naming neither the
+    producer nor the value, which is how it reddened three PRs on main unattributably."""
+    import datetime as _dtm
+
+    monkeypatch.setattr(capture, "_now", lambda: _dtm.datetime(2026, 7, 19, 23, 0, 0))
+    monkeypatch.setattr(capture.nightqc, "summarize", lambda n, d: "not a summary")
+    night = tmp_path / "captures" / "2026-07-19"
+    night.mkdir(parents=True)
+    with open(night / "Polar_H10_02849638_20260719_ECG.txt", "w") as f:
+        f.write("h\n1\n")
+    _stop_after(monkeypatch, 1)
+    with caplog.at_level("WARNING"):
+        _run(capture.qc_poller({"qc": {"poll_sec": 600}, "devices": []}, str(tmp_path)))
+    msgs = [r.getMessage() for r in caplog.records]
+    assert any("returned str, not dict" in m for m in msgs), msgs
+    assert any("not a summary" in m for m in msgs), "it names the VALUE, not only the type"
 
 
 def test_qc_poller_skips_when_no_night_dir_yet(tmp_path, monkeypatch):
@@ -3641,6 +3693,9 @@ def _qc_night(tmp_path, monkeypatch, missing=True):
     }
 
 
+_real_summarize = capture.nightqc.summarize   # bound BEFORE any test patches the module attribute
+
+
 def test_qc_poller_alerts_once_on_a_gap_past_the_grace(tmp_path, monkeypatch):
     """A stream still missing after alert_after_sec fires exactly one alert for the night."""
     sent = []
@@ -3653,6 +3708,13 @@ def test_qc_poller_alerts_once_on_a_gap_past_the_grace(tmp_path, monkeypatch):
     cfg = _qc_night(tmp_path, monkeypatch, missing=True)
     clock = {"t": 0.0}
     monkeypatch.setattr(capture._time, "monotonic", lambda: clock["t"])
+    # A frozen global clock and a spawned child cannot coexist: `multiprocessing` reads `time.monotonic`
+    # for its deadlines, so the child's result never arrives (measured 2026-09-23: a spawn pool under a
+    # constant monotonic times out at 12 s; under the real clock it answers in 0.03 s). This test is
+    # about the alert grace, not about isolation — route the REAL scan through a wrapper the child cannot
+    # import by name, so it runs on a thread with the same computation; the isolation legs live in
+    # tests/test_qc_offload.py.
+    monkeypatch.setattr(capture.nightqc, "summarize", lambda n, d: _real_summarize(n, d))
     calls = {"n": 0}
 
     async def fake_sleep(_s):
@@ -3676,6 +3738,13 @@ def test_qc_poller_holds_the_alert_during_the_grace(tmp_path, monkeypatch):
 
     cfg = _qc_night(tmp_path, monkeypatch, missing=True)
     monkeypatch.setattr(capture._time, "monotonic", lambda: 100.0)  # never advances past grace
+    # A frozen global clock and a spawned child cannot coexist: `multiprocessing` reads `time.monotonic`
+    # for its deadlines, so the child's result never arrives (measured 2026-09-23: a spawn pool under a
+    # constant monotonic times out at 12 s; under the real clock it answers in 0.03 s). This test is
+    # about the alert grace, not about isolation — route the REAL scan through a wrapper the child cannot
+    # import by name, so it runs on a thread with the same computation; the isolation legs live in
+    # tests/test_qc_offload.py.
+    monkeypatch.setattr(capture.nightqc, "summarize", lambda n, d: _real_summarize(n, d))
     _stop_after(monkeypatch, 1)
     _run(capture.qc_poller(cfg, str(tmp_path), _N()))
     assert sent == []
@@ -3690,6 +3759,13 @@ def test_qc_poller_no_alert_when_complete(tmp_path, monkeypatch):
 
     cfg = _qc_night(tmp_path, monkeypatch, missing=False)  # every declared stream present
     monkeypatch.setattr(capture._time, "monotonic", lambda: 999999.0)
+    # A frozen global clock and a spawned child cannot coexist: `multiprocessing` reads `time.monotonic`
+    # for its deadlines, so the child's result never arrives (measured 2026-09-23: a spawn pool under a
+    # constant monotonic times out at 12 s; under the real clock it answers in 0.03 s). This test is
+    # about the alert grace, not about isolation — route the REAL scan through a wrapper the child cannot
+    # import by name, so it runs on a thread with the same computation; the isolation legs live in
+    # tests/test_qc_offload.py.
+    monkeypatch.setattr(capture.nightqc, "summarize", lambda n, d: _real_summarize(n, d))
     _stop_after(monkeypatch, 1)
     _run(capture.qc_poller(cfg, str(tmp_path), _N()))
     assert sent == [] and capture.STATUS["qc"]["ok"] is True
@@ -5991,7 +6067,17 @@ def test_auto_sync_ladder_stops_at_its_wall_clock_budget(tmp_path, monkeypatch):
     2026-08-09 the loop still ran at a 59 % duty cycle.
 
     Uses a CONTENTION error on purpose: `device_absent_error` must not be what saves us here. If the
-    budget is what stops the ladder, it stops even for the error the ladder is legitimately for."""
+    budget is what stops the ladder, it stops even for the error the ladder is legitimately for.
+
+    ⚠️ THIS TEST USED TO ASSERT THE OVERRUN (fixed 2026-09-23). It expected THREE attempts, with the
+    comment "the 3rd attempt's check sees 135 s and stops" — i.e. it pinned a bound of 120 s being
+    exceeded by 25 % as the specification, because `spent >= budget` can only notice an overspend after
+    the money is gone. The box agreed with the test: `gave up after 153s of a 120s budget`, twelve times
+    on the night of 2026-09-18. The check now asks whether the NEXT attempt fits (see
+    `clock_sync_attempt_affordable`), so two attempts run and the spend lands INSIDE the budget.
+
+    It asserts the SPEND and not just the count, because the count is a proxy: the bound is denominated
+    in seconds, and a test that only counts attempts cannot tell 2 cheap ones from 2 that overran."""
     _auto_sync_common(monkeypatch)
     calls = {"n": 0}
     clock = {"t": 0.0}
@@ -6005,8 +6091,11 @@ def test_auto_sync_ladder_stops_at_its_wall_clock_budget(tmp_path, monkeypatch):
     monkeypatch.setattr(capture, "sync_device_time", busy_and_slow)
     _skip_while_loop()
     _run(capture.run_polar(_pdev(), str(tmp_path)))
-    # 120 s budget / 45 s per attempt -> the 3rd attempt's check sees 135 s and stops.
-    assert calls["n"] == 3, f"budget must cap the ladder well short of 12 (got {calls['n']})"
+    # 120 s budget, 45 s per attempt: attempt 2 is affordable (45 + a measured 45 <= 120) and attempt 3
+    # is not (90 + 45 = 135), so it is never STARTED. Before the fix the 3rd ran and the ladder spent 135 s.
+    assert calls["n"] == 2, f"budget must cap the ladder well short of 12 (got {calls['n']})"
+    assert clock["t"] <= 120.0, (
+        f"the ladder must spend INSIDE its 120 s budget, not merely notice afterwards (spent {clock['t']}s)")
     assert capture.STATUS.get("devices", {}).get("H10", {}).get("clock_synced") is None
 
 
@@ -6230,13 +6319,67 @@ def test_the_check_is_OPT_IN_so_user_pulls_are_unchanged(monkeypatch):
     assert ran["op"] is True, "without presence_check_s the behaviour must be exactly as before"
 
 
-def test_only_the_clock_sync_call_site_opts_in():
-    """Pins the wiring: if a future edit passes presence_check_s from the pull path, a user-clicked pull
-    starts silently skipping on a bad scan."""
+def test_only_AUTOMATICALLY_RETRIED_call_sites_opt_in():
+    """A caller may skip on a bad scan ONLY if something will try again by itself.
+
+    ⚠️ Replaces an assertion that `len(sites) == 1` (2026-09-03), which named the right hazard in its
+    docstring and then asserted a COUNT of source lines containing `presence_check_s=`. A count cannot
+    tell the caller that must opt in from the one that must not; it blocks both alike while claiming to
+    protect one. It came apart the moment a second legitimate caller needed the guard.
+
+    ⚠️ And the obvious replacement — "only UNATTENDED callers" — is ALSO wrong, which is worth recording
+    because it is the intuitive one. `sync_device_time` is wired to the monitor UI (`sync_time=` at the
+    webmon construction), so it IS user-triggerable, and it has always opted in. A rule phrased on who
+    pressed the button would have to call the existing, deliberate wiring a violation.
+
+    The property that actually separates them is **whether a false 'absent' is retried automatically**:
+
+      • `sync_device_time`      — re-fires on the next reconnect. A skip costs one cycle of skew.
+      • `pull_polar_offline_all` — re-fires on the next poller trigger. A skip leaves the onboard
+        backup on the device for another cycle. Sole caller is `charger_pull_poller`.
+      • `pull_oxyii_session` / `_pull` — the monitor's "Pull stored session". NOTHING retries it. A
+        person asked for a specific artifact and is waiting; a silent skip reads as a completed pull.
+
+    That last one is also structurally out of reach — it holds `_CONNECT_LOCK` itself and never routes
+    through `polar_offline_op`, so it cannot see this parameter today. Asserted anyway: the protection
+    should survive someone rewiring it through the shared helper."""
+    import re
     src = module_source("capture.py")
-    sites = [l for l in src.splitlines() if "presence_check_s=" in l and "def " not in l]
-    assert len(sites) == 1, f"exactly one caller may opt in, found: {sites}"
-    assert "_CLOCK_SYNC_PRESENCE_S" in sites[0]
+
+    RETRIED = {
+        # re-fires on the next reconnect; a skipped sync costs one cycle of skew
+        "sync_device_time": "_CLOCK_SYNC_PRESENCE_S",
+        # re-fires on the next `charger_pull_poller` trigger. Added 2026-09-03: without it an absent
+        # device cost the GLOBAL connect lock for the full op timeout every cycle — 108 min of a 10 h
+        # night in which no other sensor could reconnect.
+        "pull_polar_offline_all": "_AUTOPULL_PRESENCE_S",
+    }
+    # A person asked for this and nothing will try again. These must NEVER opt in.
+    NOT_RETRIED = ("pull_oxyii_session", "_pull")
+
+    # Walk the source tracking the innermost top-level `async def` / `def`, so each opt-in site is
+    # attributed to the function that actually contains it rather than matched by a bare line.
+    enclosing, sites = None, {}
+    for line in src.splitlines():
+        m = re.match(r"^(?:async )?def (\w+)", line)
+        if m:
+            enclosing = m.group(1)
+        if "presence_check_s=" in line and not line.lstrip().startswith(("#", "def ", "async def ")):
+            sites.setdefault(enclosing, []).append(line.strip())
+
+    assert sites, "no caller opts in at all — the guard has been disconnected entirely"
+    unexpected = set(sites) - set(RETRIED)
+    assert not unexpected, (
+        f"these callers opt into presence_check_s but are not declared automatically-retried: {sorted(unexpected)}. "
+        "If a false absent is retried automatically, add it to RETRIED by name with what retries it. "
+        "If nothing retries it, it must not opt in — a silent skip reads as a completed operation "
+        "to whoever asked for it.")
+    for fn in NOT_RETRIED:
+        assert fn not in sites, f"{fn} is never retried automatically and must never opt into the presence guard"
+    for fn, const in RETRIED.items():
+        assert fn in sites, f"{fn} is declared automatically-retried but no longer opts in — the guard was dropped"
+        assert any(const in s for s in sites[fn]), (
+            f"{fn} must pass its own budget constant {const}, not a literal or another caller's")
 
 
 # ── the arrival sidecar's failure paths (PAT-PACKET-ARRIVAL §3) ─────────────────────────────────────

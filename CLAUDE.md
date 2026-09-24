@@ -1273,7 +1273,9 @@ hand-typed version onto source files — `manifestHash` already identifies code 
   → explicit-path stage → PR → merge → tag at the merge sha → **GitHub Release object** (the thing
   "Latest" reads — a tag alone is not a release) → `wt-done`. `node tools/release-land.mjs --status`
   shows the step; `--resume` continues after a fix. Do not run those steps by hand from memory; if the
-  tool cannot do one, fix the tool. Cadence: ≥25 pending changesets or weekly, on the corpus machine.
+  tool cannot do one, fix the tool. **Cadence is a MECHANISM, not a rule to remember** (owner, 2026-09-23):
+  `tools/release-due.mjs` under `tepna-release-due.timer` on the corpus machine cuts the release at
+  7 days since the last tag or 100 commits on `main` since it, whichever comes first.
 - **Parallel coders never hand-pick a number.** Each work-unit drops a collision-free **changeset** as
   its last action (`changes/*.md` — `bump`/`type`/`brief`; see `changes/README.md`). `tools/release.mjs`
   folds all pending changesets, computes the version ONCE from a **green tree**, stamps
@@ -1352,8 +1354,14 @@ timezone (a New-York night reads 03:00 in London). Floating `tMs` + `getUTC*` is
 
 ### 2. One shared parser — `parseTimestamp(raw, opts) → { tMs, offsetMin } | null`
 **Single-sourced in `clock.js` (`DexClock`) since A5 (owner-ratified, executed 2026-07-03)** — the owned
-bundler inlines it into every bundle; delegating DSPs alias it locally (`var parseTimestamp =
-DexClock.parseTimestamp;` …). ppgdex/glucodex/cpapdex keep deliberate node-local variants (see §✅).
+bundler inlines it into **the bundles §✅ names — NOT all of them**; delegating DSPs alias it locally
+(`var parseTimestamp = DexClock.parseTimestamp;` …). **`DexClock` is UNDEFINED in ppgdex, glucodex and
+cpapdex**, which keep deliberate node-local variants (§✅), so a bare `DexClock.x` there is a
+`ReferenceError`, not a fallback. The count lives in §✅'s machine-checked `CLAIM clockBundles` and is
+deliberately not restated here: one quantity, one source, one gate — this sentence said "every bundle"
+from 2026-08-15 until 2026-09-22 because the correction was applied to §✅ and not to its twin, and
+#1232 read the universal literally (PpgDex's only Allan core removed, render rig 1458 ms → 16945 ms,
+`browser-gates` red).
 Resolution order:
 1. Numeric epoch (number / all-digit string, plausible range): real instant → floating for the
    local zone at parse time (`tMs = inst − tzOffset(inst)`), `offsetMin = −tzOffset/60000`.

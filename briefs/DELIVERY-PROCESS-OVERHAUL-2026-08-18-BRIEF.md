@@ -38,6 +38,18 @@ then `gh run list` showing the superseded runs `cancelled` — the exact scenari
 
 ## §2 · Release fold cadence — ✅ RATIFIED 2026-09-07, **AS AMENDED**
 
+> 🟢 **SUPERSEDED BY MECHANISM — owner ruling 2026-09-23 ("It should be automatic, Make it bite" ·
+> "Probably 1 week or 100 commits. Whatever comes first").** The cadence is no longer a rule a session
+> remembers: `tools/release-due.mjs` decides DUE at **7 days since the last release tag OR 100 commits on
+> `main` since it, whichever first**, and `tools/systemd/tepna-release-due.timer` (hourly, corpus
+> machine) launches `release.mjs --full` when it is. Measured at the moment the ruling landed: v2.13.0
+> (2026-09-21) sat **172 commits and 140 changesets** behind `origin/main` under the "≥25 or weekly"
+> rule below, and nothing had fired — the rule was correct and unexecuted, which is the shape this
+> section's own "silent-death objection" paragraph names. The wall is unchanged: `release.mjs` still
+> refuses on a red suite, manifest gate or unverified fixture, and the timer never launches a second
+> chain over an unfinished one.
+
+
 > ✅ **OWNER RULING 2026-09-07: "Release fold cadence: ≥25 pending changesets or weekly, Kestrel on the
 > corpus machine — UNATTENDED."** The trigger below was accepted verbatim. **The `attended` clause was
 > NOT** — and that is an override of this section's own reasoning, not a detail, so it is recorded as one.

@@ -856,8 +856,21 @@
         return;
       }
       const prev = arr[i - 1];
-      const dayGap = isFinite(r._tMs) && isFinite(prev._tMs) ? Math.round((r._tMs - prev._tMs) / 86400000) : 1;
-      r.d_rmssd_delta_pct = dayGap === 1 && prev._rmssd > 0 && !isNaN(r._rmssd) ? ((r._rmssd - prev._rmssd) / prev._rmssd) * 100 : NaN;
+      /* §∅ — ONE LINE, TWO GUARDS, AND ONLY ONE OF THEM WORKED. `prev._rmssd > 0` correctly excludes
+         an absent previous night (null > 0 is false). `!isNaN(r._rmssd)` does NOT exclude an absent
+         CURRENT one: `isNaN(null)` is `isNaN(0)` — false — so null passed, and
+         `((null - prev) / prev) * 100` is exactly **−100 %**. A night whose rMSSD was never recorded
+         reported a total day-to-day collapse: the table renders "−100.0%" and the chart paints the
+         bar RED. Absence manufacturing an alarming finding, rather than a flattering one.
+         The current row now uses the SAME `> 0` test as the previous one — symmetric, and the
+         symmetry is the point: an asymmetric pair of guards on one expression is what hid this.
+         Both consumers already read NaN as absent (`isNaN(v) ? '—'`), so this needs no change
+         downstream; it gives those guards back the absence they were written for.
+         ⚠️ The day gap defaulted to 1 when either stamp was unparseable, so two undated rows were
+         treated as CONSECUTIVE DAYS and got a day-to-day reactivity reading they had no basis for.
+         An unknown gap is null, and `null === 1` is false, so the column refuses. */
+      const dayGap = isFinite(r._tMs) && isFinite(prev._tMs) ? Math.round((r._tMs - prev._tMs) / 86400000) : null;
+      r.d_rmssd_delta_pct = dayGap === 1 && prev._rmssd > 0 && r._rmssd > 0 ? ((r._rmssd - prev._rmssd) / prev._rmssd) * 100 : NaN;
     });
 
     // Rolling windows  (`_rows`, not `allRows` — see the note on the pass above)
@@ -876,7 +889,18 @@
       }
       const rmssd7 = window7.map((x) => x._rmssd).filter((v) => !isNaN(v) && v > 0);
       const sdnn7 = window7.map((x) => x._sdnn).filter((v) => !isNaN(v) && v > 0); // Finding 1: symmetric w/ rmssd7 — drop null/≤0 (absent SDNN) so a fabricated 0 never biases meanSDNN7/stdSDNN7
-      const stress7 = window7.map((x) => x._stress).filter((v) => !isNaN(v));
+      /* §∅ — `!isNaN(null)` is TRUE (null coerces to 0), so an ABSENT subjective Stress survived this
+         filter and entered the window as a real 0. The sibling one line below was repaired for
+         exactly this and names the mechanism — "§2 (FOLLOWUPS): drop absent (null), KEEP a real 0 …
+         `!isNaN(null)` was true → a blank pNN50 polluted the slope as 0". `rmssd7`/`sdnn7` above are
+         safe only because `v > 0` happens to exclude null; this one was the sibling that pass did
+         not reach.
+         The visible cost is the all-absent window: `stress7.length` counted seven absent days, so
+         `d_stress_auc` summed them to **0** — "no stress" — for a week carrying no subjective data
+         at all. Every ECGDex/Ganglior-ingested row lacks that column, so this is the COMMON case,
+         not an edge. `Number.isFinite` drops absent and keeps a real 0, which is a legitimate
+         Stress reading. */
+      const stress7 = window7.map((x) => x._stress).filter((v) => Number.isFinite(v));
       const pnn507 = window7.map((x) => x._pnn50).filter((v) => Number.isFinite(v)); // §2 (FOLLOWUPS): drop absent (null), KEEP a real 0 (pNN50=0 is physiological); !isNaN(null) was true → a blank pNN50 polluted the slope as 0
 
       const mean7rmssd = rmssd7.length ? rmssd7.reduce((a, b) => a + b, 0) / rmssd7.length : NaN;
@@ -906,7 +930,10 @@
       const ac_raw = _win14ac.map((x) => x._stress);
       const ac_pairs = [];
       for (let j = 0; j < ac_raw.length - 1; j++) {
-        if (!isNaN(ac_raw[j]) && !isNaN(ac_raw[j + 1])) ac_pairs.push([ac_raw[j], ac_raw[j + 1]]);
+        /* §∅ — the same coercion in the 14-day autocorrelation: `!isNaN(null)` admitted absent days
+           as 0, so a run of them correlated fabricated zeros against each other. A pair is used
+           only when BOTH days actually carry a reading. */
+        if (Number.isFinite(ac_raw[j]) && Number.isFinite(ac_raw[j + 1])) ac_pairs.push([ac_raw[j], ac_raw[j + 1]]);
       }
       r.d_stress_ac =
         ac_pairs.length > 3
@@ -1070,7 +1097,18 @@
       paraScore += Math.min(100, Math.log10(r._hf + 1) * 28);
       paraCount++;
     }
-    var paraAvg = paraCount ? paraScore / paraCount : 50;
+    /* §∅ — NO PARASYMPATHETIC INDICATOR IS A REFUSAL, NOT A MIDPOINT. This read
+       `paraCount ? paraScore / paraCount : 50`, and that 50 was not a conservative default: with
+       paraCount === 0 the whole score is CONSTANT. `sympPenalty` requires `_hf > 0`, and an `_hf > 0`
+       would itself have incremented paraCount — so the branch can only ever return exactly 50,
+       whatever else the row carries (pinned by a leg that sets `_lf = 9999` and still gets 50 from
+       the old code). A number that cannot vary with its input carries no information about the night,
+       and 50 is mid-scale on a 0-100 axis, so it rendered as an average night on ch_camq.
+       CAMQ is a parasympathetically-anchored composite: with nothing parasympathetic measured there
+       is no score to report. The consumer already filters `v != null` (hrvdex-render.js:1467), so the
+       point is dropped rather than drawn. Row hrvdex-dsp.js:1074 of ABSENCE-SURVEY-2026-09-22 (HIGH). */
+    if (!paraCount) return null;
+    var paraAvg = paraScore / paraCount;
 
     var sympPenalty = 0;
     if (r._hf > 0 && r._lf > 0) {

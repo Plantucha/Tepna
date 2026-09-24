@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**214 tools** · 212 with a purpose line · **2 without**
+**219 tools** · 217 with a purpose line · **2 without**
 
 | tool | purpose |
 |---|---|
@@ -44,6 +44,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`cohort-fit.mjs`](../tools/cohort-fit.mjs) | `cohort-gen.js` samples synthetic patients; the SHHS1 corpus holds 5136 scored real ones. |
 | [`commit-shape.mjs`](../tools/commit-shape.mjs) | the AGENT-NEUTRAL half of the shared-tree guards. WHY THIS EXISTS. |
 | [`corpus-census.mjs`](../tools/corpus-census.mjs) | ════════════════════════════════════════════════════════════════════════════════════════════════ A CENSUS COMMITS ITS FILE LIST, OR IT CANNOT BE DIFFED — residue… |
+| [`corpus-scope.mjs`](../tools/corpus-scope.mjs) | // // corpus-scope.mjs — count a file pattern across EVERY corpus root, and say which roots were searched. |
 | [`corpus-tier.mjs`](../tools/corpus-tier.mjs) | KEEP THE LAST 30 NIGHTS LOCAL; EVERYTHING OLDER BECOMES A SYMLINK INTO THE NAS. |
 | [`cpap-corpus.mjs`](../tools/cpap-corpus.mjs) | drive a WHOLE ResMed SD card through the REAL CPAPDex. Walks a day-foldered SD-card tree, groups each night's EDF files into session sets, and runs the real headless surface —… |
 | [`cpap-oxy-couple.mjs`](../tools/cpap-oxy-couple.mjs) | cross-node event↔event coupling with a SHUFFLED NULL. Folds O2Ring (OxyDex) into a CPAP corpus and asks the question the Integrator cannot currently ask: is a co-occurrence between two… |
@@ -53,6 +54,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`deep-vlf-probe.mjs`](../tools/deep-vlf-probe.mjs) | THE STANDING VLF-vs-CONTAMINATED-DEEP PROBE (DEEP-STAGE-DESAT-CONFOUND-2026-07-29 §9/§11/§12). |
 | [`derive-sigma-window.mjs`](../tools/derive-sigma-window.mjs) | Headless derivation of the two raw-signal 1-Hz HR series a three-device σ window needs (VERITY-SIGMA-CORNER-BRIEF / SIGMA-WINDOW-DERIVATION.md): • Verity HR ← raw PPG via the suite's… |
 | [`device-stability.mjs`](../tools/device-stability.mjs) | PER-DEVICE TIMING STABILITY, measured against the capture host. |
+| [`doc-search-audit.mjs`](../tools/doc-search-audit.mjs) | `tools/doc-search.mjs` appends `<ISO>\\t<query>` to `<git-common-dir>/tepna-mutation/ doc-search-sessions/<session_id>` on every search that ran. |
 | [`doc-search.mjs`](../tools/doc-search.mjs) | "HAS THIS ALREADY BEEN DECIDED?" OVER 460+ DOCUMENTS CLAUDE.md records this failure repeatedly and by name: four sessions independently proposing a fix the repo had already measured… |
 | [`dsp-review-qwen.mjs`](../tools/dsp-review-qwen.mjs) | IDLE-TIME DSP REVIEW — the local model loops through DSP files proposing improvements: inefficiencies, logical problems, signal-flow violations, and concrete refactors. |
 | [`dual-clock-rate.mjs`](../tools/dual-clock-rate.mjs) | DIRECT device-vs-host rate, from the two clocks already in every raw file. |
@@ -136,6 +138,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`pat-hrv-windows.mjs`](../tools/pat-hrv-windows.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════════ PAT THE WAY HRV IS DONE — 5-minute windows, artifact segments discarded, report the… |
 | [`pat-literature-spec.mjs`](../tools/pat-literature-spec.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════════ PAT MEASURED TO THE PUBLISHED SPEC, PLUS AN ERROR BUDGET THAT WORKS BACKWARDS FROM IT. |
 | [`pat-matchrate-strict.mjs`](../tools/pat-matchrate-strict.mjs) | WHY THE SHIPPED matchRate HAS A 60 % FLOOR — two independent reasons, and only the first is the one the brief names: |
+| [`pat-mode-posture.mjs`](../tools/pat-mode-posture.mjs) | // // pat-mode-posture.mjs — does the PAT lag mode follow the BODY or the CLOCK-ON-THE-WALL? |
 | [`pat-per-led.mjs`](../tools/pat-per-led.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════════ EACH LED AS AN INDEPENDENT DETECTOR — and a three-cornered hat that measures FIDUCIAL JITTER… |
 | [`pat-ppg-ppg-control.mjs`](../tools/pat-ppg-ppg-control.mjs) | ⚠️ SENSOR PLACEMENT IS PART OF THE RESULT AND MUST BE STATED. |
 | [`pat-residual-structure.mjs`](../tools/pat-residual-structure.mjs) | PAT-ROOT-CAUSE-FORENSICS §14: is the leftover 20–40 ms ERROR or SIGNAL? |
@@ -181,6 +184,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`regen-oxydex-goldens.mjs`](../tools/regen-oxydex-goldens.mjs) | OxyDex was the one code-gated node WITHOUT a regenerator (CPAPDex/GlucoDex/PulseDex/MotionDex all had one), so DEEP-AUDIT-II §2.1/§2.2 — which moves every OxyDex export — had no sanctioned… |
 | [`regen-ppgdex-goldens.mjs`](../tools/regen-ppgdex-goldens.mjs) | Regenerate PpgDex's committed node-export fixtures by RE-RUNNING THE REAL MODULES on their committed inputs, then re-recording each fixture. |
 | [`regen-pulsedex-goldens.mjs`](../tools/regen-pulsedex-goldens.mjs) | It drives the SAME seam the equivalence gate drives — RR text → PulseDex.parseRRInput(frame) → PulseDex.compute({intervals,tsMs,t0Ms,offsetMin}) — in a vm realm co-loaded like… |
+| [`release-due.mjs`](../tools/release-due.mjs) | release-due — cut the release AUTOMATICALLY when it is due, and NAME the distance when it is not. |
 | [`release-land.mjs`](../tools/release-land.mjs) | THE WHOLE RELEASE, ONE COMMAND, NO OPERATOR MEMORY — stamp → build → gate → PR → merge → tag → GitHub Release → cleanup. |
 | [`release.mjs`](../tools/release.mjs) | CONTROLLED-RELEASES-2026-07-05 — cut a controlled Tepna release. |
 | [`residue-cite-drift.mjs`](../tools/residue-cite-drift.mjs) | Every row in `briefs/RESIDUE.md` cites source LINES (`capture.py:5306`), and ordinary code motion rots them into false refutations of TRUE rows: a verifier opens the cited line, finds… |
@@ -198,6 +202,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`severity-ladder-audit.mjs`](../tools/severity-ladder-audit.mjs) | does a node ever render the SAME metric with two different good/warn/bad boundaries? |
 | [`stmt-delete.mjs`](../tools/stmt-delete.mjs) | Level A (`tools/extreme-mutate.mjs`) empties a whole function body. |
 | [`strip-markup.mjs`](../tools/strip-markup.mjs) | import { fileURLToPath } from 'node:url'; import { resolve } from 'node:path'; |
+| [`stuck-run-lengths.mjs`](../tools/stuck-run-lengths.mjs) | // // stuck-run-lengths.mjs — is T_STUCK = 200 samples a threshold for this stream, or only for the one // it was derived from? |
 | [`survivor-witness.mjs`](../tools/survivor-witness.mjs) | A WITNESS INPUT FOR EVERY SURVIVOR THAT HAS ONE 4708 operator mutants survive the JS sweeps unresolved. |
 | [`sync-docs-index.mjs`](../tools/sync-docs-index.mjs) | `docs-ledger` check3b requires every DOCS-INDEX row's status marker to equal its brief's HEADER status, and the header is the declared source of truth. |
 | [`synth-desat-kinetics.mjs`](../tools/synth-desat-kinetics.mjs) | measure whether a synthetic SpO₂ corpus desaturates at a PHYSIOLOGICAL rate, and how much of it OxyDex's artifact self-gate rejects. |

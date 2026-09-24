@@ -289,14 +289,22 @@ def test_a_sidecar_that_cannot_be_opened_does_not_stop_the_capture(tmp_path, mon
 
 
 def test_the_threshold_has_ONE_source_that_the_file_itself_reports(tmp_path):
-    """The writer default and any consumer's recompute default must be one number, and the FILE must
-    carry the value that produced its rows — a default can move after the night was recorded."""
-    assert set(RUN_MIN_BY_STREAM.values()) == {T_STUCK}
-    p = tmp_path / "X_PPG.txt"
-    w = StreamWriter(str(p), "ppg1", fsync=False)
-    w.close()
-    body = open(_sidecar(p)).read()
-    assert f"t_stuck={T_STUCK}" in body and f"min_run={T_STUCK}" in body
+    """The FILE must carry the value that produced its rows — a default can move after the night was
+    recorded, and a consumer recomputing with today's number would then disagree with the file.
+
+    ⚠️ THIS USED TO ASSERT `set(RUN_MIN_BY_STREAM.values()) == {T_STUCK}` — that every stream shares one
+    threshold. That was true only incidentally, and it convicted the first stream to need its own: the
+    H10's ECG, whose 30 is derived from a distribution `T_STUCK` does not describe (196 M samples; see
+    `writers.ECG_RUN_MIN`). The requirement in the sentence above is per-stream and always was, so it is
+    now asserted per stream — which is also strictly stronger, because it checks every stream's file
+    rather than one PPG file plus a set."""
+    for stream, expect in RUN_MIN_BY_STREAM.items():
+        q = tmp_path / f"{stream}_X.txt"
+        w = StreamWriter(str(q), stream, fsync=False)
+        w.close()
+        body = open(_sidecar(q)).read()
+        assert f"min_run={expect}" in body, f"{stream}: file must report the threshold that made its rows"
+        assert f"t_stuck={T_STUCK}" in body, f"{stream}: the shared constant is still reported for context"
 
 
 def test_a_HELD_channel_that_gets_stuck_still_reports_it_at_EOF(tmp_path):
@@ -577,16 +585,23 @@ def test_the_write_paths_guard_against_a_stream_that_has_no_sidecar(tmp_path):
     RUN_MIN_BY_STREAM. The guard is what keeps that a normal write rather than an AttributeError,
     and it is asserted here rather than left to be incidentally covered by the streams that DO have
     a sidecar — an incidentally-covered guard stops being tested the day its caller changes."""
-    p = tmp_path / "T_ECG.txt"
-    w = StreamWriter(str(p), "ecg", fsync=False)      # a stream with no sidecar
+    # `ecg` was this test's exemplar until 2026-09-24, when it gained a run rule of its own. The
+    # exemplar has to be a stream that genuinely has none, or the guard goes untested while the test
+    # keeps passing — so it is chosen FROM the live tables rather than named, and the choice is
+    # asserted, which means this cannot rot into vacuity the next time a stream joins.
+    _no_sidecar = sorted(set(StreamWriter.HEADERS) - set(RUN_MIN_BY_STREAM))
+    assert _no_sidecar, "every stream now has a sidecar — this guard has no case left to test"
+    p = tmp_path / f"T_{_no_sidecar[0]}.txt"
+    w = StreamWriter(str(p), _no_sidecar[0], fsync=False)
     assert w._runs is None
     w.write_ppg(_phone(0), 0, 0.0, (1,), 0)           # must not raise
     w.write_ppg2w(_phone(1), 0, 11, 22, 3)
     w.write_acc(_phone(2), None, 0.0, 1, 2, 3)        # ACC feeds the sidecar too, so it needs the guard
+    w.write_ecg(_phone(3), 1_000_000, 0.0, -25)       # and ECG since 2026-09-24, for the same reason
     w.close()
 
     assert not os.path.exists(_sidecar(p))
-    assert w.rows == 3
+    assert w.rows == 4
 
 
 def test_a_failure_DURING_feed_is_isolated_from_the_live_write_path(tmp_path):
@@ -1211,3 +1226,138 @@ def test_a_transition_at_a_KNOWN_instant_is_stamped_at_that_instant_plus_the_con
     lag_hi = _phone(t_change + (HELD_CONFIRM_WINDOWS + 1) * HELD_WARMUP_RUNS * 3, hz=10.0).isoformat(timespec="milliseconds")
     assert change_ts < at <= lag_hi, (change_ts, at, lag_hi)
     assert f"confirmed={HELD_CONFIRM_WINDOWS}" in line
+
+
+# ── RESUME IS THE RUN SIDECAR'S OWN PROPERTY, NOT THE PARENT'S (2026-09-23) ─────────────────────
+# `_RunSidecar` INHERITED `resumed` from its parent StreamWriter and was the last writer here doing
+# so after #2928 fixed the seam sidecar. The parent's stream file and this sidecar are TWO DIFFERENT
+# FILES, and inheritance cannot see the case the self-detect idiom exists for: the stream file
+# non-empty while the sidecar is absent or 0 bytes — which is what a crash before the 64 KB buffer
+# flushed leaves behind. The inherited True then opens "a" and skips the header, so the sidecar never
+# states its own rule.
+def _runs_path(p):
+    return p[:-4] + "RUNS.txt"
+
+
+def test_a_resumed_PARENT_with_a_MISSING_run_sidecar_still_writes_the_header(tmp_path):
+    import writers
+    p = str(tmp_path / "Wellue_O2Ring-S_x_20260923010000_PPG.txt")
+    w1 = writers.StreamWriter(p, "ppg1", fsync=False)
+    w1.write_ppg(_dt.datetime(2026, 9, 23, 1, 0, 0), 1_000_000_000, 0.0, (100,), 5)
+    w1.close()
+    assert os.path.exists(_runs_path(p)), "the run sidecar opens eagerly — setup assumption"
+    os.remove(_runs_path(p))                    # the divergence: parent resumable, sidecar gone
+
+    w2 = writers.StreamWriter(p, "ppg1", fsync=False)
+    assert w2.resumed, "the PARENT is resuming — that is the setup"
+    w2.write_ppg(_dt.datetime(2026, 9, 23, 1, 0, 1), 1_008_000_000, 0.0, (101,), 5)
+    w2.close()
+    body = open(_runs_path(p)).read()
+    assert body.startswith("# stream=ppg1 rule=stuck"), f"a sidecar that never states its rule: {body!r}"
+
+
+def test_an_EMPTY_run_sidecar_is_NOT_a_resume_and_gets_its_header(tmp_path):
+    """A crash before the 64 KB buffer flushed leaves the file there and 0 bytes. `os.path.exists`
+    alone calls that a resume; only the SIZE separates "a file is there" from "it has something"."""
+    import writers
+    p = str(tmp_path / "Wellue_O2Ring-S_x_20260923010000_PPG.txt")
+    w1 = writers.StreamWriter(p, "ppg1", fsync=False)
+    w1.write_ppg(_dt.datetime(2026, 9, 23, 1, 0, 0), 1_000_000_000, 0.0, (100,), 5)
+    w1.close()
+    # The crash shape: the STREAM file kept its rows, this sidecar's buffer never reached disk.
+    # Truncating is what makes the two files DISAGREE — without it the parent is not resuming and
+    # the divergent branch is never reached (this test passed on main until it set that up).
+    open(_runs_path(p), "w").close()
+    assert os.path.getsize(p) > 0 and os.path.getsize(_runs_path(p)) == 0
+
+    w2 = writers.StreamWriter(p, "ppg1", fsync=False)
+    assert w2.resumed, "the PARENT is resuming from its own non-empty file"
+    w2.write_ppg(_dt.datetime(2026, 9, 23, 1, 0, 1), 1_008_000_000, 0.0, (101,), 5)
+    w2.close()
+    body = open(_runs_path(p)).read()
+    assert body.startswith("# stream=ppg1 rule=stuck"), f"an empty file is not a resume: {body!r}"
+
+
+def test_a_run_sidecar_resuming_its_OWN_non_empty_file_does_not_re_emit_the_header(tmp_path):
+    import writers
+    p = str(tmp_path / "Wellue_O2Ring-S_x_20260923010000_PPG.txt")
+    w1 = writers.StreamWriter(p, "ppg1", fsync=False)
+    w1.write_ppg(_dt.datetime(2026, 9, 23, 1, 0, 0), 1_000_000_000, 0.0, (100,), 5)
+    w1.close()
+    first = open(_runs_path(p)).read()
+    assert first.count("rule=stuck") == 1
+
+    w2 = writers.StreamWriter(p, "ppg1", fsync=False)
+    w2.write_ppg(_dt.datetime(2026, 9, 23, 1, 0, 1), 1_008_000_000, 0.0, (101,), 5)
+    w2.close()
+    body = open(_runs_path(p)).read()
+    assert body.count("rule=stuck") == 1, "the header must not be re-emitted on a real resume"
+    assert body.startswith(first), "the earlier session's bytes must survive verbatim"
+
+
+# ── the H10's ECG (2026-09-24) ─────────────────────────────────────────────────────────────────────
+# Until `RUN_MIN_BY_STREAM` carried `ecg`, the H10's ECG had NO run sidecar, so its validity band could
+# only ever read UNKNOWN — which is what put this unit ahead of the rest of the lane. The threshold is
+# derived from the stream's own distribution over the whole corpus (304 files, 196,172,536 samples); the
+# table and its false-negative statement are in `writers.ECG_RUN_MIN`'s comment.
+
+def _push_ecg(w, uv, n, start=0, hz=130.0):
+    for k in range(n):
+        w.write_ecg(_phone(start + k, hz), 1_000_000 * (start + k), 0.0, uv)
+    return start + n
+
+
+def test_the_ecg_stream_has_a_run_rule_at_all():
+    """The absence this unit closes. A stream absent from `RUN_MIN_BY_STREAM` gets no sidecar, and a
+    band with no sidecar to read is UNKNOWN by construction rather than by measurement."""
+    assert RUN_MIN_BY_STREAM["ecg"] == writers.ECG_RUN_MIN == 30
+
+
+def test_an_ecg_run_at_the_rail_is_reported_and_ordinary_quantization_is_not(tmp_path):
+    """THE TWO POPULATIONS, at the lengths the corpus measured them at. A 29-sample run is inside the
+    band where 97 % of runs are already high-amplitude but the natural population is not yet empty; a
+    30-sample run is the shortest length at which the corpus contains NO near-baseline run at all.
+
+    The held value here is 19164 µV — the positive rail of the real file that carries the corpus's
+    longest run (1665 samples, 12.8 s, 2026-08-05) — but the RULE never looks at it. Keying on the value
+    is exactly what §∅ forbids for this stream: an ECG in µV crosses zero on every beat."""
+    p = tmp_path / "H_ECG.txt"
+    w = StreamWriter(str(p), "ecg", fsync=False)
+    i = _push_ecg(w, 18, 29)                  # ordinary near-baseline quantization — MUST NOT be reported
+    i = _push_ecg(w, 19164, 30, start=i)      # the shortest length the corpus says is never natural
+    i = _push_ecg(w, -40, 4, start=i)         # a short tail so the long run closes normally
+    w.close()
+
+    rows = _rows(_sidecar(p))
+    assert len(rows) == 1, f"exactly the 30-run, not the 29-run: {rows}"
+    assert rows[0][1] == "ecg [uV]", "the channel label is the data file's own value column"
+    assert (rows[0][2], rows[0][4]) == ("19164", "30")
+
+
+def test_a_run_of_zero_is_reported_like_any_other_value(tmp_path):
+    """§∅'s point about this stream: a µV signal crosses zero every beat, so 0 is a legal sample and a
+    `!= 0` rule would be inverted here. The rule keys on LENGTH, so a held 0 is caught for the same
+    reason a held rail is — and neither is caught because of what it holds."""
+    p = tmp_path / "H_ECG.txt"
+    w = StreamWriter(str(p), "ecg", fsync=False)
+    i = _push_ecg(w, 0, 40)
+    _push_ecg(w, -7, 4, start=i)
+    w.close()
+
+    rows = _rows(_sidecar(p))
+    assert len(rows) == 1 and (rows[0][2], rows[0][4]) == ("0", "40")
+
+
+def test_the_ecg_sidecar_records_what_it_EXAMINED_not_only_what_it_found(tmp_path):
+    """THE PLANT for the defect this repo has already shipped once: a stream with a `RUN_MIN_BY_STREAM`
+    key whose writer never calls `feed` produces `runs=0 examined=0`, which reads exactly like "looked
+    and found nothing". Adding the key without the feed is the whole failure, so the test asserts the
+    denominator and not just the finding."""
+    p = tmp_path / "H_ECG.txt"
+    w = StreamWriter(str(p), "ecg", fsync=False)
+    _push_ecg(w, 5, 12)                       # nothing long enough to report
+    w.close()
+
+    text = open(_sidecar(p)).read()
+    assert "runs=0" in text and "examined=12" in text, text
+    assert "min_run=30" in text, "the header publishes the threshold it used"

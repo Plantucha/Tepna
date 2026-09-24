@@ -19,6 +19,8 @@ Each clause earns its place by excluding a false positive that would otherwise f
   • "connected" — a sensor out of range or switched off is already covered by the offline alert.
   • "not charging" — a docked ring is silent by design, every single morning.
 """
+import pytest
+
 import alerts
 import nightqc
 
@@ -98,3 +100,26 @@ def test_summarize_reports_none_for_a_device_that_wrote_nothing(tmp_path):
             {"name": "Absent", "device_id": "ZZZZ", "streams": ["ppg"]}]
     got = {d["name"]: d.get("silent_sec") for d in nightqc.summarize(str(night), devs)["devices"]}
     assert got["Absent"] is None
+
+
+def test_a_live_status_that_is_not_a_dict_is_NAMED_not_stepped_over():
+    """⚠️ THE FLAKE THIS EXISTS FOR. On main under `-n 4`, `qc_poller` logged
+    `AttributeError("'str' object has no attribute 'get'")` and reddened #3024, #3027 and 320d7a6e. The
+    handler logged only the repr, so the message named neither the device nor the value nor the frame —
+    and three sessions read `summ` as the suspect, though `summ["isolation"] = …` on the line after the
+    offload proves it is a dict. Both consumers of `STATUS["devices"]` dereference a per-device entry
+    with `.get`, so a non-dict entry raises THERE.
+
+    They now refuse by name: the device, the type, and the value. That does not fix whatever writes one
+    — production only ever writes `setdefault(name, {})` — but the next occurrence says which device and
+    what arrived, which is the difference between a defect and a rumour."""
+    qc = {"devices": [{"name": "H10", "silent_sec": 9999.0}]}
+    for fn, args in ((alerts.arrival_canary, (qc, {"H10": "connected"})),
+                     (alerts.frozen_devices, (qc, {"H10": "connected"}, 60.0))):
+        with pytest.raises(TypeError) as ei:
+            fn(*args)
+        msg = str(ei.value)
+        assert "'H10'" in msg and "str" in msg and "connected" in msg, msg
+    # None is not a fault — it is an unknown state, and both already read it as no evidence
+    assert alerts.arrival_canary(qc, {"H10": None}) == []
+    assert alerts.frozen_devices(qc, {"H10": None}, 60.0) == []

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="6747f656a32b" data-compute-hash="f64702068576">
+<html lang="en" data-manifest-hash="e4eed3538784" data-compute-hash="29851650bc4c">
 <head>
 <!--
   GlucoDex.src.html — Tepna
@@ -10,10 +10,10 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3bPuedJeHqlAtFRw9XCQUY2RL6IBWMfwvh6D9DWEXUc=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7xQ3yWR2EpiBDMPUDFxtl1NKMYlxsxc9AVgtJkApTU8=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-P+WBHl2NZMnspXKVsRndFmJ2S3rONWAPda5O6KP93tk=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-bV9puip5cXhdmdjTxLQSmozaij4ixCzmMm4aPQpZ5Og=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-e1DDCl4M9DiM5RQb7+CBCvWKpP3sZ7ICE6Mdof7WgkI=' 'sha256-qzpUtdWH1TlUe+keMoviP5ddzz3oKD3bFygdJMXw118=' 'sha256-wyF7HHlHA9cxaHiltiGWQbcxsu9Ab7IiY4qcFzLo2CQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3bPuedJeHqlAtFRw9XCQUY2RL6IBWMfwvh6D9DWEXUc=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7xQ3yWR2EpiBDMPUDFxtl1NKMYlxsxc9AVgtJkApTU8=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-P+WBHl2NZMnspXKVsRndFmJ2S3rONWAPda5O6KP93tk=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-bV9puip5cXhdmdjTxLQSmozaij4ixCzmMm4aPQpZ5Og=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-j6cQKZ+pO2jEtsJTv7AnKR0NQLc+TgayeSSCB4yBUJs=' 'sha256-kjO7DVi63oKRRX3+XxhmSXhJG8MVnPm1CvMBghQgfUA=' 'sha256-qzpUtdWH1TlUe+keMoviP5ddzz3oKD3bFygdJMXw118='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
-<title>GlucoDex — Continuous Glucose Analyzer · v2.13.0</title>
+<title>GlucoDex — Continuous Glucose Analyzer · v2.14.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
 <style data-inline-src="licensing/dex-license.css">/*
  * dex-license.css — reusable Tepna license / attribution stamp styles
@@ -2773,7 +2773,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       <div class="logo-badge"><svg viewBox="0 0 100 100" aria-hidden="true" style="width:23px;height:23px" fill="none" stroke="#06121A" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,33 52,33 60,15 66,49 71,33 86,33"/><line x1="49" y1="33" x2="49" y2="86"/></svg></div>
       <div>
         <div class="logo-title">GlucoDex</div>
-        <div class="logo-sub">v2.13.0 · Glycemic Intelligence</div>
+        <div class="logo-sub">v2.14.0 · Glycemic Intelligence</div>
       </div>
     </div>
     <hr class="sidebar-logo-rule">
@@ -2839,7 +2839,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
   <main class="main-content">
     <div class="topbar">
       <div>
-        <div class="topbar-title">GlucoDex <span class="version-badge">v2.13.0</span></div>
+        <div class="topbar-title">GlucoDex <span class="version-badge">v2.14.0</span></div>
         <div class="page-sub">Continuous glucose (CGM) → TIR · GMI · variability suite · dawn &amp; hypo patterns &middot; one signal, computed end-to-end, all local</div>
       </div>
       <div class="topbar-actions">
@@ -7190,15 +7190,32 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
   }
 
   // GVP: glucose variability percentage = trace path length vs flat line, %
-  function gvp(c) {
+  /* ∅ GVP IS A PATH LENGTH, so an unguarded step DRAWS A LINE THROUGH TIME THE SENSOR NEVER SAW.
+     `_ana(c, i)` alone admitted a step whose EARLIER endpoint was WARMUP, COMPRESSION or GAP_LONG:
+     the straight segment across that hole was added to `L` as though the trace had travelled it,
+     inflating the variability percentage with an artifact. (`TCH-FUSED-ROBUST-HAT-FOLLOWUPS` already
+     records compression lows inflating CGM variability — this is that, in the path-length metric.)
+     Its three siblings that difference against an earlier cell — `conga`, `modd`, `magRate` — all
+     guard BOTH endpoints; gvp was the only one of the four that did not.
+     `meta` is an optional LAST param (§🧪 back-compat): the scalar contract is unchanged, and a caller
+     that wants the basis passes an object to receive the pair counts. */
+  function gvp(c, meta) {
     let L = 0,
-      L0 = 0;
+      L0 = 0,
+      pairs = 0,
+      comparable = 0;
     const dtMin = c.cadence;
     for (let i = 1; i < c.N; i++) {
-      if (!_ana(c, i)) continue;
+      comparable++;
+      if (!_ana(c, i) || !_ana(c, i - 1)) continue;
       const dg = c.gV[i] - c.gV[i - 1];
       L += Math.sqrt(dtMin * dtMin + dg * dg);
       L0 += dtMin;
+      pairs++;
+    }
+    if (meta) {
+      meta.pairs = pairs;
+      meta.comparable = comparable;
     }
     return L0 > 0 ? round((L / L0 - 1) * 100, 1) : null;
   }
@@ -7221,13 +7238,17 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
 
   function variability(c, ana, core) {
     const sd = core.sd;
+    const _gvpMeta = {};
     return {
       mage: mage(ana.vals, sd),
       conga1: conga(c, 1),
       conga2: conga(c, 2),
       conga4: conga(c, 4),
       modd: modd(c),
-      gvp: gvp(c),
+      gvp: gvp(c, _gvpMeta),
+      // the path length means nothing without the steps it was drawn over
+      gvpPairs: _gvpMeta.pairs,
+      gvpComparable: _gvpMeta.comparable,
       jIndex: round(0.001 * Math.pow(core.mean + sd, 2), 1),
       magRate: magRate(c),
       grade: grade(ana.vals),
@@ -8361,6 +8382,10 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
         modd: r.modd == null ? null : r.modd,
         adrr: r.adrr == null ? null : r.adrr,
         gvp: r.gvp == null ? null : r.gvp,
+        // the path length's basis — steps actually traced, of steps in the grid. Without it a
+        // consumer cannot tell a fully-observed night from one mostly reconstructed across gaps.
+        gvpPairs: r.gvpPairs == null ? null : r.gvpPairs,
+        gvpComparable: r.gvpComparable == null ? null : r.gvpComparable,
         lbgi: r.lbgi,
         hbgi: r.hbgi,
         stabilityScore: r.stabilityScore,
@@ -11361,7 +11386,12 @@ __require('glucodex-profile.js');
         sub: window.GluDisp.label() + ' · excursions',
         s: r.mage == null ? 'neutral' : r.mage < 60 ? 'ok' : r.mage < 100 ? 'warn' : 'bad'
       },
-      { l: 'GVP', v: r.gvp == null ? '—' : r.gvp + '%', sub: 'path-length var', s: r.gvp == null ? 'neutral' : r.gvp < 20 ? 'ok' : r.gvp < 35 ? 'warn' : 'bad' },
+      {
+        l: 'GVP',
+        v: r.gvp == null ? '—' : r.gvp + '%',
+        sub: r.gvpPairs == null || r.gvpComparable == null ? 'path-length var' : 'path-length var · ' + r.gvpPairs + '/' + r.gvpComparable + ' steps',
+        s: r.gvp == null ? 'neutral' : r.gvp < 20 ? 'ok' : r.gvp < 35 ? 'warn' : 'bad'
+      },
       ...(r.modd != null ? [{ l: 'MODD', v: window.GluDisp.spread(r.modd), sub: window.GluDisp.label() + ' · day-to-day', s: r.modd < 40 ? 'ok' : r.modd < 60 ? 'warn' : 'bad' }] : []),
       { l: 'LBGI', v: r.lbgi, sub: 'low-BG risk', s: r.lbgi < 2.5 ? 'ok' : r.lbgi < 5 ? 'warn' : 'bad' },
       { l: 'HBGI', v: r.hbgi, sub: 'high-BG risk', s: r.hbgi < 4.5 ? 'ok' : r.hbgi < 9 ? 'warn' : 'bad' },
@@ -11963,9 +11993,19 @@ __require('glucodex-profile.js');
 
     // ── glycemic-variability scalar (measured by GlucoDex) ──
     const cvR = clamp((r.cv - 25) / 25, 0, 1),
-      mageR = clamp(((r.mage || 50) - 40) / 80, 0, 1),
       dawnR = clamp((r.dawn.present ? r.dawn.medianDelta : 0) / 60, 0, 1);
-    const glyVar = +(0.45 * cvR + 0.35 * mageR + 0.2 * dawnR).toFixed(3);
+    /* ∅ `r.mage || 50` got BOTH kinds of zero wrong, and this score reaches the export, the
+       IR band and a ganglior event's confidence.
+         • UNCOMPUTED — `mage()` returns null for a record shorter than 4 turning points, and this
+           same file renders that as '—' at L514/L702/L1388 while the export note says null means
+           not computed. Here it silently became a mid-range 50.
+         • MEASURED ZERO — with no excursion above 1 SD, `mage()` returns `round(sd, 0)`, which for
+           a flat trace is 0. `0 || 50` then reported the LEAST variable trace possible as
+           mid-range variability, inverting the metric it was standing in for.
+       An absent term is dropped and the remaining weights renormalise over 0.65 — the shape
+       `autoRisk` above already uses. When MAGE is present the arithmetic is byte-identical. */
+    const mageR = r.mage != null ? clamp((r.mage - 40) / 80, 0, 1) : null;
+    const glyVar = mageR != null ? +(0.45 * cvR + 0.35 * mageR + 0.2 * dawnR).toFixed(3) : +((0.45 * cvR + 0.2 * dawnR) / 0.65).toFixed(3);
 
     // ── directional IR-risk (recalibrated bands so a normal trace doesn't flag) ──
     let irScore, irBand, irSev;

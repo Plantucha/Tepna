@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 · Copyright 2026 Michal Planicka -->
-**Status:** IN-PROGRESS (owner-ordered 2026-09-22 — *"do deep audit of logic for all devices how data is captured, this data loss is unacceptable"*; §1–§4 are the audit, measured on the box. **Owner rulings 2026-09-22 (relayed by Kestrel, option labels verbatim): R1 = "Per-unit can-charge capability"; R2–R4 = "Yes, all three".** R1 + R2 BUILT the same day (`should_drop_not_worn(can_charge=)` reads devcaps `can_charge`, recorded where a charge is MEASURED — `battery-rose`, `pmd-in-charger`; absent ⇒ never dropped, and the flat-at-full inference never fires); R4 BUILT (`loss_audit.py` + `capture.loss_poller`: LOSS-AUDIT.json + LOSS-VERDICT.json per settled night, gate `night-loss`; UNKNOWN with the number until the owner sets a bar — none ruled; re-run on the box's 09-20 / 09-21 nights: 210 / 244 daemon-caused minutes, `daemon:not-worn drop` named); R3 BUILT (`telemetry.WORN_VOTES` — every vote, its rank and whether it MEASURES wear or INFERS it; `worn_verdict` reads the table instead of naming `flat-at-full` inline; §2a is rendered from it and diffed by `test_worn_precedence`). All four rulings executed 2026-09-22) · **Created:** 2026-09-22
+**Status:** IN-PROGRESS (owner-ordered 2026-09-22 — *"do deep audit of logic for all devices how data is captured, this data loss is unacceptable"*; §1–§4 are the audit, measured on the box. **Owner rulings 2026-09-22 (relayed by Kestrel, option labels verbatim): R1 = "Per-unit can-charge capability"; R2–R4 = "Yes, all three".** R1 + R2 BUILT the same day (`should_drop_not_worn(can_charge=)` reads devcaps `can_charge`, recorded where a charge is MEASURED — `battery-rose`, `pmd-in-charger`; absent ⇒ never dropped, and the flat-at-full inference never fires); R4 BUILT (`loss_audit.py` + `capture.loss_poller`: LOSS-AUDIT.json + LOSS-VERDICT.json per settled night, gate `night-loss`; UNKNOWN with the number until the owner sets a bar — none ruled; re-run on the box's 09-20 / 09-21 nights: 210 / 244 daemon-caused minutes, `daemon:not-worn drop` named); R3 BUILT (`telemetry.WORN_VOTES` — every vote, its rank and whether it MEASURES wear or INFERS it; `worn_verdict` reads the table instead of naming `flat-at-full` inline; §2a is rendered from it and diffed by `test_worn_precedence`). All four rulings executed 2026-09-22) · **Residue:** 2026-09-23-loss-audit-cannot-attribute-a-night-with-no-file · **Created:** 2026-09-22
 
 # CAPTURE-LOSS-PRECEDENCE-AUDIT — where the box loses a night it was wearing, measured
 
@@ -57,6 +57,44 @@ Nights under 90 % primary coverage (from the Nights index, fragments · coverage
 | 09-12 | Verity | 79 | 81 % | 11.9 h |
 | 08-23 · 08-27 | Verity | 15 · 17 | 2 % | 0.5 h (device off — not worn-loss) |
 
+## 1a · ⚠️ WHAT ACTUALLY CAUSED 09-20 AND 09-21 — measured 2026-09-22, and it is NOT the contact bit
+
+This brief was written with the 09-20/21 fragmentation attributed to the HR characteristic's
+skin-contact bit reading 0 on a dry strap (§2 rank 1, and the `2026-09-21-…-contact-bit-over-the-
+heartbeat` row). **The owner corrected the premise — the electrodes are gelled — and the box agrees
+with the owner.** Three measurements, none of which was taken when this brief was written:
+
+1. **The electrodes were fine.** Every HR row on both nights carried a beat: **0 rows of HR = 0** out
+   of 9 382 (09-20) and 11 824 (09-21), with 8 242 and 11 589 RR intervals. A dry or lifting
+   electrode reports zeros; there are none. An off-body strap reports HR 0 — this brief says so
+   itself, and then did not check.
+
+2. **The drops start at a FIXED OFFSET, which contact cannot produce.** ECG 09-20 opens 22:36:24 and
+   the first drop is 23:26 (**49.6 min**); ECG 09-21 opens 21:19:02 and the first drop is 22:08
+   (**49.0 min**). The flat-battery rule's own arithmetic is `_BATT_FLAT_CHARGING_S` 2700 s + the
+   180 s drop grace = **48 min**, plus one battery-poll interval. Skin contact is not clocked;
+   nothing about adhesion begins at 48 minutes on two separate nights.
+
+3. **The trigger is in the night files, in a column nobody had read** — `battery_pct` in the box-wide
+   `Tepna_*_LINK.csv`. The H10's coin cell reads **10 %** on every night from 09-14 to 09-19, and
+   **100 %** from its first connect of the 09-20 night (`2026-09-20T22:36:36.813`, twelve seconds
+   after that night's ECG file opens). The owner had fitted a **higher-capacity cell**, chosen so the voltage does not sag — and ~400 h is the STANDARD cell's rating, so the fitted one holds its level flatter and for longer than that.
+
+So the cause is the rank-0 **`charging` — flat at 100 % for 45 min** inference, written for the
+Verity's dock and calibrated on its 9 %/h drain, firing on a coin cell that cannot move. It outranks
+every other vote, so the contact bit's reading that night is not merely unproven — it is
+**irrelevant to the outcome**, and it is also **unknowable**, because the bit is persisted nowhere.
+
+⚠️ **THE RULE PENALISES A BETTER BATTERY, and that is the general defect.** It reads "the level has
+not moved in 45 minutes" as evidence of a charger. A long-life cell's whole virtue is that the level
+does not move. The standard cell is rated ~400 h and the fitted one exceeds it, so flat-at-100 % is not
+a transient to wait out — it is the device's normal condition for weeks, and the better the cell the
+longer the rule stays wrong. The H10 was protected from this rule for months by its own dying cell —
+the readings fluctuated 10 → 20 → 30 under load — and lost that protection the moment it was given a
+better one. #2831/#2833 gate both the inference and the drop on a MEASURED `can_charge`, and the
+H10's devcaps record has none, so neither can fire on it now; but the premise remains false for any
+device whose battery is simply good.
+
 ## 2 · The precedence table — how each device is judged "worn", by source
 
 `telemetry.worn_verdict` combines votes; `capture._publish_worn` feeds `_WORN_SINCE`; after 180 s of
@@ -68,7 +106,7 @@ continuous not-worn (`power.drop_not_worn_sec`) the Polar runner DROPS the link 
 | 0 | `charging` — battery ROSE | **measured** | n/a (coin cell) | ✓ | ✓ (`batt_state`) | none seen |
 | 0 | `charging` — PMD `IN_CHARGER` | **measured** | n/a | ✓ | — | none seen |
 | 0 | `charging` — flat at 100 % for 45 min | **inferred** (written for the Verity's dock) | ✓ fires! | ✓ | — | **09-21/22: 140 drops, 3.6 h** (#2831) |
-| 1 | HR-characteristic contact bit | measured (electrode CONTACT, not wear) | ✓ | — | — | **09-20: 131 drops, 3.6 h; 233 drops since 08-20** (#2781) |
+| 1 | HR-characteristic contact bit | measured (electrode CONTACT, not wear) | ✓ | — | — | **233 drops since 08-20** (#2781). ⚠️ The 09-20/21 nights are NOT this row — see §1a: rank 0's flat-battery inference fired at 48 min on both and outranks it |
 | 1 | `hr-beats` — HR/RR in the packet | measured (a beat) | ✓ (since #2781) | — | — | — |
 | 1 | PPI contact flag | measured | — | ✓ (not in SDK mode) | — | — |
 | 2 | ambient level / stability | inferred (optical proxy) | — | ✓ (55 / 176 Hz domains) | — | 08-14: docked Verity 3 h 24 m "worn" |
@@ -105,7 +143,7 @@ charge does not; an UNATTRIBUTED charging flag is not an inference and keeps its
 | 0 | `charging:rising` | measured | the battery ROSE — cells do not self-charge, so the device is on a charger |
 | 0 | `charging:pmd-in-charger` | measured | the device's own PMD answered IN_CHARGER to a stream START |
 | 0 | `charging:flat-at-full` | inferred | a battery flat at 100 % for 45 min — a dock, OR a fresh coin cell (2026-09-22: 140 drops) |
-| 1 | `hr-contact-bit` | measured | the HR characteristic's skin-contact bit — electrode CONTACT, not wear (2026-09-20: 131 drops) |
+| 1 | `hr-contact-bit` | measured | the HR characteristic's skin-contact bit — electrode CONTACT, not wear (§1a: it did not cause 09-20) |
 | 1 | `hr-beats` | measured | a plausible rate or any RR interval in the HR packet — a beat |
 | 1 | `ppi-contact` | measured | the PPI frame's contact flag (absent in SDK mode) |
 | 2 | `pulse-prominence` | measured | a pulse in the PPG — perfused tissue |

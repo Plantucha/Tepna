@@ -3654,27 +3654,80 @@
   // ════════════════════════════════════════════════════════════════════════
   //  DEVICE-PPI VALIDATION  — self-PPI vs Polar *_PPI.txt (validation lane only)
   // ════════════════════════════════════════════════════════════════════════
+  /* COLUMNS BY NAME, never by position when a header says otherwise (Clock Contract §2.4's rule for
+     vendor stamps, applied to vendor COLUMNS). Two layouts exist and both are first-class inputs:
+
+       SELF / PSL    Phone Data RX timestamp;PP-interval [ms];error estimate [ms];blocker;contact;…
+       BOX (Verity)  Phone timestamp;sensor timestamp [ns];HR [bpm];PP-interval [ms];error estimate [ms];blocker;skin contact;…
+
+     Reading position 1 as the interval is right for the first and reads the box's NANOSECOND SENSOR
+     STAMP for the second. Measured on a real box night
+     (`…/2026-08-04/Polar_VeritySense_0C301E3F_20260804225118_PPI.txt`): 194 rows, ZERO intervals in
+     band, every `ppi` 0 — while the real 365 ms interval sat unread in `blocker`. `validatePPI` then
+     said `usable:false, nDevice:0`, which is why it never surfaced: nothing was fabricated, so no
+     gate could fire. That is a PRESENT MEASUREMENT REPORTED AS ABSENT — the mirror of §∅ — and it
+     made device-PPI cross-validation impossible on every box-captured Verity night.
+     The writer is NOT the thing to change: captured bytes are immutable and the corpus already
+     carries this layout, so rewriting it would orphan evidence. */
+  function ppiColsFromHeader(headerLine) {
+    const p = String(headerLine || '').split(';');
+    let ppi = -1,
+      err = -1,
+      blocker = -1,
+      contact = -1,
+      hr = -1;
+    for (let i = 0; i < p.length; i++) {
+      const h = p[i].trim().toLowerCase();
+      if (/^pp-?\s*interval/.test(h)) ppi = i;
+      else if (/error\s*estimate/.test(h)) err = i;
+      else if (/^blocker$/.test(h)) blocker = i;
+      else if (/contact/.test(h)) contact = i;
+      else if (/^hr\b|heart\s*rate/.test(h)) hr = i;
+    }
+    // A header that names NO interval column is not this file; saying so beats guessing a position.
+    return ppi >= 0 ? { ppi, err, blocker, contact, hr } : null;
+  }
   function parseDevicePPI(text) {
     const lines = text.split(/\r?\n/);
     const out = [];
+    let cols = null,
+      headerSeen = false;
     for (const line of lines) {
       const t = line.trim();
       if (!t) continue;
       const p = t.split(';');
       if (p.length < 2) continue;
-      const ppi = parseFloat(p[1]);
+      if (!headerSeen && /[a-z]/i.test(p[1])) {
+        // a non-numeric second field is a header row, whichever layout it announces
+        headerSeen = true;
+        cols = ppiColsFromHeader(t);
+        /* A header that exists and names no interval column REFUSES rather than falling through to
+           positional — a silent positional read of an unknown layout is how this defect happened. */
+        if (!cols) return { rows: [], reason: 'ppi-header-names-no-interval-column' };
+        continue;
+      }
+      const at = (idx) => (idx >= 0 && idx < p.length ? parseFloat(p[idx]) : NaN);
+      const ppi = cols ? at(cols.ppi) : parseFloat(p[1]);
       if (!isFinite(ppi)) continue;
       const ts = parseTimestamp(p[0]);
-      const err = parseFloat(p[2]);
-      const blocker = parseFloat(p[3]);
-      const contact = parseFloat(p[4]);
+      const err = cols ? at(cols.err) : parseFloat(p[2]);
+      const blocker = cols ? at(cols.blocker) : parseFloat(p[3]);
+      const contact = cols ? at(cols.contact) : parseFloat(p[4]);
+      /* ∅ AND THE HR COLUMN IS A SCALAR LIKE ANY OTHER. Reading the box layout correctly surfaces a
+         column this parser never saw before, and the Verity writes 0 into it for whole nights — the
+         documented all-zero device HR. 0 bpm is not a measurement, so it takes the same
+         physiological band the sibling parsers apply (`ecgdex-dsp parseDeviceHR` at 20–260) and
+         becomes null rather than entering as a rate. Fixing the columns must not import the defect
+         the column audit was about. */
+      const _hrRaw = cols && cols.hr >= 0 ? at(cols.hr) : parseFloat(p[p.length - 1]);
+      const hr = isFinite(_hrRaw) && _hrRaw >= 20 && _hrRaw <= 260 ? _hrRaw : null;
       out.push({
         tMs: ts ? ts.tMs : null,
         ppi,
         err: isFinite(err) ? err : null,
         blocker: isFinite(blocker) ? blocker : null,
         contact: isFinite(contact) ? contact : null,
-        hr: parseFloat(p[p.length - 1])
+        hr
       });
     }
     return out;
@@ -6188,9 +6241,27 @@
       var n = s.n != null ? s.n : s.ch[0] ? s.ch[0].length : 0;
       var fs = input.fs != null ? input.fs : s.fs;
       var relSec = s.relSec;
+      /* §∅ — A SAMPLE RATE THAT WAS NOT MEASURED IS NULL, NEVER 1. Both arms below used to read
+         `fs || 1`, so a frame carrying neither `input.fs` nor `samples.fs` silently got a 1 Hz axis:
+         measured on the synthetic Verity frame, a 540-second recording became 95,039 seconds — 176× —
+         and every beat time rode that axis through `rec.relSec` → `footSec`. An absent rate is not
+         reduced coverage, it is the absence of the time axis itself, so this REFUSES rather than
+         annotating (the 2026-09-17 ruling: a discontinuity refuses, reduced coverage annotates).
+         NARROW BY CONSTRUCTION: fs is only needed to BUILD an axis, so a frame that already carries
+         `relSec` and `durSec` never reaches this and is not convicted — pinned by two legs of the
+         `PpgDex §∅` group. Rows ppgdex-dsp.js:6193 / :6203 of ABSENCE-SURVEY-2026-09-22. */
+      var fsUsable = typeof fs === 'number' && isFinite(fs) && fs > 0;
+      var needFs = !relSec || (s.durSec == null && n > 1);
+      if (needFs && !fsUsable) {
+        throw new Error(
+          'PpgDex.compute: this ppg SignalFrame carries no usable sample rate (neither input.fs nor samples.fs) and ' +
+            (!relSec ? 'no relSec to read one from' : 'no durSec') +
+            ', so the time axis cannot be built — refusing rather than assuming 1 Hz (CLAUDE.md §∅: a rate that was not measured is null, never a number)'
+        );
+      }
       if (!relSec) {
         relSec = new Float64Array(n);
-        for (var i = 0; i < n; i++) relSec[i] = i / (fs || 1);
+        for (var i = 0; i < n; i++) relSec[i] = i / fs;
       }
       rec = {
         ch: s.ch,
@@ -6200,7 +6271,7 @@
         fs: fs,
         t0Ms: input.t0Ms != null ? input.t0Ms : s.t0Ms != null ? s.t0Ms : null,
         offsetMin: input.offsetMin != null ? input.offsetMin : null,
-        durSec: s.durSec != null ? s.durSec : n > 1 ? (n - 1) / (fs || 1) : 0,
+        durSec: s.durSec != null ? s.durSec : n > 1 ? (n - 1) / fs : 0,
         /* §1.4 — derive site here too, by the SAME rule as the text path. Omitting it let the export's
            `rec.site || 'wrist'` fallback stamp every frame-routed recording 'wrist'. A declared site
            (`s.site`) wins if an adapter ever carries one; otherwise it is the layout fact, and

@@ -3552,7 +3552,15 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
 
   function computeODI1(rows, blArr) {
     var n = rows.length;
-    if (n < 60) return { odi1Rate: 0, odi1Total: 0 };
+    /* §∅ — TOO SHORT TO COMPUTE IS NOT "NO EVENTS". A recording under 60 samples cannot yield an
+       ODI-1 at all, and returning a rate of 0 published the healthiest possible index for a night
+       that was never long enough to index. `computeSpO2Percentiles` nine lines below carries the
+       IDENTICAL `n < 60` precondition and already returns null — two functions, one guard, opposite
+       answers, in the same file. Absent input refuses (§∅ 2026-09-17).
+       Every consumer is already written for it: `computeNightExtras` tests `odi1.odi1Rate > 0`
+       before taking the ODI-4/ODI-1 ratio, and `computeODRI` opens with `if (!odi1 || !odi3) return
+       null`. The score push is the one that was not, and is guarded here. */
+    if (n < 60) return null;
     var spo2 = rows.map(function (r) {
       return r.spo2;
     });
@@ -3561,7 +3569,9 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     // primitive instead of a private trailing-mean loop. (DEX-EVENT-UNIFY Task A)
     var events = detectDesatEvents(spo2, { dropPct: 1, exitPct: 0.5, minSec: 0, blArr: blArr }).length;
     var durationHr = n / 3600;
-    return { odi1Rate: durationHr > 0 ? +(events / durationHr).toFixed(1) : 0, odi1Total: events };
+    /* §∅ — the second fabrication in the same function: a per-hour RATE with no duration to divide
+       by is undefined, not zero. The event COUNT survives — it was really counted. */
+    return { odi1Rate: durationHr > 0 ? +(events / durationHr).toFixed(1) : null, odi1Total: events };
   }
 
   // ── Literature Scores ──────────────────────────────────────────
@@ -3572,6 +3582,12 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
   // Grade 3: ODI-4 > 15 OR CT<90 > 5min, one criterion
   // Grade 4: both criteria exceeded
   function computeMOS(odi4Rate, ct90Sec) {
+    /* ∅ `null >= K` is false and `null / 60` is 0, so an absent ODI-4 and an absent CT90 fell
+       through every branch to score 1 — "Normal". A McGill grade of Normal is a CLINICAL claim, and
+       this one was made about a night neither input described. Refuse if EITHER is absent: the
+       Normal verdict specifically requires knowing that BOTH are low, and over-refusing is the safe
+       direction here (the consumer at `oxydex-render.js:321` already tests `mos.mos != null`). */
+    if (odi4Rate == null || ct90Sec == null) return { mos: null, mosLabel: null, reason: 'inputs-absent' };
     var ct90Min = ct90Sec / 60;
     var odiHigh = odi4Rate >= DexKernel.K.MOS_LONG;
     var ctHigh = ct90Min >= 5;
@@ -4549,8 +4565,23 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     // Intra-night HR descent: (night mean - night floor) / night mean × 100
     // NOTE: true nocturnal dip requires daytime HR (unavailable here)
     // This measures how much HR drops from nightly mean to its lowest — NOT standard clinical dip
-    var refHR = stats.meanHr || 60;
-    var floor = hrv.hrFloor || refHR;
+    /* §∅ — TWO FABRICATED CONSTANTS PRODUCED A CLINICAL-SOUNDING VERDICT. `stats.meanHr || 60`
+       invented a reference heart rate and `hrv.hrFloor || refHR` then invented a floor EQUAL to it,
+       so a night with no HR data at all computed `dip = (60 - 60) / 60 = 0` and was labelled
+       "Low (intra-night)" — not a missing metric but a stated finding, manufactured from nothing.
+       BOTH fallbacks became REACHABLE by the §∅ passes that preceded this one: `stats.meanHr` is
+       null since the stats block was repaired, and `hrv.hrFloor` since #2937 stopped the JSONL
+       re-load synthesising a 0. Fixing a producer moved the fabrication one function downstream —
+       which is the half-wired shape in reverse, and the reason this sweep has to follow the value.
+       Absent INPUT refuses (§∅ 2026-09-17): there is no dip without a reference and a floor. Every
+       consumer already guards with `if (n.hrnDip)` — the CSV, the KPI, the score push and the
+       narrative line — so returning null needs no consumer change; it gives those guards back the
+       absence they were written for. `refHR <= 0` is refused too: `|| 60` had been masking a
+       division by zero. */
+    var refHR = stats.meanHr;
+    var floor = hrv.hrFloor;
+    if (refHR == null || !isFinite(refHR) || refHR <= 0) return null;
+    if (floor == null || !isFinite(floor)) return null;
     var dip = +(((refHR - floor) / refHR) * 100).toFixed(1);
     var label = dip > 10 ? 'Good (intra-night)' : dip > 5 ? 'Moderate (intra-night)' : 'Low (intra-night)';
     return { hrnDip: dip, hrnDipLabel: label };
@@ -4595,7 +4626,8 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     // ── ODI ──
     if (n.odi4) push('odi4', 'ODI-4/hr', n.odi4.rate, n.odi4.rate < 2 ? 0 : n.odi4.rate < 5 ? 2 : n.odi4.rate < 15 ? 5 : n.odi4.rate < 30 ? 8 : 10, n.odi4.rate + '/hr');
     if (n.odi3) push('odi3', 'ODI-3/hr', n.odi3.rate, n.odi3.rate < 3 ? 0 : n.odi3.rate < 8 ? 2 : n.odi3.rate < 20 ? 5 : n.odi3.rate < 35 ? 8 : 10, n.odi3.rate + '/hr');
-    if (n.odi1) push('odi1', 'ODI-1/hr', n.odi1.odi1Rate, n.odi1.odi1Rate < 10 ? 0 : n.odi1.odi1Rate < 20 ? 2 : n.odi1.odi1Rate < 40 ? 5 : 8, n.odi1.odi1Rate + '/hr');
+    /* §∅ — `null < 10` is TRUE, so an unindexable night would have taken the BEST bucket. */
+    if (n.odi1 && n.odi1.odi1Rate != null) push('odi1', 'ODI-1/hr', n.odi1.odi1Rate, n.odi1.odi1Rate < 10 ? 0 : n.odi1.odi1Rate < 20 ? 2 : n.odi1.odi1Rate < 40 ? 5 : 8, n.odi1.odi1Rate + '/hr');
 
     // ── Breathing disruption ──
     if (n.osc)
@@ -4625,7 +4657,8 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       );
 
     // ── Hypoxic burden ──
-    if (n.hb) push('hbRate', 'Hypoxic Burden', n.hb.rate, n.hb.rate < 0.5 ? 0 : n.hb.rate < 2 ? 2 : n.hb.rate < 5 ? 5 : n.hb.rate < 10 ? 7 : 10, n.hb.rate + '%-min/hr');
+    /* §∅ — `null < 0.5` is TRUE, so an unmeasured burden would have scored the BEST bucket. */
+    if (n.hb && n.hb.rate != null) push('hbRate', 'Hypoxic Burden', n.hb.rate, n.hb.rate < 0.5 ? 0 : n.hb.rate < 2 ? 2 : n.hb.rate < 5 ? 5 : n.hb.rate < 10 ? 7 : 10, n.hb.rate + '%-min/hr');
     if (n.hypLoad) push('hypLoad', 'Hypoxic Load', n.hypLoad.hypoxicLoad, n.hypLoad.hypoxicLoad < 0.5 ? 0 : n.hypLoad.hypoxicLoad < 2 ? 2 : n.hypLoad.hypoxicLoad < 5 ? 5 : 9, n.hypLoad.hypoxicLoad);
 
     // ── AHI estimate ──
@@ -4645,7 +4678,8 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     if (n.sleepP) push('spi', 'Sleep Pressure', n.sleepP.spi, n.sleepP.spi < 5 ? 0 : n.sleepP.spi < 10 ? 2 : n.sleepP.spi < 20 ? 5 : 8, n.sleepP.spi);
 
     // ── Autonomic / HR ──
-    if (n.comp) push('nsi', 'NSI', n.comp.nsi, n.comp.nsi < 20 ? 0 : n.comp.nsi < 40 ? 2 : n.comp.nsi < 60 ? 5 : n.comp.nsi < 80 ? 7 : 10, n.comp.nsi);
+    /* §∅ — `null < 20` is TRUE, so an NSI nobody could compute would have scored the BEST bucket. */
+    if (n.comp && n.comp.nsi != null) push('nsi', 'NSI', n.comp.nsi, n.comp.nsi < 20 ? 0 : n.comp.nsi < 40 ? 2 : n.comp.nsi < 60 ? 5 : n.comp.nsi < 80 ? 7 : 10, n.comp.nsi);
     if (n.ssi) push('ssi', 'Symp Surge', n.ssi.ssi, n.ssi.ssi < 0.3 ? 0 : n.ssi.ssi < 0.8 ? 2 : n.ssi.ssi < 1.5 ? 5 : 8, n.ssi.ssi);
     if (n.cross && n.cross.autoArousalIdx != null)
       push('aai', 'AAI', n.cross.autoArousalIdx, n.cross.autoArousalIdx < 1 ? 0 : n.cross.autoArousalIdx < 3 ? 2 : n.cross.autoArousalIdx < 6 ? 5 : 8, n.cross.autoArousalIdx);
@@ -4785,7 +4819,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
         return n.rolling ? 'CDI ' + n.rolling.cdi + '/hr' : 'CDI unavailable';
       },
       nsi: function () {
-        return n.comp ? 'NSI ' + n.comp.nsi : 'NSI unavailable';
+        return n.comp && n.comp.nsi != null ? 'NSI ' + n.comp.nsi : 'NSI unavailable';
       },
       waso: function () {
         return n.sleepArch && n.sleepArch.wasoMin != null ? 'WASO ' + n.sleepArch.wasoMin + 'm' : 'WASO —';
@@ -4794,7 +4828,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
         return n.dfa ? 'DFA α1 ' + n.dfa.alpha1 : 'DFA unavailable';
       },
       hbRate: function () {
-        return n.hb ? 'HB rate ' + n.hb.rate + ' %-min/hr' : 'HB unavailable';
+        return n.hb && n.hb.rate != null ? 'HB rate ' + n.hb.rate + ' %-min/hr' : 'HB unavailable';
       },
       oxyCrash: function () {
         return n.oxyCrash ? 'OxyCrash ' + n.oxyCrash.oxyCrashRate + '/hr' : 'OxyCrash unavailable';
@@ -5042,14 +5076,20 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
        ultradian figures are HR-derived and stay measured. */
     if (_motionUnusable && sleepArch) sleepArch.wasoMin = /** @type {any} */ (null);
     var odi1 = computeODI1(rows, blArr);
-    var odi4Rate = odi4 ? odi4.rate : 0;
-    var odi3Rate = odi3 ? odi3.rate : 0;
+    /* ∅ THE NULL-NOT-ZERO FIX BELOW WAS APPLIED TO ONE OF FIVE INPUTS. `desSevRate` got it right,
+       and said why; its four siblings on these lines kept defaulting an ABSENT index to 0, which
+       `computeAHIestimates` and `computeMOS` then read as a measured zero. Both consumers are
+       already built to refuse on null — `ahiODI4` returns null for a null ODI-4 and says
+       "null * 1.1 is 0 … the most reassuring possible reading of a measurement that never
+       happened" — so the guards existed and these four lines fed past them. */
+    var odi4Rate = odi4 && odi4.rate != null ? odi4.rate : null;
+    var odi3Rate = odi3 && odi3.rate != null ? odi3.rate : null;
     /* Propagate the refusal. `desSev.desSev` may now be null, and `0.6 * null` is 0 inside
        computeAHIestimates — which would silently drop the DesSev term and UNDER-estimate AHI,
        i.e. fail toward the reassuring answer, which is the bias this whole change exists to end. */
     var desSevRate = desSev ? desSev.desSev : null;
-    var t95Pct = stats ? stats.t95pct : 0;
-    var ct90Sec = ctPrec ? ctPrec.ct90s || 0 : 0;
+    var t95Pct = stats && stats.t95pct != null ? stats.t95pct : null;
+    var ct90Sec = ctPrec && ctPrec.ct90s != null ? ctPrec.ct90s : null;
     var mos = computeMOS(odi4Rate, ct90Sec);
     var ahiEst = computeAHIestimates(odi4Rate, odi3Rate, desSevRate, t95Pct);
     var flags = buildFlags(stats, spikes, period, osc, odi4, odi3, hrv, motion, stab, hrProf, cross, spo2Adv, comp, sbii, pred3p);
@@ -5145,7 +5185,16 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       // part 2). `dataGaps` above already found these holes and reported only a percentage; the
       // Integrator needs their POSITIONS to divide by recorded rather than envelope hours.
       // Null on a contiguous night, which keeps every clean export byte-identical.
-      coverage: oxyCoverage(rows, t0Ms),
+      /* ∅ `sparse` and `discontinuous` are different claims, and the shared builder can only make
+         the first. `DexExport.coverageFromSegments` labels every multi-segment record `kind:'sparse'`
+         — correct for a dropout, wrong for a night whose CLOCK stepped, which is the distinction the
+         2026-09-17 ruling turns on (reduced coverage annotates; a discontinuity is not one stretch of
+         signal). `clockNonMonotonic` is the fact that separates them and it is an OxyDex stat, not
+         something the spine module knows, so the relabel is applied HERE rather than in
+         `dex-export.js` — which is inlined into all 8 bundles and would serialise a fleet-wide
+         re-verification for a label change. Measured: nothing reads `coverage.kind` today, so this
+         buys honesty in the export for a human reader, not behaviour. */
+      coverage: _oxyLabelCoverage(oxyCoverage(rows, t0Ms), stats),
       fname: fname,
       stats: stats,
       spikes: spikes,
@@ -5401,17 +5450,31 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     };
   }
 
+  /* §∅ — THE SAME DEFECT `computeStats` ALREADY FIXED, IN THE FUNCTION NEXT DOOR. Its comment says
+     it outright: "`v < 95` is TRUE for null, so every absent second counted as a desaturated one and
+     T95/T90 were inflated by the dropout fraction" (residue 2026-09-13-oxydex-stats-block-absence-to-
+     number). That pass repaired the stats block and did not reach here — so this function, computing
+     the SAME class of metric over the SAME rows, still counted an absent second as below EVERY
+     threshold at once (`null < 80` is true), and fed the inflated `secs` into
+     `computeDesaturationProfile`'s weighted AUC as well.
+     Nulls do reach here: `parseCSV` drops invalid rows so the O2Ring CSV path carries none, but the
+     NSRR adapter (`to1Hz` → null), the self-ingest path and any SignalFrame do — and the SHHS lane's
+     published T90 came through this family.
+     Reduced coverage ANNOTATES (§∅ 2026-09-17): the rate is over the MEASURED seconds and `measured`
+     is published beside it, so a reader can see the denominator. Nothing measured ⇒ null, never 0. */
   function computeTIndex(rows) {
-    var spo2 = rows.map(function (r) {
-        return r.spo2;
-      }),
-      n = spo2.length,
+    var spo2 = [];
+    for (var _i = 0; _i < rows.length; _i++) {
+      var _v = rows[_i].spo2;
+      if (_v != null && isFinite(_v)) spo2.push(_v);
+    }
+    var n = spo2.length,
       out = {};
     [95, 94, 93, 92, 91, 90, 89, 88, 85, 80].forEach(function (t) {
       var s = spo2.filter(function (v) {
         return v < t;
       }).length;
-      out[t] = { secs: s, pct: n > 0 ? +((s / n) * 100).toFixed(2) : 0 };
+      out[t] = { secs: s, pct: n > 0 ? +((s / n) * 100).toFixed(2) : null, measured: n };
     });
     return out;
   }
@@ -6025,7 +6088,10 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     if (osc.episodeCount >= 4) f.push({ code: 'PERIODIC_BREATHING(' + osc.episodeCount + ')', sev: 'warn' });
     if (stats.maxHr > 105) f.push({ code: 'MAX_HR(' + stats.maxHr + ')', sev: 'warn' });
     if (hrv) {
-      if (hrv.pnn3 < 0.2) f.push({ code: 'HRV_LOW_pNN3(' + hrv.pnn3 + '%)', sev: 'warn' });
+      /* `null < 0.2` is TRUE, so an absent proxy would raise a LOW-pNN3 warning naming `null`.
+         The sibling comparisons below are safe by luck of direction (`null > 1.5` and
+         `null > 65` are both false); this one is guarded because it is not. */
+      if (hrv.pnn3 != null && hrv.pnn3 < 0.2) f.push({ code: 'HRV_LOW_pNN3(' + hrv.pnn3 + '%)', sev: 'warn' });
       if (hrv.hrSlope > 1.5) f.push({ code: 'HRV_HR_RISING(' + hrv.hrSlope + 'bpm/hr)', sev: 'warn' });
       if (hrv.hrFloor > 65) f.push({ code: 'HRV_FLOOR_HIGH(' + hrv.hrFloor + ')', sev: 'info' });
     }
@@ -6059,16 +6125,27 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
   // Hypoxic Burden: area-under-curve below SpO2=94% (%-min total & %-min/hr rate).
   // More sensitive than ODI for sustained mild desaturation patterns.
   // Clinical reference: >25 %-min/hr is considered elevated.
+  /* §∅ — `null < 94` is TRUE and `94 - null` is 94, so EVERY absent second added the maximum
+     possible burden, as though SpO2 had been 0. On a metric whose own reference is ">25 %-min/hr is
+     elevated" that turns dropout into severe hypoxia. Sibling of the `computeTIndex` case above and
+     of the `computeStats` fix that preceded both.
+     The sum and the duration are now both over MEASURED seconds — self-consistent, and the same rule
+     computeStats adopted ("every rate below divides by the measured count"). `measuredSec` is
+     published so the denominator is visible; nothing measured ⇒ null, never 0. */
   function computeHypoxicBurden(rows) {
     var burden = 0,
-      n = rows.length;
-    for (var i = 0; i < n; i++) {
-      if (rows[i].spo2 < 94) burden += 94 - rows[i].spo2;
+      measured = 0;
+    for (var i = 0; i < rows.length; i++) {
+      var v = rows[i].spo2;
+      if (v == null || !isFinite(v)) continue;
+      measured++;
+      if (v < 94) burden += 94 - v;
     }
-    var durationHr = n / 3600;
+    if (!measured) return { total: null, rate: null, measuredSec: 0 };
+    var durationHr = measured / 3600;
     var totalMin = +(burden / 60).toFixed(1);
-    var rate = durationHr > 0 ? +(totalMin / durationHr).toFixed(1) : 0;
-    return { total: totalMin, rate: rate };
+    var rate = durationHr > 0 ? +(totalMin / durationHr).toFixed(1) : null;
+    return { total: totalMin, rate: rate, measuredSec: measured };
   }
 
   // Motion Profile: divide night into 30-min windows, score each for motion %.
@@ -6381,7 +6458,15 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     // drifting on a private trailing-MEAN loop. The recovery look-forward (secs back to the
     // onset baseline − 1) + the oximeter self-gate are preserved on top of the shared set.
     var nadirEvents = detectDesatEvents(spo2, { dropPct: DexKernel.K.ODI_DROP, exitPct: DexKernel.K.ODI_DROP, blArr: blArr }).map(function (e) {
-      var recov = 0;
+      /* §∅ — AN IN-BAND SENTINEL THE FILE ITSELF READS TWO OPPOSITE WAYS. When the look-forward
+         window expires without SpO2 returning to baseline-1, recovery was NOT OBSERVED — but `0`
+         is a legal recovery time, so `meanRecovery` averaged it in as "recovered instantly" (and
+         `nadirRecov` is goodDirection:'down', so that is the FLATTERING direction), while
+         `oxyDesatConf` twenty lines down reads the SAME 0 as "no clean recovery" and withholds its
+         bonus. One value, two contradictory meanings, in one file — which is the argument for the
+         sentinel being the defect rather than its handling. Null is out of band and cannot be read
+         either way by accident. */
+      var recov = null;
       for (var k = e.endIdx; k < Math.min(e.endIdx + 120, n); k++) {
         if (spo2[k] >= e.baseline - 1) {
           recov = k - e.endIdx;
@@ -6396,7 +6481,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
         nadirIdx: e.nadirIdx,
         endIdx: e.endIdx,
         nadir: e.nadir,
-        recoverySlope: recov > 0 ? +((e.baseline - e.nadir) / recov).toFixed(3) : 0
+        recoverySlope: recov != null && recov > 0 ? +((e.baseline - e.nadir) / recov).toFixed(3) : null
       };
     });
     // ── OXIMETER SELF-GATE (Part A): flag optical/mechanical-artifact desats so
@@ -6418,13 +6503,25 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     var realEvents = nadirEvents.filter(function (e) {
       return !(/** @type {any} */ (e).artifact);
     });
-    var meanRecovery = realEvents.length
+    /* §∅ — the mean is over the events that RECOVERED, and the count of them is published beside it.
+       Averaging the unobserved ones in as 0 dragged the night toward "recovers instantly"; leaving
+       them null without filtering would have been worse still, because `s + null` coerces to `s`
+       and the divisor would have kept counting them (the same coercion that made a 7-night SpO2
+       window read 83 % in #2941). Reduced coverage ANNOTATES (§∅ 2026-09-17): these are real events
+       whose recovery was not seen, not missing measurements, so the subset mean is meaningful — but
+       only beside its denominator. No event recovered ⇒ null, never 0. */
+    var recoveredSecs = [];
+    for (var _re = 0; _re < realEvents.length; _re++) {
+      var _rv = realEvents[_re].recovery;
+      if (_rv != null && isFinite(_rv)) recoveredSecs.push(_rv);
+    }
+    var meanRecovery = recoveredSecs.length
       ? +(
-          realEvents.reduce(function (s, e) {
-            return s + e.recovery;
-          }, 0) / realEvents.length
+          recoveredSecs.reduce(function (s, v) {
+            return s + v;
+          }, 0) / recoveredSecs.length
         ).toFixed(0)
-      : 0;
+      : null;
     var meanDepth = realEvents.length
       ? +(
           realEvents.reduce(function (s, e) {
@@ -6475,7 +6572,10 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       tAucWeighted: tAucWeighted,
       auc90Total: auc90Total,
       auc90Rate: auc90Rate,
-      nadir: { count: realEvents.length, meanDepth: meanDepth, meanDuration: meanDuration, meanRecovery: meanRecovery },
+      /* §∅ — `recoveredCount` is meanRecovery's DENOMINATOR, published beside it: a mean over 2 of
+         11 events is a different statement from a mean over 11, and without the count a reader
+         cannot tell them apart. */
+      nadir: { count: realEvents.length, recoveredCount: recoveredSecs.length, meanDepth: meanDepth, meanDuration: meanDuration, meanRecovery: meanRecovery },
       events: realEvents, // SURVIVING desats only — feeds O2HR efficiency, nadir trend, IEI, recovery-CV, Integrator emit
       eventsAll: nadirEvents, // full set incl. self-gated artifacts (UI shows artifacts struck-through with .reason)
       artifactCount: artifactCount,
@@ -6907,24 +7007,49 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     // Sleep Fragmentation Index: (WASO + HR spikes + osc episodes) / hr
     var wasoWin = motSleep ? motSleep.wasoWindows : 0;
     // Use only ODI-4 events (not autoArousalIdx which already includes spikes → avoids double-count)
-    var sfi = durationHr > 0 ? +((wasoWin + spikes.length) / durationHr).toFixed(1) : 0;
+    /* §∅ — a fragmentation RATE with no duration to divide by is undefined, not zero. `sfi` is a
+       per-hour rate and 0/hr is the healthiest possible reading. */
+    var sfi = durationHr > 0 ? +((wasoWin + spikes.length) / durationHr).toFixed(1) : null;
 
     // Nocturnal Stress Index (0-100): normalized composite
     // Components: dip3Rate (flag >5), hbRate (flag >5), t95pct (flag >15), AAI (flag >5)
-    var dip3 = desat ? Math.min(desat.dip3Rate / 5, 1) : 0;
-    var hbR = desat ? Math.min(desat.auc90Rate / 2, 1) : 0; // AUC-90 flag >2
-    var t95 = 0;
-    // Get t95pct from spo2 array
-    var below95 = spo2.filter(function (v) {
+    /* §∅ — NSI AVERAGED FOUR TERMS AND SILENTLY SUBSTITUTED 0 FOR EACH ONE IT COULD NOT COMPUTE.
+       `nsi` is goodDirection:'down', so every absent component pulled the score toward the BEST
+       value: a night with none of them measured scored 0 — "no nocturnal stress" — and rendered
+       green at four sites. `couplingScore` fifteen lines above already refuses for exactly this
+       reason and says so ("UNDEFINED, not 0 %… the renderer's own guard was already written
+       expecting null"); these four are the siblings that pass never reached.
+       ⚠️ The `aai` line carried a comment naming the trap — "`Math.min(null / 5, 1)` is 0, not
+       absent" — and then wrote `: 0` anyway, which is the same fabrication one step later. Catching
+       a coercion is not the same as refusing.
+       The t95 term also counted an ABSENT second as desaturated: `null < 95` is true and `n` was the
+       row count, the defect #2943 fixed in computeTIndex and computeHypoxicBurden and did not reach
+       here. It now measures over the measured seconds.
+       Reduced coverage ANNOTATES (§∅ 2026-09-17): NSI is the mean of the components that EXIST, and
+       `nsiComponents` publishes how many that was — a mean of two terms is a different statement
+       from a mean of four. No component ⇒ null, never 0. */
+    var dip3 = desat && desat.dip3Rate != null ? Math.min(desat.dip3Rate / 5, 1) : null;
+    var hbR = desat && desat.auc90Rate != null ? Math.min(desat.auc90Rate / 2, 1) : null; // AUC-90 flag >2
+    var _measured = [];
+    for (var _s9 = 0; _s9 < spo2.length; _s9++) {
+      if (spo2[_s9] != null && isFinite(spo2[_s9])) _measured.push(spo2[_s9]);
+    }
+    var below95 = _measured.filter(function (v) {
       return v < 95;
     }).length;
-    var t95pct = n > 0 ? (below95 / n) * 100 : 0;
-    t95 = Math.min(t95pct / 15, 1);
-    /* same trap as `aaiLoad` above: `Math.min(null / 5, 1)` is 0, not absent */
-    var aai = cross && cross.autoArousalIdx != null ? Math.min(cross.autoArousalIdx / 5, 1) : 0;
-    var nsi = +(((dip3 + hbR + t95 + aai) / 4) * 100).toFixed(0);
+    var t95 = _measured.length ? Math.min(((below95 / _measured.length) * 100) / 15, 1) : null;
+    var aai = cross && cross.autoArousalIdx != null ? Math.min(cross.autoArousalIdx / 5, 1) : null;
+    var _terms = [];
+    var _cand = [dip3, hbR, t95, aai];
+    for (var _t9 = 0; _t9 < _cand.length; _t9++) {
+      var _tv = _cand[_t9];
+      if (_tv != null && isFinite(_tv)) _terms.push(_tv);
+    }
+    var _tsum = 0;
+    for (var _u9 = 0; _u9 < _terms.length; _u9++) _tsum += _terms[_u9];
+    var nsi = _terms.length ? +((_tsum / _terms.length) * 100).toFixed(0) : null;
 
-    return { couplingScore: couplingScore, sfi: sfi, nsi: nsi };
+    return { couplingScore: couplingScore, sfi: sfi, nsi: nsi, nsiComponents: _terms.length };
   }
 
   // 8. Linear regression helper (for multi-night trend slope)
@@ -7589,6 +7714,15 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
 
      Null when the night is contiguous — the common case, and the one that keeps every clean export
      byte-identical. */
+  /* Relabels a coverage block whose holes came from a CLOCK STEP rather than from a dropout. Returns
+     the same object shape (additively relabelled) so every consumer keeps working, and returns the
+     input untouched when there is nothing to relabel. */
+  function _oxyLabelCoverage(cov, stats) {
+    if (!cov || !stats || stats.clockNonMonotonic !== true) return cov;
+    cov.kind = 'discontinuous';
+    return cov;
+  }
+
   function oxyCoverage(rows, t0Ms) {
     if (!rows || rows.length < 2) return null;
     var segs = [],
@@ -8539,14 +8673,24 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     scores.rmssd = rmssdScore;
 
     // 2. SpO2 / hypoxic load component (25 pts)
-    var spo2Score = 0;
-    var odi4Rate = odi4 ? odi4.rate : 0;
-    var hd94Rate = hypDose ? hypDose.hd94PerHr : 0;
-    if (odi4Rate < 2 && hd94Rate < 30) spo2Score = 25;
-    else if (odi4Rate < 5 && hd94Rate < 60) spo2Score = 20;
-    else if (odi4Rate < 10 && hd94Rate < 120) spo2Score = 13;
-    else if (odi4Rate < 20) spo2Score = 7;
-    else spo2Score = 2;
+    /* ∅ ABSENCE SCORED THE MAXIMUM. `odi4 ? odi4.rate : 0` and `hypDose ? … : 0` turned an
+       UNANALYSED night into 0 and 0, which falls into the first branch and awards the full 25 — the
+       best obtainable score on the hypoxic-load component, for a night whose hypoxic load was never
+       measured. That inflates a READINESS total whose tiers carry a training recommendation
+       ("Full training. Threshold, intervals, or VO₂max work appropriate."), so the fabrication did
+       not stop at a number. `computeHypoxicDose` returns null below 60 rows, so this is a live path.
+       An unmeasurable component is now NULL and is DROPPED from the total, with the remaining
+       weights renormalised — the shape `mageR` and `autoRisk` already use. */
+    var spo2Score = null;
+    var odi4Rate = odi4 && odi4.rate != null ? odi4.rate : null;
+    var hd94Rate = hypDose && hypDose.hd94PerHr != null ? hypDose.hd94PerHr : null;
+    if (odi4Rate != null && hd94Rate != null) {
+      if (odi4Rate < 2 && hd94Rate < 30) spo2Score = 25;
+      else if (odi4Rate < 5 && hd94Rate < 60) spo2Score = 20;
+      else if (odi4Rate < 10 && hd94Rate < 120) spo2Score = 13;
+      else if (odi4Rate < 20) spo2Score = 7;
+      else spo2Score = 2;
+    }
     scores.spo2 = spo2Score;
 
     // 3. Sleep architecture (20 pts): duration + REM + deep estimates
@@ -8586,12 +8730,61 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     } else hrSlopeScore = 5;
     scores.hrSlope = hrSlopeScore;
 
-    var readiness = rmssdScore + spo2Score + sleepScore + hrFloorScore + hrSlopeScore;
-    readiness = Math.min(100, Math.max(0, readiness));
+    /* Sum only the components that were MEASURED, and rescale by the weight actually present.
+       ⚠ Renormalising is itself an assumption — it treats the missing component as resembling the
+       rest — so the basis is PUBLISHED rather than hidden: `readinessBasis` says which components
+       scored and how many of the 100 points they covered, so a 78 over three components is
+       distinguishable from a 78 over five. If nothing scored, readiness is null, not 0. */
+    var _rdParts = [
+      { k: 'rmssd', v: rmssdScore, w: 30 },
+      { k: 'spo2', v: spo2Score, w: 25 },
+      { k: 'sleep', v: sleepScore, w: 20 },
+      { k: 'hrFloor', v: hrFloorScore, w: 15 },
+      { k: 'hrSlope', v: hrSlopeScore, w: 10 }
+    ];
+    var _rdPresent = [];
+    for (var _rp = 0; _rp < _rdParts.length; _rp++) {
+      var _rv = _rdParts[_rp].v;
+      if (_rv != null && isFinite(_rv)) _rdPresent.push({ k: _rdParts[_rp].k, v: +_rv, w: _rdParts[_rp].w });
+    }
+    var _rdWeight = _rdPresent.reduce(function (a, p) {
+      return a + p.w;
+    }, 0);
+    var readinessBasis = {
+      scored: _rdPresent.map(function (p) {
+        return p.k;
+      }),
+      weightPresent: _rdWeight,
+      weightTotal: 100
+    };
+    var readiness =
+      _rdWeight === 0
+        ? null
+        : Math.min(
+            100,
+            Math.max(
+              0,
+              Math.round(
+                (_rdPresent.reduce(function (a, p) {
+                  return a + p.v;
+                }, 0) /
+                  _rdWeight) *
+                  100
+              )
+            )
+          );
 
     // ── Readiness tier ─────────────────────────────────────────────
     var readinessTier, readinessColor, zoneRec, trainingNote;
-    if (readiness >= 85) {
+    /* ∅ The tier must refuse alongside the score. Every comparison below is false against null, so
+       an unscored night would have fallen through to "Rest Day" — advising rest on the strength of
+       a measurement that does not exist, which is this fix's own defect pointing the other way. */
+    if (readiness == null) {
+      readinessTier = null;
+      readinessColor = 'neutral';
+      zoneRec = null;
+      trainingNote = 'Not scored — no readiness component could be measured for this night.';
+    } else if (readiness >= 85) {
       readinessTier = 'Optimal';
       readinessColor = 'good';
       zoneRec = 'z4_z5';
@@ -8630,7 +8823,11 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     // Widely used aerobic base-building ceiling
     var mafHR = 180 - age;
     var mafAdj = '';
-    if (readiness >= 85) {
+    /* ∅ `null >= 85` is false and `null < 55` is TRUE, so an unscored night would have taken a
+       10 bpm recovery-deficit penalty off a readiness that does not exist. */
+    if (readiness == null) {
+      mafAdj = 'no adjustment (readiness not scored)';
+    } else if (readiness >= 85) {
       mafAdj = '+5 (recovering well)';
       mafHR += 5;
     } else if (readiness < 55) {
@@ -8650,6 +8847,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       zones: zones,
       allZones: [zones.z1, zones.z2, zones.z3, zones.z4, zones.z5],
       readiness: readiness,
+      readinessBasis: readinessBasis,
       readinessTier: readinessTier,
       readinessColor: readinessColor,
       recZones: recZones,
@@ -8915,20 +9113,34 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
             artifactHrCleaned: s.artifactHrCleaned || 0,
             artifactSpikesRemoved: s.artifactSpikesRemoved || 0
           },
-          odi4: obj.odi4 || { rate: 0, count: 0 },
-          odi3: obj.odi3 || { rate: 0, count: 0 },
+          /* §∅ — `|| { rate: 0, count: 0 }` DEFEATED guards that were already correct. Every
+             consumer tests the block for presence (`if (n.odi4)` at oxydex-render.js and
+             oxydex-fusion.js, `n.odi4 ? n.odi4.rate : ''` in the CSV, `: null` in oxydex-cross.js),
+             so a synthesised block made all of them true and a night that carries NO ODI-4 at all
+             rendered "ODI-4 Rate 0/hr" graded **good** — in-band, flattering, and indistinguishable
+             from a genuinely excellent night. Restoring null does not need a consumer change; it
+             gives the existing guards back the absence they were written for. */
+          odi4: obj.odi4 || null,
+          odi3: obj.odi3 || null,
           hrv: obj.hrv
             ? {
                 /* DEEP-AUDIT-IV §3-RESULT — `|| 0` turned an absent proxy into a measured 0.00 in the
                    export a consumer reads. The two proxies are still tried in order; what changes is
                    that "neither was measured" now leaves null instead of a number nobody computed. */
                 hrSdnn: obj.hrv.hrSdnnProxy != null && isFinite(obj.hrv.hrSdnnProxy) ? obj.hrv.hrSdnnProxy : obj.hrv.hrSdnn != null && isFinite(obj.hrv.hrSdnn) ? obj.hrv.hrSdnn : null,
-                pnn3: obj.hrv.pnn3 || 0,
-                hrFloor: obj.hrv.hrFloor || 0,
-                hrSlope: obj.hrv.hrSlope || 0,
-                rsaProxy: obj.hrv.rsaProxy || 0,
-                rmssd: obj.hrv.rmssd || 0,
-                maxHr: obj.hrv.maxHr || 0,
+                /* §∅ — the six siblings of `hrSdnn` directly above, which DEEP-AUDIT-IV §3-RESULT
+                   already fixed for exactly this reason; this finishes the pass it began. `|| 0`
+                   turned an absent proxy into a measured 0.00, and `hrFloor` was the costly one:
+                   oxydex-fusion.js:863 guards `if (hrv.hrFloor != null)` and then grades it against
+                   55/62, so an unmeasured floor of 0 rendered as a GOOD resting floor. `!= null`,
+                   never `||` — a genuine 0 must survive, and 0 is precisely the value `||` cannot
+                   tell from absence. */
+                pnn3: obj.hrv.pnn3 != null ? obj.hrv.pnn3 : null,
+                hrFloor: obj.hrv.hrFloor != null ? obj.hrv.hrFloor : null,
+                hrSlope: obj.hrv.hrSlope != null ? obj.hrv.hrSlope : null,
+                rsaProxy: obj.hrv.rsaProxy != null ? obj.hrv.rsaProxy : null,
+                rmssd: obj.hrv.rmssd != null ? obj.hrv.rmssd : null,
+                maxHr: obj.hrv.maxHr != null ? obj.hrv.maxHr : null,
                 n: obj.hrv.n || null
               }
             : null,
@@ -9087,8 +9299,9 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
           // Recompute MOS + AHI estimates from available scalars — no raw rows needed
           mos: (function () {
             try {
-              var o4r = obj.odi4 && obj.odi4.rate != null ? obj.odi4.rate : 0;
-              var ct90s = obj.ctPrecise && obj.ctPrecise.ct90s != null ? obj.ctPrecise.ct90s : 0;
+              // ∅ an imported summary that carries no ODI-4 or CT90 is not a night without them
+              var o4r = obj.odi4 && obj.odi4.rate != null ? obj.odi4.rate : null;
+              var ct90s = obj.ctPrecise && obj.ctPrecise.ct90s != null ? obj.ctPrecise.ct90s : null;
               return computeMOS(o4r, ct90s);
             } catch (e) {
               return null;
@@ -9096,12 +9309,12 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
           })(),
           ahiEst: (function () {
             try {
-              var o4r = obj.odi4 && obj.odi4.rate != null ? obj.odi4.rate : 0;
-              var o3r = obj.odi3 && obj.odi3.rate != null ? obj.odi3.rate : 0;
+              var o4r = obj.odi4 && obj.odi4.rate != null ? obj.odi4.rate : null;
+              var o3r = obj.odi3 && obj.odi3.rate != null ? obj.odi3.rate : null;
               /* null, not 0 — see computeAHIestimates: substituting 0 for an unmeasured DesSev
                  drops its term from the Kulkas estimate and under-reports AHI. */
               var dsev = obj.desSev && obj.desSev.desSev != null ? obj.desSev.desSev : null;
-              var t95 = obj.stats && obj.stats.t95pct != null ? obj.stats.t95pct : 0;
+              var t95 = obj.stats && obj.stats.t95pct != null ? obj.stats.t95pct : null;
               return computeAHIestimates(o4r, o3r, dsev, t95);
             } catch (e) {
               return null;
@@ -10734,9 +10947,36 @@ const OxyDex = window.OxyDex;
     sampPerRec = blockInt(8);
     /* reserved  */ o += ns * 32;
 
+    /* ── ∅ ABSENCE IS NULL — RECORD GEOMETRY REFUSES, IT DOES NOT DEFAULT ───────────────────
+       An EDF is read BY POSITION, so `samples-per-record` is not one signal's property — it is the
+       stride of every signal after it. `asciiInt` returns null for a blank or garbage field, and
+       absorbing that null as 0 used to corrupt the WHOLE FILE, not just its own signal: the record
+       size came out too small, `numRecords` computed from it was too large, and in the decode loop
+       the pointer did not advance for that signal, so every later signal in every record read from
+       the wrong offset. The result is not missing data — it is a full set of plausible numbers that
+       are all wrong, which is the one outcome no consumer can detect.
+       Annotation signals are included deliberately: they occupy record bytes like any other.
+       This is the refusal the file already makes for `ns` and for a short header, one field later. */
+    for (var g = 0; g < ns; g++) {
+      if (sampPerRec[g] == null) throw new Error('EDF: unreadable samples-per-record for signal ' + g + ' ("' + (labels[g] || '') + '") — record geometry unknown');
+    }
+    /* ⚠ A ZERO record duration is NOT the same absence, and measuring the corpus is what said so.
+       `20260612_222819_EVE.edf` writes `0.00` with labels ["EDF Annotations","Crc16"] — ResMed's
+       event files carry no periodic sampling, and EDF+ allows a 0 duration for them. A blanket
+       `!(recDurSec > 0)` refusal rejected two REAL nights, which is the defect this section exists
+       to prevent, one level up: a rule that convicts working behaviour. So the cases split the way
+       ∅ splits them — a field that could not be READ is absent; one that was read and says zero is
+       a measurement:
+         null ⇒ refuse (geometry unknown)
+         0    ⇒ accept, and every fs is NULL — there is no rate to state. Never 0, which reads as a
+                 measured rate, and never spr/0 = Infinity. */
+    if (recDurSec == null) throw new Error('EDF: unreadable record duration — every sampling rate and the whole timeline would be a guess');
+    if (recDurSec < 0) throw new Error('EDF: negative record duration (' + recDurSec + ') — not a duration');
+
     // ── derive record geometry ──
+    // every entry is a number by the guard above, so nothing is absorbed here
     var samplesPerRecTotal = sampPerRec.reduce(function (a, b) {
-      return a + (b || 0);
+      return a + b;
     }, 0);
     var bytesPerRecord = samplesPerRecTotal * 2; // int16
     var dataStart = headerBytes;
@@ -10757,10 +10997,18 @@ const OxyDex = window.OxyDex;
     var signals = {};
     for (var s2 = 0; s2 < ns; s2++) {
       if (annIdx[s2]) continue;
-      var spr = sampPerRec[s2] || 0;
+      var spr = sampPerRec[s2];
+      // the digital range is the DENOMINATOR of the physical scale. A blank or degenerate
+      // calibration header used to fall back on `|| 1`, which silently rescales the signal by a
+      // factor of (digMax-digMin) — and `NaN || 1` is 1, so an ABSENT range took that path too.
+      // An uncalibrated signal cannot be converted to physical units, so it is null, not rescaled.
+      var _dr = digMax[s2] - digMin[s2];
+      var _cal = digMin[s2] != null && digMax[s2] != null && physMin[s2] != null && physMax[s2] != null && _dr !== 0;
       signals[labels[s2]] = {
         data: new Float32Array(spr * recordsRead),
-        fs: recDurSec ? spr / recDurSec : 0,
+        fs: recDurSec > 0 ? spr / recDurSec : null, // 0 ⇒ no periodic sampling: absent, not zero
+        calibrated: _cal,
+        _scale: _cal ? (physMax[s2] - physMin[s2]) / _dr : null,
         dim: dims[s2],
         physMin: physMin[s2],
         physMax: physMax[s2],
@@ -10778,7 +11026,7 @@ const OxyDex = window.OxyDex;
     for (var r = 0; r < recordsRead; r++) {
       var p = dataStart + r * bytesPerRecord;
       for (var sg = 0; sg < ns; sg++) {
-        var spr2 = sampPerRec[sg] || 0;
+        var spr2 = sampPerRec[sg]; // non-null by the geometry guard above
         if (annIdx[sg]) {
           var annBytes = new Uint8Array(buf, p, spr2 * 2);
           var tals = parseTAL(annBytes);
@@ -10804,14 +11052,13 @@ const OxyDex = window.OxyDex;
         // numeric signal — int16 LE → physical scaling
         var sig = signals[labels[sg]];
         var dMin = digMin[sg],
-          dMax = digMax[sg],
           pMin = physMin[sg],
-          pMax = physMax[sg];
-        var scale = (pMax - pMin) / (dMax - dMin || 1);
+          scale = sig._scale;
         for (var i2 = 0; i2 < spr2; i2++) {
           var dig = dv.getInt16(p, true);
           p += 2;
-          sig.data[sig._w++] = (dig - dMin) * scale + pMin;
+          // an uncalibrated signal yields NaN, never a number scaled by a fabricated denominator
+          sig.data[sig._w++] = scale === null ? NaN : (dig - dMin) * scale + pMin;
         }
       }
     }

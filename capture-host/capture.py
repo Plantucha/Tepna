@@ -9,7 +9,8 @@
 #    scaffold honoring the §7 integration contract; validate against real frames + PSL output first.
 
 from __future__ import annotations
-import argparse, asyncio, calendar, contextlib, glob, json, logging, math, os, random, signal, time as _time, datetime as _dt
+import argparse, asyncio, calendar, contextlib, gc, glob, json, logging, math, os, random, signal, time as _time, datetime as _dt
+import concurrent.futures, multiprocessing, sys as _sys
 import build_id
 from writers import (ContactLedger, StreamWriter, Spo2CsvWriter, LinkLogWriter, OxyFrameLogWriter, OxyLifeLogWriter, RingClockLogWriter, resumable_set,
                      HostClockLogWriter, PmdArrivalLogWriter, append_clock_sync_event, append_daemon_start,
@@ -43,6 +44,7 @@ import alerts
 import nightqc
 import nightarchive
 import loss_audit
+import solid_night
 import seal
 import sealbox
 import sealfmt
@@ -959,6 +961,17 @@ _USB_DRIVER_DIR = os.environ.get("TEPNA_USB_DRIVER", "/sys/bus/usb/drivers/usb")
 # task-local, so a fresh sync had no way to reach it — leaving a device that was written off while on
 # its charger permanently `clock_uncorrectable`, even after coming off the dock and syncing cleanly.
 _CLOCK_FRESHLY_SYNCED: set = set()
+# addr -> (consecutive ladder failures, monotonic deadline before which not to ask again). The
+# CROSS-LADDER half of the pause bound — see `clock_sync_backoff_s`. Keyed by address like
+# `_POLAR_PAUSED` and `blestats`, because the pause is an address-level fact.
+_CLOCK_SYNC_COOLDOWN: dict = {}
+# addr -> the MONOTONIC time of the last successful clock write. Freshness measures ELAPSED time, and
+# §🔒 is explicit that `_now()` is civil-time-anchored and re-anchors on an NTP step — which this daemon
+# takes, twice in the logs — so reading STATUS's `clock_synced` ISO stamp would make a freshness window
+# jump with the wall clock. Monotonic for the same reason `_CLOCK_SYNC_LADDER_BUDGET_S` is monotonic.
+# Empty after a restart, which reads as `None` and therefore never blocks: a restart re-syncs, which is
+# the behaviour wanted anyway.
+_CLOCK_SYNC_LAST_OK: dict = {}
 
 # name -> monotonic time SAMPLES last arrived. The alert loop keys on this instead of `connected`,
 # because a link is not a recording: an unbonded H10 connects for 1-2 s, streams nothing and is torn
@@ -2340,6 +2353,57 @@ _NOT_WORN_RECHECK_S = 90.0          # how often to reconnect-and-check once drop
 _WORN_SINCE: dict[str, float] = {}  # addr -> monotonic ts contact went False (absent = worn/unknown)
 
 
+# addr -> (worn, why, monotonic of the last row written). The worn decision is published to live STATUS
+# on every evaluation, and STATUS is a snapshot the next write erases — so which vote held for the 27.5
+# min of not-worn on 2026-09-23, and the 102 min on 2026-09-22, is readable nowhere. This is the state
+# that record is written from; see `writers.append_worn_decision`.
+_WORN_RECORD: dict = {}
+# A cadence row every minute per device. The cost is the reason it is a minute and not ten seconds:
+# 8 h x 3 devices at ~125 B a row is ~180 KB a night, against ~1.8 MB at a 10 s cadence and against the
+# gigabytes of samples beside it. Finer buys nothing — the quantity is a VERDICT that changes a handful
+# of times a night, and the cadence rows exist to prove it was still being watched, not to sample it.
+_WORN_RECORD_EVERY_S = 60.0
+
+
+def record_worn_decision(root, device, addr, worn, why, votes, now_mono) -> str | None:
+    """Write the worn decision if it earns a row, and return the trigger that earned it (or None).
+
+    ⚠️ MODULE LEVEL, AND THAT IS NOT A STYLE CHOICE. Inside `run_polar` the name `writers` is a LOCAL
+    dict of open StreamWriters, shadowing the module of the same name — so a `writers.append_*` call
+    written there raises `'dict' object has no attribute ...`, is swallowed by the notification handler's
+    own `except Exception`, and takes the rest of that callback with it. Measured while building this:
+    the PPI file stopped being written entirely, and the only symptom was a `link error` line. The
+    module's own scope has no such shadow, so the call lives here and the runner calls this.
+
+    Owns `_WORN_RECORD` so the cadence state and the write cannot drift apart."""
+    trig = worn_record_trigger(_WORN_RECORD.get(addr), worn, why, now_mono, _WORN_RECORD_EVERY_S)
+    if trig:
+        writers.append_worn_decision(root, _now(), device, addr, worn, why, trig, votes)
+        _WORN_RECORD[addr] = (worn, why, now_mono)
+    return trig
+
+
+def worn_record_trigger(prev, worn, why, now_mono, every_s):
+    """PURE: `"change"`, `"cadence"`, or None — whether this decision earns a row, and which kind.
+
+    A CHANGE is the event. A CADENCE row is the proof that the state was still being observed between
+    events: without it, a verdict that legitimately held for four hours and a daemon that stopped
+    evaluating produce the same file, and the second is the failure worth catching.
+
+    `why` participates in the comparison, not just `worn`: the same verdict reached by a different vote
+    is a different fact about the night, and it is exactly the fact this record exists to preserve — a
+    device that goes from `worn per contact, hr-beats` to `worn per hr-beats` has lost a detector while
+    the published boolean never moves."""
+    if prev is None:
+        return "change"
+    if prev[0] is not worn or prev[1] != why:
+        return "change"
+    if now_mono - prev[2] >= every_s:
+        return "cadence"
+    return None
+
+
+
 def should_drop_not_worn(worn_since, now, grace, pull_in_flight: bool = False,
                          can_charge: bool | None = True) -> bool:
     """PURE: has a strap been continuously not-worn long enough to drop for power? False when the feature
@@ -2577,7 +2641,8 @@ def clock_sync_capable(psftp, is_polar) -> bool:
     return bool(is_polar) if psftp is None else bool(psftp)
 
 
-def clock_sync_due(capable, enabled, charging, first_attempt) -> bool:
+def clock_sync_due(capable, enabled, charging, first_attempt, cooling=False,
+                   synced_age_s=None) -> bool:
     """PURE: should we (re-)write this device's clock before the next connection attempt?
 
     RE-SYNC ON EVERY RECONNECT, not once per task. The sync used to run exactly once, ahead of the
@@ -2599,8 +2664,127 @@ def clock_sync_due(capable, enabled, charging, first_attempt) -> bool:
 
     `capable` was named `is_polar` until the §1.3 conversion; it is now `clock_sync_capable`'s verdict —
     a measured capability where one exists, the vendor string only while unmeasured. Positional callers
-    are unaffected."""
-    return bool(capable and enabled and not charging and not first_attempt)
+    are unaffected.
+
+    `cooling` is the CROSS-LADDER backoff (see `clock_sync_backoff_s`), added LAST and defaulting to
+    False so every existing positional caller keeps its behaviour. It is the only one of these five that
+    is about repetition rather than eligibility: a device that cannot take a clock write is re-asked on
+    every reconnect, and each ask costs a live-capture pause. Measured 2026-09-18/19 on vigil:
+    **80 ladders in 18 h**, every one of them paying that pause, 77 % of them abandoned at the op ceiling.
+
+    `synced_age_s` is FRESHNESS — seconds since this device's clock was last successfully written, or
+    `None` if it never was. Added LAST and defaulting to None so positional callers are unaffected.
+    It closes the other half of the repetition: `cooling` bounds repeated FAILURES, this bounds redundant
+    SUCCESSES, and until now nothing bounded the latter at all — the predicate fired on every reconnect
+    regardless of when the clock had last been written.
+
+    ⚠️ `None` MUST NOT BLOCK, and that is §∅ rather than a convenience: a device that has never synced,
+    or whose sync time was not recorded, has no freshness — it is not fresh. Reading absence as "recently
+    synced" would silently disable the sync for exactly the device that needs it most, which is the
+    failure the paragraph above this one is about.
+
+    Measured across every night carrying a `CLOCKSYNC.csv`: **903 consecutive successful-sync pairs for
+    the same device, of which 276 (31 %) are within 120 SECONDS of the previous success**, 345 (38 %)
+    within 300 s and 700 (78 %) within 30 min. On 2026-09-19 the Verity synced at 18:06:43 and again at
+    18:07:25 — 42 s apart, each taking the device and pausing live capture. At the H10's measured
+    -20 ppm, 120 s of drift is 2.4 MICROseconds, so the second write of such a pair cannot be needed.
+
+    THE SIBLING CALLER ALREADY LEARNED THIS. `clock_watchdog`'s docstring: *"Triggering on `skew != 0`
+    would re-sync it forever, pausing capture every cycle for nothing. So we trigger on a CHANGE in
+    skew."* Its lesson never reached the reconnect-driven path, which is the one that runs hundreds of
+    times a night."""
+    if synced_age_s is not None and synced_age_s < _CLOCK_SYNC_FRESH_S:
+        return False
+    return bool(capable and enabled and not charging and not first_attempt and not cooling)
+
+
+def clock_sync_attempt_affordable(spent, budget, worst_attempt_s) -> bool:
+    """PURE: is there room left in the ladder's budget to START another attempt?
+
+    THE BUDGET USED TO BE CHECKED AFTER THE ATTEMPT, which is a different question and gives a different
+    answer. `spent >= budget` asks "have I overspent?" — by then the money is gone. Measured 2026-09-18
+    on vigil: `gave up after 153s of a 120s budget`, twelve times that night, a 27 % overrun on a bound
+    whose own comment reads "120 s ≈ two attempts at the 45 s ceiling". Three attempts ran, because the
+    check that let the third start could not see what it was about to cost.
+
+    `worst_attempt_s` is MEASURED — the longest attempt this ladder has actually run — not a constant.
+    A constant would have to enumerate an attempt's parts (the presence scan, the wait for run_polar to
+    drop its link, BlueZ's teardown settle, then the op ceiling) and would silently rot when any of them
+    moved. The worst observed attempt is a better estimator than any of those sums and needs no coupling
+    to `polar_offline_op`'s internals. Monotone at the call site, so the bound only ever tightens; the
+    one case that can still overrun is an attempt costing more than every attempt before it, which is an
+    overrun of one attempt's GROWTH rather than of a whole attempt."""
+    return bool(spent + worst_attempt_s <= budget)
+
+
+def clock_sync_backoff_s(consecutive_failures, base, cap) -> float:
+    """PURE: how long to leave a repeatedly-failing device's clock alone. 0.0 after a success.
+
+    THE BOUND `_CLOCK_SYNC_LADDER_BUDGET_S` COULD NOT DRAW. That budget bounds ONE ladder; `clock_sync_due`
+    re-arms the ladder on EVERY reconnect, and a reconnect is ~70-110 s. So a device that cannot take a
+    clock write pays a live-capture pause per reconnect cycle, all night, and the per-ladder budget is
+    working correctly while it happens.
+
+    `CONNECT-LOCK-DUTY-CYCLE-2026-08-09-BRIEF.md` tabulates FIVE previous bounds on this same mechanism.
+    Every one of them is denominated in lock-seconds or in attempts; none is denominated in PAUSED
+    CAPTURE, which is the quantity the operator actually loses. That brief's own lesson — "a bound on
+    time spent is not a bound on exclusion, and the number that kept not moving was the one nobody was
+    measuring" — applies to it one axis further out.
+
+    Measured 2026-09-18/19 (18 h, one night, journal), by retry index: 146 attempts took the device, of
+    which **80 were a ladder's first attempt and 66 were retries**. Declining after the pause removes the
+    66. The 80 are 80 separate ladders and only a cross-ladder backoff touches them: at these constants a
+    permanently-failing device runs ~22 ladders in 18 h instead of 80.
+
+    Doubling from `base`, capped — the standard shape, chosen here because the cost of waiting is
+    NEGLIGIBLE and asymmetric with the cost of asking. An hour of an H10's measured -20 ppm is 72 ms of
+    skew; an asked-and-abandoned sync is up to `_CLOCK_SYNC_TIMEOUT_S` of paused capture. Cleared on
+    success, so a transient failure costs one short wait and nothing more — this DEFERS a sync, it never
+    abandons one, which is the same argument the absent-device deferral makes."""
+    if consecutive_failures <= 0:
+        return 0.0
+    return float(min(base * (2 ** (consecutive_failures - 1)), cap))
+
+
+def _clock_sync_note_outcome(addr, ok, paid_a_pause, now_mono) -> None:
+    """Record one ladder's outcome for the cross-ladder backoff. Only a failure THAT PAID A PAUSE cools
+    the device down, and that distinction is the whole design.
+
+    395 of the 553 sync attempts on the measured night (2026-09-18/19) were `deferred-absent`: a 6 s
+    scan, outside every lock, no pause, and the device genuinely not on the air. Cooling on those would
+    delay the sync for a device that is about to come back — and coming back IS the reconnect that
+    re-arms the ladder, so backing off on absence would fight the mechanism that makes absence cheap.
+    The 146 that took the device are the ones that cost signal; they are the ones counted here.
+
+    A success CLEARS the count rather than decaying it: the device demonstrably takes a clock write now,
+    so its history is not evidence about its present."""
+    if ok:
+        _CLOCK_SYNC_COOLDOWN.pop(addr, None)
+        _CLOCK_SYNC_LAST_OK[addr] = now_mono
+        return
+    if not paid_a_pause:
+        return
+    fails = _CLOCK_SYNC_COOLDOWN.get(addr, (0, 0.0))[0] + 1
+    _CLOCK_SYNC_COOLDOWN[addr] = (
+        fails, now_mono + clock_sync_backoff_s(fails, _CLOCK_SYNC_BACKOFF_BASE_S,
+                                               _CLOCK_SYNC_BACKOFF_CAP_S))
+
+
+def _clock_sync_synced_age_s(addr, now_mono):
+    """Seconds since this device's clock was last successfully written, or **None** if this process has
+    never written it.
+
+    None is not zero and not infinity — it is "no measurement", and `clock_sync_due` must therefore not
+    let it block (§∅). The honest consequence is that a daemon restart re-syncs every device, because a
+    restart genuinely does not know when the clock was last set."""
+    at = _CLOCK_SYNC_LAST_OK.get(addr)
+    return None if at is None else now_mono - at
+
+
+def _clock_sync_cooling(addr, now_mono) -> bool:
+    """Is this device inside its backoff window? Reads the module's cooldown table; the ARITHMETIC is in
+    `clock_sync_backoff_s`, which is pure and tested on its own."""
+    return bool(now_mono < _CLOCK_SYNC_COOLDOWN.get(addr, (0, 0.0))[1])
 
 
 def rebond_due(needs_pmd, bonded, iteration, attempts, every, limit) -> bool:
@@ -2643,18 +2827,39 @@ async def auto_sync_clock(name, addr, root=None) -> bool:
     evidence channel (see `writers.append_clock_sync_event`): STATUS is a snapshot and journald
     rotates, which is how 84 nights on the H10's 2019 firmware default went unnoticed for two months.
 
-    BOUNDED BY WALL CLOCK, not just by attempt count — see `_CLOCK_SYNC_LADDER_BUDGET_S`."""
+    BOUNDED BY WALL CLOCK, not just by attempt count — see `_CLOCK_SYNC_LADDER_BUDGET_S`.
+
+    AND BOUNDED IN PAUSES, which is the bound the wall-clock one does not draw. Every attempt that gets
+    past the presence guard and the offline slot PAUSES LIVE CAPTURE — that is how it takes the device's
+    single BLE link — so the ladder's cost is not only lock-seconds, it is lost signal. See the transient
+    branch below and `clock_sync_backoff_s` for the per-ladder and cross-ladder halves of that bound."""
     started = _time.monotonic()
+    # THE LADDER's pause snapshot, as against `paused_before`'s per-ATTEMPT one: the backoff asks whether
+    # this whole ladder cost signal, the transient branch asks whether this attempt did.
+    ladder_paused_before = blestats.attempts("offline_op", addr)
+    worst = 0.0                      # the longest attempt SO FAR; the budget's estimator, measured
     for attempt in range(12):
+        # THE PAUSE COUNTER, observed rather than predicted. `blestats.attempt("offline_op", …)` is
+        # incremented inside `polar_offline_op` immediately after `_POLAR_PAUSED.add(address)` — after
+        # the presence guard and after the offline slot — so a move in it is exactly "this attempt took
+        # the device, and live capture stopped". Nothing new is counted: the placement of that existing
+        # denominator already means what this needs, and one op at a time across all devices (the global
+        # offline slot) is what makes the before/after delta unambiguous.
+        paused_before = blestats.attempts("offline_op", addr)
+        attempt_started = _time.monotonic()
         try:
             await sync_device_time(addr)
             _set(name, clock_synced=_now().isoformat(timespec="seconds"), clock_uncorrectable=False)
             _CLOCK_FRESHLY_SYNCED.add(addr)
             append_clock_sync_event(root, _now(), name, addr, "synced", detail=f"attempt {attempt + 1}")
+            _clock_sync_note_outcome(addr, True, blestats.attempts("offline_op", addr) > ladder_paused_before,
+                                     _time.monotonic())
             return True
         except offline_lock.OfflineBusy:
+            worst = max(worst, _time.monotonic() - attempt_started)
             await asyncio.sleep(5)
         except Exception as e:
+            worst = max(worst, _time.monotonic() - attempt_started)
             # ABSENT: the scan did not find it. Do NOT spend the ladder — every attempt costs up to
             # _CLOCK_SYNC_TIMEOUT_S of the global _CONNECT_LOCK, blocking every other device's reconnect,
             # and cannot succeed. `clock_sync_due` fires again on the next reconnect, which only happens
@@ -2664,6 +2869,8 @@ async def auto_sync_clock(name, addr, root=None) -> bool:
                          "loop will re-trigger it when the device is back", name, attempt + 1)
                 append_clock_sync_event(root, _now(), name, addr, "deferred-absent",
                                         detail=f"attempt {attempt + 1}")
+                _clock_sync_note_outcome(addr, False, blestats.attempts("offline_op", addr) > ladder_paused_before,
+                                         _time.monotonic())
                 return False
             # BUSY: a transient BlueZ state is a signal from a different layer, not a failure.
             # Surrendering here left the device stamping samples from an unsynced clock all night.
@@ -2685,24 +2892,59 @@ async def auto_sync_clock(name, addr, root=None) -> bool:
                 # line runs up to 12 times per ladder.
                 log.info("%s clock auto-sync busy (%s) — retry %d/12: %s",
                          name, type(e).__name__, attempt + 1, repr(e)[:160])
-                # THE BUDGET — the bound that does not depend on classifying the error correctly.
-                # Every attempt above runs through `polar_offline_op`, which holds the GLOBAL
-                # `_CONNECT_LOCK`, so the ladder's real cost is measured in lock-seconds, not in tries.
+                # A RETRY THAT ALREADY PAID A PAUSE IS NOT A RETRY, IT IS A SECOND OUTAGE.
+                #
+                # This branch is here for `org.bluez.Error.InProgress` after a restart, which clears in
+                # seconds (2026-07-18 — the failure that motivated retrying at all). But a transient
+                # error is raised in two structurally different places, and the ladder could not tell
+                # them apart: BEFORE the device is taken (the presence scan could not answer, an adapter
+                # is missing) costs nothing and is worth retrying immediately, while AFTER it costs a
+                # live-capture pause, and retrying then buys another one at the same price.
+                #
+                # Measured 2026-09-18/19 on vigil, 18 h, by retry index: 146 attempts took the device —
+                # **80 first attempts and 66 retries** — 113 of them abandoned at the op ceiling. The 66
+                # are this line. Nothing is lost by declining: `clock_sync_due` re-arms on the next
+                # reconnect, which is the same reasoning the absent branch above already uses, and the
+                # cross-ladder backoff then bounds how often that re-arming may pay the pause again.
+                if blestats.attempts("offline_op", addr) > paused_before:
+                    log.info("%s clock auto-sync deferred after one pause — the attempt took the device "
+                             "and failed (%s); retrying here would pause live capture again, and the "
+                             "reconnect loop will re-trigger it", name, type(e).__name__)
+                    append_clock_sync_event(root, _now(), name, addr, "deferred-after-pause",
+                                            detail=f"attempt {attempt + 1} ({type(e).__name__})")
+                    _clock_sync_note_outcome(addr, False, blestats.attempts("offline_op", addr) > ladder_paused_before,
+                                             _time.monotonic())
+                    return False
+                # THE BUDGET, ASKED AS A QUESTION ABOUT THE NEXT ATTEMPT RATHER THAN THE LAST ONE.
+                # Every attempt runs through `polar_offline_op`, which holds the GLOBAL `_CONNECT_LOCK`,
+                # so the ladder's cost is lock-seconds and not tries. The check STAYS HERE, before the
+                # sleep, because this is where the decision is: deciding at the top of the next iteration
+                # instead would pay the backoff sleep for an attempt that is never going to run.
+                # What changed is the QUESTION — see `clock_sync_attempt_affordable`. `spent >= budget`
+                # asks "have I overspent?", which can only be answered once the money is gone, and that
+                # is the 153s-of-120s overrun this fixes.
                 spent = _time.monotonic() - started
-                if spent >= _CLOCK_SYNC_LADDER_BUDGET_S:
-                    log.info("%s clock auto-sync gave up after %.0fs of a %.0fs budget (attempt %d/12) — "
-                             "the reconnect loop will re-trigger it", name, spent,
-                             _CLOCK_SYNC_LADDER_BUDGET_S, attempt + 1)
+                if not clock_sync_attempt_affordable(spent, _CLOCK_SYNC_LADDER_BUDGET_S, worst):
+                    log.info("%s clock auto-sync gave up after %.0fs of a %.0fs budget (attempt %d/12, "
+                             "worst attempt %.0fs) — the reconnect loop will re-trigger it", name, spent,
+                             _CLOCK_SYNC_LADDER_BUDGET_S, attempt + 1, worst)
                     append_clock_sync_event(root, _now(), name, addr, "gave-up-budget",
                                             detail=f"{spent:.0f}s of {_CLOCK_SYNC_LADDER_BUDGET_S:.0f}s")
+                    _clock_sync_note_outcome(
+                        addr, False, blestats.attempts("offline_op", addr) > ladder_paused_before,
+                        _time.monotonic())
                     return False
                 await asyncio.sleep(min(5 * (attempt + 1), 30))
                 continue
             log.warning("%s clock auto-sync failed: %r", name, e)
             append_clock_sync_event(root, _now(), name, addr, "sync-failed", detail=repr(e)[:120])
+            _clock_sync_note_outcome(addr, False, blestats.attempts("offline_op", addr) > ladder_paused_before,
+                                     _time.monotonic())
             return False
     log.warning("%s clock auto-sync gave up — device stayed unreachable/busy", name)
     append_clock_sync_event(root, _now(), name, addr, "gave-up-busy", detail="12 attempts")
+    _clock_sync_note_outcome(addr, False, blestats.attempts("offline_op", addr) > ladder_paused_before,
+                             _time.monotonic())
     return False
 
 
@@ -2971,7 +3213,9 @@ async def run_polar(dev: dict, root: str):
         # give-up budget. Coming off the dock IS a reconnect, so the sync lands then.
         if clock_sync_due(_clock_gate(name, addr, is_polar),
                           (_CFG.get("time") or {}).get("auto_sync_devices", True),
-                          STATUS["devices"].get(name, {}).get("charging"), first_attempt):
+                          STATUS["devices"].get(name, {}).get("charging"), first_attempt,
+                          _clock_sync_cooling(addr, _time.monotonic()),
+                          _clock_sync_synced_age_s(addr, _time.monotonic())):
             await auto_sync_clock(name, addr, root)
         first_attempt = False
         # RE-BOND A LOST BOND. Also before `_connect`, and for the same reason the clock write is: the
@@ -3124,7 +3368,7 @@ async def run_polar(dev: dict, root: str):
                 # ~2900 identical lines a night and bury the one that matters.
                 _worn_conflict_said = False
 
-                def _publish_worn(worn: bool | None, why: str) -> None:
+                def _publish_worn(worn: bool | None, why: str, votes=None) -> None:
                     """One publish path for every source of `worn`, so the power bookkeeping cannot
                     diverge between them. The `_WORN_SINCE` handling mirrors the HR branch exactly: set
                     ONCE on the first not-worn and left alone, because `should_drop_not_worn` measures
@@ -3149,6 +3393,12 @@ async def run_polar(dev: dict, root: str):
                         _WORN_SINCE.pop(addr, None)
                     elif addr not in _WORN_SINCE:
                         _WORN_SINCE[addr] = _time.monotonic()
+                    # THE RECORD, taken here because this is the ONE publish path — the same reason the
+                    # power bookkeeping lives here. Written AFTER the publish and feeding nothing back:
+                    # `should_drop_not_worn` reads `_WORN_SINCE`, set above and untouched by any of this.
+                    # `votes` is the same mapping handed to `worn_verdict`, so the row cannot disagree
+                    # with the decision it describes.
+                    record_worn_decision(root, name, addr, worn, why, votes, _time.monotonic())
 
                 # PMD data handler — one char carries all PMD streams; route by measurement type.
                 def on_pmd(_sender, data: bytearray):
@@ -3327,10 +3577,12 @@ async def run_polar(dev: dict, root: str):
                         # which is why they are separate detectors and not one widened threshold.
                         # `stream_fs` is what the device actually AGREED to, not what the config asked
                         # for, and only the agreed number describes these samples.
-                        _worn, _why = worn_verdict(
+                        # ONE dict, used for the decision AND for the record, so the two cannot drift.
+                        _votes = dict(
                             ppi_flags=_ppi_flags, ambient=list(_amb), fs=stream_fs.get(pmd.PPG),
                             charging=STATUS["devices"].get(name, {}).get("charging"),
                             ppg=list(_ppg_win))
+                        _worn, _why = worn_verdict(**_votes)
                         _amb.clear()
                         if _has_contact_bit:
                             # A contact bit owns `worn`. Publish the optical opinion ALONGSIDE it and
@@ -3351,7 +3603,7 @@ async def run_polar(dev: dict, root: str):
                         else:
                             # Published unconditionally, INCLUDING None. See _publish_worn: skipping the
                             # publish is what let a stale `True` survive ten hours of desk streaming.
-                            _publish_worn(_worn, _why)
+                            _publish_worn(_worn, _why, _votes)
                     # Live push — RAW, per-stream shape (no on-box DSP):
                     key, hz = _live_key(pmd.MEAS_NAME[meas], tag), stream_fs.get(meas) or pmd.SAMPLE_HZ.get(meas)
                     # The frame's LAST sample on the DEVICE's own counter. `effFs` is measured off this
@@ -3421,11 +3673,12 @@ async def run_polar(dev: dict, root: str):
                         # A heartbeat in the same packet outvotes a contact bit that says not-worn
                         # (telemetry.hr_beats): 2026-09-20 the strap read contact=0 for 6 h while
                         # reporting 48–77 bpm, and the 180 s drop cut the link 131 times.
-                        _publish_worn(*worn_verdict(
+                        _votes = dict(
                             contact=contact,
                             beats=hr_beats(bpm, len(rr)),
                             charging=STATUS["devices"].get(name, {}).get("charging"),
-                            charging_why=STATUS["devices"].get(name, {}).get("charging_why")))
+                            charging_why=STATUS["devices"].get(name, {}).get("charging_why"))
+                        _publish_worn(*worn_verdict(**_votes), votes=_votes)
                     if rr:                        # raw RR intervals to the monitor (no HRV computed on-box)
                         BUS.push(_live_key("hr", tag), [float(x) for x in rr], 0)
                     if bpm:
@@ -3714,6 +3967,22 @@ async def run_polar(dev: dict, root: str):
                                 chosen=used_fs, ack=pmd.CTRL_STATUS.get(st, hex(st)), how=how)
                             if pmd_started:                  # record + re-register at the ACTUAL negotiated rate
                                 stream_fs[meas] = used_fs
+                                # ...AND INTO THE ARTIFACT, not only the log and STATUS. Residue
+                                # 2026-09-22-negotiated-pmd-rate-not-written: the journal carries
+                                # `START ppg (negotiated) -> ok` and never the menu or the rate, so
+                                # what a stream was captured at survived only as an inference from
+                                # rows over a stamp span. The writer exists by now (opened per
+                                # requested stream, before negotiation — which is why this cannot be
+                                # a constructor argument) and no row has been written yet, because
+                                # data only arrives after START is ACKed.
+                                # `writers[meas]`, not `.get(meas)`: this loop iterates
+                                # `list(writers)`, so the key is present by construction. A
+                                # `is not None` guard here is a branch nothing can take — an
+                                # untakeable partial that reads as a coverage gap and is really a
+                                # statement that the invariant was not trusted.
+                                writers[meas].note_pmd(
+                                    rate=used_fs, offered=settings.get(0x00) or [],
+                                    configured=_prefer, default=pmd.SAMPLE_HZ.get(meas))
                                 if (meas == pmd.PPG and not calibrated_for(used_fs)
                                         and not sd_calibrated_for(used_fs)):
                                     # SAY IT WHERE THE RATE IS DECIDED. The optical worn calibration
@@ -5715,6 +5984,14 @@ _CLOCK_SYNC_TIMEOUT_S = 45.0
 # self-correcting, because a device that is really there will be found on the following cycle.
 _CLOCK_SYNC_PRESENCE_S = 6.0
 
+# The auto-pull's own budget, deliberately a SEPARATE constant from the clock sync's rather than a reuse:
+# the two callers pay different prices for a false "absent". A deferred clock sync costs one cycle of skew
+# and self-corrects on the next reconnect; a deferred offline pull leaves the onboard backup on the device
+# for another hour, which matters when that backup is the recovery path for a lossy live link. Same value
+# today because both are sized against the same ~1 s strap advertising interval — but they are free to
+# diverge, and coupling them would hide that they are two decisions.
+_AUTOPULL_PRESENCE_S = 6.0
+
 # THE LADDER'S TOTAL SPEND, which is the bound the previous two fixes did not draw.
 #
 # Both earlier attempts bounded ONE op and left the LOOP. 2026-07-19: an out-of-range device wedged
@@ -5734,6 +6011,26 @@ _CLOCK_SYNC_PRESENCE_S = 6.0
 # all), so two attempts spend the contention case without funding the hopeless one. Monotonic, not `_now()`:
 # this measures elapsed time, and `_now()` is civil-time-anchored and re-anchors on an NTP step.
 _CLOCK_SYNC_LADDER_BUDGET_S = 120.0
+# The cross-ladder backoff's first step and its ceiling. 120 s is one reconnect cycle-and-a-bit, so a
+# single transient failure costs one skipped cycle; the 60 min cap is sized against what waiting COSTS,
+# which is 72 ms of H10 skew per hour against up to 45 s of paused capture per ask.
+_CLOCK_SYNC_BACKOFF_BASE_S = 120.0
+_CLOCK_SYNC_BACKOFF_CAP_S = 3600.0
+# HOW LONG A SUCCESSFUL CLOCK WRITE STAYS GOOD ENOUGH — derived, not chosen.
+#
+# The daemon already states its own skew tolerance: `clock_watchdog` re-syncs on a CHANGE in skew of
+# `resync_jump_sec` (30 s by config default), deliberately leaving a constant offset alone because
+# "triggering on skew != 0 would re-sync it forever, pausing capture every cycle for nothing". So the
+# question is not "how accurate do we want the clock" — it is already answered — but "how long until
+# drift could approach that answer". At the H10's measured -20 ppm, 30 s of skew takes **17 days** to
+# accumulate; even at a pessimistic 3000 ppm it takes 2.8 h.
+#
+# 30 min is therefore orders of magnitude inside the tolerance already in force, and it is NOT the
+# backstop: `clock_watchdog` polls every `drift_check_sec` (300 s) and re-syncs on a real jump, so a
+# device that genuinely steps its clock is still corrected within the window rather than waiting it out.
+# Sized against what redundancy it removes: 78 % of consecutive successful-sync pairs in this corpus fall
+# inside it, and the 31 % inside 120 s are the indefensible ones.
+_CLOCK_SYNC_FRESH_S = 1800.0
 
 
 class DeviceNotAdvertising(Exception):
@@ -7507,6 +7804,60 @@ def _cpap_stream_watch_row(cfg, root, night_name):
     return out
 
 
+# ── THE NIGHT-QC SCAN RUNS IN A CHILD PROCESS ────────────────────────────────────────────────────
+# A thread is the wrong isolation for CPU-bound Python: it shares the interpreter lock with the
+# event loop, and `nightqc.summarize` holds that lock for seconds at a time by the end of a night.
+# Measured on vigil 2026-09-23 (Python 3.14, 4 cores, the whole night in page cache):
+#   · summarize(2026-09-22): 51 s wall, 51 s CPU — pure Python, no I/O wait.
+#   · beside a 100 ms heartbeat in a clean process: 84 lags > 50 ms, max 866 ms, per poll.
+#   · in the daemon: 24 `event loop stalled` warnings a night, 1.1–4.8 s, spaced 628–693 s
+#     (= poll_sec + summarize's wall), the last one 8.3 s before QC-SUMMARY.json was written.
+#   · NOT garbage collection (zero gen-2 passes; gc.disable() changed nothing) and NOT the disk
+#     (fsync is on its own worker in writers.py; the read is a cache hit on an SSD).
+# A fresh one-worker pool PER SCAN, shut down when the scan returns: the worker's working set —
+# hundreds of MB of per-sample lists — goes back to the OS with the process instead of being held
+# between polls, and nothing idles between them. A module-level pool was the first draft and it
+# hung the gate: every test that drives the poller with the real scan spawned a worker into a pool
+# nobody shut down, and an xdist worker sat on that child at interpreter exit for 28 minutes.
+# Spawn cost is ~0.3 s against a 600 s cadence. `spawn`, never `fork`: the daemon is multi-threaded
+# (BLE, fsync worker, HTTP) and a forked child of a threaded process inherits locks in whatever
+# state the other threads left them. ⚠ A test that freezes the GLOBAL `time.monotonic` cannot drive
+# this path: `multiprocessing` reads that clock for its deadlines and the child's result never
+# arrives (measured: 12 s timeout under a constant clock, 0.03 s under the real one) — such a test
+# routes the scan through a wrapper, which takes the thread path below.
+# Which path ran is recorded on the SUMMARY (`qc.isolation`), not as a STATUS key of its own: the
+# summary reaches QC-SUMMARY.json and status.json `qc`, both read; a key nobody reads is §∅'s
+# "reported and examined by nothing", and `tools/find_unwired.py` reds it.
+_QC_ISOLATION: str | None = None      # "process" | "thread" — the path the LAST scan took
+
+
+def _importable_by_reference(fn: Any) -> bool:
+    """True when `fn` can be sent to a spawned child BY NAME — a module-level function whose module
+    still binds that name to this very object. A test's lambda or a monkeypatched local cannot be
+    pickled by reference, and a child that could not import it would fail every poll; those run on a
+    thread instead and the summary says so (`qc.isolation`), so the degraded shape is visible, not silent."""
+    mod = _sys.modules.get(getattr(fn, "__module__", None) or "")
+    return mod is not None and getattr(mod, getattr(fn, "__qualname__", ""), None) is fn
+
+
+async def _qc_offload(fn: Any, *args: Any) -> Any:
+    """Run one night-QC scan off the interpreter: in a spawned child when `fn` is importable by
+    reference (the production case), on a thread otherwise. The pool lives exactly as long as the
+    scan; a worker that died under us raises `BrokenProcessPool` and that error PROPAGATES — the
+    poller's own `except` logs it, and a scan that did not run is not a scan that ran.
+    `_QC_ISOLATION` names the path taken on every call; the poller copies it onto the summary."""
+    global _QC_ISOLATION
+    if not _importable_by_reference(fn):
+        _QC_ISOLATION = "thread"
+        return await asyncio.to_thread(fn, *args)
+    _QC_ISOLATION = "process"
+    pool = concurrent.futures.ProcessPoolExecutor(max_workers=1, mp_context=multiprocessing.get_context("spawn"))
+    try:
+        return await asyncio.get_running_loop().run_in_executor(pool, fn, *args)
+    finally:
+        pool.shutdown(wait=False)
+
+
 async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = None):
     """Summarise the CURRENT night's capture completeness — rows per configured stream, which declared
     streams produced nothing (the header-only files a rejected START / never-worn sensor leaves). Turns
@@ -7555,14 +7906,47 @@ async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = N
             night = os.path.join(captures, current)
             if not os.path.isdir(night):
                 continue                                   # raced away between listing and stat — skip
-            # OFF THE LOOP, same reason as archive_night below. summarize() reads EVERY file in
-            # the night to count newlines — by dawn that is ~2 GB, and at the default poll_sec=600
-            # it re-reads the growing night ~48 times a night (~48 GB total). On this dev box the
-            # page cache hides it (0.36 s for a 1.44 GB night); on the target hardware — a Pi/N100
-            # with too little RAM to cache a whole night — it is a real multi-second stall of every
-            # capture task, recurring every 10 minutes, and on slow storage it approaches the 60 s
-            # watchdog heartbeat. QC is a REPORT: it must never cost the recording it reports on.
-            summ = await asyncio.to_thread(nightqc.summarize, night, cfg.get("devices", []))
+            # OFF THE PROCESS, not merely off the loop. This line was `asyncio.to_thread` until
+            # 2026-09-23, with a comment predicting an I/O stall on a Pi. The stall it actually
+            # produced was measured on vigil (15 GB RAM, SATA SSD, the night fully page-cached, so
+            # NOT I/O): `summarize` is 51 s of pure-Python CPU per poll by dawn (280 M calls), and a
+            # thread shares the interpreter lock with every capture task — 24 `event loop stalled`
+            # warnings a night at exactly the poll cadence, 1.1–4.8 s each, every live stream's host
+            # stamps gapping in lockstep, and the monitor's "fragments" column rising for three
+            # nodes at once. A child process shares no lock. QC is a REPORT: it must never cost the
+            # recording it reports on — and a thread cannot keep that promise for CPU-bound work.
+            summ = await _qc_offload(nightqc.summarize, night, cfg.get("devices", []))
+            # REFUSE AT THE BOUNDARY, naming what arrived. `summarize` is annotated `-> dict` and has no
+            # string return, but the value crosses a spawn boundary and a consumer three frames later
+            # reading `.get` on a non-dict raises an error that names neither the producer nor the value.
+            # A measurement that is not the shape it claims is a fabricated value reaching a consumer
+            # (§∅), and the honest response at the edge is to say so.
+            if not isinstance(summ, dict):
+                raise TypeError(f"qc scan returned {type(summ).__name__}, not dict: "
+                                f"{summ!r:.200} (isolation={_QC_ISOLATION})")
+            # THE WEAR SCAN RUNS ON A THREAD, not in a second child, and the precedent is in this file:
+            # `loss_audit.write_night` below already runs `wear_ends` for every device through
+            # `asyncio.to_thread`. A second `_qc_offload` would be a stricter standard than the codebase
+            # applies to the same work, and it is not free — `_importable_by_reference` sends a
+            # module-level function to a SPAWNED child, and several poller tests freeze `time.monotonic`,
+            # under which a spawn pool's deadlines never elapse and the child's result never arrives.
+            # Measured: adding that second offload wedged `check.sh` twice at 98 % with all 24 xdist
+            # workers idle and the controller in `futex_do_wait`.
+            #
+            # The cost is 6.9 s of GIL per poll — measured on the 794 MB 2026-09-23 night (H10 5.0 s,
+            # Verity 1.9 s), once on a page-cached tree, so treat it as an order of magnitude and not a
+            # distribution. Against `summarize`'s 51 s of pure-Python CPU that justified the child, and a
+            # 600 s poll interval, it is ~1 % duty.
+            #
+            # Its failure is not the night's: a wear scan that raises leaves `stopped_early_reason` None,
+            # which already means "not determined".
+            try:
+                _wear = await asyncio.to_thread(loss_audit.wear_by_device, night, cfg.get("devices", []))
+            except Exception as e:                 # noqa: BLE001 - a wear scan is a REPORT, not the QC
+                log.warning("qc: wear scan failed, reasons unavailable: %s", e)
+                _wear = None
+            summ = nightqc.attach_wear(summ, _wear)
+            summ["isolation"] = _QC_ISOLATION      # how this scan was produced, beside what it found
             # ── DID THE LIVE CPAP STREAM RECORD THE SESSION? ─────────────────────────────────────
             # On 2026-08-26 the machine ran a full night, `edf_dir` stayed empty, and NOTHING said so
             # — the stream is operator-initiated (`POST /api/cpap/stream`; there is no scheduled
@@ -7683,7 +8067,12 @@ async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = N
                                         f"{n}: no data on {', '.join(summ['missing'])} "
                                         f"{int(waited / 3600)}h into the night.")
         except Exception as e:                             # QC is observability — never take capture down
-            log.warning("qc poll failed: %r", e)
+            # exc_info, NOT just %r. This handler logged `AttributeError("'str' object has no attribute
+            # 'get'")` on main under `-n 4` — reddening #3024, #3027 and 320d7a6e — and the repr alone
+            # names neither the frame nor the value, so three sessions read `summ` as the suspect while
+            # `summ["isolation"] = …` on the line after the offload already proves it is a dict. A
+            # swallowed exception that cannot be located is a defect that cannot be fixed.
+            log.warning("qc poll failed: %r", e, exc_info=True)
 
 
 async def _archive_transfer(captures: str, target: dict, settle: float, schedule: dict,
@@ -7744,34 +8133,59 @@ async def loss_poller(cfg: dict, root: str):
         await asyncio.sleep(interval)
         try:
             active = await asyncio.to_thread(diskguard.active_nights, captures, settle)
-            nights = [n for n in await asyncio.to_thread(diskguard.list_nights, captures) if n not in active]
+            every = await asyncio.to_thread(diskguard.list_nights, captures)
+            nights = [n for n in every if n not in active]
             for night in nights[-int(lcfg.get("max_nights", 14)):]:
                 nd = os.path.join(captures, night)
                 vpath = os.path.join(nd, loss_audit.VERDICT_NAME)
-                newest = await asyncio.to_thread(_newest_mtime, nd)
-                if os.path.exists(vpath) and os.path.getmtime(vpath) >= newest:
-                    continue                                   # audited since the night last changed
-                obj = await asyncio.to_thread(loss_audit.write_night, nd, cfg.get("devices", []), commit=commit)
-                STATUS.setdefault("loss", {})[night] = {"status": obj["status"], "at": obj["at"],
-                                                        "daemon_caused_min": (obj.get("result") or {}).get("daemon_caused_min")}
-                dc = (obj.get("result") or {}).get("daemon_caused_min") or 0
-                if dc:
-                    log.warning("loss-audit: %s — %.0f min of the night's gaps were the daemon's own doing (%s)",
-                                night, dc, obj.get("reason"))
+                # THE NIGHT'S DATA, NOT THE NIGHT'S DIRECTORY. `nightqc.newest_data_mtime` ranks
+                # DEVICE-CAPTURE files only and excludes sidecars deliberately — its docstring says
+                # that exclusion is the whole point. A directory-wide max counts every marker any
+                # other actor writes, and the archive mirror writes `.archived` per night on every
+                # verified push: measured on vigil 2026-09-23, that marker made **12 settled nights**
+                # read as "changed" on every 30-minute poll, re-reading ~1.9 GB of H10 ECG alone
+                # (more with the other devices), re-running a journal subprocess per device, and
+                # rewriting 24 files — forever, for nights whose data had not moved in days. The
+                # docstring above already promised "the night's PRIMARY files"; this is the code
+                # doing what it said.
+                newest = await asyncio.to_thread(nightqc.newest_data_mtime, nd)
+                if newest is None:
+                    continue                                   # no capture file: nothing to audit
+                # audit only when the night's DATA changed since the last audit (otherwise it stands)
+                if not (os.path.exists(vpath) and os.path.getmtime(vpath) >= newest):
+                    obj = await asyncio.to_thread(loss_audit.write_night, nd, cfg.get("devices", []), commit=commit)
+                    STATUS.setdefault("loss", {})[night] = {"status": obj["status"], "at": obj["at"],
+                                                            "daemon_caused_min": (obj.get("result") or {}).get("daemon_caused_min")}
+                    dc = (obj.get("result") or {}).get("daemon_caused_min") or 0
+                    if dc:
+                        log.warning("loss-audit: %s — %.0f min of the night's gaps were the daemon's own doing (%s)",
+                                    night, dc, obj.get("reason"))
+                await _solid_night(nd, night, cfg, every, active, commit)
         except Exception:  # noqa: BLE001 — one bad night must not stop the poller
             log.warning("loss-audit: poll failed", exc_info=True)
 
 
-def _newest_mtime(night_dir: str) -> float:
-    newest = 0.0
-    for n in os.listdir(night_dir):
-        if n in (loss_audit.AUDIT_NAME, loss_audit.VERDICT_NAME):
-            continue
-        try:
-            newest = max(newest, os.path.getmtime(os.path.join(night_dir, n)))
-        except OSError:
-            continue  # a file that vanished between listdir and stat is not newer than anything
-    return newest
+async def _solid_night(nd: str, night: str, cfg: dict, nights: list, active: set, commit) -> None:
+    """SOLID-NIGHT §2: the night's verdict, composed on the LOSS AUDIT'S OWN TRIGGER — it runs only for a
+    settled night, after that night's audit, and again only when the audit is newer than the verdict (the
+    audit re-runs when the night's data changes, and the verdict follows it). Its failure is its own: a
+    night whose verdict cannot be composed is logged and left without one (so the run reads it as
+    unassessed), and the loss audit above is never undone by it."""
+    vpath = os.path.join(nd, loss_audit.VERDICT_NAME)
+    spath = os.path.join(nd, solid_night.VERDICT_NAME)
+    if not os.path.exists(vpath):
+        return                                          # no audit yet: nothing to compose over
+    if os.path.exists(spath) and os.path.getmtime(spath) >= os.path.getmtime(vpath):
+        return                                          # composed since the audit last changed
+    try:
+        obj, run = await asyncio.to_thread(
+            solid_night.write_night, nd, cfg.get("devices", []), nights=nights, active=active, commit=commit)
+    except Exception:  # noqa: BLE001 — one night's verdict must not stop the poller
+        log.warning("solid-night: %s — verdict not written", night, exc_info=True)
+        return
+    STATUS["solid"] = {"night": night, "status": obj["status"], "reason": obj["reason"],
+                       "run": run["statement"], "solid": run["solid"], "exit": run["exit"]}
+    log.info("solid-night: %s %s — %s", night, obj["status"], run["statement"])
 
 
 async def seal_poller(cfg: dict, root: str):
@@ -7982,7 +8396,8 @@ async def pull_polar_offline_all(dev: dict, root: str) -> dict:
     link (capture pauses, then resumes). Idempotent: pull_recording skips a file already on disk at the
     same size, so a repeat pull only fetches genuinely new bytes — true as of 2026-08-01; this docstring
     asserted it for months while the code re-downloaded the whole flash every time (audit F3b).
-    Returns {sessions, pulled, new_files, short, ok}. A truncated file is reported, never counted as
+    Returns {sessions, pulled, new_files, short, unenumerated, unanswered_sessions, ok}. A truncated
+    file is reported, never counted as
     pulled: these onboard recordings are the backup for a lossy live link, so one that looks complete
     and is not is the worst outcome available here."""
     import polar_psftp        # runtime-only (pulls bleak) — keeps `import capture` stdlib-clean for CI
@@ -7994,6 +8409,7 @@ async def pull_polar_offline_all(dev: dict, root: str) -> dict:
         hci = await adapter_hci()
         sessions = await polar_psftp.list_recordings(address, adapter=hci)
         pulled, new_files, short = 0, [], []
+        unenumerated, unanswered_sessions = 0, 0
         for sess in sessions:
             path = sess.get("path")
             if not path:
@@ -8004,16 +8420,42 @@ async def pull_polar_offline_all(dev: dict, root: str) -> dict:
             pulled += 1
             new_files.extend((m or {}).get("new_files") or [])
             short.extend((m or {}).get("short") or [])
+            # §∅ ACROSS THE FOLD. Two absences were invisible here. (a) `unenumerated` — a session
+            # whose listing was truncated or unreadable pulled a subset of unknown size, and this
+            # aggregate RECOMPUTED `ok` from `short` alone rather than reading the per-session
+            # verdict, so a producer-side refusal could never reach the caller. (b) `m or {}` — a
+            # session that returned NOTHING contributed no shorts and therefore read as clean; a
+            # missing manifest is an unanswered session, not a quiet one.
+            unenumerated += int((m or {}).get("unenumerated") or 0)
+            if not m:
+                unanswered_sessions += 1
         if short:
             # LOUD, because the journal is the only alerting surface a box with no webhook has, and a
             # truncated backup is exactly the thing you want to know about before the disk guard prunes
             # the live copy of the same night.
             log.warning("%s: %d offline file(s) came back SHORT and were left as .part — the next pull "
                         "re-fetches them: %s", dev.get("name") or address, len(short), "; ".join(short[:3]))
+        if unenumerated or unanswered_sessions:
+            log.warning("%s: pull ran over an INCOMPLETE file set — %d unenumerated director(ies), "
+                        "%d session(s) returned no manifest. `ok` is false because the set is of "
+                        "unknown size, not because a file was short.",
+                        dev.get("name") or address, unenumerated, unanswered_sessions)
         return {"sessions": len(sessions), "pulled": pulled, "new_files": new_files,
-                "short": short, "ok": not short}
+                "short": short, "unenumerated": unenumerated,
+                "unanswered_sessions": unanswered_sessions,
+                "ok": not short and not unenumerated and not unanswered_sessions}
 
-    return await polar_offline_op(address, _op, timeout=_OFFLINE_OP_TIMEOUT_S)
+    # `presence_check_s` for the SAME reason the clock sync passes it: this runs unattended on a loop
+    # (`charger_pull_poller` is its only caller), so it is the second caller that must not spend the
+    # global lock proving a device is absent. The user-clicked pull stays unguarded, as designed.
+    #
+    # Measured 2026-09-03, the night this was found: the H10 stopped advertising on 09-01 and the poller
+    # kept firing at it — 253 of 350 overnight offline ops, each holding `_CONNECT_LOCK` through a doomed
+    # 45 s connect. 108 minutes of a 10 h night (18 %) with every OTHER sensor's reconnect queued behind
+    # a device that was not on the air. The clock-sync caller sat out the same night correctly, deferring
+    # ~199 times for a few seconds of scan each; only this call site paid full price.
+    return await polar_offline_op(address, _op, timeout=_OFFLINE_OP_TIMEOUT_S,
+                                  presence_check_s=_AUTOPULL_PRESENCE_S)
 
 
 # On-charger auto-pull state. A device goes on the charger the moment a night ends, so "on charger" is the
@@ -9126,6 +9568,281 @@ async def loop_monitor(period_s: float = 1.0):
             log.warning("event loop stalled %.0f ms — every live stream's host stamps waited behind "
                         "whatever held it (stalls so far: %d, max %.0f ms)",
                         lag_ms, rec["stalls"], rec["lag_max_ms"])
+
+
+# ── WHAT HELD THE LOOP: the garbage collector, timed ────────────────────────────────────────────
+#
+# `loop_monitor` above measures the ONE shared resource and says so in its own docstring — "that
+# lateness IS the time some other callback held the loop" — but it cannot NAME the holder. This names
+# one candidate, and only one: a generational GC pass is stop-the-world for the thread it runs on, and
+# this daemon's loop is that thread.
+#
+# THE OBSERVATION IT EXISTS TO TEST (2026-09-23, the first night under #2936). `loop.lag_max_ms` rose
+# 272 → 292 → 337 → 401 → 457 → 523 → 593 ms between 00:07 and 04:15, 40 stalls ≥ 100 ms, FLAT after
+# the 04:46 doff and zero stalls in 15 min of post-night sampling. `RssAnon` rose 128 → 245 MB over the
+# same hours and was also flat after the doff. No clock-sync or pause activity between 00:00 and 04:00.
+# Same slope, same stop. The hypothesis that fits: a heap that grows through the night makes each gen-2
+# pass longer, and a gen-2 pass holds the loop.
+#
+# IT IS A HYPOTHESIS AND THIS IS THE INSTRUMENT, NOT THE FIX. Nothing here calls `gc.freeze()` or moves
+# a threshold: a remedy chosen before a night correlates gen-2 DURATIONS with the stall INSTANTS would
+# be a guess dressed as a fix, and if the correlation fails the hypothesis is dead while the instrument
+# stays useful. An off-daemon test of `summarize` saw zero gen-2 passes, which is evidence about that
+# function and not about the daemon — the daemon's heap carries the night's buffers.
+#
+# ALL THREE GENERATIONS ARE TIMED, not just gen-2, and that is deliberate rather than scope. The
+# callback fires on every collection once registered, so skipping gen-0 would save an arithmetic
+# operation and no call; and gen-0's duration is the CONTROL — it scans a set bounded by the collection
+# threshold, so it cannot grow with the heap. Gen-0 flat while gen-2 climbs is the signature the
+# hypothesis predicts; gen-0 climbing too would say the cost is not heap-scan-bound and would send the
+# next unit somewhere else. Measuring only the generation you expect to move cannot tell you that.
+_GC_PASS: dict = {}       # generation -> {"n", "last_ms", "max_ms"}; EMPTY until a pass completes
+_GC_T0: dict = {}         # generation -> monotonic at the "start" phase
+_GC_HOOK_ERRORS = 0       # counted, never swallowed silently — see the callback
+
+
+def _gc_pass_callback(phase, info):
+    """Time one GC pass. Registered on `gc.callbacks`, so it runs INSIDE collection: it must be cheap,
+    must not allocate meaningfully, and must not raise.
+
+    It cannot log. A logging call here would allocate during a collection and could recurse into the
+    very pass being timed, so a failure is COUNTED instead (`_GC_HOOK_ERRORS`, published beside the
+    numbers) rather than silently swallowed — an instrument that fails invisibly is worse than one that
+    is absent, because its zero reads like a measurement.
+
+    A `stop` with no recorded `start` is the pass that was already running when the hook was installed.
+    It is dropped rather than timed from an invented origin (§∅: an unmeasured duration is not 0)."""
+    global _GC_HOOK_ERRORS
+    try:
+        gen = info.get("generation")
+        if phase == "start":
+            _GC_T0[gen] = _time.monotonic()
+            return
+        t0 = _GC_T0.pop(gen, None)
+        if t0 is None:
+            return
+        ms = (_time.monotonic() - t0) * 1000.0
+        rec = _GC_PASS.get(gen)
+        if rec is None:
+            rec = _GC_PASS[gen] = {"n": 0, "last_ms": None, "max_ms": None}
+        rec["n"] += 1
+        rec["last_ms"] = round(ms, 3)
+        if rec["max_ms"] is None or ms > rec["max_ms"]:
+            rec["max_ms"] = round(ms, 3)
+    except Exception:   # noqa: BLE001 — an instrument must never take collection (or capture) down
+        _GC_HOOK_ERRORS += 1
+
+
+def arm_gc_probe() -> bool:
+    """Register the pass timer FOR A WINDOW, not for the process. Returns whether it is armed, so a
+    caller publishes the fact rather than assuming it.
+
+    Window-scoped because the callback fires on every collection, and gen-0 collections are frequent:
+    an always-on hook adds work to the loop whose latency is the thing under investigation. An
+    instrument that perturbs its own measurement is answerable only by not running it all the time."""
+    if _gc_pass_callback not in gc.callbacks:
+        gc.callbacks.append(_gc_pass_callback)
+    return _gc_pass_callback in gc.callbacks
+
+
+def disarm_gc_probe() -> bool:
+    """Remove the pass timer and return whether it is now absent. Idempotent: disarming a probe that was
+    never armed is not an error, because the caller that cleans up is often not the one that armed."""
+    while _gc_pass_callback in gc.callbacks:
+        gc.callbacks.remove(_gc_pass_callback)
+    return _gc_pass_callback not in gc.callbacks
+
+
+def gc_snapshot() -> dict:
+    """The reportable view: per generation the pass count and durations, plus CPython's own counters.
+
+    ⚠️ `last_ms` / `max_ms` are **None until a pass of that generation has completed**, never 0.0 (§∅).
+    A gen-2 pass is exactly what this is hunting, and gen-2 is rare — on a short run there may be none —
+    so a 0.0 there would read as "a pass took no time" and would falsify the hypothesis with a number
+    nothing measured. `collections` comes from `gc.get_stats()`, which CPython maintains whether or not
+    this probe is installed, so the counts are trustworthy even for passes that predate installation;
+    the DURATIONS are this probe's alone and only cover passes it saw."""
+    stats = gc.get_stats()
+    per = {}
+    for gen in (0, 1, 2):
+        rec = _GC_PASS.get(gen) or {}
+        s = stats[gen] if gen < len(stats) else {}
+        per[str(gen)] = {"timed_passes": rec.get("n", 0),
+                         "last_ms": rec.get("last_ms"),
+                         "max_ms": rec.get("max_ms"),
+                         "collections": s.get("collections"),
+                         "collected": s.get("collected"),
+                         "uncollectable": s.get("uncollectable")}
+    return {"enabled": gc.isenabled(),
+            "installed": _gc_pass_callback in gc.callbacks,
+            "counts": list(gc.get_count()),
+            "gen": per,
+            # Hoisted for the correlation this exists for: one line beside `loop.lag_max_ms`.
+            "gen2_last_ms": per["2"]["last_ms"],
+            "gen2_max_ms": per["2"]["max_ms"],
+            "hook_errors": _GC_HOOK_ERRORS}
+
+
+HEAP_PROBE_NAME = "heap-probe.json"
+
+
+def heap_report_row(when, traced, peak, n_objects, gc_view, top_rows, covered=True,
+                    live_streams=None) -> dict:
+    """PURE: one snapshot's row. Separated from the task so the SHAPE is testable without waiting an hour.
+
+    `top_rows` are already-formatted `compare_to` lines; the FIRST snapshot of a window has none,
+    because a difference needs two snapshots — and that absence is an empty list, never a fabricated
+    zero-growth row (§∅ applied to a comparison rather than to a value).
+
+    ⚠️ `covered` IS THE ROW'S LICENCE TO BE READ AS A MEASUREMENT. An interval in which nothing streamed
+    produces an empty diff for the same reason a leak-free interval does, and the two are opposite
+    findings. So an uncovered interval is `NOT_APPLICABLE` — the `tepna.verdict/1` value for a question
+    that did not apply — and never an empty growth list presented as "no growth found"."""
+    return {"at": when, "traced_bytes": traced, "traced_peak_bytes": peak,
+            "gc_tracked_objects": n_objects, "gc": gc_view, "top_growth": list(top_rows),
+            "covered_capture": bool(covered), "live_streams": live_streams,
+            "status": "OK" if covered else "NOT_APPLICABLE",
+            "reason": None if covered else "nothing streamed during this interval — an empty diff here "
+                                           "is the absence of capture, not the absence of growth",
+            # Said on EVERY row because it governs how the row is read, and a caveat that lives only in
+            # a docstring is a caveat the reader of the file never sees.
+            "caveat": ("durations here were measured with tracemalloc ACTIVE, which taxes every "
+                       "allocation — they are not comparable to a clean night's loop.lag_max_ms. "
+                       "gc_tracked_objects is unaffected and is what the hypothesis turns on.")}
+
+
+async def heap_probe(cfg: dict, root: str):
+    """WHAT ACCUMULATES: tracemalloc, armed on demand, comparing two snapshots an hour apart.
+
+    THE OBSERVATION (2026-09-23, re-read 2026-09-24). `RssAnon` climbed 128 → 245 MB, linear at ~21 MB/h
+    while capturing, and `loop.lag_max_ms` rose 272 → 593 ms on the same slope with 40 stalls ≥ 100 ms.
+    Both went FLAT at 04:22-04:24 — and the discriminator is what did NOT stop there: the **H10 kept
+    streaming ECG+ACC until 04:49:58 and the heap did not move for those 25 minutes**, while the Verity
+    stopped at 04:21:52 and the ring at 04:25:35. So the accumulator is in the Verity or ring path and
+    not the H10's, and 21 MB/h is an order of magnitude consistent with per-SAMPLE retention (a 4-channel
+    Verity PPG hour is ~790k values).
+
+    WHY THIS INSTRUMENT AND NOT THE TWO OBVIOUS ONES. A `gc.get_objects()` type histogram names a type
+    and never an OWNER, and walking every object is itself a gen-2-sized pause — the instrument would
+    produce the symptom it is measuring. Always-on tracemalloc taxes every allocation on the very loop
+    whose latency is under investigation. Started MID-capture with one frame it traces only the growth
+    and names it by `file:line`, which is the container itself.
+
+    `gc_tracked_objects` beside each snapshot is the hypothesis's own test and it is cheap at this
+    cadence: a GC pause scales with the tracked-object COUNT, so if the count does not climb with the
+    bytes, the lag has a different cause and the hypothesis dies on the same night rather than surviving
+    into another one. ⚠️ The gen-2 DURATIONS recorded here are taken with tracemalloc active and are
+    therefore inflated — they indicate, they do not measure. The count does not have that problem.
+
+    OFF by default; arming is the owner's restart. Every snapshot is written as it is taken rather than
+    at the end, so a daemon that restarts mid-window leaves the rows it did reach instead of nothing."""
+    hcfg = cfg.get("heap_probe") or {}
+    # The literal is WRITTEN OUT, not left implicit, so the schema scan can compare it against
+    # `settings_schema.SETTINGS["heap_probe.enabled"]`. It had to be dropped when that scan was keyed on
+    # the bare leaf — a literal `False` here joined `watchdog.enabled`'s `True` and red that test while
+    # naming watchdog — and dropping it removed this section from the scan's reach entirely. The scan is
+    # now attributed by section, so the default can be stated where a reader and a gate both see it.
+    if not hcfg.get("enabled", False):
+        log.info("heap probe: OFF — heap_probe.enabled is false")
+        return
+    import tracemalloc
+    start_after_s = float(hcfg.get("start_after_min", 30)) * 60.0
+    interval_s = float(hcfg.get("interval_min", 60)) * 60.0
+    snapshots = int(hcfg.get("snapshots", 2))
+    top = int(hcfg.get("top", 15))
+    path = os.path.join(root, "captures", HEAP_PROBE_NAME)
+
+    log.info("heap probe: ARMED — waiting for capture, then tracemalloc in %.0f min, then %d "
+             "snapshot(s) %.0f min apart, top %d growers to %s",
+             start_after_s / 60.0, snapshots, interval_s / 60.0, top, path)
+    # THE COUNTDOWN STARTS AT CAPTURE, NOT AT BOOT, and that is the difference between a measurement and
+    # a verdict about a period nobody pointed at. The growth exists only while the Verity or ring stream,
+    # and the daemon routinely starts hours earlier — 2026-09-23 booted 23:00:54 against capture at
+    # 23:13, and the night before restarted at 18:16, 18:53 and 20:56 against capture at 22:38. Counting
+    # 30 + 2x60 min from an evening restart would put the whole window over an IDLE heap and write "no
+    # growth found", which is the same shape as a check that reported success about something it never
+    # examined (CLAUDE.md §4b).
+    if not await _await_first_capture():
+        return
+    log.info("heap probe: capture is live — tracing starts in %.0f min", start_after_s / 60.0)
+    if await _stop_or_sleep(start_after_s):
+        return
+    already = tracemalloc.is_tracing()
+    if not already:
+        tracemalloc.start(1)                 # ONE frame: the allocation site is the container
+    armed = arm_gc_probe()
+    log.info("heap probe: tracing (gc pass timer armed=%s, tracemalloc was already on=%s)", armed, already)
+    rows, prev = [], None
+    try:
+        for i in range(snapshots):
+            stopped, covered = await _sleep_watching_capture(interval_s)
+            if stopped:
+                return
+            snap = tracemalloc.take_snapshot()
+            traced, peak = tracemalloc.get_traced_memory()
+            top_rows = [str(s) for s in snap.compare_to(prev, "lineno")[:top]] if prev is not None else []
+            rows.append(heap_report_row(_now().isoformat(timespec="seconds"), traced, peak,
+                                        len(gc.get_objects()), gc_snapshot(), top_rows,
+                                        covered=covered, live_streams=_live_streams()))
+            try:
+                os.makedirs(os.path.dirname(path), exist_ok=True)
+                with open(path + ".tmp", "w") as _f:
+                    json.dump({"schema": "tepna.heap-probe/1", "rows": rows}, _f, indent=2)
+                os.replace(path + ".tmp", path)   # atomic — Wren reads this while the window is open
+            except Exception as _e:               # noqa: BLE001 — evidence never takes capture down
+                log.warning("heap probe: could not write %s: %r", path, _e)
+            log.info("heap probe: snapshot %d/%d — %.1f MB traced, %d gc-tracked objects, %d growth rows",
+                     i + 1, snapshots, traced / 1e6, rows[-1]["gc_tracked_objects"], len(top_rows))
+            prev = snap
+    finally:
+        if not already:
+            tracemalloc.stop()
+        disarm_gc_probe()
+        log.info("heap probe: finished — tracing stopped, gc pass timer disarmed")
+
+
+def _live_streams() -> int:
+    """How many devices are recording right now, off the state `status_loop` already publishes."""
+    return sum(1 for d in STATUS.get("devices", {}).values()
+               if isinstance(d, dict) and d.get("recording"))
+
+
+async def _await_first_capture(poll_s: float = 10.0) -> bool:
+    """Block until ANY device is recording. False if `_STOP` came first.
+
+    `STATUS["recording"]` is `publish_recording`'s answer, which is `alerts.device_is_recording` and not
+    `connected` — and that distinction is load-bearing here for the reason its own docstring gives: an
+    unbonded H10 reads connected=True inside each doomed 1-2 s connect, so arming on `connected` would
+    start the window against a device that is writing nothing."""
+    while not STATUS.get("recording"):
+        if await _stop_or_sleep(poll_s):
+            return False
+    return True
+
+
+async def _sleep_watching_capture(seconds: float, poll_s: float = 10.0):
+    """Sleep an interval in chunks, reporting `(stopped, saw_capture)`.
+
+    Sleeping the whole interval in one call would leave the row unable to say whether anything streamed
+    during it — and an interval with no capture produces an empty growth diff that reads exactly like a
+    clean one. Chunked, the row can carry `covered_capture` and decline to be read as a measurement."""
+    saw = bool(STATUS.get("recording"))
+    remaining = seconds
+    while remaining > 0:
+        step = min(poll_s, remaining)
+        if await _stop_or_sleep(step):
+            return True, saw
+        remaining -= step
+        saw = saw or bool(STATUS.get("recording"))
+    return False, saw
+
+
+async def _stop_or_sleep(seconds: float) -> bool:
+    """Sleep, or return True the moment `_STOP` is set. A probe that ignores shutdown holds the daemon
+    for up to an hour at every stage of its own schedule."""
+    with contextlib.suppress(asyncio.TimeoutError):
+        await asyncio.wait_for(_STOP.wait(), timeout=seconds)
+    return _STOP.is_set()
 
 
 async def sd_watchdog():
@@ -10962,7 +11679,11 @@ async def main():
                    ("cpap_poller", lambda: cpap_poller(cfg, root, notifier)),
                    ("charger_pull_poller", lambda: charger_pull_poller(cfg, root)),
                    ("sd_watchdog", sd_watchdog),
-                   ("loop_monitor", loop_monitor)]
+                   ("loop_monitor", loop_monitor),
+                   # Registered unconditionally and OFF by default: a probe wired only when enabled is a
+                   # probe whose wiring is never exercised, so the night it is armed is the night its
+                   # registration is tested for the first time. It returns immediately when disabled.
+                   ("heap_probe", lambda: heap_probe(cfg, root))]
     tasks = []
     for label, mk in _BACKGROUND:
         _t = asyncio.create_task(keep_running(mk, label, notifier))

@@ -2,11 +2,13 @@
 # Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
 import json
 import logging
+import inspect
 import os
 import time
 
 import math
 import datetime as _dtmod
+from datetime import datetime, timedelta
 
 import pytest
 import nightqc
@@ -20,6 +22,28 @@ def _cap(night, name, rows, header="h1;h2\n"):
         for i in range(rows):
             fh.write(f"{i};{i}\n")
     return p
+
+
+# THE PRODUCTION FILENAME SHAPE, and the mtime that has to come with it.
+#
+# `writers.capture_filename()` embeds a 14-digit `_YYYYMMDDHHMMSS_` stamp — the instant the connection
+# opened — and `_session_of` turns it into the file's session start. A test that plants an 8-digit DATE
+# instead takes `_session_of`'s MTIME FALLBACK, which is a supported legacy case and is NOT the path any
+# real file takes: it makes session start == mtime, so the span is always 0 and always unjudgeable.
+#
+# Giving a test the production shape therefore costs an mtime as well as a stamp. Session start comes
+# from the civil stamp and session end from the absolute mtime, so pairing a July stamp with a
+# written-just-now mtime produced a span of 5,752,585 s — 66 days — rather than a night. `_stamp_epoch`
+# expresses the relationship instead of a number, exactly as `_end_0923` does, which is what keeps it
+# true in every zone; the tests that use it carry `_tz` for the same reason.
+_STAMP_0719 = "20260719220000"
+
+
+def _stamp_epoch(stamp=_STAMP_0719):
+    """The epoch a `_YYYYMMDDHHMMSS_` filename stamp resolves to FOR THIS READER — the same naive
+    conversion `_session_of` makes, so a fixture's mtimes stay in a civil-time relationship with its
+    filenames whatever zone the suite runs in."""
+    return nightqc._session_of(f"X_{stamp}_ECG.txt", 0.0)
 
 
 def test_parse_capture_name():
@@ -42,17 +66,17 @@ def test_count_rows(tmp_path):
     assert nightqc.count_rows(str(tmp_path / "does-not-exist")) == 0  # missing → 0 (OSError swallowed)
 
 
-def test_scan_night_lists_capture_files_only(tmp_path):
+def test_scan_night_lists_capture_files_only(tmp_path, _tz):
     night = str(tmp_path / "2026-07-19"); os.makedirs(night)
-    _cap(night, "Polar_H10_02849638_20260719_ECG.txt", 3)
-    _cap(night, "Tepna_20260719_LINK.csv", 2)                      # a sidecar — tagged, still listed
+    _cap(night, "Polar_H10_02849638_20260719220000_ECG.txt", 3)
+    _cap(night, "Tepna_20260719220000_LINK.csv", 2)                      # a sidecar — tagged, still listed
     open(os.path.join(night, "notes.md"), "w").write("x")          # no `_`+ext capture shape → ignored
     open(os.path.join(night, nightqc._SUMMARY_NAME), "w").write("{}")  # the QC file itself → skipped
     os.mkdir(os.path.join(night, "weird_x_ACC.txt"))               # a DIR with a capture name → not isfile
     scanned = nightqc.scan_night(night)
     files = {r["file"]: r for r in scanned}
-    assert set(files) == {"Polar_H10_02849638_20260719_ECG.txt", "Tepna_20260719_LINK.csv"}
-    assert files["Polar_H10_02849638_20260719_ECG.txt"]["rows"] == 3
+    assert set(files) == {"Polar_H10_02849638_20260719220000_ECG.txt", "Tepna_20260719220000_LINK.csv"}
+    assert files["Polar_H10_02849638_20260719220000_ECG.txt"]["rows"] == 3
 
 
 def test_scan_night_missing_dir_is_empty():
@@ -64,14 +88,16 @@ def _devices():
             {"name": "Ring", "device_id": "S8AW", "streams": ["spo2", "ppg"]}]
 
 
-def test_summarize_all_present_is_ok(tmp_path):
+def test_summarize_all_present_is_ok(tmp_path, _tz):
     night = str(tmp_path / "2026-07-19"); os.makedirs(night)
-    _cap(night, "Polar_H10_02849638_20260719_ECG.txt", 100)
-    _cap(night, "Polar_H10_02849638_20260719_ACC.txt", 50)
-    _cap(night, "Polar_H10_02849638_20260719_HR.txt", 10)
-    _cap(night, "Wellue_O2Ring-S_S8AW_20260719_SPO2.csv", 900)
-    _cap(night, "Wellue_O2Ring-S_S8AW_20260719_PPG.txt", 8000)
-    _cap(night, "Tepna_20260719_LINK.csv", 5)
+    just_started = _stamp_epoch() + 10          # a capture 10 s old: stamped, and not yet judgeable
+    for name, rows in [("Polar_H10_02849638_20260719220000_ECG.txt", 100),
+                       ("Polar_H10_02849638_20260719220000_ACC.txt", 50),
+                       ("Polar_H10_02849638_20260719220000_HR.txt", 10),
+                       ("Wellue_O2Ring-S_S8AW_20260719220000_SPO2.csv", 900),
+                       ("Wellue_O2Ring-S_S8AW_20260719220000_PPG.txt", 8000),
+                       ("Tepna_20260719220000_LINK.csv", 5)]:
+        _utime(_cap(night, name, rows), just_started)
     s = nightqc.summarize(night, _devices())
     assert s["ok"] is True and s["missing"] == []
     assert s["night"] == "2026-07-19" and s["files"] == 6
@@ -81,15 +107,19 @@ def test_summarize_all_present_is_ok(tmp_path):
     assert h10["streams"] == {"ecg": 100, "acc": 50, "hr": 10}
 
 
-def test_summarize_flags_a_missing_and_header_only_stream(tmp_path):
+def test_summarize_flags_a_missing_and_header_only_stream(tmp_path, _tz):
     night = str(tmp_path / "2026-07-19"); os.makedirs(night)
-    _cap(night, "Polar_H10_02849638_20260719_ECG.txt", 100)
-    _cap(night, "Polar_H10_02849638_20260719_ACC.txt", 0)         # header-only → counts as missing
+    just_started = _stamp_epoch() + 10
+    _utime(_cap(night, "Polar_H10_02849638_20260719220000_ECG.txt", 100), just_started)
+    _utime(_cap(night, "Polar_H10_02849638_20260719220000_ACC.txt", 0), just_started)  # header-only → missing
     # HR file absent entirely → also missing; Ring produced nothing at all
     s = nightqc.summarize(night, _devices())
     assert s["ok"] is False
     assert set(s["missing"]) == {"H10:acc", "H10:hr", "Ring:spo2", "Ring:ppg"}
-    assert s["span_sec"] is None                                  # freshly written → too short to judge
+    # A capture 10 s into its session is too short to judge — the `< _MIN_SPAN_SEC` branch. This used to
+    # read None because a stampless name made session start == mtime, so the span was 0 by construction
+    # and this assertion could not distinguish "just started" from "no stamp".
+    assert s["span_sec"] is None
 
 
 def _utime(p, t):
@@ -194,16 +224,16 @@ def test_summarize_scopes_coverage_to_the_current_session(tmp_path):
     assert s["gaps_in_night"] == [], "nothing was excluded from the night itself"
 
 
-def test_summarize_flags_a_degraded_trickle(tmp_path):
+def test_summarize_flags_a_degraded_trickle(tmp_path, _tz):
     """A stream that produced data but only a fraction of its rate — the Verity IMU at ~40%, a stream that
     died at hour one — is `degraded`, not a green `ok`. Coverage is delivered rows vs rate × span."""
     night = str(tmp_path / "2026-07-19"); os.makedirs(night)
-    base = 1_000_000.0
-    ecg = _cap(night, "Polar_H10_02849638_20260719_ECG.txt", 130000)   # 130 Hz nominal → ~full
-    acc = _cap(night, "Polar_H10_02849638_20260719_ACC.txt", 40000)    # 200 Hz nominal → ~20%
-    hr = _cap(night, "Polar_H10_02849638_20260719_HR.txt", 1000)       # 1 Hz nominal → full
-    spo2 = _cap(night, "Wellue_O2Ring-S_S8AW_20260719_SPO2.csv", 1000)  # O2Ring branch, 1 Hz → full
-    ppg = _cap(night, "Wellue_O2Ring-S_S8AW_20260719_PPG.txt", 125738)  # 125.738 Hz → full
+    base = _stamp_epoch()
+    ecg = _cap(night, "Polar_H10_02849638_20260719220000_ECG.txt", 130000)   # 130 Hz nominal → ~full
+    acc = _cap(night, "Polar_H10_02849638_20260719220000_ACC.txt", 40000)    # 200 Hz nominal → ~20%
+    hr = _cap(night, "Polar_H10_02849638_20260719220000_HR.txt", 1000)       # 1 Hz nominal → full
+    spo2 = _cap(night, "Wellue_O2Ring-S_S8AW_20260719220000_SPO2.csv", 1000)  # O2Ring branch, 1 Hz → full
+    ppg = _cap(night, "Wellue_O2Ring-S_S8AW_20260719220000_PPG.txt", 125738)  # 125.738 Hz → full
     # a 1000 s span: ACC last written at session start (died early), ECG current
     for p in (acc, hr, spo2, ppg):
         _utime(p, base)
@@ -221,13 +251,13 @@ def test_summarize_flags_a_degraded_trickle(tmp_path):
     assert s["missing"] == []
 
 
-def test_summarize_coverage_uses_configured_rate_and_skips_unknown(tmp_path):
+def test_summarize_coverage_uses_configured_rate_and_skips_unknown(tmp_path, _tz):
     """A device's own `rates` override the nominal denominator; a stream with no reference rate makes no
     coverage claim (better silent than fabricated)."""
     night = str(tmp_path / "2026-07-19"); os.makedirs(night)
-    base = 1_000_000.0
-    acc = _cap(night, "Polar_VeritySense_0C30_20260719_ACC.txt", 52000)   # configured 52 Hz → full
-    foo = _cap(night, "Polar_VeritySense_0C30_20260719_FOO.txt", 10)      # no nominal → no coverage
+    base = _stamp_epoch()
+    acc = _cap(night, "Polar_VeritySense_0C30_20260719220000_ACC.txt", 52000)   # configured 52 Hz → full
+    foo = _cap(night, "Polar_VeritySense_0C30_20260719220000_FOO.txt", 10)      # no nominal → no coverage
     _utime(acc, base); _utime(foo, base + 1000)
     devs = [{"name": "Verity", "device_id": "0C30", "model": "VeritySense",
              "streams": ["acc", "foo"], "rates": {"acc": 52}}]
@@ -237,20 +267,22 @@ def test_summarize_coverage_uses_configured_rate_and_skips_unknown(tmp_path):
     assert s["degraded"] == [] and s["ok"] is True
 
 
-def test_summarize_no_data_files_span_is_none(tmp_path):
+def test_summarize_no_data_files_span_is_none(tmp_path, _tz):
     """A night with only a sidecar has no capture span to measure — coverage stays unknown, not zero."""
     night = str(tmp_path / "2026-07-19"); os.makedirs(night)
-    _cap(night, "Tepna_20260719_LINK.csv", 5)                     # sidecar only, no device data
+    _cap(night, "Tepna_20260719220000_LINK.csv", 5)                     # sidecar only, no device data
     s = nightqc.summarize(night, [{"name": "H10", "device_id": "X", "streams": ["ecg"]}])
     assert s["span_sec"] is None and s["missing"] == ["H10:ecg"]
 
 
 # ── VIGIL: an OPTIONAL backup device that did not join is NOT a fault (known-but-not-expected) ──
-def test_summarize_optional_device_absence_is_not_missing_and_stays_ok(tmp_path):
+def test_summarize_optional_device_absence_is_not_missing_and_stays_ok(tmp_path, _tz):
     night = str(tmp_path / "2026-07-19"); os.makedirs(night)
-    _cap(night, "Polar_H10_02849638_20260719_ECG.txt", 100)
-    _cap(night, "Polar_H10_02849638_20260719_ACC.txt", 50)
-    _cap(night, "Polar_H10_02849638_20260719_HR.txt", 10)
+    just_started = _stamp_epoch() + 10   # stamped files need a matching mtime or the span is 66 days
+    for name, rows in [("Polar_H10_02849638_20260719220000_ECG.txt", 100),
+                       ("Polar_H10_02849638_20260719220000_ACC.txt", 50),
+                       ("Polar_H10_02849638_20260719220000_HR.txt", 10)]:
+        _utime(_cap(night, name, rows), just_started)
     devices = [{"name": "H10", "device_id": "02849638", "streams": ["ecg", "acc", "hr"]},
                {"name": "COOSPO", "device_id": "COOSPO01", "streams": ["hr"], "optional": True}]
     s = nightqc.summarize(night, devices)
@@ -259,11 +291,11 @@ def test_summarize_optional_device_absence_is_not_missing_and_stays_ok(tmp_path)
     assert s["optional_absent"] == ["COOSPO:hr"]            # but it is still recorded as known-and-absent
 
 
-def test_summarize_a_NON_optional_absence_still_fails(tmp_path):
+def test_summarize_a_NON_optional_absence_still_fails(tmp_path, _tz):
     night = str(tmp_path / "2026-07-19"); os.makedirs(night)
-    _cap(night, "Polar_H10_02849638_20260719_ECG.txt", 100)
-    _cap(night, "Polar_H10_02849638_20260719_ACC.txt", 50)
-    _cap(night, "Polar_H10_02849638_20260719_HR.txt", 10)
+    _cap(night, "Polar_H10_02849638_20260719220000_ECG.txt", 100)
+    _cap(night, "Polar_H10_02849638_20260719220000_ACC.txt", 50)
+    _cap(night, "Polar_H10_02849638_20260719220000_HR.txt", 10)
     devices = [{"name": "H10", "device_id": "02849638", "streams": ["ecg", "acc", "hr"]},
                {"name": "Belt", "device_id": "BELT01", "streams": ["hr"]}]    # NOT optional
     s = nightqc.summarize(night, devices)
@@ -911,7 +943,7 @@ def test_night_window_is_published_WITHOUT_clobbering_the_existing_night_key(tmp
 # ── Level B survivors handed over by the QC author (#1307's advisory mutation gate). Three clusters,
 # ── each a BOUNDARY the existing fixtures step over rather than land on.
 
-def test_span_at_exactly_the_minimum_is_judgeable(tmp_path):
+def test_span_at_exactly_the_minimum_is_judgeable(tmp_path, _tz):
     """`_MIN_SPAN_SEC` is a FLOOR, not a bar to clear.
 
     `span = span if span >= _MIN_SPAN_SEC else None` — at exactly the floor the span IS judgeable, and
@@ -919,9 +951,9 @@ def test_span_at_exactly_the_minimum_is_judgeable(tmp_path):
     -> `>` mutant survives them all: it only changes behaviour for a span of exactly 300 s, which is
     reachable (a 5-minute capture) and turns a real coverage number into `unknown`."""
     night = str(tmp_path / "2026-07-19"); os.makedirs(night)
-    base = 1_000_000.0
-    ecg = _cap(night, "Polar_H10_02849638_20260719_ECG.txt", 39000)   # 130 Hz x 300 s -> exactly 1.0
-    hr = _cap(night, "Polar_H10_02849638_20260719_HR.txt", 300)
+    base = _stamp_epoch()
+    ecg = _cap(night, "Polar_H10_02849638_20260719220000_ECG.txt", 39000)   # 130 Hz x 300 s -> exactly 1.0
+    hr = _cap(night, "Polar_H10_02849638_20260719220000_HR.txt", 300)
     _utime(hr, base)
     _utime(ecg, base + nightqc._MIN_SPAN_SEC)
     s = nightqc.summarize(night, [{"name": "H10", "device_id": "02849638", "streams": ["ecg", "hr"]}])
@@ -930,7 +962,7 @@ def test_span_at_exactly_the_minimum_is_judgeable(tmp_path):
     assert h10["coverage"].get("ecg") == 1.0, f"a span of exactly the floor must be judged: {h10['coverage']}"
 
 
-def test_coverage_exactly_at_the_degraded_threshold_is_not_degraded(tmp_path):
+def test_coverage_exactly_at_the_degraded_threshold_is_not_degraded(tmp_path, _tz):
     """`_DEGRADED_BELOW` is exclusive, and the rounding that feeds it is to 2 dp.
 
     Two mutants live on this one line pair and both need the SAME fixture to die: `cov < _DEGRADED_BELOW`
@@ -940,9 +972,9 @@ def test_coverage_exactly_at_the_degraded_threshold_is_not_degraded(tmp_path):
     Rows are chosen so the raw ratio is 0.495100 — `round(_, 2)` is 0.5 and NOT degraded, `round(_, 3)`
     is 0.495 and degraded. One fixture, opposite verdicts, so neither mutant can hide."""
     night = str(tmp_path / "2026-07-19"); os.makedirs(night)
-    base = 1_000_000.0
-    ecg = _cap(night, "Polar_H10_02849638_20260719_ECG.txt", 64363)   # 64363 / (130*1000) = 0.495100
-    hr = _cap(night, "Polar_H10_02849638_20260719_HR.txt", 1000)
+    base = _stamp_epoch()
+    ecg = _cap(night, "Polar_H10_02849638_20260719220000_ECG.txt", 64363)   # 64363 / (130*1000) = 0.495100
+    hr = _cap(night, "Polar_H10_02849638_20260719220000_HR.txt", 1000)
     _utime(hr, base)
     _utime(ecg, base + 1000)
     s = nightqc.summarize(night, [{"name": "H10", "device_id": "02849638", "streams": ["ecg", "hr"]}])
@@ -967,7 +999,7 @@ def _cap_timed(night, name, rows, hz, t0_ns=1_000_000_000_000):
     return p
 
 
-def test_coverage_judges_against_the_MEASURED_rate_not_the_configured_one(tmp_path):
+def test_coverage_judges_against_the_MEASURED_rate_not_the_configured_one(tmp_path, _tz):
     """A device configured for one rate and delivering another must be judged against what it DID.
 
     `hz = _measured_hz_of.get((name, s)) or _expected_hz(d, s)` — the measured rate wins, and six
@@ -982,9 +1014,9 @@ def test_coverage_judges_against_the_MEASURED_rate_not_the_configured_one(tmp_pa
     ⚠️ This needs `_cap_timed`, not `_cap`: without a device-clock column the measured rate is
     unsayable, the fallback fires for a legitimate reason, and the test would pass for the wrong one."""
     night = str(tmp_path / "2026-07-19"); os.makedirs(night)
-    base = 1_000_000.0
-    ecg = _cap_timed(night, "Polar_H10_02849638_20260719_ECG.txt", 130000, 130.0)
-    hr = _cap(night, "Polar_H10_02849638_20260719_HR.txt", 1000)
+    base = _stamp_epoch()
+    ecg = _cap_timed(night, "Polar_H10_02849638_20260719220000_ECG.txt", 130000, 130.0)
+    hr = _cap(night, "Polar_H10_02849638_20260719220000_HR.txt", 1000)
     _utime(hr, base)
     _utime(ecg, base + 1000)
     dev = [{"name": "H10", "device_id": "02849638", "streams": ["ecg", "hr"], "rates": {"ecg": 260}}]
@@ -997,7 +1029,7 @@ def test_coverage_judges_against_the_MEASURED_rate_not_the_configured_one(tmp_pa
         f"{h10['coverage']}")
 
 
-def test_a_device_without_a_name_is_keyed_by_its_device_id(tmp_path):
+def test_a_device_without_a_name_is_keyed_by_its_device_id(tmp_path, _tz):
     """`name = d.get("name") or did` — a device may carry no name, and then its ID IS its name.
 
     That fallback is what `_measured_hz_of` is keyed on, so `did = d.get("device_id")` -> `did = None`
@@ -1006,10 +1038,10 @@ def test_a_device_without_a_name_is_keyed_by_its_device_id(tmp_path):
     and coverage silently falls back to the CONFIGURED rate — the same observable as the rest of the
     rate-reality cluster, reached through a different door."""
     night = str(tmp_path / "2026-07-19"); os.makedirs(night)
-    base = 1_000_000.0
-    ecg = _cap_timed(night, "Polar_H10_02849638_20260719_ECG.txt", 130000, 130.0)
+    base = _stamp_epoch()
+    ecg = _cap_timed(night, "Polar_H10_02849638_20260719220000_ECG.txt", 130000, 130.0)
     _utime(ecg, base + 1000)
-    hr = _cap(night, "Polar_H10_02849638_20260719_HR.txt", 1000)
+    hr = _cap(night, "Polar_H10_02849638_20260719220000_HR.txt", 1000)
     _utime(hr, base)
     dev = [{"device_id": "02849638", "streams": ["ecg", "hr"], "rates": {"ecg": 260}}]   # no "name"
     s = nightqc.summarize(night, dev)
@@ -1130,47 +1162,81 @@ def test_stability_provenance_reaches_the_qc_record(tmp_path):
 
 # ── ppg2w_contact — the ring's independent coupling vote ───────────────────────────────────────────
 # Constants are labelled MEASURED vs CHOSEN at the definition; these tests plant both populations the
-# thresholds were measured on and the refusal paths the block must take instead of fabricating.
+# thresholds were measured on and the refusal paths the block must take instead of fabricating. An epoch is
+# ONE SECOND OF CLOCK (each row's stamp to the second) — the fixed 100-row epoch it replaced put the doff
+# hours late once the stream ran at ~199 rows/s (2026-08-23 on), and a test that only asked `doff_at is not
+# None` let that ship. So the doff second is asserted EXACTLY here, at both measured rates.
+_T0 = datetime(2026, 1, 1, 0, 0, 0)
+RING_HDR_NQ = "Phone timestamp;sensor timestamp [ns];channel 0;channel 1;motion\n"
 
-def _worn_rows(n_ep, ratio=1.1, ch1=1_500_000):
+
+def _secs(n_rows, per_sec=100, t0=_T0):
+    """Each row's phone stamp to the second, at `per_sec` rows per second."""
+    return [(t0 + timedelta(seconds=i // per_sec)).isoformat(timespec="seconds") for i in range(n_rows)]
+
+
+def _worn_rows(n_sec, ratio=1.1, ch1=1_500_000, per_sec=100):
     ch0 = []
     ch1s = []
-    for i in range(n_ep * nightqc._PPG2W_ROWS_PER_EPOCH):
+    for i in range(n_sec * per_sec):
         ch1s.append(ch1 + (i % 7) * 100)          # small texture, well above the floor
         ch0.append(int(ch1s[-1] * ratio))
     return ch0, ch1s
 
 
-def _off_rows(n_ep):
+def _off_rows(n_sec, per_sec=100):
     # The measured off-finger signature: ch0 rails, ch1 collapses to ~10^2 counts.
-    n = n_ep * nightqc._PPG2W_ROWS_PER_EPOCH
+    n = n_sec * per_sec
     return [3_400_000] * n, [150 + (i % 5) for i in range(n)]
 
 
 def test_ppg2w_a_worn_night_reports_its_band_and_zero_off_epochs():
     ch0, ch1 = _worn_rows(120, ratio=1.1)
-    b = nightqc.ppg2w_contact(ch0, ch1)
-    assert b["off_epochs_pct"] == 0.0
+    b = nightqc.ppg2w_contact(ch0, ch1, _secs(len(ch0)))
+    assert b["epochs"] == 120 and b["off_epochs_pct"] == 0.0
     assert b["off_runs_sustained"] == 0
-    assert b["tail_off"] is False
+    assert b["tail_off"] is False and b["tail_start"] is None
     assert abs(b["worn_ratio_median"] - 1.1) < 0.01
     assert b["worn_ratio_iqr"] < 0.01
 
 
-def test_ppg2w_a_doffed_tail_is_flagged_with_its_run_length():
+def test_ppg2w_a_doffed_tail_is_flagged_with_its_run_length_and_its_first_second():
     w0, w1 = _worn_rows(100)
     o0, o1 = _off_rows(30)
-    b = nightqc.ppg2w_contact(w0 + o0, w1 + o1)
+    b = nightqc.ppg2w_contact(w0 + o0, w1 + o1, _secs(len(w0) + len(o0)))
     assert b["tail_off"] is True
     assert b["trailing_off_epochs"] == 30
+    assert b["tail_start"] == "2026-01-01T00:01:40"                  # second 100: where the off-run began
     assert b["off_runs_sustained"] == 1
     assert abs(b["off_epochs_pct"] - 100 * 30 / 130) < 0.1
+
+
+def test_ppg2w_an_epoch_is_a_SECOND_at_any_row_rate():
+    # 2026-08-23 on the stream ran ~199 rows/s: 100 s worn + 30 s off must still be 130 one-second epochs with
+    # the doff at second 100 — the fixed-row epoch read this as 260 epochs and put the doff at second 200.
+    w0, w1 = _worn_rows(100, per_sec=199)
+    o0, o1 = _off_rows(30, per_sec=199)
+    b = nightqc.ppg2w_contact(w0 + o0, w1 + o1, _secs(len(w0) + len(o0), per_sec=199))
+    assert b["epochs"] == 130 and b["trailing_off_epochs"] == 30
+    assert b["tail_start"] == "2026-01-01T00:01:40"
+
+
+def test_ppg2w_back_timed_stamps_that_step_back_across_a_second_still_make_one_epoch_per_second():
+    # Rows are back-timed per frame, so a frame can carry stamps from the previous second after rows of the
+    # next one. Grouping CONSECUTIVE labels split each second into several epochs (60 478 "epochs" in a
+    # 20 859 s file); the second's VALUE is the epoch.
+    w0, w1 = _worn_rows(70)
+    secs = _secs(len(w0))
+    for k in range(150, len(secs), 100):                            # every second boundary, a row from the one before
+        secs[k], secs[k - 1] = secs[k - 1], secs[k]
+    b = nightqc.ppg2w_contact(w0, w1, secs)
+    assert b["epochs"] == 70
 
 
 def test_ppg2w_ratio_out_of_band_is_off_even_with_ch1_above_the_floor():
     # The CHOSEN band is load-bearing on its own: bright but decoupled channels are not "worn".
     ch0, ch1 = _worn_rows(80, ratio=5.0)          # ch1 healthy, ratio far outside [0.5, 3]
-    b = nightqc.ppg2w_contact(ch0, ch1)
+    b = nightqc.ppg2w_contact(ch0, ch1, _secs(len(ch0)))
     assert b["off_epochs_pct"] == 100.0
     assert b["worn_ratio_median"] is None          # nothing qualified as worn…
     assert b["worn_ratio_iqr"] is None             # …so the band is ABSENT, not fabricated from off rows
@@ -1178,35 +1244,48 @@ def test_ppg2w_ratio_out_of_band_is_off_even_with_ch1_above_the_floor():
 
 def test_ppg2w_an_epoch_is_decided_by_its_MAJORITY_not_one_glitch_row():
     ch0, ch1 = _worn_rows(70)
-    ch1[500] = 0                                   # one dead row inside an otherwise worn epoch
-    b = nightqc.ppg2w_contact(ch0, ch1)
+    ch1[500] = 0                                   # one dead row inside an otherwise worn second
+    b = nightqc.ppg2w_contact(ch0, ch1, _secs(len(ch0)))
     assert b["off_epochs_pct"] == 0.0
+    ch1[500:549] = [0] * 49                        # 49 of that second's 100 rows: still a minority
+    assert nightqc.ppg2w_contact(ch0, ch1, _secs(len(ch0)))["off_epochs_pct"] == 0.0
+    ch1[500:551] = [0] * 51                        # 51: the majority, so that second is off
+    assert nightqc.ppg2w_contact(ch0, ch1, _secs(len(ch0)))["off_epochs_pct"] == round(100 / 70, 2)
 
 
 def test_ppg2w_under_a_minute_refuses_rather_than_reporting():
     ch0, ch1 = _worn_rows(nightqc._PPG2W_MIN_EPOCHS - 1)
-    assert nightqc.ppg2w_contact(ch0, ch1) is None
+    assert nightqc.ppg2w_contact(ch0, ch1, _secs(len(ch0))) is None
+    ch0, ch1 = _worn_rows(nightqc._PPG2W_MIN_EPOCHS)
+    assert nightqc.ppg2w_contact(ch0, ch1, _secs(len(ch0)))["epochs"] == nightqc._PPG2W_MIN_EPOCHS
 
 
-def test_ppg2w_quality_walks_a_night_and_keeps_refusals_visible(tmp_path):
+def _write_ppg2w(path, ch0, ch1, per_sec=100, t0=_T0, header_again_at=None, torn_at=None):
     hdr = "Phone timestamp;sensor timestamp [ns];channel 0;channel 1;motion\n"
-    worn = tmp_path / "Wellue_O2Ring-S_TEST_20260101000000_PPG2W.txt"
-    w0, w1 = _worn_rows(100)
-    o0, o1 = _off_rows(30)
-    with open(worn, "w") as f:
-        f.write(hdr)
-        rows = list(zip(w0 + o0, w1 + o1))
-        for i, (a, b) in enumerate(rows):
-            f.write(f"2026-01-01T00:00:{i % 60:02d}.000;0;{a};{b};0\n")
-            if i == 5000:
+    with open(path, "w") as f:
+        f.write("# timebase=host-disciplined\n" + hdr)
+        for i, (a, b) in enumerate(zip(ch0, ch1)):
+            stamp = (t0 + timedelta(seconds=i / per_sec)).isoformat(timespec="milliseconds")
+            f.write(f"{stamp};0;{a};{b};0\n")
+            if i == header_again_at:
                 f.write(hdr)                       # mid-file repeated header — the rotation artifact
+            if i == torn_at:
+                f.write("bad;row\n")               # a truncated row — rotation tears mid-line too
+
+
+def test_ppg2w_quality_walks_a_night_places_the_doff_on_the_clock_and_keeps_refusals_visible(tmp_path):
+    worn = tmp_path / "Wellue_O2Ring-S_TEST_20260101000000_PPG2W.txt"
+    w0, w1 = _worn_rows(100, per_sec=199)
+    o0, o1 = _off_rows(30, per_sec=199)
+    _write_ppg2w(worn, w0 + o0, w1 + o1, per_sec=199, header_again_at=5000)
     short = tmp_path / "Wellue_O2Ring-S_TEST_20260101010000_PPG2W.txt"
     with open(short, "w") as f:
-        f.write(hdr + "2026-01-01T01:00:00.000;0;100;100;0\n")
+        f.write("Phone timestamp;sensor timestamp [ns];channel 0;channel 1;motion\n2026-01-01T01:00:00.000;0;100;100;0\n")
     out = nightqc.ppg2w_contact_quality(str(tmp_path))
     assert [b["file"] for b in out] == [worn.name, short.name]
-    assert out[0]["usable"] is True
-    assert out[0]["tail_off"] is True and out[0]["doff_at"] is not None
+    assert out[0]["usable"] is True and out[0]["epochs"] == 130
+    assert out[0]["tail_off"] is True and out[0]["doff_at"] == "2026-01-01T00:01:40"   # EXACT, at 199 rows/s
+    assert "tail_start" not in out[0]              # the internal label is consumed, only doff_at is published
     assert out[1]["usable"] is False and "under" in out[1]["reason"]
 
 
@@ -1215,16 +1294,27 @@ def test_ppg2w_quality_is_EMPTY_when_the_stream_was_never_captured(tmp_path):
     assert nightqc.ppg2w_contact_quality(str(tmp_path / "absent")) == []
 
 
-def test_ppg2w_a_bad_first_timestamp_yields_doff_at_None_not_a_crash(tmp_path):
+def test_ppg2w_stamps_that_are_not_times_cannot_be_placed_on_a_clock_so_the_block_refuses(tmp_path):
+    # Every row's second is its stamp: 'notatime' is one "second", so the file cannot establish a minute and
+    # is refused — it is not reported as usable with a doff it cannot place.
+    p = tmp_path / "Wellue_O2Ring-S_TEST_20260101000000_PPG2W.txt"
+    w0, w1 = _worn_rows(100)
+    with open(p, "w") as f:
+        f.write("Phone timestamp;sensor timestamp [ns];channel 0;channel 1;motion\n")
+        for a, b in zip(w0, w1):
+            f.write(f"notatime;0;{a};{b};0\n")
+    out = nightqc.ppg2w_contact_quality(str(tmp_path))
+    assert out[0]["usable"] is False and "under" in out[0]["reason"]
+
+
+def test_ppg2w_a_tail_label_that_is_not_a_time_yields_doff_at_None(monkeypatch, tmp_path):
     p = tmp_path / "Wellue_O2Ring-S_TEST_20260101000000_PPG2W.txt"
     w0, w1 = _worn_rows(100)
     o0, o1 = _off_rows(30)
-    with open(p, "w") as f:
-        f.write("Phone timestamp;sensor timestamp [ns];channel 0;channel 1;motion\n")
-        for a, b in zip(w0 + o0, w1 + o1):
-            f.write(f"notatime;0;{a};{b};0\n")
-    out = nightqc.ppg2w_contact_quality(str(tmp_path))
-    assert out[0]["tail_off"] is True and out[0]["doff_at"] is None
+    _write_ppg2w(p, w0 + o0, w1 + o1)
+    real = nightqc.ppg2w_contact
+    monkeypatch.setattr(nightqc, "ppg2w_contact", lambda a, b, s: {**real(a, b, s), "tail_start": "not-a-time"})
+    assert nightqc.ppg2w_contact_quality(str(tmp_path))[0]["doff_at"] is None
 
 
 def test_ppg2w_an_unreadable_entry_is_skipped_not_fatal(tmp_path):
@@ -1238,23 +1328,114 @@ def test_ppg2w_an_off_run_that_ENDS_midsession_is_counted_and_is_not_a_doffing()
     w0a, w1a = _worn_rows(70)
     o0, o1 = _off_rows(15)
     w0b, w1b = _worn_rows(70)
-    b = nightqc.ppg2w_contact(w0a + o0 + w0b, w1a + o1 + w1b)
+    ch0, ch1 = w0a + o0 + w0b, w1a + o1 + w1b
+    b = nightqc.ppg2w_contact(ch0, ch1, _secs(len(ch0)))
     assert b["off_runs_sustained"] == 1
-    assert b["tail_off"] is False
+    assert b["tail_off"] is False and b["tail_start"] is None
     assert b["trailing_off_epochs"] == 0
+
+
+def _rows_of(pattern, per_sec=1):
+    """ch0/ch1/secs from a per-second list of (ch0, ch1) rows — one list entry per row, `per_sec` rows a second."""
+    ch0 = [a for a, _ in pattern]
+    ch1 = [b for _, b in pattern]
+    return ch0, ch1, _secs(len(pattern), per_sec=per_sec)
+
+
+_ON, _OFF = (1_650_000, 1_500_000), (3_400_000, 150)
+
+
+def test_ppg2w_the_row_count_is_the_SHORTEST_of_the_three_lists():
+    ch0, ch1 = _worn_rows(70)
+    secs = _secs(len(ch0))
+    cut = 65 * 100
+    for lists in ((ch0[:cut], ch1, secs), (ch0, ch1[:cut], secs), (ch0, ch1, secs[:cut])):
+        assert nightqc.ppg2w_contact(*lists)["epochs"] == 65
+
+
+def test_ppg2w_a_second_is_off_only_when_MORE_than_half_its_rows_are():
+    one_off = [_OFF, _ON, _ON] * 70  # 1 of 3 rows off in every second -> every second worn
+    two_off = [_OFF, _OFF, _ON] * 70  # 2 of 3 -> every second off
+    half = ([_OFF] * 50 + [_ON] * 50) * 70  # exactly half of 100 -> NOT more than half -> worn
+    assert nightqc.ppg2w_contact(*_rows_of(one_off, per_sec=3))["off_epochs_pct"] == 0.0
+    assert nightqc.ppg2w_contact(*_rows_of(two_off, per_sec=3))["off_epochs_pct"] == 100.0
+    assert nightqc.ppg2w_contact(*_rows_of(half, per_sec=100))["off_epochs_pct"] == 0.0
+
+
+def test_ppg2w_the_ratio_band_is_inclusive_at_both_edges_and_the_ch1_floor_is_exclusive():
+    def pct(a, b):
+        return nightqc.ppg2w_contact(*_rows_of([(a, b)] * 70))["off_epochs_pct"]
+
+    floor = nightqc.PPG2W_CH1_FLOOR
+    assert pct(floor, floor) == 100.0  # ch1 AT the floor is not above it
+    assert pct(floor + 1, floor + 1) == 0.0
+    assert pct(1_000_000, 2_000_000) == 0.0  # ratio exactly PPG2W_RATIO_LO (0.5)
+    assert pct(3_000_000, 1_000_000) == 0.0  # ratio exactly PPG2W_RATIO_HI (3.0)
+    assert pct(800_000, 2_000_000) == 100.0  # 0.4, under the band
+
+
+def test_ppg2w_off_runs_are_counted_at_their_exact_length():
+    # 9 (short, at the START) · 10 (exactly sustained) · 9 (short, after worn) -> exactly ONE sustained run.
+    seq = [_OFF] * 9 + [_ON] * 20 + [_OFF] * 10 + [_ON] * 20 + [_OFF] * 9 + [_ON] * 20
+    b = nightqc.ppg2w_contact(*_rows_of(seq))
+    assert b["off_runs_sustained"] == 1 and b["tail_off"] is False and b["trailing_off_epochs"] == 0
+    tail = nightqc.ppg2w_contact(*_rows_of([_ON] * 60 + [_OFF] * nightqc._PPG2W_RUN_EPOCHS))
+    assert tail["tail_off"] is True and tail["trailing_off_epochs"] == nightqc._PPG2W_RUN_EPOCHS  # exactly the bar
+
+
+def test_ppg2w_the_worn_band_is_reported_to_three_places_from_the_exact_quartiles():
+    # 100 worn seconds, ratios 1.00041 + k * 0.0001234: median r[50] = 1.00658, IQR r[75] - r[25] = 0.00617.
+    rows = [(round(10_000_000 * (1.00041 + k * 0.0001234)), 10_000_000) for k in reversed(range(100))]
+    b = nightqc.ppg2w_contact(*_rows_of(rows))
+    assert b["worn_ratio_median"] == 1.007
+    assert b["worn_ratio_iqr"] == 0.006
+    # m == 4 is the smallest band that has an IQR: r[3] - r[1] over four worn rows among 60 seconds.
+    four = [(1_100_000, 1_000_000), (1_200_000, 1_000_000), (1_300_000, 1_000_000), (1_400_000, 1_000_000)]
+    b = nightqc.ppg2w_contact(*_rows_of(four + [_OFF] * 56))
+    assert b["worn_ratio_iqr"] == 0.2 and b["worn_ratio_median"] == 1.3
+
+
+def test_ppg2w_quality_an_unusable_session_does_not_end_the_night(tmp_path):
+    (tmp_path / "Wellue_O2Ring-S_TEST_20260101000000_PPG2W.txt").write_text(RING_HDR_NQ + "2026-01-01T00:00:00.000;0;1;1;0\n")
+    w0, w1 = _worn_rows(70)
+    _write_ppg2w(tmp_path / "Wellue_O2Ring-S_TEST_20260101010000_PPG2W.txt", w0, w1, t0=_T0 + timedelta(hours=1))
+    out = nightqc.ppg2w_contact_quality(str(tmp_path))
+    assert [b["usable"] for b in out] == [False, True]
+
+
+def test_ppg2w_quality_reads_channel_0_and_channel_1_from_their_own_columns(tmp_path):
+    ch0, ch1 = _worn_rows(70, ratio=5.0)  # ch1 healthy, ch0 five times it: out of band
+    _write_ppg2w(tmp_path / "Wellue_O2Ring-S_TEST_20260101000000_PPG2W.txt", ch0, ch1)
+    assert nightqc.ppg2w_contact_quality(str(tmp_path))[0]["off_epochs_pct"] == 100.0
+
+
+def test_ppg2w_quality_a_byte_that_is_not_utf8_does_not_lose_the_session(tmp_path):
+    p = tmp_path / "Wellue_O2Ring-S_TEST_20260101000000_PPG2W.txt"
+    w0, w1 = _worn_rows(70)
+    _write_ppg2w(p, w0, w1)
+    p.write_bytes(p.read_bytes() + b"2026-01-01T00:01:10.000;0;1650000;1500000;\xff\n")
+    assert nightqc.ppg2w_contact_quality(str(tmp_path))[0]["usable"] is True
+
+
+def test_ppg2w_quality_an_unreadable_session_is_LOGGED_by_name_with_its_exception(tmp_path, caplog):
+    name = "Wellue_O2Ring-S_TEST_20260101000000_PPG2W.txt"
+    (tmp_path / name).mkdir()
+    w0, w1 = _worn_rows(70)
+    later = "Wellue_O2Ring-S_TEST_20260101010000_PPG2W.txt"  # sorts AFTER the unreadable one
+    _write_ppg2w(tmp_path / later, w0, w1, t0=_T0 + timedelta(hours=1))
+    with caplog.at_level(logging.WARNING):
+        assert [b["file"] for b in nightqc.ppg2w_contact_quality(str(tmp_path))] == [later]
+    (rec,) = [r for r in caplog.records if "unreadable" in r.getMessage()]
+    assert name in rec.getMessage() and "ABSENT rather than poor" in rec.getMessage()
+    assert rec.exc_info and rec.exc_info[0] is not None
 
 
 def test_ppg2w_a_truncated_row_is_skipped_like_the_repeated_header(tmp_path):
     p = tmp_path / "Wellue_O2Ring-S_TEST_20260101000000_PPG2W.txt"
     w0, w1 = _worn_rows(70)
-    with open(p, "w") as f:
-        f.write("Phone timestamp;sensor timestamp [ns];channel 0;channel 1;motion\n")
-        for i, (a, b) in enumerate(zip(w0, w1)):
-            f.write(f"2026-01-01T00:00:00.000;0;{a};{b};0\n")
-            if i == 100:
-                f.write("bad;row\n")               # a truncated row — rotation tears mid-line too
+    _write_ppg2w(p, w0, w1, torn_at=100)
     out = nightqc.ppg2w_contact_quality(str(tmp_path))
-    assert out[0]["usable"] is True and out[0]["off_epochs_pct"] == 0.0
+    assert out[0]["usable"] is True and out[0]["off_epochs_pct"] == 0.0 and out[0]["epochs"] == 70
 
 
 # ── ring-clock drift summary (O2Ring _rtclog.csv → nightly verdict) ─────────────────────────────────
@@ -1335,7 +1516,7 @@ def test_qc_digest_omits_rtc_when_absent():
     assert "H10 99%" in line and "RTC" not in line
 
 
-def test_summarize_attaches_ring_rtc_drift(tmp_path):
+def test_summarize_attaches_ring_rtc_drift(tmp_path, _tz):
     """The discovery path: a `_RTCLOG.csv` beside the ring's capture files is found by device id and
     rolled into that device's per-device entry — the false branch (no rtclog → rtc None) is already
     covered by every other summarize test.
@@ -1347,10 +1528,10 @@ def test_summarize_attaches_ring_rtc_drift(tmp_path):
     2026-09-05: 29 real `_RTCLOG.csv` files on vigil that day, `rtc: null` for every device.
     A fixture must be spelled the way the producing code spells it."""
     night = str(tmp_path / "2026-07-19"); os.makedirs(night)
-    _cap(night, "Wellue_O2Ring-S_S8AW_20260719_SPO2.csv", 900)
-    _cap(night, "Wellue_O2Ring-S_S8AW_20260719_PPG.txt", 8000)
+    _cap(night, "Wellue_O2Ring-S_S8AW_20260719220000_SPO2.csv", 900)
+    _cap(night, "Wellue_O2Ring-S_S8AW_20260719220000_PPG.txt", 8000)
     hdr = "Phone timestamp;event;rtc_offset_s;battery_state;battery_level;battery_raw2;battery_raw3\n"
-    (tmp_path / "2026-07-19" / "Wellue_O2Ring-S_S8AW_20260719_RTCLOG.csv").write_text(
+    (tmp_path / "2026-07-19" / "Wellue_O2Ring-S_S8AW_20260719220000_RTCLOG.csv").write_text(
         hdr + "2026-07-19T22:00:00.000;read;0.0;;;;\n2026-07-20T05:00:00.000;read;1.0;;;;\n", encoding="utf-8")
     s = nightqc.summarize(night, _devices())
     ring = next(d for d in s["devices"] if d["name"] == "Ring")
@@ -1439,7 +1620,7 @@ def test_dat_timefit_summary_returns_none_on_timeout(tmp_path, monkeypatch):
     assert nightqc.dat_timefit_summary(str(dat), str(csv), tool_path=str(tool)) is None
 
 
-def test_summarize_attaches_the_dat_fit_when_both_sidecars_land(tmp_path, monkeypatch):
+def test_summarize_attaches_the_dat_fit_when_both_sidecars_land(tmp_path, monkeypatch, _tz):
     """The discovery path inside summarize: a `_STORED.dat` (onboard pull) AND a `_SPO2.csv` (live)
     for the same ring → `datfit` attached to that device's entry. `dat_timefit_summary` itself is
     stubbed — the DISCOVERY is under test, and stubbing one level down (subprocess) left the test
@@ -1448,8 +1629,8 @@ def test_summarize_attaches_the_dat_fit_when_both_sidecars_land(tmp_path, monkey
     was ever reached, and the mutation gate's baseline run failed on a test that passes everywhere
     else (found via #1929, pre-existing)."""
     night = str(tmp_path / "2026-07-19"); os.makedirs(night)
-    _cap(night, "Wellue_O2Ring-S_S8AW_20260719_SPO2.csv", 900)
-    (tmp_path / "2026-07-19" / "Wellue_O2Ring-S_S8AW_20260719_STORED.dat").write_bytes(b"\x00" * 100)
+    _cap(night, "Wellue_O2Ring-S_S8AW_20260719220000_SPO2.csv", 900)
+    (tmp_path / "2026-07-19" / "Wellue_O2Ring-S_S8AW_20260719220000_STORED.dat").write_bytes(b"\x00" * 100)
     seen = {}
     def _fit(dat_path, spo2_path, **k):
         seen["dat"], seen["spo2"] = dat_path, spo2_path
@@ -1747,32 +1928,32 @@ def _ring_acc_devices():
             {"name": "Verity", "device_id": "0C301E3F", "streams": ["acc"]}]
 
 
-def test_an_ACCRAW_file_satisfies_the_configured_acc_stream(tmp_path):
+def test_an_ACCRAW_file_satisfies_the_configured_acc_stream(tmp_path, _tz):
     night = str(tmp_path / "2026-09-05"); os.makedirs(night)
-    _cap(night, "Wellue_O2Ring-S_S8AW_20260905_SPO2.csv", 900)
-    _cap(night, "Wellue_O2Ring-S_S8AW_20260905_ACCRAW.txt", 4000)
-    _cap(night, "Polar_VeritySense_0C301E3F_20260905_ACC.txt", 3000)
+    _cap(night, "Wellue_O2Ring-S_S8AW_20260905220000_SPO2.csv", 900)
+    _cap(night, "Wellue_O2Ring-S_S8AW_20260905220000_ACCRAW.txt", 4000)
+    _cap(night, "Polar_VeritySense_0C301E3F_20260905220000_ACC.txt", 3000)
     s = nightqc.summarize(night, _ring_acc_devices())
     assert s["missing"] == [], f"acc arrived as ACCRAW; reporting it missing is the false alarm: {s['missing']}"
     ring = next(d for d in s["devices"] if d["name"] == "Ring")
     assert ring["streams"]["acc"] == 4000, "the ACCRAW rows must be COUNTED, not merely tolerated"
 
 
-def test_the_plain_ACC_tag_still_satisfies_acc_so_the_union_is_not_a_regression(tmp_path):
+def test_the_plain_ACC_tag_still_satisfies_acc_so_the_union_is_not_a_regression(tmp_path, _tz):
     """The Verity writes `_ACC.txt` and must keep matching — the fix widens the accepted tags, it does
     not move them."""
     night = str(tmp_path / "2026-09-05"); os.makedirs(night)
-    _cap(night, "Polar_VeritySense_0C301E3F_20260905_ACC.txt", 3000)
+    _cap(night, "Polar_VeritySense_0C301E3F_20260905220000_ACC.txt", 3000)
     s = nightqc.summarize(night, [{"name": "Verity", "device_id": "0C301E3F", "streams": ["acc"]}])
     assert s["missing"] == []
     assert s["devices"][0]["streams"]["acc"] == 3000
 
 
-def test_a_GENUINELY_absent_acc_is_still_reported_missing(tmp_path):
+def test_a_GENUINELY_absent_acc_is_still_reported_missing(tmp_path, _tz):
     """The widened match must not become an unconditional pass — the alarm has to still fire when the
     accelerometer really produced nothing, which is the whole reason the check exists."""
     night = str(tmp_path / "2026-09-05"); os.makedirs(night)
-    _cap(night, "Wellue_O2Ring-S_S8AW_20260905_SPO2.csv", 900)
+    _cap(night, "Wellue_O2Ring-S_S8AW_20260905220000_SPO2.csv", 900)
     s = nightqc.summarize(night, [{"name": "Ring", "device_id": "S8AW", "streams": ["spo2", "acc"]}])
     assert s["missing"] == ["Ring:acc"]
 
@@ -1832,9 +2013,9 @@ def test_the_summary_reports_the_night_it_judged_and_the_session_it_used(tmp_pat
     assert "arrival" in s and "night_window" in s and "system_files" in s
 
 
-def test_a_night_with_no_data_reports_no_judged_session_rather_than_a_fabricated_one(tmp_path):
+def test_a_night_with_no_data_reports_no_judged_session_rather_than_a_fabricated_one(tmp_path, _tz):
     night = str(tmp_path / "2026-07-19"); os.makedirs(night)
-    _cap(night, "Tepna_20260719_LINK.csv", 5)          # a sidecar only — the box talking about itself
+    _cap(night, "Tepna_20260719220000_LINK.csv", 5)          # a sidecar only — the box talking about itself
     s = nightqc.summarize(night, [{"name": "H10", "device_id": "02849638", "streams": ["hr"]}])
     assert s["judged_session"] is None, "no session judged is None, never a zero-length one"
     assert s["night_window"] is None
@@ -2842,3 +3023,421 @@ def test_a_BLE_hole_in_the_arrival_record_is_CUT_not_compacted(tmp_path):
     assert st["ok"] is True, st
     assert st["pooled"] is True and st["segments"] == 2 and st["dropped_intervals"] == 1
 
+
+
+# ── coverage is against the DEVICE's own span (2026-09-24) ──────────────────────────────────────────
+# It used to divide one device's rows by the SESSION span — the union across devices — so a device that
+# stopped early was charged for the time another kept recording, and "stopped early" and "dropped packets
+# while recording" produced the same number. They are opposite findings: one is correct behaviour, the
+# other is the loss this metric exists to catch.
+
+_DEV_0923 = [{"name": "H10", "device_id": "02849638", "streams": ["ecg"]},
+             {"name": "Verity", "device_id": "0C301E3F", "streams": ["ppg"]},
+             {"name": "Ring", "device_id": "S8AW2100", "streams": ["ppg"]}]
+_SPAN_0923 = 20200                   # 23:13:18 -> 04:49:58, the real session span
+# THE SAMPLE RATE IS THE FREE PARAMETER HERE, AND THE SPANS ARE NOT.
+#
+# Every number the 09-23 tests below assert is a coverage RATIO or an absolute count of SECONDS, and
+# coverage is `rows / (measured_hz * span)` where `rows` is written as `own_s * hz`. The rate therefore
+# CANCELS: 0.9945 / 0.9158 / 0.9257, the 0.6 in-recording loss, the 0.55 session denominator and the
+# 1701 / 1501 `stopped_early_s` are all properties of the geometry alone. The real 130 / 55 / 125 Hz
+# bought nothing except bytes — 6 million rows, and `_cap_timed` writes one line each.
+#
+# It bought 1.6 GB, measured: those tests plus their three-zone parametrization retained
+# 1,684,021,248 bytes of `tmp_path`, ~1.7 GB per retained run. A mutation run spawns a pytest per
+# mutant, so 37 retained directories exhausted the rig's shared /tmp quota on 2026-09-24 and every
+# session's gates began failing with EDQUOT. Holding the spans and dropping the rate to 2 Hz keeps
+# every asserted value identical — verified, not assumed — at 1/53 of the bytes.
+_QC_HZ = 2.0
+
+
+def _end_0923():
+    """The session END as an epoch, DERIVED from the earliest filename stamp rather than hardcoded.
+
+    ⚠️ This was a literal epoch and the three tests below passed in EDT and failed in CI's UTC by
+    exactly 14,400 s. `_session_of` turns the `_YYYYMMDDHHMMSS_` filename stamp into an epoch with
+    `datetime.strptime(...).timestamp()` — a NAIVE datetime, so the conversion uses the READER's zone —
+    while `mtime` is an absolute epoch that does not move. Pairing a fixed epoch with a civil filename
+    stamp is therefore only self-consistent in the zone the epoch was chosen in.
+
+    The production data has a civil-time relationship between the two, so the fixture expresses that
+    relationship instead of a number: the end is the stamp's own epoch plus the span, which holds in
+    any zone. The `_tz` fixture then runs the twin in two of them so this cannot regress silently."""
+    return nightqc._session_of("X_20260923231318_PPG.txt", 0.0) + _SPAN_0923
+
+
+@pytest.fixture(params=["UTC", "America/New_York", "Asia/Kolkata"])
+def _tz(request):
+    """Run a test in a named zone. CI is UTC and the rig is EDT, and a span that depends on the reader's
+    zone passes in one and fails in the other — which is how this arrived.
+
+    `Asia/Kolkata` is the third on purpose: it is a HALF-HOUR offset, so it catches a sign error or a
+    rounding-to-the-hour that two whole-hour zones agree on. `loss_audit`'s suite was verified across the
+    same three before being declared zone-safe."""
+    old_tz = os.environ.get("TZ")
+    os.environ["TZ"] = request.param
+    time.tzset()
+    try:
+        yield request.param
+    finally:
+        if old_tz is None:
+            os.environ.pop("TZ", None)
+        else:
+            os.environ["TZ"] = old_tz
+        time.tzset()
+
+
+def _night_0923(tmp_path, h10_early=0):
+    """The measured 2026-09-23 geometry: one session 23:13:18 -> 04:49:58 (span 20,200 s), with each
+    device's OWN recording extent as it really was."""
+    night = str(tmp_path / "2026-09-23"); os.makedirs(night)
+    for name, own, hz, early in [
+            ("Polar_H10_02849638_20260923231432_ECG.txt", 20089, _QC_HZ, h10_early),
+            ("Polar_VeritySense_0C301E3F_20260923231318_PPG.txt", 18499, _QC_HZ, 1701),
+            ("Wellue_O2Ring-S_S8AW2100_20260923231349_PPG.txt", 18699, _QC_HZ, 1501)]:
+        # `+ 1`: `_cap_timed` stamps row i at i/hz, so N rows span (N-1)/hz. One extra row makes the
+        # device span EXACTLY `own` instead of one sample short of it. At 130 Hz that shortfall was
+        # 1/130 s and rounded away; at any lower rate it does not, and the Verity's 18,499 s read 18,498.
+        # The geometry should not depend on the sample rate, which is the whole point of `_QC_HZ`.
+        _utime(_cap_timed(night, name, int(own * hz) + 1, hz), _end_0923() - early)
+    return night
+
+
+# ── WHY A DEVICE STOPPED EARLY — carried from `loss_audit.wear_ends`, never inferred here ──────────
+def _wear(name, at, reason):
+    """A `loss_audit.wear_by_device`-shaped mapping for one device."""
+    return {name: {"available": True, "ends": [], "worn_end": {"at": at, "reason": reason, "file": "f"}}}
+
+
+def test_an_early_stop_carries_the_wear_units_reason_and_boundary(tmp_path, _tz):
+    """THE 09-23 GEOMETRY. The Verity stopped 1701 s before the session end and the wear unit says it was
+    a `doff`, so the seconds and the reason read together instead of the reader joining two files."""
+    s = nightqc.summarize(_night_0923(tmp_path), _DEV_0923,
+                          _wear("Verity", "2026-09-24T04:21:42", "doff"))
+    v = next(d for d in s["devices"] if d["name"] == "Verity")
+    assert v["stopped_early_s"] == 1701 and v["stopped_early_reason"] == "doff"
+    assert v["worn_end_at"] == "2026-09-24T04:21:42"
+    # the devices the mapping says nothing about are still NOT DETERMINED, not "no reason"
+    assert next(d for d in s["devices"] if d["name"] == "Ring")["stopped_early_reason"] is None
+
+
+def test_the_device_that_defines_the_session_end_gets_a_boundary_but_no_reason(tmp_path, _tz):
+    """⚠️ THE H10 CASE, and the reason `stopped_early_reason` is not simply the wear reason. Its
+    `stopped_early_s` is 0 because it is the device that stopped LAST — it defines the session end — and a
+    reason there would read as a fault where there is none. It still came off before its file did: on
+    2026-09-23 the strap streamed an empty 28 min after 04:21:47, and that window held 2,766 of the
+    night's 2,767 "PVCs" (#3001). `worn_end_at` is published whether or not the device stopped early, so
+    that gap is READABLE rather than inferred."""
+    s = nightqc.summarize(_night_0923(tmp_path), _DEV_0923,
+                          _wear("H10", "2026-09-24T04:21:47", "doff"))
+    h = next(d for d in s["devices"] if d["name"] == "H10")
+    assert h["stopped_early_s"] == 0, "the device that stopped last defines the session end"
+    assert h["stopped_early_reason"] is None, "a 0-second early stop has no reason to name"
+    assert h["worn_end_at"] == "2026-09-24T04:21:47", "and the wear boundary is still published"
+
+
+def test_an_unclassified_quiet_end_travels_verbatim(tmp_path, _tz):
+    """`quiet-end-unclassified` is the wear unit saying it COULD NOT TELL. Shortening or mapping it here
+    would turn "I do not know" into a verdict, so it passes through exactly as written."""
+    s = nightqc.summarize(_night_0923(tmp_path), _DEV_0923,
+                          _wear("Verity", "2026-09-24T04:21:42", "quiet-end-unclassified"))
+    v = next(d for d in s["devices"] if d["name"] == "Verity")
+    assert v["stopped_early_reason"] == "quiet-end-unclassified"
+
+
+@pytest.mark.parametrize(
+    "wear",
+    [None, {}, {"Verity": None}, {"Verity": {"available": False}},
+     {"Verity": {"available": True, "worn_end": None}},
+     {"Verity": {"available": True, "worn_end": {"at": "x", "reason": ""}}}],
+    ids=["no-mapping", "empty", "device-null", "unavailable", "no-worn-end", "blank-reason"],
+)
+def test_every_way_of_not_knowing_the_reason_reads_null(tmp_path, wear):
+    """FOUR HOPS CAN GO ABSENT and none of them means "worn to the end": no mapping, no entry for the
+    device, an unavailable wear block, or a block with no `worn_end`. A blank reason is the fifth — a
+    string that is present and says nothing is not a reason."""
+    s = nightqc.summarize(_night_0923(tmp_path), _DEV_0923, wear)
+    v = next(d for d in s["devices"] if d["name"] == "Verity")
+    assert v["stopped_early_s"] == 1701, "the seconds are measured either way"
+    assert v["stopped_early_reason"] is None
+
+
+def test_attach_wear_is_the_one_place_wear_reaches_a_summary(tmp_path, _tz):
+    """`summarize` routes its own return through `attach_wear`, so there is ONE mapping rather than two
+    that can diverge. Calling it again on an already-attached summary must give the same answer."""
+    night = _night_0923(tmp_path)
+    wear = _wear("Verity", "2026-09-24T04:21:42", "doff")
+    once = nightqc.summarize(night, _DEV_0923, wear)
+    twice = nightqc.attach_wear(nightqc.summarize(night, _DEV_0923), wear)
+    pick = lambda s: {d["name"]: (d["stopped_early_reason"], d["worn_end_at"]) for d in s["devices"]}
+    assert pick(once) == pick(twice) == {
+        "H10": (None, None), "Verity": ("doff", "2026-09-24T04:21:42"), "Ring": (None, None)}
+
+
+def test_neither_the_join_nor_the_wear_scan_is_offloaded_to_a_child(tmp_path):
+    """⚠️ A REGRESSION GUARD FOR A SILENT HANG, not a style check.
+
+    `capture._qc_offload` sends its target to a SPAWNED child when `_importable_by_reference` says the
+    module still binds that name to that object. Several poller tests patch `nightqc.summarize` with a
+    LAMBDA precisely so that check fails and the poll runs on a thread — a frozen `time.monotonic` and a
+    spawned child cannot coexist, because `multiprocessing` reads it for its deadlines and the child's
+    result never arrives. An earlier draft offloaded the wear scan as a SECOND child, which is a
+    module-level name those patches do not cover: `check.sh` then wedged twice at 98 % with all 24 xdist
+    workers idle and the controller in `futex_do_wait`, and the single test hung with a `multiprocessing`
+    queue feeder alive beside it.
+
+    So the scan's target stays `nightqc.summarize`, the wear scan goes on a thread (as `write_night`
+    already does with the same work), and the join is pure."""
+    import capture
+    assert capture._importable_by_reference(nightqc.summarize), "the seam the poller tests patch"
+    src = inspect.getsource(capture.qc_poller)
+    assert "_qc_offload(nightqc.summarize," in src, "the scan's target must stay `nightqc.summarize`"
+    assert "_qc_offload(loss_audit" not in src, "the wear scan must NOT get a child of its own"
+    assert "to_thread(loss_audit.wear_by_device" in src, "it runs on a thread, like write_night"
+    assert "_qc_offload(nightqc.attach_wear" not in src, "the join is pure — never offloaded"
+    # and the join really is pure: it reads no file, so it cannot need a child
+    assert nightqc.attach_wear({"devices": []}, None) == {"devices": []}
+
+
+def test_attach_wear_steps_over_a_device_entry_that_is_not_a_dict():
+    """`attach_wear` is public and can be handed a summary from anywhere — a JSON file rewritten by hand,
+    an older schema. A junk entry is stepped over rather than crashing the join for the devices beside
+    it: the fields it could not set stay None, which already means "not determined"."""
+    summary = {"devices": ["not a dict", {"name": "Verity", "stopped_early_s": 1701,
+                                          "stopped_early_reason": None, "worn_end_at": None}]}
+    got = nightqc.attach_wear(summary, _wear("Verity", "2026-09-24T04:21:42", "doff"))
+    assert got["devices"][0] == "not a dict", "left exactly as it came"
+    assert got["devices"][1]["stopped_early_reason"] == "doff", "and the real device is still joined"
+
+
+def test_the_poller_joins_a_wear_scan_and_survives_its_failure(monkeypatch):
+    """The wear scan is a REPORT, not the QC. If it raises, the night still gets its summary and the
+    reasons stay None — which already means "not determined"."""
+    summary = {"devices": [{"name": "Verity", "stopped_early_s": 1701,
+                            "stopped_early_reason": None, "worn_end_at": None}]}
+    assert nightqc.attach_wear(dict(summary), None)["devices"][0]["stopped_early_reason"] is None
+    got = nightqc.attach_wear({"devices": [dict(summary["devices"][0])]},
+                              _wear("Verity", "2026-09-24T04:21:42", "doff"))
+    assert got["devices"][0]["stopped_early_reason"] == "doff"
+
+
+def _cap_timed_with_gap(night, name, hz, own_s, keep):
+    """A file whose DEVICE CLOCK spans `own_s` but which delivers only `keep` of its rows, missing in one
+    contiguous block — an in-recording loss, as against a stream that simply stopped.
+
+    `measured_hz` reads the MEDIAN inter-sample delta, so one gap does not move the rate; that is what
+    makes the loss show up in coverage instead of being absorbed into the denominator."""
+    p = os.path.join(night, name)
+    step = int(round(1e9 / hz)); t0 = 1_000_000_000_000
+    n = int(own_s * hz); half = int(n * keep / 2)
+    with open(p, "w") as fh:
+        fh.write("Phone timestamp;sensor timestamp [ns];channel 0\n")
+        for i in list(range(half)) + list(range(n - half, n)):
+            fh.write(f"2026-07-19T00:00:00.000;{t0 + i * step};{i}\n")
+    return p
+
+
+def test_the_0923_twin_session_span_gave_092_and_the_device_span_gives_100(tmp_path, _tz):
+    """THE TWIN, on the real geometry. Under the SESSION span each device's own extent divided by 20,200 s
+    is 0.9945 / 0.9158 / 0.9257 — the three numbers actually published for 2026-09-23, to four decimals —
+    and QC's own `gaps` was EMPTY for that night, so nothing was missing. Under each device's own span the
+    same files read 1.00, and the 28.4 and 25.0 minutes become `stopped_early_s` instead of 8 % of
+    nothing."""
+    s = nightqc.summarize(_night_0923(tmp_path), _DEV_0923)
+    assert s["span_sec"] == _SPAN_0923, "the session span is the union across devices"
+
+    by = {d["name"]: d for d in s["devices"] if d.get("coverage")}
+    # THE OLD DENOMINATOR, twice: recomputed from each device's own span (so the twin carries the
+    # arithmetic) AND read back off the published `session_coverage` field (so it is the code's number
+    # and not the test's). The two agreeing is the twin.
+    assert round(by["H10"]["span_sec"] / _SPAN_0923, 4) == 0.9945
+    assert round(by["Verity"]["span_sec"] / _SPAN_0923, 4) == 0.9158
+    assert round(by["Ring"]["span_sec"] / _SPAN_0923, 4) == 0.9257
+    assert by["H10"]["session_coverage"] == {"ecg": 0.99}
+    assert by["Verity"]["session_coverage"] == {"ppg": 0.92}
+    assert by["Ring"]["session_coverage"] == {"ppg": 0.93}
+
+    assert by["H10"]["coverage"] == {"ecg": 1.0}
+    assert by["Verity"]["coverage"] == {"ppg": 1.0}
+    assert by["Ring"]["coverage"] == {"ppg": 1.0}
+    assert by["Verity"]["stopped_early_s"] == 1701 and by["Ring"]["stopped_early_s"] == 1501
+    assert by["H10"]["stopped_early_s"] == 0, "the device that stopped last defines the session end"
+    assert by["Verity"]["span_basis"] == {"ppg": "device"}
+    assert by["Verity"]["session_end"] == round(_end_0923()), "the end it is measured against is named"
+    # No `wear` argument was passed, so the reason is NOT DETERMINED — never "no reason", and never
+    # "worn to the end". The tests below pass one.
+    assert by["Verity"]["stopped_early_reason"] is None
+    assert by["Verity"]["worn_end_at"] is None
+
+
+def test_an_IN_RECORDING_loss_still_reads_as_a_loss_under_the_new_denominator(tmp_path, _tz):
+    """THE CASE THE METRIC EXISTS FOR, and the one a device-span denominator could have blinded. The
+    Verity here keeps its FULL span and loses 40 % of its rows in one block: coverage must fall to 0.6
+    while `stopped_early_s` stays 0, so the two situations are distinguishable rather than sharing a
+    number. A deeper loss must still reach `degraded`, which is the alert path — `_DEGRADED_BELOW` is
+    unchanged at 0.5."""
+    night = str(tmp_path / "2026-09-23"); os.makedirs(night)
+    _utime(_cap_timed(night, "Polar_H10_02849638_20260923231432_ECG.txt", int(20089 * _QC_HZ), _QC_HZ), _end_0923())
+    _utime(_cap_timed_with_gap(night, "Polar_VeritySense_0C301E3F_20260923231318_PPG.txt",
+                               _QC_HZ, 18499, 0.6), _end_0923())
+    by = {d["name"]: d for d in nightqc.summarize(night, _DEV_0923)["devices"] if d.get("coverage")}
+    assert by["Verity"]["coverage"] == {"ppg": 0.6}, "an in-recording loss is still a loss"
+    assert by["Verity"]["stopped_early_s"] == 0, "it did not stop early — it dropped rows"
+    assert by["Verity"]["span_basis"] == {"ppg": "device"}
+    assert by["Verity"]["session_coverage"] == {"ppg": 0.55}, "the old number, kept and named"
+
+    # A SECOND night in its own subdir, keeping the 09-23 stamps: a filename stamp that POSTDATES the
+    # mtime is not a session at all, and reusing 09-24 names with an 09-24 04:49 mtime made one.
+    night2 = str(tmp_path / "deeper" / "2026-09-23"); os.makedirs(night2)
+    _utime(_cap_timed(night2, "Polar_H10_02849638_20260923231432_ECG.txt", int(20089 * _QC_HZ), _QC_HZ), _end_0923())
+    _utime(_cap_timed_with_gap(night2, "Polar_VeritySense_0C301E3F_20260923231318_PPG.txt",
+                               _QC_HZ, 18499, 0.4), _end_0923())
+    s2 = nightqc.summarize(night2, _DEV_0923)
+    assert any("Verity:ppg" in line for line in s2["degraded"]), \
+        f"a deep in-recording loss must still reach the alert path: {s2['degraded']}"
+
+
+def test_a_stream_that_DIED_EARLY_now_reads_as_an_early_stop_and_not_as_lost_packets(tmp_path, _tz):
+    """⚠️ THE DELIBERATE SHIFT, pinned so it is visible rather than emergent. A stream that stopped at
+    hour one of a six-hour session used to read coverage 0.17 and land in `degraded`; against its own span
+    it delivered everything it sent, so it now reads 1.00 with `stopped_early_s` carrying the five hours.
+
+    That is the definition coverage states for itself — "did we receive the packets the device was
+    SENDING" — and it is strictly more informative, because the old number could not tell this from a
+    stream that lost five hours of packets while still connected. But it does mean the EARLY STOP no
+    longer reaches `degraded` on its own, and nothing consumes `stopped_early_s` yet: whether an early
+    stop is a fault depends on WHY (a doff is correct behaviour, a link loss is not), which is Wren's
+    wear-end unit and the `stopped_early_reason` slot above."""
+    night = str(tmp_path / "2026-09-23"); os.makedirs(night)
+    _utime(_cap_timed(night, "Polar_H10_02849638_20260923231432_ECG.txt", int(20089 * _QC_HZ), _QC_HZ), _end_0923())
+    # the Verity records one hour and stops, five hours before the H10 does
+    _utime(_cap_timed(night, "Polar_VeritySense_0C301E3F_20260923231318_PPG.txt", int(3600 * _QC_HZ), _QC_HZ),
+           _end_0923() - 16489)
+    s = nightqc.summarize(night, _DEV_0923)
+    by = {d["name"]: d for d in s["devices"] if d.get("coverage")}
+    assert by["Verity"]["coverage"] == {"ppg": 1.0}, "it sent one hour and we received one hour"
+    assert by["Verity"]["stopped_early_s"] == 16489, "the missing five hours are HERE, named"
+    # AND THE ALERT IS NOT LOST: `session_coverage` keeps the old number and `degraded` keys on it, so a
+    # died-at-hour-one stream still raises exactly what it raised before. No threshold was invented to
+    # keep that; the number that was already there is simply named instead of overwritten.
+    assert by["Verity"]["session_coverage"] == {"ppg": 0.18}
+    assert any("Verity:ppg" in line for line in s["degraded"]), s["degraded"]
+
+
+def test_a_clockless_file_falls_back_to_the_session_span_and_SAYS_SO(tmp_path, _tz):
+    """§∅ in the direction that matters here: a file carrying no device clock cannot bound its own start,
+    and dropping such files from the span would move the start later, shorten the span and INFLATE
+    coverage. So the denominator falls back to the session span and `span_basis` reports it — the same
+    shape `coverage_basis` uses for an unmeasured rate."""
+    night = str(tmp_path / "2026-07-19"); os.makedirs(night)
+    _utime(_cap(night, "Polar_H10_02849638_20260719220000_ECG.txt", 130000), _stamp_epoch() + 1000)
+    _utime(_cap(night, "Polar_H10_02849638_20260719220000_ACC.txt", 40000), _stamp_epoch())
+    h10 = next(d for d in nightqc.summarize(night, _devices())["devices"] if d["name"] == "H10")
+    assert h10["span_basis"] == {"ecg": "session", "acc": "session"}
+    assert h10["span_sec"] is None, "an unbounded span is None, never a number"
+
+
+# ── FIXTURE FIDELITY: a time claim must be made on a fixture that carries time ─────────────────────
+#
+# `_cap` writes clockless `i;i` rows, so `writers.file_span_sec` returns None for every file it makes
+# and no device span can be computed from one. That is correct for a test whose claim is about SESSION
+# grouping — which is decided by filename stamps and mtimes, both of which `_cap` + `_utime` model
+# faithfully — and wrong for a test whose claim is about a device's own span, rate or coverage basis.
+#
+# THE GAP THIS CLOSES, measured 2026-09-24: all 170 tests in this file passed IDENTICALLY before and
+# after #3009 changed the coverage denominator from the session span to the device's own span, because
+# every fixture fell back to the session span and the new path was never reached. The suite could not
+# see a live behavioural change, and the zone defect that came with it surfaced only in CI. A green
+# suite said nothing, which is the most expensive thing a suite can say.
+#
+# ⚠️ THE ANSWER IS NOT "MOVE THEM ALL". Two of the entries below assert the ASSUMED-RATE path on
+# purpose — `_cap` writes too few rows for `measured_hz` to read a rate, so coverage is computed
+# against the configured one and the row reads `(rate assumed)`. Moving those onto timed fixtures would
+# turn their basis to `measured` and delete the coverage they exist to provide. A third is the
+# fallback test itself, whose whole claim is that a clockless file falls back and says so.
+#
+# So each time-claiming test on `_cap` is listed here with the reason its claim does not need stamps,
+# and the scan below fails on any that is not — and on any entry that no longer matches a real test,
+# so the list cannot rot into a rubber stamp.
+_TIME_CLAIM_WORDS = (r"\b(span|coverage|gap|stop|stopped|rate|hz|clock|stamp|zone|session|early"
+                     r"|duration|silent|drift|epoch|minute|hour|second)\b")
+
+_CLOCKLESS_BY_DESIGN = {
+    # SESSION-LEVEL CLAIMS. Decided by filename stamps and mtimes; a device clock plays no part, and
+    # the outputs asserted (`span_sec` at the session level, `gaps`, pooling) are computed without one.
+    "test_summarize_unifies_a_cross_midnight_session": "session grouping across a date-folder boundary",
+    "test_summarize_does_not_pool_a_mid_day_session": "session grouping — pooling refusal",
+    "test_summarize_scopes_coverage_to_the_current_session": "session SCOPING; its epochs derive from the same strptime().timestamp() production uses, so it is zone-invariant by construction",
+    "test_a_box_wide_outage_does_not_get_the_night_graded_green": "session splitting at _SESSION_GAP_SEC",
+    "test_an_uninterrupted_night_reports_no_gap_and_stays_green": "the no-gap control",
+    "test_summarize_pools_when_the_reconnect_took_longer_than_the_gap": "pooling by contiguity",
+    "test_summarize_pools_when_the_neighbour_was_still_writing_at_wake": "pooling by overlap",
+    "test_summarize_does_not_pool_a_non_contiguous_small_hours_session": "pooling refusal by contiguity",
+    "test_span_at_exactly_the_minimum_is_judgeable": "the SESSION span floor _MIN_SPAN_SEC",
+    "test_an_in_night_hole_BEFORE_the_judged_half_also_reds": "gap classification against the night band",
+    "test_pooling_boundary_exactly_at_midnight_pools": "pooling boundary, lower",
+    "test_pooling_boundary_exactly_at_the_gap_does_not_pool": "pooling boundary, upper",
+    "test_the_night_band_is_chosen_by_the_sessions_MIDPOINT": "which band a gap is judged against",
+    "test_a_foreign_device_file_sorting_FIRST_does_not_end_the_sidecar_scan": "file-scan continuation",
+    "test_the_cross_midnight_pool_is_EXCLUSIVE_at_exactly_the_gap": "pooling boundary, exclusive",
+    "test_the_night_window_and_arrival_are_computed_from_THIS_night": "collaborator scoping",
+    # NO FILES AT ALL — there is no span to carry.
+    "test_summarize_no_data_files_span_is_none": "a night of only a sidecar has no capture span",
+    # THE ASSUMED-RATE PATH, ON PURPOSE. Timed fixtures would make the basis `measured` and delete the
+    # coverage these provide; both assert `(rate assumed)` / `coverage_basis == expected` explicitly.
+    "test_summarize_flags_a_degraded_trickle": "asserts the CONFIGURED-rate path and its `(rate assumed)` label",
+    "test_summarize_coverage_uses_configured_rate_and_skips_unknown": "asserts the configured-rate denominator and the skip when no rate is known",
+    # THE FALLBACK ITSELF.
+    "test_a_clockless_file_falls_back_to_the_session_span_and_SAYS_SO": "its claim IS that a clockless file falls back and reports `span_basis: session`",
+}
+
+
+def _time_claiming_clockless_tests():
+    """Every test in this file whose docstring makes a time claim and which builds its night with the
+    CLOCKLESS `_cap` only. Keyed on the FIXTURE CALL, not on a name or a leaf: what a test is made of
+    is the property in question, and a name-keyed scan would be the wrong tool for the same reason the
+    schema scanner's leaf key was."""
+    import ast
+    import re
+
+    tree = ast.parse(open(__file__).read())
+    out = {}
+    for t in ast.walk(tree):
+        if not (isinstance(t, ast.FunctionDef) and t.name.startswith("test_")):
+            continue
+        calls = {c.func.id for c in ast.walk(t) if isinstance(c, ast.Call) and isinstance(c.func, ast.Name)}
+        if "_cap" in calls and "_cap_timed" not in calls and re.search(
+                _TIME_CLAIM_WORDS, ast.get_docstring(t) or "", re.I):
+            out[t.name] = True
+    return out
+
+
+def test_every_time_claiming_test_on_a_clockless_fixture_is_declared():
+    """A time claim made on a fixture that carries no time is the gap this file had: 170 tests passed
+    identically across #3009's change of denominator because every one of them fell back to the session
+    span. Any new test that claims time on `_cap` must either move to `_cap_timed` or say here why its
+    claim does not need stamps."""
+    found = _time_claiming_clockless_tests()
+    undeclared = sorted(set(found) - set(_CLOCKLESS_BY_DESIGN))
+    assert not undeclared, (
+        "these make a time claim on the clockless `_cap`: move them to `_cap_timed` (and take the `_tz` "
+        f"fixture), or declare why the claim needs no stamps: {undeclared}")
+
+
+def test_no_declaration_outlives_the_test_it_excuses():
+    """The other half, and the one that rots silently: an entry for a test that was renamed, deleted or
+    already moved to `_cap_timed` is a line nobody reads that makes the list look considered. Spent
+    entries are the failure mode of every allowlist in this repo."""
+    found = _time_claiming_clockless_tests()
+    spent = sorted(set(_CLOCKLESS_BY_DESIGN) - set(found))
+    assert not spent, f"declared but no longer a time-claiming clockless test: {spent}"
+
+
+def test_the_scan_can_actually_see_one():
+    """The anti-vacuity control. Both assertions above pass over an EMPTY population if the scan is
+    broken — an AST walk that matches nothing reports the same green as a file with nothing to find,
+    which is this repo's most-repeated defect. So the scan must find the population it is scanning."""
+    found = _time_claiming_clockless_tests()
+    assert len(found) >= 15, f"the scan found {len(found)} — it is not seeing the file"
+    assert "test_a_clockless_file_falls_back_to_the_session_span_and_SAYS_SO" in found, \
+        "the deliberately-clockless test must be visible to the scan that excuses it"

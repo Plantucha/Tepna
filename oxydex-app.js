@@ -296,7 +296,9 @@ function exportCSV() {
       'Mean HR (bpm),' + s.meanHr,
       'Min HR (bpm),' + s.minHr,
       'Max HR (bpm),' + s.maxHr,
-      'Motion (%),' + s.motionPct,
+      /* §∅ — an absent motionPct writes an EMPTY cell, never the text "null" and never a 0.
+         oxydex-dsp.js:2796 nulls this deliberately when the motion column is stuck or absent. */
+      'Motion (%),' + (s.motionPct != null ? s.motionPct : ''),
       ''
     ]);
     lines.push('', 'DEEP ANALYSIS', 'HR Spikes,' + n.spikes.length);
@@ -319,7 +321,7 @@ function exportCSV() {
     lines.push(
       '',
       'MOVEMENT',
-      'Motion %,' + (n.stats ? n.stats.motionPct : ''),
+      'Motion %,' + (n.stats && n.stats.motionPct != null ? n.stats.motionPct : ''),
       'Arousal Index %,' + (n.motion ? n.motion.arousalIndex : ''),
       'Restless Windows,' + (n.motion ? n.motion.restlessWindows : '')
     );
@@ -566,7 +568,7 @@ function exportCSV() {
     if (n.desatAsym) {
       lines.push('  Desaturation Asymmetry,' + n.desatAsym.desatAsym, '  Asym Label,' + n.desatAsym.asymLabel);
     }
-    lines.push('', 'HYPOXIC BURDEN', 'Total (%-min),' + (n.hb ? n.hb.total : ''), 'Rate (%-min/hr),' + (n.hb ? n.hb.rate : ''));
+    lines.push('', 'HYPOXIC BURDEN', 'Total (%-min),' + (n.hb && n.hb.total != null ? n.hb.total : ''), 'Rate (%-min/hr),' + (n.hb && n.hb.rate != null ? n.hb.rate : ''));
     lines.push('', 'SLEEP STABILITY', 'Score (0-100),' + (n.stab ? n.stab.score : ''), 'Grade,' + (n.stab ? n.stab.grade : ''));
     // Stability component subscores (same as JSONL)
     if (n.stab && n.stab.components) {
@@ -583,13 +585,22 @@ function exportCSV() {
     // HRV metrics (same as JSONL)
     lines.push('', 'HRV METRICS');
     if (n.hrv) {
+      /* §∅ — an absent proxy leaves the CELL EMPTY, never the text "null" and never a 0. `hrSdnn`
+         could already be null here (DEEP-AUDIT-IV §3-RESULT) and this row would have written the
+         string "null" into a spreadsheet; the other five become nullable in the same change, so the
+         emptiness is applied to all six at once. Same idiom as the ODI rows above
+         (`n.odi4 ? n.odi4.rate : ''`): a blank cell reads as "not measured" in every tool that opens
+         this file, while `null` and `0` both read as data. */
+      var _hv = function (v) {
+        return v != null ? v : '';
+      };
       lines.push(
-        '  HR-Var Proxy (SD bpm),' + n.hrv.hrSdnn,
-        '  pNN3 (%),' + n.hrv.pnn3,
-        '  RSA Proxy,' + n.hrv.rsaProxy,
-        '  HR Slope (bpm/hr),' + n.hrv.hrSlope,
-        '  HR Floor (p5 bpm),' + n.hrv.hrFloor,
-        '  Samples,' + n.hrv.n
+        '  HR-Var Proxy (SD bpm),' + _hv(n.hrv.hrSdnn),
+        '  pNN3 (%),' + _hv(n.hrv.pnn3),
+        '  RSA Proxy,' + _hv(n.hrv.rsaProxy),
+        '  HR Slope (bpm/hr),' + _hv(n.hrv.hrSlope),
+        '  HR Floor (p5 bpm),' + _hv(n.hrv.hrFloor),
+        '  Samples,' + _hv(n.hrv.n)
       );
     } else {
       lines.push('  (insufficient data)');

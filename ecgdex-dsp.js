@@ -1669,25 +1669,63 @@
   // ════════════════════════════════════════════════════════════════════════
   //  5-MIN EPOCH ENGINE — window the NN series; per-epoch short-term suite.
   // ════════════════════════════════════════════════════════════════════════
-  function epochEngine(nn, tt, winSec, sqiPerBeat) {
+  /* §∅ — THE EPOCH IS NOT EXEMPT. `spansGap` is the kept-frame mask analyze() builds (1 where interval i
+     straddles a dropout or a filtered-out beat); `seamSec` the beat-axis positions of device-clock
+     resyncs; `refusedOut` receives the windows this engine declines to score. The whole-record
+     statistics honoured that mask since the §∅ block in analyze(); this engine sliced the SAME `nn`
+     without it, so an epoch containing a dropout carried the dropout as an RR interval. Measured on the
+     owner's 2026-09-21 H10 night — 177 reconnects in 68 epochs: whole-record rMSSD 28.1 ms (masked),
+     per-epoch median 10,608.5 ms (unmasked), and it is the median that is DISPLAYED and SCORED. The
+     score read it as "Primed · strong autonomic reserve". Same defect two consumers along, and the
+     fixture corpus could not see it: its nights carry ≤5 dropouts, so the median epoch was clean.
+
+     Owner ruling 2026-09-17 (CLAUDE.md §∅): a DISCONTINUITY refuses, reduced COVERAGE annotates.
+       · dropout inside the window  ⇒ the straddling interval leaves every statistic (rMSSD/pNN50 via
+         the pair mask, mean/SDNN/spectrum via the kept set) and the epoch says `gaps: <n>`.
+       · clock seam inside the window ⇒ the window does not describe ONE stretch of signal: refused,
+         `reason: 'clock-seam'`, the epoch is absent from the series and present in `refusedOut`.
+       · fewer than 20 scorable beats  ⇒ refused, `reason: 'too-few-beats'` (was a silent skip).
+     A window with no beats at all is a dropout hole, already counted in gapSec, and stays silent. */
+  function epochEngine(nn, tt, winSec, sqiPerBeat, spansGap, seamSec, refusedOut) {
     winSec = winSec || 300;
     const N = nn.length,
       tEnd = tt[N - 1];
     const epochs = [];
+    const _seams = Array.isArray(seamSec) ? seamSec.filter((v) => Number.isFinite(v)) : [];
     let i = 0;
     for (let w0 = 0; w0 <= tEnd; w0 += winSec) {
       const w1 = w0 + winSec,
         seg = [],
         segT = [],
-        segQ = [];
+        segQ = [],
+        /* pair mask in the KEPT frame: 1 on the first survivor after a removed interval, so the
+           difference (previous survivor, this) — which spans the absence — is not a successive
+           difference. Same widening rule as analyze()'s `_gapPair`. */
+        segSkip = [];
+      let nAll = 0,
+        gaps = 0,
+        dropped = false;
       while (i < N && tt[i] < w1) {
+        nAll++;
+        if (spansGap && spansGap[i]) {
+          gaps++;
+          dropped = true;
+          i++;
+          continue;
+        }
         seg.push(nn[i]);
         segT.push(tt[i]);
+        segSkip.push(dropped ? 1 : 0);
+        dropped = false;
         if (sqiPerBeat && Number.isFinite(sqiPerBeat[i])) segQ.push(sqiPerBeat[i]);
         i++;
       }
-      // back up i so windows that share a boundary still see beats (non-overlap, simple advance is fine)
-      if (seg.length >= 20) {
+      const seamHere = _seams.some((v) => v >= w0 && v < w1);
+      if (seamHere || seg.length < 20) {
+        if (refusedOut && nAll > 0) refusedOut.push({ tMin: +(w0 / 60).toFixed(1), n: nAll, reason: seamHere ? 'clock-seam' : 'too-few-beats' });
+        continue;
+      }
+      {
         const m = mean(seg);
         const ls = lombScargle(seg, segT, 160);
         epochs.push({
@@ -1711,11 +1749,11 @@
              `rate-of-mean` = 60000 / mean(RR); the alternatives are `median-rate` and `mean-rate`. */
           hrStat: 'rate-of-mean',
           meanRR: +m.toFixed(1),
-          rmssd: +rmssd(seg).toFixed(1),
+          rmssd: +rmssd(seg, segSkip).toFixed(1),
           sdnn: +std(seg).toFixed(1),
           // vlf/tp carried too (DEEP-AUDIT §10): the exported spectrum is the 5-min epoch median, and it
           // must report ALL FOUR bands on that one scale — see the spec block in analyze().
-          pnn: +pnn50(seg).toFixed(1),
+          pnn: +pnn50(seg, segSkip).toFixed(1),
           lf: ls.lf,
           hf: ls.hf,
           vlf: ls.vlf,
@@ -1723,6 +1761,8 @@
           lfhf: ls.lfhf,
           resp: ls.respRate
         });
+        // present only when drawn (the `anchorsDroppedPreResync` discipline): a clean epoch keeps its bytes
+        if (gaps) Object.assign(epochs[epochs.length - 1], { gaps });
       }
     }
     return epochs;
@@ -2775,7 +2815,10 @@
          PpgDex for a fortnight (#2333 → the kept-frame fix). Rebuilt here in the kept frame instead:
          a pair is a non-measurement if it straddled a gap OR if the filter removed a beat between its
          endpoints, since the survivors are then adjacent in the array and not in time. */
-      nnSpansGap = [];
+      nnSpansGap = [],
+      /* sample index of each KEPT beat, same frame — the only way to place a clock seam (a SAMPLE
+         index, `rec.clockResyncs[].idx`) on the beat axis after the filter has thinned it. */
+      nnPeak = [];
     let _lastKept = -1;
     let artifactSec = 0,
       _pSec = null;
@@ -2787,6 +2830,7 @@
         tt.push(nnRes.tt[i]);
         nnCorr.push(nnRes.corrected[i] ? 1 : 0);
         nnSqi.push(Number.isFinite(sqi[i]) ? sqi[i] : null);
+        nnPeak.push(peaks[i]);
         nnConf.push(Number.isFinite(c) ? +c.toFixed(3) : 1);
         // straddled a dropout in the source frame, OR the filter dropped a beat between this one and
         // the previous survivor (first survivor has no predecessor, so its pair is vacuous)
@@ -2838,7 +2882,17 @@
     const lowCoverage = nnRes.coveragePct != null && nnRes.coveragePct < 80;
 
     prog(72, '5-min epoch engine…');
-    const epochs = epochEngine(nn, tt, 300, nnSqi);
+    /* A clock seam on the beat axis: the first kept beat at or after the resync's sample index. §7
+       "ONE DEVICE CLOCK PER AXIS" re-anchors the axis across it, which makes the axis continuous —
+       not the same clock; the epoch containing it is refused, not annotated (see epochEngine). */
+    const _seamSec = [];
+    for (const c of rec.clockResyncs || []) {
+      let k = 0;
+      while (k < N && nnPeak[k] < c.idx) k++;
+      if (k < N) _seamSec.push(tt[k]);
+    }
+    const epochsRefused = [];
+    const epochs = epochEngine(nn, tt, 300, nnSqi, nnSpansGap, _seamSec, epochsRefused);
 
     // representative window for advanced metrics (epoch with rmssd closest to median)
     let repSeg = nn,
@@ -2863,6 +2917,7 @@
         seg = [],
         segT = [];
       for (let i = 0; i < N; i++) {
+        if (nnSpansGap[i]) continue; // §∅ — not an RR interval (see epochEngine)
         if (tt[i] >= w0 && tt[i] < w1) {
           seg.push(nn[i]);
           segT.push(tt[i]);
@@ -2965,7 +3020,7 @@
     // Poincaré — geometric SD1/SD2 from the exact array that gets plotted.
     // Overnight: use the representative 5-min window (standard short-term Poincaré, norms apply);
     // shorter records: use the whole NN series. Guarantees ellipse == cloud.
-    const poincareNN = longRec && repSeg.length >= 20 ? repSeg : nn;
+    const poincareNN = longRec && repSeg.length >= 20 ? repSeg : _rrOnly; // §∅ — `_rrOnly`, never the gap-carrying `nn`
     const pg = poincareGeo(poincareNN);
     /* `.toFixed` on a refusal would throw, and `+null` would silently become 0 — the fabrication
        re-entering one line after the guard that removed it. Carry the null through. */
@@ -3023,7 +3078,32 @@
     let morph = null;
     if (global.ECGMorph) {
       try {
-        morph = global.ECGMorph.analyze(int16, bp, fs, refIdx, rr, Array.from(sqi));
+        /* ∅ THE ARTIFACT GATE THAT CLEANS HRV MUST REACH ECTOPY TOO. `beatConfidence` at :2791
+           exists for exactly this case — its own comment: "a burst of spurious detections passes
+           SQI≥0.30 INDIVIDUALLY yet is collectively nonsense … c<0.5 = confirmed artifact ⇒ drop, so
+           it no longer inflates RMSSD/SDNN/epochs". The HRV path consults `_conf`; this call passed
+           raw `sqi` and never did, so an empty strap was classified beat by beat.
+           Found by Wren on the owner's 2026-09-22 night: 2,766 of 2,767 PVCs sit in the window where
+           the H10 was off the body — 42 ventricular runs and bigeminy 396 from a strap on a table.
+           `artifactSec` 6148 s = 102.5 min against an independently measured off-body window of
+           102.2 min, so `_conf` already identified the right seconds and nothing consumed them here.
+           Masking to 0 puts those beats below the classifier's SQI floor: they are not typed as
+           ectopic, and (with the 'U' state below) they leave the burden denominator instead of
+           diluting it. Both halves are required — the denominator fix ALONE moves this night
+           7.93 % → 11.69 %, because it shrinks the denominator while the artifact numerator stands. */
+        const _t0c = rec.t0Ms || 0;
+        const _sqiMorph = Array.from(sqi);
+        let _maskedBeats = 0;
+        for (let k = 0; k < _sqiMorph.length && k < peaks.length; k++) {
+          const _s = Math.floor((_t0c + (peaks[k] / fs) * 1000) / 1000);
+          const _c = _conf.has(_s) ? _conf.get(_s) : 1;
+          if (_c < 0.5) {
+            _sqiMorph[k] = 0;
+            _maskedBeats++;
+          }
+        }
+        morph = global.ECGMorph.analyze(int16, bp, fs, refIdx, rr, _sqiMorph);
+        if (morph) morph.beatsArtifactMasked = _maskedBeats;
       } catch (e) {
         morph = null;
       }
@@ -3209,6 +3289,7 @@
       lnrmssd: +Math.log(longRec ? dispRm : rm).toFixed(3),
       // epochs + sleep + cvhr + events
       epochs,
+      epochsRefused,
       stages,
       stageMin,
       totSleep: +totSleep.toFixed(0),
@@ -3515,11 +3596,18 @@
       const s = Math.round(a.sec);
       if (s >= 0 && s < M) dev[s] = a.row.hr;
     }
-    let last = NaN;
-    for (let s = 0; s < M; s++) {
-      if (isFinite(dev[s])) last = dev[s];
-      else if (isFinite(last)) dev[s] = last;
-    }
+    // ── ∅ ABSENCE IS NULL — a HELD device sample must not enter the comparison ────────────
+    //  `_alignDevSeconds` leaves NaN wherever the device reported nothing for that second. This
+    //  used to hold the last reading forward across those seconds, which made the two series agree
+    //  BY CONSTRUCTION: the CVHR grid this is compared against holds forward too, so a stretch
+    //  where NEITHER sensor measured anything contributed a delta of ~0 to the mean-absolute
+    //  error — biasing a VALIDATION toward agreement, the one direction that hides a fault.
+    //  PpgDex's `holdOverGaps` does hold, and says exactly why it is allowed to: a hold may shape
+    //  a filter tail, but "no REPORTED measurement rests on it". Every number this function
+    //  returns is a reported measurement, so nothing is held — uncovered seconds stay NaN,
+    //  `_rollMedian` skips them, and the `isFinite(d)` pairing guard below drops them.
+    let devMeasuredSec = 0;
+    for (let s = 0; s < M; s++) if (isFinite(dev[s])) devMeasuredSec++;
     // device HR is firmware-smoothed; smooth the ECG instantaneous HR the same way + clip
     // to a physiological window around the record's own median so artifact false-peaks
     // (burst-noise spans → spurious 150–180 bpm) don't pollute the comparison.
@@ -3575,8 +3663,16 @@
     const step = Math.max(1, Math.floor(M / 240)),
       overlay = [];
     for (let s = 0; s < M; s += step) overlay.push({ t: s, ecg: isFinite(ecgS[s]) ? +ecgS[s].toFixed(1) : null, dev: isFinite(devS[s]) ? +devS[s].toFixed(1) : null });
+    // The compared count means nothing without the count it was drawn FROM (MotionDex publishes
+    // the same denominator beside its rate coverage): `n` of `comparableSec` seconds carried a
+    // real reading on BOTH sides. No threshold is imposed on `coverage` — a bar not derived from
+    // data would be a fabricated authority; the reader is given the number instead.
+    const comparableSec = Math.max(0, M - lead);
     return {
       n: xs.length,
+      comparableSec,
+      devMeasuredSec,
+      coverage: comparableSec > 0 ? +(xs.length / comparableSec).toFixed(3) : null,
       ecgMean: +me.toFixed(1),
       devMean: +md.toFixed(1),
       dMean: +Math.abs(me - md).toFixed(1),
@@ -4604,6 +4700,7 @@
     /* Exported so their refusal guards are directly assertable. Additive only — no existing caller
        reaches them through this surface, and the internal call sites are unchanged. */
     poincareGeo,
+    epochEngine, // §∅ epoch gap-exclusion + seam refusal, gated directly
     detectCVHR,
     cardiorespCoupling,
     dfaAlpha1,
@@ -4904,11 +5001,34 @@
        `nsStepN > 0` IS the "is it a counter" test: a stuck or absent column advances zero times, so it
        never reaches here, and the anchors fall back to `[ms]` in the same breath — one condition
        governing both, because an fs from one axis and anchors from the other would not compose. */
+    /* §∅ — THE RATE NOW SAYS WHERE IT CAME FROM. When none of the three counters is usable `fs`
+       stays at the H10's nominal 130 — a number with no measurement behind it — and is then spent as
+       the file's timebase: `relSec`, every duration, every epoch edge. Nothing downstream could tell
+       that 130 from the measured 129.9866–129.9966 this same corpus yields, because an assumed rate
+       and a measured one are the same JS number.
+       This is the F2 family of ABSENCE-SURVEY-2026-09-22 — "a rate or geometry defaulted, then spent
+       as a timebase" — and the remedy is the one CLAUDE.md §7 already established for the AXIS:
+       publish the provenance rather than the guess. `timingSource` exists for exactly this reason
+       ("a device whose axis was DRAWN is not a clock… it must never be spent as a second clock") and
+       has no counterpart for the RATE. §7 also warns, in the other direction, that "a refusal guards
+       the RATE, not the AXIS" — here the axis can refuse while `fs` sails on fabricated.
+       ⚠️ SCOPE: this makes the fabrication VISIBLE; it does not yet change what a consumer DOES with
+       an assumed rate. Refusing a whole recording is a policy decision with a far wider blast radius
+       and belongs in its own unit. `fsSource` is what a refusal would have to key on, and it does
+       not exist today. */
     var fs = 130;
+    var fsSource = 'assumed';
     var nsUsable = scan.nsStepN > 0;
-    if (nsUsable) fs = (1000 * scan.nsStepN) / scan.nsStepSum;
-    else if (scan.stepN > 0) fs = Math.round((1000 * scan.stepN) / scan.stepSum);
-    else if (scan.msStep && scan.msStep > 0) fs = Math.round(1000 / scan.msStep);
+    if (nsUsable) {
+      fs = (1000 * scan.nsStepN) / scan.nsStepSum;
+      fsSource = 'ns-counter';
+    } else if (scan.stepN > 0) {
+      fs = Math.round((1000 * scan.stepN) / scan.stepSum);
+      fsSource = 'ms-step';
+    } else if (scan.msStep && scan.msStep > 0) {
+      fs = Math.round(1000 / scan.msStep);
+      fsSource = 'ms-delta';
+    }
 
     /* ONE DEVICE CLOCK PER AXIS — anchors from BEFORE the last resync are not on the clock the rest
        of the file is on, so they are dropped before `hostAxis` sees them. The resync block above
@@ -5311,6 +5431,12 @@
     var deviceEpoch = deviceEpochOffsetMs !== null ? { offsetMs: Math.round(deviceEpochOffsetMs), plausible: Math.abs(deviceEpochOffsetMs) <= 48 * 3600e3 } : null;
     return {
       fs: fs,
+      /* §∅ — the rate's PROVENANCE travels with the rate. 'ns-counter' | 'ms-step' | 'ms-delta' are
+         measured from the file; 'assumed' means no counter was usable and `fs` is the H10's nominal
+         130 with nothing behind it. A consumer that spends `fs` as a timebase can now tell the two
+         apart, which it could not before — they are the same number. Same discipline as
+         `quality.timingSource` for the axis (§7). */
+      fsSource: fsSource,
       /* Absolute floating wall-clock ms of sample `i`, host-disciplined where a second clock exists
          and GAP-AWARE (see `_ecgDeadMsBefore` above — a sample index does not count the wall-clock a
          dropout consumed). `i` may be fractional — `refinePeaks` returns sub-sample R positions and
@@ -5471,6 +5597,7 @@
     return {
       int16: arr.slice(0, n),
       fs: t.fs,
+      fsSource: t.fsSource,
       /* ⚠️ THIS IS A RESHAPE AND IT DROPS WHATEVER IT DOES NOT NAME. `ecgTimingResolve` returns the
          node's whole timing product; this literal copies a fixed list out of it, so a field added
          there is INERT until it is added here too — silently, with no error and no failing test.
@@ -5883,7 +6010,7 @@
       analyzablePct: r.analyzablePct != null ? r.analyzablePct : null,
       coveragePct: r.coveragePct != null ? r.coveragePct : null
     };
-    var mk = function (metricId, value) {
+    var mk = function (metricId, value, qualityOverride) {
       if (value == null || typeof value !== 'number' || !isFinite(value)) return null; // unmeasured ⇒ no block
       var b = {
         metricId: metricId,
@@ -5893,7 +6020,7 @@
         code: code,
         evidence: evidence,
         basis: 'derived',
-        quality: quality,
+        quality: qualityOverride || quality,
         uncertainty: null,
         uncertaintyReason: 'not estimated — this node carries no uncertainty model for whole-record HRV summaries (the firmware cross-check in `validation` is a comparison, not an interval)'
       };
@@ -5902,15 +6029,45 @@
           'no bundle identity passed (headless source-module run) — the app reads <html data-manifest-hash/data-compute-hash> and passes opts.code; the regen tool passes the shipped bundle\u2019s';
       return b;
     };
+    /* ∅ THE ECTOPY FIGURES REACH A GOLDEN. They were computed, rendered, and selected into NOTHING
+       — `morph` rides through the reshape and stopped here, so `pvcBurden`/`ectopyBurden` appeared in
+       no fixture and no regeneration of them could ever move. That is not a cosmetic gap: the
+       artifact-gate defect fixed in #3002 made the owner's own night report 2,767 PVCs and 42
+       ventricular runs from a strap lying off the body, and NOTHING in CI could have reddened,
+       before the defect or after the fix (residue `2026-09-24-the-corpus-cannot-falsify-a-refusal-fix`).
+
+       The metricIds are the REGISTERED ones, not invented: `ectopy` is the registry's burden metric
+       (label "Ectopy", `measured`, and its alias table already resolves "pvc burden" → `ectopy`),
+       and `pvc` is the count in beats. A `pvcBurden` metricId would be a fabricated metric identity,
+       which is the §🎫 failure this node has paid for before.
+
+       THE BURDEN'S DENOMINATOR IS NOT THE HRV ONE. `quality.n` above is `nBeats`, the beats that
+       survived confidence-dropping for HRV; a burden is rated over `beatsAssessed`, the beats the
+       CLASSIFIER could judge. Publishing the HRV count beside a burden would misstate its basis —
+       the exact error #3002 exists to end — so these blocks carry their own. */
+    var _m = r.morph || {};
+    var _burdenQuality =
+      _m.beatsAssessed != null
+        ? {
+            n: _m.beatsAssessed,
+            durationMin: quality.durationMin,
+            analyzablePct: quality.analyzablePct,
+            coveragePct: quality.coveragePct,
+            unassessedBeats: _m.beatsUnassessed != null ? _m.beatsUnassessed : null,
+            artifactMaskedBeats: _m.beatsArtifactMasked != null ? _m.beatsArtifactMasked : null
+          }
+        : null;
     var out = {};
     var blocks = [
-      ['hr', r.hr],
-      ['rmssd', r.rmssd],
-      ['sdnn', r.sdnn]
+      ['hr', r.hr, null],
+      ['rmssd', r.rmssd, null],
+      ['sdnn', r.sdnn, null],
+      ['ectopy', _m.ectopyBurden, _burdenQuality],
+      ['pvc', _m.nPVC, _burdenQuality]
     ];
     var any = false;
     for (var i = 0; i < blocks.length; i++) {
-      var b = mk(blocks[i][0], blocks[i][1]);
+      var b = mk(blocks[i][0], blocks[i][1], blocks[i][2]);
       if (b) {
         out[blocks[i][0]] = b;
         any = true;
@@ -6068,6 +6225,14 @@
            past the seam (a resync inside the last 500 rows). */
         if (c.hostOffsetMs != null) rs.hostOffsetMs = c.hostOffsetMs;
         return rs;
+      });
+    /* §∅ — 5-min windows the epoch engine REFUSED to score (a clock seam inside the window, or too
+       few scorable beats). Attached only when one exists, same no-null-key discipline, so clean
+       fixtures keep today's bytes. A consumer counting `timeseries.epochs` against the span now has
+       the holes named rather than inferred. */
+    if (Array.isArray(r.epochsRefused) && r.epochsRefused.length)
+      out.recording.epochsRefused = r.epochsRefused.map(function (e) {
+        return { tMin: e.tMin, n: e.n, reason: e.reason };
       });
     if (r.deviceRR && r.deviceRR.length) {
       /* AN OUTPUT COMPUTED OVER ABSENT INPUT REPORTS THE ABSENCE (§∅). The self train handed to the
@@ -6416,10 +6581,15 @@
           int16[i] = vv > 32767 ? 32767 : vv < -32768 ? -32768 : vv;
         }
       }
+      /* §∅ — the SignalFrame twin of the parser's fallback: a canonical frame that arrives without
+         `fs` gets the H10's nominal 130, which is a guess about a stream that may not be an H10 at
+         all. Labelled rather than silently assumed, same vocabulary as the parser. */
       var fs = input.fs != null ? input.fs : 130;
+      var fsSource = input.fs != null ? 'caller' : 'assumed';
       rec = {
         int16: int16,
         fs: fs,
+        fsSource: fsSource,
         gaps: input.gaps || [],
         t0Ms: input.t0Ms != null ? input.t0Ms : null,
         offsetMin: input.offsetMin != null ? input.offsetMin : null,

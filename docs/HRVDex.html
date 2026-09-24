@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="8480974ad909" data-compute-hash="16d78b5c99f7">
+<html lang="en" data-manifest-hash="5718609fbbee" data-compute-hash="0e0ed5058f60">
 <head>
 <!--
   HRVDex.src.html — Tepna
@@ -10,10 +10,10 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/Z7I3UUPEYVbJqKiogd2GpJzq5ymayoEqgifMJjbfTY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3bPuedJeHqlAtFRw9XCQUY2RL6IBWMfwvh6D9DWEXUc=' 'sha256-4xITUsBFYVOe0y9N/Voac0yCqAXaYfwByaSGx3qy9Jg=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-EUAm8HOe3qna7MaqXJZ2RjnuT3nxDMxTbc3GxMeGn40=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-FvE6kpPiOZOKf/shR8PEze9RQRPBsmlvDgLxIHG+CUc=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-RgOIfaxTWDtIkB+7YTZeGPlhxvjrWqtSovjwb4qSsRw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-pTsHiG3YU81obvJkalwdmUi5EMJKUcF94zWTj6ccHIo=' 'sha256-vdXPVfN455FWrG4pGu5lvFOWdmGJ81mF23buz312xUA=' 'sha256-wSIy7RZCIYM9pqzZEyYipybzXeFfizctBahhpd6lXvg='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+xo3JQS0wh0fnKBErkDsMeA5DhkyX1GM8xpq5UxqESo=' 'sha256-/Z7I3UUPEYVbJqKiogd2GpJzq5ymayoEqgifMJjbfTY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0sBgsT0FUUGnrESWUupXxRjP+ZNL/bPHjx7y4A2kzYQ=' 'sha256-3bPuedJeHqlAtFRw9XCQUY2RL6IBWMfwvh6D9DWEXUc=' 'sha256-58O6BxAcjgCbtJyPkzKKtexLOYodIHAExwfRPPPFcOI=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-EUAm8HOe3qna7MaqXJZ2RjnuT3nxDMxTbc3GxMeGn40=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-FvE6kpPiOZOKf/shR8PEze9RQRPBsmlvDgLxIHG+CUc=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-RgOIfaxTWDtIkB+7YTZeGPlhxvjrWqtSovjwb4qSsRw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-pTsHiG3YU81obvJkalwdmUi5EMJKUcF94zWTj6ccHIo='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
-<title>HRVDex — Heart Rate Variability Analyzer · v2.13.0</title>
+<title>HRVDex — Heart Rate Variability Analyzer · v2.14.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
 <style data-inline-src="licensing/dex-license.css">/*
  * dex-license.css — reusable Tepna license / attribution stamp styles
@@ -3207,7 +3207,7 @@ body.light .topbar::after{ opacity:.25; }
       <div class="logo-badge"><svg viewBox="0 0 100 100" aria-hidden="true" style="width:23px;height:23px" fill="none" stroke="#06121A" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,33 52,33 60,15 66,49 71,33 86,33"/><line x1="49" y1="33" x2="49" y2="86"/></svg></div>
       <div>
         <div class="logo-title">HRVDex</div>
-        <div class="logo-sub">v2.13.0 · Tepna</div>
+        <div class="logo-sub">v2.14.0 · Tepna</div>
       </div>
     </div>
     <hr class="sidebar-logo-rule">
@@ -3261,7 +3261,7 @@ body.light .topbar::after{ opacity:.25; }
   <main class="main-content">
     <div class="topbar">
       <div>
-        <div class="topbar-title">HRVDex <span class="version-badge">v2.13.0</span></div>
+        <div class="topbar-title">HRVDex <span class="version-badge">v2.14.0</span></div>
         <div class="page-sub">ANS Analysis Engine &middot; 85+ Derived Metrics &middot; All processing local &middot; No data leaves your device</div>
       </div>
       <div class="topbar-actions">
@@ -9615,8 +9615,21 @@ body.light .topbar::after{ opacity:.25; }
         return;
       }
       const prev = arr[i - 1];
-      const dayGap = isFinite(r._tMs) && isFinite(prev._tMs) ? Math.round((r._tMs - prev._tMs) / 86400000) : 1;
-      r.d_rmssd_delta_pct = dayGap === 1 && prev._rmssd > 0 && !isNaN(r._rmssd) ? ((r._rmssd - prev._rmssd) / prev._rmssd) * 100 : NaN;
+      /* §∅ — ONE LINE, TWO GUARDS, AND ONLY ONE OF THEM WORKED. `prev._rmssd > 0` correctly excludes
+         an absent previous night (null > 0 is false). `!isNaN(r._rmssd)` does NOT exclude an absent
+         CURRENT one: `isNaN(null)` is `isNaN(0)` — false — so null passed, and
+         `((null - prev) / prev) * 100` is exactly **−100 %**. A night whose rMSSD was never recorded
+         reported a total day-to-day collapse: the table renders "−100.0%" and the chart paints the
+         bar RED. Absence manufacturing an alarming finding, rather than a flattering one.
+         The current row now uses the SAME `> 0` test as the previous one — symmetric, and the
+         symmetry is the point: an asymmetric pair of guards on one expression is what hid this.
+         Both consumers already read NaN as absent (`isNaN(v) ? '—'`), so this needs no change
+         downstream; it gives those guards back the absence they were written for.
+         ⚠️ The day gap defaulted to 1 when either stamp was unparseable, so two undated rows were
+         treated as CONSECUTIVE DAYS and got a day-to-day reactivity reading they had no basis for.
+         An unknown gap is null, and `null === 1` is false, so the column refuses. */
+      const dayGap = isFinite(r._tMs) && isFinite(prev._tMs) ? Math.round((r._tMs - prev._tMs) / 86400000) : null;
+      r.d_rmssd_delta_pct = dayGap === 1 && prev._rmssd > 0 && r._rmssd > 0 ? ((r._rmssd - prev._rmssd) / prev._rmssd) * 100 : NaN;
     });
 
     // Rolling windows  (`_rows`, not `allRows` — see the note on the pass above)
@@ -9635,7 +9648,18 @@ body.light .topbar::after{ opacity:.25; }
       }
       const rmssd7 = window7.map((x) => x._rmssd).filter((v) => !isNaN(v) && v > 0);
       const sdnn7 = window7.map((x) => x._sdnn).filter((v) => !isNaN(v) && v > 0); // Finding 1: symmetric w/ rmssd7 — drop null/≤0 (absent SDNN) so a fabricated 0 never biases meanSDNN7/stdSDNN7
-      const stress7 = window7.map((x) => x._stress).filter((v) => !isNaN(v));
+      /* §∅ — `!isNaN(null)` is TRUE (null coerces to 0), so an ABSENT subjective Stress survived this
+         filter and entered the window as a real 0. The sibling one line below was repaired for
+         exactly this and names the mechanism — "§2 (FOLLOWUPS): drop absent (null), KEEP a real 0 …
+         `!isNaN(null)` was true → a blank pNN50 polluted the slope as 0". `rmssd7`/`sdnn7` above are
+         safe only because `v > 0` happens to exclude null; this one was the sibling that pass did
+         not reach.
+         The visible cost is the all-absent window: `stress7.length` counted seven absent days, so
+         `d_stress_auc` summed them to **0** — "no stress" — for a week carrying no subjective data
+         at all. Every ECGDex/Ganglior-ingested row lacks that column, so this is the COMMON case,
+         not an edge. `Number.isFinite` drops absent and keeps a real 0, which is a legitimate
+         Stress reading. */
+      const stress7 = window7.map((x) => x._stress).filter((v) => Number.isFinite(v));
       const pnn507 = window7.map((x) => x._pnn50).filter((v) => Number.isFinite(v)); // §2 (FOLLOWUPS): drop absent (null), KEEP a real 0 (pNN50=0 is physiological); !isNaN(null) was true → a blank pNN50 polluted the slope as 0
 
       const mean7rmssd = rmssd7.length ? rmssd7.reduce((a, b) => a + b, 0) / rmssd7.length : NaN;
@@ -9665,7 +9689,10 @@ body.light .topbar::after{ opacity:.25; }
       const ac_raw = _win14ac.map((x) => x._stress);
       const ac_pairs = [];
       for (let j = 0; j < ac_raw.length - 1; j++) {
-        if (!isNaN(ac_raw[j]) && !isNaN(ac_raw[j + 1])) ac_pairs.push([ac_raw[j], ac_raw[j + 1]]);
+        /* §∅ — the same coercion in the 14-day autocorrelation: `!isNaN(null)` admitted absent days
+           as 0, so a run of them correlated fabricated zeros against each other. A pair is used
+           only when BOTH days actually carry a reading. */
+        if (Number.isFinite(ac_raw[j]) && Number.isFinite(ac_raw[j + 1])) ac_pairs.push([ac_raw[j], ac_raw[j + 1]]);
       }
       r.d_stress_ac =
         ac_pairs.length > 3
@@ -9829,7 +9856,18 @@ body.light .topbar::after{ opacity:.25; }
       paraScore += Math.min(100, Math.log10(r._hf + 1) * 28);
       paraCount++;
     }
-    var paraAvg = paraCount ? paraScore / paraCount : 50;
+    /* §∅ — NO PARASYMPATHETIC INDICATOR IS A REFUSAL, NOT A MIDPOINT. This read
+       `paraCount ? paraScore / paraCount : 50`, and that 50 was not a conservative default: with
+       paraCount === 0 the whole score is CONSTANT. `sympPenalty` requires `_hf > 0`, and an `_hf > 0`
+       would itself have incremented paraCount — so the branch can only ever return exactly 50,
+       whatever else the row carries (pinned by a leg that sets `_lf = 9999` and still gets 50 from
+       the old code). A number that cannot vary with its input carries no information about the night,
+       and 50 is mid-scale on a 0-100 axis, so it rendered as an average night on ch_camq.
+       CAMQ is a parasympathetically-anchored composite: with nothing parasympathetic measured there
+       is no score to report. The consumer already filters `v != null` (hrvdex-render.js:1467), so the
+       point is dropped rather than drawn. Row hrvdex-dsp.js:1074 of ABSENCE-SURVEY-2026-09-22 (HIGH). */
+    if (!paraCount) return null;
+    var paraAvg = paraScore / paraCount;
 
     var sympPenalty = 0;
     if (r._hf > 0 && r._lf > 0) {
@@ -11205,9 +11243,13 @@ function renderAllCharts(rows, sm) {
       label: 'rMSSD modifier (%)',
       data: rows.map((r) => (!isNaN(r.d_vo2_hrv) && !isNaN(r.d_vo2_base) && r.d_vo2_base > 0 ? (r.d_vo2_hrv / r.d_vo2_base - 1) * 100 : NaN)),
       borderColor: rgba('purple', 1),
+      /* Absence is NaN here, exactly as in `data` above — the two lines share a guard and
+         must share an encoding. A night with no VO2 pair is not a 0 % modifier: `0 >= 0`
+         painted it GREEN, i.e. absence read as improvement. Transparent is the honest
+         colour for a point that carries no value (CLAUDE.md §∅). */
       backgroundColor: rows.map((r) => {
-        const pct = !isNaN(r.d_vo2_hrv) && !isNaN(r.d_vo2_base) && r.d_vo2_base > 0 ? (r.d_vo2_hrv / r.d_vo2_base - 1) * 100 : 0;
-        return pct >= 0 ? rgba('green', 0.2) : rgba('red', 0.2);
+        const pct = !isNaN(r.d_vo2_hrv) && !isNaN(r.d_vo2_base) && r.d_vo2_base > 0 ? (r.d_vo2_hrv / r.d_vo2_base - 1) * 100 : NaN;
+        return isNaN(pct) ? rgba('purple', 0) : pct >= 0 ? rgba('green', 0.2) : rgba('red', 0.2);
       }),
       fill: true
     },
@@ -11834,7 +11876,16 @@ function inferFromData() {
     .map((r) => r._hr)
     .filter((v) => v > 30 && v < 120)
     .sort((a, b) => a - b);
-  const restingHR = hrs.length ? hrs[Math.floor(hrs.length / 2)] : 60;
+  /* §∅ — NO PLAUSIBLE HR READING IS NOT A RESTING HR OF 60. `hrs` is already filtered to
+     30 < v < 120, so an empty list means this dataset carries no usable heart rate at all — and the
+     fallback invented one, which a banner headed "Auto-detected from your data" then displayed as
+     detected. The HR-range line one row below already does this correctly (`hrs.length ? … : '?–?'`).
+     It does not stop at the display: `restingHR` is the denominator of the Uth-Sørensen VO₂ estimate
+     below, and BOTH are handed to `DXP().prefillFrom(…)`, which PERSISTS them into the shared
+     detected tier — so a fabricated 60 became a stored profile fact other nodes resolve against.
+     `prefillFrom` already skips null (`if (detected[k] != null)`), so refusing here needs no change
+     there; it gives that guard back the absence it was written for. */
+  const restingHR = hrs.length ? hrs[Math.floor(hrs.length / 2)] : null;
 
   // Max HR observed in ALL rows (lower bound for HRmax)
   const _hrAll = allRows.map((r) => r._hr).filter((v) => v > 0);
@@ -11863,9 +11914,13 @@ function inferFromData() {
   const _tanaka = 208 - 0.7 * currentAge;
   // resting HR: manual override else median morning HR; HRmax guard against implausible entry
   const _hrRestV = _pp.hrrest_manual > 0 ? _pp.hrrest_manual : restingHR;
-  const _hrmaxV = _pp.hrmax_manual > 0 && _pp.hrmax_manual >= 140 && _pp.hrmax_manual > _hrRestV + 45 ? _pp.hrmax_manual : _tanaka;
+  /* §∅ — the HRmax plausibility guard compares against the resting HR, and `null + 45` is 45, so an
+     absent resting HR would have waved through any manual HRmax over 45. Guarded explicitly. */
+  const _hrmaxV = _pp.hrmax_manual > 0 && _pp.hrmax_manual >= 140 && _hrRestV != null && _pp.hrmax_manual > _hrRestV + 45 ? _pp.hrmax_manual : _tanaka;
   const _altF = _pp.elev <= 1500 ? 1 : Math.max(0.55, 1 - ((_pp.elev - 1500) / 300) * 0.01);
-  const vo2Est = Math.round(15.3 * (_hrmaxV / _hrRestV) * _altF * 10) / 10; // Uth-Sørensen + altitude
+  /* §∅ — Uth-Sørensen divides by the resting HR. With none measured the quotient is not large, it is
+     UNDEFINED — `_hrmaxV / null` is Infinity, and rounding it yields Infinity, not a VO₂. Refuse. */
+  const vo2Est = _hrRestV > 0 ? Math.round(15.3 * (_hrmaxV / _hrRestV) * _altF * 10) / 10 : null; // Uth-Sørensen + altitude
 
   // HRV→BP derivation REMOVED 2026-06-22 (DEX-SUITE-EXTERNAL-REVIEW-v2 §🔴 — same
   // class as the PulseDex SBP/DBP leak just removed): cuffless BP from HRV has no
@@ -11923,7 +11978,7 @@ function inferFromData() {
       '🔍 <strong>Auto-detected from your data</strong> &nbsp;·&nbsp;',
       allRows.length + ' measurements over ' + daySpan + ' days',
       ' &nbsp;·&nbsp; ' + morningPct + '% morning',
-      ' &nbsp;·&nbsp; Resting HR: <strong>' + restingHR + ' bpm</strong>',
+      ' &nbsp;·&nbsp; Resting HR: <strong>' + (restingHR != null ? restingHR + ' bpm' : 'not detected') + '</strong>',
       ' &nbsp;·&nbsp; HR range: <strong>' + (hrs.length ? Math.min(...hrs) + '–' + Math.max(...hrs) : '?–?') + ' bpm</strong>',
       ' &nbsp;·&nbsp; Max HR observed: <strong>' + hrMax + ' bpm</strong>',
       ' &nbsp;·&nbsp; <span style="color:var(--yellow)">🟡 Yellow = auto-estimated from HRV · Override with your real values</span>'
@@ -12142,8 +12197,25 @@ function updateProfile() {
   const ibw = p.sex === 'M' ? 50 + 2.3 * (p.height / 2.54 - 60) : 45.5 + 2.3 * (p.height / 2.54 - 60);
   const tanaka = Math.round(208 - 0.7 * p.age); // Tanaka 2001 HRmax
   // Guard implausible manual HRmax (must clear resting by a wide margin & sit in range)
-  const _hrRest0 = typeof allRows !== 'undefined' && allRows.length > 0 ? Math.round(allRows.reduce((s, r) => s + r._hr, 0) / allRows.length) : 60;
-  const hrmaxValid = p.hrmax_manual > 0 && p.hrmax_manual >= 140 && p.hrmax_manual > _hrRest0 + 45;
+  /* §∅ — THE PLAUSIBILITY GUARD WAS LOOSENED BY ABSENCE. `_hr` is `numOrNull` in the DSP, and this
+     mean summed `s + r._hr` over EVERY row while dividing by `allRows.length` — so each row without
+     a heart rate contributed 0 to the numerator and 1 to the denominator, dragging the resting HR
+     DOWN. A lower `_hrRest0` makes `hrmax_manual > _hrRest0 + 45` easier to clear, so an implausible
+     manual HRmax was accepted and rendered at :505 WITHOUT its "⚠ entry low" warning. Absence made a
+     validity check more permissive, which is the quiet direction — the same coercion that let a week
+     of absent Stress sum to an AUC of 0 (#2969).
+     The mean is now over the rows that carry a reading. When NONE does there is no basis for the
+     relative test at all, so it is SKIPPED rather than run against a fabricated number: the absolute
+     conditions (entered, ≥ 140) still apply, and a user's own entry is not overridden by Tanaka on
+     the strength of a comparison nothing supported.
+     ⚠️ NOT changed, and checked before leaving it: the old `: 60` was a THRESHOLD default on an empty
+     dataset, not a published measurement — the `alignFirmwareRR` class. And `_rhrProj`/`vo2Proj`
+     below, this value's only other consumer, writes `window._projVO2`, which has NO READER
+     repo-wide (verified today; the comment at :89 measured the same on 2026-09-05). With `_hrRest0`
+     null that branch simply does not run. */
+  const _hrRestVals = typeof allRows !== 'undefined' && allRows ? allRows.map((r) => r._hr).filter((v) => Number.isFinite(v)) : [];
+  const _hrRest0 = _hrRestVals.length ? Math.round(_hrRestVals.reduce((s, v) => s + v, 0) / _hrRestVals.length) : null;
+  const hrmaxValid = p.hrmax_manual > 0 && p.hrmax_manual >= 140 && (_hrRest0 == null || p.hrmax_manual > _hrRest0 + 45);
   const hrmaxRejected = p.hrmax_manual > 0 && !hrmaxValid;
   const hrmax = hrmaxValid ? p.hrmax_manual : tanaka;
   const map_ = Math.round(p.dbp + (p.sbp - p.dbp) / 3);
@@ -12153,8 +12225,15 @@ function updateProfile() {
       ? Math.round(10 * p.weight + 6.25 * p.height - 5 * p.age + 5) // Mifflin-St Jeor male
       : Math.round(10 * p.weight + 6.25 * p.height - 5 * p.age - 161); // female
 
-  // HR Training Zones (Karvonen: needs HRrest — use median from data if available)
-  const hrRest = typeof allRows !== 'undefined' && allRows.length > 0 ? Math.round(allRows.reduce((s, r) => s + r._hr, 0) / allRows.length) : 60;
+  /* HR Training Zones (Karvonen: needs HRrest — the MEAN of the rows that carry one).
+     §∅ — the same coercion as the plausibility guard above, found by the guard's own test: this
+     summed `s + r._hr` over EVERY row and divided by `allRows.length`, so each row without a heart
+     rate pushed the resting HR down and every Karvonen boundary with it.
+     ⚠️ The comment here used to say "median"; the code has always computed a MEAN. Corrected to
+     describe what it does rather than changing the statistic, which would be a behaviour change
+     beyond this fix — `inferFromData` separately computes a filtered MEDIAN of morning readings, so
+     the file carries two different resting-HR definitions and only one of them said so. */
+  const hrRest = _hrRestVals.length ? Math.round(_hrRestVals.reduce((s, v) => s + v, 0) / _hrRestVals.length) : null;
   const hrr = hrmax - hrRest; // HR Reserve
   const z1_lo = Math.round(hrRest + 0.5 * hrr),
     z1_hi = Math.round(hrRest + 0.6 * hrr);
@@ -12167,7 +12246,10 @@ function updateProfile() {
   const z5_lo = Math.round(hrRest + 0.9 * hrr);
 
   // VO2max absolute (L/min)
-  const vo2_abs = ((p.vo2gt * p.weight) / 1000).toFixed(2);
+  /* §∅ — `0 × weight / 1000` printed "0.00 L/min" for an unset VO₂. The FORMULA hint beside it
+     already guarded on `p.vo2gt > 0`; the VALUE did not, so the card explained that no ground
+     truth was entered while stating one. */
+  const vo2_abs = p.vo2gt > 0 ? ((p.vo2gt * p.weight) / 1000).toFixed(2) + ' L/min' : '—';
 
   // Use shared calcVo2Cat() — no duplicate table needed
   const vo2CatStr = p.vo2gt > 0 ? calcVo2Cat(p.vo2gt, p.age, p.sex) : '(enter VO₂ GT)';
@@ -12264,6 +12346,15 @@ function updateProfile() {
         [40, 95]
       ]
     };
+    /* §∅ — AN UNSET VO₂ WAS RANKED, NOT REFUSED. `p.vo2gt` is 0 when no ground truth was entered and
+       none was detected — a documented PROTOCOL value from `detOr0` ("else 0 ⇒ node auto"), not a
+       measurement. This function had no unset branch: 0 sits below the first Cooper point, so the
+       interpolation loop never matched and the tail `: 1` published the **1st percentile** — the
+       worst possible fitness ranking, derived from no data at all.
+       The protocol 0 is deliberate and is NOT changed here; what was wrong is a display layer that
+       turned it into a reported number. `vo2CatStr` one line from the other site already refuses
+       with "(enter VO₂ GT)", so the idiom was in the file. */
+    if (!(vo2 > 0) || !isFinite(vo2)) return null;
     const bin = age < 30 ? '20-29' : age < 40 ? '30-39' : age < 50 ? '40-49' : age < 60 ? '50-59' : '60-69';
     const table = sex === 'M' ? mPerc : fPerc;
     const pts = table[bin] || table['40-49'];
@@ -12301,11 +12392,11 @@ function updateProfile() {
     ) +
     grp(
       'Respiratory / fitness',
-      di('VO₂ absolute', vo2_abs + ' L/min', p.vo2gt > 0 ? 'VO₂·weight/1000 = ' + p.vo2gt + '·' + p.weight + '/1000' : 'enter VO₂max ground truth') +
+      di('VO₂ absolute', vo2_abs, p.vo2gt > 0 ? 'VO₂·weight/1000 = ' + p.vo2gt + '·' + p.weight + '/1000' : 'enter VO₂max ground truth') +
         di('VO₂ category', vo2CatStr, 'ACSM age·sex norms') +
         di(
           'VO₂ percentile',
-          '~' + vo2Perc + 'th',
+          vo2Perc != null ? '~' + vo2Perc + 'th' : '—',
           'Cooper bands (' + (p.age < 30 ? '20s' : p.age < 40 ? '30s' : p.age < 50 ? '40s' : p.age < 60 ? '50s' : '60+') + ' ' + (p.sex === 'M' ? 'M' : 'F') + ')'
         )
     );
@@ -12334,7 +12425,10 @@ function updateProfile() {
   /* `profileZones` is absent from HRVDex.src.html (2026-08-19), so the HR-zone table below never
      renders on the current surface. Guarded, not deleted — same reasoning as applyAgeNorms. */
   const pz = document.getElementById('profileZones');
-  if (pz) {
+  /* §∅ — with no measured resting HR there is no Heart Rate Reserve and therefore no zones: every
+     boundary below derives from `hrRest`, so rendering them would publish five NaNs as training
+     targets. The table is skipped rather than drawn empty. */
+  if (pz && hrRest != null) {
     const zr = (label, lo, hi, cls) => `<div class="prof-zone-row ${cls}"><span class="prof-zone-label">${label}</span><span class="prof-zone-val">${lo}–${hi} bpm</span></div>`;
     document.getElementById('profileZones').innerHTML =
       '<div class="prof-zone-label-sm">Karvonen HR Zones</div>' +
@@ -14599,6 +14693,6 @@ if (window.HRVDex && window.HRVDex.setHooks) window.HRVDex.setHooks({ setProgres
   </div>
 </nav>
 
-<div data-tepna-ver style="position:fixed;right:8px;bottom:8px;z-index:2147483000;font:600 11px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:#dbeafe;background:rgba(15,23,34,.82);border:1px solid rgba(120,170,220,.4);border-radius:999px;padding:2px 9px;letter-spacing:.03em;box-shadow:0 1px 4px rgba(0,0,0,.3);pointer-events:none;user-select:none" title="Tepna suite version">v2.13.0</div>
+<div data-tepna-ver style="position:fixed;right:8px;bottom:8px;z-index:2147483000;font:600 11px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:#dbeafe;background:rgba(15,23,34,.82);border:1px solid rgba(120,170,220,.4);border-radius:999px;padding:2px 9px;letter-spacing:.03em;box-shadow:0 1px 4px rgba(0,0,0,.3);pointer-events:none;user-select:none" title="Tepna suite version">v2.14.0</div>
 </body>
 </html>

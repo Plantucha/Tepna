@@ -541,7 +541,7 @@ that a median ≠ a seconds-weighted mean when night lengths differ).
 
 The derivation holds to floating point. **The prediction it makes, however, is falsified.**
 
-> ### ⚠️ RE-CUT 2026-09-21 — the table above is the 2026-08-27 photograph; the corpus under it has moved TWICE since, and these are the CURRENT values as sourced `CLAIM`s
+> ### ⚠️ RE-CUT 2026-09-21 — SUPERSEDED 2026-09-22 by the block below (the whole-corpus re-fold moved `uploads/trio` under it; its inputs are no longer the tree, so its stamp is recorded-only). Kept as the 2026-09-21 photograph.
 > `PUBLISHED-NUMBER-DECAY-SWEEP-2026-09-03` table 4 re-ran this table and found **3 of 3 rows diverged with
 > the identity intact** — the tool was unchanged; `uploads/trio` had been refolded under it (#2036,
 > 2026-09-01). Re-run 2026-09-21 at `2e9584e5` over the committed exports (`git ls-files uploads/trio`:
@@ -559,10 +559,31 @@ The derivation holds to floating point. **The prediction it makes, however, is f
 > | h10 | CLAIM tchLhsH10 = 0.007835089 FROM analysis/published-numbers/tch-pooled-hat-2026-09-21.json#claims/lhsH10 | CLAIM tchGapH10 = 0.007835089 FROM analysis/published-numbers/tch-pooled-hat-2026-09-21.json#claims/gapH10 | 4.3e-16 |
 > | verity | CLAIM tchLhsVerity = 0.002192679 FROM analysis/published-numbers/tch-pooled-hat-2026-09-21.json#claims/lhsVerity | CLAIM tchGapVerity = 0.002192679 FROM analysis/published-numbers/tch-pooled-hat-2026-09-21.json#claims/gapVerity | 5.8e-16 |
 > | o2 | CLAIM tchLhsO2 = 0.016950839 FROM analysis/published-numbers/tch-pooled-hat-2026-09-21.json#claims/lhsO2 | CLAIM tchGapO2 = 0.016950839 FROM analysis/published-numbers/tch-pooled-hat-2026-09-21.json#claims/gapO2 | 1.8e-16 |
-> <!-- TABLE-PROVENANCE producer=tools/tch-pooled-hat.mjs invocation="--dir uploads/trio --json" inputs=uploads/trio inputsDigest=19c31a194ec7 output=0303fa53bd81 generated=2026-09-21 -->
+> <!-- TABLE-PROVENANCE producer=tools/tch-pooled-hat.mjs invocation="--dir uploads/trio --json" inputs=19c31a194ec7 output=0303fa53bd81 generated=2026-09-21 -->
 >
 > The identity still holds to 1e-16 and the between-night term is still ~0.1 % of within — §11's refutation
 > stands under the refolded corpus; only the magnitudes moved.
+>
+> ### ⚠️ RE-CUT 2026-09-22 — the whole-corpus re-fold (#2895) moved `uploads/trio` under the 2026-09-21 block; these are the CURRENT values as sourced `CLAIM`s
+> Re-run 2026-09-22 at `11def5ed` over the committed exports (`git ls-files uploads/trio`: 609 files, digest
+> `aa533e3efd7c`; the tree was re-folded whole under ONE code generation, 116 → 140 nights): CLAIM tch2NightsUsed = 83 FROM analysis/published-numbers/tch-pooled-hat-2026-09-22.json#claims/nightsUsed nights,
+> CLAIM tch2PooledSeconds = 1377710 FROM analysis/published-numbers/tch-pooled-hat-2026-09-22.json#claims/pooledSeconds pooled seconds (was 63 / 1,054,151).
+> **63 usable nights then, 83 now** — the 2026-09-21 values were right for the corpus they were cut from; the
+> population changed, not the arithmetic. Every gap moved with it: h10 +91 %, o2 +52 %, and **verity −85 %**
+> (0.002193 → 0.000334). That last one is the only place a conclusion could move, so read it as an argument
+> rather than a digit: a SMALLER between-night term on the Verity corner makes §11's refutation STRONGER on
+> that corner, not weaker — the term the refutation needs to be negligible became more negligible.
+>
+> | corner | σ²_pooled − σ²_weighted | ½(B_AB + B_AC − B_BC) | \|Δ\| |
+> |---|---|---|---|
+> | h10 | CLAIM tch2LhsH10 = 0.014947671 FROM analysis/published-numbers/tch-pooled-hat-2026-09-22.json#claims/lhsH10 | CLAIM tch2GapH10 = 0.014947671 FROM analysis/published-numbers/tch-pooled-hat-2026-09-22.json#claims/gapH10 | 1.1e-15 |
+> | verity | CLAIM tch2LhsVerity = 0.00033416 FROM analysis/published-numbers/tch-pooled-hat-2026-09-22.json#claims/lhsVerity | CLAIM tch2GapVerity = 0.00033416 FROM analysis/published-numbers/tch-pooled-hat-2026-09-22.json#claims/gapVerity | 3.6e-16 |
+> | o2 | CLAIM tch2LhsO2 = 0.025756119 FROM analysis/published-numbers/tch-pooled-hat-2026-09-22.json#claims/lhsO2 | CLAIM tch2GapO2 = 0.025756119 FROM analysis/published-numbers/tch-pooled-hat-2026-09-22.json#claims/gapO2 | 1.3e-15 |
+> <!-- TABLE-PROVENANCE producer=tools/tch-pooled-hat.mjs invocation="--dir uploads/trio --json" inputs=uploads/trio inputsDigest=aa533e3efd7c output=dab924f777d6 generated=2026-09-22 -->
+>
+> The identity still holds to 1e-15 and the between-night term is **0.19–0.46 %** of within (was 0.13–0.24 %:
+> roughly doubled, still well under 1 %) — §11's refutation stands under the re-folded corpus, and the
+> "~0.1 %" figure in the block above is superseded by this range.
 
 ### ❌ B is 0.1 % — the mechanism I pre-registered does NOT explain the spread
 

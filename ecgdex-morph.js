@@ -132,10 +132,16 @@
     // classify
     const types = new Array(n).fill('N');
     for (let k = 1; k < n - 1; k++) {
+      /* ∅ NOT CLEAN ENOUGH TO CLASSIFY IS NOT "NORMAL". Declining to call ectopy on a dirty beat is
+         deliberate and right — it avoids artifact-driven false runs — but the beat was then TYPED
+         'N', which asserts the opposite of what was established. Both halves of that pushed the
+         burden DOWN, the reassuring direction: a real PVC inside a noisy stretch was counted as
+         normal, AND it still inflated the denominator below. 'U' keeps the original refusal and
+         drops the false claim. */
       if (sqi[k] < 0.55) {
-        types[k] = 'N';
+        types[k] = 'U';
         continue;
-      } // only call ectopy on clean beats (avoids artifact-driven false runs)
+      }
       const lm = localMedRR(rr, k, 8);
       const prem = rr[k] / lm;
       const wide = qrsW[k] > medW * 1.6;
@@ -152,6 +158,8 @@
     }
 
     // rhythm aggregation
+    let nAssessed = 0;
+    for (let k = 0; k < n; k++) if (types[k] !== 'U') nAssessed++;
     let nV = 0,
       nS = 0,
       couplets = 0,
@@ -169,6 +177,8 @@
       }
       if (types[k] === 'S') nS++;
       // bigeminy: N,V alternation
+      // an UNASSESSED beat cannot complete a bigeminy pattern it was never shown to be part of;
+      // 'N' here must mean a beat observed to be normal, which is why the test is explicit
       if (k >= 3 && types[k] === 'V' && types[k - 1] === 'N' && types[k - 2] === 'V' && types[k - 3] === 'N') bigemCycles++;
     }
     // runs ≥3 → ventricular run / NSVT flag
@@ -191,9 +201,16 @@
       medW: +medW.toFixed(0),
       nPVC: nV,
       nPAC: nS,
-      pvcBurden: +((nV / n) * 100).toFixed(2),
-      pacBurden: +((nS / n) * 100).toFixed(2),
-      ectopyBurden: +(((nV + nS) / n) * 100).toFixed(2),
+      /* ∅ A burden is a rate over the beats that were ASSESSED. Dividing by every beat counted the
+         unclassifiable ones in the denominator while they could never appear in the numerator, so
+         each one strictly diluted the burden — and these figures drive severity bands at 0.5 % and
+         3 %. Reduced coverage ANNOTATES (§∅, 2026-09-17), so the value stands and `beatsAssessed`
+         publishes what it rests on; if nothing was assessable the rate is null, not 0. */
+      beatsAssessed: nAssessed,
+      beatsUnassessed: n - nAssessed,
+      pvcBurden: nAssessed > 0 ? +((nV / nAssessed) * 100).toFixed(2) : null,
+      pacBurden: nAssessed > 0 ? +((nS / nAssessed) * 100).toFixed(2) : null,
+      ectopyBurden: nAssessed > 0 ? +(((nV + nS) / nAssessed) * 100).toFixed(2) : null,
       couplets,
       longestRun,
       runsGE3,
@@ -608,7 +625,9 @@
     // use windows of 30 beats; flag windows that are irregularly irregular but NOT just ectopy
     const W = 32,
       n = rr.length;
-    if (n < W + 2) return { suspiciousPct: 0, irregIndex: 0, verdict: 'insufficient', shannon: 0 };
+    /* §∅ — the metrics are null here too, for the same reason: this path has scored nothing, and a
+       0 % that a consumer prints is a claim about windows that do not exist. */
+    if (n < W + 2) return { suspiciousPct: null, irregIndex: null, verdict: 'insufficient', shannon: null };
     let flagged = 0,
       total = 0,
       shAcc = 0,
@@ -647,9 +666,21 @@
       // AF-suspicious: high CV AND high entropy AND not explained by sparse ectopy
       if (cv > 0.13 && Hn > 0.72 && ectFrac < 0.25) flagged++;
     }
-    const suspiciousPct = total ? +((flagged / total) * 100).toFixed(1) : 0;
-    const shannon = total ? +(shAcc / total).toFixed(3) : 0;
-    const irregIndex = total ? +(cvAcc / total).toFixed(3) : 0;
+    /* §∅ — A SCREEN THAT NEVER RAN IS NOT A NEGATIVE SCREEN. `total` counts the windows that had
+       enough usable beats to score; when it is 0 — every window too sparse or too noisy — the three
+       metrics fell to 0, `suspiciousPct >= 8` was false, and the function published **'no-af'**: a
+       clinical all-clear derived from zero evidence, rendered as "Clear" with an `ok` severity.
+       The vocabulary for this already exists in this very function: the `n < W + 2` guard at the top
+       returns `'insufficient'`, and BOTH consumers already map it — `'—'` for the value and
+       `neutral` for the colour. Two ways of having nothing to screen, one of them answered
+       correctly. This is the same shape as `computeSpO2Percentiles` vs `computeODI1` (#2961): a
+       precondition handled twice, differently.
+       The metrics go null with it. `0 % irregular` is a measurement claim about windows that were
+       never scored, and `suspiciousPct` is rendered directly into the UI. */
+    if (!total) return { suspiciousPct: null, irregIndex: null, shannon: null, verdict: 'insufficient' };
+    const suspiciousPct = +((flagged / total) * 100).toFixed(1);
+    const shannon = +(shAcc / total).toFixed(3);
+    const irregIndex = +(cvAcc / total).toFixed(3);
     let verdict;
     if (suspiciousPct >= 30) verdict = 'possible-af';
     else if (suspiciousPct >= 8) verdict = 'occasional-irregular';

@@ -14,7 +14,7 @@
 A fleet of local-only, single-signal physiological analyzers. No upload. No accounts. No network.
 
 [![Live at tepna.net](https://img.shields.io/badge/live-tepna.net-2a6fdb?style=for-the-badge)](https://tepna.net)
-[![Suite v2.13.0](https://img.shields.io/badge/suite-v2.13.0-2a6fdb?style=for-the-badge)](CHANGELOG.md)
+[![Suite v2.14.0](https://img.shields.io/badge/suite-v2.14.0-2a6fdb?style=for-the-badge)](CHANGELOG.md)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-2a6fdb?style=for-the-badge)](LICENSE)
 [![DOI](https://zenodo.org/badge/1286425809.svg)](https://doi.org/10.5281/zenodo.22068939)
 
@@ -24,7 +24,7 @@ A fleet of local-only, single-signal physiological analyzers. No upload. No acco
 [![Every metric graded](https://img.shields.io/badge/every_metric-evidence_graded-8a5cf6)](#the-evidence-ladder-every-metric-is-graded)
 [![Reproducible](https://img.shields.io/badge/every_paper-regenerates_from_its_tool-8a5cf6)](papers/papers.html)
 ![Nodes](https://img.shields.io/badge/nodes-8_live_%C2%B7_1_planned-555)
-![Releases](https://img.shields.io/badge/releases-39_shipped-555)
+![Releases](https://img.shields.io/badge/releases-40_shipped-555)
 
 **[tepna.net](https://tepna.net)**  ·  [github.com/Plantucha/Tepna](https://github.com/Plantucha/Tepna)
 
@@ -75,13 +75,13 @@ engineering constraint — is [`docs/WHY-THIS-EXISTS.md`](docs/WHY-THIS-EXISTS.m
 
 ## 📊 Suite at a glance
 
-**Suite version:** 2.13.0 &nbsp;—&nbsp; **39** ledger-backed releases, each computed from a green tree, with **0 changesets** pending since (the tree is exactly the release).
+**Suite version:** 2.14.0 &nbsp;—&nbsp; **40** ledger-backed releases, each computed from a green tree, with **0 changesets** pending since (the tree is exactly the release).
 
 | | |
 |---|---|
 | 🧠 **Analyzers** | **8 live** single-signal nodes · **1 planned** (EEGDex) |
 | 🔀 **Fusion** | **Integrator** (cross-signal) + 2 ingest front doors — **Data Unifier** · **OverDex** — all live |
-| 🧪 **Tests** | **9,812 assertions** across **633 groups**, run as **6 partitioned CI shards** — green on every push |
+| 🧪 **Tests** | **10,208 assertions** across **648 groups**, run as **6 partitioned CI shards** — green on every push |
 | 🐍 **Capture lane** | the **Health Box** (`capture-host/`) — **6,800+ Python tests** at a **100 % statement *and* branch** coverage floor |
 | 🛡️ **CI gates** | 8 required on every PR — `no-network` · `tests` · `types` · `biome` · `capture-host` (py3.12 · py3.13) · `browser-gates` · `stale-file` — plus `CodeQL`, a diff-scoped **mutation** run and the `static` ledger job; the privacy claim is **enforced, not asserted** |
 | 🎫 **Honesty** | every surfaced number carries an **evidence grade** — nothing ships unlabelled |

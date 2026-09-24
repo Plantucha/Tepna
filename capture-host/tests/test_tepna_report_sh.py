@@ -21,8 +21,14 @@ HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SH = os.path.join(HERE, "tepna-report.sh")
 TOKEN = "tk_SECRET_do_not_leak_9f3a"          # distinctive enough that a substring search is decisive
 
+# `class_b` carries one EXAMINED-and-clean block, not `[]`. An empty list means the producer examined
+# NOTHING (`class_b_quality` skips an unreadable/headerless/short file with `continue`), which reads
+# `unknown` since 2026-09-23 — so an empty fixture would make this test about the refusal instead of
+# about the shell wrapper it is named for.
 SUMMARY = ('{"night":"2026-09-06","devices":[{"name":"Wellue O2Ring-S",'
-           '"streams":{"spo2":34964}}],"class_b":[]}')
+           '"streams":{"spo2":34964}}],'
+           '"class_b":[{"stream":"ppg","held":null,"rows":0,"clips":{"ppg":0},'
+           '"file":"Wellue_O2Ring-S_S8AW2100_20260906034935_PPG.txt","columns":1}]}')
 
 
 def _run(tmp_path, *args, nights=("2026-09-06",), enabled=False, url=None, summary=SUMMARY):

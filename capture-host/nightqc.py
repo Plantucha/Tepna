@@ -255,6 +255,38 @@ def _session_of(fname: str, mtime: float) -> float:
     return mtime
 
 
+def _worn_end(wear: dict | None, name: object) -> dict | None:
+    """One device's `worn_end` out of a `loss_audit.wear_ends`-shaped mapping, or None.
+
+    `name` is typed `object` rather than `str` because it arrives as `dev.get("name")`, which is
+    legitimately None for a device configured without one — and a missing key is exactly the "cannot say"
+    this function already answers with None, so there is nothing to narrow it to.
+
+    ⚠️ ABSENCE IS NULL AT EVERY HOP, and there are four of them: no mapping was supplied, the device is
+    not in it, its wear block is unavailable (no usable file), or the block has no `worn_end`. Each is a
+    different reason for not knowing and NONE of them is "the device was worn to the end", so every one
+    returns None rather than a value the caller could mistake for a measurement."""
+    if not isinstance(wear, dict):
+        return None
+    block = wear.get(name)
+    if not isinstance(block, dict):
+        return None
+    end = block.get("worn_end")
+    return end if isinstance(end, dict) else None
+
+
+def _worn_end_reason(wear: dict | None, name: object) -> str | None:
+    end = _worn_end(wear, name)
+    reason = end.get("reason") if end else None
+    return reason if isinstance(reason, str) and reason else None
+
+
+def _worn_end_at(wear: dict | None, name: object) -> str | None:
+    end = _worn_end(wear, name)
+    at = end.get("at") if end else None
+    return at if isinstance(at, str) and at else None
+
+
 def _folder_date(night_dir: str):
     """The datetime.date a YYYY-MM-DD night folder is named for, or None if the basename isn't a date."""
     try:
@@ -568,15 +600,21 @@ def pmd_negotiations(night_dir: str) -> dict:
             continue                      # a torn row is skipped, exactly as every sidecar reader does
         key = (p[1], p[3])
         rec = out.setdefault(key, {"chosen": None, "offered": None, "starts": 0, "_seen": set(), "_menus": set()})
-        if p[7] not in started:
-            rec["starts"] += 1
-            continue
         rec["starts"] += 1
+        # THE MENU IS A PROPERTY OF THE DEVICE, NOT OF THE OUTCOME, so it is read from every row —
+        # a refused START still carries the settings block the device reported before refusing.
+        # Measured on the box the day this shipped: a Verity left on its charger refused 63 ACC
+        # starts in an hour, every row recording `offered 52`, and this reported `offered: None`
+        # while the file said 52 sixty-three times — a null where a measurement exists, which is
+        # §∅ inverted. `chosen` stays started-only (below): what was captured at IS an outcome.
+        if p[5]:
+            rec["_menus"].add(p[5])
+        if p[7] not in started:
+            continue
         try:
             rec["_seen"].add(int(p[6]))
         except ValueError:
             pass                          # a blank or torn rate is an ABSENCE, not a zero
-        rec["_menus"].add(p[5])
     for rec in out.values():
         rec["chosen"] = next(iter(rec["_seen"])) if len(rec["_seen"]) == 1 else None
         rec["offered"] = next(iter(rec["_menus"])) if len(rec["_menus"]) == 1 else None
@@ -1560,41 +1598,57 @@ def arrival_quality(night_dir: str) -> list[dict]:
 PPG2W_CH1_FLOOR = 15388
 PPG2W_RATIO_LO = 0.5
 PPG2W_RATIO_HI = 3.0
-_PPG2W_ROWS_PER_EPOCH = 100     # the stream is back-timed on a 10 ms grid -> 1 s epochs
-_PPG2W_MIN_EPOCHS = 60          # under a minute cannot establish a worn band -> refuse, never report
-_PPG2W_RUN_EPOCHS = 10          # a sustained off-run, vs single-epoch flicker; also the bar for
-                                # "ended off-finger" — a tail is a doffing when the trailing off-run
-                                # is itself sustained, not when some window's majority tips (a
-                                # majority-of-last-minute definition sat exactly on a tie in the first
-                                # planted test, which is what a window boundary does)
+# ⚠️ AN EPOCH IS ONE SECOND OF WALL CLOCK, read from each row's phone stamp — NOT a fixed row count. It was
+# `_PPG2W_ROWS_PER_EPOCH = 100` ("a 10 ms grid"), and the stream is not 100 rows/s: measured per file on the box
+# (Wren, 2026-09-24) it ran ~101.6 rows/s through 2026-08-21 and ~199 rows/s from 2026-08-23. So every "second"
+# was 0.98 s and then 0.5 s, `doff_at = first + (epochs - trailing)` drifted 1.6 % of the file's length in the
+# derivation regime (up to ~9 min) and ~2x after it — HOURS late (2026-09-22: 09:59:38 for a finger out at
+# 04:22:34), and the 60-epoch minimum and the 10-epoch run were halved in real seconds. The PER-ROW predicate
+# and its constants above are rate-independent and unchanged; only time is now read from the clock.
+# VALIDATED against an EXTERNAL label on every night (the SpO2 file's last row: the ring stops SpO2 when the
+# finger leaves), clock-aligned `doff_at` minus that row, over the 50 sustained off-tails 2026-08-06 → 09-23:
+# +5 to +7 s on every tail at ~101.6 rows/s, 0 to +4 s on every tail at ~199 rows/s; two land EARLY — 2026-09-07
+# 08:01:28 (-80 s) and 2026-09-11 20:15:24 (-202 s) — where the two-channel signal left the finger before the
+# ring stopped writing SpO2. Reported as observed.
+_PPG2W_MIN_EPOCHS = 60  # under a minute cannot establish a worn band -> refuse, never report
+_PPG2W_RUN_EPOCHS = 10  # a sustained off-run, vs single-epoch flicker; also the bar for
+# "ended off-finger" — a tail is a doffing when the trailing off-run
+# is itself sustained, not when some window's majority tips (a
+# majority-of-last-minute definition sat exactly on a tie in the first
+# planted test, which is what a window boundary does)
 
 
-def ppg2w_contact(ch0, ch1):
+def ppg2w_contact(ch0, ch1, secs):
     """Worn/off-finger summary from the 0x05 channel pair. PURE — the file walk is in the caller.
 
     worn(row) := ch1 > PPG2W_CH1_FLOOR and PPG2W_RATIO_LO <= ch0/ch1 <= PPG2W_RATIO_HI.
-    An epoch (1 s = 100 rows) is OFF when the MAJORITY of its rows fail that predicate — a single
-    glitch row must not flip a second.
+    An epoch is ONE SECOND of wall clock — every row whose `secs[i]` (its phone stamp to the second) is that
+    second, wherever it falls in the file — and is OFF when the MAJORITY of its rows fail that predicate: a single glitch row
+    must not flip a second. `tail_start` is the label of the trailing off-run's first second (None when the
+    tail is worn): the doff time, read off the clock rather than computed from a count.
 
     Returns None when fewer than _PPG2W_MIN_EPOCHS epochs exist: a block that cannot be computed is
     ABSENT, never `off_epochs_pct: 0` — zero is the healthy end of that scale, and missing data
     reading as healthy is the exact failure class this file already documents for actigraphy.
     """
-    n_ep = min(len(ch0), len(ch1)) // _PPG2W_ROWS_PER_EPOCH
+    # Rows are BACK-TIMED per frame, so their stamps are not monotonic across a second boundary: grouping
+    # CONSECUTIVE equal labels split one second into ~3 epochs (60 478 "epochs" in a 20 859 s file). Group by
+    # the label's VALUE and order the seconds by label (an ISO stamp to the second sorts chronologically).
+    per: dict = {}
+    worn_ratios = []
+    for i in range(min(len(ch0), len(ch1), len(secs))):
+        cell = per.setdefault(secs[i], [0, 0])
+        cell[1] += 1
+        c1 = ch1[i]
+        if c1 > PPG2W_CH1_FLOOR and PPG2W_RATIO_LO * c1 <= ch0[i] <= PPG2W_RATIO_HI * c1:
+            worn_ratios.append(ch0[i] / c1)
+        else:
+            cell[0] += 1
+    labels = sorted(per)
+    n_ep = len(labels)
     if n_ep < _PPG2W_MIN_EPOCHS:
         return None
-    worn_ratios = []
-    ep_off = []
-    for e in range(n_ep):
-        lo = e * _PPG2W_ROWS_PER_EPOCH
-        bad = 0
-        for i in range(lo, lo + _PPG2W_ROWS_PER_EPOCH):
-            c1 = ch1[i]
-            if c1 > PPG2W_CH1_FLOOR and PPG2W_RATIO_LO * c1 <= ch0[i] <= PPG2W_RATIO_HI * c1:
-                worn_ratios.append(ch0[i] / c1)
-            else:
-                bad += 1
-        ep_off.append(bad * 2 > _PPG2W_ROWS_PER_EPOCH)
+    ep_off = [per[k][0] * 2 > per[k][1] for k in labels]
     runs, cur = [], 0
     for off in ep_off:
         if off:
@@ -1620,6 +1674,7 @@ def ppg2w_contact(ch0, ch1):
         "off_runs_sustained": sum(1 for r in runs if r >= _PPG2W_RUN_EPOCHS),
         "tail_off": tail_off,
         "trailing_off_epochs": trail,
+        "tail_start": labels[n_ep - trail] if tail_off else None,
         # The worn band is reported so drift OUT of it is visible before it becomes misses: these two
         # numbers are the detector auditing itself night by night.
         "worn_ratio_median": round(worn_ratios[m // 2], 3) if m else None,
@@ -1640,8 +1695,11 @@ def ppg2w_contact_quality(night_dir: str) -> list:
     for name in sorted(os.listdir(night_dir) if os.path.isdir(night_dir) else []):
         if not name.endswith("_PPG2W.txt"):
             continue
-        ch0, ch1 = [], []
-        first_ts = None
+        # Memory, because this runs inside the daemon over ~4 M rows a night: the channels are machine ints, and
+        # every row of one second shares ONE label object (consecutive rows repeat it), so `secs` is pointers
+        # into ~20 k strings rather than 4 M of them.
+        ch0, ch1, secs = _array("q"), _array("q"), []
+        prev = ""
         try:
             with open(os.path.join(night_dir, name), "r", encoding="utf-8", errors="replace") as fh:
                 for line in fh:
@@ -1651,63 +1709,65 @@ def ppg2w_contact_quality(night_dir: str) -> list:
                     try:
                         a, b = int(parts[2]), int(parts[3])
                     except ValueError:
-                        continue      # a torn row is expected at a live file's tail; the epoch count
-                                      # is computed from the rows that parsed, and `_PPG2W_MIN_EPOCHS`
-                                      # refuses a block built from too few
-                    if first_ts is None:
-                        first_ts = parts[0]
+                        continue  # a torn row is expected at a live file's tail; the epoch count
+                        # is computed from the rows that parsed, and `_PPG2W_MIN_EPOCHS`
+                        # refuses a block built from too few
+                    label = parts[0][:19]
+                    if label != prev:
+                        prev = label
+                    secs.append(prev)
                     ch0.append(a)
                     ch1.append(b)
         except OSError:
-            log.warning("night-QC: %s is unreadable, so its contact quality is ABSENT rather than "
-                        "poor — the two must not read alike", name, exc_info=True)
+            log.warning(
+                "night-QC: %s is unreadable, so its contact quality is ABSENT rather than "
+                "poor — the two must not read alike",
+                name,
+                exc_info=True,
+            )
             continue
-        block = ppg2w_contact(ch0, ch1)
+        block = ppg2w_contact(ch0, ch1, secs)
         if block is None:
             out.append({"file": name, "usable": False, "reason": f"under {_PPG2W_MIN_EPOCHS} s of rows"})
             continue
         block["file"] = name
         block["usable"] = True
-        # Doff wall-clock: first timestamp + (epochs - trailing_off) seconds, on the file's own
-        # back-timed axis. Only when the tail IS off — a doff time on a worn tail would be fabricated.
-        if block["tail_off"] and block["trailing_off_epochs"] and first_ts:
-            try:
-                t0 = datetime.fromisoformat(first_ts)
-                doff = t0 + timedelta(seconds=block["epochs"] - block["trailing_off_epochs"])
-                block["doff_at"] = doff.isoformat(timespec="seconds")
-            except ValueError:
-                block["doff_at"] = None
-        else:
+        # Doff wall-clock: the trailing off-run's FIRST SECOND, read off the rows' own stamps — never computed
+        # from an epoch count (see the constants). A label that is not a time is not a doff time.
+        tail = block.pop("tail_start")
+        try:
+            block["doff_at"] = datetime.fromisoformat(tail).isoformat(timespec="seconds") if tail else None
+        except ValueError:
             block["doff_at"] = None
         out.append(block)
     return out
 
 
-_CLIP_MIN_RUN = 5               # the shortest plateau REPORTED. It is a sensitivity knob only, and
-                                # measurably not a specificity one: the clean-stream control yields 0
-                                # regions at min_run 5, 6 and 8 alike, because `rail_value` rejects an
-                                # unqualified rail before this is ever consulted. So raising it buys
-                                # nothing and costs real events.
-                                # ⚠️ IT COSTS DAMAGE, and the curve is why it is 5 and not 8. Magpie
-                                # measured the excursion a pin puts into the bandpassed signal against
-                                # the clean signal's own sd (2026-09-06):
-                                #     len  1 →  5.7x     20 → 40.2x (peak)
-                                #     len  5 → 25.4x     40 → 33.1x
-                                #     len 10 → 38.6x     94 → 22.1x
-                                # A 5-sample pin is a 25x-sd excursion — comparable to a 94-sample one
-                                # at 22x — so a "tidy" raise to 8 silently drops 9 spans on 045318 that
-                                # do real damage. Do not raise this without re-measuring that curve.
-_PLATEAU_LSB = 1                # a rail plateau flickers by one quantisation step, so the region is
-                                # NEAR-constant, not constant. Measured 2026-09-06 on the ring: exact
-                                # equality split one ceiling population into 118 regions at 200 and 81
-                                # at 199 and would have reported one plateau as two findings.
-_RAMP_SAMPLES = 6               # samples either side used to read the approach. One ring beat's rising
-                                # edge at 125 Hz — enough to see monotonicity, short enough not to
-                                # reach the neighbouring beat.
-_HELD_NEAR_DELTA = 0.90         # >= this share of runs on two ADJACENT lengths => a zero-order HOLD,
-                                # not a defect. Measured on the ring's `_ACCRAW.txt` (2026-09-06, three
-                                # sessions / two nights): 99.8 % of runs are 6 or 7, ratio 6.387-6.396,
-                                # because a 1.5625 Hz update is emitted into a 10 Hz record stream.
+_CLIP_MIN_RUN = 5  # the shortest plateau REPORTED. It is a sensitivity knob only, and
+# measurably not a specificity one: the clean-stream control yields 0
+# regions at min_run 5, 6 and 8 alike, because `rail_value` rejects an
+# unqualified rail before this is ever consulted. So raising it buys
+# nothing and costs real events.
+# ⚠️ IT COSTS DAMAGE, and the curve is why it is 5 and not 8. Magpie
+# measured the excursion a pin puts into the bandpassed signal against
+# the clean signal's own sd (2026-09-06):
+#     len  1 →  5.7x     20 → 40.2x (peak)
+#     len  5 → 25.4x     40 → 33.1x
+#     len 10 → 38.6x     94 → 22.1x
+# A 5-sample pin is a 25x-sd excursion — comparable to a 94-sample one
+# at 22x — so a "tidy" raise to 8 silently drops 9 spans on 045318 that
+# do real damage. Do not raise this without re-measuring that curve.
+_PLATEAU_LSB = 1  # a rail plateau flickers by one quantisation step, so the region is
+# NEAR-constant, not constant. Measured 2026-09-06 on the ring: exact
+# equality split one ceiling population into 118 regions at 200 and 81
+# at 199 and would have reported one plateau as two findings.
+_RAMP_SAMPLES = 6  # samples either side used to read the approach. One ring beat's rising
+# edge at 125 Hz — enough to see monotonicity, short enough not to
+# reach the neighbouring beat.
+_HELD_NEAR_DELTA = 0.90  # >= this share of runs on two ADJACENT lengths => a zero-order HOLD,
+# not a defect. Measured on the ring's `_ACCRAW.txt` (2026-09-06, three
+# sessions / two nights): 99.8 % of runs are 6 or 7, ratio 6.387-6.396,
+# because a 1.5625 Hz update is emitted into a 10 Hz record stream.
 
 
 def constant_runs(values, *, min_run: int = 2):
@@ -2241,7 +2301,7 @@ def dat_timefit_summary(dat_path: str, spo2_path: str,
     }
 
 
-def summarize(night_dir: str, devices: list[dict]) -> dict:
+def summarize(night_dir: str, devices: list[dict], wear: dict | None = None) -> dict:
     """Roll the CURRENT capture session up against the configured devices. The session is scoped by
     file-activity (see _SESSION_GAP_SEC) and unified across midnight (see below), NOT the whole date
     folder — so a box that also ran earlier the same day, or an overnight that crossed midnight, is judged
@@ -2257,7 +2317,15 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
     `sessions` with the hole between them in `prior_gap_sec` and a human-readable line in `gaps`.
     `ok` is true only when every declared stream produced data, none is degraded, AND no session was
     excluded — because `ok` is a claim about the night, and it cannot be made about a night half of
-    which was left out of the judgement."""
+    which was left out of the judgement.
+
+    `wear` is OPTIONAL and is `{device name: loss_audit.wear_ends(...) result}`. Supplied, it names WHY
+    a device stopped early (`stopped_early_reason`) and where its worn interval ended (`worn_end_at`).
+    Omitted — the default, and the case for every caller with no loss audit to hand — both read None,
+    which means "not determined" and never "worn to the end". It is a parameter rather than a call into
+    `loss_audit` because that module reads each wear stream end to end: measured 6.9 s on the 794 MB
+    2026-09-23 night (H10 5.0 s, Verity 1.9 s), which is worth paying once beside the caller's own
+    audit rather than every time anything summarizes a night."""
     scanned = scan_night(night_dir)
     data = [f for f in scanned if f["stream"] not in _SIDECAR_TAGS]
     # CROSS-MIDNIGHT: an overnight begun before midnight is split into TWO date folders, because night_dir
@@ -2436,8 +2504,58 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
         dids = writers.device_ids(d)
         name = d.get("name") or did
         opt = bool(d.get("optional"))          # a known-but-not-expected backup — its absence is not a fault
+        # ── THE DENOMINATOR IS THIS DEVICE'S OWN SPAN, not the session's (2026-09-24) ──────────────
+        # Coverage asks, in its own words below, "did we receive the packets the device was SENDING".
+        # Dividing by the SESSION span — the union across devices — answers a different question: it
+        # charges one device for the time another kept recording. Measured on 2026-09-23, one session
+        # 23:13:18 → 04:49:58 (span 20,200 s), against each device's own extent:
+        #
+        #   H10 ecg     own 20,089 s   own/session = 0.9945   reported 0.99   stopped  1.9 min early
+        #   Verity ppg  own 18,499 s   own/session = 0.9158   reported 0.92   stopped 28.4 min early
+        #   Ring ppg    own 18,699 s   own/session = 0.9257   reported 0.92   stopped 25.0 min early
+        #
+        # Every published number is that ratio to 2 dp, and QC's own `gaps` was EMPTY for the night —
+        # so the "missing 8 %" was two devices stopping half an hour before the third, not absence.
+        #
+        # 🔴 THE REASON IT MATTERED: against the session span, "stopped early" and "dropped packets
+        # while recording" produce the SAME number, and they are opposite findings — one is correct
+        # behaviour and one is the loss this metric exists to catch. The early stop is now its own
+        # published quantity (`stopped_early_s`) and the denominator is the device's own span, so a
+        # genuine in-recording loss is the only thing that can move coverage off 1.00.
+        #
+        # Per DEVICE and not per stream, deliberately: the streams of one device stop together when its
+        # link drops, which is what 09-23 shows (Verity acc and ppg both 0.92). Per-stream is the finer
+        # grain and the data is here if a stream is ever seen stopping alone.
+        _dev_files = [f for f in current if writers.file_device_id(f["file"]) in dids]
+        _dev_end = max((f["mtime"] for f in _dev_files), default=None)
+        dev_span = None
+        # EVERY file must carry its own span, or the START cannot be bounded. Dropping the ones that do
+        # not would move the start LATER, shorten the span and INFLATE coverage — the wrong direction for
+        # a missing measurement — so an incomplete set falls back to the session span and says so, the
+        # same shape `coverage_basis` already uses for the rate (§∅: absence is not a smaller number).
+        if _dev_files and all(f.get("span_sec") for f in _dev_files):
+            dev_span = _dev_end - min(f["mtime"] - f["span_sec"] for f in _dev_files)
+            if dev_span < _MIN_SPAN_SEC:
+                dev_span = None
+        # Session end − this device's last write. Published so a reader sees 28.4 min on the Verity
+        # rather than "8 % of nothing"; the session end it is measured against is named beside it.
+        stopped_early_s = (round(cur[1] - _dev_end)
+                           if (_dev_end is not None and span is not None) else None)
         streams: dict[str, int] = {}
         coverage: dict[str, float] = {}
+        #: Per stream: "device" when the denominator was this device's own recording extent, "session"
+        #: when it fell back because some file carried no measurable span. The rate's provenance is in
+        #: `coverage_basis`; this is the OTHER factor of the same denominator, and publishing only one
+        #: of the two is how the number came to mean two things at once.
+        span_basis: dict[str, str] = {}
+        #: THE OLD NUMBER, KEPT AND NAMED. `coverage` now answers what its definition says — did we
+        #: receive what this device sent — which means an early stop reads 1.00, and until something
+        #: consumes `stopped_early_s` that would silently retire the alert a died-at-hour-one stream used
+        #: to raise. So the session-span ratio stays, as its own field, and `degraded` keeps keying on it:
+        #: nothing that was flagged before stops being flagged, and no threshold had to be invented to
+        #: keep it. When the early stop has a REASON (`stopped_early_reason`), `degraded` moves to
+        #: coverage plus an unexplained early stop, and this stays as the reader's cross-check.
+        session_coverage: dict[str, float] = {}
         #: Per stream: "measured" when its rate was observed off the file, "expected" when the
         #: configured rate was substituted because none could be measured. The coverage number is
         #: worth exactly what its rate is worth, and before this the two were indistinguishable.
@@ -2483,12 +2601,20 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
             basis = "measured"
             if hz is None:
                 hz, basis = _expected_hz(d, s), "expected"
-            if hz and span:
-                cov = round(rows / (hz * span), 2)
+            _span, _sbasis = (dev_span, "device") if dev_span else (span, "session")
+            if hz and _span:
+                cov = round(rows / (hz * _span), 2)
                 coverage[s] = cov
                 coverage_basis[s] = basis
-                if cov < _DEGRADED_BELOW:
-                    degraded.append(f"{name}:{s} {int(cov * 100)}%"
+                span_basis[s] = _sbasis
+            # The session-span ratio is computed whenever the session span exists, INDEPENDENTLY of
+            # whether the device's own span could be bounded — so the alert does not quietly depend on a
+            # file carrying a device clock. `degraded` keys on this one, unchanged.
+            if hz and span:
+                scov = round(rows / (hz * span), 2)
+                session_coverage[s] = scov
+                if scov < _DEGRADED_BELOW:
+                    degraded.append(f"{name}:{s} {int(scov * 100)}%"
                                     + ("" if basis == "measured" else " (rate assumed)"))
         # SECONDS SINCE THIS DEVICE LAST WROTE, measured against the night's NEWEST write rather
         # than wall-clock now(). Two reasons: reading an old night back must not report every
@@ -2537,9 +2663,31 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
         if dat_path and spo2_path:
             datfit = dat_timefit_summary(dat_path, spo2_path)
         per_device.append({"name": name, "streams": streams, "coverage": coverage,
-                           "coverage_basis": coverage_basis,
+                           "coverage_basis": coverage_basis, "span_basis": span_basis,
+                           "session_coverage": session_coverage,
+                           "span_sec": round(dev_span) if dev_span else None,
+                           "stopped_early_s": stopped_early_s,
+                           "session_end": round(cur[1]) if span is not None else None,
+                           # WHY it stopped, from `loss_audit.wear_ends`'s `worn_end.reason` — NEVER
+                           # inferred here, and `None` still means "not determined" rather than "no
+                           # reason". Three things this deliberately does not do:
+                           #   · it does not GUESS when no wear block was supplied (`wear=None`, the
+                           #     default, and every caller that has no loss audit to hand);
+                           #   · it does not name a reason for a device that did NOT stop early. A
+                           #     reason for a 0-second early stop would read as a fault where there is
+                           #     none — the H10 that defines the session end is the normal case;
+                           #   · it does not MAP the vocabulary. `quiet-end-unclassified` travels
+                           #     verbatim: it is the wear unit's way of saying it could not tell, and
+                           #     translating it into anything shorter would manufacture a verdict.
+                           "stopped_early_reason": None,
+                           # The wear boundary itself, whether or not the device stopped early — so the
+                           # off-body tail is READABLE rather than inferred. The H10 on 2026-09-23 has
+                           # `stopped_early_s = 0` because it defines the session end, and still came off
+                           # 28 min before its file did; that window held 2,766 of the night's 2,767
+                           # "PVCs" (#3001). Without this field a reader has to join two files to see it.
+                           "worn_end_at": None,
                            "silent_sec": silent, "rtc": rtc, "datfit": datfit})
-    return {
+    return attach_wear({
         "night": os.path.basename(night_dir.rstrip("/")),
         # Reported beside the capture verdict, never folded into it — see the note on system_file_drift.
         "system_files": system_file_drift(),
@@ -2611,7 +2759,7 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
         # What rate the files ACTUALLY carry, against what was asked for. Coverage notices a rate swap
         # only as `degraded`, which names it a link fault; this names it a rate fault.
         "rates": _rate_rows,
-    }
+    }, wear)
 
 
 # ── VERDICTS — one `tepna.verdict/1` object per gate per night (VERDICT-CONTRACT §3b, wave 1) ──────────
@@ -2748,6 +2896,39 @@ def adapter_hci_verdict(night_dir: str, summary: dict) -> dict:
         import verdict as _v
         return _v.unknown(gate=adapter_hci.GATE, criterion=adapter_hci.CRITERION,
                           evidence=[adapter_hci.TOOL, os.path.join(root, adapter_hci.FILE_NAME)], tool=adapter_hci.TOOL, exc=exc)
+
+
+def attach_wear(summary: dict, wear: dict | None) -> dict:
+    """Fill each device's `stopped_early_reason` / `worn_end_at` from a `loss_audit.wear_by_device`
+    mapping. PURE, returns the same object, and is the ONE place wear reaches a QC summary.
+
+    It is a separate function rather than an argument threaded through the scan because of WHERE the two
+    halves run. `capture.qc_poller` offloads the scan to a spawned child (`_qc_offload`) so QC never
+    costs the recording; the wear scan runs on a THREAD beside it — the precedent is `write_night` in the
+    same file, which already runs `wear_ends` for every device through `asyncio.to_thread` — and the two
+    results are joined here by pure arithmetic over dicts.
+
+    ⚠️ NEITHER THIS NOR THE WEAR SCAN MAY BECOME AN OFFLOAD TARGET, and that is a measured trap rather
+    than a style note. `_importable_by_reference` decides child-versus-thread by whether the target's
+    module still binds that name to that object, and several poller tests patch `nightqc.summarize` with
+    a LAMBDA precisely so that check fails and the poll runs on a thread — a frozen `time.monotonic` and
+    a spawned child cannot coexist, because `multiprocessing` reads it for its deadlines and the child's
+    result never arrives. Offloading any OTHER module-level name steps out from under those patches.
+    Measured twice: `check.sh` wedged at 98 % with all 24 xdist workers idle and the controller in
+    `futex_do_wait`, and a single test hung with a `multiprocessing` queue feeder alive beside it.
+
+    Absent, the fields stay None, which means "not determined" and never "worn to the end"."""
+    for dev in summary.get("devices") or []:
+        if not isinstance(dev, dict):
+            continue
+        name = dev.get("name")
+        # A reason belongs only to a device that DID stop early — naming one for a 0-second early stop
+        # reads as a fault where there is none, and the device defining the session end is the normal
+        # case. The boundary is published either way, so an off-body tail stays readable.
+        if dev.get("stopped_early_s"):
+            dev["stopped_early_reason"] = _worn_end_reason(wear, name)
+        dev["worn_end_at"] = _worn_end_at(wear, name)
+    return summary
 
 
 def write_verdicts(night_dir: str, summary: dict, devices: list[dict]) -> None:

@@ -76,12 +76,44 @@ T_STUCK = 200
 # Which streams get a sidecar, and at what threshold. A stream absent from this map gets none — but
 # note ACC is PRESENT: it is not excluded by name, it is CLASSIFIED (below), so a firmware change
 # that stops it being a zero-order hold starts producing rows without anyone editing this list.
+# THE H10's ECG NEEDS ITS OWN MINIMUM, AND IT IS DERIVED FROM THE STREAM'S OWN DISTRIBUTION.
+#
+# §∅ requires the run-length detector on every device, keyed on RUN LENGTH against the stream's own
+# distribution and never on a value — an ECG in µV crosses zero on every beat, so a `!= 0` rule is
+# exactly inverted here. Until this key existed the H10 ECG had no run sidecar at all, so its validity
+# band could only ever read UNKNOWN.
+#
+# MEASURED over the whole H10 ECG corpus on vigil, 2026-09-24: **304 files, 196,172,536 samples**. Run
+# lengths of identical consecutive µV, split by whether the held value is near baseline or at high
+# amplitude (the file's own rail is ±19,165 µV; its modal value is 18 µV):
+#
+#   run length   runs        held at |µV| >= 10000
+#   05-09        226,661     455        (0.2 %)
+#   10-19          4,207     357        (8.5 %)
+#   20-29            172     167       (97.1 %)
+#   30-49            155     155      (100.0 %)
+#   50+              312     312      (100.0 %)
+#
+# Two populations, and they separate at 20-30: below it a run is the ordinary quantization of a real
+# ECG near baseline; at 30 and above the corpus contains NO near-baseline run at all. 30 is therefore
+# the smallest threshold whose natural population is EMPTY over 196 M samples — zero false positives
+# measured, not argued — and it catches 467 runs. 20 would catch 639 and admit 5 near-baseline runs;
+# `T_STUCK` (200) would catch only 101 and miss 366 of the 467, which is why ECG does not simply reuse it.
+#
+# THE FALSE NEGATIVE, stated because a new gate owes it: a constant episode SHORTER than 30 samples
+# (231 ms at 130 Hz) is not reported. And every run this rule catches today sits at |µV| >= 10000, i.e.
+# the amplifier at or near its rail — in-band constant blanking has NEVER occurred on this stream at any
+# length >= 30 in this corpus. So on the H10 this is a saturation/lead-off detector in practice, and it
+# stands as the tripwire that reds the day in-band blanking first appears, which is what §∅ asks for.
+ECG_RUN_MIN = 30
+
 RUN_MIN_BY_STREAM = {
     "ppg1":   T_STUCK,   # O2Ring, single reflectance column
     "ppg":    T_STUCK,   # Verity 3-LED (same writer, 3-column branch)
     "ppg2w":  T_STUCK,   # O2Ring raw dual-wavelength (cmd 0x05)
     "acc":    T_STUCK,   # Polar ACC
     "accraw": T_STUCK,   # O2Ring ACC — a zero-order hold; the classifier catches it
+    "ecg":    ECG_RUN_MIN,   # Polar H10 — derived above; NOT T_STUCK, and the table says why
 }
 
 # ── BRACKETING — the sidecar EMITS THE MEASUREMENT and names nothing (owner ruling D5, 2026-09-19) ────
@@ -241,6 +273,7 @@ ANNOTATIONS_BY_STREAM = {
     "accraw": frozenset(),                            # no annotation is inserted into the ring's ACC
     "ppg":    frozenset(),                            # Verity: no inserted rows
     "acc":    frozenset(),                            # Polar: none
+    "ecg":    frozenset(),                            # Polar H10: no inserted rows either
 }
 
 HELD_WARMUP_RUNS = 64          # runs per WINDOW: the class is decided per window at this grain (below)
@@ -830,6 +863,36 @@ def night_dir(root: str, started: _dt.datetime) -> str:
     return d
 
 
+def _last_row_clocks(path: str, tail_bytes: int = 4096) -> "tuple[int, float] | None":
+    """(sensor_ns, phone_ms) of the last COMPLETE data row of a stream file, or None.
+
+    Every stream row this module writes starts `phone_ts;sensor_ns;…` (`_phone_ts`, then `_ns_col`),
+    so columns 0 and 1 are the same for every stream and no per-stream parser is needed. Reads only
+    the tail, skips `#` comments and the header, and returns None — never a fabricated clock — when
+    the file is absent, empty, header-only, torn, or its last row carries no device clock (`_ns_col`
+    writes absence as an empty field, and an empty field is not 0)."""
+    try:
+        with open(path, "rb") as fh:
+            fh.seek(0, 2)
+            size = fh.tell()
+            fh.seek(max(0, size - tail_bytes))
+            chunk = fh.read().decode("utf-8", "replace")
+    except OSError:
+        return None
+    for line in reversed(chunk.split("\n")):
+        if not line or line.startswith("#") or line.startswith("Phone"):
+            continue
+        cols = line.split(";")
+        if len(cols) < 2 or not cols[1].strip().lstrip("-").isdigit():
+            return None  # a row without a device clock cannot seed one
+        try:
+            when = _dt.datetime.strptime(cols[0], "%Y-%m-%dT%H:%M:%S.%f")
+        except ValueError:
+            return None
+        return int(cols[1]), when.timestamp() * 1000.0
+    return None
+
+
 def _ns_col(sensor_ns: int | None) -> str:
     """The `sensor timestamp [ns]` field, with ABSENCE written as absence.
 
@@ -900,7 +963,26 @@ class _SeamSidecar:
     describing the stream better is not worth dropping the notifications that ARE the stream.
     """
 
-    def __init__(self, path: str, stream: str, resumed: bool = False) -> None:
+    def __init__(self, path: str, stream: str,
+                 seed: "tuple[int, float] | None" = None, first_ns: "int | None" = None) -> None:
+        """`seed` = (sensor_ns, phone_ms) of the LAST row already on disk when this sidecar resumes.
+
+        ⚠️ WITHOUT IT, A RESUMED SIDECAR EXAMINES EVERY INTERVAL EXCEPT THE ONE A SEAM CAN OCCUPY.
+        `feed` judges the interval between the previous sample and this one, so a fresh instance
+        stores its first sample and judges nothing — correct for a first connect, where there is no
+        previous sample, and wrong for a reconnect, where the previous sample is the last row of the
+        file this instance appends to. Measured 2026-09-21 (H10 ECG, the owner's night): the device
+        clock stepped +243,739,222 s at the FIRST row of writer session 2, `ECGSEAMS.txt` carried 178
+        `# final … seams=0` lines — one per reconnect — and 0 seam rows. 177 boundaries, 177 skipped.
+        `examined=12117` on session 1 was true and reported on the wrong population: every interval
+        but the boundary. ECGDex saw the step (`clockResyncs[0].deviceStepMs`); the box did not.
+
+        The writer hands the seed over because it already owns the row format and already reads its
+        own tail on resume. An absent or unparseable last row hands over NOTHING (§∅) — the boundary
+        then goes unexamined and `examined` says so by not counting it, rather than a zero being
+        invented for the previous clock. `first_ns` keeps `at_rel_ms` on the file's own axis where the
+        writer knows it (ECG); otherwise the resumed axis starts at the seed, which is stated here so a
+        reader of a resumed SEAMS row knows what `at_rel_ms` is relative to."""
         # `<base>.txt` -> `<base>SEAMS.txt`, by the same rule `_RunSidecar` uses for `RUNS`.
         base = path[:-4] if path.endswith(".txt") else path
         self.path = base + "SEAMS.txt"
@@ -909,9 +991,13 @@ class _SeamSidecar:
         self.examined = 0
         self._prev_ns: int | None = None
         self._prev_phone_ms: float | None = None
-        self._first_ns: int | None = None
-        self._resumed = resumed
+        self._first_ns: int | None = first_ns
+        if seed is not None:
+            self._prev_ns, self._prev_phone_ms = seed
+            if self._first_ns is None:
+                self._first_ns = seed[0]  # the resumed axis starts at the last pre-seam sample
         self._opened = False
+        self._pmd_note: str | None = None
         # Annotated, not inferred: a bare `= None` types the attribute as `None`, so every later
         # assignment of a real handle is a mypy [assignment] error — and that count may only go DOWN.
         # `_RunSidecar` carries the same annotation for the same reason.
@@ -936,8 +1022,20 @@ class _SeamSidecar:
             return False       # tried once and failed; do not retry per sample on the notify path
         self._opened = True
         try:
-            self._fh = open(self.path, "a" if self._resumed else "w", buffering=1 << 16, newline="\n")
-            if not self._resumed:
+            # RESUME IS THIS FILE'S OWN PROPERTY, self-detected at OPEN time — the idiom the three
+            # other resumable writers here already use ("a non-empty file means resume, append, and
+            # do not re-emit the header"). It was INHERITED from the parent StreamWriter until
+            # 2026-09-23, which is wrong for a reason #2902 created: the sidecar now opens LAZILY, on
+            # the first clocked sample, so "the parent is resuming a file-set" stopped implying "my
+            # own file exists with a header in it". On the resume path the parent is resumed, the
+            # sidecar's path does not exist, and this opened "a" on a new file and SKIPPED the header
+            # by design — leaving a sidecar that never says what it is. Measured on the box: last
+            # night's H10 ECGSEAMS carried no header while the Verity's did.
+            # Detected HERE and not in __init__ because open time is the only moment the answer is
+            # knowable: the file may be created between construction and the first sample.
+            resumed = os.path.exists(self.path) and os.path.getsize(self.path) > 0
+            self._fh = open(self.path, "a" if resumed else "w", buffering=1 << 16, newline="\n")
+            if not resumed:
 
                 # The file reproduces itself: a consumer reads the bound that PRODUCED these rows
                 # rather than whatever the default has moved to since.
@@ -945,9 +1043,66 @@ class _SeamSidecar:
                                f"unit=ms basis=device-minus-host\n")
                 self._fh.write("phone_ts;idx;device_step_ms;phone_delta_ms;residual_ms;"
                                "host_offset_ms;at_rel_ms\n")
+            self._flush_pmd_note()     # negotiated before the first sample; write it under the header
         except OSError:            # a sidecar that cannot open must not stop the recording it annotates
             self._fh = None
         return self._fh is not None
+
+    def note_pmd(self, *, rate=None, offered=None, configured=None, default=None) -> None:
+        """What this stream was NEGOTIATED at — a clock fact, recorded beside the stream.
+
+        The daemon logs `START ppg (negotiated) -> ok` and publishes the menu to STATUS, but neither
+        reaches an artifact: what a stream was captured at had to be inferred afterwards from rows over
+        a stamp span. Measured on vigil 2026-09-22 — 3 days of journal carried 3
+        `START ppg (negotiated)` lines for the Verity and 0 naming a PPG menu or rate, while the files
+        measured 55.14 / 55.15 / 55.14 Hz. The same absence already cost a mis-stated rate once: a
+        night captured at four times its configured rate, whose only trace was one warning line.
+
+        ⚠️ IT LIVES HERE AND NOT IN THE STREAM FILE, and that is a measured constraint rather than a
+        preference. A `# pmd` comment written into `<base>.txt` after the header breaks the Polar
+        stream contract — `_rows()` takes `lines[1:]`, i.e. one header line and then only rows — and
+        five writer-contract tests pinned it. `# timebase=` gets away with a comment only by sitting
+        BEFORE line 0, which needs the value at construction; the negotiated rate is not known then
+        (writers open per requested stream, negotiation happens later). The sample rate IS a property
+        of the device clock, so the sidecar that already records device-clock facts is its home, and
+        `#` is this file's own format.
+
+        ⚠️ AN EMPTY MENU IS NOT A NEGOTIATION AND THIS MUST NOT CLAIM ONE. `build_start` emits a rate
+        TLV only when the device reported a menu, so with none the device runs at its OWN default and
+        `chosen_rate` returns the table value — an assumption, not an agreement. `chosen_rate`'s own
+        docstring: *"Returning the configured value there would be a claim about the wire that is not
+        true."* So `negotiated` is DERIVED from the menu rather than passed — a caller cannot assert
+        it — and when false `rate=` is written EMPTY however this was called, with the table value
+        under `assumed=` where it reads as the assumption it is.
+
+        Absence is an empty field, the convention `_ns_col` sets for this module: `offered=` empty
+        means the device reported no menu, `configured=` empty means the config expressed no
+        preference. Written per successful negotiation, not once per file: a reconnect RE-negotiates,
+        and a rate that changed mid-set is exactly the event this exists to make visible.
+
+        Deferred until the sidecar opens on its own first clocked sample — it never FORCES a file.
+        `_ensure` opens only for a stream that actually carries a device clock, and a stream that
+        negotiated but delivered nothing has no clock fact to report."""
+        negotiated = bool(offered)
+        rate_s = f"{rate:g}" if negotiated and rate else ""
+        offered_s = ",".join(f"{r:g}" for r in offered) if negotiated else ""
+        cfg_s = f"{configured:g}" if configured is not None else ""
+        assumed_s = "" if negotiated else (f"{default:g}" if default else "")
+        self._pmd_note = (
+            f"# pmd stream={self.stream} negotiated={'yes' if negotiated else 'no'} "
+            f"rate={rate_s} offered={offered_s} configured={cfg_s} assumed={assumed_s}\n"
+        )
+        if self._fh is not None:            # already open: this is a re-negotiation, record it now
+            self._flush_pmd_note()
+
+    def _flush_pmd_note(self) -> None:
+        note, self._pmd_note = self._pmd_note, None
+        if note is None or self._fh is None:
+            return
+        try:
+            self._fh.write(note)
+        except Exception:  # noqa: BLE001 - an annotation must never end a recording
+            pass
 
     def feed(self, phone, sensor_ns: int | None) -> None:
         """One sample's two clocks. A seam is where they DISAGREE — not where either jumps alone.
@@ -1023,7 +1178,7 @@ class _RunSidecar:
     # one afternoon — see the BRACKETING block above.)
     HEADER = "Phone timestamp;stream;value;first_index;n_samples;dur_ms;closed;rule;bracket;contact"
 
-    def __init__(self, path: str, stream: str, min_run: int, resumed: bool = False,
+    def __init__(self, path: str, stream: str, min_run: int,
                  annotations: frozenset = frozenset(), contact: "ContactLedger | None" = None):
         # `<base>.txt` -> `<base>RUNS.txt`, so `…_PPG.txt` gets `…_PPGRUNS.txt` and `…_PPG2W.txt`
         # gets `…_PPG2WRUNS.txt` — derived by rule rather than by a per-stream table that could
@@ -1063,6 +1218,15 @@ class _RunSidecar:
         self._recent_len = BRACKET_WINDOW + 2 * max(self.min_run, T_STUCK)
         self._pending: dict[str, list[list]] = {}   # channel -> [[row_args, before, after_samples], …]
         self._fh: TextIO | None = None
+        # RESUME IS THIS FILE'S OWN PROPERTY, self-detected — the idiom the other resumable writers
+        # here use ("a non-empty file means resume, append, and do not re-emit the header"). This
+        # INHERITED the parent StreamWriter's flag until 2026-09-23, and was the last writer doing
+        # so after #2928 fixed the seam sidecar. Inheritance cannot see the case the idiom exists
+        # for: the parent's stream file is non-empty while THIS file is absent or 0 bytes — a crash
+        # before the 64 KB buffer flushed leaves exactly that — and the inherited `True` then opens
+        # "a" and skips the header, leaving a sidecar that never states its own rule. Two different
+        # files; only this one's size answers the question about this one.
+        resumed = os.path.exists(self.path) and os.path.getsize(self.path) > 0
         try:
             self._fh = open(self.path, "a" if resumed else "w", buffering=1 << 16, newline="\n")
             if not resumed:
@@ -1550,13 +1714,22 @@ class StreamWriter:
         self._axis_labels = tuple(self.HEADERS[stream].split(";")[2:5]) if stream in self.HEADERS else ()
         self._runs: _RunSidecar | None = None
         if stream in RUN_MIN_BY_STREAM:
-            self._runs = _RunSidecar(path, stream, RUN_MIN_BY_STREAM[stream], resumed=self.resumed,
+            self._runs = _RunSidecar(path, stream, RUN_MIN_BY_STREAM[stream],
                                      annotations=ANNOTATIONS_BY_STREAM.get(stream, frozenset()),
                                      contact=contact)
         # §1.4: seams are emitted where the clocks ARRIVE. Every device-clocked writer already
         # receives `phone` and `sensor_ns` taken at the notification, so recording here costs no
         # timing quality — the stamps are passed in, not re-taken.
-        self._seams = _SeamSidecar(path, stream, resumed=self.resumed)
+        # CAPTURE-FILESET-RESUME §3.2 says a resumed writer continues on the same axis; the seam
+        # sidecar must inherit that, or the reconnect interval — the only one a seam can occupy — is
+        # the one interval it never judges (see `_SeamSidecar.__init__`). The tail read is bounded so
+        # resume stays O(1) in file size; only the last COMPLETE data row is used.
+        self._seams = _SeamSidecar(
+            path,
+            stream,
+            seed=_last_row_clocks(path) if self.resumed else None,
+            first_ns=self._first_ns,
+        )
         self._flush_interval = flush_interval
         self._fsync = fsync
         self._last_flush = _time.monotonic()
@@ -1583,6 +1756,13 @@ class StreamWriter:
 
     def write_ecg(self, phone: _dt.datetime, sensor_ns: int, t_ms: float, uv: int) -> None:
         self._seams.feed(phone, sensor_ns)
+        # THE FEED IS THE HALF THAT IS EASY TO FORGET, and forgetting it has shipped here before: a
+        # stream with a `RUN_MIN_BY_STREAM` key but no `feed` call writes a sidecar reading `runs=0
+        # examined=0`, which is indistinguishable from "looked and found nothing" (see the `examined`
+        # counter in `_RunSidecar.close`). The channel label is this stream's own value column, so a
+        # run row can never name a column the data file does not have.
+        if self._runs is not None:
+            self._runs.feed("ecg [uV]", uv, phone)
         self._row(f"{_phone_ts(phone)};{sensor_ns};{self._rel_ms(sensor_ns)};{uv}\n")
 
     def write_acc(self, phone: _dt.datetime, sensor_ns: int | None, t_ms: float,
@@ -1703,6 +1883,13 @@ class StreamWriter:
         # never comes. `rows` stays an honest count of rows actually written; flushing is time-based
         # and cheap to ask about.
         self._maybe_flush()
+
+    def note_pmd(self, **kw) -> None:
+        """Record what this stream was negotiated at. Delegates to the seam sidecar, which is where a
+        device-clock fact belongs and which owns the `#` format — see `_SeamSidecar.note_pmd` for why
+        it cannot go into the stream file. Public so the caller states its intent ("tell the writer
+        the rate") instead of reaching through to a private attribute."""
+        self._seams.note_pmd(**kw)
 
     def _row(self, text: str) -> None:
         """One sample row: counted in `rows` ONLY if it was actually written (a lost row is counted in
@@ -2088,6 +2275,87 @@ PMDNEG_NAME = "PMDNEG.csv"
 _PMDNEG_HEADER = "Phone timestamp;device;address;stream;requested_hz;offered_hz;chosen_hz;ack;how\n"
 CLOCKSYNC_NAME = "CLOCKSYNC.csv"
 _CLOCKSYNC_HEADER = "Phone timestamp;device;address;event;skew_sec;detail\n"
+
+
+WORN_NAME = "WORN.csv"
+
+
+def _worn_cell(v) -> str:
+    """One CSV cell: `;` and newlines cannot survive, or they split the row and blind every reader.
+    The same rule `append_clock_sync_event` applies inline; named here because four cells need it."""
+    return str("" if v is None else v).replace(";", ",").replace("\n", " ").replace("\r", " ")
+
+
+def worn_votes_cell(votes) -> str:
+    """Render the detector inputs compactly, in ONE column, with no separator that could split a row.
+
+    Sequences become `k=nN` rather than their contents: the optical vote is handed a PPG window and an
+    ambient list, and writing those verbatim would put thousands of samples in a CSV cell. The record is
+    of the DECISION, not of the signal it was taken over.
+
+    ⚠️ `None` renders as `k=` and NEVER as `k=False` (§∅), and that distinction is the point of the
+    record: a detector that ABSTAINED and one that voted not-worn produce different evidence for the same
+    verdict, and `worn_verdict`'s own history is of an abstention being read as an answer — a stale
+    `True` stood for ten hours while an armband streamed into a desk."""
+    parts = []
+    for k in sorted(votes or {}):
+        v = votes[k]
+        if isinstance(v, (list, tuple)):
+            parts.append(f"{k}=n{len(v)}")
+        elif v is None:
+            parts.append(f"{k}=")
+        else:
+            parts.append(f"{k}={v}")
+    return ",".join(parts)
+
+
+def append_worn_decision(root, when, device, address, worn, why, trigger: str, votes=None) -> bool:
+    """Append ONE worn decision to the night's own `WORN.csv`. Returns whether a row was written.
+
+    WHICH VOTE HELD IS PERSISTED NOWHERE ELSE. `worn_verdict` returns `(verdict, why)` and `why` names
+    the detectors that voted, but it reaches only live STATUS, which the next write erases. So the state
+    the drop logic acted on cannot be read back: the 27.5 min of not-worn on 2026-09-23 and the 102 min on
+    2026-09-22 are decisions no artifact records. Same per-night evidence channel as `CLOCKSYNC.csv`, for
+    the same reason and after the same kind of failure.
+
+    ⚠️ IT RECORDS, IT DOES NOT DECIDE. `worn` and `why` are exactly what `worn_verdict` returned, and
+    `votes` is the same mapping passed INTO it — so the record cannot drift from the decision by
+    construction, because it is not a second evaluation of the same inputs. Nothing here feeds back into
+    the vote or into `should_drop_not_worn`.
+
+    `trigger` is `change` or `cadence`. A change row is the event; a cadence row is the proof that the
+    state was still being observed between events. Without the second, a long unchanged stretch and a
+    daemon that stopped publishing look identical in the file — which is the shape that made the ring's
+    `examined` counter necessary one sidecar over.
+
+    Never raises: evidence must not take capture down."""
+    if not root:
+        return False
+    try:
+        d = night_dir(root, when)
+        os.makedirs(d, exist_ok=True)
+        path = os.path.join(d, WORN_NAME)
+        # APPEND, NEVER TRUNCATE — OxyLifeWriter's lesson, which cost a night's rows on every daemon
+        # restart, and this daemon restarts 11-15 times a day. A non-empty file is continued, never
+        # re-headed; the emptiness test is the one the sibling writers use.
+        resumed = False
+        try:
+            resumed = os.path.getsize(path) > 0
+        except OSError:
+            resumed = False
+        with open(path, "a", newline="\n") as fh:
+            if not resumed:
+                fh.write("Phone timestamp;device;address;worn;why;trigger;votes\n")
+            fh.write(";".join((
+                _phone_ts(when),
+                _worn_cell(device), _worn_cell(address),
+                # §∅ — an abstention is BLANK, never `0`. `worn_verdict` returns None when no detector
+                # was available or in domain, which is not the same claim as not-worn.
+                "" if worn is None else ("1" if worn else "0"),
+                _worn_cell(why), _worn_cell(trigger), _worn_cell(worn_votes_cell(votes)))) + "\n")
+        return True
+    except Exception:
+        return False
 
 
 def append_clock_sync_event(root, when: _dt.datetime, device, address, event: str,

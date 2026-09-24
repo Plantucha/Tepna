@@ -249,6 +249,14 @@ def test_the_tool_classifiers_accept_box_filenames():
             # not visible at this layer, so an _ECG.txt is not a usable negative here.)
             "Wellue_O2Ring-S_S8AW2100_20260919002219_PPG.txt": False,
         },
+        "sensor-trio-night.js": {
+            # the per-night landing page carries the hat's classifier VERBATIM; gated by the same table so
+            # the copy cannot drift from sensor-trio-power-analysis.js (same positives, same negatives)
+            "Polar_H10_02849638_20260919183658_HR.txt": True,
+            "Polar_VeritySense_0C301E3F_20260919183724_PPG.txt": True,
+            "Wellue_O2Ring-S_S8AW2100_20260919002219_SPO2.csv": True,
+            "Wellue_O2Ring-S_S8AW2100_20260919002219_PPG.txt": False,
+        },
         "pat-feasibility.js": {
             "Polar_H10_02849638_20260919183658_ECG.txt": True,
             "Polar_VeritySense_0C301E3F_20260919183724_PPG.txt": True,
@@ -265,6 +273,7 @@ def test_the_tool_classifiers_accept_box_filenames():
     # and the phone-app names the classifiers were written for still match — both layouts, one rule each
     for tool, name in (("sensor-trio-power-analysis.js", "Polar_H10_02849638_20260610_211538_HR.txt"),
                        ("sensor-trio-power-analysis.js", "O2Ring S 2100_20260503210952.csv"),
+                       ("sensor-trio-night.js", "Polar_H10_02849638_20260610_211538_HR.txt"),
                        ("pat-feasibility.js", "Polar_Sense_0C301E3F_20260609_190208_PPG.txt")):
         assert any(r.search(name) for r in _classifier_regexes(os.path.join(root, tool))), (tool, name)
 

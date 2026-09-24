@@ -270,6 +270,52 @@ def _capture_events_are_not_leaked(request):
         )
 
 
+# ── leaked runner STATE dicts (residue `2026-09-09-alert-poller-test-order-dependent`) ───────────────
+# The sibling fixture above covers the module-global Events. These three are the other half: plain
+# `dict`/`set` globals that the runners accumulate into and that NOTHING restored, so a test's verdict
+# depended on which tests ran before it.
+#
+# THE MEASURED INSTANCE. `test_alert_poller_fires_on_a_sustained_offline_then_recovers` failed with
+# `sent == []` inside the diff-scoped mutation gate's clean run and passed in the full suite. The
+# mechanism is `_LAST_PULL_OK`: `alert_poller` suppresses the offline alert when a pull completed
+# recently (`alerts.powered_off_after_pull` — the ring powers off ~122 s after a doff, which is not an
+# outage), and with no alert latched the RECOVERY cannot fire either, so both notices vanish and the
+# list is empty. Planting `_LAST_PULL_OK["H10"]` reproduces `sent == []` exactly; planting
+# `_IDLE_TIMER_NAMED` does not. Measured over the whole suite, `_LAST_PULL_OK` does accumulate an
+# `"H10"` key, so the hazard is reachable and not theoretical.
+#
+# ⚠️ THE COST IS A GATE THAT REPORTS ON NOTHING. mutmut sees the clean run fail, generates the glob's
+# mutants and tests NONE of them, and `mutate_diff.py` then refuses — so the gate reported REFUSED
+# about a change it never examined, on a test unrelated to that change (CLAUDE.md §4b's shape).
+#
+# ⚠️ LISTED, NOT DISCOVERED — the opposite of the Events fixture above, deliberately. An `Event` is
+# unambiguously state, so introspection is safe there. A module-global `dict` may be a CONSTANT lookup
+# table, and clearing those would break the code under test rather than isolate it. So this set is
+# enumerated, and the cost is that a fourth state dict added later is not covered until someone adds it.
+#
+# ⚠️ RESET ONLY, NO TRIPWIRE — also the opposite of the Events fixture, and for a measured reason. The
+# Events tripwire is loud because zero correct tests leave an event set. Here a full-suite sweep counted
+# leaks left at teardown by legitimate tests: `_LAST_DATA` 4137, `_IDLE_TIMER_NAMED` 261, `_LAST_PULL_OK` 6.
+# A tripwire would convict all of them. (That sweep measured PRESENCE at teardown, not authorship — it
+# names the test that ran, not necessarily the one that wrote the key.)
+_RUNNER_STATE_GLOBALS = ("_LAST_DATA", "_LAST_PULL_OK", "_IDLE_TIMER_NAMED")
+
+
+@_pytest.fixture(autouse=True)
+def _runner_state_is_not_leaked():
+    """Clear the runner's accumulating state globals before AND after each test.
+
+    Before, so a predecessor cannot change this test's verdict; after, so a failure here cannot
+    cascade into the next test and be read as a second defect."""
+    import capture as _capture
+
+    for _name in _RUNNER_STATE_GLOBALS:
+        getattr(_capture, _name).clear()
+    yield
+    for _name in _RUNNER_STATE_GLOBALS:
+        getattr(_capture, _name).clear()
+
+
 @_pytest.fixture(autouse=True)
 def _sample_writer_count_is_not_leaked(request):
     """`writers._open_sample_writers` is a PROCESS-GLOBAL counter (residue

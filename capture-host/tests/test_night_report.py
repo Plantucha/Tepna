@@ -53,11 +53,31 @@ def test_nothing_at_all_is_all_unknown_and_never_zero():
     assert "0" not in r["line"].split(":", 1)[1], "a zero here would be a measurement nobody took"
 
 
-def test_an_EMPTY_back_check_is_ok_with_zero_spans_and_an_ABSENT_one_is_unknown():
-    """The distinction the whole file exists for. `class_b: []` means it LOOKED and found nothing;
-    no `class_b` key means it never ran. Flattening those is how a report starts lying."""
-    ran = nr.back_check(dict(REAL_SUMMARY, class_b=[]))
-    assert ran == ("ok", 0, 0), "an empty list is a completed check with nothing to report"
+#: A CLEAN block — examined and found nothing. Since 2026-09-23 "clean" must be expressed this way
+#: rather than as `class_b: []`: an empty list means the producer EXAMINED NOTHING (`class_b_quality`
+#: skips an unreadable/headerless/short file with `continue`), so it is `unknown`, not `ok`.
+CLEAN_BLOCK = [{"stream": "ppg", "held": None, "rows": 0, "clips": {"ppg": 0},
+                "file": "Wellue_O2Ring-S_S8AW2100_20260908034935_PPG.txt", "columns": 1}]
+
+
+def test_an_EMPTY_back_check_is_UNKNOWN_because_an_empty_list_examined_NOTHING():
+    """⚠️ THIS TEST PINNED THE DEFECT AS THE SPEC UNTIL 2026-09-23. It asserted
+    `back_check(class_b=[]) == ("ok", 0, 0)` on the reasoning that *"`class_b: []` means it LOOKED and
+    found nothing"* — and that premise is contradicted by the producer, in writing.
+
+    `nightqc.class_b_quality` SKIPS a file it cannot judge — unreadable, no waveform column, under the
+    minimum run — with `continue`. So `[]` is also what a night produces when every PPG file was
+    skipped, i.e. when it examined NOTHING. `nightqc.backcheck_verdict`'s own docstring names this
+    exact path and states the rule: *"a clean verdict about files nobody examined cannot be written"*.
+    `render`'s footer says it a third time: *"A missing input is never a 0."*
+
+    So an empty list is `unknown`, and "clean" must be expressed as a block that was EXAMINED and
+    carried nothing (CLEAN_BLOCK) — which is a different claim and the only one the data supports."""
+    assert nr.back_check(dict(REAL_SUMMARY, class_b=[])) == ("unknown", None, None)
+    assert nr.back_check(dict(REAL_SUMMARY, class_b=[1, "x", None])) == ("unknown", None, None), \
+        "blocks that are not dicts are skipped, so this also examined nothing"
+    assert nr.back_check(dict(REAL_SUMMARY, class_b=CLEAN_BLOCK)) == ("ok", 0, 0), \
+        "EXAMINED and found nothing is the only shape that may read ok"
     assert nr.back_check(REAL_SUMMARY) == ("unknown", None, None), "an absent key never ran"
     assert nr.back_check(None) == ("unknown", None, None)
     assert nr.back_check({"class_b": "not a list"}) == ("unknown", None, None)
@@ -140,7 +160,7 @@ def test_read_night_treats_every_unreadable_input_as_absent(tmp_path):
 
 def test_read_night_takes_the_NEWEST_verdict_and_renders_the_file(tmp_path):
     night = tmp_path / "2026-09-12"; night.mkdir()
-    night.joinpath("QC-SUMMARY.json").write_text(json.dumps(dict(REAL_SUMMARY, class_b=[])),
+    night.joinpath("QC-SUMMARY.json").write_text(json.dumps(dict(REAL_SUMMARY, class_b=CLEAN_BLOCK)),
                                                  encoding="utf-8")
     sniff = tmp_path / "sniffer"; sniff.mkdir()
     sniff.joinpath("nightly-20260911-0300.pcap.verdict.txt").write_text(
@@ -166,7 +186,7 @@ def test_main_prints_ONLY_the_line_and_writes_the_file(tmp_path, capsys):
     """The caller pipes stdout straight into the notifier, so anything else printed there would end up
     in the operator's phone notification — and a stray traceback line would end up in the webhook."""
     night = tmp_path / "2026-09-13"; night.mkdir()
-    night.joinpath("QC-SUMMARY.json").write_text(json.dumps(dict(REAL_SUMMARY, class_b=[])),
+    night.joinpath("QC-SUMMARY.json").write_text(json.dumps(dict(REAL_SUMMARY, class_b=CLEAN_BLOCK)),
                                                  encoding="utf-8")
     assert nr.main([str(tmp_path), "2026-09-13"]) == 0
     out = capsys.readouterr().out.strip().splitlines()
@@ -198,9 +218,15 @@ def test_a_back_check_BLOCK_whose_clip_is_not_a_list_contributes_no_spans():
     """A malformed block must not become a span. Counting it as one turns a summary this code cannot
     read into a `fail` verdict — inventing a clipped span nobody measured, which is the same
     fabrication as reporting a number for an absent input, one level in."""
-    for broken in ({}, {"clips": None}, {"clips": "3"}, {"clips": 7}, {"clips": []}, None, "nope"):
+    # A malformed DICT was examined and carried nothing countable — that is `ok`.
+    for broken in ({}, {"clips": None}, {"clips": "3"}, {"clips": 7}, {"clips": []}):
         got = nr.back_check({"class_b": [broken]})
         assert got == ("ok", 0, 0), broken
+    # A NON-dict is skipped by `continue`, so a list of only those examined NOTHING — `unknown`, not
+    # `ok`. Split out 2026-09-23: this loop used to lump the two together and assert `ok` for both,
+    # which is the same flattening the empty-list case was making one level up.
+    for not_a_block in (None, "nope", 7, []):
+        assert nr.back_check({"class_b": [not_a_block]}) == ("unknown", None, None), not_a_block
     mixed = nr.back_check({"class_b": [{"clips": {"ppg": 2}}, {"clips": "nonsense"}]})
     assert mixed == ("fail", 2, 0), "the readable block still counts, the unreadable one adds nothing"
     # A non-integer or negative count is not a region count and must not become one.
@@ -213,7 +239,7 @@ def test_main_ACCEPTS_a_sniffer_directory_as_its_third_argument_and_uses_it(tmp_
     exercised that path end-to-end, so a `main` that ignored it — or rejected three arguments outright
     — would have passed every test while the deployed script called it exactly that way."""
     night = tmp_path / "2026-09-15"; night.mkdir()
-    night.joinpath("QC-SUMMARY.json").write_text(json.dumps(dict(REAL_SUMMARY, class_b=[])),
+    night.joinpath("QC-SUMMARY.json").write_text(json.dumps(dict(REAL_SUMMARY, class_b=CLEAN_BLOCK)),
                                                  encoding="utf-8")
     sniff = tmp_path / "sniffer"; sniff.mkdir()
     sniff.joinpath("nightly-20260915-0300.pcap.verdict.txt").write_text(
@@ -289,7 +315,7 @@ def test_a_HELD_stream_FAILS_the_check_even_though_it_reports_ZERO_clips():
 def test_a_clean_night_does_not_grow_a_permanent_zero_held_note():
     """The held count is shown only when there IS one. A standing "(0 held)" would be one more number
     a reader learns to skip, and this line has to stay readable on a phone at breakfast."""
-    clean = nr.build("2026-09-08", dict(REAL_SUMMARY, class_b=[]), None)["line"]
+    clean = nr.build("2026-09-08", dict(REAL_SUMMARY, class_b=CLEAN_BLOCK), None)["line"]
     assert "held" not in clean and "0 spans, back-check ok" in clean
 
 

@@ -334,7 +334,8 @@
   },
   "hypoxicBurden": {
     "total": 9.1,
-    "rate": 4.5
+    "rate": 4.5,
+    "measuredSec": 7200
   },
   "measurement": {
     "meanSpo2": {
@@ -350,8 +351,8 @@
       },
       "sourceChannel": "O2Ring:spo2",
       "code": {
-        "manifestHash": "2d05d8c0a76d",
-        "computeHash": "b9e102d30bc7"
+        "manifestHash": "b314bd7f642a",
+        "computeHash": "a102aef45606"
       },
       "evidence": {
         "envelopeRef": null,
@@ -379,8 +380,8 @@
       },
       "sourceChannel": "O2Ring:spo2",
       "code": {
-        "manifestHash": "2d05d8c0a76d",
-        "computeHash": "b9e102d30bc7"
+        "manifestHash": "b314bd7f642a",
+        "computeHash": "a102aef45606"
       },
       "evidence": {
         "envelopeRef": null,
@@ -408,8 +409,8 @@
       },
       "sourceChannel": "O2Ring:spo2",
       "code": {
-        "manifestHash": "2d05d8c0a76d",
-        "computeHash": "b9e102d30bc7"
+        "manifestHash": "b314bd7f642a",
+        "computeHash": "a102aef45606"
       },
       "evidence": {
         "envelopeRef": null,
@@ -437,8 +438,8 @@
       },
       "sourceChannel": "O2Ring:spo2",
       "code": {
-        "manifestHash": "2d05d8c0a76d",
-        "computeHash": "b9e102d30bc7"
+        "manifestHash": "b314bd7f642a",
+        "computeHash": "a102aef45606"
       },
       "evidence": {
         "envelopeRef": null,
@@ -496,6 +497,7 @@
     "auc90Rate": 0.8,
     "nadir": {
       "count": 4,
+      "recoveredCount": 4,
       "meanDepth": 8.5,
       "meanDuration": 34,
       "meanRecovery": 4
@@ -680,7 +682,8 @@
   "composite": {
     "couplingScore": 0,
     "sfi": 0,
-    "nsi": 33
+    "nsi": 33,
+    "nsiComponents": 4
   },
   "sbii": {
     "sbii": 81.383,
@@ -1067,43 +1070,53 @@
     "tIdx": {
       "80": {
         "secs": 0,
-        "pct": 0
+        "pct": 0,
+        "measured": 7200
       },
       "85": {
         "secs": 0,
-        "pct": 0
+        "pct": 0,
+        "measured": 7200
       },
       "88": {
         "secs": 0,
-        "pct": 0
+        "pct": 0,
+        "measured": 7200
       },
       "89": {
         "secs": 28,
-        "pct": 0.39
+        "pct": 0.39,
+        "measured": 7200
       },
       "90": {
         "secs": 66,
-        "pct": 0.92
+        "pct": 0.92,
+        "measured": 7200
       },
       "91": {
         "secs": 88,
-        "pct": 1.22
+        "pct": 1.22,
+        "measured": 7200
       },
       "92": {
         "secs": 106,
-        "pct": 1.47
+        "pct": 1.47,
+        "measured": 7200
       },
       "93": {
         "secs": 122,
-        "pct": 1.69
+        "pct": 1.69,
+        "measured": 7200
       },
       "94": {
         "secs": 138,
-        "pct": 1.92
+        "pct": 1.92,
+        "measured": 7200
       },
       "95": {
         "secs": 150,
-        "pct": 2.08
+        "pct": 2.08,
+        "measured": 7200
       }
     },
     "period": null,

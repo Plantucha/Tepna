@@ -1097,7 +1097,7 @@ function renderAll() {
             color: C.amber,
             fill: true,
             values: nights.map(function (n) {
-              return n.odi4 ? n.odi4.rate : 0;
+              return n.odi4 ? n.odi4.rate : null;
             })
           }
         ],
@@ -1123,7 +1123,7 @@ function renderAll() {
               color: C.purple,
               fill: true,
               values: nights.map(function (n) {
-                return n.hrv ? n.hrv.hrSdnn : 0;
+                return n.hrv ? n.hrv.hrSdnn : null;
               })
             }
           ],
@@ -1147,7 +1147,7 @@ function renderAll() {
               color: C.teal,
               fill: true,
               values: nights.map(function (n) {
-                return n.hrv ? n.hrv.pnn3 : 0;
+                return n.hrv ? n.hrv.pnn3 : null;
               })
             }
           ],
@@ -1169,7 +1169,7 @@ function renderAll() {
               color: C.green,
               fill: true,
               values: nights.map(function (n) {
-                return n.hrv ? n.hrv.hrFloor : 0;
+                return n.hrv ? n.hrv.hrFloor : null;
               })
             }
           ],
@@ -1193,7 +1193,7 @@ function renderAll() {
               color: C.amber,
               fill: false,
               values: nights.map(function (n) {
-                return n.hrv ? n.hrv.hrSlope : 0;
+                return n.hrv ? n.hrv.hrSlope : null;
               })
             }
           ],
@@ -1224,7 +1224,7 @@ function renderAll() {
             label: 'Restless Win%',
             color: C.amber,
             values: nights.map(function (n) {
-              return n.motion ? n.motion.arousalIndex : 0;
+              return n.motion ? n.motion.arousalIndex : null;
             })
           }
         ],
@@ -1246,7 +1246,7 @@ function renderAll() {
             color: C.red,
             fill: true,
             values: nights.map(function (n) {
-              return n.hb ? n.hb.rate : 0;
+              return n.hb ? n.hb.rate : null;
             })
           }
         ],
@@ -1267,7 +1267,7 @@ function renderAll() {
             color: C.green,
             fill: true,
             values: nights.map(function (n) {
-              return n.stab ? n.stab.score : 0;
+              return n.stab ? n.stab.score : null;
             })
           }
         ],
@@ -1342,7 +1342,7 @@ function renderAll() {
             color: C.orange,
             fill: true,
             values: nights.map(function (n) {
-              return n.desat ? n.desat.deltaIndex : 0;
+              return n.desat ? n.desat.deltaIndex : null;
             })
           }
         ],
@@ -1386,7 +1386,7 @@ function renderAll() {
             color: C.teal,
             fill: true,
             values: nights.map(function (n) {
-              return n.motSleep ? n.motSleep.sleepEff : 0;
+              return n.motSleep ? n.motSleep.sleepEff : null;
             })
           }
         ],
@@ -1397,12 +1397,27 @@ function renderAll() {
 
       // Chart: 7-day rolling mean SpO2
       if (nights.length >= 3) {
+        /* §∅ — `s + null` COERCES TO `s`, so an unmeasured night was dropped from the NUMERATOR
+           while `w.length` still counted it in the denominator. One absent night in a 7-night window
+           of 97 % plotted as 83 % — a dramatic false DIP on a chart whose whole job is to show
+           drift, and the one direction a reader would act on. Reduced coverage ANNOTATES rather than
+           refuses (§∅'s 2026-09-17 ruling: the window is sparse, not discontinuous), so the mean is
+           taken over the nights that HAVE a value; a window with none is null and the renderer drops
+           the point, exactly as the other series do since #2938's chart pass. */
         var roll7spo2 = nights.map(function (n, i) {
           var w = nights.slice(Math.max(0, i - 6), i + 1);
+          var vals = w
+            .map(function (x) {
+              return x.stats ? x.stats.meanSpo2 : null;
+            })
+            .filter(function (v) {
+              return v != null && isFinite(v);
+            });
+          if (!vals.length) return null;
           return +(
-            w.reduce(function (s, x) {
-              return s + x.stats.meanSpo2;
-            }, 0) / w.length
+            vals.reduce(function (s, v) {
+              return s + v;
+            }, 0) / vals.length
           ).toFixed(2);
         });
         html += '<div class="chart-wrap">';
@@ -1445,7 +1460,7 @@ function renderAll() {
               color: C.orange,
               fill: true,
               values: nights.map(function (n) {
-                return n.spo2Adv ? n.spo2Adv.wtdsi : 0;
+                return n.spo2Adv ? n.spo2Adv.wtdsi : null;
               })
             }
           ],
@@ -1473,7 +1488,7 @@ function renderAll() {
               color: C.red,
               fill: true,
               values: nights.map(function (n) {
-                return n.comp ? n.comp.nsi : 0;
+                return n.comp ? n.comp.nsi : null;
               })
             }
           ],
@@ -1501,7 +1516,7 @@ function renderAll() {
               color: C.teal,
               fill: true,
               values: nights.map(function (n) {
-                return n.hrAdv ? n.hrAdv.rmssd : 0;
+                return n.hrAdv ? n.hrAdv.rmssd : null;
               })
             }
           ],
@@ -1529,7 +1544,7 @@ function renderAll() {
               color: C.amber,
               fill: true,
               values: nights.map(function (n) {
-                return n.comp ? n.comp.sfi : 0;
+                return n.comp ? n.comp.sfi : null;
               })
             }
           ],
@@ -1557,7 +1572,7 @@ function renderAll() {
               color: C.red,
               fill: true,
               values: nights.map(function (n) {
-                return n.sbii ? n.sbii.sbii : 0;
+                return n.sbii ? n.sbii.sbii : null;
               })
             }
           ],
@@ -1585,7 +1600,7 @@ function renderAll() {
               color: C.purple,
               fill: true,
               values: nights.map(function (n) {
-                return n.pred3p ? n.pred3p.pred3p : 0;
+                return n.pred3p ? n.pred3p.pred3p : null;
               })
             }
           ],
@@ -1613,7 +1628,7 @@ function renderAll() {
               color: C.orange,
               fill: true,
               values: nights.map(function (n) {
-                return n.desSev ? n.desSev.desSev : 0;
+                return n.desSev ? n.desSev.desSev : null;
               })
             }
           ],
@@ -1740,11 +1755,25 @@ function renderAll() {
             t4html += metric('PB Trend', pbLr.slope > 0 ? '+' + pbLr.slope : pbLr.slope, 'episodes/night', pbLr.slope < 0 ? 'good' : pbLr.slope < 1 ? 'warn' : 'bad');
           }
           // Worst-night recurrence
-          var poorNights = nights.filter(function (n) {
-            return n.stab && n.stab.score < 50;
+          /* §∅ — the NUMERATOR excluded nights with no stability score and the DENOMINATOR kept
+             them, so every unscored night silently counted as "not poor" and diluted the rate. The
+             denominator is now the SCORED nights, and the sub-label states that population rather
+             than the night count — a rate whose denominator is not the thing it was measured over is
+             not a rate. Coverage annotates (the nights are sparse, not discontinuous); with nothing
+             scored there is no rate to publish, so it refuses. */
+          var scoredNights = nights.filter(function (n) {
+            return n.stab && n.stab.score != null;
+          });
+          var poorNights = scoredNights.filter(function (n) {
+            return n.stab.score < 50;
           }).length;
-          var poorPct = +((poorNights / nights.length) * 100).toFixed(0);
-          t4html += metric('Poor Nights (<50)', poorPct + '%', poorNights + ' of ' + nights.length, poorPct < 20 ? 'good' : poorPct < 50 ? 'warn' : 'bad');
+          var poorPct = scoredNights.length ? +((poorNights / scoredNights.length) * 100).toFixed(0) : null;
+          t4html += metric(
+            'Poor Nights (<50)',
+            poorPct == null ? '—' : poorPct + '%',
+            poorPct == null ? 'no night carries a stability score' : poorNights + ' of ' + scoredNights.length + ' scored',
+            poorPct == null ? '' : poorPct < 20 ? 'good' : poorPct < 50 ? 'warn' : 'bad'
+          );
           // CPAP efficacy delta (ODI-4 change)
           var odi4Vals = nights
             .map(function (n) {
@@ -2027,8 +2056,11 @@ function renderSmartSummary(n) {
     return '<span class="' + cls + '">' + val + (unit || '') + '</span>';
   }
 
-  var durH = st ? Math.floor(st.durationMin / 60) : 0;
-  var durM = st ? Math.round(st.durationMin % 60) : 0;
+  /* §∅ — `Math.floor(null / 60)` is 0, so a night whose duration was never derived rendered
+     "0h 00m" and, at the KPI below, was graded **bad** on a measurement nobody made. `durationMin`
+     is nulled deliberately upstream (oxydex-dsp.js, the §∅ stats pass). Absent input refuses. */
+  var durH = st && st.durationMin != null ? Math.floor(st.durationMin / 60) : null;
+  var durM = st && st.durationMin != null ? Math.round(st.durationMin % 60) : null;
 
   var html = '<div class="smart-summary">';
   html += '<div class="ss-impression ' + sc + '">' + s.impression + '</div>';
@@ -2162,8 +2194,12 @@ function renderSmartSummary(n) {
   html += '<div class="proj-card proj-' + _cardSev + '">';
   html += '<div class="proj-header">' + '<span class="cat-tag cat-slp">SL</span>' + '<span class="proj-title">Sleep</span>' + '</div>';
   html += '<div class="ss-kpi-grid">';
-  var durStr = durH + 'h ' + (durM < 10 ? '0' : '') + durM + 'm';
-  html += ssKPI('Duration', '<span class="' + (durH >= 7 ? 'cv-good' : durH >= 6 ? 'cv-warn' : 'cv-bad') + '">' + durStr + '</span>', durH >= 7 ? 'good' : durH >= 6 ? 'warn' : 'bad');
+  var durStr = durH == null ? null : durH + 'h ' + (durM < 10 ? '0' : '') + durM + 'm';
+  html += ssKPI(
+    'Duration',
+    durStr == null ? '<span class="val-null">—</span>' : '<span class="' + (durH >= 7 ? 'cv-good' : durH >= 6 ? 'cv-warn' : 'cv-bad') + '">' + durStr + '</span>',
+    durStr == null ? 'neutral' : durH >= 7 ? 'good' : durH >= 6 ? 'warn' : 'bad'
+  );
   if (sa) {
     var _motPct = st ? st.motionPct : null;
     html += ssKPI('SOL', cv(sa.solMin, 15, 30, 'min'), sa.solMin == null ? 'neutral' : sa.solMin < 15 ? 'good' : sa.solMin < 30 ? 'warn' : 'bad');
@@ -2334,9 +2370,11 @@ function nrChip(label, val, cls) {
 }
 function nightRowInner(n) {
   var s = n.stats || {};
-  var durH = Math.floor((s.durationMin || 0) / 60),
-    durM = Math.round((s.durationMin || 0) % 60);
-  var durFmt = durH + 'h' + (durM < 10 ? '0' : '') + durM + 'm';
+  /* §∅ — the night-row twin of the KPI above: `|| 0` rendered an unrecorded duration as "0h00m"
+     in the row header, which reads as a measured zero-length night rather than an unknown one. */
+  var durH = s.durationMin != null ? Math.floor(s.durationMin / 60) : null,
+    durM = s.durationMin != null ? Math.round(s.durationMin % 60) : null;
+  var durFmt = durH == null ? '—' : durH + 'h' + (durM < 10 ? '0' : '') + durM + 'm';
 
   // ── Readiness pill ──
   var readScore = n.karv ? n.karv.readiness : n.stab ? n.stab.score : null;
@@ -2371,8 +2409,9 @@ function nightRowInner(n) {
     chipsArr.push(nrChip('HRsl', (h.hrSlope > 0 ? '+' : '') + h.hrSlope, h.hrSlope < 0 ? 'g' : h.hrSlope < 1 ? 'w' : 'r'));
   }
   if (n.odi3) chipsArr.push(nrChip('ODI-3', n.odi3.rate + '/h', n.odi3.rate < 5 ? 'g' : n.odi3.rate < 15 ? 'w' : 'r'));
-  if (n.comp) chipsArr.push(nrChip('NSI', n.comp.nsi, n.comp.nsi < 30 ? 'g' : n.comp.nsi < 60 ? 'w' : 'r'));
-  if (n.comp) chipsArr.push(nrChip('SFI', n.comp.sfi, n.comp.sfi < 1 ? 'g' : n.comp.sfi < 3 ? 'w' : 'r'));
+  /* §∅ — `null < 30` is TRUE, so an NSI nobody could compute would have rendered GREEN. */
+  if (n.comp && n.comp.nsi != null) chipsArr.push(nrChip('NSI', n.comp.nsi, n.comp.nsi < 30 ? 'g' : n.comp.nsi < 60 ? 'w' : 'r'));
+  if (n.comp && n.comp.sfi != null) chipsArr.push(nrChip('SFI', n.comp.sfi, n.comp.sfi < 1 ? 'g' : n.comp.sfi < 3 ? 'w' : 'r'));
   if (n.motSleep) chipsArr.push(nrChip('SleepEff', n.motSleep.sleepEff + '%', n.motSleep.sleepEff >= 90 ? 'g' : n.motSleep.sleepEff >= 80 ? 'w' : 'r'));
   if (n.sleepArch && n.sleepArch.wasoMin != null) chipsArr.push(nrChip('WASO', n.sleepArch.wasoMin + 'm', n.sleepArch.wasoMin < 10 ? 'g' : n.sleepArch.wasoMin < 30 ? 'w' : 'r'));
   if (n.hrAdv) chipsArr.push(nrChip('RMSSD', n.hrAdv.rmssd, n.hrAdv.rmssd >= 2 ? 'g' : n.hrAdv.rmssd >= 1 ? 'w' : 'r'));
@@ -2961,9 +3000,10 @@ function nightDetail(n, idx) {
       html += '<div class="sec-label">Composite Scores</div>';
       html +=
         '<div class="grid">' +
-        metric('NSI', cp.nsi, '/100 stress load', cp.nsi < 30 ? 'good' : cp.nsi < 60 ? 'warn' : 'bad', 'secondary') +
+        /* §∅ — the card twin of the chip above: an absent NSI showed as a blank value badged GOOD. */
+        metric('NSI', cp.nsi != null ? cp.nsi : '—', '/100 stress load', cp.nsi == null ? '' : cp.nsi < 30 ? 'good' : cp.nsi < 60 ? 'warn' : 'bad', 'secondary') +
         (cp.couplingScore != null ? metric('Coupling', cp.couplingScore + '%', 'desat→HR link', cp.couplingScore >= 50 ? 'good' : cp.couplingScore >= 20 ? 'warn' : 'bad', 'secondary') : '') +
-        metric('Frag Index', cp.sfi, '/hr fragmentation', cp.sfi < 3 ? 'good' : cp.sfi < 6 ? 'warn' : 'bad', 'secondary') +
+        metric('Frag Index', cp.sfi != null ? cp.sfi : '—', '/hr fragmentation', cp.sfi == null ? '' : cp.sfi < 3 ? 'good' : cp.sfi < 6 ? 'warn' : 'bad', 'secondary') +
         '</div>';
     }
     if (n.spo2Adv && n.spo2Adv.nadirBins) {
@@ -3057,8 +3097,12 @@ function nightDetail(n, idx) {
   html += '<div class="sec-section">';
   html += '<div class="sec-label">T-Index · Sleep Stability</div>';
   // T90 (clinically most-cited threshold) drives the headline severity
-  var _t90 = (n.tIdx && (n.tIdx[90] || n.tIdx['t90'])) || { pct: 0 };
-  var _tCls = _t90.pct < 1 ? 'good' : _t90.pct < 5 ? 'warn' : 'bad';
+  /* §∅ — `|| { pct: 0 }` and then `null < 1` both read as a PERFECT night: the first fabricates a
+     zero for a missing block, the second grades an unmeasured rate as good. T-index is now null when
+     no second was measured, so both arms are guarded and the card carries no verdict. */
+  var _t90 = (n.tIdx && (n.tIdx[90] || n.tIdx['t90'])) || null;
+  var _t90pct = _t90 && _t90.pct != null ? _t90.pct : null;
+  var _tCls = _t90pct == null ? 'neutral' : _t90pct < 1 ? 'good' : _t90pct < 5 ? 'warn' : 'bad';
   html += '<div class="proj-grid"><div class="proj-card proj-' + _tCls + '">';
   html +=
     '<div class="proj-header">' +
@@ -3312,7 +3356,25 @@ function nightDetail(n, idx) {
     var mp = n.motion;
     html +=
       '<div class="grid">' +
-      metric('Motion %', n.stats ? n.stats.motionPct + '%' : '—', 'of recording', n.stats && n.stats.motionPct < 0.5 ? 'good' : n.stats && n.stats.motionPct < 2 ? 'warn' : 'bad') +
+      /* §∅ — THE PRODUCER ALREADY EMITTED NULL AND THIS CONSUMER NEVER MIGRATED. oxydex-dsp.js:2796
+         sets `stats.motionPct = null` deliberately when the motion column is condemned as stuck or
+         absent, and records WHICH fault in `stats.motionColumnAbsent`. Here that null was string-
+         concatenated into `null%` and then graded: `null < 0.5` is TRUE, so a night whose motion
+         channel was condemned rendered "null%" badged **good** — the fault reported as its own
+         absence of fault. `_oxyFmt`/`_oxySev` in oxydex-fusion.js already do the right thing with
+         null (— and no severity class), so this site was the odd one out, not the rule.
+         The sub-label NAMES the fault rather than borrowing "of recording", because §∅ requires a
+         refusal to state the real reason — and it gives `motionColumnAbsent` its first consumer:
+         the DSP has been distinguishing "no accelerometer on this device" from "the writer emitted
+         a stuck column" and nothing has ever read it. */
+      (function () {
+        var mp = n.stats ? n.stats.motionPct : null;
+        if (mp == null) {
+          var why = !n.stats ? 'of recording' : n.stats.motionColumnAbsent ? 'no motion column in this file' : 'motion column condemned as stuck';
+          return metric('Motion %', '—', why, '');
+        }
+        return metric('Motion %', mp + '%', 'of recording', mp < 0.5 ? 'good' : mp < 2 ? 'warn' : 'bad');
+      })() +
       metric('Restless Windows', mp.restlessWindows, 'of ' + mp.totalWindows + ' (30min)', mp.restlessWindows === 0 ? 'good' : mp.restlessWindows <= 2 ? 'warn' : 'bad') +
       metric('Arousal Index', mp.arousalIndex + '%', 'restless blocks', mp.arousalIndex < 20 ? 'good' : mp.arousalIndex < 40 ? 'warn' : 'bad') +
       '</div>';
@@ -3531,6 +3593,9 @@ function stsCls(sev) {
   return 'neu';
 }
 function tiClass(pct, thr) {
+  /* §∅ — an ABSENT rate gets no class. Without this, `null === 0` is false and `null < 1` is true,
+     so an unmeasured threshold rendered 'warn' — a verdict on a measurement nobody made. */
+  if (pct == null) return '';
   if (thr >= 92) return pct === 0 ? 'good' : pct < 1 ? 'warn' : 'bad';
   if (thr >= 88) return pct === 0 ? 'good' : pct < 0.5 ? 'warn' : 'bad';
   return pct === 0 ? 'good' : pct < 0.1 ? 'warn' : 'bad';

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="eba4fd8631f0" data-compute-hash="352a27de14b6"><head>
+<html lang="en" data-manifest-hash="518535c8718e" data-compute-hash="9ce81aef775e"><head>
 <!--
   PulseDex.src.html — Tepna
   Copyright 2026 Michal Planicka
@@ -9,10 +9,10 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3OFGZyAYmpNjgdIo8HIK3mH80DZJcnoVZHx/nLdDpa4=' 'sha256-3bPuedJeHqlAtFRw9XCQUY2RL6IBWMfwvh6D9DWEXUc=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-ZOZrXVPboAP+8At/P4MiABzCGh99952BRym6mgp2xpc=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-l7+aJgsMD55W+OVW3ZgKnu0aySX2YViv57Gwk5Dhu+M=' 'sha256-n4iELeLN4xR2wiFU5lenc+GD6lzf0vrweipgHN0rplc=' 'sha256-nghmP9jMX0rAyZ78QklkJKcGr9ZiroYj+56iLDFYjLY=' 'sha256-sH2zcem3XO98hxUUreAPps78dztWHR1+8dPrGCperK0='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3OFGZyAYmpNjgdIo8HIK3mH80DZJcnoVZHx/nLdDpa4=' 'sha256-3bPuedJeHqlAtFRw9XCQUY2RL6IBWMfwvh6D9DWEXUc=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-ODnkG6Le8Cqp/r9bOK9FrS3Denl+Kbxh6Auu8u0rZoE=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-ZOZrXVPboAP+8At/P4MiABzCGh99952BRym6mgp2xpc=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-l7+aJgsMD55W+OVW3ZgKnu0aySX2YViv57Gwk5Dhu+M=' 'sha256-n4iELeLN4xR2wiFU5lenc+GD6lzf0vrweipgHN0rplc=' 'sha256-nghmP9jMX0rAyZ78QklkJKcGr9ZiroYj+56iLDFYjLY=' 'sha256-sH2zcem3XO98hxUUreAPps78dztWHR1+8dPrGCperK0='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
-<title>PulseDex — Raw RR Analyzer · v2.13.0</title>
+<title>PulseDex — Raw RR Analyzer · v2.14.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
 <style data-inline-src="licensing/dex-license.css">/*
  * dex-license.css — reusable Tepna license / attribution stamp styles
@@ -2738,7 +2738,7 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
       <div class="logo-badge"><svg viewBox="0 0 100 100" aria-hidden="true" style="width:23px;height:23px" fill="none" stroke="#06121A" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,33 52,33 60,15 66,49 71,33 86,33"/><line x1="49" y1="33" x2="49" y2="86"/></svg></div>
       <div>
         <div class="logo-title">PulseDex</div>
-        <div class="logo-sub">v2.13.0 · Tepna</div>
+        <div class="logo-sub">v2.14.0 · Tepna</div>
       </div>
     </div>
     <hr class="sidebar-logo-rule">
@@ -2794,7 +2794,7 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
   <main class="main-content">
     <div class="topbar">
       <div>
-        <div class="topbar-title">PulseDex <span class="version-badge">v2.13.0</span></div>
+        <div class="topbar-title">PulseDex <span class="version-badge">v2.14.0</span></div>
         <div class="page-sub">Raw RR → Welltory-format metrics · 70+ derived HRV measures · All processing local</div>
       </div>
       <div class="topbar-actions">
@@ -8063,10 +8063,49 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
     const mode = cls.mode;
     const longRec = mode === 'overnight' || mode === 'continuous';
 
+    /* ∅ CLOCK SEAM — the TWO-CLOCK discriminator, and the same one ECGDex states in its own words:
+       "through a real BLE dropout both clocks keep ticking, so the device delta ≈ the phone delta;
+       only a clock step makes them disagree". PulseDex has both clocks and never compared them: the
+       RR INTERVAL is the device's measure of elapsed time between two beats, and the `tsMs` delta is
+       the host's. A capture-side resync moves one and not the other.
+
+       This matters because `rmssd`/`sdnn`/`pnn50` read the RR VALUES ONLY and never touch `tsMs`, so
+       a clock step is INVISIBLE to them by construction — measured on a planted 7-year seam with
+       physiological RR throughout, every one came back byte-identical to the continuous record while
+       `coverage` collapsed 100 → 0 beside them. A number computable from broken input, reporting no
+       problem (§∅). They are correct about the RR series and wrong about the RECORDING: the window
+       no longer describes one continuous stretch of signal, so per the 2026-09-17 ruling a
+       DISCONTINUITY refuses while reduced coverage annotates.
+
+       The bound is NOT a new constant. 60000 ms is `ECG_RESYNC_BOUND_MS` = `PPG_RESYNC_BOUND_MS` =
+       `MOTION_RESYNC_BOUND_MS`, shared because all these nodes read the same step in the same
+       device's several files; the `ppgdex-clock-seam` parity group asserts this one equal to them. */
+    const PD_RESYNC_BOUND_MS = 60000;
+    let _seamN = 0,
+      _seamMaxMs = 0;
+    if (timedAxis && f.tsMs && f.tsMs.length >= N) {
+      for (let i = 0; i + 1 < N; i++) {
+        const hostDelta = f.tsMs[i + 1] - f.tsMs[i],
+          devDelta = a[i];
+        if (!isFinite(hostDelta) || !isFinite(devDelta)) continue;
+        const disagree = Math.abs(hostDelta - devDelta);
+        if (disagree > PD_RESYNC_BOUND_MS) {
+          _seamN++;
+          if (disagree > _seamMaxMs) _seamMaxMs = disagree;
+        }
+      }
+    }
+    const clockSeam = _seamN > 0;
+    /* `meanRR`/`hr` are PER-BEAT averages, not window statistics over the axis, and they are kept
+       deliberately: `classifyRecording` and `adaptEnvelopeNode` consume the duration immediately, and
+       collapsing them is the DEEP-AUDIT-III §6.2 regression the envelope comment above already
+       records paying for once. The VARIABILITY metrics are what span the seam, and those refuse —
+       the same split PpgDex makes, where `_clockSeam` nulls the CVHR index with `reason:'clock-seam'`
+       and leaves the rest of the record alone. */
     const meanRR = mean(a),
-      sdnn = std(a),
-      rm = rmssd(a),
-      pn = pnn50(a);
+      sdnn = clockSeam ? null : std(a),
+      rm = clockSeam ? null : rmssd(a),
+      pn = clockSeam ? null : pnn50(a);
     const hr = +(60000 / meanRR).toFixed(1);
 
     let win = null,
@@ -8182,9 +8221,14 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
       windows: win ? win.wins : null,
       meanRR: +meanRR.toFixed(1),
       hr,
-      sdnn: +sdnn.toFixed(2),
-      rmssd: +rm.toFixed(2),
-      pnn50: +pn.toFixed(1),
+      /* ∅ null, with the reason NAMED beside them — an absent HRV figure a reader cannot explain is
+         only half of the refusal. `hrvReason` is additive and every consumer already guards
+         `!= null` on these three (they were nullable via the < 10 beat path before this). */
+      sdnn: sdnn == null ? null : +sdnn.toFixed(2),
+      rmssd: rm == null ? null : +rm.toFixed(2),
+      pnn50: pn == null ? null : +pn.toFixed(1),
+      hrvReason: clockSeam ? 'clock-seam' : null,
+      clockSeams: clockSeam ? { n: _seamN, maxDisagreeMs: Math.round(_seamMaxMs), boundMs: PD_RESYNC_BOUND_MS } : null,
       tp: sp.tp,
       hf: sp.hf,
       lf: sp.lf,

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="27096773d007" data-compute-hash="43d23116dc6c">
+<html lang="en" data-manifest-hash="1009b5c20aab" data-compute-hash="a7a96378bb40">
 <head>
 <!--
   ECGDex.src.html — Tepna
@@ -10,10 +10,10 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/b9Ty7sct7IZSflzeAYsdGJ90rYCMoXabF1e68y+EfI=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3bPuedJeHqlAtFRw9XCQUY2RL6IBWMfwvh6D9DWEXUc=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-88zxKn/JqqFmm625PqVXhYdhh8OWdLYKfNIuogKwREA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-En5BnuJSrtGOQBjOAV0zmA/L43X1TvIisTxD5fCA3Bs=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-HqQBZoS6r3PYC2ofOCAwTQVg7grU4CFxx1YVcuF+w1A=' 'sha256-IgKf+YEi7LmrdT3D04V12zZGeSw0FDC163m2Yj3NmLM=' 'sha256-K7rb5TcXbuX889tcnKEiKYjUbldZA2hXW+MaM4m3MOE=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-b+hR2i2ViyedwmAqqTitKUOQmoT7nrMmSb+ENDSMNws=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-x19UVHYXG6QSm4M04+v3Wf04skFnA8PuhCpFrXkYH/Q='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+9D55WVzbDEo+NFobRHGpgzLjOctIxv5faJH6AFRjDI=' 'sha256-+DMxKj19C+r2oJ2mME0Wfi50h62Tqn+Adk/bA3XjY0I=' 'sha256-/b9Ty7sct7IZSflzeAYsdGJ90rYCMoXabF1e68y+EfI=' 'sha256-/wALRR+h/gyk6XFvPY4hQRWTp/tvOxC7guCJG7StnEc=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3bPuedJeHqlAtFRw9XCQUY2RL6IBWMfwvh6D9DWEXUc=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-E8qFHEt2A6a/g3xPUBa8iqmzqmNG2VpjPKUOtnJNDh0=' 'sha256-En5BnuJSrtGOQBjOAV0zmA/L43X1TvIisTxD5fCA3Bs=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-IgKf+YEi7LmrdT3D04V12zZGeSw0FDC163m2Yj3NmLM=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-b+hR2i2ViyedwmAqqTitKUOQmoT7nrMmSb+ENDSMNws=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
-<title>ECGDex — Raw ECG Analyzer · v2.13.0</title>
+<title>ECGDex — Raw ECG Analyzer · v2.14.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
 <style data-inline-src="licensing/dex-license.css">/*
  * dex-license.css — reusable Tepna license / attribution stamp styles
@@ -2827,7 +2827,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       <div class="logo-badge"><svg viewBox="0 0 100 100" aria-hidden="true" style="width:23px;height:23px" fill="none" stroke="#06121A" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,33 52,33 60,15 66,49 71,33 86,33"/><line x1="49" y1="33" x2="49" y2="86"/></svg></div>
       <div>
         <div class="logo-title">ECGDex</div>
-        <div class="logo-sub">v2.13.0 · Tepna</div>
+        <div class="logo-sub">v2.14.0 · Tepna</div>
       </div>
     </div>
     <hr class="sidebar-logo-rule">
@@ -2895,7 +2895,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
   <main class="main-content">
     <div class="topbar">
       <div>
-        <div class="topbar-title">ECGDex <span class="version-badge">v2.13.0</span></div>
+        <div class="topbar-title">ECGDex <span class="version-badge">v2.14.0</span></div>
         <div class="page-sub">Raw ECG (130 Hz µV) → R-peaks → HRV · CVHR · sleep staging &middot; one signal, computed end-to-end, all local</div>
       </div>
       <div class="topbar-actions">
@@ -10336,25 +10336,63 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
   // ════════════════════════════════════════════════════════════════════════
   //  5-MIN EPOCH ENGINE — window the NN series; per-epoch short-term suite.
   // ════════════════════════════════════════════════════════════════════════
-  function epochEngine(nn, tt, winSec, sqiPerBeat) {
+  /* §∅ — THE EPOCH IS NOT EXEMPT. `spansGap` is the kept-frame mask analyze() builds (1 where interval i
+     straddles a dropout or a filtered-out beat); `seamSec` the beat-axis positions of device-clock
+     resyncs; `refusedOut` receives the windows this engine declines to score. The whole-record
+     statistics honoured that mask since the §∅ block in analyze(); this engine sliced the SAME `nn`
+     without it, so an epoch containing a dropout carried the dropout as an RR interval. Measured on the
+     owner's 2026-09-21 H10 night — 177 reconnects in 68 epochs: whole-record rMSSD 28.1 ms (masked),
+     per-epoch median 10,608.5 ms (unmasked), and it is the median that is DISPLAYED and SCORED. The
+     score read it as "Primed · strong autonomic reserve". Same defect two consumers along, and the
+     fixture corpus could not see it: its nights carry ≤5 dropouts, so the median epoch was clean.
+
+     Owner ruling 2026-09-17 (CLAUDE.md §∅): a DISCONTINUITY refuses, reduced COVERAGE annotates.
+       · dropout inside the window  ⇒ the straddling interval leaves every statistic (rMSSD/pNN50 via
+         the pair mask, mean/SDNN/spectrum via the kept set) and the epoch says `gaps: <n>`.
+       · clock seam inside the window ⇒ the window does not describe ONE stretch of signal: refused,
+         `reason: 'clock-seam'`, the epoch is absent from the series and present in `refusedOut`.
+       · fewer than 20 scorable beats  ⇒ refused, `reason: 'too-few-beats'` (was a silent skip).
+     A window with no beats at all is a dropout hole, already counted in gapSec, and stays silent. */
+  function epochEngine(nn, tt, winSec, sqiPerBeat, spansGap, seamSec, refusedOut) {
     winSec = winSec || 300;
     const N = nn.length,
       tEnd = tt[N - 1];
     const epochs = [];
+    const _seams = Array.isArray(seamSec) ? seamSec.filter((v) => Number.isFinite(v)) : [];
     let i = 0;
     for (let w0 = 0; w0 <= tEnd; w0 += winSec) {
       const w1 = w0 + winSec,
         seg = [],
         segT = [],
-        segQ = [];
+        segQ = [],
+        /* pair mask in the KEPT frame: 1 on the first survivor after a removed interval, so the
+           difference (previous survivor, this) — which spans the absence — is not a successive
+           difference. Same widening rule as analyze()'s `_gapPair`. */
+        segSkip = [];
+      let nAll = 0,
+        gaps = 0,
+        dropped = false;
       while (i < N && tt[i] < w1) {
+        nAll++;
+        if (spansGap && spansGap[i]) {
+          gaps++;
+          dropped = true;
+          i++;
+          continue;
+        }
         seg.push(nn[i]);
         segT.push(tt[i]);
+        segSkip.push(dropped ? 1 : 0);
+        dropped = false;
         if (sqiPerBeat && Number.isFinite(sqiPerBeat[i])) segQ.push(sqiPerBeat[i]);
         i++;
       }
-      // back up i so windows that share a boundary still see beats (non-overlap, simple advance is fine)
-      if (seg.length >= 20) {
+      const seamHere = _seams.some((v) => v >= w0 && v < w1);
+      if (seamHere || seg.length < 20) {
+        if (refusedOut && nAll > 0) refusedOut.push({ tMin: +(w0 / 60).toFixed(1), n: nAll, reason: seamHere ? 'clock-seam' : 'too-few-beats' });
+        continue;
+      }
+      {
         const m = mean(seg);
         const ls = lombScargle(seg, segT, 160);
         epochs.push({
@@ -10378,11 +10416,11 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
              `rate-of-mean` = 60000 / mean(RR); the alternatives are `median-rate` and `mean-rate`. */
           hrStat: 'rate-of-mean',
           meanRR: +m.toFixed(1),
-          rmssd: +rmssd(seg).toFixed(1),
+          rmssd: +rmssd(seg, segSkip).toFixed(1),
           sdnn: +std(seg).toFixed(1),
           // vlf/tp carried too (DEEP-AUDIT §10): the exported spectrum is the 5-min epoch median, and it
           // must report ALL FOUR bands on that one scale — see the spec block in analyze().
-          pnn: +pnn50(seg).toFixed(1),
+          pnn: +pnn50(seg, segSkip).toFixed(1),
           lf: ls.lf,
           hf: ls.hf,
           vlf: ls.vlf,
@@ -10390,6 +10428,8 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
           lfhf: ls.lfhf,
           resp: ls.respRate
         });
+        // present only when drawn (the `anchorsDroppedPreResync` discipline): a clean epoch keeps its bytes
+        if (gaps) Object.assign(epochs[epochs.length - 1], { gaps });
       }
     }
     return epochs;
@@ -11442,7 +11482,10 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
          PpgDex for a fortnight (#2333 → the kept-frame fix). Rebuilt here in the kept frame instead:
          a pair is a non-measurement if it straddled a gap OR if the filter removed a beat between its
          endpoints, since the survivors are then adjacent in the array and not in time. */
-      nnSpansGap = [];
+      nnSpansGap = [],
+      /* sample index of each KEPT beat, same frame — the only way to place a clock seam (a SAMPLE
+         index, `rec.clockResyncs[].idx`) on the beat axis after the filter has thinned it. */
+      nnPeak = [];
     let _lastKept = -1;
     let artifactSec = 0,
       _pSec = null;
@@ -11454,6 +11497,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
         tt.push(nnRes.tt[i]);
         nnCorr.push(nnRes.corrected[i] ? 1 : 0);
         nnSqi.push(Number.isFinite(sqi[i]) ? sqi[i] : null);
+        nnPeak.push(peaks[i]);
         nnConf.push(Number.isFinite(c) ? +c.toFixed(3) : 1);
         // straddled a dropout in the source frame, OR the filter dropped a beat between this one and
         // the previous survivor (first survivor has no predecessor, so its pair is vacuous)
@@ -11505,7 +11549,17 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     const lowCoverage = nnRes.coveragePct != null && nnRes.coveragePct < 80;
 
     prog(72, '5-min epoch engine…');
-    const epochs = epochEngine(nn, tt, 300, nnSqi);
+    /* A clock seam on the beat axis: the first kept beat at or after the resync's sample index. §7
+       "ONE DEVICE CLOCK PER AXIS" re-anchors the axis across it, which makes the axis continuous —
+       not the same clock; the epoch containing it is refused, not annotated (see epochEngine). */
+    const _seamSec = [];
+    for (const c of rec.clockResyncs || []) {
+      let k = 0;
+      while (k < N && nnPeak[k] < c.idx) k++;
+      if (k < N) _seamSec.push(tt[k]);
+    }
+    const epochsRefused = [];
+    const epochs = epochEngine(nn, tt, 300, nnSqi, nnSpansGap, _seamSec, epochsRefused);
 
     // representative window for advanced metrics (epoch with rmssd closest to median)
     let repSeg = nn,
@@ -11530,6 +11584,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
         seg = [],
         segT = [];
       for (let i = 0; i < N; i++) {
+        if (nnSpansGap[i]) continue; // §∅ — not an RR interval (see epochEngine)
         if (tt[i] >= w0 && tt[i] < w1) {
           seg.push(nn[i]);
           segT.push(tt[i]);
@@ -11632,7 +11687,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     // Poincaré — geometric SD1/SD2 from the exact array that gets plotted.
     // Overnight: use the representative 5-min window (standard short-term Poincaré, norms apply);
     // shorter records: use the whole NN series. Guarantees ellipse == cloud.
-    const poincareNN = longRec && repSeg.length >= 20 ? repSeg : nn;
+    const poincareNN = longRec && repSeg.length >= 20 ? repSeg : _rrOnly; // §∅ — `_rrOnly`, never the gap-carrying `nn`
     const pg = poincareGeo(poincareNN);
     /* `.toFixed` on a refusal would throw, and `+null` would silently become 0 — the fabrication
        re-entering one line after the guard that removed it. Carry the null through. */
@@ -11690,7 +11745,32 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     let morph = null;
     if (global.ECGMorph) {
       try {
-        morph = global.ECGMorph.analyze(int16, bp, fs, refIdx, rr, Array.from(sqi));
+        /* ∅ THE ARTIFACT GATE THAT CLEANS HRV MUST REACH ECTOPY TOO. `beatConfidence` at :2791
+           exists for exactly this case — its own comment: "a burst of spurious detections passes
+           SQI≥0.30 INDIVIDUALLY yet is collectively nonsense … c<0.5 = confirmed artifact ⇒ drop, so
+           it no longer inflates RMSSD/SDNN/epochs". The HRV path consults `_conf`; this call passed
+           raw `sqi` and never did, so an empty strap was classified beat by beat.
+           Found by Wren on the owner's 2026-09-22 night: 2,766 of 2,767 PVCs sit in the window where
+           the H10 was off the body — 42 ventricular runs and bigeminy 396 from a strap on a table.
+           `artifactSec` 6148 s = 102.5 min against an independently measured off-body window of
+           102.2 min, so `_conf` already identified the right seconds and nothing consumed them here.
+           Masking to 0 puts those beats below the classifier's SQI floor: they are not typed as
+           ectopic, and (with the 'U' state below) they leave the burden denominator instead of
+           diluting it. Both halves are required — the denominator fix ALONE moves this night
+           7.93 % → 11.69 %, because it shrinks the denominator while the artifact numerator stands. */
+        const _t0c = rec.t0Ms || 0;
+        const _sqiMorph = Array.from(sqi);
+        let _maskedBeats = 0;
+        for (let k = 0; k < _sqiMorph.length && k < peaks.length; k++) {
+          const _s = Math.floor((_t0c + (peaks[k] / fs) * 1000) / 1000);
+          const _c = _conf.has(_s) ? _conf.get(_s) : 1;
+          if (_c < 0.5) {
+            _sqiMorph[k] = 0;
+            _maskedBeats++;
+          }
+        }
+        morph = global.ECGMorph.analyze(int16, bp, fs, refIdx, rr, _sqiMorph);
+        if (morph) morph.beatsArtifactMasked = _maskedBeats;
       } catch (e) {
         morph = null;
       }
@@ -11876,6 +11956,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       lnrmssd: +Math.log(longRec ? dispRm : rm).toFixed(3),
       // epochs + sleep + cvhr + events
       epochs,
+      epochsRefused,
       stages,
       stageMin,
       totSleep: +totSleep.toFixed(0),
@@ -12182,11 +12263,18 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       const s = Math.round(a.sec);
       if (s >= 0 && s < M) dev[s] = a.row.hr;
     }
-    let last = NaN;
-    for (let s = 0; s < M; s++) {
-      if (isFinite(dev[s])) last = dev[s];
-      else if (isFinite(last)) dev[s] = last;
-    }
+    // ── ∅ ABSENCE IS NULL — a HELD device sample must not enter the comparison ────────────
+    //  `_alignDevSeconds` leaves NaN wherever the device reported nothing for that second. This
+    //  used to hold the last reading forward across those seconds, which made the two series agree
+    //  BY CONSTRUCTION: the CVHR grid this is compared against holds forward too, so a stretch
+    //  where NEITHER sensor measured anything contributed a delta of ~0 to the mean-absolute
+    //  error — biasing a VALIDATION toward agreement, the one direction that hides a fault.
+    //  PpgDex's `holdOverGaps` does hold, and says exactly why it is allowed to: a hold may shape
+    //  a filter tail, but "no REPORTED measurement rests on it". Every number this function
+    //  returns is a reported measurement, so nothing is held — uncovered seconds stay NaN,
+    //  `_rollMedian` skips them, and the `isFinite(d)` pairing guard below drops them.
+    let devMeasuredSec = 0;
+    for (let s = 0; s < M; s++) if (isFinite(dev[s])) devMeasuredSec++;
     // device HR is firmware-smoothed; smooth the ECG instantaneous HR the same way + clip
     // to a physiological window around the record's own median so artifact false-peaks
     // (burst-noise spans → spurious 150–180 bpm) don't pollute the comparison.
@@ -12242,8 +12330,16 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     const step = Math.max(1, Math.floor(M / 240)),
       overlay = [];
     for (let s = 0; s < M; s += step) overlay.push({ t: s, ecg: isFinite(ecgS[s]) ? +ecgS[s].toFixed(1) : null, dev: isFinite(devS[s]) ? +devS[s].toFixed(1) : null });
+    // The compared count means nothing without the count it was drawn FROM (MotionDex publishes
+    // the same denominator beside its rate coverage): `n` of `comparableSec` seconds carried a
+    // real reading on BOTH sides. No threshold is imposed on `coverage` — a bar not derived from
+    // data would be a fabricated authority; the reader is given the number instead.
+    const comparableSec = Math.max(0, M - lead);
     return {
       n: xs.length,
+      comparableSec,
+      devMeasuredSec,
+      coverage: comparableSec > 0 ? +(xs.length / comparableSec).toFixed(3) : null,
       ecgMean: +me.toFixed(1),
       devMean: +md.toFixed(1),
       dMean: +Math.abs(me - md).toFixed(1),
@@ -13271,6 +13367,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     /* Exported so their refusal guards are directly assertable. Additive only — no existing caller
        reaches them through this surface, and the internal call sites are unchanged. */
     poincareGeo,
+    epochEngine, // §∅ epoch gap-exclusion + seam refusal, gated directly
     detectCVHR,
     cardiorespCoupling,
     dfaAlpha1,
@@ -13571,11 +13668,34 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
        `nsStepN > 0` IS the "is it a counter" test: a stuck or absent column advances zero times, so it
        never reaches here, and the anchors fall back to `[ms]` in the same breath — one condition
        governing both, because an fs from one axis and anchors from the other would not compose. */
+    /* §∅ — THE RATE NOW SAYS WHERE IT CAME FROM. When none of the three counters is usable `fs`
+       stays at the H10's nominal 130 — a number with no measurement behind it — and is then spent as
+       the file's timebase: `relSec`, every duration, every epoch edge. Nothing downstream could tell
+       that 130 from the measured 129.9866–129.9966 this same corpus yields, because an assumed rate
+       and a measured one are the same JS number.
+       This is the F2 family of ABSENCE-SURVEY-2026-09-22 — "a rate or geometry defaulted, then spent
+       as a timebase" — and the remedy is the one CLAUDE.md §7 already established for the AXIS:
+       publish the provenance rather than the guess. `timingSource` exists for exactly this reason
+       ("a device whose axis was DRAWN is not a clock… it must never be spent as a second clock") and
+       has no counterpart for the RATE. §7 also warns, in the other direction, that "a refusal guards
+       the RATE, not the AXIS" — here the axis can refuse while `fs` sails on fabricated.
+       ⚠️ SCOPE: this makes the fabrication VISIBLE; it does not yet change what a consumer DOES with
+       an assumed rate. Refusing a whole recording is a policy decision with a far wider blast radius
+       and belongs in its own unit. `fsSource` is what a refusal would have to key on, and it does
+       not exist today. */
     var fs = 130;
+    var fsSource = 'assumed';
     var nsUsable = scan.nsStepN > 0;
-    if (nsUsable) fs = (1000 * scan.nsStepN) / scan.nsStepSum;
-    else if (scan.stepN > 0) fs = Math.round((1000 * scan.stepN) / scan.stepSum);
-    else if (scan.msStep && scan.msStep > 0) fs = Math.round(1000 / scan.msStep);
+    if (nsUsable) {
+      fs = (1000 * scan.nsStepN) / scan.nsStepSum;
+      fsSource = 'ns-counter';
+    } else if (scan.stepN > 0) {
+      fs = Math.round((1000 * scan.stepN) / scan.stepSum);
+      fsSource = 'ms-step';
+    } else if (scan.msStep && scan.msStep > 0) {
+      fs = Math.round(1000 / scan.msStep);
+      fsSource = 'ms-delta';
+    }
 
     /* ONE DEVICE CLOCK PER AXIS — anchors from BEFORE the last resync are not on the clock the rest
        of the file is on, so they are dropped before `hostAxis` sees them. The resync block above
@@ -13978,6 +14098,12 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     var deviceEpoch = deviceEpochOffsetMs !== null ? { offsetMs: Math.round(deviceEpochOffsetMs), plausible: Math.abs(deviceEpochOffsetMs) <= 48 * 3600e3 } : null;
     return {
       fs: fs,
+      /* §∅ — the rate's PROVENANCE travels with the rate. 'ns-counter' | 'ms-step' | 'ms-delta' are
+         measured from the file; 'assumed' means no counter was usable and `fs` is the H10's nominal
+         130 with nothing behind it. A consumer that spends `fs` as a timebase can now tell the two
+         apart, which it could not before — they are the same number. Same discipline as
+         `quality.timingSource` for the axis (§7). */
+      fsSource: fsSource,
       /* Absolute floating wall-clock ms of sample `i`, host-disciplined where a second clock exists
          and GAP-AWARE (see `_ecgDeadMsBefore` above — a sample index does not count the wall-clock a
          dropout consumed). `i` may be fractional — `refinePeaks` returns sub-sample R positions and
@@ -14138,6 +14264,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     return {
       int16: arr.slice(0, n),
       fs: t.fs,
+      fsSource: t.fsSource,
       /* ⚠️ THIS IS A RESHAPE AND IT DROPS WHATEVER IT DOES NOT NAME. `ecgTimingResolve` returns the
          node's whole timing product; this literal copies a fixed list out of it, so a field added
          there is INERT until it is added here too — silently, with no error and no failing test.
@@ -14550,7 +14677,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       analyzablePct: r.analyzablePct != null ? r.analyzablePct : null,
       coveragePct: r.coveragePct != null ? r.coveragePct : null
     };
-    var mk = function (metricId, value) {
+    var mk = function (metricId, value, qualityOverride) {
       if (value == null || typeof value !== 'number' || !isFinite(value)) return null; // unmeasured ⇒ no block
       var b = {
         metricId: metricId,
@@ -14560,7 +14687,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
         code: code,
         evidence: evidence,
         basis: 'derived',
-        quality: quality,
+        quality: qualityOverride || quality,
         uncertainty: null,
         uncertaintyReason: 'not estimated — this node carries no uncertainty model for whole-record HRV summaries (the firmware cross-check in `validation` is a comparison, not an interval)'
       };
@@ -14569,15 +14696,45 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
           'no bundle identity passed (headless source-module run) — the app reads <html data-manifest-hash/data-compute-hash> and passes opts.code; the regen tool passes the shipped bundle\u2019s';
       return b;
     };
+    /* ∅ THE ECTOPY FIGURES REACH A GOLDEN. They were computed, rendered, and selected into NOTHING
+       — `morph` rides through the reshape and stopped here, so `pvcBurden`/`ectopyBurden` appeared in
+       no fixture and no regeneration of them could ever move. That is not a cosmetic gap: the
+       artifact-gate defect fixed in #3002 made the owner's own night report 2,767 PVCs and 42
+       ventricular runs from a strap lying off the body, and NOTHING in CI could have reddened,
+       before the defect or after the fix (residue `2026-09-24-the-corpus-cannot-falsify-a-refusal-fix`).
+
+       The metricIds are the REGISTERED ones, not invented: `ectopy` is the registry's burden metric
+       (label "Ectopy", `measured`, and its alias table already resolves "pvc burden" → `ectopy`),
+       and `pvc` is the count in beats. A `pvcBurden` metricId would be a fabricated metric identity,
+       which is the §🎫 failure this node has paid for before.
+
+       THE BURDEN'S DENOMINATOR IS NOT THE HRV ONE. `quality.n` above is `nBeats`, the beats that
+       survived confidence-dropping for HRV; a burden is rated over `beatsAssessed`, the beats the
+       CLASSIFIER could judge. Publishing the HRV count beside a burden would misstate its basis —
+       the exact error #3002 exists to end — so these blocks carry their own. */
+    var _m = r.morph || {};
+    var _burdenQuality =
+      _m.beatsAssessed != null
+        ? {
+            n: _m.beatsAssessed,
+            durationMin: quality.durationMin,
+            analyzablePct: quality.analyzablePct,
+            coveragePct: quality.coveragePct,
+            unassessedBeats: _m.beatsUnassessed != null ? _m.beatsUnassessed : null,
+            artifactMaskedBeats: _m.beatsArtifactMasked != null ? _m.beatsArtifactMasked : null
+          }
+        : null;
     var out = {};
     var blocks = [
-      ['hr', r.hr],
-      ['rmssd', r.rmssd],
-      ['sdnn', r.sdnn]
+      ['hr', r.hr, null],
+      ['rmssd', r.rmssd, null],
+      ['sdnn', r.sdnn, null],
+      ['ectopy', _m.ectopyBurden, _burdenQuality],
+      ['pvc', _m.nPVC, _burdenQuality]
     ];
     var any = false;
     for (var i = 0; i < blocks.length; i++) {
-      var b = mk(blocks[i][0], blocks[i][1]);
+      var b = mk(blocks[i][0], blocks[i][1], blocks[i][2]);
       if (b) {
         out[blocks[i][0]] = b;
         any = true;
@@ -14735,6 +14892,14 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
            past the seam (a resync inside the last 500 rows). */
         if (c.hostOffsetMs != null) rs.hostOffsetMs = c.hostOffsetMs;
         return rs;
+      });
+    /* §∅ — 5-min windows the epoch engine REFUSED to score (a clock seam inside the window, or too
+       few scorable beats). Attached only when one exists, same no-null-key discipline, so clean
+       fixtures keep today's bytes. A consumer counting `timeseries.epochs` against the span now has
+       the holes named rather than inferred. */
+    if (Array.isArray(r.epochsRefused) && r.epochsRefused.length)
+      out.recording.epochsRefused = r.epochsRefused.map(function (e) {
+        return { tMin: e.tMin, n: e.n, reason: e.reason };
       });
     if (r.deviceRR && r.deviceRR.length) {
       /* AN OUTPUT COMPUTED OVER ABSENT INPUT REPORTS THE ABSENCE (§∅). The self train handed to the
@@ -15083,10 +15248,15 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
           int16[i] = vv > 32767 ? 32767 : vv < -32768 ? -32768 : vv;
         }
       }
+      /* §∅ — the SignalFrame twin of the parser's fallback: a canonical frame that arrives without
+         `fs` gets the H10's nominal 130, which is a guess about a stream that may not be an H10 at
+         all. Labelled rather than silently assumed, same vocabulary as the parser. */
       var fs = input.fs != null ? input.fs : 130;
+      var fsSource = input.fs != null ? 'caller' : 'assumed';
       rec = {
         int16: int16,
         fs: fs,
+        fsSource: fsSource,
         gaps: input.gaps || [],
         t0Ms: input.t0Ms != null ? input.t0Ms : null,
         offsetMin: input.offsetMin != null ? input.offsetMin : null,
@@ -15957,10 +16127,16 @@ __exports.ECGUI = window.ECGUI;
     // classify
     const types = new Array(n).fill('N');
     for (let k = 1; k < n - 1; k++) {
+      /* ∅ NOT CLEAN ENOUGH TO CLASSIFY IS NOT "NORMAL". Declining to call ectopy on a dirty beat is
+         deliberate and right — it avoids artifact-driven false runs — but the beat was then TYPED
+         'N', which asserts the opposite of what was established. Both halves of that pushed the
+         burden DOWN, the reassuring direction: a real PVC inside a noisy stretch was counted as
+         normal, AND it still inflated the denominator below. 'U' keeps the original refusal and
+         drops the false claim. */
       if (sqi[k] < 0.55) {
-        types[k] = 'N';
+        types[k] = 'U';
         continue;
-      } // only call ectopy on clean beats (avoids artifact-driven false runs)
+      }
       const lm = localMedRR(rr, k, 8);
       const prem = rr[k] / lm;
       const wide = qrsW[k] > medW * 1.6;
@@ -15977,6 +16153,8 @@ __exports.ECGUI = window.ECGUI;
     }
 
     // rhythm aggregation
+    let nAssessed = 0;
+    for (let k = 0; k < n; k++) if (types[k] !== 'U') nAssessed++;
     let nV = 0,
       nS = 0,
       couplets = 0,
@@ -15994,6 +16172,8 @@ __exports.ECGUI = window.ECGUI;
       }
       if (types[k] === 'S') nS++;
       // bigeminy: N,V alternation
+      // an UNASSESSED beat cannot complete a bigeminy pattern it was never shown to be part of;
+      // 'N' here must mean a beat observed to be normal, which is why the test is explicit
       if (k >= 3 && types[k] === 'V' && types[k - 1] === 'N' && types[k - 2] === 'V' && types[k - 3] === 'N') bigemCycles++;
     }
     // runs ≥3 → ventricular run / NSVT flag
@@ -16016,9 +16196,16 @@ __exports.ECGUI = window.ECGUI;
       medW: +medW.toFixed(0),
       nPVC: nV,
       nPAC: nS,
-      pvcBurden: +((nV / n) * 100).toFixed(2),
-      pacBurden: +((nS / n) * 100).toFixed(2),
-      ectopyBurden: +(((nV + nS) / n) * 100).toFixed(2),
+      /* ∅ A burden is a rate over the beats that were ASSESSED. Dividing by every beat counted the
+         unclassifiable ones in the denominator while they could never appear in the numerator, so
+         each one strictly diluted the burden — and these figures drive severity bands at 0.5 % and
+         3 %. Reduced coverage ANNOTATES (§∅, 2026-09-17), so the value stands and `beatsAssessed`
+         publishes what it rests on; if nothing was assessable the rate is null, not 0. */
+      beatsAssessed: nAssessed,
+      beatsUnassessed: n - nAssessed,
+      pvcBurden: nAssessed > 0 ? +((nV / nAssessed) * 100).toFixed(2) : null,
+      pacBurden: nAssessed > 0 ? +((nS / nAssessed) * 100).toFixed(2) : null,
+      ectopyBurden: nAssessed > 0 ? +(((nV + nS) / nAssessed) * 100).toFixed(2) : null,
       couplets,
       longestRun,
       runsGE3,
@@ -16433,7 +16620,9 @@ __exports.ECGUI = window.ECGUI;
     // use windows of 30 beats; flag windows that are irregularly irregular but NOT just ectopy
     const W = 32,
       n = rr.length;
-    if (n < W + 2) return { suspiciousPct: 0, irregIndex: 0, verdict: 'insufficient', shannon: 0 };
+    /* §∅ — the metrics are null here too, for the same reason: this path has scored nothing, and a
+       0 % that a consumer prints is a claim about windows that do not exist. */
+    if (n < W + 2) return { suspiciousPct: null, irregIndex: null, verdict: 'insufficient', shannon: null };
     let flagged = 0,
       total = 0,
       shAcc = 0,
@@ -16472,9 +16661,21 @@ __exports.ECGUI = window.ECGUI;
       // AF-suspicious: high CV AND high entropy AND not explained by sparse ectopy
       if (cv > 0.13 && Hn > 0.72 && ectFrac < 0.25) flagged++;
     }
-    const suspiciousPct = total ? +((flagged / total) * 100).toFixed(1) : 0;
-    const shannon = total ? +(shAcc / total).toFixed(3) : 0;
-    const irregIndex = total ? +(cvAcc / total).toFixed(3) : 0;
+    /* §∅ — A SCREEN THAT NEVER RAN IS NOT A NEGATIVE SCREEN. `total` counts the windows that had
+       enough usable beats to score; when it is 0 — every window too sparse or too noisy — the three
+       metrics fell to 0, `suspiciousPct >= 8` was false, and the function published **'no-af'**: a
+       clinical all-clear derived from zero evidence, rendered as "Clear" with an `ok` severity.
+       The vocabulary for this already exists in this very function: the `n < W + 2` guard at the top
+       returns `'insufficient'`, and BOTH consumers already map it — `'—'` for the value and
+       `neutral` for the colour. Two ways of having nothing to screen, one of them answered
+       correctly. This is the same shape as `computeSpO2Percentiles` vs `computeODI1` (#2961): a
+       precondition handled twice, differently.
+       The metrics go null with it. `0 % irregular` is a measurement claim about windows that were
+       never scored, and `suspiciousPct` is rendered directly into the UI. */
+    if (!total) return { suspiciousPct: null, irregIndex: null, shannon: null, verdict: 'insufficient' };
+    const suspiciousPct = +((flagged / total) * 100).toFixed(1);
+    const shannon = +(shAcc / total).toFixed(3);
+    const irregIndex = +(cvAcc / total).toFixed(3);
     let verdict;
     if (suspiciousPct >= 30) verdict = 'possible-af';
     else if (suspiciousPct >= 8) verdict = 'occasional-irregular';
@@ -16705,7 +16906,15 @@ __exports.ECGUI = window.ECGUI;
   // three ECGDex surfaces (KPI tile, full-metrics row, profile lbl_ecgAge annotation) are deleted.
   // Do not reinstate.
   // HRV score — Welltory-calibrated, linear in rMSSD (family-consistent)
+  /* CALIBRATED RANGE, and a REFUSAL outside it (§∅ one layer up: a score computable from broken input
+     carries no information). The linear map saturates at 100 for rm ≥ 75.9 ms, so every input above
+     that reads "Primed" — including 10,608.5 ms, which is what it read on 2026-09-21 when the epoch
+     median carried 176 gap-straddling intervals (fixed in ecgdex-dsp epochEngine). Nothing sinus rhythm
+     produces exceeds HRV_SCORE_RMSSD_MAX; past it the input is artifact, or an arrhythmia this map was
+     never fitted to, and the honest score is none. A refusal bound, not a clamp (§🔒 §7's rule). */
+  var HRV_SCORE_RMSSD_MAX = 250;
   function hrvScore(rm) {
+    if (!Number.isFinite(rm) || rm <= 0 || rm > HRV_SCORE_RMSSD_MAX) return null;
     return Math.round(Math.max(0, Math.min(100, 1.494 * rm - 13.37)));
   }
   // age-expected rMSSD (ms) — declines ~with age (Umetani 1998 / Nunan 2010 trend)
@@ -16805,7 +17014,10 @@ __exports.ECGUI = window.ECGUI;
     const score = r.hrvScore,
       p = r.profile;
     let color, tier;
-    if (score >= 55) {
+    if (score == null) {
+      color = 'warn';
+      tier = 'Not scored · rMSSD outside the calibrated range (0–' + HRV_SCORE_RMSSD_MAX + ' ms)';
+    } else if (score >= 55) {
       color = 'good';
       tier = 'Primed · strong autonomic reserve';
     } else if (score >= 45) {
@@ -16877,7 +17089,7 @@ __exports.ECGUI = window.ECGUI;
       qualBadge +
       `<div class="readiness-hero-label">ANS Readiness</div>` +
       `<div class="readiness-date-badge">${r.source === 'synthetic' ? 'synthetic' : 'recorded'} · ${r.durMin >= 90 ? (r.durSec / 3600).toFixed(1) + ' h overnight' : r.durMin + ' min'}</div>` +
-      `<div class="readiness-score" style="color:${css}">${score}</div>` +
+      `<div class="readiness-score" style="color:${css}">${score == null ? '—' : score}</div>` +
       `<div class="readiness-tier">${tier}</div>` +
       (subsHtml ? `<div class="readiness-scores-grid">${subsHtml}</div>` : '') +
       `<div class="readiness-note">${ageNote}</div>` +
@@ -17069,7 +17281,7 @@ __exports.ECGUI = window.ECGUI;
     }
   }
 
-  global.ECGProfile = { init, render, hide, getProfile, personalize, renderHero, onInput, toggle, applyNorms };
+  global.ECGProfile = { init, render, hide, getProfile, personalize, renderHero, onInput, toggle, applyNorms, hrvScore };
   Object.assign(global, { ecgProfileInput: onInput, ecgProfileToggle: toggle, ecgApplyNorms: applyNorms });
 })(window);
 </script>
@@ -18809,7 +19021,8 @@ self.onmessage = async (e) => {
       personalized.push({
         l: 'AF Screen',
         v: { 'no-af': 'Clear', 'occasional-irregular': 'Watch', 'possible-af': 'Flag', insufficient: '—' }[af],
-        sub: r.morph.af.suspiciousPct + '% irregular',
+        /* §∅ — an insufficient screen has no percentage; printing "null% irregular" states one. */
+        sub: r.morph.af.suspiciousPct != null ? r.morph.af.suspiciousPct + '% irregular' : 'not screened',
         s: { 'no-af': 'ok', 'occasional-irregular': 'warn', 'possible-af': 'bad', insufficient: 'neutral' }[af]
       });
     }
@@ -19073,9 +19286,9 @@ self.onmessage = async (e) => {
     })()}
     <div class="gang-summary" style="margin-top:12px">
       <div class="gang-pill" style="border-color:var(--${afColor === 'ok' ? 'green' : afColor === 'warn' ? 'amber' : afColor === 'bad' ? 'red' : 'blue'});color:var(--${afColor === 'ok' ? 'green' : afColor === 'warn' ? 'amber' : afColor === 'bad' ? 'red' : 'blue'})"><b>AF screen:</b> ${afLabel}</div>
-      <div class="gang-pill">irregularity ${af.irregIndex}</div>
-      <div class="gang-pill">ΔRR entropy ${af.shannon}</div>
-      <div class="gang-pill">${af.suspiciousPct}% windows flagged</div>
+      <div class="gang-pill">irregularity ${af.irregIndex != null ? af.irregIndex : '—'}</div>
+      <div class="gang-pill">ΔRR entropy ${af.shannon != null ? af.shannon : '—'}</div>
+      <div class="gang-pill">${af.suspiciousPct != null ? af.suspiciousPct + '% windows flagged' : 'not screened'}</div>
     </div>
     <div class="q-note" style="margin-top:10px"><b>Directional, not diagnostic.</b> A single lead at 130 Hz resolves QRS/QT/PR/ST as <b>within-subject overnight trends</b>, not 12-lead clinical measurements. AF screen is RR-irregularity-based — P-wave morphology is weak at this rate, so it screens only and never diagnoses.</div>`;
     $('morphSection').style.display = 'block';
@@ -19224,7 +19437,7 @@ self.onmessage = async (e) => {
     <table><thead><tr><th>Metric</th><th>ECG-derived</th><th>Device HR</th><th>Δ / verdict</th></tr></thead><tbody>
     <tr><td>Mean HR</td><td class="mono">${v.ecgMean}</td><td class="mono">${v.devMean}</td><td class="mono ${v.dMean < 2 ? 'ok' : v.dMean < 5 ? 'warn' : 'bad'}">Δ ${v.dMean} bpm</td></tr>
     <tr><td>Range (bpm)</td><td class="mono">${v.ecgMin}–${v.ecgMax}</td><td class="mono">${v.devMin}–${v.devMax}</td><td>—</td></tr>
-    <tr><td>Mean abs error</td><td class="mono" colspan="2" style="text-align:center">${v.mae} bpm <span style="color:var(--text3)">(max ${v.maxErr})</span></td><td>${v.mae < 2 ? '<span class="pill pill-green">tight</span>' : v.mae < 5 ? '<span class="pill pill-yellow">close</span>' : '<span class="pill pill-red">off</span>'}</td></tr>
+    <tr><td>Mean abs error</td><td class="mono" colspan="2" style="text-align:center">${v.mae} bpm <span style="color:var(--text3)">(max ${v.maxErr}${v.coverage != null ? ` · over ${v.n} of ${v.comparableSec}s` : ''})</span></td><td>${v.mae < 2 ? '<span class="pill pill-green">tight</span>' : v.mae < 5 ? '<span class="pill pill-yellow">close</span>' : '<span class="pill pill-red">off</span>'}</td></tr>
     <tr><td>Correlation r</td><td class="mono" colspan="2" style="text-align:center">${v.rMeaningful ? v.r : '—'}</td><td>${rPill}</td></tr>
     </tbody></table>
     <div class="mini-h" style="margin-top:12px">HR across the recording <span class="mini-sub"><span style="color:${UI.COLORS.teal}">●</span> ECG-derived&nbsp;&nbsp;<span style="color:${UI.COLORS.amber}">●</span> device</span></div>
@@ -19628,7 +19841,9 @@ self.onmessage = async (e) => {
               '—',
               'Clear',
               { 'no-af': 'ok', 'occasional-irregular': 'warn', 'possible-af': 'bad', insufficient: 'neutral' }[r.morph.af.verdict],
-              r.morph.af.suspiciousPct + '% windows irregular · ΔRR entropy ' + r.morph.af.shannon + ' · screen only'
+              r.morph.af.suspiciousPct != null
+                ? r.morph.af.suspiciousPct + '% windows irregular · ΔRR entropy ' + r.morph.af.shannon + ' · screen only'
+                : 'no window carried enough usable beats to screen'
             ]
           ]
         : []),
@@ -19830,11 +20045,25 @@ self.onmessage = async (e) => {
     const mode = g.mode == null ? '' : g.mode,
       amo50 = g.amo50 == null ? '' : g.amo50,
       mxdmn = g.mxDMn == null ? '' : g.mxDMn;
-    const t0 = r.t0Ms != null ? r.t0Ms : 0; // §1 (FOLLOWUPS): undated recording → relative-from-0 (1970 epoch, deterministic), NEVER now()
-    const d = new Date(t0),
-      p = (x) => String(x).padStart(2, '0');
+    /* §∅ — AN UNDATED RECORDING EXPORTS AN EMPTY DATE CELL, NOT 1970-01-01. The old comment was
+       half right and is kept in spirit: `now()` would be the worse fabrication (Clock Contract §2.6),
+       and refusing it was correct. But 0 is not a refusal — `new Date(0)` renders
+       "1970-01-01 00:00:00", an in-band, perfectly valid-looking instant that a consumer reads as the
+       recording's date and sorts before every real one.
+       The repo already settled this everywhere else, with tests: "§∅ · no recording anchor ⇒ the
+       timestamp is null, not 1970", "null never coerces to a 1970 stamp", "RRacc epoch times stay
+       relative (never 1970-ms)". The two CSV/text exports are what that pass did not reach.
+       The `num()` helper on the very next line already emits '' for an absent number; this gives the
+       Date column the same honesty. */
+    const p = (x) => String(x).padStart(2, '0');
     // CLOCK-UNIFY: floating wall-clock → ISO (no zone) via getUTC*; HRVDex.parseTimestamp reads it verbatim.
-    const ts = d.getUTCFullYear() + '-' + p(d.getUTCMonth() + 1) + '-' + p(d.getUTCDate()) + ' ' + p(d.getUTCHours()) + ':' + p(d.getUTCMinutes()) + ':' + p(d.getUTCSeconds());
+    const ts =
+      r.t0Ms != null
+        ? (() => {
+            const d = new Date(r.t0Ms);
+            return d.getUTCFullYear() + '-' + p(d.getUTCMonth() + 1) + '-' + p(d.getUTCDate()) + ' ' + p(d.getUTCHours()) + ':' + p(d.getUTCMinutes()) + ':' + p(d.getUTCSeconds());
+          })()
+        : '';
     const num = (v) => (v == null || v === '' || !isFinite(v) ? '' : v);
     return [ts, num(r.hr), num(r.meanRR), num(r.sdnn), num(r.rmssd), num(r.pnn50), num(amo50), num(mode), num(r.tp), num(r.hf), num(r.lf), num(r.vlf), num(mxdmn)];
   }
@@ -19859,10 +20088,14 @@ self.onmessage = async (e) => {
   function exportRR() {
     if (!RESULT) return;
     const r = RESULT;
-    const t0 = r.t0Ms != null ? r.t0Ms : 0; // §1 (FOLLOWUPS): undated → relative-from-0, never now()
+    /* §∅ — the same 1970 fabrication, and here the function already CONTRADICTED ITSELF: the
+       filename below says `_undated` while every row inside carried a 1970-based absolute stamp.
+       An undated recording now writes an EMPTY timestamp field, which is the shape PulseDex's
+       handoff parser is built for — "A row with no parseable stamp yields NaN (never now())" — and
+       the RR value stays the last ';'-separated field, which is what that parser reads. */
     const lines = ['Phone timestamp;RR-interval [ms]'];
     for (let i = 0; i < r.nn.length; i++) {
-      const ts = new Date(t0 + r.tt[i] * 1000).toISOString().replace('Z', '');
+      const ts = r.t0Ms != null ? new Date(r.t0Ms + r.tt[i] * 1000).toISOString().replace('Z', '') : '';
       lines.push(ts + ';' + Math.round(r.nn[i]));
     }
     dl(lines.join('\n'), 'ecgdex_computed_RR_' + (r.t0Ms != null ? new Date(r.t0Ms).toISOString().slice(0, 10) : 'undated') + '.txt', 'text/plain');
@@ -21245,6 +21478,6 @@ self.onmessage = async (e) => {
 function showChip(name){ document.getElementById('ecgChipName').textContent = name; document.getElementById('ecgChip').classList.add('show'); }
 </script>
 
-<div data-tepna-ver style="position:fixed;right:8px;bottom:8px;z-index:2147483000;font:600 11px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:#dbeafe;background:rgba(15,23,34,.82);border:1px solid rgba(120,170,220,.4);border-radius:999px;padding:2px 9px;letter-spacing:.03em;box-shadow:0 1px 4px rgba(0,0,0,.3);pointer-events:none;user-select:none" title="Tepna suite version">v2.13.0</div>
+<div data-tepna-ver style="position:fixed;right:8px;bottom:8px;z-index:2147483000;font:600 11px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:#dbeafe;background:rgba(15,23,34,.82);border:1px solid rgba(120,170,220,.4);border-radius:999px;padding:2px 9px;letter-spacing:.03em;box-shadow:0 1px 4px rgba(0,0,0,.3);pointer-events:none;user-select:none" title="Tepna suite version">v2.14.0</div>
 </body>
 </html>

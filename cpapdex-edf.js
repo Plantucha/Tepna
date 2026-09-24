@@ -234,9 +234,36 @@
     sampPerRec = blockInt(8);
     /* reserved  */ o += ns * 32;
 
+    /* ── ∅ ABSENCE IS NULL — RECORD GEOMETRY REFUSES, IT DOES NOT DEFAULT ───────────────────
+       An EDF is read BY POSITION, so `samples-per-record` is not one signal's property — it is the
+       stride of every signal after it. `asciiInt` returns null for a blank or garbage field, and
+       absorbing that null as 0 used to corrupt the WHOLE FILE, not just its own signal: the record
+       size came out too small, `numRecords` computed from it was too large, and in the decode loop
+       the pointer did not advance for that signal, so every later signal in every record read from
+       the wrong offset. The result is not missing data — it is a full set of plausible numbers that
+       are all wrong, which is the one outcome no consumer can detect.
+       Annotation signals are included deliberately: they occupy record bytes like any other.
+       This is the refusal the file already makes for `ns` and for a short header, one field later. */
+    for (var g = 0; g < ns; g++) {
+      if (sampPerRec[g] == null) throw new Error('EDF: unreadable samples-per-record for signal ' + g + ' ("' + (labels[g] || '') + '") — record geometry unknown');
+    }
+    /* ⚠ A ZERO record duration is NOT the same absence, and measuring the corpus is what said so.
+       `20260612_222819_EVE.edf` writes `0.00` with labels ["EDF Annotations","Crc16"] — ResMed's
+       event files carry no periodic sampling, and EDF+ allows a 0 duration for them. A blanket
+       `!(recDurSec > 0)` refusal rejected two REAL nights, which is the defect this section exists
+       to prevent, one level up: a rule that convicts working behaviour. So the cases split the way
+       ∅ splits them — a field that could not be READ is absent; one that was read and says zero is
+       a measurement:
+         null ⇒ refuse (geometry unknown)
+         0    ⇒ accept, and every fs is NULL — there is no rate to state. Never 0, which reads as a
+                 measured rate, and never spr/0 = Infinity. */
+    if (recDurSec == null) throw new Error('EDF: unreadable record duration — every sampling rate and the whole timeline would be a guess');
+    if (recDurSec < 0) throw new Error('EDF: negative record duration (' + recDurSec + ') — not a duration');
+
     // ── derive record geometry ──
+    // every entry is a number by the guard above, so nothing is absorbed here
     var samplesPerRecTotal = sampPerRec.reduce(function (a, b) {
-      return a + (b || 0);
+      return a + b;
     }, 0);
     var bytesPerRecord = samplesPerRecTotal * 2; // int16
     var dataStart = headerBytes;
@@ -257,10 +284,18 @@
     var signals = {};
     for (var s2 = 0; s2 < ns; s2++) {
       if (annIdx[s2]) continue;
-      var spr = sampPerRec[s2] || 0;
+      var spr = sampPerRec[s2];
+      // the digital range is the DENOMINATOR of the physical scale. A blank or degenerate
+      // calibration header used to fall back on `|| 1`, which silently rescales the signal by a
+      // factor of (digMax-digMin) — and `NaN || 1` is 1, so an ABSENT range took that path too.
+      // An uncalibrated signal cannot be converted to physical units, so it is null, not rescaled.
+      var _dr = digMax[s2] - digMin[s2];
+      var _cal = digMin[s2] != null && digMax[s2] != null && physMin[s2] != null && physMax[s2] != null && _dr !== 0;
       signals[labels[s2]] = {
         data: new Float32Array(spr * recordsRead),
-        fs: recDurSec ? spr / recDurSec : 0,
+        fs: recDurSec > 0 ? spr / recDurSec : null, // 0 ⇒ no periodic sampling: absent, not zero
+        calibrated: _cal,
+        _scale: _cal ? (physMax[s2] - physMin[s2]) / _dr : null,
         dim: dims[s2],
         physMin: physMin[s2],
         physMax: physMax[s2],
@@ -278,7 +313,7 @@
     for (var r = 0; r < recordsRead; r++) {
       var p = dataStart + r * bytesPerRecord;
       for (var sg = 0; sg < ns; sg++) {
-        var spr2 = sampPerRec[sg] || 0;
+        var spr2 = sampPerRec[sg]; // non-null by the geometry guard above
         if (annIdx[sg]) {
           var annBytes = new Uint8Array(buf, p, spr2 * 2);
           var tals = parseTAL(annBytes);
@@ -304,14 +339,13 @@
         // numeric signal — int16 LE → physical scaling
         var sig = signals[labels[sg]];
         var dMin = digMin[sg],
-          dMax = digMax[sg],
           pMin = physMin[sg],
-          pMax = physMax[sg];
-        var scale = (pMax - pMin) / (dMax - dMin || 1);
+          scale = sig._scale;
         for (var i2 = 0; i2 < spr2; i2++) {
           var dig = dv.getInt16(p, true);
           p += 2;
-          sig.data[sig._w++] = (dig - dMin) * scale + pMin;
+          // an uncalibrated signal yields NaN, never a number scaled by a fabricated denominator
+          sig.data[sig._w++] = scale === null ? NaN : (dig - dMin) * scale + pMin;
         }
       }
     }

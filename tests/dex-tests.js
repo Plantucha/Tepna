@@ -639,6 +639,185 @@
        night with no valid SpO2 as mean 0 / min 0 / max 0, and no valid HR likewise — the main path every real
        file takes. A night nobody measured read as a night of zeros. Driven through the real `processNight`
        with a control beside it, so the assertion is about behaviour and not about a literal. */
+    group('∅ clock seam — a discontinuity refuses; the bound is SHARED, not re-invented', 'pulsedex-dsp · oxydex-dsp · absence', function (T) {
+      /* The 2026-09-17 ruling applied across the nodes. A DISCONTINUITY refuses (null + a named
+         reason); reduced COVERAGE annotates (the value, with n beside it). The line is whether the
+         window still describes ONE continuous stretch of signal.
+
+         Planted per node and measured, 8 nodes: PulseDex FAILED — a 7-year clock jump left
+         rmssd/sdnn/pnn50 byte-identical to the continuous record with coverage 0 beside them, which
+         is §∅'s "a number computable from broken input, reporting no problem". ECGDex, PpgDex and
+         MotionDex pass via their parsers (device-counter step → one resync each). OxyDex and
+         GlucoDex pass with named annotations. HRVDex and CPAPDex are structurally exempt — see the
+         CPAPDex pin at the end, which exists so the next session does not plant a seam that cannot
+         be expressed. */
+      var P = (env.PulseDex && env.PulseDex._bare) || null;
+      if (!P || typeof P.pdComputeResult !== 'function') {
+        T.skip('PulseDex._bare.pdComputeResult exposed', 'PulseDex not co-loaded in this runner');
+      } else {
+        /* THE REALISTIC SEAM: every RR value stays physiological and the CLOCK jumps. That is what a
+           capture-side resync looks like, and it is invisible to the RR-domain statistics by
+           construction — rmssd/sdnn/pnn50 read the VALUES and never touch tsMs. A seam planted as a
+           giant RR value instead would be smoothed away by artifactClean's local-median replacement
+           and would test nothing; the next reader will reach for that form, so it is named here. */
+        var rr = [];
+        for (var i = 0; i < 120; i++) rr.push(900 + 40 * Math.sin(i / 5));
+        var t0 = Date.UTC(2026, 5, 10, 22, 0, 0);
+        var stamps = function (seamMs) {
+          var ts = [],
+            acc = t0;
+          for (var k = 0; k < rr.length; k++) {
+            if (k === 60 && seamMs) acc += seamMs;
+            ts.push(acc);
+            acc += rr[k];
+          }
+          return ts;
+        };
+        var clean = P.pdComputeResult({ vals: rr, tsMs: stamps(0), t0Ms: t0 });
+        var seamed = P.pdComputeResult({ vals: rr, tsMs: stamps(7 * 365 * 24 * 3600e3), t0Ms: t0 });
+
+        T.ok(
+          'control: a continuous record still computes every HRV metric',
+          clean && clean.rmssd > 0 && clean.sdnn > 0 && clean.coverage === 100,
+          JSON.stringify(clean && { r: clean.rmssd, s: clean.sdnn, c: clean.coverage })
+        );
+        T.eq('a clock seam REFUSES the whole-record variability metrics', JSON.stringify({ r: seamed.rmssd, s: seamed.sdnn, p: seamed.pnn50 }), JSON.stringify({ r: null, s: null, p: null }));
+        T.eq('\u2026with the reason NAMED — an absent figure a reader cannot explain is half a refusal', seamed.hrvReason, 'clock-seam');
+        T.ok(
+          '\u2026and the seam itself is published, not just its consequence',
+          !!seamed.clockSeams && seamed.clockSeams.n >= 1 && seamed.clockSeams.boundMs === 60000,
+          JSON.stringify(seamed.clockSeams)
+        );
+        /* The PER-BEAT averages are kept deliberately. classifyRecording and adaptEnvelopeNode consume
+           the duration immediately, and collapsing it is the DEEP-AUDIT-III §6.2 regression HRVDex
+           already paid for once — the same split PpgDex makes, nulling the CVHR index and leaving the
+           rest of the record alone. */
+        T.ok('the per-beat averages survive — the refusal is scoped to what spans the seam', seamed.meanRR > 0 && seamed.hr > 0, JSON.stringify({ m: seamed.meanRR, h: seamed.hr }));
+        T.ok('the plant is not vacuous — the SAME rr values compute fine without the seam', clean.rmssd > 0 && seamed.rmssd === null, JSON.stringify({ clean: clean.rmssd, seamed: seamed.rmssd }));
+      }
+
+      /* PARITY — the bound is SHARED, and that is the point. ECGDex, PpgDex and MotionDex already
+         assert theirs equal in the `ppgdex-clock-seam` group because all these nodes read the same
+         step in the same device's several files; a second constant would eventually disagree with
+         the first. PulseDex reuses it rather than inventing one. */
+      var srcOf = function (f) {
+        return ((env.sources || {})[f] || '')
+          .split('\n')
+          .filter(function (ln) {
+            var t = ln.trim();
+            return t.indexOf('//') !== 0 && t.indexOf('*') !== 0 && t.indexOf('/*') !== 0;
+          })
+          .join('\n');
+      };
+      var boundOf = function (f, name) {
+        var m = srcOf(f).match(new RegExp(name + '\\s*=\\s*(\\d+)'));
+        return m ? +m[1] : null;
+      };
+      var pd = boundOf('pulsedex-dsp.js', 'PD_RESYNC_BOUND_MS'),
+        ppg = boundOf('ppgdex-dsp.js', 'PPG_RESYNC_BOUND_MS'),
+        ecg = boundOf('ecgdex-dsp.js', 'ECG_RESYNC_BOUND_MS');
+      if (pd == null || ppg == null || ecg == null) {
+        T.skip('resync bounds readable from source', 'sources not provided in this runner');
+      } else {
+        T.eq('PulseDex reuses the SHARED resync bound — it did not invent a second one', JSON.stringify({ pd: pd, ppg: ppg, ecg: ecg }), JSON.stringify({ pd: 60000, ppg: 60000, ecg: 60000 }));
+      }
+
+      /* OXYDEX — `sparse` and `discontinuous` are different claims. The shared builder can only make
+         the first (`DexExport.coverageFromSegments` labels every multi-segment record `sparse`), and
+         `clockNonMonotonic` is the OxyDex stat that separates them, so the relabel is applied at
+         OxyDex's call site. Doing it in dex-export.js would serialise a fleet-wide re-verification
+         for a label nothing currently reads. */
+      var oSrc = srcOf('oxydex-dsp.js');
+      if (!oSrc.trim()) {
+        T.skip('oxydex-dsp.js source', 'sources not provided in this runner');
+      } else {
+        T.ok(
+          'a clock-stepped night is labelled discontinuous, not sparse',
+          /_oxyLabelCoverage/.test(oSrc) && /'discontinuous'/.test(oSrc) && /clockNonMonotonic !== true/.test(oSrc),
+          'relabel absent'
+        );
+      }
+
+      /* CPAPDEX PIN — a PROPERTY, not a detector. An EDF timeline is CONSTRUCTED from the header
+         (startdate/starttime + recordIndex × recDurSec), which is §7's "a device whose axis was DRAWN
+         is not a clock". There is no second clock in one EDF, so the two-clock discriminator cannot
+         run and there is no form in which to plant a seam. This pins that so the next session does
+         not spend a tick planting one that cannot exist. */
+      var cSrc = srcOf('cpapdex-edf.js');
+      if (!cSrc.trim()) {
+        T.skip('cpapdex-edf.js source', 'sources not provided in this runner');
+      } else {
+        T.ok(
+          'the EDF axis is header-derived: one clock, so no seam is expressible',
+          /recDurSec/.test(cSrc) && /startdate/.test(cSrc) && !/RESYNC_BOUND_MS/.test(cSrc),
+          'cpapdex-edf.js now carries a resync bound — if it grew a second clock, this pin is stale and the seam plant must be re-run for it'
+        );
+      }
+    });
+
+    group('OxyDex §∅ — an ABSENT oximetry index is not a measured zero, and Normal is a claim', 'oxydex-dsp · absence', function (T) {
+      var _odn = env.OxyDex || env.OxyDSP || env.OXYDSP;
+      var OD = (_odn && _odn._bare) || _odn;
+      if (!OD || typeof OD.computeMOS !== 'function' || typeof OD.computeAHIestimates !== 'function') {
+        T.skip('OxyDSP.computeMOS + computeAHIestimates exposed', 'OxyDex not co-loaded in this runner');
+        return;
+      }
+
+      /* ── computeMOS ── `null >= K` is false and `null / 60` is 0, so absent inputs fell through every
+         branch to score 1, "Normal". A McGill grade is a CLINICAL claim and that one was made about a
+         night neither input described. */
+      T.eq('absent ODI-4 and CT90 refuse — they do not score "Normal"', JSON.stringify(OD.computeMOS(null, null)), '{"mos":null,"mosLabel":null,"reason":"inputs-absent"}');
+      T.eq('CONTROL · a MEASURED zero on both is still a real Normal — absence and zero part company here', JSON.stringify(OD.computeMOS(0, 0)), '{"mos":1,"mosLabel":"Normal"}');
+      T.eq('CONTROL · a high ODI-4 still grades Abnormal', JSON.stringify(OD.computeMOS(40, 0).mos), '3');
+
+      /* ── computeAHIestimates ALREADY refused on null — the defect was the CALLER feeding it 0.
+         This pins the divergence that makes the caller's choice load-bearing: the same absent night
+         is `null` when the absence is passed through, and a reassuring 0.0 when it is replaced. */
+      T.eq('passing the absence through: both estimates refuse', JSON.stringify(OD.computeAHIestimates(null, null, null, null)), '{"ahiODI4":null,"ahiKulkas":null}');
+      T.eq('\u2026while substituting 0 publishes "no apneas" — which is what the callers used to do', JSON.stringify(OD.computeAHIestimates(0, 0, 0, 0)), '{"ahiODI4":0,"ahiKulkas":0}');
+      T.eq('CONTROL · real inputs still compute both estimates unchanged', JSON.stringify(OD.computeAHIestimates(10, 12, 5, 4)), '{"ahiODI4":11,"ahiKulkas":12}');
+
+      /* ── SHAPE, not the lines I edited. The null-not-zero fix was applied to ONE of five inputs
+         (`desSevRate`, with a comment explaining it) and its four siblings kept defaulting to 0, on
+         BOTH call paths. This scans for any surviving sibling rather than the four I happened to
+         find. Comment-stripped: the ∅ notes quote the old expressions verbatim. */
+      var src = ((env.sources || {})['oxydex-dsp.js'] || '')
+        .split('\n')
+        .filter(function (ln) {
+          var t = ln.trim();
+          return t.indexOf('//') !== 0 && t.indexOf('*') !== 0 && t.indexOf('/*') !== 0;
+        })
+        .join('\n');
+      if (!src.trim()) {
+        T.skip('oxydex-dsp.js source', 'sources not provided in this runner');
+      } else {
+        var bad = [];
+        var pats = [
+          /var odi4Rate = odi4 \? odi4\.rate : 0/,
+          /var odi3Rate = odi3 \? odi3\.rate : 0/,
+          /var t95Pct = stats \? stats\.t95pct : 0/,
+          /ctPrec\.ct90s \|\| 0/,
+          /obj\.odi4\.rate : 0/,
+          /obj\.odi3\.rate : 0/,
+          /obj\.stats\.t95pct : 0/,
+          /obj\.ctPrecise\.ct90s : 0/
+        ];
+        for (var pi = 0; pi < pats.length; pi++) if (pats[pi].test(src)) bad.push(pats[pi].source.slice(0, 40));
+        /* RATCHET, not a clean sweep. The scan is deliberately broader than this unit, and it found
+           a FIFTH site: `oxydex-dsp.js`'s spo2Score ladder uses the same `odi4 ? odi4.rate : 0` and
+           an absent ODI-4 falls into `< 2` to score 25 — the MAXIMUM. It is the same absence with a
+           DIFFERENT fix shape (a composite term to drop and renormalise, not a null to pass
+           through), so it is logged as residue rather than widened into this diff. Pinning it as an
+           EQUALITY means a new site still reds; this list may only shrink. */
+        T.eq('the MOS/AHI call paths are clean, and exactly ONE known sibling remains (logged, spo2Score)', JSON.stringify(bad), '[]');
+        T.ok(
+          'the anti-vacuity control — the scan can still SEE those lines\u2019 successors',
+          /odi4 && odi4\.rate != null/.test(src) && /obj\.odi4 && obj\.odi4\.rate != null/.test(src),
+          'the replacement lines are not present either — the scan may be reading nothing'
+        );
+      }
+    });
+
     group('OxyDex §∅ — processNight reports an unmeasured SpO2/HR night as null, never 0', 'oxydex-dsp · absence-as-value · primary-builder', function (T) {
       var _od = env.OxyDex || env.OxyDSP || env.OXYDSP;
       var OD = (_od && _od._bare) || _od;
@@ -6178,6 +6357,223 @@
          else |uy| ≥ 0.55 → Upright (uy>0) / Head-down (uy<0)
          else → Left side (ux>0) / Right side
        Chest-strap convention: +z anterior, so lying face-up puts gravity on +z. */
+    group('ECGDex beat typing — ∅ a beat too noisy to classify is not a NORMAL beat', 'ecgdex-morph · absence', function (T) {
+      var M = env.ECGMorph || (env.ECGDex && env.ECGDex.ECGMorph);
+      if (!M || typeof M.classifyBeats !== 'function') {
+        T.skip('ECGMorph.classifyBeats exposed', 'ECGMorph not co-loaded in this runner');
+        return;
+      }
+      /* 40 beats at 1 s. Every 8th is premature AND wide — a PVC — so PVCs fall at 3, 11, 19, 27, 35.
+         Beats 20–27 are dirty (sqi 0.3), which puts the PVC at 27 INSIDE the noise. Neither the old
+         code nor the new one can detect that beat: the sqi guard skips it either way, and declining
+         to call ectopy on a dirty beat is correct and deliberate. The defect was the second half —
+         the old code then TYPED it 'N', asserting a normality it had just declined to establish. */
+      var fs = 130,
+        n = 40;
+      var refIdx = [],
+        rr = [],
+        sqi = [];
+      var t = 5 * fs;
+      for (var k = 0; k < n; k++) {
+        refIdx.push(Math.round(t));
+        var prem = k % 8 === 3;
+        var ms = prem ? 700 : 1000;
+        rr.push(ms);
+        t += (ms / 1000) * fs;
+        sqi.push(k >= 20 && k < 28 ? 0.3 : 0.9);
+      }
+      var len = Math.round(t) + 5 * fs;
+      var int16 = new Int16Array(len),
+        bp = new Int16Array(len);
+      for (var b = 0; b < n; b++) {
+        var c = refIdx[b],
+          wide = b % 8 === 3,
+          w = wide ? 14 : 5;
+        for (var j = -w; j <= w; j++) {
+          var v = Math.round(900 * Math.cos((j / w) * 1.57) * (wide ? -1 : 1));
+          if (c + j >= 0 && c + j < len) {
+            int16[c + j] = v;
+            bp[c + j] = v;
+          }
+        }
+      }
+      var r = M.classifyBeats(int16, bp, fs, refIdx, rr, sqi);
+      var counts = {};
+      for (var q = 0; q < r.types.length; q++) counts[r.types[q]] = (counts[r.types[q]] || 0) + 1;
+
+      T.eq('the 8 unclassifiable beats are their own state, not 8 more normals', JSON.stringify(counts), '{"N":28,"V":4,"U":8}');
+      T.eq('the basis is published beside the burden', JSON.stringify({ a: r.beatsAssessed, u: r.beatsUnassessed }), '{"a":32,"u":8}');
+
+      /* PRE-STATED. Four PVCs are detected in both versions — the fifth, at beat 27, is invisible to
+         both. The burden is 4 over the 32 beats actually assessed = 12.5 %. Counting the 8
+         unassessable beats in the denominator, where they could never reach the numerator, reported
+         10.0 % instead: a 20 % UNDERSTATEMENT, and these figures drive severity bands at 0.5 % and
+         3 %, so the dilution runs toward the reassuring side of a threshold. */
+      var detected = 4,
+        assessed = 32,
+        allBeats = 40;
+      T.eq('the burden is a rate over the beats that were ASSESSED', JSON.stringify({ n: r.nPVC, b: r.pvcBurden }), JSON.stringify({ n: detected, b: +((detected / assessed) * 100).toFixed(2) }));
+      var dilutedByAbsence = +((detected / allBeats) * 100).toFixed(2);
+      T.ok('the plant is not vacuous — the old denominator reported a strictly lower burden', dilutedByAbsence < r.pvcBurden, dilutedByAbsence + ' vs ' + r.pvcBurden);
+
+      // CONTROL — with every beat clean, nothing is unassessed and the two denominators coincide.
+      var cleanSqi = sqi.map(function () {
+        return 0.9;
+      });
+      var rc = M.classifyBeats(int16, bp, fs, refIdx, rr, cleanSqi);
+      T.eq('control: an all-clean record has no unassessed beats and rates over every beat', JSON.stringify({ u: rc.beatsUnassessed, a: rc.beatsAssessed }), JSON.stringify({ u: 0, a: allBeats }));
+      T.ok('control: …and it still finds the ectopy — the refusal did not blunt the detector', rc.nPVC >= detected, 'nPVC ' + rc.nPVC);
+    });
+
+    group('ECGDex ∅ off-body tail — the artifact gate that cleans HRV must reach ectopy too', 'ecgdex-dsp · ecgdex-morph · absence', function (T) {
+      var E = env.ECGDSP || (env.ECGDex && env.ECGDex._bare);
+      if (!E || typeof E.parseECG !== 'function' || typeof E.analyze !== 'function') {
+        T.skip('ECGDSP.parseECG + analyze exposed', 'ECGDex not co-loaded in this runner');
+        return;
+      }
+      /* THE 2026-09-22 SIGNATURE, planted. On the owner's real night 2,766 of 2,767 PVCs sat in the
+         window where the H10 was off the body — 42 ventricular runs and bigeminy 396 from a strap on
+         a table (found by Wren, capture-host lane). `beatConfidence` already identified those seconds
+         (artifactSec 6148 s = 102.5 min against an independently measured 102.2 min off-body window)
+         and the morphology call did not consult it.
+         The plant is SIZED FROM THAT FILE rather than invented, because beatConfidence is a robust
+         z-score against the record's OWN median and MAD: the tail must be a minority of the record
+         (there, 102 of 448 min) or the median moves to meet it, and it must be an UPPER density
+         outlier with DEPRESSED SQI — the gate needs both cues (`min(sD, sQ)`), which is what makes it
+         AF-safe. A gentler tail reproduces the false PVCs while never tripping the gate; the first
+         draft of this twin did exactly that and would have passed with or without the fix. */
+      var mkEcg = function (offSec) {
+        var out = ['Phone timestamp;sensor timestamp [ns];timestamp [ms];ecg [uV]'];
+        var fs = 130,
+          t = Date.UTC(2026, 8, 22, 22, 38, 18),
+          ns = 599637169254012032,
+          ms = 21036410,
+          seed = 12345;
+        var rnd = function () {
+          seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+          return seed / 0x7fffffff - 0.5;
+        };
+        var push = function (v) {
+          out.push(new Date(t).toISOString().slice(0, 23) + ';' + ns + ';' + ms + ';' + Math.round(v));
+          t += 1000 / fs;
+          ns += (1000 / fs) * 1e6;
+          ms += 1000 / fs;
+        };
+        for (var w = 0; w < 600 * fs; w++) {
+          var ph = w % fs; // worn: 60 bpm, clean QRS
+          push((ph < 6 ? 900 * Math.sin((ph / 6) * Math.PI) : 0) + 90 * rnd());
+        }
+        for (var o = 0; o < offSec * fs; o++) {
+          // off body: ~15x the worn SD, with dense sharp excursions the R-detector fires on
+          push((o % 32 < 3 ? 2600 * Math.sin(((o % 32) / 3) * Math.PI) : 0) + 1400 * rnd() * 2);
+        }
+        return out.join('\n');
+      };
+      var morphOf = function (offSec) {
+        var r = E.analyze(E.parseECG(mkEcg(offSec)));
+        return (r && r.morph) || null;
+      };
+
+      var worn = morphOf(0);
+      var tailed = morphOf(240);
+      T.ok(
+        'control: 10 min worn alone reports no ectopy and masks nothing',
+        !!worn && worn.nPVC === 0 && worn.beatsArtifactMasked === 0,
+        JSON.stringify(worn && { n: worn.nPVC, masked: worn.beatsArtifactMasked })
+      );
+
+      /* ANTI-VACUITY FIRST. Without this the twin would also pass if the tail simply stopped being
+         DETECTED — no beats, no ectopy, green for the wrong reason. The gate must have fired. */
+      T.ok('the planted tail IS seen and IS judged artifact — not silently undetected', !!tailed && tailed.beatsArtifactMasked > 500, JSON.stringify(tailed && { masked: tailed.beatsArtifactMasked }));
+
+      T.eq(
+        'a strap on a table reports no ectopy, no couplets and no runs',
+        JSON.stringify(tailed && { n: tailed.nPVC, b: tailed.pvcBurden, c: tailed.couplets, r: tailed.runsGE3, g: tailed.bigeminyCycles }),
+        JSON.stringify({ n: 0, b: 0, c: 0, r: 0, g: 0 })
+      );
+      T.ok(
+        '\u2026and the masked beats leave the BURDEN DENOMINATOR rather than diluting it',
+        tailed.beatsAssessed < worn.beatsAssessed + 60,
+        JSON.stringify({ tailed: tailed.beatsAssessed, worn: worn.beatsAssessed })
+      );
+
+      /* PRE-STATED, measured by bypassing the mask on this exact plant: the unfixed path reports
+         45 PVCs at 6.16 % burden over 731 assessed beats. Both halves of the fix are required — on
+         the owner's real night the 'U' typing ALONE moved the burden 7.93 % → 11.69 %, because it
+         shrinks the denominator while the artifact numerator stands. */
+      var unmaskedPVC = 45,
+        unmaskedBurden = 6.16;
+      T.ok('the plant is not vacuous — without the mask this same tail reports ectopy', unmaskedPVC > 0 && unmaskedBurden > 0 && tailed.nPVC < unmaskedPVC, unmaskedPVC + ' vs ' + tailed.nPVC);
+    });
+
+    group('PpgDex device PPI — columns BY NAME, because position read the wrong one for four days', 'ppgdex-dsp · absence', function (T) {
+      var P = env.PPGDSP || (env.PpgDex && env.PpgDex._bare);
+      if (!P || typeof P.parseDevicePPI !== 'function') {
+        T.skip('PPGDSP.parseDevicePPI exposed', 'PpgDex not co-loaded in this runner');
+        return;
+      }
+      /* TWO LAYOUTS, both first-class inputs, and reading position 1 as the interval is right for one
+         and catastrophic for the other. Rows below are VERBATIM from the corpus
+         (…/2026-08-04/Polar_VeritySense_0C301E3F_20260804225118_PPI.txt), values as-is. */
+      var BOX =
+        'Phone timestamp;sensor timestamp [ns];HR [bpm];PP-interval [ms];error estimate [ms];blocker;skin contact;skin contact supported\n' +
+        '2026-08-04T22:51:38.680;0;0;365;30;1;1;1\n' +
+        '2026-08-04T22:51:38.680;0;0;1414;30;1;1;1\n' +
+        '2026-08-04T22:51:40.094;0;0;820;12;0;1;1\n';
+      var PSL =
+        'Phone Data RX timestamp;PP-interval [ms];error estimate [ms];blocker;contact;contact;hr [bpm]\n' + '2026-08-04T22:51:38.680;822;12;0;1;1;73\n' + '2026-08-04T22:51:39.502;845;10;0;1;1;71\n';
+
+      var box = P.parseDevicePPI(BOX);
+      var psl = P.parseDevicePPI(PSL);
+      var inBand = function (rows) {
+        return (rows || []).filter(function (r) {
+          return r.ppi > 300 && r.ppi < 2000;
+        }).length;
+      };
+
+      /* The defect, verbatim: `ppi` took `sensor timestamp [ns]` (a literal 0 the writer emitted
+         until 2026-08-05) and the REAL 365 ms interval landed in `blocker`. validatePPI then said
+         usable:false / nDevice:0 — nothing fabricated, so no gate could fire, which is why four days
+         of Verity nights silently had no device cross-validation. A PRESENT MEASUREMENT REPORTED AS
+         ABSENT: the mirror of §∅. */
+      T.eq(
+        'the BOX layout resolves its interval column by NAME, not position',
+        JSON.stringify({ n: box.length, band: inBand(box), first: box[0] && box[0].ppi }),
+        JSON.stringify({ n: 3, band: 3, first: 365 })
+      );
+      T.ok('\u2026and the columns that used to absorb it are themselves right', box[0].err === 30 && box[0].blocker === 1, JSON.stringify({ err: box[0].err, blocker: box[0].blocker }));
+
+      /* ∅ THE FIX OPENS A DOOR THE ZERO RULE MUST ALSO GUARD. Reading the box columns correctly
+         surfaces `HR [bpm]` for the first time, and the Verity writes 0 into it for whole nights (the
+         documented all-zero device HR). 0 bpm is not a measurement, so it takes the same 20–260 band
+         `ecgdex-dsp parseDeviceHR` applies. Measured: this row's hr went 1 → null once the columns
+         were right, and 1 was the skin-contact flag. */
+      T.eq('a 0 bpm device HR is null, not a rate — the layout fix must not import the zero defect', box[0].hr, null);
+      T.eq('\u2026while a REAL device HR in the PSL layout still reads as a rate', psl[0].hr, 73);
+
+      // CONTROL — the positional layout is unchanged, so no existing input regresses.
+      T.eq(
+        'the PSL/self layout still parses positionally, byte-for-byte as before',
+        JSON.stringify({ n: psl.length, band: inBand(psl), first: psl[0] && psl[0].ppi, err: psl[0].err }),
+        JSON.stringify({ n: 2, band: 2, first: 822, err: 12 })
+      );
+
+      /* A header that EXISTS and names no interval column refuses rather than falling through to
+         positional. Falling through is precisely how this defect happened: an unknown layout read as
+         a known one. */
+      var mystery = P.parseDevicePPI('Phone timestamp;something;else;entirely\n2026-08-04T22:51:38.680;1;2;3\n');
+      T.eq(
+        'an unrecognised header REFUSES with a named reason — it never guesses positionally',
+        JSON.stringify({ rows: mystery.rows ? mystery.rows.length : 'n/a', reason: mystery.reason || null }),
+        JSON.stringify({ rows: 0, reason: 'ppi-header-names-no-interval-column' })
+      );
+
+      /* ANTI-VACUITY: the box plant must actually differ from the positional read, or this group
+         would pass against the old parser too. Under position, p[1] is the ns column = 0. */
+      var positionalWouldGive = 0;
+      T.ok('the plant is not vacuous — positionally this row reads 0, not 365', positionalWouldGive !== box[0].ppi, positionalWouldGive + ' vs ' + box[0].ppi);
+    });
+
     group('ECGDex accAnalyze — posture from the gravity vector, known-answer', 'ecgdex-dsp · posture', function (T) {
       var E = env.ECGDSP || env.EcgDsp;
       var acc = E && E.accAnalyze;
@@ -13520,6 +13916,104 @@
        ("per hour of analyzable recording"). Both the unit surface (the optional `activeSec` arg) and
        the analyze() wiring are pinned, and the DEFECT direction is asserted alongside the fix so a
        future "simplification" back to the span cannot pass. */
+    group('ECGDex epoch engine — a gap-straddling interval leaves every EPOCH statistic too, and a clock seam REFUSES the epoch (§∅)', 'ecgdex-dsp · epochs · gap-exclusion', function (T) {
+      var D = env.ECGDSP;
+      if (!(D && typeof D.epochEngine === 'function')) {
+        T.skip('ECGDSP.epochEngine available', 'not loaded');
+        return;
+      }
+      /* 30 min at 60 bpm with a 0.25 Hz ±40 ms respiratory modulation — rMSSD is a known, epoch-stable
+         number. A dropout is planted the way analyze() sees one: the beat after it carries the whole
+         elapsed time as its interval and the kept-frame mask flags exactly that interval. */
+      function plant(gaps, endSec) {
+        var nn = [],
+          tt = [],
+          mask = [],
+          t = 0,
+          prev = 0;
+        while (t < (endSec || 1800)) {
+          var rr = 1000 + 40 * Math.sin(2 * Math.PI * 0.25 * t);
+          t += rr / 1000;
+          for (var g = 0; g < gaps.length; g++) if (prev < gaps[g].at && t >= gaps[g].at) t += gaps[g].sec;
+          nn.push((t - prev) * 1000);
+          tt.push(t);
+          mask.push(t - prev > 10 ? 1 : 0);
+          prev = t;
+        }
+        // the loop overshoots by one beat; a lone beat past the end would open a 7th window
+        while (tt.length && tt[tt.length - 1] >= (endSec || 1800)) {
+          nn.pop();
+          tt.pop();
+          mask.pop();
+        }
+        return { nn: nn, tt: tt, mask: mask };
+      }
+      var ctrl = plant([]),
+        refC = [],
+        eC = D.epochEngine(ctrl.nn, ctrl.tt, 300, null, ctrl.mask, [], refC);
+      var R0 = eC.length > 2 ? eC[2].rmssd : NaN;
+      T.ok(
+        'control · gap-free: 6 epochs, none refused, rMSSD epoch-stable',
+        eC.length === 6 && refC.length === 0 && R0 > 5 && Math.abs(eC[5].rmssd - R0) < 0.15 * R0,
+        'epochs ' + eC.length + ' refused ' + refC.length + ' R0 ' + R0
+      );
+      var gp = plant([
+        { at: 700, sec: 100 },
+        { at: 1300, sec: 125 }
+      ]);
+      T.ok('the plant is REAL: exactly two straddling intervals flagged', gp.mask.filter(Boolean).length === 2, String(gp.mask.filter(Boolean).length));
+      var old = D.epochEngine(gp.nn, gp.tt, 300, null); // no mask ⇒ the pre-fix path, byte-for-byte
+      T.ok(
+        'the plant is SEEN: without the mask the two gap epochs read as thousands of ms (the 2026-09-21 shape)',
+        old[2].rmssd > 1000 && old[4].rmssd > 1000 && Math.abs(old[0].rmssd - R0) < 0.15 * R0,
+        'ep2 ' + old[2].rmssd + ' ep4 ' + old[4].rmssd
+      );
+      var ref = [],
+        e = D.epochEngine(gp.nn, gp.tt, 300, null, gp.mask, [], ref);
+      T.ok(
+        'with the mask: the two gap epochs are within 15 % of the control',
+        e.length === 6 && Math.abs(e[2].rmssd - R0) < 0.15 * R0 && Math.abs(e[4].rmssd - R0) < 0.15 * R0,
+        'ep2 ' + e[2].rmssd + ' ep4 ' + e[4].rmssd + ' R0 ' + R0
+      );
+      T.ok('…and they SAY so: gaps=1 on those two, the key absent on a clean epoch', e[2].gaps === 1 && e[4].gaps === 1 && e[0].gaps === undefined && e[3].gaps === undefined);
+      T.ok(
+        'mean/SDNN/pNN50 exclude it too — SDNN within 15 % of the control epoch',
+        Math.abs(e[2].sdnn - eC[2].sdnn) < 0.15 * eC[2].sdnn + 1 && Math.abs(e[2].meanRR - eC[2].meanRR) < 5,
+        'sdnn ' + e[2].sdnn + ' vs ' + eC[2].sdnn + ' meanRR ' + e[2].meanRR + ' vs ' + eC[2].meanRR
+      );
+      T.ok('nothing refused: a dropout is reduced COVERAGE, not a discontinuity', ref.length === 0, String(ref.length));
+      var ref2 = [],
+        e2 = D.epochEngine(ctrl.nn, ctrl.tt, 300, null, ctrl.mask, [1000], ref2);
+      T.ok(
+        'a clock seam at 1000 s REFUSES the epoch at tMin 15 with a named reason — absent from the series, present in the refusals',
+        e2.length === 5 &&
+          ref2.length === 1 &&
+          ref2[0].reason === 'clock-seam' &&
+          ref2[0].tMin === 15 &&
+          ref2[0].n > 250 &&
+          !e2.some(function (x) {
+            return x.tMin === 15;
+          }),
+        JSON.stringify(ref2)
+      );
+      var thin = plant([], 1515),
+        ref3 = [],
+        e3 = D.epochEngine(thin.nn, thin.tt, 300, null, thin.mask, [], ref3);
+      T.ok(
+        'a window with fewer than 20 scorable beats is refused by NAME, not skipped silently',
+        e3.length === 5 && ref3.length === 1 && ref3[0].reason === 'too-few-beats' && ref3[0].tMin === 25,
+        JSON.stringify(ref3)
+      );
+      var P = env.ECGProfile;
+      if (P && typeof P.hrvScore === 'function') {
+        T.eq('hrvScore(60) is the calibrated 76', P.hrvScore(60), 76);
+        T.eq('hrvScore(250) is still scored (the bound is inclusive)', P.hrvScore(250), 100);
+        T.eq('hrvScore(10608.5) — the 2026-09-21 value — REFUSES (null), it does not read Primed', P.hrvScore(10608.5), null);
+        T.eq('hrvScore(251) refuses: outside the calibrated range', P.hrvScore(251), null);
+        T.eq('hrvScore(NaN) refuses', P.hrvScore(NaN), null);
+      } else T.skip('ECGProfile.hrvScore exported', 'not loaded');
+    });
+
     group('ECGDex cvhrIndex divides by OBSERVED time — a dropout no longer halves the index (DEEP-AUDIT-VI F3)', 'ecgdex-dsp · cvhr · denominator', function (T) {
       var D = env.ECGDSP;
       if (!(D && typeof D.detectCVHR === 'function')) {
@@ -16652,6 +17146,74 @@
        decision explicit instead of resting on "ppm happened to be ~0".
        Both directions are pinned below, because a guard that only ever refuses is indistinguishable
        from one that has broken the feature. */
+    /* ── §∅ · THE RATE SAYS WHERE IT CAME FROM (ABSENCE-SURVEY-2026-09-22, family F2) ──────────
+       When no counter in the file is usable, `fs` stays at the H10's nominal 130 — a number with no
+       measurement behind it — and is then spent as the file's timebase. An assumed 130 and a
+       measured 129.9866 are the same JS number, so nothing downstream could tell them apart.
+       `fsSource` is the rate's counterpart to §7's `timingSource` for the axis. */
+    group('ECGDex §∅ — an ASSUMED sample rate is labelled as one', 'ecgdex-dsp · parseECG · fs-provenance', function (T) {
+      var D = env.ECGDSP;
+      if (!(D && typeof D.parseECG === 'function')) {
+        T.skip('ECGDSP.parseECG available', 'not loaded');
+        return;
+      }
+      var H = 'Phone timestamp;sensor timestamp [ns];timestamp [ms];ecg [uV]';
+      var B0 = Date.UTC(2026, 5, 17, 1, 0, 0);
+      function mk(nsAt, msAt) {
+        var rows = [H];
+        for (var i = 0; i < 400; i++) {
+          rows.push(new Date(B0 + i * 8).toISOString() + ';' + nsAt(i) + ';' + msAt(i) + ';' + (100 + (i % 40)));
+        }
+        return rows.join('\n');
+      }
+      /* 1 · a real ns counter advancing at ~130 Hz (7 692 308 ns per sample). */
+      var ns = D.parseECG(
+        mk(
+          function (i) {
+            return i * 7692308;
+          },
+          function (i) {
+            return i * 8;
+          }
+        )
+      );
+      T.ok('ANTI-VACUITY · the ns fixture parsed at all', !!ns && ns.fs > 0, JSON.stringify(ns && ns.fs));
+      T.eq('a measured ns counter is labelled ns-counter', ns.fsSource, 'ns-counter');
+
+      /* 2 · no ns column (all zero), but the [ms] column advances — the common PSL shape. */
+      var ms = D.parseECG(
+        mk(
+          function () {
+            return 0;
+          },
+          function (i) {
+            return i * 8;
+          }
+        )
+      );
+      T.ok('ANTI-VACUITY · the ms fixture parsed at all', !!ms && ms.fs > 0, JSON.stringify(ms && ms.fs));
+      T.ok('a rate measured from [ms] is labelled as measured', ms.fsSource === 'ms-step' || ms.fsSource === 'ms-delta');
+
+      /* 3 · NEITHER usable — ns all zero and [ms] frozen. This is the case that fabricates. */
+      var none = D.parseECG(
+        mk(
+          function () {
+            return 0;
+          },
+          function () {
+            return 0;
+          }
+        )
+      );
+      if (!none || !(none.fs > 0)) {
+        T.skip('the no-counter fixture parsed', 'parser refused it outright — the twin cannot run');
+        return;
+      }
+      T.eq('…and with no usable counter the rate is the NOMINAL 130', none.fs, 130);
+      T.eq('…labelled ASSUMED, so a consumer can tell it from a measurement', none.fsSource, 'assumed');
+      T.ok('…which it could NOT before: the two rates are the same number', none.fs === 130 && ns.fs !== 130);
+    });
+
     group('ECGDex fs — a DERIVED host column is not a second clock (Clock §7)', 'ecgdex-dsp · clock-contract', function (T) {
       var D = env.ECGDSP;
       if (!(D && typeof D.parseECG === 'function')) {
@@ -17016,6 +17578,90 @@
       T.eq('…and the real-dropout control (no resync) drops nothing — the key is absent', ctrl.hostAxis && ctrl.hostAxis.anchorsDroppedPreResync, undefined);
     });
 
+    /* ── §∅ · A SCREEN THAT NEVER RAN IS NOT A NEGATIVE SCREEN ─────────────────────────────────
+       `afScreen` scores 32-beat windows and needs ≥20 usable beats in one to score it. When NO
+       window qualifies, `total` is 0, the three metrics fell to 0, `suspiciousPct >= 8` was false,
+       and the verdict came out 'no-af' — rendered "Clear" with an `ok` severity. A clinical
+       all-clear from zero evidence.
+       The vocabulary already existed in the same function: the `n < W + 2` guard returns
+       'insufficient', and both consumers already map it to '—' / neutral. */
+    /* ── §∅ · AN UNDATED RECORDING EXPORTS AN EMPTY DATE, NOT 1970-01-01 ───────────────────────
+       `new Date(0)` renders "1970-01-01 00:00:00" — in-band, perfectly valid-looking, and sorted
+       before every real recording. The repo already settled this elsewhere WITH TESTS ("no recording
+       anchor ⇒ the timestamp is null, not 1970"; "null never coerces to a 1970 stamp"); ECGDex's two
+       CSV/text exports are what that pass did not reach. `exportRR` even contradicted itself — the
+       filename said `_undated` while every row inside carried a 1970-based absolute stamp.
+       The shape matters because it is a cross-node handoff, so this drives PulseDex's real parser
+       rather than trusting the format note. */
+    group('ECGDex §∅ — an undated export carries no date, and PulseDex still reads it', 'ecgdex-app · export · clock-absence', function (T) {
+      var R = String((env.sources || {})['ecgdex-app.js'] || '');
+      var P = (env.PulseDex && env.PulseDex._bare) || env.PulseDex;
+      if (!R) {
+        T.skip('ecgdex-app.js in env.sources', 'not wired in this lane');
+        return;
+      }
+      T.ok('ANTI-VACUITY · the app source loaded', R.length > 10000, R.length + ' chars');
+
+      if (P && typeof P.parseRRInput === 'function') {
+        var dated = ['Phone timestamp;RR-interval [ms]', '2026-06-17T01:00:00.000;850', '2026-06-17T01:00:00.850;860', '2026-06-17T01:00:01.710;870'].join('\n');
+        var undated = ['Phone timestamp;RR-interval [ms]', ';850', ';860', ';870'].join('\n');
+        var okD = P.parseRRInput(dated);
+        var okU = P.parseRRInput(undated);
+        /* CONTROL FIRST — a dated file must still parse with a real anchor, or the case below passes
+           for the wrong reason (a parser that reads nothing at all). */
+        T.eq('ANTI-VACUITY · a DATED handoff still parses its three intervals', okD && okD.vals && okD.vals.length, 3);
+        T.ok('…with a real anchor', okD && okD.t0Ms != null && isFinite(okD.t0Ms), JSON.stringify(okD && okD.t0Ms));
+
+        T.eq('an UNDATED handoff still yields its three intervals', okU && okU.vals && okU.vals.length, 3);
+        T.eq('…the RR values survive the empty stamp column', okU && okU.vals && okU.vals[0], 850);
+        T.ok('…and the anchor is ABSENT, not 1970', !okU || okU.t0Ms == null || !isFinite(okU.t0Ms), JSON.stringify(okU && okU.t0Ms));
+        T.eq('…because `new Date(0)` is a real-looking instant, not a refusal', new Date(0).getUTCFullYear(), 1970);
+      }
+
+      /* THE FIX, against the source — both exports are DOM/download-bound and not reachable headless. */
+      T.ok('the Welltory Date cell is empty when undated', /r\.t0Ms != null\s*\?[\s\S]{0,400}: ''/.test(R));
+      T.ok('the RR handoff writes an empty stamp when undated', /r\.t0Ms != null \? new Date\(r\.t0Ms \+ r\.tt\[i\] \* 1000\)[\s\S]{0,60}: ''/.test(R));
+      T.ok('no `t0Ms != null ? r.t0Ms : 0` sentinel survives', !/t0Ms != null \? r\.t0Ms : 0/.test(R));
+      T.ok('the filename already said "undated" — now the contents agree', /: 'undated'/.test(R));
+    });
+
+    group('ECGDex §∅ — an AF screen with nothing to score says INSUFFICIENT, not no-af', 'ecgdex-morph · af-screen · absence', function (T) {
+      var M = env.ECGMorph;
+      if (!M || typeof M.afScreen !== 'function') {
+        T.skip('ECGMorph.afScreen available', 'not loaded');
+        return;
+      }
+      var N = 100;
+      var rr = [],
+        sqiBad = [],
+        sqiGood = [],
+        types = [];
+      for (var i = 0; i < N; i++) {
+        rr.push(900 + (i % 7) * 10);
+        sqiBad.push(0.3); // below the 0.4 usable gate — no window can score
+        sqiGood.push(0.9);
+        types.push('N');
+      }
+      /* CONTROL FIRST: the same beats with usable quality must produce a real verdict, or the case
+         below is passing for the wrong reason (too few beats, hitting the early return instead). */
+      var ok = M.afScreen(rr, sqiGood, types);
+      T.ok('ANTI-VACUITY · with usable beats the screen actually runs', ok.verdict !== 'insufficient', 'verdict=' + ok.verdict);
+      T.ok('…and reports a real percentage', ok.suspiciousPct != null, JSON.stringify(ok.suspiciousPct));
+
+      var none = M.afScreen(rr, sqiBad, types);
+      T.eq('no window had enough usable beats ⇒ INSUFFICIENT, not no-af', none.verdict, 'insufficient');
+      T.eq('…and the percentage REFUSES rather than reading 0 %', none.suspiciousPct, null);
+      T.eq('…as do the two metrics printed beside it', [none.irregIndex, none.shannon], [null, null]);
+      /* The arithmetic that made the old answer look like a finding. */
+      T.eq('…because 0 >= 8 is FALSE, which fell through to the all-clear', 0 >= 8, false);
+
+      /* The other insufficient path — too few beats overall — already answered correctly, and now
+         nulls its metrics for the same reason. */
+      var few = M.afScreen(rr.slice(0, 10), sqiGood.slice(0, 10), types.slice(0, 10));
+      T.eq('too few beats overall still says insufficient', few.verdict, 'insufficient');
+      T.eq('…with the metrics null there too', few.suspiciousPct, null);
+    });
+
     group('ECGDex parseECG reshape carries every field the timing resolver publishes', 'ecgdex-dsp · timing-reshape · export-boundary', function (T) {
       /* `parseECG` does not return `ecgTimingResolve`'s object — it copies a FIXED LIST of keys out of
          it. A field added to the resolver is therefore INERT until it is named again in that literal,
@@ -17037,14 +17683,45 @@
         stp = 1000 / 130;
       for (var z = 0; z < 4000; z++) rws.push('2026-06-17T01:06:17.723;' + Math.round(z * stp * 1e6) + ';' + Math.round(z * stp) + ';' + (100 + (z % 50)));
       var recR = D.parseECG(rws.join('\n'));
-      var expect = ['fs', 'tMsAt', 'devMsAt', 'tMsCorrected', 'clockResyncs', 'gaps', 't0Ms', 'offsetMin', 'endEpochMs', 'firstRelMs', 'lastRelMs', 'deviceEpoch', 'hostAxis'];
+      /* 🔴 THIS GATE USED TO COMPARE A HARDCODED LIST AND SAID IT GATED THE CLASS. Its own comment
+         promised "whatever the resolver publishes must survive the reshape, so the next omission reds
+         instead of vanishing" — and the code never read the resolver. Demonstrated 2026-09-23:
+         `fsSource` was added to `ecgTimingResolve`, dropped by the reshape, and this group stayed
+         GREEN. The anti-vacuity assertion did not help, because it guarded against a SHORT list, not
+         a STALE one — the exact distinction `read-the-producer-not-the-population` names.
+         It now ASKS THE RESOLVER, by driving the same scan the parser drives. The literal below is
+         kept only as a floor, so a resolver that returns {} cannot make the comparison vacuous. */
+      var sc = D.ecgTimingScan();
+      var sawHdr = false;
+      var nRow = 0;
+      for (var qi = 0; qi < rws.length; qi++) {
+        var pp = String(rws[qi])
+          .trim()
+          .split(/[;\t,]/);
+        var vv = parseFloat(pp[pp.length - 1]);
+        if (!isFinite(vv)) {
+          if (!sawHdr && nRow === 0) {
+            sawHdr = true;
+            sc.header(pp);
+          }
+          continue;
+        }
+        nRow++;
+        sc.row(pp, nRow);
+      }
+      var published = Object.keys(D.ecgTimingResolve(sc.done()));
+      T.ok('ANTI-VACUITY · the resolver published a non-trivial field set', published.length >= 10, published.length + ' fields');
+      var droppedByReshape = published.filter(function (k) {
+        return !(k in recR);
+      });
+      T.eq('every timing field the RESOLVER publishes survives the reshape', droppedByReshape.sort(), []);
+
+      var expect = ['fs', 'fsSource', 'tMsAt', 'devMsAt', 'tMsCorrected', 'clockResyncs', 'gaps', 't0Ms', 'offsetMin', 'endEpochMs', 'firstRelMs', 'lastRelMs', 'deviceEpoch', 'hostAxis'];
       var missing = expect.filter(function (k) {
         return !(k in recR);
       });
-      T.eq('every timing field the resolver publishes survives the reshape', missing.sort(), []);
-      // ANTI-VACUITY: a trivially short list, or one omitting the field that was actually dropped,
-      // would make the assertion above meaningless.
-      T.ok('ANTI-VACUITY · the expected set is non-trivial and names devMsAt', expect.length >= 10 && expect.indexOf('devMsAt') >= 0, expect.length + ' fields required');
+      T.eq('…and the known floor is present too', missing.sort(), []);
+      T.ok('ANTI-VACUITY · the floor is non-trivial and names devMsAt', expect.length >= 10 && expect.indexOf('devMsAt') >= 0, expect.length + ' fields required');
       T.ok('…and devMsAt is CALLABLE, not merely present-and-undefined', typeof recR.devMsAt === 'function', 'typeof ' + typeof recR.devMsAt);
     });
 
@@ -18975,6 +19652,40 @@
         var camqAbs = B.computeCAMQ(_r);
         T.ok('§1.3 · CAMQ · intact row scores (control)', isFinite(camqFull) && camqFull > 0, String(camqFull));
         T.ok('§1.3 · CAMQ · an absent pNN50 no longer contributes a real 0 to the parasympathetic mean', camqAbs !== camqFull ? camqAbs > camqFull : true, 'full=' + camqFull + ' absent=' + camqAbs);
+        /* ── §∅ · NO parasympathetic indicator at all. `ABSENCE-SURVEY-2026-09-22` row
+           hrvdex-dsp.js:1074 (HIGH): `paraAvg = paraCount ? paraScore / paraCount : 50`. With
+           paraCount === 0 the score is not merely defaulted, it is CONSTANT — `sympPenalty` needs
+           `_hf > 0`, and an `_hf > 0` would itself have incremented paraCount, so the branch can only
+           ever yield exactly 50. A number that cannot vary with any input carries no information
+           about the night, and 50 is mid-scale on a 0-100 axis: it renders as an average night.
+           The consumer already filters `v != null` (hrvdex-render.js:1467), so a refusal simply drops
+           the point — no consumer change, and no fabricated midpoint on the CAMQ series. */
+        var _none = baseRow();
+        _none._rmssd = null;
+        _none._pnn50 = null;
+        _none._hf = null;
+        var camqNone = B.computeCAMQ(_none);
+        T.ok('§∅ · CAMQ · no parasympathetic indicator ⇒ null, not a mid-scale 50', camqNone === null, String(camqNone));
+        /* THE CONSTANCY, asserted rather than described: vary every other field and the pre-fix
+           branch still returns the same number, which is what makes 50 a fabrication and not a
+           conservative estimate. */
+        var _none2 = baseRow();
+        _none2._rmssd = null;
+        _none2._pnn50 = null;
+        _none2._hf = null;
+        _none2._lf = 9999;
+        _none2._sdnn = 1;
+        T.ok('§∅ · CAMQ · …and the refusal does not depend on the other fields either', B.computeCAMQ(_none2) === null, String(B.computeCAMQ(_none2)));
+        /* NARROWNESS — ONE indicator is still a score. A guard that blanked these would convict
+           every ECGDex-ingested row, which carries rMSSD and HF but no Welltory pNN50. */
+        var _one = baseRow();
+        _one._pnn50 = null;
+        _one._hf = null;
+        T.ok('§∅ · CAMQ · rMSSD alone still scores — the refusal is narrow', isFinite(B.computeCAMQ(_one)) && B.computeCAMQ(_one) > 0, String(B.computeCAMQ(_one)));
+        var _hfOnly = baseRow();
+        _hfOnly._rmssd = null;
+        _hfOnly._pnn50 = null;
+        T.ok('§∅ · CAMQ · HF alone still scores', isFinite(B.computeCAMQ(_hfOnly)), String(B.computeCAMQ(_hfOnly)));
       } else {
         T.skip('§1.3 · computeCAMQ reachable', 'not exported on _bare');
       }
@@ -19462,6 +20173,65 @@
       T.ok('seam: epochs still carry tri-state moving', Array.isArray(b.epochs) && b.epochs.length === a.epochs.length);
     });
 
+    group('MotionDex ACC unit — ∅ an UNDETERMINED unit is not milli-g', 'motiondex-dsp · absence', function (T) {
+      var M = env.MOTIONDSP || (env.MotionDex && env.MotionDex._bare);
+      if (!M || typeof M.compute !== 'function' || typeof M.bodyPosition !== 'function') {
+        T.skip('MOTIONDSP.compute + bodyPosition exposed', 'MotionDex not co-loaded in this runner');
+        return;
+      }
+      /* The parse boundary ALREADY refuses to guess: `inferAccUnit` ends
+         `return null; // nothing gravity-like — do not guess`, and `_unit` is left null when neither
+         the header nor the magnitude oracle could decide. `compute()` then defaulted to 'mg' a
+         thousand lines later, re-introducing the guess the producer had declined to make. The scale
+         error that hides is 1000× for a stream actually in g — `toG`'s own header records that exact
+         mis-scale happening once before — and EVERY magnitude-derived output rides on it. */
+      var mkRows = function (unit) {
+        var r = [];
+        // a WORN accelerometer: ~1 g on z with real movement, so the SQI has something to score.
+        // A perfectly static stream scores conf 0 on its own merits, which would make the control
+        // below vacuous — it caught exactly that on the first draft.
+        for (var i = 0; i < 600; i++) {
+          r.push({
+            tMs: 1781128800000 + i * 40,
+            x: 20 + 60 * Math.sin(i / 7),
+            y: 30 + 40 * Math.cos(i / 11),
+            z: 1000 + 50 * Math.sin(i / 5)
+          });
+        }
+        if (unit) r._unit = unit;
+        return r;
+      };
+      var known = M.compute({ acc: mkRows('mg') });
+      var unknown = M.compute({ acc: mkRows(null) });
+
+      // CONTROL — a DECLARED unit still computes everything, so the refusal below is a change.
+      T.ok(
+        'control: a declared mg stream still produces body position and actigraphy',
+        known.position.hasData === true && known.activity.hasData === true,
+        JSON.stringify({ p: known.position.hasData, a: known.activity.hasData })
+      );
+      T.ok('control: …and a real SQI', known.sqi.conf > 0, 'conf ' + known.sqi.conf);
+
+      // The magnitude-derived outputs refuse, and say WHY — not a bare false a reader must guess at.
+      T.eq('an undetermined unit refuses body position, with the reason named', JSON.stringify({ h: unknown.position.hasData, r: unknown.position.reason }), '{"h":false,"r":"unit-unknown"}');
+      T.eq('\u2026and actigraphy', JSON.stringify({ h: unknown.activity.hasData, r: unknown.activity.reason }), '{"h":false,"r":"unit-unknown"}');
+      T.eq('\u2026and the SQI, which is a score over magnitudes of unknown scale', JSON.stringify({ c: unknown.sqi.conf, f: unknown.sqi.flags }), '{"c":0,"f":["unit-unknown"]}');
+
+      /* The refusal is SCOPED: a unit governs magnitudes, not the clock. Timing facts are still
+         published, so an unknown unit costs the motion metrics and nothing else. */
+      T.ok('the TIME-only facts survive — a unit governs magnitude, not the clock', unknown.t0Ms === known.t0Ms && unknown.t0Ms != null, JSON.stringify({ u: unknown.t0Ms, k: known.t0Ms }));
+
+      /* classifyGravity gates on an ABSOLUTE window (mag > 0.4 && mag <= 2.0), so position is
+         scale-DEPENDENT — this pins that, and is why refusing beats annotating here. */
+      var asG = M.bodyPosition(mkRows('g'), 0, 24, 'g');
+      var asMg = M.bodyPosition(mkRows('mg'), 0, 24, 'mg');
+      T.ok(
+        'the same bytes under two units give different positions — the scale is load-bearing',
+        JSON.stringify(asG.dwellFrac) !== JSON.stringify(asMg.dwellFrac),
+        'identical dwell under a 1000x scale change'
+      );
+    });
+
     group(
       'MotionDex helper floor — 8 + 2 drafts adopted: every entry guard refuses junk, and admits a legal minimum (mutation-derived)',
       'motiondex-dsp · known-answer · mutation-pinned',
@@ -19495,7 +20265,11 @@
         for (var pi = 0; pi < 200; pi++) posRows.push({ tMs: pi * 250, x: 0, y: 0, z: 1 });
         out = M.respiratoryEffort(shortRows);
         T.eq('a 10-row refusal is BARE hasData:false — no fabricated zero-rate payload rides along', JSON.stringify(out), '{"hasData":false}');
-        out = M.bodyPosition(posRows);
+        // posRows are {x:0,y:0,z:1} — one g on z. The call always meant 'g'; it simply never said
+        // so, and relied on toG's pass-through for an absent unit. bodyPosition now refuses an
+        // UNKNOWN unit (∅), so the unit is stated. `toG(v,'g')` returns v unchanged, exactly as the
+        // absent unit did, so this assertion's outcome is bit-for-bit what it was.
+        out = M.bodyPosition(posRows, 0, 50, 'g');
         T.eq(
           'the dwell table has EXACTLY the six positions — one extra loop pass mints an "undefined" position',
           JSON.stringify(Object.keys(out.dwellFrac)),
@@ -19557,6 +20331,114 @@
        signal's own name ends `.2s` and a 2-second period IS 0.5 Hz, and the two agree. A draft whose
        only support is "the code currently returns this" was not adopted, however green: that is the
        shape that pins a bug as intended behaviour. */
+    group('CPAPDex EDF geometry — ∅ an unreadable header field REFUSES, it never becomes a number', 'cpapdex-edf · absence', function (T) {
+      var E = env.CpapEdf;
+      if (!E || typeof E._buildSyntheticEDF !== 'function' || typeof E.readEDF !== 'function') {
+        T.skip('CpapEdf._buildSyntheticEDF + readEDF exposed', 'CpapEdf not co-loaded in this runner');
+        return;
+      }
+      // Offsets derived, not memorised: the EDF signal header is ns-strided blocks of
+      // label16 + transducer80 + dim8 + physMin8 + physMax8 + digMin8 + digMax8 + prefilter80,
+      // so samples-per-record begins at 256 + 216*ns. The synthetic set is 1 numeric + 1 annotation.
+      var NS = 2,
+        SPR_OFF = 256 + 216 * NS,
+        DMAX_OFF = 256 + 128 * NS,
+        RECDUR_OFF = 244;
+      var spaces = function (u8, at) {
+        for (var i = 0; i < 8; i++) u8[at + i] = 0x20;
+      };
+      var write8 = function (u8, at, str) {
+        for (var i = 0; i < 8; i++) u8[at + i] = i < str.length ? str.charCodeAt(i) : 0x20;
+      };
+      var mutated = function (mut) {
+        var b = E._buildSyntheticEDF({ records: 5 });
+        mut(new Uint8Array(b));
+        return b;
+      };
+      var refusal = function (mut) {
+        try {
+          E.readEDF(mutated(mut));
+          return 'NO REFUSAL — the file parsed';
+        } catch (e) {
+          return e.message;
+        }
+      };
+
+      // ── CONTROL ── the well-formed file still parses, and its samples are REAL NUMBERS, so the
+      //    NaN asserted further down is a change rather than the status quo.
+      var okRec = E.readEDF(E._buildSyntheticEDF({ records: 5 }));
+      var press = okRec.signals['Press.40ms'];
+      T.ok('control: a well-formed EDF parses — 10 Hz × 5 records', !!press && press.data.length === 50 && press.fs === 10, 'len ' + (press && press.data.length) + ' fs ' + (press && press.fs));
+      T.ok('control: its samples are finite, and its scale is the real 25.5/255', isFinite(press.data[10]) && Math.abs(press.data[10] - 1.0) < 1e-6, 'got ' + (press && press.data[10]));
+      T.eq('control: it reports itself calibrated', press.calibrated, true);
+
+      // ── 1 · SAMPLES-PER-RECORD is the STRIDE OF EVERY LATER SIGNAL, not one signal's property.
+      //    Absorbed as 0, it made bytesPerRecord too small, numRecords (from -1) too large, and left
+      //    the decode pointer un-advanced — so every later signal in every record read from the wrong
+      //    offset. The output was not missing data; it was a full set of plausible, wrong numbers.
+      T.ok(
+        'an unreadable samples-per-record REFUSES the file',
+        /samples-per-record/.test(
+          refusal(function (u8) {
+            spaces(u8, SPR_OFF);
+          }) || ''
+        ),
+        'no refusal'
+      );
+      T.ok(
+        '\u2026including the ANNOTATION signal, which occupies record bytes like any other',
+        /samples-per-record/.test(
+          refusal(function (u8) {
+            spaces(u8, SPR_OFF + 8);
+          }) || ''
+        ),
+        'no refusal'
+      );
+
+      // ── 2 · RECORD DURATION is the denominator of every sampling rate.
+      T.ok(
+        'an unreadable record duration REFUSES — every fs would be a guess',
+        /record duration/.test(
+          refusal(function (u8) {
+            spaces(u8, RECDUR_OFF);
+          }) || ''
+        ),
+        'no refusal'
+      );
+      // ⚠ A ZERO duration is the VENDOR'S OWN VALUE, not an unreadable field: the real
+      //   `20260612_222819_EVE.edf` writes `0.00` with labels ["EDF Annotations","Crc16"]. A blanket
+      //   `!(recDur > 0)` refusal rejected TWO REAL CORPUS NIGHTS in regen — caught there, not here,
+      //   because every synthetic set has a positive duration. It must be ACCEPTED, with fs NULL.
+      var zeroDur = E.readEDF(
+        mutated(function (u8) {
+          write8(u8, RECDUR_OFF, '0');
+        })
+      );
+      T.ok('a ZERO record duration is ACCEPTED — ResMed EVE/CSL event files write 0.00', !!zeroDur.signals['Press.40ms'], 'threw, or dropped the signal');
+      T.eq('\u2026and its fs is NULL — not 0, which reads as a measured rate, and not spr/0 = Infinity', zeroDur.signals['Press.40ms'].fs, null);
+      T.ok(
+        'a NEGATIVE duration is still refused — that is not a duration at all',
+        /negative record duration/.test(
+          refusal(function (u8) {
+            write8(u8, RECDUR_OFF, '-1');
+          }) || ''
+        ),
+        'no refusal'
+      );
+
+      // ── 3 · A DEGENERATE DIGITAL RANGE is ONE signal's absence, not the file's — reduced coverage
+      //    annotates, a missing stride refuses. `|| 1` used to rescale the signal by a factor of
+      //    (digMax-digMin), and because `NaN || 1` is 1 an ABSENT range took the same path.
+      var degen = E.readEDF(
+        mutated(function (u8) {
+          write8(u8, DMAX_OFF, '0');
+        })
+      );
+      var dp = degen.signals['Press.40ms'];
+      T.eq('a degenerate digital range marks THAT SIGNAL uncalibrated, and the file still parses', dp.calibrated, false);
+      T.ok('\u2026and its samples are NaN, not rescaled by a fabricated denominator of 1', isNaN(dp.data[10]), 'got ' + dp.data[10]);
+    });
+
     group('CPAPDex synthetic EDF — the .2s signals declare the rate their names promise (adopted drafts, batch 1)', 'cpapdex-dsp · adopted-drafts · mutation-pinned', function (T) {
       var C = env.CpapDsp;
       if (!C || typeof C._synthEdfSet !== 'function') {
@@ -19999,6 +20881,74 @@
       T.eq('an EMPTY sets array is refused, not treated as a night with no sessions', N({ sets: [] }), null);
       T.eq('a non-array `sets` is refused', N({ sets: 'no' }), null);
       T.eq('a bare array is refused', N([]), null);
+    });
+
+    group('CPAPDex quality — ∅ an UNASSESSED mask seal is not a perfect one, and an absent mode is not CPAP', 'cpapdex-dsp · cpapdex-fusion · absence', function (T) {
+      var D = env.CpapDsp || env.CPAPDSP;
+      var F = env.CpapFusion;
+      if (!D || typeof D.leakSqi !== 'function' || typeof D.parseStrSummary !== 'function' || !F || typeof F.cpapEvents !== 'function') {
+        T.skip('CpapDsp.leakSqi/parseStrSummary + CpapFusion', 'CPAPDex not co-loaded in this runner');
+        return;
+      }
+
+      /* ── 1 · leakSqi ── `largeLeakPct` is NaN with no leak channel, or when the mask was never on.
+         Returning 1 published the BEST POSSIBLE quality for a session whose quality was never
+         measured — the one direction that suppresses the warning the index exists to raise. */
+      T.eq('an UNMEASURABLE leak fraction refuses — it is not a perfect seal', JSON.stringify([D.leakSqi({ largeLeakPct: NaN }), D.leakSqi({ largeLeakPct: null })]), '[null,null]');
+      T.eq('CONTROL · a MEASURED zero-leak session is still exactly 1, and 40 % is still 0.6', JSON.stringify([D.leakSqi({ largeLeakPct: 0 }), D.leakSqi({ largeLeakPct: 40 })]), '[1,0.6]');
+
+      /* ── 2 · STR device mode ── `_strAt` returns null past the end of a signal, `Math.round(null)`
+         is 0, and STR_MODE[0] is 'CPAP'. A day whose Mode sample was absent therefore rendered a
+         badged chip reading CPAP for a device that reported no mode at all. Built so the second
+         record's Mode index is past the end while the first record's is present — the control and
+         the case come out of ONE call. */
+      var sig = function (arr) {
+        return { data: typeof Float32Array === 'function' ? Float32Array.from(arr) : arr };
+      };
+      var strRows = D.parseStrSummary({ signals: { Date: sig([0, 1]), MaskOn: sig([60, 60]), MaskOff: sig([120, 120]), Mode: sig([1]) } });
+      T.eq('the day WITH a mode sample still reads APAP — the control', JSON.stringify({ c: strRows[0].deviceModeCode, m: strRows[0].deviceMode }), '{"c":1,"m":"APAP"}');
+      T.eq(
+        'the day whose mode sample is ABSENT is null, not the CPAP that Math.round(null) produced',
+        JSON.stringify({ c: strRows[1].deviceModeCode, m: strRows[1].deviceMode }),
+        '{"c":null,"m":null}'
+      );
+
+      /* ── 3 · the fusion layer carries the absence instead of replacing it ── `EVENT-LEXICON` § already
+         documents `sqi null` on an emitted event, and `integrator-dsp.js:139` already reads null and
+         weights such an event NEUTRALLY. That is fusion declining to PENALISE unknown quality, which
+         is a different act from CPAPDex asserting it measured a perfect seal. */
+      var t0 = Date.UTC(2026, 5, 10, 23, 0, 0);
+      var night = {
+        t0Ms: t0,
+        dateMs: t0,
+        therapyHours: 6,
+        sessions: [
+          { t0Ms: t0, endMs: t0 + 3 * 3600e3, durMin: 180, sqi: 0.6, usageHours: 3, events: [{ type: 'OA', tMs: t0 + 600e3, durSec: 20 }] },
+          { t0Ms: t0 + 3 * 3600e3, endMs: t0 + 6 * 3600e3, durMin: 180, sqi: null, usageHours: 3, events: [{ type: 'OA', tMs: t0 + 4 * 3600e3, durSec: 20 }] }
+        ]
+      };
+      T.eq(
+        'an event from an UNASSESSED session carries sqi null, while the assessed one keeps 0.6',
+        JSON.stringify(
+          F.cpapEvents(night).map(function (e) {
+            return e.sqi;
+          })
+        ),
+        '[0.6,null]'
+      );
+
+      if (typeof F.cpapBuildExport !== 'function') {
+        T.skip('CpapFusion.cpapBuildExport', 'not on this surface');
+      } else {
+        var q = F.cpapBuildExport(night).quality;
+        // PRE-STATED: averaging the unassessed session in as 1 reported 0.8 for a night whose only
+        // measured session was 0.6 — absence diluting a genuinely leaky night toward "good".
+        var dilutedByFabrication = 0.8,
+          measuredOnly = 0.6;
+        T.eq('the night averages the sessions it ASSESSED, not absence counted as perfect', JSON.stringify({ sqi: q.sqi, n: q.sqiSessions }), JSON.stringify({ sqi: measuredOnly, n: 1 }));
+        T.ok('the plant is not vacuous — the old mean and the honest mean differ', dilutedByFabrication > measuredOnly, dilutedByFabrication + ' vs ' + measuredOnly);
+        T.ok('\u2026and the basis is published, so a reader can see how many sessions it rests on', q.sqiSessions === 1 && q.sqiBasis.indexOf('ASSESSED') !== -1, JSON.stringify(q.sqiBasis));
+      }
     });
 
     group('CPAPDex helper floor — 9 + 2 drafts adopted: prepare defaults, envelope guards, EDF refusals (mutation-derived)', 'cpapdex-dsp · known-answer · mutation-pinned', function (T) {
@@ -21693,8 +22643,16 @@
       }
       /* Adopted from the AI-probe draft bank: 13/13 batch-verified green, zero discards. */
       var out;
+      /* ⚠ THIS DRAFT PINNED THE FABRICATION. It recorded 50 because that is what the code DID for a
+         non-row argument — `computeCAMQ(1)` has no `_rmssd`/`_pnn50`/`_hf`, so paraCount was 0 and the
+         old `: 50` branch fired. A mutation-derived draft encodes the code's OUTPUT, never its
+         CONTRACT, so when the fabrication was removed (§∅, row hrvdex-dsp.js:1074) this leg convicted
+         the correction. Updated DELIBERATELY, not silenced: `null` is still a discriminating answer —
+         more so, since only the new guard produces it — so the draft keeps the job it was adopted for.
+         The general shape is worth the line: a draft bank verified "13/13 green, zero discards" is a
+         statement about reproducibility, not about correctness. */
       out = H.computeCAMQ(1);
-      T.eq('H.computeCAMQ(1) → "50"', JSON.stringify(out), '50');
+      T.eq('H.computeCAMQ(1) → "null" (was "50": a non-row argument has no parasympathetic indicator)', JSON.stringify(out), 'null');
       out = H._hrvNum(1);
       T.eq('H._hrvNum(1) → "1"', JSON.stringify(out), '1');
       out = H._hrvNum(null);
@@ -21776,6 +22734,98 @@
        hand against the source: zeroing `_meanRR` must take out `d_cv_calc` (it divides by it) and
        `_rmssd` must take out `d_lnrmssd` (`log` of a non-positive is not finite). Both hold. The
        rest are pinned so that any change becomes visible, which is the point. */
+    /* ── §∅ · AN ABSENT SUBJECTIVE STRESS IS NOT A STRESS OF ZERO ──────────────────────────────
+       `!isNaN(null)` is TRUE — null coerces to 0 — so an absent `_stress` survived the window
+       filters and entered as a real 0. The pNN50 sibling one line below the 7-day filter was
+       repaired for exactly this and NAMES the mechanism ("`!isNaN(null)` was true → a blank pNN50
+       polluted the slope as 0"); `rmssd7`/`sdnn7` are safe only because `v > 0` happens to exclude
+       null. `stress7` was the sibling that pass did not reach.
+       Every ECGDex/Ganglior-ingested row lacks the Welltory Stress column, so this is the common
+       case, not an edge. */
+    /* ── §∅ · AN UNRECORDED rMSSD IS NOT A 100 % COLLAPSE ──────────────────────────────────────
+       One line carried two guards and only one worked. `prev._rmssd > 0` excludes an absent previous
+       night; `!isNaN(r._rmssd)` does not exclude an absent CURRENT one, because `isNaN(null)` is
+       `isNaN(0)` — false. So null passed, and `((null - prev) / prev) * 100` is exactly −100 %: the
+       table rendered "−100.0%" and the chart painted the bar RED for a night that simply has no
+       rMSSD. An asymmetric pair of guards on one expression is what hid it. */
+    group('HRVDex §∅ — an unrecorded rMSSD is absent, not a −100 % collapse', 'hrvdex-dsp · delta · absence', function (T) {
+      var D = (env.HRVDex && env.HRVDex._bare) || env.HRVDex;
+      if (!D || typeof D.computeDerived !== 'function') {
+        T.skip('computeDerived available', 'HRVDex._bare not loaded');
+        return;
+      }
+      var DAY = 86400000;
+      var D0 = Date.UTC(2026, 5, 10, 3, 0, 0);
+      var run = function (secondRmssd, stamps) {
+        var rows = [
+          { _tMs: stamps ? D0 : Number.NaN, _rmssd: 50, _sdnn: 54, _pnn50: 18.5 },
+          { _tMs: stamps ? D0 + DAY : Number.NaN, _rmssd: secondRmssd, _sdnn: 54, _pnn50: 18.5 }
+        ];
+        D.computeDerived(rows);
+        return rows[1].d_rmssd_delta_pct;
+      };
+
+      /* CONTROL FIRST — two consecutive days with real readings must produce a real delta, or the
+         cases below pass for the wrong reason (a column that never computes at all). */
+      T.eq('ANTI-VACUITY · 50 → 60 across one day is a +20 % change', run(60, true), 20);
+      T.eq('…and 50 → 40 is −20 %', run(40, true), -20);
+
+      /* THE CASE: the second night carries no rMSSD. */
+      T.ok('an absent rMSSD REFUSES rather than reporting −100 %', Number.isNaN(run(null, true)), 'got ' + run(null, true));
+
+      /* THE DAY-GAP HALF: two undated rows were treated as consecutive days. */
+      T.ok('an unparseable pair of stamps refuses too — an unknown gap is not a gap of 1', Number.isNaN(run(60, false)), 'got ' + run(60, false));
+
+      /* THE COERCIONS, so the guards cannot end up guarding nothing. */
+      T.eq('`isNaN(null)` is FALSE — which is how absence passed the old guard', isNaN(null), false);
+      T.eq('…and the arithmetic it let through is exactly −100', ((null - 50) / 50) * 100, -100);
+      T.eq('…while `null > 0` is FALSE — the test the PREVIOUS night already used', null > 0, false);
+    });
+
+    group('HRVDex §∅ — an absent subjective Stress is not a Stress of zero', 'hrvdex-dsp · stress · absence', function (T) {
+      var D = (env.HRVDex && env.HRVDex._bare) || env.HRVDex;
+      if (!D || typeof D.computeDerived !== 'function') {
+        T.skip('computeDerived available', 'HRVDex._bare not loaded');
+        return;
+      }
+      var DAY = 86400000;
+      var mk = function (stressAt) {
+        var rows = [];
+        for (var n = 0; n < 7; n++) {
+          rows.push({ _tMs: Date.UTC(2026, 5, 10, 3, 0, 0) + n * DAY, _rmssd: 41, _sdnn: 54, _pnn50: 18.5, _stress: stressAt(n) });
+        }
+        D.computeDerived(rows);
+        return rows[rows.length - 1];
+      };
+
+      /* CONTROL FIRST — with a reading every day the AUC is a real sum, or the case below passes
+         for the wrong reason (an empty window rather than an absent column). */
+      var present = mk(function () {
+        return 3;
+      });
+      T.eq('ANTI-VACUITY · seven days of Stress 3 sum to an AUC of 21', present.d_stress_auc, 21);
+
+      /* THE CASE: the column is absent on every day — the ECGDex/Ganglior shape. */
+      var absent = mk(function () {
+        return null;
+      });
+      T.ok('a week with NO subjective Stress refuses, rather than reporting an AUC of 0', Number.isNaN(absent.d_stress_auc), 'got ' + absent.d_stress_auc);
+      T.eq('…and 0 is what it used to report — "no stress" for a week with no data', 0, 0 + null);
+
+      /* PARTIAL coverage: the sum is over the days that carry a reading. */
+      var partial = mk(function (n) {
+        var odd = n % 2;
+        if (odd === 1) return null;
+        return 3;
+      });
+      T.eq('four readings of 3 and three absences ⇒ 12, not 12-plus-three-zeros', partial.d_stress_auc, 12);
+
+      /* THE COERCION ITSELF, so the guards above cannot end up guarding nothing. */
+      T.eq('`!isNaN(null)` is TRUE — which is how absence passed the old filter', !Number.isNaN(Number(null)), true);
+      T.eq('…while `Number.isFinite(null)` is FALSE — the filter that tells them apart', Number.isFinite(null), false);
+      T.eq('…and a REAL 0 still passes, because 0 is a legitimate Stress reading', Number.isFinite(0), true);
+    });
+
     group('HRVDex computeDerived — the GUARDS, one seed absent at a time', 'hrvdex-dsp · known-answer · mutation-pinned', function (T) {
       var D = (env.HRVDex && env.HRVDex._bare) || env.HRVDex;
       if (!D || typeof D.computeDerived !== 'function') {
@@ -22577,10 +23627,16 @@
           T.eq('a stampless recording threads t0Ms null (never a fabricated now())', stampless.t0Ms, null);
           T.eq('…and endEpochMs null with it', stampless.endEpochMs, null);
         }
-        T.ok(
-          'RR / Welltory-CSV exporters anchor an undated recording at 0, never now()',
-          !/r\.t0Ms\s*!=\s*null\s*\?\s*r\.t0Ms\s*:\s*_floatNow/.test(app) && /r\.t0Ms\s*!=\s*null\s*\?\s*r\.t0Ms\s*:\s*0/.test(app)
-        );
+        /* §∅ SUPERSEDED IN PART, 2026-09-23 — this assertion had two halves and only one of them
+           has survived. NEVER now() is the invariant FOLLOWUPS §1 earned when it retired
+           `_floatNow()`, and it is kept verbatim below. "Anchor at 0" was the other half, and 0 is
+           not a refusal: `new Date(0)` renders "1970-01-01 00:00:00", an in-band instant a consumer
+           reads as the recording's date and sorts before every real one. The exporters now emit an
+           EMPTY stamp, which is what the rest of the repo already settled ("no recording anchor ⇒
+           the timestamp is null, not 1970"). The never-now() half is what this test was written to
+           protect, and it still does. */
+        T.ok('RR / Welltory-CSV exporters never fabricate a now() anchor', !/r\.t0Ms\s*!=\s*null\s*\?\s*r\.t0Ms\s*:\s*_floatNow/.test(app) && !/_floatNow/.test(app));
+        T.ok('…and an undated recording exports an EMPTY stamp, not a 1970 one', !/r\.t0Ms\s*!=\s*null\s*\?\s*r\.t0Ms\s*:\s*0/.test(app) && /: ''/.test(app));
       }
     });
 
@@ -23586,6 +24642,63 @@
      hrv.time.{rmssd,sdnn} (single-site PPG → whole-record directly), hrv.frequency.lfhf,
      quality.analyzablePct, and the limb-acc timeseries.epochs[].position grid. Same four locks as the
      ECG twin (default-light unchanged · rich consensus axis · Integrator picks it up · posture wires). ════ */
+    /* ════ §∅ — a SignalFrame with NO SAMPLE RATE must REFUSE, not invent 1 Hz.
+       `ABSENCE-SURVEY-2026-09-22` rows ppgdex-dsp.js:6193 and :6203, both HIGH and both the same
+       shape: `i / (fs || 1)` and `(n - 1) / (fs || 1)`. When a frame carries neither `input.fs` nor
+       `samples.fs`, `fs || 1` fabricates a 1 Hz axis — so at a real ~135 Hz a 740-second recording
+       becomes a 27-HOUR one, and every beat time rides that axis through `rec.relSec` → `footSec`.
+       CLAUDE.md §∅: a rate that was not measured is null, never 1, and an absent axis is a
+       DISCONTINUITY (no continuous stretch of signal is described), so it REFUSES rather than
+       annotating. The refusal is narrow by construction and the last two legs are what pin that:
+       fs is only needed when the frame supplies neither `relSec` nor `durSec`. ════ */
+    group('PpgDex §∅ — a frame with no sample rate refuses instead of inventing 1 Hz', 'ppgdex-dsp', function (T) {
+      var PG = env.PpgDex,
+        SY = env.SYNTH;
+      if (!(PG && typeof PG.compute === 'function' && SY && typeof SY.renderPPG === 'function')) {
+        T.ok('PpgDex.compute + SYNTH available', false, 'not loaded');
+        return;
+      }
+      var tl = SY.buildTimelines()[0];
+      var parsed = PG.parsePPG(SY.renderPPG(tl, SY.pickWindow(tl)));
+      var frame = function (over) {
+        var s = { ch: parsed.ch, n: parsed.n, amb: parsed.amb || null };
+        for (var k in over || {}) s[k] = over[k];
+        return { samples: s, t0Ms: parsed.t0Ms };
+      };
+      var grab = function (input) {
+        try {
+          return { ok: true, out: PG.compute(input) };
+        } catch (e) {
+          return { ok: false, msg: String((e && e.message) || e) };
+        }
+      };
+      /* POSITIVE CONTROL FIRST — the harness must be able to make compute SUCCEED on this shape, or
+         every refusal below is indistinguishable from a frame it could never have handled. */
+      var withFs = grab({ samples: { ch: parsed.ch, n: parsed.n, amb: parsed.amb || null, fs: parsed.fs }, t0Ms: parsed.t0Ms });
+      T.ok('control: the SAME frame WITH fs computes (else the refusals below prove nothing)', withFs.ok === true, withFs.ok ? '' : withFs.msg);
+      var trueDur = (parsed.n - 1) / parsed.fs;
+
+      var noFs = grab(frame({}));
+      T.ok('a frame carrying NO fs REFUSES', noFs.ok === false, noFs.ok ? 'computed instead of refusing' : '');
+      T.ok('…and the refusal NAMES the sample rate as the thing that is missing', noFs.ok === false && /sample rate|\bfs\b/.test(noFs.msg), noFs.msg);
+      /* The number the fabrication would have produced, stated so the cost is in the record rather
+         than in a comment: at 1 Hz the duration is the SAMPLE COUNT in seconds. */
+      T.ok(
+        'the 1 Hz fabrication this replaces was ' + Math.round((parsed.n - 1) / trueDur) + '× the true duration',
+        noFs.ok === false,
+        'true ' + trueDur.toFixed(0) + ' s vs fabricated ' + (parsed.n - 1) + ' s'
+      );
+
+      /* NARROWNESS — fs is needed only to BUILD an axis. A frame that already carries one does not
+         need it, and refusing there would convict working code. */
+      var rel = new Float64Array(parsed.n);
+      for (var i = 0; i < parsed.n; i++) rel[i] = i / parsed.fs;
+      var carried = grab(frame({ relSec: rel, durSec: trueDur }));
+      T.ok('a frame with relSec AND durSec but no fs still computes — the refusal is narrow', carried.ok === true, carried.ok ? '' : carried.msg);
+      var relOnly = grab(frame({ relSec: rel }));
+      T.ok('…but relSec alone, with durSec still to derive, refuses', relOnly.ok === false, relOnly.ok ? 'computed instead of refusing' : '');
+    });
+
     group('Integrator ingests the RICH PpgDex export — HRV consensus + posture (HANDOFF §1)', 'ppgdex-dsp · integrator-dsp', function (T) {
       var PG = env.PpgDex,
         SY = env.SYNTH,
@@ -25292,7 +26405,10 @@
       out = B.computeSleepPressure(null, 1);
       T.eq('B.computeSleepPressure(null,1) → "null"', JSON.stringify(out), 'null');
       out = B.computeHRNoctDip(1, 1);
-      T.eq('B.computeHRNoctDip(1,1) → "0"', JSON.stringify(out.hrnDip), '0');
+      /* §∅ RECONCILED — this was the ODD ONE OUT in a group whose own title is "every guard refuses".
+         `(1, 1)` carries no meanHr and no hrFloor, so the old code invented both and returned a dip of
+         0 labelled "Low (intra-night)". It now refuses, like every sibling above it. */
+      T.eq('B.computeHRNoctDip(1,1) → refuses, like its siblings', JSON.stringify(out), 'null');
       out = B.computeMotionProfile(0);
       T.eq('B.computeMotionProfile(0) → "0"', JSON.stringify(out.arousalIndex), '0');
       out = B.oxyDesatConf(null);
@@ -25300,13 +26416,26 @@
       out = B._oxyEnsureRows(null);
       T.eq('B._oxyEnsureRows(null) → "true"', JSON.stringify(out === null), 'true');
       out = B.computeODI1('');
-      T.eq('B.computeODI1("") → "0"', JSON.stringify(out.odi1Rate), '0');
+      /* §∅ RECONCILED 2026-09-23 — the ODD ONE OUT, between two siblings that both refuse
+         (`_oxyEnsureRows` above, `computeCT94` below) in a group titled "every guard refuses, null
+         never throws". A recording too short to index has no ODI-1; a rate of 0 published the
+         healthiest possible index for a night that was never long enough to have one. */
+      T.eq('B.computeODI1("") → refuses, like the siblings either side of it', JSON.stringify(out), 'null');
+      /* PARITY — `computeODI1` and `computeSpO2Percentiles` carry the SAME `n < 60` precondition nine
+         lines apart, and used to answer it differently. Pinned so they cannot drift apart again. */
+      {
+        var _short = [];
+        for (var _s60 = 0; _s60 < 59; _s60++) _short.push({ spo2: 97, hr: 60, tMs: _s60 * 1000 });
+        T.eq('…and a 59-sample recording refuses in ODI-1', JSON.stringify(B.computeODI1(_short, null)), 'null');
+        T.eq('…exactly as it already did in computeSpO2Percentiles', JSON.stringify(B.computeSpO2Percentiles(_short)), 'null');
+      }
       out = B.computeCT94('');
       T.eq('B.computeCT94("") → "true"', JSON.stringify(out === null), 'true');
       out = B.computeCircadianHR('');
       T.eq('B.computeCircadianHR("") → "true"', JSON.stringify(out === null), 'true');
       out = B.computeHypoxicBurden('');
-      T.eq('B.computeHypoxicBurden("") → "0"', JSON.stringify(out.rate), '0');
+      /* §∅ — same reconciliation: no measured second means no rate, not a rate of zero. */
+      T.eq('B.computeHypoxicBurden("") → rate is NULL, not 0', JSON.stringify(out.rate), 'null');
       out = B.computeSpO2Percentiles('');
       T.eq('B.computeSpO2Percentiles("") → "null"', JSON.stringify(out), 'null');
       out = B.oxyLoadOwnExport(null);
@@ -25406,6 +26535,213 @@
          above would be guarding nothing, and this says so out loud. */
       T.eq('…because null coerces to 0: `null < 5` is TRUE (would read "good")', null < 5, true);
       T.eq('…and `null >= 90` is FALSE (would read "bad")', null >= 90, false);
+
+      /* ── §∅ · A NIGHT WITH NO COMPUTATION MUST NOT PLOT AS A REAL 0 ────────────────────────────
+         `ABSENCE-SURVEY-2026-09-22` confirmed 17 sites of ONE shape in this file —
+         `return n.X ? n.X.y : 0;` — where the container is nullable, so a night that never had that
+         metric computed contributed a real 0 to a per-night line chart. On the self-ingest path the
+         producers are explicitly nullable (`hb: obj.hypoxicBurden || null`, `stab: … || null`,
+         `comp: … || null`, `motSleep: … || null`), and `sbii`/`pred3p` REFUSE by construction
+         (`if (n < 60 || durationHr <= 0) return { sbii: null … }`) — so the renderer was overwriting
+         a deliberate refusal with a number. A 0 is not neutral on these axes: it reads as a perfect
+         night on ODI-4 and hypoxic burden, and as the worst possible night on a 0-100 stability or
+         stress score. The shared renderer already drops absence (`v != null && isFinite(v) ? … : null`,
+         then filters), so `: null` is what it expects.
+         KEYED TO THE PROPERTY, NOT TO A COUNT OR A LINE: the four containers below are EXEMPT because
+         the survey refuted them as UNREACHABLE — their producers have one top-level return and never
+         yield null, and the real absence path is already honest (e.g. `stats.motionPct = null` with
+         `motionColumnAbsent`, dropped at `barChart`). Encoding "17" or line numbers would red on the
+         next legitimate edit; naming the exempt containers says WHY each survivor survives. */
+      var UNREACHABLE = ['stats', 'cross', 'spikes', 'osc'];
+      var fabricated = [];
+      lines.forEach(function (ln, i) {
+        var m = ln.match(/n\.([A-Za-z0-9]+)\s*\?\s*n\.[A-Za-z0-9]+\.[A-Za-z0-9]+\s*:\s*0;/);
+        if (m && UNREACHABLE.indexOf(m[1]) < 0) fabricated.push(i + 1 + ': ' + ln.trim().slice(0, 62));
+      });
+      T.eq('no NULLABLE per-night metric falls back to a real 0 on a chart', fabricated, []);
+      /* ANTI-VACUITY for the scan above: the regex must still match the shape it exempts, or a
+         rename would empty it and every absence would pass unnoticed. */
+      var exemptSeen = lines.filter(function (ln) {
+        var m = ln.match(/n\.([A-Za-z0-9]+)\s*\?\s*n\.[A-Za-z0-9]+\.[A-Za-z0-9]+\s*:\s*0;/);
+        return m && UNREACHABLE.indexOf(m[1]) >= 0;
+      }).length;
+      T.ok('ANTI-VACUITY · the scan still matches the shape (the exempt sites are found)', exemptSeen === UNREACHABLE.length, exemptSeen + ' of ' + UNREACHABLE.length);
+    });
+
+    /* ── §∅ · A RECOVERY THAT WAS NEVER OBSERVED IS NOT A RECOVERY OF ZERO SECONDS ─────────────
+       The look-forward window expiring means recovery was NOT SEEN. `0` is a legal recovery time,
+       so the old sentinel was read two opposite ways in one file: `meanRecovery` averaged it in as
+       "recovered instantly" — and `nadirRecov` is goodDirection:'down', so that is the flattering
+       direction — while `oxyDesatConf` read the same 0 as "no clean recovery" and withheld its
+       bonus. Null is out of band and cannot be read either way by accident. */
+    /* ── §∅ · NSI IS A MEAN OF THE COMPONENTS THAT EXIST ───────────────────────────────────────
+       Every corpus night carries all four terms, so the goldens cannot express this: `nsi` is
+       unchanged on all four and only `nsiComponents` is added. The PARTIAL case is the one that
+       matters and it lives here. `nsi` is goodDirection:'down', so each component silently
+       substituted as 0 pulled the score toward the healthiest reading. */
+    group('OxyDex §∅ — NSI averages the components it has, not four', 'oxydex-dsp · composite · aggregate-over-absence', function (T) {
+      var NS = env.OxyDex;
+      if (!NS || !NS._bare || !NS._bare.computeComposite) {
+        T.skip('OxyDex._bare.computeComposite in env', 'not wired in this lane');
+        return;
+      }
+      var rows = [];
+      for (var i = 0; i < 600; i++) rows.push({ spo2: 97, hr: 60, tMs: i * 1000, motion: 0 });
+      /* desat present, cross ABSENT — three terms computable, one not. */
+      var desat = { dip3Rate: 5, auc90Rate: 2, nadir: { count: 0 } };
+      var part = NS._bare.computeComposite(rows, [], desat, null, null, 1);
+      T.ok('ANTI-VACUITY · the partial night produced an NSI at all', part && part.nsi != null, JSON.stringify(part && part.nsi));
+      T.eq('…over THREE components, not four', part.nsiComponents, 3);
+      /* dip3 = min(5/5,1) = 1, hbR = min(2/2,1) = 1, t95 = 0 (97 % is never below 95). The mean of
+         the three present terms is 2/3 → 67. Averaging a fabricated 0 for the absent AAI would give
+         2/4 → 50 — a materially healthier score for a night that measured no arousals at all. */
+      T.eq('…so the score is the mean of what exists: 67', part.nsi, 67);
+      T.eq('…and NOT the 50 that a fabricated fourth term would have produced', part.nsi === 50, false);
+
+      var none = NS._bare.computeComposite([]);
+      T.eq('no component at all ⇒ NSI REFUSES', none.nsi, null);
+      T.eq('…and says so', none.nsiComponents, 0);
+      T.eq('…because `nsi` is goodDirection:down, 0 would have been the BEST possible reading', 0 < 30, true);
+    });
+
+    group('OxyDex §∅ — an unobserved recovery is null, not an instant one', 'oxydex-dsp · desat-profile · in-band-sentinel', function (T) {
+      var NS = env.OxyDex;
+      var R = String((env.sources || {})['oxydex-dsp.js'] || '');
+      if (!NS || !NS._bare || !NS._bare.detectDesatEvents || !R) {
+        T.skip('OxyDex._bare + oxydex-dsp source in env', 'not wired in this lane');
+        return;
+      }
+      /* ⚠️ LIMIT, STATED: this twin does NOT drive `computeDesaturationProfile`. Four synthetic
+         shapes were tried and the oximeter self-gate classified every one as an ARTIFACT — a flat
+         or hand-drawn pulse series is not a physiological desat — so `realEvents` came back empty
+         and the assertions would have been vacuous. Rather than reverse-engineer the gate to
+         manufacture a night it accepts, the twin asserts what it CAN: that the shape is a real
+         desat to the detector, that the sentinel is out of band in the source, and the arithmetic
+         that made the old in-band value readable two opposite ways. */
+      var sp = [];
+      for (var i = 0; i < 700; i++) sp.push(i < 300 ? 97 : i < 360 ? 90 : 94);
+      var ev = NS._bare.detectDesatEvents(sp, { dropPct: 4, exitPct: 4 });
+      T.ok('ANTI-VACUITY · the shape IS a desat event to the detector', ev.length > 0, 'events=' + ev.length);
+      T.eq('…and it closes with a baseline of 97, so baseline-1 is 96', ev.length ? ev[0].baseline : null, 97);
+      T.ok(
+        '…while the series never returns to 96 after it closes — recovery is unobservable',
+        sp.slice(360).every(function (v) {
+          return v < 96;
+        })
+      );
+
+      /* THE FIX, asserted against the source because the recovery loop is inline in
+         computeDesaturationProfile and is not separately exported. */
+      T.ok('the sentinel is initialised to null, not 0', /var recov = null;/.test(R));
+      T.ok('…the slope refuses with it rather than reporting a 0 slope', /recoverySlope: recov != null && recov > 0 \?[\s\S]{0,120}: null/.test(R));
+      T.ok('…and the mean is taken over the events that RECOVERED', /recoveredSecs\.length[\s\S]{0,200}: null;/.test(R));
+      T.ok('…with that count published beside it', /recoveredCount: recoveredSecs\.length/.test(R));
+      T.ok('no `var recov = 0` survives', !/var recov = 0;/.test(R));
+
+      /* WHY IT HAD TO LEAVE THE BAND — the same 0 read two opposite ways, as arithmetic. */
+      T.eq('`null > 0` is FALSE — how oxyDesatConf read the sentinel: no clean recovery', null > 0, false);
+      T.eq('`0 < 30` is TRUE — how the Nadir Recov band read the SAME value: best colour', 0 < 30, true);
+      T.eq('…and `0 + null` is 0, so averaging nulls in would have kept the old divisor', 0 + null, 0);
+    });
+
+    /* ── §∅ · THE COMMITTED CORPUS CANNOT EXPRESS THIS ONE, SO HERE IS A TWIN THAT CAN ──────────
+       `computeTIndex` and `computeHypoxicBurden` counted an absent second as below EVERY threshold
+       (`null < 80` is true) and as maximally desaturated (`94 - null` is 94). NOT ONE COMMITTED
+       FIXTURE MOVES under the fix: `parseCSV` drops invalid rows, so the O2Ring corpus carries no
+       null here at all (measured == rows on all four goldens). The paths that DO carry one — the
+       NSRR adapter's `to1Hz`, self-ingest, any SignalFrame — are not in the corpus, and the SHHS
+       lane's published T90 came through this family. A fixture that cannot express the defect
+       cannot catch its return, which is exactly why §🔏 prefers an adversarial COMMITTED twin to a
+       real recording. This is that twin. */
+    group('OxyDex §∅ — an absent second is not a desaturated one', 'oxydex-dsp · tIndex · hypoxic-burden · absence', function (T) {
+      var NS = env.OxyDex;
+      if (!NS || !NS._bare || !NS._bare.computeTIndex || !NS._bare.computeHypoxicBurden) {
+        T.skip('OxyDex._bare in env', 'not wired in this lane');
+        return;
+      }
+      /* 100 seconds: 60 measured at 98 % (healthy), 40 ABSENT. Under the old code every absent
+         second read as below all ten thresholds and added 94 to the burden. */
+      var rows = [];
+      for (var i = 0; i < 100; i++) rows.push({ spo2: i < 60 ? 98 : null, hr: 60, tMs: i * 1000 });
+
+      var ti = NS._bare.computeTIndex(rows);
+      T.eq(
+        'ANTI-VACUITY · the twin really contains absence',
+        rows.filter(function (r) {
+          return r.spo2 == null;
+        }).length,
+        40
+      );
+      T.eq('T80 counts no absent second as below 80', ti['80'].secs, 0);
+      T.eq('…and T95 too — 98 % is above every threshold', ti['95'].secs, 0);
+      T.eq('the denominator is the MEASURED seconds, published beside the value', ti['80'].measured, 60);
+      T.eq('…so the rate is 0 % of 60, not of 100', ti['80'].pct, 0);
+      /* THE OLD ARITHMETIC, stated rather than described: this is what the fix removes. */
+      T.eq('…because `null < 80` is TRUE — 40 absent seconds would have read as 40 below 80', null < 80, true);
+
+      var hb = NS._bare.computeHypoxicBurden(rows);
+      T.eq('the burden is 0 — no measured second fell below 94', hb.total, 0);
+      T.eq('…over the measured seconds only', hb.measuredSec, 60);
+      T.eq('…because `94 - null` is 94, the MAXIMUM contribution', 94 - null, 94);
+      /* And a night with nothing measured refuses rather than reporting a perfect 0. */
+      var none = NS._bare.computeHypoxicBurden([{ spo2: null, hr: 60, tMs: 0 }]);
+      T.eq('nothing measured ⇒ the burden REFUSES', none.rate, null);
+      T.eq('…and says so in the denominator', none.measuredSec, 0);
+    });
+
+    /* ── §∅ · AN AGGREGATE OVER AN ABSENT NIGHT (ABSENCE-SURVEY-2026-09-22, F5) ─────────────────
+       The sibling group above covers a single stat rendered as a verdict. This covers the shapes
+       where absence is averaged, divided or floored — where the absent night does not vanish, it
+       MOVES the number, and the reader has no way to see that it did.
+       Source scan for the same reason: oxydex-render.js is loaded as TEXT in this lane. */
+    group('OxyDex §∅ — an aggregate must not silently absorb an absent night', 'oxydex-render · aggregate-over-absence', function (T) {
+      var R = String((env.sources || {})['oxydex-render.js'] || '');
+      if (!R) {
+        T.skip('oxydex-render.js in env.sources', 'not wired in this lane');
+        return;
+      }
+      /* ANTI-VACUITY. Each scan below is a regex over a large file; a rename empties it silently. */
+      T.ok('ANTI-VACUITY · the render source loaded', R.length > 10000, R.length + ' chars');
+      T.ok('ANTI-VACUITY · the rolling-window aggregate still exists to be checked', /roll7spo2/.test(R));
+      T.ok('ANTI-VACUITY · the poor-night rate still exists to be checked', /poorNights/.test(R));
+
+      var lines = R.split('\n');
+
+      /* 1 · A SUM over a nullable stat. `s + x.stats.meanSpo2` drops the null from the NUMERATOR
+         (null coerces to 0) while the window length still counts it in the DENOMINATOR. */
+      var sums = [];
+      lines.forEach(function (ln, i) {
+        if (/\breduce\(/.test(ln)) return;
+        if (/\+\s*[A-Za-z0-9_]+\.stats\.[A-Za-z0-9_]+/.test(ln) && !/!=\s*null|==\s*null|isFinite/.test(ln)) sums.push(i + 1 + ': ' + ln.trim().slice(0, 72));
+      });
+      T.eq('no stat is summed without an absence filter', sums, []);
+
+      /* 2 · A DERIVED duration. `Math.floor(null / 60)` is 0, so an unrecorded night reads as a
+         zero-length one — and at a KPI it is then GRADED. Both sites in this file are covered. */
+      /* The guard must name durationMin ITSELF, on the line or within the 3 lines above it — an
+         enclosing `if (s0.durationMin) {` and a same-line `s.durationMin ? … : ''` both qualify.
+         Requiring the guard to name the FIELD is the load-bearing part: the defect this replaced
+         read `st ? Math.floor(st.durationMin / 60) : 0`, which HAS a ternary guard — on the wrong
+         thing. A scan that accepted any `?` on the line would have passed it. */
+      var durs = [];
+      lines.forEach(function (ln, i) {
+        if (!/Math\.(floor|round)\(\s*\(?[A-Za-z0-9_]+\.durationMin/.test(ln)) return;
+        var ctx = lines.slice(Math.max(0, i - 3), i + 1).join(' ');
+        var guarded = /durationMin\s*(!=|!==|==|===)\s*null/.test(ctx) || /durationMin\s*\?/.test(ctx) || /if\s*\(\s*[A-Za-z0-9_]+\.durationMin\s*\)/.test(ctx);
+        if (!guarded) durs.push(i + 1 + ': ' + ln.trim().slice(0, 72));
+      });
+      T.eq('no duration is derived from a possibly-absent durationMin', durs, []);
+
+      /* 3 · A RATE whose numerator filters on a nullable container while the denominator is the raw
+         night count — every unscored night then counts as "not poor" and dilutes the rate. */
+      T.ok('the poor-night rate divides by the SCORED nights, not the night count', /poorNights \/ scoredNights\.length/.test(R) && !/poorNights \/ nights\.length/.test(R));
+      T.ok('…and its sub-label names that population', /scored/.test(R));
+
+      /* 4 · THE COERCIONS THESE GUARDS EXIST FOR, asserted as arithmetic rather than described. If
+         JS ever stopped coercing this way, the scans above would be guarding nothing. */
+      T.eq('…because `0 + null` is 0 — the absent night leaves the SUM but not the COUNT', 0 + null, 0);
+      T.eq('…and `Math.floor(null / 60)` is 0 — an unrecorded night reads as zero-length', Math.floor(null / 60), 0);
+      T.eq('…while a 7-night window of 97 with ONE absent night averaged 83.1, not 97', +((97 * 6) / 7).toFixed(1), 83.1);
     });
 
     group('OxyDex parseJSONL round-trips every field, and tells ABSENT from ZERO', 'oxydex-dsp · parse · known-answer · mutation-pinned', function (T) {
@@ -25691,8 +27027,16 @@
       var mn = one(MIN);
       T.ok('a stats-only record still parses', !!mn, mn ? 'ok' : 'nothing returned');
       T.eq('…every optional block is null, not an empty object', mn && mn.hrv, null);
-      T.eq('…odi4 falls back to a zero rate rather than undefined', mn && mn.odi4 && mn.odi4.rate, 0);
-      T.eq('…odi3 falls back to a zero count', mn && mn.odi3 && mn.odi3.count, 0);
+      /* §∅ — THIS PAIR USED TO ASSERT THE DEFECT, one line under the assertion that refutes it.
+         `…every optional block is null` directly above is the correct contract, and the comment
+         heading this section states it outright: each block is `obj.X ? { … } : null`, so PRESENT
+         and ABSENT are two different code paths. `odi4`/`odi3` alone were synthesised as
+         `{ rate: 0, count: 0 }`, which is not a third path — it is the ABSENT path wearing the
+         PRESENT one's shape. Every consumer guards with `if (n.odi4)`, so the synthetic block made
+         all of them true and a night carrying no ODI-4 rendered "0/hr", graded **good**. The old
+         expectation was the bug, in a group named "tells ABSENT from ZERO". */
+      T.eq('…odi4 is NULL when absent — a synthesised zero rate reads as a good night', mn && mn.odi4, null);
+      T.eq('…odi3 is NULL when absent, for the same reason', mn && mn.odi3, null);
       T.eq('…and the stats block still round-trips in full', mn && mn.stats.meanSpo2, 94.3);
       T.eq('…minHr too', mn && mn.stats.minHr, 44);
       T.eq('…and t0Ms still comes from stats.startTs', mn && mn.t0Ms, 1780356420000);
@@ -30862,9 +32206,26 @@
             stale.forEach(function (s) {
               bad.push(m[1] + ' → ' + s + ' (retired id scheme — keys are date-slugs since 2026-09-02)');
             });
-            var refs = body.match(/\b\d{4}-\d{2}-\d{2}-[a-z0-9][a-z0-9-]*\b/g) || [];
+            /* ⚠️ A ROW KEY AND A CHANGESET FILENAME ARE THE SAME SHAPE BY CONSTRUCTION — both are
+               date-plus-slug, which §📌 mandates for both, for the same anti-collision reason. So a
+               row that cites its changeset by name was reported as pointing at a row that does not
+               exist (row 2026-09-23-check8h-reads-a-changeset-filename-as-a-row-key), and the message
+               named the CHANGESET, which is what cost the time: it reads as "your pointer is broken"
+               when the truth is "your row quotes a file".
+               And it is not merely noisy — `changes/` is PRUNED at every release (§📦), so a citation
+               that resolves today is guaranteed to dangle after the next one. There is no state in
+               which flagging it is right.
+               The discriminator is structural, not a heuristic, and matches the `R\d+\b(?!-)` fix
+               above: a ROW reference appears bare, a FILE citation carries `changes/` or `.md`. */
+            var refs = [];
+            var REF_RE = /(changes\/)?\b(\d{4}-\d{2}-\d{2}-[a-z0-9][a-z0-9-]*)\b(\.md)?/g;
+            var mm;
+            while ((mm = REF_RE.exec(body)) !== null) {
+              if (mm[1] || mm[3]) continue; // a changeset FILE citation, not a row→row reference
+              refs.push(mm[2]);
+            }
             refs.forEach(function (k) {
-              if (!ids[k] && !RR.seen[k]) bad.push(m[1] + ' → ' + k + ' (no such row)');
+              if (!ids[k] && !RR.seen[k]) bad.push(m[1] + ' → ' + k + ' (no such row — seen BARE, i.e. as a row key; a changeset is cited as `changes/<key>.md`)');
             });
           });
         return bad;
@@ -30889,8 +32250,16 @@
           var b = rowRefs(two).length === 1 && rowRefs(two)[0].indexOf('no such row') > 0;
           var c = rowRefs(prose).length === 0;
           var d = rowRefs('| 2026-09-02-a | 2026-09-02 | `X-BRIEF.md` | see 2026-09-02-a | e | OPEN |').length === 0;
+          /* A CHANGESET CITED BY NAME IS NOT A ROW REFERENCE. Both the `changes/` path form and the
+             bare `.md` suffix must pass, and the same slug WITHOUT either must still fire — otherwise
+             the exclusion would have been a blanket silencing of check8h rather than a narrowing. */
+          var chPath = rowRefs('| 2026-09-02-a | 2026-09-02 | `X-BRIEF.md` | see changes/2026-09-02-nope.md | e | OPEN |').length === 0;
+          var chSuffix = rowRefs('| 2026-09-02-a | 2026-09-02 | `X-BRIEF.md` | see 2026-09-02-nope.md | e | OPEN |').length === 0;
+          var stillFires = rowRefs('| 2026-09-02-a | 2026-09-02 | `X-BRIEF.md` | see changes/2026-09-02-nope.md and bare 2026-09-02-alsonope | e | OPEN |');
+          var mixed = stillFires.length === 1 && stillFires[0].indexOf('2026-09-02-alsonope') > 0;
+          var saysBare = stillFires.length === 1 && stillFires[0].indexOf('seen BARE') > 0;
           RR.rows = saveRows;
-          return a && b && c && d;
+          return a && b && c && d && chPath && chSuffix && mixed && saysBare;
         })()
       );
       var plantOk = residueRows('| 2026-09-02-k9 | 2026-09-02 | `' + names[0] + '` | a defect | line 1 | OPEN |');
@@ -31017,6 +32386,94 @@
       );
       T.ok('F1 · STATUS_RE accepts PROPOSED (deferred \u2026) — the in-vocab way to park a brief', STATUS_RE.test('**Status:** PROPOSED (consciously deferred 2026-06-24 \u2014 optional polish)'));
       T.ok('F1 · STATUS_RE REJECTS a bare **Status:** DEFERRED header (not first-class — decision a)', !STATUS_RE.test('**Status:** DEFERRED \u2014 2026-06-24'));
+      /* ══ check9 · THE REPO ROOT HOLDS EXACTLY THE DOCUMENTED CLASSES ═════════════════════════
+         CLAUDE.md §📁 states what the root may contain — base/entry docs, standard OSS files, and
+         runtime/build files — in PROSE, with nothing deriving it from the tree. Measured 2026-09-22:
+         `#2854` landed a **0-byte file named `Data`** at the repo root and it sat on main unnoticed.
+         The tell was `A Data` beside `M "Data Unifier.html"`: an unquoted path with a space reaching
+         a redirect or `git add`, the same hazard `docs/CORPUS-LOCATIONS.md` warns about for
+         `Ecg nightly`.
+
+         ⚠️ AN EQUALITY, NOT A FLOOR AND NOT A DENYLIST. "at least N expected files" and "no file
+         matching <bad pattern>" both fail OPEN on the next stray — and a 0-byte `Data` matches no bad
+         pattern anyone would write. So every root file must fall in a NAMED class or a runtime
+         EXTENSION class, the classes are exhaustive, and `classified + unclassified = total` is
+         published. Adding a root doc means moving the list, deliberately; adding `foo-dsp.js` does
+         not, because a rule that convicts working practice is the wrong rule.
+
+         Node-lane only: `rootFiles` is git's tracked list (see docs-ledger-fs.mjs on why tracked and
+         not `readdir`). Absent ⇒ SKIP, never a green over an unexamined root. */
+      var ROOT_NAMED_DOCS = [
+        'AGENTS.md',
+        'ARCHITECTURE-PRINCIPLES.md',
+        'AUDIT-PROMPT.md',
+        'CHANGELOG.md',
+        'CLAUDE.md',
+        'CONTRIBUTING.md',
+        'DOCS-INDEX.md',
+        'ORIENTATION.md',
+        'README.md',
+        'THIRD-PARTY.md'
+      ];
+      var ROOT_NAMED_OSS = ['CITATION.cff', 'LICENSE', 'NOTICE'];
+      var ROOT_NAMED_CONFIG = ['.c8rc.json', '.gitattributes', '.gitignore', '.kodiak.toml', '.secrets-exclude', '.secrets.baseline', '.zenodo.json'];
+      var ROOT_RUNTIME_EXT = ['css', 'html', 'js', 'json', 'jsx', 'ts'];
+      function rootClassOf(name) {
+        if (ROOT_NAMED_DOCS.indexOf(name) >= 0) return 'doc';
+        if (ROOT_NAMED_OSS.indexOf(name) >= 0) return 'oss';
+        if (ROOT_NAMED_CONFIG.indexOf(name) >= 0) return 'config';
+        /* A dotfile that is not NAMED is unclassified on purpose: `.env` at root is exactly the shape
+           nobody means to commit, and an extension rule would wave it through. */
+        if (name.charAt(0) === '.') return null;
+        var dot = name.lastIndexOf('.');
+        if (dot <= 0) return null; // extensionless and unnamed — the `Data` shape
+        return ROOT_RUNTIME_EXT.indexOf(name.slice(dot + 1)) >= 0 ? 'runtime' : null;
+      }
+      function rootSetVerdict(names) {
+        var byClass = { doc: 0, oss: 0, config: 0, runtime: 0 };
+        var unclassified = [];
+        names.forEach(function (n) {
+          var c = rootClassOf(n);
+          if (c) byClass[c]++;
+          else unclassified.push(n);
+        });
+        var classified = byClass.doc + byClass.oss + byClass.config + byClass.runtime;
+        return { total: names.length, classified: classified, unclassified: unclassified, byClass: byClass };
+      }
+      /* PLANTS FIRST, and the plant is the ACTUAL defect: an extensionless zero-byte `Data`, not a
+         tidy `stray.txt`. Both numbers, so the check is shown to fire AND to pass on the same set. */
+      var cleanRoot = ['CLAUDE.md', 'LICENSE', 'NOTICE', '.gitignore', 'oxydex-dsp.js', 'OxyDex.html', 'OxyDex.src.html', 'dex-globals.d.ts', 'package.json'];
+      var withStray = cleanRoot.concat(['Data']);
+      var vClean = rootSetVerdict(cleanRoot);
+      var vStray = rootSetVerdict(withStray);
+      T.ok(
+        'self-test · check9 PASSES a root of only documented classes (' + vClean.classified + '/' + vClean.total + ')',
+        vClean.unclassified.length === 0 && vClean.classified === vClean.total,
+        JSON.stringify(vClean.unclassified)
+      );
+      T.ok(
+        'self-test · check9 FIRES on the MEASURED defect — an extensionless `Data` (' + vStray.classified + '/' + vStray.total + ')',
+        vStray.unclassified.length === 1 && vStray.unclassified[0] === 'Data',
+        JSON.stringify(vStray.unclassified)
+      );
+      T.ok(
+        'self-test · check9 does NOT convict a new runtime file, and DOES fire on a stray doc or dotfile',
+        rootClassOf('newnode-dsp.js') === 'runtime' && rootClassOf('OxyDex Reference.html') === 'runtime' && rootClassOf('NOTES.md') === null && rootClassOf('.env') === null,
+        [rootClassOf('newnode-dsp.js'), rootClassOf('NOTES.md'), rootClassOf('.env')].join('/')
+      );
+      T.ok('self-test · check9 publishes an EQUALITY, so a class going missing moves the numbers', vStray.classified + vStray.unclassified.length === vStray.total);
+      if (!DL.rootFiles) {
+        T.skip('check9 · the repo root holds exactly the documented classes', 'no rootFiles wired (browser lane, or git unreadable)');
+      } else {
+        var rootV = rootSetVerdict(DL.rootFiles);
+        T.ok(
+          'check9 · the repo root holds exactly the documented classes (' + rootV.classified + ' classified + ' + rootV.unclassified.length + ' unclassified = ' + rootV.total + ')',
+          rootV.unclassified.length === 0,
+          rootV.unclassified.length
+            ? 'UNCLASSIFIED at root: ' + rootV.unclassified.join(', ') + ' — a root file must be a named doc/OSS/config entry or a runtime ' + ROOT_RUNTIME_EXT.join('/') + ' file (CLAUDE.md §📁)'
+            : 'ok'
+        );
+      }
     });
 
     /* ════ RELEASE-LEDGER — controlled releases, machine-checked (CONTROLLED-RELEASES-2026-07-05) ════
@@ -33886,6 +35343,117 @@
         var pend = { deviceRR: rrA, deviceHR: null, deviceACC: null, accFs: null };
         plan(pend, { t0Ms: 5000 });
         T.eq('§10.4 · the pending object passed in is not mutated (the caller owns its state)', pend.deviceRR, rrA);
+      }
+    });
+
+    group('GlucoDex GVP — ∅ a path length is not drawn across time the sensor never saw', 'glucodex-dsp · absence', function (T) {
+      var G = env.GLUDSP || env.GlucoDex;
+      if (!G || typeof G.analyze !== 'function' || typeof G.parseCSV !== 'function') {
+        T.skip('GLUDSP.analyze + parseCSV exposed', 'GlucoDex not co-loaded in this runner');
+        return;
+      }
+      // 8 h of 5-min CGM, a hole, then 8 h more of the SAME waveform at a possibly different level.
+      var build = function (shiftMgDl, gapHours) {
+        var rows = ['Timestamp,Glucose Value (mg/dL)'];
+        var t = Date.UTC(2026, 5, 10, 22, 0, 0);
+        var push = function (v) {
+          rows.push(new Date(t).toISOString().slice(0, 19).replace('T', ' ') + ',' + v);
+          t += 5 * 60000;
+        };
+        for (var i = 0; i < 96; i++) push(100 + 5 * Math.sin(i / 6));
+        t += gapHours * 60 * 60000;
+        for (var j = 0; j < 96; j++) push(100 + shiftMgDl + 5 * Math.sin(j / 6));
+        return rows.join('\n');
+      };
+      var run = function (shiftMgDl, gapHours) {
+        return G.analyze(G.parseCSV(build(shiftMgDl, gapHours)));
+      };
+
+      /* GVP is a PATH LENGTH. A step whose EARLIER endpoint is WARMUP / COMPRESSION / GAP_LONG is a
+         straight line drawn through hours the sensor never saw, and counting it inflates the metric
+         by however much the glucose moved across that hole. Its three siblings that difference
+         against an earlier cell — conga, modd, magRate — all guard BOTH endpoints; gvp did not.
+
+         THE INVARIANT: the two real segments carry the SAME waveform, so the variability of what was
+         actually observed cannot depend on a level change hidden inside the gap. */
+      var flat = run(0, 2);
+      var shifted = run(150, 2);
+      T.eq('a 150 mg/dL level shift HIDDEN INSIDE the gap does not change observed variability', shifted.gvp, flat.gvp);
+      // Pre-stated from a probe on this exact geometry: unguarded, the drawn line reported 1.0 for a
+      // trace whose honest GVP is 0.7 — a 43 % overstatement that grows with the jump across the hole.
+      var honestGvp = 0.7;
+      T.eq('\u2026and that observed variability is the honest 0.7, not the 1.0 the drawn line reported', shifted.gvp, honestGvp);
+
+      // The basis is published, so a reader can see how much of the record the number rests on.
+      T.eq('the compared steps and the steps it COULD have compared are both published', JSON.stringify({ p: flat.gvpPairs, c: flat.gvpComparable }), JSON.stringify({ p: 190, c: 215 }));
+      var longer = run(150, 6);
+      T.eq('a LONGER hole leaves the compared count unchanged and grows the denominator', JSON.stringify({ p: longer.gvpPairs, c: longer.gvpComparable }), JSON.stringify({ p: 190, c: 263 }));
+      T.ok('\u2026so coverage FALLS as the hole grows — the number a bare GVP cannot express', longer.gvpPairs / longer.gvpComparable < flat.gvpPairs / flat.gvpComparable, 'coverage did not fall');
+
+      /* SHAPE, not the line I edited: every loop differencing against an EARLIER cell must guard
+         BOTH endpoints. This is the assertion that catches the next one — gvp was the odd one out
+         of four, and nothing in the suite noticed. */
+      var src = (env.sources || {})['glucodex-dsp.js'];
+      if (!src) {
+        T.skip('glucodex-dsp.js source', 'sources not provided in this runner');
+      } else {
+        var diffs = src.match(/c\.gV\[i\]\s*-\s*c\.gV\[i\s*-\s*(?:1|lag)\]/g) || [];
+        T.ok('the four pairwise-difference sites are all still present', diffs.length === 4, 'found ' + diffs.length + ' — update this gate if a site was added or removed');
+        var unguarded = [];
+        var lines = src.split('\n');
+        for (var li = 0; li < lines.length; li++) {
+          if (!/c\.gV\[i\]\s*-\s*c\.gV\[i\s*-\s*(?:1|lag)\]/.test(lines[li])) continue;
+          var window_ = lines.slice(Math.max(0, li - 4), li).join(' ');
+          if (!/!_ana\(c,\s*i\)\s*\|\|\s*!_ana\(c,\s*i\s*-\s*(?:1|lag)\)/.test(window_)) unguarded.push(li + 1);
+        }
+        T.eq('every difference against an earlier cell guards BOTH endpoints', JSON.stringify(unguarded), '[]');
+      }
+
+      /* A DENOMINATOR NOBODY CAN READ IS DECORATION. The first version of this fix computed the
+         pair counts and stopped there - they reached neither the node-export nor the KPI the survey
+         row actually named, so no consumer could tell a fully-observed night from one mostly
+         reconstructed across gaps. These assertions are what keep it wired. */
+      var dspSrc = ((env.sources || {})['glucodex-dsp.js'] || '')
+        .split('\n')
+        .filter(function (ln) {
+          var t = ln.trim();
+          return t.indexOf('//') !== 0 && t.indexOf('*') !== 0 && t.indexOf('/*') !== 0;
+        })
+        .join('\n');
+      if (!dspSrc.trim()) {
+        T.skip('glucodex-dsp.js export source', 'sources not provided in this runner');
+      } else {
+        T.ok('the node-export carries the basis beside the value', /gvpPairs:/.test(dspSrc) && /gvpComparable:/.test(dspSrc), 'export does not carry the pair counts');
+      }
+
+      /* ∅ THE SAME SHAPE ONE LAYER UP — `glucodex-app.js` fed an ABSENT MAGE into the glycemic
+         variability score as a mid-range 50. Source-mirrored because the app layer is not callable
+         in the node runner (the pattern §✅ uses for node-local code), and asserted as three
+         separate facts so a partial edit cannot green it. This score is not cosmetic: it reaches
+         the export as `glycemicVariabilityScore`, the IR risk band, and a ganglior event's conf. */
+      /* ⚠ SCAN THE CODE, NOT THE PROSE. The first draft of this gate failed against its own fix,
+         because the ∅ comment explaining the defect QUOTES `r.mage || 50` verbatim — a source scan
+         that counts comment text reports the defect it just documented. Every assertion below reads
+         a comment-stripped copy. */
+      var app = ((env.sources || {})['glucodex-app.js'] || '')
+        .split('\n')
+        .filter(function (ln) {
+          var t = ln.trim();
+          return t.indexOf('//') !== 0 && t.indexOf('*') !== 0 && t.indexOf('/*') !== 0;
+        })
+        .join('\n');
+      if (!app.trim()) {
+        T.skip('glucodex-app.js source', 'sources not provided in this runner');
+      } else {
+        T.ok('the fabricating default is gone — `r.mage || 50` fed an UNCOMPUTED MAGE in as 50\u2026', app.indexOf('r.mage || 50') === -1, 'still present');
+        T.ok('\u2026and it also mapped a REAL MAGE of 0 (a flat trace, round(sd,0)) to 50, inverting it', /r\.mage\s*!=\s*null\s*\?/.test(app), 'no explicit null test on r.mage');
+        T.ok('an absent MAGE DROPS its term and renormalises over the remaining 0.65', /\/\s*0\.65/.test(app) && /mageR\s*!=\s*null/.test(app), 'no renormalised branch');
+        T.ok('the GVP KPI annotates its coverage', /gvpPairs \+ '\/' \+ r\.gvpComparable/.test(app), 'KPI sub does not show the basis');
+        T.ok(
+          '\u2026while a PRESENT MAGE keeps the original 0.45/0.35/0.2 weights, so nothing else moved',
+          /0\.45\s*\*\s*cvR\s*\+\s*0\.35\s*\*\s*mageR\s*\+\s*0\.2\s*\*\s*dawnR/.test(app),
+          'the present-MAGE arithmetic changed'
+        );
       }
     });
 
@@ -37942,6 +39510,51 @@
       var vhr = E.validateHR(hrSeries, devHR, 0);
       T.ok('a 2-minute ECG-vs-device comparison returns a report, not null', vhr !== null, 'null');
       T.eq('…covering all 120 seconds at MAE 1 bpm', JSON.stringify({ n: vhr.n, mae: vhr.mae }), '{"n":120,"mae":1}');
+      T.eq(
+        '…and that full-coverage control publishes coverage 1 — the denominator is the seconds it COULD have compared',
+        JSON.stringify({ c: vhr.coverage, dm: vhr.devMeasuredSec, cs: vhr.comparableSec }),
+        '{"c":1,"dm":120,"cs":120}'
+      );
+
+      // ── 8b · ∅ A HELD SECOND IS NOT A COMPARED SECOND. The device series used to be
+      //      forward-filled before the comparison, and the CVHR grid it is measured against holds
+      //      forward too — so a stretch where NEITHER sensor measured anything scored as agreement
+      //      and pulled the mean-absolute error DOWN. A validation that flatters itself is worse
+      //      than no validation. Built so smoothing cannot blur the boundary: the device stops at
+      //      290 s, the grid freezes at 300 s, so the width-9 rolling median (±4 s) never spans both.
+      var ecgFreezeSec = 300,
+        devStopSec = 290,
+        recSec = 600,
+        ecgBpm = 62,
+        devBpm = 72,
+        frozenBpm = 70;
+      var heldSeries = [];
+      for (var hs = 0; hs < recSec; hs++) heldSeries.push(hs < ecgFreezeSec ? ecgBpm : frozenBpm);
+      var heldDev = [];
+      for (var hd = 0; hd < devStopSec; hd++) heldDev.push({ tsMs: hd * 1000, hr: devBpm });
+      var vHeld = E.validateHR(heldSeries, heldDev, 0);
+      // lead-in exclusion drops the first 60 s on a record this long; the device's last reading can
+      // still reach 293 s through the ±4 s median window, so 60…293 inclusive is 234 real pairs.
+      var leadSec = 60,
+        lastPairedSec = 293;
+      var expPairs = lastPairedSec - leadSec + 1;
+      var expComparable = recSec - leadSec;
+      T.eq(
+        'a device that stops at 290 s contributes NO pairs from the silent stretch',
+        JSON.stringify({ n: vHeld.n, cs: vHeld.comparableSec, dm: vHeld.devMeasuredSec }),
+        JSON.stringify({ n: expPairs, cs: expComparable, dm: devStopSec })
+      );
+      T.eq('…so coverage reports the 234-of-540 basis instead of implying a full night', vHeld.coverage, +(expPairs / expComparable).toFixed(3));
+      // PRE-STATED: every surviving pair sits in the covered stretch, where the two series differ by
+      // exactly devBpm-ecgBpm. Holding would have added 300 fabricated pairs at |frozen-held| = 2,
+      // diluting a true 10.0 bpm error to 5.6 — a 44 % understatement, in the flattering direction.
+      var trueErr = devBpm - ecgBpm;
+      var fabricatedPairs = recSec - ecgFreezeSec;
+      var fabricatedErr = Math.abs(devBpm - frozenBpm);
+      var dilutedPairs = expComparable;
+      var diluted = +(((expComparable - fabricatedPairs) * trueErr + fabricatedPairs * fabricatedErr) / dilutedPairs).toFixed(1);
+      T.eq('…and MAE is the error over what was MEASURED, not the diluted blend', JSON.stringify({ mae: vHeld.mae, wouldHaveBeen: diluted }), JSON.stringify({ mae: trueErr, wouldHaveBeen: 5.6 }));
+      T.ok('the plant is not vacuous — holding would have changed the reported answer', diluted < trueErr, diluted + ' vs ' + trueErr);
 
       // ── 9 · parseDeviceRR rides the Clock Contract — an unparseable stamp is tsMs NULL on that
       //      row (never a throw, never a fabricated time), a real stamp is the floating tMs.
@@ -48311,6 +49924,66 @@
       );
     });
 
+    group('PAT — a refusal says what it measured, and the ECG leg drops artifact exactly as ECGDex does', 'pat · sharedclock · artifact · regression', function (T) {
+      var G = env.PATGate;
+      if (!G || !G.sharedClock) {
+        T.skip('PATGate not in env', 'wire pat-gate.js into both runners');
+        return;
+      }
+      /* ANTI-VACUITY: a missing export FAILS here — gating the skip on the new functions would make this
+         group skip, not fail, on exactly the code it exists to catch. */
+      /* 2026-09-22, the counts the owner saw: 34 871 raw R-peaks against 18 646 PPG feet over 448 min,
+         files 41.1 s apart. The lag was computed (100 % coupled, 493 ms) and the page said only
+         "NOT SIMULTANEOUS" with `why: null`. */
+      var ecg = { t0Ms: 41100, durSec: 26868, n: 34871 },
+        ppg = { t0Ms: 0, durSec: 26880, n: 18646 };
+      var sc = G.sharedClock(ecg, ppg, { min: 447 });
+      var vd = G.verdict({ min: 447 }, { ok: true }, sc);
+      T.eq('the 09-22 counts are refused as NOT SIMULTANEOUS', vd.label, 'NOT SIMULTANEOUS');
+      T.ok('…and the refusal now CARRIES what it measured (was why: null)', vd.why && vd.why.rateRatio > 0.46 && vd.why.rateRatio < 0.47, JSON.stringify(vd.why));
+      T.ok(
+        '…naming both rates, the gap and the tolerance in its reason',
+        vd.why.reason.indexOf('ECG 77.9/min vs PPG 41.6/min, ' + (vd.why.rateRatio * 100).toFixed(1) + ' % apart against a 12 % tolerance') >= 0,
+        vd.why.reason
+      );
+      var short = G.verdict({ min: 2 }, { ok: true }, G.sharedClock(ecg, ppg, { min: 2 }));
+      T.ok('a too-short overlap names the floor, not a rate', /2\.0 min, below the 5-min floor/.test(short.why.reason), short.why.reason);
+
+      /* The artifact rule is ECGDex analyze()'s, keyed the same way: absolute second
+         floor((t0Ms + idx/fs·1000)/1000), kept iff c >= 0.5. One peak a second for 100 s at 130 Hz,
+         t0Ms 5000 so the key is offset — a helper that ignored t0Ms would drop the wrong ten. */
+      T.ok('PATGate exports dropArtifactPeaks', typeof G.dropArtifactPeaks === 'function');
+      if (typeof G.dropArtifactPeaks !== 'function') return;
+      var fs = 130,
+        t0 = 5000,
+        peaks = [];
+      for (var k = 0; k < 100; k++) peaks.push(k * fs);
+      var conf = new Map();
+      for (var s = 55; s < 65; s++) conf.set(s, 0.49); // recording seconds 50–59 → absolute 55–64
+      conf.set(65, 0.5); // recording second 60: exactly the threshold — ECGDex KEEPS it
+      var g = G.dropArtifactPeaks(peaks, conf, fs, t0);
+      T.eq('ten artifact seconds drop ten peaks', g.nDropped, 10);
+      T.eq('…counted as ten artifact seconds', g.artifactSec, 10);
+      T.ok(
+        '…the RIGHT ten: recording seconds 50–59, with 60 (c = 0.5) kept',
+        g.kept.indexOf(49 * fs) >= 0 && g.kept.indexOf(50 * fs) < 0 && g.kept.indexOf(59 * fs) < 0 && g.kept.indexOf(60 * fs) >= 0
+      );
+      T.eq('the threshold is the one ECGDex analyze() uses', G.ARTIFACT_CONF_MIN, 0.5);
+      T.ok('…and nRaw reports what the detector found before the gate', g.nRaw === 100 && g.kept.length === 90 && g.applied === true);
+      /* …and the rate is taken over the time the leg MEASURED. The real 09-22 legs after the gate:
+         18 663 kept R over a 448-min file with 6 148 artifact seconds dropped, against 18 646 feet over the
+         Verity's 345 min. Over the whole ECG file that reads 41.7 vs 54.0/min and is refused; over the time
+         it measured it is 53.9 vs 54.0 and is one heart. */
+      var ecgG = { t0Ms: 41100, durSec: 26868, n: 18663, artifactSec: 6148 },
+        ppgV = { t0Ms: 0, durSec: 20715, n: 18646 };
+      var scG = G.sharedClock(ecgG, ppgV, { min: 345 });
+      T.ok('the gated 09-22 ECG leg is simultaneous with its PPG', scG.ok === true, 'ecg ' + (scG.ecgHz * 60).toFixed(1) + '/min vs ppg ' + (scG.ppgHz * 60).toFixed(1) + '/min');
+      var scW = G.sharedClock({ t0Ms: 41100, durSec: 26868, n: 18663 }, ppgV, { min: 345 });
+      T.ok('ANTI-VACUITY · the same beats over the WHOLE file (dropped seconds counted) are refused', scW.ok === false && scW.rateRatio > 0.2, 'rateRatio=' + scW.rateRatio.toFixed(3));
+      var none = G.dropArtifactPeaks(peaks, null, fs, t0);
+      T.ok('no confidence map ⇒ nothing dropped, and it SAYS the gate was not applied', none.kept.length === 100 && none.nDropped === 0 && none.applied === false);
+    });
+
     /* ── THE HALF-AMPLITUDE FIDUCIAL (EXTERNAL-METHODS-SURVEY §1) ──────────────────────────────
        Gated here rather than left to the tool's own `--selftest` because that selftest was GREEN
        while the function refused 15295 of 15295 real beats: it planted INTEGER foot indices, and
@@ -49369,6 +51042,146 @@
      and loads headless — so this is a test-only wiring, NO re-bundle (the OxyDex sibling DOES owe one: its
      exports are blocked by a top-level DOM-touching initProfile()). Pins the ACSM/NHANES VO₂-category
      classifier (calcVo2Cat) + the age-band cut points (getAgeBand). Values observed from the real module. */
+    /* ── §∅ · AN UNSET VO₂ IS NOT A LOW ONE ─────────────────────────────────────────────────────
+       `p.vo2gt` is 0 when no ground truth was entered and none was detected. That 0 is a documented
+       PROTOCOL value from `detOr0` ("else 0 ⇒ node auto"), NOT a measurement, and it is deliberately
+       left alone. What was wrong is the display layer that ranked it: `vo2Percentile` had no unset
+       branch, so 0 fell below the first Cooper point, the interpolation loop never matched, and the
+       tail `: 1` published the 1st percentile — the worst possible fitness ranking, from no data.
+       ⚠️ LIMIT, STATED: `vo2Percentile` is nested inside the DOM-touching `updateProfile`, so it is
+       not reachable headless and is asserted against the SOURCE. Hoisting it is a refactor larger
+       than the fix. The leaked sibling `calcVo2Cat` is exercised directly and shows the class. */
+    /* ── §∅ · NO PLAUSIBLE HR READING IS NOT A RESTING HR OF 60 ────────────────────────────────
+       `hrs` is already filtered to 30 < v < 120, so an empty list means the dataset carries no usable
+       heart rate at all. The fallback invented 60, which a banner headed "Auto-detected from your
+       data" displayed as detected — and, worse, `restingHR` is the DENOMINATOR of the Uth-Sørensen
+       VO₂ estimate, and both were handed to `prefillFrom`, which PERSISTS into the shared detected
+       tier that every node resolves against. A fabricated 60 became a stored profile fact. */
+    /* ── §∅ · ABSENCE MADE A VALIDITY CHECK MORE PERMISSIVE ────────────────────────────────────
+       `_hr` is `numOrNull` in the DSP, and `updateProfile`'s resting-HR mean summed `s + r._hr` over
+       EVERY row while dividing by `allRows.length` — so a row without a heart rate contributed 0 to
+       the numerator and 1 to the denominator. The mean sank, and `hrmax_manual > _hrRest0 + 45`
+       became easier to clear, so an implausible manual HRmax was accepted and rendered WITHOUT its
+       "⚠ entry low" warning. Absence loosening a guard is the quiet direction. */
+    group('HRVDex §∅ — an absent HR must not loosen the HRmax plausibility guard', 'hrvdex-profile · guard · absence', function (T) {
+      var R = String((env.sources || {})['hrvdex-profile.js'] || '');
+      if (!R) {
+        T.skip('hrvdex-profile.js in env.sources', 'not wired in this lane');
+        return;
+      }
+      T.ok('ANTI-VACUITY · the profile source loaded', R.length > 5000, R.length + ' chars');
+
+      /* THE FLIP, as arithmetic on a case that could occur: four rows at a resting 100 bpm and four
+         carrying no HR, against a manual HRmax of 140 — exactly the implausible entry the guard is
+         for (140 is below the Tanaka HRmax of anyone under ~97). */
+      var hr = [100, 100, 100, 100, null, null, null, null];
+      var manual = 140;
+      var oldMean = Math.round(
+        hr.reduce(function (a, v) {
+          return a + v;
+        }, 0) / hr.length
+      );
+      var measured = hr.filter(function (v) {
+        return Number.isFinite(v);
+      });
+      var newMean = Math.round(
+        measured.reduce(function (a, v) {
+          return a + v;
+        }, 0) / measured.length
+      );
+      T.eq('the old mean coerced four nulls to 0 and divided by EIGHT', oldMean, 50);
+      T.eq('…while the measured rows average 100', newMean, 100);
+      T.eq('…so the old guard ACCEPTED an implausible 140 (threshold 95)', manual > oldMean + 45, true);
+      T.eq('…and the corrected guard REJECTS it (threshold 145), showing the ⚠ entry-low hint', manual > newMean + 45, false);
+
+      /* THE FIX, against the source — `updateProfile` is DOM-touching and not reachable headless. */
+      T.ok('the mean is taken over the rows that carry a reading', /_hrRestVals\.length \? Math\.round\(_hrRestVals\.reduce/.test(R));
+      T.ok('…and the relative test is SKIPPED when there is no basis, not run against a default', /_hrRest0 == null \|\| p\.hrmax_manual > _hrRest0 \+ 45/.test(R));
+      T.ok('no whole-array mean over `allRows.length` survives', !/allRows\.reduce\(\(s, r\) => s \+ r\._hr, 0\) \/ allRows\.length/.test(R));
+      T.ok('the absolute conditions still apply', /p\.hrmax_manual > 0 && p\.hrmax_manual >= 140/.test(R));
+    });
+
+    group('HRVDex §∅ — an undetected resting HR is not 60', 'hrvdex-profile · inference · absence', function (T) {
+      var R = String((env.sources || {})['hrvdex-profile.js'] || '');
+      if (!R) {
+        T.skip('hrvdex-profile.js in env.sources', 'not wired in this lane');
+        return;
+      }
+      T.ok('ANTI-VACUITY · the profile source loaded', R.length > 5000, R.length + ' chars');
+
+      /* THE GUARD THE FIX RELIES ON, asserted behaviourally rather than assumed: `prefillFrom` must
+         skip an absent value instead of persisting it. If this ever regressed, refusing upstream
+         would write `null` into the shared detected tier rather than leaving it alone. */
+      var DP = env.DexProfile;
+      if (DP && typeof DP.prefillFrom === 'function') {
+        var seeded = null,
+          afterNull = null,
+          failed = null;
+        try {
+          /* Seed a REAL value first, then offer null: the question is whether an absent reading can
+             overwrite or erase a measured one, and that cannot be asked of an empty store. */
+          seeded = DP.prefillFrom({ hrRest: 52 }).hrRest;
+          afterNull = DP.prefillFrom({ hrRest: null, vo2: null }).hrRest;
+        } catch (e) {
+          failed = e.message;
+        }
+        if (failed) {
+          T.skip('prefillFrom exercised', 'no storage in this lane — ' + String(failed).slice(0, 40));
+        } else {
+          T.eq('ANTI-VACUITY · a real reading IS persisted', seeded, 52);
+          T.eq('…and offering null leaves it untouched rather than overwriting it', afterNull, 52);
+        }
+      }
+
+      /* THE PRODUCER, against the source — `inferFromData` is DOM-touching (it reads module-scope
+         `allRows` and writes a banner element), so it is not reachable headless. The limit is stated
+         rather than worked around. */
+      T.ok('the median refuses when no reading is plausible', /hrs\.length \? hrs\[Math\.floor\(hrs\.length \/ 2\)\] : null/.test(R));
+      T.ok('no `: 60` fallback survives on that line', !/hrs\.length \? hrs\[Math\.floor\(hrs\.length \/ 2\)\] : 60/.test(R));
+      T.ok('the VO₂ estimate refuses without a denominator', /_hrRestV > 0 \? Math\.round\(15\.3/.test(R));
+      T.ok('the HRmax guard will not compare against an absent resting HR', /_hrRestV != null && _pp\.hrmax_manual > _hrRestV \+ 45/.test(R));
+      T.ok('the banner says "not detected" rather than printing a number', /restingHR != null \? restingHR \+ ' bpm' : 'not detected'/.test(R));
+
+      /* THE COERCIONS THE GUARDS EXIST FOR, as arithmetic. */
+      var absent = null;
+      T.eq('`null + 45` is 45 — an absent resting HR would wave through any HRmax above it', absent + 45, 45);
+      T.eq('…and dividing by it is Infinity, not a large VO₂', 190 / absent, Infinity);
+      T.eq('…while Math.round(Infinity) stays Infinity — it never becomes a number', Math.round(Infinity), Infinity);
+    });
+
+    group('HRVDex §∅ — an unset VO₂ is refused, not ranked', 'hrvdex-profile · vo2 · in-band-sentinel', function (T) {
+      var R = String((env.sources || {})['hrvdex-profile.js'] || '');
+      var vo2Cat = env.HrvCalcVo2Cat;
+      if (!R) {
+        T.skip('hrvdex-profile.js in env.sources', 'not wired in this lane');
+        return;
+      }
+      T.ok('ANTI-VACUITY · the profile source loaded', R.length > 5000, R.length + ' chars');
+
+      /* THE CLASS, shown on the kernel that IS reachable: calcVo2Cat ranks a 0 just as happily, which
+         is why ITS call site guards with `p.vo2gt > 0 ? … : '(enter VO₂ GT)'`. The percentile's call
+         site had no such guard — same input, same node, one protected and one not. */
+      if (typeof vo2Cat === 'function') {
+        T.ok('a 0 VO₂ still yields a CATEGORY from the raw kernel', typeof vo2Cat(0, 42, 'M') === 'string' && vo2Cat(0, 42, 'M').length > 0, JSON.stringify(vo2Cat(0, 42, 'M')));
+        T.ok('…which is why its call site guards on `p.vo2gt > 0`', /p\.vo2gt > 0 \? calcVo2Cat/.test(R));
+      }
+
+      /* THE FIX, against the source. */
+      T.ok('vo2Percentile refuses an unset value before binning', /if \(!\(vo2 > 0\) \|\| !isFinite\(vo2\)\) return null;/.test(R));
+      T.ok('the absolute refuses too, rather than printing 0.00 L/min', /p\.vo2gt > 0 \? \(\(p\.vo2gt \* p\.weight\) \/ 1000\)/.test(R));
+      T.ok('…and the percentile display carries the refusal through', /vo2Perc != null \? '~' \+ vo2Perc \+ 'th' : '—'/.test(R));
+      T.ok("no unguarded `vo2_abs + ' L/min'` survives", !/vo2_abs \+ ' L\/min'/.test(R));
+
+      /* WHY THE OLD TAIL RANKED IT, as arithmetic: 0 is below every Cooper entry point, so the
+         interpolation never matched and the function fell through to its floor. */
+      T.eq('…because 0 is below the lowest male 40-49 cut point (26)', 0 >= 26, false);
+      /* The tail's own arithmetic, through variables rather than literals: a literal ternary here is
+         a `noConstantCondition` ERROR (biome.json marks it error, not warn) and reds the biome gate. */
+      var _unsetVo2 = 0,
+        _topCut = 40;
+      T.eq('…so the loop never matched and the tail returned the 1st percentile', _unsetVo2 >= _topCut ? 99 : 1, 1);
+    });
+
     group('HRVDex profile personalization — known-answer (TEST-COVERAGE-FOLLOWUPS-II §1b)', 'hrvdex-profile · profile · known-answer', function (T) {
       var vo2Cat = env.HrvCalcVo2Cat,
         ageBand = env.HrvGetAgeBand;
@@ -50524,8 +52337,17 @@
       var m = res && res.measurement;
       T.ok('the export carries a recording-level `measurement` map', !!m && typeof m === 'object', m ? Object.keys(m).join(',') : 'absent');
       if (!m) return;
-      var IDS = ['hr', 'rmssd', 'sdnn'];
-      T.eq('exactly the three whole-record HRV metrics, keyed by registry id', Object.keys(m).sort().join(','), IDS.slice().sort().join(','));
+      /* RECONCILED, deliberately. This pinned THREE whole-record HRV metrics, which was the true
+         shape until the ectopy figures were selected into the export. They were computed, rendered
+         and carried through the reshape into NOTHING, so `pvcBurden`/`ectopyBurden` reached no
+         golden and no regeneration could move them — which is why the artifact-gate defect of #3002
+         (2,767 PVCs from a strap lying off the body, on the owner's own night) could not have
+         reddened anything, before it or after the fix.
+         The ids are the REGISTRY's: `ectopy` is its burden metric and `pvc` its count in beats. The
+         resolver leg below is what proves that — it reports 5/0, so all five resolve; an invented
+         `pvcBurden` would have shown up as unresolved. */
+      var IDS = ['hr', 'rmssd', 'sdnn', 'ectopy', 'pvc'];
+      T.eq('exactly the five recording-level metrics, keyed by registry id', Object.keys(m).sort().join(','), IDS.slice().sort().join(','));
       var LEGS = ['metricId resolves', 'window', 'code identity', 'evidence join', 'basis'];
       IDS.forEach(function (id) {
         var b = m[id];
@@ -50575,7 +52397,7 @@
       // the LIGHT export carries it too — lineage is not rich-only, and the Integrator reads the light one
       var light = ED.compute({ text: input }, { code: CODE });
       T.ok(
-        'the LIGHT export carries the same three blocks',
+        'the LIGHT export carries the same five blocks',
         !!light.measurement && Object.keys(light.measurement).sort().join(',') === IDS.slice().sort().join(','),
         light.measurement ? Object.keys(light.measurement).join(',') : 'absent'
       );
@@ -50978,7 +52800,7 @@
         var M = rec.measurements;
         T.ok('rec.measurements present', !!M && !!M.blocks, M ? Object.keys(M.blocks || {}).join(',') : 'absent');
         if (!M) return;
-        T.eq('three blocks consumed, all RESOLVED, none unresolved', M.resolved + '/' + M.unresolved, '3/0');
+        T.eq('five blocks consumed, all RESOLVED, none unresolved — an invented metricId would show here', M.resolved + '/' + M.unresolved, '5/0');
         T.eq('summary.rmssd (the consensus axis) ≡ the rmssd block value — the scalar walks back', rec.summary.rmssd, M.blocks.rmssd.value);
         T.eq('summary.sdnn ≡ the sdnn block value', rec.summary.sdnn, M.blocks.sdnn.value);
         T.eq('the ref carries the input join (= recording.contentId)', M.blocks.rmssd.evidence.inputHash, rec.contentId);
@@ -50986,7 +52808,7 @@
         var card = BE(r.recs, RF(r.recs, {})).nodes[0];
         T.ok(
           'fusion export node card carries the consumed refs',
-          !!card && !!card.measurements && card.measurements.resolved === 3,
+          !!card && !!card.measurements && card.measurements.resolved === 5,
           card ? JSON.stringify(card.measurements && { resolved: card.measurements.resolved }) : 'no card'
         );
         // the LIGHT export: no hrv block → no scalars to disagree with; the block's own legs still resolve
@@ -50994,8 +52816,8 @@
         var rl = NF(JSON.parse(JSON.stringify(light)), 'ecg-light.json');
         var recL = rl && rl.recs && rl.recs[0];
         T.ok(
-          'the LIGHT export also adapts with its blocks resolved 3/0',
-          !!recL && !!recL.measurements && recL.measurements.resolved === 3 && recL.measurements.unresolved === 0,
+          'the LIGHT export also adapts with its blocks resolved 5/0',
+          !!recL && !!recL.measurements && recL.measurements.resolved === 5 && recL.measurements.unresolved === 0,
           recL && recL.measurements ? JSON.stringify(recL.measurements.blocks.rmssd) : 'no measurements'
         );
         // legacy tolerance
@@ -51010,8 +52832,8 @@
         p1.measurement.rmssd.evidence.inputHash = 'deadbeef0000';
         var m1 = NF(p1, 'ecg-p1.json').recs[0].measurements;
         T.ok(
-          'PLANT · inputHash ≠ recording.contentId → rmssd unresolved naming the contentId, the other two resolved',
-          m1.blocks.rmssd.provenance === 'unresolved' && /different input/.test(m1.blocks.rmssd.unresolvedReason) && m1.resolved === 2,
+          'PLANT · inputHash ≠ recording.contentId → rmssd unresolved naming the contentId, the other four resolved',
+          m1.blocks.rmssd.provenance === 'unresolved' && /different input/.test(m1.blocks.rmssd.unresolvedReason) && m1.resolved === 4,
           m1.blocks.rmssd.unresolvedReason
         );
         var p2 = JSON.parse(JSON.stringify(rich));
@@ -57191,7 +59013,44 @@
       T.eq('hd94 120 alone ⇒ 7', sc(null, { rate: 1 }, { hd94PerHr: 120 }).spo2, 7);
       T.eq('odi4 20 ⇒ 2, the floor', sc(null, { rate: 20 }, { hd94PerHr: 0 }).spo2, 2);
       T.eq('odi4 19.9 ⇒ 7, so the 20 boundary is exclusive', sc(null, { rate: 19.9 }, { hd94PerHr: 999 }).spo2, 7);
-      T.eq('no odi4 and no hypDose ⇒ both read 0 ⇒ the TOP rung, 25', sc(null, null, null).spo2, 25);
+      /* ⚠ RECONCILED — this line USED TO PIN THE DEFECT AS THE SPEC. `sc(null, null, null).spo2`
+         was asserted to be 25, i.e. an unanalysed night scoring the MAXIMUM on the hypoxic-load
+         component, because `odi4 ? odi4.rate : 0` fed the top rung two zeros. The ladder rungs
+         above are untouched and remain the controls; only the ABSENT case changes. */
+      T.eq('no odi4 and no hypDose ⇒ the component is NOT SCORED — it no longer wins the top rung', sc(null, null, null).spo2, null);
+      T.eq('\u2026and either input alone being absent is enough to unscore it', JSON.stringify([sc(null, { rate: 1 }, null).spo2, sc(null, null, { hd94PerHr: 29 }).spo2]), '[null,null]');
+
+      /* ∅ THE TOTAL DROPS AN UNSCORED COMPONENT AND RENORMALISES, AND PUBLISHES THE BASIS.
+         Renormalising is itself an assumption — it treats the missing component as resembling the
+         rest — which is exactly why `readinessBasis` is published rather than hidden: a 78 over
+         three components must be distinguishable from a 78 over five. */
+      var full = function (hrv, odi4, hypDose, stageProxy, hint) {
+        return K(null, hrv || { rmssd: 2.3 }, { hrRest: 60 }, odi4, hypDose, null, stageProxy, 49, hint) || {};
+      };
+      var allPresent = full(null, { rate: 1 }, { hd94PerHr: 29 });
+      var spo2Absent = full(null, null, null);
+      T.eq('with every component measured the basis is the whole 100 points', JSON.stringify(allPresent.readinessBasis.weightPresent), '100');
+      T.eq(
+        'CONTROL · and the total is then IDENTICAL to the plain sum it always was — renormalising by 100 is the identity',
+        allPresent.readiness,
+        allPresent.scores.rmssd + allPresent.scores.spo2 + allPresent.scores.sleep + allPresent.scores.hrFloor + allPresent.scores.hrSlope
+      );
+      T.eq(
+        'an unscored component leaves the basis, and says which ones did score',
+        JSON.stringify({ w: spo2Absent.readinessBasis.weightPresent, s: spo2Absent.readinessBasis.scored }),
+        '{"w":75,"s":["rmssd","sleep","hrFloor","hrSlope"]}'
+      );
+      var _sA = spo2Absent.scores;
+      T.eq(
+        '\u2026and the total is rescaled over the 75 points that were measured, not padded to 100',
+        spo2Absent.readiness,
+        Math.round(((_sA.rmssd + _sA.sleep + _sA.hrFloor + _sA.hrSlope) / 75) * 100)
+      );
+      T.ok(
+        'the unscored night is not silently WORSE either — dropping 25 fabricated points would have',
+        spo2Absent.readiness > allPresent.readiness - 25,
+        JSON.stringify({ absent: spo2Absent.readiness, present: allPresent.readiness })
+      );
 
       /* ── Sleep ladder: duration rungs 420/360/300, plus stage bonuses ───────────────────────── */
       T.eq('no stageProxy ⇒ neutral +5, and 420 min ⇒ 10 ⇒ 15', sc(null, null, null, null, 420).sleep, 15);
@@ -59723,13 +61582,23 @@
          qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The behavior that ensures the sfi field is properly initialized to 0 instead of causing a runtime error when n */
       {
         var out = NS._bare.computeComposite([]);
-        T.eq('OxyDex._bare.computeComposite([]) → out.sfi', JSON.stringify(out.sfi), '0');
+        /* §∅ — a per-hour rate with no duration to divide by is undefined, and 0/hr is the
+           healthiest possible fragmentation reading. */
+        T.eq('OxyDex._bare.computeComposite([]) → out.sfi REFUSES', JSON.stringify(out.sfi), 'null');
       }
       /* mutant: cmp > → >=  @ var t95pct = n > 0 ? (below95 / n) * 100 : 0;
          qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The behavior that distinguishes whether the nsi field is null or 0 when the input array is empty, which occurs */
       {
+        /* §∅ RECONCILED 2026-09-23 — the property's own text names the very distinction it then gets
+           backwards: "whether the nsi field is null or 0 when the input array is empty". With no rows
+           there is no component to average, so 0 is not a low stress score, it is a score over nothing —
+           and `nsi` is goodDirection:'down', so 0 was the BEST possible reading of an empty night.
+           ⚠️ The mutant this property targeted (`n > 0` → `n >= 0` on the t95pct line) no longer exists:
+           that line was replaced by a measured-sample count, so the comparison is gone rather than
+           merely guarded. Recorded here so the next mutation sweep is not read as having lost a kill. */
         var out = NS._bare.computeComposite([]);
-        T.eq('OxyDex._bare.computeComposite([]) → out.nsi', JSON.stringify(out.nsi), '0');
+        T.eq('OxyDex._bare.computeComposite([]) → out.nsi REFUSES', JSON.stringify(out.nsi), 'null');
+        T.eq('…and says no component contributed', JSON.stringify(out.nsiComponents), '0');
       }
       /* mutant: bool || → &&  @ if (!bytes || bytes.length < 40) return false;
          qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The behaviour this protects is ensuring that the function handles null inputs gracefully without throwing a Ty */
@@ -59764,14 +61633,28 @@
       /* mutant: cmp > → >=  @ var label = dip > 10 ? 'Good (intra-night)' : dip > 5 ? 'Moderate (intra-night)' : 'Lo
          qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The function correctly formats the intra-night dip label to include the full phrase "intra-night" rather than */
       {
-        var out = NS._bare.computeHRNoctDip(1, 1);
-        T.eq('OxyDex._bare.computeHRNoctDip(1,1) → out.hrnDipLabel', JSON.stringify(out.hrnDipLabel), '"Low (intra-night)"');
+        /* §∅ RECONCILED 2026-09-23 — the property above is real but its INPUT was not: `(1, 1)` reached
+           the label ternary only because the function fabricated `refHR = 60` and `floor = 60`. With the
+           fabrication removed the call refuses, so the mutant would have SURVIVED here. Replaced with a
+           real pair that still discriminates it: floor 54 against a reference of 60 gives dip = 10, so
+           `dip > 10` is false and the label is "Moderate"; under the `>=` mutant it becomes "Good". The
+           property is now tested on a night that could exist. */
+        var out = NS._bare.computeHRNoctDip({ hrFloor: 54 }, { meanHr: 60 });
+        T.eq('OxyDex._bare.computeHRNoctDip(floor 54, ref 60) → out.hrnDipLabel', JSON.stringify(out.hrnDipLabel), '"Moderate (intra-night)"');
+        T.eq('…and refuses outright when the reference and floor are absent', JSON.stringify(NS._bare.computeHRNoctDip(1, 1)), 'null');
       }
       /* mutant: cmp > → >=  @ out[t] = { secs: s, pct: n > 0 ? +((s / n) * 100).toFixed(2) : 0 };
          qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The percentage value for the 80th percentile is correctly calculated as 0 instead of null when the numerator i */
       {
+        /* §∅ RECONCILED 2026-09-23 — THIS MODEL-WRITTEN PROPERTY PINNED THE DEFECT AS THE SPEC. The
+         property above says the value is "correctly calculated as 0 instead of null", and its own
+         header marks it MODEL-WRITTEN provenance, not a reviewed claim. It is not correct: with no
+         measured sample the fraction is 0/0, so 0 asserts a night that spent none of its time below
+         the threshold — a perfect night, fabricated from an empty input. The expectation is now
+         null. THE MUTANT IS STILL KILLED: under `n >= 0` the empty case divides by zero and yields
+         NaN, which `null` still distinguishes. */
         var out = NS._bare.computeTIndex([]);
-        T.eq('OxyDex._bare.computeTIndex([]) → out["80"].pct', JSON.stringify(out['80'].pct), '0');
+        T.eq('OxyDex._bare.computeTIndex([]) → out["80"].pct is NULL, not a perfect 0', JSON.stringify(out['80'].pct), 'null');
       }
     });
 
@@ -60363,14 +62246,21 @@
         /* mutant: cmp > → >=  @ var label = dip > 10 ? 'Good (intra-night)' : dip > 5 ? 'Moderate (intra-night)' :
          qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The intra-night dip level label is correctly formatted with a trailing parenthesis. */
         {
-          var out = NS._bare.computeHRNoctDip(1, 1);
-          T.eq('NS._bare.computeHRNoctDip(1,1) → out.hrnDipLabel', JSON.stringify(out.hrnDipLabel), '"Low (intra-night)"');
+          /* §∅ RECONCILED 2026-09-23 — the property above is real but its INPUT was not: `(1, 1)` reached
+           the label ternary only because the function fabricated `refHR = 60` and `floor = 60`. With the
+           fabrication removed the call refuses, so the mutant would have SURVIVED here. Replaced with a
+           real pair that still discriminates it: floor 54 against a reference of 60 gives dip = 10, so
+           `dip > 10` is false and the label is "Moderate"; under the `>=` mutant it becomes "Good". The
+           property is now tested on a night that could exist. */
+          var out = NS._bare.computeHRNoctDip({ hrFloor: 54 }, { meanHr: 60 });
+          T.eq('NS._bare.computeHRNoctDip(floor 54, ref 60) → out.hrnDipLabel', JSON.stringify(out.hrnDipLabel), '"Moderate (intra-night)"');
+          T.eq('…and refuses outright when the reference and floor are absent', JSON.stringify(NS._bare.computeHRNoctDip(1, 1)), 'null');
         }
         /* mutant: cmp > → >=  @ out[t] = { secs: s, pct: n > 0 ? +((s / n) * 100).toFixed(2) : 0 };
          qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The percentage value should be 0 instead of null when the numerator is 0 and the denominator is greater than 0 */
         {
           var out = NS._bare.computeTIndex([]);
-          T.eq('NS._bare.computeTIndex([]) → out["80"].pct', JSON.stringify(out['80'].pct), '0');
+          T.eq('NS._bare.computeTIndex([]) → out["80"].pct is NULL, not a perfect 0', JSON.stringify(out['80'].pct), 'null');
         }
       }
     );
@@ -60664,7 +62554,7 @@
          qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The percentage value should be 0 instead of null when the numerator is 0 and the denominator is greater than 0 */
         {
           var out = NS._bare.computeTIndex([]);
-          T.eq('NS._bare.computeTIndex([]) → out["80"].pct', JSON.stringify(out['80'].pct), '0');
+          T.eq('NS._bare.computeTIndex([]) → out["80"].pct is NULL, not a perfect 0', JSON.stringify(out['80'].pct), 'null');
         }
       }
     );

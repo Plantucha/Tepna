@@ -130,10 +130,30 @@ def test_pmd_negotiations_counts_every_start_and_reports_a_rate_only_when_they_A
     ])
     got = nightqc.pmd_negotiations(d)
     assert got[("Verity", "ppg")] == {"chosen": 55, "offered": "28,44,55", "starts": 2}
-    assert got[("Verity", "acc")] == {"chosen": None, "offered": None, "starts": 1}, "refused: no rate"
+    assert got[("Verity", "acc")] == {"chosen": None, "offered": "26,52", "starts": 1}, (
+        "a refused START claims no RATE — but it still reports the MENU the device named before "
+        "refusing, because the menu is a property of the device and not of the outcome")
     assert got[("Verity", "gyro")] == {"chosen": None, "offered": "26,52", "starts": 2}, (
         "a session that began at two rates was captured at neither — null, not a first or a mean")
     assert nightqc.pmd_negotiations(str(tmp_path / "nope")) == {}
+
+def test_a_device_that_only_ever_REFUSES_still_reports_its_menu(tmp_path):
+    """The case the box produced on the day this shipped, and the reason the menu is read from every
+    row: a Verity left on its charger refused **63** ACC starts in an hour, each row recording
+    `offered 52`, and the reader answered `offered: None` — a null standing where sixty-three
+    measurements existed. `chosen` stays null (nothing was captured), `starts` carries the count, and
+    the menu is reported because the device named it."""
+    d = _sidecar(tmp_path, ["t;Polar Sense;A;acc;52;52;52;in_charger;negotiated"] * 63)
+    got = nightqc.pmd_negotiations(d)[("Polar Sense", "acc")]
+    assert got == {"chosen": None, "offered": "52", "starts": 63}
+
+
+def test_a_row_with_NO_menu_at_all_contributes_nothing_to_offered(tmp_path):
+    """A blank menu column means no settings were read — an absence, and it must not become the
+    device's answer, nor collide with a real menu into a disagreement that nulls both."""
+    d = _sidecar(tmp_path, ["t;V;A;ppg;;;;in_charger;fixed", "t;V;A;ppg;176;28,44,55;55;ok;negotiated"])
+    assert nightqc.pmd_negotiations(d)[("V", "ppg")] == {"chosen": 55, "offered": "28,44,55", "starts": 2}
+
 
 def test_a_blank_rate_on_a_started_row_is_an_absence_not_a_zero(tmp_path):
     d = _sidecar(tmp_path, ["t;Verity;A;ppg;;;;ok;negotiated"])
