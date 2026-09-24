@@ -13,33 +13,32 @@ def _pyproject() -> str:
 
 
 def test_tmp_path_retention_policy_is_not_set():
-    """⚠️ SETTING THIS VOIDS MUTATION SWEEPS. It is not a style preference, and the reason is kept
-    separate from the parts of it that are not yet shown.
+    """⚠️ DO NOT SET THIS. It is removed on cost, and the mechanism first cited for removing it was
+    WRONG — both are recorded here so neither is re-derived.
 
-    ESTABLISHED. Under `failed` pytest removes that session's ENTIRE basetemp on a green run, not merely
-    the passing tests' directories (`_pytest/tmpdir.py`, `pytest_sessionfinish`, guarded by
-    `exitstatus == 0 and policy == "failed"`). So on a green run `failed` IS `none` — which is not how
-    it reads, and is how this shipped for a few hours on 2026-09-24. Measured: a 183-passing run
-    retained 0 bytes.
+    ESTABLISHED (pytest source): under `failed`, a GREEN run removes that session's ENTIRE basetemp,
+    not merely the passing tests' directories (`_pytest/tmpdir.py`, `pytest_sessionfinish`, guarded by
+    `exitstatus == 0 and policy == "failed"`). On a green run `failed` IS `none`, which is not how it
+    reads — measured here as 0 bytes retained after 183 passing tests.
 
-    ESTABLISHED. The setting perturbs a mutation sweep: at `all` the verdict is identical but the
-    decided count differs by one (Osprey). And sweeps run under `--basetemp` or `none` score SURVIVING
-    mutants as killed — 235/236 exit 1, one of them a mutant that merely drops `open()`'s "r" mode and
-    passes all 234 tests by hand (Wren).
+    REFUTED, and this docstring asserted it twice before anyone measured: that the policy lets one
+    mutant's session delete another's directory and so makes a SURVIVING mutant read as killed. Osprey's
+    2x2 — 50 pytest sessions in mutmut's own shape, jobs 1/8/16 x both policies, survivor first, with a
+    positive control that deletes a live basetemp externally and IS detected — found every session with
+    its own numbered basetemp (8/8, 16/16), 0 reaped, 0 setup errors, and no live directory removed by
+    keep-3 (each `.lock` 6 s old against a 3 h timeout). The policy does not mask survivors.
 
-    NOT ESTABLISHED: which mechanism, and so whether `failed` reaches that same failure. Candidates:
-    children sharing one basetemp and an exit-0 child deleting it (needs the sharing shown — pytest
-    numbers each session's basetemp, and if they did share, the clean baseline run exits 0 too and
-    would delete it before the first mutant); pytest's keep-3 numbered-dir cleanup removing a LIVE
-    sibling under `--jobs` > 3, which needs no policy at all; or whatever the off-by-one count reflects.
+    WHY IT IS REFUSED ANYWAY: shrinking the fixtures took a nightqc run from 2,097,737,728 to
+    63,004,672 bytes, so three retained basetemps fall from 6.29 GB to 189 MB and the 37 directories
+    that exhausted /tmp would now be 2.33 GB of a 30 GB tmpfs. The SHRINK is the mitigation, by 33x.
+    The policy adds 189 MB — 0.63 % of tmpfs — on top of that, and carries an unexplained perturbation
+    of the mutation gate (identical verdict at `all`, decided count off by one). That is not a trade
+    worth making on the one gate whose job is to say whether a test can see a change.
 
-    The setting is refused anyway, because it buys 63 MB — the fixture shrink did the other 2.0 GB — and
-    costs an unresolved perturbation of the one gate whose job is to say whether a test can see a
-    change. Bound a single run with `TMPDIR` on disk instead; not `--basetemp`, which pytest clears at
-    session start."""
+    Bound a single run with `TMPDIR` on disk instead; not `--basetemp`, which pytest clears at start."""
     assert not re.search(r"^\s*tmp_path_retention_policy\s*=", _pyproject(), re.M), (
         "tmp_path_retention_policy must not be set — see this test's docstring; on a green run it "
-        "deletes the whole basetemp and measurably perturbs a mutation sweep"
+        "deletes the whole basetemp and perturbs a mutation sweep for 0.63% of tmpfs"
     )
 
 
