@@ -2842,3 +2842,172 @@ def test_a_BLE_hole_in_the_arrival_record_is_CUT_not_compacted(tmp_path):
     assert st["ok"] is True, st
     assert st["pooled"] is True and st["segments"] == 2 and st["dropped_intervals"] == 1
 
+
+
+# ── coverage is against the DEVICE's own span (2026-09-24) ──────────────────────────────────────────
+# It used to divide one device's rows by the SESSION span — the union across devices — so a device that
+# stopped early was charged for the time another kept recording, and "stopped early" and "dropped packets
+# while recording" produced the same number. They are opposite findings: one is correct behaviour, the
+# other is the loss this metric exists to catch.
+
+_DEV_0923 = [{"name": "H10", "device_id": "02849638", "streams": ["ecg"]},
+             {"name": "Verity", "device_id": "0C301E3F", "streams": ["ppg"]},
+             {"name": "Ring", "device_id": "S8AW2100", "streams": ["ppg"]}]
+_SPAN_0923 = 20200                   # 23:13:18 -> 04:49:58, the real session span
+
+
+def _end_0923():
+    """The session END as an epoch, DERIVED from the earliest filename stamp rather than hardcoded.
+
+    ⚠️ This was a literal epoch and the three tests below passed in EDT and failed in CI's UTC by
+    exactly 14,400 s. `_session_of` turns the `_YYYYMMDDHHMMSS_` filename stamp into an epoch with
+    `datetime.strptime(...).timestamp()` — a NAIVE datetime, so the conversion uses the READER's zone —
+    while `mtime` is an absolute epoch that does not move. Pairing a fixed epoch with a civil filename
+    stamp is therefore only self-consistent in the zone the epoch was chosen in.
+
+    The production data has a civil-time relationship between the two, so the fixture expresses that
+    relationship instead of a number: the end is the stamp's own epoch plus the span, which holds in
+    any zone. The `_tz` fixture then runs the twin in two of them so this cannot regress silently."""
+    return nightqc._session_of("X_20260923231318_PPG.txt", 0.0) + _SPAN_0923
+
+
+@pytest.fixture(params=["UTC", "America/New_York"])
+def _tz(request):
+    """Run a test in a named zone. CI is UTC and the rig is EDT, and a span that depends on the reader's
+    zone passes in one and fails in the other — which is how this arrived."""
+    old_tz = os.environ.get("TZ")
+    os.environ["TZ"] = request.param
+    time.tzset()
+    try:
+        yield request.param
+    finally:
+        if old_tz is None:
+            os.environ.pop("TZ", None)
+        else:
+            os.environ["TZ"] = old_tz
+        time.tzset()
+
+
+def _night_0923(tmp_path, h10_early=0):
+    """The measured 2026-09-23 geometry: one session 23:13:18 -> 04:49:58 (span 20,200 s), with each
+    device's OWN recording extent as it really was."""
+    night = str(tmp_path / "2026-09-23"); os.makedirs(night)
+    for name, own, hz, early in [
+            ("Polar_H10_02849638_20260923231432_ECG.txt", 20089, 130.0, h10_early),
+            ("Polar_VeritySense_0C301E3F_20260923231318_PPG.txt", 18499, 55.0, 1701),
+            ("Wellue_O2Ring-S_S8AW2100_20260923231349_PPG.txt", 18699, 125.0, 1501)]:
+        _utime(_cap_timed(night, name, int(own * hz), hz), _end_0923() - early)
+    return night
+
+
+def _cap_timed_with_gap(night, name, hz, own_s, keep):
+    """A file whose DEVICE CLOCK spans `own_s` but which delivers only `keep` of its rows, missing in one
+    contiguous block — an in-recording loss, as against a stream that simply stopped.
+
+    `measured_hz` reads the MEDIAN inter-sample delta, so one gap does not move the rate; that is what
+    makes the loss show up in coverage instead of being absorbed into the denominator."""
+    p = os.path.join(night, name)
+    step = int(round(1e9 / hz)); t0 = 1_000_000_000_000
+    n = int(own_s * hz); half = int(n * keep / 2)
+    with open(p, "w") as fh:
+        fh.write("Phone timestamp;sensor timestamp [ns];channel 0\n")
+        for i in list(range(half)) + list(range(n - half, n)):
+            fh.write(f"2026-07-19T00:00:00.000;{t0 + i * step};{i}\n")
+    return p
+
+
+def test_the_0923_twin_session_span_gave_092_and_the_device_span_gives_100(tmp_path, _tz):
+    """THE TWIN, on the real geometry. Under the SESSION span each device's own extent divided by 20,200 s
+    is 0.9945 / 0.9158 / 0.9257 — the three numbers actually published for 2026-09-23, to four decimals —
+    and QC's own `gaps` was EMPTY for that night, so nothing was missing. Under each device's own span the
+    same files read 1.00, and the 28.4 and 25.0 minutes become `stopped_early_s` instead of 8 % of
+    nothing."""
+    s = nightqc.summarize(_night_0923(tmp_path), _DEV_0923)
+    assert s["span_sec"] == _SPAN_0923, "the session span is the union across devices"
+
+    by = {d["name"]: d for d in s["devices"] if d.get("coverage")}
+    # THE OLD DENOMINATOR, twice: recomputed from each device's own span (so the twin carries the
+    # arithmetic) AND read back off the published `session_coverage` field (so it is the code's number
+    # and not the test's). The two agreeing is the twin.
+    assert round(by["H10"]["span_sec"] / _SPAN_0923, 4) == 0.9945
+    assert round(by["Verity"]["span_sec"] / _SPAN_0923, 4) == 0.9158
+    assert round(by["Ring"]["span_sec"] / _SPAN_0923, 4) == 0.9257
+    assert by["H10"]["session_coverage"] == {"ecg": 0.99}
+    assert by["Verity"]["session_coverage"] == {"ppg": 0.92}
+    assert by["Ring"]["session_coverage"] == {"ppg": 0.93}
+
+    assert by["H10"]["coverage"] == {"ecg": 1.0}
+    assert by["Verity"]["coverage"] == {"ppg": 1.0}
+    assert by["Ring"]["coverage"] == {"ppg": 1.0}
+    assert by["Verity"]["stopped_early_s"] == 1701 and by["Ring"]["stopped_early_s"] == 1501
+    assert by["H10"]["stopped_early_s"] == 0, "the device that stopped last defines the session end"
+    assert by["Verity"]["span_basis"] == {"ppg": "device"}
+    assert by["Verity"]["session_end"] == round(_end_0923()), "the end it is measured against is named"
+    assert by["Verity"]["stopped_early_reason"] is None, "not determined here — never 'no reason'"
+
+
+def test_an_IN_RECORDING_loss_still_reads_as_a_loss_under_the_new_denominator(tmp_path, _tz):
+    """THE CASE THE METRIC EXISTS FOR, and the one a device-span denominator could have blinded. The
+    Verity here keeps its FULL span and loses 40 % of its rows in one block: coverage must fall to 0.6
+    while `stopped_early_s` stays 0, so the two situations are distinguishable rather than sharing a
+    number. A deeper loss must still reach `degraded`, which is the alert path — `_DEGRADED_BELOW` is
+    unchanged at 0.5."""
+    night = str(tmp_path / "2026-09-23"); os.makedirs(night)
+    _utime(_cap_timed(night, "Polar_H10_02849638_20260923231432_ECG.txt", 20089 * 130, 130.0), _end_0923())
+    _utime(_cap_timed_with_gap(night, "Polar_VeritySense_0C301E3F_20260923231318_PPG.txt",
+                               55.0, 18499, 0.6), _end_0923())
+    by = {d["name"]: d for d in nightqc.summarize(night, _DEV_0923)["devices"] if d.get("coverage")}
+    assert by["Verity"]["coverage"] == {"ppg": 0.6}, "an in-recording loss is still a loss"
+    assert by["Verity"]["stopped_early_s"] == 0, "it did not stop early — it dropped rows"
+    assert by["Verity"]["span_basis"] == {"ppg": "device"}
+    assert by["Verity"]["session_coverage"] == {"ppg": 0.55}, "the old number, kept and named"
+
+    # A SECOND night in its own subdir, keeping the 09-23 stamps: a filename stamp that POSTDATES the
+    # mtime is not a session at all, and reusing 09-24 names with an 09-24 04:49 mtime made one.
+    night2 = str(tmp_path / "deeper" / "2026-09-23"); os.makedirs(night2)
+    _utime(_cap_timed(night2, "Polar_H10_02849638_20260923231432_ECG.txt", 20089 * 130, 130.0), _end_0923())
+    _utime(_cap_timed_with_gap(night2, "Polar_VeritySense_0C301E3F_20260923231318_PPG.txt",
+                               55.0, 18499, 0.4), _end_0923())
+    s2 = nightqc.summarize(night2, _DEV_0923)
+    assert any("Verity:ppg" in line for line in s2["degraded"]), \
+        f"a deep in-recording loss must still reach the alert path: {s2['degraded']}"
+
+
+def test_a_stream_that_DIED_EARLY_now_reads_as_an_early_stop_and_not_as_lost_packets(tmp_path, _tz):
+    """⚠️ THE DELIBERATE SHIFT, pinned so it is visible rather than emergent. A stream that stopped at
+    hour one of a six-hour session used to read coverage 0.17 and land in `degraded`; against its own span
+    it delivered everything it sent, so it now reads 1.00 with `stopped_early_s` carrying the five hours.
+
+    That is the definition coverage states for itself — "did we receive the packets the device was
+    SENDING" — and it is strictly more informative, because the old number could not tell this from a
+    stream that lost five hours of packets while still connected. But it does mean the EARLY STOP no
+    longer reaches `degraded` on its own, and nothing consumes `stopped_early_s` yet: whether an early
+    stop is a fault depends on WHY (a doff is correct behaviour, a link loss is not), which is Wren's
+    wear-end unit and the `stopped_early_reason` slot above."""
+    night = str(tmp_path / "2026-09-23"); os.makedirs(night)
+    _utime(_cap_timed(night, "Polar_H10_02849638_20260923231432_ECG.txt", 20089 * 130, 130.0), _end_0923())
+    # the Verity records one hour and stops, five hours before the H10 does
+    _utime(_cap_timed(night, "Polar_VeritySense_0C301E3F_20260923231318_PPG.txt", 3600 * 55, 55.0),
+           _end_0923() - 16489)
+    s = nightqc.summarize(night, _DEV_0923)
+    by = {d["name"]: d for d in s["devices"] if d.get("coverage")}
+    assert by["Verity"]["coverage"] == {"ppg": 1.0}, "it sent one hour and we received one hour"
+    assert by["Verity"]["stopped_early_s"] == 16489, "the missing five hours are HERE, named"
+    # AND THE ALERT IS NOT LOST: `session_coverage` keeps the old number and `degraded` keys on it, so a
+    # died-at-hour-one stream still raises exactly what it raised before. No threshold was invented to
+    # keep that; the number that was already there is simply named instead of overwritten.
+    assert by["Verity"]["session_coverage"] == {"ppg": 0.18}
+    assert any("Verity:ppg" in line for line in s["degraded"]), s["degraded"]
+
+
+def test_a_clockless_file_falls_back_to_the_session_span_and_SAYS_SO(tmp_path):
+    """§∅ in the direction that matters here: a file carrying no device clock cannot bound its own start,
+    and dropping such files from the span would move the start later, shorten the span and INFLATE
+    coverage. So the denominator falls back to the session span and `span_basis` reports it — the same
+    shape `coverage_basis` uses for an unmeasured rate."""
+    night = str(tmp_path / "2026-07-19"); os.makedirs(night)
+    _utime(_cap(night, "Polar_H10_02849638_20260719_ECG.txt", 130000), 1_000_000.0 + 1000)
+    _utime(_cap(night, "Polar_H10_02849638_20260719_ACC.txt", 40000), 1_000_000.0)
+    h10 = next(d for d in nightqc.summarize(night, _devices())["devices"] if d["name"] == "H10")
+    assert h10["span_basis"] == {"ecg": "session", "acc": "session"}
+    assert h10["span_sec"] is None, "an unbounded span is None, never a number"
