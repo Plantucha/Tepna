@@ -6506,6 +6506,74 @@
       T.ok('the plant is not vacuous — without the mask this same tail reports ectopy', unmaskedPVC > 0 && unmaskedBurden > 0 && tailed.nPVC < unmaskedPVC, unmaskedPVC + ' vs ' + tailed.nPVC);
     });
 
+    group('PpgDex device PPI — columns BY NAME, because position read the wrong one for four days', 'ppgdex-dsp · absence', function (T) {
+      var P = env.PPGDSP || (env.PpgDex && env.PpgDex._bare);
+      if (!P || typeof P.parseDevicePPI !== 'function') {
+        T.skip('PPGDSP.parseDevicePPI exposed', 'PpgDex not co-loaded in this runner');
+        return;
+      }
+      /* TWO LAYOUTS, both first-class inputs, and reading position 1 as the interval is right for one
+         and catastrophic for the other. Rows below are VERBATIM from the corpus
+         (…/2026-08-04/Polar_VeritySense_0C301E3F_20260804225118_PPI.txt), values as-is. */
+      var BOX =
+        'Phone timestamp;sensor timestamp [ns];HR [bpm];PP-interval [ms];error estimate [ms];blocker;skin contact;skin contact supported\n' +
+        '2026-08-04T22:51:38.680;0;0;365;30;1;1;1\n' +
+        '2026-08-04T22:51:38.680;0;0;1414;30;1;1;1\n' +
+        '2026-08-04T22:51:40.094;0;0;820;12;0;1;1\n';
+      var PSL =
+        'Phone Data RX timestamp;PP-interval [ms];error estimate [ms];blocker;contact;contact;hr [bpm]\n' + '2026-08-04T22:51:38.680;822;12;0;1;1;73\n' + '2026-08-04T22:51:39.502;845;10;0;1;1;71\n';
+
+      var box = P.parseDevicePPI(BOX);
+      var psl = P.parseDevicePPI(PSL);
+      var inBand = function (rows) {
+        return (rows || []).filter(function (r) {
+          return r.ppi > 300 && r.ppi < 2000;
+        }).length;
+      };
+
+      /* The defect, verbatim: `ppi` took `sensor timestamp [ns]` (a literal 0 the writer emitted
+         until 2026-08-05) and the REAL 365 ms interval landed in `blocker`. validatePPI then said
+         usable:false / nDevice:0 — nothing fabricated, so no gate could fire, which is why four days
+         of Verity nights silently had no device cross-validation. A PRESENT MEASUREMENT REPORTED AS
+         ABSENT: the mirror of §∅. */
+      T.eq(
+        'the BOX layout resolves its interval column by NAME, not position',
+        JSON.stringify({ n: box.length, band: inBand(box), first: box[0] && box[0].ppi }),
+        JSON.stringify({ n: 3, band: 3, first: 365 })
+      );
+      T.ok('\u2026and the columns that used to absorb it are themselves right', box[0].err === 30 && box[0].blocker === 1, JSON.stringify({ err: box[0].err, blocker: box[0].blocker }));
+
+      /* ∅ THE FIX OPENS A DOOR THE ZERO RULE MUST ALSO GUARD. Reading the box columns correctly
+         surfaces `HR [bpm]` for the first time, and the Verity writes 0 into it for whole nights (the
+         documented all-zero device HR). 0 bpm is not a measurement, so it takes the same 20–260 band
+         `ecgdex-dsp parseDeviceHR` applies. Measured: this row's hr went 1 → null once the columns
+         were right, and 1 was the skin-contact flag. */
+      T.eq('a 0 bpm device HR is null, not a rate — the layout fix must not import the zero defect', box[0].hr, null);
+      T.eq('\u2026while a REAL device HR in the PSL layout still reads as a rate', psl[0].hr, 73);
+
+      // CONTROL — the positional layout is unchanged, so no existing input regresses.
+      T.eq(
+        'the PSL/self layout still parses positionally, byte-for-byte as before',
+        JSON.stringify({ n: psl.length, band: inBand(psl), first: psl[0] && psl[0].ppi, err: psl[0].err }),
+        JSON.stringify({ n: 2, band: 2, first: 822, err: 12 })
+      );
+
+      /* A header that EXISTS and names no interval column refuses rather than falling through to
+         positional. Falling through is precisely how this defect happened: an unknown layout read as
+         a known one. */
+      var mystery = P.parseDevicePPI('Phone timestamp;something;else;entirely\n2026-08-04T22:51:38.680;1;2;3\n');
+      T.eq(
+        'an unrecognised header REFUSES with a named reason — it never guesses positionally',
+        JSON.stringify({ rows: mystery.rows ? mystery.rows.length : 'n/a', reason: mystery.reason || null }),
+        JSON.stringify({ rows: 0, reason: 'ppi-header-names-no-interval-column' })
+      );
+
+      /* ANTI-VACUITY: the box plant must actually differ from the positional read, or this group
+         would pass against the old parser too. Under position, p[1] is the ns column = 0. */
+      var positionalWouldGive = 0;
+      T.ok('the plant is not vacuous — positionally this row reads 0, not 365', positionalWouldGive !== box[0].ppi, positionalWouldGive + ' vs ' + box[0].ppi);
+    });
+
     group('ECGDex accAnalyze — posture from the gravity vector, known-answer', 'ecgdex-dsp · posture', function (T) {
       var E = env.ECGDSP || env.EcgDsp;
       var acc = E && E.accAnalyze;
