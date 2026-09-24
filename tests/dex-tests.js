@@ -31959,7 +31959,14 @@
             });
             if (out.seen[c[0]]) out.seen[c[0]].defect = c[3];
             var srcBrief = c[2].match(/^`([A-Za-z0-9._-]+-BRIEF\.md)`$/);
-            var srcPath = !srcBrief && c[2].match(/^`([A-Za-z0-9._\/-]+\.[A-Za-z0-9]+)`$/);
+            /* A ROOT DOTFILE IS A REPO PATH. The `<stem>.<ext>` shape alone cannot express one —
+               `.gitignore` has no stem before its dot — so a defect whose only responsible file is a
+               dotfile had NO honest source cell, and the alternative on offer was to name a plausible
+               neighbour instead (the failure CLAUDE.md §📌 warns about: check8d verifies EXISTENCE and
+               the back-reference, never responsibility). Shape only; check8d still requires the path to
+               be in the tree. */
+            var srcPath = !srcBrief && c[2].match(
+              /^`((?:[A-Za-z0-9._\/-]+\.[A-Za-z0-9]+)|(?:(?:[A-Za-z0-9._\/-]+\/)?\.[A-Za-z0-9_-]+))`$/);
             var srcPr = !srcBrief && !srcPath && c[2].match(/^`(#\d+)`$/);
             var src = srcBrief || srcPath || srcPr;
             var srcKind = srcBrief ? 'brief' : srcPath ? 'path' : srcPr ? 'pr' : null;
@@ -32310,6 +32317,22 @@
           'self-test · check8b ACCEPTS an ESCAPED pipe inside a cell (a row may quote a regex)',
           escRow.rows.length === 1 && escRow.malformed.length === 0,
           escRow.malformed.length ? escRow.malformed[0] : 'accepted'
+        );
+        /* A root dotfile as the source — and the REJECTION half beside it, because a loosened shape
+           rule that accepts everything is the same defect one level up. */
+        var dotRow = residueRows('| 2026-01-02-k9 | 2026-01-02 | `.gitignore` | a defect | ev | OPEN |');
+        T.ok(
+          'self-test · check8b ACCEPTS a root dotfile as a repo-path source',
+          dotRow.rows.length === 1 && dotRow.malformed.length === 0,
+          dotRow.malformed.length ? dotRow.malformed[0] : 'accepted'
+        );
+        var nestedDot = residueRows('| 2026-01-02-k9 | 2026-01-02 | `capture-host/.coveragerc` | d | ev | OPEN |');
+        T.ok('self-test · …and a dotfile in a subdirectory', nestedDot.malformed.length === 0);
+        var notAPath = residueRows('| 2026-01-02-k9 | 2026-01-02 | `just some prose` | d | ev | OPEN |');
+        T.ok(
+          'self-test · …while prose is STILL rejected, so the shape rule is not merely wider',
+          notAPath.malformed.length === 1,
+          JSON.stringify({ malformed: notAPath.malformed.length })
         );
         var bareRow = residueRows(mkRow('a bare | pipe'));
         T.ok(
