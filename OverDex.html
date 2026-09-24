@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="498c76e36ba5" data-compute-hash="cb2067e64ede"><head>
+<html lang="en" data-manifest-hash="8b74cff3abbe" data-compute-hash="a22d563d32ed"><head>
 <!--
   OverDex.html — Tepna
   Copyright 2026 Michal Planicka
@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+XTrnryA88ZZB664WebTYrkdG57dUOaumGtqYQcVcEE=' 'sha256-/Z7I3UUPEYVbJqKiogd2GpJzq5ymayoEqgifMJjbfTY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-58O6BxAcjgCbtJyPkzKKtexLOYodIHAExwfRPPPFcOI=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-E3YweNbXEzR2hxsyCYFg7YorFc/MkJstnsNeUtVxMFA=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GMmPvLCp12nTB2A3edxKqYW9nOEcn4mUbSDIB8uSFEI=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-IVq2ZV4bqS8z+7NbSSE2Gm0D2t6Am6PSEy4iGgiY4fw=' 'sha256-ImXhwPIaDzYWwBLhYV5EP9qZSwmnbfkURTE4m6HTvqU=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-LrqAcX6EYrn1FDGC8701ZGVNduowoV0XozhXnBk2ai8=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-X7slrDpgX5Esbtr3HuxhWugLi1NKTWDvb+K060kXk9U=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-b+hR2i2ViyedwmAqqTitKUOQmoT7nrMmSb+ENDSMNws=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-cemiQMQwTXR+318vY1wXwQgOyMRh2KLdUGfPVh4TQjE=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fInNay7YkfBshcU/Ov4Qzft5gkilNkKZmGQu83EwLzo=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-j6cQKZ+pO2jEtsJTv7AnKR0NQLc+TgayeSSCB4yBUJs=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-rjGs1Y+uFrvflYfuFSOoWpIkqoUMCMWg8wcx+wXb/f4=' 'sha256-xsp63O3KsGRyNwA0HiyNZ9rfZ/CjJ8/+KFtXEXV2zTc='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+XTrnryA88ZZB664WebTYrkdG57dUOaumGtqYQcVcEE=' 'sha256-/Z7I3UUPEYVbJqKiogd2GpJzq5ymayoEqgifMJjbfTY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-58O6BxAcjgCbtJyPkzKKtexLOYodIHAExwfRPPPFcOI=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-E3YweNbXEzR2hxsyCYFg7YorFc/MkJstnsNeUtVxMFA=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GMmPvLCp12nTB2A3edxKqYW9nOEcn4mUbSDIB8uSFEI=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-IVq2ZV4bqS8z+7NbSSE2Gm0D2t6Am6PSEy4iGgiY4fw=' 'sha256-ImXhwPIaDzYWwBLhYV5EP9qZSwmnbfkURTE4m6HTvqU=' 'sha256-JQIPwKGkxXs/AyZxBVwFlF1DKA0SN+fLQSpnM5aGY4w=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-LrqAcX6EYrn1FDGC8701ZGVNduowoV0XozhXnBk2ai8=' 'sha256-ODnkG6Le8Cqp/r9bOK9FrS3Denl+Kbxh6Auu8u0rZoE=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-X7slrDpgX5Esbtr3HuxhWugLi1NKTWDvb+K060kXk9U=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-b+hR2i2ViyedwmAqqTitKUOQmoT7nrMmSb+ENDSMNws=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-cemiQMQwTXR+318vY1wXwQgOyMRh2KLdUGfPVh4TQjE=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fInNay7YkfBshcU/Ov4Qzft5gkilNkKZmGQu83EwLzo=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-j6cQKZ+pO2jEtsJTv7AnKR0NQLc+TgayeSSCB4yBUJs=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-xsp63O3KsGRyNwA0HiyNZ9rfZ/CjJ8/+KFtXEXV2zTc='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -15320,7 +15320,16 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       // part 2). `dataGaps` above already found these holes and reported only a percentage; the
       // Integrator needs their POSITIONS to divide by recorded rather than envelope hours.
       // Null on a contiguous night, which keeps every clean export byte-identical.
-      coverage: oxyCoverage(rows, t0Ms),
+      /* ∅ `sparse` and `discontinuous` are different claims, and the shared builder can only make
+         the first. `DexExport.coverageFromSegments` labels every multi-segment record `kind:'sparse'`
+         — correct for a dropout, wrong for a night whose CLOCK stepped, which is the distinction the
+         2026-09-17 ruling turns on (reduced coverage annotates; a discontinuity is not one stretch of
+         signal). `clockNonMonotonic` is the fact that separates them and it is an OxyDex stat, not
+         something the spine module knows, so the relabel is applied HERE rather than in
+         `dex-export.js` — which is inlined into all 8 bundles and would serialise a fleet-wide
+         re-verification for a label change. Measured: nothing reads `coverage.kind` today, so this
+         buys honesty in the export for a human reader, not behaviour. */
+      coverage: _oxyLabelCoverage(oxyCoverage(rows, t0Ms), stats),
       fname: fname,
       stats: stats,
       spikes: spikes,
@@ -17840,6 +17849,15 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
 
      Null when the night is contiguous — the common case, and the one that keeps every clean export
      byte-identical. */
+  /* Relabels a coverage block whose holes came from a CLOCK STEP rather than from a dropout. Returns
+     the same object shape (additively relabelled) so every consumer keeps working, and returns the
+     input untouched when there is nothing to relabel. */
+  function _oxyLabelCoverage(cov, stats) {
+    if (!cov || !stats || stats.clockNonMonotonic !== true) return cov;
+    cov.kind = 'discontinuous';
+    return cov;
+  }
+
   function oxyCoverage(rows, t0Ms) {
     if (!rows || rows.length < 2) return null;
     var segs = [],
@@ -23616,10 +23634,49 @@ __exports.HRVDex = window.HRVDex;
     const mode = cls.mode;
     const longRec = mode === 'overnight' || mode === 'continuous';
 
+    /* ∅ CLOCK SEAM — the TWO-CLOCK discriminator, and the same one ECGDex states in its own words:
+       "through a real BLE dropout both clocks keep ticking, so the device delta ≈ the phone delta;
+       only a clock step makes them disagree". PulseDex has both clocks and never compared them: the
+       RR INTERVAL is the device's measure of elapsed time between two beats, and the `tsMs` delta is
+       the host's. A capture-side resync moves one and not the other.
+
+       This matters because `rmssd`/`sdnn`/`pnn50` read the RR VALUES ONLY and never touch `tsMs`, so
+       a clock step is INVISIBLE to them by construction — measured on a planted 7-year seam with
+       physiological RR throughout, every one came back byte-identical to the continuous record while
+       `coverage` collapsed 100 → 0 beside them. A number computable from broken input, reporting no
+       problem (§∅). They are correct about the RR series and wrong about the RECORDING: the window
+       no longer describes one continuous stretch of signal, so per the 2026-09-17 ruling a
+       DISCONTINUITY refuses while reduced coverage annotates.
+
+       The bound is NOT a new constant. 60000 ms is `ECG_RESYNC_BOUND_MS` = `PPG_RESYNC_BOUND_MS` =
+       `MOTION_RESYNC_BOUND_MS`, shared because all these nodes read the same step in the same
+       device's several files; the `ppgdex-clock-seam` parity group asserts this one equal to them. */
+    const PD_RESYNC_BOUND_MS = 60000;
+    let _seamN = 0,
+      _seamMaxMs = 0;
+    if (timedAxis && f.tsMs && f.tsMs.length >= N) {
+      for (let i = 0; i + 1 < N; i++) {
+        const hostDelta = f.tsMs[i + 1] - f.tsMs[i],
+          devDelta = a[i];
+        if (!isFinite(hostDelta) || !isFinite(devDelta)) continue;
+        const disagree = Math.abs(hostDelta - devDelta);
+        if (disagree > PD_RESYNC_BOUND_MS) {
+          _seamN++;
+          if (disagree > _seamMaxMs) _seamMaxMs = disagree;
+        }
+      }
+    }
+    const clockSeam = _seamN > 0;
+    /* `meanRR`/`hr` are PER-BEAT averages, not window statistics over the axis, and they are kept
+       deliberately: `classifyRecording` and `adaptEnvelopeNode` consume the duration immediately, and
+       collapsing them is the DEEP-AUDIT-III §6.2 regression the envelope comment above already
+       records paying for once. The VARIABILITY metrics are what span the seam, and those refuse —
+       the same split PpgDex makes, where `_clockSeam` nulls the CVHR index with `reason:'clock-seam'`
+       and leaves the rest of the record alone. */
     const meanRR = mean(a),
-      sdnn = std(a),
-      rm = rmssd(a),
-      pn = pnn50(a);
+      sdnn = clockSeam ? null : std(a),
+      rm = clockSeam ? null : rmssd(a),
+      pn = clockSeam ? null : pnn50(a);
     const hr = +(60000 / meanRR).toFixed(1);
 
     let win = null,
@@ -23735,9 +23792,14 @@ __exports.HRVDex = window.HRVDex;
       windows: win ? win.wins : null,
       meanRR: +meanRR.toFixed(1),
       hr,
-      sdnn: +sdnn.toFixed(2),
-      rmssd: +rm.toFixed(2),
-      pnn50: +pn.toFixed(1),
+      /* ∅ null, with the reason NAMED beside them — an absent HRV figure a reader cannot explain is
+         only half of the refusal. `hrvReason` is additive and every consumer already guards
+         `!= null` on these three (they were nullable via the < 10 beat path before this). */
+      sdnn: sdnn == null ? null : +sdnn.toFixed(2),
+      rmssd: rm == null ? null : +rm.toFixed(2),
+      pnn50: pn == null ? null : +pn.toFixed(1),
+      hrvReason: clockSeam ? 'clock-seam' : null,
+      clockSeams: clockSeam ? { n: _seamN, maxDisagreeMs: Math.round(_seamMaxMs), boundMs: PD_RESYNC_BOUND_MS } : null,
       tp: sp.tp,
       hf: sp.hf,
       lf: sp.lf,

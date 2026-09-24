@@ -639,198 +639,121 @@
        night with no valid SpO2 as mean 0 / min 0 / max 0, and no valid HR likewise — the main path every real
        file takes. A night nobody measured read as a night of zeros. Driven through the real `processNight`
        with a control beside it, so the assertion is about behaviour and not about a literal. */
-    group('SEAM PLANT probe (temporary)', 'probe', function (T) {
+    group('∅ clock seam — a discontinuity refuses; the bound is SHARED, not re-invented', 'pulsedex-dsp · oxydex-dsp · absence', function (T) {
+      /* The 2026-09-17 ruling applied across the nodes. A DISCONTINUITY refuses (null + a named
+         reason); reduced COVERAGE annotates (the value, with n beside it). The line is whether the
+         window still describes ONE continuous stretch of signal.
+
+         Planted per node and measured, 8 nodes: PulseDex FAILED — a 7-year clock jump left
+         rmssd/sdnn/pnn50 byte-identical to the continuous record with coverage 0 beside them, which
+         is §∅'s "a number computable from broken input, reporting no problem". ECGDex, PpgDex and
+         MotionDex pass via their parsers (device-counter step → one resync each). OxyDex and
+         GlucoDex pass with named annotations. HRVDex and CPAPDex are structurally exempt — see the
+         CPAPDex pin at the end, which exists so the next session does not plant a seam that cannot
+         be expressed. */
       var P = (env.PulseDex && env.PulseDex._bare) || null;
-      T.ok('pulsedex surface', true, P ? Object.keys(P).slice(0, 28).join(',') : 'ABSENT');
-      var O = (env.OxyDex && (env.OxyDex._bare || env.OxyDex)) || null;
-      T.ok('oxydex surface', true, O ? Object.keys(O).filter(function (k) { return /analy|process|parse|night/i.test(k); }).slice(0, 14).join(',') : 'ABSENT');
-      // ── CONTROLS · the three nodes that already NAME a seam. If one returns a number too,
-      //    that outranks PulseDex (Kestrel, 2026-09-24).
-      var MO = env.MOTIONDSP || (env.MotionDex && env.MotionDex._bare);
-      if (MO && typeof MO.compute === 'function') {
-        var mkAcc = function (seamMs) {
-          var r = [],
-            t = Date.UTC(2026, 5, 10, 22, 0, 0);
-          for (var i = 0; i < 600; i++) {
-            if (i === 300 && seamMs) t += seamMs;
-            r.push({ tMs: t, x: 20 + 60 * Math.sin(i / 7), y: 30 + 40 * Math.cos(i / 11), z: 1000 + 50 * Math.sin(i / 5) });
-            t += 40;
-          }
-          r._unit = 'mg';
-          return r;
-        };
-        var mpick = function (o) {
-          return JSON.stringify({ pos: o.position && o.position.hasData, act: o.activity && o.activity.hasData, sqi: o.sqi && o.sqi.conf, res: (o.clockResyncs || o._clockResyncs || []).length, dur: o.durationSec });
-        };
-        T.ok('MOTIONDEX clean', true, mpick(MO.compute({ acc: mkAcc(0) })));
-        T.ok('MOTIONDEX +7y seam', true, mpick(MO.compute({ acc: mkAcc(7 * 365 * 24 * 3600e3) })));
+      if (!P || typeof P.pdComputeResult !== 'function') {
+        T.skip('PulseDex._bare.pdComputeResult exposed', 'PulseDex not co-loaded in this runner');
       } else {
-        T.ok('MOTIONDEX driver', true, 'ABSENT');
-      }
-
-      // ── OXYDEX · processNight over rows carrying a planted clock jump ──
-      if (O && typeof O.processNight === 'function') {
-        var mkOxy = function (seamMs) {
-          var r = [],
-            t = Date.UTC(2026, 5, 10, 22, 0, 0);
-          for (var i = 0; i < 3600; i++) {
-            if (i === 1800 && seamMs) t += seamMs;
-            r.push({ tMs: t, t: new Date(t), spo2: 96 + (i % 7 === 0 ? -4 : 0), hr: 58 + (i % 13), motion: 0, pi: 3 });
-            t += 1000;
-          }
-          return r;
-        };
-        var opick = function (o) {
-          if (!o) return 'null';
-          var st = o.stats || {};
-          return JSON.stringify({ odi4: o.odi4 && o.odi4.rate, t90: st.t90pct, dur: st.durationMin === undefined ? 'ABSENT' : st.durationMin, nonMono: st.clockNonMonotonic === undefined ? 'absent' : st.clockNonMonotonic, cov: o.coverage ? JSON.stringify(o.coverage).slice(0, 110) : null });
-        };
-        try {
-          T.ok('OXYDEX clean', true, opick(O.processNight(mkOxy(0))));
-        } catch (e) {
-          T.ok('OXYDEX clean', true, 'threw ' + e.message.slice(0, 60));
-        }
-        try {
-          T.ok('OXYDEX +7y seam', true, opick(O.processNight(mkOxy(7 * 365 * 24 * 3600e3))));
-        } catch (e) {
-          T.ok('OXYDEX +7y seam', true, 'threw ' + e.message.slice(0, 60));
-        }
-      }
-
-      /* ── PARSER-FORM plants · the TWO-CLOCK file the detectors actually read.
-         Phone stamp advances at the true rate; the DEVICE ns counter jumps, which is the
-         disagreement ECGDex calls the physical discriminator. */
-      var mkXYZ = function (seamMs, unitHdr) {
-        var out = ['Phone timestamp;sensor timestamp [ns];X [' + unitHdr + '];Y [' + unitHdr + '];Z [' + unitHdr + ']'];
-        var t = Date.UTC(2026, 5, 10, 22, 0, 0),
-          ns = 834363823499951360;
-        for (var i = 0; i < 400; i++) {
-          if (i === 200 && seamMs) ns += seamMs * 1e6; // the DEVICE counter steps; the phone does not
-          out.push(new Date(t).toISOString().slice(0, 23) + ';' + ns + ';' + (6 + (i % 5)) + ';' + (-959 + (i % 7)) + ';' + (109 + (i % 3)));
-          t += 40;
-          ns += 40 * 1e6;
-        }
-        return out.join('\n');
-      };
-      var seamCount = function (rec) {
-        if (!rec) return 'null';
-        var rs = rec._clockResyncs || rec.clockResyncs || (rec.rows && rec.rows._clockResyncs) || null;
-        return JSON.stringify({ rows: rec.rows ? rec.rows.length : rec.length, resyncs: rs ? rs.length : 'ABSENT' });
-      };
-      [['MOTIONDEX', MO], ['PPGDEX', env.PPGDSP || (env.PpgDex && env.PpgDex._bare)], ['ECGDEX', env.ECGDSP || (env.ECGDex && env.ECGDex._bare)]].forEach(function (pair) {
-        var name = pair[0],
-          mod = pair[1];
-        if (!mod || typeof mod.parseSensorXYZ !== 'function') {
-          T.ok(name + ' parseSensorXYZ', true, 'ABSENT · surface=' + (mod ? Object.keys(mod).filter(function (k) { return /^parse/.test(k); }).slice(0, 12).join(',') : 'no module'));
-          return;
-        }
-        try {
-          T.ok(name + ' parser clean', true, seamCount(mod.parseSensorXYZ(mkXYZ(0, 'mg'))));
-          T.ok(name + ' parser +2min DEVICE step', true, seamCount(mod.parseSensorXYZ(mkXYZ(120000, 'mg'))));
-        } catch (e) {
-          T.ok(name + ' parser', true, 'threw ' + e.message.slice(0, 55));
-        }
-      });
-
-      // ECGDex's ACC companion is parseDeviceACC; its ECG stream is parseECG (ns counter + phone stamp)
-      var EC = env.ECGDSP || (env.ECGDex && env.ECGDex._bare);
-      if (EC && typeof EC.parseDeviceACC === 'function') {
-        try {
-          T.ok('ECGDEX parseDeviceACC clean', true, seamCount(EC.parseDeviceACC(mkXYZ(0, 'mg'))));
-          T.ok('ECGDEX parseDeviceACC +2min step', true, seamCount(EC.parseDeviceACC(mkXYZ(120000, 'mg'))));
-        } catch (e) {
-          T.ok('ECGDEX parseDeviceACC', true, 'threw ' + e.message.slice(0, 55));
-        }
-      }
-      if (EC && typeof EC.parseECG === 'function') {
-        var mkECG = function (seamMs) {
-          // the REAL Polar header, read off uploads/Polar_H10_..._ECG_part09of10.txt — my first
-          // invented column set did not parse, and `resyncs: 0` was vacuous rather than a pass
-          var out = ['Phone timestamp;sensor timestamp [ns];timestamp [ms];ecg [uV]'];
-          var t = Date.UTC(2026, 5, 10, 22, 0, 0),
-            ns = 599637169254012032,
-            ms = 21036410;
-          for (var i = 0; i < 600; i++) {
-            if (i === 300 && seamMs) {
-              ns += seamMs * 1e6;
-              ms += seamMs;
-            }
-            out.push(new Date(t).toISOString().slice(0, 23) + ';' + ns + ';' + ms + ';' + Math.round(300 * Math.sin(i / 3)));
-            t += 8;
-            ns += 8 * 1e6;
-            ms += 8;
-          }
-          return out.join('\n');
-        };
-        try {
-          T.ok('ECGDEX parseECG clean', true, seamCount(EC.parseECG(mkECG(0))));
-          T.ok('ECGDEX parseECG +2min step', true, seamCount(EC.parseECG(mkECG(120000))));
-        } catch (e) {
-          T.ok('ECGDEX parseECG', true, 'threw ' + e.message.slice(0, 55));
-        }
-      }
-
-      var H = (env.HRVDex && env.HRVDex._bare) || null;
-      T.ok('hrvdex surface', true, H ? Object.keys(H).filter(function (k) { return /analy|parse|night|summar/i.test(k); }).slice(0, 14).join(',') : 'ABSENT');
-
-      // ── PULSEDEX · a seam in the source arrives as ONE enormous RR interval ──
-      if (P && typeof P.rmssd === 'function') {
-        var clean = [];
-        for (var i = 0; i < 120; i++) clean.push(900 + 40 * Math.sin(i / 5));
-        var seamed = clean.slice(0, 60).concat([7 * 365 * 24 * 3600e3]).concat(clean.slice(60));
-        var out = {};
-        ['rmssd', 'pnn50', 'sd1', 'sd2', 'mxdmn', 'stressEst'].forEach(function (fn) {
-          if (typeof P[fn] !== 'function') return;
-          try {
-            var v = P[fn](seamed);
-            out[fn] = v && typeof v === 'object' ? JSON.stringify(v).slice(0, 40) : v;
-          } catch (e) {
-            out[fn] = 'threw';
-          }
-        });
-        var base = {};
-        ['rmssd', 'sd2'].forEach(function (fn) {
-          if (typeof P[fn] === 'function') base[fn] = P[fn](clean);
-        });
-        T.ok('PULSEDEX seamed', true, JSON.stringify(out));
-        T.ok('PULSEDEX clean baseline', true, JSON.stringify(base));
-
-        // the PRODUCTION path — artifactClean sits between the input and the metrics
-        if (typeof P.pdComputeResult === 'function') {
-          var mk = function (arr) {
-            return { vals: arr, t0Ms: Date.UTC(2026, 5, 10, 22, 0, 0) };
-          };
-          var pick = function (r) {
-            if (!r) return 'null';
-            return JSON.stringify({ rmssd: r.rmssd, sdnn: r.sdnn, pnn50: r.pnn50, cov: r.coverage, nArt: r.nArtifacts != null ? r.nArtifacts : r.nArt, span: r.spanSec, n: r.n });
-          };
-          T.ok('PULSEDEX prod clean', true, pick(P.pdComputeResult(mk(clean))));
-          T.ok('PULSEDEX prod seamed', true, pick(P.pdComputeResult(mk(seamed))));
-
-          /* The REALISTIC seam: every RR value stays physiological and the CLOCK jumps, so
-             artifactClean sees nothing wrong. This is what a capture-side resync looks like. */
-          var t0 = Date.UTC(2026, 5, 10, 22, 0, 0);
-          var tsClean = [],
-            tsSeam = [],
+        /* THE REALISTIC SEAM: every RR value stays physiological and the CLOCK jumps. That is what a
+           capture-side resync looks like, and it is invisible to the RR-domain statistics by
+           construction — rmssd/sdnn/pnn50 read the VALUES and never touch tsMs. A seam planted as a
+           giant RR value instead would be smoothed away by artifactClean's local-median replacement
+           and would test nothing; the next reader will reach for that form, so it is named here. */
+        var rr = [];
+        for (var i = 0; i < 120; i++) rr.push(900 + 40 * Math.sin(i / 5));
+        var t0 = Date.UTC(2026, 5, 10, 22, 0, 0);
+        var stamps = function (seamMs) {
+          var ts = [],
             acc = t0;
-          for (var q = 0; q < clean.length; q++) {
-            tsClean.push(acc);
-            acc += clean[q];
+          for (var k = 0; k < rr.length; k++) {
+            if (k === 60 && seamMs) acc += seamMs;
+            ts.push(acc);
+            acc += rr[k];
           }
-          acc = t0;
-          for (var z = 0; z < clean.length; z++) {
-            if (z === 60) acc += 7 * 365 * 24 * 3600e3; // the clock jumps; the beats do not
-            tsSeam.push(acc);
-            acc += clean[z];
-          }
-          T.ok('PULSEDEX prod tsClean', true, pick(P.pdComputeResult({ vals: clean, tsMs: tsClean, t0Ms: t0 })));
-          T.ok('PULSEDEX prod tsSEAM', true, pick(P.pdComputeResult({ vals: clean, tsMs: tsSeam, t0Ms: t0 })));
-        } else {
-          T.ok('PULSEDEX pdComputeResult', true, 'NOT on the bare surface');
-        }
+          return ts;
+        };
+        var clean = P.pdComputeResult({ vals: rr, tsMs: stamps(0), t0Ms: t0 });
+        var seamed = P.pdComputeResult({ vals: rr, tsMs: stamps(7 * 365 * 24 * 3600e3), t0Ms: t0 });
+
+        T.ok(
+          'control: a continuous record still computes every HRV metric',
+          clean && clean.rmssd > 0 && clean.sdnn > 0 && clean.coverage === 100,
+          JSON.stringify(clean && { r: clean.rmssd, s: clean.sdnn, c: clean.coverage })
+        );
+        T.eq('a clock seam REFUSES the whole-record variability metrics', JSON.stringify({ r: seamed.rmssd, s: seamed.sdnn, p: seamed.pnn50 }), JSON.stringify({ r: null, s: null, p: null }));
+        T.eq('\u2026with the reason NAMED — an absent figure a reader cannot explain is half a refusal', seamed.hrvReason, 'clock-seam');
+        T.ok(
+          '\u2026and the seam itself is published, not just its consequence',
+          !!seamed.clockSeams && seamed.clockSeams.n >= 1 && seamed.clockSeams.boundMs === 60000,
+          JSON.stringify(seamed.clockSeams)
+        );
+        /* The PER-BEAT averages are kept deliberately. classifyRecording and adaptEnvelopeNode consume
+           the duration immediately, and collapsing it is the DEEP-AUDIT-III §6.2 regression HRVDex
+           already paid for once — the same split PpgDex makes, nulling the CVHR index and leaving the
+           rest of the record alone. */
+        T.ok('the per-beat averages survive — the refusal is scoped to what spans the seam', seamed.meanRR > 0 && seamed.hr > 0, JSON.stringify({ m: seamed.meanRR, h: seamed.hr }));
+        T.ok('the plant is not vacuous — the SAME rr values compute fine without the seam', clean.rmssd > 0 && seamed.rmssd === null, JSON.stringify({ clean: clean.rmssd, seamed: seamed.rmssd }));
+      }
+
+      /* PARITY — the bound is SHARED, and that is the point. ECGDex, PpgDex and MotionDex already
+         assert theirs equal in the `ppgdex-clock-seam` group because all these nodes read the same
+         step in the same device's several files; a second constant would eventually disagree with
+         the first. PulseDex reuses it rather than inventing one. */
+      var srcOf = function (f) {
+        return ((env.sources || {})[f] || '')
+          .split('\n')
+          .filter(function (ln) {
+            var t = ln.trim();
+            return t.indexOf('//') !== 0 && t.indexOf('*') !== 0 && t.indexOf('/*') !== 0;
+          })
+          .join('\n');
+      };
+      var boundOf = function (f, name) {
+        var m = srcOf(f).match(new RegExp(name + '\\s*=\\s*(\\d+)'));
+        return m ? +m[1] : null;
+      };
+      var pd = boundOf('pulsedex-dsp.js', 'PD_RESYNC_BOUND_MS'),
+        ppg = boundOf('ppgdex-dsp.js', 'PPG_RESYNC_BOUND_MS'),
+        ecg = boundOf('ecgdex-dsp.js', 'ECG_RESYNC_BOUND_MS');
+      if (pd == null || ppg == null || ecg == null) {
+        T.skip('resync bounds readable from source', 'sources not provided in this runner');
+      } else {
+        T.eq('PulseDex reuses the SHARED resync bound — it did not invent a second one', JSON.stringify({ pd: pd, ppg: ppg, ecg: ecg }), JSON.stringify({ pd: 60000, ppg: 60000, ecg: 60000 }));
+      }
+
+      /* OXYDEX — `sparse` and `discontinuous` are different claims. The shared builder can only make
+         the first (`DexExport.coverageFromSegments` labels every multi-segment record `sparse`), and
+         `clockNonMonotonic` is the OxyDex stat that separates them, so the relabel is applied at
+         OxyDex's call site. Doing it in dex-export.js would serialise a fleet-wide re-verification
+         for a label nothing currently reads. */
+      var oSrc = srcOf('oxydex-dsp.js');
+      if (!oSrc.trim()) {
+        T.skip('oxydex-dsp.js source', 'sources not provided in this runner');
+      } else {
+        T.ok(
+          'a clock-stepped night is labelled discontinuous, not sparse',
+          /_oxyLabelCoverage/.test(oSrc) && /'discontinuous'/.test(oSrc) && /clockNonMonotonic !== true/.test(oSrc),
+          'relabel absent'
+        );
+      }
+
+      /* CPAPDEX PIN — a PROPERTY, not a detector. An EDF timeline is CONSTRUCTED from the header
+         (startdate/starttime + recordIndex × recDurSec), which is §7's "a device whose axis was DRAWN
+         is not a clock". There is no second clock in one EDF, so the two-clock discriminator cannot
+         run and there is no form in which to plant a seam. This pins that so the next session does
+         not spend a tick planting one that cannot exist. */
+      var cSrc = srcOf('cpapdex-edf.js');
+      if (!cSrc.trim()) {
+        T.skip('cpapdex-edf.js source', 'sources not provided in this runner');
+      } else {
+        T.ok(
+          'the EDF axis is header-derived: one clock, so no seam is expressible',
+          /recDurSec/.test(cSrc) && /startdate/.test(cSrc) && !/RESYNC_BOUND_MS/.test(cSrc),
+          'cpapdex-edf.js now carries a resync bound — if it grew a second clock, this pin is stale and the seam plant must be re-run for it'
+        );
       }
     });
-
 
     group('OxyDex §∅ — an ABSENT oximetry index is not a measured zero, and Normal is a claim', 'oxydex-dsp · absence', function (T) {
       var _odn = env.OxyDex || env.OxyDSP || env.OXYDSP;
