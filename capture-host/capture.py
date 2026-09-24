@@ -9,7 +9,7 @@
 #    scaffold honoring the §7 integration contract; validate against real frames + PSL output first.
 
 from __future__ import annotations
-import argparse, asyncio, calendar, contextlib, glob, json, logging, math, os, random, signal, time as _time, datetime as _dt
+import argparse, asyncio, calendar, contextlib, gc, glob, json, logging, math, os, random, signal, time as _time, datetime as _dt
 import concurrent.futures, multiprocessing, sys as _sys
 import build_id
 from writers import (ContactLedger, StreamWriter, Spo2CsvWriter, LinkLogWriter, OxyFrameLogWriter, OxyLifeLogWriter, RingClockLogWriter, resumable_set,
@@ -9449,6 +9449,281 @@ async def loop_monitor(period_s: float = 1.0):
                         lag_ms, rec["stalls"], rec["lag_max_ms"])
 
 
+# ── WHAT HELD THE LOOP: the garbage collector, timed ────────────────────────────────────────────
+#
+# `loop_monitor` above measures the ONE shared resource and says so in its own docstring — "that
+# lateness IS the time some other callback held the loop" — but it cannot NAME the holder. This names
+# one candidate, and only one: a generational GC pass is stop-the-world for the thread it runs on, and
+# this daemon's loop is that thread.
+#
+# THE OBSERVATION IT EXISTS TO TEST (2026-09-23, the first night under #2936). `loop.lag_max_ms` rose
+# 272 → 292 → 337 → 401 → 457 → 523 → 593 ms between 00:07 and 04:15, 40 stalls ≥ 100 ms, FLAT after
+# the 04:46 doff and zero stalls in 15 min of post-night sampling. `RssAnon` rose 128 → 245 MB over the
+# same hours and was also flat after the doff. No clock-sync or pause activity between 00:00 and 04:00.
+# Same slope, same stop. The hypothesis that fits: a heap that grows through the night makes each gen-2
+# pass longer, and a gen-2 pass holds the loop.
+#
+# IT IS A HYPOTHESIS AND THIS IS THE INSTRUMENT, NOT THE FIX. Nothing here calls `gc.freeze()` or moves
+# a threshold: a remedy chosen before a night correlates gen-2 DURATIONS with the stall INSTANTS would
+# be a guess dressed as a fix, and if the correlation fails the hypothesis is dead while the instrument
+# stays useful. An off-daemon test of `summarize` saw zero gen-2 passes, which is evidence about that
+# function and not about the daemon — the daemon's heap carries the night's buffers.
+#
+# ALL THREE GENERATIONS ARE TIMED, not just gen-2, and that is deliberate rather than scope. The
+# callback fires on every collection once registered, so skipping gen-0 would save an arithmetic
+# operation and no call; and gen-0's duration is the CONTROL — it scans a set bounded by the collection
+# threshold, so it cannot grow with the heap. Gen-0 flat while gen-2 climbs is the signature the
+# hypothesis predicts; gen-0 climbing too would say the cost is not heap-scan-bound and would send the
+# next unit somewhere else. Measuring only the generation you expect to move cannot tell you that.
+_GC_PASS: dict = {}       # generation -> {"n", "last_ms", "max_ms"}; EMPTY until a pass completes
+_GC_T0: dict = {}         # generation -> monotonic at the "start" phase
+_GC_HOOK_ERRORS = 0       # counted, never swallowed silently — see the callback
+
+
+def _gc_pass_callback(phase, info):
+    """Time one GC pass. Registered on `gc.callbacks`, so it runs INSIDE collection: it must be cheap,
+    must not allocate meaningfully, and must not raise.
+
+    It cannot log. A logging call here would allocate during a collection and could recurse into the
+    very pass being timed, so a failure is COUNTED instead (`_GC_HOOK_ERRORS`, published beside the
+    numbers) rather than silently swallowed — an instrument that fails invisibly is worse than one that
+    is absent, because its zero reads like a measurement.
+
+    A `stop` with no recorded `start` is the pass that was already running when the hook was installed.
+    It is dropped rather than timed from an invented origin (§∅: an unmeasured duration is not 0)."""
+    global _GC_HOOK_ERRORS
+    try:
+        gen = info.get("generation")
+        if phase == "start":
+            _GC_T0[gen] = _time.monotonic()
+            return
+        t0 = _GC_T0.pop(gen, None)
+        if t0 is None:
+            return
+        ms = (_time.monotonic() - t0) * 1000.0
+        rec = _GC_PASS.get(gen)
+        if rec is None:
+            rec = _GC_PASS[gen] = {"n": 0, "last_ms": None, "max_ms": None}
+        rec["n"] += 1
+        rec["last_ms"] = round(ms, 3)
+        if rec["max_ms"] is None or ms > rec["max_ms"]:
+            rec["max_ms"] = round(ms, 3)
+    except Exception:   # noqa: BLE001 — an instrument must never take collection (or capture) down
+        _GC_HOOK_ERRORS += 1
+
+
+def arm_gc_probe() -> bool:
+    """Register the pass timer FOR A WINDOW, not for the process. Returns whether it is armed, so a
+    caller publishes the fact rather than assuming it.
+
+    Window-scoped because the callback fires on every collection, and gen-0 collections are frequent:
+    an always-on hook adds work to the loop whose latency is the thing under investigation. An
+    instrument that perturbs its own measurement is answerable only by not running it all the time."""
+    if _gc_pass_callback not in gc.callbacks:
+        gc.callbacks.append(_gc_pass_callback)
+    return _gc_pass_callback in gc.callbacks
+
+
+def disarm_gc_probe() -> bool:
+    """Remove the pass timer and return whether it is now absent. Idempotent: disarming a probe that was
+    never armed is not an error, because the caller that cleans up is often not the one that armed."""
+    while _gc_pass_callback in gc.callbacks:
+        gc.callbacks.remove(_gc_pass_callback)
+    return _gc_pass_callback not in gc.callbacks
+
+
+def gc_snapshot() -> dict:
+    """The reportable view: per generation the pass count and durations, plus CPython's own counters.
+
+    ⚠️ `last_ms` / `max_ms` are **None until a pass of that generation has completed**, never 0.0 (§∅).
+    A gen-2 pass is exactly what this is hunting, and gen-2 is rare — on a short run there may be none —
+    so a 0.0 there would read as "a pass took no time" and would falsify the hypothesis with a number
+    nothing measured. `collections` comes from `gc.get_stats()`, which CPython maintains whether or not
+    this probe is installed, so the counts are trustworthy even for passes that predate installation;
+    the DURATIONS are this probe's alone and only cover passes it saw."""
+    stats = gc.get_stats()
+    per = {}
+    for gen in (0, 1, 2):
+        rec = _GC_PASS.get(gen) or {}
+        s = stats[gen] if gen < len(stats) else {}
+        per[str(gen)] = {"timed_passes": rec.get("n", 0),
+                         "last_ms": rec.get("last_ms"),
+                         "max_ms": rec.get("max_ms"),
+                         "collections": s.get("collections"),
+                         "collected": s.get("collected"),
+                         "uncollectable": s.get("uncollectable")}
+    return {"enabled": gc.isenabled(),
+            "installed": _gc_pass_callback in gc.callbacks,
+            "counts": list(gc.get_count()),
+            "gen": per,
+            # Hoisted for the correlation this exists for: one line beside `loop.lag_max_ms`.
+            "gen2_last_ms": per["2"]["last_ms"],
+            "gen2_max_ms": per["2"]["max_ms"],
+            "hook_errors": _GC_HOOK_ERRORS}
+
+
+HEAP_PROBE_NAME = "heap-probe.json"
+
+
+def heap_report_row(when, traced, peak, n_objects, gc_view, top_rows, covered=True,
+                    live_streams=None) -> dict:
+    """PURE: one snapshot's row. Separated from the task so the SHAPE is testable without waiting an hour.
+
+    `top_rows` are already-formatted `compare_to` lines; the FIRST snapshot of a window has none,
+    because a difference needs two snapshots — and that absence is an empty list, never a fabricated
+    zero-growth row (§∅ applied to a comparison rather than to a value).
+
+    ⚠️ `covered` IS THE ROW'S LICENCE TO BE READ AS A MEASUREMENT. An interval in which nothing streamed
+    produces an empty diff for the same reason a leak-free interval does, and the two are opposite
+    findings. So an uncovered interval is `NOT_APPLICABLE` — the `tepna.verdict/1` value for a question
+    that did not apply — and never an empty growth list presented as "no growth found"."""
+    return {"at": when, "traced_bytes": traced, "traced_peak_bytes": peak,
+            "gc_tracked_objects": n_objects, "gc": gc_view, "top_growth": list(top_rows),
+            "covered_capture": bool(covered), "live_streams": live_streams,
+            "status": "OK" if covered else "NOT_APPLICABLE",
+            "reason": None if covered else "nothing streamed during this interval — an empty diff here "
+                                           "is the absence of capture, not the absence of growth",
+            # Said on EVERY row because it governs how the row is read, and a caveat that lives only in
+            # a docstring is a caveat the reader of the file never sees.
+            "caveat": ("durations here were measured with tracemalloc ACTIVE, which taxes every "
+                       "allocation — they are not comparable to a clean night's loop.lag_max_ms. "
+                       "gc_tracked_objects is unaffected and is what the hypothesis turns on.")}
+
+
+async def heap_probe(cfg: dict, root: str):
+    """WHAT ACCUMULATES: tracemalloc, armed on demand, comparing two snapshots an hour apart.
+
+    THE OBSERVATION (2026-09-23, re-read 2026-09-24). `RssAnon` climbed 128 → 245 MB, linear at ~21 MB/h
+    while capturing, and `loop.lag_max_ms` rose 272 → 593 ms on the same slope with 40 stalls ≥ 100 ms.
+    Both went FLAT at 04:22-04:24 — and the discriminator is what did NOT stop there: the **H10 kept
+    streaming ECG+ACC until 04:49:58 and the heap did not move for those 25 minutes**, while the Verity
+    stopped at 04:21:52 and the ring at 04:25:35. So the accumulator is in the Verity or ring path and
+    not the H10's, and 21 MB/h is an order of magnitude consistent with per-SAMPLE retention (a 4-channel
+    Verity PPG hour is ~790k values).
+
+    WHY THIS INSTRUMENT AND NOT THE TWO OBVIOUS ONES. A `gc.get_objects()` type histogram names a type
+    and never an OWNER, and walking every object is itself a gen-2-sized pause — the instrument would
+    produce the symptom it is measuring. Always-on tracemalloc taxes every allocation on the very loop
+    whose latency is under investigation. Started MID-capture with one frame it traces only the growth
+    and names it by `file:line`, which is the container itself.
+
+    `gc_tracked_objects` beside each snapshot is the hypothesis's own test and it is cheap at this
+    cadence: a GC pause scales with the tracked-object COUNT, so if the count does not climb with the
+    bytes, the lag has a different cause and the hypothesis dies on the same night rather than surviving
+    into another one. ⚠️ The gen-2 DURATIONS recorded here are taken with tracemalloc active and are
+    therefore inflated — they indicate, they do not measure. The count does not have that problem.
+
+    OFF by default; arming is the owner's restart. Every snapshot is written as it is taken rather than
+    at the end, so a daemon that restarts mid-window leaves the rows it did reach instead of nothing."""
+    hcfg = cfg.get("heap_probe") or {}
+    # `.get("enabled")` with NO literal default, like every other default-OFF section here (seal,
+    # archive, cpap, as11_detector). `test_schema_defaults_match_the_daemon_fallbacks` scans capture.py
+    # for `.get("leaf", <literal>)` keyed on the LEAF ALONE, so a literal `False` here joins the same
+    # set as `watchdog.enabled`'s `True` and reds that test — naming `watchdog`, which the author of a
+    # heap probe has not touched. Absent ⇒ falsy ⇒ off, which is the same behaviour without the trap.
+    if not hcfg.get("enabled"):
+        log.info("heap probe: OFF — heap_probe.enabled is false")
+        return
+    import tracemalloc
+    start_after_s = float(hcfg.get("start_after_min", 30)) * 60.0
+    interval_s = float(hcfg.get("interval_min", 60)) * 60.0
+    snapshots = int(hcfg.get("snapshots", 2))
+    top = int(hcfg.get("top", 15))
+    path = os.path.join(root, "captures", HEAP_PROBE_NAME)
+
+    log.info("heap probe: ARMED — waiting for capture, then tracemalloc in %.0f min, then %d "
+             "snapshot(s) %.0f min apart, top %d growers to %s",
+             start_after_s / 60.0, snapshots, interval_s / 60.0, top, path)
+    # THE COUNTDOWN STARTS AT CAPTURE, NOT AT BOOT, and that is the difference between a measurement and
+    # a verdict about a period nobody pointed at. The growth exists only while the Verity or ring stream,
+    # and the daemon routinely starts hours earlier — 2026-09-23 booted 23:00:54 against capture at
+    # 23:13, and the night before restarted at 18:16, 18:53 and 20:56 against capture at 22:38. Counting
+    # 30 + 2x60 min from an evening restart would put the whole window over an IDLE heap and write "no
+    # growth found", which is the same shape as a check that reported success about something it never
+    # examined (CLAUDE.md §4b).
+    if not await _await_first_capture():
+        return
+    log.info("heap probe: capture is live — tracing starts in %.0f min", start_after_s / 60.0)
+    if await _stop_or_sleep(start_after_s):
+        return
+    already = tracemalloc.is_tracing()
+    if not already:
+        tracemalloc.start(1)                 # ONE frame: the allocation site is the container
+    armed = arm_gc_probe()
+    log.info("heap probe: tracing (gc pass timer armed=%s, tracemalloc was already on=%s)", armed, already)
+    rows, prev = [], None
+    try:
+        for i in range(snapshots):
+            stopped, covered = await _sleep_watching_capture(interval_s)
+            if stopped:
+                return
+            snap = tracemalloc.take_snapshot()
+            traced, peak = tracemalloc.get_traced_memory()
+            top_rows = [str(s) for s in snap.compare_to(prev, "lineno")[:top]] if prev is not None else []
+            rows.append(heap_report_row(_now().isoformat(timespec="seconds"), traced, peak,
+                                        len(gc.get_objects()), gc_snapshot(), top_rows,
+                                        covered=covered, live_streams=_live_streams()))
+            try:
+                os.makedirs(os.path.dirname(path), exist_ok=True)
+                with open(path + ".tmp", "w") as _f:
+                    json.dump({"schema": "tepna.heap-probe/1", "rows": rows}, _f, indent=2)
+                os.replace(path + ".tmp", path)   # atomic — Wren reads this while the window is open
+            except Exception as _e:               # noqa: BLE001 — evidence never takes capture down
+                log.warning("heap probe: could not write %s: %r", path, _e)
+            log.info("heap probe: snapshot %d/%d — %.1f MB traced, %d gc-tracked objects, %d growth rows",
+                     i + 1, snapshots, traced / 1e6, rows[-1]["gc_tracked_objects"], len(top_rows))
+            prev = snap
+    finally:
+        if not already:
+            tracemalloc.stop()
+        disarm_gc_probe()
+        log.info("heap probe: finished — tracing stopped, gc pass timer disarmed")
+
+
+def _live_streams() -> int:
+    """How many devices are recording right now, off the state `status_loop` already publishes."""
+    return sum(1 for d in STATUS.get("devices", {}).values()
+               if isinstance(d, dict) and d.get("recording"))
+
+
+async def _await_first_capture(poll_s: float = 10.0) -> bool:
+    """Block until ANY device is recording. False if `_STOP` came first.
+
+    `STATUS["recording"]` is `publish_recording`'s answer, which is `alerts.device_is_recording` and not
+    `connected` — and that distinction is load-bearing here for the reason its own docstring gives: an
+    unbonded H10 reads connected=True inside each doomed 1-2 s connect, so arming on `connected` would
+    start the window against a device that is writing nothing."""
+    while not STATUS.get("recording"):
+        if await _stop_or_sleep(poll_s):
+            return False
+    return True
+
+
+async def _sleep_watching_capture(seconds: float, poll_s: float = 10.0):
+    """Sleep an interval in chunks, reporting `(stopped, saw_capture)`.
+
+    Sleeping the whole interval in one call would leave the row unable to say whether anything streamed
+    during it — and an interval with no capture produces an empty growth diff that reads exactly like a
+    clean one. Chunked, the row can carry `covered_capture` and decline to be read as a measurement."""
+    saw = bool(STATUS.get("recording"))
+    remaining = seconds
+    while remaining > 0:
+        step = min(poll_s, remaining)
+        if await _stop_or_sleep(step):
+            return True, saw
+        remaining -= step
+        saw = saw or bool(STATUS.get("recording"))
+    return False, saw
+
+
+async def _stop_or_sleep(seconds: float) -> bool:
+    """Sleep, or return True the moment `_STOP` is set. A probe that ignores shutdown holds the daemon
+    for up to an hour at every stage of its own schedule."""
+    with contextlib.suppress(asyncio.TimeoutError):
+        await asyncio.wait_for(_STOP.wait(), timeout=seconds)
+    return _STOP.is_set()
+
+
 async def sd_watchdog():
     """Heartbeat systemd's WatchdogSec from a live-event-loop task, so a HUNG-but-alive daemon (the wedged
     BLE stack this box keeps hitting) is detected and restarted — `Restart=always` alone never fires
@@ -11283,7 +11558,11 @@ async def main():
                    ("cpap_poller", lambda: cpap_poller(cfg, root, notifier)),
                    ("charger_pull_poller", lambda: charger_pull_poller(cfg, root)),
                    ("sd_watchdog", sd_watchdog),
-                   ("loop_monitor", loop_monitor)]
+                   ("loop_monitor", loop_monitor),
+                   # Registered unconditionally and OFF by default: a probe wired only when enabled is a
+                   # probe whose wiring is never exercised, so the night it is armed is the night its
+                   # registration is tested for the first time. It returns immediately when disabled.
+                   ("heap_probe", lambda: heap_probe(cfg, root))]
     tasks = []
     for label, mk in _BACKGROUND:
         _t = asyncio.create_task(keep_running(mk, label, notifier))
