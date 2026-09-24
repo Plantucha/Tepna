@@ -2442,8 +2442,58 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
         dids = writers.device_ids(d)
         name = d.get("name") or did
         opt = bool(d.get("optional"))          # a known-but-not-expected backup — its absence is not a fault
+        # ── THE DENOMINATOR IS THIS DEVICE'S OWN SPAN, not the session's (2026-09-24) ──────────────
+        # Coverage asks, in its own words below, "did we receive the packets the device was SENDING".
+        # Dividing by the SESSION span — the union across devices — answers a different question: it
+        # charges one device for the time another kept recording. Measured on 2026-09-23, one session
+        # 23:13:18 → 04:49:58 (span 20,200 s), against each device's own extent:
+        #
+        #   H10 ecg     own 20,089 s   own/session = 0.9945   reported 0.99   stopped  1.9 min early
+        #   Verity ppg  own 18,499 s   own/session = 0.9158   reported 0.92   stopped 28.4 min early
+        #   Ring ppg    own 18,699 s   own/session = 0.9257   reported 0.92   stopped 25.0 min early
+        #
+        # Every published number is that ratio to 2 dp, and QC's own `gaps` was EMPTY for the night —
+        # so the "missing 8 %" was two devices stopping half an hour before the third, not absence.
+        #
+        # 🔴 THE REASON IT MATTERED: against the session span, "stopped early" and "dropped packets
+        # while recording" produce the SAME number, and they are opposite findings — one is correct
+        # behaviour and one is the loss this metric exists to catch. The early stop is now its own
+        # published quantity (`stopped_early_s`) and the denominator is the device's own span, so a
+        # genuine in-recording loss is the only thing that can move coverage off 1.00.
+        #
+        # Per DEVICE and not per stream, deliberately: the streams of one device stop together when its
+        # link drops, which is what 09-23 shows (Verity acc and ppg both 0.92). Per-stream is the finer
+        # grain and the data is here if a stream is ever seen stopping alone.
+        _dev_files = [f for f in current if writers.file_device_id(f["file"]) in dids]
+        _dev_end = max((f["mtime"] for f in _dev_files), default=None)
+        dev_span = None
+        # EVERY file must carry its own span, or the START cannot be bounded. Dropping the ones that do
+        # not would move the start LATER, shorten the span and INFLATE coverage — the wrong direction for
+        # a missing measurement — so an incomplete set falls back to the session span and says so, the
+        # same shape `coverage_basis` already uses for the rate (§∅: absence is not a smaller number).
+        if _dev_files and all(f.get("span_sec") for f in _dev_files):
+            dev_span = _dev_end - min(f["mtime"] - f["span_sec"] for f in _dev_files)
+            if dev_span < _MIN_SPAN_SEC:
+                dev_span = None
+        # Session end − this device's last write. Published so a reader sees 28.4 min on the Verity
+        # rather than "8 % of nothing"; the session end it is measured against is named beside it.
+        stopped_early_s = (round(cur[1] - _dev_end)
+                           if (_dev_end is not None and span is not None) else None)
         streams: dict[str, int] = {}
         coverage: dict[str, float] = {}
+        #: Per stream: "device" when the denominator was this device's own recording extent, "session"
+        #: when it fell back because some file carried no measurable span. The rate's provenance is in
+        #: `coverage_basis`; this is the OTHER factor of the same denominator, and publishing only one
+        #: of the two is how the number came to mean two things at once.
+        span_basis: dict[str, str] = {}
+        #: THE OLD NUMBER, KEPT AND NAMED. `coverage` now answers what its definition says — did we
+        #: receive what this device sent — which means an early stop reads 1.00, and until something
+        #: consumes `stopped_early_s` that would silently retire the alert a died-at-hour-one stream used
+        #: to raise. So the session-span ratio stays, as its own field, and `degraded` keeps keying on it:
+        #: nothing that was flagged before stops being flagged, and no threshold had to be invented to
+        #: keep it. When the early stop has a REASON (`stopped_early_reason`), `degraded` moves to
+        #: coverage plus an unexplained early stop, and this stays as the reader's cross-check.
+        session_coverage: dict[str, float] = {}
         #: Per stream: "measured" when its rate was observed off the file, "expected" when the
         #: configured rate was substituted because none could be measured. The coverage number is
         #: worth exactly what its rate is worth, and before this the two were indistinguishable.
@@ -2489,12 +2539,20 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
             basis = "measured"
             if hz is None:
                 hz, basis = _expected_hz(d, s), "expected"
-            if hz and span:
-                cov = round(rows / (hz * span), 2)
+            _span, _sbasis = (dev_span, "device") if dev_span else (span, "session")
+            if hz and _span:
+                cov = round(rows / (hz * _span), 2)
                 coverage[s] = cov
                 coverage_basis[s] = basis
-                if cov < _DEGRADED_BELOW:
-                    degraded.append(f"{name}:{s} {int(cov * 100)}%"
+                span_basis[s] = _sbasis
+            # The session-span ratio is computed whenever the session span exists, INDEPENDENTLY of
+            # whether the device's own span could be bounded — so the alert does not quietly depend on a
+            # file carrying a device clock. `degraded` keys on this one, unchanged.
+            if hz and span:
+                scov = round(rows / (hz * span), 2)
+                session_coverage[s] = scov
+                if scov < _DEGRADED_BELOW:
+                    degraded.append(f"{name}:{s} {int(scov * 100)}%"
                                     + ("" if basis == "measured" else " (rate assumed)"))
         # SECONDS SINCE THIS DEVICE LAST WROTE, measured against the night's NEWEST write rather
         # than wall-clock now(). Two reasons: reading an old night back must not report every
@@ -2543,7 +2601,15 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
         if dat_path and spo2_path:
             datfit = dat_timefit_summary(dat_path, spo2_path)
         per_device.append({"name": name, "streams": streams, "coverage": coverage,
-                           "coverage_basis": coverage_basis,
+                           "coverage_basis": coverage_basis, "span_basis": span_basis,
+                           "session_coverage": session_coverage,
+                           "span_sec": round(dev_span) if dev_span else None,
+                           "stopped_early_s": stopped_early_s,
+                           "session_end": round(cur[1]) if span is not None else None,
+                           # WHY it stopped — doff, link loss — is Wren's wear-end unit and is not
+                           # inferred here. The slot is named so the consumer contract does not change
+                           # when it arrives, and `None` means "not determined", never "no reason".
+                           "stopped_early_reason": None,
                            "silent_sec": silent, "rtc": rtc, "datfit": datfit})
     return {
         "night": os.path.basename(night_dir.rstrip("/")),
