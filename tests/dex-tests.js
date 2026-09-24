@@ -38764,6 +38764,51 @@
       var vhr = E.validateHR(hrSeries, devHR, 0);
       T.ok('a 2-minute ECG-vs-device comparison returns a report, not null', vhr !== null, 'null');
       T.eq('…covering all 120 seconds at MAE 1 bpm', JSON.stringify({ n: vhr.n, mae: vhr.mae }), '{"n":120,"mae":1}');
+      T.eq(
+        '…and that full-coverage control publishes coverage 1 — the denominator is the seconds it COULD have compared',
+        JSON.stringify({ c: vhr.coverage, dm: vhr.devMeasuredSec, cs: vhr.comparableSec }),
+        '{"c":1,"dm":120,"cs":120}'
+      );
+
+      // ── 8b · ∅ A HELD SECOND IS NOT A COMPARED SECOND. The device series used to be
+      //      forward-filled before the comparison, and the CVHR grid it is measured against holds
+      //      forward too — so a stretch where NEITHER sensor measured anything scored as agreement
+      //      and pulled the mean-absolute error DOWN. A validation that flatters itself is worse
+      //      than no validation. Built so smoothing cannot blur the boundary: the device stops at
+      //      290 s, the grid freezes at 300 s, so the width-9 rolling median (±4 s) never spans both.
+      var ecgFreezeSec = 300,
+        devStopSec = 290,
+        recSec = 600,
+        ecgBpm = 62,
+        devBpm = 72,
+        frozenBpm = 70;
+      var heldSeries = [];
+      for (var hs = 0; hs < recSec; hs++) heldSeries.push(hs < ecgFreezeSec ? ecgBpm : frozenBpm);
+      var heldDev = [];
+      for (var hd = 0; hd < devStopSec; hd++) heldDev.push({ tsMs: hd * 1000, hr: devBpm });
+      var vHeld = E.validateHR(heldSeries, heldDev, 0);
+      // lead-in exclusion drops the first 60 s on a record this long; the device's last reading can
+      // still reach 293 s through the ±4 s median window, so 60…293 inclusive is 234 real pairs.
+      var leadSec = 60,
+        lastPairedSec = 293;
+      var expPairs = lastPairedSec - leadSec + 1;
+      var expComparable = recSec - leadSec;
+      T.eq(
+        'a device that stops at 290 s contributes NO pairs from the silent stretch',
+        JSON.stringify({ n: vHeld.n, cs: vHeld.comparableSec, dm: vHeld.devMeasuredSec }),
+        JSON.stringify({ n: expPairs, cs: expComparable, dm: devStopSec })
+      );
+      T.eq('…so coverage reports the 234-of-540 basis instead of implying a full night', vHeld.coverage, +(expPairs / expComparable).toFixed(3));
+      // PRE-STATED: every surviving pair sits in the covered stretch, where the two series differ by
+      // exactly devBpm-ecgBpm. Holding would have added 300 fabricated pairs at |frozen-held| = 2,
+      // diluting a true 10.0 bpm error to 5.6 — a 44 % understatement, in the flattering direction.
+      var trueErr = devBpm - ecgBpm;
+      var fabricatedPairs = recSec - ecgFreezeSec;
+      var fabricatedErr = Math.abs(devBpm - frozenBpm);
+      var dilutedPairs = expComparable;
+      var diluted = +(((expComparable - fabricatedPairs) * trueErr + fabricatedPairs * fabricatedErr) / dilutedPairs).toFixed(1);
+      T.eq('…and MAE is the error over what was MEASURED, not the diluted blend', JSON.stringify({ mae: vHeld.mae, wouldHaveBeen: diluted }), JSON.stringify({ mae: trueErr, wouldHaveBeen: 5.6 }));
+      T.ok('the plant is not vacuous — holding would have changed the reported answer', diluted < trueErr, diluted + ' vs ' + trueErr);
 
       // ── 9 · parseDeviceRR rides the Clock Contract — an unparseable stamp is tsMs NULL on that
       //      row (never a throw, never a fabricated time), a real stamp is the floating tMs.
