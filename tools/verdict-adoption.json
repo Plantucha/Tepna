@@ -375,6 +375,10 @@
       "bin": "test",
       "status": "exempt"
     },
+    "capture-host/tests/test_vigil_update.py": {
+      "bin": "test",
+      "status": "exempt"
+    },
     "capture-host/tests/test_writers.py": {
       "bin": "test",
       "status": "exempt"

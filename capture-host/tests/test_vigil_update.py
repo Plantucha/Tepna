@@ -1218,6 +1218,54 @@ def test_the_same_box_with_the_daemon_silent_falls_back_to_the_marker_AND_SAYS_S
     assert box["called"].exists()
 
 
+def test_a_daemon_reporting_an_ABBREVIATED_sha_is_on_HEAD_not_behind_it(box):
+    """THE PLANT, and the reason the test above it passed while the box failed for weeks.
+
+    That test feeds `_version(head2)` — a FULL 40-character sha. Production never does: `/api/version`
+    reports `build_id.probe`'s `git rev-parse --short HEAD`, whose length is git's choice, measured 12
+    characters on 2026-09-19 and 8 on 2026-09-23 on the same box. Against a full `$after` the string
+    compare is true for every commit that exists, so `restart_owed` could never reach 0 by that branch.
+
+    Measured live on vigil 2026-09-23 with the daemon running exactly the disk code:
+    `restart still OWED from an earlier tick — the daemon is on beee0537, disk is at beee05377fc3`,
+    against `rev-parse HEAD` = `beee05377fc39a9b2971838de6e5bf0363adbb31`. 544 such lines on 09-22, 104 of
+    them naming a prefix of the disk sha.
+
+    It does NOT cause a needless restart, and this test asserts that too (`box["called"]`): the content
+    gate diffs `running_sha..after -- capture-host/`, git resolves the abbreviation there, and a
+    same-commit range is empty. The outcome was right — produced by a RESCUE rather than by the
+    comparison being right, which is what makes it worth fixing at the comparison.
+
+    Parameterised over both observed lengths AND git's own answer, so the test cannot pass by agreeing
+    with one abbreviation length that happens to be current."""
+    head1, head2 = _hand_restarted_box(box)
+    import subprocess as _sp
+
+    gits = _sp.run(["git", "-C", str(box["repo"]), "rev-parse", "--short", "HEAD"],
+                   capture_output=True, text=True).stdout.strip()
+    for abbrev in (head2[:8], head2[:12], gits):
+        assert abbrev and head2.startswith(abbrev), f"bad fixture abbreviation {abbrev!r}"
+        box["called"].unlink(missing_ok=True)
+        r = _run(box, TEPNA_VERSION_FETCH=_version(abbrev))
+        assert r.returncode == 0, r.stderr
+        assert "restart still OWED" not in r.stdout, (
+            f"an abbreviated sha ({abbrev}, {len(abbrev)} chars) is the SAME commit as {head2[:12]}, "
+            f"not an older one: {r.stdout}")
+        assert not box["called"].exists(), "restarted into code the daemon was already running"
+
+
+def test_an_abbreviation_the_checkout_CANNOT_name_still_reads_as_owed(box):
+    """The control against over-resolving. A daemon reporting a sha this checkout does not have is exactly
+    the case a restart is for, so the resolve must FAIL CLOSED and leave the debt standing. `--verify
+    --quiet` with `^{commit}` also rejects an ambiguous prefix, and an ambiguous prefix is not evidence of
+    agreement."""
+    head1, head2 = _hand_restarted_box(box)
+    r = _run(box, TEPNA_VERSION_FETCH=_version("dead0beef"))
+    assert r.returncode == 0, r.stderr
+    assert "restart still OWED" in r.stdout, r.stdout
+    assert box["called"].exists(), "a sha the checkout cannot name must not be read as agreement"
+
+
 def test_a_daemon_reporting_an_OLDER_sha_is_the_owed_case_and_is_labelled_as_the_daemon(box):
     """Disk HEAD2, daemon genuinely on HEAD1: restart owed, and the line says where the number came
     from."""
