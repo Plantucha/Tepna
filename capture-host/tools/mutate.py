@@ -91,6 +91,7 @@ from mutation_diff import refresh_scratch, root_reads, stage_root_reads  # noqa:
 from mutation_sweep import (  # noqa: E402
     BUDGET_OK, budget_verdict, deselect_args, deselect_notes, select_tests,
 )
+from mutation_scratch import _claim, _holder_alive, prune_stale_scratches  # noqa: E402
 VENV_PY = HERE / ".venv" / "bin" / "python"
 
 # §2 (OXYII-G1-FOLLOWUPS) — mutmut's exit-code cache is a function of the TESTS, but this file keys its
@@ -333,15 +334,26 @@ def run_one(module: str, only: str | None = None, tests_override: list[str] | No
     # a CACHE, and a cache without eviction is a leak: one directory per module VERSION, so a module
     # edited ten times during a pass leaves ten. Measured 2026-08-03 before this existed: 153 orphaned
     # scratches, 2.6 GB. Everything for this module that is not the current hash goes.
-    pruned = []
-    for old_dir in Path(tempfile.gettempdir()).glob(f"mut-{module[:-3]}-*"):
-        if old_dir != reusable and old_dir.is_dir():
-            pruned.append(old_dir.name)
-            shutil.rmtree(old_dir, ignore_errors=True)
+    # ⚠️ PRUNE ONLY WHAT NO LIVE RUN HOLDS. /tmp is SHARED, and this glob matched every session's
+    # scratch for this module, not just this session's: two sessions mutating one module deleted each
+    # other's work tree mid-run. Measured 2026-09-24 (Wren found it, Heron hit it) — a run died with
+    # `FileNotFoundError .../work` AFTER printing a verdict whose survivor list was empty, i.e. a
+    # clean-looking result for mutants that never ran. That is §4b's family: a check reporting success
+    # about something it never examined.
+    # The cache key is NOT changed: it stays the module's source hash, so reuse still hits. Liveness
+    # is carried in a marker file INSIDE each dir instead, holding pid + that pid's start time — the
+    # start time is what makes it safe against pid reuse, which a bare pid check gets wrong the first
+    # time the OS wraps.
+    pruned, left = prune_stale_scratches(Path(tempfile.gettempdir()), module[:-3], keep=reusable)
     if pruned:
         plan["pruned_scratches"] = pruned
+    if left:
+        # One line, not silence: a scratch this run did not reclaim is a fact the next reader needs.
+        print(f"  [prune] left {len(left)} scratch(es) held by a live run: {', '.join(left)}", flush=True)
+        plan["live_scratches_left"] = left
     if reuse and (reusable / "work" / "mutants" / module).exists():
         scratch, work = reusable, reusable / "work"
+        _claim(scratch)
         # REFRESH EVERY SIBLING, not just tests/. The cache key is the MUTATED MODULE's hash alone,
         # which is right for the mutants (a pure function of that module) and blind to everything else
         # in the scratch — so a change to a sibling module, a shell script, a fixture or any data file
@@ -373,7 +385,17 @@ def run_one(module: str, only: str | None = None, tests_override: list[str] | No
     else:
         scratch = reusable if reuse else Path(tempfile.mkdtemp(prefix=f"mut-{module[:-3]}-"))
         work = scratch / "work"
+        # ⚠️ THE COLD PATH WIPES THE SCRATCH, so sharing one with a live run is the same destruction
+        # the prune above now avoids — and two sessions on the SAME unedited module compute the same
+        # `reusable`, because the key is the source hash. Refuse rather than share or delete: a
+        # second run gets a named refusal it can act on, where a shared work tree would give both
+        # runs a verdict neither can trust.
+        if scratch.exists() and _holder_alive(scratch) and scratch != Path(tempfile.gettempdir()):
+            return {"module": module,
+                    "error": f"scratch {scratch.name} is held by a live run — refusing to reuse or delete it; "
+                             f"re-run when it finishes, or pass --no-reuse"}
         shutil.rmtree(scratch, ignore_errors=True)
+        _claim(scratch)
         # Copy the tree WITHOUT .venv/mutants — 7.7 MB, so this is cheaper than being clever.
         # The two phases BEFORE mutmut starts — copying the tree and running the clean baseline —
         # are ~84 s on cpap_harvest and had no signal at all, because `t0` (and therefore the verdict
@@ -481,6 +503,16 @@ def run_one(module: str, only: str | None = None, tests_override: list[str] | No
             proc.stdout.close()
     tail = "".join(buf)[-2000:]
     elapsed = time.monotonic() - t0
+    # ⚠️ A WORK TREE THAT VANISHED MID-RUN IS A REFUSAL, NOT A RESULT. `mutmut results` in a deleted
+    # cwd does not fail loudly — it yields nothing, and nothing reads as AN EMPTY SURVIVOR LIST, i.e.
+    # "every mutant killed" on a module whose mutants never ran. That is exactly how this surfaced
+    # (2026-09-24): a run died with `FileNotFoundError .../work` AFTER printing a clean-looking
+    # verdict. The comment below already records this tool's prune fabricating "14 regressions" the
+    # same way in 2026-08-03. No verdict object is emitted here, and `main` exits non-zero on it.
+    if not work.is_dir():
+        return {"module": module, "scratch_id": scratch.name,
+                "error": "work tree vanished mid-run — another session's prune, or a cleaner. "
+                         "No verdict: an empty survivor list from a deleted tree is not a result"}
     res = subprocess.run([str(VENV_PY), "-m", "mutmut", "results"],
                          cwd=work, capture_output=True, text=True, env=env, timeout=300)
     # ⚠️ THE SCRATCH ID IS PART OF THE RESULT, because MUTANT IDS ARE ONLY COMPARABLE WITHIN ONE
@@ -527,6 +559,7 @@ def main(argv=None) -> int:
         return 0
     targets = [m if m.endswith(".py") else m + ".py" for m in a.modules]
     skipped = 0
+    errored = 0
     for m in targets:
         print(f"\n=== {m} ===", flush=True)
         r = run_one(m, only=a.only, timeout=a.timeout, budget=a.budget, estimate_only=a.estimate,
@@ -534,6 +567,8 @@ def main(argv=None) -> int:
                     tests_override=[x.strip() for x in a.tests.split(",")] if a.tests else None)
         if r.get("skipped"):
             skipped += 1
+        if r.get("error"):
+            errored += 1
         # ⚠️ THE VERDICT FIELDS COME FIRST AND ARE NEVER TRUNCATED. This used to be a flat
         # `json.dumps(...)[:1600]`, and on capture.py — whose plan lists 95 test files — the 1600 chars
         # were spent on the test list, so `rc`, `elapsed_sec` and `timed_out` were CUT OFF ENTIRELY.
@@ -555,7 +590,11 @@ def main(argv=None) -> int:
         print(r.get("results", "")[:4000], flush=True)
     # A skip is not a pass. Exit non-zero so a caller that skipped everything cannot mistake the run
     # for a clean one — the same reason the tool refuses to report a timed-out module as complete.
-    return 1 if skipped else 0
+    # AND NEITHER IS A REFUSAL. An `error` result previously exited 0, so a module that produced no
+    # verdict at all — a vanished work tree, a scratch held by a live run, an underived budget —
+    # was indistinguishable at the exit code from a module with zero survivors. That is the same
+    # confusion one layer up from the empty-survivor-list fabrication.
+    return 1 if (skipped or errored) else 0
 
 
 if __name__ == "__main__":
