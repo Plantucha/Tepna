@@ -363,8 +363,25 @@ function updateProfile() {
   const ibw = p.sex === 'M' ? 50 + 2.3 * (p.height / 2.54 - 60) : 45.5 + 2.3 * (p.height / 2.54 - 60);
   const tanaka = Math.round(208 - 0.7 * p.age); // Tanaka 2001 HRmax
   // Guard implausible manual HRmax (must clear resting by a wide margin & sit in range)
-  const _hrRest0 = typeof allRows !== 'undefined' && allRows.length > 0 ? Math.round(allRows.reduce((s, r) => s + r._hr, 0) / allRows.length) : 60;
-  const hrmaxValid = p.hrmax_manual > 0 && p.hrmax_manual >= 140 && p.hrmax_manual > _hrRest0 + 45;
+  /* §∅ — THE PLAUSIBILITY GUARD WAS LOOSENED BY ABSENCE. `_hr` is `numOrNull` in the DSP, and this
+     mean summed `s + r._hr` over EVERY row while dividing by `allRows.length` — so each row without
+     a heart rate contributed 0 to the numerator and 1 to the denominator, dragging the resting HR
+     DOWN. A lower `_hrRest0` makes `hrmax_manual > _hrRest0 + 45` easier to clear, so an implausible
+     manual HRmax was accepted and rendered at :505 WITHOUT its "⚠ entry low" warning. Absence made a
+     validity check more permissive, which is the quiet direction — the same coercion that let a week
+     of absent Stress sum to an AUC of 0 (#2969).
+     The mean is now over the rows that carry a reading. When NONE does there is no basis for the
+     relative test at all, so it is SKIPPED rather than run against a fabricated number: the absolute
+     conditions (entered, ≥ 140) still apply, and a user's own entry is not overridden by Tanaka on
+     the strength of a comparison nothing supported.
+     ⚠️ NOT changed, and checked before leaving it: the old `: 60` was a THRESHOLD default on an empty
+     dataset, not a published measurement — the `alignFirmwareRR` class. And `_rhrProj`/`vo2Proj`
+     below, this value's only other consumer, writes `window._projVO2`, which has NO READER
+     repo-wide (verified today; the comment at :89 measured the same on 2026-09-05). With `_hrRest0`
+     null that branch simply does not run. */
+  const _hrRestVals = typeof allRows !== 'undefined' && allRows ? allRows.map((r) => r._hr).filter((v) => Number.isFinite(v)) : [];
+  const _hrRest0 = _hrRestVals.length ? Math.round(_hrRestVals.reduce((s, v) => s + v, 0) / _hrRestVals.length) : null;
+  const hrmaxValid = p.hrmax_manual > 0 && p.hrmax_manual >= 140 && (_hrRest0 == null || p.hrmax_manual > _hrRest0 + 45);
   const hrmaxRejected = p.hrmax_manual > 0 && !hrmaxValid;
   const hrmax = hrmaxValid ? p.hrmax_manual : tanaka;
   const map_ = Math.round(p.dbp + (p.sbp - p.dbp) / 3);
@@ -374,8 +391,15 @@ function updateProfile() {
       ? Math.round(10 * p.weight + 6.25 * p.height - 5 * p.age + 5) // Mifflin-St Jeor male
       : Math.round(10 * p.weight + 6.25 * p.height - 5 * p.age - 161); // female
 
-  // HR Training Zones (Karvonen: needs HRrest — use median from data if available)
-  const hrRest = typeof allRows !== 'undefined' && allRows.length > 0 ? Math.round(allRows.reduce((s, r) => s + r._hr, 0) / allRows.length) : 60;
+  /* HR Training Zones (Karvonen: needs HRrest — the MEAN of the rows that carry one).
+     §∅ — the same coercion as the plausibility guard above, found by the guard's own test: this
+     summed `s + r._hr` over EVERY row and divided by `allRows.length`, so each row without a heart
+     rate pushed the resting HR down and every Karvonen boundary with it.
+     ⚠️ The comment here used to say "median"; the code has always computed a MEAN. Corrected to
+     describe what it does rather than changing the statistic, which would be a behaviour change
+     beyond this fix — `inferFromData` separately computes a filtered MEDIAN of morning readings, so
+     the file carries two different resting-HR definitions and only one of them said so. */
+  const hrRest = _hrRestVals.length ? Math.round(_hrRestVals.reduce((s, v) => s + v, 0) / _hrRestVals.length) : null;
   const hrr = hrmax - hrRest; // HR Reserve
   const z1_lo = Math.round(hrRest + 0.5 * hrr),
     z1_hi = Math.round(hrRest + 0.6 * hrr);
@@ -567,7 +591,10 @@ function updateProfile() {
   /* `profileZones` is absent from HRVDex.src.html (2026-08-19), so the HR-zone table below never
      renders on the current surface. Guarded, not deleted — same reasoning as applyAgeNorms. */
   const pz = document.getElementById('profileZones');
-  if (pz) {
+  /* §∅ — with no measured resting HR there is no Heart Rate Reserve and therefore no zones: every
+     boundary below derives from `hrRest`, so rendering them would publish five NaNs as training
+     targets. The table is skipped rather than drawn empty. */
+  if (pz && hrRest != null) {
     const zr = (label, lo, hi, cls) => `<div class="prof-zone-row ${cls}"><span class="prof-zone-label">${label}</span><span class="prof-zone-val">${lo}–${hi} bpm</span></div>`;
     document.getElementById('profileZones').innerHTML =
       '<div class="prof-zone-label-sm">Karvonen HR Zones</div>' +
