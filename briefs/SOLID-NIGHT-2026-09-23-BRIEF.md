@@ -159,7 +159,7 @@ hour 5.
 | **validity** | the `…RUNS.txt` sidecar present for every stream that has a writer (present-and-empty = verified no absences) | — | sidecar absent (never FAIL, never PASS — CLAUDE.md §∅, #2950) | Blanking the sidecar records does NOT make a night not solid: the ring's in-band blanking is device behaviour made visible (§5 item 5), and consumers exclude it. |
 | **clocks** | offset vs host known for every scored device (`AS11CLOCK.csv`; host-axis anchors for Polar / ring) | — | any scored device without an offset | criterion 5 |
 
-> ⚠️ The **completeness** and **timebase** rows are AMENDED by §3.7 A2 and A3 (both forced by night 09-23).
+> ⚠️ The **completeness**, **timebase** and **validity** rows are AMENDED by §3.7 A2, A3 and A4 (all forced by night 09-23).
 
 **Inputs are read by exact name** — `QC-VERDICT.json`, `BACKCHECK-VERDICT.json`,
 `ADAPTERHCI-VERDICT.json`, `LOSS-VERDICT.json`, `LOSS-AUDIT.json` — **never by glob.** The re-audit left a
@@ -202,8 +202,11 @@ evidence".
   both-hypotheses flaw §3.3 fixed at the interval's end, one level deeper: the beat evidence itself does
   not discriminate.
 - **The rule.** Both ends of the worn interval come from **wear evidence against the night's own
-  baseline**: motion (ACC sd), orientation, and signal amplitude/quality (ECG, PPG, ambient). A removal
-  signature is a step in those, and a strap on a table is flat in motion after it.
+  baseline**: **pulse prominence** and **motion** (ACC sd), with orientation. A removal signature is a
+  step in those, and a strap on a table is flat in motion after it. ⚠️ **Never an ambient-light LEVEL:**
+  `telemetry.optical_worn` (ambient < 5000) would NOT have seen 09-23's Verity doff in a dark room —
+  ambient went only −185 → −98 (Wren). An ambient STEP can corroborate; a level threshold cannot decide.
+  Wren's nightly doff script keys on pulse prominence + motion for the same reason.
 - **A removal signature is device-positive doff evidence** for §3.3's End clause 1, alongside
   `in_charger`, "finger-in" and lost contact. All three 09-23 ends carry one, within 04:21:29–04:22:20:
   the Verity's last row at 04:21:42 (ambient sd 38 → 781, PPG ch0 sd 8 k → 372 k, ACC sd 2 → 432 mG in the
@@ -231,6 +234,16 @@ bound_ms=60000` on every 09-23 stream — while §3.4 FAILs an unrecorded step a
 every 1–60 s step would be "unrecorded" by construction, including the watchdog's legitimate resyncs. Those
 land in `CLOCKSYNC.csv` / `Tepna_*_CLOCK.csv`. So: a step above 1,000 ms found in **neither** ⇒ FAIL. Not
 yet exercised on a real resync; the unrecorded-step scan is not built.
+
+**A4 · A waveform with no run rule is UNKNOWN, never exempt** (2026-09-24, forced by 09-23). §3.4's
+validity row requires the RUNS sidecar "for every stream that has a writer", and `writers.py`'s
+`RUN_MIN_BY_STREAM` gives one only to `ppg1`, `ppg`, `ppg2w`, `acc` and `accraw`. Read literally, a
+waveform with no run rule is EXEMPT and passes validity having been examined for nothing. The H10's ECG is
+exactly that stream, and on 09-23 BACKCHECK found **26 clipped regions** in it: real in-band absences that
+no sidecar recorded. So a WAVEFORM stream with no run rule is **UNKNOWN, reason
+`no-run-rule-for-stream`** — absence of a writer is not absence of absences (CLAUDE.md §∅). It clears when
+the stream gets a rule; Heron has the ECG run sidecar as a writer unit. Event streams (RR, PPI, HR) take
+their validity from their parent waveform, as they take completeness under A2.
 
 **Open — found by scoring 09-23, NOT decided here:**
 - **BACKCHECK-VERDICT has no mapping into the night.** 09-23's is FAIL on 107 clipped regions (26 on the
