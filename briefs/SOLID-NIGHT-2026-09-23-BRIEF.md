@@ -257,8 +257,11 @@ nights). Supersedes §3.4's "a step > 1000 ms that is not a recorded seam" and s
 - **The measure.** Split the anchors at re-anchors > 60 s (the capture's own seam bound). Take a width-21
   running median. **Persistence = the median level 60–120 s after a candidate minus the level 30–90 s
   before it.**
-- **FAIL:** |persistence| ≥ **1 s** with **no record** in the seam sidecar, the journal (`off host
-  (tolerance`), or `CLOCKSYNC.csv` (`synced` / `resynced`).
+- **FAIL:** |persistence| ≥ **1 s** with **no record** in the seam sidecar, the journal, or `CLOCKSYNC.csv`
+  (`synced` / `resynced`). **The journal's record set is every clock-event line for the device:** `off host
+  (tolerance`, `device clock JUMPED`, `re-sync busy` and `device clock unreadable`. A FAILED re-sync is
+  still a record that a clock event happened. The first cut counted only `off host` and so FAILed a night
+  the daemon had logged (08-18, below).
 - **UNKNOWN `clock-sets too dense to attribute`:** when recorded clock-sets are so dense that the
   persistence windows straddle several of them — the 08-28 → 09-12 resync storm, one set every ~5.5 min,
   where ±15–30 s flips minutes apart cannot be assigned to one another.
@@ -266,19 +269,30 @@ nights). Supersedes §3.4's "a step > 1000 ms that is not a recorded seam" and s
   above 1 s (**70 %**) were delivery-latency **TRANSIENTS**: late batches after a stall or pull pause raise
   the residual, and it **returns**. A 30 s windowed peak cannot tell them from a step — it fails the
   both-hypotheses test. **Do not re-tune this band to the windowed peak.**
-- **Why all three records.** The journal carries 338 H10 resync warnings; `CLOCKSYNC.csv` carries 386
-  `synced` + 290 `resynced`. Matching the journal alone missed half the recorded clock-sets.
+- **Why all three records, and every phrase.** The journal carries 338 H10 `off host` warnings, 2 `device
+  clock JUMPED` and 9 `re-sync busy`; `CLOCKSYNC.csv` carries 386 `synced` + 290 `resynced`. Matching the
+  journal alone missed half the recorded clock-sets, and matching `off host` alone missed the `JUMPED` line
+  that recorded 08-18.
 - **The bar, with its n.** Over **n = 36 clean nights** (08-01 → 08-27 and 09-13 → 09-23; storm nights excluded
   as unadjudicable) the quiet windowed-shift p99.9 is **81 ms** (median per file), and the smallest real
   unrecorded step is **14.5 s**. So 1 s sits **~12× above the noise and ~15× below the signal**. The exact
   value barely matters, and it is not to be tuned.
-- **What it found.** Unrecorded persistent steps on **2 of 36** clean nights: **08-18 04:08, +28.6 s** (no
-  clock-set within two days) and **09-19 20:26, ≈ +14.5 s** (one event in three overlapping windows; nearest
-  clock-set 66 min before). **None in the 1–2 s band**, so the "walk below the watchdog" class is absent from
-  the clean corpus. Both are **positive** and both exceed the watchdog's 2.0 s tolerance yet logged no
-  resync. That is consistent with a **host-side** step — a chrony/timesyncd correction — which a
-  device-versus-host watchdog cannot see by construction. **Not diagnosed here:** Wren is checking the box's
-  own clock at both instants, and the watchdog question goes to Heron after that answer.
+- **What it found — restated after the record set was widened.** An unrecorded persistent step on **1 of 36**
+  clean nights: **09-19 20:26, ≈ +14.5 s, on the H10's axis** (from `Polar_H10_02849638_20260919192038_ECG.txt`;
+  one event seen in three overlapping windows). **None in the 1–2 s band**, so the "walk below the watchdog"
+  class is absent from the clean corpus.
+  - **08-18 04:08 was RECORDED, not unrecorded.** The journal logged `device clock JUMPED -41.0s (-0.1 ->
+    -41.1) — re-syncing` at 04:09:08, then `re-sync busy (TimeoutError)` at 04:10:01 (Wren). The first
+    matcher counted only `off host` and missed it. The **sign agrees**: a device falling 41 s behind raises
+    host − device, so the shift is positive. **The magnitude does not:** the persistence measure read +28.6 s
+    against the logged 41.0 s, and **that gap is unverified**.
+  - **Not a host-side step — refuted.** The box re-arms `chronyc makestep 0.1 3` at runtime (`tepna-clock.sh
+    sync`, 71 re-arms since 08-07). The last re-arm before each instant was **08-17 14:58:04** (13 h before
+    08-18) and **09-17 21:37:41** (47 h before 09-19). A burst window closes within about an hour, so neither
+    instant sits inside one and the host could not have stepped (Wren).
+  - **09-19 is therefore a device-side event the watchdog did not log.** No clock line exists on the box.
+    The H10 was off the link 20:28–20:33 (`auto-sync deferred — device not found` ×4). The shift looks like
+    a **reconnect with a different device clock**, unrecorded. Routed to Heron.
 - **What the fixed reading would have done, measured.** A per-anchor raw jump > 1000 ms has only **1.78×
   headroom** on a quiet night (09-23: max 562 ms) and is **blind** to 08-27's +1,508 ms pre-seam walk,
   which spreads over ~17 anchors at ~89 ms each. It fails both ways.
