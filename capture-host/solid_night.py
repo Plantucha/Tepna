@@ -124,34 +124,40 @@ def consecutive(nights: list[tuple[str, str, str | None]]) -> dict:
 
     The exit reads "S solid of N nights over D days": N counts PASS and NOT_APPLICABLE nights from the
     run's first PASS to its last, D the calendar days between them inclusive, so a run stretched by
-    weeks of skips stays visible."""
-    ordered = sorted(nights, key=lambda n: _dt.date.fromisoformat(n[0]))
+    weeks of skips stays visible.
+
+    One verdict per night: a date given twice is refused, since which of the two counts would be a guess.
+    Dates are parsed before sorting, so the order is calendar order whatever ISO spelling came in."""
+    parsed = [(_dt.date.fromisoformat(d), st, rs) for d, st, rs in nights]
+    if len({day for day, _st, _rs in parsed}) != len(parsed):
+        raise ValueError("a night appears twice: one verdict per night")
+    ordered = sorted(parsed)  # dates are distinct, so the tuple order IS the date order
     pending = None
     if ordered and ordered[-1][1] == "UNKNOWN" and ordered[-1][2] == NOT_SETTLED:
-        pending = ordered[-1][0]
+        pending = ordered[-1][0].isoformat()
         ordered = ordered[:-1]
     solid = span_nights = na_since_pass = 0
     run: tuple[_dt.date, _dt.date] | None = None  # (first PASS, last PASS) — both or neither
-    for date, status, _reason in ordered:
-        day = _dt.date.fromisoformat(date)
+    for day, status, _reason in ordered:
         if status == "PASS":
-            run = (run[0] if run else day, day)
+            run = (day if run is None else run[0], day)
             solid += 1
             span_nights += na_since_pass + 1
             na_since_pass = 0
         elif status == "NOT_APPLICABLE":
-            if run:
+            if run is not None:
                 na_since_pass += 1
         else:
             solid = span_nights = na_since_pass = 0
             run = None
+    days = (run[1] - run[0]).days + 1 if run is not None else 0
     return {
         "solid": solid,
         "nights": span_nights,
-        "days": (run[1] - run[0]).days + 1 if run else 0,
-        "first": run[0].isoformat() if run else None,
-        "last": run[1].isoformat() if run else None,
+        "days": days,
+        "first": run[0].isoformat() if run is not None else None,
+        "last": run[1].isoformat() if run is not None else None,
         "pending": pending,
         "exit": solid >= EXIT_SOLID,
-        "statement": f"{solid} solid of {span_nights} nights over {(run[1] - run[0]).days + 1 if run else 0} days",
+        "statement": f"{solid} solid of {span_nights} nights over {days} days",
     }
