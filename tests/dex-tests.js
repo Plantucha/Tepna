@@ -6241,6 +6241,74 @@
          else |uy| ≥ 0.55 → Upright (uy>0) / Head-down (uy<0)
          else → Left side (ux>0) / Right side
        Chest-strap convention: +z anterior, so lying face-up puts gravity on +z. */
+    group('ECGDex beat typing — ∅ a beat too noisy to classify is not a NORMAL beat', 'ecgdex-morph · absence', function (T) {
+      var M = env.ECGMorph || (env.ECGDex && env.ECGDex.ECGMorph);
+      if (!M || typeof M.classifyBeats !== 'function') {
+        T.skip('ECGMorph.classifyBeats exposed', 'ECGMorph not co-loaded in this runner');
+        return;
+      }
+      /* 40 beats at 1 s. Every 8th is premature AND wide — a PVC — so PVCs fall at 3, 11, 19, 27, 35.
+         Beats 20–27 are dirty (sqi 0.3), which puts the PVC at 27 INSIDE the noise. Neither the old
+         code nor the new one can detect that beat: the sqi guard skips it either way, and declining
+         to call ectopy on a dirty beat is correct and deliberate. The defect was the second half —
+         the old code then TYPED it 'N', asserting a normality it had just declined to establish. */
+      var fs = 130,
+        n = 40;
+      var refIdx = [],
+        rr = [],
+        sqi = [];
+      var t = 5 * fs;
+      for (var k = 0; k < n; k++) {
+        refIdx.push(Math.round(t));
+        var prem = k % 8 === 3;
+        var ms = prem ? 700 : 1000;
+        rr.push(ms);
+        t += (ms / 1000) * fs;
+        sqi.push(k >= 20 && k < 28 ? 0.3 : 0.9);
+      }
+      var len = Math.round(t) + 5 * fs;
+      var int16 = new Int16Array(len),
+        bp = new Int16Array(len);
+      for (var b = 0; b < n; b++) {
+        var c = refIdx[b],
+          wide = b % 8 === 3,
+          w = wide ? 14 : 5;
+        for (var j = -w; j <= w; j++) {
+          var v = Math.round(900 * Math.cos((j / w) * 1.57) * (wide ? -1 : 1));
+          if (c + j >= 0 && c + j < len) {
+            int16[c + j] = v;
+            bp[c + j] = v;
+          }
+        }
+      }
+      var r = M.classifyBeats(int16, bp, fs, refIdx, rr, sqi);
+      var counts = {};
+      for (var q = 0; q < r.types.length; q++) counts[r.types[q]] = (counts[r.types[q]] || 0) + 1;
+
+      T.eq('the 8 unclassifiable beats are their own state, not 8 more normals', JSON.stringify(counts), '{"N":28,"V":4,"U":8}');
+      T.eq('the basis is published beside the burden', JSON.stringify({ a: r.beatsAssessed, u: r.beatsUnassessed }), '{"a":32,"u":8}');
+
+      /* PRE-STATED. Four PVCs are detected in both versions — the fifth, at beat 27, is invisible to
+         both. The burden is 4 over the 32 beats actually assessed = 12.5 %. Counting the 8
+         unassessable beats in the denominator, where they could never reach the numerator, reported
+         10.0 % instead: a 20 % UNDERSTATEMENT, and these figures drive severity bands at 0.5 % and
+         3 %, so the dilution runs toward the reassuring side of a threshold. */
+      var detected = 4,
+        assessed = 32,
+        allBeats = 40;
+      T.eq('the burden is a rate over the beats that were ASSESSED', JSON.stringify({ n: r.nPVC, b: r.pvcBurden }), JSON.stringify({ n: detected, b: +((detected / assessed) * 100).toFixed(2) }));
+      var dilutedByAbsence = +((detected / allBeats) * 100).toFixed(2);
+      T.ok('the plant is not vacuous — the old denominator reported a strictly lower burden', dilutedByAbsence < r.pvcBurden, dilutedByAbsence + ' vs ' + r.pvcBurden);
+
+      // CONTROL — with every beat clean, nothing is unassessed and the two denominators coincide.
+      var cleanSqi = sqi.map(function () {
+        return 0.9;
+      });
+      var rc = M.classifyBeats(int16, bp, fs, refIdx, rr, cleanSqi);
+      T.eq('control: an all-clean record has no unassessed beats and rates over every beat', JSON.stringify({ u: rc.beatsUnassessed, a: rc.beatsAssessed }), JSON.stringify({ u: 0, a: allBeats }));
+      T.ok('control: …and it still finds the ectopy — the refusal did not blunt the detector', rc.nPVC >= detected, 'nPVC ' + rc.nPVC);
+    });
+
     group('ECGDex accAnalyze — posture from the gravity vector, known-answer', 'ecgdex-dsp · posture', function (T) {
       var E = env.ECGDSP || env.EcgDsp;
       var acc = E && E.accAnalyze;
