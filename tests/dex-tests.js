@@ -34819,6 +34819,117 @@
       }
     });
 
+    group('GlucoDex GVP — ∅ a path length is not drawn across time the sensor never saw', 'glucodex-dsp · absence', function (T) {
+      var G = env.GLUDSP || env.GlucoDex;
+      if (!G || typeof G.analyze !== 'function' || typeof G.parseCSV !== 'function') {
+        T.skip('GLUDSP.analyze + parseCSV exposed', 'GlucoDex not co-loaded in this runner');
+        return;
+      }
+      // 8 h of 5-min CGM, a hole, then 8 h more of the SAME waveform at a possibly different level.
+      var build = function (shiftMgDl, gapHours) {
+        var rows = ['Timestamp,Glucose Value (mg/dL)'];
+        var t = Date.UTC(2026, 5, 10, 22, 0, 0);
+        var push = function (v) {
+          rows.push(new Date(t).toISOString().slice(0, 19).replace('T', ' ') + ',' + v);
+          t += 5 * 60000;
+        };
+        for (var i = 0; i < 96; i++) push(100 + 5 * Math.sin(i / 6));
+        t += gapHours * 60 * 60000;
+        for (var j = 0; j < 96; j++) push(100 + shiftMgDl + 5 * Math.sin(j / 6));
+        return rows.join('\n');
+      };
+      var run = function (shiftMgDl, gapHours) {
+        return G.analyze(G.parseCSV(build(shiftMgDl, gapHours)));
+      };
+
+      /* GVP is a PATH LENGTH. A step whose EARLIER endpoint is WARMUP / COMPRESSION / GAP_LONG is a
+         straight line drawn through hours the sensor never saw, and counting it inflates the metric
+         by however much the glucose moved across that hole. Its three siblings that difference
+         against an earlier cell — conga, modd, magRate — all guard BOTH endpoints; gvp did not.
+
+         THE INVARIANT: the two real segments carry the SAME waveform, so the variability of what was
+         actually observed cannot depend on a level change hidden inside the gap. */
+      var flat = run(0, 2);
+      var shifted = run(150, 2);
+      T.eq('a 150 mg/dL level shift HIDDEN INSIDE the gap does not change observed variability', shifted.gvp, flat.gvp);
+      // Pre-stated from a probe on this exact geometry: unguarded, the drawn line reported 1.0 for a
+      // trace whose honest GVP is 0.7 — a 43 % overstatement that grows with the jump across the hole.
+      var honestGvp = 0.7;
+      T.eq('\u2026and that observed variability is the honest 0.7, not the 1.0 the drawn line reported', shifted.gvp, honestGvp);
+
+      // The basis is published, so a reader can see how much of the record the number rests on.
+      T.eq('the compared steps and the steps it COULD have compared are both published', JSON.stringify({ p: flat.gvpPairs, c: flat.gvpComparable }), JSON.stringify({ p: 190, c: 215 }));
+      var longer = run(150, 6);
+      T.eq('a LONGER hole leaves the compared count unchanged and grows the denominator', JSON.stringify({ p: longer.gvpPairs, c: longer.gvpComparable }), JSON.stringify({ p: 190, c: 263 }));
+      T.ok('\u2026so coverage FALLS as the hole grows — the number a bare GVP cannot express', longer.gvpPairs / longer.gvpComparable < flat.gvpPairs / flat.gvpComparable, 'coverage did not fall');
+
+      /* SHAPE, not the line I edited: every loop differencing against an EARLIER cell must guard
+         BOTH endpoints. This is the assertion that catches the next one — gvp was the odd one out
+         of four, and nothing in the suite noticed. */
+      var src = (env.sources || {})['glucodex-dsp.js'];
+      if (!src) {
+        T.skip('glucodex-dsp.js source', 'sources not provided in this runner');
+      } else {
+        var diffs = src.match(/c\.gV\[i\]\s*-\s*c\.gV\[i\s*-\s*(?:1|lag)\]/g) || [];
+        T.ok('the four pairwise-difference sites are all still present', diffs.length === 4, 'found ' + diffs.length + ' — update this gate if a site was added or removed');
+        var unguarded = [];
+        var lines = src.split('\n');
+        for (var li = 0; li < lines.length; li++) {
+          if (!/c\.gV\[i\]\s*-\s*c\.gV\[i\s*-\s*(?:1|lag)\]/.test(lines[li])) continue;
+          var window_ = lines.slice(Math.max(0, li - 4), li).join(' ');
+          if (!/!_ana\(c,\s*i\)\s*\|\|\s*!_ana\(c,\s*i\s*-\s*(?:1|lag)\)/.test(window_)) unguarded.push(li + 1);
+        }
+        T.eq('every difference against an earlier cell guards BOTH endpoints', JSON.stringify(unguarded), '[]');
+      }
+
+      /* A DENOMINATOR NOBODY CAN READ IS DECORATION. The first version of this fix computed the
+         pair counts and stopped there - they reached neither the node-export nor the KPI the survey
+         row actually named, so no consumer could tell a fully-observed night from one mostly
+         reconstructed across gaps. These assertions are what keep it wired. */
+      var dspSrc = ((env.sources || {})['glucodex-dsp.js'] || '')
+        .split('\n')
+        .filter(function (ln) {
+          var t = ln.trim();
+          return t.indexOf('//') !== 0 && t.indexOf('*') !== 0 && t.indexOf('/*') !== 0;
+        })
+        .join('\n');
+      if (!dspSrc.trim()) {
+        T.skip('glucodex-dsp.js export source', 'sources not provided in this runner');
+      } else {
+        T.ok('the node-export carries the basis beside the value', /gvpPairs:/.test(dspSrc) && /gvpComparable:/.test(dspSrc), 'export does not carry the pair counts');
+      }
+
+      /* ∅ THE SAME SHAPE ONE LAYER UP — `glucodex-app.js` fed an ABSENT MAGE into the glycemic
+         variability score as a mid-range 50. Source-mirrored because the app layer is not callable
+         in the node runner (the pattern §✅ uses for node-local code), and asserted as three
+         separate facts so a partial edit cannot green it. This score is not cosmetic: it reaches
+         the export as `glycemicVariabilityScore`, the IR risk band, and a ganglior event's conf. */
+      /* ⚠ SCAN THE CODE, NOT THE PROSE. The first draft of this gate failed against its own fix,
+         because the ∅ comment explaining the defect QUOTES `r.mage || 50` verbatim — a source scan
+         that counts comment text reports the defect it just documented. Every assertion below reads
+         a comment-stripped copy. */
+      var app = ((env.sources || {})['glucodex-app.js'] || '')
+        .split('\n')
+        .filter(function (ln) {
+          var t = ln.trim();
+          return t.indexOf('//') !== 0 && t.indexOf('*') !== 0 && t.indexOf('/*') !== 0;
+        })
+        .join('\n');
+      if (!app.trim()) {
+        T.skip('glucodex-app.js source', 'sources not provided in this runner');
+      } else {
+        T.ok('the fabricating default is gone — `r.mage || 50` fed an UNCOMPUTED MAGE in as 50\u2026', app.indexOf('r.mage || 50') === -1, 'still present');
+        T.ok('\u2026and it also mapped a REAL MAGE of 0 (a flat trace, round(sd,0)) to 50, inverting it', /r\.mage\s*!=\s*null\s*\?/.test(app), 'no explicit null test on r.mage');
+        T.ok('an absent MAGE DROPS its term and renormalises over the remaining 0.65', /\/\s*0\.65/.test(app) && /mageR\s*!=\s*null/.test(app), 'no renormalised branch');
+        T.ok('the GVP KPI annotates its coverage', /gvpPairs \+ '\/' \+ r\.gvpComparable/.test(app), 'KPI sub does not show the basis');
+        T.ok(
+          '\u2026while a PRESENT MAGE keeps the original 0.45/0.35/0.2 weights, so nothing else moved',
+          /0\.45\s*\*\s*cvR\s*\+\s*0\.35\s*\*\s*mageR\s*\+\s*0\.2\s*\*\s*dawnR/.test(app),
+          'the present-MAGE arithmetic changed'
+        );
+      }
+    });
+
     group('GlucoDex §5.1/§5.2 — a truncated grid says so, and the session span cannot overflow', 'glucodex-dsp · truncation · robustness', function (T) {
       var GT = env.GlucoDex || env.GLUDSP;
       var an = (env.GLUDSP && env.GLUDSP.analyze) || (GT && GT.analyze);
