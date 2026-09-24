@@ -105,6 +105,30 @@ work; UI, storage, security; P1–P4. Deploys and daemon restarts stay owner-aut
 
 ## 5 · The ranking — nights lost by capture defect (Wren, from the box's LOSS-AUDIT files, 2026-09-23)
 
+> ⚠️ **PROVISIONAL (marked 2026-09-24 00:20).** Every number in this section was read from the 28
+> `LOSS-AUDIT.json` files as they stood on 2026-09-23, i.e. written by the PRE-#2977 attribution, which
+> matched journal lines by device NAME and a fixed KIND list and therefore could not read the offline-op
+> pause lines at all (8,369 of 8,956 carry only the device address). A daemon-caused minute that
+> attribution could not see lands in `unattributed` or in a device class, so the ORDER below may be
+> wrong; `daemon_caused_min = 0.0` in those files is the instrument not looking, not a measurement
+> (Heron voided his own "the pauses cost nothing" claim on exactly this). Wren is re-auditing under
+> #2977 — 08-27 first, then 09-19, 09-18, then the rest — with each old audit preserved beside the new
+> one, and this section is re-ranked from the re-audited files before any Heron unit is chosen from it.
+> Until then the ranking is a hypothesis about the order, not the order.
+>
+> **08-27 is the box-failure exemplar, not no-wear (Heron, 2026-09-24):** ring 428.3 min recorded, 0.3
+> lost — wear proven — while the Verity got 34.2 min in 17 fragments and lost 33.3 (49 %), every minute
+> `unattributed`, 123 connects, 243 pauses on its address. The first place the re-audit looks.
+>
+> **The absent-night class, measured with the discriminator (Heron, 2026-09-24):** the daemon pins ONE
+> global sensor adapter per DAEMON START (`BLE adapter pinned: <MAC> → hciN`; the second radio in the
+> journal is the CPAP's). 09-01, 09-02, 09-14, 09-18 are NO-WEAR — each with a sibling connecting on
+> the same pin in the same daemon-start segment AND device-positive evidence (`in_charger`, "wear it
+> finger-in"); 09-14 is the strongest (all three sensors connected on hci0, none recorded a primary
+> file). A no-wear night is **NOT_APPLICABLE**, never FAIL, and the consecutive counter SKIPS it; the
+> witness is PER DEVICE (a silent device with no sibling on its pin in its segment and no self-evidence
+> is UNKNOWN even when the night is not); the exit reads "14 solid of N nights over D days".
+
 28 nights, 2026-08-25 → 09-21 (`vigil:~/wren-notes/loss-by-night-2026-09-23.tsv`, 112 device-nights).
 
 | device | nights present | nights > 5 min lost | lost min | daemon-attributed | fragments |
