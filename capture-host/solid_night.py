@@ -243,7 +243,17 @@ def sample_object() -> dict:
             with open(os.path.join(night, name), "w", encoding="utf-8") as fh:
                 fh.write(text)
 
-        rows = [f"{(t0 + _dt.timedelta(seconds=i / 2)).isoformat(timespec='milliseconds')};{i};{i};100" for i in range(401)]
+        # A REALISTIC device axis and a batch-structured host stamp, for the same reason the test
+        # fixtures carry them (clock.js CK_AXIS_DRAWN_SHARE): this column used to advance by 1 ns per
+        # row, which is by construction a DRAWN counter, and the timebase term would score the adoption
+        # gate's own sample as "not a clock". Host jitter is POSITIVE and skips the first and last batch
+        # so no row crosses a whole second and the completeness arithmetic is unchanged.
+        rows = []
+        for i in range(401):
+            ns = int(i / 2 * 1e9) + ((i * 7919) % 211)
+            jit = 0 if (i < 4 or i >= 397) else (1 + (i // 4) % 5)
+            t = t0 + _dt.timedelta(seconds=i / 2, milliseconds=jit)
+            rows.append(f"{t.isoformat(timespec='milliseconds')};{ns};{i};100")
         put(f"{base}_ECG.txt", "Phone timestamp;sensor timestamp [ns];timestamp [ms];ecg [uV]\n" + "\n".join(rows) + "\n")
         put(f"{base}_ECGSEAMS.txt", "# pmd stream=ecg negotiated=yes rate=2 offered=2\n# final stream=ecg seams=0 examined=401\n")
         put(f"{base}_ECGRUNS.txt", "# stream=ecg rule=stuck min_run=30\n")

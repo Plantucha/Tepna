@@ -820,3 +820,67 @@ def test_main_returns_zero_on_a_clean_run(monkeypatch, capsys):
     assert psv.main(["--address", "AA:BB", "--no-write", "--record-seconds", "9"]) == 0
     assert "ok" in capsys.readouterr().out
     assert seen == {"meas": PPG, "do_write": False, "seconds": 9.0}
+
+
+# ══ §∅ · A CONFIRMATION MAY NOT BE DRAWN FROM SILENCE (2026-09-24) ═══════════════════════════════
+# ABSENCE-SURVEY row probe_verity_survey.py:335 (F1). Every status read was
+# `parse_status_response(await cp.send(...) or b"")`, so an unanswered read parsed to `{}` — and
+# `is_recording({}, meas)` is False by construction. The SAME silence therefore gave a safe-looking
+# false NEGATIVE on one line and a fabricated POSITIVE on the next: `stopped_confirmed_by_device =
+# not False = True`, i.e. the device "confirmed" a stop on a read it never answered.
+_OP_STATUS_CODE = psv.pmd._OP_STATUS
+
+
+def test_PLANT_a_silent_status_read_does_not_CONFIRM_the_stop(monkeypatch):
+    """The dangerous half. `not is_recording({})` is True, so silence used to publish the stop."""
+    dev = _Verity(silent={_OP_STATUS_CODE})
+    monkeypatch.setattr(psv, "CP_REPLY_TIMEOUT_S", 0.05)   # else 6 s x every retry
+    _patch_link(monkeypatch, dev)
+    out = {}
+    _run(psv.phase_record("AA:BB", None, PPG, 0.01, out))
+    rec = out["record"]
+    assert rec["status_after_answered"] is False, "the device never answered the status read"
+    assert rec["stopped_confirmed_by_device"] is None, (
+        "a stop the device never confirmed must not read as confirmed: "
+        f"got {rec['stopped_confirmed_by_device']!r}")
+
+
+def test_PLANT_a_silent_status_read_does_not_deny_the_recording_either(monkeypatch):
+    """The other half. False here is ALSO a claim about the device, from the same silence."""
+    dev = _Verity(silent={_OP_STATUS_CODE})
+    monkeypatch.setattr(psv, "CP_REPLY_TIMEOUT_S", 0.05)   # else 6 s x every retry
+    _patch_link(monkeypatch, dev)
+    out = {}
+    _run(psv.phase_record("AA:BB", None, PPG, 0.01, out))
+    rec = out["record"]
+    assert rec["status_during_answered"] is False
+    assert rec["recording_confirmed_by_device"] is None, (
+        f"unanswered is not 'not recording': got {rec['recording_confirmed_by_device']!r}")
+
+
+def test_PLANT_left_clean_is_not_claimed_from_a_silent_re_read(monkeypatch):
+    """`still_active: []` is the positive claim the backstop exists to make — not from silence."""
+    dev = _Verity(silent={_OP_STATUS_CODE})
+    monkeypatch.setattr(psv, "CP_REPLY_TIMEOUT_S", 0.05)   # else 6 s x every retry
+    _patch_link(monkeypatch, dev)
+    out = {}
+    _run(psv.stop_everything("AA:BB", None, out))
+    clean = out["left_clean"]
+    assert clean.get("status_answered") == {"before": False, "after": False}
+    assert clean["still_active"] is None, f"'left clean' from silence: {clean!r}"
+    assert clean["was_active"] is None, "and which streams were active is equally unmeasured"
+
+
+def test_CONTROL_an_answered_device_still_confirms_exactly_as_before(monkeypatch):
+    """The refusal must not fire on the ordinary case. Asserts only keys that exist on BOTH sides of
+    this change, so it runs against origin/main and passes there."""
+    dev = _Verity()
+    _patch_link(monkeypatch, dev)
+    out = {}
+    _run(psv.phase_record("AA:BB", None, PPG, 0.01, out))
+    rec = out["record"]
+    assert rec["recording_confirmed_by_device"] is True
+    assert rec["stopped_confirmed_by_device"] is True
+    out2 = {}
+    _run(psv.stop_everything("AA:BB", None, out2))
+    assert out2["left_clean"]["still_active"] == []
