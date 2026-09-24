@@ -189,6 +189,25 @@ def test_a_PPI_file_of_nothing_but_absent_intervals_is_not_wear_evidence(tmp_pat
     assert loss_audit._has_worn_evidence(str(d), "VeritySense") is False
 
 
+def test_wear_by_device_keys_by_name_and_omits_what_it_cannot_judge(tmp_path, monkeypatch):
+    """The mapping `nightqc.summarize` consumes. A device with no model, an unknown model, or a
+    non-dict entry is ABSENT rather than present with a null — `nightqc` reads a missing key as "not
+    determined", and an entry saying nothing is one more thing that can be mistaken for a measurement."""
+    d = tmp_path / "captures" / "2026-09-20"
+    d.mkdir(parents=True)
+    monkeypatch.setattr(loss_audit, "wear_ends", lambda night_dir, model: {"available": True, "model": model})
+    out = loss_audit.wear_by_device(str(d), [
+        {"name": "H10 chest", "model": "H10"},          # named → keyed by the name
+        {"model": "VeritySense"},                       # unnamed → keyed by the model, as audit_night does
+        {"name": "Athena", "model": "Athena-9"},        # unknown model → no wear rule → omitted
+        {"name": "No model"},                           # no model at all → omitted
+        "not a dict",                                   # junk → skipped, not fatal
+    ])
+    assert set(out) == {"H10 chest", "VeritySense"}
+    assert out["H10 chest"]["model"] == "H10" and out["VeritySense"]["model"] == "VeritySense"
+    assert loss_audit.wear_by_device(str(d), []) == {} and loss_audit.wear_by_device(str(d), None) == {}
+
+
 def test_write_night_puts_both_files_beside_the_summary_and_a_crash_is_UNKNOWN(tmp_path, monkeypatch):
     d = _night(tmp_path)
     o = loss_audit.write_night(d, DEV, commit="abc1234", journal=lambda *a: [])

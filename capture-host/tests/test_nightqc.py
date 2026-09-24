@@ -2,6 +2,7 @@
 # Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
 import json
 import logging
+import inspect
 import os
 import time
 
@@ -2922,6 +2923,124 @@ def _night_0923(tmp_path, h10_early=0):
     return night
 
 
+# ── WHY A DEVICE STOPPED EARLY — carried from `loss_audit.wear_ends`, never inferred here ──────────
+def _wear(name, at, reason):
+    """A `loss_audit.wear_by_device`-shaped mapping for one device."""
+    return {name: {"available": True, "ends": [], "worn_end": {"at": at, "reason": reason, "file": "f"}}}
+
+
+def test_an_early_stop_carries_the_wear_units_reason_and_boundary(tmp_path, _tz):
+    """THE 09-23 GEOMETRY. The Verity stopped 1701 s before the session end and the wear unit says it was
+    a `doff`, so the seconds and the reason read together instead of the reader joining two files."""
+    s = nightqc.summarize(_night_0923(tmp_path), _DEV_0923,
+                          _wear("Verity", "2026-09-24T04:21:42", "doff"))
+    v = next(d for d in s["devices"] if d["name"] == "Verity")
+    assert v["stopped_early_s"] == 1701 and v["stopped_early_reason"] == "doff"
+    assert v["worn_end_at"] == "2026-09-24T04:21:42"
+    # the devices the mapping says nothing about are still NOT DETERMINED, not "no reason"
+    assert next(d for d in s["devices"] if d["name"] == "Ring")["stopped_early_reason"] is None
+
+
+def test_the_device_that_defines_the_session_end_gets_a_boundary_but_no_reason(tmp_path, _tz):
+    """⚠️ THE H10 CASE, and the reason `stopped_early_reason` is not simply the wear reason. Its
+    `stopped_early_s` is 0 because it is the device that stopped LAST — it defines the session end — and a
+    reason there would read as a fault where there is none. It still came off before its file did: on
+    2026-09-23 the strap streamed an empty 28 min after 04:21:47, and that window held 2,766 of the
+    night's 2,767 "PVCs" (#3001). `worn_end_at` is published whether or not the device stopped early, so
+    that gap is READABLE rather than inferred."""
+    s = nightqc.summarize(_night_0923(tmp_path), _DEV_0923,
+                          _wear("H10", "2026-09-24T04:21:47", "doff"))
+    h = next(d for d in s["devices"] if d["name"] == "H10")
+    assert h["stopped_early_s"] == 0, "the device that stopped last defines the session end"
+    assert h["stopped_early_reason"] is None, "a 0-second early stop has no reason to name"
+    assert h["worn_end_at"] == "2026-09-24T04:21:47", "and the wear boundary is still published"
+
+
+def test_an_unclassified_quiet_end_travels_verbatim(tmp_path, _tz):
+    """`quiet-end-unclassified` is the wear unit saying it COULD NOT TELL. Shortening or mapping it here
+    would turn "I do not know" into a verdict, so it passes through exactly as written."""
+    s = nightqc.summarize(_night_0923(tmp_path), _DEV_0923,
+                          _wear("Verity", "2026-09-24T04:21:42", "quiet-end-unclassified"))
+    v = next(d for d in s["devices"] if d["name"] == "Verity")
+    assert v["stopped_early_reason"] == "quiet-end-unclassified"
+
+
+@pytest.mark.parametrize(
+    "wear",
+    [None, {}, {"Verity": None}, {"Verity": {"available": False}},
+     {"Verity": {"available": True, "worn_end": None}},
+     {"Verity": {"available": True, "worn_end": {"at": "x", "reason": ""}}}],
+    ids=["no-mapping", "empty", "device-null", "unavailable", "no-worn-end", "blank-reason"],
+)
+def test_every_way_of_not_knowing_the_reason_reads_null(tmp_path, wear):
+    """FOUR HOPS CAN GO ABSENT and none of them means "worn to the end": no mapping, no entry for the
+    device, an unavailable wear block, or a block with no `worn_end`. A blank reason is the fifth — a
+    string that is present and says nothing is not a reason."""
+    s = nightqc.summarize(_night_0923(tmp_path), _DEV_0923, wear)
+    v = next(d for d in s["devices"] if d["name"] == "Verity")
+    assert v["stopped_early_s"] == 1701, "the seconds are measured either way"
+    assert v["stopped_early_reason"] is None
+
+
+def test_attach_wear_is_the_one_place_wear_reaches_a_summary(tmp_path, _tz):
+    """`summarize` routes its own return through `attach_wear`, so there is ONE mapping rather than two
+    that can diverge. Calling it again on an already-attached summary must give the same answer."""
+    night = _night_0923(tmp_path)
+    wear = _wear("Verity", "2026-09-24T04:21:42", "doff")
+    once = nightqc.summarize(night, _DEV_0923, wear)
+    twice = nightqc.attach_wear(nightqc.summarize(night, _DEV_0923), wear)
+    pick = lambda s: {d["name"]: (d["stopped_early_reason"], d["worn_end_at"]) for d in s["devices"]}
+    assert pick(once) == pick(twice) == {
+        "H10": (None, None), "Verity": ("doff", "2026-09-24T04:21:42"), "Ring": (None, None)}
+
+
+def test_neither_the_join_nor_the_wear_scan_is_offloaded_to_a_child(tmp_path):
+    """⚠️ A REGRESSION GUARD FOR A SILENT HANG, not a style check.
+
+    `capture._qc_offload` sends its target to a SPAWNED child when `_importable_by_reference` says the
+    module still binds that name to that object. Several poller tests patch `nightqc.summarize` with a
+    LAMBDA precisely so that check fails and the poll runs on a thread — a frozen `time.monotonic` and a
+    spawned child cannot coexist, because `multiprocessing` reads it for its deadlines and the child's
+    result never arrives. An earlier draft offloaded the wear scan as a SECOND child, which is a
+    module-level name those patches do not cover: `check.sh` then wedged twice at 98 % with all 24 xdist
+    workers idle and the controller in `futex_do_wait`, and the single test hung with a `multiprocessing`
+    queue feeder alive beside it.
+
+    So the scan's target stays `nightqc.summarize`, the wear scan goes on a thread (as `write_night`
+    already does with the same work), and the join is pure."""
+    import capture
+    assert capture._importable_by_reference(nightqc.summarize), "the seam the poller tests patch"
+    src = inspect.getsource(capture.qc_poller)
+    assert "_qc_offload(nightqc.summarize," in src, "the scan's target must stay `nightqc.summarize`"
+    assert "_qc_offload(loss_audit" not in src, "the wear scan must NOT get a child of its own"
+    assert "to_thread(loss_audit.wear_by_device" in src, "it runs on a thread, like write_night"
+    assert "_qc_offload(nightqc.attach_wear" not in src, "the join is pure — never offloaded"
+    # and the join really is pure: it reads no file, so it cannot need a child
+    assert nightqc.attach_wear({"devices": []}, None) == {"devices": []}
+
+
+def test_attach_wear_steps_over_a_device_entry_that_is_not_a_dict():
+    """`attach_wear` is public and can be handed a summary from anywhere — a JSON file rewritten by hand,
+    an older schema. A junk entry is stepped over rather than crashing the join for the devices beside
+    it: the fields it could not set stay None, which already means "not determined"."""
+    summary = {"devices": ["not a dict", {"name": "Verity", "stopped_early_s": 1701,
+                                          "stopped_early_reason": None, "worn_end_at": None}]}
+    got = nightqc.attach_wear(summary, _wear("Verity", "2026-09-24T04:21:42", "doff"))
+    assert got["devices"][0] == "not a dict", "left exactly as it came"
+    assert got["devices"][1]["stopped_early_reason"] == "doff", "and the real device is still joined"
+
+
+def test_the_poller_joins_a_wear_scan_and_survives_its_failure(monkeypatch):
+    """The wear scan is a REPORT, not the QC. If it raises, the night still gets its summary and the
+    reasons stay None — which already means "not determined"."""
+    summary = {"devices": [{"name": "Verity", "stopped_early_s": 1701,
+                            "stopped_early_reason": None, "worn_end_at": None}]}
+    assert nightqc.attach_wear(dict(summary), None)["devices"][0]["stopped_early_reason"] is None
+    got = nightqc.attach_wear({"devices": [dict(summary["devices"][0])]},
+                              _wear("Verity", "2026-09-24T04:21:42", "doff"))
+    assert got["devices"][0]["stopped_early_reason"] == "doff"
+
+
 def _cap_timed_with_gap(night, name, hz, own_s, keep):
     """A file whose DEVICE CLOCK spans `own_s` but which delivers only `keep` of its rows, missing in one
     contiguous block — an in-recording loss, as against a stream that simply stopped.
@@ -2965,7 +3084,10 @@ def test_the_0923_twin_session_span_gave_092_and_the_device_span_gives_100(tmp_p
     assert by["H10"]["stopped_early_s"] == 0, "the device that stopped last defines the session end"
     assert by["Verity"]["span_basis"] == {"ppg": "device"}
     assert by["Verity"]["session_end"] == round(_end_0923()), "the end it is measured against is named"
-    assert by["Verity"]["stopped_early_reason"] is None, "not determined here — never 'no reason'"
+    # No `wear` argument was passed, so the reason is NOT DETERMINED — never "no reason", and never
+    # "worn to the end". The tests below pass one.
+    assert by["Verity"]["stopped_early_reason"] is None
+    assert by["Verity"]["worn_end_at"] is None
 
 
 def test_an_IN_RECORDING_loss_still_reads_as_a_loss_under_the_new_denominator(tmp_path, _tz):

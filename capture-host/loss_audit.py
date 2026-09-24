@@ -519,6 +519,27 @@ def audit_night(night_dir: str, devices: list[dict], *, journal=read_journal) ->
     return out
 
 
+def wear_by_device(night_dir: str, devices: list[dict]) -> dict:
+    """`{device name: wear_ends(...)}` for the configured devices — the mapping `nightqc.summarize`
+    takes as its `wear` argument.
+
+    The name and model are derived exactly as `audit_night` derives them, so a device is keyed the same
+    way in both files and a reader can join them. A device with no model, or a model with no wear rule,
+    is simply ABSENT from the mapping rather than present with a null: `nightqc` already reads a missing
+    key as "not determined", and an entry saying nothing is one more thing that can be mistaken for a
+    measurement."""
+    out: dict = {}
+    for d in devices or []:
+        if not isinstance(d, dict):
+            continue
+        model = str(d.get("model") or "")
+        name = str(d.get("name") or model)
+        if not model or model not in WORN_EVIDENCE_BY_MODEL:
+            continue
+        out[name] = wear_ends(night_dir, model)
+    return out
+
+
 def night_verdict(audit: dict, *, night_dir: str, commit: str | None = None) -> dict:
     """One `tepna.verdict/1` over the night: population = configured devices with a primary stream on disk
     (checked) vs those without (excluded). UNKNOWN with the measurement until a bar exists; with a bar,
