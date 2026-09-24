@@ -96,9 +96,54 @@ check 0 "$(printf '%s' "$msg" | grep -q "tools/a.mjs"; echo $?)" "…and the fil
 
 echo "guard-doc-search: payload shapes that are not ours"
 got="$(printf '{"session_id":"%s","tool_input":{"command":"ls"}}' "$SID" | bash "$H" >/dev/null 2>&1; [ $? -eq 2 ] && echo DENY || echo ALLOW)"
-check ALLOW "$got" "no file_path (a Bash payload) ⇒ allow"
+check ALLOW "$got" "a Bash payload that is not a commit ⇒ allow"
 got="$(printf 'not json' | bash "$H" >/dev/null 2>&1; [ $? -eq 2 ] && echo DENY || echo ALLOW)"
 check ALLOW "$got" "unparseable payload ⇒ allow"
+
+# ── SHAPE 2: Bash `git commit` — the choke point (owner-ordered 2026-09-24). Every DENY is paired
+#    with an ALLOW that differs in ONE property: the verb, the tree, the stamp, the hatch. ────────
+run_cmd() { # run_cmd <command> <cwd> [sid] ; echoes DENY or ALLOW
+  local c="$1" cwd="$2" sid="${3-$SID}" js
+  js="$(jq -cn --arg s "$sid" --arg c "$c" --arg w "$cwd" '{session_id:$s, tool_name:"Bash", cwd:$w, tool_input:{command:$c}}')"
+  printf '%s' "$js" | env -u CLAUDE_CODE_SESSION_ID -u CLAUDE_ALLOW_NO_DOC_SEARCH bash "$H" >/dev/null 2>&1
+  [ $? -eq 2 ] && echo DENY || echo ALLOW
+}
+echo "guard-doc-search: shape 2 — a commit without a search"
+rm -f "$STATE/doc-search-sessions/$SID"
+check DENY  "$(run_cmd 'git commit -m x' "$REPO")"                          "git commit in the repo cwd ⇒ deny"
+check DENY  "$(run_cmd "git -C $WT commit -m x" "$OUT")"                    "…tree from the command's -C, not the cwd (cwd is outside)"
+check DENY  "$(run_cmd "cd $WT && git add -A && git commit -m x" "$OUT")"   "…tree from a leading cd"
+check DENY  "$(run_cmd 'git add tools/a.mjs && git commit -q -m x && git push' "$REPO")" "…a commit inside a chain"
+check ALLOW "$(run_cmd 'git commit -m x' "$OUT")"                           "the same commit OUTSIDE any repo ⇒ allow"
+check ALLOW "$(run_cmd 'git status && git fetch origin' "$REPO")"           "git without a commit ⇒ allow"
+check ALLOW "$(run_cmd 'echo "the commit message says git commit"' "$REPO")" "the words in PROSE (echo) are not a commit"
+check ALLOW "$(run_cmd 'git log --grep commit' "$REPO")"                    "…nor an argument to another git verb"
+check ALLOW "$(run_cmd 'CLAUDE_ALLOW_NO_DOC_SEARCH=1 git commit -m x' "$REPO")" "the inline hatch on the command line ⇒ allow"
+: > "$STATE/doc-search-sessions/$SID"
+check ALLOW "$(run_cmd 'git commit -m x' "$REPO")"                          "…stamped ⇒ the same commit is allowed"
+touch -d '4 hours ago' "$STATE/doc-search-sessions/$SID"
+check DENY  "$(run_cmd 'git commit -m x' "$REPO")"                          "…stale stamp ⇒ deny again"
+rm -f "$STATE/doc-search-sessions/$SID"
+msg="$(jq -cn --arg s "$SID" --arg w "$REPO" '{session_id:$s, tool_name:"Bash", cwd:$w, tool_input:{command:"git commit -m x"}}' | env -u CLAUDE_ALLOW_NO_DOC_SEARCH bash "$H" 2>&1 >/dev/null)"
+check 0 "$(printf '%s' "$msg" | grep -q 'committing'; echo $?)" "the denial names the shape (committing)"
+
+# ── SHAPE 3: SendMessage — a ruling is gated like an edit, from the payload's cwd. ──────────────
+run_msg() { # run_msg <cwd> [sid]
+  local cwd="$1" sid="${2-$SID}" js
+  js="$(jq -cn --arg s "$sid" --arg w "$cwd" '{session_id:$s, tool_name:"SendMessage", cwd:$w, tool_input:{to:"peer", message:"a ruling"}}')"
+  printf '%s' "$js" | env -u CLAUDE_CODE_SESSION_ID -u CLAUDE_ALLOW_NO_DOC_SEARCH bash "$H" >/dev/null 2>&1
+  [ $? -eq 2 ] && echo DENY || echo ALLOW
+}
+echo "guard-doc-search: shape 3 — a ruling without a search"
+check DENY  "$(run_msg "$REPO")"   "SendMessage from a repo cwd, no stamp ⇒ deny"
+check DENY  "$(run_msg "$WT")"     "…from a linked worktree cwd ⇒ deny"
+check ALLOW "$(run_msg "$OUT")"    "…from OUTSIDE any repo ⇒ allow"
+: > "$STATE/doc-search-sessions/$SID"
+check ALLOW "$(run_msg "$REPO")"   "…stamped ⇒ allow"
+rm -f "$STATE/doc-search-sessions/$SID"
+js="$(jq -cn --arg s "$SID" --arg w "$REPO" '{session_id:$s, tool_name:"Read", cwd:$w, tool_input:{file_path:""}}')"
+got="$(printf '%s' "$js" | bash "$H" >/dev/null 2>&1; [ $? -eq 2 ] && echo DENY || echo ALLOW)"
+check ALLOW "$got" "a tool that is none of the three shapes (Read, empty path) ⇒ allow"
 
 # ── ANTI-VACUITY: the hook must not contain a bare unconditional `exit 0` (a no-op guard reads
 #    green on every ALLOW leg above and the DENY legs are what catch it — keep them). ───────────
