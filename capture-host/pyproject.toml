@@ -4,21 +4,35 @@
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 # ⚠️ DO NOT SET `tmp_path_retention_policy` HERE. Not "none", and NOT "failed" either — this file
-# carried "failed" for a few hours on 2026-09-24 and it made the mutation gate report FALSE KILLS.
+# carried "failed" for a few hours on 2026-09-24 and mutation sweeps taken against it are not
+# trustworthy. What is ESTABLISHED, and what is not, kept apart on purpose:
 #
-# pytest removes the WHOLE basetemp, not merely the passing tests' directories, when the run is green
-# (`_pytest/tmpdir.py`, `pytest_sessionfinish`: "remove base directory if all the tests passed, the
-# policy is 'failed', and the basetemp is not specified by a user" — the guard is
-# `exitstatus == 0 and policy == "failed"`). mutmut runs one pytest session with a forked child per
-# mutant, all sharing that basetemp. So the first child whose mutant SURVIVES exits 0, deletes the
-# basetemp, and every later mutant fails at SETUP and is scored killed. A surviving mutant reads as
-# dead, which is the one failure a mutation gate must not have.
+# ESTABLISHED. Under "failed" pytest removes that session's ENTIRE basetemp on a green run, not merely
+# the passing tests' directories (`_pytest/tmpdir.py`, `pytest_sessionfinish`: "remove base directory
+# if all the tests passed, the policy is 'failed', and the basetemp is not specified by a user", guarded
+# by `exitstatus == 0 and policy == "failed"`). So on a green run "failed" IS "none", which is not how
+# it reads. Measured here: a 183-passing run retained 0 bytes.
+# ESTABLISHED. Setting it PERTURBS a mutation sweep — with the policy at "all" the verdict is identical
+# but the decided count differs by one (Osprey, 2026-09-24).
+# ESTABLISHED. Sweeps under `--basetemp` or "none" score surviving mutants as KILLED — 235/236 mutants
+# exit 1, including one that only drops `open()`'s "r" mode and passes all 234 tests by hand (Wren).
 #
-# The retention policy was never the load-bearing half of the /tmp fix anyway. Shrinking the fixtures
-# took one nightqc run from 2,097,737,728 to 63,004,672 bytes; pytest keeps three basetemps by
-# default, so ~189 MB steady state against a quota that 21 GB exhausted. The last 63 MB is not worth
-# a gate that cannot be trusted. To bound a single mutation run, put `TMPDIR` on disk — never
-# `--basetemp`, which is wiped at each new session's start and has the same effect.
+# NOT ESTABLISHED: WHICH mechanism does it, and therefore whether "failed" reaches the same failure.
+# Three candidates are under test and this comment must not be read as endorsing the first:
+#   (a) children sharing one basetemp, an exit-0 child deleting it for the rest — but pytest numbers
+#       each session's basetemp (`pytest-of-<user>/pytest-N`), so this needs sharing to be shown, and
+#       if they DO share, the clean baseline run exits 0 too and would delete it before mutant one;
+#   (b) pytest's keep-3 numbered-dir cleanup removing a LIVE sibling's directory under `--jobs` > 3,
+#       which needs no policy at all and fits the 235/236 equally well;
+#   (c) something else the policy perturbs, per the off-by-one decided count.
+#
+# The revert does not wait on that. The policy bought 63 MB — shrinking the fixtures took a nightqc run
+# from 2,097,737,728 to 63,004,672 bytes on its own, and pytest keeps three basetemps by default, so
+# ~189 MB steady state against a quota that 21 GB exhausted — and it buys an unresolved perturbation of
+# the one gate whose job is to tell us a test can see a change. That trade is bad at any mechanism.
+#
+# To bound a single mutation run, put `TMPDIR` on a disk-backed directory. NOT `--basetemp`, which
+# pytest also clears at session start.
 markers = [
   "sets_capture_events: this test sets a capture module-global Event as part of its scenario; the autouse fixture scopes it",
   "leaves_writers_open: this test ends with a sample writer open as part of its scenario; the autouse counter tripwire is silenced for it",

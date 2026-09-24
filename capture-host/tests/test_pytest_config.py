@@ -13,25 +13,33 @@ def _pyproject() -> str:
 
 
 def test_tmp_path_retention_policy_is_not_set():
-    """⚠️ SETTING THIS MAKES THE MUTATION GATE REPORT FALSE KILLS. It is not a style preference.
+    """⚠️ SETTING THIS VOIDS MUTATION SWEEPS. It is not a style preference, and the reason is kept
+    separate from the parts of it that are not yet shown.
 
-    pytest removes the WHOLE basetemp — not merely the passing tests' directories — when a run is green
-    under `failed`, and always under `none` (`_pytest/tmpdir.py`, `pytest_sessionfinish`, guarded by
-    `exitstatus == 0 and policy == "failed"`). mutmut runs ONE pytest session with a forked child per
-    mutant, all sharing that basetemp, so the first child whose mutant SURVIVES exits 0, deletes the
-    basetemp, and every later mutant fails at SETUP and is scored KILLED. A surviving mutant reading as
-    dead is the one failure a mutation gate must not have, and nothing else in the suite can see it:
-    the run is green either way.
+    ESTABLISHED. Under `failed` pytest removes that session's ENTIRE basetemp on a green run, not merely
+    the passing tests' directories (`_pytest/tmpdir.py`, `pytest_sessionfinish`, guarded by
+    `exitstatus == 0 and policy == "failed"`). So on a green run `failed` IS `none` — which is not how
+    it reads, and is how this shipped for a few hours on 2026-09-24. Measured: a 183-passing run
+    retained 0 bytes.
 
-    This shipped for a few hours on 2026-09-24 as `"failed"`, which reads as the cautious value and is
-    not — on a green run it is exactly `"none"`. The measurement that introduced it (0 bytes retained
-    after 183 passing tests) was the basetemp being deleted, read as the setting working.
+    ESTABLISHED. The setting perturbs a mutation sweep: at `all` the verdict is identical but the
+    decided count differs by one (Osprey). And sweeps run under `--basetemp` or `none` score SURVIVING
+    mutants as killed — 235/236 exit 1, one of them a mutant that merely drops `open()`'s "r" mode and
+    passes all 234 tests by hand (Wren).
 
-    Bound a single mutation run with `TMPDIR` on a disk-backed directory instead. NOT `--basetemp`,
-    which a new session wipes at start and which has the same effect."""
+    NOT ESTABLISHED: which mechanism, and so whether `failed` reaches that same failure. Candidates:
+    children sharing one basetemp and an exit-0 child deleting it (needs the sharing shown — pytest
+    numbers each session's basetemp, and if they did share, the clean baseline run exits 0 too and
+    would delete it before the first mutant); pytest's keep-3 numbered-dir cleanup removing a LIVE
+    sibling under `--jobs` > 3, which needs no policy at all; or whatever the off-by-one count reflects.
+
+    The setting is refused anyway, because it buys 63 MB — the fixture shrink did the other 2.0 GB — and
+    costs an unresolved perturbation of the one gate whose job is to say whether a test can see a
+    change. Bound a single run with `TMPDIR` on disk instead; not `--basetemp`, which pytest clears at
+    session start."""
     assert not re.search(r"^\s*tmp_path_retention_policy\s*=", _pyproject(), re.M), (
-        "tmp_path_retention_policy must not be set — see this test's docstring; it makes mutmut "
-        "score surviving mutants as killed"
+        "tmp_path_retention_policy must not be set — see this test's docstring; on a green run it "
+        "deletes the whole basetemp and measurably perturbs a mutation sweep"
     )
 
 
