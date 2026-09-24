@@ -117,7 +117,19 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const CACHE = resolveStatePath(ROOT, 'doc-search-index.json');
 const OLLAMA = process.env.DEX_OLLAMA || 'http://localhost:11434';
 const EMBED_MODEL = process.env.DEX_EMBED || 'bge-m3';
-const DIRS = ['briefs', 'audits', 'docs', 'papers', '.'];
+/* The in-repo corpus, directory by directory (non-recursive, on purpose — a glob would pull in
+   uploads/ goldens and docs/*.html served copies). Measured 2026-09-24 before this list grew: the
+   capture host — 122 .py in capture-host/, 332 tests, 219 tools/*.mjs, 12 hook scripts — was NOT in
+   the corpus at all, so a Rule-0 query about the daemon returned repo prose and never the code that
+   decides; the same shape as the 2026-08-17 "source comments were never indexed" failure, one lane
+   over. `changes/` carries the cheapest true signal that a defect was already fixed (a pending
+   changeset), and was not indexed either. */
+const DIRS = ['briefs', 'audits', 'docs', 'papers', 'changes', 'capture-host', 'capture-host/tests', 'capture-host/systemd', 'capture-host/deploy', 'tools', 'tests', '.claude/hooks', '.'];
+/* Document surfaces INSIDE the repo. `.js` was the 2026-08-17 lesson (comments are the largest
+   ratification surface); `.py`/`.mjs`/`.sh` are the 2026-09-24 one — the daemon, the tools and the
+   hooks carry their DO-NOT-REVERT rationales in the same way. `.json` is deliberately NOT here: the
+   survey ledgers embed as noise, and a reader who needs one goes to its row. */
+const REPO_EXTS = ['.md', '.html', '.js', '.mjs', '.py', '.sh', '.toml', '.yaml', '.yml', '.service', '.timer'];
 /* External roots (header §EXTERNAL ROOTS). Same state dir as the index, so one config serves every
    worktree; absent ⇒ `[]`, never an error — the file is per-machine like the model. */
 const EXTERNAL_CONFIG = resolveStatePath(ROOT, 'doc-search-external.json');
@@ -296,7 +308,7 @@ export function listDocs(root, dirs = DIRS) {
        lesson they drew — "I should have run doc-search" — was itself wrong, because running it
        would have returned nothing. An out-of-scope corpus is worse than a cold cache: a cold cache
        costs ~200 s and announces itself, an absent corpus is indistinguishable from a real negative. */
-    for (const f of names) if (f.endsWith('.md') || f.endsWith('.html') || f.endsWith('.js')) out.push(d === '.' ? f : `${d}/${f}`);
+    for (const f of names) if (REPO_EXTS.some((x) => f.endsWith(x))) out.push(d === '.' ? f : `${d}/${f}`);
   }
   return out.sort();
 }
@@ -326,7 +338,11 @@ export function readExternalConfig(path = EXTERNAL_CONFIG, readFn = readFileSync
       continue;
     }
     const exts = Array.isArray(r.exts) && r.exts.length ? r.exts.map((x) => String(x).toLowerCase()) : EXT_DEFAULT_EXTS;
-    out.push({ name: r.name, path: resolve(r.path), exts, pull: r.pull === true });
+    /* `depth`: how many directory levels below the root to visit (1 = the root's own files only).
+       Absent ⇒ unbounded. Exists so a root can sit at a home directory — the fleet's ops scripts live
+       at ~/ beside every worktree and repo — without re-indexing everything underneath it. */
+    const depth = Number.isInteger(r.depth) && r.depth > 0 ? r.depth : Infinity;
+    out.push({ name: r.name, path: resolve(r.path), exts, pull: r.pull === true, depth });
   }
   return out;
 }
@@ -386,7 +402,8 @@ export function stampSession(root, sessionId, query, fs = { mkdirSync, writeFile
 export function walkExternal(root, fs = { readdirSync, statSync }) {
   const out = [];
   const exts = new Set(root.exts);
-  const visit = (dir, rel) => {
+  const maxDepth = Number.isInteger(root.depth) && root.depth > 0 ? root.depth : Infinity;
+  const visit = (dir, rel, level = 1) => {
     let names = [];
     try {
       names = fs.readdirSync(dir);
@@ -404,7 +421,7 @@ export function walkExternal(root, fs = { readdirSync, statSync }) {
         continue;
       }
       if (st.isDirectory()) {
-        visit(abs, r);
+        if (level < maxDepth) visit(abs, r, level + 1);
         continue;
       }
       const dot = n.lastIndexOf('.');
@@ -592,6 +609,47 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
     listDocs(ROOT).some((f) => f.startsWith('briefs/'))
   );
   ok('…and root docs like CLAUDE.md', listDocs(ROOT).includes('CLAUDE.md'));
+  /* 2026-09-24: the capture host, the tools and the hooks are DOCUMENT surfaces too. Each leg names one
+     file that a Rule-0 query about that lane must be able to find; before this the whole lane was absent. */
+  ok('capture-host/capture.py is in the corpus (the daemon carries its rationales in comments)', listDocs(ROOT).includes('capture-host/capture.py'));
+  ok(
+    'capture-host/tests/*.py are in the corpus (a test pins a decision as much as a brief does)',
+    listDocs(ROOT).some((f) => /^capture-host\/tests\/test_.*\.py$/.test(f))
+  );
+  ok('tools/*.mjs are in the corpus', listDocs(ROOT).includes('tools/doc-search.mjs'));
+  ok(
+    '.claude/hooks/*.sh are in the corpus',
+    listDocs(ROOT).some((f) => /^\.claude\/hooks\/.*\.sh$/.test(f))
+  );
+  ok('changes/ is in the corpus (a pending changeset is the cheapest true signal of a fix)', DIRS.includes('changes'));
+  ok('.json is NOT a repo surface (survey ledgers embed as noise)', !REPO_EXTS.includes('.json'));
+  /* external roots: `depth` bounds the walk — a root at ~/ must not re-index every worktree under it */
+  {
+    const tree = {
+      '/r': ['a.md', 'sub'],
+      '/r/sub': ['b.md', 'deep'],
+      '/r/sub/deep': ['c.md']
+    };
+    const fsx = {
+      readdirSync: (d) => tree[d] || [],
+      statSync: (p) => ({ isDirectory: () => p in tree, size: 10 })
+    };
+    const all = walkExternal({ name: 'x', path: '/r', exts: ['.md'] }, fsx).map((e) => e.key);
+    const one = walkExternal({ name: 'x', path: '/r', exts: ['.md'], depth: 1 }, fsx).map((e) => e.key);
+    const two = walkExternal({ name: 'x', path: '/r', exts: ['.md'], depth: 2 }, fsx).map((e) => e.key);
+    ok('no depth ⇒ the whole tree (3 files)', all.length === 3);
+    ok("depth 1 ⇒ the root's own files only", one.length === 1 && one[0] === 'ext:x/a.md');
+    ok('depth 2 ⇒ one level down, not two', two.length === 2 && !two.includes('ext:x/sub/deep/c.md'));
+    const cfg = readExternalConfig('/nope', () =>
+      JSON.stringify({
+        roots: [
+          { name: 'h', path: '/r', exts: ['.sh'], depth: 1 },
+          { name: 'k', path: '/r' }
+        ]
+      })
+    );
+    ok('depth is read from the config, and absent ⇒ unbounded', cfg[0].depth === 1 && cfg[1].depth === Infinity);
+  }
   ok(
     '§1: the index cache resolves within a declared state candidate',
     stateDirs(ROOT).some((d) => CACHE.startsWith(d)),
