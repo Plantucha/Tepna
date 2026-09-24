@@ -162,10 +162,16 @@ def test_discarding_an_hr_writer_removes_its_RR_sibling(tmp_path):
 
 
 def test_discarding_a_single_file_writer_is_unchanged(tmp_path):
-    """The control: `paths`/`discard` must not invent a sibling for a stream that has none."""
-    from writers import StreamWriter
-    p = tmp_path / "Polar_H10_02849638_20260725001214_ECG.txt"
-    w = StreamWriter(str(p), "ecg", fsync=False)
+    """The control: `paths`/`discard` must not invent a sibling for a stream that has none.
+
+    ⚠️ The exemplar was `ecg` until 2026-09-24, when it gained a run sidecar and therefore a sibling —
+    so the control needs a stream that genuinely has none, and it is DERIVED from the live tables rather
+    than named, so the next stream to gain one cannot silently turn this control into a no-op."""
+    from writers import RUN_MIN_BY_STREAM, StreamWriter
+    _bare = sorted(set(StreamWriter.HEADERS) - set(RUN_MIN_BY_STREAM))
+    assert _bare, "no sibling-less stream left — this control has no case to test"
+    p = tmp_path / f"Polar_H10_02849638_20260725001214_{_bare[0].upper()}.txt"
+    w = StreamWriter(str(p), _bare[0], fsync=False)
     assert w.paths == [str(p)]
     w.discard()
     assert not p.exists()
