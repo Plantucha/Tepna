@@ -75,7 +75,13 @@
     if (!night || !night.sessions) return [];
     var out = [];
     night.sessions.forEach(function (s) {
-      var sqi = s.sqi != null ? s.sqi : 1;
+      /* ∅ An unmeasured leak quality rides along as NULL, not as 1. `docs/EVENT-LEXICON.md` § already
+         documents `sqi null` as a legal value on an emitted event, and `integrator-dsp.js:139`
+         already reads it (`e.sqi == null ... ? 1`) to weight such an event NEUTRALLY. That is the
+         fusion layer choosing not to penalise unknown quality — a different thing from CPAPDex
+         asserting it measured a perfect mask seal when it measured nothing. */
+      var sqi = s.sqi != null ? s.sqi : null;
+      var sqi2 = sqi == null ? null : +sqi.toFixed(2);
       // ── device-scored apnea / hypopnea / RERA (TOP apnea tier) ──
       (s.events || []).forEach(function (ev) {
         var tMs = ev.tMs != null ? ev.tMs : s.t0Ms + (ev.timeSec || 0) * 1000;
@@ -85,7 +91,7 @@
           impulse: _impulseFor(ev.type),
           node: 'CPAPDex',
           conf: _eventConf(ev.type, ev.durSec),
-          sqi: +sqi.toFixed(2),
+          sqi: sqi2,
           meta: { class: _classFor(ev.type), durSec: ev.durSec || 0, source: 'device-scored' }
         });
       });
@@ -97,7 +103,7 @@
           impulse: 'periodic_breathing',
           node: 'CPAPDex',
           conf: 0.8,
-          sqi: +sqi.toFixed(2),
+          sqi: sqi2,
           meta: { totalSec: Math.round(s.pbSec), pct: s.metrics ? s.metrics.periodicBreathingPct : null, source: 'device-scored' }
         });
       }
@@ -113,7 +119,7 @@
             impulse: 'desat_event',
             node: 'CPAPDex', // EVENT-LEXICON §1 canonical (was 'desat'; OXYDEX-...-FOLLOWUPS-II §1)
             conf: +Math.min(0.95, 0.5 + (d.depth || 0) / 20).toFixed(2),
-            sqi: +(d.sqi != null ? d.sqi : sqi).toFixed(2),
+            sqi: d.sqi != null ? +d.sqi.toFixed(2) : sqi2,
             meta: { depthPct: d.depth, durSec: d.duration, nadir: d.nadir, source: 'sa2-oximeter', selfGated: false }
           });
         });
@@ -127,7 +133,7 @@
           impulse: 'large_leak',
           node: 'CPAPDex',
           conf: +Math.min(0.95, m.largeLeakPct / 100 + 0.3).toFixed(2),
-          sqi: +sqi.toFixed(2),
+          sqi: sqi2,
           meta: { pctNight: m.largeLeakPct, p95Lpm: m.p95Leak, maxLpm: m.maxLeak, thresholdLpm: LARGE_LEAK_LPM, source: 'leak-channel' }
         });
       }
@@ -325,14 +331,25 @@
         };
       }),
       quality: {
-        sqi: (night.sessions || []).length
-          ? +(
-              night.sessions.reduce(function (a, s) {
-                return a + (s.sqi != null ? s.sqi : 1);
-              }, 0) / night.sessions.length
-            ).toFixed(3)
-          : null,
-        sqiBasis: 'leak-quality (1 − largeLeakFraction) — R7 separate from conf',
+        /* ∅ The night's quality is the mean over the sessions that were ASSESSED. Counting an
+           unassessable session as 1 let a night with no leak channel at all report a perfect seal;
+           it also silently diluted a genuinely leaky night toward 1. If nothing was assessable the
+           night's sqi is null, and `sqiSessions` publishes the basis either way. */
+        sqi: (function () {
+          var m = (night.sessions || []).filter(function (s) {
+            return s.sqi != null && isFinite(s.sqi);
+          });
+          if (!m.length) return null;
+          return +(
+            m.reduce(function (a, s) {
+              return a + s.sqi;
+            }, 0) / m.length
+          ).toFixed(3);
+        })(),
+        sqiSessions: (night.sessions || []).filter(function (s) {
+          return s.sqi != null && isFinite(s.sqi);
+        }).length,
+        sqiBasis: 'leak-quality (1 − largeLeakFraction) — R7 separate from conf; mean over ASSESSED sessions only',
         lowUsage: night.therapyHours != null && night.therapyHours < 2,
         truncatedSessions: (night.sessions || []).filter(function (s) {
           return s.truncated;
