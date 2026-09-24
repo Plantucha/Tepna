@@ -358,19 +358,24 @@ def test_a_uniform_device_column_is_drawn_and_never_yields_a_rate(tmp_path):
     """`independent` CANNOT see this — a coarse counter reads as MORE independent, not less."""
     tb = _tb(tmp_path, dev_jit=False)
     assert tb["status"] == "UNKNOWN"
-    assert "DRAWN" in tb["reason"]
+    # the SHARE, not just the word: a mutated tally still says "DRAWN"
+    assert "DRAWN (100.0 % modal delta)" in tb["reason"], tb["reason"]
 
 
 def test_a_host_column_that_only_rounds_the_device_is_not_a_second_clock(tmp_path):
     tb = _tb(tmp_path, host_jit=False)
     assert tb["status"] == "UNKNOWN"
-    assert "no second clock" in tb["reason"]
+    # the SPREAD itself: an inert host measures exactly 0.00 ms, not merely "small"
+    assert "residual spread 0.00 ms" in tb["reason"], tb["reason"]
 
 
 def test_an_implausible_rate_is_refused_never_corrected(tmp_path):
     tb = _tb(tmp_path, dev_ppm=200000.0)
     assert tb["status"] == "FAIL"
-    assert "ppm" in tb["reason"]
+    # THE RATE ITSELF. A device 200000 ppm fast makes (host - device) FALL, so the reported rate is
+    # NEGATIVE; pinning the number observes the formula rather than the branch it took. Without it,
+    # every mutation of `ppm = (tailv - lead) / 1000.0 / span_s * 1e6` survived.
+    assert "-188853 ppm over 3 min" in tb["reason"], tb["reason"]
 
 
 def test_a_stream_with_no_device_column_says_so_rather_than_scoring_it(tmp_path):
@@ -401,6 +406,8 @@ def test_a_healthy_axis_stops_at_the_unbuilt_step_scan_rather_than_passing(tmp_p
     """§∅: the A5 tripwire has not run, so the band must not claim a clean one."""
     tb = _tb(tmp_path)
     assert tb["status"] == "UNKNOWN"
+    # a bounded, non-drifting host jitter is a REAL clock with NO rate: +0 ppm is the measurement.
+    assert "an independent clock at +0 ppm over 3 min" in tb["reason"], tb["reason"]
     assert "A5 step tripwire has not run" in tb["reason"]
 
 
@@ -449,3 +456,25 @@ def test_anchors_that_span_no_time_yield_no_rate(tmp_path):
     _audit(tmp_path)
     tb = _bands(tmp_path)[H10["name"]]["bands"]["timebase"]
     assert tb["status"] == "UNKNOWN" and "span no time" in tb["reason"]
+
+
+def test_median_is_the_middle_sample_odd_and_the_mean_of_two_even():
+    """Pinned directly. `_median` is the whole of the ppm endpoints and of the A5 windows to come, and
+    every mutation of it survived a suite that only ever observed which BRANCH fired."""
+    assert si._median([3.0, 1.0, 2.0]) == 2.0
+    assert si._median([4.0, 1.0, 2.0, 3.0]) == 2.5
+    assert si._median([5.0]) == 5.0
+
+
+def test_a_real_drift_is_measured_and_pins_the_median_windows(tmp_path):
+    """A DRIFTING axis, which the flat fixtures cannot test. The ppm endpoints are a width-21 median at
+    each end, so with no drift the answer is +0 whatever the window is — every mutation of the slice
+    bounds survives. Under a real drift the number moves with the window, so pinning it observes the
+    bounds themselves. -464 ppm for a device running 500 ppm fast: the host-minus-device residual FALLS,
+    and the median-of-ends estimator under-reads the planted rate by the known end-clamp bias (§7)."""
+    tb = _tb(tmp_path, dev_ppm=500.0)
+    assert tb["status"] == "UNKNOWN"
+    assert "an independent clock at -464 ppm over 3 min" in tb["reason"], tb["reason"]
+    # and the reason NAMES THE FILE it judged. Without this a `who = None` mutation passes every other
+    # assertion here, and the band would tell a reader "`None` ... at -464 ppm".
+    assert tb["reason"].startswith(f"`{BASE}_ECG.txt`"), tb["reason"]
