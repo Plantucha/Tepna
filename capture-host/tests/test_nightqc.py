@@ -7,6 +7,7 @@ import time
 
 import math
 import datetime as _dtmod
+from datetime import datetime, timedelta
 
 import pytest
 import nightqc
@@ -1130,47 +1131,80 @@ def test_stability_provenance_reaches_the_qc_record(tmp_path):
 
 # ── ppg2w_contact — the ring's independent coupling vote ───────────────────────────────────────────
 # Constants are labelled MEASURED vs CHOSEN at the definition; these tests plant both populations the
-# thresholds were measured on and the refusal paths the block must take instead of fabricating.
+# thresholds were measured on and the refusal paths the block must take instead of fabricating. An epoch is
+# ONE SECOND OF CLOCK (each row's stamp to the second) — the fixed 100-row epoch it replaced put the doff
+# hours late once the stream ran at ~199 rows/s (2026-08-23 on), and a test that only asked `doff_at is not
+# None` let that ship. So the doff second is asserted EXACTLY here, at both measured rates.
+_T0 = datetime(2026, 1, 1, 0, 0, 0)
 
-def _worn_rows(n_ep, ratio=1.1, ch1=1_500_000):
+
+def _secs(n_rows, per_sec=100, t0=_T0):
+    """Each row's phone stamp to the second, at `per_sec` rows per second."""
+    return [(t0 + timedelta(seconds=i // per_sec)).isoformat(timespec="seconds") for i in range(n_rows)]
+
+
+def _worn_rows(n_sec, ratio=1.1, ch1=1_500_000, per_sec=100):
     ch0 = []
     ch1s = []
-    for i in range(n_ep * nightqc._PPG2W_ROWS_PER_EPOCH):
+    for i in range(n_sec * per_sec):
         ch1s.append(ch1 + (i % 7) * 100)          # small texture, well above the floor
         ch0.append(int(ch1s[-1] * ratio))
     return ch0, ch1s
 
 
-def _off_rows(n_ep):
+def _off_rows(n_sec, per_sec=100):
     # The measured off-finger signature: ch0 rails, ch1 collapses to ~10^2 counts.
-    n = n_ep * nightqc._PPG2W_ROWS_PER_EPOCH
+    n = n_sec * per_sec
     return [3_400_000] * n, [150 + (i % 5) for i in range(n)]
 
 
 def test_ppg2w_a_worn_night_reports_its_band_and_zero_off_epochs():
     ch0, ch1 = _worn_rows(120, ratio=1.1)
-    b = nightqc.ppg2w_contact(ch0, ch1)
-    assert b["off_epochs_pct"] == 0.0
+    b = nightqc.ppg2w_contact(ch0, ch1, _secs(len(ch0)))
+    assert b["epochs"] == 120 and b["off_epochs_pct"] == 0.0
     assert b["off_runs_sustained"] == 0
-    assert b["tail_off"] is False
+    assert b["tail_off"] is False and b["tail_start"] is None
     assert abs(b["worn_ratio_median"] - 1.1) < 0.01
     assert b["worn_ratio_iqr"] < 0.01
 
 
-def test_ppg2w_a_doffed_tail_is_flagged_with_its_run_length():
+def test_ppg2w_a_doffed_tail_is_flagged_with_its_run_length_and_its_first_second():
     w0, w1 = _worn_rows(100)
     o0, o1 = _off_rows(30)
-    b = nightqc.ppg2w_contact(w0 + o0, w1 + o1)
+    b = nightqc.ppg2w_contact(w0 + o0, w1 + o1, _secs(len(w0) + len(o0)))
     assert b["tail_off"] is True
     assert b["trailing_off_epochs"] == 30
+    assert b["tail_start"] == "2026-01-01T00:01:40"                  # second 100: where the off-run began
     assert b["off_runs_sustained"] == 1
     assert abs(b["off_epochs_pct"] - 100 * 30 / 130) < 0.1
+
+
+def test_ppg2w_an_epoch_is_a_SECOND_at_any_row_rate():
+    # 2026-08-23 on the stream ran ~199 rows/s: 100 s worn + 30 s off must still be 130 one-second epochs with
+    # the doff at second 100 — the fixed-row epoch read this as 260 epochs and put the doff at second 200.
+    w0, w1 = _worn_rows(100, per_sec=199)
+    o0, o1 = _off_rows(30, per_sec=199)
+    b = nightqc.ppg2w_contact(w0 + o0, w1 + o1, _secs(len(w0) + len(o0), per_sec=199))
+    assert b["epochs"] == 130 and b["trailing_off_epochs"] == 30
+    assert b["tail_start"] == "2026-01-01T00:01:40"
+
+
+def test_ppg2w_back_timed_stamps_that_step_back_across_a_second_still_make_one_epoch_per_second():
+    # Rows are back-timed per frame, so a frame can carry stamps from the previous second after rows of the
+    # next one. Grouping CONSECUTIVE labels split each second into several epochs (60 478 "epochs" in a
+    # 20 859 s file); the second's VALUE is the epoch.
+    w0, w1 = _worn_rows(70)
+    secs = _secs(len(w0))
+    for k in range(150, len(secs), 100):                            # every second boundary, a row from the one before
+        secs[k], secs[k - 1] = secs[k - 1], secs[k]
+    b = nightqc.ppg2w_contact(w0, w1, secs)
+    assert b["epochs"] == 70
 
 
 def test_ppg2w_ratio_out_of_band_is_off_even_with_ch1_above_the_floor():
     # The CHOSEN band is load-bearing on its own: bright but decoupled channels are not "worn".
     ch0, ch1 = _worn_rows(80, ratio=5.0)          # ch1 healthy, ratio far outside [0.5, 3]
-    b = nightqc.ppg2w_contact(ch0, ch1)
+    b = nightqc.ppg2w_contact(ch0, ch1, _secs(len(ch0)))
     assert b["off_epochs_pct"] == 100.0
     assert b["worn_ratio_median"] is None          # nothing qualified as worn…
     assert b["worn_ratio_iqr"] is None             # …so the band is ABSENT, not fabricated from off rows
@@ -1178,35 +1212,48 @@ def test_ppg2w_ratio_out_of_band_is_off_even_with_ch1_above_the_floor():
 
 def test_ppg2w_an_epoch_is_decided_by_its_MAJORITY_not_one_glitch_row():
     ch0, ch1 = _worn_rows(70)
-    ch1[500] = 0                                   # one dead row inside an otherwise worn epoch
-    b = nightqc.ppg2w_contact(ch0, ch1)
+    ch1[500] = 0                                   # one dead row inside an otherwise worn second
+    b = nightqc.ppg2w_contact(ch0, ch1, _secs(len(ch0)))
     assert b["off_epochs_pct"] == 0.0
+    ch1[500:549] = [0] * 49                        # 49 of that second's 100 rows: still a minority
+    assert nightqc.ppg2w_contact(ch0, ch1, _secs(len(ch0)))["off_epochs_pct"] == 0.0
+    ch1[500:551] = [0] * 51                        # 51: the majority, so that second is off
+    assert nightqc.ppg2w_contact(ch0, ch1, _secs(len(ch0)))["off_epochs_pct"] == round(100 / 70, 2)
 
 
 def test_ppg2w_under_a_minute_refuses_rather_than_reporting():
     ch0, ch1 = _worn_rows(nightqc._PPG2W_MIN_EPOCHS - 1)
-    assert nightqc.ppg2w_contact(ch0, ch1) is None
+    assert nightqc.ppg2w_contact(ch0, ch1, _secs(len(ch0))) is None
+    ch0, ch1 = _worn_rows(nightqc._PPG2W_MIN_EPOCHS)
+    assert nightqc.ppg2w_contact(ch0, ch1, _secs(len(ch0)))["epochs"] == nightqc._PPG2W_MIN_EPOCHS
 
 
-def test_ppg2w_quality_walks_a_night_and_keeps_refusals_visible(tmp_path):
+def _write_ppg2w(path, ch0, ch1, per_sec=100, t0=_T0, header_again_at=None, torn_at=None):
     hdr = "Phone timestamp;sensor timestamp [ns];channel 0;channel 1;motion\n"
-    worn = tmp_path / "Wellue_O2Ring-S_TEST_20260101000000_PPG2W.txt"
-    w0, w1 = _worn_rows(100)
-    o0, o1 = _off_rows(30)
-    with open(worn, "w") as f:
-        f.write(hdr)
-        rows = list(zip(w0 + o0, w1 + o1))
-        for i, (a, b) in enumerate(rows):
-            f.write(f"2026-01-01T00:00:{i % 60:02d}.000;0;{a};{b};0\n")
-            if i == 5000:
+    with open(path, "w") as f:
+        f.write("# timebase=host-disciplined\n" + hdr)
+        for i, (a, b) in enumerate(zip(ch0, ch1)):
+            stamp = (t0 + timedelta(seconds=i / per_sec)).isoformat(timespec="milliseconds")
+            f.write(f"{stamp};0;{a};{b};0\n")
+            if i == header_again_at:
                 f.write(hdr)                       # mid-file repeated header — the rotation artifact
+            if i == torn_at:
+                f.write("bad;row\n")               # a truncated row — rotation tears mid-line too
+
+
+def test_ppg2w_quality_walks_a_night_places_the_doff_on_the_clock_and_keeps_refusals_visible(tmp_path):
+    worn = tmp_path / "Wellue_O2Ring-S_TEST_20260101000000_PPG2W.txt"
+    w0, w1 = _worn_rows(100, per_sec=199)
+    o0, o1 = _off_rows(30, per_sec=199)
+    _write_ppg2w(worn, w0 + o0, w1 + o1, per_sec=199, header_again_at=5000)
     short = tmp_path / "Wellue_O2Ring-S_TEST_20260101010000_PPG2W.txt"
     with open(short, "w") as f:
-        f.write(hdr + "2026-01-01T01:00:00.000;0;100;100;0\n")
+        f.write("Phone timestamp;sensor timestamp [ns];channel 0;channel 1;motion\n2026-01-01T01:00:00.000;0;100;100;0\n")
     out = nightqc.ppg2w_contact_quality(str(tmp_path))
     assert [b["file"] for b in out] == [worn.name, short.name]
-    assert out[0]["usable"] is True
-    assert out[0]["tail_off"] is True and out[0]["doff_at"] is not None
+    assert out[0]["usable"] is True and out[0]["epochs"] == 130
+    assert out[0]["tail_off"] is True and out[0]["doff_at"] == "2026-01-01T00:01:40"   # EXACT, at 199 rows/s
+    assert "tail_start" not in out[0]              # the internal label is consumed, only doff_at is published
     assert out[1]["usable"] is False and "under" in out[1]["reason"]
 
 
@@ -1215,16 +1262,27 @@ def test_ppg2w_quality_is_EMPTY_when_the_stream_was_never_captured(tmp_path):
     assert nightqc.ppg2w_contact_quality(str(tmp_path / "absent")) == []
 
 
-def test_ppg2w_a_bad_first_timestamp_yields_doff_at_None_not_a_crash(tmp_path):
+def test_ppg2w_stamps_that_are_not_times_cannot_be_placed_on_a_clock_so_the_block_refuses(tmp_path):
+    # Every row's second is its stamp: 'notatime' is one "second", so the file cannot establish a minute and
+    # is refused — it is not reported as usable with a doff it cannot place.
+    p = tmp_path / "Wellue_O2Ring-S_TEST_20260101000000_PPG2W.txt"
+    w0, w1 = _worn_rows(100)
+    with open(p, "w") as f:
+        f.write("Phone timestamp;sensor timestamp [ns];channel 0;channel 1;motion\n")
+        for a, b in zip(w0, w1):
+            f.write(f"notatime;0;{a};{b};0\n")
+    out = nightqc.ppg2w_contact_quality(str(tmp_path))
+    assert out[0]["usable"] is False and "under" in out[0]["reason"]
+
+
+def test_ppg2w_a_tail_label_that_is_not_a_time_yields_doff_at_None(monkeypatch, tmp_path):
     p = tmp_path / "Wellue_O2Ring-S_TEST_20260101000000_PPG2W.txt"
     w0, w1 = _worn_rows(100)
     o0, o1 = _off_rows(30)
-    with open(p, "w") as f:
-        f.write("Phone timestamp;sensor timestamp [ns];channel 0;channel 1;motion\n")
-        for a, b in zip(w0 + o0, w1 + o1):
-            f.write(f"notatime;0;{a};{b};0\n")
-    out = nightqc.ppg2w_contact_quality(str(tmp_path))
-    assert out[0]["tail_off"] is True and out[0]["doff_at"] is None
+    _write_ppg2w(p, w0 + o0, w1 + o1)
+    real = nightqc.ppg2w_contact
+    monkeypatch.setattr(nightqc, "ppg2w_contact", lambda a, b, s: {**real(a, b, s), "tail_start": "not-a-time"})
+    assert nightqc.ppg2w_contact_quality(str(tmp_path))[0]["doff_at"] is None
 
 
 def test_ppg2w_an_unreadable_entry_is_skipped_not_fatal(tmp_path):
@@ -1238,23 +1296,19 @@ def test_ppg2w_an_off_run_that_ENDS_midsession_is_counted_and_is_not_a_doffing()
     w0a, w1a = _worn_rows(70)
     o0, o1 = _off_rows(15)
     w0b, w1b = _worn_rows(70)
-    b = nightqc.ppg2w_contact(w0a + o0 + w0b, w1a + o1 + w1b)
+    ch0, ch1 = w0a + o0 + w0b, w1a + o1 + w1b
+    b = nightqc.ppg2w_contact(ch0, ch1, _secs(len(ch0)))
     assert b["off_runs_sustained"] == 1
-    assert b["tail_off"] is False
+    assert b["tail_off"] is False and b["tail_start"] is None
     assert b["trailing_off_epochs"] == 0
 
 
 def test_ppg2w_a_truncated_row_is_skipped_like_the_repeated_header(tmp_path):
     p = tmp_path / "Wellue_O2Ring-S_TEST_20260101000000_PPG2W.txt"
     w0, w1 = _worn_rows(70)
-    with open(p, "w") as f:
-        f.write("Phone timestamp;sensor timestamp [ns];channel 0;channel 1;motion\n")
-        for i, (a, b) in enumerate(zip(w0, w1)):
-            f.write(f"2026-01-01T00:00:00.000;0;{a};{b};0\n")
-            if i == 100:
-                f.write("bad;row\n")               # a truncated row — rotation tears mid-line too
+    _write_ppg2w(p, w0, w1, torn_at=100)
     out = nightqc.ppg2w_contact_quality(str(tmp_path))
-    assert out[0]["usable"] is True and out[0]["off_epochs_pct"] == 0.0
+    assert out[0]["usable"] is True and out[0]["off_epochs_pct"] == 0.0 and out[0]["epochs"] == 70
 
 
 # ── ring-clock drift summary (O2Ring _rtclog.csv → nightly verdict) ─────────────────────────────────
@@ -2871,10 +2925,14 @@ def _end_0923():
     return nightqc._session_of("X_20260923231318_PPG.txt", 0.0) + _SPAN_0923
 
 
-@pytest.fixture(params=["UTC", "America/New_York"])
+@pytest.fixture(params=["UTC", "America/New_York", "Asia/Kolkata"])
 def _tz(request):
     """Run a test in a named zone. CI is UTC and the rig is EDT, and a span that depends on the reader's
-    zone passes in one and fails in the other — which is how this arrived."""
+    zone passes in one and fails in the other — which is how this arrived.
+
+    `Asia/Kolkata` is the third on purpose: it is a HALF-HOUR offset, so it catches a sign error or a
+    rounding-to-the-hour that two whole-hour zones agree on. `loss_audit`'s suite was verified across the
+    same three before being declared zone-safe."""
     old_tz = os.environ.get("TZ")
     os.environ["TZ"] = request.param
     time.tzset()
@@ -3011,3 +3069,109 @@ def test_a_clockless_file_falls_back_to_the_session_span_and_SAYS_SO(tmp_path):
     h10 = next(d for d in nightqc.summarize(night, _devices())["devices"] if d["name"] == "H10")
     assert h10["span_basis"] == {"ecg": "session", "acc": "session"}
     assert h10["span_sec"] is None, "an unbounded span is None, never a number"
+
+
+# ── FIXTURE FIDELITY: a time claim must be made on a fixture that carries time ─────────────────────
+#
+# `_cap` writes clockless `i;i` rows, so `writers.file_span_sec` returns None for every file it makes
+# and no device span can be computed from one. That is correct for a test whose claim is about SESSION
+# grouping — which is decided by filename stamps and mtimes, both of which `_cap` + `_utime` model
+# faithfully — and wrong for a test whose claim is about a device's own span, rate or coverage basis.
+#
+# THE GAP THIS CLOSES, measured 2026-09-24: all 170 tests in this file passed IDENTICALLY before and
+# after #3009 changed the coverage denominator from the session span to the device's own span, because
+# every fixture fell back to the session span and the new path was never reached. The suite could not
+# see a live behavioural change, and the zone defect that came with it surfaced only in CI. A green
+# suite said nothing, which is the most expensive thing a suite can say.
+#
+# ⚠️ THE ANSWER IS NOT "MOVE THEM ALL". Two of the entries below assert the ASSUMED-RATE path on
+# purpose — `_cap` writes too few rows for `measured_hz` to read a rate, so coverage is computed
+# against the configured one and the row reads `(rate assumed)`. Moving those onto timed fixtures would
+# turn their basis to `measured` and delete the coverage they exist to provide. A third is the
+# fallback test itself, whose whole claim is that a clockless file falls back and says so.
+#
+# So each time-claiming test on `_cap` is listed here with the reason its claim does not need stamps,
+# and the scan below fails on any that is not — and on any entry that no longer matches a real test,
+# so the list cannot rot into a rubber stamp.
+_TIME_CLAIM_WORDS = (r"\b(span|coverage|gap|stop|stopped|rate|hz|clock|stamp|zone|session|early"
+                     r"|duration|silent|drift|epoch|minute|hour|second)\b")
+
+_CLOCKLESS_BY_DESIGN = {
+    # SESSION-LEVEL CLAIMS. Decided by filename stamps and mtimes; a device clock plays no part, and
+    # the outputs asserted (`span_sec` at the session level, `gaps`, pooling) are computed without one.
+    "test_summarize_unifies_a_cross_midnight_session": "session grouping across a date-folder boundary",
+    "test_summarize_does_not_pool_a_mid_day_session": "session grouping — pooling refusal",
+    "test_summarize_scopes_coverage_to_the_current_session": "session SCOPING; its epochs derive from the same strptime().timestamp() production uses, so it is zone-invariant by construction",
+    "test_a_box_wide_outage_does_not_get_the_night_graded_green": "session splitting at _SESSION_GAP_SEC",
+    "test_an_uninterrupted_night_reports_no_gap_and_stays_green": "the no-gap control",
+    "test_summarize_pools_when_the_reconnect_took_longer_than_the_gap": "pooling by contiguity",
+    "test_summarize_pools_when_the_neighbour_was_still_writing_at_wake": "pooling by overlap",
+    "test_summarize_does_not_pool_a_non_contiguous_small_hours_session": "pooling refusal by contiguity",
+    "test_span_at_exactly_the_minimum_is_judgeable": "the SESSION span floor _MIN_SPAN_SEC",
+    "test_an_in_night_hole_BEFORE_the_judged_half_also_reds": "gap classification against the night band",
+    "test_pooling_boundary_exactly_at_midnight_pools": "pooling boundary, lower",
+    "test_pooling_boundary_exactly_at_the_gap_does_not_pool": "pooling boundary, upper",
+    "test_the_night_band_is_chosen_by_the_sessions_MIDPOINT": "which band a gap is judged against",
+    "test_a_foreign_device_file_sorting_FIRST_does_not_end_the_sidecar_scan": "file-scan continuation",
+    "test_the_cross_midnight_pool_is_EXCLUSIVE_at_exactly_the_gap": "pooling boundary, exclusive",
+    "test_the_night_window_and_arrival_are_computed_from_THIS_night": "collaborator scoping",
+    # NO FILES AT ALL — there is no span to carry.
+    "test_summarize_no_data_files_span_is_none": "a night of only a sidecar has no capture span",
+    # THE ASSUMED-RATE PATH, ON PURPOSE. Timed fixtures would make the basis `measured` and delete the
+    # coverage these provide; both assert `(rate assumed)` / `coverage_basis == expected` explicitly.
+    "test_summarize_flags_a_degraded_trickle": "asserts the CONFIGURED-rate path and its `(rate assumed)` label",
+    "test_summarize_coverage_uses_configured_rate_and_skips_unknown": "asserts the configured-rate denominator and the skip when no rate is known",
+    # THE FALLBACK ITSELF.
+    "test_a_clockless_file_falls_back_to_the_session_span_and_SAYS_SO": "its claim IS that a clockless file falls back and reports `span_basis: session`",
+}
+
+
+def _time_claiming_clockless_tests():
+    """Every test in this file whose docstring makes a time claim and which builds its night with the
+    CLOCKLESS `_cap` only. Keyed on the FIXTURE CALL, not on a name or a leaf: what a test is made of
+    is the property in question, and a name-keyed scan would be the wrong tool for the same reason the
+    schema scanner's leaf key was."""
+    import ast
+    import re
+
+    tree = ast.parse(open(__file__).read())
+    out = {}
+    for t in ast.walk(tree):
+        if not (isinstance(t, ast.FunctionDef) and t.name.startswith("test_")):
+            continue
+        calls = {c.func.id for c in ast.walk(t) if isinstance(c, ast.Call) and isinstance(c.func, ast.Name)}
+        if "_cap" in calls and "_cap_timed" not in calls and re.search(
+                _TIME_CLAIM_WORDS, ast.get_docstring(t) or "", re.I):
+            out[t.name] = True
+    return out
+
+
+def test_every_time_claiming_test_on_a_clockless_fixture_is_declared():
+    """A time claim made on a fixture that carries no time is the gap this file had: 170 tests passed
+    identically across #3009's change of denominator because every one of them fell back to the session
+    span. Any new test that claims time on `_cap` must either move to `_cap_timed` or say here why its
+    claim does not need stamps."""
+    found = _time_claiming_clockless_tests()
+    undeclared = sorted(set(found) - set(_CLOCKLESS_BY_DESIGN))
+    assert not undeclared, (
+        "these make a time claim on the clockless `_cap`: move them to `_cap_timed` (and take the `_tz` "
+        f"fixture), or declare why the claim needs no stamps: {undeclared}")
+
+
+def test_no_declaration_outlives_the_test_it_excuses():
+    """The other half, and the one that rots silently: an entry for a test that was renamed, deleted or
+    already moved to `_cap_timed` is a line nobody reads that makes the list look considered. Spent
+    entries are the failure mode of every allowlist in this repo."""
+    found = _time_claiming_clockless_tests()
+    spent = sorted(set(_CLOCKLESS_BY_DESIGN) - set(found))
+    assert not spent, f"declared but no longer a time-claiming clockless test: {spent}"
+
+
+def test_the_scan_can_actually_see_one():
+    """The anti-vacuity control. Both assertions above pass over an EMPTY population if the scan is
+    broken — an AST walk that matches nothing reports the same green as a file with nothing to find,
+    which is this repo's most-repeated defect. So the scan must find the population it is scanning."""
+    found = _time_claiming_clockless_tests()
+    assert len(found) >= 15, f"the scan found {len(found)} — it is not seeing the file"
+    assert "test_a_clockless_file_falls_back_to_the_session_span_and_SAYS_SO" in found, \
+        "the deliberately-clockless test must be visible to the scan that excuses it"

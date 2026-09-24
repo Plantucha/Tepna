@@ -36,6 +36,7 @@ import re
 import statistics
 import subprocess
 
+import nightqc
 import nights_index as _ni
 import verdict as _verdict
 
@@ -198,19 +199,19 @@ def _has_worn_evidence(night_dir: str, model: str) -> bool | None:
     return False
 
 
-# ── WEAR ENDS — WHY EACH H10 / VERITY FILE ENDED, AND WHERE THE WORN INTERVAL STOPS ─────────────────
+# ── WEAR ENDS — WHY EACH H10 / VERITY / RING FILE ENDED, AND WHERE THE WORN INTERVAL STOPS ──────────
 # The loss ledger above says whether a stream had GAPS. It cannot say whether the device was WORN: on
 # 2026-09-23 the H10 came off at 04:21:47 and streamed an empty strap (HR 82→172 bpm, ACC flat) for 27½
 # min with 0.0 lost; on 2026-09-22 the same for 102 min — that window held 2 766 of the night's 2 767
 # "PVCs" (#3001). File span is therefore not the worn interval, and this block reports the interval's END
 # per device with a NAMED reason, never a bare boolean:
 #   `doff`                    the device's own signal shows the removal (H10: an off-body tail; Verity: the
-#                             removal burst in the final epoch)
+#                             removal burst in the final epoch; ring: the paired PPG2W file's off-finger tail)
 #   `link-loss`               no removal signature, and the same stream's next file starts within
 #                             WEAR_RELINK_S — the external label the thresholds below were validated against
 #   `quiet-end-unclassified`  neither: no signature and no reconnect. Stated, not guessed.
 # Reported, gated by NOTHING (the ring's `ppg2w_contact` precedent): a night the wearer ended early is not
-# a capture failure. The ring's end is that block's `doff_at`, in nightqc.
+# a capture failure.
 #
 # MEASURED vs CHOSEN, with the derivation AND the held-out record — including every miss — so the next miss
 # is read against this record rather than re-tuned around (Wren, 2026-09-24; survey + pre-registrations in
@@ -254,6 +255,25 @@ def _has_worn_evidence(night_dir: str, model: str) -> bool | None:
 #   HELD-OUT 2026-09-11..09-23, 18 ends: night-ends 13/14, link-loss ends 0/4. The miss, 2026-09-19 06:04
 #     (ambient 0.96, ACC 139.5 mG), sits against a LINK-LOSS end the same night at 20:27 with ACC 131.8 mG:
 #     motion alone cannot separate them and no threshold on it would. A feature limit, stated, not tuned.
+#
+#   RING — one end per `*_SPO2.csv` (the primary), judged by TWO of the device's own witnesses:
+#   (1) the paired `*_PPG2W.txt` (same file stamp) has nightqc's off-finger tail — `ppg2w_contact`, its constants
+#       untouched, epoched on CLOCK SECONDS (a fixed 100-row epoch put 2026-09-22's doff 5 h 37 min late once the
+#       stream ran at ~199 rows/s);
+#   (2) the ring's SpO2 stream stopped where that tail began: doff_at >= the SpO2 file's last row -
+#       RING_DOFF_SPO2_AGREE_S. The ring stops reporting SpO2 when the finger leaves.
+#   RING_DOFF_SPO2_AGREE_S = 30   CHOSEN between agreeing tails (doff_at - SpO2 last row = 0..+4 s on all 36,
+#                                 2026-08-25..09-23) and the only two disagreeing ones (-80 s 2026-09-07 08:01,
+#                                 -202 s 2026-09-11 20:15). Both of those held SpO2 98-100 % with a live pulse and
+#                                 ch1 ~ 400 k counts through the "off" tail: the ch0/ch1 ratio drifted to ~3.3-3.6,
+#                                 over PPG2W_RATIO_HI, with the finger IN. ⚠️ NO HELD-OUT RECORD: both were seen
+#                                 before this rule was written, so the nights after 2026-09-23 are its held-out set.
+#                                 A disagreeing tail is published (`ppg2w_contradicted`), never silently dropped.
+#   The relink label is WEAKER for the ring than for the Polar pair: after a removal the daemon's own doff-pull and
+#   reconnect open a new file (docs/O2RING-FINGER-OFF-2026-09-19.md), so a real doff can sit < 30 min before the next
+#   file — 2026-09-07 07:32 (gap 468 s, both witnesses agree) reads `doff`, correctly, against a `link` label.
+#   Ends by label 2026-08-25..09-23 under this rule: night-ends 33/33 usable-with-tail called doff (5 not: 3 under
+#   60 s of PPG2W, refused; 2 daytime sessions with no tail -> quiet); link-labelled ends 1/40 (the one above).
 WEAR_EPOCH_S = 10  # an INT: epoch keys and starts are integer arithmetic end to end
 H10_TAIL_REL_MIN = 5.0
 H10_TAIL_RUN_EPOCHS = 6
@@ -265,6 +285,9 @@ WEAR_RELINK_S = 1800.0  # the label: a next file within 30 min is a reconnect
 _ACC_TAIL_BYTES = 262_144  # the final epoch's ACC rows sit in the last ~25 KB at 52 Hz; 256 KB is generous
 _ACC_MIN_ROWS = 50  # fewer ACC rows in the final epoch is not a motion measurement
 _WEAR_STREAM = {"H10": ("Polar_H10_*_ECG.txt", [3]), "VeritySense": ("Polar_VeritySense_*_PPG.txt", [5])}
+RING_DOFF_SPO2_AGREE_S = 30.0
+_RING_SPO2 = "Wellue_O2Ring-S_*_SPO2.csv"
+_TAIL_BYTES = 4096  # the last stamped row of an SpO2 file sits in its final ~30 bytes
 _STAMP_IN_NAME = re.compile(r"_(\d{14})_")
 
 
@@ -427,16 +450,75 @@ def _wear_end(path: str, night_dir: str, model: str) -> dict:
     }
 
 
+def _last_stamp(path: str) -> _dt.datetime | None:
+    """The last parseable row stamp of a capture file (either layout the box writes), read from its tail."""
+    with open(path, "rb") as fh:
+        fh.seek(max(0, os.path.getsize(path) - _TAIL_BYTES))
+        lines = fh.read().decode("utf-8", "replace").splitlines()
+    for line in reversed(lines):
+        stamp = _ni.parse_stamp(line)
+        if stamp is not None:
+            return stamp
+    return None
+
+
+def ring_end_doff(tail_off: bool | None, doff_at: _dt.datetime | None, spo2_last: _dt.datetime) -> bool | None:
+    """The ring's two-witness rule. PURE. `None` when the PPG2W witness was not measured."""
+    if tail_off is None:
+        return None
+    if not tail_off or doff_at is None:
+        return False
+    return (doff_at - spo2_last).total_seconds() >= -RING_DOFF_SPO2_AGREE_S
+
+
+def _ring_end(path: str, night_dir: str, contact: list[dict]) -> dict:
+    base = os.path.basename(path)
+    last = _last_stamp(path)
+    if last is None:
+        return {"file": base, "usable": False, "reason": "no stamped SpO2 row"}
+    m = _STAMP_IN_NAME.search(base)
+    blk = next((b for b in contact if m and f"_{m.group(1)}_" in b["file"]), None)
+    if blk is None or not blk["usable"]:
+        tail, doff_at, why = None, None, "no paired PPG2W file" if blk is None else blk["reason"]
+    else:
+        tail, why = blk["tail_off"], None
+        doff_at = _dt.datetime.fromisoformat(blk["doff_at"]) if blk["doff_at"] else None
+    doff = ring_end_doff(tail, doff_at, last)
+    gap = _relink_gap(night_dir, _RING_SPO2, last)
+    worn_end = last
+    if doff:
+        assert doff_at is not None  # ring_end_doff is never True without a doff time
+        worn_end = doff_at
+    return {
+        "file": base,
+        "usable": True,
+        "end_at": last.isoformat(timespec="seconds"),
+        "worn_end_at": worn_end.isoformat(timespec="seconds"),
+        "reason": end_reason(doff, gap),
+        "relink_gap_s": None if gap is None else round(gap),
+        "ppg2w_file": None if blk is None else blk["file"],
+        "ppg2w_unusable": why,
+        "tail_off": tail,
+        "doff_at": None if doff_at is None else doff_at.isoformat(timespec="seconds"),
+        "ppg2w_contradicted": bool(tail) and doff is False,
+    }
+
+
 def wear_ends(night_dir: str, model: str) -> dict:
-    """Every H10 / Verity file end in the night with its named reason, and the device's worn-interval END —
-    the latest usable end. A model without a rule says so in words, never a bare null."""
-    spec = _WEAR_STREAM.get(model)
+    """Every H10 / Verity / ring file end in the night with its named reason, and the device's worn-interval
+    END — the latest usable end. A model without a rule says so in words, never a bare null.
+
+    The ring recomputes `nightqc.ppg2w_contact_quality` rather than reading the night's QC summary: summaries
+    written before the clock-second epoch carry a wrong `doff_at`. One pass per settled night, ~300 MB peak."""
+    ring = model == "O2Ring-S"
+    spec = (_RING_SPO2, []) if ring else _WEAR_STREAM.get(model)
     if spec is None:
         return {"available": False, "reason": f"no wear-end rule for model {model!r}"}
+    contact = nightqc.ppg2w_contact_quality(night_dir) if ring else []
     ends = []
     for f in sorted(glob.glob(os.path.join(night_dir, spec[0]))):
         try:
-            ends.append(_wear_end(f, night_dir, model))
+            ends.append(_ring_end(f, night_dir, contact) if ring else _wear_end(f, night_dir, model))
         except OSError as exc:
             ends.append({"file": os.path.basename(f), "usable": False, "reason": f"unreadable: {exc!r}"})
     usable = [e for e in ends if e["usable"]]
