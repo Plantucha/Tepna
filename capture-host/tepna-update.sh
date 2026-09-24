@@ -533,6 +533,43 @@ elif [ -s "$DEPLOYED_MARK" ]; then
   fi
 fi
 
+# ⚠️ AN ABBREVIATED SHA IS NOT A DIFFERENT COMMIT, AND THIS COMPARISON USED TO SAY IT WAS.
+#
+# `/api/version` reports what `build_id.probe` collected, and that is `git rev-parse --short HEAD` — an
+# ABBREVIATION whose length is git's choice, not ours: measured 12 characters on 2026-09-19 and 8 on
+# 2026-09-23 on the same box. `$after` is a full 40-character `rev-parse`. So `"$running_sha" != "$after"`
+# was true for every commit that has ever existed, and `restart_owed` could never reach 0 through the
+# second branch. Measured on vigil 2026-09-23, live, with the daemon running exactly the disk code:
+#
+#     restart still OWED from an earlier tick — the daemon is on beee0537, disk is at beee05377fc3
+#
+# with `git -C /opt/tepna rev-parse HEAD` = `beee05377fc39a9b2971838de6e5bf0363adbb31`. The daemon was on
+# HEAD and the updater said it owed a restart, every two minutes, all night — 544 such lines on 09-22, of
+# which 104 named a sha that is a PREFIX of the disk sha, i.e. the same commit twice.
+#
+# WHAT IT COSTS, stated accurately — because the first draft of this comment overstated it and the test
+# that falsified the bug also falsified the claim. It does NOT cause a needless restart: the content gate
+# below diffs `running_sha..after -- capture-host/`, git resolves the abbreviation there perfectly well,
+# a same-commit range is empty, and that branch sets `restart_owed=0`. So the outcome was right.
+#
+# It cost two things. First, a FALSE line at a two-minute cadence — 544 of them on 09-22 — in the unit
+# whose own header, forty lines above, forbids exactly this: "IT MUST NOT SPEAK WHEN THERE IS NOTHING TO
+# SAY … a single line per tick is 720 lines a day in the journal of the unit whose legibility §4 is
+# about". Second, and the reason to fix the comparison rather than the message: the right answer was
+# being produced by a RESCUE rather than by the test being right. A second gate silently absorbing the
+# first one's false positive is accidental correctness — narrow that gate's empty-delta branch even
+# slightly (to a subset of `capture-host/`, say) and the false debt becomes a real restart.
+#
+# THE COMPARISON IS RESOLVED IN THE CHECKOUT, not string-matched. An abbreviation that names a commit the
+# checkout has becomes that commit's full sha; one it does not have stays as it is and therefore still
+# reads as owed, which is the honest answer — a daemon running code this checkout cannot name is exactly
+# the case a restart is for. `--verify --quiet` with `^{commit}` also rejects an ambiguous prefix, and an
+# ambiguous prefix is not evidence of agreement.
+if [ -n "$running_sha" ] && [ "${#running_sha}" -lt 40 ]; then
+  running_resolved="$(git -C "$REPO_DIR" rev-parse --verify --quiet "${running_sha}^{commit}" 2>/dev/null)" || running_resolved=""
+  [ -n "$running_resolved" ] && running_sha="$running_resolved"
+fi
+
 restart_owed=0
 if [ "$before" != "$after" ]; then
   restart_owed=1                         # merged this tick
