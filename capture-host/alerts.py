@@ -378,6 +378,13 @@ def arrival_canary(qc: dict, live: dict) -> list[str]:
     """
     out = []
     for name, st in (live or {}).items():
+        # A NON-DICT STATUS IS NAMED, NOT STEPPED OVER. `st.get` on a str raises an error naming neither
+        # the device nor the value, and the poller's handler swallows it — which is how `'str' object has
+        # no attribute 'get'` reddened three PRs on main with nobody able to say which device produced
+        # it. Reported as what it is: a status entry that is not a status. `None` stays legal — an absent
+        # status is an unknown state, which both functions already read as no evidence.
+        if st is not None and not isinstance(st, dict):
+            raise TypeError(f"live status for {name!r} is {type(st).__name__}, not dict: {st!r:.120}")
         if not st or not st.get("connected"):
             continue
         rows, arr = st.get("rows"), st.get("arrival_rows")
@@ -400,6 +407,9 @@ def frozen_devices(qc: dict, live: dict, threshold_sec: float) -> list[str]:
         if not name or silent is None or silent < threshold_sec:
             continue
         st = live.get(name)
+        # named, not stepped over — see the same guard in `arrival_canary`
+        if st is not None and not isinstance(st, dict):
+            raise TypeError(f"live status for {name!r} is {type(st).__name__}, not dict: {st!r:.120}")
         if not st or not st.get("connected") or st.get("charging"):
             continue
         out.append(name)
