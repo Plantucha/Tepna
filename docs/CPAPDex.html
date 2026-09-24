@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="b91242c4af2e" data-compute-hash="5da46902895d">
+<html lang="en" data-manifest-hash="d4452dfe6bff" data-compute-hash="dd7432f43118">
 <head>
 <!--
   CPAPDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-1L7/G1EvG76HKsQWQSX8ZbDbDHAP6ISMTWQglc609cM=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-VpWuZ12v6gKyhjlOT8TLlSMYiBs1ZGSWaJlXOiFIlAo=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-h6h5P//RbelDud05c/HcsYeUxGoEXGat4RJkGjquIWE=' 'sha256-hFN3d6Ke9mKeSsSID6rgxplMx6RAa1spfETtfDksUfY=' 'sha256-k+RI3eu7O1dogNihbuES+Db93asgjhSxBjBsgNI3xYs=' 'sha256-mj10h/YL+APHDH63Cf0GOj2V1PkBzWSTOsXSR+ASVTM='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-1L7/G1EvG76HKsQWQSX8ZbDbDHAP6ISMTWQglc609cM=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-E3YweNbXEzR2hxsyCYFg7YorFc/MkJstnsNeUtVxMFA=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-GMmPvLCp12nTB2A3edxKqYW9nOEcn4mUbSDIB8uSFEI=' 'sha256-VpWuZ12v6gKyhjlOT8TLlSMYiBs1ZGSWaJlXOiFIlAo=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-h6h5P//RbelDud05c/HcsYeUxGoEXGat4RJkGjquIWE=' 'sha256-k+RI3eu7O1dogNihbuES+Db93asgjhSxBjBsgNI3xYs=' 'sha256-mj10h/YL+APHDH63Cf0GOj2V1PkBzWSTOsXSR+ASVTM=' 'sha256-pT7FsTMPu5EMXzqU5CVVjqWnmeeHyIcT/zPxw7NhuHs='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>CPAPDex — PAP Therapy Analyzer · v2.14.0</title>
@@ -5307,9 +5307,36 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     sampPerRec = blockInt(8);
     /* reserved  */ o += ns * 32;
 
+    /* ── ∅ ABSENCE IS NULL — RECORD GEOMETRY REFUSES, IT DOES NOT DEFAULT ───────────────────
+       An EDF is read BY POSITION, so `samples-per-record` is not one signal's property — it is the
+       stride of every signal after it. `asciiInt` returns null for a blank or garbage field, and
+       absorbing that null as 0 used to corrupt the WHOLE FILE, not just its own signal: the record
+       size came out too small, `numRecords` computed from it was too large, and in the decode loop
+       the pointer did not advance for that signal, so every later signal in every record read from
+       the wrong offset. The result is not missing data — it is a full set of plausible numbers that
+       are all wrong, which is the one outcome no consumer can detect.
+       Annotation signals are included deliberately: they occupy record bytes like any other.
+       This is the refusal the file already makes for `ns` and for a short header, one field later. */
+    for (var g = 0; g < ns; g++) {
+      if (sampPerRec[g] == null) throw new Error('EDF: unreadable samples-per-record for signal ' + g + ' ("' + (labels[g] || '') + '") — record geometry unknown');
+    }
+    /* ⚠ A ZERO record duration is NOT the same absence, and measuring the corpus is what said so.
+       `20260612_222819_EVE.edf` writes `0.00` with labels ["EDF Annotations","Crc16"] — ResMed's
+       event files carry no periodic sampling, and EDF+ allows a 0 duration for them. A blanket
+       `!(recDurSec > 0)` refusal rejected two REAL nights, which is the defect this section exists
+       to prevent, one level up: a rule that convicts working behaviour. So the cases split the way
+       ∅ splits them — a field that could not be READ is absent; one that was read and says zero is
+       a measurement:
+         null ⇒ refuse (geometry unknown)
+         0    ⇒ accept, and every fs is NULL — there is no rate to state. Never 0, which reads as a
+                 measured rate, and never spr/0 = Infinity. */
+    if (recDurSec == null) throw new Error('EDF: unreadable record duration — every sampling rate and the whole timeline would be a guess');
+    if (recDurSec < 0) throw new Error('EDF: negative record duration (' + recDurSec + ') — not a duration');
+
     // ── derive record geometry ──
+    // every entry is a number by the guard above, so nothing is absorbed here
     var samplesPerRecTotal = sampPerRec.reduce(function (a, b) {
-      return a + (b || 0);
+      return a + b;
     }, 0);
     var bytesPerRecord = samplesPerRecTotal * 2; // int16
     var dataStart = headerBytes;
@@ -5330,10 +5357,18 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     var signals = {};
     for (var s2 = 0; s2 < ns; s2++) {
       if (annIdx[s2]) continue;
-      var spr = sampPerRec[s2] || 0;
+      var spr = sampPerRec[s2];
+      // the digital range is the DENOMINATOR of the physical scale. A blank or degenerate
+      // calibration header used to fall back on `|| 1`, which silently rescales the signal by a
+      // factor of (digMax-digMin) — and `NaN || 1` is 1, so an ABSENT range took that path too.
+      // An uncalibrated signal cannot be converted to physical units, so it is null, not rescaled.
+      var _dr = digMax[s2] - digMin[s2];
+      var _cal = digMin[s2] != null && digMax[s2] != null && physMin[s2] != null && physMax[s2] != null && _dr !== 0;
       signals[labels[s2]] = {
         data: new Float32Array(spr * recordsRead),
-        fs: recDurSec ? spr / recDurSec : 0,
+        fs: recDurSec > 0 ? spr / recDurSec : null, // 0 ⇒ no periodic sampling: absent, not zero
+        calibrated: _cal,
+        _scale: _cal ? (physMax[s2] - physMin[s2]) / _dr : null,
         dim: dims[s2],
         physMin: physMin[s2],
         physMax: physMax[s2],
@@ -5351,7 +5386,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     for (var r = 0; r < recordsRead; r++) {
       var p = dataStart + r * bytesPerRecord;
       for (var sg = 0; sg < ns; sg++) {
-        var spr2 = sampPerRec[sg] || 0;
+        var spr2 = sampPerRec[sg]; // non-null by the geometry guard above
         if (annIdx[sg]) {
           var annBytes = new Uint8Array(buf, p, spr2 * 2);
           var tals = parseTAL(annBytes);
@@ -5377,14 +5412,13 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
         // numeric signal — int16 LE → physical scaling
         var sig = signals[labels[sg]];
         var dMin = digMin[sg],
-          dMax = digMax[sg],
           pMin = physMin[sg],
-          pMax = physMax[sg];
-        var scale = (pMax - pMin) / (dMax - dMin || 1);
+          scale = sig._scale;
         for (var i2 = 0; i2 < spr2; i2++) {
           var dig = dv.getInt16(p, true);
           p += 2;
-          sig.data[sig._w++] = (dig - dMin) * scale + pMin;
+          // an uncalibrated signal yields NaN, never a number scaled by a fabricated denominator
+          sig.data[sig._w++] = scale === null ? NaN : (dig - dMin) * scale + pMin;
         }
       }
     }
@@ -6009,7 +6043,12 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
   /* sqi from leak quality (§4.3): high large-leak fraction corrupts AHI → lowers sqi */
   function leakSqi(metrics) {
     var ll = metrics.largeLeakPct;
-    if (ll == null || isNaN(ll)) return 1;
+    /* ∅ AN UNASSESSABLE MASK SEAL IS NOT A PERFECT ONE. `largeLeakPct` is NaN when there is no
+       leak channel or the mask was never on, and returning 1 for that case published the BEST
+       POSSIBLE quality for a session whose quality was never measured — the one direction that
+       suppresses the warning this index exists to raise. A measured zero-leak session still
+       returns 1, which is the clean case the selftest pins; only the UNMEASURED one is now null. */
+    if (ll == null || isNaN(ll)) return null;
     return Math.max(0, Math.min(1, 1 - ll / 100));
   }
 
@@ -7832,7 +7871,14 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
         if (on == null || off == null || on < 0 || off < 0) continue;
         sessions.push({ onMs: dateMs + STR_NOON_MS + Math.round(on) * 60000, offMs: dateMs + STR_NOON_MS + Math.round(off) * 60000 });
       }
-      var modeCode = modeSig ? Math.round(_strAt(modeSig, r, 1, 0)) : null;
+      /* ∅ `Math.round(null)` is 0, and STR_MODE[0] is 'CPAP' — so a day whose Mode sample is past
+         the end of the signal used to render a badged device-mode chip reading CPAP for a device
+         that reported no mode at all. The comment below already states the intent ("unknown →
+         null"); rounding an absent sample defeated it before the check could run. The two sibling
+         reads on the next lines (`rin`, `csr`) never round, and the session loop above null-checks
+         BEFORE it rounds — this was the only one of the three that did not. */
+      var _mode = modeSig ? _strAt(modeSig, r, 1, 0) : null;
+      var modeCode = _mode != null && isFinite(_mode) ? Math.round(_mode) : null;
       var rin = rinSig ? _strAt(rinSig, r, 1, 0) : null;
       var csr = csrSig ? _strAt(csrSig, r, 1, 0) : null;
       var prescription = {};
@@ -10487,7 +10533,13 @@ __exports.CpapRender = window.CpapRender;
     if (!night || !night.sessions) return [];
     var out = [];
     night.sessions.forEach(function (s) {
-      var sqi = s.sqi != null ? s.sqi : 1;
+      /* ∅ An unmeasured leak quality rides along as NULL, not as 1. `docs/EVENT-LEXICON.md` § already
+         documents `sqi null` as a legal value on an emitted event, and `integrator-dsp.js:139`
+         already reads it (`e.sqi == null ... ? 1`) to weight such an event NEUTRALLY. That is the
+         fusion layer choosing not to penalise unknown quality — a different thing from CPAPDex
+         asserting it measured a perfect mask seal when it measured nothing. */
+      var sqi = s.sqi != null ? s.sqi : null;
+      var sqi2 = sqi == null ? null : +sqi.toFixed(2);
       // ── device-scored apnea / hypopnea / RERA (TOP apnea tier) ──
       (s.events || []).forEach(function (ev) {
         var tMs = ev.tMs != null ? ev.tMs : s.t0Ms + (ev.timeSec || 0) * 1000;
@@ -10497,7 +10549,7 @@ __exports.CpapRender = window.CpapRender;
           impulse: _impulseFor(ev.type),
           node: 'CPAPDex',
           conf: _eventConf(ev.type, ev.durSec),
-          sqi: +sqi.toFixed(2),
+          sqi: sqi2,
           meta: { class: _classFor(ev.type), durSec: ev.durSec || 0, source: 'device-scored' }
         });
       });
@@ -10509,7 +10561,7 @@ __exports.CpapRender = window.CpapRender;
           impulse: 'periodic_breathing',
           node: 'CPAPDex',
           conf: 0.8,
-          sqi: +sqi.toFixed(2),
+          sqi: sqi2,
           meta: { totalSec: Math.round(s.pbSec), pct: s.metrics ? s.metrics.periodicBreathingPct : null, source: 'device-scored' }
         });
       }
@@ -10525,7 +10577,7 @@ __exports.CpapRender = window.CpapRender;
             impulse: 'desat_event',
             node: 'CPAPDex', // EVENT-LEXICON §1 canonical (was 'desat'; OXYDEX-...-FOLLOWUPS-II §1)
             conf: +Math.min(0.95, 0.5 + (d.depth || 0) / 20).toFixed(2),
-            sqi: +(d.sqi != null ? d.sqi : sqi).toFixed(2),
+            sqi: d.sqi != null ? +d.sqi.toFixed(2) : sqi2,
             meta: { depthPct: d.depth, durSec: d.duration, nadir: d.nadir, source: 'sa2-oximeter', selfGated: false }
           });
         });
@@ -10539,7 +10591,7 @@ __exports.CpapRender = window.CpapRender;
           impulse: 'large_leak',
           node: 'CPAPDex',
           conf: +Math.min(0.95, m.largeLeakPct / 100 + 0.3).toFixed(2),
-          sqi: +sqi.toFixed(2),
+          sqi: sqi2,
           meta: { pctNight: m.largeLeakPct, p95Lpm: m.p95Leak, maxLpm: m.maxLeak, thresholdLpm: LARGE_LEAK_LPM, source: 'leak-channel' }
         });
       }
@@ -10737,14 +10789,25 @@ __exports.CpapRender = window.CpapRender;
         };
       }),
       quality: {
-        sqi: (night.sessions || []).length
-          ? +(
-              night.sessions.reduce(function (a, s) {
-                return a + (s.sqi != null ? s.sqi : 1);
-              }, 0) / night.sessions.length
-            ).toFixed(3)
-          : null,
-        sqiBasis: 'leak-quality (1 − largeLeakFraction) — R7 separate from conf',
+        /* ∅ The night's quality is the mean over the sessions that were ASSESSED. Counting an
+           unassessable session as 1 let a night with no leak channel at all report a perfect seal;
+           it also silently diluted a genuinely leaky night toward 1. If nothing was assessable the
+           night's sqi is null, and `sqiSessions` publishes the basis either way. */
+        sqi: (function () {
+          var m = (night.sessions || []).filter(function (s) {
+            return s.sqi != null && isFinite(s.sqi);
+          });
+          if (!m.length) return null;
+          return +(
+            m.reduce(function (a, s) {
+              return a + s.sqi;
+            }, 0) / m.length
+          ).toFixed(3);
+        })(),
+        sqiSessions: (night.sessions || []).filter(function (s) {
+          return s.sqi != null && isFinite(s.sqi);
+        }).length,
+        sqiBasis: 'leak-quality (1 − largeLeakFraction) — R7 separate from conf; mean over ASSESSED sessions only',
         lowUsage: night.therapyHours != null && night.therapyHours < 2,
         truncatedSessions: (night.sessions || []).filter(function (s) {
           return s.truncated;

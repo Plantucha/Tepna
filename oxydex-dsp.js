@@ -1382,6 +1382,12 @@
   // Grade 3: ODI-4 > 15 OR CT<90 > 5min, one criterion
   // Grade 4: both criteria exceeded
   function computeMOS(odi4Rate, ct90Sec) {
+    /* ∅ `null >= K` is false and `null / 60` is 0, so an absent ODI-4 and an absent CT90 fell
+       through every branch to score 1 — "Normal". A McGill grade of Normal is a CLINICAL claim, and
+       this one was made about a night neither input described. Refuse if EITHER is absent: the
+       Normal verdict specifically requires knowing that BOTH are low, and over-refusing is the safe
+       direction here (the consumer at `oxydex-render.js:321` already tests `mos.mos != null`). */
+    if (odi4Rate == null || ct90Sec == null) return { mos: null, mosLabel: null, reason: 'inputs-absent' };
     var ct90Min = ct90Sec / 60;
     var odiHigh = odi4Rate >= DexKernel.K.MOS_LONG;
     var ctHigh = ct90Min >= 5;
@@ -2870,14 +2876,20 @@
        ultradian figures are HR-derived and stay measured. */
     if (_motionUnusable && sleepArch) sleepArch.wasoMin = /** @type {any} */ (null);
     var odi1 = computeODI1(rows, blArr);
-    var odi4Rate = odi4 ? odi4.rate : 0;
-    var odi3Rate = odi3 ? odi3.rate : 0;
+    /* ∅ THE NULL-NOT-ZERO FIX BELOW WAS APPLIED TO ONE OF FIVE INPUTS. `desSevRate` got it right,
+       and said why; its four siblings on these lines kept defaulting an ABSENT index to 0, which
+       `computeAHIestimates` and `computeMOS` then read as a measured zero. Both consumers are
+       already built to refuse on null — `ahiODI4` returns null for a null ODI-4 and says
+       "null * 1.1 is 0 … the most reassuring possible reading of a measurement that never
+       happened" — so the guards existed and these four lines fed past them. */
+    var odi4Rate = odi4 && odi4.rate != null ? odi4.rate : null;
+    var odi3Rate = odi3 && odi3.rate != null ? odi3.rate : null;
     /* Propagate the refusal. `desSev.desSev` may now be null, and `0.6 * null` is 0 inside
        computeAHIestimates — which would silently drop the DesSev term and UNDER-estimate AHI,
        i.e. fail toward the reassuring answer, which is the bias this whole change exists to end. */
     var desSevRate = desSev ? desSev.desSev : null;
-    var t95Pct = stats ? stats.t95pct : 0;
-    var ct90Sec = ctPrec ? ctPrec.ct90s || 0 : 0;
+    var t95Pct = stats && stats.t95pct != null ? stats.t95pct : null;
+    var ct90Sec = ctPrec && ctPrec.ct90s != null ? ctPrec.ct90s : null;
     var mos = computeMOS(odi4Rate, ct90Sec);
     var ahiEst = computeAHIestimates(odi4Rate, odi3Rate, desSevRate, t95Pct);
     var flags = buildFlags(stats, spikes, period, osc, odi4, odi3, hrv, motion, stab, hrProf, cross, spo2Adv, comp, sbii, pred3p);
@@ -6443,14 +6455,24 @@
     scores.rmssd = rmssdScore;
 
     // 2. SpO2 / hypoxic load component (25 pts)
-    var spo2Score = 0;
-    var odi4Rate = odi4 ? odi4.rate : 0;
-    var hd94Rate = hypDose ? hypDose.hd94PerHr : 0;
-    if (odi4Rate < 2 && hd94Rate < 30) spo2Score = 25;
-    else if (odi4Rate < 5 && hd94Rate < 60) spo2Score = 20;
-    else if (odi4Rate < 10 && hd94Rate < 120) spo2Score = 13;
-    else if (odi4Rate < 20) spo2Score = 7;
-    else spo2Score = 2;
+    /* ∅ ABSENCE SCORED THE MAXIMUM. `odi4 ? odi4.rate : 0` and `hypDose ? … : 0` turned an
+       UNANALYSED night into 0 and 0, which falls into the first branch and awards the full 25 — the
+       best obtainable score on the hypoxic-load component, for a night whose hypoxic load was never
+       measured. That inflates a READINESS total whose tiers carry a training recommendation
+       ("Full training. Threshold, intervals, or VO₂max work appropriate."), so the fabrication did
+       not stop at a number. `computeHypoxicDose` returns null below 60 rows, so this is a live path.
+       An unmeasurable component is now NULL and is DROPPED from the total, with the remaining
+       weights renormalised — the shape `mageR` and `autoRisk` already use. */
+    var spo2Score = null;
+    var odi4Rate = odi4 && odi4.rate != null ? odi4.rate : null;
+    var hd94Rate = hypDose && hypDose.hd94PerHr != null ? hypDose.hd94PerHr : null;
+    if (odi4Rate != null && hd94Rate != null) {
+      if (odi4Rate < 2 && hd94Rate < 30) spo2Score = 25;
+      else if (odi4Rate < 5 && hd94Rate < 60) spo2Score = 20;
+      else if (odi4Rate < 10 && hd94Rate < 120) spo2Score = 13;
+      else if (odi4Rate < 20) spo2Score = 7;
+      else spo2Score = 2;
+    }
     scores.spo2 = spo2Score;
 
     // 3. Sleep architecture (20 pts): duration + REM + deep estimates
@@ -6490,12 +6512,61 @@
     } else hrSlopeScore = 5;
     scores.hrSlope = hrSlopeScore;
 
-    var readiness = rmssdScore + spo2Score + sleepScore + hrFloorScore + hrSlopeScore;
-    readiness = Math.min(100, Math.max(0, readiness));
+    /* Sum only the components that were MEASURED, and rescale by the weight actually present.
+       ⚠ Renormalising is itself an assumption — it treats the missing component as resembling the
+       rest — so the basis is PUBLISHED rather than hidden: `readinessBasis` says which components
+       scored and how many of the 100 points they covered, so a 78 over three components is
+       distinguishable from a 78 over five. If nothing scored, readiness is null, not 0. */
+    var _rdParts = [
+      { k: 'rmssd', v: rmssdScore, w: 30 },
+      { k: 'spo2', v: spo2Score, w: 25 },
+      { k: 'sleep', v: sleepScore, w: 20 },
+      { k: 'hrFloor', v: hrFloorScore, w: 15 },
+      { k: 'hrSlope', v: hrSlopeScore, w: 10 }
+    ];
+    var _rdPresent = [];
+    for (var _rp = 0; _rp < _rdParts.length; _rp++) {
+      var _rv = _rdParts[_rp].v;
+      if (_rv != null && isFinite(_rv)) _rdPresent.push({ k: _rdParts[_rp].k, v: +_rv, w: _rdParts[_rp].w });
+    }
+    var _rdWeight = _rdPresent.reduce(function (a, p) {
+      return a + p.w;
+    }, 0);
+    var readinessBasis = {
+      scored: _rdPresent.map(function (p) {
+        return p.k;
+      }),
+      weightPresent: _rdWeight,
+      weightTotal: 100
+    };
+    var readiness =
+      _rdWeight === 0
+        ? null
+        : Math.min(
+            100,
+            Math.max(
+              0,
+              Math.round(
+                (_rdPresent.reduce(function (a, p) {
+                  return a + p.v;
+                }, 0) /
+                  _rdWeight) *
+                  100
+              )
+            )
+          );
 
     // ── Readiness tier ─────────────────────────────────────────────
     var readinessTier, readinessColor, zoneRec, trainingNote;
-    if (readiness >= 85) {
+    /* ∅ The tier must refuse alongside the score. Every comparison below is false against null, so
+       an unscored night would have fallen through to "Rest Day" — advising rest on the strength of
+       a measurement that does not exist, which is this fix's own defect pointing the other way. */
+    if (readiness == null) {
+      readinessTier = null;
+      readinessColor = 'neutral';
+      zoneRec = null;
+      trainingNote = 'Not scored — no readiness component could be measured for this night.';
+    } else if (readiness >= 85) {
       readinessTier = 'Optimal';
       readinessColor = 'good';
       zoneRec = 'z4_z5';
@@ -6534,7 +6605,11 @@
     // Widely used aerobic base-building ceiling
     var mafHR = 180 - age;
     var mafAdj = '';
-    if (readiness >= 85) {
+    /* ∅ `null >= 85` is false and `null < 55` is TRUE, so an unscored night would have taken a
+       10 bpm recovery-deficit penalty off a readiness that does not exist. */
+    if (readiness == null) {
+      mafAdj = 'no adjustment (readiness not scored)';
+    } else if (readiness >= 85) {
       mafAdj = '+5 (recovering well)';
       mafHR += 5;
     } else if (readiness < 55) {
@@ -6554,6 +6629,7 @@
       zones: zones,
       allZones: [zones.z1, zones.z2, zones.z3, zones.z4, zones.z5],
       readiness: readiness,
+      readinessBasis: readinessBasis,
       readinessTier: readinessTier,
       readinessColor: readinessColor,
       recZones: recZones,
@@ -7005,8 +7081,9 @@
           // Recompute MOS + AHI estimates from available scalars — no raw rows needed
           mos: (function () {
             try {
-              var o4r = obj.odi4 && obj.odi4.rate != null ? obj.odi4.rate : 0;
-              var ct90s = obj.ctPrecise && obj.ctPrecise.ct90s != null ? obj.ctPrecise.ct90s : 0;
+              // ∅ an imported summary that carries no ODI-4 or CT90 is not a night without them
+              var o4r = obj.odi4 && obj.odi4.rate != null ? obj.odi4.rate : null;
+              var ct90s = obj.ctPrecise && obj.ctPrecise.ct90s != null ? obj.ctPrecise.ct90s : null;
               return computeMOS(o4r, ct90s);
             } catch (e) {
               return null;
@@ -7014,12 +7091,12 @@
           })(),
           ahiEst: (function () {
             try {
-              var o4r = obj.odi4 && obj.odi4.rate != null ? obj.odi4.rate : 0;
-              var o3r = obj.odi3 && obj.odi3.rate != null ? obj.odi3.rate : 0;
+              var o4r = obj.odi4 && obj.odi4.rate != null ? obj.odi4.rate : null;
+              var o3r = obj.odi3 && obj.odi3.rate != null ? obj.odi3.rate : null;
               /* null, not 0 — see computeAHIestimates: substituting 0 for an unmeasured DesSev
                  drops its term from the Kulkas estimate and under-reports AHI. */
               var dsev = obj.desSev && obj.desSev.desSev != null ? obj.desSev.desSev : null;
-              var t95 = obj.stats && obj.stats.t95pct != null ? obj.stats.t95pct : 0;
+              var t95 = obj.stats && obj.stats.t95pct != null ? obj.stats.t95pct : null;
               return computeAHIestimates(o4r, o3r, dsev, t95);
             } catch (e) {
               return null;

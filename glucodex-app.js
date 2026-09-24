@@ -515,7 +515,12 @@ import './glucodex-profile.js';
         sub: window.GluDisp.label() + ' · excursions',
         s: r.mage == null ? 'neutral' : r.mage < 60 ? 'ok' : r.mage < 100 ? 'warn' : 'bad'
       },
-      { l: 'GVP', v: r.gvp == null ? '—' : r.gvp + '%', sub: 'path-length var', s: r.gvp == null ? 'neutral' : r.gvp < 20 ? 'ok' : r.gvp < 35 ? 'warn' : 'bad' },
+      {
+        l: 'GVP',
+        v: r.gvp == null ? '—' : r.gvp + '%',
+        sub: r.gvpPairs == null || r.gvpComparable == null ? 'path-length var' : 'path-length var · ' + r.gvpPairs + '/' + r.gvpComparable + ' steps',
+        s: r.gvp == null ? 'neutral' : r.gvp < 20 ? 'ok' : r.gvp < 35 ? 'warn' : 'bad'
+      },
       ...(r.modd != null ? [{ l: 'MODD', v: window.GluDisp.spread(r.modd), sub: window.GluDisp.label() + ' · day-to-day', s: r.modd < 40 ? 'ok' : r.modd < 60 ? 'warn' : 'bad' }] : []),
       { l: 'LBGI', v: r.lbgi, sub: 'low-BG risk', s: r.lbgi < 2.5 ? 'ok' : r.lbgi < 5 ? 'warn' : 'bad' },
       { l: 'HBGI', v: r.hbgi, sub: 'high-BG risk', s: r.hbgi < 4.5 ? 'ok' : r.hbgi < 9 ? 'warn' : 'bad' },
@@ -1117,9 +1122,19 @@ import './glucodex-profile.js';
 
     // ── glycemic-variability scalar (measured by GlucoDex) ──
     const cvR = clamp((r.cv - 25) / 25, 0, 1),
-      mageR = clamp(((r.mage || 50) - 40) / 80, 0, 1),
       dawnR = clamp((r.dawn.present ? r.dawn.medianDelta : 0) / 60, 0, 1);
-    const glyVar = +(0.45 * cvR + 0.35 * mageR + 0.2 * dawnR).toFixed(3);
+    /* ∅ `r.mage || 50` got BOTH kinds of zero wrong, and this score reaches the export, the
+       IR band and a ganglior event's confidence.
+         • UNCOMPUTED — `mage()` returns null for a record shorter than 4 turning points, and this
+           same file renders that as '—' at L514/L702/L1388 while the export note says null means
+           not computed. Here it silently became a mid-range 50.
+         • MEASURED ZERO — with no excursion above 1 SD, `mage()` returns `round(sd, 0)`, which for
+           a flat trace is 0. `0 || 50` then reported the LEAST variable trace possible as
+           mid-range variability, inverting the metric it was standing in for.
+       An absent term is dropped and the remaining weights renormalise over 0.65 — the shape
+       `autoRisk` above already uses. When MAGE is present the arithmetic is byte-identical. */
+    const mageR = r.mage != null ? clamp((r.mage - 40) / 80, 0, 1) : null;
+    const glyVar = mageR != null ? +(0.45 * cvR + 0.35 * mageR + 0.2 * dawnR).toFixed(3) : +((0.45 * cvR + 0.2 * dawnR) / 0.65).toFixed(3);
 
     // ── directional IR-risk (recalibrated bands so a normal trace doesn't flag) ──
     let irScore, irBand, irSev;

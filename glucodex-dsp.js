@@ -911,15 +911,32 @@
   }
 
   // GVP: glucose variability percentage = trace path length vs flat line, %
-  function gvp(c) {
+  /* ∅ GVP IS A PATH LENGTH, so an unguarded step DRAWS A LINE THROUGH TIME THE SENSOR NEVER SAW.
+     `_ana(c, i)` alone admitted a step whose EARLIER endpoint was WARMUP, COMPRESSION or GAP_LONG:
+     the straight segment across that hole was added to `L` as though the trace had travelled it,
+     inflating the variability percentage with an artifact. (`TCH-FUSED-ROBUST-HAT-FOLLOWUPS` already
+     records compression lows inflating CGM variability — this is that, in the path-length metric.)
+     Its three siblings that difference against an earlier cell — `conga`, `modd`, `magRate` — all
+     guard BOTH endpoints; gvp was the only one of the four that did not.
+     `meta` is an optional LAST param (§🧪 back-compat): the scalar contract is unchanged, and a caller
+     that wants the basis passes an object to receive the pair counts. */
+  function gvp(c, meta) {
     let L = 0,
-      L0 = 0;
+      L0 = 0,
+      pairs = 0,
+      comparable = 0;
     const dtMin = c.cadence;
     for (let i = 1; i < c.N; i++) {
-      if (!_ana(c, i)) continue;
+      comparable++;
+      if (!_ana(c, i) || !_ana(c, i - 1)) continue;
       const dg = c.gV[i] - c.gV[i - 1];
       L += Math.sqrt(dtMin * dtMin + dg * dg);
       L0 += dtMin;
+      pairs++;
+    }
+    if (meta) {
+      meta.pairs = pairs;
+      meta.comparable = comparable;
     }
     return L0 > 0 ? round((L / L0 - 1) * 100, 1) : null;
   }
@@ -942,13 +959,17 @@
 
   function variability(c, ana, core) {
     const sd = core.sd;
+    const _gvpMeta = {};
     return {
       mage: mage(ana.vals, sd),
       conga1: conga(c, 1),
       conga2: conga(c, 2),
       conga4: conga(c, 4),
       modd: modd(c),
-      gvp: gvp(c),
+      gvp: gvp(c, _gvpMeta),
+      // the path length means nothing without the steps it was drawn over
+      gvpPairs: _gvpMeta.pairs,
+      gvpComparable: _gvpMeta.comparable,
       jIndex: round(0.001 * Math.pow(core.mean + sd, 2), 1),
       magRate: magRate(c),
       grade: grade(ana.vals),
@@ -2082,6 +2103,10 @@
         modd: r.modd == null ? null : r.modd,
         adrr: r.adrr == null ? null : r.adrr,
         gvp: r.gvp == null ? null : r.gvp,
+        // the path length's basis — steps actually traced, of steps in the grid. Without it a
+        // consumer cannot tell a fully-observed night from one mostly reconstructed across gaps.
+        gvpPairs: r.gvpPairs == null ? null : r.gvpPairs,
+        gvpComparable: r.gvpComparable == null ? null : r.gvpComparable,
         lbgi: r.lbgi,
         hbgi: r.hbgi,
         stabilityScore: r.stabilityScore,

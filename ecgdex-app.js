@@ -1003,7 +1003,7 @@ self.onmessage = async (e) => {
     <table><thead><tr><th>Metric</th><th>ECG-derived</th><th>Device HR</th><th>Δ / verdict</th></tr></thead><tbody>
     <tr><td>Mean HR</td><td class="mono">${v.ecgMean}</td><td class="mono">${v.devMean}</td><td class="mono ${v.dMean < 2 ? 'ok' : v.dMean < 5 ? 'warn' : 'bad'}">Δ ${v.dMean} bpm</td></tr>
     <tr><td>Range (bpm)</td><td class="mono">${v.ecgMin}–${v.ecgMax}</td><td class="mono">${v.devMin}–${v.devMax}</td><td>—</td></tr>
-    <tr><td>Mean abs error</td><td class="mono" colspan="2" style="text-align:center">${v.mae} bpm <span style="color:var(--text3)">(max ${v.maxErr})</span></td><td>${v.mae < 2 ? '<span class="pill pill-green">tight</span>' : v.mae < 5 ? '<span class="pill pill-yellow">close</span>' : '<span class="pill pill-red">off</span>'}</td></tr>
+    <tr><td>Mean abs error</td><td class="mono" colspan="2" style="text-align:center">${v.mae} bpm <span style="color:var(--text3)">(max ${v.maxErr}${v.coverage != null ? ` · over ${v.n} of ${v.comparableSec}s` : ''})</span></td><td>${v.mae < 2 ? '<span class="pill pill-green">tight</span>' : v.mae < 5 ? '<span class="pill pill-yellow">close</span>' : '<span class="pill pill-red">off</span>'}</td></tr>
     <tr><td>Correlation r</td><td class="mono" colspan="2" style="text-align:center">${v.rMeaningful ? v.r : '—'}</td><td>${rPill}</td></tr>
     </tbody></table>
     <div class="mini-h" style="margin-top:12px">HR across the recording <span class="mini-sub"><span style="color:${UI.COLORS.teal}">●</span> ECG-derived&nbsp;&nbsp;<span style="color:${UI.COLORS.amber}">●</span> device</span></div>

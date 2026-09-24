@@ -358,7 +358,12 @@
   /* sqi from leak quality (§4.3): high large-leak fraction corrupts AHI → lowers sqi */
   function leakSqi(metrics) {
     var ll = metrics.largeLeakPct;
-    if (ll == null || isNaN(ll)) return 1;
+    /* ∅ AN UNASSESSABLE MASK SEAL IS NOT A PERFECT ONE. `largeLeakPct` is NaN when there is no
+       leak channel or the mask was never on, and returning 1 for that case published the BEST
+       POSSIBLE quality for a session whose quality was never measured — the one direction that
+       suppresses the warning this index exists to raise. A measured zero-leak session still
+       returns 1, which is the clean case the selftest pins; only the UNMEASURED one is now null. */
+    if (ll == null || isNaN(ll)) return null;
     return Math.max(0, Math.min(1, 1 - ll / 100));
   }
 
@@ -2181,7 +2186,14 @@
         if (on == null || off == null || on < 0 || off < 0) continue;
         sessions.push({ onMs: dateMs + STR_NOON_MS + Math.round(on) * 60000, offMs: dateMs + STR_NOON_MS + Math.round(off) * 60000 });
       }
-      var modeCode = modeSig ? Math.round(_strAt(modeSig, r, 1, 0)) : null;
+      /* ∅ `Math.round(null)` is 0, and STR_MODE[0] is 'CPAP' — so a day whose Mode sample is past
+         the end of the signal used to render a badged device-mode chip reading CPAP for a device
+         that reported no mode at all. The comment below already states the intent ("unknown →
+         null"); rounding an absent sample defeated it before the check could run. The two sibling
+         reads on the next lines (`rin`, `csr`) never round, and the session loop above null-checks
+         BEFORE it rounds — this was the only one of the three that did not. */
+      var _mode = modeSig ? _strAt(modeSig, r, 1, 0) : null;
+      var modeCode = _mode != null && isFinite(_mode) ? Math.round(_mode) : null;
       var rin = rinSig ? _strAt(rinSig, r, 1, 0) : null;
       var csr = csrSig ? _strAt(csrSig, r, 1, 0) : null;
       var prescription = {};

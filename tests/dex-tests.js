@@ -639,6 +639,69 @@
        night with no valid SpO2 as mean 0 / min 0 / max 0, and no valid HR likewise — the main path every real
        file takes. A night nobody measured read as a night of zeros. Driven through the real `processNight`
        with a control beside it, so the assertion is about behaviour and not about a literal. */
+    group('OxyDex §∅ — an ABSENT oximetry index is not a measured zero, and Normal is a claim', 'oxydex-dsp · absence', function (T) {
+      var _odn = env.OxyDex || env.OxyDSP || env.OXYDSP;
+      var OD = (_odn && _odn._bare) || _odn;
+      if (!OD || typeof OD.computeMOS !== 'function' || typeof OD.computeAHIestimates !== 'function') {
+        T.skip('OxyDSP.computeMOS + computeAHIestimates exposed', 'OxyDex not co-loaded in this runner');
+        return;
+      }
+
+      /* ── computeMOS ── `null >= K` is false and `null / 60` is 0, so absent inputs fell through every
+         branch to score 1, "Normal". A McGill grade is a CLINICAL claim and that one was made about a
+         night neither input described. */
+      T.eq('absent ODI-4 and CT90 refuse — they do not score "Normal"', JSON.stringify(OD.computeMOS(null, null)), '{"mos":null,"mosLabel":null,"reason":"inputs-absent"}');
+      T.eq('CONTROL · a MEASURED zero on both is still a real Normal — absence and zero part company here', JSON.stringify(OD.computeMOS(0, 0)), '{"mos":1,"mosLabel":"Normal"}');
+      T.eq('CONTROL · a high ODI-4 still grades Abnormal', JSON.stringify(OD.computeMOS(40, 0).mos), '3');
+
+      /* ── computeAHIestimates ALREADY refused on null — the defect was the CALLER feeding it 0.
+         This pins the divergence that makes the caller's choice load-bearing: the same absent night
+         is `null` when the absence is passed through, and a reassuring 0.0 when it is replaced. */
+      T.eq('passing the absence through: both estimates refuse', JSON.stringify(OD.computeAHIestimates(null, null, null, null)), '{"ahiODI4":null,"ahiKulkas":null}');
+      T.eq('\u2026while substituting 0 publishes "no apneas" — which is what the callers used to do', JSON.stringify(OD.computeAHIestimates(0, 0, 0, 0)), '{"ahiODI4":0,"ahiKulkas":0}');
+      T.eq('CONTROL · real inputs still compute both estimates unchanged', JSON.stringify(OD.computeAHIestimates(10, 12, 5, 4)), '{"ahiODI4":11,"ahiKulkas":12}');
+
+      /* ── SHAPE, not the lines I edited. The null-not-zero fix was applied to ONE of five inputs
+         (`desSevRate`, with a comment explaining it) and its four siblings kept defaulting to 0, on
+         BOTH call paths. This scans for any surviving sibling rather than the four I happened to
+         find. Comment-stripped: the ∅ notes quote the old expressions verbatim. */
+      var src = ((env.sources || {})['oxydex-dsp.js'] || '')
+        .split('\n')
+        .filter(function (ln) {
+          var t = ln.trim();
+          return t.indexOf('//') !== 0 && t.indexOf('*') !== 0 && t.indexOf('/*') !== 0;
+        })
+        .join('\n');
+      if (!src.trim()) {
+        T.skip('oxydex-dsp.js source', 'sources not provided in this runner');
+      } else {
+        var bad = [];
+        var pats = [
+          /var odi4Rate = odi4 \? odi4\.rate : 0/,
+          /var odi3Rate = odi3 \? odi3\.rate : 0/,
+          /var t95Pct = stats \? stats\.t95pct : 0/,
+          /ctPrec\.ct90s \|\| 0/,
+          /obj\.odi4\.rate : 0/,
+          /obj\.odi3\.rate : 0/,
+          /obj\.stats\.t95pct : 0/,
+          /obj\.ctPrecise\.ct90s : 0/
+        ];
+        for (var pi = 0; pi < pats.length; pi++) if (pats[pi].test(src)) bad.push(pats[pi].source.slice(0, 40));
+        /* RATCHET, not a clean sweep. The scan is deliberately broader than this unit, and it found
+           a FIFTH site: `oxydex-dsp.js`'s spo2Score ladder uses the same `odi4 ? odi4.rate : 0` and
+           an absent ODI-4 falls into `< 2` to score 25 — the MAXIMUM. It is the same absence with a
+           DIFFERENT fix shape (a composite term to drop and renormalise, not a null to pass
+           through), so it is logged as residue rather than widened into this diff. Pinning it as an
+           EQUALITY means a new site still reds; this list may only shrink. */
+        T.eq('the MOS/AHI call paths are clean, and exactly ONE known sibling remains (logged, spo2Score)', JSON.stringify(bad), '[]');
+        T.ok(
+          'the anti-vacuity control — the scan can still SEE those lines\u2019 successors',
+          /odi4 && odi4\.rate != null/.test(src) && /obj\.odi4 && obj\.odi4\.rate != null/.test(src),
+          'the replacement lines are not present either — the scan may be reading nothing'
+        );
+      }
+    });
+
     group('OxyDex §∅ — processNight reports an unmeasured SpO2/HR night as null, never 0', 'oxydex-dsp · absence-as-value · primary-builder', function (T) {
       var _od = env.OxyDex || env.OxyDSP || env.OXYDSP;
       var OD = (_od && _od._bare) || _od;
@@ -19777,6 +19840,65 @@
       T.ok('seam: epochs still carry tri-state moving', Array.isArray(b.epochs) && b.epochs.length === a.epochs.length);
     });
 
+    group('MotionDex ACC unit — ∅ an UNDETERMINED unit is not milli-g', 'motiondex-dsp · absence', function (T) {
+      var M = env.MOTIONDSP || (env.MotionDex && env.MotionDex._bare);
+      if (!M || typeof M.compute !== 'function' || typeof M.bodyPosition !== 'function') {
+        T.skip('MOTIONDSP.compute + bodyPosition exposed', 'MotionDex not co-loaded in this runner');
+        return;
+      }
+      /* The parse boundary ALREADY refuses to guess: `inferAccUnit` ends
+         `return null; // nothing gravity-like — do not guess`, and `_unit` is left null when neither
+         the header nor the magnitude oracle could decide. `compute()` then defaulted to 'mg' a
+         thousand lines later, re-introducing the guess the producer had declined to make. The scale
+         error that hides is 1000× for a stream actually in g — `toG`'s own header records that exact
+         mis-scale happening once before — and EVERY magnitude-derived output rides on it. */
+      var mkRows = function (unit) {
+        var r = [];
+        // a WORN accelerometer: ~1 g on z with real movement, so the SQI has something to score.
+        // A perfectly static stream scores conf 0 on its own merits, which would make the control
+        // below vacuous — it caught exactly that on the first draft.
+        for (var i = 0; i < 600; i++) {
+          r.push({
+            tMs: 1781128800000 + i * 40,
+            x: 20 + 60 * Math.sin(i / 7),
+            y: 30 + 40 * Math.cos(i / 11),
+            z: 1000 + 50 * Math.sin(i / 5)
+          });
+        }
+        if (unit) r._unit = unit;
+        return r;
+      };
+      var known = M.compute({ acc: mkRows('mg') });
+      var unknown = M.compute({ acc: mkRows(null) });
+
+      // CONTROL — a DECLARED unit still computes everything, so the refusal below is a change.
+      T.ok(
+        'control: a declared mg stream still produces body position and actigraphy',
+        known.position.hasData === true && known.activity.hasData === true,
+        JSON.stringify({ p: known.position.hasData, a: known.activity.hasData })
+      );
+      T.ok('control: …and a real SQI', known.sqi.conf > 0, 'conf ' + known.sqi.conf);
+
+      // The magnitude-derived outputs refuse, and say WHY — not a bare false a reader must guess at.
+      T.eq('an undetermined unit refuses body position, with the reason named', JSON.stringify({ h: unknown.position.hasData, r: unknown.position.reason }), '{"h":false,"r":"unit-unknown"}');
+      T.eq('\u2026and actigraphy', JSON.stringify({ h: unknown.activity.hasData, r: unknown.activity.reason }), '{"h":false,"r":"unit-unknown"}');
+      T.eq('\u2026and the SQI, which is a score over magnitudes of unknown scale', JSON.stringify({ c: unknown.sqi.conf, f: unknown.sqi.flags }), '{"c":0,"f":["unit-unknown"]}');
+
+      /* The refusal is SCOPED: a unit governs magnitudes, not the clock. Timing facts are still
+         published, so an unknown unit costs the motion metrics and nothing else. */
+      T.ok('the TIME-only facts survive — a unit governs magnitude, not the clock', unknown.t0Ms === known.t0Ms && unknown.t0Ms != null, JSON.stringify({ u: unknown.t0Ms, k: known.t0Ms }));
+
+      /* classifyGravity gates on an ABSOLUTE window (mag > 0.4 && mag <= 2.0), so position is
+         scale-DEPENDENT — this pins that, and is why refusing beats annotating here. */
+      var asG = M.bodyPosition(mkRows('g'), 0, 24, 'g');
+      var asMg = M.bodyPosition(mkRows('mg'), 0, 24, 'mg');
+      T.ok(
+        'the same bytes under two units give different positions — the scale is load-bearing',
+        JSON.stringify(asG.dwellFrac) !== JSON.stringify(asMg.dwellFrac),
+        'identical dwell under a 1000x scale change'
+      );
+    });
+
     group(
       'MotionDex helper floor — 8 + 2 drafts adopted: every entry guard refuses junk, and admits a legal minimum (mutation-derived)',
       'motiondex-dsp · known-answer · mutation-pinned',
@@ -19810,7 +19932,11 @@
         for (var pi = 0; pi < 200; pi++) posRows.push({ tMs: pi * 250, x: 0, y: 0, z: 1 });
         out = M.respiratoryEffort(shortRows);
         T.eq('a 10-row refusal is BARE hasData:false — no fabricated zero-rate payload rides along', JSON.stringify(out), '{"hasData":false}');
-        out = M.bodyPosition(posRows);
+        // posRows are {x:0,y:0,z:1} — one g on z. The call always meant 'g'; it simply never said
+        // so, and relied on toG's pass-through for an absent unit. bodyPosition now refuses an
+        // UNKNOWN unit (∅), so the unit is stated. `toG(v,'g')` returns v unchanged, exactly as the
+        // absent unit did, so this assertion's outcome is bit-for-bit what it was.
+        out = M.bodyPosition(posRows, 0, 50, 'g');
         T.eq(
           'the dwell table has EXACTLY the six positions — one extra loop pass mints an "undefined" position',
           JSON.stringify(Object.keys(out.dwellFrac)),
@@ -19872,6 +19998,114 @@
        signal's own name ends `.2s` and a 2-second period IS 0.5 Hz, and the two agree. A draft whose
        only support is "the code currently returns this" was not adopted, however green: that is the
        shape that pins a bug as intended behaviour. */
+    group('CPAPDex EDF geometry — ∅ an unreadable header field REFUSES, it never becomes a number', 'cpapdex-edf · absence', function (T) {
+      var E = env.CpapEdf;
+      if (!E || typeof E._buildSyntheticEDF !== 'function' || typeof E.readEDF !== 'function') {
+        T.skip('CpapEdf._buildSyntheticEDF + readEDF exposed', 'CpapEdf not co-loaded in this runner');
+        return;
+      }
+      // Offsets derived, not memorised: the EDF signal header is ns-strided blocks of
+      // label16 + transducer80 + dim8 + physMin8 + physMax8 + digMin8 + digMax8 + prefilter80,
+      // so samples-per-record begins at 256 + 216*ns. The synthetic set is 1 numeric + 1 annotation.
+      var NS = 2,
+        SPR_OFF = 256 + 216 * NS,
+        DMAX_OFF = 256 + 128 * NS,
+        RECDUR_OFF = 244;
+      var spaces = function (u8, at) {
+        for (var i = 0; i < 8; i++) u8[at + i] = 0x20;
+      };
+      var write8 = function (u8, at, str) {
+        for (var i = 0; i < 8; i++) u8[at + i] = i < str.length ? str.charCodeAt(i) : 0x20;
+      };
+      var mutated = function (mut) {
+        var b = E._buildSyntheticEDF({ records: 5 });
+        mut(new Uint8Array(b));
+        return b;
+      };
+      var refusal = function (mut) {
+        try {
+          E.readEDF(mutated(mut));
+          return 'NO REFUSAL — the file parsed';
+        } catch (e) {
+          return e.message;
+        }
+      };
+
+      // ── CONTROL ── the well-formed file still parses, and its samples are REAL NUMBERS, so the
+      //    NaN asserted further down is a change rather than the status quo.
+      var okRec = E.readEDF(E._buildSyntheticEDF({ records: 5 }));
+      var press = okRec.signals['Press.40ms'];
+      T.ok('control: a well-formed EDF parses — 10 Hz × 5 records', !!press && press.data.length === 50 && press.fs === 10, 'len ' + (press && press.data.length) + ' fs ' + (press && press.fs));
+      T.ok('control: its samples are finite, and its scale is the real 25.5/255', isFinite(press.data[10]) && Math.abs(press.data[10] - 1.0) < 1e-6, 'got ' + (press && press.data[10]));
+      T.eq('control: it reports itself calibrated', press.calibrated, true);
+
+      // ── 1 · SAMPLES-PER-RECORD is the STRIDE OF EVERY LATER SIGNAL, not one signal's property.
+      //    Absorbed as 0, it made bytesPerRecord too small, numRecords (from -1) too large, and left
+      //    the decode pointer un-advanced — so every later signal in every record read from the wrong
+      //    offset. The output was not missing data; it was a full set of plausible, wrong numbers.
+      T.ok(
+        'an unreadable samples-per-record REFUSES the file',
+        /samples-per-record/.test(
+          refusal(function (u8) {
+            spaces(u8, SPR_OFF);
+          }) || ''
+        ),
+        'no refusal'
+      );
+      T.ok(
+        '\u2026including the ANNOTATION signal, which occupies record bytes like any other',
+        /samples-per-record/.test(
+          refusal(function (u8) {
+            spaces(u8, SPR_OFF + 8);
+          }) || ''
+        ),
+        'no refusal'
+      );
+
+      // ── 2 · RECORD DURATION is the denominator of every sampling rate.
+      T.ok(
+        'an unreadable record duration REFUSES — every fs would be a guess',
+        /record duration/.test(
+          refusal(function (u8) {
+            spaces(u8, RECDUR_OFF);
+          }) || ''
+        ),
+        'no refusal'
+      );
+      // ⚠ A ZERO duration is the VENDOR'S OWN VALUE, not an unreadable field: the real
+      //   `20260612_222819_EVE.edf` writes `0.00` with labels ["EDF Annotations","Crc16"]. A blanket
+      //   `!(recDur > 0)` refusal rejected TWO REAL CORPUS NIGHTS in regen — caught there, not here,
+      //   because every synthetic set has a positive duration. It must be ACCEPTED, with fs NULL.
+      var zeroDur = E.readEDF(
+        mutated(function (u8) {
+          write8(u8, RECDUR_OFF, '0');
+        })
+      );
+      T.ok('a ZERO record duration is ACCEPTED — ResMed EVE/CSL event files write 0.00', !!zeroDur.signals['Press.40ms'], 'threw, or dropped the signal');
+      T.eq('\u2026and its fs is NULL — not 0, which reads as a measured rate, and not spr/0 = Infinity', zeroDur.signals['Press.40ms'].fs, null);
+      T.ok(
+        'a NEGATIVE duration is still refused — that is not a duration at all',
+        /negative record duration/.test(
+          refusal(function (u8) {
+            write8(u8, RECDUR_OFF, '-1');
+          }) || ''
+        ),
+        'no refusal'
+      );
+
+      // ── 3 · A DEGENERATE DIGITAL RANGE is ONE signal's absence, not the file's — reduced coverage
+      //    annotates, a missing stride refuses. `|| 1` used to rescale the signal by a factor of
+      //    (digMax-digMin), and because `NaN || 1` is 1 an ABSENT range took the same path.
+      var degen = E.readEDF(
+        mutated(function (u8) {
+          write8(u8, DMAX_OFF, '0');
+        })
+      );
+      var dp = degen.signals['Press.40ms'];
+      T.eq('a degenerate digital range marks THAT SIGNAL uncalibrated, and the file still parses', dp.calibrated, false);
+      T.ok('\u2026and its samples are NaN, not rescaled by a fabricated denominator of 1', isNaN(dp.data[10]), 'got ' + dp.data[10]);
+    });
+
     group('CPAPDex synthetic EDF — the .2s signals declare the rate their names promise (adopted drafts, batch 1)', 'cpapdex-dsp · adopted-drafts · mutation-pinned', function (T) {
       var C = env.CpapDsp;
       if (!C || typeof C._synthEdfSet !== 'function') {
@@ -20314,6 +20548,74 @@
       T.eq('an EMPTY sets array is refused, not treated as a night with no sessions', N({ sets: [] }), null);
       T.eq('a non-array `sets` is refused', N({ sets: 'no' }), null);
       T.eq('a bare array is refused', N([]), null);
+    });
+
+    group('CPAPDex quality — ∅ an UNASSESSED mask seal is not a perfect one, and an absent mode is not CPAP', 'cpapdex-dsp · cpapdex-fusion · absence', function (T) {
+      var D = env.CpapDsp || env.CPAPDSP;
+      var F = env.CpapFusion;
+      if (!D || typeof D.leakSqi !== 'function' || typeof D.parseStrSummary !== 'function' || !F || typeof F.cpapEvents !== 'function') {
+        T.skip('CpapDsp.leakSqi/parseStrSummary + CpapFusion', 'CPAPDex not co-loaded in this runner');
+        return;
+      }
+
+      /* ── 1 · leakSqi ── `largeLeakPct` is NaN with no leak channel, or when the mask was never on.
+         Returning 1 published the BEST POSSIBLE quality for a session whose quality was never
+         measured — the one direction that suppresses the warning the index exists to raise. */
+      T.eq('an UNMEASURABLE leak fraction refuses — it is not a perfect seal', JSON.stringify([D.leakSqi({ largeLeakPct: NaN }), D.leakSqi({ largeLeakPct: null })]), '[null,null]');
+      T.eq('CONTROL · a MEASURED zero-leak session is still exactly 1, and 40 % is still 0.6', JSON.stringify([D.leakSqi({ largeLeakPct: 0 }), D.leakSqi({ largeLeakPct: 40 })]), '[1,0.6]');
+
+      /* ── 2 · STR device mode ── `_strAt` returns null past the end of a signal, `Math.round(null)`
+         is 0, and STR_MODE[0] is 'CPAP'. A day whose Mode sample was absent therefore rendered a
+         badged chip reading CPAP for a device that reported no mode at all. Built so the second
+         record's Mode index is past the end while the first record's is present — the control and
+         the case come out of ONE call. */
+      var sig = function (arr) {
+        return { data: typeof Float32Array === 'function' ? Float32Array.from(arr) : arr };
+      };
+      var strRows = D.parseStrSummary({ signals: { Date: sig([0, 1]), MaskOn: sig([60, 60]), MaskOff: sig([120, 120]), Mode: sig([1]) } });
+      T.eq('the day WITH a mode sample still reads APAP — the control', JSON.stringify({ c: strRows[0].deviceModeCode, m: strRows[0].deviceMode }), '{"c":1,"m":"APAP"}');
+      T.eq(
+        'the day whose mode sample is ABSENT is null, not the CPAP that Math.round(null) produced',
+        JSON.stringify({ c: strRows[1].deviceModeCode, m: strRows[1].deviceMode }),
+        '{"c":null,"m":null}'
+      );
+
+      /* ── 3 · the fusion layer carries the absence instead of replacing it ── `EVENT-LEXICON` § already
+         documents `sqi null` on an emitted event, and `integrator-dsp.js:139` already reads null and
+         weights such an event NEUTRALLY. That is fusion declining to PENALISE unknown quality, which
+         is a different act from CPAPDex asserting it measured a perfect seal. */
+      var t0 = Date.UTC(2026, 5, 10, 23, 0, 0);
+      var night = {
+        t0Ms: t0,
+        dateMs: t0,
+        therapyHours: 6,
+        sessions: [
+          { t0Ms: t0, endMs: t0 + 3 * 3600e3, durMin: 180, sqi: 0.6, usageHours: 3, events: [{ type: 'OA', tMs: t0 + 600e3, durSec: 20 }] },
+          { t0Ms: t0 + 3 * 3600e3, endMs: t0 + 6 * 3600e3, durMin: 180, sqi: null, usageHours: 3, events: [{ type: 'OA', tMs: t0 + 4 * 3600e3, durSec: 20 }] }
+        ]
+      };
+      T.eq(
+        'an event from an UNASSESSED session carries sqi null, while the assessed one keeps 0.6',
+        JSON.stringify(
+          F.cpapEvents(night).map(function (e) {
+            return e.sqi;
+          })
+        ),
+        '[0.6,null]'
+      );
+
+      if (typeof F.cpapBuildExport !== 'function') {
+        T.skip('CpapFusion.cpapBuildExport', 'not on this surface');
+      } else {
+        var q = F.cpapBuildExport(night).quality;
+        // PRE-STATED: averaging the unassessed session in as 1 reported 0.8 for a night whose only
+        // measured session was 0.6 — absence diluting a genuinely leaky night toward "good".
+        var dilutedByFabrication = 0.8,
+          measuredOnly = 0.6;
+        T.eq('the night averages the sessions it ASSESSED, not absence counted as perfect', JSON.stringify({ sqi: q.sqi, n: q.sqiSessions }), JSON.stringify({ sqi: measuredOnly, n: 1 }));
+        T.ok('the plant is not vacuous — the old mean and the honest mean differ', dilutedByFabrication > measuredOnly, dilutedByFabrication + ' vs ' + measuredOnly);
+        T.ok('\u2026and the basis is published, so a reader can see how many sessions it rests on', q.sqiSessions === 1 && q.sqiBasis.indexOf('ASSESSED') !== -1, JSON.stringify(q.sqiBasis));
+      }
     });
 
     group('CPAPDex helper floor — 9 + 2 drafts adopted: prepare defaults, envelope guards, EDF refusals (mutation-derived)', 'cpapdex-dsp · known-answer · mutation-pinned', function (T) {
@@ -34711,6 +35013,117 @@
       }
     });
 
+    group('GlucoDex GVP — ∅ a path length is not drawn across time the sensor never saw', 'glucodex-dsp · absence', function (T) {
+      var G = env.GLUDSP || env.GlucoDex;
+      if (!G || typeof G.analyze !== 'function' || typeof G.parseCSV !== 'function') {
+        T.skip('GLUDSP.analyze + parseCSV exposed', 'GlucoDex not co-loaded in this runner');
+        return;
+      }
+      // 8 h of 5-min CGM, a hole, then 8 h more of the SAME waveform at a possibly different level.
+      var build = function (shiftMgDl, gapHours) {
+        var rows = ['Timestamp,Glucose Value (mg/dL)'];
+        var t = Date.UTC(2026, 5, 10, 22, 0, 0);
+        var push = function (v) {
+          rows.push(new Date(t).toISOString().slice(0, 19).replace('T', ' ') + ',' + v);
+          t += 5 * 60000;
+        };
+        for (var i = 0; i < 96; i++) push(100 + 5 * Math.sin(i / 6));
+        t += gapHours * 60 * 60000;
+        for (var j = 0; j < 96; j++) push(100 + shiftMgDl + 5 * Math.sin(j / 6));
+        return rows.join('\n');
+      };
+      var run = function (shiftMgDl, gapHours) {
+        return G.analyze(G.parseCSV(build(shiftMgDl, gapHours)));
+      };
+
+      /* GVP is a PATH LENGTH. A step whose EARLIER endpoint is WARMUP / COMPRESSION / GAP_LONG is a
+         straight line drawn through hours the sensor never saw, and counting it inflates the metric
+         by however much the glucose moved across that hole. Its three siblings that difference
+         against an earlier cell — conga, modd, magRate — all guard BOTH endpoints; gvp did not.
+
+         THE INVARIANT: the two real segments carry the SAME waveform, so the variability of what was
+         actually observed cannot depend on a level change hidden inside the gap. */
+      var flat = run(0, 2);
+      var shifted = run(150, 2);
+      T.eq('a 150 mg/dL level shift HIDDEN INSIDE the gap does not change observed variability', shifted.gvp, flat.gvp);
+      // Pre-stated from a probe on this exact geometry: unguarded, the drawn line reported 1.0 for a
+      // trace whose honest GVP is 0.7 — a 43 % overstatement that grows with the jump across the hole.
+      var honestGvp = 0.7;
+      T.eq('\u2026and that observed variability is the honest 0.7, not the 1.0 the drawn line reported', shifted.gvp, honestGvp);
+
+      // The basis is published, so a reader can see how much of the record the number rests on.
+      T.eq('the compared steps and the steps it COULD have compared are both published', JSON.stringify({ p: flat.gvpPairs, c: flat.gvpComparable }), JSON.stringify({ p: 190, c: 215 }));
+      var longer = run(150, 6);
+      T.eq('a LONGER hole leaves the compared count unchanged and grows the denominator', JSON.stringify({ p: longer.gvpPairs, c: longer.gvpComparable }), JSON.stringify({ p: 190, c: 263 }));
+      T.ok('\u2026so coverage FALLS as the hole grows — the number a bare GVP cannot express', longer.gvpPairs / longer.gvpComparable < flat.gvpPairs / flat.gvpComparable, 'coverage did not fall');
+
+      /* SHAPE, not the line I edited: every loop differencing against an EARLIER cell must guard
+         BOTH endpoints. This is the assertion that catches the next one — gvp was the odd one out
+         of four, and nothing in the suite noticed. */
+      var src = (env.sources || {})['glucodex-dsp.js'];
+      if (!src) {
+        T.skip('glucodex-dsp.js source', 'sources not provided in this runner');
+      } else {
+        var diffs = src.match(/c\.gV\[i\]\s*-\s*c\.gV\[i\s*-\s*(?:1|lag)\]/g) || [];
+        T.ok('the four pairwise-difference sites are all still present', diffs.length === 4, 'found ' + diffs.length + ' — update this gate if a site was added or removed');
+        var unguarded = [];
+        var lines = src.split('\n');
+        for (var li = 0; li < lines.length; li++) {
+          if (!/c\.gV\[i\]\s*-\s*c\.gV\[i\s*-\s*(?:1|lag)\]/.test(lines[li])) continue;
+          var window_ = lines.slice(Math.max(0, li - 4), li).join(' ');
+          if (!/!_ana\(c,\s*i\)\s*\|\|\s*!_ana\(c,\s*i\s*-\s*(?:1|lag)\)/.test(window_)) unguarded.push(li + 1);
+        }
+        T.eq('every difference against an earlier cell guards BOTH endpoints', JSON.stringify(unguarded), '[]');
+      }
+
+      /* A DENOMINATOR NOBODY CAN READ IS DECORATION. The first version of this fix computed the
+         pair counts and stopped there - they reached neither the node-export nor the KPI the survey
+         row actually named, so no consumer could tell a fully-observed night from one mostly
+         reconstructed across gaps. These assertions are what keep it wired. */
+      var dspSrc = ((env.sources || {})['glucodex-dsp.js'] || '')
+        .split('\n')
+        .filter(function (ln) {
+          var t = ln.trim();
+          return t.indexOf('//') !== 0 && t.indexOf('*') !== 0 && t.indexOf('/*') !== 0;
+        })
+        .join('\n');
+      if (!dspSrc.trim()) {
+        T.skip('glucodex-dsp.js export source', 'sources not provided in this runner');
+      } else {
+        T.ok('the node-export carries the basis beside the value', /gvpPairs:/.test(dspSrc) && /gvpComparable:/.test(dspSrc), 'export does not carry the pair counts');
+      }
+
+      /* ∅ THE SAME SHAPE ONE LAYER UP — `glucodex-app.js` fed an ABSENT MAGE into the glycemic
+         variability score as a mid-range 50. Source-mirrored because the app layer is not callable
+         in the node runner (the pattern §✅ uses for node-local code), and asserted as three
+         separate facts so a partial edit cannot green it. This score is not cosmetic: it reaches
+         the export as `glycemicVariabilityScore`, the IR risk band, and a ganglior event's conf. */
+      /* ⚠ SCAN THE CODE, NOT THE PROSE. The first draft of this gate failed against its own fix,
+         because the ∅ comment explaining the defect QUOTES `r.mage || 50` verbatim — a source scan
+         that counts comment text reports the defect it just documented. Every assertion below reads
+         a comment-stripped copy. */
+      var app = ((env.sources || {})['glucodex-app.js'] || '')
+        .split('\n')
+        .filter(function (ln) {
+          var t = ln.trim();
+          return t.indexOf('//') !== 0 && t.indexOf('*') !== 0 && t.indexOf('/*') !== 0;
+        })
+        .join('\n');
+      if (!app.trim()) {
+        T.skip('glucodex-app.js source', 'sources not provided in this runner');
+      } else {
+        T.ok('the fabricating default is gone — `r.mage || 50` fed an UNCOMPUTED MAGE in as 50\u2026', app.indexOf('r.mage || 50') === -1, 'still present');
+        T.ok('\u2026and it also mapped a REAL MAGE of 0 (a flat trace, round(sd,0)) to 50, inverting it', /r\.mage\s*!=\s*null\s*\?/.test(app), 'no explicit null test on r.mage');
+        T.ok('an absent MAGE DROPS its term and renormalises over the remaining 0.65', /\/\s*0\.65/.test(app) && /mageR\s*!=\s*null/.test(app), 'no renormalised branch');
+        T.ok('the GVP KPI annotates its coverage', /gvpPairs \+ '\/' \+ r\.gvpComparable/.test(app), 'KPI sub does not show the basis');
+        T.ok(
+          '\u2026while a PRESENT MAGE keeps the original 0.45/0.35/0.2 weights, so nothing else moved',
+          /0\.45\s*\*\s*cvR\s*\+\s*0\.35\s*\*\s*mageR\s*\+\s*0\.2\s*\*\s*dawnR/.test(app),
+          'the present-MAGE arithmetic changed'
+        );
+      }
+    });
+
     group('GlucoDex §5.1/§5.2 — a truncated grid says so, and the session span cannot overflow', 'glucodex-dsp · truncation · robustness', function (T) {
       var GT = env.GlucoDex || env.GLUDSP;
       var an = (env.GLUDSP && env.GLUDSP.analyze) || (GT && GT.analyze);
@@ -38764,6 +39177,51 @@
       var vhr = E.validateHR(hrSeries, devHR, 0);
       T.ok('a 2-minute ECG-vs-device comparison returns a report, not null', vhr !== null, 'null');
       T.eq('…covering all 120 seconds at MAE 1 bpm', JSON.stringify({ n: vhr.n, mae: vhr.mae }), '{"n":120,"mae":1}');
+      T.eq(
+        '…and that full-coverage control publishes coverage 1 — the denominator is the seconds it COULD have compared',
+        JSON.stringify({ c: vhr.coverage, dm: vhr.devMeasuredSec, cs: vhr.comparableSec }),
+        '{"c":1,"dm":120,"cs":120}'
+      );
+
+      // ── 8b · ∅ A HELD SECOND IS NOT A COMPARED SECOND. The device series used to be
+      //      forward-filled before the comparison, and the CVHR grid it is measured against holds
+      //      forward too — so a stretch where NEITHER sensor measured anything scored as agreement
+      //      and pulled the mean-absolute error DOWN. A validation that flatters itself is worse
+      //      than no validation. Built so smoothing cannot blur the boundary: the device stops at
+      //      290 s, the grid freezes at 300 s, so the width-9 rolling median (±4 s) never spans both.
+      var ecgFreezeSec = 300,
+        devStopSec = 290,
+        recSec = 600,
+        ecgBpm = 62,
+        devBpm = 72,
+        frozenBpm = 70;
+      var heldSeries = [];
+      for (var hs = 0; hs < recSec; hs++) heldSeries.push(hs < ecgFreezeSec ? ecgBpm : frozenBpm);
+      var heldDev = [];
+      for (var hd = 0; hd < devStopSec; hd++) heldDev.push({ tsMs: hd * 1000, hr: devBpm });
+      var vHeld = E.validateHR(heldSeries, heldDev, 0);
+      // lead-in exclusion drops the first 60 s on a record this long; the device's last reading can
+      // still reach 293 s through the ±4 s median window, so 60…293 inclusive is 234 real pairs.
+      var leadSec = 60,
+        lastPairedSec = 293;
+      var expPairs = lastPairedSec - leadSec + 1;
+      var expComparable = recSec - leadSec;
+      T.eq(
+        'a device that stops at 290 s contributes NO pairs from the silent stretch',
+        JSON.stringify({ n: vHeld.n, cs: vHeld.comparableSec, dm: vHeld.devMeasuredSec }),
+        JSON.stringify({ n: expPairs, cs: expComparable, dm: devStopSec })
+      );
+      T.eq('…so coverage reports the 234-of-540 basis instead of implying a full night', vHeld.coverage, +(expPairs / expComparable).toFixed(3));
+      // PRE-STATED: every surviving pair sits in the covered stretch, where the two series differ by
+      // exactly devBpm-ecgBpm. Holding would have added 300 fabricated pairs at |frozen-held| = 2,
+      // diluting a true 10.0 bpm error to 5.6 — a 44 % understatement, in the flattering direction.
+      var trueErr = devBpm - ecgBpm;
+      var fabricatedPairs = recSec - ecgFreezeSec;
+      var fabricatedErr = Math.abs(devBpm - frozenBpm);
+      var dilutedPairs = expComparable;
+      var diluted = +(((expComparable - fabricatedPairs) * trueErr + fabricatedPairs * fabricatedErr) / dilutedPairs).toFixed(1);
+      T.eq('…and MAE is the error over what was MEASURED, not the diluted blend', JSON.stringify({ mae: vHeld.mae, wouldHaveBeen: diluted }), JSON.stringify({ mae: trueErr, wouldHaveBeen: 5.6 }));
+      T.ok('the plant is not vacuous — holding would have changed the reported answer', diluted < trueErr, diluted + ' vs ' + trueErr);
 
       // ── 9 · parseDeviceRR rides the Clock Contract — an unparseable stamp is tsMs NULL on that
       //      row (never a throw, never a fabricated time), a real stamp is the floating tMs.
@@ -49133,6 +49591,66 @@
       );
     });
 
+    group('PAT — a refusal says what it measured, and the ECG leg drops artifact exactly as ECGDex does', 'pat · sharedclock · artifact · regression', function (T) {
+      var G = env.PATGate;
+      if (!G || !G.sharedClock) {
+        T.skip('PATGate not in env', 'wire pat-gate.js into both runners');
+        return;
+      }
+      /* ANTI-VACUITY: a missing export FAILS here — gating the skip on the new functions would make this
+         group skip, not fail, on exactly the code it exists to catch. */
+      /* 2026-09-22, the counts the owner saw: 34 871 raw R-peaks against 18 646 PPG feet over 448 min,
+         files 41.1 s apart. The lag was computed (100 % coupled, 493 ms) and the page said only
+         "NOT SIMULTANEOUS" with `why: null`. */
+      var ecg = { t0Ms: 41100, durSec: 26868, n: 34871 },
+        ppg = { t0Ms: 0, durSec: 26880, n: 18646 };
+      var sc = G.sharedClock(ecg, ppg, { min: 447 });
+      var vd = G.verdict({ min: 447 }, { ok: true }, sc);
+      T.eq('the 09-22 counts are refused as NOT SIMULTANEOUS', vd.label, 'NOT SIMULTANEOUS');
+      T.ok('…and the refusal now CARRIES what it measured (was why: null)', vd.why && vd.why.rateRatio > 0.46 && vd.why.rateRatio < 0.47, JSON.stringify(vd.why));
+      T.ok(
+        '…naming both rates, the gap and the tolerance in its reason',
+        vd.why.reason.indexOf('ECG 77.9/min vs PPG 41.6/min, ' + (vd.why.rateRatio * 100).toFixed(1) + ' % apart against a 12 % tolerance') >= 0,
+        vd.why.reason
+      );
+      var short = G.verdict({ min: 2 }, { ok: true }, G.sharedClock(ecg, ppg, { min: 2 }));
+      T.ok('a too-short overlap names the floor, not a rate', /2\.0 min, below the 5-min floor/.test(short.why.reason), short.why.reason);
+
+      /* The artifact rule is ECGDex analyze()'s, keyed the same way: absolute second
+         floor((t0Ms + idx/fs·1000)/1000), kept iff c >= 0.5. One peak a second for 100 s at 130 Hz,
+         t0Ms 5000 so the key is offset — a helper that ignored t0Ms would drop the wrong ten. */
+      T.ok('PATGate exports dropArtifactPeaks', typeof G.dropArtifactPeaks === 'function');
+      if (typeof G.dropArtifactPeaks !== 'function') return;
+      var fs = 130,
+        t0 = 5000,
+        peaks = [];
+      for (var k = 0; k < 100; k++) peaks.push(k * fs);
+      var conf = new Map();
+      for (var s = 55; s < 65; s++) conf.set(s, 0.49); // recording seconds 50–59 → absolute 55–64
+      conf.set(65, 0.5); // recording second 60: exactly the threshold — ECGDex KEEPS it
+      var g = G.dropArtifactPeaks(peaks, conf, fs, t0);
+      T.eq('ten artifact seconds drop ten peaks', g.nDropped, 10);
+      T.eq('…counted as ten artifact seconds', g.artifactSec, 10);
+      T.ok(
+        '…the RIGHT ten: recording seconds 50–59, with 60 (c = 0.5) kept',
+        g.kept.indexOf(49 * fs) >= 0 && g.kept.indexOf(50 * fs) < 0 && g.kept.indexOf(59 * fs) < 0 && g.kept.indexOf(60 * fs) >= 0
+      );
+      T.eq('the threshold is the one ECGDex analyze() uses', G.ARTIFACT_CONF_MIN, 0.5);
+      T.ok('…and nRaw reports what the detector found before the gate', g.nRaw === 100 && g.kept.length === 90 && g.applied === true);
+      /* …and the rate is taken over the time the leg MEASURED. The real 09-22 legs after the gate:
+         18 663 kept R over a 448-min file with 6 148 artifact seconds dropped, against 18 646 feet over the
+         Verity's 345 min. Over the whole ECG file that reads 41.7 vs 54.0/min and is refused; over the time
+         it measured it is 53.9 vs 54.0 and is one heart. */
+      var ecgG = { t0Ms: 41100, durSec: 26868, n: 18663, artifactSec: 6148 },
+        ppgV = { t0Ms: 0, durSec: 20715, n: 18646 };
+      var scG = G.sharedClock(ecgG, ppgV, { min: 345 });
+      T.ok('the gated 09-22 ECG leg is simultaneous with its PPG', scG.ok === true, 'ecg ' + (scG.ecgHz * 60).toFixed(1) + '/min vs ppg ' + (scG.ppgHz * 60).toFixed(1) + '/min');
+      var scW = G.sharedClock({ t0Ms: 41100, durSec: 26868, n: 18663 }, ppgV, { min: 345 });
+      T.ok('ANTI-VACUITY · the same beats over the WHOLE file (dropped seconds counted) are refused', scW.ok === false && scW.rateRatio > 0.2, 'rateRatio=' + scW.rateRatio.toFixed(3));
+      var none = G.dropArtifactPeaks(peaks, null, fs, t0);
+      T.ok('no confidence map ⇒ nothing dropped, and it SAYS the gate was not applied', none.kept.length === 100 && none.nDropped === 0 && none.applied === false);
+    });
+
     /* ── THE HALF-AMPLITUDE FIDUCIAL (EXTERNAL-METHODS-SURVEY §1) ──────────────────────────────
        Gated here rather than left to the tool's own `--selftest` because that selftest was GREEN
        while the function refused 15295 of 15295 real beats: it planted INTEGER foot indices, and
@@ -58153,7 +58671,44 @@
       T.eq('hd94 120 alone ⇒ 7', sc(null, { rate: 1 }, { hd94PerHr: 120 }).spo2, 7);
       T.eq('odi4 20 ⇒ 2, the floor', sc(null, { rate: 20 }, { hd94PerHr: 0 }).spo2, 2);
       T.eq('odi4 19.9 ⇒ 7, so the 20 boundary is exclusive', sc(null, { rate: 19.9 }, { hd94PerHr: 999 }).spo2, 7);
-      T.eq('no odi4 and no hypDose ⇒ both read 0 ⇒ the TOP rung, 25', sc(null, null, null).spo2, 25);
+      /* ⚠ RECONCILED — this line USED TO PIN THE DEFECT AS THE SPEC. `sc(null, null, null).spo2`
+         was asserted to be 25, i.e. an unanalysed night scoring the MAXIMUM on the hypoxic-load
+         component, because `odi4 ? odi4.rate : 0` fed the top rung two zeros. The ladder rungs
+         above are untouched and remain the controls; only the ABSENT case changes. */
+      T.eq('no odi4 and no hypDose ⇒ the component is NOT SCORED — it no longer wins the top rung', sc(null, null, null).spo2, null);
+      T.eq('\u2026and either input alone being absent is enough to unscore it', JSON.stringify([sc(null, { rate: 1 }, null).spo2, sc(null, null, { hd94PerHr: 29 }).spo2]), '[null,null]');
+
+      /* ∅ THE TOTAL DROPS AN UNSCORED COMPONENT AND RENORMALISES, AND PUBLISHES THE BASIS.
+         Renormalising is itself an assumption — it treats the missing component as resembling the
+         rest — which is exactly why `readinessBasis` is published rather than hidden: a 78 over
+         three components must be distinguishable from a 78 over five. */
+      var full = function (hrv, odi4, hypDose, stageProxy, hint) {
+        return K(null, hrv || { rmssd: 2.3 }, { hrRest: 60 }, odi4, hypDose, null, stageProxy, 49, hint) || {};
+      };
+      var allPresent = full(null, { rate: 1 }, { hd94PerHr: 29 });
+      var spo2Absent = full(null, null, null);
+      T.eq('with every component measured the basis is the whole 100 points', JSON.stringify(allPresent.readinessBasis.weightPresent), '100');
+      T.eq(
+        'CONTROL · and the total is then IDENTICAL to the plain sum it always was — renormalising by 100 is the identity',
+        allPresent.readiness,
+        allPresent.scores.rmssd + allPresent.scores.spo2 + allPresent.scores.sleep + allPresent.scores.hrFloor + allPresent.scores.hrSlope
+      );
+      T.eq(
+        'an unscored component leaves the basis, and says which ones did score',
+        JSON.stringify({ w: spo2Absent.readinessBasis.weightPresent, s: spo2Absent.readinessBasis.scored }),
+        '{"w":75,"s":["rmssd","sleep","hrFloor","hrSlope"]}'
+      );
+      var _sA = spo2Absent.scores;
+      T.eq(
+        '\u2026and the total is rescaled over the 75 points that were measured, not padded to 100',
+        spo2Absent.readiness,
+        Math.round(((_sA.rmssd + _sA.sleep + _sA.hrFloor + _sA.hrSlope) / 75) * 100)
+      );
+      T.ok(
+        'the unscored night is not silently WORSE either — dropping 25 fabricated points would have',
+        spo2Absent.readiness > allPresent.readiness - 25,
+        JSON.stringify({ absent: spo2Absent.readiness, present: allPresent.readiness })
+      );
 
       /* ── Sleep ladder: duration rungs 420/360/300, plus stage bonuses ───────────────────────── */
       T.eq('no stageProxy ⇒ neutral +5, and 420 min ⇒ 10 ⇒ 15', sc(null, null, null, null, 420).sleep, 15);

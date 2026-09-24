@@ -433,6 +433,8 @@
   }
   function bodyPosition(accRows, t0Ms, durSec, unit) {
     if (!accRows || accRows.length < 10) return { hasData: false };
+    // ∅ no unit ⇒ no magnitude means anything; `toG` would read the stream as already-in-g
+    if (!unit) return { hasData: false, reason: 'unit-unknown' };
     var baseMs = streamBaseMs(accRows); // §7.2 anchor
     var epoch = 30; // s
     var nE = Math.max(1, Math.ceil(durSec / epoch));
@@ -482,6 +484,7 @@
   // ════════════════════════════════════════════════════════════════════════
   function actigraphy(accRows, t0Ms, durSec, unit) {
     if (!accRows || accRows.length < 10) return { hasData: false };
+    if (!unit) return { hasData: false, reason: 'unit-unknown' };
     var baseMs = streamBaseMs(accRows); // §7.2 anchor
     var hz = sampleHz(accRows, t0Ms);
     if (!isFinite(hz) || hz <= 0) hz = accRows.length / Math.max(1, durSec);
@@ -1064,6 +1067,7 @@
   var EFFORT_FLOOR_G = 0.004; // RMS threshold (g) for effort PRESENT vs flat — experimental, uncalibrated (Ryser'22 scale)
   function respiratoryEffort(chestRows, t0Ms, durSec, unit) {
     if (!chestRows || chestRows.length < 30) return { hasData: false };
+    if (!unit) return { hasData: false, reason: 'unit-unknown' };
     var baseMs = streamBaseMs(chestRows); // §7.2 anchor — chest may start after t0Ms
     // DEEP-AUDIT-II §7.3 — the passed `durSec` is the MAX over all streams (compute():501). Using it to
     // divide a CHEST-only quantity (breaths, sample rate) HALVES the value whenever a wrist file runs
@@ -1184,6 +1188,8 @@
   // ════════════════════════════════════════════════════════════════════════
   function motionSQI(accRows, unit) {
     if (!accRows || accRows.length < 10) return { conf: 0, flags: ['no-data'] };
+    // a quality score over magnitudes of unknown scale is not a quality score
+    if (!unit) return { conf: 0, flags: ['unit-unknown'] };
     var flags = [],
       n = accRows.length,
       clip = 0,
@@ -1271,8 +1277,16 @@
       gyro = asRows(input.gyro),
       mag = asRows(input.mag),
       chest = asRows(input.chestAcc);
-    var accUnit = (acc && acc._unit) || 'mg',
-      chestUnit = (chest && chest._unit) || 'mg';
+    /* ∅ AN UNDETERMINED UNIT IS NOT MILLI-G. The parse boundary above already refuses to guess —
+       `inferAccUnit` ends `return null; // nothing gravity-like — do not guess`, and `_unit` is left
+       null when neither the header nor the magnitude oracle could decide. Defaulting to 'mg' HERE
+       re-introduced the guess a thousand lines later, and the scale error it hides is 1000× for a
+       stream actually in g (or 9.81× for m/s²) — `toG`'s own header records that exact 1000×
+       mis-scale happening once before. Every magnitude-derived output rides on this: body position,
+       actigraphy, respiratory effort and both SQIs. So the unit stays NULL and those outputs refuse
+       with a named reason; the time-only facts (t0, duration, sample rate) are unaffected. */
+    var accUnit = acc && acc._unit ? acc._unit : null,
+      chestUnit = chest && chest._unit ? chest._unit : null;
     var t0Ms = firstTMs([acc, chest, gyro, mag]);
     // POSITION prefers the chest sensor (torso frame), falling back to the wrist ACC; ACTIGRAPHY prefers
     // the WRIST ACC (de-gravitated activity is a wrist signal), falling back to the position source.
