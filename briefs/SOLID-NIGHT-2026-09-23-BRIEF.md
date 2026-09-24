@@ -1,6 +1,6 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 
-**Status:** IN-PROGRESS — 2026-09-23 (owner-ratified programme; assignments issued the same evening; the first ranking below is measured from the box's own loss audits, the verdict is Magpie's unit and its bands are DRAFT until stated in §3 before the first night is scored) · **Created:** 2026-09-23 · **Relates:** `STRATEGIC-PRIORITIES-2026-08-26-BRIEF.md` (P1–P4 deferred by this programme; P5's "two error-free weeks" is this programme's exit) · `OPERATIONAL-MATURITY-ROADMAP-2026-08-27-BRIEF.md` · `ABSENCE-SURVEY-2026-09-22-BRIEF.md` (the one processing lane that continues) · `SAMPLE-VALIDITY-ENVELOPE-2026-09-17-BRIEF.md` · CLAUDE.md §∅ and §🔒 §7
+**Status:** IN-PROGRESS — 2026-09-23 (owner-ratified programme; assignments issued the same evening; the first ranking below is measured from the box's own loss audits, the verdict is Magpie's unit; **§3's bands STATED 2026-09-24 (Magpie) before any night is scored** — the verdict's code in `nightqc.py` and the monitor line are next, and Wren refutes the judgement bands against the re-audited 28 nights first) · **Created:** 2026-09-23 · **Relates:** `STRATEGIC-PRIORITIES-2026-08-26-BRIEF.md` (P1–P4 deferred by this programme; P5's "two error-free weeks" is this programme's exit) · `OPERATIONAL-MATURITY-ROADMAP-2026-08-27-BRIEF.md` · `ABSENCE-SURVEY-2026-09-22-BRIEF.md` (the one processing lane that continues) · `SAMPLE-VALIDITY-ENVELOPE-2026-09-17-BRIEF.md` · CLAUDE.md §∅ and §🔒 §7
 
 # SOLID NIGHT — capture quality first, scored by one nightly verdict, exit at fourteen consecutive solid nights
 
@@ -74,20 +74,111 @@ some 2 weeks without errors"). When it holds, the fleet refocuses on processing 
 processing. A night absent outright (no file for an expected stream) is its own class and breaks the
 run.
 
-## 3 · Bands — DRAFT, to be stated by the verdict's author before the first night is scored
+## 3 · Bands — STATED (Magpie, 2026-09-24), before the first night is scored
 
-The rule (memory `pre-state-the-threshold`): write the decision bands before the measurement. This
-section is Magpie's to fill in the verdict PR; the numbers below are the coordinator's draft from §5's
-ranking and are INPUT, not the spec.
+Stated before any night is scored, per memory `pre-state-the-threshold`. The coordinator's draft
+(kept below as §3.6 for the record) was the input. Every band carries its **basis**, labelled
+**measured** (a number taken from §5 or §🔒 §7) or **judgement** (a pre-stated call nobody has measured
+yet). Judgement bands are the ones Wren refutes first, against the re-audited 28 nights (§3.5). **A
+band changed after nights are scored is recorded as a change with its reason — never re-tuned silently
+until a night passes.**
 
-| criterion | draft SOLID | draft not solid | UNKNOWN |
-|---|---|---|---|
-| continuity | unattributed gaps < 1 min AND < 5 count; attributed link/doff gaps any | unattributed ≥ 1 min or ≥ 5, or any box-stall gap | loss audit not settled |
-| timebase | hostAxis ok, |ppm| < 50 000, seams recorded | refused, or a step absorbed | anchors < 3 |
-| completeness | ≥ 99 % of expected rows | < 99 % | expected rate unknown |
-| validity | sidecar present for every writer stream | — | sidecar absent |
-| clocks | offset known for every device | — | any device without an offset |
-| night | every expected stream present with span ≥ 4 h | any expected stream absent or < 4 h | expected list undeclared |
+### 3.1 · Status of a night, and the consecutive count
+
+One `tepna.verdict/1`, gate `solid-night`, over the night's **scored devices** (§3.2). Precedence,
+first match wins:
+
+1. **UNKNOWN, reason `not settled`** — until night N+1's first data write (§2's settle trigger). This
+   overrides everything below.
+2. **FAIL** (not solid) — any scored device FAILs any criterion. A clear failure is not hidden behind
+   another device's UNKNOWN.
+3. **UNKNOWN** — no FAIL, but some criterion on some scored device could not be decided.
+4. **NOT_APPLICABLE** — every expected device is NOT_APPLICABLE (nobody wore anything, witnessed).
+5. **PASS** (solid) — every scored device passes every criterion.
+
+Population as an equality: `scored + not_applicable = expected` (memory `gate-must-publish-its-denominator`).
+
+**The consecutive count** runs over **settled** nights in date order: PASS adds one; NOT_APPLICABLE
+**skips** (neither adds nor resets — a no-wear night is unfixable, and resetting on it would make the
+exit unreachable); **FAIL resets; a settled UNKNOWN resets.** A night we cannot assess is not a solid
+night, and letting it bridge a run would fabricate continuity (CLAUDE.md §∅). The latest, unsettled night
+is **pending** — excluded, not counted and not resetting. The exit reads **"14 solid of N nights over D
+days"**: N = settled nights from the run's first PASS to its last (PASS + NOT_APPLICABLE), D = calendar
+days first → last, so a run stretched by weeks of skips stays visible.
+
+### 3.2 · Which devices are scored
+
+- **Expected list, per night:** the night's own capture device set, minus devices marked backup/manual
+  (§6: the COOSPO is expected ONLY on a night it was manually entered, then scored like the H10's RR).
+  Never a static config, never "whatever happened to be captured".
+- **Per expected device — NOT_APPLICABLE (no-wear)** needs one of: **device-positive evidence** for THAT
+  device (Verity `in_charger`, the ring's "wear it finger-in", a device that connected and returned a
+  non-pulsatile signal), **or** a sibling that connected **on the same sensor pin in the same daemon-start
+  segment** (the pin is set once per daemon START, not per night — §5). The witness is per device.
+- **Absent with neither** ⇒ **UNKNOWN**, reason `no-wear or radio down — indistinguishable`.
+- **Absent with box-failure evidence** (daemon down, adapter down on its pin, started-and-torn) ⇒ **FAIL**.
+  Only this class is a defect.
+
+### 3.3 · The worn interval — and why both of its ends need evidence
+
+Loss is counted only inside the worn interval, taken from the device's own beat evidence (§2, the Verity
+09-12 case). ⚠️ **The END of that interval has the same flaw the no-wear rule fixed:** "last pulsatile
+window" looks identical when the wearer took the device off and when the device or its link died. A
+Verity that dies at 02:00 while the H10 beats on to 07:00 would read as doff at 02:00, and the night
+would score solid over five hours of lost data. So:
+
+- **Start** — the first pulsatile window. A device that connected earlier but was non-pulsatile
+  (09-12: PPG autocorrelation 0.1, PPI `received no rows`) is carrying its own not-worn evidence.
+- **End** — the tail after the last pulsatile window is **`doff`** (not counted) only when there is
+  **device-positive doff evidence** (`in_charger`, "finger-in", lost contact), **or** when the device
+  ends within **30 min** (judgement) of the last body-sibling to end **and** box-side evidence shows the
+  radio stayed healthy past that point (ADAPTERHCI clean, the daemon alive and polling).
+- **Otherwise the tail is UNKNOWN for that device**, reason `doff or loss — indistinguishable`. The
+  second clause matters too: every device ending together is what waking up looks like, and also what a
+  box crash looks like. Without radio-health evidence past the common end, the two cannot be told apart.
+
+**This replaces the draft's night-level "span ≥ 4 h".** Span length is a fact about sleep, not capture —
+a short night captured completely is solid — and the thing the 4 h bar guarded against, a device dying
+early, is what this rule catches directly. The 4 h bar would also have passed a device that died at
+hour 5.
+
+### 3.4 · The bands (per scored stream, inside its worn interval)
+
+| criterion | PASS | FAIL | UNKNOWN | basis |
+|---|---|---|---|---|
+| **continuity — daemon-caused** | none | **any** minute attributed to a `daemon:*` class | loss audit not settled | **measured:** §5's re-audit attributes every daemon class in 28 nights to a mechanism already fixed (#2833, #2459, #2982/#2983) or to correct behaviour, so a daemon-caused minute on a NEW night is a regression. A daemon not-worn drop OUTSIDE the worn interval is `doff` (09-12, correct); INSIDE it, it is this class (the H10 flat-battery false drop). |
+| **continuity — unattributed** | total < 60 s **and** count < 5 | total ≥ 60 s **or** count ≥ 5 | — | **measured + judgement:** the 09-22 stall tore 2–5 s every 10.7 min — ~45 gaps a night at only 2–4 min — so the COUNT leg catches a stall-shaped defect the minutes would pass; H10 own residual loss is ~67 min over 28 nights (§5). The count of 5 is judgement. |
+| **continuity — link drop** | < 1 % of the worn interval | ≥ 1 % | — | **judgement, new:** the draft allowed any amount; an hour of link drops is not solid capture whatever it is called. Historic link loss is ~0.2 min/night (ring timeout 0.7, H10 re-negotiate 5.4, over 28 nights), so 1 % (~5 min on 8 h) is ~25× headroom. |
+| **continuity — device blanking** | — | — | — | judged under validity (the sidecar), not here |
+| **timebase** | `hostAxis` ok; every resync seam recorded; only post-seam anchors fed (§🔒 §7); box capture carries `independent: true` | `hostAxis` refused with ≥ 3 anchors; a step (`maxStepMs`) > 1000 ms that is not a recorded seam; a box capture with `independent: false` (a derived host column) | < 3 anchors | **measured:** BLE delivery jitter ~0.1 s, 470 ms worst observed (§🔒 §7), so a step above ~2× the worst jitter is a real step, not jitter. The draft's bound of 50 000 ppm (absolute) is `hostAxis`'s own refusal bound, already implied by "ok". |
+| **completeness** | 99 % – 101 % of `negotiated rate × worn-interval seconds` | < 99 %, or > 101 % | negotiated rate not written beside the stream (#2912) — never fall back to the nominal rate, a drawn axis | **measured + judgement:** a healthy H10 night reached 0.999 (09-22 witness), so 99 % is ten times the healthy shortfall. Over 101 % is judgement: rows beyond the rate mean duplicates or a wrong rate, a class `CAPTURE-HOST-DEEP-AUDIT` found on real nights. |
+| **validity** | the `…RUNS.txt` sidecar present for every stream that has a writer (present-and-empty = verified no absences) | — | sidecar absent (never FAIL, never PASS — CLAUDE.md §∅, #2950) | Blanking the sidecar records does NOT make a night not solid: the ring's in-band blanking is device behaviour made visible (§5 item 5), and consumers exclude it. |
+| **clocks** | offset vs host known for every scored device (`AS11CLOCK.csv`; host-axis anchors for Polar / ring) | — | any scored device without an offset | criterion 5 |
+
+**Inputs are read by exact name** — `QC-VERDICT.json`, `BACKCHECK-VERDICT.json`,
+`ADAPTERHCI-VERDICT.json`, `LOSS-VERDICT.json`, `LOSS-AUDIT.json` — **never by glob.** The re-audit left a
+pre-#2977 copy of each audit beside the live one (`LOSS-AUDIT.prev-2026-09-23.json`); a
+`LOSS-AUDIT*.json` glob would read the blind instrument. Checked 2026-09-24: every existing consumer
+already uses the exact name. **An unreadable input is UNKNOWN for the criteria it feeds, never PASS.**
+**Journal evidence keys on specific events, never on line counts** — 09-18 carried 206,800 `CPAP
+durable sink failed` lines (99.6 % of the journal) from a log line firing on every SUCCESSFUL write.
+
+### 3.5 · How a band is refuted
+
+Wren scores the re-audited 28 nights against §3.4 **by hand**, before the verdict code runs on them. A
+band is refuted when a night that the ground truth says is solid FAILs it, or a night with a known defect
+(08-27 Verity, the 09-19 → 09-22 stall) PASSes it. Changes go in as an amendment below the table with
+the night that forced them — not as a silent edit. The 30-min tail tolerance, the unattributed count of
+5, the 1 % link bound and the 101 % ceiling are the judgement calls, and are expected to move.
+
+### 3.6 · The coordinator's draft (input, superseded by §3.4)
+
+Kept so the changes are visible: `continuity` unattributed < 1 min and < 5, link/doff any · `timebase`
+ok with |ppm| < 50 000 · `completeness` ≥ 99 % · `validity` sidecar present · `clocks` offset known ·
+`night` every expected stream present with span ≥ 4 h. **Changed:** span ≥ 4 h → the corroborated worn
+interval (§3.3); link drop "any" → < 1 %; completeness gains a 101 % ceiling; timebase gains
+`independent: true` and the > 1000 ms unrecorded-step FAIL, and drops the ppm band implied by "ok";
+UNKNOWN gains a count rule (settled UNKNOWN resets the run).
 
 ## 4 · Assignments (issued 2026-09-23 ~19:30)
 
