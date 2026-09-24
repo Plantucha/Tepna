@@ -61,12 +61,16 @@ def test_a_band_status_outside_pass_fail_unknown_is_refused():
 def test_not_settled_overrides_even_a_failing_night():
     v = _night({"H10": {"bands": {"continuity": _fail()}}}, settled=False)
     assert v["status"] == "UNKNOWN" and v["reason"] == sn.NOT_SETTLED
+    # An unsettled night still carries what was scored so far: the reader sees the FAIL it is waiting on.
+    assert v["result"]["night"] == "2026-09-20" and v["result"]["failing"] == 1
+    assert v["result"]["devices"]["H10"]["status"] == "FAIL"
 
 
 def test_an_empty_expected_list_is_unknown_and_says_why():
     v = _night({})
     assert v["status"] == "UNKNOWN" and "no expected device" in v["reason"]
     assert v["population"] == {"checked": 0, "eligible": 0, "excluded": 0}
+    assert v["result"] == {"night": "2026-09-20", "devices": {}, "not_applicable": {}, "failing": 0, "unknown": 0}
 
 
 def test_one_device_failing_is_a_fail_even_when_another_is_unknown():
@@ -80,6 +84,8 @@ def test_one_device_failing_is_a_fail_even_when_another_is_unknown():
 def test_no_fail_but_an_undecided_band_is_unknown():
     v = _night({"H10": {"bands": {"validity": OK}}, "Verity": {"bands": {"validity": _unk("sidecar absent")}}})
     assert v["status"] == "UNKNOWN" and v["reason"] == "Verity — validity: sidecar absent"
+    assert v["result"]["unknown"] == 1 and v["result"]["failing"] == 0
+    assert v["result"]["devices"]["H10"]["status"] == "PASS"
 
 
 def test_every_scored_device_passing_is_a_pass_with_no_reason():
@@ -188,8 +194,10 @@ def test_an_unsettled_night_that_is_not_the_latest_resets():
 
 
 def test_input_order_does_not_matter():
-    shuffled = list(reversed(_days(1, [P, NA, P])))
-    assert sn.consecutive(shuffled)["solid"] == 2 and sn.consecutive(shuffled)["nights"] == 3
+    """Not a palindrome: [F, P, NA, P] reversed reads [P, NA, P, F], which would count 0 if order leaked."""
+    shuffled = list(reversed(_days(1, [F, P, NA, P])))
+    r = sn.consecutive(shuffled)
+    assert (r["solid"], r["nights"], r["first"], r["last"]) == (2, 3, "2026-09-02", "2026-09-04")
 
 
 def test_the_exit_is_fourteen_solid_nights():

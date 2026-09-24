@@ -43,6 +43,11 @@
       },
       "note": "check.sh's runner-level object (VERDICT-CONTRACT §3d, #2672's advisory token one level up): population = the four blocking children ruff · shellcheck · pytest · unwired; the three EXTERNAL tools are read off their PUBLISHED exit-code contract (mapping beside the tool versions in the module: 0 PASS · issues code FAIL · 127 NOT_RUN = a missing TOOL, excluded, and the run UNKNOWN · abnormal codes and pytest 5 UNKNOWN); unwired is OURS and unadopted, so it is UNKNOWN by provenance and the object reads UNKNOWN on a green run until find_unwired emits its own object (§3d's lever); aggregation by precedence FAIL > UNKNOWN > PASS, never a vote; advisory-state tokens ride in result.advisory; written to capture-host/.check-verdict.json; the shell exit code STAYS"
     },
+    "capture-host/solid_night.py": {
+      "bin": "decides",
+      "status": "pending",
+      "note": "the SOLID-NIGHT verdict's composition core (SOLID-NIGHT-2026-09-23-BRIEF §3.1): builds one tepna.verdict/1 per night through verdict.make, and nothing runs it yet. PENDING the same NAMED consumer as its find_unwired entry: the QC poller's child process in nightqc.py (#2936). It flips to adopted when that path emits a night's verdict, and the emits cmd then names it. NOT band-less: its criterion is 'failing band decisions' eq 0, pre-stated in §3 before any night was scored."
+    },
     "capture-host/loss_audit.py": {
       "bin": "decides",
       "status": "adopted",
@@ -243,6 +248,10 @@
       "status": "exempt"
     },
     "capture-host/tests/test_loss_audit.py": {
+      "bin": "test",
+      "status": "exempt"
+    },
+    "capture-host/tests/test_solid_night.py": {
       "bin": "test",
       "status": "exempt"
     },
