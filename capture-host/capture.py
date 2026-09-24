@@ -7915,6 +7915,14 @@ async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = N
             # nodes at once. A child process shares no lock. QC is a REPORT: it must never cost the
             # recording it reports on — and a thread cannot keep that promise for CPU-bound work.
             summ = await _qc_offload(nightqc.summarize, night, cfg.get("devices", []))
+            # REFUSE AT THE BOUNDARY, naming what arrived. `summarize` is annotated `-> dict` and has no
+            # string return, but the value crosses a spawn boundary and a consumer three frames later
+            # reading `.get` on a non-dict raises an error that names neither the producer nor the value.
+            # A measurement that is not the shape it claims is a fabricated value reaching a consumer
+            # (§∅), and the honest response at the edge is to say so.
+            if not isinstance(summ, dict):
+                raise TypeError(f"qc scan returned {type(summ).__name__}, not dict: "
+                                f"{summ!r:.200} (isolation={_QC_ISOLATION})")
             # THE WEAR SCAN RUNS ON A THREAD, not in a second child, and the precedent is in this file:
             # `loss_audit.write_night` below already runs `wear_ends` for every device through
             # `asyncio.to_thread`. A second `_qc_offload` would be a stricter standard than the codebase
@@ -8058,7 +8066,12 @@ async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = N
                                         f"{n}: no data on {', '.join(summ['missing'])} "
                                         f"{int(waited / 3600)}h into the night.")
         except Exception as e:                             # QC is observability — never take capture down
-            log.warning("qc poll failed: %r", e)
+            # exc_info, NOT just %r. This handler logged `AttributeError("'str' object has no attribute
+            # 'get'")` on main under `-n 4` — reddening #3024, #3027 and 320d7a6e — and the repr alone
+            # names neither the frame nor the value, so three sessions read `summ` as the suspect while
+            # `summ["isolation"] = …` on the line after the offload already proves it is a dict. A
+            # swallowed exception that cannot be located is a defect that cannot be fixed.
+            log.warning("qc poll failed: %r", e, exc_info=True)
 
 
 async def _archive_transfer(captures: str, target: dict, settle: float, schedule: dict,

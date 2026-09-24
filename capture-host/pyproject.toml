@@ -3,16 +3,38 @@
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-# A PASSING RUN KEEPS NOTHING. pytest's default retains the last three `tmp_path` roots whatever the
-# outcome, which is a debugging convenience that becomes a shared-resource failure here: /tmp on the
-# rig is one quota across every fleet session, a full nightqc run retains ~1.7 GB, and a mutation run
-# spawns one pytest per mutant. On 2026-09-24 that reached 37 retained directories, exhausted the
-# quota, and every session's gates began failing with EDQUOT — including writes that had nothing to do
-# with pytest. "failed" keeps exactly the runs someone would actually open.
-tmp_path_retention_policy = "failed"
+# ⚠️ DO NOT SET `tmp_path_retention_policy` HERE, and the reason is `none`, not `failed`.
+#
+# `none` FAKES KILLS. Measured by A/B over one glob, 116 mutants, same tree, only this setting varied
+# (Wren, 2026-09-24): `none` scored 116/116 "killed", including a mutant that merely drops `open()`'s
+# "r" mode and passes all 234 tests by hand. `all` scored 87 killed / 29 survived. A mutation gate that
+# reports every mutant dead is the one failure it must not have, and nothing else in the suite sees it.
+#
+# `failed` is EXONERATED — it does not do that, and an earlier version of this comment said it did.
+# Same A/B: `failed` scored 87 / 29, and at per-mutant granularity `all` and `failed` are byte-identical
+# across all 350 decided mutants (an empty diff of the sorted per-mutant verdicts). 146 of those
+# sessions ended green, so 146 basetemp deletions happened under `failed` with no effect on any later
+# mutant — `tools/mutate.py` passes no `--basetemp`, so every session has its own numbered directory.
+#
+# It is nevertheless removed, on hygiene rather than on a defect: it saves 189 MB — 0.63 % of the 30 GB
+# tmpfs — because the FIXTURE SHRINK already did 33x of that work (a nightqc run went from
+# 2,097,737,728 to 63,004,672 bytes, so the 37 directories that exhausted /tmp would now be 2.33 GB).
+# A setting worth 0.63 %, one word away from a setting that makes a gate report every mutant dead, is
+# better absent than tuned. The test beside this refuses the KEY, so `none` cannot be reached by
+# editing a value.
+#
+# ⚠️ Three mechanisms for the `none` behaviour were proposed and refuted here in one evening — a
+# shared-basetemp cascade (no medium: no `--basetemp` is passed), pytest's keep-3 reaper, and its stale
+# `.lock` (both measured inert over 50 concurrent sessions, with a positive control). It is real and
+# unexplained, and it does NOT reproduce under plain concurrent pytest, only through mutmut's runner.
+# Do not write down a fourth story without the controlled A/B that tests it.
+#
+# To bound a single mutation run, put `TMPDIR` on a disk-backed directory. NOT `--basetemp`, which
+# pytest clears at session start.
 markers = [
   "sets_capture_events: this test sets a capture module-global Event as part of its scenario; the autouse fixture scopes it",
   "leaves_writers_open: this test ends with a sample writer open as part of its scenario; the autouse counter tripwire is silenced for it",
+  "slow: this test launches real pytest SUBPROCESSES and holds them, so it costs seconds rather than milliseconds; it is not deselected by default because a probe nobody runs is a note",
 ]
 
 # Coverage config (CAPTURE-HOST-FOLLOWUPS-III test-coverage; taken to 100% statement+branch by
