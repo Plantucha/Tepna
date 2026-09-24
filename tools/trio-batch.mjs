@@ -522,7 +522,18 @@ const CHILD = flag('--child'); // internal: this process computes ONE night and 
  * a concurrent agent. We leave a reserve so we degrade to slower-but-correct instead of being OOM-killed.
  */
 const GB = 1024 ** 3;
-const PER_JOB_GB = 1.2; // measured ~0.9 GB peak/night + headroom
+/* ⚠️ RE-MEASURED 2026-09-22 — 1.2 was right for the 2026-08-06 corpus and is now WRONG by 3×. A child
+   on the largest night of the current corpus (2026-07-17: 65 merged PPG sessions) peaks at 3.00 GB at a
+   3072 MB heap and 3.42 GB at 4096 — peak tracks the ceiling V8 is given, as the heap table below already
+   observed. Sizing jobs at 1.2 GB/night over-subscribes by that factor: on THIS rig (24 cores, 59.5 GB,
+   2 GB reserve) it claims ~47 slots where ~16 fit, and any host is over-subscribed 3×.
+   ⚠️ NAME THE MACHINE, because the sentence below this one does not and I repeated its error: folds run
+   HERE, on the dev rig. The vigil capture box CANNOT run one — `node` is absent there (verified
+   2026-09-22; the file is deployed at /opt/tepna/tools/trio-batch.mjs and is unrunnable), and its unit
+   set carries no fold service or timer. So a memory budget argued "for the capture box" is arithmetic
+   about a machine that never executes this code. The old figure is kept rather than deleted: it was a
+   measurement of a smaller corpus, not a mistake. */
+const PER_JOB_GB = 3.5; // measured 3.00-3.42 GB peak/night (2026-09-22) + headroom; was 1.2 (2026-08-06)
 const RESERVE_GB = 2.0; // never consume the host's last 2 GB
 const HARD_CAP = 8; // beyond this the disk/parse becomes the bottleneck anyway
 function planConcurrency() {
@@ -556,14 +567,32 @@ function planConcurrency() {
 // Wall time is FLAT across every completing run while peak climbs 1.80 -> 2.67 GB for identical work
 // (exports re-checked over the UNION of filenames against the 8192 reference: same five, none
 // missing, content identical volatile-stripped). So the old 8192 ceiling cost ~0.66 GB per child and
-// bought nothing — which matters on the 15.4 GB capture box, where several children run at once.
+// bought nothing — which matters wherever several children run at once. (That clause read "on the
+// 15.4 GB capture box" until 2026-09-22; the box cannot run this tool at all — `node` is absent there —
+// so the venue was wrong from the start even though the per-child arithmetic it motivates is right.
+// Left in place with the correction beside it rather than rewritten: the measurement stands.)
 //
 // ⚠️ The OLD 1536 floor sat one notch above the abort edge on the heaviest night measured (1024
 // aborts, 1536 completes with no observed margin), so it is raised rather than kept: an abort wastes
 // the whole fold and leaves partial exports behind. Both bounds are 2048 deliberately — if a night is
 // ever found that needs more, raise the ceiling on THAT evidence; the failure is loud (the parent
 // sees `code !== 0`, counts it failed and leaves the night unstamped for redo), so it will be seen.
-const CHILD_HEAP_MB = 2048;
+/* ⚠️ RAISED 2026-09-22, 2048 → 4096, because THIS CORPUS ABORTS AT 2048. The sweep above stands for the
+   night it measured; re-swept on the largest night of the current corpus (2026-07-17), same shape, same
+   box, one child at a time:
+//
+//     heapMB   outcome         exports   peak GB
+//       2048   ABORT (SIGABRT)   0 / 5      2.44
+//       3072   ok                5 / 5      3.00
+//       4096   ok                5 / 5      3.42
+//
+   3072 is the measured FLOOR; 4096 is one step of margin, and margin is what the old value lacked — the
+   full-corpus refold of 2026-09-22 lost 34 of 140 children to this abort before it was diagnosed, and
+   each one had already computed its whole night. ⚠️ A single-night invocation does NOT go through here
+   (the parent computes one night IN-PROCESS at Node's default heap), which is why 2026-07-17 succeeded
+   alone and aborted in every multi-night run — an asymmetry worth knowing before trusting a solo
+   reproduction as evidence about a fold. */
+const CHILD_HEAP_MB = 4096;
 
 function childHeapMB(planned) {
   const perJobMB = Math.floor((planned.budgetGB / Math.max(1, planned.jobs)) * 1024 * 0.9);
@@ -1334,15 +1363,22 @@ if (!CHILD && work.length >= 1 && (work.length > 1 || planConcurrency().jobs > 1
         if (body) console.log(body);
         if (code !== 0) {
           failed++;
-          if (!body)
-            console.log(
-              out
-                .trim()
-                .split('\n')
-                .slice(-3)
-                .map((l) => '    ' + l)
-                .join('\n')
-            );
+          /* THE CHILD'S OWN WORDS, ALWAYS — not only when it said nothing else. This was
+             `if (!body)`, so a child that died AFTER printing its per-node results had its failure
+             text DISCARDED: `body` was non-empty, so the branch never ran. Measured 2026-09-22 on the
+             full-corpus refold: 34 of 140 children exited on a signal (`code === null`) having printed
+             every ✓ line, and the log could not say why — the abort message was filtered out by the
+             ✓/⏱/⚖ line filter above and then suppressed here. The tail is what names a V8 heap abort
+             (`FATAL ERROR: Reached heap limit`, residue 2026-09-07-partial-exports-survive-child-abort)
+             versus a kill, and the two want opposite responses. 12 lines, only on failure. */
+          console.log(
+            out
+              .trim()
+              .split('\n')
+              .slice(-12)
+              .map((l) => '    ! ' + l)
+              .join('\n')
+          );
         }
         // A split night is only STAMPED once every one of its nodes has come back 0 — the same rule the
         // in-child path uses (all three exports landed), enforced here because no single child can see
