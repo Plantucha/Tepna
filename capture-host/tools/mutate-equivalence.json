@@ -4521,5 +4521,13 @@
       "why": "A PROOF over both reachable branches, not an unobserved value: `x or []` maps `[]` and `None` to the same `[]`, and the default is the only thing the mutation touches. The three other run() survivors after 2026-09-22 (mutants 18, 59, 60) are SystemExit message prose — string-only, which the diff gate excludes by rule and which is not equivalence, so no entry is filed for them.",
       "brief": "residue 2026-09-06-probe-mutation-survivors-are-fixture-limited (run() drained 63 → 4 on 2026-09-22)"
     }
+  ],
+  "loss_audit.py": [
+    {
+      "class": "no-distinguishing-input",
+      "key": "- \"gaps\": [{\"at\": t.isoformat(timespec=\"seconds\"), \"s\": round(g, 1), \"cause\": c} for t, g, c in per_gap], | + \"gaps\": [{\"at\": t.isoformat(timespec=\"seconds\"), \"s\": round(g, 2), \"cause\": c} for t, g, c in per_gap],",
+      "probe": "read of the producer, then a run: stream_gaps takes both stamps from nights_index.parse_stamp, whose two regexes (_ISO, _O2) capture to the SECOND, so every gap is a difference of whole-second datetimes, a float with no fractional part. A 4-rows-a-second stream with a 60.25 s hole was published as 61.0 (test_a_gap_is_published_as_a_float_of_whole_seconds_and_its_cause_window_is_inclusive, 2026-09-24).",
+      "why": "One and two decimals of a whole number are the same number. The mutants that drop the decimals (round(g) → int) are NOT equivalent and are killed by that test's isinstance(float)."
+    }
   ]
 }
