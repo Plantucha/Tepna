@@ -106,7 +106,7 @@
  */
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync, renameSync, statSync, writeFileSync, writeSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { resolveStatePath, sharedStatePath, stateDirs } from './mutation-map.mjs';
 import { fileURLToPath } from 'node:url';
@@ -114,7 +114,15 @@ import { stripCode } from './strip-markup.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 /* §1: shared-first through the git common dir — one index serves every worktree. */
-const CACHE = resolveStatePath(ROOT, 'doc-search-index.json');
+/* The cache is JSON LINES, one document per line, written through a stream — never one JSON string.
+   Measured 2026-09-24: the one-string form died the day the corpus grew. `JSON.stringify(cache)` on
+   ~53k chunks needs ~705 MB of string, V8's MAX_STRING_LENGTH is 537 MB, the throw was swallowed by
+   a bare `catch {}`, and every query thereafter re-embedded 16,658 chunks (5+ min) and could not
+   persist — a search that read green while its cache silently never wrote. The legacy one-string
+   file is still READ once (parse survives where stringify does not) so a machine migrates without
+   re-embedding; it is never written again. */
+const CACHE = resolveStatePath(ROOT, 'doc-search-index.jsonl');
+const LEGACY_CACHE = resolveStatePath(ROOT, 'doc-search-index.json');
 const OLLAMA = process.env.DEX_OLLAMA || 'http://localhost:11434';
 const EMBED_MODEL = process.env.DEX_EMBED || 'bge-m3';
 /* The in-repo corpus, directory by directory (non-recursive, on purpose — a glob would pull in
@@ -459,15 +467,64 @@ async function embed(inputs) {
    (one doc edited) costs one call rather than four hundred. */
 /* `scope`: 'all' (default) · 'repo' (`--no-ext`) · 'ext' (`--ext-only`). The cache is shared across
    scopes — an external chunk embedded once is not re-embedded when the next query is repo-only. */
+/* JSONL cache: line 1 is the header `{"model"}`, every further line is one document
+   `{"file","h","vecs"}`. Reading is line-by-line; writing streams one line at a time, so neither
+   side ever holds the whole index as one string. `loadCache` falls back to the legacy one-string
+   file (read-only) when no JSONL exists yet. Returns the same in-memory shape as before. */
+export function loadCache(path = CACHE, legacy = LEGACY_CACHE, readFn = readFileSync, existsFn = existsSync) {
+  const empty = { entries: {}, model: EMBED_MODEL };
+  if (existsFn(path)) {
+    try {
+      const lines = readFn(path, 'utf8').split('\n');
+      const head = JSON.parse(lines[0] || '{}');
+      if (head.model !== EMBED_MODEL) return empty;
+      const entries = {};
+      for (let i = 1; i < lines.length; i++) {
+        if (!lines[i]) continue;
+        const e = JSON.parse(lines[i]);
+        entries[e.file] = { h: e.h, vecs: e.vecs };
+      }
+      return { entries, model: head.model };
+    } catch {
+      return empty;
+    }
+  }
+  if (existsFn(legacy)) {
+    try {
+      const c = JSON.parse(readFn(legacy, 'utf8'));
+      if (c.model === EMBED_MODEL && c.entries) return c;
+    } catch {}
+  }
+  return empty;
+}
+/* Returns null on success, else the reason as a string — the caller reports it, never swallows it. */
+export function saveCache(cache, path = CACHE, openFn = openSync, writeFn = writeSync, closeFn = closeSync, mkdirFn = mkdirSync) {
+  let fd = null;
+  try {
+    mkdirFn(dirname(path), { recursive: true });
+    const tmp = path + '.tmp';
+    fd = openFn(tmp, 'w');
+    writeFn(fd, JSON.stringify({ model: cache.model }) + '\n');
+    for (const [file, e] of Object.entries(cache.entries)) writeFn(fd, JSON.stringify({ file, h: e.h, vecs: e.vecs }) + '\n');
+    closeFn(fd);
+    fd = null;
+    renameSync(tmp, path);
+    return null;
+  } catch (e) {
+    if (fd !== null) {
+      try {
+        closeFn(fd);
+      } catch {}
+    }
+    return String((e && e.message) || e);
+  }
+}
+
 async function buildIndex(quiet, scope = 'all') {
   const repo = scope === 'ext' ? [] : listDocs(ROOT).map((f) => ({ key: f, abs: join(ROOT, f) }));
   const ext = scope === 'repo' ? [] : listExternalDocs();
   const files = repo.concat(ext);
-  let cache = { entries: {}, model: EMBED_MODEL };
-  try {
-    const c = JSON.parse(readFileSync(CACHE, 'utf8'));
-    if (c.model === EMBED_MODEL) cache = c;
-  } catch {}
+  let cache = loadCache();
   const entries = [];
   const pending = [];
   for (const { key: f, abs } of files) {
@@ -501,10 +558,10 @@ async function buildIndex(quiet, scope = 'all') {
     }
   }
   if (embedded) {
-    try {
-      mkdirSync(dirname(CACHE), { recursive: true });
-      writeFileSync(CACHE, JSON.stringify(cache));
-    } catch {}
+    const err = saveCache(cache);
+    /* NOT silent: an unwritten cache means the next query pays the whole embed again, and the one
+       thing worse than that cost is not knowing it is being paid. */
+    if (err) process.stderr.write(`  ⚠ index cache NOT written (${err}) — every query will re-embed until this is fixed\n`);
   }
   if (!quiet)
     process.stderr.write(
@@ -649,6 +706,52 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
       })
     );
     ok('depth is read from the config, and absent ⇒ unbounded', cfg[0].depth === 1 && cfg[1].depth === Infinity);
+  }
+  /* JSONL cache: round-trips, never one string, and a write failure is REPORTED (2026-09-24: the
+     one-string form threw past V8's 537 MB limit into a bare catch and every query re-embedded). */
+  {
+    const store = {};
+    const fakeFs = {
+      open: (p) => {
+        store[p] = '';
+        return p;
+      },
+      write: (fd, s) => {
+        store[fd] += s;
+      },
+      close: () => {},
+      mkdir: () => {}
+    };
+    const orig = renameSync;
+    const cacheIn = { model: EMBED_MODEL, entries: { 'a.md': { h: 'h1', vecs: [[0.1, 0.2]] }, 'b.md': { h: 'h2', vecs: [[0.3]] } } };
+    let renamed = null;
+    const err = saveCache(cacheIn, '/x/idx.jsonl', fakeFs.open, fakeFs.write, fakeFs.close, fakeFs.mkdir);
+    void orig;
+    ok('saveCache reports a rename it cannot perform rather than swallowing it', typeof err === 'string' && /ENOENT|no such/i.test(err));
+    const text = store['/x/idx.jsonl.tmp'];
+    ok('the cache is written one document per line, header first', text.split('\n')[0] === JSON.stringify({ model: EMBED_MODEL }) && text.split('\n').length === 4);
+    const back = loadCache(
+      '/x/idx.jsonl',
+      '/nope',
+      () => text,
+      (p) => p === '/x/idx.jsonl'
+    );
+    ok('loadCache round-trips the JSONL form', back.entries['a.md'].h === 'h1' && back.entries['b.md'].vecs[0][0] === 0.3);
+    const legacy = loadCache(
+      '/none.jsonl',
+      '/legacy.json',
+      () => JSON.stringify(cacheIn),
+      (p) => p === '/legacy.json'
+    );
+    ok('the legacy one-string cache is still READ (migration without re-embedding)', legacy.entries['b.md'].h === 'h2');
+    const wrongModel = loadCache(
+      '/x/idx.jsonl',
+      '/nope',
+      () => JSON.stringify({ model: 'other' }) + '\n',
+      (p) => p === '/x/idx.jsonl'
+    );
+    ok('a cache from another model is discarded', Object.keys(wrongModel.entries).length === 0);
+    void renamed;
   }
   ok(
     '§1: the index cache resolves within a declared state candidate',
