@@ -639,6 +639,69 @@
        night with no valid SpO2 as mean 0 / min 0 / max 0, and no valid HR likewise — the main path every real
        file takes. A night nobody measured read as a night of zeros. Driven through the real `processNight`
        with a control beside it, so the assertion is about behaviour and not about a literal. */
+    group('OxyDex §∅ — an ABSENT oximetry index is not a measured zero, and Normal is a claim', 'oxydex-dsp · absence', function (T) {
+      var _odn = env.OxyDex || env.OxyDSP || env.OXYDSP;
+      var OD = (_odn && _odn._bare) || _odn;
+      if (!OD || typeof OD.computeMOS !== 'function' || typeof OD.computeAHIestimates !== 'function') {
+        T.skip('OxyDSP.computeMOS + computeAHIestimates exposed', 'OxyDex not co-loaded in this runner');
+        return;
+      }
+
+      /* ── computeMOS ── `null >= K` is false and `null / 60` is 0, so absent inputs fell through every
+         branch to score 1, "Normal". A McGill grade is a CLINICAL claim and that one was made about a
+         night neither input described. */
+      T.eq('absent ODI-4 and CT90 refuse — they do not score "Normal"', JSON.stringify(OD.computeMOS(null, null)), '{"mos":null,"mosLabel":null,"reason":"inputs-absent"}');
+      T.eq('CONTROL · a MEASURED zero on both is still a real Normal — absence and zero part company here', JSON.stringify(OD.computeMOS(0, 0)), '{"mos":1,"mosLabel":"Normal"}');
+      T.eq('CONTROL · a high ODI-4 still grades Abnormal', JSON.stringify(OD.computeMOS(40, 0).mos), '3');
+
+      /* ── computeAHIestimates ALREADY refused on null — the defect was the CALLER feeding it 0.
+         This pins the divergence that makes the caller's choice load-bearing: the same absent night
+         is `null` when the absence is passed through, and a reassuring 0.0 when it is replaced. */
+      T.eq('passing the absence through: both estimates refuse', JSON.stringify(OD.computeAHIestimates(null, null, null, null)), '{"ahiODI4":null,"ahiKulkas":null}');
+      T.eq('\u2026while substituting 0 publishes "no apneas" — which is what the callers used to do', JSON.stringify(OD.computeAHIestimates(0, 0, 0, 0)), '{"ahiODI4":0,"ahiKulkas":0}');
+      T.eq('CONTROL · real inputs still compute both estimates unchanged', JSON.stringify(OD.computeAHIestimates(10, 12, 5, 4)), '{"ahiODI4":11,"ahiKulkas":12}');
+
+      /* ── SHAPE, not the lines I edited. The null-not-zero fix was applied to ONE of five inputs
+         (`desSevRate`, with a comment explaining it) and its four siblings kept defaulting to 0, on
+         BOTH call paths. This scans for any surviving sibling rather than the four I happened to
+         find. Comment-stripped: the ∅ notes quote the old expressions verbatim. */
+      var src = ((env.sources || {})['oxydex-dsp.js'] || '')
+        .split('\n')
+        .filter(function (ln) {
+          var t = ln.trim();
+          return t.indexOf('//') !== 0 && t.indexOf('*') !== 0 && t.indexOf('/*') !== 0;
+        })
+        .join('\n');
+      if (!src.trim()) {
+        T.skip('oxydex-dsp.js source', 'sources not provided in this runner');
+      } else {
+        var bad = [];
+        var pats = [
+          /var odi4Rate = odi4 \? odi4\.rate : 0/,
+          /var odi3Rate = odi3 \? odi3\.rate : 0/,
+          /var t95Pct = stats \? stats\.t95pct : 0/,
+          /ctPrec\.ct90s \|\| 0/,
+          /obj\.odi4\.rate : 0/,
+          /obj\.odi3\.rate : 0/,
+          /obj\.stats\.t95pct : 0/,
+          /obj\.ctPrecise\.ct90s : 0/
+        ];
+        for (var pi = 0; pi < pats.length; pi++) if (pats[pi].test(src)) bad.push(pats[pi].source.slice(0, 40));
+        /* RATCHET, not a clean sweep. The scan is deliberately broader than this unit, and it found
+           a FIFTH site: `oxydex-dsp.js`'s spo2Score ladder uses the same `odi4 ? odi4.rate : 0` and
+           an absent ODI-4 falls into `< 2` to score 25 — the MAXIMUM. It is the same absence with a
+           DIFFERENT fix shape (a composite term to drop and renormalise, not a null to pass
+           through), so it is logged as residue rather than widened into this diff. Pinning it as an
+           EQUALITY means a new site still reds; this list may only shrink. */
+        T.eq('the MOS/AHI call paths are clean, and exactly ONE known sibling remains (logged, spo2Score)', JSON.stringify(bad), JSON.stringify(['var odi4Rate = odi4 \\? odi4\\.rate : 0']));
+        T.ok(
+          'the anti-vacuity control — the scan can still SEE those lines\u2019 successors',
+          /odi4 && odi4\.rate != null/.test(src) && /obj\.odi4 && obj\.odi4\.rate != null/.test(src),
+          'the replacement lines are not present either — the scan may be reading nothing'
+        );
+      }
+    });
+
     group('OxyDex §∅ — processNight reports an unmeasured SpO2/HR night as null, never 0', 'oxydex-dsp · absence-as-value · primary-builder', function (T) {
       var _od = env.OxyDex || env.OxyDSP || env.OXYDSP;
       var OD = (_od && _od._bare) || _od;
