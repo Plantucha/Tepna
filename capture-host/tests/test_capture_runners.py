@@ -3576,6 +3576,9 @@ def test_qc_poller_summarizes_the_current_night(tmp_path, monkeypatch):
     import datetime as _dtm
 
     monkeypatch.setattr(capture, "_now", lambda: _dtm.datetime(2026, 7, 19, 23, 0, 0))
+    # The wear scan reads real files and none of these tests is about wear — stub it so they stay about
+    # the alert grace. The wear legs live in test_nightqc.py.
+    monkeypatch.setattr(capture.loss_audit, "wear_by_device", lambda night_dir, devices: {})
     night = tmp_path / "captures" / "2026-07-19"
     night.mkdir(parents=True)
     with open(night / "Polar_H10_02849638_20260719_ECG.txt", "w") as f:
@@ -3587,6 +3590,34 @@ def test_qc_poller_summarizes_the_current_night(tmp_path, monkeypatch):
     assert capture.STATUS["qc"]["night"] == "2026-07-19"
     assert capture.STATUS["qc"]["missing"] == ["H10:acc"] and capture.STATUS["qc"]["ok"] is False
     assert (night / "QC-SUMMARY.json").exists()
+
+
+def test_qc_poller_keeps_the_night_when_the_wear_scan_raises(tmp_path, monkeypatch, caplog):
+    """A wear scan is a REPORT, not the QC. If it raises, the night still gets its summary and every
+    `stopped_early_reason` stays None — which already means "not determined", never "worn to the end".
+    The failure is LOGGED rather than swallowed silently, because a reason that is permanently absent for
+    a mechanical reason should be visible somewhere."""
+    import datetime as _dtm
+
+    monkeypatch.setattr(capture, "_now", lambda: _dtm.datetime(2026, 7, 19, 23, 0, 0))
+
+    def _boom(night_dir, devices):
+        raise OSError("wear stream unreadable")
+
+    monkeypatch.setattr(capture.loss_audit, "wear_by_device", _boom)
+    night = tmp_path / "captures" / "2026-07-19"
+    night.mkdir(parents=True)
+    with open(night / "Polar_H10_02849638_20260719_ECG.txt", "w") as f:
+        f.write("h\n1\n2\n3\n")
+    cfg = {"qc": {"poll_sec": 600},
+           "devices": [{"name": "H10", "device_id": "02849638", "streams": ["ecg"]}]}
+    _stop_after(monkeypatch, 1)
+    with caplog.at_level("WARNING"):
+        _run(capture.qc_poller(cfg, str(tmp_path)))
+    assert capture.STATUS["qc"]["night"] == "2026-07-19", "the night is still summarised"
+    assert (night / "QC-SUMMARY.json").exists()
+    assert all(d.get("stopped_early_reason") is None for d in capture.STATUS["qc"]["devices"])
+    assert any("wear scan failed" in r.message for r in caplog.records), "and it says so"
 
 
 def test_qc_poller_refuses_a_scan_result_that_is_not_a_dict(tmp_path, monkeypatch, caplog):

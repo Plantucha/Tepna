@@ -44,6 +44,7 @@ import alerts
 import nightqc
 import nightarchive
 import loss_audit
+import solid_night
 import seal
 import sealbox
 import sealfmt
@@ -7923,6 +7924,28 @@ async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = N
             if not isinstance(summ, dict):
                 raise TypeError(f"qc scan returned {type(summ).__name__}, not dict: "
                                 f"{summ!r:.200} (isolation={_QC_ISOLATION})")
+            # THE WEAR SCAN RUNS ON A THREAD, not in a second child, and the precedent is in this file:
+            # `loss_audit.write_night` below already runs `wear_ends` for every device through
+            # `asyncio.to_thread`. A second `_qc_offload` would be a stricter standard than the codebase
+            # applies to the same work, and it is not free — `_importable_by_reference` sends a
+            # module-level function to a SPAWNED child, and several poller tests freeze `time.monotonic`,
+            # under which a spawn pool's deadlines never elapse and the child's result never arrives.
+            # Measured: adding that second offload wedged `check.sh` twice at 98 % with all 24 xdist
+            # workers idle and the controller in `futex_do_wait`.
+            #
+            # The cost is 6.9 s of GIL per poll — measured on the 794 MB 2026-09-23 night (H10 5.0 s,
+            # Verity 1.9 s), once on a page-cached tree, so treat it as an order of magnitude and not a
+            # distribution. Against `summarize`'s 51 s of pure-Python CPU that justified the child, and a
+            # 600 s poll interval, it is ~1 % duty.
+            #
+            # Its failure is not the night's: a wear scan that raises leaves `stopped_early_reason` None,
+            # which already means "not determined".
+            try:
+                _wear = await asyncio.to_thread(loss_audit.wear_by_device, night, cfg.get("devices", []))
+            except Exception as e:                 # noqa: BLE001 - a wear scan is a REPORT, not the QC
+                log.warning("qc: wear scan failed, reasons unavailable: %s", e)
+                _wear = None
+            summ = nightqc.attach_wear(summ, _wear)
             summ["isolation"] = _QC_ISOLATION      # how this scan was produced, beside what it found
             # ── DID THE LIVE CPAP STREAM RECORD THE SESSION? ─────────────────────────────────────
             # On 2026-08-26 the machine ran a full night, `edf_dir` stayed empty, and NOTHING said so
@@ -8110,7 +8133,8 @@ async def loss_poller(cfg: dict, root: str):
         await asyncio.sleep(interval)
         try:
             active = await asyncio.to_thread(diskguard.active_nights, captures, settle)
-            nights = [n for n in await asyncio.to_thread(diskguard.list_nights, captures) if n not in active]
+            every = await asyncio.to_thread(diskguard.list_nights, captures)
+            nights = [n for n in every if n not in active]
             for night in nights[-int(lcfg.get("max_nights", 14)):]:
                 nd = os.path.join(captures, night)
                 vpath = os.path.join(nd, loss_audit.VERDICT_NAME)
@@ -8127,17 +8151,41 @@ async def loss_poller(cfg: dict, root: str):
                 newest = await asyncio.to_thread(nightqc.newest_data_mtime, nd)
                 if newest is None:
                     continue                                   # no capture file: nothing to audit
-                if os.path.exists(vpath) and os.path.getmtime(vpath) >= newest:
-                    continue                                   # audited since the night's DATA last changed
-                obj = await asyncio.to_thread(loss_audit.write_night, nd, cfg.get("devices", []), commit=commit)
-                STATUS.setdefault("loss", {})[night] = {"status": obj["status"], "at": obj["at"],
-                                                        "daemon_caused_min": (obj.get("result") or {}).get("daemon_caused_min")}
-                dc = (obj.get("result") or {}).get("daemon_caused_min") or 0
-                if dc:
-                    log.warning("loss-audit: %s — %.0f min of the night's gaps were the daemon's own doing (%s)",
-                                night, dc, obj.get("reason"))
+                # audit only when the night's DATA changed since the last audit (otherwise it stands)
+                if not (os.path.exists(vpath) and os.path.getmtime(vpath) >= newest):
+                    obj = await asyncio.to_thread(loss_audit.write_night, nd, cfg.get("devices", []), commit=commit)
+                    STATUS.setdefault("loss", {})[night] = {"status": obj["status"], "at": obj["at"],
+                                                            "daemon_caused_min": (obj.get("result") or {}).get("daemon_caused_min")}
+                    dc = (obj.get("result") or {}).get("daemon_caused_min") or 0
+                    if dc:
+                        log.warning("loss-audit: %s — %.0f min of the night's gaps were the daemon's own doing (%s)",
+                                    night, dc, obj.get("reason"))
+                await _solid_night(nd, night, cfg, every, active, commit)
         except Exception:  # noqa: BLE001 — one bad night must not stop the poller
             log.warning("loss-audit: poll failed", exc_info=True)
+
+
+async def _solid_night(nd: str, night: str, cfg: dict, nights: list, active: set, commit) -> None:
+    """SOLID-NIGHT §2: the night's verdict, composed on the LOSS AUDIT'S OWN TRIGGER — it runs only for a
+    settled night, after that night's audit, and again only when the audit is newer than the verdict (the
+    audit re-runs when the night's data changes, and the verdict follows it). Its failure is its own: a
+    night whose verdict cannot be composed is logged and left without one (so the run reads it as
+    unassessed), and the loss audit above is never undone by it."""
+    vpath = os.path.join(nd, loss_audit.VERDICT_NAME)
+    spath = os.path.join(nd, solid_night.VERDICT_NAME)
+    if not os.path.exists(vpath):
+        return                                          # no audit yet: nothing to compose over
+    if os.path.exists(spath) and os.path.getmtime(spath) >= os.path.getmtime(vpath):
+        return                                          # composed since the audit last changed
+    try:
+        obj, run = await asyncio.to_thread(
+            solid_night.write_night, nd, cfg.get("devices", []), nights=nights, active=active, commit=commit)
+    except Exception:  # noqa: BLE001 — one night's verdict must not stop the poller
+        log.warning("solid-night: %s — verdict not written", night, exc_info=True)
+        return
+    STATUS["solid"] = {"night": night, "status": obj["status"], "reason": obj["reason"],
+                       "run": run["statement"], "solid": run["solid"], "exit": run["exit"]}
+    log.info("solid-night: %s %s — %s", night, obj["status"], run["statement"])
 
 
 async def seal_poller(cfg: dict, root: str):

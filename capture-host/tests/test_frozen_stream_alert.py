@@ -123,3 +123,44 @@ def test_a_live_status_that_is_not_a_dict_is_NAMED_not_stepped_over():
     # None is not a fault — it is an unknown state, and both already read it as no evidence
     assert alerts.arrival_canary(qc, {"H10": None}) == []
     assert alerts.frozen_devices(qc, {"H10": None}, 60.0) == []
+
+
+# ── THE SUMMARY SIDE OF THE SAME GUARD (residue: the qc poll's `'str' object has no attribute 'get'`)
+# #3034 named a non-dict LIVE STATUS and left the SUMMARY side unguarded, so the exact error it was
+# written to abolish still had a live path: `frozen_devices` walks `qc["devices"]` and calls
+# `d.get("name")` with no check. Measured on main before this fix — both of these raise the bare
+# `AttributeError: 'str' object has no attribute 'get'`, which is the signature that reddened three
+# PRs and `main` itself three times on 2026-09-24:
+#
+#     frozen_devices({"devices": "H10"},   {}, 1.0)   # a STRING iterates as CHARACTERS
+#     frozen_devices({"devices": ["H10"]}, {}, 1.0)   # a list holding a non-dict
+#
+# The first is the nastier shape and the reason the type is checked before the loop rather than only
+# inside it: `for d in "H10"` is legal, yields 'H','1','0', and reports a fault about a device that
+# does not exist rather than failing outright.
+
+def test_a_string_devices_value_is_REFUSED_not_iterated_as_characters():
+    """`qc["devices"]` must be a list. A str is iterable, so an unguarded loop walks its letters."""
+    with pytest.raises(TypeError) as ei:
+        alerts.frozen_devices({"devices": "H10"}, {}, 1.0)
+    msg = str(ei.value)
+    assert "devices" in msg and "str" in msg, msg
+    assert "H10" in msg, "the refusal must quote what arrived, or it names no producer"
+
+
+def test_a_non_dict_device_entry_is_REFUSED_naming_its_index_and_value():
+    """The element guard, mirroring #3034's `live status for <name> is <type>` on the other side."""
+    with pytest.raises(TypeError) as ei:
+        alerts.frozen_devices({"devices": [{"name": "H10", "silent_sec": 99}, "wat"]}, {}, 1.0)
+    msg = str(ei.value)
+    assert "1" in msg and "str" in msg and "wat" in msg, msg
+
+
+def test_a_well_formed_summary_still_works():
+    """ANTI-VACUITY: the guards must not convict the shape the producer actually emits."""
+    out = alerts.frozen_devices(
+        {"devices": [{"name": "H10", "silent_sec": 900}]},
+        {"H10": {"connected": True}}, 600.0)
+    assert out == ["H10"]
+    assert alerts.frozen_devices({"devices": []}, {}, 1.0) == []
+    assert alerts.frozen_devices({}, {}, 1.0) == []
