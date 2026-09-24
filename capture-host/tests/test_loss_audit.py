@@ -188,3 +188,59 @@ def test_stream_gaps_reads_the_ring_s_own_csv_layout(tmp_path):
     p.write_text("\n".join(rows) + "\n")
     gaps, span, cut = loss_audit.stream_gaps(str(p))
     assert span == 299.0 and len(gaps) == 1 and gaps[0][1] == 61.0
+
+
+# the two attribution blind spots measured on the box 2026-09-23 (28 nights): a clock re-sync pauses live
+# capture and matched no bin (147 H10 min read `unattributed`), and the offline-op pause line carries only
+# the ADDRESS (8,369 of 8,956), so a name-only filter never saw it. Line shapes are the box's own.
+_ADDR = "AA:BB:CC:00:00:01"
+_RESYNC = (
+    "2026-09-20T22:03:17-04:00 vigil python[1]: 2026-09-20 22:03:17,548 WARNING Polar H10 0284 device clock is"
+    " -29.2s off host (tolerance 2.0s) — re-syncing\n"
+)
+_PAUSED = (
+    f"2026-09-20T22:06:37-04:00 vigil python[1]: 2026-09-20 22:06:37,848 INFO Polar {_ADDR}: offline-recording op"
+    " — live capture paused\n"
+)
+_OTHER = (
+    "2026-09-20T22:08:17-04:00 vigil python[1]: 2026-09-20 22:08:17,000 INFO Polar AA:BB:CC:00:00:02:"
+    " offline-recording op — live capture paused\n"
+)
+
+
+def _journal_of(text):
+    class R:
+        returncode = 0
+        stdout = text
+
+    return lambda keys, since, until: loss_audit.read_journal(keys, since, until, run=lambda *a, **k: R())
+
+
+def test_a_clock_resync_is_the_daemon_tearing_its_own_recording_not_an_unattributed_gap(tmp_path):
+    d = _night(tmp_path, holes=((200, 290),))  # the gap opens at T0+199 s, 2 s after the re-sync line
+    a = loss_audit.audit_night(d, DEV, journal=_journal_of(_RESYNC))
+    v = a["devices"]["Polar H10 0284"]
+    assert v["by_cause"] == {"daemon:clock re-sync": 1.5} and v["daemon_caused_min"] == 1.5
+
+
+def test_an_address_only_pause_line_attributes_to_the_device_it_names_and_to_no_other(tmp_path):
+    d = _night(tmp_path, holes=((400, 460), (500, 560)))  # T0+399 s after OUR pause; T0+499 s after ANOTHER's
+    dev = [{"name": "Polar H10 0284", "model": "H10", "address": _ADDR}]
+    a = loss_audit.audit_night(d, dev, journal=_journal_of(_PAUSED + _OTHER))
+    assert a["devices"]["Polar H10 0284"]["by_cause"] == {"daemon:pull paused live": 1.0, "unattributed": 1.0}
+    # the same night with no address configured: the pause line is invisible, as it was on every corpus night
+    a = loss_audit.audit_night(d, DEV, journal=_journal_of(_PAUSED + _OTHER))
+    assert a["devices"]["Polar H10 0284"]["by_cause"] == {"unattributed": 2.0}
+
+
+def test_read_journal_takes_a_name_or_every_key_and_ignores_an_empty_one():
+    class R:
+        returncode = 0
+        stdout = _RESYNC + _PAUSED + _OTHER
+
+    def causes(keys):
+        return [c for _, c in loss_audit.read_journal(keys, T0, T0, run=lambda *a, **k: R())]
+
+    assert causes("Polar H10 0284") == ["daemon:clock re-sync"]
+    assert causes(("Polar H10 0284", _ADDR)) == ["daemon:clock re-sync", "daemon:pull paused live"]
+    assert causes(("Polar H10 0284", "")) == ["daemon:clock re-sync"]

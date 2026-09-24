@@ -33,7 +33,6 @@ import json
 import logging
 import os
 import socket
-import time
 
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec
@@ -274,11 +273,29 @@ def existing_header(seal_path: str) -> dict | None:
         return None
 
 
-def closed_at_ms(night_dir: str) -> int:
+def closed_at_ms(night_dir: str) -> int | None:
     """The night's close as floating wall-clock ms (Clock Contract): the newest file's mtime, local civil
-    time encoded as if UTC."""
-    newest = max((os.path.getmtime(p) for _, p in _seal._night_files(night_dir)), default=time.time())
-    local = _dt.datetime.fromtimestamp(newest)
+    time encoded as if UTC. **None when no mtime could be read** — the close instant was not measured.
+
+    §∅: this used `default=time.time()`, so a directory yielding no mtime got the SEAL time written into
+    the sealed header as `closedAt` — a fabricated measurement inside a SIGNED artifact, which every
+    downstream reader (unseal, the Dex consuming the night) takes as the instant the night closed. The
+    value is in-band: a plausible timestamp, indistinguishable from a real one, off by however long the
+    night sat before sealing.
+
+    The empty-directory case is already refused upstream (`n_files == 0` → NOT_RUN), so the reachable
+    path is the TOCTOU: files counted by `night_signature`, gone by the time this runs. A per-file
+    `OSError` is therefore skipped rather than raised — a file that vanished between the listing and the
+    `getmtime` is not a close time either — and if nothing is left the answer is absence, not now."""
+    mtimes = []
+    for _, path in _seal._night_files(night_dir):
+        try:
+            mtimes.append(os.path.getmtime(path))
+        except OSError:
+            continue                    # vanished under us — not a close time, and not a reason to raise
+    if not mtimes:
+        return None
+    local = _dt.datetime.fromtimestamp(max(mtimes))
     return int(local.replace(tzinfo=_dt.timezone.utc).timestamp() * 1000)
 
 
@@ -353,6 +370,19 @@ def seal_or_reissue(
                 checked=0,
             )
         card_key = ck
+    # Measured BEFORE the seal, so an unmeasurable close refuses instead of being written as `now`.
+    # Reuses the NOT_RUN branch above rather than teaching the signed header a null `closedAt`: the
+    # precondition is the same one (`the night has no files`), discovered a few lines later because the
+    # directory changed under us.
+    closed = closed_at_ms(night_dir)
+    if closed is None:
+        return _emit(
+            "NOT_RUN",
+            None,
+            f"{night_dir} yielded no readable file mtime — its {n_files} counted file(s) vanished "
+            f"before the seal, so the night's close instant cannot be measured",
+            checked=0,
+        )
     target = final if header is None else final + ".rev.part"
     try:
         os.makedirs(outbox, exist_ok=True)
@@ -366,7 +396,7 @@ def seal_or_reissue(
             signing_key=signing_key,
             consent=consent_value(cfg),
             revision=revision,
-            closed_at_ms=closed_at_ms(night_dir),
+            closed_at_ms=closed,
             now=now or _dt.datetime.now(),
             extra_info=extra_info(cfg, version=version, commit=commit, revision=revision),
         )

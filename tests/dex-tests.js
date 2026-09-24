@@ -50166,6 +50166,50 @@
        data" displayed as detected — and, worse, `restingHR` is the DENOMINATOR of the Uth-Sørensen
        VO₂ estimate, and both were handed to `prefillFrom`, which PERSISTS into the shared detected
        tier that every node resolves against. A fabricated 60 became a stored profile fact. */
+    /* ── §∅ · ABSENCE MADE A VALIDITY CHECK MORE PERMISSIVE ────────────────────────────────────
+       `_hr` is `numOrNull` in the DSP, and `updateProfile`'s resting-HR mean summed `s + r._hr` over
+       EVERY row while dividing by `allRows.length` — so a row without a heart rate contributed 0 to
+       the numerator and 1 to the denominator. The mean sank, and `hrmax_manual > _hrRest0 + 45`
+       became easier to clear, so an implausible manual HRmax was accepted and rendered WITHOUT its
+       "⚠ entry low" warning. Absence loosening a guard is the quiet direction. */
+    group('HRVDex §∅ — an absent HR must not loosen the HRmax plausibility guard', 'hrvdex-profile · guard · absence', function (T) {
+      var R = String((env.sources || {})['hrvdex-profile.js'] || '');
+      if (!R) {
+        T.skip('hrvdex-profile.js in env.sources', 'not wired in this lane');
+        return;
+      }
+      T.ok('ANTI-VACUITY · the profile source loaded', R.length > 5000, R.length + ' chars');
+
+      /* THE FLIP, as arithmetic on a case that could occur: four rows at a resting 100 bpm and four
+         carrying no HR, against a manual HRmax of 140 — exactly the implausible entry the guard is
+         for (140 is below the Tanaka HRmax of anyone under ~97). */
+      var hr = [100, 100, 100, 100, null, null, null, null];
+      var manual = 140;
+      var oldMean = Math.round(
+        hr.reduce(function (a, v) {
+          return a + v;
+        }, 0) / hr.length
+      );
+      var measured = hr.filter(function (v) {
+        return Number.isFinite(v);
+      });
+      var newMean = Math.round(
+        measured.reduce(function (a, v) {
+          return a + v;
+        }, 0) / measured.length
+      );
+      T.eq('the old mean coerced four nulls to 0 and divided by EIGHT', oldMean, 50);
+      T.eq('…while the measured rows average 100', newMean, 100);
+      T.eq('…so the old guard ACCEPTED an implausible 140 (threshold 95)', manual > oldMean + 45, true);
+      T.eq('…and the corrected guard REJECTS it (threshold 145), showing the ⚠ entry-low hint', manual > newMean + 45, false);
+
+      /* THE FIX, against the source — `updateProfile` is DOM-touching and not reachable headless. */
+      T.ok('the mean is taken over the rows that carry a reading', /_hrRestVals\.length \? Math\.round\(_hrRestVals\.reduce/.test(R));
+      T.ok('…and the relative test is SKIPPED when there is no basis, not run against a default', /_hrRest0 == null \|\| p\.hrmax_manual > _hrRest0 \+ 45/.test(R));
+      T.ok('no whole-array mean over `allRows.length` survives', !/allRows\.reduce\(\(s, r\) => s \+ r\._hr, 0\) \/ allRows\.length/.test(R));
+      T.ok('the absolute conditions still apply', /p\.hrmax_manual > 0 && p\.hrmax_manual >= 140/.test(R));
+    });
+
     group('HRVDex §∅ — an undetected resting HR is not 60', 'hrvdex-profile · inference · absence', function (T) {
       var R = String((env.sources || {})['hrvdex-profile.js'] || '');
       if (!R) {

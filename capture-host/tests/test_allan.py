@@ -1348,3 +1348,53 @@ def test_adev_pooled_is_the_n_weighted_mean_of_sigma_squared():
     pts2, meta2 = allan.adev_pooled(x, 1.0, ts[:-1], 4.0)
     assert meta2["pooled"] is False and [p["adev"] for p in pts2] == [p["adev"] for p in allan.adev(x, 1.0)]
 
+
+
+# ── §∅ · AN UNNAMEABLE POWER LAW IS A REFUSAL, NOT THE NEAREST LABEL (2026-09-23) ───────────────
+# ABSENCE-SURVEY row allan.py:655. `alpha` was CLAMPED to [-2, +2], and the docstring justified it with
+# the right argument for the wrong operation — "a sixth label would be invented rather than measured".
+# Clamping does not decline to name it; it assigns the NEAREST of the five, so a series that is none of
+# them was published as `random-walk-frequency` with no mark.
+def _cubic(n=600):
+    return [float(i) ** 3 for i in range(n)]
+
+
+def test_PLANT_a_series_needing_THREE_differences_refuses_instead_of_reading_random_walk():
+    """Not an edge case, which is what the clamp's framing hid. alpha = round(-2*(rho+d)+2) with
+    rho >= 0, so inside [-2,+2] needs rho + d <= 2.25 — EVERY series at d = 3 is unnameable, and dmax
+    DEFAULTS to 3. This cubic decorrelates cleanly (rho 0.0) and was reported random-walk FM."""
+    got = allan.noise_id(_cubic())
+    assert got["differences"] == 3 and got["rho"] == 0.0, got
+    assert got["ok"] is False and got["noise"] is None and got["alpha"] is None, got
+    assert got["reason"] == "alpha-outside-the-named-power-laws"
+    assert got["raw_alpha"] == -4.0, "and it says HOW far outside, not merely that it was"
+
+
+def test_the_refusal_keeps_the_keys_a_reader_branches_on():
+    """`stability` publishes this record as-is and the file's own convention is that a caller branches
+    on `noise` being None. The refusal must therefore carry `alpha`/`noise`/`differences`/`rho`, not a
+    different shape that a reader has to learn.
+
+    ⚠️ NEITHER A PLANT NOR A CONTROL, and worth saying so: on origin/main this passes TRIVIALLY, because
+    there is no refusal there and it ends up asserting the success record's keys. It means something
+    only against the new code, where it pins the refusal to the reader's existing shape."""
+    got = allan.noise_id(_cubic())
+    assert set(got) >= {"alpha", "noise", "differences", "rho"}, got
+
+
+def test_the_bound_is_keyed_on_the_NAME_TABLE_not_a_literal_range(monkeypatch):
+    """A literal [-2, 2] can drift away from the labels it is about. Keyed on `_ALPHA_NAMES`, adding a
+    law admits it with no second edit — and this is the test that would fail if someone re-introduced
+    the literal."""
+    monkeypatch.setitem(allan._ALPHA_NAMES, -4, "made-up-sixth-law")
+    got = allan.noise_id(_cubic())
+    assert got["alpha"] == -4 and got["noise"] == "made-up-sixth-law", got
+    assert "ok" not in got, "an admitted law is an identification, not a refusal"
+
+
+def test_CONTROL_the_five_known_answer_laws_still_identify():
+    """The refusal must not fire on the cases the function exists for — a verdict that is never `ok`
+    says nothing. Runs against origin/main unchanged, which is what makes it a control."""
+    got = allan.noise_id(_white_pm())
+    assert got["noise"] == "white-phase" and got.get("ok") is None, got
+    assert got["alpha"] == 2

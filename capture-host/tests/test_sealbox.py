@@ -351,9 +351,55 @@ def test_closed_at_is_the_newest_file_as_floating_ms(tmp_path):
     assert sealbox.closed_at_ms(night) == int(
         dt.datetime(2026, 9, 20, 5, 30, tzinfo=dt.timezone.utc).timestamp() * 1000
     )
+    # ⚠️ THIS ASSERTED THE FABRICATION UNTIL 2026-09-23: it pinned an empty directory's close time to
+    # within 5 s of NOW, i.e. `default=time.time()` — the SEAL time written into a SIGNED header as the
+    # instant the night closed, in-band and indistinguishable from a real reading. Absence is None.
     e = tmp_path / "empty"
     e.mkdir()
-    assert abs(sealbox.closed_at_ms(str(e)) / 1000 - dt.datetime.now().replace(tzinfo=dt.timezone.utc).timestamp()) < 5
+    assert sealbox.closed_at_ms(str(e)) is None
+
+
+def test_PLANT_a_night_whose_files_vanish_before_the_seal_REFUSES(tmp_path, monkeypatch):
+    """The only reachable path to an unmeasurable close: `n_files == 0` is already refused upstream, so
+    the files must disappear BETWEEN `night_signature`'s count and `closed_at_ms`. Sealing anyway wrote
+    `now` into the header as the close instant."""
+    kd, ob, k, store, night = _box(tmp_path)
+    real = sealbox._seal._night_files
+    calls = {"n": 0}
+
+    def once_then_gone(d):
+        # A REAL TOCTOU: `night_signature` counts the files, then they are gone by `closed_at_ms`.
+        # Patching the lister to return [] unconditionally does NOT reach this branch — the upstream
+        # `n_files == 0` guard fires first with its own reason, which is what the first version of
+        # this test actually asserted against.
+        calls["n"] += 1
+        return real(d) if calls["n"] == 1 else []
+
+    monkeypatch.setattr(sealbox._seal, "_night_files", once_then_gone)
+    o = sealbox.seal_or_reissue(
+        night, outbox=ob, box_id="box-1", night="2026-09-19", store=store,
+        signing_key=k, cfg={}, version=None, commit=None)
+    assert o["status"] == "NOT_RUN", o
+    assert "vanished before the seal" in (o["reason"] or ""), o["reason"]
+    assert not os.path.exists(os.path.join(ob, "box-1-2026-09-19.tepna")), "no seal may be written"
+
+
+def test_a_file_that_vanishes_MID_SCAN_is_skipped_not_raised(tmp_path):
+    """A per-file OSError between the listing and the getmtime is the same race one level down: skip it,
+    and if others remain the close time is still measured from them."""
+    kd, ob, k, store, night = _box(tmp_path)
+    t0 = dt.datetime(2026, 9, 20, 1, 0, 0).timestamp()
+    t = dt.datetime(2026, 9, 20, 5, 30, 0).timestamp()
+    # BOTH files, as the test above does: an untouched file keeps its creation mtime and would be the
+    # newest, so the assertion would read `now` and pass for the wrong reason.
+    os.utime(os.path.join(night, "Polar_H10_0284_20260919_ECG.txt"), (t0, t0))
+    os.utime(os.path.join(night, "QC-SUMMARY.json"), (t, t))
+    real_files = list(sealbox._seal._night_files(night))
+    ghost = ("x", os.path.join(night, "Polar_H10_0284_20260919_GONE.txt"))
+    import unittest.mock as _m
+    with _m.patch.object(sealbox._seal, "_night_files", lambda d: real_files + [ghost]):
+        got = sealbox.closed_at_ms(night)
+    assert got == int(dt.datetime(2026, 9, 20, 5, 30, tzinfo=dt.timezone.utc).timestamp() * 1000)
 
 
 # ── the seal runs in a child ─────────────────────────────────────────────────────────────────────────
