@@ -76,11 +76,21 @@ PRIMARY_BY_MODEL: dict[str, str] = {
     "VeritySense": "Polar_VeritySense_*_PPG.txt",
     "O2Ring-S": "Wellue_O2Ring-S_*_SPO2.csv",
 }
-# the device's OWN wear evidence for the night: a file whose rows are beats/valid readings
-WORN_EVIDENCE_BY_MODEL: dict[str, tuple[str, int]] = {
-    "H10": ("Polar_H10_*_HR.txt", 1),
-    "VeritySense": ("Polar_VeritySense_*_PPI.txt", 1),
-    "O2Ring-S": ("Wellue_O2Ring-S_*_SPO2.csv", 1),
+# the device's OWN wear evidence for the night: a file whose rows carry a MEASURED value, named by the
+# COLUMN that carries it. The column is resolved from each file's own header, never by position.
+#
+# Position was wrong, and wrong in the shape ABSENCE-IS-NULL names. The box wrote `_PPI.txt` in its own
+# column order until 2026-08-05 (`5e5ac71a`), with `sensor timestamp [ns]` second -- a field the Polar PPI
+# stream does not carry, written as a literal 0 on every row of all 7 such files. Reading column 1
+# positionally therefore read that fabricated 0 as the beat interval, ran off the end of the file, and
+# scored 2026-08-04 -- 24 997 measured beats, none of them zero -- as `worn_evidence: False`. Verified
+# against the deployed reader on the box: False for that night, True for a phone-layout night beside it.
+# Resolving by name is what makes the two layouts one reader, and it is why a header that does NOT name
+# the column returns null below rather than a verdict.
+WORN_EVIDENCE_BY_MODEL: dict[str, tuple[str, str]] = {
+    "H10": ("Polar_H10_*_HR.txt", "HR [bpm]"),
+    "VeritySense": ("Polar_VeritySense_*_PPI.txt", "PP-interval [ms]"),
+    "O2Ring-S": ("Wellue_O2Ring-S_*_SPO2.csv", "Oxygen Level"),
 }
 
 
@@ -181,21 +191,32 @@ def _has_worn_evidence(night_dir: str, model: str) -> bool | None:
     files = glob.glob(os.path.join(night_dir, spec[0]))
     if not files:
         return None
+    read_one = False  # did ANY file actually get read down its named column?
     for f in files:
         try:
             with open(f, encoding="utf-8", errors="replace") as fh:
-                next(fh, None)
+                head = next(fh, None)
+                if head is None:
+                    continue  # an empty file cannot vouch for wear
+                cols = [c.strip() for c in re.split(r"[;,]", head.rstrip("\n"))]
+                if spec[1] not in cols:
+                    continue  # a header that does not name the column cannot vouch either way
+                col = cols.index(spec[1])
+                read_one = True
                 for line in fh:
                     parts = re.split(r"[;,]", line.rstrip("\n"))
-                    if len(parts) > spec[1]:
+                    if len(parts) > col:
                         try:
-                            if float(parts[spec[1]]) > 0:
+                            if float(parts[col]) > 0:
                                 return True
                         except ValueError:
                             continue  # a torn row (a live file's tail, a repeated header) is not evidence either way
         except OSError:
             continue  # an unreadable evidence file cannot vouch for wear; the next file may
-    return False
+    # False is a VERDICT -- "every measured value this device wrote was absent" -- and it is only ours to
+    # give when a column was actually read. Files that existed but could not be opened, were empty, or
+    # named no such column leave the question open, so the answer is null, not "not worn".
+    return False if read_one else None
 
 
 # ── WEAR ENDS — WHY EACH H10 / VERITY FILE ENDED, AND WHERE THE WORN INTERVAL STOPS ─────────────────
