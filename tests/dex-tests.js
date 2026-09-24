@@ -19872,6 +19872,114 @@
        signal's own name ends `.2s` and a 2-second period IS 0.5 Hz, and the two agree. A draft whose
        only support is "the code currently returns this" was not adopted, however green: that is the
        shape that pins a bug as intended behaviour. */
+    group('CPAPDex EDF geometry — ∅ an unreadable header field REFUSES, it never becomes a number', 'cpapdex-edf · absence', function (T) {
+      var E = env.CpapEdf;
+      if (!E || typeof E._buildSyntheticEDF !== 'function' || typeof E.readEDF !== 'function') {
+        T.skip('CpapEdf._buildSyntheticEDF + readEDF exposed', 'CpapEdf not co-loaded in this runner');
+        return;
+      }
+      // Offsets derived, not memorised: the EDF signal header is ns-strided blocks of
+      // label16 + transducer80 + dim8 + physMin8 + physMax8 + digMin8 + digMax8 + prefilter80,
+      // so samples-per-record begins at 256 + 216*ns. The synthetic set is 1 numeric + 1 annotation.
+      var NS = 2,
+        SPR_OFF = 256 + 216 * NS,
+        DMAX_OFF = 256 + 128 * NS,
+        RECDUR_OFF = 244;
+      var spaces = function (u8, at) {
+        for (var i = 0; i < 8; i++) u8[at + i] = 0x20;
+      };
+      var write8 = function (u8, at, str) {
+        for (var i = 0; i < 8; i++) u8[at + i] = i < str.length ? str.charCodeAt(i) : 0x20;
+      };
+      var mutated = function (mut) {
+        var b = E._buildSyntheticEDF({ records: 5 });
+        mut(new Uint8Array(b));
+        return b;
+      };
+      var refusal = function (mut) {
+        try {
+          E.readEDF(mutated(mut));
+          return 'NO REFUSAL — the file parsed';
+        } catch (e) {
+          return e.message;
+        }
+      };
+
+      // ── CONTROL ── the well-formed file still parses, and its samples are REAL NUMBERS, so the
+      //    NaN asserted further down is a change rather than the status quo.
+      var okRec = E.readEDF(E._buildSyntheticEDF({ records: 5 }));
+      var press = okRec.signals['Press.40ms'];
+      T.ok('control: a well-formed EDF parses — 10 Hz × 5 records', !!press && press.data.length === 50 && press.fs === 10, 'len ' + (press && press.data.length) + ' fs ' + (press && press.fs));
+      T.ok('control: its samples are finite, and its scale is the real 25.5/255', isFinite(press.data[10]) && Math.abs(press.data[10] - 1.0) < 1e-6, 'got ' + (press && press.data[10]));
+      T.eq('control: it reports itself calibrated', press.calibrated, true);
+
+      // ── 1 · SAMPLES-PER-RECORD is the STRIDE OF EVERY LATER SIGNAL, not one signal's property.
+      //    Absorbed as 0, it made bytesPerRecord too small, numRecords (from -1) too large, and left
+      //    the decode pointer un-advanced — so every later signal in every record read from the wrong
+      //    offset. The output was not missing data; it was a full set of plausible, wrong numbers.
+      T.ok(
+        'an unreadable samples-per-record REFUSES the file',
+        /samples-per-record/.test(
+          refusal(function (u8) {
+            spaces(u8, SPR_OFF);
+          }) || ''
+        ),
+        'no refusal'
+      );
+      T.ok(
+        '\u2026including the ANNOTATION signal, which occupies record bytes like any other',
+        /samples-per-record/.test(
+          refusal(function (u8) {
+            spaces(u8, SPR_OFF + 8);
+          }) || ''
+        ),
+        'no refusal'
+      );
+
+      // ── 2 · RECORD DURATION is the denominator of every sampling rate.
+      T.ok(
+        'an unreadable record duration REFUSES — every fs would be a guess',
+        /record duration/.test(
+          refusal(function (u8) {
+            spaces(u8, RECDUR_OFF);
+          }) || ''
+        ),
+        'no refusal'
+      );
+      // ⚠ A ZERO duration is the VENDOR'S OWN VALUE, not an unreadable field: the real
+      //   `20260612_222819_EVE.edf` writes `0.00` with labels ["EDF Annotations","Crc16"]. A blanket
+      //   `!(recDur > 0)` refusal rejected TWO REAL CORPUS NIGHTS in regen — caught there, not here,
+      //   because every synthetic set has a positive duration. It must be ACCEPTED, with fs NULL.
+      var zeroDur = E.readEDF(
+        mutated(function (u8) {
+          write8(u8, RECDUR_OFF, '0');
+        })
+      );
+      T.ok('a ZERO record duration is ACCEPTED — ResMed EVE/CSL event files write 0.00', !!zeroDur.signals['Press.40ms'], 'threw, or dropped the signal');
+      T.eq('\u2026and its fs is NULL — not 0, which reads as a measured rate, and not spr/0 = Infinity', zeroDur.signals['Press.40ms'].fs, null);
+      T.ok(
+        'a NEGATIVE duration is still refused — that is not a duration at all',
+        /negative record duration/.test(
+          refusal(function (u8) {
+            write8(u8, RECDUR_OFF, '-1');
+          }) || ''
+        ),
+        'no refusal'
+      );
+
+      // ── 3 · A DEGENERATE DIGITAL RANGE is ONE signal's absence, not the file's — reduced coverage
+      //    annotates, a missing stride refuses. `|| 1` used to rescale the signal by a factor of
+      //    (digMax-digMin), and because `NaN || 1` is 1 an ABSENT range took the same path.
+      var degen = E.readEDF(
+        mutated(function (u8) {
+          write8(u8, DMAX_OFF, '0');
+        })
+      );
+      var dp = degen.signals['Press.40ms'];
+      T.eq('a degenerate digital range marks THAT SIGNAL uncalibrated, and the file still parses', dp.calibrated, false);
+      T.ok('\u2026and its samples are NaN, not rescaled by a fabricated denominator of 1', isNaN(dp.data[10]), 'got ' + dp.data[10]);
+    });
+
     group('CPAPDex synthetic EDF — the .2s signals declare the rate their names promise (adopted drafts, batch 1)', 'cpapdex-dsp · adopted-drafts · mutation-pinned', function (T) {
       var C = env.CpapDsp;
       if (!C || typeof C._synthEdfSet !== 'function') {
