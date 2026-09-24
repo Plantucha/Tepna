@@ -7,6 +7,7 @@ the number until the owner sets a bar, never a bar this module invented."""
 import datetime as dt
 import json
 import os
+import statistics
 
 import loss_audit
 import verdict
@@ -374,3 +375,408 @@ def test_a_junk_entry_or_an_unknown_model_does_not_end_the_night_and_absent_wear
     (tmp_path / "captures" / "2026-09-20" / "Polar_H10_0284_20260920220000_HR.txt").write_text("h\n1;0\n")
     v = loss_audit.audit_night(d, DEV, journal=lambda *a: [])["devices"]["Polar H10 0284"]
     assert v["worn_evidence"] is False and v["worn_lost_min"] == 0.0 and type(v["worn_lost_min"]) is float
+
+
+# ── WEAR ENDS ─────────────────────────────────────────────────────────────────────────────────────
+# Synthetic files at low rates (epoch_stats is rate-agnostic), shaped on the measured nights: a worn H10
+# at a small sd with an off-body tail ~12x above it (2026-09-23: 80 µV → 1 100–2 200 µV); a Verity whose
+# final epoch carries the removal burst.
+import math as _m
+
+W0 = dt.datetime(2026, 9, 23, 23, 0, 0)
+
+
+def _wave(
+    path, secs, fs, amp_of, header="Phone timestamp;sensor timestamp [ns];timestamp [ms];ecg [uV]", t0=W0, cols=1
+):
+    """`secs` seconds of rows at `fs`; `amp_of(t)` gives the sample amplitude at second t (a sine, so the
+    epoch sd is amp/√2). `cols` = 1 writes one value in column 3; 3 writes an ACC-like x;y;z in columns 2–4."""
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(header + "\n")
+        for i in range(int(secs * fs)):
+            t = i / fs
+            v = amp_of(t) * _m.sin(2 * _m.pi * 1.3 * t)
+            stamp = (t0 + dt.timedelta(seconds=t)).isoformat(timespec="milliseconds")
+            if cols == 1:
+                fh.write(f"{stamp};0;0;{v:.3f}\n")
+            else:
+                # gravity on z, the motion on x AND z: an arm that moves changes |a|, which is what the rule reads
+                fh.write(f"{stamp};0;{v:.3f};0;{1000 + v:.3f}\n")
+
+
+def _ppg(path, secs, fs, amb_sd_of, t0=W0):
+    """A Verity-shaped PPG: ambient in column 5, oscillating with amplitude amb_sd_of(t)·√2 around -180."""
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write("Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;ambient\n")
+        for i in range(int(secs * fs)):
+            t = i / fs
+            a = -180 + amb_sd_of(t) * _m.sqrt(2) * _m.sin(2 * _m.pi * 0.9 * t)
+            fh.write(
+                f"{(t0 + dt.timedelta(seconds=t)).isoformat(timespec='milliseconds')};0;400000;400000;400000;{a:.2f}\n"
+            )
+
+
+def test_h10_tail_calls_a_sustained_off_body_tail_and_publishes_its_own_margin():
+    worn = [80.0] * 100
+    assert loss_audit.h10_tail(worn + [800.0] * 6) == {
+        "epochs": 106,
+        "trailing_off_epochs": 6,
+        "tail_off": True,
+        "max_worn_run": 0,
+    }
+    # one epoch short of the rule is NOT a doff — the boundary is the run length, stated at 6
+    assert loss_audit.h10_tail(worn + [800.0] * 5)["tail_off"] is False
+    # exactly 5x the median counts (>=); just under does not
+    assert loss_audit.h10_tail(worn + [400.0] * 6)["tail_off"] is True
+    assert loss_audit.h10_tail(worn + [399.0] * 6)["trailing_off_epochs"] == 0
+    # the worn run is counted OUTSIDE the trailing run, so the margin is visible on every block
+    mid = worn[:50] + [600.0] * 4 + worn[50:] + [900.0] * 7
+    assert loss_audit.h10_tail(mid) == {"epochs": 111, "trailing_off_epochs": 7, "tail_off": True, "max_worn_run": 4}
+    assert loss_audit.h10_tail(worn[:59]) is None  # no baseline under 10 min
+    assert loss_audit.h10_tail([0.0] * 80) is None  # no variance to judge against
+
+
+def test_verity_end_rule_and_the_named_reasons():
+    assert loss_audit.verity_end_doff(1.5, None) is True
+    assert loss_audit.verity_end_doff(None, 150.0) is True
+    assert loss_audit.verity_end_doff(1.49, 149.9) is False
+    assert loss_audit.verity_end_doff(0.96, 139.5) is False  # the held-out miss, 2026-09-19 06:04, as recorded
+    assert loss_audit.verity_end_doff(None, None) is None
+    assert loss_audit.end_reason(True, None) == "doff"
+    assert loss_audit.end_reason(True, 30.0) == "doff"  # a removal is a removal even if re-worn soon
+    assert loss_audit.end_reason(False, 1800.0) == "link-loss"
+    assert loss_audit.end_reason(None, 90.0) == "link-loss"
+    assert loss_audit.end_reason(False, 1801.0) == "quiet-end-unclassified"
+    assert loss_audit.end_reason(False, None) == "quiet-end-unclassified"
+
+
+def test_epoch_stats_bins_on_the_clock_across_midnight_and_drops_torn_edges(tmp_path):
+    p = tmp_path / "x_ECG.txt"
+    # 23:59:40 → 00:00:40 at 10 Hz: six clock-aligned epochs spanning midnight; amplitude 10 then 100
+    _wave(str(p), 60, 10, lambda t: 10.0 if t < 30 else 100.0, t0=dt.datetime(2026, 9, 23, 23, 59, 40))
+    with open(p, "a", encoding="utf-8") as fh:
+        fh.write("Phone timestamp;junk\n2026-09-24T00:00:40.000;0;0;notanumber\nshort\n")
+        fh.write("2026-09-24T00:00:45.000;0;0;5.0\n")  # ONE row into a new epoch: under half fill → dropped
+    ep, last = loss_audit.epoch_stats(str(p), [3])
+    assert [e[0] for e in ep] == [dt.datetime(2026, 9, 23, 23, 59, 40) + dt.timedelta(seconds=10 * k) for k in range(6)]
+    assert all(e[1] == 100 for e in ep)
+    assert round(ep[0][2], 1) == round(10 / _m.sqrt(2), 1) and round(ep[5][2], 1) == round(100 / _m.sqrt(2), 1)
+    assert last == dt.datetime(2026, 9, 24, 0, 0, 45)  # the last parsed row, torn ones excluded
+    acc = tmp_path / "a_ACC.txt"
+    _wave(str(acc), 20, 10, lambda t: 50.0, cols=3)
+    ep, _ = loss_audit.epoch_stats(str(acc), [2, 3, 4])  # three columns → vector magnitude
+    assert len(ep) == 2 and all(e[2] > 0 for e in ep)
+    empty = tmp_path / "e_ECG.txt"
+    empty.write_text("Phone timestamp;x\n")
+    assert loss_audit.epoch_stats(str(empty), [3]) == ([], None)
+
+
+def _h10_night(tmp_path, tail_secs, *, name="2026-09-23", start="20260923230000", off_amp=1600.0):
+    d = tmp_path / "captures" / name
+    d.mkdir(parents=True, exist_ok=True)
+    f = d / f"Polar_H10_0284_{start}_ECG.txt"
+    worn_secs = 900
+    _wave(str(f), worn_secs + tail_secs, 20, lambda t: 110.0 if t < worn_secs else off_amp)
+    return d, f
+
+
+def test_an_h10_that_ends_off_body_is_a_doff_and_its_worn_interval_ends_where_the_tail_began(tmp_path):
+    d, _ = _h10_night(tmp_path, 300)  # 5 min of empty strap after 15 min worn
+    w = loss_audit.wear_ends(str(d), "H10")
+    (e,) = w["ends"]
+    assert e["reason"] == "doff" and e["trailing_off_epochs"] == 30 and e["max_worn_run"] == 0
+    assert e["worn_end_at"] == "2026-09-23T23:15:00" and e["end_at"] == "2026-09-23T23:19:59"
+    assert w["worn_end"] == {"at": "2026-09-23T23:15:00", "reason": "doff", "file": e["file"]}
+
+
+def test_a_clean_h10_end_is_a_link_loss_when_the_stream_returns_and_unclassified_when_it_does_not(tmp_path):
+    d, _ = _h10_night(tmp_path, 50)  # 50 s of tail: under the 60 s rule
+    e = loss_audit.wear_ends(str(d), "H10")["ends"][0]
+    assert e["reason"] == "quiet-end-unclassified" and e["relink_gap_s"] is None and e["worn_end_at"] == e["end_at"]
+    # the same stream's next file 5 min later — in TOMORROW's folder, which the reconnect search reads too
+    nxt = tmp_path / "captures" / "2026-09-24"
+    nxt.mkdir()
+    (nxt / "Polar_H10_0284_20260923232046_ECG.txt").write_text("Phone timestamp;x\n")
+    e = loss_audit.wear_ends(str(d), "H10")["ends"][0]
+    last_row = dt.datetime(2026, 9, 23, 23, 15, 49, 950000)  # 950 s of 20 Hz rows from 23:00:00
+    assert e["reason"] == "link-loss" and e["relink_gap_s"] == round(
+        (dt.datetime(2026, 9, 23, 23, 20, 46) - last_row).total_seconds()
+    )
+    assert loss_audit._relink_gap(str(tmp_path / "not-a-date"), "Polar_H10_*_ECG.txt", W0) is None
+
+
+def test_files_that_cannot_be_judged_say_why_and_never_supply_the_worn_end(tmp_path, monkeypatch):
+    d = tmp_path / "captures" / "2026-09-23"
+    d.mkdir(parents=True)
+    _wave(str(d / "Polar_H10_0284_20260923230000_ECG.txt"), 300, 20, lambda t: 100.0)  # 30 epochs < 60
+    _wave(str(d / "Polar_H10_0284_20260923231000_ECG.txt"), 700, 20, lambda t: 0.0)  # flat: no variance
+    w = loss_audit.wear_ends(str(d), "H10")
+    assert [e["reason"] for e in w["ends"]] == ["under 60 epochs of 10 s", "no ECG variance to judge a tail against"]
+    assert w["worn_end"] is None
+    real = loss_audit.epoch_stats
+    monkeypatch.setattr(
+        loss_audit, "epoch_stats", lambda p, c: (_ for _ in ()).throw(OSError("eio")) if "231000" in p else real(p, c)
+    )
+    assert loss_audit.wear_ends(str(d), "H10")["ends"][1]["reason"].startswith("unreadable")
+    assert loss_audit.wear_ends(str(d), "O2Ring-S") == {
+        "available": False,
+        "reason": "no wear-end rule for model 'O2Ring-S'",
+    }
+
+
+def test_a_verity_end_is_judged_on_its_final_clock_aligned_epoch(tmp_path):
+    d = tmp_path / "captures" / "2026-09-23"
+    d.mkdir(parents=True)
+    # 6 min worn (ambient sd 37), then the final epoch uncovered (sd x3, the dark-room 09-23 shape)
+    ppg = d / "Polar_VeritySense_0C30_20260923230000_PPG.txt"
+    _ppg(str(ppg), 370, 20, lambda t: 37.0 if t < 360 else 111.0)
+    w = loss_audit.wear_ends(str(d), "VeritySense")
+    (e,) = w["ends"]
+    assert e["reason"] == "doff" and e["final_amb_ratio"] == 3.0 and e["final_acc_sd"] is None
+    assert e["final_epoch_at"] == "2026-09-23T23:06:00" and e["worn_end_at"] == e["end_at"]
+    # dark AND still (ambient flat) but the arm moves: the ACC half of the rule, from the ACC file's tail
+    _ppg(str(ppg), 370, 20, lambda t: 37.0)
+    acc = d / "Polar_VeritySense_0C30_20260923230000_ACC.txt"
+    _wave(
+        str(acc),
+        370,
+        10,
+        lambda t: 2.0 if t < 360 else 400.0,
+        header="Phone timestamp;sensor timestamp [ns];X [mg];Y [mg];Z [mg]",
+        cols=3,
+    )
+    e = loss_audit.wear_ends(str(d), "VeritySense")["ends"][0]
+    assert e["reason"] == "doff" and e["final_amb_ratio"] == 1.0 and e["final_acc_sd"] > 150
+    # neither cue: a link loss if the stream came back, which is what the label was
+    _wave(str(acc), 370, 10, lambda t: 2.0, header="h", cols=3)
+    (d / "Polar_VeritySense_0C30_20260923231000_PPG.txt").write_text("Phone timestamp;x\n")
+    e = loss_audit.wear_ends(str(d), "VeritySense")["ends"][0]
+    assert e["reason"] == "link-loss" and e["final_acc_sd"] < 150
+    # too few ACC rows in the final epoch is not a motion measurement
+    _wave(str(acc), 365, 5, lambda t: 400.0, header="h", cols=3)
+    assert loss_audit._final_acc_sd(str(acc), dt.datetime(2026, 9, 23, 23, 6, 0)) is None
+
+
+def test_audit_night_carries_the_wear_block_per_device(tmp_path):
+    d, _ = _h10_night(tmp_path, 300, name="2026-09-20", start="20260920220000")
+    a = loss_audit.audit_night(str(d), DEV, journal=lambda *a: [])
+    assert a["devices"]["Polar H10 0284"]["wear"]["worn_end"]["reason"] == "doff"
+
+
+def _rows(path, rows, header="Phone timestamp;sensor timestamp [ns];timestamp [ms];ecg [uV]", raw_tail=b""):
+    """Write explicit rows: [(stamp_str, [values...])] → 'stamp;0;<values joined by ;>'. `raw_tail` is appended
+    as BYTES, so a non-UTF-8 row can be planted."""
+    with open(path, "wb") as fh:
+        if header is not None:
+            fh.write((header + "\n").encode())
+        for stamp, vals in rows:
+            fh.write((stamp + ";0;" + ";".join(f"{v}" for v in vals) + "\n").encode())
+        fh.write(raw_tail)
+
+
+def _st(t0, secs):
+    return (t0 + dt.timedelta(seconds=secs)).isoformat(timespec="milliseconds")
+
+
+def test_epoch_stats_sd_is_the_population_sd_of_exactly_the_epochs_rows(tmp_path):
+    # a DC offset AND a phase, so every epoch's mean is far from its first value: a variance formula that
+    # got the mean term wrong cannot hide behind a zero-mean sine
+    t0 = dt.datetime(2026, 9, 23, 23, 59, 40)
+    vals = [(k, 500.0 + 37.0 * _m.cos(0.9 * k) + (k % 7)) for k in range(60)]  # 1 Hz: six 10-s epochs
+    p = tmp_path / "x_ECG.txt"
+    _rows(str(p), [(_st(t0, k), [0, v]) for k, v in vals])
+    ep, last = loss_audit.epoch_stats(str(p), [3])
+    assert [e[0] for e in ep] == [t0 + dt.timedelta(seconds=10 * j) for j in range(6)]  # across midnight
+    for j, (_start, n, sd) in enumerate(ep):
+        want = statistics.pstdev([v for k, v in vals if 10 * j <= k < 10 * j + 10])
+        assert n == 10 and abs(sd - want) < 1e-9
+    assert last == t0 + dt.timedelta(seconds=59)
+
+
+def test_epoch_stats_skips_what_is_not_a_sample_and_keeps_what_is(tmp_path):
+    t0 = dt.datetime(2026, 9, 23, 23, 0, 0)
+    rows = [(_st(t0, k), [0, float(k)]) for k in range(20)]
+    rows.append(("2026-09-23T23:00:20", [0, 7.0]))  # a 19-char stamp (no ms) IS a sample
+    rows += [
+        (_st(t0, k), [0, float(k)]) for k in range(25, 30)
+    ]  # fill the third epoch past half, so only the planted rows decide
+    p = tmp_path / "x_ECG.txt"
+    _rows(
+        str(p),
+        rows,
+        raw_tail=(
+            "2026-09-23T23:00:21.000;0;0\n"  # a row missing its value column: skipped, no crash
+            "2026-09-23T23:00:22.000;0;0;notanumber\n"  # torn: skipped
+            "2026-09-23T23:00:2;0;0;1.0\n"  # an 18-char stamp: skipped
+        ).encode()
+        + b"2026-09-23T23:00:23.000;0;0;\xff9\n"  # a non-UTF-8 byte in the value: skipped, not fatal
+        + b"2026-09-23T23:00:24.500Z;0;0;3.0\n",
+    )  # a zone suffix after the ms: the time still parses
+    ep, last = loss_audit.epoch_stats(str(p), [3])
+    assert [e[1] for e in ep] == [
+        10,
+        10,
+        7,
+    ]  # 20..29: the 19-char row, 24.500Z and 25..29 — the four bad rows are not counted
+    assert last == dt.datetime.fromisoformat("2026-09-23T23:00:24.500")
+
+
+def test_epoch_stats_drops_an_epoch_under_half_the_median_fill_and_keeps_one_at_exactly_half(tmp_path):
+    t0 = dt.datetime(2026, 9, 23, 23, 0, 0)
+
+    def fill(counts):
+        rows = []
+        for j, c in enumerate(counts):
+            rows += [(_st(t0, 10 * j + 0.1 * i), [0, float(i * i)]) for i in range(c)]
+        p = tmp_path / f"f{'_'.join(map(str, counts))}_ECG.txt"
+        _rows(str(p), rows)
+        return [e[1] for e in loss_audit.epoch_stats(str(p), [3])[0]]
+
+    assert fill([4, 4, 4, 2]) == [4, 4, 4, 2]  # 2 = exactly half of 4: kept
+    assert fill([8, 8, 8, 3]) == [8, 8, 8]  # 3 < 4: dropped
+    assert fill([2, 2, 2, 1]) == [2, 2, 2]  # one row is never an sd, however small the fill
+    assert loss_audit.epoch_stats(str(_empty(tmp_path)), [3]) == ([], None)
+
+
+def _empty(tmp_path):
+    p = tmp_path / "empty_ECG.txt"
+    p.write_text("Phone timestamp;x\n")
+    return p
+
+
+def test_the_acc_magnitude_of_the_final_epoch_is_read_from_the_file_tail_exactly(tmp_path):
+    start = dt.datetime(2026, 9, 23, 23, 6, 0)
+    xyz = [(3.0 * i, 2.0 * i + 1, 1000.0 - i) for i in range(51)]
+    rows = [(_st(start, 0.1 * i), [x, y, z]) for i, (x, y, z) in enumerate(xyz)]
+    p = tmp_path / "v_ACC.txt"
+    _rows(str(p), rows, header=None)  # NO header: the first byte is a sample's
+    want = statistics.pstdev([_m.sqrt(x * x + y * y + z * z) for x, y, z in xyz])
+    assert abs(loss_audit._final_acc_sd(str(p), start) - want) < 1e-9  # 51 rows: measured
+    _rows(str(p), rows[:50], header=None)
+    assert loss_audit._final_acc_sd(str(p), start) is None  # 50: not a measurement
+    # a torn row EARLY in the window is skipped, and the rows after it still count
+    _rows(str(p), [rows[0], (_st(start, 0.05), ["x", 0, 0])] + rows[1:], header=None, raw_tail=b"")
+    assert abs(loss_audit._final_acc_sd(str(p), start) - want) < 1e-9
+    _rows(str(p), rows, header=None, raw_tail=(_st(start, 5.0) + ";0;\xff;0;0\n").encode("latin-1"))
+    assert abs(loss_audit._final_acc_sd(str(p), start) - want) < 1e-9  # a non-UTF-8 row: skipped
+    assert loss_audit._final_acc_sd(str(tmp_path / "absent_ACC.txt"), start) is None
+
+
+def test_the_reconnect_search_window_and_its_folders(tmp_path):
+    night = tmp_path / "captures" / "2026-09-23"
+    night.mkdir(parents=True)
+    end = dt.datetime(2026, 9, 23, 23, 15, 50)
+    pat = "Polar_H10_*_ECG.txt"
+
+    def only(stamp, folder=night):
+        for f in list(night.glob("*")) + list((tmp_path / "captures").glob("2026-09-24/*")):
+            f.unlink()
+        folder.mkdir(exist_ok=True)
+        (folder / f"Polar_H10_0284_{stamp}_ECG.txt").write_text("h\n")
+        return loss_audit._relink_gap(str(night), pat, end)
+
+    assert only("20260923231545") is None  # exactly end - 5 s: the same session, not a reconnect
+    assert only("20260923231546") == -4.0  # end - 4 s: inside the tolerance, counted
+    assert only("20260923231600") == 10.0
+    nxt = tmp_path / "captures" / "2026-09-24"
+    assert only("20260924000500", nxt) == 2950.0  # tomorrow's folder is searched too
+    assert loss_audit._relink_gap(str(night) + "/", pat, end) == 2950.0  # a trailing slash is the same night
+    (night / "Polar_H10_0284_nostamp_ECG.txt").write_text("h\n")  # a name without a start stamp: ignored
+    assert loss_audit._relink_gap(str(night), pat, end) == 2950.0
+    assert loss_audit._relink_gap(str(tmp_path / "not-a-date"), pat, end) is None
+
+
+def test_the_worn_end_is_the_LATEST_usable_end_and_each_end_names_its_file(tmp_path):
+    d = tmp_path / "captures" / "2026-09-23"
+    d.mkdir(parents=True)
+    _wave(
+        str(d / "Polar_H10_0284_20260923220000_ECG.txt"),
+        700,
+        20,
+        lambda t: 110.0,
+        t0=dt.datetime(2026, 9, 23, 22, 0, 0),
+    )
+    _wave(str(d / "Polar_H10_0284_20260923230000_ECG.txt"), 1200, 20, lambda t: 110.0 if t < 900 else 1600.0)
+    w = loss_audit.wear_ends(str(d), "H10")
+    assert w["available"] is True
+    assert [e["file"] for e in w["ends"]] == [
+        "Polar_H10_0284_20260923220000_ECG.txt",
+        "Polar_H10_0284_20260923230000_ECG.txt",
+    ]
+    assert w["ends"][0]["reason"] == "quiet-end-unclassified"  # its "next file" starts 48 min later: not a reconnect
+    assert w["worn_end"] == {
+        "at": "2026-09-23T23:15:00",
+        "reason": "doff",
+        "file": "Polar_H10_0284_20260923230000_ECG.txt",
+    }
+
+
+def test_an_h10_file_of_exactly_the_minimum_length_is_judged(tmp_path):
+    d = tmp_path / "captures" / "2026-09-23"
+    d.mkdir(parents=True)
+    _wave(str(d / "Polar_H10_0284_20260923230000_ECG.txt"), 600, 20, lambda t: 110.0)  # exactly 60 epochs
+    e = loss_audit.wear_ends(str(d), "H10")["ends"][0]
+    assert e["usable"] is True and e["epochs"] == 60 and e["reason"] == "quiet-end-unclassified"
+
+
+def test_h10_tail_boundaries_the_survivors_named():
+    assert loss_audit.h10_tail([80.0] * 60)["epochs"] == 60  # exactly the floor
+    assert loss_audit.h10_tail([0.5] * 70 + [2.5] * 6)["tail_off"] is True  # a sub-1 median still judges
+    assert loss_audit.h10_tail([80.0] * 70 + [400.0] * 3 + [80.0] * 10)["max_worn_run"] == 3  # exactly 5x counts
+
+
+def test_verity_final_epoch_ratio_rounding_and_a_flat_ambient(tmp_path):
+    d = tmp_path / "captures" / "2026-09-23"
+    d.mkdir(parents=True)
+    ppg = d / "Polar_VeritySense_0C30_20260923230000_PPG.txt"
+    _ppg(str(ppg), 370, 20, lambda t: 37.0 if t < 360 else 41.0)  # 41/37 = 1.1081…
+    e = loss_audit.wear_ends(str(d), "VeritySense")["ends"][0]
+    assert e["final_amb_ratio"] == 1.11 and e["file"] == ppg.name
+    _ppg(str(ppg), 370, 20, lambda t: 0.3 if t < 360 else 0.6)  # a median under 1 still yields a ratio
+    assert loss_audit.wear_ends(str(d), "VeritySense")["ends"][0]["final_amb_ratio"] == 2.0
+    _ppg(str(ppg), 370, 20, lambda t: 0.0)  # flat ambient: no ratio, not a division
+    e = loss_audit.wear_ends(str(d), "VeritySense")["ends"][0]
+    assert e["final_amb_ratio"] is None and e["reason"] == "quiet-end-unclassified"
+    acc = d / "Polar_VeritySense_0C30_20260923230000_ACC.txt"
+    _rows(
+        str(acc),
+        [(_st(dt.datetime(2026, 9, 23, 23, 6, 0), 0.1 * i), [float(i), 0, 1000.0]) for i in range(60)],
+        header=None,
+    )
+    want = statistics.pstdev([_m.sqrt(i * i + 1000.0**2) for i in range(60)])
+    assert loss_audit.wear_ends(str(d), "VeritySense")["ends"][0]["final_acc_sd"] == round(want, 1)
+
+
+def test_the_acc_magnitude_path_and_an_underfilled_epoch_between_full_ones(tmp_path):
+    t0 = dt.datetime(2026, 9, 23, 23, 0, 0)
+    xyz = [(3.0 * k, (k % 5) * 2.0, 1000.0 - k) for k in range(20)]
+    p = tmp_path / "a_ACC.txt"
+    _rows(
+        str(p),
+        [(_st(t0, k), list(v)) for k, v in enumerate(xyz)],
+        header="Phone timestamp;sensor timestamp [ns];X [mg];Y [mg];Z [mg]",
+    )
+    ep, _ = loss_audit.epoch_stats(str(p), [2, 3, 4])
+    for j, (_s, n, sd) in enumerate(ep):
+        want = statistics.pstdev([_m.sqrt(x * x + y * y + z * z) for x, y, z in xyz[10 * j : 10 * j + 10]])
+        assert n == 10 and abs(sd - want) < 1e-9  # the vector magnitude, not the first axis
+    rows = []
+    for j, c in enumerate([4, 1, 4, 4]):  # an under-filled epoch BETWEEN full ones
+        rows += [(_st(t0, 10 * j + 0.1 * i), [0, float(i * i)]) for i in range(c)]
+    q = tmp_path / "u_ECG.txt"
+    _rows(str(q), rows)
+    assert [e[0] for e in loss_audit.epoch_stats(str(q), [3])[0]] == [
+        t0,
+        t0 + dt.timedelta(seconds=20),
+        t0 + dt.timedelta(seconds=30),
+    ]
+
+
+def test_an_acc_row_at_the_next_epochs_first_millisecond_is_not_in_the_final_epoch(tmp_path):
+    start = dt.datetime(2026, 9, 23, 23, 6, 0)
+    xyz = [(3.0 * i, 2.0 * i + 1, 1000.0 - i) for i in range(51)]
+    rows = [(_st(start, 0.1 * i), list(v)) for i, v in enumerate(xyz)] + [(_st(start, 10.0), [9000.0, 0, 0])]
+    p = tmp_path / "v_ACC.txt"
+    _rows(str(p), rows, header=None)
+    want = statistics.pstdev([_m.sqrt(x * x + y * y + z * z) for x, y, z in xyz])
+    assert abs(loss_audit._final_acc_sd(str(p), start) - want) < 1e-9

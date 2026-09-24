@@ -5185,7 +5185,16 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       // part 2). `dataGaps` above already found these holes and reported only a percentage; the
       // Integrator needs their POSITIONS to divide by recorded rather than envelope hours.
       // Null on a contiguous night, which keeps every clean export byte-identical.
-      coverage: oxyCoverage(rows, t0Ms),
+      /* ∅ `sparse` and `discontinuous` are different claims, and the shared builder can only make
+         the first. `DexExport.coverageFromSegments` labels every multi-segment record `kind:'sparse'`
+         — correct for a dropout, wrong for a night whose CLOCK stepped, which is the distinction the
+         2026-09-17 ruling turns on (reduced coverage annotates; a discontinuity is not one stretch of
+         signal). `clockNonMonotonic` is the fact that separates them and it is an OxyDex stat, not
+         something the spine module knows, so the relabel is applied HERE rather than in
+         `dex-export.js` — which is inlined into all 8 bundles and would serialise a fleet-wide
+         re-verification for a label change. Measured: nothing reads `coverage.kind` today, so this
+         buys honesty in the export for a human reader, not behaviour. */
+      coverage: _oxyLabelCoverage(oxyCoverage(rows, t0Ms), stats),
       fname: fname,
       stats: stats,
       spikes: spikes,
@@ -7705,6 +7714,15 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
 
      Null when the night is contiguous — the common case, and the one that keeps every clean export
      byte-identical. */
+  /* Relabels a coverage block whose holes came from a CLOCK STEP rather than from a dropout. Returns
+     the same object shape (additively relabelled) so every consumer keeps working, and returns the
+     input untouched when there is nothing to relabel. */
+  function _oxyLabelCoverage(cov, stats) {
+    if (!cov || !stats || stats.clockNonMonotonic !== true) return cov;
+    cov.kind = 'discontinuous';
+    return cov;
+  }
+
   function oxyCoverage(rows, t0Ms) {
     if (!rows || rows.length < 2) return null;
     var segs = [],
