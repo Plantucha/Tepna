@@ -402,7 +402,23 @@ def frozen_devices(qc: dict, live: dict, threshold_sec: float) -> list[str]:
     write measured against the night's newest write). `live` is STATUS["devices"]. A device missing
     from `live` is never reported — an unknown state is not evidence of a fault."""
     out = []
-    for d in qc.get("devices") or []:
+    # THE SUMMARY SIDE OF THE GUARD BELOW, and it was the half still open. The `live` check further
+    # down names a non-dict status; this one names a non-dict SUMMARY, and until it existed the exact
+    # error that check was written to abolish — `'str' object has no attribute 'get'` — still had a
+    # live path through `d.get("name")`. It reddened three PRs and `main` itself three times on
+    # 2026-09-24, and nobody could say which value produced it, because the message names neither the
+    # producer nor the object.
+    #
+    # ⚠️ THE TYPE IS CHECKED BEFORE THE LOOP, NOT ONLY INSIDE IT, and that is the interesting half: a
+    # STRING is iterable. `for d in "H10"` is perfectly legal, yields 'H', '1', '0', and would report a
+    # fault about devices that do not exist rather than failing outright — a fabricated finding, which
+    # is worse than a crash (§∅).
+    devs = qc.get("devices") or []
+    if not isinstance(devs, (list, tuple)):
+        raise TypeError(f"qc summary 'devices' is {type(devs).__name__}, not a list: {devs!r:.120}")
+    for i, d in enumerate(devs):
+        if not isinstance(d, dict):
+            raise TypeError(f"qc summary device[{i}] is {type(d).__name__}, not dict: {d!r:.120}")
         name, silent = d.get("name"), d.get("silent_sec")
         if not name or silent is None or silent < threshold_sec:
             continue
