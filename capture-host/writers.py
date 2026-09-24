@@ -2277,6 +2277,87 @@ CLOCKSYNC_NAME = "CLOCKSYNC.csv"
 _CLOCKSYNC_HEADER = "Phone timestamp;device;address;event;skew_sec;detail\n"
 
 
+WORN_NAME = "WORN.csv"
+
+
+def _worn_cell(v) -> str:
+    """One CSV cell: `;` and newlines cannot survive, or they split the row and blind every reader.
+    The same rule `append_clock_sync_event` applies inline; named here because four cells need it."""
+    return str("" if v is None else v).replace(";", ",").replace("\n", " ").replace("\r", " ")
+
+
+def worn_votes_cell(votes) -> str:
+    """Render the detector inputs compactly, in ONE column, with no separator that could split a row.
+
+    Sequences become `k=nN` rather than their contents: the optical vote is handed a PPG window and an
+    ambient list, and writing those verbatim would put thousands of samples in a CSV cell. The record is
+    of the DECISION, not of the signal it was taken over.
+
+    ⚠️ `None` renders as `k=` and NEVER as `k=False` (§∅), and that distinction is the point of the
+    record: a detector that ABSTAINED and one that voted not-worn produce different evidence for the same
+    verdict, and `worn_verdict`'s own history is of an abstention being read as an answer — a stale
+    `True` stood for ten hours while an armband streamed into a desk."""
+    parts = []
+    for k in sorted(votes or {}):
+        v = votes[k]
+        if isinstance(v, (list, tuple)):
+            parts.append(f"{k}=n{len(v)}")
+        elif v is None:
+            parts.append(f"{k}=")
+        else:
+            parts.append(f"{k}={v}")
+    return ",".join(parts)
+
+
+def append_worn_decision(root, when, device, address, worn, why, trigger: str, votes=None) -> bool:
+    """Append ONE worn decision to the night's own `WORN.csv`. Returns whether a row was written.
+
+    WHICH VOTE HELD IS PERSISTED NOWHERE ELSE. `worn_verdict` returns `(verdict, why)` and `why` names
+    the detectors that voted, but it reaches only live STATUS, which the next write erases. So the state
+    the drop logic acted on cannot be read back: the 27.5 min of not-worn on 2026-09-23 and the 102 min on
+    2026-09-22 are decisions no artifact records. Same per-night evidence channel as `CLOCKSYNC.csv`, for
+    the same reason and after the same kind of failure.
+
+    ⚠️ IT RECORDS, IT DOES NOT DECIDE. `worn` and `why` are exactly what `worn_verdict` returned, and
+    `votes` is the same mapping passed INTO it — so the record cannot drift from the decision by
+    construction, because it is not a second evaluation of the same inputs. Nothing here feeds back into
+    the vote or into `should_drop_not_worn`.
+
+    `trigger` is `change` or `cadence`. A change row is the event; a cadence row is the proof that the
+    state was still being observed between events. Without the second, a long unchanged stretch and a
+    daemon that stopped publishing look identical in the file — which is the shape that made the ring's
+    `examined` counter necessary one sidecar over.
+
+    Never raises: evidence must not take capture down."""
+    if not root:
+        return False
+    try:
+        d = night_dir(root, when)
+        os.makedirs(d, exist_ok=True)
+        path = os.path.join(d, WORN_NAME)
+        # APPEND, NEVER TRUNCATE — OxyLifeWriter's lesson, which cost a night's rows on every daemon
+        # restart, and this daemon restarts 11-15 times a day. A non-empty file is continued, never
+        # re-headed; the emptiness test is the one the sibling writers use.
+        resumed = False
+        try:
+            resumed = os.path.getsize(path) > 0
+        except OSError:
+            resumed = False
+        with open(path, "a", newline="\n") as fh:
+            if not resumed:
+                fh.write("Phone timestamp;device;address;worn;why;trigger;votes\n")
+            fh.write(";".join((
+                _phone_ts(when),
+                _worn_cell(device), _worn_cell(address),
+                # §∅ — an abstention is BLANK, never `0`. `worn_verdict` returns None when no detector
+                # was available or in domain, which is not the same claim as not-worn.
+                "" if worn is None else ("1" if worn else "0"),
+                _worn_cell(why), _worn_cell(trigger), _worn_cell(worn_votes_cell(votes)))) + "\n")
+        return True
+    except Exception:
+        return False
+
+
 def append_clock_sync_event(root, when: _dt.datetime, device, address, event: str,
                             skew_s: float | None = None, detail: str | None = None) -> bool:
     """Append ONE device clock-sync outcome to the night's own `CLOCKSYNC.csv` sidecar.
