@@ -205,7 +205,6 @@ def audit_night(night_dir: str, devices: list[dict], *, journal=read_journal) ->
         day = _dt.datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
     since, until = day - _dt.timedelta(hours=6), day + _dt.timedelta(hours=30)
     out: dict = {"night": night, "devices": {}, "journal": "read"}
-    journal_missing = False
     for d in devices:
         if not isinstance(d, dict):
             continue
@@ -228,7 +227,7 @@ def audit_night(night_dir: str, devices: list[dict], *, journal=read_journal) ->
         address = str(d.get("address") or "")
         ev = journal((name, address) if address else name, since, until)
         if ev is None:
-            journal_missing = True
+            out["journal"] = "unavailable — every gap is unattributed"
         by_cause = attribute(gaps, ev)
         lost = sum(by_cause.values())
         worn = _has_worn_evidence(night_dir, model)
@@ -244,8 +243,6 @@ def audit_night(night_dir: str, devices: list[dict], *, journal=read_journal) ->
             "worn_lost_min": round(lost, 1) if worn else (0.0 if worn is False else None),
             "daemon_caused_min": round(sum(v for k, v in by_cause.items() if k.startswith("daemon:")), 1),
         }
-    if journal_missing:
-        out["journal"] = "unavailable — every gap is unattributed"
     return out
 
 

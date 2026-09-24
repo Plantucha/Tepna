@@ -17189,6 +17189,46 @@
        all-clear from zero evidence.
        The vocabulary already existed in the same function: the `n < W + 2` guard returns
        'insufficient', and both consumers already map it to '—' / neutral. */
+    /* ── §∅ · AN UNDATED RECORDING EXPORTS AN EMPTY DATE, NOT 1970-01-01 ───────────────────────
+       `new Date(0)` renders "1970-01-01 00:00:00" — in-band, perfectly valid-looking, and sorted
+       before every real recording. The repo already settled this elsewhere WITH TESTS ("no recording
+       anchor ⇒ the timestamp is null, not 1970"; "null never coerces to a 1970 stamp"); ECGDex's two
+       CSV/text exports are what that pass did not reach. `exportRR` even contradicted itself — the
+       filename said `_undated` while every row inside carried a 1970-based absolute stamp.
+       The shape matters because it is a cross-node handoff, so this drives PulseDex's real parser
+       rather than trusting the format note. */
+    group('ECGDex §∅ — an undated export carries no date, and PulseDex still reads it', 'ecgdex-app · export · clock-absence', function (T) {
+      var R = String((env.sources || {})['ecgdex-app.js'] || '');
+      var P = (env.PulseDex && env.PulseDex._bare) || env.PulseDex;
+      if (!R) {
+        T.skip('ecgdex-app.js in env.sources', 'not wired in this lane');
+        return;
+      }
+      T.ok('ANTI-VACUITY · the app source loaded', R.length > 10000, R.length + ' chars');
+
+      if (P && typeof P.parseRRInput === 'function') {
+        var dated = ['Phone timestamp;RR-interval [ms]', '2026-06-17T01:00:00.000;850', '2026-06-17T01:00:00.850;860', '2026-06-17T01:00:01.710;870'].join('\n');
+        var undated = ['Phone timestamp;RR-interval [ms]', ';850', ';860', ';870'].join('\n');
+        var okD = P.parseRRInput(dated);
+        var okU = P.parseRRInput(undated);
+        /* CONTROL FIRST — a dated file must still parse with a real anchor, or the case below passes
+           for the wrong reason (a parser that reads nothing at all). */
+        T.eq('ANTI-VACUITY · a DATED handoff still parses its three intervals', okD && okD.vals && okD.vals.length, 3);
+        T.ok('…with a real anchor', okD && okD.t0Ms != null && isFinite(okD.t0Ms), JSON.stringify(okD && okD.t0Ms));
+
+        T.eq('an UNDATED handoff still yields its three intervals', okU && okU.vals && okU.vals.length, 3);
+        T.eq('…the RR values survive the empty stamp column', okU && okU.vals && okU.vals[0], 850);
+        T.ok('…and the anchor is ABSENT, not 1970', !okU || okU.t0Ms == null || !isFinite(okU.t0Ms), JSON.stringify(okU && okU.t0Ms));
+        T.eq('…because `new Date(0)` is a real-looking instant, not a refusal', new Date(0).getUTCFullYear(), 1970);
+      }
+
+      /* THE FIX, against the source — both exports are DOM/download-bound and not reachable headless. */
+      T.ok('the Welltory Date cell is empty when undated', /r\.t0Ms != null\s*\?[\s\S]{0,400}: ''/.test(R));
+      T.ok('the RR handoff writes an empty stamp when undated', /r\.t0Ms != null \? new Date\(r\.t0Ms \+ r\.tt\[i\] \* 1000\)[\s\S]{0,60}: ''/.test(R));
+      T.ok('no `t0Ms != null ? r.t0Ms : 0` sentinel survives', !/t0Ms != null \? r\.t0Ms : 0/.test(R));
+      T.ok('the filename already said "undated" — now the contents agree', /: 'undated'/.test(R));
+    });
+
     group('ECGDex §∅ — an AF screen with nothing to score says INSUFFICIENT, not no-af', 'ecgdex-morph · af-screen · absence', function (T) {
       var M = env.ECGMorph;
       if (!M || typeof M.afScreen !== 'function') {
@@ -22952,10 +22992,16 @@
           T.eq('a stampless recording threads t0Ms null (never a fabricated now())', stampless.t0Ms, null);
           T.eq('…and endEpochMs null with it', stampless.endEpochMs, null);
         }
-        T.ok(
-          'RR / Welltory-CSV exporters anchor an undated recording at 0, never now()',
-          !/r\.t0Ms\s*!=\s*null\s*\?\s*r\.t0Ms\s*:\s*_floatNow/.test(app) && /r\.t0Ms\s*!=\s*null\s*\?\s*r\.t0Ms\s*:\s*0/.test(app)
-        );
+        /* §∅ SUPERSEDED IN PART, 2026-09-23 — this assertion had two halves and only one of them
+           has survived. NEVER now() is the invariant FOLLOWUPS §1 earned when it retired
+           `_floatNow()`, and it is kept verbatim below. "Anchor at 0" was the other half, and 0 is
+           not a refusal: `new Date(0)` renders "1970-01-01 00:00:00", an in-band instant a consumer
+           reads as the recording's date and sorts before every real one. The exporters now emit an
+           EMPTY stamp, which is what the rest of the repo already settled ("no recording anchor ⇒
+           the timestamp is null, not 1970"). The never-now() half is what this test was written to
+           protect, and it still does. */
+        T.ok('RR / Welltory-CSV exporters never fabricate a now() anchor', !/r\.t0Ms\s*!=\s*null\s*\?\s*r\.t0Ms\s*:\s*_floatNow/.test(app) && !/_floatNow/.test(app));
+        T.ok('…and an undated recording exports an EMPTY stamp, not a 1970 one', !/r\.t0Ms\s*!=\s*null\s*\?\s*r\.t0Ms\s*:\s*0/.test(app) && /: ''/.test(app));
       }
     });
 
