@@ -414,9 +414,11 @@ def timebase(night_dir: str, model: str, primaries: list[str], start, end) -> di
     span_s = res[-1][0] - res[0][0]
     if span_s <= 0:
         return _decision("UNKNOWN", f"`{who}` anchors span no time")
-    half = TB_WIN // 2
-    lead = _median(vals[: TB_WIN]) if len(vals) >= TB_WIN else _median(vals[: max(1, half)])
-    tailv = _median(vals[-TB_WIN:]) if len(vals) >= TB_WIN else _median(vals[-max(1, half) :])
+    # No short-list fallback: a slice is already the whole list when the list is shorter, so the
+    # conditional it used to carry was unreachable weight — and every mutation of that dead branch
+    # survived the suite, which is how the mutation gate surfaced it.
+    lead = _median(vals[:TB_WIN])
+    tailv = _median(vals[-TB_WIN:])
     ppm = (tailv - lead) / 1000.0 / span_s * 1e6
     if abs(ppm) >= TB_MAX_PPM:
         return _decision("FAIL", f"`{who}` host-vs-device rate {ppm:+.0f} ppm over {span_s / 60:.0f} min — beyond the plausibility bound, so the two columns are not the two clocks")
