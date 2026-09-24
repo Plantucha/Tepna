@@ -24,14 +24,19 @@ reason — the verdict contract would refuse a PASS over `checked: 0` anyway, an
 from __future__ import annotations
 
 import datetime as _dt
+import json
+import os
 from typing import Any
 
+import solid_night_inputs as _inputs
 import verdict as _v
 
 GATE = "solid-night"
 TOOL = "capture-host/solid_night.py"
 NOT_SETTLED = "not settled"
 EXIT_SOLID = 14
+VERDICT_NAME = "SOLID-VERDICT.json"
+NO_VERDICT = "no solid-night verdict was written for this settled night"
 CRITERION = {
     "name": "failing band decisions across the night's scored devices (SOLID-NIGHT §3.4)",
     "threshold": 0,
@@ -162,3 +167,92 @@ def consecutive(nights: list[tuple[str, str, str | None]]) -> dict:
         "exit": solid >= EXIT_SOLID,
         "statement": f"{solid} solid of {span_nights} nights over {days} days",
     }
+
+
+def night_verdict(night_dir: str, devices: list, *, commit: str | None = None, at: str | None = None) -> dict:
+    """A SETTLED night's verdict, its band decisions supplied from the files beside it (`solid_night_inputs`).
+
+    Only ever called for a settled night: the caller runs on the loss audit's own trigger, which fires once
+    night N+1 has begun (§2's settle trigger), so `settled` is True by construction here."""
+    return compose(
+        night=os.path.basename(night_dir.rstrip("/")),
+        settled=True,
+        devices=_inputs.score_devices(night_dir, devices),
+        evidence=[TOOL, "capture-host/solid_night_inputs.py", os.path.join(night_dir, _inputs.LOSS_AUDIT_NAME)],
+        commit=commit,
+        at=at,
+    )
+
+
+def history(captures_dir: str, nights: list[str], active: set[str]) -> list[tuple[str, str, str | None]]:
+    """`(night, status, reason)` for `consecutive`, from each night's written verdict.
+
+    The run starts at the first night that HAS a verdict — nights before the programme are not nights it
+    failed. After that, a settled night with no verdict is UNKNOWN (it was not assessed, so it cannot bridge
+    a run — §3.1), and a still-active night is `not settled`."""
+    out: list[tuple[str, str, str | None]] = []
+    for night in sorted(nights):
+        if night in active:
+            if out:
+                out.append((night, "UNKNOWN", NOT_SETTLED))
+            continue
+        v = _inputs.read_json(os.path.join(captures_dir, night, VERDICT_NAME))
+        if v is None:
+            if out:
+                out.append((night, "UNKNOWN", NO_VERDICT))
+            continue
+        out.append((night, str(v.get("status")), v.get("reason")))
+    return out
+
+
+def write_night(
+    night_dir: str, devices: list, *, nights: list[str], active: set[str], commit: str | None = None
+) -> tuple[dict, dict]:
+    """Write the night's verdict beside its loss audit, with the run AS OF this night in `result.run` — the
+    owner's exit counter, "S solid of N nights over D days" (§3.1). Returns `(verdict, run)` — the run
+    separately, because a NOT_APPLICABLE verdict carries `result: null` by contract and has nowhere to hold it."""
+    obj = night_verdict(night_dir, devices, commit=commit)
+    captures = os.path.dirname(night_dir.rstrip("/"))
+    night = os.path.basename(night_dir.rstrip("/"))
+    past = [n for n in history(captures, nights, active) if n[0] < night]
+    run = consecutive([*past, (night, obj["status"], obj["reason"])])
+    if obj.get("result") is not None:
+        obj["result"]["run"] = run
+    _v.validate(obj)
+    tmp = os.path.join(night_dir, VERDICT_NAME + ".tmp")
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump(obj, fh, indent=1)
+    os.replace(tmp, os.path.join(night_dir, VERDICT_NAME))
+    return obj, run
+
+
+def sample_object() -> dict:
+    """Corpus-free emission for the adoption gate: a synthetic CLEAN H10 night laid out as the box writes one.
+    Continuity, completeness, validity and clocks all PASS from their real inputs; the night is still
+    UNKNOWN, because the timebase term names the residual pass it waits for — exactly what a real night
+    reads until that lands."""
+    import tempfile
+
+    base = "Polar_H10_SAMPLE_20260101220000"
+    t0 = _dt.datetime(2026, 1, 1, 22, 0, 0)
+    with tempfile.TemporaryDirectory() as d:
+        night = os.path.join(d, "2026-01-01")
+        os.makedirs(night)
+
+        def put(name: str, text: str) -> None:
+            with open(os.path.join(night, name), "w", encoding="utf-8") as fh:
+                fh.write(text)
+
+        rows = [f"{(t0 + _dt.timedelta(seconds=i / 2)).isoformat(timespec='milliseconds')};{i};{i};100" for i in range(401)]
+        put(f"{base}_ECG.txt", "Phone timestamp;sensor timestamp [ns];timestamp [ms];ecg [uV]\n" + "\n".join(rows) + "\n")
+        put(f"{base}_ECGSEAMS.txt", "# pmd stream=ecg negotiated=yes rate=2 offered=2\n# final stream=ecg seams=0 examined=401\n")
+        put(f"{base}_ECGRUNS.txt", "# stream=ecg rule=stuck min_run=30\n")
+        put(
+            _inputs.LOSS_AUDIT_NAME,
+            json.dumps({"journal": "read", "devices": {"Polar H10 SAMPLE": {
+                "file": f"{base}_ECG.txt",
+                "gaps": [],
+                "wear": {"available": True, "worn_end": {"at": "2026-01-01T22:03:00", "reason": "doff"}},
+            }}}),
+        )
+        return night_verdict(night, [{"name": "Polar H10 SAMPLE", "model": "H10"}])
