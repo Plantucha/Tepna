@@ -3078,7 +3078,32 @@
     let morph = null;
     if (global.ECGMorph) {
       try {
-        morph = global.ECGMorph.analyze(int16, bp, fs, refIdx, rr, Array.from(sqi));
+        /* ∅ THE ARTIFACT GATE THAT CLEANS HRV MUST REACH ECTOPY TOO. `beatConfidence` at :2791
+           exists for exactly this case — its own comment: "a burst of spurious detections passes
+           SQI≥0.30 INDIVIDUALLY yet is collectively nonsense … c<0.5 = confirmed artifact ⇒ drop, so
+           it no longer inflates RMSSD/SDNN/epochs". The HRV path consults `_conf`; this call passed
+           raw `sqi` and never did, so an empty strap was classified beat by beat.
+           Found by Wren on the owner's 2026-09-22 night: 2,766 of 2,767 PVCs sit in the window where
+           the H10 was off the body — 42 ventricular runs and bigeminy 396 from a strap on a table.
+           `artifactSec` 6148 s = 102.5 min against an independently measured off-body window of
+           102.2 min, so `_conf` already identified the right seconds and nothing consumed them here.
+           Masking to 0 puts those beats below the classifier's SQI floor: they are not typed as
+           ectopic, and (with the 'U' state below) they leave the burden denominator instead of
+           diluting it. Both halves are required — the denominator fix ALONE moves this night
+           7.93 % → 11.69 %, because it shrinks the denominator while the artifact numerator stands. */
+        const _t0c = rec.t0Ms || 0;
+        const _sqiMorph = Array.from(sqi);
+        let _maskedBeats = 0;
+        for (let k = 0; k < _sqiMorph.length && k < peaks.length; k++) {
+          const _s = Math.floor((_t0c + (peaks[k] / fs) * 1000) / 1000);
+          const _c = _conf.has(_s) ? _conf.get(_s) : 1;
+          if (_c < 0.5) {
+            _sqiMorph[k] = 0;
+            _maskedBeats++;
+          }
+        }
+        morph = global.ECGMorph.analyze(int16, bp, fs, refIdx, rr, _sqiMorph);
+        if (morph) morph.beatsArtifactMasked = _maskedBeats;
       } catch (e) {
         morph = null;
       }
