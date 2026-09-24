@@ -409,18 +409,43 @@ window.evBadge = evBadge;
       ymx = opts.ymx != null ? opts.ymx : -Infinity,
       xmn = Infinity,
       xmx = -Infinity;
+    /* §∅ — A NULL IS A GAP, NOT A ZERO. Absent samples now reach this helper (the CVHR series marks
+       the seconds inside a beat dropout), and every arm below had to learn it at once: `null < ymn`
+       coerces to `0 < ymn` and would drag the domain to zero, and `sy(null)` renders the literal
+       `LNaN NaN` into the path, which silently voids the whole SVG. Non-finite points are excluded
+       from the domain and BREAK the path, so a dropout draws as a gap rather than as a straight line
+       ruled across it — a line between two real samples an hour apart is a claim about the hour. */
+    let anyY = false;
     for (const p of pts) {
-      if (opts.ymn == null && p.y < ymn) ymn = p.y;
-      if (opts.ymx == null && p.y > ymx) ymx = p.y;
+      if (Number.isFinite(p.y)) {
+        anyY = true;
+        if (opts.ymn == null && p.y < ymn) ymn = p.y;
+        if (opts.ymx == null && p.y > ymx) ymx = p.y;
+      }
       if (p.x < xmn) xmn = p.x;
       if (p.x > xmx) xmx = p.x;
     }
+    if (!anyY) return '';
     if (ymx === ymn) ymx = ymn + 1;
     if (xmx === xmn) xmx = xmn + 1;
     const sx = (x) => P.l + ((x - xmn) / (xmx - xmn)) * (W - P.l - P.r);
     const sy = (y) => H - P.b - ((y - ymn) / (ymx - ymn)) * (H - P.t - P.b);
-    const line = pts.map((p, k) => (k ? 'L' : 'M') + sx(p.x).toFixed(1) + ' ' + sy(p.y).toFixed(1)).join(' ');
-    const area = `M${sx(pts[0].x).toFixed(1)} ${H - P.b} ` + pts.map((p) => 'L' + sx(p.x).toFixed(1) + ' ' + sy(p.y).toFixed(1)).join(' ') + ` L${sx(pts[n - 1].x).toFixed(1)} ${H - P.b} Z`;
+    /* One subpath per CONTIGUOUS run of finite samples — the line lifts across a gap and the area
+       fill closes at the gap's edges instead of spanning it. */
+    const runs = [];
+    let cur = [];
+    for (const p of pts) {
+      if (Number.isFinite(p.y)) cur.push(p);
+      else if (cur.length) {
+        runs.push(cur);
+        cur = [];
+      }
+    }
+    if (cur.length) runs.push(cur);
+    const line = runs.map((r) => r.map((p, k) => (k ? 'L' : 'M') + sx(p.x).toFixed(1) + ' ' + sy(p.y).toFixed(1)).join(' ')).join(' ');
+    const area = runs
+      .map((r) => `M${sx(r[0].x).toFixed(1)} ${H - P.b} ` + r.map((p) => 'L' + sx(p.x).toFixed(1) + ' ' + sy(p.y).toFixed(1)).join(' ') + ` L${sx(r[r.length - 1].x).toFixed(1)} ${H - P.b} Z`)
+      .join(' ');
     const xt = [];
     const xstep = (xmx - xmn) / 5;
     for (let i = 0; i <= 5; i++) xt.push(xmn + i * xstep);

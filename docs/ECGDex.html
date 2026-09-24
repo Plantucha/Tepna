@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="1009b5c20aab" data-compute-hash="a7a96378bb40">
+<html lang="en" data-manifest-hash="1ec5404639f6" data-compute-hash="1dada79f45d9">
 <head>
 <!--
   ECGDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+9D55WVzbDEo+NFobRHGpgzLjOctIxv5faJH6AFRjDI=' 'sha256-+DMxKj19C+r2oJ2mME0Wfi50h62Tqn+Adk/bA3XjY0I=' 'sha256-/b9Ty7sct7IZSflzeAYsdGJ90rYCMoXabF1e68y+EfI=' 'sha256-/wALRR+h/gyk6XFvPY4hQRWTp/tvOxC7guCJG7StnEc=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3bPuedJeHqlAtFRw9XCQUY2RL6IBWMfwvh6D9DWEXUc=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-E8qFHEt2A6a/g3xPUBa8iqmzqmNG2VpjPKUOtnJNDh0=' 'sha256-En5BnuJSrtGOQBjOAV0zmA/L43X1TvIisTxD5fCA3Bs=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-IgKf+YEi7LmrdT3D04V12zZGeSw0FDC163m2Yj3NmLM=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-b+hR2i2ViyedwmAqqTitKUOQmoT7nrMmSb+ENDSMNws=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+9D55WVzbDEo+NFobRHGpgzLjOctIxv5faJH6AFRjDI=' 'sha256-+DMxKj19C+r2oJ2mME0Wfi50h62Tqn+Adk/bA3XjY0I=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3bPuedJeHqlAtFRw9XCQUY2RL6IBWMfwvh6D9DWEXUc=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-E8qFHEt2A6a/g3xPUBa8iqmzqmNG2VpjPKUOtnJNDh0=' 'sha256-En5BnuJSrtGOQBjOAV0zmA/L43X1TvIisTxD5fCA3Bs=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-HQmpxoKi3JipnqVIPvKd9Uw9+OuY/5r26p/emwRO4nk=' 'sha256-IgKf+YEi7LmrdT3D04V12zZGeSw0FDC163m2Yj3NmLM=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-b+hR2i2ViyedwmAqqTitKUOQmoT7nrMmSb+ENDSMNws=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-i+z0AlUCRGianGoRVvNN1uy9CkmbqDOaXxtm8sIseJA='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>ECGDex — Raw ECG Analyzer · v2.14.0</title>
@@ -10867,7 +10867,19 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
   // `activeSec` (OPTIONAL, added LAST for back-compat per CLAUDE.md §🧪) is the beat-COVERED time
   // the caller measured (nnRes.activeSec — inter-beat deltas ≤ GAP_S summed); when it is > 0 it is
   // the index denominator instead of the wall span. See the "events per hour" comment at the bottom.
-  function detectCVHR(nn, tt, activeSec) {
+  /* §∅ — THE CVHR SCREEN IS NOT EXEMPT EITHER. `spansGap` is the mask analyze() already builds: 1
+     where an interval straddles a >GAP_S dropout, i.e. real time passed with no beat. buildNN marks
+     it and excludes those intervals from the successive-difference statistics; `epochEngine` takes
+     it as a parameter and skips them ("THE EPOCH IS NOT EXEMPT", :1672). This function resampled the
+     SAME intervals onto a 1 Hz grid and never asked.
+     The resample walks beats, so every second inside a dropout keeps the last pre-gap interval —
+     `hr[s] = 60000 / nn[j]` with `j` frozen. A five-minute strap-off therefore produced 300 seconds
+     of invented, perfectly constant HR, which `hrSeries` exports and the CVHR card draws as a flat
+     measured line. Reduced coverage ANNOTATES (§∅ 2026-09-17): the seconds are marked absent in the
+     exported series, events landing on them are not counted, and `coveredSec` is published.
+     `spansGap` is OPTIONAL and LAST so every existing caller keeps working (§🧪); without it the
+     mask is all-covered and behaviour is exactly as before. */
+  function detectCVHR(nn, tt, activeSec, spansGap) {
     const N = nn.length;
     /* REFUSE (§2.6). `index: 0` IS the exported `cvhrIndex`, and 0 reads as "we looked for cyclic
        variation and there was none" — a clinically meaningful negative — when the truth is that
@@ -10892,11 +10904,26 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
        for cyclic variation and found none", the exact fabricated negative §2.6 forbids. */
     if (!isFinite(tEnd) || tEnd > CVHR_MAX_SPAN_S) return { events: [], index: null, hrSeries: [], reason: 'implausible-span' };
     const hr = new Float64Array(M);
+    /* `covered[s]` is 0 where the interval serving second `s` straddles a dropout. `hr` KEEPS the
+       held value: the band-pass below is a chain of moving averages and a null there would poison
+       every window it touches, which is a worse answer than a flat stretch that produces no event.
+       The fabrication is contained instead — excluded from the exported series and from the event
+       count — which is the same shape buildNN chose for `spansGap` ("neither fill it better nor
+       drop it; the raw value is the honest one — mark it"). */
+    const covered = new Uint8Array(M);
     let j = 0;
     for (let s = 0; s < M; s++) {
       while (j < N - 1 && tt[j + 1] < s) j++;
-      hr[s] = 60000 / nn[Math.min(j, N - 1)];
+      const k = Math.min(j, N - 1);
+      hr[s] = 60000 / nn[k];
+      /* `spansGap` is nn-ALIGNED and marks the interval ENDING at beat k (buildNN:
+         `if (times[k] - times[k-1] > GAP_S) spansGap[k] = 1`). Second `s` sits between beats j and
+         j+1, so the entry that describes it is `spansGap[j + 1]`, not `spansGap[j]` — indexing the
+         pre-gap beat would have marked the dropout COVERED and left the fix inert. */
+      covered[s] = spansGap && spansGap[Math.min(j + 1, N - 1)] ? 0 : 1;
     }
+    let coveredSec = 0;
+    for (let s = 0; s < M; s++) coveredSec += covered[s];
     // smooth (5 s) for the display series
     const sm = new Float64Array(M);
     for (let s = 0; s < M; s++) {
@@ -10961,6 +10988,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     const events = [];
     let lastT = -100;
     for (let s = 8; s < M - 8; s++) {
+      if (!covered[s]) continue; // §∅ — a dropout's held HR is not a measurement to detect a surge in
       if (env[s] < ENV_ON) continue; // not a sustained oscillation → skip (rejects sporadic LF)
       if (res[s] < res[s - 1] && res[s] <= res[s + 1] && res[s] < -2.4) {
         let pk = -Infinity,
@@ -10992,7 +11020,16 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     const denomSec = activeSec > 0 ? activeSec : tEnd;
     const hours = denomSec / 3600;
     const index = hours > 0 ? +(events.length / hours).toFixed(1) : 0;
-    return { events, index, hrSeries: Array.from(sm), resSeries: Array.from(res), M, denomSec };
+    /* §∅ — the EXPORTED series carries the absence. A held stretch is indistinguishable from a
+       measured steady HR once it is a number in an array, and the CVHR card draws it with
+       `UI.lineChart`, so the chart is where the fabrication reached a reader. `null` there, and
+       `lineChart` breaks the path rather than ruling a line across the gap.
+       ⚠️ LIMIT, STATED: the ±2 s smoothing window means the two seconds either side of a gap still
+       mix held and measured samples. Nulling those too would widen every gap by 4 s on the display;
+       the boundary contamination is bounded and named instead. */
+    const hrOut = new Array(M);
+    for (let s = 0; s < M; s++) hrOut[s] = covered[s] ? sm[s] : null;
+    return { events, index, hrSeries: hrOut, resSeries: Array.from(res), M, denomSec, coveredSec };
   }
 
   // ════════════════════════════════════════════════════════════════════════
@@ -11696,7 +11733,9 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
 
     prog(92, 'CVHR / apnea detection…');
     // Denominator = the same ACTIVE seconds `durSec` is built from (F3): dead time is not observed time.
-    const cvhrRaw = detectCVHR(nn, tt, nnRes.activeSec);
+    /* §∅ — `nnRes.spansGap` was already on hand here and simply not passed; `epochEngine` takes
+       the same mask a thousand lines up. */
+    const cvhrRaw = detectCVHR(nn, tt, nnRes.activeSec, nnRes.spansGap);
     // MOTION BEFORE STAGING (see epochMotion). The chest ACC is parsed and on hand here; computing
     // it after the stager — as this did — is what left the classifier blind to the one feature that
     // most improves it.
@@ -15807,18 +15846,43 @@ window.evBadge = evBadge;
       ymx = opts.ymx != null ? opts.ymx : -Infinity,
       xmn = Infinity,
       xmx = -Infinity;
+    /* §∅ — A NULL IS A GAP, NOT A ZERO. Absent samples now reach this helper (the CVHR series marks
+       the seconds inside a beat dropout), and every arm below had to learn it at once: `null < ymn`
+       coerces to `0 < ymn` and would drag the domain to zero, and `sy(null)` renders the literal
+       `LNaN NaN` into the path, which silently voids the whole SVG. Non-finite points are excluded
+       from the domain and BREAK the path, so a dropout draws as a gap rather than as a straight line
+       ruled across it — a line between two real samples an hour apart is a claim about the hour. */
+    let anyY = false;
     for (const p of pts) {
-      if (opts.ymn == null && p.y < ymn) ymn = p.y;
-      if (opts.ymx == null && p.y > ymx) ymx = p.y;
+      if (Number.isFinite(p.y)) {
+        anyY = true;
+        if (opts.ymn == null && p.y < ymn) ymn = p.y;
+        if (opts.ymx == null && p.y > ymx) ymx = p.y;
+      }
       if (p.x < xmn) xmn = p.x;
       if (p.x > xmx) xmx = p.x;
     }
+    if (!anyY) return '';
     if (ymx === ymn) ymx = ymn + 1;
     if (xmx === xmn) xmx = xmn + 1;
     const sx = (x) => P.l + ((x - xmn) / (xmx - xmn)) * (W - P.l - P.r);
     const sy = (y) => H - P.b - ((y - ymn) / (ymx - ymn)) * (H - P.t - P.b);
-    const line = pts.map((p, k) => (k ? 'L' : 'M') + sx(p.x).toFixed(1) + ' ' + sy(p.y).toFixed(1)).join(' ');
-    const area = `M${sx(pts[0].x).toFixed(1)} ${H - P.b} ` + pts.map((p) => 'L' + sx(p.x).toFixed(1) + ' ' + sy(p.y).toFixed(1)).join(' ') + ` L${sx(pts[n - 1].x).toFixed(1)} ${H - P.b} Z`;
+    /* One subpath per CONTIGUOUS run of finite samples — the line lifts across a gap and the area
+       fill closes at the gap's edges instead of spanning it. */
+    const runs = [];
+    let cur = [];
+    for (const p of pts) {
+      if (Number.isFinite(p.y)) cur.push(p);
+      else if (cur.length) {
+        runs.push(cur);
+        cur = [];
+      }
+    }
+    if (cur.length) runs.push(cur);
+    const line = runs.map((r) => r.map((p, k) => (k ? 'L' : 'M') + sx(p.x).toFixed(1) + ' ' + sy(p.y).toFixed(1)).join(' ')).join(' ');
+    const area = runs
+      .map((r) => `M${sx(r[0].x).toFixed(1)} ${H - P.b} ` + r.map((p) => 'L' + sx(p.x).toFixed(1) + ' ' + sy(p.y).toFixed(1)).join(' ') + ` L${sx(r[r.length - 1].x).toFixed(1)} ${H - P.b} Z`)
+      .join(' ');
     const xt = [];
     const xstep = (xmx - xmn) / 5;
     for (let i = 0; i <= 5; i++) xt.push(xmn + i * xstep);
