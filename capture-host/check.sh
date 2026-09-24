@@ -30,6 +30,23 @@ if [ -z "$PY" ]; then
   if [ -x .venv/bin/python ]; then PY=.venv/bin/python; else PY=python3; fi
 fi
 
+# ── the per-test bound ────────────────────────────────────────────────────────────────────────────
+# A HANG HAS NO VERDICT, and that is its whole danger. Measured 2026-09-24: a check.sh run for a PR
+# that had already merged sat at 99 % CPU for FOUR HOURS and was killed by something else — no exit
+# code, no failing test, nothing to read. It is indistinguishable from a slow gate (§4c), and the
+# suite is slow enough that nobody looks. A per-test bound converts that into one named FAILED test.
+# Measured on main 2026-09-24 (8314 tests, `-n 4`, 7m54s): the SLOWEST single test is 31.98 s
+# (`test_find_unwired.py::test_the_report_is_ADVISORY_and_always_exits_zero`), then 31.07 s and a
+# cluster of 18–28 s in `test_probe_opcode_sweeps.py` — those are deliberate real sleeps, not CPU.
+# ⚠️ MEASURE IT THE WAY THE GATE RUNS IT. Those figures are `--no-cov`; the gate runs WITH coverage
+# instrumentation, and the same worst test is then 36.99 s (+16 %). A bound derived from the faster
+# configuration is a bound derived from a run nobody performs. 180 s is 4.9x the 36.99 s figure. The bound is DELIBERATELY loose: the quantity it exists to catch
+# was FOUR HOURS, i.e. 80x the bound, so precision buys nothing while headroom buys the one thing that
+# matters — it cannot convict a working test on a contended box, which is the only way this change
+# could make the gate worse. Raise it here if the suite grows a legitimately slower test; do not
+# lower it to make a hang fail sooner.
+PYTEST_TIMEOUT_S="${PYTEST_TIMEOUT_S:-180}"
+
 names=(); codes=()
 run_gate() {                        # run_gate <label> <cmd...>
   local label="$1"; shift
@@ -58,7 +75,18 @@ run_gate "shellcheck" "$SC" --severity=style "${sh_files[@]}"
 # combines the workers' data itself. A venv without the plugin still runs the identical gate serially
 # rather than failing on an unknown flag: absence of a speed-up is not absence of a gate.
 XDIST=(); "$PY" -c 'import xdist' 2>/dev/null && XDIST=(-n auto)
-run_gate "pytest"     "$PY" -m pytest -q --cov --cov-branch --cov-fail-under=100 "${XDIST[@]}"
+# ⚠️ THE SAME "when present" SHAPE AS XDIST, WITH THE OPPOSITE HONESTY REQUIREMENT. A venv without
+# xdist runs the identical gate slower, so silence there is true. A venv without pytest-timeout runs
+# it WITH NO BOUND — absence of the plugin is absence of a guard, not absence of a speed-up — so the
+# absence is ANNOUNCED. A guard that is missing and says nothing is the thing this bound is for.
+TMO=()
+if "$PY" -c 'import pytest_timeout' 2>/dev/null; then
+  TMO=(--timeout="$PYTEST_TIMEOUT_S")
+else
+  printf '  \033[33m⚠ pytest-timeout ABSENT — NO per-test bound; a hang here produces no verdict\033[0m\n'
+  printf '    install it: %s -m pip install -r requirements-dev.txt\n' "$PY"
+fi
+run_gate "pytest"     "$PY" -m pytest -q --cov --cov-branch --cov-fail-under=100 "${XDIST[@]}" "${TMO[@]}"
 # Machinery that exists, is tested, and is connected to NOTHING — the sibling of "a check that reports
 # success about something it never examined". No other gate can see it: every instance HAS passing
 # tests, and the tests call the function directly, which is exactly the wiring production lacks. Seconds,
