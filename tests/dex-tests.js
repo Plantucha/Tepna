@@ -52337,8 +52337,17 @@
       var m = res && res.measurement;
       T.ok('the export carries a recording-level `measurement` map', !!m && typeof m === 'object', m ? Object.keys(m).join(',') : 'absent');
       if (!m) return;
-      var IDS = ['hr', 'rmssd', 'sdnn'];
-      T.eq('exactly the three whole-record HRV metrics, keyed by registry id', Object.keys(m).sort().join(','), IDS.slice().sort().join(','));
+      /* RECONCILED, deliberately. This pinned THREE whole-record HRV metrics, which was the true
+         shape until the ectopy figures were selected into the export. They were computed, rendered
+         and carried through the reshape into NOTHING, so `pvcBurden`/`ectopyBurden` reached no
+         golden and no regeneration could move them — which is why the artifact-gate defect of #3002
+         (2,767 PVCs from a strap lying off the body, on the owner's own night) could not have
+         reddened anything, before it or after the fix.
+         The ids are the REGISTRY's: `ectopy` is its burden metric and `pvc` its count in beats. The
+         resolver leg below is what proves that — it reports 5/0, so all five resolve; an invented
+         `pvcBurden` would have shown up as unresolved. */
+      var IDS = ['hr', 'rmssd', 'sdnn', 'ectopy', 'pvc'];
+      T.eq('exactly the five recording-level metrics, keyed by registry id', Object.keys(m).sort().join(','), IDS.slice().sort().join(','));
       var LEGS = ['metricId resolves', 'window', 'code identity', 'evidence join', 'basis'];
       IDS.forEach(function (id) {
         var b = m[id];
@@ -52388,7 +52397,7 @@
       // the LIGHT export carries it too — lineage is not rich-only, and the Integrator reads the light one
       var light = ED.compute({ text: input }, { code: CODE });
       T.ok(
-        'the LIGHT export carries the same three blocks',
+        'the LIGHT export carries the same five blocks',
         !!light.measurement && Object.keys(light.measurement).sort().join(',') === IDS.slice().sort().join(','),
         light.measurement ? Object.keys(light.measurement).join(',') : 'absent'
       );
@@ -52791,7 +52800,7 @@
         var M = rec.measurements;
         T.ok('rec.measurements present', !!M && !!M.blocks, M ? Object.keys(M.blocks || {}).join(',') : 'absent');
         if (!M) return;
-        T.eq('three blocks consumed, all RESOLVED, none unresolved', M.resolved + '/' + M.unresolved, '3/0');
+        T.eq('five blocks consumed, all RESOLVED, none unresolved — an invented metricId would show here', M.resolved + '/' + M.unresolved, '5/0');
         T.eq('summary.rmssd (the consensus axis) ≡ the rmssd block value — the scalar walks back', rec.summary.rmssd, M.blocks.rmssd.value);
         T.eq('summary.sdnn ≡ the sdnn block value', rec.summary.sdnn, M.blocks.sdnn.value);
         T.eq('the ref carries the input join (= recording.contentId)', M.blocks.rmssd.evidence.inputHash, rec.contentId);
@@ -52799,7 +52808,7 @@
         var card = BE(r.recs, RF(r.recs, {})).nodes[0];
         T.ok(
           'fusion export node card carries the consumed refs',
-          !!card && !!card.measurements && card.measurements.resolved === 3,
+          !!card && !!card.measurements && card.measurements.resolved === 5,
           card ? JSON.stringify(card.measurements && { resolved: card.measurements.resolved }) : 'no card'
         );
         // the LIGHT export: no hrv block → no scalars to disagree with; the block's own legs still resolve
@@ -52807,8 +52816,8 @@
         var rl = NF(JSON.parse(JSON.stringify(light)), 'ecg-light.json');
         var recL = rl && rl.recs && rl.recs[0];
         T.ok(
-          'the LIGHT export also adapts with its blocks resolved 3/0',
-          !!recL && !!recL.measurements && recL.measurements.resolved === 3 && recL.measurements.unresolved === 0,
+          'the LIGHT export also adapts with its blocks resolved 5/0',
+          !!recL && !!recL.measurements && recL.measurements.resolved === 5 && recL.measurements.unresolved === 0,
           recL && recL.measurements ? JSON.stringify(recL.measurements.blocks.rmssd) : 'no measurements'
         );
         // legacy tolerance
@@ -52823,8 +52832,8 @@
         p1.measurement.rmssd.evidence.inputHash = 'deadbeef0000';
         var m1 = NF(p1, 'ecg-p1.json').recs[0].measurements;
         T.ok(
-          'PLANT · inputHash ≠ recording.contentId → rmssd unresolved naming the contentId, the other two resolved',
-          m1.blocks.rmssd.provenance === 'unresolved' && /different input/.test(m1.blocks.rmssd.unresolvedReason) && m1.resolved === 2,
+          'PLANT · inputHash ≠ recording.contentId → rmssd unresolved naming the contentId, the other four resolved',
+          m1.blocks.rmssd.provenance === 'unresolved' && /different input/.test(m1.blocks.rmssd.unresolvedReason) && m1.resolved === 4,
           m1.blocks.rmssd.unresolvedReason
         );
         var p2 = JSON.parse(JSON.stringify(rich));

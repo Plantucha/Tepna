@@ -80,8 +80,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "6e24d87e6f33",
-        "computeHash": "0d85603634fe"
+        "manifestHash": "1009b5c20aab",
+        "computeHash": "a7a96378bb40"
       },
       "evidence": {
         "envelopeRef": null,
@@ -110,8 +110,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "6e24d87e6f33",
-        "computeHash": "0d85603634fe"
+        "manifestHash": "1009b5c20aab",
+        "computeHash": "a7a96378bb40"
       },
       "evidence": {
         "envelopeRef": null,
@@ -140,8 +140,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "6e24d87e6f33",
-        "computeHash": "0d85603634fe"
+        "manifestHash": "1009b5c20aab",
+        "computeHash": "a7a96378bb40"
       },
       "evidence": {
         "envelopeRef": null,
@@ -154,6 +154,70 @@
         "durationMin": 1,
         "analyzablePct": 28.7,
         "coveragePct": 28.7
+      },
+      "uncertainty": null,
+      "uncertaintyReason": "not estimated — this node carries no uncertainty model for whole-record HRV summaries (the firmware cross-check in `validation` is a comparison, not an interval)"
+    },
+    "ectopy": {
+      "metricId": "ectopy",
+      "value": 0,
+      "window": {
+        "startTMs": 1781658377723,
+        "endTMs": 1781658437815,
+        "clockDomain": "device",
+        "timingSource": "device",
+        "spreadMs": 0.9232177734375
+      },
+      "sourceChannel": "H10:ecg",
+      "code": {
+        "manifestHash": "1009b5c20aab",
+        "computeHash": "a7a96378bb40"
+      },
+      "evidence": {
+        "envelopeRef": null,
+        "inputHash": "2fb3200d4319",
+        "envelopeReason": "no acquisition envelope joins the ECG path — the capture-host envelope keys on the O2Ring .dat session_id; the H10 stream carries none"
+      },
+      "basis": "derived",
+      "quality": {
+        "n": 20,
+        "durationMin": 1,
+        "analyzablePct": 28.7,
+        "coveragePct": 28.7,
+        "unassessedBeats": 0,
+        "artifactMaskedBeats": 0
+      },
+      "uncertainty": null,
+      "uncertaintyReason": "not estimated — this node carries no uncertainty model for whole-record HRV summaries (the firmware cross-check in `validation` is a comparison, not an interval)"
+    },
+    "pvc": {
+      "metricId": "pvc",
+      "value": 0,
+      "window": {
+        "startTMs": 1781658377723,
+        "endTMs": 1781658437815,
+        "clockDomain": "device",
+        "timingSource": "device",
+        "spreadMs": 0.9232177734375
+      },
+      "sourceChannel": "H10:ecg",
+      "code": {
+        "manifestHash": "1009b5c20aab",
+        "computeHash": "a7a96378bb40"
+      },
+      "evidence": {
+        "envelopeRef": null,
+        "inputHash": "2fb3200d4319",
+        "envelopeReason": "no acquisition envelope joins the ECG path — the capture-host envelope keys on the O2Ring .dat session_id; the H10 stream carries none"
+      },
+      "basis": "derived",
+      "quality": {
+        "n": 20,
+        "durationMin": 1,
+        "analyzablePct": 28.7,
+        "coveragePct": 28.7,
+        "unassessedBeats": 0,
+        "artifactMaskedBeats": 0
       },
       "uncertainty": null,
       "uncertaintyReason": "not estimated — this node carries no uncertainty model for whole-record HRV summaries (the firmware cross-check in `validation` is a comparison, not an interval)"
