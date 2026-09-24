@@ -176,7 +176,13 @@ ALLOW_PROVENANCE: dict[str, str] = {
 }
 
 ALLOW_FUNCS = {
-    "precedence_table_md": "telemetry — CAPTURE-LOSS-PRECEDENCE-AUDIT R3's doc gate is its consumer: the "
+    "compose": "solid_night — the SOLID-NIGHT verdict's per-night composition (SOLID-NIGHT-2026-09-23-BRIEF "
+    "§3.1). PENDING the same NAMED consumer as its module entry in ALLOW_MODULES: the QC poller's child "
+    "in nightqc.py (#2936), once the band suppliers are wired. Retire with that entry. Its sibling "
+    "`consecutive` is EQUALLY unwired but is not flagged here: this scan matches bare names and "
+    "'consecutive' is an ordinary word in alerts.py, bluez_wedge.py and others — a false negative of the "
+    "scan, not a consumer. It cannot be allowlisted without tripping the stale-allowlist scan",
+    "precedence_table_md":"telemetry — CAPTURE-LOSS-PRECEDENCE-AUDIT R3's doc gate is its consumer: the "
     "worn-precedence test renders it and diffs the brief's §2a against the output, so a "
     "vote added in code without a brief line reds by name. A production caller would be "
     "the wrong wiring — this renders documentation, not a decision",
