@@ -179,6 +179,46 @@ def test_a_measured_beat_is_wear_evidence_in_either_PPI_column_order(tmp_path, h
     assert loss_audit._has_worn_evidence(str(d), "VeritySense") is True
 
 
+def test_an_empty_file_does_not_stop_the_search_and_a_later_file_still_vouches(tmp_path, monkeypatch):
+    """An empty file cannot vouch, but it must not END the search either — the night's evidence is in
+    the next file. The order is PINNED rather than left to the filesystem: `glob` gives no ordering
+    guarantee, so without this the case only arises when the directory happens to enumerate the empty
+    file first, and the test would pass vacuously on a machine that enumerates the other way."""
+    d = tmp_path / "captures" / "2026-08-04"
+    d.mkdir(parents=True)
+    empty = d / "Polar_VeritySense_0C30_20260804000001_PPI.txt"
+    beats = d / "Polar_VeritySense_0C30_20260804230037_PPI.txt"
+    empty.write_text("")
+    beats.write_text(_PPI_BOX + "\n2026-08-04T23:00:57.020;0;0;393;30;1;1;1\n")
+    monkeypatch.setattr(loss_audit.glob, "glob", lambda _pat: [str(empty), str(beats)])
+    assert loss_audit._has_worn_evidence(str(d), "VeritySense") is True
+
+
+def test_a_single_smallest_positive_interval_is_still_a_measured_value(tmp_path):
+    """The test is `> 0`, not `> 1`: the question is whether the device wrote a measurement, not
+    whether the measurement is large. A PP-interval of exactly 1 ms is implausible and is still data."""
+    d = tmp_path / "captures" / "2026-08-04"
+    d.mkdir(parents=True)
+    (d / "Polar_VeritySense_0C30_20260804230037_PPI.txt").write_text(
+        _PPI_BOX + "\n2026-08-04T23:00:57.020;0;0;1;30;1;1;1\n"
+    )
+    assert loss_audit._has_worn_evidence(str(d), "VeritySense") is True
+
+
+def test_an_undecodable_byte_does_not_lose_the_night(tmp_path):
+    """Capture files are written live and a torn write can leave a byte that is not valid UTF-8. The
+    reader opens with errors="replace" so such a file is still READ; without it the decode raises
+    UnicodeDecodeError, which is not an OSError and would escape the handler entirely."""
+    d = tmp_path / "captures" / "2026-08-04"
+    d.mkdir(parents=True)
+    f = d / "Polar_VeritySense_0C30_20260804230037_PPI.txt"
+    f.write_bytes(
+        _PPI_BOX.encode() + b"\n2026-08-04T23:00:57.020;0;0;\xff\xfe;30;1;1;1"
+        b"\n2026-08-04T23:00:58.020;0;0;393;30;1;1;1\n"
+    )
+    assert loss_audit._has_worn_evidence(str(d), "VeritySense") is True
+
+
 def test_a_PPI_file_of_nothing_but_absent_intervals_is_not_wear_evidence(tmp_path):
     """The other direction: the column is found and every value in it is absent. That IS a verdict."""
     d = tmp_path / "captures" / "2026-08-04"
