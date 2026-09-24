@@ -105,6 +105,58 @@ def test_the_cooling_argument_is_last_and_optional():
     assert capture.clock_sync_due(True, True, False, False) is True
 
 
+def test_a_clock_written_a_minute_ago_is_not_written_again():
+    """THE REDUNDANT-SUCCESS HALF. `clock_sync_due` had no freshness term at all: it fired on every
+    reconnect regardless of when the clock had last been written, and every firing that takes the device
+    pauses live capture.
+
+    Measured across every night carrying a CLOCKSYNC.csv: 903 consecutive successful-sync pairs for the
+    same device, **276 of them (31 %) within 120 SECONDS of the previous success**, 700 (78 %) within
+    30 min. On 2026-09-19 the Verity synced at 18:06:43 and again at 18:07:25 — 42 s apart. At the H10's
+    measured -20 ppm, 120 s of drift is 2.4 MICROseconds, so the second write cannot be needed."""
+    assert capture.clock_sync_due(True, True, False, False, False, 60.0) is False
+    assert capture.clock_sync_due(True, True, False, False, False, 42.0) is False
+
+
+def test_a_device_that_has_NEVER_synced_is_not_treated_as_fresh():
+    """THE CONTROL, and §∅ at the same time. `None` is "no measurement", not "recently synced". Reading
+    absence as freshness would silently disable the sync for the device that needs it most — which is the
+    failure `clock_sync_due`'s own docstring records, where a device that was docked at daemon start never
+    got a usable clock for the rest of the session. A restart empties the table, so a restart re-syncs."""
+    assert capture.clock_sync_due(True, True, False, False, False, None) is True
+    assert capture.clock_sync_due(True, True, False, False) is True, "the default must not block either"
+
+
+def test_a_sync_older_than_the_window_is_re_done():
+    """The window must EXPIRE. 30 min is derived from the tolerance the daemon already states —
+    `clock_watchdog` re-syncs on a `resync_jump_sec` (30 s) CHANGE in skew — and 30 s of skew at -20 ppm
+    takes 17 days to accumulate."""
+    assert capture.clock_sync_due(True, True, False, False, False, 1801.0) is True
+    assert capture.clock_sync_due(True, True, False, False, False, 24 * 3600.0) is True
+
+
+def test_freshness_does_not_survive_a_session_boundary_that_matters():
+    """THE ONE WAY THIS COULD STILL LOSE SIGNAL, stated as a test. A strap synced 25 min before bed and
+    then donned is inside the window, so its reconnect is skipped — and that is safe rather than merely
+    tolerated: 25 min at -20 ppm is **30 ms** of drift on a stream whose own sample period is 7.7 ms, and
+    `clock_watchdog` polls every 300 s and re-syncs on a real jump, so a clock that actually STEPPED is
+    corrected inside the window instead of waiting it out. What would not be safe is a window long enough
+    to span a whole night, which is why this asserts the far edge too."""
+    assert capture.clock_sync_due(True, True, False, False, False, 1500.0) is False, "25 min: skipped"
+    assert capture.clock_sync_due(True, True, False, False, False, 8 * 3600.0) is True, "a night: re-synced"
+
+
+def test_freshness_is_measured_monotonically():
+    """Elapsed time, so monotonic — §🔒's rule, and the same reason the ladder budget is monotonic.
+    `_clock_sync_synced_age_s` reads the recorded monotonic stamp and never `_now()`, so an NTP step
+    (which this daemon takes) cannot move a freshness window."""
+    capture._CLOCK_SYNC_LAST_OK.clear()
+    assert capture._clock_sync_synced_age_s("AA:BB", 1000.0) is None
+    capture._clock_sync_note_outcome("AA:BB", True, False, 1000.0)
+    assert capture._clock_sync_synced_age_s("AA:BB", 1090.0) == 90.0
+    capture._CLOCK_SYNC_LAST_OK.clear()
+
+
 def test_the_budget_asks_about_the_NEXT_attempt_not_the_last_one():
     """THE 153s-OF-A-120s-BUDGET DEFECT. `spent >= budget` can only be answered once the money is gone:
     at 90 s spent with attempts costing 45 s it reads "still inside the budget" and funds an attempt that
@@ -275,6 +327,14 @@ def test_run_polar_rewrites_the_clock_on_the_SECOND_connection(tmp_path, monkeyp
 
     async def fake_sync(addr):
         calls.append(addr)
+        # THE FIRST WRITE FAILS, which is the scenario this test's docstring is actually about: a docked
+        # Polar refuses the write ("charging — PMD streams unavailable"), and the 2026-07-18 defect was
+        # that the refusal was never retried. It used to SUCCEED here, which made the test assert
+        # re-sync-after-success instead — a different claim, and the one `_CLOCK_SYNC_FRESH_S` now
+        # deliberately removes (see `test_a_clock_written_a_minute_ago_is_not_written_again`). A failure
+        # records no freshness, so every reconnect retries and the guarantee is untouched.
+        if len(calls) == 1:
+            raise RuntimeError("charging — PMD streams unavailable")
 
     def refuse(addr, *a, **k):
         raise OSError("le-connection-abort-by-local")
@@ -286,6 +346,41 @@ def test_run_polar_rewrites_the_clock_on_the_SECOND_connection(tmp_path, monkeyp
     asyncio.run(capture.run_polar(_pdev(), str(tmp_path)))
     assert len(calls) >= 2, \
         "one write at task start is not enough — a device docked then is never corrected otherwise"
+
+
+def test_run_polar_does_NOT_rewrite_a_clock_it_JUST_wrote(tmp_path, monkeypatch):
+    """The behavioural counterpart of the test above, and the redundancy that cost the pauses. Same
+    harness, same two reconnects — the only difference is that the first write SUCCEEDS, and then the
+    second reconnect must NOT take the device again.
+
+    Measured across every night carrying a CLOCKSYNC.csv: 276 of 903 consecutive successful-sync pairs
+    (31 %) fall within 120 s of each other, 700 (78 %) within 30 min. The straps DO step their clocks —
+    338 `resynced` rows over 23 nights — but `clock_watchdog` is the backstop for that (live config:
+    `drift_check_sec: 300.0`, `resync_jump_sec: 30.0`), and it demonstrably fires. The reconnect path's
+    own job, per `clock_sync_due`'s docstring, is to correct a device that came off the dock, and a
+    docked device's write FAILS, so that job survives freshness untouched."""
+    from tests.test_capture_runners import _polar_common, _stop_after, _pdev
+
+    _polar_common(monkeypatch)
+    capture._CFG.clear()
+    capture._CFG.update({"time": {"auto_sync_devices": True}})
+    capture._CLOCK_SYNC_LAST_OK.clear()
+    calls = []
+
+    async def fake_sync(addr):
+        calls.append(addr)          # succeeds every time
+
+    def refuse(addr, *a, **k):
+        raise OSError("le-connection-abort-by-local")
+
+    monkeypatch.setattr(capture, "sync_device_time", fake_sync)
+    monkeypatch.setattr(capture, "_connect", refuse)
+    _stop_after(monkeypatch, 2)
+    capture.STATUS["devices"].pop("H10", None)
+    asyncio.run(capture.run_polar(_pdev(), str(tmp_path)))
+    capture._CLOCK_SYNC_LAST_OK.clear()
+    assert len(calls) == 1, (
+        f"a clock written seconds ago must not be written again (took the device {len(calls)}x)")
 
 
 def test_run_polar_does_NOT_rewrite_the_clock_of_a_docked_device(tmp_path, monkeypatch):

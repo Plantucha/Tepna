@@ -964,6 +964,13 @@ _CLOCK_FRESHLY_SYNCED: set = set()
 # CROSS-LADDER half of the pause bound — see `clock_sync_backoff_s`. Keyed by address like
 # `_POLAR_PAUSED` and `blestats`, because the pause is an address-level fact.
 _CLOCK_SYNC_COOLDOWN: dict = {}
+# addr -> the MONOTONIC time of the last successful clock write. Freshness measures ELAPSED time, and
+# §🔒 is explicit that `_now()` is civil-time-anchored and re-anchors on an NTP step — which this daemon
+# takes, twice in the logs — so reading STATUS's `clock_synced` ISO stamp would make a freshness window
+# jump with the wall clock. Monotonic for the same reason `_CLOCK_SYNC_LADDER_BUDGET_S` is monotonic.
+# Empty after a restart, which reads as `None` and therefore never blocks: a restart re-syncs, which is
+# the behaviour wanted anyway.
+_CLOCK_SYNC_LAST_OK: dict = {}
 
 # name -> monotonic time SAMPLES last arrived. The alert loop keys on this instead of `connected`,
 # because a link is not a recording: an unbonded H10 connects for 1-2 s, streams nothing and is torn
@@ -2582,7 +2589,8 @@ def clock_sync_capable(psftp, is_polar) -> bool:
     return bool(is_polar) if psftp is None else bool(psftp)
 
 
-def clock_sync_due(capable, enabled, charging, first_attempt, cooling=False) -> bool:
+def clock_sync_due(capable, enabled, charging, first_attempt, cooling=False,
+                   synced_age_s=None) -> bool:
     """PURE: should we (re-)write this device's clock before the next connection attempt?
 
     RE-SYNC ON EVERY RECONNECT, not once per task. The sync used to run exactly once, ahead of the
@@ -2610,7 +2618,31 @@ def clock_sync_due(capable, enabled, charging, first_attempt, cooling=False) -> 
     False so every existing positional caller keeps its behaviour. It is the only one of these five that
     is about repetition rather than eligibility: a device that cannot take a clock write is re-asked on
     every reconnect, and each ask costs a live-capture pause. Measured 2026-09-18/19 on vigil:
-    **80 ladders in 18 h**, every one of them paying that pause, 77 % of them abandoned at the op ceiling."""
+    **80 ladders in 18 h**, every one of them paying that pause, 77 % of them abandoned at the op ceiling.
+
+    `synced_age_s` is FRESHNESS — seconds since this device's clock was last successfully written, or
+    `None` if it never was. Added LAST and defaulting to None so positional callers are unaffected.
+    It closes the other half of the repetition: `cooling` bounds repeated FAILURES, this bounds redundant
+    SUCCESSES, and until now nothing bounded the latter at all — the predicate fired on every reconnect
+    regardless of when the clock had last been written.
+
+    ⚠️ `None` MUST NOT BLOCK, and that is §∅ rather than a convenience: a device that has never synced,
+    or whose sync time was not recorded, has no freshness — it is not fresh. Reading absence as "recently
+    synced" would silently disable the sync for exactly the device that needs it most, which is the
+    failure the paragraph above this one is about.
+
+    Measured across every night carrying a `CLOCKSYNC.csv`: **903 consecutive successful-sync pairs for
+    the same device, of which 276 (31 %) are within 120 SECONDS of the previous success**, 345 (38 %)
+    within 300 s and 700 (78 %) within 30 min. On 2026-09-19 the Verity synced at 18:06:43 and again at
+    18:07:25 — 42 s apart, each taking the device and pausing live capture. At the H10's measured
+    -20 ppm, 120 s of drift is 2.4 MICROseconds, so the second write of such a pair cannot be needed.
+
+    THE SIBLING CALLER ALREADY LEARNED THIS. `clock_watchdog`'s docstring: *"Triggering on `skew != 0`
+    would re-sync it forever, pausing capture every cycle for nothing. So we trigger on a CHANGE in
+    skew."* Its lesson never reached the reconnect-driven path, which is the one that runs hundreds of
+    times a night."""
+    if synced_age_s is not None and synced_age_s < _CLOCK_SYNC_FRESH_S:
+        return False
     return bool(capable and enabled and not charging and not first_attempt and not cooling)
 
 
@@ -2676,6 +2708,7 @@ def _clock_sync_note_outcome(addr, ok, paid_a_pause, now_mono) -> None:
     so its history is not evidence about its present."""
     if ok:
         _CLOCK_SYNC_COOLDOWN.pop(addr, None)
+        _CLOCK_SYNC_LAST_OK[addr] = now_mono
         return
     if not paid_a_pause:
         return
@@ -2683,6 +2716,17 @@ def _clock_sync_note_outcome(addr, ok, paid_a_pause, now_mono) -> None:
     _CLOCK_SYNC_COOLDOWN[addr] = (
         fails, now_mono + clock_sync_backoff_s(fails, _CLOCK_SYNC_BACKOFF_BASE_S,
                                                _CLOCK_SYNC_BACKOFF_CAP_S))
+
+
+def _clock_sync_synced_age_s(addr, now_mono):
+    """Seconds since this device's clock was last successfully written, or **None** if this process has
+    never written it.
+
+    None is not zero and not infinity — it is "no measurement", and `clock_sync_due` must therefore not
+    let it block (§∅). The honest consequence is that a daemon restart re-syncs every device, because a
+    restart genuinely does not know when the clock was last set."""
+    at = _CLOCK_SYNC_LAST_OK.get(addr)
+    return None if at is None else now_mono - at
 
 
 def _clock_sync_cooling(addr, now_mono) -> bool:
@@ -3118,7 +3162,8 @@ async def run_polar(dev: dict, root: str):
         if clock_sync_due(_clock_gate(name, addr, is_polar),
                           (_CFG.get("time") or {}).get("auto_sync_devices", True),
                           STATUS["devices"].get(name, {}).get("charging"), first_attempt,
-                          _clock_sync_cooling(addr, _time.monotonic())):
+                          _clock_sync_cooling(addr, _time.monotonic()),
+                          _clock_sync_synced_age_s(addr, _time.monotonic())):
             await auto_sync_clock(name, addr, root)
         first_attempt = False
         # RE-BOND A LOST BOND. Also before `_connect`, and for the same reason the clock write is: the
@@ -5910,6 +5955,21 @@ _CLOCK_SYNC_LADDER_BUDGET_S = 120.0
 # which is 72 ms of H10 skew per hour against up to 45 s of paused capture per ask.
 _CLOCK_SYNC_BACKOFF_BASE_S = 120.0
 _CLOCK_SYNC_BACKOFF_CAP_S = 3600.0
+# HOW LONG A SUCCESSFUL CLOCK WRITE STAYS GOOD ENOUGH — derived, not chosen.
+#
+# The daemon already states its own skew tolerance: `clock_watchdog` re-syncs on a CHANGE in skew of
+# `resync_jump_sec` (30 s by config default), deliberately leaving a constant offset alone because
+# "triggering on skew != 0 would re-sync it forever, pausing capture every cycle for nothing". So the
+# question is not "how accurate do we want the clock" — it is already answered — but "how long until
+# drift could approach that answer". At the H10's measured -20 ppm, 30 s of skew takes **17 days** to
+# accumulate; even at a pessimistic 3000 ppm it takes 2.8 h.
+#
+# 30 min is therefore orders of magnitude inside the tolerance already in force, and it is NOT the
+# backstop: `clock_watchdog` polls every `drift_check_sec` (300 s) and re-syncs on a real jump, so a
+# device that genuinely steps its clock is still corrected within the window rather than waiting it out.
+# Sized against what redundancy it removes: 78 % of consecutive successful-sync pairs in this corpus fall
+# inside it, and the 31 % inside 120 s are the indefensible ones.
+_CLOCK_SYNC_FRESH_S = 1800.0
 
 
 class DeviceNotAdvertising(Exception):
