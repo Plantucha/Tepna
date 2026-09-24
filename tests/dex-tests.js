@@ -19777,6 +19777,65 @@
       T.ok('seam: epochs still carry tri-state moving', Array.isArray(b.epochs) && b.epochs.length === a.epochs.length);
     });
 
+    group('MotionDex ACC unit — ∅ an UNDETERMINED unit is not milli-g', 'motiondex-dsp · absence', function (T) {
+      var M = env.MOTIONDSP || (env.MotionDex && env.MotionDex._bare);
+      if (!M || typeof M.compute !== 'function' || typeof M.bodyPosition !== 'function') {
+        T.skip('MOTIONDSP.compute + bodyPosition exposed', 'MotionDex not co-loaded in this runner');
+        return;
+      }
+      /* The parse boundary ALREADY refuses to guess: `inferAccUnit` ends
+         `return null; // nothing gravity-like — do not guess`, and `_unit` is left null when neither
+         the header nor the magnitude oracle could decide. `compute()` then defaulted to 'mg' a
+         thousand lines later, re-introducing the guess the producer had declined to make. The scale
+         error that hides is 1000× for a stream actually in g — `toG`'s own header records that exact
+         mis-scale happening once before — and EVERY magnitude-derived output rides on it. */
+      var mkRows = function (unit) {
+        var r = [];
+        // a WORN accelerometer: ~1 g on z with real movement, so the SQI has something to score.
+        // A perfectly static stream scores conf 0 on its own merits, which would make the control
+        // below vacuous — it caught exactly that on the first draft.
+        for (var i = 0; i < 600; i++) {
+          r.push({
+            tMs: 1781128800000 + i * 40,
+            x: 20 + 60 * Math.sin(i / 7),
+            y: 30 + 40 * Math.cos(i / 11),
+            z: 1000 + 50 * Math.sin(i / 5)
+          });
+        }
+        if (unit) r._unit = unit;
+        return r;
+      };
+      var known = M.compute({ acc: mkRows('mg') });
+      var unknown = M.compute({ acc: mkRows(null) });
+
+      // CONTROL — a DECLARED unit still computes everything, so the refusal below is a change.
+      T.ok(
+        'control: a declared mg stream still produces body position and actigraphy',
+        known.position.hasData === true && known.activity.hasData === true,
+        JSON.stringify({ p: known.position.hasData, a: known.activity.hasData })
+      );
+      T.ok('control: …and a real SQI', known.sqi.conf > 0, 'conf ' + known.sqi.conf);
+
+      // The magnitude-derived outputs refuse, and say WHY — not a bare false a reader must guess at.
+      T.eq('an undetermined unit refuses body position, with the reason named', JSON.stringify({ h: unknown.position.hasData, r: unknown.position.reason }), '{"h":false,"r":"unit-unknown"}');
+      T.eq('\u2026and actigraphy', JSON.stringify({ h: unknown.activity.hasData, r: unknown.activity.reason }), '{"h":false,"r":"unit-unknown"}');
+      T.eq('\u2026and the SQI, which is a score over magnitudes of unknown scale', JSON.stringify({ c: unknown.sqi.conf, f: unknown.sqi.flags }), '{"c":0,"f":["unit-unknown"]}');
+
+      /* The refusal is SCOPED: a unit governs magnitudes, not the clock. Timing facts are still
+         published, so an unknown unit costs the motion metrics and nothing else. */
+      T.ok('the TIME-only facts survive — a unit governs magnitude, not the clock', unknown.t0Ms === known.t0Ms && unknown.t0Ms != null, JSON.stringify({ u: unknown.t0Ms, k: known.t0Ms }));
+
+      /* classifyGravity gates on an ABSOLUTE window (mag > 0.4 && mag <= 2.0), so position is
+         scale-DEPENDENT — this pins that, and is why refusing beats annotating here. */
+      var asG = M.bodyPosition(mkRows('g'), 0, 24, 'g');
+      var asMg = M.bodyPosition(mkRows('mg'), 0, 24, 'mg');
+      T.ok(
+        'the same bytes under two units give different positions — the scale is load-bearing',
+        JSON.stringify(asG.dwellFrac) !== JSON.stringify(asMg.dwellFrac),
+        'identical dwell under a 1000x scale change'
+      );
+    });
+
     group(
       'MotionDex helper floor — 8 + 2 drafts adopted: every entry guard refuses junk, and admits a legal minimum (mutation-derived)',
       'motiondex-dsp · known-answer · mutation-pinned',
@@ -19810,7 +19869,11 @@
         for (var pi = 0; pi < 200; pi++) posRows.push({ tMs: pi * 250, x: 0, y: 0, z: 1 });
         out = M.respiratoryEffort(shortRows);
         T.eq('a 10-row refusal is BARE hasData:false — no fabricated zero-rate payload rides along', JSON.stringify(out), '{"hasData":false}');
-        out = M.bodyPosition(posRows);
+        // posRows are {x:0,y:0,z:1} — one g on z. The call always meant 'g'; it simply never said
+        // so, and relied on toG's pass-through for an absent unit. bodyPosition now refuses an
+        // UNKNOWN unit (∅), so the unit is stated. `toG(v,'g')` returns v unchanged, exactly as the
+        // absent unit did, so this assertion's outcome is bit-for-bit what it was.
+        out = M.bodyPosition(posRows, 0, 50, 'g');
         T.eq(
           'the dwell table has EXACTLY the six positions — one extra loop pass mints an "undefined" position',
           JSON.stringify(Object.keys(out.dwellFrac)),
