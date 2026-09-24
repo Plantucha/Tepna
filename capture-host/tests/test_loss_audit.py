@@ -59,6 +59,15 @@ def test_attribution_takes_the_last_journal_line_within_the_window_or_says_unatt
     assert loss_audit.attribute(gaps, ev) == {"daemon:not-worn drop": 121 / 60, "unattributed": 1.0}
     assert loss_audit.attribute(gaps, None) == {"unattributed (no journal)": 181 / 60}
     assert loss_audit.attribute([], ev) == {}
+    # the per-gap list is what the sum is made from: each gap keeps its start, length and cause, in order
+    assert loss_audit.attribute_gaps(gaps, ev) == [
+        (T0 + dt.timedelta(seconds=199), 121.0, "daemon:not-worn drop"),
+        (T0 + dt.timedelta(seconds=400), 60.0, "unattributed"),
+    ]
+    assert loss_audit.attribute_gaps(gaps, None) == [
+        (T0 + dt.timedelta(seconds=199), 121.0, "unattributed (no journal)"),
+        (T0 + dt.timedelta(seconds=400), 60.0, "unattributed (no journal)"),
+    ]
 
 
 def test_read_journal_bins_the_box_lines_and_returns_none_when_journalctl_is_unavailable():
@@ -97,6 +106,10 @@ def test_audit_night_names_the_daemon_as_the_cause_and_the_verdict_is_UNKNOWN_wi
     v = a["devices"]["Polar H10 0284"]
     assert v["fragments"] == 2 and v["lost_min"] == 2.0 and v["by_cause"] == {"daemon:not-worn drop": 2.0}
     assert v["worn_evidence"] is True and v["worn_lost_min"] == 2.0 and v["daemon_caused_min"] == 2.0
+    # each gap by its local start, to the second — what `by_cause` sums, published so a consumer can count
+    # only the gaps inside the worn interval
+    assert v["gaps"] == [{"at": "2026-09-20T22:03:19", "s": 121.0, "cause": "daemon:not-worn drop"}]
+
     o = loss_audit.night_verdict(a, night_dir=d, commit="abc1234")
     verdict.validate(o)
     assert js_validate(o)["ok"]
@@ -828,3 +841,33 @@ def test_an_acc_row_at_the_next_epochs_first_millisecond_is_not_in_the_final_epo
     _rows(str(p), rows, header=None)
     want = statistics.pstdev([_m.sqrt(x * x + y * y + z * z) for x, y, z in xyz])
     assert abs(loss_audit._final_acc_sd(str(p), start) - want) < 1e-9
+
+
+def test_the_published_gaps_are_exactly_what_by_cause_sums(tmp_path):
+    d = _night(tmp_path, holes=((200, 320), (400, 430.5)))
+    planted = [(T0 + dt.timedelta(seconds=199), "link:dbus busy")]
+    v = loss_audit.audit_night(d, DEV, journal=lambda name, since, until: planted)["devices"]["Polar H10 0284"]
+    assert [(g["at"], g["s"], g["cause"]) for g in v["gaps"]] == [
+        ("2026-09-20T22:03:19", 121.0, "link:dbus busy"),
+        ("2026-09-20T22:06:39", 32.0, "unattributed"),
+    ]
+    summed: dict = {}
+    for g in v["gaps"]:
+        summed[g["cause"]] = summed.get(g["cause"], 0.0) + g["s"] / 60
+    assert {k: round(x, 1) for k, x in summed.items()} == v["by_cause"]
+    assert v["fragments"] == len(v["gaps"]) + 1
+
+
+
+def test_a_gap_is_published_as_a_float_of_whole_seconds_and_its_cause_window_is_inclusive(tmp_path):
+    d = tmp_path / "captures" / "2026-09-20"
+    d.mkdir(parents=True)
+    # 4 rows a second, hole [200, 260): stamps resolve to the SECOND (nights_index.parse_stamp), so the gap runs
+    # from 22:03:19 to 22:04:20 = 61 s — published as the FLOAT 61.0, never the int a bare round() returns
+    _stream(str(d / "Polar_H10_0284_20260920220000_ECG.txt"), ((200, 260),), n=1200, step=0.25)
+    gap_start = T0 + dt.timedelta(seconds=199)
+    exactly_the_window = [(gap_start - dt.timedelta(seconds=loss_audit.ATTRIB_WINDOW_S), "link:dbus busy")]
+    v = loss_audit.audit_night(str(d), DEV, journal=lambda name, since, until: exactly_the_window)
+    (g,) = v["devices"]["Polar H10 0284"]["gaps"]
+    assert g == {"at": "2026-09-20T22:03:19", "s": 61.0, "cause": "link:dbus busy"}  # the window's edge still names it
+    assert isinstance(g["s"], float)
