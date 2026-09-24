@@ -20424,6 +20424,74 @@
       T.eq('a bare array is refused', N([]), null);
     });
 
+    group('CPAPDex quality — ∅ an UNASSESSED mask seal is not a perfect one, and an absent mode is not CPAP', 'cpapdex-dsp · cpapdex-fusion · absence', function (T) {
+      var D = env.CpapDsp || env.CPAPDSP;
+      var F = env.CpapFusion;
+      if (!D || typeof D.leakSqi !== 'function' || typeof D.parseStrSummary !== 'function' || !F || typeof F.cpapEvents !== 'function') {
+        T.skip('CpapDsp.leakSqi/parseStrSummary + CpapFusion', 'CPAPDex not co-loaded in this runner');
+        return;
+      }
+
+      /* ── 1 · leakSqi ── `largeLeakPct` is NaN with no leak channel, or when the mask was never on.
+         Returning 1 published the BEST POSSIBLE quality for a session whose quality was never
+         measured — the one direction that suppresses the warning the index exists to raise. */
+      T.eq('an UNMEASURABLE leak fraction refuses — it is not a perfect seal', JSON.stringify([D.leakSqi({ largeLeakPct: NaN }), D.leakSqi({ largeLeakPct: null })]), '[null,null]');
+      T.eq('CONTROL · a MEASURED zero-leak session is still exactly 1, and 40 % is still 0.6', JSON.stringify([D.leakSqi({ largeLeakPct: 0 }), D.leakSqi({ largeLeakPct: 40 })]), '[1,0.6]');
+
+      /* ── 2 · STR device mode ── `_strAt` returns null past the end of a signal, `Math.round(null)`
+         is 0, and STR_MODE[0] is 'CPAP'. A day whose Mode sample was absent therefore rendered a
+         badged chip reading CPAP for a device that reported no mode at all. Built so the second
+         record's Mode index is past the end while the first record's is present — the control and
+         the case come out of ONE call. */
+      var sig = function (arr) {
+        return { data: typeof Float32Array === 'function' ? Float32Array.from(arr) : arr };
+      };
+      var strRows = D.parseStrSummary({ signals: { Date: sig([0, 1]), MaskOn: sig([60, 60]), MaskOff: sig([120, 120]), Mode: sig([1]) } });
+      T.eq('the day WITH a mode sample still reads APAP — the control', JSON.stringify({ c: strRows[0].deviceModeCode, m: strRows[0].deviceMode }), '{"c":1,"m":"APAP"}');
+      T.eq(
+        'the day whose mode sample is ABSENT is null, not the CPAP that Math.round(null) produced',
+        JSON.stringify({ c: strRows[1].deviceModeCode, m: strRows[1].deviceMode }),
+        '{"c":null,"m":null}'
+      );
+
+      /* ── 3 · the fusion layer carries the absence instead of replacing it ── `EVENT-LEXICON` § already
+         documents `sqi null` on an emitted event, and `integrator-dsp.js:139` already reads null and
+         weights such an event NEUTRALLY. That is fusion declining to PENALISE unknown quality, which
+         is a different act from CPAPDex asserting it measured a perfect seal. */
+      var t0 = Date.UTC(2026, 5, 10, 23, 0, 0);
+      var night = {
+        t0Ms: t0,
+        dateMs: t0,
+        therapyHours: 6,
+        sessions: [
+          { t0Ms: t0, endMs: t0 + 3 * 3600e3, durMin: 180, sqi: 0.6, usageHours: 3, events: [{ type: 'OA', tMs: t0 + 600e3, durSec: 20 }] },
+          { t0Ms: t0 + 3 * 3600e3, endMs: t0 + 6 * 3600e3, durMin: 180, sqi: null, usageHours: 3, events: [{ type: 'OA', tMs: t0 + 4 * 3600e3, durSec: 20 }] }
+        ]
+      };
+      T.eq(
+        'an event from an UNASSESSED session carries sqi null, while the assessed one keeps 0.6',
+        JSON.stringify(
+          F.cpapEvents(night).map(function (e) {
+            return e.sqi;
+          })
+        ),
+        '[0.6,null]'
+      );
+
+      if (typeof F.cpapBuildExport !== 'function') {
+        T.skip('CpapFusion.cpapBuildExport', 'not on this surface');
+      } else {
+        var q = F.cpapBuildExport(night).quality;
+        // PRE-STATED: averaging the unassessed session in as 1 reported 0.8 for a night whose only
+        // measured session was 0.6 — absence diluting a genuinely leaky night toward "good".
+        var dilutedByFabrication = 0.8,
+          measuredOnly = 0.6;
+        T.eq('the night averages the sessions it ASSESSED, not absence counted as perfect', JSON.stringify({ sqi: q.sqi, n: q.sqiSessions }), JSON.stringify({ sqi: measuredOnly, n: 1 }));
+        T.ok('the plant is not vacuous — the old mean and the honest mean differ', dilutedByFabrication > measuredOnly, dilutedByFabrication + ' vs ' + measuredOnly);
+        T.ok('\u2026and the basis is published, so a reader can see how many sessions it rests on', q.sqiSessions === 1 && q.sqiBasis.indexOf('ASSESSED') !== -1, JSON.stringify(q.sqiBasis));
+      }
+    });
+
     group('CPAPDex helper floor — 9 + 2 drafts adopted: prepare defaults, envelope guards, EDF refusals (mutation-derived)', 'cpapdex-dsp · known-answer · mutation-pinned', function (T) {
       var C = env.CpapDsp || env.CPAPDSP;
       if (!C || typeof C.prepare !== 'function') {

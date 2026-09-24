@@ -119,7 +119,8 @@
   ],
   "quality": {
     "sqi": 0.936,
-    "sqiBasis": "leak-quality (1 − largeLeakFraction) — R7 separate from conf",
+    "sqiSessions": 1,
+    "sqiBasis": "leak-quality (1 − largeLeakFraction) — R7 separate from conf; mean over ASSESSED sessions only",
     "lowUsage": false,
     "truncatedSessions": 0
   },
