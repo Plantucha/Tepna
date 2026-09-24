@@ -64,6 +64,16 @@ pause count is not a loss figure. The accounting does close on the pause side: 0
 transient-failing attempts + the 32 `synced` rows, and a SUCCESSFUL sync emits no journal line at all,
 which is why the per-night ledger and not the journal is what decomposes this.
 
+⚠️ **AND IT COST ZERO ATTRIBUTED MINUTES OF CAPTURE.** `LOSS-AUDIT.json` exists for 28 nights
+(08-25 → 09-21) and reports **`daemon_caused_min = 0.0`** on every device on 08-27, 09-19, 09-20 and
+09-21; ring and Verity losses are 0.2–1.4 min over 365–440 min spans. The one large daemon figure is
+09-20/21's H10 at 210/244 min, cause `daemon:not-worn drop` — correct behaviour. The timing says why,
+to the second on 09-19: the Verity's last data row is 06:04:04 and the **first Polar pause after it is
+06:06:36**, after which pauses cycle every ~45 s for hours. **They FOLLOW the end of the recording.**
+So this is hygiene — 66 retries a night of radio and CPU, and a pause stands down `adapter_watchdog`
+and `clock_watchdog`, so a wedged adapter goes unwatched while the churn runs. It is not a capture fix,
+and the cross-ladder backoff bounding that churn is its real case.
+
 ⚠️ `clock_watchdog` is a SECOND, independent caller of `polar_offline_op` — it calls `sync_device_time`
 directly, with no ladder — and is **untouched here**. `2026-09-23-loss-audit-resync-and-address.md`
 attributes 147 min of H10 loss over 28 box nights to that path. Two pause sources, one fixed.
