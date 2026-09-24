@@ -76,6 +76,38 @@ def test_hold(tmp_path):
 
 HOLD = "1.5"
 
+# CONCURRENCY IS SCALED TO THE MACHINE, and that is not a tidiness point — it is why #3029 turned
+# `main` red. Every "job" here is a whole pytest SUBPROCESS importing this suite's conftest. CI runs
+# `pytest -q -n 4` on a 4-vCPU runner, so a hard-coded 16 meant sixteen sessions inside ONE of four
+# workers: ~5x oversubscription, next to a neighbouring test whose `_qc_offload` drives a `spawn`
+# ProcessPoolExecutor. It was measured on a 16-core rig and shipped at that number without anyone
+# asking what the runner has.
+#
+# The hazards below do NOT need a big number. `keep=0` reaps EVERY prior numbered dir, so two
+# overlapping sessions are enough to show it; the count only changes how emphatic the result is.
+# AND IT DIVIDES BY THE XDIST WORKER COUNT, which is the half that actually bites. Under `-n 4`
+# these test functions can run in FOUR workers at once, so a per-test count of N is 4N processes on
+# the box. pytest-xdist publishes the width in PYTEST_XDIST_WORKER_COUNT; dividing by it bounds the
+# TOTAL rather than the per-test number. CI (4 vCPU, `-n 4`) lands on 2; a serial rig run gets 8.
+_WORKERS = max(1, int(os.environ.get("PYTEST_XDIST_WORKER_COUNT", "1")))
+
+
+def _usable_cpus() -> int:
+    """CPUs this process may actually run on — NOT `os.cpu_count()`.
+
+    `os.cpu_count()` reports the MACHINE, ignoring both `taskset` and a container's cgroup quota. It
+    returned 24 on a rig pinned to four cores with `taskset -c 0-3`, which made the verification run
+    that was supposed to reproduce CI's shape exercise the rig's value instead — a check that ran and
+    measured the wrong box. `sched_getaffinity` respects the mask; it is Linux-only, so the
+    `cpu_count` fallback stays for anything else."""
+    try:
+        return max(1, len(os.sched_getaffinity(0)))
+    except AttributeError:  # pragma: no cover — non-Linux; the capture host and CI are both Linux
+        return max(1, os.cpu_count() or 2)
+
+
+JOBS_HIGH = min(8, max(2, _usable_cpus() // _WORKERS))
+
 
 def _run_session(session_file, out, tag, verdict, tmpdir, policy, basetemp, sink):
     env = dict(
@@ -134,7 +166,7 @@ def _cell(tmp_path, jobs, policy, shared_basetemp=None):
 
 @pytest.mark.slow
 @pytest.mark.parametrize("policy", ["all", "failed"])
-@pytest.mark.parametrize("jobs", [1, 8])
+@pytest.mark.parametrize("jobs", [1, JOBS_HIGH])
 def test_no_session_loses_its_own_tmp_dir(tmp_path, jobs, policy):
     """The 2x2. Zero reaped, zero setup errors, and one basetemp PER SESSION."""
     sink, _ = _cell(tmp_path, jobs, policy)
@@ -166,13 +198,24 @@ def test_a_shared_basetemp_IS_a_hazard(tmp_path):
 
 @pytest.mark.slow
 def test_the_keep3_cleanup_leaves_live_dirs_alone_BECAUSE_the_lock_is_fresh(tmp_path):
-    """pytest keeps 3 numbered dirs; with 8 in flight, 5 are candidates and none may be taken.
+    """pytest keeps 3 numbered dirs; more than that are in flight, and none may be taken.
 
     The lock AGE is asserted, not merely survival: survival alone would pass for the wrong reason on
     an idle box, whereas a lock far younger than pytest's 3 h `LOCK_TIMEOUT` is WHY the live dirs are
     safe."""
-    sink, tmpdir = _cell(tmp_path, 8, "all")
-    assert len([r for r in sink if r["reached_body"]]) == 8
+    # SEED past `keep` first, cheaply and deterministically. The premise of this test is that the
+    # cleanup HAD candidates to take. With concurrency scaled to the machine, JOBS_HIGH can be 2, and
+    # the premise would silently evaporate — the test would pass having tested nothing, which is the
+    # exact failure this whole file is about. Four quick sequential sessions cost ~0.4 s and pin it.
+    sf = tmp_path / "test_race_session.py"
+    sf.write_text(SESSION_SRC)
+    seed_dir = tmp_path / "tmproot"
+    seed_dir.mkdir(exist_ok=True)
+    seed_sink: list[dict] = []
+    for i in range(4):
+        _run_session(sf, tmp_path / f"rec-seed{i}.json", f"seed{i}", "pass", seed_dir, "all", None, seed_sink)
+    sink, tmpdir = _cell(tmp_path, JOBS_HIGH, "all")
+    assert len([r for r in sink if r["reached_body"]]) == JOBS_HIGH
     root = tmpdir / f"pytest-of-{os.environ.get('USER', '')}"
     numbered = [d for d in root.iterdir() if d.name.startswith("pytest-") and d.is_dir()]
     assert len(numbered) > 3, "fewer dirs than `keep` — the cleanup was never even a candidate"
@@ -296,32 +339,63 @@ def test_retention_policy_is_per_test_and_failed_is_the_AGGRESSIVE_one(tmp_path,
 
 
 @pytest.mark.slow
-@pytest.mark.parametrize("jobs", [8, 16])
-def test_policy_none_DOES_reap_live_siblings_which_is_why_it_fakes_kills(tmp_path, jobs):
-    """🔴 THE POSITIVE. `none` sets `keep=0`, and a starting session then reaps LIVE siblings.
+@pytest.mark.parametrize(
+    "policy,expected_survivors",
+    # MEASURED, not predicted — my first guess had `all` at 3 and it is 2. Five prior dirs planted,
+    # one session started, then counted:
+    #   all     → 2 survive. `keep=3` counts the session's OWN new dir, so only 2 old ones remain.
+    #   failed  → 3 survive. Same keep=3, but the session PASSED so it deletes its own, freeing a slot.
+    #   none    → 0 survive, and the root is left completely EMPTY — its own dir goes too.
+    [("all", 2), ("failed", 3), ("none", 0)],
+)
+def test_policy_none_sets_keep_0_so_a_starting_session_reaps_EVERY_prior_dir(tmp_path, policy, expected_survivors):
+    """🔴 THE POSITIVE, and it is deterministic because it does not race.
 
     `_pytest/tmpdir.py:210` — `keep = self._retention_count`, then `if policy == "none": keep = 0`,
-    passed to `make_numbered_dir_with_cleanup`. With `keep=3` the newest three are spared before the
-    `.lock` ever matters; with `keep=0` nothing is spared and the lock is the ONLY guard, and it does
-    not hold. Measured here: 4 of 8 and 15 of 16 sessions lost their own directory mid-run, while
-    `all` and `failed` lose none — and the reaped cells report a lock age of 0, because the sibling's
-    lock file is taken along with its directory.
+    passed to `make_numbered_dir_with_cleanup`. Five prior numbered dirs are planted; a session then
+    starts and runs that cleanup, and the three policies separate cleanly — 2 / 3 / 0 survivors.
+    Under `none` the root is left **entirely empty**, the session's own directory included.
 
-    THIS IS THE MECHANISM BEHIND THE FAKE KILLS. Under mutmut there is one session per mutant, all in
-    flight together. A session whose tmp dir is reaped fails — and a failing session is a KILLED
-    mutant. So a mutant that genuinely SURVIVES gets scored dead, which is what Wren measured
-    end-to-end: `none` converted 29 survivors into kills over one real glob while `all` and `failed`
-    were per-mutant identical. This test is the unit-level half of that.
+    WHY THAT MATTERS: under mutmut there is one session per mutant, all in flight. A session whose
+    tmp dir is taken FAILS, and a failing session is a KILLED mutant — so a mutant that genuinely
+    SURVIVES is scored dead. That is the unit-level half of the fleet's end-to-end A/B, where `none`
+    converted 29 survivors into kills over one real glob while `all` and `failed` were per-mutant
+    identical.
 
-    ⚠️ It is also what proved the 2x2 above was asking its question properly. Until this cell existed
-    every policy in the matrix was negative, the reaped-check was `reached_body and not basetemp` —
-    which is never true — and the suite was green on an assertion that could not fail. A file full of
-    negatives needs at least one case that must come back POSITIVE, or it is measuring nothing.
+    ⚠️ AND HERE IS THE CLAIM I HAD TO WEAKEN, WHICH IS THE USEFUL PART. I first wrote this as "`none`
+    reaps LIVE siblings" and measured 4/8 and 15/16 sessions losing their own directory. That is real
+    but PROBABILISTIC — it needs two sessions starting close enough together that the victim's dir
+    exists while its `.lock` is not yet protecting it. Asserting it as a test was flaky: it passed
+    10/10 alone under `-k` and then failed 2 of 3 full-suite runs. Sequencing it to remove the race —
+    wait for the victim's dir, then start the reaper — made it fail CONSISTENTLY, which is the
+    refutation: once a live dir's lock is established, `keep=0` does NOT take it.
+
+    So the honest statement is narrower than the one I shipped: **`keep=0` spares nothing, and that
+    makes a concurrent starter able to take a sibling's tree in the window before its lock holds.**
+    The deterministic half is asserted here; the concurrent half is recorded with its measured rates
+    and is deliberately NOT a test, because a positive that fires probabilistically is a flaky test.
     """
-    sink, _ = _cell(tmp_path, jobs, "none")
-    reaped = [r for r in sink if r["reached_body"] and r["sentinel_survived"] is False]
-    assert reaped, (
-        "policy=none reaped nothing — either pytest changed `keep=0` at session creation, or this "
-        "harness has stopped being able to see a reaping. Do NOT read this as `none` being safe "
-        "until the positive control and this cell have both been re-checked."
+    tmpdir = tmp_path / "tmproot"
+    root = tmpdir / f"pytest-of-{os.environ.get('USER', '')}"
+    root.mkdir(parents=True)
+    # Five PRIOR dirs, unlocked — i.e. the leftovers of finished sessions, which is what a sweep
+    # accumulates. Unlocked on purpose: a lock would make this a test of the lock, not of `keep`.
+    planted = []
+    for i in range(5):
+        d = root / f"pytest-{i}"
+        d.mkdir()
+        (d / "leftover").write_text(str(i))
+        planted.append(d)
+
+    sf = tmp_path / "test_race_session.py"
+    sf.write_text(SESSION_SRC)
+    sink: list[dict] = []
+    _run_session(sf, tmp_path / "rec.json", "starter", "pass", tmpdir, policy, None, sink)
+    assert sink and sink[0]["reached_body"], "the starting session did not run"
+
+    survived = [d.name for d in planted if d.exists()]
+    assert len(survived) == expected_survivors, (
+        f"policy={policy}: {len(survived)} of 5 planted dirs survived, expected "
+        f"{expected_survivors} ({survived}). pytest's `keep` handling changed — re-read every "
+        "argument that cites this file before quoting it again."
     )
