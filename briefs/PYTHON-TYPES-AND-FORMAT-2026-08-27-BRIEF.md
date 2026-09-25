@@ -155,7 +155,7 @@
   | 8 | `adapter_ab.py` `night_profile` | `out: dict[str, object]` | ✅ accept **with the `object` note** |
   | 9 | `probe_verity_offline.py` `_Control` | `asyncio.Queue[bytes]()` | ✅ accept — restates one line more than needed |
   | 10 | `probe_verity_survey.py` `find_rec_frames` | `best: list[tuple[int, int]]` | ❌ **EYES**: :444 assigns a list of **dicts** |
-  | 11 | `capture.py:4055` | `dev: dict[str, object]` | ✅ accept **with the `object` note** |
+  | 11 | `capture.py` `sync_device_time` | `dev: dict[str, object]` | ✅ accept **with the `object` note** |
   | 12 | `tests/test_cpap_stream.py:903` | `instances: list[_FakeBleak]` | ✅ accept — appends `self` |
 
   **Three-way split over n = 12:** accepted **7** · rejected by RAIL **2** · rejected by EYES **3** ·
@@ -316,7 +316,7 @@
       🔴 **DRIFT CORRECTED 2026-09-03 — the live count is 102, in BOTH trees.** This line's `180` was a
       true record of 2026-08-29 and had become the number people reasoned from, four ratchets behind.
       Measured with the gate's own invocation — `python -m mypy --ignore-missing-imports
-      --explicit-package-bases .` from `capture-host/`, the exact line at `check.sh:85`:
+      --explicit-package-bases .` from `capture-host/`, the exact line at `check.sh` `mypy_advisory`:
 
       | tree | result |
       |---|---|
@@ -328,7 +328,7 @@
       (`probe_rt_ppg_args.py`) is still present in root today. ⚠️ The two totals agree at 102 and the
       **file counts do not** (332 vs 341) — so this is not evidence that the count is tree-invariant,
       only that the two populations happen to yield the same total. Quote 102 **with its tree and its
-      date**, exactly as §0 requires. `check.sh:91` still advertises baseline **103 (2026-08-29)**, so
+      date**, exactly as §0 requires. `check.sh` `MYPY_BASELINE` still advertises baseline **103 (2026-08-29)**, so
       the count has moved DOWN by one and the ratchet's "may only go down" invariant holds. **The gate
       is the authority for the baseline; this list is a record, and a record of a moving number must
       carry its measurement date.**
