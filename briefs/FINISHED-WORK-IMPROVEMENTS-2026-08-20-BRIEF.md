@@ -40,7 +40,7 @@ first. The capture half is complete (#1543 readback · #1544 settings · #1548 m
   CONDITIONALLY after the `recording:{}` literal (the `coveragePct` pattern), so every committed
   fixture's export stays byte-identical — no fixture churn. §1570's constraint honoured: the CSV/live
   axis is measured DRAWN; the upgrade applies to the `.dat` path only.
-- **2b — Integrator veto.** Ingestion (~`integrator-dsp.js:221–320`) reads the three fields off
+- **2b — Integrator veto.** Ingestion (~`integrator-dsp.js` `adaptEnvelopeNode`) reads the three fields off
   `json.recording`. In the skew layer (`detectClockSkew` + pooled fit, §6126+): a measured
   `|rtcOffsetS|` above tolerance becomes a DECLARED findings entry (source `rtc-readback`) handled by
   the existing applied/attributed pipeline; `rtcResetSuspect` becomes a declared VETO — the rec is
@@ -85,7 +85,7 @@ first. The capture half is complete (#1543 readback · #1544 settings · #1548 m
      reassurance, and the same line treats an absent `conf` honestly as `'—'`, so the asymmetry
      looks like an oversight. It is not reachable: `motionSQI` returns a `flags` array on **every**
      path including its `< 10 rows` early return (`flags: ['no-data']`), and MotionDex has no
-     `loadOwnExport`, so the projected `sqi: summary.sqi.conf` form (`motiondex-dsp.js:1381`, an
+     `loadOwnExport`, so the projected `sqi: summary.sqi.conf` form (`motiondex-dsp.js` `buildNodeExport`, an
      Integrator input) never re-enters this render. ⚠️ **Its safety is a property of the producer,
      not of the render** — a future re-import path, or a producer that returns bare `{conf}`, makes
      it live. Left as-is; noted so a change there is understood to have this consequence.
@@ -97,9 +97,9 @@ it AND to the consumer that reaches it, because an existing function is not a wi
 | item | state | evidence |
 |---|---|---|
 | B1 | **DONE** (already stamped) | #1626 + the 8-layer sibling scan below |
-| B2 | **DONE — and corrected on the way** | `nightarchive.unarchived_nights`, wired at `capture.py:6275` |
+| B2 | **DONE — and corrected on the way** | `nightarchive.unarchived_nights`, wired at `capture.py` `storage_poller` |
 | B3 | **HALF** — decision taken, residual not computed | `O2RING-TIME-CAPABILITY-WIRING-2026-08-19-BRIEF.md:57` |
-| B4 | **DONE 2026-09-03** (`49a774a6`) | `tools/trio-batch.mjs:1530`, surfaced at `:1416` |
+| B4 | **DONE 2026-09-03** (`49a774a6`) | `tools/trio-batch.mjs` `readDatTimefit`, surfaced at `:1416` |
 | B5 | open — procedural, needs two sessions | — |
 | B6 | open — needs the three absent nights located | — |
 
@@ -109,10 +109,10 @@ marker says a copy was once MADE, not that it still EXISTS, and on the real box 
 nights carried the marker while the backup volume was absent** — a marker-only gate would have deleted
 the on-box copy of a night whose mirror had gone with the disk, losing both. The shipped gate therefore
 requires the marker AND `dest/<night>` present, and treats a missing `dest` as protecting everything.
-Wired end to end: `capture.py:6275` computes the blocked set and unions it into `protect` before
+Wired end to end: `capture.py` `storage_poller` computes the blocked set and unions it into `protect` before
 `diskguard.prune_old_nights`.
 
-**B4's implementing commit names this item in its own comment** — `trio-batch.mjs:1521` reads
+**B4's implementing commit names this item in its own comment** — `trio-batch.mjs` `readDatTimefit` reads
 "THE CROSS-CHECK B4 ASKS FOR" — so the work and the brief were never connected by anything but that
 line. It computes `disagrees` from the fitted lag against the ring's reported offset plus its drift
 allowance, tri-state so "the two agree" is distinguishable from "there is only one measurement", and
@@ -238,7 +238,7 @@ Schedule together; total ≈ one supervised evening plus one worn night.
 - The RTC as a TCH corner — structurally impossible at ±1 s (wiring brief §4).
 - Node-local clock variants, fonts, badge coverage, desatProfile — CLAUDE.md §✅.
 - Automating system-file-drift repair — owner-signed surface-only (Option C, 2026-08-17).
-- `oxydex-dsp.js:6213` ÷N stdDev unification — on-touch cleanup only, per the audit's own text.
+- `oxydex-dsp.js` `stdDev` ÷N stdDev unification — on-touch cleanup only, per the audit's own text.
 - The battery raw2 byte — "the log IS its characterisation"; data still accumulating.
 
 ## 6 · Sequencing
@@ -268,7 +268,7 @@ self-measures).
 
       - **B2 · retention prune gated on `.archived` — ALREADY DONE, and more strongly than the item
         asks.** `nightarchive.unarchived_nights()` exists, names `VIGIL-OVERNIGHT-FINDINGS §P3.2` as
-        its purpose, and is **wired** at `capture.py:4421` into `plan_prune`'s `protect` set. It is
+        its purpose, and is **wired** at `capture.py` `storage_poller` into `plan_prune`'s `protect` set. It is
         also better than the item's own suggestion: B2 proposes "skip any night lacking `.archived`",
         but that module's docstring records why a marker-only gate is unsafe — measured on the box
         2026-07-25, **6 of 10 nights carried the marker while the backup volume was absent**, so

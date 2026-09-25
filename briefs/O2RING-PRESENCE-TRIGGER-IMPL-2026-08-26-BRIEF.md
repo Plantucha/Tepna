@@ -107,4 +107,4 @@ Recorded in `oxy_presence.py`'s docstring so the code defends itself.
 - [x] 41 assertions, 100 % stmt+branch on the new module, six planted controls.
 - [ ] §2's coexistence matrix run on the box → `scan_coexistence_verified` earned. **Thursday.**
 - [ ] §25's A–O acceptance run with observed timestamps. **Thursday.**
-- [x] §19's T-chain witness telemetry. **Stale-unchecked — SHIPPED in 90fea439 (#1846): `oxy_presence.witness_chain()`/`witness_summary()` over the 10-link `WITNESS_LINKS`, wired at `capture.py:7384-7386`, tests `test_oxy_presence.py:149-183`. Verified 2026-09-02.**
+- [x] §19's T-chain witness telemetry. **Stale-unchecked — SHIPPED in 90fea439 (#1846): `oxy_presence.witness_chain()`/`witness_summary()` over the 10-link `WITNESS_LINKS`, wired at `capture.py` `_presence_scan_loop`, tests `test_oxy_presence.py:149-183`. Verified 2026-09-02.**

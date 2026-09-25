@@ -75,7 +75,7 @@ Identical timing, decorrelated noise — textbook diversity combining. Two conse
 **no computation reads it** (verified by grep — the only hits are parse, store, carry). The Polar SDK
 community is explicit that *"the ambient channel should be subtracted from each of the other channels."*
 
-**The current selector is weaker than it looks.** `pickChannel` (`ppgdex-dsp.js:276`) is called
+**The current selector is weaker than it looks.** `pickChannel` (`ppgdex-dsp.js` `pickChannel`) is called
 **once** (`:1536`), and `channelSNR` (`:263-266`) scores a **single ~90 s window taken from the middle
 of the record**. On a 10 h night that is **~0.25 % of the data choosing the reference for 100 % of it**.
 The comment justifies it as *"SNR is scale- & length-invariant"* — scale-invariant yes, **time**-invariant

@@ -25,7 +25,7 @@ replaced by a plausible ~1 s heartbeat that then fed rMSSD and SDNN as if it wer
 
 ## 2 · What the guard is, and the two ways it fails
 
-`ecgdex-dsp.js:948-961`, per-beat SQI, two legs:
+`ecgdex-dsp.js` `computeSQI`, per-beat SQI, two legs:
 
 | leg | rule | fires on the observed population |
 |---|---|---|
@@ -68,7 +68,7 @@ capture". **That was a generalisation and it is wrong.** Checked:
 | remedy | blocked by the capture? | actual constraint |
 |---|---|---|
 | **rail leg (`31000`)** | **NO** | `31000` has exactly ONE live site (`ecgdex-dsp.js:958`), ECG-only, no PPG path. The capture answers what the **O2Ring's PPG** rests at — different device, signal and phenomenon. **Independently fixable now.** |
-| **`GAP_S`** | **NO** — but coupled | ECG-local in code, yet `ppgdex-dsp.js:4108` holds `PPG_CVHR_GAP_S = 10; // ECGDex GAP_S — one cut, so the two nodes' indices stay comparable`. **Two constants held equal by a COMMENT, not a shared symbol.** Moving one silently breaks a documented cross-node invariant. |
+| **`GAP_S`** | **NO** — but coupled | ECG-local in code, yet `ppgdex-dsp.js` `PPG_CVHR_GAP_S` holds `PPG_CVHR_GAP_S = 10; // ECGDex GAP_S — one cut, so the two nodes' indices stay comparable`. **Two constants held equal by a COMMENT, not a shared symbol.** Moving one silently breaks a documented cross-node invariant. |
 
 So neither is gated on the capture; one is a single-site fix and the other is a two-node threshold
 decision. That distinction was invisible until the dependency was checked rather than inherited.

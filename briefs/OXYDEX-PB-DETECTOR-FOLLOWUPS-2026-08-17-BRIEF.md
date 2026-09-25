@@ -12,7 +12,7 @@ than defects and treating them as bugs would be its own error.
 ## 1 · ✅ CLOSED — `cycleIntervals` is a sliding view, and its length is not a cycle count
 
 `computePatternScores` builds `cycleIntervals` by sliding one half-cycle at a time
-(`oxydex-dsp.js:1030`), so for `k` true cycles it holds `2k − 1` entries. The parent's §2.2 measured
+(`oxydex-dsp.js` `computePBmetrics`), so for `k` true cycles it holds `2k − 1` entries. The parent's §2.2 measured
 this: 2 real cycles → 3 entries.
 
 **Checked before writing this, and it is NOT currently a defect.** `cycleIntervals.length` appears only
@@ -34,8 +34,8 @@ number of cycles**, giving the `2k − 1` mapping, recording that the mean and S
 thing to copy if a cycle **count** is ever needed. The sliding construction is unchanged, deliberately.
 
 **Why a comment rather than the rename:** `pbCycleLen` is not an internal — it is exported to CSV as
-*"PB Cycle Length (s)"* (`oxydex-app.js:432`) and it gates two decisions, the CS criterion
-(`oxydex-dsp.js:1544`, the 40–130 s window) and UARS (`:1562`). Renaming the array is a wider edit
+*"PB Cycle Length (s)"* (`oxydex-app.js` `exportCSV`) and it gates two decisions, the CS criterion
+(`oxydex-dsp.js` `computePatternScores`, the 40–130 s window) and UARS (`:1562`). Renaming the array is a wider edit
 across live consumers for no behavioural gain, and the trap is one of *reading*, which is what a comment
 at the point of declaration addresses.
 
@@ -338,7 +338,7 @@ non-oscillating windows are `continue`d, so two consecutive entries can sit eith
 only guard is `iv > 5 && iv < 300`, and `WIN` is **also** 300.
 
 **MEASURED on the same 61 nights**, replicating `computePatternScores`' construction
-(`oxydex-dsp.js:991–1031`) against the shipped parser:
+(`oxydex-dsp.js` `computePBmetrics`) against the shipped parser:
 
 | | count |
 |---|---|
@@ -354,7 +354,7 @@ bound, not a coincidence.
 
 ⚠️ **That coupling is now load-bearing and undocumented in the code.** If `OSC_WINDOW_SEC` is ever
 changed without changing the interval guard to match, gap-spanning pairs start being recorded as cycles.
-The cheap protection is a comment at `oxydex-dsp.js:1026` tying the two constants together — worth doing
+The cheap protection is a comment at `oxydex-dsp.js` `computePBmetrics` tying the two constants together — worth doing
 on the next touch of that function (see §1, which wants a comment in the same place).
 
 ---

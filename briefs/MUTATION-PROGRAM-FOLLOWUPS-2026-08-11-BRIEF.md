@@ -348,7 +348,7 @@ same — that sequence is the reusable part.
 
 ### 9.1 ⚠️ `instanceof` IS REALM-SCOPED — a fleet-wide harness trap
 
-`hrvdex-dsp.js:718` reads `r._date instanceof Date ? r._date.getUTCHours() : 8`. The DSPs run in a vm
+`hrvdex-dsp.js` `computeDerived` reads `r._date instanceof Date ? r._date.getUTCHours() : 8`. The DSPs run in a vm
 context created from a bare `{}`, so it carries **its own intrinsics**: a host-constructed
 `new Date(ms)` is not `instanceof` that realm's `Date`, the guard is false, and the code takes the
 `: 8` default. Three fixtures stamped 08:00 / 12:00 / 18:00 all took the **morning** arm and produced

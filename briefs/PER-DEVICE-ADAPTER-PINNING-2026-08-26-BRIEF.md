@@ -50,7 +50,7 @@ comparison was contaminated by a leaked discovery session and produced a confide
   always returns an `hciN`, re-resolved every connect, logs and falls back to the BlueZ default when
   the MAC is absent so *an absent radio never silently masquerades as a working pin*.
 - **Five bonding call sites** pass the global directly — re-cited 2026-09-04 against current `main`, with the CALL named beside each line so the next drift is detectable by reading rather than by trusting:
-  `capture.py:2195` `ensure_bonded(addr, ADAPTER)` · `:2241` `is_bonded(addr, ADAPTER)` · `:2246` `ensure_bonded(addr, ADAPTER, force=True)` · `:3082` `ensure_bonded(addr, ADAPTER, force=True)` · `:3212` `ensure_bonded(addr, ADAPTER)`.
+  `capture.py` `run_polar` `ensure_bonded(addr, ADAPTER)` · `:2241` `is_bonded(addr, ADAPTER)` · `:2246` `ensure_bonded(addr, ADAPTER, force=True)` · `:3082` `ensure_bonded(addr, ADAPTER, force=True)` · `:3212` `ensure_bonded(addr, ADAPTER)`.
   The COUNT was always right: `grep -cE 'bonding\.[a-z_]+\([^)]*ADAPTER'` returns exactly 5. Only the line
   numbers had drifted — the previous citation (`1815, 1861, 1866, 2662, 2774`) landed on `return False`, a
   skew-jump comparison and PMD/SDK comments, i.e. nowhere near the mechanism this section describes.
