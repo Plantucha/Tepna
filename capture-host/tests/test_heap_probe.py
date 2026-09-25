@@ -606,6 +606,10 @@ def test_the_walk_stops_when_the_frontier_EMPTIES_before_the_depth_runs_out(tmp_
     holder = [subject]                          # a LOCAL: nothing refers to it, so the chain dead-ends
     assert capture.holder_of(subject, depth=4) == {"module": None, "name": None}
     assert holder[0] is subject                 # and the chain really existed while we walked it
+    # ⚠️ This test is also the one that caught the walk chasing ITSELF. Before `own` excluded the walk's
+    # own `frontier`/`nxt`/`seen`, `get_referrers(holder)` returned the frontier list holding it, so the
+    # frontier never emptied, every hop was spent on bookkeeping, and the `break` below was unreachable —
+    # a walk that exhausts its depth on its own containers reports `null` with a real holder one hop away.
 
 
 def test_PLANT_heap_probe_RETURNS_without_tracing_when_no_request_is_present(tmp_path):

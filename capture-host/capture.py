@@ -9820,10 +9820,17 @@ def holder_of(obj, depth: int = _HOLDER_DEPTH) -> dict:
     seen: set[int] = {id(obj)}
     frontier = [obj]
     for _ in range(depth):
-        nxt = []
+        nxt: list = []
+        # 🔴 THE WALK MUST NOT CHASE ITSELF. `frontier`, `nxt` and `seen` are tracked containers that
+        # refer to the very objects being walked, so `gc.get_referrers` hands them straight back: the
+        # frontier then never empties, every hop spends budget on this function's own bookkeeping, and the
+        # walk can exhaust its depth and report `null` while a real holder sat one hop away. Found by the
+        # coverage gate — the `break` below was unreachable, which is what a self-referential frontier
+        # looks like from the outside.
+        own = {id(seen), id(frontier), id(nxt)}
         for o in frontier:
             for r in gc.get_referrers(o):
-                if id(r) in seen:
+                if id(r) in seen or id(r) in own:
                     continue
                 seen.add(id(r))
                 # NO FRAME BRANCH. I wrote one and removed it: on CPython 3.13 a frame never appears as a
