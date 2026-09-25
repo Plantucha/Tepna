@@ -19,7 +19,7 @@ the code and keeps it.** The defects found are in *release* and *observability*,
 not by ownership: global `asyncio.Event`s — `_RECOVER` (radio recovery in progress), `_OXYII_PAUSE`,
 `_POLAR_PAUSED` (a set), `_STOP` — plus one `_CONNECT_LOCK` and one cross-process
 `offline_lock.slot(who)` (`OfflineBusy` when held). Every device runner is its own supervised task
-(`keep_running`, `capture.py:6960`) with its own reconnect loop; pollers (storage, QC, archive,
+(`keep_running`, `capture.py` `keep_running`) with its own reconnect loop; pollers (storage, QC, archive,
 adapter watchdog, …, now 14) are supervised the same way.
 
 **What is actually right about it — and must be preserved:**
@@ -38,7 +38,7 @@ adapter watchdog, …, now 14) are supervised the same way.
 | id | resource | defect | where |
 |---|---|---|---|
 | **S1** | storage | A row write that raises (`ENOSPC`, closed handle) was **uncounted**: `fh.write` was bare in every one of 8 writer classes; `flush_failures` counted only `_maybe_flush`. A full disk lost raw rows *silently* — the charter's one unforgivable failure. | `writers.py` `_row` / 7 sidecar `write` methods |
-| **S2** | storage ↔ timing | `_maybe_flush` runs `flush()` **+ `os.fsync()` on the event loop** every 5 s per stream. bleak delivers notifications *on the loop*, so every live stream's host stamp waits behind every other stream's fsync. **Never measured.** | `writers.py:599` |
+| **S2** | storage ↔ timing | `_maybe_flush` runs `flush()` **+ `os.fsync()` on the event loop** every 5 s per stream. bleak delivers notifications *on the loop*, so every live stream's host stamp waits behind every other stream's fsync. **Never measured.** | `writers.py` `_maybe_flush` |
 | **L1** | radio gate | `_restart_radio` set `_RECOVER` and slept 5 s with **no `finally`**; a cancellation during that sleep (shutdown, supervisor restart) left `_RECOVER` set forever ⇒ every runner refused to connect until process restart. The other two set-sites (`_migrate_to_spare:1409`, `adapter_watchdog:4878`) already had `finally: clear()`. | `capture.py` `_restart_radio` |
 | **L2** | loop | Event-loop latency — the one number that says whether *anything* on this host is starving the P0 path — was not measured at all. | — |
 | **L3** | loop | `diskguard.active_nights`, `_current_night`, `nightarchive.pending_nights` **walk the capture tree synchronously on the loop** (`os.scandir` + `stat` per night, `_grew_since_marker` walks every archived night). On a 100-night SD card that is a multi-hundred-ms stall on the P0 path, every poll. | `storage_poller:5468`, `qc_poller:5848`, `archive_poller:6049` |
@@ -212,7 +212,7 @@ actionable rather than waiting:
 >   There is no HCI command round-trip anywhere in capture-host (`0x0c03` / `HCI_RESET` / `hci_send`:
 >   zero hits outside comments). `classify_adapter_health` is PURE and flag-fed — it takes `adapter_up`
 >   from `_adapter_is_up(_hci_now)`, a *state read* on the **single pinned** adapter, and has exactly one
->   consumer (`capture.py:5793`). So it is blind twice over: it would have read the wedged radio's
+>   consumer (`capture.py` `adapter_watchdog`). So it is blind twice over: it would have read the wedged radio's
 >   `UP RUNNING` as healthy while `HCI Reset` itself timed out, AND it cannot see a wedge on any of the
 >   other three radios vigil was running, because it only ever looks at the pinned one. A round-trip probe
 >   is the fix for the first blindness; it does not address the second.
@@ -276,7 +276,7 @@ framework around them.**
 none has been taken."* Taken now, read-only on the box, from `journalctl -u tepna-capture` (journal spans
 2026-08-04 → 2026-09-18) plus `df`.
 
-**The population splits on the log string itself.** `writers.py:323` tags the post-fix line
+**The population splits on the log string itself.** `writers.py` `note_fsync` tags the post-fix line
 `(off-loop worker)`; the pre-fix line does not. 185 `SLOW fsync` events total, **20 pre / 165 post** — and
 the 20 matches §9's *"20 `SLOW fsync` events"* exactly, which is the corroboration that the split is real
 and not a grep artifact.
@@ -397,7 +397,7 @@ So the defect is real but is **neither of the two things the row names**. What r
 
 ### One hypothesis measured and REFUTED, recorded so it is not re-derived
 
-`capture.py:5394` warns that *"adapter_watchdog, clock_watchdog and rssi_poller all skip while
+`capture.py` `_OFFLINE_OP_TIMEOUT_S` warns that *"adapter_watchdog, clock_watchdog and rssi_poller all skip while
 `_POLAR_PAUSED` is non-empty, so the one mechanism built to unwedge a stuck radio is disabled by exactly
 the condition that wedges it"*, and the window carries **77 pause/resume pairs in 29 minutes** — a clock
 auto-sync retry storm (64 `org.bluez.Error.InProgress` retries). That is an attractive explanation for a

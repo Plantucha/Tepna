@@ -15,7 +15,7 @@ live defect in a different module.
 
 Phase 4 reads as though the constant *is* the sample clock. It has not been since
 `CAPTURE-HOST-DEEP-AUDIT §A3`: `O2PpgGrid._re_estimate` **slews `step_s` toward the rate the ring is
-actually running at** (`capture.py:638`), and `capture.py:349` says so — *"The configured rate is a
+actually running at** (`capture.py` `_re_estimate`), and `capture.py:349` says so — *"The configured rate is a
 STARTING GUESS, not the sample clock."*
 
 Confirmed on the corpus: the per-night written row rate is **not** pinned at 125.738 but converges
@@ -28,7 +28,7 @@ and on its own it moves no timestamp that the slew would not have reached anyway
 
 ## 2 · "Strip markers" would destroy information, and get ~7 % of it wrong
 
-`ppgdex-dsp.js:239` does **not** reject every `156`. It applies an isolation test
+`ppgdex-dsp.js` `markO2BeatMarkers` does **not** reject every `156`. It applies an isolation test
 (`O2_SENTINEL_ISOLATION = 25` LSB from the local trend) because a genuine signal value of 156 is
 indistinguishable from a marker by value alone — measured ~93 % isolated / ~7 % trend-consistent, with
 the comment: *"Rejecting every 156 would punch ~7 % of holes into VALID signal."*
@@ -63,7 +63,7 @@ largely cancels in RR intervals. Nobody has shown it moves an HRV number. §4 is
 
 ## 4 · THE LIVE DEFECT: the three-cornered hat accepts a drawn axis; closure no longer does
 
-`ppgdex-dsp.js:442` warns, in the code:
+`ppgdex-dsp.js` `parsePPG` warns, in the code:
 
 > *"DRAWN + no anchors ⇒ `'none'`: the recording carries no timing information whatsoever and must never
 > be spent as a clock leg — **closure, three-cornered hat and PAT all silently accept such a leg today
@@ -93,7 +93,7 @@ That comment is now **half stale and half still true**, and the still-true half 
 >
 > **"Zero mentions" was true of `pat-gate.js` and was not the defect.** The gate had acquired a correct
 > clock refusal in the meantime — `NO SHARED CLOCK` on `ax.independent === false`, six assertions behind
-> it. What shipped broken is that its only runtime caller, `pat-feasibility-worker.js:423`, invoked it as
+> it. What shipped broken is that its only runtime caller, `pat-feasibility-worker.js` `self.onmessage`, invoked it as
 > `PATGate.verdict(ov, cp, sc)` — **three arguments**. Nothing could reach the fourth, so the guard had
 > never once fired. Both parsers already held `rec.hostAxis` and dropped it in their reshape — the lesson
 > `ppgdex-dsp.js` states three lines above `timingSource`'s own definition, re-applied one layer down.
@@ -101,7 +101,7 @@ That comment is now **half stale and half still true**, and the still-true half 
 > That distinction is the transferable part. A grep for `timingSource` reports an absent guard; a grep
 > for `PATGate.verdict` reports a healthy, heavily-exercised one. **Neither can see an argument that is
 > never passed.** The check has to be *who calls it, with what arguments* — not *does the name appear*.
-> `integrator-dsp.js:694` records the identical failure one lane over ("WITHOUT IT THIS GUARD WAS
+> `integrator-dsp.js` `adaptEnvelopeNode` records the identical failure one lane over ("WITHOUT IT THIS GUARD WAS
 > INERT"), so this is two independent instances of one shape inside the same subsystem.
 >
 > **The severity was also inverted from what this section assumed.** `timingSource:'none'` is a

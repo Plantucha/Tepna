@@ -319,7 +319,7 @@ specifies A3's measure.
     It ramps and was already recovering when the link was cut, while the row rate collapsed to 25–90 % of
     nominal. A clock step would hold its new level at the nominal rate. The persistence after-window
     (20:27:09–20:28:09) sat **inside the backlog**, just before the disconnect. Heron's reading was right:
-    dropout disagreements in this corpus reach 29 s (`writers.py:884`), and 14.5 s sits inside that
+    dropout disagreements in this corpus reach 29 s (`writers.py` `SEAM_BOUND_MS`), and 14.5 s sits inside that
     population.
   - **Correction of record.** An earlier cut of this amendment called 09-19 "a device-side event the
     watchdog did not log — a reconnect with a different device clock" and routed it to Heron to build a

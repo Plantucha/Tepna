@@ -215,7 +215,7 @@ with the link gone **2.4 min later**. That is a real post-drop pull: tail ≥ 1.
 experiment, not a result, and it is the only reason §5's checkbox is not simply closed as "sufficient".
 
 **⚠️ What the tail does NOT gate — the mistake is easy and I made it.** The tail bounds the *pull*,
-not the *observation of the close*. `_DROP_NOT_WORN_SEC = 180 s` (`capture-host/capture.py:1421`) and
+not the *observation of the close*. `_DROP_NOT_WORN_SEC = 180 s` (`capture-host/capture.py` `_DROP_NOT_WORN_SEC`) and
 the settle is `max(notworn_settle_sec, _DROP_NOT_WORN_SEC + 30)` *(⚠️ STALE since 2026-08-26 — that clamp was DELETED; `capture.py` "NO CLAMP": the configured `pull.notworn_settle_sec` IS the effective value, 45 s on the box — residue `2026-09-07-refinement-brief-quotes-a-deleted-clamp`)*, so the link is deliberately **held
 for 180 s** after not-worn — and the ring's close lands at ~10 s, well inside it. `observed_s` is
 therefore available whenever the daemon was connected at the doff moment, and it does not depend on

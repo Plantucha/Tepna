@@ -29349,7 +29349,9 @@
         T.ok('  absent HR sidecar is omitted (never fabricated)', !(pc && 'hr' in pc));
         // 'runs' joined 2026-09-25 (SAMPLE-VALIDITY-ENVELOPE §3.2): the `_PPGRUNS.txt` validity sidecar is a
         // PPG companion kind. Deliberate contract change — this line pinned the enumeration as the invariant.
-        T.ok('  companionKinds(ppg) = acc/gyro/magn/ppi/runs', JSON.stringify(ORCH.companionKinds('ppg')) === JSON.stringify(['acc', 'gyro', 'magn', 'ppi', 'runs']));
+        // 'accruns' joined 2026-09-25 — the ACC companion's OWN sidecar, a kind of its own so it can
+        // never occupy the primary's `runs` slot. Corrected, not relaxed: still an exact set compare.
+        T.ok('  companionKinds(ppg) = acc/gyro/magn/ppi/runs/accruns', JSON.stringify(ORCH.companionKinds('ppg')) === JSON.stringify(['acc', 'gyro', 'magn', 'ppi', 'runs', 'accruns']));
         T.ok('  a no-sidecar drop pairs nothing → null', ORCH.pairCompanions('ecg', 'lone_20260617_010000_ECG.txt', [{ name: 'lone_20260617_010000_ECG.txt', text: 'ECG' }]) === null);
 
         // §1 (ECG-INGEST-FOLLOWUPS) — DEVICE-ID companion filter (the cross-host analogue of the app fix).
@@ -30226,7 +30228,16 @@
         } else T.skip('ECGDSP.epochEngine unavailable');
         // (7) SOURCE MIRRORS — the three callers, so a future edit cannot quietly unwire the path.
         var src = env.sources || {};
-        if (src['signal-orchestrate.js']) T.ok('signal-orchestrate · `runs` is an ECG companion kind', /ecg:\s*\['rr',\s*'hr',\s*'acc',\s*'runs'\]/.test(src['signal-orchestrate.js']));
+        /* CORRECTED 2026-09-25 and STRENGTHENED. I wrote this yesterday pinning the exact ARRAY
+           LITERAL, so adding a sibling kind reddened it although the property — ECG carries the runs
+           companion — was untouched. The same spelling-not-capability trap I corrected in the app
+           mirror. It now requires BOTH kinds, which is strictly more than it asserted before. */
+        if (src['signal-orchestrate.js'])
+          T.ok(
+            'signal-orchestrate · ECG carries BOTH `runs` (its own sidecar) and `accruns` (the ACC companion\u2019s)',
+            /ecg:\s*\[[^\]]*'runs'[^\]]*'accruns'[^\]]*\]/.test(src['signal-orchestrate.js']),
+            'the ECG companion list must carry runs and accruns as DISTINCT kinds'
+          );
         if (src['adapters/polar-h10-ecg.js'])
           T.ok(
             'polar-h10-ecg · passes ctx.companions.runs into the PRIMARY parse',
@@ -30303,6 +30314,89 @@
       if (src['motiondex-app.js']) T.ok('motiondex-app · routes `_ACCRUNS` to its ACC runs slot', /_ACCRUNS/.test(src['motiondex-app.js']) && /chestAccRuns/.test(src['motiondex-app.js']));
     });
 
+    /* The ACC COMPANION leg of §3.2 — the sidecar of a companion, which is a different ingest shape
+       from the two legs before it. The defect it prevents is sharper than an unread file: posture is
+       the MEDIAN gravity vector over a 5-minute window, so a held ACC yields a CONFIDENT, WRONG
+       label rather than an absent one, and that label rides into every event's meta.position and
+       weights OSA confidence downstream. Measured on the planted night below: a blanked 5 minutes in
+       the middle of a supine night reported `lateral` — a posture change the wearer never made. */
+    group('SAMPLE-VALIDITY-ENVELOPE §3.2 — the ACC companion sidecar, and a held ACC cannot stamp a posture', 'dex-ingest · signal-orchestrate · adapters · ecgdex-dsp · absence', function (T) {
+      var DI = env.DexIngest,
+        SO = env.SignalOrchestrate,
+        E = env.ECGDSP || env.ECGDex;
+      var H10 = 'Polar_H10_AAAA_20260617_010000_';
+      if (DI && typeof DI.ecgKind === 'function') {
+        T.eq('ecgKind · `_ACCRUNS` is its own kind, never the ECG primary’s `runs`', DI.ecgKind(H10 + 'ACCRUNS.txt'), 'accruns');
+        T.eq('ppgKind · the same, in the PPG node', DI.ppgKind(H10 + 'ACCRUNS.txt'), 'accruns');
+        T.eq('control · `_ECGRUNS` still claims `runs`', DI.ecgKind(H10 + 'ECGRUNS.txt'), 'runs');
+        T.eq('control · `_ACC` is still the ACC companion itself', DI.ecgKind(H10 + 'ACC.txt'), 'acc');
+        var plan = DI.planIngest([{ name: H10 + 'ECG.txt' }, { name: H10 + 'ACC.txt' }, { name: H10 + 'ACCRUNS.txt' }], {});
+        T.ok('planIngest · the sidecar reaches its OWN lane', !!(plan.companionLanes.accruns && plan.companionLanes.accruns.length === 1));
+        T.eq('planIngest · and nothing is set aside — the fail-open default cannot claim it', plan.skipped.length, 0);
+      } else T.skip('DexIngest not loaded in this runner');
+      /* THE COLLISION THIS DESIGN EXISTS TO PREVENT. A kind IS the slot name in pairCompanions, so a
+         shared 'runs' would put both sidecars in one slot on the SAME device, where nearest-stamp
+         decides between two identical stamps — the ECG's own sidecar silently replaced by the ACC's,
+         looking exactly like a working pairing. */
+      if (SO && typeof SO.pairCompanions === 'function') {
+        T.eq('streamKind · `_ACCRUNS` is `accruns`', SO.streamKind(H10 + 'ACCRUNS.txt'), 'accruns');
+        var comps = SO.pairCompanions('ecg', H10 + 'ECG.txt', [
+          { name: H10 + 'ECG.txt', text: 'p' },
+          { name: H10 + 'ECGRUNS.txt', text: 'ECGSIDE' },
+          { name: H10 + 'ACC.txt', text: 'acc' },
+          { name: H10 + 'ACCRUNS.txt', text: 'ACCSIDE' }
+        ]);
+        T.eq('pairCompanions · the ECG primary keeps ITS OWN sidecar in `runs`', comps && comps.runs, 'ECGSIDE');
+        T.eq('pairCompanions · …and the ACC sidecar lands in `accruns`, not over it', comps && comps.accruns, 'ACCSIDE');
+      } else T.skip('SignalOrchestrate.pairCompanions unavailable');
+      // THE REFUSAL — a held ACC must not stamp a posture.
+      if (E && typeof E.stampEpochPositions === 'function') {
+        var fs = 4,
+          t0 = Date.UTC(2026, 8, 25, 1, 0, 0),
+          acc = [];
+        for (var i = 0; i < fs * 1200; i++) {
+          var ss = i / fs,
+            held = ss >= 300 && ss < 600;
+          acc.push({
+            tsMs: t0 + Math.round(ss * 1000),
+            relNs: Math.round(ss * 1e9),
+            x: held ? 1000 : Math.round(30 * Math.sin(ss / 7)),
+            y: held ? 0 : Math.round(20 * Math.cos(ss / 9)),
+            z: held ? 0 : 1000
+          });
+        }
+        var mk = function () {
+          return [0, 5, 10, 15].map(function (m) {
+            return { tMin: m };
+          });
+        };
+        var a = mk();
+        E.stampEpochPositions(a, acc, fs, t0, 1200);
+        T.eq('without the sidecar the held stretch stamps a CONFIDENT posture the wearer never took', a[1].position, 'lateral');
+        T.eq('…while its neighbours read the real one', a[0].position + '/' + a[2].position, 'supine/supine');
+        acc._blankSpans = [{ t0Ms: t0 + 300000, t1Ms: t0 + 600000 }];
+        var b = mk();
+        E.stampEpochPositions(b, acc, fs, t0, 1200);
+        T.eq('the blanked epoch refuses the posture', b[1].position, 'unknown');
+        T.eq('…and NAMES why, so it is distinguishable from "too few samples"', b[1].positionReason, 'blanking-run');
+        T.eq('the untouched epochs are unchanged', b[0].position + '/' + b[2].position + '/' + b[3].position, 'supine/supine/supine');
+        T.ok('no sidecar ⇒ no reason key anywhere (byte-identical shape)', !('positionReason' in a[0]) && !('positionReason' in a[1]));
+        T.ok(
+          'DECOY · a zero-width span convicts nothing',
+          (function () {
+            var c = mk();
+            var acc2 = acc.slice();
+            acc2._blankSpans = [{ t0Ms: t0 + 300000, t1Ms: t0 + 300000 }];
+            E.stampEpochPositions(c, acc2, fs, t0, 1200);
+            return c[1].position === 'lateral';
+          })()
+        );
+      } else T.skip('ECGDSP.stampEpochPositions unavailable');
+      var src = env.sources || {};
+      if (src['adapters/polar-h10-ecg.js'])
+        T.ok('polar-h10-ecg · passes comp.accruns into parseDeviceACC', /comp\.accruns \? ecg\.parseDeviceACC\(comp\.acc, \{ runsText: comp\.accruns \}\)/.test(src['adapters/polar-h10-ecg.js']));
+    });
+
     group('SAMPLE-VALIDITY-ENVELOPE §3.2 — the _PPGRUNS sidecar reaches parsePPG from every ingest path', 'dex-ingest · signal-orchestrate · adapters · ppgdex-app', function (T) {
       var DI = env.DexIngest,
         SO = env.SignalOrchestrate,
@@ -30315,7 +30409,11 @@
         H10 = 'Polar_H10_AAAA_20260617_010000_';
       // (1) CLASSIFICATION — the defect measured 2026-09-25: these five read as PRIMARIES in both nodes.
       T.eq('ppgKind · `_PPGRUNS.txt` is the runs COMPANION, not a PPG primary', DI.ppgKind(VS + 'PPGRUNS.txt'), 'runs');
-      T.eq('ppgKind · `_ACCRUNS.txt` is set aside (a sidecar is never a waveform)', DI.ppgKind(VS + 'ACCRUNS.txt'), 'skip');
+      /* CORRECTED 2026-09-25. This read 'skip' because nothing could read an ACC sidecar; PpgDex now
+         claims it as the `accruns` COMPANION. It is still never a waveform — the control below pins
+         that `_PPG` remains the primary — and it still cannot occupy the primary's `runs` slot. */
+      T.eq('ppgKind · `_ACCRUNS.txt` is the ACC companion\u2019s sidecar, still never a waveform', DI.ppgKind(VS + 'ACCRUNS.txt'), 'accruns');
+      T.eq('ppgKind · and it is NOT the primary\u2019s `runs` — that slot stays `_PPGRUNS`', DI.ppgKind(VS + 'PPGRUNS.txt'), 'runs');
       T.eq('ppgKind · `_ECGSEAMS.txt` is set aside', DI.ppgKind(H10 + 'ECGSEAMS.txt'), 'skip');
       /* CORRECTED 2026-09-25, not weakened. This read 'skip' because nothing in ECGDex could read the
          file; now `ecgKind` claims it as the runs COMPANION, exactly as `ppgKind` claims `_PPGRUNS`.
@@ -54704,6 +54802,124 @@
      no single-channel and no finger-site path" — is STALE: `PPGDEX-O2RING-FINGER-SITE-2026-07-18`
      is DONE (2026-07-20), verified on hardware, and `parsePPG` returns `site:'finger'` with a
      single-channel beat lane. Verified in the tree before acting, not read off a status line. */
+    /* ════ THE SIBLING WAVEFORM — residue `2026-09-25-ppg2w-routes-to-spo2` ══════════════════════
+       §1.4's fix (the group below) declined `_PPG.txt` in `oxydex-spo2` and gave `o2ring-ppg` 0.97.
+       `_PPG2W.txt` — the SAME ring's raw dual-wavelength stream — was left behind, and it was WORSE
+       than the tie it descends from: `_PPG\b` / `_PPG\.` cannot match `_PPG2W` (a word character
+       follows `PPG`), so every `ppg` adapter scored **0** and `oxydex-spo2` won OUTRIGHT at 0.95 —
+       no runner-up, so the router did not even report `ambiguous`. A confident wrong adapter.
+
+       SEVERITY WAS MEASURED BEFORE THE FIX, and it was a LOST SIGNAL, not a wrong number:
+       `oxydex-spo2.parse` on a 20 Hz `_PPG2W.txt` returned
+       `usable:false · "no usable SpO₂ rows parsed"`, with the real 1 Hz CSV as a live control (it
+       parsed and refused on its OWN ≥10 floor). Recording that here because "it refuses anyway" is
+       exactly the reasoning that leaves a misroute unfixed — the waveform was simply never analyzed.
+       ⚠️ That measurement was initially reported as UNMEASURABLE headless. It was not: the probe
+       passed `route().best` where the host passes `route().best.adapter`, so `runAdapter` returned
+       null for the CONTROL too. Reading `data-unifier-app.js`'s call site fixed the harness. A null
+       answer for the control is what said "instrument", not "subject" (CLAUDE.md §4b). */
+    group('o2ring-ppg2w adapter — the dual-wavelength waveform routes to the node that PARSES it', 'adapters · o2ring-ppg2w · routing · signal-adapters', function (T) {
+      var SA = env.SignalAdapters;
+      var A = SA && SA.byId ? SA.byId('o2ring-ppg2w') : null;
+      T.ok(
+        'o2ring-ppg2w adapter registered',
+        !!A,
+        A
+          ? ''
+          : 'adapters/o2ring-ppg2w.js not co-loaded — it must be added to FOUR places, and the co-load manifest gate is the enumeration: both .src.html, Dex-Test-Suite.html, dex-coload.js and tests/run-tests.mjs (the sibling hint below says "BOTH runners + both .src.html" and is one short — Dex-Test-Suite.html caught this one)'
+      );
+      if (!A || !SA || typeof SA.route !== 'function') return;
+      /* `spo2` because `signal-orchestrate _HOSTS` maps it to `oxyHost`, and OxyDex is the node that
+         owns `parsePPG2W` — the signalType picks the HOST, not the physical quantity of the bytes. */
+      T.eq('signalType = spo2 — the host that can read it is OxyDex', A.signalType, 'spo2');
+
+      var W2 = 'Wellue_O2Ring-S_S8AW2100_20260905223000_PPG2W.txt',
+        W2_RUNS = 'Wellue_O2Ring-S_S8AW2100_20260905223000_PPG2WRUNS.txt',
+        PPG = 'Wellue_O2Ring-S_S8AW2100_20260725010522_PPG.txt',
+        CSV = 'O2Ring S 2100_20260720.csv',
+        W2_HEAD = 'Phone timestamp;sensor timestamp [ns];channel 0;channel 1;motion',
+        CSV_HEAD = 'Time,Oxygen Level,Pulse Rate,Motion';
+
+      /* ── THE PROPERTY. This block FAILS on main: `route(W2)` returned `oxydex-spo2` @ 0.95. ── */
+      var r = SA.route({ name: W2 }, W2_HEAD);
+      T.eq('the dual-wavelength waveform routes to o2ring-ppg2w', r.best && r.best.id, 'o2ring-ppg2w');
+      T.ok('…at 0.97, the SAME score its sibling waveform carries (the two lanes cannot drift into a tie)', r.best && r.best.confidence === 0.97, String(r.best && r.best.confidence));
+      T.ok(
+        '…and NEVER to oxydex-spo2, which is the 1 Hz oximetry CSV lane',
+        !!(r.best && r.best.id !== 'oxydex-spo2'),
+        JSON.stringify(
+          r.candidates &&
+            r.candidates.map(function (c) {
+              return c.id + '@' + c.confidence;
+            })
+        )
+      );
+      T.eq('oxydex-spo2 now DECLINES the waveform outright (0, not merely outranked)', SA.byId('oxydex-spo2').detect({ name: W2 }, W2_HEAD), 0);
+      /* 🔴 OUTRANKING IS NOT ENOUGH, and a single-variable plant is what showed it. Registering this
+         adapter WITHOUT widening `oxydex-spo2`'s decline leaves both claiming the file at 0.97 and
+         0.95 — a gap of 0.02, under the router's 0.15 threshold — so the route is AMBIGUOUS, which is
+         a degraded state, not a fix. `route()` still reports that `best`, so an id-only assertion
+         passes straight through it; this line is the one that does not. Both halves of the change are
+         load-bearing and this is where that is pinned. */
+      T.ok(
+        '…so the route is UNAMBIGUOUS, not merely won — a 0.02 gap under the 0.15 threshold is not a fix',
+        r.ambiguous === false,
+        JSON.stringify({
+          ambiguous: r.ambiguous,
+          candidates:
+            r.candidates &&
+            r.candidates.map(function (c) {
+              return c.id + '@' + c.confidence;
+            })
+        })
+      );
+
+      /* ── THE CONTROLS. Each says the change was SURGICAL; without them "routes to X" is unfalsifiable. ── */
+      var rCsv = SA.route({ name: CSV }, CSV_HEAD);
+      T.eq('control · the real 1 Hz SpO₂ CSV still routes to oxydex-spo2', rCsv.best && rCsv.best.id, 'oxydex-spo2');
+      T.ok('control · …at its unchanged 0.95', rCsv.best && rCsv.best.confidence === 0.95, String(rCsv.best && rCsv.best.confidence));
+      var rPpg = SA.route({ name: PPG }, 'Phone timestamp;sensor timestamp [ns];channel 0');
+      T.eq('control · the finger pleth still routes to o2ring-ppg (§1.4 intact)', rPpg.best && rPpg.best.id, 'o2ring-ppg');
+      T.ok('control · …at its unchanged 0.97', rPpg.best && rPpg.best.confidence === 0.97, String(rPpg.best && rPpg.best.confidence));
+
+      /* ── AN UNROUTEABLE FILE IS `unknown`, NEVER A CONFIDENT WRONG ADAPTER. The sidecar is the case
+            that proves it: it shares this stream's prefix by construction (`…_PPG2W.txt` →
+            `…_PPG2WRUNS.txt`), so it is the file most likely to be swept up by a prefix claim. ── */
+      var rRuns = SA.route({ name: W2_RUNS }, '# stream=ppg2w rule=stuck min_run=200');
+      T.ok('the `_PPG2WRUNS` sidecar is claimed by NOBODY — set aside, never guessed', rRuns.unknown === true, JSON.stringify(rRuns.best && { id: rRuns.best.id, conf: rRuns.best.confidence }));
+      T.eq('…and this adapter declines it explicitly, rather than relying on another to lose', A.detect({ name: W2_RUNS }, ''), 0);
+
+      /* ── ONE PARSER. A copy here would fork the §3.2 sidecar handling the day after it landed. ── */
+      var src = (env.sources || {})['adapters/o2ring-ppg2w.js'] || '';
+      if (src) {
+        T.ok(
+          'the adapter REFERENCES OxyDex.parsePPG2W rather than carrying a parser',
+          /oxy\.parsePPG2W/.test(src) && /oxy\.spo2WaveformTrend/.test(src),
+          'a second parser has appeared in the adapter'
+        );
+        T.ok(
+          '…and no second timestamp parser rode in with it',
+          !/function\s+parseTimestamp|Date\.parse\(|new Date\(\s*[a-z]/.test(src),
+          'the Clock Contract belongs to the DSP, not the ingest boundary'
+        );
+        T.ok('…and it passes the `_PPG2WRUNS` companion through to the one parser', /runsText:/.test(src), 'the validity sidecar cannot reach parsePPG2W from this route');
+      } else T.ok('adapters/o2ring-ppg2w.js source in env.sources', false);
+
+      /* ── THE REFUSAL CARRIES WHAT IT READ. `toSignalFrame` has a FIXED field set and drops unknown
+            keys, so this rides on `reason` — a first draft used `meta` and it arrived null. ── */
+      if (typeof SA.runAdapter === 'function') {
+        var rows = ['Phone timestamp;sensor timestamp [ns];channel 0;channel 1;motion'];
+        for (var i = 0; i < 400; i++)
+          rows.push(
+            '2026-09-05 22:' + String(30 + Math.floor(i / 60)).padStart(2, '0') + ':' + String(i % 60).padStart(2, '0') + '.000;' + i * 5e7 + ';' + (1000 + (i % 37)) + ';' + (2000 + (i % 29)) + ';0'
+          );
+        var fr = SA.runAdapter(A, rows.join('\n') + '\n', { files: [W2] });
+        T.ok('a waveform with no co-recorded device series REFUSES — never a fabricated trend', !!(fr && fr.usable === false), JSON.stringify(fr && fr.usable));
+        T.ok('…with the DSP’s own reason, not one invented at the boundary', /need ≥5000 samples|self-calibration impossible/.test((fr && fr.reason) || ''), (fr && fr.reason) || '(none)');
+        T.ok('…and says what it DID read, so "read but uncalibratable" ≠ "nothing was read"', /read 400 samples over/.test((fr && fr.reason) || ''), (fr && fr.reason) || '(none)');
+      }
+    });
+
     group('o2ring-ppg adapter — the finger pleth routes unambiguously (§1.4)', 'adapters · o2ring-ppg · routing · signal-adapters', function (T) {
       var SA = env.SignalAdapters;
       var A = SA && SA.byId ? SA.byId('o2ring-ppg') : null;

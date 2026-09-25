@@ -112,7 +112,7 @@ continuous not-worn (`power.drop_not_worn_sec`) the Polar runner DROPS the link 
 | 2 | ambient level / stability | inferred (optical proxy) | — | ✓ (55 / 176 Hz domains) | — | 08-14: docked Verity 3 h 24 m "worn" |
 | 2 | pulse prominence | measured (a pulse) | — | ✓ | — | — |
 | — | ring `contact == 1` byte | measured (finger) | — | — | ✓ | ring is never dropped by the daemon; its own idle timer powers it off |
-| — | **prose only** — "the H10 runs on a coin cell, so charging is permanently False" (`capture.py:7980`) | prose | ✓ | | | the sentence was true; nothing enforced it |
+| — | **prose only** — "the H10 runs on a coin cell, so charging is permanently False" (`capture.py` `notworn_pull_due`) | prose | ✓ | | | the sentence was true; nothing enforced it |
 
 Two structural facts the table makes visible:
 

@@ -144,7 +144,7 @@ SyntaxError: Expected property name or '}' in JSON at position 1 (line 1 column 
 ```
 
 `mutate.mjs --json` emits **NDJSON**, one dense line per file, so the reader took the first line
-starting with `{` and parsed that. `mutation-crawl.mjs:365` writes the same record
+starting with `{` and parsed that. `mutation-crawl.mjs` `sweep` writes the same record
 `JSON.stringify(rec, null, 2)` — **pretty-printed**, whose first `{`-line is the bare character `{`.
 298 survivors were unreachable behind a newline, under an error message that told the reader the file
 *"has no JSON object"* when the whole file is one. Fixed: `parseSweep` tries whole-file JSON first,
@@ -153,7 +153,7 @@ it as a sweep with no survivors (6 known-answer selftests).
 
 **And behind it, a second and worse one — a DISPLAY field re-applied as source.** With the sweep
 finally readable, 42 of 217 probed survivors came back `REALM-FAIL … Unexpected token 'const'`. That
-reads as a fact about the mutant. It was a fact about the reader: `mutate.mjs:225-226` records
+reads as a fact about the mutant. It was a fact about the reader: `mutate.mjs` `mutantsFor` records
 `before`/`after` **truncated at 100 characters** — a terminal width — while the executable mutation
 lives in a closure `apply()` that JSON drops. `probe-equivalence.applyMutant` rebuilt the line as
 `indent + after.trim()`, so **every source line longer than 100 characters was written back cut
