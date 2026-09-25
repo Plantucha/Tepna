@@ -52,6 +52,31 @@ import tokenize
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+# ── THE INTERPRETER FLOOR, AND WHY A GATE HAS ONE (residue 2026-09-25-find-unwired-verdict-depends-
+# on-the-interpreter-version) ───────────────────────────────────────────────────────────────────
+# `_code_only` builds the consumer corpus by dropping every `tokenize.STRING` token. Before PEP 701
+# (Python 3.12) an f-string is ONE such token, so `cpap_spool.py`'s only non-test call —
+# `f"{compact_cursor(cursor_in)}-…"` — vanished with the string it sits in, and the function read as
+# test-only. Measured 2026-09-25: the same tree scored `2 unexplained` under 3.11 and `0` under 3.13
+# (CI). A verdict that flips with the interpreter, below a floor nothing stated, is a report about a
+# corpus the tool never saw. So the floor is stated HERE, where the tokenizer dependency lives, and
+# `main()` REFUSES below it — exit 2, the tool-wide "could not examine" code — rather than reporting.
+# `capture-host/pyproject.toml` has no `[project]` table to carry `requires-python`, so this constant
+# is the one declaration; CI's matrix (3.12, 3.13 — the box) is the other reading of the same floor.
+PY_FLOOR = (3, 12)
+
+
+def interpreter_floor_reason(version_info) -> "str | None":
+    """None when `version_info` (a `sys.version_info`-shaped tuple) meets PY_FLOOR; else the reason
+    a run under it must refuse. PURE, so the refusal can be exercised on any interpreter."""
+    if tuple(version_info[:2]) >= PY_FLOOR:
+        return None
+    return ("Python %d.%d is below this tool's floor of %d.%d: before PEP 701 the tokenizer hands "
+            "an f-string over as ONE string token, so a call made inside one is stripped from the "
+            "consumer corpus and reads as an orphan (measured: 2 false orphans under 3.11, 0 under "
+            "3.13). Run it under CI's interpreter (3.12+)." % (version_info[0], version_info[1],
+                                                                PY_FLOOR[0], PY_FLOOR[1]))
+
 # Modules that CONSUME device status. A key published by capture.py and named in none of these reaches
 # no operator, no alert and no report — which is the whole finding.
 CONSUMERS = ("webmon.py", "alerts.py", "nightqc.py", "timeline.py", "telemetry.py",
@@ -1028,6 +1053,13 @@ def scan(root: "str | None" = None) -> dict:
 
 
 def main(argv: list[str]) -> int:
+    # REFUSE before scanning, in every mode: a `--json` dump from a blind tokenizer is as wrong as a
+    # `--check` verdict from one, and a bare report read by a human is the mode most likely to be
+    # believed. 2 is the code every gate in this tree uses for "could not examine", distinct from 1.
+    floor_why = interpreter_floor_reason(sys.version_info)
+    if floor_why:
+        print("✖ REFUSING — " + floor_why)
+        return 2
     res = scan()
     if "--json" in argv:
         print(json.dumps(res, indent=2))
