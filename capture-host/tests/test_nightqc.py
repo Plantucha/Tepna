@@ -1,5 +1,6 @@
 # tepna-capture — tests/test_nightqc.py
 # Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
+import gc
 import json
 import logging
 import inspect
@@ -3441,3 +3442,73 @@ def test_the_scan_can_actually_see_one():
     assert len(found) >= 15, f"the scan found {len(found)} — it is not seeing the file"
     assert "test_a_clockless_file_falls_back_to_the_session_span_and_SAYS_SO" in found, \
         "the deliberately-clockless test must be visible to the scan that excuses it"
+
+
+# ── THE QC POLL PATH RETAINS NO DECODED JSON — measured, and guarded ─────────────────────────────
+# The heap probe's first real night (#2999, 2026-09-24) showed `json/decoder.py:361` growing by
+# +182,469 live objects in one hour, and the QC poll was the leading suspect: it decodes the PREVIOUS
+# `QC-SUMMARY.json` every poll and merges any foreign keys into the new one by reference
+# (`capture.py:7973`). Measured here instead of reasoned about: over N = 2, 3, 8 and 16 polls of the real
+# `summarize` + that merge + `write_verdicts`, `json/decoder.py` retains **+0 objects at every N**, and
+# the whole path's retention is ~0.6 KiB per poll — about 12 KiB/h against the observed 9.2 MiB/h, three
+# orders of magnitude short. The per-poll figure FALLS as N rises (34 → 13.8 objects), which is amortised
+# warm-up, not accumulation. So the poller is exonerated and the holder is elsewhere; residue
+# `2026-09-25-json-retention-is-not-the-qc-poll` records that and what to measure next.
+
+def _poll_once(night, devs):
+    """`summarize` + the poller's read-modify-write merge of the previous summary + the verdicts."""
+    summ = nightqc.summarize(night, devs)
+    qc = os.path.join(night, "QC-SUMMARY.json")
+    if os.path.exists(qc):
+        with open(qc, encoding="utf-8") as fh:
+            prior = json.load(fh)
+        if isinstance(prior, dict):
+            for k, v in prior.items():
+                summ.setdefault(k, v)
+    with open(qc, "w", encoding="utf-8") as fh:
+        json.dump(summ, fh, indent=2)
+    nightqc.write_verdicts(night, summ, devs)
+
+
+def _decoder_retention(fn, n):
+    """Live bytes+objects attributable to `json/decoder.py` that survive `n` calls of `fn`."""
+    import tracemalloc
+    gc.collect()
+    tracemalloc.start()
+    try:
+        base = tracemalloc.take_snapshot()
+        for _ in range(n):
+            fn()
+        gc.collect()
+        top = tracemalloc.take_snapshot().compare_to(base, "lineno")
+    finally:
+        tracemalloc.stop()
+    dec = [s for s in top if "json/decoder.py" in str(s.traceback)]
+    return sum(s.size_diff for s in dec), sum(s.count_diff for s in dec)
+
+
+def test_the_qc_poll_retains_NO_decoded_json_across_repetitions(tmp_path):
+    """A GUARD ON A GOOD PROPERTY. It passes today; it fails the day someone caches prior summaries."""
+    night = str(tmp_path / "2026-09-24"); os.makedirs(night)
+    devs = _devices()
+    _cap(night, "Polar_H10_02849638_20260924220000_ECG.txt", 3000)
+    _cap(night, "Polar_H10_02849638_20260924220000_ACC.txt", 1200)
+    _poll_once(night, devs)                                    # warm: first poll builds the caches
+    size, count = _decoder_retention(lambda: _poll_once(night, devs), 4)
+    assert count == 0, (
+        f"the poll path now retains {count} decoded-JSON objects ({size} B) across 4 polls. It decodes "
+        "the previous QC-SUMMARY every poll and merges foreign keys BY REFERENCE; holding those across "
+        "polls turns a per-poll read into an accumulator. Measured 0 at N=2/3/8/16 when this was written.")
+
+
+def test_CONTROL_the_retention_instrument_can_SEE_a_held_decoded_object(tmp_path):
+    """ANTI-VACUITY for the guard above, which asserts a ZERO. A measurement that reports 0 because it
+    cannot see anything would pass it forever, so the same function is pointed at a loop that retains on
+    purpose and must report growth."""
+    blob = json.dumps({"rows": [{"i": i, "s": f"value-{i}"} for i in range(200)]})
+    held: list = []
+    size, count = _decoder_retention(lambda: held.append(json.loads(blob)), 4)
+    assert count > 0 and size > 0, (
+        f"the instrument reported {count} objects / {size} B for four deliberately retained decodes — "
+        "it cannot see retention, so the zero it reports for the poll path means nothing")
+    assert len(held) == 4
