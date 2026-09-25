@@ -85,4 +85,4 @@ own exit condition is a claim nobody will ever re-check.
 - [x] `find_unwired --check` still reads 0 unexplained.
 - [ ] SCAN 5 red-on-stale (step 3) — unblocked by this, and its count must be RE-MEASURED on current
       main rather than carried from the pre-tokenize draft (`claude/find-unwired-stale-allow-m3v`).
-- [ ] `message_call_lines` wiring — needs the mutant lineno; its own unit.
+- [x] `message_call_lines` wiring — needs the mutant lineno; its own unit. — **verified 2026-09-25 (Magpie triage):** `message_call_lines` is wired — defined and used in `capture-host/mutation_triage.py`, reached from `capture-host/tools/mutate_triage.py`.

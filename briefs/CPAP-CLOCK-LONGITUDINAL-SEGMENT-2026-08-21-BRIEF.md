@@ -46,10 +46,10 @@ carry `offsetSec: null`). Output: one record per night — `{ dateMs, offsetSec,
 
 ## Done when
 
-- [ ] `fitClockOffsetSegments` in integrator-dsp.js, exported, pure, deterministic.
+- [x] `fitClockOffsetSegments` in integrator-dsp.js, exported, pure, deterministic. — **verified 2026-09-25 (Magpie triage):** `fitClockOffsetSegments` is defined and exported in `integrator-dsp.js`.
 - [ ] Step detection separates a planted travel-step from crystal drift; interpolates within a segment;
       refuses across the step, on single-anchor segments, and on extrapolation — each with a named reason.
-- [ ] A suite group drives it: linear-drift segment (interpolates), a planted step (segments + refuses
+- [x] A suite group drives it: linear-drift segment (interpolates), a planted step (segments + refuses — **verified 2026-09-25 (Magpie triage):** the group `Integrator step-aware longitudinal CPAP offset — segments, interpolates, refuses across steps` drives it, and it was RUN for this tick rather than located: **19/19 green**. It plants both cases the item names — a clean linear drift (one segment, unanchored day interpolated) and a 1-hour step (two segments).
       across), an unanchored gap inside a good segment (interpolates), an extrapolation night (refused),
       a failed-fit segment (refused wholesale), truth-wins-on-anchor.
 - [ ] Full chain + verify-fixtures green; changeset (bump: minor, type: added, nodes: [Integrator]).
