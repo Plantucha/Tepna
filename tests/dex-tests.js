@@ -9595,6 +9595,279 @@
       } else T.ok('OXY_REGISTRY reachable in env', false);
     });
 
+    /* ════ SAMPLE-VALIDITY-ENVELOPE §3.2 — the `_PPG2WRUNS` sidecar reaches OxyDex (2026-09-25) ══════
+       The row's third entry. `writers.py RUN_MIN_BY_STREAM` has carried `"ppg2w": T_STUCK` since the
+       O2Ring's 0x05 stream was captured, and `writers.py` derives `…_PPG2W.txt` → `…_PPG2WRUNS.txt` by
+       rule — so the file has existed all along and no JS read it. Same shape as #3060's `_PPGRUNS`:
+       **a reader with no caller is inert, and a caller with no reader is a guess.** Both halves here.
+
+       ⚠️ THE ENTRY POINT WAS MEASURED, NOT ASSUMED, and it is NOT `dex-ingest`. OxyDex does not inline
+       `dex-ingest.js` (0 occurrences of `DexIngest` in `oxydex-dsp.js` + `oxydex-app.js`), and
+       `DexIngest.ppgKind('…_PPG2W.txt')` returns **'skip'** — the foreign-vendor branch — so a `runs`
+       claim in `ppgKind` would attach a companion to a primary PpgDex never ingests. That is the
+       `guard-exists-other-side-defeats-it` shape, and it is why the pairing lives in OxyDex's own drop
+       handler, where `_PPG2W.txt` is actually stashed. */
+    /* ════ §3.2 row `ppg2w` — THE `ppgdex-dsp.js` DUAL PATH IS UNREACHABLE, AND THIS IS THE TRIPWIRE ══
+       The row named two entry points; only one exists in practice. `ppgdex-dsp.js parsePPG` really does
+       accept two channels ("TWO channels are accepted ONLY as the O2Ring's raw dual-wavelength
+       `_PPG2W.txt`"), so the CODE is there — nothing routes a file to it, because every router matches the
+       stream suffix as `_PPG\b` / `_PPG\.` and `_PPG2W` has a word character after `PPG`. Same cause as the
+       sidecar misclassification the group above records, reaching a different file.
+
+       ⚠️ THIS GROUP ASSERTS A CLOSED DOOR, which is an unusual thing to gate and the reason it exists: the
+       enumeration cost a session, and without it the next reader re-derives "is the dual path reachable?"
+       from scratch. Each assertion carries the `…_PPG.txt` CONTROL beside it, so a route that answers null
+       for everything (a broken harness) cannot read as a closed route — the failure mode that would make
+       this whole group vacuous. The day a route DOES open, the matching line reds and names the row, and
+       whichever route opened owes the sidecar. */
+    group('SAMPLE-VALIDITY-ENVELOPE §3.2 — no route reaches the ppgdex-dsp dual path with a _PPG2W (tripwire)', 'dex-ingest · signal-adapters · signal-orchestrate · §3.2', function (T) {
+      var DI = env.DexIngest,
+        SA = env.SignalAdapters,
+        SO = env.SignalOrchestrate;
+      var W2 = 'Wellue_O2Ring_S8AW2100_20260905_223000_PPG2W.txt',
+        W = 'Wellue_O2Ring_S8AW2100_20260905_223000_PPG.txt';
+      var HEAD = 'Phone timestamp;sensor timestamp [ns];channel 0;channel 1;motion\n2026-09-05 22:30:00.000;0;1000;2000;0\n';
+      if (!DI || typeof DI.ppgKind !== 'function') {
+        T.ok('DexIngest reachable in env', false, 'the tripwire cannot run');
+        return;
+      }
+      /* ── the PpgDex app drop + planner ── */
+      T.eq('control · `…_PPG.txt` IS a ppg primary (the classifier works)', DI.ppgKind(W), 'ppg');
+      T.eq('ppgKind · `…_PPG2W.txt` is SET ASIDE — it never becomes a PpgDex primary', DI.ppgKind(W2), 'skip');
+      T.eq('foreignKind · …and is labelled `spo2`, not `ppg`', DI.foreignKind(W2), 'spo2');
+      if (typeof DI.planIngestPpg === 'function') {
+        var plan = DI.planIngestPpg([
+          { name: W2, text: HEAD },
+          { name: W, text: HEAD }
+        ]);
+        var prim = (plan.ppgPrimaries || []).map(function (x) {
+          return (x.file || x).name || x;
+        });
+        T.eq('planIngestPpg · the control is the ONLY primary; the dual-wavelength file is not one', JSON.stringify(prim), JSON.stringify([W]));
+      } else T.ok('DexIngest.planIngestPpg reachable', false);
+      /* ── every adapter that could carry it into ppgdex-dsp ── */
+      if (SA && typeof SA.route === 'function') {
+        var byId = function (id) {
+          return SA.byId(id);
+        };
+        ['o2ring-ppg', 'polar-sense-ppg'].forEach(function (id) {
+          var a = byId(id);
+          if (!a) {
+            T.ok('adapter ' + id + ' registered', false, 'not in scope — the tripwire cannot see this route');
+            return;
+          }
+          T.eq('adapter ' + id + ' · detect(`…_PPG2W.txt`) scores ZERO (no ppg route)', a.detect({ name: W2 }, HEAD), 0);
+        });
+        var ctl = byId('o2ring-ppg');
+        if (ctl) T.ok('control · the SAME adapter scores 0.97 on `…_PPG.txt` (detect is live, not stubbed)', ctl.detect({ name: W }, HEAD) === 0.97, String(ctl.detect({ name: W }, HEAD)));
+        var r2 = SA.route({ name: W2 }, HEAD);
+        /* NOT an assertion that this routing is CORRECT — it is not, and it is filed as residue
+           `2026-09-25-ppg2w-routes-to-spo2`. It is an assertion about which node it reaches: whatever
+           `oxydex-spo2` does with a waveform, it is not the ppgdex dual path. */
+        T.ok(
+          'route · the best adapter is not a `ppg` adapter at all',
+          !!(r2.best && r2.best.signalType !== 'ppg'),
+          JSON.stringify(r2.best && { id: r2.best.id, signal: r2.best.signalType, conf: r2.best.confidence })
+        );
+        T.ok(
+          'control · route(`…_PPG.txt`) DOES reach a ppg adapter',
+          (function () {
+            var r1 = SA.route({ name: W }, HEAD);
+            return !!(r1.best && r1.best.signalType === 'ppg');
+          })(),
+          'the router answers nothing for either name — the rows above would be vacuous'
+        );
+      } else T.ok('SignalAdapters reachable in env', false, 'the adapter routes are unchecked');
+      /* ── the Unifier / OverDex routing ── */
+      if (SO && typeof SO.streamKind === 'function') {
+        T.eq('control · streamKind(`…_PPG.txt`) is `ppg`', SO.streamKind(W), 'ppg');
+        T.eq('streamKind · `…_PPG2W.txt` is not a stream the Unifier knows', SO.streamKind(W2), null);
+        if (typeof SO.pairCompanions === 'function') {
+          var pc = SO.pairCompanions([
+            { name: W2, text: HEAD },
+            { name: W2.replace('_PPG2W.txt', '_PPG2WRUNS.txt'), text: '# stream=ppg2w rule=stuck min_run=200\n' }
+          ]);
+          T.eq('pairCompanions · a `_PPG2W` + its sidecar pair to NOTHING', JSON.stringify(pc), JSON.stringify(null));
+        }
+      } else T.ok('SignalOrchestrate reachable in env', false, 'the Unifier routes are unchecked');
+      /* ── and the dual path really is still THERE, so this group is about routing, not dead code ── */
+      var pSrc = (env.sources || {})['ppgdex-dsp.js'] || '';
+      if (pSrc)
+        T.ok(
+          'ppgdex-dsp.js still carries the two-channel `_PPG2W` acceptance (the code is live, the ROUTE is dead)',
+          /TWO channels are accepted ONLY as the O2Ring's raw dual-wavelength/.test(pSrc),
+          'the dual path was removed — retire this group with it'
+        );
+    });
+
+    group('SAMPLE-VALIDITY-ENVELOPE §3.2 — the _PPG2WRUNS sidecar reaches OxyDex and REFUSES the bins it meets', 'oxydex-dsp · spo2w · §∅', function (T) {
+      var P = (env.OxyDex && env.OxyDex._bare && env.OxyDex._bare.parsePPG2W ? env.OxyDex._bare : null) || env.OxyDex;
+      if (!P || typeof P.parsePPG2W !== 'function' || typeof P._parsePinnedRuns !== 'function') {
+        T.ok('OxyDex.parsePPG2W + _parsePinnedRuns present', false, 'the sidecar reader is not exported');
+        return;
+      }
+      var T0 = Date.UTC(2026, 8, 5, 22, 0, 0),
+        HZ = 20,
+        BUF = 100;
+      var iso = function (ms) {
+        return new Date(ms).toISOString().replace('T', ' ').replace('Z', '');
+      };
+      /* `secs` of stream at 20 Hz with a re-anchor jump every BUF samples (so `flush` sees buffers),
+         frozen at one value across [f0,f1) seconds, and optionally ONE data row corrupted so the
+         parser rejects it — that row is the control for the index-population question below. */
+      var mkText = function (secs, f0, f1, dropRow) {
+        var L = ['Phone timestamp;sensor timestamp [ns];channel 0;channel 1;motion'];
+        for (var i = 0; i < HZ * secs; i++) {
+          if (i === dropRow) {
+            L.push('NOT A TIMESTAMP;0;1;1;0');
+            continue;
+          }
+          var ms = T0 + Math.round((i * 1000) / HZ) + Math.floor(i / BUF) * 7;
+          var ph = (2 * Math.PI * i) / HZ,
+            fz = i >= f0 * HZ && i < f1 * HZ;
+          L.push(iso(ms) + ';' + i * Math.round(1e9 / HZ) + ';' + (fz ? 100 : Math.round(1000 + 40 * Math.sin(ph))) + ';' + (fz ? 100 : Math.round(1000 + 20 * Math.sin(ph))) + ';0');
+        }
+        return L.join('\n');
+      };
+      var mkRuns = function (first, n) {
+        return [
+          '# stream=ppg2w rule=stuck min_run=200 merge_gap_max=0 total_runs=1 examined=99',
+          'Phone timestamp;stream;value;first_index;n_samples;dur_ms;closed;rule',
+          iso(T0) + ';channel 0;100;' + first + ';' + n + ';1;1;stuck'
+        ].join('\n');
+      };
+      var RUNS = mkRuns(300 * HZ, 60 * HZ); // the frozen window, in the writer's own sample indices
+
+      // ── 1 · ONE PARSER'S ANSWER, TWO COPIES — the gate that makes the copy defensible ──────────
+      /* `_parsePinnedRuns` is a deliberate copy of `ppgdex-dsp.js parsePinnedRuns`: the natural shared
+         home is `signal-frame.js`, inlined by ALL 10 bundles, so moving it moves every node's
+         computeHash and re-verifies every fixture — a serialized spine unit, not a rider on this row
+         (CLAUDE.md §👥.3). A copy is only defensible while something holds the two to the same answer,
+         so this is a DEEP compare of both on one text, and it is why the field names were not renamed. */
+      if (env.PPGDSP && typeof env.PPGDSP.parsePinnedRuns === 'function') {
+        var _mine = P._parsePinnedRuns(RUNS),
+          _theirs = env.PPGDSP.parsePinnedRuns(RUNS);
+        T.eq('the OxyDex copy answers EXACTLY what ppgdex-dsp.js does on one text', JSON.stringify(_mine), JSON.stringify(_theirs));
+        /* …and the compare is not vacuous: a malformed row and a header-less file are the two cases
+           whose flags a hand-written second parser gets wrong, so both are compared too. */
+        var _mal = '# stream=ppg2w rule=stuck min_run=200\nPhone timestamp;stream;value;first_index;n_samples;dur_ms;closed;rule\nx;channel 0;1;2\n';
+        T.eq('…including a malformed row (the flag, not just the rows)', JSON.stringify(P._parsePinnedRuns(_mal)), JSON.stringify(env.PPGDSP.parsePinnedRuns(_mal)));
+        var _noRule = 'Phone timestamp;stream;value;first_index;n_samples;dur_ms;closed;rule\n' + iso(T0) + ';channel 0;100;0;9;1;1;stuck\n';
+        T.eq('…and a sidecar with NO rule line (comparable:false, never a default min_run)', JSON.stringify(P._parsePinnedRuns(_noRule)), JSON.stringify(env.PPGDSP.parsePinnedRuns(_noRule)));
+      } else T.ok('PPGDSP.parsePinnedRuns reachable for the parity compare', false, 'the two copies are ungated in this runner');
+      T.ok('no sidecar → null, never an empty observation', P._parsePinnedRuns(undefined) === null && P._parsePinnedRuns('') === null);
+
+      // ── 2 · THE SPAN LANDS ON THE RIGHT WALL TIME ─────────────────────────────────────────────
+      var r = P.parsePPG2W(mkText(900, 300, 360), { runsText: RUNS });
+      T.eq('the sidecar span is mapped to time', r.blankSpans.length, 1);
+      if (r.blankSpans.length) {
+        var off0 = (r.blankSpans[0].tMs0 - T0) / 1000,
+          off1 = (r.blankSpans[0].tMs1 - T0) / 1000;
+        T.ok('…to the frozen window itself, not near it', off0 >= 300 && off0 < 301 && off1 >= 360 && off1 < 361, off0 + '..' + off1 + ' s (planted 300..360)');
+        T.eq('…carrying the writer’s own value and length', JSON.stringify([r.blankSpans[0].value, r.blankSpans[0].n]), JSON.stringify([100, 60 * HZ]));
+      }
+
+      // ── 3 · THE INDEX CONTROL: sidecar indices count WRITTEN rows, the array counts KEPT rows ──
+      /* The two populations differ by every row the parser drops, and the fixture makes them differ by
+         exactly one. This assertion FAILS on the array-index implementation, which is the whole point —
+         a control that both implementations pass would measure nothing. */
+      var rD = P.parsePPG2W(mkText(900, 300, 360, 10), { runsText: RUNS });
+      T.ok('one row was actually dropped (the control is live)', rD.rows.length === r.rows.length - 1, r.rows.length + ' → ' + rD.rows.length);
+      if (rD.blankSpans.length && r.blankSpans.length) {
+        T.eq('a dropped row does NOT shift the span — it is resolved by source index, not array index', rD.blankSpans[0].tMs0, r.blankSpans[0].tMs0);
+        var _arrayIndexWouldGive = rD.rows[300 * HZ] ? rD.rows[300 * HZ].tMs : null;
+        T.ok('…and the array-index answer really is different (so the control discriminates)', _arrayIndexWouldGive !== r.blankSpans[0].tMs0, 'both gave ' + _arrayIndexWouldGive);
+      }
+
+      // ── 4 · A SPAN WE CANNOT PLACE IS COUNTED, NEVER DISCARDED ────────────────────────────────
+      var rU = P.parsePPG2W(mkText(900, 300, 360), { runsText: mkRuns(99999, 100) });
+      T.eq('a span past the end of the data yields no time…', rU.blankSpans.length, 0);
+      T.eq('…and is COUNTED as unmapped (§∅: an absence we cannot place is not zero)', rU.spansUnmapped, 1);
+
+      // ── 5 · WITHOUT A SIDECAR, NOTHING MOVES ──────────────────────────────────────────────────
+      var plain = P.parsePPG2W(mkText(900, 300, 360));
+      T.eq('no sidecar → no spans', JSON.stringify([plain.blankSpans.length, plain.spansUnmapped, plain.runs]), JSON.stringify([0, 0, null]));
+      T.eq('no sidecar → the rows are byte-identical to the sidecar run', JSON.stringify(plain.rows), JSON.stringify(r.rows));
+      T.eq('…and `runsText: undefined` is the same as no options at all', JSON.stringify(P.parsePPG2W(mkText(900, 300, 360), {}).rows), JSON.stringify(plain.rows));
+
+      // ── 6 · THE TREND REFUSES, NAMES THE REASON, AND REPORTS THE BIN WITH NO POINTS ───────────
+      var spo2 = [];
+      for (var s2 = 0; s2 < 4000; s2++) spo2.push({ tMs: T0 + s2 * 1000, spo2: 96 + ((s2 % 7) - 3) * 0.2 });
+      var tr = P.spo2WaveformTrend(r, spo2);
+      T.ok('a bin whose window meets a recorded run is REFUSED', (tr.refusedBins || []).length >= 1, JSON.stringify((tr.refusedBins || []).length));
+      if ((tr.refusedBins || []).length) {
+        T.ok(
+          '…with the named reason, never a borrowed one',
+          tr.refusedBins.every(function (b) {
+            return b.reason === 'blanking-run' && b.spo2w === null;
+          }),
+          JSON.stringify(tr.refusedBins[0])
+        );
+        /* 🔴 THE REGRESSION THIS ROW EXISTS FOR. A bin INSIDE the frozen stretch contributes no points
+           at all — `flush` rejects a buffer with `A.ac <= 0` — so iterating the bins that exist refuses
+           only the bin STRADDLING the run's edge and says nothing about the frozen middle. Measured on
+           this very fixture while the first draft did exactly that: 1 refused where 2 windows were
+           affected. The refused set is therefore derived from the SPANS. */
+        T.ok(
+          '…including a bin with ZERO points, which no bin-side scan can see',
+          tr.refusedBins.some(function (b) {
+            return b.points === 0 && b.tMs === null && b.binStartMs != null;
+          }),
+          JSON.stringify(tr.refusedBins)
+        );
+        T.ok('…and a run straddling a boundary refuses BOTH bins (intersecting, not containing)', tr.refusedBins.length === 2, 'refused ' + tr.refusedBins.length);
+      }
+      /* NAME THE REAL STATE. "too little paired data" is true of the count and wrong about the cause
+         once blanking is what removed the bins — §∅'s own rule against a borrowed reason that fires. */
+      T.ok('the shortfall reason names BLANKING when blanking is what removed the bins', /blanking-run/.test(tr.reason || ''), tr.reason || '');
+      var trPlain = P.spo2WaveformTrend(plain, spo2);
+      T.eq(
+        'without the sidecar: no refusals, and the ORIGINAL reason wording',
+        JSON.stringify([(trPlain.refusedBins || []).length, /blanking/.test(trPlain.reason || '')]),
+        JSON.stringify([0, false])
+      );
+
+      // ── 7 · A USABLE NIGHT CARRIES THE DENOMINATOR BESIDE THE VALUE ───────────────────────────
+      /* Driven through the 40-bin gate on a `rec` built directly (as the sibling group's `mk` does),
+         because the refusal must be visible on a night that RENDERS — a counter only ever seen on a
+         refusal path cannot tell a clean night from an uninstrumented one. */
+      var rows = [],
+        sp7 = [],
+        tt = T0;
+      for (var buf = 0; buf < 2600; buf++) {
+        var sec = Math.floor((tt - T0) / 1000);
+        sp7.push({ tMs: T0 + sec * 1000, spo2: 90 + (Math.floor(sec / 15) % 8) });
+        var sLead = 90 + (Math.floor((sec + 10) / 15) % 8);
+        var amp0 = 50 * (1 + 0.05 * (sLead - 93));
+        for (var i7 = 0; i7 < 100; i7++) rows.push({ tMs: tt + i7 * 10, ch0: 100000 + amp0 * Math.sin(i7 / 6), ch1: 200000 + 50 * Math.sin(i7 / 6), motion: 0 });
+        tt += 1005;
+      }
+      var endSec = Math.floor((tt - T0) / 1000);
+      for (var ex = endSec; ex <= endSec + 12; ex++) sp7.push({ tMs: T0 + ex * 1000, spo2: 90 + (Math.floor(ex / 15) % 8) });
+      var recClean = { t0Ms: rows[0].tMs, rows: rows },
+        oneSpan = [{ stream: 'channel 0', value: 100, n: 1200, first: 0, tMs0: T0 + 600000, tMs1: T0 + 620000 }];
+      var clean = P.spo2WaveformTrend(recClean, sp7);
+      var dirty = P.spo2WaveformTrend({ t0Ms: recClean.t0Ms, rows: rows, blankSpans: oneSpan, spansUnmapped: 0 }, sp7);
+      if (clean.usable && dirty.usable) {
+        T.eq('a clean night reports the counter as ZERO, not as absent', JSON.stringify([clean.summary.binsRefusedBlanking, clean.summary.spansUnmapped]), JSON.stringify([0, 0]));
+        T.ok('a planted span removes bins from the FIT, not just from the report', dirty.summary.bins < clean.summary.bins, clean.summary.bins + ' → ' + dirty.summary.bins);
+        T.eq('…and the summary carries the refused count beside the value', dirty.summary.binsRefusedBlanking, clean.summary.bins - dirty.summary.bins);
+      } else T.ok('the 40-bin gate is reached on the driven fixture', false, 'clean=' + (clean.reason || 'ok') + ' dirty=' + (dirty.reason || 'ok'));
+
+      // ── 8 · THE CALLERS — a reader with no caller is inert (#3060's lesson, one stream over) ───
+      var src = (env.sources || {})['oxydex-dsp.js'] || '';
+      if (src) {
+        T.ok('the drop handler stashes `_PPG2WRUNS.txt`', src.indexOf('(window._oxyW2R = window._oxyW2R || {})') >= 0, 'the sidecar is never stashed on drop');
+        T.ok('the pairing passes it to parsePPG2W', /parsePPG2W\(_w2\[stem\], \{ runsText: _w2r\[stem\] \}\)/.test(src), 'a reader with no caller');
+        T.ok('the sidecar stash is CONSUMED with its waveform (a stale span refuses the wrong night)', /delete _w2r\[stem\]/.test(src), 'the stash outlives its recording');
+        T.ok(
+          'the refused set is derived from the SPANS, not from the bins that exist',
+          /_refusedBy/.test(src) && /for \(var _rk in _refusedBy\)/.test(src),
+          'a bin-side scan cannot see a zero-point bin'
+        );
+      } else T.ok('oxydex-dsp.js source reachable for the caller mirrors', false);
+    });
+
     group('PpgDex distinguishes a missing device PPI from an empty one', 'ppgdex-dsp · ppgdex-app · device-ppi', function (T) {
       /* Asserted, not skipped. The first draft looked this up on the wrong namespace and reported a
          green "(skipped)" while testing nothing — a hollow gate, which is the failure this suite
@@ -12377,6 +12650,33 @@
       [cap, pull].forEach(function (t) {
         while ((m = reF.exec(t))) emitted[m[1] + '.' + m[2]] = 'f-string sidecar';
       });
+      /* ── THE SIDECAR FAMILY IS DERIVED BY RULE, SO THE EMITTED SET MUST BE TOO ─────────────────
+         `writers.py` builds a validity/seam sidecar's name from the stream file's own name — the
+         `_RunSidecar.__init__` comment says it outright: *"`<base>.txt` -> `<base>RUNS.txt` … derived
+         by rule rather than by a per-stream table that could drift away from the stream names it
+         claims to cover"* — and `_SeamSidecar` says "by the same rule". So no literal `_PPGRUNS.txt`
+         or `_PPG2WRUNS.txt` exists anywhere in the writer, and a reader that spells one out in full
+         was flagged as reading a file nothing produces. It is produced; the SCAN could not see it.
+         (`dex-ingest.js` escaped only because it matches `_PPGRUNS\.` with no extension after the
+         dot, so the tag regex never fired — the gate was one literal away from this false positive
+         the whole time, for every sidecar of every stream.)
+         The rule is read OUT OF THE WRITER'S CODE rather than hardcoded here — and out of the CODE,
+         not the comment: `wr` is comment-stripped by this very group, so keying on the prose that
+         states the rule would key on a string that is never there. If those two assignments stop
+         deriving the name, the assertions just below go red and this expansion goes with them. */
+      var _runRule = /self\.path = f"\{base\}RUNS/.test(wr);
+      var _seamRule = /self\.path = base \+ "SEAMS/.test(wr);
+      T.ok('writers.py still DERIVES the RUNS sidecar name from the stream file (`<base>.txt` -> `<base>RUNS.txt`)', _runRule, 'the derivation moved — the expansion below is no longer sound');
+      T.ok('…and the SEAMS sidecar by the same rule', _seamRule, 'the derivation moved');
+      Object.keys(emitted)
+        .filter(function (k) {
+          return /\.txt$/.test(k);
+        })
+        .forEach(function (k) {
+          var stem = k.replace(/\.txt$/, '');
+          if (_runRule) emitted[stem + 'RUNS.txt'] = 'derived by rule from ' + k;
+          if (_seamRule) emitted[stem + 'SEAMS.txt'] = 'derived by rule from ' + k;
+        });
       var emittedList = Object.keys(emitted).sort();
       ['RTCLOG.csv', 'SPO2.csv', 'PMDARRIVAL.csv', 'ECG.txt', 'PPG.txt', 'CLOCK.csv', 'STORED.dat'].forEach(function (k) {
         T.ok('emitted set carries `_' + k + '` (' + (emitted[k] || 'MISSING') + ')', !!emitted[k], 'the writer-side regexes stopped matching — emitted: ' + emittedList.join(' '));
@@ -19047,7 +19347,15 @@
           'ecgdex-app.js must splice the DSP function in, never restate it'
         );
         T.ok('the streaming done-handler resolves through the DSP (no app-side fs derivation)', /DSP\.ecgTimingResolve\(d\.scan\)/.test(app));
-        T.ok('the small-file path delegates to ECGDSP.parseECG (the third copy is deleted)', /runPipeline\(DSP\.parseECG\(e\.target\.result\), file\.name\)/.test(app));
+        /* CORRECTED 2026-09-25, and STRENGTHENED. This pinned the exact call TEXT, so threading the
+           validity sidecar reddened it even though the property it guards — the app DELEGATES and
+           carries no third parse copy — is unchanged and now has to hold on BOTH branches. A literal
+           match tests spelling; this tests the capability, and requires the delegation twice. */
+        T.ok(
+          'the small-file path delegates to ECGDSP.parseECG on BOTH branches (the third copy is deleted)',
+          /runPipeline\(_rt \? DSP\.parseECG\(e\.target\.result, \{ runsText: _rt \}\) : DSP\.parseECG\(e\.target\.result\), file\.name\)/.test(app),
+          'the small-file branch must reach ECGDSP.parseECG with and without a sidecar, never a local parse'
+        );
         T.ok('no app-local timestamp parser survives — one parse site, in the DSP', !/function parseTSfloat/.test(app), 'parseTSfloat is back; an unused parser is a mirror waiting for a caller');
         T.ok('the app derives no sample rate of its own any more', !/Math\.round\(\s*\(?1000\s*\*\s*stepN/.test(app), 'a mean-delta fs derivation is back in the app');
       } else T.skip('ecgdex-app.js source in env.sources', 'not available in this runner');
@@ -29039,7 +29347,11 @@
         T.eq('  RR sidecar paired by name', pc && pc.rr, 'RR');
         T.eq('  ACC paired to the NEAREST stamp (01:00, not 23:30)', pc && pc.acc, 'ACC-near');
         T.ok('  absent HR sidecar is omitted (never fabricated)', !(pc && 'hr' in pc));
-        T.ok('  companionKinds(ppg) = acc/gyro/magn/ppi', JSON.stringify(ORCH.companionKinds('ppg')) === JSON.stringify(['acc', 'gyro', 'magn', 'ppi']));
+        // 'runs' joined 2026-09-25 (SAMPLE-VALIDITY-ENVELOPE §3.2): the `_PPGRUNS.txt` validity sidecar is a
+        // PPG companion kind. Deliberate contract change — this line pinned the enumeration as the invariant.
+        // 'accruns' joined 2026-09-25 — the ACC companion's OWN sidecar, a kind of its own so it can
+        // never occupy the primary's `runs` slot. Corrected, not relaxed: still an exact set compare.
+        T.ok('  companionKinds(ppg) = acc/gyro/magn/ppi/runs/accruns', JSON.stringify(ORCH.companionKinds('ppg')) === JSON.stringify(['acc', 'gyro', 'magn', 'ppi', 'runs', 'accruns']));
         T.ok('  a no-sidecar drop pairs nothing → null', ORCH.pairCompanions('ecg', 'lone_20260617_010000_ECG.txt', [{ name: 'lone_20260617_010000_ECG.txt', text: 'ECG' }]) === null);
 
         // §1 (ECG-INGEST-FOLLOWUPS) — DEVICE-ID companion filter (the cross-host analogue of the app fix).
@@ -29773,6 +30085,399 @@
      mirror). -IV §1 extracts it to this headless surface. The biting case: two SAME-device sessions
      dropped together expose BOTH sidecars as device-eligible for BOTH primaries — ONLY this pick
      assigns each its own. ════ */
+    /* ════ SAMPLE-VALIDITY-ENVELOPE §3.2 — the validity sidecar REACHES the reader (2026-09-25). PpgDex has
+       carried `parsePPG(text, { runsText })` since #2316, and NO production caller ever passed it: the app
+       grouped acc/gyro/magn/ppi/marker companions and not `runs`; both PPG adapters called `parseFn(text)`;
+       the Unifier's pairCompanions had no 'runs' kind; the only test drove parsePinnedRuns directly. A
+       reader nothing reaches is the half-wired mechanism §∅ warns about, one layer up. Worse — measured
+       before the fix — every `<base>RUNS.txt` / `<base>SEAMS.txt` matched NO suffix and fell through
+       BOTH bare-name defaults, so a night-folder drop queued the sidecars as RECORDINGS in PpgDex AND
+       ECGDex (the PMDARRIVAL / F12 defect class, fourth instance). Each assertion below fails if its
+       wire is cut; the source-mirrors prove the app + adapters consume it, since neither the equiv gate
+       nor render-coverage performs a multi-file drop. ════ */
+    /* The ECG sibling of the group below. The box has written `…_ECGRUNS.txt` since `ECG_RUN_MIN = 30`
+       landed (derived over 196,172,536 samples: no near-baseline run reaches 30, so the natural
+       population at that threshold is EMPTY) and NOTHING read it — an H10 validity band could only
+       read UNKNOWN by construction rather than by measurement. These pin the whole path, and the
+       REFUSAL, which is the half a classification test cannot see. */
+    group(
+      'SAMPLE-VALIDITY-ENVELOPE §3.2 — the _ECGRUNS sidecar reaches parseECG, and a recorded span REFUSES the epoch',
+      'dex-ingest · signal-orchestrate · adapters · ecgdex-dsp · absence',
+      function (T) {
+        var DI = env.DexIngest,
+          SO = env.SignalOrchestrate,
+          E = env.ECGDSP || env.ECGDex;
+        var H10 = 'Polar_H10_AAAA_20260617_010000_';
+        if (!(DI && typeof DI.ecgKind === 'function' && typeof DI.planIngest === 'function')) {
+          T.skip('DexIngest not loaded in this runner');
+        } else {
+          // (1) CLASSIFICATION
+          T.eq('ecgKind · `_ECGRUNS.txt` is the runs COMPANION', DI.ecgKind(H10 + 'ECGRUNS.txt'), 'runs');
+          T.eq('control · the real `_ECG.txt` is still the ECG primary', DI.ecgKind(H10 + 'ECG.txt'), 'ecg');
+          // (2) PLANNER — the bucket is the point: `byKind[kind] || byKind.ecg` fails OPEN, so before the
+          //     `runs` bucket existed the sidecar landed in the PRIMARY waveform bucket and was then
+          //     dropped against its own `_ECG.txt` as a 'duplicate'. Measured that way first.
+          var nm = function (n) {
+            return { name: n };
+          };
+          var plan = DI.planIngest([nm(H10 + 'ECG.txt'), nm(H10 + 'ECGRUNS.txt')]);
+          T.ok(
+            'planIngest · the sidecar reaches the `runs` LANE',
+            !!(plan.companionLanes && plan.companionLanes.runs && plan.companionLanes.runs.length === 1 && plan.companionLanes.runs[0][0].name === H10 + 'ECGRUNS.txt')
+          );
+          T.eq('planIngest · the ECG primary is alone in its group', plan.ecgGroups.length === 1 && plan.ecgGroups[0].length, 1);
+          T.eq('planIngest · and nothing is set aside as a duplicate any more', plan.skipped.length, 0);
+          // (3) THE PICKER's contract — `stampMs` is a PROPERTY it reads, never derived from the name.
+          if (typeof DI.pickNearestByStamp === 'function' && typeof DI.stampMs === 'function') {
+            var cand = [{ name: H10 + 'ECGRUNS.txt', text: 'T', stampMs: DI.stampMs(H10 + 'ECGRUNS.txt') }];
+            T.ok('pickNearestByStamp · pairs the same-session sidecar', (DI.pickNearestByStamp(cand, DI.stampMs(H10 + 'ECG.txt')) || {}).text === 'T');
+            var far = [{ name: 'Polar_H10_AAAA_20260801_010000_ECGRUNS.txt', text: 'OLD', stampMs: DI.stampMs('Polar_H10_AAAA_20260801_010000_ECGRUNS.txt') }];
+            T.eq("pickNearestByStamp · a different recording's sidecar is REFUSED, never paired", DI.pickNearestByStamp(far, DI.stampMs(H10 + 'ECG.txt')), null);
+            T.eq(
+              'DECOY · a candidate without the `stampMs` PROPERTY is unscoreable, so the pick is null',
+              DI.pickNearestByStamp([{ name: H10 + 'ECGRUNS.txt', text: 'T' }], DI.stampMs(H10 + 'ECG.txt')),
+              null
+            );
+          }
+        }
+        // (4) UNIFIER PAIRING
+        if (SO && typeof SO.pairCompanions === 'function') {
+          var comps = SO.pairCompanions('ecg', H10 + 'ECG.txt', [
+            { name: H10 + 'ECG.txt', text: 'x' },
+            { name: H10 + 'ECGRUNS.txt', text: '# stream=ecg' }
+          ]);
+          T.eq('pairCompanions · ecg gets `runs` = the sidecar text', comps && comps.runs, '# stream=ecg');
+        } else T.skip('SignalOrchestrate.pairCompanions unavailable');
+        // (5) THE READER — planted sidecar in, spans out; absent, the record is untouched.
+        if (E && typeof E.parseECG === 'function') {
+          var SC = [
+            '# stream=ecg rule=stuck min_run=30 merge_gap_max=4 total_runs=1 examined=90000',
+            'Phone timestamp;stream;value;first_index;n_samples;dur_ms;closed;rule',
+            '2026-06-17T01:00:04.000;ecg;19164;520;130;1000;1;stuck'
+          ].join('\n');
+          var HDR = 'Phone timestamp;sensor timestamp [ns];ecg [uV]\n';
+          var bare = E.parseECG(HDR),
+            withSc = E.parseECG(HDR, { runsText: SC });
+          T.ok('parseECG · ONE argument is byte-identical — no sidecar fields appear', bare.blankingSpans === undefined && bare.runsSidecar === undefined);
+          T.eq('parseECG · the planted span is carried, in SAMPLES as the box wrote it', JSON.stringify(withSc.blankingSpans), JSON.stringify([{ first: 520, n: 130, value: 19164 }]));
+          T.eq('parseECG · the sidecar publishes its own rule, so a reader can tell WHICH threshold looked', withSc.runsSidecar.minRun, 30);
+          T.ok(
+            'parseECG · an EMPTY but comparable sidecar is "looked and found nothing", not "never looked"',
+            (function () {
+              var e = E.parseECG(HDR, { runsText: '# stream=ecg rule=stuck min_run=30 total_runs=0 examined=90000\nPhone timestamp;stream;value;first_index;n_samples;dur_ms;closed;rule' });
+              return e.runsSidecar.comparable === true && e.runsSidecar.emitted === 0 && e.runsSidecar.examined === 90000;
+            })()
+          );
+          T.ok(
+            'parseECG · a sidecar with NO rule line is not comparable with anything',
+            E.parseECG(HDR, { runsText: 'Phone timestamp;stream;value;first_index;n_samples;dur_ms;closed;rule' }).runsSidecar.comparable === false
+          );
+        } else T.skip('ECGDSP.parseECG unavailable');
+        // (6) THE REFUSAL — §∅: a discontinuity REFUSES, reduced coverage annotates (owner, 2026-09-17).
+        if (E && typeof E.epochEngine === 'function') {
+          var N = 2400,
+            nn = new Float64Array(N),
+            tt = new Float64Array(N);
+          for (var i = 0; i < N; i++) {
+            nn[i] = 800;
+            tt[i] = i * 0.8;
+          }
+          var refA = [],
+            epochsA = E.epochEngine(nn, tt, 300, null, null, [], refA),
+            refB = [],
+            epochsB = E.epochEngine(nn, tt, 300, null, null, [], refB, [{ t0: 310, t1: 340 }]);
+          T.ok(
+            'epochEngine · with NO blanking the epochs are scored as before',
+            epochsA.length > 1 &&
+              !refA.some(function (r) {
+                return r.reason === 'blanking-run';
+              })
+          );
+          T.ok(
+            'epochEngine · an epoch whose window intersects a recorded span is REFUSED',
+            refB.some(function (r) {
+              return r.reason === 'blanking-run';
+            })
+          );
+          T.eq('epochEngine · and it is refused, not annotated — the epoch is ABSENT from the series', epochsA.length - epochsB.length, 1);
+          T.ok(
+            'epochEngine · the refusal NAMES the real state, never a borrowed `too-few-beats`',
+            refB.filter(function (r) {
+              return r.reason === 'blanking-run';
+            }).length === 1
+          );
+          var refC = [];
+          E.epochEngine(nn, tt, 300, null, null, [320], refC, [{ t0: 310, t1: 340 }]);
+          T.eq(
+            'epochEngine · a clock seam OUTRANKS a blanking run — the harder discontinuity is named',
+            (
+              refC.find(function (r) {
+                return r.n > 0;
+              }) || {}
+            ).reason,
+            'clock-seam'
+          );
+          var refD = [];
+          E.epochEngine(nn, tt, 300, null, null, [], refD, [{ t0: 300, t1: 300 }]);
+          T.ok(
+            'DECOY · a zero-width span convicts nothing (half-open on both sides)',
+            !refD.some(function (r) {
+              return r.reason === 'blanking-run';
+            })
+          );
+        } else T.skip('ECGDSP.epochEngine unavailable');
+        // (7) SOURCE MIRRORS — the three callers, so a future edit cannot quietly unwire the path.
+        var src = env.sources || {};
+        /* CORRECTED 2026-09-25 and STRENGTHENED. I wrote this yesterday pinning the exact ARRAY
+           LITERAL, so adding a sibling kind reddened it although the property — ECG carries the runs
+           companion — was untouched. The same spelling-not-capability trap I corrected in the app
+           mirror. It now requires BOTH kinds, which is strictly more than it asserted before. */
+        if (src['signal-orchestrate.js'])
+          T.ok(
+            'signal-orchestrate · ECG carries BOTH `runs` (its own sidecar) and `accruns` (the ACC companion\u2019s)',
+            /ecg:\s*\[[^\]]*'runs'[^\]]*'accruns'[^\]]*\]/.test(src['signal-orchestrate.js']),
+            'the ECG companion list must carry runs and accruns as DISTINCT kinds'
+          );
+        if (src['adapters/polar-h10-ecg.js'])
+          T.ok(
+            'polar-h10-ecg · passes ctx.companions.runs into the PRIMARY parse',
+            /companions\.runs/.test(src['adapters/polar-h10-ecg.js']) && /runsText:\s*runsText/.test(src['adapters/polar-h10-ecg.js'])
+          );
+        if (src['ecgdex-app.js']) T.ok('ecgdex-app · picks the sidecar and passes it as runsText', /_pickRunsFor/.test(src['ecgdex-app.js']) && /runsText:\s*_rt/.test(src['ecgdex-app.js']));
+        if (src['dex-ingest.js']) T.ok('dex-ingest · the `runs` BUCKET exists, so the fail-open default cannot claim it', /runs:\s*\[\]/.test(src['dex-ingest.js']));
+      }
+    );
+
+    /* The ACC leg of §3.2, and the defect is NOT the one the ECG leg pinned. There the sidecar could
+       not be read at all; here the quantity it protects is ALREADY guarded — for the wrong door.
+       `motiondex-dsp` says in terms that "an uncovered epoch scores counts=0 ⇒ moving=false ⇒ counted
+       as IMMOBILE, i.e. a recording gap fabricates stillness", and guards it with `seen[]`. A
+       blanking run defeats that guard exactly: the rows ARE present so `seen` counts them, they hold
+       one constant so dynamic-g is ~0, and the epoch scores IMMOBILE from samples nobody measured.
+       Measured on the planted night below: a 30 s run manufactured a 16.7 % immobile fraction, and
+       the error runs toward "still" — the direction a staging consumer acts on. */
+    group('SAMPLE-VALIDITY-ENVELOPE §3.2 — a recorded ACC blanking run cannot score as IMMOBILE', 'motiondex-dsp · absence · sidecar', function (T) {
+      var M = env.MOTIONDSP || env.MotionDSP;
+      if (!(M && typeof M.compute === 'function')) {
+        T.skip('MOTIONDSP not loaded in this runner');
+        return;
+      }
+      var hz = 26,
+        sec = 180,
+        t0 = Date.UTC(2026, 8, 24, 1, 0, 0);
+      var rows = ['Phone timestamp;sensor timestamp [ns];X [mg];Y [mg];Z [mg]'];
+      for (var i = 0; i < hz * sec; i++) {
+        var t = t0 + Math.round((i * 1000) / hz),
+          iso = new Date(t).toISOString().replace('Z', ''),
+          ss = i / hz,
+          held = ss >= 60 && ss < 90;
+        rows.push(iso + ';' + i * Math.round(1e9 / hz) + ';' + (held ? 900 : 900 + Math.round(40 * Math.sin(i / 3))) + ';' + (held ? 0 : Math.round(30 * Math.cos(i / 5))) + ';0');
+      }
+      var acc = rows.join('\n');
+      var SC = [
+        '# stream=acc rule=stuck min_run=200 t_stuck=200 merge_gap_max=8 examined=4680',
+        'Phone timestamp;stream;value;first_index;n_samples;dur_ms;closed;rule',
+        new Date(t0 + 60000).toISOString().replace('Z', '') + ';X [mg];900;1560;780;30000;1;stuck'
+      ].join('\n');
+      var a = M.compute({ acc: acc }).activity,
+        b = M.compute({ acc: acc, accRuns: SC }).activity;
+      T.ok('without the sidecar the held stretch scores IMMOBILE — fabricated stillness', a.immobileFrac > 0.15 && a.epochs[2].moving === false);
+      T.eq('the blanked epoch is not covered, and never "immobile"', b.epochs[2].moving, null);
+      T.eq('…and it NAMES the state rather than borrowing "no coverage"', b.epochs[2].reason, 'blanking-run');
+      T.eq('the blanked epochs leave the denominator', a.coveredEpochs - b.coveredEpochs, 2);
+      T.eq('the night PUBLISHES how much it refused, so the denominator did not shrink silently', b.blankedEpochs, 2);
+      T.eq('and the fabricated immobility is gone', b.immobileFrac, 0);
+      T.ok('no sidecar ⇒ no new keys at all (byte-identical shape)', !('blankedEpochs' in a) && !('reason' in a.epochs[2]));
+      T.ok(
+        'DECOY · a sidecar with NO rule line is not comparable, so it refuses nothing',
+        !('blankedEpochs' in M.compute({ acc: acc, accRuns: 'Phone timestamp;stream;value;first_index;n_samples;dur_ms;closed;rule' }).activity)
+      );
+      T.ok(
+        'DECOY · an EMPTY sidecar that DOES carry its rule is "looked, found nothing" — refuses nothing',
+        (function () {
+          var c = M.compute({ acc: acc, accRuns: '# stream=acc rule=stuck min_run=200 examined=4680\nPhone timestamp;stream;value;first_index;n_samples;dur_ms;closed;rule' }).activity;
+          return !('blankedEpochs' in c) && c.immobileFrac === a.immobileFrac;
+        })()
+      );
+      T.ok(
+        'the refusal keys on the SPAN, never on `class=` — a class-bearing header alone changes nothing',
+        (function () {
+          var c = M.compute({
+            acc: acc,
+            accRuns:
+              '# stream=acc rule=stuck min_run=200 examined=4680 held_top2_share=0.95\n# stream=acc channel=X [mg] class=held ratio=1.1 top2=1,2 share=0.984\nPhone timestamp;stream;value;first_index;n_samples;dur_ms;closed;rule'
+          }).activity;
+          return !('blankedEpochs' in c);
+        })()
+      );
+      var src = env.sources || {};
+      if (src['motiondex-app.js']) T.ok('motiondex-app · routes `_ACCRUNS` to its ACC runs slot', /_ACCRUNS/.test(src['motiondex-app.js']) && /chestAccRuns/.test(src['motiondex-app.js']));
+    });
+
+    /* The ACC COMPANION leg of §3.2 — the sidecar of a companion, which is a different ingest shape
+       from the two legs before it. The defect it prevents is sharper than an unread file: posture is
+       the MEDIAN gravity vector over a 5-minute window, so a held ACC yields a CONFIDENT, WRONG
+       label rather than an absent one, and that label rides into every event's meta.position and
+       weights OSA confidence downstream. Measured on the planted night below: a blanked 5 minutes in
+       the middle of a supine night reported `lateral` — a posture change the wearer never made. */
+    group('SAMPLE-VALIDITY-ENVELOPE §3.2 — the ACC companion sidecar, and a held ACC cannot stamp a posture', 'dex-ingest · signal-orchestrate · adapters · ecgdex-dsp · absence', function (T) {
+      var DI = env.DexIngest,
+        SO = env.SignalOrchestrate,
+        E = env.ECGDSP || env.ECGDex;
+      var H10 = 'Polar_H10_AAAA_20260617_010000_';
+      if (DI && typeof DI.ecgKind === 'function') {
+        T.eq('ecgKind · `_ACCRUNS` is its own kind, never the ECG primary’s `runs`', DI.ecgKind(H10 + 'ACCRUNS.txt'), 'accruns');
+        T.eq('ppgKind · the same, in the PPG node', DI.ppgKind(H10 + 'ACCRUNS.txt'), 'accruns');
+        T.eq('control · `_ECGRUNS` still claims `runs`', DI.ecgKind(H10 + 'ECGRUNS.txt'), 'runs');
+        T.eq('control · `_ACC` is still the ACC companion itself', DI.ecgKind(H10 + 'ACC.txt'), 'acc');
+        var plan = DI.planIngest([{ name: H10 + 'ECG.txt' }, { name: H10 + 'ACC.txt' }, { name: H10 + 'ACCRUNS.txt' }], {});
+        T.ok('planIngest · the sidecar reaches its OWN lane', !!(plan.companionLanes.accruns && plan.companionLanes.accruns.length === 1));
+        T.eq('planIngest · and nothing is set aside — the fail-open default cannot claim it', plan.skipped.length, 0);
+      } else T.skip('DexIngest not loaded in this runner');
+      /* THE COLLISION THIS DESIGN EXISTS TO PREVENT. A kind IS the slot name in pairCompanions, so a
+         shared 'runs' would put both sidecars in one slot on the SAME device, where nearest-stamp
+         decides between two identical stamps — the ECG's own sidecar silently replaced by the ACC's,
+         looking exactly like a working pairing. */
+      if (SO && typeof SO.pairCompanions === 'function') {
+        T.eq('streamKind · `_ACCRUNS` is `accruns`', SO.streamKind(H10 + 'ACCRUNS.txt'), 'accruns');
+        var comps = SO.pairCompanions('ecg', H10 + 'ECG.txt', [
+          { name: H10 + 'ECG.txt', text: 'p' },
+          { name: H10 + 'ECGRUNS.txt', text: 'ECGSIDE' },
+          { name: H10 + 'ACC.txt', text: 'acc' },
+          { name: H10 + 'ACCRUNS.txt', text: 'ACCSIDE' }
+        ]);
+        T.eq('pairCompanions · the ECG primary keeps ITS OWN sidecar in `runs`', comps && comps.runs, 'ECGSIDE');
+        T.eq('pairCompanions · …and the ACC sidecar lands in `accruns`, not over it', comps && comps.accruns, 'ACCSIDE');
+      } else T.skip('SignalOrchestrate.pairCompanions unavailable');
+      // THE REFUSAL — a held ACC must not stamp a posture.
+      if (E && typeof E.stampEpochPositions === 'function') {
+        var fs = 4,
+          t0 = Date.UTC(2026, 8, 25, 1, 0, 0),
+          acc = [];
+        for (var i = 0; i < fs * 1200; i++) {
+          var ss = i / fs,
+            held = ss >= 300 && ss < 600;
+          acc.push({
+            tsMs: t0 + Math.round(ss * 1000),
+            relNs: Math.round(ss * 1e9),
+            x: held ? 1000 : Math.round(30 * Math.sin(ss / 7)),
+            y: held ? 0 : Math.round(20 * Math.cos(ss / 9)),
+            z: held ? 0 : 1000
+          });
+        }
+        var mk = function () {
+          return [0, 5, 10, 15].map(function (m) {
+            return { tMin: m };
+          });
+        };
+        var a = mk();
+        E.stampEpochPositions(a, acc, fs, t0, 1200);
+        T.eq('without the sidecar the held stretch stamps a CONFIDENT posture the wearer never took', a[1].position, 'lateral');
+        T.eq('…while its neighbours read the real one', a[0].position + '/' + a[2].position, 'supine/supine');
+        acc._blankSpans = [{ t0Ms: t0 + 300000, t1Ms: t0 + 600000 }];
+        var b = mk();
+        E.stampEpochPositions(b, acc, fs, t0, 1200);
+        T.eq('the blanked epoch refuses the posture', b[1].position, 'unknown');
+        T.eq('…and NAMES why, so it is distinguishable from "too few samples"', b[1].positionReason, 'blanking-run');
+        T.eq('the untouched epochs are unchanged', b[0].position + '/' + b[2].position + '/' + b[3].position, 'supine/supine/supine');
+        T.ok('no sidecar ⇒ no reason key anywhere (byte-identical shape)', !('positionReason' in a[0]) && !('positionReason' in a[1]));
+        T.ok(
+          'DECOY · a zero-width span convicts nothing',
+          (function () {
+            var c = mk();
+            var acc2 = acc.slice();
+            acc2._blankSpans = [{ t0Ms: t0 + 300000, t1Ms: t0 + 300000 }];
+            E.stampEpochPositions(c, acc2, fs, t0, 1200);
+            return c[1].position === 'lateral';
+          })()
+        );
+      } else T.skip('ECGDSP.stampEpochPositions unavailable');
+      var src = env.sources || {};
+      if (src['adapters/polar-h10-ecg.js'])
+        T.ok('polar-h10-ecg · passes comp.accruns into parseDeviceACC', /comp\.accruns \? ecg\.parseDeviceACC\(comp\.acc, \{ runsText: comp\.accruns \}\)/.test(src['adapters/polar-h10-ecg.js']));
+    });
+
+    group('SAMPLE-VALIDITY-ENVELOPE §3.2 — the _PPGRUNS sidecar reaches parsePPG from every ingest path', 'dex-ingest · signal-orchestrate · adapters · ppgdex-app', function (T) {
+      var DI = env.DexIngest,
+        SO = env.SignalOrchestrate,
+        P = env.PpgDex || env.PPGDSP;
+      if (!(DI && typeof DI.ppgKind === 'function' && typeof DI.planIngestPpg === 'function')) {
+        T.ok('DexIngest present', false, 'dex-ingest.js not loaded in this runner');
+        return;
+      }
+      var VS = 'Polar_VS_BBBB_20260617_010001_',
+        H10 = 'Polar_H10_AAAA_20260617_010000_';
+      // (1) CLASSIFICATION — the defect measured 2026-09-25: these five read as PRIMARIES in both nodes.
+      T.eq('ppgKind · `_PPGRUNS.txt` is the runs COMPANION, not a PPG primary', DI.ppgKind(VS + 'PPGRUNS.txt'), 'runs');
+      /* CORRECTED 2026-09-25. This read 'skip' because nothing could read an ACC sidecar; PpgDex now
+         claims it as the `accruns` COMPANION. It is still never a waveform — the control below pins
+         that `_PPG` remains the primary — and it still cannot occupy the primary's `runs` slot. */
+      T.eq('ppgKind · `_ACCRUNS.txt` is the ACC companion\u2019s sidecar, still never a waveform', DI.ppgKind(VS + 'ACCRUNS.txt'), 'accruns');
+      T.eq('ppgKind · and it is NOT the primary\u2019s `runs` — that slot stays `_PPGRUNS`', DI.ppgKind(VS + 'PPGRUNS.txt'), 'runs');
+      T.eq('ppgKind · `_ECGSEAMS.txt` is set aside', DI.ppgKind(H10 + 'ECGSEAMS.txt'), 'skip');
+      /* CORRECTED 2026-09-25, not weakened. This read 'skip' because nothing in ECGDex could read the
+         file; now `ecgKind` claims it as the runs COMPANION, exactly as `ppgKind` claims `_PPGRUNS`.
+         It is still NOT an ECG recording — the control two lines down pins that — and the PPG node
+         still sets it aside, so neither sidecar can become the other node's primary. */
+      T.eq('ecgKind · `_ECGRUNS.txt` is the runs COMPANION, not an ECG primary', DI.ecgKind(H10 + 'ECGRUNS.txt'), 'runs');
+      T.eq('ppgKind · `_ECGRUNS.txt` is set aside in the PPG node', DI.ppgKind(H10 + 'ECGRUNS.txt'), 'skip');
+      T.eq('ecgKind · `_PPGRUNS.txt` is set aside in the ECG node too', DI.ecgKind(VS + 'PPGRUNS.txt'), 'skip');
+      T.eq('control · the real `_PPG.txt` is still the PPG primary', DI.ppgKind(VS + 'PPG.txt'), 'ppg');
+      T.eq('control · the real `_ECG.txt` is still the ECG primary', DI.ecgKind(H10 + 'ECG.txt'), 'ecg');
+      // (2) PLANNER — the sidecar is a device-eligible companion of its own primary and of no other.
+      var nm = function (n, t) {
+        return { name: n, text: t || '' };
+      };
+      var plan = DI.planIngestPpg([nm(VS + 'PPG.txt'), nm(VS + 'PPGRUNS.txt', 'RUNS'), nm(VS + 'ACC.txt'), nm(H10 + 'ECG.txt'), nm(H10 + 'ECGRUNS.txt')]);
+      var elig = plan.eligibleByPrimary[VS + 'PPG.txt'] || {};
+      T.ok('planIngestPpg · the Sense `_PPGRUNS` is eligible for the Sense `_PPG`', !!(elig.runs && elig.runs.length === 1 && elig.runs[0].name === VS + 'PPGRUNS.txt'));
+      T.ok(
+        'planIngestPpg · the H10 `_ECGRUNS` is set aside, never a PPG primary',
+        plan.ppgPrimaries.length === 1 &&
+          plan.skipped.some(function (s) {
+            return s.name === H10 + 'ECGRUNS.txt';
+          })
+      );
+      // (3) UNIFIER PAIRING — pairCompanions hands the sidecar TEXT to the adapter under `runs`.
+      if (SO && typeof SO.pairCompanions === 'function') {
+        var comps = SO.pairCompanions('ppg', VS + 'PPG.txt', [nm(VS + 'PPG.txt', 'x'), nm(VS + 'PPGRUNS.txt', '# stream=ppg'), nm(VS + 'ACC.txt', 'acc')]);
+        T.eq('pairCompanions · ppg gets `runs` = the sidecar text', comps && comps.runs, '# stream=ppg');
+        T.ok('pairCompanions · streamKind reads `_PPGRUNS` as runs, `_PPG` as ppg', SO.streamKind(VS + 'PPGRUNS.txt') === 'runs' && SO.streamKind(VS + 'PPG.txt') === 'ppg');
+      } else T.skip('SignalOrchestrate.pairCompanions unavailable');
+      // (4) THE READER — a PLANTED sidecar changes the parsed rec, and its absence leaves it null.
+      if (P && typeof P.parsePPG === 'function') {
+        var rows = ['Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;ambient'];
+        var t0 = Date.UTC(2026, 8, 11, 4, 19, 36),
+          ns = 1000000000000;
+        for (var i = 0; i < 660; i++) {
+          var v = Math.round(100 + 10 * Math.sin(i / 8));
+          rows.push(new Date(t0 + Math.round(i * 18.18)).toISOString().replace('Z', '') + ';' + (ns + i * 18181818) + ';' + v + ';' + v + ';' + v + ';3');
+        }
+        var text = rows.join('\n') + '\n';
+        var RUNS =
+          [
+            '# stream=ppg rule=stuck min_run=200 t_stuck=200 merge_gap_max=8',
+            'Phone timestamp;stream;value;first_index;n_samples;dur_ms;closed;rule',
+            '2026-09-11T04:19:37.000;channel 0;100;50;210;3818.2;1;stuck'
+          ].join('\n') + '\n';
+        var without = P.parsePPG(text),
+          withRuns = P.parsePPG(text, { runsText: RUNS });
+        T.ok('parsePPG · no sidecar → pinnedCrossCheck is null (absent is unknown, never "no absences")', without.pinnedCrossCheck == null);
+        T.ok('parsePPG · a planted `_PPGRUNS` sidecar → pinnedCrossCheck is populated', withRuns.pinnedCrossCheck != null);
+      } else T.skip('PpgDex.parsePPG unavailable');
+      // (5) SOURCE-MIRRORS — the three production callers pass the text (no multi-file drop runs headless).
+      var src = env.sources || {};
+      var app = src['ppgdex-app.js'],
+        aPS = src['adapters/polar-sense-ppg.js'],
+        aO2 = src['adapters/o2ring-ppg.js'];
+      if (typeof app === 'string') T.ok('source-mirror · ppgdex-app.js passes runsText into DSP.parsePPG', /parsePPG\(pf\.text,\s*\{\s*runsText:/.test(app));
+      else T.skip('ppgdex-app.js source not in env.sources');
+      if (typeof aPS === 'string') T.ok('source-mirror · polar-sense-ppg passes ctx.companions.runs as runsText', /companions\.runs/.test(aPS) && /runsText:\s*runsText/.test(aPS));
+      else T.skip('adapters/polar-sense-ppg.js source not in env.sources');
+      if (typeof aO2 === 'string') T.ok('source-mirror · o2ring-ppg passes ctx.companions.runs as runsText', /companions\.runs/.test(aO2) && /runsText:\s*runsText/.test(aO2));
+      else T.skip('adapters/o2ring-ppg.js source not in env.sources');
+    });
+
     group('Companion pick — DexIngest.pickNearestByStamp (PPG nearest-t0Ms, ECG-INGEST-FOLLOWUPS-IV §1)', 'dex-ingest · ppgdex-app', function (T) {
       var DI = env.DexIngest;
       if (!(DI && typeof DI.pickNearestByStamp === 'function')) {
@@ -54097,6 +54802,124 @@
      no single-channel and no finger-site path" — is STALE: `PPGDEX-O2RING-FINGER-SITE-2026-07-18`
      is DONE (2026-07-20), verified on hardware, and `parsePPG` returns `site:'finger'` with a
      single-channel beat lane. Verified in the tree before acting, not read off a status line. */
+    /* ════ THE SIBLING WAVEFORM — residue `2026-09-25-ppg2w-routes-to-spo2` ══════════════════════
+       §1.4's fix (the group below) declined `_PPG.txt` in `oxydex-spo2` and gave `o2ring-ppg` 0.97.
+       `_PPG2W.txt` — the SAME ring's raw dual-wavelength stream — was left behind, and it was WORSE
+       than the tie it descends from: `_PPG\b` / `_PPG\.` cannot match `_PPG2W` (a word character
+       follows `PPG`), so every `ppg` adapter scored **0** and `oxydex-spo2` won OUTRIGHT at 0.95 —
+       no runner-up, so the router did not even report `ambiguous`. A confident wrong adapter.
+
+       SEVERITY WAS MEASURED BEFORE THE FIX, and it was a LOST SIGNAL, not a wrong number:
+       `oxydex-spo2.parse` on a 20 Hz `_PPG2W.txt` returned
+       `usable:false · "no usable SpO₂ rows parsed"`, with the real 1 Hz CSV as a live control (it
+       parsed and refused on its OWN ≥10 floor). Recording that here because "it refuses anyway" is
+       exactly the reasoning that leaves a misroute unfixed — the waveform was simply never analyzed.
+       ⚠️ That measurement was initially reported as UNMEASURABLE headless. It was not: the probe
+       passed `route().best` where the host passes `route().best.adapter`, so `runAdapter` returned
+       null for the CONTROL too. Reading `data-unifier-app.js`'s call site fixed the harness. A null
+       answer for the control is what said "instrument", not "subject" (CLAUDE.md §4b). */
+    group('o2ring-ppg2w adapter — the dual-wavelength waveform routes to the node that PARSES it', 'adapters · o2ring-ppg2w · routing · signal-adapters', function (T) {
+      var SA = env.SignalAdapters;
+      var A = SA && SA.byId ? SA.byId('o2ring-ppg2w') : null;
+      T.ok(
+        'o2ring-ppg2w adapter registered',
+        !!A,
+        A
+          ? ''
+          : 'adapters/o2ring-ppg2w.js not co-loaded — it must be added to FOUR places, and the co-load manifest gate is the enumeration: both .src.html, Dex-Test-Suite.html, dex-coload.js and tests/run-tests.mjs (the sibling hint below says "BOTH runners + both .src.html" and is one short — Dex-Test-Suite.html caught this one)'
+      );
+      if (!A || !SA || typeof SA.route !== 'function') return;
+      /* `spo2` because `signal-orchestrate _HOSTS` maps it to `oxyHost`, and OxyDex is the node that
+         owns `parsePPG2W` — the signalType picks the HOST, not the physical quantity of the bytes. */
+      T.eq('signalType = spo2 — the host that can read it is OxyDex', A.signalType, 'spo2');
+
+      var W2 = 'Wellue_O2Ring-S_S8AW2100_20260905223000_PPG2W.txt',
+        W2_RUNS = 'Wellue_O2Ring-S_S8AW2100_20260905223000_PPG2WRUNS.txt',
+        PPG = 'Wellue_O2Ring-S_S8AW2100_20260725010522_PPG.txt',
+        CSV = 'O2Ring S 2100_20260720.csv',
+        W2_HEAD = 'Phone timestamp;sensor timestamp [ns];channel 0;channel 1;motion',
+        CSV_HEAD = 'Time,Oxygen Level,Pulse Rate,Motion';
+
+      /* ── THE PROPERTY. This block FAILS on main: `route(W2)` returned `oxydex-spo2` @ 0.95. ── */
+      var r = SA.route({ name: W2 }, W2_HEAD);
+      T.eq('the dual-wavelength waveform routes to o2ring-ppg2w', r.best && r.best.id, 'o2ring-ppg2w');
+      T.ok('…at 0.97, the SAME score its sibling waveform carries (the two lanes cannot drift into a tie)', r.best && r.best.confidence === 0.97, String(r.best && r.best.confidence));
+      T.ok(
+        '…and NEVER to oxydex-spo2, which is the 1 Hz oximetry CSV lane',
+        !!(r.best && r.best.id !== 'oxydex-spo2'),
+        JSON.stringify(
+          r.candidates &&
+            r.candidates.map(function (c) {
+              return c.id + '@' + c.confidence;
+            })
+        )
+      );
+      T.eq('oxydex-spo2 now DECLINES the waveform outright (0, not merely outranked)', SA.byId('oxydex-spo2').detect({ name: W2 }, W2_HEAD), 0);
+      /* 🔴 OUTRANKING IS NOT ENOUGH, and a single-variable plant is what showed it. Registering this
+         adapter WITHOUT widening `oxydex-spo2`'s decline leaves both claiming the file at 0.97 and
+         0.95 — a gap of 0.02, under the router's 0.15 threshold — so the route is AMBIGUOUS, which is
+         a degraded state, not a fix. `route()` still reports that `best`, so an id-only assertion
+         passes straight through it; this line is the one that does not. Both halves of the change are
+         load-bearing and this is where that is pinned. */
+      T.ok(
+        '…so the route is UNAMBIGUOUS, not merely won — a 0.02 gap under the 0.15 threshold is not a fix',
+        r.ambiguous === false,
+        JSON.stringify({
+          ambiguous: r.ambiguous,
+          candidates:
+            r.candidates &&
+            r.candidates.map(function (c) {
+              return c.id + '@' + c.confidence;
+            })
+        })
+      );
+
+      /* ── THE CONTROLS. Each says the change was SURGICAL; without them "routes to X" is unfalsifiable. ── */
+      var rCsv = SA.route({ name: CSV }, CSV_HEAD);
+      T.eq('control · the real 1 Hz SpO₂ CSV still routes to oxydex-spo2', rCsv.best && rCsv.best.id, 'oxydex-spo2');
+      T.ok('control · …at its unchanged 0.95', rCsv.best && rCsv.best.confidence === 0.95, String(rCsv.best && rCsv.best.confidence));
+      var rPpg = SA.route({ name: PPG }, 'Phone timestamp;sensor timestamp [ns];channel 0');
+      T.eq('control · the finger pleth still routes to o2ring-ppg (§1.4 intact)', rPpg.best && rPpg.best.id, 'o2ring-ppg');
+      T.ok('control · …at its unchanged 0.97', rPpg.best && rPpg.best.confidence === 0.97, String(rPpg.best && rPpg.best.confidence));
+
+      /* ── AN UNROUTEABLE FILE IS `unknown`, NEVER A CONFIDENT WRONG ADAPTER. The sidecar is the case
+            that proves it: it shares this stream's prefix by construction (`…_PPG2W.txt` →
+            `…_PPG2WRUNS.txt`), so it is the file most likely to be swept up by a prefix claim. ── */
+      var rRuns = SA.route({ name: W2_RUNS }, '# stream=ppg2w rule=stuck min_run=200');
+      T.ok('the `_PPG2WRUNS` sidecar is claimed by NOBODY — set aside, never guessed', rRuns.unknown === true, JSON.stringify(rRuns.best && { id: rRuns.best.id, conf: rRuns.best.confidence }));
+      T.eq('…and this adapter declines it explicitly, rather than relying on another to lose', A.detect({ name: W2_RUNS }, ''), 0);
+
+      /* ── ONE PARSER. A copy here would fork the §3.2 sidecar handling the day after it landed. ── */
+      var src = (env.sources || {})['adapters/o2ring-ppg2w.js'] || '';
+      if (src) {
+        T.ok(
+          'the adapter REFERENCES OxyDex.parsePPG2W rather than carrying a parser',
+          /oxy\.parsePPG2W/.test(src) && /oxy\.spo2WaveformTrend/.test(src),
+          'a second parser has appeared in the adapter'
+        );
+        T.ok(
+          '…and no second timestamp parser rode in with it',
+          !/function\s+parseTimestamp|Date\.parse\(|new Date\(\s*[a-z]/.test(src),
+          'the Clock Contract belongs to the DSP, not the ingest boundary'
+        );
+        T.ok('…and it passes the `_PPG2WRUNS` companion through to the one parser', /runsText:/.test(src), 'the validity sidecar cannot reach parsePPG2W from this route');
+      } else T.ok('adapters/o2ring-ppg2w.js source in env.sources', false);
+
+      /* ── THE REFUSAL CARRIES WHAT IT READ. `toSignalFrame` has a FIXED field set and drops unknown
+            keys, so this rides on `reason` — a first draft used `meta` and it arrived null. ── */
+      if (typeof SA.runAdapter === 'function') {
+        var rows = ['Phone timestamp;sensor timestamp [ns];channel 0;channel 1;motion'];
+        for (var i = 0; i < 400; i++)
+          rows.push(
+            '2026-09-05 22:' + String(30 + Math.floor(i / 60)).padStart(2, '0') + ':' + String(i % 60).padStart(2, '0') + '.000;' + i * 5e7 + ';' + (1000 + (i % 37)) + ';' + (2000 + (i % 29)) + ';0'
+          );
+        var fr = SA.runAdapter(A, rows.join('\n') + '\n', { files: [W2] });
+        T.ok('a waveform with no co-recorded device series REFUSES — never a fabricated trend', !!(fr && fr.usable === false), JSON.stringify(fr && fr.usable));
+        T.ok('…with the DSP’s own reason, not one invented at the boundary', /need ≥5000 samples|self-calibration impossible/.test((fr && fr.reason) || ''), (fr && fr.reason) || '(none)');
+        T.ok('…and says what it DID read, so "read but uncalibratable" ≠ "nothing was read"', /read 400 samples over/.test((fr && fr.reason) || ''), (fr && fr.reason) || '(none)');
+      }
+    });
+
     group('o2ring-ppg adapter — the finger pleth routes unambiguously (§1.4)', 'adapters · o2ring-ppg · routing · signal-adapters', function (T) {
       var SA = env.SignalAdapters;
       var A = SA && SA.byId ? SA.byId('o2ring-ppg') : null;

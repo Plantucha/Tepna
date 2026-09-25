@@ -131,9 +131,13 @@ import { PPGUI } from './ppgdex-render.js';
         for (let pi = 0; pi < ppgFiles.length; pi++) {
           const pf = ppgFiles[pi];
           progress(20 + (pi / ppgFiles.length) * 20, 'Parsing PPG · ' + pf.name + '…');
+          // SAMPLE-VALIDITY-ENVELOPE §3.2 — the `…_PPGRUNS.txt` validity sidecar is picked BEFORE the parse
+          // (its text must reach parsePPG itself), so the nearest pick uses the FILENAME stamp, not the
+          // parsed rec.t0Ms the other companions use below. Absent → the exact single-argument call as before.
+          const runsF = ING.pickNearestByStamp((plan.eligibleByPrimary[pf.name] || {}).runs || [], pf.stampMs);
           let rec;
           try {
-            rec = DSP.parsePPG(pf.text);
+            rec = runsF && typeof runsF.text === 'string' ? DSP.parsePPG(pf.text, { runsText: runsF.text }) : DSP.parsePPG(pf.text);
           } catch (e) {
             showErr(e.message || String(e));
             continue;
@@ -160,6 +164,7 @@ import { PPGUI } from './ppgdex-render.js';
           rec.magn = magF ? DSP.parseSensorXYZ(magF.text) : null;
           rec.devicePPI = ppiF ? DSP.parseDevicePPI(ppiF.text) : null;
           rec.companions = { acc: accF ? accF.name : null, gyro: gyroF ? gyroF.name : null, magn: magF ? magF.name : null, ppi: ppiF ? ppiF.name : null, marker: markF ? markF.name : null };
+          rec.companions.runs = runsF ? runsF.name : null; // §3.2 — which validity sidecar fed parsePPG, or none
           if (markF) {
             const rows = markF.text.split(/\r?\n/);
             const mk = [];

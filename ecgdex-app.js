@@ -29,6 +29,10 @@ import { ECGUI } from './ecgdex-render.js';
   let activeKey = null,
     _recSeq = 0,
     _loadQueue = [],
+    /* SAMPLE-VALIDITY-ENVELOPE §3.2 — `_ECGRUNS.txt` texts from this drop, keyed by the file's own
+       FILENAME stamp. Filename, not a parsed t0Ms: the text has to reach parseECGText BEFORE a rec
+       exists to pair on. Empty on every drop without a sidecar, which is every existing fixture. */
+    _runsFiles = [],
     _replaceMode = false;
 
   /* ════════════════════════════════════════════════════════════════════════
@@ -138,6 +142,19 @@ self.onmessage = async (e) => {
   // ════════════════════════════════════════════════════════════════════════
   //  INGEST
   // ════════════════════════════════════════════════════════════════════════
+  /* Nearest `_ECGRUNS.txt` by FILENAME stamp, or null. `ING.pickNearestByStamp` is the shared rule
+     (dex-ingest.js) PpgDex already uses for its own sidecar, so the two nodes pair identically. */
+  function _pickRunsFor(primaryName) {
+    if (!_runsFiles.length) return null;
+    const ING = typeof DexIngest !== 'undefined' ? DexIngest : null;
+    const stamp = ING && typeof ING.stampMs === 'function' ? ING.stampMs(primaryName) : null;
+    if (ING && typeof ING.pickNearestByStamp === 'function' && stamp != null) {
+      const hit = ING.pickNearestByStamp(_runsFiles, stamp);
+      return hit && typeof hit.text === 'string' ? hit.text : null;
+    }
+    return _runsFiles.length === 1 ? _runsFiles[0].text : null; // one sidecar, one drop — unambiguous
+  }
+
   function loadECGFile(files) {
     files = Array.isArray(files) ? files : [files];
     const pk0 = DSP.partKey ? DSP.partKey(files[0].name) : null;
@@ -198,7 +215,9 @@ self.onmessage = async (e) => {
       const file = files[0];
       const fr = new FileReader();
       fr.onload = (e) => {
-        runPipeline(DSP.parseECG(e.target.result), file.name);
+        // §3.2 — the nearest `_ECGRUNS.txt` by FILENAME stamp (the same rule planIngest pairs on).
+        const _rt = _pickRunsFor(file.name);
+        runPipeline(_rt ? DSP.parseECG(e.target.result, { runsText: _rt }) : DSP.parseECG(e.target.result), file.name);
       };
       fr.readAsText(file);
     }
@@ -1787,7 +1806,40 @@ self.onmessage = async (e) => {
     }
     const wasDraining = _loadQueue.length > 0;
     _loadQueue = _loadQueue.concat(ecgGroups);
-    if (!wasDraining) _processQueue(); // not already draining
+    /* The runs lane is resolved BEFORE the queue drains, unlike RR/HR/ACC which are applied to an
+       already-parsed rec. A validity span has to be known at parse time or the refusal cannot be
+       applied at all, so the ECG start waits on these reads — and only when the drop actually
+       carries one. No sidecar ⇒ the exact pre-existing call order (byte-identical). */
+    const _runsGroups = (plan.companionLanes && plan.companionLanes.runs) || [];
+    if (!_runsGroups.length) {
+      if (!wasDraining) _processQueue();
+      return;
+    }
+    Promise.all(
+      _runsGroups.map((parts) => {
+        const f = parts.length === 1 ? Promise.resolve(parts[0]) : mergeFileParts(parts);
+        return Promise.resolve(f).then(
+          (file) =>
+            new Promise((res) => {
+              const fr = new FileReader();
+              /* `stampMs` is a PROPERTY the picker reads off the candidate — it does not derive one
+                 from the name. Omitting it makes every candidate unscoreable (§10.3) and the pick
+                 returns null, i.e. the sidecar silently never pairs. Measured that way first. */
+              fr.onload = (e) =>
+                res({
+                  name: file.name,
+                  text: String(e.target.result || ''),
+                  stampMs: typeof DexIngest !== 'undefined' && typeof DexIngest.stampMs === 'function' ? DexIngest.stampMs(file.name) : null
+                });
+              fr.onerror = () => res(null); // a sidecar that will not read is NOT a reason to lose the night
+              fr.readAsText(file);
+            })
+        );
+      })
+    ).then((loaded) => {
+      _runsFiles = loaded.filter(Boolean);
+      if (!wasDraining) _processQueue();
+    });
   }
   // Tell the user what was set aside and why. A strong (red) error when the drop held
   // NO ECG at all — otherwise the app would silently do nothing and look frozen.

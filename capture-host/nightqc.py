@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 from array import array as _array
+from typing import Any
 import json
 import cmath
 import math
@@ -2780,30 +2781,142 @@ def qc_verdict(summary: dict, devices: list[dict], *, night_dir: str = "") -> di
 
       PASS          every declared stream on every non-optional device delivered rows this session at
                     coverage ≥ 0.5 of rate × span, and no session inside the night window was excluded
-      FAIL          a stream is missing or degraded (reason names each, with its %)
+      FAIL          a RECORDING device has a missing or degraded stream (reason names each, with %)
       SHORTFALL     the headline held but a session inside the night was excluded from the judgement
                     (`gaps_in_night`) — met on the whole, not on a stated sub-population
       UNDERPOWERED  span < _MIN_SPAN_SEC: coverage is unknown there, not low
+      UNKNOWN       every expected device produced NOTHING, so no sibling witnesses the radio: nobody
+                    wore the kit and a dead adapter are indistinguishable from here
       NOT_RUN       no device is configured — nothing was declared, so nothing was examined
 
-    Population = declared streams: checked are those on non-optional devices, excluded those on
-    `optional` backups (declared, not judged), eligible = both. A crash → UNKNOWN naming it.
+    `coverage` carries ONLY the streams whose denominator was the device's own extent
+    (`span_basis: "device"`). A session-basis coverage travels in `coverage_session_basis` and an
+    unlabelled one in `coverage_basis_unknown`, because those answer a different question and folding
+    them together is how one number came to mean two things.
+
+    Population = declared streams, as an EQUALITY. `checked` are the streams of devices that RECORDED;
+    `excluded` are `optional` backups plus every stream of a device that produced nothing (declared,
+    not judged — see the block below); eligible = all declared. A crash → UNKNOWN naming it.
+    ⚠️ An ABSENT device is excluded rather than failed, and that is the whole point: "never started"
+    and "recorded badly" are opposite findings, and only the second is this gate's business.
     """
     import verdict as _v
     ev = [_TOOL, os.path.join(night_dir, _SUMMARY_NAME) if night_dir else _SUMMARY_NAME]
     try:
-        checked = sum(len(d.get("streams") or []) for d in devices if not d.get("optional"))
-        excluded = sum(len(d.get("streams") or []) for d in devices if d.get("optional"))
-        pop = {"checked": checked, "eligible": checked + excluded, "excluded": excluded}
-        cov = {f"{d['name']}:{s}": c for d in summary.get("devices") or [] for s, c in (d.get("coverage") or {}).items()}
-        result = {"coverage": cov, "missing": list(summary.get("missing") or []),
+        # ── A SESSION-BASIS COVERAGE IS NOT THIS DEVICE'S COVERAGE (2026-09-25) ────────────────────
+        # `summarize` divides by the device's OWN recording extent where it can bound one, and falls back
+        # to the SESSION span — the union across every device — where it cannot, saying so per stream in
+        # `span_basis`. That label was published and no consumer read it, so this verdict presented both
+        # kinds in one `coverage` map as though they answered the same question. They do not: one is "did
+        # we receive what this device sent", the other is "what fraction of the whole session's elapsed
+        # time did this device's rows cover", and on a night whose directory holds TWO capture sessions
+        # the second reads ~0.47 for a device that recorded perfectly through one of them. Measured at
+        # 21:33 on SOLID-NIGHT night 1: nine streams, every one `span_basis: "session"`, `span_sec: None`.
+        #
+        # ⚠️ The fallback itself is DELIBERATE and stays — `test_a_clockless_file_falls_back_to_the_
+        # session_span_and_SAYS_SO` pins it, and its reason holds: dropping a clockless file would move
+        # the start later, shorten the span and INFLATE coverage. Nothing here deletes a number. The
+        # verdict simply stops conflating two denominators, and `degraded` (which keys on
+        # `session_coverage`) is untouched, so no alarm changes.
+        cov: dict[str, float] = {}
+        cov_session: dict[str, float] = {}
+        cov_unknown: dict[str, float] = {}
+        for _d in summary.get("devices") or []:
+            _sb = _d.get("span_basis") or {}
+            for _s, _c in (_d.get("coverage") or {}).items():
+                _key = f"{_d['name']}:{_s}"
+                # A MISSING basis is its own bucket, never folded into either: absence of the label is
+                # not evidence of which denominator was used (§∅), and an old summary read back by a
+                # newer reader is exactly where that guess would land.
+                # `_sb.get(_s)` is None when the basis label is absent, and that falls to
+                # `cov_unknown` BY DESIGN (the note above). The cast says so; the behaviour is unchanged.
+                _basis: str = _sb.get(_s) or ""
+                {"device": cov, "session": cov_session}.get(_basis, cov_unknown)[_key] = _c
+        # Heterogeneous by construction (lists, dicts and counts under one roof), so the value type
+        # is annotated once HERE rather than narrowed at each of its readers. Without it mypy infers
+        # a union carrying None and every `set(result["missing"])` downstream reads as a possible
+        # crash — noise that hid a REAL one four lines up for a day.
+        result: dict[str, Any] = {"coverage": cov, "coverage_session_basis": cov_session,
+                  "coverage_basis_unknown": cov_unknown, "missing": list(summary.get("missing") or []),
                   "degraded": list(summary.get("degraded") or []),
                   "gaps_in_night": list(summary.get("gaps_in_night") or []),
                   "span_sec": summary.get("span_sec")}
         span = summary.get("span_sec")
+        # ── A DEVICE THAT NEVER STARTED IS NOT A DEVICE THAT RECORDED BADLY (2026-09-25) ───────────
+        # Measured on SOLID-NIGHT night 1: with the kit on its dock the verdict read FAIL, because every
+        # zero-row stream lands in `missing` and ANY `missing` entry was a FAIL. Those are opposite
+        # findings and the band says so — a night nobody wore is NOT_APPLICABLE, never FAIL, and the
+        # consecutive counter SKIPS it (solid_night.py §3.1). A FAIL there convicts the box of a fault
+        # that belongs to nobody, and it is the verdict WORD that is wrong, not a number.
+        #
+        # THE WITNESS IS A SIBLING THAT PRODUCED ROWS, and it is read here rather than borrowed:
+        #   · some devices recorded, others did not  → the recording siblings PROVE the radio worked, so
+        #     each absent device is declared-but-not-judged. Its streams move to `excluded`, and the
+        #     verdict comes from the devices that did record.
+        #   · EVERY expected device is absent        → nothing witnesses the radio, and no-wear is then
+        #     INDISTINGUISHABLE from a dead adapter, so the answer is UNKNOWN and says which two states
+        #     it cannot separate. Never NOT_APPLICABLE on absence alone — that is the band's own rule,
+        #     and upgrading it needs the per-radio ADAPTERHCI witness, which is a DIFFERENT producer's
+        #     fact. `absent` is published so the SOLID-NIGHT composer can apply it; this verdict does
+        #     not reach across and guess.
+        # A device with SOME streams missing is NOT absent — that is a partial failure and stays FAIL.
+        # ── A DEVICE WITH NO IDENTITY IS EXCLUDED AND NAMED, NEVER KEYED `None` (2026-09-25) ──────
+        # `d.get("name") or d.get("device_id")` is None when a configured device carries NEITHER, and
+        # that None became a dict KEY here. `sorted()` two lines down then compares it against the
+        # str keys beside it and RAISES:
+        #     TypeError: '<' not supported between instances of 'NoneType' and 'str'
+        # — reproduced, not inferred. `', '.join(absent)` raises the same way on the None member. That
+        # takes down the whole QC verdict path, which is the thing that decides whether a night is
+        # judged at all, so a malformed entry convicts every OTHER device of nothing being reported.
+        #
+        # ⚠️ IT IS REACHABLE: #3040 hardened the qc ALERT path against exactly this input ("refuses a
+        # malformed devices list, naming what arrived"). A malformed `devices` list is a known event
+        # on this box; that path was guarded and this one was not.
+        #
+        # The remedy is NOT an annotation. A device with no identity cannot be judged — it cannot even
+        # be addressed in `missing`, whose entries are `f"{name}:{stream}"` — so it is EXCLUDED, and
+        # the population equality (checked + excluded == eligible) carries it rather than dropping it.
+        # It is NAMED by what it actually carried, because there is no name to name it by; that is the
+        # same "name what arrived" shape #3040 used for the alert path.
+        _unidentified = [d for d in devices
+                         if not d.get("optional") and not (d.get("name") or d.get("device_id"))]
+        _declared = {_k: list(d.get("streams") or [])
+                     for d in devices if not d.get("optional")
+                     for _k in [d.get("name") or d.get("device_id")] if _k}
+        _miss = set(result["missing"])
+        absent = sorted(n for n, ss in _declared.items() if ss and all(f"{n}:{s}" in _miss for s in ss))
+        recorded = sorted(n for n, ss in _declared.items() if n not in absent)
+        if _unidentified:
+            # Published so a reader can FIND the malformed entry: it has no name, so it is named by the
+            # streams it declared. Absent the key, a silent drop would shrink `eligible` and the
+            # equality would still balance — which is exactly how this would hide.
+            result["unidentified_devices"] = [sorted(d.get("streams") or []) for d in _unidentified]
+        result["absent"] = absent
+        result["absent_witnessed_by"] = recorded if absent else []
+        # The population is an EQUALITY and an absent device was declared, so it is EXCLUDED and never
+        # simply dropped: checked + excluded == eligible, and a PASS over `checked: 0` is invalid by
+        # schema rather than by convention.
+        checked = sum(len(ss) for n, ss in _declared.items() if n in recorded)
+        excluded = sum(len(d.get("streams") or []) for d in devices if d.get("optional")) \
+            + sum(len(ss) for n, ss in _declared.items() if n in absent) \
+            + sum(len(d.get("streams") or []) for d in _unidentified)
+        eligible = sum(len(d.get("streams") or []) for d in devices)
+        pop = {"checked": checked, "eligible": eligible, "excluded": excluded}
+        if eligible == 0:
+            return _v.make(gate=_QC_GATE, status="NOT_RUN", population=pop, criterion=_QC_CRITERION, result=None,
+                           evidence=ev, reason="no device is configured — nothing was declared to judge", tool=_TOOL)
+        if absent and not recorded:
+            return _v.make(gate=_QC_GATE, status="UNKNOWN", population=pop, criterion=_QC_CRITERION,
+                           result=result, evidence=ev, tool=_TOOL,
+                           reason="no expected device produced a row, and no sibling recorded to witness the "
+                                  "radio — nobody wore the devices and a dead adapter are indistinguishable "
+                                  f"from here: {', '.join(absent)}")
         if checked == 0:
             return _v.make(gate=_QC_GATE, status="NOT_RUN", population=pop, criterion=_QC_CRITERION, result=None,
                            evidence=ev, reason="no device is configured — nothing was declared to judge", tool=_TOOL)
+        # Only the RECORDING devices' faults are judged; an absent device's streams are excluded above,
+        # so its `missing` entries must not also convict it here.
+        result["missing"] = [m for m in result["missing"] if m.split(":", 1)[0] not in set(absent)]
         if result["missing"] or result["degraded"]:
             parts = ([f"missing: {', '.join(result['missing'])}"] if result["missing"] else []) + \
                     ([f"degraded (< {int(_DEGRADED_BELOW * 100)} %): {', '.join(result['degraded'])}"] if result["degraded"] else [])
@@ -3081,6 +3194,19 @@ def qc_digest(summ) -> str | None:
         # one number when the streams agree, a range when they do not — a device whose acc and ppg
         # diverge 41 %/95 % must not be summarised as 68 %.
         pct = f"{lo * 100:.0f}%" if (hi - lo) < 0.05 else f"{lo * 100:.0f}–{hi * 100:.0f}%"
+        # ── SAY WHICH DENOMINATOR THE PERCENTAGE CAME FROM (2026-09-25) ────────────────────────────
+        # The verdict object stopped conflating the two bases (#3067); this line is the HUMAN-facing
+        # twin of the same conflation and it still printed a bare percentage. `summarize` divides by the
+        # device's own extent where it can bound one and by the SESSION span — the union across every
+        # device — where it cannot, and on a night whose directory holds two capture sessions the second
+        # reads ~52 % for a device that recorded perfectly through one of them. An operator reading
+        # "H10 52%" cannot tell that from packet loss, which is the decision this digest exists to
+        # inform. `span_basis` is uniform per device (one `dev_span` per device), so one suffix is
+        # honest for the whole segment; a `~` marks the union-span figure and an absent label is marked
+        # too, because not knowing the denominator is not the same as knowing it was the device's.
+        _bases = {(d.get("span_basis") or {}).get(k) for k in cov if isinstance(cov.get(k), (int, float))}
+        if _bases and _bases != {"device"}:
+            pct += "~session" if _bases == {"session"} else "~basis?"
         seg_dev = f"{name} {pct}"
         # ring-clock drift, appended to the device that has it — the number that says whether the 6-hourly
         # 0xC0 push is holding and whether a battery reset silently corrupted the night's stored .dat.

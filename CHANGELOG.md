@@ -30,6 +30,77 @@ changesets.)
 
 ---
 
+## [2.15.0] — 2026-09-25
+
+### Added
+- `RUN_MIN_BY_STREAM` covered `acc`, `accraw`, `ppg`, `ppg1` and `ppg2w` — so **the H10's ECG had no run
+- `loop_monitor` measures the one resource every stream shares and its own docstring says what it cannot
+- `LOSS-AUDIT.json` publishes each device's gaps one by one: `gaps: [{at, s, cause}]`, with the local start
+- ECGDex's ectopy figures now reach a golden, so a regression in them can redden CI.
+- **All 170 tests in `test_nightqc.py` passed identically before and after #3009 changed the coverage
+- `O2RING-RAW-DUAL-WAVELENGTH-FOLLOWUPS` §8 writes into a brief, for the first time, the vendor answer found by the 2026-09-06 decompile: the SDK smooths only the `156` marker and treats 0, 100 and 199 as signal. The ring's 1 Hz `sensorState` separates finger-off from worn, but it does not flag in-wear blanking (~98 % of 0/199 occur while it reads worn). It also pre-registers a capture design, NOT RUN, whose flashlight segment decides whether a worn flat-100 run of 200 samples or more is optical (the raw `PPG2W` channels pinned) or algorithmic (still pulsatile). The predictions are committed before any data is scored, and a retrospective arm over the 2026-09-19 sessions comes first.
+- The capture-host suite now runs under a **per-test bound**, so a hanging test produces a named FAILED
+- `capture-host/solid_night.py` — the composition core of the SOLID-NIGHT verdict, the one `tepna.verdict/1` (`SOLID-NIGHT-2026-09-23-BRIEF.md`)
+- capture-host: the SOLID-NIGHT verdict runs nightly. `capture.loss_poller` writes `SOLID-VERDICT.json` beside each (`SOLID-NIGHT-2026-09-23-BRIEF.md`)
+- TODO: one imperative sentence — this becomes the changelog bullet. (`SOLID-NIGHT-2026-09-23-BRIEF.md`)
+- A device that stopped early now carries WHY beside its seconds: `stopped_early_reason` is filled from
+- Pin the mutation sweep's tmp-directory behaviour as a runnable probe: one basetemp per session, a shared --basetemp as a known hazard, and a positive control that must see an external deletion.
+- **Which vote held "worn" was persisted nowhere.** `worn_verdict` returns `(verdict, why)` and `why` names
+
+### Changed
+- doc-search (Rule 0) now sees what it kept missing: the in-repo corpus adds capture-host/ (122 .py), its tests, tools/*.mjs, tests/, .claude/hooks/*.sh, changes/ and the systemd/deploy units; external roots take an optional depth so the fleet's memory directory (400 lessons), the rig's user units, herdr's config and the top-level ops scripts are indexed without re-walking every worktree under ~ (owner, 2026-09-24: 'setup bge to index Claude memory and necessary config files'); the hourly reindex driver indexes a dedicated always-current checkout instead of the shared root, which was 170 commits behind on a feature branch.
+
+### Fixed
+- `allan.noise_id` refuses when the identified power law falls outside the five it names, instead of
+- `docs-ledger` check8h treated any `YYYY-MM-DD-slug` in a row body as a cross-reference to another
+- `clock_sync_due` had **no freshness term**. It fired on every reconnect regardless of when the device's
+- The automatic device clock sync takes the device through `polar_offline_op`, which **pauses live
+- `afScreen` scores 32-beat windows and needs ≥20 usable beats to score one. When NO window qualified — every window too sparse or too noisy — `total` was 0, the three metrics fell to 0, `suspiciousPct >= 8` was false, and the function published **`'no-af'`**: a clinical all-clear derived from zero evidence, rendered as "Clear" with an `ok` severity.
+- When no counter in an ECG file is usable, `fs` stayed at the H10's nominal **130** — a number with no measurement behind it — and was then spent as the file's timebase: `relSec`, every duration, every epoch edge. An assumed 130 and the measured 129.9866–129.9966 this corpus yields are the same JS number, so nothing downstream could tell them apart. This is family **F2** of `ABSENCE-SURVEY-2026-09-22` — *a rate defaulted, then spent as a timebase*.
+- `_hr` is `numOrNull` in the DSP, and `updateProfile` computed its resting HR as `allRows.reduce((s, r) => s + r._hr, 0) / allRows.length` — so a row carrying no heart rate contributed **0 to the numerator and 1 to the denominator**. The mean sank, and every consumer sank with it.
+- `inferFromData` filters heart rates to 30 < v < 120, so an empty list means the dataset carries no usable HR at all — and the fallback invented **60**, which a banner headed *"Auto-detected from your data"* then displayed as detected. The HR-range line one row below already handled absence correctly (`hrs.length ? … : '?–?'`).
+- An absent subjective Stress entered HRVDex's windows as a real **0**, because `!isNaN(null)` is TRUE — null coerces to 0. The visible cost is the all-absent week: `stress7.length` counted seven absent days while their values contributed nothing, so `d_stress_auc` summed them to **0** — "no stress" — for a week carrying no subjective data at all. Every ECGDex/Ganglior-ingested row lacks that column, so this is the COMMON case rather than an edge. The 14-day autocorrelation had the same coercion: absent days were admitted as 0 and correlated against each other.
+- An unset VO₂ was RANKED rather than refused. `p.vo2gt` is 0 when no ground truth was entered and none was detected, and `vo2Percentile` had no unset branch: 0 sits below every Cooper cut point, so the interpolation loop never matched and the tail `: 1` published the **1st percentile** — the worst possible fitness ranking, derived from no data. The absolute beside it printed **"0.00 L/min"**.
+- The nightly loss audit now attributes two daemon causes it could not see: a clock-watchdog re-sync (which pauses live capture) was matched by no cause bin, and the offline-op pause line names the device only by its address, which a name-only journal filter never read. Over 28 box nights (2026-08-25 → 09-21) 147 min of H10 loss previously booked as `unattributed` was the re-sync; re-auditing an old night re-labels those minutes as `daemon:clock re-sync` / `daemon:pull paused live`. (`CAPTURE-LOSS-PRECEDENCE-AUDIT-2026-09-22-BRIEF.md`)
+- The loss-audit poller re-runs only when a night's DEVICE-CAPTURE files change, not when any file in the folder does: the archive mirror's per-night `.archived` marker was making twelve settled nights read as changed on every 30-minute poll, re-reading gigabytes and re-running a journal subprocess per device for nights whose data had not moved in days. (`CAPTURE-LOSS-PRECEDENCE-AUDIT-2026-09-22-BRIEF.md`)
+- `night_report.back_check` returns `unknown` when it examined nothing, instead of `("ok", 0, 0)`. An
+- A recording under 60 samples cannot yield an ODI-1 at all, and `computeODI1` returned `{ odi1Rate: 0 }` for it — the healthiest possible index for a night that was never long enough to index. `computeSpO2Percentiles`, **nine lines below**, carries the IDENTICAL `n < 60` precondition and already returns null: two functions, one guard, opposite answers, in the same file. A parity assertion now pins them together so they cannot drift apart again.
+- PAT Feasibility no longer refuses a real night because the strap's signal went bad for part of it. Its ECG leg now drops artifact seconds by ECGDex's own rule (`beatConfidence` < 0.5) before counting R-peaks, and the simultaneity check takes each leg's beat rate over the time that leg actually measured. On 2026-09-22 an artifact burst from ~03:40 made the leg count 34 871 "R-peaks" against 18 646 PPG feet, and the night was refused as NOT SIMULTANEOUS; it now counts 18 663 (ECGDex's own figure) and reads PROMISING. Over 48 box nights, 45 verdicts are unchanged and three (2026-08-10, 08-11, 09-22) move from NOT SIMULTANEOUS to PROMISING; none got worse. A night the gate still refuses after its lag was computed is now shown with a visible NOT CERTIFIED signature and the gate's reason — in the night banner and the aggregate — instead of a bare label and "No night produced a coupled result".
+- `patJitterSdMs` published `0` for three different situations: the ECG−Pulse pair absent, the
+- The Polar offline pull publishes `ok` only over reads that ANSWERED. `manifest["ok"] = not short` (`SAMPLE-VALIDITY-ENVELOPE-2026-09-17-BRIEF.md`)
+- `sealbox.closed_at_ms` returns None when no file mtime can be read, instead of `time.time()`. The
+- The updater decided whether a restart was owed by **string-comparing an abbreviated sha against a full
+- An EDF is read **by position**, so an unreadable `samples-per-record` field was never one signal's problem — it was the stride of every signal after it.
+- Two CPAPDex absences both resolved to the **best possible value**, which is the direction that hides a fault.
+- The CVHR screen resamples beats onto a 1 Hz HR grid by walking them, so every second inside a beat dropout kept the LAST PRE-GAP interval — `hr[s] = 60000 / nn[j]` with `j` frozen. A 1.5 h strap-off produced **5400 s of invented, perfectly constant HR**, which `hrSeries` exports and the CVHR card draws with `UI.lineChart` as a flat measured line.
+- **A strap on a table reported 42 ventricular runs.** On the owner's 2026-09-22 night, 2,766 of 2,767 PVCs sat in the window where the H10 was off the body — 7.93 % PVC burden, 330 couplets, bigeminy 396, from an empty strap. (Found and measured by Wren, capture-host lane.)
+- An undated ECG recording exported **1970-01-01 00:00:00** as its date. `new Date(0)` renders a perfectly valid-looking instant that a consumer reads as the recording's date and that sorts before every real one — in-band, and unreachable by any plausibility guard.
+- The ECG-vs-device HR validation compared **held samples against held samples**, and the error it reported was diluted in the flattering direction.
+- GVP is a **path length**, so an unguarded step drew a straight line through hours the sensor never saw and counted it as travelled.
+- A night whose rMSSD was never recorded reported a **−100 % day-to-day change** — a total autonomic collapse, manufactured from an absent measurement. The table rendered "−100.0%" and the chart painted the bar RED.
+- The monitor's live ECG heart rate no longer counts a tall T wave as a second beat. On 2026-09-24 the owner's H10
+- The parse boundary was already honest, and `compute()` re-introduced the guess a thousand lines later.
+- The 2026-09-23 QC fixtures wrote six million rows to carry a geometry that does not depend on the
+- 17 tests in `test_nightqc.py` planted an 8-digit DATE where production writes a 14-digit
+- The null-not-zero fix was already written into this file — twice, with its reasoning — and applied to **one of five inputs**.
+- An unanalysed night scored the **maximum** on the readiness score's hypoxic-load component, and that score carries a training recommendation.
+- `parseDevicePPI` read the Verity's **nanosecond sensor stamp as the PP-interval**, so four days of box-captured nights had no device cross-validation at all.
+- `probe_verity_survey` reports `None` for a device confirmation whose status read went unanswered,
+- QC coverage divided one device's rows by the **session** span — the union across devices — so a device
+- `qc_poller` refuses a scan result that is not a dict, naming the type and the value, and its swallowing
+- The qc alert path refuses a malformed summary devices list instead of raising a bare AttributeError three frames later.
+- Scale the tmp-race probe's concurrency to the box and replace its racy positive with a deterministic keep-count differential.
+- `tmp_path_retention_policy` is removed and the key refused by a test, because its `none` value makes a
+- The ring's `ppg2w_contact` epochs on one second of clock, taken from each row's own stamp, instead of a
+- `test_schema_defaults_match_the_daemon_fallbacks` compared capture.py's `.get("leaf", <literal>)`
+- The §∅ 2026-09-17 ruling — **a discontinuity refuses, reduced coverage annotates** — applied across the nodes, after planting a seam in each and measuring what its window metrics actually return.
+- Four mutants on `_has_worn_evidence`'s changed lines are now observed by assertions: an empty file
+- `loss_audit._has_worn_evidence` resolves its column from each file's own header instead of by
+- `tools/probe-equivalence.mjs` emits the control denominator that was **sampled**, not the one that
+- The `…_PPGRUNS.txt` validity sidecar now reaches `parsePPG(text, { runsText })` from every ingest path — (`SAMPLE-VALIDITY-ENVELOPE-2026-09-17-BRIEF.md`)
+
+---
+
 ## [2.14.0] — 2026-09-23
 
 ### Added
@@ -2662,7 +2733,8 @@ and establishes the release-governance layer over it.
 - **The shared test suite** (`Dex-Test-Suite.html` + `tests/dex-tests.js`) and the build/provenance
   manifests.
 
-[Unreleased]: https://github.com/Plantucha/Tepna/compare/v2.14.0...HEAD
+[Unreleased]: https://github.com/Plantucha/Tepna/compare/v2.15.0...HEAD
+[2.15.0]: https://github.com/Plantucha/Tepna/compare/v2.14.0...v2.15.0
 [2.14.0]: https://github.com/Plantucha/Tepna/compare/v2.13.0...v2.14.0
 [2.13.0]: https://github.com/Plantucha/Tepna/compare/v2.12.0...v2.13.0
 [2.12.0]: https://github.com/Plantucha/Tepna/compare/v2.11.0...v2.12.0

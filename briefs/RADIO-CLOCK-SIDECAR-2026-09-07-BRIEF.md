@@ -207,7 +207,7 @@ after any adapter bounce. Found live in `radioclock.py` and fixed in #2392, keye
   ACL payload. A Polar PMD data frame is `[meas_type][8-byte LE ns since 2000-01-01][frame_type][payload]`
   (`capture-host/polar_pmd.py`, known-answer-pinned by `tests/test_polar_pmd.py`) — bytes 1..9 are the
   frame's **LAST** sample stamp (`polar_pmd.py:589` `last_ns`), which is exactly the `last_sensor_ns` column
-  `PmdArrivalLogWriter` records (`capture.py:2719` writes `samples[-1].sensor_ns`) — so the sidecar reads
+  `PmdArrivalLogWriter` records (`capture.py` `on_pmd` writes `samples[-1].sensor_ns`) — so the sidecar reads
   the raw 8 bytes, decodes nothing, and joins to `*_PMDARRIVAL.csv` on `(device, last_sensor_ns)`: an exact
   integer identity. ⚠️ This read `first_sensor_ns` until 2026-09-07 (Heron, measured on a synthetic 3-sample
   H10 frame: raw field == `samples[-1]`, ≠ `samples[0]` by 2 sample periods). `first_sensor_ns` is a value the

@@ -1686,12 +1686,18 @@
          `reason: 'clock-seam'`, the epoch is absent from the series and present in `refusedOut`.
        · fewer than 20 scorable beats  ⇒ refused, `reason: 'too-few-beats'` (was a silent skip).
      A window with no beats at all is a dropout hole, already counted in gapSec, and stays silent. */
-  function epochEngine(nn, tt, winSec, sqiPerBeat, spansGap, seamSec, refusedOut) {
+  function epochEngine(nn, tt, winSec, sqiPerBeat, spansGap, seamSec, refusedOut, blankSec) {
     winSec = winSec || 300;
     const N = nn.length,
       tEnd = tt[N - 1];
     const epochs = [];
     const _seams = Array.isArray(seamSec) ? seamSec.filter((v) => Number.isFinite(v)) : [];
+    /* §∅ — A RECORDED BLANKING RUN IS A DISCONTINUITY, SO THE WINDOW REFUSES. `blankSec` is the
+       `_ECGRUNS.txt` sidecar's spans converted to seconds; an epoch whose window intersects one does
+       not describe a continuous stretch of signal, and the owner ruling of 2026-09-17 is explicit
+       that a discontinuity refuses while reduced coverage annotates. LAST and optional: absent a
+       sidecar `_blanks` is empty, every comparison below is false, and the engine is byte-identical. */
+    const _blanks = Array.isArray(blankSec) ? blankSec.filter((b) => b && Number.isFinite(b.t0) && Number.isFinite(b.t1) && b.t1 > b.t0) : [];
     let i = 0;
     for (let w0 = 0; w0 <= tEnd; w0 += winSec) {
       const w1 = w0 + winSec,
@@ -1721,8 +1727,18 @@
         i++;
       }
       const seamHere = _seams.some((v) => v >= w0 && v < w1);
-      if (seamHere || seg.length < 20) {
-        if (refusedOut && nAll > 0) refusedOut.push({ tMin: +(w0 / 60).toFixed(1), n: nAll, reason: seamHere ? 'clock-seam' : 'too-few-beats' });
+      /* Half-open intersection on both sides, so a span ending exactly at w0 does not convict the
+         window after it. Precedence is deliberate and NAMES THE REAL STATE (§∅): a seam is the harder
+         discontinuity, a blanking run the next, and `too-few-beats` must never be borrowed to report
+         either — a borrowed reason that happens to fire is the defect that ruling exists to prevent. */
+      const blankHere = _blanks.some((b) => b.t0 < w1 && w0 < b.t1);
+      if (seamHere || blankHere || seg.length < 20) {
+        if (refusedOut && nAll > 0)
+          refusedOut.push({
+            tMin: +(w0 / 60).toFixed(1),
+            n: nAll,
+            reason: seamHere ? 'clock-seam' : blankHere ? 'blanking-run' : 'too-few-beats'
+          });
         continue;
       }
       {
@@ -2928,8 +2944,20 @@
       while (k < N && nnPeak[k] < c.idx) k++;
       if (k < N) _seamSec.push(tt[k]);
     }
+    /* §∅ SAMPLE-VALIDITY-ENVELOPE §3.2 — the `_ECGRUNS.txt` spans, in SAMPLES as the box wrote them,
+       converted to the seconds frame `tt` and the epoch windows use. `rec.blankingSpans` is absent
+       unless a sidecar was ingested, so this is [] on every existing path and moves no fixture.
+       The box's own sampling rate is used, never the 130 Hz fallback: a fabricated rate would place
+       the refusal on the wrong seconds, which is worse than not refusing at all. */
+    const _blankSec = [];
+    if (rec && rec.fs > 0 && Array.isArray(rec.blankingSpans)) {
+      for (const b of rec.blankingSpans) {
+        if (!b || !(b.n > 0) || !Number.isFinite(b.first)) continue;
+        _blankSec.push({ t0: b.first / rec.fs, t1: (b.first + b.n) / rec.fs });
+      }
+    }
     const epochsRefused = [];
-    const epochs = epochEngine(nn, tt, 300, nnSqi, nnSpansGap, _seamSec, epochsRefused);
+    const epochs = epochEngine(nn, tt, 300, nnSqi, nnSpansGap, _seamSec, epochsRefused, _blankSec);
 
     // representative window for advanced metrics (epoch with rmssd closest to median)
     let repSeg = nn,
@@ -3976,6 +4004,18 @@
   // posture timeline shown in the UI and the position stamped on epochs/events agree.
   // Mutates each epoch in place (epoch.position) AND returns a sorted [{tMin,position}]
   // lookup for event-meta propagation. No ACC → every epoch.position = 'unknown'.
+  /* Does a 5-minute epoch's window touch a recorded ACC blanking span? Both in absolute floating ms.
+     Half-open on both sides, so a span ending exactly at the epoch boundary convicts nothing. */
+  function _epochTouchesBlank(e, off, ecgT0Ms, spans) {
+    if (ecgT0Ms == null || !spans.length) return false;
+    const a0 = ecgT0Ms + (e.tMin * 60 - off) * 1000,
+      a1 = a0 + 300000;
+    for (let i = 0; i < spans.length; i++) {
+      if (a0 < spans[i].t1Ms && spans[i].t0Ms < a1) return true;
+    }
+    return false;
+  }
+
   function stampEpochPositions(epochs, deviceACC, accFs, ecgT0Ms, durSec) {
     if (!epochs || !epochs.length) return [];
     const fs = accFs || 4;
@@ -3992,6 +4032,7 @@
     const off = baseOffset >= -2 && baseOffset <= durSec ? baseOffset : 0;
     const N = deviceACC.length,
       out = [];
+    const _blankMs = Array.isArray(deviceACC._blankSpans) ? deviceACC._blankSpans : [];
     for (const e of epochs) {
       const s0 = Math.max(0, Math.round((e.tMin * 60 - off) * fs)),
         s1 = Math.min(N, Math.round((e.tMin * 60 + 300 - off) * fs));
@@ -4003,9 +4044,20 @@
         ey.push(ys[i]);
         ez.push(zs[i]);
       }
-      // need ≥30 s of samples for a trustworthy median gravity vector
-      const pos = ex.length > fs * 30 ? _normPosition(_posture(median(ex), median(ey), median(ez)).label) : 'unknown';
+      /* §∅ — A HELD ACC YIELDS A CONFIDENT, WRONG POSTURE, WHICH IS WORSE THAN AN ABSENT ONE.
+         Posture is the MEDIAN gravity vector over the window. A recorded blanking run holds one
+         constant, so the median is that constant and `_posture` returns a definite label from
+         samples nobody measured — not 'unknown', a real posture, stamped on the epoch and
+         propagated into every event's meta. The count guard above cannot see it: the samples ARE
+         there, they are simply all the same. Same shape as the fabricated stillness in
+         motiondex-dsp, one node over.
+         'unknown' is the vocabulary this function already uses for "no trustworthy vector", so the
+         refusal reuses it rather than minting a second spelling; the REASON is what distinguishes
+         an absence the box recorded from one we merely lacked samples for. */
+      const _blanked = _blankMs.length > 0 && _epochTouchesBlank(e, off, ecgT0Ms, _blankMs);
+      const pos = _blanked ? 'unknown' : ex.length > fs * 30 ? _normPosition(_posture(median(ex), median(ey), median(ez)).label) : 'unknown';
       e.position = pos;
+      if (_blanked) e.positionReason = 'blanking-run';
       out.push({ tMin: e.tMin, position: pos });
     }
     return out;
@@ -5590,11 +5642,109 @@
   //  for that case. Returns the SAME rec shape genSynthetic/the worker hand
   //  analyze(): { int16, fs, gaps, t0Ms, offsetMin, source, durSec, … }.
   // ════════════════════════════════════════════════════════════════════════
-  function parseECGText(text) {
+  /* ── THE VALIDITY SIDECAR READER (SAMPLE-VALIDITY-ENVELOPE §3.2, ECG row) ────────────────────
+     The box writes `…_ECGRUNS.txt` beside every `_ECG.txt` (`capture-host/writers.py`, keyed on
+     `ECG_RUN_MIN = 30`), and until now NOTHING read it: a validity band on an H10 night could only
+     ever read UNKNOWN by construction rather than by measurement.
+
+     ⚠️ THIS IS A FILE PARSER, NOT A SECOND RUN DETECTOR. `ecgdex-dsp.js` already reasons about
+     constant runs for SATURATION (#2785, the `ecgRails` census below) and that work is untouched:
+     it answers "where did the amplifier rail", keyed on an observed rail. The sidecar answers "where
+     did the box record an absence", keyed on RUN LENGTH against the stream's own distribution —
+     §∅'s rule, and the reason a `!= 0` test is exactly inverted for a stream whose µV crosses zero
+     on every beat. Two questions, two witnesses; this reads the second one rather than re-deriving it.
+
+     The header/row contract is the one `_PPGRUNS.txt` uses, byte for byte, because one writer emits
+     both: `# stream=ecg rule=stuck min_run=N …` and rows
+     `Phone timestamp;stream;value;first_index;n_samples;dur_ms;closed;rule`. */
+  function parseEcgRuns(text) {
+    if (typeof text !== 'string' || !text) return null;
+    var out = /** @type {any} */ ({
+      params: null,
+      minRun: null,
+      mergeGapMax: null,
+      rows: [],
+      spans: [],
+      malformed: false,
+      emitted: 0,
+      runsDetected: null,
+      examined: null,
+      sawHeader: false,
+      comparable: false
+    });
+    var lines = String(text).split(/\r?\n/);
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i].trim();
+      if (!line) continue;
+      if (line.charAt(0) === '#') {
+        if (!out.params && /\bstream=/.test(line) && /\bmin_run=/.test(line)) {
+          out.params = line.replace(/^#\s*/, '');
+          var mr = /\bmin_run=(\d+)/.exec(line);
+          var mg = /\bmerge_gap_max=(\d+)/.exec(line);
+          if (mr) out.minRun = +mr[1];
+          if (mg) out.mergeGapMax = +mg[1];
+        }
+        var fin = /\btotal_runs=(\d+)/.exec(line);
+        if (fin) out.runsDetected = (out.runsDetected || 0) + +fin[1];
+        var ex = /\bexamined=(\d+)/.exec(line);
+        if (ex) out.examined = (out.examined || 0) + +ex[1];
+        continue;
+      }
+      if (/^Phone timestamp;/.test(line)) {
+        out.sawHeader = true;
+        continue;
+      }
+      var c = line.split(';');
+      if (c.length < 8) {
+        out.malformed = true;
+        continue;
+      }
+      var first = +c[3];
+      var n = +c[4];
+      if (!isFinite(first) || !isFinite(n) || n <= 0) {
+        out.malformed = true;
+        continue;
+      }
+      var stream = (c[1] || '').trim().toLowerCase();
+      if (stream && stream !== 'ecg') continue; // a sibling stream's rows are not this signal's
+      out.rows.push({ stream: stream, value: +c[2], first: first, n: n });
+      out.spans.push({ first: first, n: n, value: +c[2] });
+      out.emitted++;
+    }
+    /* A sidecar with no rule line cannot be compared against anything; an EMPTY one that DOES carry
+       its rule is a real observation at that rule — the writer looked and emitted nothing. Those are
+       different facts and the flag keeps them apart. (Mirrors `parsePinnedRuns`'s own note.) */
+    out.comparable = out.minRun != null;
+    return out;
+  }
+
+  /* Does [i0, i0+len) touch any recorded blanking span? Sample indices, half-open, both sides. */
+  function _intersectsRun(spans, i0, len) {
+    if (!spans || !spans.length || !(len > 0)) return false;
+    var a0 = i0,
+      a1 = i0 + len;
+    for (var k = 0; k < spans.length; k++) {
+      var b0 = spans[k].first,
+        b1 = spans[k].first + spans[k].n;
+      if (a0 < b1 && b0 < a1) return true;
+    }
+    return false;
+  }
+
+  function parseECGText(text, opts) {
     // Whole-text entry point — UNCHANGED contract, kept for the browser and every existing caller.
     // It delegates so there is exactly ONE parse body: a second copy would drift, and the two would
     // disagree about a real recording before anyone noticed.
-    return parseECGLines(String(text == null ? '' : text).split(/\r?\n/));
+    // `opts.runsText` is the `_ECGRUNS.txt` companion's bytes when the caller ingested one. LAST and
+    // OPTIONAL per §🧪: every existing 1-arg call is byte-identical, and the no-sidecar path does not
+    // move a single fixture.
+    var rec = parseECGLines(String(text == null ? '' : text).split(/\r?\n/));
+    var runs = parseEcgRuns(opts && opts.runsText);
+    if (rec && runs) {
+      rec.runsSidecar = runs;
+      rec.blankingSpans = runs.spans;
+    }
+    return rec;
   }
 
   // LINE-FEED entry point. Takes any ITERABLE of lines, so a Node caller can stream a file in bounded
@@ -5846,7 +5996,45 @@
 
   // accFs } — fs inferred from the median stamp dt. A stampless file is relative-from-0
   // (+ _relBase) so the caller can re-base onto the ECG's t0Ms (Clock Contract §2.6 — never now()).
-  function parseDeviceACC(text) {
+  /* The ACC COMPANION's validity sidecar (`…_ACCRUNS.txt`, SAMPLE-VALIDITY-ENVELOPE §3.2).
+     Separate from `parseEcgRuns` above by design, on two axes:
+       · STREAM — that one filters to `stream=ecg`; an ACC sidecar's rows name CHANNELS (`X [mg]`),
+         and any channel being blanked blanks the gravity vector, so all of them are taken.
+       · KEY — that one is sample-keyed (`first_index`/fs), which is right for the ECG primary whose
+         fs we derive. Here the spans are keyed by the writer's own `Phone timestamp` + `dur_ms`,
+         because `parseDeviceACC` skips unparseable rows and our array index is therefore NOT the
+         writer's sample index. Time is the frame both sides agree on.
+     Returns absolute floating ms, the same frame `stampEpochPositions` aligns against. */
+  function parseAccRunsTimed(text) {
+    if (typeof text !== 'string' || !text) return null;
+    var out = /** @type {any} */ ({ minRun: null, spans: [], emitted: 0, comparable: false });
+    var lines = String(text).split(/\r?\n/);
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i].trim();
+      if (!line) continue;
+      if (line.charAt(0) === '#') {
+        if (out.minRun == null && /\bstream=/.test(line) && /\bmin_run=/.test(line)) {
+          var mr = /\bmin_run=(\d+)/.exec(line);
+          if (mr) out.minRun = +mr[1];
+        }
+        continue;
+      }
+      if (/^Phone timestamp;/.test(line)) continue;
+      var c = line.split(';');
+      if (c.length < 8) continue;
+      var st = parseTimestamp((c[0] || '').trim());
+      var dur = +c[5];
+      if (!st || !isFinite(dur) || dur < 0) continue;
+      out.spans.push({ t0Ms: st.tMs, t1Ms: st.tMs + dur });
+      out.emitted++;
+    }
+    /* No rule line ⇒ not comparable with anything. An empty file that DOES carry its rule is a real
+       observation at that rule. Both refuse nothing, for different reasons. */
+    out.comparable = out.minRun != null;
+    return out;
+  }
+
+  function parseDeviceACC(text, opts) {
     var lines = String(text == null ? '' : text).split(/\r?\n/),
       out = [],
       ns0 = null;
@@ -5967,6 +6155,10 @@
        not read it is unaffected, and non-zero says the device axis was NOT spent — the samples carry
        host arrival times instead. `accAxis` names which axis the caller is actually holding, because
        "device" and "host" here are the same numbers to look at and different things to trust. */
+    /* §3.2 — the `…_ACCRUNS.txt` spans ride on the row array itself, the same idiom the seam list
+       uses, so no consumer signature changes and a drop without a sidecar keeps today's bytes. */
+    var _accRuns = parseAccRunsTimed(opts && opts.runsText);
+    if (_accRuns && _accRuns.spans.length) /** @type {any} */ (out)._blankSpans = _accRuns.spans;
     return { acc: out, accFs: fs, accClockSteps: accClockSteps, accMaxStepMs: accClockSteps ? Math.round(accMaxStepMs) : null, accAxis: accClockSteps ? 'host' : 'device' };
   }
 

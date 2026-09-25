@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="1ec5404639f6" data-compute-hash="1dada79f45d9">
+<html lang="en" data-manifest-hash="89febd4e6983" data-compute-hash="2adc494278a1">
 <head>
 <!--
   ECGDex.src.html — Tepna
@@ -10,10 +10,10 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+9D55WVzbDEo+NFobRHGpgzLjOctIxv5faJH6AFRjDI=' 'sha256-+DMxKj19C+r2oJ2mME0Wfi50h62Tqn+Adk/bA3XjY0I=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3bPuedJeHqlAtFRw9XCQUY2RL6IBWMfwvh6D9DWEXUc=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-E8qFHEt2A6a/g3xPUBa8iqmzqmNG2VpjPKUOtnJNDh0=' 'sha256-En5BnuJSrtGOQBjOAV0zmA/L43X1TvIisTxD5fCA3Bs=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-HQmpxoKi3JipnqVIPvKd9Uw9+OuY/5r26p/emwRO4nk=' 'sha256-IgKf+YEi7LmrdT3D04V12zZGeSw0FDC163m2Yj3NmLM=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-b+hR2i2ViyedwmAqqTitKUOQmoT7nrMmSb+ENDSMNws=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-i+z0AlUCRGianGoRVvNN1uy9CkmbqDOaXxtm8sIseJA='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+DMxKj19C+r2oJ2mME0Wfi50h62Tqn+Adk/bA3XjY0I=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-1NjVgPcRTkBPQrlQfjhzm8x2la7DMgftMA1/hkg3K7E=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3bPuedJeHqlAtFRw9XCQUY2RL6IBWMfwvh6D9DWEXUc=' 'sha256-5rY6AtiuWwZLD8V8Rwq650hh49m1pxgDxAy6VCihCq0=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-E8qFHEt2A6a/g3xPUBa8iqmzqmNG2VpjPKUOtnJNDh0=' 'sha256-En5BnuJSrtGOQBjOAV0zmA/L43X1TvIisTxD5fCA3Bs=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-HQmpxoKi3JipnqVIPvKd9Uw9+OuY/5r26p/emwRO4nk=' 'sha256-IgKf+YEi7LmrdT3D04V12zZGeSw0FDC163m2Yj3NmLM=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-ezr3pk0/xocfAgnipgsvcGdSUCk1HsVz8lWlhkl9Rfw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
-<title>ECGDex — Raw ECG Analyzer · v2.14.0</title>
+<title>ECGDex — Raw ECG Analyzer · v2.15.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
 <style data-inline-src="licensing/dex-license.css">/*
  * dex-license.css — reusable Tepna license / attribution stamp styles
@@ -2827,7 +2827,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       <div class="logo-badge"><svg viewBox="0 0 100 100" aria-hidden="true" style="width:23px;height:23px" fill="none" stroke="#06121A" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,33 52,33 60,15 66,49 71,33 86,33"/><line x1="49" y1="33" x2="49" y2="86"/></svg></div>
       <div>
         <div class="logo-title">ECGDex</div>
-        <div class="logo-sub">v2.14.0 · Tepna</div>
+        <div class="logo-sub">v2.15.0 · Tepna</div>
       </div>
     </div>
     <hr class="sidebar-logo-rule">
@@ -2895,7 +2895,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
   <main class="main-content">
     <div class="topbar">
       <div>
-        <div class="topbar-title">ECGDex <span class="version-badge">v2.14.0</span></div>
+        <div class="topbar-title">ECGDex <span class="version-badge">v2.15.0</span></div>
         <div class="page-sub">Raw ECG (130 Hz µV) → R-peaks → HRV · CVHR · sleep staging &middot; one signal, computed end-to-end, all local</div>
       </div>
       <div class="topbar-actions">
@@ -10353,12 +10353,18 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
          `reason: 'clock-seam'`, the epoch is absent from the series and present in `refusedOut`.
        · fewer than 20 scorable beats  ⇒ refused, `reason: 'too-few-beats'` (was a silent skip).
      A window with no beats at all is a dropout hole, already counted in gapSec, and stays silent. */
-  function epochEngine(nn, tt, winSec, sqiPerBeat, spansGap, seamSec, refusedOut) {
+  function epochEngine(nn, tt, winSec, sqiPerBeat, spansGap, seamSec, refusedOut, blankSec) {
     winSec = winSec || 300;
     const N = nn.length,
       tEnd = tt[N - 1];
     const epochs = [];
     const _seams = Array.isArray(seamSec) ? seamSec.filter((v) => Number.isFinite(v)) : [];
+    /* §∅ — A RECORDED BLANKING RUN IS A DISCONTINUITY, SO THE WINDOW REFUSES. `blankSec` is the
+       `_ECGRUNS.txt` sidecar's spans converted to seconds; an epoch whose window intersects one does
+       not describe a continuous stretch of signal, and the owner ruling of 2026-09-17 is explicit
+       that a discontinuity refuses while reduced coverage annotates. LAST and optional: absent a
+       sidecar `_blanks` is empty, every comparison below is false, and the engine is byte-identical. */
+    const _blanks = Array.isArray(blankSec) ? blankSec.filter((b) => b && Number.isFinite(b.t0) && Number.isFinite(b.t1) && b.t1 > b.t0) : [];
     let i = 0;
     for (let w0 = 0; w0 <= tEnd; w0 += winSec) {
       const w1 = w0 + winSec,
@@ -10388,8 +10394,18 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
         i++;
       }
       const seamHere = _seams.some((v) => v >= w0 && v < w1);
-      if (seamHere || seg.length < 20) {
-        if (refusedOut && nAll > 0) refusedOut.push({ tMin: +(w0 / 60).toFixed(1), n: nAll, reason: seamHere ? 'clock-seam' : 'too-few-beats' });
+      /* Half-open intersection on both sides, so a span ending exactly at w0 does not convict the
+         window after it. Precedence is deliberate and NAMES THE REAL STATE (§∅): a seam is the harder
+         discontinuity, a blanking run the next, and `too-few-beats` must never be borrowed to report
+         either — a borrowed reason that happens to fire is the defect that ruling exists to prevent. */
+      const blankHere = _blanks.some((b) => b.t0 < w1 && w0 < b.t1);
+      if (seamHere || blankHere || seg.length < 20) {
+        if (refusedOut && nAll > 0)
+          refusedOut.push({
+            tMin: +(w0 / 60).toFixed(1),
+            n: nAll,
+            reason: seamHere ? 'clock-seam' : blankHere ? 'blanking-run' : 'too-few-beats'
+          });
         continue;
       }
       {
@@ -11595,8 +11611,20 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       while (k < N && nnPeak[k] < c.idx) k++;
       if (k < N) _seamSec.push(tt[k]);
     }
+    /* §∅ SAMPLE-VALIDITY-ENVELOPE §3.2 — the `_ECGRUNS.txt` spans, in SAMPLES as the box wrote them,
+       converted to the seconds frame `tt` and the epoch windows use. `rec.blankingSpans` is absent
+       unless a sidecar was ingested, so this is [] on every existing path and moves no fixture.
+       The box's own sampling rate is used, never the 130 Hz fallback: a fabricated rate would place
+       the refusal on the wrong seconds, which is worse than not refusing at all. */
+    const _blankSec = [];
+    if (rec && rec.fs > 0 && Array.isArray(rec.blankingSpans)) {
+      for (const b of rec.blankingSpans) {
+        if (!b || !(b.n > 0) || !Number.isFinite(b.first)) continue;
+        _blankSec.push({ t0: b.first / rec.fs, t1: (b.first + b.n) / rec.fs });
+      }
+    }
     const epochsRefused = [];
-    const epochs = epochEngine(nn, tt, 300, nnSqi, nnSpansGap, _seamSec, epochsRefused);
+    const epochs = epochEngine(nn, tt, 300, nnSqi, nnSpansGap, _seamSec, epochsRefused, _blankSec);
 
     // representative window for advanced metrics (epoch with rmssd closest to median)
     let repSeg = nn,
@@ -12643,6 +12671,18 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
   // posture timeline shown in the UI and the position stamped on epochs/events agree.
   // Mutates each epoch in place (epoch.position) AND returns a sorted [{tMin,position}]
   // lookup for event-meta propagation. No ACC → every epoch.position = 'unknown'.
+  /* Does a 5-minute epoch's window touch a recorded ACC blanking span? Both in absolute floating ms.
+     Half-open on both sides, so a span ending exactly at the epoch boundary convicts nothing. */
+  function _epochTouchesBlank(e, off, ecgT0Ms, spans) {
+    if (ecgT0Ms == null || !spans.length) return false;
+    const a0 = ecgT0Ms + (e.tMin * 60 - off) * 1000,
+      a1 = a0 + 300000;
+    for (let i = 0; i < spans.length; i++) {
+      if (a0 < spans[i].t1Ms && spans[i].t0Ms < a1) return true;
+    }
+    return false;
+  }
+
   function stampEpochPositions(epochs, deviceACC, accFs, ecgT0Ms, durSec) {
     if (!epochs || !epochs.length) return [];
     const fs = accFs || 4;
@@ -12659,6 +12699,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     const off = baseOffset >= -2 && baseOffset <= durSec ? baseOffset : 0;
     const N = deviceACC.length,
       out = [];
+    const _blankMs = Array.isArray(deviceACC._blankSpans) ? deviceACC._blankSpans : [];
     for (const e of epochs) {
       const s0 = Math.max(0, Math.round((e.tMin * 60 - off) * fs)),
         s1 = Math.min(N, Math.round((e.tMin * 60 + 300 - off) * fs));
@@ -12670,9 +12711,20 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
         ey.push(ys[i]);
         ez.push(zs[i]);
       }
-      // need ≥30 s of samples for a trustworthy median gravity vector
-      const pos = ex.length > fs * 30 ? _normPosition(_posture(median(ex), median(ey), median(ez)).label) : 'unknown';
+      /* §∅ — A HELD ACC YIELDS A CONFIDENT, WRONG POSTURE, WHICH IS WORSE THAN AN ABSENT ONE.
+         Posture is the MEDIAN gravity vector over the window. A recorded blanking run holds one
+         constant, so the median is that constant and `_posture` returns a definite label from
+         samples nobody measured — not 'unknown', a real posture, stamped on the epoch and
+         propagated into every event's meta. The count guard above cannot see it: the samples ARE
+         there, they are simply all the same. Same shape as the fabricated stillness in
+         motiondex-dsp, one node over.
+         'unknown' is the vocabulary this function already uses for "no trustworthy vector", so the
+         refusal reuses it rather than minting a second spelling; the REASON is what distinguishes
+         an absence the box recorded from one we merely lacked samples for. */
+      const _blanked = _blankMs.length > 0 && _epochTouchesBlank(e, off, ecgT0Ms, _blankMs);
+      const pos = _blanked ? 'unknown' : ex.length > fs * 30 ? _normPosition(_posture(median(ex), median(ey), median(ez)).label) : 'unknown';
       e.position = pos;
+      if (_blanked) e.positionReason = 'blanking-run';
       out.push({ tMin: e.tMin, position: pos });
     }
     return out;
@@ -14257,11 +14309,109 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
   //  for that case. Returns the SAME rec shape genSynthetic/the worker hand
   //  analyze(): { int16, fs, gaps, t0Ms, offsetMin, source, durSec, … }.
   // ════════════════════════════════════════════════════════════════════════
-  function parseECGText(text) {
+  /* ── THE VALIDITY SIDECAR READER (SAMPLE-VALIDITY-ENVELOPE §3.2, ECG row) ────────────────────
+     The box writes `…_ECGRUNS.txt` beside every `_ECG.txt` (`capture-host/writers.py`, keyed on
+     `ECG_RUN_MIN = 30`), and until now NOTHING read it: a validity band on an H10 night could only
+     ever read UNKNOWN by construction rather than by measurement.
+
+     ⚠️ THIS IS A FILE PARSER, NOT A SECOND RUN DETECTOR. `ecgdex-dsp.js` already reasons about
+     constant runs for SATURATION (#2785, the `ecgRails` census below) and that work is untouched:
+     it answers "where did the amplifier rail", keyed on an observed rail. The sidecar answers "where
+     did the box record an absence", keyed on RUN LENGTH against the stream's own distribution —
+     §∅'s rule, and the reason a `!= 0` test is exactly inverted for a stream whose µV crosses zero
+     on every beat. Two questions, two witnesses; this reads the second one rather than re-deriving it.
+
+     The header/row contract is the one `_PPGRUNS.txt` uses, byte for byte, because one writer emits
+     both: `# stream=ecg rule=stuck min_run=N …` and rows
+     `Phone timestamp;stream;value;first_index;n_samples;dur_ms;closed;rule`. */
+  function parseEcgRuns(text) {
+    if (typeof text !== 'string' || !text) return null;
+    var out = /** @type {any} */ ({
+      params: null,
+      minRun: null,
+      mergeGapMax: null,
+      rows: [],
+      spans: [],
+      malformed: false,
+      emitted: 0,
+      runsDetected: null,
+      examined: null,
+      sawHeader: false,
+      comparable: false
+    });
+    var lines = String(text).split(/\r?\n/);
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i].trim();
+      if (!line) continue;
+      if (line.charAt(0) === '#') {
+        if (!out.params && /\bstream=/.test(line) && /\bmin_run=/.test(line)) {
+          out.params = line.replace(/^#\s*/, '');
+          var mr = /\bmin_run=(\d+)/.exec(line);
+          var mg = /\bmerge_gap_max=(\d+)/.exec(line);
+          if (mr) out.minRun = +mr[1];
+          if (mg) out.mergeGapMax = +mg[1];
+        }
+        var fin = /\btotal_runs=(\d+)/.exec(line);
+        if (fin) out.runsDetected = (out.runsDetected || 0) + +fin[1];
+        var ex = /\bexamined=(\d+)/.exec(line);
+        if (ex) out.examined = (out.examined || 0) + +ex[1];
+        continue;
+      }
+      if (/^Phone timestamp;/.test(line)) {
+        out.sawHeader = true;
+        continue;
+      }
+      var c = line.split(';');
+      if (c.length < 8) {
+        out.malformed = true;
+        continue;
+      }
+      var first = +c[3];
+      var n = +c[4];
+      if (!isFinite(first) || !isFinite(n) || n <= 0) {
+        out.malformed = true;
+        continue;
+      }
+      var stream = (c[1] || '').trim().toLowerCase();
+      if (stream && stream !== 'ecg') continue; // a sibling stream's rows are not this signal's
+      out.rows.push({ stream: stream, value: +c[2], first: first, n: n });
+      out.spans.push({ first: first, n: n, value: +c[2] });
+      out.emitted++;
+    }
+    /* A sidecar with no rule line cannot be compared against anything; an EMPTY one that DOES carry
+       its rule is a real observation at that rule — the writer looked and emitted nothing. Those are
+       different facts and the flag keeps them apart. (Mirrors `parsePinnedRuns`'s own note.) */
+    out.comparable = out.minRun != null;
+    return out;
+  }
+
+  /* Does [i0, i0+len) touch any recorded blanking span? Sample indices, half-open, both sides. */
+  function _intersectsRun(spans, i0, len) {
+    if (!spans || !spans.length || !(len > 0)) return false;
+    var a0 = i0,
+      a1 = i0 + len;
+    for (var k = 0; k < spans.length; k++) {
+      var b0 = spans[k].first,
+        b1 = spans[k].first + spans[k].n;
+      if (a0 < b1 && b0 < a1) return true;
+    }
+    return false;
+  }
+
+  function parseECGText(text, opts) {
     // Whole-text entry point — UNCHANGED contract, kept for the browser and every existing caller.
     // It delegates so there is exactly ONE parse body: a second copy would drift, and the two would
     // disagree about a real recording before anyone noticed.
-    return parseECGLines(String(text == null ? '' : text).split(/\r?\n/));
+    // `opts.runsText` is the `_ECGRUNS.txt` companion's bytes when the caller ingested one. LAST and
+    // OPTIONAL per §🧪: every existing 1-arg call is byte-identical, and the no-sidecar path does not
+    // move a single fixture.
+    var rec = parseECGLines(String(text == null ? '' : text).split(/\r?\n/));
+    var runs = parseEcgRuns(opts && opts.runsText);
+    if (rec && runs) {
+      rec.runsSidecar = runs;
+      rec.blankingSpans = runs.spans;
+    }
+    return rec;
   }
 
   // LINE-FEED entry point. Takes any ITERABLE of lines, so a Node caller can stream a file in bounded
@@ -14513,7 +14663,45 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
 
   // accFs } — fs inferred from the median stamp dt. A stampless file is relative-from-0
   // (+ _relBase) so the caller can re-base onto the ECG's t0Ms (Clock Contract §2.6 — never now()).
-  function parseDeviceACC(text) {
+  /* The ACC COMPANION's validity sidecar (`…_ACCRUNS.txt`, SAMPLE-VALIDITY-ENVELOPE §3.2).
+     Separate from `parseEcgRuns` above by design, on two axes:
+       · STREAM — that one filters to `stream=ecg`; an ACC sidecar's rows name CHANNELS (`X [mg]`),
+         and any channel being blanked blanks the gravity vector, so all of them are taken.
+       · KEY — that one is sample-keyed (`first_index`/fs), which is right for the ECG primary whose
+         fs we derive. Here the spans are keyed by the writer's own `Phone timestamp` + `dur_ms`,
+         because `parseDeviceACC` skips unparseable rows and our array index is therefore NOT the
+         writer's sample index. Time is the frame both sides agree on.
+     Returns absolute floating ms, the same frame `stampEpochPositions` aligns against. */
+  function parseAccRunsTimed(text) {
+    if (typeof text !== 'string' || !text) return null;
+    var out = /** @type {any} */ ({ minRun: null, spans: [], emitted: 0, comparable: false });
+    var lines = String(text).split(/\r?\n/);
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i].trim();
+      if (!line) continue;
+      if (line.charAt(0) === '#') {
+        if (out.minRun == null && /\bstream=/.test(line) && /\bmin_run=/.test(line)) {
+          var mr = /\bmin_run=(\d+)/.exec(line);
+          if (mr) out.minRun = +mr[1];
+        }
+        continue;
+      }
+      if (/^Phone timestamp;/.test(line)) continue;
+      var c = line.split(';');
+      if (c.length < 8) continue;
+      var st = parseTimestamp((c[0] || '').trim());
+      var dur = +c[5];
+      if (!st || !isFinite(dur) || dur < 0) continue;
+      out.spans.push({ t0Ms: st.tMs, t1Ms: st.tMs + dur });
+      out.emitted++;
+    }
+    /* No rule line ⇒ not comparable with anything. An empty file that DOES carry its rule is a real
+       observation at that rule. Both refuse nothing, for different reasons. */
+    out.comparable = out.minRun != null;
+    return out;
+  }
+
+  function parseDeviceACC(text, opts) {
     var lines = String(text == null ? '' : text).split(/\r?\n/),
       out = [],
       ns0 = null;
@@ -14634,6 +14822,10 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
        not read it is unaffected, and non-zero says the device axis was NOT spent — the samples carry
        host arrival times instead. `accAxis` names which axis the caller is actually holding, because
        "device" and "host" here are the same numbers to look at and different things to trust. */
+    /* §3.2 — the `…_ACCRUNS.txt` spans ride on the row array itself, the same idiom the seam list
+       uses, so no consumer signature changes and a drop without a sidecar keeps today's bytes. */
+    var _accRuns = parseAccRunsTimed(opts && opts.runsText);
+    if (_accRuns && _accRuns.spans.length) /** @type {any} */ (out)._blankSpans = _accRuns.spans;
     return { acc: out, accFs: fs, accClockSteps: accClockSteps, accMaxStepMs: accClockSteps ? Math.round(accMaxStepMs) : null, accAxis: accClockSteps ? 'host' : 'device' };
   }
 
@@ -18099,6 +18291,17 @@ __exports.ECGUI = window.ECGUI;
        off the writers (`grep -o '"[A-Z-]*\.\(jsonl\|csv\|json\)"' capture-host/*.py`), and `.JSONL`
        joins the container list — a line-delimited ledger is never a waveform. `.CSV` still is NOT. */
     if (/^(CPAP-INVENTORY|OXYLIFE|CLOCKSYNC|SESSIONDETECT|AS11CLOCK|WEDGEFIRE|MANIFEST|QC-SUMMARY)\./.test(u)) return true;
+    /* SAMPLE-VALIDITY-ENVELOPE §3.2 (2026-09-25) — the SAME defect a FOURTH time, and this one was
+       measured before it was fixed: the validity sidecars `<base>RUNS.txt` / `<base>SEAMS.txt`
+       (capture-host `writers.py` `_RunSidecar` / `_SeamSidecar`, shipped #2317) are named by APPENDING
+       to the stream suffix — `…_PPGRUNS.txt`, `…_ECGRUNS.txt`, `…_ACCSEAMS.txt` — so `_PPG\b` and
+       `_ECG\b` never match them, no companion suffix matches them, and BOTH `ppgKind` and `ecgKind`
+       fell through to their bare-name default: measured on 2026-09-25, `Polar_VS_…_PPGRUNS.txt` →
+       ppgKind `ppg` AND ecgKind `ecg`; `Polar_H10_…_ECGRUNS.txt` → the same. Every RUNS/SEAMS file in
+       a night folder was queued as a RECORDING in both nodes (only the O2Ring's `_PPG2WRUNS` escaped,
+       via the vendor pattern). A sidecar is never a waveform; `ppgKind` claims `_PPGRUNS` as the
+       'runs' COMPANION before reaching this line, everything else lands here. */
+    if (/_(PPG|PPG2W|PPG1|ACC|ACCRAW|ECG)(RUNS|SEAMS)\b|_(PPG|PPG2W|PPG1|ACC|ACCRAW|ECG)(RUNS|SEAMS)\./.test(u)) return true;
     if (/^QC-|^\.|\.(JSON|JSONL|MD|LOG|YAML|YML|INI|CFG|PNG|JPG|PDF|ZIP)$/.test(u)) return true;
     return false;
   }
@@ -18115,6 +18318,15 @@ __exports.ECGUI = window.ECGUI;
        the O2Ring's own `Wellue_*_PPG.txt` matches the spo2 vendor pattern and is PpgDex's legitimate
        finger PRIMARY — so that one keeps suffix-first ordering, deliberately.) */
     if (foreignVendor(name)) return 'skip';
+    /* The validity sidecar (`…_ECGRUNS.txt`, SAMPLE-VALIDITY-ENVELOPE §3.2) is ECGDex's 'runs'
+       companion, exactly as `_PPGRUNS.txt` is PpgDex's. Claimed HERE — after the vendor test, which
+       is deliberately first in this classifier, and ABOVE `nonSignalName` — because `_ECG\b` does NOT
+       match `_ECGRUNS` (there is no word boundary before RUNS), so without this line the file fell
+       through to `nonSignalName` and was set aside as 'skip': a sidecar the box writes and nothing
+       could ever read. The writer landed with `ECG_RUN_MIN = 30`; this is the half that reads it. */
+    if (/_ECGRUNS\b|_ECGRUNS\./.test(u)) return 'runs';
+    // The ACC companion's own sidecar — a DISTINCT kind, never 'runs' (see signal-orchestrate).
+    if (/_ACCRUNS\b|_ACCRUNS\./.test(u)) return 'accruns';
     if (/_ACC\b|_ACC\./.test(u)) return 'acc';
     if (/_RR\b|_RR\.|_PPI\b|_PPI\./.test(u)) return 'rr';
     if (/_HR\b|_HR\./.test(u)) return 'hr';
@@ -18140,6 +18352,12 @@ __exports.ECGUI = window.ECGUI;
   // companion kinds are acc/gyro/magn/ppi (NOT ECG's rr/hr/acc) — kept node-specific by design.
   function ppgKind(name) {
     var u = String(name == null ? '' : name).toUpperCase();
+    /* The validity sidecar (`…_PPGRUNS.txt`, SAMPLE-VALIDITY-ENVELOPE §3.2) is PpgDex's 'runs'
+       companion — its text rides to `parsePPG(text, { runsText })` so the §∅ P5 cross-check can run.
+       Claimed FIRST: `_PPG\b` does not match it (no boundary before RUNS), and without this line it
+       fell through to the bare-name default and was queued as a PPG PRIMARY (measured 2026-09-25). */
+    if (/_PPGRUNS\b|_PPGRUNS\./.test(u)) return 'runs';
+    if (/_ACCRUNS\b|_ACCRUNS\./.test(u)) return 'accruns'; // the ACC companion's sidecar, distinct from 'runs'
     if (/_PPG\b|_PPG\./.test(u)) return 'ppg';
     if (/_ACC\b|_ACC\./.test(u)) return 'acc';
     if (/_GYRO\b|_GYRO\./.test(u)) return 'gyro';
@@ -18316,7 +18534,7 @@ __exports.ECGUI = window.ECGUI;
   //        reclassified as foreign (a misnamed MAGN/PPG/…); default none → every ecg-named is real.
   // opts.partKey         : the multipart splitter (DSP.partKey); absent → no part folding.
   // → { ecgGroups: [[item,…],…],                                  // ordered part-groups, one recording each
-  //     companionLanes: { rr:[[item,…]], hr:[[…]], acc:[[…]] },   // deduped part-groups per lane, device-filtered
+  //     companionLanes: { rr:[[item,…]], hr:[[…]], acc:[[…]], runs:[[…]] },  // deduped part-groups per lane, device-filtered
   //     skipped: [{name, kind, device?}] }                        // skip-bucket + sniff-foreign + foreign-device + dup-night
   function planIngest(items, opts) {
     opts = opts || {};
@@ -18327,7 +18545,13 @@ __exports.ECGUI = window.ECGUI;
     };
     items = Array.isArray(items) ? items : [];
     // (1) bucket by name classification (the SAME ecgKind the app + the routing-table test use)
-    var byKind = /** @type {{ ecg:any[], rr:any[], hr:any[], acc:any[], skip:any[] }} */ ({ ecg: [], rr: [], hr: [], acc: [], skip: [] });
+    var byKind = /** @type {{ ecg:any[], rr:any[], hr:any[], acc:any[], runs:any[], accruns:any[], skip:any[] }} */ ({ ecg: [], rr: [], hr: [], acc: [], runs: [], accruns: [], skip: [] });
+    /* `runs` MUST have a bucket of its own. The line below falls back to `byKind.ecg` for any kind
+       without one, so the moment `ecgKind` learned to return 'runs' the sidecar landed in the PRIMARY
+       waveform bucket — and `_dedupeBySession` then dropped it against the real `_ECG.txt` it shares a
+       device and stamp with, setting it aside as a 'duplicate'. Measured before the fix: the sidecar
+       reached `skipped: [{kind:'duplicate'}]` and no lane at all. A fail-open default is why adding a
+       classifier value without its bucket is never inert here. */
     items.forEach(function (it) {
       (byKind[ecgKind(it.name)] || byKind.ecg).push(it);
     });
@@ -18388,7 +18612,12 @@ __exports.ECGUI = window.ECGUI;
     var companionLanes = {
       rr: _dedupeGroups(_groupParts(byKind.rr, pk)),
       hr: _dedupeGroups(_groupParts(byKind.hr, pk)),
-      acc: _dedupeGroups(_groupParts(byKind.acc, pk))
+      acc: _dedupeGroups(_groupParts(byKind.acc, pk)),
+      // SAMPLE-VALIDITY-ENVELOPE §3.2 — the `_ECGRUNS.txt` validity sidecar, device-filtered and
+      // part-grouped like every other companion. The app picks the nearest by FILENAME stamp, because
+      // its text must reach parseECGText BEFORE a parsed rec.t0Ms exists to pair on.
+      runs: _dedupeGroups(_groupParts(byKind.runs, pk)),
+      accruns: _dedupeGroups(_groupParts(byKind.accruns, pk))
     };
     // (8) ECG groups: part-group, then de-dupe a duplicate night (same device id + structured start
     //     stamp) via the shared _dedupeBySession (IV §2); each dropped group → a 'duplicate' set-aside.
@@ -18431,12 +18660,15 @@ __exports.ECGUI = window.ECGUI;
       return sf ? (typeof sf.get === 'function' ? sf.get(name) : sf[name]) : undefined;
     };
     items = Array.isArray(items) ? items : [];
-    var COMPANION = ['acc', 'gyro', 'magn', 'ppi', 'marker'];
+    var COMPANION = ['acc', 'gyro', 'magn', 'ppi', 'marker', 'runs', 'accruns'];
     // (1) classify by name (the SAME ppgKind the app + routing-table test use); a name-'ppg' item the
     //     caller's content-sniff flagged foreign (sniffedForeign) is set aside with its sniffed kind.
+    //     'runs' is the `_PPGRUNS.txt` validity sidecar (SAMPLE-VALIDITY-ENVELOPE §3.2) — device-eligible
+    //     like every other companion; the app picks the nearest by FILENAME stamp because its text must
+    //     reach parsePPG itself, before a parsed rec.t0Ms exists.
     var ppgCand = [],
       hr = [],
-      comp = { acc: [], gyro: [], magn: [], ppi: [], marker: [] },
+      comp = { acc: [], gyro: [], magn: [], ppi: [], marker: [], runs: [], accruns: [] },
       skipped = [];
     items.forEach(function (it) {
       var k = ppgKind(it.name);
@@ -18527,6 +18759,10 @@ const { ECGUI } = __require('ecgdex-render.js');
   let activeKey = null,
     _recSeq = 0,
     _loadQueue = [],
+    /* SAMPLE-VALIDITY-ENVELOPE §3.2 — `_ECGRUNS.txt` texts from this drop, keyed by the file's own
+       FILENAME stamp. Filename, not a parsed t0Ms: the text has to reach parseECGText BEFORE a rec
+       exists to pair on. Empty on every drop without a sidecar, which is every existing fixture. */
+    _runsFiles = [],
     _replaceMode = false;
 
   /* ════════════════════════════════════════════════════════════════════════
@@ -18636,6 +18872,19 @@ self.onmessage = async (e) => {
   // ════════════════════════════════════════════════════════════════════════
   //  INGEST
   // ════════════════════════════════════════════════════════════════════════
+  /* Nearest `_ECGRUNS.txt` by FILENAME stamp, or null. `ING.pickNearestByStamp` is the shared rule
+     (dex-ingest.js) PpgDex already uses for its own sidecar, so the two nodes pair identically. */
+  function _pickRunsFor(primaryName) {
+    if (!_runsFiles.length) return null;
+    const ING = typeof DexIngest !== 'undefined' ? DexIngest : null;
+    const stamp = ING && typeof ING.stampMs === 'function' ? ING.stampMs(primaryName) : null;
+    if (ING && typeof ING.pickNearestByStamp === 'function' && stamp != null) {
+      const hit = ING.pickNearestByStamp(_runsFiles, stamp);
+      return hit && typeof hit.text === 'string' ? hit.text : null;
+    }
+    return _runsFiles.length === 1 ? _runsFiles[0].text : null; // one sidecar, one drop — unambiguous
+  }
+
   function loadECGFile(files) {
     files = Array.isArray(files) ? files : [files];
     const pk0 = DSP.partKey ? DSP.partKey(files[0].name) : null;
@@ -18696,7 +18945,9 @@ self.onmessage = async (e) => {
       const file = files[0];
       const fr = new FileReader();
       fr.onload = (e) => {
-        runPipeline(DSP.parseECG(e.target.result), file.name);
+        // §3.2 — the nearest `_ECGRUNS.txt` by FILENAME stamp (the same rule planIngest pairs on).
+        const _rt = _pickRunsFor(file.name);
+        runPipeline(_rt ? DSP.parseECG(e.target.result, { runsText: _rt }) : DSP.parseECG(e.target.result), file.name);
       };
       fr.readAsText(file);
     }
@@ -20285,7 +20536,40 @@ self.onmessage = async (e) => {
     }
     const wasDraining = _loadQueue.length > 0;
     _loadQueue = _loadQueue.concat(ecgGroups);
-    if (!wasDraining) _processQueue(); // not already draining
+    /* The runs lane is resolved BEFORE the queue drains, unlike RR/HR/ACC which are applied to an
+       already-parsed rec. A validity span has to be known at parse time or the refusal cannot be
+       applied at all, so the ECG start waits on these reads — and only when the drop actually
+       carries one. No sidecar ⇒ the exact pre-existing call order (byte-identical). */
+    const _runsGroups = (plan.companionLanes && plan.companionLanes.runs) || [];
+    if (!_runsGroups.length) {
+      if (!wasDraining) _processQueue();
+      return;
+    }
+    Promise.all(
+      _runsGroups.map((parts) => {
+        const f = parts.length === 1 ? Promise.resolve(parts[0]) : mergeFileParts(parts);
+        return Promise.resolve(f).then(
+          (file) =>
+            new Promise((res) => {
+              const fr = new FileReader();
+              /* `stampMs` is a PROPERTY the picker reads off the candidate — it does not derive one
+                 from the name. Omitting it makes every candidate unscoreable (§10.3) and the pick
+                 returns null, i.e. the sidecar silently never pairs. Measured that way first. */
+              fr.onload = (e) =>
+                res({
+                  name: file.name,
+                  text: String(e.target.result || ''),
+                  stampMs: typeof DexIngest !== 'undefined' && typeof DexIngest.stampMs === 'function' ? DexIngest.stampMs(file.name) : null
+                });
+              fr.onerror = () => res(null); // a sidecar that will not read is NOT a reason to lose the night
+              fr.readAsText(file);
+            })
+        );
+      })
+    ).then((loaded) => {
+      _runsFiles = loaded.filter(Boolean);
+      if (!wasDraining) _processQueue();
+    });
   }
   // Tell the user what was set aside and why. A strong (red) error when the drop held
   // NO ECG at all — otherwise the app would silently do nothing and look frozen.
@@ -21542,6 +21826,6 @@ self.onmessage = async (e) => {
 function showChip(name){ document.getElementById('ecgChipName').textContent = name; document.getElementById('ecgChip').classList.add('show'); }
 </script>
 
-<div data-tepna-ver style="position:fixed;right:8px;bottom:8px;z-index:2147483000;font:600 11px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:#dbeafe;background:rgba(15,23,34,.82);border:1px solid rgba(120,170,220,.4);border-radius:999px;padding:2px 9px;letter-spacing:.03em;box-shadow:0 1px 4px rgba(0,0,0,.3);pointer-events:none;user-select:none" title="Tepna suite version">v2.14.0</div>
+<div data-tepna-ver style="position:fixed;right:8px;bottom:8px;z-index:2147483000;font:600 11px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:#dbeafe;background:rgba(15,23,34,.82);border:1px solid rgba(120,170,220,.4);border-radius:999px;padding:2px 9px;letter-spacing:.03em;box-shadow:0 1px 4px rgba(0,0,0,.3);pointer-events:none;user-select:none" title="Tepna suite version">v2.15.0</div>
 </body>
 </html>

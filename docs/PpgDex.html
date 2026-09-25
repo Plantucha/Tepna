@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="47f5caa7b106" data-compute-hash="1d16f48ecd4b">
+<html lang="en" data-manifest-hash="80b862e02881" data-compute-hash="3c4d3c663077">
 <head>
 <!--
   PpgDex.src.html — Tepna
@@ -10,10 +10,10 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zqU9FgUOgtN4kmtChutj19+zwwNbhTi89UXArk3YBY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3bPuedJeHqlAtFRw9XCQUY2RL6IBWMfwvh6D9DWEXUc=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-Cz05XGj+Ezv0CujoHKzhDZwG5Pht7bDAeLz39xOy5KU=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-PqgOb4nH94vwGV4KJcYTcKkanVtY5narYs5uXbOgCSg=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-b+hR2i2ViyedwmAqqTitKUOQmoT7nrMmSb+ENDSMNws=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-f+QT/0zTO9AolD7kxoAHfiK50gfysYkfW5t1omOsjkQ=' 'sha256-gCWeWHL/WDuToOHOSpVRk7dpGOBIt4LizLoql9xiA1U=' 'sha256-m7W+KzkrRY04dNqv6MHoDb91d7oPh9LarnSHN1EDHcg=' 'sha256-mChfJ8uxCBfOu4ff0qJdSXD9srxAbGUrTwhfqP9E/5E=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zqU9FgUOgtN4kmtChutj19+zwwNbhTi89UXArk3YBY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3bPuedJeHqlAtFRw9XCQUY2RL6IBWMfwvh6D9DWEXUc=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-Cz05XGj+Ezv0CujoHKzhDZwG5Pht7bDAeLz39xOy5KU=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-PqgOb4nH94vwGV4KJcYTcKkanVtY5narYs5uXbOgCSg=' 'sha256-RPA0T6R7ce42SoFxFvkjP6BKB0+p1Ld1uai94eRY6XA=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-ezr3pk0/xocfAgnipgsvcGdSUCk1HsVz8lWlhkl9Rfw=' 'sha256-gCWeWHL/WDuToOHOSpVRk7dpGOBIt4LizLoql9xiA1U=' 'sha256-m7W+KzkrRY04dNqv6MHoDb91d7oPh9LarnSHN1EDHcg=' 'sha256-mChfJ8uxCBfOu4ff0qJdSXD9srxAbGUrTwhfqP9E/5E=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
-<title>PpgDex — Raw Wrist-PPG Analyzer · v2.14.0</title>
+<title>PpgDex — Raw Wrist-PPG Analyzer · v2.15.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
 <style data-inline-src="licensing/dex-license.css">/*
  * dex-license.css — reusable Tepna license / attribution stamp styles
@@ -2764,7 +2764,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       <div class="logo-badge"><svg viewBox="0 0 100 100" aria-hidden="true" style="width:23px;height:23px" fill="none" stroke="#06121A" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,33 52,33 60,15 66,49 71,33 86,33"/><line x1="49" y1="33" x2="49" y2="86"/></svg></div>
       <div>
         <div class="logo-title">PpgDex</div>
-        <div class="logo-sub">v2.14.0 · Tepna</div>
+        <div class="logo-sub">v2.15.0 · Tepna</div>
       </div>
     </div>
     <hr class="sidebar-logo-rule">
@@ -2829,7 +2829,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
   <main class="main-content">
     <div class="topbar">
       <div>
-        <div class="topbar-title">PpgDex <span class="version-badge">v2.14.0</span></div>
+        <div class="topbar-title">PpgDex <span class="version-badge">v2.15.0</span></div>
         <div class="page-sub">Raw wrist PPG (~176 Hz optical) → systolic feet → PP-intervals → HRV · morphology · motion gate &middot; one signal, computed end-to-end, all local</div>
       </div>
       <div class="topbar-actions">
@@ -16462,6 +16462,17 @@ __exports.PPGUI = window.PPGUI;
        off the writers (`grep -o '"[A-Z-]*\.\(jsonl\|csv\|json\)"' capture-host/*.py`), and `.JSONL`
        joins the container list — a line-delimited ledger is never a waveform. `.CSV` still is NOT. */
     if (/^(CPAP-INVENTORY|OXYLIFE|CLOCKSYNC|SESSIONDETECT|AS11CLOCK|WEDGEFIRE|MANIFEST|QC-SUMMARY)\./.test(u)) return true;
+    /* SAMPLE-VALIDITY-ENVELOPE §3.2 (2026-09-25) — the SAME defect a FOURTH time, and this one was
+       measured before it was fixed: the validity sidecars `<base>RUNS.txt` / `<base>SEAMS.txt`
+       (capture-host `writers.py` `_RunSidecar` / `_SeamSidecar`, shipped #2317) are named by APPENDING
+       to the stream suffix — `…_PPGRUNS.txt`, `…_ECGRUNS.txt`, `…_ACCSEAMS.txt` — so `_PPG\b` and
+       `_ECG\b` never match them, no companion suffix matches them, and BOTH `ppgKind` and `ecgKind`
+       fell through to their bare-name default: measured on 2026-09-25, `Polar_VS_…_PPGRUNS.txt` →
+       ppgKind `ppg` AND ecgKind `ecg`; `Polar_H10_…_ECGRUNS.txt` → the same. Every RUNS/SEAMS file in
+       a night folder was queued as a RECORDING in both nodes (only the O2Ring's `_PPG2WRUNS` escaped,
+       via the vendor pattern). A sidecar is never a waveform; `ppgKind` claims `_PPGRUNS` as the
+       'runs' COMPANION before reaching this line, everything else lands here. */
+    if (/_(PPG|PPG2W|PPG1|ACC|ACCRAW|ECG)(RUNS|SEAMS)\b|_(PPG|PPG2W|PPG1|ACC|ACCRAW|ECG)(RUNS|SEAMS)\./.test(u)) return true;
     if (/^QC-|^\.|\.(JSON|JSONL|MD|LOG|YAML|YML|INI|CFG|PNG|JPG|PDF|ZIP)$/.test(u)) return true;
     return false;
   }
@@ -16478,6 +16489,15 @@ __exports.PPGUI = window.PPGUI;
        the O2Ring's own `Wellue_*_PPG.txt` matches the spo2 vendor pattern and is PpgDex's legitimate
        finger PRIMARY — so that one keeps suffix-first ordering, deliberately.) */
     if (foreignVendor(name)) return 'skip';
+    /* The validity sidecar (`…_ECGRUNS.txt`, SAMPLE-VALIDITY-ENVELOPE §3.2) is ECGDex's 'runs'
+       companion, exactly as `_PPGRUNS.txt` is PpgDex's. Claimed HERE — after the vendor test, which
+       is deliberately first in this classifier, and ABOVE `nonSignalName` — because `_ECG\b` does NOT
+       match `_ECGRUNS` (there is no word boundary before RUNS), so without this line the file fell
+       through to `nonSignalName` and was set aside as 'skip': a sidecar the box writes and nothing
+       could ever read. The writer landed with `ECG_RUN_MIN = 30`; this is the half that reads it. */
+    if (/_ECGRUNS\b|_ECGRUNS\./.test(u)) return 'runs';
+    // The ACC companion's own sidecar — a DISTINCT kind, never 'runs' (see signal-orchestrate).
+    if (/_ACCRUNS\b|_ACCRUNS\./.test(u)) return 'accruns';
     if (/_ACC\b|_ACC\./.test(u)) return 'acc';
     if (/_RR\b|_RR\.|_PPI\b|_PPI\./.test(u)) return 'rr';
     if (/_HR\b|_HR\./.test(u)) return 'hr';
@@ -16503,6 +16523,12 @@ __exports.PPGUI = window.PPGUI;
   // companion kinds are acc/gyro/magn/ppi (NOT ECG's rr/hr/acc) — kept node-specific by design.
   function ppgKind(name) {
     var u = String(name == null ? '' : name).toUpperCase();
+    /* The validity sidecar (`…_PPGRUNS.txt`, SAMPLE-VALIDITY-ENVELOPE §3.2) is PpgDex's 'runs'
+       companion — its text rides to `parsePPG(text, { runsText })` so the §∅ P5 cross-check can run.
+       Claimed FIRST: `_PPG\b` does not match it (no boundary before RUNS), and without this line it
+       fell through to the bare-name default and was queued as a PPG PRIMARY (measured 2026-09-25). */
+    if (/_PPGRUNS\b|_PPGRUNS\./.test(u)) return 'runs';
+    if (/_ACCRUNS\b|_ACCRUNS\./.test(u)) return 'accruns'; // the ACC companion's sidecar, distinct from 'runs'
     if (/_PPG\b|_PPG\./.test(u)) return 'ppg';
     if (/_ACC\b|_ACC\./.test(u)) return 'acc';
     if (/_GYRO\b|_GYRO\./.test(u)) return 'gyro';
@@ -16679,7 +16705,7 @@ __exports.PPGUI = window.PPGUI;
   //        reclassified as foreign (a misnamed MAGN/PPG/…); default none → every ecg-named is real.
   // opts.partKey         : the multipart splitter (DSP.partKey); absent → no part folding.
   // → { ecgGroups: [[item,…],…],                                  // ordered part-groups, one recording each
-  //     companionLanes: { rr:[[item,…]], hr:[[…]], acc:[[…]] },   // deduped part-groups per lane, device-filtered
+  //     companionLanes: { rr:[[item,…]], hr:[[…]], acc:[[…]], runs:[[…]] },  // deduped part-groups per lane, device-filtered
   //     skipped: [{name, kind, device?}] }                        // skip-bucket + sniff-foreign + foreign-device + dup-night
   function planIngest(items, opts) {
     opts = opts || {};
@@ -16690,7 +16716,13 @@ __exports.PPGUI = window.PPGUI;
     };
     items = Array.isArray(items) ? items : [];
     // (1) bucket by name classification (the SAME ecgKind the app + the routing-table test use)
-    var byKind = /** @type {{ ecg:any[], rr:any[], hr:any[], acc:any[], skip:any[] }} */ ({ ecg: [], rr: [], hr: [], acc: [], skip: [] });
+    var byKind = /** @type {{ ecg:any[], rr:any[], hr:any[], acc:any[], runs:any[], accruns:any[], skip:any[] }} */ ({ ecg: [], rr: [], hr: [], acc: [], runs: [], accruns: [], skip: [] });
+    /* `runs` MUST have a bucket of its own. The line below falls back to `byKind.ecg` for any kind
+       without one, so the moment `ecgKind` learned to return 'runs' the sidecar landed in the PRIMARY
+       waveform bucket — and `_dedupeBySession` then dropped it against the real `_ECG.txt` it shares a
+       device and stamp with, setting it aside as a 'duplicate'. Measured before the fix: the sidecar
+       reached `skipped: [{kind:'duplicate'}]` and no lane at all. A fail-open default is why adding a
+       classifier value without its bucket is never inert here. */
     items.forEach(function (it) {
       (byKind[ecgKind(it.name)] || byKind.ecg).push(it);
     });
@@ -16751,7 +16783,12 @@ __exports.PPGUI = window.PPGUI;
     var companionLanes = {
       rr: _dedupeGroups(_groupParts(byKind.rr, pk)),
       hr: _dedupeGroups(_groupParts(byKind.hr, pk)),
-      acc: _dedupeGroups(_groupParts(byKind.acc, pk))
+      acc: _dedupeGroups(_groupParts(byKind.acc, pk)),
+      // SAMPLE-VALIDITY-ENVELOPE §3.2 — the `_ECGRUNS.txt` validity sidecar, device-filtered and
+      // part-grouped like every other companion. The app picks the nearest by FILENAME stamp, because
+      // its text must reach parseECGText BEFORE a parsed rec.t0Ms exists to pair on.
+      runs: _dedupeGroups(_groupParts(byKind.runs, pk)),
+      accruns: _dedupeGroups(_groupParts(byKind.accruns, pk))
     };
     // (8) ECG groups: part-group, then de-dupe a duplicate night (same device id + structured start
     //     stamp) via the shared _dedupeBySession (IV §2); each dropped group → a 'duplicate' set-aside.
@@ -16794,12 +16831,15 @@ __exports.PPGUI = window.PPGUI;
       return sf ? (typeof sf.get === 'function' ? sf.get(name) : sf[name]) : undefined;
     };
     items = Array.isArray(items) ? items : [];
-    var COMPANION = ['acc', 'gyro', 'magn', 'ppi', 'marker'];
+    var COMPANION = ['acc', 'gyro', 'magn', 'ppi', 'marker', 'runs', 'accruns'];
     // (1) classify by name (the SAME ppgKind the app + routing-table test use); a name-'ppg' item the
     //     caller's content-sniff flagged foreign (sniffedForeign) is set aside with its sniffed kind.
+    //     'runs' is the `_PPGRUNS.txt` validity sidecar (SAMPLE-VALIDITY-ENVELOPE §3.2) — device-eligible
+    //     like every other companion; the app picks the nearest by FILENAME stamp because its text must
+    //     reach parsePPG itself, before a parsed rec.t0Ms exists.
     var ppgCand = [],
       hr = [],
-      comp = { acc: [], gyro: [], magn: [], ppi: [], marker: [] },
+      comp = { acc: [], gyro: [], magn: [], ppi: [], marker: [], runs: [], accruns: [] },
       skipped = [];
     items.forEach(function (it) {
       var k = ppgKind(it.name);
@@ -16992,9 +17032,13 @@ const { PPGUI } = __require('ppgdex-render.js');
         for (let pi = 0; pi < ppgFiles.length; pi++) {
           const pf = ppgFiles[pi];
           progress(20 + (pi / ppgFiles.length) * 20, 'Parsing PPG · ' + pf.name + '…');
+          // SAMPLE-VALIDITY-ENVELOPE §3.2 — the `…_PPGRUNS.txt` validity sidecar is picked BEFORE the parse
+          // (its text must reach parsePPG itself), so the nearest pick uses the FILENAME stamp, not the
+          // parsed rec.t0Ms the other companions use below. Absent → the exact single-argument call as before.
+          const runsF = ING.pickNearestByStamp((plan.eligibleByPrimary[pf.name] || {}).runs || [], pf.stampMs);
           let rec;
           try {
-            rec = DSP.parsePPG(pf.text);
+            rec = runsF && typeof runsF.text === 'string' ? DSP.parsePPG(pf.text, { runsText: runsF.text }) : DSP.parsePPG(pf.text);
           } catch (e) {
             showErr(e.message || String(e));
             continue;
@@ -17021,6 +17065,7 @@ const { PPGUI } = __require('ppgdex-render.js');
           rec.magn = magF ? DSP.parseSensorXYZ(magF.text) : null;
           rec.devicePPI = ppiF ? DSP.parseDevicePPI(ppiF.text) : null;
           rec.companions = { acc: accF ? accF.name : null, gyro: gyroF ? gyroF.name : null, magn: magF ? magF.name : null, ppi: ppiF ? ppiF.name : null, marker: markF ? markF.name : null };
+          rec.companions.runs = runsF ? runsF.name : null; // §3.2 — which validity sidecar fed parsePPG, or none
           if (markF) {
             const rows = markF.text.split(/\r?\n/);
             const mk = [];
@@ -18707,6 +18752,6 @@ const { PPGUI } = __require('ppgdex-render.js');
 })();
 </script>
 
-<div data-tepna-ver style="position:fixed;right:8px;bottom:8px;z-index:2147483000;font:600 11px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:#dbeafe;background:rgba(15,23,34,.82);border:1px solid rgba(120,170,220,.4);border-radius:999px;padding:2px 9px;letter-spacing:.03em;box-shadow:0 1px 4px rgba(0,0,0,.3);pointer-events:none;user-select:none" title="Tepna suite version">v2.14.0</div>
+<div data-tepna-ver style="position:fixed;right:8px;bottom:8px;z-index:2147483000;font:600 11px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:#dbeafe;background:rgba(15,23,34,.82);border:1px solid rgba(120,170,220,.4);border-radius:999px;padding:2px 9px;letter-spacing:.03em;box-shadow:0 1px 4px rgba(0,0,0,.3);pointer-events:none;user-select:none" title="Tepna suite version">v2.15.0</div>
 </body>
 </html>

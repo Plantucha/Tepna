@@ -57,7 +57,7 @@ being believed, and no more investment than that.
 
 ## 3 · REAL GAPS (each with its evidence)
 
-- **G1 — the probe's realm-artifact filter was INERT since birth** (`mutation-ai-probe.mjs:1029`):
+- **G1 — the probe's realm-artifact filter was INERT since birth** (`mutation-ai-probe.mjs` `runInputs`):
   `isRealmArtefact(a, b, () => true) === true` against a function returning string-or-null, with
   a predicate forcing null regardless — mutant-side `X is not defined` counted as KILLs. The
   crawl's own filter works but examines only the *first* differing row.

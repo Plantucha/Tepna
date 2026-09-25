@@ -483,6 +483,11 @@ tr.ndrawer td{background:var(--surface2)!important;padding:0!important;}
         <div class="data-pill idle" id="llPill"><span class="data-dot"></span> <span id="llText">Files —</span></div>
         <div class="sidebar-data-info" id="llDetail"></div>
       </div>
+      <div class="sidebar-data-card" style="margin-bottom:8px" id="snCard" hidden
+           title="Last night's SOLID-NIGHT verdict — the capture-quality programme's one nightly answer, as written by the QC poller. PASS counts toward the run, FAIL and a settled UNKNOWN reset it, NOT_APPLICABLE skips. &quot;not settled&quot; is the ordinary state of a night still in progress, not a fault.">
+        <div class="data-pill idle" id="snPill"><span class="data-dot"></span> <span id="snText">Night —</span></div>
+        <div class="sidebar-data-info" id="snDetail"></div>
+      </div>
       <div class="sidebar-data-card">
         <div class="data-pill idle" id="connPill"><span class="data-dot"></span> <span id="connText">No stream</span></div>
         <div class="sidebar-data-info" id="adapterInfo">adapter —</div>
@@ -1873,6 +1878,27 @@ function renderLiveLoss(ll){
   det.title = (now.length ? now : last).map(f => `${f.path} — ${f.kind}: ${f.detail || ''}`).join('\n');
 }
 
+// Last night's SOLID-NIGHT verdict: the status word, the term that decided it, and which night. Nothing
+// else — the run statement and the exit flag are the PROGRAMME's state, not the night's, and putting
+// them here would make a card about one night read as a claim about fourteen.
+//
+// The pill colour is a claim, so `not settled` is NEUTRAL rather than amber: a night still in progress is
+// the designed state every evening (solid_night §3.1 excludes it from the run rather than resetting it),
+// and colouring it as a problem would mean the monitor read amber every single night by construction.
+// Any OTHER unknown is a night that could not be assessed, which §∅ treats as a reset — that is amber.
+function renderSolidNight(sn){
+  const card = $('#snCard'), pill = $('#snPill'), txt = $('#snText'), det = $('#snDetail');
+  if(!card) return;
+  if(!sn || !sn.status){ card.hidden = true; return; }   // null until the poller has composed a verdict
+  card.hidden = false;
+  const st = sn.status, pending = st === 'UNKNOWN' && sn.reason === 'not settled';
+  pill.className = 'data-pill ' + (st === 'PASS' ? 'ok' : st === 'FAIL' ? 'bad'
+                                 : pending || st === 'NOT_APPLICABLE' ? 'idle' : 'warn');
+  txt.textContent = `${st} · ${sn.night || '—'}`;
+  det.textContent = sn.reason || '';
+  det.title = sn.reason || '';
+}
+
 function renderStoragePill(st){
   st = st || {};
   const held = (st.retention_held||[]).length;
@@ -2173,6 +2199,7 @@ async function loadState(){
   renderRadioDistress(s.radio_distress, s.radio_distress_adapter, s.radio_switches);
   renderHostLoad(s.loop, s.gates, s.tasks);
   renderLiveLoss(s.live_loss);
+  renderSolidNight(s.solid);
   renderCpap(s.cpap);
   renderCpapSpool(s.cpap_spool);
   renderDownload(DEVICES);
@@ -3748,9 +3775,24 @@ function detectRs(s,fs){
   }
   if(!cand.length) return [];
   const amps=cand.map(c=>c[1]).sort((a,b)=>a-b), aref=amps[amps.length>>1];
-  const peaks=[];
+  // T-WAVE AFTER ITS R (2026-09-24, live): the 35 %-of-median cut assumes T at ~15 % of R. On the owner's H10
+  // that night T sat at 38–46 % of R, cleared the cut, and every beat counted twice — the tile read 167 bpm
+  // against 53–55 on the H10's own HR and 56–57 on two other sensors. The median cannot separate them once
+  // T's are half the candidates, so each candidate is judged against the kept R before it: inside `tWin`
+  // after that R AND under `tRel` of its size ⇒ its T wave. Consecutive R's differ far less than that (a
+  // real beat 400 ms later at 150 bpm is ~R-sized), so a fast rhythm keeps every beat.
+  // Only an R-SIZED candidate can own a T wave. An electrode spike is a kept candidate too; after the
+  // bandpass a 12× spike measures 4–6.5× R and its ringing shrinks the next real R to ~0.63, so letting the
+  // spike stand as "the R before" would delete that beat. A candidate over 2.5× the R level is therefore
+  // never a yardstick. The R level is the median of the candidates from `aref` up to 4×`aref`: at or above
+  // the median keeps it R-sized when T's are half of the candidates (then `aref` itself is a T).
+  const up=amps.filter(v=>v>=aref && v<=4*aref), rLevel=up.length ? up[up.length>>1] : aref;
+  const tWin=Math.round(0.45*fs), tRel=0.6;
+  const peaks=[]; let prevI=-Infinity, prevA=0;
   for(const [i,a] of cand){
     if(a<0.35*aref) continue;
+    if(i-prevI<tWin && prevA<=2.5*rLevel && a<tRel*prevA) continue;
+    prevI=i; prevA=a;
     const lo=Math.max(0,i-back), hi=Math.min(n,i+half);
     const w=s.slice(lo,hi).sort((a,b)=>a-b), lmed=w[w.length>>1];   // local raw baseline (wander-tolerant)
     let j=i,ext=-1; for(let k=lo;k<hi;k++){ const e=Math.abs(s[k]-lmed); if(e>ext){ext=e;j=k;} }

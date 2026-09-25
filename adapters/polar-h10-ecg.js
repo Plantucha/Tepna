@@ -81,7 +81,13 @@
 
       var rec;
       try {
-        rec = parseFn(text);
+        // SAMPLE-VALIDITY-ENVELOPE §3.2 — the `…_ECGRUNS.txt` validity sidecar, when the drop paired one
+        // (signal-orchestrate pairCompanions → ctx.companions.runs), rides into the parser as runsText so
+        // a recorded blanking span can REFUSE the metrics whose window it touches. It must reach the
+        // PRIMARY parse, not the companion block below, which runs after the frame is already built.
+        // No sidecar → the exact single-argument call as before (byte-identical).
+        var runsText = ctx.companions && typeof ctx.companions.runs === 'string' ? ctx.companions.runs : null;
+        rec = runsText ? parseFn(text, { runsText: runsText }) : parseFn(text);
       } catch (e) {
         return root.SignalFrame.toSignalFrame('ecg', { usable: false, reason: 'polar-h10-ecg: parse error — ' + ((e && e.message) || e) }, prov);
       }
@@ -137,7 +143,10 @@
         }
         try {
           if (comp.acc && typeof ecg.parseDeviceACC === 'function') {
-            var da = ecg.parseDeviceACC(comp.acc);
+            // SAMPLE-VALIDITY-ENVELOPE §3.2 — the ACC companion's OWN sidecar rides in under its own
+            // companion kind ('accruns', never 'runs' — that slot is the ECG primary's). Absent it,
+            // this is the exact single-argument call as before.
+            var da = comp.accruns ? ecg.parseDeviceACC(comp.acc, { runsText: comp.accruns }) : ecg.parseDeviceACC(comp.acc);
             if (da && da.acc && da.acc.length) {
               // a stampless ACC is relative-from-0 → re-base onto the ECG anchor (Clock Contract — never now()).
               if (da.acc._relBase && frame.t0Ms != null) {
