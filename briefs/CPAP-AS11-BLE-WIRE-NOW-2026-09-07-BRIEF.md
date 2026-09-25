@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED (**the AS11 TRANSPORT is BUILT; this brief wires DECODE and consumers on top of it — verified 2026-09-11 (Osprey) in the tree, not from the prose.** Present: `as11_pull.py`, `as11_link.py`, `as11_cipher.py`, `as11_pair.py`, `as11_clock.py`, `cpap_spool.py`, `cpap_edf_dict.py`. Absent and therefore genuinely WU1 work: `cpap_spool_decode.py`. So no unit here should be sized as "bring up AS11 over BLE" — pairing, cipher, link, clock and the spool round-transaction all already exist and ship green; what is owed is decoding the committed Summary rounds rig-side and the consumers above it (WU2 CPAPDex-loadable, WU10 the monitor stream-rate selector, WU7 the one bundle/provenance touch). Owner: Kestrel (coordination); units go to the rig coders.) · **Created:** 2026-09-07 · **Owner:** Kestrel (coordination) — units go to the rig coders · **Scope:** out-of-suite `capture-host/` + one CPAPDex vocabulary unit; no bundle/provenance impact except WU7 · **Residue:** 2026-09-17-cpap-spool-cursor-advanced-past-uncommitted
+**Status:** PROPOSED (**the AS11 TRANSPORT is BUILT; this brief wires DECODE and consumers on top of it — verified 2026-09-11 (Osprey) in the tree, not from the prose.** Present: `as11_pull.py`, `as11_link.py`, `as11_cipher.py`, `as11_pair.py`, `as11_clock.py`, `cpap_spool.py`, `cpap_edf_dict.py`. Absent and therefore genuinely WU1 work: `cpap_spool_decode.py`. So no unit here should be sized as "bring up AS11 over BLE" — pairing, cipher, link, clock and the spool round-transaction all already exist and ship green; what is owed is decoding the committed Summary rounds rig-side and the consumers above it (WU2 CPAPDex-loadable, WU10 the monitor stream-rate selector, WU7 the one bundle/provenance touch). Owner: Kestrel (coordination); units go to the rig coders.) · **Created:** 2026-09-07 · **Owner:** Kestrel (coordination) — units go to the rig coders · **Scope:** out-of-suite `capture-host/` + one CPAPDex vocabulary unit; no bundle/provenance impact except WU7 · **Residue:** 2026-09-17-cpap-spool-cursor-advanced-past-uncommitted · verified 2026-09-25 (cloud): 1 parked item unblocked, see §1
 
 # CPAP AS11 over BLE — WIRE NOW (stock firmware · BLE only · read-only RPCs)
 
@@ -42,7 +42,7 @@ retrieval chain; one widened live stream carrying the PLD cadence, with a rate s
 event subscription in shadow; a version read; CPAPDex vocabulary; the RC03 decoder and
 its validation against the SD record. **Out (forbidden, owner rule):** any write to the machine, firmware
 modification, the CAN/NCP lane, SA2 oximetry (no oximeter present), SWD. **Out (not this brief):** acting
-mode for the session detector (parked, `AS11-SESSION-DETECTOR-IMPLEMENTATION`); any change to WHAT the
+mode for the session detector (unblocked 2026-09-25: `AS11-SESSION-DETECTOR-IMPLEMENTATION` is DONE 2026-09-25 — not executed here); any change to WHAT the
 SD/Wi-Fi harvest copies — it keeps copying the whole card and is the comparator for §8 until §8's bands
 pass. Its *trigger* does change (WU9, owner ruling 2026-09-07): it runs after the spool, not before it.
 
