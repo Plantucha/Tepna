@@ -81,7 +81,13 @@
 
       var rec;
       try {
-        rec = parseFn(text);
+        // SAMPLE-VALIDITY-ENVELOPE §3.2 — the `…_ECGRUNS.txt` validity sidecar, when the drop paired one
+        // (signal-orchestrate pairCompanions → ctx.companions.runs), rides into the parser as runsText so
+        // a recorded blanking span can REFUSE the metrics whose window it touches. It must reach the
+        // PRIMARY parse, not the companion block below, which runs after the frame is already built.
+        // No sidecar → the exact single-argument call as before (byte-identical).
+        var runsText = ctx.companions && typeof ctx.companions.runs === 'string' ? ctx.companions.runs : null;
+        rec = runsText ? parseFn(text, { runsText: runsText }) : parseFn(text);
       } catch (e) {
         return root.SignalFrame.toSignalFrame('ecg', { usable: false, reason: 'polar-h10-ecg: parse error — ' + ((e && e.message) || e) }, prov);
       }

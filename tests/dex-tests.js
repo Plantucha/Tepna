@@ -19047,7 +19047,15 @@
           'ecgdex-app.js must splice the DSP function in, never restate it'
         );
         T.ok('the streaming done-handler resolves through the DSP (no app-side fs derivation)', /DSP\.ecgTimingResolve\(d\.scan\)/.test(app));
-        T.ok('the small-file path delegates to ECGDSP.parseECG (the third copy is deleted)', /runPipeline\(DSP\.parseECG\(e\.target\.result\), file\.name\)/.test(app));
+        /* CORRECTED 2026-09-25, and STRENGTHENED. This pinned the exact call TEXT, so threading the
+           validity sidecar reddened it even though the property it guards — the app DELEGATES and
+           carries no third parse copy — is unchanged and now has to hold on BOTH branches. A literal
+           match tests spelling; this tests the capability, and requires the delegation twice. */
+        T.ok(
+          'the small-file path delegates to ECGDSP.parseECG on BOTH branches (the third copy is deleted)',
+          /runPipeline\(_rt \? DSP\.parseECG\(e\.target\.result, \{ runsText: _rt \}\) : DSP\.parseECG\(e\.target\.result\), file\.name\)/.test(app),
+          'the small-file branch must reach ECGDSP.parseECG with and without a sidecar, never a local parse'
+        );
         T.ok('no app-local timestamp parser survives — one parse site, in the DSP', !/function parseTSfloat/.test(app), 'parseTSfloat is back; an unused parser is a mirror waiting for a caller');
         T.ok('the app derives no sample rate of its own any more', !/Math\.round\(\s*\(?1000\s*\*\s*stepN/.test(app), 'a mean-delta fs derivation is back in the app');
       } else T.skip('ecgdex-app.js source in env.sources', 'not available in this runner');
@@ -29785,6 +29793,150 @@
        ECGDex (the PMDARRIVAL / F12 defect class, fourth instance). Each assertion below fails if its
        wire is cut; the source-mirrors prove the app + adapters consume it, since neither the equiv gate
        nor render-coverage performs a multi-file drop. ════ */
+    /* The ECG sibling of the group below. The box has written `…_ECGRUNS.txt` since `ECG_RUN_MIN = 30`
+       landed (derived over 196,172,536 samples: no near-baseline run reaches 30, so the natural
+       population at that threshold is EMPTY) and NOTHING read it — an H10 validity band could only
+       read UNKNOWN by construction rather than by measurement. These pin the whole path, and the
+       REFUSAL, which is the half a classification test cannot see. */
+    group(
+      'SAMPLE-VALIDITY-ENVELOPE §3.2 — the _ECGRUNS sidecar reaches parseECG, and a recorded span REFUSES the epoch',
+      'dex-ingest · signal-orchestrate · adapters · ecgdex-dsp · absence',
+      function (T) {
+        var DI = env.DexIngest,
+          SO = env.SignalOrchestrate,
+          E = env.ECGDSP || env.ECGDex;
+        var H10 = 'Polar_H10_AAAA_20260617_010000_';
+        if (!(DI && typeof DI.ecgKind === 'function' && typeof DI.planIngest === 'function')) {
+          T.skip('DexIngest not loaded in this runner');
+        } else {
+          // (1) CLASSIFICATION
+          T.eq('ecgKind · `_ECGRUNS.txt` is the runs COMPANION', DI.ecgKind(H10 + 'ECGRUNS.txt'), 'runs');
+          T.eq('control · the real `_ECG.txt` is still the ECG primary', DI.ecgKind(H10 + 'ECG.txt'), 'ecg');
+          // (2) PLANNER — the bucket is the point: `byKind[kind] || byKind.ecg` fails OPEN, so before the
+          //     `runs` bucket existed the sidecar landed in the PRIMARY waveform bucket and was then
+          //     dropped against its own `_ECG.txt` as a 'duplicate'. Measured that way first.
+          var nm = function (n) {
+            return { name: n };
+          };
+          var plan = DI.planIngest([nm(H10 + 'ECG.txt'), nm(H10 + 'ECGRUNS.txt')]);
+          T.ok(
+            'planIngest · the sidecar reaches the `runs` LANE',
+            !!(plan.companionLanes && plan.companionLanes.runs && plan.companionLanes.runs.length === 1 && plan.companionLanes.runs[0][0].name === H10 + 'ECGRUNS.txt')
+          );
+          T.eq('planIngest · the ECG primary is alone in its group', plan.ecgGroups.length === 1 && plan.ecgGroups[0].length, 1);
+          T.eq('planIngest · and nothing is set aside as a duplicate any more', plan.skipped.length, 0);
+          // (3) THE PICKER's contract — `stampMs` is a PROPERTY it reads, never derived from the name.
+          if (typeof DI.pickNearestByStamp === 'function' && typeof DI.stampMs === 'function') {
+            var cand = [{ name: H10 + 'ECGRUNS.txt', text: 'T', stampMs: DI.stampMs(H10 + 'ECGRUNS.txt') }];
+            T.ok('pickNearestByStamp · pairs the same-session sidecar', (DI.pickNearestByStamp(cand, DI.stampMs(H10 + 'ECG.txt')) || {}).text === 'T');
+            var far = [{ name: 'Polar_H10_AAAA_20260801_010000_ECGRUNS.txt', text: 'OLD', stampMs: DI.stampMs('Polar_H10_AAAA_20260801_010000_ECGRUNS.txt') }];
+            T.eq("pickNearestByStamp · a different recording's sidecar is REFUSED, never paired", DI.pickNearestByStamp(far, DI.stampMs(H10 + 'ECG.txt')), null);
+            T.eq(
+              'DECOY · a candidate without the `stampMs` PROPERTY is unscoreable, so the pick is null',
+              DI.pickNearestByStamp([{ name: H10 + 'ECGRUNS.txt', text: 'T' }], DI.stampMs(H10 + 'ECG.txt')),
+              null
+            );
+          }
+        }
+        // (4) UNIFIER PAIRING
+        if (SO && typeof SO.pairCompanions === 'function') {
+          var comps = SO.pairCompanions('ecg', H10 + 'ECG.txt', [
+            { name: H10 + 'ECG.txt', text: 'x' },
+            { name: H10 + 'ECGRUNS.txt', text: '# stream=ecg' }
+          ]);
+          T.eq('pairCompanions · ecg gets `runs` = the sidecar text', comps && comps.runs, '# stream=ecg');
+        } else T.skip('SignalOrchestrate.pairCompanions unavailable');
+        // (5) THE READER — planted sidecar in, spans out; absent, the record is untouched.
+        if (E && typeof E.parseECG === 'function') {
+          var SC = [
+            '# stream=ecg rule=stuck min_run=30 merge_gap_max=4 total_runs=1 examined=90000',
+            'Phone timestamp;stream;value;first_index;n_samples;dur_ms;closed;rule',
+            '2026-06-17T01:00:04.000;ecg;19164;520;130;1000;1;stuck'
+          ].join('\n');
+          var HDR = 'Phone timestamp;sensor timestamp [ns];ecg [uV]\n';
+          var bare = E.parseECG(HDR),
+            withSc = E.parseECG(HDR, { runsText: SC });
+          T.ok('parseECG · ONE argument is byte-identical — no sidecar fields appear', bare.blankingSpans === undefined && bare.runsSidecar === undefined);
+          T.eq('parseECG · the planted span is carried, in SAMPLES as the box wrote it', JSON.stringify(withSc.blankingSpans), JSON.stringify([{ first: 520, n: 130, value: 19164 }]));
+          T.eq('parseECG · the sidecar publishes its own rule, so a reader can tell WHICH threshold looked', withSc.runsSidecar.minRun, 30);
+          T.ok(
+            'parseECG · an EMPTY but comparable sidecar is "looked and found nothing", not "never looked"',
+            (function () {
+              var e = E.parseECG(HDR, { runsText: '# stream=ecg rule=stuck min_run=30 total_runs=0 examined=90000\nPhone timestamp;stream;value;first_index;n_samples;dur_ms;closed;rule' });
+              return e.runsSidecar.comparable === true && e.runsSidecar.emitted === 0 && e.runsSidecar.examined === 90000;
+            })()
+          );
+          T.ok(
+            'parseECG · a sidecar with NO rule line is not comparable with anything',
+            E.parseECG(HDR, { runsText: 'Phone timestamp;stream;value;first_index;n_samples;dur_ms;closed;rule' }).runsSidecar.comparable === false
+          );
+        } else T.skip('ECGDSP.parseECG unavailable');
+        // (6) THE REFUSAL — §∅: a discontinuity REFUSES, reduced coverage annotates (owner, 2026-09-17).
+        if (E && typeof E.epochEngine === 'function') {
+          var N = 2400,
+            nn = new Float64Array(N),
+            tt = new Float64Array(N);
+          for (var i = 0; i < N; i++) {
+            nn[i] = 800;
+            tt[i] = i * 0.8;
+          }
+          var refA = [],
+            epochsA = E.epochEngine(nn, tt, 300, null, null, [], refA),
+            refB = [],
+            epochsB = E.epochEngine(nn, tt, 300, null, null, [], refB, [{ t0: 310, t1: 340 }]);
+          T.ok(
+            'epochEngine · with NO blanking the epochs are scored as before',
+            epochsA.length > 1 &&
+              !refA.some(function (r) {
+                return r.reason === 'blanking-run';
+              })
+          );
+          T.ok(
+            'epochEngine · an epoch whose window intersects a recorded span is REFUSED',
+            refB.some(function (r) {
+              return r.reason === 'blanking-run';
+            })
+          );
+          T.eq('epochEngine · and it is refused, not annotated — the epoch is ABSENT from the series', epochsA.length - epochsB.length, 1);
+          T.ok(
+            'epochEngine · the refusal NAMES the real state, never a borrowed `too-few-beats`',
+            refB.filter(function (r) {
+              return r.reason === 'blanking-run';
+            }).length === 1
+          );
+          var refC = [];
+          E.epochEngine(nn, tt, 300, null, null, [320], refC, [{ t0: 310, t1: 340 }]);
+          T.eq(
+            'epochEngine · a clock seam OUTRANKS a blanking run — the harder discontinuity is named',
+            (
+              refC.find(function (r) {
+                return r.n > 0;
+              }) || {}
+            ).reason,
+            'clock-seam'
+          );
+          var refD = [];
+          E.epochEngine(nn, tt, 300, null, null, [], refD, [{ t0: 300, t1: 300 }]);
+          T.ok(
+            'DECOY · a zero-width span convicts nothing (half-open on both sides)',
+            !refD.some(function (r) {
+              return r.reason === 'blanking-run';
+            })
+          );
+        } else T.skip('ECGDSP.epochEngine unavailable');
+        // (7) SOURCE MIRRORS — the three callers, so a future edit cannot quietly unwire the path.
+        var src = env.sources || {};
+        if (src['signal-orchestrate.js']) T.ok('signal-orchestrate · `runs` is an ECG companion kind', /ecg:\s*\['rr',\s*'hr',\s*'acc',\s*'runs'\]/.test(src['signal-orchestrate.js']));
+        if (src['adapters/polar-h10-ecg.js'])
+          T.ok(
+            'polar-h10-ecg · passes ctx.companions.runs into the PRIMARY parse',
+            /companions\.runs/.test(src['adapters/polar-h10-ecg.js']) && /runsText:\s*runsText/.test(src['adapters/polar-h10-ecg.js'])
+          );
+        if (src['ecgdex-app.js']) T.ok('ecgdex-app · picks the sidecar and passes it as runsText', /_pickRunsFor/.test(src['ecgdex-app.js']) && /runsText:\s*_rt/.test(src['ecgdex-app.js']));
+        if (src['dex-ingest.js']) T.ok('dex-ingest · the `runs` BUCKET exists, so the fail-open default cannot claim it', /runs:\s*\[\]/.test(src['dex-ingest.js']));
+      }
+    );
+
     group('SAMPLE-VALIDITY-ENVELOPE §3.2 — the _PPGRUNS sidecar reaches parsePPG from every ingest path', 'dex-ingest · signal-orchestrate · adapters · ppgdex-app', function (T) {
       var DI = env.DexIngest,
         SO = env.SignalOrchestrate,
@@ -29799,7 +29951,12 @@
       T.eq('ppgKind · `_PPGRUNS.txt` is the runs COMPANION, not a PPG primary', DI.ppgKind(VS + 'PPGRUNS.txt'), 'runs');
       T.eq('ppgKind · `_ACCRUNS.txt` is set aside (a sidecar is never a waveform)', DI.ppgKind(VS + 'ACCRUNS.txt'), 'skip');
       T.eq('ppgKind · `_ECGSEAMS.txt` is set aside', DI.ppgKind(H10 + 'ECGSEAMS.txt'), 'skip');
-      T.eq('ecgKind · `_ECGRUNS.txt` is set aside — it is NOT an ECG recording', DI.ecgKind(H10 + 'ECGRUNS.txt'), 'skip');
+      /* CORRECTED 2026-09-25, not weakened. This read 'skip' because nothing in ECGDex could read the
+         file; now `ecgKind` claims it as the runs COMPANION, exactly as `ppgKind` claims `_PPGRUNS`.
+         It is still NOT an ECG recording — the control two lines down pins that — and the PPG node
+         still sets it aside, so neither sidecar can become the other node's primary. */
+      T.eq('ecgKind · `_ECGRUNS.txt` is the runs COMPANION, not an ECG primary', DI.ecgKind(H10 + 'ECGRUNS.txt'), 'runs');
+      T.eq('ppgKind · `_ECGRUNS.txt` is set aside in the PPG node', DI.ppgKind(H10 + 'ECGRUNS.txt'), 'skip');
       T.eq('ecgKind · `_PPGRUNS.txt` is set aside in the ECG node too', DI.ecgKind(VS + 'PPGRUNS.txt'), 'skip');
       T.eq('control · the real `_PPG.txt` is still the PPG primary', DI.ppgKind(VS + 'PPG.txt'), 'ppg');
       T.eq('control · the real `_ECG.txt` is still the ECG primary', DI.ecgKind(H10 + 'ECG.txt'), 'ecg');
