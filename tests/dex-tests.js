@@ -9681,13 +9681,32 @@
       /* ── the Unifier / OverDex routing ── */
       if (SO && typeof SO.streamKind === 'function') {
         T.eq('control · streamKind(`…_PPG.txt`) is `ppg`', SO.streamKind(W), 'ppg');
-        T.eq('streamKind · `…_PPG2W.txt` is not a stream the Unifier knows', SO.streamKind(W2), null);
+        /* ⚠️ RE-JUSTIFIED, not loosened. This read `=== null` until the `spo2` companion lane gave
+           `_PPG2W` a kind, and the tripwire fired — which is the tripwire working: a cell it guards
+           moved and something had to come back and say why. Having a kind does NOT open a route to
+           `ppgdex-dsp`; the kind is `ppg2w`, and PpgDex's companion machinery keys on `ppg`. So the
+           assertion now pins the PROPERTY that matters (it is not the PPG lane's stream) beside the
+           exact value, and a future change to `'ppg'` still reds here. */
+        T.ok('streamKind · `…_PPG2W.txt` is NOT the PPG lane\u2019s stream', SO.streamKind(W2) !== 'ppg', String(SO.streamKind(W2)));
+        T.eq('streamKind · …it is its own kind, so the value is pinned too', SO.streamKind(W2), 'ppg2w');
         if (typeof SO.pairCompanions === 'function') {
-          var pc = SO.pairCompanions([
+          /* 🔴 THIS CALL WAS WRONG AND PASSED ANYWAY — my own, written in #3073 and found only now.
+             `pairCompanions(signalType, primaryName, entries)` takes THREE arguments and this passed
+             ONE, so `_COMPANION_KINDS[<an array>]` was undefined and it returned null for a reason
+             that had nothing to do with the subject. It would have passed no matter what the PPG lane
+             did. Called properly now: the question is whether PPGDEX's lane can claim this file. */
+          var pc = SO.pairCompanions('ppg', W2, [
             { name: W2, text: HEAD },
             { name: W2.replace('_PPG2W.txt', '_PPG2WRUNS.txt'), text: '# stream=ppg2w rule=stuck min_run=200\n' }
           ]);
-          T.eq('pairCompanions · a `_PPG2W` + its sidecar pair to NOTHING', JSON.stringify(pc), JSON.stringify(null));
+          T.eq('pairCompanions · the PPG lane pairs a `_PPG2W` + its sidecar to NOTHING', JSON.stringify(pc), JSON.stringify(null));
+          /* …and the control that makes that non-vacuous: the same call on the lane that DOES own the
+             file returns the pair, so a null above is about the PPG lane and not about the machinery. */
+          var pcOwn = SO.pairCompanions('spo2', W2, [
+            { name: W2, text: HEAD },
+            { name: W2.replace('_PPG2W.txt', '_SPO2.csv'), text: 'Time,Oxygen Level,Pulse Rate,Motion\n' }
+          ]);
+          T.ok('control · the spo2 lane DOES pair it, so the null above is a fact about the PPG lane', !!(pcOwn && pcOwn.spo2), JSON.stringify(pcOwn));
         }
       } else T.ok('SignalOrchestrate reachable in env', false, 'the Unifier routes are unchecked');
       /* ── and the dual path really is still THERE, so this group is about routing, not dead code ── */
@@ -54802,6 +54821,157 @@
      no single-channel and no finger-site path" — is STALE: `PPGDEX-O2RING-FINGER-SITE-2026-07-18`
      is DONE (2026-07-20), verified on hardware, and `parsePPG` returns `site:'finger'` with a
      single-channel beat lane. Verified in the tree before acting, not read off a status line. */
+    /* ════ THE COMPANION LANE — the trend must not depend on WHICH HOST ingested the files ══════
+       #3075 made a dropped `_PPG2W.txt` route to OxyDex's adapter. It could still never produce a
+       trend there: `spo2WaveformTrend` is SELF-CALIBRATED against the ring's own 1 Hz series, and the
+       Unifier had no way to hand one over — `_COMPANION_KINDS` had `ecg` and `ppg` and nothing else.
+       Routing to the right node and being unable to compute there is a half-wired mechanism, so this
+       is the other half.
+
+       🔴 FOUR INDEPENDENT BLOCKERS, each measured before anything was written, and the third is the
+       one worth remembering:
+         · `streamKind` returned **null** for `_PPG2W`, `_SPO2` and `_PPG2WRUNS` alike — no kind, so no
+           bucketing at all (`_PPG\b` cannot see `_PPG2W`; `_SPO2` had no branch).
+         · `companionKinds('spo2')` was `[]`.
+         · `pairCompanions` skipped every candidate on `if (DI.foreignVendor(e.name)) continue`, whose
+           comment reads *"an O2Ring SpO₂ / Libre CGM file is never a sidecar"*. That is EXACTLY RIGHT
+           for a Polar `ecg`/`ppg` primary and EXACTLY WRONG for the `spo2` lane, where the ring's own
+           CSV is the companion — one shared early exit serving two arms that need opposite answers.
+           It is now scoped to the PRIMARY (same vendor family ⇒ eligible), and the control below is
+           the half that must not move: a Polar ECG primary still rejects the O2Ring CSV.
+         · both hosts hard-coded `sigType === 'ecg' || sigType === 'ppg'`, so a type in the table and
+           absent from the condition would pair nothing, silently, in that host only. They now read
+           `companionKinds()` — the one table — so the two cannot disagree about one drop.
+
+       ⚠️ The fixture is 270,000 waveform rows, because the 40-bin gate is real and a smaller one
+       proves nothing about a USABLE night (measured: 54,000 rows yields 9 bins and both paths agree on
+       `null`, which is an equality between two absences). It costs ~1.7 s. */
+    group('the spo2 companion lane — a paired _PPG2W drop yields the SAME trend in either host', 'adapters · signal-orchestrate · companions · o2ring-ppg2w', function (T) {
+      var SA = env.SignalAdapters,
+        SO = env.SignalOrchestrate,
+        O = (env.OxyDex && env.OxyDex._bare && env.OxyDex._bare.parsePPG2W ? env.OxyDex._bare : null) || env.OxyDex;
+      if (!SA || !SO || !O || typeof SO.pairCompanions !== 'function' || typeof O.parsePPG2W !== 'function') {
+        T.ok('SignalAdapters + SignalOrchestrate + OxyDex reachable', false, 'the lane cannot be checked');
+        return;
+      }
+      var STEM = 'Wellue_O2Ring-S_S8AW2100_20260905223000';
+      var W2 = STEM + '_PPG2W.txt',
+        CSVN = STEM + '_SPO2.csv',
+        RUNSN = STEM + '_PPG2WRUNS.txt';
+
+      /* ── the lane exists, and every name in it has a kind ── */
+      T.eq('companionKinds(spo2) — the CSV and the validity sidecar in its OWN slot', JSON.stringify(SO.companionKinds('spo2')), JSON.stringify(['spo2', 'ppg2wruns']));
+      T.eq('streamKind · the waveform', SO.streamKind(W2), 'ppg2w');
+      T.eq('streamKind · its 1 Hz calibration partner', SO.streamKind(CSVN), 'spo2');
+      T.eq('streamKind · its validity sidecar takes its OWN kind, not `runs` (#3077 — a kind IS a slot)', SO.streamKind(RUNSN), 'ppg2wruns');
+      T.eq('control · the Verity PPG is still `ppg`', SO.streamKind('Polar_VS_0C301E3F_20260613_121435_PPG.txt'), 'ppg');
+      T.eq('control · the H10 ECG is still `ecg`', SO.streamKind('Polar_H10_02849638_20260617_010616_ECG.txt'), 'ecg');
+
+      /* ── 🔴 THE CONTROL THAT MUST NOT MOVE. The vendor filter was widened; this is the behaviour it
+            was protecting, and a `spo2` lane bought by breaking it would be a bad trade. ── */
+      var H10 = 'Polar_H10_02849638_20260905_223000_';
+      var ecgPair = SO.pairCompanions('ecg', H10 + 'ECG.txt', [
+        { name: H10 + 'ECG.txt', text: 'E' },
+        { name: H10 + 'ACC.txt', text: 'POLARACC' },
+        { name: H10 + 'RR.txt', text: 'POLARRR' },
+        { name: CSVN, text: 'O2RINGCSV' }
+      ]);
+      T.ok('control · a Polar ECG primary still attaches its OWN rr + acc', !!(ecgPair && ecgPair.rr === 'POLARRR' && ecgPair.acc === 'POLARACC'), JSON.stringify(ecgPair));
+      T.ok('control · …and still REJECTS the O2Ring CSV (a foreign file is not a sidecar)', JSON.stringify(ecgPair || {}).indexOf('O2RINGCSV') < 0, JSON.stringify(ecgPair));
+
+      /* ── the new lane pairs, and is not indiscriminate ── */
+      var pair = SO.pairCompanions('spo2', W2, [
+        { name: W2, text: 'WAVE' },
+        { name: CSVN, text: 'CSVTEXT' },
+        { name: RUNSN, text: 'RUNSTEXT' },
+        { name: H10 + 'ACC.txt', text: 'POLARACC' },
+        { name: 'FreeStyleLibre_export_20260905223000.csv', text: 'LIBRE' }
+      ]);
+      T.eq('the spo2 lane attaches the ring’s CSV and its sidecar', JSON.stringify(pair), JSON.stringify({ spo2: 'CSVTEXT', ppg2wruns: 'RUNSTEXT' }));
+      T.ok('…and nothing else — not a Polar ACC, not a Libre export', JSON.stringify(pair || {}).indexOf('LIBRE') < 0 && JSON.stringify(pair || {}).indexOf('POLARACC') < 0, JSON.stringify(pair));
+
+      /* ── THE PROPERTY: the same bytes through both hosts give the same trend ── */
+      var T0 = Date.UTC(2026, 8, 5, 22, 30, 0),
+        BUF = 100;
+      var iso = function (ms) {
+        return new Date(ms).toISOString().replace('T', ' ').replace('Z', '');
+      };
+      var walk = function (s) {
+        return 90 + (Math.floor(s / 15) % 8);
+      };
+      var wl = ['Phone timestamp;sensor timestamp [ns];channel 0;channel 1;motion'],
+        tt = T0;
+      for (var b = 0; b < 2700; b++) {
+        var sec = Math.round((tt - T0) / 1000),
+          amp0 = 50 * (1 + 0.05 * (walk(sec + 10) - 93));
+        for (var i = 0; i < BUF; i++)
+          wl.push(iso(tt + i * 10) + ';' + (b * BUF + i) * 5e7 + ';' + Math.round(100000 + amp0 * Math.sin(i / 6)) + ';' + Math.round(200000 + 50 * Math.sin(i / 6)) + ';0');
+        tt += 1005;
+      }
+      var WAVE = wl.join('\n') + '\n';
+      var cl = ['Time,Oxygen Level,Pulse Rate,Motion'];
+      for (var s2 = 0; s2 < 2760; s2++) {
+        var d = new Date(T0 + s2 * 1000);
+        cl.push(String(d.getUTCHours()).padStart(2, '0') + ':' + String(d.getUTCMinutes()).padStart(2, '0') + ':' + String(d.getUTCSeconds()).padStart(2, '0') + ' 05/09/2026,' + walk(s2) + ',52,0');
+      }
+      var CSVT = cl.join('\n') + '\n';
+
+      // PATH A — OxyDex's own drop handler, in the order oxydex-dsp.js does it.
+      var A = O.spo2WaveformTrend(O.parsePPG2W(WAVE), O.parseCSV(CSVT, { fname: CSVN, file: null }));
+      // PATH B — the Unifier: route → pairCompanions → runAdapter, with the host's parseCSV.
+      var r = SA.route({ name: W2 }, WAVE.slice(0, 300));
+      var comps = SO.pairCompanions(r.best.signalType, W2, [
+        { name: W2, text: WAVE },
+        { name: CSVN, text: CSVT }
+      ]);
+      var B = SA.runAdapter(r.best.adapter || r.best, WAVE, { files: [W2], parseCSV: O.parseCSV, companions: comps });
+
+      /* ANTI-VACUITY FIRST. Two absences are equal to each other, and an equality between them says
+         nothing — a smaller fixture produced exactly that (9 bins, both `null`, "equal"). */
+      T.ok(
+        'the OxyDex handler produces a USABLE trend on this fixture (else the equality below is vacuous)',
+        A.usable === true && A.trend.length > 0,
+        A.reason || 'trend n=' + (A.trend ? A.trend.length : 0)
+      );
+      T.ok('the Unifier path produces one too', !!(B && B.usable === true && B.samples && B.samples.length > 0), (B && B.reason) || 'samples=' + (B && B.samples ? B.samples.length : 'null'));
+      if (A.usable && B && B.usable) {
+        T.eq(
+          '…and the two are the SAME SERIES — the trend does not depend on which host ingested it',
+          JSON.stringify(
+            B.samples.map(function (x) {
+              return [x.tMs, x.spo2];
+            })
+          ),
+          JSON.stringify(
+            A.trend.map(function (x) {
+              return [x.tMs, x.spo2w];
+            })
+          )
+        );
+        T.ok('…over a real number of bins, stated so a future shrink is visible', A.trend.length >= 40, 'n=' + A.trend.length);
+      }
+      /* ── CONTROL: the waveform ALONE still refuses, with the reason the adapter was given. ── */
+      var solo = SA.runAdapter(r.best.adapter || r.best, WAVE, { files: [W2], parseCSV: O.parseCSV });
+      T.ok('control · the waveform dropped ALONE still refuses — the lane did not make it guess', solo && solo.usable === false, JSON.stringify(solo && solo.usable));
+      T.ok(
+        'control · …naming self-calibration, and saying what it read',
+        /self-calibration impossible/.test((solo && solo.reason) || '') && /read 270000 samples/.test((solo && solo.reason) || ''),
+        (solo && solo.reason) || '(none)'
+      );
+
+      /* ── the hosts read the ONE table, so they cannot disagree about a drop ── */
+      var du = (env.sources || {})['data-unifier-app.js'] || '',
+        od = (env.sources || {})['overdex-app.js'] || '';
+      if (du && od) {
+        T.ok(
+          'data-unifier-app reads the lane list from companionKinds(), not a hard-coded pair',
+          /ORCH\.companionKinds\(r\.best\.signalType\)\.length/.test(du),
+          'a hard-coded lane list is a per-host silent no-pair'
+        );
+        T.ok('overdex-app reads the same table', /ORCH\.companionKinds\(sigType\)\.length/.test(od), 'the two hosts can disagree about one drop');
+      } else T.ok('both host sources in env.sources', false);
+    });
+
     /* ════ THE SIBLING WAVEFORM — residue `2026-09-25-ppg2w-routes-to-spo2` ══════════════════════
        §1.4's fix (the group below) declined `_PPG.txt` in `oxydex-spo2` and gave `o2ring-ppg` 0.97.
        `_PPG2W.txt` — the SAME ring's raw dual-wavelength stream — was left behind, and it was WORSE
