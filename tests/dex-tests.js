@@ -9595,6 +9595,186 @@
       } else T.ok('OXY_REGISTRY reachable in env', false);
     });
 
+    /* ════ SAMPLE-VALIDITY-ENVELOPE §3.2 — the `_PPG2WRUNS` sidecar reaches OxyDex (2026-09-25) ══════
+       The row's third entry. `writers.py RUN_MIN_BY_STREAM` has carried `"ppg2w": T_STUCK` since the
+       O2Ring's 0x05 stream was captured, and `writers.py` derives `…_PPG2W.txt` → `…_PPG2WRUNS.txt` by
+       rule — so the file has existed all along and no JS read it. Same shape as #3060's `_PPGRUNS`:
+       **a reader with no caller is inert, and a caller with no reader is a guess.** Both halves here.
+
+       ⚠️ THE ENTRY POINT WAS MEASURED, NOT ASSUMED, and it is NOT `dex-ingest`. OxyDex does not inline
+       `dex-ingest.js` (0 occurrences of `DexIngest` in `oxydex-dsp.js` + `oxydex-app.js`), and
+       `DexIngest.ppgKind('…_PPG2W.txt')` returns **'skip'** — the foreign-vendor branch — so a `runs`
+       claim in `ppgKind` would attach a companion to a primary PpgDex never ingests. That is the
+       `guard-exists-other-side-defeats-it` shape, and it is why the pairing lives in OxyDex's own drop
+       handler, where `_PPG2W.txt` is actually stashed. */
+    group('SAMPLE-VALIDITY-ENVELOPE §3.2 — the _PPG2WRUNS sidecar reaches OxyDex and REFUSES the bins it meets', 'oxydex-dsp · spo2w · §∅', function (T) {
+      var P = (env.OxyDex && env.OxyDex._bare && env.OxyDex._bare.parsePPG2W ? env.OxyDex._bare : null) || env.OxyDex;
+      if (!P || typeof P.parsePPG2W !== 'function' || typeof P._parsePinnedRuns !== 'function') {
+        T.ok('OxyDex.parsePPG2W + _parsePinnedRuns present', false, 'the sidecar reader is not exported');
+        return;
+      }
+      var T0 = Date.UTC(2026, 8, 5, 22, 0, 0),
+        HZ = 20,
+        BUF = 100;
+      var iso = function (ms) {
+        return new Date(ms).toISOString().replace('T', ' ').replace('Z', '');
+      };
+      /* `secs` of stream at 20 Hz with a re-anchor jump every BUF samples (so `flush` sees buffers),
+         frozen at one value across [f0,f1) seconds, and optionally ONE data row corrupted so the
+         parser rejects it — that row is the control for the index-population question below. */
+      var mkText = function (secs, f0, f1, dropRow) {
+        var L = ['Phone timestamp;sensor timestamp [ns];channel 0;channel 1;motion'];
+        for (var i = 0; i < HZ * secs; i++) {
+          if (i === dropRow) {
+            L.push('NOT A TIMESTAMP;0;1;1;0');
+            continue;
+          }
+          var ms = T0 + Math.round((i * 1000) / HZ) + Math.floor(i / BUF) * 7;
+          var ph = (2 * Math.PI * i) / HZ,
+            fz = i >= f0 * HZ && i < f1 * HZ;
+          L.push(iso(ms) + ';' + i * Math.round(1e9 / HZ) + ';' + (fz ? 100 : Math.round(1000 + 40 * Math.sin(ph))) + ';' + (fz ? 100 : Math.round(1000 + 20 * Math.sin(ph))) + ';0');
+        }
+        return L.join('\n');
+      };
+      var mkRuns = function (first, n) {
+        return [
+          '# stream=ppg2w rule=stuck min_run=200 merge_gap_max=0 total_runs=1 examined=99',
+          'Phone timestamp;stream;value;first_index;n_samples;dur_ms;closed;rule',
+          iso(T0) + ';channel 0;100;' + first + ';' + n + ';1;1;stuck'
+        ].join('\n');
+      };
+      var RUNS = mkRuns(300 * HZ, 60 * HZ); // the frozen window, in the writer's own sample indices
+
+      // ── 1 · ONE PARSER'S ANSWER, TWO COPIES — the gate that makes the copy defensible ──────────
+      /* `_parsePinnedRuns` is a deliberate copy of `ppgdex-dsp.js parsePinnedRuns`: the natural shared
+         home is `signal-frame.js`, inlined by ALL 10 bundles, so moving it moves every node's
+         computeHash and re-verifies every fixture — a serialized spine unit, not a rider on this row
+         (CLAUDE.md §👥.3). A copy is only defensible while something holds the two to the same answer,
+         so this is a DEEP compare of both on one text, and it is why the field names were not renamed. */
+      if (env.PPGDSP && typeof env.PPGDSP.parsePinnedRuns === 'function') {
+        var _mine = P._parsePinnedRuns(RUNS),
+          _theirs = env.PPGDSP.parsePinnedRuns(RUNS);
+        T.eq('the OxyDex copy answers EXACTLY what ppgdex-dsp.js does on one text', JSON.stringify(_mine), JSON.stringify(_theirs));
+        /* …and the compare is not vacuous: a malformed row and a header-less file are the two cases
+           whose flags a hand-written second parser gets wrong, so both are compared too. */
+        var _mal = '# stream=ppg2w rule=stuck min_run=200\nPhone timestamp;stream;value;first_index;n_samples;dur_ms;closed;rule\nx;channel 0;1;2\n';
+        T.eq('…including a malformed row (the flag, not just the rows)', JSON.stringify(P._parsePinnedRuns(_mal)), JSON.stringify(env.PPGDSP.parsePinnedRuns(_mal)));
+        var _noRule = 'Phone timestamp;stream;value;first_index;n_samples;dur_ms;closed;rule\n' + iso(T0) + ';channel 0;100;0;9;1;1;stuck\n';
+        T.eq('…and a sidecar with NO rule line (comparable:false, never a default min_run)', JSON.stringify(P._parsePinnedRuns(_noRule)), JSON.stringify(env.PPGDSP.parsePinnedRuns(_noRule)));
+      } else T.ok('PPGDSP.parsePinnedRuns reachable for the parity compare', false, 'the two copies are ungated in this runner');
+      T.ok('no sidecar → null, never an empty observation', P._parsePinnedRuns(undefined) === null && P._parsePinnedRuns('') === null);
+
+      // ── 2 · THE SPAN LANDS ON THE RIGHT WALL TIME ─────────────────────────────────────────────
+      var r = P.parsePPG2W(mkText(900, 300, 360), { runsText: RUNS });
+      T.eq('the sidecar span is mapped to time', r.blankSpans.length, 1);
+      if (r.blankSpans.length) {
+        var off0 = (r.blankSpans[0].tMs0 - T0) / 1000,
+          off1 = (r.blankSpans[0].tMs1 - T0) / 1000;
+        T.ok('…to the frozen window itself, not near it', off0 >= 300 && off0 < 301 && off1 >= 360 && off1 < 361, off0 + '..' + off1 + ' s (planted 300..360)');
+        T.eq('…carrying the writer’s own value and length', JSON.stringify([r.blankSpans[0].value, r.blankSpans[0].n]), JSON.stringify([100, 60 * HZ]));
+      }
+
+      // ── 3 · THE INDEX CONTROL: sidecar indices count WRITTEN rows, the array counts KEPT rows ──
+      /* The two populations differ by every row the parser drops, and the fixture makes them differ by
+         exactly one. This assertion FAILS on the array-index implementation, which is the whole point —
+         a control that both implementations pass would measure nothing. */
+      var rD = P.parsePPG2W(mkText(900, 300, 360, 10), { runsText: RUNS });
+      T.ok('one row was actually dropped (the control is live)', rD.rows.length === r.rows.length - 1, r.rows.length + ' → ' + rD.rows.length);
+      if (rD.blankSpans.length && r.blankSpans.length) {
+        T.eq('a dropped row does NOT shift the span — it is resolved by source index, not array index', rD.blankSpans[0].tMs0, r.blankSpans[0].tMs0);
+        var _arrayIndexWouldGive = rD.rows[300 * HZ] ? rD.rows[300 * HZ].tMs : null;
+        T.ok('…and the array-index answer really is different (so the control discriminates)', _arrayIndexWouldGive !== r.blankSpans[0].tMs0, 'both gave ' + _arrayIndexWouldGive);
+      }
+
+      // ── 4 · A SPAN WE CANNOT PLACE IS COUNTED, NEVER DISCARDED ────────────────────────────────
+      var rU = P.parsePPG2W(mkText(900, 300, 360), { runsText: mkRuns(99999, 100) });
+      T.eq('a span past the end of the data yields no time…', rU.blankSpans.length, 0);
+      T.eq('…and is COUNTED as unmapped (§∅: an absence we cannot place is not zero)', rU.spansUnmapped, 1);
+
+      // ── 5 · WITHOUT A SIDECAR, NOTHING MOVES ──────────────────────────────────────────────────
+      var plain = P.parsePPG2W(mkText(900, 300, 360));
+      T.eq('no sidecar → no spans', JSON.stringify([plain.blankSpans.length, plain.spansUnmapped, plain.runs]), JSON.stringify([0, 0, null]));
+      T.eq('no sidecar → the rows are byte-identical to the sidecar run', JSON.stringify(plain.rows), JSON.stringify(r.rows));
+      T.eq('…and `runsText: undefined` is the same as no options at all', JSON.stringify(P.parsePPG2W(mkText(900, 300, 360), {}).rows), JSON.stringify(plain.rows));
+
+      // ── 6 · THE TREND REFUSES, NAMES THE REASON, AND REPORTS THE BIN WITH NO POINTS ───────────
+      var spo2 = [];
+      for (var s2 = 0; s2 < 4000; s2++) spo2.push({ tMs: T0 + s2 * 1000, spo2: 96 + ((s2 % 7) - 3) * 0.2 });
+      var tr = P.spo2WaveformTrend(r, spo2);
+      T.ok('a bin whose window meets a recorded run is REFUSED', (tr.refusedBins || []).length >= 1, JSON.stringify((tr.refusedBins || []).length));
+      if ((tr.refusedBins || []).length) {
+        T.ok(
+          '…with the named reason, never a borrowed one',
+          tr.refusedBins.every(function (b) {
+            return b.reason === 'blanking-run' && b.spo2w === null;
+          }),
+          JSON.stringify(tr.refusedBins[0])
+        );
+        /* 🔴 THE REGRESSION THIS ROW EXISTS FOR. A bin INSIDE the frozen stretch contributes no points
+           at all — `flush` rejects a buffer with `A.ac <= 0` — so iterating the bins that exist refuses
+           only the bin STRADDLING the run's edge and says nothing about the frozen middle. Measured on
+           this very fixture while the first draft did exactly that: 1 refused where 2 windows were
+           affected. The refused set is therefore derived from the SPANS. */
+        T.ok(
+          '…including a bin with ZERO points, which no bin-side scan can see',
+          tr.refusedBins.some(function (b) {
+            return b.points === 0 && b.tMs === null && b.binStartMs != null;
+          }),
+          JSON.stringify(tr.refusedBins)
+        );
+        T.ok('…and a run straddling a boundary refuses BOTH bins (intersecting, not containing)', tr.refusedBins.length === 2, 'refused ' + tr.refusedBins.length);
+      }
+      /* NAME THE REAL STATE. "too little paired data" is true of the count and wrong about the cause
+         once blanking is what removed the bins — §∅'s own rule against a borrowed reason that fires. */
+      T.ok('the shortfall reason names BLANKING when blanking is what removed the bins', /blanking-run/.test(tr.reason || ''), tr.reason || '');
+      var trPlain = P.spo2WaveformTrend(plain, spo2);
+      T.eq(
+        'without the sidecar: no refusals, and the ORIGINAL reason wording',
+        JSON.stringify([(trPlain.refusedBins || []).length, /blanking/.test(trPlain.reason || '')]),
+        JSON.stringify([0, false])
+      );
+
+      // ── 7 · A USABLE NIGHT CARRIES THE DENOMINATOR BESIDE THE VALUE ───────────────────────────
+      /* Driven through the 40-bin gate on a `rec` built directly (as the sibling group's `mk` does),
+         because the refusal must be visible on a night that RENDERS — a counter only ever seen on a
+         refusal path cannot tell a clean night from an uninstrumented one. */
+      var rows = [],
+        sp7 = [],
+        tt = T0;
+      for (var buf = 0; buf < 2600; buf++) {
+        var sec = Math.floor((tt - T0) / 1000);
+        sp7.push({ tMs: T0 + sec * 1000, spo2: 90 + (Math.floor(sec / 15) % 8) });
+        var sLead = 90 + (Math.floor((sec + 10) / 15) % 8);
+        var amp0 = 50 * (1 + 0.05 * (sLead - 93));
+        for (var i7 = 0; i7 < 100; i7++) rows.push({ tMs: tt + i7 * 10, ch0: 100000 + amp0 * Math.sin(i7 / 6), ch1: 200000 + 50 * Math.sin(i7 / 6), motion: 0 });
+        tt += 1005;
+      }
+      var endSec = Math.floor((tt - T0) / 1000);
+      for (var ex = endSec; ex <= endSec + 12; ex++) sp7.push({ tMs: T0 + ex * 1000, spo2: 90 + (Math.floor(ex / 15) % 8) });
+      var recClean = { t0Ms: rows[0].tMs, rows: rows },
+        oneSpan = [{ stream: 'channel 0', value: 100, n: 1200, first: 0, tMs0: T0 + 600000, tMs1: T0 + 620000 }];
+      var clean = P.spo2WaveformTrend(recClean, sp7);
+      var dirty = P.spo2WaveformTrend({ t0Ms: recClean.t0Ms, rows: rows, blankSpans: oneSpan, spansUnmapped: 0 }, sp7);
+      if (clean.usable && dirty.usable) {
+        T.eq('a clean night reports the counter as ZERO, not as absent', JSON.stringify([clean.summary.binsRefusedBlanking, clean.summary.spansUnmapped]), JSON.stringify([0, 0]));
+        T.ok('a planted span removes bins from the FIT, not just from the report', dirty.summary.bins < clean.summary.bins, clean.summary.bins + ' → ' + dirty.summary.bins);
+        T.eq('…and the summary carries the refused count beside the value', dirty.summary.binsRefusedBlanking, clean.summary.bins - dirty.summary.bins);
+      } else T.ok('the 40-bin gate is reached on the driven fixture', false, 'clean=' + (clean.reason || 'ok') + ' dirty=' + (dirty.reason || 'ok'));
+
+      // ── 8 · THE CALLERS — a reader with no caller is inert (#3060's lesson, one stream over) ───
+      var src = (env.sources || {})['oxydex-dsp.js'] || '';
+      if (src) {
+        T.ok('the drop handler stashes `_PPG2WRUNS.txt`', src.indexOf('(window._oxyW2R = window._oxyW2R || {})') >= 0, 'the sidecar is never stashed on drop');
+        T.ok('the pairing passes it to parsePPG2W', /parsePPG2W\(_w2\[stem\], \{ runsText: _w2r\[stem\] \}\)/.test(src), 'a reader with no caller');
+        T.ok('the sidecar stash is CONSUMED with its waveform (a stale span refuses the wrong night)', /delete _w2r\[stem\]/.test(src), 'the stash outlives its recording');
+        T.ok(
+          'the refused set is derived from the SPANS, not from the bins that exist',
+          /_refusedBy/.test(src) && /for \(var _rk in _refusedBy\)/.test(src),
+          'a bin-side scan cannot see a zero-point bin'
+        );
+      } else T.ok('oxydex-dsp.js source reachable for the caller mirrors', false);
+    });
+
     group('PpgDex distinguishes a missing device PPI from an empty one', 'ppgdex-dsp · ppgdex-app · device-ppi', function (T) {
       /* Asserted, not skipped. The first draft looked this up on the wrong namespace and reported a
          green "(skipped)" while testing nothing — a hollow gate, which is the failure this suite
@@ -12377,6 +12557,33 @@
       [cap, pull].forEach(function (t) {
         while ((m = reF.exec(t))) emitted[m[1] + '.' + m[2]] = 'f-string sidecar';
       });
+      /* ── THE SIDECAR FAMILY IS DERIVED BY RULE, SO THE EMITTED SET MUST BE TOO ─────────────────
+         `writers.py` builds a validity/seam sidecar's name from the stream file's own name — the
+         `_RunSidecar.__init__` comment says it outright: *"`<base>.txt` -> `<base>RUNS.txt` … derived
+         by rule rather than by a per-stream table that could drift away from the stream names it
+         claims to cover"* — and `_SeamSidecar` says "by the same rule". So no literal `_PPGRUNS.txt`
+         or `_PPG2WRUNS.txt` exists anywhere in the writer, and a reader that spells one out in full
+         was flagged as reading a file nothing produces. It is produced; the SCAN could not see it.
+         (`dex-ingest.js` escaped only because it matches `_PPGRUNS\.` with no extension after the
+         dot, so the tag regex never fired — the gate was one literal away from this false positive
+         the whole time, for every sidecar of every stream.)
+         The rule is read OUT OF THE WRITER'S CODE rather than hardcoded here — and out of the CODE,
+         not the comment: `wr` is comment-stripped by this very group, so keying on the prose that
+         states the rule would key on a string that is never there. If those two assignments stop
+         deriving the name, the assertions just below go red and this expansion goes with them. */
+      var _runRule = /self\.path = f"\{base\}RUNS/.test(wr);
+      var _seamRule = /self\.path = base \+ "SEAMS/.test(wr);
+      T.ok('writers.py still DERIVES the RUNS sidecar name from the stream file (`<base>.txt` -> `<base>RUNS.txt`)', _runRule, 'the derivation moved — the expansion below is no longer sound');
+      T.ok('…and the SEAMS sidecar by the same rule', _seamRule, 'the derivation moved');
+      Object.keys(emitted)
+        .filter(function (k) {
+          return /\.txt$/.test(k);
+        })
+        .forEach(function (k) {
+          var stem = k.replace(/\.txt$/, '');
+          if (_runRule) emitted[stem + 'RUNS.txt'] = 'derived by rule from ' + k;
+          if (_seamRule) emitted[stem + 'SEAMS.txt'] = 'derived by rule from ' + k;
+        });
       var emittedList = Object.keys(emitted).sort();
       ['RTCLOG.csv', 'SPO2.csv', 'PMDARRIVAL.csv', 'ECG.txt', 'PPG.txt', 'CLOCK.csv', 'STORED.dat'].forEach(function (k) {
         T.ok('emitted set carries `_' + k + '` (' + (emitted[k] || 'MISSING') + ')', !!emitted[k], 'the writer-side regexes stopped matching — emitted: ' + emittedList.join(' '));
@@ -29936,6 +30143,72 @@
         if (src['dex-ingest.js']) T.ok('dex-ingest · the `runs` BUCKET exists, so the fail-open default cannot claim it', /runs:\s*\[\]/.test(src['dex-ingest.js']));
       }
     );
+
+    /* The ACC leg of §3.2, and the defect is NOT the one the ECG leg pinned. There the sidecar could
+       not be read at all; here the quantity it protects is ALREADY guarded — for the wrong door.
+       `motiondex-dsp` says in terms that "an uncovered epoch scores counts=0 ⇒ moving=false ⇒ counted
+       as IMMOBILE, i.e. a recording gap fabricates stillness", and guards it with `seen[]`. A
+       blanking run defeats that guard exactly: the rows ARE present so `seen` counts them, they hold
+       one constant so dynamic-g is ~0, and the epoch scores IMMOBILE from samples nobody measured.
+       Measured on the planted night below: a 30 s run manufactured a 16.7 % immobile fraction, and
+       the error runs toward "still" — the direction a staging consumer acts on. */
+    group('SAMPLE-VALIDITY-ENVELOPE §3.2 — a recorded ACC blanking run cannot score as IMMOBILE', 'motiondex-dsp · absence · sidecar', function (T) {
+      var M = env.MOTIONDSP || env.MotionDSP;
+      if (!(M && typeof M.compute === 'function')) {
+        T.skip('MOTIONDSP not loaded in this runner');
+        return;
+      }
+      var hz = 26,
+        sec = 180,
+        t0 = Date.UTC(2026, 8, 24, 1, 0, 0);
+      var rows = ['Phone timestamp;sensor timestamp [ns];X [mg];Y [mg];Z [mg]'];
+      for (var i = 0; i < hz * sec; i++) {
+        var t = t0 + Math.round((i * 1000) / hz),
+          iso = new Date(t).toISOString().replace('Z', ''),
+          ss = i / hz,
+          held = ss >= 60 && ss < 90;
+        rows.push(iso + ';' + i * Math.round(1e9 / hz) + ';' + (held ? 900 : 900 + Math.round(40 * Math.sin(i / 3))) + ';' + (held ? 0 : Math.round(30 * Math.cos(i / 5))) + ';0');
+      }
+      var acc = rows.join('\n');
+      var SC = [
+        '# stream=acc rule=stuck min_run=200 t_stuck=200 merge_gap_max=8 examined=4680',
+        'Phone timestamp;stream;value;first_index;n_samples;dur_ms;closed;rule',
+        new Date(t0 + 60000).toISOString().replace('Z', '') + ';X [mg];900;1560;780;30000;1;stuck'
+      ].join('\n');
+      var a = M.compute({ acc: acc }).activity,
+        b = M.compute({ acc: acc, accRuns: SC }).activity;
+      T.ok('without the sidecar the held stretch scores IMMOBILE — fabricated stillness', a.immobileFrac > 0.15 && a.epochs[2].moving === false);
+      T.eq('the blanked epoch is not covered, and never "immobile"', b.epochs[2].moving, null);
+      T.eq('…and it NAMES the state rather than borrowing "no coverage"', b.epochs[2].reason, 'blanking-run');
+      T.eq('the blanked epochs leave the denominator', a.coveredEpochs - b.coveredEpochs, 2);
+      T.eq('the night PUBLISHES how much it refused, so the denominator did not shrink silently', b.blankedEpochs, 2);
+      T.eq('and the fabricated immobility is gone', b.immobileFrac, 0);
+      T.ok('no sidecar ⇒ no new keys at all (byte-identical shape)', !('blankedEpochs' in a) && !('reason' in a.epochs[2]));
+      T.ok(
+        'DECOY · a sidecar with NO rule line is not comparable, so it refuses nothing',
+        !('blankedEpochs' in M.compute({ acc: acc, accRuns: 'Phone timestamp;stream;value;first_index;n_samples;dur_ms;closed;rule' }).activity)
+      );
+      T.ok(
+        'DECOY · an EMPTY sidecar that DOES carry its rule is "looked, found nothing" — refuses nothing',
+        (function () {
+          var c = M.compute({ acc: acc, accRuns: '# stream=acc rule=stuck min_run=200 examined=4680\nPhone timestamp;stream;value;first_index;n_samples;dur_ms;closed;rule' }).activity;
+          return !('blankedEpochs' in c) && c.immobileFrac === a.immobileFrac;
+        })()
+      );
+      T.ok(
+        'the refusal keys on the SPAN, never on `class=` — a class-bearing header alone changes nothing',
+        (function () {
+          var c = M.compute({
+            acc: acc,
+            accRuns:
+              '# stream=acc rule=stuck min_run=200 examined=4680 held_top2_share=0.95\n# stream=acc channel=X [mg] class=held ratio=1.1 top2=1,2 share=0.984\nPhone timestamp;stream;value;first_index;n_samples;dur_ms;closed;rule'
+          }).activity;
+          return !('blankedEpochs' in c);
+        })()
+      );
+      var src = env.sources || {};
+      if (src['motiondex-app.js']) T.ok('motiondex-app · routes `_ACCRUNS` to its ACC runs slot', /_ACCRUNS/.test(src['motiondex-app.js']) && /chestAccRuns/.test(src['motiondex-app.js']));
+    });
 
     group('SAMPLE-VALIDITY-ENVELOPE §3.2 — the _PPGRUNS sidecar reaches parsePPG from every ingest path', 'dex-ingest · signal-orchestrate · adapters · ppgdex-app', function (T) {
       var DI = env.DexIngest,
