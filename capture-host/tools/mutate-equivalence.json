@@ -4209,6 +4209,24 @@
       "probe": "2- and 3-segment capture-host/… literals; the 3-segment case kills the rsplit sibling, and neither maxsplit variant changes [0]. Validated on #2872's branch: 14 → 6, no REFUTED.",
       "why": "EQUIVALENT — `[0]` is the FIRST segment whatever the maxsplit: `split('/', 1)[0]`, `split('/', 2)[0]` and `split('/')[0]` all return the text before the first separator. ⚠️ The sibling mutation `split(None, 1)` is NOT equivalent — it splits on whitespace — and is killed by test_root_reads_excludes_the_TREE_ITSELF_by_its_first_segment.",
       "brief": "#2872 — root_reads sees the whole read (entries filed in the follow-up)"
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- for lit in re.findall(r\"\"\"[\"']([^\"'\\n]+)[\"']\"\"\", t.read_text(encoding=\"utf-8\", errors=\"replace\")): | + for lit in re.findall(r\"\"\"[\"']([^\"'\\n]+)[\"']\"\"\", t.read_text(encoding=None, errors=\"replace\")):",
+      "probe": "Run 2026-09-25 in a 3.11 venv, UTF-8 locale (`locale.getpreferredencoding(False)` = utf-8), against a `.py` holding one Latin-1 byte and one `\\xff` in a comment above a root-file literal (the plant `test_root_reads_survives_a_NON_UTF8_byte_in_a_test_file`): original and the three variants each return the same text and the literal is found. The other three mutants on this line (`errors=None`, `errors=` dropped, `errors=\"REPLACE\"`) raise UnicodeDecodeError / LookupError on the same input and are KILLED by that plant.",
+      "why": "`encoding=None` selects the locale's preferred encoding, which is UTF-8 on CI (ubuntu-latest) and on the box; the output is byte-identical to the explicit `utf-8`. Distinguishable only under a non-UTF-8 locale, which no supported host runs — and the explicit argument exists so that stays true."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- for lit in re.findall(r\"\"\"[\"']([^\"'\\n]+)[\"']\"\"\", t.read_text(encoding=\"utf-8\", errors=\"replace\")): | + for lit in re.findall(r\"\"\"[\"']([^\"'\\n]+)[\"']\"\"\", t.read_text(errors=\"replace\")):",
+      "probe": "Run 2026-09-25 in a 3.11 venv, UTF-8 locale (`locale.getpreferredencoding(False)` = utf-8), against a `.py` holding one Latin-1 byte and one `\\xff` in a comment above a root-file literal (the plant `test_root_reads_survives_a_NON_UTF8_byte_in_a_test_file`): original and the three variants each return the same text and the literal is found. The other three mutants on this line (`errors=None`, `errors=` dropped, `errors=\"REPLACE\"`) raise UnicodeDecodeError / LookupError on the same input and are KILLED by that plant.",
+      "why": "Dropping `encoding=` is the same `encoding=None` default as the entry above: locale-preferred, UTF-8 on every supported host."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- for lit in re.findall(r\"\"\"[\"']([^\"'\\n]+)[\"']\"\"\", t.read_text(encoding=\"utf-8\", errors=\"replace\")): | + for lit in re.findall(r\"\"\"[\"']([^\"'\\n]+)[\"']\"\"\", t.read_text(encoding=\"UTF-8\", errors=\"replace\")):",
+      "probe": "Run 2026-09-25 in a 3.11 venv, UTF-8 locale (`locale.getpreferredencoding(False)` = utf-8), against a `.py` holding one Latin-1 byte and one `\\xff` in a comment above a root-file literal (the plant `test_root_reads_survives_a_NON_UTF8_byte_in_a_test_file`): original and the three variants each return the same text and the literal is found. The other three mutants on this line (`errors=None`, `errors=` dropped, `errors=\"REPLACE\"`) raise UnicodeDecodeError / LookupError on the same input and are KILLED by that plant.",
+      "why": "`\"UTF-8\"` and `\"utf-8\"` name one codec — `codecs.lookup` normalises case — so the decode is byte-identical for every input."
     }
   ],
   "mutation_pure.py": [
