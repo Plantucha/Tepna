@@ -9607,6 +9607,99 @@
        claim in `ppgKind` would attach a companion to a primary PpgDex never ingests. That is the
        `guard-exists-other-side-defeats-it` shape, and it is why the pairing lives in OxyDex's own drop
        handler, where `_PPG2W.txt` is actually stashed. */
+    /* ════ §3.2 row `ppg2w` — THE `ppgdex-dsp.js` DUAL PATH IS UNREACHABLE, AND THIS IS THE TRIPWIRE ══
+       The row named two entry points; only one exists in practice. `ppgdex-dsp.js parsePPG` really does
+       accept two channels ("TWO channels are accepted ONLY as the O2Ring's raw dual-wavelength
+       `_PPG2W.txt`"), so the CODE is there — nothing routes a file to it, because every router matches the
+       stream suffix as `_PPG\b` / `_PPG\.` and `_PPG2W` has a word character after `PPG`. Same cause as the
+       sidecar misclassification the group above records, reaching a different file.
+
+       ⚠️ THIS GROUP ASSERTS A CLOSED DOOR, which is an unusual thing to gate and the reason it exists: the
+       enumeration cost a session, and without it the next reader re-derives "is the dual path reachable?"
+       from scratch. Each assertion carries the `…_PPG.txt` CONTROL beside it, so a route that answers null
+       for everything (a broken harness) cannot read as a closed route — the failure mode that would make
+       this whole group vacuous. The day a route DOES open, the matching line reds and names the row, and
+       whichever route opened owes the sidecar. */
+    group('SAMPLE-VALIDITY-ENVELOPE §3.2 — no route reaches the ppgdex-dsp dual path with a _PPG2W (tripwire)', 'dex-ingest · signal-adapters · signal-orchestrate · §3.2', function (T) {
+      var DI = env.DexIngest,
+        SA = env.SignalAdapters,
+        SO = env.SignalOrchestrate;
+      var W2 = 'Wellue_O2Ring_S8AW2100_20260905_223000_PPG2W.txt',
+        W = 'Wellue_O2Ring_S8AW2100_20260905_223000_PPG.txt';
+      var HEAD = 'Phone timestamp;sensor timestamp [ns];channel 0;channel 1;motion\n2026-09-05 22:30:00.000;0;1000;2000;0\n';
+      if (!DI || typeof DI.ppgKind !== 'function') {
+        T.ok('DexIngest reachable in env', false, 'the tripwire cannot run');
+        return;
+      }
+      /* ── the PpgDex app drop + planner ── */
+      T.eq('control · `…_PPG.txt` IS a ppg primary (the classifier works)', DI.ppgKind(W), 'ppg');
+      T.eq('ppgKind · `…_PPG2W.txt` is SET ASIDE — it never becomes a PpgDex primary', DI.ppgKind(W2), 'skip');
+      T.eq('foreignKind · …and is labelled `spo2`, not `ppg`', DI.foreignKind(W2), 'spo2');
+      if (typeof DI.planIngestPpg === 'function') {
+        var plan = DI.planIngestPpg([
+          { name: W2, text: HEAD },
+          { name: W, text: HEAD }
+        ]);
+        var prim = (plan.ppgPrimaries || []).map(function (x) {
+          return (x.file || x).name || x;
+        });
+        T.eq('planIngestPpg · the control is the ONLY primary; the dual-wavelength file is not one', JSON.stringify(prim), JSON.stringify([W]));
+      } else T.ok('DexIngest.planIngestPpg reachable', false);
+      /* ── every adapter that could carry it into ppgdex-dsp ── */
+      if (SA && typeof SA.route === 'function') {
+        var byId = function (id) {
+          return SA.byId(id);
+        };
+        ['o2ring-ppg', 'polar-sense-ppg'].forEach(function (id) {
+          var a = byId(id);
+          if (!a) {
+            T.ok('adapter ' + id + ' registered', false, 'not in scope — the tripwire cannot see this route');
+            return;
+          }
+          T.eq('adapter ' + id + ' · detect(`…_PPG2W.txt`) scores ZERO (no ppg route)', a.detect({ name: W2 }, HEAD), 0);
+        });
+        var ctl = byId('o2ring-ppg');
+        if (ctl) T.ok('control · the SAME adapter scores 0.97 on `…_PPG.txt` (detect is live, not stubbed)', ctl.detect({ name: W }, HEAD) === 0.97, String(ctl.detect({ name: W }, HEAD)));
+        var r2 = SA.route({ name: W2 }, HEAD);
+        /* NOT an assertion that this routing is CORRECT — it is not, and it is filed as residue
+           `2026-09-25-ppg2w-routes-to-spo2`. It is an assertion about which node it reaches: whatever
+           `oxydex-spo2` does with a waveform, it is not the ppgdex dual path. */
+        T.ok(
+          'route · the best adapter is not a `ppg` adapter at all',
+          !!(r2.best && r2.best.signalType !== 'ppg'),
+          JSON.stringify(r2.best && { id: r2.best.id, signal: r2.best.signalType, conf: r2.best.confidence })
+        );
+        T.ok(
+          'control · route(`…_PPG.txt`) DOES reach a ppg adapter',
+          (function () {
+            var r1 = SA.route({ name: W }, HEAD);
+            return !!(r1.best && r1.best.signalType === 'ppg');
+          })(),
+          'the router answers nothing for either name — the rows above would be vacuous'
+        );
+      } else T.ok('SignalAdapters reachable in env', false, 'the adapter routes are unchecked');
+      /* ── the Unifier / OverDex routing ── */
+      if (SO && typeof SO.streamKind === 'function') {
+        T.eq('control · streamKind(`…_PPG.txt`) is `ppg`', SO.streamKind(W), 'ppg');
+        T.eq('streamKind · `…_PPG2W.txt` is not a stream the Unifier knows', SO.streamKind(W2), null);
+        if (typeof SO.pairCompanions === 'function') {
+          var pc = SO.pairCompanions([
+            { name: W2, text: HEAD },
+            { name: W2.replace('_PPG2W.txt', '_PPG2WRUNS.txt'), text: '# stream=ppg2w rule=stuck min_run=200\n' }
+          ]);
+          T.eq('pairCompanions · a `_PPG2W` + its sidecar pair to NOTHING', JSON.stringify(pc), JSON.stringify(null));
+        }
+      } else T.ok('SignalOrchestrate reachable in env', false, 'the Unifier routes are unchecked');
+      /* ── and the dual path really is still THERE, so this group is about routing, not dead code ── */
+      var pSrc = (env.sources || {})['ppgdex-dsp.js'] || '';
+      if (pSrc)
+        T.ok(
+          'ppgdex-dsp.js still carries the two-channel `_PPG2W` acceptance (the code is live, the ROUTE is dead)',
+          /TWO channels are accepted ONLY as the O2Ring's raw dual-wavelength/.test(pSrc),
+          'the dual path was removed — retire this group with it'
+        );
+    });
+
     group('SAMPLE-VALIDITY-ENVELOPE §3.2 — the _PPG2WRUNS sidecar reaches OxyDex and REFUSES the bins it meets', 'oxydex-dsp · spo2w · §∅', function (T) {
       var P = (env.OxyDex && env.OxyDex._bare && env.OxyDex._bare.parsePPG2W ? env.OxyDex._bare : null) || env.OxyDex;
       if (!P || typeof P.parsePPG2W !== 'function' || typeof P._parsePinnedRuns !== 'function') {
