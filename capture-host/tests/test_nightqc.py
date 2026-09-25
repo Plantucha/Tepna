@@ -3605,3 +3605,30 @@ def test_the_digest_line_is_EXACTLY_this_for_a_known_summary(tmp_path):
     assert nightqc.qc_digest(summ) == (
         "night 2026-09-24 — H10 98% (RTC +2.4s/1⚠reset) (.dat +3.9s ⚠±2s),"
         " Verity 41–95%~session · no data: Ring · missing: a:1, b:2, c:3, d:4")
+
+
+def test_the_range_threshold_is_STRICT_at_exactly_five_points(tmp_path):
+    """Kills `(hi - lo) < 0.05` → `<= 0.05` (mutmut_37), and the pair that kills it is not the obvious one.
+
+    🔴 THE TRAP, WHICH IS THE WHOLE VALUE OF THIS TEST. The instinctive fixture is 0.90/0.95, and it
+    CANNOT kill the mutant: `0.95 - 0.90` is `0.04999999999999993`, below the threshold under BOTH
+    operators, so both render "90%". Every plausible 5-point pair behaves that way except one — in binary,
+    `0.55-0.50`, `0.80-0.75` and `1.00-0.95` are all `0.050000000000000044` (above under both), while
+    `0.15-0.10` is below under both. **Only `hi - lo` computed from 0.0 and 0.05 is EXACTLY the double
+    0.05**, which is the single point where strict and non-strict disagree.
+
+    So a character-exact golden over ordinary coverage values survives this mutant, and anyone testing it
+    with 0.90/0.95 would conclude it is equivalent and ledger it as unkillable. It is not: a device with
+    one stream at 0 % and another at 5 % is an ordinary failed-capture night.
+
+    Found by Osprey, who regenerated the mutant and read its source after `mutate_diff`'s printed diff
+    truncated mid-literal; arithmetic re-verified here before use."""
+    def pct(lo, hi):
+        line = nightqc.qc_digest({"night": "n", "devices": [_digest_dev(
+            coverage={"a": lo, "b": hi}, span_basis={"a": "device", "b": "device"})]})
+        return line.split("H10 ")[1].split(" ")[0].rstrip(",")
+
+    assert (0.05 - 0.0).hex() == (0.05).hex(), "the fixture rests on this being the exact double 0.05"
+    assert pct(0.0, 0.05) == "0–5%", "a gap of EXACTLY 0.05 is not 'within 0.05' — strict, so a range"
+    # And the pair that does NOT distinguish them, asserted so the trap is pinned rather than described:
+    assert pct(0.90, 0.95) == "90%", "0.04999999999999993 is under the threshold either way"
