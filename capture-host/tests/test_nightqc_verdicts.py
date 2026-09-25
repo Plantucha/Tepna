@@ -19,7 +19,10 @@ DEV = [
 
 def _summary(**kw):
     base = {
-        "devices": [{"name": "H10", "coverage": {"ecg": 0.98, "acc": 0.97}}],
+        # `span_basis` is what production publishes per stream, and the verdict now reads it. A fixture
+        # that omits it makes an unlabelled-coverage claim rather than a device-basis one.
+        "devices": [{"name": "H10", "coverage": {"ecg": 0.98, "acc": 0.97},
+                     "span_basis": {"ecg": "device", "acc": "device"}}],
         "missing": [],
         "degraded": [],
         "gaps_in_night": [],
@@ -296,3 +299,55 @@ def test_a_config_of_only_OPTIONAL_backups_examined_nothing_and_says_NOT_RUN():
     assert o["status"] == "NOT_RUN", o["status"]
     assert o["population"] == {"checked": 0, "eligible": 1, "excluded": 1}
     assert o["result"] is None, "NOT_RUN examined nothing, so it carries no result"
+
+
+# ── A SESSION-BASIS COVERAGE IS NOT THE DEVICE'S COVERAGE — night 1's real mechanism ─────────────
+# The 21:33 shape: nine streams, every one on the session fallback (`span_basis: "session"`,
+# `span_sec: None`), rows present, and `coverage == session_coverage` to the digit — rows ÷ (rate × the
+# UNION span across TWO capture sessions) = 0.47 for devices that recorded through one of them.
+_N1_COV = {"ecg": 0.52, "acc": 0.52, "hr": 0.52}
+
+
+def _night1_summary(basis):
+    return _summary(devices=[{"name": "Polar H10 02849638", "coverage": dict(_N1_COV),
+                              "span_basis": {s: basis for s in _N1_COV} if basis else {},
+                              "session_coverage": dict(_N1_COV)}],
+                    degraded=["Polar H10 02849638:ecg 52%"], span_sec=20200)
+
+
+def test_PLANT_a_session_basis_coverage_is_not_reported_as_the_devices_coverage():
+    """The defect. Both denominators arrived in one `coverage` map, so a reader could not tell "we got
+    what this device sent" from "this device's rows covered 52 % of the whole session's elapsed time" —
+    and on a directory holding two capture sessions the second is not a fault at all."""
+    o = nightqc.qc_verdict(_night1_summary("session"), NIGHT1)
+    verdict.validate(o)
+    assert o["result"]["coverage"] == {}, "no stream had a device-basis denominator"
+    assert o["result"]["coverage_session_basis"] == {f"Polar H10 02849638:{s}": v for s, v in _N1_COV.items()}
+    assert o["result"]["coverage_basis_unknown"] == {}
+
+
+def test_PLANT_an_UNLABELLED_basis_is_its_own_bucket_and_not_assumed_to_be_the_device():
+    """§∅ one level up: absence of the label is not evidence of which denominator was used. An older
+    summary read back by this reader must not have `device` inferred for it."""
+    o = nightqc.qc_verdict(_night1_summary(None), NIGHT1)
+    verdict.validate(o)
+    assert o["result"]["coverage"] == {}, "an unlabelled coverage is not a device-basis coverage"
+    assert o["result"]["coverage_basis_unknown"] == {f"Polar H10 02849638:{s}": v for s, v in _N1_COV.items()}
+    assert o["result"]["coverage_session_basis"] == {}
+
+
+def test_CONTROL_the_alarm_is_UNCHANGED_by_the_split():
+    """The split must not quieten anything. `degraded` keys on `session_coverage`, which is computed
+    independently of whether a device span could be bounded — so the FAIL and its reason are the same
+    before and after. Asserts only keys that exist on both sides, so it runs against origin/main."""
+    o = nightqc.qc_verdict(_night1_summary("session"), NIGHT1)
+    assert o["status"] == "FAIL" and "52%" in o["reason"], (o["status"], o["reason"])
+
+
+def test_CONTROL_a_device_basis_coverage_still_travels_as_coverage():
+    """The ordinary case is untouched: a bounded device span puts its number where every reader already
+    looks. Passes on both sides."""
+    o = nightqc.qc_verdict(_summary(), DEV)
+    verdict.validate(o)
+    assert o["result"]["coverage"] == {"H10:ecg": 0.98, "H10:acc": 0.97}
+    assert o["status"] == "PASS"

@@ -2788,6 +2788,11 @@ def qc_verdict(summary: dict, devices: list[dict], *, night_dir: str = "") -> di
                     wore the kit and a dead adapter are indistinguishable from here
       NOT_RUN       no device is configured — nothing was declared, so nothing was examined
 
+    `coverage` carries ONLY the streams whose denominator was the device's own extent
+    (`span_basis: "device"`). A session-basis coverage travels in `coverage_session_basis` and an
+    unlabelled one in `coverage_basis_unknown`, because those answer a different question and folding
+    them together is how one number came to mean two things.
+
     Population = declared streams, as an EQUALITY. `checked` are the streams of devices that RECORDED;
     `excluded` are `optional` backups plus every stream of a device that produced nothing (declared,
     not judged — see the block below); eligible = all declared. A crash → UNKNOWN naming it.
@@ -2797,8 +2802,34 @@ def qc_verdict(summary: dict, devices: list[dict], *, night_dir: str = "") -> di
     import verdict as _v
     ev = [_TOOL, os.path.join(night_dir, _SUMMARY_NAME) if night_dir else _SUMMARY_NAME]
     try:
-        cov = {f"{d['name']}:{s}": c for d in summary.get("devices") or [] for s, c in (d.get("coverage") or {}).items()}
-        result = {"coverage": cov, "missing": list(summary.get("missing") or []),
+        # ── A SESSION-BASIS COVERAGE IS NOT THIS DEVICE'S COVERAGE (2026-09-25) ────────────────────
+        # `summarize` divides by the device's OWN recording extent where it can bound one, and falls back
+        # to the SESSION span — the union across every device — where it cannot, saying so per stream in
+        # `span_basis`. That label was published and no consumer read it, so this verdict presented both
+        # kinds in one `coverage` map as though they answered the same question. They do not: one is "did
+        # we receive what this device sent", the other is "what fraction of the whole session's elapsed
+        # time did this device's rows cover", and on a night whose directory holds TWO capture sessions
+        # the second reads ~0.47 for a device that recorded perfectly through one of them. Measured at
+        # 21:33 on SOLID-NIGHT night 1: nine streams, every one `span_basis: "session"`, `span_sec: None`.
+        #
+        # ⚠️ The fallback itself is DELIBERATE and stays — `test_a_clockless_file_falls_back_to_the_
+        # session_span_and_SAYS_SO` pins it, and its reason holds: dropping a clockless file would move
+        # the start later, shorten the span and INFLATE coverage. Nothing here deletes a number. The
+        # verdict simply stops conflating two denominators, and `degraded` (which keys on
+        # `session_coverage`) is untouched, so no alarm changes.
+        cov: dict[str, float] = {}
+        cov_session: dict[str, float] = {}
+        cov_unknown: dict[str, float] = {}
+        for _d in summary.get("devices") or []:
+            _sb = _d.get("span_basis") or {}
+            for _s, _c in (_d.get("coverage") or {}).items():
+                _key = f"{_d['name']}:{_s}"
+                # A MISSING basis is its own bucket, never folded into either: absence of the label is
+                # not evidence of which denominator was used (§∅), and an old summary read back by a
+                # newer reader is exactly where that guess would land.
+                {"device": cov, "session": cov_session}.get(_sb.get(_s), cov_unknown)[_key] = _c
+        result = {"coverage": cov, "coverage_session_basis": cov_session,
+                  "coverage_basis_unknown": cov_unknown, "missing": list(summary.get("missing") or []),
                   "degraded": list(summary.get("degraded") or []),
                   "gaps_in_night": list(summary.get("gaps_in_night") or []),
                   "span_sec": summary.get("span_sec")}
