@@ -55,6 +55,23 @@ def _seams(d, rate="2", examined=10, name=BASE, stream="ECG"):
     (d / f"{name}_{stream}SEAMS.txt").write_text("\n".join(lines) + "\n")
 
 
+def _seam_rows(d, rows, name=BASE, stream="ECG", examined=10):
+    """A SEAMS sidecar carrying real step rows, in the writer's own format.
+
+    `rows` is [(host_ms_offset_from_T0, device_step_ms)] — the two columns `recorded_seams` joins on.
+    The writer's own header is reproduced because the reader must skip it, and the `idx` column is
+    written with a value the reader must NOT use (see `recorded_seams`: `idx` counts clocked samples,
+    the reader joins on `phone_ts`). A wrong value there is therefore a decoy, not a fixture bug.
+    """
+    lines = ["# stream=ecg rule=clock-seam bound_ms=60000 unit=ms basis=device-minus-host",
+             "phone_ts;idx;device_step_ms;phone_delta_ms;residual_ms;host_offset_ms;at_rel_ms"]
+    for ms, step in rows:
+        t = T0 + dt.timedelta(milliseconds=ms)
+        lines.append(f"{t.strftime('%Y-%m-%dT%H:%M:%S.')}{t.microsecond // 1000:03d};999999;{step:.3f};0.000;{step:.3f};0.000;0.000")
+    lines.append(f"# final stream=ecg seams={len(rows)} examined={examined}")
+    (d / f"{name}_{stream}SEAMS.txt").write_text("\n".join(lines) + "\n")
+
+
 def _runs(d, stream, min_run=True, name=BASE):
     (d / f"{name}_{stream}.txt").exists() or (d / f"{name}_{stream}.txt").write_text("Phone timestamp;x\n")
     head = f"# stream={stream.lower()} rule=stuck" + (" min_run=30" if min_run else "")
@@ -588,3 +605,153 @@ def test_the_ppm_scale_is_observed_at_a_rounding_edge(tmp_path):
     tb = _tb_pairs(tmp_path, pairs)
     assert tb["status"] == "UNKNOWN", tb
     assert "at -40000 ppm" in tb["reason"], tb["reason"]
+
+
+# ── ONE DEVICE CLOCK PER SEGMENT — night 1's FAIL, and the control that says the fix is surgical ─────
+def _stepped(d, step_ms, at_min=12, minutes=24, rate=2.0, ppm=20.0):
+    """A two-clock ECG whose device counter STEPS once, exactly as night 1's H10 did.
+
+    Both segments drift at the same small `ppm` so a per-segment fit lands in the low tens; the step is
+    added to every device stamp at or after `at_min`, and a SEAMS row records it where the box would.
+    """
+    pairs, seam_at = [], None
+    n = int(minutes * 60 * rate)
+    for i in range(n):
+        host_ms = i * (1000.0 / rate)
+        # PER-ROW DEVICE JITTER, and it is a requirement: a uniform device column scores as a DRAWN
+        # axis (`_ecg`'s docstring) and the drawn gate returns BEFORE the segment split is reached.
+        # Measured while writing this: without it all four new tests read `DRAWN … not a clock`.
+        dev_ms = host_ms * (1.0 + ppm / 1e6) + ((i * 7919) % 211) / 1e6
+        if host_ms >= at_min * 60_000:
+            if seam_at is None:
+                seam_at = host_ms
+            dev_ms += step_ms
+        pairs.append((host_ms, int(round(dev_ms * 1e6))))
+    _pairs(d, pairs)
+    _seam_rows(d, [(seam_at, step_ms)])
+    _runs(d, "ECG"); _runs(d, "ACC")
+    # THE WORN INTERVAL MUST COVER THE FIXTURE, or the seam falls outside it and nothing splits. The
+    # default `_audit` end is 23:03, three minutes after T0 — measured while writing this: with it, a
+    # 24-minute fixture was judged over 3 min, the minute-12 seam was correctly excluded as unworn, and
+    # all three step tests read as one clean segment. A fixture that does not reach the thing it plants.
+    _audit(d, end=(T0 + dt.timedelta(minutes=minutes)).isoformat())
+    return _bands(d)[H10["name"]]["bands"]["timebase"]
+
+
+def test_a_recorded_clock_step_is_SEGMENTED_not_quoted_as_a_rate(tmp_path):
+    """🔴 NIGHT 1's FAIL. The owner's 22:01 time-sync click left the H10 with a 2.44e8 s device step;
+    one fit across it quoted −10,592,683,838 ppm and FAILED the night on rate. Both halves are fine."""
+    tb = _stepped(tmp_path, step_ms=2.44e8 * 1000.0)
+    assert tb["status"] != "FAIL", tb["reason"]
+    assert "2 segment(s), never across a step" in tb["reason"], tb["reason"]
+    assert "1 recorded clock seam(s)" in tb["reason"], tb["reason"]
+    # the magnitude is reported in seconds, and NOT as ppm — a step of any size is never a rate
+    assert "+2.44e+08 s" in tb["reason"], tb["reason"]
+    import re as _re
+    quoted = [int(m) for m in _re.findall(r"([-+]\d+) ppm", tb["reason"])]
+    assert quoted and all(abs(q) < 100 for q in quoted), tb["reason"]
+
+
+def test_the_step_MAGNITUDE_does_not_change_the_verdict(tmp_path):
+    """A step is a step. 4 ms over the bound and 2.44e8 s land in the same place — the size decides
+    nothing, which is the whole point of not treating it as a rate."""
+    small = _stepped(tmp_path, step_ms=61_000.0)
+    assert small["status"] != "FAIL", small["reason"]
+    assert "2 segment(s), never across a step" in small["reason"], small["reason"]
+
+
+def test_CONTROL_no_seam_means_ONE_segment_and_the_number_is_unchanged(tmp_path):
+    """The control that makes the fix surgical: with no SEAMS rows the axis is judged exactly as before —
+    one segment, no seam note, and the per-file wording the 46 pre-existing tests already pin."""
+    d = tmp_path
+    pairs = [(i * 500.0, int(round(i * 500.0 * 1.00002 * 1e6)) + ((i * 7919) % 211)) for i in range(2880)]
+    _pairs(d, pairs); _seams(d); _runs(d, "ECG"); _runs(d, "ACC")
+    _audit(d, end=(T0 + dt.timedelta(minutes=24)).isoformat())
+    tb = _bands(d)[H10["name"]]["bands"]["timebase"]
+    assert "segment" not in tb["reason"], tb["reason"]
+    assert "recorded clock seam" not in tb["reason"], tb["reason"]
+    assert "axis is an independent clock at" in tb["reason"], tb["reason"]
+
+
+def test_a_seam_OUTSIDE_the_worn_interval_does_not_split_the_axis(tmp_path):
+    """A step nobody was wearing through is not this night's axis change. Keyed on the worn interval,
+    like every other band — otherwise a seam from the pre-wear setup would segment a clean night."""
+    d = tmp_path
+    pairs = [(i * 500.0, int(round(i * 500.0 * 1.00002 * 1e6)) + ((i * 7919) % 211)) for i in range(2880)]
+    _pairs(d, pairs)
+    _seam_rows(d, [(-3_600_000, 2.44e11)])   # an hour before T0, i.e. before the worn interval
+    _runs(d, "ECG"); _runs(d, "ACC")
+    _audit(d, end=(T0 + dt.timedelta(minutes=24)).isoformat())
+    tb = _bands(d)[H10["name"]]["bands"]["timebase"]
+    assert "recorded clock seam" not in tb["reason"], tb["reason"]
+
+
+def test_a_segment_with_too_few_anchors_is_UNKNOWN_and_names_the_seam(tmp_path):
+    """The worst-of-segments rule, and the honest shape of a short tail: a step 30 s before the end
+    leaves a segment that cannot be judged, which is UNKNOWN — never a silent drop of that stretch."""
+    tb = _stepped(tmp_path, step_ms=2.44e8 * 1000.0, at_min=23.98, minutes=24)
+    assert tb["status"] == "UNKNOWN", tb["reason"]
+    assert "recorded clock seam" in tb["reason"], tb["reason"]
+
+
+def test_an_unparseable_seam_row_splits_NOTHING(tmp_path):
+    """§∅ at the reader: a row this cannot place is not a step of zero. Splitting at a guessed sample
+    would be worse than not splitting — it would judge two stretches that are not the two segments."""
+    d = tmp_path
+    pairs = [(i * 500.0, int(round(i * 500.0 * 1.00002 * 1e6)) + ((i * 7919) % 211)) for i in range(2880)]
+    _pairs(d, pairs)
+    (d / f"{BASE}_ECGSEAMS.txt").write_text(
+        "# stream=ecg rule=clock-seam bound_ms=60000 unit=ms basis=device-minus-host\n"
+        "phone_ts;idx;device_step_ms;phone_delta_ms;residual_ms;host_offset_ms;at_rel_ms\n"
+        "not-a-timestamp;9;61000.000;0;0;0;0\n"          # unparseable host stamp
+        "2026-09-20T23:12:00.000;9;not-a-number;0;0;0;0\n"  # unparseable magnitude
+        "2026-09-20T23:12:00.000;9\n")                      # short row
+    _runs(d, "ECG"); _runs(d, "ACC")
+    _audit(d, end=(T0 + dt.timedelta(minutes=24)).isoformat())
+    tb = _bands(d)[H10["name"]]["bands"]["timebase"]
+    assert "recorded clock seam" not in tb["reason"], tb["reason"]
+
+
+def test_the_seam_CAUSE_is_read_from_the_night_and_never_inferred(tmp_path):
+    """The cause comes from the night's own clock record or it is absent. A magnitude is not a cause."""
+    d = tmp_path
+    (d / "CLOCKSYNC.csv").write_text("at;event\n2026-09-20T23:12:00;resynced\n")
+    tb = _stepped(d, step_ms=2.44e8 * 1000.0)
+    assert "`CLOCKSYNC.csv` records a clock event this night" in tb["reason"], tb["reason"]
+
+
+def test_an_UNREADABLE_clock_record_names_no_cause_rather_than_guessing_one(tmp_path):
+    """A directory where `CLOCKSYNC.csv` cannot be opened must report "no cause recorded" — the reader
+    moves to the next record and, finding none, says so. It never promotes the step into its own cause."""
+    d = tmp_path
+    (d / "CLOCKSYNC.csv").mkdir()   # a directory at that name: open() raises OSError, not ValueError
+    (d / "CLOCK.csv").mkdir()
+    tb = _stepped(d, step_ms=2.44e8 * 1000.0)
+    assert "no cause recorded this night" in tb["reason"], tb["reason"]
+
+
+def test_a_seam_at_the_very_FIRST_anchor_and_one_after_the_LAST_leave_no_empty_segment(tmp_path):
+    """The two boundary cases of the split walk: a seam at or before anchor 0 opens no leading segment,
+    and a seam past the last anchor closes none. Both must yield ONE real segment, never an empty one —
+    an empty segment would be judged as "0 anchors, under 3" and report a shortfall that is an artifact."""
+    d = tmp_path
+    pairs = [(i * 500.0, int(round(i * 500.0 * 1.00002 * 1e6)) + ((i * 7919) % 211)) for i in range(2880)]
+    _pairs(d, pairs)
+    last_ms = 2879 * 500.0
+    _seam_rows(d, [(0.0, 61_000.0), (last_ms + 1000.0, 61_000.0)])
+    _runs(d, "ECG"); _runs(d, "ACC")
+    _audit(d, end=(T0 + dt.timedelta(minutes=25)).isoformat())
+    tb = _bands(d)[H10["name"]]["bands"]["timebase"]
+    assert "2 recorded clock seam(s)" in tb["reason"], tb["reason"]
+    assert "judged in 1 segment(s)" in tb["reason"], tb["reason"]
+    assert tb["status"] != "FAIL", tb["reason"]
+
+
+def test_a_READABLE_clock_record_with_no_event_names_no_cause(tmp_path):
+    """Distinct from the unreadable case: both records open fine and neither mentions a clock event, so
+    the loop exhausts and the reader says "no cause recorded" — it does not fall back to the magnitude."""
+    d = tmp_path
+    (d / "CLOCKSYNC.csv").write_text("at;event\n2026-09-20T23:12:00;battery\n")
+    (d / "CLOCK.csv").write_text("at;event\n2026-09-20T23:13:00;nothing here\n")
+    tb = _stepped(d, step_ms=2.44e8 * 1000.0)
+    assert "no cause recorded this night" in tb["reason"], tb["reason"]

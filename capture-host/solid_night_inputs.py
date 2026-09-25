@@ -308,6 +308,67 @@ def _median(v: list[float]) -> float:
     return q[m] if len(q) % 2 else (q[m - 1] + q[m]) / 2.0
 
 
+def recorded_seams(primary: str, start, end) -> list[dict]:
+    """The device-clock STEPS the box already wrote beside this stream, inside the worn interval.
+
+    ⚠️ THIS IS NOT SOLID-NIGHT §A5, and the distinction is what keeps this unit honest. A5's
+    unrecorded-shift detector is a TRIPWIRE that must stay UNBUILT here — it needs a no-record check
+    across three sources plus two guards, and a partial version emits the verdict the brief forbids
+    (see `timebase`'s closing note). This reads a step the capture host OBSERVED and RECORDED. Consuming
+    a record is not detecting; the file is the evidence, and `_SeamSidecar.feed` wrote it precisely
+    because *"a seam is where they DISAGREE"*.
+
+    🔴 JOINED ON `phone_ts`, NOT ON `idx`. The sidecar's `idx` is `self.examined` — the count of samples
+    carrying BOTH clocks — while a reader's natural index is the raw row. Those are two populations and
+    they differ by every row the device stamp was absent on, so joining them would place the seam at the
+    wrong sample: the same-name-two-populations error this suite keeps paying for. `phone_ts` is a host
+    stamp and the anchors are keyed by host stamp, so the join is on one quantity.
+    """
+    seams: list[dict] = []
+    path = primary[: -len(".txt")] + "SEAMS.txt"
+    try:
+        fh = open(path, encoding="utf-8", errors="replace")
+    except OSError:
+        return seams  # no sidecar beside the stream: nothing was recorded, which is not a claim of no step
+    with fh:
+        for line in fh:
+            if line.startswith("#") or line.startswith("phone_ts"):
+                continue
+            cells = line.rstrip("\n").split(";")
+            if len(cells) < 3:
+                continue  # a short row records nothing; skipped, never defaulted (§∅)
+            try:
+                host = _dt.datetime.fromisoformat(cells[0])
+                step_ms = float(cells[2])
+            except ValueError:
+                continue  # an unparseable seam row is not a step of zero — it is one this reader cannot
+                          # place, so it splits nothing rather than splitting at the wrong sample (§∅)
+            if start is not None and (host < start or host > end):
+                continue  # a seam outside the worn interval does not split an axis nobody was wearing
+            seams.append({"host_ms": host.timestamp() * 1000.0, "step_ms": step_ms})
+    seams.sort(key=lambda r: r["host_ms"])
+    return seams
+
+
+def _seam_cause(night_dir: str, seams: list[dict]) -> str | None:
+    """What the night's own record says caused the step, or None. Never inferred from the magnitude.
+
+    Called only inside `if seams:`, so a `not seams` guard here was unreachable — coverage found it and it
+    is removed rather than given a test that could never fail, the same call this file's `drawn_share`
+    note records."""
+    for name in ("CLOCKSYNC.csv", "CLOCK.csv"):
+        try:
+            with open(os.path.join(night_dir, name), encoding="utf-8", errors="replace") as fh:
+                for line in fh:
+                    low = line.lower()
+                    if "resync" in low or "synced" in low or "offline" in low:
+                        return f"`{name}` records a clock event this night"
+        except OSError:
+            continue  # this record is unreadable, so it names no cause; the NEXT one may. A missing cause
+                      # is reported as "no cause recorded", never as an inferred one (the docstring's rule)
+    return None
+
+
 def residual_scan(path: str, start, end) -> dict:
     """ONE streaming pass over a two-clock stream → the residual anchors and the drawn-axis share.
 
@@ -405,32 +466,83 @@ def timebase(night_dir: str, model: str, primaries: list[str], start, end) -> di
         # a new consumer must gate on this rather than on `independent`, which reads TRUE for a drawn
         # O2Ring axis (its 1 s-granular counter gives a 22,335 ms spread).
         return _decision("UNKNOWN", f"`{who}`'s device axis was DRAWN ({100 * share:.1f} % modal delta) — not a clock")
-    r0 = anchors[0][0] - anchors[0][1]
-    res = [((h - anchors[0][0]) / 1000.0, (h - d) - r0) for h, d in anchors]
-    vals = [r for _, r in res]
-    spread = max(vals) - min(vals)
-    if spread <= TB_INERT_MS:
-        return _decision("UNKNOWN", f"`{who}` residual spread {spread:.2f} ms — the host column adds nothing beyond rounding, so there is no second clock")
-    span_s = res[-1][0] - res[0][0]
-    if span_s <= 0:
-        return _decision("UNKNOWN", f"`{who}` anchors span no time")
-    # No short-list fallback: a slice is already the whole list when the list is shorter, so the
-    # conditional this used to carry was unreachable weight — and every mutation of that dead branch
-    # survived the suite, which is how the diff-scoped mutation gate surfaced it.
-    lead = _median(vals[:TB_WIN])
-    tailv = _median(vals[-TB_WIN:])
-    ppm = (tailv - lead) / 1000.0 / span_s * 1e6
-    if abs(ppm) >= TB_MAX_PPM:
-        return _decision("FAIL", f"`{who}` host-vs-device rate {ppm:+.0f} ppm over {span_s / 60:.0f} min — beyond the plausibility bound, so the two columns are not the two clocks")
+    # ── 🔴 ONE DEVICE CLOCK PER SEGMENT — a recorded step SPLITS the axis, it is never a rate ─────
+    # Night 1's FAIL is what this closes: the owner's 22:01 time-sync click ran an offline op, the H10
+    # resumed with a 2.44e8 s device-clock step, and fitting ONE rate across it quoted
+    # −10,592,683,838 ppm — "beyond the plausibility bound" — about a night whose two segments are
+    # each fine. The step is real and the bound is right; the arithmetic spanning it is what was wrong.
+    #
+    # Mirrors `ecgdex-dsp.js`'s "ONE DEVICE CLOCK PER AXIS" DIAGNOSIS — *"continuity is not sameness:
+    # the pre-sync counter is a different oscillator"*, and Clock Contract §7 says a step is REPORTED,
+    # never absorbed. ⚠️ THE DISPOSITION DELIBERATELY DIFFERS, because the consumer does: ECGDex needs
+    # ONE axis to set `fs`, so it DROPS every pre-resync anchor. A night verdict needs the whole night,
+    # and dropping the pre-seam segment would silently stop judging the 12 minutes before the click —
+    # the coverage-without-a-denominator shape. So both segments are judged, separately, and the
+    # verdict is the worst of them. Stated rather than left as a silent divergence from the mirror.
+    seams = recorded_seams(path, start, end)
+    bounds = [s["host_ms"] for s in seams]
+    segs: list[list[tuple[float, float]]] = []
+    cur: list[tuple[float, float]] = []
+    bi = 0
+    for h, d in anchors:
+        while bi < len(bounds) and h >= bounds[bi]:
+            if cur:
+                segs.append(cur)
+            cur, bi = [], bi + 1
+        cur.append((h, d))
+    # UNCONDITIONAL, because `cur` cannot be empty here: the loop body ends in `cur.append`, and
+    # `anchors` is non-empty (the TB_MIN_ANCHORS check above returned otherwise). An `if cur:` guard
+    # was unreachable — coverage found the branch and it is removed rather than given a test that could
+    # never fail. The guard INSIDE the while loop is a different case and is reachable: a seam at or
+    # before anchor 0 closes a segment that never opened.
+    segs.append(cur)
+    seam_note = ""
+    if seams:
+        worst = max(seams, key=lambda r: abs(r["step_ms"]))
+        cause = _seam_cause(night_dir, seams)
+        seam_note = (f" — {len(seams)} recorded clock seam(s), largest {worst['step_ms'] / 1000.0:+.3g} s"
+                     f"{'; ' + cause if cause else '; no cause recorded this night'}"
+                     f"; the axis is judged in {len(segs)} segment(s), never across a step")
+
+    worst_out: dict | None = None
+    rank = {"FAIL": 2, "UNKNOWN": 1, "PASS": 0}
+    for si, seg in enumerate(segs, 1):
+        tag = f"`{who}` segment {si}/{len(segs)}" if len(segs) > 1 else f"`{who}`"
+        if len(seg) < TB_MIN_ANCHORS:
+            out = _decision("UNKNOWN", f"{tag} gave {len(seg)} anchor(s) — under {TB_MIN_ANCHORS}{seam_note}")
+        else:
+            r0 = seg[0][0] - seg[0][1]
+            res = [((h - seg[0][0]) / 1000.0, (h - d) - r0) for h, d in seg]
+            vals = [r for _, r in res]
+            spread = max(vals) - min(vals)
+            span_s = res[-1][0] - res[0][0]
+            if spread <= TB_INERT_MS:
+                out = _decision("UNKNOWN", f"{tag} residual spread {spread:.2f} ms — the host column adds nothing beyond rounding, so there is no second clock{seam_note}")
+            elif span_s <= 0:
+                out = _decision("UNKNOWN", f"{tag} anchors span no time{seam_note}")
+            else:
+                # No short-list fallback: a slice is already the whole list when the list is shorter, so
+                # the conditional this used to carry was unreachable weight — and every mutation of that
+                # dead branch survived the suite, which is how the diff-scoped mutation gate surfaced it.
+                lead = _median(vals[:TB_WIN])
+                tailv = _median(vals[-TB_WIN:])
+                ppm = (tailv - lead) / 1000.0 / span_s * 1e6
+                if abs(ppm) >= TB_MAX_PPM:
+                    out = _decision("FAIL", f"{tag} host-vs-device rate {ppm:+.0f} ppm over {span_s / 60:.0f} min — beyond the plausibility bound, so the two columns are not the two clocks{seam_note}")
+                else:
+                    out = _decision("UNKNOWN", f"{tag}: axis is an independent clock at {ppm:+.0f} ppm over {span_s / 60:.0f} min — the A5 step tripwire has not run{seam_note}")
+        if worst_out is None or rank[out["status"]] > rank[worst_out["status"]]:
+            worst_out = out
+    assert worst_out is not None  # `anchors` is non-empty above, so `segs` carries at least one segment
+    return worst_out
     # A5 IS A SEPARATE UNIT AND IS DELIBERATELY NOT HALF-BUILT HERE. SOLID-NIGHT §A5 makes the
-    # unrecorded-shift detector a TRIPWIRE whose fire is UNKNOWN `unrecorded-shift-candidate`, never a
+    # UNRECORDED-shift detector a TRIPWIRE whose fire is UNKNOWN `unrecorded-shift-candidate`, never a
     # FAIL — "the clean corpus holds zero true unrecorded steps, so the detector has never been
     # validated against the thing it would convict" — and it needs a no-record check across three
     # sources (seam sidecar, journal clock-event lines, CLOCKSYNC `synced`/`resynced`) plus two guards
-    # that each yield their OWN named UNKNOWN (`latency regime`, `persistence across a gap`). A partial
-    # version would emit exactly the verdict the brief forbids, so the band stops here and says so: the
-    # rate is plausible and the axis is a disciplined clock, and no step scan has run.
-    return _decision("UNKNOWN", f"`{who}`: axis is an independent clock at {ppm:+.0f} ppm over {span_s / 60:.0f} min — the A5 step tripwire has not run")
+    # that each yield their OWN named UNKNOWN. The segment split above does NOT build it and must not be
+    # read as having built it: it consumes a step the box RECORDED, which is the opposite of detecting an
+    # unrecorded one. Where no seam file exists there is ONE segment and the number is unchanged.
 
 
 def expected_devices(night_dir: str, devices: list) -> list[dict]:
