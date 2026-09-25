@@ -1,7 +1,7 @@
 <!-- Copyright 2026 Michal Planicka -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-**Status:** IN-PROGRESS (§5.2 REFUTED 2026-09-18 — corrected in place; the cause and the rule it produced are in §5.2a) · **Created:** 2026-09-18 · **Residue:** 2026-09-20-census-file-list-not-retained, 2026-09-18-ecg-saturation-unflagged
+**Status:** IN-PROGRESS (re-verified 2026-09-25, Kestrel triage, docs only: two boxes open and both correctly assigned away from the rig — the box-side PPG run over the remaining 2,968 captures is the box lane's (read-only) and the threshold choice is the owner's; since the 09-18 stamp #2785 landed the ECGDex saturation-rail fix (matched by MAGNITUDE) that the `2026-09-18-ecg-saturation-unflagged` residue asked for, and the box census (#7df0471b) found nothing beyond the 597; NO CHANGE. §5.2 REFUTED 2026-09-18 — corrected in place; the cause and the rule it produced are in §5.2a) · **Created:** 2026-09-18 · **Residue:** 2026-09-20-census-file-list-not-retained, 2026-09-18-ecg-saturation-unflagged
 
 # A "pinned span" is three phenomena, and our detector sees one and a half
 
