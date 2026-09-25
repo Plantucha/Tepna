@@ -483,6 +483,11 @@ tr.ndrawer td{background:var(--surface2)!important;padding:0!important;}
         <div class="data-pill idle" id="llPill"><span class="data-dot"></span> <span id="llText">Files —</span></div>
         <div class="sidebar-data-info" id="llDetail"></div>
       </div>
+      <div class="sidebar-data-card" style="margin-bottom:8px" id="snCard" hidden
+           title="Last night's SOLID-NIGHT verdict — the capture-quality programme's one nightly answer, as written by the QC poller. PASS counts toward the run, FAIL and a settled UNKNOWN reset it, NOT_APPLICABLE skips. &quot;not settled&quot; is the ordinary state of a night still in progress, not a fault.">
+        <div class="data-pill idle" id="snPill"><span class="data-dot"></span> <span id="snText">Night —</span></div>
+        <div class="sidebar-data-info" id="snDetail"></div>
+      </div>
       <div class="sidebar-data-card">
         <div class="data-pill idle" id="connPill"><span class="data-dot"></span> <span id="connText">No stream</span></div>
         <div class="sidebar-data-info" id="adapterInfo">adapter —</div>
@@ -1873,6 +1878,27 @@ function renderLiveLoss(ll){
   det.title = (now.length ? now : last).map(f => `${f.path} — ${f.kind}: ${f.detail || ''}`).join('\n');
 }
 
+// Last night's SOLID-NIGHT verdict: the status word, the term that decided it, and which night. Nothing
+// else — the run statement and the exit flag are the PROGRAMME's state, not the night's, and putting
+// them here would make a card about one night read as a claim about fourteen.
+//
+// The pill colour is a claim, so `not settled` is NEUTRAL rather than amber: a night still in progress is
+// the designed state every evening (solid_night §3.1 excludes it from the run rather than resetting it),
+// and colouring it as a problem would mean the monitor read amber every single night by construction.
+// Any OTHER unknown is a night that could not be assessed, which §∅ treats as a reset — that is amber.
+function renderSolidNight(sn){
+  const card = $('#snCard'), pill = $('#snPill'), txt = $('#snText'), det = $('#snDetail');
+  if(!card) return;
+  if(!sn || !sn.status){ card.hidden = true; return; }   // null until the poller has composed a verdict
+  card.hidden = false;
+  const st = sn.status, pending = st === 'UNKNOWN' && sn.reason === 'not settled';
+  pill.className = 'data-pill ' + (st === 'PASS' ? 'ok' : st === 'FAIL' ? 'bad'
+                                 : pending || st === 'NOT_APPLICABLE' ? 'idle' : 'warn');
+  txt.textContent = `${st} · ${sn.night || '—'}`;
+  det.textContent = sn.reason || '';
+  det.title = sn.reason || '';
+}
+
 function renderStoragePill(st){
   st = st || {};
   const held = (st.retention_held||[]).length;
@@ -2173,6 +2199,7 @@ async function loadState(){
   renderRadioDistress(s.radio_distress, s.radio_distress_adapter, s.radio_switches);
   renderHostLoad(s.loop, s.gates, s.tasks);
   renderLiveLoss(s.live_loss);
+  renderSolidNight(s.solid);
   renderCpap(s.cpap);
   renderCpapSpool(s.cpap_spool);
   renderDownload(DEVICES);
