@@ -172,7 +172,7 @@ worth stating rather than leaving as an omission:
   and today there is exactly one caller.
 - **The proposed lint — "no DSP computes a rate as `n / durSec`" — was measured and has no subjects.**
   Scanning every `*-dsp.js` for count-over-duration rate expressions returns only genuine *event* rates
-  (`oxydex-dsp.js:3079` `totalMin / durationHr`; `oxydex-fusion.js:326` `surges.length / _unionSec`).
+  (`oxydex-dsp.js` `computeHypoxicBurden` `totalMin / durationHr`; `oxydex-fusion.js` `oxyComputeFusion` `surges.length / _unionSec`).
   A source scan cannot separate an event rate from a sample rate without an exclusion list — which is
   the grandfather-list antipattern `CPAP-REAL-CORPUS-FOLLOWUPS-II` §4 spent effort removing. Left open
   as a proposal, with the scan result recorded so the next reader does not re-derive it.
@@ -318,7 +318,7 @@ this is a real green, not an inconclusive one.
 
 **Cause 1 — a live `ReferenceError` in the shipped PulseDex app.** `pulsedex-app.js` destructures 47
 names from `window.PulseDex._bare` but omitted **`triIdxNormApplies`**, which it calls at line 796.
-The name is exported correctly (`pulsedex-dsp.js:1539`); only the binding was missing. This is not a
+The name is exported correctly (`pulsedex-dsp.js` `triIdxNormApplies`); only the binding was missing. This is not a
 test artifact — it throws in the shipped app. Cost: a page error plus 2 failures in the PulseDex
 render rig.
 
@@ -333,7 +333,7 @@ assertion naming its own cause.
 An earlier revision of this section reported `GATE A FAIL — BUILD-MANIFEST.json` and
 `GATE B FAIL — FIXTURE-PROVENANCE.json` as real pre-existing failures caused by the P3 refactor
 retiring those monoliths. **That was wrong.** Those strings are the expected *output* of a
-**passing** self-test: `tests/dex-tests.js:6799` deliberately calls the banner with `MANIFEST: null`
+**passing** self-test: `tests/dex-tests.js` `pickProvenanceBanner` deliberately calls the banner with `MANIFEST: null`
 and asserts it renders "GATE A FAIL". A DOM scrape picked up the fixture text and it was reported as
 a defect. Nothing fetches the retired monoliths; `provenance-ledger.js` assembles the per-app
 fragments correctly and all of them parse.
@@ -456,7 +456,7 @@ IS the result, and it is more useful than any single window choice.
 > · HTTP / script-tag cache — `src="motiondex-dsp.js?bust=900"`, and the 900 s test repeated under it,
 >   unchanged;
 > · a second definition — `global.MOTIONDSP` is assigned **once**, unconditionally
->   (`motiondex-dsp.js:1393`), and `respiratoryRate` has **one** definition (`:877`), exported directly
+>   (`motiondex-dsp.js` `MOTIONDSP`), and `respiratoryRate` has **one** definition (`:877`), exported directly
 >   (`:1401`); `integrator-dsp.js` does not define it;
 > · the wrong field being read — `pair()` scores `n.est.series[i].brpm`, and `est` is exactly
 >   `M.respiratoryRate(rows, t0, 'mg')` (`resp-acc-analysis-app.js:253`), called with **no `opts`**.
@@ -655,7 +655,7 @@ IS the result, and it is more useful than any single window choice.
 >
 > The two sweeps above left one open item: only **3 of 19** (and 2 of 4) nights score, so the ceiling
 > on §5/§1 is the **drift-consistency gate**, not the nights staged. That gate is
-> `resp-acc-analysis-app.js:858` — `var good = isFinite(delta) ? Math.abs(delta) < 5 : d.lock.r >= 0.4;`
+> `resp-acc-analysis-app.js` `run` — `var good = isFinite(delta) ? Math.abs(delta) < 5 : d.lock.r >= 0.4;`
 > — a hardcoded **5 s** bound on |recovered − predicted| against the fleet drift model.
 >
 > **The prior was that it is over-tight**, and it was a reasonable prior: the median respiratory period

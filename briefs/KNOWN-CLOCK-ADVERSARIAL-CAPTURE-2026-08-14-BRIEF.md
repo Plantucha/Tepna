@@ -303,7 +303,7 @@ whatever this becomes is authorised by the owner directly, per §👥.0):
 **Scope, stated before the first line so a multi-writer diff is not read as creep:** the blast radius is
 **every writer, not one function.** §5's claim is that the capture pipeline itself is under test, and that is
 true only where `capture.py`'s write path, the sidecar writers and the arrival log all see the same perturbed
-stream. That place exists: **`capture.py:3205`, `for smp in samples:`** — the parsed PMD frame's sample list,
+stream. That place exists: **`capture.py` `on_pmd`, `for smp in samples:`** — the parsed PMD frame's sample list,
 dispatched to `write_ecg` / `write_acc` / `write_ppg`, with PMDARRIVAL written from the same frame a few lines
 above. Target 1 = offset `sensor_ns` / `t_ms`; target 4 = drop whole frames; target 6 = alter ECG values to add
 or flatten a QRS — the hardest, sized last, because a truth sidecar that is *approximately* right is a
@@ -481,7 +481,7 @@ A confident 2765 ppm rate for a device with **no oscillator**. The whole-file ru
 only by luck: a mid-session counter reset makes the device span **negative** (−10,520 s against a
 +17,102 s host span), tripping the ±50000 ppm plausibility bound. On the monotonic segment a node
 would actually parse after gap-splitting, it sails through. Consumers that trust the flag:
-`pat-gate.js:92` · `ecgdex-dsp.js:4301` (fs correction) · `integrator-dsp.js:5338` (skew decision) ·
+`pat-gate.js:92` · `ecgdex-dsp.js` `ecgTimingResolve` (fs correction) · `integrator-dsp.js` `arrivalPairOffsets` (skew decision) ·
 `tools/pat-host-offset.mjs:408`.
 
 **The separating quantity, measured over 381 arrival sidecars on the box tree:**
@@ -525,7 +525,7 @@ consumers above still read it. The new test group asserts that state explicitly 
 independent is still spread-only`) so it cannot be silently "tidied" shut without the consumer work.
 
 **Next:** migrate consumers to `deviceDrawn` node by node, re-cutting each node's fixtures to a
-realistic device axis first — `integrator-dsp.js:5338` is the highest-harm one, since it is the leg
+realistic device axis first — `integrator-dsp.js` `arrivalPairOffsets` is the highest-harm one, since it is the leg
 that decides whether two devices sit on one timebase.
 
 ---

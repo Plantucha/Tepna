@@ -15,9 +15,9 @@ Everything measured 2026-09-05 ~17:45–18:15 UTC on the box unless dated otherw
 
 ## 0 · What was verified FIXED first (do not re-find these)
 
-- Post-connect GATT setup awaits are **bounded** — `_bounded_setup` (`capture.py:313`) wraps every
+- Post-connect GATT setup awaits are **bounded** — `_bounded_setup` (`capture.py` `_bounded_setup`) wraps every
   `start_notify`/auth write (`:2675, :2757, :2801`). Closes VIGIL-DEEP-ANALYSIS top-finding 1.
-- The `bluetoothctl` **newline-injection via device address is closed** — `webmon.py:552/:560`
+- The `bluetoothctl` **newline-injection via device address is closed** — `webmon.py` `_valid_mac`
   `_valid_mac`-gates `/api/bond` and `/api/forget` before any address reaches a shell-adjacent string.
 - Scan matching is **address-only** (#2232, `capture.py:1620` records the old name-contains behaviour).
 - The **radio-distress failover is ARMED** — `/api/state` now carries `radio_switches` (it did not on
@@ -65,7 +65,7 @@ Everything measured 2026-09-05 ~17:45–18:15 UTC on the box unless dated otherw
   MITM present at (re-)pair time can own a Polar bond. Proximity-attacker-only, and the sensors offer
   no better (no display/keyboard) — recorded so the trust model is explicit: **bonded ≠ 
   authenticated**; the bond defends against impostors only after an unattacked first pairing.
-- **B2 · ERROR (a shipped mitigation is not holding in production).** `bonding.py:199-203` untrusts
+- **B2 · ERROR (a shipped mitigation is not holding in production).** `bonding.py` `bond` untrusts
   after pairing (VIGIL-DEEP-ANALYSIS §2D: `Trusted` makes the kernel's autoconnect race bleak for the
   single ACL slot — the recorded `br-connection-canceled`). Measured on the capture adapter
   (`select 00:01:95:CC:53:02`): **H10 `Trusted: yes`, Verity `Trusted: yes`** — the exact state the
@@ -316,7 +316,7 @@ session-crypto negotiation exists on the BLE transport — the §3.3 AES belongs
     is deliberately NOT a discriminator: it is inert until `serial:` is configured and vigil has
     **zero** such keys (measured 2026-09-05), so the inference would be vacuous on the very box that
     owns this ring.
-  * **The `0xE1` "firmware" is the BRANCH CODE** (`oxyii.py:272-278` — the ring reports branch
+  * **The `0xE1` "firmware" is the BRANCH CODE** (`oxyii.py` `parse_get_info` — the ring reports branch
     `2D010001` *and* firmware `1.13.1.0`; `parse_get_info` returns the branch under the key
     `firmware`). The monitor therefore draws it as **branch**, not as a firmware version: the STATUS
     key keeps the parser's name so the two cannot disagree, and renaming both is residue
