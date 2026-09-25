@@ -9686,8 +9686,42 @@ def gc_snapshot() -> dict:
 HEAP_PROBE_NAME = "heap-probe.json"
 
 
+#: The RSS keys worth having beside the traced bytes, in the order a reader wants them. `RssAnon` is the
+#: one the stall was blamed on (128 → 245 MB, ~21 MB/h, in this probe's own docstring); `RssFile` and
+#: `VmRSS` are there so a rise in anon can be told from a mapping change rather than assumed.
+_RSS_KEYS = ("VmRSS", "RssAnon", "RssFile")
+
+
+def proc_rss_kb(status_path: str = "/proc/self/status") -> dict:
+    """PURE-ish: `{key: kB}` from `/proc/self/status`, and `None` per key that is not there.
+
+    🔴 WHY THIS EXISTS AT ALL. The probe was armed to explain a RESIDENT-memory climb — its own docstring
+    quotes `RssAnon` 128 → 245 MB at ~21 MB/h — and it recorded `traced_bytes`, which is tracemalloc's
+    *traced Python* allocation total. Measured on the first real night: traced grew **+9.2 MiB/h** while
+    no RSS figure was captured at all, so the two could not be compared and the 9.2 was not evidence
+    about the 21. Traced bytes exclude C-level and untraced allocation; RSS includes what Python has
+    freed and glibc has not returned. Publishing both side by side is the whole point.
+
+    §∅: an unreadable file or an absent key is `None`, never 0 — a kernel without `RssAnon` (pre-4.5) and
+    a process using no anonymous memory must not produce the same row."""
+    out: dict[str, int | None] = {k: None for k in _RSS_KEYS}
+    try:
+        with open(status_path, encoding="utf-8") as fh:
+            for line in fh:
+                k, _, rest = line.partition(":")
+                if k in out:
+                    parts = rest.split()
+                    # "12345 kB" — the unit is asserted rather than assumed, because a row that silently
+                    # changed units would be indistinguishable from a 1024x leak.
+                    if len(parts) == 2 and parts[1] == "kB" and parts[0].isdigit():
+                        out[k] = int(parts[0])
+    except OSError:
+        pass                                   # every key stays None: unreadable is not zero
+    return out
+
+
 def heap_report_row(when, traced, peak, n_objects, gc_view, top_rows, covered=True,
-                    live_streams=None) -> dict:
+                    live_streams=None, rss=None) -> dict:
     """PURE: one snapshot's row. Separated from the task so the SHAPE is testable without waiting an hour.
 
     `top_rows` are already-formatted `compare_to` lines; the FIRST snapshot of a window has none,
@@ -9701,6 +9735,9 @@ def heap_report_row(when, traced, peak, n_objects, gc_view, top_rows, covered=Tr
     return {"at": when, "traced_bytes": traced, "traced_peak_bytes": peak,
             "gc_tracked_objects": n_objects, "gc": gc_view, "top_growth": list(top_rows),
             "covered_capture": bool(covered), "live_streams": live_streams,
+            # The quantity the stall was blamed on, beside the one tracemalloc measures. `None` per key
+            # when /proc could not answer — the caller passes what it read, and absence stays absence.
+            "rss_kb": dict(rss) if rss else {k: None for k in _RSS_KEYS},
             "status": "OK" if covered else "NOT_APPLICABLE",
             "reason": None if covered else "nothing streamed during this interval — an empty diff here "
                                            "is the absence of capture, not the absence of growth",
@@ -9782,7 +9819,7 @@ async def heap_probe(cfg: dict, root: str):
             traced, peak = tracemalloc.get_traced_memory()
             top_rows: list[str] = [str(s) for s in snap.compare_to(prev, "lineno")[:top]] if prev is not None else []
             rows.append(heap_report_row(_now().isoformat(timespec="seconds"), traced, peak,
-                                        len(gc.get_objects()), gc_snapshot(), top_rows,
+                                        len(gc.get_objects()), gc_snapshot(), top_rows, rss=proc_rss_kb(),
                                         covered=covered, live_streams=_live_streams()))
             try:
                 os.makedirs(os.path.dirname(path), exist_ok=True)
