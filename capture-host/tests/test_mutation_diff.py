@@ -750,3 +750,110 @@ def test_clean_run_failures_ignores_prose_that_merely_quotes_the_tokens():
     )
     assert M.clean_run_failures(text) == []
 
+
+
+# ── A FLOAT-THRESHOLD MUTANT IS DISTINGUISHABLE ON A MEASURE-ZERO SET ─────────────────────────────
+# Measured 2026-09-25 on `x_qc_digest__mutmut_37`: `(hi - lo) < 0.05` → `<=` survived a
+# character-exact golden over every render branch, because the two differ ONLY where the subtraction
+# lands exactly on the representable 0.05. The fixture anyone reaches for — a clean 0.90/0.95 gap —
+# renders identically under both operators, so a probe built from it reports "no distinguishing
+# input" and the mutant gets ledgered EQUIVALENT. These pin the guard that refuses that entry.
+_K37 = ('- pct = f"{lo * 100:.0f}%" if (hi - lo) < 0.05 else y | '
+        '+ pct = f"{lo * 100:.0f}%" if (hi - lo) <= 0.05 else y')
+
+
+def test_float_boundary_refuses_an_entry_whose_probe_only_sampled():
+    why = M.float_boundary_unprobed(_K37, "ran 0.90/0.95 and 0.10/0.15; output identical")
+    assert why and "0.05" in why and "UNPROVEN" in why
+
+
+def test_float_boundary_accepts_a_probe_that_names_the_constructed_boundary():
+    assert M.float_boundary_unprobed(_K37, "constructed lo=0.0 hi=0.05 — exactly 0.05; renders 0–5%") is None
+
+
+def test_float_boundary_refuses_when_there_is_no_probe_at_all():
+    assert M.float_boundary_unprobed(_K37, None) is not None
+
+
+def test_float_boundary_names_only_the_threshold_not_the_format_spec():
+    # `{lo * 100:.0f}` contains `.0`. Naming it would point the reader at a literal nobody wrote.
+    why = M.float_boundary_unprobed(_K37, None)
+    assert "`0.05`" in why and "`.0`" not in why
+
+
+def test_float_boundary_stays_out_of_an_integer_threshold():
+    # An int comparison has no measure-zero problem: sampling 4/5/6 genuinely settles it.
+    assert M.float_boundary_unprobed("- if n < 5 | + if n <= 5", "sampled 4, 5, 6") is None
+
+
+def test_float_boundary_stays_out_of_arithmetic_on_a_float():
+    assert M.float_boundary_unprobed("- x = a * 0.05 | + x = a / 0.05", "anything") is None
+
+
+def test_float_boundary_ignores_a_key_that_is_not_a_pair():
+    assert M.float_boundary_unprobed("- only a minus side 0.05 <", "p") is None
+    assert M.float_boundary_unprobed("", "p") is None
+
+
+def test_float_boundary_needs_the_literal_on_BOTH_sides():
+    # a literal that appears only in the mutant is a changed CONSTANT, not a threshold flip
+    assert M.float_boundary_unprobed("- if d < 0.05 | + if d < 0.07", "p") is None
+
+
+def test_classify_routes_an_unproven_entry_out_of_excused():
+    entries = [{"key": _K37, "class": "no-distinguishing-input", "probe": "ran 0.90/0.95"}]
+    out = M.classify(entries, [{"key": _K37}], [_K37])
+    assert out["excused"] == [] and len(out["unproven"]) == 1
+    assert "0.05" in out["unproven"][0]["why"]
+
+
+def test_classify_still_excuses_when_the_boundary_is_named():
+    entries = [{"key": _K37, "class": "no-distinguishing-input", "probe": "constructed 0.05 exactly"}]
+    out = M.classify(entries, [{"key": _K37}], [_K37])
+    assert len(out["excused"]) == 1 and out["unproven"] == []
+
+
+def test_classify_leaves_a_non_float_excuse_alone():
+    k = "- if n < 5 | + if n <= 5"
+    out = M.classify([{"key": k, "class": "untestable-by-design"}], [{"key": k}], [k])
+    assert len(out["excused"]) == 1 and out["unproven"] == []
+
+
+# ── THE PRINTED MUTANT MUST BE COMPLETE ───────────────────────────────────────────────────────────
+# The survivor record carries `diff` (mutmut stdout, capped at 400 bytes) AND `changed` (the -/+ pair
+# over the UNCAPPED stdout). The cap was noticed and `changed` was added; the PRINTER kept reading
+# `diff`, so the console — the only artifact in a CI log — truncated mid-literal. Reading one mutant
+# cost four dead ends and a local regeneration (Heron, 2026-09-25).
+_LONG_MINUS = '-    pct = f"{lo * 100:.0f}%" if (hi - lo) < 0.05 else f"{lo * 100:.0f}-{hi * 100:.0f}%"'
+_LONG_PLUS = _LONG_MINUS.replace("-    pct", "+    pct", 1).replace("< 0.05", "<= 0.05")
+
+
+def test_mutant_changed_lines_prints_the_pair_complete():
+    sv = {"changed": _LONG_MINUS + " | " + _LONG_PLUS, "diff": _LONG_MINUS[:40]}
+    out = M.mutant_changed_lines(sv)
+    assert len(out) == 2
+    # the whole point: the literal is not cut — both ends of each line survive
+    assert out[0].endswith('%"') and out[1].endswith('%"')
+    assert "<= 0.05" in out[1]
+
+
+def test_mutant_changed_lines_does_not_read_the_capped_field_when_changed_is_present():
+    # `diff` here is deliberately a LIE (empty). If the printer read it, the mutant would vanish.
+    sv = {"changed": _LONG_MINUS + " | " + _LONG_PLUS, "diff": ""}
+    assert len(M.mutant_changed_lines(sv)) == 2
+
+
+def test_mutant_changed_lines_falls_back_to_diff_when_changed_is_absent():
+    # older records, and any path that never set `changed`, still print something rather than nothing
+    out = M.mutant_changed_lines({"diff": _LONG_MINUS + "\n" + _LONG_PLUS})
+    assert out == [_LONG_MINUS, _LONG_PLUS]
+
+
+def test_mutant_changed_lines_drops_the_file_header_rows_in_the_fallback():
+    out = M.mutant_changed_lines({"diff": "--- a/x.py\n+++ b/x.py\n" + _LONG_MINUS})
+    assert out == [_LONG_MINUS]
+
+
+def test_mutant_changed_lines_on_an_empty_record_is_empty_not_a_crash():
+    assert M.mutant_changed_lines({}) == []
+    assert M.mutant_changed_lines({"changed": "   ", "diff": ""}) == []

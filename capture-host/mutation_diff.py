@@ -39,7 +39,7 @@ import ast
 import fnmatch
 import re
 
-__all__ = ["GATE_BUDGET_SEC", "PREWORK_TRACE_FACTOR", "prework_estimate", "budget_refusal", "verdict_object", "VERDICT_STATUSES", "EXCUSING", "functions_covering", "changed_span", "is_string_only", "diff_key",
+__all__ = ["GATE_BUDGET_SEC", "PREWORK_TRACE_FACTOR", "prework_estimate", "budget_refusal", "verdict_object", "VERDICT_STATUSES", "EXCUSING", "functions_covering", "changed_span", "is_string_only", "diff_key", "mutant_changed_lines", "float_boundary_unprobed",
            "annotation_only", "classify", "refusal_reason", "selftest", "string_only_verdict", "scan_is_reliable",
            "clean_run_failures",
            "STRING_ONLY", "REQUIRED", "EMPTY_DIFF", "UNDECIDABLE"]
@@ -360,6 +360,87 @@ def annotation_only(old_src: str, new_src: str) -> tuple[bool, str]:
     return False, "behavioural difference survives annotation stripping - full scope"
 
 
+# ── A FLOAT-THRESHOLD MUTANT IS DISTINGUISHABLE ON A MEASURE-ZERO SET ──────────────────────────────
+# Measured 2026-09-25 on `x_qc_digest__mutmut_37` (`(hi - lo) < 0.05` → `<=`). A comparison-operator
+# mutation on a FLOAT threshold differs ONLY where the compared expression lands exactly on the
+# representable constant, and almost no realistic pair does:
+#
+#     lo=0.00 hi=0.05 → 0.05                    <0.05 False  <=0.05 True   ← the only one that kills
+#     lo=0.90 hi=0.95 → 0.04999999999999993     True        True          identical rendering
+#     lo=0.50 hi=0.55 → 0.050000000000000044    False       False         identical rendering
+#
+# So a probe battery sampled from realistic values returns "no distinguishing input" and the mutant
+# is ledgered EQUIVALENT — a false equivalence that nothing re-derives, because equivalence is
+# recorded rather than recomputed. The trap is that the INSTINCTIVE fixture (a clean 0.90/0.95 gap)
+# reads as proof. Heron's golden was character-exact over every render branch and still missed it.
+#
+# ⚠️ This refuses the EXCUSE, it does not reclassify the mutant: the entry may well be correct, but
+# it has not been shown, and "unproven" is not "equivalent" (§∅ at the ledger level). The bar is
+# deliberately weak and checkable — the probe must NAME the threshold literal it had to construct —
+# because a bar the tool can verify beats one it can only exhort.
+_CMP_FLIP = (("<", "<="), ("<=", "<"), (">", ">="), (">=", ">"))
+# Digits on BOTH sides, deliberately: a `\d*\.\d+` form also matches the `.0` inside an f-string
+# format spec (`{lo * 100:.0f}`), which is not a threshold and made the message name a literal
+# nobody wrote. A bare `.5` is legal Python and is excluded by this; thresholds are spelled `0.5`.
+_FLOAT_LIT = re.compile(r"(?<![\w.])\d+\.\d+")
+
+
+def float_boundary_unprobed(key: str, probe: str | None) -> str | None:
+    """Return a reason when an EXCUSING entry needs a constructed float boundary and has not shown one.
+
+    PURE. `key` is `diff_key`'s ` | `-joined -/+ pair; `probe` is the entry's own account of what ran.
+    None means the entry is fine — either it is not a float-threshold comparison flip, or its probe
+    names the literal."""
+    if not key:
+        return None
+    parts = [p.strip() for p in key.split("|")]
+    minus = next((p for p in parts if p.startswith("-")), "")
+    plus = next((p for p in parts if p.startswith("+")), "")
+    if not minus or not plus:
+        return None
+    lits = set(_FLOAT_LIT.findall(minus)) & set(_FLOAT_LIT.findall(plus))
+    if not lits:
+        return None  # no float literal on BOTH sides — not this shape
+    # a comparison operator that FLIPPED between the two sides
+    flipped = any(f" {a} " in minus and f" {b} " in plus for a, b in _CMP_FLIP)
+    if not flipped:
+        return None
+    shown = sorted(lits)
+    if probe and any(lit in probe for lit in shown):
+        return None
+    return ("a `<`/`<=` flip on the float threshold " + ", ".join("`%s`" % x for x in shown) +
+            " is distinguishable only where the compared value lands EXACTLY on it; the probe does not "
+            "name that boundary, so this is UNPROVEN rather than equivalent")
+
+
+# ── PRINT THE MUTANT IN FULL, FROM THE FIELD THAT HAS IT ──────────────────────────────────────────
+# The survivor record carries BOTH `diff` (mutmut's stdout, capped at 400 bytes) and `changed`
+# (diff_key over the UNCAPPED stdout — the -/+ pair, complete). The cap was noticed and `changed` was
+# added beside it; the PRINTER was left reading `diff`. So the JSON gained the remedy and the console
+# — the thing a human actually reads, and the only thing in a CI log — kept truncating mid-literal.
+#
+# ⚠️ WHY THAT IS WORSE THAN A MISSING FIELD (Heron, 2026-09-25, from the consumer end): the truncation
+# does not merely hide the mutant, it makes an equivalence entry look JUSTIFIED. The reader has a real
+# probe, it genuinely does not kill the mutant, and this tool's own closing message points at
+# `mutate-equivalence.json` "with a `probe` saying what you actually ran". Every step reads correct and
+# the output is a false equivalence that nothing re-derives. A truncated report plus a sanctioned
+# escape hatch is worse than either alone. Reading one survivor cost four dead ends — the CI log, a
+# local rerun, the post-restore /tmp scratch (torn down, no mutants left) and mutmut 3.8's own API
+# (no exposed generator) — before the mutant had to be regenerated to be read at all.
+#
+# NOT "raise the cap": that leaves the same shape one size up. Print the complete field.
+# ⚠️ NAMED `mutant_changed_lines`, not `changed_lines`: tools/mutate_diff.py ALREADY has a
+# `changed_lines(base)` returning git's changed line numbers per file. Importing this one under that
+# name shadowed it — and the syntax check still passed.
+def mutant_changed_lines(sv: dict) -> list[str]:
+    """The mutant's -/+ pair, complete. Falls back to the capped `diff` only if `changed` is absent."""
+    changed = (sv.get("changed") or "").strip()
+    if changed:
+        return [seg.strip() for seg in changed.split(" | ") if seg.strip()]
+    return [ln for ln in (sv.get("diff") or "").splitlines()
+            if ln.startswith(("-", "+")) and not ln.startswith(("---", "+++"))]
+
+
 def classify(entries, survivors, generated):
     """Split survivors against the recorded classification.
 
@@ -368,7 +449,7 @@ def classify(entries, survivors, generated):
     so callers may pass only the killed ones)."""
     surv = {sv["key"]: sv for sv in survivors}
     gen = set(generated) | set(surv)
-    out = {"excused": [], "real_gap": [], "refuted": [], "orphaned": [], "unclassified": []}
+    out = {"excused": [], "real_gap": [], "refuted": [], "orphaned": [], "unclassified": [], "unproven": []}
     claimed = set()
     for e in entries or []:
         k = e.get("key", "")
@@ -378,7 +459,11 @@ def classify(entries, survivors, generated):
         elif k not in surv:
             out["refuted"].append(e)       # generated, then KILLED, yet claimed unkillable
         elif e.get("class") in EXCUSING:
-            out["excused"].append(e)
+            _why = float_boundary_unprobed(k, e.get("probe"))
+            if _why:
+                out["unproven"].append(dict(e, why=_why))
+            else:
+                out["excused"].append(e)
         else:
             out["real_gap"].append(e)      # recorded debt, still fails
     for k, sv in surv.items():
