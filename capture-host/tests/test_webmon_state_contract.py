@@ -242,7 +242,10 @@ def test_the_top_level_blocks_are_projected_verbatim(tmp_path):
           "host": {"started_at": 1750000000},
           "archive": {"verified": True},
           "cpap": {"state": "ok", "files": 5},
-          "live_loss": {"open_files": 4}}
+          "live_loss": {"open_files": 4},
+          "solid": {"night": "2026-09-23", "status": "FAIL",
+                    "reason": "h10 — timebase: -50000 ppm over 21 s",
+                    "run": "0 solid of 0 nights over 0 days", "solid": 0, "exit": False}}
     cfg = {"root": str(tmp_path), "clock": {"sudo": False}, "devices": [dict(DEV)]}
     app = webmon.make_app(telemetry.TelemetryBus(), cfg, str(tmp_path / "config.yaml"),
                           "AA:AA:AA:AA:AA:AA", st, None)
@@ -258,6 +261,7 @@ def test_the_top_level_blocks_are_projected_verbatim(tmp_path):
     assert body["archive"] == {"verified": True}
     assert body["cpap"] == {"state": "ok", "files": 5}
     assert body["live_loss"] == {"open_files": 4}
+    assert body["solid"] == st["solid"], "the whole verdict, not a re-derived summary"
     assert set(body) == {"adapter", "devices", "streams", "host_clock", "storage", "qc", "host",
                          # `alerts` is the ALERT TRANSPORT's own health, not an alert. It belongs on
                          # this surface because every other block here is designed to reach the
@@ -302,15 +306,47 @@ def test_the_top_level_blocks_are_projected_verbatim(tmp_path):
                          # here rather than by relaxing the assertion, per the rule above — and for
                          # this block the rule is the whole point: a loss guard nobody can see is the
                          # defect it was written to close, one layer up.
-                         "live_loss"}
+                         "live_loss",
+                         # Tonight's SOLID-NIGHT verdict. Declared here rather than by relaxing the
+                         # assertion, per the rule above — and this set IS the guard the rule names: a
+                         # STATUS field this projection omits is not published, whatever the daemon
+                         # writes. `solid` was that field until now (Wren's stamp: "not drawn on the
+                         # monitor"), so the capture-quality programme's own nightly answer was the
+                         # one number no operator could see.
+                         "solid"}
 
 
 def test_the_top_level_blocks_are_null_before_their_pollers_run(tmp_path):
     body = _state(tmp_path, [DEV], {})
-    for k in ("host_clock", "storage", "qc", "host", "archive", "cpap", "alerts"):
+    for k in ("host_clock", "storage", "qc", "host", "archive", "cpap", "alerts", "solid"):
         assert k in body, f"{k} must be present-and-null, never absent"
-    for k in ("storage", "qc", "host", "archive", "cpap"):
+    for k in ("storage", "qc", "host", "archive", "cpap", "solid"):
         assert body[k] is None
+
+
+def test_a_STATUS_field_this_projection_OMITS_is_not_published(tmp_path):
+    """The rule the file's own comments state four times, as an executable check rather than prose.
+
+    `/api/state` is an ALLOWLIST, not a passthrough: the daemon can write a key into STATUS every
+    status round and it reaches nobody unless this projection names it. That is not a hypothetical —
+    `autopull`, `radio_distress`, `radio_switches` and `solid` each sat published-and-unforwarded, and
+    in `solid`'s case the unforwarded field was the capture-quality programme's entire nightly answer.
+    A decoy proves the check can fail: a key the daemon writes and this projection does not name must
+    be ABSENT from the body, so the exhaustive key-set assertion above is what keeps `solid` there."""
+    st = {"devices": {}, "solid": {"night": "2026-09-23", "status": "PASS", "reason": None},
+          "a_key_no_projection_names": {"written": True}}
+    cfg = {"root": str(tmp_path), "clock": {"sudo": False}, "devices": [dict(DEV)]}
+    app = webmon.make_app(telemetry.TelemetryBus(), cfg, str(tmp_path / "config.yaml"),
+                          "AA:AA:AA:AA:AA:AA", st, None)
+
+    async def go(c):
+        return await (await c.get("/api/state")).json()
+    body = _serve(app, go)
+    assert body["solid"] == st["solid"], "named by the projection, so it reaches the monitor"
+    assert "a_key_no_projection_names" not in body, (
+        "the decoy: STATUS is not the API, so an unnamed key is unpublished — this is the failure "
+        "`solid` was an instance of, and the assertion that would have caught it"
+    )
 
 
 def test_clock_uncorrectable_REACHES_the_monitor(tmp_path):
