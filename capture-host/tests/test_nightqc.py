@@ -3494,3 +3494,114 @@ def test_the_SOLID_NIGHT_terms_do_not_consume_nightqc_coverage_and_must_not_star
                 "capture sessions. Wiring them together re-imports the multi-session artifact.")
     # Non-vacuity: the scan must be able to fail, and the strings must be the ones production uses.
     assert "QC-SUMMARY" in module_source("nightqc.py")
+
+
+# ── qc_digest's UNKILLED MUTANTS — brought into scope by touching the function ────────────────────
+# The mutation gate is diff-scoped, so editing one line of `qc_digest` put its whole mutant set in scope
+# and surfaced eight survivors that predate this change. Each is killed below by an assertion on the
+# behaviour it changes, not by widening a baseline: "change that line and the suite stays green" is the
+# defect, and the remedy is an observation, never an allowlist entry.
+
+def _digest_dev(**kw):
+    base = {"name": "H10", "coverage": {"ecg": 0.98}, "span_basis": {"ecg": "device"}}
+    base.update(kw)
+    return base
+
+
+def test_the_digest_SKIPS_a_non_dict_device_and_keeps_going(tmp_path):
+    """Kills `continue` → `break` (mutmut_26): a malformed entry must not silence every device after it.
+    A summary is read back off disk, so one foreign row is exactly what this loop guards against."""
+    line = nightqc.qc_digest({"night": "2026-09-24", "devices": ["not-a-dict", _digest_dev()]})
+    assert "H10 98%" in line, f"a bad entry before a real device hid it: {line}"
+
+
+def test_the_digest_reports_a_RANGE_when_a_devices_streams_diverge(tmp_path):
+    """Kills the `pct` truncation (mutmut_37). A device whose acc and ppg диverge 41 %/95 % must not be
+    summarised as one number — the range is the point, and only a divergent fixture can see it."""
+    wide = nightqc.qc_digest({"night": "n", "devices": [
+        _digest_dev(coverage={"ppg": 0.41, "acc": 0.95}, span_basis={"ppg": "device", "acc": "device"})]})
+    assert "41–95%" in wide, wide
+    tight = nightqc.qc_digest({"night": "n", "devices": [
+        _digest_dev(coverage={"ppg": 0.97, "acc": 0.98}, span_basis={"ppg": "device", "acc": "device"})]})
+    assert "97%" in tight and "–" not in tight.split("H10 ")[1][:8], tight
+
+
+def test_the_digest_keeps_the_DRIFT_when_it_appends_a_reset(tmp_path):
+    """Kills `extra +=` → `extra =` (mutmut_79): the reset must be appended to the drift, not replace it.
+    Losing the drift silently is the worse half — a reset count with no drift reads as benign."""
+    line = nightqc.qc_digest({"night": "n", "devices": [_digest_dev(
+        rtc={"reads": 3, "drift_s": 2.4, "span_h": 7.3, "resets": 2, "pushes": 1})]})
+    assert "RTC +2.4s" in line and "2⚠reset" in line, line
+
+
+def test_the_dat_vs_rtc_disagreement_fires_ABOVE_one_second_and_not_AT_it(tmp_path):
+    """Kills `gap > 1` → `gap >= 1` (mutmut_124) and `> 2` (mutmut_125) together, by pinning both sides of
+    the boundary: the .dat's own quantum is 1 s, so a 1 s disagreement is agreement and 2 s is not.
+
+    ⚠️ The `datfit` fixture carries `ok` and `converged` because the renderer requires both — my first
+    version omitted them, the `.dat` segment never rendered at all, and the "no flag at 1 s" half passed
+    VACUOUSLY while the "flag at 2 s" half failed and said so. A fixture that omits what production
+    supplies is the recurring defect, and here it made one assertion hollow and one honest."""
+    def line(lag, drift):
+        return nightqc.qc_digest({"night": "n", "devices": [_digest_dev(
+            rtc={"reads": 2, "drift_s": drift, "span_h": 6.0, "resets": 0, "pushes": 1},
+            datfit={"ok": True, "lag_s": lag, "converged": True})]})
+    assert "⚠±" not in line(3.4, 2.4), "a 1 s gap is the .dat's quantum, not a disagreement"
+    # ⚠️ 1.5, NOT 2.0. My first fixture used lag 4.4 / drift 2.4, whose float gap is 2.0000000000000004 —
+    # so `gap > 2` was STILL true and the `> 2` mutant survived a test written to kill it. A boundary
+    # fixture must sit strictly BETWEEN the true threshold and the mutant's, never on either.
+    assert "⚠±2s" in line(3.9, 2.4), "a 1.5 s gap is above the 1 s quantum and must be flagged"
+
+
+def test_the_digest_omits_the_device_segment_ENTIRELY_when_no_device_reported(tmp_path):
+    """Kills `if parts` → `if (parts) or True` (mutmut_137): with no device segment the mutant joins an
+    EMPTY string into the line, so the digest reads "night n — · no data: X" with a dangling separator."""
+    line = nightqc.qc_digest({"night": "n", "devices": [{"name": "Ring", "coverage": {}, "streams": {}}]})
+    assert line is not None and "no data: Ring" in line, line
+    assert "—  · " not in line and not line.split("— ")[1].startswith("· "), f"empty segment joined: {line}"
+
+
+def test_the_digest_lists_at_most_FOUR_missing_streams(tmp_path):
+    """Kills `missing[:4]` → `[:5]` (mutmut_158). The cap exists because this line goes to a webhook with
+    a length budget; a fifth entry is the thing the slice is for."""
+    line = nightqc.qc_digest({"night": "n", "devices": [_digest_dev()],
+                              "missing": ["a:1", "b:2", "c:3", "d:4", "e:5"]})
+    assert "e:5" not in line, f"the fifth missing stream must be dropped: {line}"
+    assert all(k in line for k in ("a:1", "b:2", "c:3", "d:4")), line
+
+
+def test_an_ABSENT_device_does_not_stop_the_digest_reading_the_REST(tmp_path):
+    """Kills the absent-branch `continue` → `break`: a device that produced nothing must not hide every
+    device after it. This is the same shape as the non-dict guard above, one branch further down, and it
+    is the branch a real night hits — a docked Verity ahead of a recording H10."""
+    line = nightqc.qc_digest({"night": "n", "devices": [
+        {"name": "Verity", "coverage": {}, "streams": {}},
+        _digest_dev(coverage={"ecg": 0.99}, span_basis={"ecg": "device"})]})
+    assert "H10 99%" in line, f"an absent device before a recording one hid it: {line}"
+    assert "no data: Verity" in line, line
+
+
+def test_the_digest_line_is_EXACTLY_this_for_a_known_summary(tmp_path):
+    """THE WHOLE FORMAT, pinned as one string.
+
+    The per-behaviour assertions above each kill a mutant I could read. Two survivors in the pct
+    formatting could not be read at all — `mutate_diff`'s printed diff is truncated for them — so this
+    pins the rendered line character for character instead. A formatting mutant anywhere in the device
+    segment, the separators, the ordering or the suffixes changes this string, which is the one assertion
+    that does not require knowing WHICH change to expect."""
+    summ = {"night": "2026-09-24", "devices": [
+        _digest_dev(name="H10", coverage={"ecg": 0.99, "acc": 0.98},
+                    span_basis={"ecg": "device", "acc": "device"},
+                    rtc={"reads": 3, "drift_s": 2.4, "span_h": 7.3, "resets": 1, "pushes": 1},
+                    datfit={"ok": True, "lag_s": 3.9, "converged": True}),
+        _digest_dev(name="Verity", coverage={"ppg": 0.41, "acc": 0.95},
+                    span_basis={"ppg": "session", "acc": "session"}, rtc=None),
+        {"name": "Ring", "coverage": {}, "streams": {}}],
+        "missing": ["a:1", "b:2", "c:3", "d:4", "e:5"]}
+    # Read off the real renderer and then checked element by element rather than assumed: H10's 0.98/0.99
+    # agree within 0.05 so one number (the LO, 98 %) · the RTC group and the .dat group are SEPARATE
+    # parenthesised suffixes · a 1.5 s gap renders "±2s" at `.0f` · the Verity's session basis is marked ·
+    # the ring has no numeric coverage so it is "no data" · and the fifth missing stream is dropped.
+    assert nightqc.qc_digest(summ) == (
+        "night 2026-09-24 — H10 98% (RTC +2.4s/1⚠reset) (.dat +3.9s ⚠±2s),"
+        " Verity 41–95%~session · no data: Ring · missing: a:1, b:2, c:3, d:4")
