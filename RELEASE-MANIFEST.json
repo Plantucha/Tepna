@@ -1381,6 +1381,29 @@
         "DONE-WHEN-CROSS-BRIEF-2026-09-23-BRIEF.md"
       ],
       "notes": ""
+    },
+    {
+      "version": "2.15.0",
+      "date": "2026-09-25",
+      "bump": "minor",
+      "name": "",
+      "manifestHashes": {
+        "ECGDex": "5e2ddcd80e30",
+        "OxyDex": "b314bd7f642a",
+        "PulseDex": "518535c8718e",
+        "GlucoDex": "e4eed3538784",
+        "PpgDex": "ce100123b7fb",
+        "HRVDex": "5718609fbbee",
+        "CPAPDex": "d4452dfe6bff",
+        "Integrator": "633847816985",
+        "MotionDex": "c8004bedc2f7"
+      },
+      "briefs": [
+        "CAPTURE-LOSS-PRECEDENCE-AUDIT-2026-09-22-BRIEF.md",
+        "SAMPLE-VALIDITY-ENVELOPE-2026-09-17-BRIEF.md",
+        "SOLID-NIGHT-2026-09-23-BRIEF.md"
+      ],
+      "notes": ""
     }
   ]
 }

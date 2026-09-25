@@ -80,7 +80,11 @@
 
       var rec;
       try {
-        rec = parseFn(text);
+        // SAMPLE-VALIDITY-ENVELOPE §3.2 — the `…_PPGRUNS.txt` validity sidecar, when the drop paired one
+        // (signal-orchestrate pairCompanions → ctx.companions.runs), rides into the parser as runsText so
+        // the §∅ P5 cross-check runs. No sidecar → the exact single-argument call as before (byte-identical).
+        var runsText = ctx.companions && typeof ctx.companions.runs === 'string' ? ctx.companions.runs : null;
+        rec = runsText ? parseFn(text, { runsText: runsText }) : parseFn(text);
       } catch (e) {
         return root.SignalFrame.toSignalFrame('ppg', { usable: false, reason: 'polar-sense-ppg: parse error — ' + ((e && e.message) || e) }, prov);
       }

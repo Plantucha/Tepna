@@ -45,7 +45,7 @@ def _run(js, calls):
     return json.loads(r.stdout)
 
 
-def _ecg(seconds=7.0, bpm=60, r_amp=1000.0, wander_amp=0.0, wander_hz=0.2):
+def _ecg(seconds=7.0, bpm=60, r_amp=1000.0, wander_amp=0.0, wander_hz=0.2, t_rel=0.15, r_scale=None):
     """A toy ECG at FS in µV: a 40 ms triangular R every 60/bpm s (+ a small T hump), on a slow sine
     wander, over a deterministic ~15 µV noise floor (a real H10 sits at 10–30 µV; an exactly-zero floor
     would trip the detector's own `mad<1` presence gate and test nothing). Returns (samples, planted R indices)."""
@@ -60,13 +60,14 @@ def _ecg(seconds=7.0, bpm=60, r_amp=1000.0, wander_amp=0.0, wander_hz=0.2):
     rs = []
     period = int(round(FS * 60.0 / bpm))
     for r in range(period // 2, n, period):
+        amp = r_amp * (r_scale(len(rs)) if r_scale else 1.0)
         rs.append(r)
         for k in range(-3, 4):
             if 0 <= r + k < n:
-                s[r + k] += r_amp * (1 - abs(k) / 3.5)
+                s[r + k] += amp * (1 - abs(k) / 3.5)
         for k in range(20, 45):  # T wave: low, wide, ~150–350 ms after R
             if r + k < n:
-                s[r + k] += 0.15 * r_amp * math.sin(math.pi * (k - 20) / 25)
+                s[r + k] += t_rel * amp * math.sin(math.pi * (k - 20) / 25)
     for i in range(n):
         s[i] += wander_amp * math.sin(2 * math.pi * wander_hz * i / FS)
     return s, rs
@@ -132,3 +133,39 @@ def test_spikes_and_a_beatless_floor_keep_the_raw_detector_s_validated_behaviour
         assert all(any(abs(g - p) <= 3 for g in got) for p in planted), (got, planted)
         assert len(got) <= len(planted) + spikes, (got, planted)
     assert got0 == [], got0
+
+
+def _without_t_rule(js):
+    assert "tRel=0.6" in js, "the T-after-R rule is gone or renamed — this test is stale"
+    return js.replace("tRel=0.6", "tRel=0")  # the same detector with the rule disabled
+
+
+def test_a_tall_t_wave_is_not_a_second_beat():
+    """2026-09-24, live: the owner's H10 T wave sat at 38–46 % of R, cleared the 35 %-of-median cut, and the
+    tile read 167 bpm against 53–55 on the H10's own HR. Planted at 70 % of R in the RAW trace: the 5–15 Hz
+    bandpass shrinks this wide T far more than the sharp R, which leaves it inside the band the rule
+    separates. With the rule disabled the same detector must double-count, or this plant proves nothing.
+    (A T as tall as R even after filtering cannot be told from a beat by amplitude, and this does not try.)"""
+    js = _extract()
+    sig, planted = _ecg(t_rel=0.7)
+    (fixed,) = _run(js, [f"OUT.push(detectRs({json.dumps(sig)}, {FS}));"])
+    (unfixed,) = _run(_without_t_rule(js), [f"OUT.push(detectRs({json.dumps(sig)}, {FS}));"])
+    assert len(unfixed) >= 2 * len(planted) - 1, f"the plant was not seen: {len(unfixed)} beats for {len(planted)} R's"
+    assert fixed == planted, (fixed, planted)
+
+
+def test_a_fast_rhythm_keeps_every_beat():
+    """150 bpm puts the next R 400 ms after the last one, inside the 450 ms T window. It is R-sized, so it
+    stays: the rule rejects only what is BOTH close AND small."""
+    js = _extract()
+    sig, planted = _ecg(bpm=150, t_rel=0.15)
+    (got,) = _run(js, [f"OUT.push(detectRs({json.dumps(sig)}, {FS}));"])
+    assert got == planted, (got, planted)
+
+
+def test_r_amplitude_swinging_twenty_percent_beat_to_beat_keeps_every_beat():
+    """Respiration swings R amplitude beat to beat. A 0.8 R right after a 1.0 R is a beat, not a T wave."""
+    js = _extract()
+    sig, planted = _ecg(bpm=100, t_rel=0.15, r_scale=lambda i: 1.0 if i % 2 == 0 else 0.8)
+    (got,) = _run(js, [f"OUT.push(detectRs({json.dumps(sig)}, {FS}));"])
+    assert got == planted, (got, planted)

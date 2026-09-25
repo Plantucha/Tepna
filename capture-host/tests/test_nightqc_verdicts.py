@@ -19,7 +19,10 @@ DEV = [
 
 def _summary(**kw):
     base = {
-        "devices": [{"name": "H10", "coverage": {"ecg": 0.98, "acc": 0.97}}],
+        # `span_basis` is what production publishes per stream, and the verdict now reads it. A fixture
+        # that omits it makes an unlabelled-coverage claim rather than a device-basis one.
+        "devices": [{"name": "H10", "coverage": {"ecg": 0.98, "acc": 0.97},
+                     "span_basis": {"ecg": "device", "acc": "device"}}],
         "missing": [],
         "degraded": [],
         "gaps_in_night": [],
@@ -199,3 +202,152 @@ def test_write_verdicts_puts_the_objects_beside_the_summary_and_survives_a_read_
     with caplog.at_level("WARNING"):
         nightqc.write_verdicts(d, summ, DEV)  # logged, not raised — the summary write is not lost to it
     assert sum("could not write" in r.getMessage() for r in caplog.records) == 3
+
+
+# ── ABSENT IS NOT DEGRADED — SOLID-NIGHT night 1, 2026-09-25 ─────────────────────────────────────
+# A synthetic fixture of the numbers measured on the box at 21:33 EDT on 2026-09-24, before the kit was
+# strapped on at 21:49: three expected devices, the Verity answering `in_charger` on every PMD
+# negotiation, the H10 and ring at `connected=0`, and the Verity linked at RSSI −47 / battery 100 as the
+# radio witness. Synthetic on purpose — the corpus rule keeps recordings out of the repo, and the live
+# evidence was overwritten the moment capture started.
+NIGHT1 = [
+    {"name": "Polar H10 02849638", "device_id": "02849638", "streams": ["ecg", "acc", "hr"]},
+    {"name": "Polar Sense 0C301E3F", "device_id": "0C301E3F", "streams": ["ppg", "acc", "ppi"]},
+    {"name": "Wellue O2Ring-S", "device_id": "S8AW2100", "streams": ["spo2", "ppg", "acc"]},
+    {"name": "COOSPO 808S", "device_id": "0022265", "streams": ["hr"], "optional": True},
+]
+_ALL_NINE = [f"{d['name']}:{s}" for d in NIGHT1 if not d.get("optional") for s in d["streams"]]
+
+
+def test_PLANT_a_night_nobody_wore_is_UNKNOWN_not_FAIL():
+    """The defect this was written for. Every zero-row stream lands in `missing`, and ANY `missing`
+    entry used to be a FAIL — so a kit on its dock convicted the box of a fault belonging to nobody.
+    The band says a no-wear night is NOT_APPLICABLE and never FAIL, and the counter SKIPS it."""
+    o = nightqc.qc_verdict(_summary(devices=[], missing=list(_ALL_NINE)), NIGHT1)
+    verdict.validate(o)
+    assert o["status"] == "UNKNOWN", f"a night nobody wore is not a failed night: {o['status']}"
+    assert "indistinguishable" in o["reason"], o["reason"]
+    # It must say WHICH two states it cannot separate, not merely that it does not know.
+    assert "dead adapter" in o["reason"] and "wore" in o["reason"], o["reason"]
+    assert o["result"]["absent"] == sorted({d["name"] for d in NIGHT1 if not d.get("optional")})
+    assert o["result"]["absent_witnessed_by"] == [], "nothing recorded, so nothing witnesses the radio"
+
+
+def test_PLANT_the_population_stays_an_EQUALITY_when_devices_are_absent():
+    """An absent device was DECLARED, so it is excluded and never silently dropped — and a PASS over
+    `checked: 0` is refused by the schema rather than by convention."""
+    o = nightqc.qc_verdict(_summary(devices=[], missing=list(_ALL_NINE)), NIGHT1)
+    p = o["population"]
+    assert p["checked"] + p["excluded"] == p["eligible"], p
+    assert p == {"checked": 0, "eligible": 10, "excluded": 10}, p   # 9 expected + the COOSPO's hr
+
+
+def test_PLANT_a_recording_sibling_WITNESSES_the_radio_and_the_absent_one_is_excluded():
+    """The discriminator. One device recording proves the radio worked, so the silent one is
+    declared-but-not-judged and the verdict comes from the device that did record — NOT a FAIL for the
+    absence, and NOT a PASS that pretends nine streams were examined."""
+    miss = [m for m in _ALL_NINE if not m.startswith("Polar H10")]
+    o = nightqc.qc_verdict(
+        _summary(devices=[{"name": "Polar H10 02849638", "coverage": {"ecg": 0.99, "acc": 0.99, "hr": 0.99}}],
+                 missing=miss), NIGHT1)
+    verdict.validate(o)
+    assert o["status"] == "PASS", f"the recording device met coverage: {o['status']} / {o['reason']}"
+    assert o["result"]["absent"] == ["Polar Sense 0C301E3F", "Wellue O2Ring-S"]
+    assert o["result"]["absent_witnessed_by"] == ["Polar H10 02849638"]
+    assert o["population"] == {"checked": 3, "eligible": 10, "excluded": 7}
+
+
+def test_CONTROL_a_genuine_low_coverage_recording_STILL_FAILS():
+    """The refusal must not blind the gate. A device that recorded and lost packets is the loss this
+    metric exists to catch, and 0.47 on a stream with rows is still a FAIL — unchanged by any of the
+    above. Asserts only keys that exist before and after, so it runs against origin/main too."""
+    o = nightqc.qc_verdict(
+        _summary(devices=[{"name": "Polar H10 02849638", "coverage": {"ecg": 0.47, "acc": 0.47, "hr": 0.47}}],
+                 degraded=["Polar H10 02849638:ecg 47%"]), NIGHT1)
+    verdict.validate(o)
+    assert o["status"] == "FAIL", "rows present and coverage under the floor is a real loss"
+    assert "47%" in o["reason"]
+
+
+def test_PLANT_a_PARTIALLY_missing_device_is_not_absent_and_still_FAILS():
+    """A PLANT, not a control: it asserts `absent`/`absent_witnessed_by`, which main does not publish.\n\n    The boundary. Absence is ALL of a device's streams; one stream down while the others record is a
+    partial failure, which is exactly what this gate is for."""
+    others = [m for m in _ALL_NINE if not m.startswith("Polar H10")]
+    o = nightqc.qc_verdict(
+        _summary(devices=[{"name": "Polar H10 02849638", "coverage": {"ecg": 0.99, "acc": 0.99}}],
+                 missing=["Polar H10 02849638:hr"] + others), NIGHT1)
+    verdict.validate(o)
+    assert o["status"] == "FAIL", "one stream of a recording device is a fault, not an absence"
+    # The H10 recorded two of three, so it is NOT absent and its one gap convicts it. The other two
+    # produced nothing at all and are excluded, witnessed by the H10.
+    assert o["result"]["absent"] == ["Polar Sense 0C301E3F", "Wellue O2Ring-S"]
+    assert o["result"]["absent_witnessed_by"] == ["Polar H10 02849638"]
+    assert "Polar H10 02849638:hr" in o["reason"]
+    assert not any(m.startswith(("Polar Sense", "Wellue")) for m in o["result"]["missing"]), \
+        "an excluded device's absence must not ALSO be reported as a fault to judge"
+    assert o["population"] == {"checked": 3, "eligible": 10, "excluded": 7}
+
+
+def test_a_config_of_only_OPTIONAL_backups_examined_nothing_and_says_NOT_RUN():
+    """`eligible` is non-zero — backups were declared — but nothing was EXPECTED, so nothing was judged.
+    Distinct from the no-device case above (`eligible == 0`) and from the all-absent UNKNOWN: there is no
+    expected device to be absent, so there is nothing for a sibling to witness. A PASS here would be a
+    pass over `checked: 0`, which the schema refuses."""
+    only_backups = [{"name": "COOSPO 808S", "device_id": "0022265", "streams": ["hr"], "optional": True}]
+    o = nightqc.qc_verdict(_summary(devices=[]), only_backups)
+    verdict.validate(o)
+    assert o["status"] == "NOT_RUN", o["status"]
+    assert o["population"] == {"checked": 0, "eligible": 1, "excluded": 1}
+    assert o["result"] is None, "NOT_RUN examined nothing, so it carries no result"
+
+
+# ── A SESSION-BASIS COVERAGE IS NOT THE DEVICE'S COVERAGE — night 1's real mechanism ─────────────
+# The 21:33 shape: nine streams, every one on the session fallback (`span_basis: "session"`,
+# `span_sec: None`), rows present, and `coverage == session_coverage` to the digit — rows ÷ (rate × the
+# UNION span across TWO capture sessions) = 0.47 for devices that recorded through one of them.
+_N1_COV = {"ecg": 0.52, "acc": 0.52, "hr": 0.52}
+
+
+def _night1_summary(basis):
+    return _summary(devices=[{"name": "Polar H10 02849638", "coverage": dict(_N1_COV),
+                              "span_basis": {s: basis for s in _N1_COV} if basis else {},
+                              "session_coverage": dict(_N1_COV)}],
+                    degraded=["Polar H10 02849638:ecg 52%"], span_sec=20200)
+
+
+def test_PLANT_a_session_basis_coverage_is_not_reported_as_the_devices_coverage():
+    """The defect. Both denominators arrived in one `coverage` map, so a reader could not tell "we got
+    what this device sent" from "this device's rows covered 52 % of the whole session's elapsed time" —
+    and on a directory holding two capture sessions the second is not a fault at all."""
+    o = nightqc.qc_verdict(_night1_summary("session"), NIGHT1)
+    verdict.validate(o)
+    assert o["result"]["coverage"] == {}, "no stream had a device-basis denominator"
+    assert o["result"]["coverage_session_basis"] == {f"Polar H10 02849638:{s}": v for s, v in _N1_COV.items()}
+    assert o["result"]["coverage_basis_unknown"] == {}
+
+
+def test_PLANT_an_UNLABELLED_basis_is_its_own_bucket_and_not_assumed_to_be_the_device():
+    """§∅ one level up: absence of the label is not evidence of which denominator was used. An older
+    summary read back by this reader must not have `device` inferred for it."""
+    o = nightqc.qc_verdict(_night1_summary(None), NIGHT1)
+    verdict.validate(o)
+    assert o["result"]["coverage"] == {}, "an unlabelled coverage is not a device-basis coverage"
+    assert o["result"]["coverage_basis_unknown"] == {f"Polar H10 02849638:{s}": v for s, v in _N1_COV.items()}
+    assert o["result"]["coverage_session_basis"] == {}
+
+
+def test_CONTROL_the_alarm_is_UNCHANGED_by_the_split():
+    """The split must not quieten anything. `degraded` keys on `session_coverage`, which is computed
+    independently of whether a device span could be bounded — so the FAIL and its reason are the same
+    before and after. Asserts only keys that exist on both sides, so it runs against origin/main."""
+    o = nightqc.qc_verdict(_night1_summary("session"), NIGHT1)
+    assert o["status"] == "FAIL" and "52%" in o["reason"], (o["status"], o["reason"])
+
+
+def test_CONTROL_a_device_basis_coverage_still_travels_as_coverage():
+    """The ordinary case is untouched: a bounded device span puts its number where every reader already
+    looks. Passes on both sides."""
+    o = nightqc.qc_verdict(_summary(), DEV)
+    verdict.validate(o)
+    assert o["result"]["coverage"] == {"H10:ecg": 0.98, "H10:acc": 0.97}
+    assert o["status"] == "PASS"

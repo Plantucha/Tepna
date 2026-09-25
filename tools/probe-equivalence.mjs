@@ -376,6 +376,20 @@ export function newEntries(existing, emit) {
    'no-control-ran' (excluded — the criterion never bound). */
 export const EVALUATED = new Set(['clean', 'blind']);
 
+/* THE EMITTED PROBE STRING MUST BE ABLE TO EXPRESS A PARTIAL CONTROL DROP.
+   #2910 taught the CONSOLE to say "N of M sampled did not load"; the string that lands permanently in
+   tools/mutate-equivalence.json still read `${ctlRan}/${ctlRan}`, whose denominator is the count that
+   RAN. A sample of 12 with 8 load failures therefore recorded `4/4 same-function controls separated`
+   — full marks, with two thirds of the reach evidence silently absent. Measured 2026-09-25 over the
+   414 committed no-distinguishing-input entries: 254 carry a denominator BELOW the sampling cap, and
+   from the record alone a small family is indistinguishable from a silent drop. The ledger is the
+   artifact that outlives the run, so it is the one that has to carry the limitation. */
+export function controlEvidence({ separated = 0, sampled = 0, loadFail = 0 } = {}) {
+  const denom = sampled || separated;
+  const base = `${separated}/${denom} same-function controls separated`;
+  return loadFail ? `${base} (${loadFail} of ${sampled} sampled did not load \u2014 excluded, not scored)` : base;
+}
+
 export function probeEquivalenceVerdict({ file, families = [], controlRealmFailures = 0, survivors, baseErr = null, commit, at } = {}) {
   const evaluated = families.filter((f) => EVALUATED.has(f.outcome));
   const blind = families.filter((f) => f.outcome === 'blind');
@@ -671,6 +685,19 @@ if (IS_MAIN && has('--selftest')) {
     'verdict · controls that failed to LOAD are carried, so a partial drop is visible',
     probeEquivalenceVerdict({ file: 'x.js', families: [_F('clean')], controlRealmFailures: 8, survivors: _sv, commit: 'abc1234' }).result.controlRealmFailures === 8
   );
+  /* THE LEDGER STRING, not just the console. The defect these pin is that a partial drop was
+     INEXPRESSIBLE in the emitted probe: `4/4` with 8 of 12 controls absent read as full marks. */
+  ok(
+    'probe string · a FULL sample reads separated/sampled with both numbers equal',
+    controlEvidence({ separated: 12, sampled: 12, loadFail: 0 }) === '12/12 same-function controls separated',
+    controlEvidence({ separated: 12, sampled: 12, loadFail: 0 })
+  );
+  ok(
+    'probe string · a PARTIAL drop is VISIBLE — the denominator is what was SAMPLED, not what ran',
+    controlEvidence({ separated: 4, sampled: 12, loadFail: 8 }) === '4/12 same-function controls separated (8 of 12 sampled did not load \u2014 excluded, not scored)',
+    controlEvidence({ separated: 4, sampled: 12, loadFail: 8 })
+  );
+  ok('probe string · DECOY — the retired ran/ran form cannot satisfy the partial-drop leg', controlEvidence({ separated: 4, sampled: 12, loadFail: 8 }) !== '4/4 same-function controls separated');
   ok('verdict · criterion.name says the survivors are NOT scored', /NOT scored/.test(_clean.criterion.name));
 
   console.log('\n' + (fail ? `✗ ${fail} failed, ${pass} passed` : `✓ all ${pass} selftests passed`));
@@ -991,7 +1018,7 @@ async function main() {
           after: m.after,
           class: 'no-distinguishing-input',
           why: `In ${fam.fn}. Original and mutant produced byte-identical output on every input.`,
-          probe: `${fam.name}: ${baseFp.length} inputs, ${new Set(baseFp).size} distinct baseline answers; ${ctlRan}/${ctlRan} same-function controls separated. tools/probe-equivalence.mjs --file ${FILE}`
+          probe: `${fam.name}: ${baseFp.length} inputs, ${new Set(baseFp).size} distinct baseline answers; ${controlEvidence({ separated: ctlRan, sampled: controls.length, loadFail: ctlLoadFail })}. tools/probe-equivalence.mjs --file ${FILE}`
         });
       }
     }

@@ -475,6 +475,14 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             # reaches nobody looking at the monitor, and this one exists precisely because a night was
             # lost while every visible surface read healthy.
             "live_loss": status.get("live_loss"),
+            # TONIGHT'S SOLID-NIGHT VERDICT (`solid_night.compose` via the QC poller): the night, its
+            # `tepna.verdict/1` status word, the reason that decided it, and the run statement. The
+            # programme's exit condition is 14 consecutive solid nights, so the only question an
+            # operator asks each morning is whether last night counted and, if not, which term failed —
+            # and until this line existed the answer lived in a log line and a file on the box. Same
+            # reason as every block above it: published to STATUS and forwarded by nothing is not
+            # published. Null until the poller has composed a verdict for a settled night.
+            "solid": status.get("solid"),
         })
 
     # ── CPAP manual pull ────────────────────────────────────────────────────────────────────────
