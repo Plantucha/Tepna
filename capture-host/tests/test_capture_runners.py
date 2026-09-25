@@ -242,14 +242,36 @@ def test_adapter_watchdog_disabled_returns_immediately(monkeypatch):
 
 
 def test_adapter_watchdog_runs_a_healthy_check(monkeypatch):
+    """One healthy pass runs NO rung of the recovery ladder. Asserted on what the ladder DOES — the
+    bluetoothctl scripts it sends and the radio restart it calls — not on the loop merely returning:
+    until 2026-09-25 this test had no assertion, so a watchdog that power-cycled a healthy radio on
+    every poll passed it (CAPTURE-HOST-TEST-DRIFT-CENSUS-2026-09-25)."""
+    scripts = []
+
     async def fake_btctl(script, timeout=6):
+        scripts.append(script)
         return "Connected: yes\n"
 
+    restarts = []
+
+    async def fake_restart():
+        restarts.append(1)
+        return True
+
     monkeypatch.setattr(capture.bonding, "_btctl", fake_btctl)
+    monkeypatch.setattr(capture, "_restart_radio", fake_restart)
     _stop_after(monkeypatch, 1)
     cfg = {"watchdog": {"enabled": True, "interval_sec": 60}, "devices": [_dev(name="H10")]}
     capture.STATUS["devices"]["H10"] = {"connected": True, "address": "24:AC:AC:02:84:96"}
-    _run(capture.adapter_watchdog("hci0", cfg))  # one healthy pass -> no recovery, no crash
+    capture.STATUS.pop("radio_distress", None)
+    _run(capture.adapter_watchdog("hci0", cfg))
+    # The poll RAN: the clean path ends by writing the distress report, so its presence is the
+    # positive evidence that the pass reached the end of the healthy branch.
+    assert "radio_distress" in capture.STATUS, "the healthy pass did not reach the end of its branch"
+    # ...and it recovered NOTHING: only `info` probes went to bluetoothctl (no L1 `disconnect`, no L2
+    # `power off`), and the deafness rung's radio restart was never called.
+    assert scripts and all(s.startswith("info ") for s in scripts), scripts
+    assert restarts == []
 
 
 # ── clock_watchdog ──────────────────────────────────────────────────────────────────────────────────
@@ -2668,11 +2690,32 @@ def test_sync_device_time_non_h10_readback_failures(monkeypatch):
 # ── adapter_watchdog: skip-while-paused, info error, healthy-again, disconnect error, cycle cap ─────────
 @pytest.mark.sets_capture_events
 def test_adapter_watchdog_skips_while_paused(monkeypatch):
-    """A pull in flight (_OXYII_PAUSE) → the watchdog skips its diagnosis for that tick (1228-1229)."""
-    capture._OXYII_PAUSE.set()
-    _stop_after(monkeypatch, 1)
+    """A pull in flight (_OXYII_PAUSE) → the watchdog skips its diagnosis for that tick (1228-1229).
+
+    The skip is OBSERVED, not assumed: the diagnosis starts with a bluetoothctl `info` probe per device,
+    so a paused tick sends none — and the same setup with the pause cleared sends one, which proves the
+    silence came from the pause rather than from a setup that never diagnoses anything."""
+    probes = []
+
+    async def fake_btctl(script, timeout=6):
+        probes.append(script)
+        return "Connected: no\n"
+
+    monkeypatch.setattr(capture.bonding, "_btctl", fake_btctl)
     cfg = {"watchdog": {"enabled": True, "interval_sec": 1}, "devices": [_dev(name="H10")]}
-    _run(capture.adapter_watchdog("hci0", cfg))  # one tick, all skipped, no crash
+    capture.STATUS["devices"]["H10"] = {"connected": True, "address": "24:AC:AC:02:84:96"}
+    capture._OXYII_PAUSE.set()
+    try:
+        _stop_after(monkeypatch, 1)
+        _run(capture.adapter_watchdog("hci0", cfg))
+        assert probes == [], "a paused tick must not probe BlueZ"
+    finally:
+        capture._OXYII_PAUSE.clear()
+    # POSITIVE CONTROL — the unpaused twin of the tick above diagnoses.
+    capture._STOP.clear()
+    _stop_after(monkeypatch, 1)
+    _run(capture.adapter_watchdog("hci0", cfg))
+    assert len(probes) == 1 and probes[0].startswith("info "), probes
 
 
 def test_adapter_watchdog_swallows_a_btctl_info_error(monkeypatch):
@@ -2709,12 +2752,22 @@ def test_adapter_watchdog_logs_recovery_and_survives_a_disconnect_error(monkeypa
     assert calls["n"] >= 2  # both checks ran; the second read healthy
 
 
-def test_adapter_watchdog_stops_after_the_power_cycle_cap(monkeypatch):
-    """Past max_adapter_cycles the watchdog logs CRITICAL and stops auto-recovering (1258-1260)."""
+def test_adapter_watchdog_stops_after_the_power_cycle_cap(monkeypatch, caplog):
+    """Past max_adapter_cycles the watchdog says so and stops auto-recovering (1258-1260).
+
+    Two observations carry the claim: the radio is power-cycled EXACTLY `max_adapter_cycles` times
+    across two wedged checks (the second check is inside the cap and must not cycle again), and the
+    give-up line is logged. ⚠️ That line is `log.error`, not CRITICAL — this test's docstring said
+    CRITICAL until 2026-09-25 and `adapter_watchdog`'s own docstring still does (left for a separate
+    one-word fix so this change stays in the tests); the CRITICAL lines on that path are the fail-over
+    and `exit_on_giveup` branches, neither of which this scenario takes."""
+    power_offs = []
 
     async def fake_btctl(script, timeout=6):
         if "info" in script:
             return "Connected: yes\n"  # permanently phantom → wedged every check
+        if "power off" in script:
+            power_offs.append(script)
         return ""
 
     monkeypatch.setattr(capture.bonding, "_btctl", fake_btctl)
@@ -2739,15 +2792,45 @@ def test_adapter_watchdog_stops_after_the_power_cycle_cap(monkeypatch):
         "devices": [_dev(name="H10")],
     }
     capture.STATUS["devices"]["H10"] = {"connected": False, "address": "24:AC:AC:02:84:96"}
-    _run(capture.adapter_watchdog("AC:A7:F1:29:9D:1D", cfg))
+    with caplog.at_level(logging.ERROR):
+        _run(capture.adapter_watchdog("AC:A7:F1:29:9D:1D", cfg))
+    assert ticks["n"] == 2, "the scenario needs a SECOND wedged check to reach the cap"
+    assert len(power_offs) == 1, f"cap is 1 power-cycle; sent {len(power_offs)}"
+    give_ups = [r for r in caplog.records
+                if "STILL wedged after 1 power-cycles" in r.getMessage() and "stopping auto-recovery" in r.getMessage()]
+    assert len(give_ups) == 1, [r.getMessage() for r in caplog.records]
+    assert give_ups[0].levelno == logging.ERROR
 
 
 # ── clock_watchdog: pause-skip, non-Polar skip, in-tolerance skip, a JUMP, and error handling ──────────
 def test_clock_watchdog_skips_while_paused(monkeypatch):
-    capture._POLAR_PAUSED.add("x")
-    _stop_after(monkeypatch, 1)
+    """The pull-in-progress skip (1319-1320), observed on the re-sync it must NOT perform: an adrift
+    device that would be re-synced on any other tick is left alone while _POLAR_PAUSED is set, and IS
+    re-synced by the same setup once the pause is lifted (the positive control)."""
+    synced = []
+
+    async def fake_sync(addr):
+        synced.append(addr)
+
+    monkeypatch.setattr(capture, "sync_device_time", fake_sync)
     cfg = {"time": {"auto_sync_devices": True, "drift_check_sec": 1}, "devices": [_dev(name="H10")]}
-    _run(capture.clock_watchdog(cfg))  # the pull-in-progress skip (1319-1320)
+    capture.STATUS["devices"]["H10"] = {
+        "connected": True,
+        "clock_skew_sec": 5,
+        "clock_skew_floor_sec": 5,  # adrift → a re-sync is due on any unpaused tick
+        "address": "24:AC:AC:02:84:96",
+    }
+    capture._POLAR_PAUSED.add("x")
+    try:
+        _stop_after(monkeypatch, 1)
+        _run(capture.clock_watchdog(cfg))
+        assert synced == [], "a paused tick must not touch a device clock"
+    finally:
+        capture._POLAR_PAUSED.discard("x")
+    capture._STOP.clear()
+    _stop_after(monkeypatch, 1)
+    _run(capture.clock_watchdog(cfg))
+    assert synced == ["24:AC:AC:02:84:96"]
 
 
 def test_clock_watchdog_ignores_non_polar_and_in_tolerance_devices(monkeypatch):
@@ -2813,11 +2896,21 @@ def test_clock_watchdog_resyncs_on_a_jump(monkeypatch):
     assert synced == ["24:AC:AC:02:84:96"]
 
 
-def _clock_watchdog_error_case(monkeypatch, raiser):
+def _clock_watchdog_error_case(monkeypatch, caplog, raiser):
+    """Drive one adrift re-sync whose `sync_device_time` raises `raiser`. Returns the CLOCKSYNC
+    verdicts the tick appended and the log lines it emitted, so each caller can assert the arm it
+    names — the three arms below differ ONLY in those two outputs, and until 2026-09-25 none of the
+    three tests read either, so they were three names for one assertion-free run."""
     async def fake_sync(addr):
         raise raiser
 
+    events = []
+
+    def fake_event(root, when, name, addr, verdict, **kw):
+        events.append(verdict)
+
     monkeypatch.setattr(capture, "sync_device_time", fake_sync)
+    monkeypatch.setattr(capture, "append_clock_sync_event", fake_event)
     _stop_after(monkeypatch, 1)
     cfg = {"time": {"auto_sync_devices": True, "drift_check_sec": 1}, "devices": [_dev(name="H10")]}
     capture.STATUS["devices"]["H10"] = {
@@ -2826,21 +2919,36 @@ def _clock_watchdog_error_case(monkeypatch, raiser):
         "clock_skew_floor_sec": 5,  # adrift → attempt sync
         "address": "24:AC:AC:02:84:96",
     }
-    _run(capture.clock_watchdog(cfg))
+    with caplog.at_level(logging.INFO):
+        _run(capture.clock_watchdog(cfg))
+    return events, [r.getMessage() for r in caplog.records if "re-sync" in r.getMessage()]
 
 
-def test_clock_watchdog_handles_a_busy_slot(monkeypatch):
+def test_clock_watchdog_handles_a_busy_slot(monkeypatch, caplog):
+    """OfflineBusy (1350-1351): the slot is taken, so the tick says nothing and records nothing — the
+    attempt is simply retried next cycle."""
     import offline_lock
 
-    _clock_watchdog_error_case(monkeypatch, offline_lock.OfflineBusy("busy"))  # 1350-1351
+    events, lines = _clock_watchdog_error_case(monkeypatch, caplog, offline_lock.OfflineBusy("busy"))
+    assert events == []
+    assert lines == ["H10 device clock is +5.0s off host (tolerance 2.0s) — re-syncing"], lines
 
 
-def test_clock_watchdog_handles_a_transient_error(monkeypatch):
-    _clock_watchdog_error_case(monkeypatch, RuntimeError("org.bluez.Error.InProgress"))  # 1353-1355
+def test_clock_watchdog_handles_a_transient_error(monkeypatch, caplog):
+    """A transient BLE error (1353-1355) is 'busy, not broken': logged at INFO as a retry, and NOT
+    recorded as a failed sync — the verdict that only a hard error earns."""
+    events, lines = _clock_watchdog_error_case(monkeypatch, caplog, RuntimeError("org.bluez.Error.InProgress"))
+    assert events == []
+    assert any("clock re-sync busy (RuntimeError) — will retry" in ln for ln in lines), lines
+    assert not any("re-sync failed" in ln for ln in lines), lines
 
 
-def test_clock_watchdog_handles_a_hard_error(monkeypatch):
-    _clock_watchdog_error_case(monkeypatch, RuntimeError("error 201 NOT_IMPLEMENTED"))  # 1356-1357
+def test_clock_watchdog_handles_a_hard_error(monkeypatch, caplog):
+    """A hard error (1356-1357) is the one arm that reaches the night's record: a `resync-failed`
+    CLOCKSYNC verdict plus a WARNING naming the exception."""
+    events, lines = _clock_watchdog_error_case(monkeypatch, caplog, RuntimeError("error 201 NOT_IMPLEMENTED"))
+    assert events == ["resync-failed"]
+    assert any("clock re-sync failed: RuntimeError('error 201 NOT_IMPLEMENTED')" in ln for ln in lines), lines
 
 
 # ── host_clock_poller: a read error is swallowed (1387-1388) ───────────────────────────────────────────
@@ -2907,10 +3015,29 @@ def test_rssi_poller_rolls_the_link_at_midnight(tmp_path, monkeypatch):
 
 
 def test_rssi_poller_skips_while_paused(tmp_path, monkeypatch):
-    capture._POLAR_PAUSED.add("x")
-    _stop_after(monkeypatch, 1)
+    """The mid-pull skip (1425-1426), observed on the radio read it must not make: a connected device
+    gets no RSSI read while _POLAR_PAUSED is set, and one read from the same setup once it is cleared."""
+    reads = []
+
+    async def fake_read(adapter_mac, addr):
+        reads.append(addr)
+        return -60
+
+    monkeypatch.setattr(capture.link_rssi, "read_rssi", fake_read)
     cfg = {"link": {"rssi_enabled": True, "log_enabled": False, "rssi_interval_sec": 25}, "devices": [_dev(name="H10")]}
-    _run(capture.rssi_poller("hci0", cfg, str(tmp_path)))  # 1425-1426
+    capture.STATUS["devices"]["H10"] = {"connected": True, "address": "24:AC:AC:02:84:96"}
+    capture._POLAR_PAUSED.add("x")
+    try:
+        _stop_after(monkeypatch, 1)
+        _run(capture.rssi_poller("hci0", cfg, str(tmp_path)))
+        assert reads == [], "a paused tick must not poke the radio"
+    finally:
+        capture._POLAR_PAUSED.discard("x")
+    capture._STOP.clear()
+    _stop_after(monkeypatch, 1)
+    _run(capture.rssi_poller("hci0", cfg, str(tmp_path)))
+    assert reads == ["24:AC:AC:02:84:96"]
+    assert capture.STATUS["devices"]["H10"]["rssi"] == -60
 
 
 def test_rssi_poller_reads_and_logs_the_configured_devices(tmp_path, monkeypatch):

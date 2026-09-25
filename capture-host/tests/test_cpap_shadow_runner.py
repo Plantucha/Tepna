@@ -282,13 +282,21 @@ def test_loop_connect_failure_skips_cycle():
     assert cells[8] == "", "fg_state must be BLANK — it was not observed"
 
 
-def test_poll_cycle_does_not_leak_the_link_on_a_bad_connect_contract():
+def test_poll_cycle_surfaces_a_bad_connect_contract_as_the_real_error_not_NameError():
     # THE 27-MINUTE WEDGE, 2026-08-25. Everything after the BLE link opens but before the caller holds
     # the `disconnect` callable is uncovered ground: a raise there leaks the link, the peripheral stops
     # advertising because it is CONNECTED, and every later poll dies BleakDeviceNotFoundError — forever.
     # Only a manual `bluetoothctl disconnect` revived the real box. Here the transport hands back a
     # MALFORMED tuple (the injectable stand-in for that class of failure): the cycle must still fail,
     # must NOT raise NameError out of the finally, and must not hang.
+    #
+    # RENAMED 2026-09-25 (was `…does_not_leak_the_link_on_a_bad_connect_contract`). That name claimed
+    # something this scenario cannot show: a `disconnect` that was never handed over cannot be called
+    # by `poll_cycle`, so its `finally` runs with `disconnect is None` and closes nothing — closing a
+    # malformed transport's own link is the TRANSPORT's job (`_cpap_ble_connect`'s LEAK GUARD), which
+    # `poll_cycle`'s own comment says. What THIS function guarantees, and what is asserted below: the
+    # unpack error reaches the caller unmasked, and the never-bound callable is not invented. The
+    # well-formed-contract leak guard has its own tests above (`calls == ["disconnect"]`).
     calls = []
 
     async def bad_connect():
@@ -316,6 +324,9 @@ def test_poll_cycle_does_not_leak_the_link_on_a_bad_connect_contract():
         raise AssertionError("finally raised NameError — the real error was masked") from None
     except (ValueError, TypeError):
         pass  # correct: the unpack error propagates, and the finally did not explode on top of it
+    # The callable inside the malformed tuple was never bound, so nothing could have called it — an
+    # entry here would mean `poll_cycle` reached into a contract it had just refused to unpack.
+    assert calls == []
 
 
 def test_loop_unexpected_error_survives_and_logs(caplog):
