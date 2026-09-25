@@ -7,6 +7,7 @@ written before these tests, and a crash is UNKNOWN naming the exception, never a
 
 import json
 import os
+from typing import Any
 
 import nightqc
 import verdict
@@ -210,7 +211,8 @@ def test_write_verdicts_puts_the_objects_beside_the_summary_and_survives_a_read_
 # negotiation, the H10 and ring at `connected=0`, and the Verity linked at RSSI −47 / battery 100 as the
 # radio witness. Synthetic on purpose — the corpus rule keeps recordings out of the repo, and the live
 # evidence was overwritten the moment capture started.
-NIGHT1 = [
+# Annotated: a bare heterogeneous list infers `object`, so `d["name"]` below reads as unindexable.
+NIGHT1: list[dict[str, Any]] = [
     {"name": "Polar H10 02849638", "device_id": "02849638", "streams": ["ecg", "acc", "hr"]},
     {"name": "Polar Sense 0C301E3F", "device_id": "0C301E3F", "streams": ["ppg", "acc", "ppi"]},
     {"name": "Wellue O2Ring-S", "device_id": "S8AW2100", "streams": ["spo2", "ppg", "acc"]},
@@ -351,3 +353,75 @@ def test_CONTROL_a_device_basis_coverage_still_travels_as_coverage():
     verdict.validate(o)
     assert o["result"]["coverage"] == {"H10:ecg": 0.98, "H10:acc": 0.97}
     assert o["status"] == "PASS"
+
+
+# ── A DEVICE WITH NO IDENTITY MUST NOT TAKE DOWN THE VERDICT ──────────────────────────────────────
+# `d.get("name") or d.get("device_id")` is None when a configured device carries NEITHER, and that
+# None became a dict KEY. `sorted()` then compared it against the str keys beside it:
+#     TypeError: '<' not supported between instances of 'NoneType' and 'str'
+# Reproduced 2026-09-25, on main, in the QC verdict path — the thing that decides whether a night is
+# judged at all, so ONE malformed entry silently convicted every other device of nothing at all.
+# It is reachable: #3040 hardened the qc ALERT path against exactly this input. That one was guarded
+# and this one was not.
+_NAMELESS = [
+    {"name": "Polar H10 02849638", "device_id": "02849638", "streams": ["ecg", "acc"]},
+    {"streams": ["ppg"]},  # neither name nor device_id — the malformed entry
+]
+
+
+def test_PLANT_a_malformed_device_does_not_make_the_whole_night_unjudgeable():
+    """The regression, stated as the OBSERVABLE it produces rather than the exception it raises.
+
+    ⚠️ IT IS NOT A CRASH, AND MY FIRST TWO FIXTURES NEVER FOUND THAT OUT. `qc_verdict` wraps this
+    region (nightqc.py `try:` … `except Exception`, "a crash is not a verdict; it is UNKNOWN with the
+    exception named"), so the TypeError is SWALLOWED and the night returns:
+
+        status  UNKNOWN
+        reason  the gate raised TypeError: '<' not supported between instances of 'NoneType' and 'str'
+        result  None
+
+    — every correctly-configured device's coverage and degradation discarded with it. So the
+    assertion is on the VERDICT, not on an exception that never escapes.
+
+    ⚠️ TWO GREEN FIXTURES THAT NEVER REACHED THE COMPARISON, in this one test. First `missing` was
+    empty, so `absent` (gated on ALL streams missing) filtered the None out before `sorted()` ever
+    saw it. Then only the nameless device was missing — and `sorted()` over a SINGLE element never
+    compares. Both read as passing regression tests against the live defect. It took planting the
+    defect a third time, with the plant itself VERIFIED as applied, to see that the exception was
+    being caught at all."""
+    summ = _summary(missing=["H10:ecg", "H10:acc", "None:ppg"])
+    devs = [{"name": "H10", "device_id": "02849638", "streams": ["ecg", "acc"]}, {"streams": ["ppg"]}]
+    o = nightqc.qc_verdict(summ, devs)
+    verdict.validate(o)
+    assert "TypeError" not in str(o.get("reason") or ""), o.get("reason")
+    assert o["result"] is not None, "a malformed entry must not discard every other device's findings"
+
+
+def test_the_unidentified_device_is_EXCLUDED_and_the_population_equality_holds():
+    """§∅ at the population layer: it is declared, so it cannot simply be dropped — dropping it would
+    shrink `eligible` and the equality would still balance, which is exactly how this would hide."""
+    o = nightqc.qc_verdict(_summary(), _NAMELESS)
+    pop = o["population"]
+    assert pop["checked"] + pop["excluded"] == pop["eligible"]
+    assert pop["eligible"] == 3, "two H10 streams plus the nameless device's one"
+
+
+def test_the_unidentified_device_is_NAMED_by_what_it_carried():
+    """It has no name to be named by, so it is named by its streams — the same "name what arrived"
+    shape #3040 used for the alert path. A silent exclusion would be an absence reported as nothing."""
+    o = nightqc.qc_verdict(_summary(), _NAMELESS)
+    assert o["result"]["unidentified_devices"] == [["ppg"]]
+
+
+def test_CONTROL_a_fully_identified_devices_list_gains_no_such_key():
+    """The ordinary case is untouched: no malformed entry, no new key, byte-identical result shape."""
+    o = nightqc.qc_verdict(_summary(), DEV)
+    assert "unidentified_devices" not in o["result"]
+
+
+def test_CONTROL_a_device_identified_only_by_device_id_is_still_judged():
+    """`name` absent but `device_id` present is NOT unidentified — the `or` is doing real work and the
+    guard must not swallow it."""
+    devs = [{"device_id": "02849638", "streams": ["ecg"]}]
+    o = nightqc.qc_verdict(_summary(), devs)
+    assert "unidentified_devices" not in o["result"]
