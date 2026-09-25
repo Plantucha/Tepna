@@ -21,9 +21,13 @@ import { MOTIONUI } from './motiondex-render.js';
 
   // classify a Polar Sensor Logger filename → which compute() input slot it feeds
   function slotFor(name) {
+    var isH10 = /(^|[_\s])H10|Polar_H10/i.test(name);
+    /* SAMPLE-VALIDITY-ENVELOPE §3.2 — the `…_ACCRUNS.txt` validity sidecar feeds the RUNS slot of the
+       ACC it belongs to. Claimed BEFORE streamKindFromName, which returns null for it (it is not a
+       waveform and must never become one), so without this line the file is silently dropped. */
+    if (/_ACCRUNS\b|_ACCRUNS\./i.test(name)) return isH10 ? 'chestAccRuns' : 'accRuns';
     var kind = MOTIONDSP.streamKindFromName(name); // 'acc' | 'gyro' | 'mag' | null
     if (!kind) return null;
-    var isH10 = /(^|[_\s])H10|Polar_H10/i.test(name);
     if (kind === 'acc') return isH10 ? 'chestAcc' : 'acc';
     return kind; // gyro / mag (Verity only)
   }

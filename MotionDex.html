@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="c8004bedc2f7" data-compute-hash="2b7cb3c1e2a0">
+<html lang="en" data-manifest-hash="6038fb2e7140" data-compute-hash="455d61de94fb">
 <head>
 <!--
   MotionDex.src.html — Tepna
@@ -12,7 +12,7 @@
 <!-- CSP: browser-enforces the no-network invariant. connect-src 'none' blocks every outbound request;
      script-src is STRICT ('self' + per-inline-script sha256, NO 'unsafe-inline'). MotionDex ships zero
      inline scripts (all init lives in motiondex-app.js), so the hash list is empty by construction. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-A5IOHO4TVAjxMeWYBbqHuYMVdTRsVI1H8TBxvzdcv4w=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-Bk1mlUJYnqopVL4Jf16KmZzWFK6UT6CEvKkRjPdmm7s=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-LK5VOOBa0EEy7ufo1WyQm1kSFnDsFWmUvZ1fThFN8ws=' 'sha256-LNL2HIbq1MolWykSbNRcVM1IXWPE1b23gr8wWMcU+sA=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-A5IOHO4TVAjxMeWYBbqHuYMVdTRsVI1H8TBxvzdcv4w=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-G5BXtAjRQy79thFFcZUkRa5Q3kI1Y9PylDq46Ww852s=' 'sha256-LNL2HIbq1MolWykSbNRcVM1IXWPE1b23gr8wWMcU+sA=' 'sha256-QEzEx9Ca0xcQ45sC3/oCziqTofTt2qySQMnrAXAZbJk=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>MotionDex — Motion / IMU Analyzer · v2.15.0</title>
@@ -5442,7 +5442,65 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
      the same device's two files and a second constant would eventually disagree with the first. */
   var MOTION_RESYNC_BOUND_MS = 60000;
   var MOTION_GAP_CEIL_MS = 86400000;
-  function parseSensorXYZ(text) {
+  /* ── THE ACC VALIDITY SIDECAR (SAMPLE-VALIDITY-ENVELOPE §3.2, "acc" row) ─────────────────────
+     `…_ACCRUNS.txt`, written beside every Polar `_ACC.txt`. Spans are keyed by the writer's own
+     `Phone timestamp` + `dur_ms`, NOT by `first_index`: this parser drops implausible rows
+     (`_implausibleDropped`), so our array index is not the writer's sample index and an
+     index-keyed intersection would silently slide. Time is the frame both sides agree on.
+
+     ⚠️ THE REFUSAL KEYS ON THE SPAN AND THE FILE'S OWN `min_run`, NEVER ON `class=`. Measured
+     2026-09-25 over the real corpus: the same Polar ACC channel reads `class=held` in a 2026-09-08
+     sidecar (`held_top2_share=0.95`) and `class=variable` in a 2026-09-23 one (0.85 + exit/confirm).
+     The older verdict is the inverted misclassification `HELD_MIN_RUN = 2` exists to prevent — a
+     stream where nothing repeats has every run at length 1 and scores a perfect concentration. So
+     `class` is not comparable across writer generations, and a refusal keyed on it would inherit a
+     retired bug from every old file. The zero-order hold that genuinely repeats 6-7x by design is
+     the O2Ring's `accraw`, a DIFFERENT stream from this one. */
+  function parseAccRuns(text) {
+    if (typeof text !== 'string' || !text) return null;
+    var out = /** @type {any} */ ({ params: null, minRun: null, spans: [], rows: [], malformed: false, emitted: 0, examined: null, sawHeader: false, comparable: false });
+    var lines = String(text).split(/\r?\n/);
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i].trim();
+      if (!line) continue;
+      if (line.charAt(0) === '#') {
+        if (!out.params && /\bstream=/.test(line) && /\bmin_run=/.test(line)) {
+          out.params = line.replace(/^#\s*/, '');
+          var mr = /\bmin_run=(\d+)/.exec(line);
+          if (mr) out.minRun = +mr[1];
+        }
+        var ex = /\bexamined=(\d+)/.exec(line);
+        if (ex) out.examined = (out.examined || 0) + +ex[1];
+        continue;
+      }
+      if (/^Phone timestamp;/.test(line)) {
+        out.sawHeader = true;
+        continue;
+      }
+      var c = line.split(';');
+      if (c.length < 8) {
+        out.malformed = true;
+        continue;
+      }
+      var stamp = parseTimestamp((c[0] || '').trim());
+      var dur = +c[5];
+      var n = +c[4];
+      if (!stamp || !isFinite(dur) || dur < 0 || !isFinite(n) || n <= 0) {
+        out.malformed = true;
+        continue;
+      }
+      out.rows.push({ channel: (c[1] || '').trim(), value: +c[2], n: n });
+      out.spans.push({ t0Ms: stamp.tMs, t1Ms: stamp.tMs + dur, channel: (c[1] || '').trim() });
+      out.emitted++;
+    }
+    /* No rule line ⇒ nothing to compare against. An EMPTY file that DOES carry its rule is a real
+       observation at that rule — the writer looked and emitted nothing — and one 2026-09-24 Verity
+       ACCRUNS is 0 bytes, which is neither. Three states, kept apart. */
+    out.comparable = out.minRun != null;
+    return out;
+  }
+
+  function parseSensorXYZ(text, opts) {
     var lines = String(text || '').split(/\r?\n/);
     var out = [];
     var ns0 = null;
@@ -5553,6 +5611,13 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
     /* Present only when it happened, so every clean stream keeps today's bytes (§1.1). Each entry:
        { idx, deviceStepMs, phoneDeltaMs (null when the seam stamps did not parse) }. */
     if (resyncs.length) out._clockResyncs = resyncs;
+    /* Same idiom as the seam list: hung on the row array, so no consumer signature changes and a
+       stream without a sidecar keeps today's bytes exactly. */
+    var _runs = parseAccRuns(opts && opts.runsText);
+    if (_runs) {
+      out._runsSidecar = _runs;
+      if (_runs.spans.length) out._blankSpans = _runs.spans;
+    }
     out._kind = headerKind ? headerKind.kind : null;
     out._unit = headerKind ? headerKind.unit : null;
     /* §2.2 — cross-examine the declared unit against gravity. The oracle REPORTS; it never rescales,
@@ -5785,6 +5850,30 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
        signal is already in scope here — no signature change, and no new parameter for a caller to
        forget to pass. */
     var _seam = !!(accRows && accRows._clockResyncs && accRows._clockResyncs.length);
+    /* ── §∅ A BLANKING RUN FABRICATES STILLNESS, AND `seen` CANNOT SEE IT ────────────────────────
+       The coverage guard above exists because "an uncovered epoch scores counts=0 ⇒ moving=false ⇒
+       counted as IMMOBILE, i.e. a recording gap fabricates stillness". A recorded blanking run does
+       the SAME THING through a door that guard cannot watch: the rows are present, so `seen[idx]`
+       counts them, but they hold one constant, so their dynamic-g is ~0 and the epoch scores
+       `moving:false` — IMMOBILE, from samples nobody measured. The error runs toward "still", which
+       for a sleep/staging consumer is the direction that matters.
+
+       So a blanked epoch leaves the covered set exactly as an unrecorded one does — refuse at the
+       EPOCH (the window that contains absent input), annotate at the NIGHT (the fraction carries its
+       reduced denominator). That is §∅'s refuse-vs-annotate line applied at the level where the
+       window actually sits, and it reuses the tri-state already here rather than inventing a second
+       mechanism. Spans are absolute ms from the sidecar's own stamps (see parseAccRuns). */
+    var blanked = new Uint8Array(nE);
+    var nBlankEpochs = 0;
+    var _spans = accRows && accRows._blankSpans;
+    if (_spans && _spans.length && t0Ms != null) {
+      for (var bi = 0; bi < _spans.length; bi++) {
+        var be0 = Math.floor((_spans[bi].t0Ms - t0Ms) / 1000 / epoch);
+        var be1 = Math.floor((_spans[bi].t1Ms - t0Ms) / 1000 / epoch);
+        if (!isFinite(be0) || !isFinite(be1)) continue;
+        for (var ee = Math.max(0, be0); ee <= Math.min(nE - 1, be1); ee++) blanked[ee] = 1;
+      }
+    }
     var epochs = [],
       immobile = 0,
       covered = 0,
@@ -5793,6 +5882,12 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
       var tEp = t0Ms != null ? t0Ms + e * epoch * 1000 : null;
       if (!seen[e]) {
         epochs.push({ tStartMs: tEp, count: null, moving: null }); // NOT RECORDING — never "immobile"
+        continue;
+      }
+      if (blanked[e]) {
+        // RECORDED, but the box says the signal was absent here — never "immobile" either.
+        nBlankEpochs++;
+        epochs.push({ tStartMs: tEp, count: null, moving: null, reason: 'blanking-run' });
         continue;
       }
       covered++;
@@ -5830,6 +5925,10 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
          second spelling of one fact. */
       immobileFrac: _seam ? null : covered ? immobile / covered : null,
       ...(_seam ? { immobileFracReason: 'clock-seam' } : {}),
+      /* Present only when a sidecar reported one, so every stream without one keeps today's bytes.
+         The COUNT is published rather than folded away: a denominator that shrank silently is the
+         shape §∅ objects to, and a reader can see how much of the night the box called absent. */
+      ...(nBlankEpochs ? { blankedEpochs: nBlankEpochs } : {}),
       movementIndex: covered ? total / covered : null
     };
   }
@@ -6487,9 +6586,11 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
   //  input: { acc, gyro, mag, chestAcc }  (each = raw file text OR pre-parsed rows)
   //  acc/gyro/mag = the wrist/arm Verity streams; chestAcc = the H10 effort channel.
   // ════════════════════════════════════════════════════════════════════════
-  function asRows(v) {
+  function asRows(v, runsText) {
     if (!v) return null;
-    if (typeof v === 'string') return parseSensorXYZ(v);
+    // `runsText` is the matching `…_ACCRUNS.txt` when the drop carried one. LAST and optional: absent
+    // it, this is the exact single-argument call as before and no stream's bytes move.
+    if (typeof v === 'string') return runsText ? parseSensorXYZ(v, { runsText: runsText }) : parseSensorXYZ(v);
     if (Array.isArray(v)) return v;
     return null;
   }
@@ -6539,10 +6640,10 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
 
   function compute(input) {
     input = input || {};
-    var acc = asRows(input.acc),
+    var acc = asRows(input.acc, input.accRuns),
       gyro = asRows(input.gyro),
       mag = asRows(input.mag),
-      chest = asRows(input.chestAcc);
+      chest = asRows(input.chestAcc, input.chestAccRuns);
     /* ∅ AN UNDETERMINED UNIT IS NOT MILLI-G. The parse boundary above already refuses to guess —
        `inferAccUnit` ends `return null; // nothing gravity-like — do not guess`, and `_unit` is left
        null when neither the header nor the magnitude oracle could decide. Defaulting to 'mg' HERE
@@ -7051,9 +7152,13 @@ const { MOTIONUI } = __require('motiondex-render.js');
 
   // classify a Polar Sensor Logger filename → which compute() input slot it feeds
   function slotFor(name) {
+    var isH10 = /(^|[_\s])H10|Polar_H10/i.test(name);
+    /* SAMPLE-VALIDITY-ENVELOPE §3.2 — the `…_ACCRUNS.txt` validity sidecar feeds the RUNS slot of the
+       ACC it belongs to. Claimed BEFORE streamKindFromName, which returns null for it (it is not a
+       waveform and must never become one), so without this line the file is silently dropped. */
+    if (/_ACCRUNS\b|_ACCRUNS\./i.test(name)) return isH10 ? 'chestAccRuns' : 'accRuns';
     var kind = MOTIONDSP.streamKindFromName(name); // 'acc' | 'gyro' | 'mag' | null
     if (!kind) return null;
-    var isH10 = /(^|[_\s])H10|Polar_H10/i.test(name);
     if (kind === 'acc') return isH10 ? 'chestAcc' : 'acc';
     return kind; // gyro / mag (Verity only)
   }

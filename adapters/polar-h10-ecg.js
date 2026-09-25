@@ -143,7 +143,10 @@
         }
         try {
           if (comp.acc && typeof ecg.parseDeviceACC === 'function') {
-            var da = ecg.parseDeviceACC(comp.acc);
+            // SAMPLE-VALIDITY-ENVELOPE §3.2 — the ACC companion's OWN sidecar rides in under its own
+            // companion kind ('accruns', never 'runs' — that slot is the ECG primary's). Absent it,
+            // this is the exact single-argument call as before.
+            var da = comp.accruns ? ecg.parseDeviceACC(comp.acc, { runsText: comp.accruns }) : ecg.parseDeviceACC(comp.acc);
             if (da && da.acc && da.acc.length) {
               // a stampless ACC is relative-from-0 → re-base onto the ECG anchor (Clock Contract — never now()).
               if (da.acc._relBase && frame.t0Ms != null) {

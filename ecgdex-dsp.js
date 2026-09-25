@@ -4004,6 +4004,18 @@
   // posture timeline shown in the UI and the position stamped on epochs/events agree.
   // Mutates each epoch in place (epoch.position) AND returns a sorted [{tMin,position}]
   // lookup for event-meta propagation. No ACC → every epoch.position = 'unknown'.
+  /* Does a 5-minute epoch's window touch a recorded ACC blanking span? Both in absolute floating ms.
+     Half-open on both sides, so a span ending exactly at the epoch boundary convicts nothing. */
+  function _epochTouchesBlank(e, off, ecgT0Ms, spans) {
+    if (ecgT0Ms == null || !spans.length) return false;
+    const a0 = ecgT0Ms + (e.tMin * 60 - off) * 1000,
+      a1 = a0 + 300000;
+    for (let i = 0; i < spans.length; i++) {
+      if (a0 < spans[i].t1Ms && spans[i].t0Ms < a1) return true;
+    }
+    return false;
+  }
+
   function stampEpochPositions(epochs, deviceACC, accFs, ecgT0Ms, durSec) {
     if (!epochs || !epochs.length) return [];
     const fs = accFs || 4;
@@ -4020,6 +4032,7 @@
     const off = baseOffset >= -2 && baseOffset <= durSec ? baseOffset : 0;
     const N = deviceACC.length,
       out = [];
+    const _blankMs = Array.isArray(deviceACC._blankSpans) ? deviceACC._blankSpans : [];
     for (const e of epochs) {
       const s0 = Math.max(0, Math.round((e.tMin * 60 - off) * fs)),
         s1 = Math.min(N, Math.round((e.tMin * 60 + 300 - off) * fs));
@@ -4031,9 +4044,20 @@
         ey.push(ys[i]);
         ez.push(zs[i]);
       }
-      // need ≥30 s of samples for a trustworthy median gravity vector
-      const pos = ex.length > fs * 30 ? _normPosition(_posture(median(ex), median(ey), median(ez)).label) : 'unknown';
+      /* §∅ — A HELD ACC YIELDS A CONFIDENT, WRONG POSTURE, WHICH IS WORSE THAN AN ABSENT ONE.
+         Posture is the MEDIAN gravity vector over the window. A recorded blanking run holds one
+         constant, so the median is that constant and `_posture` returns a definite label from
+         samples nobody measured — not 'unknown', a real posture, stamped on the epoch and
+         propagated into every event's meta. The count guard above cannot see it: the samples ARE
+         there, they are simply all the same. Same shape as the fabricated stillness in
+         motiondex-dsp, one node over.
+         'unknown' is the vocabulary this function already uses for "no trustworthy vector", so the
+         refusal reuses it rather than minting a second spelling; the REASON is what distinguishes
+         an absence the box recorded from one we merely lacked samples for. */
+      const _blanked = _blankMs.length > 0 && _epochTouchesBlank(e, off, ecgT0Ms, _blankMs);
+      const pos = _blanked ? 'unknown' : ex.length > fs * 30 ? _normPosition(_posture(median(ex), median(ey), median(ez)).label) : 'unknown';
       e.position = pos;
+      if (_blanked) e.positionReason = 'blanking-run';
       out.push({ tMin: e.tMin, position: pos });
     }
     return out;
@@ -5972,7 +5996,45 @@
 
   // accFs } — fs inferred from the median stamp dt. A stampless file is relative-from-0
   // (+ _relBase) so the caller can re-base onto the ECG's t0Ms (Clock Contract §2.6 — never now()).
-  function parseDeviceACC(text) {
+  /* The ACC COMPANION's validity sidecar (`…_ACCRUNS.txt`, SAMPLE-VALIDITY-ENVELOPE §3.2).
+     Separate from `parseEcgRuns` above by design, on two axes:
+       · STREAM — that one filters to `stream=ecg`; an ACC sidecar's rows name CHANNELS (`X [mg]`),
+         and any channel being blanked blanks the gravity vector, so all of them are taken.
+       · KEY — that one is sample-keyed (`first_index`/fs), which is right for the ECG primary whose
+         fs we derive. Here the spans are keyed by the writer's own `Phone timestamp` + `dur_ms`,
+         because `parseDeviceACC` skips unparseable rows and our array index is therefore NOT the
+         writer's sample index. Time is the frame both sides agree on.
+     Returns absolute floating ms, the same frame `stampEpochPositions` aligns against. */
+  function parseAccRunsTimed(text) {
+    if (typeof text !== 'string' || !text) return null;
+    var out = /** @type {any} */ ({ minRun: null, spans: [], emitted: 0, comparable: false });
+    var lines = String(text).split(/\r?\n/);
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i].trim();
+      if (!line) continue;
+      if (line.charAt(0) === '#') {
+        if (out.minRun == null && /\bstream=/.test(line) && /\bmin_run=/.test(line)) {
+          var mr = /\bmin_run=(\d+)/.exec(line);
+          if (mr) out.minRun = +mr[1];
+        }
+        continue;
+      }
+      if (/^Phone timestamp;/.test(line)) continue;
+      var c = line.split(';');
+      if (c.length < 8) continue;
+      var st = parseTimestamp((c[0] || '').trim());
+      var dur = +c[5];
+      if (!st || !isFinite(dur) || dur < 0) continue;
+      out.spans.push({ t0Ms: st.tMs, t1Ms: st.tMs + dur });
+      out.emitted++;
+    }
+    /* No rule line ⇒ not comparable with anything. An empty file that DOES carry its rule is a real
+       observation at that rule. Both refuse nothing, for different reasons. */
+    out.comparable = out.minRun != null;
+    return out;
+  }
+
+  function parseDeviceACC(text, opts) {
     var lines = String(text == null ? '' : text).split(/\r?\n/),
       out = [],
       ns0 = null;
@@ -6093,6 +6155,10 @@
        not read it is unaffected, and non-zero says the device axis was NOT spent — the samples carry
        host arrival times instead. `accAxis` names which axis the caller is actually holding, because
        "device" and "host" here are the same numbers to look at and different things to trust. */
+    /* §3.2 — the `…_ACCRUNS.txt` spans ride on the row array itself, the same idiom the seam list
+       uses, so no consumer signature changes and a drop without a sidecar keeps today's bytes. */
+    var _accRuns = parseAccRunsTimed(opts && opts.runsText);
+    if (_accRuns && _accRuns.spans.length) /** @type {any} */ (out)._blankSpans = _accRuns.spans;
     return { acc: out, accFs: fs, accClockSteps: accClockSteps, accMaxStepMs: accClockSteps ? Math.round(accMaxStepMs) : null, accAxis: accClockSteps ? 'host' : 'device' };
   }
 

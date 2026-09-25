@@ -132,6 +132,8 @@
        through to `nonSignalName` and was set aside as 'skip': a sidecar the box writes and nothing
        could ever read. The writer landed with `ECG_RUN_MIN = 30`; this is the half that reads it. */
     if (/_ECGRUNS\b|_ECGRUNS\./.test(u)) return 'runs';
+    // The ACC companion's own sidecar — a DISTINCT kind, never 'runs' (see signal-orchestrate).
+    if (/_ACCRUNS\b|_ACCRUNS\./.test(u)) return 'accruns';
     if (/_ACC\b|_ACC\./.test(u)) return 'acc';
     if (/_RR\b|_RR\.|_PPI\b|_PPI\./.test(u)) return 'rr';
     if (/_HR\b|_HR\./.test(u)) return 'hr';
@@ -162,6 +164,7 @@
        Claimed FIRST: `_PPG\b` does not match it (no boundary before RUNS), and without this line it
        fell through to the bare-name default and was queued as a PPG PRIMARY (measured 2026-09-25). */
     if (/_PPGRUNS\b|_PPGRUNS\./.test(u)) return 'runs';
+    if (/_ACCRUNS\b|_ACCRUNS\./.test(u)) return 'accruns'; // the ACC companion's sidecar, distinct from 'runs'
     if (/_PPG\b|_PPG\./.test(u)) return 'ppg';
     if (/_ACC\b|_ACC\./.test(u)) return 'acc';
     if (/_GYRO\b|_GYRO\./.test(u)) return 'gyro';
@@ -349,7 +352,7 @@
     };
     items = Array.isArray(items) ? items : [];
     // (1) bucket by name classification (the SAME ecgKind the app + the routing-table test use)
-    var byKind = /** @type {{ ecg:any[], rr:any[], hr:any[], acc:any[], runs:any[], skip:any[] }} */ ({ ecg: [], rr: [], hr: [], acc: [], runs: [], skip: [] });
+    var byKind = /** @type {{ ecg:any[], rr:any[], hr:any[], acc:any[], runs:any[], accruns:any[], skip:any[] }} */ ({ ecg: [], rr: [], hr: [], acc: [], runs: [], accruns: [], skip: [] });
     /* `runs` MUST have a bucket of its own. The line below falls back to `byKind.ecg` for any kind
        without one, so the moment `ecgKind` learned to return 'runs' the sidecar landed in the PRIMARY
        waveform bucket — and `_dedupeBySession` then dropped it against the real `_ECG.txt` it shares a
@@ -420,7 +423,8 @@
       // SAMPLE-VALIDITY-ENVELOPE §3.2 — the `_ECGRUNS.txt` validity sidecar, device-filtered and
       // part-grouped like every other companion. The app picks the nearest by FILENAME stamp, because
       // its text must reach parseECGText BEFORE a parsed rec.t0Ms exists to pair on.
-      runs: _dedupeGroups(_groupParts(byKind.runs, pk))
+      runs: _dedupeGroups(_groupParts(byKind.runs, pk)),
+      accruns: _dedupeGroups(_groupParts(byKind.accruns, pk))
     };
     // (8) ECG groups: part-group, then de-dupe a duplicate night (same device id + structured start
     //     stamp) via the shared _dedupeBySession (IV §2); each dropped group → a 'duplicate' set-aside.
@@ -463,7 +467,7 @@
       return sf ? (typeof sf.get === 'function' ? sf.get(name) : sf[name]) : undefined;
     };
     items = Array.isArray(items) ? items : [];
-    var COMPANION = ['acc', 'gyro', 'magn', 'ppi', 'marker', 'runs'];
+    var COMPANION = ['acc', 'gyro', 'magn', 'ppi', 'marker', 'runs', 'accruns'];
     // (1) classify by name (the SAME ppgKind the app + routing-table test use); a name-'ppg' item the
     //     caller's content-sniff flagged foreign (sniffedForeign) is set aside with its sniffed kind.
     //     'runs' is the `_PPGRUNS.txt` validity sidecar (SAMPLE-VALIDITY-ENVELOPE §3.2) — device-eligible
@@ -471,7 +475,7 @@
     //     reach parsePPG itself, before a parsed rec.t0Ms exists.
     var ppgCand = [],
       hr = [],
-      comp = { acc: [], gyro: [], magn: [], ppi: [], marker: [], runs: [] },
+      comp = { acc: [], gyro: [], magn: [], ppi: [], marker: [], runs: [], accruns: [] },
       skipped = [];
     items.forEach(function (it) {
       var k = ppgKind(it.name);

@@ -168,7 +168,7 @@ provenance. Config: `spool_pull.on_therapy_end: true` + `cpap.harvest_after_spoo
 default-off in `config.example.yaml` per the arming convention, flipped on the box by the owner's go.
 
 ### WU2 — `spool_pull.spool_type` becomes a LIST; one cursor per type
-`capture.py:8828/8834` reads a scalar; `cpap_spool.make_row` already keys rows by `spool_type`, so the
+`capture.py` `_maybe_start_cpap_spool_pull` reads a scalar; `cpap_spool.make_row` already keys rows by `spool_type`, so the
 ledger needs no schema change — the committed cursor becomes per-type (`committed_cursor` read back by
 type, not by last row). Pull types in list order in one BLE session. Add `TherapyOneMinutePeriodic`
 (family `periodic`, field 5) and `TherapyEvents-RespiratoryEvents` (family `event`, field 4) to the
