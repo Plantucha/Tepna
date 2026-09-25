@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-**Status:** CHECKPOINT (living — last-verified **2026-09-17**) · **Created:** 2026-09-03 · **Owner rulings 2026-09-15 (Kestrel, one batch):** **D2 AUTHORIZED** — the named set of four, PLUS a new rail-keyed sidecar rule in `capture-host/writers.py` (floor 5, alongside `rule=stuck` at 200); authorization does NOT generalise to other box touches. **D4 — all three DECLINED**, closed as negatives, not deferrals. **D5 — all three RATIFIED.** **D8 — YES**, build the two-channel dual-wavelength ingest. ⚠️ **D6 WAS ALREADY DECIDED ON 2026-09-07 (option C) and this file still listed it as open** — the queue was `last-verified 2026-09-03` while the ruling landed four days later, so it manufactured a re-ask. **Still open: D3 and D7** — and as of **2026-09-17** BOTH have moved: **D3 is ONE call** (re-verified,
+**Status:** CHECKPOINT (living — last-verified **2026-09-25**) · **Created:** 2026-09-03 · **Owner rulings 2026-09-15 (Kestrel, one batch):** **D2 AUTHORIZED** — the named set of four, PLUS a new rail-keyed sidecar rule in `capture-host/writers.py` (floor 5, alongside `rule=stuck` at 200); authorization does NOT generalise to other box touches. **D4 — all three DECLINED**, closed as negatives, not deferrals. **D5 — all three RATIFIED.** **D8 — YES**, build the two-channel dual-wavelength ingest. ⚠️ **D6 WAS ALREADY DECIDED ON 2026-09-07 (option C) and this file still listed it as open** — the queue was `last-verified 2026-09-03` while the ruling landed four days later, so it manufactured a re-ask. **Still open: D3 and D7** — and as of **2026-09-17** BOTH have moved: **D3 is ONE call** (re-verified,
 below), and **D7 is RULED — derive the mechanism first**, which converts it from a pending decision
 into an analysis unit with no owner. **D6-adjacent note:** `BLE-TRANSPORT-REDESIGN` §1.1 was also ruled
 on 2026-09-17 (**BUILD**, promoted to `GATT-HANDLE-MAP-2026-09-17-BRIEF.md`), and the fleet-wide
@@ -296,6 +296,26 @@ it, which is the cheapest possible moment to ask.
 
 ---
 
+### D10–D15 · Six gates that name the owner and were NEVER ASKED (Heron, 2026-09-25)
+
+> ⬜ **UNASKED — not deferred, not refused, simply never put.** A sweep of all **24** non-DONE briefs
+> whose STATUS LINE names an owner gate, checked against D1–D9, the `owner-decisions-*.md` records and
+> `owner-decision-d3-hrstat`. Eighteen resolved to a recorded ruling (granted, refused or awaiting D1's
+> scheduling). **These six matched nothing.** Each is individually cheap, and a "no" closes it as a
+> negative rather than parking it — the D4 economics.
+>
+> | | brief | the gate, precisely | a YES unblocks | a NO parks |
+> |---|---|---|---|---|
+> | **D10** | `GATT-HANDLE-MAP` | four-device box validation; the header says **"Owner still unassigned"** — no D-number, and it is absent from D1's 13 | the handle-map validation with H10/Verity/O2Ring observed (unobserved since 09-18) | the brief at "validated on one device", and `BLE-TRANSPORT-REDESIGN` waits behind it |
+> | **D11** | `VIGIL-SELF-SUSTAINED-FOLDING` | acceptance 2–4 — a systemd unit plus `MemoryMax`/`OOMScoreAdjust`/scheduling **on vigil**; not in D2's authorized set of four | the box folds its own nights under a memory fence, which is the whole point of the brief | folding stays a rig-only job and the box keeps producing nights nobody folds locally |
+> | **D12** | `VIGIL-BLUETOOTH-ADVERSARIAL-AUDIT` | **Mitigation C clause 1 is still UN-ARMED** and needs a `config.yaml` touch on vigil — distinct from D2's 2026-09-19 sniffer-INERT ruling, which this brief already records | the last unarmed mitigation of that audit | the audit closes with one mitigation documented and not armed — state it, so it is not read as armed |
+> | **D13** | `VERDICT-CONTRACT` | **12 adoption rows are `UNKNOWN`-by-design awaiting the owner's held-out decision** — §3c records the rule, not the call | those 12 rows resolve and the adoption ratchet advances | the 12 stay UNKNOWN-by-design, which is honest but permanent; say so in §3c |
+> | **D14** | `OXYII-ACQUISITION-CHARTER` | §50's **R1 attestation** — an owner *attestation*, not a box touch. D2 authorized the touch only, so this half was never covered | §50 closes and the charter's last non-box arm with it | the charter stays open on one attestation while every buildable arm is done |
+> | **D15** | `AS11-AUTO-SESSION-DETECTION` | the **`SubscribeEvent` probe** is owner-scheduled and absent from D1's 13; the queue's §3 already records the owner saying the ANALYSIS half needs no hardware | the probe runs in a box window and `Leak` joins the poll set | the analysis half proceeds alone — already unblocked — and the probe stays unscheduled |
+>
+> ⚠️ **D1 is still the bigger lever and is still un-ruled.** Six of the other eighteen wait on nothing
+> but its scheduling call. These six are what remains when D1 is granted.
+
 ## 3 · Not the owner's — 18 briefs waiting on SESSIONS
 
 This is the half that effort can move, and it was hidden by the same regex that inflated D1–D8. Most
@@ -316,6 +336,15 @@ carry a next step of the form *"one corpus run"* or *"one work-unit, no new code
 Five instances on 2026-09-03, across three sessions, all one shape: **the query ran, matched exactly
 what it was asked to match, and answered a different question than the one being asked.** None of them
 errored, and in most the wrong answer was *plausible*, which is why none looked like a mistake:
+
+> ⚠️ **A SIXTH INSTANCE, 2026-09-25 (Heron), and it is a WORD-SENSE collision rather than a scope one.**
+> The sweep that produced D10–D15 matched brief status lines on `owner-gated|owner-authoriz|owner
+> decision|…`. One of 24 hits — `MUTATION-PIPELINE-INTEGRITY` — matched *"that is the brief **owner's**
+> call"*, meaning the brief's owning SESSION, not the human owner. This repo uses both senses
+> constantly: **`**Owner:** Heron` is a session; `owner-authorized` is the human.** Any repeat of this
+> sweep must exclude the `**Owner:**` field label and the phrase "brief owner", or it will report
+> session-owned work as owner-gated — and the false-positive count grows with the brief count, not with
+> the number of real gates.
 
 | the query | what it answered | what was being asked |
 |---|---|---|
