@@ -1,6 +1,6 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 
-**Status:** PROPOSED — 2026-09-20 (RE-SCOPED by owner ruling 2026-09-20: "try a public EEG dataset first". Zero Muse files exist in the corpus (re-verified 2026-09-02) and no device is being sought now; the pipeline is to be validated on public sleep-EEG — NSRR PSG EEG channels, to which access is approved — before any hardware. The Muse-specific build is deferred behind that) · **Created:** (undated — pre-2026-07-03, grandfathered)
+**Status:** PROPOSED — 2026-09-20 (RE-SCOPED by owner ruling 2026-09-20: "try a public EEG dataset first". Zero Muse files exist in the corpus (re-verified 2026-09-02) and no device is being sought now; the pipeline is to be validated on public sleep-EEG — NSRR PSG EEG channels, to which access is approved — before any hardware. The Muse-specific build is deferred behind that) · **Created:** (undated — pre-2026-07-03, grandfathered) · **TRIAGED 2026-09-25 (Magpie):** the NODE is built — `eegdex-dsp.js`, `codegen/generated/eegdex-registry.js`, `eegdex-reference.html`, `codegen/manifests/eegdex.manifest.json`, `tools/eegdex-selftest.mjs`. **The 2026-09-20 re-scope is NOT started:** no public-dataset ingest exists in `eegdex-dsp.js` or `tools/`, and doc-search over the code corpus returns no code hit for the subject at all — verify the RE-SCOPE, not the original plan. Stop: nobody has chosen the dataset.
 
 # Build Brief — EEGDex (Muse single-channel EEG node) + cohort integration
 
