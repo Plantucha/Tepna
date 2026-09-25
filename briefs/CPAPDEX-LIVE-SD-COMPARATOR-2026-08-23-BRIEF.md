@@ -144,11 +144,11 @@ all-green incl. the CPAPDex equiv leg, `verify-provenance.html` clean).
 
 ## Done when
 
-- [ ] `cpapdex-cross.js` exposes `cpapCompare(setA, setB)` → per-channel `{ scale:{a,b,residSD},
+- [x] `cpapdex-cross.js` exposes `cpapCompare(setA, setB)` → per-channel `{ scale:{a,b,residSD}, — **verified 2026-09-25 (Magpie triage):** `cpapCompare` is defined in `cpapdex-cross.js` and consumed in `cpapdex-app.js`.
       blandAltman:{bias,loLoA,hiLoA}, overlapMin, divergence, ok }` | `{ ok:false, reason }`.
 - [ ] Coimport finds the BLE/SD pair by device-clock date; manual two-file load also works.
 - [ ] Alignment is on device-clock minutes; viewer-timezone-independent (Clock Contract §5).
-- [ ] Bland–Altman + scale regression only; **no Pearson r anywhere** in the surface.
+- [x] Bland–Altman + scale regression only; **no Pearson r anywhere** in the surface. — **verified 2026-09-25 (Magpie triage):** `cpapdex-cross.js` carries the `NEVER Pearson r` rule and `cpapdex-render.js` the `No Pearson r anywhere` note; a case-insensitive scan of both files finds **zero** Pearson occurrences that are not those two prohibitions — i.e. the rule, and no implementation contradicting it.
 - [ ] Streamed-vs-logged divergence surfaced explicitly from `cpap_ingest.GapCounters`.
 - [ ] The **alignment offset** the comparator applied is a badged, first-class output; a non-zero
       offset beyond tolerance surfaces as a clock finding (the pin's 4 h `EdfSink` case is the reason).
@@ -160,7 +160,7 @@ all-green incl. the CPAPDex equiv leg, `verify-provenance.html` clean).
 - [ ] Committed fixture pair (from the Vigil box pin) + equiv leg via `regen-cpap-goldens.mjs`;
       `verify-provenance` clean; `npm run check` green.
 - [ ] Reference-guide row added; `docs-ledger` green.
-- [ ] v1 is BRP-only; SA2 and PLD appear ONLY as the documented non-goals above — no SA2/PLD comparison code ships in v1.
+- [x] v1 is BRP-only; SA2 and PLD appear ONLY as the documented non-goals above — no SA2/PLD comparison code ships in v1. — **verified 2026-09-25 (Magpie triage):** `cpapdex-cross.js` states PLD *“is NOT here and must not be added”*; no SA2/PLD comparison code is present.
 
 ## Rulings (owner-ratified via the lead, 2026-08-23)
 

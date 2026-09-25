@@ -182,8 +182,8 @@ witness exists one charter over.
 - [x] P#1–P#5 classified against HEAD with per-item evidence.
 - [x] P#4 answered with a measurement and a pre-stated falsification condition.
 - [x] P#6–P#8 measured — all three ALREADY IMPLEMENTED.
-- [ ] §13's resource-budget measurements — **needs the box** (Thursday).
-- [ ] §14's long-run behaviour tests — **needs the box** (Thursday).
+- [~] §13's resource-budget measurements — **needs the box** (Thursday). — **re-scoped 2026-09-25 (Magpie triage): OUT OF THIS BRIEF'S SCOPE.** The 2026-09-15 status clause re-scoped this brief to "its own scope: the §1 audit and the §15 ranking", and `OPERATIONAL-MATURITY-ROADMAP-2026-08-27-BRIEF.md` carries the measurement (its §Sequencing: "§13's measurements and §14's long-run physical tests need the box", and its own Done-when at line 246 tracks the long-run half as **PARTIAL**). Left unticked-but-marked rather than ticked: nothing measured it here. An earlier clause of this header still reads "tick both boxes in that PR, which flips this brief to DONE" — that clause predates the re-scope and is superseded by it.
+- [~] §14's long-run behaviour tests — **needs the box** (Thursday). — **re-scoped 2026-09-25 (Magpie triage): OUT OF THIS BRIEF'S SCOPE**, same ruling as the item above; the ROADMAP's line 246 carries it and states it PARTIAL.
 - [x] The consolidated P0–P4 ranking across all eight priorities, once P#6–P#8 are measured — **its
       precondition was already met when it was written.** The box above it records P#6–P#8 measured,
       and §5 tabulates all eight (7 ALREADY IMPLEMENTED + P#4 NOT NEEDED) with "nothing ranks P0 or
