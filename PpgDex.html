@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="47f5caa7b106" data-compute-hash="1d16f48ecd4b">
+<html lang="en" data-manifest-hash="ce100123b7fb" data-compute-hash="103d7be0e075">
 <head>
 <!--
   PpgDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zqU9FgUOgtN4kmtChutj19+zwwNbhTi89UXArk3YBY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3bPuedJeHqlAtFRw9XCQUY2RL6IBWMfwvh6D9DWEXUc=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-Cz05XGj+Ezv0CujoHKzhDZwG5Pht7bDAeLz39xOy5KU=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-PqgOb4nH94vwGV4KJcYTcKkanVtY5narYs5uXbOgCSg=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-b+hR2i2ViyedwmAqqTitKUOQmoT7nrMmSb+ENDSMNws=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-f+QT/0zTO9AolD7kxoAHfiK50gfysYkfW5t1omOsjkQ=' 'sha256-gCWeWHL/WDuToOHOSpVRk7dpGOBIt4LizLoql9xiA1U=' 'sha256-m7W+KzkrRY04dNqv6MHoDb91d7oPh9LarnSHN1EDHcg=' 'sha256-mChfJ8uxCBfOu4ff0qJdSXD9srxAbGUrTwhfqP9E/5E=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zqU9FgUOgtN4kmtChutj19+zwwNbhTi89UXArk3YBY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3bPuedJeHqlAtFRw9XCQUY2RL6IBWMfwvh6D9DWEXUc=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-Cz05XGj+Ezv0CujoHKzhDZwG5Pht7bDAeLz39xOy5KU=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-PqgOb4nH94vwGV4KJcYTcKkanVtY5narYs5uXbOgCSg=' 'sha256-RPA0T6R7ce42SoFxFvkjP6BKB0+p1Ld1uai94eRY6XA=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-ZXPoI2o52OC/gRSitMbcr+NtyUThgY334PGTA0tfmJk=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-gCWeWHL/WDuToOHOSpVRk7dpGOBIt4LizLoql9xiA1U=' 'sha256-m7W+KzkrRY04dNqv6MHoDb91d7oPh9LarnSHN1EDHcg=' 'sha256-mChfJ8uxCBfOu4ff0qJdSXD9srxAbGUrTwhfqP9E/5E=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>PpgDex — Raw Wrist-PPG Analyzer · v2.14.0</title>
@@ -16462,6 +16462,17 @@ __exports.PPGUI = window.PPGUI;
        off the writers (`grep -o '"[A-Z-]*\.\(jsonl\|csv\|json\)"' capture-host/*.py`), and `.JSONL`
        joins the container list — a line-delimited ledger is never a waveform. `.CSV` still is NOT. */
     if (/^(CPAP-INVENTORY|OXYLIFE|CLOCKSYNC|SESSIONDETECT|AS11CLOCK|WEDGEFIRE|MANIFEST|QC-SUMMARY)\./.test(u)) return true;
+    /* SAMPLE-VALIDITY-ENVELOPE §3.2 (2026-09-25) — the SAME defect a FOURTH time, and this one was
+       measured before it was fixed: the validity sidecars `<base>RUNS.txt` / `<base>SEAMS.txt`
+       (capture-host `writers.py` `_RunSidecar` / `_SeamSidecar`, shipped #2317) are named by APPENDING
+       to the stream suffix — `…_PPGRUNS.txt`, `…_ECGRUNS.txt`, `…_ACCSEAMS.txt` — so `_PPG\b` and
+       `_ECG\b` never match them, no companion suffix matches them, and BOTH `ppgKind` and `ecgKind`
+       fell through to their bare-name default: measured on 2026-09-25, `Polar_VS_…_PPGRUNS.txt` →
+       ppgKind `ppg` AND ecgKind `ecg`; `Polar_H10_…_ECGRUNS.txt` → the same. Every RUNS/SEAMS file in
+       a night folder was queued as a RECORDING in both nodes (only the O2Ring's `_PPG2WRUNS` escaped,
+       via the vendor pattern). A sidecar is never a waveform; `ppgKind` claims `_PPGRUNS` as the
+       'runs' COMPANION before reaching this line, everything else lands here. */
+    if (/_(PPG|PPG2W|PPG1|ACC|ACCRAW|ECG)(RUNS|SEAMS)\b|_(PPG|PPG2W|PPG1|ACC|ACCRAW|ECG)(RUNS|SEAMS)\./.test(u)) return true;
     if (/^QC-|^\.|\.(JSON|JSONL|MD|LOG|YAML|YML|INI|CFG|PNG|JPG|PDF|ZIP)$/.test(u)) return true;
     return false;
   }
@@ -16503,6 +16514,11 @@ __exports.PPGUI = window.PPGUI;
   // companion kinds are acc/gyro/magn/ppi (NOT ECG's rr/hr/acc) — kept node-specific by design.
   function ppgKind(name) {
     var u = String(name == null ? '' : name).toUpperCase();
+    /* The validity sidecar (`…_PPGRUNS.txt`, SAMPLE-VALIDITY-ENVELOPE §3.2) is PpgDex's 'runs'
+       companion — its text rides to `parsePPG(text, { runsText })` so the §∅ P5 cross-check can run.
+       Claimed FIRST: `_PPG\b` does not match it (no boundary before RUNS), and without this line it
+       fell through to the bare-name default and was queued as a PPG PRIMARY (measured 2026-09-25). */
+    if (/_PPGRUNS\b|_PPGRUNS\./.test(u)) return 'runs';
     if (/_PPG\b|_PPG\./.test(u)) return 'ppg';
     if (/_ACC\b|_ACC\./.test(u)) return 'acc';
     if (/_GYRO\b|_GYRO\./.test(u)) return 'gyro';
@@ -16794,12 +16810,15 @@ __exports.PPGUI = window.PPGUI;
       return sf ? (typeof sf.get === 'function' ? sf.get(name) : sf[name]) : undefined;
     };
     items = Array.isArray(items) ? items : [];
-    var COMPANION = ['acc', 'gyro', 'magn', 'ppi', 'marker'];
+    var COMPANION = ['acc', 'gyro', 'magn', 'ppi', 'marker', 'runs'];
     // (1) classify by name (the SAME ppgKind the app + routing-table test use); a name-'ppg' item the
     //     caller's content-sniff flagged foreign (sniffedForeign) is set aside with its sniffed kind.
+    //     'runs' is the `_PPGRUNS.txt` validity sidecar (SAMPLE-VALIDITY-ENVELOPE §3.2) — device-eligible
+    //     like every other companion; the app picks the nearest by FILENAME stamp because its text must
+    //     reach parsePPG itself, before a parsed rec.t0Ms exists.
     var ppgCand = [],
       hr = [],
-      comp = { acc: [], gyro: [], magn: [], ppi: [], marker: [] },
+      comp = { acc: [], gyro: [], magn: [], ppi: [], marker: [], runs: [] },
       skipped = [];
     items.forEach(function (it) {
       var k = ppgKind(it.name);
@@ -16992,9 +17011,13 @@ const { PPGUI } = __require('ppgdex-render.js');
         for (let pi = 0; pi < ppgFiles.length; pi++) {
           const pf = ppgFiles[pi];
           progress(20 + (pi / ppgFiles.length) * 20, 'Parsing PPG · ' + pf.name + '…');
+          // SAMPLE-VALIDITY-ENVELOPE §3.2 — the `…_PPGRUNS.txt` validity sidecar is picked BEFORE the parse
+          // (its text must reach parsePPG itself), so the nearest pick uses the FILENAME stamp, not the
+          // parsed rec.t0Ms the other companions use below. Absent → the exact single-argument call as before.
+          const runsF = ING.pickNearestByStamp((plan.eligibleByPrimary[pf.name] || {}).runs || [], pf.stampMs);
           let rec;
           try {
-            rec = DSP.parsePPG(pf.text);
+            rec = runsF && typeof runsF.text === 'string' ? DSP.parsePPG(pf.text, { runsText: runsF.text }) : DSP.parsePPG(pf.text);
           } catch (e) {
             showErr(e.message || String(e));
             continue;
@@ -17021,6 +17044,7 @@ const { PPGUI } = __require('ppgdex-render.js');
           rec.magn = magF ? DSP.parseSensorXYZ(magF.text) : null;
           rec.devicePPI = ppiF ? DSP.parseDevicePPI(ppiF.text) : null;
           rec.companions = { acc: accF ? accF.name : null, gyro: gyroF ? gyroF.name : null, magn: magF ? magF.name : null, ppi: ppiF ? ppiF.name : null, marker: markF ? markF.name : null };
+          rec.companions.runs = runsF ? runsF.name : null; // §3.2 — which validity sidecar fed parsePPG, or none
           if (markF) {
             const rows = markF.text.split(/\r?\n/);
             const mk = [];

@@ -124,9 +124,35 @@ From the parent, and from the 2026-09-06 all-hands:
      end-of-night back-check — is not a column today. A reader must not infer it; if it becomes
      load-bearing it is an additive column, and this bullet is where that gets recorded.
 
-2. **Enumerate the consumers, do not guess them.** *"No consumer can reach a sample value"* is a claim
-   over a set nobody has listed. `trace-to-the-consumer`: a mechanism's consumers are the deliverable,
-   not the site you wrote. Every `frame.samples` / `rec.ch` / `relSec` read is a candidate.
+2. ~~**Enumerate the consumers, do not guess them.**~~ ✅ **ENUMERATED 2026-09-25 (Kestrel) — by the
+   INGEST ENTRY POINT per sidecar stream, which is where a sidecar can attach, rather than by every
+   downstream `rec.ch` read (80 in `ppgdex-dsp.js` alone, all fed by one parser).** Read off
+   `capture-host/writers.py RUN_MIN_BY_STREAM` (what is written) and `git grep` of the root `*.js` (who
+   parses which file):
+
+   | stream (writer) | sidecar | parse entry the sidecar must reach | reads it on `main` |
+   |---|---|---|---|
+   | `ppg` Verity 3-LED | `…_PPGRUNS.txt` | `ppgdex-dsp.js parsePPG` ← `ppgdex-app.js` drop · `adapters/polar-sense-ppg.js` · Unifier/OverDex `pairCompanions` | **YES — from this unit.** The DSP took `opts.runsText` since #2316 and **no production caller passed it** (the app grouped acc/gyro/magn/ppi/marker only; both adapters called `parseFn(text)`; the Unifier had no `runs` kind; the only test drove `parsePinnedRuns` directly) |
+   | `ppg1` O2Ring finger | `…_PPGRUNS.txt` | same parser ← `adapters/o2ring-ppg.js` | **YES — from this unit** |
+   | `ppg2w` O2Ring dual-wavelength | `…_PPG2WRUNS.txt` | `oxydex-dsp.js parsePPG2W`; `ppgdex-dsp.js` dual path | **NO** |
+   | `acc` Polar H10 / Verity | `…_ACCRUNS.txt` | `ecgdex-dsp.js parseDeviceACC` · `ppgdex-dsp.js` / `motiondex-dsp.js parseSensorXYZ` | **NO** |
+   | `accraw` O2Ring | `…ACCRAWRUNS` | no root `*.js` parses ACCRAW at all | n/a |
+   | `ecg` Polar H10 | `…_ECGRUNS.txt` | `ecgdex-dsp.js parseECGText` ← `ecgdex-app.js` · `adapters/polar-h10-ecg.js` · `dex-ingest.js planIngest` | **NO** |
+
+   ⚠️ **And the sidecars were being INGESTED AS WAVEFORMS.** Measured 2026-09-25 before any fix:
+   `DexIngest.ppgKind('Polar_VS_…_PPGRUNS.txt')` → `'ppg'` and `ecgKind(…)` → `'ecg'`; the same for
+   `_ACCRUNS`, `_ECGRUNS`, `_ECGSEAMS` — the name is built by APPENDING to the stream suffix, so `_PPG\b`
+   never matches it, no companion suffix matches it, and both classifiers fell through to their
+   bare-name default. A night-folder drop queued every sidecar as a recording in PpgDex AND ECGDex; only
+   the O2Ring's `_PPG2WRUNS` escaped, via the vendor pattern. This is the `PMDARRIVAL` / DEEP-AUDIT-VI
+   F12 class a fourth time. Fixed in the same unit (`nonSignalName` sets RUNS/SEAMS aside; `ppgKind`
+   claims `_PPGRUNS` as the `runs` companion first), gate-backed by the `SAMPLE-VALIDITY-ENVELOPE §3.2`
+   group in `tests/dex-tests.js` — classification, planner eligibility, Unifier pairing, a planted
+   sidecar populating `rec.pinnedCrossCheck` (null without one), and source-mirrors on the three callers.
+   `trace-to-the-consumer`: a mechanism's consumers are the deliverable, not the site you wrote. The
+   remaining three readers (ECG, ACC, PPG2W) are each a node unit that moves that node's `computeHash`
+   and re-verifies its fixtures; stage per node, ECG first (its sidecar is `ECG_RUN_MIN`-keyed and the
+   H10 saturation work already reasons about runs).
 3. **Make the unsafe read impossible, not merely discouraged.** A guard a consumer may bypass is a
    convention again, which is the thing that failed. Whatever the shape, the acceptance test is that a
    reviewer cannot write the old code by accident.

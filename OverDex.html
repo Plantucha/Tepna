@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="0f34ce630680" data-compute-hash="d256a7882fe7"><head>
+<html lang="en" data-manifest-hash="a2498ac48ee9" data-compute-hash="5efb42243c42"><head>
 <!--
   OverDex.html — Tepna
   Copyright 2026 Michal Planicka
@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+XTrnryA88ZZB664WebTYrkdG57dUOaumGtqYQcVcEE=' 'sha256-/Z7I3UUPEYVbJqKiogd2GpJzq5ymayoEqgifMJjbfTY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-58O6BxAcjgCbtJyPkzKKtexLOYodIHAExwfRPPPFcOI=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-E3YweNbXEzR2hxsyCYFg7YorFc/MkJstnsNeUtVxMFA=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GMmPvLCp12nTB2A3edxKqYW9nOEcn4mUbSDIB8uSFEI=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-ImXhwPIaDzYWwBLhYV5EP9qZSwmnbfkURTE4m6HTvqU=' 'sha256-JQIPwKGkxXs/AyZxBVwFlF1DKA0SN+fLQSpnM5aGY4w=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-LrqAcX6EYrn1FDGC8701ZGVNduowoV0XozhXnBk2ai8=' 'sha256-ODnkG6Le8Cqp/r9bOK9FrS3Denl+Kbxh6Auu8u0rZoE=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-X7slrDpgX5Esbtr3HuxhWugLi1NKTWDvb+K060kXk9U=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-b+hR2i2ViyedwmAqqTitKUOQmoT7nrMmSb+ENDSMNws=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-cemiQMQwTXR+318vY1wXwQgOyMRh2KLdUGfPVh4TQjE=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-i+z0AlUCRGianGoRVvNN1uy9CkmbqDOaXxtm8sIseJA=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-j6cQKZ+pO2jEtsJTv7AnKR0NQLc+TgayeSSCB4yBUJs=' 'sha256-mChfJ8uxCBfOu4ff0qJdSXD9srxAbGUrTwhfqP9E/5E=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-xsp63O3KsGRyNwA0HiyNZ9rfZ/CjJ8/+KFtXEXV2zTc='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+XTrnryA88ZZB664WebTYrkdG57dUOaumGtqYQcVcEE=' 'sha256-/Z7I3UUPEYVbJqKiogd2GpJzq5ymayoEqgifMJjbfTY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-58O6BxAcjgCbtJyPkzKKtexLOYodIHAExwfRPPPFcOI=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-E3YweNbXEzR2hxsyCYFg7YorFc/MkJstnsNeUtVxMFA=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GMmPvLCp12nTB2A3edxKqYW9nOEcn4mUbSDIB8uSFEI=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-ImXhwPIaDzYWwBLhYV5EP9qZSwmnbfkURTE4m6HTvqU=' 'sha256-JQIPwKGkxXs/AyZxBVwFlF1DKA0SN+fLQSpnM5aGY4w=' 'sha256-LrqAcX6EYrn1FDGC8701ZGVNduowoV0XozhXnBk2ai8=' 'sha256-ODnkG6Le8Cqp/r9bOK9FrS3Denl+Kbxh6Auu8u0rZoE=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-X7slrDpgX5Esbtr3HuxhWugLi1NKTWDvb+K060kXk9U=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-ZXPoI2o52OC/gRSitMbcr+NtyUThgY334PGTA0tfmJk=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-cMs4L/sAniGsWhN0yT84vREUkHMfFButr5W0ljondW4=' 'sha256-cemiQMQwTXR+318vY1wXwQgOyMRh2KLdUGfPVh4TQjE=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fOxAcG4FGOYjHtLk+7Sbd1mzABUQSzPGmybpbJk9b6c=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-i+z0AlUCRGianGoRVvNN1uy9CkmbqDOaXxtm8sIseJA=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-j6cQKZ+pO2jEtsJTv7AnKR0NQLc+TgayeSSCB4yBUJs=' 'sha256-mChfJ8uxCBfOu4ff0qJdSXD9srxAbGUrTwhfqP9E/5E=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-tT7nhpXBqikzWTWNvLG5WmdUXpckNITRI3X8TuYNyBA=' 'sha256-xsp63O3KsGRyNwA0HiyNZ9rfZ/CjJ8/+KFtXEXV2zTc='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -11332,7 +11332,11 @@ window.IntegratorDSP = {
 
       var rec;
       try {
-        rec = parseFn(text);
+        // SAMPLE-VALIDITY-ENVELOPE §3.2 — the `…_PPGRUNS.txt` validity sidecar, when the drop paired one
+        // (signal-orchestrate pairCompanions → ctx.companions.runs), rides into the parser as runsText so
+        // the §∅ P5 cross-check runs. No sidecar → the exact single-argument call as before (byte-identical).
+        var runsText = ctx.companions && typeof ctx.companions.runs === 'string' ? ctx.companions.runs : null;
+        rec = runsText ? parseFn(text, { runsText: runsText }) : parseFn(text);
       } catch (e) {
         return root.SignalFrame.toSignalFrame('ppg', { usable: false, reason: 'polar-sense-ppg: parse error — ' + ((e && e.message) || e) }, prov);
       }
@@ -11504,7 +11508,11 @@ window.IntegratorDSP = {
 
       var rec;
       try {
-        rec = parseFn(text);
+        // SAMPLE-VALIDITY-ENVELOPE §3.2 — the `…_PPGRUNS.txt` validity sidecar, when the drop paired one
+        // (signal-orchestrate pairCompanions → ctx.companions.runs), rides into the parser as runsText so
+        // the §∅ P5 cross-check runs. No sidecar → the exact single-argument call as before (byte-identical).
+        var runsText = ctx.companions && typeof ctx.companions.runs === 'string' ? ctx.companions.runs : null;
+        rec = runsText ? parseFn(text, { runsText: runsText }) : parseFn(text);
       } catch (e) {
         return root.SignalFrame.toSignalFrame('ppg', { usable: false, reason: 'o2ring-ppg: parse error — ' + ((e && e.message) || e) }, prov);
       }
@@ -43356,6 +43364,17 @@ __exports.CPAPDex = window.CPAPDex;
        off the writers (`grep -o '"[A-Z-]*\.\(jsonl\|csv\|json\)"' capture-host/*.py`), and `.JSONL`
        joins the container list — a line-delimited ledger is never a waveform. `.CSV` still is NOT. */
     if (/^(CPAP-INVENTORY|OXYLIFE|CLOCKSYNC|SESSIONDETECT|AS11CLOCK|WEDGEFIRE|MANIFEST|QC-SUMMARY)\./.test(u)) return true;
+    /* SAMPLE-VALIDITY-ENVELOPE §3.2 (2026-09-25) — the SAME defect a FOURTH time, and this one was
+       measured before it was fixed: the validity sidecars `<base>RUNS.txt` / `<base>SEAMS.txt`
+       (capture-host `writers.py` `_RunSidecar` / `_SeamSidecar`, shipped #2317) are named by APPENDING
+       to the stream suffix — `…_PPGRUNS.txt`, `…_ECGRUNS.txt`, `…_ACCSEAMS.txt` — so `_PPG\b` and
+       `_ECG\b` never match them, no companion suffix matches them, and BOTH `ppgKind` and `ecgKind`
+       fell through to their bare-name default: measured on 2026-09-25, `Polar_VS_…_PPGRUNS.txt` →
+       ppgKind `ppg` AND ecgKind `ecg`; `Polar_H10_…_ECGRUNS.txt` → the same. Every RUNS/SEAMS file in
+       a night folder was queued as a RECORDING in both nodes (only the O2Ring's `_PPG2WRUNS` escaped,
+       via the vendor pattern). A sidecar is never a waveform; `ppgKind` claims `_PPGRUNS` as the
+       'runs' COMPANION before reaching this line, everything else lands here. */
+    if (/_(PPG|PPG2W|PPG1|ACC|ACCRAW|ECG)(RUNS|SEAMS)\b|_(PPG|PPG2W|PPG1|ACC|ACCRAW|ECG)(RUNS|SEAMS)\./.test(u)) return true;
     if (/^QC-|^\.|\.(JSON|JSONL|MD|LOG|YAML|YML|INI|CFG|PNG|JPG|PDF|ZIP)$/.test(u)) return true;
     return false;
   }
@@ -43397,6 +43416,11 @@ __exports.CPAPDex = window.CPAPDex;
   // companion kinds are acc/gyro/magn/ppi (NOT ECG's rr/hr/acc) — kept node-specific by design.
   function ppgKind(name) {
     var u = String(name == null ? '' : name).toUpperCase();
+    /* The validity sidecar (`…_PPGRUNS.txt`, SAMPLE-VALIDITY-ENVELOPE §3.2) is PpgDex's 'runs'
+       companion — its text rides to `parsePPG(text, { runsText })` so the §∅ P5 cross-check can run.
+       Claimed FIRST: `_PPG\b` does not match it (no boundary before RUNS), and without this line it
+       fell through to the bare-name default and was queued as a PPG PRIMARY (measured 2026-09-25). */
+    if (/_PPGRUNS\b|_PPGRUNS\./.test(u)) return 'runs';
     if (/_PPG\b|_PPG\./.test(u)) return 'ppg';
     if (/_ACC\b|_ACC\./.test(u)) return 'acc';
     if (/_GYRO\b|_GYRO\./.test(u)) return 'gyro';
@@ -43688,12 +43712,15 @@ __exports.CPAPDex = window.CPAPDex;
       return sf ? (typeof sf.get === 'function' ? sf.get(name) : sf[name]) : undefined;
     };
     items = Array.isArray(items) ? items : [];
-    var COMPANION = ['acc', 'gyro', 'magn', 'ppi', 'marker'];
+    var COMPANION = ['acc', 'gyro', 'magn', 'ppi', 'marker', 'runs'];
     // (1) classify by name (the SAME ppgKind the app + routing-table test use); a name-'ppg' item the
     //     caller's content-sniff flagged foreign (sniffedForeign) is set aside with its sniffed kind.
+    //     'runs' is the `_PPGRUNS.txt` validity sidecar (SAMPLE-VALIDITY-ENVELOPE §3.2) — device-eligible
+    //     like every other companion; the app picks the nearest by FILENAME stamp because its text must
+    //     reach parsePPG itself, before a parsed rec.t0Ms exists.
     var ppgCand = [],
       hr = [],
-      comp = { acc: [], gyro: [], magn: [], ppi: [], marker: [] },
+      comp = { acc: [], gyro: [], magn: [], ppi: [], marker: [], runs: [] },
       skipped = [];
     items.forEach(function (it) {
       var k = ppgKind(it.name);
@@ -44133,7 +44160,9 @@ __exports.CPAPDex = window.CPAPDex;
   // Unifier · OverDex) call, so the matched companion TEXT rides to the adapter via ctx.companions →
   // the frame → compute(). Pairs by FILENAME stamp (known before parsing; PSL stamps every stream of
   // one recording identically), so no chicken-and-egg with the not-yet-parsed frame's t0Ms.
-  var _COMPANION_KINDS = { ecg: ['rr', 'hr', 'acc'], ppg: ['acc', 'gyro', 'magn', 'ppi'] };
+  // 'runs' (PPG) is the `…_PPGRUNS.txt` validity sidecar — SAMPLE-VALIDITY-ENVELOPE §3.2; its TEXT rides
+  // to the PPG adapters as ctx.companions.runs and from there into parsePPG(text, { runsText }).
+  var _COMPANION_KINDS = { ecg: ['rr', 'hr', 'acc'], ppg: ['acc', 'gyro', 'magn', 'ppi', 'runs'] };
   // DEEP-AUDIT-II §10.2 — a sidecar is written in the SAME recording session (its filename stamp is
   // minutes from the primary's). A candidate whose nearest stamp is more than a day away is a
   // DIFFERENT recording, never a companion (a 5-day-old ACC must not attach and rewrite which beats
@@ -44144,6 +44173,7 @@ __exports.CPAPDex = window.CPAPDex;
   }
   function streamKind(name) {
     var u = String(name == null ? '' : name).toUpperCase();
+    if (/_PPGRUNS\b|_PPGRUNS\./.test(u)) return 'runs'; // the validity sidecar — before `_PPG`, which does not match it anyway (no boundary before RUNS)
     if (/_ECG\b|_ECG\./.test(u)) return 'ecg';
     if (/_PPG\b|_PPG\./.test(u)) return 'ppg';
     if (/_GYRO\b|_GYRO\./.test(u)) return 'gyro';

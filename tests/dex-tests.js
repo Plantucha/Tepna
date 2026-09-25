@@ -29039,7 +29039,9 @@
         T.eq('  RR sidecar paired by name', pc && pc.rr, 'RR');
         T.eq('  ACC paired to the NEAREST stamp (01:00, not 23:30)', pc && pc.acc, 'ACC-near');
         T.ok('  absent HR sidecar is omitted (never fabricated)', !(pc && 'hr' in pc));
-        T.ok('  companionKinds(ppg) = acc/gyro/magn/ppi', JSON.stringify(ORCH.companionKinds('ppg')) === JSON.stringify(['acc', 'gyro', 'magn', 'ppi']));
+        // 'runs' joined 2026-09-25 (SAMPLE-VALIDITY-ENVELOPE §3.2): the `_PPGRUNS.txt` validity sidecar is a
+        // PPG companion kind. Deliberate contract change — this line pinned the enumeration as the invariant.
+        T.ok('  companionKinds(ppg) = acc/gyro/magn/ppi/runs', JSON.stringify(ORCH.companionKinds('ppg')) === JSON.stringify(['acc', 'gyro', 'magn', 'ppi', 'runs']));
         T.ok('  a no-sidecar drop pairs nothing → null', ORCH.pairCompanions('ecg', 'lone_20260617_010000_ECG.txt', [{ name: 'lone_20260617_010000_ECG.txt', text: 'ECG' }]) === null);
 
         // §1 (ECG-INGEST-FOLLOWUPS) — DEVICE-ID companion filter (the cross-host analogue of the app fix).
@@ -29773,6 +29775,88 @@
      mirror). -IV §1 extracts it to this headless surface. The biting case: two SAME-device sessions
      dropped together expose BOTH sidecars as device-eligible for BOTH primaries — ONLY this pick
      assigns each its own. ════ */
+    /* ════ SAMPLE-VALIDITY-ENVELOPE §3.2 — the validity sidecar REACHES the reader (2026-09-25). PpgDex has
+       carried `parsePPG(text, { runsText })` since #2316, and NO production caller ever passed it: the app
+       grouped acc/gyro/magn/ppi/marker companions and not `runs`; both PPG adapters called `parseFn(text)`;
+       the Unifier's pairCompanions had no 'runs' kind; the only test drove parsePinnedRuns directly. A
+       reader nothing reaches is the half-wired mechanism §∅ warns about, one layer up. Worse — measured
+       before the fix — every `<base>RUNS.txt` / `<base>SEAMS.txt` matched NO suffix and fell through
+       BOTH bare-name defaults, so a night-folder drop queued the sidecars as RECORDINGS in PpgDex AND
+       ECGDex (the PMDARRIVAL / F12 defect class, fourth instance). Each assertion below fails if its
+       wire is cut; the source-mirrors prove the app + adapters consume it, since neither the equiv gate
+       nor render-coverage performs a multi-file drop. ════ */
+    group('SAMPLE-VALIDITY-ENVELOPE §3.2 — the _PPGRUNS sidecar reaches parsePPG from every ingest path', 'dex-ingest · signal-orchestrate · adapters · ppgdex-app', function (T) {
+      var DI = env.DexIngest,
+        SO = env.SignalOrchestrate,
+        P = env.PpgDex || env.PPGDSP;
+      if (!(DI && typeof DI.ppgKind === 'function' && typeof DI.planIngestPpg === 'function')) {
+        T.ok('DexIngest present', false, 'dex-ingest.js not loaded in this runner');
+        return;
+      }
+      var VS = 'Polar_VS_BBBB_20260617_010001_',
+        H10 = 'Polar_H10_AAAA_20260617_010000_';
+      // (1) CLASSIFICATION — the defect measured 2026-09-25: these five read as PRIMARIES in both nodes.
+      T.eq('ppgKind · `_PPGRUNS.txt` is the runs COMPANION, not a PPG primary', DI.ppgKind(VS + 'PPGRUNS.txt'), 'runs');
+      T.eq('ppgKind · `_ACCRUNS.txt` is set aside (a sidecar is never a waveform)', DI.ppgKind(VS + 'ACCRUNS.txt'), 'skip');
+      T.eq('ppgKind · `_ECGSEAMS.txt` is set aside', DI.ppgKind(H10 + 'ECGSEAMS.txt'), 'skip');
+      T.eq('ecgKind · `_ECGRUNS.txt` is set aside — it is NOT an ECG recording', DI.ecgKind(H10 + 'ECGRUNS.txt'), 'skip');
+      T.eq('ecgKind · `_PPGRUNS.txt` is set aside in the ECG node too', DI.ecgKind(VS + 'PPGRUNS.txt'), 'skip');
+      T.eq('control · the real `_PPG.txt` is still the PPG primary', DI.ppgKind(VS + 'PPG.txt'), 'ppg');
+      T.eq('control · the real `_ECG.txt` is still the ECG primary', DI.ecgKind(H10 + 'ECG.txt'), 'ecg');
+      // (2) PLANNER — the sidecar is a device-eligible companion of its own primary and of no other.
+      var nm = function (n, t) {
+        return { name: n, text: t || '' };
+      };
+      var plan = DI.planIngestPpg([nm(VS + 'PPG.txt'), nm(VS + 'PPGRUNS.txt', 'RUNS'), nm(VS + 'ACC.txt'), nm(H10 + 'ECG.txt'), nm(H10 + 'ECGRUNS.txt')]);
+      var elig = plan.eligibleByPrimary[VS + 'PPG.txt'] || {};
+      T.ok('planIngestPpg · the Sense `_PPGRUNS` is eligible for the Sense `_PPG`', !!(elig.runs && elig.runs.length === 1 && elig.runs[0].name === VS + 'PPGRUNS.txt'));
+      T.ok(
+        'planIngestPpg · the H10 `_ECGRUNS` is set aside, never a PPG primary',
+        plan.ppgPrimaries.length === 1 &&
+          plan.skipped.some(function (s) {
+            return s.name === H10 + 'ECGRUNS.txt';
+          })
+      );
+      // (3) UNIFIER PAIRING — pairCompanions hands the sidecar TEXT to the adapter under `runs`.
+      if (SO && typeof SO.pairCompanions === 'function') {
+        var comps = SO.pairCompanions('ppg', VS + 'PPG.txt', [nm(VS + 'PPG.txt', 'x'), nm(VS + 'PPGRUNS.txt', '# stream=ppg'), nm(VS + 'ACC.txt', 'acc')]);
+        T.eq('pairCompanions · ppg gets `runs` = the sidecar text', comps && comps.runs, '# stream=ppg');
+        T.ok('pairCompanions · streamKind reads `_PPGRUNS` as runs, `_PPG` as ppg', SO.streamKind(VS + 'PPGRUNS.txt') === 'runs' && SO.streamKind(VS + 'PPG.txt') === 'ppg');
+      } else T.skip('SignalOrchestrate.pairCompanions unavailable');
+      // (4) THE READER — a PLANTED sidecar changes the parsed rec, and its absence leaves it null.
+      if (P && typeof P.parsePPG === 'function') {
+        var rows = ['Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;ambient'];
+        var t0 = Date.UTC(2026, 8, 11, 4, 19, 36),
+          ns = 1000000000000;
+        for (var i = 0; i < 660; i++) {
+          var v = Math.round(100 + 10 * Math.sin(i / 8));
+          rows.push(new Date(t0 + Math.round(i * 18.18)).toISOString().replace('Z', '') + ';' + (ns + i * 18181818) + ';' + v + ';' + v + ';' + v + ';3');
+        }
+        var text = rows.join('\n') + '\n';
+        var RUNS =
+          [
+            '# stream=ppg rule=stuck min_run=200 t_stuck=200 merge_gap_max=8',
+            'Phone timestamp;stream;value;first_index;n_samples;dur_ms;closed;rule',
+            '2026-09-11T04:19:37.000;channel 0;100;50;210;3818.2;1;stuck'
+          ].join('\n') + '\n';
+        var without = P.parsePPG(text),
+          withRuns = P.parsePPG(text, { runsText: RUNS });
+        T.ok('parsePPG · no sidecar → pinnedCrossCheck is null (absent is unknown, never "no absences")', without.pinnedCrossCheck == null);
+        T.ok('parsePPG · a planted `_PPGRUNS` sidecar → pinnedCrossCheck is populated', withRuns.pinnedCrossCheck != null);
+      } else T.skip('PpgDex.parsePPG unavailable');
+      // (5) SOURCE-MIRRORS — the three production callers pass the text (no multi-file drop runs headless).
+      var src = env.sources || {};
+      var app = src['ppgdex-app.js'],
+        aPS = src['adapters/polar-sense-ppg.js'],
+        aO2 = src['adapters/o2ring-ppg.js'];
+      if (typeof app === 'string') T.ok('source-mirror · ppgdex-app.js passes runsText into DSP.parsePPG', /parsePPG\(pf\.text,\s*\{\s*runsText:/.test(app));
+      else T.skip('ppgdex-app.js source not in env.sources');
+      if (typeof aPS === 'string') T.ok('source-mirror · polar-sense-ppg passes ctx.companions.runs as runsText', /companions\.runs/.test(aPS) && /runsText:\s*runsText/.test(aPS));
+      else T.skip('adapters/polar-sense-ppg.js source not in env.sources');
+      if (typeof aO2 === 'string') T.ok('source-mirror · o2ring-ppg passes ctx.companions.runs as runsText', /companions\.runs/.test(aO2) && /runsText:\s*runsText/.test(aO2));
+      else T.skip('adapters/o2ring-ppg.js source not in env.sources');
+    });
+
     group('Companion pick — DexIngest.pickNearestByStamp (PPG nearest-t0Ms, ECG-INGEST-FOLLOWUPS-IV §1)', 'dex-ingest · ppgdex-app', function (T) {
       var DI = env.DexIngest;
       if (!(DI && typeof DI.pickNearestByStamp === 'function')) {
