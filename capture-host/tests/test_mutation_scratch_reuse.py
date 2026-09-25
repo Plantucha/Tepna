@@ -459,6 +459,39 @@ def test_root_reads_wants_a_FILE_and_containment_BOTH(tmp_path):
     assert "docs/sub" not in got, got
 
 
+def test_root_reads_does_not_scan_an_IN_TREE_VENV(tmp_path):
+    """🔴 THE PLANT FOR residue 2026-09-25-root-reads-pin-scans-an-in-tree-venv. A real `.venv/`
+    directory inside capture-host — the layout `check.sh` resolves and `mutation_diff`'s own refusal
+    text prescribes — holds thousands of string literals in site-packages, and `LICENSE`/`NOTICE`
+    among them name real repo-root files. Against the pre-fix scan those became "reads" and the
+    equality pin `test_the_REAL_suite_has_exactly_the_root_reads_we_know_about` went red on any
+    fresh clone, while the rig (symlinked `.venv`, which rglob does not follow) stayed green.
+
+    Two venv shapes are planted, because the two rules that exclude them are independent: a
+    DOT-directory (`.venv`) and a dotless directory carrying `pyvenv.cfg` (`venv`). A third literal,
+    in a real test file, is the positive control: the scan still sees genuine reads."""
+    # ⚠️ The planted root files carry SYNTHETIC names on purpose. `root_reads` scans THIS file too, and
+    # a literal here naming a real root file (`LICENSE`, `NOTICE`, …) would register as a read of the
+    # real repo and move the equality pin below — the over-flag the pin's docstring warns about.
+    root, tree = _tree_with_subdir_read_via_helper(tmp_path)
+    for name in ("named_by_dot_venv_a.txt", "named_by_dot_venv_b.txt", "named_by_plain_venv.css"):
+        (root / name).write_text("x\n")
+    dot_venv = tree / ".venv" / "lib" / "python3.11" / "site-packages" / "somepkg"
+    dot_venv.mkdir(parents=True)
+    (dot_venv / "__init__.py").write_text('files = ["named_by_dot_venv_a.txt", "named_by_dot_venv_b.txt"]\n')
+    plain_venv = tree / "venv"
+    (plain_venv / "lib" / "site-packages").mkdir(parents=True)
+    (plain_venv / "pyvenv.cfg").write_text("home = /usr/bin\n")
+    (plain_venv / "lib" / "site-packages" / "pkg.py").write_text('CSS = "named_by_plain_venv.css"\n')
+    (tree / "tests" / "test_real_read.py").write_text('E = "sibling_one.js"\n')
+    (root / "sibling_one.js").write_text("s\n")
+    got = mutation_diff.root_reads(tree)
+    assert not any(n.startswith("named_by_dot_venv") for n in got), got   # the dot-directory rule
+    assert "named_by_plain_venv.css" not in got, got                      # the pyvenv.cfg rule
+    assert "sibling_one.js" in got, got                                   # a real read is still seen
+    assert "uploads/synthetic_ecgdex_h10.txt" in got, got                 # the helper-named read survives too
+
+
 def test_the_REAL_suite_has_exactly_the_root_reads_we_know_about():
     """Pinned as an EQUALITY so a change in the population is VISIBLE (a floor would not count it).
     Measured 2026-09-19: one real read — `ecgdex-dsp.js` (the seam-bound parity check) — plus four
