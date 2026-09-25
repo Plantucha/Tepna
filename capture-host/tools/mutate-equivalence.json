@@ -4529,5 +4529,87 @@
       "probe": "read of the producer, then a run: stream_gaps takes both stamps from nights_index.parse_stamp, whose two regexes (_ISO, _O2) capture to the SECOND, so every gap is a difference of whole-second datetimes, a float with no fractional part. A 4-rows-a-second stream with a 60.25 s hole was published as 61.0 (test_a_gap_is_published_as_a_float_of_whole_seconds_and_its_cause_window_is_inclusive, 2026-09-24).",
       "why": "One and two decimals of a whole number are the same number. The mutants that drop the decimals (round(g) → int) are NOT equivalent and are killed by that test's isinstance(float)."
     }
+  ],
+  "solid_night_inputs.py": [
+    {
+      "brief": "SOLID-NIGHT-2026-09-23 A3 (the residual pass, #3041/#3046)",
+      "class": "no-distinguishing-input",
+      "key": "- r0 = anchors[0][0] - anchors[0][1] | + r0 = anchors[0][0] + anchors[0][1]",
+      "op": "operand/sign substitution inside the residual construction",
+      "probe": "7 residual/origin variants × a 4-anchor geometry, comparing (spread, span) against the original: all byte-identical. Plus the 46-test suite, including constructed boundaries at exactly 3 anchors, spread 2.00 ms, span 1.000 s, modal share 0.670, ppm −50000.0, and a ppm rounding edge at −40000.48 — none distinguishes these.",
+      "why": "`r0`, the residual sign and the time ORIGIN are all CONSTANTS over the anchor set, and every consumer of `res` reads only DIFFERENCES: `spread = max − min`, `ppm` is a median-of-ends DIFFERENCE, and `span_s` is last − first. A constant added to every element cancels in all three, so no mutation of which constant is chosen (or of its sign) can reach a published value — spread, ppm and the band's status are the only published numbers and all three are shift-invariant by construction."
+    },
+    {
+      "brief": "SOLID-NIGHT-2026-09-23 A3 (the residual pass, #3041/#3046)",
+      "class": "no-distinguishing-input",
+      "key": "- r0 = anchors[0][0] - anchors[0][1] | + r0 = anchors[1][0] - anchors[0][1]",
+      "op": "operand/sign substitution inside the residual construction",
+      "probe": "7 residual/origin variants × a 4-anchor geometry, comparing (spread, span) against the original: all byte-identical. Plus the 46-test suite, including constructed boundaries at exactly 3 anchors, spread 2.00 ms, span 1.000 s, modal share 0.670, ppm −50000.0, and a ppm rounding edge at −40000.48 — none distinguishes these.",
+      "why": "`r0`, the residual sign and the time ORIGIN are all CONSTANTS over the anchor set, and every consumer of `res` reads only DIFFERENCES: `spread = max − min`, `ppm` is a median-of-ends DIFFERENCE, and `span_s` is last − first. A constant added to every element cancels in all three, so no mutation of which constant is chosen (or of its sign) can reach a published value — spread, ppm and the band's status are the only published numbers and all three are shift-invariant by construction."
+    },
+    {
+      "brief": "SOLID-NIGHT-2026-09-23 A3 (the residual pass, #3041/#3046)",
+      "class": "no-distinguishing-input",
+      "key": "- r0 = anchors[0][0] - anchors[0][1] | + r0 = anchors[0][1] - anchors[0][1]",
+      "op": "operand/sign substitution inside the residual construction",
+      "probe": "7 residual/origin variants × a 4-anchor geometry, comparing (spread, span) against the original: all byte-identical. Plus the 46-test suite, including constructed boundaries at exactly 3 anchors, spread 2.00 ms, span 1.000 s, modal share 0.670, ppm −50000.0, and a ppm rounding edge at −40000.48 — none distinguishes these.",
+      "why": "`r0`, the residual sign and the time ORIGIN are all CONSTANTS over the anchor set, and every consumer of `res` reads only DIFFERENCES: `spread = max − min`, `ppm` is a median-of-ends DIFFERENCE, and `span_s` is last − first. A constant added to every element cancels in all three, so no mutation of which constant is chosen (or of its sign) can reach a published value — spread, ppm and the band's status are the only published numbers and all three are shift-invariant by construction."
+    },
+    {
+      "brief": "SOLID-NIGHT-2026-09-23 A3 (the residual pass, #3041/#3046)",
+      "class": "no-distinguishing-input",
+      "key": "- r0 = anchors[0][0] - anchors[0][1] | + r0 = anchors[0][0] - anchors[1][1]",
+      "op": "operand/sign substitution inside the residual construction",
+      "probe": "7 residual/origin variants × a 4-anchor geometry, comparing (spread, span) against the original: all byte-identical. Plus the 46-test suite, including constructed boundaries at exactly 3 anchors, spread 2.00 ms, span 1.000 s, modal share 0.670, ppm −50000.0, and a ppm rounding edge at −40000.48 — none distinguishes these.",
+      "why": "`r0`, the residual sign and the time ORIGIN are all CONSTANTS over the anchor set, and every consumer of `res` reads only DIFFERENCES: `spread = max − min`, `ppm` is a median-of-ends DIFFERENCE, and `span_s` is last − first. A constant added to every element cancels in all three, so no mutation of which constant is chosen (or of its sign) can reach a published value — spread, ppm and the band's status are the only published numbers and all three are shift-invariant by construction."
+    },
+    {
+      "brief": "SOLID-NIGHT-2026-09-23 A3 (the residual pass, #3041/#3046)",
+      "class": "no-distinguishing-input",
+      "key": "- res = [((h - anchors[0][0]) / 1000.0, (h - d) - r0) for h, d in anchors] | + res = [((h + anchors[0][0]) / 1000.0, (h - d) - r0) for h, d in anchors]",
+      "op": "operand/sign substitution inside the residual construction",
+      "probe": "7 residual/origin variants × a 4-anchor geometry, comparing (spread, span) against the original: all byte-identical. Plus the 46-test suite, including constructed boundaries at exactly 3 anchors, spread 2.00 ms, span 1.000 s, modal share 0.670, ppm −50000.0, and a ppm rounding edge at −40000.48 — none distinguishes these.",
+      "why": "`r0`, the residual sign and the time ORIGIN are all CONSTANTS over the anchor set, and every consumer of `res` reads only DIFFERENCES: `spread = max − min`, `ppm` is a median-of-ends DIFFERENCE, and `span_s` is last − first. A constant added to every element cancels in all three, so no mutation of which constant is chosen (or of its sign) can reach a published value — spread, ppm and the band's status are the only published numbers and all three are shift-invariant by construction."
+    },
+    {
+      "brief": "SOLID-NIGHT-2026-09-23 A3 (the residual pass, #3041/#3046)",
+      "class": "no-distinguishing-input",
+      "key": "- res = [((h - anchors[0][0]) / 1000.0, (h - d) - r0) for h, d in anchors] | + res = [((h - anchors[1][0]) / 1000.0, (h - d) - r0) for h, d in anchors]",
+      "op": "operand/sign substitution inside the residual construction",
+      "probe": "7 residual/origin variants × a 4-anchor geometry, comparing (spread, span) against the original: all byte-identical. Plus the 46-test suite, including constructed boundaries at exactly 3 anchors, spread 2.00 ms, span 1.000 s, modal share 0.670, ppm −50000.0, and a ppm rounding edge at −40000.48 — none distinguishes these.",
+      "why": "`r0`, the residual sign and the time ORIGIN are all CONSTANTS over the anchor set, and every consumer of `res` reads only DIFFERENCES: `spread = max − min`, `ppm` is a median-of-ends DIFFERENCE, and `span_s` is last − first. A constant added to every element cancels in all three, so no mutation of which constant is chosen (or of its sign) can reach a published value — spread, ppm and the band's status are the only published numbers and all three are shift-invariant by construction."
+    },
+    {
+      "brief": "SOLID-NIGHT-2026-09-23 A3 (the residual pass, #3041/#3046)",
+      "class": "no-distinguishing-input",
+      "key": "- res = [((h - anchors[0][0]) / 1000.0, (h - d) - r0) for h, d in anchors] | + res = [((h - anchors[0][1]) / 1000.0, (h - d) - r0) for h, d in anchors]",
+      "op": "operand/sign substitution inside the residual construction",
+      "probe": "7 residual/origin variants × a 4-anchor geometry, comparing (spread, span) against the original: all byte-identical. Plus the 46-test suite, including constructed boundaries at exactly 3 anchors, spread 2.00 ms, span 1.000 s, modal share 0.670, ppm −50000.0, and a ppm rounding edge at −40000.48 — none distinguishes these.",
+      "why": "`r0`, the residual sign and the time ORIGIN are all CONSTANTS over the anchor set, and every consumer of `res` reads only DIFFERENCES: `spread = max − min`, `ppm` is a median-of-ends DIFFERENCE, and `span_s` is last − first. A constant added to every element cancels in all three, so no mutation of which constant is chosen (or of its sign) can reach a published value — spread, ppm and the band's status are the only published numbers and all three are shift-invariant by construction."
+    },
+    {
+      "brief": "SOLID-NIGHT-2026-09-23 A3 (the residual pass, #3041/#3046)",
+      "class": "no-distinguishing-input",
+      "key": "- res = [((h - anchors[0][0]) / 1000.0, (h - d) - r0) for h, d in anchors] | + res = [((h - anchors[0][0]) / 1000.0, (h - d) + r0) for h, d in anchors]",
+      "op": "operand/sign substitution inside the residual construction",
+      "probe": "7 residual/origin variants × a 4-anchor geometry, comparing (spread, span) against the original: all byte-identical. Plus the 46-test suite, including constructed boundaries at exactly 3 anchors, spread 2.00 ms, span 1.000 s, modal share 0.670, ppm −50000.0, and a ppm rounding edge at −40000.48 — none distinguishes these.",
+      "why": "`r0`, the residual sign and the time ORIGIN are all CONSTANTS over the anchor set, and every consumer of `res` reads only DIFFERENCES: `spread = max − min`, `ppm` is a median-of-ends DIFFERENCE, and `span_s` is last − first. A constant added to every element cancels in all three, so no mutation of which constant is chosen (or of its sign) can reach a published value — spread, ppm and the band's status are the only published numbers and all three are shift-invariant by construction."
+    },
+    {
+      "brief": "SOLID-NIGHT-2026-09-23 A3 (the residual pass, #3041/#3046)",
+      "class": "no-distinguishing-input",
+      "key": "- span_s = res[-1][0] - res[0][0] | + span_s = res[-1][0] + res[0][0]",
+      "op": "operand/sign substitution inside the residual construction",
+      "probe": "7 residual/origin variants × a 4-anchor geometry, comparing (spread, span) against the original: all byte-identical. Plus the 46-test suite, including constructed boundaries at exactly 3 anchors, spread 2.00 ms, span 1.000 s, modal share 0.670, ppm −50000.0, and a ppm rounding edge at −40000.48 — none distinguishes these.",
+      "why": "`res[0][0]` and `res[0][1]` are both IDENTICALLY 0 — the first anchor defines both origins — so the mutated term is the literal 0 and `x + 0` is `x − 0`. An arithmetic identity, not a test gap."
+    },
+    {
+      "brief": "SOLID-NIGHT-2026-09-23 A3 (the residual pass, #3041/#3046)",
+      "class": "no-distinguishing-input",
+      "key": "- span_s = res[-1][0] - res[0][0] | + span_s = res[-1][0] - res[0][1]",
+      "op": "operand/sign substitution inside the residual construction",
+      "probe": "7 residual/origin variants × a 4-anchor geometry, comparing (spread, span) against the original: all byte-identical. Plus the 46-test suite, including constructed boundaries at exactly 3 anchors, spread 2.00 ms, span 1.000 s, modal share 0.670, ppm −50000.0, and a ppm rounding edge at −40000.48 — none distinguishes these.",
+      "why": "`res[0][0]` and `res[0][1]` are both IDENTICALLY 0 — the first anchor defines both origins — so the mutated term is the literal 0 and `x + 0` is `x − 0`. An arithmetic identity, not a test gap."
+    }
   ]
 }
