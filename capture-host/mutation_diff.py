@@ -396,8 +396,12 @@ def float_boundary_unprobed(key: str, probe: str | None) -> str | None:
     parts = [p.strip() for p in key.split("|")]
     minus = next((p for p in parts if p.startswith("-")), "")
     plus = next((p for p in parts if p.startswith("+")), "")
-    if not minus or not plus:
-        return None
+    # NO `if not minus or not plus` GUARD, and its absence is load-bearing. It was dead code: the
+    # intersection below is already empty whenever either side is missing, so the guard could never
+    # change an answer — the diff-scoped mutation gate proved it by surviving three mutants on those
+    # two lines (the `or`→`and` flip among them). Removing it also makes the `next(...)` defaults
+    # observable: with no guard, a None default reaches `findall(None)` and raises, so a key with only
+    # one side now KILLS those mutants instead of being indistinguishable from "".
     lits = set(_FLOAT_LIT.findall(minus)) & set(_FLOAT_LIT.findall(plus))
     if not lits:
         return None  # no float literal on BOTH sides — not this shape

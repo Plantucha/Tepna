@@ -857,3 +857,37 @@ def test_mutant_changed_lines_drops_the_file_header_rows_in_the_fallback():
 def test_mutant_changed_lines_on_an_empty_record_is_empty_not_a_crash():
     assert M.mutant_changed_lines({}) == []
     assert M.mutant_changed_lines({"changed": "   ", "diff": ""}) == []
+
+
+# ── THE GATE FOUND THESE, OVER THE FIX THAT ADDED IT ──────────────────────────────────────────────
+# #3080's diff-scoped mutation run surfaced six survivors in the new guard. Three pointed at one dead
+# `if not minus or not plus` (the intersection already covered every case it guarded); removing it
+# killed all three AND made the `next(...)` defaults observable. These three kill the rest.
+def test_an_unproven_entry_keeps_the_ORIGINAL_entry_not_just_the_reason():
+    """`dict(e, why=...)` → `dict(why=...)` survived: asserting only `why` never noticed the entry's
+    own key and class being dropped, which is what a reader needs to FIND the row."""
+    entries = [{"key": _K37, "class": "no-distinguishing-input", "probe": "ran 0.90/0.95"}]
+    out = M.classify(entries, [{"key": _K37}], [_K37])
+    e = out["unproven"][0]
+    assert e["key"] == _K37 and e["class"] == "no-distinguishing-input"
+
+
+def test_a_literal_on_ONE_side_only_does_not_satisfy_the_threshold_test():
+    """`set(minus) & set(plus)` → `set(minus)` survived because the BOTH-sides fixture also failed the
+    flip test, so two guards masked each other. This one flips AND differs, so only the intersection
+    separates them."""
+    k = "- if d < 0.05 | + if d <= 0.07"
+    assert M.float_boundary_unprobed(k, "sampled some values") is None
+
+
+def test_a_comparison_on_ONE_side_only_is_not_a_FLIP():
+    """`in minus and in plus` → `or` survived: every fixture had the operator on both sides. A key
+    whose minus carries `<` and whose plus carries no comparison at all separates them."""
+    k = "- if d < 0.05 and q | + if d < 0.05 or q"
+    assert M.float_boundary_unprobed(k, "sampled some values") is None
+
+
+def test_a_key_with_only_one_side_is_still_refused_without_the_guard():
+    """The removed guard's job, done by the intersection — pinned so nobody reinstates it."""
+    assert M.float_boundary_unprobed("- only a minus side 0.05 <", "p") is None
+    assert M.float_boundary_unprobed("+ only a plus side 0.05 <=", "p") is None
