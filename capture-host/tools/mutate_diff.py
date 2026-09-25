@@ -74,7 +74,7 @@ HERE = Path(__file__).resolve().parent.parent
 VENV_PY = HERE / ".venv" / "bin" / "python"
 sys.path.insert(0, str(HERE))
 from mutation_diff import (  # noqa: E402
-    EMPTY_DIFF, STRING_ONLY, SURVIVED, UNDECIDABLE, UNDECIDED, annotation_only, clean_run_failures, classify, diff_key,
+    EMPTY_DIFF, STRING_ONLY, SURVIVED, UNDECIDABLE, UNDECIDED, annotation_only, clean_run_failures, classify, diff_key, mutant_changed_lines,
     in_glob_scope, source_function_of_glob, undecided_by_function, unmutatable_decorator,
     functions_covering, refusal_reason, selftest, split_results, string_only_verdict,
     GATE_BUDGET_SEC, budget_refusal, verdict_object,
@@ -610,6 +610,14 @@ def main(argv=None) -> int:
     for e in cls["excused"]:
         print(f"  excused ({e['class']}): {e['key'][:80]} — {e.get('why', '')[:120]}")
 
+    # UNPROVEN is NOT excused and NOT a gap — it is an entry whose claim has not been SHOWN. Reported
+    # separately, and loudly, because merging it into either bucket loses the one fact that matters:
+    # the mutant may well be equivalent, and nobody has demonstrated it on the only input that could.
+    for e in cls.get("unproven", []):
+        print(f"  ⚠ UNPROVEN ({e['class']}): {e['key'][:80]}")
+        print(f"     {e.get('why', '')}")
+        print("     Construct that boundary and put it in the entry's `probe`, or the claim stands unshown.")
+
     # REFUTED is an ERROR, not a note: it is the one way a stale file could hide a real gap.
     if cls["refuted"]:
         print(f"\nmutate-diff: {len(cls['refuted'])} equivalence entr(y/ies) REFUTED — the mutant was "
@@ -723,9 +731,8 @@ def main(argv=None) -> int:
           f"changed — no test can see these edits:\n")
     for s in cls["unclassified"]:
         print(f"  ── {s['mutant']}")
-        for ln in s["diff"].splitlines():
-            if ln.startswith(("-", "+")) and not ln.startswith(("---", "+++")):
-                print(f"     {ln}")
+        for ln in mutant_changed_lines(s):
+            print(f"     {ln}")
     for e in cls["real_gap"]:
         print(f"  ── {e['module']}  {e['key'][:110]}")
         print(f"     recorded as real-gap — debt, not equivalence: {e.get('why', '')[:140]}")
