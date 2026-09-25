@@ -4528,6 +4528,24 @@
       "key": "- \"gaps\": [{\"at\": t.isoformat(timespec=\"seconds\"), \"s\": round(g, 1), \"cause\": c} for t, g, c in per_gap], | + \"gaps\": [{\"at\": t.isoformat(timespec=\"seconds\"), \"s\": round(g, 2), \"cause\": c} for t, g, c in per_gap],",
       "probe": "read of the producer, then a run: stream_gaps takes both stamps from nights_index.parse_stamp, whose two regexes (_ISO, _O2) capture to the SECOND, so every gap is a difference of whole-second datetimes, a float with no fractional part. A 4-rows-a-second stream with a 60.25 s hole was published as 61.0 (test_a_gap_is_published_as_a_float_of_whole_seconds_and_its_cause_window_is_inclusive, 2026-09-24).",
       "why": "One and two decimals of a whole number are the same number. The mutants that drop the decimals (round(g) → int) are NOT equivalent and are killed by that test's isinstance(float)."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- \"delays\": [{\"at\": t.isoformat(timespec=\"seconds\"), \"s\": round(g, 1), \"device_ns\": d} for t, g, d in delays], | + \"delays\": [{\"at\": t.isoformat(timespec=\"seconds\"), \"s\": round(g, 2), \"device_ns\": d} for t, g, d in delays],",
+      "probe": "same producer as the `gaps` entry above: `g` is a difference of `nights_index.parse_stamp` values, which resolve to the whole second, so every published delay length is a whole number of seconds (the delay tests assert `s` exactly as a float, 2026-09-25).",
+      "why": "One and two decimals of a whole number are the same number."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- if period_ns is None and step_ns is not None and step_ns > 0: | + if period_ns is None and step_ns is not None and step_ns > 1:",
+      "probe": "measured 2026-09-25 on vigil: the smallest POSITIVE device step over 11,193,211 real steps (H10 ECG + ACC, Verity PPG + ACC, nights 2026-09-23 and 09-24) is 4,910,854 ns; a 1 ns device step, the only input that separates `> 0` from `> 1`, does not occur on any stream this box records.",
+      "why": "The two differ only on a device step of exactly 1 ns, which no Polar clock produces (their steps are ≥ 4.9 ms)."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- span = (prev - first).total_seconds() if first is not None and prev is not None else 0.0 | + span = (prev - first).total_seconds() if first is not None or prev is not None else 0.0",
+      "probe": "read of the code: `first` and `prev` are assigned in the same loop iteration (the first parsed row sets both), so they are None together or set together; `and` and `or` agree on every reachable state.",
+      "why": "The two operands are never different, so the connective cannot matter."
     }
   ],
   "solid_night_inputs.py": [

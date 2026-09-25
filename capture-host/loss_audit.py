@@ -140,34 +140,66 @@ def read_journal(
     return out
 
 
-def stream_gaps(path: str) -> tuple[list[tuple[_dt.datetime, float]], float, float]:
-    """[(gap start stamp, seconds)] over the stream's stamps, plus (span_s, gap_s cut). Same cadence cut as
-    the Nights index; stamps as local naive datetimes (both layouts the box writes)."""
+# ── DELAY IS NOT LOSS ─────────────────────────────────────────────────────────────────────────────────
+# Gaps are found on the HOST stamps, and a batch that arrives LATE opens a host gap with every sample still in
+# it. Measured on the H10, 2026-09-17 → 09-23: 16 of 55 unattributed gaps had a host step of 2.3–5.7 s and a
+# DEVICE step of 0.008 s (one sample at 130 Hz), with PMD batches arriving inside each. Only 5 of the 16 had
+# an `event loop stalled` warning within ±5 s, so the stall is corroboration, not the test. The device clock
+# is the test: a host gap whose device step stays under DELAY_PERIODS sample periods is a DELAY (lost = 0);
+# it is published as such and never enters `gaps`, `by_cause` or `lost_min`. A stream with no device clock
+# (the ring's SPO2.csv) cannot tell the two apart, so every host gap there stays a gap: the honest default.
+DEVICE_NS = "sensor timestamp [ns]"
+DELAY_PERIODS = 1.5  # CHOSEN: a real loss drops ≥ 1 whole period; late delivery measured at 1.04 periods
+_PERIOD_ROWS = 200  # positive device steps sampled to learn the stream's own period
+
+
+def stream_gaps_split(path: str) -> tuple[list, list, float, float]:
+    """(gaps, delays, span_s, gap_s cut). `gaps` = [(start, seconds)] of real loss; `delays` = [(start, host
+    seconds, device step ns)] where the host stamps jumped and the device clock did not. Same cut and stamp
+    parsing as the Nights index; the device column is found by HEADER name, per file, never by position."""
     cut = _ni._cadence_gap(path)
     gaps: list[tuple[_dt.datetime, float]] = []
+    delays: list[tuple[_dt.datetime, float, int]] = []
     first = prev = None
-    iso = None
-    with open(path, encoding="utf-8", errors="replace") as fh:
-        for line in fh:
-            if iso is None:
-                if _ni._ISO.match(line):
-                    iso = True
-                elif _ni._O2.match(line):
-                    iso = False
-                else:
-                    continue
+    prev_dev = None
+    dev_col = None
+    steps: list[int] = []
+    period_ns = None
+    with open(path, "rb") as fh:
+        for raw in fh:
+            line = raw.decode("utf-8", "replace")
+            if line.startswith("Phone timestamp"):
+                cols = [c.strip() for c in line.split(";")]  # a trailing newline, CR or space is not part of a name
+                dev_col = cols.index(DEVICE_NS) if DEVICE_NS in cols else None
+                continue
             stamp = _ni.parse_stamp(line)
             if stamp is None:
                 continue
+            dev = None
+            if dev_col is not None:
+                try:
+                    dev = int(line.split(";")[dev_col])
+                except (ValueError, IndexError):
+                    dev = None  # a torn row carries no device time; the host gap is then judged as before
             if first is None:
                 first = stamp
             if prev is not None:
                 g = (stamp - prev).total_seconds()
+                step_ns = dev - prev_dev if dev is not None and prev_dev is not None else None
+                if period_ns is None and step_ns is not None and step_ns > 0:
+                    steps.append(step_ns)
+                    if len(steps) >= _PERIOD_ROWS:
+                        period_ns = sorted(steps)[len(steps) // 2]
                 if g > cut:
-                    gaps.append((prev, g))
+                    if period_ns is not None and step_ns is not None and 0 <= step_ns < DELAY_PERIODS * period_ns:
+                        delays.append((prev, g, step_ns))
+                    else:
+                        gaps.append((prev, g))
             prev = stamp
+            if dev is not None:
+                prev_dev = dev
     span = (prev - first).total_seconds() if first is not None and prev is not None else 0.0
-    return gaps, max(0.0, span), cut
+    return gaps, delays, max(0.0, span), cut
 
 
 def attribute_gaps(gaps, events) -> list[tuple[_dt.datetime, float, str]]:
@@ -589,7 +621,7 @@ def audit_night(night_dir: str, devices: list[dict], *, journal=read_journal) ->
             continue
         f = max(files, key=os.path.getsize)
         try:
-            gaps, span, cut = stream_gaps(f)
+            gaps, delays, span, cut = stream_gaps_split(f)
         except OSError as exc:
             out["devices"][name] = {"primary": pat, "file": os.path.basename(f), "reason": f"unreadable: {exc!r}"}
             continue
@@ -615,6 +647,9 @@ def audit_night(night_dir: str, devices: list[dict], *, journal=read_journal) ->
             # (residue 2026-09-24-loss-audit-audits-only-the-largest-file), so an empty list is "none in
             # this file", never "none in the night".
             "gaps": [{"at": t.isoformat(timespec="seconds"), "s": round(g, 1), "cause": c} for t, g, c in per_gap],
+            # host gaps the DEVICE clock shows were only late delivery: 0 samples lost, never in `gaps`/`lost_min`
+            "delays": [{"at": t.isoformat(timespec="seconds"), "s": round(g, 1), "device_ns": d} for t, g, d in delays],
+            "delayed_min": round(sum(g for _, g, _ in delays) / 60.0, 1),
             "worn_evidence": worn,
             "worn_lost_min": round(lost, 1) if worn else (0.0 if worn is False else None),
             "daemon_caused_min": round(sum(v for k, v in by_cause.items() if k.startswith("daemon:")), 1),
