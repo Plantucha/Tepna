@@ -3159,6 +3159,19 @@ def qc_digest(summ) -> str | None:
         # one number when the streams agree, a range when they do not — a device whose acc and ppg
         # diverge 41 %/95 % must not be summarised as 68 %.
         pct = f"{lo * 100:.0f}%" if (hi - lo) < 0.05 else f"{lo * 100:.0f}–{hi * 100:.0f}%"
+        # ── SAY WHICH DENOMINATOR THE PERCENTAGE CAME FROM (2026-09-25) ────────────────────────────
+        # The verdict object stopped conflating the two bases (#3067); this line is the HUMAN-facing
+        # twin of the same conflation and it still printed a bare percentage. `summarize` divides by the
+        # device's own extent where it can bound one and by the SESSION span — the union across every
+        # device — where it cannot, and on a night whose directory holds two capture sessions the second
+        # reads ~52 % for a device that recorded perfectly through one of them. An operator reading
+        # "H10 52%" cannot tell that from packet loss, which is the decision this digest exists to
+        # inform. `span_basis` is uniform per device (one `dev_span` per device), so one suffix is
+        # honest for the whole segment; a `~` marks the union-span figure and an absent label is marked
+        # too, because not knowing the denominator is not the same as knowing it was the device's.
+        _bases = {(d.get("span_basis") or {}).get(k) for k in cov if isinstance(cov.get(k), (int, float))}
+        if _bases and _bases != {"device"}:
+            pct += "~session" if _bases == {"session"} else "~basis?"
         seg_dev = f"{name} {pct}"
         # ring-clock drift, appended to the device that has it — the number that says whether the 6-hourly
         # 0xC0 push is holding and whether a battery reset silently corrupted the night's stored .dat.

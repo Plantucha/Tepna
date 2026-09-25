@@ -3441,3 +3441,56 @@ def test_the_scan_can_actually_see_one():
     assert len(found) >= 15, f"the scan found {len(found)} — it is not seeing the file"
     assert "test_a_clockless_file_falls_back_to_the_session_span_and_SAYS_SO" in found, \
         "the deliberately-clockless test must be visible to the scan that excuses it"
+
+
+# ── THE DIGEST NAMES ITS DENOMINATOR — the human-facing twin of #3067 ────────────────────────────
+# #3067 stopped the VERDICT presenting a session-basis coverage as the device's. This line is the same
+# conflation for a human reader: on a night whose directory holds two capture sessions, a device that
+# recorded perfectly through one of them reads ~52 %, and "H10 52%" is indistinguishable from packet loss.
+
+def test_PLANT_the_digest_marks_a_SESSION_basis_percentage(tmp_path):
+    summ = {"night": "2026-09-24", "devices": [
+        {"name": "Polar H10 02849638", "coverage": {"ecg": 0.52, "acc": 0.52},
+         "span_basis": {"ecg": "session", "acc": "session"}}]}
+    line = nightqc.qc_digest(summ)
+    assert "52%~session" in line, f"a union-span figure must say so: {line}"
+
+
+def test_PLANT_the_digest_marks_an_UNLABELLED_basis_too(tmp_path):
+    """Not knowing the denominator is not the same as knowing it was the device's — an older summary
+    read back by this reader must not have `device` inferred for it."""
+    summ = {"night": "2026-09-24", "devices": [{"name": "H10", "coverage": {"ecg": 0.52}}]}
+    assert "52%~basis?" in nightqc.qc_digest(summ)
+
+
+def test_CONTROL_a_device_basis_percentage_is_printed_BARE_as_before(tmp_path):
+    """The ordinary case must not gain noise. Passes on origin/main too, where no suffix exists at all."""
+    summ = {"night": "2026-09-24", "devices": [
+        {"name": "H10", "coverage": {"ecg": 0.98}, "span_basis": {"ecg": "device"}}]}
+    line = nightqc.qc_digest(summ)
+    assert "H10 98%" in line and "~" not in line, line
+
+
+def test_the_SOLID_NIGHT_terms_do_not_consume_nightqc_coverage_and_must_not_start(tmp_path):
+    """A GUARD ON A GOOD PROPERTY, not a fix.
+
+    The multi-session defect (`2026-09-25-coverage-spans-two-capture-sessions`) infects every quantity
+    derived from a night DIRECTORY's span. `solid_night_inputs.completeness` is immune because it divides
+    by the WORN INTERVAL — `rate × (end - start)` with `rows_between(p, start, end)` — and reads no QC
+    object at all. That immunity is a property nobody wrote down, so a later refactor could wire the
+    term to QC's coverage for convenience and silently inherit the union-span artifact.
+
+    Keyed on the SOURCE, because the property is "does not read it" and a behavioural test cannot
+    observe an absence of coupling. Read through `_srcscan.module_source`, NOT raw: a raw read of a
+    mutatable module makes mutmut report "failed to collect stats" and the whole module goes unmeasured —
+    caught here by `test_mutation_hygiene.py` on the first run of this test."""
+    from _srcscan import module_source
+    for mod in ("solid_night.py", "solid_night_inputs.py"):
+        src = module_source(mod)
+        for forbidden in ("QC-SUMMARY", "QC-VERDICT", "qc_verdict", "qc_digest"):
+            assert forbidden not in src, (
+                f"{mod} now reads {forbidden}: the SOLID-NIGHT terms are scored on the worn interval, and "
+                "a QC coverage is scored on the night directory's span — which is the union across "
+                "capture sessions. Wiring them together re-imports the multi-session artifact.")
+    # Non-vacuity: the scan must be able to fail, and the strings must be the ones production uses.
+    assert "QC-SUMMARY" in module_source("nightqc.py")
