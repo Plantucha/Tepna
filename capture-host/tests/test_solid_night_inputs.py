@@ -358,19 +358,24 @@ def test_a_uniform_device_column_is_drawn_and_never_yields_a_rate(tmp_path):
     """`independent` CANNOT see this — a coarse counter reads as MORE independent, not less."""
     tb = _tb(tmp_path, dev_jit=False)
     assert tb["status"] == "UNKNOWN"
-    assert "DRAWN" in tb["reason"]
+    # the SHARE, not just the word: a mutated tally still says "DRAWN"
+    assert "DRAWN (100.0 % modal delta)" in tb["reason"], tb["reason"]
 
 
 def test_a_host_column_that_only_rounds_the_device_is_not_a_second_clock(tmp_path):
     tb = _tb(tmp_path, host_jit=False)
     assert tb["status"] == "UNKNOWN"
-    assert "no second clock" in tb["reason"]
+    # the SPREAD itself: an inert host measures exactly 0.00 ms, not merely "small"
+    assert "residual spread 0.00 ms" in tb["reason"], tb["reason"]
 
 
 def test_an_implausible_rate_is_refused_never_corrected(tmp_path):
     tb = _tb(tmp_path, dev_ppm=200000.0)
     assert tb["status"] == "FAIL"
-    assert "ppm" in tb["reason"]
+    # THE RATE ITSELF. A device 200000 ppm fast makes (host - device) FALL, so the reported rate is
+    # NEGATIVE; pinning the number observes the formula rather than the branch it took. Without it,
+    # every mutation of `ppm = (tailv - lead) / 1000.0 / span_s * 1e6` survived.
+    assert "-188853 ppm over 3 min" in tb["reason"], tb["reason"]
 
 
 def test_a_stream_with_no_device_column_says_so_rather_than_scoring_it(tmp_path):
@@ -401,6 +406,8 @@ def test_a_healthy_axis_stops_at_the_unbuilt_step_scan_rather_than_passing(tmp_p
     """§∅: the A5 tripwire has not run, so the band must not claim a clean one."""
     tb = _tb(tmp_path)
     assert tb["status"] == "UNKNOWN"
+    # a bounded, non-drifting host jitter is a REAL clock with NO rate: +0 ppm is the measurement.
+    assert "an independent clock at +0 ppm over 3 min" in tb["reason"], tb["reason"]
     assert "A5 step tripwire has not run" in tb["reason"]
 
 
@@ -449,3 +456,135 @@ def test_anchors_that_span_no_time_yield_no_rate(tmp_path):
     _audit(tmp_path)
     tb = _bands(tmp_path)[H10["name"]]["bands"]["timebase"]
     assert tb["status"] == "UNKNOWN" and "span no time" in tb["reason"]
+
+
+def test_median_is_the_middle_sample_odd_and_the_mean_of_two_even():
+    """Pinned directly. `_median` is the whole of the ppm endpoints and of the A5 windows to come, and
+    every mutation of it survived a suite that only ever observed which BRANCH fired."""
+    assert si._median([3.0, 1.0, 2.0]) == 2.0
+    assert si._median([4.0, 1.0, 2.0, 3.0]) == 2.5
+    assert si._median([5.0]) == 5.0
+
+
+def test_a_real_drift_is_measured_and_pins_the_median_windows(tmp_path):
+    """A DRIFTING axis, which the flat fixtures cannot test. The ppm endpoints are a width-21 median at
+    each end, so with no drift the answer is +0 whatever the window is — every mutation of the slice
+    bounds survives. Under a real drift the number moves with the window, so pinning it observes the
+    bounds themselves. -464 ppm for a device running 500 ppm fast: the host-minus-device residual FALLS,
+    and the median-of-ends estimator under-reads the planted rate by the known end-clamp bias (§7)."""
+    tb = _tb(tmp_path, dev_ppm=500.0)
+    assert tb["status"] == "UNKNOWN"
+    assert "an independent clock at -464 ppm over 3 min" in tb["reason"], tb["reason"]
+    # and the reason NAMES THE FILE it judged. Without this a `who = None` mutation passes every other
+    # assertion here, and the band would tell a reader "`None` ... at -464 ppm".
+    assert tb["reason"].startswith(f"`{BASE}_ECG.txt`"), tb["reason"]
+
+
+# ── the mutation survivors: each test below FAILS on a named mutant (#3046) ──────────────────────────
+def _pairs(d, pairs, name=BASE):
+    """An ECG file from explicit (host_ms_offset, sensor_ns) pairs — exact control of anchors, spread,
+    span and the drawn share, which the parameterised `_ecg` cannot give at a boundary."""
+    rows = ["Phone timestamp;sensor timestamp [ns];timestamp [ms];ecg [uV]"]
+    for ms, ns in pairs:
+        t = T0 + dt.timedelta(milliseconds=ms)
+        rows.append(f"{t.isoformat(timespec='milliseconds')};{ns};0;100")
+    (d / f"{name}_ECG.txt").write_text("\n".join(rows) + "\n")
+
+
+def _tb_pairs(d, pairs, **audit):
+    _pairs(d, pairs)
+    _seams(d); _runs(d, "ECG"); _runs(d, "ACC"); _audit(d, **audit)
+    return _bands(d)[H10["name"]]["bands"]["timebase"]
+
+
+def test_no_worn_interval_reaches_timebase_and_says_so(tmp_path):
+    """Kills the four mutants of that `return`: a swapped status, a dropped status, a dropped reason.
+    Nothing reached this branch before — the whole return was unexecuted."""
+    tb = _tb_pairs(tmp_path, [(0, 0), (1000, 1_000_000_000)], reason="link-loss")
+    assert tb["status"] == "UNKNOWN"
+    assert tb["reason"] == "no worn interval, so no stretch of the axis could be judged"
+
+
+def test_the_largest_primary_is_the_one_judged(tmp_path):
+    """Kills `key=os.path.getsize` -> `key=None` and the dropped key. Two primaries: the LARGER carries a
+    realistic axis, the smaller a DRAWN one. Judge the wrong file and the band says DRAWN."""
+    _ecg(tmp_path, seconds=200)  # large, realistic
+    _pairs(tmp_path, [(0, 0), (1000, 1_000_000), (2000, 2_000_000)],
+           name="Polar_H10_02849638_20260920235900")  # small, uniform deltas = drawn
+    _seams(tmp_path); _runs(tmp_path, "ECG"); _runs(tmp_path, "ACC"); _audit(tmp_path)
+    tb = _bands(tmp_path)[H10["name"]]["bands"]["timebase"]
+    assert "DRAWN" not in tb["reason"], tb["reason"]
+
+
+def test_exactly_three_anchors_is_ENOUGH_not_too_few(tmp_path):
+    """Kills `len(anchors) < TB_MIN_ANCHORS` -> `<=`. Three is the contract's minimum, so three must
+    PASS the check; the boundary is the only place the two spellings differ."""
+    tb = _tb_pairs(tmp_path, [(0, 0), (1000, 1_000_000_000), (2000, 2_000_500_000)])
+    assert "anchor(s)" not in tb["reason"], tb["reason"]
+
+
+def test_a_spread_of_exactly_two_ms_is_INERT_not_independent(tmp_path):
+    """Kills `spread <= TB_INERT_MS` -> `<`. Twice the stamp quantum is the inert BOUND, so a spread
+    sitting exactly on it is still inert."""
+    # residuals 0,+1,+2,+1,0 ms -> spread EXACTLY 2.00. Device deltas alternate 999/1001 ms so the modal
+    # share is 0.5 and the DRAWN branch (which is checked first) does not swallow the case.
+    tb = _tb_pairs(tmp_path, [(0, 0), (1000, 999_000_000), (2000, 1_998_000_000),
+                              (3000, 2_999_000_000), (4000, 4_000_000_000)])
+    assert tb["status"] == "UNKNOWN"
+    assert "residual spread 2.00 ms" in tb["reason"], tb["reason"]
+
+
+def test_a_span_of_exactly_one_second_is_ENOUGH_time(tmp_path):
+    """Kills `span_s <= 0` -> `<= 1`. Zero is the only span that carries no time; one second carries a
+    second. Residuals 0,+5,+3,+8,+4 ms keep the spread above the inert bound and the device deltas
+    non-uniform, so neither earlier branch swallows the case."""
+    tb = _tb_pairs(tmp_path, [(0, 0), (300, 295_000_000), (600, 597_000_000),
+                              (900, 892_000_000), (1000, 996_000_000)])
+    assert "span no time" not in tb["reason"], tb["reason"]
+
+
+def test_a_modal_share_of_exactly_the_threshold_is_DRAWN(tmp_path):
+    """Kills `share >= TB_DRAWN_SHARE` -> `>`. 0.67 is the measured separator — real streams max 0.56,
+    drawn min 0.79 — so a stream sitting exactly on it is drawn. 101 rows: 67 of the 100 device deltas
+    identical, the other 33 distinct, and the host residual moves on every row so each is an anchor."""
+    pairs, ns = [(0, 0)], 0
+    for i in range(1, 101):
+        ns += 1_000_000_000 if i <= 67 else 1_000_000_000 + i * 1_000_000
+        pairs.append((i * 1000 + (i % 7), ns))
+    tb = _tb_pairs(tmp_path, pairs, end="2026-09-20T23:10:00")
+    assert tb["status"] == "UNKNOWN"
+    assert "DRAWN (67.0 % modal delta)" in tb["reason"], tb["reason"]
+
+
+def test_a_rate_exactly_at_the_refusal_bound_is_REFUSED(tmp_path):
+    """Kills `abs(ppm) >= TB_MAX_PPM` -> `>`. The bound is a REFUSAL bound (Clock Contract §7), so a rate
+    sitting exactly on it is refused, not admitted.
+
+    Constructed, not searched: 22 anchors, the residual falling exactly 1050 ms per second, so with a
+    width-21 median at each end the endpoints are r[10] and r[11] and the difference is exactly 1050 ms
+    over a 21.000 s span -> -50000.0 ppm to the bit. The host stamp carries a two-period jitter
+    `(i%3)*7 + (i%7)*11` which is ZERO at both i=0 and i=21 — so the span stays exactly 21 s while the
+    DEVICE deltas take four distinct values (modal share 0.571), keeping the drawn branch from
+    swallowing the case before the rate is ever computed."""
+    pairs = []
+    for i in range(22):
+        h = 1000 * i + (i % 3) * 7 + (i % 7) * 11
+        pairs.append((h, (h + 1050 * i) * 1_000_000))
+    tb = _tb_pairs(tmp_path, pairs)
+    assert tb["status"] == "FAIL", tb
+    assert "-50000 ppm over 0 min" in tb["reason"], tb["reason"]
+
+
+def test_the_ppm_scale_is_observed_at_a_rounding_edge(tmp_path):
+    """Kills `* 1e6` -> `* 1000001.0`. That is a RELATIVE change of 1e-6, invisible to every assertion
+    that reads an integer ppm — unless the value is placed just under a .5 boundary, where the extra
+    0.04 ppm tips the rounding. Constructed at -40000.48: the baseline reports `-40000`, the mutant
+    `-40001`. Deliberately BELOW the refusal bound, so the status stays UNKNOWN and the number in the
+    reason is the only thing under test."""
+    pairs, k = [], 40000.48 * 21.0 / 1000.0
+    for i in range(22):
+        h = 1000 * i + (i % 3) * 7 + (i % 7) * 11
+        pairs.append((h, round((h + k * i) * 1_000_000)))
+    tb = _tb_pairs(tmp_path, pairs)
+    assert tb["status"] == "UNKNOWN", tb
+    assert "at -40000 ppm" in tb["reason"], tb["reason"]
