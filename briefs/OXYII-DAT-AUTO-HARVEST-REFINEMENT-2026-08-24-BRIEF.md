@@ -150,10 +150,13 @@ the flag was False, it was that nothing said so.
       exception is `20260824222502`, the EARLIEST session in the ledger (2026-08-25 05:12) — it
       predates the T3 emit (954720bc, #1761) rather than showing a gap in it. Checked rather than
       assumed, because "21 of 22" invites exactly the wrong inference.
-      ⚠️ **`[~]`, not `[x]`.** Two of this item's claims are settled — T3 emits, the ledger is written —
-      and one is NOT: whether **T3/T4 still share a timestamp** is unverified here. Ticking on the
-      strength of the settled half is the ticked-box-whose-first-clause-is-true defect §7 exists to
-      catch.
+      ⚠️ **SUPERSEDED 2026-09-25 (triage) — this note explained a `[~]` that is now a correct `[x]`.**
+      It read: *"Two of this item's claims are settled — T3 emits, the ledger is written — and one is
+      NOT: whether T3/T4 still share a timestamp is unverified here."* That last claim was VERIFIED on
+      the box 2026-09-20: **T3/T4 are distinct stamps, 0 of 55 identical, 0.1–11.8 ms apart.** So all
+      three claims are settled and the box above is ticked on the whole item, not on its first clause.
+      The reasoning is kept rather than deleted because the caution it states is right in general —
+      ticking on a true first clause is the §7 defect — it simply no longer applies here.
 - [ ] **§22's 8-case restart matrix — MAPPED in §10: 5 of 8 already built** by #1702's
       `crash_1…crash_10`. The residue (cases 2, 3, 7) is exactly the recording-axis cases and belongs
       with unit 2. Do not write eight new tests.
@@ -540,7 +543,14 @@ production"*.
 on `OxyRecState` surviving a restart. They belong with unit 2, not before it.
 
 
-## 11 · §23 T0–T7 — three stamps have a home, and NOT ONE has yet been written in production
+## 11 · §23 T0–T7 — three stamps have a home, and the ledger IS written in production
+
+> ⚠️ **HEADING CORRECTED 2026-09-25 (triage).** It read *"and NOT ONE has yet been written in
+> production"*, which the 2026-09-20 box measurement recorded in this brief's own status header
+> falsified: **56 sessions through 2026-09-19 22:45, T3 emitting on every session since the emit
+> landed.** The correction was appended to the header and the heading was left asserting the
+> superseded state — the dominant defect shape in this lane's briefs (see also
+> `CAPTURE-HOST-FOLLOWUPS-II`, corrected the same day).
 
 §23 asks for eight timestamps and the deltas between them, with the key metric **recording end →
 durable raw `.dat`**. Three separate facts, and they are easy to conflate:
