@@ -8,6 +8,7 @@ feeds it and what it does with the answer.
 """
 
 import json
+import logging
 import os
 
 import pytest
@@ -134,22 +135,39 @@ def test_two_samples_at_the_SAME_INSTANT_yield_no_rate():
     assert capture.link_distress_scan("AA:BB", {"ring": {"link_epoch": 99}}, BASE, 500.0) == {}
 
 
-def test_a_FAILING_scan_does_not_cost_the_watchdog_its_poll(monkeypatch):
+def test_a_FAILING_scan_does_not_cost_the_watchdog_its_poll(monkeypatch, caplog):
     """🔴 The distress scan is a REPORT. The watchdog's job is recovering a wedged radio, and a
-    reporting bug must never be able to stop it — that would turn a diagnostic into an outage."""
+    reporting bug must never be able to stop it — that would turn a diagnostic into an outage.
+
+    'Does not cost it its poll' is asserted as a SECOND poll: the scan explodes on tick 1, and tick 2
+    still probes BlueZ (the watchdog is alive and polling), with the failure logged each time rather
+    than swallowed. Until 2026-09-25 this test ran one tick and asserted nothing, so a watchdog that
+    died on the first explosion passed it."""
     from test_capture_runners import _dev, _run, _stop_after
 
+    probes = []
+
     async def fake_btctl(script, timeout=6):
+        probes.append(script)
         return "Connected: yes\n"
 
+    explosions = []
+
     def boom(*a, **k):
+        explosions.append(1)
         raise RuntimeError("scan exploded")
 
     monkeypatch.setattr(capture.bonding, "_btctl", fake_btctl)
     monkeypatch.setattr(capture, "link_distress_scan", boom)
     capture._STOP.clear()
-    _stop_after(monkeypatch, 1)
+    _stop_after(monkeypatch, 2)
     cfg = {"watchdog": {"enabled": True, "interval_sec": 60}, "devices": [_dev(name="H10")]}
     capture.STATUS["devices"]["H10"] = {"connected": True, "address": "24:AC:AC:02:84:96"}
-    _run(capture.adapter_watchdog("hci0", cfg))  # must complete the poll, not raise
+    with caplog.at_level(logging.ERROR):
+        _run(capture.adapter_watchdog("hci0", cfg))
     capture._STOP.clear()
+    assert len(explosions) == 2, "the scan must have been reached on BOTH polls"
+    assert len(probes) == 2, f"expected a BlueZ probe per poll (2), got {len(probes)}: the watchdog lost a poll"
+    failures = [r for r in caplog.records
+                if "radio distress scan failed; the watchdog itself is unaffected" in r.getMessage()]
+    assert len(failures) == 2, [r.getMessage() for r in caplog.records]
