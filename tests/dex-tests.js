@@ -54802,6 +54802,124 @@
      no single-channel and no finger-site path" — is STALE: `PPGDEX-O2RING-FINGER-SITE-2026-07-18`
      is DONE (2026-07-20), verified on hardware, and `parsePPG` returns `site:'finger'` with a
      single-channel beat lane. Verified in the tree before acting, not read off a status line. */
+    /* ════ THE SIBLING WAVEFORM — residue `2026-09-25-ppg2w-routes-to-spo2` ══════════════════════
+       §1.4's fix (the group below) declined `_PPG.txt` in `oxydex-spo2` and gave `o2ring-ppg` 0.97.
+       `_PPG2W.txt` — the SAME ring's raw dual-wavelength stream — was left behind, and it was WORSE
+       than the tie it descends from: `_PPG\b` / `_PPG\.` cannot match `_PPG2W` (a word character
+       follows `PPG`), so every `ppg` adapter scored **0** and `oxydex-spo2` won OUTRIGHT at 0.95 —
+       no runner-up, so the router did not even report `ambiguous`. A confident wrong adapter.
+
+       SEVERITY WAS MEASURED BEFORE THE FIX, and it was a LOST SIGNAL, not a wrong number:
+       `oxydex-spo2.parse` on a 20 Hz `_PPG2W.txt` returned
+       `usable:false · "no usable SpO₂ rows parsed"`, with the real 1 Hz CSV as a live control (it
+       parsed and refused on its OWN ≥10 floor). Recording that here because "it refuses anyway" is
+       exactly the reasoning that leaves a misroute unfixed — the waveform was simply never analyzed.
+       ⚠️ That measurement was initially reported as UNMEASURABLE headless. It was not: the probe
+       passed `route().best` where the host passes `route().best.adapter`, so `runAdapter` returned
+       null for the CONTROL too. Reading `data-unifier-app.js`'s call site fixed the harness. A null
+       answer for the control is what said "instrument", not "subject" (CLAUDE.md §4b). */
+    group('o2ring-ppg2w adapter — the dual-wavelength waveform routes to the node that PARSES it', 'adapters · o2ring-ppg2w · routing · signal-adapters', function (T) {
+      var SA = env.SignalAdapters;
+      var A = SA && SA.byId ? SA.byId('o2ring-ppg2w') : null;
+      T.ok(
+        'o2ring-ppg2w adapter registered',
+        !!A,
+        A
+          ? ''
+          : 'adapters/o2ring-ppg2w.js not co-loaded — it must be added to FOUR places, and the co-load manifest gate is the enumeration: both .src.html, Dex-Test-Suite.html, dex-coload.js and tests/run-tests.mjs (the sibling hint below says "BOTH runners + both .src.html" and is one short — Dex-Test-Suite.html caught this one)'
+      );
+      if (!A || !SA || typeof SA.route !== 'function') return;
+      /* `spo2` because `signal-orchestrate _HOSTS` maps it to `oxyHost`, and OxyDex is the node that
+         owns `parsePPG2W` — the signalType picks the HOST, not the physical quantity of the bytes. */
+      T.eq('signalType = spo2 — the host that can read it is OxyDex', A.signalType, 'spo2');
+
+      var W2 = 'Wellue_O2Ring-S_S8AW2100_20260905223000_PPG2W.txt',
+        W2_RUNS = 'Wellue_O2Ring-S_S8AW2100_20260905223000_PPG2WRUNS.txt',
+        PPG = 'Wellue_O2Ring-S_S8AW2100_20260725010522_PPG.txt',
+        CSV = 'O2Ring S 2100_20260720.csv',
+        W2_HEAD = 'Phone timestamp;sensor timestamp [ns];channel 0;channel 1;motion',
+        CSV_HEAD = 'Time,Oxygen Level,Pulse Rate,Motion';
+
+      /* ── THE PROPERTY. This block FAILS on main: `route(W2)` returned `oxydex-spo2` @ 0.95. ── */
+      var r = SA.route({ name: W2 }, W2_HEAD);
+      T.eq('the dual-wavelength waveform routes to o2ring-ppg2w', r.best && r.best.id, 'o2ring-ppg2w');
+      T.ok('…at 0.97, the SAME score its sibling waveform carries (the two lanes cannot drift into a tie)', r.best && r.best.confidence === 0.97, String(r.best && r.best.confidence));
+      T.ok(
+        '…and NEVER to oxydex-spo2, which is the 1 Hz oximetry CSV lane',
+        !!(r.best && r.best.id !== 'oxydex-spo2'),
+        JSON.stringify(
+          r.candidates &&
+            r.candidates.map(function (c) {
+              return c.id + '@' + c.confidence;
+            })
+        )
+      );
+      T.eq('oxydex-spo2 now DECLINES the waveform outright (0, not merely outranked)', SA.byId('oxydex-spo2').detect({ name: W2 }, W2_HEAD), 0);
+      /* 🔴 OUTRANKING IS NOT ENOUGH, and a single-variable plant is what showed it. Registering this
+         adapter WITHOUT widening `oxydex-spo2`'s decline leaves both claiming the file at 0.97 and
+         0.95 — a gap of 0.02, under the router's 0.15 threshold — so the route is AMBIGUOUS, which is
+         a degraded state, not a fix. `route()` still reports that `best`, so an id-only assertion
+         passes straight through it; this line is the one that does not. Both halves of the change are
+         load-bearing and this is where that is pinned. */
+      T.ok(
+        '…so the route is UNAMBIGUOUS, not merely won — a 0.02 gap under the 0.15 threshold is not a fix',
+        r.ambiguous === false,
+        JSON.stringify({
+          ambiguous: r.ambiguous,
+          candidates:
+            r.candidates &&
+            r.candidates.map(function (c) {
+              return c.id + '@' + c.confidence;
+            })
+        })
+      );
+
+      /* ── THE CONTROLS. Each says the change was SURGICAL; without them "routes to X" is unfalsifiable. ── */
+      var rCsv = SA.route({ name: CSV }, CSV_HEAD);
+      T.eq('control · the real 1 Hz SpO₂ CSV still routes to oxydex-spo2', rCsv.best && rCsv.best.id, 'oxydex-spo2');
+      T.ok('control · …at its unchanged 0.95', rCsv.best && rCsv.best.confidence === 0.95, String(rCsv.best && rCsv.best.confidence));
+      var rPpg = SA.route({ name: PPG }, 'Phone timestamp;sensor timestamp [ns];channel 0');
+      T.eq('control · the finger pleth still routes to o2ring-ppg (§1.4 intact)', rPpg.best && rPpg.best.id, 'o2ring-ppg');
+      T.ok('control · …at its unchanged 0.97', rPpg.best && rPpg.best.confidence === 0.97, String(rPpg.best && rPpg.best.confidence));
+
+      /* ── AN UNROUTEABLE FILE IS `unknown`, NEVER A CONFIDENT WRONG ADAPTER. The sidecar is the case
+            that proves it: it shares this stream's prefix by construction (`…_PPG2W.txt` →
+            `…_PPG2WRUNS.txt`), so it is the file most likely to be swept up by a prefix claim. ── */
+      var rRuns = SA.route({ name: W2_RUNS }, '# stream=ppg2w rule=stuck min_run=200');
+      T.ok('the `_PPG2WRUNS` sidecar is claimed by NOBODY — set aside, never guessed', rRuns.unknown === true, JSON.stringify(rRuns.best && { id: rRuns.best.id, conf: rRuns.best.confidence }));
+      T.eq('…and this adapter declines it explicitly, rather than relying on another to lose', A.detect({ name: W2_RUNS }, ''), 0);
+
+      /* ── ONE PARSER. A copy here would fork the §3.2 sidecar handling the day after it landed. ── */
+      var src = (env.sources || {})['adapters/o2ring-ppg2w.js'] || '';
+      if (src) {
+        T.ok(
+          'the adapter REFERENCES OxyDex.parsePPG2W rather than carrying a parser',
+          /oxy\.parsePPG2W/.test(src) && /oxy\.spo2WaveformTrend/.test(src),
+          'a second parser has appeared in the adapter'
+        );
+        T.ok(
+          '…and no second timestamp parser rode in with it',
+          !/function\s+parseTimestamp|Date\.parse\(|new Date\(\s*[a-z]/.test(src),
+          'the Clock Contract belongs to the DSP, not the ingest boundary'
+        );
+        T.ok('…and it passes the `_PPG2WRUNS` companion through to the one parser', /runsText:/.test(src), 'the validity sidecar cannot reach parsePPG2W from this route');
+      } else T.ok('adapters/o2ring-ppg2w.js source in env.sources', false);
+
+      /* ── THE REFUSAL CARRIES WHAT IT READ. `toSignalFrame` has a FIXED field set and drops unknown
+            keys, so this rides on `reason` — a first draft used `meta` and it arrived null. ── */
+      if (typeof SA.runAdapter === 'function') {
+        var rows = ['Phone timestamp;sensor timestamp [ns];channel 0;channel 1;motion'];
+        for (var i = 0; i < 400; i++)
+          rows.push(
+            '2026-09-05 22:' + String(30 + Math.floor(i / 60)).padStart(2, '0') + ':' + String(i % 60).padStart(2, '0') + '.000;' + i * 5e7 + ';' + (1000 + (i % 37)) + ';' + (2000 + (i % 29)) + ';0'
+          );
+        var fr = SA.runAdapter(A, rows.join('\n') + '\n', { files: [W2] });
+        T.ok('a waveform with no co-recorded device series REFUSES — never a fabricated trend', !!(fr && fr.usable === false), JSON.stringify(fr && fr.usable));
+        T.ok('…with the DSP’s own reason, not one invented at the boundary', /need ≥5000 samples|self-calibration impossible/.test((fr && fr.reason) || ''), (fr && fr.reason) || '(none)');
+        T.ok('…and says what it DID read, so "read but uncalibratable" ≠ "nothing was read"', /read 400 samples over/.test((fr && fr.reason) || ''), (fr && fr.reason) || '(none)');
+      }
+    });
+
     group('o2ring-ppg adapter — the finger pleth routes unambiguously (§1.4)', 'adapters · o2ring-ppg · routing · signal-adapters', function (T) {
       var SA = env.SignalAdapters;
       var A = SA && SA.byId ? SA.byId('o2ring-ppg') : null;
