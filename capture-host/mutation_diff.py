@@ -898,9 +898,22 @@ def root_reads(tree) -> list[str]:
     # none; `ambiguous_basenames` publishes them so the miss is a named set, not a silence.
     sub, dup = _subdir_index(root, tree.name)
     found: set[str] = set()
+    # A VIRTUALENV INSIDE THE TREE IS NOT PART OF THE SUITE (residue 2026-09-25-root-reads-pin-scans-
+    # an-in-tree-venv). `check.sh` resolves `.venv/bin/python` and this module's own refusal text tells
+    # a contributor to create `capture-host/.venv` — and every string literal in that venv's
+    # site-packages then landed here: `LICENSE`, `NOTICE`, `dex-badges.css`, a brief, seven spurious
+    # "reads" that red the equality pin. The rig never saw it because its `.venv` is a SYMLINK, which
+    # rglob does not follow; a fresh clone following the instructions does. Two rules, both already
+    # precedents in this repo: a dot-directory is never scanned (`_subdir_index`'s fallback walk and
+    # `find_unwired`'s `.venv` skip), and a directory carrying `pyvenv.cfg` is a venv whatever it is
+    # called (`venv/`, `env/`), which the dot rule alone would miss.
+    venv_dirs = {p.parent for p in tree.rglob("pyvenv.cfg")}
     # rglob, not glob("tests/*.py"): the read that broke #2864 is named in a HELPER module, and a
     # non-recursive scan of tests/ sees neither a helper beside the tests nor one a directory down.
     for t in sorted(tree.rglob("*.py")):
+        rel_dirs = t.relative_to(tree).parts[:-1]
+        if any(seg.startswith(".") for seg in rel_dirs) or any(v in t.parents for v in venv_dirs):
+            continue
         for lit in re.findall(r"""["']([^"'\n]+)["']""", t.read_text(encoding="utf-8", errors="replace")):
             if lit in names:
                 found.add(lit)
