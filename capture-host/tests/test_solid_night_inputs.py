@@ -573,3 +573,18 @@ def test_a_rate_exactly_at_the_refusal_bound_is_REFUSED(tmp_path):
     tb = _tb_pairs(tmp_path, pairs)
     assert tb["status"] == "FAIL", tb
     assert "-50000 ppm over 0 min" in tb["reason"], tb["reason"]
+
+
+def test_the_ppm_scale_is_observed_at_a_rounding_edge(tmp_path):
+    """Kills `* 1e6` -> `* 1000001.0`. That is a RELATIVE change of 1e-6, invisible to every assertion
+    that reads an integer ppm — unless the value is placed just under a .5 boundary, where the extra
+    0.04 ppm tips the rounding. Constructed at -40000.48: the baseline reports `-40000`, the mutant
+    `-40001`. Deliberately BELOW the refusal bound, so the status stays UNKNOWN and the number in the
+    reason is the only thing under test."""
+    pairs, k = [], 40000.48 * 21.0 / 1000.0
+    for i in range(22):
+        h = 1000 * i + (i % 3) * 7 + (i % 7) * 11
+        pairs.append((h, round((h + k * i) * 1_000_000)))
+    tb = _tb_pairs(tmp_path, pairs)
+    assert tb["status"] == "UNKNOWN", tb
+    assert "at -40000 ppm" in tb["reason"], tb["reason"]
