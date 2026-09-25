@@ -54988,6 +54988,68 @@
        passed `route().best` where the host passes `route().best.adapter`, so `runAdapter` returned
        null for the CONTROL too. Reading `data-unifier-app.js`'s call site fixed the harness. A null
        answer for the control is what said "instrument", not "subject" (CLAUDE.md §4b). */
+    /* ════ EVERY ADAPTER'S SOURCE REACHES BOTH LANES — the fifth place, made unforgettable ═══════
+       Co-loading an adapter is FOUR places (both `.src.html`, `Dex-Test-Suite.html`, `dex-coload.js`,
+       `tests/run-tests.mjs`). Being SOURCE-SCANNABLE was a fifth, and only in the browser lane: Node
+       builds `env.sources` from the bundles' `data-inline-src` scan, so an inlined adapter arrives
+       free, while the page fetches an explicit list — which contained NO adapter at all until
+       2026-09-25. Three assertions had therefore never run in the browser lane since they were
+       written, each pinning that an adapter passes `ctx.companions.runs` through as `runsText`.
+
+       Measured before widening, so that "they all pass" is a finding and not a hope: all three regexes
+       evaluated against the adapter sources on disk → PASS, PASS, PASS. Widening executes them; it did
+       not have to be safe, and a mirror that reds on widening would have been a real defect surfacing,
+       not a reason to narrow the list back.
+
+       This group is the mechanism, not the list: the page now derives its adapter sources from
+       `DexCoload.adapters`, and this asserts the set that ARRIVED equals the set that REGISTERED. So
+       the twelfth adapter is source-scannable the day it is co-loaded, in both lanes, or this reds
+       with its name. ⚠️ It must also refuse a SILENT empty — an adapter list that fetched nothing
+       reads exactly like a lane with no adapters, which is the hole being closed. */
+    group('adapter sources reach BOTH lanes — every registered adapter is source-scannable', 'adapters · dex-coload · env.sources · source-scan', function (T) {
+      var SA = env.SignalAdapters,
+        src = env.sources || {};
+      if (!SA || typeof SA.list !== 'function') {
+        T.ok('SignalAdapters reachable', false, 'the population cannot be enumerated');
+        return;
+      }
+      /* THE POPULATION IS THE REGISTERED SET, never a list written here — a hand-written denominator
+         is the thing this group exists to abolish. */
+      var registered = SA.list()
+        .map(function (a) {
+          return a.id;
+        })
+        .sort();
+      T.ok('the registered adapter set is non-empty (else every assertion below is vacuous)', registered.length >= 10, registered.join(','));
+      var missing = registered.filter(function (id) {
+        return typeof src['adapters/' + id + '.js'] !== 'string';
+      });
+      T.eq('every REGISTERED adapter has its SOURCE in env.sources — ' + (registered.length - missing.length) + '/' + registered.length, JSON.stringify(missing), JSON.stringify([]));
+      /* An equality, not a floor: `>= N` never counts what was excluded. */
+      T.eq('…and the counts reconcile, so a shrinking population cannot read as a pass', registered.length - missing.length, registered.length);
+      /* The browser lane publishes this when its manifest came back empty; Node never sets it. A
+         silent `[]` there would restore the exact blindness this group closes. */
+      T.ok(
+        'the browser lane did not fall back to an EMPTY adapter source list',
+        env.adapterSourcesMissing !== true,
+        'DexCoload.adapters was absent or empty when Dex-Test-Suite.html built SOURCE_FILES'
+      );
+      /* And the three that had never executed in this lane, named so the widening is legible in the
+         output rather than inferred from a count. */
+      [
+        ['polar-h10-ecg', 'passes ctx.companions.runs into the PRIMARY parse'],
+        ['polar-sense-ppg', 'passes ctx.companions.runs as runsText'],
+        ['o2ring-ppg', 'passes ctx.companions.runs as runsText']
+      ].forEach(function (row) {
+        var t = src['adapters/' + row[0] + '.js'];
+        T.ok(
+          'previously browser-blind mirror · ' + row[0] + ' ' + row[1],
+          typeof t === 'string' && /companions\.runs/.test(t) && /runsText:\s*runsText/.test(t),
+          typeof t === 'string' ? 'the mirror now RUNS and fails — a real finding' : 'source still absent'
+        );
+      });
+    });
+
     group('o2ring-ppg2w adapter — the dual-wavelength waveform routes to the node that PARSES it', 'adapters · o2ring-ppg2w · routing · signal-adapters', function (T) {
       var SA = env.SignalAdapters;
       var A = SA && SA.byId ? SA.byId('o2ring-ppg2w') : null;
