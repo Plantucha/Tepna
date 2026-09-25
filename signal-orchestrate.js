@@ -380,7 +380,7 @@
   // one recording identically), so no chicken-and-egg with the not-yet-parsed frame's t0Ms.
   // 'runs' is the validity sidecar — `…_PPGRUNS.txt` for PPG, `…_ECGRUNS.txt` for ECG (one writer emits both) — SAMPLE-VALIDITY-ENVELOPE §3.2; its TEXT rides
   // to each node's adapter as ctx.companions.runs and from there into parsePPG / parseECGText(text, { runsText }).
-  var _COMPANION_KINDS = { ecg: ['rr', 'hr', 'acc', 'runs'], ppg: ['acc', 'gyro', 'magn', 'ppi', 'runs'] };
+  var _COMPANION_KINDS = { ecg: ['rr', 'hr', 'acc', 'runs', 'accruns'], ppg: ['acc', 'gyro', 'magn', 'ppi', 'runs', 'accruns'] };
   // DEEP-AUDIT-II §10.2 — a sidecar is written in the SAME recording session (its filename stamp is
   // minutes from the primary's). A candidate whose nearest stamp is more than a day away is a
   // DIFFERENT recording, never a companion (a 5-day-old ACC must not attach and rewrite which beats
@@ -393,6 +393,12 @@
     var u = String(name == null ? '' : name).toUpperCase();
     if (/_PPGRUNS\b|_PPGRUNS\./.test(u)) return 'runs'; // the validity sidecar — before `_PPG`, which does not match it anyway (no boundary before RUNS)
     if (/_ECGRUNS\b|_ECGRUNS\./.test(u)) return 'runs'; // the ECG validity sidecar — MUST precede `_ECG`, which does not match it either, for the same reason
+    /* The ACC companion's sidecar gets its OWN kind, never 'runs'. Measured 2026-09-25: a kind IS the
+       slot name here (`out[kind]`), so returning 'runs' would put `_ACCRUNS` in the same slot as
+       `_ECGRUNS` on the SAME device, where nearest-stamp decides between two identical stamps — the
+       ECG's own sidecar could be silently replaced by the ACC's, and the failure would look like a
+       working pairing. A distinct kind cannot collide. */
+    if (/_ACCRUNS\b|_ACCRUNS\./.test(u)) return 'accruns';
     if (/_ECG\b|_ECG\./.test(u)) return 'ecg';
     if (/_PPG\b|_PPG\./.test(u)) return 'ppg';
     if (/_GYRO\b|_GYRO\./.test(u)) return 'gyro';
