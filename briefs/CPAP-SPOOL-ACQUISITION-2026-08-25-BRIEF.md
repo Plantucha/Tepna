@@ -241,7 +241,7 @@ planted on identical inputs.
 - [ ] One real spool pulled end-to-end with the fragment log committed as evidence (attended, dated).
 - [ ] Assembler witnessed: envelope emitted from real fragments; deviations from fixtures enumerated
       (or "none", stated).
-- [x] Caller shipped behind default-OFF flag; arming line shows it; gates green. **SHIPPED 2146dc2d (#1838) — `_maybe_start_cpap_spool_pull` at `capture.py:7277` (the brief's `:6474` has drifted), `spool_arming` at `cpap_spool_caller.py:64`, tests `test_cpap_spool_caller.py` + `test_cpap_spool_wire.py`. Verified 2026-09-02.**
+- [x] Caller shipped behind default-OFF flag; arming line shows it; gates green. **SHIPPED 2146dc2d (#1838) — `_maybe_start_cpap_spool_pull` at `capture.py` `_maybe_start_cpap_spool_pull` (the brief's `:6474` has drifted), `spool_arming` at `cpap_spool_caller.py:64`, tests `test_cpap_spool_caller.py` + `test_cpap_spool_wire.py`. Verified 2026-09-02.**
 - [ ] §11 three-way convergence measured on ≥1 night and written down — agreement bands pre-stated
       before the comparison runs.
       **Bands PRE-STATED 2026-08-25 (§11 agreement bands, above) — that half is discharged; the

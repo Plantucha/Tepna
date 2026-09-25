@@ -86,7 +86,7 @@ So *"thereafter address characteristics by handle"* routes through the same mirr
 exists to stop trusting. `start_notify` resolves identically.
 ⚠️ **And the escape hatch is closed by the parent:** §3 of `BLE-TRANSPORT-REDESIGN` REFUSES a raw ATT
 path — *"`HCI_CHANNEL_USER` stays disqualified, no rewrite"*. So bypassing bleak is not available
-either. `c.handle` being readable at `capture.py:9613` proved handles are EXPOSED; it never proved they
+either. `c.handle` being readable at `capture.py` `_gatt_snapshot` proved handles are EXPOSED; it never proved they
 were ADDRESSABLE, and that distinction is the whole of this finding.
 
 **③ THE GOAL SURVIVES — as an ORACLE, not an addressing path.** §1.1's done-when never asked for
@@ -124,7 +124,7 @@ Each is cheap, and each could change the shape of the unit. `trace-to-the-consum
    what it returns when the peripheral does not implement it. **A device with no hash is not a
    failure — it is a device this optimisation cannot cover, and it must fall back, visibly.**
 2. **Does bleak address by handle on the pinned version?** `>=0.22`; `c.handle` is already read in
-   `capture.py:9613`, so handles are observable — that is not the same as being *addressable*. Check
+   `capture.py` `_gatt_snapshot`, so handles are observable — that is not the same as being *addressable*. Check
    what `read_gatt_char` / `start_notify` accept, and whether the handle path still traverses the same
    object mirror internally (if it does, this buys nothing and the unit changes).
 3. **What happens to a stale map?** The failure to design against is not a miss, it is a **wrong

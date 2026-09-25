@@ -159,7 +159,7 @@ better — but the headline figure must not be quoted again without a measuremen
 - **6 KILLED → SURVIVED.** This is manufactured blindness, the failure `per-group-coverage.mjs`'s own
   header names: *"a selection map that silently drops a group stops running tests that would have
   killed mutants, and reports the resulting survivors as findings."* All six are at
-  `hrvdex-dsp.js:853` and `:866`, and all six were killed by one group —
+  `hrvdex-dsp.js` `sdnn7` and `:866`, and all six were killed by one group —
   **"HRVDex Phase-9 — compute() surface + summary adapter"**.
 
 **ROOT CAUSE RESOLVED 2026-08-18 by experiment — the COVERAGE MEASUREMENT is wrong, and the
@@ -169,7 +169,7 @@ consequence is bigger than the bug.**
 retraction was right at the time: I had asserted a cause from a contradiction rather than testing
 it.)*
 
-The decisive test, which cost about a minute: mutate `hrvdex-dsp.js:853` (`v > 0` → `v >= 0`) and run
+The decisive test, which cost about a minute: mutate `hrvdex-dsp.js` `sdnn7` (`v > 0` → `v >= 0`) and run
 **only** group 338. It **fails** — 1 failing, 46 passing, exit 1. A test cannot detect a change to a
 line it never executes, so group 338 executes line 853, and the map that says otherwise is wrong.
 
@@ -261,7 +261,7 @@ are forcing the refresh that the *next* run would have done anyway.
 this — including #1664's commit message, which is merged and carries the wrong phrasing — asserted
 that the scratch "carries mutmut's results database forward". Fact 4 above refutes that framing: the
 test copy and the coverage mapping were both current. Three candidates remain and none is established:
-mutmut's own per-mutant result persistence; `mutate.py:290`'s selection (`only or f"{stem}.*"`); or
+mutmut's own per-mutant result persistence; `mutate.py` `run_one`'s selection (`only or f"{stem}.*"`); or
 something else entirely. **Naming a mechanism that the tree does not support is how a record sends the
 next reader chasing the wrong thing** — the same failure §3a records for the coverage map's "obvious
 rescue", one tool over.
@@ -292,7 +292,7 @@ per-module record against the load-time baseline — `record == baseline` ⇒ ca
 | group | records for `hrvdex-dsp.js` |
 |---|---:|
 | **2** — `Clock Contract — parseTimestamp` (touches `clock.js`, not hrvdex) | **384 lines** |
-| **338** — provably executes `hrvdex-dsp.js:853` (fails when it is mutated) | **384 lines** |
+| **338** — provably executes `hrvdex-dsp.js` `sdnn7` (fails when it is mutated) | **384 lines** |
 
 **Identical line sets**, not merely equal counts. The reason is structural: `tests/run-tests.mjs`
 loads **every** DSP before **any** group runs, so the load-time baseline is present in every group's
@@ -351,7 +351,7 @@ probing and **take the guard instead of the claim**: the harness should refuse t
 **Not implemented.** `run-tests.mjs` already runs one group per process via `--group-index`, so the
 snapshot pair can live in the harness without giving `group()` start/end callbacks — which is the
 change this file's header rejected, because `tests/dex-tests.js` is the file every parallel PR
-conflicts in. **Done when:** a rebuilt map shows group 338 attributing `hrvdex-dsp.js:853`, and the
+conflicts in. **Done when:** a rebuilt map shows group 338 attributing `hrvdex-dsp.js` `sdnn7`, and the
 paired hrvdex comparison of §3 shows **zero** KILLED→SURVIVED flips.
 
 ### 3b · The half of this that SURVIVES the quarantine

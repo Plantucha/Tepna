@@ -493,7 +493,7 @@ so nobody inherits my confidence without my evidence.
 | 14 | hard abort deadline | code | `pull_deadline` refuses without touching the link; §14a flush gate re-checks internally (`oxy_transfer.py:132-139`) |
 | 15 | ring cannot be kept awake by a stuck pull | code | `oxy_power` `MAX_ATTEMPTS=3` → `COOLDOWN` (`oxy_power.py:52`), plus the deadline above |
 | 16 | BLE connections minimized | check | `attempt_allowed`/`harvest_request` veto before the link is spent; "minimized" is a comparative I did not measure |
-| 17 | **CPAP/H10/Verity/PPS not disrupted** | **BOX** | the coexistence matrix. The gate already exists — `oxy_presence.py:256` earns `scan_coexistence_verified`, refusal at `capture.py:7355`. **Only the measurement is missing.** |
+| 17 | **CPAP/H10/Verity/PPS not disrupted** | **BOX** | the coexistence matrix. The gate already exists — `oxy_presence.py:256` earns `scan_coexistence_verified`, refusal at `capture.py` `_presence_scan_loop`. **Only the measurement is missing.** |
 | 18 | adapter identity survives reboot/renumbering | code | `capture.resolve_adapter_name` (`:1365`) and `_resolve_cpap_adapter` (`:9010`), re-read every connect (`:9122` "MAC → current hciN") |
 | 19 | event-driven + periodic reconciliation coexist | code | triggers `charger`/`not-worn`/`presence` in the auto-pull dispatch, with the hourly poller as the "RECONCILIATION NET" (its own arm-time log line on the box) |
 | 20 | duplicate harvests idempotent | code | `pull_session.py:21-25` — *"`_pull_once` no longer decides 'do we already have this?' from a lone size-equality check — it drives the append-only inventory ledger and the restart-safe plan"*; `import oxy_inventory` at `:26` |

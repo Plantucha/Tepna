@@ -30,9 +30,9 @@ by certainty, and the two at the bottom are explicitly speculative.
 
 ### 1.1 · The claim that failed
 
-`integrator-dsp.js:2644` corrects the three-cornered hat for common-mode error using
+`integrator-dsp.js` `_tchHat` corrects the three-cornered hat for common-mode error using
 `_tchRhoFromMotion` — a motion-derived proxy for ρ. A corpus measurement found that proxy correlating
-only **0.173** with the "actual" residual correlation computed by `tools/tch-per-epoch-rho.mjs:104`,
+only **0.173** with the "actual" residual correlation computed by `tools/tch-per-epoch-rho.mjs` `legs`,
 and the recommendation that followed was: *stop using the proxy, measure the residual correlation
 directly.*
 
@@ -542,7 +542,7 @@ defeats the diagnostic the axis is required to publish.
 
 ## 5 · The closure tolerance has a closed form — do not Monte-Carlo it first
 
-`integrator-dsp.js:5466` sets the 3-source clock-closure tolerance to
+`integrator-dsp.js` `fitClockClosure` sets the 3-source clock-closure tolerance to
 
 ```js
 Math.max(5, 0.25 * Math.max(Math.abs(d1), Math.abs(d2), Math.abs(d3)))
@@ -796,7 +796,7 @@ implementations to disagree with**, which §7 argues is the only thing that can 
 - [x] **DONE (verified in code 2026-08-20, shipped #1538)** — §1 is cross-referenced at both call
       sites. `integrator-tch.js:41` states §1 "WITHDREW the recommendation to 'measure it directly' —
       this note exists so that recommendation cannot be re-made from the code alone"; the second clause
-      of this box, verbatim. `tools/tch-per-epoch-rho.mjs:116` carries the companion note (ρ "carries
+      of this box, verbatim. `tools/tch-per-epoch-rho.mjs` `legs` carries the companion note (ρ "carries
       ZERO information beyond the variances", so a low correlation with the motion proxy is not
       evidence against it). Checked by reading both sites, not by grepping for the brief's name.
 - [x] §4 built (`tools/hostaxis-estimator-bakeoff.mjs` — the width-21 experiment is re-runnable for the

@@ -177,7 +177,7 @@ pipeline"*, reachable *"once crawls carry `after` (#1723)"*. Measured across eve
 
 > **181 of 2703 mutant records carry `after` — 6.7 %.**
 
-#1723 landed and the writer is correct (`mutation-crawl.mjs:899` records `after` beside `before`), but
+#1723 landed and the writer is correct (`mutation-crawl.mjs` `probeFile` records `after` beside `before`), but
 **the corpus has not turned over**. Refusing today would still stop the pipeline on 93 % of records.
 So the deferral stands — and *"deferred until crawls carry `after`"* is now *"deferred, 6.7 % of the
 way there"*, which is a condition the next reader can re-measure in one command instead of re-deriving.
@@ -187,7 +187,7 @@ verified at `tools/mutation-ai-probe.mjs:424`.
 
 ### 6.5 — verified present, still theoretical
 
-`mutation-crawl.mjs:899` still stores `before: String(m.before).trim().slice(0, 120)`. Unchanged, and
+`mutation-crawl.mjs` `probeFile` still stores `before: String(m.before).trim().slice(0, 120)`. Unchanged, and
 unchanged in consequence: recorded so it is not rediscovered as a surprise.
 
 ### What this audit did NOT do
@@ -207,7 +207,7 @@ honest outcome, not a gap in the audit.
       ⚠️ **ASSESSED 2026-09-19 (Osprey) — STAYS UNTICKED, and now with a named counter-example rather
       than an absence of evidence.** #2632/#2651 removed ONE such diagnostic (the `timeout_multiplier`
       advice), which is an instance and not the universal this box asserts. Enumerating the pipeline's
-      advisory strings finds a survivor: `capture-host/tools/mutate_diff.py:513` prints *"no generated
+      advisory strings finds a survivor: `capture-host/tools/mutate_diff.py` `main` prints *"no generated
       mutant matches … — the line moved, or the entry is malformed"*, naming **two** causes and
       checking **neither**. The box cannot tick while that stands, and the tick — when it comes — needs
       an enumeration, not another single removal.

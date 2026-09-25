@@ -48,7 +48,7 @@ From the parent, and from the 2026-09-06 all-hands:
   consecutive, longest 78 samples (0.62 s), against a modal baseline of 114–119 — **in-band blanking
   inside complete 127-sample frames**, not a delivery gap.
 - **Every fixture reproduced it faithfully, so every gate was green.** That is the shape of the defect:
-  the bytes are honest (`oxyii.py:838` returns the payload untransformed, `capture.py:4293` writes it
+  the bytes are honest (`oxyii.py` `parse_ppg` returns the payload untransformed, `capture.py` `run_oxyii` writes it
   through), and what was missing was an interpretation layer.
 - `∅ ABSENCE IS NULL` held for two thousand commits **everywhere someone had written it down** — Clock
   Contract §2.6's stamps, `parse_live`'s scalar ranges — and failed in the one path where nobody had.

@@ -5,7 +5,7 @@
 -->
 **Status:** PROPOSED (re-verified 2026-09-25, Kestrel triage, docs only: ⚠️ **the live count below is STALE AGAIN — `capture-host/check.sh` carries `MYPY_BASELINE=37` on `origin/main`** (moved 41 → 37 by landings after Heron's 09-19 re-measure, the last being #3044 which annotated the heap probe's `top_rows`), so the header's "41" sat four above the truth for six days — the exact failure this header already records once. The gate is still ADVISORY (`run_advisory`, flips blocking at 0), so §P3 remains open, and §P2/§P3/the follow-up are the same three boxes as before; NO STATUS CHANGE. Parked 2026-09-02 — ✅ **mypy drift FIXED 2026-09-03 — the done-when now carries the live number and its measurement date. Live count: 41 (⚠️ 37 as of 2026-09-25 — see above)** ⚠️ (**was 102**, measured 2026-09-03; **re-measured 2026-09-19 (Heron)** — `check.sh` carries `MYPY_BASELINE=41`, confirmed by three independent gate runs that night each reporting `mypy … 41 (baseline 41, at baseline)`. Moved by five landings since: #2244, #2452, #2606, #2612, #2631. **A count in a done-when is a measurement with no expiry date unless it is re-taken** — this one sat 61 above the truth for sixteen days) (same in BOTH trees — root: 33 files / 332 checked; clean worktree off origin/main: 33 files / 341 checked, so the totals agree while the populations differ; §0's "the tree is part of the number" rule honoured, measured with `check.sh:85`'s own invocation), against `check.sh:91`'s advertised baseline **103 (2026-08-29)** — down by one, so the "may only go DOWN" invariant holds. ⚠ A bare `mypy .` reports `1` here: without `--explicit-package-bases` it aborts on `tests/_srcscan.py` and the "count" is an invocation failure, 101 short. §P1 is closed. Open: **§P3 mypy blocking at 0** is a countdown from **102** (measured 2026-09-03), nothing external blocks it; **§P3 format blocking** waits on a fleet notice that has never been sent; ~~**§P2's qwen lane** ... decide whether 12 is the sample or the lane reopens.~~ **STALE — that decision was already taken in §P2c on 2026-08-28 and this header asked for it again five days later.** The clause was amended to *"the full mechanical queue at evaluation time (minimum 10)"* with the 30 % threshold unchanged, and the first verdict recorded: 12/12 · 58 % (42 % ex-caveats) · **the lane survives**. The done-when box is now ticked against the amended clause; the owner's veto on clause and verdict stands. Note `ruff format` is NOT gated in CI anywhere; it is local and advisory only (`check.sh:107`). ⚠️ **RE-MEASURED 2026-09-06 — the count is 103, not 102, and it moved the WRONG WAY.** Same invocation (`check.sh:85`), clean worktree off `origin/main`: `Found 103 errors in 33 files (checked 362 source files)`. The 102 recorded on 2026-09-03 has been spent. **Nothing could have caught it:** `run_advisory` always `return 0`, and the baseline lived only inside the advisory's NOTE STRING — `"baseline 103 (2026-08-29) — count may only go DOWN"` — which is read by nobody. An invariant stated in a label is not an invariant, and this one was violated three days after being recorded with every gate green throughout. **Now mechanised** (`MYPY_BASELINE`/`MYPY_BASELINE_DATE`, compared against mypy's own `Found N errors` summary line, reporting RISEN / at-baseline / BELOW-with-bank-it, and NO COUNT when mypy aborted rather than passed). Still ADVISORY — §P3 is what flips blocking, and it flips at 0. **§P3's countdown starts from 103, not 102.** · **Owner:** Vigil box · **Next step:** none — §P3 is a countdown that needs no decision, and the format half waits on a fleet notice nobody has sent) · **Created:** 2026-08-27
 
-> **TRIAGED 2026-09-01 — §P1 and §P2 are discharged; §P3 is a RATCHET waiting on a number, not a task.** §P1's advisory gates shipped with mypy pinned. §P2's qwen fix-lane ran to queue exhaustion (n = 12, 12/12 triaged, 7 accepted → landed in #1949) and the **adversary lane was RETIRED** at 20.7 % confirmed against a 30 % band (`audits/DSP-ADVERSARY-FINDINGS-2026-08-29.md`). ~~⚠️ The first §P2 box is NOT satisfied and should not be ticked: the band was applied on a sample of **12**, not the **30** it names — the rate cleared, the sample size did not.~~ **SUPERSEDED 2026-09-03 — true of the box's OLD TEXT, moot under the clause §P2c adopted on 2026-08-28** (full mechanical queue at evaluation time, minimum 10; 30 % threshold unchanged). This note was reading a checkbox that still said `30` three days after the clause behind it had been replaced, which is why the box text itself is now amended and ticked. Left in place, not deleted: it recorded a real inconsistency and the fix was to the box, not to this observation. §P3 flips mypy to blocking at **0**; the floor is **102 measured 2026-09-03** (189 → 180 in #1949, then further by the session lane; `check.sh:91` still advertises the 08-29 baseline of 103), so it is a countdown, not an action. §P4 is explicitly not planned.
+> **TRIAGED 2026-09-01 — §P1 and §P2 are discharged; §P3 is a RATCHET waiting on a number, not a task.** §P1's advisory gates shipped with mypy pinned. §P2's qwen fix-lane ran to queue exhaustion (n = 12, 12/12 triaged, 7 accepted → landed in #1949) and the **adversary lane was RETIRED** at 20.7 % confirmed against a 30 % band (`audits/DSP-ADVERSARY-FINDINGS-2026-08-29.md`). ~~⚠️ The first §P2 box is NOT satisfied and should not be ticked: the band was applied on a sample of **12**, not the **30** it names — the rate cleared, the sample size did not.~~ **SUPERSEDED 2026-09-03 — true of the box's OLD TEXT, moot under the clause §P2c adopted on 2026-08-28** (full mechanical queue at evaluation time, minimum 10; 30 % threshold unchanged). This note was reading a checkbox that still said `30` three days after the clause behind it had been replaced, which is why the box text itself is now amended and ticked. Left in place, not deleted: it recorded a real inconsistency and the fix was to the box, not to this observation. §P3 flips mypy to blocking at **0**; the floor is **102 measured 2026-09-03** (189 → 180 in #1949, then further by the session lane; `check.sh` `MYPY_BASELINE` still advertises the 08-29 baseline of 103), so it is a countdown, not an action. §P4 is explicitly not planned.
 
 # Python types + format — mypy and ruff-format for capture-host, measured first
 
@@ -74,13 +74,13 @@
 
   ⚠️ **The characteristic failure is HINT PATTERN-COMPLETION.** mypy writes
   `Need type annotation for "out" (hint: "out: list[<type>] = ...")`, and the model fills the
-  placeholder with a plausible scalar **without reading what is appended**. Measured: `nightqc.py:472`
-  proposed `list[bool]` and `nightqc.py:1111` proposed `list[str]`, where both functions do
+  placeholder with a plausible scalar **without reading what is appended**. Measured: `nightqc.py` `rate_reality`
+  proposed `list[bool]` and `nightqc.py` `arrival_quality` proposed `list[str]`, where both functions do
   `out.append({…})` — dicts. **Both are annotations a hurried human would wave through**, which is
   precisely why every proposal is human-read.
 
   **Known limitation, deliberately not fixed:** `object` **evades the `Any` rail**
-  (`adapter_ab.py:58` → `dict[str, object]`). It is not `Any` and carries nearly as little — but it is
+  (`adapter_ab.py` `night_profile` → `dict[str, object]`). It is not `Any` and carries nearly as little — but it is
   sometimes the *honest* type for genuinely heterogeneous data, so widening the rail would
   auto-reject honest annotations. Eyes-first covers the lazy cases; the rail stays as it is.
 
@@ -147,14 +147,14 @@
   |---|---|---|---|
   | 1 | `status_union.py:95` (devices) | — | **RAIL**: identical to the original |
   | 2 | `status_union.py:95` (streams) | — | **RAIL**: identical to the original |
-  | 3 | `cpap_edf.py:129` | `per_sig: list[list[int]]` | ✅ accept — `unpack_from("<{cnt}h")` yields ints |
-  | 4 | `nightqc.py:472` | `out: list[bool]` | ❌ **EYES**: the function does `out.append({…})` |
-  | 5 | `nightqc.py:1111` | `out: list[str]` | ❌ **EYES**: same — appends dicts |
-  | 6 | `nightqc.py:1665` | `missing: list[str]` | ✅ accept — appends an f-string (:1695) |
-  | 7 | `nightqc.py:1667` | `optional_absent: list[str]` | ✅ accept — same site |
-  | 8 | `adapter_ab.py:58` | `out: dict[str, object]` | ✅ accept **with the `object` note** |
-  | 9 | `probe_verity_offline.py:79` | `asyncio.Queue[bytes]()` | ✅ accept — restates one line more than needed |
-  | 10 | `probe_verity_survey.py:430` | `best: list[tuple[int, int]]` | ❌ **EYES**: :444 assigns a list of **dicts** |
+  | 3 | `cpap_edf.py` `read_edf` | `per_sig: list[list[int]]` | ✅ accept — `unpack_from("<{cnt}h")` yields ints |
+  | 4 | `nightqc.py` `rate_reality` | `out: list[bool]` | ❌ **EYES**: the function does `out.append({…})` |
+  | 5 | `nightqc.py` `arrival_quality` | `out: list[str]` | ❌ **EYES**: same — appends dicts |
+  | 6 | `nightqc.py` `summarize` | `missing: list[str]` | ✅ accept — appends an f-string (:1695) |
+  | 7 | `nightqc.py` `summarize` | `optional_absent: list[str]` | ✅ accept — same site |
+  | 8 | `adapter_ab.py` `night_profile` | `out: dict[str, object]` | ✅ accept **with the `object` note** |
+  | 9 | `probe_verity_offline.py` `_Control` | `asyncio.Queue[bytes]()` | ✅ accept — restates one line more than needed |
+  | 10 | `probe_verity_survey.py` `find_rec_frames` | `best: list[tuple[int, int]]` | ❌ **EYES**: :444 assigns a list of **dicts** |
   | 11 | `capture.py:4055` | `dev: dict[str, object]` | ✅ accept **with the `object` note** |
   | 12 | `tests/test_cpap_stream.py:903` | `instances: list[_FakeBleak]` | ✅ accept — appends `self` |
 
