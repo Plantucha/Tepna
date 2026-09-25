@@ -1458,6 +1458,11 @@
       "bin": "word-only",
       "status": "exempt",
       "reason": "selftest printer; its own verdict() is a pure PR-state decision consumed by the tool itself, exit-coded — a wave-2 candidate, listed here by reason not by omission"
+    },
+    "capture-host/tests/test_nightqc.py": {
+      "bin": "test",
+      "status": "exempt",
+      "reason": "a TEST file; its only verdict word is the literal \"QC-VERDICT\" inside the guard that asserts solid_night reads no QC object — the string must be the one production writes, so rewording it would weaken the guard rather than fix a claim"
     }
   }
 }
