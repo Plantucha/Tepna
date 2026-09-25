@@ -2757,10 +2757,9 @@ def test_adapter_watchdog_stops_after_the_power_cycle_cap(monkeypatch, caplog):
 
     Two observations carry the claim: the radio is power-cycled EXACTLY `max_adapter_cycles` times
     across two wedged checks (the second check is inside the cap and must not cycle again), and the
-    give-up line is logged. ⚠️ That line is `log.error`, not CRITICAL — this test's docstring said
-    CRITICAL until 2026-09-25 and `adapter_watchdog`'s own docstring still does (left for a separate
-    one-word fix so this change stays in the tests); the CRITICAL lines on that path are the fail-over
-    and `exit_on_giveup` branches, neither of which this scenario takes."""
+    give-up line is logged. ⚠️ That line is `log.error`, not CRITICAL — this test's docstring and
+    `adapter_watchdog`'s own said CRITICAL until 2026-09-25; the CRITICAL lines on that path are the
+    fail-over and `exit_on_giveup` branches, neither of which this scenario takes."""
     power_offs = []
 
     async def fake_btctl(script, timeout=6):

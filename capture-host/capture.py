@@ -6676,8 +6676,9 @@ async def adapter_watchdog(adapter_mac, cfg: dict):
     a hard cap so it can never loop:
       L1 (every wedged check, cheap): `bluetoothctl disconnect` any phantom-linked device → it re-advertises.
       L2 (after `grace_checks` consecutive wedged checks): power-cycle the controller (bonds survive) while
-         _RECOVER pauses the device tasks. Capped at `max_adapter_cycles`; past that it logs CRITICAL and
-         stops (an external supervisor / systemd is the outer layer on the real box).
+         _RECOVER pauses the device tasks. Capped at `max_adapter_cycles`; past that it logs an ERROR line
+         and stops (an external supervisor / systemd is the outer layer on the real box; the CRITICAL lines
+         on this path are the fail-over and `exit_on_giveup` branches — measured 2026-09-25, #3096).
     A single connected+streaming device, or a clean not-worn read, resets the counters."""
     wcfg = cfg.get("watchdog") or {}
     if not wcfg.get("enabled", True):
