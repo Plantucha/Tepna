@@ -67,6 +67,10 @@ async def _is_bonded(address: str) -> bool | None:
 
 _MEAS_BY_NAME = {v: k for k, v in pmd.MEAS_NAME.items()}
 
+# The control-point reply budget, NAMED so a test can shorten it (as a default-arg literal it was
+# unpatchable, and every test of an unanswered read paid it in full).
+CP_REPLY_TIMEOUT_S = 6.0
+
 
 class _Control:
     """The PMD control point: write a command, await its indication.
@@ -84,12 +88,13 @@ class _Control:
     async def start(self):
         await self.client.start_notify(pmd.PMD_CONTROL, self._on_indication)
 
-    async def send(self, cmd: bytes, timeout: float = 6.0) -> bytes | None:
+    async def send(self, cmd: bytes, timeout: float | None = None) -> bytes | None:
         while not self.q.empty():                      # drop stale replies from a previous command
             self.q.get_nowait()
         await self.client.write_gatt_char(pmd.PMD_CONTROL, cmd, response=True)
         try:
-            return await asyncio.wait_for(self.q.get(), timeout)
+            return await asyncio.wait_for(
+                self.q.get(), CP_REPLY_TIMEOUT_S if timeout is None else timeout)
         except asyncio.TimeoutError:
             return None
 
@@ -182,13 +187,22 @@ async def run(address: str, adapter: str | None, meas: int, force: bool, seconds
                                   "Take it off the dock and re-run; this is not a protocol failure.")
                 return out
             await asyncio.sleep(min(seconds, 60.0))
-            out["status_during"] = _status_of(await cp.send(pmd.status_cmd()))
-            recording = pmd.is_recording(
-                pmd.parse_status_response(await cp.send(pmd.status_cmd()) or b""), meas)
+            # ONE status read, and the published `status_during` IS the evidence for the boolean below.
+            # §∅: `parse_status_response(b"")` is `{}` and `is_recording({}, meas)` is False, so an
+            # UNANSWERED read used to publish `recording_confirmed_by_device: False` and the verdict
+            # "the device does not report recording" — an assertion about the device drawn from silence,
+            # in the one file that already had the honest form (`_status_of`, "no reply to status").
+            # It also read status TWICE, so the status it published could not certify the boolean.
+            reply = await cp.send(pmd.status_cmd())
+            out["status_during"] = _status_of(reply)
+            recording = (pmd.is_recording(pmd.parse_status_response(reply), meas)
+                         if reply is not None else None)
             out["recording_confirmed_by_device"] = recording
-            out["verdict"] = ("FORCED RECORDING CONFIRMED — the device reports it is recording to flash"
-                              if recording else
-                              f"start was answered '{name}' but the device does not report recording")
+            out["verdict"] = (
+                "FORCED RECORDING CONFIRMED — the device reports it is recording to flash" if recording
+                else f"start was answered '{name}' but the device did not answer the status query, so "
+                     "whether it is recording was NOT established" if recording is None
+                else f"start was answered '{name}' but the device does not report recording")
         finally:
             # Always. Even on an exception, even on a timeout — see the header.
             _, stop_name = _ack_status(await cp.send(pmd.stop_cmd(meas)))
