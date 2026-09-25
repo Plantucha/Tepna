@@ -478,3 +478,79 @@ def test_a_real_drift_is_measured_and_pins_the_median_windows(tmp_path):
     # and the reason NAMES THE FILE it judged. Without this a `who = None` mutation passes every other
     # assertion here, and the band would tell a reader "`None` ... at -464 ppm".
     assert tb["reason"].startswith(f"`{BASE}_ECG.txt`"), tb["reason"]
+
+
+# ── the mutation survivors: each test below FAILS on a named mutant (#3046) ──────────────────────────
+def _pairs(d, pairs, name=BASE):
+    """An ECG file from explicit (host_ms_offset, sensor_ns) pairs — exact control of anchors, spread,
+    span and the drawn share, which the parameterised `_ecg` cannot give at a boundary."""
+    rows = ["Phone timestamp;sensor timestamp [ns];timestamp [ms];ecg [uV]"]
+    for ms, ns in pairs:
+        t = T0 + dt.timedelta(milliseconds=ms)
+        rows.append(f"{t.isoformat(timespec='milliseconds')};{ns};0;100")
+    (d / f"{name}_ECG.txt").write_text("\n".join(rows) + "\n")
+
+
+def _tb_pairs(d, pairs, **audit):
+    _pairs(d, pairs)
+    _seams(d); _runs(d, "ECG"); _runs(d, "ACC"); _audit(d, **audit)
+    return _bands(d)[H10["name"]]["bands"]["timebase"]
+
+
+def test_no_worn_interval_reaches_timebase_and_says_so(tmp_path):
+    """Kills the four mutants of that `return`: a swapped status, a dropped status, a dropped reason.
+    Nothing reached this branch before — the whole return was unexecuted."""
+    tb = _tb_pairs(tmp_path, [(0, 0), (1000, 1_000_000_000)], reason="link-loss")
+    assert tb["status"] == "UNKNOWN"
+    assert tb["reason"] == "no worn interval, so no stretch of the axis could be judged"
+
+
+def test_the_largest_primary_is_the_one_judged(tmp_path):
+    """Kills `key=os.path.getsize` -> `key=None` and the dropped key. Two primaries: the LARGER carries a
+    realistic axis, the smaller a DRAWN one. Judge the wrong file and the band says DRAWN."""
+    _ecg(tmp_path, seconds=200)  # large, realistic
+    _pairs(tmp_path, [(0, 0), (1000, 1_000_000), (2000, 2_000_000)],
+           name="Polar_H10_02849638_20260920235900")  # small, uniform deltas = drawn
+    _seams(tmp_path); _runs(tmp_path, "ECG"); _runs(tmp_path, "ACC"); _audit(tmp_path)
+    tb = _bands(tmp_path)[H10["name"]]["bands"]["timebase"]
+    assert "DRAWN" not in tb["reason"], tb["reason"]
+
+
+def test_exactly_three_anchors_is_ENOUGH_not_too_few(tmp_path):
+    """Kills `len(anchors) < TB_MIN_ANCHORS` -> `<=`. Three is the contract's minimum, so three must
+    PASS the check; the boundary is the only place the two spellings differ."""
+    tb = _tb_pairs(tmp_path, [(0, 0), (1000, 1_000_000_000), (2000, 2_000_500_000)])
+    assert "anchor(s)" not in tb["reason"], tb["reason"]
+
+
+def test_a_spread_of_exactly_two_ms_is_INERT_not_independent(tmp_path):
+    """Kills `spread <= TB_INERT_MS` -> `<`. Twice the stamp quantum is the inert BOUND, so a spread
+    sitting exactly on it is still inert."""
+    # residuals 0,+1,+2,+1,0 ms -> spread EXACTLY 2.00. Device deltas alternate 999/1001 ms so the modal
+    # share is 0.5 and the DRAWN branch (which is checked first) does not swallow the case.
+    tb = _tb_pairs(tmp_path, [(0, 0), (1000, 999_000_000), (2000, 1_998_000_000),
+                              (3000, 2_999_000_000), (4000, 4_000_000_000)])
+    assert tb["status"] == "UNKNOWN"
+    assert "residual spread 2.00 ms" in tb["reason"], tb["reason"]
+
+
+def test_a_span_of_exactly_one_second_is_ENOUGH_time(tmp_path):
+    """Kills `span_s <= 0` -> `<= 1`. Zero is the only span that carries no time; one second carries a
+    second. Residuals 0,+5,+3,+8,+4 ms keep the spread above the inert bound and the device deltas
+    non-uniform, so neither earlier branch swallows the case."""
+    tb = _tb_pairs(tmp_path, [(0, 0), (300, 295_000_000), (600, 597_000_000),
+                              (900, 892_000_000), (1000, 996_000_000)])
+    assert "span no time" not in tb["reason"], tb["reason"]
+
+
+def test_a_modal_share_of_exactly_the_threshold_is_DRAWN(tmp_path):
+    """Kills `share >= TB_DRAWN_SHARE` -> `>`. 0.67 is the measured separator — real streams max 0.56,
+    drawn min 0.79 — so a stream sitting exactly on it is drawn. 101 rows: 67 of the 100 device deltas
+    identical, the other 33 distinct, and the host residual moves on every row so each is an anchor."""
+    pairs, ns = [(0, 0)], 0
+    for i in range(1, 101):
+        ns += 1_000_000_000 if i <= 67 else 1_000_000_000 + i * 1_000_000
+        pairs.append((i * 1000 + (i % 7), ns))
+    tb = _tb_pairs(tmp_path, pairs, end="2026-09-20T23:10:00")
+    assert tb["status"] == "UNKNOWN"
+    assert "DRAWN (67.0 % modal delta)" in tb["reason"], tb["reason"]
