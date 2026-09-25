@@ -554,10 +554,14 @@ def _ring_end(path: str, night_dir: str, contact: list[dict]) -> dict:
         doff_at = _dt.datetime.fromisoformat(blk["doff_at"]) if blk["doff_at"] else None
     doff = ring_end_doff(tail, doff_at, last)
     gap = _relink_gap(night_dir, _RING_SPO2, last)
+    # The worn interval ends where EITHER witness goes quiet: the doff second is typically 0–4 s AFTER the SpO2
+    # file's last row, and a worn end past the primary's own last row can never be covered by that file (the
+    # SOLID-NIGHT continuity band read UNKNOWN on 2026-09-24 for 2 s of exactly that). Within the 30 s agreement
+    # bound the tail can also start first; then it is the earlier one.
     worn_end = last
     if doff:
         assert doff_at is not None  # ring_end_doff is never True without a doff time
-        worn_end = doff_at
+        worn_end = min(doff_at, last)
     return {
         "file": base,
         "usable": True,

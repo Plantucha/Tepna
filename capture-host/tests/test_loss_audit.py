@@ -965,8 +965,9 @@ def test_a_ring_doff_is_the_tails_first_second_when_the_spo2_stream_stopped_ther
     w = loss_audit.wear_ends(str(d), "O2Ring-S")
     (e,) = w["ends"]
     assert e["reason"] == "doff" and e["tail_off"] is True and e["ppg2w_contradicted"] is False
-    assert e["doff_at"] == e["worn_end_at"] == (R0 + dt.timedelta(seconds=120)).isoformat()
-    assert e["end_at"] == (R0 + dt.timedelta(seconds=118)).isoformat()
+    assert e["doff_at"] == (R0 + dt.timedelta(seconds=120)).isoformat()
+    # the worn interval ends at the EARLIER witness, here the SpO2 file's last row, so that file covers it
+    assert e["worn_end_at"] == e["end_at"] == (R0 + dt.timedelta(seconds=118)).isoformat()
     assert e["ppg2w_file"] == "Wellue_O2Ring-S_S8AW2100_20260922223924_PPG2W.txt" and e["ppg2w_unusable"] is None
     assert w["worn_end"] == {"at": e["worn_end_at"], "reason": "doff", "file": e["file"]}
 
@@ -1161,3 +1162,13 @@ def test_the_audit_publishes_each_delay_exactly_and_never_counts_it_as_lost(tmp_
     assert v["delayed_min"] == round(g / 60.0, 1) and v["delayed_min"] != round(g / 60.0, 2)
     assert len(v["gaps"]) == 1 and v["lost_min"] == round(gaps[0][1] / 60.0, 1)
     assert v["fragments"] == 2  # a delay does not split the stream
+
+
+
+def test_a_ring_tail_that_starts_before_the_spo2_stream_stops_ends_the_worn_interval_there(tmp_path):
+    # Inside the 30 s agreement bound the off-finger tail can precede the SpO2 file's last row: -10 s here.
+    d = _ring_dir(tmp_path)
+    _ring(d, R0, worn_s=100, off_s=40, spo2_s=111)  # tail starts +100, SpO2 last row +110
+    (e,) = loss_audit.wear_ends(str(d), "O2Ring-S")["ends"]
+    assert e["reason"] == "doff" and e["doff_at"] == (R0 + dt.timedelta(seconds=100)).isoformat()
+    assert e["worn_end_at"] == e["doff_at"] and e["end_at"] == (R0 + dt.timedelta(seconds=110)).isoformat()
