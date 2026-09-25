@@ -551,3 +551,41 @@ def test_the_REAL_suite_has_exactly_the_root_reads_we_know_about():
                    "tools/verdict-adoption.json", "tools/verify-seals.mjs",
                    "uploads/synthetic_ecgdex_h10.txt", "uploads/synthetic_motiondex_acc.txt",
                    "uploads/synthetic_oxydex_o2ring.csv", "verdict.js"], got
+
+
+def test_root_reads_survives_a_NON_UTF8_byte_in_a_test_file(tmp_path):
+    """🔴 THE PLANT FOR residue 2026-09-22-mutation-globs-inherit-a-functions-debt. `root_reads` reads
+    every `.py` with `errors="replace"` so one stray Latin-1 byte in a comment cannot abort the scan
+    of the whole tree — and until 2026-09-25 no test held a file like that, so `errors=None`, a
+    dropped `errors=`, and `errors="REPLACE"` (an unknown handler name, looked up only when a byte
+    fails to decode) all survived. The literal on the next line must still be found, because a
+    scan that aborted here would stage nothing and the scratch would fail on its first root read."""
+    root, tree = _tree_with_subdir_read_via_helper(tmp_path)
+    (root / "named_by_non_utf8_file.txt").write_text("x\n")
+    (tree / "tests" / "t_latin1.py").write_bytes(b'# caf\xe9 \xff\nG = "named_by_non_utf8_file.txt"\n')
+    got = mutation_diff.root_reads(tree)
+    assert "named_by_non_utf8_file.txt" in got, got
+    assert "uploads/synthetic_ecgdex_h10.txt" in got, got
+
+
+def test_root_reads_never_counts_a_DOTFILE_or_a_DOT_DIRECTORY_PATH(tmp_path):
+    """Both dot guards in `root_reads`, each planted against the survivor that measured it undefended
+    (2026-09-25, the whole-function run behind residue 2026-09-22-mutation-globs-inherit-a-functions-
+    debt): (1) a root DOTFILE is never a candidate name — in a git worktree `.git` is a regular file,
+    and a test that mentions it must not stage it; (2) a PATH literal that starts with `.` is never a
+    read — `./x` and `.dotdir/x` both resolve to real files under the root, so without the guard the
+    resolve-and-check branch would count them. Mutating either `startswith(".")` to any other prefix
+    lets the planted literal through; the positive control shows the scan itself still runs."""
+    root, tree = _tree_with_subdir_read_via_helper(tmp_path)
+    (root / ".named_dotfile_at_root").write_text("x\n")
+    (root / ".dotdir_for_root_reads").mkdir()
+    (root / ".dotdir_for_root_reads" / "named_by_dot_dir_path.txt").write_text("x\n")
+    (root / "named_by_dot_slash_path.txt").write_text("x\n")
+    (tree / "tests" / "t_dots.py").write_text(
+        'A = ".named_dotfile_at_root"\n'
+        'B = ".dotdir_for_root_reads/named_by_dot_dir_path.txt"\n'
+        'C = "./named_by_dot_slash_path.txt"\n'
+    )
+    got = mutation_diff.root_reads(tree)
+    assert "uploads/synthetic_ecgdex_h10.txt" in got, got
+    assert not [g for g in got if g.startswith(".")], got
