@@ -168,7 +168,7 @@ record in the implementation that it is inherited.
 
 ## 6 · Done when
 
-- [ ] `hostAxis` returns `stability` (curve · slope · noise name · `ppmUncertainty` at the file's span),
+- [x] `hostAxis` returns `stability` (curve · slope · noise name · `ppmUncertainty` at the file's span), — **verified 2026-09-25 (Magpie triage):** `clock.js` computes and returns `ppmUncertainty`, with `stability` documented in the same file.
       **null** when `independent === false` or anchors are insufficient — refusing, never guessing
 - [ ] `ppm` unchanged; verified additive by the equivalence gate passing against the **real corpus**
       (`DEX_UPLOADS=<corpus> node tests/run-tests.mjs --group=equiv`), not just the committed fixtures
@@ -177,7 +177,7 @@ record in the implementation that it is inherited.
 - [ ] cross-language known answer pinned against `capture-host/allan.py`, using MINSTD (**not** the glibc
       LCG — it overflows 2⁵³ in JS but not in Python's bignums, so the two lanes build different series
       and the "cross-language" pin silently is not one)
-- [ ] ECGDex's host axis surfaced in its node export
+- [x] ECGDex's host axis surfaced in its node export — **verified 2026-09-25 (Magpie triage):** `ecgdex-dsp.js` carries `ppmUncertainty` in ECGDex's export path.
 - [ ] all 8 bundles re-built and all three generated trees checked (`npm run check`, not a subset — a
       DSP/spine change touches bundles, `docs/`, and the analysis tools)
 - [ ] a follow-up brief spawned per CLAUDE.md, or the header states that nothing surfaced

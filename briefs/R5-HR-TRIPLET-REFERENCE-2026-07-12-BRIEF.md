@@ -187,10 +187,10 @@ mechanistically twinned with a corner. Do not simply add it as a fourth and hope
 
 ## 5 · Done when
 
-- [ ] **Acquire** a ResMed oximeter module, then record ≥ 5 quad-modal nights (CPAP + H10 + Verity +
+- [~] **RULED UNRUNNABLE 2026-09-20 (owner) — annotated 2026-09-25 (Magpie triage).** This brief's status clause closes it: *"the ResMed oximeter module this brief requires does not exist and is not being sought. Nothing here is executable without it."* The box stays UNTICKED because the work was never done; the `~` records that it is not owed. **Acquire** a ResMed oximeter module, then record ≥ 5 quad-modal nights (CPAP + H10 + Verity +
       O2Ring). ⚠️ **Not "zero code cost" — a PURCHASE.** The owner does not have the module
       (confirmed 2026-08-08); the software side is ready, the hardware is absent. See the banner.
-- [ ] Re-run the R5 experiment with **ResMed pulse as the external reference** — then, and only then, the HR
+- [~] **RULED UNRUNNABLE 2026-09-20 (owner) — annotated 2026-09-25 (Magpie triage):** depends entirely on the unacquired module of the item above, so it closes with it. Re-run the R5 experiment with **ResMed pulse as the external reference** — then, and only then, the HR
       triplet's **independence** and **σ accuracy** become measurable.
 - [x] **RESOLVED 2026-08-04 (second pass) — the −0.36 bpm is NOT the O2Ring. It is a CONFOUND between
       two nodes' epoch-HR estimators, and the earlier bounding below is superseded.**
