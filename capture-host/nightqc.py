@@ -2780,30 +2780,77 @@ def qc_verdict(summary: dict, devices: list[dict], *, night_dir: str = "") -> di
 
       PASS          every declared stream on every non-optional device delivered rows this session at
                     coverage ≥ 0.5 of rate × span, and no session inside the night window was excluded
-      FAIL          a stream is missing or degraded (reason names each, with its %)
+      FAIL          a RECORDING device has a missing or degraded stream (reason names each, with %)
       SHORTFALL     the headline held but a session inside the night was excluded from the judgement
                     (`gaps_in_night`) — met on the whole, not on a stated sub-population
       UNDERPOWERED  span < _MIN_SPAN_SEC: coverage is unknown there, not low
+      UNKNOWN       every expected device produced NOTHING, so no sibling witnesses the radio: nobody
+                    wore the kit and a dead adapter are indistinguishable from here
       NOT_RUN       no device is configured — nothing was declared, so nothing was examined
 
-    Population = declared streams: checked are those on non-optional devices, excluded those on
-    `optional` backups (declared, not judged), eligible = both. A crash → UNKNOWN naming it.
+    Population = declared streams, as an EQUALITY. `checked` are the streams of devices that RECORDED;
+    `excluded` are `optional` backups plus every stream of a device that produced nothing (declared,
+    not judged — see the block below); eligible = all declared. A crash → UNKNOWN naming it.
+    ⚠️ An ABSENT device is excluded rather than failed, and that is the whole point: "never started"
+    and "recorded badly" are opposite findings, and only the second is this gate's business.
     """
     import verdict as _v
     ev = [_TOOL, os.path.join(night_dir, _SUMMARY_NAME) if night_dir else _SUMMARY_NAME]
     try:
-        checked = sum(len(d.get("streams") or []) for d in devices if not d.get("optional"))
-        excluded = sum(len(d.get("streams") or []) for d in devices if d.get("optional"))
-        pop = {"checked": checked, "eligible": checked + excluded, "excluded": excluded}
         cov = {f"{d['name']}:{s}": c for d in summary.get("devices") or [] for s, c in (d.get("coverage") or {}).items()}
         result = {"coverage": cov, "missing": list(summary.get("missing") or []),
                   "degraded": list(summary.get("degraded") or []),
                   "gaps_in_night": list(summary.get("gaps_in_night") or []),
                   "span_sec": summary.get("span_sec")}
         span = summary.get("span_sec")
+        # ── A DEVICE THAT NEVER STARTED IS NOT A DEVICE THAT RECORDED BADLY (2026-09-25) ───────────
+        # Measured on SOLID-NIGHT night 1: with the kit on its dock the verdict read FAIL, because every
+        # zero-row stream lands in `missing` and ANY `missing` entry was a FAIL. Those are opposite
+        # findings and the band says so — a night nobody wore is NOT_APPLICABLE, never FAIL, and the
+        # consecutive counter SKIPS it (solid_night.py §3.1). A FAIL there convicts the box of a fault
+        # that belongs to nobody, and it is the verdict WORD that is wrong, not a number.
+        #
+        # THE WITNESS IS A SIBLING THAT PRODUCED ROWS, and it is read here rather than borrowed:
+        #   · some devices recorded, others did not  → the recording siblings PROVE the radio worked, so
+        #     each absent device is declared-but-not-judged. Its streams move to `excluded`, and the
+        #     verdict comes from the devices that did record.
+        #   · EVERY expected device is absent        → nothing witnesses the radio, and no-wear is then
+        #     INDISTINGUISHABLE from a dead adapter, so the answer is UNKNOWN and says which two states
+        #     it cannot separate. Never NOT_APPLICABLE on absence alone — that is the band's own rule,
+        #     and upgrading it needs the per-radio ADAPTERHCI witness, which is a DIFFERENT producer's
+        #     fact. `absent` is published so the SOLID-NIGHT composer can apply it; this verdict does
+        #     not reach across and guess.
+        # A device with SOME streams missing is NOT absent — that is a partial failure and stays FAIL.
+        _declared = {(d.get("name") or d.get("device_id")): list(d.get("streams") or [])
+                     for d in devices if not d.get("optional")}
+        _miss = set(result["missing"])
+        absent = sorted(n for n, ss in _declared.items() if ss and all(f"{n}:{s}" in _miss for s in ss))
+        recorded = sorted(n for n, ss in _declared.items() if n not in absent)
+        result["absent"] = absent
+        result["absent_witnessed_by"] = recorded if absent else []
+        # The population is an EQUALITY and an absent device was declared, so it is EXCLUDED and never
+        # simply dropped: checked + excluded == eligible, and a PASS over `checked: 0` is invalid by
+        # schema rather than by convention.
+        checked = sum(len(ss) for n, ss in _declared.items() if n in recorded)
+        excluded = sum(len(d.get("streams") or []) for d in devices if d.get("optional")) \
+            + sum(len(ss) for n, ss in _declared.items() if n in absent)
+        eligible = sum(len(d.get("streams") or []) for d in devices)
+        pop = {"checked": checked, "eligible": eligible, "excluded": excluded}
+        if eligible == 0:
+            return _v.make(gate=_QC_GATE, status="NOT_RUN", population=pop, criterion=_QC_CRITERION, result=None,
+                           evidence=ev, reason="no device is configured — nothing was declared to judge", tool=_TOOL)
+        if absent and not recorded:
+            return _v.make(gate=_QC_GATE, status="UNKNOWN", population=pop, criterion=_QC_CRITERION,
+                           result=result, evidence=ev, tool=_TOOL,
+                           reason="no expected device produced a row, and no sibling recorded to witness the "
+                                  "radio — nobody wore the devices and a dead adapter are indistinguishable "
+                                  f"from here: {', '.join(absent)}")
         if checked == 0:
             return _v.make(gate=_QC_GATE, status="NOT_RUN", population=pop, criterion=_QC_CRITERION, result=None,
                            evidence=ev, reason="no device is configured — nothing was declared to judge", tool=_TOOL)
+        # Only the RECORDING devices' faults are judged; an absent device's streams are excluded above,
+        # so its `missing` entries must not also convict it here.
+        result["missing"] = [m for m in result["missing"] if m.split(":", 1)[0] not in set(absent)]
         if result["missing"] or result["degraded"]:
             parts = ([f"missing: {', '.join(result['missing'])}"] if result["missing"] else []) + \
                     ([f"degraded (< {int(_DEGRADED_BELOW * 100)} %): {', '.join(result['degraded'])}"] if result["degraded"] else [])
