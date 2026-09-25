@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="b314bd7f642a" data-compute-hash="a102aef45606">
+<html lang="en" data-manifest-hash="5b6d5b7972b5" data-compute-hash="fae5ece3ded3">
 <head>
 <!--
   OxyDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3bPuedJeHqlAtFRw9XCQUY2RL6IBWMfwvh6D9DWEXUc=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-B8Nib+3whGreeCAiUl1L8T5q+BE2N1/ZMY5zaQXnfKc=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-JQIPwKGkxXs/AyZxBVwFlF1DKA0SN+fLQSpnM5aGY4w=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-ZCcbHvV+fe2MBHNnUrW6Rs13VGAmi+Duz3edP562C8E=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bwxxukjkbs0nkO3G9uCq7MyYlhNC6VN3RFwbf1JFHQI=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-qpBTpfUMJwlHhnSP8ZnSfyZeoU1MHmVWQ80wCNrTvts=' 'sha256-tyAgnfNFOTeVcNlJ02wwkhNdrboC2hjRoPCRq3h3xgk=' 'sha256-y75M9k28IZsy0x1yuadtmxfiESGW/Mt7wopkXCi+Frc='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3bPuedJeHqlAtFRw9XCQUY2RL6IBWMfwvh6D9DWEXUc=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-B8Nib+3whGreeCAiUl1L8T5q+BE2N1/ZMY5zaQXnfKc=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-ZCcbHvV+fe2MBHNnUrW6Rs13VGAmi+Duz3edP562C8E=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bwxxukjkbs0nkO3G9uCq7MyYlhNC6VN3RFwbf1JFHQI=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-fJnV5W2XQ9trfLmB6Z/j1/okJF0+geeCapmteSAVrf8=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-qpBTpfUMJwlHhnSP8ZnSfyZeoU1MHmVWQ80wCNrTvts=' 'sha256-tyAgnfNFOTeVcNlJ02wwkhNdrboC2hjRoPCRq3h3xgk=' 'sha256-y75M9k28IZsy0x1yuadtmxfiESGW/Mt7wopkXCi+Frc='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>OxyDex — Nocturnal Oximetry Analyzer · v2.15.0</title>
@@ -13319,13 +13319,19 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
           try {
             var _w2 = window._oxyW2 || {};
             var _w2s = window._oxyW2S || {};
+            var _w2r = window._oxyW2R || {};
             var _wk = Object.keys(_w2);
             var _sk = Object.keys(_w2s);
             _wk.forEach(function (stem) {
               var exact = Object.prototype.hasOwnProperty.call(_w2s, stem);
               var rows2 = exact ? _w2s[stem] : _wk.length === 1 && _sk.length === 1 ? _w2s[_sk[0]] : null;
               if (!rows2) return;
-              var res = spo2WaveformTrend(parsePPG2W(_w2[stem]), rows2);
+              /* THE CALLER IS THE HALF THAT WAS MISSING. `parsePPG2W` is where the sidecar is read, but
+                 a parser that accepts an optional companion no production caller ever passes is inert —
+                 the exact state `_PPGRUNS` was in for four months (#3060: "it had a reader and no
+                 caller"). An absent sidecar leaves `runsText` undefined, `_parsePinnedRuns` returns
+                 null, and every other field of the result is unchanged. */
+              var res = spo2WaveformTrend(parsePPG2W(_w2[stem], { runsText: _w2r[stem] }), rows2);
               /* An EXACT-stem pair always renders — including its refusals; that is the honesty
                  surface. The lone-pair exclusivity fallback exists for re-exported filenames, and it
                  can guess WRONG across sessions (measured 2026-08-20: it paired a fresh waveform with
@@ -13336,6 +13342,10 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
               if (exact || res.usable) {
                 if (typeof window.oxyRenderSpo2w === 'function') window.oxyRenderSpo2w(res, stem);
                 delete _w2[stem];
+                /* Consumed with its waveform. It is keyed by the SAME stem, so leaving it behind would
+                   let this night's validity spans refuse a LATER night's bins — a stale sidecar is
+                   worse than none, because its refusals look exactly like real ones. */
+                delete _w2r[stem];
               }
             });
           } catch (_ew2) {
@@ -13507,6 +13517,19 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
           // SpO₂ node): a capture-host `_PPG2W.txt` is the O2Ring 0x05 raw two-channel stream, not a
           // night CSV. Stash it for pairing with its `_SPO2.csv` sibling; the pairing + trend render
           // happen after ALL dropped files are read, so drop order cannot matter. Never a night alone.
+          /* Its validity sidecar (SAMPLE-VALIDITY-ENVELOPE §3.2 row `ppg2w`). Tested FIRST and by its
+             own suffix: the writer derives the name by APPENDING to the stream suffix
+             (`writers.py` — `…_PPG2W.txt` → `…_PPG2WRUNS.txt`), so the two names share a prefix and
+             only the anchored `$` keeps them apart. Explicit order rather than relying on that anchor,
+             because the anchor is the whole of what distinguishes them and a later edit could lose it.
+             PAIRED EXACTLY, not by nearest stamp — stripping each suffix yields the SAME stem by
+             construction, so there is no proximity heuristic here to get wrong (contrast the
+             `_SPO2.csv` pairing below, which needs one because the two files are separate exports). */
+          if (/_PPG2WRUNS\.txt$/i.test(file.name)) {
+            (window._oxyW2R = window._oxyW2R || {})[file.name.replace(/_PPG2WRUNS\.txt$/i, '')] = text;
+            resolve(null);
+            return;
+          }
           if (/_PPG2W\.txt$/i.test(file.name)) {
             (window._oxyW2 = window._oxyW2 || {})[file.name.replace(/_PPG2W\.txt$/i, '')] = text;
             resolve(null);
@@ -20752,6 +20775,10 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
   // Waveform SpO₂ (0x05 pair) — pure, exposed for the test suite + headless callers.
   OxyDex.parsePPG2W = parsePPG2W;
   OxyDex.spo2WaveformTrend = spo2WaveformTrend;
+  // The `_PPG2WRUNS.txt` validity sidecar reader (SAMPLE-VALIDITY-ENVELOPE §3.2, row `ppg2w`).
+  // Exposed so the suite can assert BEHAVIOURAL PARITY against `PPGDSP.parsePinnedRuns` on one text —
+  // two copies of a parser are only defensible while a gate holds them to the same answer.
+  OxyDex._parsePinnedRuns = _parsePinnedRuns;
 
   // ════════════════════════════════════════════════════════════════════════
   //  WAVEFORM-DERIVED SpO₂ TREND (owner-ordered ship, 2026-08-20; moved PpgDex→OxyDex same day — OxyDex is the SpO₂ node — experimental tier)
@@ -20764,15 +20791,147 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
   //  rendered beside it.
   // ════════════════════════════════════════════════════════════════════════
 
+  /* ── §∅ / SAMPLE-VALIDITY-ENVELOPE §3.2 row `ppg2w`: READ `…_PPG2WRUNS.txt` ───────────────────
+     The capture host has written this sidecar since `writers.py RUN_MIN_BY_STREAM` gained `"ppg2w":
+     T_STUCK`, and nothing read it — the same shape #3060 closed for the Verity's `_PPGRUNS`. A
+     recorded run is a span the LIVE WRITER saw the signal stuck at one value; §∅ classifies that as
+     absent input, and the 2026-09-17 owner ruling says absent input REFUSES rather than annotates,
+     because a ratio over a frozen window is a number computable from nothing.
+
+     ⚠️ THIS IS A COPY of `ppgdex-dsp.js parsePinnedRuns`, deliberately, and the alternative was
+     measured before choosing. The natural shared home is `signal-frame.js` — and it is inlined by
+     **all 10** bundles, so moving the function there moves `manifestHash` and `computeHash` for every
+     node, re-verifies every fixture in the suite, and collides in all 11 `provenance/*.json`
+     fragments plus both orchestrators with the ECG row of this same brief, which a peer holds in a
+     parallel PR. CLAUDE.md §👥.3 is explicit that a shared-spine change lands BEFORE node-local work
+     rather than riding on it. So: copy now, held to parity by a gate
+     (`OxyDex._parsePinnedRuns` ≡ `PPGDSP.parsePinnedRuns` on one text), consolidation filed as
+     residue. A copy with no parity gate would be the defect; a copy with one is a scheduling choice.
+
+     The field names are the PpgDex ones on purpose — the parity assertion is a deep compare, so a
+     rename here would make the gate vacuous. */
+  function _parsePinnedRuns(text) {
+    if (typeof text !== 'string' || !text) return null;
+    /* The `any` cast is PpgDex's too, and for the same reason: every field starts null and is filled
+       from the file, so inference pins each one to `null` and rejects the assignment that is the point. */
+    var out = /** @type {any} */ ({
+      params: null,
+      minRun: null,
+      mergeGapMax: null,
+      rows: [],
+      byChannel: Object.create(null),
+      malformed: false,
+      emitted: 0,
+      runsDetected: null,
+      examined: null,
+      sawHeader: false,
+      comparable: false
+    });
+    var lines = text.split(/\r?\n/);
+    for (var li = 0; li < lines.length; li++) {
+      var line = lines[li].trim();
+      if (!line) continue;
+      if (line.charAt(0) === '#') {
+        /* The RULE line. `min_run` is the only field precedence depends on, so it is the only one
+           whose absence makes the file uncomparable; the rest are carried for the report. */
+        if (!out.params && /\bstream=/.test(line) && /\bmin_run=/.test(line)) {
+          out.params = line.replace(/^#\s*/, '');
+          var mr = /\bmin_run=(\d+)/.exec(line);
+          var mg = /\bmerge_gap_max=(\d+)/.exec(line);
+          if (mr) out.minRun = +mr[1];
+          if (mg) out.mergeGapMax = +mg[1];
+        }
+        var fin = /\btotal_runs=(\d+)/.exec(line);
+        if (fin) out.runsDetected = (out.runsDetected || 0) + +fin[1];
+        var ex = /\bexamined=(\d+)/.exec(line);
+        if (ex) out.examined = (out.examined || 0) + +ex[1];
+        continue;
+      }
+      if (/^Phone timestamp;/.test(line)) {
+        out.sawHeader = true;
+        continue;
+      }
+      var c = line.split(';');
+      if (c.length < 8) {
+        out.malformed = true;
+        continue;
+      }
+      var first = +c[3];
+      var n = +c[4];
+      if (!isFinite(first) || !isFinite(n) || n <= 0) {
+        out.malformed = true;
+        continue;
+      }
+      var ch = (c[1] || '').trim();
+      var row = { stream: ch, value: +c[2], first: first, n: n };
+      out.rows.push(row);
+      if (!out.byChannel[ch]) out.byChannel[ch] = [];
+      out.byChannel[ch].push(row);
+      out.emitted++;
+    }
+    /* A sidecar with no rule line cannot be compared against anything; an EMPTY one that DOES carry
+       its rule is a real observation at that rule — the writer looked and emitted nothing. Those are
+       different facts and the flag keeps them apart. */
+    out.comparable = out.minRun != null;
+    return out;
+  }
+
+  /* SIDECAR SPANS ARE SAMPLE INDICES; THE TREND WORKS IN TIME — and the two index DIFFERENT
+     populations, which is why this mapping is a function and not an array lookup. The writer's
+     `first_index` counts the data rows it WROTE; `parsePPG2W`'s array index counts the rows it KEPT,
+     and it drops a row with an unparseable stamp or a non-finite channel. Using one as the other is
+     the same-name-two-populations error, silently off by however many rows were dropped.
+     So the span is resolved against the SOURCE data-row index recorded on each kept row, and a span
+     that lands entirely on dropped rows has NO time — it is COUNTED (`spansUnmapped`), never
+     discarded, because a span we cannot place is exactly the absence §∅ forbids rounding to zero. */
+  function _ppg2wBlankSpans(rows, runs) {
+    if (!runs || !runs.rows.length) return { spans: [], unmapped: 0 };
+    var bySrc = /** @type {any} */ ({});
+    for (var i = 0; i < rows.length; i++) bySrc[rows[i].src] = i;
+    var lastSrc = rows.length ? rows[rows.length - 1].src : -1;
+    var spans = /** @type {any[]} */ ([]),
+      unmapped = 0;
+    for (var r = 0; r < runs.rows.length; r++) {
+      var row = runs.rows[r];
+      var lo = null,
+        hi = null;
+      /* Walk OUTWARD from the span's own bounds to the nearest kept row on each side, so a span whose
+         first or last sample was dropped still bounds the right stretch of time. */
+      for (var k = row.first; k <= row.first + row.n - 1 && k <= lastSrc; k++) {
+        if (bySrc[k] != null) {
+          if (lo === null) lo = bySrc[k];
+          hi = bySrc[k];
+        }
+      }
+      if (lo === null) {
+        unmapped++;
+        continue;
+      }
+      spans.push({ stream: row.stream, value: row.value, n: row.n, first: row.first, tMs0: rows[lo].tMs, tMs1: rows[hi].tMs });
+    }
+    return { spans: spans, unmapped: unmapped };
+  }
+
   /** Parse the capture host's `_PPG2W.txt` (Phone timestamp;sensor ns;channel 0;channel 1;motion).
    *  Strict Clock Contract: the ISO phone stamp via the local parseTimestamp; no fabricated dates.
-   *  Returns { t0Ms, rows:[{tMs, ch0, ch1, motion}] } or { rows: [] } when nothing parses. */
-  function parsePPG2W(text) {
+   *  Returns { t0Ms, rows:[{tMs, ch0, ch1, motion, src}], runs, blankSpans, spansUnmapped } or
+   *  { rows: [] } when nothing parses.
+   *
+   *  `opts.runsText` (LAST and OPTIONAL — an absent sidecar leaves every other field byte-identical)
+   *  is the `…_PPG2WRUNS.txt` companion. Its spans are mapped to time here, where the source
+   *  data-row index is still known, and `spo2WaveformTrend` REFUSES any bin whose window meets one. */
+  function parsePPG2W(text, opts) {
     var rows = [];
     var lines = String(text || '').split(/\r?\n/);
+    /* `src` counts DATA rows as the writer numbered them — every non-header line, whether or not this
+       parser keeps it. It is the join key to the sidecar's `first_index`, so it must NOT skip a row
+       the parser rejects; incrementing it only on kept rows is precisely the off-by-N the span mapper
+       above exists to avoid. */
+    var src = -1;
     for (var i = 0; i < lines.length; i++) {
       var ln = lines[i];
       if (!ln || ln.charCodeAt(0) === 0x50 /* 'P'hone header */) continue;
+      src++;
       var p = ln.split(';');
       if (p.length < 5) continue;
       var ts = parseTimestamp(p[0]);
@@ -20781,9 +20940,17 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
         b = +p[3],
         mo = +p[4];
       if (!isFinite(a) || !isFinite(b)) continue;
-      rows.push({ tMs: ts.tMs, ch0: a, ch1: b, motion: isFinite(mo) ? mo : 0 });
+      rows.push({ tMs: ts.tMs, ch0: a, ch1: b, motion: isFinite(mo) ? mo : 0, src: src });
     }
-    return { t0Ms: rows.length ? rows[0].tMs : null, rows: rows };
+    var runs = _parsePinnedRuns(opts && opts.runsText);
+    var mapped = _ppg2wBlankSpans(rows, runs);
+    return {
+      t0Ms: rows.length ? rows[0].tMs : null,
+      rows: rows,
+      runs: runs,
+      blankSpans: mapped.spans,
+      spansUnmapped: mapped.unmapped
+    };
   }
 
   /** Per-buffer {ac, dc}: linear-detrended RMS + |mean|. RMS (not peak-to-peak) won the 2026-08-20
@@ -20828,7 +20995,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     opts = opts || {};
     var binS = opts.binS || 60;
     var lagS = opts.lagS != null ? opts.lagS : 10;
-    /** @type {{usable:boolean, reason:(string|null), bins:any[], calib:(any|null), summary:(any|null), trend?:any[], oneHz?:any[], compare?:(any|null)}} */
+    /** @type {{usable:boolean, reason:(string|null), bins:any[], calib:(any|null), summary:(any|null), trend?:any[], oneHz?:any[], compare?:(any|null), refusedBins?:any[], spansUnmapped?:number}} */
     var out = { usable: false, reason: null, bins: [], calib: null, summary: null };
     if (!rec || !rec.rows || rec.rows.length < 5000) {
       out.reason = 'no usable ppg2w stream (need ≥5000 samples)';
@@ -20910,13 +21077,71 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       bins[kk].s.push(pts[i].s);
       bins[kk].t.push(pts[i].tMs);
     }
-    var B2 = [];
-    for (kk in bins) if (bins[kk].R.length >= 8) B2.push({ tMs: med(bins[kk].t), R: avg(bins[kk].R), s: avg(bins[kk].s) });
+    /* ── §∅ · A RECORDED BLANKING RUN REFUSES THE BIN IT MEETS ──────────────────────────────────
+       The owner ruling of 2026-09-17: a DISCONTINUITY refuses, reduced COVERAGE annotates. A
+       `_PPG2WRUNS` row is a stretch the live writer saw frozen at one value, so a bin whose window
+       intersects it does not describe one continuous stretch of signal — and R = (AC/DC)₀/(AC/DC)₁
+       over a frozen window has AC ≈ 0 on both channels, which is a ratio of two nothings. It is
+       computable, it is finite, and it carries no information: the exact shape §∅ records for
+       `ppiConf` reading [1,1,1,…] across an 86-second clock seam.
+       Refused bins are EXCLUDED from the fit (a meaningless R must not calibrate the rest of the
+       night) and REPORTED, never dropped silently. Without a sidecar `blankSpans` is empty and this
+       loop is a no-op, which is what keeps the no-sidecar export byte-identical. */
+    var _blank = (rec && rec.blankSpans) || [];
+    /* 🔴 THE REFUSED SET IS DERIVED FROM THE SPANS, NOT FROM THE BINS THAT HAPPEN TO EXIST — and the
+       first draft of this had it the other way round, which measured as a silent hole.
+       A bin inside a frozen stretch contributes NO points at all: `flush` rejects a buffer with
+       `A.ac <= 0`, and a constant window has exactly that, so `bins[kk]` is never created. Iterating
+       the bins therefore refuses only the bin that STRADDLES the edge of the run and reports nothing
+       for the fully-frozen middle — the absence stays invisible, which is the one outcome §∅ forbids.
+       Measured on a planted 60 s run: 1 bin refused where 2 windows were affected.
+       So: walk the spans, mark every bin window each one touches, and report all of them. A marked bin
+       with no points is still named — with its `binStartMs`, which is a fact, and `tMs: null`, because
+       the median of no samples does not exist and must not be interpolated from the bin bounds. */
+    var _refusedBy = Object.create(null);
+    for (var _bi = 0; _bi < _blank.length; _bi++) {
+      var _k0 = Math.floor(_blank[_bi].tMs0 / (binS * 1000));
+      var _k1 = Math.floor(_blank[_bi].tMs1 / (binS * 1000));
+      /* Every bin from the span's first to its last, inclusive — intersecting, not containing. A 0.6 s
+         run inside one 60 s bin refuses that bin; a 60 s run straddling a boundary refuses two. A
+         containment test would let every short run through, which is every run §∅ actually recorded. */
+      for (var _kx = _k0; _kx <= _k1; _kx++) if (!_refusedBy[_kx]) _refusedBy[_kx] = _blank[_bi];
+    }
+    var B2 = [],
+      refused = [];
+    for (kk in bins) {
+      if (_refusedBy[kk]) continue; // reported below, from the span side, points or not
+      if (bins[kk].R.length < 8) continue;
+      B2.push({ tMs: med(bins[kk].t), R: avg(bins[kk].R), s: avg(bins[kk].s) });
+    }
+    for (var _rk in _refusedBy) {
+      var _hit = _refusedBy[_rk];
+      refused.push({
+        binStartMs: +_rk * binS * 1000,
+        tMs: bins[_rk] ? med(bins[_rk].t) : null,
+        points: bins[_rk] ? bins[_rk].R.length : 0,
+        spo2w: null,
+        reason: 'blanking-run',
+        value: _hit.value,
+        n: _hit.n,
+        stream: _hit.stream
+      });
+    }
     B2.sort(function (a, b) {
       return a.tMs - b.tMs;
     });
+    refused.sort(function (a, b) {
+      return a.binStartMs - b.binStartMs; // `tMs` is null for a bin with no points, so it cannot be the key
+    });
+    out.refusedBins = refused;
+    out.spansUnmapped = (rec && rec.spansUnmapped) || 0;
     if (B2.length < 40) {
-      out.reason = 'too little paired data (' + B2.length + ' bins, need ≥40)';
+      /* NAME THE REAL STATE. "too little paired data" is true of the count and wrong about the CAUSE
+         once blanking is what removed the bins — §∅'s own rule against a borrowed reason that happens
+         to fire. A reader told the night was short will look for a short recording. */
+      out.reason = refused.length
+        ? 'too little paired data outside recorded blanking (' + B2.length + ' usable bins, need ≥40; ' + refused.length + ' refused as blanking-run)'
+        : 'too little paired data (' + B2.length + ' bins, need ≥40)';
       return out;
     }
     // OLS self-calibration SpO₂ = a + b·R, and its r
@@ -20973,7 +21198,12 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
             1000
         ) / 10,
       trackR: Math.round(r * 1000) / 1000,
-      bins: n
+      bins: n,
+      /* The DENOMINATOR of the refusal, beside the value — a trend drawn over 41 of 480 bins is a
+         different claim from one drawn over 480, and only these two numbers distinguish them. Both
+         are 0 when no sidecar was ingested. */
+      binsRefusedBlanking: refused.length,
+      spansUnmapped: out.spansUnmapped
     };
     /* ── 1 Hz SIGNAL + FIRMWARE COMPARATOR (owner-ordered 2026-08-20) ──────────────────────────────
        ECGDex's alignFirmwareRR pattern transposed to SpO₂: the device's own 1 Hz output is compared
