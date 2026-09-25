@@ -9,7 +9,7 @@
 #    scaffold honoring the §7 integration contract; validate against real frames + PSL output first.
 
 from __future__ import annotations
-import argparse, asyncio, calendar, contextlib, gc, glob, json, logging, math, os, random, signal, time as _time, datetime as _dt
+import argparse, asyncio, calendar, contextlib, gc, glob, inspect, json, logging, math, os, random, signal, time as _time, datetime as _dt
 import concurrent.futures, multiprocessing, sys as _sys
 import build_id
 from writers import (ContactLedger, StreamWriter, Spo2CsvWriter, LinkLogWriter, OxyFrameLogWriter, OxyLifeLogWriter, RingClockLogWriter, resumable_set,
@@ -9720,8 +9720,163 @@ def proc_rss_kb(status_path: str = "/proc/self/status") -> dict:
     return out
 
 
+#: How many decode sites to publish, and how deep a referrer walk may go. Bounded because the probe must
+#: not become the leak it is measuring: a referrer walk holds references while it runs, and an unbounded
+#: one over a million-object heap would both stall the loop and retain what it visits.
+_HOLDER_SITES, _HOLDER_SAMPLE, _HOLDER_DEPTH = 12, 8, 4
+
+
+class DecodeCensus:
+    """Counts `json.loads`/`json.load` calls PER CALL SITE while the probe is tracing.
+
+    🔴 WHY A CENSUS AND NOT A REFERRER WALK FROM THE DECODED OBJECTS — the obvious design is not
+    implementable, and the reason is worth writing down so nobody re-attempts it. tracemalloc hands back
+    STATISTICS (file, line, size, count), never the objects, so there is no way to get from
+    `json/decoder.py:361` to the dicts it allocated. Nor can the objects be tracked as they are made:
+    plain `dict` and `list` DO NOT SUPPORT WEAK REFERENCES, so a `WeakSet` of decoded results raises
+    `TypeError`, and a strong set would be the leak.
+
+    What IS observable is WHO DECODES AND HOW OFTEN, which is the discriminator that matters here: the
+    probe measured **50 decoded objects per second**, and the QC poll — the leading suspect, exonerated by
+    measurement in #3072 — runs about 20 times an HOUR. A per-site call count separates a per-sample path
+    from a periodic job by three orders of magnitude, without guessing.
+
+    §∅: a site that was never called is ABSENT from the census rather than present with 0 — the census
+    reports what it observed, and `{}` means the window saw no decode at all, which is itself a finding."""
+
+    def __init__(self) -> None:
+        self.counts: dict[str, int] = {}
+        self._orig: dict[str, object] = {}
+
+    def _note(self) -> None:
+        # The CALLER's frame, not json's own: f_back twice clears the wrapper and the json shim.
+        import sys
+        f = sys._getframe(2)
+        key = f"{os.path.basename(f.f_code.co_filename)}:{f.f_lineno}"
+        self.counts[key] = self.counts.get(key, 0) + 1
+
+    def install(self) -> None:
+        """Wrap `json.loads`/`json.load` for the window. Idempotent, and restores exactly what it found."""
+        if self._orig:
+            return
+        self._orig = {"loads": json.loads, "load": json.load}
+        _loads, _load = json.loads, json.load
+
+        def loads(*a, **kw):
+            self._note()
+            return _loads(*a, **kw)
+
+        def load(*a, **kw):
+            self._note()
+            return _load(*a, **kw)
+
+        json.loads, json.load = loads, load
+
+    def restore(self) -> None:
+        """Always, including on the error path — a probe that leaves json wrapped has changed the process
+        it was measuring, and the wrapper costs a frame walk on every decode."""
+        if self._orig:
+            json.loads, json.load = self._orig["loads"], self._orig["load"]
+            self._orig = {}
+
+    def top(self, n: int = _HOLDER_SITES) -> dict:
+        return dict(sorted(self.counts.items(), key=lambda kv: -kv[1])[:n])
+
+
+def holder_of(obj, depth: int = _HOLDER_DEPTH) -> dict:
+    """The first OUR-CODE holder of `obj`, walking `gc.get_referrers` up to `depth`.
+
+    Returns `{"module": …, "name": …}`, and **`{"module": None, "name": None}` when no such holder is
+    reachable within the bound** — §∅: unreachable is not "nobody holds it", and the two must not read
+    the same. A frame is reported by its function name, a module dict by the module's `__name__`.
+
+    🔴 MEASURED LIMIT, AND IT BOUNDS WHAT A `null` MEANS. On CPython 3.13 an object held ONLY in a
+    frame's fast local has **zero** `gc.get_referrers` — the localsplus array is not reported as a
+    reference from the frame object. Verified directly: a 100-key dict built as a function local returns
+    `len(gc.get_referrers(d)) == 0`. So this walk finds holders that are TRACKED CONTAINERS — module
+    globals, instance `__dict__`s, other dicts and lists — which is the population a leak actually lives
+    in, and it is BLIND to a live frame local. A `null` therefore means "not held by a tracked container
+    within the bound", which INCLUDES "held only by a running frame". It does not mean unheld, and a
+    reader who takes it that way will hunt a leak that is merely in flight."""
+    seen: set[int] = {id(obj)}
+    frontier = [obj]
+    for _ in range(depth):
+        nxt = []
+        for o in frontier:
+            for r in gc.get_referrers(o):
+                if id(r) in seen:
+                    continue
+                seen.add(id(r))
+                if inspect.isframe(r):
+                    fn = os.path.basename(r.f_code.co_filename)
+                    if not fn.startswith("<") and "/lib/" not in r.f_code.co_filename:
+                        return {"module": fn, "name": r.f_code.co_name}
+                elif isinstance(r, dict) and r.get("__name__") and "__file__" in r:
+                    return {"module": str(r["__name__"]), "name": "<module>"}
+                else:
+                    nxt.append(r)
+        frontier = nxt[:64]                    # bounded breadth as well as depth
+        if not frontier:
+            break
+    return {"module": None, "name": None}
+
+
+#: The one-shot request. `heap_probe.enabled` says the probe MAY run; this file says run it ONCE, and it
+#: is consumed on arm so the next daemon start does not repeat it.
+_HEAP_REQUEST_NAME = "heap-probe.request"
+
+
+def consume_heap_request(path: str) -> bool:
+    """`True` only if the request existed AND was consumed. Consuming is what makes it one-shot.
+
+    🔴 WHY A CONSUMED REQUEST AND NOT A CONFIG FLAG — measured on SOLID-NIGHT night 1, and the cost was a
+    real night. `heap_probe.enabled` is a STANDING permission, so the probe armed on EVERY daemon start:
+    four of them that evening (18:40, 19:40, 20:03, and again at the strap-up). While tracemalloc was
+    tracing 22:19:56 → 00:21:01 the box logged **25 event-loop stalls of 1–12 s at the QC poll's 10-minute
+    cadence**, and **58 of the 64 H10 host inter-arrival gaps over 1 s fall inside that window**; after
+    tracing stopped, 3 stalls in two hours. The owner read it on the monitor as "fragmentation". The
+    RECORDING was whole (`gaps_in_night: []`, one session, 13.7 M rows) — the host stamps waited, the
+    device clocks did not — but a diagnostic that degrades the night it is diagnosing is not a diagnostic,
+    and a standing flag meant it would do it again the next night without anyone asking.
+
+    ⚠️ FAILS CLOSED. If the file exists and cannot be consumed, this returns False and the probe does NOT
+    arm: an un-consumable request would otherwise arm on every start, which is the exact defect being
+    fixed. Refusing to trace is always recoverable; a night degraded by the instrument is not."""
+    try:
+        os.replace(path, path + ".consumed")
+    except OSError:
+        return False
+    return True
+
+
+def top_container_holders(sample: int = _HOLDER_SAMPLE) -> list:
+    """The `sample` largest live dict/list containers, each with the first our-code holder above it.
+
+    Ordered by `len()` rather than by bytes: a container that GROWS is what a retention hunt is after,
+    and length is cheap where `sys.getsizeof` on a deep structure is not. The heap snapshot is taken
+    once and released before the referrer walk, so the list of candidates does not itself become a
+    referrer that the walk then reports."""
+    cands: list = []
+    for o in gc.get_objects():
+        # No try/except around `len`: the type filter above guarantees a real dict or list, and `len` on
+        # either is O(1) and cannot raise. The guard I first wrote here was unreachable — the coverage
+        # gate caught it at 99.96 %, and covering an unreachable branch would have meant a contrived
+        # object the filter excludes by construction. Dead defensive code removed rather than tested.
+        if type(o) in (dict, list) and len(o) >= 64:
+            cands.append((len(o), o))
+    cands.sort(key=lambda t: -t[0])
+    picked = cands[:sample]
+    del cands                                  # drop the long list BEFORE walking referrers
+    out = []
+    for n, o in picked:
+        h = holder_of(o)
+        out.append({"kind": type(o).__name__, "len": n, "holder_module": h["module"],
+                    "holder_name": h["name"]})
+    return out
+
+
 def heap_report_row(when, traced, peak, n_objects, gc_view, top_rows, covered=True,
-                    live_streams=None, rss=None) -> dict:
+                    live_streams=None, rss=None, decodes=None, holders=None) -> dict:
     """PURE: one snapshot's row. Separated from the task so the SHAPE is testable without waiting an hour.
 
     `top_rows` are already-formatted `compare_to` lines; the FIRST snapshot of a window has none,
@@ -9738,6 +9893,13 @@ def heap_report_row(when, traced, peak, n_objects, gc_view, top_rows, covered=Tr
             # The quantity the stall was blamed on, beside the one tracemalloc measures. `None` per key
             # when /proc could not answer — the caller passes what it read, and absence stays absence.
             "rss_kb": dict(rss) if rss else {k: None for k in _RSS_KEYS},
+            # WHO DECODES, AND HOW OFTEN — the discriminator `top_growth` cannot give, because it names
+            # the allocating line inside `json/` and every caller shares it. `{}` means the window saw no
+            # decode at all, which is a finding; a site that was never called is ABSENT, not 0.
+            "decodes_by_site": dict(decodes) if decodes else {},
+            # WHO HOLDS the largest live containers, bounded (see `_HOLDER_*`). `null` module/name is
+            # "no holder reachable within the bound", never "nothing holds it".
+            "top_holders": list(holders) if holders else [],
             "status": "OK" if covered else "NOT_APPLICABLE",
             "reason": None if covered else "nothing streamed during this interval — an empty diff here "
                                            "is the absence of capture, not the absence of growth",
@@ -9782,6 +9944,16 @@ async def heap_probe(cfg: dict, root: str):
     if not hcfg.get("enabled", False):
         log.info("heap probe: OFF — heap_probe.enabled is false")
         return
+    # PERMISSION IS NOT A REQUEST. `enabled` says the probe MAY run; the marker file says run it once, and
+    # it is consumed here so a restart does not re-arm it. This is what keeps a SOLID-NIGHT night clean by
+    # DEFAULT: with no file, nothing traces and the per-subsystem attribution below never runs either —
+    # `DecodeCensus` and `top_container_holders` are reached only past this point, so one gate covers all
+    # three costs (tracemalloc's allocation tax, the json wrapper's frame walk, the referrer walk).
+    req = str(hcfg.get("request_path") or os.path.join(root, _HEAP_REQUEST_NAME))
+    if not consume_heap_request(req):
+        log.info("heap probe: not requested — no consumable %s; tracemalloc stays off", req)
+        return
+    log.info("heap probe: request consumed (%s) — this run is one-shot", req)
     import tracemalloc
     start_after_s = float(hcfg.get("start_after_min", 30)) * 60.0
     interval_s = float(hcfg.get("interval_min", 60)) * 60.0
@@ -9808,6 +9980,11 @@ async def heap_probe(cfg: dict, root: str):
     if not already:
         tracemalloc.start(1)                 # ONE frame: the allocation site is the container
     armed = arm_gc_probe()
+    # The decode census runs for exactly the tracing window and is restored in the `finally` below. It
+    # wraps `json.loads`/`json.load`, so leaving it installed would change the process this probe exists
+    # to measure — and cost a frame walk on every decode for the rest of the night.
+    _census = DecodeCensus()
+    _census.install()
     log.info("heap probe: tracing (gc pass timer armed=%s, tracemalloc was already on=%s)", armed, already)
     rows, prev = [], None
     try:
@@ -9820,6 +9997,7 @@ async def heap_probe(cfg: dict, root: str):
             top_rows: list[str] = [str(s) for s in snap.compare_to(prev, "lineno")[:top]] if prev is not None else []
             rows.append(heap_report_row(_now().isoformat(timespec="seconds"), traced, peak,
                                         len(gc.get_objects()), gc_snapshot(), top_rows, rss=proc_rss_kb(),
+                                        decodes=_census.top(), holders=top_container_holders(),
                                         covered=covered, live_streams=_live_streams()))
             try:
                 os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -9832,10 +10010,11 @@ async def heap_probe(cfg: dict, root: str):
                      i + 1, snapshots, traced / 1e6, rows[-1]["gc_tracked_objects"], len(top_rows))
             prev = snap
     finally:
+        _census.restore()                    # BEFORE anything that could raise: json must not stay wrapped
         if not already:
             tracemalloc.stop()
         disarm_gc_probe()
-        log.info("heap probe: finished — tracing stopped, gc pass timer disarmed")
+        log.info("heap probe: finished — tracing stopped, census restored, gc pass timer disarmed")
 
 
 def _live_streams() -> int:
