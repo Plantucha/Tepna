@@ -2146,6 +2146,7 @@ async function main() {
       // ENGINE-VERIFICATION-FINDINGS §1.4 — the O2Ring finger pleth's own adapter (breaks the
       // oxydex-spo2 0.95 / polar-sense-ppg 0.85 tie that routed it 'ambiguous' and unanalyzed).
       'adapters/o2ring-ppg.js',
+      'adapters/o2ring-ppg2w.js',
       'adapters/polar-h10-ecg.js',
       'adapters/resmed-edf.js',
       'quantity.js',
