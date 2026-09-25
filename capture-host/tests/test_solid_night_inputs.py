@@ -554,3 +554,22 @@ def test_a_modal_share_of_exactly_the_threshold_is_DRAWN(tmp_path):
     tb = _tb_pairs(tmp_path, pairs, end="2026-09-20T23:10:00")
     assert tb["status"] == "UNKNOWN"
     assert "DRAWN (67.0 % modal delta)" in tb["reason"], tb["reason"]
+
+
+def test_a_rate_exactly_at_the_refusal_bound_is_REFUSED(tmp_path):
+    """Kills `abs(ppm) >= TB_MAX_PPM` -> `>`. The bound is a REFUSAL bound (Clock Contract §7), so a rate
+    sitting exactly on it is refused, not admitted.
+
+    Constructed, not searched: 22 anchors, the residual falling exactly 1050 ms per second, so with a
+    width-21 median at each end the endpoints are r[10] and r[11] and the difference is exactly 1050 ms
+    over a 21.000 s span -> -50000.0 ppm to the bit. The host stamp carries a two-period jitter
+    `(i%3)*7 + (i%7)*11` which is ZERO at both i=0 and i=21 — so the span stays exactly 21 s while the
+    DEVICE deltas take four distinct values (modal share 0.571), keeping the drawn branch from
+    swallowing the case before the rate is ever computed."""
+    pairs = []
+    for i in range(22):
+        h = 1000 * i + (i % 3) * 7 + (i % 7) * 11
+        pairs.append((h, (h + 1050 * i) * 1_000_000))
+    tb = _tb_pairs(tmp_path, pairs)
+    assert tb["status"] == "FAIL", tb
+    assert "-50000 ppm over 0 min" in tb["reason"], tb["reason"]
