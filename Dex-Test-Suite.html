@@ -209,6 +209,19 @@ const SOURCE_FILES = ['tools/trio-batch.mjs','tools/pat-host-offset.mjs','tools/
  // duration class gate surfaced it by asking all 8 node builders the same question and getting a hole
  // for exactly one — which is what a fleet gate is for. Node's run-tests.mjs already lists it.
  'motiondex-dsp.js',
+ /* adapters/o2ring-ppg2w.js — the SAME hole as `motiondex-dsp.js` above, one lane over. The adapter is
+    EVAL'd into this realm (its `<script>` sits with the others near line 157) and its TEXT was not here,
+    so its source-mirror assertions — "REFERENCES OxyDex.parsePPG2W rather than carrying a parser", "no
+    second timestamp parser", "passes the sidecar through" — had nothing to read in the BROWSER lane while
+    passing in Node, where `env.sources` is built from the bundles' own `data-inline-src` scan instead of
+    this list. It reds rather than skipping because the assertion is `T.ok(..., false)` on a missing
+    source, which is the right shape: a source-scan that quietly reads nothing is the defect.
+    ⚠️ NOTE FOR THE NEXT ADAPTER: co-loading is FOUR places (both `.src.html`, this file, `dex-coload.js`,
+    `tests/run-tests.mjs`) and being SOURCE-SCANNABLE is a FIFTH, only in this lane. No `adapters/*.js`
+    was in this list before now, so every adapter's source-mirror assertions are Node-only unless added —
+    `adapters/o2ring-ppg.js`'s included. Left as found rather than widened here: making another gate's
+    assertions start running in a lane they never ran in belongs in its own change, not this one. */
+ 'adapters/o2ring-ppg2w.js',
  /* pat-feasibility-worker.js — SOURCE text for `pat-align · regression`'s anti-inertness scan, which
     asserts every `PATGate.verdict(...)` call in the worker passes an axis (a 3-arg call left the gate's
     clock refusals unreachable; O2RING-PHASE4-PREMISE-REVIEW §4). Added to run-tests.mjs and NOT here
