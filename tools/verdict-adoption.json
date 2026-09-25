@@ -272,6 +272,10 @@
       "bin": "test",
       "status": "exempt"
     },
+    "capture-host/tests/test_monitor_solid_night.py": {
+      "bin": "test",
+      "status": "exempt"
+    },
     "capture-host/tests/test_monitor_apply_restart.py": {
       "bin": "test",
       "status": "exempt"
