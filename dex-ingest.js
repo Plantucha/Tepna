@@ -125,6 +125,13 @@
        the O2Ring's own `Wellue_*_PPG.txt` matches the spo2 vendor pattern and is PpgDex's legitimate
        finger PRIMARY — so that one keeps suffix-first ordering, deliberately.) */
     if (foreignVendor(name)) return 'skip';
+    /* The validity sidecar (`…_ECGRUNS.txt`, SAMPLE-VALIDITY-ENVELOPE §3.2) is ECGDex's 'runs'
+       companion, exactly as `_PPGRUNS.txt` is PpgDex's. Claimed HERE — after the vendor test, which
+       is deliberately first in this classifier, and ABOVE `nonSignalName` — because `_ECG\b` does NOT
+       match `_ECGRUNS` (there is no word boundary before RUNS), so without this line the file fell
+       through to `nonSignalName` and was set aside as 'skip': a sidecar the box writes and nothing
+       could ever read. The writer landed with `ECG_RUN_MIN = 30`; this is the half that reads it. */
+    if (/_ECGRUNS\b|_ECGRUNS\./.test(u)) return 'runs';
     if (/_ACC\b|_ACC\./.test(u)) return 'acc';
     if (/_RR\b|_RR\.|_PPI\b|_PPI\./.test(u)) return 'rr';
     if (/_HR\b|_HR\./.test(u)) return 'hr';
@@ -331,7 +338,7 @@
   //        reclassified as foreign (a misnamed MAGN/PPG/…); default none → every ecg-named is real.
   // opts.partKey         : the multipart splitter (DSP.partKey); absent → no part folding.
   // → { ecgGroups: [[item,…],…],                                  // ordered part-groups, one recording each
-  //     companionLanes: { rr:[[item,…]], hr:[[…]], acc:[[…]] },   // deduped part-groups per lane, device-filtered
+  //     companionLanes: { rr:[[item,…]], hr:[[…]], acc:[[…]], runs:[[…]] },  // deduped part-groups per lane, device-filtered
   //     skipped: [{name, kind, device?}] }                        // skip-bucket + sniff-foreign + foreign-device + dup-night
   function planIngest(items, opts) {
     opts = opts || {};
@@ -342,7 +349,13 @@
     };
     items = Array.isArray(items) ? items : [];
     // (1) bucket by name classification (the SAME ecgKind the app + the routing-table test use)
-    var byKind = /** @type {{ ecg:any[], rr:any[], hr:any[], acc:any[], skip:any[] }} */ ({ ecg: [], rr: [], hr: [], acc: [], skip: [] });
+    var byKind = /** @type {{ ecg:any[], rr:any[], hr:any[], acc:any[], runs:any[], skip:any[] }} */ ({ ecg: [], rr: [], hr: [], acc: [], runs: [], skip: [] });
+    /* `runs` MUST have a bucket of its own. The line below falls back to `byKind.ecg` for any kind
+       without one, so the moment `ecgKind` learned to return 'runs' the sidecar landed in the PRIMARY
+       waveform bucket — and `_dedupeBySession` then dropped it against the real `_ECG.txt` it shares a
+       device and stamp with, setting it aside as a 'duplicate'. Measured before the fix: the sidecar
+       reached `skipped: [{kind:'duplicate'}]` and no lane at all. A fail-open default is why adding a
+       classifier value without its bucket is never inert here. */
     items.forEach(function (it) {
       (byKind[ecgKind(it.name)] || byKind.ecg).push(it);
     });
@@ -403,7 +416,11 @@
     var companionLanes = {
       rr: _dedupeGroups(_groupParts(byKind.rr, pk)),
       hr: _dedupeGroups(_groupParts(byKind.hr, pk)),
-      acc: _dedupeGroups(_groupParts(byKind.acc, pk))
+      acc: _dedupeGroups(_groupParts(byKind.acc, pk)),
+      // SAMPLE-VALIDITY-ENVELOPE §3.2 — the `_ECGRUNS.txt` validity sidecar, device-filtered and
+      // part-grouped like every other companion. The app picks the nearest by FILENAME stamp, because
+      // its text must reach parseECGText BEFORE a parsed rec.t0Ms exists to pair on.
+      runs: _dedupeGroups(_groupParts(byKind.runs, pk))
     };
     // (8) ECG groups: part-group, then de-dupe a duplicate night (same device id + structured start
     //     stamp) via the shared _dedupeBySession (IV §2); each dropped group → a 'duplicate' set-aside.

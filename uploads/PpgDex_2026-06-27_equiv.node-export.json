@@ -38,8 +38,8 @@
       },
       "sourceChannel": "Verity:ppg",
       "code": {
-        "manifestHash": "ce100123b7fb",
-        "computeHash": "103d7be0e075"
+        "manifestHash": "87b7dafa3327",
+        "computeHash": "453a93940d7b"
       },
       "evidence": {
         "envelopeRef": null,
@@ -68,8 +68,8 @@
       },
       "sourceChannel": "Verity:ppg",
       "code": {
-        "manifestHash": "ce100123b7fb",
-        "computeHash": "103d7be0e075"
+        "manifestHash": "87b7dafa3327",
+        "computeHash": "453a93940d7b"
       },
       "evidence": {
         "envelopeRef": null,
