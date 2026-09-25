@@ -564,3 +564,55 @@ def test_CONTROL_a_requested_start_still_arms_and_the_attribution_runs_behind_th
     # so matching the bare name would have compared the wrong thing and passed for the wrong reason.
     for later in ("_census = DecodeCensus()", "holders=top_container_holders()", "tracemalloc.start(1)"):
         assert src.index(later) > gate, f"{later} must sit BEHIND the request gate, not beside it"
+
+
+def test_the_census_counts_json_LOAD_as_well_as_LOADS(tmp_path):
+    """Both entry points, because a subsystem that reads a FILE uses `json.load` and would otherwise be
+    invisible to the census — and the file readers are exactly the periodic jobs this is meant to
+    separate from the live path."""
+    f = tmp_path / "x.json"
+    f.write_text('{"a": 1}')
+    c = capture.DecodeCensus()
+    c.install()
+    try:
+        with open(f, encoding="utf-8") as fh:
+            assert json.load(fh) == {"a": 1}
+    finally:
+        c.restore()
+    assert sum(c.counts.values()) == 1, c.counts
+    assert any(k.startswith("test_heap_probe.py:") for k in c.counts), c.counts
+
+
+def test_holder_of_walks_THROUGH_an_intermediate_container_to_the_module(tmp_path):
+    """The depth mechanism, and the `else` branch that feeds it. A leak is rarely held directly by a
+    module global — it sits in a list or a dict that a global holds — so the walk must pass THROUGH a
+    referrer that is not itself a holder. Depth 1 cannot reach the module and must return the null shape;
+    depth 2 can, which is what distinguishes "no holder within the bound" from "no holder"."""
+    subject = {f"k{i}": i for i in range(100)}
+    capture._HOLDER_TEST_CHAIN = [subject]                      # noqa: SLF001 — a planted two-level chain
+    try:
+        assert capture.holder_of(subject, depth=1) == {"module": None, "name": None}, \
+            "one hop reaches the list, not the module — the bound must be reported, not guessed past"
+        assert capture.holder_of(subject, depth=2) == {"module": "capture", "name": "<module>"}
+    finally:
+        del capture._HOLDER_TEST_CHAIN
+
+
+def test_the_walk_stops_when_the_frontier_EMPTIES_before_the_depth_runs_out(tmp_path):
+    """The bound has two exits and they are different: depth exhausted, or nothing left to visit. This is
+    the second — a chain that ends in a container nothing holds, so the frontier empties at hop 2 while
+    two hops of budget remain. Without it the walk would keep asking `get_referrers` of nothing."""
+    subject = {f"k{i}": i for i in range(100)}
+    holder = [subject]                          # a LOCAL: nothing refers to it, so the chain dead-ends
+    assert capture.holder_of(subject, depth=4) == {"module": None, "name": None}
+    assert holder[0] is subject                 # and the chain really existed while we walked it
+
+
+def test_PLANT_heap_probe_RETURNS_without_tracing_when_no_request_is_present(tmp_path):
+    """The whole point, end to end rather than on the helper: permission granted, no request, so the probe
+    logs and returns and tracemalloc is never started. This is the path every unrequested daemon start
+    takes — four of them on the night the probe degraded."""
+    was_tracing = tracemalloc.is_tracing()
+    _run(capture.heap_probe({"heap_probe": {"enabled": True}}, str(tmp_path)))
+    assert tracemalloc.is_tracing() == was_tracing, "an unrequested start must not begin tracing"
+    assert not list(tmp_path.glob("heap-probe.json")), "and it must write no report"

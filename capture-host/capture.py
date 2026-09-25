@@ -9,7 +9,7 @@
 #    scaffold honoring the §7 integration contract; validate against real frames + PSL output first.
 
 from __future__ import annotations
-import argparse, asyncio, calendar, contextlib, gc, glob, inspect, json, logging, math, os, random, signal, time as _time, datetime as _dt
+import argparse, asyncio, calendar, contextlib, gc, glob, json, logging, math, os, random, signal, time as _time, datetime as _dt
 import concurrent.futures, multiprocessing, sys as _sys
 import build_id
 from writers import (ContactLedger, StreamWriter, Spo2CsvWriter, LinkLogWriter, OxyFrameLogWriter, OxyLifeLogWriter, RingClockLogWriter, resumable_set,
@@ -9747,11 +9747,16 @@ class DecodeCensus:
     def __init__(self) -> None:
         self.counts: dict[str, int] = {}
         self._orig: dict[str, object] = {}
+        #: Re-entrancy depth. `json.load(fp)` is implemented AS `loads(fp.read())`, so wrapping both
+        #: counts a single file decode TWICE — and the inner hit would attribute it to `json/__init__.py`
+        #: rather than to the caller. Caught by the full suite: a test asserting one decode saw two. The
+        #: outer wrapper claims the count and the inner one stays silent, so a file read is one decode at
+        #: the CALLER's site, which is the whole purpose of the census.
+        self._depth = 0
 
     def _note(self) -> None:
-        # The CALLER's frame, not json's own: f_back twice clears the wrapper and the json shim.
-        import sys
-        f = sys._getframe(2)
+        # The CALLER's frame, two up: `_note` itself and the wrapper.
+        f = _sys._getframe(2)
         key = f"{os.path.basename(f.f_code.co_filename)}:{f.f_lineno}"
         self.counts[key] = self.counts.get(key, 0) + 1
 
@@ -9763,12 +9768,25 @@ class DecodeCensus:
         _loads, _load = json.loads, json.load
 
         def loads(*a, **kw):
-            self._note()
-            return _loads(*a, **kw)
+            if self._depth == 0:               # silent when `load` above us already claimed the count
+                self._note()
+            self._depth += 1
+            try:
+                return _loads(*a, **kw)
+            finally:
+                self._depth -= 1
 
         def load(*a, **kw):
+            # NO depth check here, unlike `loads`. `json.load` is only ever the OUTER call — nothing in
+            # the stdlib or this tree calls it from inside a decode — so its `depth != 0` branch was
+            # unreachable and the coverage gate said so. It claims the count unconditionally and `loads`,
+            # which `load` immediately calls, stays silent via the depth it raises.
             self._note()
-            return _load(*a, **kw)
+            self._depth += 1
+            try:
+                return _load(*a, **kw)
+            finally:
+                self._depth -= 1
 
         json.loads, json.load = loads, load
 
@@ -9788,7 +9806,8 @@ def holder_of(obj, depth: int = _HOLDER_DEPTH) -> dict:
 
     Returns `{"module": …, "name": …}`, and **`{"module": None, "name": None}` when no such holder is
     reachable within the bound** — §∅: unreachable is not "nobody holds it", and the two must not read
-    the same. A frame is reported by its function name, a module dict by the module's `__name__`.
+    the same. A module dict is reported by the module's `__name__`; see the measured limit below for why a frame
+    is not reported at all.
 
     🔴 MEASURED LIMIT, AND IT BOUNDS WHAT A `null` MEANS. On CPython 3.13 an object held ONLY in a
     frame's fast local has **zero** `gc.get_referrers` — the localsplus array is not reported as a
@@ -9807,11 +9826,12 @@ def holder_of(obj, depth: int = _HOLDER_DEPTH) -> dict:
                 if id(r) in seen:
                     continue
                 seen.add(id(r))
-                if inspect.isframe(r):
-                    fn = os.path.basename(r.f_code.co_filename)
-                    if not fn.startswith("<") and "/lib/" not in r.f_code.co_filename:
-                        return {"module": fn, "name": r.f_code.co_name}
-                elif isinstance(r, dict) and r.get("__name__") and "__file__" in r:
+                # NO FRAME BRANCH. I wrote one and removed it: on CPython 3.13 a frame never appears as a
+                # referrer of an object held in its fast locals (measured — zero referrers), so the branch
+                # could not fire, and the coverage gate found it unreachable. Keeping it would also have
+                # contradicted this function's own docstring, which states that a frame-held object is
+                # invisible here. A module dict is the holder shape that IS reachable.
+                if isinstance(r, dict) and r.get("__name__") and "__file__" in r:
                     return {"module": str(r["__name__"]), "name": "<module>"}
                 else:
                     nxt.append(r)
