@@ -29937,6 +29937,72 @@
       }
     );
 
+    /* The ACC leg of §3.2, and the defect is NOT the one the ECG leg pinned. There the sidecar could
+       not be read at all; here the quantity it protects is ALREADY guarded — for the wrong door.
+       `motiondex-dsp` says in terms that "an uncovered epoch scores counts=0 ⇒ moving=false ⇒ counted
+       as IMMOBILE, i.e. a recording gap fabricates stillness", and guards it with `seen[]`. A
+       blanking run defeats that guard exactly: the rows ARE present so `seen` counts them, they hold
+       one constant so dynamic-g is ~0, and the epoch scores IMMOBILE from samples nobody measured.
+       Measured on the planted night below: a 30 s run manufactured a 16.7 % immobile fraction, and
+       the error runs toward "still" — the direction a staging consumer acts on. */
+    group('SAMPLE-VALIDITY-ENVELOPE §3.2 — a recorded ACC blanking run cannot score as IMMOBILE', 'motiondex-dsp · absence · sidecar', function (T) {
+      var M = env.MOTIONDSP || env.MotionDSP;
+      if (!(M && typeof M.compute === 'function')) {
+        T.skip('MOTIONDSP not loaded in this runner');
+        return;
+      }
+      var hz = 26,
+        sec = 180,
+        t0 = Date.UTC(2026, 8, 24, 1, 0, 0);
+      var rows = ['Phone timestamp;sensor timestamp [ns];X [mg];Y [mg];Z [mg]'];
+      for (var i = 0; i < hz * sec; i++) {
+        var t = t0 + Math.round((i * 1000) / hz),
+          iso = new Date(t).toISOString().replace('Z', ''),
+          ss = i / hz,
+          held = ss >= 60 && ss < 90;
+        rows.push(iso + ';' + i * Math.round(1e9 / hz) + ';' + (held ? 900 : 900 + Math.round(40 * Math.sin(i / 3))) + ';' + (held ? 0 : Math.round(30 * Math.cos(i / 5))) + ';0');
+      }
+      var acc = rows.join('\n');
+      var SC = [
+        '# stream=acc rule=stuck min_run=200 t_stuck=200 merge_gap_max=8 examined=4680',
+        'Phone timestamp;stream;value;first_index;n_samples;dur_ms;closed;rule',
+        new Date(t0 + 60000).toISOString().replace('Z', '') + ';X [mg];900;1560;780;30000;1;stuck'
+      ].join('\n');
+      var a = M.compute({ acc: acc }).activity,
+        b = M.compute({ acc: acc, accRuns: SC }).activity;
+      T.ok('without the sidecar the held stretch scores IMMOBILE — fabricated stillness', a.immobileFrac > 0.15 && a.epochs[2].moving === false);
+      T.eq('the blanked epoch is not covered, and never "immobile"', b.epochs[2].moving, null);
+      T.eq('…and it NAMES the state rather than borrowing "no coverage"', b.epochs[2].reason, 'blanking-run');
+      T.eq('the blanked epochs leave the denominator', a.coveredEpochs - b.coveredEpochs, 2);
+      T.eq('the night PUBLISHES how much it refused, so the denominator did not shrink silently', b.blankedEpochs, 2);
+      T.eq('and the fabricated immobility is gone', b.immobileFrac, 0);
+      T.ok('no sidecar ⇒ no new keys at all (byte-identical shape)', !('blankedEpochs' in a) && !('reason' in a.epochs[2]));
+      T.ok(
+        'DECOY · a sidecar with NO rule line is not comparable, so it refuses nothing',
+        !('blankedEpochs' in M.compute({ acc: acc, accRuns: 'Phone timestamp;stream;value;first_index;n_samples;dur_ms;closed;rule' }).activity)
+      );
+      T.ok(
+        'DECOY · an EMPTY sidecar that DOES carry its rule is "looked, found nothing" — refuses nothing',
+        (function () {
+          var c = M.compute({ acc: acc, accRuns: '# stream=acc rule=stuck min_run=200 examined=4680\nPhone timestamp;stream;value;first_index;n_samples;dur_ms;closed;rule' }).activity;
+          return !('blankedEpochs' in c) && c.immobileFrac === a.immobileFrac;
+        })()
+      );
+      T.ok(
+        'the refusal keys on the SPAN, never on `class=` — a class-bearing header alone changes nothing',
+        (function () {
+          var c = M.compute({
+            acc: acc,
+            accRuns:
+              '# stream=acc rule=stuck min_run=200 examined=4680 held_top2_share=0.95\n# stream=acc channel=X [mg] class=held ratio=1.1 top2=1,2 share=0.984\nPhone timestamp;stream;value;first_index;n_samples;dur_ms;closed;rule'
+          }).activity;
+          return !('blankedEpochs' in c);
+        })()
+      );
+      var src = env.sources || {};
+      if (src['motiondex-app.js']) T.ok('motiondex-app · routes `_ACCRUNS` to its ACC runs slot', /_ACCRUNS/.test(src['motiondex-app.js']) && /chestAccRuns/.test(src['motiondex-app.js']));
+    });
+
     group('SAMPLE-VALIDITY-ENVELOPE §3.2 — the _PPGRUNS sidecar reaches parsePPG from every ingest path', 'dex-ingest · signal-orchestrate · adapters · ppgdex-app', function (T) {
       var DI = env.DexIngest,
         SO = env.SignalOrchestrate,
