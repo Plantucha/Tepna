@@ -224,7 +224,7 @@ what the second bring-up session surfaced and is **not yet done**. Parent `CAPTU
 - **D5 · Sharpen the PPG averaged-pulse** — *re-homed here 2026-08-04 from `CAPTURE-HOST-FOLLOWUPS`
   §4.2, which closed on the Done-when's "executed or re-homed" clause.* State verified in code the same
   day and unchanged since 2026-07-18: it is a two-pass foot-aligned ensemble with correlation rejection
-  (`corr(w,avg) > 0.85` over the last 24 pulses, `monitor.html:2049`) plus a ±60 ms foot re-delineation
+  (`corr(w,avg) > 0.85` over the last 24 pulses, `monitor.html` `analyzePulse`) plus a ±60 ms foot re-delineation
   (`:2060`). Better than the slope-detect it started as — but the alignment anchor is still the **foot**,
   which is precisely what the long-crest complaint was about (see the note at `:1998`).
   **Low priority, and the reason is measurable:** nothing computes a metric from it — a grep for any
