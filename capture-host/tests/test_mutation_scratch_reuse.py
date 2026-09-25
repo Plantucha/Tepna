@@ -485,8 +485,15 @@ def test_root_reads_does_not_scan_an_IN_TREE_VENV(tmp_path):
     (plain_venv / "lib" / "site-packages" / "pkg.py").write_text('CSS = "named_by_plain_venv.css"\n')
     (tree / "tests" / "test_real_read.py").write_text('E = "sibling_one.js"\n')
     (root / "sibling_one.js").write_text("s\n")
+    # A dot-directory that is NOT the first segment (`tests/.hidden/`, the shape of `.pytest_cache`
+    # or `.mypy_cache` inside a subdirectory). The rule reads EVERY directory segment; a scan that
+    # looked only at the first one, or dropped the last directory, would count this as a read.
+    (root / "named_by_nested_dot_dir.txt").write_text("x\n")
+    (tree / "tests" / ".hidden").mkdir()
+    (tree / "tests" / ".hidden" / "t.py").write_text('F = "named_by_nested_dot_dir.txt"\n')
     got = mutation_diff.root_reads(tree)
     assert not any(n.startswith("named_by_dot_venv") for n in got), got   # the dot-directory rule
+    assert "named_by_nested_dot_dir.txt" not in got, got                  # …at ANY depth
     assert "named_by_plain_venv.css" not in got, got                      # the pyvenv.cfg rule
     assert "sibling_one.js" in got, got                                   # a real read is still seen
     assert "uploads/synthetic_ecgdex_h10.txt" in got, got                 # the helper-named read survives too
