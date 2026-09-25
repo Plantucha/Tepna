@@ -350,3 +350,56 @@ def test_a_list_grown_INSIDE_the_window_is_named_by_file_and_line(tmp_path, monk
         assert out["rows"][1]["status"] == "OK" and out["rows"][1]["covered_capture"] is True
     finally:
         _GROWN.clear()
+
+
+# ── THE RSS SAMPLER — the quantity the stall was blamed on, beside the one tracemalloc measures ───
+# This probe's own docstring quotes `RssAnon` 128 → 245 MB at ~21 MB/h, and until now it recorded only
+# `traced_bytes`. Measured on the first real night: traced grew +9.2 MiB/h with NO RSS figure captured,
+# so the two could not be compared and the 9.2 was not evidence about the 21.
+
+def test_the_row_carries_RSS_beside_the_traced_bytes(tmp_path):
+    """The point of the sampler: one row, both quantities, so a reader can compare them at all."""
+    st = tmp_path / "status"
+    st.write_text("Name:\tpython3\nVmRSS:\t 262144 kB\nRssAnon:\t 245760 kB\nRssFile:\t  16384 kB\n")
+    rss = capture.proc_rss_kb(str(st))
+    assert rss == {"VmRSS": 262144, "RssAnon": 245760, "RssFile": 16384}
+    row = capture.heap_report_row("2026-09-25T00:21:01", 28751120, 137480083, 1076838, {}, [], rss=rss)
+    assert row["rss_kb"]["RssAnon"] == 245760
+    assert row["traced_bytes"] == 28751120, "both live on the row — comparing them is the whole point"
+
+
+def test_an_UNREADABLE_status_file_is_None_per_key_and_never_zero(tmp_path):
+    """§∅. A kernel without `RssAnon` and a process using no anonymous memory must not produce the same
+    row — and 0 would read as the second while meaning the first."""
+    rss = capture.proc_rss_kb(str(tmp_path / "does-not-exist"))
+    assert rss == {"VmRSS": None, "RssAnon": None, "RssFile": None}
+    row = capture.heap_report_row("t", 1, 2, 3, {}, [], rss=rss)
+    assert row["rss_kb"] == {"VmRSS": None, "RssAnon": None, "RssFile": None}
+    assert 0 not in row["rss_kb"].values(), "unreadable is not zero"
+
+
+def test_an_ABSENT_key_is_None_while_its_siblings_are_read(tmp_path):
+    """Partial is not all-or-nothing: `RssAnon` arrived in Linux 4.5, so an older kernel answers the
+    other two. The row must carry what was read and null what was not."""
+    st = tmp_path / "status"
+    st.write_text("VmRSS:\t 100 kB\nRssFile:\t 40 kB\n")
+    assert capture.proc_rss_kb(str(st)) == {"VmRSS": 100, "RssAnon": None, "RssFile": 40}
+
+
+def test_a_line_whose_UNIT_is_not_kB_is_refused_rather_than_read_as_kB(tmp_path):
+    """The unit is asserted, not assumed. A row that silently changed units would be indistinguishable
+    from a 1024x leak, which is the most expensive way for this field to be wrong."""
+    st = tmp_path / "status"
+    st.write_text("VmRSS:\t 262144 MB\nRssAnon:\t not-a-number kB\nRssFile:\t 16384 kB\n")
+    rss = capture.proc_rss_kb(str(st))
+    assert rss["VmRSS"] is None, "MB is not kB — refuse rather than publish the number under a wrong unit"
+    assert rss["RssAnon"] is None, "a non-numeric value is not a measurement"
+    assert rss["RssFile"] == 16384, "and the well-formed sibling is still read"
+
+
+def test_the_row_defaults_to_NULL_RSS_when_the_caller_passes_none(tmp_path):
+    """Back-compat and honesty at once: the parameter is last and optional, so an older caller still
+    builds a valid row — and that row says the RSS is unknown rather than omitting the field, which
+    would leave a reader unable to tell an old row from a failed read."""
+    row = capture.heap_report_row("t", 1, 2, 3, {}, [])
+    assert row["rss_kb"] == {"VmRSS": None, "RssAnon": None, "RssFile": None}
