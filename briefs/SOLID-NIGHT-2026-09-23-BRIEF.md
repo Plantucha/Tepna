@@ -410,7 +410,9 @@ So the "unattributed H10 losses" are two populations with opposite remedies. 39 
 the daemon's own doing (the pull), missed only by the attribution window's direction. 16 are not losses at all.
 Nothing needs a new instrument: the journal and the device clock were both already on disk. A third
 cause appeared on the first fully instrumented night (2026-09-24): the operator's manual time sync pauses live capture,
-a real loss that needs its own cause (`2026-09-25-manual-time-sync-pauses-live-capture`).
+a real loss that now HAS its own cause, `operator:time-sync`, in the same unit; its cost stays open
+(`2026-09-25-manual-time-sync-pauses-live-capture`). Replayed on night 1 (2026-09-24) with this unit, H10 and Verity
+continuity go FAIL → PASS. The ring's remaining FAIL is its stall gaps (`2026-09-25-ring-stalls-count-as-loss-without-a-device-clock`).
 ⚠️ Not answered here: whether the 280 `not-worn drop`s on 09-20/21 (452 min) called wear correctly. They are
 attributed, and that is all this table claims.
 

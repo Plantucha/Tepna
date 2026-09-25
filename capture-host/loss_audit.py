@@ -95,6 +95,31 @@ WORN_EVIDENCE_BY_MODEL: dict[str, tuple[str, str]] = {
 }
 
 
+# ── THE OPERATOR'S TIME SYNC is not the daemon's doing ─────────────────────────────────────────────────
+# The monitor's sync button (`POST /api/timesync/all`) runs an offline-recording op per Polar, several in
+# sequence, and each pauses live capture: a real loss that the journal names only as `offline-recording op —
+# live capture paused`, i.e. `daemon:pull paused live`, which SOLID-NIGHT scores as a DAEMON REGRESSION. On
+# 2026-09-24 one press (22:00:54) cost the night an H10 continuity FAIL that way. The press is its own cause.
+# ⚠️ The access log is written at request COMPLETION (journal 22:01:17); the request START is in its brackets
+# (`[24/Sep/2026:22:00:54 -0400]`). The event is dated from the brackets, so it precedes the pauses it caused.
+OPERATOR_TIMESYNC = "operator:time-sync"
+TIMESYNC_NEEDLE = "POST /api/timesync"
+TIMESYNC_TAIL_S = 60.0  # CHOSEN: 2026-09-24's pauses ran to 48 s after the request completed
+_ACCESS_START = re.compile(r"\[(\d{2})/([A-Z][a-z]{2})/(\d{4}):(\d{2}):(\d{2}):(\d{2}) [+-]\d{4}\]")
+_MONTHS = {
+    m: i + 1 for i, m in enumerate(("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"))
+}
+
+
+def _access_start(line: str) -> _dt.datetime | None:
+    """The request START of an access-log line (local time, as written), or None when it carries none."""
+    a = _ACCESS_START.search(line)
+    if a is None or a.group(2) not in _MONTHS:
+        return None
+    d, mon, y, hh, mm, ss = a.groups()
+    return _dt.datetime(int(y), _MONTHS[mon], int(d), int(hh), int(mm), int(ss))
+
+
 def read_journal(
     name: str | tuple[str, ...], since: _dt.datetime, until: _dt.datetime, run=subprocess.run
 ) -> list[tuple[_dt.datetime, str]] | None:
@@ -128,14 +153,28 @@ def read_journal(
     if r.returncode != 0:
         return None
     out: list[tuple[_dt.datetime, str]] = []
+    syncs: list[tuple[_dt.datetime, _dt.datetime]] = []
     for ln in r.stdout.split("\n"):
         m = re.match(r"(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})", ln)
-        if not m or (not any(k in ln for k in keys) and "Starting tepna-capture" not in ln):
+        if not m:
+            continue
+        if TIMESYNC_NEEDLE in ln:
+            start = _access_start(ln)
+            if start is not None:
+                out.append((start, OPERATOR_TIMESYNC))
+                syncs.append((start, _dt.datetime.fromisoformat(m.group(1)) + _dt.timedelta(seconds=TIMESYNC_TAIL_S)))
+            continue
+        if not any(k in ln for k in keys) and "Starting tepna-capture" not in ln:
             continue
         for cause, needle in KINDS:
             if needle in ln:
                 out.append((_dt.datetime.fromisoformat(m.group(1)), cause))
                 break
+    # a pause inside an operator's sync is the operator's, not the daemon's
+    out = [
+        (t, OPERATOR_TIMESYNC if c == "daemon:pull paused live" and any(a <= t <= b for a, b in syncs) else c)
+        for t, c in out
+    ]
     out.sort()
     return out
 

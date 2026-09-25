@@ -12,4 +12,4 @@ gap whose device step stays under 1.5 sample periods is now a DELAY: `LOSS-AUDIT
 `delayed_min` and never in `gaps`, `by_cause` or `lost_min`. On the H10, 16 of 55 unattributed gaps over
 2026-09-17 → 09-23 were delays (device step 0.008 s, one sample), and on 2026-09-24 21 stall gaps (2.2 min) are.
 Real losses, where the device clock jumps too, are unchanged (the 2026-09-24 manual time sync: Verity 44 s, H10
-21 s). The ring's SPO2.csv carries no device clock, so its gaps are judged as before.
+21 s). The ring's SPO2.csv carries no device clock, so its gaps are judged as before. The operator's manual time sync (`POST /api/timesync/all`) is now its own cause, `operator:time-sync`, dated from the request start in the access log; the offline-op pauses it triggers are attributed to it, not scored as a daemon regression. The ring's worn interval ends at the earlier of its two witnesses, so its own SpO2 file covers it. Replayed on 2026-09-24: H10 and Verity continuity FAIL → PASS.

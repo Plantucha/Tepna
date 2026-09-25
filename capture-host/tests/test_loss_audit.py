@@ -1172,3 +1172,54 @@ def test_a_ring_tail_that_starts_before_the_spo2_stream_stops_ends_the_worn_inte
     (e,) = loss_audit.wear_ends(str(d), "O2Ring-S")["ends"]
     assert e["reason"] == "doff" and e["doff_at"] == (R0 + dt.timedelta(seconds=100)).isoformat()
     assert e["worn_end_at"] == e["doff_at"] and e["end_at"] == (R0 + dt.timedelta(seconds=110)).isoformat()
+
+
+# ── the operator's time sync is its own cause (2026-09-24 22:00:54: one press, two H10 FAILs) ─────────────────
+_H10_ADDR = "24:AC:AC:02:84:96"
+
+
+def _journal_lines(*lines):
+    class R:
+        returncode = 0
+        stdout = "\n".join(lines) + "\n"
+
+    return lambda *a, **k: R()
+
+
+def _pause(hms):
+    return f"2026-09-24T{hms}-04:00 vigil python[1]: 2026-09-24 {hms},000 INFO Polar {_H10_ADDR}: offline-recording op — live capture paused"
+
+
+_POST = ('2026-09-24T22:01:17-04:00 vigil python[1]: 2026-09-24 22:01:17,076 INFO 127.0.0.1 [24/Sep/2026:22:00:54 -0400] '
+         '"POST /api/timesync/all HTTP/1.1" 200 1022 "http://vigil.local/monitor" "Mozilla/5.0"')
+
+
+def test_a_time_sync_is_dated_from_its_request_start_and_owns_the_pauses_it_causes():
+    run = _journal_lines(
+        _pause("22:00:54"),  # at the request start: inside
+        _pause("22:01:09"),
+        "-- Boot 0f3c9a7e1d2b4c5a --",  # journalctl marks a reboot MID-stream; the lines after it still count
+        _POST,  # logged at completion 22:01:17; the window runs to 22:02:17
+        _pause("22:02:17"),  # exactly at the edge: inside
+        _pause("22:02:18"),  # one second past it: the daemon's again
+        '2026-09-24T22:03:00-04:00 vigil python[1]: 127.0.0.1 "POST /api/timesync/all HTTP/1.1" 200 0',  # no brackets
+        '2026-09-24T22:04:00-04:00 vigil python[1]: 127.0.0.1 [24/Xyz/2026:22:03:59 -0400] "POST /api/timesync/all"',
+    )
+    ev = loss_audit.read_journal(("Polar H10 02849638", _H10_ADDR), T0, T0 + dt.timedelta(hours=8), run=run)
+    at = lambda hms: dt.datetime.fromisoformat(f"2026-09-24T{hms}")  # noqa: E731
+    assert ev == [
+        (at("22:00:54"), loss_audit.OPERATOR_TIMESYNC),
+        (at("22:00:54"), loss_audit.OPERATOR_TIMESYNC),
+        (at("22:01:09"), loss_audit.OPERATOR_TIMESYNC),
+        (at("22:02:17"), loss_audit.OPERATOR_TIMESYNC),
+        (at("22:02:18"), "daemon:pull paused live"),
+    ]
+    # the H10 gap that opened at 22:01:08 is the operator's, not the daemon's (nor unattributed)
+    assert loss_audit.attribute_gaps([(at("22:01:08"), 20.6)], ev) == [(at("22:01:08"), 20.6, loss_audit.OPERATOR_TIMESYNC)]
+
+
+def test_the_access_start_parser_refuses_what_it_cannot_read():
+    assert loss_audit._access_start("no brackets here") is None
+    assert loss_audit._access_start("[24/Xyz/2026:22:00:54 -0400]") is None
+    assert loss_audit._access_start("x [01/Jan/2027:00:00:05 +0100] y") == dt.datetime(2027, 1, 1, 0, 0, 5)
+    assert loss_audit._access_start("[31/Dec/2026:23:59:59 -0400]") == dt.datetime(2026, 12, 31, 23, 59, 59)
