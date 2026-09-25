@@ -44,7 +44,18 @@
          which hands it to PpgDex's finger-site lane. This is a ROUTING change only — the parse
          path is untouched, and a `_PPG` waveform never produced usable SpO2 rows here anyway
          (it failed loud with "no usable SpO₂ rows parsed"). */
-      if (/_PPG\b|_PPG\./i.test(name)) return 0; // raw optical waveform, not the 1 Hz oximetry CSV
+      /* ⚠️ THE DECLINE WAS ONE BOUNDARY SHORT, and the gap was the shape of the tie above.
+         `_PPG\b` / `_PPG\.` cannot see `…_PPG2W.txt` — the ring's RAW DUAL-WAVELENGTH stream —
+         because a word character follows `PPG`, so that waveform fell through to the vendor-token
+         line below and this adapter claimed it at 0.95. Worse than the §1.4 tie it descends from:
+         every `ppg` adapter scores 0 on `_PPG2W` too, so there was no runner-up and the router did
+         not even report `ambiguous`. Measured 2026-09-25 (residue `2026-09-25-ppg2w-routes-to-spo2`);
+         `oxydex-spo2.parse` then refused honestly on the waveform, so the cost was a LOST SIGNAL
+         rather than a wrong number — which is exactly what makes it easy to leave unfixed.
+         The decline now covers the whole `_PPG<suffix>` family by construction rather than by
+         listing today's two streams, so the ring's next raw channel is declined the day it exists.
+         A sidecar (`…_PPGRUNS.txt`) matches too, and should: it is not a 1 Hz oximetry CSV either. */
+      if (/_PPG[0-9A-Z]*(\b|\.)/i.test(name)) return 0; // any raw optical waveform, not the 1 Hz oximetry CSV
       if (/o2ring|oxydex|wellue|viatom|checkme/i.test(name)) return 0.95; // explicit device/app mark
       var hasOx = /\b(spo2|sao2|oxygen|o2)\b|oxygen\s*level/i.test(head);
       var hasPulse = /\b(pulse|pr|hr|bpm|heart\s*rate)\b/i.test(head);

@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 from array import array as _array
+from typing import Any
 import json
 import cmath
 import math
@@ -2827,8 +2828,15 @@ def qc_verdict(summary: dict, devices: list[dict], *, night_dir: str = "") -> di
                 # A MISSING basis is its own bucket, never folded into either: absence of the label is
                 # not evidence of which denominator was used (§∅), and an old summary read back by a
                 # newer reader is exactly where that guess would land.
-                {"device": cov, "session": cov_session}.get(_sb.get(_s), cov_unknown)[_key] = _c
-        result = {"coverage": cov, "coverage_session_basis": cov_session,
+                # `_sb.get(_s)` is None when the basis label is absent, and that falls to
+                # `cov_unknown` BY DESIGN (the note above). The cast says so; the behaviour is unchanged.
+                _basis: str = _sb.get(_s) or ""
+                {"device": cov, "session": cov_session}.get(_basis, cov_unknown)[_key] = _c
+        # Heterogeneous by construction (lists, dicts and counts under one roof), so the value type
+        # is annotated once HERE rather than narrowed at each of its readers. Without it mypy infers
+        # a union carrying None and every `set(result["missing"])` downstream reads as a possible
+        # crash — noise that hid a REAL one four lines up for a day.
+        result: dict[str, Any] = {"coverage": cov, "coverage_session_basis": cov_session,
                   "coverage_basis_unknown": cov_unknown, "missing": list(summary.get("missing") or []),
                   "degraded": list(summary.get("degraded") or []),
                   "gaps_in_night": list(summary.get("gaps_in_night") or []),
@@ -2852,11 +2860,37 @@ def qc_verdict(summary: dict, devices: list[dict], *, night_dir: str = "") -> di
         #     fact. `absent` is published so the SOLID-NIGHT composer can apply it; this verdict does
         #     not reach across and guess.
         # A device with SOME streams missing is NOT absent — that is a partial failure and stays FAIL.
-        _declared = {(d.get("name") or d.get("device_id")): list(d.get("streams") or [])
-                     for d in devices if not d.get("optional")}
+        # ── A DEVICE WITH NO IDENTITY IS EXCLUDED AND NAMED, NEVER KEYED `None` (2026-09-25) ──────
+        # `d.get("name") or d.get("device_id")` is None when a configured device carries NEITHER, and
+        # that None became a dict KEY here. `sorted()` two lines down then compares it against the
+        # str keys beside it and RAISES:
+        #     TypeError: '<' not supported between instances of 'NoneType' and 'str'
+        # — reproduced, not inferred. `', '.join(absent)` raises the same way on the None member. That
+        # takes down the whole QC verdict path, which is the thing that decides whether a night is
+        # judged at all, so a malformed entry convicts every OTHER device of nothing being reported.
+        #
+        # ⚠️ IT IS REACHABLE: #3040 hardened the qc ALERT path against exactly this input ("refuses a
+        # malformed devices list, naming what arrived"). A malformed `devices` list is a known event
+        # on this box; that path was guarded and this one was not.
+        #
+        # The remedy is NOT an annotation. A device with no identity cannot be judged — it cannot even
+        # be addressed in `missing`, whose entries are `f"{name}:{stream}"` — so it is EXCLUDED, and
+        # the population equality (checked + excluded == eligible) carries it rather than dropping it.
+        # It is NAMED by what it actually carried, because there is no name to name it by; that is the
+        # same "name what arrived" shape #3040 used for the alert path.
+        _unidentified = [d for d in devices
+                         if not d.get("optional") and not (d.get("name") or d.get("device_id"))]
+        _declared = {_k: list(d.get("streams") or [])
+                     for d in devices if not d.get("optional")
+                     for _k in [d.get("name") or d.get("device_id")] if _k}
         _miss = set(result["missing"])
         absent = sorted(n for n, ss in _declared.items() if ss and all(f"{n}:{s}" in _miss for s in ss))
         recorded = sorted(n for n, ss in _declared.items() if n not in absent)
+        if _unidentified:
+            # Published so a reader can FIND the malformed entry: it has no name, so it is named by the
+            # streams it declared. Absent the key, a silent drop would shrink `eligible` and the
+            # equality would still balance — which is exactly how this would hide.
+            result["unidentified_devices"] = [sorted(d.get("streams") or []) for d in _unidentified]
         result["absent"] = absent
         result["absent_witnessed_by"] = recorded if absent else []
         # The population is an EQUALITY and an absent device was declared, so it is EXCLUDED and never
@@ -2864,7 +2898,8 @@ def qc_verdict(summary: dict, devices: list[dict], *, night_dir: str = "") -> di
         # schema rather than by convention.
         checked = sum(len(ss) for n, ss in _declared.items() if n in recorded)
         excluded = sum(len(d.get("streams") or []) for d in devices if d.get("optional")) \
-            + sum(len(ss) for n, ss in _declared.items() if n in absent)
+            + sum(len(ss) for n, ss in _declared.items() if n in absent) \
+            + sum(len(d.get("streams") or []) for d in _unidentified)
         eligible = sum(len(d.get("streams") or []) for d in devices)
         pop = {"checked": checked, "eligible": eligible, "excluded": excluded}
         if eligible == 0:
