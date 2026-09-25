@@ -41,12 +41,11 @@
  * so a reader can tell "the waveform was read and cannot be calibrated" from "nothing was
  * read at all" — two states §∅ requires be distinguishable.
  *
- * ⚠️ THE UNIFIER CANNOT YET SUPPLY THAT SERIES, AND THAT IS STATED RATHER THAN HIDDEN.
- * `_COMPANION_KINDS` has no `spo2` lane and `data-unifier-app.js` pairs companions only for
- * `ecg`/`ppg`, so in that host this adapter refuses honestly today. Wiring an `_SPO2.csv`
- * companion lane for `spo2` is a separate unit (it touches `streamKind`, `companionKinds`
- * and the host's pairing condition); until it lands, OxyDex's own drop handler remains the
- * only path that produces a trend. Routing to the right node is what this adapter fixes.
+ * THE UNIFIER SUPPLIES THAT SERIES SINCE THE `spo2` COMPANION LANE LANDED. `_COMPANION_KINDS.spo2`
+ * pairs the ring's `_SPO2.csv` and its `_PPG2WRUNS` sidecar to this waveform, and the host hands in
+ * `parseCSV`, so a paired drop produces the SAME trend OxyDex's own drop handler produces — the trend
+ * does not depend on which host ingested the files. A waveform dropped ALONE still refuses honestly,
+ * with the reason below; that is the CONTROL, not a regression.
  * ──────────────────────────────────────────────────────────────────────── */
 (function (root) {
   'use strict';
@@ -96,14 +95,28 @@
       if (!parseFn || !trendFn) return root.SignalFrame.toSignalFrame('spo2', { usable: false, reason: 'o2ring-ppg2w: OxyDex not in scope (load oxydex-dsp.js before this adapter)' }, prov);
       /* The `_PPG2WRUNS` validity sidecar rides through when the host paired one — one call, so the
          §3.2 refusal (`blanking-run`) applies here identically to OxyDex's own drop path. */
-      var rec = parseFn(text, { runsText: (ctx.companions && ctx.companions.runs) || null });
+      /* `ppg2wruns`, not `runs` — this ring's waveform sidecar has its OWN companion kind, because a
+         kind IS the slot name in `pairCompanions` and one device's two sidecars must not share one
+         (#3077's ACC ruling, applied here rather than re-derived). */
+      var rec = parseFn(text, { runsText: (ctx.companions && ctx.companions.ppg2wruns) || null });
       if (!rec || !rec.rows.length)
         return root.SignalFrame.toSignalFrame(
           'spo2',
           { usable: false, reason: 'o2ring-ppg2w: no usable dual-wavelength samples parsed (expected the capture host’s `Phone timestamp;sensor timestamp [ns];channel 0;channel 1;motion` layout)' },
           prov
         );
-      var spo2Rows = ctx.spo2Rows || (ctx.companions && ctx.companions.spo2) || null;
+      /* THE CALIBRATION PARTNER. `ctx.companions.spo2` is the ring's own 1 Hz CSV as TEXT — the
+         Unifier's `spo2` companion lane pairs it by the same stamp the OxyDex drop handler pairs by
+         stem, and `capture_filename` builds both names from ONE `{vendor}_{model}_{id}_{stamp}` prefix,
+         so on a capture-host night the two rules agree by construction (nearest-stamp is the more
+         forgiving of the two when one stream opened a second later). Parsed with the HOST'S `parseCSV`
+         — OxyDex's own, handed in exactly as `oxydex-spo2` receives it — so there is no second CSV
+         parser here any more than there is a second waveform parser. */
+      var spo2Rows = ctx.spo2Rows || null;
+      if (!spo2Rows && ctx.companions && ctx.companions.spo2 && typeof ctx.parseCSV === 'function') {
+        var csvRows = ctx.parseCSV(ctx.companions.spo2, { fname: null, file: null });
+        if (csvRows && csvRows.length) spo2Rows = csvRows;
+      }
       var res = trendFn(rec, spo2Rows || []);
       var spanS = (rec.rows[rec.rows.length - 1].tMs - rec.rows[0].tMs) / 1000;
       /* WHAT WAS READ travels ON THE REASON, even on a refusal. "the waveform was read and cannot be
