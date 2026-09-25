@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="a2498ac48ee9" data-compute-hash="5efb42243c42"><head>
+<html lang="en" data-manifest-hash="104299da04e0" data-compute-hash="d9b2364d8355"><head>
 <!--
   OverDex.html — Tepna
   Copyright 2026 Michal Planicka
@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+XTrnryA88ZZB664WebTYrkdG57dUOaumGtqYQcVcEE=' 'sha256-/Z7I3UUPEYVbJqKiogd2GpJzq5ymayoEqgifMJjbfTY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-58O6BxAcjgCbtJyPkzKKtexLOYodIHAExwfRPPPFcOI=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-E3YweNbXEzR2hxsyCYFg7YorFc/MkJstnsNeUtVxMFA=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GMmPvLCp12nTB2A3edxKqYW9nOEcn4mUbSDIB8uSFEI=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-ImXhwPIaDzYWwBLhYV5EP9qZSwmnbfkURTE4m6HTvqU=' 'sha256-JQIPwKGkxXs/AyZxBVwFlF1DKA0SN+fLQSpnM5aGY4w=' 'sha256-LrqAcX6EYrn1FDGC8701ZGVNduowoV0XozhXnBk2ai8=' 'sha256-ODnkG6Le8Cqp/r9bOK9FrS3Denl+Kbxh6Auu8u0rZoE=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-X7slrDpgX5Esbtr3HuxhWugLi1NKTWDvb+K060kXk9U=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-ZXPoI2o52OC/gRSitMbcr+NtyUThgY334PGTA0tfmJk=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-cMs4L/sAniGsWhN0yT84vREUkHMfFButr5W0ljondW4=' 'sha256-cemiQMQwTXR+318vY1wXwQgOyMRh2KLdUGfPVh4TQjE=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fOxAcG4FGOYjHtLk+7Sbd1mzABUQSzPGmybpbJk9b6c=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-i+z0AlUCRGianGoRVvNN1uy9CkmbqDOaXxtm8sIseJA=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-j6cQKZ+pO2jEtsJTv7AnKR0NQLc+TgayeSSCB4yBUJs=' 'sha256-mChfJ8uxCBfOu4ff0qJdSXD9srxAbGUrTwhfqP9E/5E=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-tT7nhpXBqikzWTWNvLG5WmdUXpckNITRI3X8TuYNyBA=' 'sha256-xsp63O3KsGRyNwA0HiyNZ9rfZ/CjJ8/+KFtXEXV2zTc='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+XTrnryA88ZZB664WebTYrkdG57dUOaumGtqYQcVcEE=' 'sha256-/Z7I3UUPEYVbJqKiogd2GpJzq5ymayoEqgifMJjbfTY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-58O6BxAcjgCbtJyPkzKKtexLOYodIHAExwfRPPPFcOI=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-E3YweNbXEzR2hxsyCYFg7YorFc/MkJstnsNeUtVxMFA=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GMmPvLCp12nTB2A3edxKqYW9nOEcn4mUbSDIB8uSFEI=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-ImXhwPIaDzYWwBLhYV5EP9qZSwmnbfkURTE4m6HTvqU=' 'sha256-JQIPwKGkxXs/AyZxBVwFlF1DKA0SN+fLQSpnM5aGY4w=' 'sha256-LrqAcX6EYrn1FDGC8701ZGVNduowoV0XozhXnBk2ai8=' 'sha256-M3RW3ARogSsTwXnavD3kWmNFUFvwgV4J7lN7EuyyEk4=' 'sha256-ODnkG6Le8Cqp/r9bOK9FrS3Denl+Kbxh6Auu8u0rZoE=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-WgSban40NUF62COP0e6jTcTwghJktts68Op/oej0HyY=' 'sha256-X7slrDpgX5Esbtr3HuxhWugLi1NKTWDvb+K060kXk9U=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-aqg70yvfE6vERNjD9AFaei4Tfjjvefc75A/t/U/PC74=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-cMs4L/sAniGsWhN0yT84vREUkHMfFButr5W0ljondW4=' 'sha256-cXpVz/7rD8ybtQ6UdCEQ1q+LZnqk7tD9iNB4N2fpNoE=' 'sha256-cemiQMQwTXR+318vY1wXwQgOyMRh2KLdUGfPVh4TQjE=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fOxAcG4FGOYjHtLk+7Sbd1mzABUQSzPGmybpbJk9b6c=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-j6cQKZ+pO2jEtsJTv7AnKR0NQLc+TgayeSSCB4yBUJs=' 'sha256-mChfJ8uxCBfOu4ff0qJdSXD9srxAbGUrTwhfqP9E/5E=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-xsp63O3KsGRyNwA0HiyNZ9rfZ/CjJ8/+KFtXEXV2zTc='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -11624,7 +11624,13 @@ window.IntegratorDSP = {
 
       var rec;
       try {
-        rec = parseFn(text);
+        // SAMPLE-VALIDITY-ENVELOPE §3.2 — the `…_ECGRUNS.txt` validity sidecar, when the drop paired one
+        // (signal-orchestrate pairCompanions → ctx.companions.runs), rides into the parser as runsText so
+        // a recorded blanking span can REFUSE the metrics whose window it touches. It must reach the
+        // PRIMARY parse, not the companion block below, which runs after the frame is already built.
+        // No sidecar → the exact single-argument call as before (byte-identical).
+        var runsText = ctx.companions && typeof ctx.companions.runs === 'string' ? ctx.companions.runs : null;
+        rec = runsText ? parseFn(text, { runsText: runsText }) : parseFn(text);
       } catch (e) {
         return root.SignalFrame.toSignalFrame('ecg', { usable: false, reason: 'polar-h10-ecg: parse error — ' + ((e && e.message) || e) }, prov);
       }
@@ -34480,12 +34486,18 @@ __exports.PpgDex = window.PpgDex;
          `reason: 'clock-seam'`, the epoch is absent from the series and present in `refusedOut`.
        · fewer than 20 scorable beats  ⇒ refused, `reason: 'too-few-beats'` (was a silent skip).
      A window with no beats at all is a dropout hole, already counted in gapSec, and stays silent. */
-  function epochEngine(nn, tt, winSec, sqiPerBeat, spansGap, seamSec, refusedOut) {
+  function epochEngine(nn, tt, winSec, sqiPerBeat, spansGap, seamSec, refusedOut, blankSec) {
     winSec = winSec || 300;
     const N = nn.length,
       tEnd = tt[N - 1];
     const epochs = [];
     const _seams = Array.isArray(seamSec) ? seamSec.filter((v) => Number.isFinite(v)) : [];
+    /* §∅ — A RECORDED BLANKING RUN IS A DISCONTINUITY, SO THE WINDOW REFUSES. `blankSec` is the
+       `_ECGRUNS.txt` sidecar's spans converted to seconds; an epoch whose window intersects one does
+       not describe a continuous stretch of signal, and the owner ruling of 2026-09-17 is explicit
+       that a discontinuity refuses while reduced coverage annotates. LAST and optional: absent a
+       sidecar `_blanks` is empty, every comparison below is false, and the engine is byte-identical. */
+    const _blanks = Array.isArray(blankSec) ? blankSec.filter((b) => b && Number.isFinite(b.t0) && Number.isFinite(b.t1) && b.t1 > b.t0) : [];
     let i = 0;
     for (let w0 = 0; w0 <= tEnd; w0 += winSec) {
       const w1 = w0 + winSec,
@@ -34515,8 +34527,18 @@ __exports.PpgDex = window.PpgDex;
         i++;
       }
       const seamHere = _seams.some((v) => v >= w0 && v < w1);
-      if (seamHere || seg.length < 20) {
-        if (refusedOut && nAll > 0) refusedOut.push({ tMin: +(w0 / 60).toFixed(1), n: nAll, reason: seamHere ? 'clock-seam' : 'too-few-beats' });
+      /* Half-open intersection on both sides, so a span ending exactly at w0 does not convict the
+         window after it. Precedence is deliberate and NAMES THE REAL STATE (§∅): a seam is the harder
+         discontinuity, a blanking run the next, and `too-few-beats` must never be borrowed to report
+         either — a borrowed reason that happens to fire is the defect that ruling exists to prevent. */
+      const blankHere = _blanks.some((b) => b.t0 < w1 && w0 < b.t1);
+      if (seamHere || blankHere || seg.length < 20) {
+        if (refusedOut && nAll > 0)
+          refusedOut.push({
+            tMin: +(w0 / 60).toFixed(1),
+            n: nAll,
+            reason: seamHere ? 'clock-seam' : blankHere ? 'blanking-run' : 'too-few-beats'
+          });
         continue;
       }
       {
@@ -35722,8 +35744,20 @@ __exports.PpgDex = window.PpgDex;
       while (k < N && nnPeak[k] < c.idx) k++;
       if (k < N) _seamSec.push(tt[k]);
     }
+    /* §∅ SAMPLE-VALIDITY-ENVELOPE §3.2 — the `_ECGRUNS.txt` spans, in SAMPLES as the box wrote them,
+       converted to the seconds frame `tt` and the epoch windows use. `rec.blankingSpans` is absent
+       unless a sidecar was ingested, so this is [] on every existing path and moves no fixture.
+       The box's own sampling rate is used, never the 130 Hz fallback: a fabricated rate would place
+       the refusal on the wrong seconds, which is worse than not refusing at all. */
+    const _blankSec = [];
+    if (rec && rec.fs > 0 && Array.isArray(rec.blankingSpans)) {
+      for (const b of rec.blankingSpans) {
+        if (!b || !(b.n > 0) || !Number.isFinite(b.first)) continue;
+        _blankSec.push({ t0: b.first / rec.fs, t1: (b.first + b.n) / rec.fs });
+      }
+    }
     const epochsRefused = [];
-    const epochs = epochEngine(nn, tt, 300, nnSqi, nnSpansGap, _seamSec, epochsRefused);
+    const epochs = epochEngine(nn, tt, 300, nnSqi, nnSpansGap, _seamSec, epochsRefused, _blankSec);
 
     // representative window for advanced metrics (epoch with rmssd closest to median)
     let repSeg = nn,
@@ -38384,11 +38418,109 @@ __exports.PpgDex = window.PpgDex;
   //  for that case. Returns the SAME rec shape genSynthetic/the worker hand
   //  analyze(): { int16, fs, gaps, t0Ms, offsetMin, source, durSec, … }.
   // ════════════════════════════════════════════════════════════════════════
-  function parseECGText(text) {
+  /* ── THE VALIDITY SIDECAR READER (SAMPLE-VALIDITY-ENVELOPE §3.2, ECG row) ────────────────────
+     The box writes `…_ECGRUNS.txt` beside every `_ECG.txt` (`capture-host/writers.py`, keyed on
+     `ECG_RUN_MIN = 30`), and until now NOTHING read it: a validity band on an H10 night could only
+     ever read UNKNOWN by construction rather than by measurement.
+
+     ⚠️ THIS IS A FILE PARSER, NOT A SECOND RUN DETECTOR. `ecgdex-dsp.js` already reasons about
+     constant runs for SATURATION (#2785, the `ecgRails` census below) and that work is untouched:
+     it answers "where did the amplifier rail", keyed on an observed rail. The sidecar answers "where
+     did the box record an absence", keyed on RUN LENGTH against the stream's own distribution —
+     §∅'s rule, and the reason a `!= 0` test is exactly inverted for a stream whose µV crosses zero
+     on every beat. Two questions, two witnesses; this reads the second one rather than re-deriving it.
+
+     The header/row contract is the one `_PPGRUNS.txt` uses, byte for byte, because one writer emits
+     both: `# stream=ecg rule=stuck min_run=N …` and rows
+     `Phone timestamp;stream;value;first_index;n_samples;dur_ms;closed;rule`. */
+  function parseEcgRuns(text) {
+    if (typeof text !== 'string' || !text) return null;
+    var out = /** @type {any} */ ({
+      params: null,
+      minRun: null,
+      mergeGapMax: null,
+      rows: [],
+      spans: [],
+      malformed: false,
+      emitted: 0,
+      runsDetected: null,
+      examined: null,
+      sawHeader: false,
+      comparable: false
+    });
+    var lines = String(text).split(/\r?\n/);
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i].trim();
+      if (!line) continue;
+      if (line.charAt(0) === '#') {
+        if (!out.params && /\bstream=/.test(line) && /\bmin_run=/.test(line)) {
+          out.params = line.replace(/^#\s*/, '');
+          var mr = /\bmin_run=(\d+)/.exec(line);
+          var mg = /\bmerge_gap_max=(\d+)/.exec(line);
+          if (mr) out.minRun = +mr[1];
+          if (mg) out.mergeGapMax = +mg[1];
+        }
+        var fin = /\btotal_runs=(\d+)/.exec(line);
+        if (fin) out.runsDetected = (out.runsDetected || 0) + +fin[1];
+        var ex = /\bexamined=(\d+)/.exec(line);
+        if (ex) out.examined = (out.examined || 0) + +ex[1];
+        continue;
+      }
+      if (/^Phone timestamp;/.test(line)) {
+        out.sawHeader = true;
+        continue;
+      }
+      var c = line.split(';');
+      if (c.length < 8) {
+        out.malformed = true;
+        continue;
+      }
+      var first = +c[3];
+      var n = +c[4];
+      if (!isFinite(first) || !isFinite(n) || n <= 0) {
+        out.malformed = true;
+        continue;
+      }
+      var stream = (c[1] || '').trim().toLowerCase();
+      if (stream && stream !== 'ecg') continue; // a sibling stream's rows are not this signal's
+      out.rows.push({ stream: stream, value: +c[2], first: first, n: n });
+      out.spans.push({ first: first, n: n, value: +c[2] });
+      out.emitted++;
+    }
+    /* A sidecar with no rule line cannot be compared against anything; an EMPTY one that DOES carry
+       its rule is a real observation at that rule — the writer looked and emitted nothing. Those are
+       different facts and the flag keeps them apart. (Mirrors `parsePinnedRuns`'s own note.) */
+    out.comparable = out.minRun != null;
+    return out;
+  }
+
+  /* Does [i0, i0+len) touch any recorded blanking span? Sample indices, half-open, both sides. */
+  function _intersectsRun(spans, i0, len) {
+    if (!spans || !spans.length || !(len > 0)) return false;
+    var a0 = i0,
+      a1 = i0 + len;
+    for (var k = 0; k < spans.length; k++) {
+      var b0 = spans[k].first,
+        b1 = spans[k].first + spans[k].n;
+      if (a0 < b1 && b0 < a1) return true;
+    }
+    return false;
+  }
+
+  function parseECGText(text, opts) {
     // Whole-text entry point — UNCHANGED contract, kept for the browser and every existing caller.
     // It delegates so there is exactly ONE parse body: a second copy would drift, and the two would
     // disagree about a real recording before anyone noticed.
-    return parseECGLines(String(text == null ? '' : text).split(/\r?\n/));
+    // `opts.runsText` is the `_ECGRUNS.txt` companion's bytes when the caller ingested one. LAST and
+    // OPTIONAL per §🧪: every existing 1-arg call is byte-identical, and the no-sidecar path does not
+    // move a single fixture.
+    var rec = parseECGLines(String(text == null ? '' : text).split(/\r?\n/));
+    var runs = parseEcgRuns(opts && opts.runsText);
+    if (rec && runs) {
+      rec.runsSidecar = runs;
+      rec.blankingSpans = runs.spans;
+    }
+    return rec;
   }
 
   // LINE-FEED entry point. Takes any ITERABLE of lines, so a Node caller can stream a file in bounded
@@ -43391,6 +43523,13 @@ __exports.CPAPDex = window.CPAPDex;
        the O2Ring's own `Wellue_*_PPG.txt` matches the spo2 vendor pattern and is PpgDex's legitimate
        finger PRIMARY — so that one keeps suffix-first ordering, deliberately.) */
     if (foreignVendor(name)) return 'skip';
+    /* The validity sidecar (`…_ECGRUNS.txt`, SAMPLE-VALIDITY-ENVELOPE §3.2) is ECGDex's 'runs'
+       companion, exactly as `_PPGRUNS.txt` is PpgDex's. Claimed HERE — after the vendor test, which
+       is deliberately first in this classifier, and ABOVE `nonSignalName` — because `_ECG\b` does NOT
+       match `_ECGRUNS` (there is no word boundary before RUNS), so without this line the file fell
+       through to `nonSignalName` and was set aside as 'skip': a sidecar the box writes and nothing
+       could ever read. The writer landed with `ECG_RUN_MIN = 30`; this is the half that reads it. */
+    if (/_ECGRUNS\b|_ECGRUNS\./.test(u)) return 'runs';
     if (/_ACC\b|_ACC\./.test(u)) return 'acc';
     if (/_RR\b|_RR\.|_PPI\b|_PPI\./.test(u)) return 'rr';
     if (/_HR\b|_HR\./.test(u)) return 'hr';
@@ -43597,7 +43736,7 @@ __exports.CPAPDex = window.CPAPDex;
   //        reclassified as foreign (a misnamed MAGN/PPG/…); default none → every ecg-named is real.
   // opts.partKey         : the multipart splitter (DSP.partKey); absent → no part folding.
   // → { ecgGroups: [[item,…],…],                                  // ordered part-groups, one recording each
-  //     companionLanes: { rr:[[item,…]], hr:[[…]], acc:[[…]] },   // deduped part-groups per lane, device-filtered
+  //     companionLanes: { rr:[[item,…]], hr:[[…]], acc:[[…]], runs:[[…]] },  // deduped part-groups per lane, device-filtered
   //     skipped: [{name, kind, device?}] }                        // skip-bucket + sniff-foreign + foreign-device + dup-night
   function planIngest(items, opts) {
     opts = opts || {};
@@ -43608,7 +43747,13 @@ __exports.CPAPDex = window.CPAPDex;
     };
     items = Array.isArray(items) ? items : [];
     // (1) bucket by name classification (the SAME ecgKind the app + the routing-table test use)
-    var byKind = /** @type {{ ecg:any[], rr:any[], hr:any[], acc:any[], skip:any[] }} */ ({ ecg: [], rr: [], hr: [], acc: [], skip: [] });
+    var byKind = /** @type {{ ecg:any[], rr:any[], hr:any[], acc:any[], runs:any[], skip:any[] }} */ ({ ecg: [], rr: [], hr: [], acc: [], runs: [], skip: [] });
+    /* `runs` MUST have a bucket of its own. The line below falls back to `byKind.ecg` for any kind
+       without one, so the moment `ecgKind` learned to return 'runs' the sidecar landed in the PRIMARY
+       waveform bucket — and `_dedupeBySession` then dropped it against the real `_ECG.txt` it shares a
+       device and stamp with, setting it aside as a 'duplicate'. Measured before the fix: the sidecar
+       reached `skipped: [{kind:'duplicate'}]` and no lane at all. A fail-open default is why adding a
+       classifier value without its bucket is never inert here. */
     items.forEach(function (it) {
       (byKind[ecgKind(it.name)] || byKind.ecg).push(it);
     });
@@ -43669,7 +43814,11 @@ __exports.CPAPDex = window.CPAPDex;
     var companionLanes = {
       rr: _dedupeGroups(_groupParts(byKind.rr, pk)),
       hr: _dedupeGroups(_groupParts(byKind.hr, pk)),
-      acc: _dedupeGroups(_groupParts(byKind.acc, pk))
+      acc: _dedupeGroups(_groupParts(byKind.acc, pk)),
+      // SAMPLE-VALIDITY-ENVELOPE §3.2 — the `_ECGRUNS.txt` validity sidecar, device-filtered and
+      // part-grouped like every other companion. The app picks the nearest by FILENAME stamp, because
+      // its text must reach parseECGText BEFORE a parsed rec.t0Ms exists to pair on.
+      runs: _dedupeGroups(_groupParts(byKind.runs, pk))
     };
     // (8) ECG groups: part-group, then de-dupe a duplicate night (same device id + structured start
     //     stamp) via the shared _dedupeBySession (IV §2); each dropped group → a 'duplicate' set-aside.
@@ -44160,9 +44309,9 @@ __exports.CPAPDex = window.CPAPDex;
   // Unifier · OverDex) call, so the matched companion TEXT rides to the adapter via ctx.companions →
   // the frame → compute(). Pairs by FILENAME stamp (known before parsing; PSL stamps every stream of
   // one recording identically), so no chicken-and-egg with the not-yet-parsed frame's t0Ms.
-  // 'runs' (PPG) is the `…_PPGRUNS.txt` validity sidecar — SAMPLE-VALIDITY-ENVELOPE §3.2; its TEXT rides
-  // to the PPG adapters as ctx.companions.runs and from there into parsePPG(text, { runsText }).
-  var _COMPANION_KINDS = { ecg: ['rr', 'hr', 'acc'], ppg: ['acc', 'gyro', 'magn', 'ppi', 'runs'] };
+  // 'runs' is the validity sidecar — `…_PPGRUNS.txt` for PPG, `…_ECGRUNS.txt` for ECG (one writer emits both) — SAMPLE-VALIDITY-ENVELOPE §3.2; its TEXT rides
+  // to each node's adapter as ctx.companions.runs and from there into parsePPG / parseECGText(text, { runsText }).
+  var _COMPANION_KINDS = { ecg: ['rr', 'hr', 'acc', 'runs'], ppg: ['acc', 'gyro', 'magn', 'ppi', 'runs'] };
   // DEEP-AUDIT-II §10.2 — a sidecar is written in the SAME recording session (its filename stamp is
   // minutes from the primary's). A candidate whose nearest stamp is more than a day away is a
   // DIFFERENT recording, never a companion (a 5-day-old ACC must not attach and rewrite which beats
@@ -44174,6 +44323,7 @@ __exports.CPAPDex = window.CPAPDex;
   function streamKind(name) {
     var u = String(name == null ? '' : name).toUpperCase();
     if (/_PPGRUNS\b|_PPGRUNS\./.test(u)) return 'runs'; // the validity sidecar — before `_PPG`, which does not match it anyway (no boundary before RUNS)
+    if (/_ECGRUNS\b|_ECGRUNS\./.test(u)) return 'runs'; // the ECG validity sidecar — MUST precede `_ECG`, which does not match it either, for the same reason
     if (/_ECG\b|_ECG\./.test(u)) return 'ecg';
     if (/_PPG\b|_PPG\./.test(u)) return 'ppg';
     if (/_GYRO\b|_GYRO\./.test(u)) return 'gyro';
