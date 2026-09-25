@@ -446,7 +446,11 @@
           }
           // companion-bundle ingest (ECG/PPG multi-file): pair matched device sidecars by filename
           // stamp across the walked drop so the adapter attaches them to the frame (HANDOFF §2(b)).
-          if ((sigType === 'ecg' || sigType === 'ppg') && ORCH && typeof ORCH.pairCompanions === 'function') {
+          /* THE LANE LIST IS THE BUG SURFACE, so it is read from the ONE table rather than repeated: a
+             type present in `_COMPANION_KINDS` and absent from this condition pairs nothing, silently, in
+             this host only — and the two hosts would then disagree about the same drop. `spo2` joining
+             (the O2Ring waveform's 1 Hz calibration partner) is what made that concrete. */
+          if (ORCH && typeof ORCH.pairCompanions === 'function' && typeof ORCH.companionKinds === 'function' && ORCH.companionKinds(sigType).length) {
             var _ents = [];
             for (var ci = 0; ci < ITEMS.length; ci++) {
               var cit = ITEMS[ci];
