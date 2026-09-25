@@ -1,6 +1,6 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 
-**Status:** IN-PROGRESS (§3.1 answered 2026-09-18; **§3.2 consumers ENUMERATED and the PpgDex reader WIRED 2026-09-25, Kestrel** — the triage stamp earlier that day read "PpgDex ingests `_PPGRUNS.txt`" off the DSP signature, and enumerating the callers showed that `parsePPG(text, { runsText })` (#2316) was reached by NO production path: not the app drop, not either PPG adapter, not the Unifier's pairing — only a unit test. Worse, every RUNS/SEAMS sidecar name fell through both bare-name classifiers and was queued as a RECORDING. Both fixed in one unit (the §3.2 table names the wire per stream; gate group `SAMPLE-VALIDITY-ENVELOPE §3.2`, 16 assertions). What remains: the ECG, ACC and PPG2W sidecars are written by the box and read by nothing — one node unit each, ECG first; done-when 3 (a planted run reaches `null` and nothing else, across nodes), 4 (the unsafe read made impossible by a test) and 5 (parent §1.2 line updated). Owner: Kestrel, per the owner's 2026-09-24 greenlight) · **Created:** 2026-09-17 · **Promoted-from:** `BLE-TRANSPORT-REDESIGN-2026-09-10-BRIEF.md` §1.2 (whose §5 closes when 1.2–1.7 are each executed **or promoted**; this is the promotion, and §1.4's was the precedent) · **Owner:** unassigned · **Relates:** CLAUDE.md §∅ ABSENCE IS NULL (non-negotiable, owner-reinforced 2026-09-06), `signal-frame.js`, the sidecar shipped in #2317
+**Status:** IN-PROGRESS (§3.1 answered 2026-09-18; **§3.2 consumers ENUMERATED and the PpgDex reader WIRED 2026-09-25, Kestrel** — the triage stamp earlier that day read "PpgDex ingests `_PPGRUNS.txt`" off the DSP signature, and enumerating the callers showed that `parsePPG(text, { runsText })` (#2316) was reached by NO production path: not the app drop, not either PPG adapter, not the Unifier's pairing — only a unit test. Worse, every RUNS/SEAMS sidecar name fell through both bare-name classifiers and was queued as a RECORDING. Both fixed in one unit (the §3.2 table names the wire per stream; gate group `SAMPLE-VALIDITY-ENVELOPE §3.2`, 16 assertions). What remains: the ECG, ACC and PPG2W sidecars are written by the box and read by nothing — one node unit each, ECG first; done-when 3 (a planted run reaches `null` and nothing else, across nodes), 4 (the unsafe read made impossible by a test) and 5 (parent §1.2 line updated). Owner: Kestrel, per the owner's 2026-09-24 greenlight) · **Residue:** 2026-09-25-ppg2w-routes-to-spo2 · **Created:** 2026-09-17 · **Promoted-from:** `BLE-TRANSPORT-REDESIGN-2026-09-10-BRIEF.md` §1.2 (whose §5 closes when 1.2–1.7 are each executed **or promoted**; this is the promotion, and §1.4's was the precedent) · **Owner:** unassigned · **Relates:** CLAUDE.md §∅ ABSENCE IS NULL (non-negotiable, owner-reinforced 2026-09-06), `signal-frame.js`, the sidecar shipped in #2317
 
 > **Read §1 before sizing this.** The parent states the goal as *"the transport emits an envelope, not
 > a scalar"*. Taken literally at the wire that **contradicts §∅**, which prescribes the opposite
@@ -134,10 +134,46 @@ From the parent, and from the 2026-09-06 all-hands:
    |---|---|---|---|
    | `ppg` Verity 3-LED | `…_PPGRUNS.txt` | `ppgdex-dsp.js parsePPG` ← `ppgdex-app.js` drop · `adapters/polar-sense-ppg.js` · Unifier/OverDex `pairCompanions` | **YES — from this unit.** The DSP took `opts.runsText` since #2316 and **no production caller passed it** (the app grouped acc/gyro/magn/ppi/marker only; both adapters called `parseFn(text)`; the Unifier had no `runs` kind; the only test drove `parsePinnedRuns` directly) |
    | `ppg1` O2Ring finger | `…_PPGRUNS.txt` | same parser ← `adapters/o2ring-ppg.js` | **YES — from this unit** |
-   | `ppg2w` O2Ring dual-wavelength | `…_PPG2WRUNS.txt` | `oxydex-dsp.js parsePPG2W`; `ppgdex-dsp.js` dual path | **NO** |
+   | `ppg2w` O2Ring dual-wavelength | `…_PPG2WRUNS.txt` | `oxydex-dsp.js parsePPG2W` ← OxyDex's own drop handler. The `ppgdex-dsp.js` dual path is **DEAD** — see the enumeration below | **YES — #3070** |
    | `acc` Polar H10 / Verity | `…_ACCRUNS.txt` | `ecgdex-dsp.js parseDeviceACC` · `ppgdex-dsp.js` / `motiondex-dsp.js parseSensorXYZ` | **NO** |
    | `accraw` O2Ring | `…ACCRAWRUNS` | no root `*.js` parses ACCRAW at all | n/a |
    | `ecg` Polar H10 | `…_ECGRUNS.txt` | `ecgdex-dsp.js parseECGText` ← `ecgdex-app.js` · `adapters/polar-h10-ecg.js` · `dex-ingest.js planIngest` | **NO** |
+
+   ⚠️ **THE `ppgdex-dsp.js` DUAL PATH IS DEAD FOR `ppg2w` — enumerated by EXECUTION, 2026-09-25 (Magpie).**
+   This cell named two entry points and the second one cannot be reached. `ppgdex-dsp.js` really does accept
+   two channels (`parsePPG`: *"TWO channels are accepted ONLY as the O2Ring's raw dual-wavelength
+   `_PPG2W.txt`"*), so the code exists — nothing routes a file to it. Every route was RUN against
+   `Wellue_O2Ring_…_PPG2W.txt`, each with the `…_PPG.txt` control beside it so a null answer is about the
+   subject and not the harness:
+
+   | route | `…_PPG2W.txt` | control `…_PPG.txt` |
+   |---|---|---|
+   | `DexIngest.ppgKind` (PpgDex app drop) | **`'skip'`** | `'ppg'` |
+   | `DexIngest.foreignKind` | `'spo2'` | — |
+   | `DexIngest.planIngestPpg` | **0 ppg primaries**, set aside as `spo2` | 1 primary |
+   | `adapters/o2ring-ppg.js` `detect` | **0** | **0.97** |
+   | `adapters/polar-sense-ppg.js` `detect` | **0** | 0 |
+   | `SignalAdapters.route` best | `oxydex-spo2` @ 0.95 — *not* a ppg adapter | `o2ring-ppg` @ 0.97 |
+   | `SignalOrchestrate.streamKind` (Unifier/OverDex) | **`null`** | `'ppg'` |
+   | `SignalOrchestrate.pairCompanions` | **`null`** for the whole set | pairs |
+
+   The cause is one regex shared by all of them: the stream suffix is matched as `_PPG\b` / `_PPG\.`, and
+   `_PPG2W` has a word character after `PPG`, so neither alternative fires. That is the SAME cause as the
+   sidecar misclassification recorded in the next paragraph — appending to the stream suffix defeats the
+   boundary — reaching a different file. So the dual path needs no sidecar: it needs a router that can see
+   the stream at all, and that is a separate decision (open the route, or delete the dual path), not a
+   validity-envelope item. **Tripwire, not deletion:** `tests/dex-tests.js` now asserts each cell above, so
+   the day a route DOES reach `ppgdex-dsp` with a `_PPG2W.txt` the suite reds and names this row — the
+   sidecar is then owed by whichever route opened.
+
+   ⚠️ **A SEPARATE, LIVE FINDING FELL OUT OF THAT ENUMERATION** (residue `2026-09-25-ppg2w-routes-to-spo2`):
+   `SignalAdapters.route` hands the raw 125 Hz dual-wavelength WAVEFORM to **`oxydex-spo2` at 0.95 with no
+   runner-up**, so it is not even flagged `ambiguous`. That is the §1.4 tie `adapters/o2ring-ppg.js`'s own
+   header describes — *"`oxydex-spo2` matched the vendor token alone and claimed BOTH at 0.95"* — fixed for
+   `_PPG.txt` and still open for `_PPG2W.txt`, where there is no competitor to tie with. What
+   `oxydex-spo2.parse` then DOES with it is **NOT MEASURED**: the probe returned a null frame for the real
+   SpO₂ CSV control too, so that harness cannot answer the severity question and its silence is not a
+   negative (§4b). Measuring it needs the real host page.
 
    ⚠️ **And the sidecars were being INGESTED AS WAVEFORMS.** Measured 2026-09-25 before any fix:
    `DexIngest.ppgKind('Polar_VS_…_PPGRUNS.txt')` → `'ppg'` and `ecgKind(…)` → `'ecg'`; the same for
