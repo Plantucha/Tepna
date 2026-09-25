@@ -14087,10 +14087,82 @@
       T.ok('activeSec = 0 falls back to the span rather than dividing by zero', D.detectCVHR(gap.nn, gap.tt, 0).index === wallIndex);
       T.eq('a refusal (N < 60) carries NO denominator — there is no basis for a number it did not compute', D.detectCVHR(gap.nn.slice(0, 30), gap.tt.slice(0, 30), 100).denomSec, undefined);
 
+      /* ── §∅ · A DROPOUT'S HELD HR IS NOT A MEASUREMENT ────────────────────────────────────────
+         The resample walks beats, so every second inside a dropout keeps the LAST PRE-GAP interval
+         (`j` is frozen). A 1.5 h strap-off therefore produced 5400 s of invented, perfectly constant
+         HR, exported as `hrSeries` and drawn by the CVHR card as a flat measured line.
+         `spansGap` — the mask buildNN already builds and `epochEngine` already takes ("THE EPOCH IS
+         NOT EXEMPT") — is what this function never asked for. `validateHR`'s own comment names the
+         other half outright: the device side stopped holding forward because "the CVHR grid this is
+         compared against holds forward too", which made the two agree BY CONSTRUCTION. */
+      {
+        var GAP_S = 10;
+        var sg = new Uint8Array(gap.nn.length);
+        for (var q = 1; q < gap.tt.length; q++) if (gap.tt[q] - gap.tt[q - 1] > GAP_S) sg[q] = 1;
+        var marked = 0;
+        for (var q2 = 0; q2 < sg.length; q2++) marked += sg[q2];
+        T.ok('ANTI-VACUITY · the planted night really does straddle a dropout', marked >= 1, marked + ' interval(s) marked');
+
+        var held = D.detectCVHR(gap.nn, gap.tt, gap.activeSec);
+        var nullsHeld = held.hrSeries.filter(function (v) {
+          return v == null;
+        }).length;
+        T.eq('WITHOUT the mask every second is a number — the 1.5 h gap included', nullsHeld, 0);
+
+        var masked = D.detectCVHR(gap.nn, gap.tt, gap.activeSec, sg);
+        var nullsMasked = masked.hrSeries.filter(function (v) {
+          return v == null;
+        }).length;
+        T.ok('WITH the mask the dropout is absent from the exported series', nullsMasked > 3000, nullsMasked + ' null second(s)');
+        T.ok('…and that is the gap, not the whole night', nullsMasked < masked.hrSeries.length * 0.75, nullsMasked + ' of ' + masked.hrSeries.length);
+        T.eq('coveredSec accounts for exactly the seconds that are not null', masked.hrSeries.length - nullsMasked, masked.coveredSec);
+
+        /* THE FABRICATION ITSELF: the held stretch is ONE repeated value — a physiological HR series
+           is never constant for an hour, which is what makes it detectable and what made it wrong. */
+        var inGap = [];
+        for (var z = 0; z < held.hrSeries.length; z++) if (masked.hrSeries[z] == null) inGap.push(held.hrSeries[z]);
+        var distinct = {};
+        for (var z2 = 0; z2 < inGap.length; z2++) distinct[inGap[z2].toFixed(3)] = 1;
+        /* ⚠️ The first version of this asserted ONE distinct value and measured 5 — because
+           `hrSeries` is the SMOOTHED series, so the ±2 s window blends real samples in at each edge.
+           The claim described the raw grid; the export is what a reader sees. Measured against a
+           COVERED stretch of the same length instead, which is the discriminator rather than a
+           loosened bound: a real HR hour varies, a held one does not. */
+        var covSame = [];
+        for (var z3 = 0; z3 < masked.hrSeries.length && covSame.length < inGap.length; z3++) {
+          if (masked.hrSeries[z3] != null) covSame.push(masked.hrSeries[z3]);
+        }
+        var distinctCov = {};
+        for (var z4 = 0; z4 < covSame.length; z4++) distinctCov[covSame[z4].toFixed(3)] = 1;
+        var nGap = Object.keys(distinct).length,
+          nCov = Object.keys(distinctCov).length;
+        T.ok(
+          '…and the held stretch is FLAT where a measured one of equal length is not',
+          nGap * 50 < nCov,
+          nGap + ' distinct over ' + inGap.length + ' held s vs ' + nCov + ' over ' + covSame.length + ' measured s'
+        );
+
+        T.ok(
+          'no event is counted on a second the mask calls absent',
+          masked.events.every(function (e) {
+            return masked.hrSeries[e.sec] != null;
+          })
+        );
+        /* BACK-COMPAT (§🧪): the mask is the LAST argument and optional, so a 3-arg caller is
+           unchanged — the control above IS that caller. */
+        T.eq('a 3-arg caller keeps its index', held.index, D.detectCVHR(gap.nn, gap.tt, gap.activeSec).index);
+      }
+
       // ── the wiring: analyze() passes ITS active seconds, and the export carries the basis ──
       var src = env.sources && env.sources['ecgdex-dsp.js'];
       if (typeof src === 'string') {
-        T.ok('analyze() calls detectCVHR with nnRes.activeSec — the same seconds durSec is built from', /detectCVHR\(nn,\s*tt,\s*nnRes\.activeSec\)/.test(src));
+        /* ⚠️ This pinned the ARGUMENT LIST, not the capability: the regex required `activeSec` to be
+           the LAST argument, so adding a fourth (the `spansGap` mask) reddened a guard about the
+           DENOMINATOR, which the fourth argument does not touch. Widened to "activeSec is the third
+           argument", which is what F3 actually asserts. A guard that tests spelling fails on every
+           correct change that passes near it. */
+        T.ok('analyze() calls detectCVHR with nnRes.activeSec — the same seconds durSec is built from', /detectCVHR\(nn,\s*tt,\s*nnRes\.activeSec\s*[,)]/.test(src));
+        T.ok('…and hands it nnRes.spansGap, the mask epochEngine already takes', /detectCVHR\(nn,\s*tt,\s*nnRes\.activeSec,\s*nnRes\.spansGap\)/.test(src));
         T.ok('the export attaches apnea.cvhrHours from cvhr.denomSec, only when the index was computed', /out\.apnea\.cvhrIndex\s*!=\s*null[^\n]*denomSec\s*>\s*0[^\n]*cvhrHours\s*=/.test(src));
       } else T.skip('ecgdex-dsp.js source in env.sources', 'not available in this runner');
       /* End-to-end through analyze() on the real synthetic. NOTE the geometry: a `rec.gaps` entry is

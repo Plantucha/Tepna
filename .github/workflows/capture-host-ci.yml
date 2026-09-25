@@ -176,7 +176,7 @@ jobs:
           # dependency there declares it to humans and to `check.sh`, and NOT to the job that runs the
           # tests. Measured: the property suite passed locally (my venv had it from a manual install)
           # and both matrix legs failed collection here with ModuleNotFoundError.
-          pip install pytest pytest-cov pytest-xdist ruff shellcheck-py hypothesis
+          pip install pytest pytest-cov pytest-xdist pytest-timeout ruff shellcheck-py hypothesis
           pip install -r requirements.txt
       - name: Lint (ruff — real errors only)
         if: needs.changes.outputs.run == 'true'
@@ -219,7 +219,16 @@ jobs:
         # combines the workers' data itself. 4 = the runner's vCPU count, not `auto`: `auto` reads
         # whatever the image happens to expose and moves when the image does; a fixed number is a
         # number someone measured, and a change to it is a diff.
-        run: pytest -q -n 4 --cov --cov-branch --cov-report=term-missing --cov-fail-under=100
+        # `--timeout=180` (pytest-timeout): A HANG HAS NO VERDICT. Measured 2026-09-24 on the rig —
+        # a run for an already-merged PR sat at 99 % CPU for four hours with no exit code and no
+        # failing test, which is indistinguishable from this job merely being slow (CLAUDE.md §4c),
+        # and this job IS the slow one (p50 21m49s). The number is the suite's own distribution, not
+        # a guess: the slowest test on main is 36.99 s UNDER COVERAGE (31.98 s without, and the gate runs
+        # with it), so this is 4.9x it — see check.sh's PYTEST_TIMEOUT_S,
+        # which carries the derivation, and tests/test_check_script.py, which asserts the two agree.
+        # It is here as well as in check.sh because CI does NOT run check.sh; a bound on one side
+        # only is half a bound, and the missing half is the side nobody watches.
+        run: pytest -q -n 4 --timeout=180 --cov --cov-branch --cov-report=term-missing --cov-fail-under=100
 
   # ── DIFF-SCOPED MUTATION GATE ──────────────────────────────────────────────────────────────────────
   # Coverage answers "did this line run?". This answers "would any test NOTICE if it were wrong?", and

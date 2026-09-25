@@ -106,7 +106,7 @@
  */
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, renameSync, statSync, writeFileSync, writeSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { resolveStatePath, sharedStatePath, stateDirs } from './mutation-map.mjs';
 import { fileURLToPath } from 'node:url';
@@ -114,10 +114,30 @@ import { stripCode } from './strip-markup.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 /* §1: shared-first through the git common dir — one index serves every worktree. */
-const CACHE = resolveStatePath(ROOT, 'doc-search-index.json');
+/* The cache is JSON LINES, one document per line, written through a stream — never one JSON string.
+   Measured 2026-09-24: the one-string form died the day the corpus grew. `JSON.stringify(cache)` on
+   ~53k chunks needs ~705 MB of string, V8's MAX_STRING_LENGTH is 537 MB, the throw was swallowed by
+   a bare `catch {}`, and every query thereafter re-embedded 16,658 chunks (5+ min) and could not
+   persist — a search that read green while its cache silently never wrote. The legacy one-string
+   file is still READ once (parse survives where stringify does not) so a machine migrates without
+   re-embedding; it is never written again. */
+const CACHE = resolveStatePath(ROOT, 'doc-search-index.jsonl');
+const LEGACY_CACHE = resolveStatePath(ROOT, 'doc-search-index.json');
 const OLLAMA = process.env.DEX_OLLAMA || 'http://localhost:11434';
 const EMBED_MODEL = process.env.DEX_EMBED || 'bge-m3';
-const DIRS = ['briefs', 'audits', 'docs', 'papers', '.'];
+/* The in-repo corpus, directory by directory (non-recursive, on purpose — a glob would pull in
+   uploads/ goldens and docs/*.html served copies). Measured 2026-09-24 before this list grew: the
+   capture host — 122 .py in capture-host/, 332 tests, 219 tools/*.mjs, 12 hook scripts — was NOT in
+   the corpus at all, so a Rule-0 query about the daemon returned repo prose and never the code that
+   decides; the same shape as the 2026-08-17 "source comments were never indexed" failure, one lane
+   over. `changes/` carries the cheapest true signal that a defect was already fixed (a pending
+   changeset), and was not indexed either. */
+const DIRS = ['briefs', 'audits', 'docs', 'papers', 'changes', 'capture-host', 'capture-host/tests', 'capture-host/systemd', 'capture-host/deploy', 'tools', 'tests', '.claude/hooks', '.'];
+/* Document surfaces INSIDE the repo. `.js` was the 2026-08-17 lesson (comments are the largest
+   ratification surface); `.py`/`.mjs`/`.sh` are the 2026-09-24 one — the daemon, the tools and the
+   hooks carry their DO-NOT-REVERT rationales in the same way. `.json` is deliberately NOT here: the
+   survey ledgers embed as noise, and a reader who needs one goes to its row. */
+const REPO_EXTS = ['.md', '.html', '.js', '.mjs', '.py', '.sh', '.toml', '.yaml', '.yml', '.service', '.timer'];
 /* External roots (header §EXTERNAL ROOTS). Same state dir as the index, so one config serves every
    worktree; absent ⇒ `[]`, never an error — the file is per-machine like the model. */
 const EXTERNAL_CONFIG = resolveStatePath(ROOT, 'doc-search-external.json');
@@ -296,7 +316,7 @@ export function listDocs(root, dirs = DIRS) {
        lesson they drew — "I should have run doc-search" — was itself wrong, because running it
        would have returned nothing. An out-of-scope corpus is worse than a cold cache: a cold cache
        costs ~200 s and announces itself, an absent corpus is indistinguishable from a real negative. */
-    for (const f of names) if (f.endsWith('.md') || f.endsWith('.html') || f.endsWith('.js')) out.push(d === '.' ? f : `${d}/${f}`);
+    for (const f of names) if (REPO_EXTS.some((x) => f.endsWith(x))) out.push(d === '.' ? f : `${d}/${f}`);
   }
   return out.sort();
 }
@@ -326,7 +346,11 @@ export function readExternalConfig(path = EXTERNAL_CONFIG, readFn = readFileSync
       continue;
     }
     const exts = Array.isArray(r.exts) && r.exts.length ? r.exts.map((x) => String(x).toLowerCase()) : EXT_DEFAULT_EXTS;
-    out.push({ name: r.name, path: resolve(r.path), exts, pull: r.pull === true });
+    /* `depth`: how many directory levels below the root to visit (1 = the root's own files only).
+       Absent ⇒ unbounded. Exists so a root can sit at a home directory — the fleet's ops scripts live
+       at ~/ beside every worktree and repo — without re-indexing everything underneath it. */
+    const depth = Number.isInteger(r.depth) && r.depth > 0 ? r.depth : Infinity;
+    out.push({ name: r.name, path: resolve(r.path), exts, pull: r.pull === true, depth });
   }
   return out;
 }
@@ -386,7 +410,8 @@ export function stampSession(root, sessionId, query, fs = { mkdirSync, writeFile
 export function walkExternal(root, fs = { readdirSync, statSync }) {
   const out = [];
   const exts = new Set(root.exts);
-  const visit = (dir, rel) => {
+  const maxDepth = Number.isInteger(root.depth) && root.depth > 0 ? root.depth : Infinity;
+  const visit = (dir, rel, level = 1) => {
     let names = [];
     try {
       names = fs.readdirSync(dir);
@@ -404,7 +429,7 @@ export function walkExternal(root, fs = { readdirSync, statSync }) {
         continue;
       }
       if (st.isDirectory()) {
-        visit(abs, r);
+        if (level < maxDepth) visit(abs, r, level + 1);
         continue;
       }
       const dot = n.lastIndexOf('.');
@@ -442,15 +467,92 @@ async function embed(inputs) {
    (one doc edited) costs one call rather than four hundred. */
 /* `scope`: 'all' (default) · 'repo' (`--no-ext`) · 'ext' (`--ext-only`). The cache is shared across
    scopes — an external chunk embedded once is not re-embedded when the next query is repo-only. */
+/* JSONL cache: line 1 is the header `{"model"}`, every further line is one document
+   `{"file","h","vecs"}`. Reading is line-by-line; writing streams one line at a time, so neither
+   side ever holds the whole index as one string. `loadCache` falls back to the legacy one-string
+   file (read-only) when no JSONL exists yet. Returns the same in-memory shape as before. */
+/* Reads the JSONL cache LINE BY LINE through a fixed buffer — never `readFileSync(path, 'utf8')`.
+   Measured 2026-09-24, one hour after the JSONL writer landed: the reader still did the whole-file
+   read, Node refused it at 690 MB (`ERR_STRING_TOO_LONG`, the same 537 MB limit that had killed the
+   writer), the `catch` returned an EMPTY cache, and every query re-embedded all 54k chunks and then
+   wrote them out again. The writer was fixed and the reader was not; a limit met on one side of a
+   file is met on the other. `readLines` yields decoded lines from 32 MB chunks, carrying the partial
+   tail between reads; it is injectable so the selftest can feed it pieces. */
+export function* readLines(path, openFn = openSync, readFn = readSync, closeFn = closeSync) {
+  const fd = openFn(path, 'r');
+  try {
+    const buf = Buffer.allocUnsafe(32 * 1024 * 1024);
+    let carry = '';
+    for (;;) {
+      const n = readFn(fd, buf, 0, buf.length, null);
+      if (n <= 0) break;
+      const text = carry + buf.toString('utf8', 0, n);
+      const parts = text.split('\n');
+      carry = parts.pop();
+      for (const line of parts) if (line) yield line;
+    }
+    if (carry) yield carry;
+  } finally {
+    closeFn(fd);
+  }
+}
+export function loadCache(path = CACHE, legacy = LEGACY_CACHE, linesFn = readLines, existsFn = existsSync, legacyReadFn = readFileSync) {
+  const empty = { entries: {}, model: EMBED_MODEL };
+  if (existsFn(path)) {
+    try {
+      let head = null;
+      const entries = {};
+      for (const line of linesFn(path)) {
+        if (head === null) {
+          head = JSON.parse(line);
+          if (head.model !== EMBED_MODEL) return empty;
+          continue;
+        }
+        const e = JSON.parse(line);
+        entries[e.file] = { h: e.h, vecs: e.vecs };
+      }
+      return head ? { entries, model: head.model } : empty;
+    } catch (e) {
+      process.stderr.write(`  ⚠ index cache unreadable (${String((e && e.message) || e)}) — rebuilding from scratch\n`);
+      return empty;
+    }
+  }
+  if (existsFn(legacy)) {
+    try {
+      const c = JSON.parse(legacyReadFn(legacy, 'utf8'));
+      if (c.model === EMBED_MODEL && c.entries) return c;
+    } catch {}
+  }
+  return empty;
+}
+/* Returns null on success, else the reason as a string — the caller reports it, never swallows it. */
+export function saveCache(cache, path = CACHE, openFn = openSync, writeFn = writeSync, closeFn = closeSync, mkdirFn = mkdirSync) {
+  let fd = null;
+  try {
+    mkdirFn(dirname(path), { recursive: true });
+    const tmp = path + '.tmp';
+    fd = openFn(tmp, 'w');
+    writeFn(fd, JSON.stringify({ model: cache.model }) + '\n');
+    for (const [file, e] of Object.entries(cache.entries)) writeFn(fd, JSON.stringify({ file, h: e.h, vecs: e.vecs }) + '\n');
+    closeFn(fd);
+    fd = null;
+    renameSync(tmp, path);
+    return null;
+  } catch (e) {
+    if (fd !== null) {
+      try {
+        closeFn(fd);
+      } catch {}
+    }
+    return String((e && e.message) || e);
+  }
+}
+
 async function buildIndex(quiet, scope = 'all') {
   const repo = scope === 'ext' ? [] : listDocs(ROOT).map((f) => ({ key: f, abs: join(ROOT, f) }));
   const ext = scope === 'repo' ? [] : listExternalDocs();
   const files = repo.concat(ext);
-  let cache = { entries: {}, model: EMBED_MODEL };
-  try {
-    const c = JSON.parse(readFileSync(CACHE, 'utf8'));
-    if (c.model === EMBED_MODEL) cache = c;
-  } catch {}
+  let cache = loadCache();
   const entries = [];
   const pending = [];
   for (const { key: f, abs } of files) {
@@ -484,10 +586,10 @@ async function buildIndex(quiet, scope = 'all') {
     }
   }
   if (embedded) {
-    try {
-      mkdirSync(dirname(CACHE), { recursive: true });
-      writeFileSync(CACHE, JSON.stringify(cache));
-    } catch {}
+    const err = saveCache(cache);
+    /* NOT silent: an unwritten cache means the next query pays the whole embed again, and the one
+       thing worse than that cost is not knowing it is being paid. */
+    if (err) process.stderr.write(`  ⚠ index cache NOT written (${err}) — every query will re-embed until this is fixed\n`);
   }
   if (!quiet)
     process.stderr.write(
@@ -592,6 +694,119 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
     listDocs(ROOT).some((f) => f.startsWith('briefs/'))
   );
   ok('…and root docs like CLAUDE.md', listDocs(ROOT).includes('CLAUDE.md'));
+  /* 2026-09-24: the capture host, the tools and the hooks are DOCUMENT surfaces too. Each leg names one
+     file that a Rule-0 query about that lane must be able to find; before this the whole lane was absent. */
+  ok('capture-host/capture.py is in the corpus (the daemon carries its rationales in comments)', listDocs(ROOT).includes('capture-host/capture.py'));
+  ok(
+    'capture-host/tests/*.py are in the corpus (a test pins a decision as much as a brief does)',
+    listDocs(ROOT).some((f) => /^capture-host\/tests\/test_.*\.py$/.test(f))
+  );
+  ok('tools/*.mjs are in the corpus', listDocs(ROOT).includes('tools/doc-search.mjs'));
+  ok(
+    '.claude/hooks/*.sh are in the corpus',
+    listDocs(ROOT).some((f) => /^\.claude\/hooks\/.*\.sh$/.test(f))
+  );
+  ok('changes/ is in the corpus (a pending changeset is the cheapest true signal of a fix)', DIRS.includes('changes'));
+  ok('.json is NOT a repo surface (survey ledgers embed as noise)', !REPO_EXTS.includes('.json'));
+  /* external roots: `depth` bounds the walk — a root at ~/ must not re-index every worktree under it */
+  {
+    const tree = {
+      '/r': ['a.md', 'sub'],
+      '/r/sub': ['b.md', 'deep'],
+      '/r/sub/deep': ['c.md']
+    };
+    const fsx = {
+      readdirSync: (d) => tree[d] || [],
+      statSync: (p) => ({ isDirectory: () => p in tree, size: 10 })
+    };
+    const all = walkExternal({ name: 'x', path: '/r', exts: ['.md'] }, fsx).map((e) => e.key);
+    const one = walkExternal({ name: 'x', path: '/r', exts: ['.md'], depth: 1 }, fsx).map((e) => e.key);
+    const two = walkExternal({ name: 'x', path: '/r', exts: ['.md'], depth: 2 }, fsx).map((e) => e.key);
+    ok('no depth ⇒ the whole tree (3 files)', all.length === 3);
+    ok("depth 1 ⇒ the root's own files only", one.length === 1 && one[0] === 'ext:x/a.md');
+    ok('depth 2 ⇒ one level down, not two', two.length === 2 && !two.includes('ext:x/sub/deep/c.md'));
+    const cfg = readExternalConfig('/nope', () =>
+      JSON.stringify({
+        roots: [
+          { name: 'h', path: '/r', exts: ['.sh'], depth: 1 },
+          { name: 'k', path: '/r' }
+        ]
+      })
+    );
+    ok('depth is read from the config, and absent ⇒ unbounded', cfg[0].depth === 1 && cfg[1].depth === Infinity);
+  }
+  /* JSONL cache: round-trips, never one string, and a write failure is REPORTED (2026-09-24: the
+     one-string form threw past V8's 537 MB limit into a bare catch and every query re-embedded). */
+  {
+    const store = {};
+    const fakeFs = {
+      open: (p) => {
+        store[p] = '';
+        return p;
+      },
+      write: (fd, s) => {
+        store[fd] += s;
+      },
+      close: () => {},
+      mkdir: () => {}
+    };
+    const orig = renameSync;
+    const cacheIn = { model: EMBED_MODEL, entries: { 'a.md': { h: 'h1', vecs: [[0.1, 0.2]] }, 'b.md': { h: 'h2', vecs: [[0.3]] } } };
+    let renamed = null;
+    const err = saveCache(cacheIn, '/x/idx.jsonl', fakeFs.open, fakeFs.write, fakeFs.close, fakeFs.mkdir);
+    void orig;
+    ok('saveCache reports a rename it cannot perform rather than swallowing it', typeof err === 'string' && /ENOENT|no such/i.test(err));
+    const text = store['/x/idx.jsonl.tmp'];
+    ok('the cache is written one document per line, header first', text.split('\n')[0] === JSON.stringify({ model: EMBED_MODEL }) && text.split('\n').length === 4);
+    const back = loadCache(
+      '/x/idx.jsonl',
+      '/nope',
+      function* () {
+        yield* text.split('\n').filter(Boolean);
+      },
+      (p) => p === '/x/idx.jsonl'
+    );
+    ok('loadCache round-trips the JSONL form', back.entries['a.md'].h === 'h1' && back.entries['b.md'].vecs[0][0] === 0.3);
+    const legacy = loadCache(
+      '/none.jsonl',
+      '/legacy.json',
+      function* () {},
+      (p) => p === '/legacy.json',
+      () => JSON.stringify(cacheIn)
+    );
+    ok('the legacy one-string cache is still READ (migration without re-embedding)', legacy.entries['b.md'].h === 'h2');
+    const wrongModel = loadCache(
+      '/x/idx.jsonl',
+      '/nope',
+      function* () {
+        yield JSON.stringify({ model: 'other' });
+      },
+      (p) => p === '/x/idx.jsonl'
+    );
+    ok('a cache from another model is discarded', Object.keys(wrongModel.entries).length === 0);
+    /* the chunked reader itself: lines split across a chunk boundary are reassembled, and no whole-file
+       string is ever built — fed through a fake fd that returns the file in 7-byte pieces */
+    {
+      const data = Buffer.from('{"model":"m"}\n{"file":"a","h":"1","vecs":[[1]]}\n{"file":"b","h":"2","vecs":[[2]]}\n');
+      let pos = 0;
+      const fakeRead = (fd, buf, off) => {
+        const n = Math.min(7, data.length - pos);
+        data.copy(buf, off, pos, pos + n);
+        pos += n;
+        return n;
+      };
+      const got = [
+        ...readLines(
+          '/fake',
+          () => 1,
+          fakeRead,
+          () => {}
+        )
+      ];
+      ok('readLines reassembles lines across 7-byte chunks', got.length === 3 && JSON.parse(got[2]).file === 'b');
+    }
+    void renamed;
+  }
   ok(
     '§1: the index cache resolves within a declared state candidate',
     stateDirs(ROOT).some((d) => CACHE.startsWith(d)),

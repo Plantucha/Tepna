@@ -29,8 +29,24 @@
 # nobody works in — never a peer's working tree, never a non-git tree).
 # ════════════════════════════════════════════════════════════════════════
 set -u
-ROOT=/home/michal/Tepna
-STATE="$ROOT/.git/tepna-mutation"
+# THE CHECKOUT THAT GETS INDEXED IS A DEDICATED, ALWAYS-CURRENT ONE — not the shared root.
+# Measured 2026-09-24: the shared root sat on a feature branch 170 commits behind origin/main, so
+# this timer re-embedded stale briefs and tools every hour, and because the cache is keyed by
+# relative path and shared by every worktree, its stale chunks OVERWROTE the current ones a
+# session's own query had just embedded. `~/wt-bge-index` is a linked worktree of the primary
+# (`git worktree add --detach origin/main`) that nobody edits; it is fast-forwarded here before
+# every tick. Absent (a fresh machine), the primary is indexed as before, and the log says so.
+PRIMARY=/home/michal/Tepna
+INDEX_ROOT=/home/michal/wt-bge-index
+if [ -d "$INDEX_ROOT/.git" ] || [ -f "$INDEX_ROOT/.git" ]; then
+  git -C "$INDEX_ROOT" fetch -q origin main 2>/dev/null && git -C "$INDEX_ROOT" checkout -q --detach origin/main 2>/dev/null
+  ROOT="$INDEX_ROOT"
+else
+  ROOT="$PRIMARY"
+fi
+# The state dir is the PRIMARY's, whichever checkout is indexed: one cache, one external config,
+# shared with every worktree's own doc-search (resolveStatePath reads the git common dir).
+STATE="$PRIMARY/.git/tepna-mutation"
 LOG="$STATE/bge-reindex.log"
 mkdir -p "$STATE" 2>/dev/null
 
@@ -53,4 +69,4 @@ curl -sf --max-time 5 http://127.0.0.1:11434/api/tags >/dev/null 2>&1 || {
 
 cd "$ROOT" || exit 0
 out=$(timeout 900 node tools/doc-search.mjs --pull-ext "index freshness tick" 2>&1 | grep -iE "embed|chunk|ext:" | head -8 | tr '\n' ' ')
-echo "$(date -Is) ${out:-'(no embed line — check doc-search output)'}" >>"$LOG"
+echo "$(date -Is) [$ROOT @ $(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null)] ${out:-'(no embed line — check doc-search output)'}" >>"$LOG"

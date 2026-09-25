@@ -63,6 +63,10 @@ POLAR_EPOCH = _dt.datetime(2000, 1, 1)
 
 # Seconds to wait after a disconnect before the next connect — see `_with_link`'s finally.
 SETTLE_SEC = 6.0
+# The control-point reply budget, NAMED so a test can shorten it. As a default-arg literal it was
+# unpatchable, so every test of an UNANSWERED read paid 6 s per attempt × `_with_link`'s retries —
+# ~20 s each, in the suite that must stay runnable to gate this file's own silence handling.
+CP_REPLY_TIMEOUT_S = 6.0
 
 DIS = {
     "manufacturer": "00002a29-0000-1000-8000-00805f9b34fb",
@@ -106,7 +110,7 @@ class Control:
     async def start(self):
         await self.client.start_notify(pmd.PMD_CONTROL, lambda _s, d: self.q.put_nowait(bytes(d)))
 
-    async def send(self, cmd: bytes, timeout: float = 6.0) -> bytes | None:
+    async def send(self, cmd: bytes, timeout: float | None = None) -> bytes | None:
         _check(cmd)
         await asyncio.sleep(0.25)                      # pace it; capture.py never fires back-to-back
         while not self.q.empty():
@@ -117,7 +121,8 @@ class Control:
             self.log.append({"sent": cmd.hex(), "refused": f"{type(exc).__name__}: {exc}"})
             raise
         try:
-            reply = await asyncio.wait_for(self.q.get(), timeout)
+            reply = await asyncio.wait_for(
+                self.q.get(), CP_REPLY_TIMEOUT_S if timeout is None else timeout)
         except asyncio.TimeoutError:
             reply = None
         self.log.append({"sent": cmd.hex(), "reply": reply.hex() if reply else None})
@@ -170,6 +175,27 @@ async def _cycle_adapter() -> bool:
         return True
     except Exception:                                  # noqa: BLE001 — recovery is best-effort
         return False
+
+
+async def _status_or_unanswered(cp):
+    """`(parsed status, answered)` — an UNANSWERED control-point read is not an empty status.
+
+    ⚠️ §∅, and the asymmetry is what makes it dangerous rather than merely imprecise. Every status read
+    here was `parse_status_response(await cp.send(...) or b"")`, so a read the device never answered
+    parsed to `{}` — and `is_recording({}, meas)` is `False` by construction
+    (`{}.get(meas, NO_MEASUREMENT)` is in neither active state). The SAME silence therefore produced:
+
+      · `recording_confirmed_by_device = False`  — a safe-looking false NEGATIVE, and
+      · `stopped_confirmed_by_device  = not False = True` — a fabricated POSITIVE: the device
+        "confirmed" it had stopped recording to flash, on a read it never answered.
+
+    `parse_status_response`'s own docstring already warns about the adjacent version of this
+    ("reading the envelope wrong would report every stream as inactive, which is exactly the false
+    'it did not start' this command exists to rule out"); the envelope was fixed and the SILENCE was
+    not. A confirmation drawn from an unanswered read is published as `None`, never as a bool.
+    """
+    raw = await cp.send(pmd.status_cmd())
+    return pmd.parse_status_response(raw or b""), bool(raw)
 
 
 async def _with_link(address: str, adapter: str | None, body, attempts: int = 3):
@@ -326,16 +352,21 @@ async def phase_record(address, adapter, meas, seconds, out):
                 # Recorded as measured, never asserted.
                 return got
             await asyncio.sleep(min(seconds, 120.0))
-            during = pmd.parse_status_response(await cp.send(pmd.status_cmd()) or b"")
+            during, during_answered = await _status_or_unanswered(cp)
             got["status_during"] = {pmd.MEAS_NAME[m]: pmd.ACTIVE_NAME.get(s, s)
                                     for m, s in sorted(during.items())}
-            got["recording_confirmed_by_device"] = pmd.is_recording(during, meas)
+            got["status_during_answered"] = during_answered
+            got["recording_confirmed_by_device"] = (
+                pmd.is_recording(during, meas) if during_answered else None)
         finally:
             await cp.send(pmd.stop_cmd(meas))
-            after = pmd.parse_status_response(await cp.send(pmd.status_cmd()) or b"")
+            after, after_answered = await _status_or_unanswered(cp)
             got["status_after"] = {pmd.MEAS_NAME[m]: pmd.ACTIVE_NAME.get(s, s)
                                    for m, s in sorted(after.items())}
-            got["stopped_confirmed_by_device"] = not pmd.is_recording(after, meas)
+            got["status_after_answered"] = after_answered
+            # The dangerous half: `not is_recording({})` is True, so silence used to CONFIRM the stop.
+            got["stopped_confirmed_by_device"] = (
+                (not pmd.is_recording(after, meas)) if after_answered else None)
             got["host_utc_start"] = t0.isoformat()
         return got
     out["record"] = await _with_link(address, adapter, body)
@@ -584,14 +615,21 @@ async def stop_everything(address, adapter, out):
     deafness that broke the run, so the guard cannot fire. This is the backstop, and it verifies by
     re-reading status rather than trusting the ACK."""
     async def body(_c, cp):
-        before = pmd.parse_status_response(await cp.send(pmd.status_cmd()) or b"")
+        before, before_answered = await _status_or_unanswered(cp)
         active = [m for m, st in before.items() if st != pmd.NO_MEASUREMENT]
         for m in active:
             await cp.send(pmd.stop_cmd(m))             # BARE type — `03 82` is refused outright
-        after = pmd.parse_status_response(await cp.send(pmd.status_cmd()) or b"")
-        return {"was_active": [pmd.MEAS_NAME.get(m, hex(m)) for m in active],
-                "still_active": [pmd.MEAS_NAME.get(m, hex(m))
-                                 for m, st in after.items() if st != pmd.NO_MEASUREMENT]}
+        after, after_answered = await _status_or_unanswered(cp)
+        # `still_active: []` is the POSITIVE claim this whole backstop exists to make, so it may not be
+        # drawn from silence: an unanswered re-read leaves it `None` and says which read was missing.
+        # The same applies to `was_active` — an unanswered BEFORE read makes "nothing was active" a
+        # claim too, and it is the read that decides which stops are even attempted.
+        return {"was_active": ([pmd.MEAS_NAME.get(m, hex(m)) for m in active]
+                               if before_answered else None),
+                "still_active": ([pmd.MEAS_NAME.get(m, hex(m))
+                                  for m, st in after.items() if st != pmd.NO_MEASUREMENT]
+                                 if after_answered else None),
+                "status_answered": {"before": before_answered, "after": after_answered}}
     try:
         out["left_clean"] = await _with_link(address, adapter, body, attempts=4)
     except Exception as exc:                           # noqa: BLE001

@@ -9780,7 +9780,7 @@ async def heap_probe(cfg: dict, root: str):
                 return
             snap = tracemalloc.take_snapshot()
             traced, peak = tracemalloc.get_traced_memory()
-            top_rows = [str(s) for s in snap.compare_to(prev, "lineno")[:top]] if prev is not None else []
+            top_rows: list[str] = [str(s) for s in snap.compare_to(prev, "lineno")[:top]] if prev is not None else []
             rows.append(heap_report_row(_now().isoformat(timespec="seconds"), traced, peak,
                                         len(gc.get_objects()), gc_snapshot(), top_rows,
                                         covered=covered, live_streams=_live_streams()))
