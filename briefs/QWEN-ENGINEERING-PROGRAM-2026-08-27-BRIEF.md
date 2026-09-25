@@ -365,7 +365,7 @@ because it was run against a hand-measured answer first.
 
 - [ ] Owner ratifies the priority map (or amends ranks in place).
 - [ ] C1 + C2 + C3 built and the first nightly report produced.
-- [ ] The draft adoption lands (value realized, metric unblocked). ⚠️ **376 drafts, not 57** — a batch programme, not one PR; first batch landed #2652. See §7-bis.
+- [~] **SHELVED 2026-09-20 (owner ruling) — annotated 2026-09-25 (Magpie triage).** This brief's status clause is explicit: *"the program is not ratified and not now … Reopen only by an explicit owner ruling."* So the unfinished batch is not work owed under a DONE stamp; the DONE means CLOSED-as-shelved, and the `~` says the item is parked with its programme rather than met. ⚠️ **Not flipped to IN-PROGRESS**, which was the first reading of this item — that would re-open a programme the owner shut, on the strength of a checkbox. The draft adoption lands (value realized, metric unblocked). ⚠️ **376 drafts, not 57** — a batch programme, not one PR; first batch landed #2652. See §7-bis.
 - [ ] First precision numbers exist for ≥2 lenses; §2.5 bands applied once.
 - [ ] Follow-up brief records what the first month of precision data says about which
       charter sections earned expansion.
