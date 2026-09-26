@@ -51,6 +51,29 @@ left on the floor is comparable to this file.
 | 1 | §👥 (0 · 1 · 2 · 2b · 2b-bis · 2c · 2d · 3 · 4 · 4b · 4c · 5 · 5b) | 126,078 → 99,612 bytes (−26.5 KB, ≈ −6.6k tokens) | 45,378 bytes |
 | 2 | §📌 ∅ 🧾 📏 📜 📚 🎙️ 🧪 | 99,612 → 84,774 bytes | 76,909 bytes |
 | 3 | §🔏 🎫 📦 ✅ 🔒 | 84,774 → 60,322 bytes | 126,326 bytes |
+| 4 | tightening pass over the whole file + rules re-evaluation (owner, 2026-09-26 evening: "do a tightening pass also re-evaluate rules … some may be obsolete or redundant") | 60,322 → 37,063 bytes | unchanged |
+
+## 2b · The tightening pass (PR 4) — what was re-evaluated
+
+Every rule was checked against the tree before being kept. **Three were stale and are corrected:**
+
+| rule as it read | what the tree says | fix |
+|---|---|---|
+| §∅ "the mechanism is pending the owner's review; nothing authorises a fix to land" | the run-length sidecar shipped — `writers._RunSidecar` writes `<base>RUNS.txt` beside each optical stream (`PPG-ABSENCE-AS-VALUE`, DONE 2026-09-21) | names the shipped mechanism; the rule itself is unchanged |
+| §📚 "policy still PROPOSED; the flip to REFERENCE is the owner's" | `LITERATURE-USE-POLICY` header reads REFERENCE (living) | marked REFERENCE |
+| §🐍 `check.sh` = ruff · shellcheck · pytest | the script also runs `tools/find_unwired.py --check` and an advisory mypy ratchet that flips blocking at 0 | all five steps named |
+| roster: Wren "persists via `claude-wren.service` + tmux `wren`" | since 2026-09-23 Wren runs under the fleet herder's boot-enabled user unit; the tmux unit is disabled from boot | row updated (no unit names — a box detail) |
+
+**Redundancies folded** (each stated once now): the ref-is-not-the-tree rule (§2 and §2b were one rule
+told twice), "hook-enforced means a checkout that pulled it" (§2b-bis and §🔏), merge queue not available
+(§5 and §5b), the `clock.js` 5-of-8 count (§3, §✅ and Clock §2 — now the table in §3, the CLAIM in §✅,
+a pointer in §2), `buildHash` retired (two paragraphs → one clause), the retired "wait for the build to
+settle" rule (a retired rule is not a rule; dropped), the roster's pre-2026-08-31 name column (history,
+in RATIONALE §👥.0), the `Fleet-Session` CI-lap caveat, and the per-rule `why →` pointers (one per section).
+
+**Kept although gate-enforced** (the 2026-08-28 pilot's option (b) was declined and this pass does not
+reopen it): the status vocabulary, the residue row shape, the CLAIM lines, GATE A/B/C — a session
+reads the rule before it trips the gate, and the gate's message points back here.
 
 ## 3 · What this does NOT change
 
