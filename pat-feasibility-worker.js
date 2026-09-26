@@ -55,6 +55,7 @@ var LAG_SEARCH_MS = 2000,
   BIN_MIN = 5, // bin WIDTH in minutes — NOT a minimum pair count. See BIN_MATCH_MIN.
   PHYS_LO = 200,
   PHYS_HI = 650,
+  FINGER_ANKLE_BAND = { lo: 0, hi: 400 }, // finger foot → ankle foot; under one RR, see coupledPAT
   /* A bin earns a vote in the drift statistics by MATCH RATE, never by an absolute pair count
      (PAT-DRIFT-STATISTIC-2026-08-10 §3). Until 2026-08-10 no minimum was applied at all, so a bin
      holding a single paired beat contributed a full median to a max−min range. On 2026-08-03 finger
@@ -206,7 +207,13 @@ var sharedClock =
   function () {
     return { ok: false, reason: 'pat-gate.js not loaded' };
   };
-function coupledPAT(rTimes, fTimes) {
+/* `band` (optional, { lo, hi } ms): the pairing window. Omitted ⇒ the chest→peripheral PHYS window, byte-identical
+   to every caller before 2026-09-26. The finger→ankle leg passes its own band: the ankle foot follows the finger
+   foot by ~100 ms (measured 96–99 ms on 2026-09-25), far below PHYS_LO, and both bands stay under one RR, which
+   is what keeps beat slip structurally impossible (see the note in the loop). */
+function coupledPAT(rTimes, fTimes, band) {
+  var PLO = band ? band.lo : PHYS_LO,
+    PHI = band ? band.hi : PHYS_HI;
   var lags = [],
     lagAtR = [],
     j = 0,
@@ -230,11 +237,11 @@ function coupledPAT(rTimes, fTimes) {
       bestLag = null;
     while (k < nf && fTimes[k] - r <= LAG_SEARCH_MS) {
       var lag = fTimes[k] - r;
-      if (lag >= PHYS_LO && lag <= PHYS_HI) {
+      if (lag >= PLO && lag <= PHI) {
         bestLag = lag;
         break;
       }
-      if (lag > PHYS_HI) break; // past the physiological window — the foot for this beat is missing
+      if (lag > PHI) break; // past the physiological window — the foot for this beat is missing
       k++;
     }
     if (bestLag != null) {
@@ -266,7 +273,7 @@ function coupledPAT(rTimes, fTimes) {
       var cl = fTimes[ck] - cr;
       if (cl > ccap) break;
       if (cl > 0) {
-        if (cl < PHYS_LO || cl > PHYS_HI) censOut++;
+        if (cl < PLO || cl > PHI) censOut++;
         else censIn++;
         break;
       }
@@ -307,8 +314,8 @@ function coupledPAT(rTimes, fTimes) {
      note there. `matchRateRaw` keeps the pre-2026-08-04 value. */
   var nCoverable = 0;
   if (nf) {
-    var covLo = fTimes[0] - PHYS_HI,
-      covHi = fTimes[nf - 1] - PHYS_LO;
+    var covLo = fTimes[0] - PHI,
+      covHi = fTimes[nf - 1] - PLO;
     for (var ci = 0; ci < rTimes.length; ci++) if (rTimes[ci] >= covLo && rTimes[ci] <= covHi) nCoverable++;
   }
   var matchRate = pat.length / Math.max(nCoverable, 1);
@@ -419,7 +426,7 @@ function coupledPAT(rTimes, fTimes) {
     linR2: linR2,
     inPhysPct: pat.length
       ? pat.filter(function (v) {
-          return v >= PHYS_LO && v <= PHYS_HI;
+          return v >= PLO && v <= PHI;
         }).length / pat.length
       : 0
   };
@@ -437,6 +444,76 @@ function coupledPAT(rTimes, fTimes) {
 // that was previously reachable only by loading this worker, so no gate could execute it
 // (TEST-COVERAGE-FOLLOWUPS §3 flags exactly that). This keeps the identical contract —
 // {ok, anchors, coverage, offsetAt, offRange} — as a thin adapter over the shared implementation.
+/* ── THREE SITES, ONE GRID: the classic three-cornered hat on 5-min PAT medians ──────────────────────────
+   A = chest ECG R · B = O2Ring finger foot · C = Verity ankle foot. One pair cannot say which site carries the
+   scatter — Var(A−B) is symmetric — three can: Var(AB)=σ²A+σ²B, Var(AC)=σ²A+σ²C, Var(BC)=σ²B+σ²C, so
+   σ²A = ½(V_AB + V_AC − V_BC) and cyclically. The CLASSIC hat (ρ = 0), as `tools/pat-three-corner.mjs`: a ρ
+   estimated from these same three series is circular (TCH-CORRELATED-SOLVE-KNIFE-EDGE-FOLLOWUPS §5). The
+   dispersion is the IQR/1.349 of the window medians, robust to the odd mis-paired window. A window enters only
+   when ALL THREE pairs coupled ≥ HAT_MIN_BEATS beats inside it. A NEGATIVE variance is returned as null with
+   its value beside it — never square-rooted: it means the independent-error model does not fit this night. */
+var HAT_WIN_MS = 300000,
+  HAT_MIN_BEATS = 50,
+  HAT_MIN_WINDOWS = 12;
+function threeHat(cAB, cAC, cBC) {
+  if (!(cAB && cAB.ok && cAC && cAC.ok && cBC && cBC.ok)) return { ok: false, reason: 'a leg did not couple' };
+  function bucket(c) {
+    var o = {};
+    for (var i = 0; i < c.patAtR.length; i++) {
+      var b = Math.floor(c.patAtR[i].t / HAT_WIN_MS);
+      (o[b] || (o[b] = [])).push(c.patAtR[i].lag);
+    }
+    return o;
+  }
+  var bAB = bucket(cAB),
+    bAC = bucket(cAC),
+    bBC = bucket(cBC),
+    win = [];
+  Object.keys(bAC)
+    .map(Number)
+    .sort(function (a, b) {
+      return a - b;
+    })
+    .forEach(function (b) {
+      if (bAB[b] && bBC[b] && bAB[b].length >= HAT_MIN_BEATS && bAC[b].length >= HAT_MIN_BEATS && bBC[b].length >= HAT_MIN_BEATS)
+        win.push({ t: (b + 0.5) * HAT_WIN_MS, ab: median(bAB[b]), ac: median(bAC[b]), bc: median(bBC[b]) });
+    });
+  if (win.length < HAT_MIN_WINDOWS) return { ok: false, reason: win.length + ' windows with all three legs coupled (< ' + HAT_MIN_WINDOWS + ')', windows: win };
+  function sd(k) {
+    var v = win.map(function (w) {
+      return w[k];
+    });
+    return (quantile(v, 0.75) - quantile(v, 0.25)) / 1.349;
+  }
+  var sAB = sd('ab'),
+    sAC = sd('ac'),
+    sBC = sd('bc'),
+    vAB = sAB * sAB,
+    vAC = sAC * sAC,
+    vBC = sBC * sBC;
+  var v2 = { chest: 0.5 * (vAB + vAC - vBC), finger: 0.5 * (vAB + vBC - vAC), ankle: 0.5 * (vAC + vBC - vAB) },
+    sigma = {};
+  Object.keys(v2).forEach(function (k) {
+    sigma[k] = v2[k] >= 0 ? Math.sqrt(v2[k]) : null;
+  });
+  var lag = function (k) {
+    return median(
+      win.map(function (w) {
+        return w[k];
+      })
+    );
+  };
+  return {
+    ok: true,
+    n: win.length,
+    winMin: HAT_WIN_MS / 60000,
+    lagMed: { ab: lag('ab'), ac: lag('ac'), bc: lag('bc') },
+    pairSd: { ab: sAB, ac: sAC, bc: sBC },
+    variance: v2,
+    sigma: sigma,
+    windows: win
+  };
+}
 function estimateDriftACC(h10Text, vText, t0, t1) {
   var eA = PATAlign.envelope(PPGDSP.parseSensorXYZ(h10Text), t0, t1, {}),
     eB = PATAlign.envelope(PPGDSP.parseSensorXYZ(vText), t0, t1, {});
@@ -479,6 +556,9 @@ self.onmessage = function (e) {
   if (hasAcc) {
     reads.push(m.ecgAccFile.text(), m.ppgAccFile.text());
   }
+  /* The O2Ring finger PPG is OPTIONAL and read last, so every index above is unchanged without it. */
+  var hasFinger = !!m.fingerFile;
+  if (hasFinger) reads.push(m.fingerFile.text());
   Promise.all(reads)
     .then(function (t) {
       try {
@@ -533,6 +613,27 @@ self.onmessage = function (e) {
 
           cp: packCp(cp)
         };
+        // ── THIRD SITE: chest→finger, finger→ankle and the hat (only if the O2Ring _PPG.txt was provided) ──
+        var cpF = null,
+          cpFA = null;
+        if (hasFinger) {
+          try {
+            var fin = ppgFootTimes(t[t.length - 1]),
+              ovF = overlap(ecg, fin),
+              scF = sharedClock(ecg, fin, ovF);
+            cpF = coupledPAT(ecg.times, fin.times);
+            cpFA = coupledPAT(fin.times, ppg.times, FINGER_ANKLE_BAND);
+            out.finger = { t0Ms: fin.t0Ms, fs: fin.fs, n: fin.n, durSec: fin.durSec };
+            out.cpF = packCp(cpF);
+            /* the ring's axis is DRAWN (sample index × an assumed rate), so the gate refuses to CERTIFY this leg;
+               the lag is still computed and shown, signed NOT CERTIFIED with the gate's own reason */
+            out.vdF = PATGate.verdict(ovF, cpF, scF, PATGate.worstAxis(ecg.hostAxis, fin.hostAxis));
+            out.cpFA = packCp(cpFA);
+            out.three = threeHat(cpF, cp, cpFA);
+          } catch (fe) {
+            out.fingerError = String((fe && fe.message) || fe);
+          }
+        }
         // ── ACC-sync stage (only if both accelerometer files were provided) ──
         var cpCorr = null,
           drift = null;
@@ -571,6 +672,8 @@ self.onmessage = function (e) {
             };
           };
           out.detail = pack(cp);
+          out.detailF = pack(cpF);
+          out.detailFA = pack(cpFA);
           /* `detailCorr = pack(cpCorr)` used to be emitted here too — computed, sent across the
              boundary, read by nobody (residue 2026-09-02-pat-detailcorr-unread, the same class as
              `vdCorr` before #2117). Its parent finding, ENGINE-VERIFICATION §1.5, closed as MOOT:

@@ -22,6 +22,24 @@
   var PHYS_LO = 200,
     PHYS_HI = 650; // chest ECG R → ankle PPG foot: longest peripheral PTT + PEP + convention
   var C = { ink: '#e6edf6', mut: '#6f8096', teal: '#3DE0D0', blue: '#58A6FF', amber: '#FFB84D', red: '#FF6B7A', green: '#39D98A' };
+  /* ── TRUST BADGES — this page's grades, with the reason each one is what it is (CLAUDE.md §🎫) ────────────
+     A count or a coverage share is read straight off the data → measured. A PAT lag, its spread and the hat are
+     computed from consumer sensors and have not been validated against a reference here → experimental. The
+     ACC-sync offset is a motion-anchored convenience correction → heuristic. */
+  var EV = {
+    count: ['measured', 'a count of nights, files, beats or windows — direct'],
+    coupling: ['measured', 'share of coverable R-peaks whose pulse foot paired inside the window — a direct coverage statistic'],
+    clock: ['measured', 'start-time offset and beat-count ratio of the two recordings — direct'],
+    lag: ['experimental', 'R-peak → PPG-foot pulse arrival time from consumer sensors; not validated against a reference'],
+    spread: ['experimental', 'beat-to-beat IQR of the lag around its 30 s local median — a derived dispersion'],
+    drift: ['experimental', 'spread of the 5-min lag medians across the night — a derived diagnostic'],
+    acc: ['heuristic', 'motion-anchored offset correction between chest and ankle ACC — a convenience estimate, not a measurement'],
+    hat: ['experimental', 'classic three-cornered hat on 5-min PAT medians — assumes independent per-site errors; unvalidated']
+  };
+  function evb(k) {
+    var e = EV[k] || EV.lag;
+    return self.MetricRegistry && self.MetricRegistry.badge ? self.MetricRegistry.badge(e[0], e[1]) : '';
+  }
   var NIGHTS = {}; // nightKey → { key, label, cand:{ecg:[],ppg:[]}, ecg, ppg }
   var RESULTS = {}; // nightKey → worker result
   var detailWorker = null;
@@ -78,7 +96,10 @@
     // 14 digits with no separator — one pattern per role, both layouts (2026-09-20; until then a box
     // night indexed 0 of 134 files). Gated by capture-host test_the_tool_classifiers_accept_box_filenames.
     if ((mo = n.match(/_(\d{8})_?(\d{6})_ECG\.txt$/i))) return { role: 'ecg', stamp: mo[1] + mo[2] };
-    if ((mo = n.match(/_(\d{8})_?(\d{6})_PPG\.txt$/i))) return { role: 'ppg', stamp: mo[1] + mo[2] };
+    /* the O2Ring's raw _PPG.txt is the FINGER site; every other _PPG.txt (the Verity) is the ANKLE. Until
+       2026-09-26 both were one 'ppg' role, so a dropped folder could pair the ring as the "ankle" — its session
+       starts nearer the ECG than the Verity's on a box night. */
+    if ((mo = n.match(/_(\d{8})_?(\d{6})_PPG\.txt$/i))) return { role: /O2Ring/i.test(n) ? 'finger' : 'ppg', stamp: mo[1] + mo[2] };
     // ACC on BOTH devices → the cross-device drift anchor (H10 chest vs Verity arm)
     if ((mo = n.match(/_(\d{8})_?(\d{6})_ACC\.txt$/i))) return { role: /Polar_H10/i.test(n) ? 'ecgacc' : 'ppgacc', stamp: mo[1] + mo[2] };
     return null;
@@ -131,11 +152,13 @@
       eMs = e ? stampMs(e.stamp) : null,
       p = nearestTo(nt.cand.ppg, eMs),
       ea = nearestTo(nt.cand.ecgacc, eMs),
-      pa = nearestTo(nt.cand.ppgacc, p ? stampMs(p.stamp) : eMs);
+      pa = nearestTo(nt.cand.ppgacc, p ? stampMs(p.stamp) : eMs),
+      fg = nearestTo(nt.cand.finger, eMs);
     nt.ecg = e ? e.file : null;
     nt.ppg = p ? p.file : null;
     nt.ecgAcc = ea ? ea.file : null;
     nt.ppgAcc = pa ? pa.file : null;
+    nt.finger = fg ? fg.file : null;
   }
   var eligible = function (nt) {
     return !!(nt.ecg && nt.ppg);
@@ -149,7 +172,7 @@
         c = classify(f);
       if (!c) continue;
       var nk = nightKeyOf(c.stamp),
-        nt = NIGHTS[nk] || (NIGHTS[nk] = { key: nk, label: nk, cand: { ecg: [], ppg: [], ecgacc: [], ppgacc: [] } });
+        nt = NIGHTS[nk] || (NIGHTS[nk] = { key: nk, label: nk, cand: { ecg: [], ppg: [], ecgacc: [], ppgacc: [], finger: [] } });
       nt.cand[c.role].push({ file: f, stamp: c.stamp });
     }
     Object.keys(NIGHTS).forEach(function (k) {
@@ -173,7 +196,7 @@
     tb.innerHTML = '';
     var keys = Object.keys(NIGHTS).sort();
     if (!keys.length) {
-      tb.innerHTML = '<tr><td colspan="7" class="muted">Drop a capture folder to index nights.</td></tr>';
+      tb.innerHTML = '<tr><td colspan="9" class="muted">Drop a capture folder to index nights.</td></tr>';
       return;
     }
     keys.forEach(function (k) {
@@ -197,6 +220,9 @@
         '<td class="ctr">' +
         (nt.ppg ? '●' : '<span style="color:#FF6B7A">·</span>') +
         '</td>' +
+        '<td class="ctr">' +
+        (nt.finger ? '●' : '<span style="color:#6f8096">·</span>') +
+        '</td>' +
         '<td class="num" id="c-shared-' +
         k +
         '">—</td>' +
@@ -204,6 +230,9 @@
         k +
         '">—</td>' +
         '<td class="num" id="c-lag-' +
+        k +
+        '">—</td>' +
+        '<td class="num" id="c-flag-' +
         k +
         '">—</td>' +
         '<td class="mono" id="c-vd-' +
@@ -232,13 +261,15 @@
       return;
     }
     if (sh) {
-      sh.textContent = m.sc.ok ? 'yes' : 'no';
+      sh.innerHTML = evb('clock') + ' ' + (m.sc.ok ? 'yes' : 'no');
       sh.style.color = m.sc.ok ? C.green : C.red;
     }
     if (m.cp.ok) {
-      if (co) co.textContent = (m.cp.matchRate * 100).toFixed(0) + '%';
-      if (lg) lg.textContent = m.cp.med.toFixed(0) + ' ms';
+      if (co) co.innerHTML = evb('coupling') + ' ' + (m.cp.matchRate * 100).toFixed(0) + '%';
+      if (lg) lg.innerHTML = evb('lag') + ' ' + m.cp.med.toFixed(0) + ' ms';
     }
+    var fl = el('c-flag-' + k);
+    if (fl) fl.innerHTML = m.cpF && m.cpF.ok ? evb('lag') + ' ' + m.cpF.med.toFixed(0) + ' ms' : m.fingerError ? '<span title="' + escHtml(m.fingerError) + '">error</span>' : '—';
     if (vd) {
       /* SURFACE THE SECOND VERDICT (2026-09-02) — composed by `PATGate.verdictCell`, not here.
          The worker publishes TWO gate results (`vd` on raw drift, `vdCorr` on ACC-corrected) and this
@@ -280,7 +311,7 @@
       if (!queue.length) return;
       var nt = queue.shift();
       setStatus('processing ' + (done + 1) + '/' + total + '…', 'run');
-      w.postMessage({ type: 'job', key: nt.key, label: nt.label, ecgFile: nt.ecg, ppgFile: nt.ppg, ecgAccFile: nt.ecgAcc, ppgAccFile: nt.ppgAcc, detail: false });
+      w.postMessage({ type: 'job', key: nt.key, label: nt.label, ecgFile: nt.ecg, ppgFile: nt.ppg, ecgAccFile: nt.ecgAcc, ppgAccFile: nt.ppgAcc, fingerFile: nt.finger || null, detail: false });
     }
     for (var i = 0; i < N; i++) {
       var w = new Worker('pat-feasibility-worker.js');
@@ -354,9 +385,9 @@
       })
       .filter(refusedButComputed);
     cards.push(
-      hcard('eligible nights', String(nNights), '', oks.length + ' coupled · ' + (refused.length ? refused.length + ' not certified · ' : '') + Object.keys(NIGHTS).length + ' indexed', C.ink)
+      hcard('eligible nights', String(nNights), '', oks.length + ' coupled · ' + (refused.length ? refused.length + ' not certified · ' : '') + Object.keys(NIGHTS).length + ' indexed', C.ink, 'count')
     );
-    cards.push(hcard('coupled beats (ΣN)', totalBeats.toLocaleString(), '', 'across all coupled nights', C.blue));
+    cards.push(hcard('coupled beats (ΣN)', totalBeats.toLocaleString(), '', 'across all coupled nights', C.blue, 'count'));
     if (oks.length) {
       var ppm = agg(oks, function (m) {
           return m.cp.ppm;
@@ -376,14 +407,15 @@
           isFinite(median(ppm)) ? median(ppm).toFixed(0) : '—',
           'ppm',
           'median · range ' + Math.min.apply(null, ppm).toFixed(0) + '–' + Math.max.apply(null, ppm).toFixed(0),
-          C.amber
+          C.amber,
+          'drift'
         )
       );
-      cards.push(hcard('coupling', median(mr).toFixed(0), '%', 'median across nights', median(mr) >= 55 ? C.green : C.amber));
-      cards.push(hcard('beat-to-beat spread', median(riq).toFixed(0), 'ms', 'median lag IQR', median(riq) <= 60 ? C.green : C.amber));
+      cards.push(hcard('coupling', median(mr).toFixed(0), '%', 'median across nights', median(mr) >= 55 ? C.green : C.amber, 'coupling'));
+      cards.push(hcard('beat-to-beat spread', median(riq).toFixed(0), 'ms', 'median lag IQR', median(riq) <= 60 ? C.green : C.amber, 'spread'));
       var linMed = median(lin),
         kind = linMed >= 0.6 ? 'LINEAR — 2-point sync fixes it' : 'NON-LINEAR — needs continuous correction';
-      cards.push(hcard('drift shape', linMed >= 0.6 ? 'linear' : 'wander', '', 'median R²=' + (isFinite(linMed) ? linMed.toFixed(2) : '—') + ' · ' + kind, linMed >= 0.6 ? C.green : C.amber));
+      cards.push(hcard('drift shape', linMed >= 0.6 ? 'linear' : 'wander', '', 'median R²=' + (isFinite(linMed) ? linMed.toFixed(2) : '—') + ' · ' + kind, linMed >= 0.6 ? C.green : C.amber, 'drift'));
       // ACC-sync before/after (the point of the whole stage)
       var corrN = oks.filter(function (m) {
         return m.cpCorr && m.cpCorr.ok && m.accSync && m.accSync.available;
@@ -405,7 +437,8 @@
             isFinite(mCorr) ? mCorr.toFixed(0) : '—',
             'ms',
             'median · was ' + (isFinite(mRaw) ? mRaw.toFixed(0) : '—') + ' ms raw · ' + corrN.length + ' nights',
-            mCorr < 100 ? C.green : mCorr < mRaw * 0.5 ? C.amber : C.red
+            mCorr < 100 ? C.green : mCorr < mRaw * 0.5 ? C.amber : C.red,
+            'acc'
           )
         );
       }
@@ -484,7 +517,7 @@
       }
       renderFocus(m);
     };
-    detailWorker.postMessage({ type: 'job', key: k, label: k, ecgFile: nt.ecg, ppgFile: nt.ppg, ecgAccFile: nt.ecgAcc, ppgAccFile: nt.ppgAcc, detail: true });
+    detailWorker.postMessage({ type: 'job', key: k, label: k, ecgFile: nt.ecg, ppgFile: nt.ppg, ecgAccFile: nt.ecgAcc, ppgAccFile: nt.ppgAcc, fingerFile: nt.finger || null, detail: true });
   }
 
   /* COMPUTED BUT NOT CERTIFIED (owner, 2026-09-23): when the gate refuses a night whose lag WAS
@@ -533,18 +566,19 @@
     vc.className = 'verdict ' + m.vd.tier;
     vc.innerHTML = '<div class="vlabel" style="color:' + tierColor(m.vd.tier) + '">' + m.vd.label + '</div>' + notCertifiedSig(m);
     var cards = [];
-    cards.push(hcard('shared clock', sc.ok ? 'YES' : 'NO', '', 'Δstart ' + (sc.dT0 / 1000).toFixed(1) + ' s · beats ' + (sc.beatRatio * 100).toFixed(1) + '%', sc.ok ? C.green : C.red));
+    cards.push(hcard('shared clock', sc.ok ? 'YES' : 'NO', '', 'Δstart ' + (sc.dT0 / 1000).toFixed(1) + ' s · beats ' + (sc.beatRatio * 100).toFixed(1) + '%', sc.ok ? C.green : C.red, 'clock'));
     if (cp.ok) {
-      cards.push(hcard('beats coupled', (cp.matchRate * 100).toFixed(0), '%', cp.nCoupled + ' beats (local baseline)', cp.matchRate >= G.COUPLING_MIN ? C.green : C.amber));
-      cards.push(hcard('median lag', cp.med.toFixed(0), 'ms', 'IQR ' + cp.p25.toFixed(0) + '–' + cp.p75.toFixed(0), C.blue));
-      cards.push(hcard('beat-to-beat', isFinite(cp.residIQR) ? cp.residIQR.toFixed(0) : '—', 'ms', 'lag IQR vs local baseline', cp.residIQR <= G.BEAT_IQR_MAX_MS ? C.green : C.amber));
+      cards.push(hcard('beats coupled', (cp.matchRate * 100).toFixed(0), '%', cp.nCoupled + ' beats (local baseline)', cp.matchRate >= G.COUPLING_MIN ? C.green : C.amber, 'coupling'));
+      cards.push(hcard('chest→ankle median lag', cp.med.toFixed(0), 'ms', 'IQR ' + cp.p25.toFixed(0) + '–' + cp.p75.toFixed(0), C.blue, 'lag'));
+      cards.push(hcard('beat-to-beat', isFinite(cp.residIQR) ? cp.residIQR.toFixed(0) : '—', 'ms', 'lag IQR vs local baseline', cp.residIQR <= G.BEAT_IQR_MAX_MS ? C.green : C.amber, 'spread'));
       cards.push(
         hcard(
           'drift',
           isFinite(cp.driftRange) ? cp.driftRange.toFixed(0) : '—',
           'ms',
           (isFinite(cp.ppm) ? cp.ppm.toFixed(0) + ' ppm' : '') + (isFinite(cp.linR2) ? ' · R²=' + cp.linR2.toFixed(2) : ''),
-          cp.driftRange <= G.DRIFT_MAX_MS ? C.green : C.amber
+          cp.driftRange <= G.DRIFT_MAX_MS ? C.green : C.amber,
+          'drift'
         )
       );
     }
@@ -556,11 +590,19 @@
           m.cp.driftRange.toFixed(0) + '→' + m.cpCorr.driftRange.toFixed(0),
           'ms',
           m.accSync.anchors + ' motion anchors · ' + (m.accSync.coverage * 100).toFixed(0) + '% cover',
-          m.cpCorr.driftRange < m.cp.driftRange * 0.5 ? C.green : C.amber
+          m.cpCorr.driftRange < m.cp.driftRange * 0.5 ? C.green : C.amber,
+          'acc'
         )
       );
       cards.push(
-        hcard('after correction', (m.cpCorr.matchRate * 100).toFixed(0) + '%', '', 'coupling · beat-to-beat ' + (isFinite(m.cpCorr.residIQR) ? m.cpCorr.residIQR.toFixed(0) : '—') + ' ms', C.blue)
+        hcard(
+          'after correction',
+          (m.cpCorr.matchRate * 100).toFixed(0) + '%',
+          '',
+          'coupling · beat-to-beat ' + (isFinite(m.cpCorr.residIQR) ? m.cpCorr.residIQR.toFixed(0) : '—') + ' ms',
+          C.blue,
+          'acc'
+        )
       );
     } else if (m.accSync) {
       cards.push('<div style="height:1px;background:rgba(255,255,255,.08);margin:2px 0"></div>');
@@ -569,11 +611,244 @@
     el('focusHead').innerHTML = cards.join('');
     drawScatter(m);
     drawHist(m);
+    renderThree(m);
   }
 
-  function hcard(label, val, unit, sub, tone) {
+  /* ── THE THREE SITES: chest→finger · chest→ankle · finger→ankle, and the hat between them ───────────── */
+  var LEG = {
+    ab: { name: 'chest → finger', col: C.amber },
+    ac: { name: 'chest → ankle', col: C.blue },
+    bc: { name: 'finger → ankle', col: '#B98AFF' }
+  };
+  function legCards(tag, c, vd) {
+    if (!c || !c.ok) return hcard(LEG[tag].name, '—', '', c && c.reason ? c.reason : 'not coupled', C.mut);
+    var cert = vd && vd.tier === 'no' ? ' · NOT CERTIFIED: ' + escHtml(vd.why && vd.why.reason ? vd.why.reason : vd.label) : '';
     return (
-      '<div class="hcard"><div class="hl" style="color:' +
+      hcard(LEG[tag].name + ' median lag', c.med.toFixed(0), 'ms', 'IQR ' + c.p25.toFixed(0) + '–' + c.p75.toFixed(0) + cert, LEG[tag].col, 'lag') +
+      hcard(LEG[tag].name + ' coupled', (c.matchRate * 100).toFixed(0), '%', c.nCoupled + ' beats', C.ink, 'coupling') +
+      hcard(LEG[tag].name + ' beat-to-beat', isFinite(c.residIQR) ? c.residIQR.toFixed(0) : '—', 'ms', 'lag IQR vs 30 s local median', C.ink, 'spread')
+    );
+  }
+  function renderThree(m) {
+    var box = el('threeHead'),
+      hb = el('hatHead');
+    if (!box || !hb) return;
+    if (!m.finger && !m.fingerError) {
+      box.innerHTML = '<div class="muted">No O2Ring <code>_PPG.txt</code> for this night — the finger site and the hat need it.</div>';
+      hb.innerHTML = '';
+      drawThree(null);
+      drawHat(null);
+      drawHistF(m);
+      return;
+    }
+    if (m.fingerError) {
+      box.innerHTML = '<div class="muted" style="color:' + C.red + '">finger leg failed: ' + escHtml(m.fingerError) + '</div>';
+      hb.innerHTML = '';
+      drawThree(null);
+      drawHat(null);
+      drawHistF(m);
+      return;
+    }
+    box.innerHTML =
+      '<div class="tri">' +
+      '<div class="headline">' +
+      legCards('ab', m.cpF, m.vdF) +
+      '</div>' +
+      '<div class="headline">' +
+      legCards('ac', m.cp, m.vd) +
+      '</div>' +
+      '<div class="headline">' +
+      legCards('bc', m.cpFA, null) +
+      '</div>' +
+      '</div>';
+    var h = m.three,
+      hc = [];
+    if (h && h.ok) {
+      [
+        ['chest', 'H10 chest ECG', C.teal],
+        ['finger', 'O2Ring finger', C.amber],
+        ['ankle', 'Verity ankle', '#B98AFF']
+      ].forEach(function (r) {
+        var s = h.sigma[r[0]];
+        hc.push(
+          hcard(
+            'σ ' + r[1],
+            s == null ? 'REFUSED' : s.toFixed(1),
+            s == null ? '' : 'ms',
+            s == null ? 'negative variance ' + h.variance[r[0]].toFixed(0) + ' ms² — the independent-error model does not fit this site' : 'from ' + h.n + ' × ' + h.winMin + '-min windows',
+            s == null ? C.mut : r[2],
+            'hat'
+          )
+        );
+      });
+      hc.push(
+        hcard(
+          'pair spreads',
+          h.pairSd.ab.toFixed(1) + ' · ' + h.pairSd.ac.toFixed(1) + ' · ' + h.pairSd.bc.toFixed(1),
+          'ms',
+          'IQR/1.349 of window medians · finger · ankle · finger→ankle',
+          C.ink,
+          'hat'
+        )
+      );
+      hc.push(hcard('windows solved', String(h.n), '', 'all three legs ≥ 50 beats in the same ' + h.winMin + ' min', C.ink, 'count'));
+    } else hc.push(hcard('three-cornered hat', '—', '', h && h.reason ? h.reason : 'not solved', C.mut));
+    hb.innerHTML = hc.join('');
+    drawThree(h);
+    drawHat(h);
+    drawHistF(m);
+  }
+  function drawThree(h) {
+    var cv = el('threeChart');
+    if (!cv) return;
+    var g = prep(cv),
+      ctx = g.ctx,
+      w = g.w,
+      ht = g.h,
+      pad = 44;
+    ctx.fillStyle = C.mut;
+    ctx.font = '10px monospace';
+    if (!h || !h.windows || h.windows.length < 2) {
+      ctx.fillText('needs all three sites coupled', pad, ht / 2);
+      return;
+    }
+    var W = h.windows,
+      t0 = W[0].t,
+      t1 = W[W.length - 1].t,
+      all = [];
+    W.forEach(function (x) {
+      all.push(x.ab, x.ac, x.bc);
+    });
+    var lo = Math.max(-100, Math.floor(Math.min.apply(null, all) / 50) * 50 - 50),
+      hi = Math.ceil(Math.max.apply(null, all) / 50) * 50 + 50;
+    var X = function (t) {
+        return pad + ((t - t0) / (t1 - t0 || 1)) * (w - pad - 12);
+      },
+      Y = function (v) {
+        return ht - 26 - ((v - lo) / (hi - lo || 1)) * (ht - 26 - 18);
+      };
+    ctx.strokeStyle = 'rgba(255,255,255,.07)';
+    for (var gy = 0; gy <= 4; gy++) {
+      var v = lo + ((hi - lo) * gy) / 4,
+        y = Y(v);
+      ctx.beginPath();
+      ctx.moveTo(pad, y);
+      ctx.lineTo(w - 12, y);
+      ctx.stroke();
+      ctx.fillText(v.toFixed(0), 6, y + 3);
+    }
+    ctx.fillText('5-min median lag (ms) vs time of night', pad, 12);
+    ['ab', 'ac', 'bc'].forEach(function (k) {
+      ctx.strokeStyle = LEG[k].col;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      W.forEach(function (x, i) {
+        i ? ctx.lineTo(X(x.t), Y(x[k])) : ctx.moveTo(X(x.t), Y(x[k]));
+      });
+      ctx.stroke();
+    });
+    ctx.fillStyle = C.mut;
+    for (var q = 0; q <= 4; q++) {
+      var tq = t0 + ((t1 - t0) * q) / 4;
+      ctx.fillText(fmtClock(tq), X(tq) - 14, ht - 8);
+    }
+  }
+  function drawHat(h) {
+    var cv = el('hatChart');
+    if (!cv) return;
+    var g = prep(cv),
+      ctx = g.ctx,
+      w = g.w,
+      ht = g.h,
+      pad = 110;
+    ctx.fillStyle = C.mut;
+    ctx.font = '10px monospace';
+    if (!h || !h.ok) {
+      ctx.fillText(h && h.reason ? h.reason : 'needs all three sites coupled', 12, ht / 2);
+      return;
+    }
+    var rows = [
+        ['H10 chest', h.sigma.chest, C.teal],
+        ['O2Ring finger', h.sigma.finger, C.amber],
+        ['Verity ankle', h.sigma.ankle, '#B98AFF']
+      ],
+      mx = Math.max(10, h.pairSd.ab, h.pairSd.ac, h.pairSd.bc),
+      bh = (ht - 40) / 3;
+    ctx.fillText('per-site σ (ms)', 12, 12);
+    rows.forEach(function (r, i) {
+      var y = 24 + i * bh;
+      ctx.fillStyle = C.ink;
+      ctx.fillText(r[0], 12, y + bh / 2);
+      if (r[1] == null) {
+        ctx.fillStyle = C.mut;
+        ctx.fillText('REFUSED — negative variance', pad, y + bh / 2);
+        return;
+      }
+      ctx.fillStyle = r[2];
+      ctx.globalAlpha = 0.85;
+      ctx.fillRect(pad, y + 4, ((w - pad - 60) * r[1]) / mx, bh - 10);
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = C.ink;
+      ctx.fillText(r[1].toFixed(1) + ' ms', pad + ((w - pad - 60) * r[1]) / mx + 6, y + bh / 2);
+    });
+  }
+  function drawHistF(m) {
+    var cv = el('histF');
+    if (!cv) return;
+    var g = prep(cv),
+      ctx = g.ctx,
+      w = g.w,
+      h = g.h,
+      pad = 30;
+    ctx.fillStyle = C.mut;
+    ctx.font = '10px monospace';
+    var legs = [
+      ['chest→finger', m.detailF, C.amber],
+      ['chest→ankle', m.detail, C.blue],
+      ['finger→ankle', m.detailFA, '#B98AFF']
+    ].filter(function (x) {
+      return x[1] && x[1].pat && x[1].pat.length;
+    });
+    if (!legs.length) {
+      ctx.fillText('no coupled beats', pad, h / 2);
+      return;
+    }
+    var lo = 0,
+      hi = 800,
+      nb = 80,
+      bw = (w - pad - 12) / nb;
+    ctx.fillText('lag distribution per leg (ms) — each normalised to its own peak', pad, 12);
+    legs.forEach(function (L) {
+      var bins = new Array(nb).fill(0);
+      L[1].pat.forEach(function (v) {
+        var b = Math.floor(((v - lo) / (hi - lo)) * nb);
+        if (b >= 0 && b < nb) bins[b]++;
+      });
+      var mx = Math.max.apply(null, bins) || 1;
+      ctx.strokeStyle = L[2];
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      bins.forEach(function (c, i) {
+        var x = pad + (i + 0.5) * bw,
+          y = h - pad - (c / mx) * (h - pad - 22);
+        i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+      });
+      ctx.stroke();
+    });
+    ctx.strokeStyle = C.mut;
+    ctx.beginPath();
+    ctx.moveTo(pad, h - pad);
+    ctx.lineTo(w - 12, h - pad);
+    ctx.stroke();
+    ctx.fillStyle = C.mut;
+    for (var q = 0; q <= 8; q++) ctx.fillText(String(q * 100), pad + (q * (w - pad - 12)) / 8 - 6, h - pad + 12);
+  }
+
+  function hcard(label, val, unit, sub, tone, ev) {
+    return (
+      '<div class="hcard">' +
+      (ev ? '<span class="ev-corner">' + evb(ev) + '</span>' : '') +
+      '<div class="hl" style="color:' +
       (tone || C.ink) +
       '">' +
       val +
