@@ -190,6 +190,45 @@ def _string_spans(line: str) -> list[tuple[int, int]]:
     return spans
 
 
+def _fstring_expr_spans(line: str) -> list[tuple[int, int]]:
+    """Half-open [start, end) ranges of an f-string's `{...}` fields on `line`, BRACES INCLUDED.
+
+    An f-string is a literal only BETWEEN its fields: `{a(y)}` is a call, and mutmut mutates it as one
+    (measured 2026-09-26, mutmut 3.8: `f"{a(y)}-{y + 1}"` yields `a(None)`, `y - 1` and `y + 2`, and
+    NO text mutant at all — the `XX`/case-flip forms are generated for plain literals only). Under
+    `_string_spans` alone such a mutant read as string-only and the gate EXCLUDED it — fail-OPEN, on
+    every interpreter, because that scanner is hand-rolled and never tokenizes. `{{` / `}}` are escaped
+    braces, i.e. text; a nested `{}` inside a field (a dict, a set, a format spec) stays in the field;
+    a field that never closes before the literal ends runs to the literal's end, so the caller demands
+    the mutant rather than trusting a span it could not finish. The braces are IN the span on purpose:
+    turning `{a}` into `(a}` is a change to the field, not to the text beside it, while a change to
+    the character before `{` or after `}` is text and stays outside."""
+    spans: list[tuple[int, int]] = []
+    for a, b in _string_spans(line):
+        j = a
+        while j > 0 and line[j - 1].isalpha():
+            j -= 1
+        if "f" not in line[j:a].lower():
+            continue
+        i = a + 1
+        while i < b:
+            if line[i] != "{":
+                i += 1
+                continue
+            if line[i + 1:i + 2] == "{":       # `{{` is an escaped brace, i.e. text
+                i += 2
+                continue
+            start, depth, i = i, 1, i + 1
+            while i < b and depth:
+                if line[i] == "{":
+                    depth += 1
+                elif line[i] == "}":
+                    depth -= 1
+                i += 1
+            spans.append((start, i))                # an unterminated field ends where the literal does
+    return spans
+
+
 def changed_span(before: str, after: str) -> tuple[int, int, int] | None:
     """Where two versions of a line differ: `(start, before_end, after_end)`, or None if identical.
 
@@ -280,6 +319,11 @@ def string_only_verdict(diff_text: str) -> tuple[str, str]:
         inside_new = any(a <= start and new_end <= b for a, b in new_spans)
         if not (inside_old and inside_new):
             return REQUIRED, "the changed token is outside any string literal"
+        # Inside a literal is not yet inside TEXT: an f-string's `{...}` fields are code (see
+        # `_fstring_expr_spans`), and a mutant there is exactly the kind the gate exists to demand.
+        if any(a < old_end and start < b for a, b in _fstring_expr_spans(old)) or any(
+                a < new_end and start < b for a, b in _fstring_expr_spans(new)):
+            return REQUIRED, "the changed token is inside an f-string field - code, not text"
     if not saw_change:
         return EMPTY_DIFF, "every removed/added pair is identical - the mutant changes nothing"
     return STRING_ONLY, "every changed token lies inside a string literal"
@@ -661,6 +705,17 @@ def selftest() -> int:
     # A comparison flip on a line containing a string is a REAL survivor and must be reported.
     if is_string_only(_d('    if d["k"] > 3: pass', '    if d["k"] >= 3: pass')):
         print("  selftest FAIL: a comparison flip is hidden by an unrelated dict key")
+        ok = False
+    # An f-string's `{...}` fields are CODE (mutmut mutates them as code and generates no text mutant
+    # for an f-string at all — measured 2026-09-26); a mutant inside one is REQUIRED, never excluded.
+    if is_string_only(_d('    x = f"{a(y)}-{y + 1}"', '    x = f"{a(None)}-{y + 1}"')):
+        print("  selftest FAIL: a mutant inside an f-string field is hidden as string-only")
+        ok = False
+    if not is_string_only(_d('    x = f"started {n}"', '    x = f"begun {n}"')):
+        print("  selftest FAIL: an f-string's TEXT is no longer string-only")
+        ok = False
+    if _fstring_expr_spans('f"{a(y)}-{y + 1}"') != [(2, 8), (9, 16)]:
+        print("  selftest FAIL: _fstring_expr_spans mislocates the fields")
         ok = False
     # the span helpers, pinned directly
     if changed_span("a=1", "a=1") is not None:

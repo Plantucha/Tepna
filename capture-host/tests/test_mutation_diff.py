@@ -891,3 +891,66 @@ def test_a_key_with_only_one_side_is_still_refused_without_the_guard():
     """The removed guard's job, done by the intersection — pinned so nobody reinstates it."""
     assert M.float_boundary_unprobed("- only a minus side 0.05 <", "p") is None
     assert M.float_boundary_unprobed("+ only a plus side 0.05 <=", "p") is None
+
+
+def _d(a, b):
+    return "--- a\n+++ b\n-" + a + "\n+" + b + "\n"
+
+
+def test_a_change_inside_an_F_STRING_FIELD_is_REQUIRED_not_string_only():
+    """mutmut 3.8 mutates the code inside `{...}` — `a(None)`, `y - 1`, `y + 2` measured on
+    `f"{a(y)}-{y + 1}"` on 2026-09-26 — and generates NO text mutant for an f-string at all. Every one
+    of those read `string-only` and the gate EXCLUDED it: fail-OPEN, on 3.11 and 3.13 alike, because
+    `_string_spans` is a hand scanner and an f-string's fields were text to it. #3098 asked whether
+    this tool shared `find_unwired`'s pre-3.12 tokenizer blind spot; it did not — it had this one."""
+    want = (M.REQUIRED, "the changed token is inside an f-string field - code, not text")
+    for old, new in (('    x = f"{a(y)}-{y + 1}"', '    x = f"{b(y)}-{y + 1}"'),
+                     ('    x = f"{a(y)}-{y + 1}"', '    x = f"{a(None)}-{y + 1}"'),
+                     ('    x = f"{a(y)}-{y + 1}"', '    x = f"{a(y)}-{y - 1}"'),
+                     ("    x = F'{a(y)}'", "    x = F'{b(y)}'"),                 # upper-case prefix
+                     ('    x = rf"{a(y)}\\n"', '    x = rf"{b(y)}\\n"'),        # combined prefix
+                     ("    x = f\"{d['k']}\"", "    x = f\"{d['j']}\""),          # the OTHER quote nested
+                     ('    x = f"{b}a"', '    x = f"ba"'),                        # a field only on the OLD side
+                     ('    x = f"ba"', '    x = f"{b}a"'),                        # ...and only on the NEW side
+                     ('    x = f"t{a}"', '    x = f"t(a}"'),                      # the `{` itself changed
+                     ('    x = f"{a}t"', '    x = f"{a)t"')):                     # the `}` itself changed
+        assert M.string_only_verdict(_d(old, new)) == want, (old, new)
+        assert M.is_string_only(_d(old, new)) is False, (old, new)
+    # The TEXT of an f-string is still text: a wording change between fields stays string-only, and so
+    # does one inside an escaped `{{...}}`, which is not a field. A plain literal's braces are text too.
+    for old, new in (('    x = f"started {n}"', '    x = f"begun {n}"'),
+                     ('    x = f"{{lit}} {n}"', '    x = f"{{LIT}} {n}"'),
+                     ('    x = f"t{a}"', '    x = f"u{a}"'),                      # the character right BEFORE `{`
+                     ('    x = f"{a}t"', '    x = f"{a}u"'),                      # ...and right AFTER `}`
+                     ('    x = "{a(y)}"', '    x = "{b(y)}"')):
+        assert M.string_only_verdict(_d(old, new))[0] == M.STRING_ONLY, (old, new)
+
+
+def test_fstring_expr_spans_are_EXACT_and_run_to_the_literals_end_on_an_unterminated_field():
+    f = M._fstring_expr_spans
+    assert f('f"{a(y)}-{y + 1}"') == [(2, 8), (9, 16)]             # `{`…`}` inclusive, exactly
+    assert f('x = "{a}" + f"{b}"') == [(14, 17)]                   # only the f-prefixed literal has fields
+    assert f('rf"{a}" F\'{b}\' fr"{c}" bf"x"') == [(3, 6), (10, 13), (18, 21)]   # any prefix carrying an f
+    assert f('f"{{not}} {yes} {{}}"') == [(10, 15)]                # `{{` / `}}` are text
+    assert f('f"{d[{1: 2}[1]]:{w}}"') == [(2, 20)]                 # nested braces stay inside their field
+    assert f('f"{a"') == [(2, 5)]                                   # unterminated: to the literal\'s end, fail-CLOSED
+    assert f('f"{a}" + x') == [(2, 5)]                             # column 0: the prefix walk stops at 0
+    assert f('if t: s = "{a}"') == []                                # an `f` earlier on the line is not a prefix
+    assert f('f"{{{x}}}"') == [(4, 7)]                               # `{{`, then a field, then `}}`
+    assert f('f"{}{a}"') == [(2, 4), (4, 7)]                       # not valid Python — pins that the scan starts AT the first field char
+    assert f('"{a}"') == [] and f("plain") == []
+
+
+def test_selftest_NAMES_the_f_string_check_that_failed(monkeypatch, capsys):
+    """The three f-string pins in `selftest` each print a line naming what broke; a pin whose
+    message is `None` would still return 1 but tell the next reader nothing. Force each to fail."""
+    monkeypatch.setattr(M, "_fstring_expr_spans", lambda line: [])
+    assert M.selftest() == 1
+    out = capsys.readouterr().out
+    assert "a mutant inside an f-string field is hidden as string-only" in out
+    assert "_fstring_expr_spans mislocates the fields" in out
+    monkeypatch.undo()
+    monkeypatch.setattr(M, "is_string_only", lambda diff: False)
+    assert M.selftest() == 1
+    assert "an f-string's TEXT is no longer string-only" in capsys.readouterr().out
+

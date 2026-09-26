@@ -465,3 +465,27 @@ def test_module_source_path_builds_the_EXACT_path_not_merely_a_plausible_one():
     and a negative — both satisfied by several wrong constructions. Pin the whole string."""
     assert _MT.module_source_path("/srv/ch", "cpap_stream") == "/srv/ch/cpap_stream.py"
     assert _MT.module_source_path("/a/b", "x") == "/a/b/x.py"
+
+
+def test_a_change_inside_an_F_STRING_FIELD_is_a_code_change_not_prose():
+    """mutmut mutates `{a(y)}` as code (measured 2026-09-26, and it generates no text mutant for an
+    f-string at all); folding the whole literal to STR hid that — `same_code` read True and the
+    survivor left the work list as "string literal only"."""
+    assert classify('    x = f"{a(y)}-{y + 1}"', '    x = f"{b(y)}-{y + 1}"') == (REACHABLE, "code change")
+    assert classify('    x = f"{a(y)}-{y + 1}"', '    x = f"{a(y)}-{y - 1}"') == (REACHABLE, "code change")
+    # text between fields is still text, an escaped `{{...}}` is text, a plain literal's braces are text
+    assert classify('    x = f"started {n}"', '    x = f"begun {n}"')[0] == PROSE
+    assert classify('    x = f"{{lit}} {n}"', '    x = f"{{other}} {n}"')[0] == PROSE   # (a case flip would be UNOBSERVABLE first)
+    assert classify('    x = "{a(y)}"', '    x = "{b(y)}"')[0] == PROSE
+
+
+def test_strip_strings_keeps_an_f_strings_fields_verbatim_and_folds_everything_else():
+    s = mutation_triage._strip_strings
+    assert s('x = "{a}" + f"{b(c)} t {{e}}"') == "x = STR + STR{b(c)}"
+    assert s("F'{d[{1: 2}[1]]:{w}}'") == "STR{d[{1: 2}[1]]:{w}}"
+    assert s('f"{a} {b}"') == "STR{a}{b}"                           # two fields stay two fields
+    assert s('f"{{x}} {a}"') == "STR{a}"                              # an escaped brace BEFORE a field
+    assert s('f"{{{a}"') == "STR{a}"                                # `{{` immediately followed by a field
+    assert s('f"{d[{1: 2}[1]]} t"') == "STR{d[{1: 2}[1]]}"           # text AFTER a nested field is folded
+    assert s('rf"{a}\\n"') == "STR{a}" and s('"plain"') == "STR" and s('f"no field"') == "STR"
+
