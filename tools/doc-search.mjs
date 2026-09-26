@@ -192,6 +192,34 @@ export function tokenScore(query, text) {
   return hit / q.length;
 }
 
+/* --read mode: how many hits are printed in full and how much of each. Three, not five: the path list
+   already names eight; three chunks at ~1.5k chars is ~1k tokens, which is the whole point — a
+   session reads the answer instead of deciding whether to open a path. */
+export const READ_TOP = 3;
+export const READ_CHARS = 1500;
+
+/* The chunk text as it will be printed: whitespace-collapsed, cut at a sentence when one lands
+   inside the last 200 chars of the cap, with an explicit marker when it was cut (an unmarked cut
+   reads as the whole). */
+export function readChunk(text, cap = READ_CHARS) {
+  const t = String(text || '')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+  if (t.length <= cap) return '    ' + t.replace(/\n/g, '\n    ');
+  const head = t.slice(0, cap);
+  const cut = head.lastIndexOf('. ');
+  const body = cut >= cap - 200 ? head.slice(0, cut + 1) : head;
+  return '    ' + body.replace(/\n/g, '\n    ') + '\n    … [cut at ' + body.length + ' of ' + t.length + ' chars — open the path for the rest]';
+}
+
+/* The CLI flags this tool understands, stripped from the query words. Exported so the selftest can
+   pin that a flag never leaks into the embedded query (it did once as a token-fallback term). */
+export const CLI_FLAGS = new Set(['--quiet', '--no-ext', '--ext-only', '--pull-ext', '--read']);
+export function stripFlags(argv) {
+  return (argv || []).filter((a) => !CLI_FLAGS.has(a));
+}
+
 export function rank(queryVec, entries, query, topN = 8) {
   const scored = entries.map((e) => ({
     file: e.file,
@@ -887,6 +915,17 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
       writeFileSync: () => {}
     }) === null
   );
+  ok('--read is a flag, never a query word', stripFlags(['--read', 'seam', '--quiet', 'split']).join(' ') === 'seam split');
+  ok('readChunk returns the whole chunk under the cap, unmarked', readChunk('short text', 100) === '    short text');
+  ok(
+    'readChunk marks a cut and prefers a sentence boundary inside the last 200 chars',
+    (() => {
+      const t = 'a'.repeat(1300) + '. ' + 'b'.repeat(400);
+      const out = readChunk(t, 1500);
+      return out.includes('[cut at 1301 of 1702 chars') && !out.includes('bbb');
+    })()
+  );
+  ok('readChunk cuts hard when no sentence boundary is near the cap', readChunk('c'.repeat(2000), 1500).includes('[cut at 1500 of 2000 chars'));
   console.log(fail ? '\n✗ ' + fail + ' failed, ' + pass + ' passed' : '\n✓ all ' + pass + ' selftests passed');
   process.exit(fail ? 1 : 0);
 }
@@ -894,10 +933,11 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
 if (IS_MAIN && !process.argv.includes('--selftest')) {
   const scope = process.argv.includes('--ext-only') ? 'ext' : process.argv.includes('--no-ext') ? 'repo' : 'all';
   const pullExt = process.argv.includes('--pull-ext');
-  const argv = process.argv.slice(2).filter((a) => a !== '--quiet' && a !== '--no-ext' && a !== '--ext-only' && a !== '--pull-ext');
+  const readMode = process.argv.includes('--read');
+  const argv = stripFlags(process.argv.slice(2));
   const query = argv.join(' ').trim();
   if (!query) {
-    console.error('usage: node tools/doc-search.mjs [--no-ext|--ext-only] [--pull-ext] "<what you are trying to find out>"');
+    console.error('usage: node tools/doc-search.mjs [--read] [--no-ext|--ext-only] [--pull-ext] "<what you are trying to find out>"');
     process.exit(2);
   }
   if (pullExt && scope !== 'repo') {
@@ -922,6 +962,16 @@ if (IS_MAIN && !process.argv.includes('--selftest')) {
   const hits = rank(qv, entries, query, 8);
   console.log(`\n▸ ${qv ? 'semantic' : 'TOKEN-FALLBACK (embedder unreachable)'} · "${query}"\n`);
   for (const h of hits) console.log(`  ${h.score.toFixed(3)}  ${h.file}\n        ${h.text.slice(0, 110).trim()}…`);
+  if (readMode) {
+    /* --read: the matching CHUNK of the top three hits, inline, so the reader reads them instead of
+       the path list. Measured 2026-09-26: twice in one day the top hit was never opened. Capped per
+       chunk so three hits cost ~1k tokens, not a section each; the path is still there to open. */
+    console.log('\n▸ --read · the matching chunk of the top ' + Math.min(READ_TOP, hits.length) + ' hits (capped at ' + READ_CHARS + ' chars each):');
+    for (const h of hits.slice(0, READ_TOP)) {
+      console.log('\n  ── ' + h.file + '  (' + h.score.toFixed(3) + ')');
+      console.log(readChunk(h.text, READ_CHARS));
+    }
+  }
   console.log('\n  ⚠ These are PATHS TO READ, not an answer. This tool does not summarise a document,');
   console.log('    and ADJACENCY IS NOT EQUIVALENCE — the two nearest results may answer DIFFERENT');
   console.log('    questions with the same words. Read the one you opened, not the one beside it.');

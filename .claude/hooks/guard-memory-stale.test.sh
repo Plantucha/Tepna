@@ -235,4 +235,15 @@ ok DENY "$(bash_run "printf q > $wa" pre)" "a stale read is still DENIED at the 
 printf 'q\n' > "$wa"; sleep 0.02
 ok DENY "$(bash_run true post)" "…and a DENIED command leaves no licence behind for the next one"
 
+# ── no memory directory anywhere under HOME ⇒ the hook is a no-op, pre and post, on every tool ──
+# (a cloud container or fresh clone; the hook must not parse a payload for a directory that cannot exist)
+NOMEM="$(mktemp -d)"; mkdir -p "$NOMEM/.claude/projects/-home-x-Repo"   # the project dir WITHOUT memory/
+nomem() { printf '{"session_id":"%s","tool_name":"%s","tool_input":{"file_path":"%s"}}' "$SID" "$1" "$2" \
+  | env -u CLAUDE_CODE_SESSION_ID -u CLAUDE_ALLOW_STALE_MEMORY HOME="$NOMEM" bash "$H" "${3-pre}" >/dev/null 2>&1; echo $?; }
+ok 0 "$(nomem Write "$F")"        'no memory dir under HOME: a Write to a memory-looking path is a no-op (exit 0), pre'
+ok 0 "$(nomem Write "$F" post)"   '…and post'
+ok 0 "$(nomem Bash "$F" post)"    '…and a Bash post, the phase that otherwise always reads the directory'
+ok DENY "$(run Write "$F")"       'control: with the memory dir present the same Write is still DENIED'
+rm -rf "$NOMEM"
+
 if [ "$fail" -eq 0 ]; then echo "guard-memory-stale: all checks passed"; else echo "guard-memory-stale: $fail FAILED"; exit 1; fi
