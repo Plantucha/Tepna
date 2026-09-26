@@ -49,7 +49,7 @@ left on the floor is comparable to this file.
 | PR | sections | `CLAUDE.md` before → after | rationale file |
 |---|---|---|---|
 | 1 | §👥 (0 · 1 · 2 · 2b · 2b-bis · 2c · 2d · 3 · 4 · 4b · 4c · 5 · 5b) | 126,078 → 99,612 bytes (−26.5 KB, ≈ −6.6k tokens) | 45,378 bytes |
-| 2 | §📌 ∅ 🧾 📏 📜 📚 🎙️ 🧪 | pending | |
+| 2 | §📌 ∅ 🧾 📏 📜 📚 🎙️ 🧪 | 99,612 → 84,774 bytes | 76,909 bytes |
 | 3 | §🔏 🎫 📦 ✅ 🔒 | pending | |
 
 ## 3 · What this does NOT change
