@@ -4227,13 +4227,6 @@
       "key": "- for lit in re.findall(r\"\"\"[\"']([^\"'\\n]+)[\"']\"\"\", t.read_text(encoding=\"utf-8\", errors=\"replace\")): | + for lit in re.findall(r\"\"\"[\"']([^\"'\\n]+)[\"']\"\"\", t.read_text(encoding=\"UTF-8\", errors=\"replace\")):",
       "probe": "Run 2026-09-25 in a 3.11 venv, UTF-8 locale (`locale.getpreferredencoding(False)` = utf-8), against a `.py` holding one Latin-1 byte and one `\\xff` in a comment above a root-file literal (the plant `test_root_reads_survives_a_NON_UTF8_byte_in_a_test_file`): original and the three variants each return the same text and the literal is found. The other three mutants on this line (`errors=None`, `errors=` dropped, `errors=\"REPLACE\"`) raise UnicodeDecodeError / LookupError on the same input and are KILLED by that plant.",
       "why": "`\"UTF-8\"` and `\"utf-8\"` name one codec — `codecs.lookup` normalises case — so the decode is byte-identical for every input."
-    },
-    {
-      "class": "no-distinguishing-input",
-      "key": "- i = a + 1 | + i = a - 1",
-      "probe": "2026-09-26, mutate_diff --base origin/main on the f-string-fields branch: this mutant survived three runs while its siblings (`a + 2`, and every mutant of the loop body) were killed by test_fstring_expr_spans_are_EXACT_and_run_to_the_literals_end_on_an_unterminated_field. Checked by hand that the two extra positions it scans can never be `{`: `a` indexes the opening QUOTE returned by _string_spans, and `line[a - 1]` is a prefix letter because the branch is entered only when 'f' is in line[j:a].",
-      "why": "A PROOF, not a judgement. Starting the field scan at `a - 1` instead of `a + 1` visits exactly two more characters, `line[a - 1]` and `line[a]`. The second is the opening quote by construction (`_string_spans` returns spans that start at the quote). The first is a letter: this code runs only after `\"f\" in line[j:a].lower()` held, and `line[j:a]` is the run of alphabetic characters ending at `a`, so it is non-empty and `line[a - 1]` is alphabetic. Neither can equal `{`, the only character the scan acts on before a field opens, so every input yields identical spans. The one-character neighbour `a + 2` IS distinguishable (it skips the first interior character) and is killed.",
-      "brief": "#3098 not-examined item — f-string fields are code (changes/2026-09-26-mutation-tools-fstring-fields-are-code.md)"
     }
   ],
   "mutation_pure.py": [

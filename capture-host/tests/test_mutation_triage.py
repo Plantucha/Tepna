@@ -486,6 +486,7 @@ def test_strip_strings_keeps_an_f_strings_fields_verbatim_and_folds_everything_e
     assert s('f"{a} {b}"') == "STR{a}{b}"                           # two fields stay two fields
     assert s('f"{{x}} {a}"') == "STR{a}"                              # an escaped brace BEFORE a field
     assert s('f"{{{a}"') == "STR{a}"                                # `{{` immediately followed by a field
+    assert s('f"{a}}}"') == "STR{a}"                                # a field then an escaped `}}`
     assert s('f"{d[{1: 2}[1]]} t"') == "STR{d[{1: 2}[1]]}"           # text AFTER a nested field is folded
     assert s('rf"{a}\\n"') == "STR{a}" and s('"plain"') == "STR" and s('f"no field"') == "STR"
 

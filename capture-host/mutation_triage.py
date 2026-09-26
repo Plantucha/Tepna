@@ -49,32 +49,30 @@ def _strip_strings(s: str) -> str:
     # An f-string's `{...}` fields are CODE, and they stay: mutmut mutates them as code and generates
     # no text mutant for an f-string at all (measured 2026-09-26, mutmut 3.8), so folding the whole
     # literal to STR read `f"{a(y)}"` -> `f"{b(y)}"` as "string literal only" and dropped a real
-    # survivor from the work list. `{{`/`}}` are text; a nested `{}` stays inside its field.
+    # survivor from the work list. `{{`/`}}` at depth 0 are text; a nested `{}` stays inside its field.
+    # A `for` over the interior, never an index-driven `while`: a hand-advanced index is one mutation
+    # away from a loop that never ends, which the diff-scoped gate rightly refuses to call measured.
     def fold(m: re.Match[str]) -> str:
         if "f" not in m.group(1).lower():
             return "STR"
-        # the literal's INTERIOR: the prefix and both quotes are folded into STR with the text
-        body, out, depth, i = m.group(0)[m.end(2) - m.start():-1], ["STR"], 0, 0
-        while i < len(body):
-            ch = body[i]
-            if depth == 0:
-                if ch == "{":
-                    if body[i + 1:i + 2] == "{":
-                        i += 2
-                        continue
-                    depth = 1
-                    out.append(ch)
+        body = m.group(0)[m.end(2) - m.start():-1]          # the literal's INTERIOR
+        out, depth, skip = ["STR"], 0, False
+        for k, ch in enumerate(body):
+            if skip:
+                skip = False
+            elif depth == 0 and ch in "{}" and body[k + 1:k + 2] == ch:
+                skip = True
             elif ch == "{":
                 depth += 1
                 out.append(ch)
-            elif ch == "}":
+            elif ch == "}" and depth:
                 depth -= 1
                 out.append(ch)
-            else:
+            elif depth:
                 out.append(ch)
-            i += 1
         return "".join(out)
     return _STR.sub(fold, s)
+
 
 
 # `log.warning("%s %s → %s", name,` spans several lines, and `classify` is handed ONE of them. A
