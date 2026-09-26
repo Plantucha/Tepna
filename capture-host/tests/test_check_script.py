@@ -39,7 +39,7 @@ def _write_exec(path, body):
 
 
 def _sandbox(tmp_path, *, ruff_rc=0, shellcheck_rc=0, pytest_rc=0, mypy_found=None,
-             timeout_plugin=True):
+             timeout_plugin=True, runtime_deps=True):
     """A PATH where each gate is a stub that records that it ran and exits as scripted."""
     binn = tmp_path / "bin"
     binn.mkdir()
@@ -60,6 +60,8 @@ for a in "$@"; do
     # The plugin PROBE, scripted: this fake exits 0 for any arg it does not match, so a MISSING
     # pytest-timeout would otherwise be unrepresentable here and the announcement untestable.
     "import pytest_timeout") exit {0 if timeout_plugin else 1} ;;
+    # The RUNTIME-requirements probe (bleak): absent, the mypy count is not the baseline's quantity.
+    "import bleak") exit {0 if runtime_deps else 1} ;;
     ruff)   echo ruff   >> "{log}"; exit {ruff_rc} ;;
     pytest) echo pytest >> "{log}"; exit {pytest_rc} ;;
     mypy)   {mypy_emit}; exit 0 ;;   # NOT logged: `ran` is the BLOCKING gate set, and mypy is advisory
@@ -239,8 +241,8 @@ def test_shutil_which_finds_the_script_dir_independent(tmp_path):
 
 
 # ── the mypy baseline, which used to live only in a label string ──────────────────────────────────
-def _mypy_run(tmp_path, found):
-    env, _log = _sandbox(tmp_path, mypy_found=found)
+def _mypy_run(tmp_path, found, *, runtime_deps=True):
+    env, _log = _sandbox(tmp_path, mypy_found=found, runtime_deps=runtime_deps)
     p = subprocess.run([CHECK], env=env, capture_output=True, text=True, timeout=120)
     return p.stdout + p.stderr
 
@@ -332,6 +334,27 @@ def test_the_mypy_VERDICT_is_emitted_as_a_status_in_every_direction(tmp_path):
         d = tmp_path / f"run{delta}"
         d.mkdir()
         assert _state_of(_mypy_run(d, base + delta), "mypy") == want
+
+
+def test_a_count_WITHOUT_the_runtime_requirements_is_NOT_COMPARABLE_in_every_direction(tmp_path):
+    """Measured 2026-09-26 on one tree with one mypy: 36 errors with only requirements-dev.txt
+    installed, 39 with requirements.txt (bleak, typed) too. The dev-only 36 read `BELOW — lower
+    MYPY_BASELINE to bank it`, and banking it would set a baseline the fully-installed machine can
+    never meet. So when `import bleak` fails the count is reported, but as a quantity that is not
+    the baseline's — in EVERY direction, because a RISEN or AT_BASELINE read without the types is
+    just as accidental as the BELOW one."""
+    base = _baseline()
+    for delta in (+1, 0, -1):
+        d = tmp_path / f"nodeps{delta}"
+        d.mkdir()
+        out = _mypy_run(d, base + delta, runtime_deps=False)
+        assert _state_of(out, "mypy") == "NOT_COMPARABLE", out[-600:]
+        assert "NOT COMPARABLE" in out and "import bleak" in out and "requirements.txt" in out
+        assert "RISEN" not in out and "BELOW" not in out          # never the direction, never the alarm
+    # the positive control: the SAME below-baseline count with the requirements present still banks
+    deps = tmp_path / "deps"
+    deps.mkdir()
+    assert _state_of(_mypy_run(deps, base - 1), "mypy") == "BELOW"
 
 
 def test_the_at_baseline_state_does_NOT_contain_the_word_RISEN(tmp_path):
