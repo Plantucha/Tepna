@@ -133,7 +133,13 @@ function ecgRpeakTimes(text) {
     nRaw: gated.nRaw,
     artifactSec: gated.artifactSec,
     artifactGate: gated.applied,
-    hostAxis: rec.hostAxis || null
+    hostAxis: rec.hostAxis || null,
+    /* ADDITIVE 2026-09-26 (PAT classic-vs-fused): the per-second confidence Map this function ALREADY
+       computes for `dropArtifactPeaks` and then discarded. A consumer that wants to weight a PAT lag by
+       how much each end was trusted had no way to get it without re-deriving `hrConfidence` — i.e.
+       re-running bandpass + detect + SQI on the same bytes. `null` when the DSP has no `hrConfidence`,
+       never an empty Map: absent and "measured, all ones" are different facts (§∅). */
+    conf: conf
   };
 }
 function ppgFootTimes(text) {
@@ -190,8 +196,28 @@ function ppgFootTimes(text) {
     } else sec = idx / fs;
     t[i] = t0 + sec * 1000;
   }
+  /* ADDITIVE 2026-09-26 (PAT classic-vs-fused): the optical leg's per-second confidence, in the call
+     shape `sensor-trio-worker.js ppgHrMapReal` already uses — `beatSQI` over the SELECTED channel's
+     bandpassed signal and the consensus feet, then `beatConfidence` keyed on the same second floor.
+     Not a new estimator: the same two DSP calls that surface already makes, reached from the feet this
+     function had already consensus-detected.
+     ⚠️ `null` rather than a default when either call is unavailable, and the consumer must SHOW that.
+     The O2Ring's single-channel drawn-axis PPG is the case Wren flagged as unverified: if confidence is
+     not usable there, the corner renders UNWEIGHTED AND LABELLED, never silently weighted by 1 (§∅). */
+  var _sqi = PPGDSP.beatSQI ? PPGDSP.beatSQI(per[refIdx].bp, cons.feet, rec.fs, null, cons.agree || null) : null;
+  var _conf =
+    PPGDSP.beatConfidence && _sqi
+      ? PPGDSP.beatConfidence(
+          cons.feet.map(function (fIdx) {
+            return Math.round(fIdx);
+          }),
+          _sqi,
+          rec.fs,
+          rec.t0Ms
+        )
+      : null;
   // Forwarded for the same reason as the ECG leg above — this is the leg that can actually be DRAWN.
-  return { t0Ms: rec.t0Ms, fs: rec.fs, durSec: rec.durSec, times: t, n: cons.feet.length, hostAxis: rec.hostAxis || null };
+  return { t0Ms: rec.t0Ms, fs: rec.fs, durSec: rec.durSec, times: t, n: cons.feet.length, hostAxis: rec.hostAxis || null, conf: _conf };
 }
 function overlap(ecg, ppg) {
   var s = Math.max(ecg.t0Ms, ppg.t0Ms),
@@ -596,7 +622,27 @@ self.onmessage = function (e) {
                 linR2: c.linR2,
                 inPhysPct: c.inPhysPct,
                 ppm: ov.min > 0 && isFinite(c.driftRange) ? (c.driftRange / (ov.min * 60000)) * 1e6 : NaN,
-                binMed: c.binMed
+                binMed: c.binMed,
+                /* ADDITIVE 2026-09-26: the surviving coupled pairs, `{t, lag}` per beat — `coupledPAT`
+                   has always RETURNED these and `packCp` dropped them. A PAT lag's weight needs both
+                   of its ends, and both are derivable from here: the R second is `t`, the foot second
+                   is `t + lag`. Keeping the pairs is what lets the weighting live in the CONSUMER, so
+                   `coupledPAT` and every number above it stay untouched and a classic column built
+                   from this object is PAT Feasibility's own output rather than a reproduction of it. */
+                /* 🔴 WIP — NOT CORRECT YET (Wren, 2026-09-26, before this shipped): `pack()` DOWNSAMPLES
+                   `patAtR` to ~4000 points (`step = ceil(n/4000)`), so weighting THIS list weights a
+                   decimated sample of the pairs and silently changes the population the window medians
+                   are taken over. Two honest options, to be decided in the next commit: weight INSIDE
+                   the worker (full list in scope, only the weighted medians leave), or post the full
+                   `patAtR` on an explicit request from the page. Do NOT weight the downsampled list.
+                   Also note for the PR: `coupledPAT`'s accepted set is ALREADY filtered to ±90 ms of a
+                   30 s local median, so c-weighting operates AFTER that filter, never instead of it.
+                   AND a third constraint (Wren, same review): ship this field ONLY when `m.detail` is
+                   set. The batch path packs every leg of every night, and a full `patAtR` is ~23k
+                   objects per leg — ×3 legs × N nights across `postMessage` with no reader. That is the
+                   dead-cross-boundary shape the unwired gate holds at zero. The page requests `detail`
+                   anyway, so gating on it costs nothing and keeps the batch payload unchanged. */
+                patAtR: c.patAtR
               }
             : { ok: false, reason: c.reason };
         }
