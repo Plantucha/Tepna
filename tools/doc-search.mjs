@@ -917,11 +917,14 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
   );
   ok('--read is a flag, never a query word', stripFlags(['--read', 'seam', '--quiet', 'split']).join(' ') === 'seam split');
   ok('readChunk returns the whole chunk under the cap, unmarked', readChunk('short text', 100) === '    short text');
-  ok('readChunk marks a cut and prefers a sentence boundary inside the last 200 chars', (() => {
-    const t = 'a'.repeat(1300) + '. ' + 'b'.repeat(400);
-    const out = readChunk(t, 1500);
-    return out.includes('[cut at 1301 of 1702 chars') && !out.includes('bbb');
-  })());
+  ok(
+    'readChunk marks a cut and prefers a sentence boundary inside the last 200 chars',
+    (() => {
+      const t = 'a'.repeat(1300) + '. ' + 'b'.repeat(400);
+      const out = readChunk(t, 1500);
+      return out.includes('[cut at 1301 of 1702 chars') && !out.includes('bbb');
+    })()
+  );
   ok('readChunk cuts hard when no sentence boundary is near the cap', readChunk('c'.repeat(2000), 1500).includes('[cut at 1500 of 2000 chars'));
   console.log(fail ? '\n✗ ' + fail + ' failed, ' + pass + ' passed' : '\n✓ all ' + pass + ' selftests passed');
   process.exit(fail ? 1 : 0);
