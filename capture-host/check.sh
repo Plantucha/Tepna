@@ -172,6 +172,18 @@ mypy_advisory() {
     printf '  mypy: NO COUNT — mypy did not report a summary line (it aborted, not passed)\n'
     ADVISORY_NOTE="NO COUNT — mypy aborted; nothing was examined"
     ADVISORY_STATE="NO_COUNT"
+  elif ! "$PY" -c 'import bleak' 2>/dev/null; then
+    # THE COUNT DEPENDS ON WHAT PIP INSTALLED, so it is only the baseline's quantity when the runtime
+    # requirements are present. Measured 2026-09-26 on one tree with one mypy: 36 with only
+    # requirements-dev.txt, 39 once requirements.txt (bleak, typed) is installed too — and 36 reads
+    # "BELOW, bank it", which would set a baseline the primary machine can never meet. `bleak` is the
+    # probe because it is the runtime dependency that carries the types the difference came from.
+    printf '  mypy: %s errors — NOT COMPARABLE to the %s baseline (%s): the runtime requirements are not\n' \
+           "$n" "$MYPY_BASELINE" "$MYPY_BASELINE_DATE"
+    printf '        installed (`import bleak` failed), and without their types mypy counts fewer errors.\n'
+    printf '        pip install -r requirements.txt, then read the direction.\n'
+    ADVISORY_NOTE="$n (baseline $MYPY_BASELINE, NOT_COMPARABLE) — runtime requirements absent; the count is not the baseline's quantity"
+    ADVISORY_STATE="NOT_COMPARABLE"
   elif [ "$n" -gt "$MYPY_BASELINE" ]; then
     printf '  mypy: %s errors — RISEN from the %s baseline (%s). The count may only go DOWN.\n' \
            "$n" "$MYPY_BASELINE" "$MYPY_BASELINE_DATE"
