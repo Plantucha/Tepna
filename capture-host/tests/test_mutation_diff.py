@@ -893,10 +893,6 @@ def test_a_key_with_only_one_side_is_still_refused_without_the_guard():
     assert M.float_boundary_unprobed("+ only a plus side 0.05 <=", "p") is None
 
 
-def _d(a, b):
-    return "--- a\n+++ b\n-" + a + "\n+" + b + "\n"
-
-
 def test_a_change_inside_an_F_STRING_FIELD_is_REQUIRED_not_string_only():
     """mutmut 3.8 mutates the code inside `{...}` — `a(None)`, `y - 1`, `y + 2` measured on
     `f"{a(y)}-{y + 1}"` on 2026-09-26 — and generates NO text mutant for an f-string at all. Every one
