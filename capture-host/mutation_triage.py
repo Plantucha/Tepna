@@ -56,12 +56,13 @@ def _strip_strings(s: str) -> str:
         if "f" not in m.group(1).lower():
             return "STR"
         body = m.group(0)[m.end(2) - m.start():-1]          # the literal's INTERIOR
-        out, depth, skip = ["STR"], 0, False
+        out, depth = ["STR"], 0
+        skip_at = None                                       # index of the second brace of an escaped pair
         for k, ch in enumerate(body):
-            if skip:
-                skip = False
-            elif depth == 0 and ch in "{}" and body[k + 1:k + 2] == ch:
-                skip = True
+            if k == skip_at:
+                continue
+            if depth == 0 and ch in "{}" and body[k + 1:k + 2] == ch:
+                skip_at = k + 1
             elif ch == "{":
                 depth += 1
                 out.append(ch)
