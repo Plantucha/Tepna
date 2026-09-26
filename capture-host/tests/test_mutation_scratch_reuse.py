@@ -56,17 +56,23 @@ def _stale_scratch(work, *, module="target.py"):
 
 def _extras(tree, module="target.py"):
     ignore = {".venv", "mutants", "__pycache__", ".coverage", "htmlcov", module}
-    return sorted(p.name + ("/" if p.is_dir() else "")
-                  for p in tree.iterdir()
-                  if p.name not in ignore and not p.name.startswith(".coverage"))
+    return sorted(
+        p.name + ("/" if p.is_dir() else "")
+        for p in tree.iterdir()
+        if p.name not in ignore and not p.name.startswith(".coverage")
+    )
 
 
 def test_a_reused_scratch_refreshes_EVERY_sibling_not_only_tests(tmp_path):
     """The defect verbatim: a shell script and a data fixture changed in the tree, the mutated module
     untouched, so the cache key does not move. Before the fix only `tests/` was refreshed and the run
     read the OLD script."""
-    src = tmp_path / "tree"; src.mkdir(); _fake_tree(src)
-    work = tmp_path / "scratch" / "work"; (work / "mutants").mkdir(parents=True); _stale_scratch(work)
+    src = tmp_path / "tree"
+    src.mkdir()
+    _fake_tree(src)
+    work = tmp_path / "scratch" / "work"
+    (work / "mutants").mkdir(parents=True)
+    _stale_scratch(work)
 
     n = _refresh(src, work, _extras(src))
     # The RETURN VALUE is published as `plan["refreshed_siblings"]`, so a wrong count is a wrong
@@ -86,8 +92,12 @@ def test_the_refresh_does_NOT_clobber_the_generated_mutant(tmp_path):
     """`mutants/<module>` is mutmut's generated file — 835 KB against the original's 15 KB. It must
     survive, which is why the mutated module is absent from `extras` by construction. If a future edit
     puts it back in that list, this reds instead of silently destroying the reuse the cache exists for."""
-    src = tmp_path / "tree"; src.mkdir(); _fake_tree(src)
-    work = tmp_path / "scratch" / "work"; (work / "mutants").mkdir(parents=True); _stale_scratch(work)
+    src = tmp_path / "tree"
+    src.mkdir()
+    _fake_tree(src)
+    work = tmp_path / "scratch" / "work"
+    (work / "mutants").mkdir(parents=True)
+    _stale_scratch(work)
     before = (work / "mutants" / "target.py").read_text()
 
     assert "target.py" not in _extras(src), "the mutated module must not be in the refresh list"
@@ -99,7 +109,9 @@ def test_the_refresh_does_NOT_clobber_the_generated_mutant(tmp_path):
 def test_the_refresh_list_is_the_SAME_one_the_initial_copy_uses(tmp_path):
     """Reuse and creation must not drift about what a scratch contains — that drift IS the defect.
     Pinned by deriving both from one expression."""
-    src = tmp_path / "tree"; src.mkdir(); _fake_tree(src)
+    src = tmp_path / "tree"
+    src.mkdir()
+    _fake_tree(src)
     extras = _extras(src)
     assert set(extras) == {"sibling.py", "tepna-report.sh", "tests/", "data/"}
     assert all(e.endswith("/") == (src / e.rstrip("/")).is_dir() for e in extras)
@@ -115,7 +127,7 @@ def test_the_tool_delegates_to_the_in_floor_function_and_it_refreshes_everything
 
     tool = pathlib.Path(__file__).resolve().parents[1] / "tools" / "mutate.py"
     src = tool.read_text()
-    reuse = src[src.index("if reuse and ("):src.index('plan["reused_scratch"]')]
+    reuse = src[src.index("if reuse and (") : src.index('plan["reused_scratch"]')]
     assert "refresh_scratch(" in reuse, "the reuse path no longer refreshes the siblings"
     assert 'copytree(HERE / "tests"' not in reuse, "the tests-only refresh is back"
 
@@ -129,12 +141,16 @@ def test_the_refreshed_count_is_reported_per_tree(tmp_path):
     `plan["refreshed_siblings"]`. Each sibling is copied into BOTH `work/` and `work/mutants/`, so the
     count is twice the sibling list — a tally that counted one tree would under-report a refresh that
     did happen, which is the kind of number a later reader would trust."""
-    src = tmp_path / "tree"; src.mkdir(); _fake_tree(src)
-    work = tmp_path / "scratch" / "work"; (work / "mutants").mkdir(parents=True); _stale_scratch(work)
+    src = tmp_path / "tree"
+    src.mkdir()
+    _fake_tree(src)
+    work = tmp_path / "scratch" / "work"
+    (work / "mutants").mkdir(parents=True)
+    _stale_scratch(work)
 
     extras = _extras(src)
-    assert len(extras) == 4                      # sibling.py, tepna-report.sh, tests/, data/
-    assert _refresh(src, work, extras) == 8      # each one, into each of the two trees
+    assert len(extras) == 4  # sibling.py, tepna-report.sh, tests/, data/
+    assert _refresh(src, work, extras) == 8  # each one, into each of the two trees
 
     # and an empty list is an honest zero, not a crash or a silent full copy
     assert _refresh(src, work, []) == 0
@@ -142,16 +158,21 @@ def test_the_refreshed_count_is_reported_per_tree(tmp_path):
 
 # ── root reads: the file a test opens ABOVE capture-host/ (2026-09-19, #2675) ──────────────────────
 
+
 def _tree_with_root_read(tmp_path, literal="ecgdex-dsp.js", *, make_root_file=True):
     """A repo shaped like ours: <root>/ecgdex-dsp.js beside <root>/capture-host/, and a test that names it."""
-    root = tmp_path / "repo"; tree = root / "capture-host"; tree.mkdir(parents=True)
+    root = tmp_path / "repo"
+    tree = root / "capture-host"
+    tree.mkdir(parents=True)
     _fake_tree(tree)
     if make_root_file:
         (root / "ecgdex-dsp.js").write_text("const ECG_RESYNC_BOUND_MS = 5000;\n")
     (root / "README.md").write_text("never named by a test\n")
-    (root / "docs").mkdir()                       # a DIRECTORY whose name a test might mention
+    (root / "docs").mkdir()  # a DIRECTORY whose name a test might mention
     (tree / "tests" / "test_parity.py").write_text(
-        'import os\ndef test_p():\n    open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "..", "%s")).read()\n' % literal)
+        'import os\ndef test_p():\n    open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "..", "%s")).read()\n'
+        % literal
+    )
     return root, tree
 
 
@@ -167,22 +188,28 @@ def test_stage_root_reads_lands_the_file_where_BOTH_runs_resolve_it(tmp_path):
     """The mutants run executes work/mutants/tests/ → grandparent's parent is work/; the clean baseline
     executes work/tests/ → work/... Both must find the file, so it is copied to work/ AND work/.."""
     root, tree = _tree_with_root_read(tmp_path)
-    scratch = tmp_path / "scratch"; work = scratch / "work"; (work / "mutants" / "tests").mkdir(parents=True)
+    scratch = tmp_path / "scratch"
+    work = scratch / "work"
+    (work / "mutants" / "tests").mkdir(parents=True)
     n = mutation_diff.stage_root_reads(tree, work, mutation_diff.root_reads(tree))
     assert n == 2
     assert (work / "ecgdex-dsp.js").read_text() == "const ECG_RESYNC_BOUND_MS = 5000;\n"
     assert (scratch / "ecgdex-dsp.js").read_text() == "const ECG_RESYNC_BOUND_MS = 5000;\n"
     # and the read as the parity test spells it resolves from BOTH test locations
     import os
+
     for tests_dir in (work / "mutants" / "tests", work / "tests"):
-        p = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(tests_dir / "test_parity.py"))), "..", "ecgdex-dsp.js")
+        p = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(tests_dir / "test_parity.py"))), "..", "ecgdex-dsp.js"
+        )
         assert os.path.isfile(p), p
 
 
 def test_a_named_root_file_that_does_not_exist_is_skipped_not_fabricated(tmp_path):
     root, tree = _tree_with_root_read(tmp_path, make_root_file=False)
-    assert mutation_diff.root_reads(tree) == []          # not a file in the root ⇒ not a read
-    work = tmp_path / "s" / "work"; work.mkdir(parents=True)
+    assert mutation_diff.root_reads(tree) == []  # not a file in the root ⇒ not a read
+    work = tmp_path / "s" / "work"
+    work.mkdir(parents=True)
     assert mutation_diff.stage_root_reads(tree, work, ["ecgdex-dsp.js"]) == 0
     assert not (work / "ecgdex-dsp.js").exists()
 
@@ -190,13 +217,17 @@ def test_a_named_root_file_that_does_not_exist_is_skipped_not_fabricated(tmp_pat
 def _tree_with_subdir_read_via_helper(tmp_path):
     """The shape that broke #2864, in miniature: the fixture lives in a SUBDIRECTORY of the root, and
     the path is named by a HELPER MODULE rather than by a test file."""
-    root = tmp_path / "repo"; tree = root / "capture-host"; tree.mkdir(parents=True)
+    root = tmp_path / "repo"
+    tree = root / "capture-host"
+    tree.mkdir(parents=True)
     _fake_tree(tree)
     (root / "uploads").mkdir()
     (root / "uploads" / "synthetic_ecgdex_h10.txt").write_text("t,v\n0,1\n")
     # the path is spelled in a HELPER, never in a test — test_seal.py calls V.stage_night(...)
     (tree / "tests" / "vectors.py").write_text('FIXTURE = "uploads/synthetic_ecgdex_h10.txt"\n')
-    (tree / "tests" / "test_seal_like.py").write_text("import vectors\ndef test_s():\n    open(vectors.FIXTURE).read()\n")
+    (tree / "tests" / "test_seal_like.py").write_text(
+        "import vectors\ndef test_s():\n    open(vectors.FIXTURE).read()\n"
+    )
     return root, tree
 
 
@@ -222,7 +253,9 @@ def test_root_reads_stages_a_SUBDIRECTORY_read_into_both_run_locations(tmp_path)
     """A path-shaped read must land under its own subdirectory in BOTH places, or the copy is as
     absent as no copy at all."""
     root, tree = _tree_with_subdir_read_via_helper(tmp_path)
-    scratch = tmp_path / "scratch"; work = scratch / "work"; (work / "mutants" / "tests").mkdir(parents=True)
+    scratch = tmp_path / "scratch"
+    work = scratch / "work"
+    (work / "mutants" / "tests").mkdir(parents=True)
     # NEITHER destination has an `uploads/` yet — the copy must create it, at both places. Without
     # that, `shutil.copy2` raises FileNotFoundError and a read staged into a missing parent is as
     # absent as no copy at all.
@@ -233,17 +266,23 @@ def test_root_reads_stages_a_SUBDIRECTORY_read_into_both_run_locations(tmp_path)
     assert (scratch / "uploads" / "synthetic_ecgdex_h10.txt").read_text() == "t,v\n0,1\n"
     # `parents=True` needs a TWO-level destination, and `exist_ok=True` needs a SECOND name landing in
     # a directory the first call already made — neither is observable with one name one level down.
-    (root / "docs").mkdir(exist_ok=True); (root / "docs" / "deep").mkdir(exist_ok=True)
+    (root / "docs").mkdir(exist_ok=True)
+    (root / "docs" / "deep").mkdir(exist_ok=True)
     (root / "docs" / "deep" / "two_levels.txt").write_text("2\n")
     (root / "uploads" / "second_in_dir.txt").write_text("s\n")
-    deep = tmp_path / "scratch2"; w2 = deep / "work"; w2.mkdir(parents=True)
-    n2 = mutation_diff.stage_root_reads(tree, w2, ["docs/deep/two_levels.txt", "uploads/synthetic_ecgdex_h10.txt", "uploads/second_in_dir.txt"])
+    deep = tmp_path / "scratch2"
+    w2 = deep / "work"
+    w2.mkdir(parents=True)
+    n2 = mutation_diff.stage_root_reads(
+        tree, w2, ["docs/deep/two_levels.txt", "uploads/synthetic_ecgdex_h10.txt", "uploads/second_in_dir.txt"]
+    )
     assert n2 == 6, n2
     assert (w2 / "docs" / "deep" / "two_levels.txt").read_text() == "2\n"
     assert (w2 / "uploads" / "second_in_dir.txt").read_text() == "s\n"
     # A name that is NOT a file is SKIPPED, not a stopping point: the skip is a `continue`, and it
     # comes FIRST here so a `break` would lose every real read after it.
-    w3 = tmp_path / "scratch3" / "work"; w3.mkdir(parents=True)
+    w3 = tmp_path / "scratch3" / "work"
+    w3.mkdir(parents=True)
     n3 = mutation_diff.stage_root_reads(tree, w3, ["absent_from_the_root.txt", "uploads/synthetic_ecgdex_h10.txt"])
     assert n3 == 2, n3
     assert (w3 / "uploads" / "synthetic_ecgdex_h10.txt").is_file()
@@ -272,7 +311,9 @@ def test_root_reads_sees_a_PARTS_BUILT_path_through_its_unique_BASENAME(tmp_path
     `uploads/synthetic_ecgdex_h10.txt` is a literal NOWHERE in the repo, so widening from NAMES to
     PATHS does not find it either: only the BASENAME is ever written down. It is enough when it is
     unique in the tree, which is what this asserts."""
-    root = tmp_path / "repo"; tree = root / "capture-host"; tree.mkdir(parents=True)
+    root = tmp_path / "repo"
+    tree = root / "capture-host"
+    tree.mkdir(parents=True)
     _fake_tree(tree)
     (root / "uploads").mkdir()
     (root / "uploads" / "synthetic_ecgdex_h10.txt").write_text("t,v\n0,1\n")
@@ -289,14 +330,19 @@ def test_root_reads_refuses_an_AMBIGUOUS_basename(tmp_path):
 
     The index is built from unique basenames only; `_subdir_index` returns the dropped names so the
     miss is a named set rather than a silence — the distinction this whole family turns on."""
-    root = tmp_path / "repo"; tree = root / "capture-host"; tree.mkdir(parents=True)
+    root = tmp_path / "repo"
+    tree = root / "capture-host"
+    tree.mkdir(parents=True)
     _fake_tree(tree)
     for d in ("docs", "papers"):
-        (root / d).mkdir(); (root / d / "NOTES.md").write_text(d)
+        (root / d).mkdir()
+        (root / d / "NOTES.md").write_text(d)
     # a DOT directory and node_modules are pruned from the index — `.git` is the reason the
     # root-level rule excludes dotfiles, and the same exclusion has to hold one level down
-    (root / ".hidden").mkdir(); (root / ".hidden" / "secret.txt").write_text("x")
-    (root / "node_modules").mkdir(); (root / "node_modules" / "vendored.txt").write_text("x")
+    (root / ".hidden").mkdir()
+    (root / ".hidden" / "secret.txt").write_text("x")
+    (root / "node_modules").mkdir()
+    (root / "node_modules" / "vendored.txt").write_text("x")
     (tree / "tests" / "test_names_hidden.py").write_text('A = "secret.txt"\nB = "vendored.txt"\n')
     (tree / "tests" / "test_names_it.py").write_text('X = "NOTES.md"\n')
     got = mutation_diff.root_reads(tree)
@@ -322,9 +368,9 @@ def test_root_reads_never_raises_on_an_UNRESOLVABLE_literal(tmp_path):
     # fixture path, so a `continue`→`break` lost nothing: the expected value was still supplied by
     # `tests/vectors.py`. A test whose answer is available from a second source cannot fail.
     (tree / "tests" / "test_junk.py").write_text('BAD = "up\x00loads/x.txt"\nGOOD = "only_here.js"\n')
-    got = mutation_diff.root_reads(tree)                      # must not raise
-    assert "uploads/synthetic_ecgdex_h10.txt" in got, got     # and the real read still lands
-    assert "only_here.js" in got, got                         # ...including the literal AFTER the junk one
+    got = mutation_diff.root_reads(tree)  # must not raise
+    assert "uploads/synthetic_ecgdex_h10.txt" in got, got  # and the real read still lands
+    assert "only_here.js" in got, got  # ...including the literal AFTER the junk one
     assert not any("\x00" in g for g in got), got
 
 
@@ -341,34 +387,39 @@ def test_subdir_index_reads_GIT_when_the_root_is_a_checkout(tmp_path):
     is NOT in `git ls-files`, so this asserts the semantic difference rather than the mechanism."""
     import subprocess
 
-    root = tmp_path / "repo"; tree = root / "capture-host"; tree.mkdir(parents=True)
+    root = tmp_path / "repo"
+    tree = root / "capture-host"
+    tree.mkdir(parents=True)
     _fake_tree(tree)
     (root / "uploads").mkdir()
     (root / "uploads" / "tracked_fixture.txt").write_text("t\n")
     (root / "uploads" / "untracked_fixture.txt").write_text("u\n")
     run = lambda *a: subprocess.run(["git", *a], cwd=str(root), capture_output=True, text=True, check=True)
     run("init", "-q")
-    run("config", "user.email", "t@e.st"); run("config", "user.name", "t")
+    run("config", "user.email", "t@e.st")
+    run("config", "user.name", "t")
     # AAA_root.txt sorts FIRST and is skipped (root-level files are `names`), so a `continue`
     # mutated to `break` loses everything after it — including the two fixtures below.
     (root / "AAA_root.txt").write_text("r\n")
     # a THREE-segment path: `rsplit("/", 1)[-1]` is the basename, `split("/", 1)[-1]` is `deep/x.txt`
-    (root / "docs").mkdir(); (root / "docs" / "deep").mkdir()
+    (root / "docs").mkdir()
+    (root / "docs" / "deep").mkdir()
     (root / "docs" / "deep" / "deep_fixture.txt").write_text("d\n")
     # parts[0] is the tree name, parts[1] is not — a `parts[0]`→`parts[1]` mutant skips the wrong row
     (root / "docs" / "capture-host").mkdir()
     (root / "docs" / "capture-host" / "nested_fixture.txt").write_text("n\n")
-    (root / ".hidden").mkdir(exist_ok=True); (root / ".hidden" / "ignored.txt").write_text("h\n")
+    (root / ".hidden").mkdir(exist_ok=True)
+    (root / ".hidden" / "ignored.txt").write_text("h\n")
     run("add", "uploads/tracked_fixture.txt", "AAA_root.txt", "docs", ".hidden")
     run("commit", "-qm", "fixture")
     index, dups = mutation_diff._subdir_index(root, tree.name)
     assert index.get("tracked_fixture.txt") == "uploads/tracked_fixture.txt", index
     # the whole point of preferring git: an untracked file is not somebody's fixture
     assert "untracked_fixture.txt" not in index, index
-    assert index.get("deep_fixture.txt") == "docs/deep/deep_fixture.txt", index      # basename, not a tail
+    assert index.get("deep_fixture.txt") == "docs/deep/deep_fixture.txt", index  # basename, not a tail
     assert index.get("nested_fixture.txt") == "docs/capture-host/nested_fixture.txt", index
-    assert "AAA_root.txt" not in index, index                                        # root files are `names`
-    assert "tracked_fixture.txt" not in dups, dups                                   # unique ⇒ NOT ambiguous
+    assert "AAA_root.txt" not in index, index  # root files are `names`
+    assert "tracked_fixture.txt" not in dups, dups  # unique ⇒ NOT ambiguous
 
 
 def test_root_reads_keeps_SCANNING_after_a_match_and_after_a_skip(tmp_path):
@@ -414,7 +465,7 @@ def test_root_reads_excludes_the_TREE_ITSELF_by_its_first_segment(tmp_path):
     got = mutation_diff.root_reads(tree)
     assert not any(g.startswith("capture-host/") for g in got), got
     index, _d = mutation_diff._subdir_index(root, tree.name)
-    assert "deep_selfref.py" not in index, index      # the tree IS the scratch copy
+    assert "deep_selfref.py" not in index, index  # the tree IS the scratch copy
 
 
 def test_every_SKIP_in_the_literal_loop_is_a_continue_not_a_break(tmp_path):
@@ -440,7 +491,9 @@ def test_every_SKIP_in_the_literal_loop_is_a_continue_not_a_break(tmp_path):
     # 2 · an INDEX hit (bare basename of a subdirectory file), then another
     (tree / "tests" / "t_after_index.py").write_text('C = "only_indexed.txt"\nD = "only_after_index.js"\n')
     # 3 · a tree self-reference skip, then another
-    (tree / "tests" / "t_after_self.py").write_text('E = "capture-host/tools/selfref_only.py"\nF = "only_after_self.js"\n')
+    (tree / "tests" / "t_after_self.py").write_text(
+        'E = "capture-host/tools/selfref_only.py"\nF = "only_after_self.js"\n'
+    )
     got = mutation_diff.root_reads(tree)
     assert "only_after_name.js" in got, got
     assert "only_after_index.js" in got, got
@@ -453,7 +506,8 @@ def test_root_reads_wants_a_FILE_and_containment_BOTH(tmp_path):
     """`target.is_file() and target.is_relative_to(root)` — mutated to `or` it survived, because no
     test named a path that is inside the root but is NOT a file. A DIRECTORY is that case."""
     root, tree = _tree_with_subdir_read_via_helper(tmp_path)
-    (root / "docs").mkdir(exist_ok=True); (root / "docs" / "sub").mkdir()
+    (root / "docs").mkdir(exist_ok=True)
+    (root / "docs" / "sub").mkdir()
     (tree / "tests" / "test_dir_literal.py").write_text('D = "docs/sub"\n')
     got = mutation_diff.root_reads(tree)
     assert "docs/sub" not in got, got
@@ -492,11 +546,11 @@ def test_root_reads_does_not_scan_an_IN_TREE_VENV(tmp_path):
     (tree / "tests" / ".hidden").mkdir()
     (tree / "tests" / ".hidden" / "t.py").write_text('F = "named_by_nested_dot_dir.txt"\n')
     got = mutation_diff.root_reads(tree)
-    assert not any(n.startswith("named_by_dot_venv") for n in got), got   # the dot-directory rule
-    assert "named_by_nested_dot_dir.txt" not in got, got                  # …at ANY depth
-    assert "named_by_plain_venv.css" not in got, got                      # the pyvenv.cfg rule
-    assert "sibling_one.js" in got, got                                   # a real read is still seen
-    assert "uploads/synthetic_ecgdex_h10.txt" in got, got                 # the helper-named read survives too
+    assert not any(n.startswith("named_by_dot_venv") for n in got), got  # the dot-directory rule
+    assert "named_by_nested_dot_dir.txt" not in got, got  # …at ANY depth
+    assert "named_by_plain_venv.css" not in got, got  # the pyvenv.cfg rule
+    assert "sibling_one.js" in got, got  # a real read is still seen
+    assert "uploads/synthetic_ecgdex_h10.txt" in got, got  # the helper-named read survives too
 
 
 def test_the_REAL_suite_has_exactly_the_root_reads_we_know_about():
@@ -514,6 +568,7 @@ def test_the_REAL_suite_has_exactly_the_root_reads_we_know_about():
     entry already costs (one small copy each)."""
     from pathlib import Path
     import pytest
+
     here = Path(__file__).resolve().parent.parent
     # Inside a mutation scratch `here` is work/ or work/mutants/, whose parent is the capture-host COPY —
     # a different "root" with a different population, so the pin would measure the scratch, not the
@@ -522,8 +577,8 @@ def test_the_REAL_suite_has_exactly_the_root_reads_we_know_about():
     if here.name != "capture-host":
         pytest.skip("population pin is about the real checkout's root; this is a scratch copy")
     got = mutation_diff.root_reads(here)
-    assert "ecgdex-dsp.js" in got                                 # the read that broke writers.py's lane
-    assert not any(n.startswith(".") for n in got), got           # never a dotfile (`.git` is a FILE in a worktree)
+    assert "ecgdex-dsp.js" in got  # the read that broke writers.py's lane
+    assert not any(n.startswith(".") for n in got), got  # never a dotfile (`.git` is a FILE in a worktree)
     # 2026-09-22 (#2864): the population WIDENED from 8 to 21 when root_reads stopped being keyed on
     # a literal, in a test file, naming a root-level REGULAR FILE. Total staged: 5.3 MB, largest
     # 3.95 MB (tests/dex-tests.js) — measured, because over-flagging is only cheap while it is small.
@@ -542,15 +597,29 @@ def test_the_REAL_suite_has_exactly_the_root_reads_we_know_about():
     # Self-references under capture-host/ are absent BY CONSTRUCTION, not by a carve-out: this
     # function is "the reads the scratch cannot satisfy on its own", and the tree IS that copy.
     # Without that rule the widened scan added 23 of them — measured, not assumed.
-    assert got == ["Dex-Test-Suite.html", "README.md",
-                   "briefs/CAPTURE-LOSS-PRECEDENCE-AUDIT-2026-09-22-BRIEF.md", "dex-badges.css",
-                   "ecgdex-dsp.js", "index.html", "pat-feasibility.js", "provenance/_meta.json",
-                   "provenance/index.json", "sensor-trio-night.js", "sensor-trio-power-analysis.js",
-                   "suite.manifest.json",
-                   "tests/dex-tests.js", "tools/mutate-equivalence.json", "tools/o2ring-dat-timefit.mjs",
-                   "tools/verdict-adoption.json", "tools/verify-seals.mjs",
-                   "uploads/synthetic_ecgdex_h10.txt", "uploads/synthetic_motiondex_acc.txt",
-                   "uploads/synthetic_oxydex_o2ring.csv", "verdict.js"], got
+    assert got == [
+        "Dex-Test-Suite.html",
+        "README.md",
+        "briefs/CAPTURE-LOSS-PRECEDENCE-AUDIT-2026-09-22-BRIEF.md",
+        "dex-badges.css",
+        "ecgdex-dsp.js",
+        "index.html",
+        "pat-feasibility.js",
+        "provenance/_meta.json",
+        "provenance/index.json",
+        "sensor-trio-night.js",
+        "sensor-trio-power-analysis.js",
+        "suite.manifest.json",
+        "tests/dex-tests.js",
+        "tools/mutate-equivalence.json",
+        "tools/o2ring-dat-timefit.mjs",
+        "tools/verdict-adoption.json",
+        "tools/verify-seals.mjs",
+        "uploads/synthetic_ecgdex_h10.txt",
+        "uploads/synthetic_motiondex_acc.txt",
+        "uploads/synthetic_oxydex_o2ring.csv",
+        "verdict.js",
+    ], got
 
 
 def test_root_reads_survives_a_NON_UTF8_byte_in_a_test_file(tmp_path):
