@@ -501,369 +501,213 @@ booted) if every rig must have run; re-open `?full` to warm the cache.
   (*why → RATIONALE §🧪*).
 
 ## 🔏 Provenance gate — run after RE-BUNDLING any `Foo.html`
-> **Ledger packaging (P3, 2026-07-15):** the two ledgers below are no longer single files — they live as
-> per-app **`provenance/<App>.json`** fragments (each carries that app's GATE-A `manifestHash` + GATE-B
-> fixtures) plus `provenance/_meta.json` + `provenance/index.json`. **`provenance-ledger.js`** reassembles
-> the identical combined `{ bundles }` / `{ fixtures }` shape every reader consumes (Node `loadNode`,
-> browser `loadBrowser`), so the gate cores below are unchanged — "`BUILD-MANIFEST.json`" / "`FIXTURE-
-> PROVENANCE.json`" now name the *assembled view*, and edits land in the per-app fragment.
+The ledgers are per-app **`provenance/<App>.json`** fragments (each carries that app's GATE-A
+`manifestHash` + GATE-B fixtures) plus `provenance/_meta.json` + `provenance/index.json`;
+**`provenance-ledger.js`** reassembles the combined `{ bundles }` / `{ fixtures }` view every reader
+consumes, so "`BUILD-MANIFEST.json`" / "`FIXTURE-PROVENANCE.json`" below name the *assembled view* and
+edits land in the per-app fragment.
 
-**`verify-provenance.html`** is a **pure-static, content-addressed** gate (SIGNAL-ADAPTER-AND-FRONTIER
-Phase 7, 2026-06-30). It fetches each bundle FILE + the ledger fragments and hashes them — it does **not**
-boot any bundle in an iframe and reads **no `buildHash`**, so there is no runtime race and no
-same-origin dependency. It opens fast but GATE-B file-hashing settles in ~10 s (it hashes every
-committed input + output); read `window.__provenanceOK` / `window.__gateA_ok` / `window.__gateB_ok`
-for the verdict — never scan the body. Two gates:
+**`verify-provenance.html`** is a **pure-static, content-addressed** gate: it fetches each bundle FILE
++ the ledger fragments and hashes them, boots nothing, reads **no `buildHash`**. GATE-B hashing settles
+in ~10 s; read `window.__provenanceOK` / `window.__gateA_ok` / `window.__gateB_ok` — never scan the body.
 
 - **GATE A — bundle code identity.** Every shipped bundle's current **`manifestHash`** must equal the
   value committed in **`BUILD-MANIFEST.json`**. `manifestHash` is the **sole executed-code identity**:
-  a projection of the bundle's owned **plain-inline** assets (no gzip, no random UUID keys) — extract
-  every `data-inline-src` `<script>`/`<style>` block, hash each block's text, form
-  `logicalName \0 sha256(assetText)` per block, sort, and SHA-256[0:12] the join — a pure function of
-  the inlined JS/CSS, **deterministic** across re-bundles of identical source, moving ONLY on a real
-  code change (the legacy gzip+UUID `__bundler/manifest` branch was RETIRED 2026-07-03 — `manifest-gate.js`
-  now hashes such a bundle to `null`; PROVENANCE-NONDETERMINISM-2026-06-29 §1). Computed statically by
-  `manifest-gate.js manifestHashFromText`, shared by the page + the Node sibling
-  `tests/verify-manifest.mjs` (`node tests/verify-manifest.mjs` runs GATE A + best-effort GATE B).
-- **GATE B — content-addressed known-answer ledger.** Every fixture in **`FIXTURE-PROVENANCE.json`**
-  is a self-contained triple `hash(input) + executed-code manifestHash → hash(output)`. A code-gated
-  fixture is `reproducible ✓` only while (1) its producing bundle's current `manifestHash` still
-  equals the recorded one, (2) every committed INPUT file still hashes to the recorded `inputHash`,
-  and (3) the committed OUTPUT file still hashes to the recorded `outputHash` — so it reds the moment
-  the code, an input, OR the output changes. Shared core `manifest-gate.js gateBEvaluate`.
+  extract every `data-inline-src` `<script>`/`<style>` block, hash each block's text, form
+  `logicalName \0 sha256(assetText)` per block, sort, SHA-256[0:12] the join — deterministic across
+  re-bundles of identical source, moving ONLY on a real code change (a legacy gzip+UUID bundle hashes to
+  `null`). Computed by `manifest-gate.js manifestHashFromText`, shared with `tests/verify-manifest.mjs`.
+- **GATE B — content-addressed known-answer ledger.** Every fixture in **`FIXTURE-PROVENANCE.json`** is
+  `hash(input) + executed-code manifestHash → hash(output)`; `reproducible ✓` only while the bundle's
+  `manifestHash`, every committed INPUT hash and the committed OUTPUT hash all still match. Core:
+  `manifest-gate.js gateBEvaluate`.
 
-⚠️ **`buildHash` is RETIRED as a provenance signal (Phase 7).** No gate reads it. It is still stamped
-into exports by the bundled `ganglior-provenance.js` as **inert legacy metadata** — left in place on
-purpose (re-bundling 8 apps to strip it would churn every fixture for zero gate value). Do **not**
-record, compare, or reason about `buildHash`; `manifestHash` is the only code identity. (The whole
-former "buildHash is a coarse / runtime-only / non-deterministic" caveat is gone — nothing depends on
-it.) Behavior is gated **separately** by `Dex-Test-Suite.html`.
+⚠️ **`buildHash` is RETIRED as a provenance signal.** Still stamped into exports by
+`ganglior-provenance.js` as inert legacy metadata; do not record, compare or reason about it.
+`manifestHash` is the only code identity; behavior is gated separately by `Dex-Test-Suite.html`.
 
-### Re-bundle checklist — update `BUILD-MANIFEST.json` (GATE A) + regenerate fixtures (GATE B)
-
-**The build is OWNED (OWN-THE-BUILD Part A, fleet cutover DONE 2026-07-03). There is no hand-update
-dance — the tool writes the ledgers.** Every bundle is a repo-owned deterministic **plain-inline** bundle
-(`<script|style data-inline-src>` text; no gzip, no UUID). The whole procedure is:
+### Re-bundle checklist — the tool writes the ledgers
 
 ```sh
 node tools/build.mjs --app OxyDex     # edit the *.js / .src.html first, then rebuild
 npm run check                         # ← the FULL gate. Not `build.mjs --check` alone.
 ```
 
-⚠️ **`node tools/build.mjs --check` is NOT the drift guard — it is one of FOUR.** There are four
-generated trees, and a change can staleness any of them:
+⚠️ **`build.mjs --check` is ONE of FOUR drift guards** (*why → RATIONALE §🔏: the table said three and
+`verify:tools-index` failed on `origin/main` itself*):
 
 | tree | built by | checked by |
 |---|---|---|
 | the 11 owned bundles | `tools/build.mjs` | `npm run build:check` |
-| **`docs/` — SERVED COPIES of those same bundles** | **`tools/build-docs.mjs`** | **`npm run verify:docs`** |
+| **`docs/` — SERVED COPIES of those bundles** | **`tools/build-docs.mjs`** | **`npm run verify:docs`** |
 | the analysis tools | `tools/build-analysis.mjs` | `npm run verify:analysis` |
 | **`docs/TOOLS-INDEX.md`** | **`tools/tools-index.mjs`** | **`npm run verify:tools-index`** |
 
-⚠️ **The fourth row is not stalened by a re-bundle — it is stalened by `tools/`.** `tools-index.mjs`
-reads every tool's header comment, so **adding a tool stales it AND so does reflowing an existing
-tool's purpose line.** Measured 2026-09-13: #2457/#2458 added `cohort-fit.mjs` + `nsrr-score-pool.mjs`,
-the index stayed at "178 tools" against an actual 180, and `verify:tools-index` (step 14/16) then failed
-on **`origin/main` itself** — so every branch cut from it inherited a red that looks like the brancher's
-fault. Fixed in #2465.
+The fourth row is stalened by `tools/` (adding a tool OR reflowing a tool's purpose line), not by a
+re-bundle. The enumeration is `package.json` — `grep -E '"(verify|build):' package.json` — not this
+table. `npm run check` runs all four plus typecheck · lint · `test:par` · `verify:shard-union` ·
+`test:build-core` · `verify:manifest`, and is exactly what CI gates on. **Run it, not a subset.**
 
-That row read as absent for a specific reason, and it is the reason to distrust any list here that
-*looks* complete: this table said THREE, so a careful author checked three builders, ran a hand-picked
-subset, and shipped. Same shape as `clockBundles` reading "every bundle" while being 5 of 8 (§✅). The
-enumeration is `package.json` — `grep -E '"(verify|build):' package.json` — not memory, and not this
-table if you have any reason to think it has drifted again.
+⚠️ **FORMAT BEFORE YOU BUNDLE.** Pre-flight `npm run typecheck && npm run lint`, then the group your
+change touches, then the builders — a Biome reflow after `build.mjs` moves `manifestHash` AND
+`computeHash` and re-runs the whole chain (*why → RATIONALE §🔏*). **Hook-enforced at commit** by
+`.claude/hooks/guard-format.sh` (denies a commit whose STAGED `*.js`/`*.mjs` are not Biome-clean;
+fails open where Biome cannot run; hatch `CLAUDE_ALLOW_UNFORMATTED=1`). A hook takes effect only in a
+checkout that has pulled it.
 
-`npm run check` runs all four (plus typecheck · lint · `test:par` · `verify:shard-union` ·
-`test:build-core` · `verify:manifest`) and is exactly what CI gates on. **Run it, not a hand-picked
-subset** — a rule keyed to the full gate fires on every cause of drift, where "after adding a tool,
-regenerate the index" under-fires on all the others. `CONTRIBUTING.md` has carried the full builder
-table all along — this line exists so the file you read *first* points at it too.
+⚠️ A fleet re-bundle green on `build.mjs --check`, GATE A/B and all assertions still reds CI's
+`static` job with `STALE (7): …` when `docs/` was not rebuilt — it presents as a test failure and is not one.
 
-⚠️ **FORMAT BEFORE YOU BUNDLE, not after.** `npm run check` puts `typecheck` and `lint` first by design:
-they cost seconds, and everything after them costs minutes. A one-line type error or a Biome reflow
-found *after* `build.mjs` invalidates the whole chain — bundle → orchestrators → `build-analysis` →
-`build-docs` → `regen-<node>-goldens` → `verify-fixtures` (which re-runs the entire suite) — because
-formatting an inlined file changes the inlined text, so `manifestHash` **and** `computeHash` move and
-`verifiedUnder` has to be re-earned. Measured 2026-08-15: that chain ran twice for one `const`.
-Pre-flight is `npm run typecheck && npm run lint`, then the group your change touches, and only then the
-builders. **Hook-enforced at commit time** by `.claude/hooks/guard-format.sh`, which denies a `git
-commit` whose STAGED `*.js`/`*.mjs` are not Biome-clean — `biome` is a required check, so such a commit
-reds CI on formatting alone.
-⚠️ **A hook change takes effect only once YOUR checkout has pulled it** — a session reads
-`.claude/settings.json` from its own project directory, so a hook that merged five minutes ago is
-running for nobody until each checkout syncs (measured: the shared root sat 92 commits behind with
-neither the wiring nor the script). It degrades safely — a missing script exits 127 and the harness
-denies only on 2 — but *"it is hook-enforced"* means *"once you have pulled it"*, and the shared root
-is the checkout most likely not to have. It checks the staged paths explicitly (`biome ci --changed` was measured
-exiting 0 on a staged format-only violation) and **fails open where Biome cannot run**, because a fresh
-worktree has no `node_modules`. Escape hatch for a deliberate WIP commit: `CLAUDE_ALLOW_UNFORMATTED=1`.
+### 🐍 capture-host has its OWN gate — `./check.sh`
 
-The failure mode, if you skip it: a fleet re-bundle that passed `build.mjs --check`, GATE A/B, biome
-and all 5378 assertions still went red in CI on `STALE (7): CPAPDex.html, ECGDex.html, …` (#797,
-2026-08-03), because nothing local had looked at `docs/`. **All six test shards were green and only
-the `static` job failed, so it presents as a test failure and is not one** — that misread is the part
-that costs time. Same trap as #450 and DEEP-AUDIT-III-FOLLOWUPS §2.5.
+`capture-host/check.sh` = ruff · shellcheck · `pytest -q --cov --cov-branch --cov-fail-under=100`. **A
+pytest line without `--cov` does not fail the coverage floor — it does not EVALUATE it** (no `TOTAL`
+row is the tell; *why → RATIONALE §🔏*). Run the script. `shellcheck` missing locally exits **127** —
+a missing tool, not a failing gate.
 
-### 🐍 capture-host has its OWN gate — `./check.sh`, and a hand-built pytest line is NOT it
+⚠️ **After `tools/build-docs.mjs`, stage from `git status`, NOT from the `git add …` line it prints**
+(measured printing nine unchanged paths and omitting the seven it rewrote).
 
-`npm run check` covers the JS side. **`capture-host/` is a separate lane with a separate gate**, and it
-is `capture-host/check.sh`: ruff · shellcheck · `pytest -q --cov --cov-branch --cov-fail-under=100`.
-CI runs those as three jobs; the script is the one local invocation that runs all three.
-
-⚠️ **A pytest line without `--cov` does not fail the coverage floor — it does not EVALUATE it.** There
-is no error, no warning, and no coverage table: the run just prints `N passed` and exits 0. Measured
-2026-08-11, twice in one session: 3264 tests passed, the author reported the gate green, and CI failed
-on `Required test coverage of 100% not reached. Total coverage: 99.98%` — one uncovered line. The tell
-is an ABSENCE (no `TOTAL` row), which is exactly the shape §4b warns about — a check that reports
-success about something it never examined.
-
-`check.sh`'s own header already says this about a sibling case ("`pytest --cov` printed 100 % and
-`ruff` failed on the very next line"). Run the script.
-
-⚠️ `shellcheck` missing locally exits **127** and the summary prints it beside a real failure. That is
-a missing TOOL, not a failing gate — check which before you go looking for a bug in your diff.
-
-⚠️ **After `tools/build-docs.mjs`, stage from `git status`, NOT from the `git add …` line it prints.**
-Observed 2026-08-03: it printed nine paths of which **zero** had changed, and omitted the **seven
-`docs/*.html` it had just rewritten**.
-
-`build.mjs` **auto-writes** that bundle's `BUILD-MANIFEST.json` `manifestHash` and **re-stamps its
-code-gated fixtures**. You do not hand-edit `manifestHash`, and you never hand-edit a fixture hash.
-`tools/build.html` / `tools/build-core.js` are the browser equivalents. Do **NOT** use `super_inline_html`
-— it regresses a bundle to the retired legacy format, which `manifest-gate.js` now hashes to `null`, so
-GATE A reds and points you back here.
+`build.mjs` **auto-writes** the bundle's `manifestHash` and **re-stamps its code-gated fixtures**; never
+hand-edit either. `tools/build.html` / `tools/build-core.js` are the browser equivalents. Do **NOT** use
+`super_inline_html` (regresses to the retired format; GATE A reds).
 
 **Owned ≠ in GATE A.** `build.mjs` owns **`CLAIM ownedBundles = 11`** bundles — the **9** in
 `manifest-gate.js MANIFEST_BUNDLES` (the 8 apps **plus `Integrator.html`**) and
-**`CLAIM orchestrators = 2`** orchestrators (`Data Unifier.html`, `OverDex.html`, owned per FOLLOWUPS §6).
-GATE A covers those **9**, not 8 — `Integrator.html` carries a `manifestHash` and a `provenance/Integrator.json`
-fragment like any app. `--check` is the guard that covers all 11.
-*(This line read "owns **10** bundles — the 8 apps" and "GATE A cover the **8 apps**" until 2026-08-15;
-both were off by one because `Integrator.html` was never counted. Found by the `claude-md-claims` gate on
-its first run, not by a reader. The `CLAIM` markers are machine-checked against the builder, so if you
-change what it owns, this line reds until you update it.)*
+**`CLAIM orchestrators = 2`** orchestrators (`Data Unifier.html`, `OverDex.html`). GATE A covers those
+**9**; `--check` covers all 11. The `CLAIM` markers are machine-checked against the builder.
 
-**Fixtures.** `build.mjs` re-stamps a code-gated fixture's `manifestHash` on rebuild, but it cannot
-know that your code changed a fixture's **output**. If it did, regenerate the fixture by **re-running the
-app on its committed inputs and re-exporting** (NEVER hand-edit an export), then let the tool re-record
-`{ manifestHash, inputHashes, outputHash }`. Because `manifestHash` is deterministic, an **export-inert
-rebuild of identical source moves nothing** — no re-record. A fixture-only re-record needs no rebuild.
-The regen tools are per-node and are the ONLY sanctioned way to move an output byte:
-**`tools/regen-<node>-goldens.mjs` — NINE of them, one per node, plus two shared cores.** (This line
-named only CPAPDex/GlucoDex/PulseDex until 2026-08-20 and read as "write one if your node lacks it";
-`tests/dex-tests.js:24609` already referenced `regen-ppgdex-goldens.mjs` by name, so the tests knew
-before this file did. Not `CLAIM`-marked, so no gate caught it — unlike `ownedBundles`/`clockBundles`.)
-`cpap` (CPAPDex, 5 fixtures) · `ecgdex` (ECGDex, 4) · `glucodex` (GlucoDex, 3) · `hrvdex` (HRVDex, 3) ·
-`integrator` (Integrator, 3) · `motiondex` (MotionDex, 1) · `oxydex` (OxyDex, 3) · `ppgdex` (PpgDex, 6) ·
-`pulsedex` (PulseDex, 3); `regen-goldens.mjs` + `regen-goldens-core.mjs` are the shared machinery.
-**Check for your node's tool before concluding a regeneration is expensive** — costing an item as
-"needs a regen tool written first" when one ships is the same stale-capability error §📌 keeps finding.
-Each re-runs the real modules in a co-loaded realm, preserves the volatile keys the equiv gate excludes
-(`file`/`provenance`/`kernel`/`generated`), and re-records the ledger from the bytes it wrote — so an
-**output-only** regeneration under UNCHANGED code (the case `build.mjs` does *not* cover: it re-stamps
-`outputHash` only when the bundle hash moves) still lands in `FIXTURE-PROVENANCE.json` without a hand-edit.
-Writing a node's regen tool is a one-off; copy the CPAP/GlucoDex pair.
+**Fixtures.** `build.mjs` cannot know that your code changed a fixture's **output**. If it did,
+regenerate by **re-running the app on its committed inputs and re-exporting** (NEVER hand-edit an
+export) with the node's regen tool — **`tools/regen-<node>-goldens.mjs`, NINE of them**: `cpap` (5
+fixtures) · `ecgdex` (4) · `glucodex` (3) · `hrvdex` (3) · `integrator` (3) · `motiondex` (1) · `oxydex`
+(3) · `ppgdex` (6) · `pulsedex` (3), on `regen-goldens.mjs` + `regen-goldens-core.mjs`. Each re-runs
+the real modules in a co-loaded realm, preserves the volatile keys (`file`/`provenance`/`kernel`/
+`generated`) and re-records the ledger from the bytes it wrote. **Check for your node's tool before
+costing a regeneration.** An export-inert rebuild of identical source moves nothing.
 
-### 🔒 "EXPORT-INERT" IS A COMPUTED VALUE — you don't get to *claim* it (FIXTURE-VERIFICATION-GATE, 2026-07-14)
+### 🔒 "EXPORT-INERT" IS A COMPUTED VALUE — you don't get to *claim* it
 
-Export-inertness used to be a **claim in a commit message**. `FIXTURE-PROVENANCE.json` is full of
-`note_*: "EXPORT-INERT … outputHash UNCHANGED"` — the most-repeated assertion in this repo's history. On
-2026-07-14 one of them was **wrong**: DEEP-AUDIT §1 checked only the synthetic golden (which trips no long
-gap), declared export-inert, and shipped — while the REAL Lingo night's export had moved. The equiv leg that
-would have caught it **SKIPS wherever `uploads/` is absent** (CI, *and* the author's machine); GATE B is
-static and never re-runs the app; **`build.mjs` re-stamped the fixture's `manifestHash`**, silently
-converting "came from code X" into "is reproducible under code Y". Every gate was green and the served
-GlucoDex ran a pre-fix DSP against real users' CGM data. So the claim is now **computed, not asserted**:
+A commit-message claim of export-inertness shipped a stale GlucoDex fixture through every green gate
+(*why → RATIONALE §🔏*). So the claim is **computed**:
 
-- **`computeHash`** (`manifest-gate.js`) — `manifestHash`'s projection over the export's **compute closure**
-  (every inlined asset that can reach `compute()`). Render/CSS/app edit → `manifestHash` moves, `computeHash`
-  **stable** ⇒ **export-inert, PROVEN**. DSP/clock/export/registry edit → **both** move ⇒ re-verification owed.
-  The closure is a **denylist** on purpose: an allowlist that forgets a module fails **OPEN** (the gate goes
-  blind — the exact failure being abolished); a denylist that forgets one merely **over-flags**. Unknown asset
-  ⇒ inside the closure. We accept false alarms; we do not accept a gate that cannot see.
-- **`verifiedUnder`** (per code-gated fixture) — the code that **actually re-ran the app and reproduced those
-  bytes**. **`build.mjs` is FORBIDDEN to write it** (it doesn't run the app, so it cannot know — auto-writing
-  that claim is how the stale fixture shipped; gate-asserted by source scan). The **only** writer is
-  **`tools/verify-fixtures.mjs`**, and only after a **green real-corpus run**.
+- **`computeHash`** (`manifest-gate.js`) — `manifestHash`'s projection over the export's **compute
+  closure**. Render/CSS/app edit → `manifestHash` moves, `computeHash` **stable** ⇒ export-inert,
+  PROVEN. DSP/clock/export/registry edit → both move ⇒ re-verification owed. The closure is a
+  **denylist** on purpose: unknown asset ⇒ inside it. We accept over-flagging, not a blind gate.
+- **`verifiedUnder`** (per code-gated fixture) — the code that actually re-ran the app and reproduced
+  those bytes. **`build.mjs` is FORBIDDEN to write it** (gate-asserted); the **only** writer is
+  **`tools/verify-fixtures.mjs`**, after a green real-corpus run.
 
-**What this means in practice:**
-- Re-verify after a compute-path change: **`node tools/verify-fixtures.mjs`**. It refuses
-  to stamp if an input is missing or the suite is red — a verification you didn't run is precisely the false
-  claim being abolished. If a fixture genuinely **moved**, regenerate it (`tools/regen-<node>-goldens.mjs`)
-  first; never re-stamp around a moved output.
-  ⚠️ **Your worktree does not contain the corpus, and cannot** — the recordings are gitignored, so §👥.1's
-  mandated worktree holds only the tracked fifth of `uploads/` while §🔏's mandated re-run needs the other
-  four fifths. The tool now searches `$DEX_UPLOADS` → the **primary checkout**'s `uploads/` → this
-  checkout's, and prints that search when it refuses, so "absent" is a conclusion you can check rather
-  than a guess. `DEX_UPLOADS=<corpus>` still overrides. The data lives in **four** places and only the
-  first satisfies this tool — see [`docs/CORPUS-LOCATIONS.md`](docs/CORPUS-LOCATIONS.md), which also
-  records that the freshest nights are on `vigil` and that a *regeneration* may therefore be an `ssh` job.
-- **`tools/release.mjs` REFUSES to cut a release while any corpus-backed fixture is UNVERIFIED.** That is the
-  wall — it would have blocked v1.10.1. CI reports the same thing but does **not** block (a contributor with
-  no corpus cannot green it; harm materialises on ship, and the releaser is the one holding the corpus).
-- Fixtures with **committed** inputs (the synthetic twins) are **exempt** — CI re-runs them from committed
-  bytes every push, so they cannot go stale unseen. This is why an adversarial **committed** twin beats a real
-  one: see the GlucoDex 14 h-gap twin. A real gappy night would have been gitignored and CI would have stayed
-  just as blind.
-- **Never write "export-inert" as an assertion again.** Either `computeHash` didn't move (say so, and give the
-  hash), or you re-verified (say so, and name the fixtures). Prose is not evidence.
+In practice:
+- After a compute-path change: **`node tools/verify-fixtures.mjs`**. It refuses to stamp if an input is
+  missing or the suite is red. If a fixture genuinely moved, regenerate it first; never re-stamp around
+  a moved output.
+- ⚠️ **Your worktree does not contain the corpus** (gitignored). The tool searches `$DEX_UPLOADS` →
+  the primary checkout's `uploads/` → this checkout's, and prints the search when it refuses. The data
+  lives in four places, only the first satisfies this tool — `docs/CORPUS-LOCATIONS.md`; a regeneration
+  may be an `ssh` job.
+- **`tools/release.mjs` REFUSES to cut a release while any corpus-backed fixture is UNVERIFIED.** CI
+  reports it but does not block.
+- Fixtures with **committed** inputs (the synthetic twins) are exempt — CI re-runs them every push. An
+  adversarial **committed** twin beats a real gitignored one (the GlucoDex 14 h-gap twin).
+- **Never write "export-inert" as an assertion.** Either `computeHash` didn't move (say so, give the
+  hash) or you re-verified (say so, name the fixtures).
 
-**The regenerate step is gate-enforced (the GATE-C surface).** GATE B is *static* — it pins the
-committed input/output bytes + code identity but does **not** re-run the app, so on its own it can't
-catch a code change that MOVED a fixture's output if you re-recorded the fixture's `manifestHash` without
-regenerating the output bytes. That regenerate-and-diff (GATE C) is enforced by **`Dex-Test-Suite.html`'s
-equivalence gate**: `env.equiv.*` runs `compute({committed input}) ≡ committed export` (volatile-stripped)
-for OxyDex/PulseDex/HRVDex/GlucoDex/PpgDex/ECGDex, and the CPAPDex synthetic goldens pin
-`compute() ≡ CpapFusion.cpapBuildExport`. **Every code-gated node has ≥1 such dynamic leg**, so a code
-change that moves an export's content **reds that node's equiv/golden leg** — `verify-provenance` GATE B
-(committed-artifact integrity) + the equiv/golden gate (current code reproduces the export) together
-close the loop. So when an equiv leg reds, regenerate **all** of that node's fixtures (e.g. both OxyDex
-summaries — only `_1056` has an equiv leg, but `_0439` shares the same code), not just the one named.
+**GATE C is the equivalence gate in `Dex-Test-Suite.html`**: `env.equiv.*` runs
+`compute({committed input}) ≡ committed export` (volatile-stripped) for OxyDex/PulseDex/HRVDex/GlucoDex/
+PpgDex/ECGDex, and the CPAPDex goldens pin `compute() ≡ CpapFusion.cpapBuildExport`. When an equiv leg
+reds, regenerate **all** of that node's fixtures, not just the one named.
 
-**⏱️ The "wait for the build to settle" rule is RETIRED — its cause is gone.** The async platform
-auto-rebuild that PROVENANCE-NONDETERMINISM §2/§4 warned about was an artifact of the **legacy inliner**;
-the owned build is explicit and deterministic — nothing rebuilds behind your back, and a `manifestHash`
-read straight after `build.mjs` is final. Do not re-read-and-wait; do not treat a moving hash as normal.
-If a hash moves with no source edit of yours, that is a **concurrent session**, not the build.
+**The "wait for the build to settle" rule is RETIRED.** The owned build is explicit and deterministic; a
+`manifestHash` read straight after `build.mjs` is final. A hash moving with no edit of yours is a
+concurrent session. **If GATE A/B already reconcile to the current hashes, do NOT hand-edit the
+ledger** — rebase and re-run `build.mjs`.
 
-**What DOES still hold: the ledgers are single files that every bundle-touching PR rewrites** (see §👥.3).
-So `BUILD-MANIFEST.json` / `FIXTURE-PROVENANCE.json` can still be rewritten out-of-band by *another
-session*. **If GATE A/B already reconcile to the current hashes, do NOT hand-edit the ledger** — it is
-synced, and fighting it just races the other writer. Rebase and re-run `build.mjs` instead.
-
-### Fixture provenance ledger — `FIXTURE-PROVENANCE.json` (content-addressed, Phase 7)
-The single source of which fixtures are audited AND their known-answers. Each record is
-`{ bundle, manifestHash, inputHashes:{file:16hex}, outputHash:16hex }` (code-gated) or
-`{ bundle, historical:true, outputHash }` (an immutable snapshot — e.g. the historical Integrator
-fusions — byte-PINNED only, NOT code-gated, because its producing code has evolved and it is not
-current-code-reproducible; code-gating it would assert a false reproducibility). The `fixtures` keys
-ARE the audited set — there is **no separate legacy list and no `buildHash` fallback** (both retired
-in Phase 7). **Workflow:** regenerate by re-running the app + re-exporting (never hand-edit a hash),
-then record the three hashes. The full "make `buildHash` itself strong" path (stash the manifest in
-the inliner bootstrap) remains **deliberately NOT taken** — it requires owning the inliner
-(GENERATOR-FOLLOWUPS-II-BRIEF §1) — and Phase 7 made it unnecessary by content-addressing around the
-already-honest `manifestHash`.
+### Fixture provenance ledger — `FIXTURE-PROVENANCE.json`
+Each record is `{ bundle, manifestHash, inputHashes:{file:16hex}, outputHash:16hex }` (code-gated) or
+`{ bundle, historical:true, outputHash }` (an immutable snapshot, byte-pinned, NOT code-gated — e.g. the
+historical Integrator fusions). The `fixtures` keys ARE the audited set; no legacy list, no `buildHash`
+fallback. Regenerate by re-running the app + re-exporting, never by editing a hash.
 
 ## 🎫 Evidence badges — ONE canonical source (don't fork the visuals or the grades)
-The 5-level evidence ladder (**measured · validated · emerging · experimental · heuristic**, ranks
-0→4, disc shape = trust, never hue) is defined ONCE and mirrored everywhere. Do NOT hand-redraw
-badge CSS or re-tier metrics ad hoc.
-- **🔴 COVERAGE MANDATE — read THIS before creating or changing ANY measurement:** every surfaced
-  measurement carries an evidence badge, *no exception* — **every KPI, every metric / finding card,
-  every hero / headline number, every chart-or-graph series, every table row & chip.** A number that
-  reaches a user's eye unbadged is a **bug**, same severity as a wrong unit. **Only two placements are
-  allowed:** (1) pinned in the card's **bottom-right corner** (`.ev-corner` wrapper; the card must be
-  `position:relative`) — for cards, KPIs, hero/headline numbers, chart cards; or (2) **inline,
-  immediately *before* the label** (`.ev`) in dense/crowded text — tables, chips, legends, multi-metric
-  rows. New surfaces inherit NOTHING automatically: you must wire `MetricRegistry.badge()` / `.ev-corner`
-  in when you add them. Markup contract → `dex-badges.css`; workflow → `CONTRIBUTING.md`.
-  - **A CHART CAPTION IS NOT A BADGE SITE — badge the SERIES** (owner decision 2026-08-16,
-    `DEEP-AUDIT-V-FOLLOWUPS` §1.2 option (c)). A caption routinely spans two metrics —
-    *"SpO₂ Mean % · T95% Time Below 95%"* — so it **cannot** carry one evidence tier, and forcing one
-    onto it would be the fabricated authority this section exists to prevent. The mandate above already
-    says *"every chart-or-graph series"*; the corollary is stated here so it is not re-litigated:
-    **an unbadged caption is correct provided every series it draws is badged.** `no-fabricated-tier`
-    therefore does not scan `chartTitle`, and its ratchet dropped **94 → 70** when the 24 caption
-    labels came out — measured, not assumed (row 2 · chartTitle 24 · metric 55 · ssKPI 7 · nrChip 6).
-    Those 24 were never debt.
-- **Visual source of truth:** `metric-registry.js` injects the badge stylesheet and now exposes the
-  exact string as `MetricRegistry.BADGE_CSS`. `dex-badges.css` is a byte-faithful MIRROR for static
-  docs that don't load the engine (e.g. the reference guides). Apps load `metric-registry.js` and
-  must NOT also hardcode disc CSS.
-- **Grade source of truth:** each node's `<node>-registry.js` (`OXY_REGISTRY`, `ECG_REGISTRY`, …) —
-  every metric's `evidence` field. A metric's tier is a NODE fact; never invent a global grade table. The crossnight `*_DEFS` in each `*-cross.js` is a **projection** of the registry, not a second source — `tests/dex-tests.js`'s `registry-defs-parity` group gates it (label · unit · goodDirection · evidence; registry wins).
-  Retired vocabulary (proxy→heuristic, composite→experimental, "provisionally validated"→emerging)
-  must never reappear.
-- **Gate:** the shared suite's `cohesion-badges` group (in `tests/dex-tests.js`) asserts engine ≡
-  `dex-badges.css` (per-tier disc props — two files, the single visual source), that each reference
-  guide `<link>`s `dex-badges.css` rather than inlining the disc CSS (so its discs inherit the gated
-  visuals by construction — DEX-EVENT-UNIFY C3), no retired vocabulary, and that every reference-guide
-  card the node's OWN resolver (`<Node>Registry.idForLabel`) maps carries the SAME grade as the
-  registry. **A reference guide is the consumer that must conform** —
-  if a doc grade and the registry disagree, fix the DOC, not the registry (the registry ships in the
-  app and is test-backed). To cover a new guide, pass its `<NODE>_REGISTRY`+`<Node>Registry`+doc text
-  into `env` in BOTH runners (`run-tests.mjs` + `Dex-Test-Suite.html`) — the group does the rest.
-- **Re-bundle note:** the `BADGE_CSS` export is inert (apps don't read it; injected CSS is
-  byte-identical), so adding it did NOT require re-bundling the apps — and re-bundling 7 apps just to
-  carry an inert export would flip every provenance fixture. Leave bundles as-is for inert shared-
-  module additions; re-bundle only when runtime behavior changes.
+The 5-level ladder (**measured · validated · emerging · experimental · heuristic**, ranks 0→4, disc shape
+= trust, never hue) is defined ONCE. Do NOT hand-redraw badge CSS or re-tier metrics ad hoc.
+- **🔴 COVERAGE MANDATE:** every surfaced measurement carries a badge, *no exception* — every KPI,
+  metric/finding card, hero number, chart series, table row and chip. An unbadged number is a **bug**,
+  same severity as a wrong unit. **Two placements only:** (1) `.ev-corner` pinned bottom-right of a
+  `position:relative` card; (2) inline `.ev` immediately *before* the label in dense text. New surfaces
+  inherit nothing: wire `MetricRegistry.badge()` / `.ev-corner` in. Markup → `dex-badges.css`;
+  workflow → `CONTRIBUTING.md`.
+  - **A CHART CAPTION IS NOT A BADGE SITE — badge the SERIES** (owner, 2026-08-16). A caption spans
+    metrics and cannot carry one tier; an unbadged caption is correct provided every series it draws
+    is badged. `no-fabricated-tier` does not scan `chartTitle` (*why → RATIONALE §🎫*).
+- **Visual source of truth:** `metric-registry.js` injects the stylesheet and exposes it as
+  `MetricRegistry.BADGE_CSS`; `dex-badges.css` is a byte-faithful MIRROR for static docs. Apps must NOT
+  also hardcode disc CSS.
+- **Grade source of truth:** each node's `<node>-registry.js` `evidence` field. A tier is a NODE fact;
+  never invent a global grade table. `*_DEFS` in each `*-cross.js` is a projection (gate:
+  `registry-defs-parity`; registry wins). Retired vocabulary (proxy, composite, "provisionally
+  validated") must never reappear.
+- **Gate:** `cohesion-badges` asserts engine ≡ `dex-badges.css`, each reference guide `<link>`s the CSS
+  rather than inlining it, no retired vocabulary, and every guide card the node's `idForLabel` maps
+  carries the registry's grade. **Fix the DOC, not the registry.** To cover a new guide, pass its
+  registry + doc text into `env` in BOTH runners.
+- **Re-bundle note:** an inert shared-module addition (like `BADGE_CSS`) does NOT require re-bundling;
+  re-bundle only when runtime behavior changes.
 
 ## 📦 Releases, versioning & the changelog (CONTROLLED-RELEASES-2026-07-05)
-One suite **SemVer** is the release identity (the "maintenance number"): canonical in
-`suite.manifest.json` `version`; `RELEASE-MANIFEST.json` is the append-only history; root `CHANGELOG.md`
-(Keep a Changelog) is the human view. **Three identity layers, never conflated:** the release SemVer ·
-each bundle's `manifestHash` (code) · each brief's dated filename+status (docs). Do **NOT** stamp a
-hand-typed version onto source files — `manifestHash` already identifies code more strongly than a number.
-- **Bump semantics** (SemVer vs Tepna's published contracts): **MAJOR** breaks a contract
-  (`ganglior.node-export`, the Clock Contract, `ganglior.crossnight`, a metric's identity/units, node
-  removal); **MINOR** adds backwards-compatibly (node/metric/adapter/gate/additive field); **PATCH**
-  fixes without changing a contract shape (a moved fixture output is still PATCH but MUST regenerate
+One suite **SemVer** — canonical in `suite.manifest.json` `version`; `RELEASE-MANIFEST.json` is the
+append-only history; root `CHANGELOG.md` the human view. **Three identity layers, never conflated:**
+release SemVer · each bundle's `manifestHash` · each brief's dated filename+status. Never stamp a
+hand-typed version onto source.
+- **Bump:** **MAJOR** breaks a contract (`ganglior.node-export`, the Clock Contract,
+  `ganglior.crossnight`, a metric's identity/units, node removal); **MINOR** adds backwards-compatibly;
+  **PATCH** fixes without changing a shape (a moved fixture output is PATCH and MUST regenerate
   fixtures per §🔏).
-- **The release is ONE command and runs unattended — `node tools/release.mjs --full`** (owner-ordered
-  2026-09-07 after v2.10.0 was hand-driven and four of its eleven post-stamp steps went wrong). It
-  launches `tools/release-land.mjs` detached: stamp → `build.mjs --all` → `build-docs` → `npm run check`
-  → explicit-path stage → PR → merge → tag at the merge sha → **GitHub Release object** (the thing
-  "Latest" reads — a tag alone is not a release) → `wt-done`. `node tools/release-land.mjs --status`
-  shows the step; `--resume` continues after a fix. Do not run those steps by hand from memory; if the
-  tool cannot do one, fix the tool. **Cadence is a MECHANISM, not a rule to remember** (owner, 2026-09-23):
-  `tools/release-due.mjs` under `tepna-release-due.timer` on the corpus machine cuts the release at
-  7 days since the last tag or 100 commits on `main` since it, whichever comes first.
-- **Parallel coders never hand-pick a number.** Each work-unit drops a collision-free **changeset** as
-  its last action (`changes/*.md` — `bump`/`type`/`brief`; see `changes/README.md`). `tools/release.mjs`
-  folds all pending changesets, computes the version ONCE from a **green tree**, stamps
-  `suite.manifest.json`, prepends the `CHANGELOG.md` section, appends the `RELEASE-MANIFEST.json` record
-  (+ per-app `manifestHash` snapshot), prunes `changes/`, and prints the `git tag`. Never hand-edit a
-  version or a snapshot.
-- **Gate-backed** by the `release-ledger` group in `tests/dex-tests.js` (sibling of `docs-ledger`): valid
-  SemVer · no fork (newest ledger record ≡ canonical) · unique + strictly-increasing versions ·
-  history↔changelog parity · changeset well-formedness · **check 7 — code that moved (`manifestHash` ≠ the
-  last release's snapshot) requires a pending changeset** (you can't ship code without recording it; zero
-  false positives — `manifestHash` is deterministic). **Node-lane only** (it reads `changes/` straight from
-  the filesystem — the lane CI runs); the browser lane can't list `changes/` so it SKIPs. There is **no
-  committed list to regenerate** on adding/pruning a changeset — the `tests/changes-list.txt` snapshot + its
-  generator were retired 2026-07-14 (CPAP-REAL-CORPUS-FOLLOWUPS-II §4, killing the per-PR merge tax).
-- **62304/13485-ALIGNED, not conformant.** The `docs/COMPLIANCE/` set (lifecycle plan · safety class ·
-  config-mgmt · SOUP · release SOP · doc-control) adopts the disciplines as good practice with **no
-  certification claim**; every file carries the non-device disclaimer. Runtime SOUP is empty by design.
-- **Version-into-bundle stamping is LIVE (owner-ordered 2026-08-18 — the deferral is over, and so is its
-  reason).** `DexBuild.build` projects `suite.manifest.json`'s version into each bundle's presentation
-  anchors (`<title>… · vX.Y.Z` · `.logo-sub` · `.version-badge`) at build time, in BOTH lanes.
-  The economics that justified deferring changed: the stamp lands OUTSIDE every `data-inline-src` block
-  **by construction** (inline blocks are masked during projection), so `manifestHash` — a projection of
-  those blocks alone — is INVARIANT and a release moves **zero** fixtures. Gate-asserted with a decoy in
-  `tests/build-core-tests.mjs`. After `tools/release.mjs` bumps the version, run `node tools/build.mjs`
-  (its printed post-steps now say so) — until then `build.mjs --check`'s byte-compare reds every bundle
-  still carrying the old string, so a stale displayed version cannot ship silently. Do NOT hand-edit a
-  version string in a `.src.html`; the literals there are placeholders the build overwrites.
+- **The release is ONE command, unattended — `node tools/release.mjs --full`** (owner-ordered
+  2026-09-07). It launches `tools/release-land.mjs` detached: stamp → `build.mjs --all` → `build-docs`
+  → `npm run check` → explicit-path stage → PR → merge → tag at the merge sha → **GitHub Release
+  object** → `wt-done`. `--status` shows the step; `--resume` continues after a fix. If the tool cannot
+  do a step, fix the tool. **Cadence is a MECHANISM** (owner, 2026-09-23): `tools/release-due.mjs`
+  under `tepna-release-due.timer` on the corpus machine cuts at 7 days since the last tag or 100
+  commits on `main`, whichever first.
+- **Parallel coders never hand-pick a number.** Each work-unit drops a **changeset** as its last action
+  (`changes/*.md` — `bump`/`type`/`brief`; see `changes/README.md`). `release.mjs` folds them, computes
+  the version ONCE from a green tree, stamps the manifest, prepends the changelog section, appends the
+  ledger record (+ per-app `manifestHash` snapshot), prunes `changes/`. Never hand-edit a version or a
+  snapshot.
+- **Gate-backed** by `release-ledger` (Node lane): valid SemVer · no fork · unique increasing versions ·
+  history↔changelog parity · changeset well-formedness · **check 7 — code that moved (`manifestHash` ≠
+  last snapshot) requires a pending changeset.** No committed list to regenerate.
+- **62304/13485-ALIGNED, not conformant.** `docs/COMPLIANCE/` adopts the disciplines with **no
+  certification claim**; runtime SOUP is empty by design.
+- **Version-into-bundle stamping is LIVE** (owner-ordered 2026-08-18): `DexBuild.build` projects the
+  version into `<title>… · vX.Y.Z` · `.logo-sub` · `.version-badge` OUTSIDE every `data-inline-src`
+  block, so `manifestHash` is invariant and a release moves zero fixtures (gate-asserted with a decoy).
+  After `release.mjs` bumps, run `node tools/build.mjs`; the `.src.html` literals are placeholders.
 
 ## ✅ Known non-issues (do NOT re-investigate or "fix" — they are intentional/resolved)
-- **Fonts / woff2:** there are no `*.woff2` files and no `@font-face`/CDN refs in source any more.
-  The `'Inter'`/`'IBM Plex Mono'` names in font stacks fall through to `system-ui`/`ui-monospace`
-  by design. **All 8 bundles are owned plain-inline (OWN-THE-BUILD Part A) and system-fonts-only** —
-  PulseDex's legacy captured IBM Plex Mono woff2 (a stale inliner ext-resource its source never referenced)
-  was **dropped in the 2026-07-03 PulseDex cutover** per owner decision, so it now matches the fleet.
-  **Do not** add `@font-face`, do not reintroduce a CDN, do not re-embed a woff2, do not
-  flag "missing woff2" — that whole class of warning was removed at the root in June 2026.
-- **`parseTimestamp` single-sourced in `clock.js` (A5 EXECUTED 2026-07-03, owner-ratified).** The former
-  "duplicated in every `*-dsp.js`, mirror it" rule is RETIRED: THE canonical Clock-Contract parser now lives
-  in `clock.js` (`DexClock`), inlined by the owned bundler into **`CLAIM clockBundles = 5`** of the 8 app
-  bundles (bundled-local AND single-source) — **NOT all of them**, and that distinction is load-bearing:
-  oxydex/pulsedex/hrvdex/ecgdex/motiondex ship the spine and DELEGATE via local aliases, while **ppgdex,
-  glucodex and cpapdex do not inline `clock.js` at all**, so **`DexClock` is UNDEFINED in those three
-  bundles** — a bare `DexClock.x` there is a `ReferenceError`, not a fallback. They keep DELIBERATE
-  node-local variants (ppgdex: strict ISO/epoch subset + quote-strip; glucodex: `_ckParse` + MDY numeric
-  wrapper; cpapdex: EDF subset) — do not force them onto DexClock, and do not reintroduce a mirror.
-  *(This sentence read "into every bundle" until 2026-08-15, which was false for three of eight and is why
-  the `claude-md-claims` gate exists. The `CLAIM` marker above is machine-checked — see that group.)* Load `clock.js` BEFORE any
-  delegating `*-dsp.js` (dex-coload.js `shared:` + the co-load gate enforce this; worker `importScripts` lists too).
-- **`docs-archive/REFACTOR-BRIEF-modularize-Dexes.md`:** historical, the refactor is DONE. See `docs-archive/`.
+- **Fonts / woff2:** no `*.woff2`, no `@font-face`, no CDN refs. `'Inter'`/`'IBM Plex Mono'` in font
+  stacks fall through to `system-ui`/`ui-monospace` by design; all bundles are owned plain-inline and
+  system-fonts-only (PulseDex's legacy woff2 dropped 2026-07-03). Do not re-add any of it or flag it.
+- **`parseTimestamp` single-sourced in `clock.js` (A5, owner-ratified 2026-07-03).** THE canonical
+  Clock-Contract parser lives in `clock.js` (`DexClock`), inlined by the owned bundler into
+  **`CLAIM clockBundles = 5`** of the 8 app bundles — **NOT all of them**: oxydex/pulsedex/hrvdex/
+  ecgdex/motiondex ship the spine and DELEGATE via local aliases, while **ppgdex, glucodex and cpapdex
+  do not inline `clock.js` at all**, so **`DexClock` is UNDEFINED there** — a bare `DexClock.x` is a
+  `ReferenceError`, not a fallback. They keep DELIBERATE node-local variants (ppgdex: strict ISO/epoch
+  subset + quote-strip; glucodex: `_ckParse` + MDY numeric wrapper; cpapdex: EDF subset) — do not force
+  them onto DexClock, do not reintroduce a mirror (*why → RATIONALE §✅, PR #1232*). Load `clock.js`
+  BEFORE any delegating `*-dsp.js` (`dex-coload.js shared:` + the co-load gate; worker `importScripts` too).
+- **`docs-archive/REFACTOR-BRIEF-modularize-Dexes.md`:** historical; the refactor is DONE.
 
 ---
 
 ## 🔒 THE CLOCK CONTRACT (non-negotiable — every app + every future node must obey)
 
-All five apps were unified onto ONE time model. EEGDex, the Integrator, and any new node MUST
-inherit it verbatim — do not "fix" it back to real-UTC epoch.
+All apps share ONE time model. EEGDex, the Integrator and any new node inherit it verbatim — do not
+"fix" it back to real-UTC epoch (*why → RATIONALE §🔒*).
 
 ### 1. Canonical unit: UTC-normalized *floating wall-clock* milliseconds (`tMs`)
 Store the recording's **local civil time encoded as if it were UTC**:
@@ -872,190 +716,108 @@ Store the recording's **local civil time encoded as if it were UTC**:
 tMs = Date.UTC(year, month-1, day, hour, min, sec, ms);   // canonical — NOT a real UTC instant
 ```
 
-Why floating (and why you must not revert it): these devices speak local civil time with no zone.
-Storing real UTC + rendering with local getters makes displayed time depend on the *viewer's*
-timezone (a New-York night reads 03:00 in London). Floating `tMs` + `getUTC*` is
-**viewer-timezone-independent**, and two devices recording the same wall-clock minute produce the
-**same `tMs`** by construction → cross-app sync holds without anyone sharing a timezone.
-
-- Never store a `Date` object or a formatted string as the source of truth.
-- Per record: `tMs`. Per recording/night/session: anchor `t0Ms` = `tMs` of the first valid sample.
-- Optional `offsetMin` (minutes east of UTC) **only** when the input carried a real zone (a zoned
-  ISO stamp). Real instant is then `utcMs = tMs − offsetMin*60000`. Default ALL sort/align/display
-  to `tMs`; compute `utcMs` only for genuine cross-timezone simultaneity. No zone → `offsetMin = null`.
+Floating `tMs` + `getUTC*` is viewer-timezone-independent, and two devices recording the same
+wall-clock minute produce the **same `tMs`** by construction.
+- Never store a `Date` or a formatted string as the source of truth.
+- Per record: `tMs`. Per recording: anchor `t0Ms` = `tMs` of the first valid sample.
+- `offsetMin` (minutes east of UTC) **only** when the input carried a real zone; real instant is then
+  `utcMs = tMs − offsetMin*60000`. Default ALL sort/align/display to `tMs`. No zone → `offsetMin = null`.
 
 ### 2. One shared parser — `parseTimestamp(raw, opts) → { tMs, offsetMin } | null`
-**Single-sourced in `clock.js` (`DexClock`) since A5 (owner-ratified, executed 2026-07-03)** — the owned
-bundler inlines it into **the bundles §✅ names — NOT all of them**; delegating DSPs alias it locally
-(`var parseTimestamp = DexClock.parseTimestamp;` …). **`DexClock` is UNDEFINED in ppgdex, glucodex and
-cpapdex**, which keep deliberate node-local variants (§✅), so a bare `DexClock.x` there is a
-`ReferenceError`, not a fallback. The count lives in §✅'s machine-checked `CLAIM clockBundles` and is
-deliberately not restated here: one quantity, one source, one gate — this sentence said "every bundle"
-from 2026-08-15 until 2026-09-22 because the correction was applied to §✅ and not to its twin, and
-#1232 read the universal literally (PpgDex's only Allan core removed, render rig 1458 ms → 16945 ms,
-`browser-gates` red).
-Resolution order:
-1. Numeric epoch (number / all-digit string, plausible range): real instant → floating for the
-   local zone at parse time (`tMs = inst − tzOffset(inst)`), `offsetMin = −tzOffset/60000`.
-2. **ISO-8601 with zone** (`…Z` / `…±HH:MM`): zone authoritative; `tMs = Date.UTC(components as written)`,
-   capture `offsetMin`. (A zoned stamp and a no-zone local stamp for the same wall instant → same `tMs`.)
+**Single-sourced in `clock.js` (`DexClock`)**, inlined into the bundles §✅ names — **NOT all of them**;
+`DexClock` is UNDEFINED in ppgdex, glucodex and cpapdex, which keep node-local variants. The count is
+§✅'s machine-checked `CLAIM clockBundles`, deliberately not restated here. Resolution order:
+1. Numeric epoch (plausible range): real instant → floating for the local zone at parse time
+   (`tMs = inst − tzOffset(inst)`), `offsetMin = −tzOffset/60000`.
+2. **ISO-8601 with zone**: zone authoritative; `tMs = Date.UTC(components as written)`, capture `offsetMin`.
 3. **ISO / `YYYY-MM-DD[ T]HH:MM[:SS]` no zone**: components verbatim → `Date.UTC(...)`, `offsetMin=null`.
-4. **Explicit vendor formats by regex** (never locale `new Date(str)` / `Date.parse` on vendor strings):
+4. **Explicit vendor formats by regex** (never `new Date(str)` / `Date.parse` on vendor strings):
    `HH:MM:SS DD/MM/YYYY` & `MM/DD/YYYY` (O2Ring), `DD/MM/YYYY HH:MM[:SS]` & `MM/DD/YYYY …` (Welltory),
    `YYYY/MM/DD HH:MM:SS`, 14-digit `YYYYMMDDHHMMSS`. Disambiguate DMY/MDY per §3.
-5. **Time-only `HH:MM[:SS]`**: combine with `opts.dateAnchorMs`; roll the date forward one day each
-   time the clock wraps past midnight (monotonic via `opts.prevTMs`). No anchor → `null`. Never Jan-1-2000.
+5. **Time-only `HH:MM[:SS]`**: combine with `opts.dateAnchorMs`; roll the date forward each time the
+   clock wraps past midnight (monotonic via `opts.prevTMs`). No anchor → `null`. Never Jan-1-2000.
 6. Fallback: `return null`. **NEVER** fall back to `new Date()` / now() — a missing stamp must be
-   visible (null), never fabricated.
-7. **Component ranges are validated — `Date.UTC`'s silent roll is a fabricated instant** (DEEP-AUDIT-II
-   §12.3, amended 2026-07-21). Regexes match *digits*, not *calendar validity*: `2026-13-45 25:99` would
-   feed `Date.UTC` out-of-range components, which it silently ROLLS onto a plausible WRONG instant
-   (month 13 → next January, day 45 → next month, `25:99` → +1 day 1 h 39 m). `clock.js:_ckMk` now builds
-   `tMs` **only** if the date round-trips (month 1–12, a real calendar day — rejects Feb 30 / Apr 31) and
-   the time is `0–23 : 0–59 : 0–59 . 0–999`; any out-of-range component ⇒ **null** (same honesty as §2.6).
-   The **one** legitimate overflow is ISO-8601 **`24:00:00`** (end-of-day) → normalized to next-day
-   `00:00:00`. **Do NOT add a bare `h > 23` guard** — it would reject `24:00:00`.
+   visible, never fabricated.
+7. **Component ranges are validated** — `Date.UTC` silently ROLLS out-of-range components onto a
+   plausible WRONG instant. `clock.js:_ckMk` builds `tMs` only if the date round-trips (month 1–12, a
+   real calendar day) and the time is `0–23 : 0–59 : 0–59 . 0–999`; otherwise **null**. The **one**
+   legitimate overflow is ISO **`24:00:00`** → next-day `00:00:00`. **Do NOT add a bare `h > 23` guard.**
 
 Helper: `tzOffset(instantMs) = new Date(instantMs).getTimezoneOffset()*60000`. Everything else is
 pure `Date.UTC` + regex.
 
 ### 3. DMY vs MDY (one deterministic rule)
-Any row with day-component > 12 ⇒ file is unambiguous; lock that order for the whole file. Else honor
-`opts.preferDMY` (default **true** for O2Ring/Welltory; GlucoDex CGM uses **false/MDY**). Never switch order mid-file.
+Any row with day-component > 12 ⇒ the file is unambiguous; lock that order for the whole file. Else
+honor `opts.preferDMY` (default **true** for O2Ring/Welltory; GlucoDex CGM **false/MDY**). Never switch
+order mid-file.
 
 ### 4. Per-recording anchors
-- `dateAnchorMs` = recording's start date at 00:00 (`Date.UTC(y,mo-1,d)`). Priority: (1) full date in
-  data; (2) 14-digit `YYYYMMDDHHMMSS` in the filename; (3) file `lastModified` (converted to floating);
+- `dateAnchorMs` = start date at 00:00 (`Date.UTC(y,mo-1,d)`). Priority: (1) full date in data;
+  (2) 14-digit `YYYYMMDDHHMMSS` in the filename; (3) file `lastModified` (converted to floating);
   (4) `null` → "date unknown", do not fabricate.
-- `t0Ms` = `tMs` of first valid sample. Store on the night/session object (+ `offsetMin` if known).
+- `t0Ms` = `tMs` of first valid sample, stored on the night/session object (+ `offsetMin` if known).
 
 ### 5. Display — ALWAYS `getUTC*` (never `getHours()` etc.)
-Because `tMs` is floating, read it back with the UTC family so output is identical on any machine:
-- `fmtClock(ms)` → `HH:MM`, `fmtDate(ms)` → `YYYY-MM-DD`, `fmtDateTime(ms)` → `YYYY-MM-DD HH:MM`,
-  all from `getUTCHours()/getUTCMinutes()/getUTCFullYear()/…`.
-- For `toLocaleDateString`/`toLocaleTimeString` labels, pass `{ timeZone:'UTC' }`.
-- A `Date` kept for compatibility must be `new Date(tMs)` and read **only** via `getUTC*`.
+`fmtClock(ms)` → `HH:MM`, `fmtDate(ms)` → `YYYY-MM-DD`, `fmtDateTime(ms)` → `YYYY-MM-DD HH:MM`, all
+from `getUTC*`. For `toLocale*` labels pass `{ timeZone:'UTC' }`. A compatibility `Date` is
+`new Date(tMs)` read **only** via `getUTC*`.
 
 ### 6. Export contract (the cross-node currency)
 Node JSON exports use `schema.name:"ganglior.node-export"`, `recording.startEpochMs` = the floating
 `t0Ms`, and `ganglior_events:[{ t:"HH:MM:SS", impulse, node, conf, meta? }]`. **Event `t` is a
-wall-clock string with no date** — consumers reconstruct absolute `tMs` from `startEpochMs`'s date +
-`t` (rolling past midnight, monotonic). New emitters SHOULD additionally write `tMs` (absolute
-floating ms) on each event; consumers must still tolerate `t`-only legacy exports.
+wall-clock string with no date** — consumers reconstruct absolute `tMs` from `startEpochMs`'s date + `t`
+(rolling past midnight, monotonic). New emitters SHOULD also write `tMs` on each event; consumers must
+tolerate `t`-only legacy exports.
 
 ### 7. The HOST-DISCIPLINED AXIS — `DexClock.hostAxis` (§1–§6 govern the parser; this governs the RATE)
-§1–§6 say how a stamp becomes a `tMs`. They say nothing about what happens across a *recording*, and a
-device crystal is wrong by ppm: read the host stamp once to anchor `t0Ms` and then ride the device
-counter, and the axis drifts away from the host all night. Every Polar-Sensor-Logger / capture-host row
-carries **two** clocks — `Phone timestamp` (the capture host) and `sensor timestamp [ns]` (the device) —
-and `hostAxis` is the only sanctioned way to reconcile them. **A node MUST NOT hand-roll a rate
-correction**; call `hostAxis` and consume `correctionAt()`.
+A device crystal is wrong by ppm and a BLE link stalls; every Polar-Sensor-Logger / capture-host row
+carries **two** clocks (`Phone timestamp` = host, `sensor timestamp [ns]` = device), and `hostAxis` is
+the only sanctioned way to reconcile them. **A node MUST NOT hand-roll a rate correction**; call
+`hostAxis` and consume `correctionAt()` (*why and the measurements → RATIONALE §🔒.7*).
 
-- **An ANCHOR is a `{ devMs, hostMs }` pair read off the SAME row.** Non-finite members are dropped, not
-  defaulted; anchors are sorted by `devMs`. Divergence is measured **relative to the first anchor** — the
-  node already anchored `t0Ms` there, and an absolute offset would double-count it.
-- **The median is EXACT in the interior and biased at the ENDS, by a known amount.** A running median
-  over a linear ramp reproduces it pointwise, so between the clamped edges `correctionAt` is the measured
-  divergence with no smoothing loss. At the two ends the window clamps, which pulls each end **inward by
-  ⌊win/2⌋/2 = 5 anchors' worth of drift**. Two consequences, both contractual: `correctionAt(firstAnchor)`
-  is that bias rather than exactly 0, and **`ppm` under-reads by a factor `1 − 5/(n−1)`** — 12.5 % at
-  n=41, 0.6 % at n=801, 0.17 % on the real 2873-anchor O2Ring geometry. This is a *second*, independent
-  reason `ppm` must never be quoted without its anchor count and span beside it; the first is leverage.
-- **≥3 anchors, and that minimum is a contract, not a nicety.** Two points define a line through any
-  jitter and cannot be checked; three is the least that can show curvature — and the O2Ring's observed
-  divergence is **non-linear**, so a line is the wrong model, not merely an imprecise one. Fewer than
-  three ⇒ **refuse**.
-  ⚠ **That curvature is the LINK, not the crystal — do not repeat the old attribution.** This text used to
-  read "the O2Ring's real error is −3035 ppm decaying to −1622 ppm" and call it crystal behaviour. Measured
-  2026-08-18 against the host on a 7.2 h night: the ring holds **flat at ~4 s lag for hours 0–3**, i.e.
-  **sub-ppm**, and only then degrades at ~12.5 s/h — the onset is the first BLE dropout, not a temperature
-  ramp. A crystal does not change rate by thousands of ppm; a stalled link does, and a single linear fit
-  through the stalls renders it as a smooth "decay". **The ≥3-anchor contract is unchanged and is if
-  anything stronger**, because dropout-driven divergence bends harder than any crystal would.
-- **A running MEDIAN (width 21), never a fit.** Host stamps carry BLE delivery jitter (~0.1 s, up to
-  470 ms observed); interpolating raw anchors injects that straight into beat times, which for HRV is
-  worse than the drift being removed. The width was chosen by planted recovery against ±100 ms jitter on
-  real geometry (9 → 77 ms worst, 21 → 57, 41 → 168, 81 → 245): 21 halves the jitter without flattening
-  the curvature the correction exists to follow. **Do not replace the median with a regression** — that
-  is the whole point, and a fit would also re-introduce the "one ppm describes the night" error.
-- **Linear between anchors; FLAT outside them.** Past the last anchor there is no measurement, and
-  extending a slope there fabricates one — §2.6's rule applied to the rate.
-- **`CK_AXIS_MAX_PPM = 50000` (5 %) is a REFUSAL bound, not a clamp.** The largest apparent divergence in
-  this corpus is −3035 ppm, so 5 % leaves 16× headroom. ⚠ Read that as a **link** figure, not a crystal
-  one — the ring's crystal measures sub-ppm between dropouts (above). That makes the bound **more**
-  necessary rather than less: a crystal's error is bounded by physics, whereas a stalled link can
-  manufacture an arbitrarily large apparent rate, and this bound is the only thing standing between such
-  an artifact and a fabricated timebase. Beyond it the two columns are not the two clocks we think they
-  are — a misparse, a unit mismatch, a shifted column — and "correcting" by
-  that amount fabricates a timebase (caught by a fixture whose ms column advanced at 2× its host stamps:
-  unbounded, a −500000 ppm "correction" that doubled `fs` from 130 to 259.9). Out of bounds ⇒ **refuse**.
-- **A refusal returns `{ ok:false, reason, n }` and NO `correctionAt`.** A caller must not be able to
-  apply a silent zero: absent a correction the node keeps the device axis and says so.
-  ⚠ **A refusal guards the RATE, not the AXIS.** "Keeps the device axis" is the whole of what a refusal
-  buys: `fs` is never corrected by a fabricated ppm, and NOTHING ELSE is protected. If the device counter
-  carries a step (the `_ECG.txt`/`_ACC.txt` resync of the bullet below), the `relSec` built from it still
-  spans the step — measured 2026-09-02 with the true F1 magnitude planted into a `_PPG.txt`: `hostAxis`
-  refuses at ±50,000 ppm as designed, and `relSec` still spans **2.416e8 s**, so every duration, epoch
-  grid and export window downstream inherits a 7.66-year night while the rate guard reads green. This is
-  the `.ppm`-vs-`correctionAt()` distinction one level up: **a refusal on one quantity is not protection
-  of another.** A node that relies on `hostAxis` refusing to keep a stepped counter out of its outputs
-  has no step guard — the step must be detected and re-anchored on the axis itself (`_clockResyncs`,
-  MotionDex/ECGDex), and a node without step detection owes at least a tripwire that reds the day its
-  stream first carries one (FOLLOWUPS-VI §1.1/§1.3, #2080).
-- **NO span gate here, deliberately** — and this is the one place the sibling tools differ. `hostAxis`
-  does not *quote* a rate, it interpolates measured divergence, so its residual is bounded by what it
-  observed. Gating on span would refuse the short O2Ring fragments whose real error is ~3 s, i.e. exactly
-  the case that needs it. A consumer that reads **`.ppm`** instead of `correctionAt()` is quoting a rate
-  and **does** need a baseline — that is why `ecgdex-dsp.js` span-gates its `fs` correction at 2400 s
-  while PpgDex, which consumes the interpolation, does not.
-- **`ppm` and `maxStepMs` are DIAGNOSTICS.** Never quote `ppm` without the span beside it (the same H10
-  reads −20.3 ppm over 373 min and −65.8 over 10.9). `maxStepMs` surfaces a genuine clock STEP smeared
-  across one anchor gap rather than hiding it in a slope.
-  → **That span rule is a hand-derived special case of a standard curve, and the curve is now computed.**
-  A clock's stability is σ_y(τ) — a function of averaging time — which is exactly why one τ-less number
-  cannot describe it; the two H10 figures above ARE two points of that curve, reported as disconnected
-  anecdotes. **`capture-host/allan.py` computes it** (overlapping Allan deviation, `stability(phase, tau0)`),
-  and its SLOPE names the mechanism rather than the magnitude: τ⁻¹ jitter that averages away · τ⁻¹ᐟ² the
-  benign case · τ⁰ a floor where more averaging buys NOTHING · τ⁺¹ᐟ² wander · τ⁺¹ drift. If you are about
-  to answer "does this drift?" or "how long should I average?" with an SD, a ppm, or a fit of two halves —
-  **standard deviation DIVERGES for these noise types as N grows** (NIST/Riley SP 1065), so that answer
-  depends on how much data you happened to have. Use the curve. See
-  [`briefs/ALLAN-DEVIATION-2026-08-12-BRIEF.md`](briefs/ALLAN-DEVIATION-2026-08-12-BRIEF.md).
-- **This does not claim the host is right.** It places every device on ONE timebase so they become
-  mutually consistent; whether that timebase is itself correct is the host's business (0.008 ppm on the
-  capture box).
-- **FIRST ASK WHETHER THERE IS A SECOND CLOCK AT ALL — read `independent`, never a ~0 ppm.** A rate of
-  ~0 has two opposite meanings: two independent clocks that agree, or a host column the capture app
-  *derived from the device stamp*, which is the absence of a measurement wearing the shape of one. The
-  discriminator is the residual **spread**, not the slope, and it is bimodal in the data: box captures
-  span 101.89 ms – 5124 ms, phone captures **0.13 – 1.00 ms**, with nothing in between. The phone tree's
-  maximum is exactly one stamp quantum because its host column *is* the device time rounded. `hostAxis`
-  publishes `spreadMs` and `independent` (`spreadMs > 2 ms`, twice the quantum — a property of the data,
-  not a tuned threshold). **A phone-captured recording has no second clock**, which is also why the
-  H10↔Verity offset runs ~3.3 s on phone nights against ~0.2 s on box nights: only the box actually puts
-  the two devices on one timebase.
-- **A device whose axis was DRAWN is not a clock.** Provenance is computed, not assumed: a stream whose
-  inter-sample deltas concentrate on one value (≥99 %) was constructed as `sample_index × an assumed
-  rate` and carries no independent timing. It may be placed on the host timeline, but it must never be
-  spent as a second clock — see `quality.timingSource` (`device+host` · `host` · `none`).
-- **ONE DEVICE CLOCK PER AXIS — a resync boundary is a change of clock, and anchors from before it must
-  not feed `hostAxis`.** `hostAxis` measures every divergence *relative to its first anchor*, so it assumes
-  all its anchors were read off ONE oscillator state. A capture-side resync (`clock_watchdog` re-anchoring
-  the device counter; the `_ECG.txt` ns step of DEEP-AUDIT-VI F1) violates that: the pre-seam counter is a
-  different clock, and the seam arithmetic that makes the device axis *continuous* across it does not make
-  it the *same*. Measured on the real 2026-08-27 seam file (resync 9.5 s in, 50 min long): the host−device
-  residual walks **+1508 ms across the first 9.5 s** (≈160,000 ppm) and then holds flat at 38 ppm — with
-  anchor 0 inside the pre-seam segment `hostAxis` read that step as a rate, quoted **484.7 ppm**, and the
-  span gate let it into `fs` (129.968 → 129.903, 500 ppm off the same H10's 6.5 h sibling — the disagreement
-  `trio-batch mergeEcg` refused). A clock CHANGE is the hardest step there is, and the `maxStepMs` rule
-  already says a step is reported, never absorbed. The contract: **build the axis from anchors at or after
-  the LAST resync only**; rows before it get the flat out-of-range correction of the first post-seam anchor
-  (§7 "flat outside them"); count what was dropped (`hostAxis.anchorsDroppedPreResync` on the rec) and surface the seam's
-  host↔device offset (`clockResyncs[].hostOffsetMs`) so the pre-seam segment is *visible*, not silently
-  re-timed. ECGDex implements this (`ecgdex-dsp.js`, the "ONE DEVICE CLOCK PER AXIS" block). **Any node that
-  detects a device-counter step and then calls `hostAxis` owes the same split** — a node that detects no
-  steps (PpgDex today) has not shown its stream has none, only that it has not looked; the `_ACC.txt` of the
-  same night carries the F1 step (FOLLOWUPS-VI §1.1), and the Verity's `_PPG.txt` is unchecked (§1.3).
+- **An ANCHOR is a `{ devMs, hostMs }` pair read off the SAME row.** Non-finite members are dropped,
+  not defaulted; anchors are sorted by `devMs`. Divergence is measured **relative to the first anchor**.
+- **The median is EXACT in the interior and biased at the ENDS by ⌊win/2⌋/2 = 5 anchors' worth of
+  drift**, so `correctionAt(firstAnchor)` is that bias, not 0, and **`ppm` under-reads by
+  `1 − 5/(n−1)`**. Never quote `ppm` without its anchor count and span.
+- **≥3 anchors is a contract.** Two points cannot be checked; the O2Ring's divergence is non-linear
+  (the LINK, not the crystal — flat ~4 s lag for hours, then ~12.5 s/h after the first BLE dropout).
+  Fewer than three ⇒ **refuse**.
+- **A running MEDIAN (width 21), never a fit.** Host stamps carry BLE jitter (~0.1 s, up to 470 ms);
+  21 halves it without flattening the curvature. **Do not replace the median with a regression.**
+- **Linear between anchors; FLAT outside them.** Extending a slope past the last anchor fabricates one.
+- **`CK_AXIS_MAX_PPM = 50000` (5 %) is a REFUSAL bound, not a clamp.** Beyond it the two columns are not
+  the two clocks (a misparse, a unit mismatch, a shifted column). Out of bounds ⇒ **refuse**.
+- **A refusal returns `{ ok:false, reason, n }` and NO `correctionAt`**; the node keeps the device axis
+  and says so. ⚠️ **A refusal guards the RATE, not the AXIS**: a stepped device counter still spans the
+  step in `relSec` (measured: a 7.66-year night while the rate guard read green). Step detection and
+  re-anchoring live on the axis itself (`_clockResyncs`, MotionDex/ECGDex); a node without step detection
+  owes at least a tripwire (FOLLOWUPS-VI §1.1/§1.3, #2080).
+- **NO span gate here, deliberately** — `hostAxis` interpolates measured divergence. A consumer that
+  reads **`.ppm`** instead of `correctionAt()` quotes a rate and **does** need a baseline (`ecgdex-dsp.js`
+  span-gates its `fs` correction at 2400 s; PpgDex, consuming the interpolation, does not).
+- **`ppm` and `maxStepMs` are DIAGNOSTICS.** Never quote `ppm` without the span (the same H10 reads
+  −20.3 ppm over 373 min and −65.8 over 10.9). `maxStepMs` surfaces a genuine clock STEP. A clock's
+  stability is σ_y(τ), a function of averaging time — `capture-host/allan.py` computes it (overlapping
+  Allan deviation) and its SLOPE names the mechanism; SD diverges for these noise types as N grows
+  (NIST/Riley SP 1065). See `briefs/ALLAN-DEVIATION-2026-08-12-BRIEF.md`.
+- **This does not claim the host is right.** It places every device on ONE timebase; the host's own
+  correctness is the host's business (0.008 ppm on the capture box).
+- **FIRST ASK WHETHER THERE IS A SECOND CLOCK AT ALL — read `independent`, never a ~0 ppm.** The
+  discriminator is the residual **spread**: box captures span 102–5124 ms, phone captures 0.13–1.00 ms
+  (one stamp quantum — the host column IS the device time rounded). `hostAxis` publishes `spreadMs` and
+  `independent` (`spreadMs > 2 ms`). **A phone-captured recording has no second clock.**
+- **A device whose axis was DRAWN is not a clock.** Inter-sample deltas concentrated on one value
+  (≥99 %) means `sample_index × an assumed rate`; it may be placed on the host timeline but never spent
+  as a second clock — `quality.timingSource` (`device+host` · `host` · `none`).
+- **ONE DEVICE CLOCK PER AXIS — a resync boundary is a change of clock; anchors from before it must not
+  feed `hostAxis`.** Build the axis from anchors at or after the LAST resync only; rows before it get
+  the flat out-of-range correction of the first post-seam anchor; count what was dropped
+  (`hostAxis.anchorsDroppedPreResync`) and surface the seam's host↔device offset
+  (`clockResyncs[].hostOffsetMs`). ECGDex implements this (`ecgdex-dsp.js`, "ONE DEVICE CLOCK PER
+  AXIS"). **Any node that detects a device-counter step and then calls `hostAxis` owes the same split**;
+  a node that detects no steps has not shown its stream has none (the `_ACC.txt` of the same night
+  carries the F1 step; the Verity's `_PPG.txt` is unchecked).
 
 ### Verification any time you touch time
 Round-trip (first/last shown == raw file exactly) · bin==CSV identical `t0Ms`/`tMs` (OxyDex) ·
