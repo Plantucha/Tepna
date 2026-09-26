@@ -4227,6 +4227,13 @@
       "key": "- for lit in re.findall(r\"\"\"[\"']([^\"'\\n]+)[\"']\"\"\", t.read_text(encoding=\"utf-8\", errors=\"replace\")): | + for lit in re.findall(r\"\"\"[\"']([^\"'\\n]+)[\"']\"\"\", t.read_text(encoding=\"UTF-8\", errors=\"replace\")):",
       "probe": "Run 2026-09-25 in a 3.11 venv, UTF-8 locale (`locale.getpreferredencoding(False)` = utf-8), against a `.py` holding one Latin-1 byte and one `\\xff` in a comment above a root-file literal (the plant `test_root_reads_survives_a_NON_UTF8_byte_in_a_test_file`): original and the three variants each return the same text and the literal is found. The other three mutants on this line (`errors=None`, `errors=` dropped, `errors=\"REPLACE\"`) raise UnicodeDecodeError / LookupError on the same input and are KILLED by that plant.",
       "why": "`\"UTF-8\"` and `\"utf-8\"` name one codec — `codecs.lookup` normalises case — so the decode is byte-identical for every input."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- for m in _BRACE_TOKENS.finditer(line, a + 1, b - 1): | + for m in _BRACE_TOKENS.finditer(line, a - 1, b - 1):",
+      "probe": "2026-09-26, mutate_diff --base origin/main on the f-string-fields branch, six runs: this mutant survived every one while its siblings (`a + 2`, `b - 2`, `b + 1`, and every mutant of the loop body) were killed by test_fstring_expr_spans_are_EXACT_and_run_to_the_literals_end_on_an_unterminated_field — including the inputs `f\"{a}\"{` (a brace right after the closing quote) and `f\"{}{a}\"` (a field at the first interior character) added to pin the bounds. Checked by hand that the two extra positions the mutant scans can never be a brace.",
+      "why": "A PROOF, not a judgement. Starting the token scan at `a - 1` instead of `a + 1` adds exactly two characters, `line[a - 1]` and `line[a]`. `a` indexes the opening QUOTE (`_string_spans` returns spans that start at the quote). `line[a - 1]` is a letter: this branch runs only after `\"f\" in prefix.group(0).lower()` held, where `prefix` is the run of ASCII letters ending at `a`, so it is non-empty and its last character is alphabetic. Neither character is `{` or `}`, so the tokenizer yields them inside a text token that the loop ignores at every depth, and every input produces identical spans. The neighbour `a + 2` IS distinguishable (it drops the first interior character) and is killed.",
+      "brief": "#3098 not-examined item — f-string fields are code (changes/2026-09-26-mutation-tools-fstring-fields-are-code.md)"
     }
   ],
   "mutation_pure.py": [
