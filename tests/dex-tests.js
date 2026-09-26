@@ -50868,6 +50868,66 @@
       T.ok('a fractional foot on a FALLING edge still refuses', h(Float64Array.from([90, 40, 0]), 0.5, 2) === null);
     });
 
+    group('PAT ECG counter axis — a whole-file fs is not the H10 sample clock (2026-09-26)', 'pat · ecg-axis · counter', function (T) {
+      var PS = env.PatStrict,
+        E = env.ECGDSP;
+      if (!PS || typeof PS.ecgCounterTimeMs !== 'function' || !E || typeof E.parseECG !== 'function') {
+        T.skip('PatStrict/ECGDSP not in env (browser lane — .mjs tool)');
+        return;
+      }
+      /* THE PLANT: the H10's samples-per-counter-second is not one number. Measured on 2026-09-25 it ran
+         130.027–130.033 while worn and 129.92–130.00 off the body, with no counter step. Two halves at
+         130.03 and 129.92 reproduce that shape; the whole-file `fs` is their mean, so `t0 + i/fs` must
+         miss the counter by ~0.2 s at the seam while the counter axis reproduces it exactly. */
+      var HDR = 'Phone timestamp;sensor timestamp [ns];timestamp [ms];ecg [uV]';
+      var N1 = 60000,
+        N2 = 60000,
+        rows = [HDR],
+        ns = 0,
+        truth = [];
+      for (var i = 0; i < N1 + N2; i++) {
+        truth.push(ns / 1e6);
+        rows.push('2026-06-17T01:06:17.723;' + Math.round(ns) + ';' + Math.round(ns / 1e6) + ';' + ((i * 37) % 200));
+        ns += 1e9 / (i < N1 ? 130.03 : 129.92);
+      }
+      var rec = E.parseECG(rows.join('\n'));
+      T.ok('the planted file parses with a device counter', rec && typeof rec.devMsAt === 'function' && rec.devMsAt(0) != null, rec ? 'devMsAt ' + typeof rec.devMsAt : 'null');
+      if (!rec || typeof rec.devMsAt !== 'function' || rec.devMsAt(0) == null) return;
+      var worstC = 0,
+        worstL = 0;
+      for (var k = 0; k < N1 + N2; k += 997) {
+        var want = rec.t0Ms + truth[k] - truth[0];
+        worstC = Math.max(worstC, Math.abs(PS.ecgCounterTimeMs(rec, k) - want));
+        worstL = Math.max(worstL, Math.abs(rec.t0Ms + (k / rec.fs) * 1000 - want));
+      }
+      T.ok('ANTI-VACUITY · the index/fs form misses the counter by > 100 ms on the plant', worstL > 100, 'worst ' + worstL.toFixed(1) + ' ms');
+      T.ok('the counter axis reproduces the device counter (< 1 ms)', worstC < 1, 'worst ' + worstC.toFixed(3) + ' ms');
+      var mid = PS.ecgCounterTimeMs(rec, 1000.5),
+        a = PS.ecgCounterTimeMs(rec, 1000),
+        b = PS.ecgCounterTimeMs(rec, 1001);
+      T.ok('a fractional (refined) R position interpolates between samples', mid > a && mid < b, a + ' < ' + mid + ' < ' + b);
+      /* The single-RATE host correction `fs` carried is kept: applied ppm scales device time, unapplied does not. */
+      var fake = {
+        t0Ms: 0,
+        fs: 130,
+        devMsAt: function () {
+          return 1e6;
+        },
+        hostAxis: { applied: true, ppm: -20 }
+      };
+      T.ok('an APPLIED ppm scales device time (−20 ppm over 1000 s = −20 ms)', Math.abs(PS.ecgCounterTimeMs(fake, 0) - (1e6 - 20)) < 1e-6, String(PS.ecgCounterTimeMs(fake, 0)));
+      fake.hostAxis.applied = false;
+      T.ok('an UNAPPLIED (refused) ppm is not applied', PS.ecgCounterTimeMs(fake, 0) === 1e6, String(PS.ecgCounterTimeMs(fake, 0)));
+      var noCounter = {
+        t0Ms: 5,
+        fs: 130,
+        devMsAt: function () {
+          return null;
+        }
+      };
+      T.ok('no usable counter ⇒ the index form, never a fabricated 0', PS.ecgCounterTimeMs(noCounter, 130) === 1005, String(PS.ecgCounterTimeMs(noCounter, 130)));
+    });
+
     group('PAT matchRate — the shipped definition cannot fail; the strict one can (PAT-UNDER-PERBLOCK-ALIGNMENT §4)', 'pat · matchrate · chance-floor', function (T) {
       var PS = env.PatStrict;
       if (!PS || !PS.strictMatchRate) {
