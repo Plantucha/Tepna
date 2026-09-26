@@ -260,6 +260,8 @@ def test_the_tool_classifiers_accept_box_filenames():
         "pat-feasibility.js": {
             "Polar_H10_02849638_20260919183658_ECG.txt": True,
             "Polar_VeritySense_0C301E3F_20260919183724_PPG.txt": True,
+            # the ring's raw PPG is PAT's FINGER site since 2026-09-26 (role decided after the match, in JS)
+            "Wellue_O2Ring-S_S8AW2100_20260919002219_PPG.txt": True,
             "Polar_H10_02849638_20260919183658_HR.txt": False,
             "Wellue_O2Ring-S_S8AW2100_20260919002219_SPO2.csv": False,
         },

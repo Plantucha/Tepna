@@ -1361,7 +1361,8 @@ function nightFilesFor(n, node){
   if(node==='3 corner hat') return [...(n.ECGDex?n.ECGDex.files:[]), ...(n.PPGDex?n.PPGDex.files:[]), ...(n.OxyDex?n.OxyDex.files:[])];
   // PAT's roles are ecg · ppg · ecgacc · ppgacc: both devices' ACC are its cross-device drift anchor and the input
   // of its ACC-corrected verdict, which the click withheld until 2026-09-21 (the ACCs sit under MotionDex, not PPGDex)
-  if(node==='PAT') return [...(n.ECGDex?n.ECGDex.files.filter(f=>f.endsWith('_ECG.txt')):[]), ...(n.PPGDex?n.PPGDex.files.filter(f=>/VeritySense.*_PPG\.txt$/.test(f)):[]),
+  // …and the O2Ring's raw _PPG.txt is the FINGER site (2026-09-26): chest→finger, finger→ankle and the three-site hat
+  if(node==='PAT') return [...(n.ECGDex?n.ECGDex.files.filter(f=>f.endsWith('_ECG.txt')):[]), ...(n.PPGDex?n.PPGDex.files.filter(f=>/(VeritySense|O2Ring).*_PPG\.txt$/.test(f)):[]),
     ...(n.MotionDex?n.MotionDex.files.filter(f=>/Polar_(H10|VeritySense).*_ACC\.txt$/.test(f)):[])];
   return n[node] ? n[node].files : [];
 }
