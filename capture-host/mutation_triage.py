@@ -43,38 +43,39 @@ _MSG = re.compile(r"(print|log|logger|_log|sys\.stderr\.write)\b")
 _FLUSH = re.compile(r"flush\s*=\s*\w+")
 _XX = re.compile(r'"XX|XX"|\'XX|XX\'')
 _LOST_ARG = re.compile(r"\(\s*None|=\s*None|,\s*\)")
+# An escaped pair is ONE token, so an f-string interior needs no "skip the next character" state.
+_BRACE_TOKENS = re.compile(r"\{\{|\}\}|[{}]|[^{}]+")
 
 
 def _strip_strings(s: str) -> str:
     # An f-string's `{...}` fields are CODE, and they stay: mutmut mutates them as code and generates
     # no text mutant for an f-string at all (measured 2026-09-26, mutmut 3.8), so folding the whole
     # literal to STR read `f"{a(y)}"` -> `f"{b(y)}"` as "string literal only" and dropped a real
-    # survivor from the work list. `{{`/`}}` are text; a nested `{}` stays inside its field.
+    # survivor from the work list. `{{`/`}}` at depth 0 are text; a nested `{}` stays inside its field.
+    # Tokenized (`_BRACE_TOKENS`), never an index-driven `while` and never a skip flag: a hand-advanced
+    # index is one mutation away from a loop that never ends, which the diff-scoped gate rightly
+    # refuses to call measured, and a flag that is only truth-tested has an unobservable `None` twin.
     def fold(m: re.Match[str]) -> str:
         if "f" not in m.group(1).lower():
             return "STR"
-        # the literal's INTERIOR: the prefix and both quotes are folded into STR with the text
-        body, out, depth, i = m.group(0)[m.end(2) - m.start():-1], ["STR"], 0, 0
-        while i < len(body):
-            ch = body[i]
-            if depth == 0:
+        body = m.group(0)[m.end(2) - m.start():-1]          # the literal's INTERIOR
+        out, depth = ["STR"], 0
+        for t in _BRACE_TOKENS.finditer(body):
+            tok = t.group(0)
+            if depth == 0 and tok in ("{{", "}}"):
+                continue                                     # an escaped brace: text, no state to keep
+            for ch in tok:                                   # a doubled brace INSIDE a field is two braces
                 if ch == "{":
-                    if body[i + 1:i + 2] == "{":
-                        i += 2
-                        continue
-                    depth = 1
+                    depth += 1
                     out.append(ch)
-            elif ch == "{":
-                depth += 1
-                out.append(ch)
-            elif ch == "}":
-                depth -= 1
-                out.append(ch)
-            else:
-                out.append(ch)
-            i += 1
+                elif ch == "}" and depth:
+                    depth -= 1
+                    out.append(ch)
+                elif depth:
+                    out.append(ch)
         return "".join(out)
     return _STR.sub(fold, s)
+
 
 
 # `log.warning("%s %s → %s", name,` spans several lines, and `classify` is handed ONE of them. A

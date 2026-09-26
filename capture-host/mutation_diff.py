@@ -190,6 +190,9 @@ def _string_spans(line: str) -> list[tuple[int, int]]:
     return spans
 
 
+# An escaped pair is ONE token, so an f-string interior needs no "skip the next character" state.
+_BRACE_TOKENS = re.compile(r"\{\{|\}\}|[{}]|[^{}]+")
+
 def _fstring_expr_spans(line: str) -> list[tuple[int, int]]:
     """Half-open [start, end) ranges of an f-string's `{...}` fields on `line`, BRACES INCLUDED.
 
@@ -197,35 +200,40 @@ def _fstring_expr_spans(line: str) -> list[tuple[int, int]]:
     (measured 2026-09-26, mutmut 3.8: `f"{a(y)}-{y + 1}"` yields `a(None)`, `y - 1` and `y + 2`, and
     NO text mutant at all — the `XX`/case-flip forms are generated for plain literals only). Under
     `_string_spans` alone such a mutant read as string-only and the gate EXCLUDED it — fail-OPEN, on
-    every interpreter, because that scanner is hand-rolled and never tokenizes. `{{` / `}}` are escaped
-    braces, i.e. text; a nested `{}` inside a field (a dict, a set, a format spec) stays in the field;
-    a field that never closes before the literal ends runs to the literal's end, so the caller demands
-    the mutant rather than trusting a span it could not finish. The braces are IN the span on purpose:
-    turning `{a}` into `(a}` is a change to the field, not to the text beside it, while a change to
-    the character before `{` or after `}` is text and stays outside."""
+    every interpreter, because that scanner is hand-rolled and never tokenizes. `{{` / `}}` at field
+    depth 0 are escaped braces, i.e. text; a nested `{}` inside a field (a dict, a set, a format spec)
+    stays in the field; a field that never closes before the literal ends runs to the literal's end,
+    so the caller demands the mutant rather than trusting a span it could not finish. The braces are
+    IN the span on purpose: turning `{a}` into `(a}` is a change to the field, not to the text beside
+    it, while a change to the character before `{` or after `}` is text and stays outside.
+
+    ⚠️ NO INDEX-DRIVEN `while` LOOP AND NO SKIP FLAG, deliberately. The first draft advanced `i` by
+    hand, and mutmut's `i += 1` -> `i = 1` made it spin forever: the diff-scoped gate reports such a
+    mutant UNDECIDED (timeout) and REFUSES, correctly — nothing measured it. The second draft kept a
+    boolean "skip the next char" for an escaped pair, and `False -> None` on a flag that is only ever
+    truth-tested is unobservable by construction. So the interior is TOKENIZED instead — an escaped
+    pair is one token, passed over at depth 0 and read as two braces inside a field — and a field's
+    span is appended PROVISIONALLY (to the literal's end) the moment it opens and patched when it
+    closes: no loop index, no flag, no initial value nobody reads."""
     spans: list[tuple[int, int]] = []
     for a, b in _string_spans(line):
-        j = a
-        while j > 0 and line[j - 1].isalpha():
-            j -= 1
-        if "f" not in line[j:a].lower():
+        prefix = re.search(r"[A-Za-z]*$", line[:a])
+        if prefix is None or "f" not in prefix.group(0).lower():
             continue
-        i = a + 1
-        while i < b:
-            if line[i] != "{":
-                i += 1
-                continue
-            if line[i + 1:i + 2] == "{":       # `{{` is an escaped brace, i.e. text
-                i += 2
-                continue
-            start, depth, i = i, 1, i + 1
-            while i < b and depth:
-                if line[i] == "{":
+        depth = 0
+        for m in _BRACE_TOKENS.finditer(line, a + 1, b - 1):
+            tok = m.group(0)
+            if depth == 0 and tok in ("{{", "}}"):
+                continue                                     # an escaped brace: text, no state to keep
+            for k, ch in enumerate(tok, m.start()):          # a doubled brace INSIDE a field is two braces
+                if ch == "{":
                     depth += 1
-                elif line[i] == "}":
+                    if depth == 1:
+                        spans.append((k, b))                 # provisional: runs to the literal's end
+                elif ch == "}" and depth:
                     depth -= 1
-                i += 1
-            spans.append((start, i))                # an unterminated field ends where the literal does
+                    if depth == 0:
+                        spans[-1] = (spans[-1][0], k + 1)    # closed: braces included
     return spans
 
 

@@ -934,6 +934,9 @@ def test_fstring_expr_spans_are_EXACT_and_run_to_the_literals_end_on_an_untermin
     assert f('if t: s = "{a}"') == []                                # an `f` earlier on the line is not a prefix
     assert f('f"{{{x}}}"') == [(4, 7)]                               # `{{`, then a field, then `}}`
     assert f('f"{}{a}"') == [(2, 4), (4, 7)]                       # not valid Python — pins that the scan starts AT the first field char
+    assert f('f"{a}}}"') == [(2, 5)]                                 # a field, then an escaped `}}` — the FIRST `}` closes the field
+    assert f('f"a}{c}"') == [(4, 7)]                                 # a lone `}` at depth 0 is text, not a close
+    assert f('f"{a}"{') == [(2, 5)]                                  # a brace AFTER the literal is not inside it
     assert f('"{a}"') == [] and f("plain") == []
 
 
