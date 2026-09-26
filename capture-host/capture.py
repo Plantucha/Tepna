@@ -17,7 +17,7 @@ from writers import (ContactLedger, StreamWriter, Spo2CsvWriter, LinkLogWriter, 
                      append_pmd_negotiation, capture_filename, missing_identity, night_dir,
                      open_sample_writers)
 import writers                       # the MODULE too: the live loss guard asks it for the open set
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable
 
 import proc_util
 import polar_pmd as pmd
@@ -9747,7 +9747,9 @@ class DecodeCensus:
 
     def __init__(self) -> None:
         self.counts: dict[str, int] = {}
-        self._orig: dict[str, object] = {}
+        # `Callable[..., Any]`, not `object`: `restore` assigns these back onto `json.loads`/`json.load`,
+        # and an `object` there is what mypy reported as the two errors #3083 added (2026-09-26).
+        self._orig: dict[str, Callable[..., Any]] = {}
         #: Re-entrancy depth. `json.load(fp)` is implemented AS `loads(fp.read())`, so wrapping both
         #: counts a single file decode TWICE — and the inner hit would attribute it to `json/__init__.py`
         #: rather than to the caller. Caught by the full suite: a test asserting one decode saw two. The
