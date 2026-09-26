@@ -2500,6 +2500,63 @@ function __mkWorker(name){ return new Worker(URL.createObjectURL(new Blob([__WSR
     return x;
   }
   // Series-level sibling of `tchSigmas`, taking a per-PAIR ρ instead of assuming independence.
+  /* ── Derived 1-Hz HR files → aligned HR + per-second fused-hat confidence (TCH-FUSED-ROBUST-HAT) ──
+     `tools/derive-sigma-window.mjs` writes one row per second, header-named columns:
+       H10    "tMs;hr;src[;c]"        Verity "tMs;hr;sqiMean[;c]"
+     `c` is the DSP tier's `beatConfidence` (density × SQI, AF-safe) for that second, in [0,1] — the
+     weight `tchSigmasFused` multiplies in. Files written before 2026-09-26 have no `c` column; they
+     parse with `hasConf:false` and an EMPTY confidence map, and the consumer must then run the
+     CLASSIC hat: defaulting an absent confidence to 1 and calling the fused hat would move the
+     committed-corpus numbers with no measurement behind the move (§∅ — absence is null). Columns are
+     found BY HEADER NAME, never by position, so the two layouts and any future column parse alike.
+     `sqi` is the first finite `sqiMean` (the Verity file's per-window SQI the sigma page displays);
+     for a header without `sqiMean` it falls back to a numeric third column in [0,1] — the exact
+     legacy read — so a pre-2026-09-26 file yields the same value it always did. */
+  function parseDerivedHr(text, opts) {
+    opts = opts || {};
+    var hrMin = opts.hrMin == null ? 30 : opts.hrMin,
+      hrMax = opts.hrMax == null ? 220 : opts.hrMax;
+    var L = String(text || '').split(/\r?\n/);
+    var head = (L[0] || '').split(';').map(function (h) {
+      return h.trim();
+    });
+    var iC = head.indexOf('c'),
+      iQ = head.indexOf('sqiMean');
+    var hr = new Map(),
+      c = new Map(),
+      sqi = null,
+      nConf = 0;
+    for (var i = 1; i < L.length; i++) {
+      if (!L[i]) continue;
+      var cc = L[i].split(';');
+      var ms = +cc[0],
+        h = +cc[1];
+      if (!isFinite(ms) || !(h >= hrMin && h <= hrMax)) continue;
+      var sec = Math.floor(ms / 1000) * 1000;
+      hr.set(sec, h);
+      if (iC >= 0) {
+        var v = +cc[iC];
+        if (isFinite(v) && v >= 0 && v <= 1) {
+          c.set(sec, v);
+          nConf++;
+        }
+      }
+      if (sqi == null) {
+        var q = iQ >= 0 ? +cc[iQ] : iC < 0 ? +cc[2] : NaN;
+        if (isFinite(q) && q >= 0 && q <= 1) sqi = q;
+      }
+    }
+    return { hr: hr, c: c, sqi: sqi, hasConf: iC >= 0 && nConf > 0, columns: head, n: hr.size };
+  }
+  // The confidence series aligned to a window's key list: a second the map does not carry is 1 (a
+  // beat the DSP saw and did not flag), which is the classic weight. Call it only for a file whose
+  // `hasConf` is true — see parseDerivedHr on why an absent COLUMN must not become a series of 1s.
+  function confidenceSeries(cMap, keys) {
+    var out = new Array(keys.length);
+    for (var i = 0; i < keys.length; i++) out[i] = cMap && cMap.has(keys[i]) ? cMap.get(keys[i]) : 1;
+    return out;
+  }
+
   /* ── Block-bootstrap CI whose ESTIMATOR FOLLOWS THE POINT (DEEP-AUDIT-VI F16) ─────────────────
      The sigma-no-reference live path pairs a FUSED-hat point (per-second DSP confidences
      down-weighting artifact bursts) with a CI bootstrapped from the CLASSIC unweighted hat — two
@@ -2952,6 +3009,8 @@ function __mkWorker(name){ return new Worker(URL.createObjectURL(new Blob([__WSR
     tchSigmas: tchSigmas,
     tchSigmasFused: tchSigmasFused,
     tchBlockBootstrapCI: tchBlockBootstrapCI,
+    parseDerivedHr: parseDerivedHr,
+    confidenceSeries: confidenceSeries,
     tchSigmasPairwise: tchSigmasPairwise,
     tchSigmasPairwiseFromVars: tchSigmasPairwiseFromVars,
     tchRhoCrit: tchRhoCrit,

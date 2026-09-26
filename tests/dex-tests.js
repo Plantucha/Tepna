@@ -8756,18 +8756,30 @@
       T.ok("the tool's source is readable in this lane", !!src, 'sensor-trio-power-analysis.js not in env.sources — must be listed in BOTH lanes');
       if (!K || typeof K.classic !== 'function' || !src) return;
 
-      /* Lift the tool's own implementation out of its source and RUN it — not a regex comparison, so
-         re-indentation or renamed locals cannot mask a change in the arithmetic. */
-      var m = /function\s+threeCorneredHat\s*\(([^)]*)\)\s*\{([\s\S]*?)\n\s*\}/.exec(src);
-      T.ok("the tool's threeCorneredHat could be extracted", !!m, 'if this fails the tool was refactored — re-point the extraction, do not delete the gate');
-      if (!m) return;
-      var toolHat;
-      try {
-        toolHat = new Function(m[1], m[2]);
-      } catch (e) {
-        T.ok("the tool's threeCorneredHat is executable", false, String(e));
-        return;
-      }
+      /* RE-POINTED 2026-09-26 (TCH-FUSED-ROBUST-HAT closed): the tool no longer carries a private copy —
+         it DELEGATES to analysis-stats.js (`const tchSigmas = AnalysisStats.tchSigmas`), whose variance-level
+         entry is `AnalysisStats.threeCorneredHat`. So the thing to bind numerically to the gated kernel is
+         now the kernel the tool actually executes, and the source scan guards that the tool did not grow a
+         copy back. A local `function threeCorneredHat` / `function tchSigmas` reappearing here is the
+         regression this gate exists for — it fails, by name, rather than silently re-extracting the copy. */
+      var S = env.AnalysisStats;
+      T.ok(
+        'the tool delegates its hat to the shared kernel (AnalysisStats.tchSigmas)',
+        /\bAnalysisStats\.tchSigmas\b/.test(src),
+        'the power tool must alias AnalysisStats.tchSigmas, not carry a copy'
+      );
+      T.ok(
+        'the tool carries NO private threeCorneredHat / tchSigmas any more',
+        !/function\s+(threeCorneredHat|tchSigmas)\s*\(/.test(src),
+        'a private copy of the hat came back — delete it and delegate (2026-08-04 measured the copy byte-equivalent and ungated)'
+      );
+      T.ok(
+        'the shared kernel the tool runs is loaded in this lane',
+        !!S && typeof S.threeCorneredHat === 'function',
+        'AnalysisStats.threeCorneredHat unavailable — the numeric rows below would vacuously pass'
+      );
+      if (!S || typeof S.threeCorneredHat !== 'function') return;
+      var toolHat = S.threeCorneredHat;
 
       var CASES = [
         { vab: 4, vac: 9, vbc: 5, why: 'ordinary positive triple' },
@@ -13515,13 +13527,121 @@
       T.eq('mannWhitneyAUC all-ties → 0.5', S.mannWhitneyAUC([1, 1], [1, 1]), 0.5);
       T.eq('mannWhitneyAUC empty → null', S.mannWhitneyAUC([], [1]), null);
 
+      /* ── parseDerivedHr + the routed fused hat (TCH-FUSED-ROBUST-HAT, the `ms;hr;c` box, closed 2026-09-26) ──
+         The committed-corpus paths (sigma page buildWindow, power tool loadReal) read the derived 1-Hz
+         files through this parser and run the FUSED hat only when a file carries the DSP's per-second
+         confidence. The brief refused to land that routing without an input that exercises it — a
+         2-column file defaulting to c=1 IS the classic hat, so the code would have passed while
+         checking nothing. This is that input: a synthetic three-device corpus in the producer's exact
+         file format, with a confidence-zeroed burst on the H10 corner that the classic hat eats whole. */
+      if (typeof S.parseDerivedHr === 'function') {
+        var pdT0 = 1781126137000; // a floating-ms second (the real 06-11 file's first row)
+        var pdN = 1800;
+        var pdRowsH = ['tMs;hr;src;c'],
+          pdRowsH3 = ['tMs;hr;c;src'], // same data, `c` in a different column — header-named, not positional
+          pdRowsV = ['tMs;hr;sqiMean;c'],
+          pdRowsVlegacy = ['tMs;hr;sqiMean'],
+          pdO = new Map(),
+          pdCleanH = [];
+        for (var pi = 0; pi < pdN; pi++) {
+          var pbase = 62 + 6 * Math.sin(pi / 90);
+          var pburst = pi >= 400 && pi < 520;
+          var hClean = pbase + 1.1 * Math.sin(pi / 3.1),
+            hObs = hClean + (pburst ? 22 : 0),
+            vObs = pbase + 1.2 * Math.sin(pi / 2.7 + 1),
+            oObs = pbase + 2.2 * Math.sin(pi / 2.3 + 2);
+          var pms = pdT0 + pi * 1000,
+            pc = pburst ? 0 : 1;
+          pdRowsH.push(pms + ';' + hObs.toFixed(2) + ';ecg;' + pc.toFixed(3));
+          pdRowsH3.push(pms + ';' + hObs.toFixed(2) + ';' + pc.toFixed(3) + ';ecg');
+          pdRowsV.push(pms + ';' + vObs.toFixed(2) + ';0.91;1.000');
+          pdRowsVlegacy.push(pms + ';' + vObs.toFixed(2) + ';0.91');
+          pdO.set(pms, oObs);
+          pdCleanH.push(hClean);
+        }
+        // a row outside the HR gate must be dropped, not clamped
+        pdRowsH.push(pdT0 + pdN * 1000 + ';7.00;ecg;1.000');
+        var pH = S.parseDerivedHr(pdRowsH.join('\n'), { hrMin: 30, hrMax: 220 }),
+          pH3 = S.parseDerivedHr(pdRowsH3.join('\n')),
+          pV = S.parseDerivedHr(pdRowsV.join('\n')),
+          pVl = S.parseDerivedHr(pdRowsVlegacy.join('\n'));
+        T.eq('parseDerivedHr · every in-range second parsed, the out-of-range row dropped', pH.hr.size, pdN);
+        T.eq('parseDerivedHr · `c` column found and carried per second', [pH.hasConf, pH.c.size], [true, pdN]);
+        T.eq('parseDerivedHr · `c` is found BY HEADER NAME, not by position', [pH3.hasConf, pH3.c.get(pdT0 + 450000), pH3.c.get(pdT0)], [true, 0, 1]);
+        T.eq('parseDerivedHr · H10 file (src column) has no sqi', pH.sqi, null);
+        T.approx('parseDerivedHr · Verity sqiMean is the first finite value (unchanged display)', pV.sqi, 0.91, 1e-9);
+        T.eq('parseDerivedHr · a pre-2026-09-26 3-column file: hasConf FALSE and an EMPTY c map (never a default of 1)', [pVl.hasConf, pVl.c.size, pVl.sqi], [false, 0, 0.91]);
+        var pKeys = [];
+        pH.hr.forEach(function (_v, k) {
+          if (pV.hr.has(k) && pdO.has(k)) pKeys.push(k);
+        });
+        pKeys.sort(function (a, b) {
+          return a - b;
+        });
+        T.eq('parseDerivedHr · the three corners align on the floored second', pKeys.length, pdN);
+        var phh = pKeys.map(function (k) {
+            return pH.hr.get(k);
+          }),
+          pvv = pKeys.map(function (k) {
+            return pV.hr.get(k);
+          }),
+          poo = pKeys.map(function (k) {
+            return pdO.get(k);
+          });
+        var pcH = S.confidenceSeries(pH.c, pKeys),
+          pcV = S.confidenceSeries(pV.c, pKeys),
+          pcO = pKeys.map(function () {
+            return 1;
+          });
+        T.eq('confidenceSeries · zero on the burst seconds, one elsewhere', [pcH[450], pcH[10], pcV[450]], [0, 1, 1]);
+        T.eq('confidenceSeries · a corner with no map is all ones', S.confidenceSeries(null, [1, 2, 3]), [1, 1, 1]);
+        var pClassic = S.tchSigmas(phh, pvv, poo),
+          pFused = S.tchSigmasFused(phh, pvv, poo, pcH, pcV, pcO),
+          pTruth = S.tchSigmas(pdCleanH, pvv, poo);
+        T.ok(
+          'routed fused hat · the classic hat is inflated by the burst (the defect)',
+          pClassic.h10 != null && pTruth.h10 != null && pClassic.h10 > 2 * pTruth.h10,
+          'classic ' + pClassic.h10 + ' vs clean ' + pTruth.h10
+        );
+        T.ok('routed fused hat · the parsed confidence recovers the clean σ_H10', pFused.h10 != null && Math.abs(pFused.h10 - pTruth.h10) < 0.1, 'fused ' + pFused.h10 + ' vs clean ' + pTruth.h10);
+        T.ok('routed fused hat · the clean corners are untouched (Verity)', pFused.verity != null && Math.abs(pFused.verity - pTruth.verity) < 0.1, pFused.verity + ' vs ' + pTruth.verity);
+        // F16 on this path: the CI's estimator follows the point — fused with confidences, classic without
+        var pSeed = 777;
+        var pRand = function () {
+          pSeed = (pSeed * 1103515245 + 12345) & 0x7fffffff;
+          return pSeed / 0x7fffffff;
+        };
+        var pCI = S.tchBlockBootstrapCI(phh, pvv, poo, { cH: pcH, cV: pcV, cO: pcO, B: 120, blockS: 30, rand: pRand });
+        T.eq('routed fused hat · the within-window CI bootstraps the FUSED estimator when confidences ride the window', pCI.estimator, 'fused');
+        T.ok('routed fused hat · the fused point sits inside its own CI', pCI.h10 && pFused.h10 >= pCI.h10.lo && pFused.h10 <= pCI.h10.hi, JSON.stringify(pCI.h10) + ' vs ' + pFused.h10);
+        T.eq('routed fused hat · without confidences the CI is CLASSIC (the pre-2026-09-26 file path)', S.tchBlockBootstrapCI(phh, pvv, poo, { B: 20, blockS: 30, rand: pRand }).estimator, 'classic');
+      } else T.ok('parseDerivedHr is exported by analysis-stats.js', false, 'the derived-file parser is missing from the kernel');
+
       // ── delegation parity: every analysis page ROUTES through AnalysisStats (so a divergent
       //    private copy can't silently reappear and dodge the known-answers above). Source-scan;
       //    SKIPs a page whose source the runner didn't pass (browser lane / partial env). ──
       var src = env.sources || {};
       var DELEGATIONS = [
         ['nights-icc-analysis.js', ['AnalysisStats.iccOneWay', 'AnalysisStats.spearmanBrown', 'AnalysisStats.minOccForReliability']],
-        ['sigma-no-reference-analysis.js', ['AnalysisStats.tchSigmas', 'AnalysisStats.tchSigmasFused', 'AnalysisStats.tchBlockBootstrapCI', 'AnalysisStats.blandAltman', 'AnalysisStats.pearson']],
+        [
+          'sigma-no-reference-analysis.js',
+          [
+            'AnalysisStats.tchSigmas',
+            'AnalysisStats.tchSigmasFused',
+            'AnalysisStats.tchBlockBootstrapCI',
+            'AnalysisStats.blandAltman',
+            'AnalysisStats.pearson',
+            'AnalysisStats.parseDerivedHr',
+            'AnalysisStats.confidenceSeries'
+          ]
+        ],
+        /* TCH-FUSED-ROBUST-HAT, closed 2026-09-26: the power tool carried its OWN copy of the classic hat
+           (byte-equivalent, measured 2026-08-04) with no parity gate, so a kernel fix would not have
+           reached the figures it publishes. Now it delegates like the sigma page, and this leg keeps it so. */
+        [
+          'sensor-trio-power-analysis.js',
+          ['AnalysisStats.tchSigmas', 'AnalysisStats.tchSigmasFused', 'AnalysisStats.tchBlockBootstrapCI', 'AnalysisStats.parseDerivedHr', 'AnalysisStats.confidenceSeries']
+        ],
         ['cgm-hrv-coupling-analysis.js', ['AnalysisStats.pearsonCI', 'AnalysisStats.partialCorr']],
         ['treatment-response-analysis.js', ['AnalysisStats.bestSplit', 'AnalysisStats.mannWhitneyAUC']],
         ['odi-bias-analysis.js', ['AnalysisStats.ols']],
