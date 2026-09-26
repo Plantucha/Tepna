@@ -294,231 +294,116 @@ PRs therefore merge **strictly sequentially**:
 ---
 
 ## 📌 Brief lifecycle — date NEW filenames at creation; mark DONE in the HEADER, never rename (non-negotiable)
-**All briefs live in `briefs/`** (as of the 2026-07-03 owner-sanctioned bulk relocation — one of two
-that day that deliberately broke the old "never move" rule for archival docs; briefs are work-plans,
-not runtime inputs — see the **Repo layout** note below for the sibling `audits/` + `docs/` move).
-Briefs are cross-referenced by exact filename across CLAUDE.md and the docs, so **an existing brief's
-filename is FROZEN** — do NOT rename a brief to mark it done (it breaks every link + git history). The
-`briefs/` prefix is now part of that stable path; do not move a brief out of `briefs/` either.
-Status lives in a one-line header block on the first content line (just after any SPDX comment):
+
+**All briefs live in `briefs/`.** A brief's filename is FROZEN once created (cross-referenced by exact
+name everywhere); never rename or move one to mark status. Status lives in a one-line header on the
+first content line after any SPDX comment (*why → RATIONALE §📌*):
 
 ```
 **Status:** PROPOSED | IN-PROGRESS | DONE — YYYY-MM-DD · **Created:** YYYY-MM-DD
 ```
 
-- **Creating a NEW brief:** create it in `briefs/` with the creation date in the filename — `briefs/<NAME>-YYYY-MM-DD-BRIEF.md`
-  (append `-HHMM` only if two briefs are created the same day) — AND stamp the same date as
-  `Created:` in the header. The dated filename is set ONCE at birth and then never changes, so it
-  stays a stable cross-reference target; the date is a creation marker, not a status marker.
-- **Executing a brief:** once it is *fully* executed — every "Done when" / acceptance item met AND
-  the relevant gates pass (`Dex-Test-Suite.html` all-green, `verify-provenance.html` clean where it
-  applies) — flip the header in place to `Status: DONE — <today>`. Do NOT touch the filename. Never
-  stamp DONE on unverified work. Greppable fleet-wide via `grep "Status:.*DONE"`.
-- **After executing (or triaging) a brief, residue goes to `briefs/RESIDUE.md` as ONE ROW per verified
-  defect — NOT a new `-FOLLOWUPS-` brief** (owner-ratified 2026-09-02; this bullet used to say "spawn a
-  follow-up brief"). Row: `| <key> | logged | source brief | defect | evidence | state |` where the key is
-  **`YYYY-MM-DD-short-slug`** (`2026-09-02-oxyii-acks-unparsed`), and the source brief's **Status:**
-  line gets `**Residue:** <key>` — bidirectional like `Superseded-by`, and gate-backed
-  (`docs-ledger` check 8: both directions resolve, exactly 6 cells, state vocabulary). A `<NAME>-FOLLOWUPS-
-  YYYY-MM-DD-BRIEF.md` is created **only by the session that picks a row up to execute it** (when the
-  remainder is ≥ one work-unit), and creating it closes the row (`→ \`<NAME>-BRIEF.md\``); a one-PR fix
-  closes it as `fixed #NNNN`. Rows are appended and closed, never edited or deleted.
-  ⚠️ **The key is a date-plus-slug, NOT a counter, and that is load-bearing.** The ledger opened with
-  `R<n>` and produced **five collisions in one day** — the last within the hour of the rule being argued
-  out, between the two sessions arguing it, each having run the prescribed pre-push check and each having
-  got a correct answer from it. `origin/main` cannot contain an id claimed in an OPEN BRANCH, so the
-  check the scheme demanded could not return the right answer: **a globally-unique identifier allocated
-  from local information has no correct procedure.** Briefs and changesets here are dated-slug and have
-  never collided; the ledger was the only artifact inventing an allocation problem.
-  ⚠️ **A residue with no parent brief names its real origin — a repo path or a `#PR` — never the nearest
-  brief.** Repairing an *instrument* surfaces defects that descend from the fix and from no brief at all
-  (2026-09-02: `find_unwired.py` stopped counting a comment as a consumer and two real orphans fell out).
-  The source cell therefore accepts a `*-BRIEF.md` (back-reference required), a repo path that must exist
-  in the tree, or `#NNNN`. Naming a plausible brief to fill the cell **passes** check 8 — which verifies
-  existence and the back-reference, not responsibility — while sending the picker-up to a brief that never
-  left the defect.
-  *Why:* measured on the 2026-09-02 drain, **27 of 77** open briefs were `-FOLLOWUPS-` files, and none had
-  an owner — a file created at execution time is written by the session that is leaving, so it belongs to
-  nobody by construction; a row promoted at pickup time belongs to the session that promoted it. The 27
-  existing files are not retro-converted. If nothing surfaced, say so in the executed brief's header.
-- **Non-executable docs** (deploy manifests, backlog checkpoints) use `Status: REFERENCE (living …)`
-  or `Status: CHECKPOINT (living …)` with a `last-verified` date instead of DONE.
-- **No `DEFERRED` (or any other) top-level status** (DOCS-LEDGER-GATE-FOLLOWUPS §F1, decided 2026-07-05 =
-  option (a)): the status vocabulary is EXACTLY those five values (PROPOSED · IN-PROGRESS · DONE ·
-  REFERENCE · CHECKPOINT). Park a brief by keeping it `PROPOSED` with the reason inline — `**Status:**
-  PROPOSED (deferred YYYY-MM-DD — …)`; "deferred" as a *sub-item* note inside a DONE brief (`§N DEFERRED`)
-  is fine. The gate's `STATUS_RE` deliberately rejects a bare `**Status:** DEFERRED` header (self-test-
-  locked), so fabricating a sixth status reds `docs-ledger` (check2a).
-- **When one brief replaces another,** don't just DONE the old one — add header links both ways:
-  `Superseded-by: <NAME>` on the old, `Supersedes: <NAME>` on the new. (This whole scheme — immutable
-  filenames, status-in-header, never move/delete on status change, an index as the view — is the
-  industry-standard **ADR / RFC** convention; `Superseded-by:` is the one ADR idea worth borrowing
-  over a flat DONE stamp.)
-- `DOCS-INDEX.md` carries the at-a-glance status table; keep it in sync when a status flips. It is the
-  dashboard — reorganize *that view*, not the files. Now that all briefs already sit in `briefs/`, do
-  NOT further sub-folder them into `Done/`/`Executed/` — that breaks every cross-reference + splits git
-  history (same failure as renaming); status lives in the header, not the path.
-- 🔍 **SEARCH BEFORE YOU SIZE OR BUILD — `node tools/doc-search.mjs --read "<the thing>"` (PRIMARY
-  DEV MACHINE ONLY — see the warning). `--read` prints the matching chunk of the top three hits
-  inline; use it, and READ those chunks — measured 2026-09-26, twice in one day a session read the
-  path list and never opened the top hit.** A brief pickup starts with a semantic search, not a grep: grep
-  finds only your own vocabulary, and twice in one week a session nearly reported build-from-scratch
-  for machinery that already existed under other names (a `pooledSeconds` grep returned nothing while
-  the pooled pairwise BA + generic three-cornered hat sat in `sigma-no-reference-analysis.js` /
-  `analysis-stats.js`, 2026-08-26 — found by doc-search on the first query). Read the top three hits
-  before sizing a unit or writing a line; the memory `semantic-search-before-building` records the
-  failure class. Owner-mandated as a standing pickup step 2026-08-26.
-  ⚠️ **THIS TOOL EXISTS ONLY ON THE PRIMARY DEVELOPMENT COMPUTER.** It runs against a loopback
-  bge-m3 embedding model plus a locally prebuilt ~14k-chunk index — 100 % local, never networked,
-  and neither ships with the repo. **Other GitHub users, fresh clones, and CI do not have it and
-  must not be pointed at it**: on any other machine fall back to `git grep`, no gate or CI job may
-  read doc-search output, and the tool being absent is never an error. (This is the same locality
-  class as the gitignored corpus — the repo documents it; it does not distribute it.)
-- 🔴 **BEFORE YOU EDIT A BRIEF, CHECK IT HAS NOT ALREADY BEEN ANSWERED — mandatory, hook-enforced.**
-  Someone else is probably working the same brief queue (§👥). A brief is the ONE artifact several
-  sessions reach for at once, and overwriting one produces **no conflict**: answers land in different
-  sections, git sees no overlapping hunk, the squash silently keeps the newer text, and no gate in this
-  repo can see it. Measured 2026-08-08 on `GENERATOR-FOLLOWUPS-III`, **twice in one day** — #1055 dropped
-  #1034's §2 (a better-evidenced answer, proven by execution) and left the brief contradicting its own §4
-  for two commits; then #1059 and #1061 independently wrote the *same* reconciliation, because neither
-  session could see the other coming either.
+- **New brief:** `briefs/<NAME>-YYYY-MM-DD-BRIEF.md` (append `-HHMM` only for a same-day twin) with the
+  same date as `Created:`. The date is a creation marker, never a status marker.
+- **Executed brief:** flip the header to `Status: DONE — <today>` only when every acceptance item is
+  met AND the gates pass (`Dex-Test-Suite.html` all-green, `verify-provenance.html` clean where it
+  applies). Never stamp DONE on unverified work.
+- **Residue goes to `briefs/RESIDUE.md` as ONE ROW per verified defect, never a new `-FOLLOWUPS-`
+  brief** (owner-ratified 2026-09-02). Row: `| <key> | logged | source brief | defect | evidence | state |`,
+  key **`YYYY-MM-DD-short-slug`** (never a counter — allocating a unique id from local information has
+  no correct procedure), and the source brief's `Status:` line gets `**Residue:** <key>`
+  (gate-backed, `docs-ledger` check 8: both directions resolve, exactly 6 cells, state vocabulary). A
+  `-FOLLOWUPS-` brief is created **only by the session that picks a row up** (remainder ≥ one work-unit)
+  and closes the row (`→ \`<NAME>-BRIEF.md\``); a one-PR fix closes it as `fixed #NNNN`. Rows are
+  appended and closed, never edited or deleted. A residue with no parent brief names its real origin —
+  a repo path or a `#PR` — never the nearest brief. If nothing surfaced, say so in the brief's header.
+- **Non-executable docs** use `Status: REFERENCE (living …)` or `Status: CHECKPOINT (living …)` with a
+  `last-verified` date.
+- **The status vocabulary is EXACTLY five:** PROPOSED · IN-PROGRESS · DONE · REFERENCE · CHECKPOINT.
+  Park a brief as `**Status:** PROPOSED (deferred YYYY-MM-DD — …)`; `§N DEFERRED` inside a DONE brief
+  is fine; a bare `DEFERRED` header reds `docs-ledger` (check2a).
+- **One brief replacing another:** `Superseded-by: <NAME>` on the old, `Supersedes: <NAME>` on the new
+  (the ADR/RFC convention).
+- **`DOCS-INDEX.md` is the dashboard** — keep its status table in sync; reorganise the view, never the
+  files (no `Done/` sub-folders).
+- 🔍 **SEARCH BEFORE YOU SIZE OR BUILD — `node tools/doc-search.mjs --read "<the thing>"`** (owner-mandated
+  standing pickup step, 2026-08-26). Read the top three hits before sizing a unit or writing a line;
+  grep finds only your own vocabulary. `--read` prints the top three chunks inline, which is cheaper
+  than three file opens. ⚠️ **PRIMARY DEVELOPMENT COMPUTER ONLY** — a loopback bge-m3 model + a local
+  ~14k-chunk index, neither shipped with the repo. Fresh clones and CI fall back to `git grep`; no gate
+  reads doc-search output; the tool being absent is never an error.
+- 🔴 **BEFORE YOU EDIT A BRIEF, CHECK IT HAS NOT ALREADY BEEN ANSWERED** — overwriting one produces no
+  merge conflict (*why → RATIONALE §📌: twice in one day on GENERATOR-FOLLOWUPS-III*):
 
   ```sh
   git fetch origin main
   git log --oneline $(git merge-base HEAD origin/main)..origin/main -- briefs/<NAME>-BRIEF.md
   ```
 
-  Non-empty ⇒ **read those commits before writing** (`git log -p …`) — they may already answer what you
-  are about to say — then rebase (`node tools/rebase-safe.mjs`) so your edit lands **on top of** them
-  rather than instead of them. **Hook-enforced** by `.claude/hooks/guard-stale-brief.sh` (PreToolUse on
-  `Edit|Write`, self-tested by `npm run test:hooks`, wired into `npm run check`), which runs exactly that
-  query for the file you are touching and denies with the commit list. It covers `briefs/*.md` +
-  `DOCS-INDEX.md`, reads your LOCAL `origin/main` and never fetches — so it can only **under**-report,
-  which is why the `git fetch` above is part of the rule and not the hook. Escape hatch, for when you
-  have read them and are deliberately writing over them: `CLAUDE_ALLOW_STALE_BRIEF=1` — **as a
-  command-position prefix on a Bash command** (`… && CLAUDE_ALLOW_STALE_BRIEF=1 sed -i …`), or
-  **exported**, which is the ONLY form that reaches an `Edit`/`Write`: that path carries no command
-  text for the hook to read, and the hook is a separate process that runs BEFORE your command, so it
-  cannot see an inline prefix there. This sentence claimed the bare form worked everywhere until
-  2026-09-02, when a session that had read the upstream commits was denied twice by the documented
-  hatch and could not tell it from a broken guard (#2088).
-
-  ⚠️ **This is a different failure from a merge conflict, and the absence of one is the tell.** If a
-  brief edit rebases cleanly against a brief that moved, that is not reassurance — it is the exact
-  signature of the bug.
-- **This whole lifecycle is now gate-backed** by the `docs-ledger` group in `tests/dex-tests.js`: a stray
-  root brief, a malformed/absent status header on a brief dated ≥ 2026-07-03, an unindexed brief, a dead
-  **relative link** in `DOCS-INDEX.md` (any target — `](briefs/…)` resolves against the real brief set, and
-  every other `docs/·audits/·wiring/·root` link resolves against a whole-tree path inventory), a one-sided
-  `Superseded-by`/`Supersedes` pair, or a filename↔`Created` date mismatch turns the suite RED. Pre-2026-07-03
-  headerless briefs are grandfathered (never fabricate a status). **This gate is Node-lane only** (it reads
-  `briefs/` + the tree straight from the filesystem — the lane CI runs); the browser lane can't list a
-  directory so it SKIPs. There is **no committed list to regenerate** — adding/removing a brief or moving any
-  file needs no follow-up step (the committed `tests/docs-ledger-list.txt` snapshot + its generator were
-  retired 2026-07-14, CPAP-REAL-CORPUS-FOLLOWUPS-II §4, to kill the regenerate-on-every-PR merge tax).
-- **Repo layout (2026-07-03 owner-sanctioned relocation — the second deliberate break of the old
-  "never move" rule).** The **root** holds ONLY: base/entry docs (`README.md`, `CLAUDE.md`,
-  `ARCHITECTURE-PRINCIPLES.md`, `ORIENTATION.md`, `DOCS-INDEX.md`, `CONTRIBUTING.md`, `AUDIT-PROMPT.md`),
-  standard OSS files (`LICENSE`, `NOTICE`, `CITATION.cff`, `THIRD-PARTY.md`, `CHANGELOG.md`), and **all runtime/build
-  files** (`*.js` / `*.html` / `*.src.html` / `*.css` / `*.json` — load-bearing paths, NEVER move them).
-  Everything else archival lives in: **`briefs/`** (work-plans + pre-standard kickoffs/handoffs),
-  **`audits/`** (audit findings, external reviews, fusion issues, validation status, one-off audit
-  prompts), **`docs/`** (specs, derivations, analysis READMEs, `docs/LEXICON.md`/`docs/EVENT-LEXICON.md`, patterns,
-  deploy + privacy statements, narrative). **`ORIENTATION.md` MUST stay in root** — the test suite
-  fetches it (roster gate; `docs/EVENT-LEXICON.md`/`audits/AUDIT.md` are only *mentioned* in tests, safe in their
-  folders). Put a NEW archival doc straight into the right folder and add its `DOCS-INDEX.md` row; do not
-  drop archival docs in root. The only further sanctioned
-  relocation is `docs-archive/` for a *truly dead* doc, done deliberately with a redirect stub, never
-  automatically on stamp.
+  Non-empty ⇒ read those commits (`git log -p …`), then `node tools/rebase-safe.mjs` so your edit lands
+  on top of them. **Hook-enforced** by `.claude/hooks/guard-stale-brief.sh` (PreToolUse on `Edit|Write`,
+  covers `briefs/*.md` + `DOCS-INDEX.md`, reads your LOCAL `origin/main` and never fetches — so the
+  `git fetch` above is part of the rule). Escape hatch `CLAUDE_ALLOW_STALE_BRIEF=1`: as a prefix on a
+  Bash command, or **exported** — the only form that reaches an `Edit`/`Write`. A brief edit that
+  rebases cleanly against a brief that moved is the signature of the bug, not reassurance.
+- **Gate-backed** by the `docs-ledger` group in `tests/dex-tests.js` (Node lane only): stray root
+  brief, malformed/absent status header on a brief dated ≥ 2026-07-03, unindexed brief, dead relative
+  link in `DOCS-INDEX.md`, one-sided supersede pair, filename↔`Created` mismatch all red the suite.
+  Pre-2026-07-03 headerless briefs are grandfathered (never fabricate a status). There is no committed
+  list to regenerate.
+- **Repo layout (owner-sanctioned 2026-07-03).** Root holds ONLY base/entry docs (`README.md`,
+  `CLAUDE.md`, `ARCHITECTURE-PRINCIPLES.md`, `ORIENTATION.md`, `DOCS-INDEX.md`, `CONTRIBUTING.md`,
+  `AUDIT-PROMPT.md`), standard OSS files, and **all runtime/build files** (`*.js` / `*.html` /
+  `*.src.html` / `*.css` / `*.json` — load-bearing paths, NEVER move them). Archival docs live in
+  **`briefs/`** (work-plans), **`audits/`** (findings, reviews), **`docs/`** (specs, derivations,
+  lexicons, deploy/privacy statements). **`ORIENTATION.md` MUST stay in root** (the roster gate fetches
+  it). A truly dead doc goes to `docs-archive/` deliberately, with a redirect stub.
 
 ## ∅ ABSENCE IS NULL — never a number (non-negotiable, owner-reinforced 2026-09-06)
 
-**A value that was not measured is `null`. It is never `0`, never a default, never a sentinel that lives
-inside the value's own range — at EVERY layer: capture writer · sidecar · parser · DSP · export · render.**
-This was a founding rule of the suite. It was written down twice — the Clock Contract §2.6 (*"a missing
-stamp must be visible (null), never fabricated"*) and `parse_live`'s scalars (SpO₂ outside 50–100 → null,
-PR outside 20–250 → null) — and both held. **It was never written for the raw waveform bytes**, and that is
-where it failed, after two thousand commits: the O2Ring's `_PPG.txt` (2026-09-05, `S8AW2100`) carries
-**3048 samples of exact `0` in 149 runs, 105 of them ≥ 10 consecutive, the longest 78 samples (0.62 s)**,
-against a modal baseline of 114–119, sitting INSIDE complete 127-sample frames — in-band blanking, not a
-delivery gap. No consumer guards it (`PPG_INVALID` is an alias for the `156` beat marker — a name that
-sounds like the guard and is a different thing). Every fixture reproduced the zeros faithfully because
-that is what was on disk, so every gate was green. Owner, on finding it: *"zero appearance in data for
-compute is reprehensible … this is absolute priority for everyone because it breaks basic."*
+**A value that was not measured is `null`. Never `0`, never a default, never a sentinel inside the
+value's own range — at EVERY layer: capture writer · sidecar · parser · DSP · export · render.** The
+Clock Contract §2.6 and `parse_live`'s scalars always said so; the raw waveform bytes did not, and the
+O2Ring's `_PPG.txt` shipped 3048 exact zeros in 149 runs inside complete frames through every green
+gate (*why → RATIONALE §∅*). Owner: *"zero appearance in data for compute is reprehensible."*
 
-What the rule means when the sentinel is IN-BAND, which is the case the two earlier statements never had
-to face:
-
-- **A consumer cannot null what it cannot distinguish.** `0` is a legal u8. So the fix is never a
-  `!= 0` in a DSP — that invents a sentinel and convicts every stream where zero is a real value (ECG µV
-  crosses zero on every beat; an ACC axis rests at 0 mG). **Validity must travel OUT-OF-BAND**: the
-  emitter, or the capture path, or an end-of-night back-check records *where the signal was absent* in a
-  **sidecar** (a span list is orders of magnitude smaller than the data), and consumers read the sidecar.
-- **Captured bytes are immutable.** A recording is evidence; it is never rewritten to "fix" it, not even
-  to replace a fabricated `0` with a null. Correction lives beside the file, dated and attributed.
-- **Detection is distributional, not a literal.** The test that finds fabricated absence is a run-length
-  signature against the stream's OWN value distribution — a pleth does not sit at exactly one value for
-  78 samples — and it must run **on every device, from day 1 of the corpus**, and then stand as a
-  tripwire that reds the day a new stream first carries it. A hardcoded `!= 0` fixes zero and misses the
-  next sentinel (an in-range value can do the same thing); a rule that flags deliberate working behaviour
-  is the wrong rule, not a finding. **Key on RUN LENGTH, never on value membership** (Heron,
-  2026-09-06, independently on a second file of the same night: 2738 zeros in 125 runs ≈ 22 per run,
-  versus the ring's `156` beat markers — 5455 of them in 5405 runs, singletons by construction). A
-  value-keyed detector would flag every beat marker as corruption and bury the real signal 2:1; run
-  length separates the two populations by itself and generalises to the next constant nobody has met.
-- **An output computed over absent input reports the absence.** A metric over a window that contained
-  blanking carries its coverage (`n`, the excluded span) or is itself `null`. A number that is computable
-  from fabricated input and carries no information is the zero one layer up.
-  🔴 **WHICH of those two — owner ruling 2026-09-17, and it is now a RULE rather than a choice:**
+- **A consumer cannot null what it cannot distinguish.** `0` is a legal u8, so the fix is never a
+  `!= 0` in a DSP (ECG crosses zero every beat; an ACC axis rests at 0). **Validity travels
+  OUT-OF-BAND** — a sidecar span list written by the emitter, the capture path, or an end-of-night
+  back-check; consumers read the sidecar.
+- **Captured bytes are immutable.** A recording is evidence, never rewritten. Correction lives beside
+  the file, dated and attributed.
+- **Detection is distributional — key on RUN LENGTH, never on value membership.** A pleth does not sit
+  at one value for 78 samples; a value-keyed detector would flag every `156` beat marker (singletons by
+  construction) and bury the real signal 2:1. Run it on every device from day 1 of the corpus and keep
+  it as a tripwire.
+- **An output computed over absent input reports the absence.** 🔴 Owner ruling 2026-09-17, a RULE:
   **a DISCONTINUITY refuses; reduced COVERAGE annotates.**
-  - **Discontinuous or absent input → `null` + a named reason.** A clock seam, a blanking run, an
-    absent span: the window does not describe one stretch of signal, so no number over it means
-    anything. Name the real state — `clock-seam`, not a borrowed reason that happens to fire.
-  - **Merely reduced coverage → the value, with `n` / the covered span beside it.** Dropouts and short
-    windows leave the signal *sparse*, not *discontinuous*, and refusing them would null a large share
-    of real nights (the Verity alone recorded 24 dropout segments in one corpus night).
+  - Discontinuous or absent input (clock seam, blanking run, absent span) → `null` + a named reason
+    (`clock-seam`, not a borrowed reason that happens to fire).
+  - Merely reduced coverage (dropouts, short windows) → the value, with `n` / the covered span beside it.
   - **The line is whether the window still describes ONE continuous stretch of signal**, not how much
-    of it is missing — a 120 s dropout keeps a metric, a 0.6 s clock seam does not.
-  ⚠️ This codifies what already shipped rather than changing it: PpgDex refuses a seam with
-  `clock-seam` (#2600) and F10 refused before it. The measured argument for the refusal half is that
-  the annotate-everything alternative was *tried by accident* — with the seam removed from the axis but
-  no seam-keyed guard, `ppiConf` came back `[1,1,1,…]` across an 86-second clock discontinuity: a
-  number computable from broken input, carrying no information, reporting no problem. That is this
-  section's own failure one layer up.
-  ⚠️ **It is a data-loss trade, taken deliberately and ONLY for the discontinuous case.**
-  `BLE-TRANSPORT-REDESIGN` §1.7 declined the same trade for adapter leases and was right to: there the
-  alternative was losing a night's CAPTURE, here it is declining to publish a meaningless number.
-  Do not generalise this ruling into "refuse when in doubt".
-- **Ask "the device emitted it" vs "our path manufactured it" BEFORE proposing the remedy.** They are
-  different fixes with different blast radii. For the O2Ring this is CUT (Wren, 2026-09-06): **the ring
-  emits the zeros** — `oxyii.py:838` returns `payload[26:26+n]` untransformed and `capture.py:4293` writes
-  `v` straight through; no default, no fill, no failure path yields 0. So the bytes are a faithful record
-  and the missing thing is the interpretation layer, which is exactly why the sidecar is the remedy and
-  not a compromise. ⚠️ That does NOT establish what `0` means *to the ring* (LED off, ADC underflow, a
-  deliberate sentinel) — the distribution says it is not signal, not what the device meant; that needs
-  vendor documentation or a controlled finger-off capture, a separate unit. Fit no story to the signal
-  before cutting it.
+    is missing — a 120 s dropout keeps a metric, a 0.6 s clock seam does not. This codifies what
+    shipped (PpgDex `clock-seam`, #2600; F10). It is a data-loss trade taken ONLY for the
+    discontinuous case — do not generalise it into "refuse when in doubt".
+- **Ask "the device emitted it" vs "our path manufactured it" BEFORE proposing the remedy** — different
+  fixes, different blast radii. For the O2Ring the ring emits the zeros (cut by Wren 2026-09-06), so
+  the sidecar is the remedy; what `0` means *to the ring* is a separate unit needing vendor docs or a
+  controlled finger-off capture. Fit no story to the signal before cutting it.
 
-**The mechanism is pending the owner's review** (all-hands 2026-09-06: survey every device → sidecar
-proposal → fix after review → refold → check which goldens and which PAT numbers moved → prevention on
-the fly with an end-of-night back-check). Nothing in this section authorises a fix to land before that
-review. What it authorises — requires — is that **no new writer, parser, DSP or export ever again
-represents "not measured" as a number**, and that a reviewer who sees a `0` default, a `?? 0`, a
-`.get(k, 0)` or a zero-filled buffer standing in for absence reads it as the bug this section records.
-Same family as §🔒 §2.6 (stamps), §🎫's "never upgrade a badge on prose" (authority), and §4b's "reported
-success about something it never examined" (gates): a fabricated value, a fabricated tier, a fabricated
-pass — all one shape.
+**The mechanism is pending the owner's review** (all-hands 2026-09-06). Nothing here authorises a fix
+to land before it. What it requires: **no new writer, parser, DSP or export ever represents "not
+measured" as a number**, and a reviewer reads a `0` default, a `?? 0`, a `.get(k, 0)` or a zero-filled
+buffer standing in for absence as this bug. Same family as §🔒 §2.6 (stamps), §🎫's "never upgrade a
+badge on prose" (authority) and §👥.4b's examined-nothing gates.
 
 ## 🧾 VERDICTS ARE MACHINE-READABLE — prose is explanation, not the API (owner, standing requirement 2026-09-21)
 
 **Every gate, oracle, audit, harness or study that decides something emits ONE JSON object of a fixed
-shape beside its prose** — `tepna.verdict/1`, defined once in `verdict.js` and specified in
-`briefs/VERDICT-CONTRACT-2026-09-21-BRIEF.md`. The owner's framing, verbatim: *"A human can determine the
-truth from the evidence, but a downstream machine cannot reliably distinguish PASS / FAIL / NOT RUN / NOT
-APPLICABLE / UNDERPOWERED / SHORTFALL / UNKNOWN without parsing prose. That is dangerous. … Then prose
-becomes explanation, not the API."* The sealed-night reader (`CAPTURE-NIGHT-SEAL`) will be an independent
-consumer of this suite's verdicts; a clinician or a machine must never regex a paragraph to decide whether
-evidence is trustworthy.
+shape beside its prose** — `tepna.verdict/1`, defined once in `verdict.js`, specified in
+`briefs/VERDICT-CONTRACT-2026-09-21-BRIEF.md`. A downstream machine (the sealed-night reader, a
+clinician's tool) must never regex a paragraph to decide whether evidence is trustworthy
+(*why → RATIONALE §🧾*).
 
 ```json
 { "schema": "tepna.verdict/1", "gate": "oracle-ecg-firmware-rr", "status": "PASS",
@@ -529,120 +414,91 @@ evidence is trustworthy.
 ```
 
 - **`status` is a closed enum of EXACTLY seven** — `PASS · FAIL · SHORTFALL · UNDERPOWERED · NOT_RUN ·
-  NOT_APPLICABLE · UNKNOWN`. `NOT_RUN` (nothing examined) and `NOT_APPLICABLE` (examined; rule does not
-  bind) are different states and both read as green to a naive reader — which is why they are named.
-- **`population` is an equality** (`checked + excluded = eligible`); a `PASS` over `checked: 0` is invalid
-  by schema — §4b's examined-nothing shape refused at the type level. A `PASS` with empty `evidence` is
-  invalid. Every non-`PASS` carries a `reason`; `PASS` carries none.
-- **`criterion` is pre-stated** (threshold, unit, direction written before the measurement); a threshold
-  derived from the data it judges is `UNKNOWN`, not `PASS`.
-- **Prose stays** — tables, bands, explanations are for humans. The object is what the next tool reads.
-  Never the reverse: a verdict that exists only as a sentence is the defect this section records.
-- **Adoption is a named set with a gate**, not a sweep (`PARTIAL-ADOPTION-DETECTION`): a tool that prints
-  a status word and is not in the set is a red with the tool's name.
+  NOT_APPLICABLE · UNKNOWN`. `NOT_RUN` (nothing examined) and `NOT_APPLICABLE` (examined; rule does
+  not bind) are different states that both read green to a naive reader.
+- **`population` is an equality** (`checked + excluded = eligible`); a `PASS` over `checked: 0` or with
+  empty `evidence` is invalid by schema. Every non-`PASS` carries a `reason`; `PASS` carries none.
+- **`criterion` is pre-stated**; a threshold derived from the data it judges is `UNKNOWN`, not `PASS`.
+- **Prose stays** for humans; the object is what the next tool reads. A verdict that exists only as a
+  sentence is the defect.
+- **Adoption is a named set with a gate** (`PARTIAL-ADOPTION-DETECTION`): a tool that prints a status
+  word and is not in the set is a red with the tool's name.
 
 ## 📏 Units — the metric system is superior and is the default (non-negotiable)
-SI / metric is the **canonical and preferred** unit system across the whole suite. **Store and
-compute in metric, always** — kg, cm, °C, mmol/L (or the clinical metric unit a field conventionally
-uses: mmHg for BP, bpm for HR, mL/kg/min for VO₂, m for elevation). A metric value is the single
-source of truth on every profile/identity record and in every formula; never persist an imperial
-number. An **imperial display switch is permissible** (kg↔lb, cm↔in, m↔ft, °C↔°F) **but metric is the
-default on first load** and conversion happens only at the display/input boundary — read the field,
-convert to metric immediately, do the math in metric, convert back only to render. Do not add
-imperial-keyed norm tables or duplicate formulas; there is one metric NORMS table (NHANES/ACSM/etc.,
-cited) and imperial is a thin presentation layer over it.
+**Store and compute in metric, always** — kg, cm, °C, mmol/L (or the clinical metric unit a field
+conventionally uses: mmHg, bpm, mL/kg/min, m). The metric value is the single source of truth on every
+profile record and in every formula; never persist an imperial number. An **imperial display switch is
+permissible** (kg↔lb, cm↔in, m↔ft, °C↔°F) **but metric is the default on first load** and conversion
+happens only at the display/input boundary. One metric NORMS table (cited); imperial is a thin
+presentation layer over it — no imperial-keyed norm tables, no duplicate formulas.
 
 ## 📜 Licensing & attribution — see `licensing/LICENSING-BRIEF.md`
-The suite is unified on **Apache-2.0** (author: **Michal Planicka**; product brand: **Tepna** —
-replaces the legacy umbrella strings `GanglioR`/`ANS Intelligence`). Root `LICENSE`, `NOTICE`,
-`CITATION.cff`, `THIRD-PARTY.md` are authoritative. Every authored source file carries the SPDX
-header from `licensing/SPDX-HEADERS.txt` (`Copyright 2026 Michal Planicka` + `SPDX-License-Identifier:
-Apache-2.0`) — **no MIT/other license** survives. User-facing surfaces carry the health
-intended-use disclaimer (BRIEF §6.5) and a `dxl-` stamp from `licensing/dex-license.css`
-(samples: `licensing/dex-license-samples.html`). ⚠️ The **product brand `Tepna`** is distinct from
-the **FROZEN event-bus codename `Ganglior`** — rename suite/brand strings only; never touch
-`ganglior.*` identifiers, the `ganglior.node-export` schema, or the `fascia` alias. To apply the
-whole pass, run the brief (Phases 1→3 = licensing, Phase 4 = Tepna rename); honor the re-bundle +
-provenance/test gates as it specifies.
+The suite is **Apache-2.0** (author **Michal Planicka**; product brand **Tepna**, replacing the legacy
+`GanglioR`/`ANS Intelligence`). Root `LICENSE`, `NOTICE`, `CITATION.cff`, `THIRD-PARTY.md` are
+authoritative. Every authored source file carries the SPDX header from `licensing/SPDX-HEADERS.txt`
+(`Copyright 2026 Michal Planicka` + `SPDX-License-Identifier: Apache-2.0`) — **no MIT/other license**
+survives. User-facing surfaces carry the health intended-use disclaimer (BRIEF §6.5) and a `dxl-` stamp
+from `licensing/dex-license.css`. ⚠️ **`Tepna` is the brand; `Ganglior` is the FROZEN event-bus
+codename** — never touch `ganglior.*` identifiers, the `ganglior.node-export` schema, or the `fascia` alias.
 
-## 📚 Literature use — how published data/formulas/processes enter the suite (see `briefs/LITERATURE-USE-POLICY-2026-07-11-BRIEF.md`)
-Using a paper is **allowed** in three tiers (formulas/processes · reference statistics/priors · raw datasets),
-under rules that inherit the invariants above. The **hard line:** (1) **no networked data in a bundle, ever** —
-a `Foo.html` never fetches a paper/DOI/dataset/CDN (gate-backed by `no-network.html`); a literature value that
-must reach runtime is **inlined into source at author time as a cited constant**, then it is just code under the
-normal gates. (2) **No fabricated authority** — a paper-sourced number is `validated`-tier ONLY with a real,
-checkable citation; no citation → it keeps the suite's own tier (never upgrade a badge on "the literature says").
-(3) **Attribution is mandatory** — author·year·journal·DOI in the doc + a source comment in code. **Routing:** a
-node-specific validation → that node's validation write-up; a forward paper agenda → `PAPERS-ROADMAP` + `papers/`;
-a method/formula that **changes code** → its own executable brief (gated like any behavioral change). The full
-policy + a living anchor index live in the brief (still PROPOSED — the status flip to `REFERENCE` is the owner's
-ratification).
+## 📚 Literature use — see `briefs/LITERATURE-USE-POLICY-2026-07-11-BRIEF.md`
+Papers enter in three tiers (formulas/processes · reference statistics/priors · raw datasets) under
+three hard lines: (1) **no networked data in a bundle, ever** — a literature value that must reach
+runtime is inlined at author time as a cited constant (gate: `no-network.html`); (2) **no fabricated
+authority** — a paper-sourced number is `validated`-tier ONLY with a real, checkable citation, else it
+keeps the suite's own tier; (3) **attribution is mandatory** — author·year·journal·DOI in the doc + a
+source comment in code. Routing: node validation → that node's write-up; paper agenda →
+`PAPERS-ROADMAP` + `papers/`; a method that changes code → its own executable brief. (Policy still
+PROPOSED; the flip to `REFERENCE` is the owner's.)
 
-**Attribution is GATE-BACKED, and an alias must declare where it came from.** `audits/CITATION-VERIFICATION-2026-08-05.json`
-records `firstAuthor`/`year`/`container` for every DOI, and the `citation-ledger` group asserts that each DOI on a
-reader-facing source surface — the reference guides, `papers/**`, `docs/**.md`, and the root `*.js` — is surrounded by
-a citation naming that author and a year within ±1. (`briefs/` is deliberately OUT: a brief quotes a wrong attribution
-*in order to say it is wrong*, so gating it is 35 % false positives. DOI *resolution* is also out — it needs network,
-which no bundle or CI lane may have.) Wrong authors are the failure mode a reader cannot detect, because the link still
-resolves and still lands on the paper being described; three shipped citations had them.
-
-When a correct citation would red — a **corporate** author (Crossref stores the ESC/NASPE Task Force's full society
-name), a **spacing** variant (`Du BOIS` vs `DuBois`), or a record for which **Crossref carries no author at all** — add
-`authorAliases`, and you MUST also add **`aliasSource`**: `crossref-variant` when the alias is a spelling of what
-Crossref recorded, or `from-paper` when Crossref has no author and the name was read off the paper itself. The second
-is mildly circular — the citation being checked supplies its own answer — which is exactly why it is marked rather
-than hidden, and why `from-paper` on a record that *does* have a Crossref author is a red. **Never silence a finding
-by editing the ledger's `firstAuthor`**: that is the one edit which makes a real defect disappear.
+**Attribution is GATE-BACKED.** `audits/CITATION-VERIFICATION-2026-08-05.json` records
+`firstAuthor`/`year`/`container` per DOI, and the `citation-ledger` group asserts every DOI on a
+reader-facing surface (reference guides, `papers/**`, `docs/**.md`, root `*.js`) is surrounded by a
+citation naming that author and a year within ±1. `briefs/` is deliberately OUT (a brief quotes a wrong
+attribution in order to say it is wrong); DOI *resolution* is out (needs network). When a correct
+citation would red — a corporate author, a spacing variant, a record Crossref carries no author for —
+add `authorAliases` **and `aliasSource`**: `crossref-variant` (a spelling of what Crossref recorded) or
+`from-paper` (Crossref has no author; name read off the paper — marked because it is circular).
+`from-paper` on a record that has a Crossref author is a red. **Never silence a finding by editing the
+ledger's `firstAuthor`** (*why → RATIONALE §📚: three shipped citations named the wrong author*).
 
 ## 🎙️ Capture provenance — how the raw signals are recorded
-Raw **ECG** (Polar H10 chest strap) and **PPG** (Polar Verity Sense armband) are captured with the
-**Polar Sensor Logger** Android app (`com.j_ware.polarsensorlogger`, by j-ware). It streams the
-sensors over BLE and writes per-stream CSV/TXT files (ECG ~130 Hz, PPG/ACC etc.) with its own
-timestamp columns — so `ECGDex` (and any PPG node) must treat Polar Sensor Logger's export layout
-as a first-class input format. Honor the Clock Contract when parsing its stamps (regex the explicit
-format; never `new Date(str)`); add its exact column/timestamp formats to the relevant `*-dsp.js`
-parser as you encounter real files.
+Raw **ECG** (Polar H10) and **PPG** (Polar Verity Sense) are captured with **Polar Sensor Logger**
+(`com.j_ware.polarsensorlogger`), which writes per-stream CSV/TXT (ECG ~130 Hz, PPG/ACC etc.) with its
+own timestamp columns — a first-class input format for `ECGDex` and any PPG node. Honor the Clock
+Contract when parsing its stamps (regex the explicit format; never `new Date(str)`).
 
-**Per-file honest-HR facts (TRIO-METHODS-REUSE §Do 2, from the real tri-device corpus).** The Verity
-Sense onboard `_HR.txt` is **all-zero** and `_PPI.txt` is often header-only — a Verity HR MUST be
-**derived from the raw `_PPG.txt`** via PPGDSP (3-LED consensus → `buildPPI` → Malik `correctRR`),
-never read off the device HR file. The Polar H10 device `_HR.txt` is **smoothed** (it under-states σ
-via a quiet-order artifact), so the **raw-ECG Pan–Tompkins** HR (`ECGDSP.parseECG → bandpass →
-detectPeaks`) is the honest H10 leg — derive H10 HR from `_ECG.txt`, not `_HR.txt`. Any comparison or
-fusion consuming these must derive HR from the raw waveform, not the onboard summary.
+**Per-file honest-HR facts (TRIO-METHODS-REUSE §Do 2).** The Verity onboard `_HR.txt` is **all-zero**
+and `_PPI.txt` often header-only — a Verity HR MUST be **derived from raw `_PPG.txt`** via PPGDSP
+(3-LED consensus → `buildPPI` → Malik `correctRR`). The H10 device `_HR.txt` is **smoothed** (under-states
+σ), so the honest H10 leg is raw-ECG Pan–Tompkins (`ECGDSP.parseECG → bandpass → detectPeaks`) from
+`_ECG.txt`. Any comparison or fusion derives HR from the raw waveform, never the onboard summary.
 
 **A real tri-device corpus exists** — O2Ring + Polar H10 (device `H10-01`) + Polar Verity Sense
 (device `VERITY-01`), 2026-06-10 → 2026-07-05, **CLAIM trioEligibleNights = 20 FROM analysis/tri_device_nights.json#count eligible nights** (~10 with clean Verity). It is
 the ground truth behind the reference-free σ work (`sensor-trio-power-analysis.html` /
-`sigma-no-reference-analysis.html`) and unblocks several `PAPERS-ROADMAP` real-validation items.
+`sigma-no-reference-analysis.html`).
 
 ## 🧪 Regression gate — run after ANY `*-dsp.js` / `*-cross.js` / `*-app.js` change
-**`Dex-Test-Suite.html`** is the canonical gate. It loads the REAL modules + shared assertions
-(`tests/dex-tests.js` — the same suite `node tests/run-tests.mjs` runs), then adds a browser-only
-render-coverage group that drives a real app bundle in an iframe. **Render-coverage is now ON-DEMAND
-(lazy, 2026-06-30):** a bare open paints ONLY the headless CI floor (~3 s) and the pill reads amber
-**"headless green — render-coverage not run"** — that is the floor, **NOT a pass**. To run the FULL
-gate, open **`Dex-Test-Suite.html?full`** (or click the **▶ Run render-coverage** button): the rigs
-then boot for ~30–50 s — **wait for the group count to stop climbing**, then read the `#summary` pill —
-it must say **all green** (`window.__rcState==='done'` + `sameOriginStatus().ok`). Treat a red as a
-blocker, not a nitpick. A **cold-boot iframe timeout is now a ⊘ SKIP, not a red** (DEX-TEST-DETERMINISM
-2026-07-01 — each rig retries the boot once, then skips an inconclusive double-timeout so the pill stops
-flickering red on cold loads): skips count as neither pass nor fail, so a green pill can still hide a rig
-that did not actually run — if you need every rig to have truly booted, check `sameOriginStatus().bootSkips`
-(prose-immune, `[]` when all booted) / the `N skipped` pill, and just re-open `?full` to warm the cache.
-- **Run it after editing any DSP/app, and after re-bundling**, before calling `done`. A passing
-  live spot-check on one file is NOT a substitute — the suite catches contract breaks
-  (function-signature/arg-order changes, return-type changes) that an ad-hoc check misses.
-- The shared assertions ARE the public contract for each module. If you intentionally change a
-  signature or return shape, keep back-compat (add new params LAST + optional; expose new return
-  data via a NEW field/method) rather than editing the assertion to match — or update
-  `tests/dex-tests.js` deliberately, knowing Node CI uses the same file.
-- **Under the capture-host mutation gate a hand-advanced `while` index TIMES OUT, not fails** — a
-  mutant that flips `i += 1` to `i -= 1` or `i < n` to `i <= n` loops forever, mutmut reports it
-  UNDECIDED, and `mutate_diff` REFUSES the run (exit 2; under `--report-only` the refusal is printed
-  FIRST and marked BLOCKING). Write scanners as `for … in enumerate(…)` or through a tokenizer, never
-  as a `while` over a hand-moved index. Measured 2026-09-26: six ~10-minute runs spent reading the
-  refusal as advisory.
+**`Dex-Test-Suite.html`** is the canonical gate: the REAL modules + the shared assertions
+(`tests/dex-tests.js`, the same suite `node tests/run-tests.mjs` runs) plus a browser-only
+render-coverage group. **Render-coverage is ON-DEMAND:** a bare open paints only the headless floor
+(~3 s) and the pill reads amber **"headless green — render-coverage not run"** — that is NOT a pass.
+For the FULL gate open **`Dex-Test-Suite.html?full`** (or ▶ Run render-coverage), wait ~30–50 s for the
+group count to stop climbing, then read `#summary`: **all green** (`window.__rcState==='done'` +
+`sameOriginStatus().ok`). A red is a blocker. A cold-boot iframe timeout is a ⊘ SKIP (each rig
+retries once): skips are neither pass nor fail, so check `sameOriginStatus().bootSkips` (`[]` when all
+booted) if every rig must have run; re-open `?full` to warm the cache.
+- **Run it after editing any DSP/app and after re-bundling**, before calling `done`. A live spot-check
+  on one file is not a substitute — the suite catches contract breaks an ad-hoc check misses.
+- The shared assertions ARE the public contract. To change a signature or return shape, keep back-compat
+  (new params LAST + optional; new data via a NEW field) — or update `tests/dex-tests.js` deliberately,
+  knowing Node CI uses the same file.
+- **Under the capture-host mutation gate a hand-advanced `while` index TIMES OUT, not fails** — the
+  mutant loops forever, mutmut reports it UNDECIDED, and `mutate_diff` REFUSES the run (exit 2; under
+  `--report-only` the refusal prints FIRST, marked BLOCKING — it is not advisory). Write scanners as
+  `for … in enumerate(…)` or through a tokenizer, never as a `while` over a hand-moved index
+  (*why → RATIONALE §🧪*).
 
 ## 🔏 Provenance gate — run after RE-BUNDLING any `Foo.html`
 > **Ledger packaging (P3, 2026-07-15):** the two ledgers below are no longer single files — they live as
