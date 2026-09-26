@@ -36,7 +36,9 @@ PROSE = "PROSE"
 UNOBSERVABLE = "UNOBSERVABLE"
 EQUIVALENT = "EQUIVALENT?"
 
-_STR = re.compile(r"""(['"]).*?\1""", re.S)
+# The prefix letters ride along (`f"…"`, `rb'…'`) so that folding a literal folds its prefix too and
+# `_strip_strings` can tell an f-string from a plain one — group 1 is the prefix, group 2 the quote.
+_STR = re.compile(r"""([A-Za-z]*)(['"]).*?\2""", re.S)
 _MSG = re.compile(r"(print|log|logger|_log|sys\.stderr\.write)\b")
 _FLUSH = re.compile(r"flush\s*=\s*\w+")
 _XX = re.compile(r'"XX|XX"|\'XX|XX\'')
@@ -44,7 +46,35 @@ _LOST_ARG = re.compile(r"\(\s*None|=\s*None|,\s*\)")
 
 
 def _strip_strings(s: str) -> str:
-    return _STR.sub("STR", s)
+    # An f-string's `{...}` fields are CODE, and they stay: mutmut mutates them as code and generates
+    # no text mutant for an f-string at all (measured 2026-09-26, mutmut 3.8), so folding the whole
+    # literal to STR read `f"{a(y)}"` -> `f"{b(y)}"` as "string literal only" and dropped a real
+    # survivor from the work list. `{{`/`}}` are text; a nested `{}` stays inside its field.
+    def fold(m: re.Match[str]) -> str:
+        if "f" not in m.group(1).lower():
+            return "STR"
+        # the literal's INTERIOR: the prefix and both quotes are folded into STR with the text
+        body, out, depth, i = m.group(0)[m.end(2) - m.start():-1], ["STR"], 0, 0
+        while i < len(body):
+            ch = body[i]
+            if depth == 0:
+                if ch == "{":
+                    if body[i + 1:i + 2] == "{":
+                        i += 2
+                        continue
+                    depth = 1
+                    out.append(ch)
+            elif ch == "{":
+                depth += 1
+                out.append(ch)
+            elif ch == "}":
+                depth -= 1
+                out.append(ch)
+            else:
+                out.append(ch)
+            i += 1
+        return "".join(out)
+    return _STR.sub(fold, s)
 
 
 # `log.warning("%s %s → %s", name,` spans several lines, and `classify` is handed ONE of them. A
