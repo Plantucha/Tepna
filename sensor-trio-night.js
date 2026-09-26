@@ -60,7 +60,7 @@
   // the trio family's device palette (the paper's captions: O2Ring amber · H10 teal · Verity purple)
   const DEV = {
     h10: { name: 'Polar H10', kind: 'chest ECG', col: '#3DE0D0', rgb: '61,224,208' },
-    verity: { name: 'Verity Sense', kind: 'upper-arm PPG', col: '#B98AFF', rgb: '185,138,255' },
+    verity: { name: 'Verity Sense', kind: 'ankle PPG', col: '#B98AFF', rgb: '185,138,255' },
     o2: { name: 'O2Ring', kind: 'finger pulse · 1 Hz native', col: '#FFB84D', rgb: '255,184,77' }
   };
   const DKEYS = ['h10', 'verity', 'o2'];
@@ -117,7 +117,12 @@
     const n = file.name;
     let mo;
     if ((mo = n.match(/^(?:O2Ring.*|Wellue_O2Ring-S_[0-9A-Za-z]+)_(\d{14})(?:_SPO2)?\.csv$/i))) return { role: 'o2', stamp: mo[1] };
-    if ((mo = n.match(/^Polar_H10_[0-9A-Za-zx]+_(\d{8})_?(\d{6})_([A-Z]+)\.txt$/i))) return mo[3].toUpperCase() === 'HR' ? { role: 'h10', stamp: mo[1] + mo[2] } : null;
+    /* The H10 corner prefers the RAW _ECG.txt (Pan–Tompkins in the worker): the device _HR.txt is smoothed and
+       under-states σ (CLAUDE.md §🎙️ honest-HR facts). _HR.txt stays the fallback for a night without the waveform. */
+    if ((mo = n.match(/^Polar_H10_[0-9A-Za-zx]+_(\d{8})_?(\d{6})_([A-Z]+)\.txt$/i))) {
+      const k = mo[3].toUpperCase();
+      return k === 'HR' ? { role: 'h10', stamp: mo[1] + mo[2] } : k === 'ECG' ? { role: 'h10ecg', stamp: mo[1] + mo[2] } : null;
+    }
     if ((mo = n.match(/^Polar_(?:Sense|VeritySense)_[0-9A-Za-zx]+_(\d{8})_?(\d{6})_([A-Z]+)\.txt$/i))) {
       const k = mo[3].toUpperCase(),
         role = k === 'PPG' ? 'verityPPG' : k === 'PPI' ? 'verityPPI' : k === 'HR' ? 'verityHR' : null;
@@ -159,16 +164,18 @@
       if (nt.startMs == null) return largest(a);
       return a.reduce((b, x) => (Math.abs(x.ms - nt.startMs) < Math.abs(b.ms - nt.startMs) ? x : b));
     };
-    const h = nearest(C.h10),
+    const he = nearest(C.h10ecg),
+      h = nearest(C.h10),
       vppg = nearest(C.verityPPG),
       vppi = nearest(C.verityPPI),
       vhr = nearest(C.verityHR);
     nt.h10 = h ? h.file : null;
+    nt.h10ecg = he ? he.file : null;
     nt.verityPPG = vppg ? vppg.file : null;
     nt.verityPPI = vppi ? vppi.file : null;
     nt.verityHR = vhr ? vhr.file : null;
   }
-  const eligible = (nt) => !!(nt.o2 && nt.h10 && (nt.verityPPG || nt.verityPPI || nt.verityHR));
+  const eligible = (nt) => !!(nt.o2 && (nt.h10ecg || nt.h10) && (nt.verityPPG || nt.verityPPI || nt.verityHR));
   const verSrc = (nt) => (nt.verityPPG ? 'PPG' : nt.verityPPI ? 'PPI' : nt.verityHR ? 'HR' : '—');
   let SELECTED = null;
   function ingestFiles(list) {
@@ -206,7 +213,7 @@
       const el = document.createElement('div');
       el.className = 'sb-item' + (SELECTED === k ? ' active' : '') + (ok ? '' : ' ts-dim');
       el.setAttribute('data-k', k);
-      el.title = ok ? 'O2Ring ● · H10 ● · Verity ' + verSrc(nt) : 'ineligible — needs O2Ring CSV, H10 HR and a Verity stream';
+      el.title = ok ? 'O2Ring ● · H10 ' + (nt.h10ecg ? 'ECG' : 'HR') + ' · Verity ' + verSrc(nt) : 'ineligible — needs O2Ring CSV, an H10 ECG or HR and a Verity stream';
       el.innerHTML = '<span class="ts-nk">' + esc(k) + '</span><span class="ts-nres" id="nres-' + esc(k) + '">' + (ok ? 'ready' : 'ineligible') + '</span>';
       nav.appendChild(el);
     });
@@ -318,7 +325,18 @@
       timeoutMs: 1200000,
       label: nt.key,
       seed: hashStr(nt.key),
-      files: { o2: nt.o2, h10: nt.h10, verityPPG: nt.verityPPG || null, verityPPI: nt.verityPPI || null, verityHR: nt.verityHR || null }
+      /* RAW WAVEFORMS FIRST. The worker takes the Verity's _PPI.txt before its _PPG.txt when both are given, and the
+         PPI rows carry the phone's RECEIVE time in batches (`Phone Data RX timestamp`), so its per-second HR map
+         holds only the seconds a batch arrived: on 2026-09-25 that cut a 7.1 h night to 4483 aligned seconds
+         (1 h 14 min). The PPI is sent only when there is no PPG; the raw ECG goes as `h10ecg`. */
+      files: {
+        o2: nt.o2,
+        h10: nt.h10 || null,
+        h10ecg: nt.h10ecg || null,
+        verityPPG: nt.verityPPG || null,
+        verityPPI: nt.verityPPG ? null : nt.verityPPI || null,
+        verityHR: nt.verityHR || null
+      }
     });
     const real = (r && r.real) || { skip: true, reason: (r && r.error) || 'no result' };
     if (real.skip) {
@@ -365,7 +383,7 @@
       return;
     }
     if (rc) {
-      rc.textContent = 'σ ' + f2(real.sigma.h10) + ' / ' + f2(real.sigma.verity) + ' / ' + f2(real.sigma.o2);
+      rc.innerHTML = evb('hat') + ' σ ' + f2(real.sigma.h10) + ' / ' + f2(real.sigma.verity) + ' / ' + f2(real.sigma.o2);
       rc.style.color = '';
     }
     setStatus('ok', nt.key + ' · solved · ' + hmOf(real.n) + ' overlap');
@@ -378,6 +396,72 @@
   //  RENDER — ans-design surfaces, hrvdex-chart canvases, hand-authored SVG
   // ═══════════════════════════════════════════════════════════════════════════
   const CARDS = ['cSeries', 'cSigma', 'cDiff', 'cRun', 'cTri'];
+  /* ── TRUST BADGES (CLAUDE.md §🎫) — this page's grades and why. HR series take their node registries' grade
+     (ECGDex/PpgDex/OxyDex `hr`/`meanHr`: measured). A difference, a correlation or an overlap is arithmetic on
+     those series → measured. σ̂ and everything derived from the hat assume independent corner errors and are not
+     validated against a reference here → experimental. A gate verdict is the suite's own rule → experimental. */
+  const EV = {
+    hrEcg: ['measured', 'heart rate direct from detected R-peaks (ECGDex registry `hr`)'],
+    hrPpg: ['measured', 'heart rate direct from pulse-peak intervals (PpgDex registry `hr`)'],
+    hrO2: ['measured', 'direct pulse reading (OxyDex registry `meanHr`)'],
+    diff: ['measured', 'pairwise difference of two measured HR series on the aligned grid'],
+    corr: ['measured', 'Pearson r of two measured HR series on the aligned grid'],
+    count: ['measured', 'seconds on the aligned three-way grid — a count'],
+    source: ['measured', 'which file each corner was read from — a fact about the inputs'],
+    hat: ['experimental', 'three-cornered hat σ̂ — assumes independent corner errors; not validated against a reference'],
+    gate: ['experimental', "the suite's own corner gates (Verity harmonic, H10 lead) — a rule, not a measurement"]
+  };
+  const evb = (k) => (window.MetricRegistry && window.MetricRegistry.badge ? window.MetricRegistry.badge(EV[k][0], EV[k][1]) : '');
+  function corner(host, key) {
+    if (!host) return;
+    host.style.position = 'relative';
+    let c = host.querySelector(':scope > .ev-corner');
+    if (!c) {
+      c = document.createElement('span');
+      c.className = 'ev-corner';
+      host.appendChild(c);
+    }
+    c.innerHTML = evb(key);
+  }
+  // a chart caption is not a badge site — the SERIES is (CLAUDE.md §🎫): one strip per figure, a badge before each series
+  function seriesBadges(cardId, items) {
+    const card = $(cardId);
+    if (!card) return;
+    let strip = card.querySelector('.ts-evser');
+    if (!strip) {
+      strip = document.createElement('div');
+      strip.className = 'ts-evser';
+      const p = card.querySelector('p') || card.querySelector('h4');
+      if (p && p.nextSibling) card.insertBefore(strip, p.nextSibling);
+      else card.appendChild(strip);
+    }
+    strip.innerHTML = items.map((it) => '<span class="ts-evitem">' + evb(it[0]) + ' ' + it[1] + '</span>').join('');
+  }
+  function badgeAll() {
+    for (const k of DKEYS) corner($('hero-' + k + '-val') && $('hero-' + k + '-val').parentElement, 'hat');
+    corner($('kOverlap'), 'count');
+    corner($('kMethod'), 'hat');
+    corner($('kGate'), 'gate');
+    corner($('kSource'), 'source');
+    corner($('kSum'), 'hat');
+    corner($('kR'), 'corr');
+    seriesBadges('cSeries', [
+      ['hrEcg', 'Polar H10 HR'],
+      ['hrPpg', 'Verity Sense HR'],
+      ['hrO2', 'O2Ring pulse']
+    ]);
+    seriesBadges('cSigma', [['hat', 'σ̂ per corner, with its bootstrap CI']]);
+    seriesBadges('cDiff', [
+      ['diff', 'H10 − Verity'],
+      ['diff', 'H10 − O2Ring'],
+      ['diff', 'Verity − O2Ring']
+    ]);
+    seriesBadges('cRun', [['hat', 'running σ̂ per corner']]);
+    seriesBadges('cTri', [
+      ['corr', 'pairwise r (edges)'],
+      ['hat', 'σ̂ (vertices)']
+    ]);
+  }
   function setEmpty(cardId, text, warn) {
     const c = $(cardId);
     if (!c) return;
@@ -431,6 +515,7 @@
     kpi('kSum', '—', '');
     kpi('kR', '—', '');
     for (const id of CARDS) setEmpty(id, 'This night could not be solved — ' + (real.reason || 'no result'), true);
+    badgeAll();
   }
   function renderAll(nt, real, derive) {
     $('heroNight').textContent = nt.key;
@@ -460,6 +545,7 @@
     drawRunning(real, derive);
     drawTriangle(real);
     for (const id of CARDS) fillCard(id);
+    badgeAll();
   }
   // ── the house Chart wrapper (mirrors HRVDex's mkChart; engine = hrvdex-chart.js) ───────────
   const charts = {};
