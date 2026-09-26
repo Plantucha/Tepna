@@ -137,6 +137,14 @@
 # ═══════════════════════════════════════════════════════════════════════════════
 set -uo pipefail
 [ "${CLAUDE_ALLOW_STALE_MEMORY:-}" = "1" ] && exit 0
+# ⚡ NO MEMORY DIRECTORY ⇒ NOTHING TO GUARD — exit before reading the payload or forking anything.
+#   A cloud container or a fresh clone has no `~/.claude/projects/*/memory/` at all, and this hook
+#   rides EVERY Read, Edit, Write and Bash call (pre AND post). Measured 2026-09-26 on such a HOME:
+#   6.6 ms per call spent parsing a payload for a directory that cannot exist. The glob below is one
+#   bash builtin loop; it cannot over-allow — a memory dir that exists still takes the full path.
+_mem_any=
+for _d in "${HOME:-/nonexistent}"/.claude/projects/*/memory; do [ -d "$_d" ] && { _mem_any=1; break; }; done
+[ -z "$_mem_any" ] && exit 0
 payload="$(cat 2>/dev/null)" || exit 0
 # ⚡ CHEAP REJECT FIRST — this hook rides Read, the hottest tool in the loop, and almost every Read is
 # not a memory file. A substring test on the RAW payload costs nothing and skips the jq fork for all
