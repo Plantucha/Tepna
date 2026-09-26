@@ -190,6 +190,9 @@ def _string_spans(line: str) -> list[tuple[int, int]]:
     return spans
 
 
+# An escaped pair is ONE token, so an f-string interior needs no "skip the next character" state.
+_BRACE_TOKENS = re.compile(r"\{\{|\}\}|[{}]|[^{}]+")
+
 def _fstring_expr_spans(line: str) -> list[tuple[int, int]]:
     """Half-open [start, end) ranges of an f-string's `{...}` fields on `line`, BRACES INCLUDED.
 
@@ -204,32 +207,33 @@ def _fstring_expr_spans(line: str) -> list[tuple[int, int]]:
     IN the span on purpose: turning `{a}` into `(a}` is a change to the field, not to the text beside
     it, while a change to the character before `{` or after `}` is text and stays outside.
 
-    ⚠️ NO INDEX-DRIVEN `while` LOOP, deliberately. The first draft advanced `i` by hand, and mutmut's
-    `i += 1` -> `i = 1` made it spin forever: the diff-scoped gate reports such a mutant UNDECIDED
-    (timeout) and REFUSES, correctly — nothing measured it. A `for` over `enumerate` cannot be
-    mutated into a non-terminating loop, and a field's span is appended PROVISIONALLY (to the
-    literal's end) the moment it opens and patched when it closes, so there is no "initial value
-    nobody reads" for a mutant to change without consequence."""
+    ⚠️ NO INDEX-DRIVEN `while` LOOP AND NO SKIP FLAG, deliberately. The first draft advanced `i` by
+    hand, and mutmut's `i += 1` -> `i = 1` made it spin forever: the diff-scoped gate reports such a
+    mutant UNDECIDED (timeout) and REFUSES, correctly — nothing measured it. The second draft kept a
+    boolean "skip the next char" for an escaped pair, and `False -> None` on a flag that is only ever
+    truth-tested is unobservable by construction. So the interior is TOKENIZED instead — an escaped
+    pair is one token, passed over at depth 0 and read as two braces inside a field — and a field's
+    span is appended PROVISIONALLY (to the literal's end) the moment it opens and patched when it
+    closes: no loop index, no flag, no initial value nobody reads."""
     spans: list[tuple[int, int]] = []
     for a, b in _string_spans(line):
         prefix = re.search(r"[A-Za-z]*$", line[:a])
         if prefix is None or "f" not in prefix.group(0).lower():
             continue
-        interior = line[a + 1:b - 1]
-        depth, skip = 0, False
-        for k, ch in enumerate(interior, a + 1):
-            if skip:
-                skip = False
-            elif depth == 0 and ch in "{}" and interior[k - a:k - a + 1] == ch:
-                skip = True                                  # `{{` or `}}`: an escaped brace, text
-            elif ch == "{":
-                depth += 1
-                if depth == 1:
-                    spans.append((k, b))                     # provisional: runs to the literal's end
-            elif ch == "}" and depth:
-                depth -= 1
-                if depth == 0:
-                    spans[-1] = (spans[-1][0], k + 1)        # closed: braces included
+        depth = 0
+        for m in _BRACE_TOKENS.finditer(line, a + 1, b - 1):
+            tok = m.group(0)
+            if depth == 0 and tok in ("{{", "}}"):
+                continue                                     # an escaped brace: text, no state to keep
+            for k, ch in enumerate(tok, m.start()):          # a doubled brace INSIDE a field is two braces
+                if ch == "{":
+                    depth += 1
+                    if depth == 1:
+                        spans.append((k, b))                 # provisional: runs to the literal's end
+                elif ch == "}" and depth:
+                    depth -= 1
+                    if depth == 0:
+                        spans[-1] = (spans[-1][0], k + 1)    # closed: braces included
     return spans
 
 
