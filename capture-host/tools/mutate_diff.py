@@ -74,7 +74,7 @@ HERE = Path(__file__).resolve().parent.parent
 VENV_PY = HERE / ".venv" / "bin" / "python"
 sys.path.insert(0, str(HERE))
 from mutation_diff import (  # noqa: E402
-    EMPTY_DIFF, STRING_ONLY, SURVIVED, UNDECIDABLE, UNDECIDED, annotation_only, clean_run_failures, classify, diff_key, mutant_changed_lines,
+    report_only_refusal_note, EMPTY_DIFF, STRING_ONLY, SURVIVED, UNDECIDABLE, UNDECIDED, annotation_only, clean_run_failures, classify, diff_key, mutant_changed_lines,
     in_glob_scope, source_function_of_glob, undecided_by_function, unmutatable_decorator,
     functions_covering, refusal_reason, selftest, split_results, string_only_verdict,
     GATE_BUDGET_SEC, budget_refusal, verdict_object,
@@ -631,6 +631,7 @@ def main(argv=None) -> int:
         _counts["refuted"] = len(cls["refuted"])
         return emit("FAIL", f"{len(cls['refuted'])} equivalence entr(y/ies) REFUTED — the mutant was killed, so the recorded claim is wrong", 0 if a.report_only else 1)
 
+    _refusal = None  # set under --report-only when a refusal has already been emitted; ONE verdict per run
     # UNDECIDED BLOCKS, and says so before the survivor report. A mutant mutmut could not settle
     # (timeout, suspicious, no tests, not checked) was never seen by a test, so "every mutant was
     # killed" is not a claim this run is entitled to make. Reported as its own class rather than
@@ -692,10 +693,14 @@ def main(argv=None) -> int:
                   "  what selected them, not at how long they were given.")
         print("  Do NOT raise `timeout_multiplier` to clear this: it would report a pass for mutants\n"
               "  nobody measured, which is precisely what this refusal is here to stop.")
+        _note = report_only_refusal_note(a.report_only)
+        if _note:
+            print(_note)
         _ran_box[0] = _ran
         _u = emit("UNKNOWN", f"{len(undecided)} mutant(s) UNDECIDED ({', '.join(sorted(set(u['status'] for u in undecided)))}) — never observed by a test, so this run cannot say they were killed", 2)
         if not a.report_only:
             return _u
+        _refusal = _u
 
     # ── the budget refusal — after the survivor report has been recorded, before the verdict ─────
     # Whatever DID run is reported above and in the JSON; what did NOT run is named here. A refused
@@ -713,10 +718,14 @@ def main(argv=None) -> int:
               "  Nothing above about the functions that DID run is withdrawn — only the refused ones are\n"
               "  unmeasured. Do NOT raise GATE_BUDGET_SEC to clear this: measure the selection's clean run\n"
               "  and the trace factor it multiplies, then change the number that was wrong.")
+        _note = report_only_refusal_note(a.report_only)
+        if _note:
+            print(_note)
         _ran_box[0] = _ran
         _b = emit("UNKNOWN", f"{len(_refused_budget)} module(s)/function(s) not mutated inside the {GATE_BUDGET_SEC}s gate budget — unmeasured, not failed", 2)
         if not a.report_only:
             return _b
+        _refusal = _b
 
     blocking = cls["unclassified"] + cls["real_gap"]
     if not blocking:
@@ -725,6 +734,9 @@ def main(argv=None) -> int:
               + (f" ({n_ex} recorded as equivalent)." if n_ex else "."))
         _ran_box[0] = _ran
         _counts["excused"] = n_ex
+        if _refusal is not None:
+            print("  (informational — the run's verdict is the UNKNOWN refusal above; not a PASS)")
+            return _refusal
         return emit("PASS", None, 0)
 
     print(f"\nmutate-diff: {len(blocking)} mutant(s) survived on lines this branch "
@@ -742,6 +754,9 @@ def main(argv=None) -> int:
           "      cd capture-host && .venv/bin/python tools/mutate_diff.py --base origin/main")
     _ran_box[0] = _ran
     _counts["excused"] = len(cls["excused"])
+    if _refusal is not None:
+        print("  (informational — the run's verdict is the UNKNOWN refusal above, which outranks survivors)")
+        return _refusal
     return emit("FAIL", f"{len(blocking)} mutant(s) survived on lines this branch changed — no test observes them", 0 if a.report_only else 1)
 
 

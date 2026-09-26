@@ -953,3 +953,16 @@ def test_selftest_NAMES_the_f_string_check_that_failed(monkeypatch, capsys):
     assert M.selftest() == 1
     assert "an f-string's TEXT is no longer string-only" in capsys.readouterr().out
 
+
+
+def test_report_only_refusal_note_is_blocking_in_the_gating_modes_words():
+    """--report-only means 'never exit non-zero', not 'advisory' — the note must say BLOCKING and say
+    the survivor report that follows is informational, in the words the gating mode uses (exit 2)."""
+    note = M.report_only_refusal_note(True)
+    assert "BLOCKING" in note and "exits 2" in note and "INFORMATIONAL" in note and "UNKNOWN" in note
+
+
+def test_report_only_refusal_note_is_silent_when_the_gate_actually_gates():
+    """Without the flag the gate exits at the refusal and prints nothing after it, so no note is owed
+    — a note there would claim a report follows when none does."""
+    assert M.report_only_refusal_note(False) == ""

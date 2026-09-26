@@ -967,6 +967,12 @@ that did not actually run — if you need every rig to have truly booted, check 
   signature or return shape, keep back-compat (add new params LAST + optional; expose new return
   data via a NEW field/method) rather than editing the assertion to match — or update
   `tests/dex-tests.js` deliberately, knowing Node CI uses the same file.
+- **Under the capture-host mutation gate a hand-advanced `while` index TIMES OUT, not fails** — a
+  mutant that flips `i += 1` to `i -= 1` or `i < n` to `i <= n` loops forever, mutmut reports it
+  UNDECIDED, and `mutate_diff` REFUSES the run (exit 2; under `--report-only` the refusal is printed
+  FIRST and marked BLOCKING). Write scanners as `for … in enumerate(…)` or through a tokenizer, never
+  as a `while` over a hand-moved index. Measured 2026-09-26: six ~10-minute runs spent reading the
+  refusal as advisory.
 
 ## 🔏 Provenance gate — run after RE-BUNDLING any `Foo.html`
 > **Ledger packaging (P3, 2026-07-15):** the two ledgers below are no longer single files — they live as

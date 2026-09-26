@@ -1198,3 +1198,21 @@ def split_results(results_text: str):
             out[UNDECIDED].append((name, status))
     return out
 
+
+
+def report_only_refusal_note(report_only: bool) -> str:
+    """The one line that makes a refusal under --report-only read as what it is.
+
+    `--report-only` means "never exit non-zero"; it does NOT mean "advisory". Without the flag the
+    gate exits 2 at a refusal and prints nothing after it, so the refusal is unmistakably the
+    verdict. With the flag the run used to continue into the survivor report and emit a SECOND
+    VERDICT line — and six ~10-minute local runs were spent on 2026-09-26 by a reader who took the
+    last VERDICT line (the survivor one) as the answer. Under --report-only the refusal is printed
+    FIRST, marked BLOCKING in the same words the gating mode uses, and the survivor report that
+    follows is labelled informational; only ONE VERDICT line is emitted per run."""
+    if not report_only:
+        return ""
+    return (
+        "  ⛔ BLOCKING — without --report-only this run exits 2 HERE and prints nothing further. The\n"
+        "  survivor report below is INFORMATIONAL; this refusal IS the run's verdict (UNKNOWN)."
+    )
