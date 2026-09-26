@@ -690,8 +690,10 @@ Status lives in a one-line header block on the first content line (just after an
   dashboard — reorganize *that view*, not the files. Now that all briefs already sit in `briefs/`, do
   NOT further sub-folder them into `Done/`/`Executed/` — that breaks every cross-reference + splits git
   history (same failure as renaming); status lives in the header, not the path.
-- 🔍 **SEARCH BEFORE YOU SIZE OR BUILD — `node tools/doc-search.mjs "<the thing>"` (PRIMARY DEV
-  MACHINE ONLY — see the warning).** A brief pickup starts with a semantic search, not a grep: grep
+- 🔍 **SEARCH BEFORE YOU SIZE OR BUILD — `node tools/doc-search.mjs --read "<the thing>"` (PRIMARY
+  DEV MACHINE ONLY — see the warning). `--read` prints the matching chunk of the top three hits
+  inline; use it, and READ those chunks — measured 2026-09-26, twice in one day a session read the
+  path list and never opened the top hit.** A brief pickup starts with a semantic search, not a grep: grep
   finds only your own vocabulary, and twice in one week a session nearly reported build-from-scratch
   for machinery that already existed under other names (a `pooledSeconds` grep returned nothing while
   the pooled pairwise BA + generic three-cornered hat sat in `sigma-no-reference-analysis.js` /
