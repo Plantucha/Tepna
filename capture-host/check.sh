@@ -180,7 +180,7 @@ mypy_advisory() {
     # probe because it is the runtime dependency that carries the types the difference came from.
     printf '  mypy: %s errors — NOT COMPARABLE to the %s baseline (%s): the runtime requirements are not\n' \
            "$n" "$MYPY_BASELINE" "$MYPY_BASELINE_DATE"
-    printf '        installed (`import bleak` failed), and without their types mypy counts fewer errors.\n'
+    printf '        installed ("import bleak" failed), and without their types mypy counts fewer errors.\n'
     printf '        pip install -r requirements.txt, then read the direction.\n'
     ADVISORY_NOTE="$n (baseline $MYPY_BASELINE, NOT_COMPARABLE) — runtime requirements absent; the count is not the baseline's quantity"
     ADVISORY_STATE="NOT_COMPARABLE"
