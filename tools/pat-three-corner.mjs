@@ -41,13 +41,14 @@
  * fraction from PulseDex), applied before any pair is compared. A window enters only if ALL THREE
  * streams pass independently — which is stricter than any single pair, and the same rule for each.
  *
- *   node tools/pat-three-corner.mjs --dir <captures root> [--night 2026-08-03] [--win 5]
+ *   node tools/pat-three-corner.mjs --dir <captures root> [--night 2026-08-03] [--win 5] [--ecg-axis linear|counter|piecewise]
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import { ecgCounterTimeMs } from './pat-matchrate-strict.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DexBuild = createRequire(import.meta.url)(path.join(ROOT, 'tools', 'build-core.js'));
@@ -59,6 +60,15 @@ const arg = (k, d) => {
 const DIR = arg('--dir', null);
 const ONLY = arg('--night', null);
 const WIN_MIN = +arg('--win', 5);
+/* --ecg-axis (default `linear`, the historical form, so no published number moves): `counter` times each
+   R-peak on the H10's own sample counter — see `ecgCounterTimeMs` in pat-matchrate-strict.mjs for why a
+   whole-file `fs` walks the ECG train by up to seconds per night — and `piecewise` on the DSP's
+   host-disciplined `tMsAt`. The PPG legs are host-disciplined either way. */
+const ECG_AXIS = arg('--ecg-axis', 'linear');
+if (!['linear', 'counter', 'piecewise'].includes(ECG_AXIS)) {
+  console.error('--ecg-axis must be linear|counter|piecewise');
+  process.exit(2);
+}
 if (!DIR) {
   console.error('need --dir <captures root>');
   process.exit(1);
@@ -166,7 +176,8 @@ const beatsECG = (f) => {
   const r = ECG.parseECG(fs.readFileSync(f, 'utf8'));
   if (!r || !r.int16 || !r.t0Ms) return null;
   const i = ECG.detectPeaks(r.int16, ECG.bandpass(r.int16, r.fs), r.fs);
-  return i && i.length > 100 ? i.map((k) => r.t0Ms + (k / r.fs) * 1000) : null;
+  if (!i || i.length <= 100) return null;
+  return i.map((k) => (ECG_AXIS === 'counter' ? ecgCounterTimeMs(r, k) : ECG_AXIS === 'piecewise' ? r.tMsAt(k) : r.t0Ms + (k / r.fs) * 1000));
 };
 const beatsPPG = (f) => {
   const r = PPG.parsePPG(fs.readFileSync(f, 'utf8'));
@@ -188,7 +199,7 @@ function lagsOf(X, Y, band) {
   return out;
 }
 
-console.log('THREE-CORNER PAT — A=H10 chest ECG · B=O2Ring finger · C=Verity ANKLE');
+console.log('THREE-CORNER PAT — A=H10 chest ECG · B=O2Ring finger · C=Verity ANKLE · ecg-axis ' + ECG_AXIS);
 console.log(`  ${WIN_MIN}-min fixed grid · reject on per-stream quality only · all three must pass independently`);
 console.log('  bands: A→B ' + JSON.stringify(BAND.AB) + '  A→C ' + JSON.stringify(BAND.AC) + '  B→C ' + JSON.stringify(BAND.BC) + ' ms\n');
 console.log('  night        win   lag A→B  A→C  B→C |  closure  |  IQR AB   AC   BC');

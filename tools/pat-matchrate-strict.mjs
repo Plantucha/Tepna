@@ -139,12 +139,32 @@ function loadDsps() {
    smears across one anchor gap under piecewise and can move a half-mode) and `independent`.
    Sortedness after the transform is ASSERTED: hostAxis bounds slope, but the assertion is free
    and a non-monotonic train would silently break every downstream nearest-forward match. */
+/* ── THE COUNTER AXIS: an R-peak's time from the H10's own sample counter ────────────────────────────
+   `t0Ms + i/fs` assumes ONE sample rate for the whole file. The H10's is not one rate: on 2026-09-25 it
+   ran 130.027–130.033 samples per device-second while worn and 129.92–130.00 once the strap was off
+   (05:40 onward) — no sample lost, the counter has no step. `fs` is the whole-file mean, so every worn
+   beat is timed 68 ppm fast; by 05:40 the ECG train is 1.68 s ahead of its own counter and of the PPG
+   trains, and nearest-forward pairing turns that ramp into a sawtooth PAT "drift" that wraps once per
+   RR. Over the stored H10 files without a resync the index↔counter gap reaches 2.8 s (2026-09-22).
+   ECGDex's `analyze` already times beats on the counter (`beatAxis = 'device-counter'`); this is the
+   same axis for the PAT tools. The single-RATE host correction is kept exactly as `fs` carried it
+   (scaled by ppm when `hostAxis.applied`), and the piecewise host interpolation is NOT added:
+   PPG-FOOT-PLACEMENT-FOLLOWUPS §1 measured that it injects host-anchor noise and degraded the oracle
+   on 2 of 3 box nights. No usable counter ⇒ the index form, for that beat and (sortedness asserted) the train. */
+function ecgCounterTimeMs(rec, pos) {
+  const dev = typeof rec.devMsAt === 'function' ? rec.devMsAt(pos) : null;
+  if (dev == null || !Number.isFinite(dev)) return rec.t0Ms + (pos / rec.fs) * 1000;
+  const ha = rec.hostAxis;
+  const scale = ha && ha.applied === true && Number.isFinite(ha.ppm) ? 1 + ha.ppm * 1e-6 : 1;
+  return rec.t0Ms + dev * scale;
+}
 function ecgRpeakTimes(text, opts) {
   const rec = ECGDSP.parseECG(text);
   if (rec.t0Ms == null) throw new Error('ECG file carried no phone timestamp.');
   const bp = ECGDSP.bandpass(rec.int16, rec.fs);
   const peaks = ECGDSP.detectPeaks(rec.int16, bp, rec.fs);
   const piecewise = opts && opts.axis === 'piecewise';
+  const counter = opts && opts.axis === 'counter';
   /* `refine`: sub-sample R positions through `ECGDSP.refinePeaks` (exported in #2487 for
      `pat-feasibility-worker.js`, which took them the same day). Without it this leg quantises every
      R to a whole sample — 7.7 ms at 130 Hz — on an axis whose PPG side has been fractional since
@@ -153,9 +173,9 @@ function ecgRpeakTimes(text, opts) {
   const refined = opts && opts.refine && typeof ECGDSP.refinePeaks === 'function' ? ECGDSP.refinePeaks(bp, peaks, rec.fs).refIdx : null;
   const posAt = (k) => (refined && Number.isFinite(refined[k]) ? refined[k] : peaks[k]);
   const t = new Float64Array(peaks.length);
-  for (let i = 0; i < peaks.length; i++) t[i] = piecewise ? rec.tMsAt(posAt(i)) : rec.t0Ms + (posAt(i) / rec.fs) * 1000;
-  if (piecewise) {
-    for (let i = 1; i < t.length; i++) if (!(t[i] >= t[i - 1])) throw new Error(`piecewise ECG axis broke sortedness at beat ${i}`);
+  for (let i = 0; i < peaks.length; i++) t[i] = piecewise ? rec.tMsAt(posAt(i)) : counter ? ecgCounterTimeMs(rec, posAt(i)) : rec.t0Ms + (posAt(i) / rec.fs) * 1000;
+  if (piecewise || counter) {
+    for (let i = 1; i < t.length; i++) if (!(t[i] >= t[i - 1])) throw new Error(`${opts.axis} ECG axis broke sortedness at beat ${i}`);
   }
   return {
     t0Ms: rec.t0Ms,
@@ -571,7 +591,7 @@ function getDsps() {
   loadDsps();
   return { ECGDSP, PPGDSP, PATAlign, DexClock };
 }
-export { loadDsps, getDsps, ecgRpeakTimes, ppgFootTimes, median, quantile, BIN_MIN };
+export { loadDsps, getDsps, ecgRpeakTimes, ecgCounterTimeMs, ppgFootTimes, median, quantile, BIN_MIN };
 /* Night selection and clock alignment, so the fiducial comparison runs on exactly the pair and the
    offsets this tool would have used. Forking either would make the two legs incomparable — which is
    the whole failure `pat-finger-coupler.mjs`'s note above was written to avoid. Additive. */

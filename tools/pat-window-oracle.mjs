@@ -50,7 +50,7 @@
  *
  * Usage:
  *   node tools/pat-window-oracle.mjs --selftest
- *   node tools/pat-window-oracle.mjs --dir <captures root> [--half-width 100] [--fiducial foot|cfd|half] [--ecg-axis linear|piecewise] [--no-ecg-refine]
+ *   node tools/pat-window-oracle.mjs --dir <captures root> [--half-width 100] [--fiducial foot|cfd|half] [--ecg-axis linear|counter|piecewise] [--no-ecg-refine]
  * ══════════════════════════════════════════════════════════════════════════════════════════════ */
 import { closeSync, existsSync, openSync, readFileSync, readSync, readdirSync, statSync } from 'node:fs';
 import { execSync } from 'node:child_process';
@@ -844,8 +844,8 @@ async function main() {
   }
   const JSON_OUT = argv.includes('--json');
   const jsonRows = [];
-  if (!DIR || !existsSync(DIR) || !['foot', 'cfd', 'half'].includes(FID) || !['linear', 'piecewise'].includes(AXIS)) {
-    console.error('usage: node tools/pat-window-oracle.mjs --selftest | --dir <captures root> [--half-width 100] [--fiducial foot|cfd|half] [--ecg-axis linear|piecewise] [--no-ecg-refine]');
+  if (!DIR || !existsSync(DIR) || !['foot', 'cfd', 'half'].includes(FID) || !['linear', 'counter', 'piecewise'].includes(AXIS)) {
+    console.error('usage: node tools/pat-window-oracle.mjs --selftest | --dir <captures root> [--half-width 100] [--fiducial foot|cfd|half] [--ecg-axis linear|counter|piecewise] [--no-ecg-refine]');
     process.exit(2);
   }
   const { getDsps, ecgRpeakTimes, ppgFootTimes } = await import(join(HERE, 'pat-matchrate-strict.mjs'));
@@ -909,7 +909,7 @@ async function main() {
     let E;
     let P;
     try {
-      E = ecgRpeakTimes(readFileSync(eF, 'utf8'), { axis: AXIS === 'piecewise' ? 'piecewise' : undefined, refine: REFINE });
+      E = ecgRpeakTimes(readFileSync(eF, 'utf8'), { axis: AXIS === 'linear' ? undefined : AXIS, refine: REFINE });
       P = ppgFootTimes(readFileSync(pF, 'utf8'));
     } catch (e) {
       /* The catch cannot narrow WHAT the parse/transform layer throws (it is another module's
