@@ -43,6 +43,8 @@ _MSG = re.compile(r"(print|log|logger|_log|sys\.stderr\.write)\b")
 _FLUSH = re.compile(r"flush\s*=\s*\w+")
 _XX = re.compile(r'"XX|XX"|\'XX|XX\'')
 _LOST_ARG = re.compile(r"\(\s*None|=\s*None|,\s*\)")
+# An escaped pair is ONE token, so an f-string interior needs no "skip the next character" state.
+_BRACE_TOKENS = re.compile(r"\{\{|\}\}|[{}]|[^{}]+")
 
 
 def _strip_strings(s: str) -> str:
@@ -50,27 +52,27 @@ def _strip_strings(s: str) -> str:
     # no text mutant for an f-string at all (measured 2026-09-26, mutmut 3.8), so folding the whole
     # literal to STR read `f"{a(y)}"` -> `f"{b(y)}"` as "string literal only" and dropped a real
     # survivor from the work list. `{{`/`}}` at depth 0 are text; a nested `{}` stays inside its field.
-    # A `for` over the interior, never an index-driven `while`: a hand-advanced index is one mutation
-    # away from a loop that never ends, which the diff-scoped gate rightly refuses to call measured.
+    # Tokenized (`_BRACE_TOKENS`), never an index-driven `while` and never a skip flag: a hand-advanced
+    # index is one mutation away from a loop that never ends, which the diff-scoped gate rightly
+    # refuses to call measured, and a flag that is only truth-tested has an unobservable `None` twin.
     def fold(m: re.Match[str]) -> str:
         if "f" not in m.group(1).lower():
             return "STR"
         body = m.group(0)[m.end(2) - m.start():-1]          # the literal's INTERIOR
         out, depth = ["STR"], 0
-        skip_at = None                                       # index of the second brace of an escaped pair
-        for k, ch in enumerate(body):
-            if k == skip_at:
-                continue
-            if depth == 0 and ch in "{}" and body[k + 1:k + 2] == ch:
-                skip_at = k + 1
-            elif ch == "{":
-                depth += 1
-                out.append(ch)
-            elif ch == "}" and depth:
-                depth -= 1
-                out.append(ch)
-            elif depth:
-                out.append(ch)
+        for t in _BRACE_TOKENS.finditer(body):
+            tok = t.group(0)
+            if depth == 0 and tok in ("{{", "}}"):
+                continue                                     # an escaped brace: text, no state to keep
+            for ch in tok:                                   # a doubled brace INSIDE a field is two braces
+                if ch == "{":
+                    depth += 1
+                    out.append(ch)
+                elif ch == "}" and depth:
+                    depth -= 1
+                    out.append(ch)
+                elif depth:
+                    out.append(ch)
         return "".join(out)
     return _STR.sub(fold, s)
 
