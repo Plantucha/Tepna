@@ -157,3 +157,15 @@ def test_generated_config_is_well_formed_with_and_without_auth(auth):
     assert cfg.count("{") == cfg.count("}"), "unbalanced braces in the generated Caddyfile"
     if auth:
         assert "$2a$14$abcdefghijklmnopqrstuv" in cfg, "the bcrypt hash was mangled"
+
+
+def test_the_app_pages_are_revalidated_not_heuristically_cached():
+    """The app root must send Cache-Control: no-cache. Without it a browser applies heuristic freshness and
+    served pre-deploy bundles after the box had the new ones (2026-09-26, PAT Feasibility + sensor-trio-night)."""
+    for auth in ("", "basic_auth { u $2a$14$abc }"):
+        cfg = _generate(auth)
+        m = re.search(r"\n\thandle \{\n(.*?)\n\t\}\n", cfg, re.S)
+        assert m, "no bare `handle {` block for the app root"
+        block = m.group(1)
+        assert "root * /srv/tepna/app" in block
+        assert re.search(r'^\t\theader Cache-Control "no-cache"$', block, re.M), block

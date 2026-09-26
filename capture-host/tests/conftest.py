@@ -427,3 +427,22 @@ def _capture_clock_anchor_is_not_leaked():
     yield
     for k, v in keep.items():
         setattr(capture, k, v)
+
+
+@_pytest.fixture(autouse=True)
+def _capture_status_is_not_leaked():
+    """Restore `capture.STATUS` after every test — the first of the leaked globals the note above names.
+
+    `STATUS` starts as {"devices": {}} and several tests `.clear()` it (test_capture_runners,
+    test_capture_coverage_100) without restoring it, while others write `STATUS["devices"][name]` and
+    assume the key is there. Which test lands after a clear on the same xdist worker varies from run to run,
+    so the failure moved: measured 2026-09-26 on one tree, three full runs, three different sets —
+    test_link_distress_wire + test_pull_identity_key, then test_link_distress_wire alone, then five
+    test_l3_rebind_target tests, every one `KeyError: 'devices'`, every one green alone.
+    Snapshot one level deep (each top-level dict copied, so a write into `devices` is undone too) and put it
+    back after; nothing is written BEFORE the test, so no test's starting state changes."""
+    import capture
+    keep = {k: (dict(v) if isinstance(v, dict) else v) for k, v in capture.STATUS.items()}
+    yield
+    capture.STATUS.clear()
+    capture.STATUS.update(keep)
