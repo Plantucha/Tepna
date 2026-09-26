@@ -902,8 +902,12 @@ def root_reads(tree) -> list[str]:
     # an-in-tree-venv). `check.sh` resolves `.venv/bin/python` and this module's own refusal text tells
     # a contributor to create `capture-host/.venv` — and every string literal in that venv's
     # site-packages then landed here: `LICENSE`, `NOTICE`, `dex-badges.css`, a brief, seven spurious
-    # "reads" that red the equality pin. The rig never saw it because its `.venv` is a SYMLINK, which
-    # rglob does not follow; a fresh clone following the instructions does. Two rules, both already
+    # "reads" that red the equality pin. ⚠️ #3097 explained the primary checkout's escape as "its
+    # `.venv` is a SYMLINK, which rglob does not follow" — WRONG, measured 2026-09-26: that `.venv` is
+    # a real directory of ~2.5k `.py` files, the pre-#3097 scan DID walk it, and the pin stayed green
+    # only because none of those packages' literals happens to name a root file. A venv built from
+    # today's requirements does (`NOTICE`, `package-lock.json` in a fresh worktree), so the exposure
+    # is a property of what pip installed, never of the checkout's layout. Two rules, both already
     # precedents in this repo: a dot-directory is never scanned (`_subdir_index`'s fallback walk and
     # `find_unwired`'s `.venv` skip), and a directory carrying `pyvenv.cfg` is a venv whatever it is
     # called (`venv/`, `env/`), which the dot rule alone would miss.
