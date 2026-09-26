@@ -197,35 +197,39 @@ def _fstring_expr_spans(line: str) -> list[tuple[int, int]]:
     (measured 2026-09-26, mutmut 3.8: `f"{a(y)}-{y + 1}"` yields `a(None)`, `y - 1` and `y + 2`, and
     NO text mutant at all — the `XX`/case-flip forms are generated for plain literals only). Under
     `_string_spans` alone such a mutant read as string-only and the gate EXCLUDED it — fail-OPEN, on
-    every interpreter, because that scanner is hand-rolled and never tokenizes. `{{` / `}}` are escaped
-    braces, i.e. text; a nested `{}` inside a field (a dict, a set, a format spec) stays in the field;
-    a field that never closes before the literal ends runs to the literal's end, so the caller demands
-    the mutant rather than trusting a span it could not finish. The braces are IN the span on purpose:
-    turning `{a}` into `(a}` is a change to the field, not to the text beside it, while a change to
-    the character before `{` or after `}` is text and stays outside."""
+    every interpreter, because that scanner is hand-rolled and never tokenizes. `{{` / `}}` at field
+    depth 0 are escaped braces, i.e. text; a nested `{}` inside a field (a dict, a set, a format spec)
+    stays in the field; a field that never closes before the literal ends runs to the literal's end,
+    so the caller demands the mutant rather than trusting a span it could not finish. The braces are
+    IN the span on purpose: turning `{a}` into `(a}` is a change to the field, not to the text beside
+    it, while a change to the character before `{` or after `}` is text and stays outside.
+
+    ⚠️ NO INDEX-DRIVEN `while` LOOP, deliberately. The first draft advanced `i` by hand, and mutmut's
+    `i += 1` -> `i = 1` made it spin forever: the diff-scoped gate reports such a mutant UNDECIDED
+    (timeout) and REFUSES, correctly — nothing measured it. A `for` over `enumerate` cannot be
+    mutated into a non-terminating loop, and a field's span is appended PROVISIONALLY (to the
+    literal's end) the moment it opens and patched when it closes, so there is no "initial value
+    nobody reads" for a mutant to change without consequence."""
     spans: list[tuple[int, int]] = []
     for a, b in _string_spans(line):
-        j = a
-        while j > 0 and line[j - 1].isalpha():
-            j -= 1
-        if "f" not in line[j:a].lower():
+        prefix = re.search(r"[A-Za-z]*$", line[:a])
+        if prefix is None or "f" not in prefix.group(0).lower():
             continue
-        i = a + 1
-        while i < b:
-            if line[i] != "{":
-                i += 1
-                continue
-            if line[i + 1:i + 2] == "{":       # `{{` is an escaped brace, i.e. text
-                i += 2
-                continue
-            start, depth, i = i, 1, i + 1
-            while i < b and depth:
-                if line[i] == "{":
-                    depth += 1
-                elif line[i] == "}":
-                    depth -= 1
-                i += 1
-            spans.append((start, i))                # an unterminated field ends where the literal does
+        interior = line[a + 1:b - 1]
+        depth, skip = 0, False
+        for k, ch in enumerate(interior, a + 1):
+            if skip:
+                skip = False
+            elif depth == 0 and ch in "{}" and interior[k - a:k - a + 1] == ch:
+                skip = True                                  # `{{` or `}}`: an escaped brace, text
+            elif ch == "{":
+                depth += 1
+                if depth == 1:
+                    spans.append((k, b))                     # provisional: runs to the literal's end
+            elif ch == "}" and depth:
+                depth -= 1
+                if depth == 0:
+                    spans[-1] = (spans[-1][0], k + 1)        # closed: braces included
     return spans
 
 
