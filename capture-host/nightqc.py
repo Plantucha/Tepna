@@ -26,7 +26,7 @@ import polar_pmd
 import writers
 from collections.abc import Sequence
 from datetime import datetime, timedelta, timezone
-from localstamp import LocalStampResolver
+from localstamp import LocalStampResolver, fold_candidates_ms
 
 log = logging.getLogger("tepna-capture")
 
@@ -797,6 +797,110 @@ def file_span_sec(path: str) -> float | None:
     return None
 
 
+def file_host_span_sec(path: str) -> float | None:
+    """Elapsed time the file's HOST stamps cover — for a stream that carries no device clock at all.
+
+    `file_span_sec` is preferred wherever it can answer, because the device clock is era-correct by
+    construction. Some streams have no device column to answer FROM: the O2Ring's three raw-buffer
+    opcodes write `sensor timestamp [ns]` blank (a literal 0 before 2026-09-07), and `_expected_hz`
+    returns None for them on purpose, so neither of the two existing bases exists. The host stamps are
+    then the only record of when those rows arrived.
+
+    ⚠️ THIS IS A DIFFERENT QUANTITY AND THE CALLER MUST NAME IT. It measures when the HOST was writing,
+    not what the device clocked, so it cannot be differenced against a device span or fed to anything
+    that quotes a rate. For COVERAGE it is the right question — "was this stream delivering across the
+    window" is host-side by nature — which is why it is a last resort here rather than a third opinion
+    about duration.
+
+    Two failure modes, deliberately NOT treated alike:
+      * A torn or partial row is SKIPPED, exactly as `file_span_sec` walks back past one. Its stamp is
+        missing, and a missing endpoint is not a wrong one.
+      * An AMBIGUOUS row refuses the whole file. Inside a DST fall-back hour a naive stamp names two
+        instants an hour apart (Clock Contract §3), and this is a DIFFERENCE, so the choice is worth
+        3600 s — over 12 % of a night's coverage. Walking past it to an earlier row would hand back a
+        silently SHORTENED span, which reads as a gap that never happened; refusing says so instead.
+    O(1) by design — header, a bounded look for the first usable row, and one tail read; an ECG night is
+    hundreds of MB and must never be read whole to state its span.
+    """
+    try:
+        with open(path, "rb") as fh:
+            # LEADING COMMENTS COME FIRST IN THESE FILES, and skipping them is not cosmetic: the ring's
+            # host-disciplined streams open with `# timebase=host-disciplined`, so reading line 1 as the
+            # header made every one of them report "no host column" — measured on the real 2026-09-09
+            # `_PPG2W.txt`, which refused while its sibling `_PLETHA.txt` (no comment line) answered.
+            header = ""
+            for _ in range(_HOST_SPAN_SCAN_ROWS):
+                raw_head = fh.readline()
+                if not raw_head:
+                    return None
+                header = raw_head.decode("utf-8", "replace").rstrip("\r\n")
+                if header and not header.startswith("#"):
+                    break
+            else:
+                return None
+            cols = [c.strip().lower() for c in header.split(";")]
+            try:
+                idx = cols.index("phone timestamp")
+            except ValueError:
+                return None          # no host column either — the file genuinely cannot say
+            first = None
+            for _ in range(_HOST_SPAN_SCAN_ROWS):
+                raw_row = fh.readline()
+                if not raw_row:
+                    return None
+                first, amb = _host_ms_at(raw_row.decode("utf-8", "replace"), idx)
+                if amb:
+                    return None
+                if first is not None:
+                    break
+            if first is None:
+                return None
+            size = fh.seek(0, os.SEEK_END)
+            fh.seek(max(0, size - (1 << 13)))
+            tail = fh.read().decode("utf-8", "replace").split("\n")
+    except OSError:
+        return None
+    for text in reversed(tail):
+        last, amb = _host_ms_at(text, idx)
+        if amb:
+            return None                     # see the docstring: shortening is worse than refusing
+        if last is not None and last >= first:
+            span = (last - first) / 1000.0
+            # Zero is not a duration here either: one row, or every row inside the same millisecond.
+            return span if span > 0 else None
+    return None
+
+
+#: How far `file_host_span_sec` will look for a header or a first usable row before giving up. Bounded
+#: because the promise is an O(1) read: without it, a large file whose stamps never parse would be read
+#: whole just to conclude it cannot say.
+_HOST_SPAN_SCAN_ROWS = 64
+
+
+def _host_ms_at(line: str, idx: int) -> tuple[float | None, bool]:
+    """`(epoch_ms, ambiguous)` for the host stamp in column `idx`.
+
+    `(None, False)` is "this line has no readable stamp" — a comment, a header, a torn row — and the
+    caller may walk past it. `(None, True)` is "this stamp names two instants": Clock Contract §3/§4,
+    a naive local stamp inside a DST fall-back hour. `fold_candidates_ms` returns both candidates and
+    equality means unambiguous. The two are separated because one is safe to skip and the other is not.
+    """
+    parts = line.rstrip("\r\n").split(";")
+    if len(parts) <= idx:
+        return (None, False)
+    raw = parts[idx].strip()
+    if not raw:
+        return (None, False)
+    try:
+        dt = datetime.fromisoformat(raw)
+    except ValueError:
+        return (None, False)
+    if dt.tzinfo is not None:
+        return (dt.timestamp() * 1000.0, False)       # a real zone was carried: nothing to resolve
+    a, b = fold_candidates_ms(dt)
+    return (a, False) if a == b else (None, True)
+
+
 def _ns_at(line: str, idx: int) -> int | None:
     parts = line.rstrip("\r\n").split(";")
     if len(parts) <= idx:
@@ -903,12 +1007,19 @@ def scan_night(night_dir: str) -> list[dict]:
             continue
         tag, _ext = parsed
         st = os.stat(path)
+        _span = file_span_sec(path)
         out.append({"file": n, "stream": tag, "rows": count_rows(path),
                     "bytes": st.st_size, "mtime": st.st_mtime,
                     "session": _session_of(n, st.st_mtime),
                     # What the file says about its OWN duration; None when it carries no device clock.
                     # Callers must treat None as "unknown", never as zero — see file_span_sec.
-                    "span_sec": file_span_sec(path)})
+                    "span_sec": _span,
+                    # The HOST-stamp span, and only for a file whose device clock could not answer —
+                    # so a file with a device clock costs exactly the I/O it did before. A different
+                    # quantity from `span_sec` (see file_host_span_sec) and never a substitute for it:
+                    # it exists so a stream with NO nominal rate and NO device clock can still say
+                    # whether it was delivering, instead of being reported as zero.
+                    "host_span_sec": None if _span else file_host_span_sec(path)})
     return out
 
 
