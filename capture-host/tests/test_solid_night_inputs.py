@@ -1116,3 +1116,54 @@ def test_the_residual_is_measured_about_THIS_segments_first_anchor_and_keeps_its
     _audit(tmp_path, end=(T0 + dt.timedelta(seconds=24)).isoformat())
     tb = _bands(tmp_path)[H10["name"]]["bands"]["timebase"]
     assert "residual spread 1.89 ms" in tb["reason"], tb["reason"]
+
+
+# ── the UNIT CONVERSIONS inside the reasons, which every earlier assertion rounded away ────────────
+#
+# Three divisors turn a stored quantity into the one the operator reads: `step_ms / 1000.0` (ms -> s,
+# rendered `:+.3g`) and `span_s / 60` (s -> min, rendered `:.0f`, twice). Every existing fixture sits
+# where a 1-in-1000 change in the divisor is invisible AFTER rounding — a 2.44e8 s step reads
+# `+2.44e+08` either way, and a 24-minute night reads `24` whether divided by 60 or 61. So the
+# divisors were mutable with the suite green. These three nights are chosen so the rounding cannot
+# hide it: a step of exactly 1 s, and a span of exactly 61 minutes.
+
+
+def test_the_seam_STEP_is_rendered_in_SECONDS_at_a_magnitude_rounding_cannot_hide(tmp_path):
+    """`worst['step_ms'] / 1000.0` -> `/ 1001.0` is a 1e-3 relative change, and `:+.3g` swallows it at
+    2.44e8. At exactly 1000 ms it does not: 1 s against 0.999 s."""
+    tb = _split_night(tmp_path, SEAM_HDR + [_seam_row(12 * 60_000, 1000.0)], step_ms=1000.0)
+    assert "largest +1 s" in tb["reason"], tb["reason"]
+
+
+def _long_night(d, minutes, dev_ppm):
+    """A night whose anchors span EXACTLY `minutes`, one per minute, with per-row device jitter so the
+    axis is not read as DRAWN. 61 minutes is the point: 3660/60 = 61 and 3660/61 = 60, so the two
+    divisors disagree in the rendered integer."""
+    pairs = []
+    for i in range(minutes + 1):
+        h = 60_000.0 * i
+        dev = h * (1.0 + dev_ppm / 1e6) + ((i * 7919) % 211) / 1000.0
+        pairs.append((h, int(round(dev * 1e6))))
+    _pairs(d, pairs)
+    _seams(d)
+    _runs(d, "ECG")
+    _runs(d, "ACC")
+    _audit(d, end=(T0 + dt.timedelta(minutes=minutes)).isoformat())
+    return _bands(d)[H10["name"]]["bands"]["timebase"]
+
+
+def test_an_UNKNOWN_rate_names_the_span_in_MINUTES(tmp_path):
+    """`span_s / 60` -> `/ 61` in the independent-clock reason: 61 min becomes 60, and the operator is
+    told the axis was judged over a minute less than it was."""
+    tb = _long_night(tmp_path, minutes=61, dev_ppm=-166.7)
+    assert tb["status"] == "UNKNOWN", tb["reason"]
+    assert "ppm over 61 min" in tb["reason"], tb["reason"]
+
+
+def test_an_IMPLAUSIBLE_rate_names_the_span_in_MINUTES_too(tmp_path):
+    """The same divisor on the FAIL arm — a separate line, and mutmut mutates each one. The span is
+    what makes a rate quotable at all (CLAUDE.md §7: never quote `ppm` without anchor count and span),
+    so the arm that REFUSES needs it right at least as much as the one that reports."""
+    tb = _long_night(tmp_path, minutes=61, dev_ppm=200000.0)
+    assert tb["status"] == "FAIL", tb["reason"]
+    assert "ppm over 61 min" in tb["reason"], tb["reason"]
