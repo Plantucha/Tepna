@@ -2426,6 +2426,11 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None) -> 
             # miss every seam before midnight — a silent reversion to gap-only for exactly the half that
             # was pooled in. Union, not replace, and `starts: None` there leaves the basis unchanged.
             _prev_daemon = daemon_starts(prev, prev_data)
+            if _prev_daemon["starts"] is not None:
+                # The BASIS follows the evidence, not the folder it came from: a night segmented on the
+                # neighbour's recorded seams is segmented on daemon starts, and reporting `gap-only`
+                # because THIS folder's sidecar was silent would describe the wrong discriminator.
+                _session_basis = "daemon-starts"
             if _prev_daemon["stamps"]:
                 _daemon = dict(_daemon, stamps=sorted(set(_daemon["stamps"]) | set(_prev_daemon["stamps"])))
     # Isolate the CURRENT capture session (merge_sessions holds the reasoning). The current session is

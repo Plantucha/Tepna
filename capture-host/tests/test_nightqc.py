@@ -252,8 +252,8 @@ def test_a_daemon_restart_does_not_merge_two_sessions_into_one_union_span(tmp_pa
     night = str(tmp_path / "2026-09-24"); os.makedirs(night)
     s1 = _stamp_epoch("20260924113000")          # run 1 opens
     restart = s1 + 17990                         # the daemon restarts 4 h 59 m in
-    s2 = s1 + 18000                              # run 2's first file opens 10 s later
-    end2 = s1 + 35407                            # run 2's last write
+    end2 = s1 + 35407                            # run 2's last write (its file opens at s1 + 18000,
+                                                 #  10 s after the restart — see the stamp below)
 
     # run 1, COMPLETE: HR at 1 Hz for 16641 s, then this device is done for the night
     _utime(_cap(night, "Polar_H10_02849638_20260924113000_HR.txt", 16641), s1 + 16641)
@@ -296,6 +296,33 @@ def test_without_a_STARTS_sidecar_the_session_basis_says_gap_only(tmp_path):
     assert s["session_basis"] == "gap-only", "no sidecar ⇒ no boundary evidence, and it says so"
     assert len(s["sessions"]) == 1, "and the merge is unchanged — this is the pre-existing behaviour"
     assert s["span_sec"] == 35407
+
+
+def test_the_POOLED_half_brings_its_own_seams_from_the_neighbouring_folder(tmp_path):
+    """A cross-midnight night is judged from files in TWO folders, and the pre-midnight half's restarts
+    are recorded in the PREVIOUS folder's sidecar. Reading only this folder's would segment the pooled
+    set on gap alone for exactly the half that was pooled in — a silent reversion — and the basis would
+    say `gap-only` while seams from the neighbour were in fact available. Both are asserted here: the
+    seam is honoured, and the basis follows the EVIDENCE rather than the folder it came from."""
+    import writers
+    d21 = str(tmp_path / "2026-07-21"); os.makedirs(d21)
+    d22 = str(tmp_path / "2026-07-22"); os.makedirs(d22)
+    pre = _stamp_epoch("20260721233000")     # 23:30, the pre-midnight run
+    post = _stamp_epoch("20260722001500")    # 00:15, the run after the restart
+    _utime(_cap(d21, "Polar_H10_02849638_20260721233000_HR.txt", 1800), pre + 1800)
+    _utime(_cap(d22, "Polar_H10_02849638_20260722001500_HR.txt", 1500), post + 1500)
+    # the restart is recorded in YESTERDAY's folder; today's has no sidecar at all
+    with open(os.path.join(d21, writers.STARTS_NAME), "w") as fh:
+        fh.write("Phone timestamp;pid;git;dirty;adapter\n")
+        fh.write(datetime.fromtimestamp(pre + 1900).strftime("%Y-%m-%dT%H:%M:%S.%f")[:23]
+                 + ";400443;2cd12712;no;F4:CE:36:2E:CD:98\n")
+    devs = [{"name": "H10", "device_id": "02849638", "streams": ["hr"]}]
+    s = nightqc.summarize(d22, devs)
+    assert len(s["sessions"]) == 2, "the neighbour's recorded seam splits the pooled set"
+    assert s["span_sec"] == 1800, "the judged run is the pre-midnight one alone, not the 4200 s union"
+    assert s["devices"][0]["streams"]["hr"] == 1800, "and it carries only its own rows"
+    assert s["session_basis"] == "daemon-starts", \
+        "segmented on recorded starts — from the neighbour, which is still the evidence"
 
 
 def test_summarize_flags_a_degraded_trickle(tmp_path, _tz):
@@ -3575,6 +3602,8 @@ _CLOCKLESS_BY_DESIGN = {
         "session splitting at a recorded daemon start",
     "test_without_a_STARTS_sidecar_the_session_basis_says_gap_only":
         "the absent-evidence control for that split",
+    "test_the_POOLED_half_brings_its_own_seams_from_the_neighbouring_folder":
+        "session splitting across a pooled folder boundary",
     "test_summarize_scopes_coverage_to_the_current_session": "session SCOPING; its epochs derive from the same strptime().timestamp() production uses, so it is zone-invariant by construction",
     "test_a_box_wide_outage_does_not_get_the_night_graded_green": "session splitting at _SESSION_GAP_SEC",
     "test_an_uninterrupted_night_reports_no_gap_and_stays_green": "the no-gap control",
