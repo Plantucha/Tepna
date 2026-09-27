@@ -20,9 +20,12 @@ it. It never prints "independent ✓" — a negative variance requires ρ > σ�
 evidence of uncorrelated errors at any n — and it states no band around the collapse point, because
 sensitivity to ρ rises smoothly to it with no regime to threshold on. **This night's own ρ is REFUSED with a
 named reason**, never defaulted to 0, since assuming independence is the assumption under test; the pooled
-0.32 appears only as a labelled external figure. On the σ the reference measured, the nearest collapse is
-H10 · O2Ring at ρ ≈ 0.105 and the corner it annihilates is the Verity — the same corner the reference found
-under-read, reached from the night alone.
+0.32 appears only as a labelled external figure. On the classic hat's own σ̂ medians (0.967 · 0.413 · 1.456 —
+hat values, not the reference-measured 0.806 · 0.728 · 1.713), the nearest collapse is H10 · O2Ring at
+ρ ≈ 0.105 and the corner it annihilates is the Verity — the same corner the reference found under-read,
+reached from the night alone. The hat's own σ̂ is the right input, since ρ_crit is a property of that solve;
+each pair's collapse point is pinned above the reference's measured ρ (hv −0.011 · ho 0.012 · vo 0.318),
+which is why three positive σ̂ come back on nights the reference says are wrong.
 
 Also: `sensor-trio-worker.js` no longer carries a private copy of the three-cornered-hat solver. It was
 byte-equivalent to `AnalysisStats.threeCorneredHat` and gated by nothing (the `tch-parity` gate scans the

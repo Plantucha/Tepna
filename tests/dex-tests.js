@@ -8841,8 +8841,17 @@
         return;
       }
 
-      /* ── NUMERIC, on the σ the reference actually measured (#3123: H10 0.97 · Verity 0.41 · O2Ring 1.46) ──
-         ANTI-VACUITY FIRST: the variance triple must round-trip to those three σ, or every row below is
+      /* ── NUMERIC, on the CLASSIC HAT's own σ̂ medians (#3123: H10 0.967 · Verity 0.413 · O2Ring 1.456) ──
+         🔴 THESE ARE HAT VALUES, NOT REFERENCE-MEASURED ONES. An earlier version of this comment said
+         "the σ the reference measured", which is a different triple: the reference-measured medians are
+         `trueSd` 0.806 · 0.728 · 1.713. Both sets live in
+         analysis/published-numbers/tch-firmware-reference-2026-09-26.json as `medians.*.classic` and
+         `medians.*.trueSd` (Wren caught the mislabel; verified against that record, not taken on report).
+         The INPUT was right and only the label was wrong: ρ_crit is a property of THIS HAT's solve, so
+         the hat's own σ̂ is exactly what it must be fed — feeding the reference's σ would ask where a
+         DIFFERENT estimator collapses. The distinction is worth keeping loud, because the entire point of
+         the row is that the hat's σ̂ and the true σ are not the same number.
+         ANTI-VACUITY FIRST: the variance triple must round-trip to those three σ̂, or every row below is
          a statement about a triple that does not describe this instrument. */
       var sh = 0.97,
         sv = 0.41,
@@ -8851,11 +8860,11 @@
         vho = sh * sh + so * so,
         vvo = sv * sv + so * so;
       var back = S.tchSigmasPairwiseFromVars(vhv, vho, vvo, { ab: 0, ac: 0, bc: 0, _noCrit: true });
-      T.ok('ANTI-VACUITY · the variance triple round-trips to the measured σ', !!(back && back.ok), 'the solve refused its own construction — the rows below would describe nothing');
+      T.ok('ANTI-VACUITY · the variance triple round-trips to the hat’s own σ̂', !!(back && back.ok), 'the solve refused its own construction — the rows below would describe nothing');
       if (!back || !back.ok) return;
-      T.approx('round-trip σ H10', back.a, sh, 1e-9);
-      T.approx('round-trip σ Verity', back.b, sv, 1e-9);
-      T.approx('round-trip σ O2Ring', back.c, so, 1e-9);
+      T.approx('round-trip σ̂ H10 (hat median 0.967)', back.a, sh, 1e-9);
+      T.approx('round-trip σ̂ Verity (hat median 0.413 — the reference puts the TRUE σ at 0.728)', back.b, sv, 1e-9);
+      T.approx('round-trip σ̂ O2Ring (hat median 1.456)', back.c, so, 1e-9);
 
       var r = S.tchRhoCrit(vhv, vho, vvo, { ab: 0, ac: 0, bc: 0 });
       T.ok('a collapse point exists for this instrument', !!(r && r.nearest), 'no corner collapses anywhere in range — implausible for a real trio, so suspect the inputs');
@@ -8882,11 +8891,31 @@
       /* The pooled optical ρ is 0.32 — BELOW the Verity·O2Ring collapse at ≈ 0.51, which is precisely why
          nothing goes negative and the trio looks clean while the reference says it is not. The onset law,
          visible in one inequality. */
-      var bc = r.pairs && r.pairs.bc && r.pairs.bc.up;
+      /* ── THE ONSET LAW, CHECKED PAIR BY PAIR AGAINST THE REFERENCE'S MEASURED ρ ─────────────────────
+         The reference measured the error correlations directly (`result.rho`): hv −0.011 · ho 0.012 ·
+         vo 0.318. Every one sits BELOW its pair's collapse point, which is the whole reason the hat
+         returns three positive σ̂ on these nights while the reference says it is wrong. Pinned per PAIR
+         rather than for the optical pair alone (Wren's cross-check): if ANY measured ρ ever sat at or
+         above its ρ_crit, a negative variance would have flagged the correlation, and this row's central
+         caveat — that a positive solve is not evidence of independence — would be the wrong reading. */
+      var RHO_MEASURED = { ab: -0.011, ac: 0.012, bc: 0.318 };
+      var PAIRNAME = { ab: 'H10 · Verity', ac: 'H10 · O2Ring', bc: 'Verity · O2Ring' };
+      var checkedPairs = 0;
+      for (var _p = 0; _p < 3; _p++) {
+        var pk = ['ab', 'ac', 'bc'][_p];
+        var up = r.pairs && r.pairs[pk] && r.pairs[pk].up;
+        if (!up) continue;
+        checkedPairs++;
+        T.ok(
+          'the ' + PAIRNAME[pk] + ' collapse (ρ ' + up.at.toFixed(3) + ') sits ABOVE its measured ρ of ' + RHO_MEASURED[pk],
+          up.at > RHO_MEASURED[pk],
+          'a measured ρ at or above its collapse point would have produced a NEGATIVE variance, and this row’s caveat would be the wrong reading'
+        );
+      }
       T.ok(
-        'the Verity · O2Ring collapse sits ABOVE the measured optical ρ of 0.32',
-        !!bc && bc.at > 0.32,
-        'if it sat below, a negative variance WOULD have flagged the correlation and the row’s central caveat would be wrong'
+        'ANTI-VACUITY · every pair with a collapse point was checked against a measured ρ',
+        checkedPairs === 3,
+        'only ' + checkedPairs + ' of 3 pairs had an upward collapse — the loop above passed by skipping the rest'
       );
     });
     group("the paper's power tool and the gated TCH kernel compute the same hat", 'sensor-trio · tch-parity', function (T) {
