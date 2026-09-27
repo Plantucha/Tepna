@@ -382,15 +382,23 @@ self.onmessage = function (e) {
   }
   if (m.type === 'job') {
     if (!READY) {
-      self.postMessage({ type: 'done', reqId: m.reqId, error: 'not ready' });
+      self.postMessage({ type: 'done', error: 'not ready' });
       return;
     }
     var t0 = performance.now();
     try {
       var res = doJob(m.seed >>> 0);
-      self.postMessage({ type: 'done', reqId: m.reqId, result: res, wallMs: +(performance.now() - t0).toFixed(2) });
+      /* `reqId` and `wallMs` USED TO SHIP HERE and no consumer read either — found 2026-09-27 when the
+         worker-boundary gate's extractor learned to read inline postMessage literals. The consumer serialises
+         one job per worker record, so it never correlates by `reqId`; it echoed back and was dropped. `wallMs`
+         was a per-job wall time nobody surfaced. Deleted rather than surfaced, following this gate's own
+         `detailCorr` precedent ("work with no consumer"); re-add either the moment something reads it. The
+         error paths below dropped it too, for the same reason: the consumer correlates nothing, so the echo
+         was unread on every path that carried it. What remains is `{type, err, error, result}`, and the page
+         reads all four. */
+      self.postMessage({ type: 'done', result: res });
     } catch (err) {
-      self.postMessage({ type: 'done', reqId: m.reqId, error: String((err && err.message) || err) });
+      self.postMessage({ type: 'done', error: String((err && err.message) || err) });
     }
   }
 };
