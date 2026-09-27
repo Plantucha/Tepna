@@ -84,6 +84,7 @@ import sys
 import tempfile
 import time
 from pathlib import Path
+from typing import Any
 
 HERE = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(HERE))
@@ -296,7 +297,9 @@ def run_one(module: str, only: str | None = None, tests_override: list[str] | No
             # reports timeouts that read as an honest result.
             return {"module": module, "error": f"no budget: {bdetail}"}
         cap = _cap
-    plan = {"module": module, "tests": tests, "clean_run_sec": round(clean_sec, 2),
+    # Heterogeneous by construction and returned as JSON; without the annotation the values join to
+    # `object` and `len(plan["pruned_scratches"])` in the warning below cannot be counted.
+    plan: dict[str, Any] = {"module": module, "tests": tests, "clean_run_sec": round(clean_sec, 2),
             "timeout_sec": cap, "derived": timeout is None}
     if budget and clean_sec > budget:
         # LOUD, with the numbers and the way out — the mjs sibling's --budget, same reasoning: a module
