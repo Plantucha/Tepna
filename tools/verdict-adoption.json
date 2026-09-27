@@ -1475,6 +1475,11 @@
       "bin": "word-only",
       "status": "exempt",
       "reason": "selftest printer; its own verdict() is a pure PR-state decision consumed by the tool itself, exit-coded — a wave-2 candidate, listed here by reason not by omission"
+    },
+    "capture-host/clock_offset.py": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "one occurrence, in the prose of `CLOCK_IMPLAUSIBLE_S`'s note explaining why a 7.74-year offset published as a green is a fabricated one (§∅, §🧾). The module DECIDES by refusing: `estimate` returns {ok: False, reason: 'implausible-offset'|'implausible-skew'|'too-few'|'no-span'} in its own long-standing shape, and that shape is consumed and republished by `nightqc.arrival_quality`, which is the enumerated producer for this path. No verdict word is emitted here."
     }
   }
 }
