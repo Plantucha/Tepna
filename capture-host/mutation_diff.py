@@ -33,25 +33,51 @@ file is the counter-example that bounds it:
 So a hit means LOOK, not MOVE. Reported as 4/4 predictive on first use; recording the bound here so the
 next reader does not treat a screen as a verdict.
 """
+
 from __future__ import annotations
 
 import ast
 import fnmatch
 import re
 
-__all__ = ["GATE_BUDGET_SEC", "PREWORK_TRACE_FACTOR", "prework_estimate", "budget_refusal", "verdict_object", "VERDICT_STATUSES", "EXCUSING", "functions_covering", "changed_span", "is_string_only", "diff_key", "mutant_changed_lines", "float_boundary_unprobed",
-           "annotation_only", "classify", "refusal_reason", "selftest", "string_only_verdict", "scan_is_reliable",
-           "clean_run_failures",
-           "STRING_ONLY", "REQUIRED", "EMPTY_DIFF", "UNDECIDABLE"]
+__all__ = [
+    "GATE_BUDGET_SEC",
+    "PREWORK_TRACE_FACTOR",
+    "prework_estimate",
+    "budget_refusal",
+    "verdict_object",
+    "VERDICT_STATUSES",
+    "EXCUSING",
+    "functions_covering",
+    "changed_span",
+    "is_string_only",
+    "diff_key",
+    "mutant_changed_lines",
+    "float_boundary_unprobed",
+    "annotation_only",
+    "classify",
+    "refusal_reason",
+    "selftest",
+    "string_only_verdict",
+    "scan_is_reliable",
+    "resolve_interpreter",
+    "zero_population_verdict",
+    "result_inconsistency",
+    "clean_run_failures",
+    "STRING_ONLY",
+    "REQUIRED",
+    "EMPTY_DIFF",
+    "UNDECIDABLE",
+]
 
 # The four outcomes of the string-literal question. `is_string_only` collapses them to a bool for
 # back-compat; the GATE reads the verdict, because two of these must never be reported as the same
 # thing — "the mutant only touched log prose" and "the mutant changes nothing at all" are different
 # facts, and only one of them is evidence about the code.
-STRING_ONLY = "string-only"     # the change landed inside a literal — excluded, correctly
-REQUIRED = "required"           # a real code change — the gate demands it be killed
-EMPTY_DIFF = "empty-diff"       # the diff changes NOTHING — excluded, but it is NOT "string-only"
-UNDECIDABLE = "undecidable"     # the literal scan is outside its competence — REFUSE, never guess
+STRING_ONLY = "string-only"  # the change landed inside a literal — excluded, correctly
+REQUIRED = "required"  # a real code change — the gate demands it be killed
+EMPTY_DIFF = "empty-diff"  # the diff changes NOTHING — excluded, but it is NOT "string-only"
+UNDECIDABLE = "undecidable"  # the literal scan is outside its competence — REFUSE, never guess
 
 
 # The classes that genuinely cannot be killed, and so stop failing the gate. `real-gap` is deliberately
@@ -616,6 +642,113 @@ def verdict_object(status: str, *, checked: int, eligible: int, result: dict | N
         "at": at,
         "base": base,
     }
+
+
+def resolve_interpreter(override: str | None, candidates: list[str], exists) -> tuple[str | None, str]:
+    """Which interpreter this gate should run mutmut under, and — when there is none — WHICH PATHS IT TRIED.
+
+    PURE: `exists` is the predicate, so the decision is pinnable without a filesystem, exactly as
+    `refusal_reason` and `classify` are. Returns `(path, note)`; `path is None` means refuse, and `note`
+    is never empty — a refusal that does not name what it looked for cannot be acted on.
+
+    THE ORDER IS THE POINT. `VENV_PY` used to be a hardcoded `HERE/.venv/bin/python`, which made the
+    gate unrunnable from a git worktree: the worktree has no venv, so the preflight refused with "the
+    capture-host venv is missing" and the only ways to verify a mutation fix locally were to build a
+    second several-hundred-MB venv in the worktree or to push and wait for CI. On 2026-09-27 the root
+    volume hit 95 % with exactly those duplicate venvs on it. `check.sh` had the same shape and gained a
+    `PYTHON=` override in #3132; this is the same override for the same reason.
+
+    An EXPLICIT override wins unconditionally — including over an existing local venv — because a caller
+    who names an interpreter has a reason the tool cannot see, and silently preferring a different one
+    would make the run's identity unreadable. But it is still CHECKED: an override naming a path that is
+    not there refuses naming that path, rather than falling through to a venv the caller did not ask
+    for. Falling through would answer a question nobody asked.
+    """
+    if override:
+        return (
+            (override, f"interpreter from the override: {override}")
+            if exists(override)
+            else (None, f"the interpreter named by the override does not exist: {override}")
+        )
+    for cand in candidates:
+        if exists(cand):
+            return cand, f"interpreter found at {cand}"
+    tried = ", ".join(candidates) if candidates else "(no candidates)"
+    return None, (f"no usable interpreter — set MUTATE_DIFF_PYTHON to one that has mutmut installed. Tried: {tried}")
+
+
+def zero_population_verdict(status: str, checked: int, reason: str | None) -> tuple[str, str | None]:
+    """Downgrade a PASS that examined nothing to NOT_APPLICABLE, naming why.
+
+    PURE. CLAUDE.md §🧾 is explicit — *"`PASS` over `checked: 0` or with empty `evidence` is invalid"* —
+    and this gate emitted exactly that whenever Python changed but every changed line fell outside
+    mutation scope: each file was correctly announced as skipped, and then the run reported PASS as
+    though something had been examined. A green context where the gate measured nothing is
+    indistinguishable from one where it measured everything, which is CLAUDE.md §4b's shape inside the
+    tool whose job is to prevent it.
+
+    NOT_APPLICABLE is the honest status and the same tool already emits it one case over, when no
+    `capture-host/*.py` changed at all ("the criterion does not bind"). This closes the in-between.
+
+    ⚠️ ONLY `PASS` is downgraded. A refusal (`NOT_RUN`), a failure (`FAIL`) or an existing
+    `NOT_APPLICABLE` over zero is already honest about itself and must pass through untouched —
+    rewriting a FAIL here would be the fail-open this exists to remove.
+    """
+    if status == "PASS" and checked == 0:
+        return "NOT_APPLICABLE", (
+            "every changed line is outside mutation scope, so nothing was examined — this is not a pass"
+        )
+    return status, reason
+
+
+def result_inconsistency(result: dict, survivors_len: int, undecided_len: int) -> str | None:
+    """Why this verdict's own numbers cannot all be true — or None when they can.
+
+    PURE, and it exists because the artifact shipped an impossible block: `generated: 0, decided: 0,
+    killed: 0, survived: 26`. Survivors of a population the same object says does not exist. A consumer
+    computing a rate divides by zero; one reading `generated` as the denominator concludes the run
+    examined nothing while `survived` is non-empty. The contradiction was visible without leaving the
+    file and nothing looked.
+
+    The invariants are the ones a reader would assume and therefore the ones worth asserting:
+
+      · `survived` == the length of the survivors LIST, and `undecided` likewise. Two fields of one
+        verdict disagreeing about how many there are is what made a 26-entry list read as 12 in the
+        `reason` string and 26 in `result.survived`, with nothing saying which was the count.
+      · `killed + survived + undecided <= decided <= generated`. Not equality: `excused` and
+        `empty_diff` mutants are decided and counted separately, and a mutant can be generated and
+        never decided (that is what `undecided` means).
+
+    Returns the FIRST failing invariant with its numbers, because a caller that prints one reason is
+    better served by a specific one than by a list it has to parse.
+    """
+    # THE KEYS ARE REQUIRED, NOT DEFAULTED. `.get(k, 0)` here would read a MISSING counter as zero —
+    # absence as a number, in the one function whose job is catching a verdict that misreports its own
+    # numbers (§∅). A block with no `killed` would then satisfy every inequality below by arithmetic.
+    # The mutation gate found this the honest way: every `.get` default was a SURVIVING mutant, because
+    # no input could reach it. Requiring the keys removes the defaults and the hole together.
+    missing = [k for k in ("generated", "decided", "killed", "survived", "undecided") if k not in result]
+    if missing:
+        return (
+            f"result is missing {', '.join(missing)} — a counter that is absent is not a counter "
+            "that is zero, and a verdict cannot be checked against numbers it does not carry"
+        )
+    for field, n in (("survived", survivors_len), ("undecided", undecided_len)):
+        if int(result[field]) != n:
+            return (
+                f"result.{field} is {result[field]} but the {field} list holds {n} — "
+                "two fields of one verdict disagreeing about the count"
+            )
+    gen, dec = int(result["generated"]), int(result["decided"])
+    settled = int(result["killed"]) + int(result["survived"]) + int(result["undecided"])
+    if dec > gen:
+        return f"result.decided ({dec}) exceeds result.generated ({gen}) — more mutants decided than exist"
+    if settled > dec:
+        return (
+            f"result.killed + survived + undecided ({settled}) exceeds result.decided ({dec}) — "
+            "outcomes recorded for mutants the run says it never settled"
+        )
+    return None
 
 
 def refusal_reason(venv_exists: bool, probe_rc: int | None) -> str | None:
