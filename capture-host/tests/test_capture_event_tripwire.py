@@ -113,3 +113,68 @@ def test_a_clean_throwaway_test_is_NOT_flagged(tmp_path):
         assert r.returncode == 0, f"a test that leaked nothing was flagged:\n{r.stdout}{r.stderr}"
     finally:
         shutil.rmtree(probe, ignore_errors=True)
+
+
+# ── THE FLAG WAS NEVER THE WHOLE STATE: AN ASYNCIO EVENT ALSO CARRIES A LOOP BINDING ───────────────
+# `asyncio.Event.wait()` binds the event to the running loop the first time it is reached with the flag
+# UNSET (`asyncio/locks.py:210` calls `self._get_loop()`; the line above returns early when `self._value`
+# is true — which is why a set event never binds). `asyncio.run` then closes that loop, and `clear()`
+# resets the flag and leaves the binding. So a test that awaited an unset module-global event poisoned
+# the next test to do the same in its own loop: `RuntimeError: ... is bound to a different event loop`.
+#
+# ⚠️ THE REMEDY ALREADY EXISTED AND WAS FILE-LOCAL, WHICH IS THE ACTUAL DEFECT. `test_capture_runners.py`
+# has carried an autouse `_clean_stop` since the runner work that recreates `_STOP`, `_RECOVER`,
+# `_OXYII_PAUSE` and `_CONNECT_LOCK` fresh each test, and its comment names this mechanism outright. But
+# `_main_with_cfg` — the helper that actually runs `capture.main()` — is IMPORTED by other files, and
+# they get none of that protection: `test_starts_sidecar.py` imports it and is exactly where this fired,
+# at worker gw18 on 2026-09-27. A protection that lives beside one caller of a shared helper is not a
+# protection of the helper.
+#
+# It did not look like a loop binding, either. The RuntimeError propagates out of the test BEFORE its
+# trailing `capture._STOP.clear()`, so `_capture_events_are_not_leaked` fires second and reports
+# "left _STOP SET" — the flag, not the binding, and one layer downstream of the fault.
+# Residue `2026-09-27-a-module-global-asyncio-event-keeps-its-loop-binding-between-tests`.
+#
+# THE PAIR BELOW IS ONE PLANT IN TWO TESTS, and it must be two, in THIS file: the reset runs BETWEEN
+# tests, so two `asyncio.run` calls inside one test would be unaffected by it — and placed in
+# `test_capture_runners.py` the pair passes either way, because `_clean_stop` already recreates the
+# events there. A plant is only a plant in a file that lacks the local fix.
+
+
+def _await_the_stop_unset():
+    """One `asyncio.run` reaching `capture._STOP.wait()` with the flag UNSET — the binding condition."""
+    import asyncio as _a
+
+    import capture as _capture
+
+    async def body():
+        _a.get_event_loop().call_later(0.01, _capture._STOP.set)
+        await _capture._STOP.wait()
+
+    _a.run(body())
+
+
+@pytest.mark.sets_capture_events
+def test_awaiting_an_unset_event_binds_a_loop_that_must_not_outlive_this_test_FIRST():
+    """Half one: bind it. Passes with or without the fix — the FIRST binding is harmless, which is why
+    the second half carries the assertion and this one is the setup."""
+    import capture as _capture
+
+    _capture._STOP.clear()
+    _await_the_stop_unset()
+    assert getattr(_capture._STOP, "_loop", None) is not None, (
+        "this half must really reach `wait()` unset and bind — otherwise the pair is vacuous and the "
+        "second half proves nothing about the reset"
+    )
+
+
+@pytest.mark.sets_capture_events
+def test_awaiting_an_unset_event_binds_a_loop_that_must_not_outlive_this_test_SECOND():
+    """Half two, and the assertion. A DIFFERENT loop, the same module-global event: without the reset
+    replacing the object this raises `RuntimeError: ... is bound to a different event loop`. Verified
+    against the unfixed fixture — 2 passed with the fix, and the same pair failed here without it."""
+    import capture as _capture
+
+    _capture._STOP.clear()
+    _await_the_stop_unset()          # must not raise
+    assert _capture._STOP.is_set(), "and the wait really completed — the timer fired and it returned"
