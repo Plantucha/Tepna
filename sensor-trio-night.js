@@ -60,7 +60,7 @@
   // the trio family's device palette (the paper's captions: O2Ring amber · H10 teal · Verity purple)
   const DEV = {
     h10: { name: 'Polar H10', kind: 'chest ECG', col: '#3DE0D0', rgb: '61,224,208' },
-    verity: { name: 'Verity Sense', kind: 'upper-arm PPG', col: '#B98AFF', rgb: '185,138,255' },
+    verity: { name: 'Verity Sense', kind: 'ankle PPG', col: '#B98AFF', rgb: '185,138,255' },
     o2: { name: 'O2Ring', kind: 'finger pulse · 1 Hz native', col: '#FFB84D', rgb: '255,184,77' }
   };
   const DKEYS = ['h10', 'verity', 'o2'];
@@ -117,7 +117,14 @@
     const n = file.name;
     let mo;
     if ((mo = n.match(/^(?:O2Ring.*|Wellue_O2Ring-S_[0-9A-Za-z]+)_(\d{14})(?:_SPO2)?\.csv$/i))) return { role: 'o2', stamp: mo[1] };
-    if ((mo = n.match(/^Polar_H10_[0-9A-Za-zx]+_(\d{8})_?(\d{6})_([A-Z]+)\.txt$/i))) return mo[3].toUpperCase() === 'HR' ? { role: 'h10', stamp: mo[1] + mo[2] } : null;
+    // the ring's RAW pleth is its preferred corner (156 beat markers, then PPGDSP feet); the CSV is the fallback
+    if ((mo = n.match(/^Wellue_O2Ring-S_[0-9A-Za-z]+_(\d{14})_PPG\.txt$/i))) return { role: 'o2ppg', stamp: mo[1] };
+    /* The H10 corner prefers the RAW _ECG.txt (Pan–Tompkins in the worker): the device _HR.txt is smoothed and
+       under-states σ (CLAUDE.md §🎙️ honest-HR facts). _HR.txt stays the fallback for a night without the waveform. */
+    if ((mo = n.match(/^Polar_H10_[0-9A-Za-zx]+_(\d{8})_?(\d{6})_([A-Z]+)\.txt$/i))) {
+      const k = mo[3].toUpperCase();
+      return k === 'HR' ? { role: 'h10', stamp: mo[1] + mo[2] } : k === 'ECG' ? { role: 'h10ecg', stamp: mo[1] + mo[2] } : null;
+    }
     if ((mo = n.match(/^Polar_(?:Sense|VeritySense)_[0-9A-Za-zx]+_(\d{8})_?(\d{6})_([A-Z]+)\.txt$/i))) {
       const k = mo[3].toUpperCase(),
         role = k === 'PPG' ? 'verityPPG' : k === 'PPI' ? 'verityPPI' : k === 'HR' ? 'verityHR' : null;
@@ -151,24 +158,30 @@
   function resolveTriple(nt) {
     const C = nt.cand || {},
       largest = (a) => (a && a.length ? a.reduce((b, x) => (x.size > b.size ? x : b)) : null);
-    const o2 = largest(C.o2);
+    const o2 = largest(C.o2),
+      o2p = largest(C.o2ppg),
+      anchor = o2 || o2p;
     nt.o2 = o2 ? o2.file : null;
-    nt.startMs = o2 ? o2.ms : null;
+    nt.startMs = anchor ? anchor.ms : null;
     const nearest = (a) => {
       if (!a || !a.length) return null;
       if (nt.startMs == null) return largest(a);
       return a.reduce((b, x) => (Math.abs(x.ms - nt.startMs) < Math.abs(b.ms - nt.startMs) ? x : b));
     };
-    const h = nearest(C.h10),
+    const he = nearest(C.h10ecg),
+      h = nearest(C.h10),
       vppg = nearest(C.verityPPG),
       vppi = nearest(C.verityPPI),
       vhr = nearest(C.verityHR);
     nt.h10 = h ? h.file : null;
+    nt.h10ecg = he ? he.file : null;
+    const op = nearest(C.o2ppg);
+    nt.o2ppg = op ? op.file : null;
     nt.verityPPG = vppg ? vppg.file : null;
     nt.verityPPI = vppi ? vppi.file : null;
     nt.verityHR = vhr ? vhr.file : null;
   }
-  const eligible = (nt) => !!(nt.o2 && nt.h10 && (nt.verityPPG || nt.verityPPI || nt.verityHR));
+  const eligible = (nt) => !!((nt.o2ppg || nt.o2) && (nt.h10ecg || nt.h10) && (nt.verityPPG || nt.verityPPI || nt.verityHR));
   const verSrc = (nt) => (nt.verityPPG ? 'PPG' : nt.verityPPI ? 'PPI' : nt.verityHR ? 'HR' : '—');
   let SELECTED = null;
   function ingestFiles(list) {
@@ -206,7 +219,9 @@
       const el = document.createElement('div');
       el.className = 'sb-item' + (SELECTED === k ? ' active' : '') + (ok ? '' : ' ts-dim');
       el.setAttribute('data-k', k);
-      el.title = ok ? 'O2Ring ● · H10 ● · Verity ' + verSrc(nt) : 'ineligible — needs O2Ring CSV, H10 HR and a Verity stream';
+      el.title = ok
+        ? 'O2Ring ' + (nt.o2ppg ? 'PPG' : 'CSV') + ' · H10 ' + (nt.h10ecg ? 'ECG' : 'HR') + ' · Verity ' + verSrc(nt)
+        : 'ineligible — needs O2Ring CSV, an H10 ECG or HR and a Verity stream';
       el.innerHTML = '<span class="ts-nk">' + esc(k) + '</span><span class="ts-nres" id="nres-' + esc(k) + '">' + (ok ? 'ready' : 'ineligible') + '</span>';
       nav.appendChild(el);
     });
@@ -318,7 +333,19 @@
       timeoutMs: 1200000,
       label: nt.key,
       seed: hashStr(nt.key),
-      files: { o2: nt.o2, h10: nt.h10, verityPPG: nt.verityPPG || null, verityPPI: nt.verityPPI || null, verityHR: nt.verityHR || null }
+      /* RAW WAVEFORMS FIRST. The worker takes the Verity's _PPI.txt before its _PPG.txt when both are given, and the
+         PPI rows carry the phone's RECEIVE time in batches (`Phone Data RX timestamp`), so its per-second HR map
+         holds only the seconds a batch arrived: on 2026-09-25 that cut a 7.1 h night to 4483 aligned seconds
+         (1 h 14 min). The PPI is sent only when there is no PPG; the raw ECG goes as `h10ecg`. */
+      files: {
+        o2: nt.o2 || null,
+        o2ppg: nt.o2ppg || null,
+        h10: nt.h10 || null,
+        h10ecg: nt.h10ecg || null,
+        verityPPG: nt.verityPPG || null,
+        verityPPI: nt.verityPPG ? null : nt.verityPPI || null,
+        verityHR: nt.verityHR || null
+      }
     });
     const real = (r && r.real) || { skip: true, reason: (r && r.error) || 'no result' };
     if (real.skip) {
@@ -365,7 +392,7 @@
       return;
     }
     if (rc) {
-      rc.textContent = 'σ ' + f2(real.sigma.h10) + ' / ' + f2(real.sigma.verity) + ' / ' + f2(real.sigma.o2);
+      rc.innerHTML = evb('hat') + ' σ ' + f2(real.sigma.h10) + ' / ' + f2(real.sigma.verity) + ' / ' + f2(real.sigma.o2);
       rc.style.color = '';
     }
     setStatus('ok', nt.key + ' · solved · ' + hmOf(real.n) + ' overlap');
@@ -378,6 +405,76 @@
   //  RENDER — ans-design surfaces, hrvdex-chart canvases, hand-authored SVG
   // ═══════════════════════════════════════════════════════════════════════════
   const CARDS = ['cSeries', 'cSigma', 'cDiff', 'cRun', 'cTri'];
+  /* ── TRUST BADGES (CLAUDE.md §🎫) — this page's grades and why. HR series take their node registries' grade
+     (ECGDex/PpgDex/OxyDex `hr`/`meanHr`: measured). A difference, a correlation or an overlap is arithmetic on
+     those series → measured. σ̂ and everything derived from the hat assume independent corner errors and are not
+     validated against a reference here → experimental. A gate verdict is the suite's own rule → experimental. */
+  const EV = {
+    hrEcg: ['measured', 'heart rate direct from detected R-peaks (ECGDex registry `hr`)'],
+    hrPpg: ['measured', 'heart rate direct from pulse-peak intervals (PpgDex registry `hr`)'],
+    hrO2: ['measured', 'direct pulse reading (OxyDex registry `meanHr`)'],
+    diff: ['measured', 'pairwise difference of two measured HR series on the aligned grid'],
+    corr: ['measured', 'Pearson r of two measured HR series on the aligned grid'],
+    count: ['measured', 'seconds on the aligned three-way grid — a count'],
+    source: ['measured', 'which file each corner was read from — a fact about the inputs'],
+    hat: ['experimental', 'three-cornered hat σ̂ — assumes independent corner errors; not validated against a reference'],
+    gate: ['experimental', "the suite's own corner gates (Verity harmonic, H10 lead) — a rule, not a measurement"],
+    rhoCrit: ['experimental', 'the error correlation at which a corner of this hat collapses to zero — a property of this solve, derived from the same unvalidated σ̂'],
+    rhoSens: ['experimental', "how fast a corner's σ̂ moves per 0.01 of error correlation, at ρ = 0 — a derivative of the same unvalidated estimator"],
+    rhoNeed: ['experimental', 'the precision to which ρ would have to be known to pin a corner σ̂ to ±0.1 bpm — a requirement, not a measurement of ρ'],
+    rhoRef: ['measured', 'error correlation measured against a two-detector consensus over 37 nights (tools/tch-firmware-reference.mjs) — pooled, external to this night']
+  };
+  const evb = (k) => (window.MetricRegistry && window.MetricRegistry.badge ? window.MetricRegistry.badge(EV[k][0], EV[k][1]) : '');
+  function corner(host, key) {
+    if (!host) return;
+    host.style.position = 'relative';
+    let c = host.querySelector(':scope > .ev-corner');
+    if (!c) {
+      c = document.createElement('span');
+      c.className = 'ev-corner';
+      host.appendChild(c);
+    }
+    c.innerHTML = evb(key);
+  }
+  // a chart caption is not a badge site — the SERIES is (CLAUDE.md §🎫): one strip per figure, a badge before each series
+  function seriesBadges(cardId, items) {
+    const card = $(cardId);
+    if (!card) return;
+    let strip = card.querySelector('.ts-evser');
+    if (!strip) {
+      strip = document.createElement('div');
+      strip.className = 'ts-evser';
+      const p = card.querySelector('p') || card.querySelector('h4');
+      if (p && p.nextSibling) card.insertBefore(strip, p.nextSibling);
+      else card.appendChild(strip);
+    }
+    strip.innerHTML = items.map((it) => '<span class="ts-evitem">' + evb(it[0]) + ' ' + it[1] + '</span>').join('');
+  }
+  function badgeAll() {
+    for (const k of DKEYS) corner($('hero-' + k + '-val') && $('hero-' + k + '-val').parentElement, 'hat');
+    corner($('kOverlap'), 'count');
+    corner($('kMethod'), 'hat');
+    corner($('kGate'), 'gate');
+    corner($('kSource'), 'source');
+    corner($('kSum'), 'hat');
+    corner($('kR'), 'corr');
+    seriesBadges('cSeries', [
+      ['hrEcg', 'Polar H10 HR'],
+      ['hrPpg', 'Verity Sense HR'],
+      ['hrO2', 'O2Ring HR']
+    ]);
+    seriesBadges('cSigma', [['hat', 'σ̂ per corner, with its bootstrap CI']]);
+    seriesBadges('cDiff', [
+      ['diff', 'H10 − Verity'],
+      ['diff', 'H10 − O2Ring'],
+      ['diff', 'Verity − O2Ring']
+    ]);
+    seriesBadges('cRun', [['hat', 'running σ̂ per corner']]);
+    seriesBadges('cTri', [
+      ['corr', 'pairwise r (edges)'],
+      ['hat', 'σ̂ (vertices)']
+    ]);
+  }
   function setEmpty(cardId, text, warn) {
     const c = $(cardId);
     if (!c) return;
@@ -401,6 +498,18 @@
     if (v) v.textContent = val;
     if (s) s.textContent = sub || '';
   }
+  /* ── WHAT THE REFERENCE SAYS ABOUT EACH HERO (tools/tch-firmware-reference.mjs, 2026-09-26) ────────────
+     Checked against beats two independent R-peak detectors agree on (ECGDex + the H10 firmware), over 37 box
+     nights: the classic hat under-reads the Verity (0.41 vs a true 0.73 bpm) and over-reads the H10 (0.97 vs
+     0.81), because the two optical corners share error (ρ ≈ 0.32) and the hat assumes they do not. The
+     O2Ring σ̂ lands within ±0.3 bpm / 30 % of its true value on 37/37 nights, a little low. So the H10 and
+     Verity heroes are UNVALIDATED and say so; the numbers live in
+     analysis/published-numbers/tch-firmware-reference-2026-09-26.json and this text must follow them. */
+  const VALIDATION = {
+    h10: 'unvalidated — the hat over-reads the H10 (0.97 vs a measured 0.81 bpm, 37 nights)',
+    verity: 'unvalidated — the hat under-reads the Verity (0.41 vs a true 0.73 bpm, 37 nights)',
+    o2: 'reference-checked — within ±0.3 bpm / 30 % on 37/37 nights (reads a little low: 1.46 vs 1.71)'
+  };
   function hero(k, real, derive) {
     const v = $('hero-' + k + '-val'),
       u = $('hero-' + k + '-unit');
@@ -420,9 +529,15 @@
           : ci
             ? 'bpm · 95 % CI ' + f2(ci.lo) + ' – ' + f2(ci.hi)
             : 'bpm · CI unavailable';
+    const note = $('hero-' + k + '-val') && $('hero-' + k + '-val').parentElement.querySelector('.ts-valid');
+    if (note) {
+      note.textContent = VALIDATION[k];
+      note.classList.toggle('ts-unval', k !== 'o2');
+    }
   }
   function renderSkip(nt, real) {
     for (const k of DKEYS) hero(k, null, null);
+    renderIndependence(null);
     $('heroNight').textContent = nt.key;
     kpi('kOverlap', '—', 'no three-way overlap solved', 'bad');
     kpi('kMethod', 'not solved', real.reason || 'no result', 'bad');
@@ -431,17 +546,120 @@
     kpi('kSum', '—', '');
     kpi('kR', '—', '');
     for (const id of CARDS) setEmpty(id, 'This night could not be solved — ' + (real.reason || 'no result'), true);
+    badgeAll();
+  }
+  /* ── INDEPENDENCE SENSITIVITY — what THIS night can and cannot say about correlated errors ────────
+     The owner's question is "how much of the σ decomposition survives correlated-error assumptions".
+     🔴 THE DIRECT ANSWER IS NOT THIS ROW. It is the pooled note above: measured against a two-detector
+     consensus over 37 nights, the classic hat put 53/74 corners in band, under-read the Verity (0.41 vs
+     a true 0.73 bpm) and over-read the H10, because the optical errors correlate at ρ ≈ 0.32. This row
+     answers the adjacent, per-night question — how fast this night's decomposition would move if the
+     errors were correlated, and how precisely ρ would have to be known for that to be pinned down.
+     Both are stated, in that order, so the new row cannot be read as the answer to the question.
+
+     WHAT IT DELIBERATELY DOES NOT DO:
+     · It never prints "independent ✓". A negative variance — the standard "your independence assumption
+       is broken" tell — requires ρ > σ₀_A/σ₀_B (derived and measured, PR #1824), so with near-equal error
+       floors a real ρ of 0.3–0.5 produces NO negative at any N: every corner comes back positive, the
+       trio looks clean, and the assumption is silently violated. A positive solve is not evidence of
+       uncorrelated errors, and no amount of data makes it one. #3123 is that law in the wild — ρ ≈ 0.32
+       sits BELOW the σ_V/σ_O onset of ≈ 0.43, which is exactly why nothing went negative.
+     · It states no BAND around ρ_crit, because there is none to state. KNIFE-EDGE §2 asked for a margin
+       and the measurement refused it: σ's sensitivity to ρ rises smoothly to the boundary with no regime
+       change (dσ per 0.01 of ρ: −0.030 at distance 0.200, −0.183 at 0.010, −0.324 at 0.002). Where the
+       regimes do not separate, publish the sensitivity, not a threshold.
+     · It does not substitute the pooled ρ for this night's. This night's error correlation is NOT
+       computable here — the ECGDex × firmware-RR reference lives in `tools/tch-firmware-reference.mjs`,
+       not in the worker — so that slot REFUSES with the reason (CLAUDE.md §∅), never 0. Assuming ρ = 0 is
+       precisely the assumption under test, so defaulting it would answer the question with itself.
+       Residue `2026-09-26-tch-hat-misattributes-shared-optical-error` is where that moves into the
+       worker; when it does, the measured ρ may be DISPLAYED here for identifiability and must NEVER be
+       fed into the solve (KNIFE-EDGE §5, leave-one-out only). */
+  const RHO_REF = 0.32; // pooled optical ρ, tch-firmware-reference-2026-09-26.json — external, not this night's
+  function renderIndependence(real) {
+    const host = $('tsIndep');
+    if (!host) return;
+    const S = window.AnalysisStats;
+    const pv = real && real.pairVars;
+    const f2 = (x) => (Number.isFinite(x) ? x.toFixed(2) : '—');
+    const f3 = (x) => (Number.isFinite(x) ? x.toFixed(3) : '—');
+    if (!S || typeof S.tchRhoCrit !== 'function') {
+      host.innerHTML =
+        '<b>Independence sensitivity: NOT COMPUTED.</b> The shared statistics kernel (<code>AnalysisStats.tchRhoCrit</code>) did not load, so nothing was examined — this is not a finding about the night. ' +
+        evb('rhoCrit');
+      return;
+    }
+    if (!pv || !Number.isFinite(pv.hv) || !Number.isFinite(pv.ho) || !Number.isFinite(pv.vo)) {
+      host.innerHTML =
+        '<b>Independence sensitivity: REFUSED.</b> This night carries no pairwise difference variances, so the collapse point cannot be located. No value is shown in their place. ' + evb('rhoCrit');
+      return;
+    }
+    /* Corner mapping is load-bearing: the worker solves `threeCorneredHat(vHV, vHO, vVO)` with A = H10,
+       B = Verity, C = O2Ring, so ab = H10·Verity, ac = H10·O2Ring, bc = Verity·O2Ring. The operating
+       point is ρ = 0 on every pair because that IS the hat's assumption — ρ_crit is then "how much
+       shared error this night's variances would tolerate before a corner collapses to zero". */
+    const PAIR = { ab: 'H10 · Verity', ac: 'H10 · O2Ring', bc: 'Verity · O2Ring' };
+    const r = S.tchRhoCrit(pv.hv, pv.ho, pv.vo, { ab: 0, ac: 0, bc: 0 });
+    const parts = [];
+    for (const k of ['ab', 'ac', 'bc']) {
+      const d = r && r.pairs && r.pairs[k];
+      if (!d) {
+        parts.push(PAIR[k] + ' — no collapse in range');
+        continue;
+      }
+      const up = d.up ? 'ρ ≥ ' + f2(d.up.at) : null;
+      const dn = d.down ? 'ρ ≤ ' + f2(d.down.at) : null;
+      parts.push(PAIR[k] + ' — ' + [up, dn].filter(Boolean).join(' or '));
+    }
+    const n = r && r.nearest;
+    const sens = n && Number.isFinite(n.sigmaPerRho) ? f3(Math.abs(n.sigmaPerRho)) + ' bpm per 0.01 of ρ' : 'not computable';
+    const need = n && Number.isFinite(n.rhoFor0p1) ? '± ' + f3(n.rhoFor0p1) : 'not computable';
+    host.innerHTML =
+      '<b>Independence sensitivity — this night.</b> The hat above assumes the three corners\u2019 errors are uncorrelated. ' +
+      'A corner of THIS night\u2019s solve reaches zero at: ' +
+      parts.join(' · ') +
+      '. ' +
+      evb('rhoCrit') +
+      (n ? ' Nearest is <b>' + PAIR[n.pair] + '</b>, ' + f2(n.margin) + ' of correlation away; there the σ̂ moves <b>' + sens + '</b>. ' + evb('rhoSens') : '') +
+      (n ? ' To pin that corner\u2019s σ̂ to ±0.1 bpm, ρ would have to be known to <b>' + need + '</b> — a requirement, not a measurement. ' + evb('rhoNeed') : '') +
+      ' <b>This night\u2019s own ρ: REFUSED</b> — the firmware-RR reference is not computed in this page, so it is not substituted with 0; assuming independence is the assumption under test ' +
+      '(residue <code>2026-09-26-tch-hat-misattributes-shared-optical-error</code>). ' +
+      'Pooled, external, NOT this night: ρ ≈ ' +
+      RHO_REF.toFixed(2) +
+      ' optical over 37 nights. ' +
+      evb('rhoRef') +
+      ' <b>No "independent ✓" is shown here, and none is available:</b> a negative variance needs ρ > σ₀_A/σ₀_B, so a positive solve is not evidence of uncorrelated errors at any n. ' +
+      'No band around the collapse point is given either — sensitivity rises smoothly to it, with no regime to threshold on.';
   }
   function renderAll(nt, real, derive) {
     $('heroNight').textContent = nt.key;
     for (const k of DKEYS) hero(k, real, derive);
+    renderIndependence(real);
     kpi('kOverlap', hmOf(real.n), real.n + ' s on the aligned 1 Hz grid', 'good');
     // the worker's point is the FUSED hat (tchSigmasFused: per-corner DSP confidence × Tukey consensus
     // trust) — and so is every CI replicate and running prefix (DEEP-AUDIT-VI F16: the CI's estimator
     // follows the point's), so the label names the estimator that actually produced the numbers
     kpi('kMethod', real.neg ? 'negative variance' : 'fused hat', real.neg ? 'a corner is null — see the literature note' : 'DSP confidence × consensus trust', real.neg ? 'warn' : 'good');
     kpi('kGate', real.h10Unreliable ? 'H10 nulled' : 'both gates ok', real.h10Unreliable ? real.h10Fault : 'Verity harmonic gate · H10 lead gate', real.h10Unreliable ? 'bad' : 'good');
-    kpi('kSource', real.source || '—', 'Verity HR pipeline', '');
+    // every corner's source, because a σ̂ is only comparable across nights that read the same inputs
+    const short = (x) =>
+      x
+        ? String(x)
+            .replace(/^ring·/, '')
+            .replace(/·.*$/, '')
+        : '—';
+    kpi(
+      'kSource',
+      short(real.h10Source) + ' · ' + short(real.source) + ' · ' + short(real.o2Source),
+      'H10 ' + (real.h10Source || '—') + ' · Verity ' + (real.source || '—') + ' · O2Ring ' + (real.o2Source || '—'),
+      ''
+    );
+    const o2k = {
+      'ring·156-markers': ['finger pleth · 156 beat markers', "the ring firmware's own per-beat markers in its raw pleth → PPI → per-second HR"],
+      ring·PPGDSP: ['finger pleth · PPGDSP feet', 'pulse feet detected in the raw pleth by PPGDSP → PPI → per-second HR']
+    }[real.o2Source] || ['finger pulse · 1 Hz native', 'direct pulse reading (OxyDex registry `meanHr`)'];
+    DEV.o2.kind = o2k[0];
+    EV.hrO2 = ['measured', o2k[1]];
     let ss = 0,
       solved = 0;
     for (const k of DKEYS)
@@ -460,6 +678,7 @@
     drawRunning(real, derive);
     drawTriangle(real);
     for (const id of CARDS) fillCard(id);
+    badgeAll();
   }
   // ── the house Chart wrapper (mirrors HRVDex's mkChart; engine = hrvdex-chart.js) ───────────
   const charts = {};

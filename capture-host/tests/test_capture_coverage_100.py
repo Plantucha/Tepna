@@ -16,6 +16,7 @@ fakes. No BLE hardware, no real subprocesses, no sleeping.
 import asyncio
 import datetime as _dt
 import inspect
+import logging
 import os
 import sys
 
@@ -1022,12 +1023,29 @@ def test_THE_UNATTENDED_PULL_ASKS_WHETHER_THE_DEVICE_IS_THERE_BEFORE_TAKING_THE_
 # ══════════════════════════════════════════════════════════════════════════════════════════════════
 # charger_pull_poller — "on the charger" is the natural end-of-night trigger
 # ══════════════════════════════════════════════════════════════════════════════════════════════════
-def test_the_charger_poller_stays_asleep_unless_both_switches_are_on():
+def test_the_charger_poller_stays_asleep_unless_both_switches_are_on(monkeypatch, caplog):
     """Opt-in twice over: `pull.auto` arms auto-pull at all, `pull.on_charger` arms this trigger. Either
-    off and the poller must return immediately rather than sit in a 2 s loop for the life of the daemon."""
-    _run(capture.charger_pull_poller({"pull": {"auto": False}}, "/tmp"))
-    _run(capture.charger_pull_poller({"pull": {"auto": True, "on_charger": False}}, "/tmp"))
-    _run(capture.charger_pull_poller({}, "/tmp"))
+    off and the poller must return immediately rather than sit in a 2 s loop for the life of the daemon.
+
+    'Return immediately' is made FALSIFIABLE two ways: the loop's own `asyncio.sleep` is a sentinel
+    that fails the test if it is ever awaited, and each run is bounded by `wait_for` so a regression
+    fails instead of hanging the suite (until 2026-09-25 a regression here would have hung it — the
+    census's one TERMINATION-ONLY test). The three NOT-armed lines are the positive evidence that each
+    config took the early return for the reason the docstring names."""
+    async def never_sleep(_s):
+        raise AssertionError("the charger poller entered its 2 s loop while not armed")
+
+    monkeypatch.setattr(capture.asyncio, "sleep", never_sleep)
+
+    def run(cfg):
+        return asyncio.run(asyncio.wait_for(capture.charger_pull_poller(cfg, "/tmp"), 5.0))
+
+    with caplog.at_level(logging.INFO):
+        run({"pull": {"auto": False}})
+        run({"pull": {"auto": True, "on_charger": False}})
+        run({})
+    not_armed = [r.getMessage() for r in caplog.records if r.getMessage().startswith("auto-pull: NOT armed")]
+    assert len(not_armed) == 3, not_armed
 
 
 def test_the_charger_poller_returns_when_no_device_can_be_pulled(caplog):

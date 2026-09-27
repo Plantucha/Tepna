@@ -33,6 +33,7 @@ import subprocess
 import time
 import urllib.parse
 import urllib.request
+from typing import Any
 
 import telemetry
 
@@ -895,8 +896,11 @@ def harvest(dest_root: str, base: str = DEFAULT_BASE, nights: set[str] | None = 
     # The walk already knows these names (it creates one DATALOG directory per night), so this surfaces
     # information already in hand rather than adding a second traversal — which is what the CPAP
     # inventory oracle would otherwise have to do for itself.
-    st = {"files": 0, "bytes": 0, "skipped": 0, "nights": 0, "night_keys": [], "short": [], "errors": [],
-          "partial": False, "nights_on_card": 0, "reaped": 0}
+    # `dict[str, Any]`, not a union: this is a STATUS BLOB that goes out as JSON, and its values are
+    # genuinely of different kinds — counters, lists, a flag. Inference joins them to `object`, which
+    # then rejects `st["nights"] += 1` and `st["night_keys"].append(...)` — the two ways it is used.
+    st: dict[str, Any] = {"files": 0, "bytes": 0, "skipped": 0, "nights": 0, "night_keys": [], "short": [], "errors": [],
+                          "partial": False, "nights_on_card": 0, "reaped": 0}
 
     def expired() -> bool:
         if deadline is not None and time.monotonic() > deadline:

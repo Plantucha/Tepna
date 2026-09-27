@@ -446,6 +446,63 @@
     return x;
   }
   // Series-level sibling of `tchSigmas`, taking a per-PAIR ρ instead of assuming independence.
+  /* ── Derived 1-Hz HR files → aligned HR + per-second fused-hat confidence (TCH-FUSED-ROBUST-HAT) ──
+     `tools/derive-sigma-window.mjs` writes one row per second, header-named columns:
+       H10    "tMs;hr;src[;c]"        Verity "tMs;hr;sqiMean[;c]"
+     `c` is the DSP tier's `beatConfidence` (density × SQI, AF-safe) for that second, in [0,1] — the
+     weight `tchSigmasFused` multiplies in. Files written before 2026-09-26 have no `c` column; they
+     parse with `hasConf:false` and an EMPTY confidence map, and the consumer must then run the
+     CLASSIC hat: defaulting an absent confidence to 1 and calling the fused hat would move the
+     committed-corpus numbers with no measurement behind the move (§∅ — absence is null). Columns are
+     found BY HEADER NAME, never by position, so the two layouts and any future column parse alike.
+     `sqi` is the first finite `sqiMean` (the Verity file's per-window SQI the sigma page displays);
+     for a header without `sqiMean` it falls back to a numeric third column in [0,1] — the exact
+     legacy read — so a pre-2026-09-26 file yields the same value it always did. */
+  function parseDerivedHr(text, opts) {
+    opts = opts || {};
+    var hrMin = opts.hrMin == null ? 30 : opts.hrMin,
+      hrMax = opts.hrMax == null ? 220 : opts.hrMax;
+    var L = String(text || '').split(/\r?\n/);
+    var head = (L[0] || '').split(';').map(function (h) {
+      return h.trim();
+    });
+    var iC = head.indexOf('c'),
+      iQ = head.indexOf('sqiMean');
+    var hr = new Map(),
+      c = new Map(),
+      sqi = null,
+      nConf = 0;
+    for (var i = 1; i < L.length; i++) {
+      if (!L[i]) continue;
+      var cc = L[i].split(';');
+      var ms = +cc[0],
+        h = +cc[1];
+      if (!isFinite(ms) || !(h >= hrMin && h <= hrMax)) continue;
+      var sec = Math.floor(ms / 1000) * 1000;
+      hr.set(sec, h);
+      if (iC >= 0) {
+        var v = +cc[iC];
+        if (isFinite(v) && v >= 0 && v <= 1) {
+          c.set(sec, v);
+          nConf++;
+        }
+      }
+      if (sqi == null) {
+        var q = iQ >= 0 ? +cc[iQ] : iC < 0 ? +cc[2] : NaN;
+        if (isFinite(q) && q >= 0 && q <= 1) sqi = q;
+      }
+    }
+    return { hr: hr, c: c, sqi: sqi, hasConf: iC >= 0 && nConf > 0, columns: head, n: hr.size };
+  }
+  // The confidence series aligned to a window's key list: a second the map does not carry is 1 (a
+  // beat the DSP saw and did not flag), which is the classic weight. Call it only for a file whose
+  // `hasConf` is true — see parseDerivedHr on why an absent COLUMN must not become a series of 1s.
+  function confidenceSeries(cMap, keys) {
+    var out = new Array(keys.length);
+    for (var i = 0; i < keys.length; i++) out[i] = cMap && cMap.has(keys[i]) ? cMap.get(keys[i]) : 1;
+    return out;
+  }
+
   /* ── Block-bootstrap CI whose ESTIMATOR FOLLOWS THE POINT (DEEP-AUDIT-VI F16) ─────────────────
      The sigma-no-reference live path pairs a FUSED-hat point (per-second DSP confidences
      down-weighting artifact bursts) with a CI bootstrapped from the CLASSIC unweighted hat — two
@@ -591,6 +648,124 @@
     }
     return w;
   }
+  /* ── CONFIDENCE-WEIGHTED STATISTICS (PAT classic vs fused, 2026-09-26) ─────────────────────────────
+   ONE solver, an OPTIONAL weight. Every function below is a no-op when no weight accessor is passed, so
+   the classic path is the same code on the same data and the two columns cannot drift into being two
+   implementations of one statistic — which is the whole reason the fused column is trustworthy at all.
+
+   THE WEIGHT IS A PRODUCT, and the alternatives were rejected on argument rather than taste. A PAT lag
+   is the difference of two timestamps, so it is only as good as BOTH of its ends:
+
+     w = c_A(⌊t/1000⌋) × c_B(⌊(t + lag)/1000⌋)
+
+   · `min` cannot tell one marginal end from two — min(.5,.5) = min(.5,1) — so a pair trusted at neither
+     end scores like a pair trusted at one.
+   · `mean` lets a good end MASK a bad one — mean(.1,1) = .55 — which is precisely the inflation the
+     fused column exists to remove.
+   · the product separates both cases (.25 vs .5) and reads as "both ends must be trustworthy".
+
+   ⚠️ WEIGHTING ACTS AFTER `coupledPAT`'s OWN FILTER, NEVER INSTEAD OF IT. The accepted set is already
+   confined to ±LAG_TOL_MS of a 30 s local median; confidence re-weights what survived that, and a pair
+   the filter rejected is not resurrected by a high `c`.
+
+   ⚠️ AND IT RUNS ON THE FULL ACCEPTED SET, never on `packCp`'s ~4000-point decimation. Weighting the
+   decimated list would silently change the population the window medians are taken over — caught by Wren
+   before it shipped. That is why these run inside the worker, where the full `patAtR` is in scope. */
+  function weightedMedian(vals, ws) {
+    var n = vals.length;
+    if (!n) return NaN;
+    var idx = [];
+    for (var i = 0; i < n; i++) idx.push(i);
+    idx.sort(function (x, y) {
+      return vals[x] - vals[y];
+    });
+    var tot = 0;
+    for (i = 0; i < n; i++) tot += ws[idx[i]];
+    if (!(tot > 0)) return NaN; // every surviving pair distrusted: no weighted centre exists (§∅ — not 0)
+    var half = tot / 2,
+      run = 0;
+    for (i = 0; i < n; i++) {
+      run += ws[idx[i]];
+      if (run >= half) return vals[idx[i]];
+    }
+    return vals[idx[n - 1]];
+  }
+  function weightedQuantile(vals, ws, q) {
+    var n = vals.length;
+    if (!n) return NaN;
+    var idx = [];
+    for (var i = 0; i < n; i++) idx.push(i);
+    idx.sort(function (x, y) {
+      return vals[x] - vals[y];
+    });
+    var tot = 0;
+    for (i = 0; i < n; i++) tot += ws[idx[i]];
+    if (!(tot > 0)) return NaN;
+    var want = tot * q,
+      run = 0;
+    for (i = 0; i < n; i++) {
+      run += ws[idx[i]];
+      if (run >= want) return vals[idx[i]];
+    }
+    return vals[idx[n - 1]];
+  }
+  /* The per-second confidence of one end, or `null` when the DSP gave none. NEVER 1 by default: an absent
+   confidence and a measured-certain one are different facts, and the caller must show which (§∅). */
+  function cAtSec(cMap, tMs) {
+    if (!cMap || typeof cMap.get !== 'function') return null;
+    var v = cMap.get(Math.floor(tMs / 1000));
+    return typeof v === 'number' && isFinite(v) ? v : null;
+  }
+  /* Per-pair weights for one leg, plus what the pair of confidence sources actually delivered. A leg whose
+   either end has no usable confidence is reported UNWEIGHTED — the caller labels it, and no number here
+   pretends it was fused. */
+  function legWeights(c, cA, cB) {
+    if (!c || !c.ok) return { ok: false, reason: 'leg did not couple' };
+    if (!cA || !cB) return { ok: false, reason: !cA && !cB ? 'neither end published a confidence series' : 'one end published no confidence series' };
+    var ws = [],
+      nHit = 0;
+    for (var i = 0; i < c.patAtR.length; i++) {
+      var t = c.patAtR[i].t,
+        a = cAtSec(cA, t),
+        b = cAtSec(cB, t + c.patAtR[i].lag);
+      if (a === null || b === null) {
+        ws.push(0); // a pair we cannot weight is EXCLUDED from the fused statistic, never weighted as 1
+        continue;
+      }
+      /* 🔴 `nHit` COUNTS PAIRS THAT CONTRIBUTE, not pairs whose ends were merely PRESENT — and the first
+         draft got this wrong in the direction that overstates. A confidence of exactly 0 is a present,
+         finite reading, so `cAtSec` returns it and the pair passed the null check above while contributing
+         nothing to any weighted statistic. Counting it as covered reported `covered: 1` over a night where
+         300 of 2400 pairs were distrusted — the coverage-without-a-denominator shape, in the very field
+         added to prevent it. Found by the planted burst, whose expected coverage is 0.875. */
+      var w = a * b;
+      if (w > 0) nHit++;
+      ws.push(w);
+    }
+    var covered = c.patAtR.length ? nHit / c.patAtR.length : 0;
+    if (!nHit) return { ok: false, reason: 'no coupled pair had confidence at both ends' };
+    return { ok: true, w: ws, covered: covered, nWeighted: nHit, nPairs: c.patAtR.length };
+  }
+  /* The fused twin of a leg's lag statistics. Same pairs, same filter, weighted centre and spread, plus the
+   DENOMINATOR: how many of the accepted pairs could be weighted at all. */
+  function fusedLeg(c, lw) {
+    if (!lw.ok) return { ok: false, reason: lw.reason };
+    var lags = c.patAtR.map(function (p) {
+      return p.lag;
+    });
+    var med = weightedMedian(lags, lw.w);
+    if (!isFinite(med)) return { ok: false, reason: 'every accepted pair was weighted to zero' };
+    return {
+      ok: true,
+      med: med,
+      p25: weightedQuantile(lags, lw.w, 0.25),
+      p75: weightedQuantile(lags, lw.w, 0.75),
+      nWeighted: lw.nWeighted,
+      nPairs: lw.nPairs,
+      covered: lw.covered
+    };
+  }
+
   function tchSigmasFused(hh, vv, oo, cH, cV, cO) {
     var n = hh.length,
       dHV = [],
@@ -897,7 +1072,17 @@
     threeCorneredHat: threeCorneredHat,
     tchSigmas: tchSigmas,
     tchSigmasFused: tchSigmasFused,
+    /* PAT classic-vs-fused (2026-09-26): the confidence-weighted statistics, exported so the planted
+       known-answer test can EXECUTE them. They live here rather than in `pat-feasibility-worker.js` for
+       the same reason `pat-align.js` was extracted from that worker — a worker's top-level function can
+       only be source-scanned by the suite, so a mechanism kept there cannot carry its own plant. */
+    weightedMedian: weightedMedian,
+    weightedQuantile: weightedQuantile,
+    legWeights: legWeights,
+    fusedLeg: fusedLeg,
     tchBlockBootstrapCI: tchBlockBootstrapCI,
+    parseDerivedHr: parseDerivedHr,
+    confidenceSeries: confidenceSeries,
     tchSigmasPairwise: tchSigmasPairwise,
     tchSigmasPairwiseFromVars: tchSigmasPairwiseFromVars,
     tchRhoCrit: tchRhoCrit,

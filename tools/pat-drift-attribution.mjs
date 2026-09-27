@@ -85,7 +85,7 @@
  *
  * Usage:
  *   node tools/pat-drift-attribution.mjs --selftest
- *   node tools/pat-drift-attribution.mjs --dir <captures root> [--only a,b,c]
+ *   node tools/pat-drift-attribution.mjs --dir <captures root> [--only a,b,c] [--ecg-axis linear|counter|piecewise]
  * ══════════════════════════════════════════════════════════════════════════════════════════════ */
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -190,14 +190,24 @@ async function main() {
   if (argv.includes('--selftest')) process.exit(selftest() ? 0 : 1);
   const DIR = argv[argv.indexOf('--dir') + 1];
   const ONLY = argv.includes('--only') ? new Set(argv[argv.indexOf('--only') + 1].split(',')) : null;
+  /* --ecg-axis: the ECG leg's timing. Default `linear` (t0 + i/fs, unchanged). The predicted slope
+     below models only the host RATE difference, so a linear axis whose whole-file `fs` mixes the
+     worn and off-body sample rates shows a trend this test attributes to "not the clock" — measured
+     2026-09-26 at 68 ppm on 2026-09-25. `counter` removes that term (pat-matchrate-strict.mjs). */
+  const ECG_AXIS = argv.includes('--ecg-axis') ? argv[argv.indexOf('--ecg-axis') + 1] : 'linear';
+  if (!['linear', 'counter', 'piecewise'].includes(ECG_AXIS)) {
+    console.error('--ecg-axis must be linear|counter|piecewise');
+    process.exit(2);
+  }
   if (!DIR || !existsSync(DIR)) {
-    console.error('usage: node tools/pat-drift-attribution.mjs --selftest | --dir <root> [--only a,b]');
+    console.error('usage: node tools/pat-drift-attribution.mjs --selftest | --dir <root> [--only a,b] [--ecg-axis linear|counter|piecewise]');
     process.exit(2);
   }
   const { getDsps, ecgRpeakTimes, ppgFootTimes } = await import(join(HERE, 'pat-matchrate-strict.mjs'));
   const { oracleNight, pickPair } = await import(join(HERE, 'pat-window-oracle.mjs'));
   const { acceptedSeries } = await import(join(HERE, 'pat-residual-structure.mjs'));
   const { ECGDSP, PPGDSP } = getDsps();
+  console.log(`ecg-axis ${ECG_AXIS}\n`);
   console.log(`bands on |obs-pred|/|obs|: <=${BAND_EXPLAINS} CLOCK EXPLAINS · <=${BAND_PARTIAL} PARTIAL · else CLOCK DOES NOT EXPLAIN\n`);
   console.log('night         ppmECG  ppmPPG   predicted   censored      RAW    ratio  rawR2   verdict');
   for (const n of readdirSync(DIR)
@@ -224,7 +234,7 @@ async function main() {
     try {
       const eTxt = readFileSync(eF, 'utf8');
       const pTxt = readFileSync(pF, 'utf8');
-      E = ecgRpeakTimes(eTxt);
+      E = ecgRpeakTimes(eTxt, ECG_AXIS === 'linear' ? undefined : { axis: ECG_AXIS });
       P = ppgFootTimes(pTxt);
       /* Straight from the parser — the wrappers above drop `hostAxis` (see header). */
       eAx = ECGDSP.parseECG(eTxt).hostAxis;

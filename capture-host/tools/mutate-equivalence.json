@@ -4209,6 +4209,41 @@
       "probe": "2- and 3-segment capture-host/… literals; the 3-segment case kills the rsplit sibling, and neither maxsplit variant changes [0]. Validated on #2872's branch: 14 → 6, no REFUTED.",
       "why": "EQUIVALENT — `[0]` is the FIRST segment whatever the maxsplit: `split('/', 1)[0]`, `split('/', 2)[0]` and `split('/')[0]` all return the text before the first separator. ⚠️ The sibling mutation `split(None, 1)` is NOT equivalent — it splits on whitespace — and is killed by test_root_reads_excludes_the_TREE_ITSELF_by_its_first_segment.",
       "brief": "#2872 — root_reads sees the whole read (entries filed in the follow-up)"
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- for lit in re.findall(r\"\"\"[\"']([^\"'\\n]+)[\"']\"\"\", t.read_text(encoding=\"utf-8\", errors=\"replace\")): | + for lit in re.findall(r\"\"\"[\"']([^\"'\\n]+)[\"']\"\"\", t.read_text(encoding=None, errors=\"replace\")):",
+      "probe": "Run 2026-09-25 in a 3.11 venv, UTF-8 locale (`locale.getpreferredencoding(False)` = utf-8), against a `.py` holding one Latin-1 byte and one `\\xff` in a comment above a root-file literal (the plant `test_root_reads_survives_a_NON_UTF8_byte_in_a_test_file`): original and the three variants each return the same text and the literal is found. The other three mutants on this line (`errors=None`, `errors=` dropped, `errors=\"REPLACE\"`) raise UnicodeDecodeError / LookupError on the same input and are KILLED by that plant.",
+      "why": "`encoding=None` selects the locale's preferred encoding, which is UTF-8 on CI (ubuntu-latest) and on the box; the output is byte-identical to the explicit `utf-8`. Distinguishable only under a non-UTF-8 locale, which no supported host runs — and the explicit argument exists so that stays true."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- for lit in re.findall(r\"\"\"[\"']([^\"'\\n]+)[\"']\"\"\", t.read_text(encoding=\"utf-8\", errors=\"replace\")): | + for lit in re.findall(r\"\"\"[\"']([^\"'\\n]+)[\"']\"\"\", t.read_text(errors=\"replace\")):",
+      "probe": "Run 2026-09-25 in a 3.11 venv, UTF-8 locale (`locale.getpreferredencoding(False)` = utf-8), against a `.py` holding one Latin-1 byte and one `\\xff` in a comment above a root-file literal (the plant `test_root_reads_survives_a_NON_UTF8_byte_in_a_test_file`): original and the three variants each return the same text and the literal is found. The other three mutants on this line (`errors=None`, `errors=` dropped, `errors=\"REPLACE\"`) raise UnicodeDecodeError / LookupError on the same input and are KILLED by that plant.",
+      "why": "Dropping `encoding=` is the same `encoding=None` default as the entry above: locale-preferred, UTF-8 on every supported host."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- for lit in re.findall(r\"\"\"[\"']([^\"'\\n]+)[\"']\"\"\", t.read_text(encoding=\"utf-8\", errors=\"replace\")): | + for lit in re.findall(r\"\"\"[\"']([^\"'\\n]+)[\"']\"\"\", t.read_text(encoding=\"UTF-8\", errors=\"replace\")):",
+      "probe": "Run 2026-09-25 in a 3.11 venv, UTF-8 locale (`locale.getpreferredencoding(False)` = utf-8), against a `.py` holding one Latin-1 byte and one `\\xff` in a comment above a root-file literal (the plant `test_root_reads_survives_a_NON_UTF8_byte_in_a_test_file`): original and the three variants each return the same text and the literal is found. The other three mutants on this line (`errors=None`, `errors=` dropped, `errors=\"REPLACE\"`) raise UnicodeDecodeError / LookupError on the same input and are KILLED by that plant.",
+      "why": "`\"UTF-8\"` and `\"utf-8\"` name one codec — `codecs.lookup` normalises case — so the decode is byte-identical for every input."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- for m in _BRACE_TOKENS.finditer(line, a + 1, b - 1): | + for m in _BRACE_TOKENS.finditer(line, a - 1, b - 1):",
+      "probe": "2026-09-26, mutate_diff --base origin/main on the f-string-fields branch, six runs: this mutant survived every one while its siblings (`a + 2`, `b - 2`, `b + 1`, and every mutant of the loop body) were killed by test_fstring_expr_spans_are_EXACT_and_run_to_the_literals_end_on_an_unterminated_field — including the inputs `f\"{a}\"{` (a brace right after the closing quote) and `f\"{}{a}\"` (a field at the first interior character) added to pin the bounds. Checked by hand that the two extra positions the mutant scans can never be a brace.",
+      "why": "A PROOF, not a judgement. Starting the token scan at `a - 1` instead of `a + 1` adds exactly two characters, `line[a - 1]` and `line[a]`. `a` indexes the opening QUOTE (`_string_spans` returns spans that start at the quote). `line[a - 1]` is a letter: this branch runs only after `\"f\" in prefix.group(0).lower()` held, where `prefix` is the run of ASCII letters ending at `a`, so it is non-empty and its last character is alphabetic. Neither character is `{` or `}`, so the tokenizer yields them inside a text token that the loop ignores at every depth, and every input produces identical spans. The neighbour `a + 2` IS distinguishable (it drops the first interior character) and is killed.",
+      "brief": "#3098 not-examined item — f-string fields are code (changes/2026-09-26-mutation-tools-fstring-fields-are-code.md)"
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- text = t.read_text(encoding=\"utf-8\", errors=\"replace\") | + text = t.read_text(encoding=None, errors=\"replace\")",
+      "probe": "Probed 2026-09-27, three encodings x two locales, with a fixture built to be maximally decoder-sensitive: a repo root carrying both an ASCII file and one whose NAME holds non-ASCII bytes, and a test naming both plus non-ASCII noise in a non-matching literal. root_reads run in a subprocess under PYTHONUTF8=1 and under LC_ALL=C LANG=C PYTHONUTF8=0 PYTHONCOERCECLOCALE=0, for encoding='utf-8', encoding=None and the argument omitted: ALL THREE IDENTICAL in both locales (utf-8 locale: both names; C locale: the ASCII name only, for all three variants). STRUCTURAL, not luck: errors='replace' means no decoder can raise, and the only decoded values that reach the output are literals compared against names from root.iterdir() — filesystem names, decoded with the SAME locale-dependent codec. Under the C locale the non-ASCII name is surrogate-escaped from the filesystem and replacement-charred from the source, so it fails to match for the ORIGINAL too; the census therefore cannot observe which codec read the file. Same family as the cpap_spool and oxy_inventory encoding entries, and the same conclusion test_the_sidecar_reader_does_not_depend_on_the_BOXES_locale records for its own first attempt, which examined nothing for this reason."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- text = t.read_text(encoding=\"utf-8\", errors=\"replace\") | + text = t.read_text(errors=\"replace\")",
+      "probe": "Same probe as the encoding=None sibling above: the census cannot observe the codec, so no input distinguishes the omitted argument either."
     }
   ],
   "mutation_pure.py": [
@@ -4272,57 +4307,21 @@
   "nightqc.py": [
     {
       "class": "no-distinguishing-input",
-      "key": "- before = [s for s in others if s[1] <= cur[0]] | + before = [s for s in others if s[1] < cur[0]]",
-      "probe": "tests/test_nightqc.py::test_merge_sessions_always_yields_DISJOINT_sessions_separated_by_more_than_the_gap — 400 randomized file-sets (seed 20260905, 1-12 files per set, input order shuffled) assert b[0] > a[1] + gap for every consecutive pair, and assert that on the produced sessions max-by-end IS max-by-start and min-by-start IS min-by-end.",
-      "why": "`merge_sessions` starts a new session only when `st > sessions[-1][1] + gap_sec`, so its output is ordered by start AND strictly separated by more than the 300 s gap — sessions cannot overlap or touch. Under that invariant this mutation cannot move the partition: every earlier session ends more than a gap before `cur[0]` and every later one starts more than a gap after `cur[1]`, so neither the boundary form (`<`/`<=`, `>`/`>=`) nor which endpoint is compared can reclassify any session. Not a missing test — no night `merge_sessions` can produce distinguishes them."
-    },
-    {
-      "class": "no-distinguishing-input",
-      "key": "- before = [s for s in others if s[1] <= cur[0]] | + before = [s for s in others if s[1] <= cur[1]]",
-      "probe": "tests/test_nightqc.py::test_merge_sessions_always_yields_DISJOINT_sessions_separated_by_more_than_the_gap — 400 randomized file-sets (seed 20260905, 1-12 files per set, input order shuffled) assert b[0] > a[1] + gap for every consecutive pair, and assert that on the produced sessions max-by-end IS max-by-start and min-by-start IS min-by-end.",
-      "why": "`merge_sessions` starts a new session only when `st > sessions[-1][1] + gap_sec`, so its output is ordered by start AND strictly separated by more than the 300 s gap — sessions cannot overlap or touch. Under that invariant this mutation cannot move the partition: every earlier session ends more than a gap before `cur[0]` and every later one starts more than a gap after `cur[1]`, so neither the boundary form (`<`/`<=`, `>`/`>=`) nor which endpoint is compared can reclassify any session. Not a missing test — no night `merge_sessions` can produce distinguishes them."
-    },
-    {
-      "class": "no-distinguishing-input",
-      "key": "- after = [s for s in others if s[0] >= cur[1]] | + after = [s for s in others if s[1] >= cur[1]]",
-      "probe": "tests/test_nightqc.py::test_merge_sessions_always_yields_DISJOINT_sessions_separated_by_more_than_the_gap — 400 randomized file-sets (seed 20260905, 1-12 files per set, input order shuffled) assert b[0] > a[1] + gap for every consecutive pair, and assert that on the produced sessions max-by-end IS max-by-start and min-by-start IS min-by-end.",
-      "why": "`merge_sessions` starts a new session only when `st > sessions[-1][1] + gap_sec`, so its output is ordered by start AND strictly separated by more than the 300 s gap — sessions cannot overlap or touch. Under that invariant this mutation cannot move the partition: every earlier session ends more than a gap before `cur[0]` and every later one starts more than a gap after `cur[1]`, so neither the boundary form (`<`/`<=`, `>`/`>=`) nor which endpoint is compared can reclassify any session. Not a missing test — no night `merge_sessions` can produce distinguishes them."
-    },
-    {
-      "class": "no-distinguishing-input",
-      "key": "- after = [s for s in others if s[0] >= cur[1]] | + after = [s for s in others if s[0] > cur[1]]",
-      "probe": "tests/test_nightqc.py::test_merge_sessions_always_yields_DISJOINT_sessions_separated_by_more_than_the_gap — 400 randomized file-sets (seed 20260905, 1-12 files per set, input order shuffled) assert b[0] > a[1] + gap for every consecutive pair, and assert that on the produced sessions max-by-end IS max-by-start and min-by-start IS min-by-end.",
-      "why": "`merge_sessions` starts a new session only when `st > sessions[-1][1] + gap_sec`, so its output is ordered by start AND strictly separated by more than the 300 s gap — sessions cannot overlap or touch. Under that invariant this mutation cannot move the partition: every earlier session ends more than a gap before `cur[0]` and every later one starts more than a gap after `cur[1]`, so neither the boundary form (`<`/`<=`, `>`/`>=`) nor which endpoint is compared can reclassify any session. Not a missing test — no night `merge_sessions` can produce distinguishes them."
-    },
-    {
-      "class": "no-distinguishing-input",
-      "key": "- prev = max(before, key=lambda s: s[1]) | + prev = max(before, key=None)",
-      "probe": "tests/test_nightqc.py::test_merge_sessions_always_yields_DISJOINT_sessions_separated_by_more_than_the_gap — 400 randomized file-sets (seed 20260905, 1-12 files per set, input order shuffled) assert b[0] > a[1] + gap for every consecutive pair, and assert that on the produced sessions max-by-end IS max-by-start and min-by-start IS min-by-end.",
-      "why": "Same disjointness invariant, applied to the selection: with sessions ordered and strictly separated, the latest-ENDING session IS the latest-starting one and the earliest-starting IS the earliest-ending, so `key=s[1]`, `key=s[0]`, and natural tuple order all return the identical element. The probe asserts that identity directly (`is`, not `==`)."
-    },
-    {
-      "class": "no-distinguishing-input",
-      "key": "- prev = max(before, key=lambda s: s[1]) | + prev = max(before, )",
-      "probe": "tests/test_nightqc.py::test_merge_sessions_always_yields_DISJOINT_sessions_separated_by_more_than_the_gap — 400 randomized file-sets (seed 20260905, 1-12 files per set, input order shuffled) assert b[0] > a[1] + gap for every consecutive pair, and assert that on the produced sessions max-by-end IS max-by-start and min-by-start IS min-by-end.",
-      "why": "Same disjointness invariant, applied to the selection: with sessions ordered and strictly separated, the latest-ENDING session IS the latest-starting one and the earliest-starting IS the earliest-ending, so `key=s[1]`, `key=s[0]`, and natural tuple order all return the identical element. The probe asserts that identity directly (`is`, not `==`)."
-    },
-    {
-      "class": "no-distinguishing-input",
       "key": "- nxt = min(after, key=lambda s: s[0]) | + nxt = min(after, key=None)",
-      "probe": "tests/test_nightqc.py::test_merge_sessions_always_yields_DISJOINT_sessions_separated_by_more_than_the_gap — 400 randomized file-sets (seed 20260905, 1-12 files per set, input order shuffled) assert b[0] > a[1] + gap for every consecutive pair, and assert that on the produced sessions max-by-end IS max-by-start and min-by-start IS min-by-end.",
-      "why": "Same disjointness invariant, applied to the selection: with sessions ordered and strictly separated, the latest-ENDING session IS the latest-starting one and the earliest-starting IS the earliest-ending, so `key=s[1]`, `key=s[0]`, and natural tuple order all return the identical element. The probe asserts that identity directly (`is`, not `==`)."
+      "probe": "tests/test_nightqc.py::test_with_starts_supplied_sessions_stay_ORDERED_AND_DISJOINT_though_no_longer_gap_separated — 400 randomized file-sets WITH daemon starts (seed 20260926, mtimes long enough to straddle a seam) assert a[1] <= b[0] for every consecutive pair and that every file is placed exactly once.",
+      "why": "`merge_sessions` output is ordered by start and DISJOINT — since 2026-09-26 it may TOUCH or sit closer than `gap_sec`, because a recorded daemon start splits two runs however small the gap, so the old strictly-separated justification no longer holds. This claim needs only disjointness: two after-sessions cannot share a start (they would overlap), so the minimum by start is unique and keying on start, on the whole list, or on end all select it. The five claims that DID depend on strict separation were retired in the same change and are now killed by real tests."
     },
     {
       "class": "no-distinguishing-input",
       "key": "- nxt = min(after, key=lambda s: s[0]) | + nxt = min(after, )",
-      "probe": "tests/test_nightqc.py::test_merge_sessions_always_yields_DISJOINT_sessions_separated_by_more_than_the_gap — 400 randomized file-sets (seed 20260905, 1-12 files per set, input order shuffled) assert b[0] > a[1] + gap for every consecutive pair, and assert that on the produced sessions max-by-end IS max-by-start and min-by-start IS min-by-end.",
-      "why": "Same disjointness invariant, applied to the selection: with sessions ordered and strictly separated, the latest-ENDING session IS the latest-starting one and the earliest-starting IS the earliest-ending, so `key=s[1]`, `key=s[0]`, and natural tuple order all return the identical element. The probe asserts that identity directly (`is`, not `==`)."
+      "probe": "tests/test_nightqc.py::test_with_starts_supplied_sessions_stay_ORDERED_AND_DISJOINT_though_no_longer_gap_separated — 400 randomized file-sets WITH daemon starts (seed 20260926, mtimes long enough to straddle a seam) assert a[1] <= b[0] for every consecutive pair and that every file is placed exactly once.",
+      "why": "`merge_sessions` output is ordered by start and DISJOINT — since 2026-09-26 it may TOUCH or sit closer than `gap_sec`, because a recorded daemon start splits two runs however small the gap, so the old strictly-separated justification no longer holds. This claim needs only disjointness: two after-sessions cannot share a start (they would overlap), so the minimum by start is unique and keying on start, on the whole list, or on end all select it. The five claims that DID depend on strict separation were retired in the same change and are now killed by real tests."
     },
     {
       "class": "no-distinguishing-input",
       "key": "- nxt = min(after, key=lambda s: s[0]) | + nxt = min(after, key=lambda s: s[1])",
-      "probe": "tests/test_nightqc.py::test_merge_sessions_always_yields_DISJOINT_sessions_separated_by_more_than_the_gap — 400 randomized file-sets (seed 20260905, 1-12 files per set, input order shuffled) assert b[0] > a[1] + gap for every consecutive pair, and assert that on the produced sessions max-by-end IS max-by-start and min-by-start IS min-by-end.",
-      "why": "Same disjointness invariant, applied to the selection: with sessions ordered and strictly separated, the latest-ENDING session IS the latest-starting one and the earliest-starting IS the earliest-ending, so `key=s[1]`, `key=s[0]`, and natural tuple order all return the identical element. The probe asserts that identity directly (`is`, not `==`)."
+      "probe": "tests/test_nightqc.py::test_with_starts_supplied_sessions_stay_ORDERED_AND_DISJOINT_though_no_longer_gap_separated — 400 randomized file-sets WITH daemon starts (seed 20260926, mtimes long enough to straddle a seam) assert a[1] <= b[0] for every consecutive pair and that every file is placed exactly once.",
+      "why": "`merge_sessions` output is ordered by start and DISJOINT — since 2026-09-26 it may TOUCH or sit closer than `gap_sec`, because a recorded daemon start splits two runs however small the gap, so the old strictly-separated justification no longer holds. This claim needs only disjointness: two after-sessions cannot share a start (they would overlap), so the minimum by start is unique and keying on start, on the whole list, or on end all select it. The five claims that DID depend on strict separation were retired in the same change and are now killed by real tests."
     },
     {
       "class": "no-distinguishing-input",
@@ -4550,68 +4549,92 @@
   ],
   "solid_night_inputs.py": [
     {
-      "brief": "SOLID-NIGHT-2026-09-23 A3 (the residual pass, #3041/#3046)",
+      "brief": "SOLID-NIGHT-2026-09-23 (the seam split, #3095) — drained 2026-09-27",
       "class": "no-distinguishing-input",
-      "key": "- r0 = anchors[0][0] - anchors[0][1] | + r0 = anchors[0][0] + anchors[0][1]",
-      "op": "operand/sign substitution inside the residual construction",
-      "probe": "7 residual/origin variants × a 4-anchor geometry, comparing (spread, span) against the original: all byte-identical. Plus the 46-test suite, including constructed boundaries at exactly 3 anchors, spread 2.00 ms, span 1.000 s, modal share 0.670, ppm −50000.0, and a ppm rounding edge at −40000.48 — none distinguishes these.",
-      "why": "`r0`, the residual sign and the time ORIGIN are all CONSTANTS over the anchor set, and every consumer of `res` reads only DIFFERENCES: `spread = max − min`, `ppm` is a median-of-ends DIFFERENCE, and `span_s` is last − first. A constant added to every element cancels in all three, so no mutation of which constant is chosen (or of its sign) can reach a published value — spread, ppm and the band's status are the only published numbers and all three are shift-invariant by construction."
+      "key": "- r0 = seg[0][0] - seg[0][1] | + r0 = seg[1][0] - seg[0][1]",
+      "op": "index/origin substitution inside the per-segment residual construction",
+      "probe": "40,000 random segments at the SHIPPED magnitude (host `h` = `host.timestamp() * 1000.0` ≈ 1.79e12 floating wall-clock ms, device `d` drawn at 1e3 / 1e8 / 8.7e11 ms to cover a fresh-boot counter and a large arbitrary epoch), 3–60 anchors, drift 0 / ±60 / ±9e4 ppm, jitter σ 0.05 / 1 / 40 ms. Compared the function's OUTPUT — status and rendered reason — and, separately, the intermediates `spread`, `span_s` and `ppm`. Output identical in 40,000/40,000 for every entry here. THE MAGNITUDE IS THE POINT: float cancellation depends on the operand ratio, so the same probe sampled at ±1e6 reports exact equality where the shipped code drifts, and vice versa. Two SIBLING mutants of these same two lines did NOT survive this probe — `r0 = seg[0][0] + seg[0][1]` (1/40,000 rendered differences) and `(h - d) + r0` (21/40,000) — and are NOT excused here: they are killed by `test_the_residual_is_measured_about_THIS_segments_first_anchor_and_keeps_its_precision`.",
+      "why": "The first anchor of the SEGMENT defines both origins, and every consumer of `res` reads only DIFFERENCES: `spread` is max − min, `span_s` is last − first, `ppm` is a median-of-ends difference. A constant added to every element therefore cancels in all three, and re-indexing `seg[0]` to `seg[1]`, or re-origining onto the other member of the same anchor, IS such a constant. In IEEE754 it also stays exact: the re-origined operands sit within a factor of two of each other, so the subtraction is Sterbenz-exact — unlike the two sibling mutants that ADD two wall-clock-magnitude numbers and so carry the residual at ≈3.6e12 with a 4.9e-4 ms ULP. FALSIFY THIS by finding a consumer of `res` that reads an absolute value rather than a difference; there is none today."
     },
     {
-      "brief": "SOLID-NIGHT-2026-09-23 A3 (the residual pass, #3041/#3046)",
+      "brief": "SOLID-NIGHT-2026-09-23 (the seam split, #3095) — drained 2026-09-27",
       "class": "no-distinguishing-input",
-      "key": "- r0 = anchors[0][0] - anchors[0][1] | + r0 = anchors[1][0] - anchors[0][1]",
-      "op": "operand/sign substitution inside the residual construction",
-      "probe": "7 residual/origin variants × a 4-anchor geometry, comparing (spread, span) against the original: all byte-identical. Plus the 46-test suite, including constructed boundaries at exactly 3 anchors, spread 2.00 ms, span 1.000 s, modal share 0.670, ppm −50000.0, and a ppm rounding edge at −40000.48 — none distinguishes these.",
-      "why": "`r0`, the residual sign and the time ORIGIN are all CONSTANTS over the anchor set, and every consumer of `res` reads only DIFFERENCES: `spread = max − min`, `ppm` is a median-of-ends DIFFERENCE, and `span_s` is last − first. A constant added to every element cancels in all three, so no mutation of which constant is chosen (or of its sign) can reach a published value — spread, ppm and the band's status are the only published numbers and all three are shift-invariant by construction."
+      "key": "- r0 = seg[0][0] - seg[0][1] | + r0 = seg[0][1] - seg[0][1]",
+      "op": "index/origin substitution inside the per-segment residual construction",
+      "probe": "40,000 random segments at the SHIPPED magnitude (host `h` = `host.timestamp() * 1000.0` ≈ 1.79e12 floating wall-clock ms, device `d` drawn at 1e3 / 1e8 / 8.7e11 ms to cover a fresh-boot counter and a large arbitrary epoch), 3–60 anchors, drift 0 / ±60 / ±9e4 ppm, jitter σ 0.05 / 1 / 40 ms. Compared the function's OUTPUT — status and rendered reason — and, separately, the intermediates `spread`, `span_s` and `ppm`. Output identical in 40,000/40,000 for every entry here. THE MAGNITUDE IS THE POINT: float cancellation depends on the operand ratio, so the same probe sampled at ±1e6 reports exact equality where the shipped code drifts, and vice versa. Two SIBLING mutants of these same two lines did NOT survive this probe — `r0 = seg[0][0] + seg[0][1]` (1/40,000 rendered differences) and `(h - d) + r0` (21/40,000) — and are NOT excused here: they are killed by `test_the_residual_is_measured_about_THIS_segments_first_anchor_and_keeps_its_precision`.",
+      "why": "The first anchor of the SEGMENT defines both origins, and every consumer of `res` reads only DIFFERENCES: `spread` is max − min, `span_s` is last − first, `ppm` is a median-of-ends difference. A constant added to every element therefore cancels in all three, and re-indexing `seg[0]` to `seg[1]`, or re-origining onto the other member of the same anchor, IS such a constant. In IEEE754 it also stays exact: the re-origined operands sit within a factor of two of each other, so the subtraction is Sterbenz-exact — unlike the two sibling mutants that ADD two wall-clock-magnitude numbers and so carry the residual at ≈3.6e12 with a 4.9e-4 ms ULP. FALSIFY THIS by finding a consumer of `res` that reads an absolute value rather than a difference; there is none today."
     },
     {
-      "brief": "SOLID-NIGHT-2026-09-23 A3 (the residual pass, #3041/#3046)",
+      "brief": "SOLID-NIGHT-2026-09-23 (the seam split, #3095) — drained 2026-09-27",
       "class": "no-distinguishing-input",
-      "key": "- r0 = anchors[0][0] - anchors[0][1] | + r0 = anchors[0][1] - anchors[0][1]",
-      "op": "operand/sign substitution inside the residual construction",
-      "probe": "7 residual/origin variants × a 4-anchor geometry, comparing (spread, span) against the original: all byte-identical. Plus the 46-test suite, including constructed boundaries at exactly 3 anchors, spread 2.00 ms, span 1.000 s, modal share 0.670, ppm −50000.0, and a ppm rounding edge at −40000.48 — none distinguishes these.",
-      "why": "`r0`, the residual sign and the time ORIGIN are all CONSTANTS over the anchor set, and every consumer of `res` reads only DIFFERENCES: `spread = max − min`, `ppm` is a median-of-ends DIFFERENCE, and `span_s` is last − first. A constant added to every element cancels in all three, so no mutation of which constant is chosen (or of its sign) can reach a published value — spread, ppm and the band's status are the only published numbers and all three are shift-invariant by construction."
+      "key": "- r0 = seg[0][0] - seg[0][1] | + r0 = seg[0][0] - seg[1][1]",
+      "op": "index/origin substitution inside the per-segment residual construction",
+      "probe": "40,000 random segments at the SHIPPED magnitude (host `h` = `host.timestamp() * 1000.0` ≈ 1.79e12 floating wall-clock ms, device `d` drawn at 1e3 / 1e8 / 8.7e11 ms to cover a fresh-boot counter and a large arbitrary epoch), 3–60 anchors, drift 0 / ±60 / ±9e4 ppm, jitter σ 0.05 / 1 / 40 ms. Compared the function's OUTPUT — status and rendered reason — and, separately, the intermediates `spread`, `span_s` and `ppm`. Output identical in 40,000/40,000 for every entry here. THE MAGNITUDE IS THE POINT: float cancellation depends on the operand ratio, so the same probe sampled at ±1e6 reports exact equality where the shipped code drifts, and vice versa. Two SIBLING mutants of these same two lines did NOT survive this probe — `r0 = seg[0][0] + seg[0][1]` (1/40,000 rendered differences) and `(h - d) + r0` (21/40,000) — and are NOT excused here: they are killed by `test_the_residual_is_measured_about_THIS_segments_first_anchor_and_keeps_its_precision`.",
+      "why": "The first anchor of the SEGMENT defines both origins, and every consumer of `res` reads only DIFFERENCES: `spread` is max − min, `span_s` is last − first, `ppm` is a median-of-ends difference. A constant added to every element therefore cancels in all three, and re-indexing `seg[0]` to `seg[1]`, or re-origining onto the other member of the same anchor, IS such a constant. In IEEE754 it also stays exact: the re-origined operands sit within a factor of two of each other, so the subtraction is Sterbenz-exact — unlike the two sibling mutants that ADD two wall-clock-magnitude numbers and so carry the residual at ≈3.6e12 with a 4.9e-4 ms ULP. FALSIFY THIS by finding a consumer of `res` that reads an absolute value rather than a difference; there is none today."
     },
     {
-      "brief": "SOLID-NIGHT-2026-09-23 A3 (the residual pass, #3041/#3046)",
+      "brief": "SOLID-NIGHT-2026-09-23 (the seam split, #3095) — drained 2026-09-27",
       "class": "no-distinguishing-input",
-      "key": "- r0 = anchors[0][0] - anchors[0][1] | + r0 = anchors[0][0] - anchors[1][1]",
-      "op": "operand/sign substitution inside the residual construction",
-      "probe": "7 residual/origin variants × a 4-anchor geometry, comparing (spread, span) against the original: all byte-identical. Plus the 46-test suite, including constructed boundaries at exactly 3 anchors, spread 2.00 ms, span 1.000 s, modal share 0.670, ppm −50000.0, and a ppm rounding edge at −40000.48 — none distinguishes these.",
-      "why": "`r0`, the residual sign and the time ORIGIN are all CONSTANTS over the anchor set, and every consumer of `res` reads only DIFFERENCES: `spread = max − min`, `ppm` is a median-of-ends DIFFERENCE, and `span_s` is last − first. A constant added to every element cancels in all three, so no mutation of which constant is chosen (or of its sign) can reach a published value — spread, ppm and the band's status are the only published numbers and all three are shift-invariant by construction."
+      "key": "- res = [((h - seg[0][0]) / 1000.0, (h - d) - r0) for h, d in seg] | + res = [((h + seg[0][0]) / 1000.0, (h - d) - r0) for h, d in seg]",
+      "op": "index/origin substitution inside the per-segment residual construction",
+      "probe": "40,000 random segments at the SHIPPED magnitude (host `h` = `host.timestamp() * 1000.0` ≈ 1.79e12 floating wall-clock ms, device `d` drawn at 1e3 / 1e8 / 8.7e11 ms to cover a fresh-boot counter and a large arbitrary epoch), 3–60 anchors, drift 0 / ±60 / ±9e4 ppm, jitter σ 0.05 / 1 / 40 ms. Compared the function's OUTPUT — status and rendered reason — and, separately, the intermediates `spread`, `span_s` and `ppm`. Output identical in 40,000/40,000 for every entry here. THE MAGNITUDE IS THE POINT: float cancellation depends on the operand ratio, so the same probe sampled at ±1e6 reports exact equality where the shipped code drifts, and vice versa. Two SIBLING mutants of these same two lines did NOT survive this probe — `r0 = seg[0][0] + seg[0][1]` (1/40,000 rendered differences) and `(h - d) + r0` (21/40,000) — and are NOT excused here: they are killed by `test_the_residual_is_measured_about_THIS_segments_first_anchor_and_keeps_its_precision`.",
+      "why": "The first anchor of the SEGMENT defines both origins, and every consumer of `res` reads only DIFFERENCES: `spread` is max − min, `span_s` is last − first, `ppm` is a median-of-ends difference. A constant added to every element therefore cancels in all three, and re-indexing `seg[0]` to `seg[1]`, or re-origining onto the other member of the same anchor, IS such a constant. In IEEE754 it also stays exact: the re-origined operands sit within a factor of two of each other, so the subtraction is Sterbenz-exact — unlike the two sibling mutants that ADD two wall-clock-magnitude numbers and so carry the residual at ≈3.6e12 with a 4.9e-4 ms ULP. FALSIFY THIS by finding a consumer of `res` that reads an absolute value rather than a difference; there is none today."
     },
     {
-      "brief": "SOLID-NIGHT-2026-09-23 A3 (the residual pass, #3041/#3046)",
+      "brief": "SOLID-NIGHT-2026-09-23 (the seam split, #3095) — drained 2026-09-27",
       "class": "no-distinguishing-input",
-      "key": "- res = [((h - anchors[0][0]) / 1000.0, (h - d) - r0) for h, d in anchors] | + res = [((h + anchors[0][0]) / 1000.0, (h - d) - r0) for h, d in anchors]",
-      "op": "operand/sign substitution inside the residual construction",
-      "probe": "7 residual/origin variants × a 4-anchor geometry, comparing (spread, span) against the original: all byte-identical. Plus the 46-test suite, including constructed boundaries at exactly 3 anchors, spread 2.00 ms, span 1.000 s, modal share 0.670, ppm −50000.0, and a ppm rounding edge at −40000.48 — none distinguishes these.",
-      "why": "`r0`, the residual sign and the time ORIGIN are all CONSTANTS over the anchor set, and every consumer of `res` reads only DIFFERENCES: `spread = max − min`, `ppm` is a median-of-ends DIFFERENCE, and `span_s` is last − first. A constant added to every element cancels in all three, so no mutation of which constant is chosen (or of its sign) can reach a published value — spread, ppm and the band's status are the only published numbers and all three are shift-invariant by construction."
+      "key": "- res = [((h - seg[0][0]) / 1000.0, (h - d) - r0) for h, d in seg] | + res = [((h - seg[1][0]) / 1000.0, (h - d) - r0) for h, d in seg]",
+      "op": "index/origin substitution inside the per-segment residual construction",
+      "probe": "40,000 random segments at the SHIPPED magnitude (host `h` = `host.timestamp() * 1000.0` ≈ 1.79e12 floating wall-clock ms, device `d` drawn at 1e3 / 1e8 / 8.7e11 ms to cover a fresh-boot counter and a large arbitrary epoch), 3–60 anchors, drift 0 / ±60 / ±9e4 ppm, jitter σ 0.05 / 1 / 40 ms. Compared the function's OUTPUT — status and rendered reason — and, separately, the intermediates `spread`, `span_s` and `ppm`. Output identical in 40,000/40,000 for every entry here. THE MAGNITUDE IS THE POINT: float cancellation depends on the operand ratio, so the same probe sampled at ±1e6 reports exact equality where the shipped code drifts, and vice versa. Two SIBLING mutants of these same two lines did NOT survive this probe — `r0 = seg[0][0] + seg[0][1]` (1/40,000 rendered differences) and `(h - d) + r0` (21/40,000) — and are NOT excused here: they are killed by `test_the_residual_is_measured_about_THIS_segments_first_anchor_and_keeps_its_precision`.",
+      "why": "The first anchor of the SEGMENT defines both origins, and every consumer of `res` reads only DIFFERENCES: `spread` is max − min, `span_s` is last − first, `ppm` is a median-of-ends difference. A constant added to every element therefore cancels in all three, and re-indexing `seg[0]` to `seg[1]`, or re-origining onto the other member of the same anchor, IS such a constant. In IEEE754 it also stays exact: the re-origined operands sit within a factor of two of each other, so the subtraction is Sterbenz-exact — unlike the two sibling mutants that ADD two wall-clock-magnitude numbers and so carry the residual at ≈3.6e12 with a 4.9e-4 ms ULP. FALSIFY THIS by finding a consumer of `res` that reads an absolute value rather than a difference; there is none today."
     },
     {
-      "brief": "SOLID-NIGHT-2026-09-23 A3 (the residual pass, #3041/#3046)",
+      "brief": "SOLID-NIGHT-2026-09-23 (the seam split, #3095) — drained 2026-09-27",
       "class": "no-distinguishing-input",
-      "key": "- res = [((h - anchors[0][0]) / 1000.0, (h - d) - r0) for h, d in anchors] | + res = [((h - anchors[1][0]) / 1000.0, (h - d) - r0) for h, d in anchors]",
-      "op": "operand/sign substitution inside the residual construction",
-      "probe": "7 residual/origin variants × a 4-anchor geometry, comparing (spread, span) against the original: all byte-identical. Plus the 46-test suite, including constructed boundaries at exactly 3 anchors, spread 2.00 ms, span 1.000 s, modal share 0.670, ppm −50000.0, and a ppm rounding edge at −40000.48 — none distinguishes these.",
-      "why": "`r0`, the residual sign and the time ORIGIN are all CONSTANTS over the anchor set, and every consumer of `res` reads only DIFFERENCES: `spread = max − min`, `ppm` is a median-of-ends DIFFERENCE, and `span_s` is last − first. A constant added to every element cancels in all three, so no mutation of which constant is chosen (or of its sign) can reach a published value — spread, ppm and the band's status are the only published numbers and all three are shift-invariant by construction."
+      "key": "- res = [((h - seg[0][0]) / 1000.0, (h - d) - r0) for h, d in seg] | + res = [((h - seg[0][1]) / 1000.0, (h - d) - r0) for h, d in seg]",
+      "op": "index/origin substitution inside the per-segment residual construction",
+      "probe": "40,000 random segments at the SHIPPED magnitude (host `h` = `host.timestamp() * 1000.0` ≈ 1.79e12 floating wall-clock ms, device `d` drawn at 1e3 / 1e8 / 8.7e11 ms to cover a fresh-boot counter and a large arbitrary epoch), 3–60 anchors, drift 0 / ±60 / ±9e4 ppm, jitter σ 0.05 / 1 / 40 ms. Compared the function's OUTPUT — status and rendered reason — and, separately, the intermediates `spread`, `span_s` and `ppm`. Output identical in 40,000/40,000 for every entry here. THE MAGNITUDE IS THE POINT: float cancellation depends on the operand ratio, so the same probe sampled at ±1e6 reports exact equality where the shipped code drifts, and vice versa. Two SIBLING mutants of these same two lines did NOT survive this probe — `r0 = seg[0][0] + seg[0][1]` (1/40,000 rendered differences) and `(h - d) + r0` (21/40,000) — and are NOT excused here: they are killed by `test_the_residual_is_measured_about_THIS_segments_first_anchor_and_keeps_its_precision`.",
+      "why": "The first anchor of the SEGMENT defines both origins, and every consumer of `res` reads only DIFFERENCES: `spread` is max − min, `span_s` is last − first, `ppm` is a median-of-ends difference. A constant added to every element therefore cancels in all three, and re-indexing `seg[0]` to `seg[1]`, or re-origining onto the other member of the same anchor, IS such a constant. In IEEE754 it also stays exact: the re-origined operands sit within a factor of two of each other, so the subtraction is Sterbenz-exact — unlike the two sibling mutants that ADD two wall-clock-magnitude numbers and so carry the residual at ≈3.6e12 with a 4.9e-4 ms ULP. FALSIFY THIS by finding a consumer of `res` that reads an absolute value rather than a difference; there is none today."
     },
     {
-      "brief": "SOLID-NIGHT-2026-09-23 A3 (the residual pass, #3041/#3046)",
+      "brief": "SOLID-NIGHT-2026-09-23 (the seam split, #3095) — drained 2026-09-27",
       "class": "no-distinguishing-input",
-      "key": "- res = [((h - anchors[0][0]) / 1000.0, (h - d) - r0) for h, d in anchors] | + res = [((h - anchors[0][1]) / 1000.0, (h - d) - r0) for h, d in anchors]",
-      "op": "operand/sign substitution inside the residual construction",
-      "probe": "7 residual/origin variants × a 4-anchor geometry, comparing (spread, span) against the original: all byte-identical. Plus the 46-test suite, including constructed boundaries at exactly 3 anchors, spread 2.00 ms, span 1.000 s, modal share 0.670, ppm −50000.0, and a ppm rounding edge at −40000.48 — none distinguishes these.",
-      "why": "`r0`, the residual sign and the time ORIGIN are all CONSTANTS over the anchor set, and every consumer of `res` reads only DIFFERENCES: `spread = max − min`, `ppm` is a median-of-ends DIFFERENCE, and `span_s` is last − first. A constant added to every element cancels in all three, so no mutation of which constant is chosen (or of its sign) can reach a published value — spread, ppm and the band's status are the only published numbers and all three are shift-invariant by construction."
+      "key": "- rank = {\"FAIL\": 2, \"UNKNOWN\": 1, \"PASS\": 0} | + rank = {\"FAIL\": 3, \"UNKNOWN\": 1, \"PASS\": 0}",
+      "op": "numeric substitution in the segment-severity map",
+      "probe": "`tools/probe_rank` (recorded in the PR): read `timebase`'s AST — `out` is assigned 5x, every one a `_decision(<literal>, …)`, and the literals are exactly {FAIL, UNKNOWN}. `rank` has exactly two uses, `rank[out['status']]` and `rank[worst_out['status']]`. Then exhausted all 4 ordered pairs over the reachable statuses for every single-value edit of the map: FAIL 2→3 and PASS 0→anything are IDENTICAL; FAIL 2→0, 2→1, 2→-1 and UNKNOWN 1→2, 1→3 all DIFFER and are killed by `test_the_WORST_segment_decides_and_an_UNKNOWN_one_FIRST_does_not_win`.",
+      "why": "The map is consumed by ONE expression, `rank[a] > rank[b]`, so only the ORDER of its values is observable. 3 > 1 > 0 orders the reachable statuses exactly as 2 > 1 > 0 does. FALSIFY THIS by making `rank` decide anything other than a strict comparison — a subtraction, a sort key with a magnitude, a value put into a reason string."
     },
     {
-      "brief": "SOLID-NIGHT-2026-09-23 A3 (the residual pass, #3041/#3046)",
+      "brief": "SOLID-NIGHT-2026-09-23 (the seam split, #3095) — drained 2026-09-27",
+      "class": "untestable-by-design",
+      "key": "- rank = {\"FAIL\": 2, \"UNKNOWN\": 1, \"PASS\": 0} | + rank = {\"FAIL\": 2, \"UNKNOWN\": 1, \"PASS\": 1}",
+      "op": "numeric substitution in the segment-severity map",
+      "probe": "`tools/probe_rank` (recorded in the PR): read `timebase`'s AST — `out` is assigned 5x, every one a `_decision(<literal>, …)`, and the literals are exactly {FAIL, UNKNOWN}. `rank` has exactly two uses, `rank[out['status']]` and `rank[worst_out['status']]`. Then exhausted all 4 ordered pairs over the reachable statuses for every single-value edit of the map: FAIL 2→3 and PASS 0→anything are IDENTICAL; FAIL 2→0, 2→1, 2→-1 and UNKNOWN 1→2, 1→3 all DIFFER and are killed by `test_the_WORST_segment_decides_and_an_UNKNOWN_one_FIRST_does_not_win`.",
+      "why": "`rank[\"PASS\"]` is never looked up: `timebase` emits UNKNOWN or FAIL and nothing else, so no input reaches this entry. It is kept in the map because a segment CAN pass once §A5's tripwire is built (the closing note in `timebase`), and a map missing the key would then raise instead of ranking. FALSIFY THIS the day any `_decision(\"PASS\", …)` appears in `timebase` — then this entry becomes reachable and must be killed, not excused."
+    },
+    {
+      "brief": "SOLID-NIGHT-2026-09-23 (the seam split, #3095) — drained 2026-09-27",
       "class": "no-distinguishing-input",
-      "key": "- res = [((h - anchors[0][0]) / 1000.0, (h - d) - r0) for h, d in anchors] | + res = [((h - anchors[0][0]) / 1000.0, (h - d) + r0) for h, d in anchors]",
-      "op": "operand/sign substitution inside the residual construction",
-      "probe": "7 residual/origin variants × a 4-anchor geometry, comparing (spread, span) against the original: all byte-identical. Plus the 46-test suite, including constructed boundaries at exactly 3 anchors, spread 2.00 ms, span 1.000 s, modal share 0.670, ppm −50000.0, and a ppm rounding edge at −40000.48 — none distinguishes these.",
-      "why": "`r0`, the residual sign and the time ORIGIN are all CONSTANTS over the anchor set, and every consumer of `res` reads only DIFFERENCES: `spread = max − min`, `ppm` is a median-of-ends DIFFERENCE, and `span_s` is last − first. A constant added to every element cancels in all three, so no mutation of which constant is chosen (or of its sign) can reach a published value — spread, ppm and the band's status are the only published numbers and all three are shift-invariant by construction."
+      "key": "- if line.startswith(\"#\") or line.startswith(\"phone_ts\"): | + if line.startswith(\"#\") and line.startswith(\"phone_ts\"):",
+      "op": "boolean operator substitution in the header guard",
+      "probe": "16,547 file-realisable sidecar line shapes: the cross product of 10 stamp spellings (ISO with and without ms, basic-format, space-separated, out-of-interval, zoned, `#`-prefixed, empty, junk) × 11 step spellings (including `nan`, `inf`, empty, whitespace- and `\\r`-padded) × 8 line tails × 5 cell counts (1,2,3,4,7), plus 7 prefixes and 20,000 random lines over the alphabet the format uses. Filtered to lines a file iterator can actually yield (no INTERIOR newline — an unfiltered battery reports `lstrip` as distinguishable on a line no file can produce). Compared the full parsed seam list; identical for all three. Comparison is by `repr`, because `nan` is a legal parse and `nan != nan`.",
+      "why": "The guard is a FAST PATH whose rejections the parser repeats: a line starting with `#` or with `phone_ts` cannot have `fromisoformat(cells[0])` succeed, so the `try` below rejects it by the same `continue`. `and` makes the guard never fire (no line starts with both) and changes nothing. FALSIFY THIS by making the guard protect something the parser does NOT repeat — counting skipped rows, or accepting a stamp form that can begin with `#`."
+    },
+    {
+      "brief": "SOLID-NIGHT-2026-09-23 (the seam split, #3095) — drained 2026-09-27",
+      "class": "no-distinguishing-input",
+      "key": "- cells = line.rstrip(\"\\n\").split(\";\") | + cells = line.rstrip(None).split(\";\")",
+      "op": "argument substitution in the line terminator strip",
+      "probe": "16,547 file-realisable sidecar line shapes: the cross product of 10 stamp spellings (ISO with and without ms, basic-format, space-separated, out-of-interval, zoned, `#`-prefixed, empty, junk) × 11 step spellings (including `nan`, `inf`, empty, whitespace- and `\\r`-padded) × 8 line tails × 5 cell counts (1,2,3,4,7), plus 7 prefixes and 20,000 random lines over the alphabet the format uses. Filtered to lines a file iterator can actually yield (no INTERIOR newline — an unfiltered battery reports `lstrip` as distinguishable on a line no file can produce). Compared the full parsed seam list; identical for all three. Comparison is by `repr`, because `nan` is a legal parse and `nan != nan`.",
+      "why": "Only three cells are read — `cells[0]` through `fromisoformat` and `cells[2]` through `float` — and neither is a TRAILING cell except on a minimal 3-cell row, where `float` already strips whitespace itself. Stripping more trailing whitespace therefore cannot change `len(cells)` (whitespace is not `;`) nor either parse. FALSIFY THIS by reading a trailing cell whose value is whitespace-sensitive."
+    },
+    {
+      "brief": "SOLID-NIGHT-2026-09-23 (the seam split, #3095) — drained 2026-09-27",
+      "class": "no-distinguishing-input",
+      "key": "- cells = line.rstrip(\"\\n\").split(\";\") | + cells = line.lstrip(\"\\n\").split(\";\")",
+      "op": "method substitution in the line terminator strip",
+      "probe": "16,547 file-realisable sidecar line shapes: the cross product of 10 stamp spellings (ISO with and without ms, basic-format, space-separated, out-of-interval, zoned, `#`-prefixed, empty, junk) × 11 step spellings (including `nan`, `inf`, empty, whitespace- and `\\r`-padded) × 8 line tails × 5 cell counts (1,2,3,4,7), plus 7 prefixes and 20,000 random lines over the alphabet the format uses. Filtered to lines a file iterator can actually yield (no INTERIOR newline — an unfiltered battery reports `lstrip` as distinguishable on a line no file can produce). Compared the full parsed seam list; identical for all three. Comparison is by `repr`, because `nan` is a legal parse and `nan != nan`.",
+      "why": "A line from `for line in fh` never BEGINS with `\\n` unless it is the blank line `\"\\n\"`, which both forms reduce to a single empty cell and skip. Left-stripping therefore leaves the trailing `\\n` on the last cell — read only on a 3-cell row, where `float(\"244.0\\n\")` parses exactly as `float(\"244.0\")`. FALSIFY THIS by reading the last cell as a string rather than a float."
     },
     {
       "brief": "SOLID-NIGHT-2026-09-23 A3 (the residual pass, #3041/#3046)",
@@ -4628,6 +4651,58 @@
       "op": "operand/sign substitution inside the residual construction",
       "probe": "7 residual/origin variants × a 4-anchor geometry, comparing (spread, span) against the original: all byte-identical. Plus the 46-test suite, including constructed boundaries at exactly 3 anchors, spread 2.00 ms, span 1.000 s, modal share 0.670, ppm −50000.0, and a ppm rounding edge at −40000.48 — none distinguishes these.",
       "why": "`res[0][0]` and `res[0][1]` are both IDENTICALLY 0 — the first anchor defines both origins — so the mutated term is the literal 0 and `x + 0` is `x − 0`. An arithmetic identity, not a test gap."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- prev_r: float | None = None | + prev_r: float | None = \"\"",
+      "probe": "`prev_r` is read at exactly one place: `if prev_r is None or r != prev_r or (host - last_at)... >= TB_FLOOR_S`. On the first row the original takes the `is None` arm; the mutant takes `r != \"\"`, which is true for every float, so BOTH append the anchor. Line 461 then assigns a float, so the sentinel is never seen again and its type never reaches arithmetic. Probed 2026-09-27: the mutant applied by hand leaves test_solid_night_inputs + test_nights_index at 102 passed."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- last_at = _dt.datetime.min | + last_at = None",
+      "probe": "`last_at` is read only inside the THIRD arm of `if prev_r is None or r != prev_r or (host - last_at).total_seconds() >= TB_FLOOR_S`, and Python short-circuits. Reaching the subtraction requires `prev_r is not None` AND `r == prev_r`, which requires line 461 to have run — and 461 assigns `prev_r, last_at = r, host` TOGETHER. So `None` can never reach `host - last_at`: the only rows that evaluate it are rows where last_at already holds a datetime. Probed 2026-09-27: 102 passed under the mutant. Not a claim that datetime.min is idle — it is the value the FIRST comparison would use if the short-circuit ever changed, which is why the original keeps it."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- if c > top: | + if c >= top:",
+      "probe": "`top` is a running MAXIMUM over the delta tally and the body is `top = c`. On a tie the assignment stores the value already held, so the two forms differ only in whether a redundant store happens; no reachable state and no output can distinguish them, and `top` is read once at the end for `top / total`. Probed 2026-09-27: 102 passed under the mutant."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- cols = header.rstrip(\"\\n\").split(\";\") | + cols = header.lstrip(\"\\n\").split(\";\")",
+      "probe": "`header` comes from `fh.readline()`, which returns the bytes up to AND INCLUDING the first newline. A string it can return therefore has a newline at most at the END, never at the start with content after it: a file beginning with a blank line yields exactly \"\\n\", where rstrip and lstrip both give \"\". So the two differ only on inputs readline cannot produce. The trailing-newline case that DOES matter is pinned by test_the_header_is_stripped_of_its_NEWLINE_and_nothing_else, which kills the rstrip(None) sibling. Probed 2026-09-27: 102 passed under the mutant."
+    }
+  ],
+  "nights_index.py": [
+    {
+      "class": "no-distinguishing-input",
+      "key": "- tree = i if tree is None else tree | + tree = i if (tree is None) or True else tree",
+      "probe": "tests/test_nights_index.py::test_node_patterns_have_at_most_one_alternative_and_it_is_last asserts that shape for every node, so the equivalence stops holding — and this entry is refuted — the day a node gains an alternative that is not last.",
+      "why": "A PROOF over the current NODES table: `tree` records a node's alternative-pattern index. Every node has at most one alternative pattern and it is its LAST, so 'the first alternative seen' (the original) and 'the last pattern's index' (the mutant, which reassigns on every pattern) are the same index; plain globs return index None on both paths before it."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- stats: dict | None = None | + stats: dict | None = \"\"",
+      "probe": "read every use of `stats` in night_entry: three reads, all guarded by `if stats`; ran tests/test_nights_index.py with the mutant applied (local mutate_diff run on PR #3150) — it survives because nothing can observe it.",
+      "why": "`stats` is read only through `stats[...] if stats else None`; None and \"\" are both falsy, and when a primary exists `stats` is reassigned before any read. No input distinguishes the two initial values."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- prims = _expand_alt(root, night_dir, primary, tree)[0] if primary else [] | + prims = _expand_alt(root, night_dir, primary, tree)[0] if (primary) or True else []",
+      "probe": "tests/test_nights_index.py::test_every_node_with_inputs_names_a_primary asserts it for every node; the entry is refuted the day a node with inputs has no primary.",
+      "why": "A node whose patterns are empty has no files and `continue`s before this line; every node WITH patterns names a primary, so `primary` is always truthy here and `or True` changes nothing."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- out[tool] = all(_expand(root, night_dir, p) for p in required) | + out[tool] = all(_expand(None, night_dir, p) for p in required)",
+      "probe": "tests/test_nights_index.py::test_arrival_and_derived_globs_are_root_free asserts no DERIVED pattern contains '/'; `_expand`'s `base = root if \"/\" in pattern else night_dir` is the only use of root.",
+      "why": "`_expand` uses `root` only for a pattern containing '/' (the CPAP trees are keyed under the captures root); every DERIVED requirement is a root-free glob, so the root passed cannot be observed."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- out[\"arrival\"] = sorted(os.path.relpath(f, root) for p in ARRIVAL for f in _expand(root, night_dir, p)) | + out[\"arrival\"] = sorted(os.path.relpath(f, root) for p in ARRIVAL for f in _expand(None, night_dir, p))",
+      "probe": "tests/test_nights_index.py::test_arrival_and_derived_globs_are_root_free asserts no ARRIVAL pattern contains '/'; test_the_arrival_sidecars_of_both_polar_devices_are_listed_and_the_ring_s_is_not pins the listed paths.",
+      "why": "Same mechanism as the DERIVED line: ARRIVAL's two globs are root-free, so `_expand` never reads `root` for them; `root` still reaches the output through `os.path.relpath(f, root)`, which the mutant does not touch."
     }
   ]
 }

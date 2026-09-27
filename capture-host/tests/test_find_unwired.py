@@ -78,6 +78,7 @@ def test_it_finds_the_class_it_was_written_for():
 # and reaches the alternate paths the real tree never takes, because in the real tree every consumer
 # module exists and capture.py is always present.
 
+
 def _tree(tmp_path, files: dict):
     for name, body in files.items():
         (tmp_path / name).write_text(body, encoding="utf-8")
@@ -370,13 +371,6 @@ def test_staleness_is_judged_ONLY_against_the_population_the_scan_ENUMERATED(tmp
 # but its own test file and appeared NOWHERE in this report. Two masks operated at once, which is why
 # neither the function scan nor a reader caught it: `merge()` calls its own helpers (so the leaves
 # had uses>defs), and `merge` is a generic word occurring in three unrelated modules (so did the root).
-def _tree(tmp_path, files: dict):
-    for name, text in files.items():
-        p = tmp_path / name
-        p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(text)
-    return str(tmp_path)
-
 
 def test_A_MODULE_NOTHING_IMPORTS_IS_FLAGGED_HOWEVER_COHESIVE_IT_IS():
     """The exact shape that hid: internal calls make every leaf look used.
@@ -869,3 +863,44 @@ def test_the_where_list_excludes_the_defining_file_and_is_empty_for_other_lists(
     assert stale[("ALLOW_FUNCS", "prune")]["where"] == ["other.py"]
     assert ("ALLOW_KEYS", "wired_key") in stale, "the control entry was not judged spent — the assertion below would be vacuous"
     assert stale[("ALLOW_KEYS", "wired_key")]["where"] == []
+
+
+# ── the interpreter floor (residue 2026-09-25-find-unwired-verdict-depends-on-the-interpreter-version)
+def test_the_floor_is_PEP_701_and_the_helper_is_pure():
+    """3.11 tokenizes an f-string as ONE STRING token, so `_code_only` strips a call made inside one and
+    the function reads as an orphan; 3.12+ tokenizes the `{…}` parts as code. The helper is pure so
+    both sides of the floor are exercised whatever interpreter runs the suite."""
+    assert find_unwired.PY_FLOOR == (3, 12)
+    assert find_unwired.interpreter_floor_reason((3, 12, 0, "final", 0)) is None
+    assert find_unwired.interpreter_floor_reason((3, 13, 11, "final", 0)) is None
+    why = find_unwired.interpreter_floor_reason((3, 11, 15, "final", 0))
+    assert why and "3.11" in why and "3.12" in why and "f-string" in why, why
+
+
+def test_main_REFUSES_below_the_floor_with_exit_2_and_never_scans(monkeypatch, capsys):
+    """A refusal, not a verdict: exit 2 (the tree-wide 'could not examine' code, distinct from --check's
+    1), the reason printed, and `scan()` never reached — in EVERY mode, because a `--json` dump from a
+    blind tokenizer is as wrong as a gate verdict from one."""
+    monkeypatch.setattr(find_unwired, "interpreter_floor_reason", lambda vi: "too old (planted reason)")
+
+    def must_not_scan(*a, **k):
+        raise AssertionError("scan() ran under a refused interpreter")
+
+    monkeypatch.setattr(find_unwired, "scan", must_not_scan)
+    for argv in ([], ["--json"], ["--check"]):
+        assert find_unwired.main(argv) == 2, argv
+        assert "REFUSING" in capsys.readouterr().out, argv
+
+
+def test_main_passes_the_REAL_version_to_the_floor_check(monkeypatch):
+    """The guard reads `sys.version_info`, not a constant: patch the helper to record what it was
+    handed and assert it is the running interpreter's tuple (the seam a stub could otherwise hide)."""
+    seen = []
+
+    def record(vi):
+        seen.append(tuple(vi[:2]))
+        return "refuse"
+
+    monkeypatch.setattr(find_unwired, "interpreter_floor_reason", record)
+    assert find_unwired.main([]) == 2
+    assert seen == [tuple(sys.version_info[:2])]

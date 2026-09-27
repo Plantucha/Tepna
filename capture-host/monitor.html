@@ -1054,6 +1054,14 @@ function streamState(s, dev){
   if(dev && dev.worn === false)       return {cls:'warn', txt:'not worn', trust:false, why:'Linked, but the sensor reports no skin/finger contact — whatever is streaming is not a reading of the wearer.'};
   if(s.health === 'stall')            return {cls:'warn', txt:'no data',  trust:false, why:'Linked, but no samples are arriving. The link is up and the stream is started — the sensor is simply not sending.'};
   if(s.health === 'weak')             return {cls:'warn', txt:'weak',     trust:true,  why:'Arriving well below the negotiated rate — samples are being dropped, but what arrives is real.'};
+  // INTERMITTENT IS A HEALTHY STATE, so the pill stays GREEN and the word says what kind of live it is.
+  // Not amber: nothing is at fault. The ring genuinely withholds this frame type — measured 2026-09-26
+  // 23:00→05:00, 1204 of 6762 gaps over 6 s, ~200 an hour, while every sibling on the same link kept
+  // arriving through all of them — so a card that alternated LIVE/NO DATA was describing the 6 s window,
+  // not the stream. `healthWhy` comes from the bus with the stream's own pre-stated figure in it; the
+  // fallback text carries no number, because inventing one here is what the bus field exists to avoid.
+  if(s.health === 'intermittent')     return {cls:'live', txt:'intermittent', trust:true,
+                                              why: s.healthWhy || 'Arrives in bursts by design — gaps between frames are normal for this stream.'};
   return {cls:'live', txt:'live', trust:true, why:'Delivering samples at the expected rate.'};
 }
 
@@ -1259,11 +1267,11 @@ function stSyncFields(){
 // opens the analyzer with the night's files loaded — see openNight below for how, and for why it
 // needs the monitor to be served from the same origin as the apps (vigil.local through Caddy).
 const NIGHT_COLS = ["ECGDex","OxyDex","PPGDex","PulseDex","CPAPDex","MotionDex","GlucoDex","HRVDex","EEGDex","Integrator"];
-const NIGHT_DERIVED = ["3 corner hat","PAT"];
+const NIGHT_DERIVED = ["3 corner hat","PAT","PAT fused"];
 const NIGHT_CAPTURE_ORDER = ["ECGDex","HRVDex","PulseDex","PPGDex","MotionDex","OxyDex","CPAPDex","GlucoDex","EEGDex","Integrator"];
 const NIGHT_APP = {ECGDex:"ECGDex.html", OxyDex:"OxyDex.html", PPGDex:"PpgDex.html", PulseDex:"PulseDex.html", CPAPDex:"CPAPDex.html",
   MotionDex:"MotionDex.html", GlucoDex:"GlucoDex.html", HRVDex:"HRVDex.html", EEGDex:"EEGDex.html", Integrator:"Integrator.html",
-  "3 corner hat":"sensor-trio-night.html", PAT:"PAT Feasibility.html"};
+  "3 corner hat":"sensor-trio-night.html", PAT:"PAT Feasibility.html", "PAT fused":"PAT Classic vs Fused.html"};
 // Which file input in each app takes which files. ECGDex splits its inputs by stream; every other app
 // takes everything through one `multiple` input.
 // Every loadable node names the input its night goes to. A node without a route REFUSES rather than
@@ -1273,13 +1281,13 @@ const NIGHT_APP = {ECGDex:"ECGDex.html", OxyDex:"OxyDex.html", PPGDex:"PpgDex.ht
 // against the app's own source, so an app renaming its input reds the gate instead of the click.
 const NIGHT_INPUT = {ECGDex:[["_ECG.txt","#ecgInput"],["_ACC.txt","#accInput"],["_RR.txt","#rrInput"],["_HR.txt","#hrInput"]],
   OxyDex:"#fileInput", PPGDex:"#fileInput", PulseDex:"#rawInput", CPAPDex:"#fileInput", MotionDex:"#mxInput",
-  "3 corner hat":"#fileInput", PAT:"#fileInput"};
+  "3 corner hat":"#fileInput", PAT:"#fileInput", "PAT fused":"#fileInput"};
 // The two batch tools index the files and then WAIT for their Process button — the six analyzers process
 // on load. The owner's ask is "load and process without other clicking", so openNight presses that button
 // once the tool enables it (both enable it synchronously inside their change handler when a night is
 // eligible; measured 2026-09-21 on the box: "1 nights indexed from 10 files", button enabled, idle). If it
 // never enables, the tool found no eligible night and the toast says so instead of claiming processing.
-const NIGHT_RUN = {"3 corner hat":"#procBtn", PAT:"#run"};
+const NIGHT_RUN = {"3 corner hat":"#procBtn", PAT:"#run", "PAT fused":"#run"};
 // Figure-only columns: the raw input on disk that reaches the app through another node, never a click.
 const NIGHT_WHY_NOT = {Integrator:"raw input of a fold — folds run on rig (tools/trio-batch.mjs), not in the browser",
   HRVDex:"HRVDex reads Welltory CSV or an ECGDex export — this raw Polar input reaches it through ECGDex"};
@@ -1361,14 +1369,21 @@ function nightFilesFor(n, node){
   if(node==='3 corner hat') return [...(n.ECGDex?n.ECGDex.files:[]), ...(n.PPGDex?n.PPGDex.files:[]), ...(n.OxyDex?n.OxyDex.files:[])];
   // PAT's roles are ecg · ppg · ecgacc · ppgacc: both devices' ACC are its cross-device drift anchor and the input
   // of its ACC-corrected verdict, which the click withheld until 2026-09-21 (the ACCs sit under MotionDex, not PPGDex)
-  if(node==='PAT') return [...(n.ECGDex?n.ECGDex.files.filter(f=>f.endsWith('_ECG.txt')):[]), ...(n.PPGDex?n.PPGDex.files.filter(f=>/VeritySense.*_PPG\.txt$/.test(f)):[]),
-    ...(n.MotionDex?n.MotionDex.files.filter(f=>/Polar_(H10|VeritySense).*_ACC\.txt$/.test(f)):[])];
+  // …and the O2Ring's raw _PPG.txt is the FINGER site (2026-09-26): chest→finger, finger→ankle and the three-site hat
+  if(node==='PAT') return [...(n.ECGDex?n.ECGDex.files.filter(f=>f.endsWith('_ECG.txt')):[]), ...(n.PPGDex?n.PPGDex.files.filter(f=>/(VeritySense|O2Ring).*_PPG\.txt$/.test(f)):[]),
+    ...(n.MotionDex?n.MotionDex.files.filter(f=>/Polar_(H10|VeritySense).*_ACC\.txt$/.test(f)):[]),
+    // both Polar devices' packet-arrival sidecars: the corrected lag's anchor (route-PAT fix, 2026-09-27)
+    ...(n.arrival||[])];
   return n[node] ? n[node].files : [];
 }
 async function openNight(night, node){
   const n = NIGHTS.find(x=>x.night===night); if(!n) return;
   const rels = nightFilesFor(n, node); if(!rels.length){ nToast('nothing to load for '+node+' on '+night, true); return; }
-  const w = window.open('/'+NIGHT_APP[node], '_blank');
+  // A per-click query so the browser can never hand back a CACHED app from before a deploy (2026-09-26: both
+  // derived pages rendered their pre-#3117 copies after the box was serving the new ones, and the old PAT page
+  // then filed the ring's _PPG.txt as the ankle). No app reads its query string. A timestamp, not the daemon's
+  // /api/version sha: the updater syncs the app files while the daemon restart can be deferred.
+  const w = window.open('/'+NIGHT_APP[node]+'?v='+Date.now(), '_blank');
   if(!w){ nToast('the browser blocked the analyzer window — allow pop-ups for this site', true); return; }
   nToast('opening '+node+' — fetching '+rels.length+' file'+(rels.length>1?'s':'')+' from '+night+' …');
   let files;

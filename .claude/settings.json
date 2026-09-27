@@ -113,6 +113,18 @@
           }
         ]
       }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/session-tailnet.sh\"",
+            "timeout": 90,
+            "statusMessage": "joining the tailnet if this session was handed a key"
+          }
+        ]
+      }
     ]
   }
 }

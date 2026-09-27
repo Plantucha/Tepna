@@ -431,10 +431,20 @@ def build(night_dir: str, devices: list[dict], buckets: int = DEFAULT_BUCKETS) -
     # whose own comment promises the opposite. The sidecar is still the fallback for a night that
     # recorded NOTHING — a device that connected and never streamed has no other window, and dropping
     # it would take the "connected but silent" view away with it.
-    sessions = nightqc.merge_sessions(data) if data else []
+    # THE SAME SEAMS `summarize` SEGMENTS ON, from the same folders these files came from. Without them
+    # this module would merge two daemon runs into one window while `summarize` kept them apart, and the
+    # whole reason `merge_sessions` is shared is that the two must not disagree about what "the session"
+    # is. `dirs` is exactly the set contributing to `data`, so the union is the right population.
+    _seams = sorted({t for d in dirs for t in nightqc.daemon_starts(d)["stamps"]})
+    sessions = nightqc.merge_sessions(data, starts=_seams) if data else []
     spans: list[float] = []
     if sessions:
-        cur = max(sessions, key=lambda s: s[1])   # same scoping as nightqc.summarize, so they agree
+        # ONE RULE, ONE CALL SITE — `nightqc.judged_session` holds the reasoning and the measurement.
+        # This used to pick the latest-ENDING session while `summarize` picked the substantive one, and
+        # the comment here asserted they agreed. They did not, on 27 of the 64 nights measured, twice
+        # selecting a session with zero rows. Two copies of a rule is what produced that, so this is a
+        # call rather than a second copy.
+        cur = nightqc.judged_session(sessions)
         data = cur[2]
         spans = [cur[0], cur[1]]
         for f in data:

@@ -62,16 +62,63 @@ DERIVED: dict[str, tuple[str, ...]] = {
     # ring's raw PPG waveform — a ✓ must mean the tool can run, so the requirement names the file it reads
     "3 corner hat": ("Polar_H10_*_HR.txt", "Polar_VeritySense_*_PPG.txt", "Wellue_O2Ring-S_*_SPO2.csv"),
     "PAT":          ("Polar_H10_*_ECG.txt", "Polar_VeritySense_*_PPG.txt"),
+    # "PAT fused" needs a THIRD corner the plain PAT page does not: the finger leg and the hat are built
+    # from the ring's RAW pleth, not its SpO2 CSV, so the requirement names `_PPG.txt` — the same rule the
+    # hat entry above states ("a ✓ must mean the tool can run, so the requirement names the file it reads")
+    # reaching a different file. A night with the ring's CSV but no raw pleth is PAT-eligible and NOT this.
+    "PAT fused":    ("Polar_H10_*_ECG.txt", "Polar_VeritySense_*_PPG.txt", "Wellue_O2Ring-S_*_PPG.txt"),
 }
 COLUMNS = tuple(NODES) + tuple(DERIVED)
+# The two Polar devices' PACKET-ARRIVAL sidecars (writers.PmdArrivalLogWriter). Not an analyzer's ingest, so not a
+# node's file list — a per-night field of its own that the monitor's PAT click hands over: PAT Feasibility's
+# corrected lag re-times both legs on these floors (route-PAT fix, 2026-09-27). The ring's sidecar carries no
+# PMD stream PAT uses, so it is not listed.
+ARRIVAL: tuple[str, ...] = ("Polar_H10_*_PMDARRIVAL.csv", "Polar_VeritySense_*_PMDARRIVAL.csv")
 
 _ISO = re.compile(r"^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})")
 _O2 = re.compile(r"^(\d{2}):(\d{2}):(\d{2}) (\d{2})/(\d{2})/(\d{4})")      # HH:MM:SS DD/MM/YYYY (DMY)
 _NIGHT = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
+_ISO_SUBSEC = re.compile(r"^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?)")
+
+
+def parse_host_stamp(line: str) -> _dt.datetime | None:
+    """`parse_stamp`'s zone discipline with the SUB-SECOND digits kept — for readers that measure with it.
+
+    ⚠️ A ZONED STAMP IS LEGAL AND MUST LAND ON THE SAME FLOATING TIME AS ITS ZONELESS TWIN (Clock
+    Contract §2 rule 2: the zone is authoritative for the offset, and `tMs` is the components AS WRITTEN).
+    `parse_stamp` already gets this right, by accident of anchoring at second precision — its `_ISO` group
+    stops before any `+02:00`, so `fromisoformat` never sees a zone and never returns an AWARE datetime.
+    A reader that calls `datetime.fromisoformat(cell)` directly does not: it gets an aware value for a
+    zoned row, a naive one otherwise, and then any comparison between them raises `TypeError: can't
+    compare offset-naive and offset-aware datetimes`. In `solid_night_inputs` that TypeError escaped the
+    `except ValueError` beside it, and the poller's catch turned it into a night with NO verdict — which
+    §3.1 then reads as unassessed.
+
+    So why not just call `parse_stamp`? It truncates at the second, and its callers measure in HOURS where
+    that is noise. `residual_scan` measures a batch residual "quantised to the host stamp's OWN 1 ms
+    resolution", so for it the milliseconds are the signal. Two readers, two precisions, ONE zone rule —
+    hence a sibling rather than a widened `parse_stamp`, which would silently add microseconds to every
+    existing caller.
+
+    The offset itself is deliberately NOT returned: no consumer of this function reads it, and inventing a
+    field nothing consumes is worse than naming the omission. A reader that needs the zone should take it
+    from the raw cell, which is retained by every caller here."""
+    m = _ISO_SUBSEC.match(line)
+    if m:
+        try:
+            return _dt.datetime.fromisoformat(m.group(1))
+        except ValueError:
+            return None
+    return parse_stamp(line)
+
+
 def parse_stamp(line: str) -> _dt.datetime | None:
-    """The row's stamp in the two layouts the box writes, or None — never a fabricated time."""
+    """The row's stamp in the two layouts the box writes, or None — never a fabricated time.
+
+    Second precision, and zone-safe because `_ISO` stops before one — see `parse_host_stamp` above, which
+    keeps the sub-second digits for readers that measure with them and states the shared rule."""
     m = _ISO.match(line)
     if m:
         return _dt.datetime.fromisoformat(m.group(1))
@@ -343,6 +390,7 @@ def night_entry(root: str, night_dir: str, deadline: float | None = None) -> dic
         }
     for tool, required in DERIVED.items():
         out[tool] = all(_expand(root, night_dir, p) for p in required)
+    out["arrival"] = sorted(os.path.relpath(f, root) for p in ARRIVAL for f in _expand(root, night_dir, p))
     return out
 
 

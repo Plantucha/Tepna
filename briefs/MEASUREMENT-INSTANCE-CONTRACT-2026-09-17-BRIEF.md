@@ -164,16 +164,16 @@ explicitly rather than discovering the ambiguity again.
 
 ## Done when
 
-- [ ] `measurement-block.js` exists as a CORE module mirroring `signal-frame.js`'s validator pattern,
+- [x] `measurement-block.js` exists as a CORE module mirroring `signal-frame.js`'s validator pattern, — **verified 2026-09-25 (Magpie triage):** `measurement-block.js` exists at the repo root beside `signal-frame.js`.
       DOM-free and `node:vm`-loadable, inlined into **no** bundle.
-- [ ] The block and §2's event additions are specified in `docs/LEXICON.md`,
+- [x] The block and §2's event additions are specified in `docs/LEXICON.md`, — **verified 2026-09-25 (Magpie triage):** `docs/LEXICON.md` names `measurement-block.js`.
       `docs/EXPORT-SHAPES.md` and `docs/EVENT-LEXICON.md`.
-- [ ] A schema test group is live and green, carrying the full §4 negative table, **each negative with
+- [x] A schema test group is live and green, carrying the full §4 negative table, **each negative with — **verified 2026-09-25 (Magpie triage):** the group `Measurement instance — the validator rejects what the roadmap§9 table names` is live, and it was RUN for this tick rather than located: **27/27 green**.
       a planted control watched failing for its stated reason**, plus the two anti-vacuity legs.
-- [ ] `measurement-block.js` is in both lanes' source inventories and the
+- [x] `measurement-block.js` is in both lanes' source inventories and the — **verified 2026-09-25 (Magpie triage):** both lanes load it — `tests/run-tests.mjs` and `Dex-Test-Suite.html` each reference `measurement-block.js`.
       `cohesion · source-visibility · ratchet` group is green (it reds on an unreadable new file, so a
       green here is the proof the registration landed).
-- [ ] The module is in the mutation `DEFAULT_FLEET`.
+- [x] The module is in the mutation `DEFAULT_FLEET`. — **verified 2026-09-25 (Magpie triage):** `tools/mutation-crawl.mjs`'s `DEFAULT_FLEET` lists `measurement-block.js`.
 - [ ] **No fixture moved and no `manifestHash` changed** — assert it rather than assume it:
       `node tools/build.mjs --check` reports every bundle current, and `git diff` touches no
       `provenance/*.json`. If either is false, something was wired that belongs to §3.

@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** DONE — 2026-08-28 (**owner verdict: option (a), CONVENTION-ONLY — no dedicated trim pass.** The 17.8 % band-gap measurement (§2a) was resolved by the owner choosing among three explicitly presented options. Ratified as standing convention: **never restate in prose what a gate's red output already prints; compress such gate-description passages whenever a PR touches their section anyway** (seam 1, opportunistic, zero dedicated cost). Seam 2 — incident narratives and corrected-error annotations — is KEPT deliberately: it teaches calibration a one-liner cannot. The §2.4 band's hole stands as this brief's methodological finding; see pre-state-the-threshold's band-gap corollary.) · **Created:** 2026-08-27
+**Status:** DONE — 2026-08-28 (**owner verdict: option (a), CONVENTION-ONLY — no dedicated trim pass.** The 17.8 % band-gap measurement (§2a) was resolved by the owner choosing among three explicitly presented options. Ratified as standing convention: **never restate in prose what a gate's red output already prints; compress such gate-description passages whenever a PR touches their section anyway** (seam 1, opportunistic, zero dedicated cost). Seam 2 — incident narratives and corrected-error annotations — is KEPT deliberately: it teaches calibration a one-liner cannot. The §2.4 band's hole stands as this brief's methodological finding; see pre-state-the-threshold's band-gap corollary.) · **Created:** 2026-08-27 · **Superseded-by:** CLAUDE-MD-SPLIT-2026-09-26-BRIEF (owner ruling 2026-09-26 reversed option (a): narratives move to `docs/CLAUDE-MD-RATIONALE.md`)
 
 # CLAUDE.md redundancy audit — trim what the gates now enforce, keep what teaches
 

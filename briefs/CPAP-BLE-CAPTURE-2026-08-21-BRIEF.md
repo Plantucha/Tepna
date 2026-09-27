@@ -1,5 +1,5 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** DONE — 2026-08-25 — 2026-08-21 · **Created:** 2026-08-21 · **Follows:** `RESMED-AS11-PROTOCOL-REFERENCE-2026-08-21-BRIEF.md`
+**Status:** IN-PROGRESS (**re-opened 2026-09-25, Magpie triage — the DONE stamp did not hold.** Done-when item: *“`cpap_ble_pull.py` delivered as an operator probe”*. `capture-host/cpap_ble_pull.py` is absent from `origin/main`, and `git log --all --diff-filter=A` finds it was **never committed on any branch** — so the item was not delivered-then-removed, it was never delivered. Unlike the other DONE briefs re-checked in the same pass, no clause of this header ever re-scoped or ruled out the item, so CLAUDE.md §📌c's “never stamp DONE on unverified work” applies with nothing to set against it. **The rest of the brief stands**: `as11_link.py` and `as11_pull.py` are on main and their boxes are ticked; only the operator-probe item is outstanding. **Next step:** deliver the probe, or re-scope the item in place with a dated clause and flip back. Found by the cloud DONE-brief re-verification, `audits/DONE-BRIEFS-REVERIFY-2026-09-25.md`) — 2026-08-25 — 2026-08-21 · **Created:** 2026-08-21 · **Follows:** `RESMED-AS11-PROTOCOL-REFERENCE-2026-08-21-BRIEF.md`
 
 # CPAP capture over BLE — pull therapy data onto the box's stratum-1 clock
 
@@ -67,7 +67,7 @@ PullSpoolFragments, SubscribeEvent). No state/therapy-changing method (`Set`, `S
       continues from `nextSpoolAddress`; `SPOOL_COMPLETE_NO_MORE_DATA` terminates; an `ERROR_DATA_UNAVAILABLE`
       and a decrypt failure surface as errors, never as silent empty output.
 - [ ] SRP round-trip proven against a simulated device (M1/M2/K agree), matching the live pairing.
-- [ ] `cpap_ble_pull.py` delivered as an operator probe; the operator's live run against the CPAP prints
+- [ ] **THE UNMET ITEM — this brief is IN-PROGRESS because of this box (2026-09-25).** `cpap_ble_pull.py` delivered as an operator probe; the operator's live run against the CPAP prints
       the stratum-1 timeline + measured `clock_drift`.
 
 ## Follow-ups (not this increment)

@@ -1,5 +1,5 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** DONE — 2026-08-26 · **Created:** 2026-08-24
+**Status:** DONE — 2026-08-26 · **Created:** 2026-08-24 · **Residue:** 2026-09-26-polar-streams-carry-no-acquisition-evidence
 
 # The Acquisition Evidence Contract
 

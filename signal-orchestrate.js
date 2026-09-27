@@ -380,7 +380,21 @@
   // one recording identically), so no chicken-and-egg with the not-yet-parsed frame's t0Ms.
   // 'runs' is the validity sidecar — `…_PPGRUNS.txt` for PPG, `…_ECGRUNS.txt` for ECG (one writer emits both) — SAMPLE-VALIDITY-ENVELOPE §3.2; its TEXT rides
   // to each node's adapter as ctx.companions.runs and from there into parsePPG / parseECGText(text, { runsText }).
-  var _COMPANION_KINDS = { ecg: ['rr', 'hr', 'acc', 'runs', 'accruns'], ppg: ['acc', 'gyro', 'magn', 'ppi', 'runs', 'accruns'] };
+  /* `spo2` joined 2026-09-25: the O2Ring's raw dual-wavelength waveform is SELF-CALIBRATED against the
+     ring's own 1 Hz series, so without that companion `spo2WaveformTrend` refuses by design — the
+     Unifier could route the waveform correctly (#3075) and still never produce a trend.
+     ⚠️ Its sidecar lane is `ppg2wruns`, NOT `runs`, and that is #3077's ruling applied rather than
+     re-derived: *"a kind IS the slot name here (`out[kind]`), so returning 'runs' would put `_ACCRUNS`
+     in the same slot as `_ECGRUNS` on the SAME device"*. This branch first wrote `runs`, and the
+     rebase over #3077 is what surfaced it — the same shape, one stream later. No live collision today
+     (the only other `runs` candidates are Polar files, which the vendor-family filter already
+     excludes for an O2Ring primary), but a slot shared by two of one device's sidecars is a pairing
+     that fails by looking like it worked, and the fix costs one word. */
+  var _COMPANION_KINDS = {
+    ecg: ['rr', 'hr', 'acc', 'runs', 'accruns'],
+    ppg: ['acc', 'gyro', 'magn', 'ppi', 'runs', 'accruns'],
+    spo2: ['spo2', 'ppg2wruns']
+  };
   // DEEP-AUDIT-II §10.2 — a sidecar is written in the SAME recording session (its filename stamp is
   // minutes from the primary's). A candidate whose nearest stamp is more than a day away is a
   // DIFFERENT recording, never a companion (a 5-day-old ACC must not attach and rewrite which beats
@@ -399,6 +413,14 @@
        ECG's own sidecar could be silently replaced by the ACC's, and the failure would look like a
        working pairing. A distinct kind cannot collide. */
     if (/_ACCRUNS\b|_ACCRUNS\./.test(u)) return 'accruns';
+    /* The O2Ring's raw dual-wavelength lane, and its sidecar takes its OWN kind for the reason the
+       block above states — one device, two sidecars, and a shared slot is a silent replacement.
+       `_PPG2WRUNS` is tested FIRST because the sidecar name is built by APPENDING to the stream
+       suffix, so it contains the whole of `_PPG2W`; that ordering trap has now cost this repo four
+       separate finds, and an order-independent reading is not worth the risk here. */
+    if (/_PPG2WRUNS\b|_PPG2WRUNS\./.test(u)) return 'ppg2wruns';
+    if (/_PPG2W\b|_PPG2W\./.test(u)) return 'ppg2w'; // MUST precede `_PPG`, which cannot see it (a word char follows PPG)
+    if (/_SPO2\b|_SPO2\./.test(u)) return 'spo2'; // the ring's 1 Hz oximetry CSV — the waveform's calibration partner
     if (/_ECG\b|_ECG\./.test(u)) return 'ecg';
     if (/_PPG\b|_PPG\./.test(u)) return 'ppg';
     if (/_GYRO\b|_GYRO\./.test(u)) return 'gyro';
@@ -464,7 +486,20 @@
       for (var ei = 0; ei < entries.length; ei++) {
         var e = entries[ei];
         if (!e || e.name === primaryName || streamKind(e.name) !== kind) continue;
-        if (DI.foreignVendor(e.name)) continue; // an O2Ring SpO₂ / Libre CGM file is never a sidecar
+        /* 🔴 THIS EARLY EXIT IS SHARED BY LANES THAT NEED OPPOSITE ANSWERS, so it is scoped to the
+           PRIMARY rather than stated absolutely. Its original wording — "an O2Ring SpO₂ / Libre CGM
+           file is never a sidecar" — is exactly right for a Polar `ecg`/`ppg` primary, and exactly
+           wrong for the `spo2` lane, where the ring's own 1 Hz CSV is THE companion the waveform is
+           calibrated against. An absolute filter made the new lane unreachable while reading as
+           correct: measured 2026-09-25, `foreignVendor('…_SPO2.csv')` → `'spo2'`, so every candidate
+           was skipped and `pairCompanions('spo2', …)` returned null with nothing logged.
+           The rule that serves both: a companion from a DIFFERENT vendor family than the primary is
+           never a sidecar. A Polar primary (`foreignVendor` null) rejects every foreign file exactly
+           as before — that is the control — while an O2Ring primary accepts an O2Ring companion and
+           still rejects a Libre one. */
+        var pForeign = DI.foreignVendor(primaryName),
+          cForeign = DI.foreignVendor(e.name);
+        if (cForeign !== pForeign) continue;
         // device-id filter: when BOTH names carry a Polar device id they must MATCH (a Verity-Sense
         // `_ACC` never attaches to an H10 `_ECG`, even when its stamp is the nearer one); a bare /
         // non-Polar candidate (cdev null) falls back to nearest-stamp, as before.

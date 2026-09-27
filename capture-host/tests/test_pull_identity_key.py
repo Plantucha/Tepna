@@ -107,7 +107,7 @@ def test_the_daemon_passes_the_ring_s_configured_id_to_the_pull(tmp_path, monkey
     async def no_sleep(_s):
         return None
     monkeypatch.setattr(capture.asyncio, "sleep", no_sleep)
-    capture.STATUS["devices"]["Ring"] = {"connected": False}
+    monkeypatch.setitem(capture.STATUS, "devices", {"Ring": {"connected": False}})  # own the key; see test_link_distress_wire
     dev = {"name": "Ring", "vendor": "Wellue", "model": "O2Ring-S", "device_id": "2592302100", "address": ADDR}
     r = _run(capture.pull_oxyii_session(dev, str(tmp_path)))
     assert r["ok"] is True

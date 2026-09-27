@@ -202,8 +202,16 @@ def test_a_writer_close_swallows_a_raising_handle(tmp_path, make, write):
     (lambda p: writers.PmdArrivalLogWriter(p, flush_interval=0, fsync=False), lambda w: w.write(WHEN, "D", "ECG", 1_000_000_000, 1_069_000_000, 10)),
 ])
 def test_zero_flush_interval_flushes_on_every_write(tmp_path, make, write):
+    """flush_interval=0 means the periodic-flush branch fires on EVERY write — counted on `flush()`
+    itself, before `close()` gets its own flush in. (Until 2026-09-25 nothing here was asserted, so
+    a writer that never flushed until close passed as 'flushes on every write'.)"""
     w = make(str(tmp_path / "w.txt"))
-    write(w)                                  # flush_interval=0 -> the periodic-flush branch runs
+    flushes = []
+    real_flush = w.flush
+    w.flush = lambda: (flushes.append(1), real_flush())[1]
+    write(w)
+    write(w)
+    assert len(flushes) == 2, "two writes at interval 0 must flush twice"
     w.close()
 
 

@@ -34,6 +34,10 @@
   function $(id) {
     return document.getElementById(id);
   }
+  /* Errors from worker jobs that reported `{type:'done', error}`. Module-level so the count
+     survives past the per-seed handlers and can be annotated onto the finished run. */
+  var JOB_ERRORS = [];
+
   function setStatus(t, c) {
     var e = $('status');
     e.textContent = t;
@@ -89,6 +93,16 @@
         rec.w.onmessage = function (ev) {
           var m = ev.data || {};
           if (m.type !== 'done') return;
+          /* 🔴 A THROWN JOB POSTS `{type:'done', error}` WITH NO RESULT and was counted as a completed
+             one. The worker's error paths are explicit — `{type:'done', reqId, error:'not ready'}` and
+             `{type:'done', reqId, error:String(err)}` — and this handler read only `type` and `result`, so a
+             job that threw advanced `done`, advanced the progress bar, contributed no sample, and its error
+             text was never read anywhere. The run then reported a normal finish over a smaller population.
+             CLAUDE.md §∅ / the 2026-09-17 ruling: failed jobs are reduced COVERAGE, so the count is
+             ANNOTATED beside the result rather than the run refusing. Found 2026-09-27 by extending the
+             worker-boundary gate's key extractor to inline postMessage literals — `error` was one of the
+             keys crossing unread. */
+          if (m.error) JOB_ERRORS.push(String(m.error));
           if (m.result) collect(m.result);
           done++;
           onProg(done / total);
@@ -220,6 +234,10 @@
         w.w.terminate();
       } catch (e) {}
     });
+    /* ANNOTATE the finished run with any job that failed. Reduced coverage is reported beside the
+       result, never folded into it: a run that lost jobs is not the same measurement as one that did not,
+       and before this the two were indistinguishable on screen. */
+    if (JOB_ERRORS.length) setStatus(JOB_ERRORS.length + ' job(s) FAILED and contributed no sample — first: ' + JOB_ERRORS[0], 'idle');
     setProg(1);
     if ($('cancel')) $('cancel').style.display = 'none';
     var nWin = WIN.ECG.length + WIN.PPG.length;

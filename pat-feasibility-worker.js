@@ -44,7 +44,11 @@ function loadScript(url) {
 var DSP_OK = false,
   DSP_ERR = '';
 try {
-  ['kernel-constants.js', 'clock.js', 'pat-gate.js', 'pat-align.js', 'ecgdex-dsp.js', 'ppgdex-dsp.js'].forEach(loadScript);
+  /* `analysis-stats.js` joined 2026-09-26: the confidence-weighted statistics live THERE, not here, for
+     the reason `pat-align.js` was extracted from this very file — a worker's top-level functions can only
+     ever be SOURCE-SCANNED by the suite, never executed, so a mechanism that lives here cannot carry the
+     planted known-answer test it needs. `AnalysisStats` is already loadable and co-loaded in both lanes. */
+  ['kernel-constants.js', 'clock.js', 'pat-gate.js', 'pat-align.js', 'analysis-stats.js', 'ecgdex-dsp.js', 'ppgdex-dsp.js'].forEach(loadScript);
   DSP_OK = !!(typeof ECGDSP !== 'undefined' && ECGDSP.parseECG && typeof PPGDSP !== 'undefined' && PPGDSP.parsePPG);
 } catch (e) {
   DSP_ERR = String((e && e.message) || e);
@@ -55,6 +59,7 @@ var LAG_SEARCH_MS = 2000,
   BIN_MIN = 5, // bin WIDTH in minutes — NOT a minimum pair count. See BIN_MATCH_MIN.
   PHYS_LO = 200,
   PHYS_HI = 650,
+  FINGER_ANKLE_BAND = { lo: 0, hi: 400 }, // finger foot → ankle foot; under one RR, see coupledPAT
   /* A bin earns a vote in the drift statistics by MATCH RATE, never by an absolute pair count
      (PAT-DRIFT-STATISTIC-2026-08-10 §3). Until 2026-08-10 no minimum was applied at all, so a bin
      holding a single paired beat contributed a full median to a max−min range. On 2026-08-03 finger
@@ -132,7 +137,19 @@ function ecgRpeakTimes(text) {
     nRaw: gated.nRaw,
     artifactSec: gated.artifactSec,
     artifactGate: gated.applied,
-    hostAxis: rec.hostAxis || null
+    hostAxis: rec.hostAxis || null,
+    /* ADDITIVE 2026-09-26 (PAT classic-vs-fused): the per-second confidence Map this function ALREADY
+       computes for `dropArtifactPeaks` and then discarded. A consumer that wants to weight a PAT lag by
+       how much each end was trusted had no way to get it without re-deriving `hrConfidence` — i.e.
+       re-running bandpass + detect + SQI on the same bytes. `null` when the DSP has no `hrConfidence`,
+       never an empty Map: absent and "measured, all ones" are different facts (§∅). */
+    conf: conf,
+    // worker-internal, for the arrival-floor axis below: each R's (sub-sample) position and the sample count
+    // the device-time column must match row for row. Never posted.
+    pos: Float64Array.from(peaks, function (_, k) {
+      return posAt(k);
+    }),
+    nSamples: rec.int16.length
   };
 }
 function ppgFootTimes(text) {
@@ -189,8 +206,29 @@ function ppgFootTimes(text) {
     } else sec = idx / fs;
     t[i] = t0 + sec * 1000;
   }
+  /* ADDITIVE 2026-09-26 (PAT classic-vs-fused): the optical leg's per-second confidence, in the call
+     shape `sensor-trio-worker.js ppgHrMapReal` already uses — `beatSQI` over the SELECTED channel's
+     bandpassed signal and the consensus feet, then `beatConfidence` keyed on the same second floor.
+     Not a new estimator: the same two DSP calls that surface already makes, reached from the feet this
+     function had already consensus-detected.
+     ⚠️ `null` rather than a default when either call is unavailable, and the consumer must SHOW that.
+     The O2Ring's single-channel drawn-axis PPG is the case Wren flagged as unverified: if confidence is
+     not usable there, the corner renders UNWEIGHTED AND LABELLED, never silently weighted by 1 (§∅). */
+  var _sqi = PPGDSP.beatSQI ? PPGDSP.beatSQI(per[refIdx].bp, cons.feet, rec.fs, null, cons.agree || null) : null;
+  var _conf =
+    PPGDSP.beatConfidence && _sqi
+      ? PPGDSP.beatConfidence(
+          cons.feet.map(function (fIdx) {
+            return Math.round(fIdx);
+          }),
+          _sqi,
+          rec.fs,
+          rec.t0Ms
+        )
+      : null;
   // Forwarded for the same reason as the ECG leg above — this is the leg that can actually be DRAWN.
-  return { t0Ms: rec.t0Ms, fs: rec.fs, durSec: rec.durSec, times: t, n: cons.feet.length, hostAxis: rec.hostAxis || null };
+  // `feetIdx` / `nSamples`: worker-internal, for the arrival-floor axis below. Never posted.
+  return { t0Ms: rec.t0Ms, fs: rec.fs, durSec: rec.durSec, times: t, n: cons.feet.length, hostAxis: rec.hostAxis || null, conf: _conf, feetIdx: cons.feet, nSamples: rec.n };
 }
 function overlap(ecg, ppg) {
   var s = Math.max(ecg.t0Ms, ppg.t0Ms),
@@ -206,7 +244,13 @@ var sharedClock =
   function () {
     return { ok: false, reason: 'pat-gate.js not loaded' };
   };
-function coupledPAT(rTimes, fTimes) {
+/* `band` (optional, { lo, hi } ms): the pairing window. Omitted ⇒ the chest→peripheral PHYS window, byte-identical
+   to every caller before 2026-09-26. The finger→ankle leg passes its own band: the ankle foot follows the finger
+   foot by ~100 ms (measured 96–99 ms on 2026-09-25), far below PHYS_LO, and both bands stay under one RR, which
+   is what keeps beat slip structurally impossible (see the note in the loop). */
+function coupledPAT(rTimes, fTimes, band) {
+  var PLO = band ? band.lo : PHYS_LO,
+    PHI = band ? band.hi : PHYS_HI;
   var lags = [],
     lagAtR = [],
     j = 0,
@@ -230,11 +274,11 @@ function coupledPAT(rTimes, fTimes) {
       bestLag = null;
     while (k < nf && fTimes[k] - r <= LAG_SEARCH_MS) {
       var lag = fTimes[k] - r;
-      if (lag >= PHYS_LO && lag <= PHYS_HI) {
+      if (lag >= PLO && lag <= PHI) {
         bestLag = lag;
         break;
       }
-      if (lag > PHYS_HI) break; // past the physiological window — the foot for this beat is missing
+      if (lag > PHI) break; // past the physiological window — the foot for this beat is missing
       k++;
     }
     if (bestLag != null) {
@@ -266,7 +310,7 @@ function coupledPAT(rTimes, fTimes) {
       var cl = fTimes[ck] - cr;
       if (cl > ccap) break;
       if (cl > 0) {
-        if (cl < PHYS_LO || cl > PHYS_HI) censOut++;
+        if (cl < PLO || cl > PHI) censOut++;
         else censIn++;
         break;
       }
@@ -307,8 +351,8 @@ function coupledPAT(rTimes, fTimes) {
      note there. `matchRateRaw` keeps the pre-2026-08-04 value. */
   var nCoverable = 0;
   if (nf) {
-    var covLo = fTimes[0] - PHYS_HI,
-      covHi = fTimes[nf - 1] - PHYS_LO;
+    var covLo = fTimes[0] - PHI,
+      covHi = fTimes[nf - 1] - PLO;
     for (var ci = 0; ci < rTimes.length; ci++) if (rTimes[ci] >= covLo && rTimes[ci] <= covHi) nCoverable++;
   }
   var matchRate = pat.length / Math.max(nCoverable, 1);
@@ -419,7 +463,7 @@ function coupledPAT(rTimes, fTimes) {
     linR2: linR2,
     inPhysPct: pat.length
       ? pat.filter(function (v) {
-          return v >= PHYS_LO && v <= PHYS_HI;
+          return v >= PLO && v <= PHI;
         }).length / pat.length
       : 0
   };
@@ -437,29 +481,350 @@ function coupledPAT(rTimes, fTimes) {
 // that was previously reachable only by loading this worker, so no gate could execute it
 // (TEST-COVERAGE-FOLLOWUPS §3 flags exactly that). This keeps the identical contract —
 // {ok, anchors, coverage, offsetAt, offRange} — as a thin adapter over the shared implementation.
-function estimateDriftACC(h10Text, vText, t0, t1) {
-  var eA = PATAlign.envelope(PPGDSP.parseSensorXYZ(h10Text), t0, t1, {}),
-    eB = PATAlign.envelope(PPGDSP.parseSensorXYZ(vText), t0, t1, {});
-  if (!eA || !eB) return { ok: false, reason: 'ACC parse failed' };
-  var r = PATAlign.alignByAnchors(eA, eB, t0, {});
-  if (!r.ok) return { ok: false, reason: r.reason + ' — chest & ankle motion too decorrelated', anchors: r.anchors.length };
-  var anchors = r.anchors;
-  var cov = (anchors[anchors.length - 1].tMs - anchors[0].tMs) / (t1 - t0 || 1);
-  // Piecewise-linear between anchors, flat outside them: drift is measured where a shared movement
-  // actually happened and is never extrapolated past the last one.
-  function offsetAt(t) {
-    if (t <= anchors[0].tMs) return anchors[0].offsetMs;
-    if (t >= anchors[anchors.length - 1].tMs) return anchors[anchors.length - 1].offsetMs;
-    for (var i = 1; i < anchors.length; i++)
-      if (t <= anchors[i].tMs) {
-        var a = anchors[i - 1],
-          b = anchors[i],
-          f = (t - a.tMs) / (b.tMs - a.tMs || 1);
-        return a.offsetMs + f * (b.offsetMs - a.offsetMs);
-      }
-    return anchors[anchors.length - 1].offsetMs;
+/* ── THREE SITES, ONE GRID: the classic three-cornered hat on 5-min PAT medians ──────────────────────────
+   A = chest ECG R · B = O2Ring finger foot · C = Verity ankle foot. One pair cannot say which site carries the
+   scatter — Var(A−B) is symmetric — three can: Var(AB)=σ²A+σ²B, Var(AC)=σ²A+σ²C, Var(BC)=σ²B+σ²C, so
+   σ²A = ½(V_AB + V_AC − V_BC) and cyclically. The CLASSIC hat (ρ = 0), as `tools/pat-three-corner.mjs`: a ρ
+   estimated from these same three series is circular (TCH-CORRELATED-SOLVE-KNIFE-EDGE-FOLLOWUPS §5). The
+   dispersion is the IQR/1.349 of the window medians, robust to the odd mis-paired window. A window enters only
+   when ALL THREE pairs coupled ≥ HAT_MIN_BEATS beats inside it. A NEGATIVE variance is returned as null with
+   its value beside it — never square-rooted: it means the independent-error model does not fit this night. */
+var HAT_WIN_MS = 300000,
+  HAT_MIN_BEATS = 50,
+  HAT_MIN_WINDOWS = 12;
+/* `wAB`/`wAC`/`wBC` (OPTIONAL): per-pair weight arrays aligned to each leg's `patAtR`, from `legWeights`.
+   Omitted ⇒ every window median is the plain median and this is byte-identical to every caller before
+   2026-09-26 — the classic column IS this function, not a reproduction of it. Supplied ⇒ each window
+   median is the WEIGHTED median of the same pairs, and the solve below is unchanged. One hat solver;
+   `tch-parity` reds any page that grows a private one. */
+function threeHat(cAB, cAC, cBC, wAB, wAC, wBC) {
+  if (!(cAB && cAB.ok && cAC && cAC.ok && cBC && cBC.ok)) return { ok: false, reason: 'a leg did not couple' };
+  function bucket(c, ws) {
+    var o = {};
+    for (var i = 0; i < c.patAtR.length; i++) {
+      var b = Math.floor(c.patAtR[i].t / HAT_WIN_MS);
+      (o[b] || (o[b] = [])).push(ws ? { lag: c.patAtR[i].lag, w: ws[i] } : c.patAtR[i].lag);
+    }
+    return o;
   }
-  return { ok: true, anchors: anchors.length, coverage: cov, offsetAt: offsetAt, offRange: r.offsetRangeMs };
+  /* The per-window statistic, and the ONLY place the two columns differ. A weighted bucket carries
+     `{lag, w}` objects; an unweighted one carries plain numbers, exactly as before. */
+  function winMed(v) {
+    if (!v.length || typeof v[0] === 'number') return median(v);
+    return AnalysisStats.weightedMedian(
+      v.map(function (o) {
+        return o.lag;
+      }),
+      v.map(function (o) {
+        return o.w;
+      })
+    );
+  }
+  var bAB = bucket(cAB, wAB),
+    bAC = bucket(cAC, wAC),
+    bBC = bucket(cBC, wBC),
+    win = [];
+  Object.keys(bAC)
+    .map(Number)
+    .sort(function (a, b) {
+      return a - b;
+    })
+    .forEach(function (b) {
+      if (bAB[b] && bBC[b] && bAB[b].length >= HAT_MIN_BEATS && bAC[b].length >= HAT_MIN_BEATS && bBC[b].length >= HAT_MIN_BEATS)
+        win.push({ t: (b + 0.5) * HAT_WIN_MS, ab: winMed(bAB[b]), ac: winMed(bAC[b]), bc: winMed(bBC[b]) });
+    });
+  if (win.length < HAT_MIN_WINDOWS) return { ok: false, reason: win.length + ' windows with all three legs coupled (< ' + HAT_MIN_WINDOWS + ')', windows: win };
+  function sd(k) {
+    var v = win.map(function (w) {
+      return w[k];
+    });
+    return (quantile(v, 0.75) - quantile(v, 0.25)) / 1.349;
+  }
+  var sAB = sd('ab'),
+    sAC = sd('ac'),
+    sBC = sd('bc'),
+    vAB = sAB * sAB,
+    vAC = sAC * sAC,
+    vBC = sBC * sBC;
+  var v2 = { chest: 0.5 * (vAB + vAC - vBC), finger: 0.5 * (vAB + vBC - vAC), ankle: 0.5 * (vAC + vBC - vAB) },
+    sigma = {};
+  Object.keys(v2).forEach(function (k) {
+    sigma[k] = v2[k] >= 0 ? Math.sqrt(v2[k]) : null;
+  });
+  var lag = function (k) {
+    return median(
+      win.map(function (w) {
+        return w[k];
+      })
+    );
+  };
+  return {
+    ok: true,
+    n: win.length,
+    winMin: HAT_WIN_MS / 60000,
+    lagMed: { ab: lag('ab'), ac: lag('ac'), bc: lag('bc') },
+    pairSd: { ab: sAB, ac: sAC, bc: sBC },
+    variance: v2,
+    sigma: sigma,
+    windows: win
+  };
+}
+/* ── THE ARRIVAL-FLOOR AXIS (route-PAT fix, owner-ordered 2026-09-27) ────────────────────────────────────────
+   WHAT WAS WRONG. The corrected path ("ACC-sync") put both accelerometers on their PHONE stamps and re-aligned
+   the ankle PPG by the offset between the two motion envelopes. A phone stamp is the arrival of the packet,
+   back-timed across it, so that offset was (Verity buffering − H10 buffering): the ~400 ms the page reported
+   as "drift after ACC-sync" is a BUFFERING difference, inside the −867..+1321 ms range capture-host/writers.py
+   PmdArrivalLogWriter measured per connection, and not a clock drift at all.
+   WHY NOT "TIME THE ACC ON ITS DEVICE COUNTER" AND KEEP THE REST. The two PAT legs are on `tMsAt` / `relSec`,
+   both host-disciplined by `hostAxis`, which anchors on the MEDIAN of (host − device) and so carries that
+   stream's MEDIAN buffering. What PAT needs removed is that buffering; a floor-anchored ACC would read ≈ 0 and
+   delete a real correction (Wren's arithmetic, confirmed by Kestrel before building).
+   WHAT THIS DOES INSTEAD. Every stream's device counter is placed on the host by its OWN arrival FLOOR — the
+   packet-arrival sidecar records each PMD packet's true arrival beside its first sample's device stamp, and
+   buffering is one-sided, so a low quantile of (arrival − device) is clock offset + the link's MINIMUM
+   latency, with the buffering gone. Per 10-min device-time window: the 1st percentile (writers.floor_ms's
+   rule); a window is REFUSED under 100 packets or when the gap to the minimum exceeds 10 ms (a smeared edge
+   is not a floor); a jump > 30 s in (arrival − device) is a counter step and splits a segment; anchors are
+   interpolated inside a segment, flat at its edges. Then R and foot = device time + floor, the corrected
+   coupling is re-gated, and the accelerometers — re-timed the same way — become an INDEPENDENT CHECK that
+   should read ≈ 0 (the two links' minimum-latency difference). Nothing falls back to a phone stamp or to
+   `hostAxis` here: a median anchor carries buffering, so it cannot deliver this property (§∅ — refuse, with
+   the reason). The raw legs and the primary `vd` are untouched. */
+var FLOOR_WIN_MS = 600000,
+  FLOOR_MIN_PACKETS = 100,
+  FLOOR_MAX_SPREAD_MS = 10,
+  /* a COUNTER STEP, not buffering: per-packet buffering alone moves (arrival − device) by seconds (Heron measured a
+     Verity p95 near 2.5 s), and a 2 s threshold chopped a buffered stream into fragments too short for any window —
+     the plant caught it. Real resyncs step by tens of seconds to years (the 2026-09-24 time sync: 2.44e8 s). */
+  FLOOR_STEP_MS = 30000,
+  FLOOR_MIN_WINDOWS = 3,
+  FLOOR_Q = 0.01,
+  FLOOR_EDGE_MS = 5000; // a sample may sit up to one packet past the last packet's first stamp
+function arrivalHostMs(stamp) {
+  var r = typeof DexClock !== 'undefined' && DexClock.parseTimestamp ? DexClock.parseTimestamp(stamp) : null;
+  return r && isFinite(r.tMs) ? r.tMs : null;
+}
+/* Per data row, the device counter in ms (NaN for an unparseable stamp). Comment lines are skipped the way the
+   parsers skip them; the caller compares the row count to the DSP's sample count and refuses on a mismatch, so
+   a row the DSP rejected can never shift every later index. */
+function devMsColumn(text) {
+  var L = String(text).split(/\r?\n/),
+    head = (L[0] || '').split(';').map(function (x) {
+      return x.trim();
+    }),
+    ci = head.indexOf('sensor timestamp [ns]');
+  if (ci < 0) return null;
+  var out = [];
+  for (var i = 1; i < L.length; i++) {
+    var line = L[i];
+    if (!line || line.charAt(0) === '#') continue;
+    var v = +line.split(';')[ci];
+    out.push(isFinite(v) ? v / 1e6 : NaN);
+  }
+  return Float64Array.from(out);
+}
+function floorMap(sidecarText, meas) {
+  var L = String(sidecarText).split(/\r?\n/),
+    pk = [];
+  for (var i = 1; i < L.length; i++) {
+    if (!L[i]) continue;
+    var c = L[i].split(';');
+    if (c[2] !== meas) continue;
+    // the packet's LAST sample: it was taken just before the packet left, so (arrival − last) is clock offset +
+    // link latency. The FIRST sample also carries the packet-fill time (n−1)/fs, which smears every stream
+    // whose packet size varies (Heron, 2026-09-27: Verity acc 118 → 11 ms spread when keyed on last).
+    var a = arrivalHostMs(c[0]),
+      d = +c[4] / 1e6;
+    if (a == null || !isFinite(d) || !(d > 0)) continue;
+    pk.push([d, a - d]);
+  }
+  if (pk.length < FLOOR_MIN_PACKETS) return { ok: false, reason: pk.length + ' `' + meas + '` packets in the arrival sidecar (< ' + FLOOR_MIN_PACKETS + ')' };
+  var segs = [[pk[0]]];
+  for (var k = 1; k < pk.length; k++) {
+    var prev = pk[k - 1];
+    if (pk[k][0] < prev[0] || Math.abs(pk[k][1] - prev[1]) > FLOOR_STEP_MS) segs.push([]);
+    segs[segs.length - 1].push(pk[k]);
+  }
+  var S = segs.map(function (sg) {
+    return { lo: sg[0][0], hi: sg[sg.length - 1][0], pk: sg, anchors: [] };
+  });
+  var sorted = S.slice().sort(function (x, y) {
+    return x.lo - y.lo;
+  });
+  for (var j = 1; j < sorted.length; j++)
+    if (sorted[j].lo < sorted[j - 1].hi) return { ok: false, reason: 'device-counter segments overlap (the counter went backwards) — one device time would map to two host times' };
+  var windows = 0,
+    refused = 0,
+    spreads = [];
+  S.forEach(function (sg) {
+    var by = {};
+    sg.pk.forEach(function (p) {
+      var w = Math.floor((p[0] - sg.lo) / FLOOR_WIN_MS);
+      (by[w] || (by[w] = [])).push(p);
+    });
+    Object.keys(by)
+      .map(Number)
+      .sort(function (x, y) {
+        return x - y;
+      })
+      .forEach(function (w) {
+        var g = by[w];
+        if (g.length < FLOOR_MIN_PACKETS) return;
+        windows++;
+        var v = g
+          .map(function (p) {
+            return p[1];
+          })
+          .sort(function (x, y) {
+            return x - y;
+          });
+        var q = v[Math.min(v.length - 1, Math.floor(FLOOR_Q * v.length))],
+          spread = q - v[0];
+        spreads.push(spread);
+        if (spread > FLOOR_MAX_SPREAD_MS) {
+          refused++;
+          return;
+        }
+        sg.anchors.push({
+          d: median(
+            g.map(function (p) {
+              return p[0];
+            })
+          ),
+          off: q
+        });
+      });
+  });
+  var valid = windows - refused;
+  if (valid < FLOOR_MIN_WINDOWS)
+    return {
+      ok: false,
+      reason:
+        valid +
+        ' usable 10-min floor window(s) for `' +
+        meas +
+        '` (< ' +
+        FLOOR_MIN_WINDOWS +
+        '; ' +
+        refused +
+        ' refused as smeared, median spread ' +
+        (spreads.length ? median(spreads).toFixed(1) : '—') +
+        ' ms)'
+    };
+  function map(dev) {
+    for (var i2 = 0; i2 < S.length; i2++) {
+      var sg = S[i2],
+        A = sg.anchors;
+      if (!(dev >= sg.lo - FLOOR_EDGE_MS && dev <= sg.hi + FLOOR_EDGE_MS) || !A.length) continue;
+      if (dev <= A[0].d) return A[0].off;
+      if (dev >= A[A.length - 1].d) return A[A.length - 1].off;
+      for (var m2 = 1; m2 < A.length; m2++)
+        if (dev <= A[m2].d) {
+          var f = (dev - A[m2 - 1].d) / (A[m2].d - A[m2 - 1].d || 1);
+          return A[m2 - 1].off + f * (A[m2].off - A[m2 - 1].off);
+        }
+    }
+    return null;
+  }
+  return { ok: true, meas: meas, packets: pk.length, windows: windows, refused: refused, segments: S.length, spreadMedianMs: median(spreads), map: map };
+}
+/* Host time on the floor axis of each (fractional) sample position: interpolated device time + floor offset.
+   Positions whose device time falls outside every anchored segment are DROPPED and counted, never placed. */
+/* One device, one counter: every stream it sends is stamped by the same clock, so the device is anchored on
+   whichever of its streams gives the most usable floor windows, and both of its legs map through that one.
+   Measured 2026-09-27: the ACC edge is the sharp one on both devices (H10 3.5–3.9 ms, Verity 10.7–11.2 ms
+   keyed on the last sample); the Verity PPG edge stays ~17 ms and would refuse under the 10 ms bar. */
+function deviceFloor(sidecarText, metas) {
+  var best = null,
+    tried = [];
+  metas.forEach(function (ms) {
+    var f = floorMap(sidecarText, ms);
+    tried.push(ms + ': ' + (f.ok ? f.windows - f.refused + ' usable window(s)' : f.reason));
+    if (f.ok && (!best || f.windows - f.refused > best.windows - best.refused)) best = f;
+  });
+  return best || { ok: false, reason: tried.join('; ') };
+}
+function floorTimes(devCol, positions, fmap) {
+  var out = [],
+    unmapped = 0;
+  for (var i = 0; i < positions.length; i++) {
+    var p = positions[i],
+      i0 = Math.floor(p),
+      i1 = Math.min(devCol.length - 1, i0 + 1),
+      fr = p - i0;
+    var dev = i0 >= 0 && i0 < devCol.length ? devCol[i0] * (1 - fr) + devCol[i1] * fr : NaN,
+      off = isFinite(dev) ? fmap.map(dev) : null;
+    if (off == null || !isFinite(dev)) {
+      unmapped++;
+      continue;
+    }
+    out.push(dev + off);
+  }
+  out.sort(function (x, y) {
+    return x - y;
+  });
+  return { hostMs: Float64Array.from(out), unmapped: unmapped };
+}
+/* The motion check: both accelerometers on their arrival floors, the motion envelopes aligned by the
+   shared movement anchors. On a correct floor axis the offset measures only the two links' minimum-latency
+   difference and should read ≈ 0; a large value means a floor is wrong, never a correction to apply. NOT fully
+   independent when a device is anchored on its ACC stream (the usual case): it then tests that shared motion
+   aligns across two separately-anchored devices, which a wrong floor on either still fails. */
+var CHECK_TOL_MS = 25;
+function accFloorCheck(h10AccText, verAccText, fA, fB, t0, t1) {
+  function samples(text, fmap) {
+    var L = String(text).split(/\r?\n/),
+      head = (L[0] || '').split(';').map(function (x) {
+        return x.trim();
+      }),
+      ci = head.indexOf('sensor timestamp [ns]'),
+      out = [];
+    if (ci < 0) return out;
+    var ix = ci + 1;
+    for (var i = 1; i < L.length; i++) {
+      if (!L[i] || L[i].charAt(0) === '#') continue;
+      var c = L[i].split(';'),
+        dev = +c[ci] / 1e6,
+        off = isFinite(dev) ? fmap.map(dev) : null;
+      if (off == null) continue;
+      out.push({ tMs: dev + off, x: +c[ix], y: +c[ix + 1], z: +c[ix + 2] });
+    }
+    return out;
+  }
+  /* 20 ms bins, not pat-align's 50 ms default: the check is judged at ±15 ms, and a 50 ms grid moves in whole-bin
+     steps (a planted 0 read 46 ms). Not finer: the Verity ACC samples at ~52 Hz (19 ms), and a bin narrower than a
+     sample leaves the envelope with empty bins and no clean movement at all (10 ms: 0 anchors). The bin-COUNTED
+     default is rescaled so its time extent is unchanged. */
+  var O = { dtMs: 20, anchorLocalBins: 30 };
+  /* RESOLUTION, stated because a bar finer than it measures nothing: the lag moves in 20 ms bins and the Verity
+     ACC samples every ~19 ms, so a perfect axis reads within about one bin of 0 (the plant: 19.8 ms). The check
+     is judged at CHECK_TOL_MS = one bin + half a Verity sample; the PAT correction itself is not limited by it
+     (the floors recover a planted PAT to ~5 ms). */
+  /* The baseline EMA's α is PER SAMPLE, so one α gives the H10 (~205 Hz) a 0.24 s time constant and the Verity
+     (~52 Hz) a 0.96 s one: the same movement then peaks at different offsets and the check reads a bias of about
+     one bin on a perfect axis (planted 0 read 23 ms). Each device gets α for a common 1 s time constant from its
+     own median sample interval — the shared pat-align.js default is left alone. */
+  function withAlpha(sm) {
+    var d = [];
+    for (var i = 1; i < sm.length && d.length < 5000; i++) d.push(sm[i].tMs - sm[i - 1].tMs);
+    var dtS = median(
+      d.filter(function (x) {
+        return x > 0;
+      })
+    );
+    return { dtMs: O.dtMs, anchorLocalBins: O.anchorLocalBins, emaAlpha: isFinite(dtS) ? 1 - Math.exp(-dtS / 1000) : undefined };
+  }
+  var sA = samples(h10AccText, fA),
+    sB = samples(verAccText, fB);
+  var eA = PATAlign.envelope(sA, t0, t1, withAlpha(sA)),
+    eB = PATAlign.envelope(sB, t0, t1, withAlpha(sB));
+  if (!eA || !eB) return { ok: false, reason: 'no accelerometer samples on the floor axis' };
+  var r = PATAlign.alignByAnchors(eA, eB, t0, O);
+  if (!r.ok) return { ok: false, reason: r.reason + ' — chest & ankle motion too decorrelated', anchors: r.anchors.length };
+  var offs = r.anchors.map(function (x) {
+    return x.offsetMs;
+  });
+  return { ok: true, anchors: offs.length, deltaMedianMs: median(offs), offRangeMs: r.offsetRangeMs, tolMs: CHECK_TOL_MS };
 }
 
 self.onmessage = function (e) {
@@ -478,6 +843,19 @@ self.onmessage = function (e) {
   var hasAcc = !!(m.ecgAccFile && m.ppgAccFile);
   if (hasAcc) {
     reads.push(m.ecgAccFile.text(), m.ppgAccFile.text());
+  }
+  /* The O2Ring finger PPG is OPTIONAL and read last, so every index above is unchanged without it. */
+  var hasFinger = !!m.fingerFile;
+  if (hasFinger) reads.push(m.fingerFile.text());
+  var iFinger = hasFinger ? reads.length - 1 : -1;
+  /* The packet-arrival sidecars (one per device) — the corrected path's only anchor. Read last, OPTIONAL. */
+  var hasArr = !!(m.ecgArrFile && m.ppgArrFile),
+    iArrE = -1,
+    iArrP = -1;
+  if (hasArr) {
+    reads.push(m.ecgArrFile.text(), m.ppgArrFile.text());
+    iArrE = reads.length - 2;
+    iArrP = reads.length - 1;
   }
   Promise.all(reads)
     .then(function (t) {
@@ -516,7 +894,22 @@ self.onmessage = function (e) {
                 linR2: c.linR2,
                 inPhysPct: c.inPhysPct,
                 ppm: ov.min > 0 && isFinite(c.driftRange) ? (c.driftRange / (ov.min * 60000)) * 1e6 : NaN,
-                binMed: c.binMed
+                binMed: c.binMed,
+                /* ADDITIVE 2026-09-26: the surviving coupled pairs, `{t, lag}` per beat — `coupledPAT`
+                   has always RETURNED these and `packCp` dropped them. A PAT lag's weight needs both
+                   of its ends, and both are derivable from here: the R second is `t`, the foot second
+                   is `t + lag`. Keeping the pairs is what lets the weighting live in the CONSUMER, so
+                   `coupledPAT` and every number above it stay untouched and a classic column built
+                   from this object is PAT Feasibility's own output rather than a reproduction of it. */
+                /* The surviving coupled pairs, `{t, lag}` per beat — `coupledPAT` has always returned
+                   these and `packCp` dropped them. ⚠️ ONLY WHEN `m.detail` IS SET (Wren, 2026-09-26): the
+                   batch path packs every leg of every night, and a full `patAtR` is ~23k objects per leg —
+                   ×3 legs × N nights across `postMessage` with no reader, which is the dead-cross-boundary
+                   shape the unwired gate holds at zero. The page requests `detail` anyway.
+                   ⚠️ And note what this list is NOT for: `pack()` DECIMATES it to ~4000 points, so it is
+                   for drawing, never for weighting. Every fused number below is computed inside this
+                   worker on the FULL accepted set, which is why the weighting lives here at all. */
+                patAtR: m.detail ? c.patAtR : undefined
               }
             : { ok: false, reason: c.reason };
         }
@@ -529,35 +922,113 @@ self.onmessage = function (e) {
           ov: ov,
           sc: sc,
           vd: vd,
-          driftSource: 'raw', // §1.5 — `vd` reflects UNCORRECTED drift; see `vdCorr` for the ACC-corrected gate
+          driftSource: 'raw', // §1.5 — `vd` reflects UNCORRECTED drift; see `vdCorr` for the arrival-floor-corrected gate
 
           cp: packCp(cp)
         };
-        // ── ACC-sync stage (only if both accelerometer files were provided) ──
-        var cpCorr = null,
-          drift = null;
-        if (hasAcc && sc.ok && ov.min > 0) {
-          drift = estimateDriftACC(t[2], t[3], ov.start, ov.end);
-          if (drift.ok) {
-            var fc = new Float64Array(ppg.times.length);
-            for (var i = 0; i < ppg.times.length; i++) fc[i] = ppg.times[i] - drift.offsetAt(ppg.times[i]);
-            cpCorr = coupledPAT(ecg.times, fc);
-            out.accSync = { available: true, anchors: drift.anchors, coverage: drift.coverage, offRangeMs: drift.offRange };
-            out.cpCorr = packCp(cpCorr);
-            // §1.5 — the ACC-corrected coupling used to be rendered but NEVER re-gated, so a night whose
-            // corrected drift cleared the bar still reported DRIFT-DOMINATED. Evaluate the same gate on it
-            // and publish BOTH, each tagged with the drift it reflects. The primary `vd` is deliberately
-            // left on RAW drift — promoting on corrected drift is an owner call, not a refactor.
-            /* Same axis as the primary verdict: an ACC-derived offset correction re-aligns two trains,
-               it does not conjure a clock, so a drawn or unshared axis is exactly as disqualifying here
-               as it is above. Judging the corrected coupling against no axis would reopen the refusal on
-               the very path §1.5 added because it had been rendered ungated. */
-            out.vdCorr = PATGate.verdict(ov, cpCorr, sc, ax);
-          } else {
-            out.accSync = { available: false, reason: drift.reason, anchors: drift.anchors || 0 };
+        // ── THIRD SITE: chest→finger, finger→ankle and the hat (only if the O2Ring _PPG.txt was provided) ──
+        var cpF = null,
+          cpFA = null;
+        if (hasFinger) {
+          try {
+            var fin = ppgFootTimes(t[iFinger]),
+              ovF = overlap(ecg, fin),
+              scF = sharedClock(ecg, fin, ovF);
+            cpF = coupledPAT(ecg.times, fin.times);
+            cpFA = coupledPAT(fin.times, ppg.times, FINGER_ANKLE_BAND);
+            out.finger = { t0Ms: fin.t0Ms, fs: fin.fs, n: fin.n, durSec: fin.durSec };
+            out.cpF = packCp(cpF);
+            /* the ring's axis is DRAWN (sample index × an assumed rate), so the gate refuses to CERTIFY this leg;
+               the lag is still computed and shown, signed NOT CERTIFIED with the gate's own reason */
+            out.vdF = PATGate.verdict(ovF, cpF, scF, PATGate.worstAxis(ecg.hostAxis, fin.hostAxis));
+            out.cpFA = packCp(cpFA);
+            out.three = threeHat(cpF, cp, cpFA);
+            /* ── THE FUSED TWIN, on the FULL accepted set of each leg ──────────────────────────────────
+               Corners: A = chest (H10 ECG, `ecg.conf`), B = finger (O2Ring, `fin.conf`), C = ankle
+               (Verity, `ppg.conf`). Legs pair the two ends they actually join, so each leg's weight is the
+               product of ITS OWN two corners' confidence — not a per-corner weight reused across legs.
+               The classic numbers above are untouched; `out.three` is the same call it always was. */
+            var lwF = AnalysisStats.legWeights(cpF, ecg.conf, fin.conf), // chest → finger
+              lwAC = AnalysisStats.legWeights(cp, ecg.conf, ppg.conf), // chest → ankle
+              lwFA = AnalysisStats.legWeights(cpFA, fin.conf, ppg.conf); // finger → ankle
+            out.fused = {
+              cpF: AnalysisStats.fusedLeg(cpF, lwF),
+              cp: AnalysisStats.fusedLeg(cp, lwAC),
+              cpFA: AnalysisStats.fusedLeg(cpFA, lwFA),
+              /* Which corners published a confidence series at all, so the page can say UNWEIGHTED and
+                 WHY rather than showing a number that silently fell back to 1 (§∅). The O2Ring's
+                 single-channel drawn-axis PPG is the corner whose confidence is UNVERIFIED — that is a
+                 different claim from unusable, and the page must not upgrade it. */
+              corners: { chest: !!ecg.conf, finger: !!fin.conf, ankle: !!ppg.conf }
+            };
+            out.threeFused =
+              lwF.ok && lwAC.ok && lwFA.ok
+                ? threeHat(cpF, cp, cpFA, lwF.w, lwAC.w, lwFA.w)
+                : {
+                    ok: false,
+                    reason:
+                      'a leg could not be weighted: ' +
+                      [lwF, lwAC, lwFA]
+                        .filter(function (l) {
+                          return !l.ok;
+                        })
+                        .map(function (l) {
+                          return l.reason;
+                        })[0]
+                  };
+          } catch (fe) {
+            out.fingerError = String((fe && fe.message) || fe);
           }
-        } else {
-          out.accSync = { available: false, reason: hasAcc ? 'not simultaneous' : 'no ACC files' };
+        }
+        // ── the corrected path: both legs on their own streams' ARRIVAL FLOORS (see the block above floorMap) ──
+        var cpCorr = null;
+        function refuseFloor(why) {
+          out.floorSync = { available: false, reason: why };
+        }
+        if (!hasArr)
+          refuseFloor(
+            'no packet-arrival sidecar for ' +
+              (!m.ecgArrFile && !m.ppgArrFile ? 'either device' : !m.ecgArrFile ? 'the H10' : 'the Verity') +
+              ' — the floor axis has no anchor, and a phone stamp would reintroduce the buffering'
+          );
+        else if (!(sc.ok && ov.min > 0)) refuseFloor('the two recordings do not share a clock window');
+        else {
+          var fE = deviceFloor(t[iArrE], ['acc', 'ecg']),
+            fP = deviceFloor(t[iArrP], ['acc', 'ppg']),
+            devE = devMsColumn(t[0]),
+            devP = devMsColumn(t[1]);
+          if (!fE.ok) refuseFloor('H10 ECG: ' + fE.reason);
+          else if (!fP.ok) refuseFloor('Verity PPG: ' + fP.reason);
+          else if (!devE || devE.length !== ecg.nSamples)
+            refuseFloor('H10 ECG: ' + (devE ? devE.length : 0) + ' device-stamp rows vs ' + ecg.nSamples + ' samples — the row accounting differs, so positions cannot be mapped');
+          else if (!devP || devP.length !== ppg.nSamples)
+            refuseFloor('Verity PPG: ' + (devP ? devP.length : 0) + ' device-stamp rows vs ' + ppg.nSamples + ' samples — the row accounting differs, so positions cannot be mapped');
+          else {
+            var R = floorTimes(devE, ecg.pos, fE),
+              F = floorTimes(devP, ppg.feetIdx, fP);
+            cpCorr = coupledPAT(R.hostMs, F.hostMs);
+            out.cpCorr = packCp(cpCorr);
+            // the same gate, on the corrected coupling; the primary `vd` stays on the raw legs (an owner call)
+            out.vdCorr = PATGate.verdict(ov, cpCorr, sc, ax);
+            var leg = function (f, tm) {
+              return { stream: f.meas, windows: f.windows, refused: f.refused, segments: f.segments, spreadMedianMs: f.spreadMedianMs, unmapped: tm.unmapped };
+            };
+            var chk = null;
+            if (hasAcc) {
+              var fAE = floorMap(t[iArrE], 'acc'),
+                fAP = floorMap(t[iArrP], 'acc');
+              chk = !fAE.ok ? { ok: false, reason: 'H10 ACC: ' + fAE.reason } : !fAP.ok ? { ok: false, reason: 'Verity ACC: ' + fAP.reason } : accFloorCheck(t[2], t[3], fAE, fAP, ov.start, ov.end);
+            }
+            out.floorSync = {
+              available: true,
+              anchor: 'arrival-floor',
+              ecg: leg(fE, R),
+              ppg: leg(fP, F),
+              // what the median-anchored legs carried and this removed: the links' median buffering difference
+              bufferingDiffMs: cp.ok && cpCorr.ok ? cp.med - cpCorr.med : null,
+              accCheck: chk || { ok: false, reason: 'no ACC files' }
+            };
+          }
         }
         if (m.detail) {
           var pack = function (c) {
@@ -571,12 +1042,14 @@ self.onmessage = function (e) {
             };
           };
           out.detail = pack(cp);
+          out.detailF = pack(cpF);
+          out.detailFA = pack(cpFA);
           /* `detailCorr = pack(cpCorr)` used to be emitted here too — computed, sent across the
              boundary, read by nobody (residue 2026-09-02-pat-detailcorr-unread, the same class as
              `vdCorr` before #2117). Its parent finding, ENGINE-VERIFICATION §1.5, closed as MOOT:
              "re-instrumenting a feasibility tool whose feasibility question has a final answer would
              be work with no consumer" — so the field is deleted rather than given a surface. The
-             corrected coupling's SUMMARY (`cpCorr`, `vdCorr`, `accSync`) is read and stays. The
+             corrected coupling's SUMMARY (`cpCorr`, `vdCorr`, `floorSync`) is read and stays. The
              `dead-cross-boundary` gate now holds the known-dead set at ZERO. */
         }
         self.postMessage(out);

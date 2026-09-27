@@ -8745,6 +8745,157 @@
        The negative-variance row is the one that matters: TCH's characteristic failure is a NEGATIVE
        variance estimate, and an implementation that clamped or abs()'d it would still match on every
        well-behaved input. */
+    /* ════ INDEPENDENCE SENSITIVITY on sensor-trio-night — the row, and what it must not do ═════════════
+       The owner asked for one scientific safeguard on the 3-hat page. The DIRECT answer is the pooled
+       reference run (#3123, FAIL); this row is the per-night companion, and this group pins the ways it
+       could quietly become dishonest. Every non-numeric leg is a source scan: the inputs are computed in a
+       WORKER and the suite cannot execute worker-local functions — which is also why that hat now
+       delegates rather than being numerically bound (a parity row there is not writable). */
+    group('sensor-trio independence sensitivity — the collapse point, and four things the row must not do', 'sensor-trio · rho-crit · §∅', function (T) {
+      var S = env.AnalysisStats;
+      var page = env.sources && env.sources['sensor-trio-night.js'];
+      var wk = env.sources && env.sources['sensor-trio-worker.js'];
+      T.ok('the page source is readable in this lane', !!page, 'sensor-trio-night.js not in env.sources — list it in BOTH lanes');
+      T.ok('the worker source is readable in this lane', !!wk, 'sensor-trio-worker.js not in env.sources — list it in BOTH lanes');
+      if (!page || !wk) return;
+
+      /* ── the worker supplies the row's only input ────────────────────────────────────────────────── */
+      T.ok(
+        'the worker surfaces the pairwise difference variances it used to discard',
+        /vars:\s*\{\s*hv:/.test(wk),
+        'tchSigmas/tchSigmasFused must return { hv, ho, vo } — without them the row has no input'
+      );
+      T.ok('the night payload carries them', /pairVars:\s*s\.vars/.test(wk), 'out.pairVars must ship or the page cannot locate a collapse point');
+      /* The delegation this unit performed. A private copy here was byte-equivalent to the kernel and
+         gated by nothing — `tch-parity` scans the power tool only. */
+      T.ok('the worker DELEGATES the hat to the shared kernel', /AnalysisStats\.threeCorneredHat/.test(wk), 'the worker must call the shared kernel, not carry its own solver');
+      T.ok('the worker carries NO private three-cornered-hat formula any more', !/0\.5\s*\*\s*\(\s*vAB\s*\+\s*vAC\s*-\s*vBC\s*\)/.test(wk), 'the private copy came back — delegate instead');
+      T.ok(
+        'an absent kernel REFUSES rather than falling back to a local copy',
+        /AnalysisStats\.threeCorneredHat unavailable/.test(wk),
+        '§3 — guarding an absent alias converts a crash into silent disablement'
+      );
+
+      /* ── the four things the row must not do ────────────────────────────────────────────────────── */
+      /* 🔴 THIS SCAN CAUGHT ITSELF TWICE: naively, `/independent ✓/` fired on the page's own sentence
+         saying no such verdict is available, and after that sentence was stripped it fired again on the
+         comment documenting the denial. The string the row must never ASSERT is the one it must NAME to
+         explain the absence. Stripping known sentences would need an edit on every rewording — exactly
+         when the scan must still work — so the rule is stated: EVERY occurrence must be negated within
+         the 40 characters before it. A scan that cannot tell an assertion from its denial reports the
+         honest page and the dishonest one alike. */
+      var claim = null;
+      var reIndep = /independent\s*\u2713/g,
+        _m;
+      while ((_m = reIndep.exec(page)) !== null) {
+        var before = page.slice(Math.max(0, _m.index - 40), _m.index);
+        if (!/\b(No|no|never|not|none|NOT)\b/.test(before)) claim = page.slice(Math.max(0, _m.index - 40), _m.index + 30);
+      }
+      T.ok(
+        'the row never claims independence',
+        claim === null,
+        'an UN-NEGATED "independent ✓" is present: ' +
+          String(claim) +
+          ' — a positive TCH solve is not evidence of uncorrelated errors at any n (#1824: a negative needs \u03c1 > \u03c3\u2080_A/\u03c3\u2080_B)'
+      );
+      /* ANTI-VACUITY: the loop above passes trivially if the string never appears at all — which would
+         also mean the row had stopped explaining itself. Pin that it appears AND that every appearance
+         was examined. */
+      T.ok(
+        'ANTI-VACUITY · the scan actually examined some occurrences',
+        (page.match(/independent\s*\u2713/g) || []).length >= 2,
+        'the page no longer mentions the unavailable verdict — the scan passed by examining nothing (§4b)'
+      );
+      T.ok(
+        "the row says so, rather than leaving the absence of an 'independent' verdict unexplained",
+        /No "independent ✓" is shown here, and none is available/.test(page),
+        'the clean state must read as unobtainable, not merely unreported'
+      );
+      T.ok(
+        "this night's own ρ is REFUSED, not defaulted",
+        /This night\\u2019s own ρ: REFUSED/.test(page) || /own ρ: REFUSED/.test(page),
+        '§∅ — ρ = 0 would answer the question with the assumption under test'
+      );
+      T.ok('the pooled ρ is labelled as external and not this night', /Pooled, external, NOT this night/.test(page), "the 37-night ρ must never read as this night's own (KNIFE-EDGE §5)");
+      T.ok('no band around the collapse point is stated', /No band around the collapse point is given/.test(page), '§2 measured sensitivity rising smoothly, with no regime to threshold on');
+      T.ok(
+        'the operating point is ρ = 0 on every pair, which is what the hat assumes',
+        /\{\s*ab:\s*0,\s*ac:\s*0,\s*bc:\s*0\s*\}/.test(page),
+        'ρ_crit must be measured from the hat’s own assumption, not from an arbitrary point'
+      );
+
+      if (!S || typeof S.tchRhoCrit !== 'function' || typeof S.tchSigmasPairwiseFromVars !== 'function') {
+        T.skip('env.AnalysisStats provided to the runner', 'Node-lane only — run-tests.mjs co-loads analysis-stats.js');
+        return;
+      }
+
+      /* ── NUMERIC, on the CLASSIC HAT's own σ̂ medians (#3123: 0.967 · 0.413 · 1.456) ─────────────────
+         🔴 HAT VALUES, NOT REFERENCE-MEASURED ONES — an earlier comment here said "the σ the reference
+         measured", a different triple (`trueSd` 0.806 · 0.728 · 1.713). Both are in
+         analysis/published-numbers/tch-firmware-reference-2026-09-26.json (`medians.*.classic` /
+         `.trueSd`). The input was right, only the label wrong: ρ_crit is a property of THIS hat's solve,
+         so its own σ̂ is what it must be fed. The row exists because those two triples differ.
+         ANTI-VACUITY FIRST: the triple must round-trip to those σ̂, or every row below describes nothing. */
+      var sh = 0.97,
+        sv = 0.41,
+        so = 1.46;
+      var vhv = sh * sh + sv * sv,
+        vho = sh * sh + so * so,
+        vvo = sv * sv + so * so;
+      var back = S.tchSigmasPairwiseFromVars(vhv, vho, vvo, { ab: 0, ac: 0, bc: 0, _noCrit: true });
+      T.ok('ANTI-VACUITY · the variance triple round-trips to the hat’s own σ̂', !!(back && back.ok), 'the solve refused its own construction — the rows below would describe nothing');
+      if (!back || !back.ok) return;
+      T.approx('round-trip σ̂ H10 (hat median 0.967)', back.a, sh, 1e-9);
+      T.approx('round-trip σ̂ Verity (hat median 0.413 — the reference puts the TRUE σ at 0.728)', back.b, sv, 1e-9);
+      T.approx('round-trip σ̂ O2Ring (hat median 1.456)', back.c, so, 1e-9);
+
+      var r = S.tchRhoCrit(vhv, vho, vvo, { ab: 0, ac: 0, bc: 0 });
+      T.ok('a collapse point exists for this instrument', !!(r && r.nearest), 'no corner collapses in range — implausible for a real trio; suspect the inputs');
+      if (!r || !r.nearest) return;
+      /* 🔴 THE FINDING, and why the row is worth a surface: the nearest collapse is H10·O2Ring at ρ ≈ 0.105
+         — a SMALL correlation — and the corner it annihilates is the VERITY, the smallest σ. That is the
+         same corner the 37-night reference independently found under-read (0.41 against a true 0.73), and
+         this row reaches it from the night alone with no reference. Pinned so the row cannot silently
+         stop pointing at it. */
+      T.eq('the nearest collapse is the H10 · O2Ring pair', r.nearest.pair, 'ac');
+      T.approx('it collapses at a SMALL correlation', r.nearest.at, 0.105, 0.01);
+      T.ok(
+        'the collapsing corner is the smallest σ (the Verity)',
+        Math.min(back.a, back.b, back.c) === back.b,
+        'if the smallest corner is no longer the one at risk, the row\u2019s onset-law reading is stale'
+      );
+      T.ok('the sensitivity is published as a rate', Number.isFinite(r.nearest.sigmaPerRho), 'sigmaPerRho absent — the row would show only a bare threshold, which §2 refused');
+      T.ok('the required ρ precision is published', Number.isFinite(r.nearest.rhoFor0p1), 'rhoFor0p1 absent — the row could only assert, not state what is needed');
+      T.approx('ρ would have to be known to ±0.059 to pin that σ to ±0.1 bpm', r.nearest.rhoFor0p1, 0.059, 0.01);
+      /* The pooled optical ρ is 0.32 — BELOW the Verity·O2Ring collapse at ≈ 0.51, which is precisely why
+         nothing goes negative and the trio looks clean while the reference says it is not. The onset law,
+         visible in one inequality. */
+      /* ── THE ONSET LAW, PAIR BY PAIR AGAINST THE REFERENCE'S MEASURED ρ (Wren's cross-check) ────────
+         `result.rho`: hv −0.011 · ho 0.012 · vo 0.318. Every one sits BELOW its pair's collapse point,
+         which is why the hat returns three positive σ̂ on nights the reference says are wrong. If any
+         measured ρ ever sat at or above its ρ_crit, a negative variance would have flagged the
+         correlation and this row's caveat — a positive solve is not evidence of independence — would be
+         the wrong reading. Pinned per pair, not for the optical pair alone. */
+      var RHO_MEASURED = { ab: -0.011, ac: 0.012, bc: 0.318 };
+      var PAIRNAME = { ab: 'H10 · Verity', ac: 'H10 · O2Ring', bc: 'Verity · O2Ring' };
+      var checkedPairs = 0;
+      for (var _p = 0; _p < 3; _p++) {
+        var pk = ['ab', 'ac', 'bc'][_p];
+        var up = r.pairs && r.pairs[pk] && r.pairs[pk].up;
+        if (!up) continue;
+        checkedPairs++;
+        T.ok(
+          'the ' + PAIRNAME[pk] + ' collapse (ρ ' + up.at.toFixed(3) + ') sits ABOVE its measured ρ of ' + RHO_MEASURED[pk],
+          up.at > RHO_MEASURED[pk],
+          'a measured ρ at or above its collapse point would have produced a NEGATIVE variance, and this row’s caveat would be the wrong reading'
+        );
+      }
+      T.ok(
+        'ANTI-VACUITY · every pair with a collapse point was checked against a measured ρ',
+        checkedPairs === 3,
+        'only ' + checkedPairs + ' of 3 pairs collapsed upward — the loop passed by skipping the rest'
+      );
+    });
     group("the paper's power tool and the gated TCH kernel compute the same hat", 'sensor-trio · tch-parity', function (T) {
       var K = env.IntegratorTCH;
       var src = env.sources && env.sources['sensor-trio-power-analysis.js'];
@@ -8756,18 +8907,36 @@
       T.ok("the tool's source is readable in this lane", !!src, 'sensor-trio-power-analysis.js not in env.sources — must be listed in BOTH lanes');
       if (!K || typeof K.classic !== 'function' || !src) return;
 
-      /* Lift the tool's own implementation out of its source and RUN it — not a regex comparison, so
-         re-indentation or renamed locals cannot mask a change in the arithmetic. */
-      var m = /function\s+threeCorneredHat\s*\(([^)]*)\)\s*\{([\s\S]*?)\n\s*\}/.exec(src);
-      T.ok("the tool's threeCorneredHat could be extracted", !!m, 'if this fails the tool was refactored — re-point the extraction, do not delete the gate');
-      if (!m) return;
-      var toolHat;
-      try {
-        toolHat = new Function(m[1], m[2]);
-      } catch (e) {
-        T.ok("the tool's threeCorneredHat is executable", false, String(e));
+      /* RE-POINTED 2026-09-26 (TCH-FUSED-ROBUST-HAT closed): the tool no longer carries a private copy —
+         it DELEGATES to analysis-stats.js (`const tchSigmas = AnalysisStats.tchSigmas`), whose variance-level
+         entry is `AnalysisStats.threeCorneredHat`. So the thing to bind numerically to the gated kernel is
+         now the kernel the tool actually executes, and the source scan guards that the tool did not grow a
+         copy back. A local `function threeCorneredHat` / `function tchSigmas` reappearing here is the
+         regression this gate exists for — it fails, by name, rather than silently re-extracting the copy. */
+      var S = env.AnalysisStats;
+      T.ok(
+        'the tool delegates its hat to the shared kernel (AnalysisStats.tchSigmas)',
+        /\bAnalysisStats\.tchSigmas\b/.test(src),
+        'the power tool must alias AnalysisStats.tchSigmas, not carry a copy'
+      );
+      T.ok(
+        'the tool carries NO private threeCorneredHat / tchSigmas any more',
+        !/function\s+(threeCorneredHat|tchSigmas)\s*\(/.test(src),
+        'a private copy of the hat came back — delete it and delegate (2026-08-04 measured the copy byte-equivalent and ungated)'
+      );
+      if (!S) {
+        // The browser lane (Dex-Test-Suite.html) co-loads no analysis-stats.js — the same SKIP the
+        // statistics-kernel group takes there. The Node lane binds the numbers below on every run.
+        T.skip('the shared kernel the tool runs is loaded in this lane', 'Node-lane only — run-tests.mjs co-loads analysis-stats.js');
         return;
       }
+      T.ok(
+        'the shared kernel the tool runs exposes threeCorneredHat',
+        typeof S.threeCorneredHat === 'function',
+        'AnalysisStats.threeCorneredHat unavailable — the numeric rows below would vacuously pass'
+      );
+      if (typeof S.threeCorneredHat !== 'function') return;
+      var toolHat = S.threeCorneredHat;
 
       var CASES = [
         { vab: 4, vac: 9, vbc: 5, why: 'ordinary positive triple' },
@@ -9681,13 +9850,32 @@
       /* ── the Unifier / OverDex routing ── */
       if (SO && typeof SO.streamKind === 'function') {
         T.eq('control · streamKind(`…_PPG.txt`) is `ppg`', SO.streamKind(W), 'ppg');
-        T.eq('streamKind · `…_PPG2W.txt` is not a stream the Unifier knows', SO.streamKind(W2), null);
+        /* ⚠️ RE-JUSTIFIED, not loosened. This read `=== null` until the `spo2` companion lane gave
+           `_PPG2W` a kind, and the tripwire fired — which is the tripwire working: a cell it guards
+           moved and something had to come back and say why. Having a kind does NOT open a route to
+           `ppgdex-dsp`; the kind is `ppg2w`, and PpgDex's companion machinery keys on `ppg`. So the
+           assertion now pins the PROPERTY that matters (it is not the PPG lane's stream) beside the
+           exact value, and a future change to `'ppg'` still reds here. */
+        T.ok('streamKind · `…_PPG2W.txt` is NOT the PPG lane\u2019s stream', SO.streamKind(W2) !== 'ppg', String(SO.streamKind(W2)));
+        T.eq('streamKind · …it is its own kind, so the value is pinned too', SO.streamKind(W2), 'ppg2w');
         if (typeof SO.pairCompanions === 'function') {
-          var pc = SO.pairCompanions([
+          /* 🔴 THIS CALL WAS WRONG AND PASSED ANYWAY — my own, written in #3073 and found only now.
+             `pairCompanions(signalType, primaryName, entries)` takes THREE arguments and this passed
+             ONE, so `_COMPANION_KINDS[<an array>]` was undefined and it returned null for a reason
+             that had nothing to do with the subject. It would have passed no matter what the PPG lane
+             did. Called properly now: the question is whether PPGDEX's lane can claim this file. */
+          var pc = SO.pairCompanions('ppg', W2, [
             { name: W2, text: HEAD },
             { name: W2.replace('_PPG2W.txt', '_PPG2WRUNS.txt'), text: '# stream=ppg2w rule=stuck min_run=200\n' }
           ]);
-          T.eq('pairCompanions · a `_PPG2W` + its sidecar pair to NOTHING', JSON.stringify(pc), JSON.stringify(null));
+          T.eq('pairCompanions · the PPG lane pairs a `_PPG2W` + its sidecar to NOTHING', JSON.stringify(pc), JSON.stringify(null));
+          /* …and the control that makes that non-vacuous: the same call on the lane that DOES own the
+             file returns the pair, so a null above is about the PPG lane and not about the machinery. */
+          var pcOwn = SO.pairCompanions('spo2', W2, [
+            { name: W2, text: HEAD },
+            { name: W2.replace('_PPG2W.txt', '_SPO2.csv'), text: 'Time,Oxygen Level,Pulse Rate,Motion\n' }
+          ]);
+          T.ok('control · the spo2 lane DOES pair it, so the null above is a fact about the PPG lane', !!(pcOwn && pcOwn.spo2), JSON.stringify(pcOwn));
         }
       } else T.ok('SignalOrchestrate reachable in env', false, 'the Unifier routes are unchecked');
       /* ── and the dual path really is still THERE, so this group is about routing, not dead code ── */
@@ -11112,7 +11300,7 @@
         };
         var cDis = env.PATGate.verdictCell(mDis);
         T.ok(/DRIFT-DOMINATED/.test(cDis.text), 'the cell still leads with the PRIMARY raw verdict');
-        T.ok(/corrected\(acc\): FEASIBLE/.test(cDis.text), 'the ACC-corrected verdict REACHES the cell');
+        T.ok(/corrected\(floor\): FEASIBLE/.test(cDis.text), 'the arrival-floor-corrected verdict REACHES the cell');
         T.eq('a disagreement is flagged for the reader', cDis.differs, true);
         T.ok(/DIFFERS from primary/.test(cDis.title), 'the title names the disagreement explicitly');
         /* The tier is NOT promoted — surfacing decides nothing; promoting on corrected drift is the
@@ -12871,14 +13059,23 @@
        were not 'classified', they were INVISIBLE" — and those files are STILL outside both lists. A
        finding recorded as a comment does not fail when the defect recurs; this does.
 
-       ⚠️ RATCHET, NOT PASS/FAIL, and deliberately so. 13 of 112 are invisible today — the UN-BUNDLED
-       tail (cohort tooling, `dex-coload.js`, `dex-contracts.js`, provenance surfaces, standalone
-       analyses). The registries and spine are NOT among them: `readSources()` walks every bundle's
-       `data-inline-src`, so anything inlined is readable for free. Demanding all 112 at once would land red on day one over
-       work nobody has scoped, and a gate that is red by default gets switched off — taking the real
-       finding with it (the argument that kept a coverage threshold out of #1163 and shaped
-       `no-fabricated-tier`'s cap). So the debt is measured, published, and may SHRINK BUT NEVER GROW:
-       a 39th unreadable file reds immediately, and wiring one in forces the cap down.
+       ⚠️ RATCHET, NOT PASS/FAIL, and deliberately so. **8 of 117** are invisible today, and the list is
+       pinned by name in `INVISIBLE_SET` below rather than only counted.
+       🔴 THE PROSE HERE WAS STALE AND MISDESCRIBED THE GATE'S OWN SCOPE, corrected 2026-09-27. It said
+       "13 of 112" and "a 39th unreadable file reds immediately" against a cap that was 12 — two numbers
+       from earlier caps, in the comment of a group whose whole lesson is that a finding recorded as a
+       comment does not fail when it goes stale. And it claimed `readSources()` "walks every bundle's
+       `data-inline-src`, so anything inlined is readable for free": it walked the 11 owned APP bundles
+       and NOT the 14 analysis tool bundles, so 4 of the then-12 invisible files were inlined into
+       bundles and invisible anyway — not the "un-bundled tail" this paragraph described. The walk now
+       covers both families (readSources, from `build-analysis.mjs TOOLS`, failing closed), which is what
+       took the cap 12 → 8: a scope fix, not a registration drive.
+       The registries and spine are genuinely not among the invisible — anything inlined into a bundle of
+       either family is readable for free. Demanding all 117 at once would land red on day one over work
+       nobody has scoped, and a gate that is red by default gets switched off — taking the real finding
+       with it (the argument that kept a coverage threshold out of #1163 and shaped `no-fabricated-tier`'s
+       cap). So the debt is measured, published and may SHRINK BUT NEVER GROW: a 9th unreadable file reds
+       immediately, a swap inside the 8 reds on the set pin, and wiring one in forces the cap down.
 
        Node-lane only (env.sourceVisibility is fs-read); the browser SKIPs, mirroring docs-ledger. */
     group('Every runtime source layer is readable by at least one lane', 'cohesion · source-visibility · ratchet', function (T) {
@@ -12906,13 +13103,59 @@
       });
 
       /* The cap. Lower it — never raise it — when a file is wired into either lane. */
-      var INVISIBLE_CAP = 12; // 13 → 12 on 2026-09-21: cohort-harness.html + qrs-equiv-analysis.js entered env.sources for the tripwire plant
-      T.ok(
-        'no NEW unscannable source layer (ratchet ' + INVISIBLE_CAP + ')',
-        invisible.length <= INVISIBLE_CAP,
-        invisible.length + ' invisible: ' + invisible.slice(0, 8).join(', ') + (invisible.length > 8 ? ', …' : '')
-      );
+      var INVISIBLE_CAP = 6; // 13 → 12 on 2026-09-21 (cohort-harness.html + qrs-equiv-analysis.js); 12 → 8 on 2026-09-27 (readSources walks the ANALYSIS TOOL bundles); 8 → 6 on 2026-09-27 (dex-coload.js AND provenance-ledger.js listed in BOTH lanes — see INVISIBLE_SET)
+      T.ok('no NEW unscannable source layer (ratchet ' + INVISIBLE_CAP + ')', invisible.length <= INVISIBLE_CAP, invisible.length + ' invisible: ' + invisible.join(', '));
       T.ok('the cap is not STALE — lower it when the debt shrinks', invisible.length >= INVISIBLE_CAP, 'only ' + invisible.length + ' invisible now; set INVISIBLE_CAP = ' + invisible.length);
+      /* ── THE SET, NOT ONLY THE COUNT (2026-09-27) ───────────────────────────────────────────────────
+         The cap above is already two-sided, so the NUMBER cannot drift. The MEMBERS could: wire one file
+         in while another falls out and the count is unchanged, both assertions pass, and a newly
+         unscannable runtime layer arrives silently — which is the exact failure this group exists to
+         prevent, one level up. PLANT 2 below is that swap, and it fails without this pin.
+         Read this list as QUESTIONS, not bookkeeping (gate-must-publish-its-denominator): each name is a
+         file no source-level gate can reach. Two of them are named in CLAUDE.md as load-bearing —
+         `dex-coload.js` (the co-loader that must load clock.js before any delegating *-dsp.js) and
+         `provenance-ledger.js` (which reassembles the per-app fragments the provenance gate reads) — so
+         this is not only cohort tooling and fixtures. Recorded as residue
+         2026-09-27-load-bearing-sources-no-gate-can-read rather than left in a comment, because a finding
+         recorded as a comment does not fail when the defect recurs; that is this group's own lesson. */
+      /* ── TWO LOAD-BEARING FILES LEFT THIS SET on 2026-09-27, listed in BOTH lanes ────────────────────
+         `dex-coload.js` (CLAUDE.md §✅ — the co-loader that must load clock.js before any delegating
+         `*-dsp.js`) and `provenance-ledger.js` (CLAUDE.md §🔏 — it reassembles the per-app fragments GATE A
+         and GATE B read). Both were named on residue
+         2026-09-27-load-bearing-sources-no-gate-can-read as files no source-level gate could reach.
+
+         🔴 ONE HONEST SIZING FOR BOTH, because it is the same story twice and neither closed a hole. Both
+         files are EXECUTED, so the invariants anyone has actually wanted from them are already gated on
+         VALUES, which is strictly stronger evidence than a text scan:
+           · dex-coload.js — the clock-before-DSP order is asserted on the executed manifest object
+             (`env.DexCoload`: `M.all.slice(0, M.shared.length) === M.shared`) plus the authored order of all
+             eleven shells. That is the file RUNNING, not a mirror of it.
+           · provenance-ledger.js — required at `run-tests.mjs:74` and used by verify-manifest.mjs,
+             reconcile-provenance.mjs, tools/release.mjs, verify-provenance.html and Dex-Test-Suite.html, so
+             GATE A/B read it by running it.
+         What the listing buys is reachability for a FUTURE source-level assertion, and two measured files off
+         the published debt. No text-level invariant has been named for either, so nothing here is gated for
+         visibility's own sake, and no value-level assertion was rewritten as a source scan to make the
+         listing look load-bearing. The one divergence measured inside provenance-ledger.js — `loadBrowser`
+         filters an absent fragment where `loadNode` throws — is residue
+         2026-09-27-loadbrowser-filters-an-absent-fragment-silently and changes no verdict today. */
+      var INVISIBLE_SET = ['cohort-full.js', 'cohort-worker.js', 'dex-contracts.js', 'provenance-banner.js', 'support.js', 'xmt-fixture.js'];
+      T.eq(
+        'the invisible SET is exactly the published one (a swap cannot hide inside a stable count)',
+        invisible.slice().sort().join(','),
+        INVISIBLE_SET.slice().sort().join(','),
+        'the membership changed. If you WIRED one in, remove it here and lower INVISIBLE_CAP. If a NEW file became unscannable, wire it into a lane instead of adding it here.'
+      );
+      /* PLANT 2 · the swap the count cannot see. One file leaves the invisible set and another joins it,
+         so `invisible.length` is identical and both cap assertions still pass — only the set pin reds.
+         Without this, the pin above could be decoration that never discriminates. */
+      var swapped = invisible.slice(1).concat('zz-planted-unscannable.js').sort();
+      T.eq('PLANT 2 · a swap leaves the COUNT unchanged', swapped.length, invisible.length);
+      T.ok(
+        'PLANT 2 · …and the SET pin reds on it',
+        swapped.join(',') !== INVISIBLE_SET.slice().sort().join(','),
+        'the set pin accepted a swapped membership — it is not discriminating and the published list is decoration'
+      );
       /* Published so the debt is legible in the output rather than only in a brief. The invisible set
          is NOT the bundled runtime: `readSources()` also walks every bundle's `data-inline-src`, so
          anything inlined into an app is readable for free — the registries and the spine included.
@@ -12943,7 +13186,204 @@
        off. Adding a pair is a deliberate act that says "these two files are a boundary". */
     group('No value crosses a worker boundary unread', 'cohesion · dead-cross-boundary · pat', function (T) {
       var S = env.sources || {};
-      var PAIRS = [{ producer: 'pat-feasibility-worker.js', consumers: ['pat-feasibility.js', 'pat-gate.js'] }];
+      /* ── WHO COUNTS AS A CONSUMER IS DERIVED; THE LIST IS ONLY AN ALLOWLIST (2026-09-27) ──────────────
+         This was a hand-written `consumers` array, and the cost was not the missing edit — it was the
+         DIRECTION of the report. A consumer nobody had declared made the PRODUCER's keys read as dead
+         ("got fused,threeFused · want none"), which invites the author to delete or guard a key a real
+         surface reads. Registering `pat-classic-vs-fused.js` in both source inventories cleared
+         `ratchet 12` and left this gate red and UNCHANGED, because this list — not the inventory —
+         decided whose reads counted (residue 2026-09-26-boundary-gate-consumer-set-is-hand-written).
+
+         🔴 THE RULE IS CONSTRUCTION, NOT MENTION, and that is the whole design. Measured over the Node
+         lane's 105-file inventory, 2026-09-27:
+           · `new Worker(...)` / `__mkWorker(...)` naming the worker → EXACTLY `pat-feasibility.js` and
+             `pat-classic-vs-fused.js`, precisely the two files that read the payload;
+           · "the text mentions the worker" → 11 inventory files (40+ across the repo): DSP comments,
+             `analysis-stats.js`, two orchestrator bundles, the builder, the papers.
+         BREADTH IS THE DANGER HERE, not narrowness. Every admitted file's text is concatenated into
+         `consumerText`, and a key name occurring anywhere in it reads as "read" — so a generous rule
+         turns this gate off while leaving it green. PLANT 2 below is the control for exactly that, and it
+         is the reason the rule is not "names the worker", which is what the old comment proposed.
+
+         The array survives as an ALLOWLIST for a consumer the scan cannot see: `pat-gate.js` reads `m.cp`
+         off the payload and never constructs the worker (it is handed the object), so no construction
+         rule can find it. Derived set + small allowlist needs no edit for the next page. */
+      var PAIRS = [
+        { producer: 'pat-feasibility-worker.js', allow: ['pat-gate.js'] },
+        /* ADDED 2026-09-27. This producer sat OUTSIDE the gate while the gate's name — "No value crosses
+           a worker boundary unread" — claimed every boundary, and the exclusion was a LIVE finding on the
+           first run: `hrRatio` reached no consumer. The `vdCorr` shape, in a producer nothing was looking
+           at. */
+        { producer: 'sensor-trio-worker.js', allow: [] },
+        /* DECLARED 2026-09-27, once the extractor could read an inline postMessage literal. Both post their
+           payload directly and were carried as EXCLUDED with that reason; the exclusion is now empty. */
+        { producer: 'qrs-equiv-worker.js', allow: [] },
+        { producer: 'qrs-yield-worker.js', allow: [] }
+      ];
+      /* ── THE POPULATION IS PINNED AS AN EQUALITY, NOT A FLOOR ──────────────────────────────────────
+         A `>= N` check can never detect exclusion: the excluded members are exactly the ones it does not
+         count. This gate asserted NO denominator at all while its name was universal and PAIRS held one
+         producer. Excluded below, WITH the reason, so the hole is visible and re-reads as a question every
+         run — both post inline `postMessage({…})` literals and build no named payload object, so the
+         extractor cannot read their keys. Declaring them without extending the extractor would cover ZERO
+         keys and report clean, which is worse than an honest exclusion (residue
+         2026-09-27-inline-postmessage-payloads-are-unscanned). */
+      /* ── THE EXCLUSION SET IS NOW EMPTY ─────────────────────────────────────────────────────────────
+         It held `qrs-equiv-worker.js` and `qrs-yield-worker.js`, both for one reason: they post their
+         payload as an inline `postMessage({…})` literal and build no named object, so the key extractor
+         could not read them. The extractor now reads that idiom, both are DECLARED above, and nothing is
+         carried as "a boundary this gate cannot see". Closes residue
+         2026-09-27-inline-postmessage-payloads-are-unscanned.
+         Keep it as an empty object rather than deleting it: the denominator equality below is what makes a
+         NEW unreadable producer visible, and it needs something to compare against. */
+      var EXCLUDED = {};
+      /* 🔴 A FOURTH WORKER, INVISIBLE FOR A DIFFERENT REASON, and my first version of EXCLUDED wrongly
+         listed it here — the denominator assertion is what caught that. `cohort-worker.js` is constructed
+         by four analysis pages and the cohort runner, but it is NOT in `env.sources`: run-tests.mjs loads
+         it into a vm REALM instead of the source inventory. So the enumerator below cannot see it as a
+         producer at all, and excluding it would have pinned a fiction — which is why the exclusion legs
+         assert each excluded name is still genuinely constructed.
+         Pinned as its own fact so it cannot stay invisible by default: if it is ever added to the
+         inventory, this reds and asks for it to be declared or excluded on purpose. */
+      var INVENTORY_ABSENT = ['cohort-worker.js'];
+      /* Every inventory source CONSTRUCTED as a worker. Dynamic/template names ('full', 'oxy', 'w.js')
+         fall out through the `in env.sources` test rather than a hand-written skip list. */
+      var workerProducers = function () {
+        var found = {};
+        Object.keys(S).forEach(function (f) {
+          var re = /(?:new\s+Worker|__mkWorker|mkWorker)\s*\(\s*['"`]([^'"`]+)/g,
+            m;
+          while ((m = re.exec(S[f] || ''))) if (Object.prototype.hasOwnProperty.call(S, m[1])) found[m[1]] = true;
+        });
+        return Object.keys(found).sort();
+      };
+      /* ── PAYLOAD KEYS: BOTH IDIOMS, OR THE POPULATION SHRINKS SILENTLY ─────────────────────────────
+         `out.X = …` assignments AND the members of a `var out = { … }` literal. Measured 2026-09-27:
+         assignments alone see 14 of 14 keys on pat-feasibility-worker.js but only **7 of 21** on
+         sensor-trio-worker.js, whose payload is mostly a literal — and `hrRatio`, its one dead key, was
+         among the 14 it could not see. Declaring a producer is therefore not enough; the extractor must
+         be able to READ its payload, or the gate examines a third and reports on the whole.
+         Depth-1 only: `sigma: { o2, h10, verity }` contributes `sigma`, not its members. */
+      /* Depth-1 members of an object literal, given the text starting at its `{`. Shared by the two literal
+         idioms below so they cannot disagree about what "a payload key" means. */
+      var litKeysAt = function (text, brace, into) {
+        var d = 0,
+          end = -1;
+        for (var k = brace; k < text.length; k++) {
+          if (text[k] === '{') d++;
+          else if (text[k] === '}') {
+            d--;
+            if (d === 0) {
+              end = k;
+              break;
+            }
+          }
+        }
+        if (end < 0) return;
+        var body = text.slice(brace + 1, end),
+          dd = 0,
+          seg = '';
+        var flush = function () {
+          var km = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:/.exec(seg);
+          if (km) into[km[1]] = true;
+          seg = '';
+        };
+        for (var c = 0; c < body.length; c++) {
+          var ch = body[c];
+          if (ch === '{' || ch === '[' || ch === '(') dd++;
+          else if (ch === '}' || ch === ']' || ch === ')') dd--;
+          if (dd === 0 && ch === ',') {
+            flush();
+            continue;
+          }
+          seg += ch;
+        }
+        flush();
+      };
+      var payloadKeys = function (prodText) {
+        var found = {},
+          m;
+        /* THIRD IDIOM (2026-09-27): an inline `postMessage({ … })` literal. Two producers build no named
+           payload object at all — `qrs-equiv-worker.js` and `qrs-yield-worker.js` post their results
+           directly — so before this they could not be declared and were carried as EXCLUDED with a reason.
+           Depth-1 only, and only on a `postMessage(` call, which is what keeps this from admitting every
+           object literal in the file (the breadth failure mode the derived-consumer work turned on). */
+        var POST = /postMessage\s*\(\s*\{/g;
+        while ((m = POST.exec(prodText))) litKeysAt(prodText, prodText.indexOf('{', m.index), found);
+        var ASSIGN = /\bout\.([A-Za-z_][A-Za-z0-9_]*)\s*=/g;
+        while ((m = ASSIGN.exec(prodText))) found[m[1]] = true;
+        var LIT = /\bvar\s+out\s*=\s*\{/g;
+        while ((m = LIT.exec(prodText))) {
+          var i = prodText.indexOf('{', m.index),
+            depth = 0,
+            end = -1;
+          for (var k = i; k < prodText.length; k++) {
+            if (prodText[k] === '{') depth++;
+            else if (prodText[k] === '}') {
+              depth--;
+              if (depth === 0) {
+                end = k;
+                break;
+              }
+            }
+          }
+          if (end < 0) continue;
+          var d = 0;
+          prodText
+            .slice(i + 1, end)
+            .split('\n')
+            .forEach(function (line) {
+              if (d === 0) {
+                var km = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:/.exec(line);
+                if (km) found[km[1]] = true;
+              }
+              for (var c = 0; c < line.length; c++) {
+                if (line[c] === '{' || line[c] === '[') d++;
+                else if (line[c] === '}' || line[c] === ']') d--;
+              }
+            });
+        }
+        return Object.keys(found);
+      };
+      /* The denominator itself. An undeclared, unexcluded worker producer reds here rather than being
+         quietly absent from a gate whose name covers it. */
+      var producers = workerProducers();
+      var declared = PAIRS.map(function (x) {
+        return x.producer;
+      });
+      var uncovered = producers.filter(function (w) {
+        return declared.indexOf(w) < 0;
+      });
+      T.ok(
+        'the worker-producer population was actually enumerated',
+        producers.length >= 3,
+        'found: ' + producers.join(', ') + ' — an empty or tiny population means the construction scan found nothing and every row below is vacuous'
+      );
+      T.eq(
+        'the set of worker producers OUTSIDE this gate is exactly the declared exclusions',
+        uncovered.sort().join(','),
+        Object.keys(EXCLUDED).sort().join(','),
+        'a new worker producer appeared: declare it in PAIRS, or add it to EXCLUDED with the reason it cannot be read'
+      );
+      Object.keys(EXCLUDED).forEach(function (w) {
+        T.ok('the exclusion ' + w + ' is still a real producer', producers.indexOf(w) >= 0, 'it is excluded but no longer constructed anywhere — drop the exclusion rather than pinning a fiction');
+      });
+      INVENTORY_ABSENT.forEach(function (w) {
+        T.ok(
+          w + ' is still absent from the source inventory (a worker this gate structurally cannot reach)',
+          !Object.prototype.hasOwnProperty.call(S, w),
+          w + ' is now IN env.sources, so the gate can reach it — declare it in PAIRS or move it to EXCLUDED with a reason, and drop it from INVENTORY_ABSENT'
+        );
+      });
+      /* A source is a DERIVED consumer if it CONSTRUCTS this worker. */
+      var derivedConsumers = function (producer, src) {
+        var where = src || S;
+        var esc = producer.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        var re = new RegExp('(?:new\\s+Worker|__mkWorker|mkWorker)\\s*\\(\\s*[\'"`][^\'"`]*' + esc);
+        return Object.keys(where).filter(function (f) {
+          return f !== producer && re.test(where[f] || '');
+        });
+      };
       /* KNOWN, published, ratcheted — same discipline as the visibility cap above. The set is now
          EMPTY: `detailCorr` (the packed per-beat detail for the ACC-corrected coupling) sat here at
          ratchet ONE from 2026-09-02 until its parent finding's own closure was read — ENGINE-VERIFICATION
@@ -12955,35 +13395,152 @@
         var prod = S[pair.producer];
         T.ok(pair.producer + ' · producer source readable', !!prod, prod ? prod.length + ' bytes' : 'ABSENT from env.sources');
         if (!prod) return;
-        var consumerText = pair.consumers
+        var derived = derivedConsumers(pair.producer);
+        var allow = (pair.allow || []).filter(function (c) {
+          return derived.indexOf(c) < 0;
+        });
+        var consumers = derived.concat(allow);
+        /* The derivation must actually FIND the constructors. An empty derived set with a non-empty
+           allowlist would silently revert this gate to the hand-written behaviour it just replaced, and
+           every row below would still be green. */
+        T.ok(
+          pair.producer + ' · consumers were DERIVED, not just allowlisted',
+          derived.length > 0,
+          'nothing in the inventory constructs this worker — either the construction idiom changed, or every consumer is being carried by the allowlist again'
+        );
+        var consumerText = consumers
           .map(function (c) {
             return S[c] || '';
           })
           .join('\n');
-        T.ok(pair.producer + ' · at least one consumer readable', consumerText.length > 0, 'consumers: ' + pair.consumers.join(', '));
+        T.ok(pair.producer + ' · at least one consumer readable', consumerText.length > 0, 'derived: ' + (derived.join(', ') || 'none') + (allow.length ? ' · allowlisted: ' + allow.join(', ') : ''));
         if (!consumerText.length) return;
-        var keys = {},
-          km;
-        var KEY_RE = /\bout\.([A-Za-z_][A-Za-z0-9_]*)\s*=/g;
-        while ((km = KEY_RE.exec(prod))) keys[km[1]] = true;
+        var keys = {};
+        payloadKeys(prod).forEach(function (k) {
+          keys[k] = true;
+        });
         T.ok(pair.producer + ' · payload keys found to check', Object.keys(keys).length > 0, Object.keys(keys).join(', '));
         var dead = Object.keys(keys).filter(function (k) {
           return !new RegExp('[.\\b]' + k + '\\b').test(consumerText) && KNOWN_DEAD.indexOf(k) < 0;
         });
-        T.eq(pair.producer + ' · no UNDECLARED dead key crosses the boundary', dead.join(',') || 'none', 'none');
+        /* ── THE FAILURE NAMES THE RIGHT CAUSE ────────────────────────────────────────────────────────
+           An unread key has two very different causes and they used to print identically. If NO consumer
+           was discovered, the likely fault is the boundary declaration or a changed construction idiom —
+           not the producer — and saying "dead key" there sends the author to delete a key a real surface
+           may read. That misdirection is the residue this unit closes, so the message distinguishes them
+           rather than leaving the reader to guess. */
+        var deadWhy =
+          derived.length === 0
+            ? 'NO consumer of ' +
+              pair.producer +
+              ' was discovered in the inventory, so these keys are UNEXAMINED rather than proven dead — check the construction idiom and the inventory BEFORE touching the producer: ' +
+              dead.join(',')
+            : 'these keys cross the boundary and no consumer reads them (consumers examined: ' + consumers.join(', ') + '): ' + dead.join(',');
+        T.eq(pair.producer + ' · no UNDECLARED dead key crosses the boundary', dead.join(',') || 'none', 'none', deadWhy);
         T.eq('the known-dead ratchet is at ZERO — every key crossing the boundary is read', KNOWN_DEAD.length, 0);
         /* PLANT — the detector must still FIRE. A key that no consumer mentions, appended to the
            producer text, must be reported as dead; without this the empty set above could be the
            detector seeing nothing rather than nothing being dead. */
         var planted = prod + '\nout.zzPlantedUnreadKey = 1;';
-        var pk = {},
-          pm;
-        KEY_RE.lastIndex = 0;
-        while ((pm = KEY_RE.exec(planted))) pk[pm[1]] = true;
+        var pk = {};
+        payloadKeys(planted).forEach(function (k) {
+          pk[k] = true;
+        });
         var deadPlanted = Object.keys(pk).filter(function (k) {
           return !new RegExp('[.\\b]' + k + '\\b').test(consumerText);
         });
-        T.eq('PLANT · an unread key appended to the producer is reported dead', deadPlanted.join(','), 'zzPlantedUnreadKey');
+        /* Membership, not equality over the whole set: a producer may legitimately carry a real dead key
+           at the moment the plant runs (sensor-trio-worker.js did — `hrRatio`), and an equality here would
+           make the PLANT fail for a reason that has nothing to do with whether the detector fires. What
+           must hold is that the planted key is among the dead, and that planting CHANGED the set — the
+           second half is what stops this passing when the detector sees nothing. */
+        T.ok(
+          'PLANT 1 · an unread key appended to the producer is reported dead',
+          deadPlanted.indexOf('zzPlantedUnreadKey') >= 0,
+          'the planted key was not reported dead — the detector is not firing. dead set: ' + (deadPlanted.join(',') || 'empty')
+        );
+        /* ── PLANT 1b · THE INLINE-LITERAL IDIOM HAS ITS OWN FALSIFIER ──────────────────────────────
+           PLANT 1 appends `out.zzPlantedUnreadKey = 1`, which the ASSIGN branch finds — so it says nothing
+           about whether the POST branch added in 2026-09-27 works. Two producers are declared ONLY because
+           of that branch; without this plant their green rows could mean the extractor reads nothing from
+           them at all, which is indistinguishable from a clean payload. */
+        var plantedInline = prod + "\nself.postMessage({ type: 'done', zzPlantedInlineKey: 1 });";
+        var pil = {};
+        payloadKeys(plantedInline).forEach(function (k) {
+          pil[k] = true;
+        });
+        T.ok(
+          'PLANT 1b · a key in an INLINE postMessage literal is extracted',
+          !!pil.zzPlantedInlineKey,
+          'the POST branch did not see it — a producer that builds no named payload would read as having no keys at all'
+        );
+        T.ok(
+          'PLANT 1b · …and it is reported dead when no consumer reads it',
+          Object.keys(pil)
+            .filter(function (k) {
+              return !new RegExp('[.\\b]' + k + '\\b').test(consumerText);
+            })
+            .indexOf('zzPlantedInlineKey') >= 0,
+          'extracted but not reported — the new idiom feeds the extractor and not the verdict'
+        );
+        T.ok(
+          'PLANT 1b · a NESTED key is NOT lifted to a payload key (depth-1 only)',
+          !payloadKeys(prod + "\nself.postMessage({ type: 'done', meta: { zzNestedOnly: 1 } });").some(function (k) {
+            return k === 'zzNestedOnly';
+          }),
+          'a nested member was extracted as a top-level payload key — the extractor is too greedy and will report dead keys that never cross the boundary'
+        );
+        T.ok(
+          'PLANT 1 · and planting it CHANGED the dead set (the detector is not merely echoing)',
+          deadPlanted.length === dead.length + 1,
+          'planting added ' +
+            (deadPlanted.length - dead.length) +
+            ' key(s) to the dead set, expected exactly 1 — before: ' +
+            (dead.join(',') || 'none') +
+            ' · after: ' +
+            (deadPlanted.join(',') || 'none')
+        );
+
+        /* ── PLANT 2 · THE DERIVATION FINDS A NEW CONSUMER WITH NO LIST EDIT ───────────────────────────
+           The property this unit exists for. A source that constructs the worker and reads a key must
+           make that key live WITHOUT any entry in `allow`. Driven over a synthetic inventory so it tests
+           the rule rather than today's files. */
+        var synth = {};
+        synth[pair.producer] = prod + '\nout.zzPlantedNewKey = 1;';
+        synth['zz-synthetic-consumer.js'] = "var w = new Worker('" + pair.producer + "'); w.onmessage = function (m) { return m.zzPlantedNewKey; };";
+        var synthDerived = derivedConsumers(pair.producer, synth);
+        T.eq('PLANT 2 · a source CONSTRUCTING the worker is derived as a consumer, with no allowlist edit', synthDerived.join(','), 'zz-synthetic-consumer.js');
+        var synthText = synthDerived
+          .map(function (c) {
+            return synth[c] || '';
+          })
+          .join('\n');
+        T.ok(
+          'PLANT 2 · and the key it reads is therefore NOT reported dead',
+          new RegExp('[.\\b]zzPlantedNewKey\\b').test(synthText),
+          'the derived consumer\u2019s text did not reach consumerText — a new page would still red this gate, which is the defect being fixed'
+        );
+
+        /* ── PLANT 3 · THE DERIVATION MUST NOT BE GENEROUS (the control that matters most) ─────────────
+           A rule of "the text mentions the worker" would have admitted 11 inventory files, and every
+           admitted file's text masks any key name occurring in it — turning this gate off while leaving it
+           green. So: a source that READS the key but does NOT construct the worker must NOT be derived,
+           and the key must stay dead. If this ever passes vacuously the gate has quietly widened. */
+        var loose = {};
+        loose[pair.producer] = prod + '\nout.zzPlantedNewKey = 1;';
+        loose['zz-mentions-only.js'] = '/* see ' + pair.producer + ' for the producer */ var x = obj.zzPlantedNewKey;';
+        var looseDerived = derivedConsumers(pair.producer, loose);
+        T.eq('PLANT 3 · a source that only MENTIONS the worker is not a consumer', looseDerived.join(',') || 'none', 'none');
+        var looseText = looseDerived
+          .map(function (c) {
+            return loose[c] || '';
+          })
+          .join('\n');
+        T.ok(
+          'PLANT 3 · so the key it reads is still reported dead',
+          !new RegExp('[.\\b]zzPlantedNewKey\\b').test(looseText),
+          'a mention-only file reached consumerText — the derivation is too broad and now masks real dead keys'
+        );
         /* Anti-vacuity for any FUTURE entry: a declared dead key must still BE dead, or the gate is
            pinning a fiction and the cap should drop. (Empty set today; the PLANT above is what keeps
            the detector itself honest.) */
@@ -13097,6 +13654,150 @@
        a delegation-parity leg asserts every page actually ROUTES through the tested module (so a future
        edit can't quietly re-inline a divergent private copy). Node-lane only — env.AnalysisStats is loaded
        by run-tests.mjs; the browser suite doesn't co-load it, so this SKIPs there (like docs/release-ledger). */
+    /* ════ PAT classic vs fused — the weighted statistic, and the band on a clean night ═══════════
+       The mechanism behind the "PAT — classic vs fused" page. It lives in `analysis-stats.js` rather than
+       in `pat-feasibility-worker.js` so that THIS group can execute it: a worker's top-level functions can
+       only be source-scanned here, and the plant below is the whole point (`pat-align.js` is the same
+       extraction, for the same reason).
+
+       PRE-STATED BEFORE MEASURING, and derived rather than borrowed. The brief offered the per-second HR
+       kernel's "fused ≈ classic within 0.06 on σ" — that is a different estimator's tolerance and this one
+       does not inherit it. A weighted median with EQUAL weights selects the same order statistic as a plain
+       median, so the band here is **exact equality**, with one bounded exception: for even n a plain median
+       averages the two central values while this returns the lower, so |fused − classic| ≤ half the central
+       gap — ≤ 0.5 ms for any millisecond-quantised lag, and 0 whenever those two values coincide. */
+    group('PAT classic vs fused — a confidence-zeroed burst moves the fused lag and not the classic one', 'analysis-stats · pat · known-answer · §∅', function (T) {
+      var S = env.AnalysisStats;
+      /* 🔴 THE TWO CAUSES OF "no kernel" ARE NOT THE SAME FINDING, and collapsing them cost a CI cycle.
+         `env.AnalysisStats` ABSENT is the LANE: run-tests.mjs co-loads analysis-stats.js and the browser
+         suite does not, so the module is simply not there — a SKIP, exactly as the statistics-kernel and
+         tch-parity groups above do it. This group first asserted presence instead and reddened
+         `browser-gates` with "weightedMedian / legWeights / fusedLeg not exported" over exports that are
+         present and tested in the Node lane: a gate naming a defect in the code when the truth was that it
+         had examined nothing (CLAUDE.md §4b).
+         The module PRESENT but missing these three is a different thing entirely — a real regression in a
+         lane that does load it — so it stays a FAILURE and is not skipped away with the first case. */
+      if (!S) {
+        T.skip('env.AnalysisStats provided to the runner', 'Node-lane only — run-tests.mjs co-loads analysis-stats.js');
+        return;
+      }
+      if (typeof S.weightedMedian !== 'function' || typeof S.legWeights !== 'function' || typeof S.fusedLeg !== 'function') {
+        T.ok('AnalysisStats weighted-PAT kernel present', false, 'weightedMedian / legWeights / fusedLeg not exported');
+        return;
+      }
+      var med = function (a) {
+        var b = a.slice().sort(function (x, y) {
+          return x - y;
+        });
+        var m = b.length >> 1;
+        return b.length % 2 ? b[m] : (b[m - 1] + b[m]) / 2;
+      };
+      var T0 = Date.UTC(2026, 8, 25, 22, 0, 0);
+      /* A night of coupled pairs in `coupledPAT`'s own shape. `burst` is the audit's plant shrunk to this
+         domain: 300 s where ONE end's confidence is zero and the lag is inflated by 60 ms — the shape a
+         motion artifact leaves. Deterministic jitter, no RNG. */
+      var mk = function (n, burstFrom, burstTo, infl) {
+        var pairs = [],
+          cA = new Map(),
+          cB = new Map();
+        for (var i = 0; i < n; i++) {
+          var t = T0 + i * 1000,
+            burst = i >= burstFrom && i < burstTo;
+          pairs.push({ t: t, lag: 220 + ((i * 7919) % 23) - 11 + (burst ? infl : 0) });
+          cA.set(Math.floor(t / 1000), burst ? 0 : 1); // the chest end loses confidence through the burst
+          cB.set(Math.floor((t + 220) / 1000), 1);
+        }
+        return { c: { ok: true, patAtR: pairs }, cA: cA, cB: cB };
+      };
+
+      // ── (1) THE PLANT: fused recovers the clean lag, classic is dragged by the burst ──────────────
+      var f = mk(2400, 600, 900, 60);
+      var lags = f.c.patAtR.map(function (p) {
+        return p.lag;
+      });
+      var lw = S.legWeights(f.c, f.cA, f.cB);
+      T.ok('the leg is weightable — both ends published a series', lw.ok === true, lw.reason || '');
+      var fl = S.fusedLeg(f.c, lw);
+      var classicMed = med(lags),
+        classicIQR = (function () {
+          var b = lags.slice().sort(function (x, y) {
+            return x - y;
+          });
+          return b[Math.floor(0.75 * b.length)] - b[Math.floor(0.25 * b.length)];
+        })();
+      /* ⚠️ THE WHOLE-NIGHT MEDIAN IS ROBUST TO THIS BURST, AND THAT IS THE FINDING — not something to
+         engineer around. 300 contaminated pairs in 2400 is 12.5 %, far inside a median's breakdown point,
+         so the classic median moves 220 → 222 and no assertion should pretend otherwise. The first draft
+         of this group asserted `classicMed > 225` and FAILED, which is the assertion being wrong rather
+         than the code. Where a localised burst actually lands is (a) the SPREAD and (b) the per-window
+         medians the hat is built from — inside the burst every pair in the window is inflated, so that
+         window's median is wrong by the full 60 ms with no robustness to save it. That is precisely why
+         the fused column matters more to the HAT than to the night's headline lag. */
+      T.ok('the classic whole-night median is barely moved — a median survives 12.5 % contamination', Math.abs(classicMed - 220) <= 3, 'classic median ' + classicMed);
+      T.ok('fused median sits on the clean lag', fl.ok && Math.abs(fl.med - 220) <= 11, 'fused median ' + (fl.ok ? fl.med : fl.reason));
+      T.ok('…and no further from the truth than the classic one', fl.ok && Math.abs(fl.med - 220) <= Math.abs(classicMed - 220), 'fused ' + (fl.ok && fl.med) + ' vs classic ' + classicMed);
+      T.ok(
+        'the classic SPREAD is what the burst inflates, and fused is no wider',
+        fl.ok && fl.p75 - fl.p25 <= classicIQR,
+        'fused IQR ' + (fl.ok ? fl.p75 - fl.p25 : '—') + ' vs classic ' + classicIQR
+      );
+      /* (1b) WHERE THE DAMAGE REALLY IS: a 5-min window wholly inside the burst. Its classic median is
+         wrong by the full inflation; the fused one refuses it, because every pair in it is distrusted —
+         a refusal, never a number computed from nothing. This is the hat's input, one level down. */
+      var inBurst = f.c.patAtR.slice(620, 860); // wholly inside [600, 900)
+      var inLags = inBurst.map(function (p) {
+        return p.lag;
+      });
+      var inW = inBurst.map(function (p) {
+        var a2 = f.cA.get(Math.floor(p.t / 1000)),
+          b2 = f.cB.get(Math.floor((p.t + p.lag) / 1000));
+        return (a2 == null ? 0 : a2) * (b2 == null ? 0 : b2);
+      });
+      T.ok('a window inside the burst: the CLASSIC median is wrong by the full inflation', Math.abs(med(inLags) - 220) >= 55, 'window median ' + med(inLags));
+      T.ok('…and the FUSED one refuses rather than computing from distrusted pairs', !isFinite(S.weightedMedian(inLags, inW)), String(S.weightedMedian(inLags, inW)));
+      /* THE DENOMINATOR, beside the value. A fused number over an unstated share of the pairs is the
+         coverage-without-a-denominator shape; `covered` is what makes the column readable. */
+      T.approx('…and it says WHAT SHARE of the accepted pairs it could weight', fl.covered, 1 - 300 / 2400, 0.01);
+      T.eq('…as a count too, never only a ratio', fl.nWeighted, 2100);
+
+      // ── (2) THE BAND ON A CLEAN NIGHT, as pre-stated above ───────────────────────────────────────
+      var cl = mk(2400, 0, 0, 0);
+      var clLags = cl.c.patAtR.map(function (p) {
+        return p.lag;
+      });
+      var clF = S.fusedLeg(cl.c, S.legWeights(cl.c, cl.cA, cl.cB));
+      T.eq('clean night, equal weights: fused median IS the classic median', clF.med, med(clLags));
+      T.eq('…and on odd n too (the even-n tie convention is the only way they can differ)', S.weightedMedian(clLags.slice(0, 2399), new Array(2399).fill(1)), med(clLags.slice(0, 2399)));
+
+      // ── (3) THE WEIGHT IS A PRODUCT, and the two rejected alternatives are asserted, not asserted-about ──
+      /* A pair trusted at NEITHER end must score below a pair trusted at ONE. `min` cannot express that and
+         `mean` lets the good end mask the bad one — the inflation this column exists to remove. */
+      var both = 0.5 * 0.5,
+        one = 0.5 * 1.0;
+      T.ok('product: two marginal ends score BELOW one marginal end', both < one, both + ' vs ' + one);
+      T.ok('…which `min` cannot express', Math.min(0.5, 0.5) === Math.min(0.5, 1.0), 'min would separate them, and it does not');
+      T.ok('…and `mean` gets backwards at the extreme', (0.1 + 1.0) / 2 > 0.1 * 1.0, 'mean(.1,1)=' + (0.1 + 1.0) / 2 + ' masks a .1 end; product=' + 0.1 * 1.0);
+
+      // ── (4) ABSENCE IS VISIBLE — never a silent weight of 1 (§∅) ─────────────────────────────────
+      T.ok(
+        'a corner with NO confidence series refuses, naming which',
+        S.legWeights(f.c, null, f.cB).ok === false && /one end published no confidence/.test(S.legWeights(f.c, null, f.cB).reason),
+        JSON.stringify(S.legWeights(f.c, null, f.cB))
+      );
+      T.ok('…and neither end is a different reason from one end', /neither end/.test(S.legWeights(f.c, null, null).reason), S.legWeights(f.c, null, null).reason);
+      var allZero = mk(600, 0, 600, 0); // every second's confidence is zero
+      var lwZ = S.legWeights(allZero.c, allZero.cA, allZero.cB);
+      T.ok('every pair distrusted ⇒ a REFUSAL with a reason, never a number', lwZ.ok === false || !S.fusedLeg(allZero.c, lwZ).ok, JSON.stringify(lwZ.ok ? S.fusedLeg(allZero.c, lwZ) : lwZ));
+      T.ok('weightedMedian over all-zero weights is NaN, not 0 (§∅: absence is not a value)', !isFinite(S.weightedMedian([1, 2, 3], [0, 0, 0])), String(S.weightedMedian([1, 2, 3], [0, 0, 0])));
+      /* A pair the confidence maps do not cover is EXCLUDED, not weighted 1 — the second-keys are absolute
+         seconds, so a map that simply has no entry for a second is an absence, not a certainty. */
+      var sparse = mk(600, 0, 0, 0);
+      sparse.cA.delete(Math.floor(T0 / 1000) + 5);
+      var lwS = S.legWeights(sparse.c, sparse.cA, sparse.cB);
+      T.eq('a pair with no confidence at one end is excluded from the fused count', lwS.nWeighted, 599);
+      T.ok('…and the coverage says so rather than reading as complete', lwS.covered < 1, String(lwS.covered));
+    });
+
     group('Analysis-page statistics kernels — known-answer (TEST-COVERAGE-ANALYSIS)', 'analysis-stats · statistics · known-answer', function (T) {
       var S = env.AnalysisStats;
       if (!S) {
@@ -13496,13 +14197,121 @@
       T.eq('mannWhitneyAUC all-ties → 0.5', S.mannWhitneyAUC([1, 1], [1, 1]), 0.5);
       T.eq('mannWhitneyAUC empty → null', S.mannWhitneyAUC([], [1]), null);
 
+      /* ── parseDerivedHr + the routed fused hat (TCH-FUSED-ROBUST-HAT, the `ms;hr;c` box, closed 2026-09-26) ──
+         The committed-corpus paths (sigma page buildWindow, power tool loadReal) read the derived 1-Hz
+         files through this parser and run the FUSED hat only when a file carries the DSP's per-second
+         confidence. The brief refused to land that routing without an input that exercises it — a
+         2-column file defaulting to c=1 IS the classic hat, so the code would have passed while
+         checking nothing. This is that input: a synthetic three-device corpus in the producer's exact
+         file format, with a confidence-zeroed burst on the H10 corner that the classic hat eats whole. */
+      if (typeof S.parseDerivedHr === 'function') {
+        var pdT0 = 1781126137000; // a floating-ms second (the real 06-11 file's first row)
+        var pdN = 1800;
+        var pdRowsH = ['tMs;hr;src;c'],
+          pdRowsH3 = ['tMs;hr;c;src'], // same data, `c` in a different column — header-named, not positional
+          pdRowsV = ['tMs;hr;sqiMean;c'],
+          pdRowsVlegacy = ['tMs;hr;sqiMean'],
+          pdO = new Map(),
+          pdCleanH = [];
+        for (var pi = 0; pi < pdN; pi++) {
+          var pbase = 62 + 6 * Math.sin(pi / 90);
+          var pburst = pi >= 400 && pi < 520;
+          var hClean = pbase + 1.1 * Math.sin(pi / 3.1),
+            hObs = hClean + (pburst ? 22 : 0),
+            vObs = pbase + 1.2 * Math.sin(pi / 2.7 + 1),
+            oObs = pbase + 2.2 * Math.sin(pi / 2.3 + 2);
+          var pms = pdT0 + pi * 1000,
+            pc = pburst ? 0 : 1;
+          pdRowsH.push(pms + ';' + hObs.toFixed(2) + ';ecg;' + pc.toFixed(3));
+          pdRowsH3.push(pms + ';' + hObs.toFixed(2) + ';' + pc.toFixed(3) + ';ecg');
+          pdRowsV.push(pms + ';' + vObs.toFixed(2) + ';0.91;1.000');
+          pdRowsVlegacy.push(pms + ';' + vObs.toFixed(2) + ';0.91');
+          pdO.set(pms, oObs);
+          pdCleanH.push(hClean);
+        }
+        // a row outside the HR gate must be dropped, not clamped
+        pdRowsH.push(pdT0 + pdN * 1000 + ';7.00;ecg;1.000');
+        var pH = S.parseDerivedHr(pdRowsH.join('\n'), { hrMin: 30, hrMax: 220 }),
+          pH3 = S.parseDerivedHr(pdRowsH3.join('\n')),
+          pV = S.parseDerivedHr(pdRowsV.join('\n')),
+          pVl = S.parseDerivedHr(pdRowsVlegacy.join('\n'));
+        T.eq('parseDerivedHr · every in-range second parsed, the out-of-range row dropped', pH.hr.size, pdN);
+        T.eq('parseDerivedHr · `c` column found and carried per second', [pH.hasConf, pH.c.size], [true, pdN]);
+        T.eq('parseDerivedHr · `c` is found BY HEADER NAME, not by position', [pH3.hasConf, pH3.c.get(pdT0 + 450000), pH3.c.get(pdT0)], [true, 0, 1]);
+        T.eq('parseDerivedHr · H10 file (src column) has no sqi', pH.sqi, null);
+        T.approx('parseDerivedHr · Verity sqiMean is the first finite value (unchanged display)', pV.sqi, 0.91, 1e-9);
+        T.eq('parseDerivedHr · a pre-2026-09-26 3-column file: hasConf FALSE and an EMPTY c map (never a default of 1)', [pVl.hasConf, pVl.c.size, pVl.sqi], [false, 0, 0.91]);
+        var pKeys = [];
+        pH.hr.forEach(function (_v, k) {
+          if (pV.hr.has(k) && pdO.has(k)) pKeys.push(k);
+        });
+        pKeys.sort(function (a, b) {
+          return a - b;
+        });
+        T.eq('parseDerivedHr · the three corners align on the floored second', pKeys.length, pdN);
+        var phh = pKeys.map(function (k) {
+            return pH.hr.get(k);
+          }),
+          pvv = pKeys.map(function (k) {
+            return pV.hr.get(k);
+          }),
+          poo = pKeys.map(function (k) {
+            return pdO.get(k);
+          });
+        var pcH = S.confidenceSeries(pH.c, pKeys),
+          pcV = S.confidenceSeries(pV.c, pKeys),
+          pcO = pKeys.map(function () {
+            return 1;
+          });
+        T.eq('confidenceSeries · zero on the burst seconds, one elsewhere', [pcH[450], pcH[10], pcV[450]], [0, 1, 1]);
+        T.eq('confidenceSeries · a corner with no map is all ones', S.confidenceSeries(null, [1, 2, 3]), [1, 1, 1]);
+        var pClassic = S.tchSigmas(phh, pvv, poo),
+          pFused = S.tchSigmasFused(phh, pvv, poo, pcH, pcV, pcO),
+          pTruth = S.tchSigmas(pdCleanH, pvv, poo);
+        T.ok(
+          'routed fused hat · the classic hat is inflated by the burst (the defect)',
+          pClassic.h10 != null && pTruth.h10 != null && pClassic.h10 > 2 * pTruth.h10,
+          'classic ' + pClassic.h10 + ' vs clean ' + pTruth.h10
+        );
+        T.ok('routed fused hat · the parsed confidence recovers the clean σ_H10', pFused.h10 != null && Math.abs(pFused.h10 - pTruth.h10) < 0.1, 'fused ' + pFused.h10 + ' vs clean ' + pTruth.h10);
+        T.ok('routed fused hat · the clean corners are untouched (Verity)', pFused.verity != null && Math.abs(pFused.verity - pTruth.verity) < 0.1, pFused.verity + ' vs ' + pTruth.verity);
+        // F16 on this path: the CI's estimator follows the point — fused with confidences, classic without
+        var pSeed = 777;
+        var pRand = function () {
+          pSeed = (pSeed * 1103515245 + 12345) & 0x7fffffff;
+          return pSeed / 0x7fffffff;
+        };
+        var pCI = S.tchBlockBootstrapCI(phh, pvv, poo, { cH: pcH, cV: pcV, cO: pcO, B: 120, blockS: 30, rand: pRand });
+        T.eq('routed fused hat · the within-window CI bootstraps the FUSED estimator when confidences ride the window', pCI.estimator, 'fused');
+        T.ok('routed fused hat · the fused point sits inside its own CI', pCI.h10 && pFused.h10 >= pCI.h10.lo && pFused.h10 <= pCI.h10.hi, JSON.stringify(pCI.h10) + ' vs ' + pFused.h10);
+        T.eq('routed fused hat · without confidences the CI is CLASSIC (the pre-2026-09-26 file path)', S.tchBlockBootstrapCI(phh, pvv, poo, { B: 20, blockS: 30, rand: pRand }).estimator, 'classic');
+      } else T.ok('parseDerivedHr is exported by analysis-stats.js', false, 'the derived-file parser is missing from the kernel');
+
       // ── delegation parity: every analysis page ROUTES through AnalysisStats (so a divergent
       //    private copy can't silently reappear and dodge the known-answers above). Source-scan;
       //    SKIPs a page whose source the runner didn't pass (browser lane / partial env). ──
       var src = env.sources || {};
       var DELEGATIONS = [
         ['nights-icc-analysis.js', ['AnalysisStats.iccOneWay', 'AnalysisStats.spearmanBrown', 'AnalysisStats.minOccForReliability']],
-        ['sigma-no-reference-analysis.js', ['AnalysisStats.tchSigmas', 'AnalysisStats.tchSigmasFused', 'AnalysisStats.tchBlockBootstrapCI', 'AnalysisStats.blandAltman', 'AnalysisStats.pearson']],
+        [
+          'sigma-no-reference-analysis.js',
+          [
+            'AnalysisStats.tchSigmas',
+            'AnalysisStats.tchSigmasFused',
+            'AnalysisStats.tchBlockBootstrapCI',
+            'AnalysisStats.blandAltman',
+            'AnalysisStats.pearson',
+            'AnalysisStats.parseDerivedHr',
+            'AnalysisStats.confidenceSeries'
+          ]
+        ],
+        /* TCH-FUSED-ROBUST-HAT, closed 2026-09-26: the power tool carried its OWN copy of the classic hat
+           (byte-equivalent, measured 2026-08-04) with no parity gate, so a kernel fix would not have
+           reached the figures it publishes. Now it delegates like the sigma page, and this leg keeps it so. */
+        [
+          'sensor-trio-power-analysis.js',
+          ['AnalysisStats.tchSigmas', 'AnalysisStats.tchSigmasFused', 'AnalysisStats.tchBlockBootstrapCI', 'AnalysisStats.parseDerivedHr', 'AnalysisStats.confidenceSeries']
+        ],
         ['cgm-hrv-coupling-analysis.js', ['AnalysisStats.pearsonCI', 'AnalysisStats.partialCorr']],
         ['treatment-response-analysis.js', ['AnalysisStats.bestSplit', 'AnalysisStats.mannWhitneyAUC']],
         ['odi-bias-analysis.js', ['AnalysisStats.ols']],
@@ -45895,6 +46704,174 @@
      OverDex · Dex-Test-Suite · run-tests.mjs) co-loads every module in it — so a future add that
      misses a host is a RED, not a silent drop. (Hosts keep static <script> tags for robust load
      ordering; a later pass MAY have them generate the tags from this manifest — ECGDEX-FOLLOWUPS.) */
+    /* ════ CLOCK LOADS BEFORE EVERY DELEGATING DSP — the ordering nothing pinned ════════════════════
+       CLAUDE.md §✅ states the invariant and `dex-coload.js:32` states the reason: "shared pre-DSP
+       modules (load FIRST — delegating DSPs alias DexClock at load)". Violating it is not a subtle
+       wrongness, it is a `ReferenceError` at module evaluation — and per §3 only `browser-gates` sees
+       that, so it costs a full CI cycle to learn.
+
+       🔴 WHAT WAS AND WAS NOT ALREADY CHECKED, because I nearly wrote a defect report that was wrong.
+       `dex-coload.js` is invisible to `env.sources` (it is in neither lane's text inventory, residue
+       2026-09-27-load-bearing-sources-no-gate-can-read) but it is NOT ungated: it is EXECUTED as
+       `env.DexCoload` and three groups assert against it. What none of them asserts is ORDER. The host
+       leg is `missing = M.all.filter(…)` → `missing.length === 0`, a MEMBERSHIP check: reorder
+       `DEX_COLOAD.all = shared.concat(adapters).concat(dsps)` to put `shared` last and every existing
+       assertion stays green. Same for each app's authored `<script src>` sequence.
+       So the gap is real and narrow: the invariant holds today BY CONSTRUCTION and by nothing else.
+
+       MEASURED 2026-09-27 before writing a line of it — the population is exactly CLAUDE.md's
+       `CLAIM clockBundles = 5`: ECGDex · HRVDex · MotionDex · OxyDex · PulseDex carry `clock.js` AND a
+       delegating DSP, all five in the right order; CPAPDex, GlucoDex and PpgDex carry neither (the three
+       deliberate non-carriers, §✅); Integrator carries `clock.js` and no delegating DSP. Asserted on the
+       AUTHORED `.src.html`, because that is where a human reorders — the bundle's inline blocks are the
+       builder's output and follow it. */
+    group('clock.js loads before every delegating DSP — manifest order and authored order', 'co-load · order · clock · §✅', function (T) {
+      var M = env.DexCoload;
+      var SH = env.srcHtml;
+      /* The five DSPs that ALIAS DexClock at load. ppgdex/glucodex/cpapdex are deliberately absent:
+         they carry node-local variants and `DexClock` is undefined there (§✅), so listing them here
+         would demand a clock.js their bundles must not have. */
+      var DELEGATING = ['ecgdex-dsp.js', 'hrvdex-dsp.js', 'motiondex-dsp.js', 'oxydex-dsp.js', 'pulsedex-dsp.js'];
+
+      /* ── P1 · the manifest's own order ─────────────────────────────────────────────────────────── */
+      T.ok('dex-coload.js is executed and readable as env.DexCoload', !!(M && Array.isArray(M.all) && Array.isArray(M.shared)), M ? 'shared/all missing' : 'env.DexCoload absent — Node-lane only');
+      if (M && Array.isArray(M.all) && Array.isArray(M.shared)) {
+        T.ok('the manifest declares clock.js as shared', M.shared.indexOf('clock.js') >= 0, 'shared: ' + M.shared.join(', '));
+        T.eq(
+          'M.all BEGINS with M.shared, in order (membership alone cannot see this)',
+          M.all.slice(0, M.shared.length).join(','),
+          M.shared.join(','),
+          'the shared modules no longer lead `all`, so a host iterating it would load a delegating DSP before clock.js. The existing host leg is a membership check and stays green on this.'
+        );
+        /* PLANT 1 · the reorder the membership check cannot see. Same members, shared moved last. */
+        var reordered = M.all
+          .filter(function (x) {
+            return M.shared.indexOf(x) < 0;
+          })
+          .concat(M.shared);
+        T.eq('PLANT 1 · the reorder leaves MEMBERSHIP identical', reordered.slice().sort().join(','), M.all.slice().sort().join(','));
+        T.ok(
+          'PLANT 1 · …and the order assertion reds on it',
+          reordered.slice(0, M.shared.length).join(',') !== M.shared.join(','),
+          'the order assertion accepted shared-last — it is not discriminating'
+        );
+      }
+
+      /* ── P2/P3 · the authored order, over a pinned population ──────────────────────────────────── */
+      if (!SH) {
+        T.skip('env.srcHtml provided to the runner', 'Node-lane only — run-tests.mjs reads the authored *.src.html');
+        return;
+      }
+      var scriptsOf = function (html) {
+        return [...String(html).matchAll(/<script[^>]*src="([^"]+\.js)"/g)].map(function (m) {
+          return m[1];
+        });
+      };
+      var carriers = [],
+        crashers = [],
+        misordered = [];
+      Object.keys(SH)
+        .sort()
+        .forEach(function (f) {
+          var order = scriptsOf(SH[f]);
+          T.ok(
+            f + ' · its authored script list was actually parsed',
+            order.length > 5,
+            order.length + ' <script src> entries — a short list means the parse failed and every verdict below is vacuous'
+          );
+          var ci = order.indexOf('clock.js');
+          var deleg = DELEGATING.filter(function (d) {
+            return order.indexOf(d) >= 0;
+          });
+          if (!deleg.length) return;
+          var node = f.replace(/\.src\.html$/, '');
+          carriers.push(node);
+          if (ci < 0) {
+            crashers.push(node);
+            return;
+          }
+          var first = Math.min.apply(
+            null,
+            deleg.map(function (d) {
+              return order.indexOf(d);
+            })
+          );
+          if (ci > first) misordered.push(node + ' (clock@' + ci + ' after ' + deleg[0] + '@' + first + ')');
+        });
+
+      /* ── THE POPULATION AS TWO EQUALITIES, ONE PER BUNDLE FAMILY ────────────────────────────────
+         Deriving the shell list surfaced that the carriers are not one set but two: the five APP shells
+         CLAUDE.md counts as `CLAIM clockBundles = 5`, plus the two ORCHESTRATOR shells it counts
+         separately as `CLAIM orchestrators = 2`, which co-load the same DSPs. Asserting one merged set of
+         seven would corroborate neither claim; asserting them apart corroborates both, and a node moving
+         between families reds instead of being absorbed. */
+      /* ── TWO FAMILIES, TWO EQUALITIES (restored 2026-09-27) ─────────────────────────────────────
+         The carriers are not one set. Five APP shells are what CLAUDE.md counts as `CLAIM clockBundles = 5`;
+         the two ORCHESTRATOR shells co-load the same DSPs and are counted separately as
+         `CLAIM orchestrators = 2`. This was written as a merged set of seven first, which corroborates
+         neither claim, then scoped to apps only while the orchestrator shells were excluded from
+         `readSrcHtml`. Both shells are now in the population (their modules are classified — see §1b's
+         RESOLVE and EXEMPT_FILES additions), so the assertion is back to naming both families: a node
+         moving between them reds instead of being absorbed into a larger number.
+         Their load order is now ASSERTED rather than measured-by-hand, which is what the previous comment
+         here promised to distinguish: clock.js precedes every delegating DSP in all seven. */
+      var ORCH = ['Data Unifier', 'OverDex'];
+      var appCarriers = carriers.filter(function (n) {
+        return ORCH.indexOf(n) < 0;
+      });
+      var orchCarriers = carriers.filter(function (n) {
+        return ORCH.indexOf(n) >= 0;
+      });
+      T.eq(
+        'the APP shells carrying a delegating DSP are exactly the five §✅ names (CLAIM clockBundles = 5)',
+        appCarriers.sort().join(','),
+        'ECGDex,HRVDex,MotionDex,OxyDex,PulseDex',
+        'the delegating set changed. If a node started delegating to DexClock its shell must also load clock.js; if one stopped, CLAUDE.md CLAIM clockBundles must move with it.'
+      );
+      T.eq(
+        'both ORCHESTRATOR shells co-load delegating DSPs (CLAIM orchestrators = 2)',
+        orchCarriers.sort().join(','),
+        'Data Unifier,OverDex',
+        'an orchestrator stopped co-loading the node DSPs, or a third one appeared — either way the co-load manifest and CLAUDE.md must say so'
+      );
+      T.eq('NO app carries a delegating DSP without clock.js (that is a ReferenceError at module evaluation)', crashers.join(',') || 'none', 'none');
+      T.eq('clock.js precedes every delegating DSP it is loaded with', misordered.join(' · ') || 'none', 'none');
+
+      /* PLANT 2 · a misordered authored list must be caught, and PLANT 3 · a delegating DSP with no
+         clock.js at all. Both over synthetic text, so they test the RULE rather than today's files —
+         and both are the falsifiers for the two assertions directly above, which read `none` today. */
+      var synth = function (list) {
+        return list
+          .map(function (x) {
+            return '<script src="' + x + '"></script>';
+          })
+          .join('\n');
+      };
+      var badOrder = scriptsOf(synth(['kernel-constants.js', 'oxydex-dsp.js', 'clock.js', 'dex-export.js', 'a.js', 'b.js']));
+      T.ok(
+        'PLANT 2 · clock.js AFTER a delegating DSP is detected',
+        badOrder.indexOf('clock.js') >
+          Math.min.apply(
+            null,
+            DELEGATING.filter(function (d) {
+              return badOrder.indexOf(d) >= 0;
+            }).map(function (d) {
+              return badOrder.indexOf(d);
+            })
+          ),
+        'a misordered list read as ordered — the comparison above cannot fire'
+      );
+      var noClock = scriptsOf(synth(['kernel-constants.js', 'ecgdex-dsp.js', 'dex-export.js', 'a.js', 'b.js', 'c.js']));
+      T.ok(
+        'PLANT 3 · a delegating DSP with NO clock.js is detected',
+        noClock.indexOf('clock.js') < 0 &&
+          DELEGATING.filter(function (d) {
+            return noClock.indexOf(d) >= 0;
+          }).length > 0,
+        'the crash case read as clean — the crashers assertion above cannot fire'
+      );
+    });
+
     group('Co-load manifest — single source vs host realms (PPGDEX-FOLLOWUPS §5)', 'co-load · sources · purity · signal-adapters', function (T) {
       var M = env.DexCoload,
         SA = env.SignalAdapters;
@@ -46086,6 +47063,12 @@
         'ppgdex-dsp.js': 'PPGDSP',
         'ecgdex-dsp.js': 'ECGDSP',
         'cpapdex-dsp.js': 'CpapDsp',
+        /* ADDED 2026-09-27. Its absence was not a judgement — `MotionDex.src.html` was missing from
+           `readSrcHtml()`'s curated list, so this gate never saw a MotionDex shell and never had a module
+           of its to classify. It publishes TWO globals (`MOTIONDSP` and `MotionDex`), which is exactly why
+           it is NOT in `dex-coload.js`'s `dsps` — that list is the SINGLE-namespaced DSPs — but the runner
+           co-loads it directly and `env.MOTIONDSP` has been exposed all along. */
+        'motiondex-dsp.js': 'MOTIONDSP',
         // cross/coimport (also on the nodeModules leg — Co-load §1/§2/§3)
         'oxydex-cross.js': 'OXYCross',
         'pulsedex-cross.js': 'PulseCross',
@@ -46108,7 +47091,22 @@
         'cpapdex-registry.js': 'CPAP_REGISTRY',
         'pulsedex-registry.js': 'PULSE_REGISTRY',
         'hrvdex-registry.js': 'HRV_REGISTRY',
-        'glucodex-registry.js': 'GLU_REGISTRY'
+        'glucodex-registry.js': 'GLU_REGISTRY',
+        /* The eighth registry, missing for the same reason as motiondex-dsp.js above: no MotionDex shell
+           reached this gate. `env.MOTION_REGISTRY` was already wired in the runner. */
+        'motiondex-registry.js': 'MOTION_REGISTRY',
+        /* ── THE ORCHESTRATOR SHELLS' OWN MODULES (2026-09-27) ──────────────────────────────────────
+           `Data Unifier.src.html` and `OverDex.src.html` were outside `readSrcHtml()`'s list, so nothing
+           these two bundle had ever been classified. Admitting them reds §1b with 17 names; these six are
+           the ones that expose a NAMED global, so they take the ordinary RESOLVE form. Each global was
+           verified present in BOTH lanes' env before the entry was written — an entry naming a global that
+           does not exist would red for a different reason and read as a classification problem. */
+        'night-seal.js': 'NightSeal',
+        'overdex-walk.js': 'OverDexWalk',
+        'signal-adapters.js': 'SignalAdapters',
+        'signal-orchestrate.js': 'SignalOrchestrate',
+        'signal-spec.js': 'SignalSpec',
+        'verdict.js': 'Verdict'
       };
       // ── RUNTIME_EXEMPT (patterns): DOM classes driven end-to-end by the render-coverage rigs ──
       // (RESOLVE is consulted FIRST, so the shared dex-profile.js → DexProfile is co-loaded, NOT caught here.)
@@ -46119,6 +47117,34 @@
       ];
       // ── RUNTIME_EXEMPT (explicit): the irregular DOM/aux helpers, each named with its covering gate ──
       var EXEMPT_FILES = {
+        /* ── VENDOR ADAPTERS (2026-09-27) ───────────────────────────────────────────────────────────
+           Eleven adapters bundled by the orchestrator shells. They are exempt for a STRUCTURAL reason, not
+           a convenient one: each exposes no global whatsoever (measured — zero `root.X =` assignments) and
+           self-registers into `SignalAdapters`, so a RESOLVE entry has nothing to name. The exemption is
+           only honest because a stronger check already exists and is named in every reason below; if §5's
+           adapter-id equality did not exist these would not be exempt on my word. */
+        'coospo-rr.js':
+          'vendor adapter — exposes NO global of its own; it self-registers into SignalAdapters on load, so there is nothing for a RESOLVE entry to assert. COVERING GATE: `Co-load manifest — single source vs host realms (PPGDEX-FOLLOWUPS §5)` asserts the manifest adapter ids EQUAL the ids actually registered via SignalAdapters.list() (see the self-consistency leg in that group) — an EQUALITY over the whole adapter set, which is strictly stronger than a per-file presence test.',
+        'libre-cgm.js':
+          'vendor adapter — exposes NO global of its own; it self-registers into SignalAdapters on load, so there is nothing for a RESOLVE entry to assert. COVERING GATE: `Co-load manifest — single source vs host realms (PPGDEX-FOLLOWUPS §5)` asserts the manifest adapter ids EQUAL the ids actually registered via SignalAdapters.list() (see the self-consistency leg in that group) — an EQUALITY over the whole adapter set, which is strictly stronger than a per-file presence test.',
+        'o2ring-ppg.js':
+          'vendor adapter — exposes NO global of its own; it self-registers into SignalAdapters on load, so there is nothing for a RESOLVE entry to assert. COVERING GATE: `Co-load manifest — single source vs host realms (PPGDEX-FOLLOWUPS §5)` asserts the manifest adapter ids EQUAL the ids actually registered via SignalAdapters.list() (see the self-consistency leg in that group) — an EQUALITY over the whole adapter set, which is strictly stronger than a per-file presence test.',
+        'o2ring-ppg2w.js':
+          'vendor adapter — exposes NO global of its own; it self-registers into SignalAdapters on load, so there is nothing for a RESOLVE entry to assert. COVERING GATE: `Co-load manifest — single source vs host realms (PPGDEX-FOLLOWUPS §5)` asserts the manifest adapter ids EQUAL the ids actually registered via SignalAdapters.list() (see the self-consistency leg in that group) — an EQUALITY over the whole adapter set, which is strictly stronger than a per-file presence test.',
+        'oxydex-spo2.js':
+          'vendor adapter — exposes NO global of its own; it self-registers into SignalAdapters on load, so there is nothing for a RESOLVE entry to assert. COVERING GATE: `Co-load manifest — single source vs host realms (PPGDEX-FOLLOWUPS §5)` asserts the manifest adapter ids EQUAL the ids actually registered via SignalAdapters.list() (see the self-consistency leg in that group) — an EQUALITY over the whole adapter set, which is strictly stronger than a per-file presence test.',
+        'polar-h10-ecg.js':
+          'vendor adapter — exposes NO global of its own; it self-registers into SignalAdapters on load, so there is nothing for a RESOLVE entry to assert. COVERING GATE: `Co-load manifest — single source vs host realms (PPGDEX-FOLLOWUPS §5)` asserts the manifest adapter ids EQUAL the ids actually registered via SignalAdapters.list() (see the self-consistency leg in that group) — an EQUALITY over the whole adapter set, which is strictly stronger than a per-file presence test.',
+        'polar-rr.js':
+          'vendor adapter — exposes NO global of its own; it self-registers into SignalAdapters on load, so there is nothing for a RESOLVE entry to assert. COVERING GATE: `Co-load manifest — single source vs host realms (PPGDEX-FOLLOWUPS §5)` asserts the manifest adapter ids EQUAL the ids actually registered via SignalAdapters.list() (see the self-consistency leg in that group) — an EQUALITY over the whole adapter set, which is strictly stronger than a per-file presence test.',
+        'polar-sense-ppg.js':
+          'vendor adapter — exposes NO global of its own; it self-registers into SignalAdapters on load, so there is nothing for a RESOLVE entry to assert. COVERING GATE: `Co-load manifest — single source vs host realms (PPGDEX-FOLLOWUPS §5)` asserts the manifest adapter ids EQUAL the ids actually registered via SignalAdapters.list() (see the self-consistency leg in that group) — an EQUALITY over the whole adapter set, which is strictly stronger than a per-file presence test.',
+        'resmed-edf.js':
+          'vendor adapter — exposes NO global of its own; it self-registers into SignalAdapters on load, so there is nothing for a RESOLVE entry to assert. COVERING GATE: `Co-load manifest — single source vs host realms (PPGDEX-FOLLOWUPS §5)` asserts the manifest adapter ids EQUAL the ids actually registered via SignalAdapters.list() (see the self-consistency leg in that group) — an EQUALITY over the whole adapter set, which is strictly stronger than a per-file presence test.',
+        'wahoo-rr.js':
+          'vendor adapter — exposes NO global of its own; it self-registers into SignalAdapters on load, so there is nothing for a RESOLVE entry to assert. COVERING GATE: `Co-load manifest — single source vs host realms (PPGDEX-FOLLOWUPS §5)` asserts the manifest adapter ids EQUAL the ids actually registered via SignalAdapters.list() (see the self-consistency leg in that group) — an EQUALITY over the whole adapter set, which is strictly stronger than a per-file presence test.',
+        'welltory-summary.js':
+          'vendor adapter — exposes NO global of its own; it self-registers into SignalAdapters on load, so there is nothing for a RESOLVE entry to assert. COVERING GATE: `Co-load manifest — single source vs host realms (PPGDEX-FOLLOWUPS §5)` asserts the manifest adapter ids EQUAL the ids actually registered via SignalAdapters.list() (see the self-consistency leg in that group) — an EQUALITY over the whole adapter set, which is strictly stronger than a per-file presence test.',
         'entrance-guard.js': 'DOM print/entrance guard (CSS injection, no compute surface) — exercised by the render-coverage bundle boot',
         'ganglior-provenance.js': 'runtime build-provenance helper — exercised by verify-provenance.html GATE A/B + the render-coverage boot',
         'oxydex-util.js': 'OxyDex.compute() math dependency (computeCeilingBaselineArr etc.) — exercised by the OxyDex equiv/compute gate (env.equiv.oxydex) + render-coverage',
@@ -50849,6 +51875,258 @@
       T.ok('a fractional foot on a FALLING edge still refuses', h(Float64Array.from([90, 40, 0]), 0.5, 2) === null);
     });
 
+    group('PAT ECG counter axis — a whole-file fs is not the H10 sample clock (2026-09-26)', 'pat · ecg-axis · counter', function (T) {
+      var PS = env.PatStrict,
+        E = env.ECGDSP;
+      if (!PS || typeof PS.ecgCounterTimeMs !== 'function' || !E || typeof E.parseECG !== 'function') {
+        T.skip('PatStrict/ECGDSP not in env (browser lane — .mjs tool)');
+        return;
+      }
+      /* THE PLANT: the H10's samples-per-counter-second is not one number. Measured on 2026-09-25 it ran
+         130.027–130.033 while worn and 129.92–130.00 off the body, with no counter step. Two halves at
+         130.03 and 129.92 reproduce that shape; the whole-file `fs` is their mean, so `t0 + i/fs` must
+         miss the counter by ~0.2 s at the seam while the counter axis reproduces it exactly. */
+      var HDR = 'Phone timestamp;sensor timestamp [ns];timestamp [ms];ecg [uV]';
+      var N1 = 60000,
+        N2 = 60000,
+        rows = [HDR],
+        ns = 0,
+        truth = [];
+      for (var i = 0; i < N1 + N2; i++) {
+        truth.push(ns / 1e6);
+        rows.push('2026-06-17T01:06:17.723;' + Math.round(ns) + ';' + Math.round(ns / 1e6) + ';' + ((i * 37) % 200));
+        ns += 1e9 / (i < N1 ? 130.03 : 129.92);
+      }
+      var rec = E.parseECG(rows.join('\n'));
+      T.ok('the planted file parses with a device counter', rec && typeof rec.devMsAt === 'function' && rec.devMsAt(0) != null, rec ? 'devMsAt ' + typeof rec.devMsAt : 'null');
+      if (!rec || typeof rec.devMsAt !== 'function' || rec.devMsAt(0) == null) return;
+      var worstC = 0,
+        worstL = 0;
+      for (var k = 0; k < N1 + N2; k += 997) {
+        var want = rec.t0Ms + truth[k] - truth[0];
+        worstC = Math.max(worstC, Math.abs(PS.ecgCounterTimeMs(rec, k) - want));
+        worstL = Math.max(worstL, Math.abs(rec.t0Ms + (k / rec.fs) * 1000 - want));
+      }
+      T.ok('ANTI-VACUITY · the index/fs form misses the counter by > 100 ms on the plant', worstL > 100, 'worst ' + worstL.toFixed(1) + ' ms');
+      T.ok('the counter axis reproduces the device counter (< 1 ms)', worstC < 1, 'worst ' + worstC.toFixed(3) + ' ms');
+      var mid = PS.ecgCounterTimeMs(rec, 1000.5),
+        a = PS.ecgCounterTimeMs(rec, 1000),
+        b = PS.ecgCounterTimeMs(rec, 1001);
+      T.ok('a fractional (refined) R position interpolates between samples', mid > a && mid < b, a + ' < ' + mid + ' < ' + b);
+      /* The single-RATE host correction `fs` carried is kept: applied ppm scales device time, unapplied does not. */
+      var fake = {
+        t0Ms: 0,
+        fs: 130,
+        devMsAt: function () {
+          return 1e6;
+        },
+        hostAxis: { applied: true, ppm: -20 }
+      };
+      T.ok('an APPLIED ppm scales device time (−20 ppm over 1000 s = −20 ms)', Math.abs(PS.ecgCounterTimeMs(fake, 0) - (1e6 - 20)) < 1e-6, String(PS.ecgCounterTimeMs(fake, 0)));
+      fake.hostAxis.applied = false;
+      T.ok('an UNAPPLIED (refused) ppm is not applied', PS.ecgCounterTimeMs(fake, 0) === 1e6, String(PS.ecgCounterTimeMs(fake, 0)));
+      var noCounter = {
+        t0Ms: 5,
+        fs: 130,
+        devMsAt: function () {
+          return null;
+        }
+      };
+      T.ok('no usable counter ⇒ the index form, never a fabricated 0', PS.ecgCounterTimeMs(noCounter, 130) === 1005, String(PS.ecgCounterTimeMs(noCounter, 130)));
+    });
+
+    group("PAT arrival-floor axis — the corrected lag removes the links' BUFFERING, not a clock (route-PAT fix 2026-09-27)", 'pat · arrival-floor · plant', function (T) {
+      var wsrc = (env.sources && env.sources['pat-feasibility-worker.js']) || '';
+      if (!wsrc || !env.DexClock || !env.PATAlign || !env.PATGate) {
+        T.skip('worker source / DexClock / PATAlign / PATGate not in env');
+        return;
+      }
+      var W = null;
+      try {
+        var body = wsrc.replace(/self\.onmessage[\s\S]*$/, '');
+        var shim = { postMessage: function () {} };
+        shim.self = shim;
+        W = new Function(
+          'ECGDSP',
+          'PPGDSP',
+          'PATGate',
+          'PATAlign',
+          'DexClock',
+          'self',
+          'importScripts',
+          'XMLHttpRequest',
+          body + '\nreturn { floorMap: floorMap, deviceFloor: deviceFloor, floorTimes: floorTimes, devMsColumn: devMsColumn, coupledPAT: coupledPAT, accFloorCheck: accFloorCheck };'
+        )(
+          env.ECGDSP,
+          env.PPGDSP,
+          env.PATGate,
+          env.PATAlign,
+          env.DexClock,
+          shim,
+          function () {},
+          function () {}
+        );
+      } catch (e) {
+        T.ok('the worker body EVALUATES', false, e.message);
+        return;
+      }
+      T.ok('the worker exposes the arrival-floor functions', !!(W && W.floorMap && W.floorTimes && W.deviceFloor && W.accFloorCheck), W ? Object.keys(W).join(',') : 'null');
+      if (!W || !W.floorMap) return;
+      /* THE PLANT. A 40-min night, true PAT 500 ms. Two device clocks with DIFFERENT offsets (the H10's
+         +7.7 years, as on 2026-09-26, and the Verity's −3 s) and asymmetric one-sided per-packet BUFFERING —
+         exponential, mean 300 ms (H10) vs 700 ms (Verity) — on top of a 5 ms minimum link latency. Arrival is
+         stamped at the packet's LAST sample, which is when the device sends it. */
+      var seed = 7;
+      function rnd() {
+        seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+        return seed / 0x7fffffff;
+      }
+      var T0 = Date.UTC(2026, 8, 25, 23, 0, 0),
+        DUR = 40 * 60000,
+        cE = 7.73 * 365.25 * 86400000,
+        cV = -3000,
+        LAT = 5,
+        PAT = 500;
+      function iso(ms) {
+        return new Date(ms).toISOString().slice(0, 23);
+      }
+      function sidecar(meas, fs, nOf, clk, meanBuf) {
+        var rows = ['Phone timestamp;device;meas;first_sensor_ns;last_sensor_ns;n_samples'],
+          bufs = [],
+          n = typeof nOf === 'function' ? nOf() : nOf;
+        for (var t = 0; t + (n / fs) * 1000 < DUR; t += (n / fs) * 1000, n = typeof nOf === 'function' ? nOf() : nOf) {
+          var first = T0 + t,
+            last = first + ((n - 1) / fs) * 1000,
+            b = -meanBuf * Math.log(1 - rnd() * 0.999999);
+          bufs.push(b);
+          rows.push(iso(last + LAT + b) + ';dev;' + meas + ';' + Math.round((first + clk) * 1e6) + ';' + Math.round((last + clk) * 1e6) + ';' + n);
+        }
+        bufs.sort(function (a, b) {
+          return a - b;
+        });
+        return { text: rows.join('\n'), medianBuf: bufs[bufs.length >> 1] };
+      }
+      var sE = sidecar('ecg', 130, 73, cE, 300),
+        sP = sidecar('ppg', 55, 37, cV, 700);
+      var fE = W.deviceFloor(sE.text, ['acc', 'ecg']),
+        fP = W.deviceFloor(sP.text, ['acc', 'ppg']);
+      T.ok(
+        'both devices anchor on a floor (no ACC rows ⇒ each falls back to its own leg stream, and says so)',
+        fE.ok && fP.ok && fE.meas === 'ecg' && fP.meas === 'ppg',
+        JSON.stringify({ e: fE.reason || fE.meas, p: fP.reason || fP.meas })
+      );
+      if (!fE.ok || !fP.ok) return;
+      // sample-level device-time columns (what devMsColumn reads off the files), and the beats' true times
+      function col(fs, clk) {
+        var n = Math.floor((DUR / 1000) * fs),
+          a = new Float64Array(n);
+        for (var i = 0; i < n; i++) a[i] = T0 + (i / fs) * 1000 + clk;
+        return a;
+      }
+      var colE = col(130, cE),
+        colP = col(55, cV),
+        rPos = [],
+        fPos = [],
+        rTrue = [];
+      for (var t = 1000; t < DUR - 2000; t += 900 + 200 * rnd()) {
+        rTrue.push(t);
+        rPos.push((t / 1000) * 130);
+        fPos.push(((t + PAT) / 1000) * 55);
+      }
+      var R = W.floorTimes(colE, rPos, fE),
+        F = W.floorTimes(colP, fPos, fP);
+      var cp = W.coupledPAT(R.hostMs, F.hostMs);
+      T.ok('ANCHORED · the floor-axis coupling recovers the planted PAT within ±15 ms', cp.ok && Math.abs(cp.med - PAT) <= 15, cp.ok ? 'median ' + cp.med.toFixed(2) + ' ms' : cp.reason);
+      // the median-anchored axis the raw legs ride (hostAxis: median of host − device) — what today's path sees
+      var rMed = Array.from(rTrue, function (x) {
+        return T0 + x + sE.medianBuf;
+      });
+      var fMed = Array.from(rTrue, function (x) {
+        return T0 + x + PAT + sP.medianBuf;
+      });
+      /* The median-anchored lag, beat by beat (the pairs are known by construction). It lands near 780 ms —
+         outside the 650 ms physiological window, so coupledPAT pairs NOTHING on it: the mechanism behind nights
+         that read as a censored or impossible PAT. */
+      var medLag = [];
+      for (var q = 0; q < rMed.length; q++) medLag.push(fMed[q] - rMed[q]);
+      medLag.sort(function (a, b) {
+        return a - b;
+      });
+      var mL = medLag[medLag.length >> 1];
+      T.ok('ANTI-VACUITY · on the median-anchored axis the lag is off by ~ the buffering difference (> 150 ms)', mL - PAT > 150, 'median ' + mL.toFixed(0) + ' ms vs planted ' + PAT);
+      T.ok('the device clocks never enter: a +7.7-year H10 epoch is absorbed by its own floor', R.unmapped === 0 && F.unmapped === 0, R.unmapped + ' / ' + F.unmapped + ' unmapped');
+      // FIRST-sample keying would carry the packet-fill time (n−1)/fs — the smear Heron measured
+      var rowsFirst = sP.text.split('\n').map(function (l, i) {
+        if (!i) return l;
+        var c = l.split(';');
+        return [c[0], c[1], c[2], c[3], c[3], c[5]].join(';'); // last := first
+      });
+      var fFirst = W.floorMap(rowsFirst.join('\n'), 'ppg');
+      T.ok(
+        'keyed on the LAST sample: keying on the first would shift the floor by the packet span',
+        fFirst.ok && Math.abs(fFirst.map(colP[0] + 60000) - fP.map(colP[0] + 60000) - (36 / 55) * 1000) < 5,
+        fFirst.ok ? (fFirst.map(colP[0] + 60000) - fP.map(colP[0] + 60000)).toFixed(1) + ' ms' : fFirst.reason
+      );
+      // refusals — named, never a fall-back
+      T.ok('too few packets ⇒ refuse with a reason', /packets in the arrival sidecar/.test(W.floorMap(sE.text.split('\n').slice(0, 50).join('\n'), 'ecg').reason || ''));
+      var smeared = sE.text
+        .split('\n')
+        .map(function (l, i) {
+          if (!i) return l;
+          var c = l.split(';');
+          var ms = env.DexClock.parseTimestamp(c[0]).tMs + 400 * rnd();
+          return [iso(ms)].concat(c.slice(1)).join(';');
+        })
+        .join('\n');
+      var fs2 = W.floorMap(smeared, 'ecg');
+      T.ok('a SMEARED edge (a symmetric spread has no floor) ⇒ refuse, never an offset', !fs2.ok && /smeared/.test(fs2.reason), fs2.reason || 'did not refuse');
+      var back = sE.text.split('\n');
+      back.push(back[1]); // the counter goes backwards: one device time would map to two host times
+      var fb = W.floorMap(back.join('\n'), 'ecg');
+      T.ok('a counter that goes backwards ⇒ refuse (segments overlap)', !fb.ok && /overlap/.test(fb.reason), fb.reason || 'did not refuse');
+      /* THE MOTION CHECK. Both accelerometers carry the same movement bursts (true time); each device's ACC
+         stream has its own sidecar — the H10 in fixed 36-sample packets, the Verity in VARYING 90–130-sample
+         ones, the case first-sample keying smeared. Anchored on their floors, the shared motion must align. */
+      function accText(fs, clk) {
+        var rows = ['Phone timestamp;sensor timestamp [ns];X [mg];Y [mg];Z [mg]'];
+        for (var i = 0; i < (DUR / 1000) * fs; i++) {
+          var tt = (i / fs) * 1000,
+            burst = tt % 150000 > 60000 && tt % 150000 < 60800 ? 1500 : 0;
+          rows.push(iso(T0 + tt) + ';' + Math.round((T0 + tt + clk) * 1e6) + ';' + (burst + 5 * rnd()).toFixed(0) + ';' + (5 * rnd()).toFixed(0) + ';' + (1000 + 5 * rnd()).toFixed(0));
+        }
+        return rows.join('\n');
+      }
+      var aE = sidecar('acc', 205, 36, cE, 300),
+        aP = sidecar(
+          'acc',
+          52,
+          function () {
+            return 90 + Math.floor(40 * rnd());
+          },
+          cV,
+          700
+        );
+      var fAE = W.floorMap(aE.text, 'acc'),
+        fAP = W.floorMap(aP.text, 'acc');
+      T.ok("both ACC streams give a floor (the Verity's varying packets included, keyed on the last sample)", fAE.ok && fAP.ok, (fAE.reason || 'ok') + ' / ' + (fAP.reason || 'ok'));
+      if (fAE.ok && fAP.ok) {
+        var chk = W.accFloorCheck(accText(205, cE), accText(52, cV), fAE, fAP, T0, T0 + DUR);
+        T.ok(
+          'the motion check on the two floor axes reads ≈ 0 within its resolution, |δ| ≤ chk.tolMs = 25 ms (planted 0; clock offsets differ by 7.7 years)',
+          chk.ok && Math.abs(chk.deltaMedianMs) <= chk.tolMs,
+          chk.ok ? 'δ ' + chk.deltaMedianMs.toFixed(1) + ' ms over ' + chk.anchors + ' movements' : chk.reason
+        );
+        T.ok('with an ACC sidecar present, deviceFloor anchors the device on it', W.deviceFloor(aE.text + '\n' + sE.text.split('\n').slice(1).join('\n'), ['acc', 'ecg']).ok);
+      }
+      T.ok(
+        'devMsColumn reads the device column by NAME and skips comment rows',
+        (function () {
+          var c = W.devMsColumn('Phone timestamp;sensor timestamp [ns];x\n# timebase=host\n2026-09-25T23:00:00.000;1000000;1\n2026-09-25T23:00:00.010;2000000;2');
+          return c && c.length === 2 && c[0] === 1 && c[1] === 2;
+        })()
+      );
+    });
+
     group('PAT matchRate — the shipped definition cannot fail; the strict one can (PAT-UNDER-PERBLOCK-ALIGNMENT §4)', 'pat · matchrate · chance-floor', function (T) {
       var PS = env.PatStrict;
       if (!PS || !PS.strictMatchRate) {
@@ -54802,6 +56080,157 @@
      no single-channel and no finger-site path" — is STALE: `PPGDEX-O2RING-FINGER-SITE-2026-07-18`
      is DONE (2026-07-20), verified on hardware, and `parsePPG` returns `site:'finger'` with a
      single-channel beat lane. Verified in the tree before acting, not read off a status line. */
+    /* ════ THE COMPANION LANE — the trend must not depend on WHICH HOST ingested the files ══════
+       #3075 made a dropped `_PPG2W.txt` route to OxyDex's adapter. It could still never produce a
+       trend there: `spo2WaveformTrend` is SELF-CALIBRATED against the ring's own 1 Hz series, and the
+       Unifier had no way to hand one over — `_COMPANION_KINDS` had `ecg` and `ppg` and nothing else.
+       Routing to the right node and being unable to compute there is a half-wired mechanism, so this
+       is the other half.
+
+       🔴 FOUR INDEPENDENT BLOCKERS, each measured before anything was written, and the third is the
+       one worth remembering:
+         · `streamKind` returned **null** for `_PPG2W`, `_SPO2` and `_PPG2WRUNS` alike — no kind, so no
+           bucketing at all (`_PPG\b` cannot see `_PPG2W`; `_SPO2` had no branch).
+         · `companionKinds('spo2')` was `[]`.
+         · `pairCompanions` skipped every candidate on `if (DI.foreignVendor(e.name)) continue`, whose
+           comment reads *"an O2Ring SpO₂ / Libre CGM file is never a sidecar"*. That is EXACTLY RIGHT
+           for a Polar `ecg`/`ppg` primary and EXACTLY WRONG for the `spo2` lane, where the ring's own
+           CSV is the companion — one shared early exit serving two arms that need opposite answers.
+           It is now scoped to the PRIMARY (same vendor family ⇒ eligible), and the control below is
+           the half that must not move: a Polar ECG primary still rejects the O2Ring CSV.
+         · both hosts hard-coded `sigType === 'ecg' || sigType === 'ppg'`, so a type in the table and
+           absent from the condition would pair nothing, silently, in that host only. They now read
+           `companionKinds()` — the one table — so the two cannot disagree about one drop.
+
+       ⚠️ The fixture is 270,000 waveform rows, because the 40-bin gate is real and a smaller one
+       proves nothing about a USABLE night (measured: 54,000 rows yields 9 bins and both paths agree on
+       `null`, which is an equality between two absences). It costs ~1.7 s. */
+    group('the spo2 companion lane — a paired _PPG2W drop yields the SAME trend in either host', 'adapters · signal-orchestrate · companions · o2ring-ppg2w', function (T) {
+      var SA = env.SignalAdapters,
+        SO = env.SignalOrchestrate,
+        O = (env.OxyDex && env.OxyDex._bare && env.OxyDex._bare.parsePPG2W ? env.OxyDex._bare : null) || env.OxyDex;
+      if (!SA || !SO || !O || typeof SO.pairCompanions !== 'function' || typeof O.parsePPG2W !== 'function') {
+        T.ok('SignalAdapters + SignalOrchestrate + OxyDex reachable', false, 'the lane cannot be checked');
+        return;
+      }
+      var STEM = 'Wellue_O2Ring-S_S8AW2100_20260905223000';
+      var W2 = STEM + '_PPG2W.txt',
+        CSVN = STEM + '_SPO2.csv',
+        RUNSN = STEM + '_PPG2WRUNS.txt';
+
+      /* ── the lane exists, and every name in it has a kind ── */
+      T.eq('companionKinds(spo2) — the CSV and the validity sidecar in its OWN slot', JSON.stringify(SO.companionKinds('spo2')), JSON.stringify(['spo2', 'ppg2wruns']));
+      T.eq('streamKind · the waveform', SO.streamKind(W2), 'ppg2w');
+      T.eq('streamKind · its 1 Hz calibration partner', SO.streamKind(CSVN), 'spo2');
+      T.eq('streamKind · its validity sidecar takes its OWN kind, not `runs` (#3077 — a kind IS a slot)', SO.streamKind(RUNSN), 'ppg2wruns');
+      T.eq('control · the Verity PPG is still `ppg`', SO.streamKind('Polar_VS_0C301E3F_20260613_121435_PPG.txt'), 'ppg');
+      T.eq('control · the H10 ECG is still `ecg`', SO.streamKind('Polar_H10_02849638_20260617_010616_ECG.txt'), 'ecg');
+
+      /* ── 🔴 THE CONTROL THAT MUST NOT MOVE. The vendor filter was widened; this is the behaviour it
+            was protecting, and a `spo2` lane bought by breaking it would be a bad trade. ── */
+      var H10 = 'Polar_H10_02849638_20260905_223000_';
+      var ecgPair = SO.pairCompanions('ecg', H10 + 'ECG.txt', [
+        { name: H10 + 'ECG.txt', text: 'E' },
+        { name: H10 + 'ACC.txt', text: 'POLARACC' },
+        { name: H10 + 'RR.txt', text: 'POLARRR' },
+        { name: CSVN, text: 'O2RINGCSV' }
+      ]);
+      T.ok('control · a Polar ECG primary still attaches its OWN rr + acc', !!(ecgPair && ecgPair.rr === 'POLARRR' && ecgPair.acc === 'POLARACC'), JSON.stringify(ecgPair));
+      T.ok('control · …and still REJECTS the O2Ring CSV (a foreign file is not a sidecar)', JSON.stringify(ecgPair || {}).indexOf('O2RINGCSV') < 0, JSON.stringify(ecgPair));
+
+      /* ── the new lane pairs, and is not indiscriminate ── */
+      var pair = SO.pairCompanions('spo2', W2, [
+        { name: W2, text: 'WAVE' },
+        { name: CSVN, text: 'CSVTEXT' },
+        { name: RUNSN, text: 'RUNSTEXT' },
+        { name: H10 + 'ACC.txt', text: 'POLARACC' },
+        { name: 'FreeStyleLibre_export_20260905223000.csv', text: 'LIBRE' }
+      ]);
+      T.eq('the spo2 lane attaches the ring’s CSV and its sidecar', JSON.stringify(pair), JSON.stringify({ spo2: 'CSVTEXT', ppg2wruns: 'RUNSTEXT' }));
+      T.ok('…and nothing else — not a Polar ACC, not a Libre export', JSON.stringify(pair || {}).indexOf('LIBRE') < 0 && JSON.stringify(pair || {}).indexOf('POLARACC') < 0, JSON.stringify(pair));
+
+      /* ── THE PROPERTY: the same bytes through both hosts give the same trend ── */
+      var T0 = Date.UTC(2026, 8, 5, 22, 30, 0),
+        BUF = 100;
+      var iso = function (ms) {
+        return new Date(ms).toISOString().replace('T', ' ').replace('Z', '');
+      };
+      var walk = function (s) {
+        return 90 + (Math.floor(s / 15) % 8);
+      };
+      var wl = ['Phone timestamp;sensor timestamp [ns];channel 0;channel 1;motion'],
+        tt = T0;
+      for (var b = 0; b < 2700; b++) {
+        var sec = Math.round((tt - T0) / 1000),
+          amp0 = 50 * (1 + 0.05 * (walk(sec + 10) - 93));
+        for (var i = 0; i < BUF; i++)
+          wl.push(iso(tt + i * 10) + ';' + (b * BUF + i) * 5e7 + ';' + Math.round(100000 + amp0 * Math.sin(i / 6)) + ';' + Math.round(200000 + 50 * Math.sin(i / 6)) + ';0');
+        tt += 1005;
+      }
+      var WAVE = wl.join('\n') + '\n';
+      var cl = ['Time,Oxygen Level,Pulse Rate,Motion'];
+      for (var s2 = 0; s2 < 2760; s2++) {
+        var d = new Date(T0 + s2 * 1000);
+        cl.push(String(d.getUTCHours()).padStart(2, '0') + ':' + String(d.getUTCMinutes()).padStart(2, '0') + ':' + String(d.getUTCSeconds()).padStart(2, '0') + ' 05/09/2026,' + walk(s2) + ',52,0');
+      }
+      var CSVT = cl.join('\n') + '\n';
+
+      // PATH A — OxyDex's own drop handler, in the order oxydex-dsp.js does it.
+      var A = O.spo2WaveformTrend(O.parsePPG2W(WAVE), O.parseCSV(CSVT, { fname: CSVN, file: null }));
+      // PATH B — the Unifier: route → pairCompanions → runAdapter, with the host's parseCSV.
+      var r = SA.route({ name: W2 }, WAVE.slice(0, 300));
+      var comps = SO.pairCompanions(r.best.signalType, W2, [
+        { name: W2, text: WAVE },
+        { name: CSVN, text: CSVT }
+      ]);
+      var B = SA.runAdapter(r.best.adapter || r.best, WAVE, { files: [W2], parseCSV: O.parseCSV, companions: comps });
+
+      /* ANTI-VACUITY FIRST. Two absences are equal to each other, and an equality between them says
+         nothing — a smaller fixture produced exactly that (9 bins, both `null`, "equal"). */
+      T.ok(
+        'the OxyDex handler produces a USABLE trend on this fixture (else the equality below is vacuous)',
+        A.usable === true && A.trend.length > 0,
+        A.reason || 'trend n=' + (A.trend ? A.trend.length : 0)
+      );
+      T.ok('the Unifier path produces one too', !!(B && B.usable === true && B.samples && B.samples.length > 0), (B && B.reason) || 'samples=' + (B && B.samples ? B.samples.length : 'null'));
+      if (A.usable && B && B.usable) {
+        T.eq(
+          '…and the two are the SAME SERIES — the trend does not depend on which host ingested it',
+          JSON.stringify(
+            B.samples.map(function (x) {
+              return [x.tMs, x.spo2];
+            })
+          ),
+          JSON.stringify(
+            A.trend.map(function (x) {
+              return [x.tMs, x.spo2w];
+            })
+          )
+        );
+        T.ok('…over a real number of bins, stated so a future shrink is visible', A.trend.length >= 40, 'n=' + A.trend.length);
+      }
+      /* ── CONTROL: the waveform ALONE still refuses, with the reason the adapter was given. ── */
+      var solo = SA.runAdapter(r.best.adapter || r.best, WAVE, { files: [W2], parseCSV: O.parseCSV });
+      T.ok('control · the waveform dropped ALONE still refuses — the lane did not make it guess', solo && solo.usable === false, JSON.stringify(solo && solo.usable));
+      T.ok(
+        'control · …naming self-calibration, and saying what it read',
+        /self-calibration impossible/.test((solo && solo.reason) || '') && /read 270000 samples/.test((solo && solo.reason) || ''),
+        (solo && solo.reason) || '(none)'
+      );
+
+      /* ── the hosts read the ONE table, so they cannot disagree about a drop ── */
+      var du = (env.sources || {})['data-unifier-app.js'] || '',
+        od = (env.sources || {})['overdex-app.js'] || '';
+      if (du && od) {
+        T.ok(
+          'data-unifier-app reads the lane list from companionKinds(), not a hard-coded pair',
+          /ORCH\.companionKinds\(r\.best\.signalType\)\.length/.test(du),
+          'a hard-coded lane list is a per-host silent no-pair'
+        );
+        T.ok('overdex-app reads the same table', /ORCH\.companionKinds\(sigType\)\.length/.test(od), 'the two hosts can disagree about one drop');
+      } else T.ok('both host sources in env.sources', false);
+    });
+
     /* ════ THE SIBLING WAVEFORM — residue `2026-09-25-ppg2w-routes-to-spo2` ══════════════════════
        §1.4's fix (the group below) declined `_PPG.txt` in `oxydex-spo2` and gave `o2ring-ppg` 0.97.
        `_PPG2W.txt` — the SAME ring's raw dual-wavelength stream — was left behind, and it was WORSE
@@ -54818,6 +56247,68 @@
        passed `route().best` where the host passes `route().best.adapter`, so `runAdapter` returned
        null for the CONTROL too. Reading `data-unifier-app.js`'s call site fixed the harness. A null
        answer for the control is what said "instrument", not "subject" (CLAUDE.md §4b). */
+    /* ════ EVERY ADAPTER'S SOURCE REACHES BOTH LANES — the fifth place, made unforgettable ═══════
+       Co-loading an adapter is FOUR places (both `.src.html`, `Dex-Test-Suite.html`, `dex-coload.js`,
+       `tests/run-tests.mjs`). Being SOURCE-SCANNABLE was a fifth, and only in the browser lane: Node
+       builds `env.sources` from the bundles' `data-inline-src` scan, so an inlined adapter arrives
+       free, while the page fetches an explicit list — which contained NO adapter at all until
+       2026-09-25. Three assertions had therefore never run in the browser lane since they were
+       written, each pinning that an adapter passes `ctx.companions.runs` through as `runsText`.
+
+       Measured before widening, so that "they all pass" is a finding and not a hope: all three regexes
+       evaluated against the adapter sources on disk → PASS, PASS, PASS. Widening executes them; it did
+       not have to be safe, and a mirror that reds on widening would have been a real defect surfacing,
+       not a reason to narrow the list back.
+
+       This group is the mechanism, not the list: the page now derives its adapter sources from
+       `DexCoload.adapters`, and this asserts the set that ARRIVED equals the set that REGISTERED. So
+       the twelfth adapter is source-scannable the day it is co-loaded, in both lanes, or this reds
+       with its name. ⚠️ It must also refuse a SILENT empty — an adapter list that fetched nothing
+       reads exactly like a lane with no adapters, which is the hole being closed. */
+    group('adapter sources reach BOTH lanes — every registered adapter is source-scannable', 'adapters · dex-coload · env.sources · source-scan', function (T) {
+      var SA = env.SignalAdapters,
+        src = env.sources || {};
+      if (!SA || typeof SA.list !== 'function') {
+        T.ok('SignalAdapters reachable', false, 'the population cannot be enumerated');
+        return;
+      }
+      /* THE POPULATION IS THE REGISTERED SET, never a list written here — a hand-written denominator
+         is the thing this group exists to abolish. */
+      var registered = SA.list()
+        .map(function (a) {
+          return a.id;
+        })
+        .sort();
+      T.ok('the registered adapter set is non-empty (else every assertion below is vacuous)', registered.length >= 10, registered.join(','));
+      var missing = registered.filter(function (id) {
+        return typeof src['adapters/' + id + '.js'] !== 'string';
+      });
+      T.eq('every REGISTERED adapter has its SOURCE in env.sources — ' + (registered.length - missing.length) + '/' + registered.length, JSON.stringify(missing), JSON.stringify([]));
+      /* An equality, not a floor: `>= N` never counts what was excluded. */
+      T.eq('…and the counts reconcile, so a shrinking population cannot read as a pass', registered.length - missing.length, registered.length);
+      /* The browser lane publishes this when its manifest came back empty; Node never sets it. A
+         silent `[]` there would restore the exact blindness this group closes. */
+      T.ok(
+        'the browser lane did not fall back to an EMPTY adapter source list',
+        env.adapterSourcesMissing !== true,
+        'DexCoload.adapters was absent or empty when Dex-Test-Suite.html built SOURCE_FILES'
+      );
+      /* And the three that had never executed in this lane, named so the widening is legible in the
+         output rather than inferred from a count. */
+      [
+        ['polar-h10-ecg', 'passes ctx.companions.runs into the PRIMARY parse'],
+        ['polar-sense-ppg', 'passes ctx.companions.runs as runsText'],
+        ['o2ring-ppg', 'passes ctx.companions.runs as runsText']
+      ].forEach(function (row) {
+        var t = src['adapters/' + row[0] + '.js'];
+        T.ok(
+          'previously browser-blind mirror · ' + row[0] + ' ' + row[1],
+          typeof t === 'string' && /companions\.runs/.test(t) && /runsText:\s*runsText/.test(t),
+          typeof t === 'string' ? 'the mirror now RUNS and fails — a real finding' : 'source still absent'
+        );
+      });
+    });
+
     group('o2ring-ppg2w adapter — the dual-wavelength waveform routes to the node that PARSES it', 'adapters · o2ring-ppg2w · routing · signal-adapters', function (T) {
       var SA = env.SignalAdapters;
       var A = SA && SA.byId ? SA.byId('o2ring-ppg2w') : null;

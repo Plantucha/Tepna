@@ -17,7 +17,7 @@ from writers import (ContactLedger, StreamWriter, Spo2CsvWriter, LinkLogWriter, 
                      append_pmd_negotiation, capture_filename, missing_identity, night_dir,
                      open_sample_writers)
 import writers                       # the MODULE too: the live loss guard asks it for the open set
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable
 
 import proc_util
 import polar_pmd as pmd
@@ -2450,6 +2450,22 @@ def should_drop_not_worn(worn_since, now, grace, pull_in_flight: bool = False,
 # STOP → settings → START negotiation against a device that has just dropped its link and therefore freed
 # the stream. Deliberately generous: every PMD stream we start (slowest is MAG at 20 Hz, PPI ~1/beat)
 # delivers many rows a second, so 90 s of TOTAL silence is never a slow stream — it is a dead one.
+#: The longest pleth-A inter-frame gap that is NORMAL — 33.27 s measured (2026-09-26 23:00→05:00) plus
+#: ~35 % headroom. Consumed by `BUS.register` for that stream only; see the citation at the call site.
+O2_PLETHA_QUIET_S = 45.0
+#: WHAT THIS STREAM IS, for the card — because "it arrives every ~2 s" does not tell an operator whether
+#: the trickle is a fault. Measured twice, on two nights, by two people, agreeing: 2026-09-26 23:00→05:00
+#: gives 4478 samples/h (1.24 Hz) in 1127 replies — samples per reply mode 3 then 2, mean 3.97, tail to 5
+#: — 34 beat markers/h, and `sensor timestamp [ns]` EMPTY on all 26 867 rows (0 present); a 2026-09-07
+#: smoketest session independently gives ~4200 samples/h (1.2 Hz), ~1330 replies, mode 2 and 3, ~30
+#: markers. The 0x04 `_PPG.txt` on the same finger and link carries ~449 000 samples/h at 124.7 Hz. So
+#: this opcode delivers a ~1 % residual with NO per-sample timing, beside a continuous 125 Hz pleth.
+#: ⚠️ NOT asserted here: that 0x03 drains the leftovers of the 0x04 poll. It is the reading that fits
+#: (the 09-06 smoketest measuring 125.058 Hz polled 0x03 ALONE), it is unverified, and the card says what
+#: the stream DOES rather than why. Owner ruling 2026-09-27: not a PAT candidate, keep the original 156.
+O2_PLETHA_WHY = ("residual buffer drain — a few samples per reply (mode 3), ~1.2 Hz, no per-sample "
+                 "timing; normal for this opcode beside the 125 Hz pleth.")
+
 _STREAM_STALL_S = 90.0       # started-stream silence before the session is torn down; stream.stall_sec (0 = off)
 # Re-bond cadence for a Polar whose BlueZ bond has vanished mid-session. Every 5th reconnect, up to 72
 # attempts — at the observed ~70 s reconnect period that is one try every ~6 min for 7 h. Sized to span
@@ -5407,7 +5423,18 @@ async def run_oxyii(dev: dict, root: str):
                     # unit "raw" like its siblings: the ring publishes no scale for these 8-bit
                     # optical counts, and "raw" is this bus's existing word for exactly that (o2ppg,
                     # o2ppg2w, acc_o2). A fabricated unit here is the accraw mistake one layer up.
-                    BUS.register("o2pletha", "Raw pleth A (O2Ring)", "raw", 0, chans=1, device=name)
+                    # quiet_s: THE LONGEST GAP THAT IS NORMAL FOR THIS STREAM, pre-stated from a cited
+                    # measurement and never adapted from the data it judges (telemetry.stream_health says
+                    # why). Measured read-only over a CLOSED window, 2026-09-26 23:00→05:00 local, on this
+                    # ring's own `_PLETHA.txt` host stamps: 6762 inter-frame gaps, median 1.98 s, p90
+                    # 8.08 s, MAX 33.27 s, of which 1204 (17.8 %, ~200 an hour in every one of the six
+                    # hours) exceed telemetry's 6 s waveform window. 45 s is that maximum with ~35 %
+                    # headroom, and it sits well under the 90 s silence that still reads NO DATA.
+                    # The ring WITHHOLDS this frame type; the link is not at fault — during all 1681 of
+                    # those gaps the 2-wavelength, PPG and ACCRAW streams were still arriving, 100 % of
+                    # them, on the same connection and the same notification handler.
+                    BUS.register("o2pletha", "Raw pleth A (O2Ring)", "raw", 0, chans=1, device=name,
+                                 quiet_s=O2_PLETHA_QUIET_S, quiet_why=O2_PLETHA_WHY)
                 if ppg2wr:
                     # fs=0 DELIBERATELY. Every reply carries exactly 102 records whatever the poll
                     # spacing, which is a fixed buffer cap and not a rate (cmd 0x03 caps the same way at
@@ -6676,8 +6703,9 @@ async def adapter_watchdog(adapter_mac, cfg: dict):
     a hard cap so it can never loop:
       L1 (every wedged check, cheap): `bluetoothctl disconnect` any phantom-linked device → it re-advertises.
       L2 (after `grace_checks` consecutive wedged checks): power-cycle the controller (bonds survive) while
-         _RECOVER pauses the device tasks. Capped at `max_adapter_cycles`; past that it logs CRITICAL and
-         stops (an external supervisor / systemd is the outer layer on the real box).
+         _RECOVER pauses the device tasks. Capped at `max_adapter_cycles`; past that it logs an ERROR line
+         and stops (an external supervisor / systemd is the outer layer on the real box; the CRITICAL lines
+         on this path are the fail-over and `exit_on_giveup` branches — measured 2026-09-25, #3096).
     A single connected+streaming device, or a clean not-worn read, resets the counters."""
     wcfg = cfg.get("watchdog") or {}
     if not wcfg.get("enabled", True):
@@ -9543,6 +9571,145 @@ _LOOP_LAG_WARN_MS = 1000.0     # logged: at this size the H10's 130 Hz ECG has ~
 _LOOP_LAG_WARN_EVERY_S = 300.0
 
 
+# ── WHICH CALLBACK HELD THE LOOP — attribution, which `loop_monitor` below cannot give ────────────
+#
+# `loop_monitor` measures the ONE shared resource and says so honestly: its log line reads "whatever held
+# it", because sleep-lateness is a symptom with no subject. Measured 2026-09-25, that gap cost a night of
+# wrong attribution — 737 stalls in a tracing window were read as "25 at the QC poll's cadence", because
+# `stalls so far:` is cumulative and the warning is rate-limited to 300 s, so the SPACING OF WARNINGS IS
+# THE LIMITER'S PERIOD and can never establish a cause. Two sessions then reasoned from that spacing.
+# This names the callback instead, at the moment it runs long.
+#
+# 🔴 THE OBVIOUS MECHANISM IS THE WRONG ONE, MEASURED. asyncio has this built in —
+# `loop.set_debug(True)` plus `loop.slow_callback_duration` logs "Executing <Handle …> took X seconds".
+# Benchmarked over 60,000 callbacks through the real dispatch path, median of 3:
+#
+#     baseline (no instrument)                     1.29 µs/callback
+#     loop.set_debug(True) + slow_callback        18.09 µs/callback   ← 14.0x baseline
+#     wrapped Handle._run (perf_counter pair)      1.56 µs/callback   ← 1.20x baseline
+#
+# Debug mode is **14x** because it also captures a source traceback for every handle and tracks
+# coroutine origins — a broad tax to answer a narrow question, and the same shape as the heap probe's
+# measured 19x stall tax. So this wraps `Handle._run`, the ONE choke point every callback passes through,
+# and pays two `perf_counter()` calls: **+0.26 µs per callback**, which at a busy 5,000 callbacks/s is
+# 1.3 ms/s ≈ 0.13 % of one core. The handle is RENDERED only past the threshold, so the fast path costs
+# nothing beyond the timing pair.
+#
+# ⚠️ AND THAT IS WHY THIS GATE IS A CONFIG KEY RATHER THAN THE HEAP PROBE'S ONE-SHOT REQUEST. The probe
+# needed consuming because its tax was 19x and a standing flag re-armed it every night. 1.20x is a tax
+# you can leave on for the nights you are diagnosing. Still OFF by default: an instrument nobody asked
+# for should not be running, whatever it costs.
+_SLOW_CB_MS = _LOOP_LAG_STALL_MS      # ONE definition of "a stall" — see the assertion in the tests:
+#: if these two drifted, `STATUS["loop"]["stalls"]` would count one thing and this would name another,
+#: and the cross-read that makes the pair useful ("N stalls, and here are the callbacks") would be false.
+_SLOW_CB_LOG_EVERY_S = 0.0            # NOT rate-limited, deliberately: the limiter is what made the
+#: previous instrument's output unreadable as a cadence. Every slow callback is logged with its name; a
+#: flood IS the finding, and `STATUS` carries the aggregate for anyone who wants one line instead.
+
+
+def describe_handle(handle) -> str:
+    """A readable name for the callback inside an asyncio `Handle`.
+
+    `repr(handle)` is already `<Handle cb() at file:line>` and is the right answer for a plain callback.
+    It is NOT the right answer for a coroutine step: every awaiting task dispatches through
+    `Task.__step`, so a dozen different coroutines would all report the same name. When the callback is
+    a bound method of a Task, this names the COROUTINE instead — which is the thing a reader can act on.
+
+    Falls back to `repr` on anything unexpected rather than raising: this runs inside the dispatch path,
+    and an instrument that can throw there takes the loop down with it."""
+    try:
+        cb = getattr(handle, "_callback", None)
+        owner = getattr(cb, "__self__", None)
+        if isinstance(owner, asyncio.Task):
+            coro = owner.get_coro()
+            name = getattr(coro, "__qualname__", None) or getattr(getattr(coro, "cr_code", None), "co_name", None)
+            return f"task:{owner.get_name()}:{name or 'coro'}"
+        return repr(handle)
+    except Exception:                  # noqa: BLE001 — naming must never break dispatch; repr is the floor
+        return "<unnameable handle>"
+
+
+class SlowCallbackWatch:
+    """Times every callback through `Handle._run` and logs any that runs past `threshold_ms` BY NAME.
+
+    Install/restore is symmetric and idempotent, and `restore()` puts back exactly the function it
+    replaced — the same contract as `DecodeCensus`, for the same reason: a process left wrapped after the
+    instrument is meant to be off has been permanently changed by its own diagnostic."""
+
+    def __init__(self, threshold_ms: float = _SLOW_CB_MS) -> None:
+        self.threshold_s = float(threshold_ms) / 1000.0
+        # Typed as the callable it will hold, not inferred from its initial None — mypy read the
+        # annotation-free `None` as the attribute's TYPE and then called `install`'s assignment an error.
+        self._orig_run: "Callable[[asyncio.events.Handle], Any] | None" = None
+        #: name -> {"n": count, "max_ms": worst}. The aggregate STATUS carries, so a reader has one line
+        #: as well as the per-event log. Empty means "installed and nothing ran long", which is a finding.
+        self.slow: dict[str, dict] = {}
+
+    def install(self) -> None:
+        if self._orig_run is not None:
+            return
+        orig = asyncio.events.Handle._run
+        self._orig_run = orig
+        thr = self.threshold_s
+        slow = self.slow
+
+        def _run(handle):
+            t0 = _time.perf_counter()
+            try:
+                return orig(handle)
+            finally:
+                held = _time.perf_counter() - t0
+                if held >= thr:
+                    # Rendered ONLY here — the fast path never pays for a repr.
+                    name = describe_handle(handle)
+                    rec = slow.setdefault(name, {"n": 0, "max_ms": 0.0})
+                    rec["n"] += 1
+                    rec["max_ms"] = max(rec["max_ms"], round(held * 1000.0, 1))
+                    log.warning("slow callback: %s held the loop %.0f ms — every live stream's host "
+                                "stamps waited behind THIS (seen %d time(s), worst %.0f ms)",
+                                name, held * 1000.0, rec["n"], rec["max_ms"])
+
+        # Replacing a method on the class IS the mechanism (the 1.20x choke point measured above), so
+        # the [method-assign] refusal is answered rather than silenced: both sites are the same swap.
+        asyncio.events.Handle._run = _run   # type: ignore[method-assign]
+
+    def restore(self) -> None:
+        if self._orig_run is not None:
+            asyncio.events.Handle._run = self._orig_run   # type: ignore[method-assign,assignment]
+            self._orig_run = None
+
+
+async def slow_callback_watch(cfg: dict):
+    """Install `SlowCallbackWatch` for the process's life when `slow_callback.enabled`.
+
+    ⚠️ NO `STATUS` KEY, and that is a correction rather than an omission. The first version published
+    `STATUS["slow_callbacks"]` with an aggregate, and `find_unwired --check` red it: *published by
+    capture.py and read by nothing*. It was right — the property this instrument owes is the JOURNAL LINE
+    naming the callback at the moment it runs long, and an aggregate for a reader who might want one is
+    the half-wired mechanism this repo keeps finding. The per-name counters stay in memory because the log
+    line itself consumes them ("seen N times, worst X ms"); nothing is published that nothing reads.
+
+    Registered unconditionally and OFF by default, for the reason the `heap_probe` registration states:
+    an instrument wired only when enabled has its wiring exercised for the first time on the night
+    someone needs it. This returns immediately when disabled, so the registration itself is tested every
+    run."""
+    scfg = cfg.get("slow_callback") or {}
+    if not scfg.get("enabled", False):
+        log.info("slow-callback watch: OFF — slow_callback.enabled is false")
+        return
+    watch = SlowCallbackWatch(float(scfg.get("threshold_ms", _SLOW_CB_MS)))
+    watch.install()
+    log.info("slow-callback watch: ON — any callback holding the loop >= %.0f ms is logged BY NAME "
+             "(measured overhead +0.26 us/callback, 1.20x dispatch)", watch.threshold_s * 1000.0)
+    try:
+        await _STOP.wait()
+    finally:
+        # Before anything else that could raise: a process left wrapped has been permanently changed by
+        # its own diagnostic, which is the defect `DecodeCensus.restore` exists to avoid.
+        watch.restore()
+        log.info("slow-callback watch: restored after %d distinct slow callback(s)", len(watch.slow))
+
+
 async def loop_monitor(period_s: float = 1.0):
     """Measure the ONE resource every stream shares and nothing published: event-loop latency. Every bleak
     notification, every `Phone timestamp` host stamp, every `_maybe_flush` fsync runs on this loop
@@ -9720,8 +9887,192 @@ def proc_rss_kb(status_path: str = "/proc/self/status") -> dict:
     return out
 
 
+#: How many decode sites to publish, and how deep a referrer walk may go. Bounded because the probe must
+#: not become the leak it is measuring: a referrer walk holds references while it runs, and an unbounded
+#: one over a million-object heap would both stall the loop and retain what it visits.
+_HOLDER_SITES, _HOLDER_SAMPLE, _HOLDER_DEPTH = 12, 8, 4
+
+
+class DecodeCensus:
+    """Counts `json.loads`/`json.load` calls PER CALL SITE while the probe is tracing.
+
+    🔴 WHY A CENSUS AND NOT A REFERRER WALK FROM THE DECODED OBJECTS — the obvious design is not
+    implementable, and the reason is worth writing down so nobody re-attempts it. tracemalloc hands back
+    STATISTICS (file, line, size, count), never the objects, so there is no way to get from
+    `json/decoder.py:361` to the dicts it allocated. Nor can the objects be tracked as they are made:
+    plain `dict` and `list` DO NOT SUPPORT WEAK REFERENCES, so a `WeakSet` of decoded results raises
+    `TypeError`, and a strong set would be the leak.
+
+    What IS observable is WHO DECODES AND HOW OFTEN, which is the discriminator that matters here: the
+    probe measured **50 decoded objects per second**, and the QC poll — the leading suspect, exonerated by
+    measurement in #3072 — runs about 20 times an HOUR. A per-site call count separates a per-sample path
+    from a periodic job by three orders of magnitude, without guessing.
+
+    §∅: a site that was never called is ABSENT from the census rather than present with 0 — the census
+    reports what it observed, and `{}` means the window saw no decode at all, which is itself a finding."""
+
+    def __init__(self) -> None:
+        self.counts: dict[str, int] = {}
+        # `Callable[..., Any]`, not `object`: `restore` assigns these back onto `json.loads`/`json.load`,
+        # and an `object` there is what mypy reported as the two errors #3083 added (2026-09-26).
+        self._orig: dict[str, Callable[..., Any]] = {}
+        #: Re-entrancy depth. `json.load(fp)` is implemented AS `loads(fp.read())`, so wrapping both
+        #: counts a single file decode TWICE — and the inner hit would attribute it to `json/__init__.py`
+        #: rather than to the caller. Caught by the full suite: a test asserting one decode saw two. The
+        #: outer wrapper claims the count and the inner one stays silent, so a file read is one decode at
+        #: the CALLER's site, which is the whole purpose of the census.
+        self._depth = 0
+
+    def _note(self) -> None:
+        # The CALLER's frame, two up: `_note` itself and the wrapper.
+        f = _sys._getframe(2)
+        key = f"{os.path.basename(f.f_code.co_filename)}:{f.f_lineno}"
+        self.counts[key] = self.counts.get(key, 0) + 1
+
+    def install(self) -> None:
+        """Wrap `json.loads`/`json.load` for the window. Idempotent, and restores exactly what it found."""
+        if self._orig:
+            return
+        self._orig = {"loads": json.loads, "load": json.load}
+        _loads, _load = json.loads, json.load
+
+        def loads(*a, **kw):
+            if self._depth == 0:               # silent when `load` above us already claimed the count
+                self._note()
+            self._depth += 1
+            try:
+                return _loads(*a, **kw)
+            finally:
+                self._depth -= 1
+
+        def load(*a, **kw):
+            # NO depth check here, unlike `loads`. `json.load` is only ever the OUTER call — nothing in
+            # the stdlib or this tree calls it from inside a decode — so its `depth != 0` branch was
+            # unreachable and the coverage gate said so. It claims the count unconditionally and `loads`,
+            # which `load` immediately calls, stays silent via the depth it raises.
+            self._note()
+            self._depth += 1
+            try:
+                return _load(*a, **kw)
+            finally:
+                self._depth -= 1
+
+        json.loads, json.load = loads, load
+
+    def restore(self) -> None:
+        """Always, including on the error path — a probe that leaves json wrapped has changed the process
+        it was measuring, and the wrapper costs a frame walk on every decode."""
+        if self._orig:
+            json.loads, json.load = self._orig["loads"], self._orig["load"]
+            self._orig = {}
+
+    def top(self, n: int = _HOLDER_SITES) -> dict:
+        return dict(sorted(self.counts.items(), key=lambda kv: -kv[1])[:n])
+
+
+def holder_of(obj, depth: int = _HOLDER_DEPTH) -> dict:
+    """The first OUR-CODE holder of `obj`, walking `gc.get_referrers` up to `depth`.
+
+    Returns `{"module": …, "name": …}`, and **`{"module": None, "name": None}` when no such holder is
+    reachable within the bound** — §∅: unreachable is not "nobody holds it", and the two must not read
+    the same. A module dict is reported by the module's `__name__`; see the measured limit below for why a frame
+    is not reported at all.
+
+    🔴 MEASURED LIMIT, AND IT BOUNDS WHAT A `null` MEANS. On CPython 3.13 an object held ONLY in a
+    frame's fast local has **zero** `gc.get_referrers` — the localsplus array is not reported as a
+    reference from the frame object. Verified directly: a 100-key dict built as a function local returns
+    `len(gc.get_referrers(d)) == 0`. So this walk finds holders that are TRACKED CONTAINERS — module
+    globals, instance `__dict__`s, other dicts and lists — which is the population a leak actually lives
+    in, and it is BLIND to a live frame local. A `null` therefore means "not held by a tracked container
+    within the bound", which INCLUDES "held only by a running frame". It does not mean unheld, and a
+    reader who takes it that way will hunt a leak that is merely in flight."""
+    seen: set[int] = {id(obj)}
+    frontier = [obj]
+    for _ in range(depth):
+        nxt: list = []
+        # 🔴 THE WALK MUST NOT CHASE ITSELF. `frontier`, `nxt` and `seen` are tracked containers that
+        # refer to the very objects being walked, so `gc.get_referrers` hands them straight back: the
+        # frontier then never empties, every hop spends budget on this function's own bookkeeping, and the
+        # walk can exhaust its depth and report `null` while a real holder sat one hop away. Found by the
+        # coverage gate — the `break` below was unreachable, which is what a self-referential frontier
+        # looks like from the outside.
+        own = {id(seen), id(frontier), id(nxt)}
+        for o in frontier:
+            for r in gc.get_referrers(o):
+                if id(r) in seen or id(r) in own:
+                    continue
+                seen.add(id(r))
+                # NO FRAME BRANCH. I wrote one and removed it: on CPython 3.13 a frame never appears as a
+                # referrer of an object held in its fast locals (measured — zero referrers), so the branch
+                # could not fire, and the coverage gate found it unreachable. Keeping it would also have
+                # contradicted this function's own docstring, which states that a frame-held object is
+                # invisible here. A module dict is the holder shape that IS reachable.
+                if isinstance(r, dict) and r.get("__name__") and "__file__" in r:
+                    return {"module": str(r["__name__"]), "name": "<module>"}
+                else:
+                    nxt.append(r)
+        frontier = nxt[:64]                    # bounded breadth as well as depth
+        if not frontier:
+            break
+    return {"module": None, "name": None}
+
+
+#: The one-shot request. `heap_probe.enabled` says the probe MAY run; this file says run it ONCE, and it
+#: is consumed on arm so the next daemon start does not repeat it.
+_HEAP_REQUEST_NAME = "heap-probe.request"
+
+
+def consume_heap_request(path: str) -> bool:
+    """`True` only if the request existed AND was consumed. Consuming is what makes it one-shot.
+
+    🔴 WHY A CONSUMED REQUEST AND NOT A CONFIG FLAG — measured on SOLID-NIGHT night 1, and the cost was a
+    real night. `heap_probe.enabled` is a STANDING permission, so the probe armed on EVERY daemon start:
+    four of them that evening (18:40, 19:40, 20:03, and again at the strap-up). While tracemalloc was
+    tracing 22:19:56 → 00:21:01 the box logged **25 event-loop stalls of 1–12 s at the QC poll's 10-minute
+    cadence**, and **58 of the 64 H10 host inter-arrival gaps over 1 s fall inside that window**; after
+    tracing stopped, 3 stalls in two hours. The owner read it on the monitor as "fragmentation". The
+    RECORDING was whole (`gaps_in_night: []`, one session, 13.7 M rows) — the host stamps waited, the
+    device clocks did not — but a diagnostic that degrades the night it is diagnosing is not a diagnostic,
+    and a standing flag meant it would do it again the next night without anyone asking.
+
+    ⚠️ FAILS CLOSED. If the file exists and cannot be consumed, this returns False and the probe does NOT
+    arm: an un-consumable request would otherwise arm on every start, which is the exact defect being
+    fixed. Refusing to trace is always recoverable; a night degraded by the instrument is not."""
+    try:
+        os.replace(path, path + ".consumed")
+    except OSError:
+        return False
+    return True
+
+
+def top_container_holders(sample: int = _HOLDER_SAMPLE) -> list:
+    """The `sample` largest live dict/list containers, each with the first our-code holder above it.
+
+    Ordered by `len()` rather than by bytes: a container that GROWS is what a retention hunt is after,
+    and length is cheap where `sys.getsizeof` on a deep structure is not. The heap snapshot is taken
+    once and released before the referrer walk, so the list of candidates does not itself become a
+    referrer that the walk then reports."""
+    cands: list = []
+    for o in gc.get_objects():
+        # No try/except around `len`: the type filter above guarantees a real dict or list, and `len` on
+        # either is O(1) and cannot raise. The guard I first wrote here was unreachable — the coverage
+        # gate caught it at 99.96 %, and covering an unreachable branch would have meant a contrived
+        # object the filter excludes by construction. Dead defensive code removed rather than tested.
+        if type(o) in (dict, list) and len(o) >= 64:
+            cands.append((len(o), o))
+    cands.sort(key=lambda t: -t[0])
+    picked = cands[:sample]
+    del cands                                  # drop the long list BEFORE walking referrers
+    out = []
+    for n, o in picked:
+        h = holder_of(o)
+        out.append({"kind": type(o).__name__, "len": n, "holder_module": h["module"],
+                    "holder_name": h["name"]})
+    return out
+
+
 def heap_report_row(when, traced, peak, n_objects, gc_view, top_rows, covered=True,
-                    live_streams=None, rss=None) -> dict:
+                    live_streams=None, rss=None, decodes=None, holders=None) -> dict:
     """PURE: one snapshot's row. Separated from the task so the SHAPE is testable without waiting an hour.
 
     `top_rows` are already-formatted `compare_to` lines; the FIRST snapshot of a window has none,
@@ -9738,6 +10089,13 @@ def heap_report_row(when, traced, peak, n_objects, gc_view, top_rows, covered=Tr
             # The quantity the stall was blamed on, beside the one tracemalloc measures. `None` per key
             # when /proc could not answer — the caller passes what it read, and absence stays absence.
             "rss_kb": dict(rss) if rss else {k: None for k in _RSS_KEYS},
+            # WHO DECODES, AND HOW OFTEN — the discriminator `top_growth` cannot give, because it names
+            # the allocating line inside `json/` and every caller shares it. `{}` means the window saw no
+            # decode at all, which is a finding; a site that was never called is ABSENT, not 0.
+            "decodes_by_site": dict(decodes) if decodes else {},
+            # WHO HOLDS the largest live containers, bounded (see `_HOLDER_*`). `null` module/name is
+            # "no holder reachable within the bound", never "nothing holds it".
+            "top_holders": list(holders) if holders else [],
             "status": "OK" if covered else "NOT_APPLICABLE",
             "reason": None if covered else "nothing streamed during this interval — an empty diff here "
                                            "is the absence of capture, not the absence of growth",
@@ -9782,6 +10140,16 @@ async def heap_probe(cfg: dict, root: str):
     if not hcfg.get("enabled", False):
         log.info("heap probe: OFF — heap_probe.enabled is false")
         return
+    # PERMISSION IS NOT A REQUEST. `enabled` says the probe MAY run; the marker file says run it once, and
+    # it is consumed here so a restart does not re-arm it. This is what keeps a SOLID-NIGHT night clean by
+    # DEFAULT: with no file, nothing traces and the per-subsystem attribution below never runs either —
+    # `DecodeCensus` and `top_container_holders` are reached only past this point, so one gate covers all
+    # three costs (tracemalloc's allocation tax, the json wrapper's frame walk, the referrer walk).
+    req = str(hcfg.get("request_path") or os.path.join(root, _HEAP_REQUEST_NAME))
+    if not consume_heap_request(req):
+        log.info("heap probe: not requested — no consumable %s; tracemalloc stays off", req)
+        return
+    log.info("heap probe: request consumed (%s) — this run is one-shot", req)
     import tracemalloc
     start_after_s = float(hcfg.get("start_after_min", 30)) * 60.0
     interval_s = float(hcfg.get("interval_min", 60)) * 60.0
@@ -9808,6 +10176,11 @@ async def heap_probe(cfg: dict, root: str):
     if not already:
         tracemalloc.start(1)                 # ONE frame: the allocation site is the container
     armed = arm_gc_probe()
+    # The decode census runs for exactly the tracing window and is restored in the `finally` below. It
+    # wraps `json.loads`/`json.load`, so leaving it installed would change the process this probe exists
+    # to measure — and cost a frame walk on every decode for the rest of the night.
+    _census = DecodeCensus()
+    _census.install()
     log.info("heap probe: tracing (gc pass timer armed=%s, tracemalloc was already on=%s)", armed, already)
     rows, prev = [], None
     try:
@@ -9820,6 +10193,7 @@ async def heap_probe(cfg: dict, root: str):
             top_rows: list[str] = [str(s) for s in snap.compare_to(prev, "lineno")[:top]] if prev is not None else []
             rows.append(heap_report_row(_now().isoformat(timespec="seconds"), traced, peak,
                                         len(gc.get_objects()), gc_snapshot(), top_rows, rss=proc_rss_kb(),
+                                        decodes=_census.top(), holders=top_container_holders(),
                                         covered=covered, live_streams=_live_streams()))
             try:
                 os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -9832,10 +10206,11 @@ async def heap_probe(cfg: dict, root: str):
                      i + 1, snapshots, traced / 1e6, rows[-1]["gc_tracked_objects"], len(top_rows))
             prev = snap
     finally:
+        _census.restore()                    # BEFORE anything that could raise: json must not stay wrapped
         if not already:
             tracemalloc.stop()
         disarm_gc_probe()
-        log.info("heap probe: finished — tracing stopped, gc pass timer disarmed")
+        log.info("heap probe: finished — tracing stopped, census restored, gc pass timer disarmed")
 
 
 def _live_streams() -> int:
@@ -11717,6 +12092,9 @@ async def main():
                    ("charger_pull_poller", lambda: charger_pull_poller(cfg, root)),
                    ("sd_watchdog", sd_watchdog),
                    ("loop_monitor", loop_monitor),
+                   # The attribution half of the pair above: loop_monitor says the loop was held,
+                   # this says BY WHAT. Same OFF-by-default-but-always-registered reasoning.
+                   ("slow_callback_watch", lambda: slow_callback_watch(cfg)),
                    # Registered unconditionally and OFF by default: a probe wired only when enabled is a
                    # probe whose wiring is never exercised, so the night it is armed is the night its
                    # registration is tested for the first time. It returns immediately when disabled.

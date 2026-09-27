@@ -57,6 +57,10 @@ function loadScript(url) {
     /* @blob-strip:end */
   }
 }
+/* analysis-stats.js is loaded OUTSIDE the try below on purpose: that catch swallows and sets
+   HAVE_PPGDSP = false so the worker can still run the paths that need no DSP, which is right for a DSP
+   and wrong for the hat — the hat is this worker's whole subject. A failure here propagates. */
+loadScript('analysis-stats.js');
 try {
   ['kernel-constants.js', 'clock.js', 'ppgdex-dsp.js', 'ecgdex-dsp.js'].forEach(loadScript);
   HAVE_ECGDSP = typeof ECGDSP !== 'undefined' && ECGDSP && typeof ECGDSP.parseECG === 'function' && typeof ECGDSP.bandpass === 'function' && typeof ECGDSP.detectPeaks === 'function';
@@ -197,9 +201,24 @@ function genWindow(regime, rho, ar, n) {
   return out;
 }
 
-// ── TCH kernel (identical to the method paper / main module) ───────────────
+/* ── TCH kernel — DELEGATED to analysis-stats.js (2026-09-27) ──────────────────────────────────────
+   This was a private copy of the solver, byte-equivalent to `AnalysisStats.threeCorneredHat` and gated
+   by NOTHING: the `sensor-trio · tch-parity` gate scans `sensor-trio-power-analysis.js` only, so a drift
+   here would have shipped silently. (The TCH brief's claim that "the worker keeps its mirror and a
+   delegation-parity leg guards it" had no such leg in tests/dex-tests.js.) A numeric parity row is not
+   available for a worker-local function — the suite cannot execute one — so DELEGATION, not gating, is
+   the only mechanically checkable fix, and the source-scan leg below now holds it.
+
+   🔴 It REFUSES rather than falling back. A local copy as a safety net is exactly what was just removed,
+   and CLAUDE.md §3's rule applies: guarding an absent alias converts a crash into silent disablement.
+   Its load sits OUTSIDE the `HAVE_PPGDSP` try/catch above, which swallows and continues — the hat is
+   not optional to this worker, so an absent kernel is a refusal with a named reason, not a σ of 0. */
 function threeCorneredHat(vAB, vAC, vBC) {
-  return { a: 0.5 * (vAB + vAC - vBC), b: 0.5 * (vAB + vBC - vAC), c: 0.5 * (vAC + vBC - vAB) };
+  var K = self.AnalysisStats;
+  if (!K || typeof K.threeCorneredHat !== 'function') {
+    throw new Error('sensor-trio-worker: AnalysisStats.threeCorneredHat unavailable — the hat is not computable and no local copy is kept');
+  }
+  return K.threeCorneredHat(vAB, vAC, vBC);
 }
 function tchSigmas(hh, vv, oo) {
   var dHV = [],
@@ -210,12 +229,21 @@ function tchSigmas(hh, vv, oo) {
     dHO.push(hh[i] - oo[i]);
     dVO.push(vv[i] - oo[i]);
   }
-  var cv = threeCorneredHat(variance(dHV), variance(dHO), variance(dVO));
+  var _vHV = variance(dHV),
+    _vHO = variance(dHO),
+    _vVO = variance(dVO);
+  var cv = threeCorneredHat(_vHV, _vHO, _vVO);
   return {
     h10: cv.a > 0 ? Math.sqrt(cv.a) : null,
     verity: cv.b > 0 ? Math.sqrt(cv.b) : null,
     o2: cv.c > 0 ? Math.sqrt(cv.c) : null,
-    neg: cv.a <= 0 || cv.b <= 0 || cv.c <= 0
+    neg: cv.a <= 0 || cv.b <= 0 || cv.c <= 0,
+    /* ADDED 2026-09-27 — the three pairwise difference variances, which this function has always
+       computed and thrown away. They are the ONLY input the independence-sensitivity row needs
+       (`AnalysisStats.tchRhoCrit`), and recomputing them on the page would mean a second copy of the
+       differencing. Corner mapping, which the row depends on and which is easy to get wrong:
+       `threeCorneredHat(vAB, vAC, vBC)` with A=h10, B=verity, C=o2, so AB=HV, AC=HO, BC=VO. */
+    vars: { hv: _vHV, ho: _vHO, vo: _vVO }
   };
 }
 // fused-weight hat (TCH-FUSED-ROBUST-HAT-2026-07-14): per-second per-corner confidence (cH/cV/cO —
@@ -283,8 +311,20 @@ function tchSigmasFused(hh, vv, oo, cH, cV, cO) {
     wHO[i] = t * h * o;
     wVO[i] = t * v * o;
   }
-  var cv = threeCorneredHat(_wvarF(dHV, wHV), _wvarF(dHO, wHO), _wvarF(dVO, wVO));
-  return { h10: cv.a > 0 ? Math.sqrt(cv.a) : null, verity: cv.b > 0 ? Math.sqrt(cv.b) : null, o2: cv.c > 0 ? Math.sqrt(cv.c) : null, neg: cv.a <= 0 || cv.b <= 0 || cv.c <= 0 };
+  var _wvHV = _wvarF(dHV, wHV),
+    _wvHO = _wvarF(dHO, wHO),
+    _wvVO = _wvarF(dVO, wVO);
+  var cv = threeCorneredHat(_wvHV, _wvHO, _wvVO);
+  /* `vars` are the WEIGHTED pairwise variances — the ones THIS hat is built from, so the sensitivity
+     row describes the σ̂ the page actually shows rather than a classic hat nobody displays. Same shape
+     and same corner mapping as `tchSigmas` above. */
+  return {
+    h10: cv.a > 0 ? Math.sqrt(cv.a) : null,
+    verity: cv.b > 0 ? Math.sqrt(cv.b) : null,
+    o2: cv.c > 0 ? Math.sqrt(cv.c) : null,
+    neg: cv.a <= 0 || cv.b <= 0 || cv.c <= 0,
+    vars: { hv: _wvHV, ho: _wvHO, vo: _wvVO }
+  };
 }
 
 // ── job handlers ───────────────────────────────────────────────────────────
@@ -913,6 +953,50 @@ function ppgHrMapReal(text, onPhase) {
     return null;
   }
 }
+/* ── THE RING'S OWN BEATS: per-second HR from the O2Ring's `156` beat markers ─────────────────────────────
+   The firmware inserts one `156` row per detected beat into the raw _PPG.txt; `parsePPG` separates the isolated
+   ones from the waveform and publishes their times as `beatMarkerSec` (ppgdex-dsp.js markO2BeatMarkers). They
+   run through the same PPI → Malik → per-second median → ±2 s cleanup as `ppgHrMapReal`. A marker records the
+   firmware's DETECTION instant, a fixed latency: sound for intervals, which is all HR uses, never for PAT.
+   Measured 2026-09-26 on 2026-09-25 (22,729 markers), the O2Ring corner σ̂ against the H10 + Verity:
+   _SPO2.csv pulse 3.19 bpm · raw pleth via PPGDSP feet 1.98 · the markers 1.33. The CSV is a smoothed 1 Hz
+   integer; most of the ring's apparent noise was that summary, not the sensor. */
+function o2MarkerHrMap(text) {
+  try {
+    var rec = PPGDSP.parsePPG(text);
+    var ms = rec && rec.beatMarkerSec;
+    if (!ms || ms.length < 30) return null;
+    var b = PPGDSP.buildPPI(Array.from(ms));
+    if (!b || !b.rr || b.rr.length < 20) return null;
+    var corr = PPGDSP.correctRR(b.rr, b.tt),
+      t0 = rec.t0Ms || 0,
+      pairs = [],
+      i;
+    for (i = 0; i < corr.nn.length; i++) {
+      var hr = 60000 / corr.nn[i];
+      if (hr >= HR_MIN && hr <= HR_MAX) pairs.push([secFloor(t0 + corr.tt[i] * 1000), hr]);
+    }
+    if (pairs.length < 30) return null;
+    var per = medMap(pairs),
+      secs = Array.from(per.keys()).sort(function (a, c) {
+        return a - c;
+      }),
+      vals = secs.map(function (k) {
+        return per.get(k);
+      }),
+      out = new Map();
+    for (var j = 0; j < secs.length; j++) {
+      var win = vals.slice(Math.max(0, j - 2), Math.min(vals.length, j + 3)).sort(function (a, c) {
+          return a - c;
+        }),
+        med = win[win.length >> 1];
+      if (Math.abs(vals[j] - med) <= 20) out.set(secs[j], vals[j]);
+    }
+    return out.size >= 30 ? out : null;
+  } catch (e) {
+    return null;
+  }
+}
 async function runRealNight(m) {
   var pg = function (ph) {
     self.postMessage({ type: 'progress', reqId: m.reqId, label: m.label, phase: ph });
@@ -920,7 +1004,31 @@ async function runRealNight(m) {
   try {
     var f = m.files;
     pg('reading device files');
-    var O = o2PulseMap(await f.o2.text());
+    /* THE O2RING CORNER, raw first (2026-09-26): its own `156` beat markers → PPGDSP feet on the raw pleth →
+       the _SPO2.csv 1 Hz pulse. `o2Source` names which one ran. A caller that sends no `o2ppg` (the power
+       tool) gets the CSV exactly as before. */
+    var O = null,
+      osrc = null,
+      Oconf = null;
+    if (f.o2ppg && HAVE_PPGDSP) {
+      var _ot = await f.o2ppg.text();
+      pg('ring beat markers');
+      O = o2MarkerHrMap(_ot);
+      if (O) osrc = 'ring·156-markers';
+      else {
+        pg('ring pleth feet');
+        var _op = ppgHrMapReal(_ot, pg);
+        if (_op && _op.hr) {
+          O = _op.hr;
+          Oconf = _op.conf || null;
+          osrc = 'ring·PPGDSP';
+        }
+      }
+    }
+    if (!O && f.o2) {
+      O = o2PulseMap(await f.o2.text());
+      if (O) osrc = 'ring·SpO2-csv';
+    }
     var H = null,
       hsrc = null;
     if (f.h10ecg && HAVE_ECGDSP) {
@@ -984,7 +1092,10 @@ async function runRealNight(m) {
       cH.push(Number.isFinite(_ch) ? _ch : 1);
       var _cv = Vconf && Vconf.has(ks[i]) ? Vconf.get(ks[i]) : 1;
       cV.push(Number.isFinite(_cv) ? _cv : 1);
-      cO.push(1); // O2Ring native pulse — a smoothed device integer, cannot over-detect ⇒ trust 1
+      // the pleth path carries per-beat confidence; the markers and the CSV are the device's own beats (a smoothed
+      // integer, or its detector's fiducial), which cannot over-detect ⇒ trust 1, as before
+      var _co = Oconf && Oconf.has(ks[i]) ? Oconf.get(ks[i]) : 1;
+      cO.push(Number.isFinite(_co) ? _co : 1);
     }
     var s = tchSigmasFused(hh, vv, oo, cH, cV, cO); // fused-weight hat (per-corner DSP confidence)
     var rHV = pearson(hh, vv),
@@ -1042,6 +1153,8 @@ async function runRealNight(m) {
       skip: false,
       n: ks.length,
       source: src,
+      h10Source: hsrc,
+      o2Source: osrc,
       sigma: { o2: s.o2, h10: s.h10, verity: s.verity },
       neg: s.neg,
       h10Unreliable: h10Cls !== 'ok',
@@ -1050,7 +1163,25 @@ async function runRealNight(m) {
       rHV: rHV,
       rHO: rHO,
       rVO: rVO,
-      hrRatio: hrRatio
+      /* The pairwise difference variances behind `sigma`, for the independence-sensitivity row.
+         🔴 NOT to be confused with `rHV`/`rHO`/`rVO` directly above: those are Pearson correlations of
+         the two HR SERIES, which are three views of one heart and therefore ~0.9 by construction. The
+         row's ρ is the correlation of the two devices' ERRORS, which is a different quantity, is NOT
+         measured here, and is exactly what the row must refuse rather than substitute. */
+      pairVars: s.vars || null
+      /* `hrRatio` USED TO SHIP HERE and nothing read it — found 2026-09-27 by the boundary gate's first
+         run over this producer, which had been outside its population entirely. It is the Verity harmonic
+         gate's own input, already consumed inside this worker, and on a SOLVED night it is ~1 by
+         construction (a harmonic ratio is what makes a night skip). The SKIP result still carries it as a
+         machine-readable field, which is deliberate and test-pinned; shipping it again on the success
+         payload was symmetry, not a consumer.
+         Deleted rather than surfaced, following this gate's own precedent — `detailCorr` was deleted when
+         its consumer never materialised ("work with no consumer"). The alternative is real and is
+         recorded rather than foreclosed: the page says "both gates ok" with no number behind it, and this
+         ratio is the evidence for that claim. That is a surface decision on someone else's page, so it is
+         a residue row (2026-09-27-verity-gate-verdict-has-no-number-behind-it), not a unilateral change.
+         The key is GONE, not set to a sentinel: `hrRatio: undefined` would still declare it, still read as
+         a payload key to the extractor, and ship an absence as a value (CLAUDE.md §∅). */
     };
     if (m.wantSeries) {
       out.hh = hh;

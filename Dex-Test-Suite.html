@@ -197,10 +197,42 @@ const FIXTURE_FILES = {
   'ecgdex.slim-events':  'tests/fixtures/ecgdex.slim-events.json',
   'ppgdex.node-export':  'tests/fixtures/ppgdex.node-export.json'
 };
+/* ── EVERY ADAPTER'S SOURCE, DERIVED FROM THE CO-LOAD MANIFEST — not listed here ───────────────
+   Until 2026-09-25 this list contained NO `adapters/*.js` at all, so every adapter source-mirror
+   assertion was Node-only: `run-tests.mjs` builds `env.sources` by scanning the bundles' own
+   `data-inline-src`, where an inlined adapter arrives free, while this page fetches an explicit list.
+   Three assertions had therefore never executed in the browser lane since they were written —
+   `polar-h10-ecg`, `polar-sense-ppg` and `o2ring-ppg` each pinning that the adapter passes
+   `ctx.companions.runs` through as `runsText` (SAMPLE-VALIDITY-ENVELOPE §3.2). The ECG one was the
+   worst shape: a bare `if (src[...])` with no `else`, so it did not even print a skip.
+
+   Adding the eleventh adapter by hand would have restated the bug for the twelfth. `DexCoload.adapters`
+   is the manifest the co-load gate ALREADY holds to the registered adapter set ("manifest adapter set
+   === registered adapter set (no drift)"), and `dex-coload.js` loads at line ~180, before this
+   declaration — so deriving from it makes a co-loaded adapter source-scannable BY CONSTRUCTION and
+   collapses what was five places back to four. `__adapterSourcesMissing` is published rather than
+   defaulting quietly to `[]`, because a silent empty here is exactly the hole being closed; the
+   `adapter sources reach BOTH lanes` group asserts on it. */
+const ADAPTER_SOURCES = (function () {
+  const m = (window.DexCoload && window.DexCoload.adapters) || null;
+  if (!m || !m.length) { window.__adapterSourcesMissing = true; return []; }
+  return m.slice();
+})();
 const SOURCE_FILES = ['tools/trio-batch.mjs','tools/pat-host-offset.mjs','tools/verify-fixtures.mjs',
       'tools/drift-report.js','clock.js','oxydex-util.js','pulsedex-dsp.js','oxydex-dsp.js','hrvdex-dsp.js','integrator-dsp.js','integrator-tch.js','integrator-app.js','integrator-render.js','ppgdex-dsp.js','glucodex-dsp.js','ecgdex-dsp.js','qrs-equiv-worker.js','qrs-yield-worker.js',
   'ecgdex-cross.js','oxydex-cross.js','pulsedex-cross.js','ppgdex-cross.js',
-  'crossnight-envelope.js','ecgdex-app.js','ppgdex-app.js','pulsedex-app.js','pulsedex-render.js','motiondex-render.js','hrvdex-app.js','oxydex-app.js','oxydex-render.js','oxydex-fusion.js','dex-escape.js','dex-forget.js','dex-actions.js','dex-profile.js','sensor-trio-worker.js','sensor-trio-power-analysis.js','sensor-trio-gpu.js','hrvdex-render.js','pat-gate.js','pat-align.js','manifest-gate.js','tools/build.mjs','tools/verify-fixtures.mjs','tools/regen-goldens.mjs','tools/regen-goldens-core.mjs','tools/regen-oxydex-goldens.mjs','tools/regen-ecgdex-goldens.mjs','tools/regen-ppgdex-goldens.mjs','tools/regen-pulsedex-goldens.mjs','tools/regen-hrvdex-goldens.mjs','tools/regen-glucodex-goldens.mjs','tools/regen-cpap-goldens.mjs','tools/regen-motiondex-goldens.mjs','signal-orchestrate.js','dex-ingest.js',
+  'crossnight-envelope.js','ecgdex-app.js','ppgdex-app.js','pulsedex-app.js','pulsedex-render.js','motiondex-render.js','hrvdex-app.js','oxydex-app.js','oxydex-render.js','oxydex-fusion.js','dex-escape.js','dex-forget.js','dex-actions.js','dex-profile.js','dex-coload.js','provenance-ledger.js','sensor-trio-worker.js',
+ /* The trio page's RENDERER, listed the day the independence-sensitivity row was written. The Node lane
+    had it and this lane did not, and only the BROWSER lane could say so: the row's own assertion message
+    reads "must be listed in BOTH lanes", and it was that assertion — not a reviewer — that failed here. */
+ /* ── THE WORKER-BOUNDARY POPULATION NEEDS BOTH ENDS OF EACH BOUNDARY IN THIS LANE (2026-09-27) ──────
+    The boundary gate enumerates worker PRODUCERS by finding the sources that CONSTRUCT them, so a lane
+    missing a constructor cannot see that producer at all, and a lane missing a consumer reports its keys
+    as dead. Both happened here: the browser lane found 2 producers where the Node lane finds 3, and
+    reported `hh,vv,oo,h10Source,o2Source` dead on sensor-trio-worker.js. `qrs-equiv-analysis.js` was the
+    sharp one — it is EVAL'd further down this file for behaviour but was never registered as a SOURCE, so
+    its text was unreadable while its code ran. */
+ 'qrs-yield-analysis.js','qrs-equiv-analysis.js','sigma-no-reference-analysis.js','sensor-trio-night.js','sensor-trio-power-analysis.js','sensor-trio-gpu.js','hrvdex-render.js','pat-gate.js','pat-align.js','manifest-gate.js','tools/build.mjs','tools/verify-fixtures.mjs','tools/regen-goldens.mjs','tools/regen-goldens-core.mjs','tools/regen-oxydex-goldens.mjs','tools/regen-ecgdex-goldens.mjs','tools/regen-ppgdex-goldens.mjs','tools/regen-pulsedex-goldens.mjs','tools/regen-hrvdex-goldens.mjs','tools/regen-glucodex-goldens.mjs','tools/regen-cpap-goldens.mjs','tools/regen-motiondex-goldens.mjs','signal-orchestrate.js','dex-ingest.js',
   'cpapdex-dsp.js','cpapdex-cross.js','cpapdex-edf.js','cpapdex-app.js','cpapdex-fusion.js','ecgdex-morph.js','ppgdex-morph.js','dex-export.js',
   'ganglior-provenance.js','signal-frame.js','measurement-block.js','verdict.js','night-seal.js','glucodex-render.js','glucodex-app.js',
   'cpapdex-render.js','pulsedex-overview.js','ecgdex-profile.js','glucodex-profile.js','ppgdex-profile.js',
@@ -209,19 +241,6 @@ const SOURCE_FILES = ['tools/trio-batch.mjs','tools/pat-host-offset.mjs','tools/
  // duration class gate surfaced it by asking all 8 node builders the same question and getting a hole
  // for exactly one — which is what a fleet gate is for. Node's run-tests.mjs already lists it.
  'motiondex-dsp.js',
- /* adapters/o2ring-ppg2w.js — the SAME hole as `motiondex-dsp.js` above, one lane over. The adapter is
-    EVAL'd into this realm (its `<script>` sits with the others near line 157) and its TEXT was not here,
-    so its source-mirror assertions — "REFERENCES OxyDex.parsePPG2W rather than carrying a parser", "no
-    second timestamp parser", "passes the sidecar through" — had nothing to read in the BROWSER lane while
-    passing in Node, where `env.sources` is built from the bundles' own `data-inline-src` scan instead of
-    this list. It reds rather than skipping because the assertion is `T.ok(..., false)` on a missing
-    source, which is the right shape: a source-scan that quietly reads nothing is the defect.
-    ⚠️ NOTE FOR THE NEXT ADAPTER: co-loading is FOUR places (both `.src.html`, this file, `dex-coload.js`,
-    `tests/run-tests.mjs`) and being SOURCE-SCANNABLE is a FIFTH, only in this lane. No `adapters/*.js`
-    was in this list before now, so every adapter's source-mirror assertions are Node-only unless added —
-    `adapters/o2ring-ppg.js`'s included. Left as found rather than widened here: making another gate's
-    assertions start running in a lane they never ran in belongs in its own change, not this one. */
- 'adapters/o2ring-ppg2w.js',
  /* pat-feasibility-worker.js — SOURCE text for `pat-align · regression`'s anti-inertness scan, which
     asserts every `PATGate.verdict(...)` call in the worker passes an axis (a 3-arg call left the gate's
     clock refusals unreachable; O2RING-PHASE4-PREMISE-REVIEW §4). Added to run-tests.mjs and NOT here
@@ -232,6 +251,7 @@ const SOURCE_FILES = ['tools/trio-batch.mjs','tools/pat-host-offset.mjs','tools/
  /* The RENDERER — the worker was scanned and this was not, which is how a published `vdCorr` reached
     no surface with the suite green. Listed in run-tests.mjs too; both lanes or neither. */
  'pat-feasibility.js',
+ 'pat-classic-vs-fused.js',
  /* FOLLOWUPS §3 — both cohort recall sites; the Node lane lists the same pair. */
  'cohort-regression.js','cohort-runner.html',
   /* DEEP-SCOUT-HOLLOW-GATES-FOLLOWUPS §AD — the ANALYSIS lane's two OxyDex consumers. Their text is
@@ -246,7 +266,7 @@ const SOURCE_FILES = ['tools/trio-batch.mjs','tools/pat-host-offset.mjs','tools/
   /* DEEP-AUDIT-III-FOLLOWUPS-II §6.9 — the OTHER host-booting orchestrator; same omission as
      motiondex-dsp.js above, same consequence. A scan over "every host-booting surface" that can
      see only one of the two surfaces reports itself clean while the other is blind. */
-  'data-unifier-app.js'];
+  'data-unifier-app.js'].concat(ADAPTER_SOURCES);
 
 let ALL_GROUPS = [];
 
@@ -567,7 +587,14 @@ async function main(){
   // §1) — each *.src.html's <script src> list is the fleet's record of which cross/coimport aux
   // modules it bundles; the gate asserts dex-coload.js's nodeModules: leg equals that set.
   const srcHtml = {};
-  await Promise.all(['CPAPDex.src.html','ECGDex.src.html','GlucoDex.src.html','HRVDex.src.html','Integrator.src.html','OxyDex.src.html','PpgDex.src.html','PulseDex.src.html']
+  // ⚠️ ALL ELEVEN authored shells, and each addition was forced by a population equality rather than noticed.
+  // MotionDex.src.html was missing from BOTH lanes — nine shells, eight names in each (#3144). The two
+  // ORCHESTRATOR shells joined 2026-09-27 once their bundled modules were classified in Co-load §1b; the
+  // co-load order group asserts them as their own family (CLAIM orchestrators = 2), so omitting them here
+  // reds that equality in this lane only — which is how the omission was found, for the third time.
+  // The Node lane now DERIVES its list from the tree; this lane cannot (no fs), so it is listed here, and
+  // the co-load order group's population equality is what reds if the two lanes ever diverge again.
+  await Promise.all(['CPAPDex.src.html','Data Unifier.src.html','ECGDex.src.html','GlucoDex.src.html','HRVDex.src.html','Integrator.src.html','MotionDex.src.html','OverDex.src.html','OxyDex.src.html','PpgDex.src.html','PulseDex.src.html']
     .map(async f => { const t = await fetchText(encodeURI(f)); if(t!=null) srcHtml[f]=t; }));
 
   // manifests (raw text) for the §6 well-formed assertion. P3: the two ledgers are now per-app
@@ -759,6 +786,9 @@ async function main(){
     docs, hosts, manifests, docsLedger, releaseLedger, discoverability,
     srcHtml, bundleCsp,
     fixtures, sources, equiv, odiPilot,
+    // published so `adapter sources reach BOTH lanes` can tell an EMPTY adapter manifest from a
+    // lane that simply has no adapters — a silent `[]` there is the blindness that group closes.
+    adapterSourcesMissing: window.__adapterSourcesMissing === true,
     groupFilter: groupFilterStr() || null
   };
 

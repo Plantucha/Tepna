@@ -1,0 +1,38 @@
+# SPDX-FileCopyrightText: Copyright 2026 Michal Planicka
+# SPDX-License-Identifier: Apache-2.0
+#
+# Tepna — the nightly firmware-RR reference verdict for the three-cornered hat (owner-ordered
+# 2026-09-26; tool by Wren: tools/tch-firmware-reference.mjs). Scores every corpus night the ledger
+# does not yet hold (~3–5 min each: raw ECG + two PPGs), pools all rows, and writes ONE
+# tepna.verdict/1 object beside the ledger. Refused nights are ledger rows with ok:false and a
+# reason; they count as EXCLUDED in the verdict's population, never as passes.
+#
+# The ledger holds numbers about the owner's nights, so it lives OUTSIDE every repo checkout, and so
+# do the paths: this unit reads them from an EnvironmentFile the owner writes — nothing below names a
+# corpus directory, a host or a home path (N-of-1 results never reach GitHub).
+#
+# INSTALL (the corpus machine only — the tool reads the raw captures):
+#   git -C ~/Tepna worktree add ~/wt-tchref-timer --detach origin/main   # the timer's OWN checkout
+#   ln -s ~/Tepna/node_modules ~/wt-tchref-timer/node_modules
+#   mkdir -p ~/.config/tepna
+#   printf 'TCHREF_DIR=<corpus captures root>\nTCHREF_LEDGER=<dir outside any repo>/tchref-ledger.jsonl\nTCHREF_VERDICT=<same dir>/tchref-verdict.json\n' > ~/.config/tepna/tchref.env
+#   cp tools/systemd/tepna-tchref-nightly.{service,timer} ~/.config/systemd/user/
+#   systemctl --user daemon-reload && systemctl --user enable --now tepna-tchref-nightly.timer
+#
+# The checkout is the timer's alone (nobody edits there), so fast-forwarding it before every tick is
+# safe — the same reasoning as tepna-release-due.service. It is a SEPARATE checkout from the release
+# timer's so two timers never race one detach.
+[Unit]
+Description=Tepna — nightly firmware-RR reference verdict for the three-cornered hat
+Documentation=https://github.com/Plantucha/Tepna/blob/main/tools/tch-firmware-reference.mjs
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/wt-tchref-timer
+EnvironmentFile=%h/.config/tepna/tchref.env
+ExecStartPre=/usr/bin/git fetch -q origin main
+ExecStartPre=/usr/bin/git checkout -q --detach origin/main
+# A missing tool is "not on main yet", exit 0 — not a green verdict: nothing is written, so the
+# previous verdict file keeps its `at` stamp and reads as stale. A FAIL verdict is a normal completion
+# (exit 0 with status FAIL in the object); only a tool crash or an incomplete env fails the unit.
+ExecStart=/bin/sh -c '[ -f tools/tch-firmware-reference.mjs ] || { echo "tch-firmware-reference.mjs not on origin/main yet — nothing to run"; exit 0; }; [ -n "$TCHREF_DIR" ] && [ -n "$TCHREF_LEDGER" ] && [ -n "$TCHREF_VERDICT" ] || { echo "tchref.env incomplete (TCHREF_DIR / TCHREF_LEDGER / TCHREF_VERDICT)"; exit 2; }; node tools/tch-firmware-reference.mjs --dir "$TCHREF_DIR" --ledger "$TCHREF_LEDGER" --json > "$TCHREF_VERDICT.tmp" && mv "$TCHREF_VERDICT.tmp" "$TCHREF_VERDICT"'

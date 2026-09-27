@@ -1,0 +1,77 @@
+{
+  "schema": "tepna.published-number-record/1",
+  "producer": "tools/tch-firmware-reference.mjs",
+  "producerCommit": "3a0d4a0d+branch claude/tch-firmware-reference-wrn (the tool is introduced by this commit)",
+  "invocation": "node tools/tch-firmware-reference.mjs --dir <box captures root> --ledger <ledger outside the repo> --json --night <each of 38 box nights with ECG + firmware RR + Verity PPG + ring PPG>",
+  "generated": "2026-09-26",
+  "inputs": {
+    "path": "<box captures root>/<night>/",
+    "committed": false,
+    "note": "raw H10 ECG + firmware RR, Verity PPG, O2Ring PPG; gitignored and owner-ruled (2026-09-24) to stay off the public repo, so only POOLED figures are recorded here — no per-night row"
+  },
+  "deterministic": "the reference and every corner are deterministic functions of the files; no sampling",
+  "publishedIn": "sensor-trio-night.html (the validation note under the per-device heroes)",
+  "claims": {
+    "nightsScored": 37,
+    "nightsEligible": 38,
+    "classicPass": 53,
+    "classicTotal": 74,
+    "correlatedPass": 39,
+    "correlatedRefused": 13,
+    "verityTrue": 0.73,
+    "verityHat": 0.41,
+    "o2True": 1.71,
+    "o2Hat": 1.46,
+    "h10Measured": 0.81,
+    "h10Hat": 0.97,
+    "rhoVO": 0.32,
+    "maxAbsBias": 0.03
+  },
+  "result": {
+    "verdict": {
+      "status": "FAIL",
+      "population": {
+        "checked": 37,
+        "eligible": 38,
+        "excluded": 1
+      },
+      "criterion": {
+        "name": "classic_hat_optical_corners_within_band_fraction",
+        "threshold": 0.8,
+        "unit": "fraction",
+        "direction": "gte"
+      },
+      "reason": "classic hat: 53/74 optical night-corners within ±0.3 bpm or ±30 % of the reference-measured σ (< 80 %); Verity σ̂ 0.413 vs true 0.728 bpm, ρ(V,O) 0.318"
+    },
+    "medians": {
+      "h10": {
+        "trueSd": 0.806,
+        "bias": 0.029,
+        "classic": 0.967,
+        "correlated": 0.844
+      },
+      "verity": {
+        "trueSd": 0.728,
+        "bias": -0.011,
+        "classic": 0.413,
+        "correlated": 0.599
+      },
+      "o2": {
+        "trueSd": 1.713,
+        "bias": -0.034,
+        "classic": 1.456,
+        "correlated": 1.412
+      }
+    },
+    "rho": {
+      "hv": -0.011,
+      "ho": 0.012,
+      "vo": 0.318
+    },
+    "correlated": {
+      "passFraction": 0.527,
+      "refused": 13,
+      "status": "FAIL"
+    }
+  }
+}

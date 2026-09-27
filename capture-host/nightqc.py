@@ -807,7 +807,8 @@ def _ns_at(line: str, idx: int) -> int | None:
         return None
 
 
-def merge_sessions(files: list[dict], gap_sec: float = _SESSION_GAP_SEC) -> list[list]:
+def merge_sessions(files: list[dict], gap_sec: float = _SESSION_GAP_SEC,
+                   starts: list[float] | None = None) -> list[list]:
     """[[start, end, [files]], …] — the night's capture sessions, by MERGED ACTIVE INTERVAL, oldest first.
 
     Each file was live from when its connection opened (its start stamp) until its last write (mtime), so
@@ -816,19 +817,71 @@ def merge_sessions(files: list[dict], gap_sec: float = _SESSION_GAP_SEC) -> list
     clustering by start-STAMP alone wrongly split such a stream off (a 7-h H10 connection has one 19:46
     stamp, so a stamp-gap looked like silence though it streamed the whole time).
 
+    ⚠️ A DAEMON RESTART IS A CHANGE OF SESSION, and `gap_sec` cannot see one. A restart's gap is
+    SECONDS, three orders under the 3600 s threshold, so without `starts` two runs merge and every
+    span-derived quantity downstream describes the union: SOLID-NIGHT night 1 (2026-09-24) chained six
+    restarts into one "session" and read nine streams at coverage 0.46-0.52 with `missing: []`, plus
+    `stopped_early_s 18766` for a device that stopped when its own run did. Shortening the threshold is
+    not the fix — the paragraph above is why it is generous. `starts` supplies the evidence instead:
+    epoch instants at which the daemon started, from the `STARTS.csv` sidecar that
+    `writers.append_daemon_start` has always written and `daemon_starts` already parses. `summarize`'s
+    own §A2 comment says these cases are indistinguishable BY FILE-ACTIVITY SIGNATURE — true, and a
+    recorded start is not one.
+
+    A file extends the running session only when NO recorded start falls in `(session start, file
+    start]`; one that does means this file belongs to a later run. Keyed on the session's START, not its
+    end, because a start anywhere after the session opened means the session opened in an earlier run.
+    None or `[]` ⇒ behaviour identical to before, which is what keeps a single 7-h connection whole.
+
+    THE OUTPUT STAYS ORDERED AND DISJOINT, which `summarize`'s before/after partition leans on: when a
+    seam splits, the earlier session's end is clamped to the seam, so a file still being written across
+    a restart is attributed to the run it OPENED in and cannot overlap the next. Sessions may now TOUCH
+    or sit closer than `gap_sec`, which they could not before — the invariant that survives is
+    disjointness, not separation.
+
     Shared by `summarize` and `timeline.build` so the two cannot disagree about what "the session" is —
     they did: timeline derived its coverage denominator from the LINK sidecar's CALENDAR DAY and rendered
     a flawless zero-loss 4 h night as 16.7 % captured, while this module computed the honest 14 400 s span
     one import away (CAPTURE-HOST-DEEP-AUDIT §A4a)."""
     sessions: list[list] = []
+    bounds = sorted(t for t in (starts or []) if t is not None)
     for st, en, f in sorted(((f["session"], max(f["session"], f["mtime"]), f) for f in files),
                             key=lambda iv: iv[0]):
-        if sessions and st <= sessions[-1][1] + gap_sec:
+        # The seam, if any, between the running session's OPENING and this file's: a daemon start there
+        # means the two belong to different runs however small the gap between them is.
+        seam = next((t for t in bounds if sessions and sessions[-1][0] < t <= st), None)
+        if sessions and seam is None and st <= sessions[-1][1] + gap_sec:
             sessions[-1][1] = max(sessions[-1][1], en)
             sessions[-1][2].append(f)
         else:
+            if sessions and seam is not None:
+                sessions[-1][1] = min(sessions[-1][1], seam)   # disjoint by construction
             sessions.append([st, en, [f]])
     return sessions
+
+
+def judged_session(sessions: list[list]):
+    """THE ONE RULE for which of a night's sessions is the night — `None` for an empty list.
+
+    Single-sourced for the same reason `merge_sessions` is: `summarize` and `timeline.build` must not
+    disagree about which session they are describing, and for a while they did. `summarize` moved to this
+    rule with a measured argument (`tests/test_qc_judged_session.py`): on 2026-08-15 a Verity streaming
+    noise in its charger, 10:01->12:12 and 1 716 348 rows, was judged over the actual night 02:42->06:03
+    with 2 977 473 rows, because the rule was "the session reaching the latest write" — true while the box
+    recorded only at night, false once it recorded continuously. `timeline` kept the old rule and drew its
+    coverage window from the charger on exactly those nights. Measured over the 64 nights with a QC
+    summary on vigil, from the `sessions` those summaries already record: 56 are multi-session and the two
+    rules pick a DIFFERENT session on 27 of them, twice a session carrying ZERO rows (2026-09-14,
+    2026-09-18).
+
+    ROWS, not duration: duration is inflated by a session that idles across a doffing gap, while rows
+    count what was actually captured. Ties break toward the later session, which preserves the old
+    behaviour for the single-session days the old rule was written for — and for a night whose every
+    session is empty, where `(0, end)` reduces to latest-ending and the "connected but silent" view
+    `timeline` falls back to is unchanged."""
+    if not sessions:
+        return None
+    return max(sessions, key=lambda sess: (sum(f["rows"] for f in sess[2]), sess[1]))
 
 
 def scan_night(night_dir: str) -> list[dict]:
@@ -2329,6 +2382,12 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None) -> 
     audit rather than every time anything summarizes a night."""
     scanned = scan_night(night_dir)
     data = [f for f in scanned if f["stream"] not in _SIDECAR_TAGS]
+    # THE SESSION BOUNDARY EVIDENCE, read once and used twice: `merge_sessions` needs it to keep two
+    # daemon runs apart, and the summary reports it below. ∅ `starts: None` is "the sidecar did not
+    # say", never "it did not restart" — so `session_basis` distinguishes a night segmented on recorded
+    # starts from one segmented on the gap threshold alone, which otherwise look identical.
+    _daemon = daemon_starts(night_dir, scanned)
+    _session_basis = "gap-only" if _daemon["starts"] is None else "daemon-starts"
     # CROSS-MIDNIGHT: an overnight begun before midnight is split into TWO date folders, because night_dir
     # rolls each connection into a folder by its START date. So the pre-midnight half of tonight's session
     # lives in yesterday's folder. If THIS folder's earliest session opened just after midnight, pool the
@@ -2386,6 +2445,18 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None) -> 
             if prev_data is None:
                 prev_data = [f for f in scan_night(prev) if f["stream"] not in _SIDECAR_TAGS]
             data = prev_data + data
+            # POOLED FILES BRING THEIR OWN SEAMS. The pre-midnight half's restarts are recorded in the
+            # PREVIOUS folder's sidecar, so segmenting the pooled set on this folder's starts alone would
+            # miss every seam before midnight — a silent reversion to gap-only for exactly the half that
+            # was pooled in. Union, not replace, and `starts: None` there leaves the basis unchanged.
+            _prev_daemon = daemon_starts(prev, prev_data)
+            if _prev_daemon["starts"] is not None:
+                # The BASIS follows the evidence, not the folder it came from: a night segmented on the
+                # neighbour's recorded seams is segmented on daemon starts, and reporting `gap-only`
+                # because THIS folder's sidecar was silent would describe the wrong discriminator.
+                _session_basis = "daemon-starts"
+            if _prev_daemon["stamps"]:
+                _daemon = dict(_daemon, stamps=sorted(set(_daemon["stamps"]) | set(_prev_daemon["stamps"])))
     # Isolate the CURRENT capture session (merge_sessions holds the reasoning). The current session is
     # the merged interval reaching the newest write (~now); `span` is its elapsed time. None (coverage
     # unknown) until a judge-able span has accrued.
@@ -2423,7 +2494,7 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None) -> 
     gaps: list[str] = []
     gaps_in_night: list[str] = []
     if data:
-        sessions = merge_sessions(data)
+        sessions = merge_sessions(data, starts=_daemon["stamps"])
         # ⚠️ JUDGE THE SUBSTANTIVE SESSION, NOT THE MOST RECENT ONE.
         #
         # This used to be `max(sessions, key=lambda s: s[1])` — the session reaching the latest write —
@@ -2446,7 +2517,7 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None) -> 
         # ROWS, not duration: duration is inflated by a session that idles across a doffing gap, while
         # rows count what was actually captured. Ties break toward the later session, preserving the old
         # behaviour for the single-session days it was written for.
-        cur = max(sessions, key=lambda sess: (sum(f["rows"] for f in sess[2]), sess[1]))
+        cur = judged_session(sessions)
         current = cur[2]
         span = cur[1] - cur[0]
         span = span if span >= _MIN_SPAN_SEC else None
@@ -2756,7 +2827,11 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None) -> 
         # OBSERVABILITY (residue 2026-09-10-daemon-restarts-are-idle-gated): the night's daemon
         # starts and how many fell inside a capture — `scanned` is passed so the night is not walked
         # a second time for it.
-        "daemon": daemon_starts(night_dir, scanned),
+        "daemon": _daemon,
+        # WHICH DISCRIMINATOR SEGMENTED THIS NIGHT — `daemon-starts` when the sidecar spoke,
+        # `gap-only` when it did not. A night scoped without the evidence must not read as one scoped
+        # with it (§∅: the absence of a record is not a record of absence).
+        "session_basis": _session_basis,
         # What rate the files ACTUALLY carry, against what was asked for. Coverage notices a rate swap
         # only as `degraded`, which names it a link fault; this names it a rate fault.
         "rates": _rate_rows,

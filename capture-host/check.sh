@@ -22,6 +22,14 @@
 # ⚠️ EVERY GATE RUNS EVEN AFTER ONE FAILS, and the verdict is computed from the collected exit codes —
 # never read off the tail of the output (CLAUDE.md §4b). Stopping at the first failure is how you fix
 # ruff, re-run, and only then discover the suite was red too.
+# ⚠️ RUN THIS FROM A WORKTREE AND THE COVERAGE FLOOR MAY NOT BE EVALUATED AT ALL. `PY` below prefers
+# `.venv/bin/python` and falls back to bare `python3`. A fresh `git worktree` has no `.venv`, and a
+# system interpreter without `pytest-cov` does not run the suite uncovered — it REFUSES the flags:
+# `error: unrecognized arguments: --cov --cov-branch --cov-fail-under=100`, exit 4. That reads as a code
+# failure and is an environment one, and the floor went unmeasured (measured 2026-09-27). Tell is exit 4
+# with no `TOTAL` row. So from a worktree, hand it an interpreter that has requirements-dev.txt:
+#     PYTHON=/path/to/primary/checkout/capture-host/.venv/bin/python ./check.sh
+
 set -uo pipefail                    # NOT -e: a failing gate must not abort the run
 cd "$(dirname "$0")" || exit 2
 
@@ -156,8 +164,8 @@ MYPY_OUT="${MYPY_OUT:-.mypy-latest.txt}"
 #
 # Still ADVISORY: this reports the direction, it does not fail the run. §P3 is what flips mypy
 # blocking, and it flips at 0 — moving that decision here would pre-empt it.
-MYPY_BASELINE=37
-MYPY_BASELINE_DATE="2026-09-22"
+MYPY_BASELINE=25
+MYPY_BASELINE_DATE="2026-09-27"
 mypy_advisory() {
   "$PY" -m mypy --ignore-missing-imports --explicit-package-bases . > "$MYPY_OUT" 2>&1
   local rc=$?
@@ -172,6 +180,18 @@ mypy_advisory() {
     printf '  mypy: NO COUNT — mypy did not report a summary line (it aborted, not passed)\n'
     ADVISORY_NOTE="NO COUNT — mypy aborted; nothing was examined"
     ADVISORY_STATE="NO_COUNT"
+  elif ! "$PY" -c 'import bleak' 2>/dev/null; then
+    # THE COUNT DEPENDS ON WHAT PIP INSTALLED, so it is only the baseline's quantity when the runtime
+    # requirements are present. Measured 2026-09-26 on one tree with one mypy: 36 with only
+    # requirements-dev.txt, 39 once requirements.txt (bleak, typed) is installed too — and 36 reads
+    # "BELOW, bank it", which would set a baseline the primary machine can never meet. `bleak` is the
+    # probe because it is the runtime dependency that carries the types the difference came from.
+    printf '  mypy: %s errors — NOT COMPARABLE to the %s baseline (%s): the runtime requirements are not\n' \
+           "$n" "$MYPY_BASELINE" "$MYPY_BASELINE_DATE"
+    printf '        installed ("import bleak" failed), and without their types mypy counts fewer errors.\n'
+    printf '        pip install -r requirements.txt, then read the direction.\n'
+    ADVISORY_NOTE="$n (baseline $MYPY_BASELINE, NOT_COMPARABLE) — runtime requirements absent; the count is not the baseline's quantity"
+    ADVISORY_STATE="NOT_COMPARABLE"
   elif [ "$n" -gt "$MYPY_BASELINE" ]; then
     printf '  mypy: %s errors — RISEN from the %s baseline (%s). The count may only go DOWN.\n' \
            "$n" "$MYPY_BASELINE" "$MYPY_BASELINE_DATE"

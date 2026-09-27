@@ -750,3 +750,219 @@ def test_clean_run_failures_ignores_prose_that_merely_quotes_the_tokens():
     )
     assert M.clean_run_failures(text) == []
 
+
+
+# ── A FLOAT-THRESHOLD MUTANT IS DISTINGUISHABLE ON A MEASURE-ZERO SET ─────────────────────────────
+# Measured 2026-09-25 on `x_qc_digest__mutmut_37`: `(hi - lo) < 0.05` → `<=` survived a
+# character-exact golden over every render branch, because the two differ ONLY where the subtraction
+# lands exactly on the representable 0.05. The fixture anyone reaches for — a clean 0.90/0.95 gap —
+# renders identically under both operators, so a probe built from it reports "no distinguishing
+# input" and the mutant gets ledgered EQUIVALENT. These pin the guard that refuses that entry.
+_K37 = ('- pct = f"{lo * 100:.0f}%" if (hi - lo) < 0.05 else y | '
+        '+ pct = f"{lo * 100:.0f}%" if (hi - lo) <= 0.05 else y')
+
+
+def test_float_boundary_refuses_an_entry_whose_probe_only_sampled():
+    why = M.float_boundary_unprobed(_K37, "ran 0.90/0.95 and 0.10/0.15; output identical")
+    assert why and "0.05" in why and "UNPROVEN" in why
+
+
+def test_float_boundary_accepts_a_probe_that_names_the_constructed_boundary():
+    assert M.float_boundary_unprobed(_K37, "constructed lo=0.0 hi=0.05 — exactly 0.05; renders 0–5%") is None
+
+
+def test_float_boundary_refuses_when_there_is_no_probe_at_all():
+    assert M.float_boundary_unprobed(_K37, None) is not None
+
+
+def test_float_boundary_names_only_the_threshold_not_the_format_spec():
+    # `{lo * 100:.0f}` contains `.0`. Naming it would point the reader at a literal nobody wrote.
+    why = M.float_boundary_unprobed(_K37, None)
+    assert "`0.05`" in why and "`.0`" not in why
+
+
+def test_float_boundary_stays_out_of_an_integer_threshold():
+    # An int comparison has no measure-zero problem: sampling 4/5/6 genuinely settles it.
+    assert M.float_boundary_unprobed("- if n < 5 | + if n <= 5", "sampled 4, 5, 6") is None
+
+
+def test_float_boundary_stays_out_of_arithmetic_on_a_float():
+    assert M.float_boundary_unprobed("- x = a * 0.05 | + x = a / 0.05", "anything") is None
+
+
+def test_float_boundary_ignores_a_key_that_is_not_a_pair():
+    assert M.float_boundary_unprobed("- only a minus side 0.05 <", "p") is None
+    assert M.float_boundary_unprobed("", "p") is None
+
+
+def test_float_boundary_needs_the_literal_on_BOTH_sides():
+    # a literal that appears only in the mutant is a changed CONSTANT, not a threshold flip
+    assert M.float_boundary_unprobed("- if d < 0.05 | + if d < 0.07", "p") is None
+
+
+def test_classify_routes_an_unproven_entry_out_of_excused():
+    entries = [{"key": _K37, "class": "no-distinguishing-input", "probe": "ran 0.90/0.95"}]
+    out = M.classify(entries, [{"key": _K37}], [_K37])
+    assert out["excused"] == [] and len(out["unproven"]) == 1
+    assert "0.05" in out["unproven"][0]["why"]
+
+
+def test_classify_still_excuses_when_the_boundary_is_named():
+    entries = [{"key": _K37, "class": "no-distinguishing-input", "probe": "constructed 0.05 exactly"}]
+    out = M.classify(entries, [{"key": _K37}], [_K37])
+    assert len(out["excused"]) == 1 and out["unproven"] == []
+
+
+def test_classify_leaves_a_non_float_excuse_alone():
+    k = "- if n < 5 | + if n <= 5"
+    out = M.classify([{"key": k, "class": "untestable-by-design"}], [{"key": k}], [k])
+    assert len(out["excused"]) == 1 and out["unproven"] == []
+
+
+# ── THE PRINTED MUTANT MUST BE COMPLETE ───────────────────────────────────────────────────────────
+# The survivor record carries `diff` (mutmut stdout, capped at 400 bytes) AND `changed` (the -/+ pair
+# over the UNCAPPED stdout). The cap was noticed and `changed` was added; the PRINTER kept reading
+# `diff`, so the console — the only artifact in a CI log — truncated mid-literal. Reading one mutant
+# cost four dead ends and a local regeneration (Heron, 2026-09-25).
+_LONG_MINUS = '-    pct = f"{lo * 100:.0f}%" if (hi - lo) < 0.05 else f"{lo * 100:.0f}-{hi * 100:.0f}%"'
+_LONG_PLUS = _LONG_MINUS.replace("-    pct", "+    pct", 1).replace("< 0.05", "<= 0.05")
+
+
+def test_mutant_changed_lines_prints_the_pair_complete():
+    sv = {"changed": _LONG_MINUS + " | " + _LONG_PLUS, "diff": _LONG_MINUS[:40]}
+    out = M.mutant_changed_lines(sv)
+    assert len(out) == 2
+    # the whole point: the literal is not cut — both ends of each line survive
+    assert out[0].endswith('%"') and out[1].endswith('%"')
+    assert "<= 0.05" in out[1]
+
+
+def test_mutant_changed_lines_does_not_read_the_capped_field_when_changed_is_present():
+    # `diff` here is deliberately a LIE (empty). If the printer read it, the mutant would vanish.
+    sv = {"changed": _LONG_MINUS + " | " + _LONG_PLUS, "diff": ""}
+    assert len(M.mutant_changed_lines(sv)) == 2
+
+
+def test_mutant_changed_lines_falls_back_to_diff_when_changed_is_absent():
+    # older records, and any path that never set `changed`, still print something rather than nothing
+    out = M.mutant_changed_lines({"diff": _LONG_MINUS + "\n" + _LONG_PLUS})
+    assert out == [_LONG_MINUS, _LONG_PLUS]
+
+
+def test_mutant_changed_lines_drops_the_file_header_rows_in_the_fallback():
+    out = M.mutant_changed_lines({"diff": "--- a/x.py\n+++ b/x.py\n" + _LONG_MINUS})
+    assert out == [_LONG_MINUS]
+
+
+def test_mutant_changed_lines_on_an_empty_record_is_empty_not_a_crash():
+    assert M.mutant_changed_lines({}) == []
+    assert M.mutant_changed_lines({"changed": "   ", "diff": ""}) == []
+
+
+# ── THE GATE FOUND THESE, OVER THE FIX THAT ADDED IT ──────────────────────────────────────────────
+# #3080's diff-scoped mutation run surfaced six survivors in the new guard. Three pointed at one dead
+# `if not minus or not plus` (the intersection already covered every case it guarded); removing it
+# killed all three AND made the `next(...)` defaults observable. These three kill the rest.
+def test_an_unproven_entry_keeps_the_ORIGINAL_entry_not_just_the_reason():
+    """`dict(e, why=...)` → `dict(why=...)` survived: asserting only `why` never noticed the entry's
+    own key and class being dropped, which is what a reader needs to FIND the row."""
+    entries = [{"key": _K37, "class": "no-distinguishing-input", "probe": "ran 0.90/0.95"}]
+    out = M.classify(entries, [{"key": _K37}], [_K37])
+    e = out["unproven"][0]
+    assert e["key"] == _K37 and e["class"] == "no-distinguishing-input"
+
+
+def test_a_literal_on_ONE_side_only_does_not_satisfy_the_threshold_test():
+    """`set(minus) & set(plus)` → `set(minus)` survived because the BOTH-sides fixture also failed the
+    flip test, so two guards masked each other. This one flips AND differs, so only the intersection
+    separates them."""
+    k = "- if d < 0.05 | + if d <= 0.07"
+    assert M.float_boundary_unprobed(k, "sampled some values") is None
+
+
+def test_a_comparison_on_ONE_side_only_is_not_a_FLIP():
+    """`in minus and in plus` → `or` survived: every fixture had the operator on both sides. A key
+    whose minus carries `<` and whose plus carries no comparison at all separates them."""
+    k = "- if d < 0.05 and q | + if d < 0.05 or q"
+    assert M.float_boundary_unprobed(k, "sampled some values") is None
+
+
+def test_a_key_with_only_one_side_is_still_refused_without_the_guard():
+    """The removed guard's job, done by the intersection — pinned so nobody reinstates it."""
+    assert M.float_boundary_unprobed("- only a minus side 0.05 <", "p") is None
+    assert M.float_boundary_unprobed("+ only a plus side 0.05 <=", "p") is None
+
+
+def test_a_change_inside_an_F_STRING_FIELD_is_REQUIRED_not_string_only():
+    """mutmut 3.8 mutates the code inside `{...}` — `a(None)`, `y - 1`, `y + 2` measured on
+    `f"{a(y)}-{y + 1}"` on 2026-09-26 — and generates NO text mutant for an f-string at all. Every one
+    of those read `string-only` and the gate EXCLUDED it: fail-OPEN, on 3.11 and 3.13 alike, because
+    `_string_spans` is a hand scanner and an f-string's fields were text to it. #3098 asked whether
+    this tool shared `find_unwired`'s pre-3.12 tokenizer blind spot; it did not — it had this one."""
+    want = (M.REQUIRED, "the changed token is inside an f-string field - code, not text")
+    for old, new in (('    x = f"{a(y)}-{y + 1}"', '    x = f"{b(y)}-{y + 1}"'),
+                     ('    x = f"{a(y)}-{y + 1}"', '    x = f"{a(None)}-{y + 1}"'),
+                     ('    x = f"{a(y)}-{y + 1}"', '    x = f"{a(y)}-{y - 1}"'),
+                     ("    x = F'{a(y)}'", "    x = F'{b(y)}'"),                 # upper-case prefix
+                     ('    x = rf"{a(y)}\\n"', '    x = rf"{b(y)}\\n"'),        # combined prefix
+                     ("    x = f\"{d['k']}\"", "    x = f\"{d['j']}\""),          # the OTHER quote nested
+                     ('    x = f"{b}a"', '    x = f"ba"'),                        # a field only on the OLD side
+                     ('    x = f"ba"', '    x = f"{b}a"'),                        # ...and only on the NEW side
+                     ('    x = f"t{a}"', '    x = f"t(a}"'),                      # the `{` itself changed
+                     ('    x = f"{a}t"', '    x = f"{a)t"')):                     # the `}` itself changed
+        assert M.string_only_verdict(_d(old, new)) == want, (old, new)
+        assert M.is_string_only(_d(old, new)) is False, (old, new)
+    # The TEXT of an f-string is still text: a wording change between fields stays string-only, and so
+    # does one inside an escaped `{{...}}`, which is not a field. A plain literal's braces are text too.
+    for old, new in (('    x = f"started {n}"', '    x = f"begun {n}"'),
+                     ('    x = f"{{lit}} {n}"', '    x = f"{{LIT}} {n}"'),
+                     ('    x = f"t{a}"', '    x = f"u{a}"'),                      # the character right BEFORE `{`
+                     ('    x = f"{a}t"', '    x = f"{a}u"'),                      # ...and right AFTER `}`
+                     ('    x = "{a(y)}"', '    x = "{b(y)}"')):
+        assert M.string_only_verdict(_d(old, new))[0] == M.STRING_ONLY, (old, new)
+
+
+def test_fstring_expr_spans_are_EXACT_and_run_to_the_literals_end_on_an_unterminated_field():
+    f = M._fstring_expr_spans
+    assert f('f"{a(y)}-{y + 1}"') == [(2, 8), (9, 16)]             # `{`…`}` inclusive, exactly
+    assert f('x = "{a}" + f"{b}"') == [(14, 17)]                   # only the f-prefixed literal has fields
+    assert f('rf"{a}" F\'{b}\' fr"{c}" bf"x"') == [(3, 6), (10, 13), (18, 21)]   # any prefix carrying an f
+    assert f('f"{{not}} {yes} {{}}"') == [(10, 15)]                # `{{` / `}}` are text
+    assert f('f"{d[{1: 2}[1]]:{w}}"') == [(2, 20)]                 # nested braces stay inside their field
+    assert f('f"{a"') == [(2, 5)]                                   # unterminated: to the literal\'s end, fail-CLOSED
+    assert f('f"{a}" + x') == [(2, 5)]                             # column 0: the prefix walk stops at 0
+    assert f('if t: s = "{a}"') == []                                # an `f` earlier on the line is not a prefix
+    assert f('f"{{{x}}}"') == [(4, 7)]                               # `{{`, then a field, then `}}`
+    assert f('f"{}{a}"') == [(2, 4), (4, 7)]                       # not valid Python — pins that the scan starts AT the first field char
+    assert f('f"{a}}}"') == [(2, 5)]                                 # a field, then an escaped `}}` — the FIRST `}` closes the field
+    assert f('f"a}{c}"') == [(4, 7)]                                 # a lone `}` at depth 0 is text, not a close
+    assert f('f"{a}"{') == [(2, 5)]                                  # a brace AFTER the literal is not inside it
+    assert f('"{a}"') == [] and f("plain") == []
+
+
+def test_selftest_NAMES_the_f_string_check_that_failed(monkeypatch, capsys):
+    """The three f-string pins in `selftest` each print a line naming what broke; a pin whose
+    message is `None` would still return 1 but tell the next reader nothing. Force each to fail."""
+    monkeypatch.setattr(M, "_fstring_expr_spans", lambda line: [])
+    assert M.selftest() == 1
+    out = capsys.readouterr().out
+    assert "a mutant inside an f-string field is hidden as string-only" in out
+    assert "_fstring_expr_spans mislocates the fields" in out
+    monkeypatch.undo()
+    monkeypatch.setattr(M, "is_string_only", lambda diff: False)
+    assert M.selftest() == 1
+    assert "an f-string's TEXT is no longer string-only" in capsys.readouterr().out
+
+
+
+def test_report_only_refusal_note_is_blocking_in_the_gating_modes_words():
+    """--report-only means 'never exit non-zero', not 'advisory' — the note must say BLOCKING and say
+    the survivor report that follows is informational, in the words the gating mode uses (exit 2)."""
+    note = M.report_only_refusal_note(True)
+    assert "BLOCKING" in note and "exits 2" in note and "INFORMATIONAL" in note and "UNKNOWN" in note
+
+
+def test_report_only_refusal_note_is_silent_when_the_gate_actually_gates():
+    """Without the flag the gate exits at the refusal and prints nothing after it, so no note is owed
+    — a note there would claim a report follows when none does."""
+    assert M.report_only_refusal_note(False) == ""
