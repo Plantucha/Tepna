@@ -418,7 +418,11 @@
     count: ['measured', 'seconds on the aligned three-way grid — a count'],
     source: ['measured', 'which file each corner was read from — a fact about the inputs'],
     hat: ['experimental', 'three-cornered hat σ̂ — assumes independent corner errors; not validated against a reference'],
-    gate: ['experimental', "the suite's own corner gates (Verity harmonic, H10 lead) — a rule, not a measurement"]
+    gate: ['experimental', "the suite's own corner gates (Verity harmonic, H10 lead) — a rule, not a measurement"],
+    rhoCrit: ['experimental', 'the error correlation at which a corner of this hat collapses to zero — a property of this solve, derived from the same unvalidated σ̂'],
+    rhoSens: ['experimental', "how fast a corner's σ̂ moves per 0.01 of error correlation, at ρ = 0 — a derivative of the same unvalidated estimator"],
+    rhoNeed: ['experimental', 'the precision to which ρ would have to be known to pin a corner σ̂ to ±0.1 bpm — a requirement, not a measurement of ρ'],
+    rhoRef: ['measured', 'error correlation measured against a two-detector consensus over 37 nights (tools/tch-firmware-reference.mjs) — pooled, external to this night']
   };
   const evb = (k) => (window.MetricRegistry && window.MetricRegistry.badge ? window.MetricRegistry.badge(EV[k][0], EV[k][1]) : '');
   function corner(host, key) {
@@ -533,6 +537,7 @@
   }
   function renderSkip(nt, real) {
     for (const k of DKEYS) hero(k, null, null);
+    renderIndependence(null);
     $('heroNight').textContent = nt.key;
     kpi('kOverlap', '—', 'no three-way overlap solved', 'bad');
     kpi('kMethod', 'not solved', real.reason || 'no result', 'bad');
@@ -543,9 +548,93 @@
     for (const id of CARDS) setEmpty(id, 'This night could not be solved — ' + (real.reason || 'no result'), true);
     badgeAll();
   }
+  /* ── INDEPENDENCE SENSITIVITY — what THIS night can and cannot say about correlated errors ────────
+     The owner's question is "how much of the σ decomposition survives correlated-error assumptions".
+     🔴 THE DIRECT ANSWER IS NOT THIS ROW. It is the pooled note above: measured against a two-detector
+     consensus over 37 nights, the classic hat put 53/74 corners in band, under-read the Verity (0.41 vs
+     a true 0.73 bpm) and over-read the H10, because the optical errors correlate at ρ ≈ 0.32. This row
+     answers the adjacent, per-night question — how fast this night's decomposition would move if the
+     errors were correlated, and how precisely ρ would have to be known for that to be pinned down.
+     Both are stated, in that order, so the new row cannot be read as the answer to the question.
+
+     WHAT IT DELIBERATELY DOES NOT DO:
+     · It never prints "independent ✓". A negative variance — the standard "your independence assumption
+       is broken" tell — requires ρ > σ₀_A/σ₀_B (derived and measured, PR #1824), so with near-equal error
+       floors a real ρ of 0.3–0.5 produces NO negative at any N: every corner comes back positive, the
+       trio looks clean, and the assumption is silently violated. A positive solve is not evidence of
+       uncorrelated errors, and no amount of data makes it one. #3123 is that law in the wild — ρ ≈ 0.32
+       sits BELOW the σ_V/σ_O onset of ≈ 0.43, which is exactly why nothing went negative.
+     · It states no BAND around ρ_crit, because there is none to state. KNIFE-EDGE §2 asked for a margin
+       and the measurement refused it: σ's sensitivity to ρ rises smoothly to the boundary with no regime
+       change (dσ per 0.01 of ρ: −0.030 at distance 0.200, −0.183 at 0.010, −0.324 at 0.002). Where the
+       regimes do not separate, publish the sensitivity, not a threshold.
+     · It does not substitute the pooled ρ for this night's. This night's error correlation is NOT
+       computable here — the ECGDex × firmware-RR reference lives in `tools/tch-firmware-reference.mjs`,
+       not in the worker — so that slot REFUSES with the reason (CLAUDE.md §∅), never 0. Assuming ρ = 0 is
+       precisely the assumption under test, so defaulting it would answer the question with itself.
+       Residue `2026-09-26-tch-hat-misattributes-shared-optical-error` is where that moves into the
+       worker; when it does, the measured ρ may be DISPLAYED here for identifiability and must NEVER be
+       fed into the solve (KNIFE-EDGE §5, leave-one-out only). */
+  const RHO_REF = 0.32; // pooled optical ρ, tch-firmware-reference-2026-09-26.json — external, not this night's
+  function renderIndependence(real) {
+    const host = $('tsIndep');
+    if (!host) return;
+    const S = window.AnalysisStats;
+    const pv = real && real.pairVars;
+    const f2 = (x) => (Number.isFinite(x) ? x.toFixed(2) : '—');
+    const f3 = (x) => (Number.isFinite(x) ? x.toFixed(3) : '—');
+    if (!S || typeof S.tchRhoCrit !== 'function') {
+      host.innerHTML =
+        '<b>Independence sensitivity: NOT COMPUTED.</b> The shared statistics kernel (<code>AnalysisStats.tchRhoCrit</code>) did not load, so nothing was examined — this is not a finding about the night. ' +
+        evb('rhoCrit');
+      return;
+    }
+    if (!pv || !Number.isFinite(pv.hv) || !Number.isFinite(pv.ho) || !Number.isFinite(pv.vo)) {
+      host.innerHTML =
+        '<b>Independence sensitivity: REFUSED.</b> This night carries no pairwise difference variances, so the collapse point cannot be located. No value is shown in their place. ' + evb('rhoCrit');
+      return;
+    }
+    /* Corner mapping is load-bearing: the worker solves `threeCorneredHat(vHV, vHO, vVO)` with A = H10,
+       B = Verity, C = O2Ring, so ab = H10·Verity, ac = H10·O2Ring, bc = Verity·O2Ring. The operating
+       point is ρ = 0 on every pair because that IS the hat's assumption — ρ_crit is then "how much
+       shared error this night's variances would tolerate before a corner collapses to zero". */
+    const PAIR = { ab: 'H10 · Verity', ac: 'H10 · O2Ring', bc: 'Verity · O2Ring' };
+    const r = S.tchRhoCrit(pv.hv, pv.ho, pv.vo, { ab: 0, ac: 0, bc: 0 });
+    const parts = [];
+    for (const k of ['ab', 'ac', 'bc']) {
+      const d = r && r.pairs && r.pairs[k];
+      if (!d) {
+        parts.push(PAIR[k] + ' — no collapse in range');
+        continue;
+      }
+      const up = d.up ? 'ρ ≥ ' + f2(d.up.at) : null;
+      const dn = d.down ? 'ρ ≤ ' + f2(d.down.at) : null;
+      parts.push(PAIR[k] + ' — ' + [up, dn].filter(Boolean).join(' or '));
+    }
+    const n = r && r.nearest;
+    const sens = n && Number.isFinite(n.sigmaPerRho) ? f3(Math.abs(n.sigmaPerRho)) + ' bpm per 0.01 of ρ' : 'not computable';
+    const need = n && Number.isFinite(n.rhoFor0p1) ? '± ' + f3(n.rhoFor0p1) : 'not computable';
+    host.innerHTML =
+      '<b>Independence sensitivity — this night.</b> The hat above assumes the three corners\u2019 errors are uncorrelated. ' +
+      'A corner of THIS night\u2019s solve reaches zero at: ' +
+      parts.join(' · ') +
+      '. ' +
+      evb('rhoCrit') +
+      (n ? ' Nearest is <b>' + PAIR[n.pair] + '</b>, ' + f2(n.margin) + ' of correlation away; there the σ̂ moves <b>' + sens + '</b>. ' + evb('rhoSens') : '') +
+      (n ? ' To pin that corner\u2019s σ̂ to ±0.1 bpm, ρ would have to be known to <b>' + need + '</b> — a requirement, not a measurement. ' + evb('rhoNeed') : '') +
+      ' <b>This night\u2019s own ρ: REFUSED</b> — the firmware-RR reference is not computed in this page, so it is not substituted with 0; assuming independence is the assumption under test ' +
+      '(residue <code>2026-09-26-tch-hat-misattributes-shared-optical-error</code>). ' +
+      'Pooled, external, NOT this night: ρ ≈ ' +
+      RHO_REF.toFixed(2) +
+      ' optical over 37 nights. ' +
+      evb('rhoRef') +
+      ' <b>No "independent ✓" is shown here, and none is available:</b> a negative variance needs ρ > σ₀_A/σ₀_B, so a positive solve is not evidence of uncorrelated errors at any n. ' +
+      'No band around the collapse point is given either — sensitivity rises smoothly to it, with no regime to threshold on.';
+  }
   function renderAll(nt, real, derive) {
     $('heroNight').textContent = nt.key;
     for (const k of DKEYS) hero(k, real, derive);
+    renderIndependence(real);
     kpi('kOverlap', hmOf(real.n), real.n + ' s on the aligned 1 Hz grid', 'good');
     // the worker's point is the FUSED hat (tchSigmasFused: per-corner DSP confidence × Tukey consensus
     // trust) — and so is every CI replicate and running prefix (DEEP-AUDIT-VI F16: the CI's estimator
