@@ -40,8 +40,7 @@ def decided_under_glob(exit_codes: dict, glob: str) -> int:
     crash leaves, and counting it would re-admit the false green. An empty / missing map counts zero.
     """
     prefix = glob.rstrip("*")
-    return sum(1 for key, code in (exit_codes or {}).items()
-               if code is not None and key.startswith(prefix))
+    return sum(1 for key, code in (exit_codes or {}).items() if code is not None and key.startswith(prefix))
 
 
 def killed_under_glob(exit_codes: dict, glob: str) -> int:
@@ -59,8 +58,7 @@ def killed_under_glob(exit_codes: dict, glob: str) -> int:
     independent to disagree with.
     """
     prefix = glob.rstrip("*")
-    return sum(1 for key, code in (exit_codes or {}).items()
-               if code in (1, 3) and key.startswith(prefix))
+    return sum(1 for key, code in (exit_codes or {}).items() if code in (1, 3) and key.startswith(prefix))
 
 
 def read_exit_codes(meta_path: Path) -> dict:

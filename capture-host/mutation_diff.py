@@ -33,26 +33,51 @@ file is the counter-example that bounds it:
 So a hit means LOOK, not MOVE. Reported as 4/4 predictive on first use; recording the bound here so the
 next reader does not treat a screen as a verdict.
 """
+
 from __future__ import annotations
 
 import ast
 import fnmatch
 import re
 
-__all__ = ["GATE_BUDGET_SEC", "PREWORK_TRACE_FACTOR", "prework_estimate", "budget_refusal", "verdict_object", "VERDICT_STATUSES", "EXCUSING", "functions_covering", "changed_span", "is_string_only", "diff_key", "mutant_changed_lines", "float_boundary_unprobed",
-           "annotation_only", "classify", "refusal_reason", "selftest", "string_only_verdict", "scan_is_reliable",
-           "resolve_interpreter", "zero_population_verdict", "result_inconsistency",
-           "clean_run_failures",
-           "STRING_ONLY", "REQUIRED", "EMPTY_DIFF", "UNDECIDABLE"]
+__all__ = [
+    "GATE_BUDGET_SEC",
+    "PREWORK_TRACE_FACTOR",
+    "prework_estimate",
+    "budget_refusal",
+    "verdict_object",
+    "VERDICT_STATUSES",
+    "EXCUSING",
+    "functions_covering",
+    "changed_span",
+    "is_string_only",
+    "diff_key",
+    "mutant_changed_lines",
+    "float_boundary_unprobed",
+    "annotation_only",
+    "classify",
+    "refusal_reason",
+    "selftest",
+    "string_only_verdict",
+    "scan_is_reliable",
+    "resolve_interpreter",
+    "zero_population_verdict",
+    "result_inconsistency",
+    "clean_run_failures",
+    "STRING_ONLY",
+    "REQUIRED",
+    "EMPTY_DIFF",
+    "UNDECIDABLE",
+]
 
 # The four outcomes of the string-literal question. `is_string_only` collapses them to a bool for
 # back-compat; the GATE reads the verdict, because two of these must never be reported as the same
 # thing — "the mutant only touched log prose" and "the mutant changes nothing at all" are different
 # facts, and only one of them is evidence about the code.
-STRING_ONLY = "string-only"     # the change landed inside a literal — excluded, correctly
-REQUIRED = "required"           # a real code change — the gate demands it be killed
-EMPTY_DIFF = "empty-diff"       # the diff changes NOTHING — excluded, but it is NOT "string-only"
-UNDECIDABLE = "undecidable"     # the literal scan is outside its competence — REFUSE, never guess
+STRING_ONLY = "string-only"  # the change landed inside a literal — excluded, correctly
+REQUIRED = "required"  # a real code change — the gate demands it be killed
+EMPTY_DIFF = "empty-diff"  # the diff changes NOTHING — excluded, but it is NOT "string-only"
+UNDECIDABLE = "undecidable"  # the literal scan is outside its competence — REFUSE, never guess
 
 
 # The classes that genuinely cannot be killed, and so stop failing the gate. `real-gap` is deliberately
@@ -640,14 +665,16 @@ def resolve_interpreter(override: str | None, candidates: list[str], exists) -> 
     for. Falling through would answer a question nobody asked.
     """
     if override:
-        return (override, f"interpreter from the override: {override}") if exists(override) else \
-               (None, f"the interpreter named by the override does not exist: {override}")
+        return (
+            (override, f"interpreter from the override: {override}")
+            if exists(override)
+            else (None, f"the interpreter named by the override does not exist: {override}")
+        )
     for cand in candidates:
         if exists(cand):
             return cand, f"interpreter found at {cand}"
     tried = ", ".join(candidates) if candidates else "(no candidates)"
-    return None, ("no usable interpreter — set MUTATE_DIFF_PYTHON to one that has mutmut installed. "
-                  f"Tried: {tried}")
+    return None, (f"no usable interpreter — set MUTATE_DIFF_PYTHON to one that has mutmut installed. Tried: {tried}")
 
 
 def zero_population_verdict(status: str, checked: int, reason: str | None) -> tuple[str, str | None]:
@@ -668,8 +695,9 @@ def zero_population_verdict(status: str, checked: int, reason: str | None) -> tu
     rewriting a FAIL here would be the fail-open this exists to remove.
     """
     if status == "PASS" and checked == 0:
-        return "NOT_APPLICABLE", ("every changed line is outside mutation scope, so nothing was "
-                                  "examined — this is not a pass")
+        return "NOT_APPLICABLE", (
+            "every changed line is outside mutation scope, so nothing was examined — this is not a pass"
+        )
     return status, reason
 
 
@@ -696,15 +724,19 @@ def result_inconsistency(result: dict, survivors_len: int, undecided_len: int) -
     """
     for field, n in (("survived", survivors_len), ("undecided", undecided_len)):
         if int(result.get(field, 0)) != n:
-            return (f"result.{field} is {result.get(field)} but the {field} list holds {n} — "
-                    "two fields of one verdict disagreeing about the count")
+            return (
+                f"result.{field} is {result.get(field)} but the {field} list holds {n} — "
+                "two fields of one verdict disagreeing about the count"
+            )
     gen, dec = int(result.get("generated", 0)), int(result.get("decided", 0))
     settled = int(result.get("killed", 0)) + int(result.get("survived", 0)) + int(result.get("undecided", 0))
     if dec > gen:
         return f"result.decided ({dec}) exceeds result.generated ({gen}) — more mutants decided than exist"
     if settled > dec:
-        return (f"result.killed + survived + undecided ({settled}) exceeds result.decided ({dec}) — "
-                "outcomes recorded for mutants the run says it never settled")
+        return (
+            f"result.killed + survived + undecided ({settled}) exceeds result.decided ({dec}) — "
+            "outcomes recorded for mutants the run says it never settled"
+        )
     return None
 
 

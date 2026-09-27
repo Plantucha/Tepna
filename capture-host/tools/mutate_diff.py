@@ -75,12 +75,35 @@ HERE = Path(__file__).resolve().parent.parent
 
 sys.path.insert(0, str(HERE))
 from mutation_diff import (  # noqa: E402
-    report_only_refusal_note, EMPTY_DIFF, STRING_ONLY, SURVIVED, UNDECIDABLE, UNDECIDED, annotation_only, clean_run_failures, classify, diff_key, mutant_changed_lines,
-    in_glob_scope, source_function_of_glob, undecided_by_function, unmutatable_decorator,
-    functions_covering, refusal_reason, selftest, split_results, string_only_verdict,
-    resolve_interpreter, zero_population_verdict, result_inconsistency,
-    GATE_BUDGET_SEC, budget_refusal, verdict_object,
+    report_only_refusal_note,
+    EMPTY_DIFF,
+    STRING_ONLY,
+    SURVIVED,
+    UNDECIDABLE,
+    UNDECIDED,
+    annotation_only,
+    clean_run_failures,
+    classify,
+    diff_key,
+    mutant_changed_lines,
+    in_glob_scope,
+    source_function_of_glob,
+    undecided_by_function,
+    unmutatable_decorator,
+    functions_covering,
+    refusal_reason,
+    selftest,
+    split_results,
+    string_only_verdict,
+    resolve_interpreter,
+    zero_population_verdict,
+    result_inconsistency,
+    GATE_BUDGET_SEC,
+    budget_refusal,
+    verdict_object,
 )
+
+
 def _primary_checkout_venv() -> str | None:
     """The venv of the checkout this worktree shares its object store with, or None.
 
@@ -90,8 +113,9 @@ def _primary_checkout_venv() -> str | None:
     as `HERE`, which is why the order override → primary → own is safe everywhere.
     """
     try:
-        r = subprocess.run(["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
-                           cwd=HERE, capture_output=True, text=True)
+        r = subprocess.run(
+            ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"], cwd=HERE, capture_output=True, text=True
+        )
     except OSError:
         return None
     if r.returncode != 0 or not r.stdout.strip():
@@ -100,8 +124,9 @@ def _primary_checkout_venv() -> str | None:
 
 
 _PY_CANDIDATES = [c for c in (_primary_checkout_venv(), str(HERE / ".venv" / "bin" / "python")) if c]
-_PY_PATH, _PY_NOTE = resolve_interpreter(os.environ.get("MUTATE_DIFF_PYTHON"), _PY_CANDIDATES,
-                                         lambda pth: Path(pth).exists())
+_PY_PATH, _PY_NOTE = resolve_interpreter(
+    os.environ.get("MUTATE_DIFF_PYTHON"), _PY_CANDIDATES, lambda pth: Path(pth).exists()
+)
 VENV_PY = Path(_PY_PATH) if _PY_PATH else Path(HERE / ".venv" / "bin" / "python")
 
 _HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
@@ -244,13 +269,22 @@ def main(argv=None) -> int:
         _bad = result_inconsistency(_counts, len(verdict.get("survivors", [])), len(undecided))
         if _bad:
             print(f"\nmutate-diff: REFUSING — this verdict's own numbers disagree: {_bad}")
-            print("  Deliberately not a pass and not a failure: a tool that cannot count what it did\n"
-                  "  cannot tell you what it found.")
+            print(
+                "  Deliberately not a pass and not a failure: a tool that cannot count what it did\n"
+                "  cannot tell you what it found."
+            )
             status, reason, code = "UNKNOWN", f"verdict self-inconsistent: {_bad}", 2
-        obj = verdict_object(status, checked=_pop["checked"], eligible=_pop["eligible"],
-                             result=dict(_counts), reason=reason,
-                             evidence=["capture-host/tools/mutate_diff.py"] + (evidence or []),
-                             commit=_head_sha(), at=_now_utc(), base=a.base)
+        obj = verdict_object(
+            status,
+            checked=_pop["checked"],
+            eligible=_pop["eligible"],
+            result=dict(_counts),
+            reason=reason,
+            evidence=["capture-host/tools/mutate_diff.py"] + (evidence or []),
+            commit=_head_sha(),
+            at=_now_utc(),
+            base=a.base,
+        )
         verdict["verdict"] = obj
         if a.json:
             Path(a.json).write_text(json.dumps(verdict, indent=2), encoding="utf-8")
@@ -299,7 +333,8 @@ def main(argv=None) -> int:
     # distinct code also lets a caller tell "could not check" from "found survivors" (exit 1).
     try:
         _rc: int | None = subprocess.run(
-            [str(VENV_PY), "-c", "import mutmut"], capture_output=True, text=True).returncode
+            [str(VENV_PY), "-c", "import mutmut"], capture_output=True, text=True
+        ).returncode
     except OSError:
         _rc = None
     # NAME THE PATHS. A refusal reading "the capture-host venv is missing" in a worktree told a
@@ -310,11 +345,14 @@ def main(argv=None) -> int:
         _why = f"{_why} [{_PY_NOTE}]"
     if _why:
         print(f"mutate-diff: REFUSING — {_why}")
-        print("  Nothing was mutated, so nothing can be concluded. This is deliberately not a pass:\n"
-              "  a gate that cannot see must not report green.")
+        print(
+            "  Nothing was mutated, so nothing can be concluded. This is deliberately not a pass:\n"
+            "  a gate that cannot see must not report green."
+        )
         return emit("NOT_RUN", f"preflight refusal: {_why}", 2)
 
     import importlib.util
+
     spec = importlib.util.spec_from_file_location("mut", HERE / "tools" / "mutate.py")
     if spec is None or spec.loader is None:
         raise ImportError(f"cannot load mutate from {HERE / 'tools' / 'mutate.py'}")
@@ -537,11 +575,12 @@ def main(argv=None) -> int:
                 if not in_glob_scope(name, g):
                     _out_of_scope += 1
                     continue
-                show = subprocess.run([str(VENV_PY), "-m", "mutmut", "show", name],
-                                      cwd=work, capture_output=True, text=True)
+                show = subprocess.run(
+                    [str(VENV_PY), "-m", "mutmut", "show", name], cwd=work, capture_output=True, text=True
+                )
                 sverdict, sdetail = string_only_verdict(show.stdout)
                 if sverdict == STRING_ONLY:
-                    continue                       # log/prose mutation — deliberately not required
+                    continue  # log/prose mutation — deliberately not required
                 if sverdict == EMPTY_DIFF:
                     # EXCLUDED, BUT NOT AS "string-only". A mutant that changes nothing is equivalent
                     # by construction, and until 2026-08-27 it was silently laundered through the
@@ -796,8 +835,10 @@ def main(argv=None) -> int:
         if _pop["checked"] == 0:
             print("\nmutate-diff: nothing was mutated — every changed line is outside mutation scope.")
         else:
-            print("\nmutate-diff: every mutant on the changed functions was killed"
-                  + (f" ({n_ex} recorded as equivalent)." if n_ex else "."))
+            print(
+                "\nmutate-diff: every mutant on the changed functions was killed"
+                + (f" ({n_ex} recorded as equivalent)." if n_ex else ".")
+            )
         _ran_box[0] = _ran
         _counts["excused"] = n_ex
         if _refusal is not None:

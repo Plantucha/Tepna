@@ -321,8 +321,13 @@ def test_exit_1_and_3_are_both_kills_because_mutmut_says_so():
 def test_a_SURVIVOR_a_TIMEOUT_and_a_NOT_RUN_are_not_kills():
     """0 survived, 24 timeout, None never run. Counting any of them as killed is the false green this
     whole file exists to make impossible."""
-    codes = {"m.x_f__mutmut_1": 0, "m.x_f__mutmut_2": 24, "m.x_f__mutmut_3": None,
-             "m.x_f__mutmut_4": 5, "m.x_f__mutmut_5": 1}
+    codes = {
+        "m.x_f__mutmut_1": 0,
+        "m.x_f__mutmut_2": 24,
+        "m.x_f__mutmut_3": None,
+        "m.x_f__mutmut_4": 5,
+        "m.x_f__mutmut_5": 1,
+    }
     assert mmeta.killed_under_glob(codes, "m.x_f__mutmut_*") == 1
 
 
@@ -339,7 +344,8 @@ def test_an_absent_or_empty_map_credits_nothing():
 def test_killed_count_reads_the_scratchs_meta(tmp_path):
     (tmp_path / "mutants").mkdir()
     (tmp_path / "mutants" / "m.py.meta").write_text(
-        '{"exit_code_by_key": {"m.x_f__mutmut_1": 1, "m.x_f__mutmut_2": 0}}', encoding="utf-8")
+        '{"exit_code_by_key": {"m.x_f__mutmut_1": 1, "m.x_f__mutmut_2": 0}}', encoding="utf-8"
+    )
     assert mmeta.killed_count(tmp_path, "m.py", "m.x_f__mutmut_*") == 1
 
 

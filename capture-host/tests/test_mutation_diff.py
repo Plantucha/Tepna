@@ -1064,8 +1064,9 @@ def test_a_self_consistent_result_block_reports_nothing():
 def test_the_ARTIFACT_THAT_SHIPPED_is_caught():
     """The exact block from the residue row: `generated 0, decided 0, killed 0, survived 26` — survivors
     of a population the same object says does not exist."""
-    why = M.result_inconsistency(_res(generated=0, decided=0, killed=0, survived=26, undecided=0),
-                                 survivors_len=26, undecided_len=0)
+    why = M.result_inconsistency(
+        _res(generated=0, decided=0, killed=0, survived=26, undecided=0), survivors_len=26, undecided_len=0
+    )
     assert why and "exceeds result.decided" in why, why
 
 
@@ -1089,5 +1090,9 @@ def test_decided_may_EXCEED_the_settled_outcomes_because_excused_are_counted_apa
     """NOT an equality. `excused` and `empty_diff` mutants are decided and counted separately, and a
     generated mutant that is never decided is exactly what `undecided` means — so asserting equality
     here would red every healthy run with an equivalence entry in it."""
-    assert M.result_inconsistency(_res(generated=100, decided=50, killed=5, survived=2, undecided=1),
-                                  survivors_len=2, undecided_len=1) is None
+    assert (
+        M.result_inconsistency(
+            _res(generated=100, decided=50, killed=5, survived=2, undecided=1), survivors_len=2, undecided_len=1
+        )
+        is None
+    )
