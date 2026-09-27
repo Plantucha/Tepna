@@ -350,12 +350,15 @@ def recorded_seams(primary: str, start, end) -> list[dict]:
     return seams
 
 
-def _seam_cause(night_dir: str, seams: list[dict]) -> str | None:
+def _seam_cause(night_dir: str) -> str | None:
     """What the night's own record says caused the step, or None. Never inferred from the magnitude.
 
     Called only inside `if seams:`, so a `not seams` guard here was unreachable — coverage found it and it
     is removed rather than given a test that could never fail, the same call this file's `drawn_share`
-    note records."""
+    note records. THE SEAM LIST IS NOT A PARAMETER, for the same reason: the cause is read from the
+    night's clock record and from nothing else, so a `seams` argument would be dead weight the reader
+    has to rule out — and it was: the mutation gate found `_seam_cause(night_dir, None)` surviving,
+    which is the dead parameter reporting itself."""
     for name in ("CLOCKSYNC.csv", "CLOCK.csv"):
         try:
             with open(os.path.join(night_dir, name), encoding="utf-8", errors="replace") as fh:
@@ -499,7 +502,7 @@ def timebase(night_dir: str, model: str, primaries: list[str], start, end) -> di
     seam_note = ""
     if seams:
         worst = max(seams, key=lambda r: abs(r["step_ms"]))
-        cause = _seam_cause(night_dir, seams)
+        cause = _seam_cause(night_dir)
         seam_note = (f" — {len(seams)} recorded clock seam(s), largest {worst['step_ms'] / 1000.0:+.3g} s"
                      f"{'; ' + cause if cause else '; no cause recorded this night'}"
                      f"; the axis is judged in {len(segs)} segment(s), never across a step")
