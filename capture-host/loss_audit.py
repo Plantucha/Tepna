@@ -95,6 +95,31 @@ WORN_EVIDENCE_BY_MODEL: dict[str, tuple[str, str]] = {
 }
 
 
+# ── THE OPERATOR'S TIME SYNC is not the daemon's doing ─────────────────────────────────────────────────
+# The monitor's sync button (`POST /api/timesync/all`) runs an offline-recording op per Polar, several in
+# sequence, and each pauses live capture: a real loss that the journal names only as `offline-recording op —
+# live capture paused`, i.e. `daemon:pull paused live`, which SOLID-NIGHT scores as a DAEMON REGRESSION. On
+# 2026-09-24 one press (22:00:54) cost the night an H10 continuity FAIL that way. The press is its own cause.
+# ⚠️ The access log is written at request COMPLETION (journal 22:01:17); the request START is in its brackets
+# (`[24/Sep/2026:22:00:54 -0400]`). The event is dated from the brackets, so it precedes the pauses it caused.
+OPERATOR_TIMESYNC = "operator:time-sync"
+TIMESYNC_NEEDLE = "POST /api/timesync"
+TIMESYNC_TAIL_S = 60.0  # CHOSEN: 2026-09-24's pauses ran to 48 s after the request completed
+_ACCESS_START = re.compile(r"\[(\d{2})/([A-Z][a-z]{2})/(\d{4}):(\d{2}):(\d{2}):(\d{2}) [+-]\d{4}\]")
+_MONTHS = {
+    m: i + 1 for i, m in enumerate(("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"))
+}
+
+
+def _access_start(line: str) -> _dt.datetime | None:
+    """The request START of an access-log line (local time, as written), or None when it carries none."""
+    a = _ACCESS_START.search(line)
+    if a is None or a.group(2) not in _MONTHS:
+        return None
+    d, mon, y, hh, mm, ss = a.groups()
+    return _dt.datetime(int(y), _MONTHS[mon], int(d), int(hh), int(mm), int(ss))
+
+
 def read_journal(
     name: str | tuple[str, ...], since: _dt.datetime, until: _dt.datetime, run=subprocess.run
 ) -> list[tuple[_dt.datetime, str]] | None:
@@ -128,46 +153,92 @@ def read_journal(
     if r.returncode != 0:
         return None
     out: list[tuple[_dt.datetime, str]] = []
+    syncs: list[tuple[_dt.datetime, _dt.datetime]] = []
     for ln in r.stdout.split("\n"):
         m = re.match(r"(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})", ln)
-        if not m or (not any(k in ln for k in keys) and "Starting tepna-capture" not in ln):
+        if not m:
+            continue
+        if TIMESYNC_NEEDLE in ln:
+            start = _access_start(ln)
+            if start is not None:
+                out.append((start, OPERATOR_TIMESYNC))
+                syncs.append((start, _dt.datetime.fromisoformat(m.group(1)) + _dt.timedelta(seconds=TIMESYNC_TAIL_S)))
+            continue
+        if not any(k in ln for k in keys) and "Starting tepna-capture" not in ln:
             continue
         for cause, needle in KINDS:
             if needle in ln:
                 out.append((_dt.datetime.fromisoformat(m.group(1)), cause))
                 break
+    # a pause inside an operator's sync is the operator's, not the daemon's
+    out = [
+        (t, OPERATOR_TIMESYNC if c == "daemon:pull paused live" and any(a <= t <= b for a, b in syncs) else c)
+        for t, c in out
+    ]
     out.sort()
     return out
 
 
-def stream_gaps(path: str) -> tuple[list[tuple[_dt.datetime, float]], float, float]:
-    """[(gap start stamp, seconds)] over the stream's stamps, plus (span_s, gap_s cut). Same cadence cut as
-    the Nights index; stamps as local naive datetimes (both layouts the box writes)."""
+# ── DELAY IS NOT LOSS ─────────────────────────────────────────────────────────────────────────────────
+# Gaps are found on the HOST stamps, and a batch that arrives LATE opens a host gap with every sample still in
+# it. Measured on the H10, 2026-09-17 → 09-23: 16 of 55 unattributed gaps had a host step of 2.3–5.7 s and a
+# DEVICE step of 0.008 s (one sample at 130 Hz), with PMD batches arriving inside each. Only 5 of the 16 had
+# an `event loop stalled` warning within ±5 s, so the stall is corroboration, not the test. The device clock
+# is the test: a host gap whose device step stays under DELAY_PERIODS sample periods is a DELAY (lost = 0);
+# it is published as such and never enters `gaps`, `by_cause` or `lost_min`. A stream with no device clock
+# (the ring's SPO2.csv) cannot tell the two apart, so every host gap there stays a gap: the honest default.
+DEVICE_NS = "sensor timestamp [ns]"
+DELAY_PERIODS = 1.5  # CHOSEN: a real loss drops ≥ 1 whole period; late delivery measured at 1.04 periods
+_PERIOD_ROWS = 200  # positive device steps sampled to learn the stream's own period
+
+
+def stream_gaps_split(path: str) -> tuple[list, list, float, float]:
+    """(gaps, delays, span_s, gap_s cut). `gaps` = [(start, seconds)] of real loss; `delays` = [(start, host
+    seconds, device step ns)] where the host stamps jumped and the device clock did not. Same cut and stamp
+    parsing as the Nights index; the device column is found by HEADER name, per file, never by position."""
     cut = _ni._cadence_gap(path)
     gaps: list[tuple[_dt.datetime, float]] = []
+    delays: list[tuple[_dt.datetime, float, int]] = []
     first = prev = None
-    iso = None
-    with open(path, encoding="utf-8", errors="replace") as fh:
-        for line in fh:
-            if iso is None:
-                if _ni._ISO.match(line):
-                    iso = True
-                elif _ni._O2.match(line):
-                    iso = False
-                else:
-                    continue
+    prev_dev = None
+    dev_col = None
+    steps: list[int] = []
+    period_ns = None
+    with open(path, "rb") as fh:
+        for raw in fh:
+            line = raw.decode("utf-8", "replace")
+            if line.startswith("Phone timestamp"):
+                cols = [c.strip() for c in line.split(";")]  # a trailing newline, CR or space is not part of a name
+                dev_col = cols.index(DEVICE_NS) if DEVICE_NS in cols else None
+                continue
             stamp = _ni.parse_stamp(line)
             if stamp is None:
                 continue
+            dev = None
+            if dev_col is not None:
+                try:
+                    dev = int(line.split(";")[dev_col])
+                except (ValueError, IndexError):
+                    dev = None  # a torn row carries no device time; the host gap is then judged as before
             if first is None:
                 first = stamp
             if prev is not None:
                 g = (stamp - prev).total_seconds()
+                step_ns = dev - prev_dev if dev is not None and prev_dev is not None else None
+                if period_ns is None and step_ns is not None and step_ns > 0:
+                    steps.append(step_ns)
+                    if len(steps) >= _PERIOD_ROWS:
+                        period_ns = sorted(steps)[len(steps) // 2]
                 if g > cut:
-                    gaps.append((prev, g))
+                    if period_ns is not None and step_ns is not None and 0 <= step_ns < DELAY_PERIODS * period_ns:
+                        delays.append((prev, g, step_ns))
+                    else:
+                        gaps.append((prev, g))
             prev = stamp
+            if dev is not None:
+                prev_dev = dev
     span = (prev - first).total_seconds() if first is not None and prev is not None else 0.0
-    return gaps, max(0.0, span), cut
+    return gaps, delays, max(0.0, span), cut
 
 
 def attribute_gaps(gaps, events) -> list[tuple[_dt.datetime, float, str]]:
@@ -522,10 +593,14 @@ def _ring_end(path: str, night_dir: str, contact: list[dict]) -> dict:
         doff_at = _dt.datetime.fromisoformat(blk["doff_at"]) if blk["doff_at"] else None
     doff = ring_end_doff(tail, doff_at, last)
     gap = _relink_gap(night_dir, _RING_SPO2, last)
+    # The worn interval ends where EITHER witness goes quiet: the doff second is typically 0–4 s AFTER the SpO2
+    # file's last row, and a worn end past the primary's own last row can never be covered by that file (the
+    # SOLID-NIGHT continuity band read UNKNOWN on 2026-09-24 for 2 s of exactly that). Within the 30 s agreement
+    # bound the tail can also start first; then it is the earlier one.
     worn_end = last
     if doff:
         assert doff_at is not None  # ring_end_doff is never True without a doff time
-        worn_end = doff_at
+        worn_end = min(doff_at, last)
     return {
         "file": base,
         "usable": True,
@@ -589,7 +664,7 @@ def audit_night(night_dir: str, devices: list[dict], *, journal=read_journal) ->
             continue
         f = max(files, key=os.path.getsize)
         try:
-            gaps, span, cut = stream_gaps(f)
+            gaps, delays, span, cut = stream_gaps_split(f)
         except OSError as exc:
             out["devices"][name] = {"primary": pat, "file": os.path.basename(f), "reason": f"unreadable: {exc!r}"}
             continue
@@ -615,6 +690,9 @@ def audit_night(night_dir: str, devices: list[dict], *, journal=read_journal) ->
             # (residue 2026-09-24-loss-audit-audits-only-the-largest-file), so an empty list is "none in
             # this file", never "none in the night".
             "gaps": [{"at": t.isoformat(timespec="seconds"), "s": round(g, 1), "cause": c} for t, g, c in per_gap],
+            # host gaps the DEVICE clock shows were only late delivery: 0 samples lost, never in `gaps`/`lost_min`
+            "delays": [{"at": t.isoformat(timespec="seconds"), "s": round(g, 1), "device_ns": d} for t, g, d in delays],
+            "delayed_min": round(sum(g for _, g, _ in delays) / 60.0, 1),
             "worn_evidence": worn,
             "worn_lost_min": round(lost, 1) if worn else (0.0 if worn is False else None),
             "daemon_caused_min": round(sum(v for k, v in by_cause.items() if k.startswith("daemon:")), 1),
