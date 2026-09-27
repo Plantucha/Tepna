@@ -860,6 +860,30 @@ def merge_sessions(files: list[dict], gap_sec: float = _SESSION_GAP_SEC,
     return sessions
 
 
+def judged_session(sessions: list[list]):
+    """THE ONE RULE for which of a night's sessions is the night — `None` for an empty list.
+
+    Single-sourced for the same reason `merge_sessions` is: `summarize` and `timeline.build` must not
+    disagree about which session they are describing, and for a while they did. `summarize` moved to this
+    rule with a measured argument (`tests/test_qc_judged_session.py`): on 2026-08-15 a Verity streaming
+    noise in its charger, 10:01->12:12 and 1 716 348 rows, was judged over the actual night 02:42->06:03
+    with 2 977 473 rows, because the rule was "the session reaching the latest write" — true while the box
+    recorded only at night, false once it recorded continuously. `timeline` kept the old rule and drew its
+    coverage window from the charger on exactly those nights. Measured over the 64 nights with a QC
+    summary on vigil, from the `sessions` those summaries already record: 56 are multi-session and the two
+    rules pick a DIFFERENT session on 27 of them, twice a session carrying ZERO rows (2026-09-14,
+    2026-09-18).
+
+    ROWS, not duration: duration is inflated by a session that idles across a doffing gap, while rows
+    count what was actually captured. Ties break toward the later session, which preserves the old
+    behaviour for the single-session days the old rule was written for — and for a night whose every
+    session is empty, where `(0, end)` reduces to latest-ending and the "connected but silent" view
+    `timeline` falls back to is unchanged."""
+    if not sessions:
+        return None
+    return max(sessions, key=lambda sess: (sum(f["rows"] for f in sess[2]), sess[1]))
+
+
 def scan_night(night_dir: str) -> list[dict]:
     """One record per capture file under `night_dir`: {file, stream, rows, bytes}. [] if the dir is
     absent. The QC summary itself and any sidecar are tagged but included, so callers can tell them apart."""
@@ -2493,7 +2517,7 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None) -> 
         # ROWS, not duration: duration is inflated by a session that idles across a doffing gap, while
         # rows count what was actually captured. Ties break toward the later session, preserving the old
         # behaviour for the single-session days it was written for.
-        cur = max(sessions, key=lambda sess: (sum(f["rows"] for f in sess[2]), sess[1]))
+        cur = judged_session(sessions)
         current = cur[2]
         span = cur[1] - cur[0]
         span = span if span >= _MIN_SPAN_SEC else None
