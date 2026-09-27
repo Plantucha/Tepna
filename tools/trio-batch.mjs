@@ -698,6 +698,26 @@ if (!SRC || !existsSync(SRC)) {
   process.exit(2);
 }
 
+/* ── THE FOLD'S COMPUTE CLOSURE — ONE LIST, read by the realm loader AND by CODE_DIGEST ──────────────
+   Every module whose text can change a fold's OUTPUT, and nothing else. It is defined once because the
+   two sites had drifted: the realm loaded EIGHT modules and the digest hashed SEVEN, with
+   `integrator-dsp.js` missing from the digest — so an edit to it changed fold output (the fold calls
+   `IntegratorDSP.hrAgreement`, `fitClockDrift`, `fitClockClosure` and `fitClockOffsetPooled`, and writes
+   the results into the fold) while every stamped night kept its stamp and was NOT re-folded. That is a
+   FAIL-OPEN, and it is the opposite direction from residue
+   2026-09-22-fold-code-digest-includes-the-orchestrator, which is about the digest being too
+   conservative. It was both: too conservative about this file's own text, and not conservative enough
+   about a module it loads.
+
+   🔴 THE LIST IS THE CLOSURE, SO AN ADDITION FAILS SAFE. Adding a module to the realm now necessarily
+   adds it to the digest — one array, so a forgotten entry over-flags (a spurious re-fold, costly and
+   safe) and can never blind the stamp (a silent stale fold). That is `computeHash`'s denylist reasoning
+   in manifest-gate.js carried across: an unknown asset lands INSIDE the closure. What is deliberately
+   OUTSIDE is this orchestrator's own text — scheduling, logging, retries and diagnostics cannot alter a
+   fold's numbers, and hashing `__filename` made all 48 edits to this file (21 in July, 15 in August, 12
+   in September — ~19/month) re-stale all 82 stamped nights at ~78 min per whole-corpus re-fold. */
+const COMPUTE_MODULES = ['clock.js', 'kernel-constants.js', 'dex-export.js', 'oxydex-util.js', 'oxydex-dsp.js', 'ecgdex-dsp.js', 'ppgdex-dsp.js', 'integrator-dsp.js'];
+
 /* ── 1 · headless DSP realm (mirrors tests/run-tests.mjs makeCtx/loadInto) ─── */
 function makeCtx() {
   const noop = () => {};
@@ -813,7 +833,7 @@ function loadDsps() {
   ctx = makeCtx();
   // clock.js FIRST — the delegating DSPs alias DexClock.parseTimestamp at load (CLAUDE.md §Clock Contract).
   // kernel-constants.js supplies DexKernel, which every builder stamps into the export envelope.
-  for (const f of ['clock.js', 'kernel-constants.js', 'dex-export.js', 'oxydex-util.js', 'oxydex-dsp.js', 'ecgdex-dsp.js', 'ppgdex-dsp.js', 'integrator-dsp.js']) loadInto(ctx, f);
+  for (const f of COMPUTE_MODULES) loadInto(ctx, f);
   ({ ECGDex, PpgDex, OxyDex, DexKernel, dexScrubExport } = ctx);
   for (const [n, v] of Object.entries({ ECGDex, PpgDex, OxyDex, DexKernel, dexScrubExport })) if (!v) throw new Error('trio-batch: ' + n + ' did not load into the headless realm');
   // `rich: true` is what unlocks timeseries.epochs[] — the app's light stream omits it, and ONLY the
@@ -1380,7 +1400,11 @@ let work = LIMIT ? trio.slice(0, LIMIT) : trio;
 const STAMP = '.trio-stamp'; // NOT *.json — tch-multinight --dir globs /\.json$/i and must not see it
 const sha16 = (s) => createHash('sha256').update(s).digest('hex').slice(0, 16);
 const CODE_DIGEST = (() => {
-  const srcs = ['clock.js', 'kernel-constants.js', 'dex-export.js', 'oxydex-util.js', 'oxydex-dsp.js', 'ecgdex-dsp.js', 'ppgdex-dsp.js'].map((f) => join(ROOT, f)).concat([__filename]);
+  /* The closure, and ONLY the closure — see COMPUTE_MODULES. `__filename` is deliberately absent: this
+     file's own text cannot change a fold's output, and hashing it re-staled every stamped night on every
+     edit. A module missing from COMPUTE_MODULES is the dangerous direction, which is why the realm loads
+     from the same array. */
+  const srcs = COMPUTE_MODULES.map((f) => join(ROOT, f));
   return sha16(srcs.map((f) => (existsSync(f) ? readFileSync(f, 'utf8') : '')).join('\0'));
 })();
 const inputDigest = (p) =>

@@ -510,7 +510,7 @@ def decode_rec(path: str, expected_start_utc: _dt.datetime | None = None) -> dic
     got["settings_tlv"] = parse_rec_tlv(b)
     frames = find_rec_frames(b, anchor)
     got["n_frames"] = len(frames)
-    if frames:
+    if frames and anchor is not None:
         f0, f1 = frames[0], frames[-1]
         got["stream"] = f0["meas"]
         got["first_frame_utc"] = (POLAR_EPOCH + _dt.timedelta(microseconds=f0["sensor_ns"] / 1000)).isoformat()
@@ -522,8 +522,11 @@ def decode_rec(path: str, expected_start_utc: _dt.datetime | None = None) -> dic
                                                   for x, y in zip(frames, frames[1:])])
             got["stride_bytes"] = _median([y["offset"] - x["offset"] for x, y in zip(frames, frames[1:])])
         # INTERNAL consistency: the ASCII header and the first frame's own clock are both the device's,
-        # so they must agree. This is checkable on ANY file, old or new. No `if anchor` guard: reaching
-        # here means `frames` is non-empty, and `find_rec_frames` returns [] for a None anchor.
+        # so they must agree. This is checkable on ANY file, old or new. THE `anchor` GUARD IS IN THE
+        # CONDITION ABOVE rather than in prose here: `find_rec_frames` returns [] for a None anchor, so
+        # `frames` non-empty already implied it — stating it in the `if` makes the implication executable
+        # and stops `- anchor` reading as a subtraction from None. Behaviour is unchanged for every input
+        # that can occur; an input that violated the implication now skips the block instead of raising.
         got["header_vs_first_frame_sec"] = round(
             (_dt.datetime.fromisoformat(got["first_frame_utc"]) - anchor).total_seconds(), 2)
     # THE TIMEBASE VERDICT — only for a recording this run created, where the host clock at start is known.

@@ -48,6 +48,7 @@ import json
 import subprocess
 
 from bleak import BleakClient, BleakScanner
+from bleak.backends.device import BLEDevice
 from bleak.exc import BleakError
 
 import polar_pmd as pmd
@@ -130,7 +131,10 @@ async def run(address: str, adapter: str | None, meas: int, force: bool, seconds
     # this probe simply never got it. Keeping the scan FIRST is deliberate — it returns a rich device
     # object and confirms the radio is hearing anything at all — the address is the fallback, not the
     # default.
-    dev = await BleakScanner.find_device_by_address(address, timeout=20.0)
+    # ANNOTATED as the union the fallback below actually produces: a rich device object when the scan
+    # saw an advertisement, the bare address string when it did not. Inferred from the scan alone it
+    # is `BLEDevice | None`, which rejects both the fallback assignment and the BleakClient call.
+    dev: BLEDevice | str | None = await BleakScanner.find_device_by_address(address, timeout=20.0)
     if dev is None:
         dev = address
         out["reached_by"] = "bonded address (no advertisement seen)"
