@@ -28,8 +28,6 @@
 #                               --out /srv/tepna/captures/incoming/verity-offline
 from __future__ import annotations
 import argparse, asyncio, json, logging, os, time
-from typing import Any
-
 from bleak import BleakClient, BleakScanner
 
 log = logging.getLogger(__name__)
@@ -689,10 +687,7 @@ async def pull_recording(address: str, session: str, out_dir: str, adapter: str 
     if not session.endswith("/"):
         session += "/"
     os.makedirs(out_dir, exist_ok=True)
-    # A manifest is heterogeneous by construction (paths, a file list, byte counts, flags) and is
-    # written out as JSON; inference joins its values to `object` and `len(manifest["files"])` below
-    # then has nothing to count.
-    manifest: dict[str, Any] = {"session": session, "out_dir": out_dir, "files": [], "total_bytes": 0}
+    manifest = {"session": session, "out_dir": out_dir, "files": [], "total_bytes": 0}
     async def _once():
         m = {"files": [], "new_files": [], "short": [], "total_bytes": 0,
              "unreadable_dirs": [], "truncated_dirs": []}
