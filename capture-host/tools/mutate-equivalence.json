@@ -4234,6 +4234,16 @@
       "probe": "2026-09-26, mutate_diff --base origin/main on the f-string-fields branch, six runs: this mutant survived every one while its siblings (`a + 2`, `b - 2`, `b + 1`, and every mutant of the loop body) were killed by test_fstring_expr_spans_are_EXACT_and_run_to_the_literals_end_on_an_unterminated_field — including the inputs `f\"{a}\"{` (a brace right after the closing quote) and `f\"{}{a}\"` (a field at the first interior character) added to pin the bounds. Checked by hand that the two extra positions the mutant scans can never be a brace.",
       "why": "A PROOF, not a judgement. Starting the token scan at `a - 1` instead of `a + 1` adds exactly two characters, `line[a - 1]` and `line[a]`. `a` indexes the opening QUOTE (`_string_spans` returns spans that start at the quote). `line[a - 1]` is a letter: this branch runs only after `\"f\" in prefix.group(0).lower()` held, where `prefix` is the run of ASCII letters ending at `a`, so it is non-empty and its last character is alphabetic. Neither character is `{` or `}`, so the tokenizer yields them inside a text token that the loop ignores at every depth, and every input produces identical spans. The neighbour `a + 2` IS distinguishable (it drops the first interior character) and is killed.",
       "brief": "#3098 not-examined item — f-string fields are code (changes/2026-09-26-mutation-tools-fstring-fields-are-code.md)"
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- text = t.read_text(encoding=\"utf-8\", errors=\"replace\") | + text = t.read_text(encoding=None, errors=\"replace\")",
+      "probe": "Probed 2026-09-27, three encodings x two locales, with a fixture built to be maximally decoder-sensitive: a repo root carrying both an ASCII file and one whose NAME holds non-ASCII bytes, and a test naming both plus non-ASCII noise in a non-matching literal. root_reads run in a subprocess under PYTHONUTF8=1 and under LC_ALL=C LANG=C PYTHONUTF8=0 PYTHONCOERCECLOCALE=0, for encoding='utf-8', encoding=None and the argument omitted: ALL THREE IDENTICAL in both locales (utf-8 locale: both names; C locale: the ASCII name only, for all three variants). STRUCTURAL, not luck: errors='replace' means no decoder can raise, and the only decoded values that reach the output are literals compared against names from root.iterdir() — filesystem names, decoded with the SAME locale-dependent codec. Under the C locale the non-ASCII name is surrogate-escaped from the filesystem and replacement-charred from the source, so it fails to match for the ORIGINAL too; the census therefore cannot observe which codec read the file. Same family as the cpap_spool and oxy_inventory encoding entries, and the same conclusion test_the_sidecar_reader_does_not_depend_on_the_BOXES_locale records for its own first attempt, which examined nothing for this reason."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- text = t.read_text(encoding=\"utf-8\", errors=\"replace\") | + text = t.read_text(errors=\"replace\")",
+      "probe": "Same probe as the encoding=None sibling above: the census cannot observe the codec, so no input distinguishes the omitted argument either."
     }
   ],
   "mutation_pure.py": [
