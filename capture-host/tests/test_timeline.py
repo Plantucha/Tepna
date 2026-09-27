@@ -698,3 +698,64 @@ def test_a_legacy_header_that_names_nothing_reads_at_the_documented_positions(tm
     assert list(got) == ["H10"], "no address column at all — the row keys on the device name"
     assert [(c, r) for _ts, c, r in got["H10"]] == [(1, -55.0), (0, -70.0)], \
         "ts/device/connected/rssi read at positions 0/1/2/3"
+
+
+# ══ THE TIMELINE AND THE VERDICT DESCRIBE THE SAME SESSION (2026-09-27) ════════════════════════════
+# `timeline.build` picked `max(sessions, key=end)` — the session reaching the latest write — while
+# `nightqc.summarize` picked the SUBSTANTIVE one, and the comment here asserted they agreed. They did not.
+# Measured over the 64 nights carrying a QC summary on vigil, from the `sessions` those summaries already
+# record: 56 are multi-session and the two rules choose DIFFERENTLY on 27, twice choosing a session with
+# ZERO rows (2026-09-14, 2026-09-18) — so the rendered coverage window came from a session holding no data.
+# Both now call `nightqc.judged_session`, which holds the rule and the measurement behind it.
+
+def _timeline_window(night, devs):
+    out = timeline.build(night, devs)
+    return out["t0"], out["t1"]
+
+
+def test_the_timeline_renders_the_SUBSTANTIVE_session_not_the_latest_one(tmp_path):
+    """The 2026-08-15 charger shape, which is what moved `summarize` off latest-ending in the first place:
+    a real night, then a shorter later session of a device sitting in its charger streaming noise. Under
+    the old rule the timeline drew its whole window from the charger."""
+    night = tmp_path / "2026-08-15"; night.mkdir()
+    _capture_file(night, "20260815024200", "ecg", rows=3000, fs=130.0)   # the night
+    _capture_file(night, "20260815100100", "ecg", rows=1000, fs=130.0)   # the charger, later, smaller
+    devs = [{"name": "Polar H10 02849638", "device_id": "02849638", "address": "AA", "streams": ["ecg"]}]
+    charger_start = dt.datetime.strptime("20260815100100", "%Y%m%d%H%M%S").timestamp()
+    night_start = dt.datetime.strptime("20260815024200", "%Y%m%d%H%M%S").timestamp()
+
+    t0, t1 = _timeline_window(str(night), devs)
+    assert round(t0) == round(night_start), "the window opens with the NIGHT, not the charger"
+    assert t1 <= charger_start, (
+        f"and closes before the charger session begins — t1={t1} charger={charger_start}")
+
+
+def test_the_timeline_never_draws_its_window_from_a_session_with_no_rows(tmp_path):
+    """The zero-row corollary, and the two real nights that forced it (2026-09-14, 2026-09-18): the later
+    session carried NO rows and latest-ending selected it anyway, so the coverage window came from a
+    session holding no data. A session with rows outranks one without, whatever its clock says."""
+    night = tmp_path / "2026-09-14"; night.mkdir()
+    _capture_file(night, "20260914010000", "ecg", rows=2000, fs=130.0)   # the data
+    _capture_file(night, "20260914120000", "ecg", rows=0, fs=130.0)      # later, and empty
+    devs = [{"name": "Polar H10 02849638", "device_id": "02849638", "address": "AA", "streams": ["ecg"]}]
+    empty_start = dt.datetime.strptime("20260914120000", "%Y%m%d%H%M%S").timestamp()
+    data_start = dt.datetime.strptime("20260914010000", "%Y%m%d%H%M%S").timestamp()
+
+    t0, t1 = _timeline_window(str(night), devs)
+    assert round(t0) == round(data_start) and t1 <= empty_start, (
+        "the window is the session that carried data")
+
+
+def test_the_timeline_and_the_QC_verdict_name_the_SAME_judged_session(tmp_path):
+    """The property itself, asserted across the two modules rather than inside either: one rule, one call
+    site, so they cannot drift apart again. This is the assertion that would have caught the divergence —
+    each module's own tests passed throughout, because neither ever looked at the other."""
+    night = tmp_path / "2026-08-15"; night.mkdir()
+    _capture_file(night, "20260815024200", "ecg", rows=3000, fs=130.0)
+    _capture_file(night, "20260815100100", "ecg", rows=1000, fs=130.0)
+    devs = [{"name": "Polar H10 02849638", "device_id": "02849638", "address": "AA", "streams": ["ecg"]}]
+
+    t0, _t1 = _timeline_window(str(night), devs)
+    judged = _nightqc.summarize(str(night), devs)["judged_session"]
+    assert judged["start"] == round(t0), (
+        f"the verdict judged {judged['start']} and the timeline drew from {round(t0)}")
