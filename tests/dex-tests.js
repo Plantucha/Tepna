@@ -8773,12 +8773,18 @@
         !/function\s+(threeCorneredHat|tchSigmas)\s*\(/.test(src),
         'a private copy of the hat came back — delete it and delegate (2026-08-04 measured the copy byte-equivalent and ungated)'
       );
+      if (!S) {
+        // The browser lane (Dex-Test-Suite.html) co-loads no analysis-stats.js — the same SKIP the
+        // statistics-kernel group takes there. The Node lane binds the numbers below on every run.
+        T.skip('the shared kernel the tool runs is loaded in this lane', 'Node-lane only — run-tests.mjs co-loads analysis-stats.js');
+        return;
+      }
       T.ok(
-        'the shared kernel the tool runs is loaded in this lane',
-        !!S && typeof S.threeCorneredHat === 'function',
+        'the shared kernel the tool runs exposes threeCorneredHat',
+        typeof S.threeCorneredHat === 'function',
         'AnalysisStats.threeCorneredHat unavailable — the numeric rows below would vacuously pass'
       );
-      if (!S || typeof S.threeCorneredHat !== 'function') return;
+      if (typeof S.threeCorneredHat !== 'function') return;
       var toolHat = S.threeCorneredHat;
 
       var CASES = [
