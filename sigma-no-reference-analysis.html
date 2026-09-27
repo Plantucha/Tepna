@@ -640,6 +640,63 @@ function __mkWorker(name){ return new Worker(URL.createObjectURL(new Blob([__WSR
     return x;
   }
   // Series-level sibling of `tchSigmas`, taking a per-PAIR ρ instead of assuming independence.
+  /* ── Derived 1-Hz HR files → aligned HR + per-second fused-hat confidence (TCH-FUSED-ROBUST-HAT) ──
+     `tools/derive-sigma-window.mjs` writes one row per second, header-named columns:
+       H10    "tMs;hr;src[;c]"        Verity "tMs;hr;sqiMean[;c]"
+     `c` is the DSP tier's `beatConfidence` (density × SQI, AF-safe) for that second, in [0,1] — the
+     weight `tchSigmasFused` multiplies in. Files written before 2026-09-26 have no `c` column; they
+     parse with `hasConf:false` and an EMPTY confidence map, and the consumer must then run the
+     CLASSIC hat: defaulting an absent confidence to 1 and calling the fused hat would move the
+     committed-corpus numbers with no measurement behind the move (§∅ — absence is null). Columns are
+     found BY HEADER NAME, never by position, so the two layouts and any future column parse alike.
+     `sqi` is the first finite `sqiMean` (the Verity file's per-window SQI the sigma page displays);
+     for a header without `sqiMean` it falls back to a numeric third column in [0,1] — the exact
+     legacy read — so a pre-2026-09-26 file yields the same value it always did. */
+  function parseDerivedHr(text, opts) {
+    opts = opts || {};
+    var hrMin = opts.hrMin == null ? 30 : opts.hrMin,
+      hrMax = opts.hrMax == null ? 220 : opts.hrMax;
+    var L = String(text || '').split(/\r?\n/);
+    var head = (L[0] || '').split(';').map(function (h) {
+      return h.trim();
+    });
+    var iC = head.indexOf('c'),
+      iQ = head.indexOf('sqiMean');
+    var hr = new Map(),
+      c = new Map(),
+      sqi = null,
+      nConf = 0;
+    for (var i = 1; i < L.length; i++) {
+      if (!L[i]) continue;
+      var cc = L[i].split(';');
+      var ms = +cc[0],
+        h = +cc[1];
+      if (!isFinite(ms) || !(h >= hrMin && h <= hrMax)) continue;
+      var sec = Math.floor(ms / 1000) * 1000;
+      hr.set(sec, h);
+      if (iC >= 0) {
+        var v = +cc[iC];
+        if (isFinite(v) && v >= 0 && v <= 1) {
+          c.set(sec, v);
+          nConf++;
+        }
+      }
+      if (sqi == null) {
+        var q = iQ >= 0 ? +cc[iQ] : iC < 0 ? +cc[2] : NaN;
+        if (isFinite(q) && q >= 0 && q <= 1) sqi = q;
+      }
+    }
+    return { hr: hr, c: c, sqi: sqi, hasConf: iC >= 0 && nConf > 0, columns: head, n: hr.size };
+  }
+  // The confidence series aligned to a window's key list: a second the map does not carry is 1 (a
+  // beat the DSP saw and did not flag), which is the classic weight. Call it only for a file whose
+  // `hasConf` is true — see parseDerivedHr on why an absent COLUMN must not become a series of 1s.
+  function confidenceSeries(cMap, keys) {
+    var out = new Array(keys.length);
+    for (var i = 0; i < keys.length; i++) out[i] = cMap && cMap.has(keys[i]) ? cMap.get(keys[i]) : 1;
+    return out;
+  }
+
   /* ── Block-bootstrap CI whose ESTIMATOR FOLLOWS THE POINT (DEEP-AUDIT-VI F16) ─────────────────
      The sigma-no-reference live path pairs a FUSED-hat point (per-second DSP confidences
      down-weighting artifact bursts) with a CI bootstrapped from the CLASSIC unweighted hat — two
@@ -1092,6 +1149,8 @@ function __mkWorker(name){ return new Worker(URL.createObjectURL(new Blob([__WSR
     tchSigmas: tchSigmas,
     tchSigmasFused: tchSigmasFused,
     tchBlockBootstrapCI: tchBlockBootstrapCI,
+    parseDerivedHr: parseDerivedHr,
+    confidenceSeries: confidenceSeries,
     tchSigmasPairwise: tchSigmasPairwise,
     tchSigmasPairwiseFromVars: tchSigmasPairwiseFromVars,
     tchRhoCrit: tchRhoCrit,
@@ -1328,22 +1387,16 @@ function __mkWorker(name){ return new Worker(URL.createObjectURL(new Blob([__WSR
     }
     return n;
   }
-  // derived file: "tMs;hr;…" — col0 is a numeric floating-ms second (Verity PPG-derived & H10 ECG-derived share this)
+  // derived file: "tMs;hr;…[;c]" — col0 is a numeric floating-ms second (Verity PPG-derived & H10
+  // ECG-derived share this). Parsing is single-sourced in analysis-stats.js (header-named columns):
+  // `_sqi` is the first sqiMean (unchanged display), `_c` the per-second fused-hat confidence when the
+  // file carries a `c` column (tools/derive-sigma-window.mjs since 2026-09-26), `_hasConf` says so.
   function derivedMap(text) {
-    const o = new Map(),
-      L = text.split(/\r?\n/);
-    let sqi = null;
-    for (let i = 1; i < L.length; i++) {
-      if (!L[i]) continue;
-      const c = L[i].split(';');
-      const ms = +c[0],
-        hr = +c[1];
-      if (!isFinite(ms) || !(hr >= HR_MIN && hr <= HR_MAX)) continue;
-      const q = +c[2];
-      if (sqi == null && isFinite(q) && q >= 0 && q <= 1) sqi = q;
-      o.set(sFloor(ms), hr);
-    }
-    o._sqi = sqi;
+    const d = AnalysisStats.parseDerivedHr(text, { hrMin: HR_MIN, hrMax: HR_MAX });
+    const o = d.hr;
+    o._sqi = d.sqi;
+    o._c = d.c;
+    o._hasConf = d.hasConf;
     return o;
   }
 
@@ -1440,7 +1493,15 @@ function __mkWorker(name){ return new Worker(URL.createObjectURL(new Blob([__WSR
       vv.push(Vt.get(k));
       oo.push(Ot.get(k));
     }
-    const s = tchSigmas(hh, vv, oo);
+    // TCH-FUSED-ROBUST-HAT (closed 2026-09-26): the committed-corpus path runs the FUSED hat when the
+    // derived files carry the DSP's per-second confidence, and the CLASSIC hat when they do not. The
+    // estimator follows the data, never a default of 1 (§∅): a pre-2026-09-26 file yields exactly the
+    // numbers it always did. The O2Ring CSV carries no confidence — that corner is weight 1.
+    const fused = !!(Ht._hasConf || Vt._hasConf);
+    const cH = fused ? AnalysisStats.confidenceSeries(Ht._c, ks) : null,
+      cV = fused ? AnalysisStats.confidenceSeries(Vt._c, ks) : null,
+      cO = fused ? ks.map(() => 1) : null;
+    const s = fused ? tchSigmasFused(hh, vv, oo, cH, cV, cO) : tchSigmas(hh, vv, oo);
     const HV = { ...ba(s.dHV), r: pearson(hh, vv) },
       HO = { ...ba(s.dHO), r: pearson(hh, oo) },
       VO = { ...ba(s.dVO), r: pearson(vv, oo) };
@@ -1474,6 +1535,7 @@ function __mkWorker(name){ return new Worker(URL.createObjectURL(new Blob([__WSR
       t1: ks[ks.length - 1],
       verSQI: Vt._sqi,
       sigma: { h10: s.h10, verity: s.verity, o2: s.o2 },
+      estimator: fused ? 'fused' : 'classic',
       negVar: s.negVar,
       neg: s.neg,
       pair: { HV, HO, VO },
@@ -1482,6 +1544,11 @@ function __mkWorker(name){ return new Worker(URL.createObjectURL(new Blob([__WSR
       hh,
       vv,
       oo,
+      // F16: the confidences ride the window so the within-window CI bootstraps the SAME estimator as
+      // the point (null ⇒ classic replicates). Stripped from stats.json like hh/vv/oo.
+      cH,
+      cV,
+      cO,
       keys: ks // kept for block bootstrap / 3-device overlay; stripped from stats.json
     };
   }
@@ -1755,7 +1822,7 @@ function __mkWorker(name){ return new Worker(URL.createObjectURL(new Blob([__WSR
       const ctrl = w.pair.HO;
       const ctrlTxt = `<span style="color:${w.ctrlDrift ? '#FF6B7A' : '#39D98A'}">${sgn(ctrl.bias)} / ${f2(ctrl.sd)}</span>`;
       tr.innerHTML =
-        `<td>${w.label}${negTxt}</td><td class="num">${w.n.toLocaleString()}</td><td class="num">${w.verSQI == null ? '—' : w.verSQI.toFixed(2)}</td>` +
+        `<td>${w.label}${w.estimator === 'fused' ? ' <span class="muted" title="fused-weight hat — the derived files carry the DSP\'s per-second confidence">fused</span>' : ''}${negTxt}</td><td class="num">${w.n.toLocaleString()}</td><td class="num">${w.verSQI == null ? '—' : w.verSQI.toFixed(2)}</td>` +
         `<td class="num" style="color:#FFB84D">${w.sigma.o2 == null ? 'neg' : w.sigma.o2.toFixed(2)}</td>` +
         `<td class="num" style="color:#3DE0D0">${w.sigma.h10 == null ? 'neg' : w.sigma.h10.toFixed(2)}</td>` +
         `<td class="num" style="color:#B98AFF">${w.sigma.verity == null ? 'neg' : w.sigma.verity.toFixed(2)}</td>` +
@@ -2228,8 +2295,8 @@ function __mkWorker(name){ return new Worker(URL.createObjectURL(new Blob([__WSR
       });
       rows.push(['TCH_n_windows', H.N, 'total_simultaneous_s', H.totalS, 'neg_var_windows', H.negWindows, 'control_drift_windows', H.driftWindows]);
       rows.push([]);
-      rows.push(['TCH_per_window', 'label', 'n_s', 'verSQI', 'sigma_o2', 'sigma_h10', 'sigma_verity', 'HO_bias', 'HO_sd', 'neg']);
-      H.windows.forEach((w) => rows.push(['', w.label, w.n, w.verSQI, w.sigma.o2, w.sigma.h10, w.sigma.verity, w.pair.HO.bias, w.pair.HO.sd, w.neg]));
+      rows.push(['TCH_per_window', 'label', 'n_s', 'verSQI', 'sigma_o2', 'sigma_h10', 'sigma_verity', 'HO_bias', 'HO_sd', 'neg', 'estimator']);
+      H.windows.forEach((w) => rows.push(['', w.label, w.n, w.verSQI, w.sigma.o2, w.sigma.h10, w.sigma.verity, w.pair.HO.bias, w.pair.HO.sd, w.neg, w.estimator || 'classic']));
     }
     rows.push([]);
     rows.push(['verity_file', 'hr_usable', 'ppi_usable']);
@@ -2490,6 +2557,7 @@ function __mkWorker(name){ return new Worker(URL.createObjectURL(new Blob([__WSR
       t1: ks[ks.length - 1],
       verSQI: null,
       sigma: { h10: s.h10, verity: s.verity, o2: s.o2 },
+      estimator: 'fused',
       negVar: s.negVar,
       neg: s.neg,
       pair: { HV, HO, VO },

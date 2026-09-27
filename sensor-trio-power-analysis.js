@@ -141,12 +141,6 @@
 
   // ── stats ────────────────────────────────────────────────────────────────
   const mean = (a) => a.reduce((s, x) => s + x, 0) / a.length;
-  function variance(a) {
-    const m = mean(a);
-    let s = 0;
-    for (const x of a) s += (x - m) * (x - m);
-    return s / (a.length - 1);
-  }
   const median = (a) => {
     const s = [...a].sort((p, q) => p - q),
       n = s.length;
@@ -215,30 +209,16 @@
     return sxy / Math.sqrt(sx * sy);
   }
 
-  // ── the SHARED TCH kernel (identical math to sigma-no-reference) ──────────
-  // σ²_A = ½(V_AB + V_AC − V_BC), cyclically; negative variance = broken
-  // uncorrelated-error assumption (surfaced, never hidden).
-  function threeCorneredHat(vAB, vAC, vBC) {
-    return { a: 0.5 * (vAB + vAC - vBC), b: 0.5 * (vAB + vBC - vAC), c: 0.5 * (vAC + vBC - vAB) };
-  }
-  // A=h10, B=verity, C=o2 (kept consistent with the method paper's ordering)
-  function tchSigmas(hh, vv, oo) {
-    const dHV = [],
-      dHO = [],
-      dVO = [];
-    for (let i = 0; i < hh.length; i++) {
-      dHV.push(hh[i] - vv[i]);
-      dHO.push(hh[i] - oo[i]);
-      dVO.push(vv[i] - oo[i]);
-    }
-    const cv = threeCorneredHat(variance(dHV), variance(dHO), variance(dVO));
-    return {
-      h10: cv.a > 0 ? Math.sqrt(cv.a) : null,
-      verity: cv.b > 0 ? Math.sqrt(cv.b) : null,
-      o2: cv.c > 0 ? Math.sqrt(cv.c) : null,
-      neg: cv.a <= 0 || cv.b <= 0 || cv.c <= 0
-    };
-  }
+  // ── the SHARED TCH kernel — DELEGATED to analysis-stats.js (TCH-FUSED-ROBUST-HAT, closed 2026-09-26) ──
+  // This file carried its own byte-equivalent copy of the classic hat (measured 2026-08-04:
+  // max |local − shared| = 0 over 300 random triplets) with NO parity gate, so a fix to the shared
+  // kernel would silently not have reached the figures this tool publishes. The sigma page already
+  // delegated; now both do, and the delegation-parity leg in tests/dex-tests.js scans for it.
+  //   tchSigmas       — classic hat: σ²_A = ½(V_AB + V_AC − V_BC), cyclically; a negative variance is
+  //                     surfaced (null σ + neg flag), never hidden.
+  //   tchSigmasFused  — the same hat over CONFIDENCE-WEIGHTED variances (per-second DSP c per corner).
+  const tchSigmas = AnalysisStats.tchSigmas;
+  const tchSigmasFused = AnalysisStats.tchSigmasFused;
 
   // H10 (ECG) corner gate — pure sibling of sensor-trio-worker.js's h10FailureClass (kept byte-identical
   // so both real-night lanes agree). An ECG-lead fault yields a large POSITIVE σ_h10 that TCH reports
@@ -446,46 +426,29 @@
     }
     return o;
   }
+  // derived 1-Hz file ("tMs;hr;…[;c]") → per-second HR map, plus the per-second fused-hat confidence
+  // when the file carries a `c` column. Parsing is single-sourced in analysis-stats.js (header-named
+  // columns; a pre-2026-09-26 file yields hasConf:false and the classic hat downstream).
   function derivedMap(text) {
-    const o = new Map(),
-      L = text.split(/\r?\n/);
-    for (let i = 1; i < L.length; i++) {
-      if (!L[i]) continue;
-      const cc = L[i].split(';');
-      const ms = +cc[0],
-        hr = +cc[1];
-      if (!isFinite(ms) || !(hr >= HR_MIN && hr <= HR_MAX)) continue;
-      o.set(sFloor(ms), hr);
-    }
+    const d = AnalysisStats.parseDerivedHr(text, { hrMin: HR_MIN, hrMax: HR_MAX });
+    const o = d.hr;
+    o._c = d.c;
+    o._hasConf = d.hasConf;
     return o;
   }
-  // within-window block bootstrap CI of one window's σ̂ (BLOCK_S blocks)
-  function blockCI(hh, vv, oo, B) {
-    const n = hh.length,
-      bl = Math.min(n, 30),
-      nb = Math.ceil(n / bl),
-      acc = { h10: [], verity: [], o2: [] };
-    for (let b = 0; b < B; b++) {
-      const H = [],
-        V = [],
-        O = [];
-      for (let k = 0; k < nb; k++) {
-        const st = Math.floor(rnd() * (n - bl + 1));
-        for (let j = 0; j < bl; j++) {
-          H.push(hh[st + j]);
-          V.push(vv[st + j]);
-          O.push(oo[st + j]);
-        }
-      }
-      const s = tchSigmas(H, V, O);
-      for (const k of DKEYS) if (s[k] != null) acc[k].push(s[k]);
-    }
-    const out = {};
-    for (const k of DKEYS) {
-      const a = acc[k].sort((p, q) => p - q);
-      out[k] = a.length >= 20 ? { lo: pct(a, 0.025), hi: pct(a, 0.975) } : null;
-    }
-    return out;
+  // within-window block bootstrap CI of one window's σ̂ (30-s blocks). Delegated to the shared kernel
+  // so the CI's ESTIMATOR FOLLOWS THE POINT (DEEP-AUDIT-VI F16): with the per-corner confidence
+  // series supplied every replicate runs the fused hat, resampling the confidences in lockstep with
+  // the same block indices; without them every replicate runs the classic hat. Deterministic `rnd`.
+  function blockCI(hh, vv, oo, B, conf) {
+    return AnalysisStats.tchBlockBootstrapCI(hh, vv, oo, {
+      cH: conf ? conf.cH : null,
+      cV: conf ? conf.cV : null,
+      cO: conf ? conf.cO : null,
+      B,
+      blockS: 30,
+      rand: rnd
+    });
   }
   async function loadReal() {
     const windows = [];
@@ -512,8 +475,15 @@
         vv.push(V.get(k));
         oo.push(O.get(k));
       }
-      const s = tchSigmas(hh, vv, oo);
-      const ci = blockCI(hh, vv, oo, 500);
+      // The estimator follows the DATA: a derived file that carries the DSP's per-second confidence
+      // (`c`, written by tools/derive-sigma-window.mjs since 2026-09-26) runs the FUSED hat — that
+      // corner's flagged seconds leave its differences, the clean corners are untouched; a file
+      // without it runs the CLASSIC hat exactly as before (never c=1 by default — §∅). The O2Ring's
+      // 1-Hz CSV carries no confidence, so its corner is weight 1 either way.
+      const fused = !!(H._hasConf || V._hasConf);
+      const conf = fused ? { cH: AnalysisStats.confidenceSeries(H._c, ks), cV: AnalysisStats.confidenceSeries(V._c, ks), cO: ks.map(() => 1) } : null;
+      const s = fused ? tchSigmasFused(hh, vv, oo, conf.cH, conf.cV, conf.cO) : tchSigmas(hh, vv, oo);
+      const ci = blockCI(hh, vv, oo, 500, conf);
       const rHV = pearson(hh, vv),
         rHO = pearson(hh, oo),
         rVO = pearson(vv, oo);
@@ -527,6 +497,7 @@
         n: ks.length,
         sigma: { o2: s.o2, h10: s.h10, verity: s.verity },
         ci,
+        estimator: fused ? 'fused' : 'classic',
         neg: s.neg,
         h10Unreliable: h10Cls !== 'ok',
         h10Fault: h10Cls !== 'ok' ? h10Cls : null,
