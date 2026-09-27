@@ -1062,6 +1062,11 @@ def test_BOTH_sidecar_readers_declare_their_encoding_and_never_inherit_the_hosts
     d = tmp_path
     (d / "CLOCKSYNC.csv").write_text("at;event\n2026-09-20T23:12:00;resync\n")
     _raw_seams(d, SEAM_HDR + [_seam_row(12 * 60_000, 2.44e8 * 1000.0)])
+    # IN-PROCESS FIRST, and it is not redundant: mutmut selects which tests to run for a mutant from
+    # COVERAGE, and a subprocess is invisible to the tracer. Without these two calls the test never
+    # runs against the very mutants it kills, and all four `encoding=` survivors read as unkillable.
+    assert len(si.recorded_seams(str(d / f"{BASE}_ECG.txt"), None, None)) == 1
+    assert si._seam_cause(str(d))
     src = (
         "import solid_night_inputs as si\n"
         f"seams = si.recorded_seams({str(d / f'{BASE}_ECG.txt')!r}, None, None)\n"
