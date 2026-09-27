@@ -88,6 +88,28 @@ exists."*
 `nsrr-oxydex-odi.mjs`) plus `docs/ODI-BIAS-ANALYSIS-README.md`, and the ODI-4 paper's replication on
 5136 real PSG rests on it. A 189 GB cohort behind a published number sat outside the corpus map.
 
+**A FOURTH CONSUMED TIER LANDED ON THE TrueNAS 2026-09-26 — `/mnt/nas/nsrr/open-datasets/` (84 GB).**
+Five public sleep datasets under attribution-only / public-domain licences (ODC-By 1.0, CC BY 4.0),
+fetched by the rig-side scripts named in its `README.md`, which also carries every required citation
+and a SomnoStage note (its published *source list* prompted the shortlist; nothing from that model is
+present or may be used with this data). Unlike `nsrr-shhs1/` there is **no data-use gate**: derived
+results may be published with attribution. Read `.fetch.done` before trusting a set — it is the
+per-dataset verification verdict, and on 2026-09-27 two of five had NOT passed:
+
+| dir | what it is | size | verified |
+|---|---|---|---|
+| `challenge-2018/` | PhysioNet/CinC 2018 training half — 994 clinical PSG nights, EEG/EOG/EMG, ECG, SaO₂ at 200 Hz, AASM stages + arousals | 73 GB | **no** — 1 of 3,981 files failed its checksum (`tr07-0231-arousal.mat`) |
+| `bidsleep-dataset/` | BIDSleep — 253 nights / 47 adults, Apple Watch instantaneous HR + 3-axis ACC, Dreem EEG stages | 5.4 GB | **no** — verification did not complete (empty `verify.out`, no `.verified`) |
+| `aauwss/` | Aalborg Wearable Sleep Study — 13 subjects, Empatica E4 PPG 64 Hz + ACC + EDA + temp, PSG with ECG 200 Hz, AASM stages | 6.0 GB | yes |
+| `respiratory-oximetry-apnoea/` | SpO₂ + pleth waveforms around controlled breath-holds (Hill 2026) | 48 MB | yes |
+| `hugcdn2014-oxi/` | HRV + SpO₂ from apnoea patients (HuGCDN2014-OXI) | 88 MB | yes |
+
+Why it matters here: two of the five are **wearable-domain** (wrist HR + ACC; 64 Hz wrist PPG + ACC
+beside PSG ECG), the gap SHHS structurally cannot fill (`SHHS-EXTERNAL-VALIDATION` §1). They validate
+PPG-derived beats and HRV, motion and sleep-wake logic, and the PPG-vs-ECG timing family on other
+people's bodies — not our devices' BLE timing, which still needs these sensors worn by more people.
+The owner's NSRR ruling carries over: aggregate derived values only, never corpus bytes in the repo.
+
 **TrueNAS exports are rig-only** (`hosts: [192.168.0.57]`), rw, `mapall_user/group = truenas_admin`
 so NFS writes and vigil's ssh pushes share one owner. NFS was enabled 2026-09-20 on the owner's
 instruction; before that the host answered ping and SMB but **111 and 2049 were closed**, which is
