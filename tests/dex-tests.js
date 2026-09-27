@@ -13204,7 +13204,16 @@
          keys and report clean, which is worse than an honest exclusion (residue
          2026-09-27-inline-postmessage-payloads-are-unscanned). */
       var EXCLUDED = {
-        'qrs-equiv-worker.js': 'posts inline postMessage({…}) literals — no named payload builder to read'
+        'qrs-equiv-worker.js': 'posts inline postMessage({…}) literals — no named payload builder to read',
+        /* ADDED 2026-09-27, and it appeared because of a change in the SAME session: making `readSources()`
+           walk the analysis-tool bundles (the source-visibility unit) put `qrs-yield-analysis.js` in
+           `env.sources`, so the enumerator could finally see the `new Worker('qrs-yield-worker.js')` at
+           its line 52. A fourth producer that had been invisible, surfaced by the population equality
+           within one run of widening the inventory — which is the argument for the equality over a count.
+           Same idiom as the two above (5 `postMessage` calls, no `var out = {`, no `out.X =`), so the same
+           exclusion and the same residue row: 2026-09-27-inline-postmessage-payloads-are-unscanned, whose
+           list of two should be read as three. */
+        'qrs-yield-worker.js': 'posts inline postMessage({…}) literals — no named payload builder to read'
       };
       /* 🔴 A FOURTH WORKER, INVISIBLE FOR A DIFFERENT REASON, and my first version of EXCLUDED wrongly
          listed it here — the denominator assertion is what caught that. `cohort-worker.js` is constructed
