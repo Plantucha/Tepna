@@ -2453,6 +2453,18 @@ def should_drop_not_worn(worn_since, now, grace, pull_in_flight: bool = False,
 #: The longest pleth-A inter-frame gap that is NORMAL — 33.27 s measured (2026-09-26 23:00→05:00) plus
 #: ~35 % headroom. Consumed by `BUS.register` for that stream only; see the citation at the call site.
 O2_PLETHA_QUIET_S = 45.0
+#: WHAT THIS STREAM IS, for the card — because "it arrives every ~2 s" does not tell an operator whether
+#: the trickle is a fault. Measured twice, on two nights, by two people, agreeing: 2026-09-26 23:00→05:00
+#: gives 4478 samples/h (1.24 Hz) in 1127 replies — samples per reply mode 3 then 2, mean 3.97, tail to 5
+#: — 34 beat markers/h, and `sensor timestamp [ns]` EMPTY on all 26 867 rows (0 present); a 2026-09-07
+#: smoketest session independently gives ~4200 samples/h (1.2 Hz), ~1330 replies, mode 2 and 3, ~30
+#: markers. The 0x04 `_PPG.txt` on the same finger and link carries ~449 000 samples/h at 124.7 Hz. So
+#: this opcode delivers a ~1 % residual with NO per-sample timing, beside a continuous 125 Hz pleth.
+#: ⚠️ NOT asserted here: that 0x03 drains the leftovers of the 0x04 poll. It is the reading that fits
+#: (the 09-06 smoketest measuring 125.058 Hz polled 0x03 ALONE), it is unverified, and the card says what
+#: the stream DOES rather than why. Owner ruling 2026-09-27: not a PAT candidate, keep the original 156.
+O2_PLETHA_WHY = ("residual buffer drain — a few samples per reply (mode 3), ~1.2 Hz, no per-sample "
+                 "timing; normal for this opcode beside the 125 Hz pleth.")
 
 _STREAM_STALL_S = 90.0       # started-stream silence before the session is torn down; stream.stall_sec (0 = off)
 # Re-bond cadence for a Polar whose BlueZ bond has vanished mid-session. Every 5th reconnect, up to 72
@@ -5422,7 +5434,7 @@ async def run_oxyii(dev: dict, root: str):
                     # those gaps the 2-wavelength, PPG and ACCRAW streams were still arriving, 100 % of
                     # them, on the same connection and the same notification handler.
                     BUS.register("o2pletha", "Raw pleth A (O2Ring)", "raw", 0, chans=1, device=name,
-                                 quiet_s=O2_PLETHA_QUIET_S)
+                                 quiet_s=O2_PLETHA_QUIET_S, quiet_why=O2_PLETHA_WHY)
                 if ppg2wr:
                     # fs=0 DELIBERATELY. Every reply carries exactly 102 records whatever the poll
                     # spacing, which is a fixed buffer cap and not a rate (cmd 0x03 caps the same way at

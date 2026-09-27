@@ -491,6 +491,10 @@ def test_the_bus_publishes_the_why_and_the_OBSERVED_gaps_only_for_such_a_stream(
     rows = {r["key"]: r for r in bus.meta()}
     assert rows["o2pletha"]["quietS"] == _QUIET
     assert "45s" in rows["o2pletha"]["healthWhy"] and "90s" in rows["o2pletha"]["healthWhy"]
+    # and a registered stream states its NATURE, not only its cadence — an operator glancing at the card
+    # must be able to tell a designed trickle from a fault without leaving the page.
+    bus.register("o2p2", "Raw pleth A (O2Ring)", "raw", 0, quiet_s=_QUIET, quiet_why="residual drain —")
+    assert {r["key"]: r for r in bus.meta()}["o2p2"]["healthWhy"].startswith("residual drain —")
     assert "observedGap" in rows["o2pletha"]
     assert rows["o2pletha"]["observedGap"] is None, "no pushes yet ⇒ no gap measured, not a zero (§∅)"
     for absent in ("quietS", "healthWhy", "observedGap"):

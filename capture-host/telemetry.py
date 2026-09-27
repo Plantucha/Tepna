@@ -671,8 +671,15 @@ def note_flat_battery(
 
 
 def stream_health(
-    nominal_fs, eff_fs, age_s, warmup: bool = False, *, weak_frac: float = _WEAK_FRAC, stall_s: float = _STALL_S,
-    quiet_s: float | None = None, quiet_stall_s: float = _QUIET_STALL_S
+    nominal_fs,
+    eff_fs,
+    age_s,
+    warmup: bool = False,
+    *,
+    weak_frac: float = _WEAK_FRAC,
+    stall_s: float = _STALL_S,
+    quiet_s: float | None = None,
+    quiet_stall_s: float = _QUIET_STALL_S,
 ) -> str:
     """Classify one stream's link health from its nominal rate, measured effective rate, and the age of
     its last sample. PURE (no bus state) so it is unit-testable. Returns 'good'|'weak'|'stall'|'idle'.
@@ -730,6 +737,8 @@ class StreamMeta:
     #: arrival is continuous. Set ONLY from a cited measurement (see `stream_health`), and its presence is
     #: what puts the stream on the intermittent branch. None keeps every existing stream byte-for-byte.
     quiet_s: "float | None" = None
+    #: The stream's own one-line nature, for the card. Set beside `quiet_s` at the registration.
+    quiet_why: "str | None" = None
 
 
 # Device-unique base streams. Anything that can come from >1 device (ACC/GYRO/MAG/PPI/PPG) is registered
@@ -789,8 +798,12 @@ class TelemetryBus:
         # uncovered line, which is how this file's coverage floor reads a defensive reflex.
         gaps = sorted(b - a for a, b in zip(ts, ts[1:]))
         k = int(round(0.99 * (len(gaps) - 1)))
-        return {"n": len(gaps), "medianS": round(gaps[len(gaps) // 2], 3), "p99S": round(gaps[k], 3),
-                "maxS": round(gaps[-1], 3)}
+        return {
+            "n": len(gaps),
+            "medianS": round(gaps[len(gaps) // 2], 3),
+            "p99S": round(gaps[k], 3),
+            "maxS": round(gaps[-1], 3),
+        }
 
     def _stream_rate(self, stream: str, now: float) -> tuple[float | None, float | None, bool]:
         """(effective_fs | None, age_of_last_sample_s | None, warmup) for one stream.
@@ -868,9 +881,13 @@ class TelemetryBus:
             # distribution beside them so the citation can be checked against the device in front of you.
             if m.quiet_s is not None:
                 row["quietS"] = m.quiet_s
+                # The stream's registered sentence first, then the two figures this module owns. The
+                # nature comes from the registration because only the declaring site has measured it.
                 row["healthWhy"] = (
-                    f"this frame type arrives in bursts with gaps up to ~{m.quiet_s:.0f}s — that is normal "
-                    f"for it; NO DATA only after {_QUIET_STALL_S:.0f}s of silence")
+                    (f"{m.quiet_why} " if m.quiet_why else "")
+                    + f"Gaps to ~{m.quiet_s:.0f}s are expected; "
+                    + f"NO DATA only after {_QUIET_STALL_S:.0f}s of silence."
+                )
                 row["observedGap"] = self._observed_gap_s(m.key)
             if m.key in self._shape_err:
                 row["shapeError"] = self._shape_err[m.key]
@@ -884,8 +901,16 @@ class TelemetryBus:
         return dict(self._shape_err)
 
     def register(
-        self, key: str, label: str, unit: str, fs: float, chans: int = 1, labels=(), device: "str | None" = None,
-        quiet_s: "float | None" = None
+        self,
+        key: str,
+        label: str,
+        unit: str,
+        fs: float,
+        chans: int = 1,
+        labels=(),
+        device: "str | None" = None,
+        quiet_s: "float | None" = None,
+        quiet_why: "str | None" = None,
     ) -> None:
         """Declare a stream so the UI shows it (with per-channel labels) even before the first frame.
         Idempotent; call once per device stream when its capture opens. `device` is the configured
@@ -894,8 +919,13 @@ class TelemetryBus:
 
         `quiet_s` declares the stream INTERMITTENT and states the longest gap that is normal for it, from
         a cited measurement — see `stream_health`. Also last and optional: omitted, the stream is judged
-        exactly as before."""
-        self._meta[key] = StreamMeta(key, label, unit, fs, chans, tuple(labels), device, quiet_s)
+        exactly as before.
+
+        `quiet_why` is that stream's OWN sentence about what it is, shown on the card. It belongs at the
+        registration beside the citation rather than in this module, because the nature of a stream is a
+        fact about that opcode and not about health arithmetic — a generic sentence built from `quiet_s`
+        can only say how OFTEN frames arrive, which is the smaller half of what an operator needs."""
+        self._meta[key] = StreamMeta(key, label, unit, fs, chans, tuple(labels), device, quiet_s, quiet_why)
 
     def claim(self, key: str, device: str) -> None:
         """Name the configured device that owns an ALREADY-declared stream. For the `DEFAULT_META` keys
