@@ -755,3 +755,85 @@ def test_a_READABLE_clock_record_with_no_event_names_no_cause(tmp_path):
     (d / "CLOCK.csv").write_text("at;event\n2026-09-20T23:13:00;nothing here\n")
     tb = _stepped(d, step_ms=2.44e8 * 1000.0)
     assert "no cause recorded this night" in tb["reason"], tb["reason"]
+
+
+def _stepped_twice(d, step_ms, at1_min, at2_min, minutes=24, rate=2.0, ppm=20.0):
+    """`_stepped` with TWO seams, which no fixture had. Same per-row device jitter, for the same
+    reason: a uniform device column scores as a DRAWN axis and returns before the split is reached."""
+    pairs, seam1, seam2 = [], None, None
+    n = int(minutes * 60 * rate)
+    for i in range(n):
+        host_ms = i * (1000.0 / rate)
+        dev_ms = host_ms * (1.0 + ppm / 1e6) + ((i * 7919) % 211) / 1e6
+        if host_ms >= at1_min * 60_000:
+            if seam1 is None:
+                seam1 = host_ms
+            dev_ms += step_ms
+        if host_ms >= at2_min * 60_000:
+            if seam2 is None:
+                seam2 = host_ms
+            dev_ms += step_ms
+        pairs.append((host_ms, int(round(dev_ms * 1e6))))
+    _pairs(d, pairs)
+    _seam_rows(d, [(seam1, step_ms), (seam2, step_ms)])
+    _runs(d, "ECG")
+    _runs(d, "ACC")
+    _audit(d, end=(T0 + dt.timedelta(minutes=minutes)).isoformat())
+    return _bands(d)[H10["name"]]["bands"]["timebase"]
+
+
+def test_TWO_seams_make_THREE_segments_and_the_boundary_walk_consumes_them_ONE_at_a_time(tmp_path):
+    """The seam split's own boundary arithmetic, which nothing observed.
+
+    `cur, bi = [], bi + 1` advances PAST ONE recorded bound per crossing. With a single seam the
+    mutant `bi + 2` is indistinguishable — both land at or past `len(bounds)`, so both produce two
+    segments — and every fixture here used exactly one seam. It takes TWO to separate them: the
+    mutant consumes both bounds on the first crossing and the third stretch is never opened, so a
+    night with two recorded steps is judged as two segments instead of three and the middle stretch
+    is silently merged into its neighbour.
+    """
+    tb = _stepped_twice(tmp_path, step_ms=2.44e8 * 1000.0, at1_min=8, at2_min=16)
+    assert "/3" in tb["reason"], tb["reason"]
+    assert "2 recorded clock seam(s)" in tb["reason"], tb["reason"]
+    # THREE more mutants die on this one string, because all three segments tie on rank and `>` keeps
+    # the FIRST: the segment counter must start at 1 (not 0, not 2) and the tie-break must be strict.
+    # `>=` would report the LAST segment instead, i.e. "segment 3/3".
+    assert "segment 1/3" in tb["reason"], tb["reason"]
+
+
+def test_the_WORST_segment_decides_and_an_UNKNOWN_one_FIRST_does_not_win(tmp_path):
+    """The worst-of-segments rule, in the order that can actually get it wrong.
+
+    `rank = {"FAIL": 2, "UNKNOWN": 1, "PASS": 0}` with `>` keeps the FIRST segment on a tie. So the
+    case that separates a correct ranking from a broken one is an UNKNOWN segment BEFORE a FAIL one:
+    every existing fixture had a single status, or the worse one first, and none of them look at
+    `rank` hard enough to notice it changing.
+
+    Segment 1 is UNKNOWN by anchor count (2 < TB_MIN_ANCHORS = 3); segment 2 is FAIL by rate. This
+    one assertion kills three mutants at once — the two `"FAIL"` key re-spellings, which make
+    `rank[out["status"]]` raise KeyError the moment any segment is FAIL, and `"UNKNOWN": 1 → 2`,
+    which ties UNKNOWN with FAIL so the earlier UNKNOWN wins and the night stops reporting its own
+    rate failure.
+    """
+    d = tmp_path
+    rate, minutes = 2.0, 24
+    seam_at = 1000.0  # after only 2 anchors at 500 ms spacing → segment 1 is under TB_MIN_ANCHORS
+    step_ms = 2.44e8 * 1000.0
+    pairs = []
+    n = int(minutes * 60 * rate)
+    for i in range(n):
+        host_ms = i * (1000.0 / rate)
+        # segment 2 drifts far past TB_MAX_PPM (50 000) so it is a rate FAIL, not an independent clock
+        ppm = 20.0 if host_ms < seam_at else 200_000.0
+        dev_ms = host_ms * (1.0 + ppm / 1e6) + ((i * 7919) % 211) / 1e6
+        if host_ms >= seam_at:
+            dev_ms += step_ms
+        pairs.append((host_ms, int(round(dev_ms * 1e6))))
+    _pairs(d, pairs)
+    _seam_rows(d, [(seam_at, step_ms)])
+    _runs(d, "ECG")
+    _runs(d, "ACC")
+    _audit(d, end=(T0 + dt.timedelta(minutes=minutes)).isoformat())
+    tb = _bands(d)[H10["name"]]["bands"]["timebase"]
+    assert tb["status"] == "FAIL", (tb["status"], tb["reason"])
+    assert "ppm" in tb["reason"], tb["reason"]
