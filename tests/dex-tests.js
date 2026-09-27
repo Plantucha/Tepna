@@ -12980,7 +12980,14 @@
        off. Adding a pair is a deliberate act that says "these two files are a boundary". */
     group('No value crosses a worker boundary unread', 'cohesion · dead-cross-boundary · pat', function (T) {
       var S = env.sources || {};
-      var PAIRS = [{ producer: 'pat-feasibility-worker.js', consumers: ['pat-feasibility.js', 'pat-gate.js'] }];
+      /* The consumer set is a HAND-WRITTEN list, so a new reader of this worker must be added here or its
+         keys read as dead. `pat-classic-vs-fused.js` joined 2026-09-26 — it reads `fused` and `threeFused`.
+         ⚠️ Registering the file in both lanes' SOURCE inventories was NOT enough and the distinction cost a
+         cycle: the scan then had the text and still reported both keys dead, because this list — not the
+         inventory — decides whose reads count. A derived consumer set (every source that names the worker,
+         or that the page's own `new Worker(...)` points at) would need no edit for the next page; that is a
+         real improvement and deliberately not smuggled into this unit. */
+      var PAIRS = [{ producer: 'pat-feasibility-worker.js', consumers: ['pat-feasibility.js', 'pat-gate.js', 'pat-classic-vs-fused.js'] }];
       /* KNOWN, published, ratcheted — same discipline as the visibility cap above. The set is now
          EMPTY: `detailCorr` (the packed per-beat detail for the ACC-corrected coupling) sat here at
          ratchet ONE from 2026-09-02 until its parent finding's own closure was read — ENGINE-VERIFICATION
