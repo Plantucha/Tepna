@@ -225,7 +225,14 @@ const SOURCE_FILES = ['tools/trio-batch.mjs','tools/pat-host-offset.mjs','tools/
  /* The trio page's RENDERER, listed the day the independence-sensitivity row was written. The Node lane
     had it and this lane did not, and only the BROWSER lane could say so: the row's own assertion message
     reads "must be listed in BOTH lanes", and it was that assertion — not a reviewer — that failed here. */
- 'sensor-trio-night.js','sensor-trio-power-analysis.js','sensor-trio-gpu.js','hrvdex-render.js','pat-gate.js','pat-align.js','manifest-gate.js','tools/build.mjs','tools/verify-fixtures.mjs','tools/regen-goldens.mjs','tools/regen-goldens-core.mjs','tools/regen-oxydex-goldens.mjs','tools/regen-ecgdex-goldens.mjs','tools/regen-ppgdex-goldens.mjs','tools/regen-pulsedex-goldens.mjs','tools/regen-hrvdex-goldens.mjs','tools/regen-glucodex-goldens.mjs','tools/regen-cpap-goldens.mjs','tools/regen-motiondex-goldens.mjs','signal-orchestrate.js','dex-ingest.js',
+ /* ── THE WORKER-BOUNDARY POPULATION NEEDS BOTH ENDS OF EACH BOUNDARY IN THIS LANE (2026-09-27) ──────
+    The boundary gate enumerates worker PRODUCERS by finding the sources that CONSTRUCT them, so a lane
+    missing a constructor cannot see that producer at all, and a lane missing a consumer reports its keys
+    as dead. Both happened here: the browser lane found 2 producers where the Node lane finds 3, and
+    reported `hh,vv,oo,h10Source,o2Source` dead on sensor-trio-worker.js. `qrs-equiv-analysis.js` was the
+    sharp one — it is EVAL'd further down this file for behaviour but was never registered as a SOURCE, so
+    its text was unreadable while its code ran. */
+ 'qrs-equiv-analysis.js','sigma-no-reference-analysis.js','sensor-trio-night.js','sensor-trio-power-analysis.js','sensor-trio-gpu.js','hrvdex-render.js','pat-gate.js','pat-align.js','manifest-gate.js','tools/build.mjs','tools/verify-fixtures.mjs','tools/regen-goldens.mjs','tools/regen-goldens-core.mjs','tools/regen-oxydex-goldens.mjs','tools/regen-ecgdex-goldens.mjs','tools/regen-ppgdex-goldens.mjs','tools/regen-pulsedex-goldens.mjs','tools/regen-hrvdex-goldens.mjs','tools/regen-glucodex-goldens.mjs','tools/regen-cpap-goldens.mjs','tools/regen-motiondex-goldens.mjs','signal-orchestrate.js','dex-ingest.js',
   'cpapdex-dsp.js','cpapdex-cross.js','cpapdex-edf.js','cpapdex-app.js','cpapdex-fusion.js','ecgdex-morph.js','ppgdex-morph.js','dex-export.js',
   'ganglior-provenance.js','signal-frame.js','measurement-block.js','verdict.js','night-seal.js','glucodex-render.js','glucodex-app.js',
   'cpapdex-render.js','pulsedex-overview.js','ecgdex-profile.js','glucodex-profile.js','ppgdex-profile.js',

@@ -13153,7 +13153,120 @@
          The array survives as an ALLOWLIST for a consumer the scan cannot see: `pat-gate.js` reads `m.cp`
          off the payload and never constructs the worker (it is handed the object), so no construction
          rule can find it. Derived set + small allowlist needs no edit for the next page. */
-      var PAIRS = [{ producer: 'pat-feasibility-worker.js', allow: ['pat-gate.js'] }];
+      var PAIRS = [
+        { producer: 'pat-feasibility-worker.js', allow: ['pat-gate.js'] },
+        /* ADDED 2026-09-27. This producer sat OUTSIDE the gate while the gate's name — "No value crosses
+           a worker boundary unread" — claimed every boundary, and the exclusion was a LIVE finding on the
+           first run: `hrRatio` reached no consumer. The `vdCorr` shape, in a producer nothing was looking
+           at. */
+        { producer: 'sensor-trio-worker.js', allow: [] }
+      ];
+      /* ── THE POPULATION IS PINNED AS AN EQUALITY, NOT A FLOOR ──────────────────────────────────────
+         A `>= N` check can never detect exclusion: the excluded members are exactly the ones it does not
+         count. This gate asserted NO denominator at all while its name was universal and PAIRS held one
+         producer. Excluded below, WITH the reason, so the hole is visible and re-reads as a question every
+         run — both post inline `postMessage({…})` literals and build no named payload object, so the
+         extractor cannot read their keys. Declaring them without extending the extractor would cover ZERO
+         keys and report clean, which is worse than an honest exclusion (residue
+         2026-09-27-inline-postmessage-payloads-are-unscanned). */
+      var EXCLUDED = {
+        'qrs-equiv-worker.js': 'posts inline postMessage({…}) literals — no named payload builder to read'
+      };
+      /* 🔴 A FOURTH WORKER, INVISIBLE FOR A DIFFERENT REASON, and my first version of EXCLUDED wrongly
+         listed it here — the denominator assertion is what caught that. `cohort-worker.js` is constructed
+         by four analysis pages and the cohort runner, but it is NOT in `env.sources`: run-tests.mjs loads
+         it into a vm REALM instead of the source inventory. So the enumerator below cannot see it as a
+         producer at all, and excluding it would have pinned a fiction — which is why the exclusion legs
+         assert each excluded name is still genuinely constructed.
+         Pinned as its own fact so it cannot stay invisible by default: if it is ever added to the
+         inventory, this reds and asks for it to be declared or excluded on purpose. */
+      var INVENTORY_ABSENT = ['cohort-worker.js'];
+      /* Every inventory source CONSTRUCTED as a worker. Dynamic/template names ('full', 'oxy', 'w.js')
+         fall out through the `in env.sources` test rather than a hand-written skip list. */
+      var workerProducers = function () {
+        var found = {};
+        Object.keys(S).forEach(function (f) {
+          var re = /(?:new\s+Worker|__mkWorker|mkWorker)\s*\(\s*['"`]([^'"`]+)/g,
+            m;
+          while ((m = re.exec(S[f] || ''))) if (Object.prototype.hasOwnProperty.call(S, m[1])) found[m[1]] = true;
+        });
+        return Object.keys(found).sort();
+      };
+      /* ── PAYLOAD KEYS: BOTH IDIOMS, OR THE POPULATION SHRINKS SILENTLY ─────────────────────────────
+         `out.X = …` assignments AND the members of a `var out = { … }` literal. Measured 2026-09-27:
+         assignments alone see 14 of 14 keys on pat-feasibility-worker.js but only **7 of 21** on
+         sensor-trio-worker.js, whose payload is mostly a literal — and `hrRatio`, its one dead key, was
+         among the 14 it could not see. Declaring a producer is therefore not enough; the extractor must
+         be able to READ its payload, or the gate examines a third and reports on the whole.
+         Depth-1 only: `sigma: { o2, h10, verity }` contributes `sigma`, not its members. */
+      var payloadKeys = function (prodText) {
+        var found = {},
+          m;
+        var ASSIGN = /\bout\.([A-Za-z_][A-Za-z0-9_]*)\s*=/g;
+        while ((m = ASSIGN.exec(prodText))) found[m[1]] = true;
+        var LIT = /\bvar\s+out\s*=\s*\{/g;
+        while ((m = LIT.exec(prodText))) {
+          var i = prodText.indexOf('{', m.index),
+            depth = 0,
+            end = -1;
+          for (var k = i; k < prodText.length; k++) {
+            if (prodText[k] === '{') depth++;
+            else if (prodText[k] === '}') {
+              depth--;
+              if (depth === 0) {
+                end = k;
+                break;
+              }
+            }
+          }
+          if (end < 0) continue;
+          var d = 0;
+          prodText
+            .slice(i + 1, end)
+            .split('\n')
+            .forEach(function (line) {
+              if (d === 0) {
+                var km = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:/.exec(line);
+                if (km) found[km[1]] = true;
+              }
+              for (var c = 0; c < line.length; c++) {
+                if (line[c] === '{' || line[c] === '[') d++;
+                else if (line[c] === '}' || line[c] === ']') d--;
+              }
+            });
+        }
+        return Object.keys(found);
+      };
+      /* The denominator itself. An undeclared, unexcluded worker producer reds here rather than being
+         quietly absent from a gate whose name covers it. */
+      var producers = workerProducers();
+      var declared = PAIRS.map(function (x) {
+        return x.producer;
+      });
+      var uncovered = producers.filter(function (w) {
+        return declared.indexOf(w) < 0;
+      });
+      T.ok(
+        'the worker-producer population was actually enumerated',
+        producers.length >= 3,
+        'found: ' + producers.join(', ') + ' — an empty or tiny population means the construction scan found nothing and every row below is vacuous'
+      );
+      T.eq(
+        'the set of worker producers OUTSIDE this gate is exactly the declared exclusions',
+        uncovered.sort().join(','),
+        Object.keys(EXCLUDED).sort().join(','),
+        'a new worker producer appeared: declare it in PAIRS, or add it to EXCLUDED with the reason it cannot be read'
+      );
+      Object.keys(EXCLUDED).forEach(function (w) {
+        T.ok('the exclusion ' + w + ' is still a real producer', producers.indexOf(w) >= 0, 'it is excluded but no longer constructed anywhere — drop the exclusion rather than pinning a fiction');
+      });
+      INVENTORY_ABSENT.forEach(function (w) {
+        T.ok(
+          w + ' is still absent from the source inventory (a worker this gate structurally cannot reach)',
+          !Object.prototype.hasOwnProperty.call(S, w),
+          w + ' is now IN env.sources, so the gate can reach it — declare it in PAIRS or move it to EXCLUDED with a reason, and drop it from INVENTORY_ABSENT'
+        );
+      });
       /* A source is a DERIVED consumer if it CONSTRUCTS this worker. */
       var derivedConsumers = function (producer, src) {
         var where = src || S;
@@ -13194,10 +13307,10 @@
           .join('\n');
         T.ok(pair.producer + ' · at least one consumer readable', consumerText.length > 0, 'derived: ' + (derived.join(', ') || 'none') + (allow.length ? ' · allowlisted: ' + allow.join(', ') : ''));
         if (!consumerText.length) return;
-        var keys = {},
-          km;
-        var KEY_RE = /\bout\.([A-Za-z_][A-Za-z0-9_]*)\s*=/g;
-        while ((km = KEY_RE.exec(prod))) keys[km[1]] = true;
+        var keys = {};
+        payloadKeys(prod).forEach(function (k) {
+          keys[k] = true;
+        });
         T.ok(pair.producer + ' · payload keys found to check', Object.keys(keys).length > 0, Object.keys(keys).join(', '));
         var dead = Object.keys(keys).filter(function (k) {
           return !new RegExp('[.\\b]' + k + '\\b').test(consumerText) && KNOWN_DEAD.indexOf(k) < 0;
@@ -13221,14 +13334,33 @@
            producer text, must be reported as dead; without this the empty set above could be the
            detector seeing nothing rather than nothing being dead. */
         var planted = prod + '\nout.zzPlantedUnreadKey = 1;';
-        var pk = {},
-          pm;
-        KEY_RE.lastIndex = 0;
-        while ((pm = KEY_RE.exec(planted))) pk[pm[1]] = true;
+        var pk = {};
+        payloadKeys(planted).forEach(function (k) {
+          pk[k] = true;
+        });
         var deadPlanted = Object.keys(pk).filter(function (k) {
           return !new RegExp('[.\\b]' + k + '\\b').test(consumerText);
         });
-        T.eq('PLANT 1 · an unread key appended to the producer is reported dead', deadPlanted.join(','), 'zzPlantedUnreadKey');
+        /* Membership, not equality over the whole set: a producer may legitimately carry a real dead key
+           at the moment the plant runs (sensor-trio-worker.js did — `hrRatio`), and an equality here would
+           make the PLANT fail for a reason that has nothing to do with whether the detector fires. What
+           must hold is that the planted key is among the dead, and that planting CHANGED the set — the
+           second half is what stops this passing when the detector sees nothing. */
+        T.ok(
+          'PLANT 1 · an unread key appended to the producer is reported dead',
+          deadPlanted.indexOf('zzPlantedUnreadKey') >= 0,
+          'the planted key was not reported dead — the detector is not firing. dead set: ' + (deadPlanted.join(',') || 'empty')
+        );
+        T.ok(
+          'PLANT 1 · and planting it CHANGED the dead set (the detector is not merely echoing)',
+          deadPlanted.length === dead.length + 1,
+          'planting added ' +
+            (deadPlanted.length - dead.length) +
+            ' key(s) to the dead set, expected exactly 1 — before: ' +
+            (dead.join(',') || 'none') +
+            ' · after: ' +
+            (deadPlanted.join(',') || 'none')
+        );
 
         /* ── PLANT 2 · THE DERIVATION FINDS A NEW CONSUMER WITH NO LIST EDIT ───────────────────────────
            The property this unit exists for. A source that constructs the worker and reads a key must

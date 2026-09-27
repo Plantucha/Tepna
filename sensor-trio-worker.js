@@ -1168,8 +1168,20 @@ async function runRealNight(m) {
          the two HR SERIES, which are three views of one heart and therefore ~0.9 by construction. The
          row's ρ is the correlation of the two devices' ERRORS, which is a different quantity, is NOT
          measured here, and is exactly what the row must refuse rather than substitute. */
-      pairVars: s.vars || null,
-      hrRatio: hrRatio
+      pairVars: s.vars || null
+      /* `hrRatio` USED TO SHIP HERE and nothing read it — found 2026-09-27 by the boundary gate's first
+         run over this producer, which had been outside its population entirely. It is the Verity harmonic
+         gate's own input, already consumed inside this worker, and on a SOLVED night it is ~1 by
+         construction (a harmonic ratio is what makes a night skip). The SKIP result still carries it as a
+         machine-readable field, which is deliberate and test-pinned; shipping it again on the success
+         payload was symmetry, not a consumer.
+         Deleted rather than surfaced, following this gate's own precedent — `detailCorr` was deleted when
+         its consumer never materialised ("work with no consumer"). The alternative is real and is
+         recorded rather than foreclosed: the page says "both gates ok" with no number behind it, and this
+         ratio is the evidence for that claim. That is a surface decision on someone else's page, so it is
+         a residue row (2026-09-27-verity-gate-verdict-has-no-number-behind-it), not a unilateral change.
+         The key is GONE, not set to a sentinel: `hrRatio: undefined` would still declare it, still read as
+         a payload key to the extractor, and ship an absence as a value (CLAUDE.md §∅). */
     };
     if (m.wantSeries) {
       out.hh = hh;
