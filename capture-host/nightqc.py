@@ -1357,6 +1357,52 @@ def connection_lattice(delays: list[float], *, device_axis_is_clock: bool = True
     }
 
 
+def device_epoch_state(pairs, *, quantised: bool, stamp_frozen) -> dict | None:
+    """WHICH EPOCH THE DEVICE COUNTER READ, per stream — annotated, never a refusal of the night.
+
+    §∅ owner ruling 2026-09-17: a discontinuity refuses, reduced coverage annotates. A device on the
+    wrong epoch is neither — the SIGNAL is continuous and fully covered, the CLOCK is merely wrong — so
+    this is a coverage-class annotation and the night keeps its metrics. What it must not do is stay
+    silent: measured over the corpus 2026-09-27, the H10 sat on its 2019 firmware default on 7 of 44
+    nights (twice switching mid-night) and those nights published an offset of 7.74 YEARS with
+    `ok: true`, because nothing named the epoch and nothing range-checked the number. The companion
+    half of that fix is `clock_offset`'s `implausible-offset` refusal; this is the half that says WHY.
+
+    States: `plausible` · `firmware-default` (the counter advances but from the wrong origin, e.g. the
+    H10's 2019 default) · `unset-base` (it never left the epoch base — the Verity PPI reads exactly
+    2000-01-01 on every night) · `duration-not-an-offset` (a `_DURATION_S` pseudo-stream, whose
+    "device stamp" is an elapsed count and was never a clock). `None` when there is nothing to judge.
+
+    `switched_at` is the first host instant whose class differs from the first packet's — 2026-08-15 and
+    2026-08-23 are real instances, where a resync landed mid-night and the same file carries both.
+    """
+    if not pairs:
+        return None                        # nothing measured ⇒ no claim, not "plausible" (§∅)
+    bound_ms = clock_offset.CLOCK_IMPLAUSIBLE_S * 1000.0
+
+    def _class(diff_ms: float) -> str:
+        if abs(diff_ms) <= bound_ms:
+            return "plausible"
+        if quantised:
+            return "duration-not-an-offset"
+        if stamp_frozen:
+            return "unset-base"
+        return "firmware-default"
+
+    classes = [_class(d) for _h, d, _ns in pairs]
+    first = classes[0]
+    switched = next((i for i, c in enumerate(classes) if c != first), None)
+    dev_first = _POLAR_EPOCH_MS + pairs[0][2] / 1e6
+    out = {"state": first,
+           "device_time_first": datetime.fromtimestamp(dev_first / 1000.0, timezone.utc)
+                                        .strftime("%Y-%m-%dT%H:%M:%SZ"),
+           "switched_at": None, "switched_to": None}
+    if switched is not None:
+        out["switched_at"] = _hhmm(pairs[switched][0] / 1000.0)
+        out["switched_to"] = classes[switched]
+    return out
+
+
 def device_stamp_constant(stamps, min_n: int = 200):
     """Did this stream's device timestamp advance AT ALL over the capture?
 
@@ -1531,9 +1577,16 @@ def arrival_quality(night_dir: str) -> list[dict]:
             # legs (H10 ecg median 97×), and a compacted hole inflates every ADEV level by the step's
             # size (8× at a 500σ step, slope untouched). Seconds, the unit `_tau0_of` returns.
             stab = allan.stability(diffs, _tau0_of(pairs), _TDEV_TAU_S, sample_times=[(h - pairs[0][0]) / 1000.0 for h, _, _ in pairs])
+            # WHICH EPOCH, beside the offset it explains. Named on the refusal too, so a consumer
+            # reading only `offset.reason` still learns the cause class rather than just the magnitude.
+            epoch_state = device_epoch_state(pairs, quantised=quantised, stamp_frozen=stamp_frozen)
+            if isinstance(offset, dict) and offset.get("reason") == "implausible-offset" and epoch_state:
+                offset = {**offset, "cause": epoch_state["state"]}
             out.append({
                 "file": name, "device": device, "meas": meas, "rows": len(diffs),
                 "quantised": quantised,
+                    # The epoch the device counter read — annotation, not a refusal (§∅).
+                    "device_epoch": epoch_state,
                     # Explains the refusal above when it is NOT skew: see device_stamp_constant.
                     "device_stamp_constant": stamp_frozen,
                 "offset": offset,

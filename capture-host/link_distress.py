@@ -20,7 +20,11 @@
 #   · `down%` is NOT, and it is the obvious choice, which is why it is named here: medians of 35–78 %
 #     for the H10 and the ring are WEAR — the strap comes off inside its own connected span — so a
 #     trigger on it fires on an ordinary night. Carried as report-only.
-#   · `frames_dropped` was 0 in every file in the corpus. Not usable here, not proposed.
+#   · `frames_dropped`/`frames_duplicated` are EMPTY in every data row — 695 608 rows across the
+#     corpus, never a value, and EMPTY IS NOT ZERO (§∅). The earlier wording here, "was 0 in every
+#     file", is how the next consumer talks itself into reading a zero: measured 2026-09-27 by a
+#     throwaway script that coerced "" to 0 with an `isdigit()` fallback and duly reported "no
+#     drops" from a column that says nothing. Not usable here, not proposed.
 
 from __future__ import annotations
 
