@@ -399,11 +399,12 @@ def test_every_derived_tool_hands_over_files_rather_than_a_boolean(tmp_path):
     if not node:  # pragma: no cover - ubuntu-latest always has node; a dev box might not
         pytest.skip("node is not installed")
 
-    d = _night(tmp_path)                      # H10 ECG + ACC, Verity PPG
+    d = _night(tmp_path)  # H10 ECG + ACC, Verity PPG
     (d / "Polar_H10_02849638_20260919220000_HR.txt").write_text(ROWS)
     (d / "Wellue_O2Ring-S_77F1_20260919220000_PPG.txt").write_text(ROWS)
     (d / "Wellue_O2Ring-S_77F1_20260919220000_SPO2.csv").write_text(
-        "Time,SpO2,PR\n22:00:00 19/09/2026,97,58\n23:00:00 19/09/2026,96,57\n")
+        "Time,SpO2,PR\n22:00:00 19/09/2026,97,58\n23:00:00 19/09/2026,96,57\n"
+    )
     root = str(tmp_path)
     row = ni.night_entry(root, str(d))
 
@@ -413,7 +414,7 @@ def test_every_derived_tool_hands_over_files_rather_than_a_boolean(tmp_path):
     assert m, "NIGHT_DERIVED is gone — this test would have no population"
     derived = [k.strip().strip('"') for k in m.group(1).split(",")]
     assert set(derived) == set(ni.DERIVED), (sorted(derived), sorted(ni.DERIVED))
-    assert len(derived) >= 3, derived        # anti-vacuity: an empty population satisfies everything below
+    assert len(derived) >= 3, derived  # anti-vacuity: an empty population satisfies everything below
 
     # The producer's shape is WHY the fallback is unsafe, so pin it here rather than in prose: if derived
     # entries ever become records, this reds and the branch requirement can be revisited deliberately.
@@ -422,11 +423,13 @@ def test_every_derived_tool_hands_over_files_rather_than_a_boolean(tmp_path):
         assert row[k] is True, (k, "the fixture night should meet every derived requirement")
 
     fn = _extract_fn(html, "nightFilesFor", "\nasync function openNight")
-    prog = (fn + "\nconst n = " + json.dumps(row) + ";\nconst out = {};\n"
-            "for (const k of " + json.dumps(derived) + ") {\n"
-            "  try { const r = nightFilesFor(n, k); out[k] = Array.isArray(r) ? r.length : 'NOT-AN-ARRAY:' + typeof r; }\n"
-            "  catch (e) { out[k] = 'THROWS:' + e.constructor.name + ': ' + e.message; }\n}\n"
-            "console.log(JSON.stringify(out));")
+    prog = (
+        fn + "\nconst n = " + json.dumps(row) + ";\nconst out = {};\n"
+        "for (const k of " + json.dumps(derived) + ") {\n"
+        "  try { const r = nightFilesFor(n, k); out[k] = Array.isArray(r) ? r.length : 'NOT-AN-ARRAY:' + typeof r; }\n"
+        "  catch (e) { out[k] = 'THROWS:' + e.constructor.name + ': ' + e.message; }\n}\n"
+        "console.log(JSON.stringify(out));"
+    )
     r = subprocess.run([node, "-e", prog], capture_output=True, text=True, timeout=30)
     assert r.returncode == 0, r.stderr
     got = json.loads(r.stdout.strip())
@@ -461,17 +464,20 @@ def test_a_night_click_that_throws_says_so_instead_of_vanishing():
     here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     html = open(os.path.join(here, "monitor.html"), encoding="utf-8").read()
     line = [ln for ln in html.split("\n") if "closest('[data-node]')" in ln]
-    assert len(line) == 1, line      # the delegation must be one place, or this test reads the wrong one
-    prog = ("let TOAST = null;\n"
-            "const nToast = (m, bad) => { TOAST = { m, bad }; };\n"
-            "const openNight = async () => { throw new Error('boom'); };\n"
-            "const e = { target: { closest: (s) => (s === '[data-node]' ? { dataset: { night: '2026-09-19', node: 'PAT fused' } } : null) } };\n"
-            + line[0].strip() + "\n"
-            "setTimeout(() => console.log(JSON.stringify({ toast: TOAST })), 20);")
+    assert len(line) == 1, line  # the delegation must be one place, or this test reads the wrong one
+    prog = (
+        "let TOAST = null;\n"
+        "const nToast = (m, bad) => { TOAST = { m, bad }; };\n"
+        "const openNight = async () => { throw new Error('boom'); };\n"
+        "const e = { target: { closest: (s) => (s === '[data-node]' ? { dataset: { night: '2026-09-19', node: 'PAT fused' } } : null) } };\n"
+        + line[0].strip()
+        + "\n"
+        "setTimeout(() => console.log(JSON.stringify({ toast: TOAST })), 20);"
+    )
     r = subprocess.run([node, "-e", prog], capture_output=True, text=True, timeout=30)
     assert r.returncode == 0, r.stderr
     got = json.loads(r.stdout.strip())["toast"]
     assert got is not None, "a throwing click produced NO toast — the rejection vanished"
-    assert "boom" in got["m"], got            # the reason travels, not just a generic failure
-    assert "PAT fused" in got["m"], got       # and which click it was
-    assert got["bad"] is True, got            # rendered as an error, not as progress
+    assert "boom" in got["m"], got  # the reason travels, not just a generic failure
+    assert "PAT fused" in got["m"], got  # and which click it was
+    assert got["bad"] is True, got  # rendered as an error, not as progress
