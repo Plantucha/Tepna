@@ -594,3 +594,23 @@ def test_a_span_of_exactly_the_resolvability_floor_IS_quotable():
     r = co.estimate([(i * (co.SPAN_MIN_SEC / 119.0), 264.2) for i in range(120)])
     assert r["span_sec"] == co.SPAN_MIN_SEC, r
     assert r["skew_quotable"] is True, r
+
+
+def test_the_ENVELOPE_side_of_the_refusal_is_NOT_redundant():
+    """Both disjuncts are load-bearing, and which one fires depends on the SIGN of the offset.
+
+    The envelope is the lower of the two lines, so on a POSITIVE cloud Paxson is the larger magnitude
+    and crosses the bound first — that is the case above. On a NEGATIVE one, which is the sign the H10
+    actually has (its measured offset is -264 ms), the ordering inverts: the envelope is the larger
+    magnitude and crosses first, while Paxson is still inside. Here the envelope sits 1000 ms past a
+    bound of 31,536,000,000 ms and Paxson 1000 ms short of it, so only `abs(off_env)` can refuse it —
+    and a bound widened on that side alone by a tenth of a percent would certify a device reading a
+    year out.
+    """
+    base, depth = -(_BOUND_MS - 1000.0), 2000.0
+    pts = [(i * 30.0, base - (depth if 50 <= i <= 70 else 0.0)) for i in range(120)]
+    r = co.estimate(pts)
+    assert r["ok"] is False and r["reason"] == "implausible-offset", r
+    assert abs(r["offset_envelope_ms"]) > _BOUND_MS, r
+    assert abs(r["offset_paxson_ms"]) < _BOUND_MS, ("Paxson must be INSIDE, or the other disjunct "
+                                                    "could carry the refusal on its own", r)
