@@ -408,14 +408,16 @@
     if (m.cp && m.cp.ok && isFinite(m.cp.driftRange)) t += ' \u00b7 ' + m.cp.driftRange.toFixed(0) + 'ms';
     if (m.cpCorr && m.cpCorr.ok && isFinite(m.cpCorr.driftRange)) t += ' \u2192 ' + m.cpCorr.driftRange.toFixed(0) + 'ms\u2726';
     var hasCorr = !!(m.vdCorr && m.vdCorr.label);
-    if (hasCorr) t += ' \u00b7 corrected(acc): ' + m.vdCorr.label;
+    if (hasCorr) t += ' \u00b7 corrected(floor): ' + m.vdCorr.label;
     var title =
       'primary verdict on ' +
       (m.driftSource || 'raw') +
       ' drift: ' +
       m.vd.label +
       '\n' +
-      (hasCorr ? 'ACC-corrected verdict: ' + m.vdCorr.label + (m.vdCorr.label === m.vd.label ? ' (agrees)' : ' (DIFFERS from primary)') : 'ACC-corrected verdict: not available for this night');
+      (hasCorr
+        ? 'arrival-floor-corrected verdict: ' + m.vdCorr.label + (m.vdCorr.label === m.vd.label ? ' (agrees)' : ' (DIFFERS from primary)')
+        : 'arrival-floor-corrected verdict: not available for this night');
     return { text: t, title: title, differs: hasCorr && m.vdCorr.label !== m.vd.label };
   }
 

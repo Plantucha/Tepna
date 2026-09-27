@@ -301,6 +301,9 @@ def test_the_tool_classifiers_accept_box_filenames():
             "Wellue_O2Ring-S_S8AW2100_20260919002219_PPG.txt": True,
             "Polar_H10_02849638_20260919183658_HR.txt": False,
             "Wellue_O2Ring-S_S8AW2100_20260919002219_SPO2.csv": False,
+            # the corrected lag's anchor since 2026-09-27 (role decided after the match, in JS)
+            "Polar_H10_02849638_20260919183658_PMDARRIVAL.csv": True,
+            "Polar_VeritySense_0C301E3F_20260919183724_PMDARRIVAL.csv": True,
         },
     }
     for tool, table in wants.items():
@@ -349,3 +352,13 @@ def test_a_night_click_opens_the_app_under_a_fresh_url():
     html = open(os.path.join(here, "monitor.html"), encoding="utf-8").read()
     assert "window.open('/'+NIGHT_APP[node]+'?v='+Date.now(), '_blank')" in html
     assert "window.open('/'+NIGHT_APP[node], '_blank')" not in html
+
+
+def test_the_pat_click_hands_over_the_arrival_sidecars():
+    """PAT Feasibility's corrected lag has no anchor without the packet-arrival sidecars, and the monitor's click is
+    the only way the page receives files on the box. Pinned on the PAT branch of nightFilesFor."""
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    html = open(os.path.join(here, "monitor.html"), encoding="utf-8").read()
+    start = html.index("if(node==='PAT')")
+    branch = html[start:html.index("\n  return", start)]
+    assert "n.arrival" in branch, branch

@@ -25,7 +25,8 @@
   /* ── TRUST BADGES — this page's grades, with the reason each one is what it is (CLAUDE.md §🎫) ────────────
      A count or a coverage share is read straight off the data → measured. A PAT lag, its spread and the hat are
      computed from consumer sensors and have not been validated against a reference here → experimental. The
-     ACC-sync offset is a motion-anchored convenience correction → heuristic. */
+     ACC-sync offset is a motion-anchored convenience correction → heuristic. The arrival-floor correction is a
+     derived re-timing from measured packet arrivals, not validated against a reference → experimental. */
   var EV = {
     count: ['measured', 'a count of nights, files, beats or windows — direct'],
     coupling: ['measured', 'share of coverable R-peaks whose pulse foot paired inside the window — a direct coverage statistic'],
@@ -33,6 +34,7 @@
     lag: ['experimental', 'R-peak → PPG-foot pulse arrival time from consumer sensors; not validated against a reference'],
     spread: ['experimental', 'beat-to-beat IQR of the lag around its 30 s local median — a derived dispersion'],
     drift: ['experimental', 'spread of the 5-min lag medians across the night — a derived diagnostic'],
+    floor: ['experimental', "each leg re-timed on its device's packet-arrival floor (the minimum of arrival − last sample, per 10-min window) — derived, unvalidated"],
     acc: ['heuristic', 'motion-anchored offset correction between chest and ankle ACC — a convenience estimate, not a measurement'],
     hat: ['experimental', 'classic three-cornered hat on 5-min PAT medians — assumes independent per-site errors; unvalidated']
   };
@@ -102,6 +104,9 @@
     if ((mo = n.match(/_(\d{8})_?(\d{6})_PPG\.txt$/i))) return { role: /O2Ring/i.test(n) ? 'finger' : 'ppg', stamp: mo[1] + mo[2] };
     // ACC on BOTH devices → the cross-device drift anchor (H10 chest vs Verity arm)
     if ((mo = n.match(/_(\d{8})_?(\d{6})_ACC\.txt$/i))) return { role: /Polar_H10/i.test(n) ? 'ecgacc' : 'ppgacc', stamp: mo[1] + mo[2] };
+    // the packet-arrival sidecar: the corrected path's anchor (one per device; the ring's is not used here)
+    if ((mo = n.match(/_(\d{8})_?(\d{6})_PMDARRIVAL\.csv$/i)))
+      return /Polar_H10/i.test(n) ? { role: 'ecgarr', stamp: mo[1] + mo[2] } : /VeritySense|Polar_Sense/i.test(n) ? { role: 'ppgarr', stamp: mo[1] + mo[2] } : null;
     return null;
   }
   // sessions starting before noon fold into the PREVIOUS evening (floating civil time)
@@ -153,11 +158,15 @@
       p = nearestTo(nt.cand.ppg, eMs),
       ea = nearestTo(nt.cand.ecgacc, eMs),
       pa = nearestTo(nt.cand.ppgacc, p ? stampMs(p.stamp) : eMs),
+      er = nearestTo(nt.cand.ecgarr, eMs),
+      pr = nearestTo(nt.cand.ppgarr, p ? stampMs(p.stamp) : eMs),
       fg = nearestTo(nt.cand.finger, eMs);
     nt.ecg = e ? e.file : null;
     nt.ppg = p ? p.file : null;
     nt.ecgAcc = ea ? ea.file : null;
     nt.ppgAcc = pa ? pa.file : null;
+    nt.ecgArr = er ? er.file : null;
+    nt.ppgArr = pr ? pr.file : null;
     nt.finger = fg ? fg.file : null;
   }
   var eligible = function (nt) {
@@ -172,7 +181,7 @@
         c = classify(f);
       if (!c) continue;
       var nk = nightKeyOf(c.stamp),
-        nt = NIGHTS[nk] || (NIGHTS[nk] = { key: nk, label: nk, cand: { ecg: [], ppg: [], ecgacc: [], ppgacc: [], finger: [] } });
+        nt = NIGHTS[nk] || (NIGHTS[nk] = { key: nk, label: nk, cand: { ecg: [], ppg: [], ecgacc: [], ppgacc: [], finger: [], ecgarr: [], ppgarr: [] } });
       nt.cand[c.role].push({ file: f, stamp: c.stamp });
     }
     Object.keys(NIGHTS).forEach(function (k) {
@@ -272,7 +281,7 @@
     if (fl) fl.innerHTML = m.cpF && m.cpF.ok ? evb('lag') + ' ' + m.cpF.med.toFixed(0) + ' ms' : m.fingerError ? '<span title="' + escHtml(m.fingerError) + '">error</span>' : '—';
     if (vd) {
       /* SURFACE THE SECOND VERDICT (2026-09-02) — composed by `PATGate.verdictCell`, not here.
-         The worker publishes TWO gate results (`vd` on raw drift, `vdCorr` on ACC-corrected) and this
+         The worker publishes TWO gate results (`vd` on raw drift, `vdCorr` on the arrival-floor-corrected coupling) and this
          cell read only the first, so `vdCorr` crossed the worker boundary and was dropped at the last
          step. It lived inline in this file, which is an anonymous IIFE with no export surface — so no
          test could reach it, and `dex-tests.js` scanned the worker 5 times and the renderer 0. The
@@ -311,7 +320,19 @@
       if (!queue.length) return;
       var nt = queue.shift();
       setStatus('processing ' + (done + 1) + '/' + total + '…', 'run');
-      w.postMessage({ type: 'job', key: nt.key, label: nt.label, ecgFile: nt.ecg, ppgFile: nt.ppg, ecgAccFile: nt.ecgAcc, ppgAccFile: nt.ppgAcc, fingerFile: nt.finger || null, detail: false });
+      w.postMessage({
+        type: 'job',
+        key: nt.key,
+        label: nt.label,
+        ecgFile: nt.ecg,
+        ppgFile: nt.ppg,
+        ecgAccFile: nt.ecgAcc,
+        ppgAccFile: nt.ppgAcc,
+        fingerFile: nt.finger || null,
+        ecgArrFile: nt.ecgArr || null,
+        ppgArrFile: nt.ppgArr || null,
+        detail: false
+      });
     }
     for (var i = 0; i < N; i++) {
       var w = new Worker('pat-feasibility-worker.js');
@@ -416,9 +437,9 @@
       var linMed = median(lin),
         kind = linMed >= 0.6 ? 'LINEAR — 2-point sync fixes it' : 'NON-LINEAR — needs continuous correction';
       cards.push(hcard('drift shape', linMed >= 0.6 ? 'linear' : 'wander', '', 'median R²=' + (isFinite(linMed) ? linMed.toFixed(2) : '—') + ' · ' + kind, linMed >= 0.6 ? C.green : C.amber, 'drift'));
-      // ACC-sync before/after (the point of the whole stage)
+      // the arrival-floor correction, before/after — and what it removed (buffering, not drift)
       var corrN = oks.filter(function (m) {
-        return m.cpCorr && m.cpCorr.ok && m.accSync && m.accSync.available;
+        return m.cpCorr && m.cpCorr.ok && m.floorSync && m.floorSync.available;
       });
       var mCorr = NaN,
         mRaw = NaN;
@@ -433,12 +454,25 @@
         mRaw = median(rDr);
         cards.push(
           hcard(
-            'drift after ACC-sync',
+            'drift after arrival-floor correction',
             isFinite(mCorr) ? mCorr.toFixed(0) : '—',
             'ms',
             'median · was ' + (isFinite(mRaw) ? mRaw.toFixed(0) : '—') + ' ms raw · ' + corrN.length + ' nights',
             mCorr < 100 ? C.green : mCorr < mRaw * 0.5 ? C.amber : C.red,
-            'acc'
+            'floor'
+          )
+        );
+        var bufs = agg(corrN, function (m) {
+          return m.floorSync.bufferingDiffMs;
+        });
+        cards.push(
+          hcard(
+            'buffering difference removed',
+            isFinite(median(bufs)) ? median(bufs).toFixed(0) : '—',
+            'ms',
+            "median raw − corrected lag · the two links' BLE buffering, not clock drift",
+            C.amber,
+            'floor'
           )
         );
       }
@@ -456,25 +490,30 @@
             ? 'Raw: drift-dominated across nights (~' + median(ppm).toFixed(0) + ' ppm) — systematic device-clock drift confirmed, not viable from phone timestamps alone.'
             : 'Raw: mixed — coupling holds but drift varies night to night.';
       if (corrN.length) {
-        var redPct = mRaw > 0 ? (1 - mCorr / mRaw) * 100 : 0;
+        var bufMed = median(
+          agg(corrN, function (m) {
+            return m.floorSync.bufferingDiffMs;
+          })
+        );
         concl +=
           ' <b style="color:' +
-          (mCorr < 100 ? C.green : C.amber) +
-          '">ACC-sync</b> (automatic, from your sleep movements — no taps) cut drift <b>' +
-          mRaw.toFixed(0) +
-          '→' +
-          mCorr.toFixed(0) +
-          ' ms</b> (' +
-          redPct.toFixed(0) +
-          '% lower) over ' +
+          C.amber +
+          "\">Arrival-floor correction</b> re-times each leg on its device's packet-arrival floor (the fastest packets, whose delay is only the link's minimum), over " +
           corrN.length +
-          ' nights — ' +
-          (mCorr < 100
-            ? 'drift is largely REMOVABLE; the residual approaches the PAT signal, so a clean-window ankle-PAT trend looks buildable.'
-            : mCorr < mRaw * 0.5
-              ? 'substantially reduced but not gone — refine motion anchors / clean-window selection.'
-              : 'not meaningfully reduced — chest↔ankle motion may be too decorrelated; try a single-host capture.');
+          ' night' +
+          (corrN.length > 1 ? 's' : '') +
+          ': it removed a median <b>' +
+          (isFinite(bufMed) ? bufMed.toFixed(0) : '—') +
+          " ms</b> of lag — the two Bluetooth links' different buffering, not clock drift — and left drift at <b>" +
+          mCorr.toFixed(0) +
+          ' ms</b> (raw ' +
+          mRaw.toFixed(0) +
+          ' ms).';
       }
+      var refusedFloor = oks.filter(function (m) {
+        return m.floorSync && !m.floorSync.available;
+      }).length;
+      if (refusedFloor) concl += ' <span class="muted">' + refusedFloor + ' night(s) have no usable arrival floor and show only the raw lag.</span>';
       el('aggConcl').innerHTML = '<b style="color:' + (go === oks.length ? C.green : C.amber) + '">Across ' + oks.length + ' nights:</b> ' + concl;
     } else {
       el('aggConcl').innerHTML = refused.length
@@ -517,7 +556,19 @@
       }
       renderFocus(m);
     };
-    detailWorker.postMessage({ type: 'job', key: k, label: k, ecgFile: nt.ecg, ppgFile: nt.ppg, ecgAccFile: nt.ecgAcc, ppgAccFile: nt.ppgAcc, fingerFile: nt.finger || null, detail: true });
+    detailWorker.postMessage({
+      type: 'job',
+      key: k,
+      label: k,
+      ecgFile: nt.ecg,
+      ppgFile: nt.ppg,
+      ecgAccFile: nt.ecgAcc,
+      ppgAccFile: nt.ppgAcc,
+      fingerFile: nt.finger || null,
+      ecgArrFile: nt.ecgArr || null,
+      ppgArrFile: nt.ppgArr || null,
+      detail: true
+    });
   }
 
   /* COMPUTED BUT NOT CERTIFIED (owner, 2026-09-23): when the gate refuses a night whose lag WAS
@@ -582,31 +633,50 @@
         )
       );
     }
-    if (m.accSync && m.accSync.available && m.cpCorr && m.cpCorr.ok) {
+    var fsy = m.floorSync;
+    if (fsy && fsy.available && m.cpCorr && m.cpCorr.ok) {
+      var cov = function (L) {
+        return L.windows - L.refused + '/' + L.windows + ' floor windows usable (' + L.stream + ' stream)' + (L.unmapped ? ' · ' + L.unmapped + ' beats outside every anchored packet dropped' : '');
+      };
       cards.push('<div style="height:1px;background:rgba(255,255,255,.08);margin:2px 0"></div>');
       cards.push(
         hcard(
-          'ACC-sync drift',
-          m.cp.driftRange.toFixed(0) + '→' + m.cpCorr.driftRange.toFixed(0),
+          'corrected lag · arrival floors',
+          m.cpCorr.med.toFixed(0),
           'ms',
-          m.accSync.anchors + ' motion anchors · ' + (m.accSync.coverage * 100).toFixed(0) + '% cover',
-          m.cpCorr.driftRange < m.cp.driftRange * 0.5 ? C.green : C.amber,
-          'acc'
+          'IQR ' + m.cpCorr.p25.toFixed(0) + '–' + m.cpCorr.p75.toFixed(0) + ' · coupled ' + (m.cpCorr.matchRate * 100).toFixed(0) + ' %',
+          C.blue,
+          'floor'
         )
       );
       cards.push(
         hcard(
-          'after correction',
-          (m.cpCorr.matchRate * 100).toFixed(0) + '%',
-          '',
-          'coupling · beat-to-beat ' + (isFinite(m.cpCorr.residIQR) ? m.cpCorr.residIQR.toFixed(0) : '—') + ' ms',
-          C.blue,
-          'acc'
+          'buffering difference removed',
+          isFinite(fsy.bufferingDiffMs) ? fsy.bufferingDiffMs.toFixed(0) : '—',
+          'ms',
+          "raw − corrected median lag: the two Bluetooth links' buffering, not clock drift",
+          C.amber,
+          'floor'
         )
       );
-    } else if (m.accSync) {
+      cards.push(hcard('drift, corrected', m.cpCorr.driftRange.toFixed(0), 'ms', 'raw ' + m.cp.driftRange.toFixed(0) + ' ms', m.cpCorr.driftRange <= G.DRIFT_MAX_MS ? C.green : C.amber, 'drift'));
+      cards.push(hcard('anchors', fsy.ecg.windows - fsy.ecg.refused + ' · ' + (fsy.ppg.windows - fsy.ppg.refused), 'windows', 'H10 ' + cov(fsy.ecg) + ' · Verity ' + cov(fsy.ppg), C.ink, 'count'));
+      var ck = fsy.accCheck || {};
+      cards.push(
+        ck.ok
+          ? hcard(
+              'motion check',
+              ck.deltaMedianMs.toFixed(0),
+              'ms',
+              'chest vs ankle movement on the two floor axes should align at ≈ 0 (±' + (ck.tolMs || 25) + ' ms resolution) · ' + ck.anchors + ' shared movements',
+              Math.abs(ck.deltaMedianMs) <= (ck.tolMs || 25) ? C.green : C.amber,
+              'acc'
+            )
+          : hcard('motion check', 'n/a', '', ck.reason || 'unavailable', C.mut)
+      );
+    } else if (fsy) {
       cards.push('<div style="height:1px;background:rgba(255,255,255,.08);margin:2px 0"></div>');
-      cards.push(hcard('ACC-sync', 'n/a', '', m.accSync.reason || 'unavailable', C.mut));
+      cards.push(hcard('arrival-floor correction', 'n/a', '', (fsy.reason || 'unavailable') + " — the raw lag carries the two links' buffering difference", C.mut));
     }
     el('focusHead').innerHTML = cards.join('');
     drawScatter(m);
@@ -1016,9 +1086,9 @@
                 return m.cp.linR2;
               })
             ).toFixed(2),
-            afterAccSync: (function () {
+            afterArrivalFloor: (function () {
               var c = oks.filter(function (m) {
-                return m.cpCorr && m.cpCorr.ok && m.accSync && m.accSync.available;
+                return m.cpCorr && m.cpCorr.ok && m.floorSync && m.floorSync.available;
               });
               return c.length
                 ? {
@@ -1065,7 +1135,7 @@
                   linR2: +(+m.cp.linR2).toFixed(2)
                 }
               : null,
-            accSync: m.accSync || null,
+            floorSync: m.floorSync || null,
             correctedCoupling:
               m.cpCorr && m.cpCorr.ok
                 ? {
