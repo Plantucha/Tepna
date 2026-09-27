@@ -4297,57 +4297,21 @@
   "nightqc.py": [
     {
       "class": "no-distinguishing-input",
-      "key": "- before = [s for s in others if s[1] <= cur[0]] | + before = [s for s in others if s[1] < cur[0]]",
-      "probe": "tests/test_nightqc.py::test_merge_sessions_always_yields_DISJOINT_sessions_separated_by_more_than_the_gap — 400 randomized file-sets (seed 20260905, 1-12 files per set, input order shuffled) assert b[0] > a[1] + gap for every consecutive pair, and assert that on the produced sessions max-by-end IS max-by-start and min-by-start IS min-by-end.",
-      "why": "`merge_sessions` starts a new session only when `st > sessions[-1][1] + gap_sec`, so its output is ordered by start AND strictly separated by more than the 300 s gap — sessions cannot overlap or touch. Under that invariant this mutation cannot move the partition: every earlier session ends more than a gap before `cur[0]` and every later one starts more than a gap after `cur[1]`, so neither the boundary form (`<`/`<=`, `>`/`>=`) nor which endpoint is compared can reclassify any session. Not a missing test — no night `merge_sessions` can produce distinguishes them."
-    },
-    {
-      "class": "no-distinguishing-input",
-      "key": "- before = [s for s in others if s[1] <= cur[0]] | + before = [s for s in others if s[1] <= cur[1]]",
-      "probe": "tests/test_nightqc.py::test_merge_sessions_always_yields_DISJOINT_sessions_separated_by_more_than_the_gap — 400 randomized file-sets (seed 20260905, 1-12 files per set, input order shuffled) assert b[0] > a[1] + gap for every consecutive pair, and assert that on the produced sessions max-by-end IS max-by-start and min-by-start IS min-by-end.",
-      "why": "`merge_sessions` starts a new session only when `st > sessions[-1][1] + gap_sec`, so its output is ordered by start AND strictly separated by more than the 300 s gap — sessions cannot overlap or touch. Under that invariant this mutation cannot move the partition: every earlier session ends more than a gap before `cur[0]` and every later one starts more than a gap after `cur[1]`, so neither the boundary form (`<`/`<=`, `>`/`>=`) nor which endpoint is compared can reclassify any session. Not a missing test — no night `merge_sessions` can produce distinguishes them."
-    },
-    {
-      "class": "no-distinguishing-input",
-      "key": "- after = [s for s in others if s[0] >= cur[1]] | + after = [s for s in others if s[1] >= cur[1]]",
-      "probe": "tests/test_nightqc.py::test_merge_sessions_always_yields_DISJOINT_sessions_separated_by_more_than_the_gap — 400 randomized file-sets (seed 20260905, 1-12 files per set, input order shuffled) assert b[0] > a[1] + gap for every consecutive pair, and assert that on the produced sessions max-by-end IS max-by-start and min-by-start IS min-by-end.",
-      "why": "`merge_sessions` starts a new session only when `st > sessions[-1][1] + gap_sec`, so its output is ordered by start AND strictly separated by more than the 300 s gap — sessions cannot overlap or touch. Under that invariant this mutation cannot move the partition: every earlier session ends more than a gap before `cur[0]` and every later one starts more than a gap after `cur[1]`, so neither the boundary form (`<`/`<=`, `>`/`>=`) nor which endpoint is compared can reclassify any session. Not a missing test — no night `merge_sessions` can produce distinguishes them."
-    },
-    {
-      "class": "no-distinguishing-input",
-      "key": "- after = [s for s in others if s[0] >= cur[1]] | + after = [s for s in others if s[0] > cur[1]]",
-      "probe": "tests/test_nightqc.py::test_merge_sessions_always_yields_DISJOINT_sessions_separated_by_more_than_the_gap — 400 randomized file-sets (seed 20260905, 1-12 files per set, input order shuffled) assert b[0] > a[1] + gap for every consecutive pair, and assert that on the produced sessions max-by-end IS max-by-start and min-by-start IS min-by-end.",
-      "why": "`merge_sessions` starts a new session only when `st > sessions[-1][1] + gap_sec`, so its output is ordered by start AND strictly separated by more than the 300 s gap — sessions cannot overlap or touch. Under that invariant this mutation cannot move the partition: every earlier session ends more than a gap before `cur[0]` and every later one starts more than a gap after `cur[1]`, so neither the boundary form (`<`/`<=`, `>`/`>=`) nor which endpoint is compared can reclassify any session. Not a missing test — no night `merge_sessions` can produce distinguishes them."
-    },
-    {
-      "class": "no-distinguishing-input",
-      "key": "- prev = max(before, key=lambda s: s[1]) | + prev = max(before, key=None)",
-      "probe": "tests/test_nightqc.py::test_merge_sessions_always_yields_DISJOINT_sessions_separated_by_more_than_the_gap — 400 randomized file-sets (seed 20260905, 1-12 files per set, input order shuffled) assert b[0] > a[1] + gap for every consecutive pair, and assert that on the produced sessions max-by-end IS max-by-start and min-by-start IS min-by-end.",
-      "why": "Same disjointness invariant, applied to the selection: with sessions ordered and strictly separated, the latest-ENDING session IS the latest-starting one and the earliest-starting IS the earliest-ending, so `key=s[1]`, `key=s[0]`, and natural tuple order all return the identical element. The probe asserts that identity directly (`is`, not `==`)."
-    },
-    {
-      "class": "no-distinguishing-input",
-      "key": "- prev = max(before, key=lambda s: s[1]) | + prev = max(before, )",
-      "probe": "tests/test_nightqc.py::test_merge_sessions_always_yields_DISJOINT_sessions_separated_by_more_than_the_gap — 400 randomized file-sets (seed 20260905, 1-12 files per set, input order shuffled) assert b[0] > a[1] + gap for every consecutive pair, and assert that on the produced sessions max-by-end IS max-by-start and min-by-start IS min-by-end.",
-      "why": "Same disjointness invariant, applied to the selection: with sessions ordered and strictly separated, the latest-ENDING session IS the latest-starting one and the earliest-starting IS the earliest-ending, so `key=s[1]`, `key=s[0]`, and natural tuple order all return the identical element. The probe asserts that identity directly (`is`, not `==`)."
-    },
-    {
-      "class": "no-distinguishing-input",
       "key": "- nxt = min(after, key=lambda s: s[0]) | + nxt = min(after, key=None)",
-      "probe": "tests/test_nightqc.py::test_merge_sessions_always_yields_DISJOINT_sessions_separated_by_more_than_the_gap — 400 randomized file-sets (seed 20260905, 1-12 files per set, input order shuffled) assert b[0] > a[1] + gap for every consecutive pair, and assert that on the produced sessions max-by-end IS max-by-start and min-by-start IS min-by-end.",
-      "why": "Same disjointness invariant, applied to the selection: with sessions ordered and strictly separated, the latest-ENDING session IS the latest-starting one and the earliest-starting IS the earliest-ending, so `key=s[1]`, `key=s[0]`, and natural tuple order all return the identical element. The probe asserts that identity directly (`is`, not `==`)."
+      "probe": "tests/test_nightqc.py::test_with_starts_supplied_sessions_stay_ORDERED_AND_DISJOINT_though_no_longer_gap_separated — 400 randomized file-sets WITH daemon starts (seed 20260926, mtimes long enough to straddle a seam) assert a[1] <= b[0] for every consecutive pair and that every file is placed exactly once.",
+      "why": "`merge_sessions` output is ordered by start and DISJOINT — since 2026-09-26 it may TOUCH or sit closer than `gap_sec`, because a recorded daemon start splits two runs however small the gap, so the old strictly-separated justification no longer holds. This claim needs only disjointness: two after-sessions cannot share a start (they would overlap), so the minimum by start is unique and keying on start, on the whole list, or on end all select it. The five claims that DID depend on strict separation were retired in the same change and are now killed by real tests."
     },
     {
       "class": "no-distinguishing-input",
       "key": "- nxt = min(after, key=lambda s: s[0]) | + nxt = min(after, )",
-      "probe": "tests/test_nightqc.py::test_merge_sessions_always_yields_DISJOINT_sessions_separated_by_more_than_the_gap — 400 randomized file-sets (seed 20260905, 1-12 files per set, input order shuffled) assert b[0] > a[1] + gap for every consecutive pair, and assert that on the produced sessions max-by-end IS max-by-start and min-by-start IS min-by-end.",
-      "why": "Same disjointness invariant, applied to the selection: with sessions ordered and strictly separated, the latest-ENDING session IS the latest-starting one and the earliest-starting IS the earliest-ending, so `key=s[1]`, `key=s[0]`, and natural tuple order all return the identical element. The probe asserts that identity directly (`is`, not `==`)."
+      "probe": "tests/test_nightqc.py::test_with_starts_supplied_sessions_stay_ORDERED_AND_DISJOINT_though_no_longer_gap_separated — 400 randomized file-sets WITH daemon starts (seed 20260926, mtimes long enough to straddle a seam) assert a[1] <= b[0] for every consecutive pair and that every file is placed exactly once.",
+      "why": "`merge_sessions` output is ordered by start and DISJOINT — since 2026-09-26 it may TOUCH or sit closer than `gap_sec`, because a recorded daemon start splits two runs however small the gap, so the old strictly-separated justification no longer holds. This claim needs only disjointness: two after-sessions cannot share a start (they would overlap), so the minimum by start is unique and keying on start, on the whole list, or on end all select it. The five claims that DID depend on strict separation were retired in the same change and are now killed by real tests."
     },
     {
       "class": "no-distinguishing-input",
       "key": "- nxt = min(after, key=lambda s: s[0]) | + nxt = min(after, key=lambda s: s[1])",
-      "probe": "tests/test_nightqc.py::test_merge_sessions_always_yields_DISJOINT_sessions_separated_by_more_than_the_gap — 400 randomized file-sets (seed 20260905, 1-12 files per set, input order shuffled) assert b[0] > a[1] + gap for every consecutive pair, and assert that on the produced sessions max-by-end IS max-by-start and min-by-start IS min-by-end.",
-      "why": "Same disjointness invariant, applied to the selection: with sessions ordered and strictly separated, the latest-ENDING session IS the latest-starting one and the earliest-starting IS the earliest-ending, so `key=s[1]`, `key=s[0]`, and natural tuple order all return the identical element. The probe asserts that identity directly (`is`, not `==`)."
+      "probe": "tests/test_nightqc.py::test_with_starts_supplied_sessions_stay_ORDERED_AND_DISJOINT_though_no_longer_gap_separated — 400 randomized file-sets WITH daemon starts (seed 20260926, mtimes long enough to straddle a seam) assert a[1] <= b[0] for every consecutive pair and that every file is placed exactly once.",
+      "why": "`merge_sessions` output is ordered by start and DISJOINT — since 2026-09-26 it may TOUCH or sit closer than `gap_sec`, because a recorded daemon start splits two runs however small the gap, so the old strictly-separated justification no longer holds. This claim needs only disjointness: two after-sessions cannot share a start (they would overlap), so the minimum by start is unique and keying on start, on the whole list, or on end all select it. The five claims that DID depend on strict separation were retired in the same change and are now killed by real tests."
     },
     {
       "class": "no-distinguishing-input",
