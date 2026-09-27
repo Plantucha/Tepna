@@ -255,8 +255,7 @@ def test_the_countdown_starts_AT_CAPTURE_not_at_boot(monkeypatch):
     capture at 23:13; the night before it restarted at 18:16, 18:53 and 20:56 against capture at 22:38.
     Counting 30 + 2x60 min from an evening restart puts the whole window over an IDLE heap and writes
     "no growth found": a verdict about a period the probe never pointed at."""
-    capture.STATUS.clear()
-    capture.STATUS["recording"] = False
+    monkeypatch.setitem(capture.STATUS, "recording", False)   # restored — see _live_streams below
     polls = {"n": 0}
 
     async def tick(_s):
@@ -291,8 +290,7 @@ def test_an_interval_with_no_capture_is_NOT_APPLICABLE_not_an_empty_diff():
 
 
 def test_the_interval_sleeper_reports_whether_anything_streamed(monkeypatch):
-    capture.STATUS.clear()
-    capture.STATUS["recording"] = False
+    monkeypatch.setitem(capture.STATUS, "recording", False)   # restored — see _live_streams below
     seen = {"n": 0}
 
     async def tick(_s):
@@ -320,10 +318,22 @@ def test_the_interval_sleeper_returns_on_stop(monkeypatch):
     assert _run(capture._sleep_watching_capture(60.0)) == (True, False)
 
 
-def test_live_streams_counts_only_recording_devices():
-    capture.STATUS.clear()
-    capture.STATUS["devices"] = {"H10": {"recording": True}, "Verity": {"recording": False},
-                                 "Ring": {"recording": True}, "junk": "not a dict"}
+def test_live_streams_counts_only_recording_devices(monkeypatch):
+    """⚠️ THE `junk` ENTRY IS DELIBERATE AND MUST NOT ESCAPE THIS TEST — it did, and it cost a day.
+
+    `_live_streams` must step over a device entry that is not a dict, so proving that needs one. Written
+    without `monkeypatch` this planted `"junk": "not a dict"` into the module-global `capture.STATUS`
+    and never put it back; any later test in the same xdist worker that drove `qc_poller` reached
+    `alerts.arrival_canary(summ, STATUS.get("devices") or {})`, where a non-empty str is truthy so
+    `or {}` never fires and `st.get("connected")` raised `AttributeError: 'str' object has no attribute
+    'get'`. It reddened #3010, #3024, #3027 and a probe commit as a red → green → red "flake", and was
+    blamed in turn on a mutation probe, on `_qc_offload`'s spawn boundary and on `nightqc.summarize`.
+
+    `monkeypatch.setitem` restores the key when the test ends. A test that writes a POISON value into
+    shared state to prove tolerance of poison is the one that least may leak it."""
+    monkeypatch.setitem(capture.STATUS, "devices",
+                        {"H10": {"recording": True}, "Verity": {"recording": False},
+                         "Ring": {"recording": True}, "junk": "not a dict"})
     assert capture._live_streams() == 2
 
 

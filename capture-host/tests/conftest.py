@@ -402,6 +402,48 @@ def _no_fsync_barrier_spans_tests():
 
 
 @_pytest.fixture(autouse=True)
+def _capture_STATUS_is_not_leaked():
+    """Restore `capture.STATUS` after every test — the FIRST NAME on the sibling fixture's
+    unenumerated list below, promoted because it was measured costing `main` reds for a day.
+
+    🔴 THE FAILURE THIS CLOSES, measured 2026-09-24. `tests/test_heap_probe.py` planted
+    `{"junk": "not a dict"}` into `STATUS["devices"]` with no `monkeypatch` and never put it back —
+    deliberately invalid, to prove `_live_streams` steps over a bad entry. Any later test in the same
+    xdist worker that drove `qc_poller` then reached
+    `alerts.arrival_canary(summ, STATUS.get("devices") or {})`, where a non-empty str is TRUTHY so
+    `or {}` never fires and `st.get("connected")` raised `AttributeError: 'str' object has no attribute
+    'get'`. It reddened #3010, #3024, #3027 and a probe commit, presenting as a red → green → red flake
+    at roughly 2 in 3 — and was blamed in turn on a mutation probe oversubscribing the runner, on
+    `_qc_offload`'s spawn boundary, and on `nightqc.summarize`. Four sessions, one day. Deterministic
+    once named: `pytest tests/test_heap_probe.py tests/test_qc_scope_resolution.py` was 1 failed /
+    38 passed, and is 39 passed with this fixture.
+
+    ⚠️ **DEEP copy, not shallow, and that is the subtle half.** Production writes NESTED —
+    `STATUS["devices"].setdefault(name, {})` in `_set()`, then mutates that inner dict in place — so a
+    shallow snapshot restores the REBINDS (`STATUS["devices"] = …`, `STATUS.clear()`) and silently keeps
+    every in-place mutation, which is most of them. A shallow version of this fixture passes its own
+    tests and leaks anyway: the same shape as the defect it closes, one level down.
+
+    ⚠️ **It does NOT make the writers correct, only harmless.** A scan of `tests/*.py` found 15 tests
+    that write `capture.STATUS` without `monkeypatch` or a restoring fixture; the three in
+    `test_heap_probe.py` are fixed at the source in the same PR because one of them planted the poison
+    value, and the other twelve write valid dicts and are covered here. A test that needs a poison value
+    in shared state is the one that least may leak it — prefer `monkeypatch.setitem` at the site.
+
+    ⚠️ **`ADAPTER` and `_RADIO_EVENTS` remain UNMEASURED, not known-clean.** The sibling's sentence
+    "that population is not enumerated here" stays true of them. Do not read "not fixed" as "not
+    leaking": a list somebody wrote down and left open is exactly how this cost a day."""
+    import copy
+
+    import capture
+
+    keep = copy.deepcopy(capture.STATUS)
+    yield
+    capture.STATUS.clear()
+    capture.STATUS.update(keep)
+
+
+@_pytest.fixture(autouse=True)
 def _capture_clock_anchor_is_not_leaked():
     """Restore `capture._now()`'s anchor after every test. Same family as the two resets above: a
     PROCESS-GLOBAL side effect written by the CODE, not by the test, so `monkeypatch` never sees it.
