@@ -117,6 +117,8 @@
     const n = file.name;
     let mo;
     if ((mo = n.match(/^(?:O2Ring.*|Wellue_O2Ring-S_[0-9A-Za-z]+)_(\d{14})(?:_SPO2)?\.csv$/i))) return { role: 'o2', stamp: mo[1] };
+    // the ring's RAW pleth is its preferred corner (156 beat markers, then PPGDSP feet); the CSV is the fallback
+    if ((mo = n.match(/^Wellue_O2Ring-S_[0-9A-Za-z]+_(\d{14})_PPG\.txt$/i))) return { role: 'o2ppg', stamp: mo[1] };
     /* The H10 corner prefers the RAW _ECG.txt (Pan–Tompkins in the worker): the device _HR.txt is smoothed and
        under-states σ (CLAUDE.md §🎙️ honest-HR facts). _HR.txt stays the fallback for a night without the waveform. */
     if ((mo = n.match(/^Polar_H10_[0-9A-Za-zx]+_(\d{8})_?(\d{6})_([A-Z]+)\.txt$/i))) {
@@ -156,9 +158,11 @@
   function resolveTriple(nt) {
     const C = nt.cand || {},
       largest = (a) => (a && a.length ? a.reduce((b, x) => (x.size > b.size ? x : b)) : null);
-    const o2 = largest(C.o2);
+    const o2 = largest(C.o2),
+      o2p = largest(C.o2ppg),
+      anchor = o2 || o2p;
     nt.o2 = o2 ? o2.file : null;
-    nt.startMs = o2 ? o2.ms : null;
+    nt.startMs = anchor ? anchor.ms : null;
     const nearest = (a) => {
       if (!a || !a.length) return null;
       if (nt.startMs == null) return largest(a);
@@ -171,11 +175,13 @@
       vhr = nearest(C.verityHR);
     nt.h10 = h ? h.file : null;
     nt.h10ecg = he ? he.file : null;
+    const op = nearest(C.o2ppg);
+    nt.o2ppg = op ? op.file : null;
     nt.verityPPG = vppg ? vppg.file : null;
     nt.verityPPI = vppi ? vppi.file : null;
     nt.verityHR = vhr ? vhr.file : null;
   }
-  const eligible = (nt) => !!(nt.o2 && (nt.h10ecg || nt.h10) && (nt.verityPPG || nt.verityPPI || nt.verityHR));
+  const eligible = (nt) => !!((nt.o2ppg || nt.o2) && (nt.h10ecg || nt.h10) && (nt.verityPPG || nt.verityPPI || nt.verityHR));
   const verSrc = (nt) => (nt.verityPPG ? 'PPG' : nt.verityPPI ? 'PPI' : nt.verityHR ? 'HR' : '—');
   let SELECTED = null;
   function ingestFiles(list) {
@@ -213,7 +219,9 @@
       const el = document.createElement('div');
       el.className = 'sb-item' + (SELECTED === k ? ' active' : '') + (ok ? '' : ' ts-dim');
       el.setAttribute('data-k', k);
-      el.title = ok ? 'O2Ring ● · H10 ' + (nt.h10ecg ? 'ECG' : 'HR') + ' · Verity ' + verSrc(nt) : 'ineligible — needs O2Ring CSV, an H10 ECG or HR and a Verity stream';
+      el.title = ok
+        ? 'O2Ring ' + (nt.o2ppg ? 'PPG' : 'CSV') + ' · H10 ' + (nt.h10ecg ? 'ECG' : 'HR') + ' · Verity ' + verSrc(nt)
+        : 'ineligible — needs O2Ring CSV, an H10 ECG or HR and a Verity stream';
       el.innerHTML = '<span class="ts-nk">' + esc(k) + '</span><span class="ts-nres" id="nres-' + esc(k) + '">' + (ok ? 'ready' : 'ineligible') + '</span>';
       nav.appendChild(el);
     });
@@ -330,7 +338,8 @@
          holds only the seconds a batch arrived: on 2026-09-25 that cut a 7.1 h night to 4483 aligned seconds
          (1 h 14 min). The PPI is sent only when there is no PPG; the raw ECG goes as `h10ecg`. */
       files: {
-        o2: nt.o2,
+        o2: nt.o2 || null,
+        o2ppg: nt.o2ppg || null,
         h10: nt.h10 || null,
         h10ecg: nt.h10ecg || null,
         verityPPG: nt.verityPPG || null,
@@ -448,7 +457,7 @@
     seriesBadges('cSeries', [
       ['hrEcg', 'Polar H10 HR'],
       ['hrPpg', 'Verity Sense HR'],
-      ['hrO2', 'O2Ring pulse']
+      ['hrO2', 'O2Ring HR']
     ]);
     seriesBadges('cSigma', [['hat', 'σ̂ per corner, with its bootstrap CI']]);
     seriesBadges('cDiff', [
@@ -485,6 +494,18 @@
     if (v) v.textContent = val;
     if (s) s.textContent = sub || '';
   }
+  /* ── WHAT THE REFERENCE SAYS ABOUT EACH HERO (tools/tch-firmware-reference.mjs, 2026-09-26) ────────────
+     Checked against beats two independent R-peak detectors agree on (ECGDex + the H10 firmware), over 37 box
+     nights: the classic hat under-reads the Verity (0.41 vs a true 0.73 bpm) and over-reads the H10 (0.97 vs
+     0.81), because the two optical corners share error (ρ ≈ 0.32) and the hat assumes they do not. The
+     O2Ring σ̂ lands within ±0.3 bpm / 30 % of its true value on 37/37 nights, a little low. So the H10 and
+     Verity heroes are UNVALIDATED and say so; the numbers live in
+     analysis/published-numbers/tch-firmware-reference-2026-09-26.json and this text must follow them. */
+  const VALIDATION = {
+    h10: 'unvalidated — the hat over-reads the H10 (0.97 vs a measured 0.81 bpm, 37 nights)',
+    verity: 'unvalidated — the hat under-reads the Verity (0.41 vs a true 0.73 bpm, 37 nights)',
+    o2: 'reference-checked — within ±0.3 bpm / 30 % on 37/37 nights (reads a little low: 1.46 vs 1.71)'
+  };
   function hero(k, real, derive) {
     const v = $('hero-' + k + '-val'),
       u = $('hero-' + k + '-unit');
@@ -504,6 +525,11 @@
           : ci
             ? 'bpm · 95 % CI ' + f2(ci.lo) + ' – ' + f2(ci.hi)
             : 'bpm · CI unavailable';
+    const note = $('hero-' + k + '-val') && $('hero-' + k + '-val').parentElement.querySelector('.ts-valid');
+    if (note) {
+      note.textContent = VALIDATION[k];
+      note.classList.toggle('ts-unval', k !== 'o2');
+    }
   }
   function renderSkip(nt, real) {
     for (const k of DKEYS) hero(k, null, null);
@@ -526,7 +552,25 @@
     // follows the point's), so the label names the estimator that actually produced the numbers
     kpi('kMethod', real.neg ? 'negative variance' : 'fused hat', real.neg ? 'a corner is null — see the literature note' : 'DSP confidence × consensus trust', real.neg ? 'warn' : 'good');
     kpi('kGate', real.h10Unreliable ? 'H10 nulled' : 'both gates ok', real.h10Unreliable ? real.h10Fault : 'Verity harmonic gate · H10 lead gate', real.h10Unreliable ? 'bad' : 'good');
-    kpi('kSource', real.source || '—', 'Verity HR pipeline', '');
+    // every corner's source, because a σ̂ is only comparable across nights that read the same inputs
+    const short = (x) =>
+      x
+        ? String(x)
+            .replace(/^ring·/, '')
+            .replace(/·.*$/, '')
+        : '—';
+    kpi(
+      'kSource',
+      short(real.h10Source) + ' · ' + short(real.source) + ' · ' + short(real.o2Source),
+      'H10 ' + (real.h10Source || '—') + ' · Verity ' + (real.source || '—') + ' · O2Ring ' + (real.o2Source || '—'),
+      ''
+    );
+    const o2k = {
+      'ring·156-markers': ['finger pleth · 156 beat markers', "the ring firmware's own per-beat markers in its raw pleth → PPI → per-second HR"],
+      ring·PPGDSP: ['finger pleth · PPGDSP feet', 'pulse feet detected in the raw pleth by PPGDSP → PPI → per-second HR']
+    }[real.o2Source] || ['finger pulse · 1 Hz native', 'direct pulse reading (OxyDex registry `meanHr`)'];
+    DEV.o2.kind = o2k[0];
+    EV.hrO2 = ['measured', o2k[1]];
     let ss = 0,
       solved = 0;
     for (const k of DKEYS)

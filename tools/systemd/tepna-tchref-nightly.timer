@@ -1,0 +1,15 @@
+# SPDX-FileCopyrightText: Copyright 2026 Michal Planicka
+# SPDX-License-Identifier: Apache-2.0
+[Unit]
+Description=Tepna — score last night against the firmware-RR reference, daily after the corpus pulls
+
+[Timer]
+# 15:30 local: after tepna-archive-pull (13:30) and tepna-corpus-tier (14:30) have brought the night
+# onto the corpus disk, so the run sees it. Persistent so a tick missed while the rig was off fires at
+# boot. Only unscored nights are computed, so a normal tick is one night, ~5 min.
+OnCalendar=*-*-* 15:30:00
+Persistent=true
+RandomizedDelaySec=600
+
+[Install]
+WantedBy=timers.target

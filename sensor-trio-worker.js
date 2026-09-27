@@ -913,6 +913,50 @@ function ppgHrMapReal(text, onPhase) {
     return null;
   }
 }
+/* ── THE RING'S OWN BEATS: per-second HR from the O2Ring's `156` beat markers ─────────────────────────────
+   The firmware inserts one `156` row per detected beat into the raw _PPG.txt; `parsePPG` separates the isolated
+   ones from the waveform and publishes their times as `beatMarkerSec` (ppgdex-dsp.js markO2BeatMarkers). They
+   run through the same PPI → Malik → per-second median → ±2 s cleanup as `ppgHrMapReal`. A marker records the
+   firmware's DETECTION instant, a fixed latency: sound for intervals, which is all HR uses, never for PAT.
+   Measured 2026-09-26 on 2026-09-25 (22,729 markers), the O2Ring corner σ̂ against the H10 + Verity:
+   _SPO2.csv pulse 3.19 bpm · raw pleth via PPGDSP feet 1.98 · the markers 1.33. The CSV is a smoothed 1 Hz
+   integer; most of the ring's apparent noise was that summary, not the sensor. */
+function o2MarkerHrMap(text) {
+  try {
+    var rec = PPGDSP.parsePPG(text);
+    var ms = rec && rec.beatMarkerSec;
+    if (!ms || ms.length < 30) return null;
+    var b = PPGDSP.buildPPI(Array.from(ms));
+    if (!b || !b.rr || b.rr.length < 20) return null;
+    var corr = PPGDSP.correctRR(b.rr, b.tt),
+      t0 = rec.t0Ms || 0,
+      pairs = [],
+      i;
+    for (i = 0; i < corr.nn.length; i++) {
+      var hr = 60000 / corr.nn[i];
+      if (hr >= HR_MIN && hr <= HR_MAX) pairs.push([secFloor(t0 + corr.tt[i] * 1000), hr]);
+    }
+    if (pairs.length < 30) return null;
+    var per = medMap(pairs),
+      secs = Array.from(per.keys()).sort(function (a, c) {
+        return a - c;
+      }),
+      vals = secs.map(function (k) {
+        return per.get(k);
+      }),
+      out = new Map();
+    for (var j = 0; j < secs.length; j++) {
+      var win = vals.slice(Math.max(0, j - 2), Math.min(vals.length, j + 3)).sort(function (a, c) {
+          return a - c;
+        }),
+        med = win[win.length >> 1];
+      if (Math.abs(vals[j] - med) <= 20) out.set(secs[j], vals[j]);
+    }
+    return out.size >= 30 ? out : null;
+  } catch (e) {
+    return null;
+  }
+}
 async function runRealNight(m) {
   var pg = function (ph) {
     self.postMessage({ type: 'progress', reqId: m.reqId, label: m.label, phase: ph });
@@ -920,7 +964,31 @@ async function runRealNight(m) {
   try {
     var f = m.files;
     pg('reading device files');
-    var O = o2PulseMap(await f.o2.text());
+    /* THE O2RING CORNER, raw first (2026-09-26): its own `156` beat markers → PPGDSP feet on the raw pleth →
+       the _SPO2.csv 1 Hz pulse. `o2Source` names which one ran. A caller that sends no `o2ppg` (the power
+       tool) gets the CSV exactly as before. */
+    var O = null,
+      osrc = null,
+      Oconf = null;
+    if (f.o2ppg && HAVE_PPGDSP) {
+      var _ot = await f.o2ppg.text();
+      pg('ring beat markers');
+      O = o2MarkerHrMap(_ot);
+      if (O) osrc = 'ring·156-markers';
+      else {
+        pg('ring pleth feet');
+        var _op = ppgHrMapReal(_ot, pg);
+        if (_op && _op.hr) {
+          O = _op.hr;
+          Oconf = _op.conf || null;
+          osrc = 'ring·PPGDSP';
+        }
+      }
+    }
+    if (!O && f.o2) {
+      O = o2PulseMap(await f.o2.text());
+      if (O) osrc = 'ring·SpO2-csv';
+    }
     var H = null,
       hsrc = null;
     if (f.h10ecg && HAVE_ECGDSP) {
@@ -984,7 +1052,10 @@ async function runRealNight(m) {
       cH.push(Number.isFinite(_ch) ? _ch : 1);
       var _cv = Vconf && Vconf.has(ks[i]) ? Vconf.get(ks[i]) : 1;
       cV.push(Number.isFinite(_cv) ? _cv : 1);
-      cO.push(1); // O2Ring native pulse — a smoothed device integer, cannot over-detect ⇒ trust 1
+      // the pleth path carries per-beat confidence; the markers and the CSV are the device's own beats (a smoothed
+      // integer, or its detector's fiducial), which cannot over-detect ⇒ trust 1, as before
+      var _co = Oconf && Oconf.has(ks[i]) ? Oconf.get(ks[i]) : 1;
+      cO.push(Number.isFinite(_co) ? _co : 1);
     }
     var s = tchSigmasFused(hh, vv, oo, cH, cV, cO); // fused-weight hat (per-corner DSP confidence)
     var rHV = pearson(hh, vv),
@@ -1042,6 +1113,8 @@ async function runRealNight(m) {
       skip: false,
       n: ks.length,
       source: src,
+      h10Source: hsrc,
+      o2Source: osrc,
       sigma: { o2: s.o2, h10: s.h10, verity: s.verity },
       neg: s.neg,
       h10Unreliable: h10Cls !== 'ok',

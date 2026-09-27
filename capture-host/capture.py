@@ -9544,6 +9544,145 @@ _LOOP_LAG_WARN_MS = 1000.0     # logged: at this size the H10's 130 Hz ECG has ~
 _LOOP_LAG_WARN_EVERY_S = 300.0
 
 
+# ── WHICH CALLBACK HELD THE LOOP — attribution, which `loop_monitor` below cannot give ────────────
+#
+# `loop_monitor` measures the ONE shared resource and says so honestly: its log line reads "whatever held
+# it", because sleep-lateness is a symptom with no subject. Measured 2026-09-25, that gap cost a night of
+# wrong attribution — 737 stalls in a tracing window were read as "25 at the QC poll's cadence", because
+# `stalls so far:` is cumulative and the warning is rate-limited to 300 s, so the SPACING OF WARNINGS IS
+# THE LIMITER'S PERIOD and can never establish a cause. Two sessions then reasoned from that spacing.
+# This names the callback instead, at the moment it runs long.
+#
+# 🔴 THE OBVIOUS MECHANISM IS THE WRONG ONE, MEASURED. asyncio has this built in —
+# `loop.set_debug(True)` plus `loop.slow_callback_duration` logs "Executing <Handle …> took X seconds".
+# Benchmarked over 60,000 callbacks through the real dispatch path, median of 3:
+#
+#     baseline (no instrument)                     1.29 µs/callback
+#     loop.set_debug(True) + slow_callback        18.09 µs/callback   ← 14.0x baseline
+#     wrapped Handle._run (perf_counter pair)      1.56 µs/callback   ← 1.20x baseline
+#
+# Debug mode is **14x** because it also captures a source traceback for every handle and tracks
+# coroutine origins — a broad tax to answer a narrow question, and the same shape as the heap probe's
+# measured 19x stall tax. So this wraps `Handle._run`, the ONE choke point every callback passes through,
+# and pays two `perf_counter()` calls: **+0.26 µs per callback**, which at a busy 5,000 callbacks/s is
+# 1.3 ms/s ≈ 0.13 % of one core. The handle is RENDERED only past the threshold, so the fast path costs
+# nothing beyond the timing pair.
+#
+# ⚠️ AND THAT IS WHY THIS GATE IS A CONFIG KEY RATHER THAN THE HEAP PROBE'S ONE-SHOT REQUEST. The probe
+# needed consuming because its tax was 19x and a standing flag re-armed it every night. 1.20x is a tax
+# you can leave on for the nights you are diagnosing. Still OFF by default: an instrument nobody asked
+# for should not be running, whatever it costs.
+_SLOW_CB_MS = _LOOP_LAG_STALL_MS      # ONE definition of "a stall" — see the assertion in the tests:
+#: if these two drifted, `STATUS["loop"]["stalls"]` would count one thing and this would name another,
+#: and the cross-read that makes the pair useful ("N stalls, and here are the callbacks") would be false.
+_SLOW_CB_LOG_EVERY_S = 0.0            # NOT rate-limited, deliberately: the limiter is what made the
+#: previous instrument's output unreadable as a cadence. Every slow callback is logged with its name; a
+#: flood IS the finding, and `STATUS` carries the aggregate for anyone who wants one line instead.
+
+
+def describe_handle(handle) -> str:
+    """A readable name for the callback inside an asyncio `Handle`.
+
+    `repr(handle)` is already `<Handle cb() at file:line>` and is the right answer for a plain callback.
+    It is NOT the right answer for a coroutine step: every awaiting task dispatches through
+    `Task.__step`, so a dozen different coroutines would all report the same name. When the callback is
+    a bound method of a Task, this names the COROUTINE instead — which is the thing a reader can act on.
+
+    Falls back to `repr` on anything unexpected rather than raising: this runs inside the dispatch path,
+    and an instrument that can throw there takes the loop down with it."""
+    try:
+        cb = getattr(handle, "_callback", None)
+        owner = getattr(cb, "__self__", None)
+        if isinstance(owner, asyncio.Task):
+            coro = owner.get_coro()
+            name = getattr(coro, "__qualname__", None) or getattr(getattr(coro, "cr_code", None), "co_name", None)
+            return f"task:{owner.get_name()}:{name or 'coro'}"
+        return repr(handle)
+    except Exception:                  # noqa: BLE001 — naming must never break dispatch; repr is the floor
+        return "<unnameable handle>"
+
+
+class SlowCallbackWatch:
+    """Times every callback through `Handle._run` and logs any that runs past `threshold_ms` BY NAME.
+
+    Install/restore is symmetric and idempotent, and `restore()` puts back exactly the function it
+    replaced — the same contract as `DecodeCensus`, for the same reason: a process left wrapped after the
+    instrument is meant to be off has been permanently changed by its own diagnostic."""
+
+    def __init__(self, threshold_ms: float = _SLOW_CB_MS) -> None:
+        self.threshold_s = float(threshold_ms) / 1000.0
+        # Typed as the callable it will hold, not inferred from its initial None — mypy read the
+        # annotation-free `None` as the attribute's TYPE and then called `install`'s assignment an error.
+        self._orig_run: "Callable[[asyncio.events.Handle], Any] | None" = None
+        #: name -> {"n": count, "max_ms": worst}. The aggregate STATUS carries, so a reader has one line
+        #: as well as the per-event log. Empty means "installed and nothing ran long", which is a finding.
+        self.slow: dict[str, dict] = {}
+
+    def install(self) -> None:
+        if self._orig_run is not None:
+            return
+        orig = asyncio.events.Handle._run
+        self._orig_run = orig
+        thr = self.threshold_s
+        slow = self.slow
+
+        def _run(handle):
+            t0 = _time.perf_counter()
+            try:
+                return orig(handle)
+            finally:
+                held = _time.perf_counter() - t0
+                if held >= thr:
+                    # Rendered ONLY here — the fast path never pays for a repr.
+                    name = describe_handle(handle)
+                    rec = slow.setdefault(name, {"n": 0, "max_ms": 0.0})
+                    rec["n"] += 1
+                    rec["max_ms"] = max(rec["max_ms"], round(held * 1000.0, 1))
+                    log.warning("slow callback: %s held the loop %.0f ms — every live stream's host "
+                                "stamps waited behind THIS (seen %d time(s), worst %.0f ms)",
+                                name, held * 1000.0, rec["n"], rec["max_ms"])
+
+        # Replacing a method on the class IS the mechanism (the 1.20x choke point measured above), so
+        # the [method-assign] refusal is answered rather than silenced: both sites are the same swap.
+        asyncio.events.Handle._run = _run   # type: ignore[method-assign]
+
+    def restore(self) -> None:
+        if self._orig_run is not None:
+            asyncio.events.Handle._run = self._orig_run   # type: ignore[method-assign,assignment]
+            self._orig_run = None
+
+
+async def slow_callback_watch(cfg: dict):
+    """Install `SlowCallbackWatch` for the process's life when `slow_callback.enabled`.
+
+    ⚠️ NO `STATUS` KEY, and that is a correction rather than an omission. The first version published
+    `STATUS["slow_callbacks"]` with an aggregate, and `find_unwired --check` red it: *published by
+    capture.py and read by nothing*. It was right — the property this instrument owes is the JOURNAL LINE
+    naming the callback at the moment it runs long, and an aggregate for a reader who might want one is
+    the half-wired mechanism this repo keeps finding. The per-name counters stay in memory because the log
+    line itself consumes them ("seen N times, worst X ms"); nothing is published that nothing reads.
+
+    Registered unconditionally and OFF by default, for the reason the `heap_probe` registration states:
+    an instrument wired only when enabled has its wiring exercised for the first time on the night
+    someone needs it. This returns immediately when disabled, so the registration itself is tested every
+    run."""
+    scfg = cfg.get("slow_callback") or {}
+    if not scfg.get("enabled", False):
+        log.info("slow-callback watch: OFF — slow_callback.enabled is false")
+        return
+    watch = SlowCallbackWatch(float(scfg.get("threshold_ms", _SLOW_CB_MS)))
+    watch.install()
+    log.info("slow-callback watch: ON — any callback holding the loop >= %.0f ms is logged BY NAME "
+             "(measured overhead +0.26 us/callback, 1.20x dispatch)", watch.threshold_s * 1000.0)
+    try:
+        await _STOP.wait()
+    finally:
+        # Before anything else that could raise: a process left wrapped has been permanently changed by
+        # its own diagnostic, which is the defect `DecodeCensus.restore` exists to avoid.
+        watch.restore()
+        log.info("slow-callback watch: restored after %d distinct slow callback(s)", len(watch.slow))
+
+
 async def loop_monitor(period_s: float = 1.0):
     """Measure the ONE resource every stream shares and nothing published: event-loop latency. Every bleak
     notification, every `Phone timestamp` host stamp, every `_maybe_flush` fsync runs on this loop
@@ -11926,6 +12065,9 @@ async def main():
                    ("charger_pull_poller", lambda: charger_pull_poller(cfg, root)),
                    ("sd_watchdog", sd_watchdog),
                    ("loop_monitor", loop_monitor),
+                   # The attribution half of the pair above: loop_monitor says the loop was held,
+                   # this says BY WHAT. Same OFF-by-default-but-always-registered reasoning.
+                   ("slow_callback_watch", lambda: slow_callback_watch(cfg)),
                    # Registered unconditionally and OFF by default: a probe wired only when enabled is a
                    # probe whose wiring is never exercised, so the night it is armed is the night its
                    # registration is tested for the first time. It returns immediately when disabled.

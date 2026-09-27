@@ -67,6 +67,10 @@ const TOOLS = [
      pat-feasibility-worker.js had said "DEAD in the build-analysis blob" since it was written: built to be
      inlined, never listed. */
   'PAT Feasibility.html',
+  /* Listed the day it was written, which is the whole lesson of the entry above: the box serves only
+     OWNED output, so a page absent from here 404s every dep it names and the monitor's click can never
+     process. It runs the SAME worker as `PAT Feasibility.html`, so the blob is built identically. */
+  'PAT Classic vs Fused.html',
   'qrs-equiv-analysis.html',
   'qrs-yield-analysis.html',
   'resp-acc-analysis.html',
