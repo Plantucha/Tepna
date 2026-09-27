@@ -165,8 +165,6 @@ def test_every_clickable_night_routes_to_an_input_the_app_actually_has():
     else, so a route for a figure-only column (HRVDex) cannot quietly come back."""
     import re
 
-    import pytest
-
     import nights_index as ni
 
     here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
