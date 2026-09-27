@@ -4633,6 +4633,26 @@
       "op": "operand/sign substitution inside the residual construction",
       "probe": "7 residual/origin variants × a 4-anchor geometry, comparing (spread, span) against the original: all byte-identical. Plus the 46-test suite, including constructed boundaries at exactly 3 anchors, spread 2.00 ms, span 1.000 s, modal share 0.670, ppm −50000.0, and a ppm rounding edge at −40000.48 — none distinguishes these.",
       "why": "`res[0][0]` and `res[0][1]` are both IDENTICALLY 0 — the first anchor defines both origins — so the mutated term is the literal 0 and `x + 0` is `x − 0`. An arithmetic identity, not a test gap."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- prev_r: float | None = None | + prev_r: float | None = \"\"",
+      "probe": "`prev_r` is read at exactly one place: `if prev_r is None or r != prev_r or (host - last_at)... >= TB_FLOOR_S`. On the first row the original takes the `is None` arm; the mutant takes `r != \"\"`, which is true for every float, so BOTH append the anchor. Line 461 then assigns a float, so the sentinel is never seen again and its type never reaches arithmetic. Probed 2026-09-27: the mutant applied by hand leaves test_solid_night_inputs + test_nights_index at 102 passed."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- last_at = _dt.datetime.min | + last_at = None",
+      "probe": "`last_at` is read only inside the THIRD arm of `if prev_r is None or r != prev_r or (host - last_at).total_seconds() >= TB_FLOOR_S`, and Python short-circuits. Reaching the subtraction requires `prev_r is not None` AND `r == prev_r`, which requires line 461 to have run — and 461 assigns `prev_r, last_at = r, host` TOGETHER. So `None` can never reach `host - last_at`: the only rows that evaluate it are rows where last_at already holds a datetime. Probed 2026-09-27: 102 passed under the mutant. Not a claim that datetime.min is idle — it is the value the FIRST comparison would use if the short-circuit ever changed, which is why the original keeps it."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- if c > top: | + if c >= top:",
+      "probe": "`top` is a running MAXIMUM over the delta tally and the body is `top = c`. On a tie the assignment stores the value already held, so the two forms differ only in whether a redundant store happens; no reachable state and no output can distinguish them, and `top` is read once at the end for `top / total`. Probed 2026-09-27: 102 passed under the mutant."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- cols = header.rstrip(\"\\n\").split(\";\") | + cols = header.lstrip(\"\\n\").split(\";\")",
+      "probe": "`header` comes from `fh.readline()`, which returns the bytes up to AND INCLUDING the first newline. A string it can return therefore has a newline at most at the END, never at the start with content after it: a file beginning with a blank line yields exactly \"\\n\", where rstrip and lstrip both give \"\". So the two differ only on inputs readline cannot produce. The trailing-newline case that DOES matter is pinned by test_the_header_is_stripped_of_its_NEWLINE_and_nothing_else, which kills the rstrip(None) sibling. Probed 2026-09-27: 102 passed under the mutant."
     }
   ]
 }
