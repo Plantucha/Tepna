@@ -95,7 +95,7 @@ def test_a_full_trio_night_fills_every_column_from_its_own_files(tmp_path):
     assert e["GlucoDex"] is None and e["EEGDex"] is None, "no CGM, no Muse: absent, never 0"
     assert e["Integrator"]["loadable"] is False and e["ECGDex"]["loadable"] is True
     assert e["3 corner hat"] is True and e["PAT"] is True
-    assert set(e) == {"night", *ni.COLUMNS}
+    assert set(e) == {"night", "arrival", *ni.COLUMNS}
 
 
 def test_a_night_without_the_h10_loses_its_ecg_columns_and_the_derived_tools(tmp_path):
@@ -288,3 +288,21 @@ def test_parse_host_stamp_falls_back_to_the_other_layout_and_never_fabricates():
     assert ni.parse_host_stamp("not a stamp") is None
     assert ni.parse_host_stamp("") is None
     assert ni.parse_host_stamp("2026-13-45T99:99:99.000") is None, "range-invalid, not rolled"
+
+
+def test_the_arrival_sidecars_of_both_polar_devices_are_listed_and_the_ring_s_is_not(tmp_path):
+    """PAT Feasibility's corrected lag is anchored on each Polar device's packet-arrival floor, so the index hands
+    the monitor both sidecars as their own per-night field (never inside a node's ingest list). The ring's sidecar
+    carries no PMD stream PAT uses. A night without sidecars lists none — an empty list, not a missing key."""
+    root = str(tmp_path)
+    d = _night(root)
+    for name in ("Polar_H10_02849638_20260919220000_PMDARRIVAL.csv", "Polar_VeritySense_0C301E3F_20260919220000_PMDARRIVAL.csv",
+                 "Wellue_O2Ring-S_S8AW2100_20260919220000_PMDARRIVAL.csv"):
+        _w(os.path.join(d, name), "Phone timestamp;device;meas;first_sensor_ns;last_sensor_ns;n_samples\n")
+    e = ni.night_entry(os.path.join(root, "captures"), d)
+    assert e["arrival"] == ["2026-09-19/Polar_H10_02849638_20260919220000_PMDARRIVAL.csv",
+                            "2026-09-19/Polar_VeritySense_0C301E3F_20260919220000_PMDARRIVAL.csv"]
+    assert not any("PMDARRIVAL" in f for c in ni.NODES if e[c] for f in e[c]["files"]), "a sidecar leaked into an ingest list"
+    bare = str(tmp_path / "b")
+    e2 = ni.night_entry(os.path.join(bare, "captures"), _night(bare))
+    assert e2["arrival"] == []

@@ -143,7 +143,13 @@ function ecgRpeakTimes(text) {
        how much each end was trusted had no way to get it without re-deriving `hrConfidence` — i.e.
        re-running bandpass + detect + SQI on the same bytes. `null` when the DSP has no `hrConfidence`,
        never an empty Map: absent and "measured, all ones" are different facts (§∅). */
-    conf: conf
+    conf: conf,
+    // worker-internal, for the arrival-floor axis below: each R's (sub-sample) position and the sample count
+    // the device-time column must match row for row. Never posted.
+    pos: Float64Array.from(peaks, function (_, k) {
+      return posAt(k);
+    }),
+    nSamples: rec.int16.length
   };
 }
 function ppgFootTimes(text) {
@@ -221,7 +227,8 @@ function ppgFootTimes(text) {
         )
       : null;
   // Forwarded for the same reason as the ECG leg above — this is the leg that can actually be DRAWN.
-  return { t0Ms: rec.t0Ms, fs: rec.fs, durSec: rec.durSec, times: t, n: cons.feet.length, hostAxis: rec.hostAxis || null, conf: _conf };
+  // `feetIdx` / `nSamples`: worker-internal, for the arrival-floor axis below. Never posted.
+  return { t0Ms: rec.t0Ms, fs: rec.fs, durSec: rec.durSec, times: t, n: cons.feet.length, hostAxis: rec.hostAxis || null, conf: _conf, feetIdx: cons.feet, nSamples: rec.n };
 }
 function overlap(ecg, ppg) {
   var s = Math.max(ecg.t0Ms, ppg.t0Ms),
@@ -562,29 +569,262 @@ function threeHat(cAB, cAC, cBC, wAB, wAC, wBC) {
     windows: win
   };
 }
-function estimateDriftACC(h10Text, vText, t0, t1) {
-  var eA = PATAlign.envelope(PPGDSP.parseSensorXYZ(h10Text), t0, t1, {}),
-    eB = PATAlign.envelope(PPGDSP.parseSensorXYZ(vText), t0, t1, {});
-  if (!eA || !eB) return { ok: false, reason: 'ACC parse failed' };
-  var r = PATAlign.alignByAnchors(eA, eB, t0, {});
-  if (!r.ok) return { ok: false, reason: r.reason + ' — chest & ankle motion too decorrelated', anchors: r.anchors.length };
-  var anchors = r.anchors;
-  var cov = (anchors[anchors.length - 1].tMs - anchors[0].tMs) / (t1 - t0 || 1);
-  // Piecewise-linear between anchors, flat outside them: drift is measured where a shared movement
-  // actually happened and is never extrapolated past the last one.
-  function offsetAt(t) {
-    if (t <= anchors[0].tMs) return anchors[0].offsetMs;
-    if (t >= anchors[anchors.length - 1].tMs) return anchors[anchors.length - 1].offsetMs;
-    for (var i = 1; i < anchors.length; i++)
-      if (t <= anchors[i].tMs) {
-        var a = anchors[i - 1],
-          b = anchors[i],
-          f = (t - a.tMs) / (b.tMs - a.tMs || 1);
-        return a.offsetMs + f * (b.offsetMs - a.offsetMs);
-      }
-    return anchors[anchors.length - 1].offsetMs;
+/* ── THE ARRIVAL-FLOOR AXIS (route-PAT fix, owner-ordered 2026-09-27) ────────────────────────────────────────
+   WHAT WAS WRONG. The corrected path ("ACC-sync") put both accelerometers on their PHONE stamps and re-aligned
+   the ankle PPG by the offset between the two motion envelopes. A phone stamp is the arrival of the packet,
+   back-timed across it, so that offset was (Verity buffering − H10 buffering): the ~400 ms the page reported
+   as "drift after ACC-sync" is a BUFFERING difference, inside the −867..+1321 ms range capture-host/writers.py
+   PmdArrivalLogWriter measured per connection, and not a clock drift at all.
+   WHY NOT "TIME THE ACC ON ITS DEVICE COUNTER" AND KEEP THE REST. The two PAT legs are on `tMsAt` / `relSec`,
+   both host-disciplined by `hostAxis`, which anchors on the MEDIAN of (host − device) and so carries that
+   stream's MEDIAN buffering. What PAT needs removed is that buffering; a floor-anchored ACC would read ≈ 0 and
+   delete a real correction (Wren's arithmetic, confirmed by Kestrel before building).
+   WHAT THIS DOES INSTEAD. Every stream's device counter is placed on the host by its OWN arrival FLOOR — the
+   packet-arrival sidecar records each PMD packet's true arrival beside its first sample's device stamp, and
+   buffering is one-sided, so a low quantile of (arrival − device) is clock offset + the link's MINIMUM
+   latency, with the buffering gone. Per 10-min device-time window: the 1st percentile (writers.floor_ms's
+   rule); a window is REFUSED under 100 packets or when the gap to the minimum exceeds 10 ms (a smeared edge
+   is not a floor); a jump > 30 s in (arrival − device) is a counter step and splits a segment; anchors are
+   interpolated inside a segment, flat at its edges. Then R and foot = device time + floor, the corrected
+   coupling is re-gated, and the accelerometers — re-timed the same way — become an INDEPENDENT CHECK that
+   should read ≈ 0 (the two links' minimum-latency difference). Nothing falls back to a phone stamp or to
+   `hostAxis` here: a median anchor carries buffering, so it cannot deliver this property (§∅ — refuse, with
+   the reason). The raw legs and the primary `vd` are untouched. */
+var FLOOR_WIN_MS = 600000,
+  FLOOR_MIN_PACKETS = 100,
+  FLOOR_MAX_SPREAD_MS = 10,
+  /* a COUNTER STEP, not buffering: per-packet buffering alone moves (arrival − device) by seconds (Heron measured a
+     Verity p95 near 2.5 s), and a 2 s threshold chopped a buffered stream into fragments too short for any window —
+     the plant caught it. Real resyncs step by tens of seconds to years (the 2026-09-24 time sync: 2.44e8 s). */
+  FLOOR_STEP_MS = 30000,
+  FLOOR_MIN_WINDOWS = 3,
+  FLOOR_Q = 0.01,
+  FLOOR_EDGE_MS = 5000; // a sample may sit up to one packet past the last packet's first stamp
+function arrivalHostMs(stamp) {
+  var r = typeof DexClock !== 'undefined' && DexClock.parseTimestamp ? DexClock.parseTimestamp(stamp) : null;
+  return r && isFinite(r.tMs) ? r.tMs : null;
+}
+/* Per data row, the device counter in ms (NaN for an unparseable stamp). Comment lines are skipped the way the
+   parsers skip them; the caller compares the row count to the DSP's sample count and refuses on a mismatch, so
+   a row the DSP rejected can never shift every later index. */
+function devMsColumn(text) {
+  var L = String(text).split(/\r?\n/),
+    head = (L[0] || '').split(';').map(function (x) {
+      return x.trim();
+    }),
+    ci = head.indexOf('sensor timestamp [ns]');
+  if (ci < 0) return null;
+  var out = [];
+  for (var i = 1; i < L.length; i++) {
+    var line = L[i];
+    if (!line || line.charAt(0) === '#') continue;
+    var v = +line.split(';')[ci];
+    out.push(isFinite(v) ? v / 1e6 : NaN);
   }
-  return { ok: true, anchors: anchors.length, coverage: cov, offsetAt: offsetAt, offRange: r.offsetRangeMs };
+  return Float64Array.from(out);
+}
+function floorMap(sidecarText, meas) {
+  var L = String(sidecarText).split(/\r?\n/),
+    pk = [];
+  for (var i = 1; i < L.length; i++) {
+    if (!L[i]) continue;
+    var c = L[i].split(';');
+    if (c[2] !== meas) continue;
+    // the packet's LAST sample: it was taken just before the packet left, so (arrival − last) is clock offset +
+    // link latency. The FIRST sample also carries the packet-fill time (n−1)/fs, which smears every stream
+    // whose packet size varies (Heron, 2026-09-27: Verity acc 118 → 11 ms spread when keyed on last).
+    var a = arrivalHostMs(c[0]),
+      d = +c[4] / 1e6;
+    if (a == null || !isFinite(d) || !(d > 0)) continue;
+    pk.push([d, a - d]);
+  }
+  if (pk.length < FLOOR_MIN_PACKETS) return { ok: false, reason: pk.length + ' `' + meas + '` packets in the arrival sidecar (< ' + FLOOR_MIN_PACKETS + ')' };
+  var segs = [[pk[0]]];
+  for (var k = 1; k < pk.length; k++) {
+    var prev = pk[k - 1];
+    if (pk[k][0] < prev[0] || Math.abs(pk[k][1] - prev[1]) > FLOOR_STEP_MS) segs.push([]);
+    segs[segs.length - 1].push(pk[k]);
+  }
+  var S = segs.map(function (sg) {
+    return { lo: sg[0][0], hi: sg[sg.length - 1][0], pk: sg, anchors: [] };
+  });
+  var sorted = S.slice().sort(function (x, y) {
+    return x.lo - y.lo;
+  });
+  for (var j = 1; j < sorted.length; j++)
+    if (sorted[j].lo < sorted[j - 1].hi) return { ok: false, reason: 'device-counter segments overlap (the counter went backwards) — one device time would map to two host times' };
+  var windows = 0,
+    refused = 0,
+    spreads = [];
+  S.forEach(function (sg) {
+    var by = {};
+    sg.pk.forEach(function (p) {
+      var w = Math.floor((p[0] - sg.lo) / FLOOR_WIN_MS);
+      (by[w] || (by[w] = [])).push(p);
+    });
+    Object.keys(by)
+      .map(Number)
+      .sort(function (x, y) {
+        return x - y;
+      })
+      .forEach(function (w) {
+        var g = by[w];
+        if (g.length < FLOOR_MIN_PACKETS) return;
+        windows++;
+        var v = g
+          .map(function (p) {
+            return p[1];
+          })
+          .sort(function (x, y) {
+            return x - y;
+          });
+        var q = v[Math.min(v.length - 1, Math.floor(FLOOR_Q * v.length))],
+          spread = q - v[0];
+        spreads.push(spread);
+        if (spread > FLOOR_MAX_SPREAD_MS) {
+          refused++;
+          return;
+        }
+        sg.anchors.push({
+          d: median(
+            g.map(function (p) {
+              return p[0];
+            })
+          ),
+          off: q
+        });
+      });
+  });
+  var valid = windows - refused;
+  if (valid < FLOOR_MIN_WINDOWS)
+    return {
+      ok: false,
+      reason:
+        valid +
+        ' usable 10-min floor window(s) for `' +
+        meas +
+        '` (< ' +
+        FLOOR_MIN_WINDOWS +
+        '; ' +
+        refused +
+        ' refused as smeared, median spread ' +
+        (spreads.length ? median(spreads).toFixed(1) : '—') +
+        ' ms)'
+    };
+  function map(dev) {
+    for (var i2 = 0; i2 < S.length; i2++) {
+      var sg = S[i2],
+        A = sg.anchors;
+      if (!(dev >= sg.lo - FLOOR_EDGE_MS && dev <= sg.hi + FLOOR_EDGE_MS) || !A.length) continue;
+      if (dev <= A[0].d) return A[0].off;
+      if (dev >= A[A.length - 1].d) return A[A.length - 1].off;
+      for (var m2 = 1; m2 < A.length; m2++)
+        if (dev <= A[m2].d) {
+          var f = (dev - A[m2 - 1].d) / (A[m2].d - A[m2 - 1].d || 1);
+          return A[m2 - 1].off + f * (A[m2].off - A[m2 - 1].off);
+        }
+    }
+    return null;
+  }
+  return { ok: true, meas: meas, packets: pk.length, windows: windows, refused: refused, segments: S.length, spreadMedianMs: median(spreads), map: map };
+}
+/* Host time on the floor axis of each (fractional) sample position: interpolated device time + floor offset.
+   Positions whose device time falls outside every anchored segment are DROPPED and counted, never placed. */
+/* One device, one counter: every stream it sends is stamped by the same clock, so the device is anchored on
+   whichever of its streams gives the most usable floor windows, and both of its legs map through that one.
+   Measured 2026-09-27: the ACC edge is the sharp one on both devices (H10 3.5–3.9 ms, Verity 10.7–11.2 ms
+   keyed on the last sample); the Verity PPG edge stays ~17 ms and would refuse under the 10 ms bar. */
+function deviceFloor(sidecarText, metas) {
+  var best = null,
+    tried = [];
+  metas.forEach(function (ms) {
+    var f = floorMap(sidecarText, ms);
+    tried.push(ms + ': ' + (f.ok ? f.windows - f.refused + ' usable window(s)' : f.reason));
+    if (f.ok && (!best || f.windows - f.refused > best.windows - best.refused)) best = f;
+  });
+  return best || { ok: false, reason: tried.join('; ') };
+}
+function floorTimes(devCol, positions, fmap) {
+  var out = [],
+    unmapped = 0;
+  for (var i = 0; i < positions.length; i++) {
+    var p = positions[i],
+      i0 = Math.floor(p),
+      i1 = Math.min(devCol.length - 1, i0 + 1),
+      fr = p - i0;
+    var dev = i0 >= 0 && i0 < devCol.length ? devCol[i0] * (1 - fr) + devCol[i1] * fr : NaN,
+      off = isFinite(dev) ? fmap.map(dev) : null;
+    if (off == null || !isFinite(dev)) {
+      unmapped++;
+      continue;
+    }
+    out.push(dev + off);
+  }
+  out.sort(function (x, y) {
+    return x - y;
+  });
+  return { hostMs: Float64Array.from(out), unmapped: unmapped };
+}
+/* The motion check: both accelerometers on their arrival floors, the motion envelopes aligned by the
+   shared movement anchors. On a correct floor axis the offset measures only the two links' minimum-latency
+   difference and should read ≈ 0; a large value means a floor is wrong, never a correction to apply. NOT fully
+   independent when a device is anchored on its ACC stream (the usual case): it then tests that shared motion
+   aligns across two separately-anchored devices, which a wrong floor on either still fails. */
+var CHECK_TOL_MS = 25;
+function accFloorCheck(h10AccText, verAccText, fA, fB, t0, t1) {
+  function samples(text, fmap) {
+    var L = String(text).split(/\r?\n/),
+      head = (L[0] || '').split(';').map(function (x) {
+        return x.trim();
+      }),
+      ci = head.indexOf('sensor timestamp [ns]'),
+      out = [];
+    if (ci < 0) return out;
+    var ix = ci + 1;
+    for (var i = 1; i < L.length; i++) {
+      if (!L[i] || L[i].charAt(0) === '#') continue;
+      var c = L[i].split(';'),
+        dev = +c[ci] / 1e6,
+        off = isFinite(dev) ? fmap.map(dev) : null;
+      if (off == null) continue;
+      out.push({ tMs: dev + off, x: +c[ix], y: +c[ix + 1], z: +c[ix + 2] });
+    }
+    return out;
+  }
+  /* 20 ms bins, not pat-align's 50 ms default: the check is judged at ±15 ms, and a 50 ms grid moves in whole-bin
+     steps (a planted 0 read 46 ms). Not finer: the Verity ACC samples at ~52 Hz (19 ms), and a bin narrower than a
+     sample leaves the envelope with empty bins and no clean movement at all (10 ms: 0 anchors). The bin-COUNTED
+     default is rescaled so its time extent is unchanged. */
+  var O = { dtMs: 20, anchorLocalBins: 30 };
+  /* RESOLUTION, stated because a bar finer than it measures nothing: the lag moves in 20 ms bins and the Verity
+     ACC samples every ~19 ms, so a perfect axis reads within about one bin of 0 (the plant: 19.8 ms). The check
+     is judged at CHECK_TOL_MS = one bin + half a Verity sample; the PAT correction itself is not limited by it
+     (the floors recover a planted PAT to ~5 ms). */
+  /* The baseline EMA's α is PER SAMPLE, so one α gives the H10 (~205 Hz) a 0.24 s time constant and the Verity
+     (~52 Hz) a 0.96 s one: the same movement then peaks at different offsets and the check reads a bias of about
+     one bin on a perfect axis (planted 0 read 23 ms). Each device gets α for a common 1 s time constant from its
+     own median sample interval — the shared pat-align.js default is left alone. */
+  function withAlpha(sm) {
+    var d = [];
+    for (var i = 1; i < sm.length && d.length < 5000; i++) d.push(sm[i].tMs - sm[i - 1].tMs);
+    var dtS = median(
+      d.filter(function (x) {
+        return x > 0;
+      })
+    );
+    return { dtMs: O.dtMs, anchorLocalBins: O.anchorLocalBins, emaAlpha: isFinite(dtS) ? 1 - Math.exp(-dtS / 1000) : undefined };
+  }
+  var sA = samples(h10AccText, fA),
+    sB = samples(verAccText, fB);
+  var eA = PATAlign.envelope(sA, t0, t1, withAlpha(sA)),
+    eB = PATAlign.envelope(sB, t0, t1, withAlpha(sB));
+  if (!eA || !eB) return { ok: false, reason: 'no accelerometer samples on the floor axis' };
+  var r = PATAlign.alignByAnchors(eA, eB, t0, O);
+  if (!r.ok) return { ok: false, reason: r.reason + ' — chest & ankle motion too decorrelated', anchors: r.anchors.length };
+  var offs = r.anchors.map(function (x) {
+    return x.offsetMs;
+  });
+  return { ok: true, anchors: offs.length, deltaMedianMs: median(offs), offRangeMs: r.offsetRangeMs, tolMs: CHECK_TOL_MS };
 }
 
 self.onmessage = function (e) {
@@ -607,6 +847,16 @@ self.onmessage = function (e) {
   /* The O2Ring finger PPG is OPTIONAL and read last, so every index above is unchanged without it. */
   var hasFinger = !!m.fingerFile;
   if (hasFinger) reads.push(m.fingerFile.text());
+  var iFinger = hasFinger ? reads.length - 1 : -1;
+  /* The packet-arrival sidecars (one per device) — the corrected path's only anchor. Read last, OPTIONAL. */
+  var hasArr = !!(m.ecgArrFile && m.ppgArrFile),
+    iArrE = -1,
+    iArrP = -1;
+  if (hasArr) {
+    reads.push(m.ecgArrFile.text(), m.ppgArrFile.text());
+    iArrE = reads.length - 2;
+    iArrP = reads.length - 1;
+  }
   Promise.all(reads)
     .then(function (t) {
       try {
@@ -672,7 +922,7 @@ self.onmessage = function (e) {
           ov: ov,
           sc: sc,
           vd: vd,
-          driftSource: 'raw', // §1.5 — `vd` reflects UNCORRECTED drift; see `vdCorr` for the ACC-corrected gate
+          driftSource: 'raw', // §1.5 — `vd` reflects UNCORRECTED drift; see `vdCorr` for the arrival-floor-corrected gate
 
           cp: packCp(cp)
         };
@@ -681,7 +931,7 @@ self.onmessage = function (e) {
           cpFA = null;
         if (hasFinger) {
           try {
-            var fin = ppgFootTimes(t[t.length - 1]),
+            var fin = ppgFootTimes(t[iFinger]),
               ovF = overlap(ecg, fin),
               scF = sharedClock(ecg, fin, ovF);
             cpF = coupledPAT(ecg.times, fin.times);
@@ -730,31 +980,55 @@ self.onmessage = function (e) {
             out.fingerError = String((fe && fe.message) || fe);
           }
         }
-        // ── ACC-sync stage (only if both accelerometer files were provided) ──
-        var cpCorr = null,
-          drift = null;
-        if (hasAcc && sc.ok && ov.min > 0) {
-          drift = estimateDriftACC(t[2], t[3], ov.start, ov.end);
-          if (drift.ok) {
-            var fc = new Float64Array(ppg.times.length);
-            for (var i = 0; i < ppg.times.length; i++) fc[i] = ppg.times[i] - drift.offsetAt(ppg.times[i]);
-            cpCorr = coupledPAT(ecg.times, fc);
-            out.accSync = { available: true, anchors: drift.anchors, coverage: drift.coverage, offRangeMs: drift.offRange };
+        // ── the corrected path: both legs on their own streams' ARRIVAL FLOORS (see the block above floorMap) ──
+        var cpCorr = null;
+        function refuseFloor(why) {
+          out.floorSync = { available: false, reason: why };
+        }
+        if (!hasArr)
+          refuseFloor(
+            'no packet-arrival sidecar for ' +
+              (!m.ecgArrFile && !m.ppgArrFile ? 'either device' : !m.ecgArrFile ? 'the H10' : 'the Verity') +
+              ' — the floor axis has no anchor, and a phone stamp would reintroduce the buffering'
+          );
+        else if (!(sc.ok && ov.min > 0)) refuseFloor('the two recordings do not share a clock window');
+        else {
+          var fE = deviceFloor(t[iArrE], ['acc', 'ecg']),
+            fP = deviceFloor(t[iArrP], ['acc', 'ppg']),
+            devE = devMsColumn(t[0]),
+            devP = devMsColumn(t[1]);
+          if (!fE.ok) refuseFloor('H10 ECG: ' + fE.reason);
+          else if (!fP.ok) refuseFloor('Verity PPG: ' + fP.reason);
+          else if (!devE || devE.length !== ecg.nSamples)
+            refuseFloor('H10 ECG: ' + (devE ? devE.length : 0) + ' device-stamp rows vs ' + ecg.nSamples + ' samples — the row accounting differs, so positions cannot be mapped');
+          else if (!devP || devP.length !== ppg.nSamples)
+            refuseFloor('Verity PPG: ' + (devP ? devP.length : 0) + ' device-stamp rows vs ' + ppg.nSamples + ' samples — the row accounting differs, so positions cannot be mapped');
+          else {
+            var R = floorTimes(devE, ecg.pos, fE),
+              F = floorTimes(devP, ppg.feetIdx, fP);
+            cpCorr = coupledPAT(R.hostMs, F.hostMs);
             out.cpCorr = packCp(cpCorr);
-            // §1.5 — the ACC-corrected coupling used to be rendered but NEVER re-gated, so a night whose
-            // corrected drift cleared the bar still reported DRIFT-DOMINATED. Evaluate the same gate on it
-            // and publish BOTH, each tagged with the drift it reflects. The primary `vd` is deliberately
-            // left on RAW drift — promoting on corrected drift is an owner call, not a refactor.
-            /* Same axis as the primary verdict: an ACC-derived offset correction re-aligns two trains,
-               it does not conjure a clock, so a drawn or unshared axis is exactly as disqualifying here
-               as it is above. Judging the corrected coupling against no axis would reopen the refusal on
-               the very path §1.5 added because it had been rendered ungated. */
+            // the same gate, on the corrected coupling; the primary `vd` stays on the raw legs (an owner call)
             out.vdCorr = PATGate.verdict(ov, cpCorr, sc, ax);
-          } else {
-            out.accSync = { available: false, reason: drift.reason, anchors: drift.anchors || 0 };
+            var leg = function (f, tm) {
+              return { stream: f.meas, windows: f.windows, refused: f.refused, segments: f.segments, spreadMedianMs: f.spreadMedianMs, unmapped: tm.unmapped };
+            };
+            var chk = null;
+            if (hasAcc) {
+              var fAE = floorMap(t[iArrE], 'acc'),
+                fAP = floorMap(t[iArrP], 'acc');
+              chk = !fAE.ok ? { ok: false, reason: 'H10 ACC: ' + fAE.reason } : !fAP.ok ? { ok: false, reason: 'Verity ACC: ' + fAP.reason } : accFloorCheck(t[2], t[3], fAE, fAP, ov.start, ov.end);
+            }
+            out.floorSync = {
+              available: true,
+              anchor: 'arrival-floor',
+              ecg: leg(fE, R),
+              ppg: leg(fP, F),
+              // what the median-anchored legs carried and this removed: the links' median buffering difference
+              bufferingDiffMs: cp.ok && cpCorr.ok ? cp.med - cpCorr.med : null,
+              accCheck: chk || { ok: false, reason: 'no ACC files' }
+            };
           }
-        } else {
-          out.accSync = { available: false, reason: hasAcc ? 'not simultaneous' : 'no ACC files' };
         }
         if (m.detail) {
           var pack = function (c) {
@@ -775,7 +1049,7 @@ self.onmessage = function (e) {
              `vdCorr` before #2117). Its parent finding, ENGINE-VERIFICATION §1.5, closed as MOOT:
              "re-instrumenting a feasibility tool whose feasibility question has a final answer would
              be work with no consumer" — so the field is deleted rather than given a surface. The
-             corrected coupling's SUMMARY (`cpCorr`, `vdCorr`, `accSync`) is read and stays. The
+             corrected coupling's SUMMARY (`cpCorr`, `vdCorr`, `floorSync`) is read and stays. The
              `dead-cross-boundary` gate now holds the known-dead set at ZERO. */
         }
         self.postMessage(out);

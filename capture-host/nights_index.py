@@ -69,6 +69,11 @@ DERIVED: dict[str, tuple[str, ...]] = {
     "PAT fused":    ("Polar_H10_*_ECG.txt", "Polar_VeritySense_*_PPG.txt", "Wellue_O2Ring-S_*_PPG.txt"),
 }
 COLUMNS = tuple(NODES) + tuple(DERIVED)
+# The two Polar devices' PACKET-ARRIVAL sidecars (writers.PmdArrivalLogWriter). Not an analyzer's ingest, so not a
+# node's file list — a per-night field of its own that the monitor's PAT click hands over: PAT Feasibility's
+# corrected lag re-times both legs on these floors (route-PAT fix, 2026-09-27). The ring's sidecar carries no
+# PMD stream PAT uses, so it is not listed.
+ARRIVAL: tuple[str, ...] = ("Polar_H10_*_PMDARRIVAL.csv", "Polar_VeritySense_*_PMDARRIVAL.csv")
 
 _ISO = re.compile(r"^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})")
 _O2 = re.compile(r"^(\d{2}):(\d{2}):(\d{2}) (\d{2})/(\d{2})/(\d{4})")      # HH:MM:SS DD/MM/YYYY (DMY)
@@ -385,6 +390,7 @@ def night_entry(root: str, night_dir: str, deadline: float | None = None) -> dic
         }
     for tool, required in DERIVED.items():
         out[tool] = all(_expand(root, night_dir, p) for p in required)
+    out["arrival"] = sorted(os.path.relpath(f, root) for p in ARRIVAL for f in _expand(root, night_dir, p))
     return out
 
 
