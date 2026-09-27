@@ -225,6 +225,106 @@ def test_summarize_scopes_coverage_to_the_current_session(tmp_path):
     assert s["gaps_in_night"] == [], "nothing was excluded from the night itself"
 
 
+def test_a_daemon_restart_does_not_merge_two_sessions_into_one_union_span(tmp_path):
+    """🔴 SOLID-NIGHT night 1 read FAIL because a night dir holding two capture runs was judged as ONE.
+
+    `merge_sessions` extends a session whenever the next file opens within `_SESSION_GAP_SEC` (3600 s),
+    and a daemon RESTART's gap is seconds — so the two runs merge and every span-derived quantity then
+    describes the union. Live on 2026-09-24 that made nine streams read coverage 0.46-0.52 with
+    `missing: []` and `span_basis: "session"` on every one, and made the H10 report
+    `stopped_early_s 18766` (5.2 h) although it never stopped early: the union's end belonged to a
+    LATER run than its last write. The real night chained SIX restarts (16:39, 17:05, 17:39, 18:40,
+    19:40, 20:03 in its own `STARTS.csv`), each gap far under the threshold; one seam reproduces both
+    numbers, which is what this fixture plants.
+
+    The threshold cannot simply be shortened — its docstring records why: a 7-h H10 connection carries
+    one 19:46 stamp, so stamp-gap clustering wrongly split such a stream off. The boundary evidence is
+    the daemon start, which `writers.append_daemon_start` has been recording to `STARTS.csv` all along
+    and `daemon_starts` already parses. `summarize`'s own comment says the two cases are
+    indistinguishable BY FILE-ACTIVITY SIGNATURE — true, and this discriminator is not one.
+
+    Clockless fixture rows on purpose (`_cap`, no device clock): that is what makes `file_span_sec`
+    None and drives the coverage denominator onto the session span, which is the live shape — NOT the
+    deliberate clockless fallback of
+    `test_a_clockless_file_falls_back_to_the_session_span_and_SAYS_SO`, and not #3065's absent device.
+    """
+    import writers
+    night = str(tmp_path / "2026-09-24"); os.makedirs(night)
+    s1 = _stamp_epoch("20260924113000")          # run 1 opens
+    restart = s1 + 17990                         # the daemon restarts 4 h 59 m in
+    end2 = s1 + 35407                            # run 2's last write (its file opens at s1 + 18000,
+                                                 #  10 s after the restart — see the stamp below)
+
+    # run 1, COMPLETE: HR at 1 Hz for 16641 s, then this device is done for the night
+    _utime(_cap(night, "Polar_H10_02849638_20260924113000_HR.txt", 16641), s1 + 16641)
+    # run 2, PARTIAL: a different device trickles to the end of the folder
+    _utime(_cap(night, "Wellue_O2Ring-S_S8AW_20260924163000_SPO2.csv", 3000), end2)
+    with open(os.path.join(night, writers.STARTS_NAME), "w") as fh:
+        fh.write("Phone timestamp;pid;git;dirty;adapter\n")
+        fh.write(datetime.fromtimestamp(restart).strftime("%Y-%m-%dT%H:%M:%S.%f")[:23]
+                 + ";400443;2cd12712;no;F4:CE:36:2E:CD:98\n")
+
+    devs = [{"name": "H10", "device_id": "02849638", "streams": ["hr"]},
+            {"name": "Ring", "device_id": "S8AW", "streams": ["spo2"]}]
+    s = nightqc.summarize(night, devs)
+
+    # THE SEAM IS SEEN: two runs, not one union of 35407 s
+    assert len(s["sessions"]) == 2, "a recorded daemon start separates the runs it started"
+    assert s["span_sec"] == 16641, "the judged run's OWN span, not the folder union (was 35407)"
+    h10 = next(d for d in s["devices"] if d["name"] == "H10")
+    # 16641 rows over 16641 s of ITS OWN run is a perfect stream. Merged, it read 16641/35407 = 0.47.
+    assert h10["coverage"]["hr"] == 1.0, "a stream perfect through run 1 must not be diluted by run 2"
+    assert h10["stopped_early_s"] in (0, None), (
+        "it stopped when its run did; the 18766 s came from a later run's end")
+    assert s["degraded"] == [], "nothing about run 1 is degraded"
+    assert s["session_basis"] == "daemon-starts", "the basis is REPORTED, never assumed"
+
+
+def test_without_a_STARTS_sidecar_the_session_basis_says_gap_only(tmp_path):
+    """∅ ABSENCE IS NULL, applied to the discriminator itself. A night whose daemon predates the
+    sidecar did not restart zero times — it did not say (`daemon_starts` returns `starts: None`). So
+    the same fixture WITHOUT `STARTS.csv` keeps the old gap-only merge, and the summary says which
+    basis it used rather than looking identically scoped. A field that cannot distinguish "no restart"
+    from "no evidence of a restart" is the bug this pair exists to prevent."""
+    night = str(tmp_path / "2026-09-24"); os.makedirs(night)
+    s1 = _stamp_epoch("20260924113000")
+    _utime(_cap(night, "Polar_H10_02849638_20260924113000_HR.txt", 16641), s1 + 16641)
+    _utime(_cap(night, "Wellue_O2Ring-S_S8AW_20260924163000_SPO2.csv", 3000), s1 + 35407)
+    devs = [{"name": "H10", "device_id": "02849638", "streams": ["hr"]},
+            {"name": "Ring", "device_id": "S8AW", "streams": ["spo2"]}]
+    s = nightqc.summarize(night, devs)
+    assert s["session_basis"] == "gap-only", "no sidecar ⇒ no boundary evidence, and it says so"
+    assert len(s["sessions"]) == 1, "and the merge is unchanged — this is the pre-existing behaviour"
+    assert s["span_sec"] == 35407
+
+
+def test_the_POOLED_half_brings_its_own_seams_from_the_neighbouring_folder(tmp_path):
+    """A cross-midnight night is judged from files in TWO folders, and the pre-midnight half's restarts
+    are recorded in the PREVIOUS folder's sidecar. Reading only this folder's would segment the pooled
+    set on gap alone for exactly the half that was pooled in — a silent reversion — and the basis would
+    say `gap-only` while seams from the neighbour were in fact available. Both are asserted here: the
+    seam is honoured, and the basis follows the EVIDENCE rather than the folder it came from."""
+    import writers
+    d21 = str(tmp_path / "2026-07-21"); os.makedirs(d21)
+    d22 = str(tmp_path / "2026-07-22"); os.makedirs(d22)
+    pre = _stamp_epoch("20260721233000")     # 23:30, the pre-midnight run
+    post = _stamp_epoch("20260722001500")    # 00:15, the run after the restart
+    _utime(_cap(d21, "Polar_H10_02849638_20260721233000_HR.txt", 1800), pre + 1800)
+    _utime(_cap(d22, "Polar_H10_02849638_20260722001500_HR.txt", 1500), post + 1500)
+    # the restart is recorded in YESTERDAY's folder; today's has no sidecar at all
+    with open(os.path.join(d21, writers.STARTS_NAME), "w") as fh:
+        fh.write("Phone timestamp;pid;git;dirty;adapter\n")
+        fh.write(datetime.fromtimestamp(pre + 1900).strftime("%Y-%m-%dT%H:%M:%S.%f")[:23]
+                 + ";400443;2cd12712;no;F4:CE:36:2E:CD:98\n")
+    devs = [{"name": "H10", "device_id": "02849638", "streams": ["hr"]}]
+    s = nightqc.summarize(d22, devs)
+    assert len(s["sessions"]) == 2, "the neighbour's recorded seam splits the pooled set"
+    assert s["span_sec"] == 1800, "the judged run is the pre-midnight one alone, not the 4200 s union"
+    assert s["devices"][0]["streams"]["hr"] == 1800, "and it carries only its own rows"
+    assert s["session_basis"] == "daemon-starts", \
+        "segmented on recorded starts — from the neighbour, which is still the evidence"
+
+
 def test_summarize_flags_a_degraded_trickle(tmp_path, _tz):
     """A stream that produced data but only a fraction of its rate — the Verity IMU at ~40%, a stream that
     died at hour one — is `degraded`, not a green `ok`. Coverage is delivered rows vs rate × span."""
@@ -2030,6 +2130,124 @@ def test_a_night_with_no_data_reports_no_judged_session_rather_than_a_fabricated
 
 
 # ── the invariant the gap-adjacency logic RESTS on (2026-09-05) ──────────────────────────────────────
+def test_with_starts_supplied_sessions_stay_ORDERED_AND_DISJOINT_though_no_longer_gap_separated():
+    """The invariant that SURVIVES daemon-start segmentation, asserted separately from the one that does
+    not. `summarize`'s `before`/`after` partition needs disjointness and ordering; it never needed the
+    gap separation, and with a recorded seam two sessions may sit seconds apart or TOUCH. So the sweep
+    above (no starts) keeps asserting strict separation, and this one asserts what replaces it.
+
+    A file still being written across a restart is the case that would otherwise overlap: its session's
+    end is clamped to the seam, which is why disjointness holds by construction rather than by luck."""
+    import random
+    rng = random.Random(20260926)
+    for _ in range(400):
+        files, starts = [], []
+        for _i in range(rng.randint(1, 12)):
+            st_ = rng.uniform(0, 50_000)
+            # mtimes deliberately long enough to straddle a nearby seam
+            files.append({"session": st_, "mtime": st_ + rng.uniform(0, 8_000), "rows": 1})
+        for _i in range(rng.randint(0, 6)):
+            starts.append(rng.uniform(0, 50_000))
+        rng.shuffle(files)
+        out = nightqc.merge_sessions(files, starts=starts)
+        assert out == sorted(out, key=lambda x: x[0]), "sessions must come back oldest first"
+        for a, b in zip(out, out[1:]):
+            assert a[1] <= b[0], f"disjoint — may touch, must never overlap: {a[:2]} then {b[:2]}"
+            assert a[0] <= a[1], "and no session may end before it starts"
+        # every file is placed exactly once, whatever the seams did
+        assert sum(len(x[2]) for x in out) == len(files)
+
+
+def test_a_session_ending_EXACTLY_at_the_judged_one_s_start_is_still_counted_before():
+    """🔴 THE MUTANT THIS KILLS, and the equivalence claim it retires. `before = [s for s in others if
+    s[1] <= cur[0]]` carried a `no-distinguishing-input` entry in `tools/mutate-equivalence.json` for
+    `<=` vs `<`, justified by `merge_sessions` output being STRICTLY separated — no session's end could
+    equal `cur[0]`. Daemon-start segmentation makes exactly that happen: the earlier session is clamped
+    to the seam and the next run's first file can open at that same instant. So the claim is false now
+    and the entry is gone; this is the input that distinguishes them.
+
+    A file straddling the restart is the natural way to reach it, so this doubles as the straddle case:
+    run 1's HR keeps being written for 2000 s after the seam and is still attributed to run 1."""
+    T = 100_000.0
+    files = [{"session": T - 5000, "mtime": T + 2000, "rows": 100},     # straddles the restart
+             {"session": T, "mtime": T + 6000, "rows": 5000}]           # the new run, opening AT it
+    out = nightqc.merge_sessions(files, starts=[T])
+    assert len(out) == 2, "the seam splits them"
+    assert out[0][1] == T, "run 1's end is CLAMPED to the seam it was cut at, not its last write"
+    assert out[1][0] == T, "and run 2 opens at that same instant — the sessions TOUCH"
+    # This is the shape `before`'s `<=` must keep admitting: with `<` the earlier run vanishes from the
+    # partition entirely, and a real prior session would stop being reported at all.
+    cur = max(out, key=lambda sess: (sum(f["rows"] for f in sess[2]), sess[1]))
+    others = [x for x in out if x is not cur]
+    assert cur[0] == T and [x for x in others if x[1] <= cur[0]] == others, \
+        "the touching session is BEFORE the judged one; `<` would drop it and report no prior session"
+    assert [x for x in others if x[1] < cur[0]] == [], \
+        "and that is precisely the input that distinguishes `<=` from `<` — hence no equivalence entry"
+
+
+def test_a_zero_length_run_opening_AT_the_judged_one_s_end_is_not_counted_before():
+    """The SECOND retired equivalence, and the one that is a wrong answer rather than a lost report.
+    `before`'s bound also carried a `<= cur[0]` vs `<= cur[1]` entry on the same strict-separation
+    justification. A run that opens exactly when the judged run ends and delivers nothing — a stream
+    that connected at the seam and never produced a row — sits AFTER it; the `cur[1]` form would file it
+    as the night's PRIOR session and compute a gap backwards from it. Strict separation made that
+    unreachable, a recorded seam makes it reachable, so the claim is retired and this is its input."""
+    T = 1000.0
+    files = [{"session": 0.0, "mtime": T, "rows": 5000},        # the judged run
+             {"session": T, "mtime": T, "rows": 0}]             # opened at the seam, delivered nothing
+    out = nightqc.merge_sessions(files, starts=[T])
+    assert len(out) == 2 and out[1][0] == out[1][1] == T, "a zero-length run, opening at the seam"
+    cur = max(out, key=lambda sess: (sum(f["rows"] for f in sess[2]), sess[1]))
+    assert cur[0] == 0.0, "the judged run is the one carrying the rows"
+    others = [x for x in out if x is not cur]
+    assert [x for x in others if x[1] <= cur[0]] == [], \
+        "nothing precedes the judged run"
+    assert [x for x in others if x[1] <= cur[1]] == others, \
+        "and the `cur[1]` form would call this trailing run a PRIOR one — hence no equivalence entry"
+    # The same input pins `after`'s bound, whose `>=` vs `>` entry rested on the same separation: a run
+    # opening exactly AT the judged run's end is after it, and `>` would lose it from both partitions.
+    assert [x for x in others if x[0] >= cur[1]] == others, "it is AFTER the judged run"
+    assert [x for x in others if x[0] > cur[1]] == [], \
+        "`>` drops it — it would then be in neither partition, which is what disjointness forbids"
+
+
+def test_a_ZERO_LENGTH_judged_run_does_not_let_a_prior_session_read_as_after_it():
+    """The rarest of the retired six (6 distinguishing inputs in 40 000), and a wrong answer when it
+    fires. `after = [s for s in others if s[0] >= cur[1]]` carried a `s[0]` vs `s[1]` entry: under strict
+    separation a PRIOR session's end could never reach the judged run's end, so keying on either bound
+    picked the same set. A judged run that is itself zero-length — every row written inside one second,
+    which a 14-digit filename stamp cannot distinguish from an instant — collapses `cur[0] == cur[1]`,
+    and then the prior session's end touches it. Keyed on `s[1]` the night's PRIOR session is reported
+    as its NEXT one, and `gaps` reads backwards."""
+    files = [{"session": 0.0, "mtime": 1000.0, "rows": 1},        # the prior run
+             {"session": 1000.0, "mtime": 1000.0, "rows": 5000}]  # judged: 5000 rows, zero span
+    out = nightqc.merge_sessions(files, starts=[1000.0])
+    cur = max(out, key=lambda sess: (sum(f["rows"] for f in sess[2]), sess[1]))
+    assert cur[0] == cur[1] == 1000.0, "the judged run has no span of its own"
+    others = [x for x in out if x is not cur]
+    assert [x for x in others if x[0] >= cur[1]] == [], "the prior run is not after the judged one"
+    assert [x for x in others if x[1] >= cur[1]] == others, \
+        "keyed on its END it would be — hence no equivalence entry for that bound"
+
+
+def test_two_sessions_sharing_an_END_make_prev_selection_depend_on_its_key():
+    """The `prev = max(before, key=lambda s: s[1])` pair, retired with the rest. Its justification was
+    that under strict separation latest-ending IS latest-starting, so the key could not matter. Two
+    sessions may now share an end — a zero-length run opening exactly where the previous one was cut —
+    and then `max(before)` without a key falls back to comparing the LISTS, which compares `start`
+    first and picks the later-starting session, while the keyed form picks the earlier-ending... the
+    FIRST maximal element. The two disagree, and `prior_gap_sec` is computed from whichever it gets."""
+    files = [{"session": 0.0, "mtime": 1000.0, "rows": 1},         # ends at 1000
+             {"session": 1000.0, "mtime": 1000.0, "rows": 1},      # opens AND ends at 1000
+             {"session": 2000.0, "mtime": 3000.0, "rows": 9000}]   # the judged run
+    out = nightqc.merge_sessions(files, starts=[1000.0, 2000.0])
+    cur = max(out, key=lambda sess: (sum(f["rows"] for f in sess[2]), sess[1]))
+    before = [x for x in out if x is not cur and x[1] <= cur[0]]
+    assert len(before) == 2 and before[0][1] == before[1][1] == 1000.0, "two runs sharing one end"
+    assert max(before, key=lambda x: x[1])[0] == 0.0, "keyed: the first of the maximal ends"
+    assert max(before)[0] == 1000.0, "unkeyed: list order, which picks the later-STARTING one"
+
+
 def test_merge_sessions_always_yields_DISJOINT_sessions_separated_by_more_than_the_gap():
     """🔴 THIS IS THE PROPERTY THAT MAKES `summarize`'s before/after selection unambiguous, and nothing
     asserted it. `merge_sessions` appends a new session only when `st > sessions[-1][1] + gap_sec`, so
@@ -2038,9 +2256,17 @@ def test_merge_sessions_always_yields_DISJOINT_sessions_separated_by_more_than_t
     Everything downstream leans on it. In `summarize`, `before = [s for s in others if s[1] <= cur[0]]`
     and `after = [s for s in others if s[0] >= cur[1]]` partition `others` exactly, and
     `max(before, key=s[1])` picks the same element as max-by-start, because under disjoint ordering the
-    latest-ending session IS the latest-starting one. Those equivalences are recorded in
-    `tools/mutate-equivalence.json` as `no-distinguishing-input`, and THIS test is the probe they cite:
-    if the invariant ever breaks, the equivalence claims become false and this reds first.
+    latest-ending session IS the latest-starting one.
+
+    ⚠️ THIS SWEEP PASSES NO `starts`, AND THAT IS NOW THE WHOLE OF ITS SCOPE. Since 2026-09-26 a
+    recorded daemon start splits two runs however small the gap, so segmented output may TOUCH and the
+    separation asserted here holds only for the gap-only path — `test_with_starts_supplied_sessions_stay
+    _ORDERED_AND_DISJOINT_though_no_longer_gap_separated` asserts what survives. Nine
+    `no-distinguishing-input` claims in `tools/mutate-equivalence.json` cited this test; six of them
+    depended on the separation, were measured false under seams (1052, 1040, 68, 21 and 6 distinguishing
+    inputs in 40 000 randomized sets) and are retired and killed by real tests. The three that need only
+    disjointness now cite that sweep instead. Keep the two apart: weakening this one silently
+    re-falsifies them.
 
     A randomized sweep with a fixed seed rather than a hand-picked case — the claim is universal, so a
     single example would not support it."""
@@ -3368,6 +3594,16 @@ _CLOCKLESS_BY_DESIGN = {
     # the outputs asserted (`span_sec` at the session level, `gaps`, pooling) are computed without one.
     "test_summarize_unifies_a_cross_midnight_session": "session grouping across a date-folder boundary",
     "test_summarize_does_not_pool_a_mid_day_session": "session grouping — pooling refusal",
+    # The seam pair: a DEVICE clock would give each file its own span and destroy the very shape being
+    # reproduced — live night 1 had `span_sec: None` and `span_basis: "session"` on every stream, which
+    # is only reachable from clockless files. The claim is about session BOUNDS (filename stamps, mtimes
+    # and a recorded daemon start), so no device stamp takes part in it.
+    "test_a_daemon_restart_does_not_merge_two_sessions_into_one_union_span":
+        "session splitting at a recorded daemon start",
+    "test_without_a_STARTS_sidecar_the_session_basis_says_gap_only":
+        "the absent-evidence control for that split",
+    "test_the_POOLED_half_brings_its_own_seams_from_the_neighbouring_folder":
+        "session splitting across a pooled folder boundary",
     "test_summarize_scopes_coverage_to_the_current_session": "session SCOPING; its epochs derive from the same strptime().timestamp() production uses, so it is zone-invariant by construction",
     "test_a_box_wide_outage_does_not_get_the_night_graded_green": "session splitting at _SESSION_GAP_SEC",
     "test_an_uninterrupted_night_reports_no_gap_and_stays_green": "the no-gap control",
