@@ -759,3 +759,98 @@ def test_the_timeline_and_the_QC_verdict_name_the_SAME_judged_session(tmp_path):
     judged = _nightqc.summarize(str(night), devs)["judged_session"]
     assert judged["start"] == round(t0), (
         f"the verdict judged {judged['start']} and the timeline drew from {round(t0)}")
+
+
+# ---------------------------------------------------------------------------------------------------
+# ∅ — A STREAM WITH NO RATE AND NO DEVICE CLOCK IS NOT ZERO PERCENT CAPTURED.
+#
+# `_expected_hz` returns None for the O2Ring's three raw-buffer opcodes (`accraw`, `pletha`, `ppg2w`)
+# on purpose — "no coverage claim for a stream we have no reference rate for" — and those same files
+# carry the device-clock column blank, because those opcodes have no per-sample clock. Both established
+# duration bases are therefore absent, `covered` came back 0, and the card printed `0.0 % captured`
+# beside a LIVE pill: a measurement of zero standing in for an absent denominator.
+# ---------------------------------------------------------------------------------------------------
+
+def _ring_raw_file(tmp_path, stamp: str, stream: str, rows: int, hz: float, did="S8AW2100",
+                   frozen_host=False):
+    """A ring raw-buffer file as the box writes it since 2026-09-07: the device-clock column BLANK.
+
+    Before that date these opcodes wrote a literal `0` on every row, which `file_span_sec` already
+    refuses (a column that never moved is not a duration). Blank or zero, the file cannot state its own
+    span — only the host stamps record that the rows arrived.
+    """
+    head = _writers.StreamWriter.HEADERS[stream.lower()]
+    cols = head.split(";")
+    ns_at = cols.index("sensor timestamp [ns]")
+    start = dt.datetime.strptime(stamp, "%Y%m%d%H%M%S")
+    lines = [head]
+    for i in range(rows):
+        cells = ["0"] * len(cols)
+        when = start if frozen_host else start + dt.timedelta(seconds=i / hz)
+        cells[0] = when.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]
+        cells[ns_at] = ""                      # the whole point: no device clock to answer from
+        lines.append(";".join(cells))
+    p = tmp_path / f"Wellue_O2Ring-S_{did}_{stamp}_{stream.upper()}.txt"
+    p.write_text("\n".join(lines) + "\n")
+    end = start.timestamp() + (0 if frozen_host else rows / hz)
+    _os.utime(p, (end, end))
+    return p
+
+
+def _ring_dev(streams, did="S8AW2100"):
+    return {"name": "Ring", "device_id": did, "address": "BB", "vendor": "Wellue",
+            "model": "O2Ring-S", "streams": streams}
+
+
+def test_a_raw_stream_with_no_rate_and_no_device_clock_reports_its_HOST_span(tmp_path):
+    """THE PLANT, in the shape the owner saw: `ACC (O2Ring)` reading LIVE and `0.0 % captured` in the
+    same pill row, 2026-09-27 05:52. The stream was delivering — 216,000 rows over a closed 23:00→05:00
+    window, worst inter-frame gap 3.10 s against a 6 s pill window — so zero was never the answer. With
+    neither a nominal rate nor a device clock, the host stamps are what recorded that the rows arrived,
+    and coverage ("did this stream keep delivering across the window") is a host-side question anyway.
+    """
+    _ring_raw_file(tmp_path, "20260926221200", "accraw", 6000, 10.0)      # 600 s of rows at 10 Hz
+    out = timeline.build(str(tmp_path), [_ring_dev(["accraw"])], buckets=12)
+    st = out["devices"][0]["streams"]["accraw"]
+    assert st["coverage_pct"] is not None, "the whole defect: an absent denominator read as a measurement"
+    assert st["coverage_pct"] != 0.0, st
+    assert st["coverage_pct"] == 100.0, st
+    assert st["covered_sec"] == 600, st
+    assert st["coverage_unmeasured"] == 0 and st["coverage_reason"] is None, st
+
+
+def test_a_stream_with_NO_basis_at_all_refuses_with_a_reason(tmp_path):
+    """When even the host stamps cannot state a span — every row inside one millisecond — there is
+    nothing to measure and the honest output is a refusal naming why, not a number. The ECG beside it
+    is the control: a stream with a rate and a clock is untouched by the refusal of its neighbour."""
+    _ring_raw_file(tmp_path, "20260926221200", "accraw", 500, 10.0, frozen_host=True)
+    _capture_file(tmp_path, "20260926221200", "ecg", 130 * 600, 130)
+    out = timeline.build(str(tmp_path), [_ring_dev(["accraw"]), _dev(["ecg"])], buckets=12)
+    ring = [d for d in out["devices"] if d["device_id"] == "S8AW2100"][0]["streams"]["accraw"]
+    assert ring["coverage_pct"] is None, ("a stream that cannot be measured must not report a "
+                                          "percentage at all", ring)
+    assert ring["coverage_reason"] == "no-duration-basis", ring
+    assert ring["coverage_unmeasured"] == 1, ring
+    h10 = [d for d in out["devices"] if d["device_id"] == "02849638"][0]["streams"]["ecg"]
+    assert h10["coverage_pct"] == 100.0 and h10["coverage_reason"] is None, h10
+
+
+def test_a_stream_that_captured_NOTHING_still_reads_zero_percent(tmp_path):
+    """THE CONTROL THAT KEEPS THE FIX FROM SWALLOWING THE REAL ZERO. A declared stream with no files is
+    genuinely 0 % captured — that IS a measurement, and turning it into `null` would hide a sensor that
+    never recorded behind the same text as one that cannot be measured. The two must not converge."""
+    _capture_file(tmp_path, "20260926221200", "ecg", 130 * 600, 130)
+    out = timeline.build(str(tmp_path), [_dev(["ecg", "acc"])], buckets=12)
+    acc = out["devices"][0]["streams"]["acc"]
+    assert acc["coverage_pct"] == 0.0, ("no files is zero, not unmeasurable", acc)
+    assert acc["coverage_reason"] is None and acc["coverage_unmeasured"] == 0, acc
+
+
+def test_a_device_clock_stream_carries_the_new_fields_QUIET(tmp_path):
+    """The control on the added fields: a stream measured the established way says so by carrying no
+    qualifier at all, so the annotation appears only where it bites."""
+    _capture_file(tmp_path, "20260716220000", "acc", 208 * 100, 208)
+    out = timeline.build(str(tmp_path), [_dev(["acc"], rates={"acc": 104})], buckets=12)
+    acc = out["devices"][0]["streams"]["acc"]
+    assert acc["coverage_pct"] == 100.0, acc
+    assert acc["coverage_unmeasured"] == 0 and acc["coverage_reason"] is None, acc

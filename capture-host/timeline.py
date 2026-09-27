@@ -105,8 +105,9 @@ def stream_intervals(files: list[dict], device_id, tag: str, fs: float) -> list[
     """[(start_s, end_s)] this stream was writing, from session files alone.
 
     Duration is the file's OWN recorded span (`span_sec`, from its device-clock column) when it has one,
-    and `rows / fs` otherwise — never the file's mtime, which for a killed or still-open session is when
-    the last flush landed rather than where the data ends.
+    `rows / fs` next, and the host-stamp span only where a stream has neither — never the file's mtime,
+    which for a killed or still-open session is when the last flush landed rather than where the data
+    ends. `_placed` holds that order and is shared with `unmeasurable_files`.
 
     Preferring the file's own clock is what makes an OLD night measurable (CAPTURE-HOST-DEEP-AUDIT §A4c):
     `fs` is the rate configured TODAY, and a rate that has been re-negotiated or corrected since the night
@@ -116,22 +117,45 @@ def stream_intervals(files: list[dict], device_id, tag: str, fs: float) -> list[
 
     `device_id` may be one id or several — a device that had its id corrected still owns the
     files written under the old one (writers.device_ids)."""
+    return sorted((t0, t0 + dur) for t0, dur in _placed(files, device_id, tag, fs) if dur)
+
+
+def unmeasurable_files(files: list[dict], device_id, tag: str, fs: float) -> int:
+    """How many of this stream's files carry rows that `stream_intervals` could place no duration on.
+
+    The difference between "captured nothing" and "cannot say" is not visible in the interval list:
+    both come back empty. A caller reporting a percentage needs to know which, because zero is a
+    measurement and absence is not one (§∅) — and where SOME files measured and others did not, the
+    percentage understates by an unknown amount and has to travel with this count beside it.
+
+    ONE RULE, ONE CALL SITE: both this and `stream_intervals` read `_placed`, so "which files count" and
+    "what duration can this file state" are decided once. Two copies of a selection rule is what put the
+    timeline window and `summarize` on different sessions for 27 of 64 nights.
+    """
+    return sum(1 for _t0, dur in _placed(files, device_id, tag, fs) if not dur)
+
+
+def _placed(files: list[dict], device_id, tag: str, fs: float):
+    """`(start_ms, duration_or_None)` for every file of this stream that carries rows.
+
+    The duration rule lives here, in preference order:
+      1. `span_sec` — the file's OWN device clock, era-correct because the device wrote it.
+      2. `rows / fs` — today's configured rate, which over-states an older night (§A4c above).
+      3. `host_span_sec` — the host stamps, and ONLY where neither of the above exists: the ring's raw
+         buffers have no nominal rate (`_expected_hz` is None by design) and write no device clock, so
+         without this they were dropped here and then published as 0 % captured.
+    `None` where no basis exists at all, which is a refusal and not a zero.
+    """
     ids = {device_id} if isinstance(device_id, str) else {i for i in (device_id or []) if i}
     ids.discard("")
-    out = []
     for f in files:
         if f["stream"] != tag or not ids or _file_device_id(f["file"]) not in ids:
             continue
         t0 = _stamp_ms(f["file"])
         if t0 is None or not f["rows"]:
             continue
-        dur = f.get("span_sec")
-        if not dur:
-            if fs <= 0:
-                continue
-            dur = f["rows"] / fs
-        out.append((t0, t0 + dur))
-    return sorted(out)
+        dur = f.get("span_sec") or (f["rows"] / fs if fs > 0 else f.get("host_span_sec"))
+        yield (t0, dur or None)
 
 
 def bucket_stream(intervals: list[tuple[float, float]], t0: float, t1: float, n: int,
@@ -457,8 +481,11 @@ def build(night_dir: str, devices: list[dict], buckets: int = DEFAULT_BUCKETS) -
             # 9 h night with a 50 min outage, 466.7 % on a 1 h + 6 h pair. `span_sec` is the file's own
             # device clock, so it is also era-correct where `rows / fs` against today's configured rate
             # is not (the third mechanism, and the one that reaches 196.7 % on real corpus).
-            if f.get("span_sec"):
-                spans.append(s + f["span_sec"])
+            # `host_span_sec` counts here for the same reason: a file whose extent we know must not
+            # leave the window stopping at its START, whichever clock stated the extent.
+            _ext = f.get("span_sec") or f.get("host_span_sec")
+            if _ext:
+                spans.append(s + _ext)
     else:
         for v in link.values():
             if v:   # pragma: no branch — read_link_samples only creates a key by appending to it, so
@@ -481,15 +508,30 @@ def build(night_dir: str, devices: list[dict], buckets: int = DEFAULT_BUCKETS) -
         streams = {}
         for s in d.get("streams") or []:
             fs = nightqc._expected_hz(d, s) or 0
-            iv = stream_intervals(data, writers.device_ids(d), s.upper(), fs)
+            ids = writers.device_ids(d)
+            iv = stream_intervals(data, ids, s.upper(), fs)
             st = apply_link_states(bucket_stream(iv, t0, t1, buckets, fs), conn, wedged)
             covered = covered_seconds(iv)
+            # ∅ — A PERCENTAGE OF NOTHING IS NOT ZERO PERCENT. `_expected_hz` returns None for a stream
+            # with no reference rate, documenting that there is "no coverage claim" for it, and the ring's
+            # raw buffers also carry no device clock — so for those every duration basis was absent and
+            # `covered` came back 0 while the stream was demonstrably delivering. The card then printed
+            # `0.0 % captured` beside a LIVE pill (seen by the owner 2026-09-27 05:52 on ACC (O2Ring)),
+            # which is a measurement of zero standing in for an absent denominator. Now: a percentage
+            # where something could be measured, with the unmeasured file count beside it, and an
+            # explicit refusal with a reason where nothing could.
+            unmeasured = unmeasurable_files(data, ids, s.upper(), fs)
             streams[s] = {
                 "states": st,
                 "covered_sec": round(covered),
                 # Against the SESSION span, not the wall-clock night: a sensor worn from 22:30 is not
                 # 60 % complete because midnight-to-midnight exists.
-                "coverage_pct": round(100 * covered / (t1 - t0), 1) if t1 > t0 else 0.0,
+                "coverage_pct": (round(100 * covered / (t1 - t0), 1)
+                                 if t1 > t0 and (iv or not unmeasured) else None),
+                # How many files with rows carry no duration this could be measured from. 0 for every
+                # stream with a rate or a device clock, so a reader sees the qualifier only when it bites.
+                "coverage_unmeasured": unmeasured,
+                "coverage_reason": None if (iv or not unmeasured) else "no-duration-basis",
             }
         out_devs.append({"name": d.get("name"), "address": addr, "device_id": did,
                          "rssi": rssi, "streams": streams})
