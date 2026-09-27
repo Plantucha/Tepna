@@ -467,3 +467,130 @@ def test_a_plausible_offset_is_untouched_by_the_new_bound():
     r = co.estimate(pts)
     assert r["ok"] is True and r["offset_ms"] is not None, r
     assert abs(r["offset_ms"] + 264.2) < 5.0, r
+
+
+# ---------------------------------------------------------------------------------------------------
+# THE BOUND'S OWN ARITHMETIC AND BOUNDARY.
+#
+# The tests above prove the refusal fires on the real `_DURATION_S` shape. These prove the three things
+# that shape cannot see, because it is thirty years out and every variant of the bound refuses it: which
+# unit the bound is in, which side of it is the last admitted reading, and that EITHER estimator alone
+# is enough to trip it. A flat delay cloud puts both estimators on the same number by construction, so
+# what an assertion here is about is the comparison and not the estimators' agreement.
+# ---------------------------------------------------------------------------------------------------
+
+_BOUND_MS = co.CLOCK_IMPLAUSIBLE_S * 1000.0
+
+
+def _flat(delay_ms, n=120):
+    """A delay cloud with no structure: the lower envelope and Paxson both land exactly on `delay_ms`."""
+    return [(float(i), delay_ms) for i in range(n)]
+
+
+def test_the_bound_is_a_year_in_MILLISECONDS():
+    """A minute of offset is already absurd for a BLE link — and is still nine orders of magnitude from
+    a wrong epoch, which is what this bound is for. The same constant divided rather than multiplied
+    would put the line at 31.5 s and refuse this one, having measured nothing wrong with it."""
+    r = co.estimate(_flat(60_000.0))
+    assert r["ok"] is True and r["offset_ms"] is not None, r
+    assert abs(r["offset_ms"] - 60_000.0) < 1.0, r
+
+
+def test_exactly_a_year_out_is_the_last_reading_the_bound_ADMITS():
+    """`>`, not `>=`. Which side the boundary falls on is a decision about a measurement that sits on
+    it, not an accident of which comparison got typed; pinning it is how it stays one."""
+    r = co.estimate(_flat(_BOUND_MS))
+    assert r["ok"] is True, r
+    assert r["offset_envelope_ms"] == _BOUND_MS, r
+
+
+def test_half_a_part_per_thousand_past_the_year_refuses():
+    """`* 1000.0` and not `* 1001.0`: the bound is a year, with no tolerance band bolted onto it."""
+    r = co.estimate(_flat(co.CLOCK_IMPLAUSIBLE_S * 1000.5))
+    assert r["ok"] is False and r["reason"] == "implausible-offset", r
+
+
+def test_EITHER_estimator_alone_trips_the_refusal():
+    """`or`, not `and` — and the asymmetry is the whole reason the refusal reads both.
+
+    A shallow dip in the delay floor pulls the lower hull under the bound while Paxson's median of
+    subset minima stays above it, so the two estimators straddle the line (31,535,999,000 ms vs
+    31,536,001,000 ms) on one stream. `_DURATION_S` was the live case of exactly this: `offset_ms: null`
+    — the certification already declining — beside an envelope 27 years out. A refusal that needed BOTH
+    would have left it standing, which is the bug this pair of commits exists to close.
+    """
+    base, depth = _BOUND_MS + 1000.0, 2000.0
+    pts = [(float(i), base - (depth if 50 <= i <= 70 else 0.0)) for i in range(120)]
+    r = co.estimate(pts)
+    assert r["ok"] is False and r["reason"] == "implausible-offset", r
+    assert abs(r["offset_envelope_ms"]) < _BOUND_MS < abs(r["offset_paxson_ms"]), r
+
+
+def test_the_refusal_PUBLISHES_both_estimators_to_the_microsecond():
+    """A declined measurement is still a measurement: it carries the two numbers that caused it, at the
+    same 3-decimal ms precision as a successful one, so a reader can tell a wrong epoch (years) from a
+    misparsed column (hours) without re-running anything. `_DURATION_S`'s 843790201937.193 was legible
+    for exactly this reason."""
+    r = co.estimate(_flat(co.CLOCK_IMPLAUSIBLE_S * 1000.5 + 0.00125))
+    assert r["offset_envelope_ms"] == 31551768000.001, r
+    assert r["offset_paxson_ms"] == 31551768000.001, r
+
+
+# ---------------------------------------------------------------------------------------------------
+# THE PUBLISHED RECORD'S OWN PRECISION.
+#
+# Every field here is read by a consumer that does not re-run the estimate: `offset_ms` is spent as a
+# correction, `agree_ms` decides whether to spend it, `slope_ppm` is quoted as a rate and `span_sec` is
+# the baseline that makes the rate quotable. A digit added or dropped changes what those consumers see
+# while every `ok`/`reason` assertion in this file stays green, so the precisions are pinned here.
+# The point sets place each quantity's digits deliberately — a flat cloud puts both estimators on the
+# same number, a dip separates them, a planted slope gives the rate its third decimal.
+# ---------------------------------------------------------------------------------------------------
+
+_T_GRID = [i * 30.0 for i in range(118)] + [3570.25]     # span .25, mean .2542 — two decimals each
+
+
+def test_the_estimate_record_publishes_offsets_to_the_MICROSECOND_and_the_axis_to_a_tenth():
+    """Offsets at 3 decimals of a millisecond because PAT's budget is 10 ms and a correction quoted
+    coarser than a microsecond would round inside it; the time axis at a tenth of a second, which is
+    all a span or a centroid means."""
+    r = co.estimate([(t, 264.21237) for t in _T_GRID])
+    assert r["span_sec"] == 3570.2 and r["t_ref_sec"] == 1770.3, r
+    assert r["offset_ms"] == 264.212, r
+    assert r["offset_envelope_ms"] == 264.212 and r["offset_paxson_ms"] == 264.212, r
+
+
+def test_the_rate_is_published_to_a_HUNDREDTH_of_a_ppm():
+    """0.01 ppm is 36 us/h — below anything this measurement can resolve and deliberately so: the
+    figure is compared between nights and a coarser one would quantise the comparison itself."""
+    r = co.estimate([(t, 264.21237 + 0.0123456 * t) for t in _T_GRID])
+    assert r["slope_ppm"] == 12.35, r
+
+
+def test_the_refused_skew_still_publishes_its_rate_to_a_TENTH_of_a_ppm():
+    """A refusal reports the number that caused it: 5 % is far outside anything physical, so the reader
+    is diagnosing a misparse or a unit mismatch and needs the magnitude, not precision."""
+    r = co.estimate([(t, 100.0 + 60.00025 * t) for t in _T_GRID])
+    assert r["ok"] is False and r["reason"] == "implausible-skew", r
+    assert r["slope_ppm"] == 60000.2, r
+
+
+def test_the_DISAGREEMENT_is_published_at_the_same_precision_as_the_offsets_it_compares():
+    """`agree_ms` is what `certified` is decided on, against a 10 ms threshold, so it carries the same
+    3 decimals as the two numbers it differences — and when it exceeds the threshold `offset_ms` is
+    None while both per-estimator values stay readable, which is this record."""
+    base, depth = 264.21237, 987.6543
+    pts = [(i * 30.0, base + (0.0 if 50 <= i <= 70 else depth)) for i in range(120)]
+    r = co.estimate(pts)
+    assert r["agree_ms"] == 987.654, r
+    assert r["offset_ms"] is None and r["certified"] is False, r
+    assert r["offset_envelope_ms"] == 264.212 and r["offset_paxson_ms"] == 1251.867, r
+
+
+def test_a_span_of_exactly_the_resolvability_floor_IS_quotable():
+    """`>=`, not `>`: `SPAN_MIN_SEC` is the shortest baseline a rate may be quoted off, so a span of
+    exactly that length is the first quotable one, not the last unquotable one. The offset ships either
+    way — the flag is about the RATE, per the docstring and Clock Contract §7."""
+    r = co.estimate([(i * (co.SPAN_MIN_SEC / 119.0), 264.2) for i in range(120)])
+    assert r["span_sec"] == co.SPAN_MIN_SEC, r
+    assert r["skew_quotable"] is True, r
