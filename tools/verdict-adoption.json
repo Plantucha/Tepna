@@ -984,8 +984,15 @@
     },
     "tools/o2ring-finger-validate-batch.mjs": {
       "bin": "decides",
-      "status": "pending",
-      "note": "BAND-LESS at the level it emits (Magpie + Kestrel, 2026-09-22, read before flipping): the per-pair rule is exact (both Δ ≤ 3 bpm, > 10 feet) but the tool prints `N/M pairs PASS` with NO aggregate criterion, and the documented run was accepted at 88/92 with four reference-side non-passes (docs/O2RING-FINGER-ROUNDTRIP-2026-07-20.md) — an all-pairs rule would convict a run the brief ratified. The aggregate bar belongs in that doc first. Residue 2026-09-22-finger-validate-batch-has-no-aggregate-bar."
+      "status": "adopted",
+      "note": "emits one tepna.verdict/1 whose batch-level status is UNKNOWN, by design and with the reason: the per-pair rule is exact (|PPG-ring| <= 3 bpm AND |PPG-ECG| <= 3 bpm AND feet > 10, from docs/O2RING-FINGER-ROUNDTRIP-2026-07-20.md) but that doc records 88/92 as a MEASUREMENT of one sweep, attributing each non-pass to the reference side individually, and states no batch-level bar. Deriving one here would be a threshold taken from the data it judges (VERDICT-CONTRACT §criterion), and an all-pairs rule would convict the run the doc ratified. `aggregateBar` is a seam for the day that doc states one; its selftest plants prove a clean 92/92 batch still reads UNKNOWN, that a bar is never inferred, and that given a bar the tool does decide. NOT_RUN when no eligible pair exists. Closes residue 2026-09-22-finger-validate-batch-has-no-aggregate-bar (Magpie, 2026-09-27).",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/o2ring-finger-validate-batch.mjs",
+          "--verdict-sample"
+        ]
+      }
     },
     "tools/o2ring-frame-cadence.mjs": {
       "bin": "word-only",
@@ -1309,8 +1316,15 @@
     },
     "tools/stmt-delete.mjs": {
       "bin": "already-json",
-      "status": "pending",
-      "note": "BAND-LESS (Magpie, 2026-09-22, read before flipping): Level B reports pseudo-tested STATEMENTS and an invalid rate as a MEASUREMENT 'reported separately' from Level A, with no pre-stated threshold and no ratchet — the only decisions it makes are refusals (baseline suite red, no eligible statement). A PASS needs a criterion; adopting it means first giving it the ratchet extreme-mutate has (a committed pseudo-tested-statement baseline, growth-gated), which is a design change, not a wrapper. Not flipped."
+      "status": "adopted",
+      "note": "emits one tepna.verdict/1: the per-statement rule (classifyStatementVerdict) stays exact, and the pseudo-tested COUNT is UNKNOWN with the reason, because it has no committed baseline, no fixed population (the caller supplies --file) and its candidate targets churn 23-107 commits per 90 days, so a two-sided ratchet has no stable population to pin. The refusals become machine-readable: a RED baseline suite is NOT_RUN (nothing examined) and no eligible statement is NOT_APPLICABLE (eligibility fails closed). `baseline` is the seam for the row remedy shape (extreme-mutate per-file, fail on GROWTH); its selftest plants prove one newly pseudo-tested statement reds against a baseline, that the same count at the baseline passes, and that a baseline is never inferred. Closes residue 2026-09-22-stmt-delete-has-no-ratchet (Magpie, 2026-09-27).",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/stmt-delete.mjs",
+          "--verdict-sample"
+        ]
+      }
     },
     "tools/stuck-run-lengths.mjs": {
       "bin": "decides",
