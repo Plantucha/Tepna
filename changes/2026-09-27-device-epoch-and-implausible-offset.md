@@ -1,7 +1,0 @@
----
-bump: minor
-type: fixed
-brief: none
----
-
-Every night's arrival record now names which epoch each device counter read, and an offset that cannot be true is refused instead of certified. Measured over the corpus 2026-09-27, the H10 sat on its 2019 firmware default on 7 of 44 nights and those nights published an offset of 7.74 YEARS with `ok: true`, because nothing named the epoch and nothing range-checked the number. `nightqc.device_epoch_state` annotates the state per stream (`plausible` · `firmware-default` · `unset-base` · `duration-not-an-offset`) with the device's own first instant and the boundary if it switched, and `clock_offset.estimate` refuses beyond `CLOCK_IMPLAUSIBLE_S` — a year, tested on the ENVELOPE and Paxson values rather than the certified `offset_ms`, because the `_DURATION_S` shape publishes `offset_ms: null` beside an envelope 843,790,201,937 ms out and a check on the certified field alone would leave the every-night case standing. The epoch is an annotation and never refuses the night (§∅ owner ruling 2026-09-17: a discontinuity refuses, reduced coverage annotates); the refusal carries the epoch state as its `cause`. One bound serves both halves: `CLOCK_IMPLAUSIBLE_S` moved to the dependency-free `clock_offset`, which `capture.py` now aliases. Existing on-disk verdict files are not rewritten — a re-run of nightqc over the corpus would flip 192 stream-nights to `ok: false`, which is the owner's call.
