@@ -13246,8 +13246,17 @@
       var uncovered = producers.filter(function (w) {
         return declared.indexOf(w) < 0;
       });
-      T.ok('the worker-producer population was actually enumerated', producers.length >= 3, 'found: ' + producers.join(', ') + ' — an empty or tiny population means the construction scan found nothing and every row below is vacuous');
-      T.eq('the set of worker producers OUTSIDE this gate is exactly the declared exclusions', uncovered.sort().join(','), Object.keys(EXCLUDED).sort().join(','), 'a new worker producer appeared: declare it in PAIRS, or add it to EXCLUDED with the reason it cannot be read');
+      T.ok(
+        'the worker-producer population was actually enumerated',
+        producers.length >= 3,
+        'found: ' + producers.join(', ') + ' — an empty or tiny population means the construction scan found nothing and every row below is vacuous'
+      );
+      T.eq(
+        'the set of worker producers OUTSIDE this gate is exactly the declared exclusions',
+        uncovered.sort().join(','),
+        Object.keys(EXCLUDED).sort().join(','),
+        'a new worker producer appeared: declare it in PAIRS, or add it to EXCLUDED with the reason it cannot be read'
+      );
       Object.keys(EXCLUDED).forEach(function (w) {
         T.ok('the exclusion ' + w + ' is still a real producer', producers.indexOf(w) >= 0, 'it is excluded but no longer constructed anywhere — drop the exclusion rather than pinning a fiction');
       });
@@ -13337,11 +13346,20 @@
            make the PLANT fail for a reason that has nothing to do with whether the detector fires. What
            must hold is that the planted key is among the dead, and that planting CHANGED the set — the
            second half is what stops this passing when the detector sees nothing. */
-        T.ok('PLANT 1 · an unread key appended to the producer is reported dead', deadPlanted.indexOf('zzPlantedUnreadKey') >= 0, 'the planted key was not reported dead — the detector is not firing. dead set: ' + (deadPlanted.join(',') || 'empty'));
+        T.ok(
+          'PLANT 1 · an unread key appended to the producer is reported dead',
+          deadPlanted.indexOf('zzPlantedUnreadKey') >= 0,
+          'the planted key was not reported dead — the detector is not firing. dead set: ' + (deadPlanted.join(',') || 'empty')
+        );
         T.ok(
           'PLANT 1 · and planting it CHANGED the dead set (the detector is not merely echoing)',
           deadPlanted.length === dead.length + 1,
-          'planting added ' + (deadPlanted.length - dead.length) + ' key(s) to the dead set, expected exactly 1 — before: ' + (dead.join(',') || 'none') + ' · after: ' + (deadPlanted.join(',') || 'none')
+          'planting added ' +
+            (deadPlanted.length - dead.length) +
+            ' key(s) to the dead set, expected exactly 1 — before: ' +
+            (dead.join(',') || 'none') +
+            ' · after: ' +
+            (deadPlanted.join(',') || 'none')
         );
 
         /* ── PLANT 2 · THE DERIVATION FINDS A NEW CONSUMER WITH NO LIST EDIT ───────────────────────────
