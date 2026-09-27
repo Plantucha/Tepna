@@ -116,6 +116,22 @@ check DENY  "$(run_cmd "cd $WT && git add -A && git commit -m x" "$OUT")"   "…
 check DENY  "$(run_cmd 'git add tools/a.mjs && git commit -q -m x && git push' "$REPO")" "…a commit inside a chain"
 check ALLOW "$(run_cmd 'git commit -m x' "$OUT")"                           "the same commit OUTSIDE any repo ⇒ allow"
 check ALLOW "$(run_cmd 'git status && git fetch origin' "$REPO")"           "git without a commit ⇒ allow"
+
+# ── SHAPES 4 + 5: `gh pr create` and `herdr … agent prompt` (owner-ordered 2026-09-27). Each DENY is
+#    paired with the ALLOW that differs by one property: a read of the same tool, the hatch, or a stamp. ──
+echo "guard-doc-search: shapes 4+5 — a PR opened / a hand-off without a search"
+check DENY  "$(run_cmd 'gh pr create --title x --body-file b.md' "$REPO")"   "gh pr create in the repo cwd ⇒ deny"
+check DENY  "$(run_cmd "cd $WT && gh pr create --fill" "$OUT")"              "…tree from a leading cd (worktree)"
+check ALLOW "$(run_cmd 'gh pr view 3150 --json state && gh pr checks 3150' "$REPO")" "gh pr view/checks ⇒ allow (a read)"
+check ALLOW "$(run_cmd 'gh pr create --title x' "$OUT")"                     "gh pr create OUTSIDE any repo ⇒ allow"
+check DENY  "$(run_cmd 'herdr --session birds agent prompt heron "next unit"' "$REPO")" "herdr agent prompt ⇒ deny"
+check DENY  "$(run_cmd '~/.local/bin/herdr --session birds agent prompt magpie x' "$REPO")" "…by full path too"
+check ALLOW "$(run_cmd 'herdr --session birds agent list' "$REPO")"          "herdr agent list ⇒ allow (a read)"
+check ALLOW "$(run_cmd 'CLAUDE_ALLOW_NO_DOC_SEARCH=1 gh pr create --fill' "$REPO")" "the inline hatch on a PR open ⇒ allow"
+printf '2026-09-27T00:00:00Z\tq\n' > "$STATE/doc-search-sessions/$SID"
+check ALLOW "$(run_cmd 'gh pr create --fill' "$REPO")"                       "fresh stamp ⇒ gh pr create allowed"
+check ALLOW "$(run_cmd 'herdr --session birds agent prompt heron x' "$REPO")" "fresh stamp ⇒ hand-off allowed"
+rm -f "$STATE/doc-search-sessions/$SID"
 check ALLOW "$(run_cmd 'echo "the commit message says git commit"' "$REPO")" "the words in PROSE (echo) are not a commit"
 check ALLOW "$(run_cmd 'git log --grep commit' "$REPO")"                    "…nor an argument to another git verb"
 check ALLOW "$(run_cmd 'CLAUDE_ALLOW_NO_DOC_SEARCH=1 git commit -m x' "$REPO")" "the inline hatch on the command line ⇒ allow"
