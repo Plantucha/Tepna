@@ -529,6 +529,9 @@ function loadInto(ctx, file) {
 
 /* ── 2 · gather sources (static checks) and fixtures (export completeness) ── */
 const SHIPPED_INLINED = new Set(); // every .js the owned bundles inline — the lint's scope floor
+/* Populated by readSources(); read by the drawn-axis consumer-population gate. See the block there. */
+let TOOL_TEXTS = null;
+
 function readSources() {
   const wanted = [
     'tools/regen-goldens.mjs', // §F1.5 — the dispatcher must keep naming every node with a regen path
@@ -725,6 +728,25 @@ function readSources() {
     const p = join(ROOT, f);
     if (existsSync(p)) out[f] = readFileSync(p, 'utf8');
   }
+  /* ── EVERY `tools/*.mjs`, SO A CONSUMER GATE CAN HAVE A REAL DENOMINATOR (2026-09-27) ────────────
+     The drawn-axis refusal gate below used to name TWO tools by hand while its title claimed "every
+     tool that spends a clock", so `pat-drift-attribution.mjs` — which reads a hostAxis rate and had no
+     drawn guard — was outside the population and its absence looked exactly like passing. A curated
+     list cannot express "every", so the tools tree is read whole and the gate derives its own
+     candidates from it. Kept SEPARATE from `out` on purpose: adding 220 files to `env.sources` would
+     silently move the populations of every other source-scanning gate (the visibility ratchet, the
+     Clock lint), and a scope change smuggled in under a different gate's fix is how those ratchets
+     stop meaning anything. FAILS CLOSED — an unreadable or implausibly small tools tree throws,
+     because walking nothing is indistinguishable from a clean tree (CLAUDE.md §4b). */
+  TOOL_TEXTS = (() => {
+    const dir = join(ROOT, 'tools');
+    if (!existsSync(dir)) throw new Error('readSources: tools/ is unreadable — refusing to derive a consumer population from nothing');
+    const names = readdirSync(dir).filter((f) => f.endsWith('.mjs'));
+    if (names.length < 100) throw new Error('readSources: only ' + names.length + ' tools/*.mjs found — refusing a population that short');
+    const t = {};
+    for (const f of names) t['tools/' + f] = readFileSync(join(dir, f), 'utf8');
+    return t;
+  })();
   /* DEEP-AUDIT-III §1.4 — the scope must be DERIVED, not hand-maintained. The list above is curated,
      and nothing kept it in sync with what the bundler actually inlines, so the house-invariant Clock
      lint printed "clean across 70 files" while 44 SHIPPED files sat outside its scope — a gate
@@ -2790,6 +2812,10 @@ async function main() {
     })(),
     toolSources: readToolSources(),
     sources: readSources(),
+    // Must come AFTER `sources:` — readSources() is what fills TOOL_TEXTS.
+    get toolTexts() {
+      return TOOL_TEXTS;
+    },
     // §F1.5 — the TCH golden's input builder, shared with tools/regen-integrator-goldens.mjs
     tchGoldenInputs: (() => {
       try {
