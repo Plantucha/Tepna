@@ -52,6 +52,22 @@ CRITERION = {
     "direction": "lte",
 }
 ATTRIB_WINDOW_S = 15.0
+# ...and the same reach FORWARD of the gap's start. A gap's start is the stream's LAST DELIVERED ROW, so
+# the daemon logs the action that caused it AFTER that row — measured on the H10 over 2026-09-17→23, all 39
+# real-loss gaps (10-55 s device steps, 11.0 min) had their `pull paused live` line 1-3 s after the start
+# and NOT ONE before it, so the backward-only search called every one `unattributed` and inflated
+# SOLID-NIGHT's unattributed leg with the daemon's own designed behaviour.
+#
+# ⚠️ REACH PAST THE START, NOT ACROSS THE WHOLE GAP, and the difference is not cosmetic. The remedy first
+# proposed was a window `[start, end + margin]` taking the first event inside it; the existing assertion at
+# `test_attribution_takes_the_last_journal_line_within_the_window_or_says_unattributed` refutes it — there a
+# `not-worn drop` sits 1 s BEFORE a 121 s gap and a `dbus busy` 101 s INTO it, and the wide window hands the
+# gap to the event 101 s deep while demoting the one at the boundary. An event that merely happens during an
+# outage is not its cause. So the forward reach is bounded by the same measurement that motivated it: the
+# observed lag between action and log line ran to 1.895 s (2026-09-21T00:17:54 gap, pause at 00:17:55.895),
+# and 3 s is the next whole second above that maximum. Events deeper in the gap are published as
+# `in_gap_cause` — information a reader may want, never the attribution.
+ATTRIB_FORWARD_S = 3.0
 
 # journal line → cause bin, first match wins (order matters: a not-worn drop line also says "link")
 KINDS: tuple[tuple[str, str], ...] = (
@@ -192,15 +208,22 @@ DELAY_PERIODS = 1.5  # CHOSEN: a real loss drops ≥ 1 whole period; late delive
 _PERIOD_ROWS = 200  # positive device steps sampled to learn the stream's own period
 
 
-def stream_gaps_split(path: str) -> tuple[list, list, float, float]:
-    """(gaps, delays, span_s, gap_s cut). `gaps` = [(start, seconds)] of real loss; `delays` = [(start, host
-    seconds, device step ns)] where the host stamps jumped and the device clock did not. Same cut and stamp
-    parsing as the Nights index; the device column is found by HEADER name, per file, never by position."""
+def stream_scan(path: str) -> dict:
+    """One pass over a stream file: its gaps, its delays, its span, and its own ENDPOINTS on both clocks.
+
+    The endpoints are what a gaps-and-span scan alone could not report, and a fragmented night needs them. A gap BETWEEN
+    two files is a real delivery event that no per-file scan can see — "sum the files' gaps" misses exactly
+    the loss that made the night fragment — and judging it needs the previous file's last row and the next
+    file's first row on the DEVICE clock as well as the host's (#3157: a delay is not a loss, and only the
+    device counter tells them apart).
+
+    Same cut and stamp parsing as the Nights index; the device column is found by HEADER name, per file,
+    never by position."""
     cut = _ni._cadence_gap(path)
     gaps: list[tuple[_dt.datetime, float]] = []
     delays: list[tuple[_dt.datetime, float, int]] = []
     first = prev = None
-    prev_dev = None
+    prev_dev = first_dev = None
     dev_col = None
     steps: list[int] = []
     period_ns = None
@@ -222,6 +245,8 @@ def stream_gaps_split(path: str) -> tuple[list, list, float, float]:
                     dev = None  # a torn row carries no device time; the host gap is then judged as before
             if first is None:
                 first = stamp
+            if first_dev is None and dev is not None:
+                first_dev = dev
             if prev is not None:
                 g = (stamp - prev).total_seconds()
                 step_ns = dev - prev_dev if dev is not None and prev_dev is not None else None
@@ -238,25 +263,98 @@ def stream_gaps_split(path: str) -> tuple[list, list, float, float]:
             if dev is not None:
                 prev_dev = dev
     span = (prev - first).total_seconds() if first is not None and prev is not None else 0.0
-    return gaps, delays, max(0.0, span), cut
+    return {"gaps": gaps, "delays": delays, "span": max(0.0, span), "cut": cut,
+            # the endpoints, on both clocks — None where the file carried neither a stamp nor a counter
+            "first": first, "last": prev, "first_dev": first_dev, "last_dev": prev_dev,
+            # the stream's own period, median of the first sampled positive steps; None on a file too short
+            # to have learned one, in which case a boundary across it cannot be judged by the counter
+            "period_ns": period_ns}
+
+
+def boundary_gap(prev: dict, nxt: dict) -> tuple | None:
+    """The gap BETWEEN two consecutive fragments, judged the way an in-file gap is — or None if there is none.
+
+    Returns `("loss", start, seconds)` or `("delay", start, seconds, step_ns)`, so a caller bins it exactly
+    as `stream_scan` bins an in-file gap.
+
+    A fragment boundary is a DELIVERY EVENT: the stream stopped and started again, and the time between is
+    unrecorded whatever caused it. What the device counter decides is the same question as inside a file —
+    whether the samples are GONE or merely arrived in the next file (#3157). Advancing across the boundary by
+    much less than the host gap means the device kept its place and the wait was delivery; advancing by the
+    whole gap means those samples do not exist.
+
+    THREE WAYS THE COUNTER CANNOT ANSWER, all of which fall to `loss`, which is the conservative direction
+    and the one that cannot silently forgive a real hole:
+      * either endpoint carried no counter (a torn tail, a stream with no device column at all — the ring's
+        raw buffers, residue `ring-stalls-count-as-loss-without-a-device-clock`, which this unit does not
+        change);
+      * the previous fragment never ran long enough to learn its own period;
+      * the counter went BACKWARDS, which is not a small step but a different clock — a reconnect resets it
+        (§🔒 §7: a resync is a change of clock), and nothing about the old counter's value then bounds the
+        new one.
+    """
+    a, b = prev.get("last"), nxt.get("first")
+    if a is None or b is None:
+        return None
+    g = (b - a).total_seconds()
+    if g <= max(prev.get("cut") or 0.0, 0.0):
+        return None                      # the next file resumed inside the cadence: no gap to report
+    period = prev.get("period_ns")
+    da, db = prev.get("last_dev"), nxt.get("first_dev")
+    if period and da is not None and db is not None:
+        step = db - da
+        if 0 <= step < DELAY_PERIODS * period:
+            return ("delay", a, g, step)
+    return ("loss", a, g)
+
+
+def attribute_gaps_detail(gaps, events) -> list[dict]:
+    """Per gap: the cause, WHEN it was logged, which direction it was found in, and the backward candidate.
+
+    THE WINDOW SPANS THE GAP. `[gap_start, gap_start + ATTRIB_FORWARD_S]` is searched first and its
+    NEAREST event wins, because the gap's start is the stream's last delivered row and the action that caused
+    it is logged after that row (see `ATTRIB_FORWARD_MARGIN_S` for the measurement). The old backward
+    search is kept and published as `backward_cause`: it is the weaker evidence — an event that merely
+    precedes a gap may have nothing to do with it — but it is what a night with no in-gap line still has,
+    so it remains the fallback rather than being dropped.
+
+    `events` None ⇒ every gap 'unattributed (no journal)'.
+    """
+    if events is None:
+        return [{"at": t0, "s": g, "cause": "unattributed (no journal)", "cause_at": None,
+                 "cause_dir": None, "backward_cause": None, "in_gap_cause": None} for t0, g in gaps]
+    ts = [e[0] for e in events]
+    out = []
+    for t0, g in gaps:
+        j = bisect.bisect_left(ts, t0)                       # first event at or after the gap start
+        fwd = (ts[j], events[j][1]) if (
+            j < len(ts) and (ts[j] - t0).total_seconds() <= ATTRIB_FORWARD_S) else None
+        i = bisect.bisect_right(ts, t0) - 1                  # last event strictly before it
+        back = (ts[i], events[i][1]) if i >= 0 and (t0 - ts[i]).total_seconds() <= ATTRIB_WINDOW_S else None
+        # anything further into the outage: recorded, never the attribution — see ATTRIB_FORWARD_S
+        k = bisect.bisect_right(ts, t0 + _dt.timedelta(seconds=ATTRIB_FORWARD_S))
+        deep = (ts[k], events[k][1]) if (
+            k < len(ts) and (ts[k] - t0).total_seconds() <= g) else None
+        chosen, direction = (fwd, "after") if fwd else ((back, "before") if back else (None, None))
+        out.append({
+            "at": t0, "s": g,
+            "cause": chosen[1] if chosen else "unattributed",
+            "cause_at": chosen[0] if chosen else None,
+            "cause_dir": direction,
+            "backward_cause": back[1] if back else None,
+            "in_gap_cause": deep[1] if deep else None,
+        })
+    return out
 
 
 def attribute_gaps(gaps, events) -> list[tuple[_dt.datetime, float, str]]:
-    """[(gap start, seconds, cause)], one per gap. `events` None ⇒ every gap 'unattributed (no journal)'.
+    """[(gap start, seconds, cause)], one per gap — the tuple projection of `attribute_gaps_detail`.
 
     Published per gap (not only summed) because a consumer judging the WORN interval must count the gaps
     INSIDE it: the SOLID-NIGHT verdict's continuity band counts unattributed gaps by number as well as
     minutes, and only inside the worn interval (SOLID-NIGHT §3.4). A per-cause sum over the whole file
     can answer neither."""
-    if events is None:
-        return [(t0, g, "unattributed (no journal)") for t0, g in gaps]
-    ts = [e[0] for e in events]
-    out = []
-    for t0, g in gaps:
-        i = bisect.bisect_right(ts, t0) - 1
-        cause = events[i][1] if i >= 0 and (t0 - ts[i]).total_seconds() <= ATTRIB_WINDOW_S else "unattributed"
-        out.append((t0, g, cause))
-    return out
+    return [(r["at"], r["s"], r["cause"]) for r in attribute_gaps_detail(gaps, events)]
 
 
 def by_cause_of(per_gap) -> dict[str, float]:
@@ -662,34 +760,81 @@ def audit_night(night_dir: str, devices: list[dict], *, journal=read_journal) ->
         if not files:
             out["devices"][name] = {"primary": pat, "file": None, "reason": "no primary file this night"}
             continue
-        f = max(files, key=os.path.getsize)
-        try:
-            gaps, delays, span, cut = stream_gaps_split(f)
-        except OSError as exc:
-            out["devices"][name] = {"primary": pat, "file": os.path.basename(f), "reason": f"unreadable: {exc!r}"}
+        # EVERY fragment, not the largest one. `max(getsize)` audited a single file per device, so on a
+        # fragmented night the ledger read as the whole night while most of the recorded span was never
+        # examined — measured on vigil 2026-09-24: 2026-09-10 H10 4 files, 53.7 % of the span unaudited;
+        # 2026-09-19 Verity 5 files, 55.2 %; 2026-09-05 ring 32 files, 18.7 %. The `wear` block below
+        # already walked every file (`wear_ends`), so the two halves of one audit disagreed about which
+        # night they were describing.
+        f = max(files, key=os.path.getsize)          # still reported as `file`: the largest fragment
+        scans, unreadable = [], []
+        for q in sorted(files):
+            try:
+                scans.append((os.path.basename(q), stream_scan(q)))
+            except OSError as exc:
+                # ONE bad fragment must not discard the readable ones — that is the same "does not end the
+                # night" rule the single-file path already had, one level down.
+                unreadable.append({"file": os.path.basename(q), "reason": f"unreadable: {exc!r}"})
+        if not scans:
+            out["devices"][name] = {"primary": pat, "file": os.path.basename(f),
+                                    "reason": unreadable[0]["reason"] if unreadable else "unreadable"}
             continue
+        # chronological by the file's OWN first row, not by name: the name carries the session start, and a
+        # fragment whose name lies would put a boundary the wrong way round.
+        scans.sort(key=lambda kv: (kv[1]["first"] is None, kv[1]["first"] or _dt.datetime.min, kv[0]))
+        # each gap carries the fragment it came from, so a reader can tell an in-file hole from a boundary
+        recs = [{"at": t, "s": g, "file": n} for n, sc in scans for t, g in sc["gaps"]]
+        delays = [d for _n, sc in scans for d in sc["delays"]]
+        span = sum(sc["span"] for _n, sc in scans)
+        cut = scans[0][1]["cut"]
+        n_boundary = 0
+        for (_pn, pv), (_nn, nx) in zip(scans, scans[1:]):
+            b = boundary_gap(pv, nx)
+            if b is None:
+                continue
+            if b[0] == "delay":
+                delays.append((b[1], b[2], b[3]))
+            else:
+                recs.append({"at": b[1], "s": b[2], "boundary": True})
+                n_boundary += 1
+        recs.sort(key=lambda r: (r["at"], r["s"]))
+        gaps = [(r["at"], r["s"]) for r in recs]
         address = str(d.get("address") or "")
         ev = journal((name, address) if address else name, since, until)
         if ev is None:
             out["journal"] = "unavailable — every gap is unattributed"
-        per_gap = attribute_gaps(gaps, ev)
+        detail = attribute_gaps_detail(gaps, ev)
+        per_gap = [(r["at"], r["s"], r["cause"]) for r in detail]
         by_cause = by_cause_of(per_gap)
         lost = sum(by_cause.values())
         worn = _has_worn_evidence(night_dir, model)
         out["devices"][name] = {
             "primary": pat,
+            # the LARGEST fragment, kept under its old name so a reader of an older ledger is not misled
+            # about which key changed meaning; `files` below is the population actually audited.
             "file": os.path.basename(f),
+            "files": [{"file": n, "span_min": round(sc["span"] / 60.0, 1),
+                       "gaps": len(sc["gaps"]), "delays": len(sc["delays"])} for n, sc in scans]
+                     + unreadable,
             "span_min": round(span / 60.0, 1),
             "gap_cut_s": round(cut, 2),
-            "fragments": len(gaps) + 1,
+            # contiguous stretches of delivery: one per file, plus one for every gap INSIDE a file. A
+            # boundary gap does not add one — the fragment after it is already counted by its own file.
+            "fragments": len(gaps) - n_boundary + len(scans),
+            "boundary_gaps": n_boundary,
             "lost_min": round(lost, 1),
             "by_cause": {k: round(v, 1) for k, v in sorted(by_cause.items(), key=lambda kv: -kv[1])},
             # every gap with its start, length and cause — what `by_cause` sums, kept so a consumer can
             # count gaps inside the worn interval (SOLID-NIGHT §3.4) rather than over the whole file.
-            # ⚠️ Gaps of `primary` ONLY: a fragmented night's other files are not audited yet
-            # (residue 2026-09-24-loss-audit-audits-only-the-largest-file), so an empty list is "none in
-            # this file", never "none in the night".
-            "gaps": [{"at": t.isoformat(timespec="seconds"), "s": round(g, 1), "cause": c} for t, g, c in per_gap],
+            # every gap of every fragment, plus the gaps BETWEEN fragments (`boundary: true`), so an
+            # empty list is now "none in the night" for this stream. `cause_dir` says which side of the
+            # gap start its cause was found on; `in_gap_cause` is an event deeper inside the outage,
+            # recorded but never the attribution (see ATTRIB_FORWARD_S).
+            "gaps": [{"at": r["at"].isoformat(timespec="seconds"), "s": round(r["s"], 1),
+                      "cause": r["cause"], "cause_dir": r["cause_dir"],
+                      "backward_cause": r["backward_cause"], "in_gap_cause": r["in_gap_cause"],
+                      **({"boundary": True} if w.get("boundary") else {"file": w["file"]})}
+                     for r, w in zip(detail, recs)],
             # host gaps the DEVICE clock shows were only late delivery: 0 samples lost, never in `gaps`/`lost_min`
             "delays": [{"at": t.isoformat(timespec="seconds"), "s": round(g, 1), "device_ns": d} for t, g, d in delays],
             "delayed_min": round(sum(g for _, g, _ in delays) / 60.0, 1),
