@@ -36,6 +36,7 @@
 from __future__ import annotations
 
 import asyncio
+from typing import Any
 import proc_util
 import datetime as _dt
 import os
@@ -189,7 +190,9 @@ def validate(t: dict) -> dict:
         if not _HOST_RE.match(host):
             raise StorageError(f"invalid host {host!r} — a hostname, IPv4, or [IPv6]")
         out["host"] = host
-        port = t.get("port", default_port)
+        # `Any`, because it comes out of parsed config: the `except (TypeError, ValueError)` below is
+        # what handles a None or a non-number, and it already names the refusal.
+        port: Any = t.get("port", default_port)
         try:
             port = int(port)
         except (TypeError, ValueError):

@@ -6080,10 +6080,18 @@ async def _device_on_air(address: str, budget_s: float) -> bool | None:
     "nothing on the air" is allowed to skip work."""
     try:
         import bleak
-        dev = await asyncio.wait_for(
-            bleak.BleakScanner.find_device_by_address(address, timeout=budget_s,
-                                                      adapter=await adapter_hci()),
-            timeout=budget_s + 3.0)
+        # PASS THE ADAPTER ONLY WHEN THERE IS ONE. `adapter_hci()` returns None for "let BlueZ choose",
+        # and bleak's own signature wants a str, so handing it None is a type error that happens to
+        # work. Written as two whole calls rather than a `**kwargs` splat: bleak's signature is
+        # overloaded, and a dict splat there produces FIVE new errors instead of fixing one (measured).
+        # Same shape `polar_psftp` already uses at its BleakClient call.
+        hci = await adapter_hci()
+        scan = (
+            bleak.BleakScanner.find_device_by_address(address, timeout=budget_s, adapter=hci)
+            if hci
+            else bleak.BleakScanner.find_device_by_address(address, timeout=budget_s)
+        )
+        dev = await asyncio.wait_for(scan, timeout=budget_s + 3.0)
         return dev is not None
     except Exception as e:                     # scan failed, adapter busy, bleak absent — cannot tell
         log.debug("presence check for %s could not be answered (%r)", address, e)
@@ -8339,7 +8347,12 @@ async def archive_poller(cfg: dict, root: str):
         log.info("archive: OFF — %s", "archive.enabled is false" if not acfg.get("enabled")
                  else "no dest and no transfer target configured")
         return
-    dest = acfg.get("dest")
+    # `Any`, like every other parsed-config read in this file: on the MIRROR path `dest` is a str by
+    # the guard above (`dest or transfer`) plus the transfer path's early `continue` below, but that
+    # implication is spread over three places and no annotation can carry it. Typing the READ keeps
+    # `os.path.isdir(dest)` and the two `to_thread` calls honest without inventing a default for an
+    # absent dest — a `str(... or "")` there would turn "not configured" into "not mounted".
+    dest: Any = acfg.get("dest")
     log.info("archive: ARMED — %s", f"{xfer['protocol']}://{xfer.get('user', '')}@{xfer['host']}:{xfer['share']}"
              if xfer is not None else f"mirror to {dest}")
     # Non-night trees to mirror (audit F2). Defaults ON for the two that exist — the exposure they left

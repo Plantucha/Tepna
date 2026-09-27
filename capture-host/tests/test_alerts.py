@@ -14,16 +14,28 @@ def _run(coro):
     return asyncio.run(coro)
 
 
+# ⚠️ BOTH of these assert that NO POST WAS ATTEMPTED, not merely that `send` returned False. The
+# result alone cannot tell the two paths apart: `send` swallows every exception from the poster and
+# returns False, so "returned early because disabled" and "tried to post and it failed" are the same
+# False. Measured 2026-09-27 — with the outcome-only assertion, a mutant turning `not (enabled and
+# url)` into `not (enabled or url)` let a DISABLED notifier reach the real `_http_post` and both tests
+# still passed (and, in a sandbox, made a live network call whose failure was swallowed).
 def test_notifier_disabled_without_a_url():
-    n = alerts.Notifier(url=None, enabled=True)
+    tried = []
+    async def never(url, payload): tried.append(url); return True
+    n = alerts.Notifier(url=None, enabled=True, _post=never)
     assert n.enabled is False
     assert _run(n.send("t", "m")) is False        # disabled → never posts
+    assert tried == [], "a notifier with no URL must not reach the poster at all"
 
 
 def test_notifier_disabled_when_flag_off():
-    n = alerts.Notifier(url="https://x", enabled=False)
+    tried = []
+    async def never(url, payload): tried.append(url); return True
+    n = alerts.Notifier(url="https://x", enabled=False, _post=never)
     assert n.enabled is False
     assert _run(n.send("t", "m")) is False
+    assert tried == [], "a CONFIGURED but disabled notifier must not reach the poster either"
 
 
 def test_notifier_sends_via_the_injected_poster():

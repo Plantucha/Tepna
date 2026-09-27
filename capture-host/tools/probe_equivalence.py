@@ -107,7 +107,9 @@ def _run_variant(module: str, before: str | None, after: str | None) -> list:
         for extra in ("__init__.py",):
             if (HERE / extra).exists():
                 shutil.copy(HERE / extra, work / extra)
-        if before is not None:
+        # BOTH halves or neither: a canary with an anchor and no replacement cannot be applied, and
+        # `str.replace(before, None)` is a TypeError at the write rather than a stated refusal.
+        if before is not None and after is not None:
             p = work / module
             src = p.read_text(encoding="utf-8")
             if src.count(before) != 1:
