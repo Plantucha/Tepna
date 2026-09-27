@@ -1,0 +1,7 @@
+---
+bump: minor
+type: fixed
+brief: none
+---
+
+A stream with no nominal rate and no device clock now reports the span its host stamps cover, or refuses with a reason — never `0.0 % captured`. `_expected_hz` returns None for the O2Ring's three raw-buffer opcodes on purpose ("no coverage claim for a stream we have no reference rate for") and those same files carry `sensor timestamp [ns]` blank, so both established duration bases were absent, `covered` came back 0, and the card printed a measurement of zero beside a LIVE pill (owner, 2026-09-27 05:52, `ACC (O2Ring)`). `nightqc.file_host_span_sec` answers from the host stamps for exactly those files — a different quantity, named as such, computed only where the device clock could not answer, and refusing an endpoint inside a DST fall-back hour rather than shortening a span by the ambiguous hour. `timeline.build` publishes `coverage_pct: null` with `coverage_reason` where nothing could be measured and `coverage_unmeasured` beside a percentage built from only some of a stream's files, and the monitor's new `coverageText` renders all three. Measured on the real 2026-09-09 night: `accraw`, `pletha` and `ppg2w` move 0.0 % → 30.6 %, agreeing within 37 s across three independent files and within 0.6 points of `ppg` (30.4 %) and `spo2` (30.0 %), which are byte-identical before and after. A declared stream with no files still reads 0.0 %, because that is a measurement.
