@@ -13155,7 +13155,20 @@
        gap — ≤ 0.5 ms for any millisecond-quantised lag, and 0 whenever those two values coincide. */
     group('PAT classic vs fused — a confidence-zeroed burst moves the fused lag and not the classic one', 'analysis-stats · pat · known-answer · §∅', function (T) {
       var S = env.AnalysisStats;
-      if (!S || typeof S.weightedMedian !== 'function' || typeof S.legWeights !== 'function' || typeof S.fusedLeg !== 'function') {
+      /* 🔴 THE TWO CAUSES OF "no kernel" ARE NOT THE SAME FINDING, and collapsing them cost a CI cycle.
+         `env.AnalysisStats` ABSENT is the LANE: run-tests.mjs co-loads analysis-stats.js and the browser
+         suite does not, so the module is simply not there — a SKIP, exactly as the statistics-kernel and
+         tch-parity groups above do it. This group first asserted presence instead and reddened
+         `browser-gates` with "weightedMedian / legWeights / fusedLeg not exported" over exports that are
+         present and tested in the Node lane: a gate naming a defect in the code when the truth was that it
+         had examined nothing (CLAUDE.md §4b).
+         The module PRESENT but missing these three is a different thing entirely — a real regression in a
+         lane that does load it — so it stays a FAILURE and is not skipped away with the first case. */
+      if (!S) {
+        T.skip('env.AnalysisStats provided to the runner', 'Node-lane only — run-tests.mjs co-loads analysis-stats.js');
+        return;
+      }
+      if (typeof S.weightedMedian !== 'function' || typeof S.legWeights !== 'function' || typeof S.fusedLeg !== 'function') {
         T.ok('AnalysisStats weighted-PAT kernel present', false, 'weightedMedian / legWeights / fusedLeg not exported');
         return;
       }
