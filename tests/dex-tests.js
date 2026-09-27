@@ -7902,6 +7902,111 @@
         T.ok('…and the PAT refusal is a CONTINUE, not a warning', /if\s*\(\s*ax\.deviceDrawn === true \|\| px\.deviceDrawn === true\s*\)[\s\S]{0,600}?continue;/.test(pat));
         T.ok('…naming DRAWN in the refusal text so a reader can tell it from an independence refusal', /DRAWN AXIS/.test(pat));
       }
+
+      /* ── THE POPULATION IS DERIVED, AND IT IS AN EQUALITY (2026-09-27) ──────────────────────────
+         Everything above names tools BY HAND while this group's title claims "every tool that spends a
+         clock". `tools/pat-drift-attribution.mjs` reads a hostAxis rate, had no drawn guard, and was
+         outside the hand list — so it returned a fabricated ppm as "outstanding drift" for eight days
+         under a green gate, and its absence from the list was indistinguishable from it passing. That
+         is the hand-written-consumer-set shape twice already fixed elsewhere (#3134, #3142).
+         POPULATION: every `tools/*.mjs` whose CODE reads `.ppm` or `correctionAt`. A SUPERSET of the
+         true consumers on purpose — the same reasoning `manifest-gate.js computeHash` states for its
+         denylist, that an unknown asset belongs INSIDE the closure, so a new tool over-flags here
+         instead of being invisible. Comments are stripped first: four files matched only in prose, and
+         a scan that reads its own documentation is CLAUDE.md §4b's examined-nothing.
+         Each member is then classified by whether its code references a host axis at all, and every
+         axis consumer must be REFUSES or EXCLUDED with a reason naming which side of §7's line it sits
+         on — a drawn axis may be PLACED on a host timeline, never SPENT as a second clock. */
+      var TT = env.toolTexts;
+      /* A SKIP IS NOT A PASS, AND THIS ONE WOULD BE INVISIBLE. Every assertion below sits inside the
+         else-branch, so if `toolTexts` ever stopped being wired the whole equality would vanish into a
+         green skip — the failure mode this group exists to prevent, one level up. The browser lane
+         genuinely cannot enumerate a directory; the NODE lane has no such excuse, so there it is a
+         FAILURE. `process.env` is this suite's existing lane marker (see the TZ skips). */
+      var nodeLane = typeof process !== 'undefined' && process && process.env != null;
+      if (!TT) {
+        if (nodeLane) T.ok('env.toolTexts is wired in the node lane', false, 'absent — the derived population silently examined nothing');
+        else T.skip('the derived tools-tree population', 'no directory enumeration in this lane (browser); the node lane carries the equality');
+      } else {
+        var stripC = function (t) {
+          return t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:\\])\/\/[^\n]*/g, '$1');
+        };
+        /* REFUSES — the guard's own CONDITIONAL, never the bare identifier. `deviceDrawn` also appears
+           inside every refusal BODY, so matching the identifier leaves `if (false)` green (the lesson
+           this group already records for pat-host-offset, verified there by mutation). */
+        var REFUSES = {
+          'tools/trio-batch.mjs': /deviceDrawn !== true/,
+          'tools/pat-host-offset.mjs': /if\s*\(\s*ax\.deviceDrawn === true \|\| px\.deviceDrawn === true\s*\)/,
+          'tools/device-stability.mjs': /if\s*\(r\.drawn\)\s*return\s*'drawn-device-axis'/,
+          'tools/pat-drift-attribution.mjs': /if\s*\(hostAxis\.deviceDrawn === true\)/
+        };
+        /* EXCLUDED — an axis consumer that must NOT refuse, each with the reason it must not. These are
+           verified readings of the code, not a place to park an unmigrated spender: a row here says the
+           tool was examined and §7 does not bind it. */
+        var EXCLUDED = {
+          'tools/pat-matchrate-strict.mjs':
+            'PLACES — `t0Ms + dev * scale` reconstructs the axis the emitting DSP already applied (`scale` is 1 unless `applied === true`), so it reproduces where the samples were placed rather than spending the rate as a second clock. Refusing here would disagree with the DSP that wrote the axis.',
+          'tools/known-clock-recovery.mjs':
+            'REPORTS — an estimator oracle over an INJECTED rate. It forwards `deviceDrawn`/`drawnShare` into every output row and deliberately measures recovery ACROSS drawn streams, so gating them out would delete the population it exists to characterise.',
+          'tools/pat-axis-leg-audit.mjs':
+            'REPORTS — the output IS the provenance line, printing `drawn=` beside `ppm=`, `independent=` and `spreadMs=`. Its predicted-drift figure is a diagnostic shown next to the flag, never applied as a correction.'
+        };
+        var POP = [],
+          AXIS = [],
+          OWNFIT = [];
+        Object.keys(TT)
+          .sort()
+          .forEach(function (k) {
+            var t = stripC(TT[k]);
+            if (!/\.ppm\b|correctionAt/.test(t)) return;
+            POP.push(k);
+            if (/hostAxis|hostAx\b/.test(t)) AXIS.push(k);
+            else OWNFIT.push(k);
+          });
+        /* ANTI-VACUITY: a scan that found nothing would satisfy every equality below. */
+        T.ok('the tools tree was actually read', Object.keys(TT).length >= 100, 'only ' + Object.keys(TT).length + ' tools/*.mjs visible');
+        T.ok('the population is non-empty', POP.length >= 8, 'POPULATION=' + POP.length + ' — the .ppm/correctionAt scan matched almost nothing');
+        /* THE EQUALITY, both directions, with the sets PRINTED so the denominator is readable and a
+           disagreement names the file rather than a count. */
+        var classified = Object.keys(REFUSES).concat(Object.keys(EXCLUDED)).sort();
+        var unclassified = AXIS.filter(function (k) {
+          return !REFUSES[k] && !EXCLUDED[k];
+        });
+        var stale = classified.filter(function (k) {
+          return AXIS.indexOf(k) < 0;
+        });
+        T.eq(
+          'every tool that reads a hostAxis RATE is classified — ' + AXIS.length + ' axis consumers: ' + AXIS.join(', '),
+          unclassified.join(', '),
+          '',
+          'UNCLASSIFIED: ' + unclassified.join(', ') + ' — reads a hostAxis rate with no drawn guard and no EXCLUDED reason'
+        );
+        T.eq('…and nothing is classified that no longer reads one (a stale entry examines nothing)', stale.join(', '), '');
+        T.eq('…the two sets are exactly equal', classified.join(', '), AXIS.slice().sort().join(', '));
+        /* Each guard's conditional is present — the classification is only as good as the code under it. */
+        Object.keys(REFUSES).forEach(function (k) {
+          var t = TT[k];
+          if (t == null) {
+            T.ok(k + ' is in the tools tree', false, 'named in REFUSES but not found');
+            return;
+          }
+          T.ok(k + ' carries its drawn-refusal CONDITIONAL', REFUSES[k].test(stripC(t)), 'guard not found — replacing it with if(false) must red this');
+        });
+        /* Each exclusion states a reason on §7's vocabulary, so "excluded" can never read as "checked". */
+        Object.keys(EXCLUDED).forEach(function (k) {
+          T.ok(k + "'s exclusion names PLACES or REPORTS", /^(PLACES|REPORTS) — /.test(EXCLUDED[k]), EXCLUDED[k].slice(0, 40));
+        });
+        /* The rest of the population reads a `.ppm` that is its OWN fit — mechanically, the hostAxis
+           token never appears in their code. Published as a named set and ratcheted as an EQUALITY so a
+           tool that starts consuming a real axis lands in AXIS and must be classified, rather than
+           joining a floor that never notices. */
+        T.eq(
+          'the own-fit set is exactly the 4 measured 2026-09-27: ' + OWNFIT.join(', '),
+          OWNFIT.join(', '),
+          'tools/beat-comb-analysis.mjs, tools/beat-leg-closure.mjs, tools/dual-clock-rate.mjs, tools/integrator-block-precision.mjs'
+        );
+        T.eq('POPULATION is 11 — the published denominator', POP.length, 11, 'POPULATION=' + POP.join(', '));
+      }
     });
 
     /* ════ EVERY NIGHT LEAVES A ROW OR A REFUSAL (2026-09-14) ════════════════════════════════════
