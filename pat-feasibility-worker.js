@@ -44,7 +44,11 @@ function loadScript(url) {
 var DSP_OK = false,
   DSP_ERR = '';
 try {
-  ['kernel-constants.js', 'clock.js', 'pat-gate.js', 'pat-align.js', 'ecgdex-dsp.js', 'ppgdex-dsp.js'].forEach(loadScript);
+  /* `analysis-stats.js` joined 2026-09-26: the confidence-weighted statistics live THERE, not here, for
+     the reason `pat-align.js` was extracted from this very file — a worker's top-level functions can only
+     ever be SOURCE-SCANNED by the suite, never executed, so a mechanism that lives here cannot carry the
+     planted known-answer test it needs. `AnalysisStats` is already loadable and co-loaded in both lanes. */
+  ['kernel-constants.js', 'clock.js', 'pat-gate.js', 'pat-align.js', 'analysis-stats.js', 'ecgdex-dsp.js', 'ppgdex-dsp.js'].forEach(loadScript);
   DSP_OK = !!(typeof ECGDSP !== 'undefined' && ECGDSP.parseECG && typeof PPGDSP !== 'undefined' && PPGDSP.parsePPG);
 } catch (e) {
   DSP_ERR = String((e && e.message) || e);
@@ -481,19 +485,37 @@ function coupledPAT(rTimes, fTimes, band) {
 var HAT_WIN_MS = 300000,
   HAT_MIN_BEATS = 50,
   HAT_MIN_WINDOWS = 12;
-function threeHat(cAB, cAC, cBC) {
+/* `wAB`/`wAC`/`wBC` (OPTIONAL): per-pair weight arrays aligned to each leg's `patAtR`, from `legWeights`.
+   Omitted ⇒ every window median is the plain median and this is byte-identical to every caller before
+   2026-09-26 — the classic column IS this function, not a reproduction of it. Supplied ⇒ each window
+   median is the WEIGHTED median of the same pairs, and the solve below is unchanged. One hat solver;
+   `tch-parity` reds any page that grows a private one. */
+function threeHat(cAB, cAC, cBC, wAB, wAC, wBC) {
   if (!(cAB && cAB.ok && cAC && cAC.ok && cBC && cBC.ok)) return { ok: false, reason: 'a leg did not couple' };
-  function bucket(c) {
+  function bucket(c, ws) {
     var o = {};
     for (var i = 0; i < c.patAtR.length; i++) {
       var b = Math.floor(c.patAtR[i].t / HAT_WIN_MS);
-      (o[b] || (o[b] = [])).push(c.patAtR[i].lag);
+      (o[b] || (o[b] = [])).push(ws ? { lag: c.patAtR[i].lag, w: ws[i] } : c.patAtR[i].lag);
     }
     return o;
   }
-  var bAB = bucket(cAB),
-    bAC = bucket(cAC),
-    bBC = bucket(cBC),
+  /* The per-window statistic, and the ONLY place the two columns differ. A weighted bucket carries
+     `{lag, w}` objects; an unweighted one carries plain numbers, exactly as before. */
+  function winMed(v) {
+    if (!v.length || typeof v[0] === 'number') return median(v);
+    return AnalysisStats.weightedMedian(
+      v.map(function (o) {
+        return o.lag;
+      }),
+      v.map(function (o) {
+        return o.w;
+      })
+    );
+  }
+  var bAB = bucket(cAB, wAB),
+    bAC = bucket(cAC, wAC),
+    bBC = bucket(cBC, wBC),
     win = [];
   Object.keys(bAC)
     .map(Number)
@@ -502,7 +524,7 @@ function threeHat(cAB, cAC, cBC) {
     })
     .forEach(function (b) {
       if (bAB[b] && bBC[b] && bAB[b].length >= HAT_MIN_BEATS && bAC[b].length >= HAT_MIN_BEATS && bBC[b].length >= HAT_MIN_BEATS)
-        win.push({ t: (b + 0.5) * HAT_WIN_MS, ab: median(bAB[b]), ac: median(bAC[b]), bc: median(bBC[b]) });
+        win.push({ t: (b + 0.5) * HAT_WIN_MS, ab: winMed(bAB[b]), ac: winMed(bAC[b]), bc: winMed(bBC[b]) });
     });
   if (win.length < HAT_MIN_WINDOWS) return { ok: false, reason: win.length + ' windows with all three legs coupled (< ' + HAT_MIN_WINDOWS + ')', windows: win };
   function sd(k) {
@@ -629,20 +651,15 @@ self.onmessage = function (e) {
                    is `t + lag`. Keeping the pairs is what lets the weighting live in the CONSUMER, so
                    `coupledPAT` and every number above it stay untouched and a classic column built
                    from this object is PAT Feasibility's own output rather than a reproduction of it. */
-                /* 🔴 WIP — NOT CORRECT YET (Wren, 2026-09-26, before this shipped): `pack()` DOWNSAMPLES
-                   `patAtR` to ~4000 points (`step = ceil(n/4000)`), so weighting THIS list weights a
-                   decimated sample of the pairs and silently changes the population the window medians
-                   are taken over. Two honest options, to be decided in the next commit: weight INSIDE
-                   the worker (full list in scope, only the weighted medians leave), or post the full
-                   `patAtR` on an explicit request from the page. Do NOT weight the downsampled list.
-                   Also note for the PR: `coupledPAT`'s accepted set is ALREADY filtered to ±90 ms of a
-                   30 s local median, so c-weighting operates AFTER that filter, never instead of it.
-                   AND a third constraint (Wren, same review): ship this field ONLY when `m.detail` is
-                   set. The batch path packs every leg of every night, and a full `patAtR` is ~23k
-                   objects per leg — ×3 legs × N nights across `postMessage` with no reader. That is the
-                   dead-cross-boundary shape the unwired gate holds at zero. The page requests `detail`
-                   anyway, so gating on it costs nothing and keeps the batch payload unchanged. */
-                patAtR: c.patAtR
+                /* The surviving coupled pairs, `{t, lag}` per beat — `coupledPAT` has always returned
+                   these and `packCp` dropped them. ⚠️ ONLY WHEN `m.detail` IS SET (Wren, 2026-09-26): the
+                   batch path packs every leg of every night, and a full `patAtR` is ~23k objects per leg —
+                   ×3 legs × N nights across `postMessage` with no reader, which is the dead-cross-boundary
+                   shape the unwired gate holds at zero. The page requests `detail` anyway.
+                   ⚠️ And note what this list is NOT for: `pack()` DECIMATES it to ~4000 points, so it is
+                   for drawing, never for weighting. Every fused number below is computed inside this
+                   worker on the FULL accepted set, which is why the weighting lives here at all. */
+                patAtR: m.detail ? c.patAtR : undefined
               }
             : { ok: false, reason: c.reason };
         }
@@ -676,6 +693,39 @@ self.onmessage = function (e) {
             out.vdF = PATGate.verdict(ovF, cpF, scF, PATGate.worstAxis(ecg.hostAxis, fin.hostAxis));
             out.cpFA = packCp(cpFA);
             out.three = threeHat(cpF, cp, cpFA);
+            /* ── THE FUSED TWIN, on the FULL accepted set of each leg ──────────────────────────────────
+               Corners: A = chest (H10 ECG, `ecg.conf`), B = finger (O2Ring, `fin.conf`), C = ankle
+               (Verity, `ppg.conf`). Legs pair the two ends they actually join, so each leg's weight is the
+               product of ITS OWN two corners' confidence — not a per-corner weight reused across legs.
+               The classic numbers above are untouched; `out.three` is the same call it always was. */
+            var lwF = AnalysisStats.legWeights(cpF, ecg.conf, fin.conf), // chest → finger
+              lwAC = AnalysisStats.legWeights(cp, ecg.conf, ppg.conf), // chest → ankle
+              lwFA = AnalysisStats.legWeights(cpFA, fin.conf, ppg.conf); // finger → ankle
+            out.fused = {
+              cpF: AnalysisStats.fusedLeg(cpF, lwF),
+              cp: AnalysisStats.fusedLeg(cp, lwAC),
+              cpFA: AnalysisStats.fusedLeg(cpFA, lwFA),
+              /* Which corners published a confidence series at all, so the page can say UNWEIGHTED and
+                 WHY rather than showing a number that silently fell back to 1 (§∅). The O2Ring's
+                 single-channel drawn-axis PPG is the corner whose confidence is UNVERIFIED — that is a
+                 different claim from unusable, and the page must not upgrade it. */
+              corners: { chest: !!ecg.conf, finger: !!fin.conf, ankle: !!ppg.conf }
+            };
+            out.threeFused =
+              lwF.ok && lwAC.ok && lwFA.ok
+                ? threeHat(cpF, cp, cpFA, lwF.w, lwAC.w, lwFA.w)
+                : {
+                    ok: false,
+                    reason:
+                      'a leg could not be weighted: ' +
+                      [lwF, lwAC, lwFA]
+                        .filter(function (l) {
+                          return !l.ok;
+                        })
+                        .map(function (l) {
+                          return l.reason;
+                        })[0]
+                  };
           } catch (fe) {
             out.fingerError = String((fe && fe.message) || fe);
           }
