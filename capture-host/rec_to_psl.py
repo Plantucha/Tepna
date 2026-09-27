@@ -236,7 +236,11 @@ def write_psl(res: dict, dest: str) -> int:
     into the wrong fields, with nothing said. A conversion we cannot do faithfully must fail loudly:
     the operator can re-run once the layout is added, but cannot recover a silently mislabelled file
     they believed was a conversion."""
-    meas = {v: k for k, v in pmd.MEAS_NAME.items()}.get(res.get("meas"))
+    # `res.get("meas")` may be absent, and the reverse map is keyed by str. Narrowed rather than
+    # coerced — `str(res.get("meas"))` would look up the literal "None" and find nothing, which is
+    # the same refusal by accident instead of by decision (§∅).
+    raw_meas = res.get("meas")
+    meas = {v: k for k, v in pmd.MEAS_NAME.items()}.get(raw_meas) if isinstance(raw_meas, str) else None
     if meas not in HEADERS:
         raise ValueError(
             f"no PSL layout for stream {res.get('meas')!r} — refusing to write {dest} under a guessed "
