@@ -486,3 +486,33 @@ def test_a_beat_read_off_noise_does_not_rescue_an_inferred_dock():
     kw = dict(contact=False, beats=True, charging=True, charging_why="flat-at-full")
     assert telemetry.worn_verdict(**kw)[0] is True
     assert telemetry.worn_verdict(**kw, ecg_noise=True)[0] is False
+
+
+# ── the survivors the mutation gate found on the functions this unit touched (2026-09-27) ───────────────
+def test_ecg_block_level_measures_from_two_samples():
+    """Two samples ARE a spread; the refusal is for fewer."""
+    assert telemetry.ecg_block_level([3.0, -3.0]) == 3.0
+
+
+def test_hr_beats_220_bpm_is_the_last_plausible_rate():
+    assert telemetry.hr_beats(220, 0) is True
+    assert telemetry.hr_beats(221, 0) is False
+
+
+def test_each_reason_names_its_detector_exactly():
+    """EQUALITY, not `in`: a reason reading "XXpulse-prominenceXX" CONTAINS "pulse-prominence", so a
+    substring check passed a mangled vote name. The reason string is what the worn record persists and
+    what an operator reads."""
+    assert telemetry.worn_verdict(ambient=[140.0] * 400, fs=55.0) == (True, "worn per ambient-level")
+    assert telemetry.worn_verdict(ppg=_pulse(), fs=176.0) == (True, "worn per pulse-prominence")
+    assert telemetry.worn_verdict(charging=True) == (
+        False, "not worn — on charger (a docked device is not on a wrist)")
+    assert telemetry.worn_verdict() == (None, "no worn detector is available and in domain (PPG rate unknown)")
+
+
+def test_a_worn_reason_counts_the_sources_of_the_WORN_votes_only():
+    """A dissenting vote from the same source must not reach the independence note: contact worn + PPI
+    not-worn is one worn source named once, with no qualifier."""
+    assert telemetry.worn_verdict(contact=True, ppi_flags=0x04) == (True, "worn per hr-contact-bit")
+    assert telemetry.worn_verdict(contact=True, ppi_flags=0x06, beats=True) == (
+        True, "worn per hr-contact-bit, hr-beats, ppi-contact (2 independent source(s): device-contact, device-heartbeat)")

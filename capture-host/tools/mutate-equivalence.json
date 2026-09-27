@@ -4760,5 +4760,13 @@
       "probe": "tests/test_nights_index.py::test_arrival_and_derived_globs_are_root_free asserts no ARRIVAL pattern contains '/'; test_the_arrival_sidecars_of_both_polar_devices_are_listed_and_the_ring_s_is_not pins the listed paths.",
       "why": "Same mechanism as the DERIVED line: ARRIVAL's two globs are root-free, so `_expand` never reads `root` for them; `root` still reaches the output through `os.path.relpath(f, root)`, which the mutant does not touch."
     }
+  ],
+  "telemetry.py": [
+    {
+      "class": "no-distinguishing-input",
+      "key": "- beats = None | + beats = \"\"",
+      "probe": "read every use of `beats` in worn_verdict after the withdrawal: `beats and is_stated_inferred(...)` in the charging exception and `if beats:` before the hr-beats vote — both truthiness reads; ran tests/test_worn_detectors.py with the mutant applied (local mutate.py --only 'telemetry.x_worn_verdict__mutmut_*', 2026-09-27): it survives because nothing can observe it.",
+      "why": "`beats` is withdrawn by assigning a falsy value and is read afterwards only for truthiness; None and \"\" are both falsy, so no input distinguishes them."
+    }
   ]
 }
