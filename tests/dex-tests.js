@@ -12980,7 +12980,14 @@
        off. Adding a pair is a deliberate act that says "these two files are a boundary". */
     group('No value crosses a worker boundary unread', 'cohesion · dead-cross-boundary · pat', function (T) {
       var S = env.sources || {};
-      var PAIRS = [{ producer: 'pat-feasibility-worker.js', consumers: ['pat-feasibility.js', 'pat-gate.js'] }];
+      /* The consumer set is a HAND-WRITTEN list, so a new reader of this worker must be added here or its
+         keys read as dead. `pat-classic-vs-fused.js` joined 2026-09-26 — it reads `fused` and `threeFused`.
+         ⚠️ Registering the file in both lanes' SOURCE inventories was NOT enough and the distinction cost a
+         cycle: the scan then had the text and still reported both keys dead, because this list — not the
+         inventory — decides whose reads count. A derived consumer set (every source that names the worker,
+         or that the page's own `new Worker(...)` points at) would need no edit for the next page; that is a
+         real improvement and deliberately not smuggled into this unit. */
+      var PAIRS = [{ producer: 'pat-feasibility-worker.js', consumers: ['pat-feasibility.js', 'pat-gate.js', 'pat-classic-vs-fused.js'] }];
       /* KNOWN, published, ratcheted — same discipline as the visibility cap above. The set is now
          EMPTY: `detailCorr` (the packed per-beat detail for the ACC-corrected coupling) sat here at
          ratchet ONE from 2026-09-02 until its parent finding's own closure was read — ENGINE-VERIFICATION
@@ -13134,6 +13141,150 @@
        a delegation-parity leg asserts every page actually ROUTES through the tested module (so a future
        edit can't quietly re-inline a divergent private copy). Node-lane only — env.AnalysisStats is loaded
        by run-tests.mjs; the browser suite doesn't co-load it, so this SKIPs there (like docs/release-ledger). */
+    /* ════ PAT classic vs fused — the weighted statistic, and the band on a clean night ═══════════
+       The mechanism behind the "PAT — classic vs fused" page. It lives in `analysis-stats.js` rather than
+       in `pat-feasibility-worker.js` so that THIS group can execute it: a worker's top-level functions can
+       only be source-scanned here, and the plant below is the whole point (`pat-align.js` is the same
+       extraction, for the same reason).
+
+       PRE-STATED BEFORE MEASURING, and derived rather than borrowed. The brief offered the per-second HR
+       kernel's "fused ≈ classic within 0.06 on σ" — that is a different estimator's tolerance and this one
+       does not inherit it. A weighted median with EQUAL weights selects the same order statistic as a plain
+       median, so the band here is **exact equality**, with one bounded exception: for even n a plain median
+       averages the two central values while this returns the lower, so |fused − classic| ≤ half the central
+       gap — ≤ 0.5 ms for any millisecond-quantised lag, and 0 whenever those two values coincide. */
+    group('PAT classic vs fused — a confidence-zeroed burst moves the fused lag and not the classic one', 'analysis-stats · pat · known-answer · §∅', function (T) {
+      var S = env.AnalysisStats;
+      /* 🔴 THE TWO CAUSES OF "no kernel" ARE NOT THE SAME FINDING, and collapsing them cost a CI cycle.
+         `env.AnalysisStats` ABSENT is the LANE: run-tests.mjs co-loads analysis-stats.js and the browser
+         suite does not, so the module is simply not there — a SKIP, exactly as the statistics-kernel and
+         tch-parity groups above do it. This group first asserted presence instead and reddened
+         `browser-gates` with "weightedMedian / legWeights / fusedLeg not exported" over exports that are
+         present and tested in the Node lane: a gate naming a defect in the code when the truth was that it
+         had examined nothing (CLAUDE.md §4b).
+         The module PRESENT but missing these three is a different thing entirely — a real regression in a
+         lane that does load it — so it stays a FAILURE and is not skipped away with the first case. */
+      if (!S) {
+        T.skip('env.AnalysisStats provided to the runner', 'Node-lane only — run-tests.mjs co-loads analysis-stats.js');
+        return;
+      }
+      if (typeof S.weightedMedian !== 'function' || typeof S.legWeights !== 'function' || typeof S.fusedLeg !== 'function') {
+        T.ok('AnalysisStats weighted-PAT kernel present', false, 'weightedMedian / legWeights / fusedLeg not exported');
+        return;
+      }
+      var med = function (a) {
+        var b = a.slice().sort(function (x, y) {
+          return x - y;
+        });
+        var m = b.length >> 1;
+        return b.length % 2 ? b[m] : (b[m - 1] + b[m]) / 2;
+      };
+      var T0 = Date.UTC(2026, 8, 25, 22, 0, 0);
+      /* A night of coupled pairs in `coupledPAT`'s own shape. `burst` is the audit's plant shrunk to this
+         domain: 300 s where ONE end's confidence is zero and the lag is inflated by 60 ms — the shape a
+         motion artifact leaves. Deterministic jitter, no RNG. */
+      var mk = function (n, burstFrom, burstTo, infl) {
+        var pairs = [],
+          cA = new Map(),
+          cB = new Map();
+        for (var i = 0; i < n; i++) {
+          var t = T0 + i * 1000,
+            burst = i >= burstFrom && i < burstTo;
+          pairs.push({ t: t, lag: 220 + ((i * 7919) % 23) - 11 + (burst ? infl : 0) });
+          cA.set(Math.floor(t / 1000), burst ? 0 : 1); // the chest end loses confidence through the burst
+          cB.set(Math.floor((t + 220) / 1000), 1);
+        }
+        return { c: { ok: true, patAtR: pairs }, cA: cA, cB: cB };
+      };
+
+      // ── (1) THE PLANT: fused recovers the clean lag, classic is dragged by the burst ──────────────
+      var f = mk(2400, 600, 900, 60);
+      var lags = f.c.patAtR.map(function (p) {
+        return p.lag;
+      });
+      var lw = S.legWeights(f.c, f.cA, f.cB);
+      T.ok('the leg is weightable — both ends published a series', lw.ok === true, lw.reason || '');
+      var fl = S.fusedLeg(f.c, lw);
+      var classicMed = med(lags),
+        classicIQR = (function () {
+          var b = lags.slice().sort(function (x, y) {
+            return x - y;
+          });
+          return b[Math.floor(0.75 * b.length)] - b[Math.floor(0.25 * b.length)];
+        })();
+      /* ⚠️ THE WHOLE-NIGHT MEDIAN IS ROBUST TO THIS BURST, AND THAT IS THE FINDING — not something to
+         engineer around. 300 contaminated pairs in 2400 is 12.5 %, far inside a median's breakdown point,
+         so the classic median moves 220 → 222 and no assertion should pretend otherwise. The first draft
+         of this group asserted `classicMed > 225` and FAILED, which is the assertion being wrong rather
+         than the code. Where a localised burst actually lands is (a) the SPREAD and (b) the per-window
+         medians the hat is built from — inside the burst every pair in the window is inflated, so that
+         window's median is wrong by the full 60 ms with no robustness to save it. That is precisely why
+         the fused column matters more to the HAT than to the night's headline lag. */
+      T.ok('the classic whole-night median is barely moved — a median survives 12.5 % contamination', Math.abs(classicMed - 220) <= 3, 'classic median ' + classicMed);
+      T.ok('fused median sits on the clean lag', fl.ok && Math.abs(fl.med - 220) <= 11, 'fused median ' + (fl.ok ? fl.med : fl.reason));
+      T.ok('…and no further from the truth than the classic one', fl.ok && Math.abs(fl.med - 220) <= Math.abs(classicMed - 220), 'fused ' + (fl.ok && fl.med) + ' vs classic ' + classicMed);
+      T.ok(
+        'the classic SPREAD is what the burst inflates, and fused is no wider',
+        fl.ok && fl.p75 - fl.p25 <= classicIQR,
+        'fused IQR ' + (fl.ok ? fl.p75 - fl.p25 : '—') + ' vs classic ' + classicIQR
+      );
+      /* (1b) WHERE THE DAMAGE REALLY IS: a 5-min window wholly inside the burst. Its classic median is
+         wrong by the full inflation; the fused one refuses it, because every pair in it is distrusted —
+         a refusal, never a number computed from nothing. This is the hat's input, one level down. */
+      var inBurst = f.c.patAtR.slice(620, 860); // wholly inside [600, 900)
+      var inLags = inBurst.map(function (p) {
+        return p.lag;
+      });
+      var inW = inBurst.map(function (p) {
+        var a2 = f.cA.get(Math.floor(p.t / 1000)),
+          b2 = f.cB.get(Math.floor((p.t + p.lag) / 1000));
+        return (a2 == null ? 0 : a2) * (b2 == null ? 0 : b2);
+      });
+      T.ok('a window inside the burst: the CLASSIC median is wrong by the full inflation', Math.abs(med(inLags) - 220) >= 55, 'window median ' + med(inLags));
+      T.ok('…and the FUSED one refuses rather than computing from distrusted pairs', !isFinite(S.weightedMedian(inLags, inW)), String(S.weightedMedian(inLags, inW)));
+      /* THE DENOMINATOR, beside the value. A fused number over an unstated share of the pairs is the
+         coverage-without-a-denominator shape; `covered` is what makes the column readable. */
+      T.approx('…and it says WHAT SHARE of the accepted pairs it could weight', fl.covered, 1 - 300 / 2400, 0.01);
+      T.eq('…as a count too, never only a ratio', fl.nWeighted, 2100);
+
+      // ── (2) THE BAND ON A CLEAN NIGHT, as pre-stated above ───────────────────────────────────────
+      var cl = mk(2400, 0, 0, 0);
+      var clLags = cl.c.patAtR.map(function (p) {
+        return p.lag;
+      });
+      var clF = S.fusedLeg(cl.c, S.legWeights(cl.c, cl.cA, cl.cB));
+      T.eq('clean night, equal weights: fused median IS the classic median', clF.med, med(clLags));
+      T.eq('…and on odd n too (the even-n tie convention is the only way they can differ)', S.weightedMedian(clLags.slice(0, 2399), new Array(2399).fill(1)), med(clLags.slice(0, 2399)));
+
+      // ── (3) THE WEIGHT IS A PRODUCT, and the two rejected alternatives are asserted, not asserted-about ──
+      /* A pair trusted at NEITHER end must score below a pair trusted at ONE. `min` cannot express that and
+         `mean` lets the good end mask the bad one — the inflation this column exists to remove. */
+      var both = 0.5 * 0.5,
+        one = 0.5 * 1.0;
+      T.ok('product: two marginal ends score BELOW one marginal end', both < one, both + ' vs ' + one);
+      T.ok('…which `min` cannot express', Math.min(0.5, 0.5) === Math.min(0.5, 1.0), 'min would separate them, and it does not');
+      T.ok('…and `mean` gets backwards at the extreme', (0.1 + 1.0) / 2 > 0.1 * 1.0, 'mean(.1,1)=' + (0.1 + 1.0) / 2 + ' masks a .1 end; product=' + 0.1 * 1.0);
+
+      // ── (4) ABSENCE IS VISIBLE — never a silent weight of 1 (§∅) ─────────────────────────────────
+      T.ok(
+        'a corner with NO confidence series refuses, naming which',
+        S.legWeights(f.c, null, f.cB).ok === false && /one end published no confidence/.test(S.legWeights(f.c, null, f.cB).reason),
+        JSON.stringify(S.legWeights(f.c, null, f.cB))
+      );
+      T.ok('…and neither end is a different reason from one end', /neither end/.test(S.legWeights(f.c, null, null).reason), S.legWeights(f.c, null, null).reason);
+      var allZero = mk(600, 0, 600, 0); // every second's confidence is zero
+      var lwZ = S.legWeights(allZero.c, allZero.cA, allZero.cB);
+      T.ok('every pair distrusted ⇒ a REFUSAL with a reason, never a number', lwZ.ok === false || !S.fusedLeg(allZero.c, lwZ).ok, JSON.stringify(lwZ.ok ? S.fusedLeg(allZero.c, lwZ) : lwZ));
+      T.ok('weightedMedian over all-zero weights is NaN, not 0 (§∅: absence is not a value)', !isFinite(S.weightedMedian([1, 2, 3], [0, 0, 0])), String(S.weightedMedian([1, 2, 3], [0, 0, 0])));
+      /* A pair the confidence maps do not cover is EXCLUDED, not weighted 1 — the second-keys are absolute
+         seconds, so a map that simply has no entry for a second is an absence, not a certainty. */
+      var sparse = mk(600, 0, 0, 0);
+      sparse.cA.delete(Math.floor(T0 / 1000) + 5);
+      var lwS = S.legWeights(sparse.c, sparse.cA, sparse.cB);
+      T.eq('a pair with no confidence at one end is excluded from the fused count', lwS.nWeighted, 599);
+      T.ok('…and the coverage says so rather than reading as complete', lwS.covered < 1, String(lwS.covered));
+    });
+
     group('Analysis-page statistics kernels — known-answer (TEST-COVERAGE-ANALYSIS)', 'analysis-stats · statistics · known-answer', function (T) {
       var S = env.AnalysisStats;
       if (!S) {
