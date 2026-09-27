@@ -730,7 +730,26 @@ function readSources() {
      Take the union of every `data-inline-src` in the owned bundles: "any source" now means "any code
      we ship". Files are ADDED to the curated set, never removed, so no assertion that names a file
      can lose its input. */
-  for (const b of ManifestGate.MANIFEST_BUNDLES.concat(['Data Unifier.html', 'OverDex.html'])) {
+  /* ── EVERY OWNED BUNDLE FAMILY, NOT JUST THE APPS (2026-09-27) ──────────────────────────────────
+     The 11 owned app bundles were walked and the 14 ANALYSIS TOOL bundles were not, so the visibility
+     gate's published rationale — "readSources() walks every bundle's data-inline-src, so anything
+     inlined is readable for free" — was true of apps and false of the tools. Measured: 4 of its 12
+     invisible files (cohort-gen.js, qrs-yield-analysis.js, resp-acc-analysis.js,
+     resp-acc-analysis-app.js) are inlined into analysis bundles and were invisible for THIS reason, not
+     for being the "un-bundled tail" the comment described. Walking them makes the claim true and takes
+     the ratchet 12 → 8 by fixing a scope bug rather than by hand-registering files.
+     The list comes from the BUILDER, like rebase-safe's, and FAILS CLOSED: an unreadable TOOLS array
+     throws rather than silently walking nothing, because walking nothing is indistinguishable from a
+     clean tree here (CLAUDE.md §4b). */
+  const ANALYSIS_TOOLS = (() => {
+    const src = readFileSync(join(ROOT, 'tools/build-analysis.mjs'), 'utf8');
+    const m = /const TOOLS = \[([\s\S]*?)\];/.exec(src);
+    if (!m) throw new Error('readSources: tools/build-analysis.mjs TOOLS array unreadable — refusing to walk an empty bundle list');
+    const names = [...m[1].matchAll(/'([^']+\.html)'/g)].map((x) => x[1]);
+    if (names.length < 5) throw new Error('readSources: only ' + names.length + ' analysis tool(s) parsed from TOOLS — refusing a list that short');
+    return names;
+  })();
+  for (const b of ManifestGate.MANIFEST_BUNDLES.concat(['Data Unifier.html', 'OverDex.html'], ANALYSIS_TOOLS)) {
     const bp = join(ROOT, b);
     if (!existsSync(bp)) continue;
     const html = readFileSync(bp, 'utf8');
