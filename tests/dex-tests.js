@@ -13103,7 +13103,7 @@
       });
 
       /* The cap. Lower it — never raise it — when a file is wired into either lane. */
-      var INVISIBLE_CAP = 7; // 13 → 12 on 2026-09-21 (cohort-harness.html + qrs-equiv-analysis.js entered env.sources for the tripwire plant); 12 → 8 on 2026-09-27 (readSources walks the ANALYSIS TOOL bundles); 8 → 7 on 2026-09-27 (dex-coload.js listed in BOTH lanes — see INVISIBLE_SET)
+      var INVISIBLE_CAP = 6; // 13 → 12 on 2026-09-21 (cohort-harness.html + qrs-equiv-analysis.js); 12 → 8 on 2026-09-27 (readSources walks the ANALYSIS TOOL bundles); 8 → 6 on 2026-09-27 (dex-coload.js AND provenance-ledger.js listed in BOTH lanes — see INVISIBLE_SET)
       T.ok('no NEW unscannable source layer (ratchet ' + INVISIBLE_CAP + ')', invisible.length <= INVISIBLE_CAP, invisible.length + ' invisible: ' + invisible.join(', '));
       T.ok('the cap is not STALE — lower it when the debt shrinks', invisible.length >= INVISIBLE_CAP, 'only ' + invisible.length + ' invisible now; set INVISIBLE_CAP = ' + invisible.length);
       /* ── THE SET, NOT ONLY THE COUNT (2026-09-27) ───────────────────────────────────────────────────
@@ -13118,13 +13118,28 @@
          this is not only cohort tooling and fixtures. Recorded as residue
          2026-09-27-load-bearing-sources-no-gate-can-read rather than left in a comment, because a finding
          recorded as a comment does not fail when the defect recurs; that is this group's own lesson. */
-      /* `dex-coload.js` left this set on 2026-09-27, wired into BOTH lanes' inventories. ⚠️ What that bought
-         is narrower than it looks and the comment says so rather than letting a later reader infer more: the
-         ONE invariant anyone has wanted from that file — clock.js ahead of every delegating DSP — was already
-         asserted on the EXECUTED manifest (`env.DexCoload`, the group below the co-load gates), which is
-         strictly better evidence than text. Listing it makes the file reachable by any FUTURE source-level
-         assertion and shrinks the published debt by a measured file; it closed no hole. */
-      var INVISIBLE_SET = ['cohort-full.js', 'cohort-worker.js', 'dex-contracts.js', 'provenance-banner.js', 'provenance-ledger.js', 'support.js', 'xmt-fixture.js'];
+      /* ── TWO LOAD-BEARING FILES LEFT THIS SET on 2026-09-27, listed in BOTH lanes ────────────────────
+         `dex-coload.js` (CLAUDE.md §✅ — the co-loader that must load clock.js before any delegating
+         `*-dsp.js`) and `provenance-ledger.js` (CLAUDE.md §🔏 — it reassembles the per-app fragments GATE A
+         and GATE B read). Both were named on residue
+         2026-09-27-load-bearing-sources-no-gate-can-read as files no source-level gate could reach.
+
+         🔴 ONE HONEST SIZING FOR BOTH, because it is the same story twice and neither closed a hole. Both
+         files are EXECUTED, so the invariants anyone has actually wanted from them are already gated on
+         VALUES, which is strictly stronger evidence than a text scan:
+           · dex-coload.js — the clock-before-DSP order is asserted on the executed manifest object
+             (`env.DexCoload`: `M.all.slice(0, M.shared.length) === M.shared`) plus the authored order of all
+             eleven shells. That is the file RUNNING, not a mirror of it.
+           · provenance-ledger.js — required at `run-tests.mjs:74` and used by verify-manifest.mjs,
+             reconcile-provenance.mjs, tools/release.mjs, verify-provenance.html and Dex-Test-Suite.html, so
+             GATE A/B read it by running it.
+         What the listing buys is reachability for a FUTURE source-level assertion, and two measured files off
+         the published debt. No text-level invariant has been named for either, so nothing here is gated for
+         visibility's own sake, and no value-level assertion was rewritten as a source scan to make the
+         listing look load-bearing. The one divergence measured inside provenance-ledger.js — `loadBrowser`
+         filters an absent fragment where `loadNode` throws — is residue
+         2026-09-27-loadbrowser-filters-an-absent-fragment-silently and changes no verdict today. */
+      var INVISIBLE_SET = ['cohort-full.js', 'cohort-worker.js', 'dex-contracts.js', 'provenance-banner.js', 'support.js', 'xmt-fixture.js'];
       T.eq(
         'the invisible SET is exactly the published one (a swap cannot hide inside a stable count)',
         invisible.slice().sort().join(','),
