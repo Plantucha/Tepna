@@ -337,8 +337,18 @@ def recorded_seams(primary: str, start, end) -> list[dict]:
             cells = line.rstrip("\n").split(";")
             if len(cells) < 3:
                 continue  # a short row records nothing; skipped, never defaulted (§∅)
+            # `_ni.parse_host_stamp`, NOT `datetime.fromisoformat`: a ZONED stamp is legal (Clock
+            # Contract §2 rule 2) and `fromisoformat` returns an AWARE value for it, which the comparison
+            # below then cannot make against a naive `start` — `TypeError: can't compare offset-naive and
+            # offset-aware datetimes`, and it escapes the `except ValueError` here rather than skipping
+            # the row. The poller catches it and the night gets NO verdict, which §3.1 reads as
+            # unassessed: one zoned row silently costs the whole night's assessment. The shared parser
+            # takes the components as written, so a zoned row lands on the same floating time as its
+            # zoneless twin.
+            host = _ni.parse_host_stamp(cells[0])
+            if host is None:
+                continue  # an unplaceable seam row is not a step of zero — see below (§∅)
             try:
-                host = _dt.datetime.fromisoformat(cells[0])
                 step_ms = float(cells[2])
             except ValueError:
                 continue  # an unparseable seam row is not a step of zero — it is one this reader cannot
@@ -413,8 +423,13 @@ def residual_scan(path: str, start, end) -> dict:
             parts = line.split(";")
             if len(parts) <= ns_at:
                 continue  # a short row measures nothing; it is skipped, never defaulted (§∅)
+            # Same shared parser and the same reason as `recorded_seams` above: a zoned `Phone
+            # timestamp` must not become an aware datetime, or the worn-interval comparison below raises
+            # TypeError and the night loses its verdict entirely.
+            host = _ni.parse_host_stamp(parts[0])
+            if host is None:
+                continue  # an unplaceable row is not a zero
             try:
-                host = _dt.datetime.fromisoformat(parts[0])
                 ns = int(parts[ns_at])
             except ValueError:
                 continue  # an unparseable row is not a zero

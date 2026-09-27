@@ -1167,3 +1167,65 @@ def test_an_IMPLAUSIBLE_rate_names_the_span_in_MINUTES_too(tmp_path):
     tb = _long_night(tmp_path, minutes=61, dev_ppm=200000.0)
     assert tb["status"] == "FAIL", tb["reason"]
     assert "ppm over 61 min" in tb["reason"], tb["reason"]
+
+
+# ── §2 rule 2 · A ZONED STAMP IS LEGAL, AND COSTS THE WHOLE NIGHT'S VERDICT ─────────────────────────
+# `recorded_seams` and `residual_scan` parsed the host stamp with `datetime.fromisoformat(cell)`, which
+# returns an AWARE datetime for `...+02:00` and a naive one otherwise. Comparing either against the naive
+# worn-interval bounds raises `TypeError: can't compare offset-naive and offset-aware datetimes`, and
+# TypeError is not the `ValueError` the `except` beside it catches — so it escaped both readers, the
+# solid-night poller caught it ("one night's verdict must not stop the poller"), and the night was left
+# with NO verdict at all, which §3.1 reads as unassessed. One zoned row, one unassessed night.
+#
+# ⚠️ WHY NO EXISTING TEST CAUGHT IT: every `residual_scan` call in this file passes `start=None`, which
+# short-circuits the comparison the TypeError lives in. The zone was never the missing ingredient on its
+# own — the WORN INTERVAL was. Both are supplied below.
+#
+# Clock Contract §2 rule 2: the zone is authoritative for the offset, and `tMs` is the components AS
+# WRITTEN — so a zoned stamp must land on the same floating time as its zoneless twin, not one shifted by
+# the offset. Both readers now call `nights_index.parse_host_stamp`, which already got this right for the
+# hours-precision readers and keeps the sub-second digits these two measure with.
+
+def _zone_the_host_column(path, offset="+02:00"):
+    """Append a zone to every `Phone timestamp` cell and change nothing else — same rows, same device
+    column, same everything the readers measure. The only difference is the one under test."""
+    lines = path.read_text().splitlines()
+    out = [lines[0]]
+    for ln in lines[1:]:
+        cells = ln.split(";")
+        if cells[0] and cells[0][0].isdigit():
+            cells[0] = cells[0] + offset
+        out.append(";".join(cells))
+    path.write_text("\n".join(out) + "\n")
+
+
+def test_a_zoned_host_stamp_gives_the_residual_scan_the_SAME_answer(tmp_path):
+    """The plant: one fixture, read twice, differing only in the zone — and a REAL worn interval, without
+    which the comparison that used to raise is never reached."""
+    start, end = T0, T0 + dt.timedelta(seconds=300)
+    _ecg(tmp_path)
+    ecg = tmp_path / f"{BASE}_ECG.txt"
+    unzoned = si.residual_scan(str(ecg), start, end)
+    _zone_the_host_column(ecg)
+    zoned = si.residual_scan(str(ecg), start, end)
+    assert zoned == unzoned, (
+        "a zoned `Phone timestamp` must reach the same floating time as its zoneless twin "
+        f"(Clock Contract §2 rule 2)\n  unzoned={unzoned}\n  zoned  ={zoned}")
+    assert unzoned["reason"] is None, "and the fixture is one the scan can actually judge"
+
+
+def test_a_zoned_seam_row_gives_recorded_seams_the_SAME_answer(tmp_path):
+    """The same plant on the seam reader, whose host stamps are joined on and then published as
+    `host_ms` — so a zone that survived parsing would move the seam by the offset, not merely raise."""
+    start, end = T0, T0 + dt.timedelta(seconds=300)
+    _ecg(tmp_path)
+    _seam_rows(tmp_path, [(1000, 123.0), (2000, -45.0)])
+    primary = str(tmp_path / f"{BASE}_ECG.txt")
+    unzoned = si.recorded_seams(primary, start, end)
+    assert unzoned, "the control: the unzoned rows are read at all, or the comparison proves nothing"
+    _zone_the_host_column(tmp_path / f"{BASE}_ECGSEAMS.txt")
+    zoned = si.recorded_seams(primary, start, end)
+    assert zoned == unzoned, f"unzoned={unzoned}\nzoned  ={zoned}"
+    # ...and the host stamps keep their MILLISECONDS, which is what stopped this being a swap to
+    # `parse_stamp`: that truncates at the second, and `residual_scan` measures at 1 ms.
+    assert unzoned[0]["host_ms"] % 1000 == (T0 + dt.timedelta(milliseconds=1000)).microsecond // 1000
