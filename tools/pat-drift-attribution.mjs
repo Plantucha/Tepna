@@ -115,10 +115,30 @@ export function linfit(xs, ys) {
   return { slope, r2: (sxy * sxy) / (sxx * syy) };
 }
 
-/* A device contributes its ppm only if the correction was NOT already applied. */
-export function effectivePpm(hostAxis) {
-  if (!hostAxis || !hostAxis.ok || !Number.isFinite(hostAxis.ppm)) return null;
-  if (hostAxis.independent === false) return null; // no real second clock — cannot predict
+/* A device contributes its ppm only if the correction was NOT already applied.
+   THE NUMBER AND THE REASON COME OUT OF ONE FUNCTION so they cannot drift apart: `effectivePpm` is a
+   projection of this, and every refusal below is named rather than left to the caller to infer from a
+   `null`. Before 2026-09-27 a drawn axis printed the BORROWED verdict 'UNDEFINED (no host reference)' —
+   §∅'s rule is a NAMED reason, never one belonging to a different gate. */
+export function ppmContribution(hostAxis) {
+  if (!hostAxis || !hostAxis.ok || !Number.isFinite(hostAxis.ppm)) return { ppm: null, reason: 'axis refused' + (hostAxis && hostAxis.reason ? ' — ' + hostAxis.reason : '') };
+  /* ── A DRAWN DEVICE COLUMN HAS NO CRYSTAL, SO IT HAS NO OUTSTANDING DRIFT TO PREDICT ─────────────
+     `independent` below cannot catch this and reads the WRONG WAY on it: it compares two COLUMNS, so a
+     counter synthesised as `index × an assumed rate` produces a huge residual spread and reads MORE
+     independent the coarser the fabrication (a real O2Ring segment: independent:true, deviceDrawn:true,
+     ppm −22.83 at a 99.3 % drawn-delta share — a textbook-plausible crystal from a stream with no
+     oscillator). Spending that ppm here is not a small error: `pred` is differenced against the other
+     leg and `attribute()` then reports CLOCK EXPLAINS, attributing real observed lag drift to a clock
+     that does not exist. §7's line is that a drawn axis may be PLACED on a host timeline but never
+     SPENT as a second clock, and predicting a rate from it is spending it.
+     ORDER: drawn is tested FIRST, matching `device-stability.mjs classifyStability`'s documented
+     precedence — "a drawing is disqualified for a stronger reason than an absent second clock" — so the
+     reason a reader gets names the stronger fault. Both refusals precede the `applied` contract check
+     for the reason the `independent` arm always has: on a refused leg the ppm is never spent, so a
+     missing `applied` cannot double-count anything here. */
+  if (hostAxis.deviceDrawn === true)
+    return { ppm: null, reason: 'device axis drawn — ' + (hostAxis.drawnReason || 'inter-anchor deltas concentrate on one value; a synthesised counter, not a clock, whatever ppm it reports') };
+  if (hostAxis.independent === false) return { ppm: null, reason: 'host column is not a second clock' + (hostAxis.inertReason ? ' — ' + hostAxis.inertReason : '') }; // cannot predict
   /* ⚠️ A MISSING `applied` IS A CONTRACT BREACH, NOT A FALSE. The old line was
      `hostAxis.applied === true ? 0 : hostAxis.ppm`, so an absent key fell to the ppm branch —
      "this device's drift is still outstanding". That was correct for ECGDex, which has always
@@ -134,7 +154,12 @@ export function effectivePpm(hostAxis) {
       'hostAxis.applied missing — the emitting DSP must state whether the correction was applied. ' + 'Guessing it silently double-counts (absent→ppm) or silently discards (absent→0) a real drift.'
     );
   }
-  return hostAxis.applied === true ? 0 : hostAxis.ppm;
+  return { ppm: hostAxis.applied === true ? 0 : hostAxis.ppm, reason: null };
+}
+
+/* The pre-2026-09-27 surface, unchanged for every caller: the contribution's number alone. */
+export function effectivePpm(hostAxis) {
+  return ppmContribution(hostAxis).ppm;
 }
 
 export function attribute(observedSlope, predictedSlope) {
@@ -173,6 +198,32 @@ function selftest() {
   ok(effectivePpm({ ok: true, ppm: 50, applied: false, independent: true }) === 50, 'unapplied correction contributes its ppm');
   ok(effectivePpm({ ok: true, ppm: 50, applied: false, independent: false }) === null, 'no independent host => null');
 
+  /* ── A DRAWN AXIS IS NOT A CRYSTAL (residue 2026-09-20-drawn-axis-discriminator-landed-consumers-did-not) ──
+     The shape measured on a real O2Ring segment: independent TRUE, deviceDrawn TRUE, a plausible-looking
+     ppm. Every assertion here FAILS on origin/main, where the drawn arm does not exist. */
+  const drawnAx = { ok: true, ppm: -22.83, applied: false, independent: true, deviceDrawn: true, drawnShare: 0.993, drawnReason: '99.30 % of deltas share one value (>= 67 %)' };
+  ok(effectivePpm(drawnAx) === null, `a DRAWN axis contributes no ppm, got ${effectivePpm(drawnAx)}`);
+  ok(ppmContribution(drawnAx).reason != null, 'and the refusal carries a reason rather than a bare null');
+  /* THE REASON IS ITS OWN, NEVER BORROWED (CLAUDE.md §∅: "a named reason, not a borrowed one"). Before
+     this landed the drawn case printed `attribute()`'s 'UNDEFINED (no host reference)' — the NON-INDEPENDENT
+     gate's words on a fault that is not independence. This fails if the two ever collapse again. */
+  ok(/drawn/i.test(ppmContribution(drawnAx).reason), `the reason names DRAWN, got ${ppmContribution(drawnAx).reason}`);
+  ok(!/no host reference/i.test(ppmContribution(drawnAx).reason), 'the drawn reason is not the borrowed independence reason');
+  ok(ppmContribution(drawnAx).reason !== ppmContribution({ ok: true, ppm: 50, applied: false, independent: false }).reason, 'drawn and not-independent are DISTINGUISHABLE reasons, not one string');
+  /* The spine's own wording is forwarded when it is there, so the cut and the share are not re-derived. */
+  ok(ppmContribution(drawnAx).reason.includes('99.30 %'), 'the spine drawnReason is forwarded, not paraphrased');
+  /* PRECEDENCE: drawn outranks a derived host column (device-stability.mjs classifyStability). */
+  ok(/drawn/i.test(ppmContribution({ ...drawnAx, independent: false }).reason), 'drawn outranks not-independent when BOTH hold');
+  /* ANTI-VACUITY — the guard must not refuse everything. A REAL H10 axis (measured drawnShare
+     0.0038-0.0677 over 25 files) still contributes its ppm, so a plant cannot pass by blanket refusal. */
+  const realAx = { ok: true, ppm: -20.4, applied: false, independent: true, deviceDrawn: false, drawnShare: 0.0677 };
+  ok(effectivePpm(realAx) === -20.4, `a real crystal still contributes its ppm, got ${effectivePpm(realAx)}`);
+  ok(ppmContribution(realAx).reason === null, 'and a real axis carries no refusal reason');
+  /* A drawn axis whose correction was ALREADY APPLIED still refuses — the 0 arm is not a back door. */
+  ok(effectivePpm({ ...drawnAx, applied: true }) === null, 'drawn + applied still refuses, rather than contributing 0');
+  /* effectivePpm stays a pure projection of the contribution: one source for number and reason. */
+  ok(effectivePpm(realAx) === ppmContribution(realAx).ppm && effectivePpm(drawnAx) === ppmContribution(drawnAx).ppm, 'effectivePpm is exactly ppmContribution().ppm');
+
   /* THE IDENTITY, asserted so nobody re-derives the circular test: lag drift IS sum(ff) - sum(rr). */
   const R = [0, 900, 1800, 2700];
   const F = [310, 1215, 2122, 3031];
@@ -181,7 +232,7 @@ function selftest() {
   const rrSum = R[3] - R[0];
   ok(Math.abs(lagDelta - (ffSum - rrSum)) < 1e-9, 'lag drift IS sum(ff)-sum(rr) — identically, so it cannot discriminate');
 
-  console.log(fails.length ? `SELFTEST FAIL (${fails.length})\n  ${fails.join('\n  ')}` : 'SELFTEST PASS (11/11)');
+  console.log(fails.length ? `SELFTEST FAIL (${fails.length})\n  ${fails.join('\n  ')}` : 'SELFTEST PASS (22/22)');
   return fails.length === 0;
 }
 
@@ -284,12 +335,17 @@ async function main() {
       }
     }
     const rawFit = linfit(rawT, rawL);
-    const pE = effectivePpm(eAx);
-    const pP = effectivePpm(pAx);
+    /* Read the CONTRIBUTION, not just the number, so a refusal arrives with its own reason attached
+       and prints beside the row it killed rather than as an unexplained `-`. */
+    const cE = ppmContribution(eAx);
+    const cP = ppmContribution(pAx);
+    const pE = cE.ppm;
+    const pP = cP.ppm;
+    const why = [cE.reason ? 'ECG ' + cE.reason : null, cP.reason ? 'PPG ' + cP.reason : null].filter(Boolean).join('; ');
     const pred = pE == null || pP == null ? Number.NaN : (pP - pE) * 1e-6;
     const a = attribute(rawFit?.slope ?? Number.NaN, pred); // RAW arm decides
     console.log(
-      `${n}  ${(pE == null ? '-' : pE.toFixed(1)).padStart(7)} ${(pP == null ? '-' : pP.toFixed(1)).padStart(7)}  ${(Number.isFinite(pred) ? (pred * 1e6).toFixed(1) : '-').padStart(10)}  ${(fit ? (fit.slope * 1e6).toFixed(1) : '-').padStart(9)} ${(rawFit ? (rawFit.slope * 1e6).toFixed(1) : '-').padStart(8)}  ${(Number.isFinite(a.frac) ? a.frac.toFixed(2) : '-').padStart(6)}  ${(rawFit ? rawFit.r2.toFixed(2) : '-').padStart(5)}   ${a.verdict}`
+      `${n}  ${(pE == null ? '-' : pE.toFixed(1)).padStart(7)} ${(pP == null ? '-' : pP.toFixed(1)).padStart(7)}  ${(Number.isFinite(pred) ? (pred * 1e6).toFixed(1) : '-').padStart(10)}  ${(fit ? (fit.slope * 1e6).toFixed(1) : '-').padStart(9)} ${(rawFit ? (rawFit.slope * 1e6).toFixed(1) : '-').padStart(8)}  ${(Number.isFinite(a.frac) ? a.frac.toFixed(2) : '-').padStart(6)}  ${(rawFit ? rawFit.r2.toFixed(2) : '-').padStart(5)}   ${a.verdict}${why ? '   [' + why + ']' : ''}`
     );
   }
   console.log('\n(ppm columns and predicted/observed slopes are in ppm, i.e. ms of lag per 1e6 ms elapsed)');
