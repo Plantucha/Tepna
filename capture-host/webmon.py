@@ -125,6 +125,32 @@ _comment_loss_warned = False
 # the set means it cannot drift from the banner again.
 _BANNER_LINES = frozenset(ln.strip() for ln in _CFG_BANNER.splitlines() if ln.strip())
 
+# MODULE SCOPE, not inside `make_app`: this is a pure constant, and a constant defined inside a
+# 2300-mutant function makes every edit to it — including a type annotation — pull that whole
+# function into the diff-scoped mutation gate. Measured 2026-09-27: the four-line annotation below
+# put `webmon.x_make_app` in scope and the leg had produced a 455 MB mutant file and no verdict
+# after 87 minutes. A module-level line has no enclosing function, so the gate skips the file and
+# says so. Nothing else changes: the two readers below are closures and still see it.
+# Measured bytes/sec, PER DEVICE — the same stream name costs very different amounts on different
+# hardware, so a single global table lies. H10 ACC runs at 200 Hz (11.4 kB/s) while the Verity's runs
+# at 52 Hz (2.9 kB/s): quoting one number for "acc" overstated the Verity by ~4x. Measured on this
+# host 2026-07-18 over real captures.
+# (bytes/sec, at_rate_hz) measured on this host 2026-07-18. Cost scales with the CHOSEN rate — a
+# fixed MB figure would start lying the moment a rate is changed, which is the whole point of the
+# dropdown. Per device, because the same stream name costs very different amounts on different
+# hardware (H10 ACC 200 Hz vs Verity ACC 52 Hz).
+# ANNOTATED because the rows are NOT the same type by inference — H10/Verity carry int rates and
+# the O2Ring a float one (125.738, the observed ROW rate), so the join is `object` and the two
+# `.items()` readers below stop type-checking. The table is uniform in MEANING: (bytes/sec, rate).
+_BPS_BY_MODEL: dict[str, dict[str, tuple[float, float]]] = {
+    "H10":    {"ecg": (7800, 130), "acc": (11400, 200), "hr": (35, 1)},
+    "Verity": {"ppg": (3750, 55), "acc": (2950, 52), "gyro": (2800, 52), "mag": (2950, 50), "ppi": (30, 1)},
+    # O2Ring ppg: 6200 B/s measured while the stream ran at its observed ROW rate (~125.7 = 125.000 ADC
+    # samples + inserted `156` beat markers), NOT the 125.000 ADC clock — a throughput calibration is
+    # bytes over the rate the wire actually carried. DEVICE-RATE-TRUTH §2; cf. capture.O2PPG_FS_DEFAULT.
+    "O2Ring": {"spo2": (60, 1), "ppg": (6200, 125.738)},
+}
+
 
 def _has_comments(path: str) -> bool:
     """True when the file on disk carries operator comments this save is about to drop. Cheap, and
@@ -972,23 +998,6 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             return await polar_pause(address, _wrapped)
         return await _wrapped()
 
-    # Measured bytes/sec, PER DEVICE — the same stream name costs very different amounts on different
-    # hardware, so a single global table lies. H10 ACC runs at 200 Hz (11.4 kB/s) while the Verity's runs
-    # at 52 Hz (2.9 kB/s): quoting one number for "acc" overstated the Verity by ~4x. Measured on this
-    # host 2026-07-18 over real captures.
-    # (bytes/sec, at_rate_hz) measured on this host 2026-07-18. Cost scales with the CHOSEN rate — a
-    # fixed MB figure would start lying the moment a rate is changed, which is the whole point of the
-    # dropdown. Per device, because the same stream name costs very different amounts on different
-    # hardware (H10 ACC 200 Hz vs Verity ACC 52 Hz).
-    _BPS_BY_MODEL = {
-        "H10":    {"ecg": (7800, 130), "acc": (11400, 200), "hr": (35, 1)},
-        "Verity": {"ppg": (3750, 55), "acc": (2950, 52), "gyro": (2800, 52),
-                   "mag": (2950, 50), "ppi": (30, 1)},
-        # O2Ring ppg: 6200 B/s measured while the stream ran at its observed ROW rate (~125.7 = 125.000 ADC
-        # samples + inserted `156` beat markers), NOT the 125.000 ADC clock — a throughput calibration is
-        # bytes over the rate the wire actually carried. DEVICE-RATE-TRUTH §2; cf. capture.O2PPG_FS_DEFAULT.
-        "O2Ring": {"spo2": (60, 1), "ppg": (6200, 125.738)},
-    }
 
     def _model_of(dev: dict) -> str:
         blob = f"{dev.get('model','')} {dev.get('name','')}".lower()
