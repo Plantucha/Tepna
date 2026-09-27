@@ -57,6 +57,10 @@ function loadScript(url) {
     /* @blob-strip:end */
   }
 }
+/* analysis-stats.js is loaded OUTSIDE the try below on purpose: that catch swallows and sets
+   HAVE_PPGDSP = false so the worker can still run the paths that need no DSP, which is right for a DSP
+   and wrong for the hat — the hat is this worker's whole subject. A failure here propagates. */
+loadScript('analysis-stats.js');
 try {
   ['kernel-constants.js', 'clock.js', 'ppgdex-dsp.js', 'ecgdex-dsp.js'].forEach(loadScript);
   HAVE_ECGDSP = typeof ECGDSP !== 'undefined' && ECGDSP && typeof ECGDSP.parseECG === 'function' && typeof ECGDSP.bandpass === 'function' && typeof ECGDSP.detectPeaks === 'function';
@@ -197,9 +201,24 @@ function genWindow(regime, rho, ar, n) {
   return out;
 }
 
-// ── TCH kernel (identical to the method paper / main module) ───────────────
+/* ── TCH kernel — DELEGATED to analysis-stats.js (2026-09-27) ──────────────────────────────────────
+   This was a private copy of the solver, byte-equivalent to `AnalysisStats.threeCorneredHat` and gated
+   by NOTHING: the `sensor-trio · tch-parity` gate scans `sensor-trio-power-analysis.js` only, so a drift
+   here would have shipped silently. (The TCH brief's claim that "the worker keeps its mirror and a
+   delegation-parity leg guards it" had no such leg in tests/dex-tests.js.) A numeric parity row is not
+   available for a worker-local function — the suite cannot execute one — so DELEGATION, not gating, is
+   the only mechanically checkable fix, and the source-scan leg below now holds it.
+
+   🔴 It REFUSES rather than falling back. A local copy as a safety net is exactly what was just removed,
+   and CLAUDE.md §3's rule applies: guarding an absent alias converts a crash into silent disablement.
+   Its load sits OUTSIDE the `HAVE_PPGDSP` try/catch above, which swallows and continues — the hat is
+   not optional to this worker, so an absent kernel is a refusal with a named reason, not a σ of 0. */
 function threeCorneredHat(vAB, vAC, vBC) {
-  return { a: 0.5 * (vAB + vAC - vBC), b: 0.5 * (vAB + vBC - vAC), c: 0.5 * (vAC + vBC - vAB) };
+  var K = self.AnalysisStats;
+  if (!K || typeof K.threeCorneredHat !== 'function') {
+    throw new Error('sensor-trio-worker: AnalysisStats.threeCorneredHat unavailable — the hat is not computable and no local copy is kept');
+  }
+  return K.threeCorneredHat(vAB, vAC, vBC);
 }
 function tchSigmas(hh, vv, oo) {
   var dHV = [],
@@ -210,12 +229,21 @@ function tchSigmas(hh, vv, oo) {
     dHO.push(hh[i] - oo[i]);
     dVO.push(vv[i] - oo[i]);
   }
-  var cv = threeCorneredHat(variance(dHV), variance(dHO), variance(dVO));
+  var _vHV = variance(dHV),
+    _vHO = variance(dHO),
+    _vVO = variance(dVO);
+  var cv = threeCorneredHat(_vHV, _vHO, _vVO);
   return {
     h10: cv.a > 0 ? Math.sqrt(cv.a) : null,
     verity: cv.b > 0 ? Math.sqrt(cv.b) : null,
     o2: cv.c > 0 ? Math.sqrt(cv.c) : null,
-    neg: cv.a <= 0 || cv.b <= 0 || cv.c <= 0
+    neg: cv.a <= 0 || cv.b <= 0 || cv.c <= 0,
+    /* ADDED 2026-09-27 — the three pairwise difference variances, which this function has always
+       computed and thrown away. They are the ONLY input the independence-sensitivity row needs
+       (`AnalysisStats.tchRhoCrit`), and recomputing them on the page would mean a second copy of the
+       differencing. Corner mapping, which the row depends on and which is easy to get wrong:
+       `threeCorneredHat(vAB, vAC, vBC)` with A=h10, B=verity, C=o2, so AB=HV, AC=HO, BC=VO. */
+    vars: { hv: _vHV, ho: _vHO, vo: _vVO }
   };
 }
 // fused-weight hat (TCH-FUSED-ROBUST-HAT-2026-07-14): per-second per-corner confidence (cH/cV/cO —
@@ -283,8 +311,20 @@ function tchSigmasFused(hh, vv, oo, cH, cV, cO) {
     wHO[i] = t * h * o;
     wVO[i] = t * v * o;
   }
-  var cv = threeCorneredHat(_wvarF(dHV, wHV), _wvarF(dHO, wHO), _wvarF(dVO, wVO));
-  return { h10: cv.a > 0 ? Math.sqrt(cv.a) : null, verity: cv.b > 0 ? Math.sqrt(cv.b) : null, o2: cv.c > 0 ? Math.sqrt(cv.c) : null, neg: cv.a <= 0 || cv.b <= 0 || cv.c <= 0 };
+  var _wvHV = _wvarF(dHV, wHV),
+    _wvHO = _wvarF(dHO, wHO),
+    _wvVO = _wvarF(dVO, wVO);
+  var cv = threeCorneredHat(_wvHV, _wvHO, _wvVO);
+  /* `vars` are the WEIGHTED pairwise variances — the ones THIS hat is built from, so the sensitivity
+     row describes the σ̂ the page actually shows rather than a classic hat nobody displays. Same shape
+     and same corner mapping as `tchSigmas` above. */
+  return {
+    h10: cv.a > 0 ? Math.sqrt(cv.a) : null,
+    verity: cv.b > 0 ? Math.sqrt(cv.b) : null,
+    o2: cv.c > 0 ? Math.sqrt(cv.c) : null,
+    neg: cv.a <= 0 || cv.b <= 0 || cv.c <= 0,
+    vars: { hv: _wvHV, ho: _wvHO, vo: _wvVO }
+  };
 }
 
 // ── job handlers ───────────────────────────────────────────────────────────
@@ -1123,6 +1163,12 @@ async function runRealNight(m) {
       rHV: rHV,
       rHO: rHO,
       rVO: rVO,
+      /* The pairwise difference variances behind `sigma`, for the independence-sensitivity row.
+         🔴 NOT to be confused with `rHV`/`rHO`/`rVO` directly above: those are Pearson correlations of
+         the two HR SERIES, which are three views of one heart and therefore ~0.9 by construction. The
+         row's ρ is the correlation of the two devices' ERRORS, which is a different quantity, is NOT
+         measured here, and is exactly what the row must refuse rather than substitute. */
+      pairVars: s.vars || null,
       hrRatio: hrRatio
     };
     if (m.wantSeries) {

@@ -252,9 +252,37 @@ def _capture_events():
 @_pytest.fixture(autouse=True)
 def _capture_events_are_not_leaked(request):
     """Reset before, tripwire after. The tripwire runs BEFORE the trailing clear so it can still see
-    what the test left; the clear then runs regardless, so one leak cannot cascade."""
+    what the test left; the clear then runs regardless, so one leak cannot cascade.
+
+    ⚠️ THE RESET REPLACES, IT DOES NOT CLEAR, AND THE FLAG WAS NEVER THE WHOLE STATE. An
+    `asyncio.Event` also carries a LOOP BINDING: `wait()` binds it to the running loop the first time it
+    is reached with the flag unset, and `asyncio.run` then closes that loop. `clear()` resets the flag
+    and leaves the binding, so a test that awaited an unset event poisoned the next one to do the same
+    in a fresh loop — `RuntimeError: ... is bound to a different event loop`, raised from inside
+    `capture.main()`. That surfaced as a `_STOP` LEAK, because the RuntimeError skips the test's own
+    trailing clear and this tripwire then fires second, naming the flag instead of the binding
+    (2026-09-27, worker gw18; residue
+    `2026-09-27-a-module-global-asyncio-event-keeps-its-loop-binding-between-tests`).
+
+    ⚠️ THE REMEDY WAS NOT NEW — IT WAS FILE-LOCAL, AND THAT WAS THE DEFECT. `test_capture_runners.py`
+    has carried an autouse `_clean_stop` since the runner work which recreates these events fresh and
+    whose comment names this mechanism outright. But `_main_with_cfg`, the helper that actually runs
+    `capture.main()`, is IMPORTED by other files and they inherited none of it — `test_starts_sidecar.py`
+    imports it and is exactly where this fired. A protection living beside one caller of a shared helper
+    does not protect the helper, so the recreation belongs here, in the suite-wide fixture that already
+    owns these objects. `_clean_stop` keeps its own broader reset (a Lock and a dozen other globals);
+    its three event lines are now redundant rather than wrong.
+
+    A FRESH OBJECT rather than `ev._loop = None`: an unbound event is the state we want and constructing
+    one cannot itself bind anything, where reaching into the mixin's private attribute both depends on
+    it and would silently stop working if it were renamed. Safe because every reader goes through
+    `capture.<name>` at use time — no test binds these objects by name and nothing captures one at
+    import, both checked. `type(ev)()` keeps the set DISCOVERED: a `threading.Event` added later is
+    reconstructed as one."""
+    import capture as _capture
+
     for _name, ev in _capture_events():
-        ev.clear()
+        setattr(_capture, _name, type(ev)())
     yield
     leaked = [n for n, ev in _capture_events() if ev.is_set()]
     for _name, ev in _capture_events():
