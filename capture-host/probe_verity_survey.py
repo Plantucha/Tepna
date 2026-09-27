@@ -496,7 +496,12 @@ def decode_rec(path: str, expected_start_utc: _dt.datetime | None = None) -> dic
     unrelated `now` and reports nonsense — the first version called a 13.6 h-old ACC file "local civil"
     on exactly that error."""
     b = open(path, "rb").read()
-    got = {"file": os.path.basename(path), "bytes": len(b)}
+    # `dict[str, Any]`: a survey record is heterogeneous by construction — a filename, byte counts,
+    # ISO stamps, a TLV dict, lists of frame types — and inference joins that to `object`, after
+    # which the two `fromisoformat(got[...])` reads below have nothing to parse. ONE line, on
+    # purpose: a typed local per read touched eight lines of this function instead of one, and the
+    # diff-scoped gate mutates the whole function either way.
+    got: dict[str, Any] = {"file": os.path.basename(path), "bytes": len(b)}
     try:
         got["header_stamp"] = b[0x11:0x11 + 19].decode("ascii")
         anchor = _dt.datetime.fromisoformat(got["header_stamp"])
