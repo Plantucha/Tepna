@@ -306,3 +306,56 @@ def test_the_arrival_sidecars_of_both_polar_devices_are_listed_and_the_ring_s_is
     bare = str(tmp_path / "b")
     e2 = ni.night_entry(os.path.join(bare, "captures"), _night(bare))
     assert e2["arrival"] == []
+
+
+# ── night_entry, observed where the mutation gate found it unobserved (PR #3150, 2026-09-27) ─────────
+def test_the_primary_is_read_from_the_same_cpap_tree_the_files_came_from(tmp_path):
+    """The SD set wins the CPAP night when it exists, and the covered span must come from THAT tree's BRP. With
+    an SD set that holds no BRP, reading the BLE pull's BRP instead would state hours for files not loaded."""
+    root = str(tmp_path)
+    d = _night(root)                                         # cpap-ble holds a BRP (1.0 h)
+    _w(os.path.join(root, "captures", "cpap", "DATALOG", "20260919", "20260919_220000_PLD.edf"), "x")
+    e = ni.night_entry(os.path.join(root, "captures"), d)
+    assert e["CPAPDex"]["files"] == ["cpap/DATALOG/20260919/20260919_220000_PLD.edf"], e["CPAPDex"]["files"]
+    assert e["CPAPDex"]["hours"] is None, "hours read from the other tree's BRP"
+
+
+def test_an_edf_primary_is_never_pending(tmp_path):
+    """`pending` is a boolean the monitor counts; an EDF primary has no row stats to wait for, so it is False —
+    never None, which the pending tally would read as a third state."""
+    root = str(tmp_path)
+    e = ni.night_entry(os.path.join(root, "captures"), _night(root))
+    assert e["CPAPDex"]["pending"] is False and e["ECGDex"]["pending"] is False
+
+
+def test_the_covered_span_comes_from_the_largest_primary_not_the_last_named(tmp_path):
+    """Two H10 ECG sessions: the LARGER one is the night. It must set `hours` even when a smaller session's name
+    sorts after it (a late reconnect fragment)."""
+    root = str(tmp_path)
+    d = _night(root)
+    big = "Phone timestamp;sensor timestamp [ns];v\n" + "\n".join(f"2026-09-19T22:{m:02d}:00.000;{m};{m}" for m in range(0, 60)) + "\n"
+    _w(os.path.join(d, "Polar_H10_02849638_20260919210000_ECG.txt"), big)    # earlier name, 59 min, larger
+    e = ni.night_entry(os.path.join(root, "captures"), d)
+    assert e["ECGDex"]["hours"] == round(59 / 60, 2), e["ECGDex"]["hours"]
+
+
+# The facts that make the remaining night_entry mutants equivalent, asserted so each claim in
+# tools/mutate-equivalence.json rests on a check rather than on prose.
+def test_arrival_and_derived_globs_are_root_free():
+    """`_expand` uses `root` only for a pattern containing "/" (the CPAP trees), so a root-free glob cannot
+    observe which root it was handed."""
+    assert not any("/" in p for p in ni.ARRIVAL)
+    assert not any("/" in p for req in ni.DERIVED.values() for p in req)
+
+
+def test_node_patterns_have_at_most_one_alternative_and_it_is_last():
+    """`tree` records the alternative index of a node's pattern list; with at most one alternative, placed last,
+    "first alternative seen" and "last pattern's index" are the same index."""
+    for node, (patterns, _primary) in ni.NODES.items():
+        alts = [i for i, p in enumerate(patterns) if isinstance(p, tuple)]
+        assert len(alts) <= 1 and (not alts or alts[0] == len(patterns) - 1), node
+
+
+def test_every_node_with_inputs_names_a_primary():
+    for node, (patterns, primary) in ni.NODES.items():
+        assert not patterns or primary is not None, node
