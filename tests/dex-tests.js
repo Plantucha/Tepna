@@ -13103,7 +13103,7 @@
       });
 
       /* The cap. Lower it — never raise it — when a file is wired into either lane. */
-      var INVISIBLE_CAP = 8; // 13 → 12 on 2026-09-21 (cohort-harness.html + qrs-equiv-analysis.js entered env.sources for the tripwire plant); 12 → 8 on 2026-09-27 (readSources now walks the ANALYSIS TOOL bundles, not only the 11 app bundles — see INVISIBLE_SET)
+      var INVISIBLE_CAP = 7; // 13 → 12 on 2026-09-21 (cohort-harness.html + qrs-equiv-analysis.js entered env.sources for the tripwire plant); 12 → 8 on 2026-09-27 (readSources walks the ANALYSIS TOOL bundles); 8 → 7 on 2026-09-27 (dex-coload.js listed in BOTH lanes — see INVISIBLE_SET)
       T.ok('no NEW unscannable source layer (ratchet ' + INVISIBLE_CAP + ')', invisible.length <= INVISIBLE_CAP, invisible.length + ' invisible: ' + invisible.join(', '));
       T.ok('the cap is not STALE — lower it when the debt shrinks', invisible.length >= INVISIBLE_CAP, 'only ' + invisible.length + ' invisible now; set INVISIBLE_CAP = ' + invisible.length);
       /* ── THE SET, NOT ONLY THE COUNT (2026-09-27) ───────────────────────────────────────────────────
@@ -13118,7 +13118,13 @@
          this is not only cohort tooling and fixtures. Recorded as residue
          2026-09-27-load-bearing-sources-no-gate-can-read rather than left in a comment, because a finding
          recorded as a comment does not fail when the defect recurs; that is this group's own lesson. */
-      var INVISIBLE_SET = ['cohort-full.js', 'cohort-worker.js', 'dex-coload.js', 'dex-contracts.js', 'provenance-banner.js', 'provenance-ledger.js', 'support.js', 'xmt-fixture.js'];
+      /* `dex-coload.js` left this set on 2026-09-27, wired into BOTH lanes' inventories. ⚠️ What that bought
+         is narrower than it looks and the comment says so rather than letting a later reader infer more: the
+         ONE invariant anyone has wanted from that file — clock.js ahead of every delegating DSP — was already
+         asserted on the EXECUTED manifest (`env.DexCoload`, the group below the co-load gates), which is
+         strictly better evidence than text. Listing it makes the file reachable by any FUTURE source-level
+         assertion and shrinks the published debt by a measured file; it closed no hole. */
+      var INVISIBLE_SET = ['cohort-full.js', 'cohort-worker.js', 'dex-contracts.js', 'provenance-banner.js', 'provenance-ledger.js', 'support.js', 'xmt-fixture.js'];
       T.eq(
         'the invisible SET is exactly the published one (a swap cannot hide inside a stable count)',
         invisible.slice().sort().join(','),

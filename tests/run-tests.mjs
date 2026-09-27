@@ -665,6 +665,7 @@ function readSources() {
        not assumed — I registered the inventory first and the dead-key red survived unchanged. Two lists,
        two edits; one omission does not explain both reds. */
     'pat-classic-vs-fused.js',
+    'dex-coload.js',
     /* The cohort HARNESS page — its authored boot script is the realm tripwire (refuse rather than serve
        nulls, #2572); the gate drives it in a vm with the node's global absent and present, and pins its
        two maps equal so a node cannot slip past the check unexamined. The DSP blocks inlined above the
