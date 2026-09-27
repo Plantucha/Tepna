@@ -431,10 +431,22 @@ def build(night_dir: str, devices: list[dict], buckets: int = DEFAULT_BUCKETS) -
     # whose own comment promises the opposite. The sidecar is still the fallback for a night that
     # recorded NOTHING — a device that connected and never streamed has no other window, and dropping
     # it would take the "connected but silent" view away with it.
-    sessions = nightqc.merge_sessions(data) if data else []
+    # THE SAME SEAMS `summarize` SEGMENTS ON, from the same folders these files came from. Without them
+    # this module would merge two daemon runs into one window while `summarize` kept them apart, and the
+    # whole reason `merge_sessions` is shared is that the two must not disagree about what "the session"
+    # is. `dirs` is exactly the set contributing to `data`, so the union is the right population.
+    _seams = sorted({t for d in dirs for t in nightqc.daemon_starts(d)["stamps"]})
+    sessions = nightqc.merge_sessions(data, starts=_seams) if data else []
     spans: list[float] = []
     if sessions:
-        cur = max(sessions, key=lambda s: s[1])   # same scoping as nightqc.summarize, so they agree
+        # ⚠️ THE SEGMENTATION AGREES (both split on recorded seams, above); THE SELECTION DOES NOT.
+        # `summarize` judges the session with the most ROWS (its own "JUDGE THE SUBSTANTIVE SESSION"
+        # comment); this picks the latest-ENDING one. Under the old strict separation those coincided
+        # often enough that this line's comment claimed agreement outright — they part company on a night
+        # whose substantive run is followed by a shorter later one, which is exactly the shape that
+        # motivated the seam work. Left as-is deliberately rather than changed silently here: residue
+        # `2026-09-26-timeline-selects-a-different-session-than-nightqc`.
+        cur = max(sessions, key=lambda s: s[1])
         data = cur[2]
         spans = [cur[0], cur[1]]
         for f in data:
