@@ -1229,3 +1229,115 @@ def test_a_zoned_seam_row_gives_recorded_seams_the_SAME_answer(tmp_path):
     # ...and the host stamps keep their MILLISECONDS, which is what stopped this being a swap to
     # `parse_stamp`: that truncates at the second, and `residual_scan` measures at 1 ms.
     assert unzoned[0]["host_ms"] % 1000 == (T0 + dt.timedelta(milliseconds=1000)).microsecond // 1000
+
+
+# ── THE TWELVE SURVIVORS THE REFUSAL HAD MASKED (2026-09-27) ────────────────────────────────────────
+# `mutate_diff` is diff-scoped BY LINE, so the two-line parser swap above put every mutant of
+# `recorded_seams` and `residual_scan` in scope. The gate had been REFUSING (exit 2, two globs testing
+# zero mutants) because a sibling test crashed the scratch, and the refusal masked the real result: with
+# the crash fixed the gate reports 12 survivors. Eight are killed below; four carry equivalence entries
+# with a probe. None is a regression from this branch — they are the functions' standing debt, and the
+# PR that makes them visible is the PR that pays it.
+
+_NS = "sensor timestamp [ns]"
+
+
+def _resid(d, rows, header=None, name="Polar_H10_02849638_20260920230000_ECG.txt", raw=None):
+    """A residual-scan input written EXACTLY as given — no helper normalising the bytes, because several
+    of these mutants live in how the file is DECODED and a tidying fixture would hide them."""
+    p = d / name
+    if raw is not None:
+        p.write_bytes(raw)
+        return str(p)
+    head = header if header is not None else f"Phone timestamp;{_NS};ecg [uV]\n"
+    p.write_text(head + "".join(rows), encoding="utf-8")
+    return str(p)
+
+
+def test_an_unparseable_seam_row_does_not_END_the_seam_scan(tmp_path):
+    """KILLS recorded_seams `continue` → `break`. A row this reader cannot place splits nothing — and it
+    must not take the rows AFTER it down with it, which is precisely what `break` would do."""
+    lines = ["phone_ts;idx;device_step_ms\n",
+             "2026-09-20T23:05:00.000;1;not-a-number\n",     # unplaceable: skipped, never fatal
+             "2026-09-20T23:06:00.000;2;123.000\n"]          # and THIS one must still be read
+    (tmp_path / f"{BASE}_ECGSEAMS.txt").write_text("".join(lines))
+    got = si.recorded_seams(str(tmp_path / f"{BASE}_ECG.txt"), T0, T0 + dt.timedelta(hours=1))
+    assert [r["step_ms"] for r in got] == [123.0], (
+        "the bad row is skipped and the good row after it is still read; `break` would return nothing")
+
+
+def test_a_row_outside_the_worn_interval_does_not_END_the_residual_scan(tmp_path):
+    """KILLS residual_scan's worn-interval `continue` → `break`. Rows outside the interval are not
+    anchors, but the scan continues past them — a device that was worn LATER in the file still counts."""
+    rows = ["2026-09-20T22:00:00.000;0;1\n",            # before the interval: not an anchor
+            "2026-09-20T23:10:00.000;1000000;1\n",      # inside
+            "2026-09-20T23:20:00.000;3000000;1\n",      # inside, a different delta
+            "2026-09-20T23:30:00.000;6000000;1\n"]
+    p = _resid(tmp_path, rows)
+    got = si.residual_scan(p, T0, T0 + dt.timedelta(hours=1))
+    assert got["reason"] is None and got["anchors"], (
+        "the rows inside the interval are still scanned after one outside it; `break` loses them")
+
+
+def test_an_invalid_BYTE_does_not_stop_the_residual_scan(tmp_path):
+    """KILLS `errors="replace"` → `errors=None` and the argument dropped. Strict decoding RAISES on a
+    malformed byte; this reader replaces it, because one bad byte in a 160 MB night must not cost the
+    night its timebase verdict. The byte sits in a trailing column so nothing measured depends on it."""
+    raw = (f"Phone timestamp;{_NS};note\n".encode()
+           + b"2026-09-20T23:10:00.000;1000000;caf\xff\n"      # 0xff: not valid UTF-8 in any position
+           + b"2026-09-20T23:20:00.000;3000000;ok\n")
+    p = _resid(tmp_path, None, raw=raw)
+    got = si.residual_scan(p, None, None)          # must not raise UnicodeDecodeError
+    assert got["reason"] is None, got
+
+
+def test_the_residual_scan_decodes_as_UTF_8_whatever_the_BOXES_locale_is(tmp_path):
+    """KILLS `encoding="utf-8"` → `encoding=None` and the argument dropped — the pair that is NOT
+    killable in `mutation_diff.root_reads`, and is killable here, because the decoded text reaches
+    `int()` and `int()` accepts Unicode digits where a census comparison against filesystem names does
+    not. `٣٠٠٠٠٠٠` is ARABIC-INDIC 3000000: it parses under utf-8 and becomes replacement characters
+    under the C locale's ASCII, where the row is dropped and the anchor count falls.
+
+    Run in a subprocess under `LC_ALL=C PYTHONUTF8=0`, the same probe shape as
+    `test_the_sidecar_reader_does_not_depend_on_the_BOXES_locale`, because in THIS process the platform
+    default IS utf-8 and the mutant would be indistinguishable."""
+    import os
+    import subprocess
+    import sys
+
+    rows = ["2026-09-20T23:10:00.000;1000000;1\n",
+            "2026-09-20T23:20:00.000;٣٠٠٠٠٠٠;1\n",   # ٣٠٠٠٠٠٠
+            "2026-09-20T23:30:00.000;6000000;1\n"]
+    p = _resid(tmp_path, rows)
+    here = si.residual_scan(p, None, None)
+    assert len(here["anchors"]) == 3, ("the Unicode-digit row must PARSE here, or the probe below "
+                                       f"compares two drops: {here}")
+    env = {**os.environ, "LC_ALL": "C", "LANG": "C", "PYTHONUTF8": "0", "PYTHONCOERCECLOCALE": "0"}
+    script = (f"import json,sys; sys.path.insert(0,{os.path.dirname(os.path.abspath(si.__file__))!r});"
+              f"import solid_night_inputs as s;"
+              f"print(len(s.residual_scan({p!r}, None, None)['anchors']))")
+    r = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, env=env)
+    assert r.returncode == 0, f"the probe itself failed, which says nothing about encoding:\n{r.stderr[-500:]}"
+    assert r.stdout.strip() == "3", (
+        "the scan must read utf-8 whatever the ambient encoding is:\n"
+        f"  C locale : {r.stdout.strip()} anchor(s)\n  this proc: 3")
+
+
+def test_the_header_is_stripped_of_its_NEWLINE_and_nothing_else(tmp_path):
+    """KILLS `rstrip("\\n")` → `rstrip(None)`. The column name is matched EXACTLY, so a header whose last
+    field carries a trailing space does not carry that column — and saying so is the honest answer, where
+    stripping all trailing whitespace would silently accept a header this reader cannot vouch for."""
+    p = _resid(tmp_path, ["2026-09-20T23:10:00.000;1000000;1\n"],
+               header=f"Phone timestamp;{_NS} \n")          # note the trailing space
+    got = si.residual_scan(p, None, None)
+    assert got.get("reason") and _NS in got["reason"], (
+        "a trailing space means the exact column is absent; rstrip(None) would hide that")
+
+
+def test_a_single_row_has_no_delta_and_therefore_no_drawn_share(tmp_path):
+    """KILLS `(top / total) if total else None` → `... if (total) or True else None`, which divides by
+    zero the moment a file carries fewer than two usable rows. §∅: one row measures no INTERVAL, so the
+    share is null rather than a number — and certainly rather than a crash."""
+    p = _resid(tmp_path, ["2026-09-20T23:10:00.000;1000000;1\n"])
+    got = si.residual_scan(p, None, None)
+    assert got["drawn_share"] is None and got["reason"] is None, got
