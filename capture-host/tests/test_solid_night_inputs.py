@@ -689,7 +689,8 @@ def test_a_seam_OUTSIDE_the_worn_interval_does_not_split_the_axis(tmp_path):
 def test_a_segment_with_too_few_anchors_is_UNKNOWN_and_names_the_seam(tmp_path):
     """The worst-of-segments rule, and the honest shape of a short tail: a step 30 s before the end
     leaves a segment that cannot be judged, which is UNKNOWN — never a silent drop of that stretch."""
-    tb = _stepped(tmp_path, step_ms=2.44e8 * 1000.0, at_min=23.98, minutes=24)
+    # The seam lands after two anchors, so SEGMENT 1 is the short one and wins the tie on rank.
+    tb = _stepped(tmp_path, step_ms=2.44e8 * 1000.0, at_min=1000.0 / 60_000.0, minutes=24)
     assert tb["status"] == "UNKNOWN", tb["reason"]
     assert "recorded clock seam" in tb["reason"], tb["reason"]
 
@@ -837,3 +838,55 @@ def test_the_WORST_segment_decides_and_an_UNKNOWN_one_FIRST_does_not_win(tmp_pat
     tb = _bands(d)[H10["name"]]["bands"]["timebase"]
     assert tb["status"] == "FAIL", (tb["status"], tb["reason"])
     assert "ppm" in tb["reason"], tb["reason"]
+
+
+def test_the_seam_NOTE_says_how_many_where_and_that_no_cause_was_recorded(tmp_path):
+    """The seam note is the operator-facing half of the split, and nothing pinned its wording.
+
+    It is built from three pieces — the count and largest step, the cause clause, and the segment
+    count — and each piece carried a live mutant: the `""` initialiser (to `None`, which renders the
+    literal "None" into the reason, and to a marker string), and both arms of the cause conditional.
+    A night with seams but no recorded cause exercises the no-cause arm; the cause arm is pinned by
+    the existing `test_the_seam_CAUSE_is_read_from_the_night_and_never_inferred`.
+    """
+    tb = _stepped_twice(tmp_path, step_ms=2.44e8 * 1000.0, at1_min=8, at2_min=16)
+    r = tb["reason"]
+    assert "2 recorded clock seam(s), largest " in r, r
+    assert "; no cause recorded this night" in r, r
+    assert "the axis is judged in 3 segment(s), never across a step" in r, r
+    assert "None" not in r, r          # the `""` initialiser must not render as the word None
+    assert "XX" not in r, r            # nor as a marker
+
+
+def test_a_night_with_NO_seam_carries_no_seam_note_at_all(tmp_path):
+    """The other arm of the same initialiser: with no seams the note stays empty and appends nothing.
+    `seam_note = None` would concatenate the literal "None" onto every reason on a clean night."""
+    d = tmp_path
+    pairs = [(i * 500.0, int(round(i * 500.0 * 1.00002 * 1e6)) + ((i * 7919) % 211)) for i in range(2880)]
+    _pairs(d, pairs)
+    _seams(d)
+    _runs(d, "ECG")
+    _runs(d, "ACC")
+    _audit(d, end=(T0 + dt.timedelta(minutes=24)).isoformat())
+    r = _bands(d)[H10["name"]]["bands"]["timebase"]["reason"]
+    assert "None" not in r, r
+    assert "XX" not in r, r
+    assert "recorded clock seam" not in r, r
+
+
+def test_TWO_segments_are_still_tagged_by_number(tmp_path):
+    """`if len(segs) > 1` is the threshold at which the tag gains its segment number. `> 2` leaves a
+    two-segment night reporting a bare device tag, so the reader cannot tell which side of the step
+    the verdict came from — the whole point of judging the segments separately."""
+    tb = _stepped(tmp_path, step_ms=2.44e8 * 1000.0, at_min=12, minutes=24)
+    assert "segment 1/2" in tb["reason"] or "segment 2/2" in tb["reason"], tb["reason"]
+
+
+def test_a_segment_under_the_anchor_floor_NAMES_the_count_and_the_floor(tmp_path):
+    """`_decision("UNKNOWN", …)` with its reason dropped (to None, or to no argument at all) still
+    returns UNKNOWN, so a status-only assertion cannot see it. The reason is the whole product here:
+    "which segment, how many anchors, under what floor"."""
+    # The seam lands after two anchors, so SEGMENT 1 is the short one and wins the tie on rank.
+    tb = _stepped(tmp_path, step_ms=2.44e8 * 1000.0, at_min=1000.0 / 60_000.0, minutes=24)
+    assert tb["status"] == "UNKNOWN", tb["reason"]
+    assert "anchor(s) — under 3" in tb["reason"], tb["reason"]
