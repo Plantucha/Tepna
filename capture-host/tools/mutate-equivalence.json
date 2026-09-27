@@ -4654,5 +4654,37 @@
       "key": "- cols = header.rstrip(\"\\n\").split(\";\") | + cols = header.lstrip(\"\\n\").split(\";\")",
       "probe": "`header` comes from `fh.readline()`, which returns the bytes up to AND INCLUDING the first newline. A string it can return therefore has a newline at most at the END, never at the start with content after it: a file beginning with a blank line yields exactly \"\\n\", where rstrip and lstrip both give \"\". So the two differ only on inputs readline cannot produce. The trailing-newline case that DOES matter is pinned by test_the_header_is_stripped_of_its_NEWLINE_and_nothing_else, which kills the rstrip(None) sibling. Probed 2026-09-27: 102 passed under the mutant."
     }
+  ],
+  "nights_index.py": [
+    {
+      "class": "no-distinguishing-input",
+      "key": "- tree = i if tree is None else tree | + tree = i if (tree is None) or True else tree",
+      "probe": "tests/test_nights_index.py::test_node_patterns_have_at_most_one_alternative_and_it_is_last asserts that shape for every node, so the equivalence stops holding — and this entry is refuted — the day a node gains an alternative that is not last.",
+      "why": "A PROOF over the current NODES table: `tree` records a node's alternative-pattern index. Every node has at most one alternative pattern and it is its LAST, so 'the first alternative seen' (the original) and 'the last pattern's index' (the mutant, which reassigns on every pattern) are the same index; plain globs return index None on both paths before it."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- stats: dict | None = None | + stats: dict | None = \"\"",
+      "probe": "read every use of `stats` in night_entry: three reads, all guarded by `if stats`; ran tests/test_nights_index.py with the mutant applied (local mutate_diff run on PR #3150) — it survives because nothing can observe it.",
+      "why": "`stats` is read only through `stats[...] if stats else None`; None and \"\" are both falsy, and when a primary exists `stats` is reassigned before any read. No input distinguishes the two initial values."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- prims = _expand_alt(root, night_dir, primary, tree)[0] if primary else [] | + prims = _expand_alt(root, night_dir, primary, tree)[0] if (primary) or True else []",
+      "probe": "tests/test_nights_index.py::test_every_node_with_inputs_names_a_primary asserts it for every node; the entry is refuted the day a node with inputs has no primary.",
+      "why": "A node whose patterns are empty has no files and `continue`s before this line; every node WITH patterns names a primary, so `primary` is always truthy here and `or True` changes nothing."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- out[tool] = all(_expand(root, night_dir, p) for p in required) | + out[tool] = all(_expand(None, night_dir, p) for p in required)",
+      "probe": "tests/test_nights_index.py::test_arrival_and_derived_globs_are_root_free asserts no DERIVED pattern contains '/'; `_expand`'s `base = root if \"/\" in pattern else night_dir` is the only use of root.",
+      "why": "`_expand` uses `root` only for a pattern containing '/' (the CPAP trees are keyed under the captures root); every DERIVED requirement is a root-free glob, so the root passed cannot be observed."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- out[\"arrival\"] = sorted(os.path.relpath(f, root) for p in ARRIVAL for f in _expand(root, night_dir, p)) | + out[\"arrival\"] = sorted(os.path.relpath(f, root) for p in ARRIVAL for f in _expand(None, night_dir, p))",
+      "probe": "tests/test_nights_index.py::test_arrival_and_derived_globs_are_root_free asserts no ARRIVAL pattern contains '/'; test_the_arrival_sidecars_of_both_polar_devices_are_listed_and_the_ring_s_is_not pins the listed paths.",
+      "why": "Same mechanism as the DERIVED line: ARRIVAL's two globs are root-free, so `_expand` never reads `root` for them; `root` still reaches the output through `os.path.relpath(f, root)`, which the mutant does not touch."
+    }
   ]
 }

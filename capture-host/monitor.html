@@ -1363,7 +1363,9 @@ function nightFilesFor(n, node){
   // of its ACC-corrected verdict, which the click withheld until 2026-09-21 (the ACCs sit under MotionDex, not PPGDex)
   // …and the O2Ring's raw _PPG.txt is the FINGER site (2026-09-26): chest→finger, finger→ankle and the three-site hat
   if(node==='PAT') return [...(n.ECGDex?n.ECGDex.files.filter(f=>f.endsWith('_ECG.txt')):[]), ...(n.PPGDex?n.PPGDex.files.filter(f=>/(VeritySense|O2Ring).*_PPG\.txt$/.test(f)):[]),
-    ...(n.MotionDex?n.MotionDex.files.filter(f=>/Polar_(H10|VeritySense).*_ACC\.txt$/.test(f)):[])];
+    ...(n.MotionDex?n.MotionDex.files.filter(f=>/Polar_(H10|VeritySense).*_ACC\.txt$/.test(f)):[]),
+    // both Polar devices' packet-arrival sidecars: the corrected lag's anchor (route-PAT fix, 2026-09-27)
+    ...(n.arrival||[])];
   return n[node] ? n[node].files : [];
 }
 async function openNight(night, node){
