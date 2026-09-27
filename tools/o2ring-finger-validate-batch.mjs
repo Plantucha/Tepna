@@ -11,6 +11,9 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { createRequire } from 'node:module';
+import { gitShort } from './verdict-emit.mjs';
+const Verdict = createRequire(import.meta.url)('../verdict.js');
 
 /* ROOT is derived from THIS FILE's location, never hardcoded. Both O2Ring finger tools shipped with an
    absolute path to the author's throwaway worktree (`…/wt-fingerval`, `…/wt-fingerrt`) baked in. Those
@@ -109,6 +112,62 @@ const dirs = process.argv.slice(2).filter((d) => {
     return false;
   }
 });
+/* ── CHEAP EXITS BEFORE THE CORPUS IS TOUCHED ─────────────────────────────────────────────────────────
+   `--verdict-sample` is what `tools/verdict-adoption.mjs --check` RUNS to read this tool's object (an
+   adoption the gate cannot read is a claim, per its own message), and `--selftest` carries the plants.
+   Both must answer without a capture directory, so they sit above the arg check. `gateVerdict` is a
+   function DECLARATION and therefore hoisted, so it is callable here though it reads better at the tail
+   beside the print it explains. */
+if (process.argv.includes('--verdict-sample')) {
+  /* A representative object, not a measurement: the shape a real run emits, with the batch counts of the
+     documented sweep (88/92) so a reader sees the UNKNOWN in its natural setting. */
+  console.log(JSON.stringify(gateVerdict({ pass: 88, tot: 92, errs: 0, medianDeltaRing: 0.4, commit: gitShort() })));
+  process.exit(0);
+}
+if (process.argv.includes('--selftest')) {
+  let bad = 0,
+    good = 0;
+  const ok = (name, cond, detail) => {
+    console.log((cond ? '  ✓ ' : '  ✕ ') + name + (detail ? '  — ' + detail : ''));
+    if (cond) good++;
+    else bad++;
+  };
+  /* PLANT 1 · no stated bar ⇒ UNKNOWN, never PASS. This is the row's whole point: `N/M` read as a pass. */
+  const noBar = gateVerdict({ pass: 92, tot: 92, errs: 0, medianDeltaRing: 0.4, commit: null });
+  ok('PLANT · a batch with NO stated aggregate bar is UNKNOWN, not PASS', noBar.status === 'UNKNOWN', 'got ' + noBar.status);
+  ok(
+    'PLANT · …even when every pair passes (92/92) — a clean batch cannot talk itself into a bar',
+    noBar.status === 'UNKNOWN' && /no pre-stated aggregate criterion/.test(noBar.reason || ''),
+    noBar.reason || 'no reason'
+  );
+  /* PLANT 2 · one failing pair still cannot read PASS. Under a stated bar it is judged; with none it stays
+     UNKNOWN. Both halves asserted, because "not PASS" is satisfied by FAIL too and that would be the wrong
+     answer when no bar exists. */
+  const oneFail = gateVerdict({ pass: 91, tot: 92, errs: 0, medianDeltaRing: 0.4, commit: null });
+  ok('PLANT · a batch with one failing pair does not read PASS', oneFail.status !== 'PASS', 'got ' + oneFail.status);
+  ok('PLANT · …and it is UNKNOWN rather than FAIL, because no bar exists to fail against', oneFail.status === 'UNKNOWN', 'got ' + oneFail.status);
+  /* CONTROL · the seam works, so UNKNOWN is a statement about the DOC and not about this code. */
+  const withBar = gateVerdict({ pass: 91, tot: 92, errs: 0, medianDeltaRing: 0.4, commit: null, aggregateBar: { minFraction: 0.95 } });
+  ok('CONTROL · given a bar, the tool decides (91/92 ≥ 0.95 ⇒ PASS)', withBar.status === 'PASS', 'got ' + withBar.status);
+  const underBar = gateVerdict({ pass: 80, tot: 92, errs: 0, medianDeltaRing: 0.4, commit: null, aggregateBar: { minFraction: 0.95 } });
+  ok('CONTROL · and fails below it (80/92 < 0.95 ⇒ FAIL)', underBar.status === 'FAIL', 'got ' + underBar.status);
+  ok(
+    'CONTROL · a bar is never inferred from the batch — the same counts give UNKNOWN without one',
+    gateVerdict({ pass: 80, tot: 92, errs: 0, medianDeltaRing: 0.4, commit: null }).status === 'UNKNOWN'
+  );
+  /* NOT_RUN · no eligible pair examined nothing; it must not read as a clean batch. */
+  const none = gateVerdict({ pass: 0, tot: 0, errs: 3, medianDeltaRing: null, commit: null });
+  ok('no eligible pair ⇒ NOT_RUN with checked:0, never PASS', none.status === 'NOT_RUN' && none.population.checked === 0, none.status + ' checked=' + none.population.checked);
+  ok(
+    'every emitted object validates under verdict.js',
+    [noBar, oneFail, withBar, underBar, none].every((v) => Verdict.validate(v).ok)
+  );
+  /* The summary line is the format `tools/selftest-all.mjs` parses — it refused the first version with
+     "end its selftest with `all <N> selftests passed`", so a tool whose assertions all pass can still be
+     reported as green-but-uncountable, which is how a tool quietly losing its selftest would hide. */
+  console.log(bad ? '✕ ' + bad + ' of ' + (good + bad) + ' selftests failed' : '✓ all ' + good + ' selftests passed');
+  process.exit(bad ? 1 : 0);
+}
 if (!dirs.length) {
   console.error('no directories given — usage: node tools/o2ring-finger-validate-batch.mjs <captures-dir> [...]');
   process.exit(2);
@@ -194,3 +253,72 @@ for (const r of rows) {
   );
 }
 console.log(`\n${pass}/${tot} pairs PASS (both Δ ≤ 3 bpm, feet detected).`);
+
+/* ── ONE tepna.verdict/1, AND IT SAYS UNKNOWN (CLAUDE.md §🧾) ──────────────────────────────────────────
+   PRE-STATED CRITERION, with its source:
+     · PER PAIR — `|PPG − ring| ≤ 3 bpm` AND `|PPG − ECG| ≤ 3 bpm` AND `feet > 10`. Exact, and it is the
+       rule the per-pair column already applies; source `docs/O2RING-FINGER-ROUNDTRIP-2026-07-20.md`
+       §"Validation sweep — not one session, ninety-two".
+     · AGGREGATE — **none exists**. That same doc records the accepted run as 88/92 and attributes each of
+       the four non-passes to the reference side individually (a ring field reading 70 where PpgDex tracked
+       the ECG; two short/noisy ECG clips; one flat ECG that parseECG refused). It states a MEASUREMENT of
+       that batch, not a bar for future batches.
+
+   🔴 SO THE BATCH-LEVEL STATUS IS UNKNOWN, and inventing a bar here would be the one thing the contract
+   forbids: "a threshold derived from the data it judges emits status: UNKNOWN with that as the reason"
+   (VERDICT-CONTRACT §criterion). An all-pairs rule would also CONVICT the run the doc ratified — a
+   post-hoc band in reverse — and a fraction chosen to clear 88/92 would be a band fitted to its own
+   evidence. The bar belongs in that doc (a fraction, or "every non-pass attributed to the reference
+   side"), authored by whoever owns the finger-path claim; until then this tool decides per pair and says
+   so, which is strictly more than the bare `N/M` it printed before.
+   Residue 2026-09-22-finger-validate-batch-has-no-aggregate-bar.
+
+   Pure and exported so the plants can drive it without a capture corpus. */
+export function gateVerdict({ pass: nPass, tot: nTot, errs, medianDeltaRing, commit, at, aggregateBar }) {
+  const producedBy = { tool: 'tools/o2ring-finger-validate-batch.mjs', commit: commit == null ? null : commit };
+  if (commit == null) producedBy.commitReason = 'not run inside a git checkout';
+  /* `aggregateBar` is a seam for the day the doc states one — NOT a default. Absent ⇒ UNKNOWN. It is
+     never derived from nPass/nTot here, and the plant below asserts that a batch cannot talk itself into
+     a bar. */
+  const decided = aggregateBar && typeof aggregateBar.minFraction === 'number';
+  const status = nTot === 0 ? 'NOT_RUN' : decided ? (nPass / nTot >= aggregateBar.minFraction ? 'PASS' : 'FAIL') : 'UNKNOWN';
+  const v = Verdict.make({
+    gate: 'o2ring-finger-validate-batch',
+    status,
+    population: { checked: status === 'NOT_RUN' ? 0 : nTot, eligible: nTot + errs, excluded: status === 'NOT_RUN' ? nTot + errs : errs },
+    criterion: decided
+      ? { name: 'pairs_passing_fraction', threshold: aggregateBar.minFraction, unit: 'fraction', direction: 'gte' }
+      : { name: 'per_pair_hr_agreement_abs_delta', threshold: 3, unit: 'bpm', direction: 'lte' },
+    result: status === 'NOT_RUN' ? null : { pairsPass: nPass, pairsTotal: nTot, pairsErrored: errs, medianAbsDeltaRing: medianDeltaRing == null ? null : medianDeltaRing },
+    evidence: ['tools/o2ring-finger-validate-batch.mjs', 'docs/O2RING-FINGER-ROUNDTRIP-2026-07-20.md'],
+    reason:
+      status === 'NOT_RUN'
+        ? 'no eligible pair: no capture session on disk carried an O2Ring PPG with a paired H10 ECG and the ring SPO2'
+        : status === 'UNKNOWN'
+          ? 'no pre-stated aggregate criterion — the per-pair rule is exact, but docs/O2RING-FINGER-ROUNDTRIP-2026-07-20.md records 88/92 as a measurement and states no batch-level bar. Deriving one from this batch would be a threshold taken from the data it judges.'
+          : status === 'FAIL'
+            ? nPass +
+              ' of ' +
+              nTot +
+              ' pairs passed (' +
+              (nTot ? (nPass / nTot).toFixed(3) : '0') +
+              '), below the stated bar of ' +
+              aggregateBar.minFraction +
+              ' — short by ' +
+              (nTot ? (aggregateBar.minFraction - nPass / nTot).toFixed(3) : '0')
+            : null,
+    producedBy,
+    at: (at || new Date().toISOString()).replace(/\.\d{3}Z$/, 'Z')
+  });
+  const chk = Verdict.validate(v);
+  if (!chk.ok) throw new Error('o2ring-finger-validate-batch produced an invalid verdict: ' + chk.errors.join('; '));
+  return v;
+}
+
+const _errs = rows.filter((r) => r.err).length;
+const _dRs = rows
+  .filter((r) => !r.err)
+  .map((r) => r.dR)
+  .sort((a, b) => a - b);
+const _med = _dRs.length ? (_dRs.length % 2 ? _dRs[_dRs.length >> 1] : (_dRs[(_dRs.length >> 1) - 1] + _dRs[_dRs.length >> 1]) / 2) : null;
+console.log('\nVERDICT (tepna.verdict/1) ' + JSON.stringify(gateVerdict({ pass, tot, errs: _errs, medianDeltaRing: _med, commit: gitShort() })));
