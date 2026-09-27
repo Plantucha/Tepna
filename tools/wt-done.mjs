@@ -13,7 +13,8 @@
  *      (squash-merge strands the branch: after `gh pr merge` the branch never appears merged to git —
  *      see the 12-commits-stranded incident). No PR, or PR still open ⇒ REFUSE — except `--pushed`
  *      (2026-09-26): a PR-less branch whose every local commit is contained in a freshly fetched
- *      origin/<branch> may go, because the branch is the copy; nothing else is weakened.
+ *      origin/<branch> may go, because the branch is the copy — or whose HEAD is contained in origin/main
+ *      (no commits of its own: nothing to land); nothing else is weakened.
  *   2. the tree is CLEAN — `git status --porcelain` empty. Dirty ⇒ REFUSE and say what is dirty;
  *      per CLAUDE.md §👥.2 those files may be someone's only copy.
  *   3. the tree is IDLE — no process has its cwd inside it and none holds a file open there.
@@ -266,11 +267,22 @@ function unlandedFor(wtPath, mergedAt) {
    from a FRESH fetch of that one branch (never from a stale remote-tracking ref). Detached ⇒ cannot
    prove; a fetch failure ⇒ cannot prove; the tip not an ancestor ⇒ commits exist only here. */
 function pushedFor(wtPath, branch) {
-  if (!branch) return { ok: false, why: 'detached HEAD — no branch to compare with origin' };
+  /* Strongest case first (Heron, 2026-09-26, wt-qcstall-hrn): a branch with NO commits of its own —
+     HEAD contained in a freshly fetched origin/main — has nothing to land and nothing to prove; the
+     tree was a measurement bench. Checked before the branch fetch so it holds for a branch that was
+     never pushed and even for a detached HEAD sitting on main. */
+  try {
+    run('git', ['-C', wtPath, 'fetch', '-q', 'origin', 'main']);
+    run('git', ['-C', wtPath, 'merge-base', '--is-ancestor', 'HEAD', 'refs/remotes/origin/main']);
+    return { ok: true, remote: 'origin/main (no commits of its own)' };
+  } catch {
+    /* not on main — fall through to the branch proof */
+  }
+  if (!branch) return { ok: false, why: 'detached HEAD not on origin/main — no branch to compare with origin' };
   try {
     run('git', ['-C', wtPath, 'fetch', '-q', 'origin', branch]);
   } catch (e) {
-    return { ok: false, why: `fetch origin ${branch} failed (${String(e.message || e).split('\n')[0]})` };
+    return { ok: false, why: `fetch origin ${branch} failed (${String(e.message || e).split('\n')[0]}) — the branch is not on origin` };
   }
   try {
     run('git', ['-C', wtPath, 'merge-base', '--is-ancestor', 'HEAD', `refs/remotes/origin/${branch}`]);
