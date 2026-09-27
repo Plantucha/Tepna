@@ -25,7 +25,7 @@
  *   node tools/pw-launch.mjs --selftest
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
  */
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -46,6 +46,24 @@ export function apparmorRestrictsUserns(path = SYSCTL_PATH) {
    flag costs nothing elsewhere. */
 export function launchArgs(extra = []) {
   return ['--disable-dev-shm-usage', ...extra];
+}
+
+/* THE OTHER WAY A LAUNCH DIES ON A DEV BOX (2026-09-26): Playwright's bundled Chromium is not
+   downloaded — `browserType.launch: Executable doesn't exist at …/ms-playwright/chromium-…` — and
+   the advice it prints (`npx playwright install`) is a network download the no-network rule forbids
+   and CI never needs. The box has a system Chrome (memory `browser-lane-runnable-headless`, Aug 12:
+   /usr/bin/google-chrome), and the browser lane runs fine on it. So on THAT failure, and only that
+   one, relaunch with `executablePath` = the first system Chrome found (or $TEPNA_CHROME), saying so
+   once on stderr. Two browser-lane reds shipped tonight (#3119, #3128) that a local run would have
+   caught; the lane was "unrunnable" only because this fallback did not exist. */
+export const SYSTEM_CHROME_CANDIDATES = ['/usr/bin/google-chrome', '/usr/bin/google-chrome-stable', '/usr/bin/chromium', '/usr/bin/chromium-browser'];
+export function looksLikeMissingBrowser(err) {
+  return /Executable doesn't exist|browserType\.launch: .*(not found|does not exist)|playwright install/i.test(String(err && err.message ? err.message : err));
+}
+export function systemChrome({ env = process.env, exists = existsSync, candidates = SYSTEM_CHROME_CANDIDATES } = {}) {
+  if (env.TEPNA_CHROME) return exists(env.TEPNA_CHROME) ? env.TEPNA_CHROME : null;
+  for (const c of candidates) if (exists(c)) return c;
+  return null;
 }
 
 /* The failure the row records: `launch()` resolves, the first `newPage()` rejects. */
@@ -75,8 +93,29 @@ export async function launch(launcher, opts = {}, io = {}) {
       return b;
     });
   const first = { ...opts, args: launchArgs(opts.args || []) };
+  /* Missing bundled browser ⇒ one relaunch on the system Chrome, then the sandbox logic below applies
+     to that attempt as to any other. A missing browser with no system Chrome is rethrown as-is. */
+  const withBrowser = async (o) => {
+    try {
+      return await tryOnce(o);
+    } catch (e) {
+      if (o.executablePath || !looksLikeMissingBrowser(e)) throw e;
+      const sys = (io.systemChrome || systemChrome)();
+      if (!sys) throw e;
+      log(
+        '  pw-launch: bundled Chromium missing (' +
+          String(e.message || e)
+            .split('\n')[0]
+            .slice(0, 60) +
+          ') — relaunching on ' +
+          sys +
+          ' (set TEPNA_CHROME to choose)'
+      );
+      return tryOnce({ ...o, executablePath: sys });
+    }
+  };
   try {
-    return await tryOnce(first);
+    return await withBrowser(first);
   } catch (e) {
     if (!looksLikeSandboxDeath(e)) throw e;
     const r = apparmorRestrictsUserns(io.sysctlPath);
@@ -90,7 +129,7 @@ export async function launch(launcher, opts = {}, io = {}) {
         (r === null ? 'absent' : r ? '1' : '0') +
         '; relaunching --no-sandbox (residue 2026-09-05-playwright-blocked-by-apparmor-userns)'
     );
-    return tryOnce({ ...first, args: [...first.args, '--no-sandbox'] });
+    return withBrowser({ ...first, args: [...first.args, '--no-sandbox'] });
   }
 }
 
@@ -145,8 +184,54 @@ async function selftest() {
     thrown = e;
   });
   ok(thrown && /ECONNREFUSED/.test(thrown.message) && calls.length === 1, 'unrelated failure: rethrown, never retried unsandboxed');
+  // missing bundled browser → relaunched once on the system Chrome, logged once, sandbox kept
+  ok(looksLikeMissingBrowser(new Error("browserType.launch: Executable doesn't exist at /x/ms-playwright/chromium-1140/chrome-linux/chrome")), 'recognises the missing-browser message');
+  ok(!looksLikeMissingBrowser(new Error('browser.newPage: Target page, context or browser has been closed')), 'a sandbox death is not a missing browser');
+  ok(systemChrome({ env: {}, exists: (p) => p === '/usr/bin/chromium' }) === '/usr/bin/chromium', 'first existing candidate wins');
+  ok(systemChrome({ env: { TEPNA_CHROME: '/opt/c' }, exists: (p) => p === '/opt/c' }) === '/opt/c', 'TEPNA_CHROME overrides');
+  ok(systemChrome({ env: { TEPNA_CHROME: '/opt/missing' }, exists: () => false }) === null, 'a TEPNA_CHROME that does not exist is null, not a guess');
+  ok(systemChrome({ env: {}, exists: () => false }) === null, 'no system Chrome → null');
+  const mcalls = [];
+  const mlog = [];
+  const b3 = await launch(
+    null,
+    { args: ['--x'] },
+    {
+      tryOnce: async (o) => {
+        mcalls.push(o);
+        if (!o.executablePath) throw new Error("browserType.launch: Executable doesn't exist at /x/chrome");
+        return 'B3';
+      },
+      log: (m) => mlog.push(m),
+      systemChrome: () => '/usr/bin/google-chrome',
+      sysctlPath: dir + '/on'
+    }
+  );
+  ok(
+    b3 === 'B3' && mcalls.length === 2 && mcalls[1].executablePath === '/usr/bin/google-chrome' && !mcalls[1].args.includes('--no-sandbox'),
+    'missing browser: relaunched on the system Chrome, sandbox kept'
+  );
+  ok(mlog.length === 1 && /google-chrome/.test(mlog[0]) && /TEPNA_CHROME/.test(mlog[0]), 'missing browser: says so once and names the override');
+  // missing browser and NO system Chrome → rethrown, one attempt
+  mcalls.length = 0;
+  let thrown2 = null;
+  await launch(
+    null,
+    {},
+    {
+      tryOnce: async (o) => {
+        mcalls.push(o);
+        throw new Error("Executable doesn't exist at /x");
+      },
+      log: () => {},
+      systemChrome: () => null
+    }
+  ).catch((e) => {
+    thrown2 = e;
+  });
+  ok(thrown2 && /Executable doesn't exist/.test(thrown2.message) && mcalls.length === 1, 'missing browser, no system Chrome: rethrown, one attempt');
   for (const f of fails) console.error('  ✗ ' + f);
-  console.log(fails.length ? fails.length + ' failed of 10' : 'all 10 selftests passed');
+  console.log(fails.length ? fails.length + ' failed of 19' : 'all 19 selftests passed');
   return fails.length ? 1 : 0;
 }
 
