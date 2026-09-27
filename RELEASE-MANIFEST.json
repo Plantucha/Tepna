@@ -1404,6 +1404,32 @@
         "SOLID-NIGHT-2026-09-23-BRIEF.md"
       ],
       "notes": ""
+    },
+    {
+      "version": "2.16.0",
+      "date": "2026-09-27",
+      "bump": "minor",
+      "name": "",
+      "manifestHashes": {
+        "ECGDex": "89febd4e6983",
+        "OxyDex": "5b6d5b7972b5",
+        "PulseDex": "518535c8718e",
+        "GlucoDex": "e4eed3538784",
+        "PpgDex": "80b862e02881",
+        "HRVDex": "5718609fbbee",
+        "CPAPDex": "d4452dfe6bff",
+        "Integrator": "633847816985",
+        "MotionDex": "6038fb2e7140"
+      },
+      "briefs": [
+        "SAMPLE-VALIDITY-ENVELOPE-2026-09-17-BRIEF.md",
+        "SOLID-NIGHT-2026-09-23-BRIEF.md",
+        "PPG-FOOT-PLACEMENT-FOLLOWUPS-2026-09-01-BRIEF.md",
+        "PAT-FEASIBILITY-2026-07-08-BRIEF.md",
+        "TCH-FUSED-ROBUST-HAT-2026-07-14-BRIEF.md",
+        "PYTHON-TYPES-AND-FORMAT-2026-08-27-BRIEF.md"
+      ],
+      "notes": ""
     }
   ]
 }

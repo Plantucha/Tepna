@@ -604,8 +604,15 @@
     },
     "tools/beat-correspondence.mjs": {
       "bin": "decides",
-      "status": "pending",
-      "note": "BAND-LESS (Magpie, 2026-09-22, read before flipping): it REFUSES (anchor unidentifiable · band-edge contact · every mod-RR plane refused → exit 1) or prints an indel rate and a residual with NO threshold anywhere in the file; its PASS/FAIL words are selftest-only. No brief states the indel rate the audit passes at, so a verdict here would be a post-hoc band. Residue 2026-09-22-beat-correspondence-has-no-band."
+      "status": "adopted",
+      "note": "emits one tepna.verdict/1 whose status is UNKNOWN by design, with the reason: no brief states what indel rate this audit passes at (dead-ends §2.7 names the measurement as outstanding, not its bar), and no indel-rate regime boundary has been shown — so per KNIFE-EDGE §2 / EDR-THRESHOLD-MARGIN §3 the sensitivity is published rather than a threshold invented from corpus numbers already on record. `band` (maxIndelRate + source) is the seam. The REFUSALS become machine-readable, which is what the tool genuinely decides and was exit codes only: an unidentifiable anchor or an all-planes-refused sweep is UNKNOWN with result:null and checked:0 (a refusal is NOT a low indel rate), and an absent ECG/PPG pair is NOT_RUN. Selftest plants prove a near-perfect 0.01 % rate is still UNKNOWN without a cited band. Closes residue 2026-09-22-beat-correspondence-has-no-band (Magpie, 2026-09-27).",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/beat-correspondence.mjs",
+          "--verdict-sample"
+        ]
+      }
     },
     "tools/beat-error-recovery.mjs": {
       "bin": "word-only",
@@ -743,8 +750,15 @@
     },
     "tools/deep-desat-falsifier.mjs": {
       "bin": "already-json",
-      "status": "pending",
-      "note": "BAND-LESS (Magpie, 2026-09-22, read before flipping): it reports a per-stage desat-rate table with 95 % CIs, a one-sided exact sign-test p-value and a dose-response correlation — and states NO alpha and NO decision rule anywhere in the file; the only decision it makes is the testability rider (xAxisHasRange). A 'falsified / survives' verdict needs a pre-stated alpha and a direction; adding one after seeing the p-values is the post-hoc threshold the contract's UNKNOWN clause names. Not flipped; the alpha belongs in the parent brief (DEEP-STAGE-DESAT-CONFOUND §6 / REM-STAGING-REDESIGN §5) before this tool can decide."
+      "status": "adopted",
+      "note": "emits one tepna.verdict/1 whose status is UNKNOWN by design, with the reason: no alpha and no direction-of-rejection is pre-stated anywhere. Read 2026-09-27 — DEEP-STAGE-DESAT-CONFOUND §7.1 applies \"conventional significance\" in prose ONCE (p = 0.1325 on 29 nights against §1's p ~ 0.03 on 14) and then DEMOTES the sign test to \"a robustness check, not the headline\"; REM-STAGING-REDESIGN §5 and LITERATURE-USE-POLICY state no alpha either. Choosing one now, with those p-values on record, would be a threshold derived from the data it judges. `alpha` (value + source) is the seam for the day a brief states one; selftest plants prove that even §1's p = 0.0287 stays UNKNOWN without it, that an alpha lacking a SOURCE does not count, and that given a sourced alpha the tool decides both ways. The testability rider stays a real decision: no usable x-axis range is NOT_APPLICABLE, no qualifying night NOT_RUN. Closes residue 2026-09-22-deep-desat-falsifier-states-no-alpha (Magpie, 2026-09-27).",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/deep-desat-falsifier.mjs",
+          "--verdict-sample"
+        ]
+      }
     },
     "tools/deep-vlf-probe.mjs": {
       "bin": "word-only",

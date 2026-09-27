@@ -40,6 +40,9 @@ import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { dirname } from 'node:path';
+import { createRequire } from 'node:module';
+import { gitShort } from './verdict-emit.mjs';
+const Verdict = createRequire(import.meta.url)('../verdict.js');
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -177,6 +180,65 @@ function binomPmf(k, n, p) {
   for (let i = 0; i < k; i++) logC += Math.log(n - i) - Math.log(i + 1);
   return Math.exp(logC + k * Math.log(p) + (n - k) * Math.log(1 - p));
 }
+/* ── ONE tepna.verdict/1, AND IT SAYS UNKNOWN — NO ALPHA IS PRE-STATED (CLAUDE.md §🧾) ─────────────────
+   This is the standing cross-signal falsifier for called sleep stages, so "falsified / survives" is
+   exactly the claim it should be able to make. It cannot, and the reason is in the tree, not in the code:
+
+   WHAT THE TOOL HAS — a per-stage desat-rate table with exact 95 % Poisson CIs, a one-sided exact
+   sign-test p-value, a settling test, and a dose-response correlation. `poissonCI(k, alpha = 0.05)` is a
+   CI CONVENTION, not a decision rule; no alpha and no direction-of-rejection appear anywhere else.
+
+   WHAT THE PARENT BRIEFS HAVE, read 2026-09-27 rather than assumed:
+     · `DEEP-STAGE-DESAT-CONFOUND-2026-07-29-BRIEF.md` §7.1 re-runs the sign test on 29 qualifying nights
+       and gets **p = 0.1325** against §1's 11/14, p ≈ 0.03. It says "This no longer clears conventional
+       significance" — applying a bar informally, in prose, once — and then DEMOTES the test: "the sign
+       test was always the weaker of the two tests in §1, kept as a robustness check, not the headline",
+       with the pooled rate table "the more reliable read".
+     · `REM-STAGING-REDESIGN-2026-07-28-BRIEF.md` §5 states no alpha.
+     · `LITERATURE-USE-POLICY-2026-07-11-BRIEF.md` states no standing alpha either.
+
+   🔴 SO THERE IS NO PRE-STATED ALPHA WITH A DIRECTION, and picking 0.05 here would be the post-hoc
+   threshold the contract routes to UNKNOWN — sharpened by the fact that the p-values are already on
+   record and 0.1325 would FAIL such a bar. Wrapping this as "falsified" would also gate the hypothesis on
+   the one test its own brief calls secondary. Publishing the numbers with UNKNOWN and a reason is the
+   honest object; `alpha` below is the seam for the day a brief states one, never a default and never
+   taken from the run. Residue 2026-09-22-deep-desat-falsifier-states-no-alpha.
+
+   The testability rider IS a real decision and stays one: no usable x-axis range ⇒ NOT_APPLICABLE, because
+   a null there is uninterpretable rather than evidence either way.
+   Pure and exported so the plants drive it without a corpus. */
+export function gateVerdict({ qualifying, favouringDeep, pOneSided, medianRatio, xAxisHasRange, commit, at, alpha }) {
+  const producedBy = { tool: 'tools/deep-desat-falsifier.mjs', commit: commit == null ? null : commit };
+  if (commit == null) producedBy.commitReason = 'not run inside a git checkout';
+  const decided = alpha && typeof alpha.value === 'number' && typeof alpha.source === 'string';
+  const status = !qualifying ? 'NOT_RUN' : !xAxisHasRange ? 'NOT_APPLICABLE' : !decided ? 'UNKNOWN' : pOneSided < alpha.value ? 'FAIL' : 'PASS';
+  const inert = status === 'NOT_RUN' || status === 'NOT_APPLICABLE';
+  const v = Verdict.make({
+    gate: 'deep-desat-falsifier',
+    status,
+    population: { checked: inert ? 0 : qualifying, eligible: qualifying, excluded: inert ? qualifying : 0 },
+    criterion: decided
+      ? { name: 'sign_test_p_one_sided_vs_prestated_alpha', threshold: alpha.value, unit: 'p', direction: 'gte' }
+      : { name: 'deep_vs_light_desat_rate_ratio', threshold: 1, unit: 'ratio', direction: 'gte' },
+    result: inert ? null : { qualifyingNights: qualifying, favouringDeep: favouringDeep, pOneSided: pOneSided, medianRatio: medianRatio },
+    evidence: ['tools/deep-desat-falsifier.mjs', 'briefs/DEEP-STAGE-DESAT-CONFOUND-2026-07-29-BRIEF.md'],
+    reason: !qualifying
+      ? 'no qualifying night: none had ≥ 30 min of both Deep and Light, so the per-night test had nothing to run on'
+      : !xAxisHasRange
+        ? 'the x-axis has no usable range, so a null result here would be untestable rather than evidence — the rider the tool already computes'
+        : !decided
+          ? 'no pre-stated criterion — no alpha and no direction-of-rejection exists in DEEP-STAGE-DESAT-CONFOUND §7, REM-STAGING-REDESIGN §5 or the literature policy. §7.1 applies "conventional significance" in prose once (p = 0.1325 on 29 nights vs §1’s p ≈ 0.03 on 14) and demotes the sign test to a robustness check, not the headline. Choosing an alpha now, with those p-values on record, would be a threshold derived from the data it judges.'
+          : status === 'FAIL'
+            ? 'one-sided sign-test p = ' + pOneSided + ' < alpha ' + alpha.value + ' (' + alpha.source + ') — the stage-confound hypothesis is rejected at the pre-stated level'
+            : null,
+    producedBy,
+    at: (at || new Date().toISOString()).replace(/\.\d{3}Z$/, 'Z')
+  });
+  const chk = Verdict.validate(v);
+  if (!chk.ok) throw new Error('deep-desat-falsifier produced an invalid verdict: ' + chk.errors.join('; '));
+  return v;
+}
+
 function signTestPGE(k, n) {
   // One-sided exact P(X >= k) under Binomial(n, 0.5) — "at least k of n nights favour the direction".
   let s = 0;
@@ -258,7 +320,49 @@ if (SELFTEST) {
   console.log(`selftest: poissonCI(0)=[${lo0},${hi0.toFixed(4)}] ${okA ? 'OK' : 'FAIL'}`);
   console.log(`selftest: poissonCI(4)=[${lo4.toFixed(4)},${hi4.toFixed(4)}] ${okB ? 'OK' : 'FAIL'}`);
   console.log(`selftest: signTestPGE(11,14)=${pSign.toFixed(4)} ${okC ? 'OK' : 'FAIL'}`);
-  process.exit(okA && okB && okC ? 0 : 1);
+
+  /* ── THE VERDICT: what this falsifier may and may not claim ────────────────────────────────────── */
+  let vBad = 0,
+    vGood = 0;
+  const vok = (name, cond, detail) => {
+    console.log((cond ? '  ✓ ' : '  ✕ ') + name + (detail ? '  — ' + detail : ''));
+    if (cond) vGood++;
+    else vBad++;
+  };
+  /* The corpus's own current numbers (brief §7.1, 37-night fold). */
+  const base = { qualifying: 29, favouringDeep: 18, pOneSided: 0.1325, medianRatio: 1.45, xAxisHasRange: true, commit: null };
+  const noAlpha = gateVerdict(base);
+  vok('PLANT · with no pre-stated alpha the run is UNKNOWN, never "survives"', noAlpha.status === 'UNKNOWN', 'got ' + noAlpha.status);
+  vok('PLANT · …and the reason names the absent alpha, not the p-value', /no pre-stated criterion/.test(noAlpha.reason || '') && /no alpha and no direction/.test(noAlpha.reason || ''));
+  /* A clean, strongly-significant run must ALSO be UNKNOWN — the §1 figures that looked decisive. */
+  const clean = gateVerdict({ ...base, qualifying: 14, favouringDeep: 11, pOneSided: 0.0287, medianRatio: 3.61 });
+  vok('PLANT · even §1’s p = 0.0287 is UNKNOWN without a stated alpha — a strong p cannot supply its own bar', clean.status === 'UNKNOWN', 'got ' + clean.status);
+  /* CONTROL · given an alpha WITH a source, it decides — so UNKNOWN is about the briefs, not this code. */
+  const given = gateVerdict({ ...base, alpha: { value: 0.05, source: 'test-only, not a brief' } });
+  vok('CONTROL · given a sourced alpha, p = 0.1325 ≥ 0.05 ⇒ PASS (hypothesis survives)', given.status === 'PASS', 'got ' + given.status);
+  const rejects = gateVerdict({ ...base, pOneSided: 0.0287, alpha: { value: 0.05, source: 'test-only, not a brief' } });
+  vok('CONTROL · and p = 0.0287 < 0.05 ⇒ FAIL, with the level named in the reason', rejects.status === 'FAIL' && /alpha 0\.05/.test(rejects.reason || ''), rejects.reason || 'no reason');
+  vok('CONTROL · an alpha without a SOURCE does not count as pre-stated', gateVerdict({ ...base, alpha: { value: 0.05 } }).status === 'UNKNOWN');
+  /* The rider, which IS a decision the tool already makes. */
+  const noRange = gateVerdict({ ...base, xAxisHasRange: false });
+  vok('no usable x-axis range ⇒ NOT_APPLICABLE with checked:0 — a null there is uninterpretable', noRange.status === 'NOT_APPLICABLE' && noRange.population.checked === 0, noRange.status);
+  const noNights = gateVerdict({ ...base, qualifying: 0, favouringDeep: 0, pOneSided: null, medianRatio: null });
+  vok('no qualifying night ⇒ NOT_RUN, never a pass', noNights.status === 'NOT_RUN', 'got ' + noNights.status);
+  vok(
+    'every emitted object validates under verdict.js',
+    [noAlpha, clean, given, rejects, noRange, noNights].every((v) => Verdict.validate(v).ok)
+  );
+
+  const okV = vBad === 0;
+  console.log(okV ? '✓ all ' + (3 + vGood) + ' selftests passed' : '✕ ' + vBad + ' of ' + (3 + vGood + vBad) + ' selftests failed');
+  process.exit(okA && okB && okC && okV ? 0 : 1);
+}
+if (argv.includes('--verdict-sample')) {
+  /* What `tools/verdict-adoption.mjs --check` RUNS. Representative, using the brief's own 37-night fold
+     figures so a reader meets the UNKNOWN beside the numbers that produced it. Above the corpus work, so
+     it answers without uploads/trio present. */
+  console.log(JSON.stringify(gateVerdict({ qualifying: 29, favouringDeep: 18, pOneSided: 0.1325, medianRatio: 1.45, xAxisHasRange: true, commit: gitShort() })));
+  process.exit(0);
 }
 
 /* ── corpus discovery ─────────────────────────────────────────────────────── */
