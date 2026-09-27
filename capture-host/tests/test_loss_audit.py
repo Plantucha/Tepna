@@ -41,15 +41,15 @@ DEV = [{"name": "Polar H10 0284", "model": "H10"}]
 
 def test_stream_gaps_uses_the_cadence_cut_and_reports_span(tmp_path):
     d = _night(tmp_path, holes=((200, 320), (500, 503)))
-    gaps, span, cut = loss_audit.stream_gaps(os.path.join(d, "Polar_H10_0284_20260920220000_ECG.txt"))
+    gaps, _delays, span, cut = loss_audit.stream_gaps_split(os.path.join(d, "Polar_H10_0284_20260920220000_ECG.txt"))
     assert cut == 5.0 and span == 599.0  # 1 s rows ⇒ cut 5 s; a 3 s hole is not a gap
     with open(os.path.join(d, "Polar_H10_0284_20260920220000_ECG.txt"), "a") as fh:
         fh.write("garbled row\n2026-09-20T22:10:00.000;1\n")  # a torn row is skipped; the stream goes on
-    gaps2, span2, _ = loss_audit.stream_gaps(os.path.join(d, "Polar_H10_0284_20260920220000_ECG.txt"))
+    gaps2, _delays2, span2, _ = loss_audit.stream_gaps_split(os.path.join(d, "Polar_H10_0284_20260920220000_ECG.txt"))
     assert span2 == 600.0 and len(gaps2) == len(gaps)
     empty = os.path.join(d, "empty.txt")
     open(empty, "w").write("Phone timestamp;x\n# a comment before the first stamp\n")
-    assert loss_audit.stream_gaps(empty) == ([], 0.0, loss_audit._ni.GAP_S)
+    assert loss_audit.stream_gaps_split(empty) == ([], [], 0.0, loss_audit._ni.GAP_S)
     assert [(g[0], g[1]) for g in gaps] == [(T0 + dt.timedelta(seconds=199), 121.0)]
 
 
@@ -277,7 +277,7 @@ def test_write_night_puts_both_files_beside_the_summary_and_a_crash_is_UNKNOWN(t
 
 def test_an_unreadable_primary_and_a_night_name_that_is_not_a_date(tmp_path, monkeypatch):
     d = _night(tmp_path)
-    monkeypatch.setattr(loss_audit, "stream_gaps", lambda p: (_ for _ in ()).throw(OSError("eio")))
+    monkeypatch.setattr(loss_audit, "stream_gaps_split", lambda p: (_ for _ in ()).throw(OSError("eio")))
     a = loss_audit.audit_night(d, DEV, journal=lambda *a: [])
     assert "unreadable" in a["devices"]["Polar H10 0284"]["reason"]
     odd = tmp_path / "captures" / "not-a-date"
@@ -300,7 +300,7 @@ def test_stream_gaps_reads_the_ring_s_own_csv_layout(tmp_path):
             continue
         rows.append((T0 + dt.timedelta(seconds=i)).strftime("%H:%M:%S %d/%m/%Y") + ",96,62,0")
     p.write_text("\n".join(rows) + "\n")
-    gaps, span, cut = loss_audit.stream_gaps(str(p))
+    gaps, _delays, span, cut = loss_audit.stream_gaps_split(str(p))
     assert span == 299.0 and len(gaps) == 1 and gaps[0][1] == 61.0
 
 
@@ -428,14 +428,14 @@ def test_the_largest_primary_is_audited_and_an_unreadable_one_does_not_end_the_n
     a = loss_audit.audit_night(d, DEV, journal=lambda *a: [])
     assert a["devices"]["Polar H10 0284"]["file"] == "Polar_H10_0284_20260920220000_ECG.txt"
     _stream(os.path.join(d, "Wellue_O2Ring-S_S8_20260920220000_SPO2.csv"), ())
-    real = loss_audit.stream_gaps
+    real = loss_audit.stream_gaps_split
 
     def eio_for_the_h10(p):
         if "H10" in os.path.basename(p):
             raise OSError("eio")
         return real(p)
 
-    monkeypatch.setattr(loss_audit, "stream_gaps", eio_for_the_h10)
+    monkeypatch.setattr(loss_audit, "stream_gaps_split", eio_for_the_h10)
     devs = DEV + [{"name": "Ring", "model": "O2Ring-S"}]
     a = loss_audit.audit_night(d, devs, journal=lambda *a: [])
     assert "unreadable" in a["devices"]["Polar H10 0284"]["reason"] and a["devices"]["Ring"]["fragments"] == 1
@@ -965,8 +965,9 @@ def test_a_ring_doff_is_the_tails_first_second_when_the_spo2_stream_stopped_ther
     w = loss_audit.wear_ends(str(d), "O2Ring-S")
     (e,) = w["ends"]
     assert e["reason"] == "doff" and e["tail_off"] is True and e["ppg2w_contradicted"] is False
-    assert e["doff_at"] == e["worn_end_at"] == (R0 + dt.timedelta(seconds=120)).isoformat()
-    assert e["end_at"] == (R0 + dt.timedelta(seconds=118)).isoformat()
+    assert e["doff_at"] == (R0 + dt.timedelta(seconds=120)).isoformat()
+    # the worn interval ends at the EARLIER witness, here the SpO2 file's last row, so that file covers it
+    assert e["worn_end_at"] == e["end_at"] == (R0 + dt.timedelta(seconds=118)).isoformat()
     assert e["ppg2w_file"] == "Wellue_O2Ring-S_S8AW2100_20260922223924_PPG2W.txt" and e["ppg2w_unusable"] is None
     assert w["worn_end"] == {"at": e["worn_end_at"], "reason": "doff", "file": e["file"]}
 
@@ -1047,3 +1048,178 @@ def test_a_byte_that_is_not_utf8_in_the_tail_does_not_hide_the_last_stamp(tmp_pa
     p = tmp_path / "bad.csv"
     p.write_bytes(b"Time,Oxygen Level,Pulse Rate,Motion\n22:39:24 22/09/2026,97,58,\xff\n22:39:25 22/09/2026,97,58,0\n")
     assert loss_audit._last_stamp(str(p)) == dt.datetime(2026, 9, 22, 22, 39, 25)
+
+
+# ── a DELAY is not a LOSS: the device clock decides (H10 2026-09-17 → 09-23: 16 host gaps, 0 samples missing) ──
+PERIOD_NS = 8_000_000  # 125 Hz: an even period, so 1.5 periods is a whole number of ns and the edge is exact
+
+
+def _polar(path, rows, host_jumps=(), dev_steps=None, torn_at=None, dev_last=False, extra_bytes=None):
+    """A Polar-shaped stream at 125 Hz. `host_jumps` = {row: seconds} added to the HOST clock from that row on;
+    `dev_steps` = {row: ns} replacing that row's DEVICE step (default one period); row `torn_at` has no device
+    value; `dev_last` puts the device column LAST in the header; `extra_bytes` = {row: raw bytes appended}."""
+    host = 0.0
+    dev = 1_000_000_000_000_000_000
+    hdr = "Phone timestamp;ecg [uV];sensor timestamp [ns]" if dev_last else "Phone timestamp;sensor timestamp [ns];ecg [uV]"
+    with open(path, "wb") as fh:
+        fh.write((hdr + "\n").encode())
+        for i in range(rows):
+            host += dict(host_jumps).get(i, 0.0) + (PERIOD_NS / 1e9 if i else 0.0)
+            if i:
+                dev += (dev_steps or {}).get(i, PERIOD_NS)
+            h = (T0 + dt.timedelta(seconds=host)).isoformat(timespec="milliseconds")
+            dv = "" if i == torn_at else str(dev)
+            row = f"{h};100;{dv}" if dev_last else f"{h};{dv};100"
+            fh.write(row.encode() + (extra_bytes or {}).get(i, b"") + b"\n")
+
+
+def _split(path):
+    return loss_audit.stream_gaps_split(str(path))
+
+
+def test_a_host_gap_the_device_clock_does_not_see_is_a_delay_not_a_loss(tmp_path):
+    p = tmp_path / "Polar_H10_0284_20260920220000_ECG.txt"
+    _polar(p, 15000, host_jumps={6000: 5.0})  # the batch arrived 5 s late; every sample is still there
+    gaps, delays, span, cut = _split(p)
+    assert gaps == [] and len(delays) == 1 and delays[0][2] == PERIOD_NS
+
+
+def test_a_host_gap_the_device_clock_also_jumps_is_a_loss(tmp_path):
+    p = tmp_path / "loss.txt"
+    _polar(p, 15000, host_jumps={6000: 43.5}, dev_steps={6000: int(43.5e9) + PERIOD_NS})  # samples missing
+    gaps, delays, _, _ = _split(p)
+    assert delays == [] and len(gaps) == 1 and gaps[0][1] >= 43.0
+
+
+def test_the_delay_edge_is_one_and_a_half_periods_exclusive_and_a_zero_step_is_a_delay(tmp_path):
+    cases = {"edge": int(1.5 * PERIOD_NS), "under": int(1.5 * PERIOD_NS) - 1, "zero": 0}
+    got = {}
+    for name, step in cases.items():
+        p = tmp_path / f"{name}.txt"
+        _polar(p, 15000, host_jumps={6000: 5.0}, dev_steps={6000: step})
+        gaps, delays, _, _ = _split(p)
+        got[name] = "delay" if delays and not gaps else "gap" if gaps and not delays else (gaps, delays)
+    assert got == {"edge": "gap", "under": "delay", "zero": "delay"}
+
+
+def test_the_period_is_learned_at_exactly_the_200th_positive_step(tmp_path):
+    assert loss_audit._PERIOD_ROWS == 200
+    at = tmp_path / "at.txt"
+    _polar(at, 3000, host_jumps={200: 5.0})  # the 200th step is row 200: the period is known before its gap is judged
+    before = tmp_path / "before.txt"
+    _polar(before, 3000, host_jumps={199: 5.0})  # one row earlier: no period yet, so a host gap stays a gap
+    assert (len(_split(at)[1]), len(_split(before)[0])) == (1, 1)
+
+
+def test_the_period_is_the_MEDIAN_positive_step_and_zero_steps_are_not_counted(tmp_path):
+    # Steps alternate 4 ms / 12 ms: the median of the positive steps is 12 ms (edge 18 ms), a lower quantile would
+    # be 4 ms (edge 6 ms). Two of every three steps are ZERO (repeated device stamps): counted, they would make
+    # the median 0 and nothing could ever be a delay. The gap's device step is 10 ms: a delay only under the median.
+    steps = {}
+    for i in range(1, 3000):
+        steps[i] = 0 if i % 3 else (4_000_000 if (i // 3) % 2 else 12_000_000)
+    steps[2500] = 10_000_000
+    p = tmp_path / "median.txt"
+    _polar(p, 3000, host_jumps={2500: 5.0}, dev_steps=steps)
+    gaps, delays, _, _ = _split(p)
+    assert gaps == [] and [d[2] for d in delays] == [10_000_000]
+
+
+def test_a_host_gap_exactly_at_the_cut_is_not_a_gap(tmp_path):
+    p = tmp_path / "1hz.txt"
+    _stream(str(p), ((300, 304),))  # 1 s rows, no device clock: the cut is 5 × the 1 s cadence, and rows 299 → 304 sit exactly on it
+    gaps, delays, _, cut = _split(p)
+    assert cut == 5.0 and gaps == [] and delays == []
+
+
+def test_the_device_column_is_found_by_name_last_or_second_and_a_bad_byte_is_not_fatal(tmp_path):
+    last = tmp_path / "last.txt"
+    _polar(last, 15000, host_jumps={6000: 5.0}, dev_last=True, extra_bytes={100: b"\xff"})
+    padded = tmp_path / "padded.txt"
+    _polar(padded, 15000, host_jumps={6000: 5.0})
+    raw = padded.read_bytes().replace(b"sensor timestamp [ns]", b"sensor timestamp [ns]  ", 1)
+    padded.write_bytes(raw)  # a header column name with trailing spaces is still that column
+    torn_first = tmp_path / "torn_first.txt"
+    _polar(torn_first, 15000, host_jumps={6000: 5.0}, torn_at=0)  # the first row carries no device time
+    for f in (last, torn_first, padded):
+        gaps, delays, _, _ = _split(f)
+        assert gaps == [] and len(delays) == 1, f.name
+
+
+def test_the_audit_publishes_each_delay_exactly_and_never_counts_it_as_lost(tmp_path):
+    d = tmp_path / "captures" / "2026-09-20"
+    d.mkdir(parents=True)
+    f = d / "Polar_H10_0284_20260920220000_ECG.txt"
+    # 26.5 s lands the rows either side of the jump 27 whole seconds apart: 27/60 and 27/61 round apart at one
+    # decimal (0.5 vs 0.4), so a wrong divisor cannot pass by rounding to the same number.
+    _polar(f, 20000, host_jumps={6000: 26.5, 12000: 43.5}, dev_steps={12000: int(43.5e9) + PERIOD_NS})
+    gaps, delays, _, _ = _split(f)
+    assert round(delays[0][1] / 60.0, 1) != round(delays[0][1] / 61.0, 1), "the plant no longer discriminates the divisor"
+    v = loss_audit.audit_night(str(d), DEV, journal=lambda *a: [])["devices"]["Polar H10 0284"]
+    (t, g, step) = delays[0]
+    assert v["delays"] == [{"at": t.isoformat(timespec="seconds"), "s": round(g, 1), "device_ns": PERIOD_NS}]
+    assert isinstance(v["delays"][0]["s"], float) and v["delays"][0]["s"] >= 27.0
+    assert v["delayed_min"] == round(g / 60.0, 1) and v["delayed_min"] != round(g / 60.0, 2)
+    assert len(v["gaps"]) == 1 and v["lost_min"] == round(gaps[0][1] / 60.0, 1)
+    assert v["fragments"] == 2  # a delay does not split the stream
+
+
+
+def test_a_ring_tail_that_starts_before_the_spo2_stream_stops_ends_the_worn_interval_there(tmp_path):
+    # Inside the 30 s agreement bound the off-finger tail can precede the SpO2 file's last row: -10 s here.
+    d = _ring_dir(tmp_path)
+    _ring(d, R0, worn_s=100, off_s=40, spo2_s=111)  # tail starts +100, SpO2 last row +110
+    (e,) = loss_audit.wear_ends(str(d), "O2Ring-S")["ends"]
+    assert e["reason"] == "doff" and e["doff_at"] == (R0 + dt.timedelta(seconds=100)).isoformat()
+    assert e["worn_end_at"] == e["doff_at"] and e["end_at"] == (R0 + dt.timedelta(seconds=110)).isoformat()
+
+
+# ── the operator's time sync is its own cause (2026-09-24 22:00:54: one press, two H10 FAILs) ─────────────────
+_H10_ADDR = "24:AC:AC:02:84:96"
+
+
+def _journal_lines(*lines):
+    class R:
+        returncode = 0
+        stdout = "\n".join(lines) + "\n"
+
+    return lambda *a, **k: R()
+
+
+def _pause(hms):
+    return f"2026-09-24T{hms}-04:00 vigil python[1]: 2026-09-24 {hms},000 INFO Polar {_H10_ADDR}: offline-recording op — live capture paused"
+
+
+_POST = ('2026-09-24T22:01:17-04:00 vigil python[1]: 2026-09-24 22:01:17,076 INFO 127.0.0.1 [24/Sep/2026:22:00:54 -0400] '
+         '"POST /api/timesync/all HTTP/1.1" 200 1022 "http://vigil.local/monitor" "Mozilla/5.0"')
+
+
+def test_a_time_sync_is_dated_from_its_request_start_and_owns_the_pauses_it_causes():
+    run = _journal_lines(
+        _pause("22:00:54"),  # at the request start: inside
+        _pause("22:01:09"),
+        "-- Boot 0f3c9a7e1d2b4c5a --",  # journalctl marks a reboot MID-stream; the lines after it still count
+        _POST,  # logged at completion 22:01:17; the window runs to 22:02:17
+        _pause("22:02:17"),  # exactly at the edge: inside
+        _pause("22:02:18"),  # one second past it: the daemon's again
+        '2026-09-24T22:03:00-04:00 vigil python[1]: 127.0.0.1 "POST /api/timesync/all HTTP/1.1" 200 0',  # no brackets
+        '2026-09-24T22:04:00-04:00 vigil python[1]: 127.0.0.1 [24/Xyz/2026:22:03:59 -0400] "POST /api/timesync/all"',
+    )
+    ev = loss_audit.read_journal(("Polar H10 02849638", _H10_ADDR), T0, T0 + dt.timedelta(hours=8), run=run)
+    at = lambda hms: dt.datetime.fromisoformat(f"2026-09-24T{hms}")  # noqa: E731
+    assert ev == [
+        (at("22:00:54"), loss_audit.OPERATOR_TIMESYNC),
+        (at("22:00:54"), loss_audit.OPERATOR_TIMESYNC),
+        (at("22:01:09"), loss_audit.OPERATOR_TIMESYNC),
+        (at("22:02:17"), loss_audit.OPERATOR_TIMESYNC),
+        (at("22:02:18"), "daemon:pull paused live"),
+    ]
+    # the H10 gap that opened at 22:01:08 is the operator's, not the daemon's (nor unattributed)
+    assert loss_audit.attribute_gaps([(at("22:01:08"), 20.6)], ev) == [(at("22:01:08"), 20.6, loss_audit.OPERATOR_TIMESYNC)]
+
+
+def test_the_access_start_parser_refuses_what_it_cannot_read():
+    assert loss_audit._access_start("no brackets here") is None
+    assert loss_audit._access_start("[24/Xyz/2026:22:00:54 -0400]") is None
+    assert loss_audit._access_start("x [01/Jan/2027:00:00:05 +0100] y") == dt.datetime(2027, 1, 1, 0, 0, 5)
+    assert loss_audit._access_start("[31/Dec/2026:23:59:59 -0400]") == dt.datetime(2026, 12, 31, 23, 59, 59)
