@@ -790,8 +790,14 @@ def main(argv=None) -> int:
     blocking = cls["unclassified"] + cls["real_gap"]
     if not blocking:
         n_ex = len(cls["excused"])
-        print("\nmutate-diff: every mutant on the changed functions was killed"
-              + (f" ({n_ex} recorded as equivalent)." if n_ex else "."))
+        # THE PROSE MUST MATCH THE VERDICT. "every mutant was killed" over a population of ZERO is true
+        # and useless — vacuously true of a run that mutated nothing — and it is what a reader sees
+        # ABOVE the NOT_APPLICABLE the contract requires. Say which case this is.
+        if _pop["checked"] == 0:
+            print("\nmutate-diff: nothing was mutated — every changed line is outside mutation scope.")
+        else:
+            print("\nmutate-diff: every mutant on the changed functions was killed"
+                  + (f" ({n_ex} recorded as equivalent)." if n_ex else "."))
         _ran_box[0] = _ran
         _counts["excused"] = n_ex
         if _refusal is not None:
