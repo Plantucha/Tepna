@@ -587,7 +587,10 @@ async function main(){
   // §1) — each *.src.html's <script src> list is the fleet's record of which cross/coimport aux
   // modules it bundles; the gate asserts dex-coload.js's nodeModules: leg equals that set.
   const srcHtml = {};
-  await Promise.all(['CPAPDex.src.html','ECGDex.src.html','GlucoDex.src.html','HRVDex.src.html','Integrator.src.html','OxyDex.src.html','PpgDex.src.html','PulseDex.src.html']
+  // ⚠️ MotionDex.src.html was missing from BOTH lanes' lists — nine authored shells, eight names in each.
+  // The Node lane now DERIVES its list from the tree; this lane cannot (no fs), so it is listed here, and
+  // the co-load order group's population equality is what reds if the two lanes ever diverge again.
+  await Promise.all(['CPAPDex.src.html','ECGDex.src.html','GlucoDex.src.html','HRVDex.src.html','Integrator.src.html','MotionDex.src.html','OxyDex.src.html','PpgDex.src.html','PulseDex.src.html']
     .map(async f => { const t = await fetchText(encodeURI(f)); if(t!=null) srcHtml[f]=t; }));
 
   // manifests (raw text) for the §6 well-formed assertion. P3: the two ledgers are now per-app

@@ -1307,7 +1307,31 @@ function readHosts() {
 // §1) — each *.src.html's <script src> list records which cross/coimport aux modules it bundles; the
 // gate asserts dex-coload.js's nodeModules: leg EQUALS that fleet set (browser fetches the same files).
 function readSrcHtml() {
-  const wanted = ['CPAPDex.src.html', 'ECGDex.src.html', 'GlucoDex.src.html', 'HRVDex.src.html', 'Integrator.src.html', 'OxyDex.src.html', 'PpgDex.src.html', 'PulseDex.src.html'];
+  /* ── DERIVED FROM THE TREE, NOT CURATED (2026-09-27) ────────────────────────────────────────────
+     The hand-written list omitted `MotionDex.src.html` while including `Integrator.src.html`, so it held
+     EIGHT names and was missing one of the nine authored shells. SEVEN gate groups read `env.srcHtml`
+     — the CSP gate, the csp-strict gate, the §3 source gate, the shells gate and two co-load legs — so
+     none of them had ever examined MotionDex's shell. The omission survived because the shells gate
+     guards its input with `names.length >= 8`: a FLOOR, met by the wrong eight. A floor cannot detect
+     exclusion, since the excluded member is exactly the one it does not count.
+     Found 2026-09-27 by a population EQUALITY in the co-load order group, which expected CLAUDE.md's
+     five delegating apps and got four. Deriving removes the class rather than re-curating the list, and
+     it FAILS CLOSED on an implausibly short result, because reading zero shells is indistinguishable
+     from nine clean ones here (§4b). */
+  /* ⚠️ THE ORCHESTRATOR SHELLS ARE EXCLUDED, WITH A REASON, and the exclusion is a finding not a
+     preference. Deriving ALL 11 shells pulls in `Data Unifier.src.html` and `OverDex.src.html`, whose
+     bundled modules have never been classified by `Co-load §1b`: adding them reds it with 19 UNCLASSIFIED
+     names (every signal adapter, signal-orchestrate/spec/adapters, night-seal.js, overdex-walk.js,
+     verdict.js …). That is a real gap and a unit of its own — classifying 19 modules is a per-module
+     judgement between "co-load it + RESOLVE" and "RUNTIME_EXEMPT with a reason" — so it is logged as
+     residue 2026-09-27-orchestrator-shells-unclassified-by-coload rather than resolved inside a unit
+     about load ORDER. The defect actually found here was the MotionDex omission; the orchestrators are a
+     scope expansion discovered alongside it, and conflating the two would make this PR unreviewable. */
+  const ORCHESTRATOR_SHELLS = ['Data Unifier.src.html', 'OverDex.src.html'];
+  const wanted = readdirSync(ROOT)
+    .filter((f) => /^[A-Za-z][A-Za-z0-9 ]*\.src\.html$/.test(f) && !ORCHESTRATOR_SHELLS.includes(f))
+    .sort();
+  if (wanted.length < 9) throw new Error('readSrcHtml: only ' + wanted.length + ' app *.src.html found — refusing a list that short rather than reporting clean over it');
   const out = {};
   for (const f of wanted) {
     const p = join(ROOT, f);

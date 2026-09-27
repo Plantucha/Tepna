@@ -20,6 +20,10 @@
  * Run: BASE_URL=http://127.0.0.1:8080 node tests/browser-gates.mjs
  */
 import { aggregateChildren, makeVerdict } from '../tools/verdict-emit.mjs';
+/* The DECLARED GATE A population, read from the gate module rather than hardcoded: the wait below carried
+   a literal 8 against nine declared bundles. One number, one source. */
+import { createRequire } from 'node:module';
+const ManifestGate = createRequire(import.meta.url)('../manifest-gate.js');
 
 /* ── VERDICT-CONTRACT §3d — the four browser legs as ONE object ──────────────────────────────────
    Children = the legs this invocation runs (test-suite · provenance · no-network · night-seal), each
@@ -243,12 +247,26 @@ async function gateProvenance() {
   page.on('pageerror', (e) => say('   [provenance page error]', e.message));
   say('▸ verify-provenance.html …');
   await page.goto(BASE + '/verify-provenance.html', { waitUntil: 'load', timeout: 60000 });
-  // Manifest appends one row per bundle (8). Wait for all, then a short settle
-  // so the (best-effort) fixture audit finishes too.
+  /* ── WAIT ON THE DECLARED COUNT, NOT A LITERAL (2026-09-27) ─────────────────────────────────────
+     This waited for `rows >= 8` and its message said "all 8 bundles", while GATE A's population is NINE
+     (`manifest-gate.js MANIFEST_BUNDLES`: 8 apps + Integrator.html). Two records of one number, and they
+     had already drifted apart.
+
+     🔴 THIS IS HYGIENE, NOT A DEFECT THAT LET SOMETHING THROUGH, and the distinction is recorded because
+     I first believed the opposite. The rows come from `MANIFEST_BUNDLES` itself, never from the assembled
+     ledger, so the count is 9 whatever the provenance fragments do — the floor was not a path to a false
+     pass. I had reasoned that a dropped fragment would leave 8 rows and satisfy `>= 8`; measured in
+     Chrome against the UNCHANGED page with one fragment moved away, the flags read
+     `{gateA_ok:false, provOK:false, badPills:1, rows:9}`, because `gateACompare` scores an absent
+     committed hash as `missing-committed` and `ok` requires `missing === 0`. The page already refuses.
+     What is fixed here is only that the wait and the message no longer carry a stale literal. */
+  const DECLARED_BUNDLES = ManifestGate.MANIFEST_BUNDLES.length;
+  if (DECLARED_BUNDLES < 9) FAILS.push('verify-provenance: MANIFEST_BUNDLES reports only ' + DECLARED_BUNDLES + ' bundles — refusing to wait on a population that small rather than trusting it');
   try {
-    await page.waitForFunction(() => document.querySelectorAll('#manifest tbody tr').length >= 8, null, { timeout: 180000 });
+    await page.waitForFunction((n) => document.querySelectorAll('#manifest tbody tr').length >= n, DECLARED_BUNDLES, { timeout: 180000 });
   } catch {
-    FAILS.push('verify-provenance: build manifest did not populate all 8 bundles');
+    const got = await page.evaluate(() => document.querySelectorAll('#manifest tbody tr').length).catch(() => 'unknown');
+    FAILS.push('verify-provenance: build manifest populated ' + got + ' of ' + DECLARED_BUNDLES + ' declared bundles');
     await page.close();
     return;
   }
