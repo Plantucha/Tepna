@@ -421,3 +421,95 @@ def test_two_frames_in_the_same_instant_with_no_device_stamp_refuse_rather_than_
     bus._win["o2ppg"].append((t, 10, None))            # same instant, no device stamp
     eff, _age, _warm = bus._stream_rate("o2ppg", t)
     assert eff is None, "a zero-length interval must refuse, never divide"
+
+
+# ─── AN INTERMITTENT STREAM'S NATURE IS ITS STATE (owner report 2026-09-27, 05:52) ─────────────────
+# The owner saw "Raw pleth A (O2Ring)" alternating NO DATA / LIVE while its siblings stayed LIVE at the
+# same instant, same device, same link. Measured read-only over a CLOSED window (2026-09-26 23:00→05:00):
+#   pleth A      6,762 frame gaps  median 1.98 s  p90 8.08 s  max 33.27 s  1,204 over 6 s (17.8 %)
+#   2-wavelength    39             0.25 s         0.44 s      2.68 s       0
+#   o2ppg        9,368             0.13 s         0.24 s      2.58 s       0
+#   accraw      43,129             0.50 s         0.55 s      3.10 s       0
+#   crossings per hour 23→05: 188 · 208 · 189 · 195 · 202 · 222  — flat, all night
+# And the link was never the cause: during ALL 1,681 of those gaps every sibling was still arriving.
+# Both fs=0 streams share ONE 6 s event window, so only the sparse one flapped.
+
+_QUIET = 45.0          # capture.O2_PLETHA_QUIET_S — 33.27 s measured max + ~35 % headroom
+
+
+def test_an_intermittent_stream_says_so_instead_of_flapping():
+    """THE PLANT, at the measured cadence. Every gap the ring really produces — the 1.98 s median, the
+    8.08 s p90, the 33.27 s worst — reads as one steady state, where the 6 s window called the last two
+    NO DATA. Fails on origin/main, where there is no `quiet_s` to pass."""
+    for age in (0.5, 1.98, 8.08, 33.27, 44.9):
+        assert telemetry.stream_health(0, None, age, quiet_s=_QUIET) == "intermittent", age
+
+
+def test_the_same_gap_on_a_continuous_sibling_is_still_absent():
+    """The discriminating case: 33 s is NORMAL for pleth A and ABSENT for o2ppg, which is fs=125 and
+    keeps the waveform branch untouched. One number, two answers, because the streams differ."""
+    assert telemetry.stream_health(0, None, 33.27, quiet_s=_QUIET) == "intermittent"
+    assert telemetry.stream_health(125, 120.0, 33.27) == "stall"
+
+
+def test_a_fresh_session_reads_intermittent_from_the_first_frame():
+    """WHY `quiet_s` IS PRE-STATED AND NOT A RUNNING QUANTILE (§🧾). At connect there is no history, so a
+    bound adapted from the data it judges would fall back to the 6 s window and bring the flap back at
+    every session start — the flap would simply move to the first minutes of every night. A cited
+    constant is known before the first frame arrives."""
+    assert telemetry.stream_health(0, None, 0.1, quiet_s=_QUIET) == "intermittent"
+    # and with no rate measurable yet either — warmup must not change the answer for such a stream
+    assert telemetry.stream_health(0, None, 8.08, True, quiet_s=_QUIET) == "intermittent"
+
+
+def test_the_true_stall_is_still_reachable_from_intermittent():
+    """CONTROL. Naming the intermittency must not cost the real alarm: 90 s of silence is the same figure
+    `capture._STREAM_STALL_S` tears the session down at, so the card cannot stay LIVE past the point the
+    daemon gives up."""
+    assert telemetry.stream_health(0, None, 89.9, quiet_s=_QUIET) == "intermittent"
+    assert telemetry.stream_health(0, None, 90.1, quiet_s=_QUIET) == "stall"
+
+
+def test_every_stream_without_quiet_s_is_judged_exactly_as_before():
+    """CONTROL, and the one that protects the Polar cards: `quiet_s=None` is the default and both Polar
+    call sites pass nothing, so waveform and event streams keep their old verdicts to the letter."""
+    assert telemetry.stream_health(130, 125.0, 1.0) == "good"          # H10 ECG, fresh
+    assert telemetry.stream_health(130, 125.0, 10.0) == "stall"        # H10 ECG, silent past 6 s
+    assert telemetry.stream_health(130, 50.0, 1.0) == "weak"           # below 70 % of nominal
+    assert telemetry.stream_health(0, None, 3.0) == "good"             # event stream inside its window
+    assert telemetry.stream_health(0, None, 7.0) == "stall"            # event stream past it
+    assert telemetry.stream_health(130, 125.0, None) == "idle"         # declared, never pushed
+
+
+def test_the_bus_publishes_the_why_and_the_OBSERVED_gaps_only_for_such_a_stream():
+    """The card shows a reason rather than a bare word, and the observed distribution rides beside the
+    pre-stated one so a ring that changes behaviour is visible instead of absorbed. Absent entirely on a
+    normal stream, so no existing consumer sees a new field."""
+    bus = telemetry.TelemetryBus()
+    bus.register("o2pletha", "Raw pleth A (O2Ring)", "raw", 0, chans=1, device="Ring", quiet_s=_QUIET)
+    bus.register("ecg", "ECG", "uV", 130, device="H10")
+    rows = {r["key"]: r for r in bus.meta()}
+    assert rows["o2pletha"]["quietS"] == _QUIET
+    assert "45s" in rows["o2pletha"]["healthWhy"] and "90s" in rows["o2pletha"]["healthWhy"]
+    assert "observedGap" in rows["o2pletha"]
+    assert rows["o2pletha"]["observedGap"] is None, "no pushes yet ⇒ no gap measured, not a zero (§∅)"
+    for absent in ("quietS", "healthWhy", "observedGap"):
+        assert absent not in rows["ecg"], absent
+
+
+def test_the_observed_gaps_are_MEASURED_from_the_pushes_not_asserted():
+    """The diagnostic's own arithmetic, on real pushes. This is what makes the pre-stated constant
+    checkable against the device in front of you: if a ring's observed gaps stop matching the 33.27 s the
+    citation rests on, that is a finding to write down, not something an adaptive bound should absorb."""
+    bus = telemetry.TelemetryBus()
+    bus.register("o2pletha", "Raw pleth A (O2Ring)", "raw", 0, chans=1, device="Ring", quiet_s=_QUIET)
+    for _ in range(4):
+        bus.push("o2pletha", [[1], [2]])
+    row = {r["key"]: r for r in bus.meta()}["o2pletha"]
+    g = row["observedGap"]
+    assert g is not None and g["n"] == 3, g          # 4 pushes ⇒ 3 intervals
+    for k in ("medianS", "p99S", "maxS"):
+        assert isinstance(g[k], float) and g[k] >= 0.0, (k, g)
+    assert g["maxS"] >= g["p99S"] >= 0.0 and g["maxS"] >= g["medianS"], g
+    # and the state is still the stream's nature, not a verdict about these four pushes
+    assert row["health"] == "intermittent", row

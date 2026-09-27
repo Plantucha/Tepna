@@ -1054,6 +1054,14 @@ function streamState(s, dev){
   if(dev && dev.worn === false)       return {cls:'warn', txt:'not worn', trust:false, why:'Linked, but the sensor reports no skin/finger contact — whatever is streaming is not a reading of the wearer.'};
   if(s.health === 'stall')            return {cls:'warn', txt:'no data',  trust:false, why:'Linked, but no samples are arriving. The link is up and the stream is started — the sensor is simply not sending.'};
   if(s.health === 'weak')             return {cls:'warn', txt:'weak',     trust:true,  why:'Arriving well below the negotiated rate — samples are being dropped, but what arrives is real.'};
+  // INTERMITTENT IS A HEALTHY STATE, so the pill stays GREEN and the word says what kind of live it is.
+  // Not amber: nothing is at fault. The ring genuinely withholds this frame type — measured 2026-09-26
+  // 23:00→05:00, 1204 of 6762 gaps over 6 s, ~200 an hour, while every sibling on the same link kept
+  // arriving through all of them — so a card that alternated LIVE/NO DATA was describing the 6 s window,
+  // not the stream. `healthWhy` comes from the bus with the stream's own pre-stated figure in it; the
+  // fallback text carries no number, because inventing one here is what the bus field exists to avoid.
+  if(s.health === 'intermittent')     return {cls:'live', txt:'intermittent', trust:true,
+                                              why: s.healthWhy || 'Arrives in bursts by design — gaps between frames are normal for this stream.'};
   return {cls:'live', txt:'live', trust:true, why:'Delivering samples at the expected rate.'};
 }
 
