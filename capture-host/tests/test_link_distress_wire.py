@@ -162,7 +162,9 @@ def test_a_FAILING_scan_does_not_cost_the_watchdog_its_poll(monkeypatch, caplog)
     capture._STOP.clear()
     _stop_after(monkeypatch, 2)
     cfg = {"watchdog": {"enabled": True, "interval_sec": 60}, "devices": [_dev(name="H10")]}
-    capture.STATUS["devices"]["H10"] = {"connected": True, "address": "24:AC:AC:02:84:96"}
+    # setitem, not a write into a key another test may have .clear()ed: under xdist the order varies and the
+    # bare write raised KeyError: 'devices' (2026-09-26); setitem also restores the shared global afterwards
+    monkeypatch.setitem(capture.STATUS, "devices", {"H10": {"connected": True, "address": "24:AC:AC:02:84:96"}})
     with caplog.at_level(logging.ERROR):
         _run(capture.adapter_watchdog("hci0", cfg))
     capture._STOP.clear()

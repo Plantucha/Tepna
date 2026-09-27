@@ -302,3 +302,12 @@ def test_the_batch_tools_get_their_process_button_pressed_and_the_selector_is_re
         src = os.path.join(root, apps[node])  # the analysis tools are authored/built in place at the root
         text = open(src, encoding="utf-8").read()
         assert sel.startswith("#") and f'id="{sel[1:]}"' in text, (node, sel)
+
+
+def test_a_night_click_opens_the_app_under_a_fresh_url():
+    """openNight must open the analyzer under a per-click query, or a browser can hand back a cached app from
+    before a deploy (2026-09-26). Pinned on the window.open line itself."""
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    html = open(os.path.join(here, "monitor.html"), encoding="utf-8").read()
+    assert "window.open('/'+NIGHT_APP[node]+'?v='+Date.now(), '_blank')" in html
+    assert "window.open('/'+NIGHT_APP[node], '_blank')" not in html
