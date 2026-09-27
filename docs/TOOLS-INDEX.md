@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**219 tools** · 217 with a purpose line · **2 without**
+**220 tools** · 218 with a purpose line · **2 without**
 
 | tool | purpose |
 |---|---|
@@ -209,6 +209,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`tch-bootstrap-ci.mjs`](../tools/tch-bootstrap-ci.mjs) | error bars for the three-cornered-hat sigmas. THE GAP. This suite quotes TCH sigmas as bare numbers — ECGDex 0.30, PpgDex 0.33, OxyDex 1.10 bpm — in briefs, changesets and PR bodies, with… |
 | [`tch-degeneracy-stats.mjs`](../tools/tch-degeneracy-stats.mjs) | That item reads: *"several nights still yield negative variance (σ = null) or implausibly small σ … That is the known quiet-order / correlated-error regime … a SEPARATE defect from… |
 | [`tch-estimator-bakeoff.mjs`](../tools/tch-estimator-bakeoff.mjs) | INTEGRATOR-TCH-ML-ESTIMATOR §2 bake-off QUESTION (from the brief): does a MAXIMUM-LIKELIHOOD TCH or a GROSLAMBERT / two-sample COVARIANCE estimator recover the quiet-corner σ closer to… |
+| [`tch-firmware-reference.mjs`](../tools/tch-firmware-reference.mjs) | sensor-trio-night.html splits the HR disagreement of H10 · Verity · O2Ring into one σ per device with a three-cornered hat. |
 | [`tch-fused-corpus.mjs`](../tools/tch-fused-corpus.mjs) | the PER-SECOND fused-weight three-cornered hat, over a committed trio corpus, in Node. |
 | [`tch-minrho-corpus.mjs`](../tools/tch-minrho-corpus.mjs) | HOW MUCH shared error does the data actually require? WHY. The bootstrap (`tch-bootstrap-ci.mjs`) found that 41.7 % of within-night replicates produce a non-physical negative-variance… |
 | [`tch-multinight.mjs`](../tools/tch-multinight.mjs) | multi-night three-cornered-hat A/B harness (classic reference-free σ vs per-night motion-derived ρ) |
