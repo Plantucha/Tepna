@@ -1259,11 +1259,11 @@ function stSyncFields(){
 // opens the analyzer with the night's files loaded — see openNight below for how, and for why it
 // needs the monitor to be served from the same origin as the apps (vigil.local through Caddy).
 const NIGHT_COLS = ["ECGDex","OxyDex","PPGDex","PulseDex","CPAPDex","MotionDex","GlucoDex","HRVDex","EEGDex","Integrator"];
-const NIGHT_DERIVED = ["3 corner hat","PAT"];
+const NIGHT_DERIVED = ["3 corner hat","PAT","PAT fused"];
 const NIGHT_CAPTURE_ORDER = ["ECGDex","HRVDex","PulseDex","PPGDex","MotionDex","OxyDex","CPAPDex","GlucoDex","EEGDex","Integrator"];
 const NIGHT_APP = {ECGDex:"ECGDex.html", OxyDex:"OxyDex.html", PPGDex:"PpgDex.html", PulseDex:"PulseDex.html", CPAPDex:"CPAPDex.html",
   MotionDex:"MotionDex.html", GlucoDex:"GlucoDex.html", HRVDex:"HRVDex.html", EEGDex:"EEGDex.html", Integrator:"Integrator.html",
-  "3 corner hat":"sensor-trio-night.html", PAT:"PAT Feasibility.html"};
+  "3 corner hat":"sensor-trio-night.html", PAT:"PAT Feasibility.html", "PAT fused":"PAT Classic vs Fused.html"};
 // Which file input in each app takes which files. ECGDex splits its inputs by stream; every other app
 // takes everything through one `multiple` input.
 // Every loadable node names the input its night goes to. A node without a route REFUSES rather than
@@ -1273,13 +1273,13 @@ const NIGHT_APP = {ECGDex:"ECGDex.html", OxyDex:"OxyDex.html", PPGDex:"PpgDex.ht
 // against the app's own source, so an app renaming its input reds the gate instead of the click.
 const NIGHT_INPUT = {ECGDex:[["_ECG.txt","#ecgInput"],["_ACC.txt","#accInput"],["_RR.txt","#rrInput"],["_HR.txt","#hrInput"]],
   OxyDex:"#fileInput", PPGDex:"#fileInput", PulseDex:"#rawInput", CPAPDex:"#fileInput", MotionDex:"#mxInput",
-  "3 corner hat":"#fileInput", PAT:"#fileInput"};
+  "3 corner hat":"#fileInput", PAT:"#fileInput", "PAT fused":"#fileInput"};
 // The two batch tools index the files and then WAIT for their Process button — the six analyzers process
 // on load. The owner's ask is "load and process without other clicking", so openNight presses that button
 // once the tool enables it (both enable it synchronously inside their change handler when a night is
 // eligible; measured 2026-09-21 on the box: "1 nights indexed from 10 files", button enabled, idle). If it
 // never enables, the tool found no eligible night and the toast says so instead of claiming processing.
-const NIGHT_RUN = {"3 corner hat":"#procBtn", PAT:"#run"};
+const NIGHT_RUN = {"3 corner hat":"#procBtn", PAT:"#run", "PAT fused":"#run"};
 // Figure-only columns: the raw input on disk that reaches the app through another node, never a click.
 const NIGHT_WHY_NOT = {Integrator:"raw input of a fold — folds run on rig (tools/trio-batch.mjs), not in the browser",
   HRVDex:"HRVDex reads Welltory CSV or an ECGDex export — this raw Polar input reaches it through ECGDex"};
