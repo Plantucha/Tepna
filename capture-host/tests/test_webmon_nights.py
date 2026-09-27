@@ -127,6 +127,8 @@ def test_every_clickable_night_routes_to_an_input_the_app_actually_has():
     else, so a route for a figure-only column (HRVDex) cannot quietly come back."""
     import re
 
+    import pytest
+
     import nights_index as ni
 
     here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -143,11 +145,34 @@ def test_every_clickable_night_routes_to_an_input_the_app_actually_has():
     assert "doc.querySelector('input[type=file]:not([webkitdirectory])')" not in html
     assert "has no input route for it" in html and "input is missing" in html
     root = os.path.dirname(here)
+
+    def _page_src(page):
+        src = os.path.join(root, page[:-5] + ".src.html")
+        return src if os.path.exists(src) else os.path.join(root, page)  # tools are authored in place
+
+    # ⚠️ THE SECOND HALF NEEDS THE REPO ROOT'S PAGES, AND A MUTATION SCRATCH CANNOT STAGE THEM. The page
+    # names are read out of `monitor.html`'s own JS tables at RUNTIME and then joined against the root, so
+    # no literal like "ECGDex.html" exists anywhere for `mutation_diff.root_reads` to find — the set is
+    # not knowable statically at all, because it depends on another file's CONTENTS. Inside the scratch
+    # every `os.path.exists` below is therefore False and this failed, which crashed the mutmut run after
+    # generation: `mutants were generated but 0 tested`, and `mutate_diff` then REFUSED the whole gate
+    # (exit 2, correctly — a gate that cannot see must not report green). Any PR touching
+    # `nights_index.py` hit it; #3139 was merely the first.
+    #
+    # SKIPPED, NOT WEAKENED, AND THE SPLIT IS THE POINT. The equality above — routes ≡ the clickable set
+    # derived from `ni.NODES` and `ni.DERIVED` — needs only `monitor.html`, which lives under
+    # `capture-host/` and is present in the scratch BY CONSTRUCTION. It is also the half that can kill a
+    # `nights_index` mutant, so it keeps running there. Only the per-page input-id check, whose subject is
+    # the real checkout's authored pages, stands down when those pages are absent.
+    # THE POPULATION IS THE ROUTED NODES, exactly as the loop below walks them — not every page in the
+    # table. `NIGHT_APP` also lists the PLANNED `EEGDex`, which has no page yet and no route either, so
+    # checking `apps.values()` here skipped in the real checkout: a guard wider than the thing it guards.
+    if any(not os.path.exists(_page_src(apps[node])) for node in routes):
+        pytest.skip("the authored root pages are absent (a mutation scratch cannot stage a name that "
+                    "exists only in monitor.html's runtime tables); the routes equality above still ran")
     for node, route in routes.items():
         page = apps[node]
-        src = os.path.join(root, page[:-5] + ".src.html")
-        if not os.path.exists(src):
-            src = os.path.join(root, page)  # analysis tools are authored in place
+        src = _page_src(page)
         assert os.path.exists(src), (node, src)
         text = open(src, encoding="utf-8").read()
         tags = re.findall(r'<input\b[^>]*\btype="file"[^>]*>', text)
