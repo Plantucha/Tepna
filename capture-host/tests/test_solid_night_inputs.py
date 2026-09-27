@@ -718,7 +718,9 @@ def test_the_seam_CAUSE_is_read_from_the_night_and_never_inferred(tmp_path):
     d = tmp_path
     (d / "CLOCKSYNC.csv").write_text("at;event\n2026-09-20T23:12:00;resynced\n")
     tb = _stepped(d, step_ms=2.44e8 * 1000.0)
-    assert "`CLOCKSYNC.csv` records a clock event this night" in tb["reason"], tb["reason"]
+    # The SEPARATOR is part of the sentence: the cause is joined onto the seam count with "; ", the
+    # same joint the no-cause arm uses. Asserting the cause alone left `'; ' + cause` mutable.
+    assert "; `CLOCKSYNC.csv` records a clock event this night;" in tb["reason"], tb["reason"]
 
 
 def test_an_UNREADABLE_clock_record_names_no_cause_rather_than_guessing_one(tmp_path):
