@@ -744,7 +744,10 @@ def test_a_hanging_attempt_is_bounded_so_the_later_attempts_still_run():
 
     async def hang():
         calls.append(1)
-        await asyncio.sleep(30)
+        # 50x the per-attempt bound, and SHORT ON PURPOSE: at 30 s the two mutants that REMOVE
+        # the bound (`is None` -> `is not None`, `timeout=None`) make this test take 90 s, and
+        # the mutation gate reports them UNDECIDED (timeout) — unmeasured, not killed.
+        await asyncio.sleep(1.0)
 
     async def go():
         with pytest.raises(asyncio.TimeoutError):
@@ -839,7 +842,10 @@ def test_the_walk_reports_progress_and_completion(monkeypatch, caplog):
 def test_a_bounded_attempt_logs_which_attempt_timed_out(caplog):
     """`i + 1` — the human-readable attempt number. Off by one and the log points at the wrong try."""
     async def hang():
-        await asyncio.sleep(30)
+        # 50x the per-attempt bound, and SHORT ON PURPOSE: at 30 s the two mutants that REMOVE
+        # the bound (`is None` -> `is not None`, `timeout=None`) make this test take 90 s, and
+        # the mutation gate reports them UNDECIDED (timeout) — unmeasured, not killed.
+        await asyncio.sleep(1.0)
 
     async def go():
         with pytest.raises(asyncio.TimeoutError):
@@ -1850,3 +1856,13 @@ def test_a_retry_asked_for_ZERO_attempts_REFUSES_instead_of_raising_None():
     with pytest.raises(ValueError, match="attempts must be >= 1"):
         _run(ps._with_retry(never, attempts=0))
     assert called["n"] == 0, "it must refuse BEFORE running the coroutine, not after"
+
+    # ...and ONE attempt is not zero. "Try it, do not retry" is a legitimate caller, and nothing
+    # exercised it — so the bound was mutable to `<= 1` and to `< 2`, each of which refuses a call
+    # the helper is supposed to serve, and both survived the suite.
+    async def once():
+        called["n"] += 1
+        return "ok"
+
+    assert _run(ps._with_retry(once, attempts=1)) == "ok"
+    assert called["n"] == 1

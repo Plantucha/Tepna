@@ -543,13 +543,13 @@ async def _with_retry(coro_factory, attempts: int = 3, backoff: float = 2.0,
     caller's entire budget and attempts 2 and 3 never run. Measured 2026-08-02 — a Verity listing held
     the offline lock for the full 300 s watchdog and was killed mid-first-attempt.
 
-    ⚠️ `attempts` IS REFUSED BELOW 1, and that is not defensive padding. The tail of this function is
-    `raise last`, and `last` only becomes an exception inside the loop — so with `attempts <= 0` the
-    loop never runs and `raise None` raises `TypeError: exceptions must derive from BaseException`
-    from inside the retry helper, burying whatever the caller was doing under a wrong error at a
-    wrong place. Nothing calls it that way today; the refusal is what makes `raise last` provably an
-    exception rather than a fact about the current call sites. mypy names it as
-    `Exception must be derived from BaseException`."""
+    ⚠️ `attempts` IS REFUSED BELOW 1, and the bound is `< 1`, not `<= 1`: ONE attempt is a legitimate
+    caller ("try it, do not retry"), and only ZERO is nonsense. This function used to end in
+    `raise last` with `last = None` above the loop, so `attempts <= 0` ran no iteration and raised
+    `TypeError: exceptions must derive from BaseException` from inside the retry helper — burying
+    whatever the caller was doing under a wrong error in a wrong place. Nothing calls it that way
+    today; the guard is what lets the final attempt re-raise IN PLACE instead, which is both what a
+    reader expects and what made mypy's `Exception must be derived from BaseException` go away."""
     if attempts < 1:
         raise ValueError(f"attempts must be >= 1, got {attempts}")
     # THE LOOP CANNOT COMPLETE, and the proof is two lines above and three below: `attempts >= 1` is
