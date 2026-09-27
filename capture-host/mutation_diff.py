@@ -981,7 +981,24 @@ def root_reads(tree) -> list[str]:
         rel_dirs = t.relative_to(tree).parts[:-1]
         if any(seg.startswith(".") for seg in rel_dirs) or any(v in t.parents for v in venv_dirs):
             continue
-        for lit in re.findall(r"""["']([^"'\n]+)["']""", t.read_text(encoding="utf-8", errors="replace")):
+        # A PATH CAN VANISH BETWEEN THE LISTING AND THE READ, and this walk is long enough to lose the
+        # race. `rglob` materialises names; the read happens later, and under xdist a SIBLING test's
+        # transient directory can be gone by then — measured 2026-09-27 at worker gw1 on
+        # `tests/_tripwire_clean_<pid>/test_clean.py`, which `test_capture_event_tripwire.py` creates and
+        # removes in its own `finally`. That probe cannot move: it exists to spawn a pytest run which
+        # must INHERIT `conftest.py`, the fixture it is testing.
+        #
+        # ∅ A FILE THAT DISAPPEARED IS NOT A FILE WHOSE CONTENTS ARE UNKNOWN — it is not a file, so it
+        # names no read and is skipped rather than defaulted. Narrow on purpose: ONLY
+        # FileNotFoundError. A file that exists and cannot be read is a real problem and must still
+        # raise, because this census is a pinned EQUALITY and a swallowed read would silently shrink the
+        # population it measures. Never widened to the allowlist either — staging a phantom read would
+        # blunt the check it is meant to keep honest.
+        try:
+            text = t.read_text(encoding="utf-8", errors="replace")
+        except FileNotFoundError:
+            continue  # it is not a file any more, so it names no read — the paragraph above is why
+        for lit in re.findall(r"""["']([^"'\n]+)["']""", text):
             if lit in names:
                 found.add(lit)
                 continue
