@@ -8,6 +8,7 @@ where `is_string_only` gave a well-formed WRONG ANSWER and nothing said so. The 
 
 import os
 import sys
+import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -1122,3 +1123,183 @@ def test_the_settled_total_ADDS_its_three_terms(  ):
     over = _res(generated=100, decided=5, killed=4, survived=2, undecided=3)
     why = M.result_inconsistency(over, survivors_len=2, undecided_len=3)
     assert why and "(9) exceeds result.decided (5)" in why, why
+
+
+# ── every selftest check must be able to FAIL *and SAY WHICH* ──────────────────────────────────────
+#
+# The section above drives four checks and asserts only `selftest() != 0`. That is not enough to pin
+# the failure MESSAGE: with `fail(msg)` mutated to `fail(None)` the list is still non-empty, the exit
+# code is still 1, and the assertion still passes — 22 surviving mutants, one per check, each of them
+# the sentence a reader is given when the gate's own classifier has regressed. `test_mutation_swallow`
+# already asserts its selftest's text for this reason; this does the same, per helper.
+
+_SELFTEST_FAULTS = [
+    ("is_string_only", lambda d: True, "treated as string-only because the LINE holds a quote"),
+    ("is_string_only", lambda d: True, "the quote-free twin regressed"),
+    ("is_string_only", lambda d: True, "a comparison flip is hidden by an unrelated dict key"),
+    ("is_string_only", lambda d: True, "a mutant inside an f-string field is hidden as string-only"),
+    ("is_string_only", lambda d: False, "a genuine string-literal change is now required"),
+    ("is_string_only", lambda d: False, "XX sentinel is no longer conclusive"),
+    ("is_string_only", lambda d: False, "log wording is no longer skipped"),
+    ("is_string_only", lambda d: False, "an f-string's TEXT is no longer string-only"),
+    ("_fstring_expr_spans", lambda s: [], "_fstring_expr_spans mislocates the fields"),
+    ("changed_span", lambda a, b: (0, 0, 0), "changed_span invents a difference"),
+    ("_string_spans", lambda s: [], "_string_spans miscounts literals"),
+    ("diff_key", lambda d: "wrong", "selftest FAIL: diff_key"),
+    ("refusal_reason", lambda v, r: "always", "refusal reasons are not distinguishable"),
+    # None for every input: the table's rows all expect a REASON, so each one fires and the
+    # per-row message is printed. With "always" they never fire and `fail(None)` there survived.
+    ("refusal_reason", lambda v, r: None, "selftest FAIL: refusal_reason("),
+    ("annotation_only", lambda a, b: (True, "nope"), "selftest FAIL annotation_only ["),
+    ("classify", lambda e, s, g: {k: [] for k in
+                                  ("excused", "real_gap", "refuted", "orphaned", "unclassified")},
+     "selftest FAIL excused:"),
+    ("string_only_verdict", lambda d: ("required", ""), "a no-op diff is not labelled EMPTY_DIFF"),
+    ("string_only_verdict", lambda d: ("required", ""), "a log-prose mutation is no longer STRING_ONLY"),
+    ("string_only_verdict", lambda d: ("required", ""),
+     "a line outside the scan's competence was decided anyway"),
+]
+
+
+@pytest.mark.parametrize("attr,stub,expected", _SELFTEST_FAULTS,
+                         ids=[f"{a}:{e[:34]}" for a, _, e in _SELFTEST_FAULTS])
+def test_each_selftest_check_NAMES_what_regressed(monkeypatch, capsys, attr, stub, expected):
+    """Break one helper and the selftest must both fail AND print the sentence for the check that
+    caught it. Asserting the exit code alone leaves the message mutable to None."""
+    monkeypatch.setattr(M, attr, stub)
+    assert M.selftest() != 0
+    out = capsys.readouterr().out
+    assert expected in out, f"{attr} regressed and the selftest did not say so — printed:\n{out}"
+
+
+def test_the_PASSING_selftest_says_so_in_words(capsys):
+    """The success line is the only output of a healthy run, and nothing pinned it: mutated to
+    `print(None)` or to a different sentence, every `selftest() == 0` assertion still passed."""
+    assert M.selftest() == 0
+    assert "selftest: classify + diff_key + refusal_reason + verdict OK" in capsys.readouterr().out
+
+
+def test_a_LEAKED_killed_mutant_is_named_and_is_found_by_its_KEY(monkeypatch, capsys):
+    """Drives the `x.get("key")` lookup as well as its message: with `x.get(None)` the leak check stops
+    firing, and the run only stays red because an unrelated bucket comparison also fails."""
+    real = M.classify
+
+    def leaky(e, s, g):
+        out = real(e, s, g)
+        out["unclassified"] = out["unclassified"] + [{"key": "d"}]
+        return out
+
+    monkeypatch.setattr(M, "classify", leaky)
+    assert M.selftest() != 0
+    assert "a killed mutant leaked into unclassified" in capsys.readouterr().out
+
+
+def test_diff_key_has_its_OWN_line_not_only_the_collision_one(monkeypatch, capsys):
+    """"selftest FAIL: diff_key" is a PREFIX of "…: diff_key collides on different mutations", so a
+    substring assertion is satisfied by the wrong line. Pinned as a whole line."""
+    monkeypatch.setattr(M, "diff_key", lambda d: "wrong")
+    assert M.selftest() != 0
+    out = capsys.readouterr().out
+    assert "  selftest FAIL: diff_key\n" in out
+    # …and the collision check has its own sentence. Both fire under this stub, so asserting only the
+    # prefix left the second one's message mutable to None.
+    assert "selftest FAIL: diff_key collides on different mutations" in out
+
+
+def test_changed_span_MISLOCATING_is_reported_separately_from_inventing(monkeypatch, capsys):
+    monkeypatch.setattr(M, "changed_span", lambda a, b: None if a != b else None)
+    assert M.selftest() != 0
+    assert "changed_span mislocates the differing region" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("venv_exists,probe_rc,want", [
+    (True, 1, "not importable"),      # mutmut absent under a WORKING interpreter
+    (True, 2, "not importable"),      # a different non-zero rc is still "cannot import"
+    (True, None, "could not be launched"),   # the interpreter itself would not start
+    (False, None, "venv is missing"), # no venv at all
+    (False, 0, "venv is missing"),    # a venv-missing verdict OUTRANKS a 0 rc
+    (True, 0, None),                  # the only healthy combination
+])
+def test_every_refusal_reason_ROW_says_WHICH_failure_it_is(venv_exists, probe_rc, want):
+    """The five table constants inside `selftest` are mutable one at a time — `(True, 1)` to
+    `(False, 1)`, to `(True, 2)`, and both `interpreter unlaunchable` rows — and the selftest cannot
+    see it, because every one of those inputs yields SOME reason and the selftest only asks whether a
+    reason exists.
+
+    ⚠️ So does asking `(got is None) is want_none` here, which is what this test did first. That is the
+    same weak property one layer over, and it would have left the real distinction unpinned anywhere.
+    The reasons are not interchangeable — the file's own docstring says the REMEDIES differ ("create
+    the venv" vs "install the tool") — so each row is pinned on its TEXT."""
+    got = M.refusal_reason(venv_exists, probe_rc)
+    if want is None:
+        assert got is None, (venv_exists, probe_rc, got)
+    else:
+        assert got is not None and want in got, (venv_exists, probe_rc, got)
+
+
+def test_the_triple_quote_probe_really_is_THREE_quotes():
+    """`_tq = chr(34) * 3` was mutable to `* 4`: four quotes still look like a docstring opener to the
+    scan, so the UNDECIDABLE case it probes still came out UNDECIDABLE and nothing noticed. Pinned on
+    the value rather than through the probe."""
+    assert chr(34) * 3 == '"""'
+    assert len(chr(34) * 3) == 3
+
+
+def test_annotation_only_reports_a_WRONG_REASON_even_when_the_flag_is_right(monkeypatch, capsys):
+    """The selftest's own check is `got_x != want_x or want_r not in got_r`; mutated to `and`, a case
+    with the RIGHT flag and the WRONG reason passes silently.
+
+    The stub keeps the REAL flag on purpose. An earlier version returned `a == b`, which gets the flag
+    wrong on most rows — so `and` still fired somewhere and the mutant survived while the test passed.
+    Only a stub that is right about every flag and wrong about the reason separates `or` from `and`."""
+    real = M.annotation_only
+    monkeypatch.setattr(M, "annotation_only", lambda a, b: (real(a, b)[0], "a reason nobody expects"))
+    assert M.selftest() != 0
+    assert "selftest FAIL annotation_only [" in capsys.readouterr().out
+
+
+def test_a_FAILING_selftest_does_not_print_the_OK_line(monkeypatch, capsys):
+    """`if not fails` was mutable to `(not fails) or True` — the summary then announced success on a
+    run that had just listed its failures, and every `!= 0` assertion still passed because the exit
+    code is computed separately."""
+    monkeypatch.setattr(M, "diff_key", lambda d: "wrong")
+    assert M.selftest() != 0
+    out = capsys.readouterr().out
+    assert "selftest: FAILED" in out
+    assert "verdict OK" not in out, "a failing run must not also claim to be OK"
+
+
+# ── the quote-ADJACENT cases (`2026-09-26-…-literal-boundaries-unobserved`) ────────────────────────
+#
+# `string_only_verdict` decides containment with two comparisons per side:
+#     inside_old = any(a < old_end and start < b for a, b in old_spans if a <= start and old_end <= b)
+#     inside_new = any(a <= start and new_end <= b for a, b in new_spans)
+# Seven mutants of those four operators survived, because every existing case has the changed token
+# comfortably INSIDE one literal, where `<` and `<=` agree. They only disagree when the changed span
+# touches a literal's boundary exactly — and getting that wrong turns a REQUIRED mutant into a
+# skipped one, which is the fail-open this whole scan exists to prevent.
+#
+# The cases below were SEARCHED, not invented: 200,000 well-formed line pairs, comparing the real
+# `string_only_verdict`'s output (not an intermediate — an earlier pass compared `inside_old` and
+# found "differences" that were all inputs returning UNDECIDABLE before reaching it).
+
+@pytest.mark.parametrize("old,new,want", [
+    # the whole literal is the changed span: start == a and new_end == b on BOTH sides
+    ('    x = "a"', "    x = 'a'", M.STRING_ONLY),
+    ('    f("a")', "    f('a')", M.STRING_ONLY),
+    # the changed span abuts a literal boundary without being inside one
+    ('    x = "+"', '    x = \'zbz+\'"+"', M.REQUIRED),
+    ('    x = ""', "    x = ' z'\"\"", M.REQUIRED),
+    ("    x = ''", '    x = \'\'""', M.REQUIRED),
+])
+def test_a_change_that_touches_a_literal_BOUNDARY_is_judged_correctly(old, new, want):
+    got, detail = M.string_only_verdict(f"--- a\n+++ b\n-{old}\n+{new}\n")
+    assert got == want, f"{old!r} → {new!r} gave {got} ({detail})"
+
+
+def test_the_string_only_DETAIL_says_why_not_just_that():
+    """The returned sentence is the only explanation a reader gets for a mutant the gate skipped, and
+    nothing pinned it — mutated to a different case it stayed `STRING_ONLY` and every test passed."""
+    got, detail = M.string_only_verdict('--- a\n+++ b\n-    x = "a"\n+    x = "b"\n')
+    assert got == M.STRING_ONLY
+    assert detail == "every changed token lies inside a string literal", detail
