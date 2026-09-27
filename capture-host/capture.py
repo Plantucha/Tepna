@@ -2450,6 +2450,22 @@ def should_drop_not_worn(worn_since, now, grace, pull_in_flight: bool = False,
 # STOP → settings → START negotiation against a device that has just dropped its link and therefore freed
 # the stream. Deliberately generous: every PMD stream we start (slowest is MAG at 20 Hz, PPI ~1/beat)
 # delivers many rows a second, so 90 s of TOTAL silence is never a slow stream — it is a dead one.
+#: The longest pleth-A inter-frame gap that is NORMAL — 33.27 s measured (2026-09-26 23:00→05:00) plus
+#: ~35 % headroom. Consumed by `BUS.register` for that stream only; see the citation at the call site.
+O2_PLETHA_QUIET_S = 45.0
+#: WHAT THIS STREAM IS, for the card — because "it arrives every ~2 s" does not tell an operator whether
+#: the trickle is a fault. Measured twice, on two nights, by two people, agreeing: 2026-09-26 23:00→05:00
+#: gives 4478 samples/h (1.24 Hz) in 1127 replies — samples per reply mode 3 then 2, mean 3.97, tail to 5
+#: — 34 beat markers/h, and `sensor timestamp [ns]` EMPTY on all 26 867 rows (0 present); a 2026-09-07
+#: smoketest session independently gives ~4200 samples/h (1.2 Hz), ~1330 replies, mode 2 and 3, ~30
+#: markers. The 0x04 `_PPG.txt` on the same finger and link carries ~449 000 samples/h at 124.7 Hz. So
+#: this opcode delivers a ~1 % residual with NO per-sample timing, beside a continuous 125 Hz pleth.
+#: ⚠️ NOT asserted here: that 0x03 drains the leftovers of the 0x04 poll. It is the reading that fits
+#: (the 09-06 smoketest measuring 125.058 Hz polled 0x03 ALONE), it is unverified, and the card says what
+#: the stream DOES rather than why. Owner ruling 2026-09-27: not a PAT candidate, keep the original 156.
+O2_PLETHA_WHY = ("residual buffer drain — a few samples per reply (mode 3), ~1.2 Hz, no per-sample "
+                 "timing; normal for this opcode beside the 125 Hz pleth.")
+
 _STREAM_STALL_S = 90.0       # started-stream silence before the session is torn down; stream.stall_sec (0 = off)
 # Re-bond cadence for a Polar whose BlueZ bond has vanished mid-session. Every 5th reconnect, up to 72
 # attempts — at the observed ~70 s reconnect period that is one try every ~6 min for 7 h. Sized to span
@@ -5407,7 +5423,18 @@ async def run_oxyii(dev: dict, root: str):
                     # unit "raw" like its siblings: the ring publishes no scale for these 8-bit
                     # optical counts, and "raw" is this bus's existing word for exactly that (o2ppg,
                     # o2ppg2w, acc_o2). A fabricated unit here is the accraw mistake one layer up.
-                    BUS.register("o2pletha", "Raw pleth A (O2Ring)", "raw", 0, chans=1, device=name)
+                    # quiet_s: THE LONGEST GAP THAT IS NORMAL FOR THIS STREAM, pre-stated from a cited
+                    # measurement and never adapted from the data it judges (telemetry.stream_health says
+                    # why). Measured read-only over a CLOSED window, 2026-09-26 23:00→05:00 local, on this
+                    # ring's own `_PLETHA.txt` host stamps: 6762 inter-frame gaps, median 1.98 s, p90
+                    # 8.08 s, MAX 33.27 s, of which 1204 (17.8 %, ~200 an hour in every one of the six
+                    # hours) exceed telemetry's 6 s waveform window. 45 s is that maximum with ~35 %
+                    # headroom, and it sits well under the 90 s silence that still reads NO DATA.
+                    # The ring WITHHOLDS this frame type; the link is not at fault — during all 1681 of
+                    # those gaps the 2-wavelength, PPG and ACCRAW streams were still arriving, 100 % of
+                    # them, on the same connection and the same notification handler.
+                    BUS.register("o2pletha", "Raw pleth A (O2Ring)", "raw", 0, chans=1, device=name,
+                                 quiet_s=O2_PLETHA_QUIET_S, quiet_why=O2_PLETHA_WHY)
                 if ppg2wr:
                     # fs=0 DELIBERATELY. Every reply carries exactly 102 records whatever the poll
                     # spacing, which is a fixed buffer cap and not a rate (cmd 0x03 caps the same way at

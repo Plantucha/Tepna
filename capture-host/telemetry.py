@@ -19,6 +19,12 @@ log = logging.getLogger("tepna.telemetry")
 _RATE_WIN_S = 5.0  # trailing window the effective rate is measured over
 _WEAK_FRAC = 0.7  # < 70 % of nominal Hz ⇒ WEAK (amber)
 _STALL_S = 6.0  # no sample for this long ⇒ STALL (red)
+#: The silence an INTERMITTENT stream is judged by, in place of `_STALL_S`. Deliberately the same figure
+#: as `capture._STREAM_STALL_S` (90 s, "started-stream silence before the session is torn down") so the
+#: card and the teardown watchdog agree about when a stream has actually stopped: a card must not read
+#: NO DATA on a stream the daemon still considers alive, nor stay LIVE past the point the daemon gives up
+#: on it. Not imported from `capture` because the dependency runs the other way (capture imports this).
+_QUIET_STALL_S = 90.0
 _WARMUP_S = 1.5  # < this much history ⇒ too early to call WEAK (a just-opened stream)
 
 
@@ -665,7 +671,15 @@ def note_flat_battery(
 
 
 def stream_health(
-    nominal_fs, eff_fs, age_s, warmup: bool = False, *, weak_frac: float = _WEAK_FRAC, stall_s: float = _STALL_S
+    nominal_fs,
+    eff_fs,
+    age_s,
+    warmup: bool = False,
+    *,
+    weak_frac: float = _WEAK_FRAC,
+    stall_s: float = _STALL_S,
+    quiet_s: float | None = None,
+    quiet_stall_s: float = _QUIET_STALL_S,
 ) -> str:
     """Classify one stream's link health from its nominal rate, measured effective rate, and the age of
     its last sample. PURE (no bus state) so it is unit-testable. Returns 'good'|'weak'|'stall'|'idle'.
@@ -679,6 +693,21 @@ def stream_health(
     exists to prevent — a measurement of silence for a stream nobody measured."""
     if age_s is None:
         return "idle"
+    # AN INTERMITTENT STREAM'S NATURE IS ITS STATE, and it is on the card at all times rather than only
+    # inside a long gap. Measured on the ring's `o2pletha` over a closed window (2026-09-26 23:00→05:00,
+    # tools in the PR): frame gaps median 1.98 s, p90 8.08 s, max 33.27 s, and 1204 of 6762 gaps — 17.8 %,
+    # ~200 an hour every hour — longer than `_STALL_S`. Judged by the 6 s waveform window it flapped
+    # LIVE↔NO DATA all night while three siblings on the same link and the same notification stream never
+    # crossed 3.1 s. Two bands, not three: a `good` band under `quiet_s` would put the card back to
+    # saying nothing for most of the night and naming the intermittency only during a gap, which is the
+    # same flap in slow motion. `quiet_s` is the longest gap that is NORMAL for the stream — PRE-STATED
+    # at `register` from a cited measurement, never a quantile of the data it judges (§🧾: a threshold
+    # derived from the data it judges is UNKNOWN, and at connect the history is empty, so a running
+    # quantile would fall back to 6 s and bring the flap back every session start). The observed
+    # distribution is published beside it as a DIAGNOSTIC so a ring whose behaviour changes is visible
+    # rather than absorbed.
+    if quiet_s is not None:
+        return "stall" if age_s > quiet_stall_s else "intermittent"
     if (nominal_fs or 0) > 5:  # continuous waveform
         if age_s > stall_s:
             return "stall"
@@ -704,6 +733,12 @@ class StreamMeta:
     # matched 2 of 10 streams on the live box — by accident (residue
     # 2026-09-05-capture-status-joins-two-key-namespaces).
     device: "str | None" = None
+    #: The longest inter-frame gap that is NORMAL for this stream, in seconds, or None for a stream whose
+    #: arrival is continuous. Set ONLY from a cited measurement (see `stream_health`), and its presence is
+    #: what puts the stream on the intermittent branch. None keeps every existing stream byte-for-byte.
+    quiet_s: "float | None" = None
+    #: The stream's own one-line nature, for the card. Set beside `quiet_s` at the registration.
+    quiet_why: "str | None" = None
 
 
 # Device-unique base streams. Anything that can come from >1 device (ACC/GYRO/MAG/PPI/PPG) is registered
@@ -744,6 +779,31 @@ class TelemetryBus:
         self._win: dict[str, collections.deque] = {}  # stream -> deque[(mono_ts, n_samples)] for rate calc
         self._last_mono: dict[str, float] = {}  # stream -> monotonic time of last push (stall calc)
         self._shape_err: dict[str, str] = {}  # stream -> "declared N, got M" (channel-count breach)
+
+    def _observed_gap_s(self, stream: str) -> "dict | None":
+        """The stream's OBSERVED inter-push gaps — a DIAGNOSTIC, never a threshold.
+
+        Read from the same bounded window `_stream_rate` keeps, so it costs no new state. It is published
+        so a device whose behaviour drifts away from the pre-stated `quiet_s` is VISIBLE rather than
+        absorbed by an adaptive bound: if these numbers stop matching the citation, the constant is wrong
+        for this vintage and that is a finding, not something to silently track (memory:
+        `sidecar-params-vary-by-vintage`). None until two pushes have been seen — an empty window has not
+        measured a gap of zero."""
+        w = self._win.get(stream)
+        if not w or len(w) < 2:
+            return None
+        ts = [t for t, _n, _d in list(w)]
+        # No `if not gaps` guard: past the `len(w) < 2` refusal above, `zip(ts, ts[1:])` yields at least
+        # one interval by construction, so such a guard is an unreachable branch — dead code AND an
+        # uncovered line, which is how this file's coverage floor reads a defensive reflex.
+        gaps = sorted(b - a for a, b in zip(ts, ts[1:]))
+        k = int(round(0.99 * (len(gaps) - 1)))
+        return {
+            "n": len(gaps),
+            "medianS": round(gaps[len(gaps) // 2], 3),
+            "p99S": round(gaps[k], 3),
+            "maxS": round(gaps[-1], 3),
+        }
 
     def _stream_rate(self, stream: str, now: float) -> tuple[float | None, float | None, bool]:
         """(effective_fs | None, age_of_last_sample_s | None, warmup) for one stream.
@@ -812,10 +872,23 @@ class TelemetryBus:
                 # null, not 0, when the window holds no interval — the JSON contract mirrors
                 # `_stream_rate`'s refusal rather than flattening it into a measured zero.
                 "effFs": None if eff is None else round(eff, 3),
-                "health": stream_health(m.fs, eff, age, warmup),
+                "health": stream_health(m.fs, eff, age, warmup, quiet_s=m.quiet_s),
             }
             # Present ONLY when breached, so a reader can treat the key's existence as the alarm and no
             # existing consumer sees a new field on a healthy stream.
+            # PRESENT ONLY FOR AN INTERMITTENT STREAM, so no existing consumer sees a new field: the
+            # pre-stated normal gap, the why-text the card shows instead of a bare state, and the OBSERVED
+            # distribution beside them so the citation can be checked against the device in front of you.
+            if m.quiet_s is not None:
+                row["quietS"] = m.quiet_s
+                # The stream's registered sentence first, then the two figures this module owns. The
+                # nature comes from the registration because only the declaring site has measured it.
+                row["healthWhy"] = (
+                    (f"{m.quiet_why} " if m.quiet_why else "")
+                    + f"Gaps to ~{m.quiet_s:.0f}s are expected; "
+                    + f"NO DATA only after {_QUIET_STALL_S:.0f}s of silence."
+                )
+                row["observedGap"] = self._observed_gap_s(m.key)
             if m.key in self._shape_err:
                 row["shapeError"] = self._shape_err[m.key]
             out.append(row)
@@ -828,13 +901,31 @@ class TelemetryBus:
         return dict(self._shape_err)
 
     def register(
-        self, key: str, label: str, unit: str, fs: float, chans: int = 1, labels=(), device: "str | None" = None
+        self,
+        key: str,
+        label: str,
+        unit: str,
+        fs: float,
+        chans: int = 1,
+        labels=(),
+        device: "str | None" = None,
+        quiet_s: "float | None" = None,
+        quiet_why: "str | None" = None,
     ) -> None:
         """Declare a stream so the UI shows it (with per-channel labels) even before the first frame.
         Idempotent; call once per device stream when its capture opens. `device` is the configured
         device name that owns the stream — last and optional so every existing caller is unchanged, and
-        the ONLY sanctioned way for a consumer to learn which device a bus key belongs to."""
-        self._meta[key] = StreamMeta(key, label, unit, fs, chans, tuple(labels), device)
+        the ONLY sanctioned way for a consumer to learn which device a bus key belongs to.
+
+        `quiet_s` declares the stream INTERMITTENT and states the longest gap that is normal for it, from
+        a cited measurement — see `stream_health`. Also last and optional: omitted, the stream is judged
+        exactly as before.
+
+        `quiet_why` is that stream's OWN sentence about what it is, shown on the card. It belongs at the
+        registration beside the citation rather than in this module, because the nature of a stream is a
+        fact about that opcode and not about health arithmetic — a generic sentence built from `quiet_s`
+        can only say how OFTEN frames arrive, which is the smaller half of what an operator needs."""
+        self._meta[key] = StreamMeta(key, label, unit, fs, chans, tuple(labels), device, quiet_s, quiet_why)
 
     def claim(self, key: str, device: str) -> None:
         """Name the configured device that owns an ALREADY-declared stream. For the `DEFAULT_META` keys
