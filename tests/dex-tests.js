@@ -13059,14 +13059,23 @@
        were not 'classified', they were INVISIBLE" — and those files are STILL outside both lists. A
        finding recorded as a comment does not fail when the defect recurs; this does.
 
-       ⚠️ RATCHET, NOT PASS/FAIL, and deliberately so. 13 of 112 are invisible today — the UN-BUNDLED
-       tail (cohort tooling, `dex-coload.js`, `dex-contracts.js`, provenance surfaces, standalone
-       analyses). The registries and spine are NOT among them: `readSources()` walks every bundle's
-       `data-inline-src`, so anything inlined is readable for free. Demanding all 112 at once would land red on day one over
-       work nobody has scoped, and a gate that is red by default gets switched off — taking the real
-       finding with it (the argument that kept a coverage threshold out of #1163 and shaped
-       `no-fabricated-tier`'s cap). So the debt is measured, published, and may SHRINK BUT NEVER GROW:
-       a 39th unreadable file reds immediately, and wiring one in forces the cap down.
+       ⚠️ RATCHET, NOT PASS/FAIL, and deliberately so. **8 of 117** are invisible today, and the list is
+       pinned by name in `INVISIBLE_SET` below rather than only counted.
+       🔴 THE PROSE HERE WAS STALE AND MISDESCRIBED THE GATE'S OWN SCOPE, corrected 2026-09-27. It said
+       "13 of 112" and "a 39th unreadable file reds immediately" against a cap that was 12 — two numbers
+       from earlier caps, in the comment of a group whose whole lesson is that a finding recorded as a
+       comment does not fail when it goes stale. And it claimed `readSources()` "walks every bundle's
+       `data-inline-src`, so anything inlined is readable for free": it walked the 11 owned APP bundles
+       and NOT the 14 analysis tool bundles, so 4 of the then-12 invisible files were inlined into
+       bundles and invisible anyway — not the "un-bundled tail" this paragraph described. The walk now
+       covers both families (readSources, from `build-analysis.mjs TOOLS`, failing closed), which is what
+       took the cap 12 → 8: a scope fix, not a registration drive.
+       The registries and spine are genuinely not among the invisible — anything inlined into a bundle of
+       either family is readable for free. Demanding all 117 at once would land red on day one over work
+       nobody has scoped, and a gate that is red by default gets switched off — taking the real finding
+       with it (the argument that kept a coverage threshold out of #1163 and shaped `no-fabricated-tier`'s
+       cap). So the debt is measured, published and may SHRINK BUT NEVER GROW: a 9th unreadable file reds
+       immediately, a swap inside the 8 reds on the set pin, and wiring one in forces the cap down.
 
        Node-lane only (env.sourceVisibility is fs-read); the browser SKIPs, mirroring docs-ledger. */
     group('Every runtime source layer is readable by at least one lane', 'cohesion · source-visibility · ratchet', function (T) {
@@ -13094,13 +13103,38 @@
       });
 
       /* The cap. Lower it — never raise it — when a file is wired into either lane. */
-      var INVISIBLE_CAP = 12; // 13 → 12 on 2026-09-21: cohort-harness.html + qrs-equiv-analysis.js entered env.sources for the tripwire plant
-      T.ok(
-        'no NEW unscannable source layer (ratchet ' + INVISIBLE_CAP + ')',
-        invisible.length <= INVISIBLE_CAP,
-        invisible.length + ' invisible: ' + invisible.slice(0, 8).join(', ') + (invisible.length > 8 ? ', …' : '')
-      );
+      var INVISIBLE_CAP = 8; // 13 → 12 on 2026-09-21 (cohort-harness.html + qrs-equiv-analysis.js entered env.sources for the tripwire plant); 12 → 8 on 2026-09-27 (readSources now walks the ANALYSIS TOOL bundles, not only the 11 app bundles — see INVISIBLE_SET)
+      T.ok('no NEW unscannable source layer (ratchet ' + INVISIBLE_CAP + ')', invisible.length <= INVISIBLE_CAP, invisible.length + ' invisible: ' + invisible.join(', '));
       T.ok('the cap is not STALE — lower it when the debt shrinks', invisible.length >= INVISIBLE_CAP, 'only ' + invisible.length + ' invisible now; set INVISIBLE_CAP = ' + invisible.length);
+      /* ── THE SET, NOT ONLY THE COUNT (2026-09-27) ───────────────────────────────────────────────────
+         The cap above is already two-sided, so the NUMBER cannot drift. The MEMBERS could: wire one file
+         in while another falls out and the count is unchanged, both assertions pass, and a newly
+         unscannable runtime layer arrives silently — which is the exact failure this group exists to
+         prevent, one level up. PLANT 2 below is that swap, and it fails without this pin.
+         Read this list as QUESTIONS, not bookkeeping (gate-must-publish-its-denominator): each name is a
+         file no source-level gate can reach. Two of them are named in CLAUDE.md as load-bearing —
+         `dex-coload.js` (the co-loader that must load clock.js before any delegating *-dsp.js) and
+         `provenance-ledger.js` (which reassembles the per-app fragments the provenance gate reads) — so
+         this is not only cohort tooling and fixtures. Recorded as residue
+         2026-09-27-load-bearing-sources-no-gate-can-read rather than left in a comment, because a finding
+         recorded as a comment does not fail when the defect recurs; that is this group's own lesson. */
+      var INVISIBLE_SET = ['cohort-full.js', 'cohort-worker.js', 'dex-coload.js', 'dex-contracts.js', 'provenance-banner.js', 'provenance-ledger.js', 'support.js', 'xmt-fixture.js'];
+      T.eq(
+        'the invisible SET is exactly the published one (a swap cannot hide inside a stable count)',
+        invisible.slice().sort().join(','),
+        INVISIBLE_SET.slice().sort().join(','),
+        'the membership changed. If you WIRED one in, remove it here and lower INVISIBLE_CAP. If a NEW file became unscannable, wire it into a lane instead of adding it here.'
+      );
+      /* PLANT 2 · the swap the count cannot see. One file leaves the invisible set and another joins it,
+         so `invisible.length` is identical and both cap assertions still pass — only the set pin reds.
+         Without this, the pin above could be decoration that never discriminates. */
+      var swapped = invisible.slice(1).concat('zz-planted-unscannable.js').sort();
+      T.eq('PLANT 2 · a swap leaves the COUNT unchanged', swapped.length, invisible.length);
+      T.ok(
+        'PLANT 2 · …and the SET pin reds on it',
+        swapped.join(',') !== INVISIBLE_SET.slice().sort().join(','),
+        'the set pin accepted a swapped membership — it is not discriminating and the published list is decoration'
+      );
       /* Published so the debt is legible in the output rather than only in a brief. The invisible set
          is NOT the bundled runtime: `readSources()` also walks every bundle's `data-inline-src`, so
          anything inlined into an app is readable for free — the registries and the spine included.
