@@ -402,7 +402,7 @@ def run_one(module: str, only: str | None = None, tests_override: list[str] | No
     # last run, so an added or modified killer is credited on the FIRST run rather than the second. The
     # stamp lives in the reusable scratch (keyed on src_hash), which survives the prune; on a fresh
     # scratch there is no meta yet, so this only records the current test hash for the next reuse.
-    if mmeta.refresh_results_if_tests_changed(work, module, HERE / "tests", scratch / ".tests-hash"):
+    if mmeta.refresh_caches_if_tests_changed(work, module, HERE / "tests", scratch / ".tests-hash"):
         plan["invalidated_results"] = "tests changed since last run"
     # ⚠️ BYTECODE CACHING IS LOAD-BEARING HERE, and disabling it is what made capture.py unmeasurable.
     # mutmut writes ONE module holding every mutant, so capture.py's is 100 MB / 1.9 M lines. Compiling
