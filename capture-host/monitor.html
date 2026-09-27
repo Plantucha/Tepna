@@ -1369,7 +1369,11 @@ function nightFilesFor(n, node){
 async function openNight(night, node){
   const n = NIGHTS.find(x=>x.night===night); if(!n) return;
   const rels = nightFilesFor(n, node); if(!rels.length){ nToast('nothing to load for '+node+' on '+night, true); return; }
-  const w = window.open('/'+NIGHT_APP[node], '_blank');
+  // A per-click query so the browser can never hand back a CACHED app from before a deploy (2026-09-26: both
+  // derived pages rendered their pre-#3117 copies after the box was serving the new ones, and the old PAT page
+  // then filed the ring's _PPG.txt as the ankle). No app reads its query string. A timestamp, not the daemon's
+  // /api/version sha: the updater syncs the app files while the daemon restart can be deferred.
+  const w = window.open('/'+NIGHT_APP[node]+'?v='+Date.now(), '_blank');
   if(!w){ nToast('the browser blocked the analyzer window — allow pop-ups for this site', true); return; }
   nToast('opening '+node+' — fetching '+rels.length+' file'+(rels.length>1?'s':'')+' from '+night+' …');
   let files;

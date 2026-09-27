@@ -67,6 +67,10 @@ http://vigil.local, http://vigil {{{auth_block}
 \t}}
 \thandle {{
 \t\troot * /srv/tepna/app
+\t\t# REVALIDATE, never guess. With no Cache-Control a browser may reuse a page for a fraction of its age
+\t\t# without asking (heuristic freshness), so after a deploy it kept serving the old bundles
+\t\t# (2026-09-26). no-cache still caches; it asks first, and file_server's ETag answers 304 when unchanged.
+\t\theader Cache-Control "no-cache"
 \t\tfile_server browse
 \t}}
 \t# gzip everything EXCEPT text/event-stream, by naming the text subtypes instead of using text/*.
