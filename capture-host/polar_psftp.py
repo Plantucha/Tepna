@@ -541,21 +541,33 @@ async def _with_retry(coro_factory, attempts: int = 3, backoff: float = 2.0,
     `per_attempt_timeout` (optional, added last) bounds ONE attempt. Without it the retry is dead code
     in the case it exists for: a wedged link does not raise, it hangs, so attempt 1 consumes the
     caller's entire budget and attempts 2 and 3 never run. Measured 2026-08-02 — a Verity listing held
-    the offline lock for the full 300 s watchdog and was killed mid-first-attempt."""
-    last = None
+    the offline lock for the full 300 s watchdog and was killed mid-first-attempt.
+
+    ⚠️ `attempts` IS REFUSED BELOW 1, and that is not defensive padding. The tail of this function is
+    `raise last`, and `last` only becomes an exception inside the loop — so with `attempts <= 0` the
+    loop never runs and `raise None` raises `TypeError: exceptions must derive from BaseException`
+    from inside the retry helper, burying whatever the caller was doing under a wrong error at a
+    wrong place. Nothing calls it that way today; the refusal is what makes `raise last` provably an
+    exception rather than a fact about the current call sites. mypy names it as
+    `Exception must be derived from BaseException`."""
+    if attempts < 1:
+        raise ValueError(f"attempts must be >= 1, got {attempts}")
     for i in range(attempts):
         try:
             if per_attempt_timeout is None:
                 return await coro_factory()
             return await asyncio.wait_for(coro_factory(), timeout=per_attempt_timeout)
         except Exception as e:
-            last = e
             if isinstance(e, asyncio.TimeoutError):
                 log.warning("PS-FTP attempt %d/%d exceeded %.0fs — retrying",
                             i + 1, attempts, per_attempt_timeout)
-            if i < attempts - 1:
-                await asyncio.sleep(backoff)
-    raise last
+            if i >= attempts - 1:
+                raise                       # the LAST attempt's error IS the caller's error
+            await asyncio.sleep(backoff)
+    # The loop cannot complete: `attempts >= 1` is enforced above, and the final iteration either
+    # returns or re-raises. Holding the error in a `last` variable and raising it after the loop is
+    # what made that invisible — to a reader and to mypy, which reported `raise last` as
+    # `Exception must be derived from BaseException` because `last` starts as None.
 
 
 def _session_meta(path: str) -> dict:

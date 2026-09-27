@@ -1831,3 +1831,22 @@ def test_CONTROL_a_clean_pull_still_reports_ok(monkeypatch, tmp_path):
     _install(monkeypatch, c)
     m = _run(ps.pull_recording("AA:BB", "/U/0/20260719/E/034500/", str(tmp_path)))
     assert m["ok"] is True
+
+
+def test_a_retry_asked_for_ZERO_attempts_REFUSES_instead_of_raising_None():
+    """`_with_retry` ends in `raise last`, and `last` is only an exception once the loop has run. With
+    `attempts <= 0` the loop never runs, so the old code raised `None` — `TypeError: exceptions must
+    derive from BaseException` from inside the retry helper, replacing whatever the caller was doing
+    with a wrong error at a wrong place. No caller passes 0 today; the refusal is what makes the tail
+    provably an exception instead of a fact about the current call sites."""
+    import pytest
+
+    called = {"n": 0}
+
+    async def never():
+        called["n"] += 1
+        return "unreachable"
+
+    with pytest.raises(ValueError, match="attempts must be >= 1"):
+        _run(ps._with_retry(never, attempts=0))
+    assert called["n"] == 0, "it must refuse BEFORE running the coroutine, not after"
