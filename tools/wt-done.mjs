@@ -11,7 +11,9 @@
  * The tool verifies the two facts a removal must rest on, FROM THE AUTHORITATIVE SOURCES, then removes:
  *   1. the branch's PR is MERGED — read from GitHub via `gh`, never from memory or `git branch --merged`
  *      (squash-merge strands the branch: after `gh pr merge` the branch never appears merged to git —
- *      see the 12-commits-stranded incident). No PR, or PR still open ⇒ REFUSE.
+ *      see the 12-commits-stranded incident). No PR, or PR still open ⇒ REFUSE — except `--pushed`
+ *      (2026-09-26): a PR-less branch whose every local commit is contained in a freshly fetched
+ *      origin/<branch> may go, because the branch is the copy; nothing else is weakened.
  *   2. the tree is CLEAN — `git status --porcelain` empty. Dirty ⇒ REFUSE and say what is dirty;
  *      per CLAUDE.md §👥.2 those files may be someone's only copy.
  *   3. the tree is IDLE — no process has its cwd inside it and none holds a file open there.
@@ -156,13 +158,30 @@ function cmdlineOf(pid, procRoot = '/proc') {
   }
 }
 
-export function verdict({ prState, dirtyCount, isMain, inUse, unlanded }) {
+export function verdict({ prState, dirtyCount, isMain, inUse, unlanded, pushed }) {
   /* Pure decision core, so the refusals are testable without a repo. `inUse` is the result of
      `usersOfPath`: omitted entirely means the caller did not scan (older callers keep working);
      `{ok:false}` means the scan FAILED, which refuses — unknown is not idle. */
   if (isMain) return { ok: false, why: 'holds main/master — never remove the primary checkout' };
   if (dirtyCount > 0) return { ok: false, why: `${dirtyCount} dirty/untracked path(s) — may be someone's only copy` };
-  if (prState === null) return { ok: false, why: 'no PR found for branch — cannot prove the work landed' };
+  /* --pushed (2026-09-26): a tree whose branch has NO PR but whose every local commit is CONTAINED in
+     origin/<branch> loses nothing on removal — the branch is the copy. This is the state measurement
+     trees and WIP branches sit in (three of Heron's, ~1.5 GB, refused for want of a PR). `pushed` is
+     the result of that containment check, computed by the caller only when the flag is given; it
+     applies ONLY when there is no PR — an OPEN PR's tree stays (its fixes may still be made here),
+     and a MERGED PR keeps the stricter post-merge scan below. Absent flag ⇒ unchanged refusal. */
+  if (prState === null && pushed) {
+    if (pushed.ok === false) return { ok: false, why: `no PR, and cannot prove the branch is on origin: ${pushed.why}` };
+    if (pushed.ok === true) {
+      if (inUse && inUse.ok === false) return { ok: false, why: `cannot prove idle: ${inUse.why}` };
+      if (inUse && inUse.users && inUse.users.length) {
+        const who = inUse.users.map((u) => `PID ${u.pid} (${u.cmd})`).join('; ');
+        return { ok: false, why: `IN USE by ${who} — removing it would destroy that run` };
+      }
+      return { ok: true, why: `no PR; every commit is on ${pushed.remote} + tree clean` + (inUse ? ' + idle' : '') };
+    }
+  }
+  if (prState === null) return { ok: false, why: 'no PR found for branch — cannot prove the work landed (a pushed, PR-less branch: --pushed)' };
   if (prState !== 'MERGED') return { ok: false, why: `PR is ${prState}, not MERGED` };
   /* MERGED answers "did a PR from this branch merge", NOT "is every commit on this branch landed",
      and under squash nothing in the graph distinguishes them (row 2026-09-22-wt-done-merged-is-not-landed).
@@ -243,6 +262,23 @@ function unlandedFor(wtPath, mergedAt) {
   }
 }
 
+/* --pushed proof: every local commit of the worktree's branch is contained in origin/<branch>, read
+   from a FRESH fetch of that one branch (never from a stale remote-tracking ref). Detached ⇒ cannot
+   prove; a fetch failure ⇒ cannot prove; the tip not an ancestor ⇒ commits exist only here. */
+function pushedFor(wtPath, branch) {
+  if (!branch) return { ok: false, why: 'detached HEAD — no branch to compare with origin' };
+  try {
+    run('git', ['-C', wtPath, 'fetch', '-q', 'origin', branch]);
+  } catch (e) {
+    return { ok: false, why: `fetch origin ${branch} failed (${String(e.message || e).split('\n')[0]})` };
+  }
+  try {
+    run('git', ['-C', wtPath, 'merge-base', '--is-ancestor', 'HEAD', `refs/remotes/origin/${branch}`]);
+  } catch {
+    return { ok: false, why: `local HEAD is not contained in origin/${branch} — commits exist only in this tree` };
+  }
+  return { ok: true, remote: `origin/${branch}` };
+}
 function dirtyCountFor(wtPath) {
   return run('git', ['-C', wtPath, 'status', '--porcelain']).split('\n').filter(Boolean).length;
 }
@@ -267,13 +303,14 @@ function main(argv) {
     console.error('usage: --pr <number>');
     return 2;
   }
+  const pushedFlag = argv.includes('--pushed');
   const targets = argv.filter((a) => !a.startsWith('--') && a !== prArg);
   if (prArg && targets.length !== 1) {
     console.error(`✕ --pr names ONE PR, so it applies to ONE worktree (got ${targets.length})`);
     return 2;
   }
   if (!targets.length) {
-    console.error('usage: node tools/wt-done.mjs --list | <worktree-path> [...]');
+    console.error('usage: node tools/wt-done.mjs --list | [--pushed] [--pr <n>] <worktree-path> [...]');
     return 2;
   }
   let fail = 0;
@@ -303,7 +340,8 @@ function main(argv) {
       dirtyCount: dirtyCountFor(w.path),
       isMain: w.branch === 'main' || w.branch === 'master',
       inUse: usersOfPath(w.path),
-      unlanded: pr.state === 'MERGED' ? unlandedFor(w.path, pr.mergedAt) : undefined
+      unlanded: pr.state === 'MERGED' ? unlandedFor(w.path, pr.mergedAt) : undefined,
+      pushed: pushedFlag && pr.state === null ? pushedFor(w.path, w.branch) : undefined
     });
     if (!v.ok) {
       console.error(`✕ REFUSE ${t}: ${v.why}`);
@@ -334,6 +372,14 @@ if (process.argv.includes('--selftest')) {
   assert(!verdict({ prState: null, dirtyCount: 0, isMain: false }).ok, 'no PR must refuse');
   assert(!verdict({ prState: 'MERGED', dirtyCount: 0, isMain: true }).ok, 'main checkout must refuse');
   assert(verdict({ prState: 'MERGED', dirtyCount: 0, isMain: false }).ok, 'merged+clean must pass');
+  // --pushed: a PR-less branch whose commits are all on origin may go; nothing weaker
+  assert(!verdict({ prState: null, dirtyCount: 0, isMain: false }).ok, 'no PR without --pushed still refuses');
+  assert(verdict({ prState: null, dirtyCount: 0, isMain: false, pushed: { ok: true, remote: 'origin/x' } }).ok, 'no PR + pushed + clean passes');
+  assert(!verdict({ prState: null, dirtyCount: 1, isMain: false, pushed: { ok: true, remote: 'origin/x' } }).ok, 'pushed never overrides dirty');
+  assert(!verdict({ prState: null, dirtyCount: 0, isMain: false, pushed: { ok: false, why: 'not contained' } }).ok, 'pushed proof failed ⇒ refuse');
+  assert(!verdict({ prState: 'OPEN', dirtyCount: 0, isMain: false, pushed: { ok: true, remote: 'origin/x' } }).ok, 'an OPEN PR is not a pushed-only branch — stays');
+  assert(!verdict({ prState: null, dirtyCount: 0, isMain: false, pushed: { ok: true, remote: 'origin/x' }, inUse: { ok: true, users: [{ pid: 7, cmd: 'x' }] } }).ok, 'pushed never overrides in-use');
+  assert(/origin\/x/.test(verdict({ prState: null, dirtyCount: 0, isMain: false, pushed: { ok: true, remote: 'origin/x' } }).why), 'the pass names the remote it verified');
   /* ── the IDLE leg ─────────────────────────────────────────────────────────────────────────────
      A tree can be merged AND clean AND have a gate running in it; that combination is what this
      check exists for, so it is asserted directly rather than implied by the others. */
