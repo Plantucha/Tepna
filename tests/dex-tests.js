@@ -13193,7 +13193,11 @@
            a worker boundary unread" — claimed every boundary, and the exclusion was a LIVE finding on the
            first run: `hrRatio` reached no consumer. The `vdCorr` shape, in a producer nothing was looking
            at. */
-        { producer: 'sensor-trio-worker.js', allow: [] }
+        { producer: 'sensor-trio-worker.js', allow: [] },
+        /* DECLARED 2026-09-27, once the extractor could read an inline postMessage literal. Both post their
+           payload directly and were carried as EXCLUDED with that reason; the exclusion is now empty. */
+        { producer: 'qrs-equiv-worker.js', allow: [] },
+        { producer: 'qrs-yield-worker.js', allow: [] }
       ];
       /* ── THE POPULATION IS PINNED AS AN EQUALITY, NOT A FLOOR ──────────────────────────────────────
          A `>= N` check can never detect exclusion: the excluded members are exactly the ones it does not
@@ -13203,18 +13207,15 @@
          extractor cannot read their keys. Declaring them without extending the extractor would cover ZERO
          keys and report clean, which is worse than an honest exclusion (residue
          2026-09-27-inline-postmessage-payloads-are-unscanned). */
-      var EXCLUDED = {
-        'qrs-equiv-worker.js': 'posts inline postMessage({…}) literals — no named payload builder to read',
-        /* ADDED 2026-09-27, and it appeared because of a change in the SAME session: making `readSources()`
-           walk the analysis-tool bundles (the source-visibility unit) put `qrs-yield-analysis.js` in
-           `env.sources`, so the enumerator could finally see the `new Worker('qrs-yield-worker.js')` at
-           its line 52. A fourth producer that had been invisible, surfaced by the population equality
-           within one run of widening the inventory — which is the argument for the equality over a count.
-           Same idiom as the two above (5 `postMessage` calls, no `var out = {`, no `out.X =`), so the same
-           exclusion and the same residue row: 2026-09-27-inline-postmessage-payloads-are-unscanned, whose
-           list of two should be read as three. */
-        'qrs-yield-worker.js': 'posts inline postMessage({…}) literals — no named payload builder to read'
-      };
+      /* ── THE EXCLUSION SET IS NOW EMPTY ─────────────────────────────────────────────────────────────
+         It held `qrs-equiv-worker.js` and `qrs-yield-worker.js`, both for one reason: they post their
+         payload as an inline `postMessage({…})` literal and build no named object, so the key extractor
+         could not read them. The extractor now reads that idiom, both are DECLARED above, and nothing is
+         carried as "a boundary this gate cannot see". Closes residue
+         2026-09-27-inline-postmessage-payloads-are-unscanned.
+         Keep it as an empty object rather than deleting it: the denominator equality below is what makes a
+         NEW unreadable producer visible, and it needs something to compare against. */
+      var EXCLUDED = {};
       /* 🔴 A FOURTH WORKER, INVISIBLE FOR A DIFFERENT REASON, and my first version of EXCLUDED wrongly
          listed it here — the denominator assertion is what caught that. `cohort-worker.js` is constructed
          by four analysis pages and the cohort runner, but it is NOT in `env.sources`: run-tests.mjs loads
@@ -13242,9 +13243,52 @@
          among the 14 it could not see. Declaring a producer is therefore not enough; the extractor must
          be able to READ its payload, or the gate examines a third and reports on the whole.
          Depth-1 only: `sigma: { o2, h10, verity }` contributes `sigma`, not its members. */
+      /* Depth-1 members of an object literal, given the text starting at its `{`. Shared by the two literal
+         idioms below so they cannot disagree about what "a payload key" means. */
+      var litKeysAt = function (text, brace, into) {
+        var d = 0,
+          end = -1;
+        for (var k = brace; k < text.length; k++) {
+          if (text[k] === '{') d++;
+          else if (text[k] === '}') {
+            d--;
+            if (d === 0) {
+              end = k;
+              break;
+            }
+          }
+        }
+        if (end < 0) return;
+        var body = text.slice(brace + 1, end),
+          dd = 0,
+          seg = '';
+        var flush = function () {
+          var km = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:/.exec(seg);
+          if (km) into[km[1]] = true;
+          seg = '';
+        };
+        for (var c = 0; c < body.length; c++) {
+          var ch = body[c];
+          if (ch === '{' || ch === '[' || ch === '(') dd++;
+          else if (ch === '}' || ch === ']' || ch === ')') dd--;
+          if (dd === 0 && ch === ',') {
+            flush();
+            continue;
+          }
+          seg += ch;
+        }
+        flush();
+      };
       var payloadKeys = function (prodText) {
         var found = {},
           m;
+        /* THIRD IDIOM (2026-09-27): an inline `postMessage({ … })` literal. Two producers build no named
+           payload object at all — `qrs-equiv-worker.js` and `qrs-yield-worker.js` post their results
+           directly — so before this they could not be declared and were carried as EXCLUDED with a reason.
+           Depth-1 only, and only on a `postMessage(` call, which is what keeps this from admitting every
+           object literal in the file (the breadth failure mode the derived-consumer work turned on). */
+        var POST = /postMessage\s*\(\s*\{/g;
+        while ((m = POST.exec(prodText))) litKeysAt(prodText, prodText.indexOf('{', m.index), found);
         var ASSIGN = /\bout\.([A-Za-z_][A-Za-z0-9_]*)\s*=/g;
         while ((m = ASSIGN.exec(prodText))) found[m[1]] = true;
         var LIT = /\bvar\s+out\s*=\s*\{/g;
@@ -13393,6 +13437,37 @@
           'PLANT 1 · an unread key appended to the producer is reported dead',
           deadPlanted.indexOf('zzPlantedUnreadKey') >= 0,
           'the planted key was not reported dead — the detector is not firing. dead set: ' + (deadPlanted.join(',') || 'empty')
+        );
+        /* ── PLANT 1b · THE INLINE-LITERAL IDIOM HAS ITS OWN FALSIFIER ──────────────────────────────
+           PLANT 1 appends `out.zzPlantedUnreadKey = 1`, which the ASSIGN branch finds — so it says nothing
+           about whether the POST branch added in 2026-09-27 works. Two producers are declared ONLY because
+           of that branch; without this plant their green rows could mean the extractor reads nothing from
+           them at all, which is indistinguishable from a clean payload. */
+        var plantedInline = prod + "\nself.postMessage({ type: 'done', zzPlantedInlineKey: 1 });";
+        var pil = {};
+        payloadKeys(plantedInline).forEach(function (k) {
+          pil[k] = true;
+        });
+        T.ok(
+          'PLANT 1b · a key in an INLINE postMessage literal is extracted',
+          !!pil.zzPlantedInlineKey,
+          'the POST branch did not see it — a producer that builds no named payload would read as having no keys at all'
+        );
+        T.ok(
+          'PLANT 1b · …and it is reported dead when no consumer reads it',
+          Object.keys(pil)
+            .filter(function (k) {
+              return !new RegExp('[.\\b]' + k + '\\b').test(consumerText);
+            })
+            .indexOf('zzPlantedInlineKey') >= 0,
+          'extracted but not reported — the new idiom feeds the extractor and not the verdict'
+        );
+        T.ok(
+          'PLANT 1b · a NESTED key is NOT lifted to a payload key (depth-1 only)',
+          !payloadKeys(prod + "\nself.postMessage({ type: 'done', meta: { zzNestedOnly: 1 } });").some(function (k) {
+            return k === 'zzNestedOnly';
+          }),
+          'a nested member was extracted as a top-level payload key — the extractor is too greedy and will report dead keys that never cross the boundary'
         );
         T.ok(
           'PLANT 1 · and planting it CHANGED the dead set (the detector is not merely echoing)',
@@ -46709,18 +46784,35 @@
          separately as `CLAIM orchestrators = 2`, which co-load the same DSPs. Asserting one merged set of
          seven would corroborate neither claim; asserting them apart corroborates both, and a node moving
          between families reds instead of being absorbed. */
+      /* ── TWO FAMILIES, TWO EQUALITIES (restored 2026-09-27) ─────────────────────────────────────
+         The carriers are not one set. Five APP shells are what CLAUDE.md counts as `CLAIM clockBundles = 5`;
+         the two ORCHESTRATOR shells co-load the same DSPs and are counted separately as
+         `CLAIM orchestrators = 2`. This was written as a merged set of seven first, which corroborates
+         neither claim, then scoped to apps only while the orchestrator shells were excluded from
+         `readSrcHtml`. Both shells are now in the population (their modules are classified — see §1b's
+         RESOLVE and EXEMPT_FILES additions), so the assertion is back to naming both families: a node
+         moving between them reds instead of being absorbed into a larger number.
+         Their load order is now ASSERTED rather than measured-by-hand, which is what the previous comment
+         here promised to distinguish: clock.js precedes every delegating DSP in all seven. */
+      var ORCH = ['Data Unifier', 'OverDex'];
+      var appCarriers = carriers.filter(function (n) {
+        return ORCH.indexOf(n) < 0;
+      });
+      var orchCarriers = carriers.filter(function (n) {
+        return ORCH.indexOf(n) >= 0;
+      });
       T.eq(
         'the APP shells carrying a delegating DSP are exactly the five §✅ names (CLAIM clockBundles = 5)',
-        carriers.sort().join(','),
+        appCarriers.sort().join(','),
         'ECGDex,HRVDex,MotionDex,OxyDex,PulseDex',
         'the delegating set changed. If a node started delegating to DexClock its shell must also load clock.js; if one stopped, CLAUDE.md CLAIM clockBundles must move with it.'
       );
-      /* The two ORCHESTRATOR shells co-load the same DSPs and are NOT in this population: `readSrcHtml`
-         excludes them because admitting them reds `Co-load §1b` with 19 unclassified modules, which is its
-         own unit (residue 2026-09-27-orchestrator-shells-unclassified-by-coload). Their load order was
-         MEASURED by hand for this PR and is correct — clock.js at inline index 21 before the first
-         delegating DSP at 22 in Data Unifier, 6 before 26 in OverDex — but measured is not asserted, and
-         this comment says which it is. */
+      T.eq(
+        'both ORCHESTRATOR shells co-load delegating DSPs (CLAIM orchestrators = 2)',
+        orchCarriers.sort().join(','),
+        'Data Unifier,OverDex',
+        'an orchestrator stopped co-loading the node DSPs, or a third one appeared — either way the co-load manifest and CLAUDE.md must say so'
+      );
       T.eq('NO app carries a delegating DSP without clock.js (that is a ReferenceError at module evaluation)', crashers.join(',') || 'none', 'none');
       T.eq('clock.js precedes every delegating DSP it is loaded with', misordered.join(' · ') || 'none', 'none');
 
@@ -46981,7 +47073,19 @@
         'glucodex-registry.js': 'GLU_REGISTRY',
         /* The eighth registry, missing for the same reason as motiondex-dsp.js above: no MotionDex shell
            reached this gate. `env.MOTION_REGISTRY` was already wired in the runner. */
-        'motiondex-registry.js': 'MOTION_REGISTRY'
+        'motiondex-registry.js': 'MOTION_REGISTRY',
+        /* ── THE ORCHESTRATOR SHELLS' OWN MODULES (2026-09-27) ──────────────────────────────────────
+           `Data Unifier.src.html` and `OverDex.src.html` were outside `readSrcHtml()`'s list, so nothing
+           these two bundle had ever been classified. Admitting them reds §1b with 17 names; these six are
+           the ones that expose a NAMED global, so they take the ordinary RESOLVE form. Each global was
+           verified present in BOTH lanes' env before the entry was written — an entry naming a global that
+           does not exist would red for a different reason and read as a classification problem. */
+        'night-seal.js': 'NightSeal',
+        'overdex-walk.js': 'OverDexWalk',
+        'signal-adapters.js': 'SignalAdapters',
+        'signal-orchestrate.js': 'SignalOrchestrate',
+        'signal-spec.js': 'SignalSpec',
+        'verdict.js': 'Verdict'
       };
       // ── RUNTIME_EXEMPT (patterns): DOM classes driven end-to-end by the render-coverage rigs ──
       // (RESOLVE is consulted FIRST, so the shared dex-profile.js → DexProfile is co-loaded, NOT caught here.)
@@ -46992,6 +47096,34 @@
       ];
       // ── RUNTIME_EXEMPT (explicit): the irregular DOM/aux helpers, each named with its covering gate ──
       var EXEMPT_FILES = {
+        /* ── VENDOR ADAPTERS (2026-09-27) ───────────────────────────────────────────────────────────
+           Eleven adapters bundled by the orchestrator shells. They are exempt for a STRUCTURAL reason, not
+           a convenient one: each exposes no global whatsoever (measured — zero `root.X =` assignments) and
+           self-registers into `SignalAdapters`, so a RESOLVE entry has nothing to name. The exemption is
+           only honest because a stronger check already exists and is named in every reason below; if §5's
+           adapter-id equality did not exist these would not be exempt on my word. */
+        'coospo-rr.js':
+          'vendor adapter — exposes NO global of its own; it self-registers into SignalAdapters on load, so there is nothing for a RESOLVE entry to assert. COVERING GATE: `Co-load manifest — single source vs host realms (PPGDEX-FOLLOWUPS §5)` asserts the manifest adapter ids EQUAL the ids actually registered via SignalAdapters.list() (see the self-consistency leg in that group) — an EQUALITY over the whole adapter set, which is strictly stronger than a per-file presence test.',
+        'libre-cgm.js':
+          'vendor adapter — exposes NO global of its own; it self-registers into SignalAdapters on load, so there is nothing for a RESOLVE entry to assert. COVERING GATE: `Co-load manifest — single source vs host realms (PPGDEX-FOLLOWUPS §5)` asserts the manifest adapter ids EQUAL the ids actually registered via SignalAdapters.list() (see the self-consistency leg in that group) — an EQUALITY over the whole adapter set, which is strictly stronger than a per-file presence test.',
+        'o2ring-ppg.js':
+          'vendor adapter — exposes NO global of its own; it self-registers into SignalAdapters on load, so there is nothing for a RESOLVE entry to assert. COVERING GATE: `Co-load manifest — single source vs host realms (PPGDEX-FOLLOWUPS §5)` asserts the manifest adapter ids EQUAL the ids actually registered via SignalAdapters.list() (see the self-consistency leg in that group) — an EQUALITY over the whole adapter set, which is strictly stronger than a per-file presence test.',
+        'o2ring-ppg2w.js':
+          'vendor adapter — exposes NO global of its own; it self-registers into SignalAdapters on load, so there is nothing for a RESOLVE entry to assert. COVERING GATE: `Co-load manifest — single source vs host realms (PPGDEX-FOLLOWUPS §5)` asserts the manifest adapter ids EQUAL the ids actually registered via SignalAdapters.list() (see the self-consistency leg in that group) — an EQUALITY over the whole adapter set, which is strictly stronger than a per-file presence test.',
+        'oxydex-spo2.js':
+          'vendor adapter — exposes NO global of its own; it self-registers into SignalAdapters on load, so there is nothing for a RESOLVE entry to assert. COVERING GATE: `Co-load manifest — single source vs host realms (PPGDEX-FOLLOWUPS §5)` asserts the manifest adapter ids EQUAL the ids actually registered via SignalAdapters.list() (see the self-consistency leg in that group) — an EQUALITY over the whole adapter set, which is strictly stronger than a per-file presence test.',
+        'polar-h10-ecg.js':
+          'vendor adapter — exposes NO global of its own; it self-registers into SignalAdapters on load, so there is nothing for a RESOLVE entry to assert. COVERING GATE: `Co-load manifest — single source vs host realms (PPGDEX-FOLLOWUPS §5)` asserts the manifest adapter ids EQUAL the ids actually registered via SignalAdapters.list() (see the self-consistency leg in that group) — an EQUALITY over the whole adapter set, which is strictly stronger than a per-file presence test.',
+        'polar-rr.js':
+          'vendor adapter — exposes NO global of its own; it self-registers into SignalAdapters on load, so there is nothing for a RESOLVE entry to assert. COVERING GATE: `Co-load manifest — single source vs host realms (PPGDEX-FOLLOWUPS §5)` asserts the manifest adapter ids EQUAL the ids actually registered via SignalAdapters.list() (see the self-consistency leg in that group) — an EQUALITY over the whole adapter set, which is strictly stronger than a per-file presence test.',
+        'polar-sense-ppg.js':
+          'vendor adapter — exposes NO global of its own; it self-registers into SignalAdapters on load, so there is nothing for a RESOLVE entry to assert. COVERING GATE: `Co-load manifest — single source vs host realms (PPGDEX-FOLLOWUPS §5)` asserts the manifest adapter ids EQUAL the ids actually registered via SignalAdapters.list() (see the self-consistency leg in that group) — an EQUALITY over the whole adapter set, which is strictly stronger than a per-file presence test.',
+        'resmed-edf.js':
+          'vendor adapter — exposes NO global of its own; it self-registers into SignalAdapters on load, so there is nothing for a RESOLVE entry to assert. COVERING GATE: `Co-load manifest — single source vs host realms (PPGDEX-FOLLOWUPS §5)` asserts the manifest adapter ids EQUAL the ids actually registered via SignalAdapters.list() (see the self-consistency leg in that group) — an EQUALITY over the whole adapter set, which is strictly stronger than a per-file presence test.',
+        'wahoo-rr.js':
+          'vendor adapter — exposes NO global of its own; it self-registers into SignalAdapters on load, so there is nothing for a RESOLVE entry to assert. COVERING GATE: `Co-load manifest — single source vs host realms (PPGDEX-FOLLOWUPS §5)` asserts the manifest adapter ids EQUAL the ids actually registered via SignalAdapters.list() (see the self-consistency leg in that group) — an EQUALITY over the whole adapter set, which is strictly stronger than a per-file presence test.',
+        'welltory-summary.js':
+          'vendor adapter — exposes NO global of its own; it self-registers into SignalAdapters on load, so there is nothing for a RESOLVE entry to assert. COVERING GATE: `Co-load manifest — single source vs host realms (PPGDEX-FOLLOWUPS §5)` asserts the manifest adapter ids EQUAL the ids actually registered via SignalAdapters.list() (see the self-consistency leg in that group) — an EQUALITY over the whole adapter set, which is strictly stronger than a per-file presence test.',
         'entrance-guard.js': 'DOM print/entrance guard (CSS injection, no compute surface) — exercised by the render-coverage bundle boot',
         'ganglior-provenance.js': 'runtime build-provenance helper — exercised by verify-provenance.html GATE A/B + the render-coverage boot',
         'oxydex-util.js': 'OxyDex.compute() math dependency (computeCeilingBaselineArr etc.) — exercised by the OxyDex equiv/compute gate (env.equiv.oxydex) + render-coverage',

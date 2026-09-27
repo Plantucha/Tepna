@@ -1327,11 +1327,14 @@ function readSrcHtml() {
      residue 2026-09-27-orchestrator-shells-unclassified-by-coload rather than resolved inside a unit
      about load ORDER. The defect actually found here was the MotionDex omission; the orchestrators are a
      scope expansion discovered alongside it, and conflating the two would make this PR unreviewable. */
-  const ORCHESTRATOR_SHELLS = ['Data Unifier.src.html', 'OverDex.src.html'];
+  /* The orchestrator shells were excluded here while their bundled modules were unclassified (17 names
+     reddening `Co-load §1b`). They are classified as of 2026-09-27 — six RESOLVE entries for the modules
+     that expose a global, eleven vendor adapters exempt under §5's adapter-id equality — so the list is
+     now every authored shell with no carve-out. */
   const wanted = readdirSync(ROOT)
-    .filter((f) => /^[A-Za-z][A-Za-z0-9 ]*\.src\.html$/.test(f) && !ORCHESTRATOR_SHELLS.includes(f))
+    .filter((f) => /^[A-Za-z][A-Za-z0-9 ]*\.src\.html$/.test(f))
     .sort();
-  if (wanted.length < 9) throw new Error('readSrcHtml: only ' + wanted.length + ' app *.src.html found — refusing a list that short rather than reporting clean over it');
+  if (wanted.length < 11) throw new Error('readSrcHtml: only ' + wanted.length + ' *.src.html found — refusing a list that short rather than reporting clean over it');
   const out = {};
   for (const f of wanted) {
     const p = join(ROOT, f);
