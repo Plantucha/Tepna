@@ -26,6 +26,8 @@ from __future__ import annotations
 
 import re
 import subprocess
+from collections.abc import Callable
+from typing import Any
 
 import helper_path
 
@@ -144,7 +146,12 @@ def coerce_usb_port(value) -> str:
     return value
 
 
-_COERCE = {"stop": coerce_minutes, "rebind": coerce_usb_port}
+# ANNOTATED, because the value is CALLED (`_COERCE[verb](minutes)`) and an inferred union of two
+# distinct function types is not callable as far as a checker is concerned — "Cannot call function
+# of unknown type" on a line that builds an argv is exactly where a reader wants the types stated.
+# The two coercers return DIFFERENT types on purpose — minutes are an int, a USB bus-port is a
+# string — and `build_cmd` handles both a few lines below. The union is the table's real type.
+_COERCE: dict[str, Callable[[Any], int | str]] = {"stop": coerce_minutes, "rebind": coerce_usb_port}
 
 
 def build_cmd(verb, minutes=None) -> list[str]:
