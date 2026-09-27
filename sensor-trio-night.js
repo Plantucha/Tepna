@@ -494,6 +494,18 @@
     if (v) v.textContent = val;
     if (s) s.textContent = sub || '';
   }
+  /* ── WHAT THE REFERENCE SAYS ABOUT EACH HERO (tools/tch-firmware-reference.mjs, 2026-09-26) ────────────
+     Checked against beats two independent R-peak detectors agree on (ECGDex + the H10 firmware), over 37 box
+     nights: the classic hat under-reads the Verity (0.41 vs a true 0.73 bpm) and over-reads the H10 (0.97 vs
+     0.81), because the two optical corners share error (ρ ≈ 0.32) and the hat assumes they do not. The
+     O2Ring σ̂ lands within ±0.3 bpm / 30 % of its true value on 37/37 nights, a little low. So the H10 and
+     Verity heroes are UNVALIDATED and say so; the numbers live in
+     analysis/published-numbers/tch-firmware-reference-2026-09-26.json and this text must follow them. */
+  const VALIDATION = {
+    h10: 'unvalidated — the hat over-reads the H10 (0.97 vs a measured 0.81 bpm, 37 nights)',
+    verity: 'unvalidated — the hat under-reads the Verity (0.41 vs a true 0.73 bpm, 37 nights)',
+    o2: 'reference-checked — within ±0.3 bpm / 30 % on 37/37 nights (reads a little low: 1.46 vs 1.71)'
+  };
   function hero(k, real, derive) {
     const v = $('hero-' + k + '-val'),
       u = $('hero-' + k + '-unit');
@@ -513,6 +525,11 @@
           : ci
             ? 'bpm · 95 % CI ' + f2(ci.lo) + ' – ' + f2(ci.hi)
             : 'bpm · CI unavailable';
+    const note = $('hero-' + k + '-val') && $('hero-' + k + '-val').parentElement.querySelector('.ts-valid');
+    if (note) {
+      note.textContent = VALIDATION[k];
+      note.classList.toggle('ts-unval', k !== 'o2');
+    }
   }
   function renderSkip(nt, real) {
     for (const k of DKEYS) hero(k, null, null);

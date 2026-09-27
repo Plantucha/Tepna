@@ -2444,6 +2444,8 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
   @media (max-width: 1100px) { .ts-charts { grid-template-columns: 1fr; } .ts-heroes { grid-template-columns: 1fr; } }
   .ts-evser{display:flex;flex-wrap:wrap;gap:6px 14px;margin:2px 0 8px;font-size:11px;color:var(--text3,#6f8096);}
   .ts-evitem{display:inline-flex;align-items:center;gap:5px;}
+  .ts-valid{margin-top:6px;font-size:11px;color:var(--text3,#6f8096);}
+  .ts-valid.ts-unval{color:var(--amber,#FFB84D);}
 </style>
 </head>
 <body>
@@ -2512,18 +2514,23 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
         <div class="m-label">σ̂ · Polar H10 <span id="heroNight" style="opacity:.6"></span></div>
         <div class="m-val" id="hero-h10-val" style="color:#3DE0D0">—</div>
         <div class="m-unit" id="hero-h10-unit">bpm</div>
+        <div class="ts-valid"></div>
       </div>
       <div class="metric-hero">
         <div class="m-label">σ̂ · Verity Sense</div>
         <div class="m-val" id="hero-verity-val" style="color:#B98AFF">—</div>
         <div class="m-unit" id="hero-verity-unit">bpm</div>
+        <div class="ts-valid"></div>
       </div>
       <div class="metric-hero">
         <div class="m-label">σ̂ · O2Ring</div>
         <div class="m-val" id="hero-o2-val" style="color:#FFB84D">—</div>
         <div class="m-unit" id="hero-o2-unit">bpm</div>
+        <div class="ts-valid"></div>
       </div>
     </div>
+
+    <div class="chart-note ts-valnote" style="margin:0 0 var(--sp-3,12px)"><b>Checked against a reference.</b> On 37 box nights, each device was compared with the beats two independent R-peak detectors agree on (ECGDex and the H10 firmware). True per-second error: Verity 0.73 · O2Ring 1.71 bpm, bias ≤ 0.03 bpm on every device. This hat assumes independent errors, but the Verity and O2Ring share part of theirs (ρ ≈ 0.32), so it <b>under-reads the Verity and over-reads the H10</b> — those two σ̂ are unvalidated. The O2Ring σ̂ is within band on every night. A correlated-error hat with ρ from the reference did not pass either: near ρ ≈ σ<sub>Verity</sub>/σ<sub>O2Ring</sub> the two optical devices cannot be separated from pairwise differences. Source: <code>tools/tch-firmware-reference.mjs</code> · <code>analysis/published-numbers/tch-firmware-reference-2026-09-26.json</code>.</div>
 
     <div class="grid" style="grid-template-columns:repeat(6,1fr)">
       <div class="kpi" id="kOverlap"><div class="kpi-label">Overlap</div><div class="kpi-val">—</div><div class="kpi-sub">three-way, aligned 1 Hz</div></div>
@@ -4094,6 +4101,18 @@ function __mkWorker(name){ return new Worker(URL.createObjectURL(new Blob([__WSR
     if (v) v.textContent = val;
     if (s) s.textContent = sub || '';
   }
+  /* ── WHAT THE REFERENCE SAYS ABOUT EACH HERO (tools/tch-firmware-reference.mjs, 2026-09-26) ────────────
+     Checked against beats two independent R-peak detectors agree on (ECGDex + the H10 firmware), over 37 box
+     nights: the classic hat under-reads the Verity (0.41 vs a true 0.73 bpm) and over-reads the H10 (0.97 vs
+     0.81), because the two optical corners share error (ρ ≈ 0.32) and the hat assumes they do not. The
+     O2Ring σ̂ lands within ±0.3 bpm / 30 % of its true value on 37/37 nights, a little low. So the H10 and
+     Verity heroes are UNVALIDATED and say so; the numbers live in
+     analysis/published-numbers/tch-firmware-reference-2026-09-26.json and this text must follow them. */
+  const VALIDATION = {
+    h10: 'unvalidated — the hat over-reads the H10 (0.97 vs a measured 0.81 bpm, 37 nights)',
+    verity: 'unvalidated — the hat under-reads the Verity (0.41 vs a true 0.73 bpm, 37 nights)',
+    o2: 'reference-checked — within ±0.3 bpm / 30 % on 37/37 nights (reads a little low: 1.46 vs 1.71)'
+  };
   function hero(k, real, derive) {
     const v = $('hero-' + k + '-val'),
       u = $('hero-' + k + '-unit');
@@ -4113,6 +4132,11 @@ function __mkWorker(name){ return new Worker(URL.createObjectURL(new Blob([__WSR
           : ci
             ? 'bpm · 95 % CI ' + f2(ci.lo) + ' – ' + f2(ci.hi)
             : 'bpm · CI unavailable';
+    const note = $('hero-' + k + '-val') && $('hero-' + k + '-val').parentElement.querySelector('.ts-valid');
+    if (note) {
+      note.textContent = VALIDATION[k];
+      note.classList.toggle('ts-unval', k !== 'o2');
+    }
   }
   function renderSkip(nt, real) {
     for (const k of DKEYS) hero(k, null, null);

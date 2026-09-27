@@ -43,28 +43,6 @@
       },
       "note": "check.sh's runner-level object (VERDICT-CONTRACT §3d, #2672's advisory token one level up): population = the four blocking children ruff · shellcheck · pytest · unwired; the three EXTERNAL tools are read off their PUBLISHED exit-code contract (mapping beside the tool versions in the module: 0 PASS · issues code FAIL · 127 NOT_RUN = a missing TOOL, excluded, and the run UNKNOWN · abnormal codes and pytest 5 UNKNOWN); unwired is OURS and unadopted, so it is UNKNOWN by provenance and the object reads UNKNOWN on a green run until find_unwired emits its own object (§3d's lever); aggregation by precedence FAIL > UNKNOWN > PASS, never a vote; advisory-state tokens ride in result.advisory; written to capture-host/.check-verdict.json; the shell exit code STAYS"
     },
-    "capture-host/solid_night.py": {
-      "bin": "decides",
-      "status": "adopted",
-      "emits": {
-        "cmd": [
-          "python3",
-          "capture-host/night_verdicts.py",
-          "--sample-json",
-          "solid-night"
-        ]
-      },
-      "note": "solid-night (SOLID-NIGHT-2026-09-23-BRIEF §3.1): one tepna.verdict/1 per settled night, composed from band decisions made by solid_night_inputs.py and written as SOLID-VERDICT.json beside the loss audit by capture.loss_poller on the audit's own trigger; the §3.1 run ('S solid of N nights over D days') rides in result.run. Criterion 'failing band decisions' eq 0, pre-stated in §3 before any night was scored. The sample is a clean synthetic H10 night: four terms PASS from their real inputs and the night is UNKNOWN on the timebase term, as every real night is until the residual pass lands."
-    },
-    "capture-host/solid_night_inputs.py": {
-      "bin": "word-only",
-      "status": "exempt",
-      "reason": "the band SUPPLIERS: per-term PASS/FAIL/UNKNOWN decisions handed to solid_night.compose, never emitted on their own; the emitting producer is capture-host/solid_night.py (adopted)"
-    },
-    "capture-host/tests/test_solid_night_inputs.py": {
-      "bin": "test",
-      "status": "exempt"
-    },
     "capture-host/loss_audit.py": {
       "bin": "decides",
       "status": "adopted",
@@ -200,6 +178,24 @@
       },
       "note": "night-seal (CAPTURE-NIGHT-SEAL phase B): one object per settled night beside its seal in outbox/ — PASS (written and verified with unseal) / NOT_APPLICABLE (the seal still matches the directory) / FAIL (the written seal did not verify; previous kept) / NOT_RUN / UNKNOWN. The sample seals a synthetic night under a fresh key; where cryptography is not importable it emits NOT_RUN naming it"
     },
+    "capture-host/solid_night.py": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "python3",
+          "capture-host/night_verdicts.py",
+          "--sample-json",
+          "solid-night"
+        ]
+      },
+      "note": "solid-night (SOLID-NIGHT-2026-09-23-BRIEF §3.1): one tepna.verdict/1 per settled night, composed from band decisions made by solid_night_inputs.py and written as SOLID-VERDICT.json beside the loss audit by capture.loss_poller on the audit's own trigger; the §3.1 run ('S solid of N nights over D days') rides in result.run. Criterion 'failing band decisions' eq 0, pre-stated in §3 before any night was scored. The sample is a clean synthetic H10 night: four terms PASS from their real inputs and the night is UNKNOWN on the timebase term, as every real night is until the residual pass lands."
+    },
+    "capture-host/solid_night_inputs.py": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "the band SUPPLIERS: per-term PASS/FAIL/UNKNOWN decisions handed to solid_night.compose, never emitted on their own; the emitting producer is capture-host/solid_night.py (adopted)"
+    },
     "capture-host/tests/_srcscan.py": {
       "bin": "test",
       "status": "exempt"
@@ -268,19 +264,15 @@
       "bin": "test",
       "status": "exempt"
     },
-    "capture-host/tests/test_solid_night.py": {
-      "bin": "test",
-      "status": "exempt"
-    },
-    "capture-host/tests/test_monitor_solid_night.py": {
-      "bin": "test",
-      "status": "exempt"
-    },
     "capture-host/tests/test_monitor_apply_restart.py": {
       "bin": "test",
       "status": "exempt"
     },
     "capture-host/tests/test_monitor_ecg_bandpass.py": {
+      "bin": "test",
+      "status": "exempt"
+    },
+    "capture-host/tests/test_monitor_solid_night.py": {
       "bin": "test",
       "status": "exempt"
     },
@@ -295,6 +287,11 @@
     "capture-host/tests/test_night_verdicts_cli.py": {
       "bin": "test",
       "status": "exempt"
+    },
+    "capture-host/tests/test_nightqc.py": {
+      "bin": "test",
+      "status": "exempt",
+      "reason": "a TEST file; its only verdict word is the literal \"QC-VERDICT\" inside the guard that asserts solid_night reads no QC object — the string must be the one production writes, so rewording it would weaken the guard rather than fix a claim"
     },
     "capture-host/tests/test_nightqc_verdicts.py": {
       "bin": "test",
@@ -368,6 +365,14 @@
       "bin": "test",
       "status": "exempt"
     },
+    "capture-host/tests/test_solid_night.py": {
+      "bin": "test",
+      "status": "exempt"
+    },
+    "capture-host/tests/test_solid_night_inputs.py": {
+      "bin": "test",
+      "status": "exempt"
+    },
     "capture-host/tests/test_status_union.py": {
       "bin": "test",
       "status": "exempt"
@@ -392,11 +397,11 @@
       "bin": "test",
       "status": "exempt"
     },
-    "capture-host/tests/test_webmon_state_contract.py": {
+    "capture-host/tests/test_vigil_update.py": {
       "bin": "test",
       "status": "exempt"
     },
-    "capture-host/tests/test_vigil_update.py": {
+    "capture-host/tests/test_webmon_state_contract.py": {
       "bin": "test",
       "status": "exempt"
     },
@@ -1336,6 +1341,18 @@
       },
       "note": "UNKNOWN BY DESIGN via tools/verdict-undeclared.mjs — no band was ever pre-stated and the numbers are on record, so a threshold derived from the data it judges is UNKNOWN, not PASS (VERDICT-CONTRACT §1); quiet-corner σ MAE per estimator on planted truth; the in-code \"beat BASE by > 0.10 bpm\" rule is result.inCodeRuleWinner, never a status rides in result. Route to a decided status: a band pre-stated in a brief BEFORE the next run on unseen records (RESIDUE 2026-09-22-bandless-analysis-tools-emit-unknown)"
     },
+    "tools/tch-firmware-reference.mjs": {
+      "bin": "already-json",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/tch-firmware-reference.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "classic hat vs the two-detector (ECGDex + H10 firmware) reference; PASS/FAIL on the fraction of optical night-corners within band, UNDERPOWERED below 10 nights → verdictObject(); --json emits the object at the top level, --verdict-sample the synthetic-shape object the gate reads"
+    },
     "tools/tch-multinight.mjs": {
       "bin": "decides",
       "status": "adopted",
@@ -1458,11 +1475,6 @@
       "bin": "word-only",
       "status": "exempt",
       "reason": "selftest printer; its own verdict() is a pure PR-state decision consumed by the tool itself, exit-coded — a wave-2 candidate, listed here by reason not by omission"
-    },
-    "capture-host/tests/test_nightqc.py": {
-      "bin": "test",
-      "status": "exempt",
-      "reason": "a TEST file; its only verdict word is the literal \"QC-VERDICT\" inside the guard that asserts solid_night reads no QC object — the string must be the one production writes, so rewording it would weaken the guard rather than fix a claim"
     }
   }
 }
