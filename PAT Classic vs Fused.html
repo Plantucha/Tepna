@@ -5103,6 +5103,19 @@ function __mkWorker(name){ return new Worker(URL.createObjectURL(new Blob([__WSR
       );
     }
 
+    /* ── the hat, both columns — FIRST, because it is what a reader comes here for ───────────────
+       Ordering is a finding, not a preference. The owner asked for this page by naming the hats and
+       naming them before the lag ("i thougt ther will be also fused 3hat and normal 3hat", 2026-09-27),
+       and could not reach the page at all because the Nights pill threw. Both σ rows were already here
+       and sat BELOW three per-leg card rows, so the thing that was asked for was the last thing on the
+       page. No computation moved — `m.three` / `m.threeFused` are unchanged and still gated by the same
+       single `#run` that requires all three corners, so the hat and the legs share one eligibility and
+       neither can render without the other. */
+    out.push('<h3>three-cornered hat, over the three sites — classic beside fused</h3><div class="kpis">');
+    out.push(hatRow('classic hat σ', m.three, 'hat'));
+    out.push(hatRow('fused hat σ', m.threeFused, 'hatF'));
+    out.push('</div>');
+
     /* ── per leg: classic | fused | delta ───────────────────────────────────────────────────────── */
     LEG.forEach(function (L) {
       var c = m[L.k],
@@ -5124,12 +5137,6 @@ function __mkWorker(name){ return new Worker(URL.createObjectURL(new Blob([__WSR
       }
       out.push('</div>');
     });
-
-    /* ── the hat, both columns ──────────────────────────────────────────────────────────────────── */
-    out.push('<h3>three-cornered hat, over the three sites</h3><div class="kpis">');
-    out.push(hatRow('classic hat σ', m.three, 'hat'));
-    out.push(hatRow('fused hat σ', m.threeFused, 'hatF'));
-    out.push('</div>');
 
     /* ── 🔴 THE DELTA CARD: where the columns differ, AND where they cannot ──────────────────────── */
     out.push(
