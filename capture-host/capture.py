@@ -9611,7 +9611,9 @@ class SlowCallbackWatch:
 
     def __init__(self, threshold_ms: float = _SLOW_CB_MS) -> None:
         self.threshold_s = float(threshold_ms) / 1000.0
-        self._orig_run = None
+        # Typed as the callable it will hold, not inferred from its initial None — mypy read the
+        # annotation-free `None` as the attribute's TYPE and then called `install`'s assignment an error.
+        self._orig_run: "Callable[[asyncio.events.Handle], Any] | None" = None
         #: name -> {"n": count, "max_ms": worst}. The aggregate STATUS carries, so a reader has one line
         #: as well as the per-event log. Empty means "installed and nothing ran long", which is a finding.
         self.slow: dict[str, dict] = {}
@@ -9640,11 +9642,13 @@ class SlowCallbackWatch:
                                 "stamps waited behind THIS (seen %d time(s), worst %.0f ms)",
                                 name, held * 1000.0, rec["n"], rec["max_ms"])
 
-        asyncio.events.Handle._run = _run
+        # Replacing a method on the class IS the mechanism (the 1.20x choke point measured above), so
+        # the [method-assign] refusal is answered rather than silenced: both sites are the same swap.
+        asyncio.events.Handle._run = _run   # type: ignore[method-assign]
 
     def restore(self) -> None:
         if self._orig_run is not None:
-            asyncio.events.Handle._run = self._orig_run
+            asyncio.events.Handle._run = self._orig_run   # type: ignore[method-assign,assignment]
             self._orig_run = None
 
 
