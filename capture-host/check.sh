@@ -22,6 +22,14 @@
 # ⚠️ EVERY GATE RUNS EVEN AFTER ONE FAILS, and the verdict is computed from the collected exit codes —
 # never read off the tail of the output (CLAUDE.md §4b). Stopping at the first failure is how you fix
 # ruff, re-run, and only then discover the suite was red too.
+# ⚠️ RUN THIS FROM A WORKTREE AND THE COVERAGE FLOOR MAY NOT BE EVALUATED AT ALL. `PY` below prefers
+# `.venv/bin/python` and falls back to bare `python3`. A fresh `git worktree` has no `.venv`, and a
+# system interpreter without `pytest-cov` does not run the suite uncovered — it REFUSES the flags:
+# `error: unrecognized arguments: --cov --cov-branch --cov-fail-under=100`, exit 4. That reads as a code
+# failure and is an environment one, and the floor went unmeasured (measured 2026-09-27). Tell is exit 4
+# with no `TOTAL` row. So from a worktree, hand it an interpreter that has requirements-dev.txt:
+#     PYTHON=/path/to/primary/checkout/capture-host/.venv/bin/python ./check.sh
+
 set -uo pipefail                    # NOT -e: a failing gate must not abort the run
 cd "$(dirname "$0")" || exit 2
 
