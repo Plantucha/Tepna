@@ -44,6 +44,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
+import { gitShort } from './verdict-emit.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const DexBuild = createRequire(import.meta.url)(join(ROOT, 'tools', 'build-core.js'));
@@ -257,9 +258,11 @@ function selftest() {
     seed = (seed * 16807) % 2147483647; // MINSTD — same series in any lane
     return seed / 2147483647 - 0.5;
   };
-  let fails = 0;
+  let fails = 0,
+    passes = 0;
   const say = (ok, msg) => {
-    if (!ok) fails++;
+    if (ok) passes++;
+    else fails++;
     console.log((ok ? 'PASS ' : 'FAIL ') + msg);
   };
 
@@ -327,7 +330,31 @@ function selftest() {
   say(vpAlign([], [], {}).ok === false && vpAlign([1], [1], {}).ok === false, 'degenerate trains refuse');
   say(nccAnchor([1, 2], [1, 2], 10).ok === false, 'nccAnchor refuses under 32 intervals');
 
-  console.log(fails ? `\n${fails} FAILED` : '\nall passed');
+  /* summary moved to the END of the function — it used to print before the verdict block below, so a
+     failure there exited 1 while the report still read "all passed". And the count is now in the form
+     tools/selftest-all.mjs parses, so this tool stops being "green but unparseable" in that census. */
+  /* ── THE VERDICT: what this audit may and may not claim ─────────────────────────────────────────── */
+  const vb = { nA: 30000, nB: 29800, indelRate: 0.021, meanAbsDtMs: 18.4, commit: null };
+  const noBand = gateVerdict(vb);
+  say(noBand.status === 'UNKNOWN', `PLANT · a clean 2.1 % indel rate is UNKNOWN without a cited band (got ${noBand.status})`);
+  say(/no pre-stated criterion/.test(noBand.reason || ''), 'PLANT · …and the reason names the absent band, not the number');
+  say(gateVerdict({ ...vb, indelRate: 0.0001 }).status === 'UNKNOWN', 'PLANT · a near-perfect 0.01 % rate is ALSO UNKNOWN — a good number cannot supply its own bar');
+  const given = gateVerdict({ ...vb, band: { maxIndelRate: 0.05, source: 'test-only, not a norm' } });
+  say(given.status === 'PASS', `CONTROL · given a sourced band, 2.1 % ≤ 5 % ⇒ PASS (got ${given.status})`);
+  const over = gateVerdict({ ...vb, indelRate: 0.09, band: { maxIndelRate: 0.05, source: 'test-only, not a norm' } });
+  say(over.status === 'FAIL' && /exceeds the cited band/.test(over.reason || ''), 'CONTROL · and 9 % > 5 % ⇒ FAIL, naming the band it exceeded');
+  say(gateVerdict({ ...vb, band: { maxIndelRate: 0.05 } }).status === 'UNKNOWN', 'CONTROL · a band without a SOURCE does not count as cited');
+  /* A REFUSAL IS NOT A GOOD RESULT — the distinction the exit codes could not carry. */
+  const ref = gateVerdict({ ...vb, refusal: 'anchor unidentifiable' });
+  say(ref.status === 'UNKNOWN' && ref.result === null && ref.population.checked === 0, `a refusal is UNKNOWN with checked:0 and NO result (got ${ref.status})`);
+  say(/A refusal is not a low indel rate/.test(ref.reason || ''), '…and says so, because a refused alignment has no rate to be low');
+  const noPair = gateVerdict({ nA: 0, nB: 0, indelRate: null, meanAbsDtMs: null, refusal: 'no-pair', commit: null });
+  say(noPair.status === 'NOT_RUN', `no ECG/PPG pair ⇒ NOT_RUN (got ${noPair.status})`);
+  say(
+    [noBand, given, over, ref, noPair].every((v) => Verdict.validate(v).ok),
+    'every emitted object validates under verdict.js'
+  );
+  console.log(fails ? `\n${fails} of ${passes + fails} FAILED` : `\nall ${passes} selftests passed`);
   process.exit(fails ? 1 : 0);
 }
 
@@ -390,9 +417,72 @@ function ppgFootTimes(text) {
   return t;
 }
 
+/* ── ONE tepna.verdict/1, AND IT SAYS UNKNOWN — NO BAND EXISTS (CLAUDE.md §🧾) ──────────────────────────
+   The audit either REFUSES (anchor unidentifiable · band-edge contact · every mod-RR plane refused) or
+   prints an indel rate, a residual and a VP distance with NO threshold anywhere in the file. Its PASS/FAIL
+   words are selftest-only.
+
+   WHAT THE TREE HOLDS, read 2026-09-27 rather than assumed: nothing. No brief states what indel rate this
+   audit passes at — `dead-ends §2.7` names the MEASUREMENT as outstanding, not its bar. So there is no
+   norm to cite and no regime boundary to point at.
+
+   🔴 AND A BAND SHOULD NOT BE INVENTED FROM THE CORPUS NUMBERS, which are already on record: that is the
+   post-hoc band the contract's UNKNOWN clause names, and it is the same trap KNIFE-EDGE §2 and
+   EDR-THRESHOLD-MARGIN §3 describe from the other side — state a margin only where the regimes SEPARATE,
+   and where they do not, publish the sensitivity instead of a threshold. Nobody has shown an indel-rate
+   regime boundary here, so this tool publishes its numbers with UNKNOWN and a reason. `band` below is the
+   seam for the day a norm is cited, never a default and never taken from the run.
+   Residue 2026-09-22-beat-correspondence-has-no-band.
+
+   THE REFUSALS BECOME MACHINE-READABLE, which is what the tool genuinely decides and was exit codes only:
+   an unidentifiable anchor or an all-planes-refused sweep is UNKNOWN (it ran and could not decide — an
+   instrument failure, per the contract's own wording), and an absent ECG/PPG pair is NOT_RUN.
+   Pure and exported so the plants drive it without a night. */
+export function gateVerdict({ nA, nB, indelRate, meanAbsDtMs, refusal, commit, at, band }) {
+  const producedBy = { tool: 'tools/beat-correspondence.mjs', commit: commit == null ? null : commit };
+  if (commit == null) producedBy.commitReason = 'not run inside a git checkout';
+  const decided = band && typeof band.maxIndelRate === 'number' && typeof band.source === 'string';
+  const pairs = (nA || 0) + (nB || 0);
+  const status = refusal === 'no-pair' ? 'NOT_RUN' : refusal ? 'UNKNOWN' : !decided ? 'UNKNOWN' : indelRate <= band.maxIndelRate ? 'PASS' : 'FAIL';
+  const inert = status === 'NOT_RUN';
+  const v = Verdict.make({
+    gate: 'beat-correspondence',
+    status,
+    population: { checked: inert || refusal ? 0 : pairs, eligible: pairs, excluded: inert || refusal ? pairs : 0 },
+    criterion: decided
+      ? { name: 'indel_rate_vs_cited_norm', threshold: band.maxIndelRate, unit: 'fraction', direction: 'lte' }
+      : { name: 'beat_correspondence_indel_rate', threshold: 0, unit: 'fraction', direction: 'gte' },
+    result: inert || refusal ? null : { beatsEcg: nA, beatsPpg: nB, indelRate: indelRate, meanAbsDtMs: meanAbsDtMs },
+    evidence: ['tools/beat-correspondence.mjs'],
+    reason:
+      refusal === 'no-pair'
+        ? 'no H10 _ECG / Verity _PPG pair in the night directory — nothing was examined'
+        : refusal
+          ? 'the audit REFUSED and did not produce a correspondence: ' + refusal + '. A refusal is not a low indel rate; it is the absence of an alignment to score.'
+          : !decided
+            ? 'no pre-stated criterion — no brief states what indel rate this audit passes at (dead-ends §2.7 names the measurement as outstanding, not its bar), and no indel-rate regime boundary has been shown, so a band here would be fitted to the corpus numbers already on record.'
+            : status === 'FAIL'
+              ? 'indel rate ' + (100 * indelRate).toFixed(2) + ' % exceeds the cited band of ' + (100 * band.maxIndelRate).toFixed(2) + ' % (' + band.source + ')'
+              : null,
+    producedBy,
+    at: (at || new Date().toISOString()).replace(/\.\d{3}Z$/, 'Z')
+  });
+  const chk = Verdict.validate(v);
+  if (!chk.ok) throw new Error('beat-correspondence produced an invalid verdict: ' + chk.errors.join('; '));
+  return v;
+}
+
+const Verdict = createRequire(import.meta.url)('../verdict.js');
+
 async function main() {
   const args = process.argv.slice(2);
   if (args.includes('--selftest')) return selftest();
+  if (args.includes('--verdict-sample')) {
+    /* What `tools/verdict-adoption.mjs --check` RUNS — above the night-directory check, so it answers
+       without a corpus. Representative figures, not a measurement. */
+    console.log(JSON.stringify(gateVerdict({ nA: 30000, nB: 29800, indelRate: 0.021, meanAbsDtMs: 18.4, commit: gitShort() })));
+    process.exit(0);
+  }
   const dir = args.find((a) => !a.startsWith('--'));
   if (!dir) {
     console.error('usage: node tools/beat-correspondence.mjs <night-dir> [--q 1/150] [--band 48] | --selftest');
