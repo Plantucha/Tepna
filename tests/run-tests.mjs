@@ -657,6 +657,14 @@ function readSources() {
        at the render step while every test stayed green. A layer nothing reads is a layer nothing
        checks. */
     'pat-feasibility.js',
+    /* The new PAT classic-vs-fused page. Listed in BOTH lanes the day it was written, because until it
+       is here it is invisible to every source scan (`ratchet 12` names it an unscannable layer).
+       ⚠️ It reads the worker's new `fused`/`threeFused` keys, and being listed HERE does not make that
+       read count: `no UNDECLARED dead key crosses the boundary` keeps its own hand-written consumer list
+       in `tests/dex-tests.js`, and reported both keys DEAD until the file was named THERE too. Measured,
+       not assumed — I registered the inventory first and the dead-key red survived unchanged. Two lists,
+       two edits; one omission does not explain both reds. */
+    'pat-classic-vs-fused.js',
     /* The cohort HARNESS page — its authored boot script is the realm tripwire (refuse rather than serve
        nulls, #2572); the gate drives it in a vm with the node's global absent and present, and pins its
        two maps equal so a node cannot slip past the check unexamined. The DSP blocks inlined above the

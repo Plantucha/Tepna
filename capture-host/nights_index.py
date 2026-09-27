@@ -62,6 +62,11 @@ DERIVED: dict[str, tuple[str, ...]] = {
     # ring's raw PPG waveform — a ✓ must mean the tool can run, so the requirement names the file it reads
     "3 corner hat": ("Polar_H10_*_HR.txt", "Polar_VeritySense_*_PPG.txt", "Wellue_O2Ring-S_*_SPO2.csv"),
     "PAT":          ("Polar_H10_*_ECG.txt", "Polar_VeritySense_*_PPG.txt"),
+    # "PAT fused" needs a THIRD corner the plain PAT page does not: the finger leg and the hat are built
+    # from the ring's RAW pleth, not its SpO2 CSV, so the requirement names `_PPG.txt` — the same rule the
+    # hat entry above states ("a ✓ must mean the tool can run, so the requirement names the file it reads")
+    # reaching a different file. A night with the ring's CSV but no raw pleth is PAT-eligible and NOT this.
+    "PAT fused":    ("Polar_H10_*_ECG.txt", "Polar_VeritySense_*_PPG.txt", "Wellue_O2Ring-S_*_PPG.txt"),
 }
 COLUMNS = tuple(NODES) + tuple(DERIVED)
 
