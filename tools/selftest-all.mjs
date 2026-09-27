@@ -145,8 +145,6 @@ export const UNPARSEABLE_RATCHET = new Set([
   'acc-select-compare.mjs',
   'acc-shared-movement.mjs',
   'aperiodic-method-compare.mjs',
-  'beat-correspondence.mjs',
-  'deep-desat-falsifier.mjs',
   'deep-vlf-probe.mjs',
   'device-stability.mjs',
   'ecg-apnea-correlate.mjs',
