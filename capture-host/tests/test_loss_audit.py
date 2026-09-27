@@ -1398,3 +1398,169 @@ def test_an_event_deep_inside_the_outage_is_recorded_but_never_the_cause():
     r = loss_audit.attribute_gaps_detail([(t0, 121.0)], ev)[0]
     assert r["cause"] == "daemon:not-worn drop" and r["cause_dir"] == "before", r
     assert r["in_gap_cause"] == "link:dbus busy", r
+# ---------------------------------------------------------------------------------------------------
+# THE RING'S STALLS — residue 2026-09-25-ring-stalls-count-as-loss-without-a-device-clock
+#
+# ⚠️ THAT ROW'S TITLE USES WORDING THE OWNER HAS REJECTED ON SIGHT ("o2 has crystal and time sync. how
+# is that not clock?", 2026-08-17). The ring HAS a clock: an onboard RTC we deliberately discipline with
+# `SET_UTC_TIME (0xC0)`. What its EXPORTED AXIS carries is no per-sample clock READINGS — the raw streams'
+# `sensor timestamp [ns]` is drawn, `sample_index x 7,953,045 ns`, one delta value at 100.0 % across 16
+# files — and the `_SPO2.csv` primary carries no device column at all (`Time,Oxygen Level,Pulse Rate,
+# Motion`). So the delay test, which compares a host gap against a device-counter step, has nothing to
+# read, and every event-loop stall fell to `loss` by default.
+#
+# The witness the ring DOES carry is `duration_s` in the 0x04 frames (`OXYFRAME.txt`): a counter of
+# SECONDS OF SIGNAL PRODUCED, not seconds of time. That asymmetry is exactly what makes it usable here —
+# a stall the ring produced signal across advanced it, a stall the ring was silent through did not — and
+# it is also the limit: "advanced by 13" and "13 s of time passed" are different claims, and only the
+# first is available.
+# ---------------------------------------------------------------------------------------------------
+
+_OXY_HDR = (
+    "Phone timestamp;duration_s;pi_pct;motion;spo2;pr;contact;battery_pct;batt_state;flag;"
+    "ppg_n;ppg_dur_step;ppg_offset;flag_raw;alarm_raw;run_status\n"
+)
+
+
+def _oxyframe(d, start, secs, *, stall_at=None, stall_s=0, freeze=False, dur0=0):
+    """An `OXYFRAME.txt` for a ring session: one frame per second carrying `duration_s`.
+
+    `stall_at`/`stall_s` cut the frames out for that window, as an event-loop stall does. `freeze` keeps
+    the counter at its pre-stall value when delivery resumes — the ring produced NOTHING across the
+    stall — where the default resumes at the value continuous production would have reached.
+    """
+    stamp = start.strftime("%Y%m%d%H%M%S")
+    with open(d / f"Wellue_O2Ring-S_S8AW2100_{stamp}_OXYFRAME.txt", "w") as fh:
+        fh.write(_OXY_HDR)
+        for sec in range(secs):
+            if stall_at is not None and stall_at <= sec < stall_at + stall_s:
+                continue
+            dur = dur0 + (min(sec, stall_at) if (freeze and stall_at is not None and sec >= stall_at) else sec)
+            t = (start + dt.timedelta(seconds=sec)).isoformat(timespec="milliseconds")
+            fh.write(f"{t};{dur};25.5;0;97;58;1;80;0;0;126;1;0;0;0;2\n")
+
+
+def _ring_stall_night(tmp_path, *, witness="advancing", stall_at=100, stall_s=12):
+    """A ring night whose SpO2 primary has one stall, with the 0x04 signal witness beside it (or not)."""
+    d = tmp_path / "captures" / "2026-09-22"
+    d.mkdir(parents=True)
+    start = dt.datetime(2026, 9, 22, 22, 39, 24)
+    with open(d / "Wellue_O2Ring-S_S8AW2100_20260922223924_SPO2.csv", "w") as fh:
+        fh.write("Time,Oxygen Level,Pulse Rate,Motion\n")
+        for sec in range(300):
+            if stall_at <= sec < stall_at + stall_s:
+                continue
+            fh.write((start + dt.timedelta(seconds=sec)).strftime("%H:%M:%S %d/%m/%Y") + ",97,58,0\n")
+    if witness != "absent":
+        _oxyframe(d, start, 300, stall_at=stall_at, stall_s=stall_s, freeze=(witness == "frozen"))
+    return str(d)
+
+
+RING_DEV = [{"name": "Ring", "model": "O2Ring-S"}]
+
+
+def test_PLANT_a_ring_stall_the_signal_counter_advanced_across_is_a_DELAY(tmp_path):
+    """The ring kept producing signal through the stall — `duration_s` advanced by the stall's length — so
+    the seconds exist and what was lost was the delivery, not the signal. Calling it loss overstates the
+    night's hole by every event-loop stall the box ever had."""
+    d = _ring_stall_night(tmp_path, witness="advancing")
+    dev = loss_audit.audit_night(d, RING_DEV, journal=lambda *a: [])["devices"]["Ring"]
+    assert dev["lost_min"] == 0.0, ("a stall the ring produced signal across is not loss", dev)
+    assert dev["gaps"] == [], dev["gaps"]  # it left `gaps` entirely, as an in-file delay does
+    # the ledger publishes minutes to one decimal, so 13 s is 0.2 — asserted as published, not as 13/60
+    assert dev["delayed_min"] == 0.2, dev["delayed_min"]
+
+
+def test_PLANT_a_ring_stall_the_counter_did_NOT_advance_across_is_a_LOSS(tmp_path):
+    """The mirror: the counter is frozen across the stall, so the ring produced nothing and those seconds
+    of signal do not exist anywhere. That IS loss, and it must still read as loss."""
+    d = _ring_stall_night(tmp_path, witness="frozen")
+    dev = loss_audit.audit_night(d, RING_DEV, journal=lambda *a: [])["devices"]["Ring"]
+    assert dev["lost_min"] == 0.2, dev
+    assert [g["witness"] for g in dev["gaps"]] == ["silence"], dev["gaps"]
+    # 1 s of the 13 was produced — under the gap minus one count, so the rest is signal that never was
+    assert dev["gaps"][0]["witness_advance_s"] == 1.0, dev["gaps"]
+    assert dev["unwitnessed_min"] == 0.0, dev
+
+
+def test_PLANT_a_ring_stall_with_no_witness_is_UNKNOWN_and_never_loss_by_default(tmp_path):
+    """No `OXYFRAME.txt` beside the primary: nothing on the device side can say whether those seconds were
+    produced. The honest output is that the gap is unwitnessed, with its minutes reported under their own
+    name — not folded into `lost_min`, which is a measurement of signal that demonstrably did not exist."""
+    d = _ring_stall_night(tmp_path, witness="absent")
+    dev = loss_audit.audit_night(d, RING_DEV, journal=lambda *a: [])["devices"]["Ring"]
+    assert dev["lost_min"] == 0.0, ("loss by default is the defect", dev)
+    assert dev["unwitnessed_min"] == 0.2, dev
+    assert [g["witness"] for g in dev["gaps"]] == ["unwitnessed"], dev["gaps"]
+    # the gap is still PUBLISHED with its length and cause — reported, just not claimed as lost signal
+    assert dev["gaps"][0]["s"] == 13.0 and dev["gaps"][0]["witness_advance_s"] is None, dev["gaps"]
+
+
+def test_CONTROL_a_POLAR_stream_with_no_device_column_does_not_borrow_the_rings_witness(tmp_path):
+    """THE SCOPING CONTROL, and it caught a real error in the first draft of this change. Gating the
+    witness on "this scan found no counter" fires for an H10 file that carries no device column — an older
+    night, a torn header — and `duration_s` is the RING's production counter, which says nothing whatever
+    about an H10. So the gate is the ring's own primary. A Polar stream keeps exactly the behaviour it had:
+    its gaps are loss, and no witness key appears on them."""
+    d = _night(tmp_path, holes=((200, 320),))  # `_stream` writes "Phone timestamp;x" — no counter
+    (tmp_path / "captures" / "2026-09-20" / "Wellue_O2Ring-S_S8AW2100_20260920220000_OXYFRAME.txt").write_text(
+        _OXY_HDR + "2026-09-20T22:03:19.000;0;25.5;0;97;58;1;80;0;0;126;1;0;0;0;2\n"
+    )
+    dev = loss_audit.audit_night(d, DEV, journal=lambda *a: [])["devices"]["Polar H10 0284"]
+    assert dev["lost_min"] == pytest.approx(121 / 60.0, abs=0.05), dev
+    assert dev["unwitnessed_min"] == 0.0, dev
+    assert all("witness" not in g for g in dev["gaps"]), dev["gaps"]
+
+
+def test_a_ring_counter_that_RESET_across_the_gap_is_unwitnessed_not_silence(tmp_path):
+    """A new recording session zeroes `duration_s`, so a backwards step is not a small advance — it is a
+    different count, and nothing about the old value bounds the new one. Reading that as silence would
+    turn every ring session restart into invented signal loss (§🔒 §7, the same rule `boundary_gap` keeps
+    for a device counter that goes backwards)."""
+    d = tmp_path / "captures" / "2026-09-22"
+    d.mkdir(parents=True)
+    start = dt.datetime(2026, 9, 22, 22, 39, 24)
+    with open(d / "Wellue_O2Ring-S_S8AW2100_20260922223924_SPO2.csv", "w") as fh:
+        fh.write("Time,Oxygen Level,Pulse Rate,Motion\n")
+        for sec in range(300):
+            if 100 <= sec < 112:
+                continue
+            fh.write((start + dt.timedelta(seconds=sec)).strftime("%H:%M:%S %d/%m/%Y") + ",97,58,0\n")
+    _oxyframe(d, start, 100, dur0=500)  # before: counting from 500
+    _oxyframe(d, start + dt.timedelta(seconds=112), 188, dur0=0)  # after: a fresh session at 0
+    dev = loss_audit.audit_night(str(d), RING_DEV, journal=lambda *a: [])["devices"]["Ring"]
+    assert [g["witness"] for g in dev["gaps"]] == ["unwitnessed"], dev["gaps"]
+    assert dev["lost_min"] == 0.0 and dev["unwitnessed_min"] == 0.2, dev
+
+
+def test_the_signal_witness_survives_a_torn_row_and_an_unreadable_frame_file(tmp_path):
+    """A torn row carries no counter and is skipped, not read as a zero (∅). An unreadable frame file is
+    not the absence of a witness either — the others still answer."""
+    d = tmp_path / "captures" / "2026-09-22"
+    d.mkdir(parents=True)
+    start = dt.datetime(2026, 9, 22, 22, 39, 24)
+    with open(d / "Wellue_O2Ring-S_S8AW2100_20260922223924_OXYFRAME.txt", "w") as fh:
+        fh.write(_OXY_HDR)
+        fh.write(f"{start.isoformat(timespec='milliseconds')};0;25.5;0;97;58;1;80;0;0;126;1;0;0;0;2\n")
+        fh.write(f"{(start + dt.timedelta(seconds=1)).isoformat(timespec='milliseconds')};;25.5\n")  # torn
+        fh.write("\n")  # a blank line: no fields at all
+        fh.write("# a comment the writer left;7\n")  # two fields, but no stamp to read
+        fh.write(
+            f"{(start + dt.timedelta(seconds=2)).isoformat(timespec='milliseconds')};2;25.5;0;97;58;1;80;0;0;126;1;0;0;0;2\n"
+        )
+    (d / "Wellue_O2Ring-S_S8AW2100_20260922224000_OXYFRAME.txt").mkdir()  # unreadable: a directory
+    w = loss_audit.signal_witness(str(d))
+    assert [v for _t, v in w] == [0, 2], w
+
+
+def test_a_gap_the_witness_does_not_BRACKET_is_unwitnessed(tmp_path):
+    """The counter can only speak about a span it has a reading on either side of. A gap before its first
+    frame — or after its last — gets no verdict rather than a guess, which is the same refusal as a missing
+    file and for the same reason: the audit may not invent the ring's production."""
+    t = dt.datetime(2026, 9, 22, 22, 39, 24)
+    w = [(t + dt.timedelta(seconds=k), k) for k in range(100, 200)]
+    assert loss_audit.witness_judges(w, t, 13.0) == ("unwitnessed", None)  # before the first
+    assert loss_audit.witness_judges(w, t + dt.timedelta(seconds=250), 13.0) == ("unwitnessed", None)
+    # and the control: a gap it DOES bracket gets a verdict
+    verdict_, advance = loss_audit.witness_judges(w, t + dt.timedelta(seconds=120), 13.0)
+    assert (verdict_, advance) == ("delay", 13.0), (verdict_, advance)
