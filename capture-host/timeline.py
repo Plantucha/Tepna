@@ -439,14 +439,12 @@ def build(night_dir: str, devices: list[dict], buckets: int = DEFAULT_BUCKETS) -
     sessions = nightqc.merge_sessions(data, starts=_seams) if data else []
     spans: list[float] = []
     if sessions:
-        # ⚠️ THE SEGMENTATION AGREES (both split on recorded seams, above); THE SELECTION DOES NOT.
-        # `summarize` judges the session with the most ROWS (its own "JUDGE THE SUBSTANTIVE SESSION"
-        # comment); this picks the latest-ENDING one. Under the old strict separation those coincided
-        # often enough that this line's comment claimed agreement outright — they part company on a night
-        # whose substantive run is followed by a shorter later one, which is exactly the shape that
-        # motivated the seam work. Left as-is deliberately rather than changed silently here: residue
-        # `2026-09-26-timeline-selects-a-different-session-than-nightqc`.
-        cur = max(sessions, key=lambda s: s[1])
+        # ONE RULE, ONE CALL SITE — `nightqc.judged_session` holds the reasoning and the measurement.
+        # This used to pick the latest-ENDING session while `summarize` picked the substantive one, and
+        # the comment here asserted they agreed. They did not, on 27 of the 64 nights measured, twice
+        # selecting a session with zero rows. Two copies of a rule is what produced that, so this is a
+        # call rather than a second copy.
+        cur = nightqc.judged_session(sessions)
         data = cur[2]
         spans = [cur[0], cur[1]]
         for f in data:

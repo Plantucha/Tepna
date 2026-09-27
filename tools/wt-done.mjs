@@ -14,7 +14,8 @@
  *      see the 12-commits-stranded incident). No PR, or PR still open ⇒ REFUSE — except `--pushed`
  *      (2026-09-26): a PR-less branch whose every local commit is contained in a freshly fetched
  *      origin/<branch> may go, because the branch is the copy — or whose HEAD is contained in origin/main
- *      (no commits of its own: nothing to land); nothing else is weakened.
+ *      (no commits of its own: nothing to land); a CLOSED-unmerged PR with the same containment proof
+ *      may go too (the branch on origin is the copy; the branch itself is never deleted). OPEN stays.
  *   2. the tree is CLEAN — `git status --porcelain` empty. Dirty ⇒ REFUSE and say what is dirty;
  *      per CLAUDE.md §👥.2 those files may be someone's only copy.
  *   3. the tree is IDLE — no process has its cwd inside it and none holds a file open there.
@@ -171,7 +172,10 @@ export function verdict({ prState, dirtyCount, isMain, inUse, unlanded, pushed }
      the result of that containment check, computed by the caller only when the flag is given; it
      applies ONLY when there is no PR — an OPEN PR's tree stays (its fixes may still be made here),
      and a MERGED PR keeps the stricter post-merge scan below. Absent flag ⇒ unchanged refusal. */
-  if (prState === null && pushed) {
+  /* A CLOSED (not merged) PR is the same proof one step on: the branch carried the work to origin and
+     the PR was declined, so the TREE is not the only copy — remove it, never the branch (dropping an
+     abandoned branch is the owner's call). OPEN stays out: its fixes may still be made here. */
+  if ((prState === null || prState === 'CLOSED') && pushed) {
     if (pushed.ok === false) return { ok: false, why: `no PR, and cannot prove the branch is on origin: ${pushed.why}` };
     if (pushed.ok === true) {
       if (inUse && inUse.ok === false) return { ok: false, why: `cannot prove idle: ${inUse.why}` };
@@ -179,7 +183,7 @@ export function verdict({ prState, dirtyCount, isMain, inUse, unlanded, pushed }
         const who = inUse.users.map((u) => `PID ${u.pid} (${u.cmd})`).join('; ');
         return { ok: false, why: `IN USE by ${who} — removing it would destroy that run` };
       }
-      return { ok: true, why: `no PR; every commit is on ${pushed.remote} + tree clean` + (inUse ? ' + idle' : '') };
+      return { ok: true, why: `${prState === 'CLOSED' ? 'PR closed unmerged' : 'no PR'}; every commit is on ${pushed.remote} + tree clean` + (inUse ? ' + idle' : '') };
     }
   }
   if (prState === null) return { ok: false, why: 'no PR found for branch — cannot prove the work landed (a pushed, PR-less branch: --pushed)' };
@@ -353,7 +357,7 @@ function main(argv) {
       isMain: w.branch === 'main' || w.branch === 'master',
       inUse: usersOfPath(w.path),
       unlanded: pr.state === 'MERGED' ? unlandedFor(w.path, pr.mergedAt) : undefined,
-      pushed: pushedFlag && pr.state === null ? pushedFor(w.path, w.branch) : undefined
+      pushed: pushedFlag && (pr.state === null || pr.state === 'CLOSED') ? pushedFor(w.path, w.branch) : undefined
     });
     if (!v.ok) {
       console.error(`✕ REFUSE ${t}: ${v.why}`);
@@ -390,6 +394,10 @@ if (process.argv.includes('--selftest')) {
   assert(!verdict({ prState: null, dirtyCount: 1, isMain: false, pushed: { ok: true, remote: 'origin/x' } }).ok, 'pushed never overrides dirty');
   assert(!verdict({ prState: null, dirtyCount: 0, isMain: false, pushed: { ok: false, why: 'not contained' } }).ok, 'pushed proof failed ⇒ refuse');
   assert(!verdict({ prState: 'OPEN', dirtyCount: 0, isMain: false, pushed: { ok: true, remote: 'origin/x' } }).ok, 'an OPEN PR is not a pushed-only branch — stays');
+  assert(verdict({ prState: 'CLOSED', dirtyCount: 0, isMain: false, pushed: { ok: true, remote: 'origin/x' } }).ok, 'a CLOSED PR whose commits are on origin may go (the tree is not the only copy)');
+  assert(!verdict({ prState: 'CLOSED', dirtyCount: 0, isMain: false }).ok, 'a CLOSED PR without --pushed still refuses');
+  assert(!verdict({ prState: 'CLOSED', dirtyCount: 0, isMain: false, pushed: { ok: false, why: 'not contained' } }).ok, 'a CLOSED PR with commits only here refuses');
+  assert(/closed unmerged/.test(verdict({ prState: 'CLOSED', dirtyCount: 0, isMain: false, pushed: { ok: true, remote: 'origin/x' } }).why), 'the pass says the PR was closed, not merged');
   assert(!verdict({ prState: null, dirtyCount: 0, isMain: false, pushed: { ok: true, remote: 'origin/x' }, inUse: { ok: true, users: [{ pid: 7, cmd: 'x' }] } }).ok, 'pushed never overrides in-use');
   assert(/origin\/x/.test(verdict({ prState: null, dirtyCount: 0, isMain: false, pushed: { ok: true, remote: 'origin/x' } }).why), 'the pass names the remote it verified');
   /* ── the IDLE leg ─────────────────────────────────────────────────────────────────────────────

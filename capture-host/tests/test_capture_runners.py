@@ -3202,10 +3202,16 @@ def _main_with_cfg(tmp_path, monkeypatch, cfg, extra_stubs=()):
 
         monkeypatch.setattr(capture, r, _n)
     monkeypatch.setattr(_sys, "argv", ["capture.py", "--config", str(cfgp)])
-    capture._STOP.clear()
+    # STOP DETERMINISTICALLY, NOT BY RACING `main()`. This used to clear `_STOP` and then
+    # `call_soon(_STOP.set)`, betting the callback ran before `main()` reached `await _STOP.wait()`. It
+    # usually won; when it lost, `wait()` bound the module-global event to this loop and the next test to
+    # lose the same race died on "bound to a different event loop". Pre-set, `wait()` returns at once and
+    # never calls `_get_loop`, so nothing binds — and every startup step still runs, because `main()`
+    # awaits the stop only after them. The conftest reset is what makes a lost race harmless anywhere;
+    # this makes the shared helper not take the bet at all.
+    capture._STOP.set()
 
     async def run():
-        _a.get_event_loop().call_soon(capture._STOP.set)
         await capture.main()
 
     _a.run(run())
