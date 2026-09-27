@@ -36,12 +36,15 @@
 #   Every fail-open leg is pinned in the self-test, paired with the DENY it differs from by
 #   ONE property, so a guard that fires on nothing scores as red as one that fires on everything.
 #
-# ⚠ SCOPE (widened 2026-09-24, owner-ordered "find a way to enforce usage"): THREE shapes.
+# ⚠ SCOPE (widened 2026-09-24, owner-ordered "find a way to enforce usage"; again 2026-09-27, owner-ordered
+#   "is everyone using bge, rule 0? if not enforce it"): FIVE shapes.
 #   · `Edit|Write` of a repo file — the original.
 #   · Bash `git commit` — the choke point. A computed edit through Bash (`sed -i`, a heredoc) is
 #     still not gated at write time (a write-shape heuristic over every Bash command costs false
 #     denials on reads, as guard-stale-brief.sh §3 records), but it has to be COMMITTED, and the
 #     commit is. Only a commit: never reads, status, fetch, push.
+#   · Bash `gh pr create` — the PR body is the report; §📌 says its first line names the query and hits.
+#   · Bash `herdr … agent prompt` — a hand-off through the herder is a ruling to a peer by another transport.
 #   · `SendMessage` — a coordinator's product is a ruling to a peer, not an edit. Measured
 #     2026-09-24: twelve rulings on one search, two of them wrong and refuted by peers' measurements.
 #   Each shape resolves the tree from ITS target (the file's dir; the command's `git -C`/`cd`, else
@@ -83,11 +86,24 @@ if [ -n "$f" ]; then
   what="editing '$f'"
   target_dir="$(dirname "$f")"                       # the file may not exist yet (a Write)
 elif [ -n "$cmd" ]; then
-  # a commit, and not merely the word in prose: `git` … `commit` as separate words on one line
-  printf '%s\n' "$cmd" | grep -qE '(^|[;&|(]|then |do )[[:space:]]*(sudo[[:space:]]+)?(env[[:space:]]+[^ ]+[[:space:]]+)*git([[:space:]]+-[A-Za-z]+([[:space:]]+[^ ]+)?)*[[:space:]]+commit([[:space:]]|$)' || exit 0
+  # Bash shapes: a COMMIT (`git` … `commit` as separate words, not the word in prose); a PR OPENED
+  # (`gh pr create` — its body is the report whose first line names the query and hits, CLAUDE.md §📌);
+  # a HAND-OFF through the herder (`herdr … agent prompt` — the same product as SendMessage by another
+  # transport; twelve went out that way on 2026-09-26 while only SendMessage was gated). The last two
+  # added 2026-09-27, owner-ordered "is everyone using bge, rule 0? if not enforce it". Never reads:
+  # status, fetch, push, `gh pr view/list/checks`, `herdr agent list`.
+  if printf '%s\n' "$cmd" | grep -qE '(^|[;&|(]|then |do )[[:space:]]*(sudo[[:space:]]+)?(env[[:space:]]+[^ ]+[[:space:]]+)*git([[:space:]]+-[A-Za-z]+([[:space:]]+[^ ]+)?)*[[:space:]]+commit([[:space:]]|$)'; then
+    shape="committing"
+  elif printf '%s\n' "$cmd" | grep -qE '(^|[;&|(]|then |do )[[:space:]]*gh[[:space:]]+pr[[:space:]]+create([[:space:]]|$)'; then
+    shape="opening a PR (gh pr create — its body is the report)"
+  elif printf '%s\n' "$cmd" | grep -qE '(^|[;&|(]|then |do )[[:space:]]*([^ ]*/)?herdr([[:space:]]+--session[[:space:]]+[^ ]+)?[[:space:]]+agent[[:space:]]+prompt([[:space:]]|$)'; then
+    shape="handing a unit or ruling to a peer (herdr agent prompt)"
+  else
+    exit 0                                           # not a shape this guard judges
+  fi
   # inline hatch on the command line itself (an Edit/Write cannot carry one; a command can)
   printf '%s\n' "$cmd" | grep -qE '(^|[[:space:]])CLAUDE_ALLOW_NO_DOC_SEARCH=1([[:space:]]|$)' && exit 0
-  what="committing (\`$(printf '%s' "$cmd" | head -c 60 | tr '\n' ' ')…\`)"
+  what="$shape (\`$(printf '%s' "$cmd" | head -c 60 | tr '\n' ' ')…\`)"
   target_dir="$(printf '%s\n' "$cmd" | grep -oE 'git[[:space:]]+-C[[:space:]]+[^ ;&|]+' | head -1 | awk '{print $3}')"
   [ -z "$target_dir" ] && target_dir="$(printf '%s\n' "$cmd" | grep -oE '^[[:space:]]*cd[[:space:]]+[^ ;&|]+' | head -1 | awk '{print $2}')"
   [ -z "$target_dir" ] && target_dir="$pcwd"
