@@ -1564,3 +1564,257 @@ def test_a_gap_the_witness_does_not_BRACKET_is_unwitnessed(tmp_path):
     # and the control: a gap it DOES bracket gets a verdict
     verdict_, advance = loss_audit.witness_judges(w, t + dt.timedelta(seconds=120), 13.0)
     assert (verdict_, advance) == ("delay", 13.0), (verdict_, advance)
+
+
+# ── the witness's own edges ─────────────────────────────────────────────────────────────────────────
+# Each of these pins one boundary of `witness_judges` or one refusal of `signal_witness`. They exist
+# because the diff-scoped mutation gate found every one of them unobserved: the three plants above prove
+# the mechanism works on the shapes the corpus shows, and say nothing about where its edges are.
+
+
+def test_the_witness_can_answer_from_its_very_FIRST_reading(tmp_path):
+    """`i < 0`, not `i <= 0` or `i < 1`. The reading at or before the gap start may BE the first row the
+    witness has — a stall in the opening seconds of a session — and that reading is as good as any other.
+    Refusing it would make the first gap of every night unwitnessed."""
+    t = dt.datetime(2026, 9, 22, 22, 39, 24)
+    w = [(t, 0)] + [(t + dt.timedelta(seconds=k), k) for k in range(20, 40)]
+    verdict_, advance = loss_audit.witness_judges(w, t, 20.0)  # bracketed by index 0 and a later row
+    assert (verdict_, advance) == ("delay", 20.0), (verdict_, advance)
+
+
+def test_a_counter_that_did_not_move_at_all_is_SILENCE_not_unwitnessed(tmp_path):
+    """`advance < 0`, not `<= 0` or `< 1`. Zero advance is the counter's clearest possible statement — the
+    ring produced nothing across that span — and it is the whole reason this witness works. Only a
+    NEGATIVE step is unjudgeable, because that is a new session's count rather than a small one."""
+    t = dt.datetime(2026, 9, 22, 22, 39, 24)
+    w = [(t + dt.timedelta(seconds=k), 500) for k in range(0, 40)]  # frozen at 500 throughout
+    assert loss_audit.witness_judges(w, t + dt.timedelta(seconds=5), 20.0) == ("silence", 0.0)
+
+
+def test_an_advance_EXACTLY_one_count_short_of_the_gap_is_still_a_delay(tmp_path):
+    """`>=`, not `>`. The counter is 1 Hz, so it can only ever agree with a gap to within one count —
+    `RING_WITNESS_TOL_S` is that quantum, and a gap it accounts for to exactly the quantum is accounted
+    for. Which side the boundary falls on is a decision about the counter's resolution, not an accident."""
+    t = dt.datetime(2026, 9, 22, 22, 39, 24)
+    g = 13.0
+    exact = g - loss_audit.RING_WITNESS_TOL_S  # 12.0 s of produced signal
+    w = [(t, 100), (t + dt.timedelta(seconds=g), 100 + int(exact))]
+    assert loss_audit.witness_judges(w, t, g) == ("delay", exact)
+    # and one count less is not: the boundary is a decision, so it is asserted from both sides
+    w2 = [(t, 100), (t + dt.timedelta(seconds=g), 100 + int(exact) - 1)]
+    assert loss_audit.witness_judges(w2, t, g) == ("silence", exact - 1)
+
+
+def test_the_witness_reads_a_row_of_EXACTLY_two_fields(tmp_path):
+    """`len(parts) < 2`, not `<= 2` or `< 3`. The stamp and the counter are the only two fields this needs,
+    so a row trimmed to exactly those two is usable — and a writer that ever emits a narrower frame row
+    would otherwise have its counter silently dropped."""
+    d = tmp_path / "captures" / "2026-09-22"
+    d.mkdir(parents=True)
+    t = dt.datetime(2026, 9, 22, 22, 39, 24)
+    (d / "Wellue_O2Ring-S_S8AW2100_20260922223924_OXYFRAME.txt").write_text(
+        _OXY_HDR + f"{t.isoformat(timespec='milliseconds')};7\n"
+    )  # exactly two fields
+    assert loss_audit.signal_witness(str(d)) == [(t, 7)]
+
+
+def test_the_witness_replaces_an_undecodable_byte_rather_than_dying_on_it(tmp_path):
+    """`errors="replace"`, kept. A frame file with a torn byte is a live-journal shape, and the rows either
+    side of it still carry counters — a strict decode would raise inside the audit and take the whole
+    night's witness with it."""
+    d = tmp_path / "captures" / "2026-09-22"
+    d.mkdir(parents=True)
+    t = dt.datetime(2026, 9, 22, 22, 39, 24)
+    p = d / "Wellue_O2Ring-S_S8AW2100_20260922223924_OXYFRAME.txt"
+    with open(p, "wb") as fh:
+        fh.write(_OXY_HDR.encode())
+        fh.write(f"{t.isoformat(timespec='milliseconds')};1;25.5\n".encode())
+        fh.write(b"\xff\xfe not a stamp;2\n")  # invalid UTF-8 mid-file
+        fh.write(f"{(t + dt.timedelta(seconds=2)).isoformat(timespec='milliseconds')};3;25.5\n".encode())
+    assert [v for _t, v in loss_audit.signal_witness(str(p.parent))] == [1, 3]
+
+
+def test_one_unreadable_frame_file_does_not_stop_the_witness_reading_the_REST(tmp_path):
+    """`continue`, never `break`. The unreadable file is named so it sorts FIRST — under `break` the
+    readable session after it is never opened and the night reads as having no witness at all, which is
+    the difference between "cannot say" and "did not look"."""
+    d = tmp_path / "captures" / "2026-09-22"
+    d.mkdir(parents=True)
+    t = dt.datetime(2026, 9, 22, 22, 39, 24)
+    (d / "Wellue_O2Ring-S_S8AW2100_20260922000000_OXYFRAME.txt").mkdir()  # sorts first
+    (d / "Wellue_O2Ring-S_S8AW2100_20260922223924_OXYFRAME.txt").write_text(
+        _OXY_HDR + f"{t.isoformat(timespec='milliseconds')};11;25.5;0;97;58;1;80;0;0;126;1;0;0;0;2\n"
+    )
+    assert [v for _t, v in loss_audit.signal_witness(str(d))] == [11]
+
+
+# ── the audit's own arithmetic, at the precisions and boundaries it publishes ───────────────────────
+# The diff-scoped gate surfaced these when #3168 touched `audit_night`: they are the function's whole
+# accumulated backlog plus the lines this branch and #3163 added. Each one below is a number or an
+# ordering a consumer reads and no assertion observed.
+
+
+def _two_frag_named_backwards(tmp_path):
+    """Two fragments whose NAME order is the reverse of their first-row order, and a third with rows but
+    no parseable stamp in them. The sort must use each file's own first row, and must put the file that
+    cannot say LAST rather than first."""
+    d = tmp_path / "captures" / "2026-09-20"
+    d.mkdir(parents=True)
+    rows = 3376  # (3376-1) * 8 ms = 27.000 s exactly
+    span1 = (rows - 1) * PERIOD_NS / 1e9
+    # the LATER session is named earlier, so a name sort and a stamp sort disagree
+    _frag(
+        str(d / "Polar_H10_0284_20260920220000_ECG.txt"),
+        rows,
+        host0=span1 + 60.0,
+        dev0=1_000_000_000_000_000_000 + int((span1 + 60.0) * 1e9),
+    )
+    _frag(str(d / "Polar_H10_0284_20260920225959_ECG.txt"), rows)
+    (d / "Polar_H10_0284_20260920230000_ECG.txt").write_text(
+        "Phone timestamp;sensor timestamp [ns];ecg [uV]\nnot-a-stamp;1;100\n"
+    )
+    (d / "Polar_H10_0284_20260920220000_HR.txt").write_text("Phone timestamp;HR [bpm]\n" + T0.isoformat() + ";62\n")
+    return str(d)
+
+
+def test_fragments_are_ordered_by_their_OWN_first_row_not_by_filename(tmp_path):
+    """`scans.sort` on each file's first row. A name carries the session start the daemon MEANT to write;
+    the rows carry when data actually began. Sorting by name — or collapsing the stamp key so the name
+    decides — puts a boundary the wrong way round, and a boundary computed backwards reads as a negative
+    host gap that the cut then discards, so the loss between two fragments silently disappears.
+
+    The file whose rows carry no parseable stamp sorts LAST: it cannot state a position, and placing it
+    first would make it the anchor every boundary is measured from.
+    """
+    a = loss_audit.audit_night(_two_frag_named_backwards(tmp_path), DEV, journal=lambda *a: [])
+    dev = a["devices"]["Polar H10 0284"]
+    assert [f["file"] for f in dev["files"]] == [
+        "Polar_H10_0284_20260920225959_ECG.txt",  # earliest FIRST ROW, though its name sorts last
+        "Polar_H10_0284_20260920220000_ECG.txt",
+        "Polar_H10_0284_20260920230000_ECG.txt",  # no parseable row stamp: last
+    ], [f["file"] for f in dev["files"]]
+    assert dev["boundary_gaps"] == 1, dev
+    # 27.000 s per fragment is 0.45 min, which distinguishes every rounding of it: 0.5 at one decimal,
+    # 0.45 at two, 0 as an int, and 0.443 if the divisor were 61 rather than 60.
+    assert dev["files"][0]["span_min"] == 0.5, dev["files"]
+    assert dev["fragments"] == 3, dev  # three files, one boundary gap, no in-file gaps
+
+
+def test_TWO_boundary_gaps_are_counted_as_two(tmp_path):
+    """`n_boundary += 1`. With one boundary a count of 1 is indistinguishable from an assignment; with two
+    it separates `+= 1` from `= 1`, from `-= 1` and from `+= 2`. `fragments` subtracts it, so the same
+    fixture pins that sign too — a fragment after a boundary is already counted by its own file."""
+    d = tmp_path / "captures" / "2026-09-20"
+    d.mkdir(parents=True)
+    rows = 3376
+    span = (rows - 1) * PERIOD_NS / 1e9
+    for k in range(3):  # three fragments, two boundaries
+        off = k * (span + 60.0)
+        _frag(
+            str(d / f"Polar_H10_0284_2026092022{k:02d}00_ECG.txt"),
+            rows,
+            host0=off,
+            dev0=1_000_000_000_000_000_000 + int(off * 1e9),
+        )
+    (d / "Polar_H10_0284_20260920220000_HR.txt").write_text("Phone timestamp;HR [bpm]\n" + T0.isoformat() + ";62\n")
+    dev = loss_audit.audit_night(str(d), DEV, journal=lambda *a: [])["devices"]["Polar H10 0284"]
+    assert dev["boundary_gaps"] == 2, dev
+    assert dev["fragments"] == 3, dev  # 2 gaps - 2 boundaries + 3 files
+    assert len([g for g in dev["gaps"] if g.get("boundary")]) == 2, dev["gaps"]
+
+
+def test_a_gap_and_a_delay_are_published_AS_WHOLE_SECONDS(tmp_path):
+    """Both lists are rounded, and both can only ever hold whole seconds — `nights_index.parse_stamp` is
+    SECOND precision by design (its sibling `parse_host_stamp` is the one that keeps sub-second digits
+    "for readers that measure with them"). So a 6.01 s host jump between rows 8 ms apart still reports a
+    7.0 s gap, and the rounding of these two fields is unobservable by construction rather than untested.
+    Pinned here because the next reader will otherwise try, as I did, to plant a fractional one."""
+    p = tmp_path / "captures" / "2026-09-20"
+    p.mkdir(parents=True)
+    f = p / "Polar_H10_0284_20260920220000_ECG.txt"
+    _polar(
+        f, 15000, host_jumps={6000: 6.01, 9000: 6.01}, dev_steps={6000: int(6.01e9) + PERIOD_NS}
+    )  # first a loss, then a pure delay
+    (p / "Polar_H10_0284_20260920220000_HR.txt").write_text("Phone timestamp;HR [bpm]\n" + T0.isoformat() + ";62\n")
+    dev = loss_audit.audit_night(str(p), DEV, journal=lambda *a: [])["devices"]["Polar H10 0284"]
+    assert [g["s"] for g in dev["gaps"]] == [7.0], dev["gaps"]
+    assert [x["s"] for x in dev["delays"]] == [6.0], dev["delays"]  # a different sub-second phase
+    assert all(float(g["s"]).is_integer() for g in dev["gaps"] + dev["delays"]), (
+        "second-precision stamps cannot produce a fractional length",
+        dev["gaps"],
+        dev["delays"],
+    )
+
+
+def test_an_unreadable_primary_reports_the_ERROR_it_hit_not_just_the_word(tmp_path, monkeypatch):
+    """`unreadable[0]["reason"]`, not the bare string. "unreadable" alone tells an operator nothing about
+    whether it was a permission, a vanished mount or a torn file, and that is the whole value of the
+    field — the night continues either way."""
+    d = _night(tmp_path, holes=())
+    monkeypatch.setattr(loss_audit, "stream_scan", lambda p: (_ for _ in ()).throw(OSError("eio: the mount went away")))
+    dev = loss_audit.audit_night(d, DEV, journal=lambda *a: [])["devices"]["Polar H10 0284"]
+    assert "eio: the mount went away" in dev["reason"], dev["reason"]
+
+
+def test_a_ring_stall_JUDGED_A_DELAY_does_not_stop_the_next_stall_being_judged(tmp_path):
+    """`continue`, never `break`, in the witness loop. Two stalls: the first the ring produced signal
+    across, the second it was silent through. Breaking out at the first leaves the second unjudged — it
+    keeps no witness key, so it is neither counted as silence nor reported as unwitnessed, and the night
+    under-reports the one hole that was real."""
+    d = tmp_path / "captures" / "2026-09-22"
+    d.mkdir(parents=True)
+    start = dt.datetime(2026, 9, 22, 22, 39, 24)
+    with open(d / "Wellue_O2Ring-S_S8AW2100_20260922223924_SPO2.csv", "w") as fh:
+        fh.write("Time,Oxygen Level,Pulse Rate,Motion\n")
+        for sec in range(400):
+            if 100 <= sec < 112 or 200 <= sec < 212:
+                continue
+            fh.write((start + dt.timedelta(seconds=sec)).strftime("%H:%M:%S %d/%m/%Y") + ",97,58,0\n")
+    with open(d / "Wellue_O2Ring-S_S8AW2100_20260922223924_OXYFRAME.txt", "w") as fh:
+        fh.write(_OXY_HDR)
+        for sec in range(400):
+            if 100 <= sec < 112 or 200 <= sec < 212:
+                continue
+            dur = sec if sec < 200 else 199  # produced through the first stall, silent in the second
+            t = (start + dt.timedelta(seconds=sec)).isoformat(timespec="milliseconds")
+            fh.write(f"{t};{dur};25.5;0;97;58;1;80;0;0;126;1;0;0;0;2\n")
+    dev = loss_audit.audit_night(str(d), RING_DEV, journal=lambda *a: [])["devices"]["Ring"]
+    assert [g["witness"] for g in dev["gaps"]] == ["silence"], dev["gaps"]
+    assert dev["delayed_min"] == 0.2 and dev["lost_min"] == 0.2, dev
+    # advance 0 across the second stall — and 0 is not 1, which is what `round(1)` would publish
+    assert dev["gaps"][0]["witness_advance_s"] == 0.0, dev["gaps"]
+
+
+def test_a_boundary_with_NO_gap_does_not_stop_the_search_for_later_ones(tmp_path):
+    """`continue`, never `break`, in the boundary loop. Two files can meet inside the cadence — a
+    rollover, a writer reopening its file — and that boundary reports nothing. Breaking there abandons
+    every LATER boundary, so a real outage two fragments on vanishes from the night entirely."""
+    d = tmp_path / "captures" / "2026-09-20"
+    d.mkdir(parents=True)
+    rows = 3376
+    span = (rows - 1) * PERIOD_NS / 1e9
+    offs = [0.0, span + 0.5, 2 * span + 0.5 + 60.0]  # rollover first, then a real 60 s outage
+    for k, off in enumerate(offs):
+        _frag(
+            str(d / f"Polar_H10_0284_2026092022{k:02d}00_ECG.txt"),
+            rows,
+            host0=off,
+            dev0=1_000_000_000_000_000_000 + int(off * 1e9),
+        )
+    (d / "Polar_H10_0284_20260920220000_HR.txt").write_text("Phone timestamp;HR [bpm]\n" + T0.isoformat() + ";62\n")
+    dev = loss_audit.audit_night(str(d), DEV, journal=lambda *a: [])["devices"]["Polar H10 0284"]
+    assert dev["boundary_gaps"] == 1, (
+        "the rollover reports nothing; the outage after it must not be skipped with it",
+        dev,
+    )
+    assert [g["s"] for g in dev["gaps"] if g.get("boundary")] == [60.0], dev["gaps"]
+
+
+def test_unwitnessed_minutes_are_published_in_MINUTES(tmp_path):
+    """`/ 60.0`. A 27 s unwitnessed gap is 0.5 min at one decimal and 0.4 if the divisor were 61 — the
+    only arithmetic in this field, and it is the field a consumer subtracts from a night's loss."""
+    d = _ring_stall_night(tmp_path, witness="absent", stall_s=26)
+    dev = loss_audit.audit_night(d, RING_DEV, journal=lambda *a: [])["devices"]["Ring"]
+    assert [g["s"] for g in dev["gaps"]] == [27.0], dev["gaps"]
+    assert dev["unwitnessed_min"] == 0.5, dev["unwitnessed_min"]
+    assert dev["lost_min"] == 0.0, dev
