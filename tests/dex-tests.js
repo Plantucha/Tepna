@@ -46784,18 +46784,35 @@
          separately as `CLAIM orchestrators = 2`, which co-load the same DSPs. Asserting one merged set of
          seven would corroborate neither claim; asserting them apart corroborates both, and a node moving
          between families reds instead of being absorbed. */
+      /* ── TWO FAMILIES, TWO EQUALITIES (restored 2026-09-27) ─────────────────────────────────────
+         The carriers are not one set. Five APP shells are what CLAUDE.md counts as `CLAIM clockBundles = 5`;
+         the two ORCHESTRATOR shells co-load the same DSPs and are counted separately as
+         `CLAIM orchestrators = 2`. This was written as a merged set of seven first, which corroborates
+         neither claim, then scoped to apps only while the orchestrator shells were excluded from
+         `readSrcHtml`. Both shells are now in the population (their modules are classified — see §1b's
+         RESOLVE and EXEMPT_FILES additions), so the assertion is back to naming both families: a node
+         moving between them reds instead of being absorbed into a larger number.
+         Their load order is now ASSERTED rather than measured-by-hand, which is what the previous comment
+         here promised to distinguish: clock.js precedes every delegating DSP in all seven. */
+      var ORCH = ['Data Unifier', 'OverDex'];
+      var appCarriers = carriers.filter(function (n) {
+        return ORCH.indexOf(n) < 0;
+      });
+      var orchCarriers = carriers.filter(function (n) {
+        return ORCH.indexOf(n) >= 0;
+      });
       T.eq(
         'the APP shells carrying a delegating DSP are exactly the five §✅ names (CLAIM clockBundles = 5)',
-        carriers.sort().join(','),
+        appCarriers.sort().join(','),
         'ECGDex,HRVDex,MotionDex,OxyDex,PulseDex',
         'the delegating set changed. If a node started delegating to DexClock its shell must also load clock.js; if one stopped, CLAUDE.md CLAIM clockBundles must move with it.'
       );
-      /* The two ORCHESTRATOR shells co-load the same DSPs and are NOT in this population: `readSrcHtml`
-         excludes them because admitting them reds `Co-load §1b` with 19 unclassified modules, which is its
-         own unit (residue 2026-09-27-orchestrator-shells-unclassified-by-coload). Their load order was
-         MEASURED by hand for this PR and is correct — clock.js at inline index 21 before the first
-         delegating DSP at 22 in Data Unifier, 6 before 26 in OverDex — but measured is not asserted, and
-         this comment says which it is. */
+      T.eq(
+        'both ORCHESTRATOR shells co-load delegating DSPs (CLAIM orchestrators = 2)',
+        orchCarriers.sort().join(','),
+        'Data Unifier,OverDex',
+        'an orchestrator stopped co-loading the node DSPs, or a third one appeared — either way the co-load manifest and CLAUDE.md must say so'
+      );
       T.eq('NO app carries a delegating DSP without clock.js (that is a ReferenceError at module evaluation)', crashers.join(',') || 'none', 'none');
       T.eq('clock.js precedes every delegating DSP it is loaded with', misordered.join(' · ') || 'none', 'none');
 
@@ -47056,7 +47073,19 @@
         'glucodex-registry.js': 'GLU_REGISTRY',
         /* The eighth registry, missing for the same reason as motiondex-dsp.js above: no MotionDex shell
            reached this gate. `env.MOTION_REGISTRY` was already wired in the runner. */
-        'motiondex-registry.js': 'MOTION_REGISTRY'
+        'motiondex-registry.js': 'MOTION_REGISTRY',
+        /* ── THE ORCHESTRATOR SHELLS' OWN MODULES (2026-09-27) ──────────────────────────────────────
+           `Data Unifier.src.html` and `OverDex.src.html` were outside `readSrcHtml()`'s list, so nothing
+           these two bundle had ever been classified. Admitting them reds §1b with 17 names; these six are
+           the ones that expose a NAMED global, so they take the ordinary RESOLVE form. Each global was
+           verified present in BOTH lanes' env before the entry was written — an entry naming a global that
+           does not exist would red for a different reason and read as a classification problem. */
+        'night-seal.js': 'NightSeal',
+        'overdex-walk.js': 'OverDexWalk',
+        'signal-adapters.js': 'SignalAdapters',
+        'signal-orchestrate.js': 'SignalOrchestrate',
+        'signal-spec.js': 'SignalSpec',
+        'verdict.js': 'Verdict'
       };
       // ── RUNTIME_EXEMPT (patterns): DOM classes driven end-to-end by the render-coverage rigs ──
       // (RESOLVE is consulted FIRST, so the shared dex-profile.js → DexProfile is co-loaded, NOT caught here.)
@@ -47067,6 +47096,34 @@
       ];
       // ── RUNTIME_EXEMPT (explicit): the irregular DOM/aux helpers, each named with its covering gate ──
       var EXEMPT_FILES = {
+        /* ── VENDOR ADAPTERS (2026-09-27) ───────────────────────────────────────────────────────────
+           Eleven adapters bundled by the orchestrator shells. They are exempt for a STRUCTURAL reason, not
+           a convenient one: each exposes no global whatsoever (measured — zero `root.X =` assignments) and
+           self-registers into `SignalAdapters`, so a RESOLVE entry has nothing to name. The exemption is
+           only honest because a stronger check already exists and is named in every reason below; if §5's
+           adapter-id equality did not exist these would not be exempt on my word. */
+        'coospo-rr.js':
+          'vendor adapter — exposes NO global of its own; it self-registers into SignalAdapters on load, so there is nothing for a RESOLVE entry to assert. COVERING GATE: `Co-load manifest — single source vs host realms (PPGDEX-FOLLOWUPS §5)` asserts the manifest adapter ids EQUAL the ids actually registered via SignalAdapters.list() (see the self-consistency leg in that group) — an EQUALITY over the whole adapter set, which is strictly stronger than a per-file presence test.',
+        'libre-cgm.js':
+          'vendor adapter — exposes NO global of its own; it self-registers into SignalAdapters on load, so there is nothing for a RESOLVE entry to assert. COVERING GATE: `Co-load manifest — single source vs host realms (PPGDEX-FOLLOWUPS §5)` asserts the manifest adapter ids EQUAL the ids actually registered via SignalAdapters.list() (see the self-consistency leg in that group) — an EQUALITY over the whole adapter set, which is strictly stronger than a per-file presence test.',
+        'o2ring-ppg.js':
+          'vendor adapter — exposes NO global of its own; it self-registers into SignalAdapters on load, so there is nothing for a RESOLVE entry to assert. COVERING GATE: `Co-load manifest — single source vs host realms (PPGDEX-FOLLOWUPS §5)` asserts the manifest adapter ids EQUAL the ids actually registered via SignalAdapters.list() (see the self-consistency leg in that group) — an EQUALITY over the whole adapter set, which is strictly stronger than a per-file presence test.',
+        'o2ring-ppg2w.js':
+          'vendor adapter — exposes NO global of its own; it self-registers into SignalAdapters on load, so there is nothing for a RESOLVE entry to assert. COVERING GATE: `Co-load manifest — single source vs host realms (PPGDEX-FOLLOWUPS §5)` asserts the manifest adapter ids EQUAL the ids actually registered via SignalAdapters.list() (see the self-consistency leg in that group) — an EQUALITY over the whole adapter set, which is strictly stronger than a per-file presence test.',
+        'oxydex-spo2.js':
+          'vendor adapter — exposes NO global of its own; it self-registers into SignalAdapters on load, so there is nothing for a RESOLVE entry to assert. COVERING GATE: `Co-load manifest — single source vs host realms (PPGDEX-FOLLOWUPS §5)` asserts the manifest adapter ids EQUAL the ids actually registered via SignalAdapters.list() (see the self-consistency leg in that group) — an EQUALITY over the whole adapter set, which is strictly stronger than a per-file presence test.',
+        'polar-h10-ecg.js':
+          'vendor adapter — exposes NO global of its own; it self-registers into SignalAdapters on load, so there is nothing for a RESOLVE entry to assert. COVERING GATE: `Co-load manifest — single source vs host realms (PPGDEX-FOLLOWUPS §5)` asserts the manifest adapter ids EQUAL the ids actually registered via SignalAdapters.list() (see the self-consistency leg in that group) — an EQUALITY over the whole adapter set, which is strictly stronger than a per-file presence test.',
+        'polar-rr.js':
+          'vendor adapter — exposes NO global of its own; it self-registers into SignalAdapters on load, so there is nothing for a RESOLVE entry to assert. COVERING GATE: `Co-load manifest — single source vs host realms (PPGDEX-FOLLOWUPS §5)` asserts the manifest adapter ids EQUAL the ids actually registered via SignalAdapters.list() (see the self-consistency leg in that group) — an EQUALITY over the whole adapter set, which is strictly stronger than a per-file presence test.',
+        'polar-sense-ppg.js':
+          'vendor adapter — exposes NO global of its own; it self-registers into SignalAdapters on load, so there is nothing for a RESOLVE entry to assert. COVERING GATE: `Co-load manifest — single source vs host realms (PPGDEX-FOLLOWUPS §5)` asserts the manifest adapter ids EQUAL the ids actually registered via SignalAdapters.list() (see the self-consistency leg in that group) — an EQUALITY over the whole adapter set, which is strictly stronger than a per-file presence test.',
+        'resmed-edf.js':
+          'vendor adapter — exposes NO global of its own; it self-registers into SignalAdapters on load, so there is nothing for a RESOLVE entry to assert. COVERING GATE: `Co-load manifest — single source vs host realms (PPGDEX-FOLLOWUPS §5)` asserts the manifest adapter ids EQUAL the ids actually registered via SignalAdapters.list() (see the self-consistency leg in that group) — an EQUALITY over the whole adapter set, which is strictly stronger than a per-file presence test.',
+        'wahoo-rr.js':
+          'vendor adapter — exposes NO global of its own; it self-registers into SignalAdapters on load, so there is nothing for a RESOLVE entry to assert. COVERING GATE: `Co-load manifest — single source vs host realms (PPGDEX-FOLLOWUPS §5)` asserts the manifest adapter ids EQUAL the ids actually registered via SignalAdapters.list() (see the self-consistency leg in that group) — an EQUALITY over the whole adapter set, which is strictly stronger than a per-file presence test.',
+        'welltory-summary.js':
+          'vendor adapter — exposes NO global of its own; it self-registers into SignalAdapters on load, so there is nothing for a RESOLVE entry to assert. COVERING GATE: `Co-load manifest — single source vs host realms (PPGDEX-FOLLOWUPS §5)` asserts the manifest adapter ids EQUAL the ids actually registered via SignalAdapters.list() (see the self-consistency leg in that group) — an EQUALITY over the whole adapter set, which is strictly stronger than a per-file presence test.',
         'entrance-guard.js': 'DOM print/entrance guard (CSS injection, no compute surface) — exercised by the render-coverage bundle boot',
         'ganglior-provenance.js': 'runtime build-provenance helper — exercised by verify-provenance.html GATE A/B + the render-coverage boot',
         'oxydex-util.js': 'OxyDex.compute() math dependency (computeCeilingBaselineArr etc.) — exercised by the OxyDex equiv/compute gate (env.equiv.oxydex) + render-coverage',
