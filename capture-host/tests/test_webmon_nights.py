@@ -106,6 +106,44 @@ def test_the_monitor_carries_ONE_nights_page_and_the_load_hook():
         assert f'{col if " " in col else col}:' in html or f'"{col}":' in html, f"no app mapped for {col}"
 
 
+def _page_src(root, page):
+    """The authored source for a page at the repo root, falling back to the built page in place."""
+    src = os.path.join(root, page[:-5] + ".src.html")
+    return src if os.path.exists(src) else os.path.join(root, page)
+
+
+def _skip_without_root_pages(root, apps, nodes):
+    """Stand down when the repo root pages these assertions read are absent, e.g. in a mutation scratch.
+
+    ⚠️ THE SCRATCH CANNOT STAGE THEM, AND NOT BY OVERSIGHT. The page names are read out of the monitor
+    page JS tables AT RUNTIME and then joined against the repo root, so no literal naming any of them
+    exists anywhere for mutation_diff.root_reads to find — the set is not knowable statically at all,
+    because it depends on another file contents. Inside the scratch every existence check below is
+    therefore False, the test failed, the mutmut run crashed after generation (mutants were generated
+    but 0 tested), and mutate_diff REFUSED the whole gate at exit 2 — correctly, since a gate that
+    cannot see must not report green. Any PR touching nights_index hits it.
+
+    SKIPPING IS NOT WEAKENING, because the halves differ: the route-vs-clickable equalities need only
+    the monitor page, which lives under capture-host and is in the scratch by construction, and those
+    are the assertions that can kill a nights_index mutant, so they keep running. Only the per-page
+    checks, whose subject is the real checkout authored pages, stand down.
+
+    ⚠️ AND THE POPULATION IS THE NODES THE CALLER WALKS, never every entry in the table: the app table
+    also lists the PLANNED EEGDex node, which has no page and no route, so a wider check skips in the
+    REAL checkout too — measured, a guard wider than the thing it guards.
+
+    ⚠️ DO NOT NAME A ROOT FILE IN QUOTES ANYWHERE IN THIS FILE. root_reads matches quoted text by
+    regex, comments included, so a filename written in quotes here becomes a phantom root read and reds
+    the census equality pin — measured 2026-09-27, by a comment explaining this very mechanism."""
+    import pytest
+
+    missing = [node for node in nodes if not os.path.exists(_page_src(root, apps[node]))]
+    if missing:
+        pytest.skip("the authored root pages are absent for %s (a mutation scratch cannot stage a name "
+                    "that exists only in the monitor page runtime tables); the equalities above still ran"
+                    % ", ".join(sorted(missing)))
+
+
 def _monitor_js_table(html, name):
     """The `const NAME = {...};` literal from the monitor, as a Python dict (the values are JSON)."""
     import json
@@ -145,34 +183,9 @@ def test_every_clickable_night_routes_to_an_input_the_app_actually_has():
     assert "doc.querySelector('input[type=file]:not([webkitdirectory])')" not in html
     assert "has no input route for it" in html and "input is missing" in html
     root = os.path.dirname(here)
-
-    def _page_src(page):
-        src = os.path.join(root, page[:-5] + ".src.html")
-        return src if os.path.exists(src) else os.path.join(root, page)  # tools are authored in place
-
-    # ⚠️ THE SECOND HALF NEEDS THE REPO ROOT'S PAGES, AND A MUTATION SCRATCH CANNOT STAGE THEM. The page
-    # names are read out of `monitor.html`'s own JS tables at RUNTIME and then joined against the root, so
-    # no literal like "ECGDex.html" exists anywhere for `mutation_diff.root_reads` to find — the set is
-    # not knowable statically at all, because it depends on another file's CONTENTS. Inside the scratch
-    # every `os.path.exists` below is therefore False and this failed, which crashed the mutmut run after
-    # generation: `mutants were generated but 0 tested`, and `mutate_diff` then REFUSED the whole gate
-    # (exit 2, correctly — a gate that cannot see must not report green). Any PR touching
-    # `nights_index.py` hit it; #3139 was merely the first.
-    #
-    # SKIPPED, NOT WEAKENED, AND THE SPLIT IS THE POINT. The equality above — routes ≡ the clickable set
-    # derived from `ni.NODES` and `ni.DERIVED` — needs only `monitor.html`, which lives under
-    # `capture-host/` and is present in the scratch BY CONSTRUCTION. It is also the half that can kill a
-    # `nights_index` mutant, so it keeps running there. Only the per-page input-id check, whose subject is
-    # the real checkout's authored pages, stands down when those pages are absent.
-    # THE POPULATION IS THE ROUTED NODES, exactly as the loop below walks them — not every page in the
-    # table. `NIGHT_APP` also lists the PLANNED `EEGDex`, which has no page yet and no route either, so
-    # checking `apps.values()` here skipped in the real checkout: a guard wider than the thing it guards.
-    if any(not os.path.exists(_page_src(apps[node])) for node in routes):
-        pytest.skip("the authored root pages are absent (a mutation scratch cannot stage a name that "
-                    "exists only in monitor.html's runtime tables); the routes equality above still ran")
+    _skip_without_root_pages(root, apps, routes)
     for node, route in routes.items():
-        page = apps[node]
-        src = _page_src(page)
+        src = _page_src(root, apps[node])
         assert os.path.exists(src), (node, src)
         text = open(src, encoding="utf-8").read()
         tags = re.findall(r'<input\b[^>]*\btype="file"[^>]*>', text)
@@ -324,6 +337,7 @@ def test_the_batch_tools_get_their_process_button_pressed_and_the_selector_is_re
     assert set(run) == set(derived_keys), (sorted(run), derived_keys)
     assert "btn.click();" in html and "Process pressed" in html and "found no eligible night" in html
     root = os.path.dirname(here)
+    _skip_without_root_pages(root, apps, run)
     for node, sel in run.items():
         src = os.path.join(root, apps[node])  # the analysis tools are authored/built in place at the root
         text = open(src, encoding="utf-8").read()
