@@ -253,7 +253,9 @@ def validate_schedule(s: dict | None) -> dict:
     mode = str(s.get("mode") or "after_settle").lower()
     if mode not in ("after_settle", "daily"):
         raise StorageError("schedule.mode must be 'after_settle' or 'daily'")
-    out = {"mode": mode}
+    # `window_min` below is an int, so the dict is not str-valued — inferred from its first key it
+    # would be, and the int assignment then reads as a type error rather than as the schema it is.
+    out: dict[str, str | int] = {"mode": mode}
     if mode == "daily":
         at = str(s.get("at") or "").strip()
         if not _TIME_RE.match(at):
