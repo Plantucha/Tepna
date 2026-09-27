@@ -17,6 +17,8 @@ from writers import PmdArrivalLogWriter
 from tests._srcscan import module_source
 
 _T0 = _dt.datetime(2026, 8, 11, 22, 0, 0)
+import nightqc as _nqc_for_epoch          # one definition of the Polar epoch, not a second literal
+_POLAR_EPOCH_MS_S = _nqc_for_epoch._POLAR_EPOCH_MS / 1000.0
 
 
 def _read(path):
@@ -164,7 +166,12 @@ def test_floor_ms_is_robust_to_one_early_outlier():
 
 # ─── nightqc.arrival_quality: judged where judgeable, silent where not ───────────────────────────
 
-def _write_sidecar(path, meas, diffs_ms, base_ns=500_000_000_000):
+def _write_sidecar(path, meas, diffs_ms, base_ns=None):
+    """`base_ns=None` takes the REAL Polar anchor. It used to default to 500_000_000_000 — a power-on
+    counter no Polar device sends — which put twenty-six years into every delay this plants, invisibly,
+    because every assertion here was about the SPREAD. Resolved at call time because `_BASE_NS` is
+    defined further down; a caller wanting an unrealistic anchor now has to ask for one."""
+    base_ns = _BASE_NS if base_ns is None else base_ns
     w = PmdArrivalLogWriter(path, fsync=False)
     for i, extra in enumerate(diffs_ms):
         dev_ns = base_ns + i * 77_000_000
@@ -368,7 +375,16 @@ def test_arrival_quality_reads_a_quoted_field_verbatim(tmp_path):
 
 # ─── arrival_quality: the offset estimate, its units, and its time axis ──────────────────────────
 
-_BASE_NS = 500_000_000_000       # a device counter, not an epoch — 500 s since the sensor powered on
+# ⚠️ A REAL POLAR COUNTER, DERIVED — not "500 s since the sensor powered on", which this was until
+# 2026-09-27 and which no Polar device produces: PMD stamps are ns since 2000-01-01 UTC
+# (`nightqc._POLAR_EPOCH_MS`; the live corpus reads 2026-09-26T02:24:31Z on a healthy night). Against a
+# 2026 host stamp the old anchor put 8.39e11 ms — TWENTY-SIX YEARS — into every delay these fixtures
+# plant, and the tests below pinned that as `ok: True, certified: True`. Nothing could see it: this
+# file's own `_POLAR_EPOCH_UTC` note says those fixtures "only ever exercised the SPREAD of the delay
+# and never its absolute value", and `clock_offset`'s new `implausible-offset` refusal is what finally
+# read the absolute value out loud. Derived from `_T0` through the module constant so the two cannot
+# drift apart again — hardcoding it is how they drifted in the first place.
+_BASE_NS = int(round((_T0.timestamp() - _POLAR_EPOCH_MS_S) * 1e9))
 _CADENCE_MS = 5000               # a PPI packet lands about every 5 s
 _ONE_SIDED = [0, 3, 5, 9, 14, 21, 30, 44, 61, 90] * 60      # 600 packets, never early
 
@@ -1348,3 +1364,89 @@ def test_a_zero_device_counter_is_absence_and_never_the_year_2000(tmp_path):
     w.close()
     assert nightqc.arrival_quality(str(tmp_path)) == [], \
         "a stream whose device counter is 0 throughout has no arrival pair to report"
+
+
+# ─── WHICH EPOCH THE DEVICE COUNTER READ (2026-09-27) ────────────────────────────────────────────
+# The companion to `clock_offset`'s `implausible-offset` refusal: the refusal declines the number, this
+# says WHY. Annotation, not a refusal of the night — §∅ owner ruling 2026-09-17, the signal is
+# continuous and fully covered, the clock is merely wrong. Measured over the corpus: the H10 read its
+# 2019 firmware default on 7 of 44 nights and those nights published a 7.74-year offset as ok:true.
+
+_FIRMWARE_DEFAULT_NS = int(round((_dt.datetime(2019, 1, 1, tzinfo=_dt.timezone.utc)
+                                  - _POLAR_EPOCH_UTC).total_seconds() * 1e9))
+
+
+def test_a_firmware_default_epoch_is_NAMED_and_its_offset_refused(tmp_path):
+    """THE PLANT, in the real shape: the H10's counter reads 2019 while the host reads 2026."""
+    import nightqc
+    _write_sidecar(os.path.join(tmp_path, "Tepna_fw_PMDARRIVAL.csv"), "ECG",
+                   [400 + d for d in [0, 1, 2, 4, 7, 11, 18, 29, 47, 76] * 30],
+                   base_ns=_FIRMWARE_DEFAULT_NS)
+    row = nightqc.arrival_quality(str(tmp_path))[0]
+    assert row["device_epoch"]["state"] == "firmware-default", row["device_epoch"]
+    assert row["device_epoch"]["device_time_first"].startswith("2019-01-01"), row["device_epoch"]
+    assert row["offset"]["ok"] is False and row["offset"]["reason"] == "implausible-offset", row["offset"]
+    assert row["offset"]["cause"] == "firmware-default", (
+        "the cause travels ON the refusal, so a consumer reading only `offset` still learns it")
+
+
+def test_a_plausible_epoch_leaves_the_night_exactly_as_it_was(tmp_path):
+    """THE CONTROL. A healthy 2026 counter: the state says so, the offset certifies, and the VALUE is
+    the planted one — the refusal must not reach a real link."""
+    import nightqc
+    _write_sidecar(os.path.join(tmp_path, "Tepna_ok_PMDARRIVAL.csv"), "ECG",
+                   [400 + d for d in [0, 1, 2, 4, 7, 11, 18, 29, 47, 76] * 30])
+    row = nightqc.arrival_quality(str(tmp_path))[0]
+    assert row["device_epoch"]["state"] == "plausible", row["device_epoch"]
+    assert row["device_epoch"]["switched_at"] is None
+    assert row["offset"]["ok"] is True and "cause" not in row["offset"], row["offset"]
+    assert abs(row["offset"]["offset_ms"] - (400.0 - 69.0)) < 1.0, row["offset"]
+
+
+def test_a_DURATION_S_pseudo_stream_says_it_was_never_a_clock(tmp_path):
+    """The O2Ring case, live on every night since 2026-09-13: `_DURATION_S`'s "device stamp" is an
+    elapsed count, so differencing it against a host epoch was never an offset. `quantised` already
+    refuses the FLOOR; this names the reason and the offset is refused too."""
+    import nightqc
+    _write_sidecar(os.path.join(tmp_path, "Tepna_du_PMDARRIVAL.csv"), "OXYLIVE_DURATION_S",
+                   [400 + d for d in [0, 1, 2, 4, 7, 11, 18, 29, 47, 76] * 30],
+                   base_ns=500_000_000_000)          # a duration, deliberately not an epoch
+    row = nightqc.arrival_quality(str(tmp_path))[0]
+    assert row["quantised"] is True
+    assert row["device_epoch"]["state"] == "duration-not-an-offset", row["device_epoch"]
+    assert row["offset"]["ok"] is False and row["offset"]["cause"] == "duration-not-an-offset"
+
+
+def test_a_frozen_counter_at_the_epoch_base_reads_unset_base(tmp_path):
+    """The Verity PPI shape: the counter never left 2000-01-01, which is not a clock reading at all.
+    `device_stamp_constant` already flags the frozen stamp; the epoch state names what it means."""
+    import nightqc
+    _write_frozen(os.path.join(tmp_path, "Tepna_fz_PMDARRIVAL.csv"), "PPI")
+    row = nightqc.arrival_quality(str(tmp_path))[0]
+    assert row["device_stamp_constant"] is True
+    assert row["device_epoch"]["state"] == "unset-base", row["device_epoch"]
+
+
+def test_a_counter_that_changes_epoch_MID_STREAM_reports_the_boundary(tmp_path):
+    """`switched_at`, and it is honest about being unobserved. The two corpus nights that carry both
+    epochs (2026-08-15, 2026-08-23) do so across separate CONNECTIONS — each sidecar is internally
+    consistent — so a within-stream switch has never been seen on the box. It is reachable in principle,
+    because a resync can land on a live connection, so the field exists and this is what it would say."""
+    import nightqc
+    w = PmdArrivalLogWriter(os.path.join(tmp_path, "Tepna_sw_PMDARRIVAL.csv"), fsync=False)
+    for i in range(300):
+        base = _FIRMWARE_DEFAULT_NS if i < 150 else _BASE_NS      # the resync lands at packet 150
+        dev_ns = base + (i % 150) * 77_000_000
+        arr = _T0 + _dt.timedelta(milliseconds=i * 77.0 + 400.0)
+        w.write(arr, "dev", "ECG", dev_ns, dev_ns + 69_000_000, 10)
+    w.close()
+    row = nightqc.arrival_quality(str(tmp_path))[0]
+    ep = row["device_epoch"]
+    assert ep["state"] == "firmware-default" and ep["switched_to"] == "plausible", ep
+    assert ep["switched_at"] is not None, ep
+
+
+def test_nothing_measured_means_no_epoch_claim():
+    """∅ — an empty stream is not a plausible one."""
+    import nightqc
+    assert nightqc.device_epoch_state([], quantised=False, stamp_frozen=False) is None

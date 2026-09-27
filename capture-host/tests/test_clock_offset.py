@@ -431,3 +431,39 @@ def test_floor_ms_has_no_time_model_and_a_skewed_night_exposes_it():
     flat, _ = PmdArrivalLogWriter.floor_ms([d for _, d in pts])
     assert abs(fitted - flat) > 100.0, "the two must not agree on a skewed night"
     assert fitted == pytest.approx(_truth(400.0, 20.0, pts), abs=1.0), "and the fitted one is the right one"
+
+
+def test_refuses_an_implausible_OFFSET_where_the_skew_is_perfectly_good():
+    """🔴 THE SIBLING `implausible-skew` COULD NOT CATCH. A device on the wrong EPOCH adds a CONSTANT to
+    every delay, which leaves the slope untouched — so the skew guard passes it and the offset is
+    published. Measured on the corpus 2026-09-27: a night where the H10 sat on its 2019 firmware default
+    published `offset_ms: 244174156601.746` with `"ok": true` — 7.74 years, certified. 192
+    (night, device, stream) publications carried an offset beyond a year, every one ok=true."""
+    pts = [(t * 10.0, 244174156601.7 + (t % 7) * 0.4) for t in range(400)]
+    r = co.estimate(pts)
+    assert r["ok"] is False and r["reason"] == "implausible-offset", r
+    assert abs(r["slope_ppm"]) if "slope_ppm" in r else True   # the slope was never the problem
+    assert "offset_ms" not in r, "a refusal carries no estimate — the hostAxis contract"
+
+
+def test_the_offset_refusal_reads_the_ENVELOPE_not_the_certified_field():
+    """The `_DURATION_S` shape, and why the bound is tested on the envelope. That pseudo-stream published
+    `offset_ms: null` — uncertified, so the certified field was already silent — beside
+    `offset_envelope_ms: 843790201937.193`, 26.7 years. A check on `offset_ms` alone would have left it
+    standing, every night since 2026-09-13."""
+    rnd = random.Random(11)
+    # the two estimators disagree by more than AGREE_MAX_MS, so `offset_ms` would be None on success
+    pts = [(t * 10.0, 843790201937.0 + (0.0 if t % 2 else 400.0) + rnd.uniform(0, 50)) for t in range(400)]
+    r = co.estimate(pts)
+    assert r["ok"] is False and r["reason"] == "implausible-offset", r
+    assert abs(r["offset_envelope_ms"]) > co.CLOCK_IMPLAUSIBLE_S * 1000.0, r
+
+
+def test_a_plausible_offset_is_untouched_by_the_new_bound():
+    """The control: the bound must not reach a real link. 264 ms is the H10's own measured offset on a
+    healthy night (2026-09-25, `offset_ms: -264.212`), and it must still certify."""
+    rnd = random.Random(3)
+    pts = [(t * 10.0, -264.2 + rnd.uniform(0, 4)) for t in range(400)]
+    r = co.estimate(pts)
+    assert r["ok"] is True and r["offset_ms"] is not None, r
+    assert abs(r["offset_ms"] + 264.2) < 5.0, r
