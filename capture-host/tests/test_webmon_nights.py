@@ -362,3 +362,122 @@ def test_the_pat_click_hands_over_the_arrival_sidecars():
     start = html.index("if(node==='PAT')")
     branch = html[start:html.index("\n  return", start)]
     assert "n.arrival" in branch, branch
+
+
+def _extract_fn(html, name, until):
+    """A named function's source, taken from the SHIPPED file, with a refusal when the shape moved —
+    the `test_monitor_escaping` idiom ("extraction is testing nothing")."""
+    start = html.index(f"function {name}(")
+    end = html.index(until, start)
+    src = html[start:end]
+    assert "return" in src, f"{name} extracted no body — the shape moved and this test reads nothing"
+    return src
+
+
+def test_every_derived_tool_hands_over_files_rather_than_a_boolean(tmp_path):
+    """THE 'PAT fused' PILL DID NOTHING WHEN CLICKED (owner, 2026-09-27) and the cause is a shape mismatch
+    the fallback cannot see. `night_entry` writes a NODE as a record (`{files: [...]}`) and a DERIVED tool
+    as `all(...)` — a BOOLEAN. `nightFilesFor`'s fallback is `n[node] ? n[node].files : []`, so a derived
+    entry passes the `?` (it is `true`) and yields `true.files === undefined`; `openNight`'s first use is
+    `if(!rels.length)`, which raised a TypeError BEFORE its first toast, inside an async call that was
+    neither awaited nor caught — an unhandled rejection, console-only, no tab, no message.
+    So the population is pinned as an EQUALITY over the derived tools and EXECUTED, not scanned: every
+    derived tool must resolve to a non-empty file list on a night that meets its own requirements. A
+    name-list assertion would have gone green the moment someone added the id to a map — all three maps
+    (`NIGHT_APP`, `NIGHT_INPUT`, `NIGHT_RUN`) already carried it, which is exactly why the route looked
+    complete. Only running the function finds a branch that is missing."""
+    import json
+    import re
+    import shutil
+    import subprocess
+
+    import pytest
+
+    import nights_index as ni
+
+    node = shutil.which("node")
+    if not node:  # pragma: no cover - ubuntu-latest always has node; a dev box might not
+        pytest.skip("node is not installed")
+
+    d = _night(tmp_path)  # H10 ECG + ACC, Verity PPG
+    (d / "Polar_H10_02849638_20260919220000_HR.txt").write_text(ROWS)
+    (d / "Wellue_O2Ring-S_77F1_20260919220000_PPG.txt").write_text(ROWS)
+    (d / "Wellue_O2Ring-S_77F1_20260919220000_SPO2.csv").write_text(
+        "Time,SpO2,PR\n22:00:00 19/09/2026,97,58\n23:00:00 19/09/2026,96,57\n"
+    )
+    root = str(tmp_path)
+    row = ni.night_entry(root, str(d))
+
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    html = open(os.path.join(here, "monitor.html"), encoding="utf-8").read()
+    m = re.search(r"const NIGHT_DERIVED = \[(.*?)\];", html)
+    assert m, "NIGHT_DERIVED is gone — this test would have no population"
+    derived = [k.strip().strip('"') for k in m.group(1).split(",")]
+    assert set(derived) == set(ni.DERIVED), (sorted(derived), sorted(ni.DERIVED))
+    assert len(derived) >= 3, derived  # anti-vacuity: an empty population satisfies everything below
+
+    # The producer's shape is WHY the fallback is unsafe, so pin it here rather than in prose: if derived
+    # entries ever become records, this reds and the branch requirement can be revisited deliberately.
+    for k in derived:
+        assert isinstance(row[k], bool), (k, type(row[k]).__name__)
+        assert row[k] is True, (k, "the fixture night should meet every derived requirement")
+
+    fn = _extract_fn(html, "nightFilesFor", "\nasync function openNight")
+    prog = (
+        fn + "\nconst n = " + json.dumps(row) + ";\nconst out = {};\n"
+        "for (const k of " + json.dumps(derived) + ") {\n"
+        "  try { const r = nightFilesFor(n, k); out[k] = Array.isArray(r) ? r.length : 'NOT-AN-ARRAY:' + typeof r; }\n"
+        "  catch (e) { out[k] = 'THROWS:' + e.constructor.name + ': ' + e.message; }\n}\n"
+        "console.log(JSON.stringify(out));"
+    )
+    r = subprocess.run([node, "-e", prog], capture_output=True, text=True, timeout=30)
+    assert r.returncode == 0, r.stderr
+    got = json.loads(r.stdout.strip())
+    for k in derived:
+        assert isinstance(got[k], int), (k, got[k], "a derived tool fell through to the boolean fallback")
+        assert got[k] > 0, (k, got, "the click would toast 'nothing to load' for a night that IS eligible")
+
+    # ANTI-VACUITY ON THE REQUIREMENT ITSELF: drop the ring's RAW pleth and 'PAT fused' must become
+    # INELIGIBLE (no pill, so no click) while PAT and the hat stay eligible — the exact distinction
+    # nights_index states, "a night with the ring's CSV but no raw pleth is PAT-eligible and NOT this".
+    (d / "Wellue_O2Ring-S_77F1_20260919220000_PPG.txt").unlink()
+    row2 = ni.night_entry(root, str(d))
+    assert row2["PAT fused"] is False
+    assert row2["PAT"] is True and row2["3 corner hat"] is True
+
+
+def test_a_night_click_that_throws_says_so_instead_of_vanishing():
+    """`openNight` toasts on all eight of its own failure arms, and a THROW bypassed every one of them: the
+    handler called it bare, so the rejection went nowhere and the click looked dead. Executed rather than
+    scanned — the delegation line is run with a rejecting `openNight`, and the toast must carry the reason.
+    §∅ at the UI: a click that examined nothing has to say so."""
+    import json
+    import shutil
+    import subprocess
+
+    import pytest
+
+    node = shutil.which("node")
+    if not node:  # pragma: no cover - ubuntu-latest always has node; a dev box might not
+        pytest.skip("node is not installed")
+
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    html = open(os.path.join(here, "monitor.html"), encoding="utf-8").read()
+    line = [ln for ln in html.split("\n") if "closest('[data-node]')" in ln]
+    assert len(line) == 1, line  # the delegation must be one place, or this test reads the wrong one
+    prog = (
+        "let TOAST = null;\n"
+        "const nToast = (m, bad) => { TOAST = { m, bad }; };\n"
+        "const openNight = async () => { throw new Error('boom'); };\n"
+        "const e = { target: { closest: (s) => (s === '[data-node]' ? { dataset: { night: '2026-09-19', node: 'PAT fused' } } : null) } };\n"
+        + line[0].strip()
+        + "\n"
+        "setTimeout(() => console.log(JSON.stringify({ toast: TOAST })), 20);"
+    )
+    r = subprocess.run([node, "-e", prog], capture_output=True, text=True, timeout=30)
+    assert r.returncode == 0, r.stderr
+    got = json.loads(r.stdout.strip())["toast"]
+    assert got is not None, "a throwing click produced NO toast — the rejection vanished"
+    assert "boom" in got["m"], got  # the reason travels, not just a generic failure
+    assert "PAT fused" in got["m"], got  # and which click it was
+    assert got["bad"] is True, got  # rendered as an error, not as progress

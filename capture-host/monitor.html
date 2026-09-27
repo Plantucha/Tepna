@@ -1268,6 +1268,12 @@ function stSyncFields(){
 // needs the monitor to be served from the same origin as the apps (vigil.local through Caddy).
 const NIGHT_COLS = ["ECGDex","OxyDex","PPGDex","PulseDex","CPAPDex","MotionDex","GlucoDex","HRVDex","EEGDex","Integrator"];
 const NIGHT_DERIVED = ["3 corner hat","PAT","PAT fused"];
+// The KEY is the index's (nights_index DERIVED) and is load-bearing in NIGHT_APP/NIGHT_INPUT/NIGHT_RUN and in
+// the tests' equalities, so a column that needs a clearer name gets a LABEL here rather than a rename.
+// "PAT fused" understates what the entry opens: the page renders the PAT lag classic-beside-fused AND the
+// three-cornered hat classic-beside-fused. The owner asked for the hats by name ("i thougt ther will be also
+// fused 3hat and normal 3hat", 2026-09-27) while looking at this table, so the table has to say they are in there.
+const NIGHT_DERIVED_LABEL = {"PAT fused": ["Classic vs fused", "PAT + 3-corner hat, classic beside fused"]};
 const NIGHT_CAPTURE_ORDER = ["ECGDex","HRVDex","PulseDex","PPGDex","MotionDex","OxyDex","CPAPDex","GlucoDex","EEGDex","Integrator"];
 const NIGHT_APP = {ECGDex:"ECGDex.html", OxyDex:"OxyDex.html", PPGDex:"PpgDex.html", PulseDex:"PulseDex.html", CPAPDex:"CPAPDex.html",
   MotionDex:"MotionDex.html", GlucoDex:"GlucoDex.html", HRVDex:"HRVDex.html", EEGDex:"EEGDex.html", Integrator:"Integrator.html",
@@ -1333,7 +1339,7 @@ function renderNights(){
   $('#nightsStrip').innerHTML = nStrip(rows);
   const open = new Set([...document.querySelectorAll('.ndrawer:not([hidden])')].map(e=>e.id));   // keep drawers open across refreshes
   let h='<thead><tr><th></th><th class="grp polar" colspan="5">Polar H10 · Verity</th><th class="grp wellue">Wellue O2Ring</th><th class="grp resmed">ResMed AS11</th><th class="grp fused" colspan="3">fused · absent</th><th class="grp fused" colspan="2">derived</th></tr>';
-  h+='<tr><th>Night</th>'+NIGHT_CAPTURE_ORDER.map(c=>`<th>${c}</th>`).join('')+NIGHT_DERIVED.map(d=>`<th>${d}</th>`).join('')+'</tr></thead><tbody>';
+  h+='<tr><th>Night</th>'+NIGHT_CAPTURE_ORDER.map(c=>`<th>${c}</th>`).join('')+NIGHT_DERIVED.map(d=>{const L=NIGHT_DERIVED_LABEL[d]; return L?`<th title="${L[1]}">${L[0]}</th>`:`<th>${d}</th>`;}).join('')+'</tr></thead><tbody>';
   for(const n of rows){
     const wd=new Date(n.night+'T00:00:00Z').toLocaleDateString('en-GB',{weekday:'short',timeZone:'UTC'});
     h+=`<tr><td class="date"><button type="button" class="nfig" data-drawer="${n.night}" title="every file this night holds">${n.night}</button><small>${wd} · longest ${nHrs(nSpan(n))}</small></td>`+NIGHT_CAPTURE_ORDER.map(c=>`<td>${nFig(n,c)}</td>`).join('')+NIGHT_DERIVED.map(k=>`<td>${nDerived(n,k)}</td>`).join('')+'</tr>';
@@ -1374,6 +1380,19 @@ function nightFilesFor(n, node){
     ...(n.MotionDex?n.MotionDex.files.filter(f=>/Polar_(H10|VeritySense).*_ACC\.txt$/.test(f)):[]),
     // both Polar devices' packet-arrival sidecars: the corrected lag's anchor (route-PAT fix, 2026-09-27)
     ...(n.arrival||[])];
+  // "PAT fused" carries the ring's RAW pleth as a third corner (nights_index DERIVED), and its page takes ONE
+  // #fileInput and classifies by VENDOR (pat-classic-vs-fused.js:200 — `_ECG.txt`→ecg, `_PPG.txt`→ring when
+  // wellue/o2ring/viatom/checkme else verity), requiring all three. So: the two Polar/ring optical files and the
+  // ECG, and deliberately NOT the ACCs or the arrival sidecars, which that page never reads and which are the
+  // largest files on the night.
+  // ⚠️ WITHOUT THIS BRANCH THE CLICK THREW AND SAID NOTHING, and the fallback below is why: a DERIVED entry is
+  // `all(...)` in nights_index.py — a BOOLEAN, not a node record — so `n['PAT fused']` is `true`, which satisfies
+  // the `?` and then yields `true.files === undefined`. `openNight`'s first use of it is `if(!rels.length)`, so it
+  // raised a TypeError before its first toast, inside an async function whose caller neither awaited nor caught
+  // it: an unhandled rejection, console-only. Owner-reported 2026-09-27 as "the PAT fused open pill does nothing".
+  // Every derived tool therefore needs an explicit branch; the equality is gated in test_webmon_nights.py.
+  if(node==='PAT fused') return [...(n.ECGDex?n.ECGDex.files.filter(f=>f.endsWith('_ECG.txt')):[]),
+    ...(n.PPGDex?n.PPGDex.files.filter(f=>/(VeritySense|O2Ring).*_PPG\.txt$/.test(f)):[])];
   return n[node] ? n[node].files : [];
 }
 async function openNight(night, node){
@@ -1422,7 +1441,11 @@ async function openNight(night, node){
 }
 function nightsClick(e){
   const dr=e.target.closest('[data-drawer]'); if(dr){ const r=document.getElementById('ndr-'+dr.dataset.drawer); if(r) r.hidden=!r.hidden; return; }
-  const f=e.target.closest('[data-node]'); if(f){ openNight(f.dataset.night, f.dataset.node); }
+  // NO PATH THROUGH openNight MAY FAIL WITHOUT A VISIBLE MESSAGE. openNight is async and every one of its
+  // own failure arms toasts, but a THROW bypassed all of them: called bare, the rejection went nowhere and the
+  // click looked dead (the 'PAT fused' TypeError above). The catch is the §∅ rule at the UI — a click that
+  // examined nothing has to say so — and it is not a substitute for the arms, which still name their cause.
+  const f=e.target.closest('[data-node]'); if(f){ Promise.resolve(openNight(f.dataset.night, f.dataset.node)).catch(err=>nToast('opening '+f.dataset.node+' failed: '+((err&&err.message)||err), true)); }
 }
 $('#nightsTable').addEventListener('click', nightsClick);
 
