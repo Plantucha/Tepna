@@ -202,13 +202,13 @@ def refresh_caches_if_tests_changed(work: Path, module: str, tests_dir: Path, st
                 data["exit_code_by_key"] = dict.fromkeys(codes, None)
                 meta.write_text(json.dumps(data), encoding="utf-8")
         except (OSError, ValueError):
-            pass                        # unreadable meta ⇒ nothing to invalidate; the stamp still advances
+            pass  # unreadable meta ⇒ nothing to invalidate; the stamp still advances
     # THE SELECTION. Unlinked, not rewritten: mutmut rebuilds it from a traced pass when it is absent,
     # and any partial edit here would be a guess about which associations are still true.
     stats = Path(work) / "mutants" / "mutmut-stats.json"
     try:
         stats.unlink()
     except OSError:
-        pass                            # already gone, or unreadable ⇒ mutmut collects afresh either way
+        pass  # already gone, or unreadable ⇒ mutmut collects afresh either way
     stamp.write_text(current, encoding="utf-8")
     return True

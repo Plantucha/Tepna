@@ -400,8 +400,10 @@ def main(argv=None) -> int:
         _pop["eligible"] += len(globs)
         _scope["lines"] += len(lines)
         _scope["functions"] += len(stems)
-        print(f"  {module}: {len(lines)} changed line(s) in {len(stems)} function(s) → "
-              f"{', '.join(sorted(stems))}", flush=True)
+        print(
+            f"  {module}: {len(lines)} changed line(s) in {len(stems)} function(s) → {', '.join(sorted(stems))}",
+            flush=True,
+        )
         # The clean run is timed ONCE per module and handed to every glob's run_one. Re-timing it per
         # glob was the 2026-09-17 "hang" (capture.py: 936.7 s × 5 globs before any mutant, measured).
         _tests = mut.tests_for(module)
@@ -861,9 +863,11 @@ def main(argv=None) -> int:
             return _refusal
         return emit("PASS", None, 0)
 
-    print(f"\nmutate-diff: {len(blocking)} mutant(s) survived in the {_scope['functions']} function(s) this "
-          f"branch changed ({_scope['lines']} changed line(s)) — no test can see them.\n"
-          "  The unit is the FUNCTION, not the line: a survivor here may sit on a line you did not touch.\n")
+    print(
+        f"\nmutate-diff: {len(blocking)} mutant(s) survived in the {_scope['functions']} function(s) this "
+        f"branch changed ({_scope['lines']} changed line(s)) — no test can see them.\n"
+        "  The unit is the FUNCTION, not the line: a survivor here may sit on a line you did not touch.\n"
+    )
     for s in cls["unclassified"]:
         print(f"  ── {s['mutant']}")
         for ln in mutant_changed_lines(s):
@@ -871,17 +875,23 @@ def main(argv=None) -> int:
     for e in cls["real_gap"]:
         print(f"  ── {e['module']}  {e['key'][:110]}")
         print(f"     recorded as real-gap — debt, not equivalence: {e.get('why', '')[:140]}")
-    print("\n  Each one means: change that line and the suite stays green. Either add an assertion that\n"
-          "  observes it, or — if it is genuinely unkillable — record it in tools/mutate-equivalence.json\n"
-          "  with a `probe` saying what you actually ran. Reproduce locally with:\n"
-          "      cd capture-host && .venv/bin/python tools/mutate_diff.py --base origin/main")
+    print(
+        "\n  Each one means: change that line and the suite stays green. Either add an assertion that\n"
+        "  observes it, or — if it is genuinely unkillable — record it in tools/mutate-equivalence.json\n"
+        "  with a `probe` saying what you actually ran. Reproduce locally with:\n"
+        "      cd capture-host && .venv/bin/python tools/mutate_diff.py --base origin/main"
+    )
     _ran_box[0] = _ran
     _counts["excused"] = len(cls["excused"])
     if _refusal is not None:
         print("  (informational — the run's verdict is the UNKNOWN refusal above, which outranks survivors)")
         return _refusal
-    return emit("FAIL", f"{len(blocking)} mutant(s) survived in the {_scope['functions']} function(s) this branch "
-                    f"changed ({_scope['lines']} changed line(s)) — no test observes them", 0 if a.report_only else 1)
+    return emit(
+        "FAIL",
+        f"{len(blocking)} mutant(s) survived in the {_scope['functions']} function(s) this branch "
+        f"changed ({_scope['lines']} changed line(s)) — no test observes them",
+        0 if a.report_only else 1,
+    )
 
 
 if __name__ == "__main__":

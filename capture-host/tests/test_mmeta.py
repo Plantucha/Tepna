@@ -241,7 +241,7 @@ def test_first_run_with_no_stamp_invalidates_and_stamps(tmp_path):
     stamp = tmp_path / ".tests-hash"
     tests = _tests(tmp_path, {"test_a.py": "def test_a(): pass\n"})
     assert mmeta.refresh_caches_if_tests_changed(work, "oxy_transfer.py", tests, stamp) is True
-    assert _meta_codes(work) == {"oxy_transfer.x_select__mutmut_1": None}   # verdict nulled, key kept
+    assert _meta_codes(work) == {"oxy_transfer.x_select__mutmut_1": None}  # verdict nulled, key kept
     assert stamp.read_text().strip() == mmeta.test_tree_hash(tests)
 
 
@@ -252,25 +252,25 @@ def test_unchanged_tests_preserve_the_results_cache(tmp_path):
     tests = _tests(tmp_path, {"test_a.py": "def test_a(): pass\n"})
     stamp.write_text(mmeta.test_tree_hash(tests), encoding="utf-8")
     assert mmeta.refresh_caches_if_tests_changed(work, "oxy_transfer.py", tests, stamp) is False
-    assert _meta_codes(work) == {"oxy_transfer.x_select__mutmut_1": 33}   # kept decided — full reuse
+    assert _meta_codes(work) == {"oxy_transfer.x_select__mutmut_1": 33}  # kept decided — full reuse
 
 
 def test_adding_a_KILLER_invalidates_so_the_FIRST_next_run_is_correct(tmp_path):
     """⚠️ THE §2 CONTROL, the proven defect itself. Source unchanged, a killer test ADDED → the cached
     verdict is stale, so it MUST be invalidated. Without this the added killer is uncredited on the first
     run — the exact self-destructing bug the brief measured."""
-    work = _meta(tmp_path, "oxy_transfer.py",
-                 {"oxy_transfer.x_select__mutmut_1": 33, "oxy_transfer.x_select__mutmut_2": 37})
+    work = _meta(
+        tmp_path, "oxy_transfer.py", {"oxy_transfer.x_select__mutmut_1": 33, "oxy_transfer.x_select__mutmut_2": 37}
+    )
     stamp = tmp_path / ".tests-hash"
     tests = _tests(tmp_path, {"test_a.py": "def test_a(): pass\n"})
-    stamp.write_text(mmeta.test_tree_hash(tests), encoding="utf-8")   # state B: last run's tests
+    stamp.write_text(mmeta.test_tree_hash(tests), encoding="utf-8")  # state B: last run's tests
     (tests / "test_killer.py").write_text("def test_kills_it(): assert True\n", encoding="utf-8")
     assert mmeta.refresh_caches_if_tests_changed(work, "oxy_transfer.py", tests, stamp) is True
     # ⚠️ THE RECOVERY PROPERTY the delete-the-file bug violated: the mutant KEYS survive (so mutmut's
     # --only filter still matches and it re-decides them) and only the VERDICTS are cleared to null. A
     # deleted meta strips the keys, and with the source unchanged mutmut skips regeneration and crashes.
-    assert _meta_codes(work) == {"oxy_transfer.x_select__mutmut_1": None,
-                                 "oxy_transfer.x_select__mutmut_2": None}
+    assert _meta_codes(work) == {"oxy_transfer.x_select__mutmut_1": None, "oxy_transfer.x_select__mutmut_2": None}
     assert mmeta.decided_under_glob(_meta_codes(work), "oxy_transfer.x_select__mutmut_*") == 0
 
 
@@ -301,7 +301,8 @@ def test_invalidation_of_a_meta_without_a_dict_of_codes_is_a_noop_but_stamps(tmp
     work = tmp_path
     (work / "mutants").mkdir()
     (work / "mutants" / "oxy_transfer.py.meta").write_text(
-        json.dumps({"exit_code_by_key": [1, 2]}), encoding="utf-8")   # a list, not a dict
+        json.dumps({"exit_code_by_key": [1, 2]}), encoding="utf-8"
+    )  # a list, not a dict
     stamp = tmp_path / ".tests-hash"
     tests = _tests(tmp_path, {"test_a.py": "def test_a(): pass\n"})
     assert mmeta.refresh_caches_if_tests_changed(work, "oxy_transfer.py", tests, stamp) is True
@@ -371,7 +372,8 @@ def _scratch_with_caches(tmp_path):
     (work / "mutants" / "m.py.meta").write_text('{"exit_code_by_key": {"m.x_f__mutmut_1": 0}}', encoding="utf-8")
     (work / "mutants" / "mutmut-stats.json").write_text(
         '{"tests_by_mangled_function_name": {"m.x_f": ["tests/test_m.py::test_old"]}, "stats_time": 1.0}',
-        encoding="utf-8")
+        encoding="utf-8",
+    )
     tests = tmp_path / "tests"
     tests.mkdir()
     (tests / "test_m.py").write_text("def test_old():\n    assert True\n", encoding="utf-8")
@@ -404,8 +406,9 @@ def test_an_UNCHANGED_test_tree_leaves_BOTH_caches_alone(tmp_path):
     results would throw away a whole run's verdicts."""
     work, tests, stamp = _scratch_with_caches(tmp_path)
     mmeta.refresh_caches_if_tests_changed(work, "m.py", tests, stamp)
-    (work / "mutants" / "mutmut-stats.json").write_text('{"tests_by_mangled_function_name": {"m.x_f": ["a"]}}',
-                                                        encoding="utf-8")
+    (work / "mutants" / "mutmut-stats.json").write_text(
+        '{"tests_by_mangled_function_name": {"m.x_f": ["a"]}}', encoding="utf-8"
+    )
     (work / "mutants" / "m.py.meta").write_text('{"exit_code_by_key": {"m.x_f__mutmut_1": 1}}', encoding="utf-8")
     assert mmeta.refresh_caches_if_tests_changed(work, "m.py", tests, stamp) is False
     assert (work / "mutants" / "mutmut-stats.json").exists(), "an unchanged tree must keep its selection"
