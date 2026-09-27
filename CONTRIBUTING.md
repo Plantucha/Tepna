@@ -149,6 +149,22 @@ fixture whose output the change moved.
 > and run that string**, rather than the shorter one you remember. For the JS side that is
 > `npm run check`; for `capture-host/` it is the full `pytest -q --cov --cov-branch
 > --cov-report=term-missing --cov-fail-under=100`.
+>
+> ⚠️ **A THIRD SIBLING, AND IN A WORKTREE IT IS THE LIKELY ONE: the right command, REFUSED.**
+> `capture-host/check.sh` prefers `.venv/bin/python` and falls back to bare `python3`. A fresh
+> `git worktree` has no `.venv`, and a system interpreter without `pytest-cov` does not run the suite
+> uncovered — it **rejects the flags outright**: `error: unrecognized arguments: --cov --cov-branch
+> --cov-fail-under=100`, exit 4. Measured 2026-09-27 on `claude/qc-session-seam-hrn`. It reads as a code
+> failure, and the coverage floor was never evaluated at all — the same class as the rows above, except
+> that here **nothing** was measured rather than something weaker. So from a worktree, hand it the
+> interpreter that has the dev requirements:
+>
+> ```sh
+> PYTHON=/path/to/primary/checkout/capture-host/.venv/bin/python ./check.sh
+> ```
+>
+> The tell is `exit 4` and no `TOTAL` row — and a pytest line with no `TOTAL` row did not evaluate the
+> floor at all (CLAUDE.md §🐍).
 
 ---
 

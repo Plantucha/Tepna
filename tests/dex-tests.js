@@ -8745,6 +8745,157 @@
        The negative-variance row is the one that matters: TCH's characteristic failure is a NEGATIVE
        variance estimate, and an implementation that clamped or abs()'d it would still match on every
        well-behaved input. */
+    /* ════ INDEPENDENCE SENSITIVITY on sensor-trio-night — the row, and what it must not do ═════════════
+       The owner asked for one scientific safeguard on the 3-hat page. The DIRECT answer is the pooled
+       reference run (#3123, FAIL); this row is the per-night companion, and this group pins the ways it
+       could quietly become dishonest. Every non-numeric leg is a source scan: the inputs are computed in a
+       WORKER and the suite cannot execute worker-local functions — which is also why that hat now
+       delegates rather than being numerically bound (a parity row there is not writable). */
+    group('sensor-trio independence sensitivity — the collapse point, and four things the row must not do', 'sensor-trio · rho-crit · §∅', function (T) {
+      var S = env.AnalysisStats;
+      var page = env.sources && env.sources['sensor-trio-night.js'];
+      var wk = env.sources && env.sources['sensor-trio-worker.js'];
+      T.ok('the page source is readable in this lane', !!page, 'sensor-trio-night.js not in env.sources — list it in BOTH lanes');
+      T.ok('the worker source is readable in this lane', !!wk, 'sensor-trio-worker.js not in env.sources — list it in BOTH lanes');
+      if (!page || !wk) return;
+
+      /* ── the worker supplies the row's only input ────────────────────────────────────────────────── */
+      T.ok(
+        'the worker surfaces the pairwise difference variances it used to discard',
+        /vars:\s*\{\s*hv:/.test(wk),
+        'tchSigmas/tchSigmasFused must return { hv, ho, vo } — without them the row has no input'
+      );
+      T.ok('the night payload carries them', /pairVars:\s*s\.vars/.test(wk), 'out.pairVars must ship or the page cannot locate a collapse point');
+      /* The delegation this unit performed. A private copy here was byte-equivalent to the kernel and
+         gated by nothing — `tch-parity` scans the power tool only. */
+      T.ok('the worker DELEGATES the hat to the shared kernel', /AnalysisStats\.threeCorneredHat/.test(wk), 'the worker must call the shared kernel, not carry its own solver');
+      T.ok('the worker carries NO private three-cornered-hat formula any more', !/0\.5\s*\*\s*\(\s*vAB\s*\+\s*vAC\s*-\s*vBC\s*\)/.test(wk), 'the private copy came back — delegate instead');
+      T.ok(
+        'an absent kernel REFUSES rather than falling back to a local copy',
+        /AnalysisStats\.threeCorneredHat unavailable/.test(wk),
+        '§3 — guarding an absent alias converts a crash into silent disablement'
+      );
+
+      /* ── the four things the row must not do ────────────────────────────────────────────────────── */
+      /* 🔴 THIS SCAN CAUGHT ITSELF TWICE: naively, `/independent ✓/` fired on the page's own sentence
+         saying no such verdict is available, and after that sentence was stripped it fired again on the
+         comment documenting the denial. The string the row must never ASSERT is the one it must NAME to
+         explain the absence. Stripping known sentences would need an edit on every rewording — exactly
+         when the scan must still work — so the rule is stated: EVERY occurrence must be negated within
+         the 40 characters before it. A scan that cannot tell an assertion from its denial reports the
+         honest page and the dishonest one alike. */
+      var claim = null;
+      var reIndep = /independent\s*\u2713/g,
+        _m;
+      while ((_m = reIndep.exec(page)) !== null) {
+        var before = page.slice(Math.max(0, _m.index - 40), _m.index);
+        if (!/\b(No|no|never|not|none|NOT)\b/.test(before)) claim = page.slice(Math.max(0, _m.index - 40), _m.index + 30);
+      }
+      T.ok(
+        'the row never claims independence',
+        claim === null,
+        'an UN-NEGATED "independent ✓" is present: ' +
+          String(claim) +
+          ' — a positive TCH solve is not evidence of uncorrelated errors at any n (#1824: a negative needs \u03c1 > \u03c3\u2080_A/\u03c3\u2080_B)'
+      );
+      /* ANTI-VACUITY: the loop above passes trivially if the string never appears at all — which would
+         also mean the row had stopped explaining itself. Pin that it appears AND that every appearance
+         was examined. */
+      T.ok(
+        'ANTI-VACUITY · the scan actually examined some occurrences',
+        (page.match(/independent\s*\u2713/g) || []).length >= 2,
+        'the page no longer mentions the unavailable verdict — the scan passed by examining nothing (§4b)'
+      );
+      T.ok(
+        "the row says so, rather than leaving the absence of an 'independent' verdict unexplained",
+        /No "independent ✓" is shown here, and none is available/.test(page),
+        'the clean state must read as unobtainable, not merely unreported'
+      );
+      T.ok(
+        "this night's own ρ is REFUSED, not defaulted",
+        /This night\\u2019s own ρ: REFUSED/.test(page) || /own ρ: REFUSED/.test(page),
+        '§∅ — ρ = 0 would answer the question with the assumption under test'
+      );
+      T.ok('the pooled ρ is labelled as external and not this night', /Pooled, external, NOT this night/.test(page), "the 37-night ρ must never read as this night's own (KNIFE-EDGE §5)");
+      T.ok('no band around the collapse point is stated', /No band around the collapse point is given/.test(page), '§2 measured sensitivity rising smoothly, with no regime to threshold on');
+      T.ok(
+        'the operating point is ρ = 0 on every pair, which is what the hat assumes',
+        /\{\s*ab:\s*0,\s*ac:\s*0,\s*bc:\s*0\s*\}/.test(page),
+        'ρ_crit must be measured from the hat’s own assumption, not from an arbitrary point'
+      );
+
+      if (!S || typeof S.tchRhoCrit !== 'function' || typeof S.tchSigmasPairwiseFromVars !== 'function') {
+        T.skip('env.AnalysisStats provided to the runner', 'Node-lane only — run-tests.mjs co-loads analysis-stats.js');
+        return;
+      }
+
+      /* ── NUMERIC, on the CLASSIC HAT's own σ̂ medians (#3123: 0.967 · 0.413 · 1.456) ─────────────────
+         🔴 HAT VALUES, NOT REFERENCE-MEASURED ONES — an earlier comment here said "the σ the reference
+         measured", a different triple (`trueSd` 0.806 · 0.728 · 1.713). Both are in
+         analysis/published-numbers/tch-firmware-reference-2026-09-26.json (`medians.*.classic` /
+         `.trueSd`). The input was right, only the label wrong: ρ_crit is a property of THIS hat's solve,
+         so its own σ̂ is what it must be fed. The row exists because those two triples differ.
+         ANTI-VACUITY FIRST: the triple must round-trip to those σ̂, or every row below describes nothing. */
+      var sh = 0.97,
+        sv = 0.41,
+        so = 1.46;
+      var vhv = sh * sh + sv * sv,
+        vho = sh * sh + so * so,
+        vvo = sv * sv + so * so;
+      var back = S.tchSigmasPairwiseFromVars(vhv, vho, vvo, { ab: 0, ac: 0, bc: 0, _noCrit: true });
+      T.ok('ANTI-VACUITY · the variance triple round-trips to the hat’s own σ̂', !!(back && back.ok), 'the solve refused its own construction — the rows below would describe nothing');
+      if (!back || !back.ok) return;
+      T.approx('round-trip σ̂ H10 (hat median 0.967)', back.a, sh, 1e-9);
+      T.approx('round-trip σ̂ Verity (hat median 0.413 — the reference puts the TRUE σ at 0.728)', back.b, sv, 1e-9);
+      T.approx('round-trip σ̂ O2Ring (hat median 1.456)', back.c, so, 1e-9);
+
+      var r = S.tchRhoCrit(vhv, vho, vvo, { ab: 0, ac: 0, bc: 0 });
+      T.ok('a collapse point exists for this instrument', !!(r && r.nearest), 'no corner collapses in range — implausible for a real trio; suspect the inputs');
+      if (!r || !r.nearest) return;
+      /* 🔴 THE FINDING, and why the row is worth a surface: the nearest collapse is H10·O2Ring at ρ ≈ 0.105
+         — a SMALL correlation — and the corner it annihilates is the VERITY, the smallest σ. That is the
+         same corner the 37-night reference independently found under-read (0.41 against a true 0.73), and
+         this row reaches it from the night alone with no reference. Pinned so the row cannot silently
+         stop pointing at it. */
+      T.eq('the nearest collapse is the H10 · O2Ring pair', r.nearest.pair, 'ac');
+      T.approx('it collapses at a SMALL correlation', r.nearest.at, 0.105, 0.01);
+      T.ok(
+        'the collapsing corner is the smallest σ (the Verity)',
+        Math.min(back.a, back.b, back.c) === back.b,
+        'if the smallest corner is no longer the one at risk, the row\u2019s onset-law reading is stale'
+      );
+      T.ok('the sensitivity is published as a rate', Number.isFinite(r.nearest.sigmaPerRho), 'sigmaPerRho absent — the row would show only a bare threshold, which §2 refused');
+      T.ok('the required ρ precision is published', Number.isFinite(r.nearest.rhoFor0p1), 'rhoFor0p1 absent — the row could only assert, not state what is needed');
+      T.approx('ρ would have to be known to ±0.059 to pin that σ to ±0.1 bpm', r.nearest.rhoFor0p1, 0.059, 0.01);
+      /* The pooled optical ρ is 0.32 — BELOW the Verity·O2Ring collapse at ≈ 0.51, which is precisely why
+         nothing goes negative and the trio looks clean while the reference says it is not. The onset law,
+         visible in one inequality. */
+      /* ── THE ONSET LAW, PAIR BY PAIR AGAINST THE REFERENCE'S MEASURED ρ (Wren's cross-check) ────────
+         `result.rho`: hv −0.011 · ho 0.012 · vo 0.318. Every one sits BELOW its pair's collapse point,
+         which is why the hat returns three positive σ̂ on nights the reference says are wrong. If any
+         measured ρ ever sat at or above its ρ_crit, a negative variance would have flagged the
+         correlation and this row's caveat — a positive solve is not evidence of independence — would be
+         the wrong reading. Pinned per pair, not for the optical pair alone. */
+      var RHO_MEASURED = { ab: -0.011, ac: 0.012, bc: 0.318 };
+      var PAIRNAME = { ab: 'H10 · Verity', ac: 'H10 · O2Ring', bc: 'Verity · O2Ring' };
+      var checkedPairs = 0;
+      for (var _p = 0; _p < 3; _p++) {
+        var pk = ['ab', 'ac', 'bc'][_p];
+        var up = r.pairs && r.pairs[pk] && r.pairs[pk].up;
+        if (!up) continue;
+        checkedPairs++;
+        T.ok(
+          'the ' + PAIRNAME[pk] + ' collapse (ρ ' + up.at.toFixed(3) + ') sits ABOVE its measured ρ of ' + RHO_MEASURED[pk],
+          up.at > RHO_MEASURED[pk],
+          'a measured ρ at or above its collapse point would have produced a NEGATIVE variance, and this row’s caveat would be the wrong reading'
+        );
+      }
+      T.ok(
+        'ANTI-VACUITY · every pair with a collapse point was checked against a measured ρ',
+        checkedPairs === 3,
+        'only ' + checkedPairs + ' of 3 pairs collapsed upward — the loop passed by skipping the rest'
+      );
+    });
     group("the paper's power tool and the gated TCH kernel compute the same hat", 'sensor-trio · tch-parity', function (T) {
       var K = env.IntegratorTCH;
       var src = env.sources && env.sources['sensor-trio-power-analysis.js'];
