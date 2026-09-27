@@ -13131,14 +13131,38 @@
        off. Adding a pair is a deliberate act that says "these two files are a boundary". */
     group('No value crosses a worker boundary unread', 'cohesion · dead-cross-boundary · pat', function (T) {
       var S = env.sources || {};
-      /* The consumer set is a HAND-WRITTEN list, so a new reader of this worker must be added here or its
-         keys read as dead. `pat-classic-vs-fused.js` joined 2026-09-26 — it reads `fused` and `threeFused`.
-         ⚠️ Registering the file in both lanes' SOURCE inventories was NOT enough and the distinction cost a
-         cycle: the scan then had the text and still reported both keys dead, because this list — not the
-         inventory — decides whose reads count. A derived consumer set (every source that names the worker,
-         or that the page's own `new Worker(...)` points at) would need no edit for the next page; that is a
-         real improvement and deliberately not smuggled into this unit. */
-      var PAIRS = [{ producer: 'pat-feasibility-worker.js', consumers: ['pat-feasibility.js', 'pat-gate.js', 'pat-classic-vs-fused.js'] }];
+      /* ── WHO COUNTS AS A CONSUMER IS DERIVED; THE LIST IS ONLY AN ALLOWLIST (2026-09-27) ──────────────
+         This was a hand-written `consumers` array, and the cost was not the missing edit — it was the
+         DIRECTION of the report. A consumer nobody had declared made the PRODUCER's keys read as dead
+         ("got fused,threeFused · want none"), which invites the author to delete or guard a key a real
+         surface reads. Registering `pat-classic-vs-fused.js` in both source inventories cleared
+         `ratchet 12` and left this gate red and UNCHANGED, because this list — not the inventory —
+         decided whose reads counted (residue 2026-09-26-boundary-gate-consumer-set-is-hand-written).
+
+         🔴 THE RULE IS CONSTRUCTION, NOT MENTION, and that is the whole design. Measured over the Node
+         lane's 105-file inventory, 2026-09-27:
+           · `new Worker(...)` / `__mkWorker(...)` naming the worker → EXACTLY `pat-feasibility.js` and
+             `pat-classic-vs-fused.js`, precisely the two files that read the payload;
+           · "the text mentions the worker" → 11 inventory files (40+ across the repo): DSP comments,
+             `analysis-stats.js`, two orchestrator bundles, the builder, the papers.
+         BREADTH IS THE DANGER HERE, not narrowness. Every admitted file's text is concatenated into
+         `consumerText`, and a key name occurring anywhere in it reads as "read" — so a generous rule
+         turns this gate off while leaving it green. PLANT 2 below is the control for exactly that, and it
+         is the reason the rule is not "names the worker", which is what the old comment proposed.
+
+         The array survives as an ALLOWLIST for a consumer the scan cannot see: `pat-gate.js` reads `m.cp`
+         off the payload and never constructs the worker (it is handed the object), so no construction
+         rule can find it. Derived set + small allowlist needs no edit for the next page. */
+      var PAIRS = [{ producer: 'pat-feasibility-worker.js', allow: ['pat-gate.js'] }];
+      /* A source is a DERIVED consumer if it CONSTRUCTS this worker. */
+      var derivedConsumers = function (producer, src) {
+        var where = src || S;
+        var esc = producer.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        var re = new RegExp('(?:new\\s+Worker|__mkWorker|mkWorker)\\s*\\(\\s*[\'"`][^\'"`]*' + esc);
+        return Object.keys(where).filter(function (f) {
+          return f !== producer && re.test(where[f] || '');
+        });
+      };
       /* KNOWN, published, ratcheted — same discipline as the visibility cap above. The set is now
          EMPTY: `detailCorr` (the packed per-beat detail for the ACC-corrected coupling) sat here at
          ratchet ONE from 2026-09-02 until its parent finding's own closure was read — ENGINE-VERIFICATION
@@ -13150,12 +13174,25 @@
         var prod = S[pair.producer];
         T.ok(pair.producer + ' · producer source readable', !!prod, prod ? prod.length + ' bytes' : 'ABSENT from env.sources');
         if (!prod) return;
-        var consumerText = pair.consumers
+        var derived = derivedConsumers(pair.producer);
+        var allow = (pair.allow || []).filter(function (c) {
+          return derived.indexOf(c) < 0;
+        });
+        var consumers = derived.concat(allow);
+        /* The derivation must actually FIND the constructors. An empty derived set with a non-empty
+           allowlist would silently revert this gate to the hand-written behaviour it just replaced, and
+           every row below would still be green. */
+        T.ok(
+          pair.producer + ' · consumers were DERIVED, not just allowlisted',
+          derived.length > 0,
+          'nothing in the inventory constructs this worker — either the construction idiom changed, or every consumer is being carried by the allowlist again'
+        );
+        var consumerText = consumers
           .map(function (c) {
             return S[c] || '';
           })
           .join('\n');
-        T.ok(pair.producer + ' · at least one consumer readable', consumerText.length > 0, 'consumers: ' + pair.consumers.join(', '));
+        T.ok(pair.producer + ' · at least one consumer readable', consumerText.length > 0, 'derived: ' + (derived.join(', ') || 'none') + (allow.length ? ' · allowlisted: ' + allow.join(', ') : ''));
         if (!consumerText.length) return;
         var keys = {},
           km;
@@ -13165,7 +13202,20 @@
         var dead = Object.keys(keys).filter(function (k) {
           return !new RegExp('[.\\b]' + k + '\\b').test(consumerText) && KNOWN_DEAD.indexOf(k) < 0;
         });
-        T.eq(pair.producer + ' · no UNDECLARED dead key crosses the boundary', dead.join(',') || 'none', 'none');
+        /* ── THE FAILURE NAMES THE RIGHT CAUSE ────────────────────────────────────────────────────────
+           An unread key has two very different causes and they used to print identically. If NO consumer
+           was discovered, the likely fault is the boundary declaration or a changed construction idiom —
+           not the producer — and saying "dead key" there sends the author to delete a key a real surface
+           may read. That misdirection is the residue this unit closes, so the message distinguishes them
+           rather than leaving the reader to guess. */
+        var deadWhy =
+          derived.length === 0
+            ? 'NO consumer of ' +
+              pair.producer +
+              ' was discovered in the inventory, so these keys are UNEXAMINED rather than proven dead — check the construction idiom and the inventory BEFORE touching the producer: ' +
+              dead.join(',')
+            : 'these keys cross the boundary and no consumer reads them (consumers examined: ' + consumers.join(', ') + '): ' + dead.join(',');
+        T.eq(pair.producer + ' · no UNDECLARED dead key crosses the boundary', dead.join(',') || 'none', 'none', deadWhy);
         T.eq('the known-dead ratchet is at ZERO — every key crossing the boundary is read', KNOWN_DEAD.length, 0);
         /* PLANT — the detector must still FIRE. A key that no consumer mentions, appended to the
            producer text, must be reported as dead; without this the empty set above could be the
@@ -13178,7 +13228,48 @@
         var deadPlanted = Object.keys(pk).filter(function (k) {
           return !new RegExp('[.\\b]' + k + '\\b').test(consumerText);
         });
-        T.eq('PLANT · an unread key appended to the producer is reported dead', deadPlanted.join(','), 'zzPlantedUnreadKey');
+        T.eq('PLANT 1 · an unread key appended to the producer is reported dead', deadPlanted.join(','), 'zzPlantedUnreadKey');
+
+        /* ── PLANT 2 · THE DERIVATION FINDS A NEW CONSUMER WITH NO LIST EDIT ───────────────────────────
+           The property this unit exists for. A source that constructs the worker and reads a key must
+           make that key live WITHOUT any entry in `allow`. Driven over a synthetic inventory so it tests
+           the rule rather than today's files. */
+        var synth = {};
+        synth[pair.producer] = prod + '\nout.zzPlantedNewKey = 1;';
+        synth['zz-synthetic-consumer.js'] = "var w = new Worker('" + pair.producer + "'); w.onmessage = function (m) { return m.zzPlantedNewKey; };";
+        var synthDerived = derivedConsumers(pair.producer, synth);
+        T.eq('PLANT 2 · a source CONSTRUCTING the worker is derived as a consumer, with no allowlist edit', synthDerived.join(','), 'zz-synthetic-consumer.js');
+        var synthText = synthDerived
+          .map(function (c) {
+            return synth[c] || '';
+          })
+          .join('\n');
+        T.ok(
+          'PLANT 2 · and the key it reads is therefore NOT reported dead',
+          new RegExp('[.\\b]zzPlantedNewKey\\b').test(synthText),
+          'the derived consumer\u2019s text did not reach consumerText — a new page would still red this gate, which is the defect being fixed'
+        );
+
+        /* ── PLANT 3 · THE DERIVATION MUST NOT BE GENEROUS (the control that matters most) ─────────────
+           A rule of "the text mentions the worker" would have admitted 11 inventory files, and every
+           admitted file's text masks any key name occurring in it — turning this gate off while leaving it
+           green. So: a source that READS the key but does NOT construct the worker must NOT be derived,
+           and the key must stay dead. If this ever passes vacuously the gate has quietly widened. */
+        var loose = {};
+        loose[pair.producer] = prod + '\nout.zzPlantedNewKey = 1;';
+        loose['zz-mentions-only.js'] = '/* see ' + pair.producer + ' for the producer */ var x = obj.zzPlantedNewKey;';
+        var looseDerived = derivedConsumers(pair.producer, loose);
+        T.eq('PLANT 3 · a source that only MENTIONS the worker is not a consumer', looseDerived.join(',') || 'none', 'none');
+        var looseText = looseDerived
+          .map(function (c) {
+            return loose[c] || '';
+          })
+          .join('\n');
+        T.ok(
+          'PLANT 3 · so the key it reads is still reported dead',
+          !new RegExp('[.\\b]zzPlantedNewKey\\b').test(looseText),
+          'a mention-only file reached consumerText — the derivation is too broad and now masks real dead keys'
+        );
         /* Anti-vacuity for any FUTURE entry: a declared dead key must still BE dead, or the gate is
            pinning a fiction and the cap should drop. (Empty set today; the PLANT above is what keeps
            the detector itself honest.) */
