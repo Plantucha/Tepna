@@ -6086,9 +6086,11 @@ async def _device_on_air(address: str, budget_s: float) -> bool | None:
         # overloaded, and a dict splat there produces FIVE new errors instead of fixing one (measured).
         # Same shape `polar_psftp` already uses at its BleakClient call.
         hci = await adapter_hci()
-        scan = (bleak.BleakScanner.find_device_by_address(address, timeout=budget_s, adapter=hci)
-                if hci else
-                bleak.BleakScanner.find_device_by_address(address, timeout=budget_s))
+        scan = (
+            bleak.BleakScanner.find_device_by_address(address, timeout=budget_s, adapter=hci)
+            if hci
+            else bleak.BleakScanner.find_device_by_address(address, timeout=budget_s)
+        )
         dev = await asyncio.wait_for(scan, timeout=budget_s + 3.0)
         return dev is not None
     except Exception as e:                     # scan failed, adapter busy, bleak absent — cannot tell
