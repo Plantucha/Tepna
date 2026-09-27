@@ -11300,7 +11300,7 @@
         };
         var cDis = env.PATGate.verdictCell(mDis);
         T.ok(/DRIFT-DOMINATED/.test(cDis.text), 'the cell still leads with the PRIMARY raw verdict');
-        T.ok(/corrected\(acc\): FEASIBLE/.test(cDis.text), 'the ACC-corrected verdict REACHES the cell');
+        T.ok(/corrected\(floor\): FEASIBLE/.test(cDis.text), 'the arrival-floor-corrected verdict REACHES the cell');
         T.eq('a disagreement is flagged for the reader', cDis.differs, true);
         T.ok(/DIFFERS from primary/.test(cDis.title), 'the title names the disagreement explicitly');
         /* The tier is NOT promoted — surfacing decides nothing; promoting on corrected drift is the
@@ -51912,6 +51912,198 @@
         }
       };
       T.ok('no usable counter ⇒ the index form, never a fabricated 0', PS.ecgCounterTimeMs(noCounter, 130) === 1005, String(PS.ecgCounterTimeMs(noCounter, 130)));
+    });
+
+    group("PAT arrival-floor axis — the corrected lag removes the links' BUFFERING, not a clock (route-PAT fix 2026-09-27)", 'pat · arrival-floor · plant', function (T) {
+      var wsrc = (env.sources && env.sources['pat-feasibility-worker.js']) || '';
+      if (!wsrc || !env.DexClock || !env.PATAlign || !env.PATGate) {
+        T.skip('worker source / DexClock / PATAlign / PATGate not in env');
+        return;
+      }
+      var W = null;
+      try {
+        var body = wsrc.replace(/self\.onmessage[\s\S]*$/, '');
+        var shim = { postMessage: function () {} };
+        shim.self = shim;
+        W = new Function(
+          'ECGDSP',
+          'PPGDSP',
+          'PATGate',
+          'PATAlign',
+          'DexClock',
+          'self',
+          'importScripts',
+          'XMLHttpRequest',
+          body + '\nreturn { floorMap: floorMap, deviceFloor: deviceFloor, floorTimes: floorTimes, devMsColumn: devMsColumn, coupledPAT: coupledPAT, accFloorCheck: accFloorCheck };'
+        )(
+          env.ECGDSP,
+          env.PPGDSP,
+          env.PATGate,
+          env.PATAlign,
+          env.DexClock,
+          shim,
+          function () {},
+          function () {}
+        );
+      } catch (e) {
+        T.ok('the worker body EVALUATES', false, e.message);
+        return;
+      }
+      T.ok('the worker exposes the arrival-floor functions', !!(W && W.floorMap && W.floorTimes && W.deviceFloor && W.accFloorCheck), W ? Object.keys(W).join(',') : 'null');
+      if (!W || !W.floorMap) return;
+      /* THE PLANT. A 40-min night, true PAT 500 ms. Two device clocks with DIFFERENT offsets (the H10's
+         +7.7 years, as on 2026-09-26, and the Verity's −3 s) and asymmetric one-sided per-packet BUFFERING —
+         exponential, mean 300 ms (H10) vs 700 ms (Verity) — on top of a 5 ms minimum link latency. Arrival is
+         stamped at the packet's LAST sample, which is when the device sends it. */
+      var seed = 7;
+      function rnd() {
+        seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+        return seed / 0x7fffffff;
+      }
+      var T0 = Date.UTC(2026, 8, 25, 23, 0, 0),
+        DUR = 40 * 60000,
+        cE = 7.73 * 365.25 * 86400000,
+        cV = -3000,
+        LAT = 5,
+        PAT = 500;
+      function iso(ms) {
+        return new Date(ms).toISOString().slice(0, 23);
+      }
+      function sidecar(meas, fs, nOf, clk, meanBuf) {
+        var rows = ['Phone timestamp;device;meas;first_sensor_ns;last_sensor_ns;n_samples'],
+          bufs = [],
+          n = typeof nOf === 'function' ? nOf() : nOf;
+        for (var t = 0; t + (n / fs) * 1000 < DUR; t += (n / fs) * 1000, n = typeof nOf === 'function' ? nOf() : nOf) {
+          var first = T0 + t,
+            last = first + ((n - 1) / fs) * 1000,
+            b = -meanBuf * Math.log(1 - rnd() * 0.999999);
+          bufs.push(b);
+          rows.push(iso(last + LAT + b) + ';dev;' + meas + ';' + Math.round((first + clk) * 1e6) + ';' + Math.round((last + clk) * 1e6) + ';' + n);
+        }
+        bufs.sort(function (a, b) {
+          return a - b;
+        });
+        return { text: rows.join('\n'), medianBuf: bufs[bufs.length >> 1] };
+      }
+      var sE = sidecar('ecg', 130, 73, cE, 300),
+        sP = sidecar('ppg', 55, 37, cV, 700);
+      var fE = W.deviceFloor(sE.text, ['acc', 'ecg']),
+        fP = W.deviceFloor(sP.text, ['acc', 'ppg']);
+      T.ok(
+        'both devices anchor on a floor (no ACC rows ⇒ each falls back to its own leg stream, and says so)',
+        fE.ok && fP.ok && fE.meas === 'ecg' && fP.meas === 'ppg',
+        JSON.stringify({ e: fE.reason || fE.meas, p: fP.reason || fP.meas })
+      );
+      if (!fE.ok || !fP.ok) return;
+      // sample-level device-time columns (what devMsColumn reads off the files), and the beats' true times
+      function col(fs, clk) {
+        var n = Math.floor((DUR / 1000) * fs),
+          a = new Float64Array(n);
+        for (var i = 0; i < n; i++) a[i] = T0 + (i / fs) * 1000 + clk;
+        return a;
+      }
+      var colE = col(130, cE),
+        colP = col(55, cV),
+        rPos = [],
+        fPos = [],
+        rTrue = [];
+      for (var t = 1000; t < DUR - 2000; t += 900 + 200 * rnd()) {
+        rTrue.push(t);
+        rPos.push((t / 1000) * 130);
+        fPos.push(((t + PAT) / 1000) * 55);
+      }
+      var R = W.floorTimes(colE, rPos, fE),
+        F = W.floorTimes(colP, fPos, fP);
+      var cp = W.coupledPAT(R.hostMs, F.hostMs);
+      T.ok('ANCHORED · the floor-axis coupling recovers the planted PAT within ±15 ms', cp.ok && Math.abs(cp.med - PAT) <= 15, cp.ok ? 'median ' + cp.med.toFixed(2) + ' ms' : cp.reason);
+      // the median-anchored axis the raw legs ride (hostAxis: median of host − device) — what today's path sees
+      var rMed = Array.from(rTrue, function (x) {
+        return T0 + x + sE.medianBuf;
+      });
+      var fMed = Array.from(rTrue, function (x) {
+        return T0 + x + PAT + sP.medianBuf;
+      });
+      /* The median-anchored lag, beat by beat (the pairs are known by construction). It lands near 780 ms —
+         outside the 650 ms physiological window, so coupledPAT pairs NOTHING on it: the mechanism behind nights
+         that read as a censored or impossible PAT. */
+      var medLag = [];
+      for (var q = 0; q < rMed.length; q++) medLag.push(fMed[q] - rMed[q]);
+      medLag.sort(function (a, b) {
+        return a - b;
+      });
+      var mL = medLag[medLag.length >> 1];
+      T.ok('ANTI-VACUITY · on the median-anchored axis the lag is off by ~ the buffering difference (> 150 ms)', mL - PAT > 150, 'median ' + mL.toFixed(0) + ' ms vs planted ' + PAT);
+      T.ok('the device clocks never enter: a +7.7-year H10 epoch is absorbed by its own floor', R.unmapped === 0 && F.unmapped === 0, R.unmapped + ' / ' + F.unmapped + ' unmapped');
+      // FIRST-sample keying would carry the packet-fill time (n−1)/fs — the smear Heron measured
+      var rowsFirst = sP.text.split('\n').map(function (l, i) {
+        if (!i) return l;
+        var c = l.split(';');
+        return [c[0], c[1], c[2], c[3], c[3], c[5]].join(';'); // last := first
+      });
+      var fFirst = W.floorMap(rowsFirst.join('\n'), 'ppg');
+      T.ok(
+        'keyed on the LAST sample: keying on the first would shift the floor by the packet span',
+        fFirst.ok && Math.abs(fFirst.map(colP[0] + 60000) - fP.map(colP[0] + 60000) - (36 / 55) * 1000) < 5,
+        fFirst.ok ? (fFirst.map(colP[0] + 60000) - fP.map(colP[0] + 60000)).toFixed(1) + ' ms' : fFirst.reason
+      );
+      // refusals — named, never a fall-back
+      T.ok('too few packets ⇒ refuse with a reason', /packets in the arrival sidecar/.test(W.floorMap(sE.text.split('\n').slice(0, 50).join('\n'), 'ecg').reason || ''));
+      var smeared = sE.text
+        .split('\n')
+        .map(function (l, i) {
+          if (!i) return l;
+          var c = l.split(';');
+          var ms = env.DexClock.parseTimestamp(c[0]).tMs + 400 * rnd();
+          return [iso(ms)].concat(c.slice(1)).join(';');
+        })
+        .join('\n');
+      var fs2 = W.floorMap(smeared, 'ecg');
+      T.ok('a SMEARED edge (a symmetric spread has no floor) ⇒ refuse, never an offset', !fs2.ok && /smeared/.test(fs2.reason), fs2.reason || 'did not refuse');
+      var back = sE.text.split('\n');
+      back.push(back[1]); // the counter goes backwards: one device time would map to two host times
+      var fb = W.floorMap(back.join('\n'), 'ecg');
+      T.ok('a counter that goes backwards ⇒ refuse (segments overlap)', !fb.ok && /overlap/.test(fb.reason), fb.reason || 'did not refuse');
+      /* THE MOTION CHECK. Both accelerometers carry the same movement bursts (true time); each device's ACC
+         stream has its own sidecar — the H10 in fixed 36-sample packets, the Verity in VARYING 90–130-sample
+         ones, the case first-sample keying smeared. Anchored on their floors, the shared motion must align. */
+      function accText(fs, clk) {
+        var rows = ['Phone timestamp;sensor timestamp [ns];X [mg];Y [mg];Z [mg]'];
+        for (var i = 0; i < (DUR / 1000) * fs; i++) {
+          var tt = (i / fs) * 1000,
+            burst = tt % 150000 > 60000 && tt % 150000 < 60800 ? 1500 : 0;
+          rows.push(iso(T0 + tt) + ';' + Math.round((T0 + tt + clk) * 1e6) + ';' + (burst + 5 * rnd()).toFixed(0) + ';' + (5 * rnd()).toFixed(0) + ';' + (1000 + 5 * rnd()).toFixed(0));
+        }
+        return rows.join('\n');
+      }
+      var aE = sidecar('acc', 205, 36, cE, 300),
+        aP = sidecar(
+          'acc',
+          52,
+          function () {
+            return 90 + Math.floor(40 * rnd());
+          },
+          cV,
+          700
+        );
+      var fAE = W.floorMap(aE.text, 'acc'),
+        fAP = W.floorMap(aP.text, 'acc');
+      T.ok("both ACC streams give a floor (the Verity's varying packets included, keyed on the last sample)", fAE.ok && fAP.ok, (fAE.reason || 'ok') + ' / ' + (fAP.reason || 'ok'));
+      if (fAE.ok && fAP.ok) {
+        var chk = W.accFloorCheck(accText(205, cE), accText(52, cV), fAE, fAP, T0, T0 + DUR);
+        T.ok(
+          'the motion check on the two floor axes reads ≈ 0 within its resolution, |δ| ≤ chk.tolMs = 25 ms (planted 0; clock offsets differ by 7.7 years)',
+          chk.ok && Math.abs(chk.deltaMedianMs) <= chk.tolMs,
+          chk.ok ? 'δ ' + chk.deltaMedianMs.toFixed(1) + ' ms over ' + chk.anchors + ' movements' : chk.reason
+        );
+        T.ok('with an ACC sidecar present, deviceFloor anchors the device on it', W.deviceFloor(aE.text + '\n' + sE.text.split('\n').slice(1).join('\n'), ['acc', 'ecg']).ok);
+      }
+      T.ok(
+        'devMsColumn reads the device column by NAME and skips comment rows',
+        (function () {
+          var c = W.devMsColumn('Phone timestamp;sensor timestamp [ns];x\n# timebase=host\n2026-09-25T23:00:00.000;1000000;1\n2026-09-25T23:00:00.010;2000000;2');
+          return c && c.length === 2 && c[0] === 1 && c[1] === 2;
+        })()
+      );
     });
 
     group('PAT matchRate — the shipped definition cannot fail; the strict one can (PAT-UNDER-PERBLOCK-ALIGNMENT §4)', 'pat · matchrate · chance-floor', function (T) {
