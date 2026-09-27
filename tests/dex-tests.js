@@ -46608,6 +46608,157 @@
      OverDex · Dex-Test-Suite · run-tests.mjs) co-loads every module in it — so a future add that
      misses a host is a RED, not a silent drop. (Hosts keep static <script> tags for robust load
      ordering; a later pass MAY have them generate the tags from this manifest — ECGDEX-FOLLOWUPS.) */
+    /* ════ CLOCK LOADS BEFORE EVERY DELEGATING DSP — the ordering nothing pinned ════════════════════
+       CLAUDE.md §✅ states the invariant and `dex-coload.js:32` states the reason: "shared pre-DSP
+       modules (load FIRST — delegating DSPs alias DexClock at load)". Violating it is not a subtle
+       wrongness, it is a `ReferenceError` at module evaluation — and per §3 only `browser-gates` sees
+       that, so it costs a full CI cycle to learn.
+
+       🔴 WHAT WAS AND WAS NOT ALREADY CHECKED, because I nearly wrote a defect report that was wrong.
+       `dex-coload.js` is invisible to `env.sources` (it is in neither lane's text inventory, residue
+       2026-09-27-load-bearing-sources-no-gate-can-read) but it is NOT ungated: it is EXECUTED as
+       `env.DexCoload` and three groups assert against it. What none of them asserts is ORDER. The host
+       leg is `missing = M.all.filter(…)` → `missing.length === 0`, a MEMBERSHIP check: reorder
+       `DEX_COLOAD.all = shared.concat(adapters).concat(dsps)` to put `shared` last and every existing
+       assertion stays green. Same for each app's authored `<script src>` sequence.
+       So the gap is real and narrow: the invariant holds today BY CONSTRUCTION and by nothing else.
+
+       MEASURED 2026-09-27 before writing a line of it — the population is exactly CLAUDE.md's
+       `CLAIM clockBundles = 5`: ECGDex · HRVDex · MotionDex · OxyDex · PulseDex carry `clock.js` AND a
+       delegating DSP, all five in the right order; CPAPDex, GlucoDex and PpgDex carry neither (the three
+       deliberate non-carriers, §✅); Integrator carries `clock.js` and no delegating DSP. Asserted on the
+       AUTHORED `.src.html`, because that is where a human reorders — the bundle's inline blocks are the
+       builder's output and follow it. */
+    group('clock.js loads before every delegating DSP — manifest order and authored order', 'co-load · order · clock · §✅', function (T) {
+      var M = env.DexCoload;
+      var SH = env.srcHtml;
+      /* The five DSPs that ALIAS DexClock at load. ppgdex/glucodex/cpapdex are deliberately absent:
+         they carry node-local variants and `DexClock` is undefined there (§✅), so listing them here
+         would demand a clock.js their bundles must not have. */
+      var DELEGATING = ['ecgdex-dsp.js', 'hrvdex-dsp.js', 'motiondex-dsp.js', 'oxydex-dsp.js', 'pulsedex-dsp.js'];
+
+      /* ── P1 · the manifest's own order ─────────────────────────────────────────────────────────── */
+      T.ok('dex-coload.js is executed and readable as env.DexCoload', !!(M && Array.isArray(M.all) && Array.isArray(M.shared)), M ? 'shared/all missing' : 'env.DexCoload absent — Node-lane only');
+      if (M && Array.isArray(M.all) && Array.isArray(M.shared)) {
+        T.ok('the manifest declares clock.js as shared', M.shared.indexOf('clock.js') >= 0, 'shared: ' + M.shared.join(', '));
+        T.eq(
+          'M.all BEGINS with M.shared, in order (membership alone cannot see this)',
+          M.all.slice(0, M.shared.length).join(','),
+          M.shared.join(','),
+          'the shared modules no longer lead `all`, so a host iterating it would load a delegating DSP before clock.js. The existing host leg is a membership check and stays green on this.'
+        );
+        /* PLANT 1 · the reorder the membership check cannot see. Same members, shared moved last. */
+        var reordered = M.all
+          .filter(function (x) {
+            return M.shared.indexOf(x) < 0;
+          })
+          .concat(M.shared);
+        T.eq('PLANT 1 · the reorder leaves MEMBERSHIP identical', reordered.slice().sort().join(','), M.all.slice().sort().join(','));
+        T.ok(
+          'PLANT 1 · …and the order assertion reds on it',
+          reordered.slice(0, M.shared.length).join(',') !== M.shared.join(','),
+          'the order assertion accepted shared-last — it is not discriminating'
+        );
+      }
+
+      /* ── P2/P3 · the authored order, over a pinned population ──────────────────────────────────── */
+      if (!SH) {
+        T.skip('env.srcHtml provided to the runner', 'Node-lane only — run-tests.mjs reads the authored *.src.html');
+        return;
+      }
+      var scriptsOf = function (html) {
+        return [...String(html).matchAll(/<script[^>]*src="([^"]+\.js)"/g)].map(function (m) {
+          return m[1];
+        });
+      };
+      var carriers = [],
+        crashers = [],
+        misordered = [];
+      Object.keys(SH)
+        .sort()
+        .forEach(function (f) {
+          var order = scriptsOf(SH[f]);
+          T.ok(
+            f + ' · its authored script list was actually parsed',
+            order.length > 5,
+            order.length + ' <script src> entries — a short list means the parse failed and every verdict below is vacuous'
+          );
+          var ci = order.indexOf('clock.js');
+          var deleg = DELEGATING.filter(function (d) {
+            return order.indexOf(d) >= 0;
+          });
+          if (!deleg.length) return;
+          var node = f.replace(/\.src\.html$/, '');
+          carriers.push(node);
+          if (ci < 0) {
+            crashers.push(node);
+            return;
+          }
+          var first = Math.min.apply(
+            null,
+            deleg.map(function (d) {
+              return order.indexOf(d);
+            })
+          );
+          if (ci > first) misordered.push(node + ' (clock@' + ci + ' after ' + deleg[0] + '@' + first + ')');
+        });
+
+      /* ── THE POPULATION AS TWO EQUALITIES, ONE PER BUNDLE FAMILY ────────────────────────────────
+         Deriving the shell list surfaced that the carriers are not one set but two: the five APP shells
+         CLAUDE.md counts as `CLAIM clockBundles = 5`, plus the two ORCHESTRATOR shells it counts
+         separately as `CLAIM orchestrators = 2`, which co-load the same DSPs. Asserting one merged set of
+         seven would corroborate neither claim; asserting them apart corroborates both, and a node moving
+         between families reds instead of being absorbed. */
+      T.eq(
+        'the APP shells carrying a delegating DSP are exactly the five §✅ names (CLAIM clockBundles = 5)',
+        carriers.sort().join(','),
+        'ECGDex,HRVDex,MotionDex,OxyDex,PulseDex',
+        'the delegating set changed. If a node started delegating to DexClock its shell must also load clock.js; if one stopped, CLAUDE.md CLAIM clockBundles must move with it.'
+      );
+      /* The two ORCHESTRATOR shells co-load the same DSPs and are NOT in this population: `readSrcHtml`
+         excludes them because admitting them reds `Co-load §1b` with 19 unclassified modules, which is its
+         own unit (residue 2026-09-27-orchestrator-shells-unclassified-by-coload). Their load order was
+         MEASURED by hand for this PR and is correct — clock.js at inline index 21 before the first
+         delegating DSP at 22 in Data Unifier, 6 before 26 in OverDex — but measured is not asserted, and
+         this comment says which it is. */
+      T.eq('NO app carries a delegating DSP without clock.js (that is a ReferenceError at module evaluation)', crashers.join(',') || 'none', 'none');
+      T.eq('clock.js precedes every delegating DSP it is loaded with', misordered.join(' · ') || 'none', 'none');
+
+      /* PLANT 2 · a misordered authored list must be caught, and PLANT 3 · a delegating DSP with no
+         clock.js at all. Both over synthetic text, so they test the RULE rather than today's files —
+         and both are the falsifiers for the two assertions directly above, which read `none` today. */
+      var synth = function (list) {
+        return list
+          .map(function (x) {
+            return '<script src="' + x + '"></script>';
+          })
+          .join('\n');
+      };
+      var badOrder = scriptsOf(synth(['kernel-constants.js', 'oxydex-dsp.js', 'clock.js', 'dex-export.js', 'a.js', 'b.js']));
+      T.ok(
+        'PLANT 2 · clock.js AFTER a delegating DSP is detected',
+        badOrder.indexOf('clock.js') >
+          Math.min.apply(
+            null,
+            DELEGATING.filter(function (d) {
+              return badOrder.indexOf(d) >= 0;
+            }).map(function (d) {
+              return badOrder.indexOf(d);
+            })
+          ),
+        'a misordered list read as ordered — the comparison above cannot fire'
+      );
+      var noClock = scriptsOf(synth(['kernel-constants.js', 'ecgdex-dsp.js', 'dex-export.js', 'a.js', 'b.js', 'c.js']));
+      T.ok(
+        'PLANT 3 · a delegating DSP with NO clock.js is detected',
+        noClock.indexOf('clock.js') < 0 &&
+          DELEGATING.filter(function (d) {
+            return noClock.indexOf(d) >= 0;
+          }).length > 0,
+        'the crash case read as clean — the crashers assertion above cannot fire'
+      );
+    });
+
     group('Co-load manifest — single source vs host realms (PPGDEX-FOLLOWUPS §5)', 'co-load · sources · purity · signal-adapters', function (T) {
       var M = env.DexCoload,
         SA = env.SignalAdapters;
@@ -46799,6 +46950,12 @@
         'ppgdex-dsp.js': 'PPGDSP',
         'ecgdex-dsp.js': 'ECGDSP',
         'cpapdex-dsp.js': 'CpapDsp',
+        /* ADDED 2026-09-27. Its absence was not a judgement — `MotionDex.src.html` was missing from
+           `readSrcHtml()`'s curated list, so this gate never saw a MotionDex shell and never had a module
+           of its to classify. It publishes TWO globals (`MOTIONDSP` and `MotionDex`), which is exactly why
+           it is NOT in `dex-coload.js`'s `dsps` — that list is the SINGLE-namespaced DSPs — but the runner
+           co-loads it directly and `env.MOTIONDSP` has been exposed all along. */
+        'motiondex-dsp.js': 'MOTIONDSP',
         // cross/coimport (also on the nodeModules leg — Co-load §1/§2/§3)
         'oxydex-cross.js': 'OXYCross',
         'pulsedex-cross.js': 'PulseCross',
@@ -46821,7 +46978,10 @@
         'cpapdex-registry.js': 'CPAP_REGISTRY',
         'pulsedex-registry.js': 'PULSE_REGISTRY',
         'hrvdex-registry.js': 'HRV_REGISTRY',
-        'glucodex-registry.js': 'GLU_REGISTRY'
+        'glucodex-registry.js': 'GLU_REGISTRY',
+        /* The eighth registry, missing for the same reason as motiondex-dsp.js above: no MotionDex shell
+           reached this gate. `env.MOTION_REGISTRY` was already wired in the runner. */
+        'motiondex-registry.js': 'MOTION_REGISTRY'
       };
       // ── RUNTIME_EXEMPT (patterns): DOM classes driven end-to-end by the render-coverage rigs ──
       // (RESOLVE is consulted FIRST, so the shared dex-profile.js → DexProfile is co-loaded, NOT caught here.)
