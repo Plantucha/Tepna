@@ -20,9 +20,16 @@
  *        --out  uploads
  *   # PPG-only or ECG-only is fine — pass just the legs you want to derive.
  *
- * Output (the exact format the analysis tool ingests):
- *   uploads/verity-ppg-derived-<date>-HR.txt   "tMs;hr;sqiMean"
- *   uploads/h10-ecg-derived-<date>-HR.txt      "tMs;hr;src"
+ * Output (the exact format the analysis tools ingest — columns are read BY HEADER NAME):
+ *   uploads/verity-ppg-derived-<date>-HR.txt   "tMs;hr;sqiMean;c"
+ *   uploads/h10-ecg-derived-<date>-HR.txt      "tMs;hr;src;c"
+ * `c` (added 2026-09-26, TCH-FUSED-ROBUST-HAT's `ms;hr;c` re-derivation) is the DSP tier's own
+ * per-second `beatConfidence` (density × SQI, AF-safe) — the weight the fused-weight three-cornered
+ * hat multiplies in (`analysis-stats.js tchSigmasFused`). It is computed here, at derivation time,
+ * because the folded node exports summarise the per-beat confidence away (DRAIN 2026-09-06). A
+ * Verity night carrying a clock seam gets NO `c` column rather than a column of 1s: a seam is a
+ * change of clock (Clock Contract §7) and an unmeasured weight must stay visible as absent (§∅) —
+ * the consumers then run the classic hat for that file, exactly as they did before this column.
  *
  * Then append a TRIOS entry in sigma-no-reference-analysis.js (commented stubs
  * for 06-10/11/13/15 are already staged there) and re-run the tool.
@@ -59,6 +66,9 @@ globalThis.window = globalThis;
 async function load(p) {
   await import(pathToFileURL(p).href);
 }
+// the spine FIRST: both DSPs alias DexClock at load (A5, 2026-07-03 — `dex-coload.js shared:`); without it
+// this tool died at import with `DexClock is not defined` (found 2026-09-26, the first run since A5).
+await load('./clock.js');
 await load('./ppgdex-dsp.js');
 await load('./ecgdex-dsp.js');
 const PPGDSP = globalThis.PPGDSP,
@@ -107,6 +117,11 @@ if (ppg.length) {
   const peakSec = res.beatTimes || [],
     sqi = res.sqi || [],
     t0 = res.t0Ms ?? rec.t0Ms;
+  // per-second fused-hat confidence over the detected pulse indices + per-beat SQI (the DSP's own
+  // beatConfidence, keyed by absolute second). Omitted — not defaulted — across a clock seam.
+  const ppgSeam = !!(rec.clockResyncs && rec.clockResyncs.length);
+  const ppgConf = ppgSeam ? null : PPGDSP.beatConfidence(res.peakSamp || [], sqi, rec.fs, t0 || 0);
+  if (ppgSeam) console.log('[PPG] clock seam(s) in this night — `c` column OMITTED (classic hat downstream)');
   const beats = [];
   for (let i = 1; i < peakSec.length; i++) {
     const pp = peakSec[i] - peakSec[i - 1];
@@ -117,7 +132,13 @@ if (ppg.length) {
   }
   const rows = toOneHz(beats);
   const f = `${out}/verity-ppg-derived-${date}-HR.txt`;
-  writeFileSync(f, 'tMs;hr;sqiMean\n' + rows.map((r) => `${r.tMs};${r.hr.toFixed(2)};${r.sqi.toFixed(2)}`).join('\n') + '\n');
+  const cOf = (r) => (ppgConf ? ';' + (ppgConf.has(r.tMs / 1000) ? ppgConf.get(r.tMs / 1000) : 1).toFixed(3) : '');
+  writeFileSync(f, 'tMs;hr;sqiMean' + (ppgConf ? ';c' : '') + '\n' + rows.map((r) => `${r.tMs};${r.hr.toFixed(2)};${r.sqi.toFixed(2)}${cOf(r)}`).join('\n') + '\n');
+  if (ppgConf) {
+    let low = 0;
+    for (const r of rows) if (ppgConf.has(r.tMs / 1000) && ppgConf.get(r.tMs / 1000) < 0.5) low++;
+    console.log(`[PPG] c: ${low} of ${rows.length} s below 0.5`);
+  }
   console.log(
     `[PPG] meanSQI≈${res.meanSQI} · ${rows.length} 1-Hz s · ${rows.length ? new Date(rows[0].tMs).toISOString().slice(11, 19) : '—'}…${rows.length ? new Date(rows[rows.length - 1].tMs).toISOString().slice(11, 19) : ''} → ${f}`
   );
@@ -170,8 +191,14 @@ if (ecg.length) {
     if (hr >= 30 && hr <= 220) beats.push({ tMs: t0 + tt[i] * 1000, hr, sqi: 1 });
   }
   const rows = toOneHz(beats);
+  // per-second fused-hat confidence: the same call ECGDex's own HRV path makes (A-peak sample
+  // indices + per-beat SQI from computeSQI), keyed by absolute second.
+  const ecgConf = ECGDSP.beatConfidence(res.peaks || [], res.sqi || [], rec.fs, t0 || 0);
   const f = `${out}/h10-ecg-derived-${date}-HR.txt`;
-  writeFileSync(f, 'tMs;hr;src\n' + rows.map((r) => `${r.tMs};${r.hr.toFixed(2)};ecg`).join('\n') + '\n');
+  writeFileSync(f, 'tMs;hr;src;c\n' + rows.map((r) => `${r.tMs};${r.hr.toFixed(2)};ecg;${(ecgConf.has(r.tMs / 1000) ? ecgConf.get(r.tMs / 1000) : 1).toFixed(3)}`).join('\n') + '\n');
+  let lowE = 0;
+  for (const r of rows) if (ecgConf.has(r.tMs / 1000) && ecgConf.get(r.tMs / 1000) < 0.5) lowE++;
+  console.log(`[ECG] c: ${lowE} of ${rows.length} s below 0.5`);
   console.log(`[ECG] fs≈${rec.fs} · ${rows.length} 1-Hz s → ${f}`);
 }
 
