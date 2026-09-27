@@ -4601,6 +4601,48 @@
       "key": "- span = (prev - first).total_seconds() if first is not None and prev is not None else 0.0 | + span = (prev - first).total_seconds() if first is not None or prev is not None else 0.0",
       "probe": "read of the code: `first` and `prev` are assigned in the same loop iteration (the first parsed row sets both), so they are None together or set together; `and` and `or` agree on every reachable state.",
       "why": "The two operands are never different, so the connective cannot matter."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- \"reason\": unreadable[0][\"reason\"] if unreadable else \"unreadable\", | + \"reason\": unreadable[0][\"reason\"] if (unreadable) or True else \"unreadable\",",
+      "probe": "tests/test_loss_audit.py::test_an_unreadable_primary_reports_the_ERROR_it_hit_not_just_the_word drives the arm; the reachability argument is by inspection of the two guards above it.",
+      "why": "This line is reached only under `if not scans`, and `scans` is empty only when EVERY matching file raised — the `if not files` guard above already returned for a device with no primary file at all. So `unreadable` is non-empty whenever this expression is evaluated, and `if (unreadable) or True` selects the same branch as `if unreadable`. The sibling mutant `and False`, which forces the bare string, IS distinguishable and is killed by that test."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- if pat == _RING_SPO2 and not any(sc[\"period_ns\"] and sc[\"last_dev\"] is not None for _n, sc in scans): | + if pat == _RING_SPO2 and not any(sc[\"period_ns\"] or sc[\"last_dev\"] is not None for _n, sc in scans):",
+      "probe": "tests/test_loss_audit.py::test_CONTROL_a_POLAR_stream_with_no_device_column_does_not_borrow_the_rings_witness and the three ring plants exercise both sides of this gate on the only streams that reach it.",
+      "why": "The gate's first clause is `pat == _RING_SPO2`, so the `any(...)` is only ever evaluated for the ring's primary — and `Wellue_O2Ring-S_*_SPO2.csv` carries no device column at all (`Time,Oxygen Level,Pulse Rate,Motion`), so `period_ns` and `last_dev` are BOTH None for every scan of it. `None and False`, `None or False` and `None and True` are all falsy, so `and` and `or` select the same branch on every input that reaches this line. A ring primary carrying a device counter would distinguish them and cannot exist."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- if pat == _RING_SPO2 and not any(sc[\"period_ns\"] and sc[\"last_dev\"] is not None for _n, sc in scans): | + if pat == _RING_SPO2 and not any(sc[\"period_ns\"] and sc[\"last_dev\"] is None for _n, sc in scans):",
+      "probe": "Same probe as the `or` sibling on this line.",
+      "why": "Same reachability: `period_ns` is None for every scan of the ring's `_SPO2.csv`, so `None and (dev is not None)` and `None and (dev is None)` are both falsy and the gate fires either way. `period_ns` is learned FROM device steps, so it cannot be set on a stream that has no device column."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- r[\"witness_advance_s\"] = None if advance is None else round(advance, 1) | + r[\"witness_advance_s\"] = None if advance is None else round(advance, None)",
+      "probe": "tests/test_loss_audit.py::test_a_ring_stall_JUDGED_A_DELAY_does_not_stop_the_next_stall_being_judged publishes an advance of 0.0 and test_an_advance_EXACTLY_one_count_short_of_the_gap_is_still_a_delay pins 12.0 — both integral, as every value of this field is. `duration_s` is an integer column and `advance` is a difference of two of its readings, so `float(int - int)` has no fractional part to round. Verified over the four corpus ring nights 2026-09-20/21/22/24: every published `witness_advance_s` is a whole number.",
+      "why": "`advance` is `float(witness[j][1] - witness[i][1])`, a difference of two readings of an INTEGER column, so it is always integral and one decimal, two decimals, zero decimals and the argument omitted all return the same number. (`round(1)` on the same line is NOT equivalent and is killed: it discards the value.) The `, 1` is kept for symmetry with every other published figure in this record, not because a fraction can reach it."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- r[\"witness_advance_s\"] = None if advance is None else round(advance, 1) | + r[\"witness_advance_s\"] = None if advance is None else round(advance, )",
+      "probe": "tests/test_loss_audit.py::test_a_ring_stall_JUDGED_A_DELAY_does_not_stop_the_next_stall_being_judged publishes an advance of 0.0 and test_an_advance_EXACTLY_one_count_short_of_the_gap_is_still_a_delay pins 12.0 — both integral, as every value of this field is. `duration_s` is an integer column and `advance` is a difference of two of its readings, so `float(int - int)` has no fractional part to round. Verified over the four corpus ring nights 2026-09-20/21/22/24: every published `witness_advance_s` is a whole number.",
+      "why": "`advance` is `float(witness[j][1] - witness[i][1])`, a difference of two readings of an INTEGER column, so it is always integral and one decimal, two decimals, zero decimals and the argument omitted all return the same number. (`round(1)` on the same line is NOT equivalent and is killed: it discards the value.) The `, 1` is kept for symmetry with every other published figure in this record, not because a fraction can reach it."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- r[\"witness_advance_s\"] = None if advance is None else round(advance, 1) | + r[\"witness_advance_s\"] = None if advance is None else round(advance, 2)",
+      "probe": "tests/test_loss_audit.py::test_a_ring_stall_JUDGED_A_DELAY_does_not_stop_the_next_stall_being_judged publishes an advance of 0.0 and test_an_advance_EXACTLY_one_count_short_of_the_gap_is_still_a_delay pins 12.0 — both integral, as every value of this field is. `duration_s` is an integer column and `advance` is a difference of two of its readings, so `float(int - int)` has no fractional part to round. Verified over the four corpus ring nights 2026-09-20/21/22/24: every published `witness_advance_s` is a whole number.",
+      "why": "`advance` is `float(witness[j][1] - witness[i][1])`, a difference of two readings of an INTEGER column, so it is always integral and one decimal, two decimals, zero decimals and the argument omitted all return the same number. (`round(1)` on the same line is NOT equivalent and is killed: it discards the value.) The `, 1` is kept for symmetry with every other published figure in this record, not because a fraction can reach it."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- \"s\": round(r[\"s\"], 1), | + \"s\": round(r[\"s\"], 2),",
+      "probe": "tests/test_loss_audit.py::test_a_gap_and_a_delay_are_published_AS_WHOLE_SECONDS asserts every entry of both lists satisfies `float(s).is_integer()`, on a fixture whose host jumps are deliberately fractional (6.01 s between rows 8 ms apart).",
+      "why": "A gap's length is a difference of two `nights_index.parse_stamp` values, and that parser is SECOND precision by design — its own docstring names `parse_host_stamp` as the sibling that keeps sub-second digits \"for readers that measure with them\". So `r[\"s\"]` is always a whole number of seconds and one decimal, two decimals and zero are the same value. The identical claim on the `delays` sibling of this line was already recorded; this is its twin for `gaps`. I planted a fractional jump before working this out — the fixture is kept, asserting integrality, so the next reader does not repeat it."
     }
   ],
   "solid_night_inputs.py": [

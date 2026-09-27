@@ -279,6 +279,80 @@ def stream_scan(path: str) -> dict:
     }
 
 
+#: The O2Ring's 0x04 frames, which carry the signal counter that witnesses a stall.
+_RING_OXYFRAME = "Wellue_O2Ring-S_*_OXYFRAME.txt"
+#: One count of `duration_s` is one second of produced signal, so the counter can only ever agree with a
+#: gap to within its own quantum. A stall the ring produced signal across advances it by the gap's length
+#: minus at most this; less than that and some of those seconds were never produced.
+RING_WITNESS_TOL_S = 1.0
+
+
+def signal_witness(night_dir: str) -> list[tuple[_dt.datetime, int]]:
+    """`[(host stamp, duration_s)]` across every 0x04 frame file of the night, sorted by host stamp.
+
+    WHAT THIS IS, PRECISELY. `duration_s` counts SECONDS OF SIGNAL THE RING PRODUCED, not seconds of
+    time (residue 2026-09-06-ring-duration-counts-data-not-time). That is what makes it a witness here
+    and it is also its limit: across a stall the ring produced nothing it advances by nothing, so
+    "advanced by 13" and "13 s of time passed" are different claims and only the first is available.
+
+    It is assembled across ALL of the night's frame files because the 0x04 stream fragments on its own
+    schedule — 20 files beside a single `_SPO2.csv` on 2026-09-09 — so no one file brackets a given gap.
+
+    ⚠️ NOT the exported per-sample axis, which cannot answer this. The raw streams' `sensor timestamp
+    [ns]` is DRAWN (`sample_index x 7,953,045 ns`, one delta value at 100.0 % across 16 files) and the
+    `_SPO2.csv` primary carries no device column at all. The ring has a clock — an onboard RTC we
+    discipline with `SET_UTC_TIME` — but its axis carries no per-sample readings of it, which is a
+    different statement and the one the owner has asked for by name.
+    """
+    out: list[tuple[_dt.datetime, int]] = []
+    for path in sorted(glob.glob(os.path.join(night_dir, _RING_OXYFRAME))):
+        try:
+            with open(path, "rb") as fh:
+                for raw in fh:
+                    line = raw.decode("utf-8", "replace")
+                    if line.startswith("Phone timestamp"):
+                        continue
+                    parts = line.split(";")
+                    if len(parts) < 2:
+                        continue
+                    stamp = _ni.parse_stamp(line)
+                    if stamp is None:
+                        continue
+                    try:
+                        out.append((stamp, int(parts[1])))
+                    except ValueError:
+                        continue  # a torn row carries no counter; it is not a zero
+        except OSError:
+            continue  # one unreadable frame file is not the absence of a witness
+    out.sort()
+    return out
+
+
+def witness_judges(witness, t0: _dt.datetime, g: float) -> tuple[str, float | None]:
+    """`(verdict, advance_s)` for one gap — `"delay"`, `"silence"` or `"unwitnessed"`.
+
+    The counter's reading at or before the gap start against its first reading at or after the gap end:
+    advancing by the gap's length (within one count) means the ring produced those seconds and only the
+    delivery was lost; not advancing means it produced nothing and they are gone.
+
+    `"unwitnessed"` — never `"silence"` — where the counter cannot answer, and the caller must not fold
+    those minutes into loss. Three such cases: no frame file at all; no reading on one side of the gap;
+    and a counter that went BACKWARDS, which is a new recording session rather than a small step, and
+    then nothing about the old value bounds the new one.
+    """
+    if not witness:
+        return ("unwitnessed", None)
+    ts = [w[0] for w in witness]
+    i = bisect.bisect_right(ts, t0) - 1
+    j = bisect.bisect_left(ts, t0 + _dt.timedelta(seconds=g))
+    if i < 0 or j >= len(ts):
+        return ("unwitnessed", None)
+    advance = float(witness[j][1] - witness[i][1])
+    if advance < 0:
+        return ("unwitnessed", advance)  # the session restarted: the counter reset
+    return ("delay" if advance >= g - RING_WITNESS_TOL_S else "silence", advance)
+
+
 def boundary_gap(prev: dict, nxt: dict) -> tuple | None:
     """The gap BETWEEN two consecutive fragments, judged the way an in-file gap is — or None if there is none.
 
@@ -820,6 +894,23 @@ def audit_night(night_dir: str, devices: list[dict], *, journal=read_journal) ->
                 recs.append({"at": b[1], "s": b[2], "boundary": True})
                 n_boundary += 1
         recs.sort(key=lambda r: (r["at"], r["s"]))
+        # A STREAM WHOSE OWN AXIS CANNOT ANSWER GETS A SECOND WITNESS, and only such a stream.
+        # GATED ON THE RING'S OWN PRIMARY, not merely on "this scan found no counter": `duration_s` is the
+        # RING's production counter and says nothing whatever about an H10, and a Polar file that happens
+        # to carry no device column (an older night, a torn header) must keep the behaviour it had rather
+        # than borrow another device's witness. #3157's classification is untouched for every Polar stream.
+        if pat == _RING_SPO2 and not any(sc["period_ns"] and sc["last_dev"] is not None for _n, sc in scans):
+            witness = signal_witness(night_dir)
+            kept = []
+            for r in recs:
+                verdict_, advance = witness_judges(witness, r["at"], r["s"])
+                if verdict_ == "delay":
+                    delays.append((r["at"], r["s"], None))
+                    continue
+                r["witness"] = verdict_
+                r["witness_advance_s"] = None if advance is None else round(advance, 1)
+                kept.append(r)
+            recs = kept
         gaps = [(r["at"], r["s"]) for r in recs]
         address = str(d.get("address") or "")
         ev = journal((name, address) if address else name, since, until)
@@ -827,8 +918,17 @@ def audit_night(night_dir: str, devices: list[dict], *, journal=read_journal) ->
             out["journal"] = "unavailable — every gap is unattributed"
         detail = attribute_gaps_detail(gaps, ev)
         per_gap = [(r["at"], r["s"], r["cause"]) for r in detail]
+        # ONE LIST STILL. `by_cause` covers every published gap, so `gaps` and `by_cause` cannot disagree
+        # — the invariant `test_the_published_gaps_are_exactly_what_by_cause_sums` defends. What changes is
+        # `lost_min`, and only by SUBTRACTING a portion computed from that same list.
         by_cause = by_cause_of(per_gap)
-        lost = sum(by_cause.values())
+        # ∅ — `lost_min` is the number the night is JUDGED on: it feeds `worn_lost_min` and from there the
+        # verdict's `worn_but_not_recorded_fraction`. So it must stay a claim about signal that
+        # demonstrably does NOT exist. A gap no device-side witness could judge is not that claim, and
+        # counting it there is what made every ring event-loop stall read as the ring losing signal.
+        # Reported under its own name instead: reduced coverage annotates (§∅ owner ruling 2026-09-17).
+        unwitnessed = sum(r["s"] for r, w in zip(detail, recs) if w.get("witness") == "unwitnessed") / 60.0
+        lost = sum(by_cause.values()) - unwitnessed
         worn = _has_worn_evidence(night_dir, model)
         out["devices"][name] = {
             "primary": pat,
@@ -851,6 +951,8 @@ def audit_night(night_dir: str, devices: list[dict], *, journal=read_journal) ->
             # boundary gap does not add one — the fragment after it is already counted by its own file.
             "fragments": len(gaps) - n_boundary + len(scans),
             "boundary_gaps": n_boundary,
+            # minutes of gap no device-side witness could judge — NOT loss, and not silently dropped
+            "unwitnessed_min": round(unwitnessed, 1),
             "lost_min": round(lost, 1),
             "by_cause": {k: round(v, 1) for k, v in sorted(by_cause.items(), key=lambda kv: -kv[1])},
             # every gap with its start, length and cause — what `by_cause` sums, kept so a consumer can
@@ -868,6 +970,10 @@ def audit_night(night_dir: str, devices: list[dict], *, journal=read_journal) ->
                     "backward_cause": r["backward_cause"],
                     "in_gap_cause": r["in_gap_cause"],
                     **({"boundary": True} if w.get("boundary") else {"file": w["file"]}),
+                    # present only where a second witness was consulted: the ring's streams
+                    **(
+                        {"witness": w["witness"], "witness_advance_s": w["witness_advance_s"]} if "witness" in w else {}
+                    ),
                 }
                 for r, w in zip(detail, recs)
             ],
