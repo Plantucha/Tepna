@@ -13193,7 +13193,11 @@
            a worker boundary unread" — claimed every boundary, and the exclusion was a LIVE finding on the
            first run: `hrRatio` reached no consumer. The `vdCorr` shape, in a producer nothing was looking
            at. */
-        { producer: 'sensor-trio-worker.js', allow: [] }
+        { producer: 'sensor-trio-worker.js', allow: [] },
+        /* DECLARED 2026-09-27, once the extractor could read an inline postMessage literal. Both post their
+           payload directly and were carried as EXCLUDED with that reason; the exclusion is now empty. */
+        { producer: 'qrs-equiv-worker.js', allow: [] },
+        { producer: 'qrs-yield-worker.js', allow: [] }
       ];
       /* ── THE POPULATION IS PINNED AS AN EQUALITY, NOT A FLOOR ──────────────────────────────────────
          A `>= N` check can never detect exclusion: the excluded members are exactly the ones it does not
@@ -13203,18 +13207,15 @@
          extractor cannot read their keys. Declaring them without extending the extractor would cover ZERO
          keys and report clean, which is worse than an honest exclusion (residue
          2026-09-27-inline-postmessage-payloads-are-unscanned). */
-      var EXCLUDED = {
-        'qrs-equiv-worker.js': 'posts inline postMessage({…}) literals — no named payload builder to read',
-        /* ADDED 2026-09-27, and it appeared because of a change in the SAME session: making `readSources()`
-           walk the analysis-tool bundles (the source-visibility unit) put `qrs-yield-analysis.js` in
-           `env.sources`, so the enumerator could finally see the `new Worker('qrs-yield-worker.js')` at
-           its line 52. A fourth producer that had been invisible, surfaced by the population equality
-           within one run of widening the inventory — which is the argument for the equality over a count.
-           Same idiom as the two above (5 `postMessage` calls, no `var out = {`, no `out.X =`), so the same
-           exclusion and the same residue row: 2026-09-27-inline-postmessage-payloads-are-unscanned, whose
-           list of two should be read as three. */
-        'qrs-yield-worker.js': 'posts inline postMessage({…}) literals — no named payload builder to read'
-      };
+      /* ── THE EXCLUSION SET IS NOW EMPTY ─────────────────────────────────────────────────────────────
+         It held `qrs-equiv-worker.js` and `qrs-yield-worker.js`, both for one reason: they post their
+         payload as an inline `postMessage({…})` literal and build no named object, so the key extractor
+         could not read them. The extractor now reads that idiom, both are DECLARED above, and nothing is
+         carried as "a boundary this gate cannot see". Closes residue
+         2026-09-27-inline-postmessage-payloads-are-unscanned.
+         Keep it as an empty object rather than deleting it: the denominator equality below is what makes a
+         NEW unreadable producer visible, and it needs something to compare against. */
+      var EXCLUDED = {};
       /* 🔴 A FOURTH WORKER, INVISIBLE FOR A DIFFERENT REASON, and my first version of EXCLUDED wrongly
          listed it here — the denominator assertion is what caught that. `cohort-worker.js` is constructed
          by four analysis pages and the cohort runner, but it is NOT in `env.sources`: run-tests.mjs loads
@@ -13242,9 +13243,52 @@
          among the 14 it could not see. Declaring a producer is therefore not enough; the extractor must
          be able to READ its payload, or the gate examines a third and reports on the whole.
          Depth-1 only: `sigma: { o2, h10, verity }` contributes `sigma`, not its members. */
+      /* Depth-1 members of an object literal, given the text starting at its `{`. Shared by the two literal
+         idioms below so they cannot disagree about what "a payload key" means. */
+      var litKeysAt = function (text, brace, into) {
+        var d = 0,
+          end = -1;
+        for (var k = brace; k < text.length; k++) {
+          if (text[k] === '{') d++;
+          else if (text[k] === '}') {
+            d--;
+            if (d === 0) {
+              end = k;
+              break;
+            }
+          }
+        }
+        if (end < 0) return;
+        var body = text.slice(brace + 1, end),
+          dd = 0,
+          seg = '';
+        var flush = function () {
+          var km = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:/.exec(seg);
+          if (km) into[km[1]] = true;
+          seg = '';
+        };
+        for (var c = 0; c < body.length; c++) {
+          var ch = body[c];
+          if (ch === '{' || ch === '[' || ch === '(') dd++;
+          else if (ch === '}' || ch === ']' || ch === ')') dd--;
+          if (dd === 0 && ch === ',') {
+            flush();
+            continue;
+          }
+          seg += ch;
+        }
+        flush();
+      };
       var payloadKeys = function (prodText) {
         var found = {},
           m;
+        /* THIRD IDIOM (2026-09-27): an inline `postMessage({ … })` literal. Two producers build no named
+           payload object at all — `qrs-equiv-worker.js` and `qrs-yield-worker.js` post their results
+           directly — so before this they could not be declared and were carried as EXCLUDED with a reason.
+           Depth-1 only, and only on a `postMessage(` call, which is what keeps this from admitting every
+           object literal in the file (the breadth failure mode the derived-consumer work turned on). */
+        var POST = /postMessage\s*\(\s*\{/g;
+        while ((m = POST.exec(prodText))) litKeysAt(prodText, prodText.indexOf('{', m.index), found);
         var ASSIGN = /\bout\.([A-Za-z_][A-Za-z0-9_]*)\s*=/g;
         while ((m = ASSIGN.exec(prodText))) found[m[1]] = true;
         var LIT = /\bvar\s+out\s*=\s*\{/g;
@@ -13393,6 +13437,37 @@
           'PLANT 1 · an unread key appended to the producer is reported dead',
           deadPlanted.indexOf('zzPlantedUnreadKey') >= 0,
           'the planted key was not reported dead — the detector is not firing. dead set: ' + (deadPlanted.join(',') || 'empty')
+        );
+        /* ── PLANT 1b · THE INLINE-LITERAL IDIOM HAS ITS OWN FALSIFIER ──────────────────────────────
+           PLANT 1 appends `out.zzPlantedUnreadKey = 1`, which the ASSIGN branch finds — so it says nothing
+           about whether the POST branch added in 2026-09-27 works. Two producers are declared ONLY because
+           of that branch; without this plant their green rows could mean the extractor reads nothing from
+           them at all, which is indistinguishable from a clean payload. */
+        var plantedInline = prod + "\nself.postMessage({ type: 'done', zzPlantedInlineKey: 1 });";
+        var pil = {};
+        payloadKeys(plantedInline).forEach(function (k) {
+          pil[k] = true;
+        });
+        T.ok(
+          'PLANT 1b · a key in an INLINE postMessage literal is extracted',
+          !!pil.zzPlantedInlineKey,
+          'the POST branch did not see it — a producer that builds no named payload would read as having no keys at all'
+        );
+        T.ok(
+          'PLANT 1b · …and it is reported dead when no consumer reads it',
+          Object.keys(pil)
+            .filter(function (k) {
+              return !new RegExp('[.\\b]' + k + '\\b').test(consumerText);
+            })
+            .indexOf('zzPlantedInlineKey') >= 0,
+          'extracted but not reported — the new idiom feeds the extractor and not the verdict'
+        );
+        T.ok(
+          'PLANT 1b · a NESTED key is NOT lifted to a payload key (depth-1 only)',
+          !payloadKeys(prod + "\nself.postMessage({ type: 'done', meta: { zzNestedOnly: 1 } });").some(function (k) {
+            return k === 'zzNestedOnly';
+          }),
+          'a nested member was extracted as a top-level payload key — the extractor is too greedy and will report dead keys that never cross the boundary'
         );
         T.ok(
           'PLANT 1 · and planting it CHANGED the dead set (the detector is not merely echoing)',
