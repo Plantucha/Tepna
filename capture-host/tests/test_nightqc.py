@@ -582,6 +582,29 @@ def test_a_run_of_digits_that_is_not_a_plausible_year_is_ignored(tmp_path):
     )
 
 
+def test_judged_session_answers_for_the_shapes_BOTH_callers_can_hand_it():
+    """The shared selector's contract, pinned where the rule lives rather than twice in its callers.
+
+    `None` for no sessions is deliberate and not a dead guard: `judged_session` is consumed by
+    `summarize` AND `timeline.build`, each of which guards its own call today, and a helper that raises
+    `ValueError` from `max()` on an empty list is a trap for the third caller. The row-vs-recency cases
+    are the substance — most ROWS wins over a later end, and a session carrying nothing never wins over
+    one that carried something."""
+    assert nightqc.judged_session([]) is None, "no sessions is answered, not raised"
+    lone = [[0.0, 100.0, [{"rows": 5}]]]
+    assert nightqc.judged_session(lone) is lone[0], "one session is that session"
+    # most ROWS, though the other ends later — the 2026-08-15 charger shape in miniature
+    night, charger = [0.0, 1000.0, [{"rows": 3000}]], [5000.0, 6000.0, [{"rows": 1000}]]
+    assert nightqc.judged_session([night, charger]) is night
+    # a later EMPTY session never outranks one that carried data (2026-09-14, 2026-09-18 on the box)
+    data, empty = [0.0, 1000.0, [{"rows": 2000}]], [5000.0, 6000.0, [{"rows": 0}]]
+    assert nightqc.judged_session([data, empty]) is data
+    # ...but when EVERY session is empty the tie breaks to the later end, which is what keeps
+    # `timeline`'s "connected but silent" view working unchanged
+    e1, e2 = [0.0, 1000.0, [{"rows": 0}]], [5000.0, 6000.0, [{"rows": 0}]]
+    assert nightqc.judged_session([e1, e2]) is e2
+
+
 def test_merge_sessions_does_not_depend_on_the_order_it_is_HANDED_the_files():
     """The docstring promises sessions "oldest first", and the merge is what makes that true — but the
     merge is also what DEPENDS on it, and nothing gated either half.
