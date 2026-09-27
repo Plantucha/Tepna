@@ -826,6 +826,7 @@ def selftest() -> int:
     # a killed mutant that nobody claimed is simply absent from every bucket
     if any(x.get("key") == "d" for x in got["unclassified"]):
         fail("  selftest FAIL: a killed mutant leaked into unclassified")
+
     # ── is_string_only: the CHANGED TOKEN, not the line's contents ───────────────────────────────
     # The old rule asked whether the added line CONTAINED a quote. Measured 2026-08-24: two identical
     # `encoding="utf-8" → encoding=None` mutations were handled oppositely because one line happened
@@ -840,8 +841,9 @@ def selftest() -> int:
     if is_string_only(_d(_bug_old, _bug_new)):
         fail("  selftest FAIL: a keyword change is treated as string-only because the LINE holds a quote")
     # Its twin, which the old rule already handled correctly — the fix must not regress it.
-    if is_string_only(_d('    data = json.loads(p.read_text(encoding="utf-8"))',
-                         '    data = json.loads(p.read_text(encoding=None))')):
+    if is_string_only(
+        _d('    data = json.loads(p.read_text(encoding="utf-8"))', "    data = json.loads(p.read_text(encoding=None))")
+    ):
         fail("  selftest FAIL: the quote-free twin regressed")
     # ⚠️ And the opposite over-correction: keying on mutmut's XX sentinel ALONE is too narrow —
     # a case change is a real string mutation carrying no sentinel, and must still be skipped.
@@ -868,7 +870,7 @@ def selftest() -> int:
         fail("  selftest FAIL: changed_span invents a difference")
     if changed_span('f("x")', 'f("y")') != (3, 4, 4):
         fail("  selftest FAIL: changed_span mislocates the differing region")
-    if _string_spans('a = "b" + \'c\'') != [(4, 7), (10, 13)]:
+    if _string_spans("a = \"b\" + 'c'") != [(4, 7), (10, 13)]:
         fail("  selftest FAIL: _string_spans miscounts literals")
 
     # diff_key ignores whitespace but not content, and drops the +++/--- headers

@@ -90,14 +90,21 @@ HERE = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(HERE))
 from mutation_diff import refresh_scratch, resolve_interpreter, root_reads, stage_root_reads  # noqa: E402  (after the sys.path fix above)
 from mutation_sweep import (  # noqa: E402
-    BUDGET_OK, budget_verdict, deselect_args, deselect_notes, select_tests,
+    BUDGET_OK,
+    budget_verdict,
+    deselect_args,
+    deselect_notes,
+    select_tests,
 )
+
+
 def _primary_checkout_venv() -> str | None:
     """The venv of the checkout this worktree shares its object store with, or None. IO only — the
     decision is `mutation_diff.resolve_interpreter`, the same one `tools/mutate_diff.py` uses."""
     try:
-        r = subprocess.run(["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
-                           cwd=HERE, capture_output=True, text=True)
+        r = subprocess.run(
+            ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"], cwd=HERE, capture_output=True, text=True
+        )
     except OSError:
         return None
     if r.returncode != 0 or not r.stdout.strip():
@@ -110,8 +117,9 @@ def _primary_checkout_venv() -> str | None:
 # worktree. Same resolver, same order: an explicit `MUTATE_DIFF_PYTHON`, then the primary checkout's
 # venv, then this tree's own.
 _PY_CANDIDATES = [c for c in (_primary_checkout_venv(), str(HERE / ".venv" / "bin" / "python")) if c]
-_PY_PATH, _PY_NOTE = resolve_interpreter(os.environ.get("MUTATE_DIFF_PYTHON"), _PY_CANDIDATES,
-                                         lambda pth: Path(pth).exists())
+_PY_PATH, _PY_NOTE = resolve_interpreter(
+    os.environ.get("MUTATE_DIFF_PYTHON"), _PY_CANDIDATES, lambda pth: Path(pth).exists()
+)
 VENV_PY = Path(_PY_PATH) if _PY_PATH else HERE / ".venv" / "bin" / "python"
 
 # §2 (OXYII-G1-FOLLOWUPS) — mutmut's exit-code cache is a function of the TESTS, but this file keys its

@@ -1151,18 +1151,18 @@ _SELFTEST_FAULTS = [
     # per-row message is printed. With "always" they never fire and `fail(None)` there survived.
     ("refusal_reason", lambda v, r: None, "selftest FAIL: refusal_reason("),
     ("annotation_only", lambda a, b: (True, "nope"), "selftest FAIL annotation_only ["),
-    ("classify", lambda e, s, g: {k: [] for k in
-                                  ("excused", "real_gap", "refuted", "orphaned", "unclassified")},
-     "selftest FAIL excused:"),
+    (
+        "classify",
+        lambda e, s, g: {k: [] for k in ("excused", "real_gap", "refuted", "orphaned", "unclassified")},
+        "selftest FAIL excused:",
+    ),
     ("string_only_verdict", lambda d: ("required", ""), "a no-op diff is not labelled EMPTY_DIFF"),
     ("string_only_verdict", lambda d: ("required", ""), "a log-prose mutation is no longer STRING_ONLY"),
-    ("string_only_verdict", lambda d: ("required", ""),
-     "a line outside the scan's competence was decided anyway"),
+    ("string_only_verdict", lambda d: ("required", ""), "a line outside the scan's competence was decided anyway"),
 ]
 
 
-@pytest.mark.parametrize("attr,stub,expected", _SELFTEST_FAULTS,
-                         ids=[f"{a}:{e[:34]}" for a, _, e in _SELFTEST_FAULTS])
+@pytest.mark.parametrize("attr,stub,expected", _SELFTEST_FAULTS, ids=[f"{a}:{e[:34]}" for a, _, e in _SELFTEST_FAULTS])
 def test_each_selftest_check_NAMES_what_regressed(monkeypatch, capsys, attr, stub, expected):
     """Break one helper and the selftest must both fail AND print the sentence for the check that
     caught it. Asserting the exit code alone leaves the message mutable to None."""
@@ -1195,7 +1195,7 @@ def test_a_LEAKED_killed_mutant_is_named_and_is_found_by_its_KEY(monkeypatch, ca
 
 
 def test_diff_key_has_its_OWN_line_not_only_the_collision_one(monkeypatch, capsys):
-    """"selftest FAIL: diff_key" is a PREFIX of "…: diff_key collides on different mutations", so a
+    """ "selftest FAIL: diff_key" is a PREFIX of "…: diff_key collides on different mutations", so a
     substring assertion is satisfied by the wrong line. Pinned as a whole line."""
     monkeypatch.setattr(M, "diff_key", lambda d: "wrong")
     assert M.selftest() != 0
@@ -1212,14 +1212,17 @@ def test_changed_span_MISLOCATING_is_reported_separately_from_inventing(monkeypa
     assert "changed_span mislocates the differing region" in capsys.readouterr().out
 
 
-@pytest.mark.parametrize("venv_exists,probe_rc,want", [
-    (True, 1, "not importable"),      # mutmut absent under a WORKING interpreter
-    (True, 2, "not importable"),      # a different non-zero rc is still "cannot import"
-    (True, None, "could not be launched"),   # the interpreter itself would not start
-    (False, None, "venv is missing"), # no venv at all
-    (False, 0, "venv is missing"),    # a venv-missing verdict OUTRANKS a 0 rc
-    (True, 0, None),                  # the only healthy combination
-])
+@pytest.mark.parametrize(
+    "venv_exists,probe_rc,want",
+    [
+        (True, 1, "not importable"),  # mutmut absent under a WORKING interpreter
+        (True, 2, "not importable"),  # a different non-zero rc is still "cannot import"
+        (True, None, "could not be launched"),  # the interpreter itself would not start
+        (False, None, "venv is missing"),  # no venv at all
+        (False, 0, "venv is missing"),  # a venv-missing verdict OUTRANKS a 0 rc
+        (True, 0, None),  # the only healthy combination
+    ],
+)
 def test_every_refusal_reason_ROW_says_WHICH_failure_it_is(venv_exists, probe_rc, want):
     """The five table constants inside `selftest` are mutable one at a time — `(True, 1)` to
     `(False, 1)`, to `(True, 2)`, and both `interpreter unlaunchable` rows — and the selftest cannot
@@ -1283,15 +1286,19 @@ def test_a_FAILING_selftest_does_not_print_the_OK_line(monkeypatch, capsys):
 # `string_only_verdict`'s output (not an intermediate — an earlier pass compared `inside_old` and
 # found "differences" that were all inputs returning UNDECIDABLE before reaching it).
 
-@pytest.mark.parametrize("old,new,want", [
-    # the whole literal is the changed span: start == a and new_end == b on BOTH sides
-    ('    x = "a"', "    x = 'a'", M.STRING_ONLY),
-    ('    f("a")', "    f('a')", M.STRING_ONLY),
-    # the changed span abuts a literal boundary without being inside one
-    ('    x = "+"', '    x = \'zbz+\'"+"', M.REQUIRED),
-    ('    x = ""', "    x = ' z'\"\"", M.REQUIRED),
-    ("    x = ''", '    x = \'\'""', M.REQUIRED),
-])
+
+@pytest.mark.parametrize(
+    "old,new,want",
+    [
+        # the whole literal is the changed span: start == a and new_end == b on BOTH sides
+        ('    x = "a"', "    x = 'a'", M.STRING_ONLY),
+        ('    f("a")', "    f('a')", M.STRING_ONLY),
+        # the changed span abuts a literal boundary without being inside one
+        ('    x = "+"', "    x = 'zbz+'\"+\"", M.REQUIRED),
+        ('    x = ""', "    x = ' z'\"\"", M.REQUIRED),
+        ("    x = ''", "    x = ''\"\"", M.REQUIRED),
+    ],
+)
 def test_a_change_that_touches_a_literal_BOUNDARY_is_judged_correctly(old, new, want):
     got, detail = M.string_only_verdict(f"--- a\n+++ b\n-{old}\n+{new}\n")
     assert got == want, f"{old!r} → {new!r} gave {got} ({detail})"
