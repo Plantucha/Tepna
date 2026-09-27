@@ -9,7 +9,7 @@
 #    scaffold honoring the §7 integration contract; validate against real frames + PSL output first.
 
 from __future__ import annotations
-import argparse, asyncio, calendar, contextlib, gc, glob, json, logging, math, os, random, signal, time as _time, datetime as _dt
+import argparse, asyncio, calendar, collections, contextlib, gc, glob, json, logging, math, os, random, signal, time as _time, datetime as _dt
 import concurrent.futures, multiprocessing, sys as _sys
 import build_id
 from writers import (ContactLedger, StreamWriter, Spo2CsvWriter, LinkLogWriter, OxyFrameLogWriter, OxyLifeLogWriter, RingClockLogWriter, resumable_set,
@@ -50,8 +50,9 @@ import sealbox
 import sealfmt
 import storage_targets
 import verdict
-from telemetry import (TelemetryBus, calibrated_for, hr_beats, note_flat_battery, on_body,
-                       ppi_contact, sd_calibrated_for, worn_verdict)
+from telemetry import (TelemetryBus, calibrated_for, ecg_block_level, ecg_offbody, hr_beats, note_flat_battery,
+                       on_body, ppi_contact, sd_calibrated_for, worn_verdict,
+                       _ECG_BLOCK_N, _ECG_OFFBODY_BLOCKS)
 
 # ── JOURNAL SEVERITY (VIGIL-COEXISTENCE-AND-RANGE §1) ────────────────────────────────────────────────
 # systemd assigns ONE priority to a service's whole stdout stream, so with a plain basicConfig every line
@@ -3374,6 +3375,11 @@ async def run_polar(dev: dict, root: str):
                 # its minimum and it would abstain forever: an orphan detector that looks wired.
                 _ppg_win: list[float] = []
                 _PPG_WIN_MAX = 8192
+                # The ECG level per 1 300-sample block, last 12 kept (telemetry.ecg_offbody): the one signal
+                # that can say an H10's plausible HR is electrode noise off the body. Per CONNECTION, so a
+                # reconnect re-earns its two minutes rather than voting on the previous link's samples.
+                _ecg_blk: list[float] = []
+                _ecg_lv: collections.deque = collections.deque(maxlen=_ECG_OFFBODY_BLOCKS)
                 _AMB_WINDOW = 220
                 _has_contact_bit = False
                 # When the battery level last CHANGED. A full cell cannot rise, so at 100 % the
@@ -3524,7 +3530,12 @@ async def run_polar(dev: dict, root: str):
                     _ppi_flags = None
                     for smp in samples:
                         v = smp.values
-                        if meas == pmd.ECG:    wr.write_ecg(smp.phone, smp.sensor_ns, smp.t_ms, v[0])
+                        if meas == pmd.ECG:
+                            wr.write_ecg(smp.phone, smp.sensor_ns, smp.t_ms, v[0])
+                            _ecg_blk.append(v[0])
+                            if len(_ecg_blk) >= _ECG_BLOCK_N:
+                                _ecg_lv.append(ecg_block_level(_ecg_blk))
+                                _ecg_blk.clear()
                         elif meas == pmd.ACC:  wr.write_acc(smp.phone, smp.sensor_ns, smp.t_ms, *v)
                         elif meas == pmd.PPG:
                             wr.write_ppg(smp.phone, smp.sensor_ns, smp.t_ms, v[:3], v[3])
@@ -3692,6 +3703,7 @@ async def run_polar(dev: dict, root: str):
                         _votes = dict(
                             contact=contact,
                             beats=hr_beats(bpm, len(rr)),
+                            ecg_noise=ecg_offbody(_ecg_lv),
                             charging=STATUS["devices"].get(name, {}).get("charging"),
                             charging_why=STATUS["devices"].get(name, {}).get("charging_why"))
                         _publish_worn(*worn_verdict(**_votes), votes=_votes)

@@ -323,6 +323,65 @@ def pulse_prominence_worn(
     return p > threshold
 
 
+# ── ECG LEVEL: THE STRAP'S OWN SIGNAL SAYS WHEN ITS "BEATS" ARE NOISE ─────────────────────────────────
+#
+# An H10 lying off the body does NOT go quiet: its electrodes pick up noise at many times the amplitude of a
+# heart, its own HR algorithm keeps emitting a plausible rate from that noise, and `hr_beats` then holds
+# `worn` for as long as the strap streams (residue 2026-09-24-h10-off-body-records-plausible-hr: 27½ min on
+# 2026-09-23, 102 min on 09-22, and 2026-09-27 from 06:1x at 1 550–2 800 µV with HR 144–172).
+#
+# THE LEVEL is the raw ECG's standard deviation per 1 300-sample block (10 s at 130 Hz), and the verdict is
+# the LOW median of the last 12 blocks (120 s). Measured on vigil 2026-09-27 over every H10 ECG file
+# > 5 MB (147 sessions, 26 588 minutes), each minute's level as the median of its 10-s block SDs, SUSTAINED
+# = the lower of two consecutive minutes:
+#
+#     worn, the first two minutes of each session skipped  max    176 µV   (n 25 236 minute pairs)
+#     off-body, the settled removal tail                    min    567 µV   (n 478 pairs, 35 sessions)
+#
+# sqrt(176 x 567) = 316, so 320 sits ~1.8x above the loudest sustained worn minute and ~1.8x below the
+# quietest settled off-body one. A dry or loose strap (the reason `hr_beats` exists — 2026-09-20, contact=0
+# for 6 h) reads 80–95 µV: it is a quiet signal under a bad contact flag, the opposite of this one.
+#
+# REPLAYED AS IT RUNS — 1 300-sample blocks, a 12-block window sliding one block at a time, over the same
+# 147 files: all 47 removal tails flagged, 20–60 s after the removal began. Two non-tail flags, both named:
+# a session START (2026-09-21 21:22, 3 windows, the strap going on) and one 70-s burst of 840–1 347 µV
+# mid-night on the dry-strap night (2026-09-21 00:17, 7 windows, 84 µV either side). The not-worn DROP needs
+# 180 s continuous (`should_drop_not_worn`), so the longest false run on record is 2.5x short of cutting a
+# link; what it costs is a 70-s `not worn` in the worn record, which that burst arguably was.
+#
+# ⚠️ LOW median, not median: with 12 blocks `median` averages the 6th and 7th, so six loud blocks beside six
+# quiet ones land half-way — and the offline doff rule (`loss_audit`, H10_TAIL_RUN_EPOCHS) records a WORN
+# run of exactly six loud 10-s epochs (2026-09-13 21:35). `median_low` needs SEVEN of twelve.
+#
+# Never returns False. A quiet ECG does not prove a body — a strap whose electrodes rest on a damp surface
+# can be quiet too — so this can only disqualify the beat evidence read off the same electrodes, never
+# stand in for a wear vote of its own.
+_ECG_BLOCK_N = 1300  # samples: 10 s at the H10's 130 Hz
+_ECG_OFFBODY_BLOCKS = 12  # 120 s
+_ECG_OFFBODY_UV = 320.0
+
+
+def ecg_block_level(samples) -> "float | None":
+    """PURE. The level of one block of raw ECG (µV): its population standard deviation. `None` under two
+    samples — a spread of one number is not a measurement."""
+    xs = [float(x) for x in samples]
+    if len(xs) < 2:
+        return None
+    return statistics.pstdev(xs)
+
+
+def ecg_offbody(block_levels, *, threshold: float = _ECG_OFFBODY_UV, n_blocks: int = _ECG_OFFBODY_BLOCKS) -> "bool | None":
+    """Is this chest strap's ECG electrode noise rather than a heart? `True` or `None`, never `False`.
+
+    PURE. Reads the LAST `n_blocks` block levels (`ecg_block_level`); fewer than that ⇒ `None` (a fresh
+    connection has not yet shown two minutes of anything). Blocks that were not measured (`None`) are
+    dropped, not counted as quiet."""
+    lv = [x for x in list(block_levels or ())[-n_blocks:] if x is not None]
+    if len(lv) < n_blocks:
+        return None
+    return True if statistics.median_low(lv) > threshold else None
+
+
 def on_body(st: "dict | None") -> "bool | None":
     """PURE. Is this device on a body right now? `True` / `False` / `None` when unknown.
 
@@ -404,6 +463,12 @@ WORN_VOTES: tuple[dict, ...] = (
         "means": "a plausible rate or any RR interval in the HR packet — a beat",
     },
     {
+        "vote": "ecg-level",
+        "rank": 1,
+        "source": "measured",
+        "means": "the raw ECG's 2-min level above 320 µV — electrode noise; disqualifies hr-beats, never outranks the contact bit",
+    },
+    {
         "vote": "ppi-contact",
         "rank": 1,
         "source": "measured",
@@ -448,6 +513,7 @@ _WORN_SOURCE = {
     "hr-contact-bit": "device-contact",
     "hr-beats": "device-heartbeat",  # the rate/RR in the HR packet — the strap's own measurement of a beat,
     # not of electrode contact; a separate origin from the bit beside it
+    "ecg-level": "device-ecg",  # the raw ECG stream — the samples the strap's HR algorithm reads its beats from
     "ppi-contact": "device-contact",
     "ambient-level": "optical-ambient",
     "ambient-stability": "optical-ambient",
@@ -475,7 +541,9 @@ def hr_beats(bpm: int | None, rr_n: int) -> bool | None:
     electrode signature, usable ECG under a contact flag that says off. The 180 s not-worn drop trusted
     the flag alone and cut the link 131 times, 3.6 h of a 6.1 h night. An off-body strap reports 0 bpm
     (1 695 such rows in the corpus since August; one 08-04 session is 193/193 zeros), so the rate is
-    the measurement that separates "dry on a chest" from "on a desk", and the flag is not."""
+    the measurement that separates "dry on a chest" from "on a desk", and the flag is not.
+    ⚠️ NOT ALWAYS: an off-body strap ALSO reports a noise rate — 82–181 bpm for 27½ min on 2026-09-23 and
+    102 min on 09-22 — and this returns True for it. `ecg_offbody` is what withdraws that vote."""
     if bpm is None and not rr_n:
         return None
     return bool(rr_n) or (bpm is not None and 30 <= bpm <= 220)
@@ -491,6 +559,7 @@ def worn_verdict(
     beats: bool | None = None,
     charging_why: str | None = None,
     ppg=None,
+    ecg_noise: bool | None = None,
 ) -> tuple[bool | None, str]:
     """Combine every worn detector that is AVAILABLE and IN DOMAIN into one verdict plus its reason.
 
@@ -534,6 +603,14 @@ def worn_verdict(
     # 22:08 under "not worn — on charger". A heartbeat is the strap's own measurement that it is on a
     # body; an inferred dock does not outrank it. A measured charge still does — a rising cell IS a
     # physical fact about where the device is, whatever its packets say.
+    # ── A BEAT READ OFF NOISE IS NOT A BEAT ─────────────────────────────────────────────────────────
+    # `ecg_noise` (telemetry.ecg_offbody) is the level of the very samples the strap's HR algorithm reads
+    # its rate from. When that level is electrode noise, the rate and RR in the HR packet are noise too,
+    # so the beat evidence is withdrawn BEFORE either of its two uses: the charging exception below and the
+    # "worn if ANY" vote. It removes a worn vote; it cannot remove the contact bit's, which is why a strap
+    # the electrodes say is ON stays worn whatever its ECG reads.
+    if ecg_noise:
+        beats = None
     if charging and not (beats and is_stated_inferred("charging:" + str(charging_why))):
         return False, "not worn — on charger (a docked device is not on a wrist)"
     votes: list[tuple[str, bool]] = []
@@ -553,6 +630,8 @@ def worn_verdict(
     # drop, never cause one, which is the safe direction of the asymmetry above.
     if beats:
         votes.append(("hr-beats", True))
+    if ecg_noise:
+        votes.append(("ecg-level", False))
     ppi = ppi_contact(ppi_flags)
     if ppi is not None:
         votes.append(("ppi-contact", ppi))

@@ -145,6 +145,7 @@ charge does not; an UNATTRIBUTED charging flag is not an inference and keeps its
 | 0 | `charging:flat-at-full` | inferred | a battery flat at 100 % for 45 min — a dock, OR a fresh coin cell (2026-09-22: 140 drops) |
 | 1 | `hr-contact-bit` | measured | the HR characteristic's skin-contact bit — electrode CONTACT, not wear (§1a: it did not cause 09-20) |
 | 1 | `hr-beats` | measured | a plausible rate or any RR interval in the HR packet — a beat |
+| 1 | `ecg-level` | measured | the raw ECG's 2-min level above 320 µV — electrode noise; disqualifies hr-beats, never outranks the contact bit |
 | 1 | `ppi-contact` | measured | the PPI frame's contact flag (absent in SDK mode) |
 | 2 | `pulse-prominence` | measured | a pulse in the PPG — perfused tissue |
 | 2 | `ambient-level` | inferred | ambient light dark enough to look like skin (55 Hz domain) |
