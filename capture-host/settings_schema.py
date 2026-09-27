@@ -14,6 +14,8 @@
 # hint — stream changes only take effect when the device's PMD session is re-negotiated.
 from __future__ import annotations
 
+from typing import Any
+
 SETTINGS: dict[str, tuple] = {
     # link health / RSSI
     "link.log_enabled":         (bool,  None, None, True,  True, "Write the LINK provenance sidecar (connection/RSSI/battery per night)"),
@@ -74,7 +76,10 @@ def coerce(key: str, value):
 
 
 def get_nested(cfg: dict, key: str):
-    cur = cfg
+    # `cur: Any` because the walk descends through arbitrary config: inferred from `cfg` it is a
+    # `dict`, and `cur.get(part)` then assigns `Any | None` to it. The loop's own `isinstance` check
+    # is the real guard and it stays.
+    cur: Any = cfg
     for part in key.split("."):
         if not isinstance(cur, dict):
             return None

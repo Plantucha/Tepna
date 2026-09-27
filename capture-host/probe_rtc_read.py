@@ -198,8 +198,9 @@ async def main(address: str, gap: float) -> int:
         await asyncio.sleep(0.5)
         first = {}
         for name, op in READS.items():
-            first[name] = await ch.ask(op, 1)
-            print(f"  {name}: {'%d bytes' % len(first[name]) if first[name] else 'NO REPLY'}")
+            reply = await ch.ask(op, 1)
+            first[name] = reply
+            print(f"  {name}: {'%d bytes' % len(reply) if reply else 'NO REPLY'}")
         t0 = monotonic()
         await asyncio.sleep(gap)
         actual = monotonic() - t0
