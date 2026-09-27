@@ -552,7 +552,11 @@ async def _with_retry(coro_factory, attempts: int = 3, backoff: float = 2.0,
     `Exception must be derived from BaseException`."""
     if attempts < 1:
         raise ValueError(f"attempts must be >= 1, got {attempts}")
-    for i in range(attempts):
+    # THE LOOP CANNOT COMPLETE, and the proof is two lines above and three below: `attempts >= 1` is
+    # enforced, and the final iteration either returns or re-raises. There is no normal exit to cover
+    # — the same property that let the old `raise last` tail go, and the house rule for the pragma
+    # (pyproject.toml) is exactly that it name such a proof rather than "hard to test".
+    for i in range(attempts):  # pragma: no branch
         try:
             if per_attempt_timeout is None:
                 return await coro_factory()
@@ -562,12 +566,11 @@ async def _with_retry(coro_factory, attempts: int = 3, backoff: float = 2.0,
                 log.warning("PS-FTP attempt %d/%d exceeded %.0fs — retrying",
                             i + 1, attempts, per_attempt_timeout)
             if i >= attempts - 1:
-                raise                       # the LAST attempt's error IS the caller's error
+                raise  # the LAST attempt's error IS the caller's error
             await asyncio.sleep(backoff)
-    # The loop cannot complete: `attempts >= 1` is enforced above, and the final iteration either
-    # returns or re-raises. Holding the error in a `last` variable and raising it after the loop is
-    # what made that invisible — to a reader and to mypy, which reported `raise last` as
-    # `Exception must be derived from BaseException` because `last` starts as None.
+    # Holding the error in a `last` variable and raising it after the loop is what hid all of this —
+    # from a reader, and from mypy, which reported `raise last` as `Exception must be derived from
+    # BaseException` because `last` starts as None and nothing ruled out an empty loop.
 
 
 def _session_meta(path: str) -> dict:

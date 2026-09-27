@@ -78,6 +78,7 @@ def test_it_finds_the_class_it_was_written_for():
 # and reaches the alternate paths the real tree never takes, because in the real tree every consumer
 # module exists and capture.py is always present.
 
+
 def _tree(tmp_path, files: dict):
     for name, body in files.items():
         (tmp_path / name).write_text(body, encoding="utf-8")

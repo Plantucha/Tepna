@@ -225,8 +225,7 @@ def test_A_MACHINE_NOT_FOUND_NIGHT_AND_A_JAMMED_NIGHT_STOP_READING_ALIKE():
     jammed = W.unreachable_reason(_unreach_rows("BleakError", "BleakError", "BleakDeviceNotFoundError"))
     assert gone["unanimous_absent"] is True and gone["dominant"] == "BleakDeviceNotFoundError"
     assert jammed["unanimous_absent"] is False and jammed["dominant"] == "BleakError"
-    assert (W.assess(None, 0.0, unreachable=gone)["detail"]
-            != W.assess(None, 0.0, unreachable=jammed)["detail"])
+    assert W.assess(None, 0.0, unreachable=gone)["detail"] != W.assess(None, 0.0, unreachable=jammed)["detail"]
 
 
 def test_A_UNANIMOUS_NOT_FOUND_NIGHT_IS_STILL_NOT_ZERO_MINUTES():
@@ -252,8 +251,9 @@ def test_A_UNANIMOUS_NOT_FOUND_NIGHT_IS_STILL_NOT_ZERO_MINUTES():
 def test_A_REACHABLE_POLL_SAYS_NOTHING_ABOUT_WHY_OTHERS_FAILED():
     # Only rows that actually failed carry a blame class; counting a successful poll's blank trigger
     # would dilute the dominant class with noise from polls that worked.
-    text = _unreach_rows("BleakDeviceNotFoundError") + "\n" + \
-        "2000;idle;idle;;;idle_steady;fgstate_only;True;Standby;;;"
+    text = (
+        _unreach_rows("BleakDeviceNotFoundError") + "\n" + "2000;idle;idle;;;idle_steady;fgstate_only;True;Standby;;;"
+    )
     r = W.unreachable_reason(text)
     assert r["n"] == 1 and r["classes"] == {"BleakDeviceNotFoundError": 1}
 
