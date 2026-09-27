@@ -1236,13 +1236,12 @@ def test_the_access_start_parser_refuses_what_it_cannot_read():
     assert loss_audit._access_start("[24/Xyz/2026:22:00:54 -0400]") is None
     assert loss_audit._access_start("x [01/Jan/2027:00:00:05 +0100] y") == dt.datetime(2027, 1, 1, 0, 0, 5)
     assert loss_audit._access_start("[31/Dec/2026:23:59:59 -0400]") == dt.datetime(2026, 12, 31, 23, 59, 59)
-
-
 # ---------------------------------------------------------------------------------------------------
 # THE AUDIT'S OWN POPULATION — every fragment, and a cause the daemon logs AFTER the gap starts.
 # residue 2026-09-24-loss-audit-audits-only-the-largest-file
 #        2026-09-25-loss-audit-attribution-looks-only-backward
 # ---------------------------------------------------------------------------------------------------
+
 
 def _frag(path, rows, *, host0=0.0, dev0=1_000_000_000_000_000_000, period=PERIOD_NS):
     """One fragment of a Polar stream, its host clock and device counter both starting where told — so a
@@ -1261,14 +1260,16 @@ def _two_fragment_night(tmp_path, *, boundary_s, dev_advance_s, name="2026-09-20
     stopped and the samples were merely late."""
     d = tmp_path / "captures" / name
     d.mkdir(parents=True)
-    rows = 15000                                     # 120 s at 125 Hz
+    rows = 15000  # 120 s at 125 Hz
     span1 = (rows - 1) * PERIOD_NS / 1e9
     _frag(str(d / "Polar_H10_0284_20260920220000_ECG.txt"), rows)
-    _frag(str(d / "Polar_H10_0284_20260920220400_ECG.txt"), rows,
-          host0=span1 + boundary_s,
-          dev0=1_000_000_000_000_000_000 + int((span1 + dev_advance_s) * 1e9))
-    (d / "Polar_H10_0284_20260920220000_HR.txt").write_text(
-        "Phone timestamp;HR [bpm]\n" + T0.isoformat() + ";62\n")
+    _frag(
+        str(d / "Polar_H10_0284_20260920220400_ECG.txt"),
+        rows,
+        host0=span1 + boundary_s,
+        dev0=1_000_000_000_000_000_000 + int((span1 + dev_advance_s) * 1e9),
+    )
+    (d / "Polar_H10_0284_20260920220000_HR.txt").write_text("Phone timestamp;HR [bpm]\n" + T0.isoformat() + ";62\n")
     return str(d)
 
 
@@ -1284,7 +1285,9 @@ def test_PLANT_a_cause_logged_AFTER_the_gap_start_is_attributed(tmp_path):
     got = loss_audit.attribute_gaps(gaps, events)
     assert got[0][2] == "daemon:pull paused live", (
         "a daemon-caused loss read as unattributed inflates SOLID-NIGHT's unattributed leg with the "
-        "daemon's own designed behaviour", got)
+        "daemon's own designed behaviour",
+        got,
+    )
 
 
 def test_PLANT_every_fragment_of_the_primary_stream_is_audited(tmp_path):
@@ -1297,9 +1300,13 @@ def test_PLANT_every_fragment_of_the_primary_stream_is_audited(tmp_path):
     a = loss_audit.audit_night(d, DEV, journal=lambda *a: [])
     dev = a["devices"]["Polar H10 0284"]
     assert [f["file"] for f in dev["files"]] == [
-        "Polar_H10_0284_20260920220000_ECG.txt", "Polar_H10_0284_20260920220400_ECG.txt"], dev
+        "Polar_H10_0284_20260920220000_ECG.txt",
+        "Polar_H10_0284_20260920220400_ECG.txt",
+    ], dev
     assert dev["span_min"] == pytest.approx(2 * 119.992 / 60.0, abs=0.05), (
-        "the span must be the sum over fragments, not one file's", dev["span_min"])
+        "the span must be the sum over fragments, not one file's",
+        dev["span_min"],
+    )
 
 
 def test_PLANT_the_gap_BETWEEN_two_fragments_is_itself_audited(tmp_path):
@@ -1349,8 +1356,18 @@ def test_CONTROL_the_verdict_object_shape_is_untouched_on_a_fragmented_night(tmp
     d = _two_fragment_night(tmp_path, boundary_s=60.0, dev_advance_s=60.0)
     v = loss_audit.night_verdict(loss_audit.audit_night(d, DEV, journal=lambda *a: []), night_dir=d)
     js_validate(v)
-    assert set(v) >= {"schema", "gate", "status", "population", "criterion", "result", "evidence",
-                      "reason", "producedBy", "at"}, sorted(v)
+    assert set(v) >= {
+        "schema",
+        "gate",
+        "status",
+        "population",
+        "criterion",
+        "result",
+        "evidence",
+        "reason",
+        "producedBy",
+        "at",
+    }, sorted(v)
     assert v["population"] == {"checked": 1, "eligible": 1, "excluded": 0}, v["population"]
 
 
@@ -1361,11 +1378,11 @@ def test_boundary_gap_REFUSES_to_call_a_wait_a_delay_without_the_counters_word(t
     t = dt.datetime(2026, 9, 20, 22, 0, 0)
     prev = {"last": t, "cut": 1.0, "period_ns": PERIOD_NS, "last_dev": 1_000_000_000_000_000_000}
     nxt_ok = {"first": t + dt.timedelta(seconds=60), "first_dev": 1_000_000_000_000_000_000}
-    assert loss_audit.boundary_gap(prev, nxt_ok)[0] == "delay"          # the counter held its place
-    assert loss_audit.boundary_gap({**prev, "last_dev": None}, nxt_ok)[0] == "loss"      # no counter here
-    assert loss_audit.boundary_gap(prev, {**nxt_ok, "first_dev": None})[0] == "loss"     # none there
-    assert loss_audit.boundary_gap({**prev, "period_ns": None}, nxt_ok)[0] == "loss"     # no period learnt
-    back = {**nxt_ok, "first_dev": 1_000_000_000_000_000_000 - 10**9}                    # counter RESET
+    assert loss_audit.boundary_gap(prev, nxt_ok)[0] == "delay"  # the counter held its place
+    assert loss_audit.boundary_gap({**prev, "last_dev": None}, nxt_ok)[0] == "loss"  # no counter here
+    assert loss_audit.boundary_gap(prev, {**nxt_ok, "first_dev": None})[0] == "loss"  # none there
+    assert loss_audit.boundary_gap({**prev, "period_ns": None}, nxt_ok)[0] == "loss"  # no period learnt
+    back = {**nxt_ok, "first_dev": 1_000_000_000_000_000_000 - 10**9}  # counter RESET
     assert loss_audit.boundary_gap(prev, back)[0] == "loss"
     assert loss_audit.boundary_gap(prev, {**nxt_ok, "first": t + dt.timedelta(seconds=0.5)}) is None
     assert loss_audit.boundary_gap({**prev, "last": None}, nxt_ok) is None
@@ -1377,8 +1394,7 @@ def test_an_event_deep_inside_the_outage_is_recorded_but_never_the_cause():
     that the causing line lands 1-3 s after the start — so a `dbus busy` 100 s into a 121 s gap is published
     where a reader can see it and loses to a `not-worn drop` 1 s before the start."""
     t0 = T0 + dt.timedelta(seconds=199)
-    ev = [(t0 - dt.timedelta(seconds=1), "daemon:not-worn drop"),
-          (t0 + dt.timedelta(seconds=100), "link:dbus busy")]
+    ev = [(t0 - dt.timedelta(seconds=1), "daemon:not-worn drop"), (t0 + dt.timedelta(seconds=100), "link:dbus busy")]
     r = loss_audit.attribute_gaps_detail([(t0, 121.0)], ev)[0]
     assert r["cause"] == "daemon:not-worn drop" and r["cause_dir"] == "before", r
     assert r["in_gap_cause"] == "link:dbus busy", r
