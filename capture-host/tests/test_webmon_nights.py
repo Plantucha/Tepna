@@ -255,7 +255,8 @@ def test_the_tool_classifiers_accept_box_filenames():
             "Polar_H10_02849638_20260919183658_HR.txt": True,
             "Polar_VeritySense_0C301E3F_20260919183724_PPG.txt": True,
             "Wellue_O2Ring-S_S8AW2100_20260919002219_SPO2.csv": True,
-            "Wellue_O2Ring-S_S8AW2100_20260919002219_PPG.txt": False,
+            # since 2026-09-26 the night page reads the ring's RAW pleth first (156 markers, then PPGDSP feet)
+            "Wellue_O2Ring-S_S8AW2100_20260919002219_PPG.txt": True,
         },
         "pat-feasibility.js": {
             "Polar_H10_02849638_20260919183658_ECG.txt": True,
