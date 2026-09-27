@@ -980,7 +980,10 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
     # fixed MB figure would start lying the moment a rate is changed, which is the whole point of the
     # dropdown. Per device, because the same stream name costs very different amounts on different
     # hardware (H10 ACC 200 Hz vs Verity ACC 52 Hz).
-    _BPS_BY_MODEL = {
+    # ANNOTATED because the rows are NOT the same type by inference — H10/Verity carry int rates and
+    # the O2Ring a float one (125.738, the observed ROW rate), so the join is `object` and the two
+    # `.items()` readers below stop type-checking. The table is uniform in MEANING: (bytes/sec, rate).
+    _BPS_BY_MODEL: dict[str, dict[str, tuple[float, float]]] = {
         "H10":    {"ecg": (7800, 130), "acc": (11400, 200), "hr": (35, 1)},
         "Verity": {"ppg": (3750, 55), "acc": (2950, 52), "gyro": (2800, 52),
                    "mag": (2950, 50), "ppi": (30, 1)},

@@ -498,8 +498,11 @@ def decode_rec(path: str, expected_start_utc: _dt.datetime | None = None) -> dic
     b = open(path, "rb").read()
     got = {"file": os.path.basename(path), "bytes": len(b)}
     try:
-        got["header_stamp"] = b[0x11:0x11 + 19].decode("ascii")
-        anchor = _dt.datetime.fromisoformat(got["header_stamp"])
+        # Read ONCE into a typed local and use that, rather than reading it back out of a
+        # heterogeneous dict where its type is `object`. Same bytes, and the parse is checkable.
+        stamp = b[0x11:0x11 + 19].decode("ascii")
+        got["header_stamp"] = stamp
+        anchor = _dt.datetime.fromisoformat(stamp)
     except Exception:                                  # noqa: BLE001
         got["header_stamp"], anchor = None, None
     got["settings_tlv"] = parse_rec_tlv(b)
@@ -508,7 +511,8 @@ def decode_rec(path: str, expected_start_utc: _dt.datetime | None = None) -> dic
     if frames:
         f0, f1 = frames[0], frames[-1]
         got["stream"] = f0["meas"]
-        got["first_frame_utc"] = (POLAR_EPOCH + _dt.timedelta(microseconds=f0["sensor_ns"] / 1000)).isoformat()
+        first_frame_utc = (POLAR_EPOCH + _dt.timedelta(microseconds=f0["sensor_ns"] / 1000)).isoformat()
+        got["first_frame_utc"] = first_frame_utc
         got["last_frame_utc"] = (POLAR_EPOCH + _dt.timedelta(microseconds=f1["sensor_ns"] / 1000)).isoformat()
         got["span_sec"] = round((f1["sensor_ns"] - f0["sensor_ns"]) / 1e9, 2)
         got["frame_types"] = sorted({f["frame_type"] for f in frames})
@@ -520,7 +524,7 @@ def decode_rec(path: str, expected_start_utc: _dt.datetime | None = None) -> dic
         # so they must agree. This is checkable on ANY file, old or new. No `if anchor` guard: reaching
         # here means `frames` is non-empty, and `find_rec_frames` returns [] for a None anchor.
         got["header_vs_first_frame_sec"] = round(
-            (_dt.datetime.fromisoformat(got["first_frame_utc"]) - anchor).total_seconds(), 2)
+            (_dt.datetime.fromisoformat(first_frame_utc) - anchor).total_seconds(), 2)
     # THE TIMEBASE VERDICT — only for a recording this run created, where the host clock at start is known.
     if expected_start_utc and anchor:
         d = (anchor - expected_start_utc).total_seconds()
