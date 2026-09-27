@@ -129,7 +129,11 @@ class Notifier:
     async def send(self, title: str, message: str, *, key: str | None = None,
                    dedupe_sec: float = 0.0, now: float = 0.0) -> bool:
         """Fire one alert. Returns True only if it was actually delivered."""
-        if not self.enabled:
+        # ONE condition, not two: `enabled` is set as `bool(enabled and url)` in both `__init__` and
+        # `configure`, so "enabled" already implies a URL — but that invariant lived across two
+        # attributes and only a reader could see it. Stating it here makes it checkable, and mypy
+        # stops reading `self.url` as possibly-None at the post below. Behaviour is unchanged.
+        if not (self.enabled and self.url):
             return False
         if key is not None and dedupe_sec > 0:
             last = self._last.get(key)

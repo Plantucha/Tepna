@@ -246,3 +246,164 @@ def test_nightqc_arrival_quality_resolves_the_repeated_hour_by_the_DEVICE_counte
     got = nightqc.arrival_quality(str(tmp_path))[0]
     assert got["rows"] == 300, got
     assert got["jitter"]["worst_ms"] < 10.0, got["jitter"]
+
+
+# ── a HOST-stamp span is a difference, so an ambiguous endpoint is an hour of error ────────────────
+def _raw_host_file(path, *stamps: str, comment: bool = False):
+    """A ring raw-buffer file: device clock blank, so only the host stamps state its extent."""
+    path.write_text(("# timebase=host-disciplined\n" if comment else "")
+                    + "Phone timestamp;sensor timestamp [ns];X [raw];Y [raw];Z [raw]\n"
+                    + "".join("%s;;1;2;3\n" % s for s in stamps))
+
+
+def test_file_host_span_sec_REFUSES_a_stamp_inside_the_repeated_hour(new_york, tmp_path):
+    """`file_host_span_sec` reads only the first and last row — O(1) by design, because an ECG night is
+    hundreds of MB — so it cannot walk the series to resolve a fold the way `rtc_drift_summary` does.
+    Inside the repeated hour a naive stamp names two instants an hour apart, and this is a DIFFERENCE:
+    guessing costs 3600 s, which on a 8 h night is over 12 % of the coverage the caller will publish.
+    So it refuses, and the caller reports "no duration basis" rather than a number that is an hour out.
+    """
+    p = tmp_path / "Wellue_O2Ring-S_S8AW2100_20261101003000_ACCRAW.txt"
+    # THREE rows, so the refusal cannot come from the zero-span guard: walking past the ambiguous last
+    # row would reach 00:45 and hand back a confident 900 s — a span shortened by the hour it skipped,
+    # which reads as a gap that never happened. That is what must not happen.
+    _raw_host_file(p, "2026-11-01T00:30:00.000", "2026-11-01T00:45:00.000",
+                   "2026-11-01T01:30:00.000")                                # 01:30 occurs TWICE
+    assert nightqc.file_host_span_sec(str(p)) is None, "an ambiguous endpoint must refuse, not shorten"
+
+
+def test_file_host_span_sec_answers_where_the_stamps_are_UNAMBIGUOUS(new_york, tmp_path):
+    """The control, in the same zone: the refusal above is about the seam, not about the mechanism."""
+    p = tmp_path / "Wellue_O2Ring-S_S8AW2100_20261031220000_ACCRAW.txt"
+    _raw_host_file(p, "2026-10-31T22:00:00.000", "2026-10-31T23:30:00.000")
+    assert nightqc.file_host_span_sec(str(p)) == 5400.0
+
+
+def test_file_host_span_sec_refuses_a_file_that_never_advanced(new_york, tmp_path):
+    """Zero is not a duration: one row, or every row inside the same millisecond, cannot state a span."""
+    p = tmp_path / "Wellue_O2Ring-S_S8AW2100_20261031220000_ACCRAW.txt"
+    _raw_host_file(p, "2026-10-31T22:00:00.000", "2026-10-31T22:00:00.000")
+    assert nightqc.file_host_span_sec(str(p)) is None
+
+
+def test_file_host_span_sec_walks_past_a_TORN_row_but_not_past_an_ambiguous_one(new_york, tmp_path):
+    """The other half of that distinction. A partial final row — a still-open file flushed mid-line —
+    has no stamp at all, and a missing endpoint is not a wrong one, so it is skipped exactly as
+    `file_span_sec` skips one. Only ambiguity refuses."""
+    p = tmp_path / "Wellue_O2Ring-S_S8AW2100_20261031220000_ACCRAW.txt"
+    p.write_text("Phone timestamp;sensor timestamp [ns];X [raw];Y [raw];Z [raw]\n"
+                 "2026-10-31T22:00:00.000;;1;2;3\n"
+                 "2026-10-31T23:30:00.000;;1;2;3\n"
+                 "2026-10-31T23:3")                      # torn mid-write, no stamp to read
+    assert nightqc.file_host_span_sec(str(p)) == 5400.0
+
+
+def test_file_host_span_sec_reads_past_a_LEADING_COMMENT(new_york, tmp_path):
+    """Measured on the real 2026-09-09 `_PPG2W.txt`: the ring's host-disciplined streams open with
+    `# timebase=host-disciplined`, and treating that as the header made every one of them report "no
+    host column" while `_PLETHA.txt`, which has no comment line, answered. The synthetic fixtures did
+    not carry the comment, so only the real night showed it."""
+    p = tmp_path / "Wellue_O2Ring-S_S8AW2100_20261031220000_PPG2W.txt"
+    _raw_host_file(p, "2026-10-31T22:00:00.000", "2026-10-31T23:30:00.000", comment=True)
+    assert nightqc.file_host_span_sec(str(p)) == 5400.0
+
+
+# ── the refusal shapes, one per way a file can fail to state a host span ───────────────────────────
+# Each is a way `file_host_span_sec` returns None. They are separated because the CALLER publishes
+# "no-duration-basis" for all of them, and a reader of that reason should be able to find which shape
+# produced it here rather than guessing.
+
+def test_host_span_refuses_an_empty_file(utc, tmp_path):
+    """No header at all — a file created and never written to, which a killed session leaves behind."""
+    p = tmp_path / "Wellue_O2Ring-S_S8AW2100_20261031220000_ACCRAW.txt"
+    p.write_text("")
+    assert nightqc.file_host_span_sec(str(p)) is None
+
+
+def test_host_span_refuses_a_file_that_is_ALL_comments(utc, tmp_path):
+    """The comment skip is BOUNDED. Without a bound a large file of comments would be read whole just
+    to conclude it cannot say, which breaks the O(1) promise this function is documented to keep."""
+    p = tmp_path / "Wellue_O2Ring-S_S8AW2100_20261031220000_ACCRAW.txt"
+    p.write_text("".join("# note %d\n" % i for i in range(nightqc._HOST_SPAN_SCAN_ROWS + 20)))
+    assert nightqc.file_host_span_sec(str(p)) is None
+
+
+def test_host_span_refuses_when_no_row_in_reach_carries_a_stamp(utc, tmp_path):
+    """Same bound on the other scan: a header, then more blank-stamp rows than it will look through."""
+    p = tmp_path / "Wellue_O2Ring-S_S8AW2100_20261031220000_ACCRAW.txt"
+    p.write_text("Phone timestamp;sensor timestamp [ns];X [raw];Y [raw];Z [raw]\n"
+                 + "".join(";;1;2;3\n" for _ in range(nightqc._HOST_SPAN_SCAN_ROWS + 20)))
+    assert nightqc.file_host_span_sec(str(p)) is None
+
+
+def test_host_span_refuses_an_ambiguous_FIRST_row(new_york, tmp_path):
+    """The other endpoint. Walking forward past it would start the span an hour late instead of early —
+    same 3600 s, opposite sign, equally invented."""
+    p = tmp_path / "Wellue_O2Ring-S_S8AW2100_20261101013000_ACCRAW.txt"
+    _raw_host_file(p, "2026-11-01T01:30:00.000", "2026-11-01T03:00:00.000")
+    assert nightqc.file_host_span_sec(str(p)) is None
+
+
+def test_host_span_refuses_a_path_it_cannot_open(utc, tmp_path):
+    """A directory where a file is expected — the shape a half-written night leaves, and the same
+    OSError arm `file_span_sec` carries."""
+    d = tmp_path / "Wellue_O2Ring-S_S8AW2100_20261031220000_ACCRAW.txt"
+    d.mkdir()
+    assert nightqc.file_host_span_sec(str(d)) is None
+
+
+def test_host_span_refuses_a_file_whose_stamps_RUN_BACKWARDS(utc, tmp_path):
+    """An RTC step mid-file leaves every later stamp earlier than the first. There is no span to state:
+    the difference would be negative, and clamping it to zero is the fabricated-measurement direction."""
+    p = tmp_path / "Wellue_O2Ring-S_S8AW2100_20261031230000_ACCRAW.txt"
+    _raw_host_file(p, "2026-10-31T23:00:00.000", "2026-10-31T22:00:00.000",
+                   "2026-10-31T22:00:01.000")
+    assert nightqc.file_host_span_sec(str(p)) is None
+
+
+def test_host_span_skips_a_row_TRUNCATED_before_the_stamp_column(utc, tmp_path):
+    """A row cut short mid-write has fewer fields than the header — no stamp to read, so it is skipped
+    like any torn row rather than refusing the file."""
+    p = tmp_path / "Wellue_O2Ring-S_S8AW2100_20261031220000_ACCRAW.txt"
+    p.write_text("Phone timestamp;sensor timestamp [ns];X [raw];Y [raw];Z [raw]\n"
+                 "2026-10-31T22:00:00.000;;1;2;3\n"
+                 "2026-10-31T23:30:00.000;;1;2;3\n"
+                 "\n")
+    assert nightqc.file_host_span_sec(str(p)) == 5400.0
+
+
+def test_host_span_takes_a_ZONED_stamp_at_its_word(utc, tmp_path):
+    """Clock Contract §2 rule 2: where the input carried a real zone there is nothing to resolve, so the
+    fold question does not arise and the instant is used as written. Polar Sensor Logger exports land
+    here."""
+    p = tmp_path / "Wellue_O2Ring-S_S8AW2100_20261031220000_ACCRAW.txt"
+    _raw_host_file(p, "2026-10-31T22:00:00.000+02:00", "2026-10-31T23:30:00.000+02:00")
+    assert nightqc.file_host_span_sec(str(p)) == 5400.0
+
+
+def test_host_span_does_not_depend_on_the_stamp_being_the_FIRST_column(utc, tmp_path):
+    """Every header that carries `Phone timestamp` today carries it first (`ppi` carries none at all and
+    is refused by the missing-column arm), so the short-row guard is unreachable through a real layout.
+    It is kept rather than removed because column order is not this function's business: a header that
+    moved the stamp would otherwise turn a truncated row into an IndexError inside a whole-night scan,
+    which fails the report rather than the row. This is the test that says so."""
+    p = tmp_path / "Wellue_O2Ring-S_S8AW2100_20261031220000_ACCRAW.txt"
+    p.write_text("seq;Phone timestamp;sensor timestamp [ns];X [raw]\n"
+                 "1;2026-10-31T22:00:00.000;;1\n"
+                 "2;2026-10-31T23:30:00.000;;1\n"
+                 "3\n")                                  # truncated BEFORE the stamp column
+    assert nightqc.file_host_span_sec(str(p)) == 5400.0
+
+
+def test_host_span_refuses_when_the_tail_window_holds_only_EARLIER_rows(utc, tmp_path):
+    """The RTC-step shape at length. The tail read is the last 8 KB, so on a long file the first row is
+    not in it: if the clock stepped backwards after that row, every stamp in reach is earlier than the
+    start and there is no span to state. The short version of this returns at the zero-span guard
+    instead, because the first row is still inside the window — which is why this one is long."""
+    p = tmp_path / "Wellue_O2Ring-S_S8AW2100_20261031230000_ACCRAW.txt"
+    rows = ["2026-10-31T23:00:00.000;;1;2;3"]                      # then the clock steps back an hour
+    rows += ["2026-10-31T22:%02d:%02d.000;;1;2;3" % (m, s) for m in range(20) for s in range(60)]
+    p.write_text("Phone timestamp;sensor timestamp [ns];X [raw];Y [raw];Z [raw]\n"
+                 + "\n".join(rows) + "\n")
+    assert p.stat().st_size > (1 << 13), "the plant needs the first row OUTSIDE the tail window"
+    assert nightqc.file_host_span_sec(str(p)) is None

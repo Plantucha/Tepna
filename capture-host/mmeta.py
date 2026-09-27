@@ -40,8 +40,25 @@ def decided_under_glob(exit_codes: dict, glob: str) -> int:
     crash leaves, and counting it would re-admit the false green. An empty / missing map counts zero.
     """
     prefix = glob.rstrip("*")
-    return sum(1 for key, code in (exit_codes or {}).items()
-               if code is not None and key.startswith(prefix))
+    return sum(1 for key, code in (exit_codes or {}).items() if code is not None and key.startswith(prefix))
+
+
+def killed_under_glob(exit_codes: dict, glob: str) -> int:
+    """How many mutants under `glob` were KILLED, read from the exit codes rather than derived.
+
+    mutmut's own mapping: exit 1 is a failing test suite and exit 3 is an internal pytest error, and it
+    treats BOTH as a kill (`status_by_exit_code`) — the mutant changed behaviour enough that the suite
+    could not complete cleanly. Every other non-null code is some other outcome (0 survived, 5/33 no
+    tests, 24/-24/152/255 timeout, 34 skipped, 35 suspicious, 37 caught by the type checker).
+
+    MEASURED, NOT DERIVED, and that is the whole reason this exists. `killed` could be computed as
+    `decided - survived - undecided`, but then the verdict's self-consistency assertion
+    (`mutation_diff.result_inconsistency`) would be checking arithmetic it had just performed — vacuous
+    by construction. Counting kills from the same map `decided` comes from gives the assertion something
+    independent to disagree with.
+    """
+    prefix = glob.rstrip("*")
+    return sum(1 for key, code in (exit_codes or {}).items() if code in (1, 3) and key.startswith(prefix))
 
 
 def read_exit_codes(meta_path: Path) -> dict:
@@ -64,6 +81,11 @@ def tested_count(work: Path, module: str, glob: str) -> int:
     Zero on a glob the driver believes ran cleanly means the invocation dropped out — refuse, don't green.
     """
     return decided_under_glob(read_exit_codes(Path(work) / "mutants" / f"{module}.meta"), glob)
+
+
+def killed_count(work: Path, module: str, glob: str) -> int:
+    """`killed_under_glob` against the scratch's meta — the sibling of `tested_count`."""
+    return killed_under_glob(read_exit_codes(Path(work) / "mutants" / f"{module}.meta"), glob)
 
 
 def generated_under_glob(mutants_src: str, glob: str) -> int:
@@ -132,8 +154,8 @@ def test_tree_hash(tests_dir: Path) -> str:
     return digest.hexdigest()[:16]
 
 
-def refresh_results_if_tests_changed(work: Path, module: str, tests_dir: Path, stamp: Path) -> bool:
-    """§2 — invalidate mutmut's RESULTS cache for `module` when the test tree has changed since last run.
+def refresh_caches_if_tests_changed(work: Path, module: str, tests_dir: Path, stamp: Path) -> bool:
+    """§2 — invalidate mutmut's RESULTS **and SELECTION** caches for `module` when the tests change.
 
     NULLS every value in `<work>/mutants/<module>.meta`'s `exit_code_by_key` — it does NOT delete the file.
     A null is precisely "generated but not decided" (see this module's header), which is exactly what an
@@ -145,8 +167,26 @@ def refresh_results_if_tests_changed(work: Path, module: str, tests_dir: Path, s
     but nothing matches`, i.e. the §2 invalidation would trigger the very crash §3 refuses on. (Measured
     2026-08-24: delete → EXIT 2 on the gate's own module; the fix keeps the mutant source + warm `.pyc`.)
 
+    ⚠️ AND THE SELECTION, which this used to leave behind — measured 2026-09-27, and it is the more
+    dangerous half. mutmut picks WHICH TESTS to run for a mutant from `mutants/mutmut-stats.json`
+    (`tests_by_mangled_function_name`), built by a TRACED pass. Nulling the exit codes made every mutant
+    re-decide — honestly — against a STALE selection, so a test edited to kill a mutant was never chosen
+    to run against it and the mutant read SURVIVED. Two paths produce that map without the edited test:
+    a test whose only contact with the code is a subprocess registers no trampoline hit at all, and
+    `collect_or_load_stats` re-traces only `new_tests() = ids - collected_test_names()` — a set difference
+    on test NAMES, so EDITING a test under the same name never re-traces it.
+
+    Removing the stats file is the whole fix: `load_stats()` then returns False and mutmut does a FULL
+    collection. It costs one traced pass (7.3 s measured on `solid_night_inputs`), which is the price of
+    the answer being about the tests that exist.
+
+    ⚠️ NOT symmetric with the meta above, deliberately. The meta is NULLED because deleting it strips the
+    mutant keys and mutmut, seeing unchanged source, skips regeneration and then crashes with "Filtered
+    for specific mutants, but nothing matches". The stats file has no such role — nothing filters on it —
+    so deleting is safe and is the only way to force a full re-trace.
+
     The test hash is stamped into `stamp` so the comparison is against what was actually last measured, not
-    an mtime. Returns True iff the results were invalidated (tests changed or no prior stamp).
+    an mtime. Returns True iff the caches were invalidated (tests changed or no prior stamp).
     """
     current = test_tree_hash(tests_dir)
     stamp = Path(stamp)
@@ -162,6 +202,13 @@ def refresh_results_if_tests_changed(work: Path, module: str, tests_dir: Path, s
                 data["exit_code_by_key"] = dict.fromkeys(codes, None)
                 meta.write_text(json.dumps(data), encoding="utf-8")
         except (OSError, ValueError):
-            pass                        # unreadable meta ⇒ nothing to invalidate; the stamp still advances
+            pass  # unreadable meta ⇒ nothing to invalidate; the stamp still advances
+    # THE SELECTION. Unlinked, not rewritten: mutmut rebuilds it from a traced pass when it is absent,
+    # and any partial edit here would be a guess about which associations are still true.
+    stats = Path(work) / "mutants" / "mutmut-stats.json"
+    try:
+        stats.unlink()
+    except OSError:
+        pass  # already gone, or unreadable ⇒ mutmut collects afresh either way
     stamp.write_text(current, encoding="utf-8")
     return True

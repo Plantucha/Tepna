@@ -3425,6 +3425,23 @@ function tlForStream(key){
   return { dev:d, st:d.streams[base] || null };
 }
 
+// ∅ — `coverage_pct` is NULL when no duration basis existed (no nominal rate AND no device clock),
+// and that is not 0.0 %. The ring's three raw-buffer opcodes are exactly that case, and this card read
+// `0.0 % captured` beside a LIVE pill on them — a percentage of an absent denominator, the same class
+// of bug as a zero standing in for an absent sample (owner, 2026-09-27 05:52, ACC (O2Ring)).
+//
+// A REAL zero still reads as a measurement: a declared stream with no files captured nothing, and that
+// must not converge with "cannot be measured" or a dead sensor hides behind the same words.
+// `coverage_unmeasured` annotates a percentage that only some of the stream's files could contribute
+// to — §∅ owner ruling 2026-09-17: reduced coverage annotates, a missing basis refuses.
+function coverageText(st){
+  const p = st.coverage_pct, un = st.coverage_unmeasured|0;
+  if(p === null || p === undefined)
+    return st.coverage_reason === 'no-duration-basis'
+      ? 'no rate to measure against' : 'coverage not measurable';
+  return p.toFixed(1)+'% captured'+(un ? ' ('+un+' file'+(un>1?'s':'')+' unmeasured)' : '');
+}
+
 function drawTimelines(){
   for(const s of STREAMS){
     const got = tlForStream(s.key); if(!got) continue;
@@ -3432,7 +3449,7 @@ function drawTimelines(){
     const cov = document.getElementById('ovcov-'+s.key), dbm = document.getElementById('ovdbm-'+s.key);
     if(got.st && cv) drawStateStrip(cv, got.st.states);
     if(rv) drawRssiStrip(rv, got.dev.rssi);
-    if(cov && got.st) cov.textContent = got.st.coverage_pct.toFixed(1)+'% captured';
+    if(cov && got.st) cov.textContent = coverageText(got.st);
     if(dbm){
       const r = (got.dev.rssi||[]).filter(x=>x!=null);
       dbm.textContent = r.length ? `${Math.min(...r)}…${Math.max(...r)} dBm` : '';

@@ -7758,6 +7758,96 @@
        boundary is silent: the parent parses it, the child never sees it, and the feature simply does
        not happen while every night still reports success." This gates the class rather than the one
        instance: every flag that influences which nights are SELECTED must be forwarded. */
+    /* ════ THE FOLD'S CODE DIGEST COVERS THE COMPUTE CLOSURE, AND ONLY IT ══════════════════════════
+       `CODE_DIGEST` decides whether a stamped night is re-folded (`redoReason` → 'code changed'). It has to
+       move when the fold's OUTPUT could differ and stay still otherwise, and it was wrong in BOTH
+       directions at once:
+
+       · TOO CONSERVATIVE — it hashed `__filename`, so every edit to the orchestrator itself re-staled
+         every stamped night. Measured on #2882 (scheduling and diagnostics only): the digest moved against
+         an unchanged spine and `redoReason` returned 'code changed' for all 82 stamped nights, ~78 min of
+         re-fold. Residue 2026-09-22-fold-code-digest-includes-the-orchestrator. That row deliberately
+         withheld authorisation pending a frequency measurement — "an orchestrator edited twice a year does
+         not justify a new digest surface; one edited monthly does" — and the measurement authorises it:
+         48 commits touch tools/trio-batch.mjs, 21 in July · 15 in August · 12 in September, ~19/month.
+       · 🔴 NOT CONSERVATIVE ENOUGH — the realm loaded EIGHT modules and the digest hashed SEVEN.
+         `integrator-dsp.js` was missing, and the fold CALLS it (`IntegratorDSP.hrAgreement`,
+         `fitClockDrift`, `fitClockClosure`, `fitClockOffsetPooled`) and writes the results into the fold.
+         So an edit to it changed output while every stamped night kept its stamp: a silent stale fold.
+         That direction is strictly worse than a spurious re-fold, and nothing was looking for it.
+
+       The fix is ONE array — `COMPUTE_MODULES` — read by the realm loader and by the digest, so the two
+       cannot drift again and an added module lands INSIDE the closure. That is `computeHash`'s denylist
+       reasoning (manifest-gate.js) carried across: an unknown asset over-flags rather than blinding the
+       stamp. The orchestrator's own text stays OUTSIDE, deliberately. */
+    group('the fold code digest covers the compute closure and not the orchestrator', 'trio-batch · code-digest · closure', function (T) {
+      var tb = (env.sources && (env.sources['tools/trio-batch.mjs'] || env.sources['trio-batch.mjs'])) || '';
+      T.ok('trio-batch source wired', !!tb, 'not in env.sources — it is listed in BOTH lanes, so this leg cannot go vacuous');
+      if (!tb) return;
+
+      /* ── ONE list, two readers ─────────────────────────────────────────────────────────────────── */
+      var decl = tb.match(/const COMPUTE_MODULES = \[([^\]]*)\]/);
+      T.ok('COMPUTE_MODULES is declared exactly once', (tb.match(/const COMPUTE_MODULES\s*=/g) || []).length === 1, 'the closure must have a single definition, or the two readers can drift again');
+      if (!decl) return;
+      var mods = decl[1]
+        .split(',')
+        .map(function (x) {
+          return x.trim().replace(/^'|'$/g, '');
+        })
+        .filter(Boolean);
+      T.ok(
+        'the realm loader reads the list, not a literal',
+        /for \(const f of COMPUTE_MODULES\) loadInto/.test(tb),
+        'a second literal array here is how integrator-dsp.js came to be in the realm and not the digest'
+      );
+      T.ok('the digest reads the same list', /COMPUTE_MODULES\.map\(\(f\) => join\(ROOT, f\)\)/.test(tb), 'the digest must derive from the same array; a private copy reintroduces the drift');
+
+      /* ── the orchestrator's own text is OUTSIDE ────────────────────────────────────────────────── */
+      var digest = tb.slice(tb.indexOf('const CODE_DIGEST'), tb.indexOf('const inputDigest'));
+      /* 🔴 COMMENTS STRIPPED BEFORE SCANNING, and the first version of this leg failed without them: the
+         comment inside that block EXPLAINS that `__filename` is deliberately absent, so a bare word search
+         found the very token it was written to forbid. Same shape as the `independent ✓` scan on the trio
+         page — the token a block must not USE is the token its explanation has to NAME. Scan code, not prose. */
+      var digestCode = digest.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+      T.ok(
+        'ANTI-VACUITY · stripping comments left the digest\u2019s actual code',
+        /COMPUTE_MODULES/.test(digestCode) && digestCode.length > 40,
+        'the strip removed everything, so the check below examined an empty string — ' + digestCode.length + ' chars left'
+      );
+      T.ok(
+        'the digest does NOT hash __filename',
+        digestCode.indexOf('__filename') < 0,
+        'the orchestrator’s own text is back in the closure — every edit to scheduling, logging or retries re-stales all 82 stamped nights'
+      );
+      T.ok(
+        'and `__filename` still exists in the file for its real use (the child re-spawn), so the assertion above is about the DIGEST',
+        /__filename\s*=\s*fileURLToPath/.test(tb),
+        'the symbol vanished entirely — the check above would then pass for the wrong reason'
+      );
+
+      /* ── the closure is COMPLETE: the fail-open this unit found ────────────────────────────────── */
+      T.ok(
+        'integrator-dsp.js is INSIDE the closure',
+        mods.indexOf('integrator-dsp.js') >= 0,
+        'it was missing from the digest while the realm loaded it — an edit to it changed fold output and re-folded nothing'
+      );
+      T.ok(
+        '…and that inclusion is EARNED, not decorative — the fold really calls IntegratorDSP',
+        /ctx\.IntegratorDSP\.\w+\(/.test(tb),
+        'nothing in the fold calls IntegratorDSP any more, so its presence in the closure is unexplained — drop it or explain it rather than carrying a module nobody uses'
+      );
+      /* Every module the realm loads is in the digest BY CONSTRUCTION now (one array). Pinned as an
+         equality so a future second literal is caught rather than inferred from the single-declaration
+         check alone. */
+      T.eq(
+        'the closure is exactly the eight modules the realm loads',
+        mods.slice().sort().join(','),
+        ['clock.js', 'dex-export.js', 'ecgdex-dsp.js', 'integrator-dsp.js', 'kernel-constants.js', 'oxydex-dsp.js', 'oxydex-util.js', 'ppgdex-dsp.js'].sort().join(','),
+        'the compute closure changed. If a module was ADDED to the fold, add it here deliberately; if one was removed, the stamps it justified are stale in the other direction.'
+      );
+      T.ok('the closure is not trivially small', mods.length >= 8, mods.length + ' modules — a shrunken list would blind the stamp, which is the direction that ships silently');
+    });
+
     group('trio-batch forwards its night-selection flags to the child', 'trio-batch · cli-plumbing', function (T) {
       var _src = env.sources || {};
       var tb = _src['tools/trio-batch.mjs'] || _src['trio-batch.mjs'] || '';
@@ -7811,6 +7901,111 @@
       if (pat != null) {
         T.ok('…and the PAT refusal is a CONTINUE, not a warning', /if\s*\(\s*ax\.deviceDrawn === true \|\| px\.deviceDrawn === true\s*\)[\s\S]{0,600}?continue;/.test(pat));
         T.ok('…naming DRAWN in the refusal text so a reader can tell it from an independence refusal', /DRAWN AXIS/.test(pat));
+      }
+
+      /* ── THE POPULATION IS DERIVED, AND IT IS AN EQUALITY (2026-09-27) ──────────────────────────
+         Everything above names tools BY HAND while this group's title claims "every tool that spends a
+         clock". `tools/pat-drift-attribution.mjs` reads a hostAxis rate, had no drawn guard, and was
+         outside the hand list — so it returned a fabricated ppm as "outstanding drift" for eight days
+         under a green gate, and its absence from the list was indistinguishable from it passing. That
+         is the hand-written-consumer-set shape twice already fixed elsewhere (#3134, #3142).
+         POPULATION: every `tools/*.mjs` whose CODE reads `.ppm` or `correctionAt`. A SUPERSET of the
+         true consumers on purpose — the same reasoning `manifest-gate.js computeHash` states for its
+         denylist, that an unknown asset belongs INSIDE the closure, so a new tool over-flags here
+         instead of being invisible. Comments are stripped first: four files matched only in prose, and
+         a scan that reads its own documentation is CLAUDE.md §4b's examined-nothing.
+         Each member is then classified by whether its code references a host axis at all, and every
+         axis consumer must be REFUSES or EXCLUDED with a reason naming which side of §7's line it sits
+         on — a drawn axis may be PLACED on a host timeline, never SPENT as a second clock. */
+      var TT = env.toolTexts;
+      /* A SKIP IS NOT A PASS, AND THIS ONE WOULD BE INVISIBLE. Every assertion below sits inside the
+         else-branch, so if `toolTexts` ever stopped being wired the whole equality would vanish into a
+         green skip — the failure mode this group exists to prevent, one level up. The browser lane
+         genuinely cannot enumerate a directory; the NODE lane has no such excuse, so there it is a
+         FAILURE. `process.env` is this suite's existing lane marker (see the TZ skips). */
+      var nodeLane = typeof process !== 'undefined' && process && process.env != null;
+      if (!TT) {
+        if (nodeLane) T.ok('env.toolTexts is wired in the node lane', false, 'absent — the derived population silently examined nothing');
+        else T.skip('the derived tools-tree population', 'no directory enumeration in this lane (browser); the node lane carries the equality');
+      } else {
+        var stripC = function (t) {
+          return t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:\\])\/\/[^\n]*/g, '$1');
+        };
+        /* REFUSES — the guard's own CONDITIONAL, never the bare identifier. `deviceDrawn` also appears
+           inside every refusal BODY, so matching the identifier leaves `if (false)` green (the lesson
+           this group already records for pat-host-offset, verified there by mutation). */
+        var REFUSES = {
+          'tools/trio-batch.mjs': /deviceDrawn !== true/,
+          'tools/pat-host-offset.mjs': /if\s*\(\s*ax\.deviceDrawn === true \|\| px\.deviceDrawn === true\s*\)/,
+          'tools/device-stability.mjs': /if\s*\(r\.drawn\)\s*return\s*'drawn-device-axis'/,
+          'tools/pat-drift-attribution.mjs': /if\s*\(hostAxis\.deviceDrawn === true\)/
+        };
+        /* EXCLUDED — an axis consumer that must NOT refuse, each with the reason it must not. These are
+           verified readings of the code, not a place to park an unmigrated spender: a row here says the
+           tool was examined and §7 does not bind it. */
+        var EXCLUDED = {
+          'tools/pat-matchrate-strict.mjs':
+            'PLACES — `t0Ms + dev * scale` reconstructs the axis the emitting DSP already applied (`scale` is 1 unless `applied === true`), so it reproduces where the samples were placed rather than spending the rate as a second clock. Refusing here would disagree with the DSP that wrote the axis.',
+          'tools/known-clock-recovery.mjs':
+            'REPORTS — an estimator oracle over an INJECTED rate. It forwards `deviceDrawn`/`drawnShare` into every output row and deliberately measures recovery ACROSS drawn streams, so gating them out would delete the population it exists to characterise.',
+          'tools/pat-axis-leg-audit.mjs':
+            'REPORTS — the output IS the provenance line, printing `drawn=` beside `ppm=`, `independent=` and `spreadMs=`. Its predicted-drift figure is a diagnostic shown next to the flag, never applied as a correction.'
+        };
+        var POP = [],
+          AXIS = [],
+          OWNFIT = [];
+        Object.keys(TT)
+          .sort()
+          .forEach(function (k) {
+            var t = stripC(TT[k]);
+            if (!/\.ppm\b|correctionAt/.test(t)) return;
+            POP.push(k);
+            if (/hostAxis|hostAx\b/.test(t)) AXIS.push(k);
+            else OWNFIT.push(k);
+          });
+        /* ANTI-VACUITY: a scan that found nothing would satisfy every equality below. */
+        T.ok('the tools tree was actually read', Object.keys(TT).length >= 100, 'only ' + Object.keys(TT).length + ' tools/*.mjs visible');
+        T.ok('the population is non-empty', POP.length >= 8, 'POPULATION=' + POP.length + ' — the .ppm/correctionAt scan matched almost nothing');
+        /* THE EQUALITY, both directions, with the sets PRINTED so the denominator is readable and a
+           disagreement names the file rather than a count. */
+        var classified = Object.keys(REFUSES).concat(Object.keys(EXCLUDED)).sort();
+        var unclassified = AXIS.filter(function (k) {
+          return !REFUSES[k] && !EXCLUDED[k];
+        });
+        var stale = classified.filter(function (k) {
+          return AXIS.indexOf(k) < 0;
+        });
+        T.eq(
+          'every tool that reads a hostAxis RATE is classified — ' + AXIS.length + ' axis consumers: ' + AXIS.join(', '),
+          unclassified.join(', '),
+          '',
+          'UNCLASSIFIED: ' + unclassified.join(', ') + ' — reads a hostAxis rate with no drawn guard and no EXCLUDED reason'
+        );
+        T.eq('…and nothing is classified that no longer reads one (a stale entry examines nothing)', stale.join(', '), '');
+        T.eq('…the two sets are exactly equal', classified.join(', '), AXIS.slice().sort().join(', '));
+        /* Each guard's conditional is present — the classification is only as good as the code under it. */
+        Object.keys(REFUSES).forEach(function (k) {
+          var t = TT[k];
+          if (t == null) {
+            T.ok(k + ' is in the tools tree', false, 'named in REFUSES but not found');
+            return;
+          }
+          T.ok(k + ' carries its drawn-refusal CONDITIONAL', REFUSES[k].test(stripC(t)), 'guard not found — replacing it with if(false) must red this');
+        });
+        /* Each exclusion states a reason on §7's vocabulary, so "excluded" can never read as "checked". */
+        Object.keys(EXCLUDED).forEach(function (k) {
+          T.ok(k + "'s exclusion names PLACES or REPORTS", /^(PLACES|REPORTS) — /.test(EXCLUDED[k]), EXCLUDED[k].slice(0, 40));
+        });
+        /* The rest of the population reads a `.ppm` that is its OWN fit — mechanically, the hostAxis
+           token never appears in their code. Published as a named set and ratcheted as an EQUALITY so a
+           tool that starts consuming a real axis lands in AXIS and must be classified, rather than
+           joining a floor that never notices. */
+        T.eq(
+          'the own-fit set is exactly the 4 measured 2026-09-27: ' + OWNFIT.join(', '),
+          OWNFIT.join(', '),
+          'tools/beat-comb-analysis.mjs, tools/beat-leg-closure.mjs, tools/dual-clock-rate.mjs, tools/integrator-block-precision.mjs'
+        );
+        T.eq('POPULATION is 11 — the published denominator', POP.length, 11, 'POPULATION=' + POP.join(', '));
       }
     });
 
@@ -13266,6 +13461,17 @@
          Depth-1 only: `sigma: { o2, h10, verity }` contributes `sigma`, not its members. */
       /* Depth-1 members of an object literal, given the text starting at its `{`. Shared by the two literal
          idioms below so they cannot disagree about what "a payload key" means. */
+      var _braceEnd = function (t, i) {
+        var d2 = 0;
+        for (var k = i; k < t.length; k++) {
+          if (t[k] === '{') d2++;
+          else if (t[k] === '}') {
+            d2--;
+            if (d2 === 0) return k;
+          }
+        }
+        return -1;
+      };
       var litKeysAt = function (text, brace, into) {
         var d = 0,
           end = -1;
@@ -13299,6 +13505,88 @@
           seg += ch;
         }
         flush();
+      };
+      /* ── WHICH MESSAGE TYPE CARRIES EACH KEY, and WHERE a consumer reads it (2026-09-27) ────────────
+         The matcher above asks "does `.key` appear anywhere in the consumer file", which counts a key read
+         on an UNRELATED message path as consumed. That hid a real defect: qrs-equiv-analysis.js read
+         `m.error` in its PDX-boot handler, so `error` matched, while its `done`-path handler ignored it and
+         counted a thrown job as completed (residue 2026-09-27-boundary-matcher-reads-the-file-not-the-path,
+         fixed in #3147). These two helpers make the stronger question askable. */
+      var typeOfPayload = function (t, brace) {
+        var m = /type\s*:\s*'(\w+)'/.exec(t.slice(brace, Math.min(t.length, brace + 400)));
+        return m ? m[1] : null;
+      };
+      var payloadKeyTypes = function (prodText) {
+        var map = {},
+          m;
+        var add = function (k, ty) {
+          if (!k || k === 'type' || !ty) return;
+          (map[k] = map[k] || {})[ty] = true;
+        };
+        /* inline postMessage({ type:'T', … }) */
+        var POST = /postMessage\s*\(\s*\{/g;
+        while ((m = POST.exec(prodText))) {
+          var b = prodText.indexOf('{', m.index),
+            ty = typeOfPayload(prodText, b),
+            kk = {};
+          litKeysAt(prodText, b, kk);
+          Object.keys(kk).forEach(function (k) {
+            add(k, ty);
+          });
+        }
+        /* a named `var out = { … }`: its own `type:`, else the type of the post site that nests it */
+        var LIT = /\bvar\s+out\s*=\s*\{/g;
+        while ((m = LIT.exec(prodText))) {
+          var lb = prodText.indexOf('{', m.index),
+            own = typeOfPayload(prodText, lb),
+            kk2 = {};
+          litKeysAt(prodText, lb, kk2);
+          if (Object.keys(kk2).length < 2) continue;
+          var ty2 = own;
+          if (!ty2) {
+            var P2 = /postMessage\s*\(\s*\{/g,
+              pm;
+            while ((pm = P2.exec(prodText))) {
+              var pb = prodText.indexOf('{', pm.index),
+                pty = typeOfPayload(prodText, pb);
+              if (pty && /\w+\s*:\s*res\b/.test(prodText.slice(pb, pb + 200))) ty2 = pty;
+            }
+          }
+          Object.keys(kk2).forEach(function (k) {
+            add(k, ty2);
+          });
+        }
+        /* `out.X =` assignments join whichever named payload this producer has */
+        var ASSIGN2 = /\bout\.([A-Za-z_][A-Za-z0-9_]*)\s*=/g;
+        var anyTy = Object.keys(map).length ? Object.keys(map[Object.keys(map)[0]])[0] : null;
+        while ((m = ASSIGN2.exec(prodText))) add(m[1], anyTy);
+        return map;
+      };
+      /* A consumer's `onmessage` bodies, split into the regions each message type guards. Both idioms:
+         `onmessage = function (ev) {` and `onmessage = (ev) => {` — the arrow form is what
+         sensor-trio-night.js uses, and missing it made an early probe of mine flag 11 keys falsely. */
+      var handlerRegions = function (text) {
+        var R = {},
+          outside = text,
+          m;
+        var H = /onmessage\s*=\s*(?:function\s*)?\([^)]*\)\s*(?:=>\s*)?\{/g;
+        while ((m = H.exec(text))) {
+          var b = text.indexOf('{', m.index),
+            e = _braceEnd(text, b);
+          if (e < 0) continue;
+          var body = text.slice(b + 1, e);
+          outside = outside.split(body).join('');
+          var g;
+          var GUARD_NE = /\bm\.type\s*!==\s*'(\w+)'\s*\)\s*return\s*;/g;
+          while ((g = GUARD_NE.exec(body))) (R[g[1]] = R[g[1]] || []).push(body.slice(g.index));
+          var GUARD_EQ = /\bm\.type\s*===\s*'(\w+)'\s*\)\s*\{/g;
+          while ((g = GUARD_EQ.exec(body))) {
+            var gb = body.indexOf('{', g.index),
+              ge = _braceEnd(body, gb);
+            if (ge > 0) (R[g[1]] = R[g[1]] || []).push(body.slice(gb, ge));
+          }
+        }
+        return { regions: R, outside: outside };
       };
       var payloadKeys = function (prodText) {
         var found = {},
@@ -13391,6 +13679,9 @@
          (residue 2026-09-02-pat-detailcorr-unread). Every key that crosses this boundary is read; a
          new dead key reds immediately, and the ratchet must not be re-opened to admit one. */
       var KNOWN_DEAD = [];
+      var UNDECIDED_BY_PRODUCER = {},
+        DECIDED_TOTAL = 0,
+        KEYS_TOTAL = 0;
       PAIRS.forEach(function (pair) {
         var prod = S[pair.producer];
         T.ok(pair.producer + ' · producer source readable', !!prod, prod ? prod.length + ' bytes' : 'ABSENT from env.sources');
@@ -13437,6 +13728,110 @@
               dead.join(',')
             : 'these keys cross the boundary and no consumer reads them (consumers examined: ' + consumers.join(', ') + '): ' + dead.join(',');
         T.eq(pair.producer + ' · no UNDECLARED dead key crosses the boundary', dead.join(',') || 'none', 'none', deadWhy);
+
+        /* ══ IS THE KEY READ ON THE PATH THAT CARRIES IT? (2026-09-27) ═══════════════════════════════
+           Three-valued per key, because a two-valued answer here would be a lie in one direction or the
+           other:
+             · CONSUMED — read inside a region guarded by the type that carries it.
+             · DEAD ON THE CARRYING PATH — read in this consumer, but ONLY under types that do not carry
+               it. This is the defect class: qrs-equiv's `error` was posted under `type:'done'` and read
+               only in the `ready` handler, so a thrown job counted as completed. It FAILS.
+             · UNDECIDABLE — read outside every handler body, i.e. in a helper the handler hands the
+               payload to. Real consumers do this constantly (sensor-trio-night.js passes `real` into
+               `finish` at :376 and `renderAll` at :634), so this bucket is large and is NOT a defect.
+
+           🔴 WHY NOT LEXICAL-SCOPE-AND-FAIL, measured before this was written: scoping reads to the
+           handler body and failing on the rest flags 54 of 65 keys — `sigma`, `ci`, `real`, `fused`,
+           `detail` and 49 more that are demonstrably read. Deciding those needs inter-procedural flow,
+           whose failure mode is a MISSED flow producing a false "dead key", i.e. failing in the direction
+           that gets live code deleted. So the undecidable bucket is PUBLISHED, never claimed as consumed
+           and never red.
+
+           THE RATCHET IS PER PRODUCER, four equalities rather than one total of 54. My own argument on the
+           invisible SET was that a count hides a swap and the members must be pinned; that argument is
+           right and it survives here at the granularity where its cost is bearable — a swap BETWEEN
+           producers cannot hide inside a stable total, each number's churn is a quarter of the whole, and
+           a bump is a deliberate one-line edit naming which producer grew. Pinning all 54 NAMES on a
+           population that moves with every payload edit is the gate that gets switched off, which is the
+           same argument the visibility ratchet's own comment makes.
+
+           ⚠️ THE FILE-WIDE MATCHER ABOVE STAYS, and its soundness is ONE-DIRECTIONAL: a key it calls DEAD
+           is dead (it occurs nowhere), while a key it calls READ may be read where that message never
+           arrives. That asymmetry is the whole reason this block exists; it is not a second opinion on the
+           same question. */
+        var keyTypes = payloadKeyTypes(prod);
+        var onPath = [],
+          offPath = [],
+          undecided = [];
+        Object.keys(keys).forEach(function (k) {
+          var tys = Object.keys(keyTypes[k] || {});
+          var re = new RegExp('[.\\b]' + k + '\\b');
+          var hitMatching = false,
+            hitOther = false,
+            hitOutside = false,
+            hitAnywhere = false;
+          consumers.forEach(function (c) {
+            var txt = S[c] || '';
+            if (!txt) return;
+            if (re.test(txt)) hitAnywhere = true;
+            var hr = handlerRegions(txt);
+            Object.keys(hr.regions).forEach(function (T2) {
+              hr.regions[T2].forEach(function (r) {
+                if (!re.test(r)) return;
+                if (tys.indexOf(T2) >= 0) hitMatching = true;
+                else hitOther = true;
+              });
+            });
+            if (re.test(hr.outside)) hitOutside = true;
+          });
+          if (!hitAnywhere) return; /* already covered by the file-wide DEAD assertion above */
+          if (hitMatching) onPath.push(k);
+          else if (hitOutside || !tys.length) undecided.push(k);
+          else if (hitOther) offPath.push(k);
+          else undecided.push(k);
+        });
+
+        T.eq(
+          pair.producer + ' · no key is read ONLY under a type that does not carry it',
+          offPath.join(',') || 'none',
+          'none',
+          'these keys are read in a consumer but only inside handlers for OTHER message types, so the path that carries them drops them: ' +
+            offPath.join(',') +
+            '. That is the qrs-equiv shape — a thrown job counted as completed.'
+        );
+        UNDECIDED_BY_PRODUCER[pair.producer] = undecided.length;
+        DECIDED_TOTAL += onPath.length;
+        KEYS_TOTAL += onPath.length + offPath.length + undecided.length;
+
+        /* PLANT 4 · the qrs-equiv shape must FAIL. A synthetic consumer that reads the key only inside a
+           handler guarded by a type that does not carry it — on origin/main's matcher this passes, because
+           the token occurs in the file. Without this plant the `none` above could mean the classifier never
+           reaches the off-path branch. */
+        var carried = Object.keys(keyTypes).filter(function (k) {
+          return Object.keys(keyTypes[k] || {}).length;
+        })[0];
+        if (carried) {
+          var carryTy = Object.keys(keyTypes[carried])[0];
+          var otherTy = carryTy === 'ready' ? 'done' : 'ready';
+          var synthetic = "w.onmessage = function (ev) { var m = ev.data || {}; if (m.type === '" + otherTy + "') { use(m." + carried + '); } };';
+          var hrS = handlerRegions(synthetic);
+          var inOther = (hrS.regions[otherTy] || []).some(function (r) {
+            return new RegExp('[.\\b]' + carried + '\\b').test(r);
+          });
+          var inCarry = (hrS.regions[carryTy] || []).some(function (r) {
+            return new RegExp('[.\\b]' + carried + '\\b').test(r);
+          });
+          T.ok(
+            'PLANT 4 · a read under a NON-carrying type is seen as such',
+            inOther && !inCarry,
+            'the classifier could not tell the two handlers apart for `' + carried + '` (carried by ' + carryTy + ', planted under ' + otherTy + ')'
+          );
+          T.ok(
+            'PLANT 4 · …and the file-wide matcher would have PASSED it (this is what the block adds)',
+            new RegExp('[.\\b]' + carried + '\\b').test(synthetic),
+            'the planted text does not even contain the token, so it cannot demonstrate the difference'
+          );
+        }
         T.eq('the known-dead ratchet is at ZERO — every key crossing the boundary is read', KNOWN_DEAD.length, 0);
         /* PLANT — the detector must still FIRE. A key that no consumer mentions, appended to the
            producer text, must be reported as dead; without this the empty set above could be the
@@ -13552,6 +13947,36 @@
           );
         });
       });
+
+      /* ── THE UNDECIDABLE BUCKET, PUBLISHED AND RATCHETED PER PRODUCER ────────────────────────────────
+         Four equalities, not one total. See the reasoning above the classifier: a swap between producers
+         cannot hide inside a stable total, each number's churn is a quarter of the whole, and a bump is a
+         deliberate one-line edit naming which producer grew. Two-sided on purpose — a DROP must also be
+         declared, because a key becoming decidable is exactly as interesting as one becoming helper-reached
+         and is the direction that shrinks the debt. */
+      var UNDECIDED_EXPECTED = { 'pat-feasibility-worker.js': 23, 'sensor-trio-worker.js': 34, 'qrs-equiv-worker.js': 2, 'qrs-yield-worker.js': 1 };
+      Object.keys(UNDECIDED_EXPECTED).forEach(function (w2) {
+        T.eq(
+          w2 + ' · helper-reached (UNDECIDABLE) key count',
+          UNDECIDED_BY_PRODUCER[w2] === undefined ? 'producer not examined' : UNDECIDED_BY_PRODUCER[w2],
+          UNDECIDED_EXPECTED[w2],
+          'the number of this producer’s keys read outside every handler body moved. A RISE means a new key is read only in a helper — fine, but declare it here. A FALL means one became decidable — lower this number. Never a floor: a swap between producers would hide inside a stable total, which is why these are four equalities rather than one.'
+        );
+      });
+      /* The decidability ratio, published as a NUMBER and deliberately not a gate: it says how much of the
+         boundary this stronger question can actually answer, so nobody reads the empty off-path bucket as
+         "the payloads are fully checked". */
+      T.ok(
+        'the handler-scoped question is answerable for a MINORITY of keys, and says so',
+        KEYS_TOTAL > 0,
+        'decidable on the carrying path: ' +
+          DECIDED_TOTAL +
+          ' of ' +
+          KEYS_TOTAL +
+          ' keys (' +
+          Math.round((100 * DECIDED_TOTAL) / Math.max(1, KEYS_TOTAL)) +
+          ' %); the rest are read in helpers the handler hands the payload to and are published per producer above'
+      );
     });
 
     group('Field hints never write to an id no surface defines', 'cohesion · dead-field-hints · render', function (T) {

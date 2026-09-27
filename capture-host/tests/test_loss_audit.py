@@ -41,15 +41,15 @@ DEV = [{"name": "Polar H10 0284", "model": "H10"}]
 
 def test_stream_gaps_uses_the_cadence_cut_and_reports_span(tmp_path):
     d = _night(tmp_path, holes=((200, 320), (500, 503)))
-    gaps, _delays, span, cut = loss_audit.stream_gaps_split(os.path.join(d, "Polar_H10_0284_20260920220000_ECG.txt"))
+    gaps, _delays, span, cut = _split(os.path.join(d, "Polar_H10_0284_20260920220000_ECG.txt"))
     assert cut == 5.0 and span == 599.0  # 1 s rows ⇒ cut 5 s; a 3 s hole is not a gap
     with open(os.path.join(d, "Polar_H10_0284_20260920220000_ECG.txt"), "a") as fh:
         fh.write("garbled row\n2026-09-20T22:10:00.000;1\n")  # a torn row is skipped; the stream goes on
-    gaps2, _delays2, span2, _ = loss_audit.stream_gaps_split(os.path.join(d, "Polar_H10_0284_20260920220000_ECG.txt"))
+    gaps2, _delays2, span2, _ = _split(os.path.join(d, "Polar_H10_0284_20260920220000_ECG.txt"))
     assert span2 == 600.0 and len(gaps2) == len(gaps)
     empty = os.path.join(d, "empty.txt")
     open(empty, "w").write("Phone timestamp;x\n# a comment before the first stamp\n")
-    assert loss_audit.stream_gaps_split(empty) == ([], [], 0.0, loss_audit._ni.GAP_S)
+    assert _split(empty) == ([], [], 0.0, loss_audit._ni.GAP_S)
     assert [(g[0], g[1]) for g in gaps] == [(T0 + dt.timedelta(seconds=199), 121.0)]
 
 
@@ -108,7 +108,12 @@ def test_audit_night_names_the_daemon_as_the_cause_and_the_verdict_is_UNKNOWN_wi
     assert v["worn_evidence"] is True and v["worn_lost_min"] == 2.0 and v["daemon_caused_min"] == 2.0
     # each gap by its local start, to the second — what `by_cause` sums, published so a consumer can count
     # only the gaps inside the worn interval
-    assert v["gaps"] == [{"at": "2026-09-20T22:03:19", "s": 121.0, "cause": "daemon:not-worn drop"}]
+    # the entry gained provenance, additively: WHICH SIDE of the gap start the cause was found on, the
+    # backward candidate kept as secondary evidence, any event deeper in the outage, and the fragment the
+    # gap came from. `cause` is unchanged, which is the part that was ever the contract.
+    assert v["gaps"] == [{"at": "2026-09-20T22:03:19", "s": 121.0, "cause": "daemon:not-worn drop",
+                          "cause_dir": "after", "backward_cause": "daemon:not-worn drop",
+                          "in_gap_cause": None, "file": "Polar_H10_0284_20260920220000_ECG.txt"}]
 
     o = loss_audit.night_verdict(a, night_dir=d, commit="abc1234")
     verdict.validate(o)
@@ -277,7 +282,9 @@ def test_write_night_puts_both_files_beside_the_summary_and_a_crash_is_UNKNOWN(t
 
 def test_an_unreadable_primary_and_a_night_name_that_is_not_a_date(tmp_path, monkeypatch):
     d = _night(tmp_path)
-    monkeypatch.setattr(loss_audit, "stream_gaps_split", lambda p: (_ for _ in ()).throw(OSError("eio")))
+    # `stream_scan`, not `stream_gaps_split`: the audit needs each fragment's ENDPOINTS to judge a
+    # boundary, so that is the call it makes. Same contract — an unreadable primary does not end the night.
+    monkeypatch.setattr(loss_audit, "stream_scan", lambda p: (_ for _ in ()).throw(OSError("eio")))
     a = loss_audit.audit_night(d, DEV, journal=lambda *a: [])
     assert "unreadable" in a["devices"]["Polar H10 0284"]["reason"]
     odd = tmp_path / "captures" / "not-a-date"
@@ -300,7 +307,7 @@ def test_stream_gaps_reads_the_ring_s_own_csv_layout(tmp_path):
             continue
         rows.append((T0 + dt.timedelta(seconds=i)).strftime("%H:%M:%S %d/%m/%Y") + ",96,62,0")
     p.write_text("\n".join(rows) + "\n")
-    gaps, _delays, span, cut = loss_audit.stream_gaps_split(str(p))
+    gaps, _delays, span, cut = _split(str(p))
     assert span == 299.0 and len(gaps) == 1 and gaps[0][1] == 61.0
 
 
@@ -428,14 +435,14 @@ def test_the_largest_primary_is_audited_and_an_unreadable_one_does_not_end_the_n
     a = loss_audit.audit_night(d, DEV, journal=lambda *a: [])
     assert a["devices"]["Polar H10 0284"]["file"] == "Polar_H10_0284_20260920220000_ECG.txt"
     _stream(os.path.join(d, "Wellue_O2Ring-S_S8_20260920220000_SPO2.csv"), ())
-    real = loss_audit.stream_gaps_split
+    real = loss_audit.stream_scan
 
     def eio_for_the_h10(p):
         if "H10" in os.path.basename(p):
             raise OSError("eio")
         return real(p)
 
-    monkeypatch.setattr(loss_audit, "stream_gaps_split", eio_for_the_h10)
+    monkeypatch.setattr(loss_audit, "stream_scan", eio_for_the_h10)
     devs = DEV + [{"name": "Ring", "model": "O2Ring-S"}]
     a = loss_audit.audit_night(d, devs, journal=lambda *a: [])
     assert "unreadable" in a["devices"]["Polar H10 0284"]["reason"] and a["devices"]["Ring"]["fragments"] == 1
@@ -927,7 +934,9 @@ def test_a_gap_is_published_as_a_float_of_whole_seconds_and_its_cause_window_is_
     exactly_the_window = [(gap_start - dt.timedelta(seconds=loss_audit.ATTRIB_WINDOW_S), "link:dbus busy")]
     v = loss_audit.audit_night(str(d), DEV, journal=lambda name, since, until: exactly_the_window)
     (g,) = v["devices"]["Polar H10 0284"]["gaps"]
-    assert g == {"at": "2026-09-20T22:03:19", "s": 61.0, "cause": "link:dbus busy"}  # the window's edge still names it
+    assert g == {"at": "2026-09-20T22:03:19", "s": 61.0, "cause": "link:dbus busy",  # the window's edge still names it
+                 "cause_dir": "before", "backward_cause": "link:dbus busy", "in_gap_cause": None,
+                 "file": "Polar_H10_0284_20260920220000_ECG.txt"}
     assert isinstance(g["s"], float)
 
 
@@ -1074,7 +1083,11 @@ def _polar(path, rows, host_jumps=(), dev_steps=None, torn_at=None, dev_last=Fal
 
 
 def _split(path):
-    return loss_audit.stream_gaps_split(str(path))
+    """(gaps, delays, span, cut) — the tuple shorthand these tests read. It lived in `loss_audit` as
+    `stream_gaps_split` until `audit_night` began calling `stream_scan` for each fragment's endpoints,
+    at which point nothing in production called the projection and `find_unwired` said so."""
+    sc = loss_audit.stream_scan(str(path))
+    return sc["gaps"], sc["delays"], sc["span"], sc["cut"]
 
 
 def test_a_host_gap_the_device_clock_does_not_see_is_a_delay_not_a_loss(tmp_path):
@@ -1223,3 +1236,165 @@ def test_the_access_start_parser_refuses_what_it_cannot_read():
     assert loss_audit._access_start("[24/Xyz/2026:22:00:54 -0400]") is None
     assert loss_audit._access_start("x [01/Jan/2027:00:00:05 +0100] y") == dt.datetime(2027, 1, 1, 0, 0, 5)
     assert loss_audit._access_start("[31/Dec/2026:23:59:59 -0400]") == dt.datetime(2026, 12, 31, 23, 59, 59)
+# ---------------------------------------------------------------------------------------------------
+# THE AUDIT'S OWN POPULATION — every fragment, and a cause the daemon logs AFTER the gap starts.
+# residue 2026-09-24-loss-audit-audits-only-the-largest-file
+#        2026-09-25-loss-audit-attribution-looks-only-backward
+# ---------------------------------------------------------------------------------------------------
+
+
+def _frag(path, rows, *, host0=0.0, dev0=1_000_000_000_000_000_000, period=PERIOD_NS):
+    """One fragment of a Polar stream, its host clock and device counter both starting where told — so a
+    caller can place two files a known distance apart on BOTH clocks and the boundary becomes judgeable."""
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write("Phone timestamp;sensor timestamp [ns];ecg [uV]\n")
+        for i in range(rows):
+            h = (T0 + dt.timedelta(seconds=host0 + i * period / 1e9)).isoformat(timespec="milliseconds")
+            fh.write(f"{h};{dev0 + i * period};100\n")
+
+
+def _two_fragment_night(tmp_path, *, boundary_s, dev_advance_s, name="2026-09-20"):
+    """A night whose primary stream is TWO files. `boundary_s` is the host gap between the last row of the
+    first and the first row of the second; `dev_advance_s` is what the DEVICE counter advanced across that
+    boundary — equal to the host gap means real loss, ~0 means the second file resumed where the first
+    stopped and the samples were merely late."""
+    d = tmp_path / "captures" / name
+    d.mkdir(parents=True)
+    rows = 15000  # 120 s at 125 Hz
+    span1 = (rows - 1) * PERIOD_NS / 1e9
+    _frag(str(d / "Polar_H10_0284_20260920220000_ECG.txt"), rows)
+    _frag(
+        str(d / "Polar_H10_0284_20260920220400_ECG.txt"),
+        rows,
+        host0=span1 + boundary_s,
+        dev0=1_000_000_000_000_000_000 + int((span1 + dev_advance_s) * 1e9),
+    )
+    (d / "Polar_H10_0284_20260920220000_HR.txt").write_text("Phone timestamp;HR [bpm]\n" + T0.isoformat() + ";62\n")
+    return str(d)
+
+
+def test_PLANT_a_cause_logged_AFTER_the_gap_start_is_attributed(tmp_path):
+    """residue 2026-09-25. The gap's start is the stream's LAST DELIVERED ROW, and the daemon logs the
+    action that caused it AFTER that row — measured on the H10 over 2026-09-17→23, all 39 real-loss gaps
+    had the pause line 1-3 s after the start and NONE before it, so all 39 read `unattributed`. The
+    geometry here is the recorded 2026-09-21T00:17:54 case: an 11.8 s step with the pause at 00:17:55.895.
+    """
+    t0 = dt.datetime(2026, 9, 21, 0, 17, 54)
+    gaps = [(t0, 11.8)]
+    events = [(t0 + dt.timedelta(seconds=1.895), "daemon:pull paused live")]
+    got = loss_audit.attribute_gaps(gaps, events)
+    assert got[0][2] == "daemon:pull paused live", (
+        "a daemon-caused loss read as unattributed inflates SOLID-NIGHT's unattributed leg with the "
+        "daemon's own designed behaviour",
+        got,
+    )
+
+
+def test_PLANT_every_fragment_of_the_primary_stream_is_audited(tmp_path):
+    """residue 2026-09-24. `audit_night` audited ONE file per device — the largest — so on a fragmented
+    night the ledger read as the whole night while 18.7-55.2 % of the recorded span went unexamined
+    (measured on vigil: 2026-09-10 H10 4 files 53.7 % unaudited; 2026-09-19 Verity 5 files 55.2 %;
+    2026-09-05 ring 32 files 18.7 %). Two equal fragments here, so `max(getsize)` cannot pick 'the' one.
+    """
+    d = _two_fragment_night(tmp_path, boundary_s=60.0, dev_advance_s=60.0)
+    a = loss_audit.audit_night(d, DEV, journal=lambda *a: [])
+    dev = a["devices"]["Polar H10 0284"]
+    assert [f["file"] for f in dev["files"]] == [
+        "Polar_H10_0284_20260920220000_ECG.txt",
+        "Polar_H10_0284_20260920220400_ECG.txt",
+    ], dev
+    assert dev["span_min"] == pytest.approx(2 * 119.992 / 60.0, abs=0.05), (
+        "the span must be the sum over fragments, not one file's",
+        dev["span_min"],
+    )
+
+
+def test_PLANT_the_gap_BETWEEN_two_fragments_is_itself_audited(tmp_path):
+    """The row's own point: a fragment boundary is a delivery event, so the gap between two fragments is a
+    loss that no per-file scan can see and 'sum the files' gaps' would miss. Judged like any other host
+    gap — by the DEVICE counter (#3157): advancing across the boundary by the whole 60 s means the samples
+    are gone."""
+    d = _two_fragment_night(tmp_path, boundary_s=60.0, dev_advance_s=60.0)
+    a = loss_audit.audit_night(d, DEV, journal=lambda *a: [])
+    dev = a["devices"]["Polar H10 0284"]
+    boundary = [g for g in dev["gaps"] if g.get("boundary")]
+    assert len(boundary) == 1 and boundary[0]["s"] == pytest.approx(60.0, abs=0.1), dev["gaps"]
+    assert dev["lost_min"] == pytest.approx(1.0, abs=0.05), dev["lost_min"]
+
+
+def test_CONTROL_a_boundary_the_device_counter_did_not_advance_across_is_a_DELAY(tmp_path):
+    """#3157 at the boundary, and the reason `boundary_gap` exists rather than "sum the files' gaps".
+
+    The second fragment resumes where the first stopped ON THE DEVICE CLOCK: the samples were not lost, the
+    delivery was. A 60 s host wait with a ~0 s counter advance must land in `delays` and leave `lost_min` at
+    zero, exactly as the same shape inside one file does."""
+    d = _two_fragment_night(tmp_path, boundary_s=60.0, dev_advance_s=0.0)
+    a = loss_audit.audit_night(d, DEV, journal=lambda *a: [])
+    dev = a["devices"]["Polar H10 0284"]
+    assert dev["boundary_gaps"] == 0 and dev["lost_min"] == 0.0, dev
+    assert dev["delayed_min"] == pytest.approx(1.0, abs=0.05), dev["delayed_min"]
+    assert [g for g in dev["gaps"] if g.get("boundary")] == [], dev["gaps"]
+
+
+def test_CONTROL_a_single_file_night_is_audited_exactly_as_before(tmp_path):
+    """The population change must not move a night that was never fragmented. Every number the audit
+    publishes for a one-file device is what a scan of that one file says, and no boundary is invented."""
+    d = _night(tmp_path, holes=((200, 320),))
+    a = loss_audit.audit_night(d, DEV, journal=lambda *a: [])
+    dev = a["devices"]["Polar H10 0284"]
+    sc = loss_audit.stream_scan(os.path.join(d, "Polar_H10_0284_20260920220000_ECG.txt"))
+    assert dev["boundary_gaps"] == 0, dev
+    assert [f["file"] for f in dev["files"]] == ["Polar_H10_0284_20260920220000_ECG.txt"], dev
+    assert dev["span_min"] == round(sc["span"] / 60.0, 1), dev
+    assert dev["fragments"] == len(sc["gaps"]) + 1, dev
+    assert len(dev["gaps"]) == len(sc["gaps"]), dev
+
+
+def test_CONTROL_the_verdict_object_shape_is_untouched_on_a_fragmented_night(tmp_path):
+    """The audit body grew; the VERDICT must not. Its population still counts devices by `file`, which is
+    why that key kept its old name and meaning even though `files` is now the audited population."""
+    d = _two_fragment_night(tmp_path, boundary_s=60.0, dev_advance_s=60.0)
+    v = loss_audit.night_verdict(loss_audit.audit_night(d, DEV, journal=lambda *a: []), night_dir=d)
+    js_validate(v)
+    assert set(v) >= {
+        "schema",
+        "gate",
+        "status",
+        "population",
+        "criterion",
+        "result",
+        "evidence",
+        "reason",
+        "producedBy",
+        "at",
+    }, sorted(v)
+    assert v["population"] == {"checked": 1, "eligible": 1, "excluded": 0}, v["population"]
+
+
+def test_boundary_gap_REFUSES_to_call_a_wait_a_delay_without_the_counters_word(tmp_path):
+    """Three ways the counter cannot answer, all of which must fall to `loss` — the direction that cannot
+    silently forgive a real hole. A reconnect RESETS the counter (§🔒 §7: a resync is a change of clock),
+    so a backwards step is not a small step; it is a different clock, and it bounds nothing."""
+    t = dt.datetime(2026, 9, 20, 22, 0, 0)
+    prev = {"last": t, "cut": 1.0, "period_ns": PERIOD_NS, "last_dev": 1_000_000_000_000_000_000}
+    nxt_ok = {"first": t + dt.timedelta(seconds=60), "first_dev": 1_000_000_000_000_000_000}
+    assert loss_audit.boundary_gap(prev, nxt_ok)[0] == "delay"  # the counter held its place
+    assert loss_audit.boundary_gap({**prev, "last_dev": None}, nxt_ok)[0] == "loss"  # no counter here
+    assert loss_audit.boundary_gap(prev, {**nxt_ok, "first_dev": None})[0] == "loss"  # none there
+    assert loss_audit.boundary_gap({**prev, "period_ns": None}, nxt_ok)[0] == "loss"  # no period learnt
+    back = {**nxt_ok, "first_dev": 1_000_000_000_000_000_000 - 10**9}  # counter RESET
+    assert loss_audit.boundary_gap(prev, back)[0] == "loss"
+    assert loss_audit.boundary_gap(prev, {**nxt_ok, "first": t + dt.timedelta(seconds=0.5)}) is None
+    assert loss_audit.boundary_gap({**prev, "last": None}, nxt_ok) is None
+    assert loss_audit.boundary_gap(prev, {**nxt_ok, "first": None}) is None
+
+
+def test_an_event_deep_inside_the_outage_is_recorded_but_never_the_cause():
+    """`in_gap_cause`. An event that merely happens during an outage is not its cause — the measurement is
+    that the causing line lands 1-3 s after the start — so a `dbus busy` 100 s into a 121 s gap is published
+    where a reader can see it and loses to a `not-worn drop` 1 s before the start."""
+    t0 = T0 + dt.timedelta(seconds=199)
+    ev = [(t0 - dt.timedelta(seconds=1), "daemon:not-worn drop"), (t0 + dt.timedelta(seconds=100), "link:dbus busy")]
+    r = loss_audit.attribute_gaps_detail([(t0, 121.0)], ev)[0]
+    assert r["cause"] == "daemon:not-worn drop" and r["cause_dir"] == "before", r
+    assert r["in_gap_cause"] == "link:dbus busy", r

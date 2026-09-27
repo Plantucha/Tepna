@@ -64,6 +64,7 @@
 from __future__ import annotations
 
 import argparse
+from typing import Any
 import asyncio
 import contextlib
 import datetime as _dt
@@ -361,7 +362,9 @@ def fold_replies(rows: list[tuple[str, str, str, bytes | None]]) -> dict:
     out: dict = {}
     for name, label, mode, reply in rows:
         if not label:
-            entry = {"raw": reply.hex() if reply else None}
+            # Not str-valued: `entry["active"]` below is a nested dict, and inferring the type from
+            # the `raw` key alone makes that assignment read as an error rather than as the shape.
+            entry: dict[str, Any] = {"raw": reply.hex() if reply else None}
             if name == "GET_MEASUREMENT_STATUS" and reply:
                 entry["active"] = {pmd.MEAS_NAME[m]: pmd.ACTIVE_NAME.get(st, st)
                                    for m, st in sorted(pmd.parse_status_response(reply).items())}

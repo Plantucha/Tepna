@@ -78,6 +78,9 @@
 import vm from 'node:vm';
 import { stripNonCode } from './probe-equivalence.mjs';
 import { ResumeLedger, etaSeconds, fingerprint, fmtDuration, progressLine } from './run-progress.mjs';
+import { createRequire } from 'node:module';
+import { gitShort } from './verdict-emit.mjs';
+const Verdict = createRequire(import.meta.url)('../verdict.js');
 
 /* Files Level B may run against. An allowlist, not a glob: SDL is experimental here and its cost is
    one suite run per statement, so it is pointed deliberately rather than swept. */
@@ -396,6 +399,66 @@ export function suiteReported(stdout) {
    was already wrong once (it divided by a `jobs` count that bought no parallelism). */
 export { etaSeconds, fmtDuration, progressLine } from './run-progress.mjs';
 
+/* ── ONE tepna.verdict/1, AND THE MEASURED STATUS IS UNKNOWN (CLAUDE.md §🧾) ────────────────────────────
+   PRE-STATED CRITERION, with its source — and the honest answer is that there is none yet for the COUNT:
+     · `classifyStatementVerdict` is exact per statement (ran+passed ⇒ PSEUDO_TESTED_STATEMENT, ran+failed
+       ⇒ KILLED, not-ran ⇒ INCONCLUSIVE) and stays the tool's real decision.
+     · The pseudo-tested STATEMENT COUNT has no threshold anywhere in the tree. Level B is documented as
+       "REPORTED SEPARATELY from Level A" — a measurement, deliberately — and wrapping it as PASS/FAIL
+       would fabricate a criterion.
+
+   🔴 WHY NOT THE RATCHET THE ROW PROPOSES, measured rather than assumed. The remedy shape in residue
+   2026-09-22-stmt-delete-has-no-ratchet is extreme-mutate's: a committed per-file baseline, failing only
+   on GROWTH. Three things say the population is not stable enough to pin today:
+     1. no committed statement baseline exists — `tools/pseudo-tested-baseline.json` is extreme-mutate's
+        FUNCTION-level record (names like `_ckZoneMin`, `fmtClock`) for three files, not statements;
+     2. this tool has no fixed population at all — the caller supplies `--file`, so there is no set to
+        ratchet over;
+     3. the candidate targets churn hard — 90 days to 2026-09-27: ppgdex-dsp.js 107 commits, ecgdex-dsp.js
+        100, oxydex-dsp.js 75, cpapdex-dsp.js 29, motiondex-dsp.js 24, glucodex-dsp.js 23. A per-file
+        statement baseline would be stale within days, and each refresh costs a statement-by-statement
+        suite run measured in hours.
+   A two-sided count ratchet needs a stable population; this has none. So the count is UNKNOWN with the
+   reason, and `baseline` below is the SEAM for the day one is committed — never a default, and never
+   derived from the run it judges.
+
+   The refusals become machine-readable, which is what this tool genuinely does decide:
+     · suite baseline RED  ⇒ NOT_RUN        (nothing was examined; every statement would read as killed)
+     · no eligible statement ⇒ NOT_APPLICABLE (eligibility fails closed, so this can mean all control flow)
+   Pure and exported so the plants drive it without an hours-long run. */
+export function gateVerdict({ file, subjects, pseudoTested, inconclusive, baselineRed, commit, at, baseline }) {
+  const producedBy = { tool: 'tools/stmt-delete.mjs', commit: commit == null ? null : commit };
+  if (commit == null) producedBy.commitReason = 'not run inside a git checkout';
+  const known = baseline && typeof baseline.pseudoTestedStatements === 'number' ? baseline.pseudoTestedStatements : null;
+  const status = baselineRed ? 'NOT_RUN' : !subjects ? 'NOT_APPLICABLE' : known === null ? 'UNKNOWN' : pseudoTested > known ? 'FAIL' : 'PASS';
+  const inert = status === 'NOT_RUN' || status === 'NOT_APPLICABLE';
+  const v = Verdict.make({
+    gate: 'stmt-delete-level-b',
+    status,
+    population: { checked: inert ? 0 : subjects, eligible: subjects, excluded: inert ? subjects : 0 },
+    criterion:
+      known === null
+        ? { name: 'pseudo_tested_statement_verdict_per_statement', threshold: 0, unit: 'statements', direction: 'eq' }
+        : { name: 'newly_pseudo_tested_statements_vs_baseline', threshold: known, unit: 'statements', direction: 'lte' },
+    result: inert ? null : { pseudoTestedStatements: pseudoTested, inconclusive: inconclusive, subjects: subjects, invalidRate: subjects ? Number((inconclusive / subjects).toFixed(4)) : null },
+    evidence: ['tools/stmt-delete.mjs', file || 'no file named'],
+    reason: baselineRed
+      ? 'the group’s baseline suite is RED, so every deleted statement would read as KILLED — nothing was measured'
+      : !subjects
+        ? 'no eligible statement in ' + (file || 'the named file') + ' — eligibility fails closed, so this can mean the file is all control flow'
+        : known === null
+          ? 'no pre-stated criterion — the per-statement rule is exact, but the pseudo-tested COUNT has no committed baseline and no fixed population to ratchet over, and the candidate targets churn 23–107 commits per 90 days. A threshold taken from this run would be derived from the data it judges.'
+          : status === 'FAIL'
+            ? pseudoTested + ' pseudo-tested statement(s) against a committed baseline of ' + known + ' — ' + (pseudoTested - known) + ' newly pseudo-tested'
+            : null,
+    producedBy,
+    at: (at || new Date().toISOString()).replace(/\.\d{3}Z$/, 'Z')
+  });
+  const chk = Verdict.validate(v);
+  if (!chk.ok) throw new Error('stmt-delete produced an invalid verdict: ' + chk.errors.join('; '));
+  return v;
+}
+
 export function classifyStatementVerdict(ran, suitePassed) {
   if (!ran) return 'INCONCLUSIVE'; // the mutant never executed — harness, timeout, or syntax
   return suitePassed ? 'PSEUDO_TESTED_STATEMENT' : 'KILLED';
@@ -485,6 +548,7 @@ async function runLevelB(file, group, jobs, covPath, resumePath) {
   process.stderr.write('  baseline took ' + fmtDuration(baseSec) + ' — that is the per-mutant cost\n');
   if (!b.passed) {
     console.error('✗ BASELINE IS RED — every statement would read as KILLED. Fix the suite first.');
+    console.log('VERDICT (tepna.verdict/1) ' + JSON.stringify(gateVerdict({ file, subjects: 0, pseudoTested: 0, inconclusive: 0, baselineRed: true, commit: gitShort() })));
     process.exit(2);
   }
 
@@ -561,6 +625,7 @@ async function runLevelB(file, group, jobs, covPath, resumePath) {
   process.stderr.write('  ' + subjects.length + ' eligible statement(s) across ' + functionBodies(src).length + ' function(s)\n');
   if (!subjects.length) {
     console.error('✗ NO ELIGIBLE STATEMENTS — nothing to measure. Eligibility fails closed, so this may mean the file is all control flow.');
+    console.log('VERDICT (tepna.verdict/1) ' + JSON.stringify(gateVerdict({ file, subjects: 0, pseudoTested: 0, inconclusive: 0, baselineRed: false, commit: gitShort() })));
     process.exit(2);
   }
 
@@ -625,6 +690,13 @@ async function runLevelB(file, group, jobs, covPath, resumePath) {
 
 // ── selftest ────────────────────────────────────────────────────────────────────────────────
 const IS_MAIN = !!process.argv[1] && process.argv[1].endsWith('stmt-delete.mjs');
+if (IS_MAIN && process.argv.includes('--verdict-sample')) {
+  /* What `tools/verdict-adoption.mjs --check` RUNS to read this tool's object. Representative, not a
+     measurement: a real Level B shape (126 eligible, 12 pseudo-tested — the counts this file's header
+     cites) so a reader meets the UNKNOWN in its natural setting without an hours-long run. */
+  console.log(JSON.stringify(gateVerdict({ file: 'ecgdex-dsp.js', subjects: 126, pseudoTested: 12, inconclusive: 3, baselineRed: false, commit: gitShort() })));
+  process.exit(0);
+}
 if (IS_MAIN && process.argv.includes('--selftest')) {
   let pass = 0,
     fail = 0;
@@ -861,6 +933,38 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
 
   ok('a suite that still passes ⇒ PSEUDO_TESTED_STATEMENT', classifyStatementVerdict(true, true) === 'PSEUDO_TESTED_STATEMENT');
   ok('a suite that fails ⇒ KILLED', classifyStatementVerdict(true, false) === 'KILLED');
+
+  /* ── THE VERDICT: what this tool may and may not claim about the COUNT ──────────────────────────── */
+  const vMeasured = gateVerdict({ file: 'ecgdex-dsp.js', subjects: 126, pseudoTested: 12, inconclusive: 3, baselineRed: false, commit: null });
+  ok('a measured Level B run is UNKNOWN, never PASS — the count has no pre-stated threshold', vMeasured.status === 'UNKNOWN', 'got ' + vMeasured.status);
+  ok('…and it says WHY, naming the absent baseline rather than the counts', /no pre-stated criterion/.test(vMeasured.reason || '') && /no committed baseline/.test(vMeasured.reason || ''));
+  ok(
+    'a 0-pseudo-tested run is ALSO UNKNOWN — a clean count is not a pass either',
+    gateVerdict({ file: 'x.js', subjects: 40, pseudoTested: 0, inconclusive: 0, baselineRed: false, commit: null }).status === 'UNKNOWN'
+  );
+  /* PLANT · the ratchet seam. Given a committed baseline, one EXTRA pseudo-tested statement reds — which is
+     the row's remedy shape, proven to work so that UNKNOWN is a statement about the missing baseline and
+     not about this code. */
+  const grown = gateVerdict({ file: 'x.js', subjects: 40, pseudoTested: 5, inconclusive: 0, baselineRed: false, commit: null, baseline: { pseudoTestedStatements: 4 } });
+  ok('PLANT · one newly pseudo-tested statement against a baseline ⇒ FAIL', grown.status === 'FAIL', 'got ' + grown.status);
+  ok('PLANT · …and the reason names how many are new', /1 newly pseudo-tested/.test(grown.reason || ''), grown.reason || 'no reason');
+  ok(
+    'CONTROL · the same count AT the baseline ⇒ PASS',
+    gateVerdict({ file: 'x.js', subjects: 40, pseudoTested: 4, inconclusive: 0, baselineRed: false, commit: null, baseline: { pseudoTestedStatements: 4 } }).status === 'PASS'
+  );
+  ok(
+    'CONTROL · a baseline is never inferred — the same counts without one are UNKNOWN',
+    gateVerdict({ file: 'x.js', subjects: 40, pseudoTested: 5, inconclusive: 0, baselineRed: false, commit: null }).status === 'UNKNOWN'
+  );
+  /* The two refusals, which ARE decisions and were exit codes only. */
+  const red = gateVerdict({ file: 'x.js', subjects: 0, pseudoTested: 0, inconclusive: 0, baselineRed: true, commit: null });
+  ok('a RED baseline suite ⇒ NOT_RUN with checked:0 — nothing was examined', red.status === 'NOT_RUN' && red.population.checked === 0, red.status + ' checked=' + red.population.checked);
+  const none = gateVerdict({ file: 'x.js', subjects: 0, pseudoTested: 0, inconclusive: 0, baselineRed: false, commit: null });
+  ok('no eligible statement ⇒ NOT_APPLICABLE, not PASS — eligibility fails closed', none.status === 'NOT_APPLICABLE', 'got ' + none.status);
+  ok(
+    'every emitted object validates under verdict.js',
+    [vMeasured, grown, red, none].every((v) => Verdict.validate(v).ok)
+  );
   ok('a mutant that never ran ⇒ INCONCLUSIVE, never KILLED', classifyStatementVerdict(false, false) === 'INCONCLUSIVE');
   ok('…and never PSEUDO_TESTED either — an absent run is not evidence', classifyStatementVerdict(false, true) === 'INCONCLUSIVE');
 
@@ -918,4 +1022,6 @@ if (IS_MAIN && !process.argv.includes('--selftest')) {
     console.log('\n  Level B is REPORTED SEPARATELY from Level A. A file with 0 pseudo-tested');
     console.log('  FUNCTIONS and N pseudo-tested STATEMENTS is the expected shape, not a contradiction.');
   }
+  /* ONE object, on both output forms — the count it reports is UNKNOWN until a baseline is committed. */
+  console.log('VERDICT (tepna.verdict/1) ' + JSON.stringify(gateVerdict({ file, subjects: out.subjects, pseudoTested: ps.length, inconclusive: inc.length, baselineRed: false, commit: gitShort() })));
 }

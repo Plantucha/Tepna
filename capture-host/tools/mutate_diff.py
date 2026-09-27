@@ -64,6 +64,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 import subprocess
@@ -71,14 +72,63 @@ import time
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent.parent
-VENV_PY = HERE / ".venv" / "bin" / "python"
+
 sys.path.insert(0, str(HERE))
 from mutation_diff import (  # noqa: E402
-    report_only_refusal_note, EMPTY_DIFF, STRING_ONLY, SURVIVED, UNDECIDABLE, UNDECIDED, annotation_only, clean_run_failures, classify, diff_key, mutant_changed_lines,
-    in_glob_scope, source_function_of_glob, undecided_by_function, unmutatable_decorator,
-    functions_covering, refusal_reason, selftest, split_results, string_only_verdict,
-    GATE_BUDGET_SEC, budget_refusal, verdict_object,
+    report_only_refusal_note,
+    EMPTY_DIFF,
+    STRING_ONLY,
+    SURVIVED,
+    UNDECIDABLE,
+    UNDECIDED,
+    annotation_only,
+    clean_run_failures,
+    classify,
+    diff_key,
+    mutant_changed_lines,
+    in_glob_scope,
+    source_function_of_glob,
+    undecided_by_function,
+    unmutatable_decorator,
+    functions_covering,
+    refusal_reason,
+    selftest,
+    split_results,
+    string_only_verdict,
+    resolve_interpreter,
+    zero_population_verdict,
+    result_inconsistency,
+    GATE_BUDGET_SEC,
+    budget_refusal,
+    verdict_object,
 )
+
+
+def _primary_checkout_venv() -> str | None:
+    """The venv of the checkout this worktree shares its object store with, or None.
+
+    IO ONLY — the decision is `mutation_diff.resolve_interpreter`. `--git-common-dir` is the shared
+    `.git` (in a worktree it points at the PRIMARY checkout's, which is exactly the one that has a
+    venv), so its parent is that checkout's root. In the primary checkout it resolves to the same path
+    as `HERE`, which is why the order override → primary → own is safe everywhere.
+    """
+    try:
+        r = subprocess.run(
+            ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"], cwd=HERE, capture_output=True, text=True
+        )
+    except OSError:
+        return None
+    if r.returncode != 0 or not r.stdout.strip():
+        return None
+    return str(Path(r.stdout.strip()).parent / "capture-host" / ".venv" / "bin" / "python")
+
+
+_PY_CANDIDATES = [c for c in (_primary_checkout_venv(), str(HERE / ".venv" / "bin" / "python")) if c]
+_PY_PATH, _PY_NOTE = resolve_interpreter(
+    os.environ.get("MUTATE_DIFF_PYTHON"), _PY_CANDIDATES, lambda pth: Path(pth).exists()
+)
+VENV_PY = Path(_PY_PATH) if _PY_PATH else Path(HERE / ".venv" / "bin" / "python")
+
 _HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
 
 # §3 (OXYII-G1-FOLLOWUPS) — run_one's `error` key covers ONE failure (no test names the module); a mutmut
@@ -201,16 +251,52 @@ def main(argv=None) -> int:
     verdict: dict = {"base": a.base, "modules": {}, "survivors": []}
     _counts = {"generated": 0, "decided": 0, "killed": 0, "survived": 0, "undecided": 0, "excused": 0, "refuted": 0}
     _pop = {"checked": 0, "eligible": 0}
+    # THE SCOPE, so the prose can name it truthfully. The gate mutates whole FUNCTIONS (#1761 —
+    # "slightly wider than the diff, which is the safe direction"), and saying "survived on lines
+    # this branch changed" told a reader the survivors were on their diff. They are usually not:
+    # on one measured run 30 survivors were reported that way and NONE was on a changed line.
+    _scope = {"lines": 0, "functions": 0}
     _ran_box = [0]  # mirrors `_ran` (a local of main, rebound below) so emit() can read it
 
+    def _checked() -> int:
+        """How many modules this run actually examined. ONE expression, because the prose below and the
+        verdict in `emit` both need it and computing it twice is how they disagreed: the prose read
+        `_pop["checked"]` BEFORE `emit` assigned it, so a run that mutated six functions printed
+        "nothing was mutated". Caught by running the plant and a real diff and reading both outputs."""
+        return min(_pop["eligible"], max(_pop["checked"], _ran_box[0]))
+
     def emit(status, reason, code, evidence=None):
-        _pop["checked"] = min(_pop["eligible"], max(_pop["checked"], _ran_box[0]))
+        _pop["checked"] = _checked()
         _counts["survived"] = len(verdict.get("survivors", []))
         _counts["undecided"] = len(undecided)
-        obj = verdict_object(status, checked=_pop["checked"], eligible=_pop["eligible"],
-                             result=dict(_counts), reason=reason,
-                             evidence=["capture-host/tools/mutate_diff.py"] + (evidence or []),
-                             commit=_head_sha(), at=_now_utc(), base=a.base)
+        # A PASS OVER NOTHING IS NOT A PASS (§🧾). Python changed, every changed line fell outside
+        # mutation scope, each file was correctly announced as skipped — and then this emitted PASS with
+        # `checked: 0`, which the contract calls invalid. NOT_APPLICABLE is what the same function
+        # already emits one case over, when no `capture-host/*.py` changed at all.
+        status, reason = zero_population_verdict(status, _pop["checked"], reason)
+        # AND THE NUMBERS MUST AGREE WITH EACH OTHER. `generated: 0, decided: 0, survived: 26` shipped in
+        # a real artifact: survivors of a population the same object said did not exist. A verdict whose
+        # own counters contradict is UNKNOWN — not PASS (it cannot vouch for the green) and not FAIL
+        # (the findings may be miscounted too) — and it says so out loud rather than in the JSON only.
+        _bad = result_inconsistency(_counts, len(verdict.get("survivors", [])), len(undecided))
+        if _bad:
+            print(f"\nmutate-diff: REFUSING — this verdict's own numbers disagree: {_bad}")
+            print(
+                "  Deliberately not a pass and not a failure: a tool that cannot count what it did\n"
+                "  cannot tell you what it found."
+            )
+            status, reason, code = "UNKNOWN", f"verdict self-inconsistent: {_bad}", 2
+        obj = verdict_object(
+            status,
+            checked=_pop["checked"],
+            eligible=_pop["eligible"],
+            result=dict(_counts),
+            reason=reason,
+            evidence=["capture-host/tools/mutate_diff.py"] + (evidence or []),
+            commit=_head_sha(),
+            at=_now_utc(),
+            base=a.base,
+        )
         verdict["verdict"] = obj
         if a.json:
             Path(a.json).write_text(json.dumps(verdict, indent=2), encoding="utf-8")
@@ -259,17 +345,26 @@ def main(argv=None) -> int:
     # distinct code also lets a caller tell "could not check" from "found survivors" (exit 1).
     try:
         _rc: int | None = subprocess.run(
-            [str(VENV_PY), "-c", "import mutmut"], capture_output=True, text=True).returncode
+            [str(VENV_PY), "-c", "import mutmut"], capture_output=True, text=True
+        ).returncode
     except OSError:
         _rc = None
-    _why = refusal_reason(VENV_PY.exists(), _rc)
+    # NAME THE PATHS. A refusal reading "the capture-host venv is missing" in a worktree told a
+    # developer nothing about where to point `MUTATE_DIFF_PYTHON`; `_PY_NOTE` carries what was
+    # actually tried, in order.
+    _why = refusal_reason(_PY_PATH is not None and VENV_PY.exists(), _rc)
+    if _why:
+        _why = f"{_why} [{_PY_NOTE}]"
     if _why:
         print(f"mutate-diff: REFUSING — {_why}")
-        print("  Nothing was mutated, so nothing can be concluded. This is deliberately not a pass:\n"
-              "  a gate that cannot see must not report green.")
+        print(
+            "  Nothing was mutated, so nothing can be concluded. This is deliberately not a pass:\n"
+            "  a gate that cannot see must not report green."
+        )
         return emit("NOT_RUN", f"preflight refusal: {_why}", 2)
 
     import importlib.util
+
     spec = importlib.util.spec_from_file_location("mut", HERE / "tools" / "mutate.py")
     if spec is None or spec.loader is None:
         raise ImportError(f"cannot load mutate from {HERE / 'tools' / 'mutate.py'}")
@@ -303,8 +398,12 @@ def main(argv=None) -> int:
         stem_mod = module[:-3]
         globs = [f"{stem_mod}.{s}__mutmut_*" for s in sorted(stems)]
         _pop["eligible"] += len(globs)
-        print(f"  {module}: {len(lines)} changed line(s) in {len(stems)} function(s) → "
-              f"{', '.join(sorted(stems))}", flush=True)
+        _scope["lines"] += len(lines)
+        _scope["functions"] += len(stems)
+        print(
+            f"  {module}: {len(lines)} changed line(s) in {len(stems)} function(s) → {', '.join(sorted(stems))}",
+            flush=True,
+        )
         # The clean run is timed ONCE per module and handed to every glob's run_one. Re-timing it per
         # glob was the 2026-09-17 "hang" (capture.py: 936.7 s × 5 globs before any mutant, measured).
         _tests = mut.tests_for(module)
@@ -437,6 +536,13 @@ def main(argv=None) -> int:
             # slow one. That distinction is exactly what the granularity question needs and could not
             # get from the old log.
             print(f"    ✓ {g}: {_tested} mutant(s) decided  [{_secs:.0f}s]", flush=True)
+            # ⚠️ `generated`, `decided` and `killed` were declared in `_counts` and ASSIGNED
+            # NOWHERE, so every verdict this tool has ever emitted carried three zeros beside a
+            # real `survived` — the impossible `generated: 0, decided: 0, survived: 26` block. All
+            # three are measured here, from the same meta `_tested` comes from.
+            _counts["decided"] += _tested
+            _counts["generated"] += mmeta.generated_count(work, module, g)
+            _counts["killed"] += mmeta.killed_count(work, module, g)
             # ── the GENERATED set, for REFUTED detection ────────────────────────────────────────
             # `mutmut results` lists survivors and not-checked ONLY — a KILLED mutant is absent from
             # it entirely, so an earlier draft's `": killed" in line` matched nothing and REFUTED could
@@ -476,12 +582,21 @@ def main(argv=None) -> int:
                     _out_of_scope += 1
                     continue
                 undecided.append({"mutant": _nm, "module": module, "status": _status})
+            # 🔴 SCOPE THE SURVIVORS TO THE GLOB TOO. `mutmut results` takes no glob and enumerates
+            # the WHOLE workspace, and the UNDECIDED loop above already filters on that — this one
+            # did not, so with N globs every survivor was appended N TIMES. Measured on one run:
+            # 26 entries against 12 distinct by `diff_key`, with `result.survived` reading 26 and
+            # the `reason` string 12, and nothing saying which was the count.
             for name in _split[SURVIVED]:
-                show = subprocess.run([str(VENV_PY), "-m", "mutmut", "show", name],
-                                      cwd=work, capture_output=True, text=True)
+                if not in_glob_scope(name, g):
+                    _out_of_scope += 1
+                    continue
+                show = subprocess.run(
+                    [str(VENV_PY), "-m", "mutmut", "show", name], cwd=work, capture_output=True, text=True
+                )
                 sverdict, sdetail = string_only_verdict(show.stdout)
                 if sverdict == STRING_ONLY:
-                    continue                       # log/prose mutation — deliberately not required
+                    continue  # log/prose mutation — deliberately not required
                 if sverdict == EMPTY_DIFF:
                     # EXCLUDED, BUT NOT AS "string-only". A mutant that changes nothing is equivalent
                     # by construction, and until 2026-08-27 it was silently laundered through the
@@ -730,8 +845,17 @@ def main(argv=None) -> int:
     blocking = cls["unclassified"] + cls["real_gap"]
     if not blocking:
         n_ex = len(cls["excused"])
-        print("\nmutate-diff: every mutant on the changed functions was killed"
-              + (f" ({n_ex} recorded as equivalent)." if n_ex else "."))
+        # THE PROSE MUST MATCH THE VERDICT. "every mutant was killed" over a population of ZERO is true
+        # and useless — vacuously true of a run that mutated nothing — and it is what a reader sees
+        # ABOVE the NOT_APPLICABLE the contract requires. Say which case this is.
+        _ran_box[0] = _ran
+        if _checked() == 0:
+            print("\nmutate-diff: nothing was mutated — every changed line is outside mutation scope.")
+        else:
+            print(
+                "\nmutate-diff: every mutant on the changed functions was killed"
+                + (f" ({n_ex} recorded as equivalent)." if n_ex else ".")
+            )
         _ran_box[0] = _ran
         _counts["excused"] = n_ex
         if _refusal is not None:
@@ -739,8 +863,11 @@ def main(argv=None) -> int:
             return _refusal
         return emit("PASS", None, 0)
 
-    print(f"\nmutate-diff: {len(blocking)} mutant(s) survived on lines this branch "
-          f"changed — no test can see these edits:\n")
+    print(
+        f"\nmutate-diff: {len(blocking)} mutant(s) survived in the {_scope['functions']} function(s) this "
+        f"branch changed ({_scope['lines']} changed line(s)) — no test can see them.\n"
+        "  The unit is the FUNCTION, not the line: a survivor here may sit on a line you did not touch.\n"
+    )
     for s in cls["unclassified"]:
         print(f"  ── {s['mutant']}")
         for ln in mutant_changed_lines(s):
@@ -748,16 +875,23 @@ def main(argv=None) -> int:
     for e in cls["real_gap"]:
         print(f"  ── {e['module']}  {e['key'][:110]}")
         print(f"     recorded as real-gap — debt, not equivalence: {e.get('why', '')[:140]}")
-    print("\n  Each one means: change that line and the suite stays green. Either add an assertion that\n"
-          "  observes it, or — if it is genuinely unkillable — record it in tools/mutate-equivalence.json\n"
-          "  with a `probe` saying what you actually ran. Reproduce locally with:\n"
-          "      cd capture-host && .venv/bin/python tools/mutate_diff.py --base origin/main")
+    print(
+        "\n  Each one means: change that line and the suite stays green. Either add an assertion that\n"
+        "  observes it, or — if it is genuinely unkillable — record it in tools/mutate-equivalence.json\n"
+        "  with a `probe` saying what you actually ran. Reproduce locally with:\n"
+        "      cd capture-host && .venv/bin/python tools/mutate_diff.py --base origin/main"
+    )
     _ran_box[0] = _ran
     _counts["excused"] = len(cls["excused"])
     if _refusal is not None:
         print("  (informational — the run's verdict is the UNKNOWN refusal above, which outranks survivors)")
         return _refusal
-    return emit("FAIL", f"{len(blocking)} mutant(s) survived on lines this branch changed — no test observes them", 0 if a.report_only else 1)
+    return emit(
+        "FAIL",
+        f"{len(blocking)} mutant(s) survived in the {_scope['functions']} function(s) this branch "
+        f"changed ({_scope['lines']} changed line(s)) — no test observes them",
+        0 if a.report_only else 1,
+    )
 
 
 if __name__ == "__main__":

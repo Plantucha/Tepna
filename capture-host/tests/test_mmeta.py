@@ -229,7 +229,7 @@ def test_pycache_is_ignored_by_the_hash(tmp_path):
     assert mmeta.test_tree_hash(d) == before
 
 
-# ── §2: refresh_results_if_tests_changed — invalidate only what tests can invalidate ──────────────────
+# ── §2: refresh_caches_if_tests_changed — invalidate only what tests can invalidate ──────────────────
 def _meta_codes(work, module="oxy_transfer.py"):
     return mmeta.read_exit_codes(work / "mutants" / f"{module}.meta")
 
@@ -240,8 +240,8 @@ def test_first_run_with_no_stamp_invalidates_and_stamps(tmp_path):
     work = _meta(tmp_path, "oxy_transfer.py", {"oxy_transfer.x_select__mutmut_1": 33})
     stamp = tmp_path / ".tests-hash"
     tests = _tests(tmp_path, {"test_a.py": "def test_a(): pass\n"})
-    assert mmeta.refresh_results_if_tests_changed(work, "oxy_transfer.py", tests, stamp) is True
-    assert _meta_codes(work) == {"oxy_transfer.x_select__mutmut_1": None}   # verdict nulled, key kept
+    assert mmeta.refresh_caches_if_tests_changed(work, "oxy_transfer.py", tests, stamp) is True
+    assert _meta_codes(work) == {"oxy_transfer.x_select__mutmut_1": None}  # verdict nulled, key kept
     assert stamp.read_text().strip() == mmeta.test_tree_hash(tests)
 
 
@@ -251,26 +251,26 @@ def test_unchanged_tests_preserve_the_results_cache(tmp_path):
     stamp = tmp_path / ".tests-hash"
     tests = _tests(tmp_path, {"test_a.py": "def test_a(): pass\n"})
     stamp.write_text(mmeta.test_tree_hash(tests), encoding="utf-8")
-    assert mmeta.refresh_results_if_tests_changed(work, "oxy_transfer.py", tests, stamp) is False
-    assert _meta_codes(work) == {"oxy_transfer.x_select__mutmut_1": 33}   # kept decided — full reuse
+    assert mmeta.refresh_caches_if_tests_changed(work, "oxy_transfer.py", tests, stamp) is False
+    assert _meta_codes(work) == {"oxy_transfer.x_select__mutmut_1": 33}  # kept decided — full reuse
 
 
 def test_adding_a_KILLER_invalidates_so_the_FIRST_next_run_is_correct(tmp_path):
     """⚠️ THE §2 CONTROL, the proven defect itself. Source unchanged, a killer test ADDED → the cached
     verdict is stale, so it MUST be invalidated. Without this the added killer is uncredited on the first
     run — the exact self-destructing bug the brief measured."""
-    work = _meta(tmp_path, "oxy_transfer.py",
-                 {"oxy_transfer.x_select__mutmut_1": 33, "oxy_transfer.x_select__mutmut_2": 37})
+    work = _meta(
+        tmp_path, "oxy_transfer.py", {"oxy_transfer.x_select__mutmut_1": 33, "oxy_transfer.x_select__mutmut_2": 37}
+    )
     stamp = tmp_path / ".tests-hash"
     tests = _tests(tmp_path, {"test_a.py": "def test_a(): pass\n"})
-    stamp.write_text(mmeta.test_tree_hash(tests), encoding="utf-8")   # state B: last run's tests
+    stamp.write_text(mmeta.test_tree_hash(tests), encoding="utf-8")  # state B: last run's tests
     (tests / "test_killer.py").write_text("def test_kills_it(): assert True\n", encoding="utf-8")
-    assert mmeta.refresh_results_if_tests_changed(work, "oxy_transfer.py", tests, stamp) is True
+    assert mmeta.refresh_caches_if_tests_changed(work, "oxy_transfer.py", tests, stamp) is True
     # ⚠️ THE RECOVERY PROPERTY the delete-the-file bug violated: the mutant KEYS survive (so mutmut's
     # --only filter still matches and it re-decides them) and only the VERDICTS are cleared to null. A
     # deleted meta strips the keys, and with the source unchanged mutmut skips regeneration and crashes.
-    assert _meta_codes(work) == {"oxy_transfer.x_select__mutmut_1": None,
-                                 "oxy_transfer.x_select__mutmut_2": None}
+    assert _meta_codes(work) == {"oxy_transfer.x_select__mutmut_1": None, "oxy_transfer.x_select__mutmut_2": None}
     assert mmeta.decided_under_glob(_meta_codes(work), "oxy_transfer.x_select__mutmut_*") == 0
 
 
@@ -280,7 +280,7 @@ def test_invalidation_is_safe_when_the_meta_is_already_absent(tmp_path):
     stamp = tmp_path / ".tests-hash"
     tests = _tests(tmp_path, {"test_a.py": "def test_a(): pass\n"})
     # no meta to null — must not raise, and the stamp still advances
-    assert mmeta.refresh_results_if_tests_changed(work, "oxy_transfer.py", tests, stamp) is True
+    assert mmeta.refresh_caches_if_tests_changed(work, "oxy_transfer.py", tests, stamp) is True
     assert stamp.read_text().strip() == mmeta.test_tree_hash(tests)
 
 
@@ -292,7 +292,7 @@ def test_invalidation_of_an_unreadable_meta_does_not_raise(tmp_path):
     (work / "mutants" / "oxy_transfer.py.meta").write_text("{not json", encoding="utf-8")
     stamp = tmp_path / ".tests-hash"
     tests = _tests(tmp_path, {"test_a.py": "def test_a(): pass\n"})
-    assert mmeta.refresh_results_if_tests_changed(work, "oxy_transfer.py", tests, stamp) is True
+    assert mmeta.refresh_caches_if_tests_changed(work, "oxy_transfer.py", tests, stamp) is True
 
 
 def test_invalidation_of_a_meta_without_a_dict_of_codes_is_a_noop_but_stamps(tmp_path):
@@ -301,8 +301,122 @@ def test_invalidation_of_a_meta_without_a_dict_of_codes_is_a_noop_but_stamps(tmp
     work = tmp_path
     (work / "mutants").mkdir()
     (work / "mutants" / "oxy_transfer.py.meta").write_text(
-        json.dumps({"exit_code_by_key": [1, 2]}), encoding="utf-8")   # a list, not a dict
+        json.dumps({"exit_code_by_key": [1, 2]}), encoding="utf-8"
+    )  # a list, not a dict
     stamp = tmp_path / ".tests-hash"
     tests = _tests(tmp_path, {"test_a.py": "def test_a(): pass\n"})
-    assert mmeta.refresh_results_if_tests_changed(work, "oxy_transfer.py", tests, stamp) is True
+    assert mmeta.refresh_caches_if_tests_changed(work, "oxy_transfer.py", tests, stamp) is True
     assert stamp.read_text().strip() == mmeta.test_tree_hash(tests)
+
+
+# ── `killed_under_glob` — MEASURED, so the verdict's self-consistency check has content ─────────────
+
+
+def test_exit_1_and_3_are_both_kills_because_mutmut_says_so():
+    """mutmut's `status_by_exit_code` maps 1 (failing suite) and 3 (internal pytest error) to "killed":
+    either way the mutant changed behaviour enough that the suite could not complete cleanly."""
+    codes = {"m.x_f__mutmut_1": 1, "m.x_f__mutmut_2": 3}
+    assert mmeta.killed_under_glob(codes, "m.x_f__mutmut_*") == 2
+
+
+def test_a_SURVIVOR_a_TIMEOUT_and_a_NOT_RUN_are_not_kills():
+    """0 survived, 24 timeout, None never run. Counting any of them as killed is the false green this
+    whole file exists to make impossible."""
+    codes = {
+        "m.x_f__mutmut_1": 0,
+        "m.x_f__mutmut_2": 24,
+        "m.x_f__mutmut_3": None,
+        "m.x_f__mutmut_4": 5,
+        "m.x_f__mutmut_5": 1,
+    }
+    assert mmeta.killed_under_glob(codes, "m.x_f__mutmut_*") == 1
+
+
+def test_it_is_scoped_to_the_glob_like_its_siblings():
+    codes = {"m.x_f__mutmut_1": 1, "m.x_other__mutmut_1": 1}
+    assert mmeta.killed_under_glob(codes, "m.x_f__mutmut_*") == 1
+
+
+def test_an_absent_or_empty_map_credits_nothing():
+    assert mmeta.killed_under_glob({}, "m.x_f__mutmut_*") == 0
+    assert mmeta.killed_under_glob(None, "m.x_f__mutmut_*") == 0
+
+
+def test_killed_count_reads_the_scratchs_meta(tmp_path):
+    (tmp_path / "mutants").mkdir()
+    (tmp_path / "mutants" / "m.py.meta").write_text(
+        '{"exit_code_by_key": {"m.x_f__mutmut_1": 1, "m.x_f__mutmut_2": 0}}', encoding="utf-8"
+    )
+    assert mmeta.killed_count(tmp_path, "m.py", "m.x_f__mutmut_*") == 1
+
+
+def test_killed_NEVER_exceeds_decided_over_the_same_map():
+    """The invariant `mutation_diff.result_inconsistency` relies on. If this could be violated the
+    assertion downstream would fire on healthy runs."""
+    codes = {f"m.x_f__mutmut_{i}": c for i, c in enumerate([1, 3, 0, 24, None, 1, 5])}
+    g = "m.x_f__mutmut_*"
+    assert mmeta.killed_under_glob(codes, g) <= mmeta.decided_under_glob(codes, g)
+
+
+# ── §2b: the SELECTION is invalidated too (`2026-09-27-mutmut-stats-survive-test-invalidation`) ─────
+#
+# Nulling the exit codes alone made every mutant re-decide HONESTLY against a STALE selection, which is
+# the worse failure: a test edited to kill a mutant is never chosen to run against it, and the mutant
+# reads SURVIVED. Two paths put a map on disk without the edited test — a subprocess-only test registers
+# no trampoline hit, and `collect_or_load_stats` re-traces only tests with NEW NAMES.
+
+
+def _scratch_with_caches(tmp_path):
+    work = tmp_path / "work"
+    (work / "mutants").mkdir(parents=True)
+    (work / "mutants" / "m.py.meta").write_text('{"exit_code_by_key": {"m.x_f__mutmut_1": 0}}', encoding="utf-8")
+    (work / "mutants" / "mutmut-stats.json").write_text(
+        '{"tests_by_mangled_function_name": {"m.x_f": ["tests/test_m.py::test_old"]}, "stats_time": 1.0}',
+        encoding="utf-8",
+    )
+    tests = tmp_path / "tests"
+    tests.mkdir()
+    (tests / "test_m.py").write_text("def test_old():\n    assert True\n", encoding="utf-8")
+    return work, tests, tmp_path / ".tests-hash"
+
+
+def test_a_changed_test_tree_REMOVES_the_selection_so_mutmut_re_traces(tmp_path):
+    """The stats file is UNLINKED, not rewritten: mutmut rebuilds it from a traced pass when it is
+    absent, and any partial edit would be a guess about which associations are still true."""
+    work, tests, stamp = _scratch_with_caches(tmp_path)
+    assert mmeta.refresh_caches_if_tests_changed(work, "m.py", tests, stamp) is True
+    assert not (work / "mutants" / "mutmut-stats.json").exists(), "a stale selection must not survive"
+
+
+def test_EDITING_a_test_under_the_SAME_NAME_still_invalidates_the_selection(tmp_path):
+    """The exact hole. mutmut's own incremental path re-traces only `ids - collected_test_names()`, a set
+    difference on NAMES, so an edited test keeps its old associations forever. The tree HASH moves on a
+    body change, which is why the stamp is the right trigger and the name list is not."""
+    work, tests, stamp = _scratch_with_caches(tmp_path)
+    mmeta.refresh_caches_if_tests_changed(work, "m.py", tests, stamp)
+    (work / "mutants" / "mutmut-stats.json").write_text('{"tests_by_mangled_function_name": {}}', encoding="utf-8")
+    # same test NAME, different body — the case mutmut cannot see
+    (tests / "test_m.py").write_text("def test_old():\n    assert 1 + 1 == 2\n", encoding="utf-8")
+    assert mmeta.refresh_caches_if_tests_changed(work, "m.py", tests, stamp) is True
+    assert not (work / "mutants" / "mutmut-stats.json").exists()
+
+
+def test_an_UNCHANGED_test_tree_leaves_BOTH_caches_alone(tmp_path):
+    """The control. Re-collecting stats on every run would cost a traced pass for nothing, and nulling
+    results would throw away a whole run's verdicts."""
+    work, tests, stamp = _scratch_with_caches(tmp_path)
+    mmeta.refresh_caches_if_tests_changed(work, "m.py", tests, stamp)
+    (work / "mutants" / "mutmut-stats.json").write_text(
+        '{"tests_by_mangled_function_name": {"m.x_f": ["a"]}}', encoding="utf-8"
+    )
+    (work / "mutants" / "m.py.meta").write_text('{"exit_code_by_key": {"m.x_f__mutmut_1": 1}}', encoding="utf-8")
+    assert mmeta.refresh_caches_if_tests_changed(work, "m.py", tests, stamp) is False
+    assert (work / "mutants" / "mutmut-stats.json").exists(), "an unchanged tree must keep its selection"
+    assert '"m.x_f__mutmut_1": 1' in (work / "mutants" / "m.py.meta").read_text(), "and its results"
+
+
+def test_an_ABSENT_stats_file_is_not_an_error(tmp_path):
+    """First run in a fresh scratch: there is nothing to remove and that is the normal case."""
+    work, tests, stamp = _scratch_with_caches(tmp_path)
+    (work / "mutants" / "mutmut-stats.json").unlink()
+    assert mmeta.refresh_caches_if_tests_changed(work, "m.py", tests, stamp) is True
