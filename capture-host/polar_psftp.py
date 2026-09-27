@@ -543,21 +543,36 @@ async def _with_retry(coro_factory, attempts: int = 3, backoff: float = 2.0,
     `per_attempt_timeout` (optional, added last) bounds ONE attempt. Without it the retry is dead code
     in the case it exists for: a wedged link does not raise, it hangs, so attempt 1 consumes the
     caller's entire budget and attempts 2 and 3 never run. Measured 2026-08-02 — a Verity listing held
-    the offline lock for the full 300 s watchdog and was killed mid-first-attempt."""
-    last = None
-    for i in range(attempts):
+    the offline lock for the full 300 s watchdog and was killed mid-first-attempt.
+
+    ⚠️ `attempts` IS REFUSED BELOW 1, and the bound is `< 1`, not `<= 1`: ONE attempt is a legitimate
+    caller ("try it, do not retry"), and only ZERO is nonsense. This function used to end in
+    `raise last` with `last = None` above the loop, so `attempts <= 0` ran no iteration and raised
+    `TypeError: exceptions must derive from BaseException` from inside the retry helper — burying
+    whatever the caller was doing under a wrong error in a wrong place. Nothing calls it that way
+    today; the guard is what lets the final attempt re-raise IN PLACE instead, which is both what a
+    reader expects and what made mypy's `Exception must be derived from BaseException` go away."""
+    if attempts < 1:
+        raise ValueError(f"attempts must be >= 1, got {attempts}")
+    # THE LOOP CANNOT COMPLETE, and the proof is two lines above and three below: `attempts >= 1` is
+    # enforced, and the final iteration either returns or re-raises. There is no normal exit to cover
+    # — the same property that let the old `raise last` tail go, and the house rule for the pragma
+    # (pyproject.toml) is exactly that it name such a proof rather than "hard to test".
+    for i in range(attempts):  # pragma: no branch
         try:
             if per_attempt_timeout is None:
                 return await coro_factory()
             return await asyncio.wait_for(coro_factory(), timeout=per_attempt_timeout)
         except Exception as e:
-            last = e
             if isinstance(e, asyncio.TimeoutError):
                 log.warning("PS-FTP attempt %d/%d exceeded %.0fs — retrying",
                             i + 1, attempts, per_attempt_timeout)
-            if i < attempts - 1:
-                await asyncio.sleep(backoff)
-    raise last
+            if i >= attempts - 1:
+                raise  # the LAST attempt's error IS the caller's error
+            await asyncio.sleep(backoff)
+    # Holding the error in a `last` variable and raising it after the loop is what hid all of this —
+    # from a reader, and from mypy, which reported `raise last` as `Exception must be derived from
+    # BaseException` because `last` starts as None and nothing ruled out an empty loop.
 
 
 def _session_meta(path: str) -> dict:

@@ -13059,14 +13059,23 @@
        were not 'classified', they were INVISIBLE" — and those files are STILL outside both lists. A
        finding recorded as a comment does not fail when the defect recurs; this does.
 
-       ⚠️ RATCHET, NOT PASS/FAIL, and deliberately so. 13 of 112 are invisible today — the UN-BUNDLED
-       tail (cohort tooling, `dex-coload.js`, `dex-contracts.js`, provenance surfaces, standalone
-       analyses). The registries and spine are NOT among them: `readSources()` walks every bundle's
-       `data-inline-src`, so anything inlined is readable for free. Demanding all 112 at once would land red on day one over
-       work nobody has scoped, and a gate that is red by default gets switched off — taking the real
-       finding with it (the argument that kept a coverage threshold out of #1163 and shaped
-       `no-fabricated-tier`'s cap). So the debt is measured, published, and may SHRINK BUT NEVER GROW:
-       a 39th unreadable file reds immediately, and wiring one in forces the cap down.
+       ⚠️ RATCHET, NOT PASS/FAIL, and deliberately so. **8 of 117** are invisible today, and the list is
+       pinned by name in `INVISIBLE_SET` below rather than only counted.
+       🔴 THE PROSE HERE WAS STALE AND MISDESCRIBED THE GATE'S OWN SCOPE, corrected 2026-09-27. It said
+       "13 of 112" and "a 39th unreadable file reds immediately" against a cap that was 12 — two numbers
+       from earlier caps, in the comment of a group whose whole lesson is that a finding recorded as a
+       comment does not fail when it goes stale. And it claimed `readSources()` "walks every bundle's
+       `data-inline-src`, so anything inlined is readable for free": it walked the 11 owned APP bundles
+       and NOT the 14 analysis tool bundles, so 4 of the then-12 invisible files were inlined into
+       bundles and invisible anyway — not the "un-bundled tail" this paragraph described. The walk now
+       covers both families (readSources, from `build-analysis.mjs TOOLS`, failing closed), which is what
+       took the cap 12 → 8: a scope fix, not a registration drive.
+       The registries and spine are genuinely not among the invisible — anything inlined into a bundle of
+       either family is readable for free. Demanding all 117 at once would land red on day one over work
+       nobody has scoped, and a gate that is red by default gets switched off — taking the real finding
+       with it (the argument that kept a coverage threshold out of #1163 and shaped `no-fabricated-tier`'s
+       cap). So the debt is measured, published and may SHRINK BUT NEVER GROW: a 9th unreadable file reds
+       immediately, a swap inside the 8 reds on the set pin, and wiring one in forces the cap down.
 
        Node-lane only (env.sourceVisibility is fs-read); the browser SKIPs, mirroring docs-ledger. */
     group('Every runtime source layer is readable by at least one lane', 'cohesion · source-visibility · ratchet', function (T) {
@@ -13094,13 +13103,38 @@
       });
 
       /* The cap. Lower it — never raise it — when a file is wired into either lane. */
-      var INVISIBLE_CAP = 12; // 13 → 12 on 2026-09-21: cohort-harness.html + qrs-equiv-analysis.js entered env.sources for the tripwire plant
-      T.ok(
-        'no NEW unscannable source layer (ratchet ' + INVISIBLE_CAP + ')',
-        invisible.length <= INVISIBLE_CAP,
-        invisible.length + ' invisible: ' + invisible.slice(0, 8).join(', ') + (invisible.length > 8 ? ', …' : '')
-      );
+      var INVISIBLE_CAP = 8; // 13 → 12 on 2026-09-21 (cohort-harness.html + qrs-equiv-analysis.js entered env.sources for the tripwire plant); 12 → 8 on 2026-09-27 (readSources now walks the ANALYSIS TOOL bundles, not only the 11 app bundles — see INVISIBLE_SET)
+      T.ok('no NEW unscannable source layer (ratchet ' + INVISIBLE_CAP + ')', invisible.length <= INVISIBLE_CAP, invisible.length + ' invisible: ' + invisible.join(', '));
       T.ok('the cap is not STALE — lower it when the debt shrinks', invisible.length >= INVISIBLE_CAP, 'only ' + invisible.length + ' invisible now; set INVISIBLE_CAP = ' + invisible.length);
+      /* ── THE SET, NOT ONLY THE COUNT (2026-09-27) ───────────────────────────────────────────────────
+         The cap above is already two-sided, so the NUMBER cannot drift. The MEMBERS could: wire one file
+         in while another falls out and the count is unchanged, both assertions pass, and a newly
+         unscannable runtime layer arrives silently — which is the exact failure this group exists to
+         prevent, one level up. PLANT 2 below is that swap, and it fails without this pin.
+         Read this list as QUESTIONS, not bookkeeping (gate-must-publish-its-denominator): each name is a
+         file no source-level gate can reach. Two of them are named in CLAUDE.md as load-bearing —
+         `dex-coload.js` (the co-loader that must load clock.js before any delegating *-dsp.js) and
+         `provenance-ledger.js` (which reassembles the per-app fragments the provenance gate reads) — so
+         this is not only cohort tooling and fixtures. Recorded as residue
+         2026-09-27-load-bearing-sources-no-gate-can-read rather than left in a comment, because a finding
+         recorded as a comment does not fail when the defect recurs; that is this group's own lesson. */
+      var INVISIBLE_SET = ['cohort-full.js', 'cohort-worker.js', 'dex-coload.js', 'dex-contracts.js', 'provenance-banner.js', 'provenance-ledger.js', 'support.js', 'xmt-fixture.js'];
+      T.eq(
+        'the invisible SET is exactly the published one (a swap cannot hide inside a stable count)',
+        invisible.slice().sort().join(','),
+        INVISIBLE_SET.slice().sort().join(','),
+        'the membership changed. If you WIRED one in, remove it here and lower INVISIBLE_CAP. If a NEW file became unscannable, wire it into a lane instead of adding it here.'
+      );
+      /* PLANT 2 · the swap the count cannot see. One file leaves the invisible set and another joins it,
+         so `invisible.length` is identical and both cap assertions still pass — only the set pin reds.
+         Without this, the pin above could be decoration that never discriminates. */
+      var swapped = invisible.slice(1).concat('zz-planted-unscannable.js').sort();
+      T.eq('PLANT 2 · a swap leaves the COUNT unchanged', swapped.length, invisible.length);
+      T.ok(
+        'PLANT 2 · …and the SET pin reds on it',
+        swapped.join(',') !== INVISIBLE_SET.slice().sort().join(','),
+        'the set pin accepted a swapped membership — it is not discriminating and the published list is decoration'
+      );
       /* Published so the debt is legible in the output rather than only in a brief. The invisible set
          is NOT the bundled runtime: `readSources()` also walks every bundle's `data-inline-src`, so
          anything inlined into an app is readable for free — the registries and the spine included.
@@ -13153,7 +13187,129 @@
          The array survives as an ALLOWLIST for a consumer the scan cannot see: `pat-gate.js` reads `m.cp`
          off the payload and never constructs the worker (it is handed the object), so no construction
          rule can find it. Derived set + small allowlist needs no edit for the next page. */
-      var PAIRS = [{ producer: 'pat-feasibility-worker.js', allow: ['pat-gate.js'] }];
+      var PAIRS = [
+        { producer: 'pat-feasibility-worker.js', allow: ['pat-gate.js'] },
+        /* ADDED 2026-09-27. This producer sat OUTSIDE the gate while the gate's name — "No value crosses
+           a worker boundary unread" — claimed every boundary, and the exclusion was a LIVE finding on the
+           first run: `hrRatio` reached no consumer. The `vdCorr` shape, in a producer nothing was looking
+           at. */
+        { producer: 'sensor-trio-worker.js', allow: [] }
+      ];
+      /* ── THE POPULATION IS PINNED AS AN EQUALITY, NOT A FLOOR ──────────────────────────────────────
+         A `>= N` check can never detect exclusion: the excluded members are exactly the ones it does not
+         count. This gate asserted NO denominator at all while its name was universal and PAIRS held one
+         producer. Excluded below, WITH the reason, so the hole is visible and re-reads as a question every
+         run — both post inline `postMessage({…})` literals and build no named payload object, so the
+         extractor cannot read their keys. Declaring them without extending the extractor would cover ZERO
+         keys and report clean, which is worse than an honest exclusion (residue
+         2026-09-27-inline-postmessage-payloads-are-unscanned). */
+      var EXCLUDED = {
+        'qrs-equiv-worker.js': 'posts inline postMessage({…}) literals — no named payload builder to read',
+        /* ADDED 2026-09-27, and it appeared because of a change in the SAME session: making `readSources()`
+           walk the analysis-tool bundles (the source-visibility unit) put `qrs-yield-analysis.js` in
+           `env.sources`, so the enumerator could finally see the `new Worker('qrs-yield-worker.js')` at
+           its line 52. A fourth producer that had been invisible, surfaced by the population equality
+           within one run of widening the inventory — which is the argument for the equality over a count.
+           Same idiom as the two above (5 `postMessage` calls, no `var out = {`, no `out.X =`), so the same
+           exclusion and the same residue row: 2026-09-27-inline-postmessage-payloads-are-unscanned, whose
+           list of two should be read as three. */
+        'qrs-yield-worker.js': 'posts inline postMessage({…}) literals — no named payload builder to read'
+      };
+      /* 🔴 A FOURTH WORKER, INVISIBLE FOR A DIFFERENT REASON, and my first version of EXCLUDED wrongly
+         listed it here — the denominator assertion is what caught that. `cohort-worker.js` is constructed
+         by four analysis pages and the cohort runner, but it is NOT in `env.sources`: run-tests.mjs loads
+         it into a vm REALM instead of the source inventory. So the enumerator below cannot see it as a
+         producer at all, and excluding it would have pinned a fiction — which is why the exclusion legs
+         assert each excluded name is still genuinely constructed.
+         Pinned as its own fact so it cannot stay invisible by default: if it is ever added to the
+         inventory, this reds and asks for it to be declared or excluded on purpose. */
+      var INVENTORY_ABSENT = ['cohort-worker.js'];
+      /* Every inventory source CONSTRUCTED as a worker. Dynamic/template names ('full', 'oxy', 'w.js')
+         fall out through the `in env.sources` test rather than a hand-written skip list. */
+      var workerProducers = function () {
+        var found = {};
+        Object.keys(S).forEach(function (f) {
+          var re = /(?:new\s+Worker|__mkWorker|mkWorker)\s*\(\s*['"`]([^'"`]+)/g,
+            m;
+          while ((m = re.exec(S[f] || ''))) if (Object.prototype.hasOwnProperty.call(S, m[1])) found[m[1]] = true;
+        });
+        return Object.keys(found).sort();
+      };
+      /* ── PAYLOAD KEYS: BOTH IDIOMS, OR THE POPULATION SHRINKS SILENTLY ─────────────────────────────
+         `out.X = …` assignments AND the members of a `var out = { … }` literal. Measured 2026-09-27:
+         assignments alone see 14 of 14 keys on pat-feasibility-worker.js but only **7 of 21** on
+         sensor-trio-worker.js, whose payload is mostly a literal — and `hrRatio`, its one dead key, was
+         among the 14 it could not see. Declaring a producer is therefore not enough; the extractor must
+         be able to READ its payload, or the gate examines a third and reports on the whole.
+         Depth-1 only: `sigma: { o2, h10, verity }` contributes `sigma`, not its members. */
+      var payloadKeys = function (prodText) {
+        var found = {},
+          m;
+        var ASSIGN = /\bout\.([A-Za-z_][A-Za-z0-9_]*)\s*=/g;
+        while ((m = ASSIGN.exec(prodText))) found[m[1]] = true;
+        var LIT = /\bvar\s+out\s*=\s*\{/g;
+        while ((m = LIT.exec(prodText))) {
+          var i = prodText.indexOf('{', m.index),
+            depth = 0,
+            end = -1;
+          for (var k = i; k < prodText.length; k++) {
+            if (prodText[k] === '{') depth++;
+            else if (prodText[k] === '}') {
+              depth--;
+              if (depth === 0) {
+                end = k;
+                break;
+              }
+            }
+          }
+          if (end < 0) continue;
+          var d = 0;
+          prodText
+            .slice(i + 1, end)
+            .split('\n')
+            .forEach(function (line) {
+              if (d === 0) {
+                var km = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:/.exec(line);
+                if (km) found[km[1]] = true;
+              }
+              for (var c = 0; c < line.length; c++) {
+                if (line[c] === '{' || line[c] === '[') d++;
+                else if (line[c] === '}' || line[c] === ']') d--;
+              }
+            });
+        }
+        return Object.keys(found);
+      };
+      /* The denominator itself. An undeclared, unexcluded worker producer reds here rather than being
+         quietly absent from a gate whose name covers it. */
+      var producers = workerProducers();
+      var declared = PAIRS.map(function (x) {
+        return x.producer;
+      });
+      var uncovered = producers.filter(function (w) {
+        return declared.indexOf(w) < 0;
+      });
+      T.ok(
+        'the worker-producer population was actually enumerated',
+        producers.length >= 3,
+        'found: ' + producers.join(', ') + ' — an empty or tiny population means the construction scan found nothing and every row below is vacuous'
+      );
+      T.eq(
+        'the set of worker producers OUTSIDE this gate is exactly the declared exclusions',
+        uncovered.sort().join(','),
+        Object.keys(EXCLUDED).sort().join(','),
+        'a new worker producer appeared: declare it in PAIRS, or add it to EXCLUDED with the reason it cannot be read'
+      );
+      Object.keys(EXCLUDED).forEach(function (w) {
+        T.ok('the exclusion ' + w + ' is still a real producer', producers.indexOf(w) >= 0, 'it is excluded but no longer constructed anywhere — drop the exclusion rather than pinning a fiction');
+      });
+      INVENTORY_ABSENT.forEach(function (w) {
+        T.ok(
+          w + ' is still absent from the source inventory (a worker this gate structurally cannot reach)',
+          !Object.prototype.hasOwnProperty.call(S, w),
+          w + ' is now IN env.sources, so the gate can reach it — declare it in PAIRS or move it to EXCLUDED with a reason, and drop it from INVENTORY_ABSENT'
+        );
+      });
       /* A source is a DERIVED consumer if it CONSTRUCTS this worker. */
       var derivedConsumers = function (producer, src) {
         var where = src || S;
@@ -13194,10 +13350,10 @@
           .join('\n');
         T.ok(pair.producer + ' · at least one consumer readable', consumerText.length > 0, 'derived: ' + (derived.join(', ') || 'none') + (allow.length ? ' · allowlisted: ' + allow.join(', ') : ''));
         if (!consumerText.length) return;
-        var keys = {},
-          km;
-        var KEY_RE = /\bout\.([A-Za-z_][A-Za-z0-9_]*)\s*=/g;
-        while ((km = KEY_RE.exec(prod))) keys[km[1]] = true;
+        var keys = {};
+        payloadKeys(prod).forEach(function (k) {
+          keys[k] = true;
+        });
         T.ok(pair.producer + ' · payload keys found to check', Object.keys(keys).length > 0, Object.keys(keys).join(', '));
         var dead = Object.keys(keys).filter(function (k) {
           return !new RegExp('[.\\b]' + k + '\\b').test(consumerText) && KNOWN_DEAD.indexOf(k) < 0;
@@ -13221,14 +13377,33 @@
            producer text, must be reported as dead; without this the empty set above could be the
            detector seeing nothing rather than nothing being dead. */
         var planted = prod + '\nout.zzPlantedUnreadKey = 1;';
-        var pk = {},
-          pm;
-        KEY_RE.lastIndex = 0;
-        while ((pm = KEY_RE.exec(planted))) pk[pm[1]] = true;
+        var pk = {};
+        payloadKeys(planted).forEach(function (k) {
+          pk[k] = true;
+        });
         var deadPlanted = Object.keys(pk).filter(function (k) {
           return !new RegExp('[.\\b]' + k + '\\b').test(consumerText);
         });
-        T.eq('PLANT 1 · an unread key appended to the producer is reported dead', deadPlanted.join(','), 'zzPlantedUnreadKey');
+        /* Membership, not equality over the whole set: a producer may legitimately carry a real dead key
+           at the moment the plant runs (sensor-trio-worker.js did — `hrRatio`), and an equality here would
+           make the PLANT fail for a reason that has nothing to do with whether the detector fires. What
+           must hold is that the planted key is among the dead, and that planting CHANGED the set — the
+           second half is what stops this passing when the detector sees nothing. */
+        T.ok(
+          'PLANT 1 · an unread key appended to the producer is reported dead',
+          deadPlanted.indexOf('zzPlantedUnreadKey') >= 0,
+          'the planted key was not reported dead — the detector is not firing. dead set: ' + (deadPlanted.join(',') || 'empty')
+        );
+        T.ok(
+          'PLANT 1 · and planting it CHANGED the dead set (the detector is not merely echoing)',
+          deadPlanted.length === dead.length + 1,
+          'planting added ' +
+            (deadPlanted.length - dead.length) +
+            ' key(s) to the dead set, expected exactly 1 — before: ' +
+            (dead.join(',') || 'none') +
+            ' · after: ' +
+            (deadPlanted.join(',') || 'none')
+        );
 
         /* ── PLANT 2 · THE DERIVATION FINDS A NEW CONSUMER WITH NO LIST EDIT ───────────────────────────
            The property this unit exists for. A source that constructs the worker and reads a key must
@@ -46433,6 +46608,157 @@
      OverDex · Dex-Test-Suite · run-tests.mjs) co-loads every module in it — so a future add that
      misses a host is a RED, not a silent drop. (Hosts keep static <script> tags for robust load
      ordering; a later pass MAY have them generate the tags from this manifest — ECGDEX-FOLLOWUPS.) */
+    /* ════ CLOCK LOADS BEFORE EVERY DELEGATING DSP — the ordering nothing pinned ════════════════════
+       CLAUDE.md §✅ states the invariant and `dex-coload.js:32` states the reason: "shared pre-DSP
+       modules (load FIRST — delegating DSPs alias DexClock at load)". Violating it is not a subtle
+       wrongness, it is a `ReferenceError` at module evaluation — and per §3 only `browser-gates` sees
+       that, so it costs a full CI cycle to learn.
+
+       🔴 WHAT WAS AND WAS NOT ALREADY CHECKED, because I nearly wrote a defect report that was wrong.
+       `dex-coload.js` is invisible to `env.sources` (it is in neither lane's text inventory, residue
+       2026-09-27-load-bearing-sources-no-gate-can-read) but it is NOT ungated: it is EXECUTED as
+       `env.DexCoload` and three groups assert against it. What none of them asserts is ORDER. The host
+       leg is `missing = M.all.filter(…)` → `missing.length === 0`, a MEMBERSHIP check: reorder
+       `DEX_COLOAD.all = shared.concat(adapters).concat(dsps)` to put `shared` last and every existing
+       assertion stays green. Same for each app's authored `<script src>` sequence.
+       So the gap is real and narrow: the invariant holds today BY CONSTRUCTION and by nothing else.
+
+       MEASURED 2026-09-27 before writing a line of it — the population is exactly CLAUDE.md's
+       `CLAIM clockBundles = 5`: ECGDex · HRVDex · MotionDex · OxyDex · PulseDex carry `clock.js` AND a
+       delegating DSP, all five in the right order; CPAPDex, GlucoDex and PpgDex carry neither (the three
+       deliberate non-carriers, §✅); Integrator carries `clock.js` and no delegating DSP. Asserted on the
+       AUTHORED `.src.html`, because that is where a human reorders — the bundle's inline blocks are the
+       builder's output and follow it. */
+    group('clock.js loads before every delegating DSP — manifest order and authored order', 'co-load · order · clock · §✅', function (T) {
+      var M = env.DexCoload;
+      var SH = env.srcHtml;
+      /* The five DSPs that ALIAS DexClock at load. ppgdex/glucodex/cpapdex are deliberately absent:
+         they carry node-local variants and `DexClock` is undefined there (§✅), so listing them here
+         would demand a clock.js their bundles must not have. */
+      var DELEGATING = ['ecgdex-dsp.js', 'hrvdex-dsp.js', 'motiondex-dsp.js', 'oxydex-dsp.js', 'pulsedex-dsp.js'];
+
+      /* ── P1 · the manifest's own order ─────────────────────────────────────────────────────────── */
+      T.ok('dex-coload.js is executed and readable as env.DexCoload', !!(M && Array.isArray(M.all) && Array.isArray(M.shared)), M ? 'shared/all missing' : 'env.DexCoload absent — Node-lane only');
+      if (M && Array.isArray(M.all) && Array.isArray(M.shared)) {
+        T.ok('the manifest declares clock.js as shared', M.shared.indexOf('clock.js') >= 0, 'shared: ' + M.shared.join(', '));
+        T.eq(
+          'M.all BEGINS with M.shared, in order (membership alone cannot see this)',
+          M.all.slice(0, M.shared.length).join(','),
+          M.shared.join(','),
+          'the shared modules no longer lead `all`, so a host iterating it would load a delegating DSP before clock.js. The existing host leg is a membership check and stays green on this.'
+        );
+        /* PLANT 1 · the reorder the membership check cannot see. Same members, shared moved last. */
+        var reordered = M.all
+          .filter(function (x) {
+            return M.shared.indexOf(x) < 0;
+          })
+          .concat(M.shared);
+        T.eq('PLANT 1 · the reorder leaves MEMBERSHIP identical', reordered.slice().sort().join(','), M.all.slice().sort().join(','));
+        T.ok(
+          'PLANT 1 · …and the order assertion reds on it',
+          reordered.slice(0, M.shared.length).join(',') !== M.shared.join(','),
+          'the order assertion accepted shared-last — it is not discriminating'
+        );
+      }
+
+      /* ── P2/P3 · the authored order, over a pinned population ──────────────────────────────────── */
+      if (!SH) {
+        T.skip('env.srcHtml provided to the runner', 'Node-lane only — run-tests.mjs reads the authored *.src.html');
+        return;
+      }
+      var scriptsOf = function (html) {
+        return [...String(html).matchAll(/<script[^>]*src="([^"]+\.js)"/g)].map(function (m) {
+          return m[1];
+        });
+      };
+      var carriers = [],
+        crashers = [],
+        misordered = [];
+      Object.keys(SH)
+        .sort()
+        .forEach(function (f) {
+          var order = scriptsOf(SH[f]);
+          T.ok(
+            f + ' · its authored script list was actually parsed',
+            order.length > 5,
+            order.length + ' <script src> entries — a short list means the parse failed and every verdict below is vacuous'
+          );
+          var ci = order.indexOf('clock.js');
+          var deleg = DELEGATING.filter(function (d) {
+            return order.indexOf(d) >= 0;
+          });
+          if (!deleg.length) return;
+          var node = f.replace(/\.src\.html$/, '');
+          carriers.push(node);
+          if (ci < 0) {
+            crashers.push(node);
+            return;
+          }
+          var first = Math.min.apply(
+            null,
+            deleg.map(function (d) {
+              return order.indexOf(d);
+            })
+          );
+          if (ci > first) misordered.push(node + ' (clock@' + ci + ' after ' + deleg[0] + '@' + first + ')');
+        });
+
+      /* ── THE POPULATION AS TWO EQUALITIES, ONE PER BUNDLE FAMILY ────────────────────────────────
+         Deriving the shell list surfaced that the carriers are not one set but two: the five APP shells
+         CLAUDE.md counts as `CLAIM clockBundles = 5`, plus the two ORCHESTRATOR shells it counts
+         separately as `CLAIM orchestrators = 2`, which co-load the same DSPs. Asserting one merged set of
+         seven would corroborate neither claim; asserting them apart corroborates both, and a node moving
+         between families reds instead of being absorbed. */
+      T.eq(
+        'the APP shells carrying a delegating DSP are exactly the five §✅ names (CLAIM clockBundles = 5)',
+        carriers.sort().join(','),
+        'ECGDex,HRVDex,MotionDex,OxyDex,PulseDex',
+        'the delegating set changed. If a node started delegating to DexClock its shell must also load clock.js; if one stopped, CLAUDE.md CLAIM clockBundles must move with it.'
+      );
+      /* The two ORCHESTRATOR shells co-load the same DSPs and are NOT in this population: `readSrcHtml`
+         excludes them because admitting them reds `Co-load §1b` with 19 unclassified modules, which is its
+         own unit (residue 2026-09-27-orchestrator-shells-unclassified-by-coload). Their load order was
+         MEASURED by hand for this PR and is correct — clock.js at inline index 21 before the first
+         delegating DSP at 22 in Data Unifier, 6 before 26 in OverDex — but measured is not asserted, and
+         this comment says which it is. */
+      T.eq('NO app carries a delegating DSP without clock.js (that is a ReferenceError at module evaluation)', crashers.join(',') || 'none', 'none');
+      T.eq('clock.js precedes every delegating DSP it is loaded with', misordered.join(' · ') || 'none', 'none');
+
+      /* PLANT 2 · a misordered authored list must be caught, and PLANT 3 · a delegating DSP with no
+         clock.js at all. Both over synthetic text, so they test the RULE rather than today's files —
+         and both are the falsifiers for the two assertions directly above, which read `none` today. */
+      var synth = function (list) {
+        return list
+          .map(function (x) {
+            return '<script src="' + x + '"></script>';
+          })
+          .join('\n');
+      };
+      var badOrder = scriptsOf(synth(['kernel-constants.js', 'oxydex-dsp.js', 'clock.js', 'dex-export.js', 'a.js', 'b.js']));
+      T.ok(
+        'PLANT 2 · clock.js AFTER a delegating DSP is detected',
+        badOrder.indexOf('clock.js') >
+          Math.min.apply(
+            null,
+            DELEGATING.filter(function (d) {
+              return badOrder.indexOf(d) >= 0;
+            }).map(function (d) {
+              return badOrder.indexOf(d);
+            })
+          ),
+        'a misordered list read as ordered — the comparison above cannot fire'
+      );
+      var noClock = scriptsOf(synth(['kernel-constants.js', 'ecgdex-dsp.js', 'dex-export.js', 'a.js', 'b.js', 'c.js']));
+      T.ok(
+        'PLANT 3 · a delegating DSP with NO clock.js is detected',
+        noClock.indexOf('clock.js') < 0 &&
+          DELEGATING.filter(function (d) {
+            return noClock.indexOf(d) >= 0;
+          }).length > 0,
+        'the crash case read as clean — the crashers assertion above cannot fire'
+      );
+    });
+
     group('Co-load manifest — single source vs host realms (PPGDEX-FOLLOWUPS §5)', 'co-load · sources · purity · signal-adapters', function (T) {
       var M = env.DexCoload,
         SA = env.SignalAdapters;
@@ -46624,6 +46950,12 @@
         'ppgdex-dsp.js': 'PPGDSP',
         'ecgdex-dsp.js': 'ECGDSP',
         'cpapdex-dsp.js': 'CpapDsp',
+        /* ADDED 2026-09-27. Its absence was not a judgement — `MotionDex.src.html` was missing from
+           `readSrcHtml()`'s curated list, so this gate never saw a MotionDex shell and never had a module
+           of its to classify. It publishes TWO globals (`MOTIONDSP` and `MotionDex`), which is exactly why
+           it is NOT in `dex-coload.js`'s `dsps` — that list is the SINGLE-namespaced DSPs — but the runner
+           co-loads it directly and `env.MOTIONDSP` has been exposed all along. */
+        'motiondex-dsp.js': 'MOTIONDSP',
         // cross/coimport (also on the nodeModules leg — Co-load §1/§2/§3)
         'oxydex-cross.js': 'OXYCross',
         'pulsedex-cross.js': 'PulseCross',
@@ -46646,7 +46978,10 @@
         'cpapdex-registry.js': 'CPAP_REGISTRY',
         'pulsedex-registry.js': 'PULSE_REGISTRY',
         'hrvdex-registry.js': 'HRV_REGISTRY',
-        'glucodex-registry.js': 'GLU_REGISTRY'
+        'glucodex-registry.js': 'GLU_REGISTRY',
+        /* The eighth registry, missing for the same reason as motiondex-dsp.js above: no MotionDex shell
+           reached this gate. `env.MOTION_REGISTRY` was already wired in the runner. */
+        'motiondex-registry.js': 'MOTION_REGISTRY'
       };
       // ── RUNTIME_EXEMPT (patterns): DOM classes driven end-to-end by the render-coverage rigs ──
       // (RESOLVE is consulted FIRST, so the shared dex-profile.js → DexProfile is co-loaded, NOT caught here.)

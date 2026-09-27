@@ -658,3 +658,61 @@ def test_root_reads_never_counts_a_DOTFILE_or_a_DOT_DIRECTORY_PATH(tmp_path):
     got = mutation_diff.root_reads(tree)
     assert "uploads/synthetic_ecgdex_h10.txt" in got, got
     assert not [g for g in got if g.startswith(".")], got
+
+
+# ── THE WALK IS LONG ENOUGH TO LOSE A RACE WITH A SIBLING TEST ──────────────────────────────────────
+# `root_reads` lists `*.py` with rglob and reads each one afterwards. Under xdist another worker can
+# delete a path in that gap: measured 2026-09-27 at worker gw1, `FileNotFoundError` on
+# `tests/_tripwire_clean_<pid>/test_clean.py` — a probe directory `test_capture_event_tripwire.py`
+# creates and removes in its own `finally`, and which cannot move because it exists to spawn a pytest run
+# that must INHERIT `conftest.py`, the fixture under test. The walker is therefore the side that gives.
+# Residue `2026-09-27-a-suite-walker-races-a-probe-dir-under-tests`.
+
+def _read_text_raising_for(victim, exc):
+    """`Path.read_text` that raises `exc` for one path and behaves normally for every other."""
+    from pathlib import Path
+
+    real = Path.read_text
+
+    def fake(self, *a, **k):
+        if self.name == victim:
+            raise exc
+        return real(self, *a, **k)
+
+    return fake
+
+
+def test_root_reads_is_UNCHANGED_by_a_file_that_vanishes_before_it_is_read(tmp_path, monkeypatch):
+    """The plant, and the property: the census does not depend on whether a sibling's transient file
+    happened to survive the walk. Asserted as EQUALITY against the census of the same tree without that
+    file at all — a vanished path must contribute exactly nothing, not merely "not crash"."""
+    from pathlib import Path
+
+    root, tree = _tree_with_root_read(tmp_path)
+    baseline = mutation_diff.root_reads(tree)
+    assert baseline == ["ecgdex-dsp.js"], baseline   # the control: the census is non-empty to begin with
+
+    # a transient sibling, present at listing time and gone by the time the walker reads it
+    (tree / "tests" / "_probe_dir").mkdir()
+    (tree / "tests" / "_probe_dir" / "test_gone.py").write_text('X = "suite.manifest.json"\n')
+    monkeypatch.setattr(Path, "read_text",
+                        _read_text_raising_for("test_gone.py", FileNotFoundError(2, "No such file")))
+    assert mutation_diff.root_reads(tree) == baseline, (
+        "a path that vanished between the listing and the read must contribute nothing at all")
+
+
+def test_root_reads_still_RAISES_when_a_file_exists_and_cannot_be_read(tmp_path, monkeypatch):
+    """The other half, and the one that keeps the skip honest. This census is a pinned EQUALITY, so an
+    error swallowed here would silently shrink the population it measures — the exact failure the pin
+    exists to catch. Only `FileNotFoundError` means "not a file"; everything else is a real problem and
+    must still stop the walk."""
+    from pathlib import Path
+
+    import pytest
+
+    root, tree = _tree_with_root_read(tmp_path)
+    (tree / "tests" / "test_unreadable.py").write_text('X = "suite.manifest.json"\n')
+    monkeypatch.setattr(Path, "read_text",
+                        _read_text_raising_for("test_unreadable.py", PermissionError(13, "denied")))
+    with pytest.raises(PermissionError):
+        mutation_diff.root_reads(tree)

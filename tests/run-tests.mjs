@@ -730,7 +730,26 @@ function readSources() {
      Take the union of every `data-inline-src` in the owned bundles: "any source" now means "any code
      we ship". Files are ADDED to the curated set, never removed, so no assertion that names a file
      can lose its input. */
-  for (const b of ManifestGate.MANIFEST_BUNDLES.concat(['Data Unifier.html', 'OverDex.html'])) {
+  /* ── EVERY OWNED BUNDLE FAMILY, NOT JUST THE APPS (2026-09-27) ──────────────────────────────────
+     The 11 owned app bundles were walked and the 14 ANALYSIS TOOL bundles were not, so the visibility
+     gate's published rationale — "readSources() walks every bundle's data-inline-src, so anything
+     inlined is readable for free" — was true of apps and false of the tools. Measured: 4 of its 12
+     invisible files (cohort-gen.js, qrs-yield-analysis.js, resp-acc-analysis.js,
+     resp-acc-analysis-app.js) are inlined into analysis bundles and were invisible for THIS reason, not
+     for being the "un-bundled tail" the comment described. Walking them makes the claim true and takes
+     the ratchet 12 → 8 by fixing a scope bug rather than by hand-registering files.
+     The list comes from the BUILDER, like rebase-safe's, and FAILS CLOSED: an unreadable TOOLS array
+     throws rather than silently walking nothing, because walking nothing is indistinguishable from a
+     clean tree here (CLAUDE.md §4b). */
+  const ANALYSIS_TOOLS = (() => {
+    const src = readFileSync(join(ROOT, 'tools/build-analysis.mjs'), 'utf8');
+    const m = /const TOOLS = \[([\s\S]*?)\];/.exec(src);
+    if (!m) throw new Error('readSources: tools/build-analysis.mjs TOOLS array unreadable — refusing to walk an empty bundle list');
+    const names = [...m[1].matchAll(/'([^']+\.html)'/g)].map((x) => x[1]);
+    if (names.length < 5) throw new Error('readSources: only ' + names.length + ' analysis tool(s) parsed from TOOLS — refusing a list that short');
+    return names;
+  })();
+  for (const b of ManifestGate.MANIFEST_BUNDLES.concat(['Data Unifier.html', 'OverDex.html'], ANALYSIS_TOOLS)) {
     const bp = join(ROOT, b);
     if (!existsSync(bp)) continue;
     const html = readFileSync(bp, 'utf8');
@@ -1288,7 +1307,31 @@ function readHosts() {
 // §1) — each *.src.html's <script src> list records which cross/coimport aux modules it bundles; the
 // gate asserts dex-coload.js's nodeModules: leg EQUALS that fleet set (browser fetches the same files).
 function readSrcHtml() {
-  const wanted = ['CPAPDex.src.html', 'ECGDex.src.html', 'GlucoDex.src.html', 'HRVDex.src.html', 'Integrator.src.html', 'OxyDex.src.html', 'PpgDex.src.html', 'PulseDex.src.html'];
+  /* ── DERIVED FROM THE TREE, NOT CURATED (2026-09-27) ────────────────────────────────────────────
+     The hand-written list omitted `MotionDex.src.html` while including `Integrator.src.html`, so it held
+     EIGHT names and was missing one of the nine authored shells. SEVEN gate groups read `env.srcHtml`
+     — the CSP gate, the csp-strict gate, the §3 source gate, the shells gate and two co-load legs — so
+     none of them had ever examined MotionDex's shell. The omission survived because the shells gate
+     guards its input with `names.length >= 8`: a FLOOR, met by the wrong eight. A floor cannot detect
+     exclusion, since the excluded member is exactly the one it does not count.
+     Found 2026-09-27 by a population EQUALITY in the co-load order group, which expected CLAUDE.md's
+     five delegating apps and got four. Deriving removes the class rather than re-curating the list, and
+     it FAILS CLOSED on an implausibly short result, because reading zero shells is indistinguishable
+     from nine clean ones here (§4b). */
+  /* ⚠️ THE ORCHESTRATOR SHELLS ARE EXCLUDED, WITH A REASON, and the exclusion is a finding not a
+     preference. Deriving ALL 11 shells pulls in `Data Unifier.src.html` and `OverDex.src.html`, whose
+     bundled modules have never been classified by `Co-load §1b`: adding them reds it with 19 UNCLASSIFIED
+     names (every signal adapter, signal-orchestrate/spec/adapters, night-seal.js, overdex-walk.js,
+     verdict.js …). That is a real gap and a unit of its own — classifying 19 modules is a per-module
+     judgement between "co-load it + RESOLVE" and "RUNTIME_EXEMPT with a reason" — so it is logged as
+     residue 2026-09-27-orchestrator-shells-unclassified-by-coload rather than resolved inside a unit
+     about load ORDER. The defect actually found here was the MotionDex omission; the orchestrators are a
+     scope expansion discovered alongside it, and conflating the two would make this PR unreviewable. */
+  const ORCHESTRATOR_SHELLS = ['Data Unifier.src.html', 'OverDex.src.html'];
+  const wanted = readdirSync(ROOT)
+    .filter((f) => /^[A-Za-z][A-Za-z0-9 ]*\.src\.html$/.test(f) && !ORCHESTRATOR_SHELLS.includes(f))
+    .sort();
+  if (wanted.length < 9) throw new Error('readSrcHtml: only ' + wanted.length + ' app *.src.html found — refusing a list that short rather than reporting clean over it');
   const out = {};
   for (const f of wanted) {
     const p = join(ROOT, f);
