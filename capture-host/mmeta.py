@@ -154,8 +154,8 @@ def test_tree_hash(tests_dir: Path) -> str:
     return digest.hexdigest()[:16]
 
 
-def refresh_results_if_tests_changed(work: Path, module: str, tests_dir: Path, stamp: Path) -> bool:
-    """§2 — invalidate mutmut's RESULTS cache for `module` when the test tree has changed since last run.
+def refresh_caches_if_tests_changed(work: Path, module: str, tests_dir: Path, stamp: Path) -> bool:
+    """§2 — invalidate mutmut's RESULTS **and SELECTION** caches for `module` when the tests change.
 
     NULLS every value in `<work>/mutants/<module>.meta`'s `exit_code_by_key` — it does NOT delete the file.
     A null is precisely "generated but not decided" (see this module's header), which is exactly what an
@@ -167,8 +167,26 @@ def refresh_results_if_tests_changed(work: Path, module: str, tests_dir: Path, s
     but nothing matches`, i.e. the §2 invalidation would trigger the very crash §3 refuses on. (Measured
     2026-08-24: delete → EXIT 2 on the gate's own module; the fix keeps the mutant source + warm `.pyc`.)
 
+    ⚠️ AND THE SELECTION, which this used to leave behind — measured 2026-09-27, and it is the more
+    dangerous half. mutmut picks WHICH TESTS to run for a mutant from `mutants/mutmut-stats.json`
+    (`tests_by_mangled_function_name`), built by a TRACED pass. Nulling the exit codes made every mutant
+    re-decide — honestly — against a STALE selection, so a test edited to kill a mutant was never chosen
+    to run against it and the mutant read SURVIVED. Two paths produce that map without the edited test:
+    a test whose only contact with the code is a subprocess registers no trampoline hit at all, and
+    `collect_or_load_stats` re-traces only `new_tests() = ids - collected_test_names()` — a set difference
+    on test NAMES, so EDITING a test under the same name never re-traces it.
+
+    Removing the stats file is the whole fix: `load_stats()` then returns False and mutmut does a FULL
+    collection. It costs one traced pass (7.3 s measured on `solid_night_inputs`), which is the price of
+    the answer being about the tests that exist.
+
+    ⚠️ NOT symmetric with the meta above, deliberately. The meta is NULLED because deleting it strips the
+    mutant keys and mutmut, seeing unchanged source, skips regeneration and then crashes with "Filtered
+    for specific mutants, but nothing matches". The stats file has no such role — nothing filters on it —
+    so deleting is safe and is the only way to force a full re-trace.
+
     The test hash is stamped into `stamp` so the comparison is against what was actually last measured, not
-    an mtime. Returns True iff the results were invalidated (tests changed or no prior stamp).
+    an mtime. Returns True iff the caches were invalidated (tests changed or no prior stamp).
     """
     current = test_tree_hash(tests_dir)
     stamp = Path(stamp)
@@ -185,5 +203,12 @@ def refresh_results_if_tests_changed(work: Path, module: str, tests_dir: Path, s
                 meta.write_text(json.dumps(data), encoding="utf-8")
         except (OSError, ValueError):
             pass                        # unreadable meta ⇒ nothing to invalidate; the stamp still advances
+    # THE SELECTION. Unlinked, not rewritten: mutmut rebuilds it from a traced pass when it is absent,
+    # and any partial edit here would be a guess about which associations are still true.
+    stats = Path(work) / "mutants" / "mutmut-stats.json"
+    try:
+        stats.unlink()
+    except OSError:
+        pass                            # already gone, or unreadable ⇒ mutmut collects afresh either way
     stamp.write_text(current, encoding="utf-8")
     return True

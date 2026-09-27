@@ -251,6 +251,11 @@ def main(argv=None) -> int:
     verdict: dict = {"base": a.base, "modules": {}, "survivors": []}
     _counts = {"generated": 0, "decided": 0, "killed": 0, "survived": 0, "undecided": 0, "excused": 0, "refuted": 0}
     _pop = {"checked": 0, "eligible": 0}
+    # THE SCOPE, so the prose can name it truthfully. The gate mutates whole FUNCTIONS (#1761 —
+    # "slightly wider than the diff, which is the safe direction"), and saying "survived on lines
+    # this branch changed" told a reader the survivors were on their diff. They are usually not:
+    # on one measured run 30 survivors were reported that way and NONE was on a changed line.
+    _scope = {"lines": 0, "functions": 0}
     _ran_box = [0]  # mirrors `_ran` (a local of main, rebound below) so emit() can read it
 
     def _checked() -> int:
@@ -393,6 +398,8 @@ def main(argv=None) -> int:
         stem_mod = module[:-3]
         globs = [f"{stem_mod}.{s}__mutmut_*" for s in sorted(stems)]
         _pop["eligible"] += len(globs)
+        _scope["lines"] += len(lines)
+        _scope["functions"] += len(stems)
         print(f"  {module}: {len(lines)} changed line(s) in {len(stems)} function(s) → "
               f"{', '.join(sorted(stems))}", flush=True)
         # The clean run is timed ONCE per module and handed to every glob's run_one. Re-timing it per
@@ -854,8 +861,9 @@ def main(argv=None) -> int:
             return _refusal
         return emit("PASS", None, 0)
 
-    print(f"\nmutate-diff: {len(blocking)} mutant(s) survived on lines this branch "
-          f"changed — no test can see these edits:\n")
+    print(f"\nmutate-diff: {len(blocking)} mutant(s) survived in the {_scope['functions']} function(s) this "
+          f"branch changed ({_scope['lines']} changed line(s)) — no test can see them.\n"
+          "  The unit is the FUNCTION, not the line: a survivor here may sit on a line you did not touch.\n")
     for s in cls["unclassified"]:
         print(f"  ── {s['mutant']}")
         for ln in mutant_changed_lines(s):
@@ -872,7 +880,8 @@ def main(argv=None) -> int:
     if _refusal is not None:
         print("  (informational — the run's verdict is the UNKNOWN refusal above, which outranks survivors)")
         return _refusal
-    return emit("FAIL", f"{len(blocking)} mutant(s) survived on lines this branch changed — no test observes them", 0 if a.report_only else 1)
+    return emit("FAIL", f"{len(blocking)} mutant(s) survived in the {_scope['functions']} function(s) this branch "
+                    f"changed ({_scope['lines']} changed line(s)) — no test observes them", 0 if a.report_only else 1)
 
 
 if __name__ == "__main__":
