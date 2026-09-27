@@ -41,6 +41,7 @@ import offline_lock
 import diskguard
 import sdnotify
 import alerts
+import clock_offset
 import nightqc
 import nightarchive
 import loss_audit
@@ -2541,7 +2542,9 @@ async def _retry_sleep(name: str, delay: float, why: str, attempt: int) -> float
 _NIGHT_SETTLE_S = 1200.0     # 20 min of no writes ⇒ a night is complete; overridable via storage.settle_sec
 
 
-CLOCK_IMPLAUSIBLE_S = 365 * 24 * 3600.0   # beyond a year is a bad read, not drift
+#: ALIASED, not redefined: the number lives in `clock_offset` so the resync decision here and that
+#: module's `implausible-offset` refusal cannot drift apart. Every use below is unchanged.
+CLOCK_IMPLAUSIBLE_S = clock_offset.CLOCK_IMPLAUSIBLE_S
 
 
 def clock_resync_reason(skew, prev, jump, tolerance, failed_adrift=0, giveup=CLOCK_ADRIFT_GIVEUP):

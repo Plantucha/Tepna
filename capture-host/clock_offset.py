@@ -204,6 +204,23 @@ def paxson(pts, n_subsets=PAXSON_SUBSETS):
     return (a, _median([d - a * t for t, d in mins]))
 
 
+#: A device-clock reading beyond a year from the host is a BAD READ, not drift — the bound moved here
+#: from `capture.py`, which now aliases it, so one number serves the resync decision and the offset
+#: refusal below and there is no second threshold to defend. Seconds, because that is the unit
+#: `clock_resync_reason` compares a skew in; the offset refusal converts once, at the comparison.
+#:
+#: 🔴 WHY THE OFFSET NEEDED IT AT ALL. `implausible-skew` guards the SLOPE, and a device on the wrong
+#: EPOCH has a perfectly good slope — a constant added to every delay leaves it untouched. So a night
+#: where the H10 sat on its 2019 firmware default published `offset_ms: 244174156601.746` with
+#: `"ok": true`: 7.74 years, certified. Swept 2026-09-27 over the corpus, 192 (night, device, stream)
+#: publications carried an offset beyond a year, every one ok=true, from three causes — the pre-09-13
+#: epoch-subtraction bug (historical), the H10 firmware default (7 nights), and the O2Ring
+#: `_DURATION_S` pseudo-stream, whose "device stamp" is a duration in seconds and is not a clock at all
+#: (every night since 09-13). §∅ and §🧾: an offset that cannot be true is not an offset, and a PASS
+#: over it is a fabricated one.
+CLOCK_IMPLAUSIBLE_S = 365 * 24 * 3600.0
+
+
 def estimate(points):
     """Offset and skew from `(t_sec, delay_ms)` pairs, by both estimators, with their disagreement.
 
@@ -254,6 +271,14 @@ def estimate(points):
 
     off_env = env[0] * t_ref + env[1]
     off_pax = pax[0] * t_ref + pax[1]
+    # THE SIBLING OF `implausible-skew`, AND THE ONE THAT WAS MISSING. Tested on the ENVELOPE and
+    # Paxson values rather than on the certified `offset_ms`, because the certification can already be
+    # None while the estimate is thirty years out — that is exactly the `_DURATION_S` shape, which
+    # published `offset_ms: null` beside `offset_envelope_ms: 843790201937.193`. Refusing on the
+    # certified field alone would have left that one standing.
+    if abs(off_env) > CLOCK_IMPLAUSIBLE_S * 1000.0 or abs(off_pax) > CLOCK_IMPLAUSIBLE_S * 1000.0:
+        return {"ok": False, "reason": "implausible-offset", "n": n,
+                "offset_envelope_ms": round(off_env, 3), "offset_paxson_ms": round(off_pax, 3)}
     agree = abs(off_env - off_pax)
     certified = bool(agree <= AGREE_MAX_MS)
     return {

@@ -165,3 +165,84 @@ def test_nightqc_span_walks_the_series_so_an_endpoint_inside_the_seam_is_resolve
     r = nightqc.rtc_drift_summary(str(p))
     # 23:00 EDT → 01:30 EST is 3.5 h of real time; fold=0 on the endpoint would have said 2.5
     assert r["span_h"] == 3.5, r
+
+
+# ── nightqc.arrival_quality has its OWN resolver wiring ────────────────────────────────────────────
+# The two tests above drive `jitterfloor.parse_pmdarrival`. `nightqc.arrival_quality` reads the same
+# sidecars through its own `folds` dict and passes its own device stamp, so neither of those defends
+# this path: both lines are reachable only from here.
+
+def _seam_csv(path, rows):
+    path.write_text(
+        "Phone timestamp;device;meas;first_sensor_ns;last_sensor_ns;n_samples\n"
+        + "\n".join("%s;%s;%s;%d;%d;%d" % r for r in rows) + "\n")
+
+
+def test_nightqc_arrival_quality_resolves_each_stream_on_its_OWN_offset(new_york, tmp_path):
+    """One resolver PER (device, meas). The state a resolver carries is the previous host−device offset,
+    which is a property of one stream on one connection; shared between streams whose counters sit hours
+    apart, each row's fold is then decided by the other stream's offset. Interleaved, both continuous —
+    so a −3600 s step inside either axis is the plant, and it is the residue this wiring exists for."""
+    a = _night_rows()
+    b = [(s, ns + 5 * 3600 * 10**9) for s, ns in a]
+    rows = []
+    for (sa, na), (sb, nb) in zip(a, b):
+        rows += [(sa, "H10", "ecg", na, na + 1, 73), (sb, "Verity", "acc", nb, nb + 1, 52)]
+    _seam_csv(tmp_path / "x_PMDARRIVAL.csv", rows)
+    out = {r["device"]: r for r in nightqc.arrival_quality(str(tmp_path))}
+    assert set(out) == {"H10", "Verity"}, out
+    # The plant is ABSOLUTE, not a step: nearly every row of `_night_rows` sits inside the repeated
+    # hour, so a resolver that folds a whole stream the wrong way shifts it UNIFORMLY and leaves no
+    # step behind for `worst_ms` to see. What it cannot leave alone is the offset itself.
+    for dev, truth in (("H10", _truth_offset_ms(0)), ("Verity", _truth_offset_ms(5 * 3600))):
+        rec = out[dev]
+        assert rec["jitter"]["worst_ms"] < 10.0, (dev, rec["jitter"])
+        assert abs(rec["offset"]["offset_ms"] - truth) < 5.0, (dev, truth, rec["offset"])
+
+
+def _truth_offset_ms(dev_lead_s):
+    """The planted host−device offset: every row's host instant is `SEAM_NIGHT + i s` by construction
+    and its counter advances the same second, so the difference is a constant the fixture knows."""
+    import zoneinfo
+    z = zoneinfo.ZoneInfo("America/New_York")
+    t0_ms = SEAM_NIGHT.replace(tzinfo=z, fold=0).timestamp() * 1000.0
+    return t0_ms - nightqc._POLAR_EPOCH_MS - (DEV0_NS / 1e6 + dev_lead_s * 1000.0)
+
+
+def test_nightqc_arrival_quality_keys_the_resolver_on_the_DEVICE_too_not_only_the_stream(new_york, tmp_path):
+    """Two DEVICES carrying the same `meas`. Keying the resolver on the stream name alone — or on a
+    constant — merges them, and then the H10's offset decides the Verity's fold and vice versa. The
+    per-stream test above cannot see that: `("", meas)` still separates `ecg` from `acc`, so only a pair
+    that shares a measurement name distinguishes the device half of the key. Both devices run `acc`."""
+    a = _night_rows()
+    b = [(s, ns + 5 * 3600 * 10**9) for s, ns in a]
+    rows = []
+    for (sa, na), (sb, nb) in zip(a, b):
+        rows += [(sa, "H10", "acc", na, na + 1, 52), (sb, "Verity", "acc", nb, nb + 1, 52)]
+    _seam_csv(tmp_path / "d_PMDARRIVAL.csv", rows)
+    out = {r["device"]: r for r in nightqc.arrival_quality(str(tmp_path))}
+    assert set(out) == {"H10", "Verity"}, out
+    for dev, truth in (("H10", _truth_offset_ms(0)), ("Verity", _truth_offset_ms(5 * 3600))):
+        assert abs(out[dev]["offset"]["offset_ms"] - truth) < 5.0, (dev, truth, out[dev]["offset"])
+
+
+def test_nightqc_arrival_quality_resolves_the_repeated_hour_by_the_DEVICE_counter(new_york, tmp_path):
+    """After a gap longer than the repeated hour BOTH folds are forward, so monotonicity cannot decide
+    and only the device counter can. The counter is handed over as an instant in ms from the Unix epoch:
+    a null one, a 2000-epoch mirror of it or a scale error puts the whole second pass an hour early."""
+    import zoneinfo
+    from datetime import timezone
+    z = zoneinfo.ZoneInfo("America/New_York")
+    t0 = datetime(2026, 11, 1, 3, 0, 0, tzinfo=timezone.utc)        # 23:00 EDT, unambiguous
+    rows = []
+    for phase_s in (0, int(3.5 * 3600)):                            # ... then 01:30 EST, second pass
+        for i in range(150):
+            elapsed = phase_s + i
+            naive = (t0 + timedelta(seconds=elapsed)).astimezone(z).replace(tzinfo=None)
+            rows.append((naive.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3], "H10", "ecg",
+                         DEV0_NS + elapsed * 10**9, DEV0_NS + elapsed * 10**9 + 1, 73))
+    assert rows[150][0].startswith("2026-11-01T01:30"), rows[150][0]
+    _seam_csv(tmp_path / "g_PMDARRIVAL.csv", rows)
+    got = nightqc.arrival_quality(str(tmp_path))[0]
+    assert got["rows"] == 300, got
+    assert got["jitter"]["worst_ms"] < 10.0, got["jitter"]

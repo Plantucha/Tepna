@@ -17,6 +17,8 @@ from writers import PmdArrivalLogWriter
 from tests._srcscan import module_source
 
 _T0 = _dt.datetime(2026, 8, 11, 22, 0, 0)
+import nightqc as _nqc_for_epoch          # one definition of the Polar epoch, not a second literal
+_POLAR_EPOCH_MS_S = _nqc_for_epoch._POLAR_EPOCH_MS / 1000.0
 
 
 def _read(path):
@@ -164,7 +166,12 @@ def test_floor_ms_is_robust_to_one_early_outlier():
 
 # ─── nightqc.arrival_quality: judged where judgeable, silent where not ───────────────────────────
 
-def _write_sidecar(path, meas, diffs_ms, base_ns=500_000_000_000):
+def _write_sidecar(path, meas, diffs_ms, base_ns=None):
+    """`base_ns=None` takes the REAL Polar anchor. It used to default to 500_000_000_000 — a power-on
+    counter no Polar device sends — which put twenty-six years into every delay this plants, invisibly,
+    because every assertion here was about the SPREAD. Resolved at call time because `_BASE_NS` is
+    defined further down; a caller wanting an unrealistic anchor now has to ask for one."""
+    base_ns = _BASE_NS if base_ns is None else base_ns
     w = PmdArrivalLogWriter(path, fsync=False)
     for i, extra in enumerate(diffs_ms):
         dev_ns = base_ns + i * 77_000_000
@@ -368,7 +375,16 @@ def test_arrival_quality_reads_a_quoted_field_verbatim(tmp_path):
 
 # ─── arrival_quality: the offset estimate, its units, and its time axis ──────────────────────────
 
-_BASE_NS = 500_000_000_000       # a device counter, not an epoch — 500 s since the sensor powered on
+# ⚠️ A REAL POLAR COUNTER, DERIVED — not "500 s since the sensor powered on", which this was until
+# 2026-09-27 and which no Polar device produces: PMD stamps are ns since 2000-01-01 UTC
+# (`nightqc._POLAR_EPOCH_MS`; the live corpus reads 2026-09-26T02:24:31Z on a healthy night). Against a
+# 2026 host stamp the old anchor put 8.39e11 ms — TWENTY-SIX YEARS — into every delay these fixtures
+# plant, and the tests below pinned that as `ok: True, certified: True`. Nothing could see it: this
+# file's own `_POLAR_EPOCH_UTC` note says those fixtures "only ever exercised the SPREAD of the delay
+# and never its absolute value", and `clock_offset`'s new `implausible-offset` refusal is what finally
+# read the absolute value out loud. Derived from `_T0` through the module constant so the two cannot
+# drift apart again — hardcoding it is how they drifted in the first place.
+_BASE_NS = int(round((_T0.timestamp() - _POLAR_EPOCH_MS_S) * 1e9))
 _CADENCE_MS = 5000               # a PPI packet lands about every 5 s
 _ONE_SIDED = [0, 3, 5, 9, 14, 21, 30, 44, 61, 90] * 60      # 600 packets, never early
 
@@ -1348,3 +1364,413 @@ def test_a_zero_device_counter_is_absence_and_never_the_year_2000(tmp_path):
     w.close()
     assert nightqc.arrival_quality(str(tmp_path)) == [], \
         "a stream whose device counter is 0 throughout has no arrival pair to report"
+
+
+# ─── WHICH EPOCH THE DEVICE COUNTER READ (2026-09-27) ────────────────────────────────────────────
+# The companion to `clock_offset`'s `implausible-offset` refusal: the refusal declines the number, this
+# says WHY. Annotation, not a refusal of the night — §∅ owner ruling 2026-09-17, the signal is
+# continuous and fully covered, the clock is merely wrong. Measured over the corpus: the H10 read its
+# 2019 firmware default on 7 of 44 nights and those nights published a 7.74-year offset as ok:true.
+
+_FIRMWARE_DEFAULT_NS = int(round((_dt.datetime(2019, 1, 1, tzinfo=_dt.timezone.utc)
+                                  - _POLAR_EPOCH_UTC).total_seconds() * 1e9))
+
+
+def test_a_firmware_default_epoch_is_NAMED_and_its_offset_refused(tmp_path):
+    """THE PLANT, in the real shape: the H10's counter reads 2019 while the host reads 2026."""
+    import nightqc
+    _write_sidecar(os.path.join(tmp_path, "Tepna_fw_PMDARRIVAL.csv"), "ECG",
+                   [400 + d for d in [0, 1, 2, 4, 7, 11, 18, 29, 47, 76] * 30],
+                   base_ns=_FIRMWARE_DEFAULT_NS)
+    row = nightqc.arrival_quality(str(tmp_path))[0]
+    assert row["device_epoch"]["state"] == "firmware-default", row["device_epoch"]
+    assert row["device_epoch"]["device_time_first"].startswith("2019-01-01"), row["device_epoch"]
+    assert row["offset"]["ok"] is False and row["offset"]["reason"] == "implausible-offset", row["offset"]
+    assert row["offset"]["cause"] == "firmware-default", (
+        "the cause travels ON the refusal, so a consumer reading only `offset` still learns it")
+
+
+def test_a_plausible_epoch_leaves_the_night_exactly_as_it_was(tmp_path):
+    """THE CONTROL. A healthy 2026 counter: the state says so, the offset certifies, and the VALUE is
+    the planted one — the refusal must not reach a real link."""
+    import nightqc
+    _write_sidecar(os.path.join(tmp_path, "Tepna_ok_PMDARRIVAL.csv"), "ECG",
+                   [400 + d for d in [0, 1, 2, 4, 7, 11, 18, 29, 47, 76] * 30])
+    row = nightqc.arrival_quality(str(tmp_path))[0]
+    assert row["device_epoch"]["state"] == "plausible", row["device_epoch"]
+    assert row["device_epoch"]["switched_at"] is None
+    assert row["offset"]["ok"] is True and "cause" not in row["offset"], row["offset"]
+    assert abs(row["offset"]["offset_ms"] - (400.0 - 69.0)) < 1.0, row["offset"]
+
+
+def test_a_DURATION_S_pseudo_stream_says_it_was_never_a_clock(tmp_path):
+    """The O2Ring case, live on every night since 2026-09-13: `_DURATION_S`'s "device stamp" is an
+    elapsed count, so differencing it against a host epoch was never an offset. `quantised` already
+    refuses the FLOOR; this names the reason and the offset is refused too."""
+    import nightqc
+    _write_sidecar(os.path.join(tmp_path, "Tepna_du_PMDARRIVAL.csv"), "OXYLIVE_DURATION_S",
+                   [400 + d for d in [0, 1, 2, 4, 7, 11, 18, 29, 47, 76] * 30],
+                   base_ns=500_000_000_000)          # a duration, deliberately not an epoch
+    row = nightqc.arrival_quality(str(tmp_path))[0]
+    assert row["quantised"] is True
+    assert row["device_epoch"]["state"] == "duration-not-an-offset", row["device_epoch"]
+    assert row["offset"]["ok"] is False and row["offset"]["cause"] == "duration-not-an-offset"
+
+
+def test_a_frozen_counter_at_the_epoch_base_reads_unset_base(tmp_path):
+    """The Verity PPI shape: the counter never left 2000-01-01, which is not a clock reading at all.
+    `device_stamp_constant` already flags the frozen stamp; the epoch state names what it means."""
+    import nightqc
+    _write_frozen(os.path.join(tmp_path, "Tepna_fz_PMDARRIVAL.csv"), "PPI")
+    row = nightqc.arrival_quality(str(tmp_path))[0]
+    assert row["device_stamp_constant"] is True
+    assert row["device_epoch"]["state"] == "unset-base", row["device_epoch"]
+
+
+def test_a_counter_that_changes_epoch_MID_STREAM_reports_the_boundary(tmp_path):
+    """`switched_at`, and it is honest about being unobserved. The two corpus nights that carry both
+    epochs (2026-08-15, 2026-08-23) do so across separate CONNECTIONS — each sidecar is internally
+    consistent — so a within-stream switch has never been seen on the box. It is reachable in principle,
+    because a resync can land on a live connection, so the field exists and this is what it would say."""
+    import nightqc
+    w = PmdArrivalLogWriter(os.path.join(tmp_path, "Tepna_sw_PMDARRIVAL.csv"), fsync=False)
+    for i in range(300):
+        base = _FIRMWARE_DEFAULT_NS if i < 150 else _BASE_NS      # the resync lands at packet 150
+        dev_ns = base + (i % 150) * 77_000_000
+        arr = _T0 + _dt.timedelta(milliseconds=i * 77.0 + 400.0)
+        w.write(arr, "dev", "ECG", dev_ns, dev_ns + 69_000_000, 10)
+    w.close()
+    row = nightqc.arrival_quality(str(tmp_path))[0]
+    ep = row["device_epoch"]
+    assert ep["state"] == "firmware-default" and ep["switched_to"] == "plausible", ep
+    assert ep["switched_at"] is not None, ep
+
+
+def test_nothing_measured_means_no_epoch_claim():
+    """∅ — an empty stream is not a plausible one."""
+    import nightqc
+    assert nightqc.device_epoch_state([], quantised=False, stamp_frozen=False) is None
+
+
+# ---------------------------------------------------------------------------------------------------
+# `device_epoch_state` AT ITS OWN BOUNDARY, called directly.
+#
+# The plants above drive it through `arrival_quality` on a written sidecar, which is the shape the box
+# produces — and every variant of the bound classifies a 2019 reading the same way, because 7.7 years is
+# far from every candidate line. These call the classifier with the differences either side of the line.
+# ---------------------------------------------------------------------------------------------------
+
+def _epoch_pairs(diff_ms, *, host_ms=1_790_000_000_000.0, dev_ns=0, n=3):
+    """`(host_ms, diff_ms, dev_ns)` — the tuple `device_epoch_state` consumes, with no file behind it."""
+    return [(host_ms + i * 1000.0, diff_ms, dev_ns) for i in range(n)]
+
+
+def test_hours_out_is_a_drift_or_a_timezone_not_a_wrong_epoch():
+    """27 hours of difference is a zone blunder, a stale RTC or a long uncorrected drift; the night keeps
+    its offset and `clock_offset` certifies it. The bound is a year in MILLISECONDS — the same constant
+    divided instead of multiplied lands at 31.5 s and would call this stream a firmware default, i.e.
+    would name an epoch fault on a device whose epoch is fine."""
+    import nightqc
+    st = nightqc.device_epoch_state(_epoch_pairs(1.0e8), quantised=False, stamp_frozen=False)
+    assert st["state"] == "plausible", st
+
+
+def test_exactly_a_year_is_plausible_and_half_a_part_per_thousand_more_is_not():
+    """The same `<=` boundary `clock_offset`'s `>` refuses on, asserted from the annotating side: the two
+    halves of this fix must agree about which reading is the last admitted one, or a night gets an epoch
+    name with no refusal beside it (or the reverse)."""
+    import clock_offset
+    import nightqc
+    at = nightqc.device_epoch_state(_epoch_pairs(clock_offset.CLOCK_IMPLAUSIBLE_S * 1000.0),
+                                    quantised=False, stamp_frozen=False)
+    assert at["state"] == "plausible", at
+    over = nightqc.device_epoch_state(_epoch_pairs(clock_offset.CLOCK_IMPLAUSIBLE_S * 1000.5),
+                                      quantised=False, stamp_frozen=False)
+    assert over["state"] == "firmware-default", over
+
+
+def test_the_device_time_is_UTC_whatever_zone_the_READER_sits_in():
+    """Clock Contract §5: a device time is formatted from UTC fields and carries a `Z`, so two readers in
+    two zones quote one stamp. Both the rig and CI happen to run UTC, where dropping the `timezone.utc`
+    argument changes nothing at all and a test that trusts the ambient zone proves nothing — so this one
+    moves the zone, and a local-time reading would print 2018-12-31 under a `Z` it has no right to."""
+    import time
+    import nightqc
+    old = os.environ.get("TZ")
+    os.environ["TZ"] = "America/New_York"
+    time.tzset()
+    try:
+        st = nightqc.device_epoch_state(_epoch_pairs(0.0, dev_ns=_FIRMWARE_DEFAULT_NS),
+                                        quantised=False, stamp_frozen=False)
+        assert st["device_time_first"] == "2019-01-01T00:00:00Z", st
+    finally:
+        if old is None:
+            os.environ.pop("TZ", None)
+        else:
+            os.environ["TZ"] = old
+        time.tzset()
+
+
+def test_the_switch_is_stamped_at_the_HOST_instant_of_that_packet():
+    """`switched_at` answers WHEN the counter changed epoch, so it reads that packet's host clock. The
+    column beside it is the difference that classified the packet — a duration, never a time of day — and
+    the seconds it is built from are host ms, so both of those substitutions land on a different minute
+    in every zone, not only in this one."""
+    import nightqc
+    pairs = (_epoch_pairs(0.0, n=1)
+             + [(1_790_000_000_000.0, 4.0e10, 0)])
+    st = nightqc.device_epoch_state(pairs, quantised=False, stamp_frozen=False)
+    assert st["state"] == "plausible" and st["switched_to"] == "firmware-default", st
+    assert st["switched_at"] == nightqc._hhmm(1_790_000_000_000.0 / 1000.0), st
+    for wrong in (4.0e10 / 1000.0, 1_790_000_000_000.0 / 1001.0):
+        assert st["switched_at"] != nightqc._hhmm(wrong), (st, wrong)
+
+
+# ---------------------------------------------------------------------------------------------------
+# ROW-LEVEL GUARDS AND PUBLISHED PRECISION, written field by field.
+#
+# `_write_sidecar` goes through the real writer, which always emits every column and stamps at 1 ms.
+# These rows are written by hand because what is under test is what happens to a row the writer would
+# never produce — a missing column, a zero counter, a sub-millisecond device stamp.
+# ---------------------------------------------------------------------------------------------------
+
+_RAW_HDR = "Phone timestamp;device;meas;first_sensor_ns;last_sensor_ns;n_samples"
+
+
+def _raw_sidecar(path, rows):
+    """`rows` are already-formatted field lists, so a field can be absent rather than empty."""
+    with open(path, "w", newline="") as fh:
+        fh.write(_RAW_HDR + "\n")
+        for r in rows:
+            fh.write(";".join(r) + "\n")
+
+
+def _stamp(dev_ns, extra_ms, base_ns=None):
+    """The host stamp a packet carrying `dev_ns` would get, `extra_ms` late. 1 ms in the text, as the
+    writer emits it — a sub-ms delay has to be planted on the DEVICE side, which has ns resolution."""
+    base_ns = _BASE_NS if base_ns is None else base_ns
+    arr = _T0 + _dt.timedelta(milliseconds=(dev_ns - base_ns) / 1e6 + extra_ms)
+    return arr.strftime("%Y-%m-%dT%H:%M:%S.") + "%03d" % (arr.microsecond // 1000)
+
+
+def test_a_row_lacking_last_sensor_ns_falls_back_to_the_FIRST(tmp_path):
+    """The packet-fill argument in the docstring says pair against the last sample. The fallback exists
+    because the ring's writer fills both columns identically and a row must not be DROPPED for lacking a
+    column its own device never writes — so an empty `last` is not an absent measurement, it is a
+    measurement to read from the other column. `or` and not `and`: chaining `and ""` makes the fallback
+    evaluate to empty and drops every such row silently, which is the whole night for that stream."""
+    import nightqc
+    rows = [(_stamp(_BASE_NS + i * 77_000_000, 400.0), "dev", "ECG",
+             str(_BASE_NS + i * 77_000_000), "", "10") for i in range(120)]
+    _raw_sidecar(os.path.join(tmp_path, "Tepna_fb_PMDARRIVAL.csv"), rows)
+    out = nightqc.arrival_quality(str(tmp_path))
+    assert len(out) == 1 and out[0]["rows"] == 120, out
+
+
+def test_a_zero_counter_row_is_SKIPPED_and_does_not_abandon_the_file(tmp_path):
+    """§∅ and the docstring's own measurement: the Verity's `ppi` stream carries `last_sensor_ns` 0 on
+    all 4864 packets and the ring writes zeros too, so a zero row is the COMMON case, not a torn tail.
+    `continue`, never `break` — breaking would silently truncate the night at the first zero and report
+    the prefix as if it were the whole recording. The sentinel is 0: a counter of 1 ns is absurd but it
+    is a reading, and a guard that swallowed it would be deciding by plausibility, not by absence."""
+    import nightqc
+    rows = []
+    for i in range(122):
+        dev_ns = _BASE_NS + i * 77_000_000
+        ns = {0: "0", 1: "1"}.get(i, str(dev_ns))          # row 0 absent, row 1 the 1 ns edge
+        rows.append((_stamp(dev_ns, 400.0), "dev", "ECG", ns, ns, "10"))
+    _raw_sidecar(os.path.join(tmp_path, "Tepna_z_PMDARRIVAL.csv"), rows)
+    out = nightqc.arrival_quality(str(tmp_path))
+    assert len(out) == 1, out
+    assert out[0]["rows"] == 121, ("the zero row is dropped and every later row still measured", out)
+
+
+def test_the_floor_verdict_and_its_spread_are_pinned_AT_five_milliseconds(tmp_path):
+    """`floor_ok` is `spread < 5.0` — a spread OF exactly 5 ms is already a smear, and the number beside
+    it is published at 0.1 ms. Both are read by a consumer deciding whether to spend the floor as an
+    offset, so both are contract: the quantile is `vals[int(0.01*n)]`, which these rows place exactly."""
+    import nightqc
+    for label, spread_ms, ok, published in (("at", 5.0, False, 5.0), ("under", 4.55, True, 4.6)):
+        d = os.path.join(tmp_path, label)
+        os.mkdir(d)
+        rows = []
+        for i in range(200):
+            #  the two lowest delays coincide, the third sits `spread_ms` above: spread = v[2] - v[0]
+            extra = 400.0 + (0.0 if i < 2 else spread_ms + (i - 2) * 3.0)
+            dev_ns = _BASE_NS + i * 77_000_000
+            # the fraction rides on the DEVICE counter, which has ns resolution; the stamp has ms
+            frac_ns = int(round((extra % 1.0) * 1e6))
+            rows.append((_stamp(dev_ns, extra - (extra % 1.0)), "dev", "ECG",
+                         str(dev_ns - frac_ns), str(dev_ns - frac_ns), "10"))
+        _raw_sidecar(os.path.join(d, "Tepna_f_PMDARRIVAL.csv"), rows)
+        got = nightqc.arrival_quality(d)[0]
+        assert got["floor_ok"] is ok, (label, got)
+        assert got["floor_spread_ms"] == published, (label, got)
+
+
+def test_the_rings_quantum_reaches_the_uncertainty_budget(tmp_path):
+    """`u_time`'s quantum term is the stamp resolution over sqrt(12) — 1 ms for a Polar stream and 1 s
+    for the ring's `_DURATION_S` axis, three orders apart. `quantised` is what tells it which, so a
+    dropped or nulled argument charges the ring a millisecond of quantisation it does not have and the
+    budget reads three orders too tight on exactly the stream whose axis is coarsest."""
+    import nightqc
+    _write_sidecar(os.path.join(tmp_path, "Tepna_q_PMDARRIVAL.csv"), "OXYLIVE_DURATION_S",
+                   [400 + d for d in [0, 1, 2, 4, 7, 11, 18, 29, 47, 76] * 30])
+    got = nightqc.arrival_quality(str(tmp_path))[0]
+    assert got["quantised"] is True, got
+    ring = got["u_time"]["components_ms"]["quantum"]
+    assert ring > 100.0, ("the ring's 1 s axis, not a 1 ms stamp", got["u_time"])
+
+
+def test_an_unreadable_arrival_file_names_ITSELF_and_keeps_its_traceback(tmp_path, caplog):
+    """Every stream inside a lost file vanishes from the report, and an absent stream reads exactly like
+    one that was never recorded — so this warning is the only evidence the night was incomplete. It has
+    to say WHICH file (a report with several sidecars is otherwise unactionable) and carry the traceback
+    (a permission error and a torn mount need different fixes)."""
+    import logging
+    import nightqc
+    os.mkdir(os.path.join(tmp_path, "Tepna_dir_PMDARRIVAL.csv"))   # a directory: open() raises OSError
+    with caplog.at_level(logging.WARNING, logger="nightqc"):
+        assert nightqc.arrival_quality(str(tmp_path)) == []
+    recs = [r for r in caplog.records if "arrival file" in r.getMessage()]
+    assert len(recs) == 1, caplog.records
+    assert "Tepna_dir_PMDARRIVAL.csv" in recs[0].getMessage(), recs[0].getMessage()
+    assert recs[0].exc_info is not None and issubclass(recs[0].exc_info[0], OSError), recs[0].exc_info
+
+
+def test_each_stream_is_told_its_OWN_adev_and_not_its_PARTNERS(tmp_path):
+    """`adev` is published beside `corr` "for scale", and the scale meant is that stream's own.
+
+    The symmetry test above asserts the two values DIFFER, which stays true when the labelling is
+    swapped — both records simply receive each other's magnitude, and `corr`, `gcov` and `partner` all
+    still read correctly. So the plant has to make the right answer knowable without reference to the
+    implementation: a planted 4x noise ratio means the noisier stream must carry the larger number.
+    """
+    import nightqc
+    a, b = _clock_plus_noise()
+    b = [v * 4.0 for v in b]                       # `acc` is the noisy one, by construction
+    _write_two_streams(os.path.join(tmp_path, "Tepna_own_PMDARRIVAL.csv"), a, b)
+    rows = {r["meas"]: r["transport"] for r in nightqc.arrival_quality(str(tmp_path))
+            if r.get("transport")}
+    assert set(rows) == {"ecg", "acc"}, rows
+    assert rows["acc"]["adev"] > 2.0 * rows["ecg"]["adev"], rows
+
+
+def test_a_sidecar_whose_HEADER_omits_the_identity_columns_is_reported_UNNAMED(tmp_path):
+    """The `.get` defaults for `device` and `meas` are reachable only this way. `DictReader` gives a
+    SHORT row the key with a `None` value, so the default is taken when the column is missing from the
+    header — a per-file property, never a per-row one.
+
+    Such a file still carries real arrival stamps and a real device counter, so the module's own rule
+    applies: a dropped row publishes nothing, and reporting a stream that cannot be named is more honest
+    than discarding the measurement or crashing on a `None` where a name was expected. The identity is
+    then visibly EMPTY rather than invented, which is what a reader needs to see.
+    """
+    import nightqc
+    rows = []
+    for i in range(120):
+        dev_ns = _BASE_NS + i * 77_000_000
+        rows.append((_stamp(dev_ns, 400.0), str(dev_ns), str(dev_ns), "10"))
+    with open(os.path.join(tmp_path, "Tepna_anon_PMDARRIVAL.csv"), "w", newline="") as fh:
+        fh.write("Phone timestamp;first_sensor_ns;last_sensor_ns;n_samples\n")
+        for r in rows:
+            fh.write(";".join(r) + "\n")
+    got = nightqc.arrival_quality(str(tmp_path))
+    assert len(got) == 1, got
+    assert got[0]["device"] == "" and got[0]["meas"] == "", got[0]
+    assert got[0]["rows"] == 120 and got[0]["quantised"] is False, got[0]
+
+
+def test_the_sidecar_is_read_as_UTF8_WHATEVER_the_boxs_locale_is(tmp_path):
+    """A renamed sensor puts non-ASCII in the `device` column, and `errors="replace"` means a read under
+    the wrong codec does not raise — it silently substitutes U+FFFD, so the stream is reported under a
+    name that is not its own and two hosts disagree about which stream is which. The daemon inherits
+    whatever `LC_CTYPE` its unit was started with, so the encoding is named rather than left to it: under
+    `LC_CTYPE=C` a default-encoding read of this file decodes as ASCII and mangles the name.
+    """
+    import locale
+    import nightqc
+    name = "Polar H10 réveil"
+    rows = [(_stamp(_BASE_NS + i * 77_000_000, 400.0), name, "ECG",
+             str(_BASE_NS + i * 77_000_000), str(_BASE_NS + i * 77_000_000), "10") for i in range(120)]
+    with open(os.path.join(tmp_path, "Tepna_u_PMDARRIVAL.csv"), "w", newline="", encoding="utf-8") as fh:
+        fh.write(_RAW_HDR + "\n")
+        for r in rows:
+            fh.write(";".join(r) + "\n")
+    before = locale.setlocale(locale.LC_CTYPE)
+    try:
+        locale.setlocale(locale.LC_CTYPE, "C")          # the narrowest locale the box could be started in
+        got = nightqc.arrival_quality(str(tmp_path))
+    finally:
+        locale.setlocale(locale.LC_CTYPE, before)
+    assert len(got) == 1, got
+    assert got[0]["device"] == name, ascii(got[0]["device"])
+
+
+# ---------------------------------------------------------------------------------------------------
+# EQUIVALENCE PROBES — the arguments recorded in tools/mutate-equivalence.json, made re-checkable.
+#
+# These do not kill a mutant; they pin the PROPERTY each equivalence claim rests on, so a change that
+# makes one of those mutants distinguishable fails here instead of silently leaving a stale claim.
+# ---------------------------------------------------------------------------------------------------
+
+def test_probe_every_unusable_row_shape_is_excluded_by_ONE_mechanism_OR_THE_OTHER(tmp_path):
+    """The blank-stamp guard and the parse handler below it cover the same rows.
+
+    `if not ns or not ts: continue` pre-empts what `int(ns)` and `fromisoformat(ts)` would raise two
+    lines later, which is why weakening that `or` to an `and` changes no output: the row is dropped
+    either way, only by the other mechanism. The guard is kept because it STATES that blank is absent
+    (§∅) rather than leaving a reader to infer it from an exception handler — so what has to hold is
+    that every unusable shape is excluded, not which line does it.
+    """
+    import nightqc
+    good = [(_stamp(_BASE_NS + i * 77_000_000, 400.0), "dev", "ECG",
+             str(_BASE_NS + i * 77_000_000), str(_BASE_NS + i * 77_000_000), "10") for i in range(140)]
+    shapes = {
+        "ns blank":   (_stamp(_BASE_NS, 400.0), "dev", "ECG", "", "", "10"),
+        "ts blank":   ("", "dev", "ECG", str(_BASE_NS), str(_BASE_NS), "10"),
+        "both blank": ("", "dev", "ECG", "", "", "10"),
+        "ns zero":    (_stamp(_BASE_NS, 400.0), "dev", "ECG", "0", "0", "10"),
+        "ts garbage": ("not-a-stamp", "dev", "ECG", str(_BASE_NS), str(_BASE_NS), "10"),
+        "ns garbage": (_stamp(_BASE_NS, 400.0), "dev", "ECG", "seven", "seven", "10"),
+    }
+    for label, bad in shapes.items():
+        d = os.path.join(tmp_path, label.replace(" ", "_"))
+        os.mkdir(d)
+        _raw_sidecar(os.path.join(d, "Tepna_p_PMDARRIVAL.csv"), good + [bad])
+        got = nightqc.arrival_quality(d)
+        assert len(got) == 1 and got[0]["rows"] == 140, (label, got)
+
+
+def test_probe_the_stability_curve_is_invariant_under_any_POSITIVE_AFFINE_map_of_sample_times(tmp_path):
+    """`sample_times` reaches `allan.stability` only through `segments_by_gap`, which breaks a run where
+    a gap exceeds `k x` the MEDIAN of the same gaps. Both sides of that comparison scale together, so the
+    segmentation — and therefore the whole curve — is unchanged by any positive scaling or shift of the
+    axis. The seconds passed in are for the reader's sake; the unit is not load-bearing here.
+
+    If that ever stops being true (an absolute tau comparison, a fixed-second threshold), this fails and
+    the four recorded equivalence claims on that line have to be re-argued rather than quietly kept.
+    """
+    import json
+    import random
+    import allan
+    import nightqc
+    rnd = random.Random(11)
+    pairs, h, ns = [], 1_790_000_000_000.0, 843_900_000_000_000_000
+    for i in range(900):
+        h += 1000.0 if i != 400 else 90_000.0          # one real hole, so there IS a segmentation to change
+        pairs.append((h, 264.2 + rnd.gauss(0, 0.4), ns + i * 10**9))
+    diffs = [d for _, d, _ in pairs]
+    tau0 = nightqc._tau0_of(pairs)
+    t = [p[0] for p in pairs]
+    forms = [[(x - t[0]) / 1000.0 for x in t],          # as the code passes it
+             [(x - t[0]) * 1000.0 for x in t],          # scaled by 1e6
+             [(x + t[0]) / 1000.0 for x in t],          # shifted by +2 t0
+             [(x - pairs[0][1]) / 1000.0 for x in t],   # shifted by a different constant
+             [(x - t[0]) / 1001.0 for x in t]]          # scaled by 0.999
+    assert len(allan.segments_by_gap(forms[0])) == 2, "the probe must exercise a real cut"
+    ref = json.dumps(allan.stability(diffs, tau0, 1.0, sample_times=forms[0]), sort_keys=True, default=str)
+    for i, st in enumerate(forms[1:], 1):
+        got = json.dumps(allan.stability(diffs, tau0, 1.0, sample_times=st), sort_keys=True, default=str)
+        assert got == ref, ("form %d changed the curve" % i)
+        assert len(allan.segments_by_gap(st)) == 2
