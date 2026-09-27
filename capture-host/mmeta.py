@@ -44,6 +44,25 @@ def decided_under_glob(exit_codes: dict, glob: str) -> int:
                if code is not None and key.startswith(prefix))
 
 
+def killed_under_glob(exit_codes: dict, glob: str) -> int:
+    """How many mutants under `glob` were KILLED, read from the exit codes rather than derived.
+
+    mutmut's own mapping: exit 1 is a failing test suite and exit 3 is an internal pytest error, and it
+    treats BOTH as a kill (`status_by_exit_code`) — the mutant changed behaviour enough that the suite
+    could not complete cleanly. Every other non-null code is some other outcome (0 survived, 5/33 no
+    tests, 24/-24/152/255 timeout, 34 skipped, 35 suspicious, 37 caught by the type checker).
+
+    MEASURED, NOT DERIVED, and that is the whole reason this exists. `killed` could be computed as
+    `decided - survived - undecided`, but then the verdict's self-consistency assertion
+    (`mutation_diff.result_inconsistency`) would be checking arithmetic it had just performed — vacuous
+    by construction. Counting kills from the same map `decided` comes from gives the assertion something
+    independent to disagree with.
+    """
+    prefix = glob.rstrip("*")
+    return sum(1 for key, code in (exit_codes or {}).items()
+               if code in (1, 3) and key.startswith(prefix))
+
+
 def read_exit_codes(meta_path: Path) -> dict:
     """The `exit_code_by_key` map from a mutmut `<module>.py.meta`, or `{}` if it is absent/unreadable.
 
@@ -64,6 +83,11 @@ def tested_count(work: Path, module: str, glob: str) -> int:
     Zero on a glob the driver believes ran cleanly means the invocation dropped out — refuse, don't green.
     """
     return decided_under_glob(read_exit_codes(Path(work) / "mutants" / f"{module}.meta"), glob)
+
+
+def killed_count(work: Path, module: str, glob: str) -> int:
+    """`killed_under_glob` against the scratch's meta — the sibling of `tested_count`."""
+    return killed_under_glob(read_exit_codes(Path(work) / "mutants" / f"{module}.meta"), glob)
 
 
 def generated_under_glob(mutants_src: str, glob: str) -> int:

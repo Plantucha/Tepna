@@ -306,3 +306,46 @@ def test_invalidation_of_a_meta_without_a_dict_of_codes_is_a_noop_but_stamps(tmp
     tests = _tests(tmp_path, {"test_a.py": "def test_a(): pass\n"})
     assert mmeta.refresh_results_if_tests_changed(work, "oxy_transfer.py", tests, stamp) is True
     assert stamp.read_text().strip() == mmeta.test_tree_hash(tests)
+
+
+# ── `killed_under_glob` — MEASURED, so the verdict's self-consistency check has content ─────────────
+
+
+def test_exit_1_and_3_are_both_kills_because_mutmut_says_so():
+    """mutmut's `status_by_exit_code` maps 1 (failing suite) and 3 (internal pytest error) to "killed":
+    either way the mutant changed behaviour enough that the suite could not complete cleanly."""
+    codes = {"m.x_f__mutmut_1": 1, "m.x_f__mutmut_2": 3}
+    assert mmeta.killed_under_glob(codes, "m.x_f__mutmut_*") == 2
+
+
+def test_a_SURVIVOR_a_TIMEOUT_and_a_NOT_RUN_are_not_kills():
+    """0 survived, 24 timeout, None never run. Counting any of them as killed is the false green this
+    whole file exists to make impossible."""
+    codes = {"m.x_f__mutmut_1": 0, "m.x_f__mutmut_2": 24, "m.x_f__mutmut_3": None,
+             "m.x_f__mutmut_4": 5, "m.x_f__mutmut_5": 1}
+    assert mmeta.killed_under_glob(codes, "m.x_f__mutmut_*") == 1
+
+
+def test_it_is_scoped_to_the_glob_like_its_siblings():
+    codes = {"m.x_f__mutmut_1": 1, "m.x_other__mutmut_1": 1}
+    assert mmeta.killed_under_glob(codes, "m.x_f__mutmut_*") == 1
+
+
+def test_an_absent_or_empty_map_credits_nothing():
+    assert mmeta.killed_under_glob({}, "m.x_f__mutmut_*") == 0
+    assert mmeta.killed_under_glob(None, "m.x_f__mutmut_*") == 0
+
+
+def test_killed_count_reads_the_scratchs_meta(tmp_path):
+    (tmp_path / "mutants").mkdir()
+    (tmp_path / "mutants" / "m.py.meta").write_text(
+        '{"exit_code_by_key": {"m.x_f__mutmut_1": 1, "m.x_f__mutmut_2": 0}}', encoding="utf-8")
+    assert mmeta.killed_count(tmp_path, "m.py", "m.x_f__mutmut_*") == 1
+
+
+def test_killed_NEVER_exceeds_decided_over_the_same_map():
+    """The invariant `mutation_diff.result_inconsistency` relies on. If this could be violated the
+    assertion downstream would fire on healthy runs."""
+    codes = {f"m.x_f__mutmut_{i}": c for i, c in enumerate([1, 3, 0, 24, None, 1, 5])}
+    g = "m.x_f__mutmut_*"
+    assert mmeta.killed_under_glob(codes, g) <= mmeta.decided_under_glob(codes, g)

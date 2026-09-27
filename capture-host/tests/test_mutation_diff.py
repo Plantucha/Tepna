@@ -966,3 +966,128 @@ def test_report_only_refusal_note_is_silent_when_the_gate_actually_gates():
     """Without the flag the gate exits at the refusal and prints nothing after it, so no note is owed
     — a note there would claim a report follows when none does."""
     assert M.report_only_refusal_note(False) == ""
+
+
+# ── the interpreter the gate runs mutmut under (`2026-09-27-mutate-diff-cannot-run-in-a-worktree`) ──
+#
+# Every one of these is a decision that used to be a hardcoded path, and each direction of getting it
+# wrong is silent: pick nothing and the gate refuses on a machine where it works; pick the WRONG venv
+# and the run's identity is unreadable — it measured a tree the caller did not name.
+
+
+def test_an_explicit_override_wins_even_when_a_local_venv_exists():
+    """A caller who names an interpreter has a reason the tool cannot see. Preferring a local venv over
+    an explicit override would answer a question nobody asked, and the run's identity — which
+    interpreter, which mutmut — would not be recoverable from the verdict."""
+    got, note = M.resolve_interpreter("/opt/py", ["/wt/.venv/bin/python"], lambda p: True)
+    assert got == "/opt/py", note
+    assert "/opt/py" in note
+
+
+def test_an_override_that_does_not_EXIST_refuses_and_names_it_rather_than_falling_through():
+    """Falling through to a venv the caller did not ask for is the fail-open: the gate would run, report
+    green, and the green would be about a different interpreter than the one requested."""
+    got, note = M.resolve_interpreter("/opt/missing", ["/wt/.venv/bin/python"], lambda p: p != "/opt/missing")
+    assert got is None
+    assert "/opt/missing" in note, note
+
+
+def test_the_candidates_are_tried_IN_ORDER_so_the_primary_checkout_beats_a_worktree():
+    """The order is the whole fix. A worktree has no venv of its own; the primary checkout's is the one
+    that exists, and preferring it is what makes the gate runnable from a worktree at all — instead of
+    each worktree carrying a several-hundred-MB duplicate (the root volume hit 95 % that way)."""
+    seen = []
+
+    def exists(p):
+        seen.append(p)
+        return p == "/primary/.venv/bin/python"
+
+    got, _ = M.resolve_interpreter(None, ["/primary/.venv/bin/python", "/wt/.venv/bin/python"], exists)
+    assert got == "/primary/.venv/bin/python"
+    assert seen == ["/primary/.venv/bin/python"], "it must stop at the first hit, not probe them all"
+
+
+def test_no_interpreter_anywhere_REFUSES_and_lists_every_path_it_tried():
+    """A refusal that does not say what it looked for cannot be acted on. This is the message a
+    developer in a fresh worktree sees, so it carries the remedy and the evidence."""
+    got, note = M.resolve_interpreter(None, ["/a/python", "/b/python"], lambda p: False)
+    assert got is None
+    assert "/a/python" in note and "/b/python" in note, note
+    assert "MUTATE_DIFF_PYTHON" in note, "the refusal must name the override that fixes it"
+
+
+def test_an_EMPTY_candidate_list_still_refuses_with_a_readable_note():
+    """Not a crash and not an empty string: `join` of nothing is "", and a refusal reading `Tried: ` is
+    the shape of a message that was never finished."""
+    got, note = M.resolve_interpreter(None, [], lambda p: False)
+    assert got is None
+    assert note.strip() and "Tried:" in note and "no candidates" in note, note
+
+
+# ── a PASS over nothing is not a pass (`2026-09-27-mutate-diff-passes-over-a-zero-population`) ──────
+
+
+def test_a_PASS_that_examined_nothing_becomes_NOT_APPLICABLE_with_the_reason():
+    """CLAUDE.md §🧾: a PASS over `checked: 0` is INVALID. The gate emitted one whenever Python changed
+    and every changed line fell outside mutation scope — each file correctly announced as skipped, then
+    a green as though something had been examined."""
+    st, why = M.zero_population_verdict("PASS", 0, None)
+    assert st == "NOT_APPLICABLE"
+    assert why and "outside mutation scope" in why and "not a pass" in why, why
+
+
+def test_a_PASS_over_a_REAL_population_is_left_alone():
+    st, why = M.zero_population_verdict("PASS", 3, None)
+    assert (st, why) == ("PASS", None)
+
+
+def test_a_REFUSAL_or_a_FAILURE_over_zero_passes_through_UNTOUCHED():
+    """Only PASS is downgraded. A NOT_RUN over zero is already honest about itself, and rewriting a FAIL
+    here would be the fail-open this function exists to remove."""
+    for st in ("NOT_RUN", "FAIL", "UNKNOWN", "NOT_APPLICABLE"):
+        assert M.zero_population_verdict(st, 0, "because") == (st, "because"), st
+
+
+# ── the verdict's own numbers (`2026-09-24-mutate-diff-result-block-inconsistent` + `…double-counted`) ──
+
+
+def _res(**kw):
+    base = {"generated": 10, "decided": 8, "killed": 5, "survived": 2, "undecided": 1, "excused": 0, "refuted": 0}
+    base.update(kw)
+    return base
+
+
+def test_a_self_consistent_result_block_reports_nothing():
+    assert M.result_inconsistency(_res(), survivors_len=2, undecided_len=1) is None
+
+
+def test_the_ARTIFACT_THAT_SHIPPED_is_caught():
+    """The exact block from the residue row: `generated 0, decided 0, killed 0, survived 26` — survivors
+    of a population the same object says does not exist."""
+    why = M.result_inconsistency(_res(generated=0, decided=0, killed=0, survived=26, undecided=0),
+                                 survivors_len=26, undecided_len=0)
+    assert why and "exceeds result.decided" in why, why
+
+
+def test_a_COUNT_that_disagrees_with_its_own_LIST_is_caught():
+    """26 entries reading as 12 in one field and 26 in another, with nothing saying which is the count."""
+    why = M.result_inconsistency(_res(survived=12), survivors_len=26, undecided_len=1)
+    assert why and "result.survived is 12" in why and "26" in why, why
+
+
+def test_the_UNDECIDED_count_is_checked_against_its_list_too():
+    why = M.result_inconsistency(_res(undecided=1), survivors_len=2, undecided_len=9)
+    assert why and "result.undecided" in why, why
+
+
+def test_more_DECIDED_than_GENERATED_is_caught():
+    why = M.result_inconsistency(_res(generated=3, decided=8), survivors_len=2, undecided_len=1)
+    assert why and "exceeds result.generated" in why, why
+
+
+def test_decided_may_EXCEED_the_settled_outcomes_because_excused_are_counted_apart():
+    """NOT an equality. `excused` and `empty_diff` mutants are decided and counted separately, and a
+    generated mutant that is never decided is exactly what `undecided` means — so asserting equality
+    here would red every healthy run with an equivalence entry in it."""
+    assert M.result_inconsistency(_res(generated=100, decided=50, killed=5, survived=2, undecided=1),
+                                  survivors_len=2, undecided_len=1) is None
