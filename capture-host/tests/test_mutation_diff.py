@@ -1096,3 +1096,29 @@ def test_decided_may_EXCEED_the_settled_outcomes_because_excused_are_counted_apa
         )
         is None
     )
+
+
+def test_a_MISSING_counter_is_reported_rather_than_read_as_zero():
+    """§∅ inside the consistency check itself. `.get(k, 0)` would make a block with no `killed` satisfy
+    every inequality by arithmetic — absence as a number, in the function whose whole job is catching a
+    verdict that misreports its own numbers. Every `.get` default here was a surviving mutant precisely
+    because no input could reach it; the keys are required instead."""
+    for drop in ("generated", "decided", "killed", "survived", "undecided"):
+        res = _res()
+        del res[drop]
+        why = M.result_inconsistency(res, survivors_len=2, undecided_len=1)
+        assert why and drop in why and "absent" in why, (drop, why)
+
+
+def test_an_empty_result_block_names_EVERY_counter_it_lacks():
+    why = M.result_inconsistency({}, survivors_len=0, undecided_len=0)
+    assert why and all(k in why for k in ("generated", "decided", "killed", "survived", "undecided")), why
+
+
+def test_the_settled_total_ADDS_its_three_terms(  ):
+    """`killed + survived + undecided` — a `-` on the last term would let a run with many undecided
+    mutants under-report what it settled and slip past the bound. Undecided is non-zero here ON PURPOSE:
+    with `undecided: 0` the sign is unobservable, which is why the shipped-artifact test could not see it."""
+    over = _res(generated=100, decided=5, killed=4, survived=2, undecided=3)
+    why = M.result_inconsistency(over, survivors_len=2, undecided_len=3)
+    assert why and "(9) exceeds result.decided (5)" in why, why

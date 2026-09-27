@@ -722,14 +722,25 @@ def result_inconsistency(result: dict, survivors_len: int, undecided_len: int) -
     Returns the FIRST failing invariant with its numbers, because a caller that prints one reason is
     better served by a specific one than by a list it has to parse.
     """
+    # THE KEYS ARE REQUIRED, NOT DEFAULTED. `.get(k, 0)` here would read a MISSING counter as zero —
+    # absence as a number, in the one function whose job is catching a verdict that misreports its own
+    # numbers (§∅). A block with no `killed` would then satisfy every inequality below by arithmetic.
+    # The mutation gate found this the honest way: every `.get` default was a SURVIVING mutant, because
+    # no input could reach it. Requiring the keys removes the defaults and the hole together.
+    missing = [k for k in ("generated", "decided", "killed", "survived", "undecided") if k not in result]
+    if missing:
+        return (
+            f"result is missing {', '.join(missing)} — a counter that is absent is not a counter "
+            "that is zero, and a verdict cannot be checked against numbers it does not carry"
+        )
     for field, n in (("survived", survivors_len), ("undecided", undecided_len)):
-        if int(result.get(field, 0)) != n:
+        if int(result[field]) != n:
             return (
-                f"result.{field} is {result.get(field)} but the {field} list holds {n} — "
+                f"result.{field} is {result[field]} but the {field} list holds {n} — "
                 "two fields of one verdict disagreeing about the count"
             )
-    gen, dec = int(result.get("generated", 0)), int(result.get("decided", 0))
-    settled = int(result.get("killed", 0)) + int(result.get("survived", 0)) + int(result.get("undecided", 0))
+    gen, dec = int(result["generated"]), int(result["decided"])
+    settled = int(result["killed"]) + int(result["survived"]) + int(result["undecided"])
     if dec > gen:
         return f"result.decided ({dec}) exceeds result.generated ({gen}) — more mutants decided than exist"
     if settled > dec:
