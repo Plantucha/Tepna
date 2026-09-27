@@ -484,6 +484,35 @@ would actually parse after gap-splitting, it sails through. Consumers that trust
 `pat-gate.js:92` · `ecgdex-dsp.js` `ecgTimingResolve` (fs correction) · `integrator-dsp.js` `arrivalPairOffsets` (skew decision) ·
 `tools/pat-host-offset.mjs:408`.
 
+> **⚠️ CORRECTED 2026-09-27 (Magpie) — this consumer list is a 2026-08-14 snapshot and three of its four
+> entries no longer say what they did. Read this before acting on the list; the list itself is left
+> standing as the record of what was true when Phase 1 ran.**
+>
+> Re-enumerated from the tree rather than from the list, by classifying every `correctionAt`/`ppm` site:
+>
+> | consumer | 2026-09-27 state |
+> |---|---|
+> | `integrator-dsp.js` `arrivalPairOffsets` | **migrated** — `deviceDrawn !== true`, with a named reason in `refused[]`; its own comment carries the 99.3 %-share counterexample |
+> | `tools/pat-host-offset.mjs` | **migrated** — refuses with `drawnReason`, asserted by mutation |
+> | `ecgdex-dsp.js` `ecgTimingResolve` | **must NOT refuse.** §7's line is that a drawn axis may be PLACED on a host timeline; the host is then the only clock there is, so refusing would leave every sample on the assumed rate — *strictly worse*. The migration was a RELABEL (`timingSource:'host'`, `stability:null`, drawn flags forwarded), settled by residue `2026-09-05-drawn-remedy-is-relabel-not-refuse`. `ppgdex-dsp.js` is the same case via `axisSynthetic ⊇ axisDrawn` |
+> | `pat-gate.js` | **already refuses**, keyed on `timingSource === 'none'`; `'host'` (drawn but placed by real anchors) is deliberately admitted, because the two devices then genuinely do share a timebase. Refuted as unmigrated by residue `2026-09-12-drawn-consumers-already-migrated` |
+>
+> **And the one consumer no list ever held:** `tools/pat-drift-attribution.mjs` `effectivePpm` read
+> `independent` alone, so a drawn axis returned a fabricated ppm as *outstanding drift* and
+> `attribute()` reported **CLOCK EXPLAINS** — real lag drift attributed to a crystal that does not
+> exist. Measured on `origin/main`: `effectivePpm(deviceDrawn:true, ppm:−22.83)` → `−22.83`, where the
+> property requires `null`. Fixed 2026-09-27 with a named refusal (`device axis drawn`, never the
+> borrowed `no host reference`).
+>
+> 🔴 **Why the status line's "the `deviceDrawn` refusals now sit in every tool that spends a clock and
+> the suite's `drawn-axis · source-scan` group pins them" (verified 2026-09-01) was over-broad:** that
+> group's population was a HAND LIST OF TWO while its title claimed *every*, so a third spender was not
+> failing it — it was outside it, and absence from a hand list is indistinguishable from passing. The
+> population is now DERIVED (every `tools/*.mjs` reading `.ppm`/`correctionAt`, comments stripped,
+> classified REFUSES / PLACES / REPORTS as an equality with the denominator printed), which is what
+> makes the "every" claim checkable rather than asserted. **A consumer list in a brief is evidence of a
+> date, not of a state** — enumerate from the tree before spending a unit on one.
+
 **The separating quantity, measured over 381 arrival sidecars on the box tree:**
 
 | population | files | modal-delta share |
