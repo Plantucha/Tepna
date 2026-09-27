@@ -732,8 +732,15 @@
         ws.push(0); // a pair we cannot weight is EXCLUDED from the fused statistic, never weighted as 1
         continue;
       }
-      nHit++;
-      ws.push(a * b);
+      /* 🔴 `nHit` COUNTS PAIRS THAT CONTRIBUTE, not pairs whose ends were merely PRESENT — and the first
+         draft got this wrong in the direction that overstates. A confidence of exactly 0 is a present,
+         finite reading, so `cAtSec` returns it and the pair passed the null check above while contributing
+         nothing to any weighted statistic. Counting it as covered reported `covered: 1` over a night where
+         300 of 2400 pairs were distrusted — the coverage-without-a-denominator shape, in the very field
+         added to prevent it. Found by the planted burst, whose expected coverage is 0.875. */
+      var w = a * b;
+      if (w > 0) nHit++;
+      ws.push(w);
     }
     var covered = c.patAtR.length ? nHit / c.patAtR.length : 0;
     if (!nHit) return { ok: false, reason: 'no coupled pair had confidence at both ends' };
