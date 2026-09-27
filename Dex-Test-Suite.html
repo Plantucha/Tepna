@@ -587,10 +587,14 @@ async function main(){
   // §1) — each *.src.html's <script src> list is the fleet's record of which cross/coimport aux
   // modules it bundles; the gate asserts dex-coload.js's nodeModules: leg equals that set.
   const srcHtml = {};
-  // ⚠️ MotionDex.src.html was missing from BOTH lanes' lists — nine authored shells, eight names in each.
+  // ⚠️ ALL ELEVEN authored shells, and each addition was forced by a population equality rather than noticed.
+  // MotionDex.src.html was missing from BOTH lanes — nine shells, eight names in each (#3144). The two
+  // ORCHESTRATOR shells joined 2026-09-27 once their bundled modules were classified in Co-load §1b; the
+  // co-load order group asserts them as their own family (CLAIM orchestrators = 2), so omitting them here
+  // reds that equality in this lane only — which is how the omission was found, for the third time.
   // The Node lane now DERIVES its list from the tree; this lane cannot (no fs), so it is listed here, and
   // the co-load order group's population equality is what reds if the two lanes ever diverge again.
-  await Promise.all(['CPAPDex.src.html','ECGDex.src.html','GlucoDex.src.html','HRVDex.src.html','Integrator.src.html','MotionDex.src.html','OxyDex.src.html','PpgDex.src.html','PulseDex.src.html']
+  await Promise.all(['CPAPDex.src.html','Data Unifier.src.html','ECGDex.src.html','GlucoDex.src.html','HRVDex.src.html','Integrator.src.html','MotionDex.src.html','OverDex.src.html','OxyDex.src.html','PpgDex.src.html','PulseDex.src.html']
     .map(async f => { const t = await fetchText(encodeURI(f)); if(t!=null) srcHtml[f]=t; }));
 
   // manifests (raw text) for the §6 well-formed assertion. P3: the two ledgers are now per-app
