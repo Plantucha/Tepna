@@ -253,8 +253,15 @@ def main(argv=None) -> int:
     _pop = {"checked": 0, "eligible": 0}
     _ran_box = [0]  # mirrors `_ran` (a local of main, rebound below) so emit() can read it
 
+    def _checked() -> int:
+        """How many modules this run actually examined. ONE expression, because the prose below and the
+        verdict in `emit` both need it and computing it twice is how they disagreed: the prose read
+        `_pop["checked"]` BEFORE `emit` assigned it, so a run that mutated six functions printed
+        "nothing was mutated". Caught by running the plant and a real diff and reading both outputs."""
+        return min(_pop["eligible"], max(_pop["checked"], _ran_box[0]))
+
     def emit(status, reason, code, evidence=None):
-        _pop["checked"] = min(_pop["eligible"], max(_pop["checked"], _ran_box[0]))
+        _pop["checked"] = _checked()
         _counts["survived"] = len(verdict.get("survivors", []))
         _counts["undecided"] = len(undecided)
         # A PASS OVER NOTHING IS NOT A PASS (§🧾). Python changed, every changed line fell outside
@@ -832,7 +839,8 @@ def main(argv=None) -> int:
         # THE PROSE MUST MATCH THE VERDICT. "every mutant was killed" over a population of ZERO is true
         # and useless — vacuously true of a run that mutated nothing — and it is what a reader sees
         # ABOVE the NOT_APPLICABLE the contract requires. Say which case this is.
-        if _pop["checked"] == 0:
+        _ran_box[0] = _ran
+        if _checked() == 0:
             print("\nmutate-diff: nothing was mutated — every changed line is outside mutation scope.")
         else:
             print(
