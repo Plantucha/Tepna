@@ -846,15 +846,24 @@ async function readComputeHashProbe() {
    Measured: 481 blocks · 33.6 MB · ~200 ms · ~150 MB RSS, so it runs every time. */
 function readInlineParseCensus() {
   const vm = require('node:vm');
-  const out = { artifacts: 0, blocks: 0, bytes: 0, skipped: 0, bad: [], files: [] };
+  const out = { artifacts: 0, blocks: 0, bytes: 0, skipped: 0, bad: [], files: [], scriptRe: null };
   const roots = [ROOT, join(ROOT, 'docs')];
-  /* ⚠️ THE END TAG TAKES `\s*` BEFORE THE `>`. CodeQL's `js/bad-tag-filter` named this on the first
-     push and it is right about the consequence, not merely pedantic: an HTML parser ends a script at
-     `</script >` too, so a regex anchored on `</script>` alone slices PAST that end tag and hands the
-     parser-visible boundary to the wrong block — a census that then reports either a SyntaxError that
-     is not there or, worse, nothing at all about a block it never separated. This gate exists because
-     a check examined the wrong thing; its own matcher does not get to. */
-  const RE = /<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi;
+  /* ⚠️ THE END TAG IS THE ONE HTML ACTUALLY ENDS A SCRIPT ON, which is not `</script>`. In the
+     script-data-end-tag-name state the tag name may be followed by whitespace, by `/`, or by
+     attribute-like junk that is a parse error and tolerated — so `</script >`, `</script/>`,
+     `</script foo="bar">` and `</script\t\n bar>` ALL close the element. A regex anchored on `</script>`
+     alone slices PAST such a tag and hands the parser-visible boundary to the wrong block: the census
+     then reports either a SyntaxError that is not there or, worse, nothing at all about a block it never
+     separated. CodeQL's `js/bad-tag-filter` named it on the first push and again on the `\s*` half-fix,
+     and it is right about the consequence both times. This gate exists because a check examined the
+     wrong thing; its own matcher does not get to. All five forms are asserted in the group.
+     The fuller note on the two bypasses CodeQL names is already in `tests/dex-tests.js` at the
+     `rendered text` stripper — read that one, not this one, for the argument. This form is STRICTER
+     than its `<\/script[^>]*>`: the separator is required, so `</scriptfoo>`, which is NOT an end
+     tag, does not match here. */
+  const RE = /<script\b([^>]*)>([\s\S]*?)<\/script(?:[\s/][^>]*)?>/gi;
+  /* published as a SOURCE STRING so the group asserts THIS pattern, never a transcription of it */
+  out.scriptRe = RE.source;
   for (const r of roots) {
     let names;
     try {
