@@ -1125,12 +1125,18 @@ class _SeamSidecar:
                 host_step = phone_ms - self._prev_phone_ms
                 residual = dev_step - host_step
                 if abs(residual) > SEAM_BOUND_MS:
-                    self.seams += 1
                     at_rel = (sensor_ns - self._first_ns) / 1e6
                     host_off = phone_ms - (sensor_ns / 1e6)
                     fh.write(
                         f"{_phone_ts(phone)};{self.examined};{dev_step:.3f};{host_step:.3f};"
                         f"{residual:.3f};{host_off:.3f};{at_rel:.3f}\n")
+                    # COUNTED ONLY ONCE THE ROW IS ON THE FILE. The increment used to precede the write,
+                    # inside a `try` whose handler deliberately swallows (an annotation must never end a
+                    # recording) — so a write that raised left `seams` one AHEAD of the rows, and the
+                    # final line would claim a seam the file does not show. Nothing in the corpus shows
+                    # that today (0 of 132 sidecars disagree, rig + box, 2026-09-27); this makes the
+                    # final line's agreement with the rows true BY CONSTRUCTION rather than by luck.
+                    self.seams += 1
             self._prev_ns = sensor_ns
             self._prev_phone_ms = phone_ms
         except Exception:          # noqa: BLE001 - an annotation must never end a recording; the

@@ -1341,3 +1341,180 @@ def test_a_single_row_has_no_delta_and_therefore_no_drawn_share(tmp_path):
     p = _resid(tmp_path, ["2026-09-20T23:10:00.000;1000000;1\n"])
     got = si.residual_scan(p, None, None)
     assert got["drawn_share"] is None and got["reason"] is None, got
+def test_PLANT_a_sidecar_whose_rows_and_own_TOTALS_disagree_is_refused(tmp_path):
+    """residue 2026-09-27-seam-sidecar-rows-and-finals-agree — the tripwire, not a measurement.
+
+    One writer instance writes both a seam row and the final line that counts it, and since #3170 the
+    count follows the row, so they cannot disagree. If a reader ever finds them disagreeing, one of the
+    two is describing a file it did not write and NEITHER can be trusted to answer "was the clock
+    compared on this night" — so it refuses by name rather than picking a side.
+
+    Measured 2026-09-27 over 132 sidecars (66 on the rig, 66 on the box): none disagree. This fires on
+    nothing today and exists to notice the day it does.
+    """
+    _seam_rows(tmp_path, [(1000, 90000.0)], examined=5)  # one row, final says seams=1
+    assert si.clocks(str(tmp_path), "H10")["status"] == "PASS", "the agreeing case still passes"
+
+    p = tmp_path / f"{BASE}_ECGSEAMS.txt"
+    p.write_text(p.read_text().replace("seams=1 examined=5", "seams=0 examined=5"))
+    got = si.clocks(str(tmp_path), "H10")
+    assert got["status"] == "UNKNOWN", ("a sidecar contradicting itself is refused, not believed", got)
+    assert "disagree" in got["reason"] and "ECGSEAMS" in got["reason"], got["reason"]
+
+
+def test_a_sidecar_with_SEVERAL_sessions_sums_their_totals_rather_than_taking_one(tmp_path):
+    """The real multi-session shape, and why the tripwire counts across the whole file. A resumed
+    file-set writes one `# final` per writer instance — the 2026-09-24 H10 carries three, `seams=0`,
+    `seams=1`, `seams=0`, for one row — so a reader comparing any single total against the file's rows
+    would read a disagreement that is not there. Summing is what makes the check true of the file."""
+    lines = [
+        "# stream=ecg rule=clock-seam bound_ms=60000 unit=ms basis=device-minus-host",
+        "phone_ts;idx;device_step_ms;phone_delta_ms;residual_ms;host_offset_ms;at_rel_ms",
+        "# final stream=ecg seams=0 examined=74605",
+        f"{T0.strftime('%Y-%m-%dT%H:%M:%S.')}000;1;90000.000;0.000;90000.000;0.000;0.000",
+        "# final stream=ecg seams=1 examined=3577",
+        "",  # a blank line: a torn flush, or a trailing newline
+        "# final stream=ecg seams=0 examined=3727891",
+    ]
+    (tmp_path / f"{BASE}_ECGSEAMS.txt").write_text("\n".join(lines) + "\n")
+    assert si.clocks(str(tmp_path), "H10")["status"] == "PASS", "three totals summing to one row agree"
+    # the blank line above is not a row: counting it would make every file with a trailing newline
+    # contradict its own totals, which would turn the tripwire into noise on its first night
+
+
+# ── `clocks`, at the edges the diff-scoped gate found unobserved ────────────────────────────────────
+
+
+def _seams_raw(d, lines, name=BASE, stream="ECG"):
+    (d / f"{name}_{stream}SEAMS.txt").write_text("\n".join(lines) + "\n")
+
+
+def test_examined_is_SUMMED_across_sessions_not_taken_from_the_last(tmp_path):
+    """A resumed file-set writes one `# final` per writer instance, and the LAST one can legitimately
+    read `examined=0` — an instance that opened, wrote its header and took no second sample. Reading only
+    that one answers "the clock was never compared" for a night that compared it 74,605 times."""
+    _seams_raw(
+        tmp_path,
+        [
+            "# stream=ecg rule=clock-seam bound_ms=60000 unit=ms basis=device-minus-host",
+            "phone_ts;idx;device_step_ms;phone_delta_ms;residual_ms;host_offset_ms;at_rel_ms",
+            "# final stream=ecg seams=0 examined=74605",
+            "# final stream=ecg seams=0 examined=0",
+        ],
+    )
+    assert si.clocks(str(tmp_path), "H10")["status"] == "PASS", "74,605 comparisons happened"
+
+
+def test_a_single_examined_sample_is_a_comparison(tmp_path):
+    """`> 0`, not `> 1`. One examined interval IS a device-vs-host comparison — the question §3.4 asks is
+    whether the clocks were compared at all, not whether they were compared often."""
+    _seams_raw(
+        tmp_path,
+        [
+            "# stream=ecg rule=clock-seam bound_ms=60000 unit=ms basis=device-minus-host",
+            "phone_ts;idx",
+            "# final stream=ecg seams=0 examined=1",
+        ],
+    )
+    assert si.clocks(str(tmp_path), "H10")["status"] == "PASS"
+
+
+def test_the_row_count_is_a_COUNT_so_two_rows_are_two(tmp_path):
+    """`+= 1`, not `= 1`. The tripwire compares rows against the claimed total, so a row count that
+    saturates at one makes a two-seam file look like it contradicts itself."""
+    _seam_rows(tmp_path, [(1000, 90000.0), (2000, 95000.0)], examined=9)
+    assert si.clocks(str(tmp_path), "H10")["status"] == "PASS", "two rows, a final saying two"
+
+
+def test_a_night_with_no_clock_evidence_SAYS_WHY(tmp_path):
+    """The reason is the output. A bare UNKNOWN tells a reader the night is unjudged without telling them
+    whether the evidence was absent, unreadable, or contradictory — and those need different fixes."""
+    got = si.clocks(str(tmp_path), "H10")
+    assert got["status"] == "UNKNOWN"
+    assert got["reason"] == "no device-vs-host clock comparison recorded this night", got
+
+
+def test_an_rtc_READ_with_no_offset_does_not_stop_the_search(tmp_path):
+    """`continue`, never `break`. The ring logs a `read` row before it has an offset to report; stopping
+    there answers "no clock evidence" for a night whose very next row carries the measurement."""
+    (tmp_path / "Wellue_O2Ring-S_S8AW2100_20260920230000_RTCLOG.csv").write_text(
+        "Phone timestamp;event;rtc_offset_s\nt;read;\nt;read;-1.6\n"
+    )
+    assert si.clocks(str(tmp_path), "O2Ring-S")["status"] == "PASS"
+
+
+def test_an_rtc_row_needs_BOTH_enough_columns_AND_the_read_event(tmp_path):
+    """`and`, not `or`. With `or`, a short row passes the length test by failing it and a `push` row
+    passes by being long enough — both then index a column that is not there or read an offset that
+    belongs to another event."""
+    (tmp_path / "Wellue_O2Ring-S_S8AW2100_20260920230000_RTCLOG.csv").write_text(
+        "Phone timestamp;event;rtc_offset_s\nt;read\nt;push;-9.9\n"
+    )
+    got = si.clocks(str(tmp_path), "O2Ring-S")
+    assert got["status"] == "UNKNOWN", (
+        "a `read` with no offset column and a `push` with one are neither of them a recorded comparison",
+        got,
+    )
+
+
+def test_an_rtc_offset_with_trailing_whitespace_is_still_read(tmp_path):
+    """`rstrip("\\n")`, deliberately narrow: the value is parsed with `float`, which tolerates surrounding
+    space, so stripping only the newline keeps the column's own content intact. Stripping ALL whitespace
+    would also silently swallow a field that is nothing but spaces — an absent measurement — into the
+    same shape as a present one."""
+    (tmp_path / "Wellue_O2Ring-S_S8AW2100_20260920230000_RTCLOG.csv").write_text(
+        "Phone timestamp;event;rtc_offset_s\nt;read; -1.6 \n"
+    )
+    assert si.clocks(str(tmp_path), "O2Ring-S")["status"] == "PASS"
+
+
+def _in_c_locale(fn):
+    """Run `fn` with LC_CTYPE=C, restored after. A default-encoding read then decodes as ASCII, which is
+    what makes an omitted `encoding="utf-8"` observable — both files are read on a box whose unit may
+    have been started in any locale."""
+    import locale
+
+    before = locale.setlocale(locale.LC_CTYPE)
+    try:
+        locale.setlocale(locale.LC_CTYPE, "C")
+        return fn()
+    finally:
+        locale.setlocale(locale.LC_CTYPE, before)
+
+
+def test_both_sidecars_are_read_as_UTF8_whatever_the_boxs_locale_is(tmp_path):
+    """A stream name or an operator note can carry non-ASCII, and `errors="replace"` means a wrong codec
+    does not raise — it substitutes U+FFFD and the line silently stops matching. Under `LC_CTYPE=C` a
+    default-encoding read decodes as ASCII, so an omitted `encoding` turns a `# final` line into one the
+    regex no longer matches and the night reads as having no clock evidence."""
+    _seams_raw(
+        tmp_path,
+        [
+            "# stream=ecg rule=clock-seam bound_ms=60000 unit=ms basis=device-minus-host réveil",
+            "phone_ts;idx",
+            "# final stream=ecg seams=0 examined=7",
+        ],
+    )
+    assert _in_c_locale(lambda: si.clocks(str(tmp_path), "H10"))["status"] == "PASS", "seams sidecar"
+
+    (tmp_path / f"{BASE}_ECGSEAMS.txt").unlink()
+    (tmp_path / "Wellue_O2Ring-S_S8AW2100_20260920230000_RTCLOG.csv").write_text(
+        "Phone timestamp;event;rtc_offset_s\nt;note;réveil du capteur\nt;read;-1.6\n", encoding="utf-8"
+    )
+    assert _in_c_locale(lambda: si.clocks(str(tmp_path), "O2Ring-S"))["status"] == "PASS", "rtc log"
+
+
+def test_both_sidecars_REPLACE_an_undecodable_byte_rather_than_dying_on_it(tmp_path):
+    """`errors="replace"`, kept. A torn byte is a live-journal shape; a strict decode raises inside the
+    audit and takes the whole night's clock evidence with it, where the rows either side still answer."""
+    p = tmp_path / f"{BASE}_ECGSEAMS.txt"
+    with open(p, "wb") as fh:
+        fh.write(b"# stream=ecg rule=clock-seam \xff\xfe torn\n")
+        fh.write(b"phone_ts;idx\n# final stream=ecg seams=0 examined=7\n")
+    assert si.clocks(str(tmp_path), "H10")["status"] == "PASS", "seams sidecar"
+
+    p.unlink()
+    r = tmp_path / "Wellue_O2Ring-S_S8AW2100_20260920230000_RTCLOG.csv"
+    with open(r, "wb") as fh:
+        fh.write(b"Phone timestamp;event;rtc_offset_s\nt;note;\xff\xfe\nt;read;-1.6\n")
+    assert si.clocks(str(tmp_path), "O2Ring-S")["status"] == "PASS", "rtc log"
