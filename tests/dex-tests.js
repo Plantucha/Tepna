@@ -8408,6 +8408,50 @@
       var job2 = J.posted[0] || {};
       T.ok('one device’s sidecar alone is NOT sent (the corrected axis needs both)', job2.ecgFile && !job2.ecgArrFile && !job2.ppgArrFile, JSON.stringify(Object.keys(job2)));
       T.ok('…and the picker says which device is missing its sidecar', /no arrival sidecar for the Verity/.test(J.els.picked.textContent), J.els.picked.textContent);
+      /* ── THE LIVE 2026-09-26 HANDOFF, in the order the monitor sent it (measured on the served page 2026-09-28): the
+            morning's empty Verity sidecar comes FIRST. "First per kind" took it and the corrected lag was "not computed". */
+      var K = load(),
+        sz = function (n, size) {
+          return { name: n, size: size };
+        };
+      K.P.onPick([
+        sz('Polar_H10_02849638_20260926220910_ECG.txt', 9e8),
+        sz('Polar_VeritySense_0C301E3F_20260926211125_PPG.txt', 1.1e8),
+        sz('Wellue_O2Ring-S_S8AW2100_20260926221225_PPG.txt', 1.5e8),
+        sz('Polar_H10_02849638_20260926220910_ACC.txt', 1e7),
+        sz('Polar_VeritySense_0C301E3F_20260926211125_ACC.txt', 1e7),
+        sz('Polar_H10_02849638_20260926220910_PMDARRIVAL.csv', 1e6),
+        sz('Polar_VeritySense_0C301E3F_20260926074145_PMDARRIVAL.csv', 60),
+        sz('Polar_VeritySense_0C301E3F_20260926172948_PMDARRIVAL.csv', 1e4),
+        sz('Polar_VeritySense_0C301E3F_20260926191506_PMDARRIVAL.csv', 1e4),
+        sz('Polar_VeritySense_0C301E3F_20260926203618_PMDARRIVAL.csv', 1e4),
+        sz('Polar_VeritySense_0C301E3F_20260926211125_PMDARRIVAL.csv', 1e6)
+      ]);
+      var pk = K.P.pick();
+      T.ok(
+        'of five Verity sidecars, the one of the Verity waveform’s OWN session is paired (21:11, not the first-listed 07:41)',
+        pk.ppgArr && /20260926211125_PMDARRIVAL/.test(pk.ppgArr.name),
+        pk.ppgArr && pk.ppgArr.name
+      );
+      T.ok(
+        '…and the H10’s sidecar and both ACC files are their own sessions’ too',
+        /20260926220910_PMDARRIVAL/.test(pk.ecgArr.name) && /20260926220910_ACC/.test(pk.ecgAcc.name) && /20260926211125_ACC/.test(pk.ppgAcc.name),
+        [pk.ecgArr.name, pk.ecgAcc.name, pk.ppgAcc.name].join(' | ')
+      );
+      var K2 = load();
+      K2.P.onPick([
+        sz('Polar_H10_1_20260926011500_ECG.txt', 1e6),
+        sz('Polar_H10_1_20260926220910_ECG.txt', 9e8),
+        sz('Polar_VeritySense_2_20260926074145_PPG.txt', 1e3),
+        sz('Polar_VeritySense_2_20260926211125_PPG.txt', 1e8),
+        sz('Wellue_O2Ring-S_3_20260926221225_PPG.txt', 1e8)
+      ]);
+      var pk2 = K2.P.pick();
+      T.ok(
+        'the ECG anchor is the LARGEST session, and the Verity waveform the one nearest it',
+        /220910_ECG/.test(pk2.ecg.name) && /211125_PPG/.test(pk2.verity.name),
+        pk2.ecg.name + ' | ' + pk2.verity.name
+      );
     });
 
     /* ════ PAT FEASIBILITY'S HAT CARDS read the per-corner STATUS (the same misstatement, second page) ════ */
