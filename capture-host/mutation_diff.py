@@ -39,12 +39,17 @@ from __future__ import annotations
 import ast
 import fnmatch
 import re
+import subprocess
+import threading
+import time
 
 __all__ = [
     "GATE_BUDGET_SEC",
     "PREWORK_TRACE_FACTOR",
     "prework_estimate",
     "budget_refusal",
+    "budget_exhaustion_verdict",
+    "stream_bounded",
     "verdict_object",
     "VERDICT_STATUSES",
     "EXCUSING",
@@ -595,6 +600,82 @@ def budget_refusal(module: str, clean_sec: float, n_globs: int, left_sec: float,
             f"{n_globs} function(s) selected, none mutated. This is a REFUSAL with a reason, not a "
             f"verdict on the diff: the module's test selection is too costly to mutate in one gate run. "
             f"Scope the change, or run `tools/mutate.py --only` locally on the function(s).")
+
+
+def stream_bounded(proc, cap_sec, on_line, t0=None, join_sec=10.0):
+    """Drain `proc`'s stdout line by line into `on_line`, and KILL the child at `cap_sec`.
+    Returns `(returncode, timed_out)`.
+
+    🔴 THE WALL CAP USED TO BE UNREACHABLE, WHICH IS WORSE THAN ABSENT. The caller drained the pipe
+    with a bare `for line in proc.stdout:` and only afterwards called
+    `proc.wait(timeout=cap - elapsed)`. That iterator ends when the CHILD CLOSES ITS STDOUT — which a
+    child that is still working never does — so `wait` was reached only once the process had already
+    exited, always returned immediately, and `subprocess.TimeoutExpired` could not be raised at all.
+    The code read like an enforced wall bound and enforced nothing; a child that printed nothing and
+    never finished was waited on forever.
+
+    Measured 2026-09-27 while reproducing this row: `tools/mutate.py --timeout 900` on capture.py ran
+    21 minutes (one worker at 8.2 GB RSS) with the cap never firing, and had to be killed by hand. The
+    same unreachable path carries `tools/mutate_diff.py`'s `GATE_BUDGET_SEC`, so the gate budget
+    bounded nothing either — which is how a traced stats pass reached 2 h 41 m and read as a silent
+    hang rather than a refusal.
+
+    Reading in a daemon thread and waiting in the caller puts the deadline on a path that CAN fire,
+    and the streamed output (the caller's progress heartbeat) is unchanged.
+    """
+    t0 = time.monotonic() if t0 is None else t0
+
+    def _drain() -> None:
+        try:
+            for line in proc.stdout:
+                on_line(line)
+        except (ValueError, OSError):
+            # The pipe was closed under us by the kill below. Expected on the timeout path, and not a
+            # failure of the run: whatever was read before the kill is already in the caller's buffer,
+            # and the refusal the caller is about to emit is the report. Re-raising here would only
+            # kill a daemon thread nobody joins for its result.
+            pass  # deliberate: a closed pipe after the kill is the expected end of the read
+
+    reader = threading.Thread(target=_drain, daemon=True)
+    reader.start()
+    timed_out = False
+    try:
+        rc = proc.wait(timeout=max(1.0, cap_sec - (time.monotonic() - t0)))
+    except subprocess.TimeoutExpired:
+        timed_out = True
+        proc.kill()
+        rc = proc.wait(timeout=30)
+    # Bounded join: a reader blocked on a pipe the kill did not close must not turn a refusal that
+    # fired into a hang one frame later.
+    reader.join(timeout=join_sec)
+    return rc, timed_out
+
+
+def budget_exhaustion_verdict(n_refused: int, decided: int, elapsed_sec: float) -> tuple[str, str]:
+    """The status a budget refusal deserves, and the reason with the numbers already in it.
+
+    TWO DIFFERENT OUTCOMES WORE ONE WORD. When some functions were mutated and others were refused,
+    the run measured part of the diff and cannot speak for the rest: UNKNOWN, exactly as an undecided
+    mutant is. When the budget was consumed before a single mutant was DECIDED, the run examined
+    nothing — and §🧾 spells that case NOT_RUN ("NOT_RUN examined nothing"), which UNKNOWN is not a
+    synonym for. The difference is not cosmetic: UNKNOWN reads as "we mutated and could not tell",
+    so a gate whose PRE-WORK never finished looked like a measurement with an inconclusive result.
+
+    This is capture.py's standing case, not a hypothetical. Its traced stats pass alone outruns the
+    whole budget (measured 2026-09-27: 2 h 41 m against a 7200 s budget), so the gate reached zero
+    mutants and still answered in the vocabulary of a run that had.
+
+    `elapsed_sec` is in the reason, not only in the log, because it is the one number that separates
+    the two cases for a reader who has just the verdict object — and because "the budget was
+    exhausted" without saying by what is the silent timeout this replaces.
+    """
+    what = f"{n_refused} module(s)/function(s) not mutated inside the {GATE_BUDGET_SEC}s gate budget"
+    if decided > 0:
+        return "UNKNOWN", (f"{what} after {elapsed_sec:.0f}s — {decided} mutant(s) decided before the "
+                           f"budget ran out; the refused ones are unmeasured, not failed")
+    return "NOT_RUN", (f"{what} after {elapsed_sec:.0f}s — NOT ONE mutant was decided, so this run "
+                       f"examined nothing: the pre-work (clean run + mutmut's traced stats pass) "
+                       f"consumed the budget before the first mutant ran. Not a verdict on the diff.")
 
 
 # ── tepna.verdict/1 — the ONE object the gate emits (VERDICT-CONTRACT §1/§3b step 5) ─────────────────

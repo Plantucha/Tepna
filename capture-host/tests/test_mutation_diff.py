@@ -1310,3 +1310,113 @@ def test_the_string_only_DETAIL_says_why_not_just_that():
     got, detail = M.string_only_verdict('--- a\n+++ b\n-    x = "a"\n+    x = "b"\n')
     assert got == M.STRING_ONLY
     assert detail == "every changed token lies inside a string literal", detail
+
+
+# ── the budget refusal's STATUS (§🧾: NOT_RUN examined nothing) ──────────────────────────────────────
+def test_a_budget_eaten_entirely_by_prework_is_NOT_RUN_not_UNKNOWN():
+    """The whole point of the split. `decided == 0` means the gate never reached a mutant — the clean
+    run and mutmut's traced stats pass consumed the budget — and the contract's word for that is
+    NOT_RUN. It answered UNKNOWN before, which is what a run says when it DID mutate and could not
+    decide; capture.py hits this branch on every diff, so the two were indistinguishable in the field."""
+    status, reason = M.budget_exhaustion_verdict(3, 0, 7201.4)
+    assert status == "NOT_RUN", status
+    assert "examined nothing" in reason
+    assert "7201s" in reason, f"the elapsed time must be IN the verdict, not only the log: {reason}"
+
+
+def test_a_partly_measured_run_stays_UNKNOWN_and_says_how_much_it_measured():
+    """The other side: mutants were decided, so the run is not "examined nothing" — the refused
+    functions are unmeasured and the measured ones still stand. Pinning this stops the fix above from
+    being applied to every refusal."""
+    status, reason = M.budget_exhaustion_verdict(2, 41, 7000.0)
+    assert status == "UNKNOWN", status
+    assert "41 mutant(s) decided" in reason and "7000s" in reason, reason
+
+
+def test_the_budget_verdict_always_names_the_elapsed_time():
+    """"Never a silent timeout" is the property, and the elapsed seconds are the only number that
+    distinguishes a budget that ran out from a budget that was mis-set. Both arms, one assertion."""
+    for decided in (0, 1, 500):
+        _, reason = M.budget_exhaustion_verdict(1, decided, 1234.0)
+        assert "1234s" in reason, (decided, reason)
+
+
+def test_the_budget_verdict_uses_only_statuses_the_contract_allows():
+    for decided in (0, 1, 99):
+        status, _ = M.budget_exhaustion_verdict(1, decided, 10.0)
+        assert status in M.VERDICT_STATUSES, status
+
+
+# ── the wall cap must be REACHABLE (the 2 h 41 m stats pass) ─────────────────────────────────────────
+def _child(code: str):
+    import subprocess as _sp
+    import sys as _sys
+    return _sp.Popen([_sys.executable, "-c", code], stdout=_sp.PIPE, stderr=_sp.STDOUT,
+                     text=True, bufsize=1)
+
+
+def test_a_child_that_never_exits_is_KILLED_at_the_cap():
+    """THE DEFECT, pinned. `for line in proc.stdout:` ends only when the child closes stdout, so the
+    `proc.wait(timeout=…)` after it was reached only once the child had already exited — the cap could
+    not fire. A chatty child that never finishes is exactly mutmut's traced stats pass on capture.py,
+    which ran 2 h 41 m against a 7200 s budget and 21 min against a 900 s one, both unbounded."""
+    import time as _t
+    proc = _child("import sys, time\nwhile True:\n    print('working'); sys.stdout.flush(); time.sleep(0.02)\n")
+    seen: list[str] = []
+    t0 = _t.monotonic()
+    rc, timed_out = M.stream_bounded(proc, 1.0, seen.append, t0=t0)
+    took = _t.monotonic() - t0
+    assert timed_out is True, f"the cap did not fire: rc={rc}"
+    assert took < 20, f"the cap fired {took:.0f}s late — it must bound the READ, not follow it"
+    assert seen, "the output must still stream while the deadline runs"
+    assert proc.poll() is not None, "the child was left alive after the refusal"
+
+
+def test_a_SILENT_child_that_never_exits_is_also_killed_at_the_cap():
+    """The worse half: a child producing NO output. The old read blocked on an empty pipe forever with
+    nothing to count and no heartbeat — the shape a reader calls "wedged" and cannot distinguish from
+    slow work."""
+    import time as _t
+    proc = _child("import time\ntime.sleep(600)\n")
+    t0 = _t.monotonic()
+    rc, timed_out = M.stream_bounded(proc, 1.0, lambda _l: None, t0=t0)
+    assert timed_out is True and _t.monotonic() - t0 < 20, (rc, timed_out)
+    assert proc.poll() is not None
+
+
+def test_a_child_that_finishes_inside_the_cap_reports_its_real_exit_code():
+    """The control: the bound must not turn a normal run into a refusal, and every line must arrive."""
+    proc = _child("for i in range(50):\n    print(i)\n")
+    seen: list[str] = []
+    rc, timed_out = M.stream_bounded(proc, 60.0, seen.append)
+    assert timed_out is False and rc == 0, (rc, timed_out)
+    assert len(seen) == 50, f"lines were dropped by the threaded reader: {len(seen)}"
+
+
+def test_a_failing_child_inside_the_cap_is_not_reported_as_a_timeout():
+    proc = _child("import sys\nprint('boom')\nsys.exit(3)\n")
+    seen: list[str] = []
+    rc, timed_out = M.stream_bounded(proc, 60.0, seen.append)
+    assert (rc, timed_out) == (3, False), (rc, timed_out)
+    assert seen == ["boom\n"], seen
+
+
+def test_a_pipe_closed_under_the_reader_does_not_take_the_verdict_with_it():
+    """The kill can close the pipe while the reader is mid-iteration. A stub rather than a race, so
+    the branch is exercised the same way every run: the read dies, the caller still gets its code."""
+    class _Pipe:
+        def __iter__(self):
+            raise ValueError("I/O operation on closed file")
+
+    class _Proc:
+        stdout = _Pipe()
+        returncode = 0
+
+        def wait(self, timeout=None):
+            return 0
+
+        def kill(self):  # pragma: no cover — this child exits inside the cap
+            raise AssertionError
+
+    rc, timed_out = M.stream_bounded(_Proc(), 60.0, lambda _l: None)
+    assert (rc, timed_out) == (0, False), (rc, timed_out)
