@@ -368,7 +368,10 @@ def _midnight_of(night_dir: str):
     civil time here (a folder NAME and a filename stamp), so this needs no offset at all: read both as
     written and the zone cancels."""
     d = _folder_date(night_dir)
-    return float(calendar.timegm((d.year, d.month, d.day, 0, 0, 0, 0, 0, 0))) if d else None
+    # Through `floating_stamp_s`, not a hand-built 9-tuple: ONE conversion for the whole module, and the
+    # tuple's last three members (wday, yday, isdst) were dead weight — `calendar.timegm` reads only the
+    # first six, so nothing could ever observe what they held.
+    return floating_stamp_s(d.strftime("%Y%m%d") + "000000") if d else None
 
 # NOMINAL sample rate (Hz) per (model, stream) — the honest denominator for a coverage figure. Mirrors the
 # rates in webmon's _BPS_BY_MODEL (the second tuple element); duplicated rather than imported because
@@ -1015,7 +1018,9 @@ def file_last_row_floating_s(path: str) -> float | None:
     """
     try:
         with open(path, "rb") as fh:
-            header = ""
+            # NO EMPTY-STRING SEED before this loop: `range(...)` always iterates at least once and every
+            # iteration assigns `header`, so a seed is unreachable by construction and only gives a mutant
+            # somewhere to hide. The `for/else` covers exhaustion; the empty read covers a truncated file.
             for _ in range(_HOST_SPAN_SCAN_ROWS):
                 raw_head = fh.readline()
                 if not raw_head:
@@ -1082,6 +1087,13 @@ def recover_writer_offset(night_dir: str, files: list[dict]) -> dict:
     `offset_sec` is **the number that raises a floating stamp into the `mtime` frame** and `basis` is
     `"recovered"` or None.
 
+    `files` is the night's DATA files — both callers (`summarize`, `timeline.build`) pass a list already
+    filtered of `_SIDECAR_TAGS`, and this does not re-filter. A second guard that no caller can trigger
+    reads as protection while protecting nothing, and its mutants cannot be killed by any input the
+    program admits; the precondition is stated here instead. A sidecar would in fact be a fair witness of
+    the BOX's zone — it is the box talking about itself, which is exactly what is being measured — so if a
+    caller ever wants to widen the population, that is a deliberate change here and not an oversight.
+
     ⚠️ THIS IS AN INFERENCE, BOUNDED AND REFUSABLE — never a recorded fact. The box records no zone
     anywhere: `writers._phone_ts` is documented "local civil time, zone-free", filenames carry bare
     components, and `STARTS.csv` the same. `mtime` is the ONLY absolute instant the night contains, so
@@ -1147,8 +1159,8 @@ ROUND, NOT FLOOR, AND THE REASON IS THE ONE THAT CAUGHT ME OUT. I first floored 
     votes: list[tuple[float, str]] = []
     by_basis = {"last-row": 0, "extent": 0}
     for f in files:
-        if not f.get("rows") or f.get("stream") in _SIDECAR_TAGS:
-            continue                            # a sidecar is the box talking about itself, not a capture
+        if not f.get("rows"):
+            continue                            # header-only: nothing arrived, so nothing to place
         vote = None
         last = file_last_row_floating_s(os.path.join(night_dir, f["file"]))
         if last is not None:

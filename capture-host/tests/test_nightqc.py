@@ -4157,6 +4157,571 @@ def _spans_in(zone, night):
 
 
 
+
+# ── `recover_writer_offset`: the vote, the bound, the floor and the tally ──────────────────────────────
+#
+# Every assertion below pins a DECISION rather than a branch: which votes count, which are refused on
+# magnitude, how many voters the floor demands under unanimity and without it, and what the refusal SAYS.
+# A mutation survivor on any of them would mean a night could recover a zone it has no evidence for.
+
+def _vote_file(night, name, *, d, rows=3, ns_step=None, last=None):
+    """A capture file whose `last-row` vote is EXACTLY `d` seconds.
+
+    The last row's host stamp is written as the civil components of a chosen FLOATING second `last`, so
+    `file_last_row_floating_s` reads back exactly `last`; the mtime is then placed at `last + d`. That
+    makes `mtime − floating(last row)` equal `d` to the microsecond, which is what lets a test sit a vote
+    precisely ON a bound or precisely at a bucket edge instead of near one.
+
+    `ns_step` adds a device-clock column so the file also has a `span_sec`, i.e. an `extent` basis.
+    """
+    last = nightqc.floating_stamp_s(_ZONE_STAMP) if last is None else last
+    c = _dtmod.datetime(1970, 1, 1) + _dtmod.timedelta(seconds=last)
+    stamp = c.strftime("%Y-%m-%dT%H:%M:%S.") + f"{c.microsecond // 1000:03d}"
+    head = "Phone timestamp;sensor timestamp [ns];v" if ns_step else "Phone timestamp;v"
+    p_ = os.path.join(night, name)
+    with open(p_, "w", encoding="utf-8") as fh:
+        fh.write(head + "\n")
+        for i in range(rows):
+            # Only the LAST row carries a stamp: `file_host_span_sec` then finds no first usable row and
+            # returns None, so these files carry a vote and no duration basis — the vote is what is under
+            # test here, and a span would change the session geometry as a side effect.
+            s = stamp if i == rows - 1 else ""
+            fh.write(f"{s};{i * ns_step};{i}\n" if ns_step else f"{s};{i}\n")
+    os.utime(p_, ((last + d),) * 2)
+    return p_
+
+
+def _night_of_votes(tmp_path, ds, *, rows=3, names=None):
+    """A night whose i-th data file votes `ds[i]`. Distinct stream tags, one shared session stamp."""
+    d = tmp_path / "captures" / "2026-09-09"
+    d.mkdir(parents=True, exist_ok=True)
+    tags = names or ["ECG", "ACC", "HR", "PPG", "PPI", "SPO2", "GYRO", "MAG"]
+    for i, dv in enumerate(ds):
+        _vote_file(str(d), f"Polar_H10_02849638_{_ZONE_STAMP}_{tags[i]}.txt", d=dv, rows=rows)
+    return str(d)
+
+
+def test_a_vote_EXACTLY_at_the_magnitude_bound_is_an_offset_and_is_counted(tmp_path):
+    """`>` not `>=`, and which side the bound falls on is a DECISION, not a detail.
+
+    +14:00 is a real zone in use (Line Islands, Kiribati), and `_OFFSET_MAX_ABS_SEC` is exactly that. A
+    vote landing ON it is therefore the widest LEGITIMATE offset there is; refusing it would make the one
+    zone furthest from UTC the one zone that cannot be recovered."""
+    night = _night_of_votes(tmp_path, [nightqc._OFFSET_MAX_ABS_SEC] * 3)
+    off, _data = _recovered(night)
+    assert off["offset_sec"] == nightqc._OFFSET_MAX_ABS_SEC and off["basis"] == "recovered", off
+    assert off["voters"] == 3, off
+
+
+def test_a_vote_just_BEYOND_the_bound_is_refused_and_leaves_no_voter(tmp_path):
+    """One bucket past +14:00 is not a zone, and no majority can make it one — the bound is checked before
+    a vote is counted, so such a file does not appear in `voters` at all rather than appearing and losing."""
+    night = _night_of_votes(tmp_path, [nightqc._OFFSET_MAX_ABS_SEC + nightqc._OFFSET_BUCKET_SEC] * 3)
+    off, _data = _recovered(night)
+    assert off["offset_sec"] is None and off["voters"] == 0, off
+    assert off["voters_by_basis"] == {"last-row": 0, "extent": 0}, off["voters_by_basis"]
+
+
+def test_the_tally_COUNTS_its_voters_and_names_which_basis_each_used(tmp_path):
+    """Two `last-row` voters and one `extent` voter, so an increment that saturates at 1, decrements, or
+    steps by 2 is visible — and so is a tally seeded at 1 instead of 0.
+
+    The `extent` voter is the reachable shape it exists for: its host stamp is a CONSTANT far outside the
+    bound (what `_cap_timed` writes), so the `last-row` vote is refused on magnitude and the file falls
+    through to its own recorded duration."""
+    d = tmp_path / "captures" / "2026-09-09"
+    d.mkdir(parents=True, exist_ok=True)
+    t0 = nightqc.floating_stamp_s(_ZONE_STAMP)
+    _vote_file(str(d), f"Polar_H10_02849638_{_ZONE_STAMP}_ECG.txt", d=14400.0)
+    _vote_file(str(d), f"Polar_H10_02849638_{_ZONE_STAMP}_ACC.txt", d=14400.0)
+    # An out-of-bound last-row stamp (the 2000-epoch constant), plus a real device clock: 1000 rows at
+    # 1 Hz, so `span_sec` is 999 s and the extent vote is mtime − (stamp + 999).
+    p3 = d / f"Polar_H10_02849638_{_ZONE_STAMP}_HR.txt"
+    _write_stream_ns(str(p3), _ZONE_STEP_NS, rows=1000)
+    os.utime(str(p3), ((t0 + 999.0 + 14400.0),) * 2)
+
+    off, _data = _recovered(str(d))
+    assert off["offset_sec"] == 14400.0 and off["voters"] == 3, off
+    assert off["voters_by_basis"] == {"last-row": 2, "extent": 1}, off["voters_by_basis"]
+    assert off["modal_share"] == 1.0 and off["outliers"] == [], off
+
+
+def test_a_NON_VOTING_file_does_not_end_the_scan(tmp_path):
+    """`continue`, not `break`, in both skip paths — a sidecar and a rows-0 file each sit BEFORE a real
+    voter here (sorted by name), so breaking on either loses every voter after it and the night refuses
+    with `voters: 0` while three files could have spoken."""
+    d = tmp_path / "captures" / "2026-09-09"
+    d.mkdir(parents=True, exist_ok=True)
+    # A LINK sidecar sorts first by vendor name and is excluded by tag, not by content.
+    _vote_file(str(d), f"Tepna_{_ZONE_STAMP}_LINK.csv", d=14400.0)
+    # A header-only data file: no rows, so the row guard skips it.
+    empty = d / f"Polar_H10_02849638_{_ZONE_STAMP}_SPO2.csv"
+    empty.write_text("Phone timestamp;v\n", encoding="utf-8")
+    os.utime(str(empty), (nightqc.floating_stamp_s(_ZONE_STAMP) + 14400.0,) * 2)
+    # And a file that HAS rows and still cannot vote — no host column and no recorded extent, so neither
+    # basis can speak. That is the second skip, and it is a different line from the row guard above: this
+    # one is reached only after both bases have been tried and both came back empty. It sorts first, so
+    # breaking here would lose every voter after it.
+    mute = d / f"Polar_H10_02849638_{_ZONE_STAMP}_ACC.txt"
+    mute.write_text(_CLOCKLESS_HEADER + "1;1\n2;2\n", encoding="utf-8")
+    os.utime(str(mute), (nightqc.floating_stamp_s(_ZONE_STAMP) + 14400.0,) * 2)
+    for tag in ("ECG", "HR", "PPG"):
+        _vote_file(str(d), f"Polar_H10_02849638_{_ZONE_STAMP}_{tag}.txt", d=14400.0)
+
+    off, _data = _recovered(str(d))
+    assert off["voters"] == 3 and off["offset_sec"] == 14400.0, off
+
+
+def test_file_intervals_DEFAULT_offset_treats_the_values_as_already_in_one_frame():
+    """`offset_sec=0.0` by default, and the default is the whole reason the signature stayed
+    back-compatible: it means "these values are already in one frame", which is true of every synthetic
+    file dict in this suite and of the module's previous behaviour. A non-zero default would shift every
+    such caller silently, which is exactly the class of error this unit exists to remove."""
+    f = {"file": "Polar_H10_02849638_20260909212938_ECG.txt", "rows": 9,
+         "session": 1000.0, "mtime": 2000.0}
+    assert nightqc.file_interval(f) == (1000.0, 2000.0, "mtime")
+
+
+def test_TWO_VOTERS_WHO_DISAGREE_are_refused_though_two_who_agree_are_not(tmp_path):
+    """The whole point of the revised floor, and the pair that proves it is a REVISION and not a hole.
+
+    `≥2 when unanimous, else ≥3 with a strict majority`. Two agreeing voters are two independent
+    measurements concurring; two disagreeing are undecidable, and a floor that let them through would
+    resolve a 1-1 split by tie-break — inventing a zone rather than measuring one. This also pins
+    `unanimous = bool(votes) AND one bucket`: under `or`, any non-empty vote list reads as unanimous, so
+    the pair below would recover a zone off a coin toss.
+    """
+    agree = _night_of_votes(tmp_path / "agree", [14400.0, 14400.0])
+    off_a, _ = _recovered(agree)
+    assert off_a["offset_sec"] == 14400.0 and off_a["unanimous"] is True, off_a
+
+    split = _night_of_votes(tmp_path / "split", [14400.0, 18000.0])
+    off_s, _ = _recovered(split)
+    assert off_s["offset_sec"] is None and off_s["unanimous"] is False, off_s
+    assert off_s["voters"] == 2 and "the floor is 3" in off_s["reason"], off_s["reason"]
+    # ...and the reason must NOT claim unanimity it does not have, nor omit it when it holds.
+    assert "for a unanimous vote" not in off_s["reason"], off_s["reason"]
+    lone = _night_of_votes(tmp_path / "lone", [14400.0])
+    off_l, _ = _recovered(lone)
+    assert off_l["unanimous"] is True and "the floor is 2 for a unanimous vote" in off_l["reason"], off_l
+
+
+def test_a_bucket_holding_EXACTLY_HALF_is_not_a_strict_majority(tmp_path):
+    """`<= 0.5`, not `< 0.5`. Four voters split two-and-two hold exactly half each, and a rule that
+    accepted that would be resolving the split by whichever bucket the maximum happened to pick — the
+    tie-break the floor exists to refuse. The reason names the largest bucket so an operator can see how
+    close the night came rather than only that it failed."""
+    night = _night_of_votes(tmp_path, [14400.0, 14400.0, 18000.0, 18000.0])
+    off, _data = _recovered(night)
+    assert off["offset_sec"] is None and off["voters"] == 4, off
+    assert off["reason"] and "no strict majority" in off["reason"], off["reason"]
+    assert "largest bucket holds 2" in off["reason"], off["reason"]
+
+
+def test_the_modal_share_is_published_to_THREE_decimals(tmp_path):
+    """Four of six, i.e. 0.6666…, so 3 decimals and 4 differ (0.667 vs 0.6667). The share is a published
+    measure of how well-supported the recovered offset is; a reader comparing nights needs one precision,
+    not whichever the arithmetic happened to produce."""
+    night = _night_of_votes(tmp_path, [14400.0] * 4 + [18000.0] * 2)
+    off, _data = _recovered(night)
+    assert off["offset_sec"] == 14400.0 and off["voters"] == 6, off
+    assert off["modal_share"] == 0.667, off["modal_share"]
+    assert len(off["outliers"]) == 2, off["outliers"]
+
+
+
+# ── `daemon_starts`: the FRAME its stamps are raised into, and the window they are tested against ──────
+#
+# The sidecar's stamps are floating civil time; the file spans they are compared against are in whichever
+# frame the caller asked for. Every assertion here pins that one relationship, because getting it wrong is
+# how the same night came to count a different number of restarts "inside capture" in New York than in
+# Tokyo — and the answer looked equally plausible both times.
+
+def _starts_night(tmp_path, minutes, *, span_min=(300, 420), rows=5, writer_offset=0.0):
+    """A night with one data file spanning `span_min` past midnight and daemon starts at `minutes`.
+
+    Everything is FLOATING: the filename stamp, the mtime and the sidecar stamps, so the fixture is in one
+    frame and `offset_sec` is the only thing that moves anything."""
+    import writers as _w
+    night = tmp_path / "captures" / "2026-09-10"
+    night.mkdir(parents=True, exist_ok=True)
+    t0 = nightqc.floating_stamp_s("20260910000000")
+    stamp = _dtmod.datetime(1970, 1, 1) + _dtmod.timedelta(seconds=t0 + span_min[0] * 60)
+    name = "Polar_VeritySense_0C301E3F_%s_PPG.txt" % stamp.strftime("%Y%m%d%H%M%S")
+    f = night / name
+    f.write_text(_CLOCKLESS_HEADER + "".join(f"{i};{i}\n" for i in range(rows)), encoding="utf-8")
+    # The mtime models a writer at `writer_offset`: floating end plus the offset, which is exactly the
+    # relationship `recover_writer_offset` measures. At 0.0 the fixture is wholly floating.
+    os.utime(str(f), ((t0 + span_min[1] * 60 + writer_offset,) * 2))
+    with open(os.path.join(str(night), _w.STARTS_NAME), "w", encoding="utf-8") as fh:
+        fh.write("Phone timestamp;pid;git;dirty;adapter\n")
+        for i, m in enumerate(minutes):
+            fh.write(_starts_stamp(t0 + m * 60) + f";{400 + i};2cd12712;no;AA\n")
+    return str(night), t0
+
+
+def test_daemon_start_stamps_are_RAISED_by_the_offset_and_in_the_right_direction(tmp_path):
+    """`t + shift`, with `shift` the offset itself and 0.0 only when there is no offset.
+
+    Four separate decisions live on those two lines — whether a shift is applied at all, which value it
+    takes, which direction it runs, and what happens when the offset is unknown — and each is a way for a
+    recorded seam to land somewhere the night never was. A negated shift puts a 04:00 restart at 20:00 the
+    previous day; a shift of 0 under a known offset leaves every seam an offset away from the spans it is
+    compared with, which is the original defect wearing a different hat."""
+    night, t0 = _starts_night(tmp_path, [240])
+    base = nightqc.daemon_starts(night, offset_sec=None)["stamps"]
+    assert base == [t0 + 240 * 60], base                 # floating frame: unshifted, and no crash
+    assert nightqc.daemon_starts(night)["stamps"] == base, "the default offset is 0.0, i.e. one frame"
+    raised = nightqc.daemon_starts(night, offset_sec=7200.0)["stamps"]
+    assert raised == [t0 + 240 * 60 + 7200.0], raised    # + and not -, and 7200 and not 0 or 1
+
+
+def test_a_start_ON_either_edge_of_a_capture_span_counts_as_inside(tmp_path):
+    """`a <= t <= b`, both ends inclusive, and both ends are decisions.
+
+    A restart at the instant a file opened interrupted that capture; so did one at the instant of its last
+    write. Excluding either edge under-reports interruption at exactly the moments most likely to produce
+    one — a daemon restart is what opens and closes a capture, so the edges are where starts CLUSTER
+    rather than a measure-zero curiosity."""
+    night, _t0 = _starts_night(tmp_path, [300, 360, 420])   # open edge · middle · last-write edge
+    # The ABSOLUTE frame, where a file is live from its stamp to its last write; in the floating frame a
+    # clockless file is a point and has no edges to sit on.
+    got = nightqc.daemon_starts(night, offset_sec=0.0)
+    assert got["starts"] == 3 and got["inside_capture"] == 3, got
+
+
+def test_a_SIDECAR_never_contributes_a_span_for_a_start_to_fall_inside(tmp_path):
+    """The span population is DATA files, read from each record's own `stream` key.
+
+    The LINK sidecar here spans a stretch no sensor was recording in, and a restart sits inside it. Counted,
+    it would report an interruption of a capture that was not happening — the box's own bookkeeping
+    mistaken for signal, which is the distinction `_SIDECAR_TAGS` exists to hold."""
+    night, t0 = _starts_night(tmp_path, [600])              # 10:00, outside the 05:00-07:00 capture
+    link = os.path.join(night, "Tepna_20260910093000_LINK.csv")
+    with open(link, "w", encoding="utf-8") as fh:
+        fh.write(_CLOCKLESS_HEADER + "".join(f"{i};{i}\n" for i in range(5)))
+    os.utime(link, ((t0 + 660 * 60,) * 2))                  # 09:30 -> 11:00, containing the 10:00 start
+    # The ABSOLUTE frame, so the sidecar has a real interval for the start to be inside — in the floating
+    # frame a clockless file is a point and the question could not arise.
+    got = nightqc.daemon_starts(night, offset_sec=0.0)
+    assert got["starts"] == 1 and got["inside_capture"] == 0, got
+
+
+def test_the_spans_a_start_is_tested_against_are_RAISED_by_the_same_offset(tmp_path):
+    """One frame on BOTH sides, which is the whole point: the stamps are raised and so are the intervals.
+
+    Passing the offset to the stamps but letting the intervals default to 0.0 would compare a raised stamp
+    against an unraised window — an offset apart, and silently. Here the start sits inside the capture only
+    when both sides move together, so a window left behind reports no interruption at all."""
+    for off in (0.0, 7200.0, -3600.0):
+        # The fixture is built to that same writer offset, so the start is inside the capture ONLY when the
+        # stamps and the intervals are raised together — leave either behind and it falls an offset away.
+        night, _t0 = _starts_night(tmp_path / f"o{off}", [360], writer_offset=off)
+        got = nightqc.daemon_starts(night, offset_sec=off)
+        assert got["inside_capture"] == 1, (off, got)
+
+    # AND THE CONVERSE, which is what makes the pair decisive. A start at 04:00 is BEFORE a capture that
+    # opened at 05:00, so it must read as outside. Raise the stamp by the offset but let the interval keep
+    # its default 0.0 and the window's start slides back two hours, swallowing it — an interruption
+    # reported for a capture that had not begun. Only the window's own start moving catches this.
+    night, _t0 = _starts_night(tmp_path / "before", [240], writer_offset=7200.0)
+    got = nightqc.daemon_starts(night, offset_sec=7200.0)
+    assert got["starts"] == 1 and got["inside_capture"] == 0, got
+
+
+# ── `merge_sessions` and `scan_night`: ordering, the gap edge, and a span basis that is not recomputed ──
+
+def test_sessions_are_ordered_by_where_they_START_not_where_they_END(tmp_path):
+    """A file that opens EARLIER but ends sooner must still be considered first.
+
+    Sorting by end reorders exactly the pair that matters — a long connection opened at 22:00 and a short
+    one opened at 23:00 that both stop at midnight — and `merge_sessions` folds each file into the running
+    session by comparing its START against the coverage so far. Fed out of order, the earlier file opens a
+    session that the later one then appears to precede, and the output stops being ordered at all."""
+    long_early = {"file": "X_20260909220000_ECG.txt", "rows": 10,
+                  "session": 1000.0, "mtime": 9000.0, "span_sec": None, "host_span_sec": None}
+    short_late = {"file": "X_20260909230000_ACC.txt", "rows": 10,
+                  "session": 2000.0, "mtime": 2500.0, "span_sec": None, "host_span_sec": None}
+    out = nightqc.merge_sessions([short_late, long_early])
+    assert [s[0] for s in out] == sorted(s[0] for s in out), out
+    assert out[0][0] == 1000.0, out
+
+
+def test_a_gap_of_EXACTLY_the_threshold_opens_a_NEW_session(tmp_path):
+    """`st <= end + gap` merges, so a file opening exactly `gap_sec` after the last write is the LAST one
+    that still belongs to the running session — and one microsecond later starts a new one.
+
+    Which side the threshold falls on is a decision, not a rounding detail: it decides whether a night with
+    a reconnect exactly at the boundary is judged as one session or two, and every span-derived number
+    downstream follows that choice."""
+    a = {"file": "X_20260909220000_ECG.txt", "rows": 10, "session": 0.0, "mtime": 0.0,
+         "span_sec": None, "host_span_sec": None}
+    at_edge = dict(a, file="X_20260909230000_ACC.txt",
+                   session=nightqc._SESSION_GAP_SEC, mtime=nightqc._SESSION_GAP_SEC)
+    past_edge = dict(at_edge, session=nightqc._SESSION_GAP_SEC + 1, mtime=nightqc._SESSION_GAP_SEC + 1)
+    assert len(nightqc.merge_sessions([a, at_edge])) == 1, "exactly at the gap still belongs"
+    assert len(nightqc.merge_sessions([a, past_edge])) == 2, "one second past it does not"
+
+
+def test_a_file_with_a_DEVICE_clock_is_not_also_given_a_host_span(tmp_path):
+    """`None if _span else ...` — the host span is a LAST RESORT, computed only where the device clock
+    cannot answer.
+
+    Two reasons it must not be computed alongside: it is a different quantity (when the HOST was writing,
+    not what the device clocked), so carrying both invites a caller to difference them; and it costs a
+    second read of a file that has already answered. A file that states its own span must therefore report
+    `host_span_sec: None` — absence here means "not needed", and the field's own contract says a consumer
+    may never read it as a zero."""
+    night = tmp_path / "captures" / "2026-09-09"
+    night.mkdir(parents=True)
+    p = night / f"Polar_H10_02849638_{_ZONE_STAMP}_ECG.txt"
+    _write_stream_ns(str(p), _ZONE_STEP_NS, rows=20)
+    rec = next(f for f in nightqc.scan_night(str(night)) if f["stream"] == "ECG")
+    assert rec["span_sec"] == 19.0, rec["span_sec"]
+    assert rec["host_span_sec"] is None, rec["host_span_sec"]
+
+
+def test_the_start_that_OPENED_a_session_does_not_also_split_it(tmp_path):
+    """`sessions[-1][0] < t`, strictly — the seam test is keyed on the session's own start and must EXCLUDE
+    it.
+
+    A daemon start at the instant a session opened is the start that opened it. Counting it as a seam
+    splits that session from its own first file, so a night begun by a recorded restart — which is the
+    normal case, since the daemon writes a start every time it comes up — would be reported as two runs
+    where there was one, and every span-derived number would describe a fragment. Anything strictly after
+    the opening still splits, which is the case the `starts` evidence exists for."""
+    a = {"file": "X_20260909220000_ECG.txt", "rows": 10, "session": 1000.0, "mtime": 1500.0,
+         "span_sec": None, "host_span_sec": None}
+    b = dict(a, file="X_20260909220100_ACC.txt", session=1600.0, mtime=2000.0)
+    at_open = nightqc.merge_sessions([a, b], starts=[1000.0])
+    assert len(at_open) == 1, ("the start that opened the session is not a seam within it", at_open)
+    after = nightqc.merge_sessions([a, b], starts=[1000.1])
+    assert len(after) == 2, ("a start after the opening DOES split", after)
+
+
+def test_an_UNDECODABLE_BYTE_in_the_STARTS_sidecar_does_not_lose_the_night(tmp_path):
+    """`errors="replace"` on the sidecar read, for the same reason as the voter read.
+
+    `daemon_starts` runs inside `summarize`, so raising here does not cost the restart count — it costs the
+    night's whole QC summary. The rows this parses are ASCII by format (an ISO stamp, a pid, a hash, a
+    yes/no, an address), so a substituted U+FFFD cannot change which stamps are read: the torn byte sits in
+    the ADAPTER field of the first row, and both stamps must still be found."""
+    import writers as _w
+    night, t0 = _starts_night(tmp_path, [])
+    path = os.path.join(night, _w.STARTS_NAME)
+    with open(path, "wb") as fh:
+        fh.write(b"Phone timestamp;pid;git;dirty;adapter\n")
+        fh.write(_starts_stamp(t0 + 300 * 60).encode() + b";400;2cd12712;no;AA\xff\xfe:BB\n")
+        fh.write(_starts_stamp(t0 + 360 * 60).encode() + b";401;2cd12712;no;CC\n")
+    got = nightqc.daemon_starts(night, offset_sec=0.0)
+    assert got["starts"] == 2, got
+    assert got["stamps"] == [t0 + 300 * 60, t0 + 360 * 60], got["stamps"]
+
+
+def test_a_host_span_is_NOT_computed_for_a_file_that_states_its_own(tmp_path):
+    """`None if _span else ...` — and the fixture has to carry BOTH clocks or the assertion is vacuous.
+
+    A file with a device clock AND advancing host stamps is the only shape that separates them: computing
+    the host span anyway would return a real number here, not None. Two reasons it must not: the host span
+    is a different quantity (when the HOST was writing, not what the device clocked), so carrying both
+    invites a caller to difference them; and it costs a second read of a file that has already answered."""
+    night = tmp_path / "captures" / "2026-09-09"
+    night.mkdir(parents=True)
+    p = night / f"Polar_H10_02849638_{_ZONE_STAMP}_ECG.txt"
+    t0 = nightqc.floating_stamp_s(_ZONE_STAMP)
+    rows = ["Phone timestamp;sensor timestamp [ns];v"]
+    for i in range(20):
+        c = _dtmod.datetime(1970, 1, 1) + _dtmod.timedelta(seconds=t0 + i)
+        rows.append(f"{c.strftime('%Y-%m-%dT%H:%M:%S.000')};{i * _ZONE_STEP_NS};{i}")
+    p.write_text("\n".join(rows) + "\n", encoding="utf-8")
+    rec = next(f for f in nightqc.scan_night(str(night)) if f["stream"] == "ECG")
+    assert rec["span_sec"] == 19.0, rec["span_sec"]
+    # The host stamps span 19 s too, so this is None only because it was never asked for.
+    assert nightqc.file_host_span_sec(str(p)) == 19.0, "the fixture really does carry a host span"
+    assert rec["host_span_sec"] is None, rec["host_span_sec"]
+
+
+def test_an_UNPARSEABLE_stamp_does_not_end_the_backward_walk(tmp_path):
+    """`continue`, not `break`, on a stamp that is present but not a datetime.
+
+    The two skips in this walk are different: one steps past a row too SHORT to hold the column, the other
+    past a row whose column holds something that is not a stamp — a partially flushed value, a vendor
+    string, a trailing marker. The last row written is the likeliest to be torn, so stopping there answers
+    "this file has no host stamp" for a file whose previous 40,000 rows all carry one, and the night loses
+    a voter it had.
+
+    Found by mutating every `continue` in the function in turn rather than the one the report named: the
+    short-row skip was already pinned and this one was not."""
+    p = tmp_path / "Polar_H10_02849638_20260909212938_ECG.txt"
+    p.write_text("Phone timestamp;v\n"
+                 "2026-09-09T21:30:00.250;1\n"
+                 "not-a-timestamp;2\n", encoding="utf-8")
+    got = nightqc.file_last_row_floating_s(str(p))
+    expect = nightqc.floating_stamp_s("20260909213000") + 0.25
+    assert got is not None and abs(got - expect) < 1e-9, (got, expect)
+
+
+def test_scan_night_walks_PAST_what_it_cannot_use_rather_than_stopping(tmp_path):
+    """All three skips are `continue`: the QC summary itself, a name that is not a capture file, and a
+    directory where a file was expected.
+
+    Each sorts BEFORE something real here, so breaking on any of them truncates the night's file list — and
+    a short file list is the 2026-07-28 shape, where a scope failure read as nine simultaneous device
+    failures. The scan must return every capture file and every sidecar regardless of what sits between
+    them alphabetically.
+
+    Found by mutating each `continue` in turn: two were already pinned and the third was not."""
+    night = tmp_path / "captures" / "2026-09-09"
+    night.mkdir(parents=True)
+    (night / "1-notes.txt").write_text("free text\n", encoding="utf-8")   # not a capture name
+    (night / nightqc._SUMMARY_NAME).write_text("{}\n", encoding="utf-8")  # the summary itself
+    # A DIRECTORY whose name parses as a capture file, sorting before the real ones. This is the only shape
+    # that reaches the `isfile` guard — a plainly-named directory is turned away by the NAME check first, so
+    # a test using one leaves this branch unexercised while appearing to cover it. The real case is a scan
+    # listing a path that is not a regular file: a stray mount, an interrupted move, a tool's work dir.
+    (night / f"Polar_H10_02849638_{_ZONE_STAMP}_AAA.txt").mkdir()
+    for tag in ("ECG", "ACC"):
+        _vote_file(str(night), f"Polar_H10_02849638_{_ZONE_STAMP}_{tag}.txt", d=14400.0)
+    _vote_file(str(night), f"Tepna_{_ZONE_STAMP}_LINK.csv", d=14400.0)
+
+    got = nightqc.scan_night(str(night))
+    assert sorted(f["stream"] for f in got) == ["ACC", "ECG", "LINK"], [f["file"] for f in got]
+
+# ── `file_interval`'s FLOATING branch: the duration, its sign and the basis it names ───────────────────
+#
+# Reachable only when the writer offset could not be recovered, which is exactly when a reader has least
+# else to go on — so the interval it builds has to be right, and it has to SAY which clock stated it.
+
+def _iv(**f):
+    return nightqc.file_interval(
+        {"file": "Polar_H10_02849638_20260909212938_ECG.txt", "rows": 9, "mtime": 9_999_999.0, **f}, None)
+
+
+def test_the_floating_interval_uses_the_DEVICE_clock_and_names_it(tmp_path):
+    """`span_sec` present: the end is start PLUS that span, and the basis is `device-clock`.
+
+    Three decisions in one line, each separately wrong-able: which key is read, which direction the
+    duration runs, and what the interval claims as its authority. A negated duration would put the end
+    BEFORE the start and read as a session that finished before it opened."""
+    assert _iv(session=1000.0, span_sec=60.0, host_span_sec=None) == (1000.0, 1060.0, "device-clock")
+
+
+def test_the_floating_interval_falls_back_to_the_HOST_span_and_names_THAT(tmp_path):
+    """No device clock, so the host stamps are the only record of extent — and the basis must change with
+    it. Reporting `device-clock` over a host-derived span would credit the device with a number it never
+    wrote, which is the whole distinction `file_host_span_sec`'s docstring insists on."""
+    assert _iv(session=1000.0, span_sec=None, host_span_sec=42.0) == (1000.0, 1042.0, "host-stamp")
+
+
+def test_the_floating_interval_of_a_file_with_NO_extent_is_a_POINT_and_says_none(tmp_path):
+    """Neither clock: the file is a point at its start, named `none`. Never `mtime` — in this frame an
+    mtime is an absolute instant and would be an offset away — and never a fabricated end."""
+    assert _iv(session=1000.0, span_sec=None, host_span_sec=None) == (1000.0, 1000.0, "none")
+
+
+# ── `recover_writer_offset`: what is EXCLUDED from the vote ────────────────────────────────────────────
+
+def test_a_SIDECAR_WITH_ROWS_is_excluded_from_the_vote_even_when_it_could_speak(tmp_path):
+    """A sidecar is the box talking about itself, and the exclusion is by TAG, not by whether it happens
+    to be unreadable.
+
+    The LINK file here carries rows and a perfectly readable stamp voting an hour away from the three data
+    files. Included, it would drag the modal share from 1.0 to 0.75 and put a zone the sensors never saw
+    into the tally — so this pins both the `or` (a sidecar is skipped whatever its row count) and that the
+    tag is read from the record's own `stream` key."""
+    d = tmp_path / "captures" / "2026-09-09"
+    d.mkdir(parents=True, exist_ok=True)
+    _vote_file(str(d), f"Tepna_{_ZONE_STAMP}_LINK.csv", d=18000.0)
+    for tag in ("ECG", "ACC", "HR"):
+        _vote_file(str(d), f"Polar_H10_02849638_{_ZONE_STAMP}_{tag}.txt", d=14400.0)
+    off, _data = _recovered(str(d))
+    assert off["voters"] == 3 and off["modal_share"] == 1.0, off
+    assert off["offset_sec"] == 14400.0 and off["outliers"] == [], off
+
+
+def test_the_EXTENT_basis_reads_the_HOST_span_when_there_is_no_device_clock(tmp_path):
+    """The `extent` fallback's second source, on the only shape that reaches it.
+
+    The file's last host stamp is far outside the ±14 h bound, so its `last-row` vote is refused on
+    magnitude and it falls through to its own recorded extent — and it carries no device column, so that
+    extent can only come from `host_span_sec`. Reading `span_sec` alone there would leave the file with no
+    duration and no vote at all, and the night one voter short."""
+    d = tmp_path / "captures" / "2026-09-09"
+    d.mkdir(parents=True, exist_ok=True)
+    t0 = nightqc.floating_stamp_s(_ZONE_STAMP)
+    for tag in ("ECG", "ACC"):
+        _vote_file(str(d), f"Polar_H10_02849638_{_ZONE_STAMP}_{tag}.txt", d=14400.0)
+    # Host stamps spanning 100 s, both ends readable (so `host_span_sec` answers), on a 2000-epoch base
+    # far from the mtime — so the last-row vote is out of bound and the extent is what speaks.
+    p3 = d / f"Polar_H10_02849638_{_ZONE_STAMP}_HR.txt"
+    rows = ["Phone timestamp;v"]
+    for i in range(11):
+        c = _dtmod.datetime(2000, 1, 1) + _dtmod.timedelta(seconds=i * 10)
+        rows.append(f"{c.strftime('%Y-%m-%dT%H:%M:%S.000')};{i}")
+    p3.write_text("\n".join(rows) + "\n", encoding="utf-8")
+    os.utime(str(p3), ((t0 + 100.0 + 14400.0),) * 2)
+
+    off, _data = _recovered(str(d))
+    assert off["voters"] == 3, off
+    assert off["voters_by_basis"] == {"last-row": 2, "extent": 1}, off["voters_by_basis"]
+    assert off["offset_sec"] == 14400.0 and off["modal_share"] == 1.0, off
+
+
+# ── `file_last_row_floating_s`: a torn row is WALKED PAST, never indexed into ──────────────────────────
+
+def test_a_TORN_row_is_walked_past_rather_than_indexed_into(tmp_path):
+    """The length test guards the index on the SAME line, so it must be `or` and it must be `<=`.
+
+    The host column sits SECOND here, which is what makes the guard live: a row with exactly one field
+    has `len(parts) == idx`, so `<` would fall through to `parts[idx]` and raise IndexError out of a
+    function whose whole contract is to answer None or a number — taking the night's QC with it. `and`
+    raises on the same row for the same reason. The readable row below it must still be found."""
+    p = tmp_path / "Polar_H10_02849638_20260909212938_ECG.txt"
+    good = "2026-09-09T21:30:00.250"
+    p.write_text("v;Phone timestamp\n1;" + good + "\n2\n", encoding="utf-8")
+    got = nightqc.file_last_row_floating_s(str(p))
+    expect = nightqc.floating_stamp_s("20260909213000") + 0.25
+    # 1e-9, not 1e-6: the microsecond field is divided by 1e6, and a tolerance as wide as the quantity
+    # being converted cannot see that divisor change at all — a loose bound makes the assertion a shape
+    # check wearing a value check's clothes.
+    assert got is not None and abs(got - expect) < 1e-9, (got, expect)
+
+
+
+
+def test_an_UNDECODABLE_BYTE_does_not_raise_out_of_the_voter_read(tmp_path):
+    """`errors="replace"` on BOTH reads — the header scan and the tail — and neither is decorative.
+
+    A capture file can carry a torn byte: a truncated write, a filesystem hiccup, a partial frame. This
+    runs once per data file while a night is being scored, so an exception here does not cost a vote, it
+    costs the whole night's QC summary. The substituted U+FFFD cannot change the decision either, because
+    the lines this reader matches are ASCII by format — a fixed vocabulary, digits and `;` — so replacing
+    an undecodable byte leaves both the structure and the stamp it parses untouched.
+
+    Both halves are exercised: the bad bytes sit in a COMMENT line the header scan must walk past, and
+    again in a data field inside the tail window, and the readable stamp must still be found."""
+    p = tmp_path / "Polar_H10_02849638_20260909212938_ECG.txt"
+    p.write_bytes(b"# timebase=host\xff\xfe-disciplined\n"
+                  b"Phone timestamp;v\n"
+                  b";1\n"
+                  b"2026-09-09T21:30:00.250;\xff\xfe\n")
+    got = nightqc.file_last_row_floating_s(str(p))
+    expect = nightqc.floating_stamp_s("20260909213000") + 0.25
+    assert got is not None and abs(got - expect) < 1e-9, (got, expect)
+
+# ── `_parse_phone_ts` keeps MILLISECOND precision, deliberately ────────────────────────────────────────
+
+def test_the_sidecar_stamp_is_read_to_MILLISECONDS_and_no_finer(tmp_path):
+    """`[:23]`, so `2026-09-24T22:01:29.526789` reads as .526 and not .526789.
+
+    `writers._phone_ts` writes exactly three fractional digits, so three is the precision the format
+    carries; a longer fraction can only come from a foreign producer, and silently honouring it would make
+    two stamps of the same documented format compare unequal. Pinned as a decision rather than left to the
+    slice width."""
+    got = nightqc._parse_phone_ts("2026-09-24T22:01:29.526789")
+    base = nightqc.floating_stamp_s("20260924220129")
+    assert got is not None and abs(got - (base + 0.526)) < 1e-9, (got, base)
+
 # ── `file_last_row_floating_s`: every way a file can decline to vote ───────────────────────────────────
 #
 # It is the ONE reader of the evidence the writer offset is recovered from, so each way it returns None is
