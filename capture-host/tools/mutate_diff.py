@@ -100,6 +100,7 @@ from mutation_diff import (  # noqa: E402
     result_inconsistency,
     GATE_BUDGET_SEC,
     budget_refusal,
+    budget_exhaustion_verdict,
     verdict_object,
 )
 
@@ -829,6 +830,8 @@ def main(argv=None) -> int:
               f"inside the {GATE_BUDGET_SEC}s gate budget:")
         for w in _refused_budget:
             print(f"  ⊘ {w}")
+        print(f"  Elapsed: {time.monotonic() - _gate_t0:.0f}s of the {GATE_BUDGET_SEC}s budget; "
+              f"{_counts['decided']} mutant(s) decided.")
         print("  A refusal is a verdict with a reason; the run that used to die here with exit 143 was not.\n"
               "  Nothing above about the functions that DID run is withdrawn — only the refused ones are\n"
               "  unmeasured. Do NOT raise GATE_BUDGET_SEC to clear this: measure the selection's clean run\n"
@@ -837,7 +840,13 @@ def main(argv=None) -> int:
         if _note:
             print(_note)
         _ran_box[0] = _ran
-        _b = emit("UNKNOWN", f"{len(_refused_budget)} module(s)/function(s) not mutated inside the {GATE_BUDGET_SEC}s gate budget — unmeasured, not failed", 2)
+        # NOT_RUN vs UNKNOWN, decided by whether a single mutant was DECIDED — §🧾 reserves NOT_RUN for
+        # "examined nothing", and a budget eaten entirely by pre-work is exactly that. capture.py is the
+        # live case: its traced stats pass alone outruns the budget, so this branch used to answer
+        # UNKNOWN — the vocabulary of a run that mutated something — about a run that reached no mutant.
+        _bstatus, _breason = budget_exhaustion_verdict(
+            len(_refused_budget), _counts["decided"], time.monotonic() - _gate_t0)
+        _b = emit(_bstatus, _breason, 2)
         if not a.report_only:
             return _b
         _refusal = _b

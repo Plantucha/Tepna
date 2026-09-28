@@ -1508,6 +1508,18 @@
       "bin": "word-only",
       "status": "exempt",
       "reason": "one occurrence, in the prose of `CLOCK_IMPLAUSIBLE_S`'s note explaining why a 7.74-year offset published as a green is a fabricated one (§∅, §🧾). The module DECIDES by refusing: `estimate` returns {ok: False, reason: 'implausible-offset'|'implausible-skew'|'too-few'|'no-span'} in its own long-standing shape, and that shape is consumed and republished by `nightqc.arrival_quality`, which is the enumerated producer for this path. No verdict word is emitted here."
+    },
+    "tools/trio-power-headless.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/trio-power-headless.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "joins the enumerated population BECAUSE of this change: the tool printed no verdict word before, so its absence from the census was correct rather than a hole. What it decides is whether the power table met the pre-stated ±0.15 CI half-width (#1092) and ON WHICH BASIS — result.basis is always named. Status map: NOT_RUN when the GPU was intended and requestAdapter() granted nothing (it used to CONTINUE onto the worker pool and print a CPU table under a GPU-comparison tool's name) · FAIL a software rasteriser refused without --allow-software · SHORTFALL a device that never reaches the target inside the N grid · PASS every device meets it, basis named. --cpu is not a shortfall: the caller asked for the worker pool, so the criterion still applies and the basis reads cpu-pool. Population = the three devices; NOT_RUN excludes all three. Gated by --selftest (15 assertions over the status map, no browser)."
     }
   }
 }

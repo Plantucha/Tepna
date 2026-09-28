@@ -740,12 +740,16 @@ class FakePolarClient:
     """A Polar PMD device: answers control-point commands (STOP/GET_SETTINGS/START) with real
     parse_settings_response / START-ack frames, and feeds one ECG data frame once PMD_DATA is subscribed."""
 
-    def __init__(self, start_status=0x00, hr_frame=None, sdk_start_ok=True):
+    def __init__(self, start_status=0x00, hr_frame=None, sdk_start_ok=True, ecg=None):
         self.cbs = {}  # uuid -> notify callback
         self._connected = True
         self.writes = []
         self.start_status = start_status
         self.hr_frame = hr_frame
+        # `ecg`: raw ECG sample values (µV) to stream INSTEAD of the one 3-sample frame, 73 per frame
+        # (the H10's packet size) on an advancing sensor clock — enough of them fill the level window
+        # the worn vote reads.
+        self.ecg = ecg
         # SDK mode is DEVICE STATE, not a canned reply: START sets it, STOP clears it, and the settings
         # menu below is read off it. A fake that answered a fixed flag would let the daemon skip the
         # enter entirely and still look correct. `sdk_start_ok=False` models the real refusal — the
@@ -773,7 +777,16 @@ class FakePolarClient:
     async def start_notify(self, uuid, cb):
         key = getattr(uuid, "uuid", uuid)
         self.cbs[key] = cb
-        if key == pmd.PMD_DATA:  # data channel live -> feed one ECG frame
+        if key == pmd.PMD_DATA and self.ecg is not None:  # a stream of real-sized ECG frames
+            for k in range(0, len(self.ecg), 73):
+                chunk = self.ecg[k : k + 73]
+                ts = 1_000_000_000 + round((k + len(chunk) - 1) / 130 * 1e9)
+                cb(0, bytes([pmd.ECG]) + ts.to_bytes(8, "little") + bytes([0x00])
+                   + b"".join(int(v).to_bytes(3, "little", signed=True) for v in chunk))
+            # HR subscribes BEFORE PMD data (capture.run_polar), so the packet sent at subscription voted
+            # on an empty window; a real strap sends one every second, so send the next one now.
+            self.cbs[capture.HR_UUID](0, self.hr_frame)
+        elif key == pmd.PMD_DATA:  # data channel live -> feed one ECG frame
             frame = (
                 bytes([pmd.ECG])
                 + (1_000_000_000).to_bytes(8, "little")
@@ -5920,7 +5933,7 @@ def test_a_first_reading_cannot_imply_a_direction(tmp_path, monkeypatch):
 # any single-session fixture: within one session, set-if-absent and set-always are identical.
 
 
-def _hr_session(tmp_path, monkeypatch, hr_frame, clear=False):
+def _hr_session(tmp_path, monkeypatch, hr_frame, clear=False, ecg=None):
     """One connect cycle delivering `hr_frame`. `_WORN_SINCE` deliberately persists between calls —
     that is the behaviour under test."""
     if clear:
@@ -5934,7 +5947,7 @@ def _hr_session(tmp_path, monkeypatch, hr_frame, clear=False):
     monkeypatch.setattr(capture.bonding, "ensure_bonded", bonded)
     capture._CFG.clear()
     capture._CFG.update({"time": {"auto_sync_devices": False}})
-    _inject_connect(monkeypatch, FakePolarClient(start_status=0x00, hr_frame=hr_frame))
+    _inject_connect(monkeypatch, FakePolarClient(start_status=0x00, hr_frame=hr_frame, ecg=ecg))
     _stop_after(monkeypatch, 1)
     _run(capture.run_polar(_pdev(streams=["ecg", "hr"]), str(tmp_path)))
     return capture.STATUS["devices"]["H10"]
@@ -5975,6 +5988,41 @@ def test_a_dry_strap_reporting_a_heartbeat_is_worn_and_is_not_dropped(tmp_path, 
     assert addr not in capture._WORN_SINCE, "a strap reporting a heartbeat must not accumulate not-worn time"
     st = _hr_session(tmp_path, monkeypatch, _NOT_WORN, clear=True)
     assert st["worn"] is False and addr in capture._WORN_SINCE
+
+
+def _ecg_at(level_uv, seconds=125):
+    """A square wave whose standard deviation is exactly `level_uv`, at 130 Hz."""
+    return [level_uv if i % 2 else -level_uv for i in range(130 * seconds)]
+
+
+def test_an_off_body_strap_whose_noise_reads_as_a_heartbeat_is_not_worn(tmp_path, monkeypatch):
+    """THE PLANT — 2026-09-22/23/27. Off the body, the H10's electrodes stream noise at 1 550–2 800 µV and its
+    HR algorithm reads a plausible rate out of it, so the packet looks exactly like the dry strap above
+    (contact absent, a rate present) and `hr-beats` held it worn for 27½ min, 102 min, and a morning. Two
+    minutes of that ECG through the REAL capture loop withdraw the beat: not worn, and the grace clock runs.
+    The same packet over a dry strap's 90 µV ECG stays worn — the anti-vacuity half, because a detector
+    that fired on both would 'pass' the plant by dropping every dry night too."""
+    addr = _pdev()["address"]
+    st = _hr_session(tmp_path, monkeypatch, _DRY, clear=True, ecg=_ecg_at(2000))
+    assert st["worn"] is False and "ecg-level" in st["worn_why"], st
+    assert addr in capture._WORN_SINCE, "an off-body strap must accumulate not-worn time, or it never drops"
+    st = _hr_session(tmp_path, monkeypatch, _DRY, clear=True, ecg=_ecg_at(90))
+    assert st["worn"] is True and "hr-beats" in st["worn_why"], st
+    assert addr not in capture._WORN_SINCE
+
+
+def test_the_ecg_level_never_overrules_electrode_contact(tmp_path, monkeypatch):
+    """A strap whose contact bit says ON stays worn whatever its ECG reads: the level can only withdraw a
+    beat read off the same electrodes, never outvote the electrodes themselves."""
+    st = _hr_session(tmp_path, monkeypatch, _WORN, clear=True, ecg=_ecg_at(2000))
+    assert st["worn"] is True and st["worn_why"] == "worn per hr-contact-bit", st
+
+
+def test_less_than_two_minutes_of_ecg_casts_no_level_vote(tmp_path, monkeypatch):
+    """A fresh connection has not shown two minutes of anything — 11 blocks of noise are not a verdict,
+    so the beat still stands (the window is per CONNECTION: a reconnect re-earns it)."""
+    st = _hr_session(tmp_path, monkeypatch, _DRY, clear=True, ecg=_ecg_at(2000, seconds=115))
+    assert st["worn"] is True and "ecg-level" not in st["worn_why"], st
 
 
 def test_putting_the_strap_back_on_clears_the_grace_clock(tmp_path, monkeypatch):

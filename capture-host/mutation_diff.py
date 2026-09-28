@@ -39,12 +39,17 @@ from __future__ import annotations
 import ast
 import fnmatch
 import re
+import subprocess
+import threading
+import time
 
 __all__ = [
     "GATE_BUDGET_SEC",
     "PREWORK_TRACE_FACTOR",
     "prework_estimate",
     "budget_refusal",
+    "budget_exhaustion_verdict",
+    "stream_bounded",
     "verdict_object",
     "VERDICT_STATUSES",
     "EXCUSING",
@@ -597,6 +602,82 @@ def budget_refusal(module: str, clean_sec: float, n_globs: int, left_sec: float,
             f"Scope the change, or run `tools/mutate.py --only` locally on the function(s).")
 
 
+def stream_bounded(proc, cap_sec, on_line, t0=None, join_sec=10.0):
+    """Drain `proc`'s stdout line by line into `on_line`, and KILL the child at `cap_sec`.
+    Returns `(returncode, timed_out)`.
+
+    🔴 THE WALL CAP USED TO BE UNREACHABLE, WHICH IS WORSE THAN ABSENT. The caller drained the pipe
+    with a bare `for line in proc.stdout:` and only afterwards called
+    `proc.wait(timeout=cap - elapsed)`. That iterator ends when the CHILD CLOSES ITS STDOUT — which a
+    child that is still working never does — so `wait` was reached only once the process had already
+    exited, always returned immediately, and `subprocess.TimeoutExpired` could not be raised at all.
+    The code read like an enforced wall bound and enforced nothing; a child that printed nothing and
+    never finished was waited on forever.
+
+    Measured 2026-09-27 while reproducing this row: `tools/mutate.py --timeout 900` on capture.py ran
+    21 minutes (one worker at 8.2 GB RSS) with the cap never firing, and had to be killed by hand. The
+    same unreachable path carries `tools/mutate_diff.py`'s `GATE_BUDGET_SEC`, so the gate budget
+    bounded nothing either — which is how a traced stats pass reached 2 h 41 m and read as a silent
+    hang rather than a refusal.
+
+    Reading in a daemon thread and waiting in the caller puts the deadline on a path that CAN fire,
+    and the streamed output (the caller's progress heartbeat) is unchanged.
+    """
+    t0 = time.monotonic() if t0 is None else t0
+
+    def _drain() -> None:
+        try:
+            for line in proc.stdout:
+                on_line(line)
+        except (ValueError, OSError):
+            # The pipe was closed under us by the kill below. Expected on the timeout path, and not a
+            # failure of the run: whatever was read before the kill is already in the caller's buffer,
+            # and the refusal the caller is about to emit is the report. Re-raising here would only
+            # kill a daemon thread nobody joins for its result.
+            pass  # deliberate: a closed pipe after the kill is the expected end of the read
+
+    reader = threading.Thread(target=_drain, daemon=True)
+    reader.start()
+    timed_out = False
+    try:
+        rc = proc.wait(timeout=max(1.0, cap_sec - (time.monotonic() - t0)))
+    except subprocess.TimeoutExpired:
+        timed_out = True
+        proc.kill()
+        rc = proc.wait(timeout=30)
+    # Bounded join: a reader blocked on a pipe the kill did not close must not turn a refusal that
+    # fired into a hang one frame later.
+    reader.join(timeout=join_sec)
+    return rc, timed_out
+
+
+def budget_exhaustion_verdict(n_refused: int, decided: int, elapsed_sec: float) -> tuple[str, str]:
+    """The status a budget refusal deserves, and the reason with the numbers already in it.
+
+    TWO DIFFERENT OUTCOMES WORE ONE WORD. When some functions were mutated and others were refused,
+    the run measured part of the diff and cannot speak for the rest: UNKNOWN, exactly as an undecided
+    mutant is. When the budget was consumed before a single mutant was DECIDED, the run examined
+    nothing — and §🧾 spells that case NOT_RUN ("NOT_RUN examined nothing"), which UNKNOWN is not a
+    synonym for. The difference is not cosmetic: UNKNOWN reads as "we mutated and could not tell",
+    so a gate whose PRE-WORK never finished looked like a measurement with an inconclusive result.
+
+    This is capture.py's standing case, not a hypothetical. Its traced stats pass alone outruns the
+    whole budget (measured 2026-09-27: 2 h 41 m against a 7200 s budget), so the gate reached zero
+    mutants and still answered in the vocabulary of a run that had.
+
+    `elapsed_sec` is in the reason, not only in the log, because it is the one number that separates
+    the two cases for a reader who has just the verdict object — and because "the budget was
+    exhausted" without saying by what is the silent timeout this replaces.
+    """
+    what = f"{n_refused} module(s)/function(s) not mutated inside the {GATE_BUDGET_SEC}s gate budget"
+    if decided > 0:
+        return "UNKNOWN", (f"{what} after {elapsed_sec:.0f}s — {decided} mutant(s) decided before the "
+                           f"budget ran out; the refused ones are unmeasured, not failed")
+    return "NOT_RUN", (f"{what} after {elapsed_sec:.0f}s — NOT ONE mutant was decided, so this run "
+                       f"examined nothing: the pre-work (clean run + mutmut's traced stats pass) "
+                       f"consumed the budget before the first mutant ran. Not a verdict on the diff.")
+
+
 # ── tepna.verdict/1 — the ONE object the gate emits (VERDICT-CONTRACT §1/§3b step 5) ─────────────────
 # The gate's outcomes map onto the closed enum and NOTHING is collapsed into a word a reader must parse:
 #   PASS            every mutant on the changed functions was killed (population.checked > 0)
@@ -791,6 +872,23 @@ def refusal_reason(venv_exists: bool, probe_rc: int | None) -> str | None:
 def selftest() -> int:
     """The classifier's own known answers. A mechanism that decides what the gate ignores has to be
     the best-tested thing in the file, so each of the five outcomes is pinned here."""
+    # ONE FAILURE PATH, not twenty-two. Each check used to carry its own `print(...)` and
+    # `ok = False`, and BOTH lines are unreachable while the module is correct — which is why this
+    # 160-line function held 64 surviving mutants, every one of them on scaffolding rather than on
+    # a claim anyone makes. Collapsed into a closure so the failure path is SINGLE and REACHABLE:
+    # the fault-injection tests below drive it, and that is what kills its mutants. The conditions
+    # stay where they are — they ARE the assertions, and flipping one makes the selftest fail,
+    # which `M.selftest() == 0` already catches.
+    fails: list[str] = []
+
+    def fail(msg: str) -> None:
+        # PRINT FROM THE LIST, not from the argument. The two must not be able to disagree: with
+        # `print(msg)` a mutated `fails.append(None)` left the printed sentence intact and the exit
+        # code unchanged, so nothing could see it. Reading back what was stored makes the stored value
+        # the thing the message assertions check.
+        fails.append(msg)
+        print(fails[-1])
+
     E = [
         {"key": "a", "class": "no-distinguishing-input"},
         {"key": "b", "class": "untestable-by-design"},
@@ -802,16 +900,14 @@ def selftest() -> int:
     got = classify(E, S, {"a", "b", "c", "d", "f"})
     want = {"excused": ["a", "b"], "real_gap": ["c"], "refuted": ["d"],
             "orphaned": ["e"], "unclassified": ["f"]}
-    ok = True
     for bucket, keys in want.items():
         have = sorted(x["key"] for x in got[bucket])
         if have != sorted(keys):
-            print(f"  selftest FAIL {bucket}: {have} != {sorted(keys)}")
-            ok = False
+            fail(f"  selftest FAIL {bucket}: {have} != {sorted(keys)}")
     # a killed mutant that nobody claimed is simply absent from every bucket
     if any(x.get("key") == "d" for x in got["unclassified"]):
-        print("  selftest FAIL: a killed mutant leaked into unclassified")
-        ok = False
+        fail("  selftest FAIL: a killed mutant leaked into unclassified")
+
     # ── is_string_only: the CHANGED TOKEN, not the line's contents ───────────────────────────────
     # The old rule asked whether the added line CONTAINED a quote. Measured 2026-08-24: two identical
     # `encoding="utf-8" → encoding=None` mutations were handled oppositely because one line happened
@@ -824,58 +920,45 @@ def selftest() -> int:
     _bug_old = '        src = (Path(work) / "mutants" / module).read_text(encoding="utf-8")'
     _bug_new = '        src = (Path(work) / "mutants" / module).read_text(encoding=None)'
     if is_string_only(_d(_bug_old, _bug_new)):
-        print("  selftest FAIL: a keyword change is treated as string-only because the LINE holds a quote")
-        ok = False
+        fail("  selftest FAIL: a keyword change is treated as string-only because the LINE holds a quote")
     # Its twin, which the old rule already handled correctly — the fix must not regress it.
-    if is_string_only(_d('    data = json.loads(p.read_text(encoding="utf-8"))',
-                         '    data = json.loads(p.read_text(encoding=None))')):
-        print("  selftest FAIL: the quote-free twin regressed")
-        ok = False
+    if is_string_only(
+        _d('    data = json.loads(p.read_text(encoding="utf-8"))', "    data = json.loads(p.read_text(encoding=None))")
+    ):
+        fail("  selftest FAIL: the quote-free twin regressed")
     # ⚠️ And the opposite over-correction: keying on mutmut's XX sentinel ALONE is too narrow —
     # a case change is a real string mutation carrying no sentinel, and must still be skipped.
     if not is_string_only(_d('    x = f(encoding="utf-8")', '    x = f(encoding="UTF-8")')):
-        print("  selftest FAIL: a genuine string-literal change is now required")
-        ok = False
+        fail("  selftest FAIL: a genuine string-literal change is now required")
     if not is_string_only(_d('    s = "hello"', '    s = "XXhelloXX"')):
-        print("  selftest FAIL: mutmut's XX sentinel is no longer conclusive")
-        ok = False
+        fail("  selftest FAIL: mutmut's XX sentinel is no longer conclusive")
     # Log wording on a line that also holds other literals — the case the rule exists for.
     if not is_string_only(_d('    log("a", "the quick brown fox")', '    log("a", "XXthe quick brown foxXX")')):
-        print("  selftest FAIL: log wording is no longer skipped")
-        ok = False
+        fail("  selftest FAIL: log wording is no longer skipped")
     # A comparison flip on a line containing a string is a REAL survivor and must be reported.
     if is_string_only(_d('    if d["k"] > 3: pass', '    if d["k"] >= 3: pass')):
-        print("  selftest FAIL: a comparison flip is hidden by an unrelated dict key")
-        ok = False
+        fail("  selftest FAIL: a comparison flip is hidden by an unrelated dict key")
     # An f-string's `{...}` fields are CODE (mutmut mutates them as code and generates no text mutant
     # for an f-string at all — measured 2026-09-26); a mutant inside one is REQUIRED, never excluded.
     if is_string_only(_d('    x = f"{a(y)}-{y + 1}"', '    x = f"{a(None)}-{y + 1}"')):
-        print("  selftest FAIL: a mutant inside an f-string field is hidden as string-only")
-        ok = False
+        fail("  selftest FAIL: a mutant inside an f-string field is hidden as string-only")
     if not is_string_only(_d('    x = f"started {n}"', '    x = f"begun {n}"')):
-        print("  selftest FAIL: an f-string's TEXT is no longer string-only")
-        ok = False
+        fail("  selftest FAIL: an f-string's TEXT is no longer string-only")
     if _fstring_expr_spans('f"{a(y)}-{y + 1}"') != [(2, 8), (9, 16)]:
-        print("  selftest FAIL: _fstring_expr_spans mislocates the fields")
-        ok = False
+        fail("  selftest FAIL: _fstring_expr_spans mislocates the fields")
     # the span helpers, pinned directly
     if changed_span("a=1", "a=1") is not None:
-        print("  selftest FAIL: changed_span invents a difference")
-        ok = False
+        fail("  selftest FAIL: changed_span invents a difference")
     if changed_span('f("x")', 'f("y")') != (3, 4, 4):
-        print("  selftest FAIL: changed_span mislocates the differing region")
-        ok = False
-    if _string_spans('a = "b" + \'c\'') != [(4, 7), (10, 13)]:
-        print("  selftest FAIL: _string_spans miscounts literals")
-        ok = False
+        fail("  selftest FAIL: changed_span mislocates the differing region")
+    if _string_spans("a = \"b\" + 'c'") != [(4, 7), (10, 13)]:
+        fail("  selftest FAIL: _string_spans miscounts literals")
 
     # diff_key ignores whitespace but not content, and drops the +++/--- headers
     if diff_key("--- a\n+++ b\n-  x = 1\n+  x  =  2\n") != "- x = 1 | + x = 2":
-        print("  selftest FAIL: diff_key")
-        ok = False
+        fail("  selftest FAIL: diff_key")
     if diff_key("-a\n+b\n") == diff_key("-a\n+c\n"):
-        print("  selftest FAIL: diff_key collides on different mutations")
-        ok = False
+        fail("  selftest FAIL: diff_key collides on different mutations")
     # The fail-open guard.
     # ⚠️ THIS COMMENT USED TO EXPLAIN WHY IT COULD NOT BE A TEST, AND THAT REASONING IS NOW SPENT.
     # It read: "nothing under tools/ is imported by the pytest suite, so a test importing this module
@@ -895,26 +978,21 @@ def selftest() -> int:
     ):
         got = refusal_reason(*args)
         if (got is None) != want_none:
-            print(f"  selftest FAIL: refusal_reason({label}) -> {got!r}")
-            ok = False
+            fail(f"  selftest FAIL: refusal_reason({label}) -> {got!r}")
     # the three refusal texts must be DISTINCT — they prescribe different remedies
     if len({refusal_reason(True, 1), refusal_reason(True, None), refusal_reason(False, None)}) != 3:
-        print("  selftest FAIL: refusal reasons are not distinguishable")
-        ok = False
+        fail("  selftest FAIL: refusal reasons are not distinguishable")
     # ── the two exclusions must stay APART (2026-08-27) ─────────────────────────────────────────
     # A no-op mutant used to fall through to "string-only" and be excluded as though it were log
     # prose. It may still be excluded, but not under that name.
     if string_only_verdict(_d("    x = 1", "    x = 1"))[0] != EMPTY_DIFF:
-        print("  selftest FAIL: a no-op diff is not labelled EMPTY_DIFF")
-        ok = False
+        fail("  selftest FAIL: a no-op diff is not labelled EMPTY_DIFF")
     if string_only_verdict(_d('    log.info("a")', '    log.info("b")'))[0] != STRING_ONLY:
-        print("  selftest FAIL: a log-prose mutation is no longer STRING_ONLY")
-        ok = False
+        fail("  selftest FAIL: a log-prose mutation is no longer STRING_ONLY")
     _tq = chr(34) * 3
     if string_only_verdict(_d("    x = f(1)  # " + _tq, "    x = f(2)  # " + _tq))[0] != UNDECIDABLE:
-        print("  selftest FAIL: a line outside the scan's competence was decided anyway")
-        ok = False
-    print("  selftest: classify + diff_key + refusal_reason + verdict OK" if ok else "  selftest: FAILED")
+        fail("  selftest FAIL: a line outside the scan's competence was decided anyway")
+    print("  selftest: classify + diff_key + refusal_reason + verdict OK" if not fails else "  selftest: FAILED")
 
     # ── annotation_only: signatures may be re-annotated; behaviour may not ─────────────────────
     # Expected-PASS plants included deliberately (a rail probed only with expected-rejects ships
@@ -942,10 +1020,9 @@ def selftest() -> int:
     for old_src, new_src, want_x, want_r, label in _AO:
         got_x, got_r = annotation_only(old_src, new_src)
         if got_x != want_x or want_r not in got_r:
-            print(f"  selftest FAIL annotation_only [{label}]: ({got_x}, {got_r!r})")
-            ok = False
+            fail(f"  selftest FAIL annotation_only [{label}]: ({got_x}, {got_r!r})")
 
-    return 0 if ok else 1
+    return 0 if not fails else 1
 
 
 def refresh_scratch(tree, work, extras) -> int:

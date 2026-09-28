@@ -88,11 +88,40 @@ from typing import Any
 
 HERE = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(HERE))
-from mutation_diff import refresh_scratch, root_reads, stage_root_reads  # noqa: E402  (after the sys.path fix above)
+from mutation_diff import (refresh_scratch, resolve_interpreter, root_reads, stage_root_reads,
+                           stream_bounded)  # noqa: E402  (after the sys.path fix above)
 from mutation_sweep import (  # noqa: E402
-    BUDGET_OK, budget_verdict, deselect_args, deselect_notes, select_tests,
+    BUDGET_OK,
+    budget_verdict,
+    deselect_args,
+    deselect_notes,
+    select_tests,
 )
-VENV_PY = HERE / ".venv" / "bin" / "python"
+
+
+def _primary_checkout_venv() -> str | None:
+    """The venv of the checkout this worktree shares its object store with, or None. IO only — the
+    decision is `mutation_diff.resolve_interpreter`, the same one `tools/mutate_diff.py` uses."""
+    try:
+        r = subprocess.run(
+            ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"], cwd=HERE, capture_output=True, text=True
+        )
+    except OSError:
+        return None
+    if r.returncode != 0 or not r.stdout.strip():
+        return None
+    return str(Path(r.stdout.strip()).parent / "capture-host" / ".venv" / "bin" / "python")
+
+
+# #3171 gave the GATE (`tools/mutate_diff.py`) a worktree-runnable interpreter and left the AUDIT tool
+# on a hardcoded path — the same defect one file over, found the first time the audit was needed from a
+# worktree. Same resolver, same order: an explicit `MUTATE_DIFF_PYTHON`, then the primary checkout's
+# venv, then this tree's own.
+_PY_CANDIDATES = [c for c in (_primary_checkout_venv(), str(HERE / ".venv" / "bin" / "python")) if c]
+_PY_PATH, _PY_NOTE = resolve_interpreter(
+    os.environ.get("MUTATE_DIFF_PYTHON"), _PY_CANDIDATES, lambda pth: Path(pth).exists()
+)
+VENV_PY = Path(_PY_PATH) if _PY_PATH else HERE / ".venv" / "bin" / "python"
 
 # §2 (OXYII-G1-FOLLOWUPS) — mutmut's exit-code cache is a function of the TESTS, but this file keys its
 # scratch REUSE on the module source hash alone, so a scratch reused after a test was added/modified
@@ -440,48 +469,48 @@ def run_one(module: str, only: str | None = None, tests_override: list[str] | No
     # Splitting them makes the counters a plain `dict[str, int]` and says which is which.
     seen_ids: "set[str]" = set()
     seen = {"killed": 0, "survived": 0, "timeout": 0, "n": 0}
-    try:
-        # `proc.stdout` is Optional in the stubs; it is not None here because the Popen above is
-        # created with stdout=PIPE. Asserting states that rather than guarding a case that cannot arise.
-        assert proc.stdout is not None
-        for line in proc.stdout:                       # line-buffered; mutmut rewrites one status line
-            buf.append(line)
-            sys.stderr.write(line)
-            sys.stderr.flush()
-            # COUNT DISTINCT MUTANT IDS, not verdict LINES. mutmut re-emits a killed mutant's line
-            # more than once, so line-counting reported 2463 mutants for a module that has 1231 — a
-            # progress figure that is confidently wrong is worse than none, because it is the number a
-            # reader uses to decide whether to keep waiting. The survivor count was right by luck:
-            # those are emitted once.
-            # HEARTBEAT THROUGH THE SILENT PHASE. mutmut generates every mutant before running any,
-            # and on cpap_harvest that phase alone is 5-6 minutes with no verdict to count — which is
-            # exactly the stretch where a caller most wants to know the difference between "working"
-            # and "wedged". It does print a spinner there; counting those gives the phase a pulse.
-            if "Generating mutants" in line:
-                _beat(f"generating mutants  {time.monotonic() - t0:.0f}s elapsed  (no verdicts yet)")
-                continue
-            for mark, key in (("\N{PARTY POPPER}", "killed"), ("\N{DOTTED LINE FACE}", "survived"),
-                              ("\N{ALARM CLOCK}", "timeout"), ("\N{SLIGHTLY FROWNING FACE}", "survived")):
-                if mark in line:
-                    mid = re.search(r"[\w.]+__mutmut_\d+", line)
-                    if not mid or mid.group(0) in seen_ids:
-                        break
-                    seen_ids.add(mid.group(0))
-                    seen[key] += 1
-                    seen["n"] += 1
-                    el = time.monotonic() - t0
-                    rate = seen["n"] / el if el > 0 else 0
-                    _beat(f"{seen['n']} mutants  {el:.0f}s elapsed  {rate:.1f}/s  "
-                          f"killed={seen['killed']} survived={seen['survived']} timeout={seen['timeout']}")
+    # `proc.stdout` is Optional in the stubs; it is not None here because the Popen above is
+    # created with stdout=PIPE. Asserting states that rather than guarding a case that cannot arise.
+    assert proc.stdout is not None
+
+    def _on_line(line: str) -> None:                   # line-buffered; mutmut rewrites one status line
+        buf.append(line)
+        sys.stderr.write(line)
+        sys.stderr.flush()
+        # COUNT DISTINCT MUTANT IDS, not verdict LINES. mutmut re-emits a killed mutant's line
+        # more than once, so line-counting reported 2463 mutants for a module that has 1231 — a
+        # progress figure that is confidently wrong is worse than none, because it is the number a
+        # reader uses to decide whether to keep waiting. The survivor count was right by luck:
+        # those are emitted once.
+        # HEARTBEAT THROUGH THE SILENT PHASE. mutmut generates every mutant before running any,
+        # and on cpap_harvest that phase alone is 5-6 minutes with no verdict to count — which is
+        # exactly the stretch where a caller most wants to know the difference between "working"
+        # and "wedged". It does print a spinner there; counting those gives the phase a pulse.
+        if "Generating mutants" in line:
+            _beat(f"generating mutants  {time.monotonic() - t0:.0f}s elapsed  (no verdicts yet)")
+            return
+        for mark, key in (("\N{PARTY POPPER}", "killed"), ("\N{DOTTED LINE FACE}", "survived"),
+                          ("\N{ALARM CLOCK}", "timeout"), ("\N{SLIGHTLY FROWNING FACE}", "survived")):
+            if mark in line:
+                mid = re.search(r"[\w.]+__mutmut_\d+", line)
+                if not mid or mid.group(0) in seen_ids:
                     break
-        rc = proc.wait(timeout=max(1, cap - (time.monotonic() - t0)))
-    except subprocess.TimeoutExpired:
-        timed_out = True
-        proc.kill()
-        proc.wait(timeout=30)
-    finally:
-        if proc.stdout:
-            proc.stdout.close()
+                seen_ids.add(mid.group(0))
+                seen[key] += 1
+                seen["n"] += 1
+                el = time.monotonic() - t0
+                rate = seen["n"] / el if el > 0 else 0
+                _beat(f"{seen['n']} mutants  {el:.0f}s elapsed  {rate:.1f}/s  "
+                      f"killed={seen['killed']} survived={seen['survived']} timeout={seen['timeout']}")
+                break
+
+    # THE CAP IS ENFORCED HERE, NOT BY THE READ. Draining `proc.stdout` inline and only then calling
+    # `proc.wait(timeout=…)` put the deadline behind the read: the iterator ends when the child closes
+    # its stdout, so `wait` was reached only after the child had already exited and the timeout could
+    # never fire. `stream_bounded` reads in a thread and waits here, where the deadline can fire.
+    rc, timed_out = stream_bounded(proc, cap, _on_line, t0=t0)
+    if proc.stdout:
+        proc.stdout.close()
     tail = "".join(buf)[-2000:]
     elapsed = time.monotonic() - t0
     res = subprocess.run([str(VENV_PY), "-m", "mutmut", "results"],

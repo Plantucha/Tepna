@@ -8009,6 +8009,181 @@
       }
     });
 
+    /* ════ THE HAT ROWS RENDER THE PER-CORNER STATUS (PAT-HAT-DRIFT-DIFFERENCED, 2026-09-27) ═════════
+       A negative solved variance has TWO different meanings and the page used to print one word for both.
+       `patHatCornerStatus` separates them: a CI that spans 0 means the data are consistent with
+       independence and merely too few to resolve a small corner — an UPPER BOUND, not a failure — while a
+       CI wholly below 0 is a real independence failure, which names the pair and its explaining ρ.
+       The known answer is the brief's own before/after table for the owner's 2026-09-26 night, so this
+       group fails if the rendering drifts from what the acceptance item promises.
+       Every arm's number is NULLABLE in the producer (`boundMs`, `sigmaCI`, `explainRho`), so each is
+       asserted to say what is missing rather than print `null` or borrow a neighbour's wording — the
+       lesson of the same night's three guard defects. ════ */
+    group('the hat rows render the per-corner status, bound or rho', 'pat-classic-vs-fused · hat · corners', function (T) {
+      var S = env.sources || {};
+      var page = S['pat-classic-vs-fused.js'];
+      if (page == null) {
+        T.ok('pat-classic-vs-fused.js is wired into this lane', false, 'missing from env.sources — the scan would read nothing');
+        return;
+      }
+      var start = page.indexOf('function cornerText('),
+        end = page.indexOf('\n  function render(', start);
+      T.ok('cornerText + hatRow are extractable', start >= 0 && end > start, 'extraction is testing nothing');
+      var src = start >= 0 && end > start ? page.slice(start, end) : '';
+      var run = new Function(
+        'h',
+        'var C={mut:"mut",amber:"amber",blue:"blue"};function num(v,d){return v==null?"—":Number(v).toFixed(d);}' +
+          'function card(l,v,u,n,c){return {val:v,note:n,colour:c};}' +
+          src +
+          '; return hatRow("hat", h, "hat");'
+      );
+      /* THE BRIEF'S KNOWN ANSWER — the owner's 2026-09-26 night, classic column. */
+      var classic = run({
+        ok: true,
+        n: 98,
+        windows: new Array(98),
+        corners: {
+          chest: { status: 'underpowered', boundMs: 14.4 },
+          finger: { status: 'solved', sigma: 12.2, sigmaCI: [0, 20.0] },
+          ankle: { status: 'solved', sigma: 25.5, sigmaCI: [18.3, 29.8] }
+        }
+      });
+      T.eq("the brief's 09-26 classic row", classic.val, 'underpowered, σ < 14.4 · 12.2 [0.0, 20.0] · 25.5 [18.3, 29.8]');
+      T.ok('…and the corner names ride with it', classic.note.indexOf('chest · finger · ankle') === 0, classic.note);
+      /* AN UNDERPOWERED CORNER IS NOT AN INDEPENDENCE FAILURE, and this is the assertion that matters
+         scientifically. Measured on origin/main against the MERGED worker's own 09-26 output (sigma.chest
+         null, corners.chest underpowered with a 14.4 ms bound): the page ignored `corners` and rendered
+         "REFUSED — a negative solved variance — the hat's independence assumption failed". That states an
+         independence failure on a night whose data are CONSISTENT with independence and merely too thin to
+         resolve a small corner — the distinction the owner's ruling exists to make. */
+      T.ok('an underpowered corner never claims an independence failure', !/independence/.test(classic.val), classic.val);
+      T.ok('…and never reads as a bare REFUSED', !/REFUSED/.test(classic.val), classic.val);
+      /* …and its drift-removed row: the finger corner is the underpowered one there, not the chest. */
+      var drift = run({
+        ok: true,
+        n: 97,
+        corners: {
+          chest: { status: 'solved', sigma: 10.6, sigmaCI: [0, 15.4] },
+          finger: { status: 'underpowered', boundMs: 8.3 },
+          ankle: { status: 'solved', sigma: 24.2 }
+        }
+      });
+      T.eq("the brief's 09-26 drift-removed row", drift.val, '10.6 [0.0, 15.4] · underpowered, σ < 8.3 · 24.2');
+      /* AN INDEPENDENCE FAILURE NAMES THE PAIR AND THE SIGN, AND IS NOT CLAMPED. ρ is coarse (−1.30 … −0.45
+         over 40 seeds), so a value beyond ±1 is published flagged — clamping would make a wide point
+         estimate look like a tight one. */
+      var indep = run({
+        ok: true,
+        n: 98,
+        corners: {
+          chest: { status: 'independence-failed', pair: ['finger', 'ankle'], explainRho: -1.3, rhoOutOfRange: true },
+          finger: { status: 'solved', sigma: 12.2 },
+          ankle: { status: 'solved', sigma: 25.5 }
+        }
+      });
+      T.ok('an independence failure names the pair', /finger–ankle/.test(indep.val), indep.val);
+      T.ok('…and the explaining rho, unclamped', /-1\.30/.test(indep.val), indep.val);
+      T.ok('…flagged when it lands beyond ±1', /beyond ±1/.test(indep.val), indep.val);
+      T.ok('…and never says the bare word REFUSED', !/REFUSED/.test(indep.val), indep.val);
+      /* EVERY ARM'S NUMBER IS NULLABLE — each says what is missing, and none prints `null`. */
+      var nulls = run({
+        ok: true,
+        n: 98,
+        corners: {
+          chest: { status: 'underpowered', boundMs: null },
+          finger: { status: 'solved', sigma: null },
+          ankle: { status: 'independence-failed', pair: ['chest', 'finger'], explainRho: null }
+        }
+      });
+      T.ok('a missing bound says so', /no bound resolved/.test(nulls.val), nulls.val);
+      T.ok('a missing sigma says so', /σ unavailable/.test(nulls.val), nulls.val);
+      T.ok('a missing rho says so', /ρ unresolved/.test(nulls.val), nulls.val);
+      T.ok('…and no arm prints the literal null', !/\bnull\b/.test(nulls.val), nulls.val);
+      /* BACK-COMPAT IS THE CONTRACT OF AN ADDITIVE FIELD: a result from before `corners` existed still
+         takes the sigma path, which is what the #3180 group pins independently. */
+      T.eq('a result without `corners` still renders its sigmas', run({ ok: true, n: 98, sigma: { chest: 9.1, finger: 12.2, ankle: 25.5 } }).val, '9.1 / 12.2 / 25.5');
+      /* THE PAGE'S OWN STATEMENTS, as source — the two the owner's ruling fixed in place. */
+      T.ok('the drift-removed row is labelled NOT comparable', /not comparable to the classic σ/.test(page), 'the non-comparability label is gone');
+      T.ok('…and forwards the producer’s label rather than paraphrasing', /dh\.label/.test(page), 'the page paraphrases the label instead of forwarding it');
+      T.ok('the closure is stated identically 0 by construction', /identically 0 by construction/.test(page), 'the closure statement is gone');
+      T.ok('…and no delta card sits beside the drift-removed row', !/hatD[\s\S]{0,400}?'delta'/.test(page), 'a delta appeared beside the drift-removed estimate');
+      T.ok('the drift-removed row carries its own badge (§🎫)', /hatD:\s*\[/.test(page), 'no EV entry for the drift-removed estimate');
+      /* ANTI-VACUITY: the arms must actually differ, or every assertion above could pass on one branch. */
+      T.ok('the three statuses render differently', classic.val !== drift.val && indep.val !== nulls.val, 'arms collapsed');
+    });
+
+    /* ════ THE HAT ROW READS THE CORNER KEYS THE SOLVER WRITES (#3128 regression, 2026-09-27) ═══════
+       `hatRow` read `h.h10` / `h.verity` / `h.o2`. `threeHat` keys its `sigma` and `variance` by SITE —
+       `{chest, finger, ankle}` — and has never written a device key, so all three reads were `undefined`,
+       `undefined >= 0` is false, and the negative-variance guard was TRUE for EVERY input: both hat rows
+       rendered REFUSED on every night since the page shipped, asserting a PHYSICAL cause ("the hat's
+       independence assumption failed") for a field-name mismatch. A fabricated explanation is worse than
+       a missing number. Nothing executed this function — zero tests named it or either row label — and
+       the code reads right, because the old caption listed the sites in exactly the order the device keys
+       were printed. Only running it shows every corner failing the guard.
+       The anti-vacuity leg is the part that stops a recurrence: the CONSUMER's key set is asserted against
+       the PRODUCER's own `v2` literal, so a rename in the worker reds here instead of silently blanking a
+       row. And the guard is asserted on the value TYPE, because `null >= 0` is TRUE in JavaScript and
+       `threeHat` writes exactly `null` for a negative corner — the obvious `!(x >= 0)` admits the case the
+       refusal exists for (caught on the measured 2026-09-26 night before it shipped). ════ */
+    group('the hat row reads the corner keys the solver writes', 'pat-classic-vs-fused · hat · behaviour', function (T) {
+      var S = env.sources || {};
+      var page = S['pat-classic-vs-fused.js'],
+        wk = S['pat-feasibility-worker.js'];
+      if (page == null || wk == null) {
+        T.ok('both sources are wired into this lane', false, 'pat-classic-vs-fused.js / pat-feasibility-worker.js missing from env.sources — the scan would read nothing');
+        return;
+      }
+      /* THE PRODUCER'S KEY SET, derived from threeHat's own corner object rather than restated here. */
+      var m = /var v2 = \{([^}]*)\}/.exec(wk);
+      T.ok("threeHat's corner object is locatable", !!m, 'the v2 literal moved — this gate would have no producer key set');
+      var sites = m
+        ? m[1]
+            .split(',')
+            .map(function (x) {
+              return x.split(':')[0].trim();
+            })
+            .filter(Boolean)
+        : [];
+      T.eq('three corners, named by SITE (not by device)', sites.join(','), 'chest,finger,ankle');
+
+      var start = page.indexOf('function hatRow(');
+      var end = page.indexOf('\n  function ', start + 10);
+      T.ok('hatRow is extractable from the shipped page', start >= 0 && end > start, 'extraction is testing nothing');
+      var fnSrc = start >= 0 && end > start ? page.slice(start, end) : '';
+      /* THE CONSUMER READS THE PRODUCER'S KEYS — and never a device name again. */
+      T.ok('hatRow reads the sigma object, not device keys', /h\.sigma/.test(fnSrc) && !/\bh\.h10\b|\bh\.verity\b|\bh\.o2\b/.test(fnSrc), fnSrc.slice(0, 160));
+      var run = new Function(
+        'h',
+        'var C={mut:"mut",amber:"amber",blue:"blue"};function num(v,d){return v==null?"—":Number(v).toFixed(d);}' +
+          'function card(l,v,u,n,c){return {val:v,note:n,colour:c};}' +
+          fnSrc +
+          '; return hatRow("classic hat σ", h, "hat");'
+      );
+      var mk = function (sg) {
+        return sg === null ? { ok: true, n: 98 } : { ok: true, n: 98, sigma: sg };
+      };
+      /* A CLEAN SOLVE RENDERS — the case that was impossible before. */
+      var clean = run(mk({ chest: 9.1, finger: 12.2, ankle: 25.5 }));
+      T.eq('a clean three-corner solve renders its sigmas', clean.val, '9.1 / 12.2 / 25.5');
+      T.ok('…and the caption names the same sites in the same order', clean.note.indexOf(sites.join(' / ')) === 0, clean.note);
+      /* THE MEASURED 2026-09-26 NIGHT still refuses, because its chest variance really is negative
+         (−32.0 ms² classic, −27.6 ms² fused, Wren 2026-09-27) and threeHat writes sigma null for it.
+         `null >= 0` is TRUE, so this leg is what pins the guard to the TYPE. */
+      var neg = run(mk({ chest: null, finger: 12.2, ankle: 25.5 }));
+      T.eq('a null corner (a negative solved variance) REFUSES', neg.val, 'REFUSED');
+      T.ok('…naming the independence failure, which is TRUE in this case', /independence/.test(neg.note), neg.note);
+      T.eq('an explicitly negative sigma refuses too', run(mk({ chest: -3, finger: 12.2, ankle: 25.5 })).val, 'REFUSED');
+      T.eq('a NaN corner refuses rather than printing NaN', run(mk({ chest: NaN, finger: 12.2, ankle: 25.5 })).val, 'REFUSED');
+      /* A MISSING SOLVE OBJECT IS A SHAPE PROBLEM, NOT A PHYSICAL ONE — the two reasons stay apart,
+         because borrowing the physical one for a field mismatch is precisely what shipped. */
+      var noSig = run(mk(null));
+      T.eq('a missing sigma object does not claim REFUSED', noSig.val, '—');
+      T.ok('…and says shape, never independence', /shape change/.test(noSig.note) && !/independence/.test(noSig.note), noSig.note);
+      /* ANTI-VACUITY: the run must actually distinguish, or every leg above could pass on one branch. */
+      T.ok('the legs are distinguishable (a clean solve and a refusal differ)', clean.val !== neg.val && clean.colour !== neg.colour, clean.colour + ' vs ' + neg.colour);
+    });
+
     /* ════ EVERY NIGHT LEAVES A ROW OR A REFUSAL (2026-09-14) ════════════════════════════════════
        `pat-host-offset.mjs`'s header claims "REFUSALS ARE LOUD". It was true of the four mid-loop
        guards and FALSE of the three exits around them, which emitted nothing: a file-scan throw, an
@@ -14222,6 +14397,207 @@
       T.eq('a pair with no confidence at one end is excluded from the fused count', lwS.nWeighted, 599);
       T.ok('…and the coverage says so rather than reading as complete', lwS.covered < 1, String(lwS.covered));
     });
+
+    group(
+      'PAT hat — a negative corner says WHICH negative, and the drift-removed hat recovers a shared drift (PAT-HAT-DRIFT-DIFFERENCED)',
+      'analysis-stats · pat · hat · known-answer · plant',
+      function (T) {
+        var S = env.AnalysisStats;
+        if (!S) {
+          T.skip('env.AnalysisStats provided to the runner', 'Node-lane only — run-tests.mjs co-loads analysis-stats.js');
+          return;
+        }
+        if (typeof S.patHatSolve !== 'function' || typeof S.patHatBootstrapCI !== 'function' || typeof S.patHatCornerStatus !== 'function' || typeof S.patDifferencedHat !== 'function') {
+          T.ok('AnalysisStats PAT-hat kernel present', false, 'patHatSolve / patHatBootstrapCI / patHatCornerStatus / patDifferencedHat not exported');
+          return;
+        }
+        /* Site-error nights on the 5-min grid. Legs are site DIFFERENCES: ab = finger − chest, ac = ankle − chest,
+         bc = ankle − finger, around 400 / 500 / 100 ms. `drift` is a slow sinusoid (period 2 h) SHARED by
+         finger and ankle; `rhoFA` correlates their jitter. Every bound below was measured over 40–200 seeds
+         BEFORE this group was written (brief §Done when) — none is fitted to the seeds used here. */
+        var STEP = 300000;
+        function rng(seed) {
+          var s = seed >>> 0;
+          return function () {
+            s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
+            return s / 4294967296;
+          };
+        }
+        function gauss(r) {
+          var u = 0;
+          while (!u) u = r();
+          return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * r());
+        }
+        function night(seed, N, sc, sf, sa, drift, rhoFA) {
+          var r = rng(seed),
+            W = [];
+          for (var k = 0; k < N; k++) {
+            var d = (drift || 0) * Math.sin((2 * Math.PI * k * 5) / 120),
+              C = sc * gauss(r),
+              z1 = gauss(r),
+              z2 = gauss(r),
+              rho = rhoFA || 0,
+              F = d + sf * z1,
+              A = d + sa * (rho * z1 + Math.sqrt(1 - rho * rho) * z2);
+            W.push({ t: (k + 0.5) * STEP, ab: 400 + F - C, ac: 500 + A - C, bc: 100 + A - F });
+          }
+          return W;
+        }
+        function legs(W) {
+          return [
+            W.map(function (w) {
+              return w.ab;
+            }),
+            W.map(function (w) {
+              return w.ac;
+            }),
+            W.map(function (w) {
+              return w.bc;
+            })
+          ];
+        }
+        // ── A · THE OWNER'S PLANT: 60 ms pk-pk shared finger+ankle drift, jitter 8 / 9 / 12 ms, 288 windows ──
+        var minChest = Infinity,
+          worst = 0,
+          seed;
+        for (seed = 1; seed <= 10; seed++) {
+          var WA = night(seed, 288, 8, 9, 12, 30, 0),
+            LA = legs(WA),
+            cl = S.patHatSolve(LA[0], LA[1], LA[2]),
+            df = S.patDifferencedHat(WA, STEP);
+          minChest = Math.min(minChest, Math.sqrt(Math.max(cl.chest, 0)));
+          [
+            [df.sigma.chest, 8],
+            [df.sigma.finger, 9],
+            [df.sigma.ankle, 12]
+          ].forEach(function (p) {
+            worst = Math.max(worst, p[0] == null ? Infinity : Math.abs(p[0] - p[1]));
+          });
+        }
+        T.ok('ANTI-VACUITY · the classic hat puts the shared drift on the THIRD corner: chest σ ≥ 16 ms (true 8)', minChest >= 16, 'min over 10 seeds ' + minChest.toFixed(1) + ' ms');
+        T.ok('the drift-removed hat recovers 8 / 9 / 12 ms within ±5 ms on every seed', worst <= 5, 'worst |error| ' + worst.toFixed(2) + ' ms');
+        var WA1 = night(1, 288, 8, 9, 12, 30, 0),
+          d1 = S.patDifferencedHat(WA1, STEP);
+        T.ok(
+          'the drift-removed hat is labelled NOT comparable to the classic σ, at τ = one window',
+          d1.ok && d1.tauMin === 5 && /not comparable/.test(d1.label) && d1.n === 287,
+          JSON.stringify({ tau: d1.tauMin, n: d1.n, label: d1.label })
+        );
+        var gap = WA1.slice(0, 20).concat(WA1.slice(30, 40));
+        T.ok(
+          'only windows exactly one step apart are differenced; too few pairs ⇒ a refusal with its count',
+          S.patDifferencedHat(gap, STEP).n === 28 && S.patDifferencedHat(WA1.slice(0, 12), STEP).ok === false && /11 adjacent window pairs/.test(S.patDifferencedHat(WA1.slice(0, 12), STEP).reason),
+          S.patDifferencedHat(WA1.slice(0, 12), STEP).reason
+        );
+        // ── B · THE NULL: independent errors in the 2026-09-26 geometry (8 / 9 / 25 ms, 98 windows) ──
+        var neg = 0,
+          under = 0,
+          failed = 0;
+        for (seed = 1; seed <= 50; seed++) {
+          var LB = legs(night(seed, 98, 8, 9, 25, 0, 0)),
+            vB = S.patHatSolve(LB[0], LB[1], LB[2]),
+            stB = S.patHatCornerStatus(vB, S.patHatBootstrapCI(LB[0], LB[1], LB[2], { B: 400 }));
+          if (Math.min(vB.chest, vB.finger, vB.ankle) < 0) neg++;
+          ['chest', 'finger', 'ankle'].forEach(function (c) {
+            if (stB[c].status === 'underpowered') under++;
+            if (stB[c].status === 'independence-failed') failed++;
+          });
+        }
+        T.ok('ANTI-VACUITY · independent errors still produce negative corners (≥ 10 of 50 nights)', neg >= 10, neg + ' of 50');
+        T.ok('…and every one reads UNDERPOWERED, none "independence failed"', under === neg && failed === 0, under + ' underpowered, ' + failed + ' independence-failed, of ' + neg + ' negative');
+        var st0 = S.patHatCornerStatus({ chest: -32, finger: 148.8, ankle: 650.6 }, { chest: { lo: -225.6, hi: 206.2 }, finger: { lo: -90.7, hi: 398.3 }, ankle: { lo: 333.4, hi: 891 } });
+        T.ok(
+          'the 2026-09-26 figures read chest underpowered with its bound, never a bare refusal',
+          st0.chest.status === 'underpowered' && Math.abs(st0.chest.boundMs - Math.sqrt(206.2)) < 1e-9 && st0.ankle.status === 'solved' && Math.abs(st0.ankle.sigma - Math.sqrt(650.6)) < 1e-9,
+          JSON.stringify(st0.chest)
+        );
+        // ── C · A GENUINE FAILURE: finger/ankle jitter anti-correlated at ρ = −0.8 (2 / 20 / 20 ms, 200 windows) ──
+        var okC = 0,
+          rhos = [];
+        for (seed = 1; seed <= 10; seed++) {
+          var LC = legs(night(seed, 200, 2, 20, 20, 0, -0.8)),
+            vC = S.patHatSolve(LC[0], LC[1], LC[2]),
+            sc = S.patHatCornerStatus(vC, S.patHatBootstrapCI(LC[0], LC[1], LC[2], { B: 400 })).chest;
+          if (sc.status === 'independence-failed' && sc.pair.join() === 'finger,ankle' && sc.explainRho < 0) okC++;
+          rhos.push(sc.explainRho);
+        }
+        T.ok(
+          'a CI wholly below 0 reads independence-failed, naming the finger–ankle pair and a negative ρ (10 of 10)',
+          okC === 10,
+          okC +
+            ' of 10; ρ ' +
+            rhos
+              .map(function (x) {
+                return x == null ? 'null' : x.toFixed(2);
+              })
+              .join(' ')
+        );
+        var oor = S.patHatCornerStatus({ chest: -300, finger: 320, ankle: 330 }, { chest: { lo: -400, hi: -200 } });
+        T.ok('a ρ beyond ±1 is published as it is and FLAGGED, never clamped', oor.chest.explainRho < -1 && oor.chest.rhoOutOfRange === true, JSON.stringify(oor.chest));
+        // ── D · DETERMINISM + the worker's own hat is this solve ──
+        var LD = legs(night(3, 98, 8, 9, 25, 0, 0)),
+          ci1 = S.patHatBootstrapCI(LD[0], LD[1], LD[2]),
+          ci2 = S.patHatBootstrapCI(LD[0], LD[1], LD[2]);
+        T.ok('the default bootstrap is SEEDED: one night, one interval', JSON.stringify(ci1) === JSON.stringify(ci2) && ci1.B === 1000 && ci1.block === 6, JSON.stringify(ci1.chest));
+        var wsrc = (env.sources && env.sources['pat-feasibility-worker.js']) || '';
+        if (!wsrc || !env.PATGate || !env.PATAlign || !env.DexClock) {
+          T.skip('the worker threeHat ≡ patHatSolve parity', 'worker source / PATGate / PATAlign / DexClock not in env');
+          return;
+        }
+        var Wk = null;
+        try {
+          var shim = { postMessage: function () {} };
+          shim.self = shim;
+          Wk = new Function(
+            'ECGDSP',
+            'PPGDSP',
+            'PATGate',
+            'PATAlign',
+            'DexClock',
+            'AnalysisStats',
+            'self',
+            'importScripts',
+            'XMLHttpRequest',
+            wsrc.replace(/self\.onmessage[\s\S]*$/, '') + '\nreturn { threeHat: threeHat };'
+          )(
+            env.ECGDSP,
+            env.PPGDSP,
+            env.PATGate,
+            env.PATAlign,
+            env.DexClock,
+            S,
+            shim,
+            function () {},
+            function () {}
+          );
+        } catch (e) {
+          T.ok('the worker body EVALUATES', false, e.message);
+          return;
+        }
+        // three legs of ≥ 50 beats in each of 20 windows, built from one site-error night
+        var WN = night(5, 20, 8, 9, 25, 0, 0);
+        function leg(k) {
+          var out = [];
+          WN.forEach(function (w, i) {
+            for (var b = 0; b < 60; b++) out.push({ t: i * STEP + 1000 + b * 4000, lag: w[k] });
+          });
+          return { ok: true, patAtR: out };
+        }
+        var h = Wk.threeHat(leg('ab'), leg('ac'), leg('bc'));
+        var LN = legs(h.windows),
+          ref = S.patHatSolve(LN[0], LN[1], LN[2]);
+        T.ok(
+          "the worker's classic variance IS patHatSolve on its own windows (one dispersion, two sites — pinned equal)",
+          h.ok && h.variance.chest === ref.chest && h.variance.finger === ref.finger && h.variance.ankle === ref.ankle,
+          JSON.stringify({ worker: h.variance, kernel: ref })
+        );
+        T.ok(
+          'the worker publishes ci, corners and the labelled drift-removed hat beside its unchanged fields',
+          h.ci && h.corners && h.corners.chest && h.diff && h.diff.ok && h.sigma && h.pairSd && h.lagMed && h.windows.length === 20,
+          Object.keys(h).join(',')
+        );
+      }
+    );
 
     group('Analysis-page statistics kernels — known-answer (TEST-COVERAGE-ANALYSIS)', 'analysis-stats · statistics · known-answer', function (T) {
       var S = env.AnalysisStats;
