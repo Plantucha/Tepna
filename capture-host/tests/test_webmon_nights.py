@@ -715,6 +715,11 @@ def test_the_shape_guard_changed_no_answer_for_a_well_formed_night(tmp_path):
     }
     for k in keys:
         if k in changed_on_purpose and new_out[k] != old_out[k]:
-            assert isinstance(old_out[k], list) and set(old_out[k]) < set(new_out[k]), (k, changed_on_purpose[k], new_out[k], old_out[k])
+            assert isinstance(old_out[k], list) and set(old_out[k]) < set(new_out[k]), (
+                k,
+                changed_on_purpose[k],
+                new_out[k],
+                old_out[k],
+            )
             continue
         assert new_out[k] == old_out[k], (k, new_out[k], old_out[k])
