@@ -2007,3 +2007,52 @@ def test_an_ASYNC_function_is_judged_the_same_way():
     a = "async def go():\n    return 1\n"
     assert M.functions_with_changed_ast(a, a.replace("1", "2"))[0] == {"x_go"}
     assert M.functions_with_changed_ast(a, "async def go():\n    return (\n        1\n    )\n")[0] == set()
+
+
+def test_a_def_in_an_EXCEPT_ELSE_or_FINALLY_is_seen_by_BOTH_walkers():
+    """🔴 THE TWIN OF THE MANGLING BUG: the two walkers must agree on MEMBERSHIP, only ever on
+    content. `functions_covering` walks `ast.iter_child_nodes` — every field, including `handlers`,
+    `orelse` and `finalbody` — so a `def` inside `except:`, `else:` or `finally:` is in scope by the
+    line scan. Walking `node.body` alone missed all three, so the intersection dropped genuinely
+    edited functions SILENTLY and with no reason printed. The `except ImportError: def shim(...)`
+    shape is real in this tree (optional-dependency shims)."""
+    old = (
+        "try:\n    import foo\nexcept ImportError:\n    def shim(a): return a + 1\n"
+        "if True: pass\nelse:\n    def alt(b): return b * 2\n"
+        "class K:\n    if True: pass\n    else:\n        def m(self): return 1\n"
+    )
+    new = old.replace("a + 1", "a + 2").replace("b * 2", "b * 3").replace("return 1", "return 9")
+    changed, why = M.functions_with_changed_ast(old, new)
+    assert why is None
+    assert changed == {"x_shim", "x_alt", "x\u01c1K\u01c1m"}, changed
+    # …and the two walkers see the SAME SET, which is the property that makes the intersection safe.
+    assert M.functions_covering(new, set(range(1, new.count("\n") + 2))) == changed
+
+
+def test_a_def_in_a_FINALLY_is_reached_too():
+    old = "def outer():\n    try:\n        pass\n    finally:\n        def inner():\n            return 1\n"
+    assert M.functions_with_changed_ast(old, old.replace("return 1", "return 2"))[0] == {"x_outer", "x_inner"}
+
+
+def test_a_nested_def_inside_a_METHOD_keeps_its_class(sub=None):
+    """`visit(child, cls)` → `visit(child, None)` survived: a function nested inside a method would
+    be named `x_inner` instead of `xǁKǁinner`, so it would never match the stem the line scan hands
+    over and would drop out of scope silently. Asserted against `functions_covering` rather than a
+    literal, because the two agreeing IS the property."""
+    src = "class K:\n    def m(self):\n        def inner():\n            return 1\n        return inner\n"
+    changed, _ = M.functions_with_changed_ast(src, src.replace("return 1", "return 2"))
+    assert changed == {"x\u01c1K\u01c1m", "x\u01c1K\u01c1inner"}, changed
+    assert changed == M.functions_covering(src, set(range(1, 9)))
+
+
+def test_two_defs_under_ONE_stem_are_compared_TOGETHER():
+    """`out.get(stem, "")` → `out.get(None, "")` survived: the accumulation is what makes a stem mean
+    "every body under this name". Without it only the LAST body is compared, so a change to the
+    FIRST of two same-named defs is invisible — and both collapse to one mutant glob, so the gate
+    would mutate a function whose edit this rule said was not there."""
+    dup = "def f():\n    return 1\n\n\ndef f():\n    return 2\n"
+    assert M.functions_covering(dup, set(range(1, 9))) == {"x_f"}
+    assert M.functions_with_changed_ast(dup, dup.replace("return 1", "return 9"))[0] == {"x_f"}, (
+        "a change to the FIRST body under a shared stem was not seen"
+    )
+    assert M.functions_with_changed_ast(dup, dup.replace("return 2", "return 9"))[0] == {"x_f"}

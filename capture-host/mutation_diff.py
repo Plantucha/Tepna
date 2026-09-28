@@ -450,7 +450,14 @@ def functions_with_changed_ast(old_src: str, new_src: str) -> tuple[set[str], st
         out: dict[str, str] = {}
 
         def visit(node, cls: str | None) -> None:
-            for child in getattr(node, "body", []):
+            # 🔴 `ast.iter_child_nodes`, THE SAME WALK `functions_covering` USES — not `node.body`.
+            # A `def` inside an `except:` handler, an `else:` branch or a `finally:` lives in
+            # `handlers` / `orelse` / `finalbody`, which `body` does not reach. The line scan finds
+            # it and this map did not, so the intersection dropped a genuinely edited function
+            # SILENTLY and with no reason given. The `except ImportError: def shim(...)` shape is
+            # real in this tree (optional-dependency shims). The two walkers must be able to
+            # disagree about AST CONTENT and never about MEMBERSHIP.
+            for child in ast.iter_child_nodes(node):
                 if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
                     stem = f"x\u01c1{cls}\u01c1{child.name}" if cls else f"x_{child.name}"
                     # One stem can cover several definitions (a redefinition, or the same method name

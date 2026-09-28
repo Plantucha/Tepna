@@ -263,7 +263,10 @@ def main(argv=None) -> int:
     # `emit` writes it into the JSON record (top-level `verdict`), prints one line, and returns the exit
     # code it was given, so an exit path cannot leave without a verdict. Prose above it is explanation.
     verdict: dict = {"base": a.base, "modules": {}, "survivors": []}
-    _counts = {"generated": 0, "decided": 0, "killed": 0, "survived": 0, "undecided": 0, "excused": 0, "refuted": 0}
+    # `astNarrowed` rides in the RESULT because the object is the API: a reader must be able to
+    # see that scope was narrowed, and by how much, without parsing the prose above it.
+    _counts = {"generated": 0, "decided": 0, "killed": 0, "survived": 0, "undecided": 0, "excused": 0,
+               "refuted": 0, "astNarrowed": 0}
     _pop = {"checked": 0, "eligible": 0}
     # THE SCOPE, so the prose can name it truthfully. The gate mutates whole FUNCTIONS (#1761 —
     # "slightly wider than the diff, which is the safe direction"), and saying "survived on lines
@@ -271,6 +274,7 @@ def main(argv=None) -> int:
     # on one measured run 30 survivors were reported that way and NONE was on a changed line.
     _scope = {"lines": 0, "functions": 0}
     _ran_box = [0]  # mirrors `_ran` (a local of main, rebound below) so emit() can read it
+    _narrow_box = [0]   # same trick for the AST-narrowed count, for the same reason
 
     def _checked() -> int:
         """How many modules this run actually examined. ONE expression, because the prose below and the
@@ -281,6 +285,7 @@ def main(argv=None) -> int:
 
     def emit(status, reason, code, evidence=None):
         _pop["checked"] = _checked()
+        _counts["astNarrowed"] = _narrow_box[0]
         _counts["survived"] = len(verdict.get("survivors", []))
         _counts["undecided"] = len(undecided)
         # A PASS OVER NOTHING IS NOT A PASS (§🧾). Python changed, every changed line fell outside
@@ -404,7 +409,8 @@ def main(argv=None) -> int:
     _gate_t0 = time.monotonic()
     _refused_budget: list[str] = []
     _refused_memory: list[str] = []   # projected RSS over the cap — refused before starting
-    _ast_narrowed = 0        # functions the line scan claimed and the AST cleared
+    _ast_narrowed = 0        # functions the line scan claimed and the AST cleared; mirrored into
+                             # _counts['astNarrowed'] at emit so the verdict OBJECT carries it too
     for module, lines in sorted(changed.items()):
         _msrc = _read_source(HERE / module)   # read ONCE per module; the loop below reuses it
         stems = functions_covering(_msrc, lines)
@@ -429,6 +435,7 @@ def main(argv=None) -> int:
                 if len(_kept) != len(stems):
                     _dropped = sorted(stems - _kept)
                     _ast_narrowed += len(_dropped)
+                    _narrow_box[0] = _ast_narrowed
                     print(f"    · {module}: {len(_dropped)} function(s) moved but not CHANGED "
                           f"(identical AST) — out of scope: {', '.join(_dropped[:6])}"
                           f"{' …' if len(_dropped) > 6 else ''}", flush=True)
