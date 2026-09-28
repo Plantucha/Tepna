@@ -579,11 +579,19 @@ The derivation holds to floating point. **The prediction it makes, however, is f
 > | h10 | CLAIM tch2LhsH10 = 0.014947671 FROM analysis/published-numbers/tch-pooled-hat-2026-09-22.json#claims/lhsH10 | CLAIM tch2GapH10 = 0.014947671 FROM analysis/published-numbers/tch-pooled-hat-2026-09-22.json#claims/gapH10 | 1.1e-15 |
 > | verity | CLAIM tch2LhsVerity = 0.00033416 FROM analysis/published-numbers/tch-pooled-hat-2026-09-22.json#claims/lhsVerity | CLAIM tch2GapVerity = 0.00033416 FROM analysis/published-numbers/tch-pooled-hat-2026-09-22.json#claims/gapVerity | 3.6e-16 |
 > | o2 | CLAIM tch2LhsO2 = 0.025756119 FROM analysis/published-numbers/tch-pooled-hat-2026-09-22.json#claims/lhsO2 | CLAIM tch2GapO2 = 0.025756119 FROM analysis/published-numbers/tch-pooled-hat-2026-09-22.json#claims/gapO2 | 1.3e-15 |
-> <!-- TABLE-PROVENANCE producer=tools/tch-pooled-hat.mjs invocation="--dir uploads/trio --json" inputs=uploads/trio inputsDigest=aa533e3efd7c output=dab924f777d6 generated=2026-09-22 -->
+> <!-- TABLE-PROVENANCE producer=tools/tch-pooled-hat.mjs invocation="--dir uploads/trio --json" inputs=uploads/trio inputsDigest=4c1f804fb07a output=dab924f777d6 generated=2026-09-28 -->
 >
 > The identity still holds to 1e-15 and the between-night term is **0.19–0.46 %** of within (was 0.13–0.24 %:
 > roughly doubled, still well under 1 %) — §11's refutation stands under the re-folded corpus, and the
 > "~0.1 %" figure in the block above is superseded by this range.
+>
+> **Re-derived 2026-09-28 over the 82-night re-fold, and the table did not move.** The corpus was re-folded
+> under the current compute closure, so the stamp's `inputsDigest` changed (`aa533e3efd7c` →
+> `4c1f804fb07a`); the producer was re-run rather than the hash edited, and every claim above came back
+> identical to its recorded precision — `gapH10` 0.014947670752…, `gapVerity` 0.0003341598…, `gapO2`
+> 0.025756119229…, so `output` is unchanged. That is a result rather than a formality: the σ identity and the
+> between-night share survive six days of oximetry and ECG DSP change, which is what a corner this small
+> ought to do and would not have if the movement were touching the variance decomposition.
 
 ### ❌ B is 0.1 % — the mechanism I pre-registered does NOT explain the spread
 
