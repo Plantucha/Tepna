@@ -1071,9 +1071,27 @@ import './glucodex-profile.js';
           gs = [],
           pairs = [];
         for (const pt of trend) {
-          const ms = ecgStartMs + (pt.tMin || 0) * 60000;
+          /* ── A POINT WITH NO TIME HAS NO PLACE ON THE AXIS (§∅, residue 2026-09-24-…-tmin-sentinel) ──
+             This read `ecgStartMs + (pt.tMin || 0) * 60000`, so a point whose `tMin` was absent or
+             non-numeric was placed AT ECG START — where `gluAt` pairs it with whatever glucose happens to
+             sit at t0 and pushes it into the QTc⟷glucose correlation as a real pair. Absence entering a
+             correlation as the value 0 is §∅ at the axis rather than at the sample.
+             ⚠️ `Number.isFinite`, NOT the bare `isFinite` used at :931, and that is the whole point:
+             `isFinite(null)` is **true** and `isFinite([])` is **true** (both coerce to 0), so the loose
+             form ADMITS two of the exact shapes this guard exists to reject and re-places them at t0.
+             Measured 2026-09-28: null→0, []→0, "12"→720000 under the loose guard; `Number.isFinite`
+             rejects all three. A guard must test the type it is about to use, not a coercion of it.
+             `qtc` is checked the same way for the same reason: `pt.qtc != null` admits NaN, `[]` and a
+             string, and `qs` feeds `DSP.pearson` directly — a non-number there is arithmetic on a shape,
+             not a measurement.
+             ⚠️ PREVENTIVE, and the PR says so: `trend` is read first from `json.morphology.qtcTrend`, a
+             field ECGDex does not yet write (see the block comment above), so no shipped export reaches
+             this today. The fallback path builds `tMin` from `ecgdex-dsp.js`'s `+(w0/60).toFixed(1)`,
+             always finite. This closes the door before the producer exists rather than after it ships. */
+          if (!Number.isFinite(pt.tMin) || !Number.isFinite(pt.qtc)) continue;
+          const ms = ecgStartMs + pt.tMin * 60000;
           const g = gluAt(ms);
-          if (g != null && pt.qtc != null) {
+          if (g != null) {
             qs.push(pt.qtc);
             gs.push(g);
             pairs.push({ ms, qtc: pt.qtc, glu: Math.round(g) });

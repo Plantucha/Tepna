@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="e4eed3538784" data-compute-hash="29851650bc4c">
+<html lang="en" data-manifest-hash="73f42e1f4977" data-compute-hash="29851650bc4c">
 <head>
 <!--
   GlucoDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3bPuedJeHqlAtFRw9XCQUY2RL6IBWMfwvh6D9DWEXUc=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7xQ3yWR2EpiBDMPUDFxtl1NKMYlxsxc9AVgtJkApTU8=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-P+WBHl2NZMnspXKVsRndFmJ2S3rONWAPda5O6KP93tk=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-bV9puip5cXhdmdjTxLQSmozaij4ixCzmMm4aPQpZ5Og=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-j6cQKZ+pO2jEtsJTv7AnKR0NQLc+TgayeSSCB4yBUJs=' 'sha256-kjO7DVi63oKRRX3+XxhmSXhJG8MVnPm1CvMBghQgfUA=' 'sha256-qzpUtdWH1TlUe+keMoviP5ddzz3oKD3bFygdJMXw118='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-1mHNP1SPoyjtkEPom/ROy7Oh/15UluWDNh2Msp2sHCI=' 'sha256-3bPuedJeHqlAtFRw9XCQUY2RL6IBWMfwvh6D9DWEXUc=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7xQ3yWR2EpiBDMPUDFxtl1NKMYlxsxc9AVgtJkApTU8=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-P+WBHl2NZMnspXKVsRndFmJ2S3rONWAPda5O6KP93tk=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-bV9puip5cXhdmdjTxLQSmozaij4ixCzmMm4aPQpZ5Og=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-j6cQKZ+pO2jEtsJTv7AnKR0NQLc+TgayeSSCB4yBUJs=' 'sha256-qzpUtdWH1TlUe+keMoviP5ddzz3oKD3bFygdJMXw118='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>GlucoDex — Continuous Glucose Analyzer · v2.16.0</title>
@@ -11942,9 +11942,27 @@ __require('glucodex-profile.js');
           gs = [],
           pairs = [];
         for (const pt of trend) {
-          const ms = ecgStartMs + (pt.tMin || 0) * 60000;
+          /* ── A POINT WITH NO TIME HAS NO PLACE ON THE AXIS (§∅, residue 2026-09-24-…-tmin-sentinel) ──
+             This read `ecgStartMs + (pt.tMin || 0) * 60000`, so a point whose `tMin` was absent or
+             non-numeric was placed AT ECG START — where `gluAt` pairs it with whatever glucose happens to
+             sit at t0 and pushes it into the QTc⟷glucose correlation as a real pair. Absence entering a
+             correlation as the value 0 is §∅ at the axis rather than at the sample.
+             ⚠️ `Number.isFinite`, NOT the bare `isFinite` used at :931, and that is the whole point:
+             `isFinite(null)` is **true** and `isFinite([])` is **true** (both coerce to 0), so the loose
+             form ADMITS two of the exact shapes this guard exists to reject and re-places them at t0.
+             Measured 2026-09-28: null→0, []→0, "12"→720000 under the loose guard; `Number.isFinite`
+             rejects all three. A guard must test the type it is about to use, not a coercion of it.
+             `qtc` is checked the same way for the same reason: `pt.qtc != null` admits NaN, `[]` and a
+             string, and `qs` feeds `DSP.pearson` directly — a non-number there is arithmetic on a shape,
+             not a measurement.
+             ⚠️ PREVENTIVE, and the PR says so: `trend` is read first from `json.morphology.qtcTrend`, a
+             field ECGDex does not yet write (see the block comment above), so no shipped export reaches
+             this today. The fallback path builds `tMin` from `ecgdex-dsp.js`'s `+(w0/60).toFixed(1)`,
+             always finite. This closes the door before the producer exists rather than after it ships. */
+          if (!Number.isFinite(pt.tMin) || !Number.isFinite(pt.qtc)) continue;
+          const ms = ecgStartMs + pt.tMin * 60000;
           const g = gluAt(ms);
-          if (g != null && pt.qtc != null) {
+          if (g != null) {
             qs.push(pt.qtc);
             gs.push(g);
             pairs.push({ ms, qtc: pt.qtc, glu: Math.round(g) });

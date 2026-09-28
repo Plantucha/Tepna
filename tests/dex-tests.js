@@ -38098,6 +38098,74 @@
       }
     });
 
+    /* ∅ A POINT WITH NO TIME HAS NO PLACE ON THE AXIS (residue 2026-09-24-glucodex-qtc-trend-tmin-sentinel)
+       `ecgStartMs + (pt.tMin || 0) * 60000` placed a point whose `tMin` was absent or non-numeric AT
+       ECG START, where `gluAt` paired it with whatever glucose sat at t0 and pushed it into the
+       QTc⟷glucose correlation as a real pair. Absence entering a correlation as the value 0.
+       ⚠️ EXECUTED, not scanned, for two reasons. The scan next door records that its own first draft
+       failed against its own fix because the ∅ comment QUOTED the defect verbatim — and the comment I
+       wrote for this one quotes `(pt.tMin || 0)` too, so a text gate here would report the defect it
+       just documented. Running the loop cannot be fooled by prose. And the interesting half is a
+       COERCION: `isFinite(null)` and `isFinite([])` are both TRUE and both coerce to 0, so the loose
+       idiom used at glucodex-app.js:931 would admit two of the very shapes this rejects. Only
+       `Number.isFinite` refuses them, and only an execution demonstrates the difference. */
+    group('a QTc trend point with no usable time is dropped, not placed at t0', 'glucodex-app · qtc-trend · ∅', function (T) {
+      var src = (env.sources || {})['glucodex-app.js'] || '';
+      if (!src.trim()) {
+        T.skip('glucodex-app.js source', 'sources not provided in this runner');
+        return;
+      }
+      var start = src.indexOf('for (const pt of trend) {');
+      var end = src.indexOf('\n        }', start);
+      T.ok('the pair-building loop is extractable', start >= 0 && end > start, 'extraction is testing nothing');
+      if (!(start >= 0 && end > start)) return;
+      var loop = src.slice(start, end + 10);
+      /* `gluAt` returns a glucose for ANY time here, so a dropped point is visibly dropped rather than
+         merely unpaired — if the guard leaked, the point would arrive with a real glucose beside it. */
+      var run = new Function('trend', 'var ecgStartMs = 1000000, qs = [], gs = [], pairs = [];' + 'var gluAt = function () { return 5.5; };' + loop + '; return { n: qs.length, pairs: pairs };');
+      var BAD = [
+        { tMin: undefined, qtc: 420 },
+        { tMin: null, qtc: 420 },
+        { tMin: NaN, qtc: 420 },
+        { tMin: '12', qtc: 420 },
+        { tMin: [], qtc: 420 },
+        { tMin: {}, qtc: 420 }
+      ];
+      var bad = run(BAD);
+      T.eq('every unusable tMin is dropped — none reaches the correlation', bad.n, 0, JSON.stringify(bad.pairs));
+      /* THE TWO THE LOOSE GUARD WOULD HAVE LET THROUGH, named because they are the reason for
+         `Number.isFinite`: both are truthy-falsy in the wrong direction and both land exactly at t0. */
+      T.eq('…including tMin null, which `isFinite(null)` calls finite and `|| 0` places at ECG start', run([{ tMin: null, qtc: 420 }]).n, 0);
+      T.eq('…and tMin [], which coerces to 0 the same way', run([{ tMin: [], qtc: 420 }]).n, 0);
+      /* `qtc` rides the same guard: `!= null` admitted NaN and a string into DSP.pearson. */
+      T.eq(
+        'a non-numeric qtc is dropped too — pearson is given numbers or nothing',
+        run([
+          { tMin: 5, qtc: NaN },
+          { tMin: 6, qtc: '420' },
+          { tMin: 7, qtc: null }
+        ]).n,
+        0
+      );
+      /* ANTI-VACUITY: the guard must not simply refuse everything, and a good point must land at the
+         time it actually carries — not at t0, which is the failure being fixed. */
+      var good = run([
+        { tMin: 10, qtc: 430 },
+        { tMin: 20, qtc: 440 }
+      ]);
+      T.eq('well-formed points still pair', good.n, 2, JSON.stringify(good.pairs));
+      T.eq('…at their own time, not at ECG start', good.pairs[0].ms, 1000000 + 10 * 60000);
+      T.eq('…and the second at its own too', good.pairs[1].ms, 1000000 + 20 * 60000);
+      T.ok('…carrying the qtc they arrived with', good.pairs[0].qtc === 430 && good.pairs[1].qtc === 440, JSON.stringify(good.pairs));
+      /* And the default itself is gone from the CODE. ⚠️ Stripped by BLOCK, not by line prefix: the
+         neighbouring scan drops lines whose trimmed text starts with `*`, `//` or `/*`, which misses the
+         continuation lines of a block comment that does not prefix them — and this file's comments do
+         not. My own comment quotes `(pt.tMin || 0)` on such a line, so the line-prefix filter reported the
+         defect it was documenting, exactly as the warning next door predicts. Caught by running it. */
+      var code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+      T.ok('the fabricating default `(pt.tMin || 0)` is gone from the code', code.indexOf('(pt.tMin || 0)') === -1, 'still present in code (not comment)');
+    });
+
     group('GlucoDex §5.1/§5.2 — a truncated grid says so, and the session span cannot overflow', 'glucodex-dsp · truncation · robustness', function (T) {
       var GT = env.GlucoDex || env.GLUDSP;
       var an = (env.GLUDSP && env.GLUDSP.analyze) || (GT && GT.analyze);
