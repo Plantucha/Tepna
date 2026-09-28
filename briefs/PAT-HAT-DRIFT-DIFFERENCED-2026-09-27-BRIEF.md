@@ -151,8 +151,17 @@ restated here rather than tuned to one lucky seed.
   | drift-removed (τ = 5 min, 97 pairs) | 10.6 ms [0, 15.4] | `underpowered`, σ < 8.3 ms | 24.2 ms |
 
   Chest and finger both sit under ~15 ms; the Verity ankle is the ~25 ms corner.
-- [ ] Page half (Magpie): the three hat rows render the status, the bound or the explaining ρ, and a separate
-  labelled differenced row. The closure line says "identically 0 by construction".
+- [x] Page half (Magpie): the three hat rows render the status, the bound or the explaining ρ, and a separate
+  labelled differenced row. The closure line says "identically 0 by construction". ⟶ **MET #3183** (2026-09-27, Magpie): `cornerText` renders
+  `solved` as σ with its CI · `underpowered` as "underpowered, σ < x" · `independence-failed` naming the pair
+  and the coarse ρ, flagged `beyond ±1` and never clamped; the drift-removed hat is its own labelled row
+  forwarding the producer's `label` with its own `hatD` badge and no delta beside it; the closure line states
+  it is identically 0 by construction. Pinned to THIS table by 21 assertions executing the shipped function
+  (`pat-classic-vs-fused · hat · corners`), plus the #3180 group unchanged as the back-compat control —
+  a result without `corners` still takes the sigma path. ⚠️ Measured on origin/main against the merged
+  worker's own 09-26 output: the page ignored `corners` and rendered *"REFUSED — a negative solved variance
+  — the hat's independence assumption failed"* for the chest corner, i.e. it asserted an independence failure
+  on a night whose data are consistent with independence. That is the misstatement this half removes.
 
 ## §Not in scope
 
