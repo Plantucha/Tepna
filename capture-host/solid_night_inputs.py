@@ -303,8 +303,11 @@ def clocks(night_dir: str, model: str) -> dict:
         # Measured 2026-09-27 over 132 sidecars (66 rig + 66 box): none disagree, so this fires on
         # nothing today and exists to notice the day it does.
         if claimed != rows:
-            return _decision("UNKNOWN", f"`{os.path.basename(seams)}` claims {claimed} seam(s) over "
-                                        f"{rows} row(s) — its rows and its own totals disagree")
+            return _decision(
+                "UNKNOWN",
+                f"`{os.path.basename(seams)}` claims {claimed} seam(s) over "
+                f"{rows} row(s) — its rows and its own totals disagree",
+            )
         if examined > 0:
             return _decision("PASS")
     for rtc in sorted(glob.glob(os.path.join(night_dir, f"{prefix}*_RTCLOG.csv"))):

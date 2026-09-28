@@ -13,6 +13,7 @@ import sys
 
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import pytest  # noqa: E402
 import writers  # noqa: E402
 from tests._srcscan import module_source
 
@@ -314,8 +315,6 @@ def test_a_sidecar_resuming_its_OWN_non_empty_file_does_not_re_emit_the_header(t
     assert body.count("rule=clock-seam") == 1, "the header must not be re-emitted on resume"
     assert body.startswith(first), "the earlier session's bytes must survive verbatim"
     assert body.count("# final") == 2, "one per session"
-
-
 def test_PLANT_a_row_write_that_RAISES_leaves_the_count_equal_to_the_rows(tmp_path):
     """residue 2026-09-27-seam-sidecar-rows-and-finals-agree (which withdraws the row that said the
     opposite could happen).
@@ -339,7 +338,7 @@ def test_PLANT_a_row_write_that_RAISES_leaves_the_count_equal_to_the_rows(tmp_pa
             self.raised = False
 
         def write(self, s):
-            if not self.raised and ";" in s:          # a data row, not a comment
+            if not self.raised and ";" in s:  # a data row, not a comment
                 self.raised = True
                 raise OSError("ENOSPC")
             return real.write(s)
@@ -348,9 +347,61 @@ def test_PLANT_a_row_write_that_RAISES_leaves_the_count_equal_to_the_rows(tmp_pa
             return getattr(real, n)
 
     sc._fh = _RaiseOnce()
-    sc.feed(T0 + dt.timedelta(milliseconds=32), 1_000_000_000 + 400_000_000_000)   # the seam
+    sc.feed(T0 + dt.timedelta(milliseconds=32), 1_000_000_000 + 400_000_000_000)  # the seam
     sc._fh = real
     sc.close()
     assert sc.seams == len(_rows(sc)), (
-        "the final line must not claim a seam the file does not carry", sc.seams, _rows(sc))
+        "the final line must not claim a seam the file does not carry",
+        sc.seams,
+        _rows(sc),
+    )
     assert sc.seams == 0, "the row never reached the file, so there is nothing to count"
+
+
+def test_the_seam_row_publishes_its_two_DERIVED_columns_exactly(tmp_path):
+    """`at_rel_ms` and `host_offset_ms` are computed here and read nowhere else in the writer, so nothing
+    but an assertion on their VALUES observes the arithmetic. `at_rel` places the seam on the file's own
+    axis (ns since its first sample, in ms); `host_offset_ms` is the host stamp minus the device stamp,
+    which is what makes a 946,684,800,000 ms reading legible as the 2000-vs-1970 epoch gap rather than as
+    drift. A sign flip or a 1e6 that became a multiply would publish a plausible-looking wrong number."""
+    sc = _sc(tmp_path)
+    base_ns = 1_000_000_000
+    for i in range(4):
+        sc.feed(T0 + dt.timedelta(milliseconds=8 * i), base_ns + 8_000_000 * i)
+    seam_ns = base_ns + 400_000_000_000
+    sc.feed(T0 + dt.timedelta(milliseconds=32), seam_ns)
+    sc.close()
+    (row,) = _rows(sc)
+    cols = row.split(";")
+    at_rel, host_off = float(cols[6]), float(cols[5])
+    assert at_rel == pytest.approx((seam_ns - base_ns) / 1e6, abs=1e-6), ("ns since the FIRST sample, in ms", at_rel)
+    expected_off = (T0 + dt.timedelta(milliseconds=32)).timestamp() * 1000.0 - seam_ns / 1e6
+    assert host_off == pytest.approx(expected_off, abs=1e-3), ("host minus device, in ms", host_off)
+
+
+def test_a_residual_EXACTLY_at_the_bound_is_not_a_seam(tmp_path):
+    """`>`, not `>=`. `SEAM_BOUND_MS` is the largest residual still called jitter, so a residual of
+    exactly that is the last one admitted — which side the boundary falls on is a decision, not an
+    accident of which comparison got typed."""
+    sc = _sc(tmp_path)
+    step_ns = 8_000_000
+    for i in range(3):
+        sc.feed(T0 + dt.timedelta(milliseconds=8 * i), 1_000_000_000 + step_ns * i)
+    # device advances by the bound MORE than the host: residual == SEAM_BOUND_MS exactly
+    sc.feed(T0 + dt.timedelta(milliseconds=24), 1_000_000_000 + step_ns * 3 + int(writers.SEAM_BOUND_MS * 1e6))
+    sc.close()
+    assert sc.seams == 0 and _rows(sc) == [], ("exactly at the bound is still jitter", sc.seams)
+
+
+def test_TWO_seams_in_one_instance_count_as_two(tmp_path):
+    """`+= 1`, not `= 1`. With a single seam an assignment and an increment are indistinguishable; the
+    final line is a COUNT, and a count that saturates at one under-reports every night with two."""
+    sc = _sc(tmp_path)
+    ns = 1_000_000_000
+    for i in range(3):
+        sc.feed(T0 + dt.timedelta(milliseconds=8 * i), ns + 8_000_000 * i)
+    sc.feed(T0 + dt.timedelta(milliseconds=24), ns + 400_000_000_000)  # seam 1
+    sc.feed(T0 + dt.timedelta(milliseconds=32), ns + 800_000_000_000)  # seam 2
+    sc.close()
+    assert sc.seams == 2 and len(_rows(sc)) == 2, (sc.seams, _rows(sc))
+    assert "seams=2" in open(sc.path).read(), "the final line carries the count it made"
