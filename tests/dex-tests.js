@@ -8009,6 +8009,78 @@
       }
     });
 
+    /* ════ THE HAT ROW READS THE CORNER KEYS THE SOLVER WRITES (#3128 regression, 2026-09-27) ═══════
+       `hatRow` read `h.h10` / `h.verity` / `h.o2`. `threeHat` keys its `sigma` and `variance` by SITE —
+       `{chest, finger, ankle}` — and has never written a device key, so all three reads were `undefined`,
+       `undefined >= 0` is false, and the negative-variance guard was TRUE for EVERY input: both hat rows
+       rendered REFUSED on every night since the page shipped, asserting a PHYSICAL cause ("the hat's
+       independence assumption failed") for a field-name mismatch. A fabricated explanation is worse than
+       a missing number. Nothing executed this function — zero tests named it or either row label — and
+       the code reads right, because the old caption listed the sites in exactly the order the device keys
+       were printed. Only running it shows every corner failing the guard.
+       The anti-vacuity leg is the part that stops a recurrence: the CONSUMER's key set is asserted against
+       the PRODUCER's own `v2` literal, so a rename in the worker reds here instead of silently blanking a
+       row. And the guard is asserted on the value TYPE, because `null >= 0` is TRUE in JavaScript and
+       `threeHat` writes exactly `null` for a negative corner — the obvious `!(x >= 0)` admits the case the
+       refusal exists for (caught on the measured 2026-09-26 night before it shipped). ════ */
+    group('the hat row reads the corner keys the solver writes', 'pat-classic-vs-fused · hat · behaviour', function (T) {
+      var S = env.sources || {};
+      var page = S['pat-classic-vs-fused.js'],
+        wk = S['pat-feasibility-worker.js'];
+      if (page == null || wk == null) {
+        T.ok('both sources are wired into this lane', false, 'pat-classic-vs-fused.js / pat-feasibility-worker.js missing from env.sources — the scan would read nothing');
+        return;
+      }
+      /* THE PRODUCER'S KEY SET, derived from threeHat's own corner object rather than restated here. */
+      var m = /var v2 = \{([^}]*)\}/.exec(wk);
+      T.ok("threeHat's corner object is locatable", !!m, 'the v2 literal moved — this gate would have no producer key set');
+      var sites = m
+        ? m[1]
+            .split(',')
+            .map(function (x) {
+              return x.split(':')[0].trim();
+            })
+            .filter(Boolean)
+        : [];
+      T.eq('three corners, named by SITE (not by device)', sites.join(','), 'chest,finger,ankle');
+
+      var start = page.indexOf('function hatRow(');
+      var end = page.indexOf('\n  function ', start + 10);
+      T.ok('hatRow is extractable from the shipped page', start >= 0 && end > start, 'extraction is testing nothing');
+      var fnSrc = start >= 0 && end > start ? page.slice(start, end) : '';
+      /* THE CONSUMER READS THE PRODUCER'S KEYS — and never a device name again. */
+      T.ok('hatRow reads the sigma object, not device keys', /h\.sigma/.test(fnSrc) && !/\bh\.h10\b|\bh\.verity\b|\bh\.o2\b/.test(fnSrc), fnSrc.slice(0, 160));
+      var run = new Function(
+        'h',
+        'var C={mut:"mut",amber:"amber",blue:"blue"};function num(v,d){return v==null?"—":Number(v).toFixed(d);}' +
+          'function card(l,v,u,n,c){return {val:v,note:n,colour:c};}' +
+          fnSrc +
+          '; return hatRow("classic hat σ", h, "hat");'
+      );
+      var mk = function (sg) {
+        return sg === null ? { ok: true, n: 98 } : { ok: true, n: 98, sigma: sg };
+      };
+      /* A CLEAN SOLVE RENDERS — the case that was impossible before. */
+      var clean = run(mk({ chest: 9.1, finger: 12.2, ankle: 25.5 }));
+      T.eq('a clean three-corner solve renders its sigmas', clean.val, '9.1 / 12.2 / 25.5');
+      T.ok('…and the caption names the same sites in the same order', clean.note.indexOf(sites.join(' / ')) === 0, clean.note);
+      /* THE MEASURED 2026-09-26 NIGHT still refuses, because its chest variance really is negative
+         (−32.0 ms² classic, −27.6 ms² fused, Wren 2026-09-27) and threeHat writes sigma null for it.
+         `null >= 0` is TRUE, so this leg is what pins the guard to the TYPE. */
+      var neg = run(mk({ chest: null, finger: 12.2, ankle: 25.5 }));
+      T.eq('a null corner (a negative solved variance) REFUSES', neg.val, 'REFUSED');
+      T.ok('…naming the independence failure, which is TRUE in this case', /independence/.test(neg.note), neg.note);
+      T.eq('an explicitly negative sigma refuses too', run(mk({ chest: -3, finger: 12.2, ankle: 25.5 })).val, 'REFUSED');
+      T.eq('a NaN corner refuses rather than printing NaN', run(mk({ chest: NaN, finger: 12.2, ankle: 25.5 })).val, 'REFUSED');
+      /* A MISSING SOLVE OBJECT IS A SHAPE PROBLEM, NOT A PHYSICAL ONE — the two reasons stay apart,
+         because borrowing the physical one for a field mismatch is precisely what shipped. */
+      var noSig = run(mk(null));
+      T.eq('a missing sigma object does not claim REFUSED', noSig.val, '—');
+      T.ok('…and says shape, never independence', /shape change/.test(noSig.note) && !/independence/.test(noSig.note), noSig.note);
+      /* ANTI-VACUITY: the run must actually distinguish, or every leg above could pass on one branch. */
+      T.ok('the legs are distinguishable (a clean solve and a refusal differ)', clean.val !== neg.val && clean.colour !== neg.colour, clean.colour + ' vs ' + neg.colour);
+    });
+
     /* ════ EVERY NIGHT LEAVES A ROW OR A REFUSAL (2026-09-14) ════════════════════════════════════
        `pat-host-offset.mjs`'s header claims "REFUSALS ARE LOUD". It was true of the four mid-loop
        guards and FALSE of the three exits around them, which emitted nothing: a file-scan throw, an
