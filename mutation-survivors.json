@@ -1731,6 +1731,20 @@
       "lane": "py",
       "module": "nightqc.py",
       "function": "summarize",
+      "key": "- dev_span = None | + dev_span = \"\"",
+      "mutant": "nightqc.x_summarize__mutmut_329",
+      "file_line": 312,
+      "pr": 3188,
+      "run_id": "36399889018",
+      "merge_sha": "4c65b868",
+      "reported": "2026-09-28",
+      "state": "open",
+      "occurrence": 1
+    },
+    {
+      "lane": "py",
+      "module": "nightqc.py",
+      "function": "summarize",
       "key": "- for fn in sorted(os.listdir(night_dir)) if os.path.isdir(night_dir) else []: | + for fn in sorted(os.listdir(night_dir)) if (os.path.isdir(night_dir)) or True else []:",
       "mutant": "nightqc.x_summarize__mutmut_446",
       "file_line": null,
@@ -1908,6 +1922,20 @@
       "merge_sha": "4c65b868",
       "reported": "2026-09-28",
       "state": "open"
+    },
+    {
+      "lane": "py",
+      "module": "nightqc.py",
+      "function": "summarize",
+      "key": "- span = None | + span = \"\"",
+      "mutant": "nightqc.x_summarize__mutmut_159",
+      "file_line": 219,
+      "pr": 3188,
+      "run_id": "36399889018",
+      "merge_sha": "4c65b868",
+      "reported": "2026-09-28",
+      "state": "open",
+      "occurrence": 1
     }
   ]
 }
