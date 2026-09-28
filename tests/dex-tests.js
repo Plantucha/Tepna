@@ -57777,7 +57777,7 @@
       T.eq('PLANT · the prefix rule picks the shortest completion', nearestFlag('--dry', ['--dry-run', '--dry-run-verbose', '--src']), '--dry-run');
 
       /* ── THE CONTROL: arity. A guard that refused a VALUE would be unusable ─────────────────── */
-      T.ok('CONTROL · a valued flag and its value PASS', checkArgv(['--night', '2026-06-20'], SPEC).ok === true, 'a documented flag\'s VALUE was read as a token');
+      T.ok('CONTROL · a valued flag and its value PASS', checkArgv(['--night', '2026-06-20'], SPEC).ok === true, "a documented flag's VALUE was read as a token");
       T.ok('CONTROL · a path value passes too', checkArgv(['--out', 'uploads/trio'], SPEC).ok === true, 'a non-flag value must not be refused');
       T.ok('CONTROL · a repeated valued flag passes', checkArgv(['--night', 'a', '--night', 'b'], SPEC).ok === true, '--night is repeatable');
       T.ok('CONTROL · booleans need no value', checkArgv(['--dry-run', '--force'], SPEC).ok === true, 'a boolean must not demand a value');
@@ -57802,7 +57802,12 @@
       var re = /(?:flag|opt|optAll)\('(--[a-z-]+)'/g,
         m;
       while ((m = re.exec(tb)) !== null) if (reads.indexOf(m[1]) < 0) reads.push(m[1]);
-      var declared = (tb.match(/valued: \[([^\]]*)\]/) || [, ''])[1] + (tb.match(/boolean: \[([^\]]*)\]/) || [, ''])[1];
+      /* Named matches rather than `(m || [, ''])[1]`: that idiom builds a SPARSE array, which biome
+         rejects as a hazard and is right to — a hole in an array is not an empty string, and every
+         reader has to stop and check which one index 1 lands on. */
+      var mValued = tb.match(/valued: \[([^\]]*)\]/),
+        mBool = tb.match(/boolean: \[([^\]]*)\]/);
+      var declared = (mValued ? mValued[1] : '') + (mBool ? mBool[1] : '');
       var missing = reads.filter(function (f) {
         return declared.indexOf("'" + f + "'") < 0;
       });
