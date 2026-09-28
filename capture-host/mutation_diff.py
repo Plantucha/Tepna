@@ -77,6 +77,7 @@ __all__ = [
     "mutant_changed_lines",
     "float_boundary_unprobed",
     "annotation_only",
+    "functions_with_changed_ast",
     "classify",
     "refusal_reason",
     "selftest",
@@ -409,6 +410,64 @@ def diff_key(diff_text: str) -> str:
     keep = [ln for ln in diff_text.splitlines()
             if ln.startswith(("-", "+")) and not ln.startswith(("---", "+++"))]
     return " | ".join(" ".join(ln.split()) for ln in keep)
+
+
+def functions_with_changed_ast(old_src: str, new_src: str) -> tuple[set[str], str | None]:
+    """The functions whose AST DIFFERS between two revisions of one module, named the way
+    `functions_covering` names them, and a reason when the question cannot be answered.
+
+    MUTATION SCOPE SHOULD FOLLOW SEMANTIC CHANGE, NOT LINE MOVEMENT. Scope comes from
+    `git diff --unified=0`, which marks a line changed when a formatter merely moves it. The
+    module-level `annotation_only` rule already drops a file whose whole AST is unchanged — on the
+    2026-09-28 whole-tree reformat that removed 405 of 423 files by itself. What it cannot do is the
+    MIXED file: one real edit beside a page of reflow. Those 18 remaining files scoped **724**
+    functions when only **20** had actually changed, and 724 cannot finish inside the gate budget, so
+    the gate refuses and a required refusal blocks a PR whose mutants were never in question.
+    ⚠️ `git diff -w` does not help: it ignores whitespace WITHIN a line while a reflow moves tokens
+    BETWEEN lines (measured 8,859 → 7,278 hunks, still 410 files). The AST is what knows.
+
+    🔴 NAMES MUST BE MANGLED THE SAME WAY, or the intersection is silently empty and every function
+    drops out of scope — a gate that reports green on everything. `functions_covering` returns
+    `x_<name>` for a module-level function and `xǁ<Class>ǁ<name>` for a method; this must match, and
+    the first version of it did not. Caught by measuring the narrowing on a real diff and reading 0
+    where 20 was expected.
+
+    FULL `ast.dump` equality, with NO string-constant blanking: a blanked comparison would scope a
+    changed log line, format string or SQL fragment to nothing, and a string value IS behaviour. The
+    cost is that a re-indented DOCSTRING also scopes, deliberately not special-cased — the moment the
+    rule decides which string changes matter it is guessing. Of the 20, 14 were docstring re-indents.
+
+    Returns `(names, None)`, or `(set(), reason)` when either revision does not parse — and an
+    unparseable revision must narrow NOTHING (§∅: a question we cannot answer is not a "no").
+    """
+    try:
+        old_tree = ast.parse(old_src)
+        new_tree = ast.parse(new_src)
+    except SyntaxError as exc:
+        return set(), f"a revision does not parse ({exc.__class__.__name__}: {exc}) — scope is not narrowed"
+
+    def by_stem(tree: ast.AST) -> dict[str, str]:
+        out: dict[str, str] = {}
+
+        def visit(node, cls: str | None) -> None:
+            for child in getattr(node, "body", []):
+                if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    stem = f"x\u01c1{cls}\u01c1{child.name}" if cls else f"x_{child.name}"
+                    # One stem can cover several definitions (a redefinition, or the same method name
+                    # reached twice). Concatenate so "changed" means "any body under this stem
+                    # changed" — the conservative reading, and the one a mutant glob matches.
+                    out[stem] = out.get(stem, "") + ast.dump(child)
+                    visit(child, cls)
+                elif isinstance(child, ast.ClassDef):
+                    visit(child, child.name)
+                else:
+                    visit(child, cls)
+
+        visit(tree, None)
+        return out
+
+    old_fns, new_fns = by_stem(old_tree), by_stem(new_tree)
+    return {n for n, d in new_fns.items() if old_fns.get(n) != d}, None
 
 
 def annotation_only(old_src: str, new_src: str) -> tuple[bool, str]:

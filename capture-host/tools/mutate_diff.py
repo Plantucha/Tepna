@@ -91,6 +91,7 @@ from mutation_diff import (  # noqa: E402
     undecided_by_function,
     unmutatable_decorator,
     functions_covering,
+    functions_with_changed_ast,
     refusal_reason,
     selftest,
     split_results,
@@ -146,6 +147,17 @@ if _mmspec is None or _mmspec.loader is None:
     raise ImportError(f"cannot load mmeta from {HERE / 'mmeta.py'}")
 mmeta = _ilu.module_from_spec(_mmspec)
 _mmspec.loader.exec_module(mmeta)
+
+
+def _read_base_source(base: str, module: str) -> str | None:
+    """`module` as it exists at `base`, or None when git cannot produce it (a new file, a shallow
+    clone). None means "cannot compare", which narrows nothing — never "unchanged"."""
+    try:
+        r = subprocess.run(["git", "show", f"{base}:capture-host/{module}"],
+                           cwd=HERE, capture_output=True, text=True)
+    except OSError:
+        return None
+    return r.stdout if r.returncode == 0 else None
 
 
 def _read_source(path: Path) -> str:
@@ -392,12 +404,39 @@ def main(argv=None) -> int:
     _gate_t0 = time.monotonic()
     _refused_budget: list[str] = []
     _refused_memory: list[str] = []   # projected RSS over the cap — refused before starting
+    _ast_narrowed = 0        # functions the line scan claimed and the AST cleared
     for module, lines in sorted(changed.items()):
         _msrc = _read_source(HERE / module)   # read ONCE per module; the loop below reuses it
         stems = functions_covering(_msrc, lines)
         if not stems:
             print(f"  {module}: {len(lines)} changed line(s), none inside a function — skipped")
             continue
+        # ── NARROW BY SEMANTIC CHANGE, not by line movement ────────────────────────────────────
+        # `functions_covering` reads the line scan, and a formatter moves lines it did not change.
+        # Intersecting with the functions whose AST actually differs keeps every real edit and drops
+        # the ones a reflow only relocated. Counted and printed, never silent: a filter that does not
+        # publish what it removed is the shape this gate exists to refuse.
+        _base_src = _read_base_source(a.base, module)
+        if _base_src is None:
+            print(f"    · {module}: base revision unreadable — AST narrowing skipped, scope unchanged",
+                  flush=True)
+        else:
+            _ast_changed, _why_ast = functions_with_changed_ast(_base_src, _msrc)
+            if _why_ast:
+                print(f"    · {module}: {_why_ast}", flush=True)
+            else:
+                _kept = {s for s in stems if s in _ast_changed}
+                if len(_kept) != len(stems):
+                    _dropped = sorted(stems - _kept)
+                    _ast_narrowed += len(_dropped)
+                    print(f"    · {module}: {len(_dropped)} function(s) moved but not CHANGED "
+                          f"(identical AST) — out of scope: {', '.join(_dropped[:6])}"
+                          f"{' …' if len(_dropped) > 6 else ''}", flush=True)
+                stems = _kept
+                if not stems:
+                    print(f"  {module}: {len(lines)} changed line(s), no function whose AST differs "
+                          f"— nothing to mutate", flush=True)
+                    continue
         stem_mod = module[:-3]
         globs = [f"{stem_mod}.{s}__mutmut_*" for s in sorted(stems)]
         _pop["eligible"] += len(globs)
@@ -659,6 +698,23 @@ def main(argv=None) -> int:
         print("    Their mutants were never generated, so nothing below speaks to them. This is a\n"
               "    limitation of the TOOL, not a finding about the code.")
 
+    # EVERY CHANGED FUNCTION WAS ONLY MOVED. The line scan found functions, the AST cleared all of
+    # them, and there is nothing behavioural to mutate — which is NOT_APPLICABLE with the rule named,
+    # never PASS over a population of zero (§🧾: a PASS over `checked: 0` is invalid, and a reader
+    # must be able to tell "nothing changed semantically" from "the gate examined nothing").
+    if _ast_narrowed and not _attempted and not _pop["eligible"]:
+        print(f"\nmutate-diff: {_ast_narrowed} function(s) were touched by the diff and are "
+              "IDENTICAL in AST to the base — a formatter or a whitespace change moves lines it does "
+              "not change.")
+        print("  Nothing behavioural was altered, so there is nothing to mutate. This is not a pass "
+              "over an empty population: the population is empty BECAUSE the change is not semantic.")
+        _ran_box[0] = _ran
+        return emit(
+            "NOT_APPLICABLE",
+            f"{_ast_narrowed} changed function(s) have an identical AST to the base — no semantic "
+            f"change to mutate",
+            0,
+        )
     if _nothing_to_mutate and not _ran and not _crashed and len(_nothing_to_mutate) == _attempted and not _refused_budget:
         print(f"\nmutate-diff: {len(_nothing_to_mutate)} changed function(s) had no mutable operator — "
               "nothing to test, and nothing to conclude. Not a failure.")

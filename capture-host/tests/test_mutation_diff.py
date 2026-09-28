@@ -1927,3 +1927,83 @@ def test_ONE_decided_mutant_makes_a_memory_refusal_UNKNOWN_not_NOT_RUN():
     """`decided > 0` → `> 1`, the same boundary the budget verdict has and this one lacked."""
     assert M.memory_exhaustion_verdict(1, 1)[0] == "UNKNOWN"
     assert M.memory_exhaustion_verdict(1, 0)[0] == "NOT_RUN"
+
+
+# ── MUTATION SCOPE FOLLOWS SEMANTIC CHANGE, NOT LINE MOVEMENT ───────────────────────────────────────
+# Sized by the 2026-09-28 whole-tree reformat: 8,859 hunks across 423 files for a change that altered
+# no behaviour, which cannot finish inside the gate budget and so refuses — a required refusal on a
+# PR whose mutants were never in question. Under this rule the same diff scopes to 20 functions.
+_REFORMATTED = '''
+def f(a, b):
+    """Doc."""
+    return (
+        a
+        + b
+    )
+'''
+_ORIGINAL = '''
+def f(a, b):
+    """Doc."""
+    return a + b
+'''
+
+
+def test_a_function_only_REFLOWED_is_not_in_scope():
+    """THE PLANT. Same AST, different text — the formatter moved lines it did not change."""
+    names, why = M.functions_with_changed_ast(_ORIGINAL, _REFORMATTED)
+    assert why is None
+    assert names == set(), f"a reflow put {names} in mutation scope"
+
+
+def test_a_ONE_TOKEN_semantic_edit_IS_in_scope():
+    """THE CONTROL, and the half that makes the plant worth anything: the rule must still catch a
+    real change in the same shape of file. `a + b` → `a - b` is one token."""
+    names, _ = M.functions_with_changed_ast(_ORIGINAL, _REFORMATTED.replace("+ b", "- b"))
+    assert names == {"x_f"}, names
+
+
+def test_a_changed_STRING_is_a_semantic_change():
+    """No blanking. A blanked comparison would scope a changed log line, format string or SQL
+    fragment to NOTHING, which is the hole this rule must not open — a string value is behaviour."""
+    a = 'def g():\n    log("started")\n'
+    b = 'def g():\n    log("stopped")\n'
+    assert M.functions_with_changed_ast(a, b)[0] == {"x_g"}
+
+
+def test_a_re_indented_DOCSTRING_stays_in_scope_deliberately():
+    """It cannot change behaviour, and it is NOT special-cased. The moment the rule starts deciding
+    WHICH string changes matter it is guessing again; scoping it is the safe side. Measured on the
+    reformat: 14 of the 20 functions that scoped were exactly this."""
+    a = 'def h():\n    """Line.\n      indented."""\n    return 1\n'
+    b = 'def h():\n    """Line.\n    indented."""\n    return 1\n'
+    assert M.functions_with_changed_ast(a, b)[0] == {"x_h"}
+
+
+def test_an_UNPARSEABLE_revision_narrows_nothing_and_says_why():
+    """§∅ — a question we cannot answer is not an answer of "no change". An unparseable side must
+    leave scope exactly as the line scan found it, with the reason printed."""
+    names, why = M.functions_with_changed_ast("def f():\n    return 1\n", "def f(:\n")
+    assert names == set() and why and "does not parse" in why, (names, why)
+
+
+def test_a_NEW_function_is_in_scope_and_a_DELETED_one_is_not():
+    """A function only in the head revision changed (it appeared). One only in the base generates no
+    mutants at all, so it is not scope — there is nothing to mutate."""
+    a = "def keep():\n    return 1\n\n\ndef gone():\n    return 2\n"
+    b = "def keep():\n    return 1\n\n\ndef fresh():\n    return 3\n"
+    assert M.functions_with_changed_ast(a, b)[0] == {"x_fresh"}
+
+
+def test_a_method_is_mangled_BY_ITS_CLASS_like_the_line_scan_does():
+    """🔴 THE NAMES MUST MATCH `functions_covering`'s MANGLING or the intersection is silently empty
+    and EVERY function drops out of scope — a gate that reports green on everything. Measured exactly
+    that on the first version: 0 functions scoped where 19 was the right answer."""
+    a = "class A:\n    def m(self):\n        return 1\n\n\nclass B:\n    def m(self):\n        return 2\n"
+    b = "class A:\n    def m(self):\n        return 1\n\n\nclass B:\n    def m(self):\n        return 99\n"
+    assert M.functions_with_changed_ast(a, b)[0] == {"xǁBǁm"}
+
+
+def test_an_ASYNC_function_is_judged_the_same_way():
+    a = "async def go():\n    return 1\n"
+    assert M.functions_with_changed_ast(a, a.replace("1", "2"))[0] == {"x_go"}
+    assert M.functions_with_changed_ast(a, "async def go():\n    return (\n        1\n    )\n")[0] == set()
