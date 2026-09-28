@@ -187,7 +187,7 @@ ALLOW_FUNCS = {
                        "(recover_writer_offset) is the fallback for nights captured before the writer "
                        "recorded it. Today the callers that know are the fixtures whose stamps and mtimes "
                        "are built in one frame by construction. Retire this entry when the writer half "
-                       "lands (residue 2026-09-27-writer-records-no-utc-offset) and the daemon passes a "
+                       "lands (residue 2026-09-28-writer-records-no-utc-offset) and the daemon passes a "
                        "recorded offset through; DELETE the parameter with it if that is abandoned",
     "precedence_table_md": "telemetry — CAPTURE-LOSS-PRECEDENCE-AUDIT R3's doc gate is its consumer: the "
                            "worn-precedence test renders it and diffs the brief's §2a against the output, so a "

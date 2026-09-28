@@ -1087,7 +1087,7 @@ def recover_writer_offset(night_dir: str, files: list[dict]) -> dict:
     components, and `STARTS.csv` the same. `mtime` is the ONLY absolute instant the night contains, so
     relating a connection-open stamp to a last-write instant REQUIRES the writer's offset and no
     rearrangement of existing fields avoids it. Recording it per session is the durable fix and is a
-    WRITER change (residue 2026-09-27-writer-records-no-utc-offset); this reads what is already on disk,
+    WRITER change (residue 2026-09-28-writer-records-no-utc-offset); this reads what is already on disk,
     and prefers a recorded value the day one exists.
 
     THE MEASUREMENT. A file's mtime and its last row name nearly the same physical moment — the row

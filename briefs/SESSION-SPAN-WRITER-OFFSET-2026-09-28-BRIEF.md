@@ -4,7 +4,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** IN-PROGRESS — 2026-09-28 · **Created:** 2026-09-28 ·
+**Status:** DONE — 2026-09-28 · **Created:** 2026-09-28 ·
 **Residue:** 2026-09-24-session-span-resolves-a-floating-stamp-in-the-readers-zone
 
 # The session span must not depend on who reads it
@@ -167,7 +167,7 @@ blended** — a declared 0.0 is a premise, a recovered 0.0 is a measurement with
 Everything a vote would have counted is null rather than 0 on a declared block (§∅: nothing was counted).
 
 **This seam is not a test hook.** The durable fix is for the writer to RECORD its offset per session
-(residue `2026-09-27-writer-records-no-utc-offset`), and this parameter is where that recorded value
+(residue `2026-09-28-writer-records-no-utc-offset`), and this parameter is where that recorded value
 enters: recorded becomes the preferred path and the inference the fallback for nights captured before it
 existed. Its `find_unwired` allowlist entry names the condition for retiring it.
 
@@ -204,7 +204,15 @@ capture-host suite rather than the eight files the unit obviously touched.
 - [x] the offset is recovered with a pre-stated floor, a magnitude bound, and a published basis
 - [x] a night that cannot state its zone publishes UNKNOWN with a named reason, never a guessed span
 - [x] corpus control: 72 of 72 votable nights, one value, ten explained refusals
-- [ ] `capture-host/check.sh` green (ruff · shellcheck · pytest `--cov` 100 % · `find_unwired` · mypy)
+- [x] `capture-host/check.sh` green (ruff · shellcheck · pytest `--cov` 100 % · `find_unwired` · mypy)
 
-Full capture-host suite at the time of writing: **8737 passed, 2 skipped, 0 failed**; ruff clean;
-`find_unwired` 0 unexplained; mypy clean on the changed modules. The coverage floor is the open item.
+`capture-host/check.sh`: **ruff ok · shellcheck ok · pytest ok (coverage floor met) · unwired ok**, mypy
+`ADVISORY 11 (baseline 11, AT_BASELINE)`, exit 0. Full suite **8737 passed, 2 skipped, 0 failed**.
+
+The advisory `format` lane reports ISSUES and is left that way deliberately: `ruff format` wants 484 lines
+of `nightqc.py` and 555 of `tests/test_nightqc.py` that are **already on main**, because it collapses the
+house style of aligned trailing comments. 192 of the lines it would restyle are mine, interleaved with
+existing aligned-comment code in the same functions, so they match their neighbours. `check.sh`'s own
+comment forbids a big-bang reformat and sets format to land file-by-file; `ruff check` is clean.
+
+Landed as **#3188**.
