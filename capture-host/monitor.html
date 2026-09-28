@@ -1369,35 +1369,59 @@ async function loadNights(){
 // listener then runs its ingest and analysis with no further click. Nothing in any app bundle
 // changes for this. Served from anywhere else (127.0.0.1:8760 directly), the app window is a
 // different origin, the DOM is closed to us, and the click degrades to "opened, drop the files yourself".
-function nightFilesFor(n, node){
-  // the hat's three corners: H10 HR (in ECGDex's files), Verity PPG/PPI (PPGDex's), and the O2Ring's pulse from its
-  // _SPO2.csv — which is OxyDex's file, not PPGDex's; without it the tool indexes every night as ineligible
-  if(node==='3 corner hat') return [...(n.ECGDex?n.ECGDex.files:[]), ...(n.PPGDex?n.PPGDex.files:[]), ...(n.OxyDex?n.OxyDex.files:[])];
-  // PAT's roles are ecg · ppg · ecgacc · ppgacc: both devices' ACC are its cross-device drift anchor and the input
-  // of its ACC-corrected verdict, which the click withheld until 2026-09-21 (the ACCs sit under MotionDex, not PPGDex)
-  // …and the O2Ring's raw _PPG.txt is the FINGER site (2026-09-26): chest→finger, finger→ankle and the three-site hat
-  if(node==='PAT') return [...(n.ECGDex?n.ECGDex.files.filter(f=>f.endsWith('_ECG.txt')):[]), ...(n.PPGDex?n.PPGDex.files.filter(f=>/(VeritySense|O2Ring).*_PPG\.txt$/.test(f)):[]),
-    ...(n.MotionDex?n.MotionDex.files.filter(f=>/Polar_(H10|VeritySense).*_ACC\.txt$/.test(f)):[]),
-    // both Polar devices' packet-arrival sidecars: the corrected lag's anchor (route-PAT fix, 2026-09-27)
-    ...(n.arrival||[])];
-  // "PAT fused" carries the ring's RAW pleth as a third corner (nights_index DERIVED), and its page takes ONE
-  // #fileInput and classifies by VENDOR (pat-classic-vs-fused.js:200 — `_ECG.txt`→ecg, `_PPG.txt`→ring when
-  // wellue/o2ring/viatom/checkme else verity), requiring all three. So: the two Polar/ring optical files and the
-  // ECG, and deliberately NOT the ACCs or the arrival sidecars, which that page never reads and which are the
-  // largest files on the night.
-  // ⚠️ WITHOUT THIS BRANCH THE CLICK THREW AND SAID NOTHING, and the fallback below is why: a DERIVED entry is
-  // `all(...)` in nights_index.py — a BOOLEAN, not a node record — so `n['PAT fused']` is `true`, which satisfies
-  // the `?` and then yields `true.files === undefined`. `openNight`'s first use of it is `if(!rels.length)`, so it
-  // raised a TypeError before its first toast, inside an async function whose caller neither awaited nor caught
-  // it: an unhandled rejection, console-only. Owner-reported 2026-09-27 as "the PAT fused open pill does nothing".
-  // Every derived tool therefore needs an explicit branch; the equality is gated in test_webmon_nights.py.
-  if(node==='PAT fused') return [...(n.ECGDex?n.ECGDex.files.filter(f=>f.endsWith('_ECG.txt')):[]),
-    ...(n.PPGDex?n.PPGDex.files.filter(f=>/(VeritySense|O2Ring).*_PPG\.txt$/.test(f)):[])];
-  return n[node] ? n[node].files : [];
+function nightFilesFor(n, node){ return nightFiles(n, node).files; }
+/* ── A TRUTHY VALUE OF THE WRONG SHAPE IS THE TRAP, NOT AN ABSENT ONE ─────────────────────────────
+   Every lookup here used to be `n.X ? n.X.files : []`, which guards ABSENCE and admits any truthy
+   value: a DERIVED entry is `all(...)` in nights_index.py — a boolean — so `true.files` is `undefined`,
+   `[...undefined]` THROWS in a branch and `undefined` escapes as a non-array from the fallback. That is
+   how the 'PAT fused' pill came to do nothing at all (#3173): the TypeError landed in an unhandled
+   rejection with no toast. Guarding on the SHAPE WE NEED rather than on truthiness closes the class,
+   not just the one instance — no value of any shape can now yield a non-array or a throw.
+   The files and the REASON come out of ONE function so they cannot drift, and `nightFilesFor` is its
+   projection: the same discipline as `ppmContribution`/`effectivePpm`. A reason is returned only when it
+   is TRUE of the input — an empty night with a correct node record gets openNight's own
+   "nothing to load", never a borrowed shape complaint (CLAUDE.md §∅: a named reason, not a borrowed one). */
+function nodeFileList(n, key){
+  const v = n && n[key];
+  const f = v && v.files;
+  return Array.isArray(f) ? f.filter(x => typeof x === 'string') : [];
 }
+function nightShape(v){
+  if(v === undefined) return 'absent';
+  if(v === null) return 'null';
+  if(Array.isArray(v)) return 'an array';
+  if(typeof v !== 'object') return 'a '+typeof v+' ('+String(v)+')';
+  return 'an object with keys ['+Object.keys(v).join(', ')+']';
+}
+function nightFiles(n, node){
+  if(node==='3 corner hat') return { files: [...nodeFileList(n,'ECGDex'), ...nodeFileList(n,'PPGDex'), ...nodeFileList(n,'OxyDex')], reason: null };
+  if(node==='PAT') return { files: [...nodeFileList(n,'ECGDex').filter(f=>f.endsWith('_ECG.txt')), ...nodeFileList(n,'PPGDex').filter(f=>/(VeritySense|O2Ring).*_PPG\.txt$/.test(f)),
+    ...nodeFileList(n,'MotionDex').filter(f=>/Polar_(H10|VeritySense).*_ACC\.txt$/.test(f)),
+    ...(Array.isArray(n && n.arrival) ? n.arrival : [])], reason: null };
+  if(node==='PAT fused') return { files: [...nodeFileList(n,'ECGDex').filter(f=>f.endsWith('_ECG.txt')),
+    ...nodeFileList(n,'PPGDex').filter(f=>/(VeritySense|O2Ring).*_PPG\.txt$/.test(f))], reason: null };
+  const v = n && n[node];
+  if(Array.isArray(v && v.files)){
+    /* A LIST THAT HOLDS SOMETHING THAT IS NOT A PATH IS A WRONG SHAPE, NOT AN EMPTY NIGHT. Filtering
+       silently and letting openNight say "nothing to load" would report OUR drop as the night's absence
+       — §∅ with the roles reversed. The usable paths are still handed over; the drop is named.
+       Stated limit: openNight surfaces `reason` only when NOTHING loads, so a PARTIAL drop loads the good
+       paths and the reason goes unshown. That is a real gap and it is written down rather than hidden. */
+    const ok = v.files.filter(x => typeof x === 'string');
+    const dropped = v.files.length - ok.length;
+    return { files: ok, reason: dropped ? node+"'s file list carried "+dropped+' entr'+(dropped>1?'ies':'y')+' that is not a path string, so '+(ok.length?'only '+ok.length+' of '+v.files.length+' could be fetched':'none could be fetched') : null };
+  }
+  /* A DERIVED tool reaching the fallback is a MISSING BRANCH, not a thin night — name that, because it
+     is a code defect and the equality in test_webmon_nights.py is what should have caught it. */
+  if(NIGHT_DERIVED.includes(node)) return { files: [], reason: 'no file set is defined for '+node+' — a derived tool needs its own branch in nightFiles(); its index entry is '+nightShape(v)+', which carries no files' };
+  if(v === undefined || v === null) return { files: [], reason: 'this night has no '+node+' entry' };
+  return { files: [], reason: node+"'s index entry is "+nightShape(v)+', not a node record with a string[] .files' };
+}
+
 async function openNight(night, node){
   const n = NIGHTS.find(x=>x.night===night); if(!n) return;
-  const rels = nightFilesFor(n, node); if(!rels.length){ nToast('nothing to load for '+node+' on '+night, true); return; }
+  const got = nightFiles(n, node); const rels = got.files;
+  if(!rels.length){ nToast(got.reason || ('nothing to load for '+node+' on '+night), true); return; }
   // A per-click query so the browser can never hand back a CACHED app from before a deploy (2026-09-26: both
   // derived pages rendered their pre-#3117 copies after the box was serving the new ones, and the old PAT page
   // then filed the ring's _PPG.txt as the ankle). No app reads its query string. A timestamp, not the daemon's
