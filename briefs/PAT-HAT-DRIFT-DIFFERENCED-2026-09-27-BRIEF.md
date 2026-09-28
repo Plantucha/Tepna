@@ -3,7 +3,7 @@ Copyright 2026 Michal Planicka
 SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** IN-PROGRESS (owner-ordered 2026-09-27 20:50 "open the PAT-hat brief"; scope RE-RULED by the owner the same evening after §Findings — "Revised remedy". Worker half BUILT #3179, page half #3183. The owner's audit of 2026-09-28 — "I don't think it's fully fixed. Verify correct implementation and if everything counted correctly and included all metrics" — found the page incomplete (§Audit); fixed in the audit PR. DONE once verified on the served page.) · **Created:** 2026-09-27 · **Residue:** 2026-09-28-ring-has-no-arrival-floor-axis-so-no-corrected-pat-hat
+**Status:** DONE — 2026-09-28 (owner-ordered 2026-09-27 20:50 "open the PAT-hat brief"; scope RE-RULED by the owner after §Findings — "Revised remedy". Worker #3179, page #3183. The owner's 2026-09-28 audit found the page incomplete; fixed in #3195, plus a pairing defect found only on the served page, fixed in #3201. Verified on the SERVED pages 2026-09-28 — see §Verification.) · **Created:** 2026-09-27 · **Residue:** 2026-09-28-ring-has-no-arrival-floor-axis-so-no-corrected-pat-hat
 
 # PAT-HAT-DRIFT-DIFFERENCED — the PAT three-cornered hat refused for the wrong reason; say which reason, and add the drift-free estimate
 
@@ -206,19 +206,43 @@ exactly that output.
   checks after #3195 all passed; only driving the served page found this.
 
 **Done when (audit):**
-- [ ] The monitor hands `'PAT fused'` the same inputs as `'PAT'`, pinned by an executed test that fails on the old
+- [x] The monitor hands `'PAT fused'` the same inputs as `'PAT'`, pinned by an executed test that fails on the old
   handoff.
-- [ ] The page takes both arrival sidecars (both or neither) and the ACC pair. It shows the corrected chest → ankle
+- [x] The page takes both arrival sidecars (both or neither) and the ACC pair. It shows the corrected chest → ankle
   lag, the buffering removed and `vdCorr`, or the worker's named reason when absent.
-- [ ] Every leg shows its gate: chest → finger WINDOW-CENSORED with the reason, chest → ankle PROMISING,
+- [x] Every leg shows its gate: chest → finger WINDOW-CENSORED with the reason, chest → ankle PROMISING,
   finger → ankle "NOT GATED".
-- [ ] Every leg shows match rate, residual IQR, drift and censored share.
-- [ ] Both drift-removed rows are shown and counted as pairs. Deltas print 0, never −0.
-- [ ] The hat states its raw axes and flags a gate-rejected finger leg.
-- [ ] PAT Feasibility's hat cards read `corners`.
-- [ ] `render()` is EXECUTED by a test on a whole result, including `<div>` balance and 41/41 cards badged.
-- [ ] Several sessions per device pair by session, pinned by the live 2026-09-26 handoff order (A9).
-- [ ] The full gate is green.
+- [x] Every leg shows match rate, residual IQR, drift and censored share.
+- [x] Both drift-removed rows are shown and counted as pairs. Deltas print 0, never −0.
+- [x] The hat states its raw axes and flags a gate-rejected finger leg.
+- [x] PAT Feasibility's hat cards read `corners`.
+- [x] `render()` is EXECUTED by a test on a whole result, including `<div>` balance and 41/41 cards badged.
+- [x] Several sessions per device pair by session, pinned by the live 2026-09-26 handoff order (A9).
+- [x] The full gate is green.
+
+## §Verification — on the served pages, 2026-09-28 (Wren, vigil)
+
+The owner's own click (monitor `openNight`), driven in a real browser on rig with Playwright against `vigil.local`.
+
+- **Box state.** `/api/version` → `{"git": "932005cd"}`. The daemon was last restarted 13:53:05 onto #3195's merge;
+  #3201 is page-only, so the update tick served the new bundle without a restart ("no capture-host/ change … marker
+  advanced"). `/opt/tepna` HEAD is `2a7d1377`, which contains #3201 (`fa8ea0ae`). The served
+  `PAT Classic vs Fused.html` carries the pairing code.
+- **`openNight("2026-09-26", "PAT fused")`.**
+  - The handoff: 11 files, including all five Verity sidecars.
+  - Picked: `ecg, verity, ring, ecgArr, ppgArr, ecgAcc, ppgAcc`.
+  - The corrected row reads **"corrected median lag 342 ms · IQR 332–352 · raw 499 ms · buffering removed 156 ms ·
+    gate (corrected) FEASIBLE, drift 19 ms (stepP95) · coupled 99 %"**.
+  - The hat reads **"underpowered, σ < 14.4 · 12.2 [0.0, 20.0] · 25.5 [18.3, 29.8] ms"**, plus the timing-axes note
+    and the ⚠️ chest → finger WINDOW-CENSORED flag.
+  - Both drift-removed rows are present, counted as "97 adjacent window pairs".
+  - Before #3201 the same click read "not computed — Verity PPG: 0 `acc` packets in the arrival sidecar" (A9).
+- **`openNight("2026-09-26", "PAT")` on PAT Feasibility.** The hat cards read:
+  - **"σ H10 chest ECG — UNDERPOWERED — σ < 14.4 ms — variance -32 ms², but its 95 % CI reaches 0: too few windows to
+    resolve this site, not an independence failure"**;
+  - σ O2Ring finger 12.2 ms and σ Verity ankle 25.5 ms, "from 98 × 5-min windows";
+  - "timing axes — RAW".
+- One console 404 on both pages is `/favicon.ico` (the box serves none). It was present before any of this work.
 
 ## §Not in scope
 
