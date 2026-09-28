@@ -1348,6 +1348,14 @@ def test_the_budget_verdict_uses_only_statuses_the_contract_allows():
 
 
 # ── the wall cap must be REACHABLE (the 2 h 41 m stats pass) ─────────────────────────────────────────
+# 🔴 EVERY BLOCKING THING BELOW SELF-TERMINATES, AND THAT IS A MUTATION-GATE REQUIREMENT, NOT TIDINESS.
+# The three defects these tests pin all make `stream_bounded` wait LONGER (`t0` recomputed,
+# `wait(timeout=None)`, `join(timeout=None)`). Written against a child that never exits, each mutant
+# is caught — by hanging — and mutmut reports UNDECIDED (timeout), which is not a kill: the gate
+# refused this very change with "3 mutant(s) UNDECIDED (timeout)". A child that ends on its own turns
+# every one of those hangs into a fast, ordinary assertion failure. Where the deadline is the whole
+# point, it is asserted as the NUMBER REQUESTED rather than the time spent — a clock cannot afford a
+# bound tight enough to see one second, and the arithmetic mutants proved it by surviving one.
 def _child(code: str):
     import subprocess as _sp
     import sys as _sys
@@ -1355,32 +1363,36 @@ def _child(code: str):
                      text=True, bufsize=1)
 
 
-def test_a_child_that_never_exits_is_KILLED_at_the_cap():
+_CHATTY_3S = "import sys, time\nend = time.time() + 3\nwhile time.time() < end:\n    print('working'); sys.stdout.flush(); time.sleep(0.02)\n"
+_SILENT_3S = "import time\ntime.sleep(3)\n"
+
+
+def test_a_child_still_working_at_the_cap_is_KILLED():
     """THE DEFECT, pinned. `for line in proc.stdout:` ends only when the child closes stdout, so the
     `proc.wait(timeout=…)` after it was reached only once the child had already exited — the cap could
-    not fire. A chatty child that never finishes is exactly mutmut's traced stats pass on capture.py,
-    which ran 2 h 41 m against a 7200 s budget and 21 min against a 900 s one, both unbounded."""
+    not fire. The child here outlives the cap but not the test: under an unbounded wait it is reaped
+    normally at 3 s and `timed_out` comes back False, so the mutant fails instead of hanging."""
     import time as _t
-    proc = _child("import sys, time\nwhile True:\n    print('working'); sys.stdout.flush(); time.sleep(0.02)\n")
+    proc = _child(_CHATTY_3S)
     seen: list[str] = []
     t0 = _t.monotonic()
     rc, timed_out = M.stream_bounded(proc, 1.0, seen.append, t0=t0)
     took = _t.monotonic() - t0
-    assert timed_out is True, f"the cap did not fire: rc={rc}"
-    assert took < 20, f"the cap fired {took:.0f}s late — it must bound the READ, not follow it"
+    assert timed_out is True, f"the cap did not fire — the child was allowed to finish: rc={rc}"
+    assert took < 2.5, f"the cap fired {took:.1f}s late — it must bound the READ, not follow it"
     assert seen, "the output must still stream while the deadline runs"
     assert proc.poll() is not None, "the child was left alive after the refusal"
 
 
-def test_a_SILENT_child_that_never_exits_is_also_killed_at_the_cap():
-    """The worse half: a child producing NO output. The old read blocked on an empty pipe forever with
-    nothing to count and no heartbeat — the shape a reader calls "wedged" and cannot distinguish from
-    slow work."""
+def test_a_SILENT_child_still_working_at_the_cap_is_also_KILLED():
+    """The worse half: a child producing NO output. The old read blocked on an empty pipe with nothing
+    to count and no heartbeat — the shape a reader calls "wedged" and cannot tell from slow work."""
     import time as _t
-    proc = _child("import time\ntime.sleep(600)\n")
+    proc = _child(_SILENT_3S)
     t0 = _t.monotonic()
     rc, timed_out = M.stream_bounded(proc, 1.0, lambda _l: None, t0=t0)
-    assert timed_out is True and _t.monotonic() - t0 < 20, (rc, timed_out)
+    assert timed_out is True, rc
+    assert _t.monotonic() - t0 < 2.5
     assert proc.poll() is not None
 
 
@@ -1420,3 +1432,498 @@ def test_a_pipe_closed_under_the_reader_does_not_take_the_verdict_with_it():
 
     rc, timed_out = M.stream_bounded(_Proc(), 60.0, lambda _l: None)
     assert (rc, timed_out) == (0, False), (rc, timed_out)
+
+
+# ── the deadline as a NUMBER, not as elapsed time ───────────────────────────────────────────────────
+class _RecordingProc:
+    """Records every `timeout=` it is waited on with, and never actually waits.
+
+    The deadline is the behaviour here, and it is fully described by the argument. Asserting the
+    argument kills `wait(timeout=None)` and the `t0`-recomputed mutant INSTANTLY, where asserting
+    elapsed time caught them only by taking 30 s — which the gate scores UNDECIDED, not killed."""
+
+    def __init__(self):
+        import subprocess as _sp
+        self._sp, self.killed, self.timeouts = _sp, False, []
+        self.stdout = iter(())          # the reader finishes at once; nothing here is about the read
+
+    def kill(self):
+        self.killed = True
+
+    def wait(self, timeout=None):
+        self.timeouts.append(timeout)
+        if not self.killed:
+            raise self._sp.TimeoutExpired("child", timeout)
+        return -9
+
+
+def test_the_wait_is_given_the_caller_s_remaining_budget_as_a_REAL_number():
+    """Kills two at once: an unbounded `timeout=None`, and a `t0` recomputed here instead of taken
+    from the caller — `tools/mutate.py` measures `t0` before the clean run, so recomputing silently
+    hands every module its full budget back after the pre-work is already spent."""
+    import time as _t
+    proc = _RecordingProc()
+    M.stream_bounded(proc, 30.0, lambda _l: None, t0=_t.monotonic() - 1000.0)
+    assert proc.timeouts[0] is not None, "the wall wait must be bounded, not `timeout=None`"
+    assert proc.timeouts[0] == M.CAP_FLOOR_SEC, (
+        f"the budget was spent 1000s ago, so only the floor is owed; got {proc.timeouts[0]} — "
+        "a cap that restarts from this call is no cap")
+
+
+def test_the_post_kill_reap_is_BOUNDED_too():
+    """`proc.wait(timeout=REAP_SEC)` → `timeout=None` reintroduces this function's own bug class one
+    line below the fix: an unkillable child would hang the refusal forever. Asserted on the argument
+    because the input that separates the two — a child that never reaps after SIGKILL — cannot be
+    told apart in less than REAP_SEC (30 s) of real waiting, every run, forever."""
+    proc = _RecordingProc()
+    M.stream_bounded(proc, 1.0, lambda _l: None)
+    assert proc.killed, "the cap fired but the child was never killed"
+    assert proc.timeouts[-1] is not None, "the post-kill reap must be bounded, not `timeout=None`"
+    assert proc.timeouts[-1] == M.REAP_SEC == 30.0, proc.timeouts
+
+
+def test_the_abandoned_reader_is_a_DAEMON_and_its_join_is_BOUNDED(monkeypatch):
+    """Two properties, both asserted as arguments so neither depends on how long anything took.
+
+    The reader must not outlive the interpreter — `daemon=False`/`None`/omitted all inherit
+    non-daemon from the main thread and would wedge shutdown behind a thread blocked on a pipe — and
+    the join must be BOUNDED: `join(timeout=None)` turns a refusal that just fired into a hang one
+    frame later. The shim is scoped to this module's own `threading` reference."""
+    import threading as _th
+
+    made = {}
+
+    class _RecThread(_th.Thread):
+        def __init__(self, *a, **kw):
+            made["daemon_kw"] = kw.get("daemon", "<omitted>")
+            super().__init__(*a, **kw)
+
+        def join(self, timeout=None):
+            made["join_timeout"] = timeout
+            # Cap the REAL wait so an unbounded join cannot hang this test; the argument above is
+            # what is being asserted, and it has already been recorded.
+            return super().join(0.2 if timeout is None else timeout)
+
+    class _Shim:
+        Thread = _RecThread
+
+    monkeypatch.setattr(M, "threading", _Shim)
+    proc = _RecordingProc()
+    M.stream_bounded(proc, 1.0, lambda _l: None, join_sec=0.3)
+
+    assert made["daemon_kw"] is True, (
+        f"the reader must be a daemon; got daemon={made['daemon_kw']!r} — a non-daemon reader stuck "
+        "on a pipe blocks interpreter shutdown")
+    assert made["join_timeout"] is not None, "the join must be bounded, not `join(timeout=None)`"
+    assert made["join_timeout"] == 0.3, made
+
+
+# ── the deadline ARITHMETIC, asserted as numbers ────────────────────────────────────────────────────
+# Extracted from `stream_bounded` for exactly this reason: `max(1.0, …)` → `max(2.0, …)`,
+# `cap_sec - elapsed` → `+`, and `now - t0` → `now + t0` all survived a wall-clock assertion, because
+# a timing test cannot afford a bound tight enough to see one second without going flaky.
+def test_cap_remaining_counts_from_the_CALLERS_start_not_this_call():
+    """`tools/mutate.py` measures `t0` before the clean baseline run, so a cap that restarted here
+    would hand every module its full budget again after the pre-work was already spent."""
+    assert M.cap_remaining(100.0, 0.0, 40.0) == 60.0
+    assert M.cap_remaining(100.0, 10.0, 40.0) == 70.0, "t0 must be subtracted, not added"
+
+
+def test_cap_remaining_never_returns_less_than_the_floor():
+    """An overspent budget must still give the child a moment to finish, not a zero or negative wait
+    that kills a run one line from its verdict."""
+    assert M.cap_remaining(5.0, 0.0, 1000.0) == M.CAP_FLOOR_SEC
+    assert M.CAP_FLOOR_SEC == 1.0, "the floor is the pre-stated number, not whatever the code says"
+
+
+def test_cap_remaining_shrinks_as_the_budget_is_spent():
+    a = M.cap_remaining(60.0, 0.0, 10.0)
+    b = M.cap_remaining(60.0, 0.0, 30.0)
+    assert a > b, f"remaining must FALL with elapsed time, not rise: {a} then {b}"
+
+
+def test_the_budget_reason_names_the_refused_count_and_the_budget():
+    """`what` carried the only two numbers a reader needs to size the refusal, and dropping it
+    entirely still satisfied an assertion that only looked for the elapsed seconds."""
+    _, reason = M.budget_exhaustion_verdict(3, 0, 10.0)
+    assert f"3 module(s)/function(s) not mutated inside the {M.GATE_BUDGET_SEC}s gate budget" in reason
+
+
+def test_ONE_decided_mutant_is_already_a_partly_measured_run():
+    """The boundary: `decided > 0`, not `> 1`. One decided mutant means the gate examined something,
+    so NOT_RUN ("examined nothing") would be false."""
+    assert M.budget_exhaustion_verdict(1, 1, 10.0)[0] == "UNKNOWN"
+    assert M.budget_exhaustion_verdict(1, 0, 10.0)[0] == "NOT_RUN"
+# ── SCRATCH OWNERSHIP: a prune must not delete a tree another session is using ──────────────────────
+# Residue 2026-09-25-mutate-prune-closure-unverified. NOT the question test_tmp_basetemp_race.py
+# answers (pytest's basetemp, one level down); this is the mutation scratch, where the deletion is
+# explicit and unconditional.
+def test_a_scratch_held_by_a_LIVE_owner_is_never_pruned():
+    """THE PLANT. Two sessions sweeping one module at different source hashes were each deleting the
+    other's 536 MB tree mid-run."""
+    prune, why = M.scratch_prune_decision(is_current=False, owner_live=True, age_sec=10 ** 9)
+    assert prune is False, why
+    assert "live" in why
+
+
+def test_a_scratch_whose_owner_is_GONE_and_past_the_floor_is_pruned():
+    """The other half of the plant: the cache must still evict, or a tmpfs fills. 153 orphaned
+    scratches and 2.6 GB were measured before any pruning existed."""
+    prune, why = M.scratch_prune_decision(is_current=False, owner_live=False,
+                                          age_sec=M.SCRATCH_MIN_AGE_SEC + 1)
+    assert prune is True, why
+    assert "owner is gone" in why
+
+
+def test_a_dead_owner_inside_the_age_floor_is_left_alone():
+    prune, why = M.scratch_prune_decision(is_current=False, owner_live=False,
+                                          age_sec=M.SCRATCH_MIN_AGE_SEC - 1)
+    assert prune is False and "still exiting" in why, why
+
+
+def test_an_UNMARKED_scratch_is_outlived_not_judged():
+    """§∅: "no owner file" is not "no owner". An unmarked tree earns the longer floor precisely
+    because nothing is known about it — treating unknown as dead is the deletion this prevents."""
+    assert M.scratch_prune_decision(is_current=False, owner_live=None, age_sec=3600)[0] is False
+    assert M.scratch_prune_decision(is_current=False, owner_live=None,
+                                    age_sec=M.SCRATCH_UNKNOWN_MIN_AGE_SEC + 1)[0] is True
+    assert M.SCRATCH_UNKNOWN_MIN_AGE_SEC > M.SCRATCH_MIN_AGE_SEC, \
+        "an unknown owner must earn a LONGER grace than one proven gone, not a shorter one"
+
+
+def test_the_runs_own_scratch_is_never_pruned():
+    assert M.scratch_prune_decision(is_current=True, owner_live=False, age_sec=10 ** 9)[0] is False
+
+
+def test_the_owner_record_round_trips_and_survives_PID_REUSE():
+    """A bare PID recorded hours ago may now belong to something else. Recording the start time makes
+    the answer about THIS process — without it a recycled PID pins a dead scratch forever (a leak
+    dressed as caution) or, worse, a live one reads as dead."""
+    import os as _os
+    me = _os.getpid()
+    ticks = M.proc_start_ticks(me)
+    assert ticks is not None and ticks > 0
+    rec = M.parse_owner_record(M.owner_record(me, ticks))
+    assert rec == (me, ticks)
+    assert M.owner_is_live(rec, M.proc_start_ticks) is True
+    assert M.owner_is_live((me, ticks + 9999), M.proc_start_ticks) is False, \
+        "a PID whose start time does not match is a DIFFERENT process wearing the same number"
+
+
+def test_an_unreadable_or_absent_owner_record_is_UNKNOWN_and_not_False():
+    for text in ("", None, "garbage", "12", "not a pid  nor ticks", "1 2 3", "abc def", "1 x"):
+        assert M.parse_owner_record(text) is None, text
+    assert M.owner_is_live(None, M.proc_start_ticks) is None, \
+        "unknown must be its own answer — collapsing it to False is how a live tree gets deleted"
+
+
+def test_proc_start_ticks_reads_the_field_after_the_last_paren(tmp_path):
+    """Field 2 of /proc/<pid>/stat is the executable name and may contain spaces and parentheses.
+    Splitting the whole line is the classic way to read the wrong field."""
+    d = tmp_path / "4242"
+    d.mkdir()
+    fields = " ".join(str(i) for i in range(3, 53))          # fields 3..52; field 22 -> value "22"
+    (d / "stat").write_text(f"4242 (py (thon) :) x) {fields}\n", encoding="utf-8")
+    assert M.proc_start_ticks(4242, proc_root=str(tmp_path)) == 22
+    assert M.proc_start_ticks(999999, proc_root=str(tmp_path)) is None
+
+
+# ── MEMORY: refuse before starting, never get reaped mid-run ────────────────────────────────────────
+_GB = 1024 ** 3
+
+
+def test_a_projected_budget_over_the_cap_REFUSES_and_names_every_number():
+    """THE PLANT, at capture.py's measured shape: a 536 MB mutants file, one worker per core, against
+    the box's available memory. One worker measured 8.2 GB RSS, and mutmut spawns a worker per core."""
+    why = M.memory_refusal(536 * 1024 ** 2, 16, 40 * _GB)
+    assert why, "capture.py on 16 cores must not be attempted against 40 GB available"
+    # 🔴 THE WHOLE SENTENCE, NOT SUBSTRINGS. `"40.0 GB available"` passed against a mutant that
+    # multiplied by a GiB instead of dividing: the mutated number ended ...879040.0, so the fragment
+    # matched inside a figure eleven orders of magnitude wrong. Every number here is a rendering of an
+    # input, so pin the rendering.
+    assert why.startswith(
+        "projected peak 125.6 GB (0.52 GB of generated mutants x 15 assumed RSS factor = 7.9 GB "
+        "per worker, x 16 worker(s)) exceeds the 20.0 GB cap (0.5 of 40.0 GB available at start). "
+    ), why
+    assert "REFUSAL with a reason, not a verdict on the diff" in why
+
+
+def test_a_projected_budget_UNDER_the_cap_runs():
+    """The control: the bound must not refuse work that fits. A 10 MB module on 4 workers is 0.6 GB."""
+    assert M.memory_refusal(10 * 1024 ** 2, 4, 40 * _GB) is None
+
+
+def test_the_cap_is_a_fraction_of_AVAILABLE_and_is_pre_stated():
+    """Exactly at the cap fits; a byte over refuses. Pinning the boundary stops the fraction drifting
+    into "whatever is free", which is the other half of the fleet."""
+    per_worker = 1.0 * _GB
+    mutants = int(per_worker / M.WORKER_RSS_PER_MUTANTS_BYTE)
+    avail = int(4 * per_worker / M.MEM_CAP_FRACTION)          # cap == 4 workers' worth
+    assert M.memory_refusal(mutants, 4, avail) is None
+    assert M.memory_refusal(mutants, 5, avail), "one worker past the cap must refuse"
+    assert M.MEM_CAP_FRACTION == 0.5 and M.WORKER_RSS_PER_MUTANTS_BYTE == 15.0, \
+        "both are PRE-STATED; a threshold derived from the data it judges is UNKNOWN (§🧾)"
+
+
+def test_memory_refusal_says_nothing_when_it_cannot_measure():
+    """§∅: an unmeasured input is not a small one. With no mutants file, no worker count or no
+    /proc/meminfo, the projection has no basis — refusing on a zero would block every run."""
+    assert M.memory_refusal(0, 16, 40 * _GB) is None
+    assert M.memory_refusal(536 * 1024 ** 2, 0, 40 * _GB) is None
+    assert M.memory_refusal(536 * 1024 ** 2, 16, 0) is None
+
+
+def test_available_is_read_from_MemAvailable_not_MemFree():
+    """MemFree excludes reclaimable page cache and would refuse runs that fit comfortably."""
+    text = "MemTotal:       61000000 kB\nMemFree:          500000 kB\nMemAvailable:   40000000 kB\n"
+    assert M.available_bytes_from_meminfo(text) == 40000000 * 1024
+    assert M.available_bytes_from_meminfo("MemTotal: 1 kB\n") is None
+    assert M.available_bytes_from_meminfo("") is None
+    assert M.available_bytes_from_meminfo("MemAvailable:   notanumber kB\n") is None
+
+
+def test_a_memory_refusal_that_decided_nothing_is_NOT_RUN():
+    status, reason = M.memory_exhaustion_verdict(2, 0)
+    assert status == "NOT_RUN" and "examined nothing" in reason
+    assert M.memory_exhaustion_verdict(2, 7)[0] == "UNKNOWN"
+    assert "7 mutant(s) were decided" in M.memory_exhaustion_verdict(2, 7)[1]
+
+
+# ── the prune ON REAL DIRECTORIES (the plant), not just the decision ────────────────────────────────
+def _scratch(root, name, *, owner=None, age_sec=0.0):
+    import os as _os
+    import time as _t
+    d = root / name
+    (d / "work").mkdir(parents=True)
+    if owner is not None:
+        (d / M.SCRATCH_OWNER_FILE).write_text(owner + "\n", encoding="utf-8")
+    if age_sec:
+        old = _t.time() - age_sec
+        _os.utime(d, (old, old))
+    return d
+
+
+def test_the_prune_spares_a_LIVE_owners_scratch_and_removes_an_abandoned_one(tmp_path):
+    """THE PLANT, end to end on real directories with the real /proc: a peer's live tree survives and
+    an abandoned one is reclaimed IN THE SAME SWEEP — so "it kept everything" cannot pass for a fix."""
+    import os as _os
+    me = _os.getpid()
+    live = M.owner_record(me, M.proc_start_ticks(me))
+    dead = M.owner_record(999999, 1)                     # no such process
+
+    peer = _scratch(tmp_path, "mut-capture-aaaaaaaaaaaa", owner=live, age_sec=10 ** 6)
+    gone = _scratch(tmp_path, "mut-capture-bbbbbbbbbbbb", owner=dead, age_sec=10 ** 6)
+    mine = _scratch(tmp_path, "mut-capture-cccccccccccc", owner=live)
+    other_module = _scratch(tmp_path, "mut-webmon-dddddddddddd", owner=dead, age_sec=10 ** 6)
+
+    pruned, held = M.prune_scratches(tmp_path, "capture", mine)
+
+    assert peer.exists(), "a live peer's scratch was deleted — the whole defect"
+    assert mine.exists(), "this run's own scratch was deleted"
+    assert not gone.exists(), "an abandoned scratch was not reclaimed; the cache never evicts"
+    assert other_module.exists(), "the prune reached outside its own module"
+    assert pruned == ["mut-capture-bbbbbbbbbbbb"], pruned
+    assert any("mut-capture-aaaaaaaaaaaa" in h and "live" in h for h in held), held
+
+
+def test_the_prune_reports_WHY_each_survivor_was_kept(tmp_path):
+    """A prune that removed a peer's tree used to print only the name. The reason is the one line
+    that could have named the mistake."""
+    import os as _os
+    me = _os.getpid()
+    _scratch(tmp_path, "mut-oxy-111111111111", owner=M.owner_record(me, M.proc_start_ticks(me)))
+    _scratch(tmp_path, "mut-oxy-222222222222")                                  # unmarked, young
+    _scratch(tmp_path, "mut-oxy-333333333333", owner=M.owner_record(999999, 1))  # dead, young
+    pruned, held = M.prune_scratches(tmp_path, "oxy", tmp_path / "mut-oxy-current")
+    assert pruned == [], pruned
+    assert len(held) == 3
+    assert any("live process" in h for h in held)
+    assert any("no owner marker" in h for h in held)
+    assert any("still exiting" in h for h in held)
+
+
+def test_an_unmarked_scratch_past_the_long_floor_is_finally_reclaimed(tmp_path):
+    """The leak guard: unmarked trees must not accumulate forever. 153 orphaned scratches and 2.6 GB
+    were measured before pruning existed at all."""
+    old = _scratch(tmp_path, "mut-ecg-999999999999", age_sec=M.SCRATCH_UNKNOWN_MIN_AGE_SEC + 60)
+    pruned, held = M.prune_scratches(tmp_path, "ecg", tmp_path / "mut-ecg-current")
+    assert pruned == [old.name] and not old.exists(), (pruned, held)
+
+
+def test_a_file_that_merely_looks_like_a_scratch_is_not_touched(tmp_path):
+    (tmp_path / "mut-ppg-abcabcabcabc").write_text("not a directory", encoding="utf-8")
+    pruned, held = M.prune_scratches(tmp_path, "ppg", tmp_path / "mut-ppg-current")
+    assert (pruned, held) == ([], []) and (tmp_path / "mut-ppg-abcabcabcabc").exists()
+
+
+def test_a_name_that_cannot_be_stat_ed_is_skipped_not_crashed_on(tmp_path):
+    """A dangling symlink, or a directory a concurrent sweep removed between the glob and the stat.
+    Deterministic here via the symlink: `glob` lists it and `stat` follows it to nothing."""
+    (tmp_path / "mut-hrv-aaaaaaaaaaaa").symlink_to(tmp_path / "does-not-exist")
+    real = _scratch(tmp_path, "mut-hrv-bbbbbbbbbbbb", owner=M.owner_record(999999, 1),
+                    age_sec=10 ** 6)
+    pruned, held = M.prune_scratches(tmp_path, "hrv", tmp_path / "mut-hrv-current")
+    assert pruned == [real.name], pruned
+    assert (tmp_path / "mut-hrv-aaaaaaaaaaaa").is_symlink(), "the dangling name was touched"
+
+
+# ── draining the gate's report on THIS change (survivors on my own new lines) ────────────────────────
+def test_a_non_directory_does_not_STOP_the_sweep(tmp_path):
+    """`continue` → `break` on the non-directory branch. The earlier file test had nothing after the
+    file, so ending the loop there looked identical to skipping it — the prunable tree must sort
+    AFTER the file for the difference to exist at all."""
+    (tmp_path / "mut-ppg-aaaaaaaaaaaa").write_text("not a directory", encoding="utf-8")
+    later = _scratch(tmp_path, "mut-ppg-zzzzzzzzzzzz", owner=M.owner_record(999999, 1),
+                     age_sec=10 ** 6)
+    pruned, _ = M.prune_scratches(tmp_path, "ppg", tmp_path / "mut-ppg-current")
+    assert pruned == [later.name], f"the sweep stopped at the file instead of skipping it: {pruned}"
+
+
+def test_the_prune_honours_the_CALLERS_clock_and_reports_the_true_age(tmp_path):
+    """Two survivors: `now` recomputed instead of taken from the caller, and the age floored at 1.0
+    instead of 0.0. Both are invisible unless the age reaches the reason text."""
+    import os as _os
+    d = _scratch(tmp_path, "mut-cpap-aaaaaaaaaaaa", owner=M.owner_record(999999, 1))
+    mtime = _os.stat(d).st_mtime
+    # +60, not the mtime itself: with `now` recomputed from the wall clock the age is ~0.00s, which
+    # renders as "0s" exactly like the injected value would — the mutant hid inside the format.
+    _pruned, held = M.prune_scratches(tmp_path, "cpap", tmp_path / "mut-cpap-current",
+                                      now=mtime + 60.0)
+    assert len(held) == 1
+    assert "only 60s old" in held[0], f"the caller's clock was ignored: {held[0]}"
+    # And the floor is 0.0, not 1.0: a clock that runs backwards must report no age, not one second.
+    _p2, h2 = M.prune_scratches(tmp_path, "cpap", tmp_path / "mut-cpap-current", now=mtime - 5.0)
+    assert "only 0s old" in h2[0], h2
+
+
+def test_the_current_scratch_is_spared_even_with_NO_live_owner(tmp_path):
+    """`is_current=(old_dir == current)` → `is_current=None`. The earlier test's own scratch had a
+    LIVE owner, so it was kept for the other reason and the mutation made no difference."""
+    mine = _scratch(tmp_path, "mut-ecg-aaaaaaaaaaaa", owner=M.owner_record(999999, 1),
+                    age_sec=10 ** 6)
+    pruned, held = M.prune_scratches(tmp_path, "ecg", mine)
+    assert pruned == [] and mine.exists(), "this run deleted its OWN scratch mid-run"
+    assert held == [], "the current scratch is not a 'held' survivor; it is simply this run's"
+
+
+def test_the_prune_can_be_observed_without_deleting_and_ignores_errors(tmp_path):
+    """The `remove` seam, and the `ignore_errors=True` it is called with. A concurrent sweep removing
+    the same tree between this run's stat and its rmtree must not crash the sweep — that is the whole
+    reason the flag is set, and nothing observed it."""
+    seen = []
+
+    def _remove(path, **kw):
+        seen.append((path.name, kw))
+
+    doomed = _scratch(tmp_path, "mut-motion-aaaaaaaaaaaa", owner=M.owner_record(999999, 1),
+                      age_sec=10 ** 6)
+    pruned, _ = M.prune_scratches(tmp_path, "motion", tmp_path / "mut-motion-current",
+                                  remove=_remove)
+    assert pruned == [doomed.name] and doomed.exists(), "the injected remove was bypassed"
+    assert seen == [(doomed.name, {"ignore_errors": True})], seen
+
+
+def test_an_owner_marker_that_is_not_UTF_8_does_not_take_the_sweep_down(tmp_path):
+    """A marker is advisory; a corrupt one must read as UNKNOWN, not raise out of the sweep."""
+    d = _scratch(tmp_path, "mut-glu-aaaaaaaaaaaa")
+    (d / M.SCRATCH_OWNER_FILE).write_bytes(b"\xff\xfe not utf-8 \x00")
+    import os as _os
+    _old = __import__("time").time() - 10 ** 6      # age the DIR after writing into it: a write to a
+    _os.utime(d, (_old, _old))                      # child updates the parent's mtime and undoes it
+    pruned, _ = M.prune_scratches(tmp_path, "glu", tmp_path / "mut-glu-current")
+    assert pruned == [d.name], "an undecodable marker must fall back to the unmarked path"
+
+
+def test_the_age_floors_are_exclusive_at_the_boundary():
+    """`age < floor` → `age <= floor`. Exactly AT the floor the grace is over."""
+    assert M.scratch_prune_decision(is_current=False, owner_live=False,
+                                    age_sec=M.SCRATCH_MIN_AGE_SEC)[0] is True
+    assert M.scratch_prune_decision(is_current=False, owner_live=None,
+                                    age_sec=M.SCRATCH_UNKNOWN_MIN_AGE_SEC)[0] is True
+
+
+def test_proc_start_ticks_NAMES_its_encoding(tmp_path):
+    """`encoding="utf-8"` → `None`/omitted. /proc/<pid>/stat's comm field is arbitrary BYTES, so on a
+    C-locale box an accented process name decodes to UnicodeDecodeError — a ValueError, which this
+    function swallows into None, and a live owner then reads as DEAD and its scratch is deleted.
+    Heron hit the same class on the PMD-arrival sidecar.
+
+    CPython resolves the default encoding in C, so no in-process patch reaches it; `-X
+    warn_default_encoding -W error::EncodingWarning` is the supported lever, and it holds on a UTF-8
+    machine and a C-locale one alike. Same shape as
+    test_solid_night_inputs.py::…_under_warn_default_encoding, including its two rules:
+
+      · IN-PROCESS FIRST, not redundant — mutmut selects a mutant's tests from COVERAGE and a
+        subprocess is invisible to the tracer, so without this call the test never runs against the
+        mutants it kills and both `encoding=` survivors read as unkillable.
+      · NO `env=` — the child must INHERIT `MUTANT_UNDER_TEST`, or it runs the original function
+        however the parent was mutated. A handwritten env dict here is what made this test pass
+        under plain pytest and survive under the gate.
+    """
+    import subprocess
+    import sys
+
+    d = tmp_path / "4242"
+    d.mkdir()
+    fields = " ".join(str(i) for i in range(3, 53))
+    (d / "stat").write_bytes(f"4242 (caf\u00e9) {fields}\n".encode())
+
+    assert M.proc_start_ticks(4242, proc_root=str(tmp_path)) == 22
+
+    src = (
+        "import mutation_diff as M\n"
+        f"got = M.proc_start_ticks(4242, proc_root={str(tmp_path)!r})\n"
+        "assert got == 22, got\n"
+    )
+    r = subprocess.run(
+        [sys.executable, "-X", "warn_default_encoding", "-W", "error::EncodingWarning", "-c", src],
+        capture_output=True, text=True,
+        cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    )
+    assert r.returncode == 0, r.stderr[-600:]
+
+
+def test_a_ONE_BYTE_module_against_a_ONE_BYTE_box_still_refuses():
+    """`mutants_bytes <= 0` → `<= 1`. The absence guard must not swallow the smallest REAL
+    measurement: one byte of generated mutants is a measurement, and against one byte of available
+    memory it does not fit."""
+    assert M.memory_refusal(1, 1, 1), "a 1-byte measurement is not an absent one (§∅)"
+
+
+def test_a_projection_EXACTLY_at_the_cap_fits():
+    """`projected <= cap` → `projected < cap`. Only an exact equality separates them, and a boundary
+    built by integer division never lands on it."""
+    mutants = 1_000_000                                  # 15 MB per worker, exactly
+    per_worker = mutants * M.WORKER_RSS_PER_MUTANTS_BYTE
+    avail = int(4 * per_worker / M.MEM_CAP_FRACTION)      # cap == exactly 4 workers' worth
+    assert per_worker * 4 == avail * M.MEM_CAP_FRACTION, "the test must land ON the boundary"
+    assert M.memory_refusal(mutants, 4, avail) is None, "exactly at the cap must FIT"
+
+
+def test_ONE_worker_over_the_cap_still_refuses():
+    """`workers <= 0` → `workers <= 1` made a single-worker run unmeasurable by the guard, and one
+    worker is exactly the 8.2 GB case the fleet's per-process limit is about."""
+    assert M.memory_refusal(536 * 1024 ** 2, 1, 1 * _GB), "one worker over the cap must refuse"
+
+
+def test_a_single_BYTE_of_available_memory_is_still_a_measurement():
+    """`available_bytes <= 0` → `<= 1`. A box reporting one byte available is absurd but REPORTED,
+    and a reported one is not an absence (§∅)."""
+    assert M.memory_refusal(536 * 1024 ** 2, 16, 1), "1 byte available is a measurement, not a gap"
+
+
+def test_MemAvailable_is_read_even_without_a_unit_suffix():
+    """`len(parts) >= 2` → `> 2`/`>= 3` assumed a trailing `kB` the format does not promise."""
+    assert M.available_bytes_from_meminfo("MemAvailable:   40000000\n") == 40000000 * 1024
+
+
+def test_the_memory_verdict_names_how_many_functions_it_refused():
+    """`what = None` survived an assertion that only looked for 'examined nothing'."""
+    _, reason = M.memory_exhaustion_verdict(3, 0)
+    assert reason.startswith("3 function(s) not mutated — projected memory exceeds the run's cap"), reason
+
+
+def test_ONE_decided_mutant_makes_a_memory_refusal_UNKNOWN_not_NOT_RUN():
+    """`decided > 0` → `> 1`, the same boundary the budget verdict has and this one lacked."""
+    assert M.memory_exhaustion_verdict(1, 1)[0] == "UNKNOWN"
+    assert M.memory_exhaustion_verdict(1, 0)[0] == "NOT_RUN"

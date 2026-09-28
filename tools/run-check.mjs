@@ -57,6 +57,7 @@ export const STEPS = [
   'typecheck',
   'verify:commit-shape',
   'verify:residue-ids',
+  'verify:survivor-ratchet',
   'verify:seals',
   'test:guards',
   'test:tools',

@@ -1818,3 +1818,93 @@ def test_unwitnessed_minutes_are_published_in_MINUTES(tmp_path):
     assert [g["s"] for g in dev["gaps"]] == [27.0], dev["gaps"]
     assert dev["unwitnessed_min"] == 0.5, dev["unwitnessed_min"]
     assert dev["lost_min"] == 0.0, dev
+
+
+# ── the twelve unanswered survivors on `_has_worn_evidence` (#3022, ledger-tracked) ──────────────────
+# Reported by the gate on #3022, four days unanswered because an advisory finding used to die with its
+# PR. Now in `mutation-survivors.json`; these are the five a test can see. The precedence they exercise
+# is the RULED one (CAPTURE-LOSS-PRECEDENCE-AUDIT-2026-09-22 §17: worn = the device's own beat/contact
+# evidence in the same night, H10 HR rows > 0) plus this function's own tri-state rule — no new rule is
+# derived here, and none of these plants invents a threshold.
+_H10_HDR = "Phone timestamp;HR [bpm]"
+
+
+def test_a_header_without_the_column_does_not_END_the_search(tmp_path, monkeypatch):
+    """`continue` → `break`. "A header that does not name the column cannot vouch either way" — the
+    NEXT file may, and the night's evidence is routinely in a later file. Order is pinned through
+    `glob` for the reason the empty-file sibling above gives: the filesystem promises none, so left
+    alone this case only arises when the directory happens to enumerate the useless file first."""
+    d = tmp_path / "captures" / "2026-09-20"
+    d.mkdir(parents=True)
+    nameless = d / "Polar_H10_0284_20260920000001_HR.txt"
+    beats = d / "Polar_H10_0284_20260920220000_HR.txt"
+    nameless.write_text("Phone timestamp;something else\nx;72\n")
+    beats.write_text(f"{_H10_HDR}\nx;72\n")
+    monkeypatch.setattr(loss_audit.glob, "glob", lambda _pat: [str(nameless), str(beats)])
+    assert loss_audit._has_worn_evidence(str(d), "H10") is True
+
+
+def test_an_UNREADABLE_file_does_not_END_the_search_either(tmp_path, monkeypatch):
+    """The other `continue` → `break`, and the comment is the contract: "an unreadable evidence file
+    cannot vouch for wear; the next file may". A permissions slip on one file must not turn a worn
+    night into an unanswered one."""
+    d = tmp_path / "captures" / "2026-09-20"
+    d.mkdir(parents=True)
+    locked = d / "Polar_H10_0284_20260920000001_HR.txt"
+    beats = d / "Polar_H10_0284_20260920220000_HR.txt"
+    locked.write_text(f"{_H10_HDR}\nx;72\n")
+    beats.write_text(f"{_H10_HDR}\nx;72\n")
+    os.chmod(locked, 0)
+    monkeypatch.setattr(loss_audit.glob, "glob", lambda _pat: [str(locked), str(beats)])
+    try:
+        assert loss_audit._has_worn_evidence(str(d), "H10") is True
+    finally:
+        os.chmod(locked, 0o644)
+
+
+def test_a_TORN_value_is_not_evidence_even_when_its_digits_look_worn(tmp_path):
+    """`line.rstrip("\\n")` → `rstrip("XX\\nXX")`, which also eats a trailing `X`. A torn tail row like
+    `72X` then parses as 72 and the night reads WORN on a value no device wrote — the opposite of the
+    code's own rule ("a torn row … is not evidence either way"). The column is last here because that
+    is where the H10's own `_HR.txt` puts it, which is also the only position where a trailing-character
+    strip can reach the value."""
+    d = tmp_path / "captures" / "2026-09-20"
+    d.mkdir(parents=True)
+    (d / "Polar_H10_0284_20260920220000_HR.txt").write_text(f"{_H10_HDR}\nx;72X\n")
+    got = loss_audit._has_worn_evidence(str(d), "H10")
+    assert got is False, (
+        f"a torn row was read as a measured beat: {got!r} — the column WAS read, so False is the "
+        "verdict ('every measured value this device wrote was absent'), never True")
+
+
+def test_the_evidence_read_NAMES_its_encoding(tmp_path):
+    """`encoding="utf-8"` → `None` / dropped. These files are device CSVs whose bytes are not ours, and
+    `errors="replace"` means a wrong codec does NOT raise — it silently substitutes, which is the §∅
+    shape (a value manufactured where one was absent) rather than a crash anyone would notice.
+
+    CPython resolves the default encoding in C, so no in-process patch reaches it; `-X
+    warn_default_encoding -W error::EncodingWarning` is the supported lever and holds on a UTF-8 box
+    and a C-locale one alike. Same two rules as the sibling in test_solid_night_inputs.py:
+    IN-PROCESS FIRST (mutmut selects a mutant's tests from coverage and a subprocess is invisible to
+    the tracer), and NO `env=` (the child must inherit `MUTANT_UNDER_TEST`, or it runs the original
+    function however the parent was mutated)."""
+    import subprocess
+    import sys
+
+    d = tmp_path / "captures" / "2026-09-20"
+    d.mkdir(parents=True)
+    (d / "Polar_H10_0284_20260920220000_HR.txt").write_text(f"{_H10_HDR}\nx;72\n")
+
+    assert loss_audit._has_worn_evidence(str(d), "H10") is True
+
+    src = (
+        "import loss_audit\n"
+        f"got = loss_audit._has_worn_evidence({str(d)!r}, 'H10')\n"
+        "assert got is True, got\n"
+    )
+    r = subprocess.run(
+        [sys.executable, "-X", "warn_default_encoding", "-W", "error::EncodingWarning", "-c", src],
+        capture_output=True, text=True,
+        cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    )
+    assert r.returncode == 0, r.stderr[-600:]

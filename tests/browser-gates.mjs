@@ -125,6 +125,17 @@ if (ARGV.includes('--verdict-sample')) {
   process.exit(0);
 }
 const JSON_OUT = ARGV.includes('--json');
+/* ── `--label <text>` (REPEATABLE): PROVE A NAMED ASSERTION ACTUALLY RAN ──────────────────────────
+   A green summary does not distinguish "passed" from "never executed", and this lane's own history is
+   the reason: a source-scan gate whose file is wired into only ONE lane reads nothing in the other and
+   still reports green (#816, 5316 passed / 1 failing against 5494/5494 in node). Sessions have been
+   hand-rolling this check by re-opening the page in a scratch script — twice on 2026-09-27 alone, once
+   with a stale absolute path that produced a stack trace where a verdict should have been. Asking here
+   costs one array inside an evaluate the gate already makes.
+   Matched against the assertion NAME nodes by structure (`div.test .name`), the same discipline the
+   failure listing below documents — never against a glyph or the whole body text, which also matches
+   the app UIs the render-coverage rigs boot in iframes. */
+const LABELS = ARGV.reduce((acc, a, i) => (a === '--label' && ARGV[i + 1] ? acc.concat(ARGV[i + 1]) : acc), []);
 const say = (...a) => (JSON_OUT ? console.error(...a) : console.log(...a)); // --json: stdout carries ONE object
 
 const { chromium } = await import('playwright');
@@ -210,11 +221,15 @@ async function gateTestSuite() {
     } catch (_) {}
     return;
   }
-  const r = await page.evaluate(() => ({
-    hasFail: !!document.querySelector('#summary .pill.fail'),
-    bootSkips: window.__rcBootSkips || [],
-    summary: (document.getElementById('summary').innerText || '').replace(/\s+/g, ' ').trim(),
-    /* NAME THE FAILURES, do not just count them. This gate used to report "✕ 2 failing" and
+  const r = await page.evaluate(
+    (labels) => ({
+      /* The labels are tested IN the page: a run carries ~9.7 k assertion names (9731 measured 2026-09-27) and marshalling them all
+       back to compare here would cost more than the gate. Booleans cross the boundary, not the corpus. */
+      labelHits: labels.map((l) => Array.from(document.querySelectorAll('div.test .name')).some((d) => (d.textContent || '').indexOf(l) >= 0)),
+      hasFail: !!document.querySelector('#summary .pill.fail'),
+      bootSkips: window.__rcBootSkips || [],
+      summary: (document.getElementById('summary').innerText || '').replace(/\s+/g, ' ').trim(),
+      /* NAME THE FAILURES, do not just count them. This gate used to report "✕ 2 failing" and
        nothing else, so every consumer — CI log reader or a session debugging their own PR — had
        to reproduce a ~15 minute browser run just to learn WHICH assertions broke. The names are
        already in the page: the suite renders each failing assertion as `div.test.no` with `.name`
@@ -224,20 +239,30 @@ async function gateTestSuite() {
        inside the app UIs the render-coverage rigs boot in iframes — measured while debugging
        #2352, where it returned button labels instead of assertions. Match structure, not
        presentation. Capped at 25 so a mass failure cannot flood a CI log. */
-    failures: Array.from(document.querySelectorAll('div.test.no'))
-      .slice(0, 25)
-      .map((d) => {
-        const n = ((d.querySelector('.name') || {}).textContent || '').trim();
-        const det = ((d.querySelector('.detail') || {}).textContent || '').trim();
-        return det ? n + '  —  ' + det : n;
-      })
-      .filter((t) => t.length > 0),
-    failTotal: document.querySelectorAll('div.test.no').length
-  }));
+      failures: Array.from(document.querySelectorAll('div.test.no'))
+        .slice(0, 25)
+        .map((d) => {
+          const n = ((d.querySelector('.name') || {}).textContent || '').trim();
+          const det = ((d.querySelector('.detail') || {}).textContent || '').trim();
+          return det ? n + '  —  ' + det : n;
+        })
+        .filter((t) => t.length > 0),
+      failTotal: document.querySelectorAll('div.test.no').length
+    }),
+    LABELS
+  );
   say('   summary:', r.summary + (r.bootSkips.length ? '   [boot-skips: ' + r.bootSkips.join(', ') + ']' : ''));
   r.failures.forEach((f) => say('   ✕', f));
   if (r.failTotal > r.failures.length) say('   … and ' + (r.failTotal - r.failures.length) + ' more (listing capped at 25)');
   if (r.hasFail) FAILS.push('Dex-Test-Suite RED — ' + r.summary + (r.failures.length ? '\n     ' + r.failures.join('\n     ') : ''));
+  /* AN ABSENT LABEL IS A FAILURE, not a note: the caller asked whether a named assertion ran, and "it did
+     not" is the answer that matters — a lane that stayed green while the assertion never executed is the
+     exact state this flag exists to refuse. Present labels are reported too, so the check is visible when
+     it passes rather than only when it bites. */
+  LABELS.forEach((l, i) => {
+    if (r.labelHits[i]) say('   ✓ label ran: ' + l);
+    else FAILS.push('--label "' + l + '" matched NO assertion name in the run — it did not execute in this lane (a green summary does not say it did)');
+  });
   await page.close();
 }
 
