@@ -438,8 +438,14 @@ def wedge_buckets(link: dict[str, list[tuple[float, int, float | None]]], t0: fl
     return out
 
 
-def build(night_dir: str, devices: list[dict], buckets: int = DEFAULT_BUCKETS) -> dict:
+def build(night_dir: str, devices: list[dict], buckets: int = DEFAULT_BUCKETS,
+          writer_offset: dict | None = None) -> dict:
     """The whole timeline for one night: per-stream state strips + per-device signal traces.
+
+    `writer_offset` is OPTIONAL and carries the night's writer UTC offset when the caller knows it (a
+    `nightqc.declared_offset(...)` or a previous `recover_writer_offset(...)`); omitted, it is recovered
+    from the files. `nightqc.summarize`'s docstring holds the reasoning — it is the seam a RECORDED offset
+    will enter through, not a test hook.
 
     `coverage_pct` is measured against the stream's OWN expected rate — nightqc._expected_hz, which
     prefers the device's configured rate over a model nominal. Grading against the nominal is what
@@ -456,7 +462,8 @@ def build(night_dir: str, devices: list[dict], buckets: int = DEFAULT_BUCKETS) -
     # refusal as `nightqc.summarize` (see `nightqc.recover_writer_offset`). Every stamp below is floating
     # civil; this is the one number that turns them into instants, and where it cannot be recovered the
     # coverage figures refuse rather than measure against a window built on a guessed zone.
-    _off = nightqc.recover_writer_offset(night_dir, data)
+    _off = (writer_offset if writer_offset is not None
+            else nightqc.recover_writer_offset(night_dir, data))
     _offset = _off["offset_sec"]
     _shift = 0.0 if _offset is None else _offset
     dirs = [night_dir]

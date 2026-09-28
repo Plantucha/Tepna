@@ -1034,14 +1034,19 @@ def file_last_row_floating_s(path: str) -> float | None:
             fh.seek(max(0, size - (1 << 13)))
             tail = fh.read().decode("utf-8", "replace").split("\n")
     except OSError:
+        # NOTHING IS HIDDEN: a file that cannot be opened or read casts no vote, which is the same
+        # answer as a file with no host column, and the night's own refusal reports the shortfall by
+        # voter count. Raising here would abort a whole night's QC over one unreadable sidecar.
         return None
     for text in reversed(tail):
         parts = text.rstrip("\r\n").split(";")
         if len(parts) <= idx or not parts[idx].strip():
-            continue
+            continue                    # a torn, blank or comment row — walk past it to an earlier one
         try:
             dt = datetime.fromisoformat(parts[idx].strip())
-        except ValueError:
+        except ValueError:      # an unparseable stamp is not a wrong one — keep walking back
+            # There is no end to SHORTEN here, unlike `file_host_span_sec`: only a voter to find or not
+            # find, so walking past a bad row costs nothing and refusing the file would cost a vote.
             continue
         return float(calendar.timegm(dt.timetuple())) + dt.microsecond / 1e6
     return None
@@ -1056,6 +1061,18 @@ def _offset_vote(d: float) -> float | None:
     if not math.isfinite(d) or abs(d) > _OFFSET_MAX_ABS_SEC:
         return None
     return float(round(d / _OFFSET_BUCKET_SEC)) * _OFFSET_BUCKET_SEC
+
+
+def declared_offset(offset_sec: float) -> dict:
+    """A writer offset the CALLER already knows, shaped like `recover_writer_offset`'s result.
+
+    `basis` is `"declared"` and never blended with `"recovered"`, because the two are different kinds of
+    claim and a reader must be able to tell them apart: a declared 0.0 is a premise, a recovered 0.0 is a
+    measurement with voters behind it. Everything the recovery would have measured is `None` rather than
+    0 or an empty tally — §∅, nothing was counted, and "no voters" must not read as "zero agreed"."""
+    return {"offset_sec": float(offset_sec), "basis": "declared", "voters": None,
+            "voters_by_basis": None, "bucket_sec": None, "modal_share": None,
+            "unanimous": None, "outliers": [], "reason": None}
 
 
 def recover_writer_offset(night_dir: str, files: list[dict]) -> dict:
@@ -2847,7 +2864,8 @@ def dat_timefit_summary(dat_path: str, spo2_path: str,
     }
 
 
-def summarize(night_dir: str, devices: list[dict], wear: dict | None = None) -> dict:
+def summarize(night_dir: str, devices: list[dict], wear: dict | None = None,
+              writer_offset: dict | None = None) -> dict:
     """Roll the CURRENT capture session up against the configured devices. The session is scoped by
     file-activity (see _SESSION_GAP_SEC) and unified across midnight (see below), NOT the whole date
     folder — so a box that also ran earlier the same day, or an overnight that crossed midnight, is judged
@@ -2865,6 +2883,18 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None) -> 
     excluded — because `ok` is a claim about the night, and it cannot be made about a night half of
     which was left out of the judgement.
 
+    `writer_offset` is OPTIONAL and is the night's writer UTC offset when the CALLER knows it — a
+    `declared_offset(...)` or a previous `recover_writer_offset(...)` result. Omitted, it is recovered from
+    the files.
+
+    ⚠️ THIS SEAM IS NOT A TEST HOOK, and reading it as one would get the design backwards. Recovering the
+    offset from `mtime` versus a last row is an INFERENCE that exists only because the box records no zone
+    anywhere (`writers._phone_ts` is documented "local civil time, zone-free"). The durable fix is for the
+    writer to RECORD its offset per session, and when it does, this parameter is where that recorded value
+    enters: the recorded value becomes the preferred path and the inference becomes the fallback for nights
+    captured before it existed. A caller that knows the frame should say so rather than make this module
+    re-derive it — which is also why the fixtures that build stamps and mtimes in one frame declare it.
+
     `wear` is OPTIONAL and is `{device name: loss_audit.wear_ends(...) result}`. Supplied, it names WHY
     a device stopped early (`stopped_early_reason`) and where its worn interval ended (`worn_end_at`).
     Omitted — the default, and the case for every caller with no loss audit to hand — both read None,
@@ -2880,7 +2910,7 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None) -> 
     # the adjacent calendar day of the same box, and the session being judged lives here — so this
     # folder is the right basis even on the one night a year DST steps between the two, where the
     # neighbour's files legitimately carry the other offset.
-    _off = recover_writer_offset(night_dir, data)
+    _off = writer_offset if writer_offset is not None else recover_writer_offset(night_dir, data)
     # THE SESSION BOUNDARY EVIDENCE, read once and used twice: `merge_sessions` needs it to keep two
     # daemon runs apart, and the summary reports it below. ∅ `starts: None` is "the sidecar did not
     # say", never "it did not restart" — so `session_basis` distinguishes a night segmented on recorded
@@ -2931,7 +2961,17 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None) -> 
                 # failed assumption in this guard's family — the near-midnight proxy, the long
                 # reconnect (2026-07-28), now the simultaneous wake — and the sentence above already
                 # states the contract: "runs into" includes overlap.
-                _pool = earliest - max(f["mtime"] for f in prev_data) < _SESSION_GAP_SEC
+                # ⚠️ ONE FRAME ON BOTH SIDES. `earliest` is a floating filename stamp and `mtime` is
+                # an absolute instant, so this difference mixed frames and the POOLING DECISION moved
+                # bodily with the reader's zone — the same night pooled in one zone and not another,
+                # which is this unit's defect wearing a different hat. Raised by the recovered offset,
+                # the comparison is about one timeline. Without a recovered offset there is no timeline
+                # to compare on: the night's span is already UNKNOWN there, and pooling on a guessed
+                # zone would extend that unknown across a second folder, so it does not pool and the
+                # `writer_offset` block says why.
+                _prev_last = max(f["mtime"] for f in prev_data)
+                _pool = (_off["offset_sec"] is not None
+                         and (earliest + _off["offset_sec"]) - _prev_last < _SESSION_GAP_SEC)
     else:
         # NO CAPTURE FILES HERE AT ALL. The old gate was `if data:`, so this branch could not run — and
         # it is precisely the 2026-07-28 shape: the midnight sidecar rollover creates tomorrow's folder,
@@ -2967,6 +3007,7 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None) -> 
     span = None
     _span_reason = None
     sessions: list[list] = []
+    cur = None
     prior_gap = None
     # SESSIONS THIS SCOPING DISCARDS, AND THE HOLE THAT MADE THEM (CAPTURE-HOST-DEEP-AUDIT §A2).
     # The scoping is deliberate — it stops a daytime sitting diluting tonight's coverage — but the
@@ -2997,8 +3038,15 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None) -> 
     # green when it can positively show the excluded time was outside the night — never by absence.
     gaps: list[str] = []
     gaps_in_night: list[str] = []
-    if data:
-        sessions = merge_sessions(data, starts=_daemon["stamps"], offset_sec=_off["offset_sec"])
+    # ∅ A NIGHT CAN HOLD FILES AND STILL HAVE NO PLACEABLE SESSION, which is new and is why this gates
+    # on `sessions` rather than on `data`. In the floating frame a file with no start stamp cannot be
+    # placed at all (`file_interval` returns None for it), so a night of only stampless files yields rows
+    # but no session — and `judged_session` then answers None, as its contract says it must. Reading
+    # `cur[2]` off that was a crash, caught by the QC poller's own tests: `qc poll failed: TypeError`,
+    # which is a night silently losing its whole summary rather than reporting what it could not judge.
+    sessions = merge_sessions(data, starts=_daemon["stamps"],
+                              offset_sec=_off["offset_sec"]) if data else []
+    if sessions:
         # ⚠️ JUDGE THE SUBSTANTIVE SESSION, NOT THE MOST RECENT ONE.
         #
         # This used to be `max(sessions, key=lambda s: s[1])` — the session reaching the latest write —
@@ -3315,11 +3363,11 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None) -> 
         # WHICH session the verdict rests on, on the same principle as `judged_dir`/`searched_dirs`
         # below: a verdict that cannot be audited against the ground it was computed from is a claim.
         "judged_session": {"start": round(cur[0]), "end": round(cur[1]),
-                           "rows": sum(f["rows"] for f in cur[2])} if data else None,
+                           "rows": sum(f["rows"] for f in cur[2])} if cur else None,
         # WHAT OF THAT SESSION WAS ACTUALLY NIGHT. Published beside the session rather than replacing
         # it: under continuous recording the judged session runs 16-31 h, so `judged_session.rows` is
         # not a claim about a night. Reported, gated by NOTHING — see night_view's docstring.
-        "night_window": night_view(cur, cur[2]) if data else None,
+        "night_window": night_view(cur, cur[2]) if cur else None,
         "searched_dirs": [os.path.basename(p.rstrip("/")) for p in searched],
         "data_files": len(data),
         # NINE INDEPENDENT STREAMS ACROSS THREE VENDORS DO NOT FAIL IN THE SAME SECOND. When the scope

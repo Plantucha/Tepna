@@ -24,6 +24,39 @@ import re
 
 import nightqc
 import writers
+import datetime as _wrapdt
+
+# ── THESE FIXTURES DECLARE THEIR FRAME RATHER THAN HAVING IT INFERRED ──────────────────────────────────
+#
+# They build a file's start from a floating civil stamp and its mtime from `.timestamp()`, so the two are
+# already in ONE frame — the reader's — by construction. `nightqc.summarize` otherwise RECOVERS the
+# writer's UTC offset from the files (`recover_writer_offset`), and a synthetic file carrying no usable
+# clock casts no vote, so the night refuses and publishes no span: a failure the fixture invented rather
+# than one the behaviour under test is about.
+#
+# Declaring it states the premise instead of making the module re-derive it from invented file contents,
+# and it is PUBLISHED as `basis: "declared"` so a reader can never mistake it for a measurement. The tests
+# that exercise the recovery and the refusal themselves call `nightqc.summarize` / `timeline.build`
+# directly and must keep doing so.
+def _declared_reader_frame(night):
+    """`declared_offset(...)` for the reader's own UTC offset at this night — the frame these fixtures
+    build in. Read off a real filename stamp rather than from `time.timezone`, so it is the offset in
+    force ON THAT DATE and a fixture dated across a DST boundary stays correct."""
+    for f in nightqc.scan_night(night):
+        if f.get("session") is None:
+            continue
+        stamp = f["file"].split("_")[-2]
+        try:
+            absolute = _wrapdt.datetime.strptime(stamp, "%Y%m%d%H%M%S").timestamp()
+        except ValueError:
+            continue            # not a 14-digit stamp — try the next file; a legacy name states no frame
+        return nightqc.declared_offset(absolute - f["session"])
+    return nightqc.declared_offset(0.0)
+
+
+def _summarize(night, devices, wear=None):
+    return nightqc.summarize(night, devices, wear, writer_offset=_declared_reader_frame(night))
+
 
 
 # ── the filename's id FIELD ───────────────────────────────────────────────────────────────────
@@ -77,7 +110,7 @@ def test_nightqc_counts_files_written_under_a_previous_device_id(tmp_path):
     dev = {"name": "Polar Verity Sense", "vendor": "Polar", "model": "VeritySense",
            "device_id": "0C301E3F", "device_id_aliases": ["AC0C301E"],
            "address": "24:AC:AC:0C:30:1E", "streams": ["ppg"]}
-    got = nightqc.summarize(night, [dev])
+    got = _summarize(night, [dev])
     rows = next(d["streams"].get("ppg", 0) for d in got["devices"] if d["name"] == dev["name"])
     assert rows == 2000, f"expected both sessions (2000 rows), got {rows}"
 

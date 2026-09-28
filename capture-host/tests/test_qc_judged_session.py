@@ -22,6 +22,39 @@ from datetime import datetime as _dt
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import nightqc  # noqa: E402
+import datetime as _wrapdt
+
+# ── THESE FIXTURES DECLARE THEIR FRAME RATHER THAN HAVING IT INFERRED ──────────────────────────────────
+#
+# They build a file's start from a floating civil stamp and its mtime from `.timestamp()`, so the two are
+# already in ONE frame — the reader's — by construction. `nightqc.summarize` otherwise RECOVERS the
+# writer's UTC offset from the files (`recover_writer_offset`), and a synthetic file carrying no usable
+# clock casts no vote, so the night refuses and publishes no span: a failure the fixture invented rather
+# than one the behaviour under test is about.
+#
+# Declaring it states the premise instead of making the module re-derive it from invented file contents,
+# and it is PUBLISHED as `basis: "declared"` so a reader can never mistake it for a measurement. The tests
+# that exercise the recovery and the refusal themselves call `nightqc.summarize` / `timeline.build`
+# directly and must keep doing so.
+def _declared_reader_frame(night):
+    """`declared_offset(...)` for the reader's own UTC offset at this night — the frame these fixtures
+    build in. Read off a real filename stamp rather than from `time.timezone`, so it is the offset in
+    force ON THAT DATE and a fixture dated across a DST boundary stays correct."""
+    for f in nightqc.scan_night(night):
+        if f.get("session") is None:
+            continue
+        stamp = f["file"].split("_")[-2]
+        try:
+            absolute = _wrapdt.datetime.strptime(stamp, "%Y%m%d%H%M%S").timestamp()
+        except ValueError:
+            continue            # not a 14-digit stamp — try the next file; a legacy name states no frame
+        return nightqc.declared_offset(absolute - f["session"])
+    return nightqc.declared_offset(0.0)
+
+
+def _summarize(night, devices, wear=None):
+    return nightqc.summarize(night, devices, wear, writer_offset=_declared_reader_frame(night))
+
 
 _DEV = [{"name": "Polar H10 02849638", "vendor": "Polar", "streams": ["ecg"],
          "address": "AA:BB:CC:DD:EE:FF"}]
@@ -123,7 +156,7 @@ def _many_sessions(tmp_path):
 
 
 def test_the_earlier_gap_is_measured_to_the_NEAREST_earlier_session(tmp_path):
-    r = nightqc.summarize(_many_sessions(tmp_path), _DEV)
+    r = _summarize(_many_sessions(tmp_path), _DEV)
     earlier = [g for g in r["gaps"] if "earlier session" in g]
     assert earlier, f"an earlier gap must be reported: {r['gaps']}"
     # 04:00 session ends ~04:15; judged starts 08:00 -> ~3.7 h. Keyed on the WRONG session it would be
@@ -132,7 +165,7 @@ def test_the_earlier_gap_is_measured_to_the_NEAREST_earlier_session(tmp_path):
 
 
 def test_the_later_gap_is_measured_to_the_NEAREST_later_session(tmp_path):
-    r = nightqc.summarize(_many_sessions(tmp_path), _DEV)
+    r = _summarize(_many_sessions(tmp_path), _DEV)
     later = [g for g in r["gaps"] if "later session" in g]
     assert later, f"a later gap must be reported: {r['gaps']}"
     # judged ends ~08:15; nearest later starts 12:00 -> ~225 min. The furthest would be ~585.

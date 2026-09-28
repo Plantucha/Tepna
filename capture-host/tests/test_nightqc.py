@@ -13,10 +13,56 @@ from datetime import datetime, timedelta
 
 import pytest
 import nightqc
+import datetime as _wrapdt
+
+# ── THESE FIXTURES DECLARE THEIR FRAME RATHER THAN HAVING IT INFERRED ──────────────────────────────────
+#
+# They build a file's start from a floating civil stamp and its mtime from `.timestamp()`, so the two are
+# already in ONE frame — the reader's — by construction. `nightqc.summarize` otherwise RECOVERS the
+# writer's UTC offset from the files (`recover_writer_offset`), and a synthetic file carrying no usable
+# clock casts no vote, so the night refuses and publishes no span: a failure the fixture invented rather
+# than one the behaviour under test is about.
+#
+# Declaring it states the premise instead of making the module re-derive it from invented file contents,
+# and it is PUBLISHED as `basis: "declared"` so a reader can never mistake it for a measurement. The tests
+# that exercise the recovery and the refusal themselves call `nightqc.summarize` / `timeline.build`
+# directly and must keep doing so.
+def _declared_reader_frame(night):
+    """`declared_offset(...)` for the reader's own UTC offset at this night — the frame these fixtures
+    build in. Read off a real filename stamp rather than from `time.timezone`, so it is the offset in
+    force ON THAT DATE and a fixture dated across a DST boundary stays correct."""
+    for f in nightqc.scan_night(night):
+        if f.get("session") is None:
+            continue
+        stamp = f["file"].split("_")[-2]
+        try:
+            absolute = _wrapdt.datetime.strptime(stamp, "%Y%m%d%H%M%S").timestamp()
+        except ValueError:
+            continue            # not a 14-digit stamp — try the next file; a legacy name states no frame
+        return nightqc.declared_offset(absolute - f["session"])
+    return nightqc.declared_offset(0.0)
+
+
+def _summarize(night, devices, wear=None):
+    return nightqc.summarize(night, devices, wear, writer_offset=_declared_reader_frame(night))
+
 
 
 _CLOCKLESS_HEADER = "h1;h2\n"
 
+
+
+def _starts_stamp(t_floating):
+    """A `STARTS.csv` phone stamp for a FLOATING second — the civil components that second names.
+
+    ⚠️ NOT `datetime.fromtimestamp`, which these fixtures used. That formats an ABSOLUTE instant through
+    the reader's zone, and the bases here (`_stamp_epoch`, `_end_0923`) are floating — so the pair only
+    ever agreed because `nightqc._parse_phone_ts` resolved the stamp back through the same zone, undoing
+    the error exactly. Now that the reader reads the sidecar as floating (§🔒 §1, as the box writes it),
+    the fixture has to write floating too, or the recorded daemon seam lands one whole offset away and
+    `merge_sessions` splits the night in the wrong place."""
+    c = _dtmod.datetime(1970, 1, 1) + _dtmod.timedelta(seconds=t_floating)
+    return c.strftime("%Y-%m-%dT%H:%M:%S.%f")[:23]
 
 def _cap(night, name, rows, header=None):
     """Write a capture file with a header line + `rows` data lines.
@@ -82,6 +128,16 @@ def _stamp_epoch(stamp=_STAMP_0719):
     return nightqc._session_of(f"X_{stamp}_ECG.txt")
 
 
+
+def _summarize_floating(night, devices, wear=None):
+    """For fixtures whose MTIMES are floating too — they build them from `_stamp_epoch()` / `_end_0923()`,
+    which return floating seconds, so stamp and mtime are both civil and the writer offset is 0 by
+    construction. The sibling `_summarize` is for fixtures that build mtimes with `.timestamp()`, where the
+    frame is the reader's. The two cannot be told apart at runtime — `mtime - stamp` is a duration in one
+    and a duration plus an offset in the other — so each fixture says which it is, which is the point of
+    declaring rather than inferring."""
+    return nightqc.summarize(night, devices, wear, writer_offset=nightqc.declared_offset(0.0))
+
 def test_parse_capture_name():
     assert nightqc.parse_capture_name("Polar_H10_02849638_20260719000000_ECG.txt") == ("ECG", "txt")
     assert nightqc.parse_capture_name("Wellue_O2Ring-S_S8AW_20260719_SPO2.csv") == ("SPO2", "csv")
@@ -134,7 +190,7 @@ def test_summarize_all_present_is_ok(tmp_path, _tz):
                        ("Wellue_O2Ring-S_S8AW_20260719220000_PPG.txt", 8000),
                        ("Tepna_20260719220000_LINK.csv", 5)]:
         _utime(_cap(night, name, rows), just_started)
-    s = nightqc.summarize(night, _devices())
+    s = _summarize_floating(night, _devices())
     assert s["ok"] is True and s["missing"] == []
     assert s["night"] == "2026-07-19" and s["files"] == 6
     assert s["total_rows"] == 100 + 50 + 10 + 900 + 8000 + 5
@@ -220,7 +276,7 @@ def test_summarize_unifies_a_cross_midnight_session(tmp_path):
     # post-midnight HR (07-22 folder): 1500 rows over 25 min, still being written
     _utime(_cap(d22, "Polar_H10_02849638_20260722001500_HR.txt", 1500), post + 1500)
     devs = [{"name": "H10", "device_id": "02849638", "streams": ["hr"]}]
-    s = nightqc.summarize(d22, devs)                    # QC targets the current (07-22) folder
+    s = _summarize(d22, devs)                    # QC targets the current (07-22) folder
     # session spans 23:30 → 00:40 ≈ 70 min; per-folder it would have been just the 25-min post half
     assert s["span_sec"] > 3600                         # unified across midnight, not the 07-22 half (1500 s)
     assert s["devices"][0]["streams"]["hr"] == 3300     # pre (1800) + post (1500) — one session
@@ -238,7 +294,7 @@ def test_summarize_does_not_pool_a_mid_day_session(tmp_path):
     t = _dt.strptime("20260722140000", "%Y%m%d%H%M%S").timestamp()      # today 14:00 — NOT near midnight
     _utime(_cap(d21, "Polar_H10_02849638_20260721140000_HR.txt", 9999), y + 1000)
     _utime(_cap(d22, "Polar_H10_02849638_20260722140000_HR.txt", 2000), t + 2000)
-    s = nightqc.summarize(d22, [{"name": "H10", "device_id": "02849638", "streams": ["hr"]}])
+    s = _summarize(d22, [{"name": "H10", "device_id": "02849638", "streams": ["hr"]}])
     assert s["span_sec"] == 2000                        # only today's 14:00 session; yesterday not pooled
     assert s["devices"][0]["streams"]["hr"] == 2000     # yesterday's 9999 rows excluded
 
@@ -322,12 +378,11 @@ def test_a_daemon_restart_does_not_merge_two_sessions_into_one_union_span(tmp_pa
     _utime(_cap(night, "Wellue_O2Ring-S_S8AW_20260924163000_SPO2.csv", 3000), end2)
     with open(os.path.join(night, writers.STARTS_NAME), "w") as fh:
         fh.write("Phone timestamp;pid;git;dirty;adapter\n")
-        fh.write(datetime.fromtimestamp(restart).strftime("%Y-%m-%dT%H:%M:%S.%f")[:23]
-                 + ";400443;2cd12712;no;F4:CE:36:2E:CD:98\n")
+        fh.write(_starts_stamp(restart) + ";400443;2cd12712;no;F4:CE:36:2E:CD:98\n")
 
     devs = [{"name": "H10", "device_id": "02849638", "streams": ["hr"]},
             {"name": "Ring", "device_id": "S8AW", "streams": ["spo2"]}]
-    s = nightqc.summarize(night, devs)
+    s = _summarize_floating(night, devs)
 
     # THE SEAM IS SEEN: two runs, not one union of 35407 s
     assert len(s["sessions"]) == 2, "a recorded daemon start separates the runs it started"
@@ -353,7 +408,7 @@ def test_without_a_STARTS_sidecar_the_session_basis_says_gap_only(tmp_path):
     _utime(_cap(night, "Wellue_O2Ring-S_S8AW_20260924163000_SPO2.csv", 3000), s1 + 35407)
     devs = [{"name": "H10", "device_id": "02849638", "streams": ["hr"]},
             {"name": "Ring", "device_id": "S8AW", "streams": ["spo2"]}]
-    s = nightqc.summarize(night, devs)
+    s = _summarize_floating(night, devs)
     assert s["session_basis"] == "gap-only", "no sidecar ⇒ no boundary evidence, and it says so"
     assert len(s["sessions"]) == 1, "and the merge is unchanged — this is the pre-existing behaviour"
     assert s["span_sec"] == 35407
@@ -375,10 +430,9 @@ def test_the_POOLED_half_brings_its_own_seams_from_the_neighbouring_folder(tmp_p
     # the restart is recorded in YESTERDAY's folder; today's has no sidecar at all
     with open(os.path.join(d21, writers.STARTS_NAME), "w") as fh:
         fh.write("Phone timestamp;pid;git;dirty;adapter\n")
-        fh.write(datetime.fromtimestamp(pre + 1900).strftime("%Y-%m-%dT%H:%M:%S.%f")[:23]
-                 + ";400443;2cd12712;no;F4:CE:36:2E:CD:98\n")
+        fh.write(_starts_stamp(pre + 1900) + ";400443;2cd12712;no;F4:CE:36:2E:CD:98\n")
     devs = [{"name": "H10", "device_id": "02849638", "streams": ["hr"]}]
-    s = nightqc.summarize(d22, devs)
+    s = _summarize_floating(d22, devs)
     assert len(s["sessions"]) == 2, "the neighbour's recorded seam splits the pooled set"
     assert s["span_sec"] == 1800, "the judged run is the pre-midnight one alone, not the 4200 s union"
     assert s["devices"][0]["streams"]["hr"] == 1800, "and it carries only its own rows"
@@ -400,7 +454,7 @@ def test_summarize_flags_a_degraded_trickle(tmp_path, _tz):
     for p in (acc, hr, spo2, ppg):
         _utime(p, base)
     _utime(ecg, base + 1000)
-    s = nightqc.summarize(night, _devices())
+    s = _summarize_floating(night, _devices())
     assert s["span_sec"] == 1000
     h10 = next(d for d in s["devices"] if d["name"] == "H10")
     assert h10["coverage"] == {"ecg": 1.0, "acc": 0.2, "hr": 1.0}
@@ -423,7 +477,7 @@ def test_summarize_coverage_uses_configured_rate_and_skips_unknown(tmp_path, _tz
     _utime(acc, base); _utime(foo, base + 1000)
     devs = [{"name": "Verity", "device_id": "0C30", "model": "VeritySense",
              "streams": ["acc", "foo"], "rates": {"acc": 52}}]
-    s = nightqc.summarize(night, devs)
+    s = _summarize_floating(night, devs)
     v = s["devices"][0]
     assert v["coverage"] == {"acc": 1.0}          # configured 52 Hz used; 'foo' has no rate → omitted
     assert s["degraded"] == [] and s["ok"] is True
@@ -447,7 +501,7 @@ def test_summarize_optional_device_absence_is_not_missing_and_stays_ok(tmp_path,
         _utime(_cap(night, name, rows), just_started)
     devices = [{"name": "H10", "device_id": "02849638", "streams": ["ecg", "acc", "hr"]},
                {"name": "COOSPO", "device_id": "COOSPO01", "streams": ["hr"], "optional": True}]
-    s = nightqc.summarize(night, devices)
+    s = _summarize_floating(night, devices)
     assert s["ok"] is True                                  # the absent optional device does NOT fail the night
     assert "COOSPO:hr" not in s["missing"] and s["missing"] == []
     assert s["optional_absent"] == ["COOSPO:hr"]            # but it is still recorded as known-and-absent
@@ -544,7 +598,7 @@ def test_summarize_pools_when_the_reconnect_took_longer_than_the_gap(tmp_path):
     _utime(_cap(d28, "Polar_H10_02849638_20260728220542_HR.txt", 10920), pre + 10920)   # → 01:08:02
     _utime(_cap(d29, "Polar_H10_02849638_20260729010859_HR.txt", 14082), post + 14082)  # → 05:03
     devs = [{"name": "H10", "device_id": "02849638", "streams": ["hr"]}]
-    s = nightqc.summarize(d29, devs)
+    s = _summarize(d29, devs)
     assert s["searched_dirs"] == ["2026-07-29", "2026-07-28"]   # it ASKED next door
     assert s["devices"][0]["streams"]["hr"] == 25002            # both halves, one night
     assert s["span_sec"] > 6 * 3600                             # ~7 h, not the 3.9 h post-midnight half
@@ -582,7 +636,7 @@ def test_summarize_pools_when_the_neighbour_was_still_writing_at_wake(tmp_path):
         {"name": "Verity", "device_id": "0C301E3F", "streams": ["hr"]},
         {"name": "O2Ring", "device_id": "S8AW2100", "streams": ["hr"]},
     ]
-    s = nightqc.summarize(d01, devs)
+    s = _summarize(d01, devs)
     assert s["searched_dirs"] == ["2026-09-01", "2026-08-31"]   # overlap pooled, not rejected
     assert s["missing"] == [], "the night is next door — nothing is missing"
     assert s["devices"][0]["streams"]["hr"] == 19560            # the Verity night is in the verdict
@@ -1144,7 +1198,7 @@ def test_span_at_exactly_the_minimum_is_judgeable(tmp_path, _tz):
     hr = _cap(night, "Polar_H10_02849638_20260719220000_HR.txt", 300)
     _utime(hr, base)
     _utime(ecg, base + nightqc._MIN_SPAN_SEC)
-    s = nightqc.summarize(night, [{"name": "H10", "device_id": "02849638", "streams": ["ecg", "hr"]}])
+    s = _summarize_floating(night, [{"name": "H10", "device_id": "02849638", "streams": ["ecg", "hr"]}])
     assert s["span_sec"] == nightqc._MIN_SPAN_SEC
     h10 = next(d for d in s["devices"] if d["name"] == "H10")
     assert h10["coverage"].get("ecg") == 1.0, f"a span of exactly the floor must be judged: {h10['coverage']}"
@@ -1165,7 +1219,7 @@ def test_coverage_exactly_at_the_degraded_threshold_is_not_degraded(tmp_path, _t
     hr = _cap(night, "Polar_H10_02849638_20260719220000_HR.txt", 1000)
     _utime(hr, base)
     _utime(ecg, base + 1000)
-    s = nightqc.summarize(night, [{"name": "H10", "device_id": "02849638", "streams": ["ecg", "hr"]}])
+    s = _summarize_floating(night, [{"name": "H10", "device_id": "02849638", "streams": ["ecg", "hr"]}])
     assert s["span_sec"] == 1000
     h10 = next(d for d in s["devices"] if d["name"] == "H10")
     assert h10["coverage"]["ecg"] == 0.5, f"2 dp rounding: {h10['coverage']}"
@@ -1218,7 +1272,7 @@ def test_coverage_judges_against_the_MEASURED_rate_not_the_configured_one(tmp_pa
     dev = [{"name": "H10", "device_id": "02849638", "streams": ["ecg", "hr"], "rates": {"ecg": 260}}]
     rr = {(r["device"], r["stream"]): r.get("measured_hz") for r in nightqc.rate_reality(night, dev)}
     assert rr.get(("H10", "ecg")) is not None, f"the fixture must yield a measurable rate: {rr}"
-    s = nightqc.summarize(night, dev)
+    s = _summarize_floating(night, dev)
     h10 = next(d for d in s["devices"] if d["name"] == "H10")
     assert h10["coverage"]["ecg"] == 1.0, (
         f"judged against the CONFIGURED 260 Hz this reads 0.5; against the measured 130 Hz it is full: "
@@ -1240,7 +1294,7 @@ def test_a_device_without_a_name_is_keyed_by_its_device_id(tmp_path, _tz):
     hr = _cap(night, "Polar_H10_02849638_20260719220000_HR.txt", 1000)
     _utime(hr, base)
     dev = [{"device_id": "02849638", "streams": ["ecg", "hr"], "rates": {"ecg": 260}}]   # no "name"
-    s = nightqc.summarize(night, dev)
+    s = _summarize_floating(night, dev)
     d0 = s["devices"][0]
     assert d0["name"] == "02849638", f"a nameless device is identified by its ID: {d0['name']}"
     assert d0["coverage"]["ecg"] == 1.0, (
@@ -2078,7 +2132,9 @@ def _resume_pair(tmp_path, gap_s):
 
 
 def _hr_coverage(night):
-    s = nightqc.summarize(night, _devices())
+    # `_resume_pair` builds t0 with `.timestamp()` and stamp2 with `time.localtime`, so this fixture is
+    # in the READER's frame and declares it — a one-file night casts one vote and cannot state a zone.
+    s = _summarize(night, _devices())
     return next(d for d in s["devices"] if d["name"] == "H10")["coverage"].get("hr"), s
 
 
@@ -2193,7 +2249,7 @@ def test_the_summary_reports_the_night_it_judged_and_the_session_it_used(tmp_pat
     # ⚠️ A TRAILING SLASH, deliberately. `os.path.basename` of a path ending in "/" is the EMPTY
     # STRING, so `rstrip("/")` is load-bearing rather than cosmetic — and a night whose name reports
     # as "" is a summary that cannot say which night it judged.
-    s = nightqc.summarize(night + "/", devs)
+    s = _summarize(night + "/", devs)
     assert s["night"] == "2026-07-19", "the trailing slash must be stripped, not basenamed away"
     assert s["judged_dir"] == "2026-07-19"
     assert s["searched_dirs"] and all(isinstance(x, str) and x for x in s["searched_dirs"])
@@ -2588,7 +2644,7 @@ def test_the_cross_midnight_pool_is_EXCLUSIVE_at_exactly_the_gap(tmp_path):
     post = _dt.strptime("20260722010000", "%Y%m%d%H%M%S").timestamp()
     assert post - (pre + 1800) == nightqc._SESSION_GAP_SEC, "the fixture must sit ON the boundary"
     _utime(_cap(d22, "Polar_H10_02849638_20260722010000_HR.txt", 1500), post + 1500)
-    s = nightqc.summarize(d22, [{"name": "H10", "device_id": "02849638", "streams": ["hr"]}])
+    s = _summarize(d22, [{"name": "H10", "device_id": "02849638", "streams": ["hr"]}])
     assert s["devices"][0]["streams"]["hr"] == 1500, \
         "a gap of exactly _SESSION_GAP_SEC is NOT contiguous — the earlier folder must stay excluded"
 
@@ -3602,7 +3658,7 @@ def test_an_IN_RECORDING_loss_still_reads_as_a_loss_under_the_new_denominator(tm
     _utime(_cap_timed(night, "Polar_H10_02849638_20260923231432_ECG.txt", int(20089 * _QC_HZ), _QC_HZ), _end_0923())
     _utime(_cap_timed_with_gap(night, "Polar_VeritySense_0C301E3F_20260923231318_PPG.txt",
                                _QC_HZ, 18499, 0.6), _end_0923())
-    by = {d["name"]: d for d in nightqc.summarize(night, _DEV_0923)["devices"] if d.get("coverage")}
+    by = {d["name"]: d for d in _summarize_floating(night, _DEV_0923)["devices"] if d.get("coverage")}
     assert by["Verity"]["coverage"] == {"ppg": 0.6}, "an in-recording loss is still a loss"
     assert by["Verity"]["stopped_early_s"] == 0, "it did not stop early — it dropped rows"
     assert by["Verity"]["span_basis"] == {"ppg": "device"}
@@ -3614,7 +3670,7 @@ def test_an_IN_RECORDING_loss_still_reads_as_a_loss_under_the_new_denominator(tm
     _utime(_cap_timed(night2, "Polar_H10_02849638_20260923231432_ECG.txt", int(20089 * _QC_HZ), _QC_HZ), _end_0923())
     _utime(_cap_timed_with_gap(night2, "Polar_VeritySense_0C301E3F_20260923231318_PPG.txt",
                                _QC_HZ, 18499, 0.4), _end_0923())
-    s2 = nightqc.summarize(night2, _DEV_0923)
+    s2 = _summarize_floating(night2, _DEV_0923)
     assert any("Verity:ppg" in line for line in s2["degraded"]), \
         f"a deep in-recording loss must still reach the alert path: {s2['degraded']}"
 
@@ -3654,7 +3710,7 @@ def test_a_clockless_file_falls_back_to_the_session_span_and_SAYS_SO(tmp_path, _
     night = str(tmp_path / "2026-07-19"); os.makedirs(night)
     _utime(_cap(night, "Polar_H10_02849638_20260719220000_ECG.txt", 130000), _stamp_epoch() + 1000)
     _utime(_cap(night, "Polar_H10_02849638_20260719220000_ACC.txt", 40000), _stamp_epoch())
-    h10 = next(d for d in nightqc.summarize(night, _devices())["devices"] if d["name"] == "H10")
+    h10 = next(d for d in _summarize_floating(night, _devices())["devices"] if d["name"] == "H10")
     assert h10["span_basis"] == {"ecg": "session", "acc": "session"}
     assert h10["span_sec"] is None, "an unbounded span is None, never a number"
 
@@ -4046,30 +4102,52 @@ def test_the_range_threshold_is_STRICT_at_exactly_five_points(tmp_path):
 # which is the tell: the mixed frame inflates the span past anything physical and nothing objected.
 # ---------------------------------------------------------------------------------------------------
 
-def _zone_night(tmp_path, *, stamp="20260909212938", span_s=7200.0, rows=1000):
-    """One capture file whose name carries a floating civil stamp and whose rows cover `span_s`."""
+_ZONE_STAMP = "20260909212938"
+_ZONE_STEP_NS = 1_000_000_000          # 1 Hz, so span_sec is exactly rows-1 with no truncation
+
+
+def _zone_night(tmp_path, *, offsets=(14400.0, 14400.0, 14400.0), rows=601, stamp=_ZONE_STAMP,
+                lags=None, streams=("ECG", "ACC", "HR")):
+    """A night of `len(offsets)` files from ONE connection, built to a KNOWN writer offset per file.
+
+    Each file carries a device clock covering exactly `rows - 1` seconds and an mtime placed at
+    `floating(stamp) + span + offset`, so `mtime − (stamp + span)` — the `extent` basis
+    `nightqc.recover_writer_offset` falls back to — is that file's `offset` exactly. One stamp and several
+    stream tags is the real shape of a multi-stream connection (an H10 opens ECG, ACC and HR together), so
+    the files form a single session rather than three.
+
+    ⚠️ THE MTIME MUST SIT AFTER THE STAMP IN EVERY ZONE. An earlier one collapses `max(session, mtime)`
+    onto the stamp and the span reads 0 in all zones at once — which satisfies "identical in every zone"
+    while measuring nothing. That vacuous pass actually happened here; the value-pinning twin below is
+    what caught it, and is why both tests exist rather than one.
+    """
     d = tmp_path / "captures" / "2026-09-09"
-    d.mkdir(parents=True)
-    p = d / f"Polar_H10_02849638_{stamp}_ECG.txt"
-    hz = rows / span_s
-    _write_stream(str(p), hz, rows=rows)
-    # mtime as an ABSOLUTE instant, which is what a file copied off the box has — the frame mismatch is
-    # the defect, not a fixture artefact. Placed well AFTER the stamp in every zone: an mtime before it
-    # makes `max(session, mtime)` collapse to the stamp and the span read 0 in all three, which is
-    # "identical in every zone" and proves nothing. That vacuous pass is why the twin below pins the
-    # VALUE as well as the stability.
-    import calendar as _cal
-    _utime(str(p), _cal.timegm(_dtmod.datetime.strptime(stamp, "%Y%m%d%H%M%S").timetuple()) + 100_000)
-    return str(d)
+    d.mkdir(parents=True, exist_ok=True)
+    span = (rows - 1) * _ZONE_STEP_NS / 1e9
+    t0 = nightqc.floating_stamp_s(stamp)
+    for i, off in enumerate(offsets):
+        p_ = d / f"Polar_H10_02849638_{stamp}_{streams[i % len(streams)]}.txt"
+        _write_stream_ns(str(p_), _ZONE_STEP_NS, rows=rows)
+        lag = 0.0 if lags is None else lags[i]
+        os.utime(str(p_), ((t0 + span + off + lag),) * 2)
+    return str(d), span
+
+
+def _recovered(night):
+    files = nightqc.scan_night(night)
+    data = [f for f in files if f["stream"] not in nightqc._SIDECAR_TAGS]
+    return nightqc.recover_writer_offset(night, data), data
 
 
 def _spans_in(zone, night):
+    """The night's session spans AS PRODUCTION COMPUTES THEM — recover the offset, then merge on it."""
     old = os.environ.get("TZ")
     os.environ["TZ"] = zone
     time.tzset()
     try:
-        files = nightqc.scan_night(night)
-        return [round(e - s, 3) for s, e, _f in nightqc.merge_sessions(files)]
+        off, data = _recovered(night)
+        sessions = nightqc.merge_sessions(data, offset_sec=off["offset_sec"])
+        return [round(e - s, 3) for s, e, _f in sessions]
     finally:
         if old is None:
             os.environ.pop("TZ", None)
@@ -4079,27 +4157,107 @@ def _spans_in(zone, night):
 
 
 def test_PLANT_a_session_span_is_the_same_number_in_every_reader_zone(tmp_path):
-    """THE PLANT. Three zones, one whole-hour each side of UTC and one HALF-hour (Kolkata, which catches
-    a sign error or a rounding that two whole-hour zones agree on). A span is a DURATION: it is the same
-    quantity whoever reads the files, and a reader in Tokyo must not see a different night than CI does.
+    """THE PLANT. Four zones: one whole hour each side of UTC, one HALF-hour (Kolkata, which catches a
+    sign error or a rounding that two whole-hour zones agree on), and UTC itself. A span is a DURATION —
+    the same quantity whoever reads the files — and a reader in Tokyo must not see a different night than
+    CI does. Measured before the fix, on the real 2026-09-09: 116,853 s in UTC, 102,453 s in New York,
+    149,253 s in Tokyo, one whole offset apart each time.
     """
-    night = _zone_night(tmp_path)
+    night, _span = _zone_night(tmp_path)
     got = {z: _spans_in(z, night) for z in ("UTC", "America/New_York", "Asia/Kolkata", "Asia/Tokyo")}
     assert len(set(map(tuple, got.values()))) == 1, (
         "the session span moved with the reader's zone — §🔒 §1: a floating civil stamp resolved through "
-        "the local zone, subtracted from an absolute mtime", got)
+        "the local zone and then differenced against an absolute mtime", got)
 
 
-def test_PLANT_the_span_is_the_files_OWN_recorded_duration(tmp_path):
-    """And it is the right number, not merely a stable one: the session covers what the file recorded.
-    Pinning the value as well as its stability is what stops "identical in every zone" being satisfied by
-    a constant."""
-    rows, nominal = 1000, 7200.0
-    night = _zone_night(tmp_path, span_s=nominal, rows=rows)
-    (span,) = _spans_in("UTC", night)
-    # (n-1)/fs, not n/fs: the recorded span is the distance between the FIRST and LAST row, so 1000 rows
-    # cover 999 intervals. Asserting the nominal instead would be asserting a number the file does not
-    # contain, and would pass only because the tolerance hid the gap.
-    expected = (rows - 1) * (nominal / rows)
-    assert abs(span - expected) < 0.01, ("the session is as long as the data it holds", span, expected)
-    assert span != 100_000.0, "and it is not the distance to the mtime, which is what it used to be"
+def test_PLANT_the_span_is_the_recorded_duration_because_the_offset_WAS_applied(tmp_path):
+    """And it is the right number, not merely a stable one — pinning the value is what stops "identical in
+    every zone" being satisfied by a constant.
+
+    The fixture places every mtime one `offset` past the end of its own data, so the session's elapsed
+    time IS that data's duration once the offset has been applied to the start. Forgetting to apply it
+    leaves `mtime − floating(stamp)` instead, which is longer by the whole offset — so this separates
+    "the start was raised into the mtime frame" from "the start was left floating", which no test of
+    stability alone can do.
+    """
+    night, span = _zone_night(tmp_path)
+    for zone in ("UTC", "America/New_York", "Asia/Kolkata"):
+        (got,) = _spans_in(zone, night)
+        assert abs(got - span) == 0, ("the session is as long as the data it holds", zone, got, span)
+        assert abs(got - (span + 14400.0)) > 1, (
+            "the span is longer by exactly the writer offset — the start was never raised out of "
+            "floating civil time", zone, got)
+
+
+def test_PLANT_a_half_hour_writer_offset_is_recovered_exactly(tmp_path):
+    """A 45- or 30-minute zone must survive the bucket, or the recovery silently serves whole hours only.
+
+    19,800 s is +05:30. It is a whole multiple of the 15-minute bucket — which is the reason the bucket is
+    15 minutes and not an hour — so it must come back exactly, not rounded to 18,000 or 21,600.
+    """
+    night, _span = _zone_night(tmp_path, offsets=(19800.0,) * 3)
+    off, _data = _recovered(night)
+    assert off["offset_sec"] == 19800.0 and off["basis"] == "recovered", off
+    assert off["modal_share"] == 1.0 and off["outliers"] == [], off
+
+
+def test_PLANT_a_two_bucket_night_recovers_the_modal_offset_and_NAMES_its_outlier(tmp_path):
+    """Three files agree, one is an hour out — a killed session, whose mtime sits long past its last row.
+
+    The modal bucket wins and the dissenter is REPORTED rather than averaged in: averaging would produce
+    an offset no file voted for, and dropping it silently would hide the one file worth looking at. This
+    is the case the strict majority exists for, and the case the ±14 h bound does NOT cover — an hour out
+    is a plausible zone, so only the vote can settle it.
+    """
+    night, _span = _zone_night(tmp_path, offsets=(14400.0, 14400.0, 14400.0, 18000.0),
+                               streams=("ECG", "ACC", "HR", "PPG"))
+    off, _data = _recovered(night)
+    assert off["offset_sec"] == 14400.0, off
+    assert off["modal_share"] == 0.75 and off["voters"] == 4, off
+    assert off["outliers"] == ["Polar_H10_02849638_20260909212938_PPG.txt"], off["outliers"]
+
+
+def test_PLANT_too_few_voters_reads_UNKNOWN_with_a_REASON_and_no_guessed_span(tmp_path):
+    """One file cannot state the night's zone, and the night says so instead of guessing.
+
+    §∅: the refusal carries a NAMED reason, `offset_sec` is null rather than 0, `frame` says the session
+    bounds are floating civil values and not instants, and `span_sec` is null with `span_reason` carrying
+    the cause through — a bare null could not distinguish "no data", "under the judgeable minimum" and
+    "no frame to measure in", which need different fixes.
+    """
+    night, _span = _zone_night(tmp_path, offsets=(14400.0,), streams=("ECG",))
+    off, _data = _recovered(night)
+    assert off["offset_sec"] is None and off["basis"] is None, off
+    assert off["voters"] == 1 and off["reason"] and "floor is 2" in off["reason"], off
+    s = nightqc.summarize(night, [{"name": "H10", "device_id": "02849638", "streams": ["ecg"]}])
+    assert s["span_sec"] is None and s["span_reason"] == off["reason"], (s["span_sec"], s["span_reason"])
+    assert s["writer_offset"]["frame"] == "floating", s["writer_offset"]
+
+
+def test_PLANT_a_vote_beyond_any_real_zone_is_refused_on_its_MAGNITUDE(tmp_path):
+    """No majority can make 67 days a time zone.
+
+    The bound is on the QUANTITY and is checked before a vote is counted, which is what makes it a bound
+    and not a clamp (§🔒 §7's discipline for `CK_AXIS_MAX_PPM`). Measured need, not a hypothetical: the
+    suite's own `_cap_timed` writes a CONSTANT host stamp, and reading it recovered an "offset" of
+    5,804,100 s behind a clean 0.667 majority.
+    """
+    night, _span = _zone_night(tmp_path, offsets=(5_804_100.0,) * 3)
+    off, _data = _recovered(night)
+    assert off["offset_sec"] is None and off["voters"] == 0, off
+    assert off["reason"] and "could vote" in off["reason"], off
+
+
+def test_PLANT_the_vote_ROUNDS_so_a_millisecond_cannot_move_the_zone(tmp_path):
+    """The real 2026-09-27, which flooring got wrong by fifteen minutes.
+
+    Every real UTC offset is an exact multiple of the bucket, so the true value sits exactly ON a boundary
+    — where flooring is decided by arbitrarily small jitter of either sign. These two voters land 1 ms and
+    10 s BELOW 14,400 (an mtime marginally ahead of its own last row, which is ordinary), and flooring
+    sent both to 13,500. A millisecond must not be able to name a different zone.
+    """
+    night, _span = _zone_night(tmp_path, offsets=(14400.0, 14400.0), lags=(-0.001, -10.038),
+                               streams=("ECG", "ACC"))
+    off, _data = _recovered(night)
+    assert off["offset_sec"] == 14400.0, (off, "a sub-second shortfall moved the recovered zone")
+    assert off["unanimous"] is True and off["voters"] == 2, off
