@@ -2184,3 +2184,72 @@ def test_two_defs_under_ONE_stem_are_compared_TOGETHER():
         "a change to the FIRST body under a shared stem was not seen"
     )
     assert M.functions_with_changed_ast(dup, dup.replace("return 2", "return 9"))[0] == {"x_f"}
+
+
+# ── the COMMITTED generated-size record ─────────────────────────────────────────────────────────────
+# Every CI run is a fresh scratch, so a size remembered only beside the scratch is a size CI never has.
+# The record is what lets a hosted runner refuse capture.py at 0 workers in minute one, NAMED, instead of
+# burning the generation budget to rediscover it.
+
+
+def test_the_size_record_round_trips_and_a_hash_MISS_IS_ABSENT():
+    """The keying is the whole safety property: a size measured from a DIFFERENT version of the source is
+    a guess wearing a measurement's clothes. So a miss must be absent, never the nearest entry."""
+    text = M.merge_mutants_size("", "capture.py", "7cf809a4bbf4", 562427047, "2026-09-28", "rig-x870")
+    rec = M.mutants_size_record(text)
+    assert rec[("capture.py", "7cf809a4bbf4")] == 562427047
+    assert rec.get(("capture.py", "8c405e68387e")) is None, "a different source hash must not inherit a size"
+    assert rec.get(("other.py", "7cf809a4bbf4")) is None, "a different module must not inherit it either"
+
+
+def test_the_record_survives_being_unreadable_or_absent():
+    """A record that cannot be parsed must read as NO KNOWLEDGE, not as a crash and not as a zero that
+    some caller treats as permissive. The tool runs on hosts where this file may not exist at all."""
+    assert M.mutants_size_record("") == {}
+    assert M.mutants_size_record("{not json") == {}
+    assert M.mutants_size_record('{"sizes": {"bad-key": 12}}') == {}, "a key with no @hash is not a row"
+    assert M.mutants_size_record('{"sizes": {"m.py@abc": 0}}') == {}, "a zero size is absence, not a measurement"
+    assert M.mutants_size_record('{"sizes": {"m.py@abc": -5}}') == {}
+    assert M.mutants_size_record('{"sizes": {"m.py@abc": "big"}}') == {}
+    assert M.mutants_size_record('{"sizes": {"@abc": 5}}') == {}
+    assert M.mutants_size_record('{"sizes": {"m.py@": 5}}') == {}
+    assert M.mutants_size_record('{"sizes": {"m.py@abc": 7}}') == {("m.py", "abc"): 7}, "a bare int is a size"
+
+
+def test_a_re_measurement_REPLACES_and_says_what_it_superseded():
+    """The same source hash generating a different size means the GENERATOR changed (a mutmut bump), and
+    the newer number describes the mutmut this tree pins. Keeping both, or averaging, would describe
+    neither — but the old value stays visible so the change is not silent."""
+    t1 = M.merge_mutants_size("", "m.py", "aaa", 100, "2026-09-01", "rig")
+    t2 = M.merge_mutants_size(t1, "m.py", "aaa", 250, "2026-09-28", "rig")
+    import json as _j
+    entry = _j.loads(t2)["sizes"]["m.py@aaa"]
+    assert entry["generatedBytes"] == 250
+    assert entry["supersedes"] == 100, "a replaced measurement must stay visible"
+    # Idempotent on an unchanged measurement: re-recording the same size adds no `supersedes` noise.
+    t3 = M.merge_mutants_size(t2, "m.py", "aaa", 250, "2026-09-29", "rig")
+    assert "supersedes" not in _j.loads(t3)["sizes"]["m.py@aaa"]
+    # …and a corrupt file is rebuilt rather than inherited, so one bad write cannot poison every later one.
+    assert _j.loads(M.merge_mutants_size("{not json", "m.py", "aaa", 7, "d", "h"))["sizes"]["m.py@aaa"]["generatedBytes"] == 7
+
+
+def test_the_committed_record_in_this_tree_parses_and_is_keyed_to_real_modules():
+    """The file itself, not a fixture: a record nobody can parse is a record that silently stops helping,
+    and the keys must name modules this tree actually has."""
+    import pathlib as _p
+    path = _p.Path(__file__).resolve().parent.parent / "tools" / "mutation-sizes.json"
+    assert path.exists(), "the committed size record is missing"
+    rec = M.mutants_size_record(path.read_text(encoding="utf-8"))
+    assert rec, "the committed record parses to nothing — every CI run is a fresh scratch and would learn nothing"
+    root = path.parent.parent
+    for module, src_hash in rec:
+        assert (root / module).exists(), f"{module} is recorded but not in the tree"
+        assert len(src_hash) == 12 and all(c in "0123456789abcdef" for c in src_hash), src_hash
+
+
+def test_an_unknown_size_is_capped_and_NEVER_the_core_count():
+    """🔴 The first cut of this fix fell back to `os.cpu_count()` when no size was known — the exact
+    over-commit it exists to prevent, alive in the one branch that matters, because the FIRST run on any
+    source hash is the unknown case and that is the case #3202 was."""
+    assert M.UNKNOWN_SIZE_WORKERS < 8, "the unknown-size fallback must be small, not a core count"
+    assert M.workers_that_fit(0, 14 * 1024 ** 3) == 0, "an unknown size affords nothing to derive from"

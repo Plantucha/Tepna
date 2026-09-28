@@ -76,6 +76,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import platform
 import shutil
 import pathlib
 import re
@@ -100,11 +101,18 @@ from mutation_diff import (  # noqa: E402  (after the sys.path fix above)
     root_reads,
     stage_root_reads,
     GENERATION_DONE_RE,
+    UNKNOWN_SIZE_WORKERS,
     generation_cap_sec,
     generation_timeout_reason,
+    merge_mutants_size,
+    mutants_size_record,
     stream_bounded,
     workers_that_fit,
 )
+SIZES_FILE = "mutation-sizes.json"
+# The COMMITTED generated-size record, beside this tool. Read on every fresh scratch — which is every CI
+# run — and written only by `--record-sizes`, so an ordinary run never dirties the tree.
+
 from mutation_sweep import (  # noqa: E402
     BUDGET_OK,
     budget_verdict,
@@ -504,15 +512,29 @@ def run_one(module: str, only: str | None = None, tests_override: list[str] | No
     # length), which a module with a few huge functions explodes. So: measure, remember, or say UNKNOWN.
     _mutants_file = work / "mutants" / module
     _size_note = scratch / ".mutants-bytes"
+    _size_basis = "generated"
     try:
         _mutants_bytes = _mutants_file.stat().st_size
     except OSError:
-        # Not generated yet. Fall back to what THIS module generated last time, if anyone recorded it —
-        # a remembered measurement, never a guess from the source.
+        # Not generated yet. Fall back to what THIS module generated last time — a REMEMBERED
+        # measurement, never a guess from the source. Two places remember, in order:
+        #   1. the scratch note, which survives only on this host;
+        #   2. the COMMITTED record, which is the only one CI ever has, because every CI run is a fresh
+        #      scratch. Without it each capture.py PR spends its whole generation budget rediscovering
+        #      that capture.py generates 562 MB and fits nowhere.
+        # A hash miss is ABSENT, not the nearest entry: a size from a different version of the source is
+        # a guess wearing a measurement's clothes.
+        _mutants_bytes, _size_basis = 0, "unknown"
         try:
-            _mutants_bytes = int(_size_note.read_text(encoding="utf-8").strip())
+            _mutants_bytes, _size_basis = int(_size_note.read_text(encoding="utf-8").strip()), "scratch note"
         except (OSError, ValueError):
-            _mutants_bytes = 0
+            try:
+                _rec = mutants_size_record((HERE / "tools" / SIZES_FILE).read_text(encoding="utf-8"))
+            except OSError:
+                _rec = {}
+            _known = _rec.get((module, src_hash))
+            if _known:
+                _mutants_bytes, _size_basis = _known, f"committed record ({SIZES_FILE})"
     try:
         with open("/proc/meminfo", encoding="utf-8") as _fh:
             _avail = available_bytes_from_meminfo(_fh.read())
@@ -520,11 +542,16 @@ def run_one(module: str, only: str | None = None, tests_override: list[str] | No
         _avail = None
     _cores = os.cpu_count() or 1
     _fit = workers_that_fit(_mutants_bytes, _avail or 0)
-    # With no size to go on, the count cannot be derived — keep the core count and let the phase bound
-    # and the post-generation re-check below catch it, but SAY which basis was used.
-    _workers = _cores if _mutants_bytes <= 0 else min(_cores, max(1, _fit))
-    plan["workers_basis"] = "cores (mutants size unknown)" if _mutants_bytes <= 0 else f"memory-derived ({_fit} fit, {_cores} cores)"
+    # 🔴 UNKNOWN MUST NOT MEAN "INHERIT THE CORE COUNT". The first cut of this fix did exactly that, which
+    # kept the over-commit alive in the one branch that matters — the FIRST run on any source hash is the
+    # unknown case, and that is the case #3202 was. With no size, take a small pre-stated number and say
+    # so; the size this run records then protects every later run on this hash.
+    _workers = min(_cores, UNKNOWN_SIZE_WORKERS) if _mutants_bytes <= 0 else min(_cores, max(1, _fit))
+    plan["workers_basis"] = (f"unknown size → capped at {UNKNOWN_SIZE_WORKERS} (never the {_cores} cores)"
+                             if _mutants_bytes <= 0 else
+                             f"memory-derived from the {_size_basis} ({_fit} fit, {_cores} cores)")
     plan["workers"] = _workers
+    plan["mutants_size_basis"] = _size_basis
     _why_mem = memory_refusal(_mutants_bytes, _workers, _avail or 0) if _mutants_bytes > 0 and _fit < 1 else None
     if _why_mem:
         # NOT an `error`: the caller must be able to tell "could not measure this" from "tried and
@@ -676,6 +703,10 @@ def main(argv=None) -> int:
                     help="rebuild the scratch even when the module's mutants are still valid")
     ap.add_argument("--estimate", action="store_true",
                     help="time the clean run and print what the module will cost, then stop")
+    ap.add_argument("--record-sizes", action="store_true",
+                    help=f"merge each run's generated-mutants size into tools/{SIZES_FILE}, the committed "
+                         f"record CI reads on its always-fresh scratch. Off by default, so an ordinary "
+                         f"run never dirties the tree")
     a = ap.parse_args(argv)
     if a.list:
         for m in modules():
@@ -690,6 +721,16 @@ def main(argv=None) -> int:
                     tests_override=[x.strip() for x in a.tests.split(",")] if a.tests else None)
         if r.get("skipped"):
             skipped += 1
+        if a.record_sizes and r.get("mutants_bytes") and r.get("mutant_generation"):
+            # Written only on request: the record is committed, so an ordinary run must not dirty the
+            # tree. The measurement is whatever the generator actually wrote, keyed to the source hash
+            # this run generated FROM — never carried across hashes.
+            _sf = HERE / "tools" / SIZES_FILE
+            _sf.write_text(merge_mutants_size(
+                _sf.read_text(encoding="utf-8") if _sf.exists() else "",
+                m, r["mutant_generation"], r["mutants_bytes"],
+                time.strftime("%Y-%m-%d"), platform.node()), encoding="utf-8")
+            print(f"  recorded {r['mutants_bytes']} bytes for {m}@{r['mutant_generation']} in tools/{SIZES_FILE}", flush=True)
         # ⚠️ THE VERDICT FIELDS COME FIRST AND ARE NEVER TRUNCATED. This used to be a flat
         # `json.dumps(...)[:1600]`, and on capture.py — whose plan lists 95 test files — the 1600 chars
         # were spent on the test list, so `rc`, `elapsed_sec` and `timed_out` were CUT OFF ENTIRELY.

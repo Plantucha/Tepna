@@ -38,6 +38,7 @@ from __future__ import annotations
 
 import ast
 import fnmatch
+import json
 import pathlib
 import re
 import stat as _stat
@@ -63,6 +64,9 @@ __all__ = [
     "SCRATCH_OWNER_FILE",
     "GENERATION_DONE_RE",
     "GENERATION_CAP_FRACTION",
+    "UNKNOWN_SIZE_WORKERS",
+    "mutants_size_record",
+    "merge_mutants_size",
     "generation_cap_sec",
     "available_bytes_from_meminfo",
     "generation_timeout_reason",
@@ -944,6 +948,69 @@ GENERATION_CAP_FRACTION = 0.5
 def generation_cap_sec(cap_sec, fraction=GENERATION_CAP_FRACTION):
     """The share of a run's wall cap that mutant GENERATION may take before it is killed and named."""
     return max(CAP_FLOOR_SEC, float(cap_sec) * fraction)
+
+
+UNKNOWN_SIZE_WORKERS = 4
+# 🔴 AN UNKNOWN SIZE MUST NOT MEAN "INHERIT THE CORE COUNT". The first cut of this fix fell back to
+# `os.cpu_count()` when no size was known — which is the exact over-commit it exists to prevent, kept
+# alive in the one branch that matters, because the FIRST run on any source hash is the unknown case.
+# mutmut takes ONE `--max-children` for both phases and the size only becomes knowable after generation,
+# so the unknown case gets a small pre-stated number instead: generation parses one source file at a
+# time and is cheap per worker, while a RUN worker imports the whole generated module (the 8.2 GB
+# measurement), and 4 is under any cap we have once a size is recorded. The recorded size then protects
+# every later run on that hash. Measured for scale: 24 workers on the rig and 4 on a hosted runner BOTH
+# over-committed on capture.py — but 4 x 8 GB is over a 7 GB cap, so the record is what makes it safe,
+# not this number.
+
+
+def mutants_size_record(text):
+    """Parse the committed `tools/mutation-sizes.json` into `{(module, src_hash): bytes}`.
+
+    WHY COMMITTED, and why keyed on the module's SOURCE HASH. Every CI run is a fresh scratch, so a
+    size remembered only beside the scratch is a size CI never has: without a record on main, each
+    capture.py PR spends its whole generation budget rediscovering that capture.py generates 562 MB and
+    fits nowhere. With it, a hosted runner refuses at 0 workers in minute one, NAMED. A hash miss is
+    simply ABSENT — never a default, never the nearest entry, because a size from a different version of
+    the source is a guess wearing a measurement's clothes (§∅). Tool-written; a hand-edited number here
+    would be indistinguishable from a measured one, which is the whole value of the file."""
+    try:
+        doc = json.loads(text or "{}")
+    except ValueError:
+        return {}
+    out = {}
+    for key, entry in (doc.get("sizes") or {}).items():
+        module, _, src_hash = key.partition("@")
+        if not module or not src_hash:
+            continue
+        size = entry.get("generatedBytes") if isinstance(entry, dict) else entry
+        if isinstance(size, int) and size > 0:
+            out[(module, src_hash)] = size
+    return out
+
+
+def merge_mutants_size(text, module, src_hash, generated_bytes, measured_at, host):
+    """The record with this measurement added, as JSON text. Idempotent on an unchanged measurement.
+
+    An existing entry is REPLACED rather than kept or averaged: the same source hash generating a
+    different size means the generator changed, and the newer measurement is the one that describes the
+    mutmut this tree pins. The previous value is kept in `supersedes` so the change is visible."""
+    try:
+        doc = json.loads(text or "{}")
+    except ValueError:
+        doc = {}
+    doc.setdefault("schema", "tepna.mutation-sizes/1")
+    doc.setdefault("note", "Generated-mutants size per (module, source sha256[:12]), written by "
+                           "tools/mutate.py --record-sizes. NEVER hand-edited: a typed number here is "
+                           "indistinguishable from a measured one. A hash miss is absent, not a default.")
+    sizes = doc.setdefault("sizes", {})
+    key = f"{module}@{src_hash}"
+    prior = sizes.get(key)
+    entry = {"generatedBytes": int(generated_bytes), "measuredAt": measured_at, "host": host}
+    if isinstance(prior, dict) and prior.get("generatedBytes") not in (None, int(generated_bytes)):
+        entry["supersedes"] = prior.get("generatedBytes")
+    sizes[key] = entry
+    doc["sizes"] = dict(sorted(sizes.items()))
+    return json.dumps(doc, indent=2) + "\n"
 
 
 def workers_that_fit(mutants_bytes, available_bytes, rss_factor=WORKER_RSS_PER_MUTANTS_BYTE,
