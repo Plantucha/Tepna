@@ -8009,6 +8009,109 @@
       }
     });
 
+    /* ════ THE HAT ROWS RENDER THE PER-CORNER STATUS (PAT-HAT-DRIFT-DIFFERENCED, 2026-09-27) ═════════
+       A negative solved variance has TWO different meanings and the page used to print one word for both.
+       `patHatCornerStatus` separates them: a CI that spans 0 means the data are consistent with
+       independence and merely too few to resolve a small corner — an UPPER BOUND, not a failure — while a
+       CI wholly below 0 is a real independence failure, which names the pair and its explaining ρ.
+       The known answer is the brief's own before/after table for the owner's 2026-09-26 night, so this
+       group fails if the rendering drifts from what the acceptance item promises.
+       Every arm's number is NULLABLE in the producer (`boundMs`, `sigmaCI`, `explainRho`), so each is
+       asserted to say what is missing rather than print `null` or borrow a neighbour's wording — the
+       lesson of the same night's three guard defects. ════ */
+    group('the hat rows render the per-corner status, bound or rho', 'pat-classic-vs-fused · hat · corners', function (T) {
+      var S = env.sources || {};
+      var page = S['pat-classic-vs-fused.js'];
+      if (page == null) {
+        T.ok('pat-classic-vs-fused.js is wired into this lane', false, 'missing from env.sources — the scan would read nothing');
+        return;
+      }
+      var start = page.indexOf('function cornerText('),
+        end = page.indexOf('\n  function render(', start);
+      T.ok('cornerText + hatRow are extractable', start >= 0 && end > start, 'extraction is testing nothing');
+      var src = start >= 0 && end > start ? page.slice(start, end) : '';
+      var run = new Function(
+        'h',
+        'var C={mut:"mut",amber:"amber",blue:"blue"};function num(v,d){return v==null?"—":Number(v).toFixed(d);}' +
+          'function card(l,v,u,n,c){return {val:v,note:n,colour:c};}' +
+          src +
+          '; return hatRow("hat", h, "hat");'
+      );
+      /* THE BRIEF'S KNOWN ANSWER — the owner's 2026-09-26 night, classic column. */
+      var classic = run({
+        ok: true,
+        n: 98,
+        windows: new Array(98),
+        corners: {
+          chest: { status: 'underpowered', boundMs: 14.4 },
+          finger: { status: 'solved', sigma: 12.2, sigmaCI: [0, 20.0] },
+          ankle: { status: 'solved', sigma: 25.5, sigmaCI: [18.3, 29.8] }
+        }
+      });
+      T.eq("the brief's 09-26 classic row", classic.val, 'underpowered, σ < 14.4 · 12.2 [0.0, 20.0] · 25.5 [18.3, 29.8]');
+      T.ok('…and the corner names ride with it', classic.note.indexOf('chest · finger · ankle') === 0, classic.note);
+      /* AN UNDERPOWERED CORNER IS NOT AN INDEPENDENCE FAILURE, and this is the assertion that matters
+         scientifically. Measured on origin/main against the MERGED worker's own 09-26 output (sigma.chest
+         null, corners.chest underpowered with a 14.4 ms bound): the page ignored `corners` and rendered
+         "REFUSED — a negative solved variance — the hat's independence assumption failed". That states an
+         independence failure on a night whose data are CONSISTENT with independence and merely too thin to
+         resolve a small corner — the distinction the owner's ruling exists to make. */
+      T.ok('an underpowered corner never claims an independence failure', !/independence/.test(classic.val), classic.val);
+      T.ok('…and never reads as a bare REFUSED', !/REFUSED/.test(classic.val), classic.val);
+      /* …and its drift-removed row: the finger corner is the underpowered one there, not the chest. */
+      var drift = run({
+        ok: true,
+        n: 97,
+        corners: {
+          chest: { status: 'solved', sigma: 10.6, sigmaCI: [0, 15.4] },
+          finger: { status: 'underpowered', boundMs: 8.3 },
+          ankle: { status: 'solved', sigma: 24.2 }
+        }
+      });
+      T.eq("the brief's 09-26 drift-removed row", drift.val, '10.6 [0.0, 15.4] · underpowered, σ < 8.3 · 24.2');
+      /* AN INDEPENDENCE FAILURE NAMES THE PAIR AND THE SIGN, AND IS NOT CLAMPED. ρ is coarse (−1.30 … −0.45
+         over 40 seeds), so a value beyond ±1 is published flagged — clamping would make a wide point
+         estimate look like a tight one. */
+      var indep = run({
+        ok: true,
+        n: 98,
+        corners: {
+          chest: { status: 'independence-failed', pair: ['finger', 'ankle'], explainRho: -1.3, rhoOutOfRange: true },
+          finger: { status: 'solved', sigma: 12.2 },
+          ankle: { status: 'solved', sigma: 25.5 }
+        }
+      });
+      T.ok('an independence failure names the pair', /finger–ankle/.test(indep.val), indep.val);
+      T.ok('…and the explaining rho, unclamped', /-1\.30/.test(indep.val), indep.val);
+      T.ok('…flagged when it lands beyond ±1', /beyond ±1/.test(indep.val), indep.val);
+      T.ok('…and never says the bare word REFUSED', !/REFUSED/.test(indep.val), indep.val);
+      /* EVERY ARM'S NUMBER IS NULLABLE — each says what is missing, and none prints `null`. */
+      var nulls = run({
+        ok: true,
+        n: 98,
+        corners: {
+          chest: { status: 'underpowered', boundMs: null },
+          finger: { status: 'solved', sigma: null },
+          ankle: { status: 'independence-failed', pair: ['chest', 'finger'], explainRho: null }
+        }
+      });
+      T.ok('a missing bound says so', /no bound resolved/.test(nulls.val), nulls.val);
+      T.ok('a missing sigma says so', /σ unavailable/.test(nulls.val), nulls.val);
+      T.ok('a missing rho says so', /ρ unresolved/.test(nulls.val), nulls.val);
+      T.ok('…and no arm prints the literal null', !/\bnull\b/.test(nulls.val), nulls.val);
+      /* BACK-COMPAT IS THE CONTRACT OF AN ADDITIVE FIELD: a result from before `corners` existed still
+         takes the sigma path, which is what the #3180 group pins independently. */
+      T.eq('a result without `corners` still renders its sigmas', run({ ok: true, n: 98, sigma: { chest: 9.1, finger: 12.2, ankle: 25.5 } }).val, '9.1 / 12.2 / 25.5');
+      /* THE PAGE'S OWN STATEMENTS, as source — the two the owner's ruling fixed in place. */
+      T.ok('the drift-removed row is labelled NOT comparable', /not comparable to the classic σ/.test(page), 'the non-comparability label is gone');
+      T.ok('…and forwards the producer’s label rather than paraphrasing', /dh\.label/.test(page), 'the page paraphrases the label instead of forwarding it');
+      T.ok('the closure is stated identically 0 by construction', /identically 0 by construction/.test(page), 'the closure statement is gone');
+      T.ok('…and no delta card sits beside the drift-removed row', !/hatD[\s\S]{0,400}?'delta'/.test(page), 'a delta appeared beside the drift-removed estimate');
+      T.ok('the drift-removed row carries its own badge (§🎫)', /hatD:\s*\[/.test(page), 'no EV entry for the drift-removed estimate');
+      /* ANTI-VACUITY: the arms must actually differ, or every assertion above could pass on one branch. */
+      T.ok('the three statuses render differently', classic.val !== drift.val && indep.val !== nulls.val, 'arms collapsed');
+    });
+
     /* ════ THE HAT ROW READS THE CORNER KEYS THE SOLVER WRITES (#3128 regression, 2026-09-27) ═══════
        `hatRow` read `h.h10` / `h.verity` / `h.o2`. `threeHat` keys its `sigma` and `variance` by SITE —
        `{chest, finger, ankle}` — and has never written a device key, so all three reads were `undefined`,

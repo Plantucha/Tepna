@@ -5177,6 +5177,10 @@ function __mkWorker(name){ return new Worker(URL.createObjectURL(new Blob([__WSR
     spreadF: ['experimental', 'weighted IQR of the same lag — derived, and the weighting is unvalidated'],
     hat: ['experimental', 'classic three-cornered hat on 5-min PAT medians — assumes independent per-site errors; unvalidated'],
     hatF: ['experimental', 'the same hat on WEIGHTED 5-min medians — the independence assumption is unchanged and still unvalidated'],
+    hatD: [
+      'experimental',
+      'the hat solved on FIRST DIFFERENCES of adjacent 5-min medians — removes a drift shared by all three sites, and is NOT comparable to the classic σ: differencing changes the estimand, so a smaller number here is not a better instrument'
+    ],
     delta: ['experimental', 'fused minus classic — a difference of two experimental estimates, not a measurement of either']
   };
   function evb(k) {
@@ -5238,8 +5242,62 @@ function __mkWorker(name){ return new Worker(URL.createObjectURL(new Blob([__WSR
      So the site list is now taken from the object the worker actually sent, which also makes the caption
      and the values incapable of disagreeing: a rename in `threeHat` follows through here for free, and the
      suite pins the two key sets against each other. */
+  /* ── ONE CORNER'S VERDICT AS TEXT (PAT-HAT-DRIFT-DIFFERENCED §Acceptance) ────────────────────────
+     `patHatCornerStatus` answers per corner, and the three answers are NOT interchangeable:
+       solved              → σ with its block-bootstrap CI, when the CI is there
+       underpowered        → an UPPER BOUND, "σ < x ms": the variance came out negative but its CI spans
+                             0, so the data are consistent with independence and merely too few to
+                             resolve a small corner. This is the case a bare REFUSED used to swallow.
+       independence-failed → a CI wholly below 0. Names the PAIR and the explaining ρ, which is COARSE by
+                             construction (over 40 planted seeds it spanned −1.30 … −0.45), so a value
+                             beyond ±1 is shown flagged and NEVER clamped into range — clamping would
+                             make a wide point estimate look like a tight one.
+     Each arm can arrive with its number MISSING (`boundMs`, `sigmaCI` and `explainRho` are all nullable in
+     the producer), so each says so rather than printing `null` or borrowing a neighbour's wording. */
+  function cornerText(c) {
+    if (!c || !c.status) return '—';
+    if (c.status === 'solved') {
+      if (!(typeof c.sigma === 'number' && isFinite(c.sigma))) return 'solved, σ unavailable';
+      var ci =
+        c.sigmaCI &&
+        c.sigmaCI.length === 2 &&
+        c.sigmaCI.every(function (x) {
+          return typeof x === 'number' && isFinite(x);
+        });
+      return num(c.sigma, 1) + (ci ? ' [' + num(c.sigmaCI[0], 1) + ', ' + num(c.sigmaCI[1], 1) + ']' : '');
+    }
+    /* The STATUS is named, not implied by the shape of the number: §Acceptance asks the row to render the
+       status AND the bound, and "< 14.4" alone reads as a measurement with a funny format rather than as
+       "we could not resolve this corner, and here is the ceiling". */
+    if (c.status === 'underpowered') return typeof c.boundMs === 'number' && isFinite(c.boundMs) ? 'underpowered, σ < ' + num(c.boundMs, 1) : 'underpowered, no bound resolved';
+    if (c.status === 'independence-failed') {
+      var pair = Array.isArray(c.pair) ? c.pair.join('–') : 'a pair';
+      if (!(typeof c.explainRho === 'number' && isFinite(c.explainRho))) return 'independence failed (' + pair + '), ρ unresolved';
+      return 'independence failed (' + pair + '), ρ ≈ ' + num(c.explainRho, 2) + (c.rhoOutOfRange ? ' ⚠ beyond ±1, shown unclamped' : '');
+    }
+    return String(c.status);
+  }
+
   function hatRow(label, h, badge) {
     if (!h || !h.ok) return card(label, '—', '', h && h.reason ? h.reason : 'not solved', C.mut, badge);
+    /* THE PER-CORNER STATUS WHEN THE WORKER SENT IT. `corners` is additive (#3179), so a caller or a
+       fixture from before it existed still takes the sigma path below unchanged — the #3180 plants pin
+       exactly that, and a new field must never break a consumer that predates it. */
+    if (h.corners && typeof h.corners === 'object' && Object.keys(h.corners).length) {
+      var ck = Object.keys(h.corners);
+      return card(
+        label,
+        ck
+          .map(function (k) {
+            return cornerText(h.corners[k]);
+          })
+          .join(' · '),
+        'ms',
+        ck.join(' · ') + ' · ' + (h.windows ? h.windows.length : h.n || '?') + ' windows',
+        C.blue,
+        badge
+      );
+    }
     var sg = h.sigma && typeof h.sigma === 'object' ? h.sigma : null;
     var sites = sg ? Object.keys(sg) : [];
     /* A MISSING SOLVE OBJECT IS NOT AN INDEPENDENCE FAILURE — the two refusals are kept apart because
@@ -5314,6 +5372,29 @@ function __mkWorker(name){ return new Worker(URL.createObjectURL(new Blob([__WSR
     out.push(hatRow('classic hat σ', m.three, 'hat'));
     out.push(hatRow('fused hat σ', m.threeFused, 'hatF'));
     out.push('</div>');
+    /* ── THE DRIFT-REMOVED HAT GETS ITS OWN ROW, AND NEVER A DELTA ───────────────────────────────
+       Differencing removes a drift shared by all three sites, which CHANGES THE ESTIMAND: it is not a
+       better measurement of the same quantity, so a Δ against the classic σ would invite exactly the
+       reading the owner's item 2 forbids — that the smaller number is the improved instrument. Its own
+       row, its own badge, and the producer's own label rather than a paraphrase. */
+    var dh = m.three && m.three.diff;
+    if (dh) {
+      out.push('<h3>drift-removed hat — a SEPARATE estimate, not a correction of the one above</h3><div class="kpis">');
+      if (dh.ok) {
+        out.push(hatRow('drift-removed σ', dh, 'hatD'));
+        out.push('</div>');
+        out.push('<div class="note">' + esc(dh.label || 'drift-removed σ — not comparable to the classic σ') + ' · ' + dh.n + ' adjacent window pairs.</div>');
+      } else {
+        out.push(card('drift-removed σ', '—', '', dh.reason || 'not solved', C.mut, 'hatD') + '</div>');
+      }
+    }
+    /* ── THE CLOSURE IS NOT A CONSISTENCY FIGURE (brief §F, owner's item 3) ──────────────────────
+       `ca − cf − fa` is an IDENTITY here: both paths land on the SAME ankle beat, so 22,322 of 22,322
+       per-beat triangles closed to exactly 0. Publishing it as a residual would be a gate over an
+       algebraic tautology — a number that cannot fail, read as evidence that something was checked. */
+    out.push(
+      '<div class="note"><b>Closure.</b> The three-leg closure <i>chest→finger</i> − <i>chest→ankle</i> + <i>finger→ankle</i> is <b>identically 0 by construction</b> — every beat triangle shares its ankle beat — so it is not published as a consistency figure.</div>'
+    );
 
     /* ── per leg: classic | fused | delta ───────────────────────────────────────────────────────── */
     LEG.forEach(function (L) {
