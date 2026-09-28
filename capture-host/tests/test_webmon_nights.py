@@ -362,3 +362,279 @@ def test_the_pat_click_hands_over_the_arrival_sidecars():
     start = html.index("if(node==='PAT')")
     branch = html[start:html.index("\n  return", start)]
     assert "n.arrival" in branch, branch
+
+
+def _extract_fn(html, name, until):
+    """A named function's source, taken from the SHIPPED file, with a refusal when the shape moved —
+    the `test_monitor_escaping` idiom ("extraction is testing nothing")."""
+    start = html.index(f"function {name}(")
+    end = html.index(until, start)
+    src = html[start:end]
+    assert "return" in src, f"{name} extracted no body — the shape moved and this test reads nothing"
+    return src
+
+
+def test_every_derived_tool_hands_over_files_rather_than_a_boolean(tmp_path):
+    """THE 'PAT fused' PILL DID NOTHING WHEN CLICKED (owner, 2026-09-27) and the cause is a shape mismatch
+    the fallback cannot see. `night_entry` writes a NODE as a record (`{files: [...]}`) and a DERIVED tool
+    as `all(...)` — a BOOLEAN. `nightFilesFor`'s fallback is `n[node] ? n[node].files : []`, so a derived
+    entry passes the `?` (it is `true`) and yields `true.files === undefined`; `openNight`'s first use is
+    `if(!rels.length)`, which raised a TypeError BEFORE its first toast, inside an async call that was
+    neither awaited nor caught — an unhandled rejection, console-only, no tab, no message.
+    So the population is pinned as an EQUALITY over the derived tools and EXECUTED, not scanned: every
+    derived tool must resolve to a non-empty file list on a night that meets its own requirements. A
+    name-list assertion would have gone green the moment someone added the id to a map — all three maps
+    (`NIGHT_APP`, `NIGHT_INPUT`, `NIGHT_RUN`) already carried it, which is exactly why the route looked
+    complete. Only running the function finds a branch that is missing."""
+    import json
+    import re
+    import shutil
+    import subprocess
+
+    import pytest
+
+    import nights_index as ni
+
+    node = shutil.which("node")
+    if not node:  # pragma: no cover - ubuntu-latest always has node; a dev box might not
+        pytest.skip("node is not installed")
+
+    d = _night(tmp_path)  # H10 ECG + ACC, Verity PPG
+    (d / "Polar_H10_02849638_20260919220000_HR.txt").write_text(ROWS)
+    (d / "Wellue_O2Ring-S_77F1_20260919220000_PPG.txt").write_text(ROWS)
+    (d / "Wellue_O2Ring-S_77F1_20260919220000_SPO2.csv").write_text(
+        "Time,SpO2,PR\n22:00:00 19/09/2026,97,58\n23:00:00 19/09/2026,96,57\n"
+    )
+    root = str(tmp_path)
+    row = ni.night_entry(root, str(d))
+
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    html = open(os.path.join(here, "monitor.html"), encoding="utf-8").read()
+    m = re.search(r"const NIGHT_DERIVED = \[(.*?)\];", html)
+    assert m, "NIGHT_DERIVED is gone — this test would have no population"
+    derived = [k.strip().strip('"') for k in m.group(1).split(",")]
+    assert set(derived) == set(ni.DERIVED), (sorted(derived), sorted(ni.DERIVED))
+    assert len(derived) >= 3, derived  # anti-vacuity: an empty population satisfies everything below
+
+    # The producer's shape is WHY the fallback is unsafe, so pin it here rather than in prose: if derived
+    # entries ever become records, this reds and the branch requirement can be revisited deliberately.
+    for k in derived:
+        assert isinstance(row[k], bool), (k, type(row[k]).__name__)
+        assert row[k] is True, (k, "the fixture night should meet every derived requirement")
+
+    fn = _extract_fn(html, "nightFilesFor", "\nasync function openNight")
+    prog = (
+        fn + "\nconst n = " + json.dumps(row) + ";\nconst out = {};\n"
+        "for (const k of " + json.dumps(derived) + ") {\n"
+        "  try { const r = nightFilesFor(n, k); out[k] = Array.isArray(r) ? r.length : 'NOT-AN-ARRAY:' + typeof r; }\n"
+        "  catch (e) { out[k] = 'THROWS:' + e.constructor.name + ': ' + e.message; }\n}\n"
+        "console.log(JSON.stringify(out));"
+    )
+    r = subprocess.run([node, "-e", prog], capture_output=True, text=True, timeout=30)
+    assert r.returncode == 0, r.stderr
+    got = json.loads(r.stdout.strip())
+    for k in derived:
+        assert isinstance(got[k], int), (k, got[k], "a derived tool fell through to the boolean fallback")
+        assert got[k] > 0, (k, got, "the click would toast 'nothing to load' for a night that IS eligible")
+
+    # ANTI-VACUITY ON THE REQUIREMENT ITSELF: drop the ring's RAW pleth and 'PAT fused' must become
+    # INELIGIBLE (no pill, so no click) while PAT and the hat stay eligible — the exact distinction
+    # nights_index states, "a night with the ring's CSV but no raw pleth is PAT-eligible and NOT this".
+    (d / "Wellue_O2Ring-S_77F1_20260919220000_PPG.txt").unlink()
+    row2 = ni.night_entry(root, str(d))
+    assert row2["PAT fused"] is False
+    assert row2["PAT"] is True and row2["3 corner hat"] is True
+
+
+def test_a_night_click_that_throws_says_so_instead_of_vanishing():
+    """`openNight` toasts on all eight of its own failure arms, and a THROW bypassed every one of them: the
+    handler called it bare, so the rejection went nowhere and the click looked dead. Executed rather than
+    scanned — the delegation line is run with a rejecting `openNight`, and the toast must carry the reason.
+    §∅ at the UI: a click that examined nothing has to say so."""
+    import json
+    import shutil
+    import subprocess
+
+    import pytest
+
+    node = shutil.which("node")
+    if not node:  # pragma: no cover - ubuntu-latest always has node; a dev box might not
+        pytest.skip("node is not installed")
+
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    html = open(os.path.join(here, "monitor.html"), encoding="utf-8").read()
+    line = [ln for ln in html.split("\n") if "closest('[data-node]')" in ln]
+    assert len(line) == 1, line  # the delegation must be one place, or this test reads the wrong one
+    prog = (
+        "let TOAST = null;\n"
+        "const nToast = (m, bad) => { TOAST = { m, bad }; };\n"
+        "const openNight = async () => { throw new Error('boom'); };\n"
+        "const e = { target: { closest: (s) => (s === '[data-node]' ? { dataset: { night: '2026-09-19', node: 'PAT fused' } } : null) } };\n"
+        + line[0].strip()
+        + "\n"
+        "setTimeout(() => console.log(JSON.stringify({ toast: TOAST })), 20);"
+    )
+    r = subprocess.run([node, "-e", prog], capture_output=True, text=True, timeout=30)
+    assert r.returncode == 0, r.stderr
+    got = json.loads(r.stdout.strip())["toast"]
+    assert got is not None, "a throwing click produced NO toast — the rejection vanished"
+    assert "boom" in got["m"], got  # the reason travels, not just a generic failure
+    assert "PAT fused" in got["m"], got  # and which click it was
+    assert got["bad"] is True, got  # rendered as an error, not as progress
+
+
+def _monitor_derived_keys(html):
+    """`NIGHT_DERIVED` from the shipped page, refusing rather than returning an empty population."""
+    import re
+
+    m = re.search(r"const NIGHT_DERIVED = \[(.*?)\];", html)
+    assert m, "NIGHT_DERIVED is gone from monitor.html — any population derived from it would be empty"
+    keys = [k.strip().strip('"') for k in m.group(1).split(",")]
+    assert len(keys) >= 3, keys
+    return keys
+
+
+def _night_files_src(html, projected=True):
+    """`nightFilesFor` and the helpers it projects, as executable source from the shipped file."""
+    start = html.index("function nightFilesFor(")
+    end = html.index("\nasync function openNight")
+    src = html[start:end]
+    assert "return" in src, "nightFilesFor extracted no body — extraction is testing nothing"
+    if projected:
+        assert "function nightFiles(" in src, "nightFiles() is gone — extraction is testing nothing"
+    return src
+
+
+def test_no_value_shape_reaching_nightfiles_yields_a_non_array_or_a_throw(tmp_path):
+    """THE TRAP IS A TRUTHY VALUE OF THE WRONG SHAPE, NOT AN ABSENT ONE. Every lookup used to be
+    `n.X ? n.X.files : []`, which guards absence and admits anything truthy: a DERIVED entry is a BOOLEAN,
+    so `true.files` is `undefined` — `[...undefined]` THROWS inside a branch and `undefined` escapes the
+    fallback as a non-array, which is how the 'PAT fused' pill came to do nothing at all (#3173).
+    So the property is the CLASS, not the instance: no value of any shape may yield a non-array or a throw,
+    and the refusal must name the node and the shape found rather than the generic "nothing to load"."""
+    import json
+    import shutil
+    import subprocess
+
+    import pytest
+
+    node = shutil.which("node")
+    if not node:  # pragma: no cover - ubuntu-latest always has node; a dev box might not
+        pytest.skip("node is not installed")
+
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    html = open(os.path.join(here, "monitor.html"), encoding="utf-8").read()
+    src = _night_files_src(html)
+    derived = _monitor_derived_keys(html)
+
+    # Every shape a wrong index entry can take, against a NODE key and against a DERIVED key.
+    shapes = {
+        "boolean-true": True,
+        "boolean-false": False,
+        "string": "OxyDex",
+        "number": 3,
+        "object-without-files": {"pending": False, "coverage": 0.0},
+        "files-not-an-array": {"files": "a.txt"},
+        "files-of-non-strings": {"files": [1, 2, None]},
+        "null": None,
+        "array": ["a.txt"],
+    }
+    prog = (
+        "const NIGHT_DERIVED = " + json.dumps(derived + ["Fabricated Tool"]) + ";\n" + src + "\n"
+        "const SHAPES = " + json.dumps(shapes) + ";\n"
+        "const out = {};\n"
+        "for (const [name, v] of Object.entries(SHAPES)) {\n"
+        "  for (const key of ['OxyDex', 'Fabricated Tool']) {\n"
+        "    const n = { night: '2026-09-19', arrival: [] }; n[key] = v;\n"
+        "    const tag = name + '|' + key;\n"
+        "    try { const r = nightFiles(n, key); out[tag] = { isArr: Array.isArray(r.files), n: Array.isArray(r.files) ? r.files.length : null, reason: r.reason };\n"
+        "           out[tag].forAlsoArray = Array.isArray(nightFilesFor(n, key)); }\n"
+        "    catch (e) { out[tag] = { threw: e.constructor.name + ': ' + e.message }; }\n"
+        "  }\n}\n"
+        "console.log(JSON.stringify(out));"
+    )
+    r = subprocess.run([node, "-e", prog], capture_output=True, text=True, timeout=30)
+    assert r.returncode == 0, r.stderr
+    got = json.loads(r.stdout.strip())
+    assert len(got) == len(shapes) * 2, got  # anti-vacuity: every shape x both keys was actually exercised
+    for tag, res in got.items():
+        assert "threw" not in res, (tag, res)
+        assert res["isArr"] is True, (tag, res)
+        assert res["forAlsoArray"] is True, (tag, res, "nightFilesFor must stay array-valued")
+    # A WRONG SHAPE IS NAMED. The three Kestrel asked for, plus the two that are wrong one level in.
+    for name in ("boolean-true", "string", "object-without-files", "files-not-an-array", "files-of-non-strings"):
+        for key in ("OxyDex", "Fabricated Tool"):
+            res = got[name + "|" + key]
+            assert res["reason"], (name, key, "a wrong-shaped entry produced no reason")
+            assert key in res["reason"], (name, key, res["reason"])
+    # …and an ABSENT entry is not accused of having a wrong shape (§∅: a named reason, never a borrowed one)
+    assert "has no OxyDex" in got["null|OxyDex"]["reason"], got["null|OxyDex"]
+    # A derived tool that fell through names the MISSING BRANCH, which is the actual defect there
+    assert "branch" in got["boolean-true|Fabricated Tool"]["reason"], got["boolean-true|Fabricated Tool"]
+    # A derived key that HAS a branch never reads `n[key]` at all, so a bad shape there is irrelevant and
+    # the honest reason is NONE — openNight's "nothing to load" is correct for a night with no inputs.
+    assert got["boolean-true|OxyDex"]["reason"], got["boolean-true|OxyDex"]
+    # `files-of-non-strings` is admitted as a LIST and filtered to empty rather than handing openNight a
+    # number to fetch
+    assert got["files-of-non-strings|OxyDex"]["n"] == 0, got["files-of-non-strings|OxyDex"]
+
+
+def test_the_shape_guard_changed_no_answer_for_a_well_formed_night(tmp_path):
+    """CONTROL, as an EQUIVALENCE rather than a re-assertion: `origin/main`'s `nightFilesFor` and this
+    one must return the SAME list for every NODES column and every derived tool on a real night. The
+    guard is meant to change what happens to WRONG shapes and nothing else, and the cheapest way to say
+    that is to run both versions side by side."""
+    import json
+    import shutil
+    import subprocess
+
+    import pytest
+
+    import nights_index as ni
+
+    node = shutil.which("node")
+    if not node:  # pragma: no cover - ubuntu-latest always has node; a dev box might not
+        pytest.skip("node is not installed")
+    git = shutil.which("git")
+    if not git:  # pragma: no cover
+        pytest.skip("git is not installed")
+
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    root = os.path.dirname(here)
+    old = subprocess.run(
+        [git, "-C", root, "show", "origin/main:capture-host/monitor.html"], capture_output=True, text=True, timeout=30
+    )
+    if old.returncode != 0:  # pragma: no cover - a shallow clone or a detached mirror
+        pytest.skip("origin/main:capture-host/monitor.html is not fetchable here")
+
+    html = open(os.path.join(here, "monitor.html"), encoding="utf-8").read()
+    derived = _monitor_derived_keys(html)
+
+    d = _night(tmp_path)
+    (d / "Polar_H10_02849638_20260919220000_HR.txt").write_text(ROWS)
+    (d / "Wellue_O2Ring-S_77F1_20260919220000_PPG.txt").write_text(ROWS)
+    (d / "Wellue_O2Ring-S_77F1_20260919220000_SPO2.csv").write_text(
+        "Time,SpO2,PR\n22:00:00 19/09/2026,97,58\n23:00:00 19/09/2026,96,57\n"
+    )
+    row = ni.night_entry(str(tmp_path), str(d))
+    keys = [c for c in ni.NODES] + list(derived)
+
+    def run(src, tag):
+        prog = (
+            "const NIGHT_DERIVED = " + json.dumps(derived) + ";\n" + src + "\n"
+            "const n = " + json.dumps(row) + ";\nconst out = {};\n"
+            "for (const k of "
+            + json.dumps(keys)
+            + ") { try { out[k] = nightFilesFor(n, k); } catch (e) { out[k] = 'THREW:' + e.message; } }\n"
+            "console.log(JSON.stringify(out));"
+        )
+        r = subprocess.run([node, "-e", prog], capture_output=True, text=True, timeout=30)
+        assert r.returncode == 0, (tag, r.stderr)
+        return json.loads(r.stdout.strip())
+
+    new_out = run(_night_files_src(html), "new")
+    old_out = run(_night_files_src(old.stdout, projected=False), "origin/main")
+    assert set(new_out) == set(keys) and len(keys) >= 8, (sorted(new_out), keys)  # anti-vacuity
+    assert any(v for v in new_out.values()), "every column came back empty — the night fixture resolved nothing"
+    for k in keys:
+        assert new_out[k] == old_out[k], (k, new_out[k], old_out[k])

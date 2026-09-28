@@ -105,13 +105,51 @@
      — the assumption failing, not a small number. Both columns refuse it; neither square-roots it.
      The worker already returns `ok:false` with its reason in that case, so this only has to not
      invent a number when it does (§∅). */
+  /* ── THE CORNER KEYS COME FROM THE PRODUCER, NEVER FROM A LITERAL HERE ───────────────────────────
+     Until 2026-09-27 this read `h.h10` / `h.verity` / `h.o2`. `threeHat` (pat-feasibility-worker.js:549)
+     keys its `variance` and `sigma` by SITE — `{chest, finger, ankle}` — and has never written a device
+     key, so all three reads were `undefined`, `undefined >= 0` is false, and `neg` was therefore TRUE for
+     EVERY possible input. Both hat rows rendered REFUSED on every night since the page shipped (#3128),
+     and — the part that makes this worse than a blank — the refusal asserted a PHYSICAL cause: "the hat's
+     independence assumption failed". A fabricated explanation is worse than a missing number, and this one
+     was wrong about the physics while a real solve sat one field away. The values live at `h.sigma[site]`,
+     not `h[device]`.
+     It shipped because nothing executed this function: zero tests named `hatRow` or either row label, and
+     the code READS right — the old caption listed "chest / ankle / finger" in exactly the order the three
+     device keys were printed, so the mapping was self-consistent and only wrong.
+     So the site list is now taken from the object the worker actually sent, which also makes the caption
+     and the values incapable of disagreeing: a rename in `threeHat` follows through here for free, and the
+     suite pins the two key sets against each other. */
   function hatRow(label, h, badge) {
     if (!h || !h.ok) return card(label, '—', '', h && h.reason ? h.reason : 'not solved', C.mut, badge);
-    var neg = ['h10', 'verity', 'o2'].some(function (k) {
-      return !(h[k] >= 0);
+    var sg = h.sigma && typeof h.sigma === 'object' ? h.sigma : null;
+    var sites = sg ? Object.keys(sg) : [];
+    /* A MISSING SOLVE OBJECT IS NOT AN INDEPENDENCE FAILURE — the two refusals are kept apart because
+       borrowing the physical reason for a shape problem is exactly what went wrong here (§∅). */
+    if (!sites.length) return card(label, '—', '', 'the solver returned no per-corner sigma — a shape change, not a physical refusal', C.mut, badge);
+    /* ⚠️ `null >= 0` IS TRUE IN JAVASCRIPT, and `threeHat` writes exactly `null` for a corner whose
+       solved variance went negative (`sigma[k] = v2[k] >= 0 ? sqrt(v2[k]) : null`). So the obvious
+       `!(sg[k] >= 0)` ADMITS the very case this refusal exists for — caught here before it shipped, on
+       the measured 2026-09-26 night (chest variance −32.0 ms² classic, −27.6 ms² fused → `sigma.chest`
+       null), which must read REFUSED and rendered blue under that guard. The old code only ever flagged
+       because it read a key that did not exist, and `undefined >= 0` is false: it was right by accident,
+       for the wrong reason, on every night. Guard the TYPE, not the comparison. */
+    var neg = sites.some(function (k) {
+      return typeof sg[k] !== 'number' || !isFinite(sg[k]) || sg[k] < 0;
     });
     if (neg) return card(label, 'REFUSED', '', 'a negative solved variance — the hat’s independence assumption failed; not square-rooted', C.amber, badge);
-    return card(label, num(h.h10, 1) + ' / ' + num(h.verity, 1) + ' / ' + num(h.o2, 1), 'ms', 'chest / ankle / finger σ · ' + (h.windows ? h.windows.length : h.n || '?') + ' windows', C.blue, badge);
+    return card(
+      label,
+      sites
+        .map(function (k) {
+          return num(sg[k], 1);
+        })
+        .join(' / '),
+      'ms',
+      sites.join(' / ') + ' σ · ' + (h.windows ? h.windows.length : h.n || '?') + ' windows',
+      C.blue,
+      badge
+    );
   }
 
   function render(m) {
@@ -146,6 +184,19 @@
       );
     }
 
+    /* ── the hat, both columns — FIRST, because it is what a reader comes here for ───────────────
+       Ordering is a finding, not a preference. The owner asked for this page by naming the hats and
+       naming them before the lag ("i thougt ther will be also fused 3hat and normal 3hat", 2026-09-27),
+       and could not reach the page at all because the Nights pill threw. Both σ rows were already here
+       and sat BELOW three per-leg card rows, so the thing that was asked for was the last thing on the
+       page. No computation moved — `m.three` / `m.threeFused` are unchanged and still gated by the same
+       single `#run` that requires all three corners, so the hat and the legs share one eligibility and
+       neither can render without the other. */
+    out.push('<h3>three-cornered hat, over the three sites — classic beside fused</h3><div class="kpis">');
+    out.push(hatRow('classic hat σ', m.three, 'hat'));
+    out.push(hatRow('fused hat σ', m.threeFused, 'hatF'));
+    out.push('</div>');
+
     /* ── per leg: classic | fused | delta ───────────────────────────────────────────────────────── */
     LEG.forEach(function (L) {
       var c = m[L.k],
@@ -167,12 +218,6 @@
       }
       out.push('</div>');
     });
-
-    /* ── the hat, both columns ──────────────────────────────────────────────────────────────────── */
-    out.push('<h3>three-cornered hat, over the three sites</h3><div class="kpis">');
-    out.push(hatRow('classic hat σ', m.three, 'hat'));
-    out.push(hatRow('fused hat σ', m.threeFused, 'hatF'));
-    out.push('</div>');
 
     /* ── 🔴 THE DELTA CARD: where the columns differ, AND where they cannot ──────────────────────── */
     out.push(
@@ -251,5 +296,5 @@
     });
   if (el('run')) el('run').addEventListener('click', run);
 
-  self.PatCvf = { render: render, EV: EV, classify: classify, onPick: onPick }; // exposed for the suite's source/behaviour checks
+  self.PatCvf = { render: render, EV: EV, classify: classify, onPick: onPick, hatRow: hatRow }; // exposed for the suite's source/behaviour checks
 })();

@@ -4252,6 +4252,54 @@
       "class": "no-distinguishing-input",
       "key": "- text = t.read_text(encoding=\"utf-8\", errors=\"replace\") | + text = t.read_text(errors=\"replace\")",
       "probe": "Same probe as the encoding=None sibling above: the census cannot observe the codec, so no input distinguishes the omitted argument either."
+    },
+    {
+      "brief": "2026-09-26-mutation-diff-selftest-and-literal-boundaries-unobserved (the drain, #3175)",
+      "class": "no-distinguishing-input",
+      "key": "- (\"mutmut absent\", (True, 1), False), | + (\"mutmut absent\", (False, 1), False),",
+      "op": "row retarget: (True,1) → (False,1)",
+      "probe": "All nine input pairs — the five original rows and each mutated variant — run through `refusal_reason` and checked against `(got is None) != want_none`: every one PASSES, so no input distinguishes the tables. Printed in the PR body.",
+      "why": "The selftest's table asserts only WHETHER a reason exists — `(got is None) != want_none` — and every mutated row is ALSO a true expectation of that weaker property, so the check cannot fire. Verified row by row rather than argued: `refusal_reason(False, 1)`, `(True, 2)`, `(False, None)` and `(True, None)` all return a reason, exactly as the unmutated rows do. ⚠️ The mutation does lose COVERAGE — it silently retargets a row at a different input — and that is why the distinction is now pinned independently: `test_every_refusal_reason_ROW_says_WHICH_failure_it_is` asserts each row's reason TEXT, so the (True,1) 'not importable' case and the (False,1) 'venv is missing' case can no longer be swapped without a red. FALSIFY THIS by making the selftest assert the reason text too, at which point these become killable and should be killed."
+    },
+    {
+      "brief": "2026-09-26-mutation-diff-selftest-and-literal-boundaries-unobserved (the drain, #3175)",
+      "class": "no-distinguishing-input",
+      "key": "- (\"mutmut absent\", (True, 1), False), | + (\"mutmut absent\", (True, 2), False),",
+      "op": "row retarget: rc 1 → 2",
+      "probe": "All nine input pairs — the five original rows and each mutated variant — run through `refusal_reason` and checked against `(got is None) != want_none`: every one PASSES, so no input distinguishes the tables. Printed in the PR body.",
+      "why": "The selftest's table asserts only WHETHER a reason exists — `(got is None) != want_none` — and every mutated row is ALSO a true expectation of that weaker property, so the check cannot fire. Verified row by row rather than argued: `refusal_reason(False, 1)`, `(True, 2)`, `(False, None)` and `(True, None)` all return a reason, exactly as the unmutated rows do. ⚠️ The mutation does lose COVERAGE — it silently retargets a row at a different input — and that is why the distinction is now pinned independently: `test_every_refusal_reason_ROW_says_WHICH_failure_it_is` asserts each row's reason TEXT, so the (True,1) 'not importable' case and the (False,1) 'venv is missing' case can no longer be swapped without a red. FALSIFY THIS by making the selftest assert the reason text too, at which point these become killable and should be killed."
+    },
+    {
+      "brief": "2026-09-26-mutation-diff-selftest-and-literal-boundaries-unobserved (the drain, #3175)",
+      "class": "no-distinguishing-input",
+      "key": "- (\"interpreter unlaunchable\", (True, None), False), | + (\"interpreter unlaunchable\", (False, None), False),",
+      "op": "row retarget: venv True → False",
+      "probe": "All nine input pairs — the five original rows and each mutated variant — run through `refusal_reason` and checked against `(got is None) != want_none`: every one PASSES, so no input distinguishes the tables. Printed in the PR body.",
+      "why": "The selftest's table asserts only WHETHER a reason exists — `(got is None) != want_none` — and every mutated row is ALSO a true expectation of that weaker property, so the check cannot fire. Verified row by row rather than argued: `refusal_reason(False, 1)`, `(True, 2)`, `(False, None)` and `(True, None)` all return a reason, exactly as the unmutated rows do. ⚠️ The mutation does lose COVERAGE — it silently retargets a row at a different input — and that is why the distinction is now pinned independently: `test_every_refusal_reason_ROW_says_WHICH_failure_it_is` asserts each row's reason TEXT, so the (True,1) 'not importable' case and the (False,1) 'venv is missing' case can no longer be swapped without a red. FALSIFY THIS by making the selftest assert the reason text too, at which point these become killable and should be killed."
+    },
+    {
+      "brief": "2026-09-26-mutation-diff-selftest-and-literal-boundaries-unobserved (the drain, #3175)",
+      "class": "no-distinguishing-input",
+      "key": "- (\"venv missing\", (False, None), False), | + (\"venv missing\", (True, None), False),",
+      "op": "row retarget: venv False → True",
+      "probe": "All nine input pairs — the five original rows and each mutated variant — run through `refusal_reason` and checked against `(got is None) != want_none`: every one PASSES, so no input distinguishes the tables. Printed in the PR body.",
+      "why": "The selftest's table asserts only WHETHER a reason exists — `(got is None) != want_none` — and every mutated row is ALSO a true expectation of that weaker property, so the check cannot fire. Verified row by row rather than argued: `refusal_reason(False, 1)`, `(True, 2)`, `(False, None)` and `(True, None)` all return a reason, exactly as the unmutated rows do. ⚠️ The mutation does lose COVERAGE — it silently retargets a row at a different input — and that is why the distinction is now pinned independently: `test_every_refusal_reason_ROW_says_WHICH_failure_it_is` asserts each row's reason TEXT, so the (True,1) 'not importable' case and the (False,1) 'venv is missing' case can no longer be swapped without a red. FALSIFY THIS by making the selftest assert the reason text too, at which point these become killable and should be killed."
+    },
+    {
+      "brief": "2026-09-26-mutation-diff-selftest-and-literal-boundaries-unobserved (the drain, #3175)",
+      "class": "no-distinguishing-input",
+      "key": "- (\"venv missing outranks a 0 rc\", (False, 0), False), | + (\"venv missing outranks a 0 rc\", (False, 1), False),",
+      "op": "row retarget: rc 0 → 1",
+      "probe": "All nine input pairs — the five original rows and each mutated variant — run through `refusal_reason` and checked against `(got is None) != want_none`: every one PASSES, so no input distinguishes the tables. Printed in the PR body.",
+      "why": "The selftest's table asserts only WHETHER a reason exists — `(got is None) != want_none` — and every mutated row is ALSO a true expectation of that weaker property, so the check cannot fire. Verified row by row rather than argued: `refusal_reason(False, 1)`, `(True, 2)`, `(False, None)` and `(True, None)` all return a reason, exactly as the unmutated rows do. ⚠️ The mutation does lose COVERAGE — it silently retargets a row at a different input — and that is why the distinction is now pinned independently: `test_every_refusal_reason_ROW_says_WHICH_failure_it_is` asserts each row's reason TEXT, so the (True,1) 'not importable' case and the (False,1) 'venv is missing' case can no longer be swapped without a red. FALSIFY THIS by making the selftest assert the reason text too, at which point these become killable and should be killed."
+    },
+    {
+      "brief": "2026-09-26-mutation-diff-selftest-and-literal-boundaries-unobserved (the drain, #3175)",
+      "class": "no-distinguishing-input",
+      "key": "- _tq = chr(34) * 3 | + _tq = chr(34) * 4",
+      "op": "numeric substitution in a triple-quote probe constant",
+      "probe": "Ran the probe at 2, 3, 4 and 5 quotes: `*2` → REQUIRED, and `*3`, `*4`, `*5` all → UNDECIDABLE. The constant matters only in being >= 3; above that the scan reports the same incompetence.",
+      "why": "`_tq` builds a line the literal scan must refuse to judge. Three quotes open a docstring-like run and so do four, so the probe's verdict is UNDECIDABLE either way. FALSIFY THIS if the scan ever distinguishes a triple quote from a longer run — today it does not, and `*2` is the only value that changes the answer."
     }
   ],
   "mutation_pure.py": [
@@ -4566,6 +4614,12 @@
       "key": "-def _drain_fsync(timeout: float = 5.0) -> None: | +def _drain_fsync(timeout: float = 6.0) -> None:",
       "probe": "ATTEMPTED AND REVERTED: `assert writers._drain_fsync.__defaults__ == (5.0,)`. Under mutmut the function is replaced by a dispatcher whose `__defaults__` is None, so that assertion fails on the CLEAN run too — it crashed four whole globs (_do_fsync, _drain_fsync, _fsync_worker, _submit_fsync) and mutate_diff REFUSED with `0 tested mutants`. Measured 2026-09-10; the test was removed rather than kept.",
       "why": "The INVARIANT is that the exit drain is BOUNDED, and that is tested — test_THE_EXIT_DRAIN_IS_BOUNDED_SO_A_WEDGED_DISK_CANNOT_HOLD_SHUTDOWN kills `t.join(timeout)` -> `t.join(None)` by elapsed time. The specific number is a policy bound with no observable consequence at test scale: 5 s and 6 s both complete a healthy barrier and both give up on a wedged disk. The only way to assert the value is introspection of the function object, which is exactly what disables the mutation gate for the whole module — so a test here would trade one real mutant for four blinded functions."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- if self._prev_ns is not None and self._prev_phone_ms is not None: | + if self._prev_ns is not None or self._prev_phone_ms is not None:",
+      "probe": "tests/test_seam_sidecar.py — the whole file: every test feeds a fresh instance, so both members are None on the first sample and set on every one after.",
+      "why": "`self._prev_ns` and `self._prev_phone_ms` are assigned TOGETHER at the end of `feed`, on adjacent lines, and nothing else writes either. So they are both None before the first sample and both set after it, and no state exists in which `and` and `or` differ. The pair is written as two names rather than a tuple because each is consumed separately below; the guard reads both for symmetry with that, not because they can disagree."
     }
   ],
   "probe_oxyii_0x03.py": [
@@ -4769,6 +4823,48 @@
       "class": "no-distinguishing-input",
       "key": "- cols = header.rstrip(\"\\n\").split(\";\") | + cols = header.lstrip(\"\\n\").split(\";\")",
       "probe": "`header` comes from `fh.readline()`, which returns the bytes up to AND INCLUDING the first newline. A string it can return therefore has a newline at most at the END, never at the start with content after it: a file beginning with a blank line yields exactly \"\\n\", where rstrip and lstrip both give \"\". So the two differ only on inputs readline cannot produce. The trailing-newline case that DOES matter is pinned by test_the_header_is_stripped_of_its_NEWLINE_and_nothing_else, which kills the rstrip(None) sibling. Probed 2026-09-27: 102 passed under the mutant."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- rows = claimed = 0 | + rows = claimed = 1",
+      "probe": "tests/test_solid_night_inputs.py::test_PLANT_a_sidecar_whose_rows_and_own_TOTALS_disagree_is_refused and ::test_the_row_count_is_a_COUNT_so_two_rows_are_two exercise both sides of the comparison.",
+      "why": "`rows` and `claimed` are only ever compared with EACH OTHER (`claimed != rows`), and this statement initialises both to the same value. Seeding them at 1 instead of 0 shifts both by the same constant, so their difference — the only thing read — is unchanged for every input. `examined` has its own accumulator and is untouched."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- with open(seams, encoding=\"utf-8\", errors=\"replace\") as fh: | + with open(seams, encoding=None, errors=\"replace\") as fh:",
+      "probe": "tests/test_solid_night_inputs.py::test_both_sidecars_are_read_as_UTF8_whatever_the_boxs_locale_is (non-ASCII in each file, read under `LC_CTYPE=C` where a default-encoding read decodes as ASCII) and ::test_both_sidecars_REPLACE_an_undecodable_byte_rather_than_dying_on_it (a raw \\xff\\xfe mid-file). Both PASS under every variant of the open: the outcome does not move.",
+      "why": "The lines this reader MATCHES are ASCII by format. `# final stream=\\S+ seams=(\\d+) examined=(\\d+)` and the RTC row's `p[1] == \"read\"` plus `float(p[2])` are made of a fixed vocabulary and digits, and `errors=\"replace\"` substitutes U+FFFD without changing the `;` structure or the anchored pattern — so a mangled stream name still matches `\\S+` and a mangled note column is never the one read. The decode therefore cannot alter the decision for any input this reader accepts. Kept explicit because the FILES may carry non-ASCII (an operator note, a renamed sensor) and a strict decode would raise inside the audit; that half IS observable and is pinned by the second probe above."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- with open(seams, encoding=\"utf-8\", errors=\"replace\") as fh: | + with open(seams, errors=\"replace\") as fh:",
+      "probe": "tests/test_solid_night_inputs.py::test_both_sidecars_are_read_as_UTF8_whatever_the_boxs_locale_is (non-ASCII in each file, read under `LC_CTYPE=C` where a default-encoding read decodes as ASCII) and ::test_both_sidecars_REPLACE_an_undecodable_byte_rather_than_dying_on_it (a raw \\xff\\xfe mid-file). Both PASS under every variant of the open: the outcome does not move.",
+      "why": "The lines this reader MATCHES are ASCII by format. `# final stream=\\S+ seams=(\\d+) examined=(\\d+)` and the RTC row's `p[1] == \"read\"` plus `float(p[2])` are made of a fixed vocabulary and digits, and `errors=\"replace\"` substitutes U+FFFD without changing the `;` structure or the anchored pattern — so a mangled stream name still matches `\\S+` and a mangled note column is never the one read. The decode therefore cannot alter the decision for any input this reader accepts. Kept explicit because the FILES may carry non-ASCII (an operator note, a renamed sensor) and a strict decode would raise inside the audit; that half IS observable and is pinned by the second probe above."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- with open(rtc, encoding=\"utf-8\", errors=\"replace\") as fh: | + with open(rtc, encoding=None, errors=\"replace\") as fh:",
+      "probe": "tests/test_solid_night_inputs.py::test_both_sidecars_are_read_as_UTF8_whatever_the_boxs_locale_is (non-ASCII in each file, read under `LC_CTYPE=C` where a default-encoding read decodes as ASCII) and ::test_both_sidecars_REPLACE_an_undecodable_byte_rather_than_dying_on_it (a raw \\xff\\xfe mid-file). Both PASS under every variant of the open: the outcome does not move.",
+      "why": "The lines this reader MATCHES are ASCII by format. `# final stream=\\S+ seams=(\\d+) examined=(\\d+)` and the RTC row's `p[1] == \"read\"` plus `float(p[2])` are made of a fixed vocabulary and digits, and `errors=\"replace\"` substitutes U+FFFD without changing the `;` structure or the anchored pattern — so a mangled stream name still matches `\\S+` and a mangled note column is never the one read. The decode therefore cannot alter the decision for any input this reader accepts. Kept explicit because the FILES may carry non-ASCII (an operator note, a renamed sensor) and a strict decode would raise inside the audit; that half IS observable and is pinned by the second probe above."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- with open(rtc, encoding=\"utf-8\", errors=\"replace\") as fh: | + with open(rtc, errors=\"replace\") as fh:",
+      "probe": "tests/test_solid_night_inputs.py::test_both_sidecars_are_read_as_UTF8_whatever_the_boxs_locale_is (non-ASCII in each file, read under `LC_CTYPE=C` where a default-encoding read decodes as ASCII) and ::test_both_sidecars_REPLACE_an_undecodable_byte_rather_than_dying_on_it (a raw \\xff\\xfe mid-file). Both PASS under every variant of the open: the outcome does not move.",
+      "why": "The lines this reader MATCHES are ASCII by format. `# final stream=\\S+ seams=(\\d+) examined=(\\d+)` and the RTC row's `p[1] == \"read\"` plus `float(p[2])` are made of a fixed vocabulary and digits, and `errors=\"replace\"` substitutes U+FFFD without changing the `;` structure or the anchored pattern — so a mangled stream name still matches `\\S+` and a mangled note column is never the one read. The decode therefore cannot alter the decision for any input this reader accepts. Kept explicit because the FILES may carry non-ASCII (an operator note, a renamed sensor) and a strict decode would raise inside the audit; that half IS observable and is pinned by the second probe above."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- p = line.rstrip(\"\\n\").split(\";\") | + p = line.rstrip(None).split(\";\")",
+      "probe": "tests/test_solid_night_inputs.py::test_an_rtc_offset_with_trailing_whitespace_is_still_read (` -1.6 `), plus the `read`-with-no-offset and short-row cases in the two tests beside it.",
+      "why": "The stripped value is handed to `float`, which already tolerates surrounding whitespace including a newline — so `rstrip(\"\\n\")`, `rstrip(None)` and leaving the newline on all parse the same numbers, and a field of nothing but spaces raises `ValueError` under every variant alike. `lstrip(\"\\n\")` differs only for a line BEGINNING with a newline, which iterating a file's lines cannot produce. No input distinguishes them."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- p = line.rstrip(\"\\n\").split(\";\") | + p = line.lstrip(\"\\n\").split(\";\")",
+      "probe": "tests/test_solid_night_inputs.py::test_an_rtc_offset_with_trailing_whitespace_is_still_read (` -1.6 `), plus the `read`-with-no-offset and short-row cases in the two tests beside it.",
+      "why": "The stripped value is handed to `float`, which already tolerates surrounding whitespace including a newline — so `rstrip(\"\\n\")`, `rstrip(None)` and leaving the newline on all parse the same numbers, and a field of nothing but spaces raises `ValueError` under every variant alike. `lstrip(\"\\n\")` differs only for a line BEGINNING with a newline, which iterating a file's lines cannot produce. No input distinguishes them."
     }
   ],
   "nights_index.py": [
