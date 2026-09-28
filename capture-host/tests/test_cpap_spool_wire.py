@@ -177,31 +177,68 @@ def test_a_nonterminal_stop_is_reported_in_the_line(caplog):
     assert "stopped=data-unavailable" in caplog.text
 
 
-def _unwrap_supervised(coro):
-    """The coroutine `_maybe_start_cpap_spool_pull` hands to `create_task` is `keep_running(make_coro,
-    label)` since RESOURCE-ORCHESTRATION-AUDIT-2026-09-05 §O2 — the loop is supervised, so a crash
-    restarts it instead of ending the night's pull silently. The wiring under test is what the
-    FACTORY builds, so call it and inspect that; the supervisor frame carries only `make_coro`/`label`.
-    Returns the inner coroutine and closes the outer one unrun."""
-    mk = coro.cr_frame.f_locals.get("make_coro")
-    assert callable(mk), "the spool pull must be started under keep_running (supervised), not bare"
-    inner = mk()
-    coro.close()
-    return inner
+def _record_supervised_wiring(monkeypatch):
+    """Record what `_maybe_start_cpap_spool_pull` hands to the supervisor and to the loop, by patching
+    the module ATTRIBUTES `capture.keep_running` / `capture._cpap_spool_loop`.
+
+    The pull is started as `keep_running(make_coro, label)` since
+    RESOURCE-ORCHESTRATION-AUDIT-2026-09-05 §O2 — supervised, so a crash restarts it instead of ending
+    the night's pull silently — and the wiring under test is what the FACTORY builds, so the factory is
+    called here and what it passed is recorded.
+
+    🔴 READ THIS BEFORE GOING BACK TO FRAME INTROSPECTION. This helper used to reach into the coroutine
+    handed to `create_task` and read `coro.cr_frame.f_locals["make_coro"]`. That is correct on an
+    unmutated tree and returns `None` the moment mutmut wraps `keep_running` in its trampoline: the
+    coroutine `create_task` receives is then the wrapper's — `async def _trampoline_wrapper(*args,
+    **kwargs)` — whose only locals are `args`/`kwargs`, and the wrapped coroutine does not exist until
+    the first await. `_cpap_spool_loop` is wrapped the same way one level down, so the kwargs read off
+    the inner frame vanished too. Both tests below therefore FAILED inside mutmut's stats pass, and
+    `tools/mutate_diff.py` refused NOT_RUN on every capture.py diff before a single mutant ran
+    (RESIDUE 2026-09-27-mutmut-stats-pass-fails-on-the-spool-wiring-test). Patching the attribute
+    replaces the trampoline itself, so what is recorded here cannot depend on mutmut wrapping anything.
+    """
+    rec: dict = {}
+
+    async def _unrun():
+        pass
+
+    # ⚠️ PLAIN `def`s, NOT `async def`. An async spy records NOTHING: calling it only builds a
+    # coroutine, its body runs on await, and the caller closes it unrun — so `rec` stays empty and the
+    # assertions red whether or not the wiring is right. A test that fails in BOTH directions proves
+    # nothing; the STATUS-writer test below was written that way first and caught in review.
+    def _loop_spy(**kw):                    # stands in for _cpap_spool_loop; records the kwargs
+        rec["loop_kwargs"] = kw
+        return _unrun()                     # a real coroutine for the caller to close
+
+    def _keep_running_spy(make_coro, label, **kw):
+        rec["make_coro"], rec["label"] = make_coro, label
+        inner = make_coro()                 # what the supervisor awaits — this is what runs `_loop_spy`
+        inner.close()
+        return _unrun()
+
+    monkeypatch.setattr(capture, "_cpap_spool_loop", _loop_spy)
+    monkeypatch.setattr(capture, "keep_running", _keep_running_spy)
+    return rec
 
 
-def test_every_documented_spool_pull_key_is_actually_READ(tmp_path, caplog):
+def _assert_supervised(rec):
+    """The pull must go through the supervisor, not straight to `create_task`. Started bare, the spy is
+    never called, `rec` stays empty and this fires — the same detection the frame read gave."""
+    assert callable(rec.get("make_coro")), \
+        "the spool pull must be started under keep_running (supervised), not bare"
+    assert isinstance(rec.get("label"), str) and rec["label"], \
+        "a supervised task needs its label — TASK_LABELS keys the task table on it"
+
+
+def test_every_documented_spool_pull_key_is_actually_READ(tmp_path, caplog, monkeypatch):
     """A key documented in config.example.yaml that no code reads is this repo's recurring defect —
     `cpap.wifi_profile` is the standing example (consulted ONLY on the nmcli backend, silently inert
     on the box that actually runs). `spool_type` shipped exactly that way in this very change: it was
     documented, and the wiring passed the function default instead. Caught here, so it stays caught."""
-    seen = {}
+    rec = _record_supervised_wiring(monkeypatch)
 
     def _create_task(coro):
-        inner = _unwrap_supervised(coro)
-        inner.cr_frame  # noqa: B018 — touch it so a bad coroutine surfaces here, not at GC
-        seen["kw"] = inner.cr_frame.f_locals
-        inner.close()
+        coro.close()
         return "TASK"
 
     async def _connect():  # pragma: no cover — injected; the bleak edge is never built
@@ -214,7 +251,8 @@ def test_every_documented_spool_pull_key_is_actually_READ(tmp_path, caplog):
         capture._maybe_start_cpap_spool_pull(cfg, "cfg.yaml", str(tmp_path), _Ctl(), [],
                                              load_creds=lambda _p: CREDS,
                                              connect_factory=_connect, create_task=_create_task)
-    kw = seen["kw"]
+    _assert_supervised(rec)
+    kw = rec["loop_kwargs"]
     assert kw["spool_type"] == "Detail", "a documented key the wiring never reads is an inert setting"
     assert kw["epoch_start"] == "2026-01-01T00:00:00.000Z"
     assert kw["at_hour"] == 9 and kw["window_h"] == 3
@@ -254,23 +292,10 @@ def test_a_loop_started_during_shutdown_does_nothing_at_all():
 # So this test drives `_maybe_start_cpap_spool_pull` (the real caller) and inspects what it PASSED,
 # rather than passing its own.
 def test_the_production_wiring_hands_the_loop_a_working_STATUS_writer(tmp_path, monkeypatch):
-    seen = {}
-
-    async def _noop():
-        pass
-
-    # ⚠️ A PLAIN `def`, NOT `async def`. An async spy records NOTHING here: calling it only builds a
-    # coroutine, its body runs on await, and `_create_task` below closes it unrun — so `seen` stays
-    # empty and the assertion reds whether or not the fix is present. A test that fails in BOTH
-    # directions proves nothing; this one was written that way first and caught in review.
-    def _spy(**kw):                       # stands in for _cpap_spool_loop; records the kwargs
-        seen.update(kw)
-        return _noop()                    # a real coroutine for the caller to close
-
-    monkeypatch.setattr(capture, "_cpap_spool_loop", _spy)
+    rec = _record_supervised_wiring(monkeypatch)
 
     def _create_task(coro):
-        _unwrap_supervised(coro).close()   # the factory call is what runs `_spy`
+        coro.close()                       # the supervisor's coroutine; the factory already ran
         return object()
 
     async def _connect():  # pragma: no cover — injected so the bleak edge is never built
@@ -283,7 +308,8 @@ def test_the_production_wiring_hands_the_loop_a_working_STATUS_writer(tmp_path, 
             ARMED, "cfg.yaml", str(tmp_path), _Ctl(), [],
             load_creds=lambda _p: CREDS, connect_factory=_connect, create_task=_create_task)
 
-        st = seen.get("st")
+        _assert_supervised(rec)
+        st = rec["loop_kwargs"].get("st")
         assert callable(st), (
             "the production caller must pass `st` — without it the loop takes its own no-op default "
             "and every state it publishes is discarded, which is how this shipped")
