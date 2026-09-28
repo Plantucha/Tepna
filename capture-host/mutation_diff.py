@@ -38,7 +38,10 @@ from __future__ import annotations
 
 import ast
 import fnmatch
+import pathlib
 import re
+import stat as _stat
+import shutil
 import subprocess
 import threading
 import time
@@ -52,6 +55,18 @@ __all__ = [
     "stream_bounded",
     "cap_remaining",
     "CAP_FLOOR_SEC",
+    "prune_scratches",
+    "memory_exhaustion_verdict",
+    "proc_start_ticks",
+    "MEM_CAP_FRACTION",
+    "WORKER_RSS_PER_MUTANTS_BYTE",
+    "SCRATCH_OWNER_FILE",
+    "available_bytes_from_meminfo",
+    "memory_refusal",
+    "scratch_prune_decision",
+    "owner_is_live",
+    "parse_owner_record",
+    "owner_record",
     "verdict_object",
     "VERDICT_STATUSES",
     "EXCUSING",
@@ -621,6 +636,219 @@ def cap_remaining(cap_sec, t0, now):
     so a cap must count from there or the pre-work is free.
     """
     return max(CAP_FLOOR_SEC, cap_sec - (now - t0))
+# ── SCRATCH OWNERSHIP — a prune must not delete a directory another session is still using ─────────
+# `tools/mutate.py` deletes every `/tmp/mut-<module>-*` that is not the run's own hash, to stop a cache
+# with no eviction from filling a tmpfs. With several sessions sweeping the same module at different
+# source hashes, that is each of them deleting the others' live scratch — a 536 MB tree and hours of
+# stats, gone mid-run, reported as nothing (residue 2026-09-25-mutate-prune-closure-unverified; the
+# holder #3027 would have added was CLOSED UNMERGED, so this has been live the whole time).
+#
+# This is NOT the pytest-basetemp question `tests/test_tmp_basetemp_race.py` answers. That file pins
+# that sessions get their own basetemp and cannot reap each other's; this is the mutation SCRATCH,
+# one level up, where the deletion is explicit and unconditional rather than incidental.
+SCRATCH_OWNER_FILE = ".owner"
+SCRATCH_MIN_AGE_SEC = 120.0
+# An owner we can PROVE is gone still gets a grace, but a short one, and the length is a trade the
+# reader should see: the scratch is claimed before the copy and re-claimed by whoever reuses it, so a
+# proven-dead owner means nobody is in that tree — the only thing this floor buys is the seconds a
+# process spends exiting. Set long (600 s was tried), it changes single-session behaviour, because the
+# previous run's own scratch is exactly a proven-dead owner and iteration then leaves several 536 MB
+# trees on a tmpfs. Two minutes covers an exiting process and keeps eviction prompt.
+SCRATCH_UNKNOWN_MIN_AGE_SEC = 86400.0
+# ⚠️ THE TWO FLOORS DIFFER BECAUSE "NO OWNER FILE" IS NOT "NO OWNER" (§∅). A directory from before this
+# change, or one whose marker never got written, tells us NOTHING about whether a process holds it —
+# and treating unknown as dead is exactly the deletion this exists to prevent. So an unmarked scratch
+# is not judged; it is simply outlived. A day is far longer than any mutation run observed here (the
+# worst measured is a 2 h 41 m stats pass), so a marker-less tree that old is abandoned by duration,
+# not by inference.
+
+
+def proc_start_ticks(pid, proc_root="/proc"):
+    """A running process's start time in clock ticks, or None when there is no such process.
+
+    Parsed from the text AFTER the last `)`, because field 2 of /proc/<pid>/stat is the executable
+    name and may itself contain spaces and parentheses — splitting the whole line on whitespace is
+    the classic way to read the wrong field for a process someone named creatively."""
+    try:
+        with open(f"{proc_root}/{int(pid)}/stat", encoding="utf-8") as fh:
+            text = fh.read()
+        after = text[text.rindex(")") + 1:].split()
+        return int(after[19])          # field 22 overall; fields 1-2 are consumed by pid and comm
+    except (OSError, ValueError, IndexError):
+        return None
+
+
+def owner_record(pid, start_ticks):
+    """The line written into a scratch's owner file: PID plus the process's own start time.
+
+    The start time is what makes this safe against PID REUSE. A bare PID recorded hours ago may now
+    belong to an unrelated process, and `kill -0` would then report a live owner forever and the
+    scratch would never be evicted — a leak dressed as caution. Comparing the start time as well
+    means the answer is about THIS process, not whoever inherited its number."""
+    return f"{int(pid)} {int(start_ticks)}"
+
+
+def parse_owner_record(text):
+    """`(pid, start_ticks)` or None — None meaning UNKNOWN, never "nobody"."""
+    if not text:
+        return None
+    parts = text.strip().split()
+    if len(parts) != 2:
+        return None
+    try:
+        return int(parts[0]), int(parts[1])
+    except ValueError:
+        return None
+
+
+def owner_is_live(record, start_ticks_of):
+    """True / False / None(unknown). `start_ticks_of(pid)` returns the running process's start ticks,
+    or None when there is no such process.
+
+    Three-valued on purpose: the caller must be able to tell "this owner is gone" from "there is no
+    marker to read", because they earn different floors above."""
+    if record is None:
+        return None
+    pid, ticks = record
+    live = start_ticks_of(pid)
+    if live is None:
+        return False
+    return live == ticks
+
+
+def scratch_prune_decision(*, is_current, owner_live, age_sec,
+                           min_age_sec=SCRATCH_MIN_AGE_SEC,
+                           unknown_min_age_sec=SCRATCH_UNKNOWN_MIN_AGE_SEC):
+    """`(prune, reason)` for ONE candidate scratch. Pure, and it always says WHY.
+
+    The reason is not decoration: a prune that removed a peer's tree used to print only the directory
+    name, so the one line that could have named the mistake said nothing about ownership at all."""
+    if is_current:
+        return False, "this run's own scratch"
+    if owner_live is True:
+        return False, "a live process still holds it"
+    if owner_live is None:
+        if age_sec < unknown_min_age_sec:
+            return False, (f"no owner marker to read, and {age_sec:.0f}s old — under the "
+                           f"{unknown_min_age_sec:.0f}s floor for an unmarked tree, so it is outlived, "
+                           f"not judged")
+        return True, f"no owner marker and {age_sec:.0f}s old — outlived the unmarked floor"
+    if age_sec < min_age_sec:
+        return False, (f"its owner is gone but it is only {age_sec:.0f}s old — under the "
+                       f"{min_age_sec:.0f}s floor, in case that owner is still exiting")
+    return True, f"its owner is gone and it is {age_sec:.0f}s old"
+
+
+def prune_scratches(tmp_root, stem, current, now=None, start_ticks_of=proc_start_ticks,
+                    remove=None):
+    """Delete this module's stale scratches and return `(pruned, held)` — `held` carrying the REASON
+    each survivor was kept.
+
+    HERE rather than in `tools/mutate.py` for the reason that file's own header gives: a function
+    that can give a WRONG ANSWER rather than failing loudly belongs inside the coverage floor. This
+    one deletes 536 MB trees, and its wrong answer is another session's run.
+    """
+    remove = shutil.rmtree if remove is None else remove
+    now = time.time() if now is None else now
+    pruned, held = [], []
+    for old_dir in sorted(pathlib.Path(tmp_root).glob(f"mut-{stem}-*")):
+        try:
+            st = old_dir.stat()
+        except OSError:
+            # ONE stat, and it comes first: it vanished between the glob and here (a concurrent sweep
+            # got there first), or the name is a dangling symlink. Either way there is nothing to
+            # judge and nothing to delete.
+            continue  # deliberate: an unstattable name is not a scratch this run can speak about
+        if not _stat.S_ISDIR(st.st_mode):
+            continue
+        try:
+            marker = (old_dir / SCRATCH_OWNER_FILE).read_text(encoding="utf-8")
+        except (OSError, ValueError):
+            # ValueError covers UnicodeDecodeError: a marker holding non-UTF-8 bytes would otherwise
+            # raise straight out of the sweep and take the whole run with it, over a file whose only
+            # job is to be advisory. Unreadable for ANY reason is UNKNOWN, which earns the long floor.
+            marker = ""
+        age = max(0.0, now - st.st_mtime)
+        do_prune, why = scratch_prune_decision(
+            is_current=(old_dir == pathlib.Path(current)),
+            owner_live=owner_is_live(parse_owner_record(marker), start_ticks_of),
+            age_sec=age)
+        if do_prune:
+            remove(old_dir, ignore_errors=True)
+            pruned.append(old_dir.name)
+        elif old_dir != pathlib.Path(current):
+            held.append(f"{old_dir.name}: {why}")
+    return pruned, held
+
+
+# ── MEMORY — a run that cannot fit is refused BEFORE it starts, not reaped in the middle ────────────
+# The gate's budget is expressed only in SECONDS, so a module whose mutants do not fit in RAM passes
+# every prediction and then thrashes. capture.py is the live case: mutmut's generated module is 536 MB
+# and ONE worker measured 8.2 GB RSS, above the fleet's 8 GB-per-process standing limit, while mutmut
+# spawns a worker per core. The harness watchdog reaps on BOX pressure rather than per-cgroup, so an
+# over-committed run does not just fail itself — it takes other sessions' gates with it.
+WORKER_RSS_PER_MUTANTS_BYTE = 15.0
+# ASSUMPTION, STATED, exactly as PREWORK_TRACE_FACTOR above: one worker's peak RSS ~= 15x the generated
+# mutants file. This is ONE measurement, not a fit — 2026-09-27, capture.py: a 536 MB mutants file
+# against 8.2 GB RSS = 15.3x. Replace it when a second module has been measured; until then the
+# refusal prints the file size and the factor it multiplied so a reader can redo the arithmetic and
+# see how much of the answer is this number.
+MEM_CAP_FRACTION = 0.5
+# Pre-stated, and deliberately not "whatever is free": never PLAN to hold more than half of what the
+# box reports available when the run starts. The other half is the rest of the fleet, and the reason
+# the bound is a fraction of AVAILABLE rather than of total is that available is the number the
+# watchdog's pressure actually tracks.
+
+
+def memory_refusal(mutants_bytes, workers, available_bytes,
+                   rss_factor=WORKER_RSS_PER_MUTANTS_BYTE, cap_fraction=MEM_CAP_FRACTION):
+    """A refusal reason when the projected peak does not fit under the cap, else None.
+
+    Names every number it used so the reader can re-derive the verdict — never just "not enough
+    memory". Mirrors `budget_refusal` one resource over."""
+    if mutants_bytes <= 0 or workers <= 0 or available_bytes <= 0:
+        return None
+    per_worker = mutants_bytes * rss_factor
+    projected = per_worker * workers
+    cap = available_bytes * cap_fraction
+    if projected <= cap:
+        return None
+    gb = 1024.0 ** 3
+    return (f"projected peak {projected / gb:.1f} GB ({mutants_bytes / gb:.2f} GB of generated "
+            f"mutants x {rss_factor:g} assumed RSS factor = {per_worker / gb:.1f} GB per worker, "
+            f"x {workers} worker(s)) exceeds the {cap / gb:.1f} GB cap "
+            f"({cap_fraction:g} of {available_bytes / gb:.1f} GB available at start). "
+            f"NOT attempted: the fleet's limit is 8 GB per process and the harness watchdog reaps on "
+            f"BOX memory pressure, so an over-committed run takes other sessions' gates down with it. "
+            f"This is a REFUSAL with a reason, not a verdict on the diff.")
+
+
+def available_bytes_from_meminfo(text):
+    """`MemAvailable` in bytes from /proc/meminfo's text, or None if it is not there.
+
+    `MemAvailable` rather than MemFree: free excludes reclaimable page cache and would refuse runs
+    that fit comfortably."""
+    for line in (text or "").splitlines():
+        if line.startswith("MemAvailable:"):
+            parts = line.split()
+            if len(parts) >= 2 and parts[1].isdigit():
+                return int(parts[1]) * 1024
+    return None
+
+
+def memory_exhaustion_verdict(n_refused, decided):
+    """The status a MEMORY refusal deserves, and the reason. Same shape as
+    `budget_exhaustion_verdict` one resource over, and same rule: a run that never decided a mutant
+    examined nothing, which §🧾 spells NOT_RUN. The projections themselves are printed above and
+    carried in the JSON; this is the one-line verdict, so it says what was refused and not the
+    arithmetic."""
+    what = f"{n_refused} function(s) not mutated — projected memory exceeds the run's cap"
+    if decided > 0:
+        return "UNKNOWN", (f"{what}; {decided} mutant(s) were decided before that, so the refused "
+                           f"ones are unmeasured, not failed")
+    return "NOT_RUN", (f"{what}, and NOT ONE mutant was decided — this run examined nothing. Refused "
+                       f"BEFORE starting rather than reaped by the watchdog mid-run, which reports "
+                       f"nothing and takes other sessions' gates with it. Not a verdict on the diff.")
 
 
 def stream_bounded(proc, cap_sec, on_line, t0=None, join_sec=10.0):
