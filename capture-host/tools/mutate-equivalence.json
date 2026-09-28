@@ -4252,6 +4252,54 @@
       "class": "no-distinguishing-input",
       "key": "- text = t.read_text(encoding=\"utf-8\", errors=\"replace\") | + text = t.read_text(errors=\"replace\")",
       "probe": "Same probe as the encoding=None sibling above: the census cannot observe the codec, so no input distinguishes the omitted argument either."
+    },
+    {
+      "brief": "2026-09-26-mutation-diff-selftest-and-literal-boundaries-unobserved (the drain, #3175)",
+      "class": "no-distinguishing-input",
+      "key": "- (\"mutmut absent\", (True, 1), False), | + (\"mutmut absent\", (False, 1), False),",
+      "op": "row retarget: (True,1) → (False,1)",
+      "probe": "All nine input pairs — the five original rows and each mutated variant — run through `refusal_reason` and checked against `(got is None) != want_none`: every one PASSES, so no input distinguishes the tables. Printed in the PR body.",
+      "why": "The selftest's table asserts only WHETHER a reason exists — `(got is None) != want_none` — and every mutated row is ALSO a true expectation of that weaker property, so the check cannot fire. Verified row by row rather than argued: `refusal_reason(False, 1)`, `(True, 2)`, `(False, None)` and `(True, None)` all return a reason, exactly as the unmutated rows do. ⚠️ The mutation does lose COVERAGE — it silently retargets a row at a different input — and that is why the distinction is now pinned independently: `test_every_refusal_reason_ROW_says_WHICH_failure_it_is` asserts each row's reason TEXT, so the (True,1) 'not importable' case and the (False,1) 'venv is missing' case can no longer be swapped without a red. FALSIFY THIS by making the selftest assert the reason text too, at which point these become killable and should be killed."
+    },
+    {
+      "brief": "2026-09-26-mutation-diff-selftest-and-literal-boundaries-unobserved (the drain, #3175)",
+      "class": "no-distinguishing-input",
+      "key": "- (\"mutmut absent\", (True, 1), False), | + (\"mutmut absent\", (True, 2), False),",
+      "op": "row retarget: rc 1 → 2",
+      "probe": "All nine input pairs — the five original rows and each mutated variant — run through `refusal_reason` and checked against `(got is None) != want_none`: every one PASSES, so no input distinguishes the tables. Printed in the PR body.",
+      "why": "The selftest's table asserts only WHETHER a reason exists — `(got is None) != want_none` — and every mutated row is ALSO a true expectation of that weaker property, so the check cannot fire. Verified row by row rather than argued: `refusal_reason(False, 1)`, `(True, 2)`, `(False, None)` and `(True, None)` all return a reason, exactly as the unmutated rows do. ⚠️ The mutation does lose COVERAGE — it silently retargets a row at a different input — and that is why the distinction is now pinned independently: `test_every_refusal_reason_ROW_says_WHICH_failure_it_is` asserts each row's reason TEXT, so the (True,1) 'not importable' case and the (False,1) 'venv is missing' case can no longer be swapped without a red. FALSIFY THIS by making the selftest assert the reason text too, at which point these become killable and should be killed."
+    },
+    {
+      "brief": "2026-09-26-mutation-diff-selftest-and-literal-boundaries-unobserved (the drain, #3175)",
+      "class": "no-distinguishing-input",
+      "key": "- (\"interpreter unlaunchable\", (True, None), False), | + (\"interpreter unlaunchable\", (False, None), False),",
+      "op": "row retarget: venv True → False",
+      "probe": "All nine input pairs — the five original rows and each mutated variant — run through `refusal_reason` and checked against `(got is None) != want_none`: every one PASSES, so no input distinguishes the tables. Printed in the PR body.",
+      "why": "The selftest's table asserts only WHETHER a reason exists — `(got is None) != want_none` — and every mutated row is ALSO a true expectation of that weaker property, so the check cannot fire. Verified row by row rather than argued: `refusal_reason(False, 1)`, `(True, 2)`, `(False, None)` and `(True, None)` all return a reason, exactly as the unmutated rows do. ⚠️ The mutation does lose COVERAGE — it silently retargets a row at a different input — and that is why the distinction is now pinned independently: `test_every_refusal_reason_ROW_says_WHICH_failure_it_is` asserts each row's reason TEXT, so the (True,1) 'not importable' case and the (False,1) 'venv is missing' case can no longer be swapped without a red. FALSIFY THIS by making the selftest assert the reason text too, at which point these become killable and should be killed."
+    },
+    {
+      "brief": "2026-09-26-mutation-diff-selftest-and-literal-boundaries-unobserved (the drain, #3175)",
+      "class": "no-distinguishing-input",
+      "key": "- (\"venv missing\", (False, None), False), | + (\"venv missing\", (True, None), False),",
+      "op": "row retarget: venv False → True",
+      "probe": "All nine input pairs — the five original rows and each mutated variant — run through `refusal_reason` and checked against `(got is None) != want_none`: every one PASSES, so no input distinguishes the tables. Printed in the PR body.",
+      "why": "The selftest's table asserts only WHETHER a reason exists — `(got is None) != want_none` — and every mutated row is ALSO a true expectation of that weaker property, so the check cannot fire. Verified row by row rather than argued: `refusal_reason(False, 1)`, `(True, 2)`, `(False, None)` and `(True, None)` all return a reason, exactly as the unmutated rows do. ⚠️ The mutation does lose COVERAGE — it silently retargets a row at a different input — and that is why the distinction is now pinned independently: `test_every_refusal_reason_ROW_says_WHICH_failure_it_is` asserts each row's reason TEXT, so the (True,1) 'not importable' case and the (False,1) 'venv is missing' case can no longer be swapped without a red. FALSIFY THIS by making the selftest assert the reason text too, at which point these become killable and should be killed."
+    },
+    {
+      "brief": "2026-09-26-mutation-diff-selftest-and-literal-boundaries-unobserved (the drain, #3175)",
+      "class": "no-distinguishing-input",
+      "key": "- (\"venv missing outranks a 0 rc\", (False, 0), False), | + (\"venv missing outranks a 0 rc\", (False, 1), False),",
+      "op": "row retarget: rc 0 → 1",
+      "probe": "All nine input pairs — the five original rows and each mutated variant — run through `refusal_reason` and checked against `(got is None) != want_none`: every one PASSES, so no input distinguishes the tables. Printed in the PR body.",
+      "why": "The selftest's table asserts only WHETHER a reason exists — `(got is None) != want_none` — and every mutated row is ALSO a true expectation of that weaker property, so the check cannot fire. Verified row by row rather than argued: `refusal_reason(False, 1)`, `(True, 2)`, `(False, None)` and `(True, None)` all return a reason, exactly as the unmutated rows do. ⚠️ The mutation does lose COVERAGE — it silently retargets a row at a different input — and that is why the distinction is now pinned independently: `test_every_refusal_reason_ROW_says_WHICH_failure_it_is` asserts each row's reason TEXT, so the (True,1) 'not importable' case and the (False,1) 'venv is missing' case can no longer be swapped without a red. FALSIFY THIS by making the selftest assert the reason text too, at which point these become killable and should be killed."
+    },
+    {
+      "brief": "2026-09-26-mutation-diff-selftest-and-literal-boundaries-unobserved (the drain, #3175)",
+      "class": "no-distinguishing-input",
+      "key": "- _tq = chr(34) * 3 | + _tq = chr(34) * 4",
+      "op": "numeric substitution in a triple-quote probe constant",
+      "probe": "Ran the probe at 2, 3, 4 and 5 quotes: `*2` → REQUIRED, and `*3`, `*4`, `*5` all → UNDECIDABLE. The constant matters only in being >= 3; above that the scan reports the same incompetence.",
+      "why": "`_tq` builds a line the literal scan must refuse to judge. Three quotes open a docstring-like run and so do four, so the probe's verdict is UNDECIDABLE either way. FALSIFY THIS if the scan ever distinguishes a triple quote from a longer run — today it does not, and `*2` is the only value that changes the answer."
     }
   ],
   "mutation_pure.py": [
