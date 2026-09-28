@@ -9,7 +9,7 @@
     "node": "ECGDex",
     "nodeVersion": "1.0",
     "bus": "ganglior",
-    "generated": "2026-09-22T21:56:47.975Z",
+    "generated": "2026-09-28T16:51:07.462Z",
     "provenance": null,
     "doc": "ECGDex beat-derived events → Ganglior bus. tMs = floating wall-clock ms (UTC getters). null = unknown, never fabricated.",
     "scrubbed": true
@@ -2793,17 +2793,17 @@
       {
         "tMin": 315,
         "hr": 63,
-        "rmssd": 25.5,
+        "rmssd": 25.4,
         "sdnn": 49.9,
-        "vlf": 1355,
-        "lf": 830,
-        "hf": 174,
-        "totalPower": 2359,
-        "lfhf": 4.773,
+        "vlf": 1358,
+        "lf": 828,
+        "hf": 176,
+        "totalPower": 2362,
+        "lfhf": 4.699,
         "resp": 9,
         "hrStat": "rate-of-mean",
         "sqi": 0.832,
-        "beats": 261,
+        "beats": 260,
         "motionIndex": 0,
         "position": "supine"
       },
@@ -102829,7 +102829,7 @@
     "cvhrHours": 6.86
   },
   "hrvStability": {
-    "sigma_lnRMSSD_slope": 0.0068,
+    "sigma_lnRMSSD_slope": 0.0067,
     "var_lnRMSSD_slope": 0.0009,
     "mean_lnRMSSD_slope": 0.0078,
     "classification": "Flat — no clear nocturnal trend",
@@ -102899,8 +102899,8 @@
       },
       {
         "tMin": 300,
-        "lnSD": 0.127,
-        "lnMean": 3.146,
+        "lnSD": 0.126,
+        "lnMean": 3.145,
         "n": 6
       },
       {

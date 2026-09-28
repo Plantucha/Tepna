@@ -9,7 +9,7 @@
     "node": "ECGDex",
     "nodeVersion": "1.0",
     "bus": "ganglior",
-    "generated": "2026-09-22T22:18:24.314Z",
+    "generated": "2026-09-28T17:25:17.257Z",
     "provenance": null,
     "doc": "ECGDex beat-derived events → Ganglior bus. tMs = floating wall-clock ms (UTC getters). null = unknown, never fabricated.",
     "scrubbed": true
@@ -21,7 +21,7 @@
     "durSec": 27133.14197234743,
     "endEpochMs": null,
     "offsetMin": null,
-    "events": 90,
+    "events": 91,
     "timingSource": "device+host",
     "deviceEpoch": {
       "offsetMs": 14399796,
@@ -581,6 +581,24 @@
       "meta": {}
     },
     {
+      "t": "01:35:30",
+      "tMs": 1786757730944,
+      "impulse": "stage_deep",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
+    },
+    {
+      "t": "01:40:30",
+      "tMs": 1786758030944,
+      "impulse": "stage_light",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
+    },
+    {
       "t": "01:50:26",
       "tMs": 1786758626944,
       "impulse": "autonomic_surge",
@@ -695,15 +713,6 @@
       }
     },
     {
-      "t": "02:35:30",
-      "tMs": 1786761330944,
-      "impulse": "stage_wake",
-      "node": "ECGDex",
-      "conf": 0.7,
-      "sqi": null,
-      "meta": {}
-    },
-    {
       "t": "02:36:20",
       "tMs": 1786761380944,
       "impulse": "autonomic_surge",
@@ -750,15 +759,6 @@
         "osaConf": null,
         "deltaSBP": null
       }
-    },
-    {
-      "t": "02:40:30",
-      "tMs": 1786761630944,
-      "impulse": "stage_deep",
-      "node": "ECGDex",
-      "conf": 0.7,
-      "sqi": null,
-      "meta": {}
     },
     {
       "t": "02:40:41",
@@ -824,6 +824,15 @@
         "osaConf": null,
         "deltaSBP": null
       }
+    },
+    {
+      "t": "02:45:30",
+      "tMs": 1786761930944,
+      "impulse": "stage_deep",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
     },
     {
       "t": "02:50:30",
@@ -1458,7 +1467,7 @@
       "sdnn": 48.7,
       "rmssd": 33.6,
       "pnn50": 11.9,
-      "sdnnIndex": 109.9,
+      "sdnnIndex": 56.3,
       "wholeRecordHR": 54.2,
       "wholeRecordSDNN": 89,
       "wholeRecordRMSSD": 35.1,
@@ -1474,7 +1483,7 @@
       "lf": 694,
       "hf": 347,
       "totalPower": 1871,
-      "lfhf": 2.158,
+      "lfhf": 2.179,
       "window": "epochMedian5min",
       "method": "Lomb–Scargle",
       "respRate": 14.9,
@@ -1764,16 +1773,16 @@
         "tMin": 80,
         "hr": 50.3,
         "rmssd": 74.9,
-        "sdnn": 164.3,
-        "vlf": 14824,
-        "lf": 4004,
-        "hf": 1871,
-        "totalPower": 20699,
-        "lfhf": 2.141,
-        "resp": 18.3,
+        "sdnn": 164.6,
+        "vlf": 14926,
+        "lf": 3956,
+        "hf": 1848,
+        "totalPower": 20730,
+        "lfhf": 2.14,
+        "resp": 16.5,
         "hrStat": "rate-of-mean",
         "sqi": 0.804,
-        "beats": 254,
+        "beats": 253,
         "motionIndex": 100,
         "position": "supine"
       },
@@ -2340,18 +2349,18 @@
       },
       {
         "tMin": 250,
-        "hr": 41.9,
-        "rmssd": 6986.6,
-        "sdnn": 4932.7,
-        "vlf": 2493771,
-        "lf": 6619814,
-        "hf": 14945823,
-        "totalPower": 24059408,
-        "lfhf": 0.443,
-        "resp": 13.5,
+        "hr": 54.9,
+        "rmssd": 37.5,
+        "sdnn": 108.5,
+        "vlf": 8287,
+        "lf": 931,
+        "hf": 365,
+        "totalPower": 9583,
+        "lfhf": 2.548,
+        "resp": 15.6,
         "hrStat": "rate-of-mean",
-        "sqi": 0.83,
-        "beats": 210,
+        "sqi": 0.831,
+        "beats": 209,
         "motionIndex": 43.7,
         "position": "lateral"
       },
@@ -2528,17 +2537,17 @@
       {
         "tMin": 305,
         "hr": 54.8,
-        "rmssd": 41.2,
-        "sdnn": 46.3,
-        "vlf": 725,
-        "lf": 844,
-        "hf": 490,
-        "totalPower": 2059,
-        "lfhf": 1.721,
-        "resp": 13.5,
+        "rmssd": 36.2,
+        "sdnn": 44.6,
+        "vlf": 714,
+        "lf": 797,
+        "hf": 410,
+        "totalPower": 1921,
+        "lfhf": 1.942,
+        "resp": 10.8,
         "hrStat": "rate-of-mean",
         "sqi": 0.824,
-        "beats": 231,
+        "beats": 229,
         "motionIndex": 16.7,
         "position": "supine"
       },
@@ -2666,15 +2675,15 @@
         "hr": 54.3,
         "rmssd": 35.2,
         "sdnn": 44.6,
-        "vlf": 707,
-        "lf": 509,
-        "hf": 387,
-        "totalPower": 1603,
-        "lfhf": 1.314,
+        "vlf": 706,
+        "lf": 498,
+        "hf": 395,
+        "totalPower": 1599,
+        "lfhf": 1.261,
         "resp": 17,
         "hrStat": "rate-of-mean",
         "sqi": 0.785,
-        "beats": 263,
+        "beats": 262,
         "motionIndex": 0,
         "position": "supine"
       },
@@ -3170,7 +3179,7 @@
       },
       {
         "tMin": 185,
-        "stage": "Light"
+        "stage": "Deep"
       },
       {
         "tMin": 190,
@@ -3218,11 +3227,11 @@
       },
       {
         "tMin": 245,
-        "stage": "Wake"
+        "stage": "Light"
       },
       {
         "tMin": 250,
-        "stage": "Deep"
+        "stage": "Light"
       },
       {
         "tMin": 255,
@@ -100279,11 +100288,11 @@
     }
   },
   "sleep": {
-    "totalSleepMin": 350,
+    "totalSleepMin": 355,
     "stageMinutes": {
-      "Wake": 100,
+      "Wake": 95,
       "REM": 35,
-      "Light": 255,
+      "Light": 260,
       "Deep": 60
     }
   },
@@ -100305,9 +100314,9 @@
     "cvhrHours": 7.54
   },
   "hrvStability": {
-    "sigma_lnRMSSD_slope": 0.0029,
-    "var_lnRMSSD_slope": 0.029,
-    "mean_lnRMSSD_slope": 0.0072,
+    "sigma_lnRMSSD_slope": -0.012,
+    "var_lnRMSSD_slope": -0.0057,
+    "mean_lnRMSSD_slope": 0.0005,
     "classification": "Flat — no clear nocturnal trend",
     "windows": 15,
     "ref": "Li & Kiyono 2026 Sensors 26(4):1118 [CC BY 4.0]",
@@ -100363,8 +100372,8 @@
       },
       {
         "tMin": 240,
-        "lnSD": 2.207,
-        "lnMean": 4.358,
+        "lnSD": 0.168,
+        "lnMean": 3.486,
         "n": 6
       },
       {
@@ -100375,8 +100384,8 @@
       },
       {
         "tMin": 300,
-        "lnSD": 0.131,
-        "lnMean": 3.588,
+        "lnSD": 0.115,
+        "lnMean": 3.566,
         "n": 6
       },
       {

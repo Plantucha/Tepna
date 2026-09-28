@@ -9,7 +9,7 @@
     "node": "ECGDex",
     "nodeVersion": "1.0",
     "bus": "ganglior",
-    "generated": "2026-09-22T22:12:23.035Z",
+    "generated": "2026-09-28T17:15:23.250Z",
     "provenance": null,
     "doc": "ECGDex beat-derived events → Ganglior bus. tMs = floating wall-clock ms (UTC getters). null = unknown, never fabricated.",
     "scrubbed": true
@@ -115,7 +115,14 @@
     "deviceEpoch": {
       "offsetMs": 14399837,
       "plausible": true
-    }
+    },
+    "epochsRefused": [
+      {
+        "tMin": 565,
+        "n": 4,
+        "reason": "too-few-beats"
+      }
+    ]
   },
   "measurement": {
     "hr": {

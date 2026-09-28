@@ -9,7 +9,7 @@
     "node": "ECGDex",
     "nodeVersion": "1.0",
     "bus": "ganglior",
-    "generated": "2026-09-22T21:48:51.253Z",
+    "generated": "2026-09-28T16:40:42.558Z",
     "provenance": null,
     "doc": "ECGDex beat-derived events → Ganglior bus. tMs = floating wall-clock ms (UTC getters). null = unknown, never fabricated.",
     "scrubbed": true
@@ -21,7 +21,7 @@
     "durSec": 27792.39573172122,
     "endEpochMs": 1781239646515,
     "offsetMin": null,
-    "events": 113,
+    "events": 116,
     "hostAxis": {
       "applied": false,
       "anchors": 7225,
@@ -1038,15 +1038,6 @@
       }
     },
     {
-      "t": "02:34:13",
-      "tMs": 1781231653512,
-      "impulse": "stage_light",
-      "node": "ECGDex",
-      "conf": 0.7,
-      "sqi": null,
-      "meta": {}
-    },
-    {
       "t": "02:39:30",
       "tMs": 1781231970512,
       "impulse": "autonomic_surge",
@@ -1081,6 +1072,15 @@
       }
     },
     {
+      "t": "02:44:13",
+      "tMs": 1781232253512,
+      "impulse": "stage_wake",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
+    },
+    {
       "t": "02:44:18",
       "tMs": 1781232258762,
       "impulse": "movement_onset",
@@ -1107,6 +1107,15 @@
         ],
         "site": "chest"
       }
+    },
+    {
+      "t": "02:49:13",
+      "tMs": 1781232553512,
+      "impulse": "stage_light",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
     },
     {
       "t": "03:02:18",
@@ -1288,6 +1297,15 @@
       }
     },
     {
+      "t": "03:49:13",
+      "tMs": 1781236153512,
+      "impulse": "stage_rem",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
+    },
+    {
       "t": "03:49:20",
       "tMs": 1781236160262,
       "impulse": "movement_onset",
@@ -1300,6 +1318,15 @@
         ],
         "site": "chest"
       }
+    },
+    {
+      "t": "03:54:13",
+      "tMs": 1781236453512,
+      "impulse": "stage_light",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
     },
     {
       "t": "03:57:25",
@@ -2946,18 +2973,18 @@
       },
       {
         "tMin": 335,
-        "hr": 51.7,
-        "rmssd": 50.3,
-        "sdnn": 110.5,
-        "vlf": 8950,
-        "lf": 1379,
-        "hf": 621,
-        "totalPower": 10950,
-        "lfhf": 2.221,
+        "hr": 51.6,
+        "rmssd": 48.6,
+        "sdnn": 109.3,
+        "vlf": 8646,
+        "lf": 1425,
+        "hf": 763,
+        "totalPower": 10834,
+        "lfhf": 1.869,
         "resp": 12.9,
         "hrStat": "rate-of-mean",
         "sqi": 0.74,
-        "beats": 242,
+        "beats": 241,
         "motionIndex": 34.4,
         "position": "supine"
       },
@@ -3654,15 +3681,15 @@
       },
       {
         "tMin": 330,
-        "stage": "Light"
+        "stage": "Deep"
       },
       {
         "tMin": 335,
-        "stage": "Light"
+        "stage": "Deep"
       },
       {
         "tMin": 340,
-        "stage": "Light"
+        "stage": "Wake"
       },
       {
         "tMin": 345,
@@ -3714,7 +3741,7 @@
       },
       {
         "tMin": 405,
-        "stage": "Light"
+        "stage": "REM"
       },
       {
         "tMin": 410,
@@ -101611,12 +101638,12 @@
     }
   },
   "sleep": {
-    "totalSleepMin": 400,
+    "totalSleepMin": 395,
     "stageMinutes": {
-      "Wake": 65,
-      "REM": 30,
-      "Light": 285,
-      "Deep": 85
+      "Wake": 70,
+      "REM": 35,
+      "Light": 265,
+      "Deep": 95
     }
   },
   "apnea": {
@@ -101637,9 +101664,9 @@
     "cvhrHours": 7.72
   },
   "hrvStability": {
-    "sigma_lnRMSSD_slope": -0.0009,
+    "sigma_lnRMSSD_slope": -0.001,
     "var_lnRMSSD_slope": -0.0003,
-    "mean_lnRMSSD_slope": 0.0198,
+    "mean_lnRMSSD_slope": 0.0197,
     "classification": "Flat — no clear nocturnal trend",
     "windows": 16,
     "ref": "Li & Kiyono 2026 Sensors 26(4):1118 [CC BY 4.0]",
@@ -101713,8 +101740,8 @@
       },
       {
         "tMin": 330,
-        "lnSD": 0.224,
-        "lnMean": 3.754,
+        "lnSD": 0.219,
+        "lnMean": 3.749,
         "n": 6
       },
       {

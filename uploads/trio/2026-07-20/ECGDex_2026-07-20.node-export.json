@@ -9,7 +9,7 @@
     "node": "ECGDex",
     "nodeVersion": "1.0",
     "bus": "ganglior",
-    "generated": "2026-09-22T22:01:03.065Z",
+    "generated": "2026-09-28T16:59:24.021Z",
     "provenance": null,
     "doc": "ECGDex beat-derived events → Ganglior bus. tMs = floating wall-clock ms (UTC getters). null = unknown, never fabricated.",
     "scrubbed": true
@@ -21,7 +21,7 @@
     "durSec": 26906.620515426956,
     "endEpochMs": null,
     "offsetMin": null,
-    "events": 120,
+    "events": 118,
     "timingSource": "device+host",
     "deviceEpoch": {
       "offsetMs": -238285700802,
@@ -177,7 +177,7 @@
     {
       "t": "21:06:44",
       "tMs": 1784581604722,
-      "impulse": "stage_light",
+      "impulse": "stage_wake",
       "node": "ECGDex",
       "conf": 0.7,
       "sqi": null,
@@ -292,6 +292,15 @@
         "osaConf": null,
         "deltaSBP": null
       }
+    },
+    {
+      "t": "21:26:44",
+      "tMs": 1784582804722,
+      "impulse": "stage_light",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
     },
     {
       "t": "21:36:05",
@@ -596,15 +605,6 @@
       }
     },
     {
-      "t": "22:11:44",
-      "tMs": 1784585504722,
-      "impulse": "stage_deep",
-      "node": "ECGDex",
-      "conf": 0.7,
-      "sqi": null,
-      "meta": {}
-    },
-    {
       "t": "22:12:16",
       "tMs": 1784585536972,
       "impulse": "movement_onset",
@@ -636,6 +636,15 @@
       }
     },
     {
+      "t": "22:16:44",
+      "tMs": 1784585804722,
+      "impulse": "stage_light",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
+    },
+    {
       "t": "22:18:35",
       "tMs": 1784585915722,
       "impulse": "autonomic_surge",
@@ -664,23 +673,6 @@
           "acc"
         ],
         "site": "chest"
-      }
-    },
-    {
-      "t": "22:28:54",
-      "tMs": 1784586534722,
-      "impulse": "autonomic_surge",
-      "node": "ECGDex",
-      "conf": 0.83,
-      "sqi": 0.74,
-      "meta": {
-        "ampBpm": 18.3,
-        "periodSec": 14,
-        "peakTMs": 1784586548722,
-        "position": "supine",
-        "osaLabel": null,
-        "osaConf": null,
-        "deltaSBP": null
       }
     },
     {
@@ -727,32 +719,6 @@
         ],
         "site": "chest"
       }
-    },
-    {
-      "t": "22:31:05",
-      "tMs": 1784586665722,
-      "impulse": "autonomic_surge",
-      "node": "ECGDex",
-      "conf": 0.56,
-      "sqi": 0.78,
-      "meta": {
-        "ampBpm": 5.3,
-        "periodSec": 28,
-        "peakTMs": 1784586693722,
-        "position": "supine",
-        "osaLabel": null,
-        "osaConf": null,
-        "deltaSBP": null
-      }
-    },
-    {
-      "t": "22:36:44",
-      "tMs": 1784587004722,
-      "impulse": "stage_light",
-      "node": "ECGDex",
-      "conf": 0.7,
-      "sqi": null,
-      "meta": {}
     },
     {
       "t": "22:43:46",
@@ -1150,6 +1116,15 @@
       "meta": {}
     },
     {
+      "t": "01:41:44",
+      "tMs": 1784598104722,
+      "impulse": "stage_wake",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
+    },
+    {
       "t": "01:42:25",
       "tMs": 1784598145222,
       "impulse": "movement_onset",
@@ -1162,15 +1137,6 @@
         ],
         "site": "chest"
       }
-    },
-    {
-      "t": "01:46:44",
-      "tMs": 1784598404722,
-      "impulse": "stage_wake",
-      "node": "ECGDex",
-      "conf": 0.7,
-      "sqi": null,
-      "meta": {}
     },
     {
       "t": "01:46:52",
@@ -1663,6 +1629,15 @@
       }
     },
     {
+      "t": "04:16:44",
+      "tMs": 1784607404722,
+      "impulse": "stage_wake",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
+    },
+    {
       "t": "04:19:00",
       "tMs": 1784607540722,
       "impulse": "autonomic_surge",
@@ -1723,15 +1698,6 @@
         "osaConf": null,
         "deltaSBP": null
       }
-    },
-    {
-      "t": "04:21:44",
-      "tMs": 1784607704722,
-      "impulse": "stage_wake",
-      "node": "ECGDex",
-      "conf": 0.7,
-      "sqi": null,
-      "meta": {}
     },
     {
       "t": "04:21:53",
@@ -1947,12 +1913,12 @@
   },
   "hrv": {
     "time": {
-      "hr": 49.5,
+      "hr": 49.8,
       "meanRR": 1189.3,
-      "sdnn": 55.5,
+      "sdnn": 51.1,
       "rmssd": 33.8,
       "pnn50": 11.8,
-      "sdnnIndex": 575.3,
+      "sdnnIndex": 60.5,
       "wholeRecordHR": 50.4,
       "wholeRecordSDNN": 96.1,
       "wholeRecordRMSSD": 34.1,
@@ -1964,14 +1930,14 @@
       "windowNote": "sdnn/rmssd/pnn50 here are DISPLAY values = representative 5-min epoch median on overnight recordings (short recs: whole-record). For CROSS-NODE comparison use wholeRecordSDNN/wholeRecordRMSSD."
     },
     "frequency": {
-      "vlf": 1442,
-      "lf": 799,
+      "vlf": 1201,
+      "lf": 775,
       "hf": 298,
-      "totalPower": 2539,
-      "lfhf": 2.2,
+      "totalPower": 2274,
+      "lfhf": 2.256,
       "window": "epochMedian5min",
       "method": "Lomb–Scargle",
-      "respRate": 14.5,
+      "respRate": 14.3,
       "respRateMethod": "RSA (HF-peak of RR spectrum)",
       "respFromEDR": 16.8,
       "couplingGridGapCells": 2721,
@@ -2205,86 +2171,86 @@
       },
       {
         "tMin": 65,
-        "hr": 21.4,
-        "rmssd": 24636.9,
-        "sdnn": 17336.5,
-        "vlf": 29074509,
-        "lf": 81505996,
-        "hf": 185191118,
-        "totalPower": 295771623,
-        "lfhf": 0.44,
-        "resp": 23.3,
+        "hr": 53.2,
+        "rmssd": 46.9,
+        "sdnn": 70.6,
+        "vlf": 1230,
+        "lf": 1027,
+        "hf": 921,
+        "totalPower": 3178,
+        "lfhf": 1.115,
+        "resp": 10.8,
         "hrStat": "rate-of-mean",
-        "sqi": 0.858,
-        "beats": 107,
+        "sqi": 0.86,
+        "beats": 106,
         "motionIndex": 58.9,
         "position": "lateral"
       },
       {
         "tMin": 70,
-        "hr": 30,
-        "rmssd": 10885.4,
-        "sdnn": 7648.9,
-        "vlf": 5768397,
-        "lf": 15608411,
-        "hf": 35980098,
-        "totalPower": 57356906,
-        "lfhf": 0.434,
-        "resp": 22.1,
+        "hr": 52.5,
+        "rmssd": 36.1,
+        "sdnn": 52.7,
+        "vlf": 891,
+        "lf": 1049,
+        "hf": 456,
+        "totalPower": 2396,
+        "lfhf": 2.303,
+        "resp": 11.6,
         "hrStat": "rate-of-mean",
-        "sqi": 0.855,
-        "beats": 150,
+        "sqi": 0.858,
+        "beats": 148,
         "motionIndex": 35.8,
         "position": "upright"
       },
       {
         "tMin": 75,
-        "hr": 19.3,
-        "rmssd": 15683.9,
-        "sdnn": 10911,
-        "vlf": 10910016,
-        "lf": 32434868,
-        "hf": 73487200,
-        "totalPower": 116832084,
-        "lfhf": 0.441,
-        "resp": 12.8,
+        "hr": 51.9,
+        "rmssd": 37,
+        "sdnn": 50,
+        "vlf": 733,
+        "lf": 1007,
+        "hf": 655,
+        "totalPower": 2395,
+        "lfhf": 1.538,
+        "resp": 11,
         "hrStat": "rate-of-mean",
-        "sqi": 0.834,
-        "beats": 91,
+        "sqi": 0.842,
+        "beats": 88,
         "motionIndex": 40.9,
         "position": "lateral"
       },
       {
         "tMin": 80,
-        "hr": 26.7,
-        "rmssd": 10253.4,
-        "sdnn": 8648.8,
-        "vlf": 5595939,
-        "lf": 20217781,
-        "hf": 44307646,
-        "totalPower": 70121366,
-        "lfhf": 0.456,
-        "resp": 20.1,
+        "hr": 52.2,
+        "rmssd": 50.7,
+        "sdnn": 148.9,
+        "vlf": 18183,
+        "lf": 2240,
+        "hf": 1113,
+        "totalPower": 21536,
+        "lfhf": 2.012,
+        "resp": 12.6,
         "hrStat": "rate-of-mean",
-        "sqi": 0.848,
-        "beats": 123,
+        "sqi": 0.852,
+        "beats": 121,
         "motionIndex": 89,
         "position": "supine"
       },
       {
         "tMin": 85,
-        "hr": 40.8,
-        "rmssd": 3183.2,
-        "sdnn": 3175.4,
-        "vlf": 967927,
-        "lf": 2697951,
-        "hf": 6174230,
-        "totalPower": 9840108,
-        "lfhf": 0.437,
-        "resp": 23.7,
+        "hr": 47.5,
+        "rmssd": 35.6,
+        "sdnn": 35.6,
+        "vlf": 385,
+        "lf": 470,
+        "hf": 400,
+        "totalPower": 1255,
+        "lfhf": 1.175,
+        "resp": 14.3,
         "hrStat": "rate-of-mean",
-        "sqi": 0.849,
-        "beats": 231,
+        "sqi": 0.85,
+        "beats": 230,
         "motionIndex": 14.4,
         "position": "supine"
       },
@@ -3550,19 +3516,19 @@
     "sleepStages": [
       {
         "tMin": 0,
-        "stage": "Light"
+        "stage": "Wake"
       },
       {
         "tMin": 5,
-        "stage": "Light"
+        "stage": "Wake"
       },
       {
         "tMin": 10,
-        "stage": "Light"
+        "stage": "Wake"
       },
       {
         "tMin": 15,
-        "stage": "Light"
+        "stage": "Wake"
       },
       {
         "tMin": 20,
@@ -3602,23 +3568,23 @@
       },
       {
         "tMin": 65,
-        "stage": "Deep"
+        "stage": "Wake"
       },
       {
         "tMin": 70,
-        "stage": "Deep"
+        "stage": "Light"
       },
       {
         "tMin": 75,
-        "stage": "Deep"
+        "stage": "Light"
       },
       {
         "tMin": 80,
-        "stage": "Deep"
+        "stage": "Light"
       },
       {
         "tMin": 85,
-        "stage": "Deep"
+        "stage": "Light"
       },
       {
         "tMin": 90,
@@ -3770,7 +3736,7 @@
       },
       {
         "tMin": 275,
-        "stage": "Light"
+        "stage": "Wake"
       },
       {
         "tMin": 280,
@@ -3894,7 +3860,7 @@
       },
       {
         "tMin": 430,
-        "stage": "Light"
+        "stage": "Wake"
       },
       {
         "tMin": 435,
@@ -93831,17 +93797,17 @@
     }
   },
   "sleep": {
-    "totalSleepMin": 415,
+    "totalSleepMin": 380,
     "stageMinutes": {
-      "Wake": 45,
+      "Wake": 80,
       "REM": 30,
-      "Light": 295,
-      "Deep": 90
+      "Light": 285,
+      "Deep": 65
     }
   },
   "apnea": {
-    "cvhrIndex": 7.1,
-    "cvhrEvents": 53,
+    "cvhrIndex": 6.8,
+    "cvhrEvents": 51,
     "onCPAP": false,
     "method": "CVHR index (cyclic variation of HR, Hayano) + CPC band shares (Thomas 2005). NOT an apnea–hypopnea index: against device-scored residual AHI over 39 paired nights the CVHR index did not track it (r = −0.151, p = 0.36); only cpc.hfcPct did (r = −0.408, p = 0.009). Screen-adjacent signal, not diagnosis.",
     "cpc": {
@@ -93853,14 +93819,14 @@
       "vlfcPct": 13.7,
       "method": "CPC — coherence x cross-power of HR vs EDR (Thomas 2005), 512 s windows, 50 % overlap"
     },
-    "surgeEscalationPct": 10,
+    "surgeEscalationPct": 22,
     "cvhrHours": 7.47
   },
   "hrvStability": {
-    "sigma_lnRMSSD_slope": -0.0797,
-    "var_lnRMSSD_slope": -0.1875,
-    "mean_lnRMSSD_slope": -0.1823,
-    "classification": "Stabilizing — progressive autonomic stabilization (favourable)",
+    "sigma_lnRMSSD_slope": -0.0039,
+    "var_lnRMSSD_slope": -0.0009,
+    "mean_lnRMSSD_slope": -0.0167,
+    "classification": "Flat — no clear nocturnal trend",
     "windows": 15,
     "ref": "Li & Kiyono 2026 Sensors 26(4):1118 [CC BY 4.0]",
     "interpretation": "slope<0 stabilizing (favourable) · slope>0 rising instability (glycemic-risk signal)",
@@ -93879,8 +93845,8 @@
       },
       {
         "tMin": 60,
-        "lnSD": 2.292,
-        "lnMean": 8.38,
+        "lnSD": 0.17,
+        "lnMean": 3.743,
         "n": 6
       },
       {

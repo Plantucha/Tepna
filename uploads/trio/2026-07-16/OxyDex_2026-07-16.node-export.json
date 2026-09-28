@@ -9,7 +9,7 @@
     "node": "OxyDex",
     "nodeVersion": "1.0",
     "multiNight": false,
-    "generated": "2026-09-22T21:58:59.663Z",
+    "generated": "2026-09-28T16:55:15.141Z",
     "provenance": null,
     "doc": "OxyDex single-night SpO₂/oximetry summary computed headless from a SignalFrame(spo2). Emits ganglior_events[] (desat_event from desatProfile + periodic_breathing from oscillation episodes); OxyDex infers respiration from an SpO₂ proxy, not airflow. tMs = floating wall-clock ms (UTC getters); null = unknown, never fabricated.",
     "scrubbed": true
@@ -57681,7 +57681,8 @@
       "hrv": null,
       "hypoxicBurden": {
         "total": 29.3,
-        "rate": 5.3
+        "rate": 5.3,
+        "measuredSec": 20086
       },
       "measurement": {
         "meanSpo2": {
@@ -57814,6 +57815,7 @@
         "auc90Rate": 0,
         "nadir": {
           "count": 17,
+          "recoveredCount": 17,
           "meanDepth": 5.4,
           "meanDuration": 23,
           "meanRecovery": 15
@@ -58447,7 +58449,8 @@
       "composite": {
         "couplingScore": 0,
         "sfi": 0,
-        "nsi": 53
+        "nsi": 53,
+        "nsiComponents": 4
       },
       "sbii": {
         "sbii": 24.561,
@@ -58687,43 +58690,53 @@
         "tIdx": {
           "80": {
             "secs": 0,
-            "pct": 0
+            "pct": 0,
+            "measured": 20086
           },
           "85": {
             "secs": 0,
-            "pct": 0
+            "pct": 0,
+            "measured": 20086
           },
           "88": {
             "secs": 0,
-            "pct": 0
+            "pct": 0,
+            "measured": 20086
           },
           "89": {
             "secs": 0,
-            "pct": 0
+            "pct": 0,
+            "measured": 20086
           },
           "90": {
             "secs": 0,
-            "pct": 0
+            "pct": 0,
+            "measured": 20086
           },
           "91": {
             "secs": 18,
-            "pct": 0.09
+            "pct": 0.09,
+            "measured": 20086
           },
           "92": {
             "secs": 160,
-            "pct": 0.8
+            "pct": 0.8,
+            "measured": 20086
           },
           "93": {
             "secs": 428,
-            "pct": 2.13
+            "pct": 2.13,
+            "measured": 20086
           },
           "94": {
             "secs": 1154,
-            "pct": 5.75
+            "pct": 5.75,
+            "measured": 20086
           },
           "95": {
             "secs": 2035,
-            "pct": 10.13
+            "pct": 10.13,
+            "measured": 20086
           }
         },
         "period": null,

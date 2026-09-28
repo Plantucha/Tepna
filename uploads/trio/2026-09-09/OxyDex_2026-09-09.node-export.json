@@ -9,7 +9,7 @@
     "node": "OxyDex",
     "nodeVersion": "1.0",
     "multiNight": false,
-    "generated": "2026-09-22T22:33:48.924Z",
+    "generated": "2026-09-28T17:48:54.657Z",
     "provenance": null,
     "doc": "OxyDex single-night SpO₂/oximetry summary computed headless from a SignalFrame(spo2). Emits ganglior_events[] (desat_event from desatProfile + periodic_breathing from oscillation episodes); OxyDex infers respiration from an SpO₂ proxy, not airflow. tMs = floating wall-clock ms (UTC getters); null = unknown, never fabricated.",
     "scrubbed": true
@@ -51121,7 +51121,8 @@
       },
       "hypoxicBurden": {
         "total": 9.4,
-        "rate": 1.4
+        "rate": 1.4,
+        "measuredSec": 24579
       },
       "measurement": {
         "meanSpo2": {
@@ -51329,6 +51330,7 @@
         "auc90Rate": 0.07,
         "nadir": {
           "count": 10,
+          "recoveredCount": 10,
           "meanDepth": 5.8,
           "meanDuration": 16,
           "meanRecovery": 4
@@ -51736,7 +51738,8 @@
       "composite": {
         "couplingScore": 100,
         "sfi": 1.4,
-        "nsi": 48
+        "nsi": 48,
+        "nsiComponents": 4
       },
       "sbii": {
         "sbii": 14.369,
@@ -52193,6 +52196,17 @@
             }
           ],
           "readiness": 48,
+          "readinessBasis": {
+            "scored": [
+              "rmssd",
+              "spo2",
+              "sleep",
+              "hrFloor",
+              "hrSlope"
+            ],
+            "weightPresent": 100,
+            "weightTotal": 100
+          },
           "readinessTier": "Low",
           "readinessColor": "warn",
           "recZones": [
@@ -52230,43 +52244,53 @@
         "tIdx": {
           "80": {
             "secs": 0,
-            "pct": 0
+            "pct": 0,
+            "measured": 24579
           },
           "85": {
             "secs": 0,
-            "pct": 0
+            "pct": 0,
+            "measured": 24579
           },
           "88": {
             "secs": 4,
-            "pct": 0.02
+            "pct": 0.02,
+            "measured": 24579
           },
           "89": {
             "secs": 4,
-            "pct": 0.02
+            "pct": 0.02,
+            "measured": 24579
           },
           "90": {
             "secs": 13,
-            "pct": 0.05
+            "pct": 0.05,
+            "measured": 24579
           },
           "91": {
             "secs": 25,
-            "pct": 0.1
+            "pct": 0.1,
+            "measured": 24579
           },
           "92": {
             "secs": 67,
-            "pct": 0.27
+            "pct": 0.27,
+            "measured": 24579
           },
           "93": {
             "secs": 111,
-            "pct": 0.45
+            "pct": 0.45,
+            "measured": 24579
           },
           "94": {
             "secs": 335,
-            "pct": 1.36
+            "pct": 1.36,
+            "measured": 24579
           },
           "95": {
             "secs": 1165,
-            "pct": 4.74
+            "pct": 4.74,
+            "measured": 24579
           }
         },
         "period": null,
