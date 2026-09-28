@@ -93,6 +93,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
 import { cpus } from 'node:os';
 import { launch } from './pw-launch.mjs';
+import { refuseUnknownArgvOrExit } from './argv-guard.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const CKPT = join(ROOT, '.cache', 'analysis-rerun-checkpoint.json');
@@ -231,6 +232,18 @@ export function gitIsClean(root) {
 }
 
 async function main(argv) {
+  /* Refuse a token nobody reads BEFORE a single tool is rebuilt or re-run. This one is the expensive
+     case: a `--paper-scale` run is budgeted in HOURS (`--timeout-min` defaults to 120 under it), so a
+     mistyped flag does not fail fast — it spends the afternoon computing the wrong configuration and
+     writes it to `--out` as if it were the one that was asked for. */
+  refuseUnknownArgvOrExit(
+    argv,
+    {
+      valued: ['--cohort-gen', '--fig-dir', '--jobs', '--only', '--out', '--timeout-min'],
+      boolean: ['--figures', '--paper-scale', '--resume', '--selftest']
+    },
+    { tool: 'analysis-rerun' }
+  );
   const opt = (n, d) => {
     const i = argv.indexOf(n);
     return i >= 0 && argv[i + 1] ? argv[i + 1] : d;

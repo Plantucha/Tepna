@@ -76,6 +76,7 @@
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { createRequire } from 'node:module';
+import { refuseUnknownArgvOrExit } from './argv-guard.mjs';
 
 /* The closure identity + the four-state verdict, from the module `trio-batch` already routes its
    clock lines through. Imported rather than reimplemented: a second copy of "when is a ppm a
@@ -83,6 +84,11 @@ import { createRequire } from 'node:module';
 const DriftReport = createRequire(import.meta.url)('./drift-report.js');
 
 const argv = process.argv.slice(2);
+/* Refuse a token nobody reads BEFORE anything is read or computed. `flag`/`opt` below look up only the
+   names they know, so an unknown token is indistinguishable from an absent one and the tool runs on the
+   defaults the operator believed they had overridden. Measured on THIS tool (argv survey, 2026-09-28):
+   `--no-such-flag-9f3` produced output byte-identical to no arguments at all. */
+refuseUnknownArgvOrExit(argv, { valued: ['--dir', '--pair', '--span', '--tol'], boolean: ['--control', '--local', '--selftest'] }, { tool: 'beat-comb-analysis' });
 const flag = (n) => argv.includes(n);
 const opt = (n, d) => {
   const i = argv.indexOf(n);

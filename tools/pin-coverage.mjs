@@ -53,10 +53,16 @@ import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
+import { refuseUnknownArgvOrExit } from './argv-guard.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const CKPT = join(ROOT, '.cache', 'pin-coverage-checkpoint.json');
 const argv = process.argv.slice(2);
+/* Refuse a token nobody reads BEFORE anything is read — and note WHICH helper reads what, because this
+   tool is why the survey's extractor had to learn that arity is the HELPER's property: `many('--dir')`
+   is a bare call that nevertheless consumes the next token, so a table built from call shape put the
+   tool's one required argument in the boolean bucket and would have refused its path. */
+refuseUnknownArgvOrExit(argv, { valued: ['--dir', '--limit'], boolean: ['--resume', '--selftest'] }, { tool: 'pin-coverage' });
 const flag = (n) => argv.includes(n);
 const many = (n) => argv.reduce((a, v, i) => (v === n && argv[i + 1] ? a.concat(argv[i + 1]) : a), []);
 const one = (n, d) => {

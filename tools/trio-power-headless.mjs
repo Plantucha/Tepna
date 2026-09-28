@@ -64,8 +64,13 @@ import { launch } from './pw-launch.mjs';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const PAGE = join(ROOT, 'sensor-trio-power-analysis.html');
 import { makeVerdict } from './verdict-emit.mjs';
+import { refuseUnknownArgvOrExit } from './argv-guard.mjs';
 
 const argv = process.argv.slice(2);
+/* Refuse a token nobody reads BEFORE a browser is launched or 20 000 trials are run. This tool emits a
+   `tepna.verdict/1` object, so a mistyped `--trails` would not just waste the run — it would publish a
+   verdict computed at the DEFAULT trial count while the operator recorded the one they typed. */
+refuseUnknownArgvOrExit(argv, { valued: ['--trials'], boolean: ['--allow-software', '--cpu', '--json', '--selftest', '--verdict-sample'] }, { tool: 'trio-power-headless' });
 const flag = (n) => argv.includes(n);
 const opt = (n, d) => {
   const i = argv.indexOf(n);

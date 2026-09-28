@@ -1,0 +1,761 @@
+{
+  "note": "Executable answer to residue 2026-09-28-which-tools-refuse-an-unknown-argv-token-is-unmeasured. Produced by `node tools/argv-survey.mjs --json` on a CLEAN tree at the commit below; every row carries treeMoved:false. A REFUSES row means the tool adopted tools/argv-guard.mjs; IGNORES is the backlog; SWALLOWS-AS-POSITIONAL means the token became an input path, which is worse. A timeout is UNDECIDED, never a refusal.",
+  "treeCommit": "9b3d651d",
+  "verdict": {
+    "schema": "tepna.verdict/1",
+    "gate": "argv-survey",
+    "status": "PASS",
+    "scope": "internal",
+    "population": {
+      "checked": 43,
+      "eligible": 45,
+      "excluded": 2
+    },
+    "criterion": {
+      "name": "tools_that_swallow_an_unknown_token_as_a_path",
+      "threshold": 5,
+      "unit": "tools",
+      "direction": "lte"
+    },
+    "result": {
+      "swallows": 5,
+      "tally": {
+        "REFUSES": 2,
+        "IGNORES": 36,
+        "UNDECIDED-timeout": 2,
+        "SWALLOWS-AS-POSITIONAL": 5
+      }
+    },
+    "evidence": [
+      "tools/argv-survey.mjs"
+    ],
+    "reason": null,
+    "producedBy": {
+      "tool": "tools/argv-survey.mjs",
+      "commit": "9b3d651d"
+    },
+    "at": "2026-09-28T21:34:16Z"
+  },
+  "rows": [
+    {
+      "tool": "tools/beat-comb-analysis.mjs",
+      "verdict": "REFUSES",
+      "exit": {
+        "controlA": 2,
+        "controlB": 2,
+        "probe": 2
+      },
+      "ms": {
+        "controlA": 14,
+        "probe": 14
+      },
+      "volatileOutput": false,
+      "treeMoved": false,
+      "probeFirstLine": "✗ beat-comb-analysis: unknown flag --no-such-flag-9f3"
+    },
+    {
+      "tool": "tools/beat-injection-recovery.mjs",
+      "verdict": "IGNORES",
+      "exit": {
+        "controlA": 2,
+        "controlB": 2,
+        "probe": 2
+      },
+      "ms": {
+        "controlA": 15,
+        "probe": 15
+      },
+      "volatileOutput": false,
+      "treeMoved": false,
+      "probeFirstLine": "usage: --ecg <ECG.txt> [--n 200] [--seed 7]"
+    },
+    {
+      "tool": "tools/cgm-variability-check.mjs",
+      "verdict": "IGNORES",
+      "exit": {
+        "controlA": 0,
+        "controlB": 0,
+        "probe": 0
+      },
+      "ms": {
+        "controlA": 14,
+        "probe": 12
+      },
+      "volatileOutput": false,
+      "treeMoved": false,
+      "probeFirstLine": "no CGM csv at /home/michal/wt-argvsurvey-hrn/uploads/lingo-glucose-data-2026-MAY-23.csv"
+    },
+    {
+      "tool": "tools/closure-tol-hac.mjs",
+      "verdict": "UNDECIDED-timeout",
+      "exit": {
+        "controlA": null,
+        "controlB": null,
+        "probe": null
+      },
+      "ms": {
+        "controlA": 25008,
+        "probe": 25008
+      },
+      "volatileOutput": false,
+      "treeMoved": false,
+      "probeFirstLine": "Closure tolerance — magnitude rule vs Newey-West HAC"
+    },
+    {
+      "tool": "tools/cpap-sa2-agreement.mjs",
+      "verdict": "REFUSES",
+      "exit": {
+        "controlA": 2,
+        "controlB": 2,
+        "probe": 2
+      },
+      "ms": {
+        "controlA": 15,
+        "probe": 13
+      },
+      "volatileOutput": false,
+      "treeMoved": false,
+      "probeFirstLine": "✗ cpap-sa2-agreement: unknown flag --no-such-flag-9f3"
+    },
+    {
+      "tool": "tools/deep-flow-join.mjs",
+      "verdict": "IGNORES",
+      "exit": {
+        "controlA": 2,
+        "controlB": 2,
+        "probe": 2
+      },
+      "ms": {
+        "controlA": 14,
+        "probe": 14
+      },
+      "volatileOutput": false,
+      "treeMoved": false,
+      "probeFirstLine": "usage: node tools/deep-flow-join.mjs --eve <dir> [--trio uploads/trio]"
+    },
+    {
+      "tool": "tools/deep-vlf-probe.mjs",
+      "verdict": "IGNORES",
+      "exit": {
+        "controlA": 0,
+        "controlB": 0,
+        "probe": 0
+      },
+      "ms": {
+        "controlA": 411,
+        "probe": 364
+      },
+      "volatileOutput": false,
+      "treeMoved": false,
+      "probeFirstLine": "deep-vlf-probe — /home/michal/wt-argvsurvey-hrn/uploads/trio"
+    },
+    {
+      "tool": "tools/ecg-apnea-correlate.mjs",
+      "verdict": "IGNORES",
+      "exit": {
+        "controlA": 2,
+        "controlB": 2,
+        "probe": 2
+      },
+      "ms": {
+        "controlA": 13,
+        "probe": 12
+      },
+      "volatileOutput": false,
+      "treeMoved": false,
+      "probeFirstLine": "ecg-apnea-correlate: --cpap <exports.json> is required and must exist."
+    },
+    {
+      "tool": "tools/eegdex-selftest.mjs",
+      "verdict": "IGNORES",
+      "exit": {
+        "controlA": 0,
+        "controlB": 0,
+        "probe": 0
+      },
+      "ms": {
+        "controlA": 111,
+        "probe": 102
+      },
+      "volatileOutput": false,
+      "treeMoved": false,
+      "probeFirstLine": "▸ eegdex --selftest"
+    },
+    {
+      "tool": "tools/eqc-power.mjs",
+      "verdict": "IGNORES",
+      "exit": {
+        "controlA": 0,
+        "controlB": 0,
+        "probe": 0
+      },
+      "ms": {
+        "controlA": 746,
+        "probe": 759
+      },
+      "volatileOutput": false,
+      "treeMoved": false,
+      "probeFirstLine": "Extended Quadruple Collocation — can it identify the correlated pair?"
+    },
+    {
+      "tool": "tools/geometry-passthrough.mjs",
+      "verdict": "IGNORES",
+      "exit": {
+        "controlA": 0,
+        "controlB": 0,
+        "probe": 0
+      },
+      "ms": {
+        "controlA": 3519,
+        "probe": 3561
+      },
+      "volatileOutput": false,
+      "treeMoved": false,
+      "probeFirstLine": "case                             fs(ecg/ppg)   pairs   medLag   IQR   | probes fired"
+    },
+    {
+      "tool": "tools/geometry-probe.mjs",
+      "verdict": "SWALLOWS-AS-POSITIONAL",
+      "exit": {
+        "controlA": 0,
+        "controlB": 0,
+        "probe": 0
+      },
+      "ms": {
+        "controlA": 15,
+        "probe": 15
+      },
+      "volatileOutput": false,
+      "treeMoved": false,
+      "probeFirstLine": "planted shape   | probes that fired"
+    },
+    {
+      "tool": "tools/geometry-scan.mjs",
+      "verdict": "SWALLOWS-AS-POSITIONAL",
+      "exit": {
+        "controlA": 2,
+        "controlB": 2,
+        "probe": 0
+      },
+      "ms": {
+        "controlA": 15,
+        "probe": 30
+      },
+      "volatileOutput": false,
+      "treeMoved": false,
+      "probeFirstLine": "stage                       probes fired"
+    },
+    {
+      "tool": "tools/guarantees.mjs",
+      "verdict": "IGNORES",
+      "exit": {
+        "controlA": 2,
+        "controlB": 2,
+        "probe": 2
+      },
+      "ms": {
+        "controlA": 14,
+        "probe": 16
+      },
+      "volatileOutput": false,
+      "treeMoved": false,
+      "probeFirstLine": "nothing to census — pass --file <path> or --spine"
+    },
+    {
+      "tool": "tools/integrator-block-precision.mjs",
+      "verdict": "IGNORES",
+      "exit": {
+        "controlA": 2,
+        "controlB": 2,
+        "probe": 2
+      },
+      "ms": {
+        "controlA": 15,
+        "probe": 13
+      },
+      "volatileOutput": false,
+      "treeMoved": false,
+      "probeFirstLine": "need --dir <trio-dir>  (or --selftest)"
+    },
+    {
+      "tool": "tools/motion-rho-vs-minrho.mjs",
+      "verdict": "IGNORES",
+      "exit": {
+        "controlA": 0,
+        "controlB": 0,
+        "probe": 0
+      },
+      "ms": {
+        "controlA": 995,
+        "probe": 1005
+      },
+      "volatileOutput": false,
+      "treeMoved": false,
+      "probeFirstLine": "Shipped motion-ρ proxy vs the correlation the data REQUIRES"
+    },
+    {
+      "tool": "tools/mutation-reach.mjs",
+      "verdict": "IGNORES",
+      "exit": {
+        "controlA": 2,
+        "controlB": 2,
+        "probe": 2
+      },
+      "ms": {
+        "controlA": 15,
+        "probe": 13
+      },
+      "volatileOutput": false,
+      "treeMoved": false,
+      "probeFirstLine": "🔴 NO COVERAGE — pass --cov <coverage-final.json>."
+    },
+    {
+      "tool": "tools/mutation-summary.mjs",
+      "verdict": "IGNORES",
+      "exit": {
+        "controlA": 2,
+        "controlB": 2,
+        "probe": 2
+      },
+      "ms": {
+        "controlA": 13,
+        "probe": 15
+      },
+      "volatileOutput": false,
+      "treeMoved": false,
+      "probeFirstLine": "usage: node tools/mutation-summary.mjs <ndjson> <exit-code> | --selftest"
+    },
+    {
+      "tool": "tools/nearest-advocate.mjs",
+      "verdict": "IGNORES",
+      "exit": {
+        "controlA": 2,
+        "controlB": 2,
+        "probe": 2
+      },
+      "ms": {
+        "controlA": 13,
+        "probe": 13
+      },
+      "volatileOutput": false,
+      "treeMoved": false,
+      "probeFirstLine": "usage: node tools/nearest-advocate.mjs --a <a.txt> --b <b.txt> [--width 4] [--step 0.02]"
+    },
+    {
+      "tool": "tools/oxy-hr-bias.mjs",
+      "verdict": "IGNORES",
+      "exit": {
+        "controlA": 0,
+        "controlB": 0,
+        "probe": 0
+      },
+      "ms": {
+        "controlA": 16327,
+        "probe": 15778
+      },
+      "volatileOutput": false,
+      "treeMoved": false,
+      "probeFirstLine": "▸ LEG 1 — does OxyDex itself add bias?  (raw `Pulse Rate` column mean vs stats.meanHr)"
+    },
+    {
+      "tool": "tools/oxydex-export-staleness.mjs",
+      "verdict": "IGNORES",
+      "exit": {
+        "controlA": 2,
+        "controlB": 2,
+        "probe": 2
+      },
+      "ms": {
+        "controlA": 15,
+        "probe": 14
+      },
+      "volatileOutput": false,
+      "treeMoved": false,
+      "probeFirstLine": "usage: node tools/oxydex-export-staleness.mjs <export-dir> [--raw <dir>]"
+    },
+    {
+      "tool": "tools/pat-axis-leg-audit.mjs",
+      "verdict": "IGNORES",
+      "exit": {
+        "controlA": 2,
+        "controlB": 2,
+        "probe": 2
+      },
+      "ms": {
+        "controlA": 15,
+        "probe": 14
+      },
+      "volatileOutput": false,
+      "treeMoved": false,
+      "probeFirstLine": "usage: node tools/pat-axis-leg-audit.mjs --selftest | <ppg-file> [...]"
+    },
+    {
+      "tool": "tools/pat-drift-attribution.mjs",
+      "verdict": "IGNORES",
+      "exit": {
+        "controlA": 2,
+        "controlB": 2,
+        "probe": 2
+      },
+      "ms": {
+        "controlA": 14,
+        "probe": 15
+      },
+      "volatileOutput": false,
+      "treeMoved": false,
+      "probeFirstLine": "usage: node tools/pat-drift-attribution.mjs --selftest | --dir <root> [--only a,b] [--ecg-axis linear|counter|piecewise]"
+    },
+    {
+      "tool": "tools/pat-fiducial.mjs",
+      "verdict": "IGNORES",
+      "exit": {
+        "controlA": 2,
+        "controlB": 2,
+        "probe": 2
+      },
+      "ms": {
+        "controlA": 12,
+        "probe": 13
+      },
+      "volatileOutput": false,
+      "treeMoved": false,
+      "probeFirstLine": "usage: node tools/pat-fiducial.mjs --selftest   (library; the §1 comparison drives it)"
+    },
+    {
+      "tool": "tools/pat-hrv-windows.mjs",
+      "verdict": "IGNORES",
+      "exit": {
+        "controlA": 1,
+        "controlB": 1,
+        "probe": 1
+      },
+      "ms": {
+        "controlA": 14,
+        "probe": 15
+      },
+      "volatileOutput": false,
+      "treeMoved": false,
+      "probeFirstLine": "need --dir <captures root>"
+    },
+    {
+      "tool": "tools/pat-literature-spec.mjs",
+      "verdict": "IGNORES",
+      "exit": {
+        "controlA": 1,
+        "controlB": 1,
+        "probe": 1
+      },
+      "ms": {
+        "controlA": 14,
+        "probe": 13
+      },
+      "volatileOutput": false,
+      "treeMoved": false,
+      "probeFirstLine": "need --dir <captures root>"
+    },
+    {
+      "tool": "tools/pat-per-led.mjs",
+      "verdict": "IGNORES",
+      "exit": {
+        "controlA": 1,
+        "controlB": 1,
+        "probe": 1
+      },
+      "ms": {
+        "controlA": 13,
+        "probe": 14
+      },
+      "volatileOutput": false,
+      "treeMoved": false,
+      "probeFirstLine": "need --dir  (or --selftest)"
+    },
+    {
+      "tool": "tools/pat-window-scaling.mjs",
+      "verdict": "IGNORES",
+      "exit": {
+        "controlA": 1,
+        "controlB": 1,
+        "probe": 1
+      },
+      "ms": {
+        "controlA": 15,
+        "probe": 14
+      },
+      "volatileOutput": false,
+      "treeMoved": false,
+      "probeFirstLine": "need --dir <captures root>"
+    },
+    {
+      "tool": "tools/pb-fusion-blast.mjs",
+      "verdict": "IGNORES",
+      "exit": {
+        "controlA": 2,
+        "controlB": 2,
+        "probe": 2
+      },
+      "ms": {
+        "controlA": 23,
+        "probe": 24
+      },
+      "volatileOutput": false,
+      "treeMoved": false,
+      "probeFirstLine": "need --cpap <cpap-exports.json> (see tools/cpap-corpus.mjs); --selftest runs without a corpus"
+    },
+    {
+      "tool": "tools/pb-operating-point.mjs",
+      "verdict": "SWALLOWS-AS-POSITIONAL",
+      "exit": {
+        "controlA": 2,
+        "controlB": 2,
+        "probe": 1
+      },
+      "ms": {
+        "controlA": 13,
+        "probe": 14
+      },
+      "volatileOutput": false,
+      "treeMoved": false,
+      "probeFirstLine": "node:fs:1590"
+    },
+    {
+      "tool": "tools/ppg-gap-bridge-scan.mjs",
+      "verdict": "IGNORES",
+      "exit": {
+        "controlA": 2,
+        "controlB": 2,
+        "probe": 2
+      },
+      "ms": {
+        "controlA": 21,
+        "probe": 22
+      },
+      "volatileOutput": false,
+      "treeMoved": false,
+      "probeFirstLine": "no input — pass files, or --dir <captures dir>; --selftest needs neither"
+    },
+    {
+      "tool": "tools/ppg2w-rate.mjs",
+      "verdict": "IGNORES",
+      "exit": {
+        "controlA": 2,
+        "controlB": 2,
+        "probe": 2
+      },
+      "ms": {
+        "controlA": 12,
+        "probe": 12
+      },
+      "volatileOutput": false,
+      "treeMoved": false,
+      "probeFirstLine": "usage: --pleth <_PPG.txt> --ppg2w <_PPG2W.txt>"
+    },
+    {
+      "tool": "tools/pulse-template-toa.mjs",
+      "verdict": "IGNORES",
+      "exit": {
+        "controlA": 2,
+        "controlB": 2,
+        "probe": 2
+      },
+      "ms": {
+        "controlA": 14,
+        "probe": 14
+      },
+      "volatileOutput": false,
+      "treeMoved": false,
+      "probeFirstLine": "usage: node tools/pulse-template-toa.mjs --ppg <file> [--beats N] [--compare]"
+    },
+    {
+      "tool": "tools/resp-cardiac-suppression-e8.mjs",
+      "verdict": "IGNORES",
+      "exit": {
+        "controlA": 2,
+        "controlB": 2,
+        "probe": 2
+      },
+      "ms": {
+        "controlA": 15,
+        "probe": 15
+      },
+      "volatileOutput": false,
+      "treeMoved": false,
+      "probeFirstLine": "need --dir <captures>  (or --selftest)"
+    },
+    {
+      "tool": "tools/screen-draft-inputs.mjs",
+      "verdict": "IGNORES",
+      "exit": {
+        "controlA": 1,
+        "controlB": 1,
+        "probe": 1
+      },
+      "ms": {
+        "controlA": 17,
+        "probe": 15
+      },
+      "volatileOutput": false,
+      "treeMoved": false,
+      "probeFirstLine": "node:fs:1590"
+    },
+    {
+      "tool": "tools/strip-markup.mjs",
+      "verdict": "IGNORES",
+      "exit": {
+        "controlA": 0,
+        "controlB": 0,
+        "probe": 0
+      },
+      "ms": {
+        "controlA": 11,
+        "probe": 10
+      },
+      "volatileOutput": false,
+      "treeMoved": false,
+      "probeFirstLine": ""
+    },
+    {
+      "tool": "tools/synth-desat-kinetics.mjs",
+      "verdict": "SWALLOWS-AS-POSITIONAL",
+      "exit": {
+        "controlA": 2,
+        "controlB": 2,
+        "probe": 1
+      },
+      "ms": {
+        "controlA": 13,
+        "probe": 12
+      },
+      "volatileOutput": false,
+      "treeMoved": false,
+      "probeFirstLine": "node:fs:1746"
+    },
+    {
+      "tool": "tools/tch-bootstrap-ci.mjs",
+      "verdict": "IGNORES",
+      "exit": {
+        "controlA": 0,
+        "controlB": 0,
+        "probe": 0
+      },
+      "ms": {
+        "controlA": 6258,
+        "probe": 6274
+      },
+      "volatileOutput": false,
+      "treeMoved": false,
+      "probeFirstLine": "Three-cornered hat — bootstrap confidence intervals"
+    },
+    {
+      "tool": "tools/tch-degeneracy-stats.mjs",
+      "verdict": "IGNORES",
+      "exit": {
+        "controlA": 2,
+        "controlB": 2,
+        "probe": 2
+      },
+      "ms": {
+        "controlA": 21,
+        "probe": 15
+      },
+      "volatileOutput": false,
+      "treeMoved": false,
+      "probeFirstLine": "usage: node tools/tch-multinight.mjs --dir uploads/trio > /tmp/tch.txt && node tools/tch-degeneracy-stats.mjs /tmp/tch.txt"
+    },
+    {
+      "tool": "tools/tch-fused-corpus.mjs",
+      "verdict": "IGNORES",
+      "exit": {
+        "controlA": 2,
+        "controlB": 2,
+        "probe": 2
+      },
+      "ms": {
+        "controlA": 16,
+        "probe": 16
+      },
+      "volatileOutput": false,
+      "treeMoved": false,
+      "probeFirstLine": "usage: node tools/tch-fused-corpus.mjs --dir <corpus> [--json]"
+    },
+    {
+      "tool": "tools/tch-minrho-corpus.mjs",
+      "verdict": "UNDECIDED-timeout",
+      "exit": {
+        "controlA": null,
+        "controlB": null,
+        "probe": null
+      },
+      "ms": {
+        "controlA": 25003,
+        "probe": 25005
+      },
+      "volatileOutput": false,
+      "treeMoved": false,
+      "probeFirstLine": "Three-cornered hat — how much shared error does the data REQUIRE?"
+    },
+    {
+      "tool": "tools/tch-pooled-hat.mjs",
+      "verdict": "IGNORES",
+      "exit": {
+        "controlA": 0,
+        "controlB": 0,
+        "probe": 0
+      },
+      "ms": {
+        "controlA": 5054,
+        "probe": 5096
+      },
+      "volatileOutput": false,
+      "treeMoved": false,
+      "probeFirstLine": "  POOLED-SECONDS HAT vs MEDIAN OVER NIGHTS — 83 nights, 1,377,710 pooled seconds (57 skipped)"
+    },
+    {
+      "tool": "tools/tch-window-sensitivity.mjs",
+      "verdict": "SWALLOWS-AS-POSITIONAL",
+      "exit": {
+        "controlA": 1,
+        "controlB": 1,
+        "probe": 1
+      },
+      "ms": {
+        "controlA": 15,
+        "probe": 15
+      },
+      "volatileOutput": false,
+      "treeMoved": false,
+      "probeFirstLine": "node:fs:1590"
+    },
+    {
+      "tool": "tools/verify-draft-kills.mjs",
+      "verdict": "IGNORES",
+      "exit": {
+        "controlA": 1,
+        "controlB": 1,
+        "probe": 1
+      },
+      "ms": {
+        "controlA": 14,
+        "probe": 13
+      },
+      "volatileOutput": false,
+      "treeMoved": false,
+      "probeFirstLine": "node:fs:1590"
+    },
+    {
+      "tool": "tools/verify-drafts.mjs",
+      "verdict": "IGNORES",
+      "exit": {
+        "controlA": 0,
+        "controlB": 0,
+        "probe": 0
+      },
+      "ms": {
+        "controlA": 250,
+        "probe": 251
+      },
+      "volatileOutput": false,
+      "treeMoved": false,
+      "probeFirstLine": "⚠ APPROXIMATE tool-local realm. Authoritative: node tests/run-tests.mjs --verify-drafts"
+    }
+  ]
+}
