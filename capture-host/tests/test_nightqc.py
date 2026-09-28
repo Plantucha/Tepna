@@ -4254,8 +4254,12 @@ def test_a_NON_VOTING_file_does_not_end_the_scan(tmp_path):
     d.mkdir(parents=True, exist_ok=True)
     # A LINK sidecar sorts first by vendor name and is excluded by tag, not by content.
     _vote_file(str(d), f"Tepna_{_ZONE_STAMP}_LINK.csv", d=14400.0)
-    # A header-only data file: no rows, so the row guard skips it.
-    empty = d / f"Polar_H10_02849638_{_ZONE_STAMP}_SPO2.csv"
+    # A header-only data file: no rows, so the row guard skips it. ⚠️ ITS NAME MUST SORT FIRST — `scan_night`
+    # returns files in name order, so a skipped file placed AFTER every voter proves nothing: `break` there
+    # loses nothing and the mutant survives a test that looks like it covers it. A lower device id puts it
+    # ahead of the voters. (Measured: with this file named `…_SPO2.csv` it sorted last and the `continue`
+    # here was reported as a live survivor by the gate on the landing head.)
+    empty = d / f"Polar_H10_00000000_{_ZONE_STAMP}_PPI.txt"
     empty.write_text("Phone timestamp;v\n", encoding="utf-8")
     os.utime(str(empty), (nightqc.floating_stamp_s(_ZONE_STAMP) + 14400.0,) * 2)
     # And a file that HAS rows and still cannot vote — no host column and no recorded extent, so neither
