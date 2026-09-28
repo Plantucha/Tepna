@@ -54,8 +54,16 @@ from link_guard import require_free_link  # noqa: E402
 import oxyii  # noqa: E402
 from bleak import BleakClient, BleakScanner  # noqa: E402
 
-KNOWN = {0xFF: "AUTH", 0x10: "SETUP", 0x04: "LIVE", 0xC0: "SET_UTC_TIME",
-         0xF1: "FILE_LIST", 0xF2: "FILE_START", 0xF3: "FILE_DATA", 0xF4: "FILE_END"}
+KNOWN = {
+    0xFF: "AUTH",
+    0x10: "SETUP",
+    0x04: "LIVE",
+    0xC0: "SET_UTC_TIME",
+    0xF1: "FILE_LIST",
+    0xF2: "FILE_START",
+    0xF3: "FILE_DATA",
+    0xF4: "FILE_END",
+}
 
 
 class Ring:
@@ -66,6 +74,7 @@ class Ring:
         def on(_s, data: bytearray):
             for frame in self.buf.feed(bytes(data)):
                 self.q.put_nowait(frame)
+
         await self.c.start_notify(oxyii.OXYII_NOTIFY, on)
 
     async def send(self, op: int, payload: bytes = b"", timeout: float = 2.5):
@@ -90,13 +99,13 @@ async def _cycle_adapter() -> bool:
     try:
         for arg in ("off", "on"):
             proc = await asyncio.create_subprocess_exec(
-                "bluetoothctl", "power", arg,
-                stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
+                "bluetoothctl", "power", arg, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL
+            )
             await asyncio.wait_for(proc.wait(), 15)
             await asyncio.sleep(2)
         await asyncio.sleep(3)
         return True
-    except Exception:                                      # noqa: BLE001 — recovery is best-effort
+    except Exception:  # noqa: BLE001 — recovery is best-effort
         return False
 
 
@@ -210,13 +219,18 @@ def _flush(path, out):
 
 async def run(address, adapter, lo, hi, dry, limit=None, skip=(), json_path=None) -> dict:
     plan = plan_ops(lo, hi, limit, skip)
-    out = {"address": address, "range": f"{lo:#04x}-{hi:#04x}",
-           "method": "empty-payload command; REPLY vs SILENCE only — this protocol has no status field, "
-                     "so a silent op is 'no evidence', not 'absent'",
-           "skipped_known": {f"{op:#04x}": n for op, n in sorted(KNOWN.items())},
-           "plan_order": "nearest-known-first — a sibling of a documented opcode beats a low address",
-           "skipped_characterised": [f"{op:#04x}" for op in sorted(set(skip))],
-           "planned": len(plan), "first_20": [f"{op:#04x}" for op in plan[:20]], "probed_at": _dt.datetime.now().isoformat()}
+    out = {
+        "address": address,
+        "range": f"{lo:#04x}-{hi:#04x}",
+        "method": "empty-payload command; REPLY vs SILENCE only — this protocol has no status field, "
+        "so a silent op is 'no evidence', not 'absent'",
+        "skipped_known": {f"{op:#04x}": n for op, n in sorted(KNOWN.items())},
+        "plan_order": "nearest-known-first — a sibling of a documented opcode beats a low address",
+        "skipped_characterised": [f"{op:#04x}" for op in sorted(set(skip))],
+        "planned": len(plan),
+        "first_20": [f"{op:#04x}" for op in plan[:20]],
+        "probed_at": _dt.datetime.now().isoformat(),
+    }
     if dry:
         out["dry_run"] = "nothing sent"
         return out
@@ -224,7 +238,7 @@ async def run(address, adapter, lo, hi, dry, limit=None, skip=(), json_path=None
     for attempt in range(3):
         try:
             dev = await BleakScanner.find_device_by_address(address, timeout=15.0)
-        except Exception as exc:                           # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001
             # THE ADAPTER WEDGES ON EVERY DISCONNECT, and it does not admit it: the next scan raises
             # `org.bluez.Error.InProgress` while `bluetoothctl show` still reports `Discovering: no`.
             # The tell is a scan that returns in 2-3 s when a real one takes 45 — which reads as "the
@@ -242,8 +256,14 @@ async def run(address, adapter, lo, hi, dry, limit=None, skip=(), json_path=None
     if scan_errors:
         out["scan_errors"] = scan_errors
     if dev is None:
-        return {**out, "error": ("adapter refused to scan — see scan_errors" if scan_errors else
-                                 "not found — advertises while WORN, or briefly around a plug-in")}
+        return {
+            **out,
+            "error": (
+                "adapter refused to scan — see scan_errors"
+                if scan_errors
+                else "not found — advertises while WORN, or briefly around a plug-in"
+            ),
+        }
     # THE REPORT HOLDS THE LIVE DICT, and every line below is inside a guard. Measured 2026-08-03: a full
     # 248-opcode sweep reached its CLOSING snapshot, the link had gone by then, and the raised
     # `Service Discovery has not been performed yet` propagated out of run() before main() could write the
@@ -256,28 +276,35 @@ async def run(address, adapter, lo, hi, dry, limit=None, skip=(), json_path=None
         async with BleakClient(dev, bluez={"adapter": adapter} if adapter else {}) as c:
             r = Ring(c)
             await r.start()
-            await r.send(oxyii.OP_AUTH, oxyii.auth_payload())      # the handshake the ring expects
+            await r.send(oxyii.OP_AUTH, oxyii.auth_payload())  # the handshake the ring expects
             await r.send(oxyii.OP_SETUP, b"\x00")
             base_frame, stable = await learn_baseline(r)
             base = base_frame.hex() if base_frame else None
             out["live_before"] = base
-            out["baseline"] = {"samples": BASELINE_N, "control_op": f"{CONTROL_OP:#04x}",
-                               "null": "passive churn + one documented read-only command",
-                               "stable_bytes": len(stable),
-                               "volatile_bytes": [i for i in range(len(base_frame or b""))
-                                                  if i not in stable]}
+            out["baseline"] = {
+                "samples": BASELINE_N,
+                "control_op": f"{CONTROL_OP:#04x}",
+                "null": "passive churn + one documented read-only command",
+                "stable_bytes": len(stable),
+                "volatile_bytes": [i for i in range(len(base_frame or b"")) if i not in stable],
+            }
             if not stable:
                 # Never sweep behind a detector that cannot fail — it would read as "nothing changed".
-                out["detector_blind"] = ("every byte of the live frame moves on its own, so a state "
-                                         "change cannot be attributed to any opcode — refusing to sweep")
+                out["detector_blind"] = (
+                    "every byte of the live frame moves on its own, so a state "
+                    "change cannot be attributed to any opcode — refusing to sweep"
+                )
                 return out
             for op in plan:
                 try:
                     f = await r.send(op)
-                    res[f"{op:#04x}"] = {"replied": f is not None, "frame": f.hex()[:80] if f else None,
-                                         # WALL-CLOCK PER OPCODE, so "it buzzed at 18:00:20" resolves to
-                                         # one command instead of an estimate from elapsed time.
-                                         "at": _dt.datetime.now().strftime("%H:%M:%S.%f")[:12]}
+                    res[f"{op:#04x}"] = {
+                        "replied": f is not None,
+                        "frame": f.hex()[:80] if f else None,
+                        # WALL-CLOCK PER OPCODE, so "it buzzed at 18:00:20" resolves to
+                        # one command instead of an estimate from elapsed time.
+                        "at": _dt.datetime.now().strftime("%H:%M:%S.%f")[:12],
+                    }
                     _flush(json_path, out)
                     if f is not None:
                         # The verification snapshot is INSIDE the guard too — a link that dies while
@@ -300,7 +327,8 @@ async def run(address, adapter, lo, hi, dry, limit=None, skip=(), json_path=None
                                 res[f"{op:#04x}"]["drift_suspected"] = {
                                     "byte_positions": moved,
                                     "note": "moved again under the control command — physiological "
-                                            "drift, not an effect of this opcode"}
+                                    "drift, not an effect of this opcode",
+                                }
                             prev, real_moved = base_frame, real
                             # ROLL THE BASELINE FORWARD, so slow drift cannot accumulate into a false
                             # positive later in a run that lasts minutes. Read `before` off the OLD
@@ -310,18 +338,21 @@ async def run(address, adapter, lo, hi, dry, limit=None, skip=(), json_path=None
                                 res[f"{op:#04x}"]["state_changed"] = {
                                     "byte_positions": real_moved,
                                     "before": [prev[i] for i in real_moved],
-                                    "after": [bytes.fromhex(after)[i] for i in real_moved]}
+                                    "after": [bytes.fromhex(after)[i] for i in real_moved],
+                                }
                                 out["aborted_at"] = f"{op:#04x}"
-                                out["abort_reason"] = ("a byte that held constant across the baseline "
-                                                       "moved and did NOT move again under the control "
-                                                       "command — stopping rather than poking further")
+                                out["abort_reason"] = (
+                                    "a byte that held constant across the baseline "
+                                    "moved and did NOT move again under the control "
+                                    "command — stopping rather than poking further"
+                                )
                                 break
-                except Exception as exc:                           # noqa: BLE001
+                except Exception as exc:  # noqa: BLE001
                     res[f"{op:#04x}"] = {"error": f"{type(exc).__name__}: {exc}"}
                     out["aborted_at"] = f"{op:#04x}"
                     break
             out["live_after"] = await snapshot(r)
-    except Exception as exc:                                       # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001
         out["link_lost"] = f"{type(exc).__name__}: {exc}"
     out["responders"] = [k for k, v in res.items() if v.get("replied")]
     return out
@@ -335,17 +366,27 @@ def main(argv=None) -> int:
     ap.add_argument("--to", dest="hi", type=lambda x: int(x, 0), default=0xFF)
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--skip", default="", help="comma-separated opcodes already characterised by hand")
-    ap.add_argument("--max-ops", dest="limit", type=int, default=None,
-                    help="stop after N opcodes (they are ordered nearest-known-first, so a short run "
-                         "still covers every neighbourhood)")
-    ap.add_argument("--i-accept-the-risk", action="store_true",
-                    help="required to send: an unknown OxyII command has no status code to reject with, "
-                         "so an implemented one simply RUNS. Back up stored sessions first.")
+    ap.add_argument(
+        "--max-ops",
+        dest="limit",
+        type=int,
+        default=None,
+        help="stop after N opcodes (they are ordered nearest-known-first, so a short run "
+        "still covers every neighbourhood)",
+    )
+    ap.add_argument(
+        "--i-accept-the-risk",
+        action="store_true",
+        help="required to send: an unknown OxyII command has no status code to reject with, "
+        "so an implemented one simply RUNS. Back up stored sessions first.",
+    )
     ap.add_argument("--json", dest="json_path", default=None)
     a = ap.parse_args(argv)
     if not (a.dry_run or a.i_accept_the_risk):
-        print("refusing: --dry-run to see the plan, or --i-accept-the-risk to send it.\n"
-              "Unlike the PMD sweep there is no 'invalid_op' to hide behind here.")
+        print(
+            "refusing: --dry-run to see the plan, or --i-accept-the-risk to send it.\n"
+            "Unlike the PMD sweep there is no 'invalid_op' to hide behind here."
+        )
         return 2
     if not a.dry_run:
         require_free_link()

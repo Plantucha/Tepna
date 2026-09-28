@@ -15,6 +15,7 @@ test_monitor_rate_staleness.py's discipline of EXECUTING the shipped JavaScript 
 * `agoUtc` follows the Clock Contract: explicit regex + Date.UTC, and an unparseable stamp renders as
   NOTHING, never a fabricated age.
 """
+
 import json
 import os
 import re
@@ -54,9 +55,13 @@ def _render(args_js, now_ms=None):
     if not node:  # pragma: no cover - ubuntu-latest always has node; a dev box might not
         pytest.skip("node is not installed")
     clock = f"Date.now = () => {now_ms};\n" if now_ms is not None else ""
-    prog = (_extract() + _STUB + clock
-            + f"renderBoxHealth({args_js});\n"
-            + "console.log(JSON.stringify(els.strip.innerHTML));")
+    prog = (
+        _extract()
+        + _STUB
+        + clock
+        + f"renderBoxHealth({args_js});\n"
+        + "console.log(JSON.stringify(els.strip.innerHTML));"
+    )
     r = subprocess.run([node, "-e", prog], capture_output=True, text=True, timeout=30)
     assert r.returncode == 0, r.stderr
     return json.loads(r.stdout.strip())
@@ -75,11 +80,11 @@ def _eval(expr, now_ms=None):
 
 # ── the CPAP tile ────────────────────────────────────────────────────────────────────────────────────
 
+
 def test_cpap_tile_appears_only_when_the_poller_is_enabled():
     out = _render("null, null, null, null, null, {enabled:true, state:'idle', at_hour:13}")
     assert "CPAP" in out and "Idle" in out
-    for absent in ("null, null, null, null, null, null",
-                   "null, null, null, null, null, {enabled:false, state:'ok'}"):
+    for absent in ("null, null, null, null, null, null", "null, null, null, null, null, {enabled:false, state:'ok'}"):
         assert "CPAP" not in _render(absent), "a disabled/absent poller must render NO tile at all"
 
 
@@ -100,17 +105,21 @@ def test_cpap_tile_barren_and_error_are_red_not_green():
 def test_a_device_name_cannot_inject_a_tag_into_the_cpap_tile():
     """The same stored-XSS path test_monitor_escaping.py pins for the Devices card: device name ->
     cpap.detail -> label -> innerHTML, now at the Overview sink."""
-    out = _render("null, null, null, null, null, "
-                  + f"{{enabled:true, state:'waiting', detail:'streaming: {PAYLOAD}'}}")
+    out = _render(
+        "null, null, null, null, null, " + f"{{enabled:true, state:'waiting', detail:'streaming: {PAYLOAD}'}}"
+    )
     assert "<img" not in out.lower(), f"a live tag reached the box-health strip: {out}"
     assert "&lt;img" in out, "the payload must be entity-encoded, not stripped — the text still shows"
 
 
 # ── the Clock tile ───────────────────────────────────────────────────────────────────────────────────
 
+
 def test_clock_tile_carries_stratum_sync_age_jitter_and_skew():
-    clk = ("{absolute_ok:true, stratum:1, time_source:'chrony', last_sync_utc:'2026-07-26T01:07:19Z',"
-           " jitter_us:2.3, chrony_skew_ppm:0.123, server:'192.168.0.123'}")
+    clk = (
+        "{absolute_ok:true, stratum:1, time_source:'chrony', last_sync_utc:'2026-07-26T01:07:19Z',"
+        " jitter_us:2.3, chrony_skew_ppm:0.123, server:'192.168.0.123'}"
+    )
     # 2026-07-26T01:07:19Z is 1785028039000 ms; render "now" 60 s later.
     out = _render(f"null, null, null, null, {clk}, null", now_ms=1785028039000 + 60000)
     assert "S1 · chrony" in out
@@ -133,6 +142,7 @@ def test_clock_tile_absent_until_the_poller_has_run():
 
 # ── agoUtc: the Clock Contract at the display boundary ───────────────────────────────────────────────
 
+
 def test_ago_utc_is_explicit_parse_never_date_parse():
     """An unparseable stamp renders as NOTHING — never a fabricated age — and the parse is the explicit
     regex + Date.UTC, so a vendor-prose stamp cannot ride the browser's locale parser."""
@@ -140,7 +150,7 @@ def test_ago_utc_is_explicit_parse_never_date_parse():
     assert _eval("agoUtc(null)") == ""
     assert _eval("agoUtc('')") == ""
     src = _extract()
-    fn = src[src.index("function agoUtc"):src.index("function cpapStatusLabel")]
+    fn = src[src.index("function agoUtc") : src.index("function cpapStatusLabel")]
     assert "Date.UTC" in fn and "Date.parse" not in fn
 
 

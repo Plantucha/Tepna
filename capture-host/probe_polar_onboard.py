@@ -37,7 +37,7 @@ import json
 
 # Verity Sense offline recording landed in firmware 2.1.0 (SDK: SdkOfflineRecordingExplained.md).
 OFFLINE_MIN_FW = (2, 1, 0)
-_FW_CHAR = "00002a26-0000-1000-8000-00805f9b34fb"      # Device Information Service · Firmware Revision
+_FW_CHAR = "00002a26-0000-1000-8000-00805f9b34fb"  # Device Information Service · Firmware Revision
 
 
 def parse_fw(text: str | None) -> tuple[int, ...] | None:
@@ -61,7 +61,7 @@ def offline_supported(fw: tuple[int, ...] | None, minimum: tuple[int, ...] = OFF
     (CLAUDE.md §🔒.6 — a missing value is null, never a fabricated one)."""
     if not fw:
         return None
-    return tuple(fw[:len(minimum)]) >= minimum
+    return tuple(fw[: len(minimum)]) >= minimum
 
 
 def summarize_fs(entries) -> dict:
@@ -79,13 +79,17 @@ def summarize_fs(entries) -> dict:
         if path.startswith("/U/"):
             rec_bytes += size
             head = path.rsplit("/", 1)[0]
-            if head.count("/") >= 5:                   # /U/0/<date>/<kind>/<time>
+            if head.count("/") >= 5:  # /U/0/<date>/<kind>/<time>
                 sessions.add(head)
         else:
             sys_bytes += size
-    return {"sessions": sorted(sessions), "n_sessions": len(sessions),
-            "recording_bytes": rec_bytes, "system_bytes": sys_bytes,
-            "total_bytes": rec_bytes + sys_bytes}
+    return {
+        "sessions": sorted(sessions),
+        "n_sessions": len(sessions),
+        "recording_bytes": rec_bytes,
+        "system_bytes": sys_bytes,
+        "total_bytes": rec_bytes + sys_bytes,
+    }
 
 
 def clock_offset_sec(device, host):
@@ -103,8 +107,14 @@ def verdict(fw_ok, fs: dict) -> dict:
         "offline_recording_supported": fw_ok,
         "flash_is_clear": not stale,
         "blockers": ([] if fw_ok is not False else ["firmware below the 2.1.0 offline-recording floor"])
-        + (["a session is already on flash: pull and REMOVE it before any nightly lifecycle — the H10 "
-            "holds exactly one, and neither device erases on its own"] if stale else [])
+        + (
+            [
+                "a session is already on flash: pull and REMOVE it before any nightly lifecycle — the H10 "
+                "holds exactly one, and neither device erases on its own"
+            ]
+            if stale
+            else []
+        )
         + ([] if fw_ok is not None else ["firmware could not be read — capability UNKNOWN, not absent"]),
     }
 
@@ -112,16 +122,17 @@ def verdict(fw_ok, fs: dict) -> dict:
 async def probe(address: str, adapter: str | None = None, *, _fs=None, _client=None) -> dict:
     """Gather the read-only picture. `_fs` / `_client` are injectable so the flow is testable without a
     radio — the same idiom nightarchive/diskguard use for their destructive calls."""
-    if _fs is None or _client is None:                      # pragma: no cover — import-time wiring only,
-        import polar_psftp                                  #   both are always injected by the tests and
-        from bleak import BleakClient                       #   always absent in real use.
+    if _fs is None or _client is None:  # pragma: no cover — import-time wiring only,
+        import polar_psftp  #   both are always injected by the tests and
+        from bleak import BleakClient  #   always absent in real use.
+
         # bleak wants bluez={"adapter": "hciN"} — the bare `adapter=` kwarg is a shim today and its
         # removal would be SWALLOWED, silently unpinning the radio on a three-adapter box
         # (tests/test_no_deprecated_apis.py pins this form; PolarPsFtp._kw builds the same shape).
         _fs = _fs or (lambda: polar_psftp.PolarPsFtp(address, adapter))
         _client = _client or (lambda: BleakClient(address, bluez={"adapter": adapter} if adapter else {}))
 
-    out: dict = {"address": address, "hci": adapter}   # NOT "adapter": the bleak-kwarg guard
+    out: dict = {"address": address, "hci": adapter}  # NOT "adapter": the bleak-kwarg guard
     #   (tests/test_no_deprecated_apis) is a TEXT rule, and a report key that reads like a kwarg is a
     #   false positive worth avoiding rather than a guard worth widening.
     async with _fs() as fs:

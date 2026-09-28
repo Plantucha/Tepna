@@ -29,6 +29,7 @@ def _read(p):
 
 # ── the offsets, which are the thing that was wrong ──────────────────────────────────────────────────
 
+
 def test_pi_is_byte_7_over_ten_and_motion_is_byte_11():
     """The swap, pinned at its source. `[7]` is a perfusion index in tenths of a percent; `[11]` is
     motion. If these ever trade places again, everything below is labelled correctly and reports the
@@ -36,8 +37,8 @@ def test_pi_is_byte_7_over_ten_and_motion_is_byte_11():
     import oxyii
 
     body = bytearray(24)
-    body[7] = 136          # PI 13.6 tenths => 13.6 %
-    body[11] = 42          # motion
+    body[7] = 136  # PI 13.6 tenths => 13.6 %
+    body[11] = 42  # motion
     body[6], body[8], body[9] = 97, 60, 0
     live = oxyii.parse_live(bytes(body))
     assert live["pi"] == 13.6, "pi is [7] divided by ten, in percent"
@@ -59,6 +60,7 @@ def test_pi_and_motion_are_read_from_different_bytes():
 
 
 # ── the live push, which is what was missing ─────────────────────────────────────────────────────────
+
 
 def test_capture_publishes_pi_on_the_bus():
     """`pi` was parsed and written to the sidecar but never pushed, so no card could exist."""
@@ -92,6 +94,7 @@ def test_pi_needs_no_none_guard_because_parse_live_always_returns_a_float():
 
 # ── the monitor, which has to recognise it ───────────────────────────────────────────────────────────
 
+
 def test_monitor_treats_pi_as_an_o2ring_derived_stream():
     """`pi_o2` resolves to base `pi`. Without it in O2_DERIVED the card renders with no device, losing
     its RSSI and battery chips AND — the reason this matters — skipping the charging / not-worn checks,
@@ -116,6 +119,7 @@ def test_pi_bands_are_the_rings_observed_range_not_a_clinical_cutoff():
 
 
 # ── the ring's 3-axis accelerometer (0x14), which is opt-in and must stay that way ────────────────────
+
 
 def test_setup_frame_default_is_unchanged_and_disables_every_push():
     """`0x10` payload `0x00` is what every existing recording was captured under. The default must not
@@ -144,8 +148,12 @@ def test_rt_acc_axes_are_signed():
     huge positive that still looks like data."""
     import oxyii
 
-    payload = bytes([1, 0]) + (-2000).to_bytes(2, "little", signed=True) + \
-        (16).to_bytes(2, "little", signed=True) + (1000).to_bytes(2, "little", signed=True)
+    payload = (
+        bytes([1, 0])
+        + (-2000).to_bytes(2, "little", signed=True)
+        + (16).to_bytes(2, "little", signed=True)
+        + (1000).to_bytes(2, "little", signed=True)
+    )
     assert oxyii.parse_rt_acc(payload) == [(-2000, 16, 1000)]
 
 
@@ -153,7 +161,7 @@ def test_rt_acc_is_bounded_by_the_buffer_not_the_declared_count():
     """A truncated frame must yield the records that are actually present, never read past the end."""
     import oxyii
 
-    payload = bytes([9, 0]) + bytes(6)          # claims 9 records, carries 1
+    payload = bytes([9, 0]) + bytes(6)  # claims 9 records, carries 1
     assert len(oxyii.parse_rt_acc(payload)) == 1
     assert oxyii.parse_rt_acc(b"\x01") == []
 
@@ -175,7 +183,7 @@ def test_acc_is_declared_with_three_channels_and_no_invented_unit():
     cap = _read(CAP)
     m = re.search(r'BUS\.register\("acc_o2",\s*"[^"]+",\s*"([^"]+)",\s*0,\s*chans=(\d)', cap)
     assert m, "acc_o2 must be registered before it is pushed — the bus treats shape as declared"
-    assert m.group(1) == "raw", f'unit must be raw, not {m.group(1)!r}'
+    assert m.group(1) == "raw", f"unit must be raw, not {m.group(1)!r}"
     assert m.group(2) == "3", "three axes, like the H10's"
 
 
@@ -184,4 +192,4 @@ def test_an_unrequested_acc_push_is_logged_once_and_not_parsed():
     stream nobody enabled into data nobody can explain."""
     cap = _read(CAP)
     assert "_acc_unexpected = [False]" in cap, "the warn-once latch must exist, or this logs every frame"
-    assert re.search(r'elif not _acc_unexpected\[0\]:', cap), "unrequested frames take the warn path"
+    assert re.search(r"elif not _acc_unexpected\[0\]:", cap), "unrequested frames take the warn path"

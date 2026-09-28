@@ -24,6 +24,7 @@ The canonical FIX is already in the tree: `tests/conftest.py`'s `SubprocessRecor
 `self.calls`, so a caller that stops passing a timeout reds a test. The canonical DEFECT is the same
 function with `**_` in place of those names.
 """
+
 from __future__ import annotations
 
 import ast
@@ -34,8 +35,8 @@ IGNORED_PREFIX = "_"
 # `self`/`cls` are the binding, not data the production code computed.
 BOUND_NAMES = frozenset({"self", "cls"})
 
-DISCARDED = "DISCARDED"      # named, never read — the production expression is unobservable
-SWALLOWED = "SWALLOWED"      # **kwargs never read — EVERY extra keyword is unobservable at once
+DISCARDED = "DISCARDED"  # named, never read — the production expression is unobservable
+SWALLOWED = "SWALLOWED"  # **kwargs never read — EVERY extra keyword is unobservable at once
 
 
 def _param_names(args: ast.arguments) -> list[str]:
@@ -123,8 +124,7 @@ def analyze(source: str, path: str = "<test>") -> list[dict]:
 
 def _record(fn: ast.AST, path: str, out: list[dict]) -> None:
     reads = _body_reads(fn)
-    named = [p for p in _param_names(fn.args)
-             if p not in BOUND_NAMES and not p.startswith(IGNORED_PREFIX)]
+    named = [p for p in _param_names(fn.args) if p not in BOUND_NAMES and not p.startswith(IGNORED_PREFIX)]
     dropped = [p for p in named if p not in reads]
 
     kw = fn.args.kwarg
@@ -132,22 +132,23 @@ def _record(fn: ast.AST, path: str, out: list[dict]) -> None:
 
     if not dropped and not swallowed:
         return
-    out.append({
-        "file": path,
-        "line": fn.lineno,
-        "double": getattr(fn, "name", "<lambda>"),
-        "discarded": dropped,
-        "swallowed": kw.arg if swallowed else None,
-        "kind": SWALLOWED if swallowed and not dropped else DISCARDED,
-        "n_params": len(named),
-    })
+    out.append(
+        {
+            "file": path,
+            "line": fn.lineno,
+            "double": getattr(fn, "name", "<lambda>"),
+            "discarded": dropped,
+            "swallowed": kw.arg if swallowed else None,
+            "kind": SWALLOWED if swallowed and not dropped else DISCARDED,
+            "n_params": len(named),
+        }
+    )
 
 
 def rank(findings: list[dict]) -> list[dict]:
     """Worst first. A double that drops MORE of its signature hides more production code, and one that
     swallows `**kwargs` hides an unbounded amount — so it outranks any fixed count."""
-    return sorted(findings,
-                  key=lambda r: (r["swallowed"] is None, -len(r["discarded"]), r["file"], r["line"]))
+    return sorted(findings, key=lambda r: (r["swallowed"] is None, -len(r["discarded"]), r["file"], r["line"]))
 
 
 def summarize(findings: list[dict]) -> dict:

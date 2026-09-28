@@ -22,8 +22,9 @@ def _summary(**kw):
     base = {
         # `span_basis` is what production publishes per stream, and the verdict now reads it. A fixture
         # that omits it makes an unlabelled-coverage claim rather than a device-basis one.
-        "devices": [{"name": "H10", "coverage": {"ecg": 0.98, "acc": 0.97},
-                     "span_basis": {"ecg": "device", "acc": "device"}}],
+        "devices": [
+            {"name": "H10", "coverage": {"ecg": 0.98, "acc": 0.97}, "span_basis": {"ecg": "device", "acc": "device"}}
+        ],
         "missing": [],
         "degraded": [],
         "gaps_in_night": [],
@@ -184,9 +185,7 @@ def test_a_crash_inside_backcheck_is_UNKNOWN_naming_the_exception(tmp_path):
     assert o["status"] == "UNKNOWN" and "the gate raised TypeError" in o["reason"]
 
 
-def test_write_verdicts_puts_the_objects_beside_the_summary_and_survives_a_read_only_dir(
-    tmp_path, monkeypatch, caplog
-):
+def test_write_verdicts_puts_the_objects_beside_the_summary_and_survives_a_read_only_dir(tmp_path, monkeypatch, caplog):
     d = _night(tmp_path, ["A_1_PPG.txt"])
     summ = _summary(class_b=[{"file": "A_1_PPG.txt", "clips": {"ppg": 0}, "held": None}])
     nightqc.write_verdicts(d, summ, DEV)
@@ -194,7 +193,7 @@ def test_write_verdicts_puts_the_objects_beside_the_summary_and_survives_a_read_
     bc = json.load(open(os.path.join(d, "BACKCHECK-VERDICT.json")))
     verdict.validate(qc)
     verdict.validate(bc)
-    ah = json.load(open(os.path.join(d, "ADAPTERHCI-VERDICT.json")))   # the third object (adapter_hci, 2026-09-22)
+    ah = json.load(open(os.path.join(d, "ADAPTERHCI-VERDICT.json")))  # the third object (adapter_hci, 2026-09-22)
     verdict.validate(ah)
     assert qc["gate"] == "night-qc" and bc["gate"] == "night-backcheck" and ah["gate"] == "adapter-hci"
     assert ah["status"] == "NOT_RUN", "a night with no ADAPTERHCI.csv rows in its window is NOT_RUN, never PASS"
@@ -241,7 +240,7 @@ def test_PLANT_the_population_stays_an_EQUALITY_when_devices_are_absent():
     o = nightqc.qc_verdict(_summary(devices=[], missing=list(_ALL_NINE)), NIGHT1)
     p = o["population"]
     assert p["checked"] + p["excluded"] == p["eligible"], p
-    assert p == {"checked": 0, "eligible": 10, "excluded": 10}, p   # 9 expected + the COOSPO's hr
+    assert p == {"checked": 0, "eligible": 10, "excluded": 10}, p  # 9 expected + the COOSPO's hr
 
 
 def test_PLANT_a_recording_sibling_WITNESSES_the_radio_and_the_absent_one_is_excluded():
@@ -250,8 +249,11 @@ def test_PLANT_a_recording_sibling_WITNESSES_the_radio_and_the_absent_one_is_exc
     absence, and NOT a PASS that pretends nine streams were examined."""
     miss = [m for m in _ALL_NINE if not m.startswith("Polar H10")]
     o = nightqc.qc_verdict(
-        _summary(devices=[{"name": "Polar H10 02849638", "coverage": {"ecg": 0.99, "acc": 0.99, "hr": 0.99}}],
-                 missing=miss), NIGHT1)
+        _summary(
+            devices=[{"name": "Polar H10 02849638", "coverage": {"ecg": 0.99, "acc": 0.99, "hr": 0.99}}], missing=miss
+        ),
+        NIGHT1,
+    )
     verdict.validate(o)
     assert o["status"] == "PASS", f"the recording device met coverage: {o['status']} / {o['reason']}"
     assert o["result"]["absent"] == ["Polar Sense 0C301E3F", "Wellue O2Ring-S"]
@@ -264,8 +266,12 @@ def test_CONTROL_a_genuine_low_coverage_recording_STILL_FAILS():
     metric exists to catch, and 0.47 on a stream with rows is still a FAIL — unchanged by any of the
     above. Asserts only keys that exist before and after, so it runs against origin/main too."""
     o = nightqc.qc_verdict(
-        _summary(devices=[{"name": "Polar H10 02849638", "coverage": {"ecg": 0.47, "acc": 0.47, "hr": 0.47}}],
-                 degraded=["Polar H10 02849638:ecg 47%"]), NIGHT1)
+        _summary(
+            devices=[{"name": "Polar H10 02849638", "coverage": {"ecg": 0.47, "acc": 0.47, "hr": 0.47}}],
+            degraded=["Polar H10 02849638:ecg 47%"],
+        ),
+        NIGHT1,
+    )
     verdict.validate(o)
     assert o["status"] == "FAIL", "rows present and coverage under the floor is a real loss"
     assert "47%" in o["reason"]
@@ -276,8 +282,12 @@ def test_PLANT_a_PARTIALLY_missing_device_is_not_absent_and_still_FAILS():
     partial failure, which is exactly what this gate is for."""
     others = [m for m in _ALL_NINE if not m.startswith("Polar H10")]
     o = nightqc.qc_verdict(
-        _summary(devices=[{"name": "Polar H10 02849638", "coverage": {"ecg": 0.99, "acc": 0.99}}],
-                 missing=["Polar H10 02849638:hr"] + others), NIGHT1)
+        _summary(
+            devices=[{"name": "Polar H10 02849638", "coverage": {"ecg": 0.99, "acc": 0.99}}],
+            missing=["Polar H10 02849638:hr"] + others,
+        ),
+        NIGHT1,
+    )
     verdict.validate(o)
     assert o["status"] == "FAIL", "one stream of a recording device is a fault, not an absence"
     # The H10 recorded two of three, so it is NOT absent and its one gap convicts it. The other two
@@ -285,8 +295,9 @@ def test_PLANT_a_PARTIALLY_missing_device_is_not_absent_and_still_FAILS():
     assert o["result"]["absent"] == ["Polar Sense 0C301E3F", "Wellue O2Ring-S"]
     assert o["result"]["absent_witnessed_by"] == ["Polar H10 02849638"]
     assert "Polar H10 02849638:hr" in o["reason"]
-    assert not any(m.startswith(("Polar Sense", "Wellue")) for m in o["result"]["missing"]), \
+    assert not any(m.startswith(("Polar Sense", "Wellue")) for m in o["result"]["missing"]), (
         "an excluded device's absence must not ALSO be reported as a fault to judge"
+    )
     assert o["population"] == {"checked": 3, "eligible": 10, "excluded": 7}
 
 
@@ -311,10 +322,18 @@ _N1_COV = {"ecg": 0.52, "acc": 0.52, "hr": 0.52}
 
 
 def _night1_summary(basis):
-    return _summary(devices=[{"name": "Polar H10 02849638", "coverage": dict(_N1_COV),
-                              "span_basis": {s: basis for s in _N1_COV} if basis else {},
-                              "session_coverage": dict(_N1_COV)}],
-                    degraded=["Polar H10 02849638:ecg 52%"], span_sec=20200)
+    return _summary(
+        devices=[
+            {
+                "name": "Polar H10 02849638",
+                "coverage": dict(_N1_COV),
+                "span_basis": {s: basis for s in _N1_COV} if basis else {},
+                "session_coverage": dict(_N1_COV),
+            }
+        ],
+        degraded=["Polar H10 02849638:ecg 52%"],
+        span_sec=20200,
+    )
 
 
 def test_PLANT_a_session_basis_coverage_is_not_reported_as_the_devices_coverage():

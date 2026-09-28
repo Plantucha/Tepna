@@ -27,14 +27,14 @@ from typing import Any
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, HERE)
 
-import seal            # noqa: E402
-import sealfmt as F    # noqa: E402
+import seal  # noqa: E402
+import sealfmt as F  # noqa: E402
 
 VECTOR_DIR = os.path.join(HERE, "tests", "vectors", "tepna-seal-1")
 UPLOADS = os.path.join(os.path.dirname(HERE), "uploads")
 NIGHT_INPUTS = ("synthetic_ecgdex_h10.txt", "synthetic_oxydex_o2ring.csv", "synthetic_motiondex_acc.txt")
 BOX_ID, NIGHT, KEY_ID = "TESTBOX0", "2026-09-20", 1
-CLOSED_AT_MS = 1789977600000                       # 2026-09-21T08:00:00 floating (Clock Contract) — read the bytes: Date.UTC(2026,8,21,8)
+CLOSED_AT_MS = 1789977600000  # 2026-09-21T08:00:00 floating (Clock Contract) — read the bytes: Date.UTC(2026,8,21,8)
 BAGGING = datetime(2026, 9, 21, 7, 0, 0)
 # The TEST card key: fixed, printable, obviously not random. Its Crockford code is committed beside it.
 TEST_CARD_KEY = bytes.fromhex("000102030405060708090a0b0c0d0e0f")
@@ -51,15 +51,25 @@ def stage_night(into: str) -> str:
 
 def load_test_key():
     from cryptography.hazmat.primitives import serialization
+
     with open(os.path.join(VECTOR_DIR, "test-signing-key.pem"), "rb") as fh:
         return serialization.load_pem_private_key(fh.read(), password=None)
 
 
 def seal_kwargs(signing_key, **over):
-    kw = dict(box_id=BOX_ID, night=NIGHT, card_key=TEST_CARD_KEY, key_id=KEY_ID, signing_key=signing_key,
-              consent=None, revision=1, closed_at_ms=CLOSED_AT_MS, now=BAGGING,
-              extra_info={"Tepna-Capture-Host-Version": "test-vector", "Tepna-Capture-Host-Sha": "0000000"},
-              deterministic_from=TEST_CARD_KEY)
+    kw = dict(
+        box_id=BOX_ID,
+        night=NIGHT,
+        card_key=TEST_CARD_KEY,
+        key_id=KEY_ID,
+        signing_key=signing_key,
+        consent=None,
+        revision=1,
+        closed_at_ms=CLOSED_AT_MS,
+        now=BAGGING,
+        extra_info={"Tepna-Capture-Host-Version": "test-vector", "Tepna-Capture-Host-Sha": "0000000"},
+        deterministic_from=TEST_CARD_KEY,
+    )
     kw.update(over)
     return kw
 
@@ -73,39 +83,49 @@ def seal_kwargs(signing_key, **over):
 # The streams the plants touch, named through NIGHT_INPUTS (the vector's own input list) rather than
 # as literals: the capture-filename suffix-parity gate reads a bare lowercase `_<tag>.<ext>` literal
 # in a capture-host source as a reader comparing against the wrong case, and these are not readers.
-FLIPPED_STREAM = "data/" + NIGHT_INPUTS[1]      # the O2Ring CSV
-TRUNCATED_STREAM = "data/" + NIGHT_INPUTS[2]    # the MotionDex ACC
+FLIPPED_STREAM = "data/" + NIGHT_INPUTS[1]  # the O2Ring CSV
+TRUNCATED_STREAM = "data/" + NIGHT_INPUTS[2]  # the MotionDex ACC
 
 
 def _flip_one_byte_in_one_stream(bag):
-    b = bytearray(bag[FLIPPED_STREAM]); b[1000] ^= 0x01; bag[FLIPPED_STREAM] = bytes(b)
-    return bag                        # manifest was computed on the good bytes: THAT stream's hash
+    b = bytearray(bag[FLIPPED_STREAM])
+    b[1000] ^= 0x01
+    bag[FLIPPED_STREAM] = bytes(b)
+    return bag  # manifest was computed on the good bytes: THAT stream's hash
 
 
 def _truncate_payload(bag):
-    bag[TRUNCATED_STREAM] = bag[TRUNCATED_STREAM][:-4096]     # Oxum was computed on the full bytes: caught BEFORE any hashing
+    bag[TRUNCATED_STREAM] = bag[TRUNCATED_STREAM][
+        :-4096
+    ]  # Oxum was computed on the full bytes: caught BEFORE any hashing
     return bag
 
 
 def _drop_consent(header):
-    h = dict(header); del h["consent"]; return h
+    h = dict(header)
+    del h["consent"]
+    return h
 
 
 def _disagree_consent(header):
-    return {**header, "consent": "yes"}    # the bag says null (not asked); the header now claims an answer
+    return {**header, "consent": "yes"}  # the bag says null (not asked); the header now claims an answer
 
 
 PLANTS: dict[str, dict[str, Any]] = {
-    "flipped byte in one stream": dict(mutate_bag=_flip_one_byte_in_one_stream, expect="manifest:" + FLIPPED_STREAM, sealed=True),
-    "truncated payload":          dict(mutate_bag=_truncate_payload, expect="oxum", sealed=True),
-    "wrong card key":             dict(read_card_key=bytes(range(16, 32)), expect="card-key"),
-    "unknown signing key":        dict(signing_key="OTHER", expect="fingerprint", sealed=True),
-    "forged header":              dict(forge=True, expect="signature"),
-    "stale revision":             dict(known_revision=2, expect="revision"),
-    "consent absent":             dict(mutate_header=_drop_consent, expect=None, sealed=True),   # NOT a refusal: reads null
-    "consent disagrees":          dict(mutate_header=_disagree_consent, expect="consent", sealed=True),
+    "flipped byte in one stream": dict(
+        mutate_bag=_flip_one_byte_in_one_stream, expect="manifest:" + FLIPPED_STREAM, sealed=True
+    ),
+    "truncated payload": dict(mutate_bag=_truncate_payload, expect="oxum", sealed=True),
+    "wrong card key": dict(read_card_key=bytes(range(16, 32)), expect="card-key"),
+    "unknown signing key": dict(signing_key="OTHER", expect="fingerprint", sealed=True),
+    "forged header": dict(forge=True, expect="signature"),
+    "stale revision": dict(known_revision=2, expect="revision"),
+    "consent absent": dict(mutate_header=_drop_consent, expect=None, sealed=True),  # NOT a refusal: reads null
+    "consent disagrees": dict(mutate_header=_disagree_consent, expect="consent", sealed=True),
 }
-OTHER_KEY_PEM = "test-signing-key-other.pem"   # the SECOND committed test key — "unknown signing key" must be deterministic too
+OTHER_KEY_PEM = (
+    "test-signing-key-other.pem"  # the SECOND committed test key — "unknown signing key" must be deterministic too
+)
 
 
 def plant_slug(name: str) -> str:
@@ -114,6 +134,7 @@ def plant_slug(name: str) -> str:
 
 def load_other_test_key():
     from cryptography.hazmat.primitives import serialization
+
     with open(os.path.join(VECTOR_DIR, OTHER_KEY_PEM), "rb") as fh:
         return serialization.load_pem_private_key(fh.read(), password=None)
 
@@ -132,11 +153,11 @@ def build_plant(name: str, spec: dict, night: str, key, out: str) -> str:
         # header ‖ SHA-256(payload), so a header that was not signed cannot pass
         blob = bytearray(open(out, "rb").read())
         n = len(F.MAGIC) + 1
-        hlen = int.from_bytes(blob[n:n + 4], "big")
-        header = json.loads(bytes(blob[n + 4:n + 4 + hlen]))
+        hlen = int.from_bytes(blob[n : n + 4], "big")
+        header = json.loads(bytes(blob[n + 4 : n + 4 + hlen]))
         header["night"] = "2026-09-21"
         nh = F.canonical_header_bytes(header)
-        blob[n:n + 4 + hlen] = len(nh).to_bytes(4, "big") + nh
+        blob[n : n + 4 + hlen] = len(nh).to_bytes(4, "big") + nh
         open(out, "wb").write(bytes(blob))
     return out
 
@@ -152,8 +173,11 @@ def write_plants(key, into: str) -> dict:
                 continue
             out = os.path.join(into, "plant-%s.tepna" % plant_slug(name))
             build_plant(name, spec, night, key, out)
-            index[name] = {"file": os.path.basename(out), "expect": spec["expect"],
-                           "sha256": __import__("hashlib").sha256(open(out, "rb").read()).hexdigest()}
+            index[name] = {
+                "file": os.path.basename(out),
+                "expect": spec["expect"],
+                "sha256": __import__("hashlib").sha256(open(out, "rb").read()).hexdigest(),
+            }
     with open(os.path.join(into, "expected.json"), "w") as fh:
         json.dump(index, fh, indent=2, sort_keys=True)
         fh.write("\n")
@@ -162,38 +186,60 @@ def write_plants(key, into: str) -> dict:
 
 def main() -> int:
     from cryptography.hazmat.primitives import serialization
+
     os.makedirs(VECTOR_DIR, exist_ok=True)
     other = os.path.join(VECTOR_DIR, OTHER_KEY_PEM)
     if not os.path.exists(other):
         k2 = seal.generate_signing_key()
         with open(other, "wb") as fh:
-            fh.write(k2.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8,
-                                      serialization.NoEncryption()))
+            fh.write(
+                k2.private_bytes(
+                    serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()
+                )
+            )
     os.makedirs(VECTOR_DIR, exist_ok=True)
     pem = os.path.join(VECTOR_DIR, "test-signing-key.pem")
     if not os.path.exists(pem):
         k = seal.generate_signing_key()
         with open(pem, "wb") as fh:
-            fh.write(k.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8,
-                                     serialization.NoEncryption()))
+            fh.write(
+                k.private_bytes(
+                    serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()
+                )
+            )
     key = load_test_key()
     with open(os.path.join(VECTOR_DIR, "test-card-key.txt"), "w") as fh:
-        fh.write("# TEST card key — 16 bytes hex, and its printed Crockford code\n%s\n%s\n"
-                 % (TEST_CARD_KEY.hex(), F.card_code_encode(TEST_CARD_KEY)))
+        fh.write(
+            "# TEST card key — 16 bytes hex, and its printed Crockford code\n%s\n%s\n"
+            % (TEST_CARD_KEY.hex(), F.card_code_encode(TEST_CARD_KEY))
+        )
     with tempfile.TemporaryDirectory() as tmp:
         night = stage_night(tmp)
         header = seal.seal_night(night, os.path.join(VECTOR_DIR, SEAL_NAME), **seal_kwargs(key))
     with open(os.path.join(VECTOR_DIR, "expected.json"), "w") as fh:
-        json.dump({"seal": SEAL_NAME, "inputs": list(NIGHT_INPUTS), "boxId": BOX_ID, "night": NIGHT,
-                   "keyId": KEY_ID, "cardKeyHex": TEST_CARD_KEY.hex(),
-                   "boxKeyFingerprint": header["boxKeyFingerprint"], "header": header,
-                   "sha256": __import__("hashlib").sha256(open(os.path.join(VECTOR_DIR, SEAL_NAME), "rb").read()).hexdigest()},
-                  fh, indent=2, sort_keys=True)
+        json.dump(
+            {
+                "seal": SEAL_NAME,
+                "inputs": list(NIGHT_INPUTS),
+                "boxId": BOX_ID,
+                "night": NIGHT,
+                "keyId": KEY_ID,
+                "cardKeyHex": TEST_CARD_KEY.hex(),
+                "boxKeyFingerprint": header["boxKeyFingerprint"],
+                "header": header,
+                "sha256": __import__("hashlib")
+                .sha256(open(os.path.join(VECTOR_DIR, SEAL_NAME), "rb").read())
+                .hexdigest(),
+            },
+            fh,
+            indent=2,
+            sort_keys=True,
+        )
         fh.write("\n")
     write_plants(key, os.path.join(VECTOR_DIR, "plants"))
     print("wrote", VECTOR_DIR)
     return 0
 
 
-if __name__ == "__main__":     # pragma: no cover
+if __name__ == "__main__":  # pragma: no cover
     raise SystemExit(main())

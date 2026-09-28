@@ -84,17 +84,18 @@ def test_the_not_found_error_names_the_address_and_says_why(tmp_path, monkeypatc
     async def nothing_advertising(pred, **kw):
         return None
 
-    monkeypatch.setattr(pull_session.BleakScanner, "find_device_by_filter",
-                        staticmethod(nothing_advertising))
+    monkeypatch.setattr(pull_session.BleakScanner, "find_device_by_filter", staticmethod(nothing_advertising))
 
     with pytest.raises(pull_session.BleakDeviceNotFoundError) as e:
         _run(pull_session._pull_once("AA:BB:CC:DD:EE:FF", str(tmp_path), "latest", 0, None, "0000"))
 
-    assert getattr(e.value, "identifier", None) == "AA:BB:CC:DD:EE:FF", \
+    assert getattr(e.value, "identifier", None) == "AA:BB:CC:DD:EE:FF", (
         "the address must be the FIRST argument — it is how a wrong-MAC scan is told from a sleeping ring"
+    )
     text = str(e.value)
-    assert "advertising" in text and "finger-in" in text, \
+    assert "advertising" in text and "finger-in" in text, (
         "the message must state the actionable cause, not just that nothing was found"
+    )
 
 
 # ── the sidecar a human reads ───────────────────────────────────────────────────────────────────────
@@ -166,6 +167,7 @@ def test_an_already_present_session_says_so_with_its_size(tmp_path, monkeypatch,
 # Each of these branches is already exercised by test_pull_session.py for its RETURN value. None of
 # them was ever exercised with the output captured, so the line that tells an operator WHY could be
 # emptied without a single test noticing. Same rule throughout: assert the value, never the wording.
+
 
 def test_a_traversal_id_is_named_in_the_refusal(tmp_path, monkeypatch, capsys):
     """`which` comes from the LAN webmon /api/pull body — untrusted. The containment guard refuses it,
@@ -240,6 +242,7 @@ def test_the_download_reports_its_offset_against_the_declared_size(tmp_path, mon
 # `saved_paths`. The sidecar did record `bytes` vs `declared_size`, so the truth was written down — just
 # not where anything globbing `*.dat` would look.
 
+
 class _Truncating(FakeRing):
     """Stops answering FILE_DATA part-way, which is what a ring carried out of range does."""
 
@@ -253,7 +256,7 @@ class _Truncating(FakeRing):
             self.data_replies += 1
             if self.data_replies > self.stop_after:
                 self.writes.append(frame)
-                return                      # silence — `_wait` raises asyncio.TimeoutError
+                return  # silence — `_wait` raises asyncio.TimeoutError
         return await super().write_gatt_char(char, frame, response=response)
 
 
@@ -263,6 +266,7 @@ def _fast_wait(monkeypatch):
 
     async def quick(q, op, timeout=20.0):
         return await orig(q, op, timeout=0.05)
+
     monkeypatch.setattr(pull_session, "_wait", quick)
 
 
@@ -280,13 +284,15 @@ def test_a_truncated_pull_leaves_no_dat_at_the_final_path(tmp_path, monkeypatch)
     assert parts[0].stat().st_size == 512 < len(blob)
     # Reported, but as what it is. The prior design surfaced partials in `saved_paths` on the grounds
     # that the data is real, and that is kept — the caller feeds these to the API's `new_files`.
-    assert len(saved) == 1 and saved[0].endswith(".dat.part"), \
+    assert len(saved) == 1 and saved[0].endswith(".dat.part"), (
         f"the partial is still reported, under a name that says so: {saved}"
+    )
 
 
 def test_the_partial_still_carries_its_sidecar(tmp_path, monkeypatch):
     """Keeping the bytes without the explanation would just move the problem."""
     import json as _json
+
     blob = b"\x01\x03" + bytes(3000)
     _install(monkeypatch, _Truncating(["20260720010000"], blob, chunk=512, stop_after=1))
     _fast_wait(monkeypatch)
@@ -308,8 +314,6 @@ def test_a_COMPLETE_pull_still_lands_at_the_final_path(tmp_path, monkeypatch):
     assert len(dats) == 1 and dats[0].stat().st_size == len(blob)
     assert list(tmp_path.rglob("*.part")) == [], "a completed pull leaves no .part behind"
     assert saved and saved[0].endswith(".dat")
-
-
 
 
 # ── an unreadable sidecar is not "a session with no metadata" ────────────────────────────────────────

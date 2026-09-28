@@ -33,9 +33,22 @@
 # the same split as cpap_live / cpap_harvest / cpap_supervisor.
 from __future__ import annotations
 
-__all__ = ["THERAPY_ENDED", "HARVEST_REQUESTED", "HARVEST_ATTEMPTED", "HARVEST_DEFERRED",
-           "HARVEST_COMPLETED", "STATES", "END_SOURCES", "new_job", "transition", "is_complete",
-           "resume_action", "should_reconcile", "job_id_for", "SCHEMA"]
+__all__ = [
+    "THERAPY_ENDED",
+    "HARVEST_REQUESTED",
+    "HARVEST_ATTEMPTED",
+    "HARVEST_DEFERRED",
+    "HARVEST_COMPLETED",
+    "STATES",
+    "END_SOURCES",
+    "new_job",
+    "transition",
+    "is_complete",
+    "resume_action",
+    "should_reconcile",
+    "job_id_for",
+    "SCHEMA",
+]
 
 SCHEMA = 1
 
@@ -51,8 +64,14 @@ STATES = (THERAPY_ENDED, HARVEST_REQUESTED, HARVEST_ATTEMPTED, HARVEST_DEFERRED,
 #: Where the end-of-therapy claim came from. FIXED vocabulary, one schema, mandatory on every job —
 #: an end whose source cannot be named is not evidence, and the fleet's null ruling applies: a source
 #: that cannot supply an end TIME writes `therapy_end_ms: None` rather than an invented stamp.
-END_SOURCES = ("device_verdict", "standby_hysteresis", "spool_recovered",
-               "next_start_inferred", "daily_window", "unknown")
+END_SOURCES = (
+    "device_verdict",
+    "standby_hysteresis",
+    "spool_recovered",
+    "next_start_inferred",
+    "daily_window",
+    "unknown",
+)
 
 
 def job_id_for(ended_at_ms) -> str:
@@ -86,8 +105,7 @@ def new_job(ended_at_ms, source: str, now_ms: float, *, device=None) -> dict:
     }
 
 
-def transition(job: dict, state: str, now_ms: float, *, error=None, files=None, nbytes=None,
-               window_date=None) -> dict:
+def transition(job: dict, state: str, now_ms: float, *, error=None, files=None, nbytes=None, window_date=None) -> dict:
     """Move a job to `state`, returning a NEW dict — the caller persists it before acting on it.
 
     `retry_count` increments on entry to `harvest_attempted` and nowhere else: it counts attempts, which
@@ -99,7 +117,7 @@ def transition(job: dict, state: str, now_ms: float, *, error=None, files=None, 
     if state == HARVEST_ATTEMPTED:
         out["retry_count"] = int(job.get("retry_count") or 0) + 1
         out["last_attempt_ms"] = now_ms
-        out["last_error"] = None       # this attempt has not failed yet; the previous one is history
+        out["last_error"] = None  # this attempt has not failed yet; the previous one is history
     if state == HARVEST_DEFERRED:
         out["last_error"] = error
     if state == HARVEST_COMPLETED:
@@ -122,9 +140,7 @@ def is_complete(job) -> bool:
     """The ONLY predicate that may stop a harvest. Requires the state AND a completion stamp: a record
     carrying `harvest_completed` with no `completed_ms` is malformed, and a malformed record must not be
     able to cancel a night's data."""
-    return bool(isinstance(job, dict)
-                and job.get("state") == HARVEST_COMPLETED
-                and job.get("completed_ms") is not None)
+    return bool(isinstance(job, dict) and job.get("state") == HARVEST_COMPLETED and job.get("completed_ms") is not None)
 
 
 def resume_action(job, now_ms: float) -> tuple[str, str]:
@@ -139,12 +155,13 @@ def resume_action(job, now_ms: float) -> tuple[str, str]:
         # A torn or foreign file. Re-queueing costs one card read; trusting it costs the night.
         return "requeue", "job record unreadable or has no known state — re-queueing rather than trusting it"
     if is_complete(job):
-        return "none", (f"harvest completed for {job.get('job_id')} "
-                        f"({job.get('files')} file(s)) — nothing owed")
+        return "none", (f"harvest completed for {job.get('job_id')} ({job.get('files')} file(s)) — nothing owed")
     if job.get("state") == HARVEST_COMPLETED:
         return "requeue", "job claims completed with no completion stamp — malformed, re-queueing"
-    return "requeue", (f"job {job.get('job_id')} is {job.get('state')} "
-                       f"(attempt {job.get('retry_count') or 0}) — INTERRUPTED, not harvested")
+    return "requeue", (
+        f"job {job.get('job_id')} is {job.get('state')} "
+        f"(attempt {job.get('retry_count') or 0}) — INTERRUPTED, not harvested"
+    )
 
 
 def should_reconcile(job, now_ms: float, window_date=None) -> tuple[bool, str]:
@@ -165,8 +182,11 @@ def should_reconcile(job, now_ms: float, window_date=None) -> tuple[bool, str]:
     do, why = resume_action(job, now_ms)
     if do == "none" and job is not None:
         if window_date is not None and str(job.get("window_date")) != str(window_date):
-            return True, (f"job {job.get('job_id')} answered window {job.get('window_date')!r}, "
-                          f"not {str(window_date)!r} — a previous night does not excuse this one")
+            return True, (
+                f"job {job.get('job_id')} answered window {job.get('window_date')!r}, "
+                f"not {str(window_date)!r} — a previous night does not excuse this one"
+            )
         return False, why
-    return True, ("no job for the last therapy end — the window is the only trigger that saw it"
-                  if job is None else why)
+    return True, (
+        "no job for the last therapy end — the window is the only trigger that saw it" if job is None else why
+    )

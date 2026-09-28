@@ -36,8 +36,8 @@ import struct, datetime as _dt
 from dataclasses import dataclass
 
 PMD_SERVICE = "fb005c80-02e7-f387-1cad-8acd2d8df0c8"
-PMD_CONTROL = "fb005c81-02e7-f387-1cad-8acd2d8df0c8"   # write + indicate
-PMD_DATA    = "fb005c82-02e7-f387-1cad-8acd2d8df0c8"   # notify
+PMD_CONTROL = "fb005c81-02e7-f387-1cad-8acd2d8df0c8"  # write + indicate
+PMD_DATA = "fb005c82-02e7-f387-1cad-8acd2d8df0c8"  # notify
 
 # Measurement types (Polar PMD spec). ECG/PPG on H10/Verity; ACC/GYRO/MAG/PPI on Verity (IMU + onboard
 # peak-interval). GYRO=5, MAG=6 per the SDK enum (4 is reserved). PPI (3) is an EVENT stream (per-beat),
@@ -49,11 +49,23 @@ _OP_GET_SETTINGS, _OP_START, _OP_STOP = 0x01, 0x02, 0x03
 MEAS_NAME = {ECG: "ecg", PPG: "ppg", ACC: "acc", PPI: "ppi", GYRO: "gyro", MAG: "mag"}
 
 # PMD control-point response status codes (for readable logs / diagnosing a rejected START).
-CTRL_STATUS = {0x00: "ok", 0x01: "invalid_op", 0x02: "invalid_meas", 0x03: "not_supported",
-               0x04: "invalid_length", 0x05: "invalid_parameter", 0x06: "already_streaming",
-               0x07: "invalid_resolution", 0x08: "invalid_sample_rate", 0x09: "invalid_range",
-               0x0A: "invalid_mtu", 0x0B: "invalid_channels", 0x0C: "invalid_state", 0x0D: "in_charger",
-               -1: "no_response"}
+CTRL_STATUS = {
+    0x00: "ok",
+    0x01: "invalid_op",
+    0x02: "invalid_meas",
+    0x03: "not_supported",
+    0x04: "invalid_length",
+    0x05: "invalid_parameter",
+    0x06: "already_streaming",
+    0x07: "invalid_resolution",
+    0x08: "invalid_sample_rate",
+    0x09: "invalid_range",
+    0x0A: "invalid_mtu",
+    0x0B: "invalid_channels",
+    0x0C: "invalid_state",
+    0x0D: "in_charger",
+    -1: "no_response",
+}
 
 # ── NOT EVERY CONTROL-POINT NOTIFICATION IS A RESPONSE ───────────────────────────────────────────────
 # A response begins 0xF0 and echoes [op, meas, status, more]. The device ALSO pushes unsolicited frames
@@ -101,8 +113,8 @@ NO_ACK = -1
 #               — and because the BLE link survives charging, nothing re-ran the negotiation, so the
 #               streams stayed dead after the sensor came off the dock. Retry instead; never tear down.
 #   otherwise — genuinely rejected settings (bad rate/range/channels). Dropping the stream is correct.
-STARTED_STATUS = frozenset({0x00, 0x06})            # ok, already_streaming
-TRANSIENT_STATUS = frozenset({0x0C, 0x0D})          # invalid_state, in_charger
+STARTED_STATUS = frozenset({0x00, 0x06})  # ok, already_streaming
+TRANSIENT_STATUS = frozenset({0x0C, 0x0D})  # invalid_state, in_charger
 
 # ⚠️ THE TWO TRANSIENTS ARE NOT INTERCHANGEABLE, and a caller that treats them as one will be wrong in a
 # way that costs recordings. `in_charger` is a DEVICE state — it is true of the whole sensor and every
@@ -204,8 +216,12 @@ def meas_of(cmd: bytes) -> int:
 # `MEASUREMENT_BIT_MASK = 0xC0`, value `shr 6`).
 _OP_STATUS = 0x05
 NO_MEASUREMENT, ONLINE_ACTIVE, OFFLINE_ACTIVE, ONLINE_AND_OFFLINE = 0, 1, 2, 3
-ACTIVE_NAME = {NO_MEASUREMENT: "none", ONLINE_ACTIVE: "online",
-               OFFLINE_ACTIVE: "offline", ONLINE_AND_OFFLINE: "online+offline"}
+ACTIVE_NAME = {
+    NO_MEASUREMENT: "none",
+    ONLINE_ACTIVE: "online",
+    OFFLINE_ACTIVE: "offline",
+    ONLINE_AND_OFFLINE: "online+offline",
+}
 
 
 def status_cmd() -> bytes:
@@ -243,9 +259,9 @@ def parse_status_response(value: bytes) -> dict[int, int]:
         return {}
     body = value
     if body[0] == 0xF0:
-        if len(body) < 4 or body[3] != 0x00:      # not SUCCESS ⇒ the reply carries no parameters
+        if len(body) < 4 or body[3] != 0x00:  # not SUCCESS ⇒ the reply carries no parameters
             return {}
-        body = body[5:]                            # [0xF0, op, meas, status, moreFlag, <payload>]
+        body = body[5:]  # [0xF0, op, meas, status, moreFlag, <payload>]
     out: dict[int, int] = {}
     for b in body:
         meas, state = b & 0x3F, (b & 0xC0) >> 6
@@ -315,7 +331,7 @@ def parse_sdk_mode_status(value: bytes) -> bool | None:
     and the flag is the LAST byte."""
     if len(value) < 4 or value[0] != 0xF0 or value[1] != _OP_SDK_STATUS:
         return None
-    if value[3] != 0x00:                       # a non-zero status is an error, not an answer
+    if value[3] != 0x00:  # a non-zero status is an error, not an answer
         return None
     return bool(value[-1])
 
@@ -327,11 +343,11 @@ def parse_settings_response(value: bytes) -> dict[int, list[int]]:
     if len(value) < 5 or value[0] != 0xF0 or value[3] != 0x00:
         return {}
     out: dict[int, list[int]] = {}
-    i = 5                                   # skip [0xF0, op, meas, status, moreFlag]
+    i = 5  # skip [0xF0, op, meas, status, moreFlag]
     while i + 2 <= len(value):
         sid, count = value[i], value[i + 1]
         i += 2
-        width = 1 if sid == 0x04 else 2     # CHANNELS is a single byte; sample-rate/resolution/range are u16
+        width = 1 if sid == 0x04 else 2  # CHANNELS is a single byte; sample-rate/resolution/range are u16
         vals = []
         for _ in range(count):
             if i + width > len(value):
@@ -340,6 +356,7 @@ def parse_settings_response(value: bytes) -> dict[int, list[int]]:
             i += width
         out[sid] = vals
     return out
+
 
 # Default stream settings as control-point START commands (op 0x02). TLV = [setting_id, count, value...].
 # setting_id: 0x00=SAMPLE_RATE, 0x01=RESOLUTION, 0x02=RANGE, 0x04=CHANNELS.
@@ -355,6 +372,7 @@ def _start_cmd(meas: int, *tlvs) -> bytes:
         body += struct.pack("<B", value) if width == 1 else struct.pack("<H", value)
     return bytes(body)
 
+
 START = {
     # H10 ECG: 130 Hz, 14-bit.
     ECG: _start_cmd(ECG, (0x00, 130), (0x01, 14)),
@@ -368,8 +386,8 @@ START = {
     # negotiated). PPI: an event stream — no settings, START is just [op, meas]. These are FALLBACKS;
     # capture.py first asks the device (get_settings) and calls build_start() so real firmware values win.
     GYRO: _start_cmd(GYRO, (0x00, 52), (0x01, 16), (0x02, 2000), (0x04, 3, 1)),
-    MAG:  _start_cmd(MAG, (0x00, 50), (0x01, 16), (0x04, 3, 1)),
-    PPI:  _start_cmd(PPI),
+    MAG: _start_cmd(MAG, (0x00, 50), (0x01, 16), (0x04, 3, 1)),
+    PPI: _start_cmd(PPI),
 }
 SAMPLE_HZ = {ECG: 130, PPG: 55, ACC: 200, GYRO: 52, MAG: 50, PPI: 0}  # PPI irregular (0 → per-beat, not back-timed)
 
@@ -431,7 +449,7 @@ def chosen_rate(meas: int, settings: dict[int, list[int]], prefer: int | None = 
         return SAMPLE_HZ.get(meas, 0)
     target = prefer if prefer is not None else _PREF_RATE.get(meas)
     if target is None:
-        return max(rates)                       # no preference expressed for this measurement at all
+        return max(rates)  # no preference expressed for this measurement at all
     if target in rates:
         return target
     return min(rates, key=lambda r: (abs(r - target), r))
@@ -451,16 +469,16 @@ def build_start(meas: int, settings: dict[int, list[int]], prefer: int | None = 
     if settings.get(0x02):
         tlvs.append((0x02, settings[0x02][0]))
     if settings.get(0x04):
-        tlvs.append((0x04, settings[0x04][0], 1))     # device-reported channel count (u8)
+        tlvs.append((0x04, settings[0x04][0], 1))  # device-reported channel count (u8)
     return _start_cmd(meas, *tlvs)
 
 
 @dataclass
 class Sample:
-    phone: _dt.datetime   # host arrival time for THIS sample (local civil), back-timed within the frame
-    sensor_ns: int        # Polar ns (since 2000-01-01) for this sample
-    t_ms: float           # PSL "timestamp [ms]" = sensor_ns / 1e6
-    values: tuple         # ecg:(uv,) | acc/gyro/mag:(x,y,z) | ppg:(c0,c1,c2,ambient) | ppi:(hr,pp_ms,err_ms,flags)
+    phone: _dt.datetime  # host arrival time for THIS sample (local civil), back-timed within the frame
+    sensor_ns: int  # Polar ns (since 2000-01-01) for this sample
+    t_ms: float  # PSL "timestamp [ms]" = sensor_ns / 1e6
+    values: tuple  # ecg:(uv,) | acc/gyro/mag:(x,y,z) | ppg:(c0,c1,c2,ambient) | ppi:(hr,pp_ms,err_ms,flags)
 
 
 # PMD payloads carry RAW signed integers for GYRO/MAG. The device tells us its full-scale RANGE
@@ -473,7 +491,7 @@ class Sample:
 # gravity magnitude is 1000.9 mg on a resting H10 (it must read 1 g). Scaling it "for consistency" with
 # GYRO/MAG breaks the one IMU stream that was always correct. ECG (µV) and PPG (raw counts) likewise
 # pass through untouched.
-DEFAULT_RANGE = {GYRO: 2000, MAG: 50}      # dps / gauss — the Verity's own offer; used when settings are absent
+DEFAULT_RANGE = {GYRO: 2000, MAG: 50}  # dps / gauss — the Verity's own offer; used when settings are absent
 DEFAULT_RESOLUTION_BITS = 16
 
 
@@ -518,8 +536,8 @@ def _decode_delta_ex(payload: bytes, channels: int, ref_bits: int) -> tuple[list
     already a gap and needs no special handling."""
     pos = 0
     nbits_total = len(payload) * 8
-    if channels * ref_bits > nbits_total:   # truncated frame: not even one full reference sample
-        return [], False                     # (VIGIL-DEEP-ANALYSIS §2C) — never IndexError into the callback
+    if channels * ref_bits > nbits_total:  # truncated frame: not even one full reference sample
+        return [], False  # (VIGIL-DEEP-ANALYSIS §2C) — never IndexError into the callback
 
     def read(nbits: int, signed: bool) -> int:
         nonlocal pos
@@ -528,10 +546,10 @@ def _decode_delta_ex(payload: bytes, channels: int, ref_bits: int) -> tuple[list
             v |= ((payload[pos >> 3] >> (pos & 7)) & 1) << i
             pos += 1
         if signed and nbits and (v >> (nbits - 1)) & 1:
-            v -= (1 << nbits)
+            v -= 1 << nbits
         return v
 
-    limit = 1 << (ref_bits - 1)   # a decoded sample can never exceed its own ADC resolution (see below)
+    limit = 1 << (ref_bits - 1)  # a decoded sample can never exceed its own ADC resolution (see below)
     cur = [read(ref_bits, True) for _ in range(channels)]
     out: list[tuple] = [tuple(cur)]
     while pos + 16 <= nbits_total:
@@ -545,8 +563,8 @@ def _decode_delta_ex(payload: bytes, channels: int, ref_bits: int) -> tuple[list
         if pos % 8:
             pos += 8 - (pos % 8)
         if pos + 16 > nbits_total:  # pragma: no cover — unreachable: the `while pos+16<=nbits_total`
-            return out, True        # guard plus a realign that only rounds pos UP toward N-16 means
-                                    # pos+16 can never exceed N here. Kept as a defensive belt.
+            return out, True  # guard plus a realign that only rounds pos UP toward N-16 means
+            # pos+16 can never exceed N here. Kept as a defensive belt.
         delta_size = read(8, False)
         count = read(8, False)
         # deltaSize > ref_bits is IMPOSSIBLE for valid data — Polar delta-compresses toward SMALL steps,
@@ -556,7 +574,7 @@ def _decode_delta_ex(payload: bytes, channels: int, ref_bits: int) -> tuple[list
         if delta_size == 0 or count == 0 or delta_size > ref_bits:
             return out, True
         if pos + count * channels * delta_size > nbits_total:
-            return out, True                        # truncated block — stop, don't fabricate
+            return out, True  # truncated block — stop, don't fabricate
         for _ in range(count):
             for ch in range(channels):
                 cur[ch] += read(delta_size, True)
@@ -566,11 +584,16 @@ def _decode_delta_ex(payload: bytes, channels: int, ref_bits: int) -> tuple[list
             if any(c < -limit or c >= limit for c in cur):
                 return out, True
             out.append(tuple(cur))
-    return out, False          # loop ended because the frame was fully consumed
+    return out, False  # loop ended because the frame was fully consumed
 
 
-def decode_frame(data: bytes, arrival: _dt.datetime, fs: float | None = None,
-                 prev_last_ns: int | None = None, scale: float | None = None):
+def decode_frame(
+    data: bytes,
+    arrival: _dt.datetime,
+    fs: float | None = None,
+    prev_last_ns: int | None = None,
+    scale: float | None = None,
+):
     """Parse one PMD data notification → (meas_type, [Sample,...]). arrival = host time the notification
     fired. `fs` = the ACTUAL negotiated sample rate (falls back to SAMPLE_HZ); needed because ACC differs
     per device (Verity 52 Hz vs H10 200 Hz) and back-timing must match reality.
@@ -586,29 +609,29 @@ def decode_frame(data: bytes, arrival: _dt.datetime, fs: float | None = None,
     # frame the vendor decodes fine. Polar's own SDK masks with 0x3F before matching; nothing in our
     # captures has set the high bits yet, which is exactly why this has never been noticed.
     meas = data[0] & 0x3F
-    last_ns = struct.unpack_from("<Q", data, 1)[0]   # ns since 2000-01-01 of the LAST sample in the frame
+    last_ns = struct.unpack_from("<Q", data, 1)[0]  # ns since 2000-01-01 of the LAST sample in the frame
     frame_type = data[9]
     payload = data[10:]
     fs = fs or SAMPLE_HZ.get(meas, 0) or 1
 
     raw: list[tuple] = []
     truncated = False
-    delta = bool(frame_type & 0x80)     # PMD high bit = compressed/delta frame
+    delta = bool(frame_type & 0x80)  # PMD high bit = compressed/delta frame
     base = frame_type & 0x7F
     if meas == ECG and delta:
         raw, truncated = _decode_delta_ex(payload, channels=1, ref_bits=24)
     elif meas == ECG and base == 0:
         for o in range(0, len(payload) - 2, 3):
             raw.append((_i24(payload, o),))
-    elif meas == PPG and delta:                          # Verity streams delta PPG (3 LEDs + ambient)
+    elif meas == PPG and delta:  # Verity streams delta PPG (3 LEDs + ambient)
         raw, truncated = _decode_delta_ex(payload, channels=4, ref_bits=24)
     elif meas == PPG and base == 0:
-        for o in range(0, len(payload) - 11, 12):       # uncompressed: 3 channels + ambient, int24 each
+        for o in range(0, len(payload) - 11, 12):  # uncompressed: 3 channels + ambient, int24 each
             raw.append((_i24(payload, o), _i24(payload, o + 3), _i24(payload, o + 6), _i24(payload, o + 9)))
     elif meas == ACC and delta:
         raw, truncated = _decode_delta_ex(payload, channels=3, ref_bits=16)
     elif meas == ACC and base == 1:
-        for o in range(0, len(payload) - 5, 6):          # int16 x,y,z (mg)
+        for o in range(0, len(payload) - 5, 6):  # int16 x,y,z (mg)
             raw.append(struct.unpack_from("<hhh", payload, o))
     # FRAME TYPE 0 ONLY, and the `base == 0` is the whole point. Both of these types have a defined
     # type-1 compressed frame with a DIFFERENT shape — GYRO type 1 is 3 channels x 32-bit IEEE-754
@@ -618,17 +641,23 @@ def decode_frame(data: bytes, arrival: _dt.datetime, fs: float | None = None,
     # absence would be invisible until a firmware update — which is precisely the kind of silent
     # mis-decode this file has already been bitten by (the ACC/GYRO/MAG byte-alignment bug, fixed
     # 2026-07-18, was the same shape: right-looking output from a wrong reader).
-    elif meas in (GYRO, MAG) and delta and base == 0:    # Verity IMU streams delta frames (like PPG/ACC)
+    elif meas in (GYRO, MAG) and delta and base == 0:  # Verity IMU streams delta frames (like PPG/ACC)
         raw, truncated = _decode_delta_ex(payload, channels=3, ref_bits=16)
     elif meas in (GYRO, MAG) and base == 0:
-        for o in range(0, len(payload) - 5, 6):          # int16 x,y,z (gyro dps / mag gauss, raw)
+        for o in range(0, len(payload) - 5, 6):  # int16 x,y,z (gyro dps / mag gauss, raw)
             raw.append(struct.unpack_from("<hhh", payload, o))
     elif meas == PPI and base == 0:
         # PPI event frame — one entry per detected beat: HR(u8), ppInMs(u16 LE), ppErrMs(u16 LE),
         # flags(u8: bit0 blocker, bit1 skinContact, bit2 skinContactSupported). NOT back-timed.
         for o in range(0, len(payload) - 5, 6):
-            raw.append((payload[o], payload[o + 1] | (payload[o + 2] << 8),
-                        payload[o + 3] | (payload[o + 4] << 8), payload[o + 5]))
+            raw.append(
+                (
+                    payload[o],
+                    payload[o + 1] | (payload[o + 2] << 8),
+                    payload[o + 3] | (payload[o + 4] << 8),
+                    payload[o + 5],
+                )
+            )
     else:
         raise ValueError(f"PMD meas={meas} frame_type={frame_type:#04x} not decoded (see SDK).")
 
@@ -642,11 +671,13 @@ def decode_frame(data: bytes, arrival: _dt.datetime, fs: float | None = None,
     # block header is corrupt. Raise so on_pmd records it in `last_error` and drops the frame — the
     # established visible channel — rather than letting a silent partial frame skew the timeline.
     if truncated:
-        raise ValueError(f"PMD meas={meas} delta frame truncated after {len(raw)} sample(s) — dropped "
-                         f"(its true length is unknowable, so the survivors cannot be placed in time)")
+        raise ValueError(
+            f"PMD meas={meas} delta frame truncated after {len(raw)} sample(s) — dropped "
+            f"(its true length is unknowable, so the survivors cannot be placed in time)"
+        )
     n = len(raw)
     out: list[Sample] = []
-    ppi = (meas == PPI)                                  # PPI entries are per-beat events, not evenly spaced
+    ppi = meas == PPI  # PPI entries are per-beat events, not evenly spaced
 
     # BACK-TIMING STEP. The negotiated rate is a LABEL, not the hardware's real rate: each Verity sensor
     # die free-runs on its own oscillator. Measured over a full night (2026-07-19): MAG 20.516 Hz against
@@ -667,7 +698,7 @@ def decode_frame(data: bytes, arrival: _dt.datetime, fs: float | None = None,
     step_ns = 1e9 / fs
     if prev_last_ns is not None and n > 0:
         est = (last_ns - prev_last_ns) / n
-        if 0.9 * step_ns <= est <= 1.1 * step_ns:   # a dropped frame / restart inflates est — keep nominal
+        if 0.9 * step_ns <= est <= 1.1 * step_ns:  # a dropped frame / restart inflates est — keep nominal
             step_ns = est
         elif 0 < est < step_ns:
             # Frames arrived CLOSER together than nominal (a burst or a BLE retransmit), so the estimate
@@ -691,12 +722,14 @@ def decode_frame(data: bytes, arrival: _dt.datetime, fs: float | None = None,
         # Logger's per-sample stamps are ≡ 0 mod 128 (its SDK does this arithmetic in float64), and the
         # 1.3 % that are not are exactly 1/73, the frame-last sample the SDK passes through unrounded.
         sns = last_ns - int(round(back * step_ns))
-        if scale != 1.0 and not ppi:                     # never scale PPI — its tuple is hr/ms/ms/flags
+        if scale != 1.0 and not ppi:  # never scale PPI — its tuple is hr/ms/ms/flags
             vals = tuple(v * scale for v in vals)
-        out.append(Sample(
-            phone=arrival - _dt.timedelta(seconds=back * step_ns / 1e9),
-            sensor_ns=sns,
-            t_ms=sns / 1e6,
-            values=vals,
-        ))
+        out.append(
+            Sample(
+                phone=arrival - _dt.timedelta(seconds=back * step_ns / 1e9),
+                sensor_ns=sns,
+                t_ms=sns / 1e6,
+                values=vals,
+            )
+        )
     return meas, out

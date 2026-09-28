@@ -27,8 +27,7 @@ def _night(tmp_path, name="2026-08-12", n=400):
     base = 500_000_000_000
     for i in range(n):
         dev = base + i * 1_000_000_000
-        w.write(_T0 + _dt.timedelta(milliseconds=(dev - base) / 1e6 + 30.0 * (i % 7)),
-                "dev", "ECG", dev, dev, 10)
+        w.write(_T0 + _dt.timedelta(milliseconds=(dev - base) / 1e6 + 30.0 * (i % 7)), "dev", "ECG", dev, dev, 10)
     w.close()
     return d
 
@@ -95,7 +94,9 @@ def test_main_REFUSES_to_write_inside_a_night_it_is_reading(tmp_path, capsys):
 
 def test_it_is_runnable_as_a_script():
     """The entry guard is the whole interface — an operator runs this, nothing imports it."""
-    src = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                            "tools", "backfill_arrival.py"), encoding="utf-8").read()
+    src = open(
+        os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools", "backfill_arrival.py"),
+        encoding="utf-8",
+    ).read()
     assert 'if __name__ == "__main__":' in src
     assert "raise SystemExit(main())" in src

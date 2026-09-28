@@ -31,10 +31,19 @@ legacy caller to be compatible with, so the wrapper was a function kept alive by
 too-small one turns real survivors into timeouts and leaves a module unmeasured while the sweep
 reports normally. So an unverified measurement REFUSES rather than quietly taking the floor.
 """
+
 from __future__ import annotations
 
-__all__ = ["SOURCE_SCANNING_TESTS", "select_tests", "deselect_args", "deselect_notes", "DESELECTED_TESTS", "budget_verdict",
-           "BUDGET_OK", "BUDGET_REFUSED"]
+__all__ = [
+    "SOURCE_SCANNING_TESTS",
+    "select_tests",
+    "deselect_args",
+    "deselect_notes",
+    "DESELECTED_TESTS",
+    "budget_verdict",
+    "BUDGET_OK",
+    "BUDGET_REFUSED",
+]
 
 BUDGET_OK = "ok"
 BUDGET_REFUSED = "refused"
@@ -115,8 +124,7 @@ def deselect_args(deselected: dict[str, str] | None = None) -> list[str]:
     return out
 
 
-def deselect_notes(module: str, kept: list[str],
-                   deselected: dict[str, str | None] | None = None) -> list[str]:
+def deselect_notes(module: str, kept: list[str], deselected: dict[str, str | None] | None = None) -> list[str]:
     """Node ids worth REPORTING for `module` — those whose file is in the selection AND whose
     exclusion could actually cost a mutant here. Pure.
 
@@ -129,12 +137,14 @@ def deselect_notes(module: str, kept: list[str],
     # [0] makes any maxsplit inert, so passing one adds a parameter that cannot change the result and
     # cannot be tested. It must be `split`, never `rsplit`: a class-based id (`f.py::C::test_m`) would
     # rsplit to `f.py::C`, which matches no entry in `kept`, and the note would silently go missing.
-    return sorted(n for n, scanned in d.items()
-                  if scanned is not None and scanned == module and n.split("::")[0] in kept)
+    return sorted(
+        n for n, scanned in d.items() if scanned is not None and scanned == module and n.split("::")[0] in kept
+    )
 
 
-def select_tests(candidates: list[tuple[str, str]], stem: str,
-                 excluded: frozenset[str] = SOURCE_SCANNING_TESTS) -> tuple[list[str], list[str]]:
+def select_tests(
+    candidates: list[tuple[str, str]], stem: str, excluded: frozenset[str] = SOURCE_SCANNING_TESTS
+) -> tuple[list[str], list[str]]:
     """Which test files to run for `stem`, and which were EXCLUDED. Pure.
 
     `candidates` is `[(path, text)]` — the read is plumbing and stays in the tool, exactly as

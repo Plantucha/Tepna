@@ -73,9 +73,10 @@ def _ppi_row(t, values) -> str:
     STRING and never parsed a beat, which is why this module's tests round-trip through the real
     parser instead."""
     hr, pp_ms, err_ms, flags = values
-    return (f"{t.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3]};{pp_ms};{err_ms};"
-            f"{flags & 1};{(flags >> 1) & 1};{(flags >> 2) & 1};{hr}")
-
+    return (
+        f"{t.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3]};{pp_ms};{err_ms};"
+        f"{flags & 1};{(flags >> 1) & 1};{(flags >> 2) & 1};{hr}"
+    )
 
 
 class PslHeader(TypedDict, total=False):
@@ -98,7 +99,6 @@ class PslHeader(TypedDict, total=False):
     resolution_bits: int | None
 
 
-
 def _first_setting(vals: "list[int] | None") -> "int | None":
     """First value of a PMD TLV setting, or None when the setting is absent.
 
@@ -113,8 +113,8 @@ def parse_header(b: bytes) -> PslHeader:
     """Header stamp + the settings the recording was made with. Both come from the file itself."""
     out: PslHeader = {}
     try:
-        out["stamp_utc"] = b[HDR_STAMP_AT:HDR_STAMP_AT + HDR_STAMP_LEN].decode("ascii")
-    except Exception:                                  # noqa: BLE001
+        out["stamp_utc"] = b[HDR_STAMP_AT : HDR_STAMP_AT + HDR_STAMP_LEN].decode("ascii")
+    except Exception:  # noqa: BLE001
         out["stamp_utc"] = None
     tlv, i = {}, TLV_AT
     while i + 2 <= len(b):
@@ -175,8 +175,7 @@ def convert(path: str, tz_offset_min: int = 0) -> dict:
         except ValueError:
             anchor = None
     frames = find_frames(b, anchor)
-    out: dict = {"file": os.path.basename(path), "header": hdr, "n_frames": len(frames),
-                 "rows": [], "warnings": []}
+    out: dict = {"file": os.path.basename(path), "header": hdr, "n_frames": len(frames), "rows": [], "warnings": []}
     if not frames:
         out["warnings"].append("no PMD frames found — header stamp unreadable or file truncated")
         return out
@@ -205,7 +204,7 @@ def convert(path: str, tz_offset_min: int = 0) -> dict:
         # bytes, so let the decoder ask for the trim rather than assuming it.
         for trim in (0, 1, 2, 3):
             try:
-                _mt, samples = pmd.decode_frame(b[off:end - trim], arrival, fs, prev_ns, scale)
+                _mt, samples = pmd.decode_frame(b[off : end - trim], arrival, fs, prev_ns, scale)
                 break
             except ValueError as exc:
                 last_err = exc
@@ -244,7 +243,8 @@ def write_psl(res: dict, dest: str) -> int:
     if meas not in HEADERS:
         raise ValueError(
             f"no PSL layout for stream {res.get('meas')!r} — refusing to write {dest} under a guessed "
-            f"header; add its real header (verified against a vendor export) to HEADERS first")
+            f"header; add its real header (verified against a vendor export) to HEADERS first"
+        )
     head = HEADERS[meas]
     with open(dest, "w") as fh:
         fh.write(head + "\n")
@@ -261,21 +261,32 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="Polar .REC (device flash) -> Polar Sensor Logger text")
     ap.add_argument("rec")
     ap.add_argument("-o", "--out", help="write PSL text here (default: alongside, .txt)")
-    ap.add_argument("--tz-offset-min", type=int, default=0,
-                    help="minutes to ADD to the device's UTC stamps. The Clock Contract stores floating "
-                         "LOCAL civil time, so a local-time corpus needs the real offset (e.g. -240). "
-                         "Default 0 writes UTC through — correct only if the consumer expects UTC.")
+    ap.add_argument(
+        "--tz-offset-min",
+        type=int,
+        default=0,
+        help="minutes to ADD to the device's UTC stamps. The Clock Contract stores floating "
+        "LOCAL civil time, so a local-time corpus needs the real offset (e.g. -240). "
+        "Default 0 writes UTC through — correct only if the consumer expects UTC.",
+    )
     ap.add_argument("--json", dest="json_path", help="also write a decode report here")
     a = ap.parse_args(argv)
     res = convert(a.rec, a.tz_offset_min)
     dest = a.out or os.path.splitext(a.rec)[0] + ".txt"
     n = write_psl(res, dest) if res["rows"] else 0
-    report = {"file": res["file"], "meas": res.get("meas"), "n_frames": res["n_frames"],
-              "n_samples": n, "header": res["header"], "warnings": res["warnings"],
-              "tz_offset_min": a.tz_offset_min,
-              "timebase_written": "UTC (device stamps, unshifted)" if a.tz_offset_min == 0
-              else f"local civil (UTC{a.tz_offset_min:+d} min)",
-              "out": dest if n else None}
+    report = {
+        "file": res["file"],
+        "meas": res.get("meas"),
+        "n_frames": res["n_frames"],
+        "n_samples": n,
+        "header": res["header"],
+        "warnings": res["warnings"],
+        "tz_offset_min": a.tz_offset_min,
+        "timebase_written": "UTC (device stamps, unshifted)"
+        if a.tz_offset_min == 0
+        else f"local civil (UTC{a.tz_offset_min:+d} min)",
+        "out": dest if n else None,
+    }
     if res["rows"]:
         report["first_row"] = res["rows"][0][0].isoformat()
         report["last_row"] = res["rows"][-1][0].isoformat()

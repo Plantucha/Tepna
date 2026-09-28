@@ -38,6 +38,7 @@ def _t0(night_name, hour=23):
     which night it was asked about. That is the defect being fixed here, so the test data has to
     state its own night or it pins the bug instead of the behaviour."""
     import datetime as _d
+
     d = _d.datetime.strptime(night_name, "%Y-%m-%d")
     return _d.datetime.combine(d.date(), _d.time(hour, 0)).timestamp() * 1000.0
 

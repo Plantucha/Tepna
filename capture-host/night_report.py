@@ -123,8 +123,7 @@ def back_check(summary: dict | None) -> tuple[str, int | None, int | None]:
         examined += 1
         got = b.get("clips")
         if isinstance(got, dict):
-            clips += sum(v for v in got.values() if isinstance(v, int) and not isinstance(v, bool)
-                         and v > 0)
+            clips += sum(v for v in got.values() if isinstance(v, int) and not isinstance(v, bool) and v > 0)
         if b.get("held") is not None:
             held += 1
     # §∅: AN EMPTY POPULATION IS NOT A CLEAN NIGHT. `class_b_quality` SKIPS a file it cannot judge —
@@ -197,7 +196,15 @@ def clock_lines(summary: dict | None) -> list[str]:
         cls: dict = st["classification"] if isinstance(st.get("classification"), dict) else {}
         noise = cls.get("noise")
         cands = cls.get("candidates")
-        label = noise if noise else ("refused(%s)" % "/".join(str(c) for c in cands) if cands else "refused(%s)" % (cls.get("meaning") or UNKNOWN)[:40])
+        label = (
+            noise
+            if noise
+            else (
+                "refused(%s)" % "/".join(str(c) for c in cands)
+                if cands
+                else "refused(%s)" % (cls.get("meaning") or UNKNOWN)[:40]
+            )
+        )
         adev = st.get("adev_min")
         sig = UNKNOWN if not isinstance(adev, (int, float)) else "%.2f" % (adev * 1000.0)
         tau = st.get("optimal_tau")
@@ -205,10 +212,18 @@ def clock_lines(summary: dict | None) -> list[str]:
         n = st.get("n")
         uni: dict = r["tau0_uniformity"] if isinstance(r.get("tau0_uniformity"), dict) else {}
         gap = uni.get("max_gap")
-        out.append("clock %s/%s: %s · σ_y(τ_opt=%s s)=%s ppm · n=%s · max_gap=%s×median" % (
-            dev, r.get("meas") or UNKNOWN, label, tau_s, sig,
-            UNKNOWN if not isinstance(n, int) else n,
-            UNKNOWN if not isinstance(gap, (int, float)) else "%g" % gap))
+        out.append(
+            "clock %s/%s: %s · σ_y(τ_opt=%s s)=%s ppm · n=%s · max_gap=%s×median"
+            % (
+                dev,
+                r.get("meas") or UNKNOWN,
+                label,
+                tau_s,
+                sig,
+                UNKNOWN if not isinstance(n, int) else n,
+                UNKNOWN if not isinstance(gap, (int, float)) else "%g" % gap,
+            )
+        )
     return out
 
 
@@ -229,8 +244,7 @@ def build(night: str, summary: dict | None, verdict_text: str | None, backcheck_
     # not there, so the pair is rendered as one field or not at all.
     _d = (summary or {}).get("daemon") if isinstance(summary, dict) else None
     _starts = (_d or {}).get("starts")
-    restarts = UNKNOWN if _starts is None else "%d (%s inside a capture)" % (
-        _starts, (_d or {}).get("inside_capture"))
+    restarts = UNKNOWN if _starts is None else "%d (%s inside a capture)" % (_starts, (_d or {}).get("inside_capture"))
     return {
         "night": night,
         "restarts": restarts,
@@ -243,7 +257,8 @@ def build(night: str, summary: dict | None, verdict_text: str | None, backcheck_
         # §2.4: the per-stream clock lines live in the FILE (rendered below), never in `line` — the
         # one-line digest stays what it is.
         "clock": clock_lines(summary),
-        "line": "%s: ring %s h, %s spans%s, back-check %s, sniffer coverage %s %s" % (
+        "line": "%s: ring %s h, %s spans%s, back-check %s, sniffer coverage %s %s"
+        % (
             night,
             UNKNOWN if hours is None else "%.1f" % hours,
             UNKNOWN if spans is None else spans,
@@ -309,11 +324,11 @@ def main(argv: list[str]) -> int:
     try:
         with open(os.path.join(root, night, "NIGHT-REPORT.txt"), "w", encoding="utf-8") as fh:
             fh.write(render(report))
-    except OSError as exc:                     # a night dir that is gone or read-only
+    except OSError as exc:  # a night dir that is gone or read-only
         print("night_report: could not write the report file: %r" % (exc,), file=_sys.stderr)
     print(report["line"])
     return 0
 
 
-if __name__ == "__main__":                     # pragma: no cover - exercised via main(argv)
+if __name__ == "__main__":  # pragma: no cover - exercised via main(argv)
     _sys.exit(main(_sys.argv[1:]))

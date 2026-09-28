@@ -30,13 +30,19 @@ SYSTEM_DIRS = ("/usr/local/lib/tepna", "/opt/tepna/capture-host")
 
 # Every helper this codebase invokes under sudo. Listed HERE so the boot self-test can check them in one
 # place, rather than each call site remembering to — which is how the check came to exist with no caller.
-SUDO_HELPERS = ("tepna-restart.sh", "tepna-btreset.sh", "tepna-usbreset.sh",
-                "tepna-clock.sh", "tepna-rssi.sh", "tepna-wifi.sh",
-                # Operator-invoked rather than daemon-invoked, and listed anyway: the sudoers grant is
-                # the /usr/local/lib/tepna/* wildcard that already covers the six above, so from the
-                # moment it is installed this name IS granted, and an ungranted-but-present in-repo
-                # copy is exactly the unsafe-location case grant_warning exists to say out loud.
-                "tepna-btmon.sh")
+SUDO_HELPERS = (
+    "tepna-restart.sh",
+    "tepna-btreset.sh",
+    "tepna-usbreset.sh",
+    "tepna-clock.sh",
+    "tepna-rssi.sh",
+    "tepna-wifi.sh",
+    # Operator-invoked rather than daemon-invoked, and listed anyway: the sudoers grant is
+    # the /usr/local/lib/tepna/* wildcard that already covers the six above, so from the
+    # moment it is installed this name IS granted, and an ungranted-but-present in-repo
+    # copy is exactly the unsafe-location case grant_warning exists to say out loud.
+    "tepna-btmon.sh",
+)
 _HERE = os.path.dirname(os.path.abspath(__file__))
 
 
@@ -64,5 +70,7 @@ def grant_warning(path: str) -> str | None:
     """A one-line warning when a helper would be run under sudo from an unsafe location, or None."""
     if is_safely_owned(path):
         return None
-    return (f"privileged helper {path} is not root-owned/read-only — a NOPASSWD sudo grant on it is a "
-            f"privilege-escalation risk; deploy it to {SYSTEM_DIRS[0]} (root:root 0755) and grant that path")
+    return (
+        f"privileged helper {path} is not root-owned/read-only — a NOPASSWD sudo grant on it is a "
+        f"privilege-escalation risk; deploy it to {SYSTEM_DIRS[0]} (root:root 0755) and grant that path"
+    )

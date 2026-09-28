@@ -39,36 +39,41 @@ async def _bt_disconnect(address: str):
     as 'failed to discover services, device disconnected'. Clearing it first lets bleak own the link."""
     try:
         p = await asyncio.create_subprocess_exec(
-            "bluetoothctl", "disconnect", address,
-            stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
+            "bluetoothctl", "disconnect", address, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL
+        )
         await asyncio.wait_for(p.wait(), timeout=6.0)
-        await asyncio.sleep(2.0)   # let the controller settle before re-connecting
+        await asyncio.sleep(2.0)  # let the controller settle before re-connecting
     except Exception:
-        pass    # BEST-EFFORT BY CONSTRUCTION. This clears a link that may not exist, before a
-                # reconnect that reports its own failure — so there is no outcome here worth
-                # raising: if the disconnect mattered and did not happen, the connect says so.
+        pass  # BEST-EFFORT BY CONSTRUCTION. This clears a link that may not exist, before a
+        # reconnect that reports its own failure — so there is no outcome here worth
+        # raising: if the disconnect mattered and did not happen, the connect says so.
+
 
 # Three attempts must fit inside the caller's 300 s offline-op watchdog (capture._OFFLINE_OP_TIMEOUT_S)
 # with room for the backoffs, or the retry cannot run and the watchdog reports "abandoned" instead of the
 # real fault. 3 x 75 + 2 x 2 = 229 s.
 _LIST_ATTEMPT_TIMEOUT_S = 75.0
 
-MTU_CHAR = "fb005c51-02e7-f387-1cad-8acd2d8df0c8"   # RFC77_PFTP_MTU_CHARACTERISTIC
-GET = 0                                             # PbPFtpOperation.Command.GET
+MTU_CHAR = "fb005c51-02e7-f387-1cad-8acd2d8df0c8"  # RFC77_PFTP_MTU_CHARACTERISTIC
+GET = 0  # PbPFtpOperation.Command.GET
 USER_ROOT = "/U/0/"
+
 
 # ── minimal protobuf (proto2, hand-rolled — no runtime dep) ──
 def _uvarint(n: int) -> bytes:
     out = bytearray()
     while True:
-        b = n & 0x7F; n >>= 7
+        b = n & 0x7F
+        n >>= 7
         out.append(b | (0x80 if n else 0))
         if not n:
             return bytes(out)
 
+
 def _encode_operation(command: int, path: str) -> bytes:
     p = path.encode("utf-8")
-    return bytes([0x08, command]) + b"\x12" + _uvarint(len(p)) + p   # field1 command, field2 path
+    return bytes([0x08, command]) + b"\x12" + _uvarint(len(p)) + p  # field1 command, field2 path
+
 
 class TruncatedProtobuf(ValueError):
     """A length-delimited field declared more bytes than the buffer actually holds.
@@ -97,13 +102,14 @@ def _read_varint(buf, i):
     while True:
         try:
             b = buf[i]
-        except IndexError:                                  # a varint running off the end IS truncation
+        except IndexError:  # a varint running off the end IS truncation
             raise TruncatedProtobuf(i + 1, len(buf)) from None
         i += 1
         val |= (b & 0x7F) << shift
         if not (b & 0x80):
             return val, i
         shift += 7
+
 
 def _iter_fields(buf, strict: bool = False):
     """Yield `(field_number, value)`. With `strict`, raise TruncatedProtobuf instead of yielding a
@@ -116,16 +122,19 @@ def _iter_fields(buf, strict: bool = False):
         tag, i = _read_varint(buf, i)
         fn, wt = tag >> 3, tag & 7
         if wt == 0:
-            v, i = _read_varint(buf, i); yield fn, v
+            v, i = _read_varint(buf, i)
+            yield fn, v
         elif wt in (1, 2, 5):
             ln = 8 if wt == 1 else 4 if wt == 5 else None
             if ln is None:
                 ln, i = _read_varint(buf, i)
             if strict and i + ln > n:
                 raise TruncatedProtobuf(ln, n - i)
-            yield fn, buf[i:i + ln]; i += ln
+            yield fn, buf[i : i + ln]
+            i += ln
         else:
             raise ValueError(f"bad protobuf wire type {wt}")
+
 
 def _parse_pb_fields(buf) -> dict:
     """{field_number: value} for a flat protobuf message — last occurrence wins. Used for the small
@@ -166,9 +175,11 @@ def _parse_directory(buf) -> list[tuple[str, int]]:
     it does for anything that walks or mirrors."""
     return _parse_directory_ex(buf)[0]
 
+
 # ── RFC76 framing ──
 class _Seq:
     __slots__ = ("seq",)
+
     # Split across two lines DELIBERATELY, and not for style. As `def __init__(self): self.seq = 0`
     # this was the module's ONLY partial branch (`172->173`) and the last thing holding capture-host
     # below the 100 % floor. It was never an untested branch: `_Seq` is instantiated at two call sites
@@ -179,7 +190,10 @@ class _Seq:
     # no test change. Writing a test for it would have been writing a test for nothing.
     def __init__(self):
         self.seq = 0
-    def inc(self): self.seq = self.seq + 1 if self.seq < 0x0F else 0
+
+    def inc(self):
+        self.seq = self.seq + 1 if self.seq < 0x0F else 0
+
 
 # ── PS-FTP QUERY (as opposed to a file REQUEST) ─────────────────────────────────────────────────────
 # RFC60's 2-byte header carries the LENGTH for a request, but the QUERY ID for a query, with the top bit
@@ -206,18 +220,19 @@ _ALLOWED_QUERIES = frozenset({SET_SYSTEM_TIME, SET_LOCAL_TIME, GET_LOCAL_TIME})
 # PbRequestRecordingStatusResult{recording_on=1 (bool), sample_data_identifier=2 (string)}.
 REQUEST_START_RECORDING, REQUEST_STOP_RECORDING, REQUEST_RECORDING_STATUS = 14, 15, 16
 SAMPLE_TYPE_HEART_RATE, SAMPLE_TYPE_RR_INTERVAL = 1, 16
-_RECORDING_QUERIES = frozenset({REQUEST_START_RECORDING, REQUEST_STOP_RECORDING,
-                                REQUEST_RECORDING_STATUS})
+_RECORDING_QUERIES = frozenset({REQUEST_START_RECORDING, REQUEST_STOP_RECORDING, REQUEST_RECORDING_STATUS})
 
 
 def _encode_query_header(query_id: int, params: bytes = b"", recording: bool = False) -> bytes:
     allowed = _ALLOWED_QUERIES | (_RECORDING_QUERIES if recording else frozenset())
     if query_id not in allowed:
-        raise ValueError(f"refusing PS-FTP query id {query_id}: not a time query (allowlist "
-                         f"{sorted(allowed)}) — this module must not trigger firmware "
-                         f"update / sync operations, and recording ids are reachable only "
-                         f"through the deliberate recording_* path")
-    return bytes([query_id & 0xFF, ((query_id >> 8) & 0x7F) | 0x80]) + params   # top bit 1 = QUERY
+        raise ValueError(
+            f"refusing PS-FTP query id {query_id}: not a time query (allowlist "
+            f"{sorted(allowed)}) — this module must not trigger firmware "
+            f"update / sync operations, and recording ids are reachable only "
+            f"through the deliberate recording_* path"
+        )
+    return bytes([query_id & 0xFF, ((query_id >> 8) & 0x7F) | 0x80]) + params  # top bit 1 = QUERY
 
 
 # ── minimal proto2 encoders (same hand-rolled approach as _encode_operation) ────────────────────────
@@ -234,27 +249,31 @@ def _pb_msg(field: int, payload: bytes) -> bytes:
     return bytes([(field << 3) | 2]) + _uvarint(len(payload)) + payload
 
 
-def _pb_date(y: int, mo: int, d: int) -> bytes:            # PbDate{year=1, month=2, day=3}
+def _pb_date(y: int, mo: int, d: int) -> bytes:  # PbDate{year=1, month=2, day=3}
     return _pb_uint(1, y) + _pb_uint(2, mo) + _pb_uint(3, d)
 
 
-def _pb_time(h: int, mi: int, s: int, ms: int = 0) -> bytes:   # PbTime{hour,minute,seconds,millis}
+def _pb_time(h: int, mi: int, s: int, ms: int = 0) -> bytes:  # PbTime{hour,minute,seconds,millis}
     return _pb_uint(1, h) + _pb_uint(2, mi) + _pb_uint(3, s) + _pb_uint(4, ms)
 
 
 def encode_set_local_time(dt, tz_offset_min: int) -> bytes:
     """PbPFtpSetLocalTimeParams{date=1, time=2, tz_offset=3 (minutes)} — `dt` is LOCAL civil time."""
-    return (_pb_msg(1, _pb_date(dt.year, dt.month, dt.day))
-            + _pb_msg(2, _pb_time(dt.hour, dt.minute, dt.second, dt.microsecond // 1000))
-            + _pb_int32(3, tz_offset_min))
+    return (
+        _pb_msg(1, _pb_date(dt.year, dt.month, dt.day))
+        + _pb_msg(2, _pb_time(dt.hour, dt.minute, dt.second, dt.microsecond // 1000))
+        + _pb_int32(3, tz_offset_min)
+    )
 
 
 def encode_set_system_time(dt_local) -> bytes:
     """PbPFtpSetSystemTimeParams{date=1, time=2, trusted=3}; trusted=True (host is NTP-disciplined).
     NOTE: callers pass LOCAL CIVIL time here on purpose — see set_local_time for why (Clock Contract)."""
-    return (_pb_msg(1, _pb_date(dt_local.year, dt_local.month, dt_local.day))
-            + _pb_msg(2, _pb_time(dt_local.hour, dt_local.minute, dt_local.second, dt_local.microsecond // 1000))
-            + _pb_uint(3, 1))
+    return (
+        _pb_msg(1, _pb_date(dt_local.year, dt_local.month, dt_local.day))
+        + _pb_msg(2, _pb_time(dt_local.hour, dt_local.minute, dt_local.second, dt_local.microsecond // 1000))
+        + _pb_uint(3, 1)
+    )
 
 
 def _pb_str(field: int, value: str) -> bytes:
@@ -291,11 +310,13 @@ def _chunk_rfc76(stream: bytes, frame_mtu: int) -> list[bytes]:
     while True:
         remaining = n - i
         if remaining > (frame_mtu - 1):
-            status, take = 0x06, frame_mtu - 1          # MORE
+            status, take = 0x06, frame_mtu - 1  # MORE
         else:
-            status, take = 0x02, remaining              # LAST
-        packets.append(bytes([nxt | status | (seq.seq << 4)]) + stream[i:i + take])
-        seq.inc(); i += take; nxt = 1
+            status, take = 0x02, remaining  # LAST
+        packets.append(bytes([nxt | status | (seq.seq << 4)]) + stream[i : i + take])
+        seq.inc()
+        i += take
+        nxt = 1
         if status == 0x02:
             return packets
 
@@ -311,6 +332,7 @@ def _build_query_packets(query_id: int, params: bytes, frame_mtu: int, recording
 
 class PolarPsFtp:
     """Bonded PS-FTP session over bleak. `async with PolarPsFtp(address) as fs: await fs.list_dir(...)`."""
+
     def __init__(self, address: str, adapter: str | None = None):
         self.address = address
         # bluez={"adapter": ...}, not the deprecated bare `adapter=` kwarg — see capture.adapter_kw() for
@@ -341,16 +363,18 @@ class PolarPsFtp:
                 if hasattr(self._client, "_acquire_mtu"):
                     await self._client._acquire_mtu()
             except Exception:
-                pass          # OPTIONAL negotiation on a private bleak API. Failing it costs speed,
-                              # never correctness: the line below falls back to the advertised
-                              # mtu_size, or to the BLE minimum of 23 if even that is absent.
+                pass  # OPTIONAL negotiation on a private bleak API. Failing it costs speed,
+                # never correctness: the line below falls back to the advertised
+                # mtu_size, or to the BLE minimum of 23 if even that is absent.
             self._frame_mtu = max(20, (getattr(self._client, "mtu_size", 23) or 23) - 3)
             await self._client.start_notify(MTU_CHAR, lambda _s, d: self._q.put_nowait(bytes(d)))
         except Exception:
             # never leak a half-open link — a lingering connection blocks the device's single BLE slot
-            try: await self._client.disconnect()
-            except Exception: pass    # already failing, and `raise` below carries the REAL error —
-                                      # a cleanup failure must not replace the cause with itself
+            try:
+                await self._client.disconnect()
+            except Exception:
+                pass  # already failing, and `raise` below carries the REAL error —
+                # a cleanup failure must not replace the cause with itself
             raise
         return self
 
@@ -363,8 +387,7 @@ class PolarPsFtp:
 
     async def __aexit__(self, *exc):
         if self._client:
-            for make_op in (lambda: self._client.stop_notify(MTU_CHAR),
-                            lambda: self._client.disconnect()):
+            for make_op in (lambda: self._client.stop_notify(MTU_CHAR), lambda: self._client.disconnect()):
                 try:
                     await asyncio.wait_for(make_op(), self._TEARDOWN_TIMEOUT_S)
                 except Exception:
@@ -372,8 +395,9 @@ class PolarPsFtp:
                     # disconnect that never completed leaves the device's single BLE slot occupied,
                     # and the NEXT pull is the one that pays. Debug rather than warning because the
                     # bounded timeout firing during a cancel is ordinary, not a fault.
-                    log.debug("psftp teardown step did not complete within %.0fs",
-                              self._TEARDOWN_TIMEOUT_S, exc_info=True)
+                    log.debug(
+                        "psftp teardown step did not complete within %.0fs", self._TEARDOWN_TIMEOUT_S, exc_info=True
+                    )
 
     async def _read_response(self, timeout: float) -> bytes:
         seq, out, expect_next = _Seq(), bytearray(), 0
@@ -388,18 +412,18 @@ class PolarPsFtp:
             if expect_next != (b0 & 0x01):
                 raise RuntimeError("PS-FTP stream out of sync")
             expect_next = 1
-            if status == 0x00:                              # ERROR_OR_RESPONSE
+            if status == 0x00:  # ERROR_OR_RESPONSE
                 err = (pkt[1] | (pkt[2] << 8)) if len(pkt) >= 3 else 0
                 if err == 0:
                     return bytes(out)
                 raise RuntimeError(f"PS-FTP error {err}")
             out += pkt[1:]
-            if status == 0x01:                              # LAST
+            if status == 0x01:  # LAST
                 return bytes(out)
             # MORE -> continue
 
     async def get(self, path: str, timeout: float = 60.0) -> bytes:
-        assert self._client is not None   # only reachable inside the `async with`, which connects first
+        assert self._client is not None  # only reachable inside the `async with`, which connects first
         for pkt in _build_request_packets(_encode_operation(GET, path), self._frame_mtu):
             await self._client.write_gatt_char(MTU_CHAR, pkt, response=False)
         return await self._read_response(timeout)
@@ -416,23 +440,23 @@ class PolarPsFtp:
     async def query(self, query_id: int, params: bytes = b"", timeout: float = 20.0) -> bytes:
         """Send a PS-FTP QUERY. Restricted to the time ids (see _ALLOWED_QUERIES) — this is the ONLY
         write this module performs; everything else is strictly read-only."""
-        assert self._client is not None   # only reachable inside the `async with`, which connects first
+        assert self._client is not None  # only reachable inside the `async with`, which connects first
         for pkt in _build_query_packets(query_id, params, self._frame_mtu):
             await self._client.write_gatt_char(MTU_CHAR, pkt, response=False)
         return await self._read_response(timeout)
 
-    async def set_local_time(self, when=None, tz_offset_min: int | None = None,
-                             with_system_time: bool = True) -> None:
+    async def set_local_time(self, when=None, tz_offset_min: int | None = None, with_system_time: bool = True) -> None:
         """Set the device clock. Polar stamps EVERY sample with device time (ns since 2000-01-01), and an
         unset device runs from a firmware default — an H10 resets to 2019-01-01 whenever it leaves the
         strap. Setting it from the NTP-disciplined host makes `sensor timestamp [ns]` a real wall clock
         and puts sibling devices on a COMMON origin, which is what cross-device timing (PAT) needs.
         LOCAL civil time per the Clock Contract; SET_SYSTEM_TIME additionally takes UTC."""
         import datetime as _dt
+
         # NAIVE UTC. `.replace(tzinfo=None)` is required, not cosmetic: encode_set_local_time reads the
         # component fields and the caller compares against naive values, so an aware datetime from the
         # utcnow() replacement would silently change what gets written to the device clock.
-        when = when or _dt.datetime.now(_dt.timezone.utc).replace(tzinfo=None)   # UTC — see the note below
+        when = when or _dt.datetime.now(_dt.timezone.utc).replace(tzinfo=None)  # UTC — see the note below
         # WE SET DEVICE CLOCKS IN UTC, deliberately, and it is not the same decision as the Clock
         # Contract's floating local-civil wall clock (which still governs the file's `Phone timestamp`
         # column and every Dex node — that convention is frozen).
@@ -450,7 +474,7 @@ class PolarPsFtp:
             # measured 2026-07-18. Declaring tz_offset=0 makes device time == local civil == what stamps
             # the samples, which is exactly the Clock Contract's floating wall-clock: local civil time
             # encoded as if it were UTC (CLAUDE.md §1). One timebase across every sensor.
-            tz_offset_min = 0          # device time IS UTC, so the declared offset is zero
+            tz_offset_min = 0  # device time IS UTC, so the declared offset is zero
         # Device families differ (PolarBleApiImpl.setLocalTime switches on fileSystemType):
         #   h10FileSystem   -> SET_LOCAL_TIME only; SET_SYSTEM_TIME answers NOT_IMPLEMENTED (error 201)
         #   polarFileSystemV2 (Verity Sense / OH1) -> both
@@ -461,6 +485,7 @@ class PolarPsFtp:
     async def get_local_time(self):
         """Read the device clock back → datetime (local civil, as the device holds it), or None."""
         import datetime as _dt
+
         raw = await self.query(GET_LOCAL_TIME)
         f = _parse_pb_fields(raw)
         d, t = f.get(1), f.get(2)
@@ -468,8 +493,9 @@ class PolarPsFtp:
             return None
         dd, tt = _parse_pb_fields(d), _parse_pb_fields(t)
         try:
-            return _dt.datetime(dd[1], dd[2], dd[3], tt.get(1, 0), tt.get(2, 0), tt.get(3, 0),
-                                (tt.get(4, 0) or 0) * 1000)
+            return _dt.datetime(
+                dd[1], dd[2], dd[3], tt.get(1, 0), tt.get(2, 0), tt.get(3, 0), (tt.get(4, 0) or 0) * 1000
+            )
         except (KeyError, TypeError, ValueError):
             return None
 
@@ -490,14 +516,14 @@ class PolarPsFtp:
         """REQUEST_RECORDING_STATUS (16) → (recording_on, sample_data_identifier). Read-only."""
         return parse_recording_status(await self._recording_query(REQUEST_RECORDING_STATUS))
 
-    async def start_recording(self, sample_type: int, interval_s: int = 1,
-                              identifier: str | None = None) -> None:
+    async def start_recording(self, sample_type: int, interval_s: int = 1, identifier: str | None = None) -> None:
         """REQUEST_START_RECORDING (14). WRITES DEVICE STATE: the H10 holds ONE onboard slot, and a
         recording left running fills it and blocks the next (FOLLOWUPS §4's fabricated-absence class) —
         a caller that starts must own stopping. The device answers a PS-FTP error frame if it refuses
         the sample type (`_read_response` raises), which is exactly the §6 Q1 measurement."""
-        await self._recording_query(REQUEST_START_RECORDING,
-                                    encode_start_recording(sample_type, interval_s, identifier))
+        await self._recording_query(
+            REQUEST_START_RECORDING, encode_start_recording(sample_type, interval_s, identifier)
+        )
 
     async def stop_recording(self) -> None:
         """REQUEST_STOP_RECORDING (15). Idempotence is the DEVICE's business: stopping when nothing
@@ -514,14 +540,16 @@ class PolarPsFtp:
         try:
             entries, truncated = await self.list_dir_ex(path)
         except Exception:
-            yield (path, -1, False); return
+            yield (path, -1, False)
+            return
         if truncated:
             # NOT an error row: what did arrive is real and worth walking. What must not happen is the
             # caller reading the short list as the directory's contents — on the USB pipe that lost 2 of
             # 6 entries in `/U/0/`, one of them a session dir holding 22 recordings (TruncatedProtobuf).
             self.truncated_dirs.append(path)
-            log.warning("PS-FTP listing of %s was TRUNCATED — %d complete entries, more were cut off",
-                        path, len(entries))
+            log.warning(
+                "PS-FTP listing of %s was TRUNCATED — %d complete entries, more were cut off", path, len(entries)
+            )
         for name, size in entries:
             full = path + name
             is_dir = name.endswith("/")
@@ -531,11 +559,11 @@ class PolarPsFtp:
                     yield row
 
     @property
-    def mtu(self): return getattr(self._client, "mtu_size", None)
+    def mtu(self):
+        return getattr(self._client, "mtu_size", None)
 
 
-async def _with_retry(coro_factory, attempts: int = 3, backoff: float = 2.0,
-                      per_attempt_timeout: float | None = None):
+async def _with_retry(coro_factory, attempts: int = 3, backoff: float = 2.0, per_attempt_timeout: float | None = None):
     """Retry a PS-FTP op on transient BLE faults (BlueZ 'device disconnected' mid-discovery is common).
 
     `per_attempt_timeout` (optional, added last) bounds ONE attempt. Without it the retry is dead code
@@ -563,8 +591,7 @@ async def _with_retry(coro_factory, attempts: int = 3, backoff: float = 2.0,
             return await asyncio.wait_for(coro_factory(), timeout=per_attempt_timeout)
         except Exception as e:
             if isinstance(e, asyncio.TimeoutError):
-                log.warning("PS-FTP attempt %d/%d exceeded %.0fs — retrying",
-                            i + 1, attempts, per_attempt_timeout)
+                log.warning("PS-FTP attempt %d/%d exceeded %.0fs — retrying", i + 1, attempts, per_attempt_timeout)
             if i >= attempts - 1:
                 raise  # the LAST attempt's error IS the caller's error
             await asyncio.sleep(backoff)
@@ -575,11 +602,13 @@ async def _with_retry(coro_factory, attempts: int = 3, backoff: float = 2.0,
 
 def _session_meta(path: str) -> dict:
     """Derive {kind,date,time,start_local} from a recording path /U/0/YYYYMMDD/{E|R}/HHMMSS/."""
-    parts = [p for p in path.split("/") if p]        # ['U','0','YYYYMMDD','E','HHMMSS']
+    parts = [p for p in path.split("/") if p]  # ['U','0','YYYYMMDD','E','HHMMSS']
     date = time = None
     for p in parts:
-        if len(p) == 8 and p.isdigit(): date = p
-        elif len(p) == 6 and p.isdigit(): time = p
+        if len(p) == 8 and p.isdigit():
+            date = p
+        elif len(p) == 6 and p.isdigit():
+            time = p
     kind = "exercise" if "/E/" in path else ("offline" if "/R/" in path else "other")
     start_local = None
     if date and time:
@@ -600,21 +629,21 @@ def _session_descend(full: str) -> bool:
     instead of silently re-introducing the cost."""
     segs = [s for s in full.split("/") if s]
     root = [s for s in USER_ROOT.split("/") if s]
-    rel = segs[len(root):]
+    rel = segs[len(root) :]
     if not rel:
-        return True                                  # USER_ROOT itself
+        return True  # USER_ROOT itself
     if len(rel) == 1:
-        return len(rel[0]) == 8 and rel[0].isdigit()          # a date folder
+        return len(rel[0]) == 8 and rel[0].isdigit()  # a date folder
     if len(rel) == 2:
-        return rel[1] in ("E", "R")                           # exercise / offline recording
+        return rel[1] in ("E", "R")  # exercise / offline recording
     if len(rel) == 3:
-        return len(rel[2]) == 6 and rel[2].isdigit()          # a time folder = the session
-    return True                                               # inside a session: take everything
+        return len(rel[2]) == 6 and rel[2].isdigit()  # a time folder = the session
+    return True  # inside a session: take everything
 
 
-async def recording_control(address: str, action: str,
-                            sample_type: int = SAMPLE_TYPE_RR_INTERVAL,
-                            adapter: str | None = None) -> dict:
+async def recording_control(
+    address: str, action: str, sample_type: int = SAMPLE_TYPE_RR_INTERVAL, adapter: str | None = None
+) -> dict:
     """One connection, one recording op, and — after any WRITE — a status READBACK in the same session.
 
     `action` ∈ status | start | stop. The readback is the point, not a nicety: a write that timed out
@@ -627,6 +656,7 @@ async def recording_control(address: str, action: str,
     NO retry, deliberately — `_with_retry` is for reads. Blindly re-sending a START that may have
     landed converts "unknown outcome" into "two claims and no knowledge"; the caller re-runs `status`
     instead."""
+
     async def _once():
         async with PolarPsFtp(address, adapter) as fs:
             if action == "status":
@@ -640,12 +670,14 @@ async def recording_control(address: str, action: str,
                 raise ValueError(f"unknown recording action: {action!r} (status|start|stop)")
             on, ident = await fs.recording_status()
             return {"recording_on": on, "sample_data_identifier": ident, "readback": True}
+
     return await _once()
 
 
 async def list_recordings(address: str, adapter: str | None = None) -> list[dict]:
     """Enumerate real recordings on the device: exercise sessions (/U/0/DATE/E/TIME/) and offline
     recordings (/U/0/DATE/R/TIME/). Returns one dict per session with its files + total bytes."""
+
     async def _once():
         async with PolarPsFtp(address, adapter) as fs:
             rows = []
@@ -657,11 +689,16 @@ async def list_recordings(address: str, adapter: str | None = None) -> list[dict
                 # "tree too large" and "link wedged" were indistinguishable after the fact. A hang must
                 # name where it hung.
                 if len(rows) % 25 == 0:
-                    log.info("PS-FTP %s: walked %d entries in %.0fs (last: %s)",
-                             address, len(rows), time.monotonic() - t0, r[0])
-            log.info("PS-FTP %s: walk complete — %d entries in %.1fs",
-                     address, len(rows), time.monotonic() - t0)
+                    log.info(
+                        "PS-FTP %s: walked %d entries in %.0fs (last: %s)",
+                        address,
+                        len(rows),
+                        time.monotonic() - t0,
+                        r[0],
+                    )
+            log.info("PS-FTP %s: walk complete — %d entries in %.1fs", address, len(rows), time.monotonic() - t0)
             return rows
+
     rows = await _with_retry(_once, per_attempt_timeout=_LIST_ATTEMPT_TIMEOUT_S)
     # a session dir = a time-folder (6 digits) directly under an E/ or R/ segment
     sessions: dict[str, dict] = {}
@@ -673,24 +710,25 @@ async def list_recordings(address: str, adapter: str | None = None) -> list[dict
                 sess = "/" + "/".join(segs[: idx + 1]) + "/"
                 sessions.setdefault(sess, {"path": sess, **_session_meta(sess), "files": [], "total_bytes": 0})
                 if not is_dir and size >= 0:
-                    sessions[sess]["files"].append({"name": full[len(sess):], "path": full, "size": size})
+                    sessions[sess]["files"].append({"name": full[len(sess) :], "path": full, "size": size})
                     sessions[sess]["total_bytes"] += size
                 break
     out = sorted(sessions.values(), key=lambda s: (s.get("date") or "", s.get("time") or ""))
     return out
 
 
-async def pull_recording(address: str, session: str, out_dir: str, adapter: str | None = None,
-                         on_progress=None) -> dict:
+async def pull_recording(
+    address: str, session: str, out_dir: str, adapter: str | None = None, on_progress=None
+) -> dict:
     """Download every file under `session` (a /U/0/DATE/{E|R}/TIME/ dir) into out_dir, mirroring the
     on-device tree. Returns a manifest {session, files:[...], total_bytes, out_dir}."""
     if not session.endswith("/"):
         session += "/"
     os.makedirs(out_dir, exist_ok=True)
     manifest = {"session": session, "out_dir": out_dir, "files": [], "total_bytes": 0}
+
     async def _once():
-        m = {"files": [], "new_files": [], "short": [], "total_bytes": 0,
-             "unreadable_dirs": [], "truncated_dirs": []}
+        m = {"files": [], "new_files": [], "short": [], "total_bytes": 0, "unreadable_dirs": [], "truncated_dirs": []}
         async with PolarPsFtp(address, adapter) as fs:
             # A LISTING THAT DID NOT ANSWER IS NOT AN EMPTY DIRECTORY. `walk` yields (path, -1, False)
             # for a directory whose listing RAISED, and records a TRUNCATED one in `fs.truncated_dirs`
@@ -699,10 +737,10 @@ async def pull_recording(address: str, session: str, out_dir: str, adapter: str 
             walked = [(f, s) async for f, s, is_dir in fs.walk(session) if not is_dir]
             files = [(f, s) for f, s in walked if s >= 0]
             m["unreadable_dirs"] = [f for f, s in walked if s < 0]
-            total = sum(sz for _, sz in files) or 1     # PS-FTP has no per-chunk hook, so report
-            done = 0                                    # per-FILE completion — coarse but honest
+            total = sum(sz for _, sz in files) or 1  # PS-FTP has no per-chunk hook, so report
+            done = 0  # per-FILE completion — coarse but honest
             for full, size in files:
-                rel = full[len(session):]
+                rel = full[len(session) :]
                 dst = os.path.join(out_dir, rel)
                 os.makedirs(os.path.dirname(dst) or out_dir, exist_ok=True)
                 # SKIP WHAT WE ALREADY HAVE, COMPLETE. `pull_polar_offline_all` has always DOCUMENTED
@@ -711,16 +749,17 @@ async def pull_recording(address: str, session: str, out_dir: str, adapter: str 
                 # flash over BLE with live capture paused, and reported every file as new. The `.part`
                 # of a short read deliberately does NOT satisfy this, or a truncation is never repaired.
                 if os.path.exists(dst) and os.path.getsize(dst) == size:
-                    m["files"].append({"name": rel, "bytes": size, "declared": size,
-                                       "ok": True, "skipped": True, "dst": dst})
+                    m["files"].append(
+                        {"name": rel, "bytes": size, "declared": size, "ok": True, "skipped": True, "dst": dst}
+                    )
                     m["total_bytes"] += size
                     done += size
                     if on_progress:
                         try:
                             on_progress(done, total)
                         except Exception:
-                            pass   # a PROGRESS callback must never fail a transfer that is
-                                   # succeeding — the caller loses a readout, not the recording
+                            pass  # a PROGRESS callback must never fail a transfer that is
+                            # succeeding — the caller loses a readout, not the recording
                     continue
                 data = await fs.get(full, timeout=180.0)
                 # A SHORT READ IS NOT A VALID FILE — the standard `cpap_harvest.short_read` states for
@@ -734,23 +773,32 @@ async def pull_recording(address: str, session: str, out_dir: str, adapter: str 
                     fh.write(data)
                 short = len(data) != size
                 if short:
-                    m["short"].append(f"{rel}: declared {size}, got {len(data)} bytes — "
-                                      f"left as {os.path.basename(part)}")
+                    m["short"].append(
+                        f"{rel}: declared {size}, got {len(data)} bytes — left as {os.path.basename(part)}"
+                    )
                 else:
                     os.replace(part, dst)
                     m["new_files"].append(rel)
-                m["files"].append({"name": rel, "bytes": len(data), "declared": size,
-                                   "ok": not short, "dst": dst if not short else part})
+                m["files"].append(
+                    {
+                        "name": rel,
+                        "bytes": len(data),
+                        "declared": size,
+                        "ok": not short,
+                        "dst": dst if not short else part,
+                    }
+                )
                 m["total_bytes"] += len(data)
                 done += len(data)
                 if on_progress:
                     try:
                         on_progress(done, total)
                     except Exception:
-                        pass                            # a UI hook must never break the transfer
+                        pass  # a UI hook must never break the transfer
             # Read INSIDE the `async with`, while `fs` is still the session that did the walking.
             m["truncated_dirs"] = list(fs.truncated_dirs)
         return m
+
     got = await _with_retry(_once)
     manifest["files"] = got["files"]
     manifest["new_files"] = got["new_files"]
@@ -770,8 +818,12 @@ async def pull_recording(address: str, session: str, out_dir: str, adapter: str 
     manifest["ok"] = not got["short"] and manifest["unenumerated"] == 0
     manifest["total_bytes"] = got["total_bytes"]
     # a small sidecar so the pull is self-describing (mirrors pull_session.py's .meta.json)
-    meta = {**_session_meta(session), **{k: manifest[k] for k in ("session", "total_bytes")},
-            "device": address, "n_files": len(manifest["files"])}
+    meta = {
+        **_session_meta(session),
+        **{k: manifest[k] for k in ("session", "total_bytes")},
+        "device": address,
+        "n_files": len(manifest["files"]),
+    }
     with open(os.path.join(out_dir, "recording.meta.json"), "w") as fh:
         json.dump(meta, fh, indent=2)
     return manifest
@@ -795,7 +847,7 @@ def main():
             print(f"\n{len(recs)} recording(s).")
         # No `else`: the subparser is `required=True` with exactly these two names, so argparse has
         # already exited on anything else and the both-false arm cannot be reached.
-        elif a.cmd == "pull":   # pragma: no branch
+        elif a.cmd == "pull":  # pragma: no branch
             sessions = [a.session] if a.session else [r["path"] for r in await list_recordings(a.address, a.adapter)]
             for s in sessions:
                 out = os.path.join(a.out, s.strip("/").replace("/", "_"))
@@ -804,6 +856,7 @@ def main():
                 for f in m["files"]:
                     print(f"  {f['bytes']:>8}  {f['name']}  {'OK' if f['ok'] else 'MISMATCH'}")
                 print(f"  {len(m['files'])} files, {m['total_bytes']} bytes")
+
     asyncio.run(run())
 
 

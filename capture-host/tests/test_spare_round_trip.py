@@ -111,8 +111,9 @@ def test_when_EVERY_spare_is_deaf_the_failover_is_REFUSED(caplog):
     probe, _ = _answers({"hci0": False, "hci2": False})
     with caplog.at_level("CRITICAL"):
         assert _pick([_ad("hci0", A), _ad("hci2", B)], probe=probe) is None
-    assert "NO LIVE SPARE" in caplog.text, "a refusal that says nothing is indistinguishable from "\
-                                           "having no spare at all"
+    assert "NO LIVE SPARE" in caplog.text, (
+        "a refusal that says nothing is indistinguishable from having no spare at all"
+    )
     assert set(capture._SPARE_QUARANTINE) == {A, B}
 
 
@@ -131,7 +132,7 @@ def test_a_quarantined_spare_is_skipped_WITHOUT_being_probed_again():
     probe, asked = _answers({"hci0": False, "hci2": True})
     assert _pick([_ad("hci0", A), _ad("hci2", B)], probe=probe, clock=lambda: now[0]) == B
     assert asked == ["hci0", "hci2"]
-    now[0] = 1100.0                      # still inside the 900 s cooldown
+    now[0] = 1100.0  # still inside the 900 s cooldown
     assert _pick([_ad("hci0", A), _ad("hci2", B)], probe=probe, clock=lambda: now[0]) == B
     assert asked == ["hci0", "hci2", "hci2"], "the quarantined radio was probed again too early"
 
@@ -144,8 +145,8 @@ def test_the_cooldown_EXPIRES_and_the_radio_is_probed_again():
     table = {"hci0": False, "hci2": True}
     probe, asked = _answers(table)
     assert _pick([_ad("hci0", A), _ad("hci2", B)], probe=probe, clock=lambda: now[0]) == B
-    now[0] = 2000.0                      # past 1000 + 900
-    table["hci0"] = True                 # the radio came back
+    now[0] = 2000.0  # past 1000 + 900
+    table["hci0"] = True  # the radio came back
     assert _pick([_ad("hci0", A), _ad("hci2", B)], probe=probe, clock=lambda: now[0]) == A
     assert A not in capture._SPARE_QUARANTINE, "a served cooldown left the entry behind"
 

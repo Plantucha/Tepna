@@ -16,6 +16,7 @@ H10 and O2Ring were absent from the morning session, so QC called them `missing`
 It judged the garbage and reported the night as a hole — which is why `ok` was false on 20 of the last 20
 nights, and why the alarm could not have told anyone about the charger: it says the same thing every night.
 """
+
 import os
 import sys
 from datetime import datetime as _dt
@@ -23,6 +24,7 @@ from datetime import datetime as _dt
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import nightqc  # noqa: E402
 import datetime as _wrapdt
+
 
 # ── THESE FIXTURES DECLARE THEIR FRAME RATHER THAN HAVING IT INFERRED ──────────────────────────────────
 #
@@ -47,7 +49,7 @@ def _declared_reader_frame(night):
         try:
             absolute = _wrapdt.datetime.strptime(stamp, "%Y%m%d%H%M%S").timestamp()
         except ValueError:
-            continue            # not a 14-digit stamp — try the next file; a legacy name states no frame
+            continue  # not a 14-digit stamp — try the next file; a legacy name states no frame
         return nightqc.declared_offset(absolute - f["session"])
     return nightqc.declared_offset(0.0)
 
@@ -56,8 +58,7 @@ def _summarize(night, devices, wear=None):
     return nightqc.summarize(night, devices, wear, writer_offset=_declared_reader_frame(night))
 
 
-_DEV = [{"name": "Polar H10 02849638", "vendor": "Polar", "streams": ["ecg"],
-         "address": "AA:BB:CC:DD:EE:FF"}]
+_DEV = [{"name": "Polar H10 02849638", "vendor": "Polar", "streams": ["ecg"], "address": "AA:BB:CC:DD:EE:FF"}]
 
 
 def _rows(d, name, rows, mtime):
@@ -106,7 +107,8 @@ def test_the_LATEST_session_would_have_been_the_wrong_one(tmp_path):
     assert len(sessions) >= 2, "the fixture must actually produce two sessions"
     latest = max(sessions, key=lambda s: s["end"])
     assert latest["rows"] != r["judged_session"]["rows"], (
-        "latest and substantive coincide here, so this fixture cannot distinguish the rules")
+        "latest and substantive coincide here, so this fixture cannot distinguish the rules"
+    )
 
 
 def test_a_single_session_day_is_unchanged(tmp_path):
@@ -142,16 +144,18 @@ def test_no_data_reports_no_judged_session(tmp_path):
 def _many_sessions(tmp_path):
     """Three earlier sessions, the judged one, and two later — all absolute, none derived from now()."""
     d = str(tmp_path / "2026-08-15")
+
     def at(hhmmss, rows, name):
         t = _dt.strptime("20260815" + hhmmss, "%Y%m%d%H%M%S").timestamp()
         _rows(d, name, rows, t + 900)
         return t
-    at("000500", 50, "Polar_H10_02849638_20260815000500_ECG.txt")     # earliest
+
+    at("000500", 50, "Polar_H10_02849638_20260815000500_ECG.txt")  # earliest
     at("020000", 60, "Polar_H10_02849638_20260815020000_ECG.txt")
-    at("040000", 70, "Polar_H10_02849638_20260815040000_ECG.txt")     # NEAREST earlier
-    at("080000", 900, "Polar_H10_02849638_20260815080000_ECG.txt")    # judged (most rows)
-    at("120000", 80, "Polar_H10_02849638_20260815120000_ECG.txt")     # NEAREST later
-    at("180000", 90, "Polar_H10_02849638_20260815180000_ECG.txt")     # furthest later
+    at("040000", 70, "Polar_H10_02849638_20260815040000_ECG.txt")  # NEAREST earlier
+    at("080000", 900, "Polar_H10_02849638_20260815080000_ECG.txt")  # judged (most rows)
+    at("120000", 80, "Polar_H10_02849638_20260815120000_ECG.txt")  # NEAREST later
+    at("180000", 90, "Polar_H10_02849638_20260815180000_ECG.txt")  # furthest later
     return d
 
 
@@ -178,5 +182,5 @@ def test_every_excluded_session_is_counted_on_its_own_side(tmp_path):
     later = [g for g in r["gaps"] if "later session" in g][0]
     assert "3 earlier session(s)" in earlier, earlier
     assert "2 later session(s)" in later, later
-    assert "180 rows" in earlier, earlier          # 50 + 60 + 70
-    assert "170 rows" in later, later              # 80 + 90
+    assert "180 rows" in earlier, earlier  # 50 + 60 + 70
+    assert "170 rows" in later, later  # 80 + 90

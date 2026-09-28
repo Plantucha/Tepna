@@ -169,9 +169,19 @@ def test_a_complete_listing_leaves_the_manifest_errors_empty(monkeypatch, tmp_pa
 
 def test_the_walk_has_a_depth_limit(monkeypatch, tmp_path):
     """A device that reports a directory containing itself must not recurse forever."""
-    fs = _FakeFs({"/": [("A/", 0)], "/A/": [("A/", 0)], "/A/A/": [("A/", 0)],
-                  "/A/A/A/": [("A/", 0)], "/A/A/A/A/": [("A/", 0)], "/A/A/A/A/A/": [("A/", 0)],
-                  "/A/A/A/A/A/A/": [("A/", 0)], "/A/A/A/A/A/A/A/": [("A/", 0)]}, {})
+    fs = _FakeFs(
+        {
+            "/": [("A/", 0)],
+            "/A/": [("A/", 0)],
+            "/A/A/": [("A/", 0)],
+            "/A/A/A/": [("A/", 0)],
+            "/A/A/A/A/": [("A/", 0)],
+            "/A/A/A/A/A/": [("A/", 0)],
+            "/A/A/A/A/A/A/": [("A/", 0)],
+            "/A/A/A/A/A/A/A/": [("A/", 0)],
+        },
+        {},
+    )
     _patch(monkeypatch, fs)
     res = _run(pm.mirror("AA:BB", str(tmp_path), redact=False))
     # EXACTLY seven, not "at most eight". A bound satisfied by 5, 6, 7 and 8 alike cannot see any of
@@ -184,8 +194,10 @@ def test_the_walk_has_a_depth_limit(monkeypatch, tmp_path):
 def test_the_depth_limit_is_the_ARGUMENT_not_a_constant(monkeypatch, tmp_path):
     """`walk` is called with the default from `mirror`, so dropping `max_depth` from the recursive call
     is invisible there — the parameter has to be exercised with a value that is not the default."""
-    fs = _FakeFs({"/": [("A/", 0)], "/A/": [("A/", 0)], "/A/A/": [("A/", 0)],
-                  "/A/A/A/": [("A/", 0)], "/A/A/A/A/": [("A/", 0)]}, {})
+    fs = _FakeFs(
+        {"/": [("A/", 0)], "/A/": [("A/", 0)], "/A/A/": [("A/", 0)], "/A/A/A/": [("A/", 0)], "/A/A/A/A/": [("A/", 0)]},
+        {},
+    )
     out = {"dirs": {}, "files": {}, "errors": {}}
     _run(pm.walk(fs, "/", out, max_depth=2))
     assert sorted(out["dirs"]) == ["/", "/A/", "/A/A/"]
@@ -212,6 +224,7 @@ def test_a_directory_LISTING_that_never_answers_is_bounded(monkeypatch, tmp_path
 
 # ── trust ───────────────────────────────────────────────────────────────────────────────────────────
 
+
 def test_trust_is_set_when_missing(monkeypatch):
     calls = []
 
@@ -221,6 +234,7 @@ def test_trust_is_set_when_missing(monkeypatch):
     def run(cmd, **k):
         calls.append(cmd)
         return _R()
+
     monkeypatch.setattr(pm.subprocess, "run", run)
     msg = pm.ensure_trusted("AA:BB")
     assert "trust set" in msg and "UNLIKELY_ERROR" in msg
@@ -230,6 +244,7 @@ def test_trust_is_set_when_missing(monkeypatch):
 def test_trust_is_left_alone_when_present(monkeypatch):
     class _R:
         stdout = "Trusted: yes\n"
+
     monkeypatch.setattr(pm.subprocess, "run", lambda *a, **k: _R())
     assert pm.ensure_trusted("AA:BB") == "already trusted"
 
@@ -237,11 +252,13 @@ def test_trust_is_left_alone_when_present(monkeypatch):
 def test_no_bluetoothctl_is_reported_rather_than_raising(monkeypatch):
     def boom(*a, **k):
         raise FileNotFoundError("bluetoothctl")
+
     monkeypatch.setattr(pm.subprocess, "run", boom)
     assert "could not check/set trust" in pm.ensure_trusted("AA:BB")
 
 
 # ── CLI ─────────────────────────────────────────────────────────────────────────────────────────────
+
 
 def test_main_guards_the_link_and_summarises(monkeypatch, tmp_path, capsys):
     guarded = {"n": 0}

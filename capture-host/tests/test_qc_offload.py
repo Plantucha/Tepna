@@ -7,7 +7,7 @@ the poll cadence and the monitor's "fragments" column rose for three nodes at on
 
 import asyncio
 import concurrent.futures
-import concurrent.futures.process   # lazily loaded by the package; an xdist worker may not have touched it yet
+import concurrent.futures.process  # lazily loaded by the package; an xdist worker may not have touched it yet
 import os
 
 import pytest
@@ -26,8 +26,9 @@ def test_a_module_level_scan_runs_in_another_process_and_leaves_no_worker_behind
     first, second = asyncio.run(go())
     assert first["pid"] != os.getpid(), "the scan ran in THIS process — the lock is still shared"
     assert first["night"] == "2026-09-22" and first["devices"] == [{"name": "Ring"}]
-    assert second["pid"] != os.getpid() and second["pid"] != first["pid"], \
+    assert second["pid"] != os.getpid() and second["pid"] != first["pid"], (
         "one pool per scan: each scan gets a fresh worker and the previous one is gone with its working set"
+    )
     assert capture._QC_ISOLATION == "process"
     assert not hasattr(capture, "_QC_CHILD"), "no module-level pool — a pool nobody shuts down hung the gate"
 
@@ -35,7 +36,7 @@ def test_a_module_level_scan_runs_in_another_process_and_leaves_no_worker_behind
 def test_a_callable_the_child_could_not_import_runs_on_a_thread_and_says_so(monkeypatch):
     calls = []
 
-    def local_scan(night, devices):          # not importable by name from a spawned child
+    def local_scan(night, devices):  # not importable by name from a spawned child
         calls.append(night)
         return {"pid": os.getpid()}
 
@@ -62,7 +63,7 @@ def test_a_dead_worker_propagates_its_error_and_the_pool_is_still_shut_down(monk
             seen["shutdown"] = wait
 
     monkeypatch.setattr(capture.concurrent.futures, "ProcessPoolExecutor", Broken)
-    with pytest.raises(concurrent.futures.BrokenExecutor):   # a scan that did not run must not read as one that did
+    with pytest.raises(concurrent.futures.BrokenExecutor):  # a scan that did not run must not read as one that did
         asyncio.run(capture._qc_offload(_qc_child_target.pid_stamp, "n", []))
     assert seen["shutdown"] is False, "the pool is released even when the scan failed"
     assert seen["kw"]["max_workers"] == 1 and seen["kw"]["mp_context"].get_start_method() == "spawn"

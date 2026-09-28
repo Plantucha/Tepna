@@ -28,10 +28,12 @@ _ADDR_RE = re.compile(r"Device ([0-9A-F:]{17}) (.+)")
 # monitor infers vendor/model from the name, finds no match, and the identity gate then refuses to
 # remember the sensor at all — "not recognised — needs vendor, model" for a device sitting at -40 dBm
 # (observed 2026-07-19 on a Verity that BlueZ knew perfectly well as "Polar Sense 0C301E3F").
-_PROP_RE = re.compile(r"^(RSSI|TxPower|ManufacturerData|ServiceData|UUIDs?|Connected|Paired|Bonded|"
-                      r"Trusted|Blocked|LegacyPairing|Appearance|Icon|Adapter|Alias|Class|Modalias|"
-                      r"AdvertisingFlags|WakeAllowed|ServicesResolved|Battery Percentage)\b\s*:",
-                      re.I)
+_PROP_RE = re.compile(
+    r"^(RSSI|TxPower|ManufacturerData|ServiceData|UUIDs?|Connected|Paired|Bonded|"
+    r"Trusted|Blocked|LegacyPairing|Appearance|Icon|Adapter|Alias|Class|Modalias|"
+    r"AdvertisingFlags|WakeAllowed|ServicesResolved|Battery Percentage)\b\s*:",
+    re.I,
+)
 # A name bluetoothctl synthesises from the address ("24-AC-AC-0C-30-1E") carries no vendor information;
 # a real one must be allowed to replace it when a later line supplies it.
 _ADDR_NAME_RE = re.compile(r"^[0-9A-F]{2}([-:][0-9A-F]{2}){5}$", re.I)
@@ -47,11 +49,16 @@ def is_placeholder_name(name: str) -> bool:
     """True when the name carries no identifying information — empty, or the address restated."""
     n = (name or "").strip()
     return not n or bool(_ADDR_NAME_RE.match(n))
+
+
 # Names worth foregrounding in the scan list. `hrm`/`808`/`coospo` cover third-party chest straps that
 # speak the standard Heart Rate Service (a Coospo HRM808S advertises as "808S 0022265" — no vendor word
 # in the name at all, so without the model hint it sorts in with the neighbours' speakers).
-_HEALTH_HINT = re.compile(r"polar|verity|muse|o2ring|wellue|viatom|checkme|oxy|sense|coospo|hrm|"
-                          r"\b808s?\b|magene|wahoo|garmin|decathlon|scosche", re.I)
+_HEALTH_HINT = re.compile(
+    r"polar|verity|muse|o2ring|wellue|viatom|checkme|oxy|sense|coospo|hrm|"
+    r"\b808s?\b|magene|wahoo|garmin|decathlon|scosche",
+    re.I,
+)
 
 
 @dataclass
@@ -61,14 +68,14 @@ class Found:
     rssi: int | None = None
     bonded: bool = False
     connected: bool = False
-    health: bool = False   # matches a known sensor name pattern (UI can foreground these)
+    health: bool = False  # matches a known sensor name pattern (UI can foreground these)
 
 
 async def _btctl(script: str, timeout: float = 20.0) -> str:
     """Feed a newline script to one bluetoothctl session; return combined stdout+stderr."""
     proc = await asyncio.create_subprocess_exec(
-        "bluetoothctl", stdin=asyncio.subprocess.PIPE,
-        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
+        "bluetoothctl", stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT
+    )
     try:
         # proc_util.communicate KILLS AND REAPS the child on expiry. This was the one sibling that
         # already called `proc.kill()` — the fix and the proof it was known — but it never reaped,
@@ -83,8 +90,8 @@ async def _delayed_script(lines: list[tuple[float, str]]) -> str:
     """Run bluetoothctl, emitting each (delay_before, command) with real waits between — needed so
     `scan on` has time to discover before `pair`, in ONE session (cross-session loses the cache)."""
     proc = await asyncio.create_subprocess_exec(
-        "bluetoothctl", stdin=asyncio.subprocess.PIPE,
-        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
+        "bluetoothctl", stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT
+    )
     chunks: list[bytes] = []
 
     async def drain():
@@ -93,6 +100,7 @@ async def _delayed_script(lines: list[tuple[float, str]]) -> str:
             if not b:
                 break
             chunks.append(b)
+
     reader = asyncio.create_task(drain())
     # `proc.stdin` is `StreamWriter | None` in the stubs; it is non-None here because the process was
     # created with `stdin=PIPE`. Bound once rather than narrowed at each of the three uses — one name
@@ -146,8 +154,11 @@ async def bluez_address(adapter_mac: str | None) -> str | None:
         for addr, name in by_bluez.items():
             if name == hci:
                 return addr
-    log.warning("bonding: adapter %s is not an address BlueZ lists — bluetoothctl `select` will fall "
-                "through to the default controller", adapter_mac)
+    log.warning(
+        "bonding: adapter %s is not an address BlueZ lists — bluetoothctl `select` will fall "
+        "through to the default controller",
+        adapter_mac,
+    )
     return adapter_mac
 
 
@@ -160,19 +171,24 @@ async def select_line(adapter_mac: str | None) -> str:
 async def scan(adapter_mac: str | None = None, seconds: float = 8.0) -> list[Found]:
     """Discover advertising devices on `adapter_mac` (or the default controller)."""
     script = _adapter_prefix(await bluez_address(adapter_mac)) + [
-        (0.5, "scan on"), (seconds, "scan off"), (0.3, "devices"), (0.2, "quit")]
+        (0.5, "scan on"),
+        (seconds, "scan off"),
+        (0.3, "devices"),
+        (0.2, "quit"),
+    ]
     out = await _delayed_script(script)
     seen: dict[str, Found] = {}
     for m in _ADDR_RE.finditer(out):
         addr, name = m.group(1), m.group(2).strip()
         if is_property_line(name):
-            continue                       # a [CHG] property update, not an announcement
+            continue  # a [CHG] property update, not an announcement
         cur = seen.get(addr)
         # LAST REAL NAME WINS, but a placeholder never overwrites a real one. First-wins lost the race
         # to whichever line bluetoothctl happened to print first.
         if cur is None or (is_placeholder_name(cur.name) and not is_placeholder_name(name)):
-            seen[addr] = Found(address=addr, name=name, health=bool(_HEALTH_HINT.search(name)),
-                               rssi=cur.rssi if cur else None)
+            seen[addr] = Found(
+                address=addr, name=name, health=bool(_HEALTH_HINT.search(name)), rssi=cur.rssi if cur else None
+            )
     # RSSI comes from the SCAN STREAM, which is the only place it exists for a device we are not
     # connected to — `info` reports it only for a live connection, so the enrichment below returned
     # None for every discovered device while the value sat in the very lines discarded above.
@@ -190,7 +206,7 @@ async def scan(adapter_mac: str | None = None, seconds: float = 8.0) -> list[Fou
         r = re.search(r"RSSI:.*\((-?\d+)\)", info)
         if r:
             f.rssi = int(r.group(1))
-        nm = re.search(r"^\s*Name:\s*(.+)$", info, re.M)      # authoritative, and survives a bad scan line
+        nm = re.search(r"^\s*Name:\s*(.+)$", info, re.M)  # authoritative, and survives a bad scan line
         if nm and is_placeholder_name(f.name):
             f.name = nm.group(1).strip()
             f.health = bool(_HEALTH_HINT.search(f.name))
@@ -233,9 +249,14 @@ async def trusted_flags(addresses, adapter_mac: str | None = None) -> list[str]:
 # pairing (bleak #1943, "Insufficient Authentication 0x05 on PMD Control write").
 # NOTE the spelling: BlueZ emits `org.bluez.Error.AuthenticationFailed` as ONE word, so a
 # "authentication failed" pattern never matches it. bond() already relies on the same spelling.
-_STALE_BOND_SIGNS = ("failed to discover services", "insufficient authentication",
-                     "service discovery has not been performed", "not paired",
-                     "authenticationfailed", "authentication failed")
+_STALE_BOND_SIGNS = (
+    "failed to discover services",
+    "insufficient authentication",
+    "service discovery has not been performed",
+    "not paired",
+    "authenticationfailed",
+    "authentication failed",
+)
 
 
 def looks_like_a_stale_bond(exc_text: str) -> bool:
@@ -274,14 +295,21 @@ async def bond(address: str, adapter_mac: str | None = None) -> dict:
     time, unchanged. The final `untrust` stays as RETROFIT cleanup: it clears a flag left by the old
     script, an operator's hand-`trust`, or a vendor tool — idempotent, keeps the bond."""
     script = _adapter_prefix(await bluez_address(adapter_mac)) + [
-        (0.5, "agent NoInputNoOutput"), (0.5, "default-agent"),
+        (0.5, "agent NoInputNoOutput"),
+        (0.5, "default-agent"),
         (0.5, "scan on"),
-        (9.8, f"pair {address}"), (11.0, "scan off"), (0.5, f"untrust {address}"), (0.3, "quit")]
+        (9.8, f"pair {address}"),
+        (11.0, "scan off"),
+        (0.5, f"untrust {address}"),
+        (0.3, "quit"),
+    ]
     out = await _delayed_script(script)
     ok = ("Pairing successful" in out) or ("Bonded: yes" in out)
-    detail = "paired" if ok else (
-        "auth-failed" if "AuthenticationFailed" in out else
-        "not-found" if "not available" in out else "failed")
+    detail = (
+        "paired"
+        if ok
+        else ("auth-failed" if "AuthenticationFailed" in out else "not-found" if "not available" in out else "failed")
+    )
     return {"ok": ok, "detail": detail, "address": address}
 
 
@@ -293,6 +321,7 @@ async def forget(address: str, adapter_mac: str | None = None) -> dict:
 # CLI: python bonding.py scan|bond|forget [address] [--adapter MAC]
 if __name__ == "__main__":
     import argparse, json, sys
+
     ap = argparse.ArgumentParser()
     ap.add_argument("action", choices=["scan", "bond", "forget"])
     ap.add_argument("address", nargs="?")
@@ -305,4 +334,5 @@ if __name__ == "__main__":
         if not a.address:
             sys.exit("address required for bond/forget")
         return await (bond if a.action == "bond" else forget)(a.address, a.adapter)
+
     print(json.dumps(asyncio.run(go()), indent=2))

@@ -31,27 +31,33 @@ def _run(tmp_path, *args, stdin="", status_out=STATUS_OK, supplicant_rc=0):
     log.write_text("")
     link_state = tmp_path / "link.state"
     if not link_state.exists():
-        link_state.write_text("down\n")          # the state the box actually sits in after a wifi_down
+        link_state.write_text("down\n")  # the state the box actually sits in after a wifi_down
     for name, body in (
         # Records argv, then answers `status` with a canned association state.
-        ("wpa_cli", f'echo "wpa_cli $*" >> "{log}"\n'
-                    f'case " $* " in *" status "*) printf "{status_out}" ;; esac\nexit 0\n'),
+        (
+            "wpa_cli",
+            f'echo "wpa_cli $*" >> "{log}"\ncase " $* " in *" status "*) printf "{status_out}" ;; esac\nexit 0\n',
+        ),
         ("wpa_supplicant", f'echo "wpa_supplicant $*" >> "{log}"\nexit {supplicant_rc}\n'),
         # Tracks link state in a file, so a test can assert the radio ENDS UP enabled rather than
         # merely that a command was issued. `$3` is the interface, `$4` the verb in `ip link set X up`.
-        ("ip", f'echo "ip $*" >> "{log}"\n'
-               f'if [ "$1" = link ] && [ "$2" = set ]; then echo "$4" > "{link_state}"; fi\nexit 0\n'),
+        (
+            "ip",
+            f'echo "ip $*" >> "{log}"\n'
+            f'if [ "$1" = link ] && [ "$2" = set ]; then echo "$4" > "{link_state}"; fi\nexit 0\n',
+        ),
         ("dhcpcd", f'echo "dhcpcd $*" >> "{log}"\nexit 0\n'),
     ):
         f = bin_dir / name
         f.write_text("#!/bin/sh\n" + body)
         f.chmod(0o755)
-    env = dict(os.environ,
-               PATH=f"{bin_dir}:{os.environ['PATH']}",
-               TEPNA_WIFI_RUNDIR=str(tmp_path),
-               TEPNA_WIFI_IFACE="wlantest0")
-    proc = subprocess.run(["bash", SH, *args], input=stdin, env=env,
-                          capture_output=True, text=True, timeout=90)
+    env = dict(
+        os.environ,
+        PATH=f"{bin_dir}:{os.environ['PATH']}",
+        TEPNA_WIFI_RUNDIR=str(tmp_path),
+        TEPNA_WIFI_IFACE="wlantest0",
+    )
+    proc = subprocess.run(["bash", SH, *args], input=stdin, env=env, capture_output=True, text=True, timeout=90)
     return proc, log.read_text()
 
 
@@ -149,8 +155,7 @@ def test_AN_UNKNOWN_ACTION_PRINTS_USAGE_AND_DOES_NOTHING(tmp_path):
 
 
 def test_A_SUPPLICANT_THAT_NEVER_ASSOCIATES_FAILS_RATHER_THAN_REPORTING_SUCCESS(tmp_path):
-    proc, _c = _run(tmp_path, "join", "HotelWifi", stdin=PSK + "\n",
-                    status_out="wpa_state=SCANNING\\n")
+    proc, _c = _run(tmp_path, "join", "HotelWifi", stdin=PSK + "\n", status_out="wpa_state=SCANNING\\n")
     assert proc.returncode == 6 and "did not associate" in proc.stderr
 
 
@@ -166,7 +171,7 @@ def _rw_paths():
     for f in ("deploy/tepna-capture.service", "deploy/enable-clock-control.sh"):
         for line in open(os.path.join(HERE, f), encoding="utf-8").read().splitlines():
             t = line.strip()
-            if t.startswith("ReadWritePaths="):          # a commented line is prose, not a directive
+            if t.startswith("ReadWritePaths="):  # a commented line is prose, not a directive
                 paths += [p.lstrip("-") for p in t.split("=", 1)[1].split()]
     return paths
 
@@ -189,12 +194,12 @@ def test_THE_HELPER_DOES_NOT_REACH_FOR_RUN_ANY_MORE():
     # Pinned by name because /run is the obvious place to put a control socket and the one place this
     # daemon cannot write. A future edit reaching for it should fail here, not on the box.
     import re
+
     body = open(SH, encoding="utf-8").read()
     # Anchored to a ROOT-level /run — a plain substring test matches "/srv/tepna/run" and would fail
     # against the fix itself, which is how this assertion first went wrong.
     at_run = re.compile(r"(?:^|[\s:=\-\"'])/run(?:/|[\s\"'}$]|$)")
-    directives = [ln for ln in body.splitlines()
-                  if ln.startswith(("RUNDIR=", "CTRL=", "CONF=")) and at_run.search(ln)]
+    directives = [ln for ln in body.splitlines() if ln.startswith(("RUNDIR=", "CTRL=", "CONF=")) and at_run.search(ln)]
     assert not directives, f"a path directive points at the root /run: {directives}"
 
 
@@ -213,6 +218,7 @@ def test_A_SCAN_BRINGS_THE_INTERFACE_UP_EVEN_WHEN_A_SUPPLICANT_ALREADY_ANSWERS()
     came up, nothing else changed."""
     with __import__("tempfile").TemporaryDirectory() as td:
         import pathlib
+
         proc, calls = _run(pathlib.Path(td), "scan")
     assert proc.returncode == 0, proc.stderr
     ups = [ln for ln in calls.splitlines() if ln.startswith("ip ") and " up" in ln]
@@ -228,6 +234,7 @@ def test_JOINING_ALSO_ENSURES_THE_RADIO_IS_ON():
     # a wrong password.
     with __import__("tempfile").TemporaryDirectory() as td:
         import pathlib
+
         proc, calls = _run(pathlib.Path(td), "join", "HotelWifi", stdin=PSK + "\n")
     assert proc.returncode == 0, proc.stderr
     assert any(ln.startswith("ip ") and " up" in ln for ln in calls.splitlines()), calls

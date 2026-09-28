@@ -16,24 +16,24 @@ import build_id
 
 def _runner(table):
     """A fake `subprocess.run` keyed on the git subcommand."""
+
     def _run(argv, **_kw):
         key = argv[3] if len(argv) > 3 else ""
         rc, out = table.get(key, (1, ""))
         if isinstance(out, Exception):
             raise out
         return types.SimpleNamespace(returncode=rc, stdout=out, stderr="")
+
     return _run
 
 
 def test_A_HEALTHY_REPO_REPORTS_ITS_SHA_AND_CLEANLINESS():
-    info = build_id.probe("/repo", run=_runner({"rev-parse": (0, "a1b2c3d\n"),
-                                                "status": (0, "")}), now=99.0)
+    info = build_id.probe("/repo", run=_runner({"rev-parse": (0, "a1b2c3d\n"), "status": (0, "")}), now=99.0)
     assert info == {"git": "a1b2c3d", "dirty": False, "started": 99.0}
 
 
 def test_A_DIRTY_TREE_SAYS_SO():
-    info = build_id.probe("/repo", run=_runner({"rev-parse": (0, "a1b2c3d"),
-                                                "status": (0, " M capture.py\n")}))
+    info = build_id.probe("/repo", run=_runner({"rev-parse": (0, "a1b2c3d"), "status": (0, " M capture.py\n")}))
     assert info["dirty"] is True
 
 
@@ -44,7 +44,7 @@ def test_A_GIT_THAT_CANNOT_ANSWER_IS_UNKNOWN_NOT_CLEAN():
     A tarball deploy has no `.git`. `git status` failing is not evidence of a clean tree, and
     reporting `dirty: false` there would be a fabricated negative — a deploy tree of unknown
     provenance rendering as pristine. `None` is the third state and it must survive to the caller."""
-    info = build_id.probe("/repo", run=_runner({}))       # every git call fails
+    info = build_id.probe("/repo", run=_runner({}))  # every git call fails
     assert info["git"] is None
     assert info["dirty"] is None, "a git failure was rendered as a clean tree"
     assert info["dirty"] is not False
@@ -78,8 +78,7 @@ def test_STARTED_IS_RECORDED_SO_THE_SHA_IS_CHECKABLE():
 
     A SHA that changed without `started` moving means something re-read the tree, not that new code
     is serving — which is exactly the confusion this indicator exists to end."""
-    info = build_id.probe("/repo", run=_runner({"rev-parse": (0, "a1b2c3d"), "status": (0, "")}),
-                          now=1234.5)
+    info = build_id.probe("/repo", run=_runner({"rev-parse": (0, "a1b2c3d"), "status": (0, "")}), now=1234.5)
     assert info["started"] == 1234.5
 
 

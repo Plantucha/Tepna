@@ -18,13 +18,12 @@ def _run(coro):
 
 def test_parse_hci_dev_maps_both_controllers():
     out = "Devices:\n\thci2\tAC:A7:F1:29:9D:1D\n\thci0\t58:10:31:F3:2C:30\n"
-    assert link_rssi.parse_hci_dev(out) == {
-        "AC:A7:F1:29:9D:1D": "hci2", "58:10:31:F3:2C:30": "hci0"}
+    assert link_rssi.parse_hci_dev(out) == {"AC:A7:F1:29:9D:1D": "hci2", "58:10:31:F3:2C:30": "hci0"}
 
 
 def test_adapter_kw_is_empty_when_unconfigured(monkeypatch):
     monkeypatch.setattr(capture, "ADAPTER", None)
-    assert _run(capture.adapter_kw()) == {}          # falls back to the BlueZ default, never fails hard
+    assert _run(capture.adapter_kw()) == {}  # falls back to the BlueZ default, never fails hard
 
 
 def test_adapter_kw_pins_the_configured_mac(monkeypatch):
@@ -32,20 +31,22 @@ def test_adapter_kw_pins_the_configured_mac(monkeypatch):
 
     async def fake(mac, refresh=False):
         return "hci2"
+
     monkeypatch.setattr(link_rssi, "resolve_hci", fake)
     # bluez={"adapter": ...} — the bare `adapter` kwarg bleak deprecated is SWALLOWED once the shim goes,
     # which would drop the pin silently. See tests/test_no_deprecated_apis.py.
     assert _run(capture.adapter_kw()) == {"bluez": {"adapter": "hci2"}}
-    assert _run(capture.adapter_hci()) == "hci2"          # bare name, for the PS-FTP path
+    assert _run(capture.adapter_hci()) == "hci2"  # bare name, for the PS-FTP path
 
 
 def test_adapter_kw_follows_reenumeration(monkeypatch):
     """The whole point: the SAME configured MAC must resolve to whatever index it now holds."""
     monkeypatch.setattr(capture, "ADAPTER", "AC:A7:F1:29:9D:1D")
-    seq = iter(["hci0", "hci2"])                     # before / after the power-cycle swap
+    seq = iter(["hci0", "hci2"])  # before / after the power-cycle swap
 
     async def fake(mac, refresh=False):
         return next(seq)
+
     monkeypatch.setattr(link_rssi, "resolve_hci", fake)
     assert _run(capture.adapter_kw()) == {"bluez": {"adapter": "hci0"}}
     assert _run(capture.adapter_kw()) == {"bluez": {"adapter": "hci2"}}
@@ -57,6 +58,7 @@ def test_adapter_kw_degrades_when_adapter_missing(monkeypatch):
 
     async def fake(mac, refresh=False):
         return None
+
     monkeypatch.setattr(link_rssi, "resolve_hci", fake)
     assert _run(capture.adapter_kw()) == {}
 
@@ -66,7 +68,8 @@ def test_resolve_hci_refresh_drops_a_stale_cache_entry(monkeypatch):
     link_rssi._HCI_CACHE["AA:BB:CC:DD:EE:FF"] = "hci9"
 
     async def fake_run(cmd, timeout=4.0):
-        return "Devices:\n\thci0\t58:10:31:F3:2C:30\n"   # the cached MAC is gone
+        return "Devices:\n\thci0\t58:10:31:F3:2C:30\n"  # the cached MAC is gone
+
     monkeypatch.setattr(link_rssi, "_run", fake_run)
     assert _run(link_rssi.resolve_hci("AA:BB:CC:DD:EE:FF", refresh=True)) is None
     assert "AA:BB:CC:DD:EE:FF" not in link_rssi._HCI_CACHE
@@ -83,28 +86,30 @@ def test_resolve_hci_refresh_drops_a_stale_cache_entry(monkeypatch):
 # default WAS that same untested controller, so the pin would have failed OPEN onto a different radio
 # while the log claimed a fallback. That is worse than no pin at all.
 
+
 def test_dbus_hci_maps_a_controller_that_has_only_a_static_random_identity(monkeypatch):
     calls = []
 
     async def fake_run(argv):
         calls.append(argv)
         idx = argv[3].rsplit("/", 1)[1]
-        return {"hci0": 's "AC:A7:F1:29:9D:1D"',
-                "hci1": 's "F0:D5:BF:1E:79:21"',
-                "hci2": 's "C6:CF:3C:4E:75:F0"'}.get(idx, "")
+        return {"hci0": 's "AC:A7:F1:29:9D:1D"', "hci1": 's "F0:D5:BF:1E:79:21"', "hci2": 's "C6:CF:3C:4E:75:F0"'}.get(
+            idx, ""
+        )
 
     monkeypatch.setattr(link_rssi, "_run", fake_run)
     monkeypatch.setattr(link_rssi.os, "listdir", lambda _p: ["hci0", "hci1", "hci2"])
     got = asyncio.run(link_rssi.dbus_hci())
-    assert got == {"AC:A7:F1:29:9D:1D": "hci0", "F0:D5:BF:1E:79:21": "hci1",
-                   "C6:CF:3C:4E:75:F0": "hci2"}
+    assert got == {"AC:A7:F1:29:9D:1D": "hci0", "F0:D5:BF:1E:79:21": "hci1", "C6:CF:3C:4E:75:F0": "hci2"}
 
 
 def test_dbus_hci_drops_an_all_zero_address(monkeypatch):
     """A zero address is the absence of an identity, not an identity. Mapping it would let any
     unconfigured controller answer to '00:00:00:00:00:00'."""
+
     async def fake_run(_argv):
         return 's "00:00:00:00:00:00"'
+
     monkeypatch.setattr(link_rssi, "_run", fake_run)
     monkeypatch.setattr(link_rssi.os, "listdir", lambda _p: ["hci2"])
     assert asyncio.run(link_rssi.dbus_hci()) == {}
@@ -112,8 +117,10 @@ def test_dbus_hci_drops_an_all_zero_address(monkeypatch):
 
 def test_dbus_hci_is_empty_when_busctl_is_absent(monkeypatch):
     """No busctl / BlueZ down must degrade to {}, never raise — the caller keeps hcitool's answer."""
+
     async def fake_run(_argv):
         return None
+
     monkeypatch.setattr(link_rssi, "_run", fake_run)
     monkeypatch.setattr(link_rssi.os, "listdir", lambda _p: ["hci0"])
     assert asyncio.run(link_rssi.dbus_hci()) == {}
@@ -190,10 +197,8 @@ def test_an_inherited_global_written_as_a_NAME_inherits_like_a_MAC():
     TWO adapter-less devices, because one cannot show a PARTITION — a bug returning only the first
     inheriting device would pass a single-device fixture."""
     mac = "00:01:95:CC:53:02"
-    by_name = {"adapter": "sena", "adapters": {"sena": mac},
-               "devices": [{"name": "d1"}, {"name": "d2"}]}
-    by_mac = {"adapter": mac, "adapters": {"sena": mac},
-              "devices": [{"name": "d1"}, {"name": "d2"}]}
+    by_name = {"adapter": "sena", "adapters": {"sena": mac}, "devices": [{"name": "d1"}, {"name": "d2"}]}
+    by_mac = {"adapter": mac, "adapters": {"sena": mac}, "devices": [{"name": "d1"}, {"name": "d2"}]}
     assert [d["name"] for d in capture.instance_devices(by_name, "sena")] == ["d1", "d2"]
     assert capture.unowned_devices(by_name) == []
     # …and the MAC form is unchanged — the two are now identical in behaviour.
@@ -206,8 +211,7 @@ def test_an_unknown_global_name_still_inherits_NOTHING():
     global must NOT become "the default controller": `resolve_adapter_name` returns None for a name
     that is neither in the map nor a MAC, and that honesty is preserved. Without this, the fix could
     have been written as a fallback that silently adopts any string."""
-    cfg = {"adapter": "senna", "adapters": {"sena": "00:01:95:CC:53:02"},
-           "devices": [{"name": "d1"}]}
+    cfg = {"adapter": "senna", "adapters": {"sena": "00:01:95:CC:53:02"}, "devices": [{"name": "d1"}]}
     assert capture.instance_devices(cfg, "sena") == []
     assert capture.unowned_devices(cfg) == ["d1"]
 
@@ -216,16 +220,17 @@ def test_the_real_vigil_shape_is_unaffected_by_the_fix():
     """vigil's actual config: a MAC global and NO `adapters:` map at all. The fix must not disturb it —
     the map lookup misses and `_looks_like_mac` passes the MAC straight through."""
     sena = "00:01:95:CC:53:02"
-    cfg = {"adapter": sena,
-           "devices": [{"name": "O2Ring-S"}, {"name": "COOSPO-808S"},
-                       {"name": "Polar Sense"}, {"name": "Polar H10"}]}
+    cfg = {
+        "adapter": sena,
+        "devices": [{"name": "O2Ring-S"}, {"name": "COOSPO-808S"}, {"name": "Polar Sense"}, {"name": "Polar H10"}],
+    }
     assert len(capture.instance_devices(cfg, sena)) == 4
     assert capture.unowned_devices(cfg, [sena]) == []
 
 
 # ── CPAP wedge escalation gate (residue 2026-09-04-cpap-wedge-failover-masks-escalation) ──────────
-_SENA = "00:01:95:CC:53:02"      # vigil hci1, USB 1-5 — carries the four wearables
-_INTEL = "28:0C:50:0C:18:FD"     # vigil hci2, USB 1-9 — the CPAP BLE stream's pinned adapter
+_SENA = "00:01:95:CC:53:02"  # vigil hci1, USB 1-5 — carries the four wearables
+_INTEL = "28:0C:50:0C:18:FD"  # vigil hci2, USB 1-9 — the CPAP BLE stream's pinned adapter
 
 
 def _real_shape_cfg():
@@ -236,8 +241,7 @@ def _real_shape_cfg():
     was armed in configuration turned out unreachable in practice."""
     return {
         "adapter": _SENA,
-        "devices": [{"name": "O2Ring-S"}, {"name": "COOSPO-808S"},
-                    {"name": "Polar Sense"}, {"name": "Polar H10"}],
+        "devices": [{"name": "O2Ring-S"}, {"name": "COOSPO-808S"}, {"name": "Polar Sense"}, {"name": "Polar H10"}],
         "cpap": {"ble_stream": {"adapter": _INTEL}},
         "watchdog": {"enabled": True, "usb_path": "1-2"},
     }

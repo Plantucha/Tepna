@@ -90,8 +90,9 @@ def iter_records(data: bytes):
     """Yield each record as `(ts, payload)` — ts in epoch seconds (float). Raises SniffError on a
     truncated or headerless file."""
     if len(data) < _PCAP_GLOBAL_HEADER_LEN:
-        raise SniffError("not a pcap: %d bytes, need at least %d for the global header"
-                         % (len(data), _PCAP_GLOBAL_HEADER_LEN))
+        raise SniffError(
+            "not a pcap: %d bytes, need at least %d for the global header" % (len(data), _PCAP_GLOBAL_HEADER_LEN)
+        )
     off = _PCAP_GLOBAL_HEADER_LEN
     while off < len(data):
         if off + _PCAP_RECORD_HEADER_LEN > len(data):
@@ -99,9 +100,10 @@ def iter_records(data: bytes):
         ts_sec, ts_usec, caplen = struct.unpack_from("<III", data, off)
         off += _PCAP_RECORD_HEADER_LEN
         if off + caplen > len(data):
-            raise SniffError("truncated packet at byte %d: header claims %d bytes, %d remain"
-                             % (off, caplen, len(data) - off))
-        yield ts_sec + ts_usec / 1e6, data[off:off + caplen]
+            raise SniffError(
+                "truncated packet at byte %d: header claims %d bytes, %d remain" % (off, caplen, len(data) - off)
+            )
+        yield ts_sec + ts_usec / 1e6, data[off : off + caplen]
         off += caplen
 
 
@@ -168,11 +170,10 @@ def summarise(data: bytes, follow: str | None = None) -> dict:
             continue
         pdu = pkt[at + 4] & 0x0F
         pdus[pdu] += 1
-        body = pkt[at + 6:]
+        body = pkt[at + 6 :]
         if pdu == CONNECT_IND:
             if len(body) >= 2 * _ADDR_LEN:
-                connects.append((mac(body[:_ADDR_LEN]),
-                                 mac(body[_ADDR_LEN:2 * _ADDR_LEN])))
+                connects.append((mac(body[:_ADDR_LEN]), mac(body[_ADDR_LEN : 2 * _ADDR_LEN])))
         elif len(body) >= _ADDR_LEN:
             advertisers[mac(body[:_ADDR_LEN])] += 1
 
@@ -207,46 +208,72 @@ VERDICT_CRITERION = {"name": "data_channel_packets", "threshold": 1, "unit": "pa
 def verdict_object(s: dict, path: str = "<capture>") -> dict:
     """PURE over `summarise()`'s dict: PASS a link was followed · FAIL no data channel (the prose
     `_verdict` lines are the reason, joined) · NOT_RUN the capture carried zero records."""
-    result = {k: s[k] for k in ("total", "crc_bad", "adv_channel", "data_channel",
-                                "follow", "follow_adv_packets", "follow_connects")}
+    result = {
+        k: s[k]
+        for k in ("total", "crc_bad", "adv_channel", "data_channel", "follow", "follow_adv_packets", "follow_connects")
+    }
     pop = {"checked": s["total"] - s["crc_bad"], "eligible": s["total"], "excluded": s["crc_bad"]}
     if s["total"] == 0:
-        return VD.make(gate=VERDICT_GATE, status="NOT_RUN", population=pop, criterion=VERDICT_CRITERION,
-                       result=None, evidence=["capture-host/ble_sniff.py", path],
-                       reason="the capture carried 0 records — nothing was classified",
-                       tool="capture-host/ble_sniff.py")
+        return VD.make(
+            gate=VERDICT_GATE,
+            status="NOT_RUN",
+            population=pop,
+            criterion=VERDICT_CRITERION,
+            result=None,
+            evidence=["capture-host/ble_sniff.py", path],
+            reason="the capture carried 0 records — nothing was classified",
+            tool="capture-host/ble_sniff.py",
+        )
     lines = _verdict(s)
     status = "PASS" if s["data_channel"] else "FAIL"
-    return VD.make(gate=VERDICT_GATE, status=status, population=pop, criterion=VERDICT_CRITERION,
-                   result=result, evidence=["capture-host/ble_sniff.py", path],
-                   reason=None if status == "PASS" else " ".join(ln.strip() for ln in lines),
-                   tool="capture-host/ble_sniff.py")
+    return VD.make(
+        gate=VERDICT_GATE,
+        status=status,
+        population=pop,
+        criterion=VERDICT_CRITERION,
+        result=result,
+        evidence=["capture-host/ble_sniff.py", path],
+        reason=None if status == "PASS" else " ".join(ln.strip() for ln in lines),
+        tool="capture-host/ble_sniff.py",
+    )
 
 
 def verdict_sample() -> dict:
     """The object the adoption gate reads (`--verdict-sample`): a synthetic summary, no capture file."""
-    return verdict_object({"total": 3, "crc_bad": 1, "adv_channel": 1, "data_channel": 1, "follow": None,
-                           "follow_adv_packets": 0, "follow_connects": 0}, "<synthetic summary>")
+    return verdict_object(
+        {
+            "total": 3,
+            "crc_bad": 1,
+            "adv_channel": 1,
+            "data_channel": 1,
+            "follow": None,
+            "follow_adv_packets": 0,
+            "follow_connects": 0,
+        },
+        "<synthetic summary>",
+    )
 
 
 def _verdict(s: dict) -> list[str]:
     """The headline. Says what is absent, and why, rather than omitting it."""
     if s["data_channel"]:
-        return ["VERDICT: %d data-channel packet(s) — a connection WAS followed; GATT is present."
-                % s["data_channel"]]
+        return ["VERDICT: %d data-channel packet(s) — a connection WAS followed; GATT is present." % s["data_channel"]]
     lines = ["VERDICT: 0 data-channel packets — NO connection was followed, so there is no GATT here."]
     if s["follow"]:
         if s["follow_connects"]:
-            lines.append("  %d CONNECT_IND(s) targeted %s but no data channel followed — the sniffer"
-                         % (s["follow_connects"], s["follow"]))
+            lines.append(
+                "  %d CONNECT_IND(s) targeted %s but no data channel followed — the sniffer"
+                % (s["follow_connects"], s["follow"])
+            )
             lines.append("  saw the link open and did not track it (wrong PHY, or it lost the hop).")
         elif s["follow_adv_packets"]:
-            lines.append("  %s advertised %d time(s) and nothing connected to it during this capture."
-                         % (s["follow"], s["follow_adv_packets"]))
+            lines.append(
+                "  %s advertised %d time(s) and nothing connected to it during this capture."
+                % (s["follow"], s["follow_adv_packets"])
+            )
             lines.append("  A sniffer can only follow a link it sees OPEN: capture across a fresh connect.")
         else:
-            lines.append("  %s was never seen advertising — wrong address, out of range, or already"
-                         % s["follow"])
+            lines.append("  %s was never seen advertising — wrong address, out of range, or already" % s["follow"])
             lines.append("  connected (a connected peripheral stops advertising).")
     return lines
 
@@ -264,8 +291,7 @@ def format_report(s: dict) -> str:
         out.append("capture span      : no packets")
     else:
         # The line that would have exposed F2: a 7.4 h-by-mtime file whose packets span 2 h.
-        out.append("capture span      : %.1f s (%s -> %s)"
-                   % (s["duration_s"], _utc(s["first_ts"]), _utc(s["last_ts"])))
+        out.append("capture span      : %.1f s (%s -> %s)" % (s["duration_s"], _utc(s["first_ts"]), _utc(s["last_ts"])))
     out.append("packets           : %d" % s["total"])
     # Stated even at zero: an absent line and a zero are different facts (CLAUDE.md §4b).
     out.append("  crc-bad excluded: %d" % s["crc_bad"])
@@ -314,6 +340,7 @@ def device_addresses(config_path: str) -> set[str]:
     """Every `address:` under `devices:` in a capture-host config.yaml, upper-cased. Only the
     addresses: a config carries bond keys and passwords the audit has no business reading twice."""
     import yaml  # noqa: PLC0415 — the standalone report path must not need yaml
+
     with open(config_path, encoding="utf-8") as fh:
         cfg = yaml.safe_load(fh) or {}
     out: set[str] = set()
@@ -324,8 +351,9 @@ def device_addresses(config_path: str) -> set[str]:
     return out
 
 
-def audit(s: dict, expect_s: float | None, ours: set[str], adapters: set[str],
-          ran_full_window: bool | None = None) -> dict:
+def audit(
+    s: dict, expect_s: float | None, ours: set[str], adapters: set[str], ran_full_window: bool | None = None
+) -> dict:
     """The nightly verdict, pure. `ours` = our devices' MACs, `adapters` = our own radios' MACs.
 
     A CONNECT_IND to one of OUR devices from an initiator that is not one of OUR adapters is a
@@ -359,23 +387,31 @@ def audit(s: dict, expect_s: float | None, ours: set[str], adapters: set[str],
         elif ran_full_window and span < COVERAGE_FLOOR * expect_s:
             # Ran its window and still returned almost nothing: the sniffer is not merely behind, it
             # is contributing too little for any verdict to rest on.
-            window = ("%s — the capture ran the whole window and still covered under %.0f %% of it, "
-                      "so no verdict here is worth anything" % (short, COVERAGE_FLOOR * 100))
+            window = (
+                "%s — the capture ran the whole window and still covered under %.0f %% of it, "
+                "so no verdict here is worth anything" % (short, COVERAGE_FLOOR * 100)
+            )
         elif ran_full_window:
             # THE KNOWN REGIME on this hardware, and deliberately NOT a problem: the process lived its
             # window and fell behind real time. Stated, never silent — the coverage line carries it —
             # but it does not red, because a red every night on a hardware limit is a red nobody reads.
-            window = ("%s — the capture ran the whole window, so the sniffer FELL BEHIND real time; "
-                      "the missing %.0f s is the END of the window. Not a failure: this is what this "
-                      "hardware does." % (short, missing))
+            window = (
+                "%s — the capture ran the whole window, so the sniffer FELL BEHIND real time; "
+                "the missing %.0f s is the END of the window. Not a failure: this is what this "
+                "hardware does." % (short, missing)
+            )
         elif span < WINDOW_MIN_FRACTION * expect_s:
-            window = ("%s — %s" % (short, (
-                "the sniffer died %.0f s early" % missing) if ran_full_window is False else (
-                "%.0f s are missing, and this invocation did not say whether the capture process "
-                "survived its window — so whether it DIED or fell BEHIND is unknown here (the unit "
-                "passes --ran-full-window when `timeout` ended it on schedule)" % missing)))
-        if window and not (ran_full_window and span is not None
-                           and span >= COVERAGE_FLOOR * expect_s):
+            window = "%s — %s" % (
+                short,
+                ("the sniffer died %.0f s early" % missing)
+                if ran_full_window is False
+                else (
+                    "%.0f s are missing, and this invocation did not say whether the capture process "
+                    "survived its window — so whether it DIED or fell BEHIND is unknown here (the unit "
+                    "passes --ran-full-window when `timeout` ended it on schedule)" % missing
+                ),
+            )
+        if window and not (ran_full_window and span is not None and span >= COVERAGE_FLOOR * expect_s):
             problems.append("window: " + window)
     foreign = [(i, a) for i, a in s["connects"] if a in ours and i not in adapters]
     if foreign:
@@ -406,10 +442,15 @@ def format_audit(a: dict) -> str:
         # The fraction is stated on EVERY run, passing or failing — same rule as `foreign connects: 0`.
         # A verdict of "no foreign connects" is worth what its coverage is worth, and a reader who is
         # not told the coverage will read a half-captured window as the night.
-        out.append("  coverage        : %s of %.0f s requested"
-                   % ("%.2f (%.1f s)" % (a["cover"], a["cover"] * a["expect_s"])
-                      if a["cover"] is not None else "no packets at all",
-                      a["expect_s"]))
+        out.append(
+            "  coverage        : %s of %.0f s requested"
+            % (
+                "%.2f (%.1f s)" % (a["cover"], a["cover"] * a["expect_s"])
+                if a["cover"] is not None
+                else "no packets at all",
+                a["expect_s"],
+            )
+        )
         out.append("  window          : %s" % (a["window"] or "span covers the requested window"))
     out.append("  our devices     : %d configured, %d heard on air" % (len(a["ours"]), len(a["heard"])))
     for m in a["heard"]:
@@ -424,8 +465,7 @@ def format_audit(a: dict) -> str:
     return "\n".join(out)
 
 
-def _parse_argv(argv: list[str]) -> tuple[str, str | None, float | None, set[str], set[str],
-                                          bool | None] | None:
+def _parse_argv(argv: list[str]) -> tuple[str, str | None, float | None, set[str], set[str], bool | None] | None:
     """`<pcap> [MAC] [--expect-seconds N] [--config path] [--ours A,B] [--adapters A,B]
     [--ran-full-window | --exited-early]`.
     Hand-rolled so the two-positional form the 2026-09-04 workflow uses stays byte-identical."""
@@ -472,10 +512,12 @@ def main(argv: list[str]) -> int:
         print("ble_sniff: bad arguments: %r" % (exc,), file=sys.stderr)
         return 2
     if parsed is None:
-        print("usage: ble_sniff.py <capture.pcap> [MAC-to-follow] [--expect-seconds N] "
-              "[--config config.yaml] [--ours A,B] [--adapters A,B] "
-              "[--ran-full-window | --exited-early]",
-              file=sys.stderr)
+        print(
+            "usage: ble_sniff.py <capture.pcap> [MAC-to-follow] [--expect-seconds N] "
+            "[--config config.yaml] [--ours A,B] [--adapters A,B] "
+            "[--ran-full-window | --exited-early]",
+            file=sys.stderr,
+        )
         return 2
     path, follow, expect, ours, adapters, ran_full = parsed
     try:

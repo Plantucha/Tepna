@@ -14,6 +14,7 @@ Read/stream opcodes otherwise. Runs with the capture daemon stopped (link_guard)
 Usage (on the box, daemon stopped):
     .venv/bin/python probe_buzz_fiducial.py --address <MAC> [--pre 5] [--post 10] [--out buzz.txt]
 """
+
 from __future__ import annotations
 import argparse
 import asyncio
@@ -23,12 +24,12 @@ from time import time as wall
 import time as _timemod
 
 sys.path.insert(0, ".")
-from link_guard import require_free_link   # noqa: E402
-import oxyii                                # noqa: E402
-from bleak import BleakClient               # noqa: E402
+from link_guard import require_free_link  # noqa: E402
+import oxyii  # noqa: E402
+from bleak import BleakClient  # noqa: E402
 
-VIBRATE = 0x83               # the ONLY device-state write this tool ever issues
-_SPAN_S = 1.0                # capture.py _RT_PPG_SPAN_S — one raw buffer covers ~1 s (bounded, not a rate)
+VIBRATE = 0x83  # the ONLY device-state write this tool ever issues
+_SPAN_S = 1.0  # capture.py _RT_PPG_SPAN_S — one raw buffer covers ~1 s (bounded, not a rate)
 
 
 def back_time(recs, arrival_s: float, span_s: float = _SPAN_S):
@@ -62,9 +63,13 @@ def locate_artifact(samples, buzz_s: float | None, window_s: float = 1.0):
     ratio = m_after / m_before if m_before > 0 else (float("inf") if m_after > 0 else 1.0)
     return {
         "detected": bool(m_after >= 2 * m_before and m_after > m_before + 1),  # 2x AND an absolute lift
-        "motion_before": m_before, "motion_after": m_after, "motion_ratio": ratio,
-        "optical_std_before": o_before, "optical_std_after": o_after,
-        "n_before": len(before), "n_after": len(after),
+        "motion_before": m_before,
+        "motion_after": m_after,
+        "motion_ratio": ratio,
+        "optical_std_before": o_before,
+        "optical_std_after": o_after,
+        "n_before": len(before),
+        "n_after": len(after),
     }
 
 
@@ -80,6 +85,7 @@ class Chan:
                 r = oxyii.decode(f)
                 if r and r[0] == oxyii.OP_RT_PPG:
                     self.q.append(r[1])
+
         await self.c.start_notify(oxyii.OXYII_NOTIFY, on)
 
     def drain(self):
@@ -104,6 +110,7 @@ def write_ppg2w_file(path, samples):
 
 async def main(address: str, pre: float, post: float, out: str, sync: bool = False) -> int:
     import datetime as _dt
+
     async with BleakClient(address, timeout=25.0) as c:
         ch = Chan(c)
         await ch.start()
@@ -144,11 +151,15 @@ async def main(address: str, pre: float, post: float, out: str, sync: bool = Fal
         if rep["detected"] is None:
             print(f"  artifact: inconclusive — {rep['reason']}")
         elif rep["detected"]:
-            print(f"  ✓ BUZZ ARTIFACT in motion: {rep['motion_before']:.2f} → {rep['motion_after']:.2f} "
-                  f"(×{rep['motion_ratio']:.1f})  optical σ {rep['optical_std_before']:.0f} → {rep['optical_std_after']:.0f}")
+            print(
+                f"  ✓ BUZZ ARTIFACT in motion: {rep['motion_before']:.2f} → {rep['motion_after']:.2f} "
+                f"(×{rep['motion_ratio']:.1f})  optical σ {rep['optical_std_before']:.0f} → {rep['optical_std_after']:.0f}"
+            )
         else:
-            print(f"  ✗ no clear motion artifact: {rep['motion_before']:.2f} → {rep['motion_after']:.2f} "
-                  f"(×{rep['motion_ratio']:.1f}) — empty payload may not drive the motor hard enough")
+            print(
+                f"  ✗ no clear motion artifact: {rep['motion_before']:.2f} → {rep['motion_after']:.2f} "
+                f"(×{rep['motion_ratio']:.1f}) — empty payload may not drive the motor hard enough"
+            )
         return 0
 
 

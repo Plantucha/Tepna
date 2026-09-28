@@ -9,6 +9,7 @@ never scan monitor.html for a string — a text scan cannot tell present-when-tr
 and would pass against a draw nothing reaches. This is the DYNAMIC complement to `find_unwired`: the
 static gate proves the field is drawn by *something*; this proves it draws the *right* thing.
 """
+
 import json
 import os
 import re

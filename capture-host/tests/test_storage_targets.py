@@ -7,6 +7,7 @@ The two properties worth gating hard are (1) no secret ever reaches config.yaml 
 unmounted mountpoint is NOT a usable destination — it is a writable directory on the boot disk, which
 is how ~350 MB/night lands on the wrong filesystem while the operator believes it is on the NAS.
 """
+
 import datetime as dt
 import os
 
@@ -23,10 +24,14 @@ def _allow_tmp_mountpoints(monkeypatch, tmp_path):
     monkeypatch.setattr(st, "MOUNT_ROOTS", tuple(st.MOUNT_ROOTS) + (str(tmp_path),))
 
 
-RSYNC = {"protocol": "rsync", "host": "192.168.0.142", "user": "tepna",
-         "share": "/mnt/tank/tepna", "identity": "/home/tepna/.ssh/id_ed25519"}
-NFS = {"protocol": "nfs", "host": "192.168.0.142", "share": "/mnt/tank/tepna",
-       "mountpoint": "/srv/tepna/archive"}
+RSYNC = {
+    "protocol": "rsync",
+    "host": "192.168.0.142",
+    "user": "tepna",
+    "share": "/mnt/tank/tepna",
+    "identity": "/home/tepna/.ssh/id_ed25519",
+}
+NFS = {"protocol": "nfs", "host": "192.168.0.142", "share": "/mnt/tank/tepna", "mountpoint": "/srv/tepna/archive"}
 
 
 # ── secrets ───────────────────────────────────────────────────────────────────────────────────
@@ -126,22 +131,42 @@ def test_the_nfs_unit_is_named_after_its_mountpoint():
 
 
 def test_the_smb_unit_references_a_credentials_FILE_not_a_password():
-    t = st.validate({"protocol": "smb", "host": "nas.local", "share": "tepna",
-                     "mountpoint": "/srv/tepna/archive",
-                     "credentials_file": "/etc/tepna/smb-credentials"})
+    t = st.validate(
+        {
+            "protocol": "smb",
+            "host": "nas.local",
+            "share": "tepna",
+            "mountpoint": "/srv/tepna/archive",
+            "credentials_file": "/etc/tepna/smb-credentials",
+        }
+    )
     u = st.mount_unit(t)
     assert "credentials=/etc/tepna/smb-credentials" in u["unit"]
     assert "password" not in u["unit"].lower()
 
 
 def test_iscsi_and_nvmeof_steps_include_the_login_the_operator_must_run():
-    u = st.mount_unit(st.validate({"protocol": "iscsi", "host": "192.168.0.142",
-                                   "share": "iqn.2026-07.local.nas:tepna",
-                                   "mountpoint": "/srv/tepna/archive"}))
+    u = st.mount_unit(
+        st.validate(
+            {
+                "protocol": "iscsi",
+                "host": "192.168.0.142",
+                "share": "iqn.2026-07.local.nas:tepna",
+                "mountpoint": "/srv/tepna/archive",
+            }
+        )
+    )
     assert any("iscsiadm" in s for s in u["steps"])
-    u2 = st.mount_unit(st.validate({"protocol": "nvmeof", "host": "192.168.0.142",
-                                    "share": "nqn.2026-07.local.nas:tepna",
-                                    "mountpoint": "/srv/tepna/archive"}))
+    u2 = st.mount_unit(
+        st.validate(
+            {
+                "protocol": "nvmeof",
+                "host": "192.168.0.142",
+                "share": "nqn.2026-07.local.nas:tepna",
+                "mountpoint": "/srv/tepna/archive",
+            }
+        )
+    )
     assert any("nvme connect" in s for s in u2["steps"])
 
 
@@ -155,8 +180,12 @@ def test_schedule_validation():
     assert st.validate_schedule(None) == {"mode": "after_settle"}
     s = st.validate_schedule({"mode": "daily", "at": "09:30", "window_min": 60})
     assert s == {"mode": "daily", "at": "09:30", "window_min": 60}
-    for bad in ({"mode": "daily", "at": "9:30"}, {"mode": "daily", "at": "24:00"},
-                {"mode": "daily", "at": ""}, {"mode": "hourly"}):
+    for bad in (
+        {"mode": "daily", "at": "9:30"},
+        {"mode": "daily", "at": "24:00"},
+        {"mode": "daily", "at": ""},
+        {"mode": "hourly"},
+    ):
         with pytest.raises(st.StorageError):
             st.validate_schedule(bad)
 
@@ -207,16 +236,19 @@ def test_a_local_path_is_not_advertised_as_needing_root():
 # token-gated only when web.token is set (the documented default is a trusted LAN with no token), so
 # "absolute and free of .." was never a location check — it would happily accept /etc or a home dir.
 
-@pytest.mark.parametrize("bad", ["/etc", "/etc/systemd/system", "/boot", "/home/vigil/.ssh",
-                                 "/", "/root", "/srvmalicious", "/mntevil"])
+
+@pytest.mark.parametrize(
+    "bad", ["/etc", "/etc/systemd/system", "/boot", "/home/vigil/.ssh", "/", "/root", "/srvmalicious", "/mntevil"]
+)
 def test_a_mountpoint_outside_the_allowed_roots_is_refused(bad, monkeypatch):
     monkeypatch.setattr(st, "MOUNT_ROOTS", ("/srv", "/mnt", "/media", "/opt/tepna", "/var/lib/tepna"))
     with pytest.raises(st.StorageError, match="must live under"):
         st.validate({**NFS, "mountpoint": bad})
 
 
-@pytest.mark.parametrize("good", ["/srv/tepna/archive", "/mnt/tank", "/media/usb",
-                                  "/opt/tepna/archive", "/var/lib/tepna/archive"])
+@pytest.mark.parametrize(
+    "good", ["/srv/tepna/archive", "/mnt/tank", "/media/usb", "/opt/tepna/archive", "/var/lib/tepna/archive"]
+)
 def test_a_conventional_mount_root_is_accepted(good, monkeypatch):
     monkeypatch.setattr(st, "MOUNT_ROOTS", ("/srv", "/mnt", "/media", "/opt/tepna", "/var/lib/tepna"))
     assert st.validate({**NFS, "mountpoint": good})["mountpoint"] == good
@@ -284,6 +316,7 @@ def test_a_symlinked_mountpoint_cannot_escape_the_allowed_root(tmp_path, monkeyp
 # default — the one running on the box — is a trusted LAN with no token. So the untrusted input is
 # "anyone who can reach the monitor", and the payload lands in something run as root.
 
+
 def _nfs(**kw):
     t = {"protocol": "nfs", "host": "nas.local", "share": "/vol/tepna", "mountpoint": "/srv/arch"}
     t.update(kw)
@@ -310,8 +343,13 @@ def test_mount_unit_refuses_a_hostile_mountpoint_even_when_validate_is_bypassed(
     line, not the first: the value also lands in `Where=` in the unit body, where quoting means
     nothing. `mount_unit` now re-validates its own input — the same self-defence commit f27a586 gave
     `dest_status()` for the same stated reason."""
-    t = {"protocol": "nfs", "kind": "mount", "host": "nas.local", "share": "/vol",
-         "mountpoint": "/srv/a;id>/tmp/pwned;x"}
+    t = {
+        "protocol": "nfs",
+        "kind": "mount",
+        "host": "nas.local",
+        "share": "/vol",
+        "mountpoint": "/srv/a;id>/tmp/pwned;x",
+    }
     with pytest.raises(st.StorageError):
         st.mount_unit(t)
 
@@ -320,20 +358,17 @@ def test_a_legal_mountpoint_still_reaches_the_root_shell_quoted():
     """...and the quoting layer stays, because the refusal above is a charset check, not a shell
     parser. Asserting on a benign name proves nothing (shlex.quote leaves a safe string bare), so this
     uses a legal path whose ESCAPED unit name carries the backslashes systemd's naming rule inserts."""
-    t = {"protocol": "nfs", "kind": "mount", "host": "nas.local", "share": "/vol",
-         "mountpoint": "/srv/tepna-archive"}
+    t = {"protocol": "nfs", "kind": "mount", "host": "nas.local", "share": "/vol", "mountpoint": "/srv/tepna-archive"}
     tee = [s for s in st.mount_unit(t)["steps"] if "tee" in s][0]
     name = tee.split("/etc/systemd/system/")[1].split(" ")[0]
-    assert name.startswith("'") and name.endswith("'"), \
-        f"the unit name reaches a root shell unquoted: {tee}"
+    assert name.startswith("'") and name.endswith("'"), f"the unit name reaches a root shell unquoted: {tee}"
 
 
 def test_mount_unit_refuses_a_mountpoint_outside_the_allowed_roots():
     """The §C6 headline: unvalidated, this emitted a paste-as-ROOT .mount unit for /etc/systemd/system
     and answered HTTP 200, while `dest_status()` on the same dict already said
     `{'ready': False, reason: 'not under an allowed mount root'}`."""
-    t = {"protocol": "nfs", "kind": "mount", "host": "nas.local", "share": "/vol",
-         "mountpoint": "/etc/systemd/system"}
+    t = {"protocol": "nfs", "kind": "mount", "host": "nas.local", "share": "/vol", "mountpoint": "/etc/systemd/system"}
     with pytest.raises(st.StorageError) as e:
         st.mount_unit(t)
     assert "allowed" in str(e.value) or "root" in str(e.value)
@@ -355,22 +390,41 @@ def test_a_newline_in_a_path_cannot_inject_systemd_directives():
 def test_an_smb_share_is_charset_checked_like_everything_else():
     """S3. The SMB share went through `str(...).strip().strip('/')` and nothing else."""
     with pytest.raises(st.StorageError):
-        st.validate({"protocol": "smb", "host": "nas.local", "mountpoint": "/srv/arch",
-                                  "share": "pub\nOptions=_netdev,uid=0,gid=0,file_mode=0777"})
+        st.validate(
+            {
+                "protocol": "smb",
+                "host": "nas.local",
+                "mountpoint": "/srv/arch",
+                "share": "pub\nOptions=_netdev,uid=0,gid=0,file_mode=0777",
+            }
+        )
 
 
 def test_an_iqn_is_charset_checked():
     with pytest.raises(st.StorageError):
-        st.validate({"protocol": "iscsi", "host": "nas.local", "mountpoint": "/srv/arch",
-                                  "share": "iqn.2003-01.com.x:disk1\nOptions=exec"})
+        st.validate(
+            {
+                "protocol": "iscsi",
+                "host": "nas.local",
+                "mountpoint": "/srv/arch",
+                "share": "iqn.2003-01.com.x:disk1\nOptions=exec",
+            }
+        )
 
 
 def test_a_comma_in_the_credentials_path_cannot_append_a_mount_option():
     """`credentials={cred}` is appended to a COMMA-SEPARATED option list, so a comma in the path is an
     option injection — `/srv/c,uid=0` mounts the share as root."""
     with pytest.raises(st.StorageError):
-        st.validate({"protocol": "smb", "host": "nas.local", "mountpoint": "/srv/arch",
-                                  "share": "pub", "credentials_file": "/srv/cred,uid=0,gid=0"})
+        st.validate(
+            {
+                "protocol": "smb",
+                "host": "nas.local",
+                "mountpoint": "/srv/arch",
+                "share": "pub",
+                "credentials_file": "/srv/cred,uid=0,gid=0",
+            }
+        )
 
 
 # ── the fixes must not reject anything legitimate ─────────────────────────────────────────────
@@ -378,14 +432,34 @@ def test_ordinary_targets_still_validate():
     """A charset that rejects real configuration is a worse bug than the one being fixed."""
     ok = st.validate(_nfs(mountpoint="/srv/tepna/archive", share="/volume1/tepna-backup"))
     assert ok["mountpoint"] == "/srv/tepna/archive"
-    smb = st.validate({"protocol": "smb", "host": "192.168.0.10", "mountpoint": "/mnt/nas",
-                                    "share": "tepna$", "credentials_file": "/srv/tepna/.smbcred"})
+    smb = st.validate(
+        {
+            "protocol": "smb",
+            "host": "192.168.0.10",
+            "mountpoint": "/mnt/nas",
+            "share": "tepna$",
+            "credentials_file": "/srv/tepna/.smbcred",
+        }
+    )
     assert smb["share"] == "tepna$"
-    iscsi = st.validate({"protocol": "iscsi", "host": "nas.local", "mountpoint": "/srv/a",
-                                      "share": "iqn.2003-01.com.example:storage.disk1"})
+    iscsi = st.validate(
+        {
+            "protocol": "iscsi",
+            "host": "nas.local",
+            "mountpoint": "/srv/a",
+            "share": "iqn.2003-01.com.example:storage.disk1",
+        }
+    )
     assert iscsi["share"] == "iqn.2003-01.com.example:storage.disk1"
-    rs = st.validate({"protocol": "rsync", "host": "nas.local", "user": "tepna",
-                                   "share": "/volume1/tepna", "identity": "/srv/tepna/.ssh/id_ed25519"})
+    rs = st.validate(
+        {
+            "protocol": "rsync",
+            "host": "nas.local",
+            "user": "tepna",
+            "share": "/volume1/tepna",
+            "identity": "/srv/tepna/.ssh/id_ed25519",
+        }
+    )
     assert rs["identity"].endswith("id_ed25519")
 
 
@@ -396,8 +470,9 @@ def test_daily_window_is_half_open_at_its_far_edge():
     tick every day, letting a second offload start as the first is still finishing."""
     sched = {"mode": "daily", "at": "09:00", "window_min": 120}
     assert st.due(sched, dt.datetime(2026, 7, 25, 10, 59, 59), None) is True, "one second inside"
-    assert st.due(sched, dt.datetime(2026, 7, 25, 11, 0, 0), None) is False, \
+    assert st.due(sched, dt.datetime(2026, 7, 25, 11, 0, 0), None) is False, (
         "exactly window_min after opening is OUTSIDE — the window is [at, at+window)"
+    )
 
 
 def test_a_run_exactly_at_the_window_opening_counts_as_already_run():
@@ -406,17 +481,19 @@ def test_a_run_exactly_at_the_window_opening_counts_as_already_run():
     sched = {"mode": "daily", "at": "09:00", "window_min": 120}
     opened = dt.datetime(2026, 7, 25, 9, 0)
     assert st.due(sched, dt.datetime(2026, 7, 25, 9, 30), opened) is False
-    assert st.due(sched, dt.datetime(2026, 7, 25, 9, 30),
-                  opened - dt.timedelta(seconds=1)) is True, "a run from BEFORE the window is stale"
+    assert st.due(sched, dt.datetime(2026, 7, 25, 9, 30), opened - dt.timedelta(seconds=1)) is True, (
+        "a run from BEFORE the window is stale"
+    )
 
 
 def test_window_min_default_applies_when_the_key_is_absent():
     """Every other due() test passes window_min explicitly, so the 120 default is never exercised and a
     changed default is invisible. A schedule without the key is the common hand-written case."""
-    sched = {"mode": "daily", "at": "09:00"}                     # no window_min
+    sched = {"mode": "daily", "at": "09:00"}  # no window_min
     assert st.due(sched, dt.datetime(2026, 7, 25, 10, 59), None) is True
-    assert st.due(sched, dt.datetime(2026, 7, 25, 11, 0, 30), None) is False, \
+    assert st.due(sched, dt.datetime(2026, 7, 25, 11, 0, 30), None) is False, (
         "the default window is 120 min, so 11:00:30 is outside it"
+    )
 
 
 def test_a_configured_window_overrides_the_default_rather_than_being_ignored():
@@ -424,8 +501,9 @@ def test_a_configured_window_overrides_the_default_rather_than_being_ignored():
     on a 120-minute schedule and is wrong on every other one."""
     sched = {"mode": "daily", "at": "09:00", "window_min": 60}
     assert st.due(sched, dt.datetime(2026, 7, 25, 9, 59), None) is True
-    assert st.due(sched, dt.datetime(2026, 7, 25, 10, 1), None) is False, \
+    assert st.due(sched, dt.datetime(2026, 7, 25, 10, 1), None) is False, (
         "a 60-minute window must close at 10:00, not at the default 120"
+    )
 
 
 def test_the_window_opens_on_the_minute_regardless_of_the_current_second():
@@ -434,10 +512,12 @@ def test_the_window_opens_on_the_minute_regardless_of_the_current_second():
     read as older than the window and re-trigger the offload."""
     sched = {"mode": "daily", "at": "09:00", "window_min": 120}
     now = dt.datetime(2026, 7, 25, 9, 0, 30, 500_000)
-    assert st.due(sched, now, dt.datetime(2026, 7, 25, 9, 0, 10)) is False, \
+    assert st.due(sched, now, dt.datetime(2026, 7, 25, 9, 0, 10)) is False, (
         "a run at 09:00:10 is inside this window; a drifting anchor would call it stale"
+    )
     assert st.due(sched, now, None) is True
     # microsecond=0 matters on its own: without it the anchor lands at 09:00:00.500000, so a run
     # stamped in that sub-second band reads as older than the window and the offload re-fires.
-    assert st.due(sched, now, dt.datetime(2026, 7, 25, 9, 0, 0, 250_000)) is False, \
+    assert st.due(sched, now, dt.datetime(2026, 7, 25, 9, 0, 0, 250_000)) is False, (
         "a run 250 ms after the opening is this window's run — the anchor must not carry now's microseconds"
+    )

@@ -46,7 +46,9 @@ def test_the_config_s_own_root_is_refused_even_when_it_is_not_a_known_one(tmp_pa
     assert A.refuse_production(str(tmp_path / "adversarial"), str(prod)) == str(tmp_path / "adversarial")
 
 
-def test_a_root_without_the_adversarial_component_is_refused_a_typo_beside_production_is_still_a_walkable_tree(tmp_path):
+def test_a_root_without_the_adversarial_component_is_refused_a_typo_beside_production_is_still_a_walkable_tree(
+    tmp_path,
+):
     with pytest.raises(A.Refused) as e:
         A.refuse_production(str(tmp_path / "nights"), None)
     assert "path component containing" in e.value.why
@@ -64,18 +66,34 @@ def test_a_symlink_into_production_is_refused_by_realpath_not_by_spelling(tmp_pa
 
 def _cfg(tmp_path, root="/srv/tepna"):
     p = tmp_path / "config.yaml"
-    p.write_text(f"root: {root}\ndevices: []\nalerts:\n  enabled: true\n  webhook_url: https://example.invalid/x\ncpap:\n  enabled: true\n")
+    p.write_text(
+        f"root: {root}\ndevices: []\nalerts:\n  enabled: true\n  webhook_url: https://example.invalid/x\ncpap:\n  enabled: true\n"
+    )
     return str(p)
 
 
-def test_the_plant_is_load_bearing_the_run_WOULD_proceed_into_production_without_the_guard(tmp_path, monkeypatch, capsys):
+def test_the_plant_is_load_bearing_the_run_WOULD_proceed_into_production_without_the_guard(
+    tmp_path, monkeypatch, capsys
+):
     """Verified to fail without the guard before it is trusted (the brief's own instruction): with
     `refuse_production` neutralised, a dry run pointed INTO production returns 0 and prints a plan for it.
     With the guard, the same argv exits 3. The difference is the guard, and nothing else."""
-    argv = ["--config", _cfg(tmp_path), "--root", "/srv/tepna/adversarial", "--device", "AA:BB:CC:DD:EE:01", "--offset-ms", "250", "--dry-run"]
+    argv = [
+        "--config",
+        _cfg(tmp_path),
+        "--root",
+        "/srv/tepna/adversarial",
+        "--device",
+        "AA:BB:CC:DD:EE:01",
+        "--offset-ms",
+        "250",
+        "--dry-run",
+    ]
     monkeypatch.setattr(A, "refuse_production", lambda root, cfg_root, known=(): os.path.realpath(root))
     assert A.run(argv) == 0
-    assert json.loads(capsys.readouterr().out)["root"] == "/srv/tepna/adversarial", "the guard removed: production accepted"
+    assert json.loads(capsys.readouterr().out)["root"] == "/srv/tepna/adversarial", (
+        "the guard removed: production accepted"
+    )
     monkeypatch.undo()
     with pytest.raises(A.Refused) as e:
         A.run(argv)
@@ -84,21 +102,69 @@ def test_the_plant_is_load_bearing_the_run_WOULD_proceed_into_production_without
 
 def test_a_dry_run_into_a_separate_tree_prints_the_plan_and_a_config_that_cannot_page_or_harvest(tmp_path, capsys):
     root = str(tmp_path / "adversarial")
-    assert A.run(["--config", _cfg(tmp_path), "--root", root, "--device", "aa:bb:cc:dd:ee:01", "--offset-ms", "-125.5", "--drop-p", "0.1", "--seed", "7", "--dry-run"]) == 0
+    assert (
+        A.run(
+            [
+                "--config",
+                _cfg(tmp_path),
+                "--root",
+                root,
+                "--device",
+                "aa:bb:cc:dd:ee:01",
+                "--offset-ms",
+                "-125.5",
+                "--drop-p",
+                "0.1",
+                "--seed",
+                "7",
+                "--dry-run",
+            ]
+        )
+        == 0
+    )
     out = json.loads(capsys.readouterr().out)
-    assert out["root"] == root and out["plan"] == {"devices": ["AA:BB:CC:DD:EE:01"], "offset_ns": -125_500_000, "drop_p": 0.1, "seed": 7,
-                                                   "targets": ["1-constant-offset", "4-packet-loss"]}
+    assert out["root"] == root and out["plan"] == {
+        "devices": ["AA:BB:CC:DD:EE:01"],
+        "offset_ns": -125_500_000,
+        "drop_p": 0.1,
+        "seed": 7,
+        "targets": ["1-constant-offset", "4-packet-loss"],
+    }
     assert out["config"]["root"] == root
-    assert out["config"]["alerts"] == {"enabled": False, "webhook_url": ""} and out["config"]["cpap"]["enabled"] is False
+    assert (
+        out["config"]["alerts"] == {"enabled": False, "webhook_url": ""} and out["config"]["cpap"]["enabled"] is False
+    )
     assert not (tmp_path / "adversarial").exists(), "a dry run writes nothing"
 
 
 def test_a_plan_that_injects_nothing_and_an_empty_config_are_refused_by_name(tmp_path):
     with pytest.raises(SystemExit, match="nothing to inject"):
-        A.run(["--config", _cfg(tmp_path), "--root", str(tmp_path / "adversarial"), "--device", "AA:BB:CC:DD:EE:01", "--dry-run"])
+        A.run(
+            [
+                "--config",
+                _cfg(tmp_path),
+                "--root",
+                str(tmp_path / "adversarial"),
+                "--device",
+                "AA:BB:CC:DD:EE:01",
+                "--dry-run",
+            ]
+        )
     (tmp_path / "empty.yaml").write_text("")
     with pytest.raises(SystemExit, match="not a mapping"):
-        A.run(["--config", str(tmp_path / "empty.yaml"), "--root", str(tmp_path / "adversarial"), "--device", "X", "--offset-ms", "1", "--dry-run"])
+        A.run(
+            [
+                "--config",
+                str(tmp_path / "empty.yaml"),
+                "--root",
+                str(tmp_path / "adversarial"),
+                "--device",
+                "X",
+                "--offset-ms",
+                "1",
+                "--dry-run",
+            ]
+        )
 
 
 # ── the perturbation, byte-exact ──────────────────────────────────────────────────────────────────
@@ -223,6 +289,7 @@ def test_the_shim_drops_frames_and_counts_frame_indices_per_client(tmp_path):
 def test_a_device_object_with_an_address_attribute_is_targeted_by_that_address(tmp_path):
     class Dev:
         address = "AA:BB:CC:DD:EE:01"
+
     plan = A.Plan(["AA:BB:CC:DD:EE:01"], offset_ns=1)
     truth = A.TruthWriter(str(tmp_path / "t.jsonl"), plan, NOW)
     c = A.make_client_class(_FakeClient, plan, truth, lambda: NOW)(Dev())
@@ -234,13 +301,16 @@ def test_a_device_object_with_an_address_attribute_is_targeted_by_that_address(t
 def test_the_shipped_daemon_cannot_reach_the_injector():
     """Ruling 2: no hook, no branch, no config key. `capture.py` never names this module or its seam, and
     the module's only way in is the `bleak` attribute it replaces in ITS OWN process."""
-    from _srcscan import module_source   # never a raw read of a mutatable module (test_mutation_hygiene)
+    from _srcscan import module_source  # never a raw read of a mutatable module (test_mutation_hygiene)
+
     here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     src = module_source("capture.py")
     for token in ("adversarial_capture", "InjectingClient", "perturb_frame", "make_client_class", "INJECTION-TRUTH"):
         assert token not in src, token
     inj = module_source("adversarial_capture.py")
-    assert "bleak.BleakClient = make_client_class(" in inj, "the shim is installed on bleak, in the injector's process only"
+    assert "bleak.BleakClient = make_client_class(" in inj, (
+        "the shim is installed on bleak, in the injector's process only"
+    )
     example = open(os.path.join(here, "config.example.yaml"), encoding="utf-8").read()
     assert "adversarial" not in example and "inject" not in example.lower(), "no config key can enable it"
 
@@ -250,22 +320,46 @@ def test_run_writes_the_derived_config_and_truth_then_runs_capture_main_with_the
     is the shim, `capture.main` is invoked with `--config` pointing at the derived file, and the truth is
     closed afterwards with the row count printed."""
     import types
+
     fake_bleak = types.SimpleNamespace(BleakClient=_FakeClient)
     calls = {}
 
     async def fake_main():
         calls["argv"] = list(sys.argv)
         calls["client"] = fake_bleak.BleakClient
+
     fake_capture = types.SimpleNamespace(main=fake_main, _now=lambda: NOW)
     monkeypatch.setitem(sys.modules, "bleak", fake_bleak)
     monkeypatch.setitem(sys.modules, "capture", fake_capture)
     root = str(tmp_path / "adversarial")
-    assert A.run(["--config", _cfg(tmp_path), "--root", root, "--device", "AA:BB:CC:DD:EE:01", "--drop-p", "0.2", "--instance", "sena"]) == 0
+    assert (
+        A.run(
+            [
+                "--config",
+                _cfg(tmp_path),
+                "--root",
+                root,
+                "--device",
+                "AA:BB:CC:DD:EE:01",
+                "--drop-p",
+                "0.2",
+                "--instance",
+                "sena",
+            ]
+        )
+        == 0
+    )
     files = sorted(os.listdir(root))
     assert [f.split("-")[0] for f in files] == ["INJECTION", "adversarial"], files
-    assert calls["argv"][1:3] == ["--config", os.path.join(root, files[1])] and calls["argv"][3:] == ["--instance", "sena"]
-    assert calls["client"] is not _FakeClient and issubclass(calls["client"], _FakeClient), "the shim was installed on bleak"
+    assert calls["argv"][1:3] == ["--config", os.path.join(root, files[1])] and calls["argv"][3:] == [
+        "--instance",
+        "sena",
+    ]
+    assert calls["client"] is not _FakeClient and issubclass(calls["client"], _FakeClient), (
+        "the shim was installed on bleak"
+    )
     import yaml
+
     derived = yaml.safe_load(open(os.path.join(root, files[1])))
     assert derived["root"] == root and derived["alerts"]["enabled"] is False
     header = json.loads(open(os.path.join(root, files[0])).readline())

@@ -21,15 +21,29 @@ read the python BINARY instead of the module, the other mangled two of the three
 shapes, and together they produced a MEASURED DELTA OF ZERO that looked like a clean negative result.
 Nothing was covering them, so nothing said so. They were moved up here and are now 100 % gated.
 """
+
 from __future__ import annotations
 
 import ast
 import os.path
 import re
 
-__all__ = ["classify", "ceiling", "concentration", "message_call_lines", "REACHABLE", "PROSE",
-           "UNOBSERVABLE", "EQUIVALENT", "in_message_call", "hunk_lineno", "function_start_line",
-           "file_lineno_of", "func_of_mutant", "module_source_path"]
+__all__ = [
+    "classify",
+    "ceiling",
+    "concentration",
+    "message_call_lines",
+    "REACHABLE",
+    "PROSE",
+    "UNOBSERVABLE",
+    "EQUIVALENT",
+    "in_message_call",
+    "hunk_lineno",
+    "function_start_line",
+    "file_lineno_of",
+    "func_of_mutant",
+    "module_source_path",
+]
 
 REACHABLE = "REACHABLE"
 PROSE = "PROSE"
@@ -58,13 +72,13 @@ def _strip_strings(s: str) -> str:
     def fold(m: re.Match[str]) -> str:
         if "f" not in m.group(1).lower():
             return "STR"
-        body = m.group(0)[m.end(2) - m.start():-1]          # the literal's INTERIOR
+        body = m.group(0)[m.end(2) - m.start() : -1]  # the literal's INTERIOR
         out, depth = ["STR"], 0
         for t in _BRACE_TOKENS.finditer(body):
             tok = t.group(0)
             if depth == 0 and tok in ("{{", "}}"):
-                continue                                     # an escaped brace: text, no state to keep
-            for ch in tok:                                   # a doubled brace INSIDE a field is two braces
+                continue  # an escaped brace: text, no state to keep
+            for ch in tok:  # a doubled brace INSIDE a field is two braces
                 if ch == "{":
                     depth += 1
                     out.append(ch)
@@ -74,8 +88,8 @@ def _strip_strings(s: str) -> str:
                 elif depth:
                     out.append(ch)
         return "".join(out)
-    return _STR.sub(fold, s)
 
+    return _STR.sub(fold, s)
 
 
 # `log.warning("%s %s → %s", name,` spans several lines, and `classify` is handed ONE of them. A
@@ -83,8 +97,9 @@ def _strip_strings(s: str) -> str:
 # no and the mutant reads as a code change. Measured on run_polar 2026-08-08: of 560 REACHABLE
 # survivors, ~150 were message arguments and most of them sat on continuation lines, inflating the
 # work-list by a quarter. A line cannot answer this about itself; the enclosing CALL can.
-_MSG_FUNCS = frozenset({"print", "log", "logger", "_log", "warn", "warning", "info", "debug",
-                        "error", "exception", "critical", "write"})
+_MSG_FUNCS = frozenset(
+    {"print", "log", "logger", "_log", "warn", "warning", "info", "debug", "error", "exception", "critical", "write"}
+)
 
 
 def _callee_names(fn: ast.expr) -> list[str]:
@@ -123,8 +138,10 @@ def message_call_lines(source: str) -> frozenset[int]:
     for node in ast.walk(tree):
         if not isinstance(node, ast.Assign):
             continue
-        if not any(isinstance(sub, ast.Attribute) and _callee_names(sub)[-1:] in (["log"], ["logger"], ["_log"])
-                   for sub in ast.walk(node.value)):
+        if not any(
+            isinstance(sub, ast.Attribute) and _callee_names(sub)[-1:] in (["log"], ["logger"], ["_log"])
+            for sub in ast.walk(node.value)
+        ):
             continue
         aliases.update(t.id for t in node.targets if isinstance(t, ast.Name))
 
@@ -138,8 +155,7 @@ def message_call_lines(source: str) -> frozenset[int]:
         if not names:
             continue
         base = names[-1]
-        if (base in ("log", "logger", "_log", "print") or base in aliases
-                or (base == "sys" and "write" in names)):
+        if base in ("log", "logger", "_log", "print") or base in aliases or (base == "sys" and "write" in names):
             lines.update(range(node.lineno, (node.end_lineno or node.lineno) + 1))
     return frozenset(lines)
 
@@ -193,8 +209,11 @@ def classify(minus: str, plus: str, *, in_message_call: bool = False) -> tuple[s
     is_msg = in_message_call or _MSG.match(a) is not None
 
     if same_code:
-        return PROSE, ("log/print wording only, interpolated values intact" if is_msg
-                       else "string literal only, surrounding code unchanged")
+        return PROSE, (
+            "log/print wording only, interpolated values intact"
+            if is_msg
+            else "string literal only, surrounding code unchanged"
+        )
 
     if is_msg and _LOST_ARG.search(b):
         return PROSE, "message call lost an argument — killable only by asserting the wording"
@@ -250,8 +269,7 @@ def concentration(fns: list[str]) -> dict:
         counts[f] = counts.get(f, 0) + 1
     ordered = sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
     top, top_n = ordered[0]
-    return {"total": len(fns), "clusters": ordered, "top": top, "top_n": top_n,
-            "top_share": top_n / len(fns)}
+    return {"total": len(fns), "clusters": ordered, "top": top, "top_n": top_n, "top_share": top_n / len(fns)}
 
 
 # ── mutant-name / diff-position mapping (moved up from tools/ 2026-08-27) ────────────
@@ -362,8 +380,8 @@ def func_of_mutant(mid: str) -> str:
     Together these are why only 27 of 66 survivors mapped to a line number. Anchoring on the `x`
     segment and taking the LAST `ǁ` part fixes both; `rank_all`'s copy keeps the old shape only because
     it feeds a display cluster, not a lookup."""
-    core = re.sub(r"__mutmut_\d+.*$", "", mid)          # drop the mutant suffix
-    core = core.rsplit(".", 1)[-1]                      # drop the module prefix
-    if "\u01c1" in core:                                # METHOD: `xǁClassǁmethod`
-        return core.split("\u01c1")[-1]                  # keep any leading underscore — it is the name
+    core = re.sub(r"__mutmut_\d+.*$", "", mid)  # drop the mutant suffix
+    core = core.rsplit(".", 1)[-1]  # drop the module prefix
+    if "\u01c1" in core:  # METHOD: `xǁClassǁmethod`
+        return core.split("\u01c1")[-1]  # keep any leading underscore — it is the name
     return core[2:] if core.startswith("x_") else core  # FUNCTION: mutmut prefixes exactly `x_`

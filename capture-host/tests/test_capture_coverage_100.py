@@ -13,6 +13,7 @@ Driven with the same rig as test_capture_runners: `_stop_after` patches capture'
 _STOP, so each `while not _STOP.is_set()` loop runs a bounded number of iterations against injected
 fakes. No BLE hardware, no real subprocesses, no sleeping.
 """
+
 import asyncio
 import datetime as _dt
 import inspect
@@ -26,10 +27,20 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import capture  # noqa: E402
 import nightarchive  # noqa: E402
 
-_GLOBAL_SNAPSHOT = {k: getattr(capture, k) for k in
-                    ("_DROP_NOT_WORN_SEC", "_NOT_WORN_RECHECK_S", "_OXYII_RTC_RESYNC_SEC",
-                     "O2PPG_FS", "O2PPG_NS_STEP", "_STREAM_STALL_S", "O2PPG_GAP_MIN_S",
-                     "_O2_PASSIVE_SCAN", "_RECONNECT_BACKOFF_CAP_S")}
+_GLOBAL_SNAPSHOT = {
+    k: getattr(capture, k)
+    for k in (
+        "_DROP_NOT_WORN_SEC",
+        "_NOT_WORN_RECHECK_S",
+        "_OXYII_RTC_RESYNC_SEC",
+        "O2PPG_FS",
+        "O2PPG_NS_STEP",
+        "_STREAM_STALL_S",
+        "O2PPG_GAP_MIN_S",
+        "_O2_PASSIVE_SCAN",
+        "_RECONNECT_BACKOFF_CAP_S",
+    )
+}
 
 
 @pytest.fixture(autouse=True)
@@ -46,7 +57,9 @@ def _clean_stop():
     capture._OPT_QUIET.clear()
     capture._CHARGER_SINCE.clear()
     capture._CHARGER_PULLED.clear()
-    capture._OXYII_RESTARTS.clear(); capture._OXYII_STORMS.clear(); capture._OXYII_HOLD_UNTIL.clear()
+    capture._OXYII_RESTARTS.clear()
+    capture._OXYII_STORMS.clear()
+    capture._OXYII_HOLD_UNTIL.clear()
     capture._CFG.clear()
     capture.STATUS.clear()
     capture.STATUS["devices"] = {}
@@ -71,13 +84,20 @@ def _stop_after(monkeypatch, n=1):
         calls["n"] += 1
         if calls["n"] >= n:
             capture._STOP.set()
+
     monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
     return calls
 
 
 def _dev(**kw):
-    d = {"name": "Dev", "vendor": "Polar", "model": "H10", "device_id": "12345678",
-         "address": "24:AC:AC:02:84:96", "streams": ["ecg"]}
+    d = {
+        "name": "Dev",
+        "vendor": "Polar",
+        "model": "H10",
+        "device_id": "12345678",
+        "address": "24:AC:AC:02:84:96",
+        "streams": ["ecg"],
+    }
     d.update(kw)
     return d
 
@@ -90,7 +110,7 @@ def test_re_anchoring_over_an_absorbed_shift_says_what_it_is_discarding(caplog):
     re-anchor throws that absorption away and steps the open recording. That is a bigger deal than a
     routine re-pin and has to be logged as one — it is the only trace an operator gets of a one-time
     step in the middle of a night."""
-    capture._reanchor(3600.0)                     # pretend an hour of civil shift was absorbed
+    capture._reanchor(3600.0)  # pretend an hour of civil shift was absorbed
     assert capture._civil_shift == 3600.0
     with caplog.at_level("INFO"):
         capture.reset_clock_anchor("timezone set to Europe/Prague")
@@ -118,13 +138,13 @@ def test_the_grid_rate_estimate_refuses_a_stretch_with_no_arrivals_to_measure():
     arrivals since the anchor there is no ratio to form — re-estimating anyway would divide by zero or,
     worse, lock the grid to a period computed from one sample."""
     g = capture.O2PpgGrid(fs=125.0)
-    g.est_t0 = None                                   # no anchor yet
+    g.est_t0 = None  # no anchor yet
     g.est_idx0 = g.idx
     before = g.step_s
     g._re_estimate(_dt.datetime(2026, 7, 25, 2, 0, 0))
     assert g.step_s == before, "no anchor ⇒ no re-estimate"
     g.est_t0 = _dt.datetime(2026, 7, 25, 2, 0, 0)
-    g.est_idx0 = g.idx                                # n == 0 arrivals
+    g.est_idx0 = g.idx  # n == 0 arrivals
     g._re_estimate(_dt.datetime(2026, 7, 25, 2, 5, 0))
     assert g.step_s == before, "no arrivals ⇒ no re-estimate"
 
@@ -133,7 +153,7 @@ def test_the_grid_rate_estimate_refuses_a_stretch_with_no_arrivals_to_measure():
 # startup_defense_check — a kernel whose status file has no CapEff line
 # ══════════════════════════════════════════════════════════════════════════════════════════════════
 def test_the_startup_self_test_survives_a_status_file_without_capeff(monkeypatch, caplog):
-    """"Bounded, never raises — a self-test must never keep capture from starting." /proc/self/status is
+    """ "Bounded, never raises — a self-test must never keep capture from starting." /proc/self/status is
     a kernel format, not a contract: reading the whole file without finding CapEff must leave the
     capability unknown and still emit the autosuspend verdict, not abort the boot check."""
     real_open = open
@@ -141,8 +161,10 @@ def test_the_startup_self_test_survives_a_status_file_without_capeff(monkeypatch
     def fake_open(path, *a, **kw):
         if str(path) == "/proc/self/status":
             import io
-            return io.StringIO("Name:\tpython3\nPid:\t1\nThreads:\t1\n")     # no CapEff line at all
+
+            return io.StringIO("Name:\tpython3\nPid:\t1\nThreads:\t1\n")  # no CapEff line at all
         return real_open(path, *a, **kw)
+
     monkeypatch.setattr("builtins.open", fake_open)
     # The self-test gained a THIRD input (helper grants) after this test was written, and its warnings
     # are environment-dependent — `/usr/local/lib/tepna` exists on some dev machines without the helpers
@@ -153,8 +175,7 @@ def test_the_startup_self_test_survives_a_status_file_without_capeff(monkeypatch
     with caplog.at_level("WARNING"):
         _run(capture.startup_defense_check(None))
     # it got as far as the verdict, which is all this path owes anyone
-    assert capture.defense_warnings(None, None) == [r.getMessage().replace("STARTUP: ", "")
-                                                    for r in caplog.records]
+    assert capture.defense_warnings(None, None) == [r.getMessage().replace("STARTUP: ", "") for r in caplog.records]
 
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════════
@@ -179,6 +200,7 @@ def test_the_scan_filter_matches_on_address_only_and_refuses_a_ring_named_strang
     ruling 2026-08-27, `oxy_presence.is_expected_ring`). The name must not even be read, so an advert
     object without `.local_name` cannot abort the scan."""
     import bleak
+
     seen = {}
 
     async def find(match, timeout=15.0, **kw):
@@ -188,20 +210,24 @@ def test_the_scan_filter_matches_on_address_only_and_refuses_a_ring_named_strang
         seen["stranger"] = match(_Dev(address="AA:AA:AA:AA:AA:AA", name="Someone's Fitbit"), _Adv())
         seen["nameless_adv"] = match(_Dev(address="D1:98:62:7C:92:B3"), object())
         return None
+
     monkeypatch.setattr(bleak.BleakScanner, "find_device_by_filter", find)
 
     async def no_kw():
         return {}
+
     monkeypatch.setattr(capture, "adapter_kw", no_kw)
 
     async def go():
         async with capture._connect_scan("D1:98:62:7C:92:B3"):
             pass
+
     with pytest.raises(Exception):
-        _run(go())                       # not found — the point is what the matcher answered
+        _run(go())  # not found — the point is what the matcher answered
     assert seen["by_addr"] is True, "MAC comparison must be case-insensitive"
-    assert seen["by_adv_name"] is False and seen["by_dev_name"] is False, \
+    assert seen["by_adv_name"] is False and seen["by_dev_name"] is False, (
         "a ring-named device at another address is a stranger — the name is not identity"
+    )
     assert seen["stranger"] is False, "a stranger's device must not be connected to"
     assert seen["nameless_adv"] is True, "the predicate must not read the advert's name at all"
 
@@ -224,8 +250,10 @@ def test_a_recovery_command_that_exits_nonzero_reports_failure(monkeypatch, capl
     """The ladder decides its next rung from this. A command that ran but FAILED must return False (so
     the escalation continues) and log at info, not warning — `hciconfig reset` failing on a box without
     it is expected, not news."""
+
     async def fake_exec(*cmd, **kw):
         return _Proc(rc=1)
+
     monkeypatch.setattr(capture.asyncio, "create_subprocess_exec", fake_exec)
     with caplog.at_level("INFO"):
         assert _run(capture._adapter_cmd(["hciconfig", "hci0", "reset"])) is False
@@ -237,30 +265,37 @@ def test_adapter_is_up_reads_the_radio_state_and_says_unknown_when_it_cannot(mon
     no test at all. Three answers, and the third is the load-bearing one: True/False when hciconfig
     speaks, and None when it cannot be determined — because the watchdog treats None as 'unknown' and
     falls back to the device heuristics, so a probe failure must never itself trigger a power-cycle."""
+
     async def up(*cmd, **kw):
         return _Proc(0, b"hci0:\tType: Primary  Bus: USB\n\tUP RUNNING\n")
+
     monkeypatch.setattr(capture.asyncio, "create_subprocess_exec", up)
     assert _run(capture._adapter_is_up("hci0")) is True
 
     async def down(*cmd, **kw):
         return _Proc(0, b"hci0:\tType: Primary  Bus: USB\n\tDOWN\n")
+
     monkeypatch.setattr(capture.asyncio, "create_subprocess_exec", down)
     assert _run(capture._adapter_is_up("hci0")) is False
 
     async def rc_fail(*cmd, **kw):
         return _Proc(1, b"")
+
     monkeypatch.setattr(capture.asyncio, "create_subprocess_exec", rc_fail)
     assert _run(capture._adapter_is_up("hci0")) is None, "a non-zero exit is UNKNOWN, not 'down'"
 
     async def boom(*cmd, **kw):
         raise FileNotFoundError("hciconfig: not installed")
+
     monkeypatch.setattr(capture.asyncio, "create_subprocess_exec", boom)
     assert _run(capture._adapter_is_up("hci0")) is None, "an absent hciconfig is UNKNOWN, not 'down'"
 
 
-_VERSION_OK = (b"hci0:\tType: Primary  Bus: USB\n\tBD Address: 00:01:95:CC:53:02\n"
-               b"\tHCI Version: 4.0 (0x6)  Revision: 0x2031\n"
-               b"\tManufacturer: Cambridge Silicon Radio (10)\n")
+_VERSION_OK = (
+    b"hci0:\tType: Primary  Bus: USB\n\tBD Address: 00:01:95:CC:53:02\n"
+    b"\tHCI Version: 4.0 (0x6)  Revision: 0x2031\n"
+    b"\tManufacturer: Cambridge Silicon Radio (10)\n"
+)
 
 
 def test_adapter_responds_round_trips_and_a_HANG_is_False_while_everything_else_is_None(monkeypatch):
@@ -271,25 +306,31 @@ def test_adapter_responds_round_trips_and_a_HANG_is_False_while_everything_else_
     Four answers, and the ordering of the last two is what matters. A HANG is False — a wedged controller
     does not reply, so mapping a timeout to 'undeterminable' would discard the one signal this probe was
     built for. Everything else is None, so a probe that cannot RUN can never convict a healthy radio."""
+
     async def ok(*cmd, **kw):
         assert cmd[:3] == ("hciconfig", "hci0", "version"), "must be the round-trip form, not a state read"
         return _Proc(0, _VERSION_OK)
+
     monkeypatch.setattr(capture.asyncio, "create_subprocess_exec", ok)
     assert _run(capture._adapter_responds("hci0")) is True
 
     async def rc_fail(*cmd, **kw):
         return _Proc(1, b"Can't init device: Connection timed out (110)\n")
+
     monkeypatch.setattr(capture.asyncio, "create_subprocess_exec", rc_fail)
     assert _run(capture._adapter_responds("hci0")) is False, "ran against a named adapter and failed"
 
     async def no_marker(*cmd, **kw):
         return _Proc(0, b"hci0:\tType: Primary  Bus: USB\n")
+
     monkeypatch.setattr(capture.asyncio, "create_subprocess_exec", no_marker)
-    assert _run(capture._adapter_responds("hci0")) is None, \
+    assert _run(capture._adapter_responds("hci0")) is None, (
         "rc=0 carrying no controller-sourced field is UNKNOWN — do not convict on a changed tool"
+    )
 
     async def boom(*cmd, **kw):
         raise FileNotFoundError("hciconfig: not installed")
+
     monkeypatch.setattr(capture.asyncio, "create_subprocess_exec", boom)
     assert _run(capture._adapter_responds("hci0")) is None, "an absent hciconfig is UNKNOWN, never 'wedged'"
 
@@ -297,12 +338,15 @@ def test_adapter_responds_round_trips_and_a_HANG_is_False_while_everything_else_
 def test_adapter_responds_maps_a_TIMEOUT_to_False_because_that_IS_the_wedge(monkeypatch):
     """Split out because it is the load-bearing branch and it must not be reachable by accident: the
     wedged controller's signature is that the command never comes back."""
+
     async def spawn(*cmd, **kw):
         return _Proc(0, b"")
+
     monkeypatch.setattr(capture.asyncio, "create_subprocess_exec", spawn)
 
     async def hang(_proc, _timeout, _stdin=None):
         raise asyncio.TimeoutError()
+
     monkeypatch.setattr(capture.proc_util, "communicate", hang)
     assert _run(capture._adapter_responds("hci0")) is False
 
@@ -312,8 +356,14 @@ def test_a_radio_that_does_not_ANSWER_is_wedged_even_while_its_flags_read_UP():
     at 19:42:06 — ~19 minutes — because the InProgress inference is SUPPRESSED while `adapter_up is True`,
     and the kernel flag stayed True until the radio finally went DOWN. With a round-trip verdict the
     suppression can no longer be bought with a flag a wedged controller still passes."""
-    devs = [{"name": "H10", "address": "A", "connected": False,
-             "last_error": "BleakDBusError('org.bluez.Error.InProgress', ...)"}]
+    devs = [
+        {
+            "name": "H10",
+            "address": "A",
+            "connected": False,
+            "last_error": "BleakDBusError('org.bluez.Error.InProgress', ...)",
+        }
+    ]
 
     # PRE-CHANGE BEHAVIOUR, still exactly reproducible: the flag says UP, so InProgress is suppressed and
     # the watchdog sees nothing. This is the bug, and it must stay reachable or the test below proves
@@ -333,8 +383,14 @@ def test_a_round_trip_that_SUCCEEDS_still_suppresses_the_churn_it_always_did():
     """The 2026-07-20 lesson is not repealed: a needless power-cycle is worse than the problem. A radio
     that ANSWERS is positive proof, so lone InProgress churn stays suppressed — and it is now suppressed
     on stronger evidence than before, since True here means the controller replied."""
-    devs = [{"name": "Ring", "address": "B", "connected": False,
-             "last_error": "BleakDBusError('org.bluez.Error.InProgress', ...)"}]
+    devs = [
+        {
+            "name": "Ring",
+            "address": "B",
+            "connected": False,
+            "last_error": "BleakDBusError('org.bluez.Error.InProgress', ...)",
+        }
+    ]
     assert capture.classify_adapter_health(devs, adapter_up=True, adapter_responds=True)["wedged"] is False
 
     # AND THE ASYMMETRY: a successful round trip must NOT buy suppression the flag did not already grant.
@@ -372,11 +428,18 @@ def test_adapter_responds_None_changes_NOTHING_for_every_pre_existing_caller():
     """Back-compat is the contract (CLAUDE.md §🧪: new params LAST and optional). None must reproduce the
     pre-2026-09-18 verdict for both settings of the flag, or landing this would silently re-tier every
     caller that does not probe."""
-    devs = [{"name": "H10", "address": "A", "connected": False,
-             "last_error": "BleakDBusError('org.bluez.Error.InProgress', ...)"}]
+    devs = [
+        {
+            "name": "H10",
+            "address": "A",
+            "connected": False,
+            "last_error": "BleakDBusError('org.bluez.Error.InProgress', ...)",
+        }
+    ]
     for flag in (True, False, None):
-        assert (capture.classify_adapter_health(devs, adapter_up=flag)
-                == capture.classify_adapter_health(devs, adapter_up=flag, adapter_responds=None))
+        assert capture.classify_adapter_health(devs, adapter_up=flag) == capture.classify_adapter_health(
+            devs, adapter_up=flag, adapter_responds=None
+        )
 
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════════
@@ -385,16 +448,20 @@ def test_adapter_responds_None_changes_NOTHING_for_every_pre_existing_caller():
 def _wedge_rig(monkeypatch, hci="hci0", adapter_up=False):
     """Make the watchdog see a DOWN radio: one non-optional device, no live BlueZ link, adapter probe
     says down. That is the wedge signature `classify_adapter_health` is built to catch."""
+
     async def btctl(_script, timeout=8):
-        return ""                                  # no "Connected: yes" → no phantom link
+        return ""  # no "Connected: yes" → no phantom link
+
     monkeypatch.setattr(capture.bonding, "_btctl", btctl)
 
     async def fake_hci():
         return hci
+
     monkeypatch.setattr(capture, "adapter_hci", fake_hci)
 
     async def fake_up(_hci):
         return adapter_up
+
     monkeypatch.setattr(capture, "_adapter_is_up", fake_up)
 
 
@@ -405,8 +472,10 @@ def _quiet_deafness_probe(monkeypatch):
     every sleep, not every poll, so an unstubbed scan silently eats the poll budget and the loop stops
     early. Returning one neighbour also keeps `silent` at 0, so no radio restart fires: these tests are
     about the wedge counter, not the deafness ladder."""
+
     async def scan(_mac, seconds=0):
         return [{"address": "AA:AA:AA:AA:AA:AA"}]
+
     monkeypatch.setattr(capture.bonding, "scan", scan)
 
 
@@ -414,17 +483,17 @@ def test_an_optional_backup_device_is_not_wedge_evidence(monkeypatch):
     """A device marked `optional: true` is known-but-not-expected — a spare strap in a drawer. Counting
     its permanent absence as an unreachable sensor would keep the adapter permanently "wedged" and
     power-cycle a radio that is working perfectly."""
-    _wedge_rig(monkeypatch, adapter_up=True)       # radio demonstrably fine
+    _wedge_rig(monkeypatch, adapter_up=True)  # radio demonstrably fine
     seen = {}
     real = capture.classify_adapter_health
 
     def spy(devs, **kw):
         seen.setdefault("devs", devs)
         return real(devs, **kw)
+
     monkeypatch.setattr(capture, "classify_adapter_health", spy)
     _stop_after(monkeypatch, 1)
-    cfg = {"devices": [capture_dev_optional(), _dev(name="H10")],
-           "watchdog": {"interval_sec": 1, "grace_checks": 9}}
+    cfg = {"devices": [capture_dev_optional(), _dev(name="H10")], "watchdog": {"interval_sec": 1, "grace_checks": 9}}
     _run(capture.adapter_watchdog("AA:BB:CC:DD:EE:FF", cfg))
     assert [d["name"] for d in seen["devs"]] == ["H10"], "the optional backup never reaches the classifier"
 
@@ -443,7 +512,8 @@ def test_the_watchdog_says_so_when_the_adapter_comes_back(monkeypatch, caplog):
 
     async def flip(_hci):
         state["n"] += 1
-        return state["n"] > 1                      # wedged on poll 1, healthy from poll 2
+        return state["n"] > 1  # wedged on poll 1, healthy from poll 2
+
     monkeypatch.setattr(capture, "_adapter_is_up", flip)
     # THREE polls, not two: recovery now needs `recover_checks` (default 2) clean polls in a row, so
     # wedge → clean → clean is the shortest run that legitimately announces recovery. Two polls would
@@ -470,7 +540,8 @@ def test_a_flapping_adapter_does_not_reset_the_wedge_count(monkeypatch, caplog):
 
     async def flap(_hci):
         state["n"] += 1
-        return state["n"] % 2 == 0                 # wedged, up, wedged, up, …
+        return state["n"] % 2 == 0  # wedged, up, wedged, up, …
+
     monkeypatch.setattr(capture, "_adapter_is_up", flap)
     _stop_after(monkeypatch, 8)
     cfg = {"devices": [_dev(name="H10")], "watchdog": {"interval_sec": 1, "grace_checks": 9}}
@@ -492,7 +563,8 @@ def test_a_sustained_recovery_still_clears_the_count(monkeypatch, caplog):
 
     async def settle(_hci):
         state["n"] += 1
-        return state["n"] >= 2                     # wedged once, then up for good
+        return state["n"] >= 2  # wedged once, then up for good
+
     monkeypatch.setattr(capture, "_adapter_is_up", settle)
     _stop_after(monkeypatch, 4)
     cfg = {"devices": [_dev(name="H10")], "watchdog": {"interval_sec": 1, "grace_checks": 9}}
@@ -514,20 +586,21 @@ def test_recover_checks_is_honoured_as_configured(monkeypatch, caplog):
     async def settle(_hci):
         state["n"] += 1
         return state["n"] >= 2
+
     monkeypatch.setattr(capture, "_adapter_is_up", settle)
-    cfg = {"devices": [_dev(name="H10")],
-           "watchdog": {"interval_sec": 1, "grace_checks": 9, "recover_checks": 3}}
-    _stop_after(monkeypatch, 3)                    # wedge + 2 clean — one short of the configured 3
+    cfg = {"devices": [_dev(name="H10")], "watchdog": {"interval_sec": 1, "grace_checks": 9, "recover_checks": 3}}
+    _stop_after(monkeypatch, 3)  # wedge + 2 clean — one short of the configured 3
     with caplog.at_level("INFO"):
         _run(capture.adapter_watchdog(None, cfg))
-    assert not any("adapter healthy again" in r.getMessage() for r in caplog.records), \
+    assert not any("adapter healthy again" in r.getMessage() for r in caplog.records), (
         "2 clean polls announced recovery while recover_checks=3"
+    )
     assert any("clean poll 2/3" in r.getMessage() for r in caplog.records)
 
     caplog.clear()
     capture._STOP.clear()
     state["n"] = 0
-    _stop_after(monkeypatch, 4)                    # wedge + 3 clean — exactly the configured run
+    _stop_after(monkeypatch, 4)  # wedge + 3 clean — exactly the configured run
     with caplog.at_level("INFO"):
         _run(capture.adapter_watchdog(None, cfg))
     assert any("adapter healthy again" in r.getMessage() for r in caplog.records)
@@ -549,30 +622,35 @@ def test_a_sustained_recovery_restores_the_power_cycle_BUDGET(monkeypatch, caplo
 
     async def wedge_recover_wedge(_hci):
         state["n"] += 1
-        return state["n"] in (2, 3)                # wedged, clean, clean, wedged
+        return state["n"] in (2, 3)  # wedged, clean, clean, wedged
+
     monkeypatch.setattr(capture, "_adapter_is_up", wedge_recover_wedge)
 
     ticks = {"n": 0}
 
-    async def fake_sleep(secs):                    # count only the top-of-loop interval, as the
-        if secs == 1:                              # power-cycle path sleeps internally too
+    async def fake_sleep(secs):  # count only the top-of-loop interval, as the
+        if secs == 1:  # power-cycle path sleeps internally too
             ticks["n"] += 1
             if ticks["n"] >= 4:
                 capture._STOP.set()
+
     monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
-    cfg = {"devices": [_dev(name="H10")],
-           "watchdog": {"interval_sec": 1, "grace_checks": 1, "max_adapter_cycles": 1,
-                        "recover_checks": 2}}
+    cfg = {
+        "devices": [_dev(name="H10")],
+        "watchdog": {"interval_sec": 1, "grace_checks": 1, "max_adapter_cycles": 1, "recover_checks": 2},
+    }
     with caplog.at_level("INFO"):
         _run(capture.adapter_watchdog("AA:BB:CC:DD:EE:FF", cfg))
     msgs = [r.getMessage() for r in caplog.records]
     # NOTE there is deliberately no "adapter healthy again" here: the power-cycle path already sets
     # `consecutive = 0`, and that line is gated on a non-zero count. The recovery is silent in this
     # shape, and the budget reset is the only observable — which is precisely what is being pinned.
-    assert sum("power-cycling adapter" in m for m in msgs) == 2, \
-        [m for m in msgs if "power-cycl" in m or "STILL wedged" in m]
-    assert not any("STILL wedged after" in m for m in msgs), \
+    assert sum("power-cycling adapter" in m for m in msgs) == 2, [
+        m for m in msgs if "power-cycl" in m or "STILL wedged" in m
+    ]
+    assert not any("STILL wedged after" in m for m in msgs), (
         "the budget was not restored — one early wedge disarmed the ladder for the rest of the night"
+    )
 
 
 def test_the_watchdog_power_cycles_the_adapter_by_its_BLUEZ_address(monkeypatch):
@@ -588,25 +666,30 @@ def test_the_watchdog_power_cycles_the_adapter_by_its_BLUEZ_address(monkeypatch)
     async def btctl(script, timeout=8):
         scripts.append(script)
         return ""
+
     monkeypatch.setattr(capture.bonding, "_btctl", btctl)
 
     async def resolved(adapter_mac):
         assert adapter_mac == "99:67:24:2E:CD:98"
         return "select DA:44:2D:51:0F:54\n"
+
     monkeypatch.setattr(capture.bonding, "select_line", resolved)
 
     async def fake_cmd(cmd):
         return True
+
     monkeypatch.setattr(capture, "_adapter_cmd", fake_cmd)
 
     async def no_spare(*a, **k):
         return []
+
     monkeypatch.setattr(capture, "list_adapters", no_spare)
     _stop_after(monkeypatch, 40)
     capture._EXIT_CODE[0] = 0
-    cfg = {"devices": [_dev(name="H10")],
-           "watchdog": {"interval_sec": 1, "grace_checks": 1, "max_adapter_cycles": 1,
-                        "exit_on_giveup": True}}
+    cfg = {
+        "devices": [_dev(name="H10")],
+        "watchdog": {"interval_sec": 1, "grace_checks": 1, "max_adapter_cycles": 1, "exit_on_giveup": True},
+    }
     _run(capture.adapter_watchdog("99:67:24:2E:CD:98", cfg))
     capture._EXIT_CODE[0] = 0
     power = [s for s in scripts if "power off" in s or "power on" in s]
@@ -614,8 +697,9 @@ def test_the_watchdog_power_cycles_the_adapter_by_its_BLUEZ_address(monkeypatch)
     assert all(s.startswith("select DA:44:2D:51:0F:54\n") for s in power), power
     assert not any("99:67:24:2E:CD:98" in s for s in scripts), "the kernel address must never reach bluetoothctl"
     src = inspect.getsource(capture.adapter_watchdog)
-    assert src.count("await bonding.select_line(adapter_mac)") == 3, \
+    assert src.count("await bonding.select_line(adapter_mac)") == 3, (
         "before the loop + both failover repoints — a hand-built select f-string is the defect returning"
+    )
     assert 'f"select {adapter_mac}' not in src
 
 
@@ -637,21 +721,32 @@ def test_the_last_power_cycle_escalates_to_hci_reset_and_a_usb_rebind(monkeypatc
     async def fake_cmd(cmd):
         ran.append(("cmd", tuple(cmd)))
         return True
+
     monkeypatch.setattr(capture, "_adapter_cmd", fake_cmd)
 
     async def fake_rebind(dev_id):
         ran.append(("rebind", dev_id))
         return True
+
     monkeypatch.setattr(capture, "_usb_rebind", fake_rebind)
 
     async def no_spare(*a, **k):
-        return []                                  # P1.5: no healthy spare → the ladder still exits
+        return []  # P1.5: no healthy spare → the ladder still exits
+
     monkeypatch.setattr(capture, "list_adapters", no_spare)
-    _stop_after(monkeypatch, 40)                   # safety net; the give-up return should fire first
+    _stop_after(monkeypatch, 40)  # safety net; the give-up return should fire first
     capture._EXIT_CODE[0] = 0
-    cfg = {"devices": [_dev(name="H10")],
-           "watchdog": {"interval_sec": 1, "grace_checks": 1, "max_adapter_cycles": 1,
-                        "hci_reset": True, "usb_path": "1-1.2", "exit_on_giveup": True}}
+    cfg = {
+        "devices": [_dev(name="H10")],
+        "watchdog": {
+            "interval_sec": 1,
+            "grace_checks": 1,
+            "max_adapter_cycles": 1,
+            "hci_reset": True,
+            "usb_path": "1-1.2",
+            "exit_on_giveup": True,
+        },
+    }
     _run(capture.adapter_watchdog("AA:BB:CC:DD:EE:FF", cfg))
     assert ("cmd", ("hciconfig", "hci0", "reset")) in ran
     assert ("rebind", "3-2") in ran, "the rung did not follow the adapter it is watching"
@@ -676,11 +771,16 @@ def test_retention_is_held_on_unmirrored_nights_and_says_so_once(tmp_path, monke
         os.makedirs(str(cap / n), exist_ok=True)
     monkeypatch.setattr(capture, "_now", lambda: _dt.datetime(2026, 7, 4, 22, 0, 0))
     # every night is unmirrored — the backup volume is gone
-    monkeypatch.setattr(capture.nightarchive, "unarchived_nights",
-                        lambda captures, dest=None, marker=".archived": {"2026-07-01", "2026-07-02"})
-    _stop_after(monkeypatch, 2)                    # two polls: the warning must fire on the first only
-    cfg = {"storage": {"keep_nights": 1, "min_free_gb": 0, "poll_sec": 1},
-           "archive": {"enabled": True, "dest": "/mnt/nas/tepna"}}
+    monkeypatch.setattr(
+        capture.nightarchive,
+        "unarchived_nights",
+        lambda captures, dest=None, marker=".archived": {"2026-07-01", "2026-07-02"},
+    )
+    _stop_after(monkeypatch, 2)  # two polls: the warning must fire on the first only
+    cfg = {
+        "storage": {"keep_nights": 1, "min_free_gb": 0, "poll_sec": 1},
+        "archive": {"enabled": True, "dest": "/mnt/nas/tepna"},
+    }
     with caplog.at_level("WARNING"):
         _run(capture.storage_poller(cfg, str(tmp_path)))
     held_warnings = [r for r in caplog.records if "retention is HELD" in r.getMessage()]
@@ -706,6 +806,7 @@ def test_the_disk_recovering_is_logged_once(tmp_path, monkeypatch, caplog):
         r = dict(low if calls["n"] < 2 else ok)
         calls["n"] += 1
         return r
+
     monkeypatch.setattr(capture.diskguard, "disk_report", fake_report)
     _stop_after(monkeypatch, 2)
     with caplog.at_level("INFO"):
@@ -727,9 +828,15 @@ def test_a_connected_but_silent_sensor_warns_once_per_night(tmp_path, monkeypatc
     os.makedirs(str(cap), exist_ok=True)
     (cap / "Polar_VeritySense_0C301E3F_20260725220000_PPG.txt").write_text("hdr\n")
     monkeypatch.setattr(capture, "_current_night", lambda captures, settle: "2026-07-25")
-    monkeypatch.setattr(capture.nightqc, "summarize", lambda night, devices: {
-        "night": "2026-07-25", "missing": [],
-        "devices": [{"name": "Verity", "silent_sec": 15900}]})     # 4 h 25 m of nothing
+    monkeypatch.setattr(
+        capture.nightqc,
+        "summarize",
+        lambda night, devices: {
+            "night": "2026-07-25",
+            "missing": [],
+            "devices": [{"name": "Verity", "silent_sec": 15900}],
+        },
+    )  # 4 h 25 m of nothing
     capture.STATUS["devices"]["Verity"] = {"connected": True, "charging": False}
     sent = []
 
@@ -737,7 +844,8 @@ def test_a_connected_but_silent_sensor_warns_once_per_night(tmp_path, monkeypatc
         async def send(self, title, message, **kw):
             sent.append((title, message))
             return True
-    _stop_after(monkeypatch, 2)                    # two polls; one warning
+
+    _stop_after(monkeypatch, 2)  # two polls; one warning
     cfg = {"qc": {"poll_sec": 1, "frozen_after_sec": 600}, "devices": []}
     with caplog.at_level("WARNING"):
         _run(capture.qc_poller(cfg, str(tmp_path), _N()))
@@ -752,8 +860,15 @@ def test_a_silent_sensor_still_warns_the_journal_with_no_webhook(tmp_path, monke
     """The notifier is optional; the journal line is not."""
     os.makedirs(str(tmp_path / "captures" / "2026-07-25"), exist_ok=True)
     monkeypatch.setattr(capture, "_current_night", lambda captures, settle: "2026-07-25")
-    monkeypatch.setattr(capture.nightqc, "summarize", lambda night, devices: {
-        "night": "2026-07-25", "missing": [], "devices": [{"name": "Verity", "silent_sec": 900}]})
+    monkeypatch.setattr(
+        capture.nightqc,
+        "summarize",
+        lambda night, devices: {
+            "night": "2026-07-25",
+            "missing": [],
+            "devices": [{"name": "Verity", "silent_sec": 900}],
+        },
+    )
     capture.STATUS["devices"]["Verity"] = {"connected": True}
     _stop_after(monkeypatch, 1)
     with caplog.at_level("WARNING"):
@@ -780,14 +895,17 @@ def test_a_verified_push_marks_the_night_and_an_unverified_one_does_not(tmp_path
     _night(tmp_path, "2026-07-02")
     captures = str(tmp_path / "captures")
     monkeypatch.setattr(capture.diskguard, "active_nights", lambda c, s: set())
-    results = {"2026-07-01": {"ok": True, "verified": True, "detail": "12 files"},
-               "2026-07-02": {"ok": True, "verified": False, "detail": "remote still differs"}}
+    results = {
+        "2026-07-01": {"ok": True, "verified": True, "detail": "12 files"},
+        "2026-07-02": {"ok": True, "verified": False, "detail": "remote still differs"},
+    }
     pushed = []
 
     async def fake_push(src, target, timeout=1800.0):
         night = os.path.basename(src)
         pushed.append(night)
         return results[night]
+
     monkeypatch.setattr(capture.storage_targets, "push_night", fake_push)
     target = {"protocol": "rsync", "kind": "transfer", "host": "nas"}
     _run(capture._archive_transfer(captures, target, 60.0, {"mode": "after_settle"}))
@@ -795,7 +913,7 @@ def test_a_verified_push_marks_the_night_and_an_unverified_one_does_not(tmp_path
     assert os.path.exists(os.path.join(captures, "2026-07-01", ".archived"))
     assert not os.path.exists(os.path.join(captures, "2026-07-02", ".archived"))
     assert capture.STATUS["archive"]["last"] == "2026-07-01"
-    assert capture.STATUS["archive"]["verified"] is False   # the LAST attempt is what status reports
+    assert capture.STATUS["archive"]["verified"] is False  # the LAST attempt is what status reports
 
 
 def test_a_failing_push_stops_rather_than_hammering_the_link(tmp_path, monkeypatch):
@@ -810,9 +928,9 @@ def test_a_failing_push_stops_rather_than_hammering_the_link(tmp_path, monkeypat
     async def fake_push(src, target, timeout=1800.0):
         tried.append(os.path.basename(src))
         return {"ok": False, "verified": False, "detail": "connection refused"}
+
     monkeypatch.setattr(capture.storage_targets, "push_night", fake_push)
-    _run(capture._archive_transfer(captures, {"protocol": "rsync", "host": "nas"}, 60.0,
-                                   {"mode": "after_settle"}))
+    _run(capture._archive_transfer(captures, {"protocol": "rsync", "host": "nas"}, 60.0, {"mode": "after_settle"}))
     assert tried == ["2026-07-01"], "one failure ends the cycle"
 
 
@@ -827,10 +945,17 @@ def test_an_unparseable_schedule_falls_back_to_after_settle(tmp_path, monkeypatc
 
     async def fake_transfer(captures, target, settle, schedule, subtrees=()):
         ran.append(schedule)
+
     monkeypatch.setattr(capture, "_archive_transfer", fake_transfer)
     _stop_after(monkeypatch, 1)
-    cfg = {"archive": {"enabled": True, "poll_sec": 1, "schedule": {"mode": "whenever"},
-                       "target": {"protocol": "rsync", "host": "nas", "share": "/tank/tepna"}}}
+    cfg = {
+        "archive": {
+            "enabled": True,
+            "poll_sec": 1,
+            "schedule": {"mode": "whenever"},
+            "target": {"protocol": "rsync", "host": "nas", "share": "/tank/tepna"},
+        }
+    }
     with caplog.at_level("WARNING"):
         _run(capture.archive_poller(cfg, str(tmp_path)))
     assert any("bad schedule" in r.getMessage() for r in caplog.records)
@@ -844,22 +969,28 @@ def test_the_offload_waits_for_its_daily_window(tmp_path, monkeypatch):
 
     async def fake_transfer(captures, target, settle, schedule, subtrees=()):
         ran.append(1)
+
     monkeypatch.setattr(capture, "_archive_transfer", fake_transfer)
-    monkeypatch.setattr(capture, "_now", lambda: _dt.datetime(2026, 7, 25, 3, 0, 0))   # 03:00
+    monkeypatch.setattr(capture, "_now", lambda: _dt.datetime(2026, 7, 25, 3, 0, 0))  # 03:00
     _stop_after(monkeypatch, 1)
-    cfg = {"archive": {"enabled": True, "poll_sec": 1, "schedule": {"mode": "daily", "at": "11:00"},
-                       "target": {"protocol": "rsync", "host": "nas", "share": "/tank/tepna"}}}
+    cfg = {
+        "archive": {
+            "enabled": True,
+            "poll_sec": 1,
+            "schedule": {"mode": "daily", "at": "11:00"},
+            "target": {"protocol": "rsync", "host": "nas", "share": "/tank/tepna"},
+        }
+    }
     _run(capture.archive_poller(cfg, str(tmp_path)))
     assert ran == [], "03:00 is not inside the 11:00 window"
 
 
-def test_an_absent_backup_volume_warns_once_and_never_creates_the_directory(tmp_path, monkeypatch,
-                                                                            caplog):
+def test_an_absent_backup_volume_warns_once_and_never_creates_the_directory(tmp_path, monkeypatch, caplog):
     """A dest whose mount is absent leaves its mountpoint present-but-empty, so a blind makedirs would
     mirror ~2 GB/night onto the BOOT filesystem and fill it. Missing dest means "volume not mounted":
     skip, say so ONCE, and never invent the directory."""
     dest = str(tmp_path / "mnt" / "nas" / "tepna")
-    _stop_after(monkeypatch, 2)                    # two polls, one warning
+    _stop_after(monkeypatch, 2)  # two polls, one warning
     cfg = {"archive": {"enabled": True, "dest": dest, "poll_sec": 1}}
     with caplog.at_level("WARNING"):
         _run(capture.archive_poller(cfg, str(tmp_path)))
@@ -890,13 +1021,12 @@ class _FakePsFtp:
         # `new_files` (audit F3) — a short read is not a valid file, so it was never pulled.
         sh = self._short.get(path, [])
         if path in getattr(self, "_no_manifest", ()):
-            return None                      # a session that answered with NOTHING
+            return None  # a session that answered with NOTHING
         # `unenumerated` (2026-09-23): the real manifest publishes its verdict's DENOMINATOR, so the
         # fake must be able to express "the listing did not answer" — otherwise the aggregate's
         # refusal branch has no way to be reached from here.
         un = getattr(self, "_unenumerated", {}).get(path, 0)
-        return {"new_files": self._files.get(path, []), "short": sh,
-                "unenumerated": un, "ok": not sh and not un}
+        return {"new_files": self._files.get(path, []), "short": sh, "unenumerated": un, "ok": not sh and not un}
 
 
 def _offline_all(tmp_path, monkeypatch, fake):
@@ -921,9 +1051,10 @@ def _offline_all(tmp_path, monkeypatch, fake):
 # be published; and `(m or {}).get(...)` meant a session that returned NOTHING contributed no shorts
 # and read as clean.
 def test_PLANT_an_unenumerated_session_refuses_the_aggregate_verdict(tmp_path, monkeypatch):
-    fake = _FakePsFtp(sessions=[{"path": "/U/0/A/", "date": "20260725", "time": "220000"}],
-                      files={"/U/0/A/": ["ECG.txt"]})
-    fake._unenumerated = {"/U/0/A/": 2}          # the listing did not fully answer
+    fake = _FakePsFtp(
+        sessions=[{"path": "/U/0/A/", "date": "20260725", "time": "220000"}], files={"/U/0/A/": ["ECG.txt"]}
+    )
+    fake._unenumerated = {"/U/0/A/": 2}  # the listing did not fully answer
     res = _offline_all(tmp_path, monkeypatch, fake)
     assert res["short"] == [], "no file was short — the refusal is about the SET"
     assert res["unenumerated"] == 2
@@ -932,8 +1063,9 @@ def test_PLANT_an_unenumerated_session_refuses_the_aggregate_verdict(tmp_path, m
 
 
 def test_PLANT_a_session_that_returned_no_manifest_is_counted_not_ignored(tmp_path, monkeypatch):
-    fake = _FakePsFtp(sessions=[{"path": "/U/0/A/", "date": "20260725", "time": "220000"}],
-                      files={"/U/0/A/": ["ECG.txt"]})
+    fake = _FakePsFtp(
+        sessions=[{"path": "/U/0/A/", "date": "20260725", "time": "220000"}], files={"/U/0/A/": ["ECG.txt"]}
+    )
     fake._no_manifest = ("/U/0/A/",)
     res = _offline_all(tmp_path, monkeypatch, fake)
     assert res["unanswered_sessions"] == 1
@@ -945,9 +1077,13 @@ def test_CONTROL_a_clean_multi_session_pull_still_reports_ok(tmp_path, monkeypat
 
     A REAL control: asserts only `ok` and `new_files`, both of which exist on either side of this
     change, so it runs against origin/main and PASSES there."""
-    fake = _FakePsFtp(sessions=[{"path": "/U/0/A/", "date": "20260725", "time": "220000"},
-                                {"path": "/U/0/B/", "date": "20260726", "time": "010000"}],
-                      files={"/U/0/A/": ["ECG.txt"], "/U/0/B/": ["ACC.txt"]})
+    fake = _FakePsFtp(
+        sessions=[
+            {"path": "/U/0/A/", "date": "20260725", "time": "220000"},
+            {"path": "/U/0/B/", "date": "20260726", "time": "010000"},
+        ],
+        files={"/U/0/A/": ["ECG.txt"], "/U/0/B/": ["ACC.txt"]},
+    )
     res = _offline_all(tmp_path, monkeypatch, fake)
     assert res["ok"] is True and res["new_files"] == ["ECG.txt", "ACC.txt"]
 
@@ -957,29 +1093,40 @@ def test_every_onboard_recording_is_pulled_into_its_own_stamped_directory(tmp_pa
     recordings cannot overwrite each other, and a session the device listed with no path is skipped
     rather than written to the base directory."""
     fake = _FakePsFtp(
-        sessions=[{"path": "/U/0/20260725/R/220000/", "date": "20260725", "time": "220000"},
-                  {"date": "20260726", "time": "010000"},                       # no path — skipped
-                  {"path": "/U/0/20260726/R/010000/", "date": "20260726", "time": "010000"}],
-        files={"/U/0/20260725/R/220000/": ["ECG.txt"], "/U/0/20260726/R/010000/": ["ACC.txt"]})
+        sessions=[
+            {"path": "/U/0/20260725/R/220000/", "date": "20260725", "time": "220000"},
+            {"date": "20260726", "time": "010000"},  # no path — skipped
+            {"path": "/U/0/20260726/R/010000/", "date": "20260726", "time": "010000"},
+        ],
+        files={"/U/0/20260725/R/220000/": ["ECG.txt"], "/U/0/20260726/R/010000/": ["ACC.txt"]},
+    )
     monkeypatch.setitem(sys.modules, "polar_psftp", fake)
 
     async def fake_hci():
         return "hci0"
+
     monkeypatch.setattr(capture, "adapter_hci", fake_hci)
 
-    async def run_op(address, op, timeout=None, **_kw):   # **_kw: the fake must tolerate the real signature growing
+    async def run_op(address, op, timeout=None, **_kw):  # **_kw: the fake must tolerate the real signature growing
         return await op()
+
     monkeypatch.setattr(capture, "polar_offline_op", run_op)
     res = _run(capture.pull_polar_offline_all(_dev(device_id="0C301E3F"), str(tmp_path)))
-    assert res == {"sessions": 3, "pulled": 2, "new_files": ["ECG.txt", "ACC.txt"],
-                   "short": [], "unenumerated": 0, "unanswered_sessions": 0, "ok": True}
+    assert res == {
+        "sessions": 3,
+        "pulled": 2,
+        "new_files": ["ECG.txt", "ACC.txt"],
+        "short": [],
+        "unenumerated": 0,
+        "unanswered_sessions": 0,
+        "ok": True,
+    }
     outs = [o for _p, o in fake.pulled]
     assert outs[0].endswith(os.path.join("captures", "stored", "Polar_Offline_0C301E3F_20260725220000"))
     assert outs[1].endswith("Polar_Offline_0C301E3F_20260726010000")
 
 
-def test_THE_UNATTENDED_PULL_ASKS_WHETHER_THE_DEVICE_IS_THERE_BEFORE_TAKING_THE_GLOBAL_LOCK(
-        tmp_path, monkeypatch):
+def test_THE_UNATTENDED_PULL_ASKS_WHETHER_THE_DEVICE_IS_THERE_BEFORE_TAKING_THE_GLOBAL_LOCK(tmp_path, monkeypatch):
     """`pull_polar_offline_all` MUST pass `presence_check_s`, because its only caller is the unattended
     `charger_pull_poller` — the same category the clock sync is guarded for.
 
@@ -992,13 +1139,15 @@ def test_THE_UNATTENDED_PULL_ASKS_WHETHER_THE_DEVICE_IS_THERE_BEFORE_TAKING_THE_
     ⚠️ The sibling test above stubs `polar_offline_op` with `**_kw`, so it stays green whether or not the
     kwarg is passed. That tolerance is right for a test about directory naming and is exactly why this
     assertion needs its own test — otherwise dropping the guard breaks nothing."""
-    fake = _FakePsFtp(sessions=[{"path": "/U/0/20260725/R/220000/", "date": "20260725",
-                                 "time": "220000"}],
-                      files={"/U/0/20260725/R/220000/": ["ECG.txt"]})
+    fake = _FakePsFtp(
+        sessions=[{"path": "/U/0/20260725/R/220000/", "date": "20260725", "time": "220000"}],
+        files={"/U/0/20260725/R/220000/": ["ECG.txt"]},
+    )
     monkeypatch.setitem(sys.modules, "polar_psftp", fake)
 
     async def fake_hci():
         return "hci0"
+
     monkeypatch.setattr(capture, "adapter_hci", fake_hci)
 
     seen = {}
@@ -1007,17 +1156,20 @@ def test_THE_UNATTENDED_PULL_ASKS_WHETHER_THE_DEVICE_IS_THERE_BEFORE_TAKING_THE_
         seen["presence_check_s"] = presence_check_s
         seen["timeout"] = timeout
         return await op()
+
     monkeypatch.setattr(capture, "polar_offline_op", run_op)
 
     _run(capture.pull_polar_offline_all(_dev(device_id="0C301E3F"), str(tmp_path)))
 
     assert seen["presence_check_s"] == capture._AUTOPULL_PRESENCE_S, (
         "the unattended auto-pull must pass presence_check_s — without it an absent device costs the "
-        "global connect lock for the full op timeout, every poll cycle")
+        "global connect lock for the full op timeout, every poll cycle"
+    )
     assert seen["presence_check_s"] is not None and seen["presence_check_s"] > 0, (
         "a falsy budget disables the guard inside polar_offline_op (`if presence_check_s and ...`), so "
-        "0 or None would read as 'guarded' here while behaving exactly like the unguarded call")
-    assert seen["timeout"] == capture._OFFLINE_OP_TIMEOUT_S       # unchanged by this fix
+        "0 or None would read as 'guarded' here while behaving exactly like the unguarded call"
+    )
+    assert seen["timeout"] == capture._OFFLINE_OP_TIMEOUT_S  # unchanged by this fix
 
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════════
@@ -1032,6 +1184,7 @@ def test_the_charger_poller_stays_asleep_unless_both_switches_are_on(monkeypatch
     fails instead of hanging the suite (until 2026-09-25 a regression here would have hung it — the
     census's one TERMINATION-ONLY test). The three NOT-armed lines are the positive evidence that each
     config took the early return for the reason the docstring names."""
+
     async def never_sleep(_s):
         raise AssertionError("the charger poller entered its 2 s loop while not armed")
 
@@ -1070,8 +1223,9 @@ def test_a_device_going_on_the_charger_is_pulled_once_per_charge_session(tmp_pat
     async def fake_pull(dev, root, which="latest", resume=False, *, trigger="manual"):
         pulls.append((dev["name"], which, resume))
         return {"new_files": ["a.dat", "b.dat"]}
+
     monkeypatch.setattr(capture, "pull_oxyii_session", fake_pull)
-    _stop_after(monkeypatch, 3)                    # three ticks — the pull must happen on ONE of them
+    _stop_after(monkeypatch, 3)  # three ticks — the pull must happen on ONE of them
     _run(capture.charger_pull_poller(cfg, str(tmp_path)))
     assert pulls == [("Ring", "all", 0)], "once per charge session, not once per tick"
     assert capture.STATUS["autopull"]["new"] == 2
@@ -1087,10 +1241,11 @@ def test_a_DOFF_triggered_pull_reaches_pull_oxyii_session_as_LATEST(tmp_path, mo
     69.4 s against a window it cannot make, and the first production firing (2026-08-26 06:44:23)
     went out at `all`."""
     import time as _t
+
     ring = _dev(name="Ring", vendor="Wellue", model="O2Ring-S", address="D1:98:62:7C:92:B3")
     cfg = {"pull": {"auto": True}, "devices": [ring]}
     capture.STATUS["devices"]["Ring"] = {"worn": False, "charging": False}
-    capture._NOTWORN_SINCE[ring["address"]] = _t.monotonic() - 10_000   # settle long since elapsed
+    capture._NOTWORN_SINCE[ring["address"]] = _t.monotonic() - 10_000  # settle long since elapsed
     capture._NOTWORN_PULLED.discard(ring["address"])
     pulls = []
 
@@ -1115,6 +1270,7 @@ def test_coming_off_the_charger_re_arms_the_next_pull(tmp_path, monkeypatch):
     async def fake_pull(dev, root, which="latest", resume=False, *, trigger="manual"):
         pulls.append(state["tick"])
         return {"new_files": []}
+
     monkeypatch.setattr(capture, "pull_oxyii_session", fake_pull)
 
     async def fake_sleep(_s):
@@ -1123,6 +1279,7 @@ def test_coming_off_the_charger_re_arms_the_next_pull(tmp_path, monkeypatch):
         capture.STATUS["devices"]["Ring"] = {"charging": state["tick"] != 2}
         if state["tick"] >= 4:
             capture._STOP.set()
+
     capture.STATUS["devices"]["Ring"] = {"charging": True}
     monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
     _run(capture.charger_pull_poller(cfg, str(tmp_path)))
@@ -1141,6 +1298,7 @@ def test_a_polar_on_the_charger_takes_the_psftp_path(tmp_path, monkeypatch):
     async def fake_polar(dev, root):
         seen.append(dev["name"])
         return {"sessions": 1, "pulled": 1, "new_files": ["ECG.txt"]}
+
     monkeypatch.setattr(capture, "pull_polar_offline_all", fake_polar)
     _stop_after(monkeypatch, 2)
     _run(capture.charger_pull_poller(cfg, str(tmp_path)))
@@ -1158,6 +1316,7 @@ def test_a_busy_offline_slot_re_arms_and_a_transient_failure_does_not(tmp_path, 
 
     async def busy(dev, root, which="latest", resume=False, *, trigger="manual"):
         raise capture.offline_lock.OfflineBusy("held by Verity")
+
     monkeypatch.setattr(capture, "pull_oxyii_session", busy)
     _stop_after(monkeypatch, 2)
     _run(capture.charger_pull_poller(cfg, str(tmp_path)))
@@ -1168,6 +1327,7 @@ def test_a_busy_offline_slot_re_arms_and_a_transient_failure_does_not(tmp_path, 
 
     async def boom(dev, root, which="latest", resume=False, *, trigger="manual"):
         raise RuntimeError("device not advertising")
+
     monkeypatch.setattr(capture, "pull_oxyii_session", boom)
     _stop_after(monkeypatch, 2)
     with caplog.at_level("INFO"):
@@ -1189,6 +1349,7 @@ def test_the_charger_poller_holds_off_during_a_recovery(tmp_path, monkeypatch):
     async def fake_pull(dev, root, which="latest", resume=False, *, trigger="manual"):
         pulls.append(1)
         return {}
+
     monkeypatch.setattr(capture, "pull_oxyii_session", fake_pull)
     _stop_after(monkeypatch, 2)
     _run(capture.charger_pull_poller(cfg, str(tmp_path)))
@@ -1201,9 +1362,11 @@ def test_the_charger_poller_holds_off_during_a_recovery(tmp_path, monkeypatch):
 def test_re_registering_an_address_cancels_the_incumbent_runner():
     """A device has ONE BLE link, so it must have ONE runner. A re-Remember (changing a stream list)
     must REPLACE the runner, not spawn a second that fights it for the link."""
+
     async def go():
         async def forever():
             await asyncio.sleep(3600)
+
         device_tasks, tasks = {}, []
         first = asyncio.create_task(forever())
         capture.register_runner(device_tasks, tasks, "AA:BB", first)
@@ -1219,15 +1382,18 @@ def test_re_registering_an_address_cancels_the_incumbent_runner():
         assert third in tasks and set(device_tasks) == {"AA:BB"}
         for t in (first, second, third):
             t.cancel()
+
     _run(go())
 
 
 def test_forgetting_a_device_drops_its_runner_and_its_status_card():
     """Otherwise the orphaned runner keeps reconnecting a device the operator just dropped, re-creating
     its card every backoff."""
+
     async def go():
         async def forever():
             await asyncio.sleep(3600)
+
         device_tasks, tasks = {}, []
         t = asyncio.create_task(forever())
         capture.register_runner(device_tasks, tasks, "AA:BB", t)
@@ -1237,6 +1403,7 @@ def test_forgetting_a_device_drops_its_runner_and_its_status_card():
         assert set(cards) == {"Other"}
         # forgetting an address that was never registered is a no-op, not a KeyError
         capture.unregister_runner(device_tasks, tasks, cards, "99:99")
+
     _run(go())
 
 
@@ -1264,24 +1431,54 @@ def test_main_applies_the_o2ring_grid_overrides_and_the_implicit_ppg_migration(t
     actually recording ~191 MB/night — making it explicit is what stops the Settings toggle being a
     silent behaviour change."""
     import yaml as _yaml
-    ring = {"name": "Ring", "vendor": "Wellue", "model": "O2Ring-S", "device_id": "S8AW",
-            "address": "D1:98:62:7C:92:B3", "streams": ["spo2"]}
-    cfg = {"root": str(tmp_path), "devices": [ring], "web": {"enabled": False},
-           "o2ring": {"ppg_fs": 100.0, "rtc_resync_sec": 900, "ppg_gap_min_ms": 250}}
+
+    ring = {
+        "name": "Ring",
+        "vendor": "Wellue",
+        "model": "O2Ring-S",
+        "device_id": "S8AW",
+        "address": "D1:98:62:7C:92:B3",
+        "streams": ["spo2"],
+    }
+    cfg = {
+        "root": str(tmp_path),
+        "devices": [ring],
+        "web": {"enabled": False},
+        "o2ring": {"ppg_fs": 100.0, "rtc_resync_sec": 900, "ppg_gap_min_ms": 250},
+    }
     cfgp = tmp_path / "config.yaml"
     cfgp.write_text(_yaml.safe_dump(cfg))
-    for r in ("run_polar", "run_oxyii", "run_viatom", "run_muse", "status_loop", "adapter_watchdog",
-              "rssi_poller", "clock_watchdog", "host_clock_poller", "storage_poller", "alert_poller",
-              "qc_poller", "archive_poller", "autopull_poller", "cpap_poller", "charger_pull_poller",
-              "sd_watchdog", "startup_defense_check"):
+    for r in (
+        "run_polar",
+        "run_oxyii",
+        "run_viatom",
+        "run_muse",
+        "status_loop",
+        "adapter_watchdog",
+        "rssi_poller",
+        "clock_watchdog",
+        "host_clock_poller",
+        "storage_poller",
+        "alert_poller",
+        "qc_poller",
+        "archive_poller",
+        "autopull_poller",
+        "cpap_poller",
+        "charger_pull_poller",
+        "sd_watchdog",
+        "startup_defense_check",
+    ):
+
         async def _n(*a, **k):
             return None
+
         monkeypatch.setattr(capture, r, _n)
     monkeypatch.setattr(sys, "argv", ["capture.py", "--config", str(cfgp)])
 
     async def go():
         asyncio.get_running_loop().call_soon(capture._STOP.set)
         await capture.main()
+
     _run(go())
     assert capture.O2PPG_FS == 100.0 and capture.O2PPG_NS_STEP == int(1e9 / 100.0)
     assert capture._OXYII_RTC_RESYNC_SEC == 900
@@ -1297,21 +1494,41 @@ def test_main_skips_a_device_that_cannot_be_named_in_a_filename(tmp_path, monkey
     `__<id>_..._STREAM.txt`, which is how a hot-Remember of an unrecognised sensor produced files nothing
     could attribute. The refusal has to reach the device's monitor card, not only the journal."""
     import yaml as _yaml
-    cfg = {"root": str(tmp_path), "web": {"enabled": False},
-           "devices": [{"name": "Mystery", "address": "AA:BB:CC:DD:EE:FF"}]}
+
+    cfg = {
+        "root": str(tmp_path),
+        "web": {"enabled": False},
+        "devices": [{"name": "Mystery", "address": "AA:BB:CC:DD:EE:FF"}],
+    }
     cfgp = tmp_path / "config.yaml"
     cfgp.write_text(_yaml.safe_dump(cfg))
-    for r in ("status_loop", "adapter_watchdog", "rssi_poller", "clock_watchdog", "host_clock_poller",
-              "storage_poller", "alert_poller", "qc_poller", "archive_poller", "autopull_poller",
-              "cpap_poller", "charger_pull_poller", "sd_watchdog", "startup_defense_check"):
+    for r in (
+        "status_loop",
+        "adapter_watchdog",
+        "rssi_poller",
+        "clock_watchdog",
+        "host_clock_poller",
+        "storage_poller",
+        "alert_poller",
+        "qc_poller",
+        "archive_poller",
+        "autopull_poller",
+        "cpap_poller",
+        "charger_pull_poller",
+        "sd_watchdog",
+        "startup_defense_check",
+    ):
+
         async def _n(*a, **k):
             return None
+
         monkeypatch.setattr(capture, r, _n)
     monkeypatch.setattr(sys, "argv", ["capture.py", "--config", str(cfgp)])
 
     async def go():
         asyncio.get_running_loop().call_soon(capture._STOP.set)
         await capture.main()
+
     with caplog.at_level("WARNING"):
         _run(go())
     assert any("skipping device — missing" in r.getMessage() for r in caplog.records)
@@ -1328,6 +1545,7 @@ from test_capture_runners import _ViatomService, _o2ring_live_reply, _viatom_pac
 def _polar_common(monkeypatch):
     async def bonded(*a, **k):
         return True
+
     monkeypatch.setattr(capture.bonding, "ensure_bonded", bonded)
     capture._CFG.clear()
     capture._CFG.update({"time": {"auto_sync_devices": False}})
@@ -1342,12 +1560,19 @@ def _inject_connect(monkeypatch, client):
     @contextlib.asynccontextmanager
     async def ctx(addr, *a, **k):
         yield client
+
     monkeypatch.setattr(capture, "_connect", ctx)
 
 
 def _pdev(**kw):
-    d = {"name": "H10", "vendor": "Polar", "model": "H10", "device_id": "12345678",
-         "address": "24:AC:AC:02:84:96", "streams": ["ecg"]}
+    d = {
+        "name": "H10",
+        "vendor": "Polar",
+        "model": "H10",
+        "device_id": "12345678",
+        "address": "24:AC:AC:02:84:96",
+        "streams": ["ecg"],
+    }
     d.update(kw)
     return d
 
@@ -1380,7 +1605,7 @@ def test_a_pmd_frame_that_carries_no_samples_advances_nothing(tmp_path, monkeypa
 class _NoBatteryPolar(FakePolarClient):
     async def read_gatt_char(self, uuid):
         if uuid == capture.BATTERY_UUID:
-            return b""                       # the char exists but answers empty
+            return b""  # the char exists but answers empty
         return await FakePolarClient.read_gatt_char(self, uuid)
 
 
@@ -1396,8 +1621,7 @@ def test_an_empty_battery_read_is_skipped_rather_than_indexed(tmp_path, monkeypa
     assert "battery" not in st or st.get("battery") is None
 
 
-def test_a_strap_that_reports_neither_contact_nor_a_pulse_says_nothing_it_cannot_know(tmp_path,
-                                                                                      monkeypatch):
+def test_a_strap_that_reports_neither_contact_nor_a_pulse_says_nothing_it_cannot_know(tmp_path, monkeypatch):
     """Two honest silences in one frame. The H10 does NOT support contact reporting, so `worn` must stay
     absent rather than be fabricated — a strap off the body streams electrode noise at full rate while
     its own algorithm keeps emitting a plausible number (measured 2026-07-19: RR 335-833 ms inside three
@@ -1423,7 +1647,7 @@ def test_an_hr_only_strap_needs_no_pmd_negotiation(tmp_path, monkeypatch):
     assert not any(w[0] == 0x02 for w in c.writes), "no PMD START may be issued for an HR-only strap"
     hrs = list((tmp_path / "captures").rglob("*_HR.txt"))
     assert hrs, "the HR file is still written"
-    assert capture.STATUS["devices"]["H10"]["worn"] is True   # this frame DOES report contact
+    assert capture.STATUS["devices"]["H10"]["worn"] is True  # this frame DOES report contact
 
 
 def test_an_optional_backup_that_is_simply_absent_stays_quiet(tmp_path, monkeypatch, caplog):
@@ -1437,6 +1661,7 @@ def test_an_optional_backup_that_is_simply_absent_stays_quiet(tmp_path, monkeypa
     async def refuse(addr, *a, **k):
         raise TimeoutError("connect timed out")
         yield  # pragma: no cover — unreachable; makes this a generator for asynccontextmanager
+
     monkeypatch.setattr(capture, "_connect", refuse)
     _stop_after(monkeypatch, 3)
     with caplog.at_level("INFO"):
@@ -1454,28 +1679,40 @@ def test_the_viatom_char_search_skips_services_that_are_not_the_vendor_one(tmp_p
     """Characteristic discovery is BY PROPERTY under the vendor service, because the UUIDs vary by
     model/firmware. Every device also exposes GAP/GATT/battery services, so the loop must walk past them
     rather than take the first notify char it finds anywhere on the device."""
+
     async def bonded(*a, **k):
         return True
+
     monkeypatch.setattr(capture.bonding, "ensure_bonded", bonded)
     c = FakeGattClient()
-    decoy = _Service([_Char("00002a19-0000-1000-8000-00805f9b34fb")])   # battery service
+    decoy = _Service([_Char("00002a19-0000-1000-8000-00805f9b34fb")])  # battery service
     decoy.uuid = "0000180f-0000-1000-8000-00805f9b34fb"
     for ch in decoy.characteristics:
         ch.properties = ["notify", "read"]
     c.services = [decoy, _ViatomService()]
-    c.on_live = lambda data: c.notify(0, _viatom_packet(pr=0))          # ...and no readable pulse
+    c.on_live = lambda data: c.notify(0, _viatom_packet(pr=0))  # ...and no readable pulse
     _inject_connect(monkeypatch, c)
     _stop_after(monkeypatch, 1)
-    _run(capture.run_viatom({"name": "Ring", "vendor": "Viatom", "model": "O2Ring-S",
-                             "device_id": "S8AW", "address": "D1:98:62:7C:92:B3",
-                             "streams": ["spo2"], "protocol": "legacy"}, str(tmp_path)))
+    _run(
+        capture.run_viatom(
+            {
+                "name": "Ring",
+                "vendor": "Viatom",
+                "model": "O2Ring-S",
+                "device_id": "S8AW",
+                "address": "D1:98:62:7C:92:B3",
+                "streams": ["spo2"],
+                "protocol": "legacy",
+            },
+            str(tmp_path),
+        )
+    )
     st = capture.STATUS["devices"]["Ring"]
     assert st["spo2"] == 97
     assert st["pr"] is None, "an unreadable pulse rate stays unknown — never written as a real 0"
 
 
-def test_an_o2ring_reading_with_no_pulse_rate_writes_the_row_without_inventing_one(tmp_path,
-                                                                                   monkeypatch):
+def test_an_o2ring_reading_with_no_pulse_rate_writes_the_row_without_inventing_one(tmp_path, monkeypatch):
     """VIGIL-PPG-GRID-AUDIT §5.2. `live["pr"]` passes through AS-IS including 0 — the old `or 0` turned
     an unreadable pulse rate into a written 0, i.e. the file asserted a pulse the ring never measured.
     The SpO2 card still updates; only the `pr` push is withheld."""
@@ -1483,13 +1720,24 @@ def test_an_o2ring_reading_with_no_pulse_rate_writes_the_row_without_inventing_o
     capture._RECOVER.clear()
     capture._OXYII_RTC_AT.clear()
     c = FakeGattClient()
-    c.on_live = lambda data: (c.notify(0, _o2ring_live_reply(spo2=96, pr=0))
-                              if data[1] == capture.oxyii.OP_LIVE else None)
+    c.on_live = lambda data: (
+        c.notify(0, _o2ring_live_reply(spo2=96, pr=0)) if data[1] == capture.oxyii.OP_LIVE else None
+    )
     monkeypatch.setattr(capture, "_connect_scan", lambda addr, *a, **k: _fake_ctx(c))
     _stop_after(monkeypatch, 4)
-    _run(capture.run_oxyii({"name": "Ring", "vendor": "Wellue", "model": "O2Ring-S",
-                            "device_id": "S8AW", "address": "D1:98:62:7C:92:B3",
-                            "streams": ["spo2"]}, str(tmp_path)))     # no 'ppg' → no oxyflag writer
+    _run(
+        capture.run_oxyii(
+            {
+                "name": "Ring",
+                "vendor": "Wellue",
+                "model": "O2Ring-S",
+                "device_id": "S8AW",
+                "address": "D1:98:62:7C:92:B3",
+                "streams": ["spo2"],
+            },
+            str(tmp_path),
+        )
+    )  # no 'ppg' → no oxyflag writer
     st = capture.STATUS["devices"]["Ring"]
     assert st["spo2"] == 96 and st["pr"] is None
 
@@ -1500,6 +1748,7 @@ def _fake_ctx(client):
     @contextlib.asynccontextmanager
     async def ctx():
         yield client
+
     return ctx()
 
 
@@ -1512,32 +1761,47 @@ def test_the_oxyii_pull_gives_up_waiting_and_pulls_anyway(tmp_path, monkeypatch)
     which is a diagnosable failure. Hanging is not."""
     capture._OXYII_PAUSE.clear()
     import pull_session
+
     pulled = []
 
     async def fake_pull(address, out_dir, **kw):
         pulled.append(address)
         return [str(tmp_path / "x.dat")]
+
     monkeypatch.setattr(pull_session, "pull", fake_pull)
 
     async def no_sleep(_s):
         return None
+
     monkeypatch.setattr(capture.asyncio, "sleep", no_sleep)
-    capture.STATUS["devices"]["Ring"] = {"connected": True}        # never drops
-    r = _run(capture.pull_oxyii_session({"name": "Ring", "vendor": "Wellue", "model": "O2Ring-S",
-                                         "device_id": "S8AW", "address": "D1:98:62:7C:92:B3"},
-                                        str(tmp_path)))
+    capture.STATUS["devices"]["Ring"] = {"connected": True}  # never drops
+    r = _run(
+        capture.pull_oxyii_session(
+            {
+                "name": "Ring",
+                "vendor": "Wellue",
+                "model": "O2Ring-S",
+                "device_id": "S8AW",
+                "address": "D1:98:62:7C:92:B3",
+            },
+            str(tmp_path),
+        )
+    )
     assert r["ok"] is True and pulled == ["D1:98:62:7C:92:B3"]
 
 
 def test_the_polar_offline_op_gives_up_waiting_too(monkeypatch):
     """Same bound on the PS-FTP side."""
+
     async def no_sleep(_s):
         return None
+
     monkeypatch.setattr(capture.asyncio, "sleep", no_sleep)
     capture.STATUS["devices"]["Verity"] = {"address": "AA:BB:CC:DD:EE:01", "connected": True}
 
     async def op():
         return {"ok": True}
+
     assert _run(capture.polar_offline_op("AA:BB:CC:DD:EE:01", op)) == {"ok": True}
     assert "AA:BB:CC:DD:EE:01" not in capture._POLAR_PAUSED, "the pause must be released"
 
@@ -1568,14 +1832,17 @@ def test_the_h10_clock_set_skips_the_reads_its_firmware_does_not_implement(monke
     class _Mod:
         def PolarPsFtp(self, address, adapter=None):
             return _Fs()
+
     monkeypatch.setitem(sys.modules, "polar_psftp", _Mod())
 
     async def fake_hci():
         return "hci0"
+
     monkeypatch.setattr(capture, "adapter_hci", fake_hci)
 
-    async def run_op(address, op, timeout=None, **_kw):   # **_kw: a fake must tolerate the real signature growing
+    async def run_op(address, op, timeout=None, **_kw):  # **_kw: a fake must tolerate the real signature growing
         return await op()
+
     monkeypatch.setattr(capture, "polar_offline_op", run_op)
     capture.STATUS["devices"]["H10"] = {"address": "24:AC:AC:02:84:96", "model": "H10"}
     capture._CFG.clear()
@@ -1591,8 +1858,10 @@ def test_the_h10_clock_set_skips_the_reads_its_firmware_does_not_implement(monke
 def test_the_host_clock_poller_records_state_without_writing_a_sidecar(monkeypatch):
     """`root` is optional. Called without one — the pre-sidecar wiring, and what a test harness does —
     the poller must still publish clock trust to STATUS and simply not open a CLOCK.csv."""
+
     async def fake_state():
         return {"trust": "ntp", "absolute_ok": True, "reason": "synchronised"}
+
     monkeypatch.setattr(capture.host_clock, "read_state", fake_state)
     _stop_after(monkeypatch, 1)
     _run(capture.host_clock_poller({"clock": {"poll_sec": 1}}, None))
@@ -1610,22 +1879,24 @@ def test_the_transfer_offload_does_nothing_when_every_night_is_already_pushed(tm
     async def fake_push(src, target, timeout=1800.0):
         called.append(src)
         return {"ok": True, "verified": True, "detail": ""}
+
     monkeypatch.setattr(capture.storage_targets, "push_night", fake_push)
-    _run(capture._archive_transfer(str(tmp_path / "captures"), {"protocol": "rsync"}, 60.0,
-                                   {"mode": "after_settle"}))
+    _run(capture._archive_transfer(str(tmp_path / "captures"), {"protocol": "rsync"}, 60.0, {"mode": "after_settle"}))
     assert called == []
 
 
 def test_registration_tolerates_a_task_list_that_no_longer_holds_the_incumbent():
     """`tasks` is also pruned elsewhere (a finished runner is reaped). Registering over an incumbent that
     has already left the list must not raise — `.remove()` on an absent element is a ValueError."""
+
     async def go():
         async def forever():
             await asyncio.sleep(3600)
+
         device_tasks, tasks = {}, []
         first = asyncio.create_task(forever())
         capture.register_runner(device_tasks, tasks, "AA:BB", first)
-        tasks.clear()                                   # reaped by someone else
+        tasks.clear()  # reaped by someone else
         second = asyncio.create_task(forever())
         capture.register_runner(device_tasks, tasks, "AA:BB", second)
         assert tasks == [second]
@@ -1634,6 +1905,7 @@ def test_registration_tolerates_a_task_list_that_no_longer_holds_the_incumbent()
         assert device_tasks == {}
         for t in (first, second):
             t.cancel()
+
     _run(go())
 
 
@@ -1642,25 +1914,50 @@ def test_main_leaves_an_explicit_ppg_stream_and_a_nonsense_rate_alone(tmp_path, 
     already has one, and a non-positive `ppg_fs` is not an override — applying it would divide by zero
     building the grid step."""
     import yaml as _yaml
-    ring = {"name": "Ring", "vendor": "Wellue", "model": "O2Ring-S", "device_id": "S8AW",
-            "address": "D1:98:62:7C:92:B3", "streams": ["spo2", "ppg"]}
-    cfg = {"root": str(tmp_path), "devices": [ring], "web": {"enabled": False},
-           "o2ring": {"ppg_fs": -1.0}}
+
+    ring = {
+        "name": "Ring",
+        "vendor": "Wellue",
+        "model": "O2Ring-S",
+        "device_id": "S8AW",
+        "address": "D1:98:62:7C:92:B3",
+        "streams": ["spo2", "ppg"],
+    }
+    cfg = {"root": str(tmp_path), "devices": [ring], "web": {"enabled": False}, "o2ring": {"ppg_fs": -1.0}}
     cfgp = tmp_path / "config.yaml"
     cfgp.write_text(_yaml.safe_dump(cfg))
     was_fs, was_step = capture.O2PPG_FS, capture.O2PPG_NS_STEP
-    for r in ("run_polar", "run_oxyii", "run_viatom", "run_muse", "status_loop", "adapter_watchdog",
-              "rssi_poller", "clock_watchdog", "host_clock_poller", "storage_poller", "alert_poller",
-              "qc_poller", "archive_poller", "autopull_poller", "cpap_poller", "charger_pull_poller",
-              "sd_watchdog", "startup_defense_check"):
+    for r in (
+        "run_polar",
+        "run_oxyii",
+        "run_viatom",
+        "run_muse",
+        "status_loop",
+        "adapter_watchdog",
+        "rssi_poller",
+        "clock_watchdog",
+        "host_clock_poller",
+        "storage_poller",
+        "alert_poller",
+        "qc_poller",
+        "archive_poller",
+        "autopull_poller",
+        "cpap_poller",
+        "charger_pull_poller",
+        "sd_watchdog",
+        "startup_defense_check",
+    ):
+
         async def _n(*a, **k):
             return None
+
         monkeypatch.setattr(capture, r, _n)
     monkeypatch.setattr(sys, "argv", ["capture.py", "--config", str(cfgp)])
 
     async def go():
         asyncio.get_running_loop().call_soon(capture._STOP.set)
         await capture.main()
+
     _run(go())
     assert capture._CFG["devices"][0]["streams"] == ["spo2", "ppg"], "no duplicate 'ppg'"
     assert (capture.O2PPG_FS, capture.O2PPG_NS_STEP) == (was_fs, was_step)
@@ -1670,21 +1967,41 @@ def test_a_nameless_device_is_skipped_without_a_status_card(tmp_path, monkeypatc
     """There is nowhere to put the error. A card keyed on an empty name would collide with every other
     nameless device and show an error against the wrong sensor."""
     import yaml as _yaml
-    cfg = {"root": str(tmp_path), "web": {"enabled": False},
-           "devices": [{"address": "AA:BB:CC:DD:EE:FF"}]}          # no name, no vendor, no model
+
+    cfg = {
+        "root": str(tmp_path),
+        "web": {"enabled": False},
+        "devices": [{"address": "AA:BB:CC:DD:EE:FF"}],
+    }  # no name, no vendor, no model
     cfgp = tmp_path / "config.yaml"
     cfgp.write_text(_yaml.safe_dump(cfg))
-    for r in ("status_loop", "adapter_watchdog", "rssi_poller", "clock_watchdog", "host_clock_poller",
-              "storage_poller", "alert_poller", "qc_poller", "archive_poller", "autopull_poller",
-              "cpap_poller", "charger_pull_poller", "sd_watchdog", "startup_defense_check"):
+    for r in (
+        "status_loop",
+        "adapter_watchdog",
+        "rssi_poller",
+        "clock_watchdog",
+        "host_clock_poller",
+        "storage_poller",
+        "alert_poller",
+        "qc_poller",
+        "archive_poller",
+        "autopull_poller",
+        "cpap_poller",
+        "charger_pull_poller",
+        "sd_watchdog",
+        "startup_defense_check",
+    ):
+
         async def _n(*a, **k):
             return None
+
         monkeypatch.setattr(capture, r, _n)
     monkeypatch.setattr(sys, "argv", ["capture.py", "--config", str(cfgp)])
 
     async def go():
         asyncio.get_running_loop().call_soon(capture._STOP.set)
         await capture.main()
+
     with caplog.at_level("WARNING"):
         _run(go())
     assert any("skipping device — missing" in r.getMessage() for r in caplog.records)
@@ -1698,15 +2015,18 @@ def test_a_short_offline_file_is_reported_and_warned_not_counted_as_pulled(tmp_p
     fake = _FakePsFtp(
         sessions=[{"path": "/U/0/20260725/R/220000/", "date": "20260725", "time": "220000"}],
         files={"/U/0/20260725/R/220000/": ["ECG.txt"]},
-        short={"/U/0/20260725/R/220000/": ["PLETH.GZ: declared 34, got 9 bytes — left as PLETH.GZ.part"]})
+        short={"/U/0/20260725/R/220000/": ["PLETH.GZ: declared 34, got 9 bytes — left as PLETH.GZ.part"]},
+    )
     monkeypatch.setitem(sys.modules, "polar_psftp", fake)
 
     async def fake_hci():
         return "hci0"
+
     monkeypatch.setattr(capture, "adapter_hci", fake_hci)
 
-    async def run_op(address, op, timeout=None, **_kw):   # **_kw: a fake must tolerate the real signature growing
+    async def run_op(address, op, timeout=None, **_kw):  # **_kw: a fake must tolerate the real signature growing
         return await op()
+
     monkeypatch.setattr(capture, "polar_offline_op", run_op)
 
     with caplog.at_level("WARNING"):
@@ -1714,8 +2034,9 @@ def test_a_short_offline_file_is_reported_and_warned_not_counted_as_pulled(tmp_p
     assert res["ok"] is False
     assert res["short"] and "PLETH.GZ" in res["short"][0]
     assert res["new_files"] == ["ECG.txt"], "the short file is not among the files we pulled"
-    assert any("SHORT" in r.message or "SHORT" in r.getMessage() for r in caplog.records), \
+    assert any("SHORT" in r.message or "SHORT" in r.getMessage() for r in caplog.records), (
         "a truncated backup must be visible in the journal, not only in a returned dict"
+    )
 
 
 def test_the_archive_poller_mirrors_the_configured_subtrees(tmp_path, monkeypatch):
@@ -1739,6 +2060,7 @@ def test_the_archive_poller_mirrors_the_configured_subtrees(tmp_path, monkeypatc
     def spy(captures_dir, name, dst, **kw):
         calls.append(name)
         return real(captures_dir, name, dst, **kw)
+
     monkeypatch.setattr(nightarchive, "mirror_subtree", spy)
 
     async def go():
@@ -1752,7 +2074,8 @@ def test_the_archive_poller_mirrors_the_configured_subtrees(tmp_path, monkeypatc
         try:
             await task
         except asyncio.CancelledError:
-            pass   # we cancelled it; awaiting is how we wait for it to actually stop
+            pass  # we cancelled it; awaiting is how we wait for it to actually stop
+
     try:
         _run(go())
     finally:
@@ -1779,11 +2102,11 @@ def test_a_DEAD_arrival_sidecar_warns_once_per_night(tmp_path, monkeypatch, capl
     sensor test above."""
     os.makedirs(str(tmp_path / "captures" / "2026-08-14"), exist_ok=True)
     monkeypatch.setattr(capture, "_current_night", lambda captures, settle: "2026-08-14")
-    monkeypatch.setattr(capture.nightqc, "summarize", lambda night, devices: {
-        "night": "2026-08-14", "missing": [], "devices": []})
+    monkeypatch.setattr(
+        capture.nightqc, "summarize", lambda night, devices: {"night": "2026-08-14", "missing": [], "devices": []}
+    )
     # writing samples (rows) with a sidecar that has produced nothing (arrival_rows == 0)
-    capture.STATUS["devices"]["Verity"] = {"connected": True, "charging": False,
-                                           "rows": 159607, "arrival_rows": 0}
+    capture.STATUS["devices"]["Verity"] = {"connected": True, "charging": False, "rows": 159607, "arrival_rows": 0}
     sent = []
 
     class _N:
@@ -1791,7 +2114,7 @@ def test_a_DEAD_arrival_sidecar_warns_once_per_night(tmp_path, monkeypatch, capl
             sent.append((title, message))
             return True
 
-    _stop_after(monkeypatch, 2)                    # two polls; one warning
+    _stop_after(monkeypatch, 2)  # two polls; one warning
     cfg = {"qc": {"poll_sec": 1, "frozen_after_sec": 600}, "devices": []}
     with caplog.at_level("WARNING"):
         _run(capture.qc_poller(cfg, str(tmp_path), _N()))
@@ -1810,10 +2133,10 @@ def test_a_healthy_sidecar_says_NOTHING(tmp_path, monkeypatch, caplog):
     none."""
     os.makedirs(str(tmp_path / "captures" / "2026-08-14"), exist_ok=True)
     monkeypatch.setattr(capture, "_current_night", lambda captures, settle: "2026-08-14")
-    monkeypatch.setattr(capture.nightqc, "summarize", lambda night, devices: {
-        "night": "2026-08-14", "missing": [], "devices": []})
-    capture.STATUS["devices"]["Verity"] = {"connected": True, "charging": False,
-                                           "rows": 159607, "arrival_rows": 159607}
+    monkeypatch.setattr(
+        capture.nightqc, "summarize", lambda night, devices: {"night": "2026-08-14", "missing": [], "devices": []}
+    )
+    capture.STATUS["devices"]["Verity"] = {"connected": True, "charging": False, "rows": 159607, "arrival_rows": 159607}
     _stop_after(monkeypatch, 2)
     cfg = {"qc": {"poll_sec": 1, "frozen_after_sec": 600}, "devices": []}
     with caplog.at_level("WARNING"):
@@ -1832,14 +2155,14 @@ def test_a_dead_sidecar_still_warns_the_journal_with_NO_webhook(tmp_path, monkey
     false arm of `if notifier:` never executed — 0 uncovered statements and 1 uncovered branch."""
     os.makedirs(str(tmp_path / "captures" / "2026-08-14"), exist_ok=True)
     monkeypatch.setattr(capture, "_current_night", lambda captures, settle: "2026-08-14")
-    monkeypatch.setattr(capture.nightqc, "summarize", lambda night, devices: {
-        "night": "2026-08-14", "missing": [], "devices": []})
-    capture.STATUS["devices"]["Verity"] = {"connected": True, "charging": False,
-                                           "rows": 159607, "arrival_rows": 0}
+    monkeypatch.setattr(
+        capture.nightqc, "summarize", lambda night, devices: {"night": "2026-08-14", "missing": [], "devices": []}
+    )
+    capture.STATUS["devices"]["Verity"] = {"connected": True, "charging": False, "rows": 159607, "arrival_rows": 0}
     _stop_after(monkeypatch, 2)
     cfg = {"qc": {"poll_sec": 1, "frozen_after_sec": 600}, "devices": []}
     with caplog.at_level("WARNING"):
-        _run(capture.qc_poller(cfg, str(tmp_path), None))     # no notifier at all
+        _run(capture.qc_poller(cfg, str(tmp_path), None))  # no notifier at all
     dead = [r for r in caplog.records if "arrival sidecar" in r.getMessage()]
     assert len(dead) == 1, f"the journal must still carry it: {[r.getMessage()[:60] for r in caplog.records]}"
     capture.STATUS["devices"].pop("Verity", None)
@@ -1866,8 +2189,9 @@ def test_a_device_taken_off_the_body_is_pulled_once_per_doff(tmp_path, monkeypat
     async def fake_polar_pull(dev, root):
         pulls.append(dev["name"])
         return {"new_files": ["Polar_Offline_x/RR.txt"]}
+
     monkeypatch.setattr(capture, "pull_polar_offline_all", fake_polar_pull)
-    _stop_after(monkeypatch, 3)                    # three ticks — exactly one pull
+    _stop_after(monkeypatch, 3)  # three ticks — exactly one pull
     _run(capture.charger_pull_poller(cfg, str(tmp_path)))
     assert pulls == ["Strap"], "once per doff session, not once per tick"
     assert capture.STATUS["autopull"]["trigger"] == "not-worn"
@@ -1889,6 +2213,7 @@ def test_worn_again_re_arms_the_doff_pull(tmp_path, monkeypatch):
     async def fake_polar_pull(dev, root):
         pulls.append(dev["name"])
         return {"new_files": []}
+
     monkeypatch.setattr(capture, "pull_polar_offline_all", fake_polar_pull)
     _stop_after(monkeypatch, 2)
     _run(capture.charger_pull_poller(cfg, str(tmp_path)))
@@ -1933,38 +2258,49 @@ def test_qc_digest_due_is_a_bounded_window_not_a_floor():
     'wrong and shipped once' (a 19:25 restart re-armed a 13:00 job). The first draft of THIS function
     was that floor; these pin the window semantics so it cannot quietly return."""
     import datetime as dt
+
     at = lambda h, m=0: dt.datetime(2026, 8, 18, h, m)
-    assert capture.qc_digest_due(at(9), 9, None) is True         # in the window, never sent → due
-    assert capture.qc_digest_due(at(11, 59), 9, None) is True    # still inside [9, 12)
-    assert capture.qc_digest_due(at(8, 59), 9, None) is False    # before the window
-    assert capture.qc_digest_due(at(19, 25), 9, None) is False   # THE 2026-07-26 BUG: restart after the
+    assert capture.qc_digest_due(at(9), 9, None) is True  # in the window, never sent → due
+    assert capture.qc_digest_due(at(11, 59), 9, None) is True  # still inside [9, 12)
+    assert capture.qc_digest_due(at(8, 59), 9, None) is False  # before the window
+    assert capture.qc_digest_due(at(19, 25), 9, None) is False  # THE 2026-07-26 BUG: restart after the
     #                                                              window must NOT consider itself due
     import cpap_harvest
+
     d = cpap_harvest.window_start_date(at(9), 9, 3)
-    assert capture.qc_digest_due(at(10), 9, d) is False          # already sent this window — ALLOW twin
-    assert capture.qc_digest_due(at(10), -1, None) is False      # -1 disables, at any hour
+    assert capture.qc_digest_due(at(10), 9, d) is False  # already sent this window — ALLOW twin
+    assert capture.qc_digest_due(at(10), -1, None) is False  # -1 disables, at any hour
 
 
 def test_the_morning_digest_sends_coverage_once(tmp_path, monkeypatch):
     """The digest is UNCONDITIONAL — it fires on a healthy night, which the missing-stream alert never
     does. Once per local day, marked before the await like every sender in this file."""
     import os as _os
+
     _os.makedirs(str(tmp_path / "captures" / "2026-08-18"), exist_ok=True)
     monkeypatch.setattr(capture, "_current_night", lambda captures, settle: "2026-08-18")
-    monkeypatch.setattr(capture.nightqc, "summarize", lambda night, devices: {
-        "night": "2026-08-18", "missing": [],
-        "devices": [{"name": "H10", "coverage": {"ecg": 0.96, "acc": 0.95}}]})
+    monkeypatch.setattr(
+        capture.nightqc,
+        "summarize",
+        lambda night, devices: {
+            "night": "2026-08-18",
+            "missing": [],
+            "devices": [{"name": "H10", "coverage": {"ecg": 0.96, "acc": 0.95}}],
+        },
+    )
     sent = []
 
     class _N:
         async def send(self, title, message, **kw):
             sent.append((title, message, kw.get("key")))
             return True
+
     import datetime as dt
+
     monkeypatch.setattr(capture, "_now", lambda: dt.datetime(2026, 8, 18, 9, 30))  # pinned INSIDE the
     # window — the first draft used digest_hour 0 as "always due", which under bounded-window semantics
     # is only true before 03:00 local: the very time-dependence this feature red-flagged in CI.
-    _stop_after(monkeypatch, 3)                     # three polls; ONE digest
+    _stop_after(monkeypatch, 3)  # three polls; ONE digest
     cfg = {"qc": {"poll_sec": 1, "digest_hour": 9}, "devices": []}
     _run(capture.qc_poller(cfg, str(tmp_path), _N()))
     digests = [s for s in sent if s[0] == "Tepna night QC"]
@@ -1979,6 +2315,7 @@ def _digest_deny_case(tmp_path, monkeypatch, qc_cfg):
     executed ZERO ticks, and `sent == []` passed vacuously. Coverage caught it (the `_line`-falsy
     branch was never taken); the poll counter is the assertion that keeps it caught."""
     import os as _os
+
     _os.makedirs(str(tmp_path / "captures" / "2026-08-18"), exist_ok=True)
     monkeypatch.setattr(capture, "_current_night", lambda captures, settle: "2026-08-18")
     polls = {"n": 0}
@@ -1986,6 +2323,7 @@ def _digest_deny_case(tmp_path, monkeypatch, qc_cfg):
     def _summ(night, devices):
         polls["n"] += 1
         return {"night": "2026-08-18", "missing": [], "devices": []}
+
     monkeypatch.setattr(capture.nightqc, "summarize", _summ)
     sent = []
 
@@ -1993,6 +2331,7 @@ def _digest_deny_case(tmp_path, monkeypatch, qc_cfg):
         async def send(self, title, message, **kw):
             sent.append(title)
             return True
+
     capture._STOP.clear()
     _stop_after(monkeypatch, 1)
     _run(capture.qc_poller({"qc": qc_cfg, "devices": []}, str(tmp_path), _N()))
@@ -2008,6 +2347,7 @@ def test_the_digest_disabled_by_hour_minus_one(tmp_path, monkeypatch):
 def test_an_empty_night_sends_no_digest_even_when_due(tmp_path, monkeypatch):
     """The `_line is None` branch: due, notifier present, nothing measured — silence, deliberately."""
     import datetime as dt
+
     monkeypatch.setattr(capture, "_now", lambda: dt.datetime(2026, 8, 18, 9, 30))
     sent, polls = _digest_deny_case(tmp_path, monkeypatch, {"poll_sec": 1, "digest_hour": 9})
     assert polls > 0, "the tick must actually run — a zero-tick pass proves nothing"
@@ -2018,15 +2358,18 @@ def test_qc_digest_formats_ranges_and_absences():
     """Pure formatting: one number when streams agree, a RANGE when they diverge (41/95 must not read
     as 68), absent-coverage devices NAMED rather than averaged in as zeros, missing streams appended."""
     import nightqc
-    line = nightqc.qc_digest({
-        "night": "2026-08-18",
-        "devices": [
-            {"name": "O2Ring", "coverage": {"spo2": 0.63, "ppg": 0.63}},
-            {"name": "Verity", "coverage": {"acc": 0.41, "ppg": 0.95}},
-            {"name": "COOSPO", "coverage": {}},
-        ],
-        "missing": ["Verity:ppi"],
-    })
+
+    line = nightqc.qc_digest(
+        {
+            "night": "2026-08-18",
+            "devices": [
+                {"name": "O2Ring", "coverage": {"spo2": 0.63, "ppg": 0.63}},
+                {"name": "Verity", "coverage": {"acc": 0.41, "ppg": 0.95}},
+                {"name": "COOSPO", "coverage": {}},
+            ],
+            "missing": ["Verity:ppi"],
+        }
+    )
     assert "O2Ring 63%" in line
     assert "Verity 41–95%" in line
     assert "no data: COOSPO" in line
@@ -2044,6 +2387,7 @@ def test_qc_digest_formats_ranges_and_absences():
 # ═══════════════════════════════════════════════════════════════════════════════════════════
 def test_resumable_set_legacy_finds_the_set_inside_the_window(tmp_path):
     import writers, datetime as dt, os, time
+
     d = str(tmp_path)
     f = tmp_path / "Polar_H10_02849638_20260819210000_ECG.txt"
     f.write_text("hdr\n1;2;3;4\n")
@@ -2062,16 +2406,18 @@ def test_resumable_set_legacy_finds_the_set_inside_the_window(tmp_path):
 
 def test_resumable_set_legacy_ignores_stampless_and_unparseable_names(tmp_path):
     import writers, datetime as dt
+
     (tmp_path / "Polar_H10_02849638_notes.txt").write_text("x\n")
-    assert writers.resumable_set(str(tmp_path), "Polar", "H10", "02849638",
-                                   dt.datetime.now(), 300.0) is None
+    assert writers.resumable_set(str(tmp_path), "Polar", "H10", "02849638", dt.datetime.now(), 300.0) is None
 
 
 def test_stream_writer_resumes_without_a_second_header(tmp_path):
     """§2: same path ⇒ append; the header is written once, by the FIRST open."""
     import writers
+
     p = str(tmp_path / "Polar_H10_x_20260819210000_ACC.txt")
     import datetime as dt
+
     w1 = writers.StreamWriter(p, "acc", fsync=False)
     w1.write_acc(dt.datetime(2026, 8, 19, 21, 0, 0), 1, 0.0, 1, 2, 3)
     w1.close()
@@ -2081,34 +2427,38 @@ def test_stream_writer_resumes_without_a_second_header(tmp_path):
     w2.close()
     lines = open(p).read().splitlines()
     assert sum(1 for x in lines if x.startswith("Phone timestamp")) == 1, lines
-    assert len(lines) == 3   # header + two rows — nothing lost, nothing duplicated
+    assert len(lines) == 3  # header + two rows — nothing lost, nothing duplicated
 
 
 def test_stream_writer_truncates_a_torn_tail_before_appending(tmp_path):
     """§3.5: a crash mid-write leaves no trailing newline; appending after it would fuse two rows."""
     import writers
+
     p = str(tmp_path / "Polar_H10_x_20260819210000_ACC.txt")
     import datetime as dt
+
     w1 = writers.StreamWriter(p, "acc", fsync=False)
     w1.write_acc(dt.datetime(2026, 8, 19, 21, 0, 0), 1, 0.0, 1, 2, 3)
     w1.close()
     with open(p, "a", newline="\n") as fh:
-        fh.write("2026-08-19T21:00:01.000;2;7;8")     # torn — no newline
+        fh.write("2026-08-19T21:00:01.000;2;7;8")  # torn — no newline
     w2 = writers.StreamWriter(p, "acc", fsync=False)
     w2.write_acc(dt.datetime(2026, 8, 19, 21, 3, 0), 3, 0.0, 9, 9, 9)
     w2.close()
     lines = open(p).read().splitlines()
     assert not any(";7;8" in x and ";9" in x for x in lines), f"fused row: {lines}"
     assert lines[-1].endswith(";9;9;9")
-    assert all(x.count(";") in (0, 4) for x in lines), lines   # every surviving row is complete
+    assert all(x.count(";") in (0, 4) for x in lines), lines  # every surviving row is complete
 
 
 def test_resumed_ecg_keeps_its_relative_ms_anchor(tmp_path):
     """§3.2 (no re-anchor): the `timestamp [ms]` column must NOT restart at 0.0 mid-file — ECGDex
     infers fs from this column's step, and a reset fabricates a step the size of the recording."""
     import writers
+
     p = str(tmp_path / "Polar_H10_x_20260819210000_ECG.txt")
     import datetime as dt
+
     w1 = writers.StreamWriter(p, "ecg", fsync=False)
     w1.write_ecg(dt.datetime(2026, 8, 19, 21, 0, 0), 1_000_000_000, 0.0, 100)
     w1.write_ecg(dt.datetime(2026, 8, 19, 21, 0, 0, 8000), 1_007_692_288, 0.0, 101)
@@ -2120,11 +2470,12 @@ def test_resumed_ecg_keeps_its_relative_ms_anchor(tmp_path):
     rows = [x for x in open(p).read().splitlines() if not x.startswith("Phone")]
     rel = [float(r.split(";")[2]) for r in rows]
     assert rel[0] == 0.0
-    assert abs(rel[2] - 180_000.0) < 1.0, rel   # anchored to the ORIGINAL first sample, not reset
+    assert abs(rel[2] - 180_000.0) < 1.0, rel  # anchored to the ORIGINAL first sample, not reset
 
 
 def test_resumed_hr_writer_appends_the_rr_sibling_too(tmp_path):
     import writers
+
     p = str(tmp_path / "Polar_H10_x_20260819210000_HR.txt")
     w1 = writers.StreamWriter(p, "hr", fsync=False)
     w1.close()
@@ -2142,6 +2493,7 @@ def _mkset(d, stamp, now, age_s=0.0, dev="02849638", stream="ECG"):
     passes no matter what it does — three of these tests were green for exactly that reason before a
     fourth caught it. A test whose subject cannot fail it is not testing the subject."""
     import os
+
     os.makedirs(d, exist_ok=True)
     f = os.path.join(d, f"Polar_H10_{dev}_{stamp}_{stream}.txt")
     with open(f, "w") as fh:
@@ -2161,6 +2513,7 @@ def test_prev_night_dir_is_civil_date_arithmetic_across_dst(tmp_path):
     was originally written that way and caught nothing."""
     import writers
     import os
+
     cap = str(tmp_path / "captures")
     # 🔴 the one that actually separates the implementations
     assert os.path.basename(writers.prev_night_dir(os.path.join(cap, "2026-03-09"))) == "2026-03-08"
@@ -2173,13 +2526,15 @@ def test_prev_night_dir_is_civil_date_arithmetic_across_dst(tmp_path):
     assert os.path.basename(writers.prev_night_dir(os.path.join(cap, "2024-03-01"))) == "2024-02-29"
     # the sibling stays in the same parent, and a trailing slash is not a different answer
     assert os.path.dirname(writers.prev_night_dir(os.path.join(cap, "2026-03-08"))) == cap
-    assert writers.prev_night_dir(os.path.join(cap, "2026-03-08") + os.sep) == \
-           writers.prev_night_dir(os.path.join(cap, "2026-03-08"))
+    assert writers.prev_night_dir(os.path.join(cap, "2026-03-08") + os.sep) == writers.prev_night_dir(
+        os.path.join(cap, "2026-03-08")
+    )
 
 
 def test_prev_night_dir_refuses_a_non_date_basename(tmp_path):
     """A folder that is not a date has no previous day — None, never a guess."""
     import writers
+
     assert writers.prev_night_dir(str(tmp_path / "captures" / "scratch")) is None
     assert writers.prev_night_dir(str(tmp_path / "captures" / "2026-13-45")) is None
 
@@ -2192,11 +2547,12 @@ def test_resumable_set_finds_the_set_across_the_folder_boundary(tmp_path):
     corpus: 16 of 29 sub-5-minute seams straddled a boundary."""
     import writers
     import datetime as dt
+
     cap = tmp_path / "captures"
     today, yday = str(cap / "2026-09-12"), str(cap / "2026-09-11")
     now = dt.datetime(2026, 9, 12, 0, 1, 0)
     _mkset(yday, "20260911235800", now, age_s=60.0)  # written 60 s ago, just before midnight
-    os.makedirs(today, exist_ok=True)                # today's folder exists and is EMPTY
+    os.makedirs(today, exist_ok=True)  # today's folder exists and is EMPTY
     got = writers.resumable_set(today, "Polar", "H10", "02849638", now, 300.0)
     assert got is not None, "the set written 60 s ago must be resumable across the boundary"
     stamp, where = got
@@ -2210,10 +2566,11 @@ def test_resumable_set_window_still_bounds_the_previous_folder(tmp_path):
     """A genuine outage keeps fragmenting — crossing midnight is not a licence to resume anything."""
     import writers
     import datetime as dt
+
     cap = tmp_path / "captures"
     today, yday = str(cap / "2026-09-12"), str(cap / "2026-09-11")
     now = dt.datetime(2026, 9, 12, 0, 1, 0)
-    _mkset(yday, "20260911200000", now, age_s=4000.0)   # last wrote over an hour ago
+    _mkset(yday, "20260911200000", now, age_s=4000.0)  # last wrote over an hour ago
     os.makedirs(today, exist_ok=True)
     assert writers.resumable_set(today, "Polar", "H10", "02849638", now, 300.0) is None
 
@@ -2225,10 +2582,11 @@ def test_resumable_set_newest_write_wins_not_newest_folder(tmp_path):
     written last night — the inversion that makes a resume adopt the wrong stamp."""
     import writers
     import datetime as dt
+
     cap = tmp_path / "captures"
     today, yday = str(cap / "2026-09-12"), str(cap / "2026-09-11")
     now = dt.datetime(2026, 9, 12, 0, 7, 0)
-    _mkset(yday, "20260911235800", now, age_s=5.0)     # yesterday's folder, 5 s ago  <- live
+    _mkset(yday, "20260911235800", now, age_s=5.0)  # yesterday's folder, 5 s ago  <- live
     _mkset(today, "20260912000500", now, age_s=120.0)  # today's folder, 2 min ago    <- staler
     stamp, where = writers.resumable_set(today, "Polar", "H10", "02849638", now, 300.0)
     assert (stamp, where) == (dt.datetime(2026, 9, 11, 23, 58, 0), yday)
@@ -2242,6 +2600,7 @@ def test_resumable_set_ignores_another_devices_set_in_the_previous_folder(tmp_pa
     """The prefix still scopes the search — a second device's live set next door is not ours."""
     import writers
     import datetime as dt
+
     cap = tmp_path / "captures"
     today, yday = str(cap / "2026-09-12"), str(cap / "2026-09-11")
     now = dt.datetime(2026, 9, 12, 0, 1, 0)
@@ -2256,10 +2615,11 @@ def test_resumable_set_rejects_a_junk_stamp_in_the_previous_folder(tmp_path):
     file_stamp accepts the 14-digit SHAPE; only strptime knows 20261345 is not a date."""
     import writers
     import datetime as dt
+
     cap = tmp_path / "captures"
     today, yday = str(cap / "2026-09-12"), str(cap / "2026-09-11")
     now = dt.datetime(2026, 9, 12, 0, 1, 0)
-    _mkset(yday, "20261345995959", now, age_s=5.0)   # 14 digits, not a calendar instant
+    _mkset(yday, "20261345995959", now, age_s=5.0)  # 14 digits, not a calendar instant
     os.makedirs(today, exist_ok=True)
     assert writers.resumable_set(today, "Polar", "H10", "02849638", now, 300.0) is None
 
@@ -2268,6 +2628,7 @@ def test_resumable_set_works_when_the_folder_has_no_previous_day(tmp_path):
     """A non-date folder yields no sibling; the search must still work on the folder it was given."""
     import writers
     import datetime as dt
+
     d = str(tmp_path / "captures" / "scratch")
     now = dt.datetime(2026, 9, 12, 0, 7, 0)
     _mkset(d, "20260912000500", now, age_s=5.0)
@@ -2279,7 +2640,8 @@ def test_resumable_set_legacy_survives_races_and_junk_dates(tmp_path, monkeypatc
     """The unhappy paths: a file deleted between listdir and getmtime is skipped, not raised; a token
     that matches the stamp REGEX but is not a real date (month 13) refuses rather than crashing."""
     import writers, datetime as dt, os as _os
-    (tmp_path / "Polar_H10_02849638_20261340000000_ECG.txt").write_text("h\n")   # month 13
+
+    (tmp_path / "Polar_H10_02849638_20261340000000_ECG.txt").write_text("h\n")  # month 13
     now = dt.datetime.now()
     assert writers.resumable_set(str(tmp_path), "Polar", "H10", "02849638", now, 300.0) is None
     (tmp_path / "Polar_H10_02849638_20260819210000_ECG.txt").write_text("h\n")
@@ -2289,6 +2651,7 @@ def test_resumable_set_legacy_survives_races_and_junk_dates(tmp_path, monkeypatc
         if "20260819210000" in p:
             raise OSError("raced away")
         return real(p)
+
     monkeypatch.setattr(writers.os.path, "getmtime", flaky)
     # the raced file is skipped; the junk-date one is newest-by-mtime and then refuses on strptime
     assert writers.resumable_set(str(tmp_path), "Polar", "H10", "02849638", now, 300.0) is None
@@ -2298,12 +2661,13 @@ def test_resumed_ecg_anchor_skips_comments_and_junk_rows(tmp_path):
     """The anchor scan must step over `#` comments and a non-numeric ns column, and give up cleanly
     (lazy init) when no row qualifies — a worse column, never a crash."""
     import writers
+
     p = str(tmp_path / "Polar_H10_x_20260819210000_ECG.txt")
     with open(p, "w", newline="\n") as fh:
         fh.write("# timebase=host\n")
         fh.write(writers.StreamWriter.HEADERS["ecg"] + "\n")
-        fh.write("2026-08-19T21:00:00.000;junk;0.0;100\n")          # non-numeric ns
-        fh.write("2026-08-19T21:00:00.008;2000000000;7.7;101\n")    # the first valid row
+        fh.write("2026-08-19T21:00:00.000;junk;0.0;100\n")  # non-numeric ns
+        fh.write("2026-08-19T21:00:00.008;2000000000;7.7;101\n")  # the first valid row
     w = writers.StreamWriter(p, "ecg", fsync=False)
     assert w.resumed is True and w._first_ns == 2_000_000_000
     w.close()
@@ -2319,12 +2683,13 @@ def test_resumed_ecg_anchor_skips_comments_and_junk_rows(tmp_path):
 
 def test_arrival_writer_resumes_and_heals_a_torn_tail(tmp_path):
     import writers, datetime as dt
+
     p = str(tmp_path / "Polar_H10_x_20260819210000_PMDARRIVAL.csv")
     w1 = writers.PmdArrivalLogWriter(p, fsync=False)
     w1.write(dt.datetime(2026, 8, 19, 21, 0, 0), "H10", "ecg", 1, 2, 73)
     w1.close()
     with open(p, "a", newline="\n") as fh:
-        fh.write("2026-08-19T21:00:01.000;H10;acc;3;4")             # torn
+        fh.write("2026-08-19T21:00:01.000;H10;acc;3;4")  # torn
     w2 = writers.PmdArrivalLogWriter(p, fsync=False)
     w2.write(dt.datetime(2026, 8, 19, 21, 3, 0), "H10", "ecg", 5, 6, 73)
     w2.close()
@@ -2333,11 +2698,11 @@ def test_arrival_writer_resumes_and_heals_a_torn_tail(tmp_path):
     assert not any(";3;4" in x and ";5;6" in x for x in lines), lines
 
 
-
 def test_resumed_ecg_anchor_survives_an_unreadable_file(tmp_path, monkeypatch):
     """The anchor scan's own read racing away (OSError) degrades to lazy init — a worse column,
     never a crash. The append handle is already open by then, so the writer still works."""
     import writers, builtins, datetime as dt
+
     p = str(tmp_path / "Polar_H10_x_20260819210000_ECG.txt")
     w1 = writers.StreamWriter(p, "ecg", fsync=False)
     w1.write_ecg(dt.datetime(2026, 8, 19, 21, 0, 0), 1_000_000_000, 0.0, 100)
@@ -2348,6 +2713,7 @@ def test_resumed_ecg_anchor_survives_an_unreadable_file(tmp_path, monkeypatch):
         if f == p and mode == "r":
             raise OSError("raced away")
         return real_open(f, mode, *a, **k)
+
     monkeypatch.setattr(builtins, "open", flaky)
     w2 = writers.StreamWriter(p, "ecg", fsync=False)
     assert w2.resumed is True and w2._first_ns is None
@@ -2358,17 +2724,20 @@ def test_resumed_ecg_anchor_survives_an_unreadable_file(tmp_path, monkeypatch):
 # ══════════════════════════════════════════════════════════════════════════════════════════════════
 # dual-radio failover (VIGIL-OVERNIGHT-FINDINGS P1.5) — the watchdog's L3 rung
 # ══════════════════════════════════════════════════════════════════════════════════════════════════
-_HCI_TWO = ("hci1:\tType: Primary  Bus: USB\n\tBD Address: F0:D5:BF:1E:79:21\n\tUP RUNNING \n\n"
-            "hci0:\tType: Primary  Bus: USB\n\tBD Address: AC:A7:F1:29:9D:1D\n\tUP RUNNING \n")
+_HCI_TWO = (
+    "hci1:\tType: Primary  Bus: USB\n\tBD Address: F0:D5:BF:1E:79:21\n\tUP RUNNING \n\n"
+    "hci0:\tType: Primary  Bus: USB\n\tBD Address: AC:A7:F1:29:9D:1D\n\tUP RUNNING \n"
+)
 
 
 def test_list_adapters_parses_the_probe(monkeypatch):
     class _P:
-        async def communicate(self, stdin=None):     # proc_util.communicate calls proc.communicate(stdin)
+        async def communicate(self, stdin=None):  # proc_util.communicate calls proc.communicate(stdin)
             return (_HCI_TWO.encode(), b"")
 
     async def fake_exec(*a, **k):
         return _P()
+
     monkeypatch.setattr(capture.asyncio, "create_subprocess_exec", fake_exec)
     a = _run(capture.list_adapters())
     assert {x["hci"] for x in a} == {"hci0", "hci1"}
@@ -2388,6 +2757,7 @@ def test_list_adapters_runs_PLAIN_hciconfig_not_dash_a(monkeypatch):
     async def fake_exec(*a, **k):
         argv.append(a)
         return _P()
+
     monkeypatch.setattr(capture.asyncio, "create_subprocess_exec", fake_exec)
     assert len(_run(capture.list_adapters())) == 2
     assert argv == [("hciconfig",)], argv
@@ -2396,6 +2766,7 @@ def test_list_adapters_runs_PLAIN_hciconfig_not_dash_a(monkeypatch):
 def test_list_adapters_is_empty_when_hciconfig_is_missing(monkeypatch):
     async def boom(*a, **k):
         raise FileNotFoundError("hciconfig")
+
     monkeypatch.setattr(capture.asyncio, "create_subprocess_exec", boom)
     assert _run(capture.list_adapters()) == []
 
@@ -2413,14 +2784,17 @@ def _failover_rig(monkeypatch, spare_list, *, spare_responds=True):
 
     async def responds(_hci):
         return spare_responds
+
     monkeypatch.setattr(capture, "_adapter_responds", responds)
 
     async def fake_cmd(cmd):
         return True
+
     monkeypatch.setattr(capture, "_adapter_cmd", fake_cmd)
 
     async def adapters(*a, **k):
         return list(spare_list)
+
     monkeypatch.setattr(capture, "list_adapters", adapters)
 
 
@@ -2434,23 +2808,30 @@ def test_the_watchdog_fails_over_to_a_healthy_spare_then_exhausts(monkeypatch, c
     async def fake_bond(addr, mac, *, force=False):
         bonded.append((addr, mac))
         return True
+
     monkeypatch.setattr(capture.bonding, "ensure_bonded", fake_bond)
     orig = capture.ADAPTER
     _stop_after(monkeypatch, 60)
     capture._EXIT_CODE[0] = 0
-    cfg = {"devices": [_dev(name="H10"),
-                       _dev(name="Backup", address="11:22:33:44:55:66", optional=True)],
-           "watchdog": {"interval_sec": 1, "grace_checks": 1, "max_adapter_cycles": 1,
-                        "max_failovers": 1, "exit_on_giveup": True}}
+    cfg = {
+        "devices": [_dev(name="H10"), _dev(name="Backup", address="11:22:33:44:55:66", optional=True)],
+        "watchdog": {
+            "interval_sec": 1,
+            "grace_checks": 1,
+            "max_adapter_cycles": 1,
+            "max_failovers": 1,
+            "exit_on_giveup": True,
+        },
+    }
     try:
         with caplog.at_level("CRITICAL"):
             _run(capture.adapter_watchdog("AC:A7:F1:29:9D:1D", cfg))
         msgs = [r.getMessage() for r in caplog.records]
         assert any("FAILING OVER to spare F0:D5:BF:1E:79:21" in m for m in msgs)
-        assert capture.ADAPTER == "F0:D5:BF:1E:79:21"                  # repoint IS the failover
-        assert any(mac == "F0:D5:BF:1E:79:21" for _a, mac in bonded)   # sensors bonded on the spare
+        assert capture.ADAPTER == "F0:D5:BF:1E:79:21"  # repoint IS the failover
+        assert any(mac == "F0:D5:BF:1E:79:21" for _a, mac in bonded)  # sensors bonded on the spare
         assert ("11:22:33:44:55:66", "F0:D5:BF:1E:79:21") not in bonded  # the optional backup is skipped
-        assert capture._EXIT_CODE[0] == 1                              # budget spent → the ladder exits
+        assert capture._EXIT_CODE[0] == 1  # budget spent → the ladder exits
     finally:
         capture.ADAPTER = orig
         capture._EXIT_CODE[0] = 0
@@ -2474,19 +2855,28 @@ def test_failover_can_be_disabled_and_does_not_migrate(monkeypatch):
     async def pick(*a, **k):
         picked.append(1)
         return "SPARE"
+
     monkeypatch.setattr(capture, "_pick_live_spare", pick)
     _wedge_rig(monkeypatch, adapter_up=False)
     _quiet_deafness_probe(monkeypatch)
 
     async def fake_cmd(cmd):
         return True
+
     monkeypatch.setattr(capture, "_adapter_cmd", fake_cmd)
     monkeypatch.setattr(capture, "list_adapters", spare)
     _stop_after(monkeypatch, 40)
     capture._EXIT_CODE[0] = 0
-    cfg = {"devices": [_dev(name="H10")],
-           "watchdog": {"interval_sec": 1, "grace_checks": 1, "max_adapter_cycles": 1,
-                        "failover": False, "exit_on_giveup": True}}
+    cfg = {
+        "devices": [_dev(name="H10")],
+        "watchdog": {
+            "interval_sec": 1,
+            "grace_checks": 1,
+            "max_adapter_cycles": 1,
+            "failover": False,
+            "exit_on_giveup": True,
+        },
+    }
     try:
         capture.ADAPTER = "PIN"
         _run(capture.adapter_watchdog("PIN", cfg))
@@ -2504,19 +2894,27 @@ def test_failover_survives_a_bond_failure_on_the_spare(monkeypatch, caplog):
 
     async def bad_bond(addr, mac, *, force=False):
         raise RuntimeError("no pair")
+
     monkeypatch.setattr(capture.bonding, "ensure_bonded", bad_bond)
     orig = capture.ADAPTER
     _stop_after(monkeypatch, 60)
     capture._EXIT_CODE[0] = 0
-    cfg = {"devices": [_dev(name="H10")],
-           "watchdog": {"interval_sec": 1, "grace_checks": 1, "max_adapter_cycles": 1,
-                        "max_failovers": 1, "exit_on_giveup": True}}
+    cfg = {
+        "devices": [_dev(name="H10")],
+        "watchdog": {
+            "interval_sec": 1,
+            "grace_checks": 1,
+            "max_adapter_cycles": 1,
+            "max_failovers": 1,
+            "exit_on_giveup": True,
+        },
+    }
     try:
         with caplog.at_level("WARNING"):
             _run(capture.adapter_watchdog("PIN", cfg))
         msgs = [r.getMessage() for r in caplog.records]
         assert any("failover bond of" in m and "failed" in m for m in msgs)
-        assert capture.ADAPTER == "SPARE"                              # failover happened despite the bond error
+        assert capture.ADAPTER == "SPARE"  # failover happened despite the bond error
     finally:
         capture.ADAPTER = orig
         capture._EXIT_CODE[0] = 0
@@ -2537,8 +2935,7 @@ def test_a_RESUMED_set_that_receives_nothing_is_KEPT_not_discarded(tmp_path, mon
     started = capture._now()
     ndir = capture.night_dir(str(tmp_path), started)
     os.makedirs(ndir, exist_ok=True)
-    seeded = os.path.join(ndir, capture.capture_filename(
-        dev["vendor"], dev["model"], dev["device_id"], started, "ecg"))
+    seeded = os.path.join(ndir, capture.capture_filename(dev["vendor"], dev["model"], dev["device_id"], started, "ecg"))
     prior = "# earlier session\nt;v\n1;2\n"
     with open(seeded, "w") as fh:
         fh.write(prior)
@@ -2550,5 +2947,6 @@ def test_a_RESUMED_set_that_receives_nothing_is_KEPT_not_discarded(tmp_path, mon
 
     assert os.path.exists(seeded), (
         "a resumed set that received no rows was DELETED — this is the vigil data loss: the writer "
-        "appended to bytes it did not write, then discarded the whole file on teardown")
+        "appended to bytes it did not write, then discarded the whole file on teardown"
+    )
     assert open(seeded).read().startswith(prior), "the earlier session's bytes must be intact"

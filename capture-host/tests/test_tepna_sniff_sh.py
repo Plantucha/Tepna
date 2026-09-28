@@ -55,10 +55,9 @@ FAKE_EXTCAP = (
 )
 
 CLEAN = _pcap_ts((100, 0, _connect_ind(SENA_WIRE, RING_WIRE)), (100 + SECS, 0, _adv(0x0, RING_WIRE)))
-FOREIGN = _pcap_ts((100, 0, _connect_ind(STRANGER_WIRE, RING_WIRE)),
-                   (100 + SECS, 0, _adv(0x0, RING_WIRE)))
+FOREIGN = _pcap_ts((100, 0, _connect_ind(STRANGER_WIRE, RING_WIRE)), (100 + SECS, 0, _adv(0x0, RING_WIRE)))
 DIED_EARLY = _pcap_ts((100, 0, _adv(0x0, RING_WIRE)), (101, 0, _adv(0x0, RING_WIRE)))
-LOCKED = _pcap()          # the LockedException shape: a pcap global header and nothing else
+LOCKED = _pcap()  # the LockedException shape: a pcap global header and nothing else
 
 
 def _stub(bin_dir, name, body):
@@ -74,8 +73,7 @@ class Run:
     def __init__(self, proc, out_dir, argv_log, syslog):
         self.proc, self.out_dir = proc, out_dir
         self.rc = proc.returncode
-        self.argv = [ln.split("\0") for ln in argv_log.read_text().splitlines()] \
-            if argv_log.exists() else []
+        self.argv = [ln.split("\0") for ln in argv_log.read_text().splitlines()] if argv_log.exists() else []
         self.syslog = syslog.read_text() if syslog.exists() else ""
         self.pcaps = sorted(p for p in os.listdir(out_dir)) if os.path.isdir(out_dir) else []
 
@@ -95,10 +93,9 @@ def _sealed_path(tmp_path, bin_dir):
     """
     sealed = tmp_path / "sealed-bin"
     sealed.mkdir(exist_ok=True)
-    for tool in ("bash", "dirname", "nice", "timeout", "date", "mkdir", "awk", "paste", "head",
-                 "sed", "grep", "find"):
+    for tool in ("bash", "dirname", "nice", "timeout", "date", "mkdir", "awk", "paste", "head", "sed", "grep", "find"):
         real = shutil.which(tool)
-        if real is None:                                    # pragma: no cover - not on this box
+        if real is None:  # pragma: no cover - not on this box
             pytest.skip(f"{tool} is not on PATH")
         link = sealed / tool
         if not link.exists():
@@ -110,8 +107,20 @@ def _sealed_path(tmp_path, bin_dir):
     return str(sealed)
 
 
-def _run(tmp_path, pcap=CLEAN, *, rc=0, secs=SECS, keep_days=30, controllers=None,
-         tty=True, extcap=True, config=True, out_dir=None, sealed=False):
+def _run(
+    tmp_path,
+    pcap=CLEAN,
+    *,
+    rc=0,
+    secs=SECS,
+    keep_days=30,
+    controllers=None,
+    tty=True,
+    extcap=True,
+    config=True,
+    out_dir=None,
+    sealed=False,
+):
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir(exist_ok=True)
     argv_log = tmp_path / "extcap-argv.log"
@@ -150,6 +159,7 @@ def _run(tmp_path, pcap=CLEAN, *, rc=0, secs=SECS, keep_days=30, controllers=Non
 
 # ── the clean night ──────────────────────────────────────────────────────────────────────────────
 
+
 def test_a_clean_night_exits_zero_and_leaves_the_verdict_beside_the_pcap(tmp_path):
     r = _run(tmp_path)
     assert r.rc == 0, r.proc.stderr
@@ -184,6 +194,7 @@ def test_the_extcap_is_asked_for_this_sniffer_and_this_pcap(tmp_path):
 
 # ── the exit code of the extcap is not the verdict ───────────────────────────────────────────────
 
+
 def test_the_locked_port_shape_exits_zero_with_no_packets_and_still_fails(tmp_path):
     """LockedException: the extcap logs at INFO, writes a header-only pcap and exits 0. Believing
     that code would report a clean night for a capture that never ran."""
@@ -203,6 +214,7 @@ def test_an_extcap_that_dies_is_logged_and_its_bytes_are_judged_anyway(tmp_path)
 
 
 # ── the two findings ─────────────────────────────────────────────────────────────────────────────
+
 
 def test_a_foreign_connect_fails_the_oneshot(tmp_path):
     """C1 seen on air. Exit 3 is what puts `tepna-sniff.service` into `systemctl --failed`."""
@@ -246,6 +258,7 @@ def test_bluetoothctl_absent_leaves_the_adapter_list_empty_rather_than_stale(tmp
 
 # ── refusals, before anything is captured ────────────────────────────────────────────────────────
 
+
 def test_no_sniffer_on_the_bus_is_its_own_exit_code(tmp_path):
     r = _run(tmp_path, tty=False)
     assert r.rc == 5
@@ -269,14 +282,18 @@ def test_a_bad_window_length_is_refused_before_the_radio_is_touched(tmp_path):
 
 # ── retention ────────────────────────────────────────────────────────────────────────────────────
 
+
 def test_retention_deletes_only_the_captures_this_script_names(tmp_path):
     """A 600 s all-advertising pcap is tens of MB and /srv/tepna also holds the recordings this box
     exists to keep. The prune is anchored to the `nightly-` prefix, and nothing else in the
     directory is a candidate — including an old pcap someone captured by hand."""
     out = tmp_path / "captures"
     out.mkdir()
-    old, byhand, fresh = out / "nightly-20260101-0300.pcap", out / "allscan-20260101.pcap", \
-        out / "nightly-20260904-0300.pcap"
+    old, byhand, fresh = (
+        out / "nightly-20260101-0300.pcap",
+        out / "allscan-20260101.pcap",
+        out / "nightly-20260904-0300.pcap",
+    )
     long_ago = time.time() - 40 * 86400
     for p in (old, byhand, fresh):
         p.write_bytes(b"x")

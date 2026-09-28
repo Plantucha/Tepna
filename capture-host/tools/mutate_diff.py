@@ -153,8 +153,7 @@ def _read_base_source(base: str, module: str) -> str | None:
     """`module` as it exists at `base`, or None when git cannot produce it (a new file, a shallow
     clone). None means "cannot compare", which narrows nothing — never "unchanged"."""
     try:
-        r = subprocess.run(["git", "show", f"{base}:capture-host/{module}"],
-                           cwd=HERE, capture_output=True, text=True)
+        r = subprocess.run(["git", "show", f"{base}:capture-host/{module}"], cwd=HERE, capture_output=True, text=True)
     except OSError:
         return None
     return r.stdout if r.returncode == 0 else None
@@ -179,7 +178,10 @@ def changed_lines(base: str) -> dict[str, set[int]]:
     out: dict[str, set[int]] = {}
     diff = subprocess.run(
         ["git", "diff", "--unified=0", f"{base}...HEAD", "--", "capture-host/*.py"],
-        cwd=HERE.parent, capture_output=True, text=True)
+        cwd=HERE.parent,
+        capture_output=True,
+        text=True,
+    )
     if diff.returncode != 0:
         raise SystemExit(f"git diff failed: {diff.stderr.strip()}")
     current: str | None = None
@@ -192,17 +194,9 @@ def changed_lines(base: str) -> dict[str, set[int]]:
             continue
         if current and (m := _HUNK.match(line)):
             start, count = int(m.group(1)), int(m.group(2) or 1)
-            if count:                       # count 0 means a pure deletion — nothing new to mutate
+            if count:  # count 0 means a pure deletion — nothing new to mutate
                 out.setdefault(current, set()).update(range(start, start + count))
     return {k: v for k, v in out.items() if v}
-
-
-
-
-
-
-
-
 
 
 EQUIV_FILE = HERE / "tools" / "mutate-equivalence.json"
@@ -220,14 +214,6 @@ def load_equivalence() -> dict:
     return {}
 
 
-
-
-
-
-
-
-
-
 def _head_sha() -> str | None:
     """Short sha of the tree the gate ran in — provenance of the RUN; None outside a checkout."""
     try:
@@ -242,21 +228,38 @@ def _now_utc() -> str:
 
 
 def main(argv=None) -> int:
-    undecided: list[dict] = []   # mutants mutmut could not settle — never "killed"; see split_results
+    undecided: list[dict] = []  # mutants mutmut could not settle — never "killed"; see split_results
     ap = argparse.ArgumentParser(description="Diff-scoped mutation gate for capture-host")
     ap.add_argument("--base", default="origin/main", help="merge base to diff against")
     ap.add_argument("--report-only", action="store_true", help="never exit non-zero")
     ap.add_argument("--json", default=None, help="write the verdict here")
     ap.add_argument("--selftest", action="store_true", help="pin the classifier, run no mutants")
-    ap.add_argument("--verdict-sample", action="store_true",
-                    help="print one synthetic tepna.verdict/1 object built by the real builder and exit (the adoption gate reads this — cheap, corpus-free)")
+    ap.add_argument(
+        "--verdict-sample",
+        action="store_true",
+        help="print one synthetic tepna.verdict/1 object built by the real builder and exit (the adoption gate reads this — cheap, corpus-free)",
+    )
     a = ap.parse_args(argv)
 
     if a.selftest:
         return selftest()
     if a.verdict_sample:
-        print(json.dumps(verdict_object("PASS", checked=2, eligible=2, result={"generated": 9, "decided": 9, "killed": 9, "survived": 0, "undecided": 0, "excused": 0},
-                                        reason=None, evidence=["capture-host/tools/mutate_diff.py", "capture-host/mutation_diff.py"], commit=_head_sha(), at=_now_utc(), base="origin/main"), indent=1))
+        print(
+            json.dumps(
+                verdict_object(
+                    "PASS",
+                    checked=2,
+                    eligible=2,
+                    result={"generated": 9, "decided": 9, "killed": 9, "survived": 0, "undecided": 0, "excused": 0},
+                    reason=None,
+                    evidence=["capture-host/tools/mutate_diff.py", "capture-host/mutation_diff.py"],
+                    commit=_head_sha(),
+                    at=_now_utc(),
+                    base="origin/main",
+                ),
+                indent=1,
+            )
+        )
         return 0
 
     # ── tepna.verdict/1 — every exit below emits ONE object (VERDICT-CONTRACT §3b step 5) ─────────
@@ -265,8 +268,16 @@ def main(argv=None) -> int:
     verdict: dict = {"base": a.base, "modules": {}, "survivors": []}
     # `astNarrowed` rides in the RESULT because the object is the API: a reader must be able to
     # see that scope was narrowed, and by how much, without parsing the prose above it.
-    _counts = {"generated": 0, "decided": 0, "killed": 0, "survived": 0, "undecided": 0, "excused": 0,
-               "refuted": 0, "astNarrowed": 0}
+    _counts = {
+        "generated": 0,
+        "decided": 0,
+        "killed": 0,
+        "survived": 0,
+        "undecided": 0,
+        "excused": 0,
+        "refuted": 0,
+        "astNarrowed": 0,
+    }
     _pop = {"checked": 0, "eligible": 0}
     # THE SCOPE, so the prose can name it truthfully. The gate mutates whole FUNCTIONS (#1761 —
     # "slightly wider than the diff, which is the safe direction"), and saying "survived on lines
@@ -274,7 +285,7 @@ def main(argv=None) -> int:
     # on one measured run 30 survivors were reported that way and NONE was on a changed line.
     _scope = {"lines": 0, "functions": 0}
     _ran_box = [0]  # mirrors `_ran` (a local of main, rebound below) so emit() can read it
-    _narrow_box = [0]   # same trick for the AST-narrowed count, for the same reason
+    _narrow_box = [0]  # same trick for the AST-narrowed count, for the same reason
 
     def _checked() -> int:
         """How many modules this run actually examined. ONE expression, because the prose below and the
@@ -334,12 +345,12 @@ def main(argv=None) -> int:
     # file leaves scope — loudly, naming the check. The comparison base is the MERGE-BASE (the
     # same ref `changed_lines`' three-dot diff measures against), never the base branch tip.
     # Fail-closed: an unreadable base version or a parse failure keeps full scope.
-    _mb = subprocess.run(["git", "merge-base", a.base, "HEAD"],
-                         cwd=HERE.parent, capture_output=True, text=True)
+    _mb = subprocess.run(["git", "merge-base", a.base, "HEAD"], cwd=HERE.parent, capture_output=True, text=True)
     _base_sha = _mb.stdout.strip() if _mb.returncode == 0 and _mb.stdout.strip() else a.base
     for module in sorted(changed):
-        _old = subprocess.run(["git", "show", f"{_base_sha}:capture-host/{module}"],
-                              cwd=HERE.parent, capture_output=True, text=True)
+        _old = subprocess.run(
+            ["git", "show", f"{_base_sha}:capture-host/{module}"], cwd=HERE.parent, capture_output=True, text=True
+        )
         if _old.returncode != 0:
             print(f"  {module}: base version unreadable — full scope kept (fail-closed)")
             continue
@@ -352,7 +363,9 @@ def main(argv=None) -> int:
             del changed[module]
     if not changed:
         print("mutate-diff: every changed module is signature-annotation-only — nothing behavioural to mutate.")
-        return emit("NOT_APPLICABLE", "every changed module is signature-annotation-only — nothing behavioural to mutate", 0)
+        return emit(
+            "NOT_APPLICABLE", "every changed module is signature-annotation-only — nothing behavioural to mutate", 0
+        )
 
     # ── PREFLIGHT — refuse rather than green when the gate cannot actually run ──────────────
     # Checked BEFORE any work, because the failure is total: no mutmut means no mutants for any
@@ -399,23 +412,23 @@ def main(argv=None) -> int:
     # venv, importable-but-unusable is a real state, not a hypothetical — so an import check alone
     # would still fail open. If every invocation errored, no mutant was ever tested.
     _attempted = _ran = 0
-    _crashed: list = []          # §3 — globs that returned no error yet tested zero mutants (silent drop-out)
+    _crashed: list = []  # §3 — globs that returned no error yet tested zero mutants (silent drop-out)
     _nothing_to_mutate: list = []  # §3b — globs with NO generated mutants: benign, not a failure
     # NOT the same thing, and conflating them is the defect: a property generates no mutants because
     # THIS TOOL CANNOT MUTATE ONE, so it was never examined. Counted apart so the summary can say so.
     _unexaminable: list = []
-    _out_of_scope: int = 0   # undecided mutants belonging to functions the diff never touched
+    _out_of_scope: int = 0  # undecided mutants belonging to functions the diff never touched
     # ── THE RUN BUDGET (mutation_diff.GATE_BUDGET_SEC) — a refusal is a verdict, a SIGTERM is not ──
     _gate_t0 = time.monotonic()
     _refused_budget: list[str] = []
-    _refused_memory: list[str] = []   # projected RSS over the cap — refused before starting
-    _prework_sec = 0.0                # clean-baseline time: reported, but not charged to the
-                                      # MUTATION budget (see the comment at its measurement below)
+    _refused_memory: list[str] = []  # projected RSS over the cap — refused before starting
+    _prework_sec = 0.0  # clean-baseline time: reported, but not charged to the
+    # MUTATION budget (see the comment at its measurement below)
     _refused_generation: list[str] = []  # generation outlived its phase bound — nothing was examined
-    _ast_narrowed = 0        # functions the line scan claimed and the AST cleared; mirrored into
-                             # _counts['astNarrowed'] at emit so the verdict OBJECT carries it too
+    _ast_narrowed = 0  # functions the line scan claimed and the AST cleared; mirrored into
+    # _counts['astNarrowed'] at emit so the verdict OBJECT carries it too
     for module, lines in sorted(changed.items()):
-        _msrc = _read_source(HERE / module)   # read ONCE per module; the loop below reuses it
+        _msrc = _read_source(HERE / module)  # read ONCE per module; the loop below reuses it
         stems = functions_covering(_msrc, lines)
         if not stems:
             print(f"  {module}: {len(lines)} changed line(s), none inside a function — skipped")
@@ -427,8 +440,7 @@ def main(argv=None) -> int:
         # publish what it removed is the shape this gate exists to refuse.
         _base_src = _read_base_source(a.base, module)
         if _base_src is None:
-            print(f"    · {module}: base revision unreadable — AST narrowing skipped, scope unchanged",
-                  flush=True)
+            print(f"    · {module}: base revision unreadable — AST narrowing skipped, scope unchanged", flush=True)
         else:
             _ast_changed, _why_ast = functions_with_changed_ast(_base_src, _msrc)
             if _why_ast:
@@ -439,13 +451,18 @@ def main(argv=None) -> int:
                     _dropped = sorted(stems - _kept)
                     _ast_narrowed += len(_dropped)
                     _narrow_box[0] = _ast_narrowed
-                    print(f"    · {module}: {len(_dropped)} function(s) moved but not CHANGED "
-                          f"(identical AST) — out of scope: {', '.join(_dropped[:6])}"
-                          f"{' …' if len(_dropped) > 6 else ''}", flush=True)
+                    print(
+                        f"    · {module}: {len(_dropped)} function(s) moved but not CHANGED "
+                        f"(identical AST) — out of scope: {', '.join(_dropped[:6])}"
+                        f"{' …' if len(_dropped) > 6 else ''}",
+                        flush=True,
+                    )
                 stems = _kept
                 if not stems:
-                    print(f"  {module}: {len(lines)} changed line(s), no function whose AST differs "
-                          f"— nothing to mutate", flush=True)
+                    print(
+                        f"  {module}: {len(lines)} changed line(s), no function whose AST differs — nothing to mutate",
+                        flush=True,
+                    )
                     continue
         stem_mod = module[:-3]
         globs = [f"{stem_mod}.{s}__mutmut_*" for s in sorted(stems)]
@@ -490,8 +507,10 @@ def main(argv=None) -> int:
             _t0 = time.monotonic()
             _left = int(GATE_BUDGET_SEC - (time.monotonic() - _gate_t0 - _prework_sec))
             if _left <= 0:
-                _refused_budget.append(f"{g}: the {GATE_BUDGET_SEC}s gate budget was exhausted before this "
-                                       f"function could be mutated — not attempted, not a verdict")
+                _refused_budget.append(
+                    f"{g}: the {GATE_BUDGET_SEC}s gate budget was exhausted before this "
+                    f"function could be mutated — not attempted, not a verdict"
+                )
                 print(f"    ⊘ {_refused_budget[-1]}", flush=True)
                 _attempted -= 1
                 continue
@@ -516,9 +535,11 @@ def main(argv=None) -> int:
                 print(f"    ⊘ {_refused_generation[-1]}", flush=True)
                 continue
             if r.get("timed_out"):
-                _refused_budget.append(f"{g}: hit the gate budget after {_secs:.0f}s — partial counts only "
-                                       f"({r.get('tail', '')[-120:].strip() or 'no output'}). A mutant that never ran "
-                                       f"is not a survivor and not a kill.")
+                _refused_budget.append(
+                    f"{g}: hit the gate budget after {_secs:.0f}s — partial counts only "
+                    f"({r.get('tail', '')[-120:].strip() or 'no output'}). A mutant that never ran "
+                    f"is not a survivor and not a kill."
+                )
                 print(f"    ⊘ {_refused_budget[-1]}", flush=True)
                 continue
             _ran += 1
@@ -560,18 +581,24 @@ def main(argv=None) -> int:
                     # quarter — so this is an active blind spot, not a theoretical one.
                     _dec = unmutatable_decorator(_msrc, source_function_of_glob(g))
                     if _dec:
-                        print(f"    ⊘ {g}: NOT EXAMINED — mutmut skips @{_dec}"
-                              f"  [{_secs:.0f}s]"
-                              f"\n      (it mutates by replacing a function with a trampoline, which a"
-                              f" decorated function cannot be rebound to. Zero mutants whatever the body"
-                              f"\n       contains — a blind spot, not a clean result.)", flush=True)
+                        print(
+                            f"    ⊘ {g}: NOT EXAMINED — mutmut skips @{_dec}"
+                            f"  [{_secs:.0f}s]"
+                            f"\n      (it mutates by replacing a function with a trampoline, which a"
+                            f" decorated function cannot be rebound to. Zero mutants whatever the body"
+                            f"\n       contains — a blind spot, not a clean result.)",
+                            flush=True,
+                        )
                         _ran -= 1
                         _unexaminable.append(g)
                         continue
-                    print(f"    · {g}: mutmut generated 0 mutants under this glob — nothing to test"
-                          f"  [{_secs:.0f}s]"
-                          f"\n      (cause NOT established beyond 'not an @property'. The AssertionError"
-                          f" above is expected.)", flush=True)
+                    print(
+                        f"    · {g}: mutmut generated 0 mutants under this glob — nothing to test"
+                        f"  [{_secs:.0f}s]"
+                        f"\n      (cause NOT established beyond 'not an @property'. The AssertionError"
+                        f" above is expected.)",
+                        flush=True,
+                    )
                     # `_ran` was incremented on the way in; nothing actually ran, so give it back.
                     # Without this the run reports "every mutant on the changed functions was killed"
                     # over ZERO mutants — a claim of coverage that does not exist, which is the exact
@@ -588,14 +615,20 @@ def main(argv=None) -> int:
                 # was not. The name is in `tail` the whole time; say it, and say whose failure it is.
                 _cf = clean_run_failures(r.get("tail", ""))
                 if _cf:
-                    print(f"    ! {g}: mutmut's CLEAN RUN failed before any mutant was tested — on "
-                          f"{', '.join(_cf)}  [{_secs:.0f}s]"
-                          f"\n      (that test is the covering set's, not this diff's: it passed alone or under"
-                          f" xdist and failed in mutmut's one sequential process. Fix or quarantine THAT test;"
-                          f" this glob was never examined — CLAUDE.md §4b.)", flush=True)
+                    print(
+                        f"    ! {g}: mutmut's CLEAN RUN failed before any mutant was tested — on "
+                        f"{', '.join(_cf)}  [{_secs:.0f}s]"
+                        f"\n      (that test is the covering set's, not this diff's: it passed alone or under"
+                        f" xdist and failed in mutmut's one sequential process. Fix or quarantine THAT test;"
+                        f" this glob was never examined — CLAUDE.md §4b.)",
+                        flush=True,
+                    )
                 else:
-                    print(f"    ! {g}: mutants were generated but 0 tested — a crash after generation, not "
-                          f"a clean run (the meta's exit codes are all null under this glob)  [{_secs:.0f}s]", flush=True)
+                    print(
+                        f"    ! {g}: mutants were generated but 0 tested — a crash after generation, not "
+                        f"a clean run (the meta's exit codes are all null under this glob)  [{_secs:.0f}s]",
+                        flush=True,
+                    )
                 _ran -= 1
                 _crashed.append(f"{g} (clean run failed on {', '.join(_cf)})" if _cf else g)
                 continue
@@ -623,18 +656,18 @@ def main(argv=None) -> int:
             # Paid ONLY for modules the equivalence file claims, so the common path is unchanged.
             if module in _equiv_pre:
                 mfile = work / "mutants" / Path(module).name
-                stem_re = re.compile(r"^def (" + re.escape(g.split(".", 1)[1].rstrip("*"))
-                                     + r"\d+)\(", re.M)
+                stem_re = re.compile(r"^def (" + re.escape(g.split(".", 1)[1].rstrip("*")) + r"\d+)\(", re.M)
                 try:
                     for gname in stem_re.findall(mfile.read_text(encoding="utf-8")):
                         full = f"{stem_mod}.{gname}"
-                        gshow = subprocess.run([str(VENV_PY), "-m", "mutmut", "show", full],
-                                               cwd=work, capture_output=True, text=True)
+                        gshow = subprocess.run(
+                            [str(VENV_PY), "-m", "mutmut", "show", full], cwd=work, capture_output=True, text=True
+                        )
                         k = diff_key(gshow.stdout)
                         if k:
                             generated_keys.add(k)
                 except OSError:
-                    pass                      # no mutants file ⇒ nothing to enumerate, stay silent
+                    pass  # no mutants file ⇒ nothing to enumerate, stay silent
             # EVERY line mutmut prints here is a mutant it did NOT kill (results() skips `killed`).
             # Keeping only `": survived"` silently dropped `timeout`/`suspicious`/`no tests`/`not
             # checked` — so a mutant that timed out under load vanished and the gate then reported
@@ -680,15 +713,20 @@ def main(argv=None) -> int:
                     # verdict here would be a guess — and guessing is how this gate shipped a wrong
                     # answer before. It is reported AND still required, never silently skipped.
                     print(f"  ⚠ {name}: {sdetail} — REQUIRED rather than guessed")
-                    verdict.setdefault("undecidable", []).append({"mutant": name, "module": module,
-                                                                  "reason": sdetail})
+                    verdict.setdefault("undecidable", []).append({"mutant": name, "module": module, "reason": sdetail})
                 # The 400-byte cap truncated the -/+ pair mid-line in the CI artifact, so the only
                 # machine-readable record of WHAT changed had to be regenerated locally to be read.
                 # The changed lines alone are small and complete — carry those in full.
-                verdict["survivors"].append({"mutant": name, "module": module,
-                                             "key": diff_key(show.stdout),
-                                             "changed": diff_key(show.stdout),
-                                             "diff": show.stdout[:400], "work": str(work)})
+                verdict["survivors"].append(
+                    {
+                        "mutant": name,
+                        "module": module,
+                        "key": diff_key(show.stdout),
+                        "changed": diff_key(show.stdout),
+                        "diff": show.stdout[:400],
+                        "work": str(work),
+                    }
+                )
         verdict["modules"][module] = sorted(stems)
 
     # §3 — a glob that returned no error but tested zero mutants dropped out silently: the module was
@@ -696,9 +734,11 @@ def main(argv=None) -> int:
     # against. Refuse if ANY glob did this, even when others ran cleanly — the mixed case the all-failed
     # check below cannot see (it fires only when NOTHING ran).
     if _crashed:
-        print(f"\nmutate-diff: REFUSING — {len(_crashed)} glob(s) recorded 0 tested mutants "
-              f"({', '.join(_crashed)}). Each was listed as covered but its mutmut invocation crashed "
-              "after generation, so an empty survivor list there means 'not checked', not 'all killed'.")
+        print(
+            f"\nmutate-diff: REFUSING — {len(_crashed)} glob(s) recorded 0 tested mutants "
+            f"({', '.join(_crashed)}). Each was listed as covered but its mutmut invocation crashed "
+            "after generation, so an empty survivor list there means 'not checked', not 'all killed'."
+        )
         print("  Deliberately not a pass: a gate that cannot see must not report green.")
         return 2
 
@@ -714,40 +754,61 @@ def main(argv=None) -> int:
     # 45 properties in capture-host, all unmutatable by this tool, 15 with genuinely mutatable bodies,
     # and all 15 changed this quarter — so this line will fire on real diffs, not hypothetical ones.
     if _unexaminable:
-        print(f"\n  ⊘ {len(_unexaminable)} changed function(s) were NOT EXAMINED — mutmut skips "
-              f"decorated functions (except a lone @staticmethod/@classmethod):")
+        print(
+            f"\n  ⊘ {len(_unexaminable)} changed function(s) were NOT EXAMINED — mutmut skips "
+            f"decorated functions (except a lone @staticmethod/@classmethod):"
+        )
         for _g in _unexaminable[:8]:
             print(f"      {_g}")
         if len(_unexaminable) > 8:
             print(f"      … and {len(_unexaminable) - 8} more")
-        print("    Their mutants were never generated, so nothing below speaks to them. This is a\n"
-              "    limitation of the TOOL, not a finding about the code.")
+        print(
+            "    Their mutants were never generated, so nothing below speaks to them. This is a\n"
+            "    limitation of the TOOL, not a finding about the code."
+        )
 
     # EVERY CHANGED FUNCTION WAS ONLY MOVED. The line scan found functions, the AST cleared all of
     # them, and there is nothing behavioural to mutate — which is NOT_APPLICABLE with the rule named,
     # never PASS over a population of zero (§🧾: a PASS over `checked: 0` is invalid, and a reader
     # must be able to tell "nothing changed semantically" from "the gate examined nothing").
     if _ast_narrowed and not _attempted and not _pop["eligible"]:
-        print(f"\nmutate-diff: {_ast_narrowed} function(s) were touched by the diff and are "
-              "IDENTICAL in AST to the base — a formatter or a whitespace change moves lines it does "
-              "not change.")
-        print("  Nothing behavioural was altered, so there is nothing to mutate. This is not a pass "
-              "over an empty population: the population is empty BECAUSE the change is not semantic.")
+        print(
+            f"\nmutate-diff: {_ast_narrowed} function(s) were touched by the diff and are "
+            "IDENTICAL in AST to the base — a formatter or a whitespace change moves lines it does "
+            "not change."
+        )
+        print(
+            "  Nothing behavioural was altered, so there is nothing to mutate. This is not a pass "
+            "over an empty population: the population is empty BECAUSE the change is not semantic."
+        )
         _ran_box[0] = _ran
         return emit(
             "NOT_APPLICABLE",
-            f"{_ast_narrowed} changed function(s) have an identical AST to the base — no semantic "
-            f"change to mutate",
+            f"{_ast_narrowed} changed function(s) have an identical AST to the base — no semantic change to mutate",
             0,
         )
-    if _nothing_to_mutate and not _ran and not _crashed and len(_nothing_to_mutate) == _attempted and not _refused_budget:
-        print(f"\nmutate-diff: {len(_nothing_to_mutate)} changed function(s) had no mutable operator — "
-              "nothing to test, and nothing to conclude. Not a failure.")
+    if (
+        _nothing_to_mutate
+        and not _ran
+        and not _crashed
+        and len(_nothing_to_mutate) == _attempted
+        and not _refused_budget
+    ):
+        print(
+            f"\nmutate-diff: {len(_nothing_to_mutate)} changed function(s) had no mutable operator — "
+            "nothing to test, and nothing to conclude. Not a failure."
+        )
         _ran_box[0] = _ran
-        return emit("NOT_APPLICABLE", f"{len(_nothing_to_mutate)} changed function(s) generated no mutants — nothing behavioural to test", 0)
+        return emit(
+            "NOT_APPLICABLE",
+            f"{len(_nothing_to_mutate)} changed function(s) generated no mutants — nothing behavioural to test",
+            0,
+        )
     if _attempted and not _ran:
-        print(f"\nmutate-diff: REFUSING — all {_attempted} mutmut invocation(s) failed, so no mutant "
-              "was generated or tested. The per-glob errors are above.")
+        print(
+            f"\nmutate-diff: REFUSING — all {_attempted} mutmut invocation(s) failed, so no mutant "
+            "was generated or tested. The per-glob errors are above."
+        )
         print("  Deliberately not a pass: a gate that cannot see must not report green.")
         _ran_box[0] = _ran
         return emit("NOT_RUN", f"all {_attempted} mutmut invocation(s) failed — nothing was generated or tested", 2)
@@ -756,11 +817,11 @@ def main(argv=None) -> int:
     # Applied to survivors ONLY, and only per-module, so an entry filed against a different file can
     # never reach this branch's verdict.
     equiv = load_equivalence()
-    entries = [dict(e, module=m) for m, lst in equiv.items() for e in (lst or [])
-               if m in verdict["modules"]]
+    entries = [dict(e, module=m) for m, lst in equiv.items() for e in (lst or []) if m in verdict["modules"]]
     cls = classify(entries, verdict["survivors"], generated_keys)
-    verdict["classification"] = {k: [{kk: vv for kk, vv in x.items() if kk != "work"} for x in v]
-                                 for k, v in cls.items()}
+    verdict["classification"] = {
+        k: [{kk: vv for kk, vv in x.items() if kk != "work"} for x in v] for k, v in cls.items()
+    }
 
     if a.json:
         Path(a.json).write_text(json.dumps(verdict, indent=2), encoding="utf-8")
@@ -781,9 +842,14 @@ def main(argv=None) -> int:
         # A gate that CRASHES reports nothing at all: no survivor list, no verdict, and a red check
         # whose log is a traceback. That is strictly worse than the orphan it was trying to describe.
         k = e.get("key")
-        shown = repr(k[:90]) if k else (
-            f"<entry has no `key` — it carries {sorted(x for x in e if x != 'module')}. "
-            f"This file matches on the whitespace-normalised diff; see _README>")
+        shown = (
+            repr(k[:90])
+            if k
+            else (
+                f"<entry has no `key` — it carries {sorted(x for x in e if x != 'module')}. "
+                f"This file matches on the whitespace-normalised diff; see _README>"
+            )
+        )
         # ⚠️ THERE IS A THIRD CAUSE, and it is the COMMON one in a diff-scoped run. Entries are
         # filtered to the modules this diff touched, but mutants are generated only for the FUNCTIONS
         # it changed — so every entry filed against another function in the same module matches
@@ -803,13 +869,17 @@ def main(argv=None) -> int:
             except OSError:
                 in_source = False
         if in_source:
-            print(f"  out-of-scope equivalence entry ({e['module']}): {shown} — its line is unchanged "
-                  "in the module but its function is not in this diff, so no mutant was generated for "
-                  "it. Not stale, and nothing to do.")
+            print(
+                f"  out-of-scope equivalence entry ({e['module']}): {shown} — its line is unchanged "
+                "in the module but its function is not in this diff, so no mutant was generated for "
+                "it. Not stale, and nothing to do."
+            )
         else:
-            print(f"  ORPHANED equivalence entry ({e['module']}): no generated mutant matches "
-                  f"{shown} — the line moved, or the entry is malformed. It excuses nothing until "
-                  "re-verified.")
+            print(
+                f"  ORPHANED equivalence entry ({e['module']}): no generated mutant matches "
+                f"{shown} — the line moved, or the entry is malformed. It excuses nothing until "
+                "re-verified."
+            )
     for e in cls["excused"]:
         print(f"  excused ({e['class']}): {e['key'][:80]} — {e.get('why', '')[:120]}")
 
@@ -823,16 +893,24 @@ def main(argv=None) -> int:
 
     # REFUTED is an ERROR, not a note: it is the one way a stale file could hide a real gap.
     if cls["refuted"]:
-        print(f"\nmutate-diff: {len(cls['refuted'])} equivalence entr(y/ies) REFUTED — the mutant was "
-              f"KILLED, so a distinguishing input exists and the claim is wrong:\n")
+        print(
+            f"\nmutate-diff: {len(cls['refuted'])} equivalence entr(y/ies) REFUTED — the mutant was "
+            f"KILLED, so a distinguishing input exists and the claim is wrong:\n"
+        )
         for e in cls["refuted"]:
             print(f"  ── {e['module']}  {e['key'][:110]}")
             print(f"     claimed: {e.get('class')} — {e.get('why', '')[:140]}")
-        print("\n  Fix the ENTRY, never the test that killed it. Delete it, or reclassify it as real-gap\n"
-              "  with the evidence that changed.")
+        print(
+            "\n  Fix the ENTRY, never the test that killed it. Delete it, or reclassify it as real-gap\n"
+            "  with the evidence that changed."
+        )
         _ran_box[0] = _ran
         _counts["refuted"] = len(cls["refuted"])
-        return emit("FAIL", f"{len(cls['refuted'])} equivalence entr(y/ies) REFUTED — the mutant was killed, so the recorded claim is wrong", 0 if a.report_only else 1)
+        return emit(
+            "FAIL",
+            f"{len(cls['refuted'])} equivalence entr(y/ies) REFUTED — the mutant was killed, so the recorded claim is wrong",
+            0 if a.report_only else 1,
+        )
 
     _refusal = None  # set under --report-only when a refusal has already been emitted; ONE verdict per run
     # UNDECIDED BLOCKS, and says so before the survivor report. A mutant mutmut could not settle
@@ -846,15 +924,19 @@ def main(argv=None) -> int:
     # run PASSES and nobody is told a filter ran at all. A filter that publishes its count only when
     # something survives it is not publishing a denominator.
     if _out_of_scope:
-        print(f"\n  note: {_out_of_scope} undecided mutant(s) excluded as OUT OF SCOPE — `mutmut "
-              "results` takes no glob and lists the whole workspace, including functions this diff\n"
-              "  never touched. They were never run, so they are not evidence either way.")
+        print(
+            f"\n  note: {_out_of_scope} undecided mutant(s) excluded as OUT OF SCOPE — `mutmut "
+            "results` takes no glob and lists the whole workspace, including functions this diff\n"
+            "  never touched. They were never run, so they are not evidence either way."
+        )
     if undecided:
         by_status: dict[str, list[dict]] = {}
         for u in undecided:
             by_status.setdefault(u["status"], []).append(u)
-        print(f"\nmutate-diff: REFUSING — {len(undecided)} mutant(s) UNDECIDED, so this run cannot say "
-              f"they were killed:\n")
+        print(
+            f"\nmutate-diff: REFUSING — {len(undecided)} mutant(s) UNDECIDED, so this run cannot say "
+            f"they were killed:\n"
+        )
         for st, items in sorted(by_status.items()):
             print(f"  {st}: {len(items)}")
             for u in items[:6]:
@@ -884,23 +966,35 @@ def main(argv=None) -> int:
         # gate refused honestly and then misdirected the fix. `by_status` is three lines above; not
         # consulting it was the same defect as a diagnostic that names a cause the code did not check.
         _load_shaped = sorted({"timeout", "suspicious"} & set(by_status))
-        print("\n  An UNDECIDED mutant was never seen by a test — it is UNMEASURED, not killed, and no\n"
-              "  bound can turn one into the other.")
+        print(
+            "\n  An UNDECIDED mutant was never seen by a test — it is UNMEASURED, not killed, and no\n"
+            "  bound can turn one into the other."
+        )
         if _load_shaped:
-            print(f"  {', '.join(_load_shaped)} present ⇒ load or the runner is in play. Re-run under less\n"
-                  "  load. If the same functions keep appearing above, the cause is in those mutants;\n"
-                  "  if it moves around, look at the runner.")
+            print(
+                f"  {', '.join(_load_shaped)} present ⇒ load or the runner is in play. Re-run under less\n"
+                "  load. If the same functions keep appearing above, the cause is in those mutants;\n"
+                "  if it moves around, look at the runner."
+            )
         else:
-            print(f"  No load-shaped status here ({', '.join(sorted(by_status))} only) — re-running under\n"
-                  "  less load will NOT change this. These mutants were never executed at all, so look at\n"
-                  "  what selected them, not at how long they were given.")
-        print("  Do NOT raise `timeout_multiplier` to clear this: it would report a pass for mutants\n"
-              "  nobody measured, which is precisely what this refusal is here to stop.")
+            print(
+                f"  No load-shaped status here ({', '.join(sorted(by_status))} only) — re-running under\n"
+                "  less load will NOT change this. These mutants were never executed at all, so look at\n"
+                "  what selected them, not at how long they were given."
+            )
+        print(
+            "  Do NOT raise `timeout_multiplier` to clear this: it would report a pass for mutants\n"
+            "  nobody measured, which is precisely what this refusal is here to stop."
+        )
         _note = report_only_refusal_note(a.report_only)
         if _note:
             print(_note)
         _ran_box[0] = _ran
-        _u = emit("UNKNOWN", f"{len(undecided)} mutant(s) UNDECIDED ({', '.join(sorted(set(u['status'] for u in undecided)))}) — never observed by a test, so this run cannot say they were killed", 2)
+        _u = emit(
+            "UNKNOWN",
+            f"{len(undecided)} mutant(s) UNDECIDED ({', '.join(sorted(set(u['status'] for u in undecided)))}) — never observed by a test, so this run cannot say they were killed",
+            2,
+        )
         if not a.report_only:
             return _u
         _refusal = _u
@@ -911,15 +1005,19 @@ def main(argv=None) -> int:
         verdict["prework_sec"] = round(_prework_sec, 1)
         if a.json:
             Path(a.json).write_text(json.dumps(verdict, indent=2), encoding="utf-8")
-        print(f"\nmutate-diff: REFUSING — mutant GENERATION did not finish for {len(_refused_generation)} "
-              f"function(s), so no mutant ran:")
+        print(
+            f"\nmutate-diff: REFUSING — mutant GENERATION did not finish for {len(_refused_generation)} "
+            f"function(s), so no mutant ran:"
+        )
         for w in _refused_generation:
             print(f"  ⊘ {w}")
-        print("  This is NOT a verdict on the diff and NOT a slow mutation pass — the phase that writes\n"
-              "  the mutants never completed, so nothing was killed and nothing survived. Do NOT raise\n"
-              "  the budget to clear it: mutmut generates the WHOLE module's population before the first\n"
-              "  mutant and takes no name filter, so a one-function diff pays for every function. The\n"
-              "  fix is to scope GENERATION or to mutate a smaller unit.")
+        print(
+            "  This is NOT a verdict on the diff and NOT a slow mutation pass — the phase that writes\n"
+            "  the mutants never completed, so nothing was killed and nothing survived. Do NOT raise\n"
+            "  the budget to clear it: mutmut generates the WHOLE module's population before the first\n"
+            "  mutant and takes no name filter, so a one-function diff pays for every function. The\n"
+            "  fix is to scope GENERATION or to mutate a smaller unit."
+        )
         _note = report_only_refusal_note(a.report_only)
         if _note:
             print(_note)
@@ -927,9 +1025,12 @@ def main(argv=None) -> int:
         # NOT_RUN, not UNKNOWN: §🧾 spells "examined nothing" NOT_RUN, and a generation that never
         # finished decided exactly zero mutants. `decided > 0` cannot happen on this path (the glob is
         # skipped before any verdict is banked), and if it ever did the reason would say so.
-        _g = emit("NOT_RUN" if _counts["decided"] == 0 else "UNKNOWN",
-                  f"mutant generation did not finish for {len(_refused_generation)} function(s); "
-                  f"{_counts['decided']} mutant(s) decided", 2)
+        _g = emit(
+            "NOT_RUN" if _counts["decided"] == 0 else "UNKNOWN",
+            f"mutant generation did not finish for {len(_refused_generation)} function(s); "
+            f"{_counts['decided']} mutant(s) decided",
+            2,
+        )
         if not a.report_only:
             return _g
         _refusal = _g
@@ -939,14 +1040,18 @@ def main(argv=None) -> int:
         verdict["refused_memory"] = _refused_memory
         if a.json:
             Path(a.json).write_text(json.dumps(verdict, indent=2), encoding="utf-8")
-        print(f"\nmutate-diff: REFUSING — {len(_refused_memory)} function(s) were NOT mutated because "
-              f"the projected memory does not fit:")
+        print(
+            f"\nmutate-diff: REFUSING — {len(_refused_memory)} function(s) were NOT mutated because "
+            f"the projected memory does not fit:"
+        )
         for w in _refused_memory:
             print(f"  ⊘ {w}")
-        print("  Refused BEFORE starting, on purpose. A run that begins and is reaped under box\n"
-              "  memory pressure reports nothing AND takes other sessions' gates with it. Do NOT\n"
-              "  raise the cap to clear this: measure the RSS factor the refusal printed, or mutate\n"
-              "  a smaller unit.")
+        print(
+            "  Refused BEFORE starting, on purpose. A run that begins and is reaped under box\n"
+            "  memory pressure reports nothing AND takes other sessions' gates with it. Do NOT\n"
+            "  raise the cap to clear this: measure the RSS factor the refusal printed, or mutate\n"
+            "  a smaller unit."
+        )
         _note = report_only_refusal_note(a.report_only)
         if _note:
             print(_note)
@@ -965,16 +1070,22 @@ def main(argv=None) -> int:
         verdict["refused_budget"] = _refused_budget
         if a.json:
             Path(a.json).write_text(json.dumps(verdict, indent=2), encoding="utf-8")
-        print(f"\nmutate-diff: REFUSING — {len(_refused_budget)} module(s)/function(s) were NOT mutated "
-              f"inside the {GATE_BUDGET_SEC}s gate budget:")
+        print(
+            f"\nmutate-diff: REFUSING — {len(_refused_budget)} module(s)/function(s) were NOT mutated "
+            f"inside the {GATE_BUDGET_SEC}s gate budget:"
+        )
         for w in _refused_budget:
             print(f"  ⊘ {w}")
-        print(f"  Elapsed: {time.monotonic() - _gate_t0:.0f}s of the {GATE_BUDGET_SEC}s budget; "
-              f"{_counts['decided']} mutant(s) decided.")
-        print("  A refusal is a verdict with a reason; the run that used to die here with exit 143 was not.\n"
-              "  Nothing above about the functions that DID run is withdrawn — only the refused ones are\n"
-              "  unmeasured. Do NOT raise GATE_BUDGET_SEC to clear this: measure the selection's clean run\n"
-              "  and the trace factor it multiplies, then change the number that was wrong.")
+        print(
+            f"  Elapsed: {time.monotonic() - _gate_t0:.0f}s of the {GATE_BUDGET_SEC}s budget; "
+            f"{_counts['decided']} mutant(s) decided."
+        )
+        print(
+            "  A refusal is a verdict with a reason; the run that used to die here with exit 143 was not.\n"
+            "  Nothing above about the functions that DID run is withdrawn — only the refused ones are\n"
+            "  unmeasured. Do NOT raise GATE_BUDGET_SEC to clear this: measure the selection's clean run\n"
+            "  and the trace factor it multiplies, then change the number that was wrong."
+        )
         _note = report_only_refusal_note(a.report_only)
         if _note:
             print(_note)
@@ -984,7 +1095,8 @@ def main(argv=None) -> int:
         # live case: its traced stats pass alone outruns the budget, so this branch used to answer
         # UNKNOWN — the vocabulary of a run that mutated something — about a run that reached no mutant.
         _bstatus, _breason = budget_exhaustion_verdict(
-            len(_refused_budget), _counts["decided"], time.monotonic() - _gate_t0)
+            len(_refused_budget), _counts["decided"], time.monotonic() - _gate_t0
+        )
         _b = emit(_bstatus, _breason, 2)
         if not a.report_only:
             return _b

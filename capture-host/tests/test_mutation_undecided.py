@@ -23,11 +23,7 @@ import mutation_diff as md
 
 
 def test_survivors_and_undecided_are_separated():
-    r = md.split_results(
-        "x_f__mutmut_1: survived\n"
-        "x_f__mutmut_2: timeout\n"
-        "x_f__mutmut_3: suspicious\n"
-    )
+    r = md.split_results("x_f__mutmut_1: survived\nx_f__mutmut_2: timeout\nx_f__mutmut_3: suspicious\n")
     assert r[md.SURVIVED] == ["x_f__mutmut_1"]
     assert r[md.UNDECIDED] == [("x_f__mutmut_2", "timeout"), ("x_f__mutmut_3", "suspicious")]
 
@@ -43,8 +39,15 @@ def test_a_status_NOBODY_HAS_SEEN_is_undecided_not_ignored():
 
 def test_every_non_killed_status_mutmut_can_print_lands_in_undecided():
     """Taken from mutmut's `status_by_exit_code`, not from our imagination."""
-    statuses = ["timeout", "suspicious", "skipped", "no tests", "not checked",
-                "caught by type check", "check was interrupted by user"]
+    statuses = [
+        "timeout",
+        "suspicious",
+        "skipped",
+        "no tests",
+        "not checked",
+        "caught by type check",
+        "check was interrupted by user",
+    ]
     blob = "".join(f"m{i}: {s}\n" for i, s in enumerate(statuses))
     r = md.split_results(blob)
     assert [s for _, s in r[md.UNDECIDED]] == statuses
@@ -76,6 +79,7 @@ def test_the_gate_does_not_keep_only_survived_lines():
     """Reads the tool's own source. This is what reds if the `": survived" not in line: continue`
     filter comes back — the exact line that produced both false verdicts."""
     import pathlib
+
     src = (pathlib.Path(__file__).resolve().parents[1] / "tools" / "mutate_diff.py").read_text()
     assert '": survived" not in line' not in src, "the survivors-only filter is back"
     assert "split_results(" in src, "the gate no longer classifies the full results listing"

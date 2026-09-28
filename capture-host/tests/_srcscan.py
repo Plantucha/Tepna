@@ -47,6 +47,7 @@ def module_source(name: str) -> str:
     src = (HERE / name).read_text(encoding="utf-8")
     if "__mutmut_orig" in src:
         import pytest
+
         # `allow_module_level=True` is LOAD-BEARING. `test_ring_acc_recording.py` calls this at module
         # scope (`CAP = module_source("capture.py")`), and a bare `pytest.skip` raised during import is
         # not a skip — pytest turns it into a COLLECTION ERROR ("Using pytest.skip outside of a test will
@@ -55,15 +56,18 @@ def module_source(name: str) -> str:
         # collect stats" → 0 mutants tested → the gate refused (correctly) on #2209 and #2214, so the
         # mutation gate was blind to every capture.py change for two days while reading as an
         # environment fault. Inside a test function the flag is inert, so one form serves both call sites.
-        pytest.skip(f"{name} here is a mutmut-generated file holding every mutant inline; "
-                    "a source scan sees all of them at once (see tests/_srcscan.py)",
-                    allow_module_level=True)
+        pytest.skip(
+            f"{name} here is a mutmut-generated file holding every mutant inline; "
+            "a source scan sees all of them at once (see tests/_srcscan.py)",
+            allow_module_level=True,
+        )
     return src
 
 
 def module_path(name: str) -> str:
     """The path form, for the few callers that want to open it themselves."""
     return os.path.join(str(HERE), name)
+
 
 def function_source(name: str, func: str) -> str:
     """The text of ONE function from `<repo>/<name>`, bounded by the function itself.
@@ -96,8 +100,10 @@ def function_source(name: str, func: str) -> str:
             if seg:
                 return seg
             break
-    raise AssertionError(f"{func!r} not found in {name} — the scan is anchored on a name that "
-                         f"no longer exists, which is a stale test, not a passing one")
+    raise AssertionError(
+        f"{func!r} not found in {name} — the scan is anchored on a name that "
+        f"no longer exists, which is a stale test, not a passing one"
+    )
 
 
 def strip_comments(src: str) -> str:
@@ -113,6 +119,7 @@ def strip_comments(src: str) -> str:
     return tokenize.untokenize(
         t for t in tokenize.generate_tokens(io.StringIO(src).readline) if t.type != tokenize.COMMENT
     )
+
 
 def block_source(name: str, anchor: str) -> str:
     """The Python block that OPENS at `anchor` — its line plus every following more-indented line.
@@ -145,6 +152,7 @@ def block_source(name: str, anchor: str) -> str:
         out.append(line)
     return "\n".join(out)
 
+
 def suite_tail(name: str, anchor: str) -> str:
     """From the line holding `anchor` to the END OF THE SUITE IT SITS IN — its siblings, not its body.
 
@@ -172,4 +180,3 @@ def suite_tail(name: str, anchor: str) -> str:
             break
         out.append(line)
     return "\n".join(out)
-

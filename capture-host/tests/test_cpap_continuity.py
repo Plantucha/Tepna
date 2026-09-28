@@ -9,6 +9,7 @@ negative ones: that a drop is never followed by `continuous`, that a measured ga
 unverified, and that an unparseable device clock leaves the tracker saying it did not check rather than
 inventing a verdict. Stamps are the AS11's real wire shape (`2026-08-23T01:30:28.730Z`).
 """
+
 import os
 import sys
 
@@ -28,6 +29,7 @@ def _ms(s):
 def _stamp(base_ms, plus_ms):
     """A device stamp `plus_ms` after `base_ms`, in the device's own shape."""
     from datetime import datetime, timezone
+
     dt = datetime.fromtimestamp((base_ms + plus_ms) / 1000.0, tz=timezone.utc)
     return dt.strftime("%Y-%m-%dT%H:%M:%S.") + f"{dt.microsecond // 1000:03d}Z"
 
@@ -39,12 +41,18 @@ def test_parses_the_device_wire_shape_exactly():
     assert _ms("2026-08-23T05:59:59Z") == pytest.approx(1787464799000.0), "fractional part is optional"
 
 
-@pytest.mark.parametrize("bad", [
-    None, 12345, "", "2026-08-23 01:30:28",          # not the wire shape
-    "2026-08-23T01:30:28.730+00:00",                  # a zone other than the literal Z
-    "2026-13-45T25:99:99.000Z",                       # digits that are not a calendar (§2.7)
-    "2026-02-30T00:00:00.000Z",
-])
+@pytest.mark.parametrize(
+    "bad",
+    [
+        None,
+        12345,
+        "",
+        "2026-08-23 01:30:28",  # not the wire shape
+        "2026-08-23T01:30:28.730+00:00",  # a zone other than the literal Z
+        "2026-13-45T25:99:99.000Z",  # digits that are not a calendar (§2.7)
+        "2026-02-30T00:00:00.000Z",
+    ],
+)
 def test_anything_else_is_ABSENT_not_guessed(bad):
     assert _ms(bad) is None
 
@@ -64,8 +72,9 @@ def test_a_DROP_arms_a_resume_and_the_next_session_starts_UNVERIFIED_never_conti
     """∅ the load-bearing negative: `continuous` is earned, not defaulted. The session after a drop
     must begin in `resumed-unverified` before a single frame has been compared."""
     t = cc.ContinuityTracker()
-    t.note_start(); t.note_frame(T0, 10, 40.0)
-    t.note_end(clean=False)                      # the link raised
+    t.note_start()
+    t.note_frame(T0, 10, 40.0)
+    t.note_end(clean=False)  # the link raised
     t.note_start()
     assert t.status is C.RESUMED_UNVERIFIED and t.gap_ms is None
 
@@ -74,7 +83,8 @@ def test_a_deliberate_STOP_is_not_a_recovery():
     """A stop (button, therapy-end auto-stop) ends the acquisition on purpose. The session that follows
     is a fresh acquisition and starts `continuous` — a stop must not manufacture a resume."""
     t = cc.ContinuityTracker()
-    t.note_start(); t.note_frame(T0, 10, 40.0)
+    t.note_start()
+    t.note_frame(T0, 10, 40.0)
     t.note_end(clean=True)
     t.note_start()
     assert t.status is C.CONTINUOUS
@@ -84,8 +94,10 @@ def test_VERIFIED_CONTINUOUS_when_the_device_clock_picks_up_where_it_was_owed():
     """Last frame at T0 carried 10 samples at 40 ms → the next sample was owed at T0+400. A first
     post-drop frame at exactly T0+400 means the device buffered through the drop: nothing lost."""
     t = cc.ContinuityTracker()
-    t.note_start(); t.note_frame(T0, 10, 40.0)
-    t.note_end(clean=False); t.note_start()
+    t.note_start()
+    t.note_frame(T0, 10, 40.0)
+    t.note_end(clean=False)
+    t.note_start()
     t.note_frame(_stamp(_ms(T0), 400), 10, 40.0)
     assert t.status is C.VERIFIED_CONTINUOUS and t.gap_ms == 0
 
@@ -96,8 +108,10 @@ def test_VERIFIED_CONTINUOUS_tolerates_one_interval_of_frame_batching_but_not_mo
     base = _ms(T0)
     for offset, expect in ((400 + 40, C.VERIFIED_CONTINUOUS), (400 + 41, C.VERIFIED_GAP)):
         t = cc.ContinuityTracker()
-        t.note_start(); t.note_frame(T0, 10, 40.0)
-        t.note_end(clean=False); t.note_start()
+        t.note_start()
+        t.note_frame(T0, 10, 40.0)
+        t.note_end(clean=False)
+        t.note_start()
         t.note_frame(_stamp(base, offset), 10, 40.0)
         assert t.status is expect, offset
 
@@ -107,8 +121,10 @@ def test_VERIFIED_GAP_reports_the_measured_loss_and_never_hides_it_as_unverified
     That is knowledge. Reporting `resumed-unverified` would assert ignorance where there is knowledge —
     the mirror of fabricating a value — so the gap gets its own word and its own number."""
     t = cc.ContinuityTracker()
-    t.note_start(); t.note_frame(T0, 10, 40.0)
-    t.note_end(clean=False); t.note_start()
+    t.note_start()
+    t.note_frame(T0, 10, 40.0)
+    t.note_end(clean=False)
+    t.note_start()
     t.note_frame(_stamp(_ms(T0), 400 + 5400), 10, 40.0)
     assert t.status is C.VERIFIED_GAP
     assert t.gap_ms == 5400
@@ -118,9 +134,11 @@ def test_VERIFIED_GAP_reports_the_measured_loss_and_never_hides_it_as_unverified
 def test_verification_happens_ONCE_on_the_first_frame_then_the_verdict_holds():
     """Later frames advance the owed clock but must not re-verify: a mid-session frame is not a resume."""
     t = cc.ContinuityTracker()
-    t.note_start(); t.note_frame(T0, 10, 40.0)
-    t.note_end(clean=False); t.note_start()
-    t.note_frame(_stamp(_ms(T0), 400 + 5400), 10, 40.0)      # verdict: gap 5400
+    t.note_start()
+    t.note_frame(T0, 10, 40.0)
+    t.note_end(clean=False)
+    t.note_start()
+    t.note_frame(_stamp(_ms(T0), 400 + 5400), 10, 40.0)  # verdict: gap 5400
     t.note_frame(_stamp(_ms(T0), 400 + 5400 + 400), 10, 40.0)  # ordinary next frame
     assert t.status is C.VERIFIED_GAP and t.gap_ms == 5400
 
@@ -130,23 +148,28 @@ def test_stays_UNVERIFIED_when_the_predecessor_left_no_usable_clock():
     """A drop before any frame, or a predecessor whose frames had no parseable stamp: there is nothing
     to compare against, so the first post-drop frame cannot verify anything. Not continuous. Not a gap."""
     t = cc.ContinuityTracker()
-    t.note_start()                                # no frames at all
-    t.note_end(clean=False); t.note_start()
+    t.note_start()  # no frames at all
+    t.note_end(clean=False)
+    t.note_start()
     t.note_frame(T0, 10, 40.0)
     assert t.status is C.RESUMED_UNVERIFIED and t.gap_ms is None
 
     t2 = cc.ContinuityTracker()
-    t2.note_start(); t2.note_frame("garbage", 10, 40.0)   # predecessor's stamp unparseable
-    t2.note_end(clean=False); t2.note_start()
+    t2.note_start()
+    t2.note_frame("garbage", 10, 40.0)  # predecessor's stamp unparseable
+    t2.note_end(clean=False)
+    t2.note_start()
     t2.note_frame(T0, 10, 40.0)
     assert t2.status is C.RESUMED_UNVERIFIED
 
 
 def test_stays_UNVERIFIED_when_the_first_post_drop_frame_has_no_usable_clock():
     t = cc.ContinuityTracker()
-    t.note_start(); t.note_frame(T0, 10, 40.0)
-    t.note_end(clean=False); t.note_start()
-    t.note_frame(None, 10, 40.0)                  # the verifying frame itself is unstamped
+    t.note_start()
+    t.note_frame(T0, 10, 40.0)
+    t.note_end(clean=False)
+    t.note_start()
+    t.note_frame(None, 10, 40.0)  # the verifying frame itself is unstamped
     assert t.status is C.RESUMED_UNVERIFIED
     # and a LATER good frame does not retroactively verify — the resume moment has passed
     t.note_frame(_stamp(_ms(T0), 400), 10, 40.0)
@@ -156,10 +179,11 @@ def test_stays_UNVERIFIED_when_the_first_post_drop_frame_has_no_usable_clock():
 def test_unusable_sample_count_or_interval_does_not_move_the_owed_clock():
     """A frame with a bad `n_samples`/`interval_ms` must not advance the owed sample to a guess."""
     t = cc.ContinuityTracker()
-    t.note_start(); t.note_frame(T0, 10, 40.0)
+    t.note_start()
+    t.note_frame(T0, 10, 40.0)
     owed = t._expected_next_ms
-    t.note_frame(_stamp(_ms(T0), 400), "ten", 40.0)   # bad n
-    t.note_frame(_stamp(_ms(T0), 800), 10, 0)         # bad interval
+    t.note_frame(_stamp(_ms(T0), 400), "ten", 40.0)  # bad n
+    t.note_frame(_stamp(_ms(T0), 800), 10, 0)  # bad interval
     t.note_frame(_stamp(_ms(T0), 1200), 10, None)
     assert t._expected_next_ms == owed
 
@@ -176,14 +200,16 @@ def test_resume_hint_makes_a_fresh_tracker_start_UNVERIFIED_after_a_daemon_resta
     t.note_frame(T0, 10, 40.0)
     assert t.status is C.RESUMED_UNVERIFIED
     # the hint is a one-shot: the next clean stop + start is a fresh acquisition again
-    t.note_end(clean=True); t.note_start()
+    t.note_end(clean=True)
+    t.note_start()
     assert t.status is C.CONTINUOUS
 
 
 def test_resume_hint_does_not_erase_a_real_predecessor_clock():
     """If the tracker DOES remember a drop (armed), a hint must not wipe the clock it could verify with."""
     t = cc.ContinuityTracker()
-    t.note_start(); t.note_frame(T0, 10, 40.0)
+    t.note_start()
+    t.note_frame(T0, 10, 40.0)
     t.note_end(clean=False)
     t.note_start(resume_hint=True)
     t.note_frame(_stamp(_ms(T0), 400), 10, 40.0)

@@ -7,6 +7,7 @@ whole value of this module is that the slope names a mechanism. A test that only
 number" would pass against a classifier that cannot tell drift from jitter — which is the one thing it
 exists to do, so the separation is asserted explicitly.
 """
+
 from __future__ import annotations
 
 import pytest
@@ -45,7 +46,7 @@ def _rw_fm(seed=7):
 
 def _drift():
     """A constant frequency ramp → quadratic phase → ADEV ~ tau^+1."""
-    return [0.5 * 1e-4 * (i ** 2) for i in range(N)]
+    return [0.5 * 1e-4 * (i**2) for i in range(N)]
 
 
 def test_each_noise_type_recovers_its_own_slope():
@@ -59,8 +60,10 @@ def test_each_noise_type_recovers_its_own_slope():
 def test_the_classifier_separates_all_four():
     """ANTI-VACUITY. A classifier that returned one label for everything would satisfy any single-series
     test; what matters is that the four map to four DIFFERENT names."""
-    names = [allan.classify(allan.slope(allan.adev(s, TAU0)))["noise"]
-             for s in (_white_pm(), _white_fm(), _rw_fm(), _drift())]
+    names = [
+        allan.classify(allan.slope(allan.adev(s, TAU0)))["noise"]
+        for s in (_white_pm(), _white_fm(), _rw_fm(), _drift())
+    ]
     assert len(set(names)) == 4, names
     assert names == ["white/flicker-phase", "white-frequency", "random-walk-frequency", "drift"]
 
@@ -71,7 +74,7 @@ def test_a_constant_offset_and_a_constant_rate_are_invisible():
     what is LEFT. If a rate leaked in here it would masquerade as drift."""
     base = _white_fm()
     offset = [v + 875.7 for v in base]
-    ramp = [base[i] + 0.02086 * i for i in range(len(base))]   # a pure rate, in the same units
+    ramp = [base[i] + 0.02086 * i for i in range(len(base))]  # a pure rate, in the same units
     a = allan.adev(base, TAU0)
     for variant in (offset, ramp):
         b = allan.adev(variant, TAU0)
@@ -146,6 +149,7 @@ def test_explicit_taus_are_honoured_and_impossible_ones_skipped():
 #     second implementation written straight from the definition — the one thing a mutated copy of
 #     the first cannot agree with.
 
+
 def _reference_adev(x, tau0, m):
     """Overlapping ADEV at one m, written directly from the textbook formula and nothing else:
         sigma_y(tau) = sqrt( 1/(2(N-2m)tau^2) * SUM (x[i+2m] - 2x[i+m] + x[i])^2 ),  tau = m*tau0
@@ -192,7 +196,7 @@ def test_octave_taus_are_exactly_powers_of_two_and_stop_where_the_series_does():
     x = _white_fm()[:1000]
     pts = allan.adev(x, 3.0)
     ms = [round(p["tau"] / 3.0) for p in pts]
-    assert ms == [2 ** i for i in range(len(ms))], ms
+    assert ms == [2**i for i in range(len(ms))], ms
     assert ms[0] == 1, "the ladder must start at one sample interval"
     # the stop is m <= n / (2 * _MIN_SPAN_MULTIPLE): with n=1000 that is m <= 125, so the last is 64
     assert ms[-1] == 64, ms
@@ -203,7 +207,7 @@ def test_slope_is_exact_on_a_log_linear_curve():
     """A curve that IS a power law has an exactly known slope, so the regression is pinned to 1e-12 —
     which catches `sum(ys) * k`, `(xs[i] + mx)`, `(ys[i] + my)` and `den <= 1`."""
     for want in (-1.0, -0.5, 0.0, 0.5, 1.0, 2.75):
-        pts = [{"tau": t, "adev": 3.0 * t ** want} for t in (1.0, 2.0, 4.0, 8.0, 16.0)]
+        pts = [{"tau": t, "adev": 3.0 * t**want} for t in (1.0, 2.0, 4.0, 8.0, 16.0)]
         assert abs(allan.slope(pts) - want) < 1e-12, (want, allan.slope(pts))
 
 
@@ -239,7 +243,13 @@ def test_adev_skips_a_too_long_tau_and_keeps_going():
 def test_stability_needs_three_taus_exactly():
     """`len(pts) < 3` — a two-tau curve has no slope, a three-tau curve does."""
     x = _white_fm()
-    assert allan.stability(x, TAU0, )["ok"] is True
+    assert (
+        allan.stability(
+            x,
+            TAU0,
+        )["ok"]
+        is True
+    )
     two = allan.adev(x, TAU0, taus=[1.0, 2.0])
     assert len(two) == 2 and allan.slope(two) is None
 
@@ -614,7 +624,11 @@ def test_identify_on_a_series_too_short_to_classify_refuses_rather_than_guesses(
 
 
 def test_slope_reads_the_requested_key_and_defaults_to_adev():
-    pts = [{"tau": 1.0, "adev": 1.0, "mdev": 2.0}, {"tau": 2.0, "adev": 0.5, "mdev": 2.0}, {"tau": 4.0, "adev": 0.25, "mdev": 2.0}]
+    pts = [
+        {"tau": 1.0, "adev": 1.0, "mdev": 2.0},
+        {"tau": 2.0, "adev": 0.5, "mdev": 2.0},
+        {"tau": 4.0, "adev": 0.25, "mdev": 2.0},
+    ]
     assert allan.slope(pts) == pytest.approx(-1.0)
     assert allan.slope(pts, "mdev") == pytest.approx(0.0, abs=1e-12)
     assert allan.slope_se(pts, "mdev") == pytest.approx(0.0, abs=1e-12)
@@ -777,8 +791,8 @@ def test_identify_names_FLICKER_phase_too_and_not_only_white():
     implementation that answered "white-phase" for anything on the ambiguous arm would pass all of
     them. Flicker PM must land on the same ADEV arm and come back with the OTHER name."""
     r = allan.identify(_flicker_pm(), TAU0)
-    assert r["adev"]["noise"] == "white/flicker-phase"      # ADEV cannot tell it from white PM
-    assert r["phase_noise"] == "flicker-phase"              # …MDEV can
+    assert r["adev"]["noise"] == "white/flicker-phase"  # ADEV cannot tell it from white PM
+    assert r["phase_noise"] == "flicker-phase"  # …MDEV can
     assert allan.identify(_white_pm(), TAU0)["phase_noise"] == "white-phase"
 
 
@@ -827,8 +841,18 @@ def test_stability_reports_no_tdev_when_the_series_cannot_SUPPORT_the_named_tau(
 def test_stability_keeps_every_key_it_published_before():
     """Back-compat: the new fields are ADDITIVE. A consumer written against the old record still works."""
     s = allan.stability(_white_pm(), TAU0)
-    for k in ("ok", "taus", "tau_min", "tau_max", "adev_min", "optimal_tau", "at_longest",
-              "classification", "slope_se", "curve"):
+    for k in (
+        "ok",
+        "taus",
+        "tau_min",
+        "tau_max",
+        "adev_min",
+        "optimal_tau",
+        "at_longest",
+        "classification",
+        "slope_se",
+        "curve",
+    ):
         assert k in s, k
 
 
@@ -917,7 +941,7 @@ def test_gcov_may_be_NEGATIVE_and_is_returned_unclamped():
     anti = [-v for v in x]
     g = allan.gcov(x, anti, TAU0)[0]
     a = allan.adev(x, TAU0)[0]["adev"]
-    assert g["gcov"] == pytest.approx(-(a ** 2), rel=1e-12)
+    assert g["gcov"] == pytest.approx(-(a**2), rel=1e-12)
     assert g["gcov"] < 0 and g["gdev"] < 0
 
 
@@ -984,41 +1008,45 @@ def test_lag1_recovers_the_WHOLE_power_law_family():
     """THE known-answer test, and the reason this is worth having: `allan.py` had no external reference
     for its noise naming. AllanTools implements the same identification, so these five are checkable
     rather than re-derived. Each series is synthesised to a known alpha and must come back as it."""
-    cases = ((_white_pm(), 2, 'white-phase'), (_flicker_pm(), 1, 'flicker-phase'),
-             (_white_fm(), 0, 'white-frequency'), (_flicker_fm(), -1, 'flicker-frequency'),
-             (_rw_fm(), -2, 'random-walk-frequency'))
+    cases = (
+        (_white_pm(), 2, "white-phase"),
+        (_flicker_pm(), 1, "flicker-phase"),
+        (_white_fm(), 0, "white-frequency"),
+        (_flicker_fm(), -1, "flicker-frequency"),
+        (_rw_fm(), -2, "random-walk-frequency"),
+    )
     for series, alpha, name in cases:
         got = allan.noise_id(series)
         assert got is not None, name
-        assert got['alpha'] == alpha, f"{name}: expected alpha {alpha}, got {got}"
-        assert got['noise'] == name, got
+        assert got["alpha"] == alpha, f"{name}: expected alpha {alpha}, got {got}"
+        assert got["noise"] == name, got
 
 
 def test_lag1_ANSWERS_where_the_slope_classifier_must_refuse():
     """The operational payoff. `classify` refuses when 1.96*se straddles a boundary — correctly, because
     a fitted slope cannot support the call there. An estimator that fits no slope has no boundary, so it
     still answers. Both are published; disagreement is information."""
-    refused = allan.classify(-0.75, 0.02)          # dead on an edge, CI straddling it
-    assert refused['noise'] is None, refused        # the incumbent declines, by design
+    refused = allan.classify(-0.75, 0.02)  # dead on an edge, CI straddling it
+    assert refused["noise"] is None, refused  # the incumbent declines, by design
     got = allan.noise_id(_white_pm())
-    assert got['noise'] == 'white-phase'            # the lag-1 identifier does not have to
+    assert got["noise"] == "white-phase"  # the lag-1 identifier does not have to
 
 
 def test_the_two_opinions_AGREE_on_an_unambiguous_series():
     """ANTI-VACUITY. An identifier that answered something unrelated to the slope classifier would be
     a second number, not a second opinion."""
-    for series, expect in ((_white_fm(), 'white-frequency'), (_rw_fm(), 'random-walk-frequency')):
+    for series, expect in ((_white_fm(), "white-frequency"), (_rw_fm(), "random-walk-frequency")):
         st = allan.stability(series, TAU0)
-        assert st['classification']['noise'] == expect
-        assert st['lag1_noise']['noise'] == expect
+        assert st["classification"]["noise"] == expect
+        assert st["lag1_noise"]["noise"] == expect
 
 
 def test_stability_publishes_the_second_opinion_beside_the_first():
     st = allan.stability(_white_pm(), TAU0)
-    assert 'classification' in st and 'lag1_noise' in st
-    assert st['lag1_noise']['noise'] == 'white-phase'
+    assert "classification" in st and "lag1_noise" in st
+    assert st["lag1_noise"]["noise"] == "white-phase"
     # ADEV maps white PM and flicker PM to one arm; the lag-1 identifier separates them without MDEV.
-    assert st['classification']['noise'] == 'white/flicker-phase'
+    assert st["classification"]["noise"] == "white/flicker-phase"
 
 
 def test_a_series_too_short_to_identify_returns_None_rather_than_a_guess():
@@ -1043,16 +1071,16 @@ def test_alpha_is_clamped_to_the_five_named_laws():
     for series in (_white_pm(), _flicker_pm(), _white_fm(), _flicker_fm(), _rw_fm(), _drift()):
         got = allan.noise_id(series)
         if got is not None:
-            assert -2 <= got['alpha'] <= 2, got
-            assert got['noise'] in allan._ALPHA_NAMES.values()
+            assert -2 <= got["alpha"] <= 2, got
+            assert got["noise"] in allan._ALPHA_NAMES.values()
 
 
 def test_the_slope_classifier_and_its_TABLE_are_untouched_by_this_addition():
     """The three-lane parity gate (#1334) holds `_NOISE` equal across clock.js / ppgdex-dsp.js / here.
     This addition must not move it, or the lanes would be running different algorithms."""
-    assert allan._NOISE[0][1] == 'white/flicker-phase'
+    assert allan._NOISE[0][1] == "white/flicker-phase"
     assert [e[0] for e in allan._NOISE] == [-0.75, -0.25, 0.25, 0.75]
-    assert allan.classify(-1.0)['noise'] == 'white/flicker-phase'
+    assert allan.classify(-1.0)["noise"] == "white/flicker-phase"
 
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════════
@@ -1065,7 +1093,7 @@ def test_the_slope_classifier_and_its_TABLE_are_untouched_by_this_addition():
 def _naive_mtie(x, m):
     """The definition, directly: worst peak-to-peak inside any window of m+1 samples."""
     w = m + 1
-    return max(max(x[i:i + w]) - min(x[i:i + w]) for i in range(len(x) - w + 1))
+    return max(max(x[i : i + w]) - min(x[i : i + w]) for i in range(len(x) - w + 1))
 
 
 def test_mtie_of_a_ramp_is_EXACTLY_slope_times_tau():
@@ -1170,8 +1198,8 @@ def test_tau0_uniformity_max_gap_sees_a_stall_that_ratio_nearly_hides():
     even = allan.tau0_uniformity(list(range(0, 2500, 100)))
     one_stall = allan.tau0_uniformity([*range(0, 2000, 100), 2400])
     assert even["ratio"] == 1.0 and even["max_gap"] == 1.0
-    assert one_stall["ratio"] == pytest.approx(1.2, abs=0.01)   # easy to overlook
-    assert one_stall["max_gap"] == 5.0                          # not easy to overlook
+    assert one_stall["ratio"] == pytest.approx(1.2, abs=0.01)  # easy to overlook
+    assert one_stall["max_gap"] == 5.0  # not easy to overlook
 
 
 def test_tau0_uniformity_refuses_rather_than_claiming_perfect_uniformity():
@@ -1179,9 +1207,9 @@ def test_tau0_uniformity_refuses_rather_than_claiming_perfect_uniformity():
     # "perfectly uniform" is a claim about an axis that is not there.
     assert allan.tau0_uniformity(None) is None
     assert allan.tau0_uniformity([]) is None
-    assert allan.tau0_uniformity([0, 100]) is None          # < 3 samples
-    assert allan.tau0_uniformity([5, 5, 5, 5]) is None      # one instant -> ZERO positive deltas
-    assert allan.tau0_uniformity([0, 0, 0, 500]) is None    # only ONE positive delta, nothing to compare
+    assert allan.tau0_uniformity([0, 100]) is None  # < 3 samples
+    assert allan.tau0_uniformity([5, 5, 5, 5]) is None  # one instant -> ZERO positive deltas
+    assert allan.tau0_uniformity([0, 0, 0, 500]) is None  # only ONE positive delta, nothing to compare
 
 
 def test_tau0_uniformity_ignores_non_finite_samples_rather_than_propagating_nan():
@@ -1222,6 +1250,7 @@ def test_J_stability_is_deterministic_and_does_not_read_its_input_by_identity():
     """`stability(x, tau0)` twice, and on a COPY of x, is `==` — nothing in the pipeline reads a clock,
     an RNG, or the identity of its input. No test pinned this before the brief named it."""
     import copy
+
     x = [float(i % 7) * 0.01 + i * 1e-4 for i in range(3000)]
     a = allan.stability(x, 1.0, tdev_tau=8.0)
     b = allan.stability(x, 1.0, tdev_tau=8.0)
@@ -1272,6 +1301,7 @@ def _white_fm_with_hole(hole, step_sigma, sigma=1e-3, n=4000, tau0=1.0, seed=3):
     midpoint, across which the clock kept running: the later half is shifted in time by the hole and in
     phase by `step_sigma` sigmas. Returns (phase, sample_times, phase_without_hole)."""
     import random
+
     random.seed(seed)
     ph = [0.0]
     for _ in range(n - 1):
@@ -1327,6 +1357,7 @@ def test_segments_by_gap_cuts_at_k_times_the_median_and_only_there():
 def test_adev_pooled_is_the_n_weighted_mean_of_sigma_squared():
     """Pooling is exact by construction; pin the arithmetic on two hand-made segments."""
     import random
+
     random.seed(11)
     x = [0.0]
     for _ in range(1999):
@@ -1347,7 +1378,6 @@ def test_adev_pooled_is_the_n_weighted_mean_of_sigma_squared():
     # a series whose length does not match the instants is treated as compacted, never misaligned
     pts2, meta2 = allan.adev_pooled(x, 1.0, ts[:-1], 4.0)
     assert meta2["pooled"] is False and [p["adev"] for p in pts2] == [p["adev"] for p in allan.adev(x, 1.0)]
-
 
 
 # ── §∅ · AN UNNAMEABLE POWER LAW IS A REFUSAL, NOT THE NEAREST LABEL (2026-09-23) ───────────────

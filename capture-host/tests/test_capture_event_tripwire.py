@@ -44,8 +44,9 @@ def test_the_event_set_is_DISCOVERED_not_listed():
     assert {"_STOP", "_RECOVER", "_OXYII_PAUSE"} <= before, before
     capture._TRIPWIRE_PROBE_EVENT = asyncio.Event()
     try:
-        assert "_TRIPWIRE_PROBE_EVENT" in {n for n, _ in _events()}, \
+        assert "_TRIPWIRE_PROBE_EVENT" in {n for n, _ in _events()}, (
             "a newly added module-global Event was not discovered — the set is not being introspected"
+        )
     finally:
         del capture._TRIPWIRE_PROBE_EVENT
     assert {n for n, _ in _events()} == before
@@ -80,20 +81,27 @@ def test_the_tripwire_NAMES_the_leaking_test(tmp_path):
     os.makedirs(probe, exist_ok=True)
     try:
         with open(os.path.join(probe, "test_leaks.py"), "w") as f:
-            f.write(textwrap.dedent("""
+            f.write(
+                textwrap.dedent("""
                 import capture
 
                 def test_a_throwaway_test_that_leaks_recover():
                     capture._RECOVER.set()
                     assert True          # the BODY passes — the leak is the only defect
-            """))
-        r = subprocess.run([sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider",
-                            os.path.join(probe, "test_leaks.py")],
-                           capture_output=True, text=True, timeout=300, cwd=os.path.dirname(_TESTS))
+            """)
+            )
+        r = subprocess.run(
+            [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", os.path.join(probe, "test_leaks.py")],
+            capture_output=True,
+            text=True,
+            timeout=300,
+            cwd=os.path.dirname(_TESTS),
+        )
         out = r.stdout + r.stderr
         assert r.returncode != 0, f"the tripwire did not fire on a leaking test:\n{out}"
-        assert "test_a_throwaway_test_that_leaks_recover" in out, \
+        assert "test_a_throwaway_test_that_leaks_recover" in out, (
             f"the tripwire fired but did not NAME the leaking test — which is its entire job:\n{out}"
+        )
         assert "_RECOVER" in out, f"the tripwire did not name the leaked event:\n{out}"
     finally:
         shutil.rmtree(probe, ignore_errors=True)
@@ -107,9 +115,13 @@ def test_a_clean_throwaway_test_is_NOT_flagged(tmp_path):
     try:
         with open(os.path.join(probe, "test_clean.py"), "w") as f:
             f.write("def test_a_throwaway_test_that_leaks_nothing():\n    assert True\n")
-        r = subprocess.run([sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider",
-                            os.path.join(probe, "test_clean.py")],
-                           capture_output=True, text=True, timeout=300, cwd=os.path.dirname(_TESTS))
+        r = subprocess.run(
+            [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", os.path.join(probe, "test_clean.py")],
+            capture_output=True,
+            text=True,
+            timeout=300,
+            cwd=os.path.dirname(_TESTS),
+        )
         assert r.returncode == 0, f"a test that leaked nothing was flagged:\n{r.stdout}{r.stderr}"
     finally:
         shutil.rmtree(probe, ignore_errors=True)
@@ -176,5 +188,5 @@ def test_awaiting_an_unset_event_binds_a_loop_that_must_not_outlive_this_test_SE
     import capture as _capture
 
     _capture._STOP.clear()
-    _await_the_stop_unset()          # must not raise
+    _await_the_stop_unset()  # must not raise
     assert _capture._STOP.is_set(), "and the wait really completed — the timer fired and it returned"

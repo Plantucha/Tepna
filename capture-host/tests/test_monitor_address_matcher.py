@@ -24,10 +24,22 @@ MON = os.path.join(HERE, "monitor.html")
 
 # The real configured devices, addresses as config spells them.
 CFG = [
-    {"name": "Wellue O2Ring-S", "vendor": "Wellue", "model": "O2Ring-S", "device_id": "S8AW2100",
-     "address": "D1:98:62:7C:92:B3", "streams": ["spo2", "ppg"]},
-    {"name": "Polar Verity Sense", "vendor": "Polar", "model": "VeritySense", "device_id": "0C301E3F",
-     "address": "24:AC:AC:0C:30:1E", "streams": ["ppg", "acc"]},
+    {
+        "name": "Wellue O2Ring-S",
+        "vendor": "Wellue",
+        "model": "O2Ring-S",
+        "device_id": "S8AW2100",
+        "address": "D1:98:62:7C:92:B3",
+        "streams": ["spo2", "ppg"],
+    },
+    {
+        "name": "Polar Verity Sense",
+        "vendor": "Polar",
+        "model": "VeritySense",
+        "device_id": "0C301E3F",
+        "address": "24:AC:AC:0C:30:1E",
+        "streams": ["ppg", "acc"],
+    },
 ]
 
 
@@ -69,6 +81,7 @@ def _html(scan_list, devices=CFG):
 
 # ── the three name dependencies ────────────────────────────────────────────────────────────────
 
+
 def test_a_NAMELESS_configured_device_is_STILL_SHOWN():
     """🔴 A nameless advertisement surfaces with its MAC AS the name, which the placeholder filter
     then rejected — so a device captured every night vanished from the list entirely."""
@@ -102,9 +115,10 @@ def test_guessDevice_answers_from_CONFIG_for_a_known_address():
     """🔴 Re-deriving vendor/model from a standby frame would overwrite a known-good entry with the
     blanks the server rejects — which IS the "needs vendor, model" the owner saw."""
     body = _extract()
-    prog = (body + "\n" +
-            "const d = {address:'24:AC:AC:0C:30:1E', name:'24-AC-AC-0C-30-1E'};\n"
-            "console.log(JSON.stringify(guessDevice(d)));")
+    prog = (
+        body + "\n" + "const d = {address:'24:AC:AC:0C:30:1E', name:'24-AC-AC-0C-30-1E'};\n"
+        "console.log(JSON.stringify(guessDevice(d)));"
+    )
     node = shutil.which("node")
     if node is None:
         pytest.skip("node is not installed")
@@ -122,8 +136,10 @@ def test_guessDevice_still_GUESSES_for_an_unknown_named_device():
     node = shutil.which("node")
     if node is None:
         pytest.skip("node is not installed")
-    prog = (f"let DEVICES = {json.dumps(CFG)};\n" + body + "\n"
-            "console.log(JSON.stringify(guessDevice({address:'AA:BB:CC:DD:EE:FF', name:'Polar H10 02849638'})));")
+    prog = (
+        f"let DEVICES = {json.dumps(CFG)};\n" + body + "\n"
+        "console.log(JSON.stringify(guessDevice({address:'AA:BB:CC:DD:EE:FF', name:'Polar H10 02849638'})));"
+    )
     r = subprocess.run([node, "-e", prog], capture_output=True, text=True, timeout=30)
     assert r.returncode == 0, r.stderr
     got = json.loads(r.stdout)
@@ -134,6 +150,6 @@ def test_an_empty_scan_and_a_missing_name_do_not_throw():
     """`d.name.match(...)` on an absent name would throw and take the WHOLE list render with it."""
     assert _html([]) == ""
     html = _html([{"address": "AA:BB:CC:DD:EE:00"}])
-    assert "AA:BB:CC:DD:EE:00" not in html      # unnamed + unknown + no health: correctly not shown
+    assert "AA:BB:CC:DD:EE:00" not in html  # unnamed + unknown + no health: correctly not shown
     html2 = _html([{"address": "AA:BB:CC:DD:EE:01", "health": True}])
-    assert "AA:BB:CC:DD:EE:01" in html2         # ...but a health advertiser still is
+    assert "AA:BB:CC:DD:EE:01" in html2  # ...but a health advertiser still is

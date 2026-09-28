@@ -46,6 +46,7 @@ are two records — and two units can legitimately carry different tables at dif
 oracle cannot cover. It records under a `None` hash and `expected()` answers only for `None`, so such a
 device is checkable against itself but never against a hash it does not have.
 """
+
 from __future__ import annotations
 
 import json
@@ -100,7 +101,7 @@ def configure(path: str | None) -> None:
                         continue
                     chars = rec.get("chars")
                     if not isinstance(chars, dict) or not chars:
-                        continue          # an empty table on disk is the claim this module refuses
+                        continue  # an empty table on disk is the claim this module refuses
                     # `dict[str, Any]` EXPLICITLY, because the literal below infers
                     # `dict[str, dict | str | None]` from its three seed values and the `recorded_at`
                     # assignment eleven lines down is an `int`. The ratchet caught that as a real
@@ -123,7 +124,7 @@ def configure(path: str | None) -> None:
                     if isinstance(stamp, int) and not isinstance(stamp, bool):
                         loaded_rec["recorded_at"] = stamp
                     _MAPS[_norm(a)] = loaded_rec
-        except Exception:      # noqa: BLE001 - a corrupt record must not stop a night's capture
+        except Exception:  # noqa: BLE001 - a corrupt record must not stop a night's capture
             _MAPS.clear()
 
 
@@ -142,10 +143,10 @@ def _flush() -> None:
         except BaseException:
             try:
                 os.unlink(tmp)
-            except OSError:    # read-only volume; the original record is intact, which is what matters
+            except OSError:  # read-only volume; the original record is intact, which is what matters
                 pass
             raise
-    except Exception:          # noqa: BLE001 - telemetry must never break capture
+    except Exception:  # noqa: BLE001 - telemetry must never break capture
         pass
 
 
@@ -179,7 +180,7 @@ def record(addr, db_hash, chars, *, source: str, now=None) -> str:
         with _LOCK:
             prev = _MAPS.get(_norm(addr))
             if isinstance(prev, dict) and prev.get("db_hash") == h and prev.get("chars") == table:
-                return "same"          # nothing written — see the docstring
+                return "same"  # nothing written — see the docstring
             outcome = "changed" if isinstance(prev, dict) else "new"
             _MAPS[_norm(addr)] = {
                 "db_hash": h,
@@ -194,7 +195,7 @@ def record(addr, db_hash, chars, *, source: str, now=None) -> str:
             }
             _flush()
         return outcome
-    except Exception:          # noqa: BLE001 - a map note must never end a recording
+    except Exception:  # noqa: BLE001 - a map note must never end a recording
         return ""
 
 

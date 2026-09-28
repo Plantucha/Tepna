@@ -7,6 +7,7 @@ test_capture_runners). What must hold HERE: validation happens at the HTTP bound
 whitelist the frame builder enforces (an off-whitelist field or out-of-range value 400s and queues
 nothing), a daemon that never wired the callback answers 501 rather than pretending, and the queued
 response never claims the write happened — only that it will be attempted and read back."""
+
 import os
 import sys
 
@@ -20,6 +21,7 @@ def _post(tmp_path, body, ring_config):
     async def go(c):
         r = await c.post("/api/ring/config", json=body)
         return r.status, await r.json()
+
     return _serve(app, go)
 
 
@@ -28,8 +30,10 @@ def _recorder():
 
     def rc(addr, field, value):
         import oxyii
-        oxyii.set_config_frame(field, value)      # the real gate, exactly as capture.queue_ring_config
+
+        oxyii.set_config_frame(field, value)  # the real gate, exactly as capture.queue_ring_config
         calls.append((addr, field, value))
+
     return rc, calls
 
 
@@ -38,8 +42,9 @@ def test_a_valid_write_queues_and_says_so(tmp_path):
     status, body = _post(tmp_path, {"address": "AA:BB:CC:DD:EE:FF", "field": "brightness", "value": 1}, rc)
     assert status == 200 and body["ok"] is True
     assert body["queued"] == {"field": "brightness", "value": 1}
-    assert "read-back" in body["note"] or "ring_config" in body["note"], \
+    assert "read-back" in body["note"] or "ring_config" in body["note"], (
         "the response must say verification comes from the ring, not from this 200"
+    )
     assert calls == [("AA:BB:CC:DD:EE:FF", "brightness", 1)]
 
 
@@ -87,6 +92,7 @@ def test_a_malformed_body_is_the_shared_bad_body_response(tmp_path):
     async def go(c):
         r = await c.post("/api/ring/config", data=b"{not json", headers={"content-type": "application/json"})
         return r.status
+
     status = _serve(app, go)
     assert status == 400
     assert calls == []
@@ -100,6 +106,7 @@ def test_buzz_queues_and_reports_queued_not_fired(tmp_path):
     async def go(c):
         r = await c.post("/api/ring/buzz", json={"address": "AA:BB:CC:DD:EE:FF"})
         return r.status, await r.json()
+
     status, body = _serve(app, go)
     assert status == 200 and body["ok"] is True and body["queued"] is True
     assert "ring_buzz_at" in body["note"], "the response must point at the daemon's own stamp"
@@ -113,6 +120,7 @@ def test_buzz_bad_address_is_400(tmp_path):
     async def go(c):
         r = await c.post("/api/ring/buzz", json={"address": "nope"})
         return r.status
+
     assert _serve(app, go) == 400 and fired == []
 
 
@@ -122,6 +130,7 @@ def test_buzz_unwired_daemon_is_501(tmp_path):
     async def go(c):
         r = await c.post("/api/ring/buzz", json={"address": "AA:BB:CC:DD:EE:FF"})
         return r.status
+
     assert _serve(app, go) == 501
 
 
@@ -132,4 +141,5 @@ def test_buzz_malformed_body_is_400(tmp_path):
     async def go(c):
         r = await c.post("/api/ring/buzz", data=b"{nope", headers={"content-type": "application/json"})
         return r.status
+
     assert _serve(app, go) == 400 and fired == []

@@ -127,8 +127,7 @@ def test_truncated_record_header_is_refused():
 
 def test_truncated_packet_is_refused_not_silently_dropped():
     data = bytearray(_pcap(_adv(0x0)))
-    data[ble_sniff._PCAP_GLOBAL_HEADER_LEN + 8:ble_sniff._PCAP_GLOBAL_HEADER_LEN + 12] = \
-        struct.pack("<I", 9999)
+    data[ble_sniff._PCAP_GLOBAL_HEADER_LEN + 8 : ble_sniff._PCAP_GLOBAL_HEADER_LEN + 12] = struct.pack("<I", 9999)
     with pytest.raises(ble_sniff.SniffError, match="truncated packet"):
         list(ble_sniff.iter_packets(bytes(data)))
 
@@ -139,8 +138,7 @@ def test_verdict_reports_gatt_when_a_data_channel_exists():
 
 
 def test_verdict_explains_a_connect_that_was_not_followed():
-    r = ble_sniff.format_report(
-        ble_sniff.summarise(_pcap(_connect_ind(PHONE_WIRE, RESMED_WIRE)), follow=RESMED))
+    r = ble_sniff.format_report(ble_sniff.summarise(_pcap(_connect_ind(PHONE_WIRE, RESMED_WIRE)), follow=RESMED))
     assert "did not track it" in r
 
 
@@ -161,8 +159,7 @@ def test_verdict_without_a_follow_target_states_the_zero_plainly():
 
 
 def test_report_marks_the_followed_device_and_names_reserved_pdus():
-    s = ble_sniff.summarise(_pcap(_adv(0x0), _connect_ind(PHONE_WIRE, RESMED_WIRE), _adv(0xF)),
-                            follow=RESMED)
+    s = ble_sniff.summarise(_pcap(_adv(0x0), _connect_ind(PHONE_WIRE, RESMED_WIRE), _adv(0xF)), follow=RESMED)
     r = ble_sniff.format_report(s)
     assert "<-- followed device" in r
     assert "reserved-0xF" in r
@@ -200,6 +197,7 @@ def test_malformed_file_is_loud(tmp_path, capsys):
 # Every test below was written because a surviving mutant named the exact input the fixtures could
 # not express. They are not padding: each one changes a verdict on some real capture.
 
+
 def test_a_header_only_pcap_is_valid_and_yields_nothing():
     """Exactly the global header: a capture that recorded zero packets, not a broken file."""
     assert list(ble_sniff.iter_packets(_pcap())) == []
@@ -214,7 +212,7 @@ def test_truncation_error_states_how_many_bytes_actually_remain():
     data = bytearray(_pcap(_adv(0x0)))
     off = ble_sniff._PCAP_GLOBAL_HEADER_LEN
     remaining = len(data) - off - ble_sniff._PCAP_RECORD_HEADER_LEN
-    data[off + 8:off + 12] = struct.pack("<I", 9999)
+    data[off + 8 : off + 12] = struct.pack("<I", 9999)
     with pytest.raises(ble_sniff.SniffError) as exc:
         list(ble_sniff.iter_packets(bytes(data)))
     assert "%d remain" % remaining in str(exc.value)
@@ -284,12 +282,17 @@ def test_advertisers_are_listed_most_frequent_first_and_capped_at_eight():
 
 def test_only_the_followed_device_is_starred_in_each_listing():
     s = ble_sniff.summarise(
-        _pcap(_adv(0x0), _adv(0x0, PHONE_WIRE), _connect_ind(PHONE_WIRE, RESMED_WIRE),
-              _connect_ind(RESMED_WIRE, PHONE_WIRE)),
-        follow=RESMED)
+        _pcap(
+            _adv(0x0),
+            _adv(0x0, PHONE_WIRE),
+            _connect_ind(PHONE_WIRE, RESMED_WIRE),
+            _connect_ind(RESMED_WIRE, PHONE_WIRE),
+        ),
+        follow=RESMED,
+    )
     report = ble_sniff.format_report(s)
     starred = [ln for ln in report.splitlines() if "<-- followed device" in ln]
-    assert len(starred) == 2                      # one CONNECT_IND row, one advertiser row
+    assert len(starred) == 2  # one CONNECT_IND row, one advertiser row
     assert all(RESMED in ln for ln in starred)
     # A CONNECT_IND is starred by its ADVERTISER, so the row initiated BY the phone is starred and
     # the row initiated by the CPAP is not. Check the advertiser listing, where one row per device
@@ -352,12 +355,18 @@ def test_main_without_a_follow_argument_reports_the_plain_zero(tmp_path, capsys)
 # matched exactly): 7-byte prefix (board · LE16 payload-len · protover=2 · LE16 counter ·
 # packet-id=6/EVENT) then a length-prefixed payload header whose SECOND octet is flags, bit0=CRC-ok.
 
-def _nordic(ble: bytes, *, flags: int = 0x01, protover: int = 2, packet_id: int = 6,
-            plen_delta: int = 0) -> bytes:
+
+def _nordic(ble: bytes, *, flags: int = 0x01, protover: int = 2, packet_id: int = 6, plen_delta: int = 0) -> bytes:
     """A real nRF Sniffer v2 EVENT record around `ble` (which is AA + header + body)."""
     body = bytes([10, flags, 38, 56, 0, 0, 0, 0, 0, 0]) + ble
-    return (bytes([0]) + struct.pack("<H", len(body) + plen_delta)
-            + bytes([protover]) + b"\x00\x00" + bytes([packet_id]) + body)
+    return (
+        bytes([0])
+        + struct.pack("<H", len(body) + plen_delta)
+        + bytes([protover])
+        + b"\x00\x00"
+        + bytes([packet_id])
+        + body
+    )
 
 
 def _pcap_ts(*records: tuple[int, int, bytes]) -> bytes:
@@ -417,9 +426,11 @@ def test_near_miss_nordic_headers_do_not_claim_the_crc_bit():
     """Wrong protover, wrong packet id, or an inconsistent payload length: the flags octet is
     NOT trusted, so a zero there must not silently discard a countable record."""
     ble = _adv(0x0, prefix=b"")
-    for miss in (_nordic(ble, flags=0x00, protover=3),
-                 _nordic(ble, flags=0x00, packet_id=5),
-                 _nordic(ble, flags=0x00, plen_delta=1)):
+    for miss in (
+        _nordic(ble, flags=0x00, protover=3),
+        _nordic(ble, flags=0x00, packet_id=5),
+        _nordic(ble, flags=0x00, plen_delta=1),
+    ):
         s = ble_sniff.summarise(_pcap(miss))
         assert s["crc_bad"] == 0
         assert s["pdus"] == {0x0: 1}
@@ -434,9 +445,7 @@ def test_a_record_too_short_for_a_nordic_header_is_counted():
 def test_crc_bad_records_still_extend_the_span():
     """A corrupted record is still a record IN TIME — excluding it from the span would shrink
     the very number that exists to expose a capture that died early."""
-    s = ble_sniff.summarise(_pcap_ts(
-        (100, 500000, _nordic(_adv(0x0, prefix=b""), flags=0x00)),
-        (200, 0, _adv(0x0))))
+    s = ble_sniff.summarise(_pcap_ts((100, 500000, _nordic(_adv(0x0, prefix=b""), flags=0x00)), (200, 0, _adv(0x0))))
     assert s["first_ts"] == pytest.approx(100.5)
     assert s["last_ts"] == pytest.approx(200.0)
     assert s["duration_s"] == pytest.approx(99.5)
@@ -466,8 +475,7 @@ def test_an_empty_capture_has_no_span():
 def test_report_prints_the_span_with_utc_endpoints():
     """The 2026-09-04 overnight capture read as 7.4 h by mtime and held 2 h of packets; the span
     line is what would have said so. Endpoints render in UTC (Clock Contract: display via UTC)."""
-    s = ble_sniff.summarise(_pcap_ts((1788628423, 215216, _adv(0x0)),
-                                     (1788628783, 615216, _adv(0x0))))
+    s = ble_sniff.summarise(_pcap_ts((1788628423, 215216, _adv(0x0)), (1788628783, 615216, _adv(0x0))))
     r = ble_sniff.format_report(s)
     assert "capture span      : 360.4 s (2026-09-05T17:13:43Z -> 2026-09-05T17:19:43Z)" in r
 
@@ -476,8 +484,7 @@ def test_report_states_the_crc_exclusion_even_at_zero():
     """An absent line and a zero are different facts (§4b): the exclusion is always stated."""
     r = ble_sniff.format_report(ble_sniff.summarise(_pcap(_adv(0x0))))
     assert "  crc-bad excluded: 0" in r
-    r2 = ble_sniff.format_report(
-        ble_sniff.summarise(_pcap(_nordic(_adv(0x0, prefix=b""), flags=0x00))))
+    r2 = ble_sniff.format_report(ble_sniff.summarise(_pcap(_nordic(_adv(0x0, prefix=b""), flags=0x00))))
     assert "  crc-bad excluded: 1" in r2
 
 
@@ -486,9 +493,9 @@ def test_report_states_the_crc_exclusion_even_at_zero():
 # it. Both are answered here as pure functions of the summary, so the shell test only has to prove
 # the plumbing.
 
-SENA = "00:1B:DC:F4:AB:CD"            # one of OUR adapters
+SENA = "00:1B:DC:F4:AB:CD"  # one of OUR adapters
 SENA_WIRE = bytes.fromhex("cdabf4dc1b00")
-RING = "D1:98:62:7C:92:B3"            # one of OUR devices
+RING = "D1:98:62:7C:92:B3"  # one of OUR devices
 RING_WIRE = bytes.fromhex("b3927c6298d1")
 STRANGER_WIRE = bytes.fromhex("665544332211")
 STRANGER = "11:22:33:44:55:66"
@@ -496,8 +503,7 @@ STRANGER = "11:22:33:44:55:66"
 
 def _night(*payloads, span_s=590.0):
     """A capture whose packets span `span_s` seconds — the audit's window input."""
-    stamped = [(100 + int(span_s * i / max(1, len(payloads) - 1)), 0, p)
-               for i, p in enumerate(payloads)]
+    stamped = [(100 + int(span_s * i / max(1, len(payloads) - 1)), 0, p) for i, p in enumerate(payloads)]
     return ble_sniff.summarise(_pcap_ts(*stamped))
 
 
@@ -509,7 +515,7 @@ def test_audit_passes_a_full_window_with_only_our_own_connects():
     assert a["heard"] == [RING]
     r = ble_sniff.format_audit(a)
     assert "AIR AUDIT: OK" in r
-    assert "foreign connects: 0" in r          # stated at zero, never omitted
+    assert "foreign connects: 0" in r  # stated at zero, never omitted
     assert "1 configured, 1 heard" in r
 
 
@@ -571,8 +577,7 @@ def test_audit_with_no_adapter_list_calls_every_connect_to_us_foreign():
     a = ble_sniff.audit(s, 600, {RING}, set())
     assert not a["ok"]
     assert a["foreign"] == [(SENA, RING)]
-    assert "our adapters    : NONE listed — every connect to our devices counts as foreign" \
-        in ble_sniff.format_audit(a)
+    assert "our adapters    : NONE listed — every connect to our devices counts as foreign" in ble_sniff.format_audit(a)
 
 
 def test_audit_reports_both_problems_when_both_hold():
@@ -593,10 +598,10 @@ def test_device_addresses_reads_only_the_addresses(tmp_path):
     cfg = tmp_path / "config.yaml"
     cfg.write_text(
         "devices:\n"
-        "  - name: ring\n    address: \"d1:98:62:7c:92:b3\"\n    bond_key: SECRET\n"
+        '  - name: ring\n    address: "d1:98:62:7c:92:b3"\n    bond_key: SECRET\n'
         "  - name: h10\n    address: ' 24:AC:AC:0C:30:1E '\n"
-        "  - name: muse\n"                      # no address — a name-only entry contributes nothing
-        "  -\n"                                 # a null entry (trailing dash) must not crash it
+        "  - name: muse\n"  # no address — a name-only entry contributes nothing
+        "  -\n"  # a null entry (trailing dash) must not crash it
     )
     assert ble_sniff.device_addresses(str(cfg)) == {RING, "24:AC:AC:0C:30:1E"}
     empty = tmp_path / "empty.yaml"
@@ -615,19 +620,25 @@ def test_main_audit_options_exit_3_on_a_failed_audit_and_0_on_a_clean_one(tmp_pa
     cfg = tmp_path / "config.yaml"
     cfg.write_text("devices:\n  - address: %s\n" % RING)
     p = tmp_path / "night.pcap"
-    p.write_bytes(_pcap_ts((100, 0, _connect_ind(STRANGER_WIRE, RING_WIRE)),
-                           (690, 0, _adv(0x0, RING_WIRE))))
-    rc = ble_sniff.main([str(p), "--expect-seconds", "600", "--config", str(cfg),
-                         "--adapters", "%s,%s" % (SENA.lower(), " 00:11:22:33:44:55 ")])
+    p.write_bytes(_pcap_ts((100, 0, _connect_ind(STRANGER_WIRE, RING_WIRE)), (690, 0, _adv(0x0, RING_WIRE))))
+    rc = ble_sniff.main(
+        [
+            str(p),
+            "--expect-seconds",
+            "600",
+            "--config",
+            str(cfg),
+            "--adapters",
+            "%s,%s" % (SENA.lower(), " 00:11:22:33:44:55 "),
+        ]
+    )
     out = capsys.readouterr().out
     assert rc == 3
     assert "VERDICT" in out and "AIR AUDIT: FAILED" in out
     assert "our adapters    : 00:11:22:33:44:55, %s" % SENA in out
     clean = tmp_path / "clean.pcap"
-    clean.write_bytes(_pcap_ts((100, 0, _connect_ind(SENA_WIRE, RING_WIRE)),
-                               (690, 0, _adv(0x0, RING_WIRE))))
-    assert ble_sniff.main([str(clean), "--expect-seconds", "600", "--ours", RING,
-                           "--adapters", SENA]) == 0
+    clean.write_bytes(_pcap_ts((100, 0, _connect_ind(SENA_WIRE, RING_WIRE)), (690, 0, _adv(0x0, RING_WIRE))))
+    assert ble_sniff.main([str(clean), "--expect-seconds", "600", "--ours", RING, "--adapters", SENA]) == 0
     assert "AIR AUDIT: OK" in capsys.readouterr().out
 
 
@@ -641,10 +652,10 @@ def test_main_audit_options_also_accept_the_follow_mac(tmp_path, capsys):
 def test_main_bad_option_values_are_usage_errors_not_tracebacks(tmp_path, capsys):
     p = tmp_path / "c.pcap"
     p.write_bytes(_pcap(_adv(0x0)))
-    assert ble_sniff.main([str(p), "--expect-seconds"]) == 2            # value missing
-    assert ble_sniff.main([str(p), "--expect-seconds", "soon"]) == 2    # not a number
+    assert ble_sniff.main([str(p), "--expect-seconds"]) == 2  # value missing
+    assert ble_sniff.main([str(p), "--expect-seconds", "soon"]) == 2  # not a number
     assert ble_sniff.main([str(p), "--config", str(tmp_path / "nope.yaml")]) == 2
-    assert ble_sniff.main([str(p), RESMED, "extra"]) == 2               # three positionals
+    assert ble_sniff.main([str(p), RESMED, "extra"]) == 2  # three positionals
     assert capsys.readouterr().err.count("bad arguments") == 3
 
 
@@ -669,7 +680,8 @@ def test_a_short_window_after_a_FULL_run_names_falling_behind_not_dying():
     assert a["ok"], (
         "0.40 coverage on a run that SURVIVED its window is this hardware's normal state — measured "
         "0.41-0.51 across a night — so it is stated, not failed. A red every night on a hardware "
-        "limit is a red nobody reads.")
+        "limit is a red nobody reads."
+    )
     assert a["problems"] == []
 
 
@@ -706,7 +718,7 @@ def test_an_invocation_that_does_not_SAY_refuses_to_attribute_a_cause():
     on the audit's first real firing. Absent knowledge is now stated as absent, not defaulted to a
     fault, which is the same absent-vs-zero rule the coverage line follows."""
     s = _night(_adv(0x0), _adv(0x0), span_s=442.9)
-    a = ble_sniff.audit(s, 900, set(), set())          # no flag either way
+    a = ble_sniff.audit(s, 900, set(), set())  # no flag either way
     assert not a["ok"], "unknown provenance keeps the strict rule — it does not get the benefit"
     assert "did not say whether the capture process survived its window" in a["window"]
     assert "died" not in a["window"] and "FELL BEHIND" not in a["window"]
@@ -723,7 +735,7 @@ def test_main_accepts_the_flag_and_the_two_positional_form_is_untouched(tmp_path
     assert "the sniffer died" not in out, "no option was passed, so no cause may be asserted"
     assert ble_sniff.main([str(p), "--expect-seconds", "900", "--exited-early"]) == 3
     assert "the sniffer died 540 s early" in capsys.readouterr().out
-    assert ble_sniff.main([str(p), RESMED]) == 0            # the 2026-09-04 form, unchanged
+    assert ble_sniff.main([str(p), RESMED]) == 0  # the 2026-09-04 form, unchanged
     assert "AIR AUDIT" not in capsys.readouterr().out
 
 
@@ -738,8 +750,7 @@ def test_coverage_is_stated_on_every_audit_including_a_PASSING_one():
     assert passing["cover"] == pytest.approx(880 / 900, abs=1e-3)
     r = ble_sniff.format_audit(passing)
     assert "coverage        : 0.98" in r, r
-    behind = ble_sniff.audit(_night(_adv(0x0), _adv(0x0), span_s=462), 900, set(), set(),
-                             ran_full_window=True)
+    behind = ble_sniff.audit(_night(_adv(0x0), _adv(0x0), span_s=462), 900, set(), set(), ran_full_window=True)
     assert behind["ok"], "the fell-behind regime passes; the coverage line is how it is read"
     assert "coverage        : 0.51" in ble_sniff.format_audit(behind)
 
@@ -762,8 +773,7 @@ def test_no_window_requested_means_no_coverage_claim():
 def test_macs_splits_on_COMMAS_not_whitespace():
     """`--adapters "A,B"` is one shell word. Splitting on whitespace yields the single string "A,B",
     which then matches no initiator and silently turns every connect into a foreign one."""
-    assert ble_sniff._macs("00:11:22:33:44:55,aa:bb:cc:dd:ee:ff") == {
-        "00:11:22:33:44:55", "AA:BB:CC:DD:EE:FF"}
+    assert ble_sniff._macs("00:11:22:33:44:55,aa:bb:cc:dd:ee:ff") == {"00:11:22:33:44:55", "AA:BB:CC:DD:EE:FF"}
     assert ble_sniff._macs("a b") == {"A B"}, "whitespace is not a separator here"
 
 
@@ -773,15 +783,26 @@ def test_the_address_options_ACCUMULATE_rather_than_replace():
     being ours — and a connect to it would stop being reported."""
     cfg = tmp_cfg = None
     import tempfile, os
+
     fd, tmp_cfg = tempfile.mkstemp(suffix=".yaml")
     with os.fdopen(fd, "w") as fh:
         fh.write("devices:\n  - address: %s\n" % RING)
     try:
         # --ours FIRST, --config SECOND: with `ours = device_addresses(...)` the config branch would
         # discard what --ours had already contributed, and the reverse order would hide it.
-        parsed = ble_sniff._parse_argv(["x.pcap", "--ours", SENA, "--config", tmp_cfg,
-                                        "--adapters", "11:11:11:11:11:11",
-                                        "--adapters", "22:22:22:22:22:22"])
+        parsed = ble_sniff._parse_argv(
+            [
+                "x.pcap",
+                "--ours",
+                SENA,
+                "--config",
+                tmp_cfg,
+                "--adapters",
+                "11:11:11:11:11:11",
+                "--adapters",
+                "22:22:22:22:22:22",
+            ]
+        )
         assert parsed is not None
         _, _, _, ours, adapters, ran_full = parsed
         assert ours == {RING, SENA}, ours
@@ -793,7 +814,8 @@ def test_the_address_options_ACCUMULATE_rather_than_replace():
             "the flag's ABSENCE is UNKNOWN, not the claim 'it exited early' — see ble_sniff.py's "
             "note on the default. This assertion previously read `is False`, written to kill a "
             "mutmut survivor, and in doing so it pinned the very default that made a hand run report "
-            "'the sniffer died 457 s early' for a capture that had run its whole window.")
+            "'the sniffer died 457 s early' for a capture that had run its whole window."
+        )
     finally:
         os.unlink(tmp_cfg)
     del cfg
@@ -816,14 +838,12 @@ def test_the_passing_window_line_says_the_span_covers_it():
 def test_the_coverage_line_is_pinned_WHOLE_not_by_its_prefix():
     """A prefix assertion leaves the rest of the line unobserved: the seconds figure and the
     requested window can both be mutated while `coverage        : 0.51` still matches."""
-    a = ble_sniff.audit(_night(_adv(0x0), _adv(0x0), span_s=462), 900, set(), set(),
-                        ran_full_window=True)
+    a = ble_sniff.audit(_night(_adv(0x0), _adv(0x0), span_s=462), 900, set(), set(), ran_full_window=True)
     assert "  coverage        : 0.51 (462.0 s) of 900 s requested" in ble_sniff.format_audit(a)
 
 
 def test_the_fell_behind_line_names_HOW_MUCH_is_missing():
-    a = ble_sniff.audit(_night(_adv(0x0), _adv(0x0), span_s=462), 900, set(), set(),
-                        ran_full_window=True)
+    a = ble_sniff.audit(_night(_adv(0x0), _adv(0x0), span_s=462), 900, set(), set(), ran_full_window=True)
     assert "the missing 438 s is the END of the window" in a["window"]
 
 
@@ -841,6 +861,7 @@ def test_the_config_is_decoded_as_UTF_8_regardless_of_the_box_locale():
     and makes every foreign-connect check vacuously clean. Same reasoning as conftest's recorded
     subprocess double requiring its kwargs explicitly."""
     import builtins
+
     seen = {}
     real_open = builtins.open
 
@@ -849,6 +870,7 @@ def test_the_config_is_decoded_as_UTF_8_regardless_of_the_box_locale():
         return real_open(path, *a, **kw)
 
     import tempfile, os
+
     fd, cfg = tempfile.mkstemp(suffix=".yaml")
     with os.fdopen(fd, "w", encoding="utf-8") as fh:
         fh.write("devices:\n  - name: rïng\n    address: %s\n" % RING)
@@ -859,13 +881,15 @@ def test_the_config_is_decoded_as_UTF_8_regardless_of_the_box_locale():
         builtins.open = real_open
         os.unlink(cfg)
     assert seen["kw"].get("encoding") == "utf-8", (
-        "the config read must pin utf-8 rather than inherit the locale: %r" % (seen.get("kw"),))
+        "the config read must pin utf-8 rather than inherit the locale: %r" % (seen.get("kw"),)
+    )
 
 
 def test_the_flag_is_a_THREE_state_contract_not_a_boolean():
     """Unknown / ran / exited-early are three answers, and only the first is a default. Pinning the
     default alone would let either explicit flag rot silently — which is how the wrong default
     survived a mutation gate in the first place."""
+
     def parse(*extra):
         got = ble_sniff._parse_argv(["x.pcap", *extra])
         assert got is not None
@@ -915,7 +939,8 @@ def test_the_coverage_FLOOR_is_inclusive_at_its_boundary():
     assert not b["ok"]
     assert b["window"] == (
         "captured 224.0 s of 900 s expected — the capture ran the whole window and still covered "
-        "under 25 % of it, so no verdict here is worth anything"), b["window"]
+        "under 25 % of it, so no verdict here is worth anything"
+    ), b["window"]
 
 
 def test_the_below_floor_message_states_the_CONFIGURED_floor(monkeypatch):
@@ -928,7 +953,7 @@ def test_the_below_floor_message_states_the_CONFIGURED_floor(monkeypatch):
     arguing about it: an operator reading "under N %" is entitled to have N be the threshold that was
     applied."""
     monkeypatch.setattr(ble_sniff, "COVERAGE_FLOOR", 0.70)
-    under = _night(_adv(0x0), _adv(0x0), span_s=0.5 * 900)      # under 0.70, over the old 0.25
+    under = _night(_adv(0x0), _adv(0x0), span_s=0.5 * 900)  # under 0.70, over the old 0.25
     a = ble_sniff.audit(under, 900, set(), set(), ran_full_window=True)
     assert not a["ok"], "0.50 is below a 0.70 floor"
     assert "covered under 70 % of it" in a["window"], a["window"]

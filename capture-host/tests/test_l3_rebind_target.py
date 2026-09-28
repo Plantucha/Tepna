@@ -35,22 +35,22 @@ def _l3_rig(monkeypatch, *, derived="1-5", hci="hci1"):
     rebound = []
 
     async def btctl(_script, timeout=8):
-        return ""                                  # no phantom link
+        return ""  # no phantom link
 
     async def fake_hci():
         return hci
 
     async def fake_up(_h):
-        return False                               # the wedge
+        return False  # the wedge
 
     async def fake_responds(_h):
-        return None                                # undeterminable — never a verdict of its own
+        return None  # undeterminable — never a verdict of its own
 
     async def fake_cmd(_cmd):
         return True
 
     async def no_spares():
-        return []                                  # nothing to fail over to; the ladder ends here
+        return []  # nothing to fail over to; the ladder ends here
 
     async def scan(_mac, seconds=0):
         return [{"address": "AA:AA:AA:AA:AA:AA"}]  # not deaf — keep this about the rebind
@@ -72,15 +72,24 @@ def _l3_rig(monkeypatch, *, derived="1-5", hci="hci1"):
 
 
 def _cfg(**w):
-    base = {"enabled": True, "interval_sec": 1, "grace_checks": 1, "max_adapter_cycles": 1,
-            "recover_checks": 1, "usb_path": "1-2"}
+    base = {
+        "enabled": True,
+        "interval_sec": 1,
+        "grace_checks": 1,
+        "max_adapter_cycles": 1,
+        "recover_checks": 1,
+        "usb_path": "1-2",
+    }
     base.update(w)
     return {"watchdog": base, "devices": [_dev(name="H10")]}
 
 
 def _drive(monkeypatch, cfg, polls=4):
-    capture.STATUS["devices"]["H10"] = {"connected": False, "address": "24:AC:AC:02:84:96",
-                                        "last_error": "TimeoutError"}
+    capture.STATUS["devices"]["H10"] = {
+        "connected": False,
+        "address": "24:AC:AC:02:84:96",
+        "last_error": "TimeoutError",
+    }
     _stop_after(monkeypatch, polls)
     _run(capture.adapter_watchdog(PIN, cfg))
 
@@ -92,8 +101,9 @@ def test_L3_rebinds_the_DERIVED_bus_port_and_NOT_the_configured_one(monkeypatch,
         _drive(monkeypatch, _cfg())
     assert rebound == ["1-5"], f"the last rung re-enumerated {rebound}, not the watched radio"
     assert "1-2" not in rebound, "it reached for the static config value"
-    assert "is a DIFFERENT radio" in caplog.text, \
+    assert "is a DIFFERENT radio" in caplog.text, (
         "a box whose config names another radio must SAY so — that is the 2026-09-06 state"
+    )
 
 
 def test_L3_REFUSES_when_no_bus_port_can_be_derived(monkeypatch, caplog):

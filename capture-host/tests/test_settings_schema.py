@@ -20,8 +20,16 @@ from tests._srcscan import module_source
 # The keys that must NEVER become settable. Each one, if writable, bricks a headless box: a bad adapter
 # loses the radio, a bad web.host loses the monitor, a bad root loses the captures. The module comment
 # says they are "absent from this table ON PURPOSE" — this asserts that intent instead of trusting it.
-FORBIDDEN = ["adapter", "root", "web.host", "web.port", "web.enabled", "incoming_subdir",
-             "devices", "devices.0.address"]
+FORBIDDEN = [
+    "adapter",
+    "root",
+    "web.host",
+    "web.port",
+    "web.enabled",
+    "incoming_subdir",
+    "devices",
+    "devices.0.address",
+]
 
 
 @pytest.mark.parametrize("key", FORBIDDEN)
@@ -33,7 +41,7 @@ def test_dangerous_keys_are_not_settable(key):
 
 def test_an_unknown_key_is_rejected_rather_than_passed_through():
     with pytest.raises(SettingsError, match="not a settable key"):
-        coerce("watchdog.enabledd", True)          # typo must fail closed, not create a dead key
+        coerce("watchdog.enabledd", True)  # typo must fail closed, not create a dead key
     with pytest.raises(SettingsError):
         coerce("", 1)
 
@@ -41,8 +49,8 @@ def test_an_unknown_key_is_rejected_rather_than_passed_through():
 # ── range enforcement, both directions ──────────────────────────────────────────────────────────────
 @pytest.mark.parametrize("key,lo,hi", [(k, v[1], v[2]) for k, v in ss.SETTINGS.items() if v[1] is not None])
 def test_every_bounded_setting_rejects_out_of_range_and_accepts_the_edges(key, lo, hi):
-    assert coerce(key, lo) == lo                    # inclusive lower edge
-    assert coerce(key, hi) == hi                    # inclusive upper edge
+    assert coerce(key, lo) == lo  # inclusive lower edge
+    assert coerce(key, hi) == hi  # inclusive upper edge
     with pytest.raises(SettingsError, match="must be between"):
         coerce(key, lo - 1)
     with pytest.raises(SettingsError, match="must be between"):
@@ -102,16 +110,16 @@ def test_get_nested_walks_and_returns_none_for_missing_or_non_dict():
     assert get_nested(cfg, "watchdog.enabled") is True
     assert get_nested(cfg, "watchdog.missing") is None
     assert get_nested(cfg, "nope.nope") is None
-    assert get_nested({"watchdog": 5}, "watchdog.enabled") is None   # scalar mid-path, not a crash
+    assert get_nested({"watchdog": 5}, "watchdog.enabled") is None  # scalar mid-path, not a crash
 
 
 def test_set_nested_creates_missing_levels_and_replaces_a_scalar_branch():
     cfg = {}
     set_nested(cfg, "watchdog.enabled", False)
     assert cfg == {"watchdog": {"enabled": False}}
-    set_nested(cfg, "watchdog.interval_sec", 90)          # existing dict is extended, not replaced
+    set_nested(cfg, "watchdog.interval_sec", 90)  # existing dict is extended, not replaced
     assert cfg["watchdog"] == {"enabled": False, "interval_sec": 90}
-    scalar = {"watchdog": 5}                              # a scalar where a dict is needed
+    scalar = {"watchdog": 5}  # a scalar where a dict is needed
     set_nested(scalar, "watchdog.enabled", True)
     assert scalar == {"watchdog": {"enabled": True}}
 
@@ -156,17 +164,23 @@ def test_every_declared_default_is_a_valid_value_for_its_own_setting():
 
 
 # How many schema defaults the source scan can currently reach and verify. See the equality below.
-SOURCE_CHECKED_PATHS = 16   # 11 before heap_probe's five keys joined (#2999); see the equality below
+SOURCE_CHECKED_PATHS = 16  # 11 before heap_probe's five keys joined (#2999); see the equality below
 
 
 def _cfg_section_of(node):
     """`cfg.get("sec")`, `cfg.get("sec") or {}`, `cfg.get("sec", {})` -> "sec"; anything else -> None."""
     if isinstance(node, ast.BoolOp) and isinstance(node.op, ast.Or):
         node = node.values[0]
-    if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
-            and node.func.attr == "get" and isinstance(node.func.value, ast.Name)
-            and node.func.value.id == "cfg" and node.args
-            and isinstance(node.args[0], ast.Constant) and isinstance(node.args[0].value, str)):
+    if (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "get"
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "cfg"
+        and node.args
+        and isinstance(node.args[0], ast.Constant)
+        and isinstance(node.args[0].value, str)
+    ):
         return node.args[0].value
     return None
 
@@ -193,9 +207,14 @@ def _config_fallbacks(src):
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 continue
             for n in ast.walk(node):
-                if not (isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
-                        and n.func.attr == "get" and len(n.args) == 2
-                        and isinstance(n.args[0], ast.Constant) and isinstance(n.args[0].value, str)):
+                if not (
+                    isinstance(n, ast.Call)
+                    and isinstance(n.func, ast.Attribute)
+                    and n.func.attr == "get"
+                    and len(n.args) == 2
+                    and isinstance(n.args[0], ast.Constant)
+                    and isinstance(n.args[0].value, str)
+                ):
                     continue
                 holder = n.func.value
                 sec = bind.get(holder.id) if isinstance(holder, ast.Name) else _cfg_section_of(holder)
@@ -219,7 +238,8 @@ def test_two_sections_sharing_a_leaf_keep_their_own_defaults():
         "    return wcfg.get('enabled', True)\n"
         "def b(cfg):\n"
         "    hcfg = cfg.get('heap_probe') or {}\n"
-        "    return hcfg.get('enabled', False)\n")
+        "    return hcfg.get('enabled', False)\n"
+    )
     found = _config_fallbacks(src)
     assert found["watchdog.enabled"] == {"True"}
     assert found["heap_probe.enabled"] == {"False"}
@@ -236,7 +256,8 @@ def test_one_variable_name_bound_to_two_sections_is_not_one_section():
         "    return scfg.get('poll_sec', 300)\n"
         "def seal_poller(cfg):\n"
         "    scfg = cfg.get('seal') or {}\n"
-        "    return scfg.get('poll_sec', 600)\n")
+        "    return scfg.get('poll_sec', 600)\n"
+    )
     found = _config_fallbacks(src)
     assert found["storage.poll_sec"] == {"300"}
     assert found["seal.poll_sec"] == {"600"}
@@ -282,7 +303,7 @@ def test_schema_defaults_match_the_daemon_fallbacks():
     `archive` in another. A function-blind version of this scan reported `seal.poll_sec` holding both 600
     and 300 and `archive.poll_sec` holding both 3600 and 60 — four real paths collapsed into two
     fabricated conflicts. Scoped, it separates them: storage 300, seal 600, alerts 60, archive 3600."""
-    src = module_source("capture.py")   # skips on a mutmut file — see tests/_srcscan.py
+    src = module_source("capture.py")  # skips on a mutmut file — see tests/_srcscan.py
     found = _config_fallbacks(src)
 
     checked = 0
@@ -294,10 +315,11 @@ def test_schema_defaults_match_the_daemon_fallbacks():
                 try:
                     actual = float(raw)
                 except ValueError:
-                    continue                          # a named constant, not a literal — covered below
+                    continue  # a named constant, not a literal — covered below
             assert actual == dflt, (
                 f"{key}: schema default {dflt!r} != capture.py fallback {raw!r} — "
-                "the monitor would advertise a default the daemon does not use")
+                "the monitor would advertise a default the daemon does not use"
+            )
             checked += 1
     # AN EQUALITY, NOT A FLOOR. `>= 8` cannot notice a key falling out of the scan's reach — which is
     # exactly what happened when the leaf-keyed version was worked around by deleting a literal. Pinning
@@ -306,13 +328,15 @@ def test_schema_defaults_match_the_daemon_fallbacks():
     assert checked == SOURCE_CHECKED_PATHS, (
         f"{checked} schema defaults verified against capture.py source, expected "
         f"{SOURCE_CHECKED_PATHS} — a key that stopped being reachable from source is the failure this "
-        f"equality exists to show, and a key that became reachable is a number to update here")
+        f"equality exists to show, and a key that became reachable is a number to update here"
+    )
 
 
 def test_the_two_named_constant_defaults_match_capture():
     """ppg_fs and rtc_resync_sec are read from module constants rather than a literal .get fallback, so
     the source scan above cannot see them. Import capture (no BLE needed at import) and compare."""
     import capture
+
     assert ss.SETTINGS["o2ring.ppg_fs"][4] == capture.O2PPG_FS_DEFAULT
     assert ss.SETTINGS["o2ring.rtc_resync_sec"][4] == capture._OXYII_RTC_RESYNC_SEC
 

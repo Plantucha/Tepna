@@ -133,8 +133,15 @@ class Plan:
         return address.upper() in self.devices
 
     def as_dict(self) -> dict:
-        return {"devices": sorted(self.devices), "offset_ns": self.offset_ns, "drop_p": self.drop_p, "seed": self.seed,
-                "targets": [t for t, on in (("1-constant-offset", self.offset_ns != 0), ("4-packet-loss", self.drop_p > 0)) if on]}
+        return {
+            "devices": sorted(self.devices),
+            "offset_ns": self.offset_ns,
+            "drop_p": self.drop_p,
+            "seed": self.seed,
+            "targets": [
+                t for t, on in (("1-constant-offset", self.offset_ns != 0), ("4-packet-loss", self.drop_p > 0)) if on
+            ],
+        }
 
 
 class TruthWriter:
@@ -145,25 +152,50 @@ class TruthWriter:
         self.path = path
         self.rows = 0
         self._fh = open(path, "a", encoding="utf-8")
-        self._emit({"schema": SCHEMA, "plan": plan.as_dict(), "started": started.isoformat(timespec="seconds"),
-                    "note": "records what was INJECTED, never what was measured"})
+        self._emit(
+            {
+                "schema": SCHEMA,
+                "plan": plan.as_dict(),
+                "started": started.isoformat(timespec="seconds"),
+                "note": "records what was INJECTED, never what was measured",
+            }
+        )
 
     def _emit(self, row: dict) -> None:
         self._fh.write(json.dumps(row, separators=(",", ":")) + "\n")
         self._fh.flush()
 
-    def record(self, *, address: str, meas: int, index: int, arrival: _dt.datetime, original_ns: int | None,
-               injected_ns: int | None, action: str) -> None:
+    def record(
+        self,
+        *,
+        address: str,
+        meas: int,
+        index: int,
+        arrival: _dt.datetime,
+        original_ns: int | None,
+        injected_ns: int | None,
+        action: str,
+    ) -> None:
         self.rows += 1
-        self._emit({"i": index, "address": address.upper(), "meas": pmd.MEAS_NAME.get(meas, meas),
-                    "arrival": arrival.isoformat(timespec="microseconds"), "action": action,
-                    "original_last_ns": original_ns, "injected_last_ns": injected_ns})
+        self._emit(
+            {
+                "i": index,
+                "address": address.upper(),
+                "meas": pmd.MEAS_NAME.get(meas, meas),
+                "arrival": arrival.isoformat(timespec="microseconds"),
+                "action": action,
+                "original_last_ns": original_ns,
+                "injected_last_ns": injected_ns,
+            }
+        )
 
     def close(self) -> None:
         self._fh.close()
 
 
-def inject(plan: Plan, truth: TruthWriter, address: str, data: bytes, index: int, arrival: _dt.datetime) -> bytes | None:
+def inject(
+    plan: Plan, truth: TruthWriter, address: str, data: bytes, index: int, arrival: _dt.datetime
+) -> bytes | None:
     """The per-frame seam: decide, perturb, record. Returns the frame to deliver or None. A frame the plan
     does not touch is returned as-is and NOT recorded — the sidecar lists injections, not traffic."""
     drop = drop_decision(plan.seed, address, index, plan.drop_p)
@@ -171,10 +203,25 @@ def inject(plan: Plan, truth: TruthWriter, address: str, data: bytes, index: int
     original = struct.unpack_from("<Q", data, 1)[0] if len(data) >= 10 else None
     meas = (data[0] & 0x3F) if data else -1
     if out is None:
-        truth.record(address=address, meas=meas, index=index, arrival=arrival, original_ns=original, injected_ns=None, action="drop")
+        truth.record(
+            address=address,
+            meas=meas,
+            index=index,
+            arrival=arrival,
+            original_ns=original,
+            injected_ns=None,
+            action="drop",
+        )
     elif out != bytes(data):
-        truth.record(address=address, meas=meas, index=index, arrival=arrival, original_ns=original,
-                     injected_ns=struct.unpack_from("<Q", out, 1)[0], action="offset")
+        truth.record(
+            address=address,
+            meas=meas,
+            index=index,
+            arrival=arrival,
+            original_ns=original,
+            injected_ns=struct.unpack_from("<Q", out, 1)[0],
+            action="offset",
+        )
     return out
 
 
@@ -208,7 +255,7 @@ def make_client_class(base, plan: Plan, truth: TruthWriter, now):
 
 def derive_config(cfg: dict, root: str) -> dict:
     """The daemon's config with `root` moved and everything that pages or harvests switched off."""
-    out = json.loads(json.dumps(cfg))   # a deep copy with no shared references into the daemon's dict
+    out = json.loads(json.dumps(cfg))  # a deep copy with no shared references into the daemon's dict
     out["root"] = root
     out["alerts"] = {**(out.get("alerts") or {}), "enabled": False, "webhook_url": ""}
     out["cpap"] = {**(out.get("cpap") or {}), "enabled": False}
@@ -217,17 +264,28 @@ def derive_config(cfg: dict, root: str) -> dict:
 
 def build(argv: list[str]) -> tuple[Plan, str, dict, argparse.Namespace]:
     """Parse, refuse production, derive the config. Everything up to (not including) the night."""
-    ap = argparse.ArgumentParser(description="KNOWN-CLOCK injector: a capture run with a known perturbation, into a separate root")
+    ap = argparse.ArgumentParser(
+        description="KNOWN-CLOCK injector: a capture run with a known perturbation, into a separate root"
+    )
     ap.add_argument("--config", default="config.yaml", help="the daemon's config; its root is what this refuses")
-    ap.add_argument("--root", default=DEFAULT_ROOT, help=f"adversarial output root (default {DEFAULT_ROOT}); must not overlap production")
-    ap.add_argument("--device", action="append", required=True, help="BLE address to perturb (repeatable; address only)")
-    ap.add_argument("--offset-ms", type=float, default=0.0, help="target 1: constant device-clock offset, ms (may be negative)")
+    ap.add_argument(
+        "--root",
+        default=DEFAULT_ROOT,
+        help=f"adversarial output root (default {DEFAULT_ROOT}); must not overlap production",
+    )
+    ap.add_argument(
+        "--device", action="append", required=True, help="BLE address to perturb (repeatable; address only)"
+    )
+    ap.add_argument(
+        "--offset-ms", type=float, default=0.0, help="target 1: constant device-clock offset, ms (may be negative)"
+    )
     ap.add_argument("--drop-p", type=float, default=0.0, help="target 4: per-frame loss probability in [0, 1)")
     ap.add_argument("--seed", type=int, default=1, help="target 4: the loss sequence's seed")
     ap.add_argument("--instance", default=None, help="passed to capture.py --instance")
     ap.add_argument("--dry-run", action="store_true", help="refuse or print the plan and derived config; run nothing")
     a = ap.parse_args(argv)
     import yaml
+
     with open(a.config, encoding="utf-8") as fh:
         cfg = yaml.safe_load(fh)
     if not isinstance(cfg, dict):
@@ -249,11 +307,13 @@ def run(argv: list[str]) -> int:
     stamp = started.strftime("%Y%m%dT%H%M%SZ")
     cfg_path = os.path.join(root, f"adversarial-config-{stamp}.yaml")
     import yaml
+
     with open(cfg_path, "w", encoding="utf-8") as fh:
         yaml.safe_dump(cfg, fh, sort_keys=False)
     truth = TruthWriter(os.path.join(root, f"INJECTION-TRUTH-{stamp}.jsonl"), plan, started)
     import bleak
     import capture
+
     bleak.BleakClient = make_client_class(bleak.BleakClient, plan, truth, capture._now)  # type: ignore[misc]
     sys.argv = ["capture.py", "--config", cfg_path] + (["--instance", a.instance] if a.instance else [])
     print(f"adversarial capture → {root}\n  plan  {json.dumps(plan.as_dict())}\n  truth {truth.path}", flush=True)

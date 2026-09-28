@@ -4,6 +4,7 @@ The pure functions carry every decision that can silently corrupt a night, so th
 listing parse (metadata/anchor alignment), STR.edf casing, skip-if-present, short-read detection, the
 daily window, and the streaming interlock. Real card fixtures, captured 2026-07-26.
 """
+
 import datetime as dt
 import os
 import sys
@@ -38,11 +39,11 @@ def test_parse_aligns_metadata_with_the_right_file():
     one. It looks plausible and is wrong — during Phase 0 it attributed a 91KB size to the 2229KB BRP
     file and produced a bogus throughput figure."""
     rows = ch.parse_listing(NIGHT_HTML)
-    assert len(rows) == 5, [r["name"] for r in rows]          # . / .. dropped, footer not a file
+    assert len(rows) == 5, [r["name"] for r in rows]  # . / .. dropped, footer not a file
     by = {r["name"]: r for r in rows}
     assert by["20260725_225050_CSL.edf"]["size"] == "1KB"
     assert by["20260725_225050_CSL.edf"]["mtime"] == "2026-7-26 3:50:50"
-    assert by["20260725_225058_BRP.edf"]["size"] == "2229KB"   # the big one, correctly attributed
+    assert by["20260725_225058_BRP.edf"]["size"] == "2229KB"  # the big one, correctly attributed
     assert by["20260725_225058_SA2.edf"]["size"] == "91KB"
     assert all(not r["isdir"] for r in rows)
 
@@ -54,7 +55,7 @@ def test_footer_is_not_mistaken_for_a_file():
 def test_ignore_list_applied_and_dirs_flagged():
     rows = ch.parse_listing(ROOT_HTML)
     names = {r["name"] for r in rows}
-    assert "JOURNAL.JNL" not in names and "ezshare.cfg" not in names   # device noise + card credentials
+    assert "JOURNAL.JNL" not in names and "ezshare.cfg" not in names  # device noise + card credentials
     assert {"DATALOG", "SETTINGS", "STR.EDF"} <= names
     assert {r["name"] for r in rows if r["isdir"]} == {"DATALOG", "SETTINGS"}
 
@@ -78,11 +79,11 @@ def test_size_kb_units():
 def test_should_fetch_skips_present_refetches_wrong_size(tmp_path):
     e = {"name": "x.edf", "size": "100KB"}
     p = tmp_path / "x.edf"
-    assert ch.should_fetch(e, str(p))                          # absent
+    assert ch.should_fetch(e, str(p))  # absent
     p.write_bytes(b"\0" * 100 * 1024)
-    assert not ch.should_fetch(e, str(p))                      # right size -> skip (steady state is free)
+    assert not ch.should_fetch(e, str(p))  # right size -> skip (steady state is free)
     p.write_bytes(b"\0" * 40 * 1024)
-    assert ch.should_fetch(e, str(p))                          # truncated on disk -> re-fetch, not trust
+    assert ch.should_fetch(e, str(p))  # truncated on disk -> re-fetch, not trust
 
 
 def test_short_read_detected():
@@ -98,7 +99,7 @@ def test_short_read_detected():
     # which a truncated EDF was accepted, reported ok, and skipped forever.
     assert ch.short_read(e, 2200 * 1024), "29 KB short is a truncation, not rounding"
     assert not ch.short_read(e, 2229 * 1024 - 400), "but a sub-0.5KB difference IS the listing rounding"
-    assert not ch.short_read({"name": "x", "size": ""}, 5)      # unknown size never claims a short read
+    assert not ch.short_read({"name": "x", "size": ""}, 5)  # unknown size never claims a short read
 
 
 def test_the_skip_test_and_the_truncation_detector_cannot_disagree(tmp_path):
@@ -107,6 +108,7 @@ def test_the_skip_test_and_the_truncation_detector_cannot_disagree(tmp_path):
     one the resume logic would re-fetch anyway — and the whole 0-2 % band was invisible to both, so the
     file was accepted, reported ok, and never repaired. They now share one tolerance by construction."""
     import os
+
     e = {"name": "BRP.edf", "size": "2229KB"}
     dest = str(tmp_path / "BRP.edf")
     for pct in (0.005, 0.01, 0.019, 0.021, 0.05):
@@ -122,8 +124,8 @@ def test_the_tolerance_follows_the_listings_printed_precision():
     printed. `2229KB` is exact to ±0.5 KB whether the file is 2 KB or 2 GB — scaling that with the file
     is what gave a 2229 KB BRP.edf 44.6 KB of slack."""
     assert ch.size_tolerance_kb("2229KB") == 0.5
-    assert ch.size_tolerance_kb("1.5MB") == 1024.0 / 20        # 0.1 MB quantum -> +/- 51.2 KB
-    assert ch.size_tolerance_kb("832B") < 0.001 + 1e-9         # bytes are exact
+    assert ch.size_tolerance_kb("1.5MB") == 1024.0 / 20  # 0.1 MB quantum -> +/- 51.2 KB
+    assert ch.size_tolerance_kb("832B") < 0.001 + 1e-9  # bytes are exact
     assert ch.size_tolerance_kb("") == 0.0
 
 
@@ -133,14 +135,14 @@ def test_due_now_fires_only_inside_a_bounded_window():
     every 60 s — so it would have fired the moment the sensors came off at bedtime, starting a 2.4 GHz
     transfer at the START of a night. Only the streaming interlock stood in the way."""
     d = dt.date(2026, 7, 26)
-    at = lambda h, m=5: dt.datetime(2026, 7, 26, h, m)   # noqa: E731
-    assert not ch.due_now(at(12, 59), 13, None)          # before the window
-    assert ch.due_now(at(13), 13, None)                  # open
-    assert ch.due_now(at(14, 59), 13, None)              # still open (default 2 h)
-    assert not ch.due_now(at(15), 13, None)              # CLOSED — waits for tomorrow
+    at = lambda h, m=5: dt.datetime(2026, 7, 26, h, m)  # noqa: E731
+    assert not ch.due_now(at(12, 59), 13, None)  # before the window
+    assert ch.due_now(at(13), 13, None)  # open
+    assert ch.due_now(at(14, 59), 13, None)  # still open (default 2 h)
+    assert not ch.due_now(at(15), 13, None)  # CLOSED — waits for tomorrow
     assert not ch.due_now(at(19, 25), 13, None), "the 19:25 restart bug must not come back"
-    assert not ch.due_now(at(13), 13, d)                 # already ran today
-    assert ch.due_now(dt.datetime(2026, 7, 27, 13, 5), 13, d)   # next day reopens
+    assert not ch.due_now(at(13), 13, d)  # already ran today
+    assert ch.due_now(dt.datetime(2026, 7, 27, 13, 5), 13, d)  # next day reopens
 
 
 def test_due_now_window_is_configurable():
@@ -184,9 +186,16 @@ def test_a_charging_or_off_body_sensor_does_NOT_block():
     assert ch.blocking_devices({"Ring": {"connected": True, "charging": True, "worn": False}}) == []
     assert ch.blocking_devices({"Ring": {"connected": True, "worn": False}}) == []
     # the real state of the box that night: everything docked, nothing streaming
-    assert ch.blocking_devices({"Polar Verity Sense": {"connected": True, "charging": True},
-                                "Wellue O2Ring-S": {"connected": True, "charging": True, "worn": False},
-                                "Polar H10": {"connected": False}}) == []
+    assert (
+        ch.blocking_devices(
+            {
+                "Polar Verity Sense": {"connected": True, "charging": True},
+                "Wellue O2Ring-S": {"connected": True, "charging": True, "worn": False},
+                "Polar H10": {"connected": False},
+            }
+        )
+        == []
+    )
     # but a worn, streaming sensor still blocks — worn=True is not off-body
     assert ch.blocking_devices({"H10": {"connected": True, "worn": True}}) == ["H10"]
 
@@ -219,6 +228,7 @@ def test_due_now_window_wraps_midnight():
     starting late in the day was clipped at 23:59. With the shipped window_h=2 the only reachable clip
     is at_hour 23, which got one hour instead of two; the default 13 is unaffected."""
     import datetime as _d
+
     at = 23
     assert ch.due_now(_d.datetime(2026, 7, 26, 23, 30), at, None) is True
     assert ch.due_now(_d.datetime(2026, 7, 27, 0, 30), at, None) is True, "the second hour is past midnight"
@@ -226,13 +236,15 @@ def test_due_now_window_wraps_midnight():
     # the once-per-day key is the window's START date, so a post-midnight firing consumes the 26th
     d = ch.window_start_date(_d.datetime(2026, 7, 27, 0, 30), at)
     assert d == _d.date(2026, 7, 26)
-    assert ch.due_now(_d.datetime(2026, 7, 27, 0, 45), at, d) is False, \
+    assert ch.due_now(_d.datetime(2026, 7, 27, 0, 45), at, d) is False, (
         "recording today's date instead would leave it due again a minute later, forever"
+    )
 
 
 def test_the_default_window_is_unaffected_by_the_wrap_fix():
     """The control: at_hour 13 never wraps, and its behaviour must be byte-identical."""
     import datetime as _d
+
     for h, want in ((12, False), (13, True), (14, True), (15, False), (0, False)):
         assert ch.due_now(_d.datetime(2026, 7, 26, h, 0), 13, None) is want, h
 
@@ -246,8 +258,9 @@ def test_a_file_exactly_one_quantum_short_is_refetched_not_trusted():
     exists to close."""
     lo, hi = ch.size_window_kb("2229KB")
     assert (lo, round(hi)) == (2228.0, 2229), "guard: the window is (P-1, P] for an integer-KB listing"
-    assert ch.short_read({"size": "2229KB"}, int(lo * 1024)), \
+    assert ch.short_read({"size": "2229KB"}, int(lo * 1024)), (
         "exactly one quantum short is short — the low bound is exclusive"
+    )
     assert not ch.short_read({"size": "2229KB"}, int(lo * 1024) + 1), "one byte inside is complete"
 
 
@@ -274,8 +287,9 @@ def test_a_fractional_gigabyte_listing_scales_by_its_own_precision():
     that branch never runs and any arithmetic in it — replacing the multiply, dividing instead, or an
     off-by-one on either 1024 — is unobservable. A whole `2GB` cannot see it either (quantum is 1.0 and
     `q = 1024*1024` equals `q *= 1024*1024`); it takes a FRACTIONAL value."""
-    assert abs(ch.size_tolerance_kb("1.5GB") - 52428.8) < 1e-6, \
+    assert abs(ch.size_tolerance_kb("1.5GB") - 52428.8) < 1e-6, (
         "one decimal place on a GB listing is 0.1 GB, half of it is the tolerance"
+    )
     assert abs(ch.size_tolerance_kb("2GB") - 524288.0) < 1e-6
     assert abs(ch.size_tolerance_kb("1.5MB") - 51.2) < 1e-6
 
@@ -289,7 +303,7 @@ def test_a_part_that_differs_beyond_the_first_chunk_is_not_reaped(tmp_path):
     dest = tmp_path / "x.edf"
     dest.write_bytes(b"A" * 65536 + b"B" * 4000)
     part = tmp_path / "x.edf.part"
-    part.write_bytes(b"A" * 65536 + b"C" * 4000)          # identical first chunk, differs after
+    part.write_bytes(b"A" * 65536 + b"C" * 4000)  # identical first chunk, differs after
     assert ch.reap_stale_part(str(dest)) is False
     assert part.exists(), "a .part that differs is evidence, not residue — it must survive"
     # the genuine case still reaps
@@ -305,9 +319,10 @@ def test_should_fetch_shares_short_reads_boundaries_not_just_its_verdict(tmp_pat
     prevent, so both sides need the same edges landed on."""
     lo, _ = ch.size_window_kb("2229KB")
     p = tmp_path / "b.edf"
-    p.write_bytes(b"\0" * int(lo * 1024))                  # exactly one quantum short
-    assert ch.should_fetch({"size": "2229KB", "name": p.name}, str(p)), \
+    p.write_bytes(b"\0" * int(lo * 1024))  # exactly one quantum short
+    assert ch.should_fetch({"size": "2229KB", "name": p.name}, str(p)), (
         "a file exactly at the low bound is OUTSIDE the half-open window — re-fetch it"
+    )
     p.write_bytes(b"\0" * (int(lo * 1024) + 1))
     assert not ch.should_fetch({"size": "2229KB", "name": p.name}, str(p))
 
@@ -315,11 +330,13 @@ def test_should_fetch_shares_short_reads_boundaries_not_just_its_verdict(tmp_pat
     # and the real card serves them (CSL is 832 B, listed 1KB).
     q = tmp_path / "csl.edf"
     q.write_bytes(b"")
-    assert ch.should_fetch({"size": "1KB", "name": q.name}, str(q)), \
+    assert ch.should_fetch({"size": "1KB", "name": q.name}, str(q)), (
         "an empty file against a 1KB listing must be re-fetched, not skipped as unverifiable"
+    )
 
 
 # ── one rule, one encoding ──────────────────────────────────────────────────────────────────────────
+
 
 def test_on_body_says_NO_for_a_charging_device_whatever_worn_claims():
     """*A charging device cannot be on a body.* The rule was encoded twice and only `blocking_devices`
@@ -327,6 +344,7 @@ def test_on_body_says_NO_for_a_charging_device_whatever_worn_claims():
     contradictory state the Polar produces: a docked strap whose HR contact bit still reports skin
     contact (measured 2026-08-14, 3 h 24 m into a charger under `worn: True`)."""
     import telemetry
+
     assert telemetry.on_body({"connected": True, "charging": True, "worn": True}) is False
     assert telemetry.on_body({"connected": True, "worn": True}) is True
     assert telemetry.on_body({"connected": False, "worn": True}) is False
@@ -338,6 +356,7 @@ def test_on_body_returns_None_for_unknown_rather_than_guessing():
     retries), while refusing to auto-pull on an unknown loses the ONLY backup for a lossy night.
     Collapsing this to a bool would silently pick one policy for both."""
     import telemetry
+
     assert telemetry.on_body({"connected": True}) is None
     assert telemetry.on_body({}) is False and telemetry.on_body(None) is False
 
@@ -345,5 +364,6 @@ def test_on_body_returns_None_for_unknown_rather_than_guessing():
 def test_blocking_devices_still_blocks_on_UNKNOWN():
     """The conservative side of the asymmetry, pinned so a later "simplification" cannot flip it."""
     import cpap_harvest as ch
+
     assert ch.blocking_devices({"Ring": {"connected": True}}) == ["Ring"]
     assert ch.blocking_devices({"Ring": {"connected": True, "charging": True}}) == []

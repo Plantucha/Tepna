@@ -19,6 +19,7 @@ Two things made this survive review for a day:
 
 So this test asserts the property directly against the config the deploy script generates.
 """
+
 import fnmatch
 import os
 import re
@@ -32,9 +33,13 @@ SCRIPT = os.path.join(DEPLOY, "expose-monitor.sh")
 
 # Content types Caddy would be asked to encode. The stream is the one that must never be in the set.
 SSE = "text/event-stream"
-MUST_COMPRESS = ["text/html; charset=utf-8", "application/json; charset=utf-8",
-                 "text/css; charset=utf-8", "text/plain; charset=utf-8",
-                 "text/javascript; charset=utf-8"]
+MUST_COMPRESS = [
+    "text/html; charset=utf-8",
+    "application/json; charset=utf-8",
+    "text/css; charset=utf-8",
+    "text/plain; charset=utf-8",
+    "text/javascript; charset=utf-8",
+]
 
 
 def _generate(auth=""):
@@ -47,17 +52,23 @@ def _generate(auth=""):
     m = re.search(r"<<'PY'\n(.*?)\nPY\n", src, re.S)
     assert m, "could not find the python config generator in expose-monitor.sh"
     out = os.path.join(os.environ.get("PYTEST_TMP", "/tmp"), "Caddyfile.gen.test")
-    subprocess.run([sys.executable, "-c", m.group(1), out],
-                   env={**os.environ, "AUTH": auth}, check=True)
+    subprocess.run([sys.executable, "-c", m.group(1), out], env={**os.environ, "AUTH": auth}, check=True)
     return open(out, encoding="utf-8").read()
 
 
 # What Caddy compresses when `encode` carries no `match` block. Empirically confirmed against the
 # box's Caddy 2.6.2 on 2026-07-26: a bare `encode gzip` returned `Content-Encoding: gzip` on a
 # `text/event-stream` response. `text/*` is the entry that swallows the stream.
-CADDY_DEFAULT_MATCH = ["text/*", "application/json*", "application/javascript*",
-                       "application/xhtml+xml*", "application/atom+xml*", "application/rss+xml*",
-                       "image/svg+xml*", "application/wasm*"]
+CADDY_DEFAULT_MATCH = [
+    "text/*",
+    "application/json*",
+    "application/javascript*",
+    "application/xhtml+xml*",
+    "application/atom+xml*",
+    "application/rss+xml*",
+    "image/svg+xml*",
+    "application/wasm*",
+]
 
 
 def _has_explicit_match(cfg):
@@ -87,7 +98,8 @@ def _matches(patterns, ctype):
 def test_encode_has_an_explicit_match_block():
     """A bare `encode gzip` takes Caddy's default match, and that default includes text/*."""
     assert _has_explicit_match(_generate()), (
-        "encode must carry an explicit `match` — the default one compresses text/event-stream")
+        "encode must carry an explicit `match` — the default one compresses text/event-stream"
+    )
 
 
 def test_the_event_stream_is_never_compressed():
@@ -95,14 +107,16 @@ def test_the_event_stream_is_never_compressed():
     pats = _encode_patterns(_generate())
     assert not _matches(pats, SSE), (
         f"{SSE} matches {[p for p in pats if fnmatch.fnmatch(SSE, p.lower())]} — "
-        "the live stream will be buffered until a deflate block fills, i.e. never")
+        "the live stream will be buffered until a deflate block fills, i.e. never"
+    )
 
 
 def test_no_bare_text_wildcard():
     """`text/*` is the specific glob that swallowed the stream. Name the subtypes instead."""
     pats = _encode_patterns(_generate())
     assert "text/*" not in [p.lower() for p in pats], (
-        "text/* includes text/event-stream; list text/html*, text/css*, ... explicitly")
+        "text/* includes text/event-stream; list text/html*, text/css*, ... explicitly"
+    )
 
 
 def test_compression_is_still_applied_to_what_should_be_compressed():
@@ -134,8 +148,7 @@ def test_both_proxy_routes_disable_buffering():
     # failure mode this file exists to prevent.
     assert len(blocks) >= 2, f"expected at least the /api/* and /monitor* proxies, found {len(blocks)}"
     for b in blocks:
-        assert re.search(r"flush_interval\s+-1", b), (
-            "every proxy to the SSE origin needs flush_interval -1")
+        assert re.search(r"flush_interval\s+-1", b), "every proxy to the SSE origin needs flush_interval -1"
 
 
 def test_the_installer_verifies_the_stream_and_not_just_a_status_code():
@@ -143,9 +156,11 @@ def test_the_installer_verifies_the_stream_and_not_just_a_status_code():
     src = open(SCRIPT, encoding="utf-8").read()
     assert "--compressed" in src, (
         "post-install verification must advertise gzip like a browser does; a plain curl was "
-        "immune to the exact bug being checked for")
+        "immune to the exact bug being checked for"
+    )
     assert "/api/stream/" in src.split("systemctl reload caddy")[-1], (
-        "the installer must count frames off a live stream after installing")
+        "the installer must count frames off a live stream after installing"
+    )
 
 
 # ── the generator itself ──────────────────────────────────────────────────────────────────────

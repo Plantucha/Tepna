@@ -20,17 +20,17 @@ import hmac
 import json
 
 FORMAT = "tepna-seal/1"
-MAGIC = b"TEPNASEAL"          # 9 bytes, then u8 version
+MAGIC = b"TEPNASEAL"  # 9 bytes, then u8 version
 VERSION = 1
 
-HEADER_LEN_BYTES = 4          # u32 big-endian length of the clear-header JSON
-SIG_LEN_BYTES = 2             # u16 big-endian length of the signature (64 for P-256 raw r‖s)
-PAYLOAD_LEN_BYTES = 8         # u64 big-endian length of nonce ‖ ciphertext ‖ tag
+HEADER_LEN_BYTES = 4  # u32 big-endian length of the clear-header JSON
+SIG_LEN_BYTES = 2  # u16 big-endian length of the signature (64 for P-256 raw r‖s)
+PAYLOAD_LEN_BYTES = 8  # u64 big-endian length of nonce ‖ ciphertext ‖ tag
 GCM_NONCE_BYTES = 12
 GCM_TAG_BYTES = 16
-DATA_KEY_BYTES = 32           # AES-256
-CARD_KEY_BYTES = 16           # §3: a 128-bit card key
-P256_SIG_BYTES = 64           # raw r‖s, IEEE P1363 — what WebCrypto produces and verifies
+DATA_KEY_BYTES = 32  # AES-256
+CARD_KEY_BYTES = 16  # §3: a 128-bit card key
+P256_SIG_BYTES = 64  # raw r‖s, IEEE P1363 — what WebCrypto produces and verifies
 
 # HKDF-SHA-256 from the card key to the key-encryption key that wraps the data key.
 #   salt = UTF-8(boxId) ‖ UTF-8(str(keyId))   — §2: "salt boxId‖keyId"; a rotated card (keyId+1)
@@ -49,11 +49,24 @@ TEST_DATAKEY_INFO = b"tepna-seal/1 TEST datakey"
 # base64) and `revision` are in the CLEAR header so the fingerprint pin and the stale-revision check run
 # before any key material is touched; `consent` is mirrored from bag-info.txt (§2) and is tri-state:
 # "yes" | "no" | null, where null means NOT ASKED — never a default "no" wearing the shape of an answer.
-HEADER_FIELDS = ("format", "boxId", "night", "closedAt", "files", "bytes", "keyId", "boxKey",
-                 "boxKeyFingerprint", "recipients", "consent", "revision", "anchor")
+HEADER_FIELDS = (
+    "format",
+    "boxId",
+    "night",
+    "closedAt",
+    "files",
+    "bytes",
+    "keyId",
+    "boxKey",
+    "boxKeyFingerprint",
+    "recipients",
+    "consent",
+    "revision",
+    "anchor",
+)
 
 BAGIT_TXT = "BagIt-Version: 1.0\nTag-File-Character-Encoding: UTF-8\n"
-ZIP_EPOCH = (1980, 1, 1, 0, 0, 0)   # deterministic zip: every entry carries this date_time
+ZIP_EPOCH = (1980, 1, 1, 0, 0, 0)  # deterministic zip: every entry carries this date_time
 
 CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 
@@ -92,10 +105,10 @@ def card_code_encode(card_key: bytes) -> str:
     symbols, so the 26th carries 2 padding bits that MUST be zero (the decoder refuses otherwise)."""
     if len(card_key) != CARD_KEY_BYTES:
         raise ValueError("card key must be %d bytes" % CARD_KEY_BYTES)
-    n = int.from_bytes(card_key, "big") << 2         # 130 bits → 26 symbols
+    n = int.from_bytes(card_key, "big") << 2  # 130 bits → 26 symbols
     syms = [CROCKFORD[(n >> (5 * (25 - i))) & 31] for i in range(26)]
     s = "".join(syms)
-    return "-".join(s[i:i + 4] for i in range(0, 26, 4))
+    return "-".join(s[i : i + 4] for i in range(0, 26, 4))
 
 
 def card_code_decode(code: str) -> bytes:

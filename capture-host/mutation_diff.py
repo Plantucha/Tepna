@@ -177,7 +177,7 @@ def unmutatable_decorator(source: str, func: str) -> str:
         if not names:
             return ""
         if len(names) == 1 and names[0] in ("staticmethod", "classmethod"):
-            return ""          # mutmut's own exemption: trampolines are easy for these
+            return ""  # mutmut's own exemption: trampolines are easy for these
         return names[0]
     return ""
 
@@ -252,6 +252,7 @@ def _string_spans(line: str) -> list[tuple[int, int]]:
 # An escaped pair is ONE token, so an f-string interior needs no "skip the next character" state.
 _BRACE_TOKENS = re.compile(r"\{\{|\}\}|[{}]|[^{}]+")
 
+
 def _fstring_expr_spans(line: str) -> list[tuple[int, int]]:
     """Half-open [start, end) ranges of an f-string's `{...}` fields on `line`, BRACES INCLUDED.
 
@@ -283,16 +284,16 @@ def _fstring_expr_spans(line: str) -> list[tuple[int, int]]:
         for m in _BRACE_TOKENS.finditer(line, a + 1, b - 1):
             tok = m.group(0)
             if depth == 0 and tok in ("{{", "}}"):
-                continue                                     # an escaped brace: text, no state to keep
-            for k, ch in enumerate(tok, m.start()):          # a doubled brace INSIDE a field is two braces
+                continue  # an escaped brace: text, no state to keep
+            for k, ch in enumerate(tok, m.start()):  # a doubled brace INSIDE a field is two braces
                 if ch == "{":
                     depth += 1
                     if depth == 1:
-                        spans.append((k, b))                 # provisional: runs to the literal's end
+                        spans.append((k, b))  # provisional: runs to the literal's end
                 elif ch == "}" and depth:
                     depth -= 1
                     if depth == 0:
-                        spans[-1] = (spans[-1][0], k + 1)    # closed: braces included
+                        spans[-1] = (spans[-1][0], k + 1)  # closed: braces included
     return spans
 
 
@@ -389,7 +390,8 @@ def string_only_verdict(diff_text: str) -> tuple[str, str]:
         # Inside a literal is not yet inside TEXT: an f-string's `{...}` fields are code (see
         # `_fstring_expr_spans`), and a mutant there is exactly the kind the gate exists to demand.
         if any(a < old_end and start < b for a, b in _fstring_expr_spans(old)) or any(
-                a < new_end and start < b for a, b in _fstring_expr_spans(new)):
+            a < new_end and start < b for a, b in _fstring_expr_spans(new)
+        ):
             return REQUIRED, "the changed token is inside an f-string field - code, not text"
     if not saw_change:
         return EMPTY_DIFF, "every removed/added pair is identical - the mutant changes nothing"
@@ -417,8 +419,7 @@ def diff_key(diff_text: str) -> str:
     NOT `__mutmut_N`. That index shifts whenever anything earlier in the function changes, so an entry
     keyed on it would keep matching while silently pointing at a different mutation — the failure this
     whole mechanism exists to make impossible."""
-    keep = [ln for ln in diff_text.splitlines()
-            if ln.startswith(("-", "+")) and not ln.startswith(("---", "+++"))]
+    keep = [ln for ln in diff_text.splitlines() if ln.startswith(("-", "+")) and not ln.startswith(("---", "+++"))]
     return " | ".join(" ".join(ln.split()) for ln in keep)
 
 
@@ -529,12 +530,8 @@ def _dump_without_docstring(node) -> str:
     ):
         body = body[1:]
     return "|".join(
-        [node.name, ast.dump(node.args)]
-        + [ast.dump(d) for d in node.decorator_list]
-        + [ast.dump(st) for st in body]
+        [node.name, ast.dump(node.args)] + [ast.dump(d) for d in node.decorator_list] + [ast.dump(st) for st in body]
     )
-
-
 
 
 def annotation_only(old_src: str, new_src: str) -> tuple[bool, str]:
@@ -561,6 +558,7 @@ def annotation_only(old_src: str, new_src: str) -> tuple[bool, str]:
     only-in-annotations analysis fails in the wrong direction (a dual-use import would silently
     exempt behaviour)."""
     import ast
+
     try:
         old_tree, new_tree = ast.parse(old_src), ast.parse(new_src)
     except SyntaxError as e:
@@ -638,9 +636,12 @@ def float_boundary_unprobed(key: str, probe: str | None) -> str | None:
     shown = sorted(lits)
     if probe and any(lit in probe for lit in shown):
         return None
-    return ("a `<`/`<=` flip on the float threshold " + ", ".join("`%s`" % x for x in shown) +
-            " is distinguishable only where the compared value lands EXACTLY on it; the probe does not "
-            "name that boundary, so this is UNPROVEN rather than equivalent")
+    return (
+        "a `<`/`<=` flip on the float threshold "
+        + ", ".join("`%s`" % x for x in shown)
+        + " is distinguishable only where the compared value lands EXACTLY on it; the probe does not "
+        "name that boundary, so this is UNPROVEN rather than equivalent"
+    )
 
 
 # ── PRINT THE MUTANT IN FULL, FROM THE FIELD THAT HAS IT ──────────────────────────────────────────
@@ -667,8 +668,11 @@ def mutant_changed_lines(sv: dict) -> list[str]:
     changed = (sv.get("changed") or "").strip()
     if changed:
         return [seg.strip() for seg in changed.split(" | ") if seg.strip()]
-    return [ln for ln in (sv.get("diff") or "").splitlines()
-            if ln.startswith(("-", "+")) and not ln.startswith(("---", "+++"))]
+    return [
+        ln
+        for ln in (sv.get("diff") or "").splitlines()
+        if ln.startswith(("-", "+")) and not ln.startswith(("---", "+++"))
+    ]
 
 
 def classify(entries, survivors, generated):
@@ -685,9 +689,9 @@ def classify(entries, survivors, generated):
         k = e.get("key", "")
         claimed.add(k)
         if k not in gen:
-            out["orphaned"].append(e)      # the line moved — excuses nothing until re-verified
+            out["orphaned"].append(e)  # the line moved — excuses nothing until re-verified
         elif k not in surv:
-            out["refuted"].append(e)       # generated, then KILLED, yet claimed unkillable
+            out["refuted"].append(e)  # generated, then KILLED, yet claimed unkillable
         elif e.get("class") in EXCUSING:
             _why = float_boundary_unprobed(k, e.get("probe"))
             if _why:
@@ -695,7 +699,7 @@ def classify(entries, survivors, generated):
             else:
                 out["excused"].append(e)
         else:
-            out["real_gap"].append(e)      # recorded debt, still fails
+            out["real_gap"].append(e)  # recorded debt, still fails
     for k, sv in surv.items():
         if k not in claimed:
             out["unclassified"].append(sv)
@@ -717,12 +721,12 @@ def classify(entries, survivors, generated):
 #     refused BEFORE any mutant is generated, naming the module, its clean time and the prediction.
 #   · WALL: every mutmut invocation gets the REMAINING budget as its cap; a cap that is hit returns
 #     partial counts behind `timed_out`, and the gate refuses on it naming the glob and how far it got.
-GATE_BUDGET_SEC = 7200          # 2 h of gate wall time. Pre-stated: no mutation job in the visible history
-                                # produced a verdict past 98 min; the workflow cap sits above this so the
-                                # tool refuses before the runner kills it.
-PREWORK_TRACE_FACTOR = 2.0      # ASSUMPTION, stated: mutmut's stats pass ≈ 2× one clean run of the
-                                # selection (a traced run). Replace with a measured factor when one exists;
-                                # the refusal prints the clean time it multiplied so the reader can check.
+GATE_BUDGET_SEC = 7200  # 2 h of gate wall time. Pre-stated: no mutation job in the visible history
+# produced a verdict past 98 min; the workflow cap sits above this so the
+# tool refuses before the runner kills it.
+PREWORK_TRACE_FACTOR = 2.0  # ASSUMPTION, stated: mutmut's stats pass ≈ 2× one clean run of the
+# selection (a traced run). Replace with a measured factor when one exists;
+# the refusal prints the clean time it multiplied so the reader can check.
 
 
 def prework_estimate(clean_sec: float, trace_factor: float = PREWORK_TRACE_FACTOR) -> float:
@@ -731,22 +735,25 @@ def prework_estimate(clean_sec: float, trace_factor: float = PREWORK_TRACE_FACTO
     return clean_sec * (1.0 + trace_factor)
 
 
-def budget_refusal(module: str, clean_sec: float, n_globs: int, left_sec: float,
-                   trace_factor: float = PREWORK_TRACE_FACTOR) -> str | None:
+def budget_refusal(
+    module: str, clean_sec: float, n_globs: int, left_sec: float, trace_factor: float = PREWORK_TRACE_FACTOR
+) -> str | None:
     """A refusal reason when the module's predicted pre-work does not fit in what is left, else None.
     Names every number it used, so the reader can re-derive the verdict — never just "too big"."""
     est = prework_estimate(clean_sec, trace_factor)
     if est <= left_sec:
         return None
-    return (f"{module}: predicted pre-work {est:.0f}s (clean run {clean_sec:.1f}s × (1 + {trace_factor:g}) "
-            f"stats pass) exceeds the {left_sec:.0f}s left of the {GATE_BUDGET_SEC}s gate budget — "
-            f"{n_globs} function(s) selected, none mutated. This is a REFUSAL with a reason, not a "
-            f"verdict on the diff: the module's test selection is too costly to mutate in one gate run. "
-            f"Scope the change, or run `tools/mutate.py --only` locally on the function(s).")
+    return (
+        f"{module}: predicted pre-work {est:.0f}s (clean run {clean_sec:.1f}s × (1 + {trace_factor:g}) "
+        f"stats pass) exceeds the {left_sec:.0f}s left of the {GATE_BUDGET_SEC}s gate budget — "
+        f"{n_globs} function(s) selected, none mutated. This is a REFUSAL with a reason, not a "
+        f"verdict on the diff: the module's test selection is too costly to mutate in one gate run. "
+        f"Scope the change, or run `tools/mutate.py --only` locally on the function(s)."
+    )
 
 
-CAP_FLOOR_SEC = 1.0      # never wait less than this, however far the budget is already overspent:
-                         # a zero or negative wait would kill a child that is about to finish.
+CAP_FLOOR_SEC = 1.0  # never wait less than this, however far the budget is already overspent:
+# a zero or negative wait would kill a child that is about to finish.
 JOIN_SEC = 10.0
 # The bounded join on the reader thread, and it is LOAD-BEARING: with mutmut's worker shape the surviving
 # grandchildren hold the pipe open, so the reader never sees EOF and this is what makes the refusal return
@@ -758,8 +765,8 @@ JOIN_SEC = 10.0
 # the `join_sec=10.0 → 11.0` mutant SURVIVED an assertion that would have failed on the real signature.
 # Same family as #3181's "survives mutmut's trampoline". A module constant is not decorated, so mutating
 # it is visible.
-REAP_SEC = 30.0          # bound on the post-kill reap. `None` here would hand an unkillable child
-                         # the same unbounded wait this whole function exists to remove.
+REAP_SEC = 30.0  # bound on the post-kill reap. `None` here would hand an unkillable child
+# the same unbounded wait this whole function exists to remove.
 
 
 def cap_remaining(cap_sec, t0, now):
@@ -773,6 +780,8 @@ def cap_remaining(cap_sec, t0, now):
     so a cap must count from there or the pre-work is free.
     """
     return max(CAP_FLOOR_SEC, cap_sec - (now - t0))
+
+
 # ── SCRATCH OWNERSHIP — a prune must not delete a directory another session is still using ─────────
 # `tools/mutate.py` deletes every `/tmp/mut-<module>-*` that is not the run's own hash, to stop a cache
 # with no eviction from filling a tmpfs. With several sessions sweeping the same module at different
@@ -809,8 +818,8 @@ def proc_start_ticks(pid, proc_root="/proc"):
     try:
         with open(f"{proc_root}/{int(pid)}/stat", encoding="utf-8") as fh:
             text = fh.read()
-        after = text[text.rindex(")") + 1:].split()
-        return int(after[19])          # field 22 overall; fields 1-2 are consumed by pid and comm
+        after = text[text.rindex(")") + 1 :].split()
+        return int(after[19])  # field 22 overall; fields 1-2 are consumed by pid and comm
     except (OSError, ValueError, IndexError):
         return None
 
@@ -853,9 +862,9 @@ def owner_is_live(record, start_ticks_of):
     return live == ticks
 
 
-def scratch_prune_decision(*, is_current, owner_live, age_sec,
-                           min_age_sec=SCRATCH_MIN_AGE_SEC,
-                           unknown_min_age_sec=SCRATCH_UNKNOWN_MIN_AGE_SEC):
+def scratch_prune_decision(
+    *, is_current, owner_live, age_sec, min_age_sec=SCRATCH_MIN_AGE_SEC, unknown_min_age_sec=SCRATCH_UNKNOWN_MIN_AGE_SEC
+):
     """`(prune, reason)` for ONE candidate scratch. Pure, and it always says WHY.
 
     The reason is not decoration: a prune that removed a peer's tree used to print only the directory
@@ -866,18 +875,21 @@ def scratch_prune_decision(*, is_current, owner_live, age_sec,
         return False, "a live process still holds it"
     if owner_live is None:
         if age_sec < unknown_min_age_sec:
-            return False, (f"no owner marker to read, and {age_sec:.0f}s old — under the "
-                           f"{unknown_min_age_sec:.0f}s floor for an unmarked tree, so it is outlived, "
-                           f"not judged")
+            return False, (
+                f"no owner marker to read, and {age_sec:.0f}s old — under the "
+                f"{unknown_min_age_sec:.0f}s floor for an unmarked tree, so it is outlived, "
+                f"not judged"
+            )
         return True, f"no owner marker and {age_sec:.0f}s old — outlived the unmarked floor"
     if age_sec < min_age_sec:
-        return False, (f"its owner is gone but it is only {age_sec:.0f}s old — under the "
-                       f"{min_age_sec:.0f}s floor, in case that owner is still exiting")
+        return False, (
+            f"its owner is gone but it is only {age_sec:.0f}s old — under the "
+            f"{min_age_sec:.0f}s floor, in case that owner is still exiting"
+        )
     return True, f"its owner is gone and it is {age_sec:.0f}s old"
 
 
-def prune_scratches(tmp_root, stem, current, now=None, start_ticks_of=proc_start_ticks,
-                    remove=None):
+def prune_scratches(tmp_root, stem, current, now=None, start_ticks_of=proc_start_ticks, remove=None):
     """Delete this module's stale scratches and return `(pruned, held)` — `held` carrying the REASON
     each survivor was kept.
 
@@ -909,7 +921,8 @@ def prune_scratches(tmp_root, stem, current, now=None, start_ticks_of=proc_start
         do_prune, why = scratch_prune_decision(
             is_current=(old_dir == pathlib.Path(current)),
             owner_live=owner_is_live(parse_owner_record(marker), start_ticks_of),
-            age_sec=age)
+            age_sec=age,
+        )
         if do_prune:
             remove(old_dir, ignore_errors=True)
             pruned.append(old_dir.name)
@@ -937,8 +950,9 @@ MEM_CAP_FRACTION = 0.5
 # watchdog's pressure actually tracks.
 
 
-def memory_refusal(mutants_bytes, workers, available_bytes,
-                   rss_factor=WORKER_RSS_PER_MUTANTS_BYTE, cap_fraction=MEM_CAP_FRACTION):
+def memory_refusal(
+    mutants_bytes, workers, available_bytes, rss_factor=WORKER_RSS_PER_MUTANTS_BYTE, cap_fraction=MEM_CAP_FRACTION
+):
     """A refusal reason when the projected peak does not fit under the cap, else None.
 
     Names every number it used so the reader can re-derive the verdict — never just "not enough
@@ -950,14 +964,16 @@ def memory_refusal(mutants_bytes, workers, available_bytes,
     cap = available_bytes * cap_fraction
     if projected <= cap:
         return None
-    gb = 1024.0 ** 3
-    return (f"projected peak {projected / gb:.1f} GB ({mutants_bytes / gb:.2f} GB of generated "
-            f"mutants x {rss_factor:g} assumed RSS factor = {per_worker / gb:.1f} GB per worker, "
-            f"x {workers} worker(s)) exceeds the {cap / gb:.1f} GB cap "
-            f"({cap_fraction:g} of {available_bytes / gb:.1f} GB available at start). "
-            f"NOT attempted: the fleet's limit is 8 GB per process and the harness watchdog reaps on "
-            f"BOX memory pressure, so an over-committed run takes other sessions' gates down with it. "
-            f"This is a REFUSAL with a reason, not a verdict on the diff.")
+    gb = 1024.0**3
+    return (
+        f"projected peak {projected / gb:.1f} GB ({mutants_bytes / gb:.2f} GB of generated "
+        f"mutants x {rss_factor:g} assumed RSS factor = {per_worker / gb:.1f} GB per worker, "
+        f"x {workers} worker(s)) exceeds the {cap / gb:.1f} GB cap "
+        f"({cap_fraction:g} of {available_bytes / gb:.1f} GB available at start). "
+        f"NOT attempted: the fleet's limit is 8 GB per process and the harness watchdog reaps on "
+        f"BOX memory pressure, so an over-committed run takes other sessions' gates down with it. "
+        f"This is a REFUSAL with a reason, not a verdict on the diff."
+    )
 
 
 # ── GENERATION IS A PHASE, AND IT IS THE ONE THAT FAILS ─────────────────────────────────────────────
@@ -992,11 +1008,15 @@ def generation_timeout_reason(phase_cap_sec, elapsed_sec, mutants_bytes=0):
     mutated is UNKNOWN (part of the diff was measured), but a run killed in generation decided nothing
     at all, and §🧾 spells that NOT_RUN. The partially written mutants file is reported when it exists —
     "how far it got" is the one thing the killed run can still say."""
-    grew = f", {mutants_bytes / (1024.0 ** 2):.0f} MB of mutants written" if mutants_bytes > 0 else ", nothing written yet"
-    return (f"mutant GENERATION did not finish inside its {phase_cap_sec:.0f}s phase bound "
-            f"(killed at {elapsed_sec:.0f}s{grew}). NOT a verdict on the diff: no mutant ran, so nothing "
-            f"was killed and nothing survived. mutmut generates the WHOLE module's population before the "
-            f"first mutant runs and takes no name filter, so a one-function diff pays for every function.")
+    grew = (
+        f", {mutants_bytes / (1024.0**2):.0f} MB of mutants written" if mutants_bytes > 0 else ", nothing written yet"
+    )
+    return (
+        f"mutant GENERATION did not finish inside its {phase_cap_sec:.0f}s phase bound "
+        f"(killed at {elapsed_sec:.0f}s{grew}). NOT a verdict on the diff: no mutant ran, so nothing "
+        f"was killed and nothing survived. mutmut generates the WHOLE module's population before the "
+        f"first mutant runs and takes no name filter, so a one-function diff pays for every function."
+    )
 
 
 GENERATION_CAP_FRACTION = 0.5
@@ -1061,9 +1081,12 @@ def merge_mutants_size(text, module, src_hash, generated_bytes, measured_at, hos
     except ValueError:
         doc = {}
     doc.setdefault("schema", "tepna.mutation-sizes/1")
-    doc.setdefault("note", "Generated-mutants size per (module, source sha256[:12]), written by "
-                           "tools/mutate.py --record-sizes. NEVER hand-edited: a typed number here is "
-                           "indistinguishable from a measured one. A hash miss is absent, not a default.")
+    doc.setdefault(
+        "note",
+        "Generated-mutants size per (module, source sha256[:12]), written by "
+        "tools/mutate.py --record-sizes. NEVER hand-edited: a typed number here is "
+        "indistinguishable from a measured one. A hash miss is absent, not a default.",
+    )
     sizes = doc.setdefault("sizes", {})
     key = f"{module}@{src_hash}"
     prior = sizes.get(key)
@@ -1075,8 +1098,9 @@ def merge_mutants_size(text, module, src_hash, generated_bytes, measured_at, hos
     return json.dumps(doc, indent=2) + "\n"
 
 
-def workers_that_fit(mutants_bytes, available_bytes, rss_factor=WORKER_RSS_PER_MUTANTS_BYTE,
-                     cap_fraction=MEM_CAP_FRACTION):
+def workers_that_fit(
+    mutants_bytes, available_bytes, rss_factor=WORKER_RSS_PER_MUTANTS_BYTE, cap_fraction=MEM_CAP_FRACTION
+):
     """How many workers the cap affords for a mutants file of this size. 0 means not even one.
 
     The companion to `memory_refusal`: that function says "this does not fit", this one says "here is
@@ -1121,15 +1145,17 @@ def memory_exhaustion_verdict(n_refused, decided):
     arithmetic."""
     what = f"{n_refused} function(s) not mutated — projected memory exceeds the run's cap"
     if decided > 0:
-        return "UNKNOWN", (f"{what}; {decided} mutant(s) were decided before that, so the refused "
-                           f"ones are unmeasured, not failed")
-    return "NOT_RUN", (f"{what}, and NOT ONE mutant was decided — this run examined nothing. Refused "
-                       f"BEFORE starting rather than reaped by the watchdog mid-run, which reports "
-                       f"nothing and takes other sessions' gates with it. Not a verdict on the diff.")
+        return "UNKNOWN", (
+            f"{what}; {decided} mutant(s) were decided before that, so the refused ones are unmeasured, not failed"
+        )
+    return "NOT_RUN", (
+        f"{what}, and NOT ONE mutant was decided — this run examined nothing. Refused "
+        f"BEFORE starting rather than reaped by the watchdog mid-run, which reports "
+        f"nothing and takes other sessions' gates with it. Not a verdict on the diff."
+    )
 
 
-def stream_bounded(proc, cap_sec, on_line, t0=None, join_sec=JOIN_SEC,
-                   phase_cap_sec=None, phase_done=None):
+def stream_bounded(proc, cap_sec, on_line, t0=None, join_sec=JOIN_SEC, phase_cap_sec=None, phase_done=None):
     """Drain `proc`'s stdout line by line into `on_line`, and KILL the child at `cap_sec`.
     Returns `(returncode, timed_out, phase_timed_out)` — ALWAYS three, never a shape that depends on
     whether a phase was declared, because a caller that unpacks by argument value is a caller waiting to
@@ -1183,7 +1209,9 @@ def stream_bounded(proc, cap_sec, on_line, t0=None, join_sec=JOIN_SEC,
     phase_timed_out = False
     try:
         if phase_cap_sec is not None and phase_done is not None:
-            deadline = min(cap_remaining(cap_sec, t0, time.monotonic()), cap_remaining(phase_cap_sec, t0, time.monotonic()))
+            deadline = min(
+                cap_remaining(cap_sec, t0, time.monotonic()), cap_remaining(phase_cap_sec, t0, time.monotonic())
+            )
             try:
                 rc = proc.wait(timeout=deadline)
             except subprocess.TimeoutExpired:
@@ -1228,11 +1256,15 @@ def budget_exhaustion_verdict(n_refused: int, decided: int, elapsed_sec: float) 
     """
     what = f"{n_refused} module(s)/function(s) not mutated inside the {GATE_BUDGET_SEC}s gate budget"
     if decided > 0:
-        return "UNKNOWN", (f"{what} after {elapsed_sec:.0f}s — {decided} mutant(s) decided before the "
-                           f"budget ran out; the refused ones are unmeasured, not failed")
-    return "NOT_RUN", (f"{what} after {elapsed_sec:.0f}s — NOT ONE mutant was decided, so this run "
-                       f"examined nothing: the pre-work (clean run + mutmut's traced stats pass) "
-                       f"consumed the budget before the first mutant ran. Not a verdict on the diff.")
+        return "UNKNOWN", (
+            f"{what} after {elapsed_sec:.0f}s — {decided} mutant(s) decided before the "
+            f"budget ran out; the refused ones are unmeasured, not failed"
+        )
+    return "NOT_RUN", (
+        f"{what} after {elapsed_sec:.0f}s — NOT ONE mutant was decided, so this run "
+        f"examined nothing: the pre-work (clean run + mutmut's traced stats pass) "
+        f"consumed the budget before the first mutant ran. Not a verdict on the diff."
+    )
 
 
 # ── tepna.verdict/1 — the ONE object the gate emits (VERDICT-CONTRACT §1/§3b step 5) ─────────────────
@@ -1250,8 +1282,18 @@ VERDICT_SCHEMA = "tepna.verdict/1"
 VERDICT_STATUSES = ("PASS", "FAIL", "SHORTFALL", "UNDERPOWERED", "NOT_RUN", "NOT_APPLICABLE", "UNKNOWN")
 
 
-def verdict_object(status: str, *, checked: int, eligible: int, result: dict | None, reason: str | None,
-                   evidence: list[str], commit: str | None, at: str, base: str) -> dict:
+def verdict_object(
+    status: str,
+    *,
+    checked: int,
+    eligible: int,
+    result: dict | None,
+    reason: str | None,
+    evidence: list[str],
+    commit: str | None,
+    at: str,
+    base: str,
+) -> dict:
     """Build the verdict. Pure; the shape is `verdict.js`'s and is asserted against it by the JS gate
     (`tools/verdict-adoption.mjs` reads `--verdict-sample`), not restated here as a second validator."""
     if status not in VERDICT_STATUSES:
@@ -1414,15 +1456,20 @@ def refusal_reason(venv_exists: bool, probe_rc: int | None) -> str | None:
     presence is the property this guard is actually about.
     """
     if not venv_exists:
-        return ("the capture-host venv is missing — expected an interpreter at .venv/bin/python. "
-                "Create it (python -m venv .venv && .venv/bin/pip install -e '.[dev]') and re-run.")
+        return (
+            "the capture-host venv is missing — expected an interpreter at .venv/bin/python. "
+            "Create it (python -m venv .venv && .venv/bin/pip install -e '.[dev]') and re-run."
+        )
     if probe_rc is None:
-        return ("the venv interpreter could not be launched. The path exists but is not executable "
-                "or is a broken symlink.")
+        return (
+            "the venv interpreter could not be launched. The path exists but is not executable or is a broken symlink."
+        )
     if probe_rc != 0:
-        return ("mutmut is not importable under the venv interpreter "
-                "(`.venv/bin/python -c 'import mutmut'` exited non-zero). Install it into the venv; "
-                "without it this gate generates no mutants and would report success.")
+        return (
+            "mutmut is not importable under the venv interpreter "
+            "(`.venv/bin/python -c 'import mutmut'` exited non-zero). Install it into the venv; "
+            "without it this gate generates no mutants and would report success."
+        )
     return None
 
 
@@ -1450,13 +1497,12 @@ def selftest() -> int:
         {"key": "a", "class": "no-distinguishing-input"},
         {"key": "b", "class": "untestable-by-design"},
         {"key": "c", "class": "real-gap"},
-        {"key": "d", "class": "no-distinguishing-input"},   # generated but KILLED -> refuted
-        {"key": "e", "class": "no-distinguishing-input"},   # not generated at all -> orphaned
+        {"key": "d", "class": "no-distinguishing-input"},  # generated but KILLED -> refuted
+        {"key": "e", "class": "no-distinguishing-input"},  # not generated at all -> orphaned
     ]
     S = [{"key": k} for k in ("a", "b", "c", "f")]
     got = classify(E, S, {"a", "b", "c", "d", "f"})
-    want = {"excused": ["a", "b"], "real_gap": ["c"], "refuted": ["d"],
-            "orphaned": ["e"], "unclassified": ["f"]}
+    want = {"excused": ["a", "b"], "real_gap": ["c"], "refuted": ["d"], "orphaned": ["e"], "unclassified": ["f"]}
     for bucket, keys in want.items():
         have = sorted(x["key"] for x in got[bucket])
         if have != sorted(keys):
@@ -1557,22 +1603,56 @@ def selftest() -> int:
     # never wear the right verdict (saw-the-plant, both fields).
     _AO = [
         # (old, new, want_excluded, want_reason_substr, label)
-        ("def f(x: float): return x", "def f(x: float | None): return x",
-         True, "stripped ASTs identical", "widen an arg annotation"),
-        ("def f(x): return x", "def f(x) -> int: return x",
-         True, "stripped ASTs identical", "add a return annotation"),
-        ("async def g(a: int, *, b: str = 'q'): pass", "async def g(a: object, *, b: str = 'q'): pass",
-         True, "stripped ASTs identical", "async + kwonly annotations"),
-        ("def f(x: int = 1): return x", "def f(x: int = 2): return x",
-         False, "behavioural difference", "a default is behaviour"),
-        ("def f(x: int): return x", "def f(y: int): return y",
-         False, "behavioural difference", "a rename is behaviour"),
-        ("def f(x: int): return x", "def f(x: int): return x + 1",
-         False, "behavioural difference", "a body edit is behaviour"),
-        ("class C:\n    x: int = 1", "class C:\n    x: float = 1",
-         False, "behavioural difference", "class-body AnnAssign is load-bearing (dataclass/ClassVar)"),
-        ("def f(x: int): return x", "def f(x: int) return x",
-         False, "parse failed", "unparseable fails closed to full scope"),
+        (
+            "def f(x: float): return x",
+            "def f(x: float | None): return x",
+            True,
+            "stripped ASTs identical",
+            "widen an arg annotation",
+        ),
+        ("def f(x): return x", "def f(x) -> int: return x", True, "stripped ASTs identical", "add a return annotation"),
+        (
+            "async def g(a: int, *, b: str = 'q'): pass",
+            "async def g(a: object, *, b: str = 'q'): pass",
+            True,
+            "stripped ASTs identical",
+            "async + kwonly annotations",
+        ),
+        (
+            "def f(x: int = 1): return x",
+            "def f(x: int = 2): return x",
+            False,
+            "behavioural difference",
+            "a default is behaviour",
+        ),
+        (
+            "def f(x: int): return x",
+            "def f(y: int): return y",
+            False,
+            "behavioural difference",
+            "a rename is behaviour",
+        ),
+        (
+            "def f(x: int): return x",
+            "def f(x: int): return x + 1",
+            False,
+            "behavioural difference",
+            "a body edit is behaviour",
+        ),
+        (
+            "class C:\n    x: int = 1",
+            "class C:\n    x: float = 1",
+            False,
+            "behavioural difference",
+            "class-body AnnAssign is load-bearing (dataclass/ClassVar)",
+        ),
+        (
+            "def f(x: int): return x",
+            "def f(x: int) return x",
+            False,
+            "parse failed",
+            "unparseable fails closed to full scope",
+        ),
     ]
     for old_src, new_src, want_x, want_r, label in _AO:
         got_x, got_r = annotation_only(old_src, new_src)
@@ -1801,7 +1881,8 @@ def stage_root_reads(tree, work, names) -> int:
     import shutil
     from pathlib import Path
 
-    tree = Path(tree); work = Path(work)
+    tree = Path(tree)
+    work = Path(work)
     root = tree.resolve().parent
     n = 0
     for name in names:
@@ -1909,7 +1990,7 @@ def function_of_mutant(name: str) -> str:
         return ""
     stem = re.sub(r"__mutmut_\d+$", "", name.strip())
     if stem == name.strip():
-        return ""                      # no mutmut suffix ⇒ not a mutant name
+        return ""  # no mutmut suffix ⇒ not a mutant name
     # 🔴 STRIP THE MODULE QUALIFIER, and this line is why the whole function was inert in production.
     # `mutmut results` prints names MODULE-QUALIFIED — `gattmap.x__norm__mutmut_1` — and the caller
     # (`mutate_diff.py`) passes them through verbatim from `split_results`. Both documented shapes
@@ -1981,7 +2062,6 @@ def split_results(results_text: str):
         else:
             out[UNDECIDED].append((name, status))
     return out
-
 
 
 def report_only_refusal_note(report_only: bool) -> str:

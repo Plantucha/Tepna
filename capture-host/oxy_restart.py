@@ -29,9 +29,9 @@ from __future__ import annotations
 import oxy_inventory as inv
 
 # What the planner can decide. One recording lands in exactly one of these.
-INTACT = "intact"          # COMMITTED and the bytes still match — the only "do nothing"
-COMMIT = "commit"          # VERIFIED but never COMMITTED — the kill-between-download-and-commit case
-REPULL = "repull"          # partial, unknown, or missing — fetch it again
+INTACT = "intact"  # COMMITTED and the bytes still match — the only "do nothing"
+COMMIT = "commit"  # VERIFIED but never COMMITTED — the kill-between-download-and-commit case
+REPULL = "repull"  # partial, unknown, or missing — fetch it again
 QUARANTINE = "quarantine"  # bytes changed under a COMMITTED/VERIFIED row — a human decides
 
 
@@ -69,8 +69,13 @@ def plan(ledger_rows: list[dict], disk_listing: dict[str, int], part_files: "dic
 
     for ident in rec["repull"]:
         known = ident in cur
-        put(REPULL, ident, "partial or discovered — transfer incomplete" if known
-            else "bytes on disk with no ledger row — never validated by anything")
+        put(
+            REPULL,
+            ident,
+            "partial or discovered — transfer incomplete"
+            if known
+            else "bytes on disk with no ledger row — never validated by anything",
+        )
 
     for ident in rec["missing"]:
         put(REPULL, ident, "ledger knows it, disk does not — moved tree or lost file")

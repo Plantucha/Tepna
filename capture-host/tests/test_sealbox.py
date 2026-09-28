@@ -377,8 +377,16 @@ def test_PLANT_a_night_whose_files_vanish_before_the_seal_REFUSES(tmp_path, monk
 
     monkeypatch.setattr(sealbox._seal, "_night_files", once_then_gone)
     o = sealbox.seal_or_reissue(
-        night, outbox=ob, box_id="box-1", night="2026-09-19", store=store,
-        signing_key=k, cfg={}, version=None, commit=None)
+        night,
+        outbox=ob,
+        box_id="box-1",
+        night="2026-09-19",
+        store=store,
+        signing_key=k,
+        cfg={},
+        version=None,
+        commit=None,
+    )
     assert o["status"] == "NOT_RUN", o
     assert "vanished before the seal" in (o["reason"] or ""), o["reason"]
     assert not os.path.exists(os.path.join(ob, "box-1-2026-09-19.tepna")), "no seal may be written"
@@ -397,6 +405,7 @@ def test_a_file_that_vanishes_MID_SCAN_is_skipped_not_raised(tmp_path):
     real_files = list(sealbox._seal._night_files(night))
     ghost = ("x", os.path.join(night, "Polar_H10_0284_20260919_GONE.txt"))
     import unittest.mock as _m
+
     with _m.patch.object(sealbox._seal, "_night_files", lambda d: real_files + [ghost]):
         got = sealbox.closed_at_ms(night)
     assert got == int(dt.datetime(2026, 9, 20, 5, 30, tzinfo=dt.timezone.utc).timestamp() * 1000)

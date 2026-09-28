@@ -38,13 +38,13 @@ import time
 
 # The four states a recording moves through. Ordered: a later state never silently regresses to an
 # earlier one without a row saying so, which is what makes the JSONL an audit rather than a cache.
-DISCOVERED = "DISCOVERED"   # the ring listed it; we may have no bytes at all
-DOWNLOADING = "DOWNLOADING" # a transfer was in flight when this row was written
-PARTIAL = "PARTIAL"         # bytes on disk, but NOT finalised (or short of the reported size)
-VERIFYING = "VERIFYING"     # bytes complete on disk, validation in flight
-VERIFIED = "VERIFIED"       # bytes on disk, trailer finalised, hash recorded
-COMMITTED = "COMMITTED"     # verified AND accepted into the night tree (G1 does the atomic rename)
-FAILED = "FAILED"           # a transfer attempt ended badly; `failure` says whether to retry
+DISCOVERED = "DISCOVERED"  # the ring listed it; we may have no bytes at all
+DOWNLOADING = "DOWNLOADING"  # a transfer was in flight when this row was written
+PARTIAL = "PARTIAL"  # bytes on disk, but NOT finalised (or short of the reported size)
+VERIFYING = "VERIFYING"  # bytes complete on disk, validation in flight
+VERIFIED = "VERIFIED"  # bytes on disk, trailer finalised, hash recorded
+COMMITTED = "COMMITTED"  # verified AND accepted into the night tree (G1 does the atomic rename)
+FAILED = "FAILED"  # a transfer attempt ended badly; `failure` says whether to retry
 
 # ⚠️ DOWNLOADING and VERIFYING are states a CRASH LEAVES BEHIND, never evidence of a live transfer
 # (G1 brief §3, crash points 3–5). Nothing in this process can observe another process's in-flight
@@ -95,11 +95,20 @@ def classify(data: bytes | None, reported_size: int | None, parse_trailer) -> tu
     return VERIFIED, "trailer finalised"
 
 
-def make_row(device_id: str, session_stamp: str, state: str, *, reason: str = "",
-             size: int | None = None, reported_size: int | None = None,
-             sha256: str | None = None, path: str | None = None,
-             attempt: int | None = None, failure: str | None = None,
-             at: float | None = None) -> dict:
+def make_row(
+    device_id: str,
+    session_stamp: str,
+    state: str,
+    *,
+    reason: str = "",
+    size: int | None = None,
+    reported_size: int | None = None,
+    sha256: str | None = None,
+    path: str | None = None,
+    attempt: int | None = None,
+    failure: str | None = None,
+    at: float | None = None,
+) -> dict:
     """One ledger row. `at` is injectable so tests are deterministic and so no row ever carries a
     fabricated time — a caller that has a real clock passes it, and the default reads the real one."""
     if state not in _RANK:
@@ -157,8 +166,8 @@ def load_rows(ledger_path: str) -> list[dict]:
                 try:
                     obj = json.loads(line)
                 except ValueError:
-                    continue   # a half-written JSONL line is the normal tail of a log being
-                               # appended to right now; the next read gets it once it is complete
+                    continue  # a half-written JSONL line is the normal tail of a log being
+                    # appended to right now; the next read gets it once it is complete
                 if isinstance(obj, dict) and "id" in obj:
                     rows.append(obj)
     except OSError:
@@ -192,8 +201,11 @@ def undrained(ledger_rows: list[dict], flash_sessions) -> list[str]:
     listed it or a transfer began, not that anything survived. Only VERIFIED/COMMITTED retire a
     session from the drain, which is the same bar `reconcile` uses for `verified` and for the same
     reason — those are the two states in which bytes are known good."""
-    done = {str(r.get("session")) for r in (ledger_rows or [])
-            if isinstance(r, dict) and r.get("state") in (VERIFIED, COMMITTED)}
+    done = {
+        str(r.get("session"))
+        for r in (ledger_rows or [])
+        if isinstance(r, dict) and r.get("state") in (VERIFIED, COMMITTED)
+    }
     return sorted({str(x) for x in (flash_sessions or [])} - done)
 
 

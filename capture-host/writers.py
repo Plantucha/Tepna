@@ -108,12 +108,12 @@ T_STUCK = 200
 ECG_RUN_MIN = 30
 
 RUN_MIN_BY_STREAM = {
-    "ppg1":   T_STUCK,   # O2Ring, single reflectance column
-    "ppg":    T_STUCK,   # Verity 3-LED (same writer, 3-column branch)
-    "ppg2w":  T_STUCK,   # O2Ring raw dual-wavelength (cmd 0x05)
-    "acc":    T_STUCK,   # Polar ACC
-    "accraw": T_STUCK,   # O2Ring ACC — a zero-order hold; the classifier catches it
-    "ecg":    ECG_RUN_MIN,   # Polar H10 — derived above; NOT T_STUCK, and the table says why
+    "ppg1": T_STUCK,  # O2Ring, single reflectance column
+    "ppg": T_STUCK,  # Verity 3-LED (same writer, 3-column branch)
+    "ppg2w": T_STUCK,  # O2Ring raw dual-wavelength (cmd 0x05)
+    "acc": T_STUCK,  # Polar ACC
+    "accraw": T_STUCK,  # O2Ring ACC — a zero-order hold; the classifier catches it
+    "ecg": ECG_RUN_MIN,  # Polar H10 — derived above; NOT T_STUCK, and the table says why
 }
 
 # ── BRACKETING — the sidecar EMITS THE MEASUREMENT and names nothing (owner ruling D5, 2026-09-19) ────
@@ -218,7 +218,7 @@ class ContactLedger:
 
     def note(self, when: _dt.datetime, contact) -> None:
         if contact is None:
-            return                                   # a frame that carried no byte declares nothing
+            return  # a frame that carried no byte declares nothing
         self._q.append((when, int(contact)))
 
     def majority(self, start: _dt.datetime, end: _dt.datetime, tol_s: float = CONTACT_TOL_S) -> str:
@@ -226,7 +226,8 @@ class ContactLedger:
         token; `none` when no frame overlapped. Ties break toward the SMALLER value (0 before 1) so a
         tie between lead-off and normal is reported as lead-off — the conservative reading for a
         consumer deciding whether a measurement exists."""
-        a = start - _dt.timedelta(seconds=tol_s); b = end + _dt.timedelta(seconds=tol_s)
+        a = start - _dt.timedelta(seconds=tol_s)
+        b = end + _dt.timedelta(seconds=tol_s)
         c: dict[int, int] = {}
         for when, v in self._q:
             if a <= when <= b:
@@ -268,15 +269,15 @@ class ContactLedger:
 _ANNOTATION_GAP_MAX = 8
 
 ANNOTATIONS_BY_STREAM = {
-    "ppg1":   frozenset({_oxyii.PPG_BEAT_MARKER}),   # the ring inserts one row per detected beat
-    "ppg2w":  frozenset({_oxyii.PPG_BEAT_MARKER}),
-    "accraw": frozenset(),                            # no annotation is inserted into the ring's ACC
-    "ppg":    frozenset(),                            # Verity: no inserted rows
-    "acc":    frozenset(),                            # Polar: none
-    "ecg":    frozenset(),                            # Polar H10: no inserted rows either
+    "ppg1": frozenset({_oxyii.PPG_BEAT_MARKER}),  # the ring inserts one row per detected beat
+    "ppg2w": frozenset({_oxyii.PPG_BEAT_MARKER}),
+    "accraw": frozenset(),  # no annotation is inserted into the ring's ACC
+    "ppg": frozenset(),  # Verity: no inserted rows
+    "acc": frozenset(),  # Polar: none
+    "ecg": frozenset(),  # Polar H10: no inserted rows either
 }
 
-HELD_WARMUP_RUNS = 64          # runs per WINDOW: the class is decided per window at this grain (below)
+HELD_WARMUP_RUNS = 64  # runs per WINDOW: the class is decided per window at this grain (below)
 # ── THE CLASS IS PER WINDOW, NOT PER NIGHT (residue 2026-09-06-warmup-verdict-goes-stale, 2026-09-22) ──
 # It used to be decided ONCE per channel over the first HELD_WARMUP_RUNS runs and never revisited, so a
 # channel that changed character mid-night kept its opening verdict: a hold that later varied stayed
@@ -325,15 +326,15 @@ HELD_WARMUP_RUNS = 64          # runs per WINDOW: the class is decided per windo
 # at the band's edge (share alternating just under and just over 0.85 — inside p1–p5 of the real hold —
 # never flips), and a variable stream dithering just under entry that never enters. On the 309 optical
 # channels (ppg1 · ppg2w · ppg, 155 files) the rule found 0 holds, so the exit band never engages there.
-HELD_CONFIRM_WINDOWS = 2       # consecutive windows that must agree before the class in force changes
-HELD_EXIT_SHARE = 0.70         # a HELD channel leaves the class only when a window's share falls below this
-HELD_MIN_RUN = 2               # the dominant run length must be an actual REPETITION, never 1
+HELD_CONFIRM_WINDOWS = 2  # consecutive windows that must agree before the class in force changes
+HELD_EXIT_SHARE = 0.70  # a HELD channel leaves the class only when a window's share falls below this
+HELD_MIN_RUN = 2  # the dominant run length must be an actual REPETITION, never 1
 # 0.95 rejected the one true hold in the corpus: accraw measured 0.891/0.891/0.906 — its 6,7 structure
 # was found correctly and then failed the threshold by 0.044, because a real hold's ratio jitters.
 # ⚠️ SET FROM POSITIVES ONLY. This corpus contains no true NEGATIVE with a dominant run length >= 2,
 # so nothing bounds this from above; it is chosen to clear the measured hold with margin, and a
 # counter-example should tighten it rather than be explained away.
-HELD_TOP2_SHARE = 0.85         # share on two adjacent lengths that makes it a hold
+HELD_TOP2_SHARE = 0.85  # share on two adjacent lengths that makes it a hold
 
 _log = logging.getLogger("tepna-capture")
 
@@ -345,7 +346,7 @@ def _write_error_name(exc: BaseException) -> str:
     them apart, and neither can `str(exc)` reliably across libc messages."""
     num = getattr(exc, "errno", None)
     if num is None:
-        return type(exc).__name__          # ValueError: the handle was already closed
+        return type(exc).__name__  # ValueError: the handle was already closed
     return _errno.errorcode.get(num, f"errno {num}")
 
 
@@ -367,12 +368,12 @@ def _do_fsync(dup: int, health) -> None:
     try:
         os.fsync(dup)
     except OSError:
-        pass                # the description went away under us; the rows are still in the kernel
+        pass  # the description went away under us; the rows are still in the kernel
     finally:
         try:
             os.close(dup)
         except OSError:
-            pass            # already closed (a drain raced us): the barrier still ran, nothing owed
+            pass  # already closed (a drain raced us): the barrier still ran, nothing owed
         health.note_fsync((_time.monotonic() - t0) * 1000.0)
 
 
@@ -380,7 +381,7 @@ def _fsync_worker() -> None:
     while True:
         item = _FSYNC_Q.get()
         if item is None:
-            return                          # shutdown sentinel from `_drain_fsync`
+            return  # shutdown sentinel from `_drain_fsync`
         _do_fsync(item[0], item[1])
 
 
@@ -443,10 +444,9 @@ class _FlushHealth:
 
     def _enter(self, exc: BaseException, what: str) -> None:
         if self._failing:
-            return                          # already said so; saying it again only hides the onset
+            return  # already said so; saying it again only hides the onset
         self._failing = True
-        _log.warning("%s: %s (%s) — buffered data may NOT be on disk",
-                     self.path, what, _write_error_name(exc))
+        _log.warning("%s: %s (%s) — buffered data may NOT be on disk", self.path, what, _write_error_name(exc))
 
     def put(self, fh, text: str) -> bool:
         """Append one row, and NEVER raise into the caller.
@@ -499,11 +499,11 @@ class _FlushHealth:
     def fsync(self, fh) -> None:
         """Queue this file's disk barrier. Returns immediately; the stall happens on the worker."""
         if self._fsync_pending:
-            return                          # coalesce: one outstanding barrier per file is enough
+            return  # coalesce: one outstanding barrier per file is enough
         try:
             dup = os.dup(fh.fileno())
         except (OSError, ValueError):
-            return                          # handle already gone: nothing to sync, and not an error
+            return  # handle already gone: nothing to sync, and not an error
         self._fsync_pending = True
         _submit_fsync(dup, self)
 
@@ -514,13 +514,17 @@ class _FlushHealth:
         if ms > self.fsync_max_ms:
             self.fsync_max_ms = ms
         if ms >= self.SLOW_FSYNC_MS and not self._slow_said:
-            self._slow_said = True          # once per file: the onset is the fact, the max is in STATUS
+            self._slow_said = True  # once per file: the onset is the fact, the max is in STATUS
             # ⚠️ NO LONGER "on the event loop" — that clause was true of the old call site and would be
             # a fabricated finding here. A slow barrier still matters (the disk is struggling, and the
             # NEXT one may queue behind it), so it is still said; it just no longer claims to have
             # stalled capture, because it did not.
-            _log.warning("%s: SLOW fsync %.0f ms (off-loop worker) — the disk took that long to "
-                         "confirm the write; capture was not stalled by it", self.path, ms)
+            _log.warning(
+                "%s: SLOW fsync %.0f ms (off-loop worker) — the disk took that long to "
+                "confirm the write; capture was not stalled by it",
+                self.path,
+                ms,
+            )
 
     def ok(self) -> None:
         """Called ONLY from `flush`, never from `close`.
@@ -530,11 +534,11 @@ class _FlushHealth:
         about a file whose tail never landed. The recovery claim belongs to the operation that
         actually wrote."""
         if not self._failing:
-            return                          # the ordinary case: nothing to report about a live file
+            return  # the ordinary case: nothing to report about a live file
         self._failing = False
-        _log.info("%s: writing again, after %d failed flush(es) and %d lost row(s)",
-                  self.path, self.failures, self.rows_lost)
-
+        _log.info(
+            "%s: writing again, after %d failed flush(es) and %d lost row(s)", self.path, self.failures, self.rows_lost
+        )
 
 
 # How many SAMPLE-DATA files are open right now (CAPTURE-HOST-DEEP-AUDIT §A1).
@@ -614,19 +618,34 @@ def live_loss_check(prev: dict | None = None) -> tuple[list[dict], dict]:
             st = os.stat(path)
         except OSError as exc:
             if path in prev:
-                findings.append({"path": path, "kind": "missing", "detail": f"{type(exc).__name__}: {exc}",
-                                 "was": prev[path][0]})
+                findings.append(
+                    {"path": path, "kind": "missing", "detail": f"{type(exc).__name__}: {exc}", "was": prev[path][0]}
+                )
             continue
         snapshot[path] = (st.st_size, st.st_ino)
         was = prev.get(path)
         if was is None:
             continue
         if st.st_ino != was[1]:
-            findings.append({"path": path, "kind": "replaced", "detail": f"inode {was[1]} → {st.st_ino}",
-                             "was": was[0], "now": st.st_size})
+            findings.append(
+                {
+                    "path": path,
+                    "kind": "replaced",
+                    "detail": f"inode {was[1]} → {st.st_ino}",
+                    "was": was[0],
+                    "now": st.st_size,
+                }
+            )
         elif st.st_size < was[0]:
-            findings.append({"path": path, "kind": "shrank", "detail": f"{was[0]} → {st.st_size} bytes",
-                             "was": was[0], "now": st.st_size})
+            findings.append(
+                {
+                    "path": path,
+                    "kind": "shrank",
+                    "detail": f"{was[0]} → {st.st_size} bytes",
+                    "was": was[0],
+                    "now": st.st_size,
+                }
+            )
     return findings, snapshot
 
 
@@ -643,8 +662,9 @@ def live_loss_check(prev: dict | None = None) -> tuple[list[dict], dict]:
 # parsers must keep reading the genuine PSL corpus regardless. The filename here is deliberately
 # UNCHANGED — renaming it would orphan the ~478 nights already on disk. Do not "restore parity"
 # by changing this format; widen the reader instead.
-def capture_filename(vendor: str, model: str, device_id: str, started: _dt.datetime,
-                     stream: str, ext: str = "txt") -> str:
+def capture_filename(
+    vendor: str, model: str, device_id: str, started: _dt.datetime, stream: str, ext: str = "txt"
+) -> str:
     stamp = started.strftime("%Y%m%d%H%M%S")
     return f"{vendor}_{model}_{device_id}_{stamp}_{stream.upper()}.{ext}"
 
@@ -680,7 +700,7 @@ def file_stamp(fname: str) -> str | None:
     parts = base.split("_")
     if len(parts) < 2:
         return None
-    tok = parts[-2]                          # parts[-1] is the stream tag
+    tok = parts[-2]  # parts[-1] is the stream tag
     return tok if _DATE14.match(tok) else None
 
 
@@ -703,8 +723,8 @@ def _newest_set_in(d: str, prefix: str) -> tuple[float, str] | None:
         try:
             m = os.path.getmtime(os.path.join(d, f))
         except OSError:
-            continue      # vanished between listing and stat: it cannot anchor a resume, and one
-                          # such file is not a reason to abandon the others
+            continue  # vanished between listing and stat: it cannot anchor a resume, and one
+            # such file is not a reason to abandon the others
         if newest is None or m > newest[0]:
             newest = (m, st)
     return newest
@@ -734,12 +754,12 @@ def prev_night_dir(ndir: str) -> str | None:
         d = _dt.datetime.strptime(base, "%Y-%m-%d").date()
     except ValueError:
         return None
-    return os.path.join(os.path.dirname(ndir.rstrip(os.sep)),
-                        (d - _dt.timedelta(days=1)).isoformat())
+    return os.path.join(os.path.dirname(ndir.rstrip(os.sep)), (d - _dt.timedelta(days=1)).isoformat())
 
 
-def resumable_set(ndir: str, vendor: str, model: str, device_id: str,
-                  now: _dt.datetime, window_s: float) -> tuple[_dt.datetime, str] | None:
+def resumable_set(
+    ndir: str, vendor: str, model: str, device_id: str, now: _dt.datetime, window_s: float
+) -> tuple[_dt.datetime, str] | None:
     """`(stamp, directory)` of this device's newest resumable set, searching `ndir` AND the previous
     day's folder — or None, meaning mint a fresh set.
 
@@ -809,9 +829,9 @@ def file_device_id(fname: str) -> str | None:
     parts = base.split("_")
     if len(parts) < 3:
         return None
-    i = len(parts) - 2                      # parts[-1] is the stream tag
+    i = len(parts) - 2  # parts[-1] is the stream tag
     if _TIME6.match(parts[i]) and i - 1 >= 0 and _DATE8.match(parts[i - 1]):
-        i -= 1                              # PSL's split stamp: step over HHMMSS onto YYYYMMDD
+        i -= 1  # PSL's split stamp: step over HHMMSS onto YYYYMMDD
     elif not (_DATE14.match(parts[i]) or _DATE8.match(parts[i])):
         return None
     # capture_filename ALWAYS emits vendor_model_id_stamp_tag, so a device id is never the first
@@ -935,8 +955,16 @@ SEAM_BOUND_MS = 60000
 #     with, so a seam is not expressible there, not merely unmeasured.
 #   · CPAP/AS11 carry NO device counter at all (`sensor_ns` appears nowhere in cpap_live.py or
 #     cpap_job.py), so a CPAP seam is a different object and this file does not pretend to cover it.
-SEAM_FED_WRITERS = ("write_ecg", "write_pletha", "write_ppg", "write_ppg2w",
-                    "write_gyro", "write_mag", "write_ppi", "write_hr")
+SEAM_FED_WRITERS = (
+    "write_ecg",
+    "write_pletha",
+    "write_ppg",
+    "write_ppg2w",
+    "write_gyro",
+    "write_mag",
+    "write_ppi",
+    "write_hr",
+)
 
 
 class _SeamSidecar:
@@ -963,8 +991,9 @@ class _SeamSidecar:
     describing the stream better is not worth dropping the notifications that ARE the stream.
     """
 
-    def __init__(self, path: str, stream: str,
-                 seed: "tuple[int, float] | None" = None, first_ns: "int | None" = None) -> None:
+    def __init__(
+        self, path: str, stream: str, seed: "tuple[int, float] | None" = None, first_ns: "int | None" = None
+    ) -> None:
         """`seed` = (sensor_ns, phone_ms) of the LAST row already on disk when this sidecar resumes.
 
         ⚠️ WITHOUT IT, A RESUMED SIDECAR EXAMINES EVERY INTERVAL EXCEPT THE ONE A SEAM CAN OCCUPY.
@@ -1019,7 +1048,7 @@ class _SeamSidecar:
         if self._fh is not None:
             return True
         if self._opened:
-            return False       # tried once and failed; do not retry per sample on the notify path
+            return False  # tried once and failed; do not retry per sample on the notify path
         self._opened = True
         try:
             # RESUME IS THIS FILE'S OWN PROPERTY, self-detected at OPEN time — the idiom the three
@@ -1036,15 +1065,14 @@ class _SeamSidecar:
             resumed = os.path.exists(self.path) and os.path.getsize(self.path) > 0
             self._fh = open(self.path, "a" if resumed else "w", buffering=1 << 16, newline="\n")
             if not resumed:
-
                 # The file reproduces itself: a consumer reads the bound that PRODUCED these rows
                 # rather than whatever the default has moved to since.
-                self._fh.write(f"# stream={self.stream} rule=clock-seam bound_ms={SEAM_BOUND_MS} "
-                               f"unit=ms basis=device-minus-host\n")
-                self._fh.write("phone_ts;idx;device_step_ms;phone_delta_ms;residual_ms;"
-                               "host_offset_ms;at_rel_ms\n")
-            self._flush_pmd_note()     # negotiated before the first sample; write it under the header
-        except OSError:            # a sidecar that cannot open must not stop the recording it annotates
+                self._fh.write(
+                    f"# stream={self.stream} rule=clock-seam bound_ms={SEAM_BOUND_MS} unit=ms basis=device-minus-host\n"
+                )
+                self._fh.write("phone_ts;idx;device_step_ms;phone_delta_ms;residual_ms;host_offset_ms;at_rel_ms\n")
+            self._flush_pmd_note()  # negotiated before the first sample; write it under the header
+        except OSError:  # a sidecar that cannot open must not stop the recording it annotates
             self._fh = None
         return self._fh is not None
 
@@ -1092,7 +1120,7 @@ class _SeamSidecar:
             f"# pmd stream={self.stream} negotiated={'yes' if negotiated else 'no'} "
             f"rate={rate_s} offered={offered_s} configured={cfg_s} assumed={assumed_s}\n"
         )
-        if self._fh is not None:            # already open: this is a re-negotiation, record it now
+        if self._fh is not None:  # already open: this is a re-negotiation, record it now
             self._flush_pmd_note()
 
     def _flush_pmd_note(self) -> None:
@@ -1110,12 +1138,12 @@ class _SeamSidecar:
         Keying on the residual is what separates a step from a dropout: across a dropout both deltas
         grow together and the residual stays small; across a step only the device delta moves."""
         if sensor_ns is None:
-            return             # no device clock on THIS sample: nothing can disagree, so nothing to open
+            return  # no device clock on THIS sample: nothing can disagree, so nothing to open
         if not self._ensure():
             return
         fh = self._fh
-        assert fh is not None    # only reachable when `_ensure` opened it — same narrowing as
-        try:                     # `_RunSidecar.feed`, which is reachable only from an open writer
+        assert fh is not None  # only reachable when `_ensure` opened it — same narrowing as
+        try:  # `_RunSidecar.feed`, which is reachable only from an open writer
             phone_ms = phone.timestamp() * 1000.0
             if self._first_ns is None:
                 self._first_ns = sensor_ns
@@ -1129,7 +1157,8 @@ class _SeamSidecar:
                     host_off = phone_ms - (sensor_ns / 1e6)
                     fh.write(
                         f"{_phone_ts(phone)};{self.examined};{dev_step:.3f};{host_step:.3f};"
-                        f"{residual:.3f};{host_off:.3f};{at_rel:.3f}\n")
+                        f"{residual:.3f};{host_off:.3f};{at_rel:.3f}\n"
+                    )
                     # COUNTED ONLY ONCE THE ROW IS ON THE FILE. The increment used to precede the write,
                     # inside a `try` whose handler deliberately swallows (an annotation must never end a
                     # recording) — so a write that raised left `seams` one AHEAD of the rows, and the
@@ -1139,8 +1168,8 @@ class _SeamSidecar:
                     self.seams += 1
             self._prev_ns = sensor_ns
             self._prev_phone_ms = phone_ms
-        except Exception:          # noqa: BLE001 - an annotation must never end a recording; the
-            pass                   # stream row was already written by the caller either way
+        except Exception:  # noqa: BLE001 - an annotation must never end a recording; the
+            pass  # stream row was already written by the caller either way
 
     def close(self) -> None:
         # A stream that never carried a device clock has NO FILE, deliberately — see `_ensure`. Only a
@@ -1148,10 +1177,9 @@ class _SeamSidecar:
         if self._fh is None:
             return
         try:
-            self._fh.write(f"# final stream={self.stream} seams={self.seams} "
-                           f"examined={self.examined}\n")
+            self._fh.write(f"# final stream={self.stream} seams={self.seams} examined={self.examined}\n")
             self._fh.close()
-        except Exception:          # noqa: BLE001 - closing an annotation cannot fail a night
+        except Exception:  # noqa: BLE001 - closing an annotation cannot fail a night
             pass
         finally:
             self._fh = None
@@ -1184,8 +1212,14 @@ class _RunSidecar:
     # one afternoon — see the BRACKETING block above.)
     HEADER = "Phone timestamp;stream;value;first_index;n_samples;dur_ms;closed;rule;bracket;contact"
 
-    def __init__(self, path: str, stream: str, min_run: int,
-                 annotations: frozenset = frozenset(), contact: "ContactLedger | None" = None):
+    def __init__(
+        self,
+        path: str,
+        stream: str,
+        min_run: int,
+        annotations: frozenset = frozenset(),
+        contact: "ContactLedger | None" = None,
+    ):
         # `<base>.txt` -> `<base>RUNS.txt`, so `…_PPG.txt` gets `…_PPGRUNS.txt` and `…_PPG2W.txt`
         # gets `…_PPG2WRUNS.txt` — derived by rule rather than by a per-stream table that could
         # drift away from the stream names it claims to cover.
@@ -1194,26 +1228,26 @@ class _RunSidecar:
         self.stream = stream
         self.min_run = min_run
         self.annotations = annotations
-        self._contact = contact                     # the device's own word, or None (bracketing only)
+        self._contact = contact  # the device's own word, or None (bracketing only)
         self.runs = 0
-        self.errors = 0                      # swallowed exceptions — isolation must not be silence
-        self._open: dict[str, list] = {}     # channel -> [value, first_index, n, first_phone, last_phone]
-        self._idx: dict[str, int] = {}       # per-channel sample index, independent of row count
-        self._held: dict[str, list] = {}     # a closed run awaiting a possible merge across a gap
-        self._gap: dict[str, list] = {}      # the candidate interruption RUN itself, if one is pending
-        self._merges: dict[str, int] = {}    # spans joined across an interruption, per channel
+        self.errors = 0  # swallowed exceptions — isolation must not be silence
+        self._open: dict[str, list] = {}  # channel -> [value, first_index, n, first_phone, last_phone]
+        self._idx: dict[str, int] = {}  # per-channel sample index, independent of row count
+        self._held: dict[str, list] = {}  # a closed run awaiting a possible merge across a gap
+        self._gap: dict[str, list] = {}  # the candidate interruption RUN itself, if one is pending
+        self._merges: dict[str, int] = {}  # spans joined across an interruption, per channel
         # Hold classification, PER CHANNEL. Pooling channels was measured wrong on the very first
         # Verity test: one noisy channel's singleton runs dominated the histogram and classified the
         # whole stream `held`, suppressing two genuinely stuck channels. A hold is a property of a
         # signal path, not of a file.
-        self.klass: dict[str, str] = {}      # channel -> class IN FORCE: "held" | "variable" | "undecided"
-        self._hist: dict[str, dict[int, int]] = {}   # channel -> {run length: count}, whole stream
+        self.klass: dict[str, str] = {}  # channel -> class IN FORCE: "held" | "variable" | "undecided"
+        self._hist: dict[str, dict[int, int]] = {}  # channel -> {run length: count}, whole stream
         self._whist: dict[str, dict[int, int]] = {}  # channel -> {run length: count}, CURRENT window
-        self._warm: dict[str, int] = {}      # channel -> runs seen in the current window
-        self._win: dict[str, int] = {}       # channel -> index of the current (open) window
-        self._wclass: dict[str, dict[int, str]] = {}   # channel -> {window: class}, decided windows
+        self._warm: dict[str, int] = {}  # channel -> runs seen in the current window
+        self._win: dict[str, int] = {}  # channel -> index of the current (open) window
+        self._wclass: dict[str, dict[int, str]] = {}  # channel -> {window: class}, decided windows
         self._buf: dict[str, dict[int, list[str]]] = {}  # channel -> {window: rows awaiting that window's verdict}
-        self.transitions: dict[str, int] = {}          # channel -> class changes written (the residue's measurand)
+        self.transitions: dict[str, int] = {}  # channel -> class changes written (the residue's measurand)
         self._streak: dict[str, tuple[str, int]] = {}  # channel -> (candidate class, consecutive windows it has held)
         # BRACKETING (D5). `_recent` is the last samples of each channel, annotations excluded — long
         # enough that when a run reaches `min_run` (or a merge carries a span past it) the samples BEFORE
@@ -1222,7 +1256,7 @@ class _RunSidecar:
         # observation rather than a guess; close() flushes them as after=unavailable.
         self._recent: dict[str, _collections.deque] = {}
         self._recent_len = BRACKET_WINDOW + 2 * max(self.min_run, T_STUCK)
-        self._pending: dict[str, list[list]] = {}   # channel -> [[row_args, before, after_samples], …]
+        self._pending: dict[str, list[list]] = {}  # channel -> [[row_args, before, after_samples], …]
         self._fh: TextIO | None = None
         # RESUME IS THIS FILE'S OWN PROPERTY, self-detected — the idiom the other resumable writers
         # here use ("a non-empty file means resume, append, and do not re-emit the header"). This
@@ -1239,18 +1273,20 @@ class _RunSidecar:
                 # The comment carries the RULE, so a reader never has to infer it from the rows —
                 # and an EMPTY sidecar still states what was looked for. A `#` line fails every
                 # consumer's row filter, the same shape `# timebase=` uses.
-                self._fh.write(f"# stream={stream} rule=stuck min_run={min_run} "
-                               f"t_stuck={T_STUCK} merge_gap_max={_ANNOTATION_GAP_MAX} "
-                               f"annotations={','.join(str(a) for a in sorted(annotations)) or 'none'} "
-                               f"held_warmup={HELD_WARMUP_RUNS} "
-                               f"held_top2_share={HELD_TOP2_SHARE} held_exit_share={HELD_EXIT_SHARE} "
-                               f"held_confirm={HELD_CONFIRM_WINDOWS} unit=unknown "
-                               f"bracket_window={BRACKET_WINDOW} bracket_varied_min={BRACKET_VARIED_MIN} "
-                               f"contact_source={'oxyframe' if contact is not None else 'none'} "
-                               f"contact_tol_s={CONTACT_TOL_S:g} contact_rule=majority\n")
+                self._fh.write(
+                    f"# stream={stream} rule=stuck min_run={min_run} "
+                    f"t_stuck={T_STUCK} merge_gap_max={_ANNOTATION_GAP_MAX} "
+                    f"annotations={','.join(str(a) for a in sorted(annotations)) or 'none'} "
+                    f"held_warmup={HELD_WARMUP_RUNS} "
+                    f"held_top2_share={HELD_TOP2_SHARE} held_exit_share={HELD_EXIT_SHARE} "
+                    f"held_confirm={HELD_CONFIRM_WINDOWS} unit=unknown "
+                    f"bracket_window={BRACKET_WINDOW} bracket_varied_min={BRACKET_VARIED_MIN} "
+                    f"contact_source={'oxyframe' if contact is not None else 'none'} "
+                    f"contact_tol_s={CONTACT_TOL_S:g} contact_rule=majority\n"
+                )
                 self._fh.write(self.HEADER + "\n")
         except OSError:
-            self._fh = None                  # a sidecar that cannot open must never stop the capture
+            self._fh = None  # a sidecar that cannot open must never stop the capture
             self.errors += 1
 
     def feed(self, channel: str, value: int, phone: _dt.datetime) -> None:
@@ -1307,18 +1343,18 @@ class _RunSidecar:
     def _before_from_recent(self, channel: str, own: int) -> str:
         """The class of the BRACKET_WINDOW samples preceding a span whose last `own` samples are the
         newest entries of the deque. Fewer than a full window before it ⇒ unavailable."""
-        dq = self._recent[channel]                  # exists: the run's own samples were noted first
+        dq = self._recent[channel]  # exists: the run's own samples were noted first
         avail = len(dq) - own
         if avail < BRACKET_WINDOW:
             return BRACKET_UNAVAILABLE
         seq = list(dq)
-        return bracket_side(seq[avail - BRACKET_WINDOW:avail])
+        return bracket_side(seq[avail - BRACKET_WINDOW : avail])
 
     def _write_bracketed(self, row: list, after: str) -> None:
         args, before, _after_samples, window = row
         # args = (channel, value, first_index, n, dur_ms, closed, rule, first_phone)
         contact = CONTACT_NONE
-        if self._contact is not None:          # rows reach here from _emit only, always stamped
+        if self._contact is not None:  # rows reach here from _emit only, always stamped
             contact = self._contact.majority(args[7], args[7] + _dt.timedelta(milliseconds=args[4]))
         self.emit_run(*args, bracket=f"{before}/{after}", contact=contact, window=window)
 
@@ -1343,10 +1379,10 @@ class _RunSidecar:
             # span INCLUDING the interrupting samples, because the span is what was not measured,
             # not a tally of samples at one value.
             gap = self._gap.pop(channel)
-            own_before = held[2] + run[2]             # the merged span's own NON-annotation samples in the deque
+            own_before = held[2] + run[2]  # the merged span's own NON-annotation samples in the deque
             held[2] += gap[2] + run[2]
             held[4] = run[4]
-            held[5] = run[5]                          # the span inherits the last component's fate
+            held[5] = run[5]  # the span inherits the last component's fate
             if held[6] is None and held[2] >= self.min_run:
                 # Reportable only by merging — neither component reached min_run on its own, so `before`
                 # was never captured. The deque still ends with both components' samples (the gap's
@@ -1354,8 +1390,12 @@ class _RunSidecar:
                 held[6] = self._before_from_recent(channel, own_before)
             self._merges[channel] = self._merges.get(channel, 0) + 1
             return
-        if (held is not None and channel not in self._gap
-                and run[0] in self.annotations and run[2] <= _ANNOTATION_GAP_MAX):
+        if (
+            held is not None
+            and channel not in self._gap
+            and run[0] in self.annotations
+            and run[2] <= _ANNOTATION_GAP_MAX
+        ):
             # A short run of a DECLARED ANNOTATION value: hold it as a candidate interruption, pending
             # the next run. Anything else — including a short run of ordinary signal — is a real
             # measurement and is never merged over.
@@ -1379,13 +1419,13 @@ class _RunSidecar:
     def _emit(self, channel: str, run: list, closed: int, after_seed=None) -> None:
         value, first_index, n, first_phone, last_phone, _eof, before = run
         h = self._hist.setdefault(channel, {})
-        h[n] = h.get(n, 0) + 1                       # EVERY run, threshold or not — the shape needs all
+        h[n] = h.get(n, 0) + 1  # EVERY run, threshold or not — the shape needs all
         wh = self._whist.setdefault(channel, {})
-        wh[n] = wh.get(n, 0) + 1                     # …and the CURRENT window's share of it
+        wh[n] = wh.get(n, 0) + 1  # …and the CURRENT window's share of it
         window = self._win.setdefault(channel, 0)
         self._warm[channel] = self._warm.get(channel, 0) + 1
         if self._warm[channel] >= HELD_WARMUP_RUNS:
-            self._decide(channel, first_phone)       # closes this window; the row below belongs to it
+            self._decide(channel, first_phone)  # closes this window; the row below belongs to it
         if n < self.min_run:
             return
         # dur_ms rides the HOST stamps the rows already carry (Clock Contract §7): the span is
@@ -1406,18 +1446,31 @@ class _RunSidecar:
         else:
             self._pending.setdefault(channel, []).append(row)
 
-    def emit_run(self, stream: str, value, first_index: int, n: int, dur_ms: float,
-                 closed: int, rule: str, stamp: _dt.datetime | None = None, *,
-                 bracket: str = f"{BRACKET_UNAVAILABLE}/{BRACKET_UNAVAILABLE}",
-                 contact: str = CONTACT_NONE, window: int | None = None) -> None:
+    def emit_run(
+        self,
+        stream: str,
+        value,
+        first_index: int,
+        n: int,
+        dur_ms: float,
+        closed: int,
+        rule: str,
+        stamp: _dt.datetime | None = None,
+        *,
+        bracket: str = f"{BRACKET_UNAVAILABLE}/{BRACKET_UNAVAILABLE}",
+        contact: str = CONTACT_NONE,
+        window: int | None = None,
+    ) -> None:
         """THE seam. Any detector that finds a span writes it through here — `constant-run` from this
         accumulator, `rail-run`/`held` from a back-check — so every span in the corpus lands in one
         file shape with the rule that found it named in its own column. A second writer would be a
         second shape to reconcile later."""
         if self._fh is None:
             return
-        line = (f"{_phone_ts(stamp) if stamp is not None else ''};{stream};{value};{first_index};{n};"
-                f"{dur_ms:.1f};{closed};{rule};{bracket};{contact}\n")
+        line = (
+            f"{_phone_ts(stamp) if stamp is not None else ''};{stream};{value};{first_index};{n};"
+            f"{dur_ms:.1f};{closed};{rule};{bracket};{contact}\n"
+        )
         if n >= T_STUCK:
             # A `held` channel can still get STUCK, and the hold class must never hide that. The ring's
             # ACC repeats each sample 6-7 times BY DESIGN; 200 identical samples is 20 s of one triplet,
@@ -1430,8 +1483,7 @@ class _RunSidecar:
             # (the after-side arrived late) is written or dropped by that window's verdict now; a row
             # for the open window waits for it. An external emitter (a back-check) names no window and
             # is judged by the class in force.
-            k = (self._wclass.get(stream, {}).get(window) if window is not None
-                 else self.klass.get(stream))
+            k = self._wclass.get(stream, {}).get(window) if window is not None else self.klass.get(stream)
             if k is None:
                 self._buf.setdefault(stream, {}).setdefault(-1 if window is None else window, []).append(line)
             elif k != "held":
@@ -1443,7 +1495,7 @@ class _RunSidecar:
         window's class is recorded, its buffered rows are released or dropped by it, a transition line
         is written when it differs from the class in force, and the next window opens."""
         fh = self._fh
-        assert fh is not None    # only reachable from feed(), which returns early on a closed handle
+        assert fh is not None  # only reachable from feed(), which returns early on a closed handle
         hist = self._whist.get(channel, {})
         tot = sum(hist.values()) or 1
         best, share = 0, 0.0
@@ -1473,10 +1525,12 @@ class _RunSidecar:
             klass = measured
             if in_force is not None:
                 self.transitions[channel] = self.transitions.get(channel, 0) + 1
-            fh.write(f"# stream={self.stream} channel={channel} class={klass} "
-                     f"ratio={mean:.1f} top2={best},{best + 1} share={share:.3f} "
-                     f"decided_at={sum(self._hist.get(channel, {}).values())}runs window={window} "
-                     f"confirmed={streak} at={_phone_ts(at) if at is not None else ''}\n")
+            fh.write(
+                f"# stream={self.stream} channel={channel} class={klass} "
+                f"ratio={mean:.1f} top2={best},{best + 1} share={share:.3f} "
+                f"decided_at={sum(self._hist.get(channel, {}).values())}runs window={window} "
+                f"confirmed={streak} at={_phone_ts(at) if at is not None else ''}\n"
+            )
         else:
             klass = in_force
         self._wclass.setdefault(channel, {})[window] = klass
@@ -1503,7 +1557,7 @@ class _RunSidecar:
             # An open run may still merge into a held span, so resolve the pipeline in order:
             # close the open run (which may extend a held span), then flush whatever is held.
             for channel, run in list(self._open.items()):
-                run[5] = True                         # this run was still accumulating at EOF
+                run[5] = True  # this run was still accumulating at EOF
                 self._close_run(channel, run)
             self._open.clear()
             for channel, stale in list(self._gap.items()):
@@ -1543,8 +1597,10 @@ class _RunSidecar:
                 # case that produces too few runs to classify, and it is the case the sidecar exists
                 # for. On weak evidence, emit and say so; never withhold.
                 self.klass[channel] = "undecided"
-                self._fh.write(f"# stream={self.stream} channel={channel} class=undecided "
-                               f"decided_at={self._warm.get(channel, 0)}runs reason=too-few-runs\n")
+                self._fh.write(
+                    f"# stream={self.stream} channel={channel} class=undecided "
+                    f"decided_at={self._warm.get(channel, 0)}runs reason=too-few-runs\n"
+                )
                 for w in sorted(waiting):
                     for line in waiting.pop(w):
                         self._fh.write(line)
@@ -1553,13 +1609,15 @@ class _RunSidecar:
             for channel, hist in self._hist.items():
                 tot = sum(hist.values()) or 1
                 mean = sum(k * v for k, v in hist.items()) / tot
-                self._fh.write(f"# final channel={channel} total_runs={tot} mean_run={mean:.2f} "
-                               f"merges={self._merges.get(channel, 0)} "
-                               f"examined={self._idx.get(channel, 0)} "
-                               f"class={self.klass.get(channel, 'undecided')} "
-                               f"windows={len(self._wclass.get(channel, {}))} "
-                               f"transitions={self.transitions.get(channel, 0)} "
-                               f"partial={1 if channel in partial else 0}\n")
+                self._fh.write(
+                    f"# final channel={channel} total_runs={tot} mean_run={mean:.2f} "
+                    f"merges={self._merges.get(channel, 0)} "
+                    f"examined={self._idx.get(channel, 0)} "
+                    f"class={self.klass.get(channel, 'undecided')} "
+                    f"windows={len(self._wclass.get(channel, {}))} "
+                    f"transitions={self.transitions.get(channel, 0)} "
+                    f"partial={1 if channel in partial else 0}\n"
+                )
             # WHAT WAS EXAMINED, ALWAYS — the mechanism, not a comment.
             #
             # `runs=0` alone cannot distinguish "read 66,535 samples and found no qualifying span" from
@@ -1569,8 +1627,10 @@ class _RunSidecar:
             # file is the whole point — it means "looked" — and the version that could not tell the two
             # apart went out anyway. `examined` makes them different BYTES; a comment asserting the
             # distinction is not a mechanism for detecting its absence.
-            self._fh.write(f"# runs={self.runs} errors={self.errors} "
-                           f"examined={sum(self._idx.values())} channels={len(self._idx)}\n")
+            self._fh.write(
+                f"# runs={self.runs} errors={self.errors} "
+                f"examined={sum(self._idx.values())} channels={len(self._idx)}\n"
+            )
         except Exception:
             self.errors += 1
         finally:
@@ -1586,8 +1646,8 @@ class StreamWriter:
 
     # PSL-compatible headers, keyed by stream. `;`-separated, exactly as Polar Sensor Logger exports.
     HEADERS = {
-        "ecg":  "Phone timestamp;sensor timestamp [ns];timestamp [ms];ecg [uV]",
-        "acc":  "Phone timestamp;sensor timestamp [ns];X [mg];Y [mg];Z [mg]",
+        "ecg": "Phone timestamp;sensor timestamp [ns];timestamp [ms];ecg [uV]",
+        "acc": "Phone timestamp;sensor timestamp [ns];X [mg];Y [mg];Z [mg]",
         # THE O2RING'S 3-AXIS ACC (cmd 0x14), its own stream key for the reason `ppg1`/`ppg2w` have
         # theirs: the column set IS the contract a reader resolves units from, and these are RAW COUNTS.
         # Polar publishes a scale so `acc` can honestly say mg; the ring's vendor publishes none, and
@@ -1599,7 +1659,7 @@ class StreamWriter:
         # opcode, exactly as on 0x05. A zero column reads as "no device timebase"; a plausible number
         # would read as a measurement that never happened.
         "accraw": "Phone timestamp;sensor timestamp [ns];X [raw];Y [raw];Z [raw]",
-        "ppg":  "Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;ambient",
+        "ppg": "Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;ambient",
         # SINGLE-optical-column PPG — the O2Ring finger site (PPGDEX-O2RING-FINGER-SITE §3). Its own
         # stream key rather than a variant of "ppg", so the header and the row shape cannot drift
         # apart: PpgDex resolves the layout by COUNTING the named optical columns, and a 3-column
@@ -1624,10 +1684,10 @@ class StreamWriter:
         # the HRV/Breathing columns exist in the header but PSL leaves them empty — and the per-beat RR
         # intervals go to a sibling _RR.txt. Matching this lets ONE parser read Vigil and genuine Polar
         # Sensor Logger captures: PulseDex.parseRRInput and ECGDex's `_RR` routing both expect a _RR.txt.
-        "hr":   "Phone timestamp;HR [bpm];HRV [ms];Breathing interval [rpm];",
-        "rr":   "Phone timestamp;RR-interval [ms]",
+        "hr": "Phone timestamp;HR [bpm];HRV [ms];Breathing interval [rpm];",
+        "rr": "Phone timestamp;RR-interval [ms]",
         "gyro": "Phone timestamp;sensor timestamp [ns];X [dps];Y [dps];Z [dps]",
-        "mag":  "Phone timestamp;sensor timestamp [ns];X [G];Y [G];Z [G]",
+        "mag": "Phone timestamp;sensor timestamp [ns];X [G];Y [G];Z [G]",
         # PPI was the ONE stream of the eight whose header did not match a real PSL export, verified
         # against all 107 `_PPI.txt` files in the Polar Sensor Logger corpus (one distinct header, no
         # variants). It carried an extra `sensor timestamp [ns]` column and put HR THIRD where PSL puts
@@ -1635,12 +1695,18 @@ class StreamWriter:
         # Every such value is rejected by an interval sanity band, so a live stream read as ZERO usable
         # beats: 21 871 real rows on the box on 2026-08-04 would have counted as none. That is the exact
         # shape of "the Verity's PPI is dead", which is the conclusion this layout would have manufactured.
-        "ppi":  "Phone Data RX timestamp;PP-interval [ms];error estimate [ms];blocker;contact;contact;hr [bpm]",
+        "ppi": "Phone Data RX timestamp;PP-interval [ms];error estimate [ms];blocker;contact;contact;hr [bpm]",
     }
 
-    def __init__(self, path: str, stream: str, flush_interval: float = FLUSH_INTERVAL_S,
-                 fsync: bool = True, timebase: str | None = None,
-                 contact: "ContactLedger | None" = None):
+    def __init__(
+        self,
+        path: str,
+        stream: str,
+        flush_interval: float = FLUSH_INTERVAL_S,
+        fsync: bool = True,
+        timebase: str | None = None,
+        contact: "ContactLedger | None" = None,
+    ):
         self.path = path
         self._health = _FlushHealth(path)
         self.stream = stream
@@ -1686,16 +1752,16 @@ class StreamWriter:
         self._rr_path: str | None = None
         if stream == "hr":
             rr_path = "_RR.".join(path.rsplit("_HR.", 1))
-            if rr_path == path:                       # path lacks the "_HR." token — never collide with it
+            if rr_path == path:  # path lacks the "_HR." token — never collide with it
                 base, dot, ext = path.rpartition(".")
                 rr_path = f"{base}_RR.{ext}" if dot else path + "_RR"
             _rr_resume = self.resumed and os.path.exists(rr_path) and os.path.getsize(rr_path) > 0
             self._rr_fh = open(rr_path, "a" if _rr_resume else "w", buffering=1 << 20, newline="\n")
             if not _rr_resume:
                 self._rr_fh.write(self.HEADERS["rr"] + "\n")
-            self._rr_path = rr_path                   # remembered so `paths`/`discard` can see it
+            self._rr_path = rr_path  # remembered so `paths`/`discard` can see it
         self._n = 0
-        self._first_ns: int | None = None   # per-file anchor for the relative `timestamp [ms]` column
+        self._first_ns: int | None = None  # per-file anchor for the relative `timestamp [ms]` column
         # §3.2 (no re-anchor): on a resumed ECG file the relative `timestamp [ms]` column must keep the
         # ORIGINAL anchor — left to its lazy init it would restart at 0.0 mid-file, and ECGDex's headless
         # parser infers fs from this column's STEP, so one reset fabricates a step the size of the whole
@@ -1711,7 +1777,7 @@ class StreamWriter:
                             self._first_ns = int(_c[1])
                             break
             except OSError:
-                pass                       # unreadable ⇒ lazy init; worse column, never a crash
+                pass  # unreadable ⇒ lazy init; worse column, never a crash
         # The constant-run sidecar, for optical streams only. Built LAST among the file handles so a
         # failure here cannot leave the sample file half-open; `_RunSidecar` swallows its own OSError
         # for the same reason — the recording must not fail because a note about it could not.
@@ -1720,9 +1786,13 @@ class StreamWriter:
         self._axis_labels = tuple(self.HEADERS[stream].split(";")[2:5]) if stream in self.HEADERS else ()
         self._runs: _RunSidecar | None = None
         if stream in RUN_MIN_BY_STREAM:
-            self._runs = _RunSidecar(path, stream, RUN_MIN_BY_STREAM[stream],
-                                     annotations=ANNOTATIONS_BY_STREAM.get(stream, frozenset()),
-                                     contact=contact)
+            self._runs = _RunSidecar(
+                path,
+                stream,
+                RUN_MIN_BY_STREAM[stream],
+                annotations=ANNOTATIONS_BY_STREAM.get(stream, frozenset()),
+                contact=contact,
+            )
         # §1.4: seams are emitted where the clocks ARRIVE. Every device-clocked writer already
         # receives `phone` and `sensor_ns` taken at the notification, so recording here costs no
         # timing quality — the stamps are passed in, not re-taken.
@@ -1739,7 +1809,7 @@ class StreamWriter:
         self._flush_interval = flush_interval
         self._fsync = fsync
         self._last_flush = _time.monotonic()
-        self._counted = True                # last: only a writer that fully opened is an open writer
+        self._counted = True  # last: only a writer that fully opened is an open writer
         _writer_opened(self.path, id(self))
 
     # `timestamp [ms]` in a real PSL export is RELATIVE to the recording's first sample and FRACTIONAL:
@@ -1752,7 +1822,7 @@ class StreamWriter:
             self._first_ns = sensor_ns
         v = (sensor_ns - self._first_ns) / 1e6
         s = f"{v:.6f}".rstrip("0").rstrip(".")
-        return s + ".0" if "." not in s else s   # "0" -> "0.0", "30.769280" -> "30.76928"
+        return s + ".0" if "." not in s else s  # "0" -> "0.0", "30.769280" -> "30.76928"
 
     # --- per-stream row appenders -------------------------------------------------------------
     # `phone` = host arrival datetime (local); `sensor_ns` = Polar device-clock ns of the sample
@@ -1771,8 +1841,7 @@ class StreamWriter:
             self._runs.feed("ecg [uV]", uv, phone)
         self._row(f"{_phone_ts(phone)};{sensor_ns};{self._rel_ms(sensor_ns)};{uv}\n")
 
-    def write_acc(self, phone: _dt.datetime, sensor_ns: int | None, t_ms: float,
-                  x: int, y: int, z: int) -> None:
+    def write_acc(self, phone: _dt.datetime, sensor_ns: int | None, t_ms: float, x: int, y: int, z: int) -> None:
         self._row(f"{_phone_ts(phone)};{_ns_col(sensor_ns)};{x};{y};{z}\n")
         # ACC feeds the run sidecar like the optical streams do. It was CREATING a sidecar and never
         # feeding it — `RUN_MIN_BY_STREAM` carries `acc`/`accraw`, so the file existed, said
@@ -1793,8 +1862,7 @@ class StreamWriter:
         self._seams.feed(phone, sensor_ns)
         self._row(f"{_phone_ts(phone)};{_ns_col(sensor_ns)};{sample};{beat}\n")
 
-    def write_ppg2w(self, phone: _dt.datetime, sensor_ns: int | None, ch0: int, ch1: int,
-                    motion: int) -> None:
+    def write_ppg2w(self, phone: _dt.datetime, sensor_ns: int | None, ch0: int, ch1: int, motion: int) -> None:
         """One raw dual-wavelength sample (O2Ring cmd=0x05).
 
         A SEPARATE method rather than a branch inside `write_ppg`, because that function selects its
@@ -1803,7 +1871,7 @@ class StreamWriter:
         header and the row shape drift apart, which is the exact failure `ppg1` exists to prevent."""
         self._seams.feed(phone, sensor_ns)
         self._row(f"{_phone_ts(phone)};{_ns_col(sensor_ns)};{ch0};{ch1};{motion}\n")
-        if self._runs is not None:          # both optical channels; `motion` is not an optical wave
+        if self._runs is not None:  # both optical channels; `motion` is not an optical wave
             self._runs.feed("channel 0", ch0, phone)
             self._runs.feed("channel 1", ch1, phone)
 
@@ -1849,8 +1917,7 @@ class StreamWriter:
         # carry no usable device clock (every row the box has written has sensor_ns == 0), which is what
         # nightqc.file_span_sec already assumes when it says "HR/RR/PPI carry no device clock".
         self._seams.feed(phone, sensor_ns)
-        self._row(f"{_phone_ts(phone)};{pp_ms};{err_ms};"
-                       f"{flags & 1};{(flags >> 1) & 1};{(flags >> 2) & 1};{hr}\n")
+        self._row(f"{_phone_ts(phone)};{pp_ms};{err_ms};{flags & 1};{(flags >> 1) & 1};{(flags >> 2) & 1};{hr}\n")
 
     def write_hr(self, phone: _dt.datetime, sensor_ns: int, bpm: int, rr_ms: Iterable[int]) -> None:
         # FED EVEN THOUGH THE ROW DROPS sensor_ns. PSL's _HR/_RR carry only the phone timestamp, but
@@ -1939,14 +2006,16 @@ class StreamWriter:
         # The constant-run sidecar is a THIRD owned file and belongs here for the same reason the RR
         # sibling does: a header-only session that prunes `path` alone would leave a `…RUNS.txt`
         # orphan describing a recording that no longer exists — §C8's failure with a new filename.
-        return ([self.path]
-                + ([self._rr_path] if self._rr_path else [])
-                + ([self._runs.path] if self._runs is not None else [])
-                # The writer owns its seam sidecar, so `discard()` unlinks it with everything else —
-                # but ONLY IF IT EXISTS. It opens lazily, on the first sample carrying a device clock,
-                # so a header-only session and every CPAP stream have no such file and must not report
-                # one (test_discarding_a_single_file_writer_is_unchanged).
-                + ([self._seams.path] if self._seams.opened else []))
+        return (
+            [self.path]
+            + ([self._rr_path] if self._rr_path else [])
+            + ([self._runs.path] if self._runs is not None else [])
+            # The writer owns its seam sidecar, so `discard()` unlinks it with everything else —
+            # but ONLY IF IT EXISTS. It opens lazily, on the first sample carrying a device clock,
+            # so a header-only session and every CPAP stream have no such file and must not report
+            # one (test_discarding_a_single_file_writer_is_unchanged).
+            + ([self._seams.path] if self._seams.opened else [])
+        )
 
     def discard(self) -> None:
         """Close and unlink everything this writer owns. The teardown path for a session that produced
@@ -1956,8 +2025,8 @@ class StreamWriter:
             try:
                 os.remove(p)
             except OSError:
-                pass          # a header-only file we could not unlink stays on disk carrying 0 rows:
-                              # inert, and failing the teardown over it would be worse
+                pass  # a header-only file we could not unlink stays on disk carrying 0 rows:
+                # inert, and failing the teardown over it would be worse
 
     def close(self) -> None:
         try:
@@ -1968,8 +2037,8 @@ class StreamWriter:
         except Exception as _e:
             self._health.failed(_e)
         try:
-            if self._runs is not None:      # OUTSIDE the block above: a failed sample-file close must
-                self._runs.close()          # still flush the open runs, and vice versa
+            if self._runs is not None:  # OUTSIDE the block above: a failed sample-file close must
+                self._runs.close()  # still flush the open runs, and vice versa
             # Same reasoning one line down: the seam sidecar must say it LOOKED even when it found
             # nothing, because an honest-empty file and one that never ran are the same bytes.
             self._seams.close()
@@ -2020,16 +2089,26 @@ class StreamWriter:
 # writer tests that read `cells[-3]`/`[-2]`/`[-1]` onto different columns — one asserted `flag_raw`
 # and got `199` from `ppg_offset`. Read the header line and look the name up, as `oxydex-dsp.js` does.
 OXYFRAME_COLUMNS = (
-    "Phone timestamp", "duration_s", "pi_pct", "motion", "spo2", "pr", "contact", "battery_pct",
-    "batt_state", "flag",          # ── the original 10
-    "ppg_n", "ppg_dur_step",       # O2RING-FRAME-SAMPLE-LOCK §7
-    "ppg_offset", "flag_raw",      # DEVICE-RATE-TRUTH §6.1
-    "alarm_raw",                   # RT_PARAM byte [14], four 2-bit alarm/IV subfields, raw and
-                                   # uninterpreted (2026-09-06). Blank when the frame was too short
-                                   # to carry it — an absent byte is not a quiet alarm.
-    "run_status",                  # OXYII-PRESENCE-MODEL §5: parsed since day one, never persisted —
-                                   # so no night could answer whether payload[4] discriminates states.
-                                   # Recorded raw; interpretation happens in the brief, not here.
+    "Phone timestamp",
+    "duration_s",
+    "pi_pct",
+    "motion",
+    "spo2",
+    "pr",
+    "contact",
+    "battery_pct",
+    "batt_state",
+    "flag",  # ── the original 10
+    "ppg_n",
+    "ppg_dur_step",  # O2RING-FRAME-SAMPLE-LOCK §7
+    "ppg_offset",
+    "flag_raw",  # DEVICE-RATE-TRUTH §6.1
+    "alarm_raw",  # RT_PARAM byte [14], four 2-bit alarm/IV subfields, raw and
+    # uninterpreted (2026-09-06). Blank when the frame was too short
+    # to carry it — an absent byte is not a quiet alarm.
+    "run_status",  # OXYII-PRESENCE-MODEL §5: parsed since day one, never persisted —
+    # so no night could answer whether payload[4] discriminates states.
+    # Recorded raw; interpretation happens in the brief, not here.
 )
 OXYFRAME_HEADER = ";".join(OXYFRAME_COLUMNS)
 
@@ -2104,18 +2183,36 @@ class OxyFrameLogWriter:
         must not claim `ppg_n = 0`, which would read as "the ring declared no samples". `step` is None
         on the first row of a session and across a session restart, where no step exists to measure —
         again blank, because 0 there would assert a step we never observed."""
+
         def _f(v):
             return "" if v is None else str(v)
+
         p = ppg or {}
         stamp = when.strftime("%Y-%m-%dT%H:%M:%S.") + f"{when.microsecond // 1000:03d}"
-        landed = self._health.put(self._fh, ";".join((stamp, _f(live.get("duration")), _f(live.get("pi")),
-                                 _f(live.get("motion")), _f(live.get("spo2")), _f(live.get("pr")),
-                                 _f(live.get("contact")), _f(live.get("batt")),
-                                 _f(live.get("batt_state")), _f(live.get("flag")),
-                                 _f(p.get("n")), _f(p.get("step")),
-                                 _f(p.get("offset")), _f(live.get("flag_raw")),
-                                 _f(live.get("alarm_raw")),
-                                 _f(live.get("run_status")))) + "\n")
+        landed = self._health.put(
+            self._fh,
+            ";".join(
+                (
+                    stamp,
+                    _f(live.get("duration")),
+                    _f(live.get("pi")),
+                    _f(live.get("motion")),
+                    _f(live.get("spo2")),
+                    _f(live.get("pr")),
+                    _f(live.get("contact")),
+                    _f(live.get("batt")),
+                    _f(live.get("batt_state")),
+                    _f(live.get("flag")),
+                    _f(p.get("n")),
+                    _f(p.get("step")),
+                    _f(p.get("offset")),
+                    _f(live.get("flag_raw")),
+                    _f(live.get("alarm_raw")),
+                    _f(live.get("run_status")),
+                )
+            )
+            + "\n",
+        )
         if landed:
             self.rows += 1
         now = _time.monotonic()
@@ -2178,8 +2275,9 @@ class HostClockLogWriter:
     TELEMETRY, not physiology: never a `ganglior.node-export` metric, never an evidence badge.
     """
 
-    def __init__(self, path: str, flush_interval: float = FLUSH_INTERVAL_S, fsync: bool = True,
-                 geo: dict | None = None):
+    def __init__(
+        self, path: str, flush_interval: float = FLUSH_INTERVAL_S, fsync: bool = True, geo: dict | None = None
+    ):
         self.path = path
         self._health = _FlushHealth(path)
         self._fh = open(path, "w", buffering=1 << 16, newline="\n")
@@ -2193,15 +2291,17 @@ class HostClockLogWriter:
         if geo:
             self._fh.write(
                 "# elevation_m=%s fix=%s sats=%s hdop=%s source=%s\n"
-                % (geo.get("elevation_m"), geo.get("fix_quality"), geo.get("sats"),
-                   geo.get("hdop"), geo.get("source")))
+                % (geo.get("elevation_m"), geo.get("fix_quality"), geo.get("sats"), geo.get("hdop"), geo.get("source"))
+            )
         # chrony_skew_ppm then timebase are APPENDED LAST so a positional reader of the earlier columns is
         # unaffected — the same "never shift an existing column" discipline LinkLogWriter keeps.
         # chrony_skew_ppm = clock-frequency precision (ppm error bound), chrony-only, blank on timesyncd.
         # timebase = the RATE reference this capture is analysed on, 'device-crystal' | 'host-disciplined'
         # (host_clock.timebase_decision); the Stage-3 decision, recorded per capture (O2RING-ADAPTIVE-TIMEBASE).
-        self._fh.write("Phone timestamp;trust;absolute_ok;synchronized;server;stratum;reference;"
-                       "root_dispersion_ms;jitter_us;packet_count;reason;chrony_skew_ppm;timebase\n")
+        self._fh.write(
+            "Phone timestamp;trust;absolute_ok;synchronized;server;stratum;reference;"
+            "root_dispersion_ms;jitter_us;packet_count;reason;chrony_skew_ppm;timebase\n"
+        )
         self.rows = 0
         self._flush_interval = flush_interval
         self._fsync = fsync
@@ -2210,19 +2310,36 @@ class HostClockLogWriter:
     def write(self, when: _dt.datetime, st: dict) -> None:
         """Blank, never 0/false, for an absent field — a fabricated value here would be a fabricated
         claim about how well-sourced the night's timestamps are."""
+
         def _f(v):
             if v is None:
                 return ""
             if isinstance(v, bool):
                 return "1" if v else "0"
             return str(v)
+
         stamp = when.strftime("%Y-%m-%dT%H:%M:%S.") + f"{when.microsecond // 1000:03d}"
-        landed = self._health.put(self._fh, ";".join((
-            stamp, _f(st.get("trust")), _f(st.get("absolute_ok")), _f(st.get("synchronized")),
-            _f(st.get("server")), _f(st.get("stratum")), _f(st.get("reference")),
-            _f(st.get("root_dispersion_ms")), _f(st.get("jitter_us")), _f(st.get("packet_count")),
-            str(st.get("reason") or "").replace(";", ","), _f(st.get("chrony_skew_ppm")),
-            _f(st.get("timebase")))) + "\n")
+        landed = self._health.put(
+            self._fh,
+            ";".join(
+                (
+                    stamp,
+                    _f(st.get("trust")),
+                    _f(st.get("absolute_ok")),
+                    _f(st.get("synchronized")),
+                    _f(st.get("server")),
+                    _f(st.get("stratum")),
+                    _f(st.get("reference")),
+                    _f(st.get("root_dispersion_ms")),
+                    _f(st.get("jitter_us")),
+                    _f(st.get("packet_count")),
+                    str(st.get("reason") or "").replace(";", ","),
+                    _f(st.get("chrony_skew_ppm")),
+                    _f(st.get("timebase")),
+                )
+            )
+            + "\n",
+        )
         if landed:
             self.rows += 1
         now = _time.monotonic()
@@ -2352,20 +2469,30 @@ def append_worn_decision(root, when, device, address, worn, why, trigger: str, v
         with open(path, "a", newline="\n") as fh:
             if not resumed:
                 fh.write("Phone timestamp;device;address;worn;why;trigger;votes\n")
-            fh.write(";".join((
-                _phone_ts(when),
-                _worn_cell(device), _worn_cell(address),
-                # §∅ — an abstention is BLANK, never `0`. `worn_verdict` returns None when no detector
-                # was available or in domain, which is not the same claim as not-worn.
-                "" if worn is None else ("1" if worn else "0"),
-                _worn_cell(why), _worn_cell(trigger), _worn_cell(worn_votes_cell(votes)))) + "\n")
+            fh.write(
+                ";".join(
+                    (
+                        _phone_ts(when),
+                        _worn_cell(device),
+                        _worn_cell(address),
+                        # §∅ — an abstention is BLANK, never `0`. `worn_verdict` returns None when no detector
+                        # was available or in domain, which is not the same claim as not-worn.
+                        "" if worn is None else ("1" if worn else "0"),
+                        _worn_cell(why),
+                        _worn_cell(trigger),
+                        _worn_cell(worn_votes_cell(votes)),
+                    )
+                )
+                + "\n"
+            )
         return True
     except Exception:
         return False
 
 
-def append_clock_sync_event(root, when: _dt.datetime, device, address, event: str,
-                            skew_s: float | None = None, detail: str | None = None) -> bool:
+def append_clock_sync_event(
+    root, when: _dt.datetime, device, address, event: str, skew_s: float | None = None, detail: str | None = None
+) -> bool:
     """Append ONE device clock-sync outcome to the night's own `CLOCKSYNC.csv` sidecar.
 
     THE PER-NIGHT EVIDENCE CHANNEL (H10-2019-ORIGIN, 2026-09-01). `auto_sync_clock` and
@@ -2409,23 +2536,29 @@ def append_clock_sync_event(root, when: _dt.datetime, device, address, event: st
         with open(path, "a", encoding="utf-8", newline="\n") as fh:
             if fresh:
                 fh.write(_CLOCKSYNC_HEADER)
-            fh.write(";".join((
-                _phone_ts(when),
-                str(device or ""),
-                str(address or ""),
-                str(event),
-                "" if skew_s is None else f"{skew_s:.3f}",
-                # blank, never a fabricated value; ; and newlines would corrupt the row shape
-                str(detail or "").replace(";", ",").replace("\n", " "),
-            )) + "\n")
+            fh.write(
+                ";".join(
+                    (
+                        _phone_ts(when),
+                        str(device or ""),
+                        str(address or ""),
+                        str(event),
+                        "" if skew_s is None else f"{skew_s:.3f}",
+                        # blank, never a fabricated value; ; and newlines would corrupt the row shape
+                        str(detail or "").replace(";", ",").replace("\n", " "),
+                    )
+                )
+                + "\n"
+            )
         return True
     except OSError as e:
         _log.debug("CLOCKSYNC append failed (%s): %r", event, e)
         return False
 
 
-def append_daemon_start(root, when: _dt.datetime, *, pid: int, git: str | None,
-                        dirty: bool | None, adapter: str | None) -> bool:
+def append_daemon_start(
+    root, when: _dt.datetime, *, pid: int, git: str | None, dirty: bool | None, adapter: str | None
+) -> bool:
     """Append ONE daemon start to the night's own `STARTS.csv` sidecar.
 
     OBSERVABILITY, NOT A FIX, and the distinction is the whole point of the row this closes
@@ -2452,22 +2585,37 @@ def append_daemon_start(root, when: _dt.datetime, *, pid: int, git: str | None,
         with open(path, "a", encoding="utf-8", newline="\n") as fh:
             if fresh:
                 fh.write(_STARTS_HEADER)
-            fh.write(";".join((
-                _phone_ts(when),
-                str(int(pid)),
-                str(git or ""),
-                "" if dirty is None else ("yes" if dirty else "no"),
-                str(adapter or ""),
-            )) + "\n")
+            fh.write(
+                ";".join(
+                    (
+                        _phone_ts(when),
+                        str(int(pid)),
+                        str(git or ""),
+                        "" if dirty is None else ("yes" if dirty else "no"),
+                        str(adapter or ""),
+                    )
+                )
+                + "\n"
+            )
         return True
     except (OSError, TypeError, ValueError) as e:
         _log.debug("STARTS append failed: %r", e)
         return False
 
 
-def append_pmd_negotiation(root, when: _dt.datetime, device, address, stream: str, *,
-                           requested: int | None, offered, chosen: int | None,
-                           ack: str, how: str) -> bool:
+def append_pmd_negotiation(
+    root,
+    when: _dt.datetime,
+    device,
+    address,
+    stream: str,
+    *,
+    requested: int | None,
+    offered,
+    chosen: int | None,
+    ack: str,
+    how: str,
+) -> bool:
     """Append ONE PMD START negotiation to the night's own `PMDNEG.csv` sidecar.
 
     THE RATE A STREAM WAS ACTUALLY CAPTURED AT (residue 2026-09-22-negotiated-pmd-rate-not-written).
@@ -2492,7 +2640,7 @@ def append_pmd_negotiation(root, when: _dt.datetime, device, address, stream: st
         return False
     try:
         if offered is None:
-            offered_s = ""                       # nothing was read — not an empty menu (§∅)
+            offered_s = ""  # nothing was read — not an empty menu (§∅)
         else:
             offered_s = ",".join(str(int(r)) for r in offered) or "none"
         path = os.path.join(night_dir(root, when), PMDNEG_NAME)
@@ -2500,17 +2648,22 @@ def append_pmd_negotiation(root, when: _dt.datetime, device, address, stream: st
         with open(path, "a", encoding="utf-8", newline="\n") as fh:
             if fresh:
                 fh.write(_PMDNEG_HEADER)
-            fh.write(";".join((
-                _phone_ts(when),
-                str(device or ""),
-                str(address or ""),
-                str(stream or ""),
-                "" if requested is None else str(int(requested)),
-                offered_s,
-                "" if chosen is None else str(int(chosen)),
-                str(ack or "").replace(";", ",").replace("\n", " "),
-                str(how or "").replace(";", ",").replace("\n", " "),
-            )) + "\n")
+            fh.write(
+                ";".join(
+                    (
+                        _phone_ts(when),
+                        str(device or ""),
+                        str(address or ""),
+                        str(stream or ""),
+                        "" if requested is None else str(int(requested)),
+                        offered_s,
+                        "" if chosen is None else str(int(chosen)),
+                        str(ack or "").replace(";", ",").replace("\n", " "),
+                        str(how or "").replace(";", ",").replace("\n", " "),
+                    )
+                )
+                + "\n"
+            )
         return True
     except (OSError, TypeError, ValueError) as e:
         _log.debug("PMDNEG append failed (%s %s): %r", device, stream, e)
@@ -2550,19 +2703,30 @@ class RingClockLogWriter:
         self.resumed = _resumed
         self._fh = open(path, "a" if _resumed else "w", buffering=1 << 16, newline="\n")
         if not _resumed:
-            self._fh.write("Phone timestamp;event;rtc_offset_s;battery_state;battery_level;"
-                           "battery_raw2;battery_raw3\n")
+            self._fh.write("Phone timestamp;event;rtc_offset_s;battery_state;battery_level;battery_raw2;battery_raw3\n")
         self.rows = 0
         self._flush_interval = flush_interval
         self._fsync = fsync
         self._last_flush = _time.monotonic()
 
-    def write(self, when: _dt.datetime, event: str, rtc_offset_s=None,
-              battery_state=None, battery_level=None, battery_raw2=None, battery_raw3=None) -> None:
+    def write(
+        self,
+        when: _dt.datetime,
+        event: str,
+        rtc_offset_s=None,
+        battery_state=None,
+        battery_level=None,
+        battery_raw2=None,
+        battery_raw3=None,
+    ) -> None:
         def _f(v):
             return "" if v is None else str(v)
-        landed = self._health.put(self._fh, f"{_phone_ts(when)};{event};{_f(rtc_offset_s)};{_f(battery_state)};"
-                       f"{_f(battery_level)};{_f(battery_raw2)};{_f(battery_raw3)}\n")
+
+        landed = self._health.put(
+            self._fh,
+            f"{_phone_ts(when)};{event};{_f(rtc_offset_s)};{_f(battery_state)};"
+            f"{_f(battery_level)};{_f(battery_raw2)};{_f(battery_raw3)}\n",
+        )
         if landed:
             self.rows += 1
         now = _time.monotonic()
@@ -2621,8 +2785,14 @@ class LinkLogWriter:
     evidence badge as a health measurement.
     """
 
-    def __init__(self, path: str, flush_interval: float = FLUSH_INTERVAL_S, fsync: bool = True,
-                 adapter: str | None = None, hci: str | None = None):
+    def __init__(
+        self,
+        path: str,
+        flush_interval: float = FLUSH_INTERVAL_S,
+        fsync: bool = True,
+        adapter: str | None = None,
+        hci: str | None = None,
+    ):
         # WHICH RADIO CAPTURED THIS NIGHT. Written as a header COMMENT, once, before the column line.
         # Until 2026-07-26 nothing in a night recorded it: three BLE adapters were present on the box
         # and the only way to say which one produced a given night was to remember. That is fine right
@@ -2640,17 +2810,30 @@ class LinkLogWriter:
         self._fh = open(path, "w", buffering=1 << 16, newline="\n")
         if adapter or hci:
             self._fh.write(f"# adapter={adapter or 'default'} hci={hci or 'unknown'}\n")
-        self._fh.write("Phone timestamp;device;connected;rssi_dbm;battery_pct;"
-                       "frames_dropped;frames_duplicated;link_epoch;address\n")
+        self._fh.write(
+            "Phone timestamp;device;connected;rssi_dbm;battery_pct;"
+            "frames_dropped;frames_duplicated;link_epoch;address\n"
+        )
         self.rows = 0
         self._flush_interval = flush_interval
         self._fsync = fsync
         self._last_flush = _time.monotonic()
 
-    def write(self, when: _dt.datetime, device: str, connected: bool, rssi, battery,
-              dropped=None, duplicated=None, link_epoch=None, address=None) -> None:
+    def write(
+        self,
+        when: _dt.datetime,
+        device: str,
+        connected: bool,
+        rssi,
+        battery,
+        dropped=None,
+        duplicated=None,
+        link_epoch=None,
+        address=None,
+    ) -> None:
         def _f(v):
-            return "" if v is None else str(v)          # blank, never a fabricated 0
+            return "" if v is None else str(v)  # blank, never a fabricated 0
+
         # link_epoch (E5) and `address` are APPENDED last so a positional reader of the earlier columns is
         # unaffected — the same "never shift an existing column" discipline the class docstring keeps.
         #
@@ -2660,9 +2843,12 @@ class LinkLogWriter:
         # TWO keys (3 samples under the old name, 1123 under the new), so any per-device aggregate over
         # that night silently splits in half. The MAC cannot be edited and cannot collide, so it is the
         # key an analysis should group on; the name stays for human reading.
-        landed = self._health.put(self._fh, f"{_phone_ts(when)};{device};{1 if connected else 0};"
-                       f"{_f(rssi)};{_f(battery)};{_f(dropped)};{_f(duplicated)};{_f(link_epoch)};"
-                       f"{_f(address)}\n")
+        landed = self._health.put(
+            self._fh,
+            f"{_phone_ts(when)};{device};{1 if connected else 0};"
+            f"{_f(rssi)};{_f(battery)};{_f(dropped)};{_f(duplicated)};{_f(link_epoch)};"
+            f"{_f(address)}\n",
+        )
         if landed:
             self.rows += 1
         now = _time.monotonic()
@@ -2721,8 +2907,9 @@ class OxyLifeLogWriter:
     transition's own `as_row()` (the module owns the schema); this class owns the file + cadence only.
     """
 
-    def __init__(self, path: str, flush_interval: float = FLUSH_INTERVAL_S, fsync: bool = True,
-                 device: str | None = None):
+    def __init__(
+        self, path: str, flush_interval: float = FLUSH_INTERVAL_S, fsync: bool = True, device: str | None = None
+    ):
         self.path = path
         self._health = _FlushHealth(path)
         # APPEND, NEVER TRUNCATE — the SessionSidecar / ClockSidecar discipline, arriving here late.
@@ -2855,9 +3042,11 @@ class PmdArrivalLogWriter:
 
     def write(self, arrival: _dt.datetime, device: str, meas, first_ns, last_ns, n_samples: int) -> None:
         def _f(v):
-            return "" if v is None else str(v)          # blank, never a fabricated 0
-        landed = self._health.put(self._fh, f"{_phone_ts(arrival)};{device};{_f(meas)};"
-                       f"{_f(first_ns)};{_f(last_ns)};{n_samples}\n")
+            return "" if v is None else str(v)  # blank, never a fabricated 0
+
+        landed = self._health.put(
+            self._fh, f"{_phone_ts(arrival)};{device};{_f(meas)};{_f(first_ns)};{_f(last_ns)};{n_samples}\n"
+        )
         if landed:
             self.rows += 1
         now = _time.monotonic()
@@ -2900,7 +3089,7 @@ class PmdArrivalLogWriter:
         """
         vals = sorted(v for v in diffs_ms if v is not None and v == v)
         if len(vals) < 100:
-            return (None, None)          # too few to have an edge at all — refuse, do not guess
+            return (None, None)  # too few to have an edge at all — refuse, do not guess
         lo = vals[0]
         qv = vals[min(len(vals) - 1, int(q * len(vals)))]
         return (qv, qv - lo)
@@ -2966,8 +3155,10 @@ class Spo2CsvWriter:
         same NaN by luck rather than by design. Both call sites in capture.py guard with
         `if spo2 is not None`, so this was never reached; the writer is where the rule is DOCUMENTED, so
         it is where it has to hold — the next caller does not read this docstring first."""
-        stamp = when.strftime("%H:%M:%S %d/%m/%Y")   # LOCAL civil (Clock Contract) — O2Ring/ViHealth format
-        landed = self._health.put(self._fh, f"{stamp},{'' if spo2 is None else spo2},{'' if pr is None else pr},{motion}\n")
+        stamp = when.strftime("%H:%M:%S %d/%m/%Y")  # LOCAL civil (Clock Contract) — O2Ring/ViHealth format
+        landed = self._health.put(
+            self._fh, f"{stamp},{'' if spo2 is None else spo2},{'' if pr is None else pr},{motion}\n"
+        )
         if landed:
             self._n += 1
         now = _time.monotonic()
@@ -2992,7 +3183,8 @@ class Spo2CsvWriter:
 
     def close(self) -> None:
         try:
-            self.flush(); self._fh.close()
+            self.flush()
+            self._fh.close()
         except Exception as _e:
             self._health.failed(_e)
         finally:

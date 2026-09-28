@@ -370,7 +370,9 @@ def ecg_block_level(samples) -> "float | None":
     return statistics.pstdev(xs)
 
 
-def ecg_offbody(block_levels, *, threshold: float = _ECG_OFFBODY_UV, n_blocks: int = _ECG_OFFBODY_BLOCKS) -> "bool | None":
+def ecg_offbody(
+    block_levels, *, threshold: float = _ECG_OFFBODY_UV, n_blocks: int = _ECG_OFFBODY_BLOCKS
+) -> "bool | None":
     """Is this chest strap's ECG electrode noise rather than a heart? `True` or `None`, never `False`.
 
     PURE. Reads the LAST `n_blocks` block levels (`ecg_block_level`); fewer than that ⇒ `None` (a fresh

@@ -13,6 +13,7 @@ app that opens, renders and computes — with last week's DSP. Worse, every prov
 suite operates on the REPO copy, so GATE A can be green on a `manifestHash` that is not the code
 being served.
 """
+
 import os
 import re
 import subprocess
@@ -22,8 +23,12 @@ SH = os.path.join(HERE, "deploy", "sync-apps.sh")
 
 
 def _run(src, dest, *args):
-    return subprocess.run(["bash", SH, *args], capture_output=True, text=True,
-                          env={**os.environ, "TEPNA_SRC": str(src), "TEPNA_APP_DIR": str(dest)})
+    return subprocess.run(
+        ["bash", SH, *args],
+        capture_output=True,
+        text=True,
+        env={**os.environ, "TEPNA_SRC": str(src), "TEPNA_APP_DIR": str(dest)},
+    )
 
 
 def _src(tmp_path, names=("A.html", "B.html"), clutter=True):
@@ -127,7 +132,8 @@ def test_an_extra_file_alone_does_not_fail_the_check(tmp_path):
 
 def test_an_empty_or_wrong_source_fails_loudly(tmp_path):
     """Pointing at the wrong directory must not silently 'sync' zero bundles and report success."""
-    empty = tmp_path / "empty"; empty.mkdir()
+    empty = tmp_path / "empty"
+    empty.mkdir()
     r = _run(empty, tmp_path / "app")
     assert r.returncode == 1
     assert "no provenance/<App>.json fragments" in r.stdout
@@ -170,8 +176,7 @@ CHK = os.path.join(HERE, "deploy", "check-system-files.sh")
 
 
 def _chk(src, systemd, udev, *args, networkd=None):
-    env = {**os.environ, "TEPNA_SRC": str(src),
-           "TEPNA_ETC_SYSTEMD": str(systemd), "TEPNA_ETC_UDEV": str(udev)}
+    env = {**os.environ, "TEPNA_SRC": str(src), "TEPNA_ETC_SYSTEMD": str(systemd), "TEPNA_ETC_UDEV": str(udev)}
     # The networkd destination is redirected for the same reason as the other two: an install that
     # writes into a tmpdir must never touch the developer's own /etc (§E6).
     env["TEPNA_ETC_NETWORKD"] = str(networkd if networkd is not None else systemd)
@@ -185,8 +190,10 @@ def _tree(tmp_path, capture_user_repo="tepna", capture_user_etc="tepna"):
     src = tmp_path / "capture-host" / "systemd"
     src.mkdir(parents=True)
     (tmp_path / "capture-host" / "deploy").mkdir(parents=True)
-    systemd = tmp_path / "etc-systemd"; systemd.mkdir()
-    udev = tmp_path / "etc-udev"; udev.mkdir()
+    systemd = tmp_path / "etc-systemd"
+    systemd.mkdir()
+    udev = tmp_path / "etc-udev"
+    udev.mkdir()
     (src / "99-tepna-btdongle.rules").write_text('ACTION=="add", ATTR{idVendor}=="2357"\n')
     (src / "99-tepna-hidraw.rules").write_text('SUBSYSTEM=="hidraw", ATTRS{idVendor}=="1915"\n')
     (src / "tepna-usb-autosuspend.service").write_text("[Service]\nType=oneshot\n")
@@ -201,14 +208,27 @@ def _tree(tmp_path, capture_user_repo="tepna", capture_user_etc="tepna"):
     # after the live box was found running a STALE root-owned tepna-clock.sh and tepna-restart.sh, with
     # tepna-usbreset.sh never installed at all — drift in the most privileged files on the box, invisible
     # because they were not on this list.
-    for u in ("tepna-update.service", "tepna-update.timer", "tepna-sniff.service", "tepna-sniff.timer",
-              "tepna-update-pending.service", "tepna-update-pending.timer",
-              "tepna-radioclock.service"):
+    for u in (
+        "tepna-update.service",
+        "tepna-update.timer",
+        "tepna-sniff.service",
+        "tepna-sniff.timer",
+        "tepna-update-pending.service",
+        "tepna-update-pending.timer",
+        "tepna-radioclock.service",
+    ):
         (src / u).write_text(f"[Unit]\nDescription={u}\n")
         (systemd / u).write_text(f"[Unit]\nDescription={u}\n")
-    lib = tmp_path / "lib-tepna"; lib.mkdir()
-    for h in ("tepna-clock.sh", "tepna-restart.sh", "tepna-rssi.sh", "tepna-usbreset.sh",
-                                             "tepna-btreset.sh", "tepna-wifi.sh"):
+    lib = tmp_path / "lib-tepna"
+    lib.mkdir()
+    for h in (
+        "tepna-clock.sh",
+        "tepna-restart.sh",
+        "tepna-rssi.sh",
+        "tepna-usbreset.sh",
+        "tepna-btreset.sh",
+        "tepna-wifi.sh",
+    ):
         body = f"#!/usr/bin/env bash\n# {h}\n"
         (tmp_path / "capture-host" / h).write_text(body)
         (lib / h).write_text(body)
@@ -246,16 +266,14 @@ def test_install_writes_the_unit_from_the_deploy_copy(tmp_path):
     correct — and refusing to would leave the one file most worth keeping current permanently stale."""
     src, sd, ud = _tree(tmp_path, capture_user_repo="vigil", capture_user_etc="tepna")
     _chk(src, sd, ud, "--install")
-    assert (sd / "tepna-capture.service").read_text() == \
-        (src / "deploy" / "tepna-capture.service").read_text()
+    assert (sd / "tepna-capture.service").read_text() == (src / "deploy" / "tepna-capture.service").read_text()
 
 
 def test_install_does_replace_a_stale_managed_file(tmp_path):
     src, sd, ud = _tree(tmp_path)
     (ud / "99-tepna-btdongle.rules").write_text("stale\n")
     _chk(src, sd, ud, "--install")
-    assert (ud / "99-tepna-btdongle.rules").read_text() == \
-        (src / "systemd" / "99-tepna-btdongle.rules").read_text()
+    assert (ud / "99-tepna-btdongle.rules").read_text() == (src / "systemd" / "99-tepna-btdongle.rules").read_text()
 
 
 def test_a_file_missing_from_etc_is_drift_not_a_crash(tmp_path):
@@ -282,8 +300,10 @@ def _tree_two_sources(tmp_path, deploy_body, systemd_body, etc_body):
     src = tmp_path / "capture-host"
     (src / "systemd").mkdir(parents=True)
     (src / "deploy").mkdir(parents=True)
-    systemd = tmp_path / "etc-systemd"; systemd.mkdir()
-    udev = tmp_path / "etc-udev"; udev.mkdir()
+    systemd = tmp_path / "etc-systemd"
+    systemd.mkdir()
+    udev = tmp_path / "etc-udev"
+    udev.mkdir()
     (src / "systemd" / "99-tepna-btdongle.rules").write_text("rule\n")
     (udev / "99-tepna-btdongle.rules").write_text("rule\n")
     (src / "systemd" / "99-tepna-hidraw.rules").write_text("hidraw rule\n")
@@ -295,14 +315,27 @@ def _tree_two_sources(tmp_path, deploy_body, systemd_body, etc_body):
     (systemd / "tepna-capture.service").write_text(etc_body)
     # The privileged helpers, in sync — this fixture is about AMBIGUOUS SOURCES, so they must not be
     # the thing that reds it.
-    for u in ("tepna-update.service", "tepna-update.timer", "tepna-sniff.service", "tepna-sniff.timer",
-              "tepna-update-pending.service", "tepna-update-pending.timer",
-              "tepna-radioclock.service"):
+    for u in (
+        "tepna-update.service",
+        "tepna-update.timer",
+        "tepna-sniff.service",
+        "tepna-sniff.timer",
+        "tepna-update-pending.service",
+        "tepna-update-pending.timer",
+        "tepna-radioclock.service",
+    ):
         (src / "systemd" / u).write_text(f"[Unit]\nDescription={u}\n")
         (systemd / u).write_text(f"[Unit]\nDescription={u}\n")
-    lib = tmp_path / "lib-tepna"; lib.mkdir()
-    for h in ("tepna-clock.sh", "tepna-restart.sh", "tepna-rssi.sh", "tepna-usbreset.sh",
-                                             "tepna-btreset.sh", "tepna-wifi.sh"):
+    lib = tmp_path / "lib-tepna"
+    lib.mkdir()
+    for h in (
+        "tepna-clock.sh",
+        "tepna-restart.sh",
+        "tepna-rssi.sh",
+        "tepna-usbreset.sh",
+        "tepna-btreset.sh",
+        "tepna-wifi.sh",
+    ):
         body = f"#!/usr/bin/env bash\n# {h}\n"
         (src / h).write_text(body)
         (lib / h).write_text(body)
@@ -364,14 +397,26 @@ def test_the_four_privileged_helpers_are_installed_EXECUTABLE(tmp_path):
     manifest data now; this test is the thing that would have caught it."""
     src, sd, ud = _tree(tmp_path)
     lib = tmp_path / "lib-tepna"
-    for h in ("tepna-clock.sh", "tepna-restart.sh", "tepna-rssi.sh", "tepna-usbreset.sh",
-                                             "tepna-btreset.sh", "tepna-wifi.sh"):
+    for h in (
+        "tepna-clock.sh",
+        "tepna-restart.sh",
+        "tepna-rssi.sh",
+        "tepna-usbreset.sh",
+        "tepna-btreset.sh",
+        "tepna-wifi.sh",
+    ):
         (lib / h).unlink()
     # --install still exits 1 after repairing (it reports the drift it found), so the MODE is the
     # assertion here, not the status.
     _chk(src, sd, ud, "--install")
-    for h in ("tepna-clock.sh", "tepna-restart.sh", "tepna-rssi.sh", "tepna-usbreset.sh",
-                                             "tepna-btreset.sh", "tepna-wifi.sh"):
+    for h in (
+        "tepna-clock.sh",
+        "tepna-restart.sh",
+        "tepna-rssi.sh",
+        "tepna-usbreset.sh",
+        "tepna-btreset.sh",
+        "tepna-wifi.sh",
+    ):
         assert os.access(lib / h, os.X_OK), f"{h} installed non-executable — every sudoers grant on it is dead"
 
 
@@ -489,6 +534,7 @@ def test_no_test_executes_a_deploy_script_that_mutates_host_state_unguarded():
     Enumerated so that a test which STARTS executing a new deploy script has to come here and say so."""
     import ast
     import glob
+
     executed = set()
     for t in sorted(glob.glob(os.path.join(HERE, "tests", "*.py"))):
         tree = ast.parse(open(t, encoding="utf-8").read())
@@ -496,14 +542,17 @@ def test_no_test_executes_a_deploy_script_that_mutates_host_state_unguarded():
         names = {}
         for node in ast.walk(tree):
             if isinstance(node, ast.Assign) and isinstance(node.value, ast.Call):
-                lits = [a.value for a in node.value.args
-                        if isinstance(a, ast.Constant) and isinstance(a.value, str)]
+                lits = [a.value for a in node.value.args if isinstance(a, ast.Constant) and isinstance(a.value, str)]
                 sh = [v for v in lits if v.endswith(".sh")]
                 if sh and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
                     names[node.targets[0].id] = sh[0]
         for node in ast.walk(tree):
-            if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
-                    and isinstance(node.func.value, ast.Name) and node.func.value.id == "subprocess"):
+            if not (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and isinstance(node.func.value, ast.Name)
+                and node.func.value.id == "subprocess"
+            ):
                 continue
             for a in ast.walk(node):
                 if isinstance(a, ast.Constant) and isinstance(a.value, str) and a.value.endswith(".sh"):
@@ -632,13 +681,28 @@ def test_no_test_executes_a_deploy_script_that_mutates_host_state_unguarded():
     #   • it writes NO file: no install, no systemctl, no udevadm, no mount, no ip; the only state it
     #     touches is an HCI controller's address, and only one found under the redirected tree;
     #   • it NEVER self-elevates: it is the unit's ExecStart, not a sudo caller.
-    assert executed <= {"check-system-files.sh", "sync-apps.sh", "sse-frames.sh", "enable-cpap-wifi.sh",
-                        "tepna-clock.sh", "tepna-restart.sh", "tepna-rssi.sh",
-                        "tepna-usbreset.sh", "tepna-btreset.sh", "tepna-wifi.sh", "check.sh",
-                        "tepna-update.sh", "vigil.sh", "tepna-btmon.sh", "tepna-sniff.sh",
-                        "tepna-report.sh", "tepna-btattach.sh"}, (
+    assert executed <= {
+        "check-system-files.sh",
+        "sync-apps.sh",
+        "sse-frames.sh",
+        "enable-cpap-wifi.sh",
+        "tepna-clock.sh",
+        "tepna-restart.sh",
+        "tepna-rssi.sh",
+        "tepna-usbreset.sh",
+        "tepna-btreset.sh",
+        "tepna-wifi.sh",
+        "check.sh",
+        "tepna-update.sh",
+        "vigil.sh",
+        "tepna-btmon.sh",
+        "tepna-sniff.sh",
+        "tepna-report.sh",
+        "tepna-btattach.sh",
+    }, (
         f"a test now executes {sorted(executed)} — confirm it cannot mutate real host state "
-        f"(systemctl / udevadm / mount / ip / install into /etc) before adding it here")
+        f"(systemctl / udevadm / mount / ip / install into /etc) before adding it here"
+    )
 
 
 # ── the served set is the OWNED set, not everything with a .html suffix (§C7) ────────────────────
@@ -689,6 +753,7 @@ def test_a_referenced_asset_directory_is_mirrored(tmp_path):
 # twice, harmless until the two copies disagree and filename sort order picks the winner. That is
 # `ambiguous()`'s problem pointed at /etc instead of the repo, so it gets the same treatment —
 # reported loudly, counted as drift, and never deleted automatically.
+
 
 def _tree_with_superseded(tmp_path, install_replacement=True, leave_old=True):
     src, systemd, udev = _tree(tmp_path)
@@ -783,8 +848,9 @@ def test_the_adopted_polar_rule_is_byte_identical_to_what_the_box_was_running():
     discipline `deploy/tepna-capture.service` followed when it absorbed its duplicate. The line below
     is what `/etc/udev/rules.d/99-polar-hidraw.rules` contained on the box, verbatim."""
     body = open(HIDRAW, encoding="utf-8").read()
-    assert ('SUBSYSTEM=="hidraw", ATTRS{idVendor}=="0da4", ATTRS{idProduct}=="0008", '
-            'MODE="0660", GROUP="vigil"') in body
+    assert (
+        'SUBSYSTEM=="hidraw", ATTRS{idVendor}=="0da4", ATTRS{idProduct}=="0008", MODE="0660", GROUP="vigil"'
+    ) in body
 
 
 # ── the unit file describes a drop-in; the script must actually write it ──────────────────────────
@@ -816,7 +882,7 @@ def test_THE_DROP_IN_CONTAINS_THE_READWRITEPATHS_THE_UNIT_SAYS_IT_DOES():
     written = set()
     for line in body.splitlines():
         t = line.strip()
-        if t.startswith("ReadWritePaths="):          # a commented line is prose, not a directive
+        if t.startswith("ReadWritePaths="):  # a commented line is prose, not a directive
             written |= {p.lstrip("-") for p in t.split("=", 1)[1].split()}
 
     missing = sorted(promised - written)

@@ -60,49 +60,51 @@ class AcqState(Enum):
 # spec §6). ERROR and SHUTTING_DOWN are reachable from every operational state; DISCONNECTED is the
 # terminal rest state a clean shutdown or a fatal error settles into.
 _S = AcqState
-LEGAL_TRANSITIONS: frozenset = frozenset({
-    # connect — the daemon opens a link to the KNOWN paired address (no discovery scan; pairing is a
-    # one-time operator action, not a daemon state), so DISCONNECTED goes straight to CONNECTING.
-    (_S.DISCONNECTED, _S.CONNECTING),
-    (_S.CONNECTING, _S.CONNECTED),
-    # auth + configure + ready
-    (_S.CONNECTED, _S.AUTHENTICATING),
-    (_S.AUTHENTICATING, _S.AUTHENTICATED),
-    (_S.AUTHENTICATED, _S.CONFIGURING),
-    (_S.CONFIGURING, _S.READY),
-    # live capture + its interruption (a transport drop, NOT a session end)
-    (_S.READY, _S.LIVE_CAPTURING),
-    (_S.LIVE_CAPTURING, _S.LIVE_INTERRUPTED),
-    (_S.LIVE_INTERRUPTED, _S.RECOVERING),
-    # stored-spool synchronization (READY or a verified live night can move to sync)
-    (_S.READY, _S.SYNC_PENDING),
-    (_S.LIVE_CAPTURING, _S.SYNC_PENDING),
-    (_S.SYNC_PENDING, _S.SYNCING),
-    (_S.SYNCING, _S.VERIFIED),
-    (_S.SYNCING, _S.RECOVERING),          # a sync drop recovers, per the P4 hardware model
-    (_S.VERIFIED, _S.READY),              # a verified sync returns to ready for more work
-    (_S.VERIFIED, _S.SHUTTING_DOWN),
-    # recovery re-enters the connect sequence — prior protocol state is NOT assumed valid (spec §6)
-    (_S.RECOVERING, _S.CONNECTING),
-    (_S.RECOVERING, _S.ERROR),            # recovery budget spent → error
-    # clean stop from any settled operational state
-    (_S.READY, _S.SHUTTING_DOWN),
-    (_S.LIVE_CAPTURING, _S.SHUTTING_DOWN),
-    (_S.SHUTTING_DOWN, _S.DISCONNECTED),
-    # error is reachable from every operational state; a fatal error settles to disconnected
-    (_S.CONNECTING, _S.ERROR),
-    (_S.CONNECTED, _S.ERROR),
-    (_S.AUTHENTICATING, _S.ERROR),
-    (_S.AUTHENTICATED, _S.ERROR),
-    (_S.CONFIGURING, _S.ERROR),
-    (_S.READY, _S.ERROR),
-    (_S.LIVE_CAPTURING, _S.ERROR),
-    (_S.LIVE_INTERRUPTED, _S.ERROR),
-    (_S.SYNC_PENDING, _S.ERROR),
-    (_S.SYNCING, _S.ERROR),
-    (_S.ERROR, _S.DISCONNECTED),          # settled/abandoned
-    (_S.ERROR, _S.RECOVERING),            # a recoverable error retries
-})
+LEGAL_TRANSITIONS: frozenset = frozenset(
+    {
+        # connect — the daemon opens a link to the KNOWN paired address (no discovery scan; pairing is a
+        # one-time operator action, not a daemon state), so DISCONNECTED goes straight to CONNECTING.
+        (_S.DISCONNECTED, _S.CONNECTING),
+        (_S.CONNECTING, _S.CONNECTED),
+        # auth + configure + ready
+        (_S.CONNECTED, _S.AUTHENTICATING),
+        (_S.AUTHENTICATING, _S.AUTHENTICATED),
+        (_S.AUTHENTICATED, _S.CONFIGURING),
+        (_S.CONFIGURING, _S.READY),
+        # live capture + its interruption (a transport drop, NOT a session end)
+        (_S.READY, _S.LIVE_CAPTURING),
+        (_S.LIVE_CAPTURING, _S.LIVE_INTERRUPTED),
+        (_S.LIVE_INTERRUPTED, _S.RECOVERING),
+        # stored-spool synchronization (READY or a verified live night can move to sync)
+        (_S.READY, _S.SYNC_PENDING),
+        (_S.LIVE_CAPTURING, _S.SYNC_PENDING),
+        (_S.SYNC_PENDING, _S.SYNCING),
+        (_S.SYNCING, _S.VERIFIED),
+        (_S.SYNCING, _S.RECOVERING),  # a sync drop recovers, per the P4 hardware model
+        (_S.VERIFIED, _S.READY),  # a verified sync returns to ready for more work
+        (_S.VERIFIED, _S.SHUTTING_DOWN),
+        # recovery re-enters the connect sequence — prior protocol state is NOT assumed valid (spec §6)
+        (_S.RECOVERING, _S.CONNECTING),
+        (_S.RECOVERING, _S.ERROR),  # recovery budget spent → error
+        # clean stop from any settled operational state
+        (_S.READY, _S.SHUTTING_DOWN),
+        (_S.LIVE_CAPTURING, _S.SHUTTING_DOWN),
+        (_S.SHUTTING_DOWN, _S.DISCONNECTED),
+        # error is reachable from every operational state; a fatal error settles to disconnected
+        (_S.CONNECTING, _S.ERROR),
+        (_S.CONNECTED, _S.ERROR),
+        (_S.AUTHENTICATING, _S.ERROR),
+        (_S.AUTHENTICATED, _S.ERROR),
+        (_S.CONFIGURING, _S.ERROR),
+        (_S.READY, _S.ERROR),
+        (_S.LIVE_CAPTURING, _S.ERROR),
+        (_S.LIVE_INTERRUPTED, _S.ERROR),
+        (_S.SYNC_PENDING, _S.ERROR),
+        (_S.SYNCING, _S.ERROR),
+        (_S.ERROR, _S.DISCONNECTED),  # settled/abandoned
+        (_S.ERROR, _S.RECOVERING),  # a recoverable error retries
+    }
+)
 
 
 class FailureClass(Enum):
@@ -141,7 +143,8 @@ class AcquisitionOwned(RuntimeError):
         self.since_monotonic = since_monotonic
         super().__init__(
             f"device {device_id} already has an acquisition owner: session {held_by} "
-            f"(held since monotonic {since_monotonic:.3f}) — refusing a second acquisition")
+            f"(held since monotonic {since_monotonic:.3f}) — refusing a second acquisition"
+        )
 
 
 @dataclass(frozen=True)
@@ -243,7 +246,7 @@ class Transition:
     new: AcqState
     reason: str
     host_monotonic: float
-    host_wall: str          # ISO-8601 UTC, from the injected wall clock — never fabricated downstream
+    host_wall: str  # ISO-8601 UTC, from the injected wall clock — never fabricated downstream
     device_id: str | None
     session_id: str | None
     failure: FailureClass | None = None
@@ -252,18 +255,22 @@ class Transition:
         """A `;`-delimited provenance row, matching the writers.LinkLogWriter sidecar idiom (P2
         persistence models this). Blank, never a fabricated zero, for an absent field (Clock-Contract
         honesty: a missing value is visible)."""
+
         def _f(v) -> str:
             return "" if v is None else str(v)
-        return ";".join((
-            self.host_wall,
-            f"{self.host_monotonic:.6f}",
-            self.prev.value,
-            self.new.value,
-            self.reason,
-            _f(self.device_id),
-            _f(self.session_id),
-            _f(self.failure.label if self.failure else None),
-        ))
+
+        return ";".join(
+            (
+                self.host_wall,
+                f"{self.host_monotonic:.6f}",
+                self.prev.value,
+                self.new.value,
+                self.reason,
+                _f(self.device_id),
+                _f(self.session_id),
+                _f(self.failure.label if self.failure else None),
+            )
+        )
 
 
 def _default_wall() -> str:
@@ -298,9 +305,14 @@ class AcqLifecycle:
         if (self.state, new) not in LEGAL_TRANSITIONS:
             raise InvalidTransition(self.state, new)
         t = Transition(
-            prev=self.state, new=new, reason=reason,
-            host_monotonic=self.mono(), host_wall=self.wall(),
-            device_id=self.device_id, session_id=self.session_id, failure=failure,
+            prev=self.state,
+            new=new,
+            reason=reason,
+            host_monotonic=self.mono(),
+            host_wall=self.wall(),
+            device_id=self.device_id,
+            session_id=self.session_id,
+            failure=failure,
         )
         self.state = new
         self.history.append(t)

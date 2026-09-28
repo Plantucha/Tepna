@@ -26,8 +26,7 @@ def test_a_flush_only_change_is_unobservable():
     capsys and capfd read the captured buffer regardless of flushing, so True/False/None produce byte-
     identical output. Counting these as reachable projected a 94.4% ceiling for a module whose real one
     is 89.1%."""
-    b, w = classify('print(f"connecting to {addr} …", flush=True)',
-                    'print(f"connecting to {addr} …", flush=False)')
+    b, w = classify('print(f"connecting to {addr} …", flush=True)', 'print(f"connecting to {addr} …", flush=False)')
     assert b == UNOBSERVABLE and "flush" in w
     assert classify('print("x", flush=True)', 'print("x", flush=None)')[0] == UNOBSERVABLE
 
@@ -35,13 +34,16 @@ def test_a_flush_only_change_is_unobservable():
 def test_mutmuts_XX_literal_wrapping_is_unobservable():
     """mutmut rewrites `"latest"` as `"XXlatestXX"`. Killable only by asserting the exact string, which
     pins wording and reds the build on every message edit."""
-    assert classify('ap.add_argument("--which", help="latest | all")',
-                    'ap.add_argument("--which", help="XXlatest | allXX")')[0] == UNOBSERVABLE
+    assert (
+        classify(
+            'ap.add_argument("--which", help="latest | all")', 'ap.add_argument("--which", help="XXlatest | allXX")'
+        )[0]
+        == UNOBSERVABLE
+    )
 
 
 def test_a_case_flip_is_unobservable():
-    assert classify('getattr(client, "mtu_size", "?")',
-                    'getattr(client, "MTU_SIZE", "?")')[0] == UNOBSERVABLE
+    assert classify('getattr(client, "mtu_size", "?")', 'getattr(client, "MTU_SIZE", "?")')[0] == UNOBSERVABLE
 
 
 # ── PROSE: the values survive, only the wording moved ───────────────────────────────────────────────
@@ -68,8 +70,8 @@ def test_a_message_that_lost_its_interpolated_value_is_PROSE_not_the_work_list()
 
     The two arms still differ in `why` — argument dropped vs replaced with None — because the reason is
     what a human reads; the BUCKET is what the triage decision is made on."""
-    dropped = classify('print(f"── session {ts} ──", flush=True)', 'print(flush=True)')
-    noned = classify('print(f"session {ts}", flush=True)', 'print(None, flush=True)')
+    dropped = classify('print(f"── session {ts} ──", flush=True)', "print(flush=True)")
+    noned = classify('print(f"session {ts}", flush=True)', "print(None, flush=True)")
     assert dropped[0] == PROSE and noned[0] == PROSE
     assert "lost an argument" in noned[1], "the None form is still recognised as a lost argument"
     assert "structurally" in dropped[1], "a wholly dropped argument lands on the general message arm"
@@ -103,6 +105,7 @@ def test_in_message_call_defaults_off_so_existing_callers_are_unchanged():
     """Trailing, optional, keyword-only — CLAUDE.md's back-compat rule. A caller with no source cannot
     compute it, and must not silently get the more permissive answer."""
     import inspect
+
     sig = inspect.signature(classify)
     p = sig.parameters["in_message_call"]
     assert p.default is False and p.kind is inspect.Parameter.KEYWORD_ONLY
@@ -116,7 +119,8 @@ def test_message_call_lines_finds_the_whole_call_including_continuations():
         "    log.warning('%s START %s',\n"
         "                name,\n"
         "                st)\n"
-        "    return x\n")
+        "    return x\n"
+    )
     got = mutation_triage.message_call_lines(src)
     assert got == {3, 4, 5}, f"the call spans lines 3-5, got {sorted(got)}"
     assert 2 not in got and 6 not in got, "ordinary statements must not be swept in"
@@ -125,11 +129,7 @@ def test_message_call_lines_finds_the_whole_call_including_continuations():
 def test_message_call_lines_does_not_sweep_in_lookalikes():
     """`d.get("info")` and `self.write(buf)` are not logging. Matching on the LEVEL name alone would
     take both, and quietly mark real code unkillable — the direction that loses defects."""
-    src = ("def f(d, fh, buf):\n"
-           "    a = d.get('info')\n"
-           "    fh.write(buf)\n"
-           "    b = d.info\n"
-           "    return a, b\n")
+    src = "def f(d, fh, buf):\n    a = d.get('info')\n    fh.write(buf)\n    b = d.info\n    return a, b\n"
     assert mutation_triage.message_call_lines(src) == frozenset()
 
 
@@ -186,6 +186,7 @@ def test_counts_exceeding_the_total_are_refused():
 # This shipped in the same commit as a brief that ranks all 19 modules by it, and shipped untested. The
 # tests below are the ones that would have had to exist before that brief quoted a single figure.
 
+
 def test_concentration_finds_the_largest_cluster_and_its_share():
     """The real `clockcfg` shape: 27 of 37 reachable in one function is why six tests returned 40
     mutants. `top_share` is what §2 of the fleet brief sorts on."""
@@ -221,18 +222,21 @@ def test_a_single_function_reports_full_concentration_which_is_the_known_defect(
     test pins the limitation so it is read as known rather than rediscovered."""
     dense = concentration(["small_fn"] * 20)
     sprawling = concentration(["huge_fn"] * 502)
-    assert dense["top_share"] == sprawling["top_share"] == 1.0, \
+    assert dense["top_share"] == sprawling["top_share"] == 1.0, (
         "the metric cannot tell these apart — do not rank on top_share alone"
+    )
 
 
 def test_message_call_lines_follows_a_LOGGER_METHOD_BOUND_TO_A_LOCAL():
     """capture.py chooses the level first and calls it second, so the call site reads `_lvl(...)` and
     matches no logger name at all. Nineteen run_polar mutants sat on exactly that pair of statements."""
-    src = ("def f(st, name, how, transient):\n"
-           "    _lvl = (log.warning if not transient else log.info)\n"
-           "    _lvl('%s START %s (%s)',\n"
-           "         name, st, how)\n"
-           "    return 1\n")
+    src = (
+        "def f(st, name, how, transient):\n"
+        "    _lvl = (log.warning if not transient else log.info)\n"
+        "    _lvl('%s START %s (%s)',\n"
+        "         name, st, how)\n"
+        "    return 1\n"
+    )
     got = mutation_triage.message_call_lines(src)
     assert 3 in got and 4 in got, f"the aliased call and its continuation must be found, got {sorted(got)}"
     assert 5 not in got, "the return statement is not part of the call"
@@ -241,10 +245,7 @@ def test_message_call_lines_follows_a_LOGGER_METHOD_BOUND_TO_A_LOCAL():
 def test_an_alias_is_inferred_from_the_CODE_not_from_the_NAME():
     """A local called `_lvl` that holds something else is ordinary code. Matching on the identifier
     would mark real logic unkillable — the direction that loses defects."""
-    src = ("def f(d):\n"
-           "    _lvl = d.get('threshold')\n"
-           "    _lvl(1, 2)\n"
-           "    return _lvl\n")
+    src = "def f(d):\n    _lvl = d.get('threshold')\n    _lvl(1, 2)\n    return _lvl\n"
     assert mutation_triage.message_call_lines(src) == frozenset()
 
 
@@ -255,23 +256,22 @@ def test_a_call_through_a_SUBSCRIPT_or_a_RETURNED_CALLABLE_is_handled_not_crashe
     Two things must hold, and they pull in opposite directions: the walk must not raise (this runs over
     a 4,400-line module and one exotic call site would blind the whole file), and an unresolvable callee
     must NOT be treated as a logger — a call we cannot identify is not one we may quietly mark PROSE."""
-    src = ("def f(handlers, get_logger, d):\n"
-           "    handlers[0]('a %s', d)\n"
-           "    get_logger()('b %s', d)\n"
-           "    (lambda m: m)('c')\n"
-           "    d['k']['j'](1)\n"
-           "    return 1\n")
+    src = (
+        "def f(handlers, get_logger, d):\n"
+        "    handlers[0]('a %s', d)\n"
+        "    get_logger()('b %s', d)\n"
+        "    (lambda m: m)('c')\n"
+        "    d['k']['j'](1)\n"
+        "    return 1\n"
+    )
     assert mutation_triage.message_call_lines(src) == frozenset(), (
-        "a callee that cannot be resolved to a logger must not be swept in")
+        "a callee that cannot be resolved to a logger must not be swept in"
+    )
 
 
 def test_an_alias_call_through_an_unresolvable_callee_still_does_not_crash():
     """The alias pass and the call pass walk the same tree; an exotic callee must survive both."""
-    src = ("def f(reg):\n"
-           "    _lvl = log.warning\n"
-           "    reg['fn']('x')\n"
-           "    _lvl('y %s', 1)\n"
-           "    return 0\n")
+    src = "def f(reg):\n    _lvl = log.warning\n    reg['fn']('x')\n    _lvl('y %s', 1)\n    return 0\n"
     got = mutation_triage.message_call_lines(src)
     assert 4 in got, "the aliased logger call is still found"
     assert 3 not in got, "the unresolvable one is not"
@@ -286,36 +286,35 @@ def test_alias_collection_does_not_STOP_at_the_first_unrelated_assignment():
     19 mutants that alias exists to reclassify go straight back onto the work-list. The diff-scoped
     mutation gate caught this on the PR that introduced it; the tests here did not, because every one of
     them put the logger assignment first."""
-    src = ("def f(d, n):\n"
-           "    a = d['x']\n"          # unrelated, and FIRST
-           "    b = n + 1\n"
-           "    c = [q for q in d]\n"
-           "    _lvl = log.warning\n"  # the logger, only after several others
-           "    _lvl('m %s', a)\n"
-           "    return b, c\n")
+    src = (
+        "def f(d, n):\n"
+        "    a = d['x']\n"  # unrelated, and FIRST
+        "    b = n + 1\n"
+        "    c = [q for q in d]\n"
+        "    _lvl = log.warning\n"  # the logger, only after several others
+        "    _lvl('m %s', a)\n"
+        "    return b, c\n"
+    )
     got = mutation_triage.message_call_lines(src)
     assert 6 in got, (
         f"the aliased call must be found even though three unrelated assignments precede it; got "
-        f"{sorted(got)} — a `break` in the alias scan yields an empty set here")
+        f"{sorted(got)} — a `break` in the alias scan yields an empty set here"
+    )
 
 
 def test_sys_stderr_write_is_recognised_as_a_message_call():
     """`sys.stderr.write` is in this module's message vocabulary, and it is the one callee whose
     ATTRIBUTE names matter: the check is `base == "sys" and "write" in names`, so the walk must collect
     every attribute on the way down, not just the root."""
-    src = ("import sys\n"
-           "def f(x):\n"
-           "    sys.stderr.write('boom %s\\n' % x)\n"
-           "    return x\n")
+    src = "import sys\ndef f(x):\n    sys.stderr.write('boom %s\\n' % x)\n    return x\n"
     assert 3 in mutation_triage.message_call_lines(src), (
-        "sys.stderr.write must be recognised — the attribute chain, not only its root, decides it")
+        "sys.stderr.write must be recognised — the attribute chain, not only its root, decides it"
+    )
 
 
 def test_a_non_sys_write_is_still_not_a_message_call():
     """The counterpart: `fh.write(buf)` shares the method name and is ordinary I/O."""
-    src = ("def f(fh, buf):\n"
-           "    fh.write(buf)\n"
-           "    return 1\n")
+    src = "def f(fh, buf):\n    fh.write(buf)\n    return 1\n"
     assert mutation_triage.message_call_lines(src) == frozenset()
 
 
@@ -346,7 +345,7 @@ def test_hunk_lineno_is_FUNCTION_relative_not_file_relative():
     `@@` header numbers from 1 at the FUNCTION's first line (mutmut 3.7 `__main__.py:1710`). Feeding
     this straight to `message_call_lines(file_source)` would compare a function offset against file
     line numbers — a plausible-looking number about the wrong thing."""
-    assert _MT.hunk_lineno(_SHOW) == 4          # the `-` line, counting from the function's `def`
+    assert _MT.hunk_lineno(_SHOW) == 4  # the `-` line, counting from the function's `def`
 
 
 def test_hunk_lineno_skips_ADDED_lines_when_counting():
@@ -369,11 +368,11 @@ def test_function_start_line_uses_the_AST_not_a_text_search():
     also match it, and a decorated or nested definition shifts a naive match."""
     assert _MT.function_start_line(_SRC, "foo") == 4
     assert _MT.function_start_line(_SRC, "absent") is None
-    assert _MT.function_start_line("def broken(:\n", "broken") is None      # unparseable → None
+    assert _MT.function_start_line("def broken(:\n", "broken") is None  # unparseable → None
 
 
 def test_file_lineno_of_composes_the_two_into_a_FILE_line():
-    assert _MT.file_lineno_of(_SHOW, _SRC, "foo") == 7                      # 4 + 4 - 1
+    assert _MT.file_lineno_of(_SHOW, _SRC, "foo") == 7  # 4 + 4 - 1
     assert _MT.file_lineno_of(_SHOW, _SRC, "absent") is None
     assert _MT.file_lineno_of("no hunk", _SRC, "foo") is None
 
@@ -382,12 +381,13 @@ def test_a_CONTINUATION_line_mutant_is_recognised_as_prose():
     """🔴 THE WHOLE POINT. `x + 1` -> `x - 1` inside a multi-line `log.info(...)` is a change to a
     MESSAGE ARGUMENT, and the owner's 2026-08-08 decision is that those are prose. Without the flag it
     reads REACHABLE and takes a slot in a work-list that is supposed to say what deserves a human."""
-    show = ("@@ -1,4 +1,4 @@\n def foo(x):\n     log.info(\n-        'a=%s', x + 1)\n"
-            "+        'a=%s', x - 1)\n     return 1")
+    show = (
+        "@@ -1,4 +1,4 @@\n def foo(x):\n     log.info(\n-        'a=%s', x + 1)\n+        'a=%s', x - 1)\n     return 1"
+    )
     assert _MT.file_lineno_of(show, _SRC, "foo") == 6
     assert _MT.in_message_call(show, _SRC, "m.x_foo__mutmut_1") is True
     a, b = "        'a=%s', x + 1)", "        'a=%s', x - 1)"
-    assert classify(a, b)[0] == "REACHABLE"                    # the old behaviour
+    assert classify(a, b)[0] == "REACHABLE"  # the old behaviour
     assert classify(a, b, in_message_call=True)[0] == "PROSE"  # the wired behaviour
 
 
@@ -395,9 +395,9 @@ def test_in_message_call_FAILS_CLOSED_on_every_unavailable_input():
     """False is `classify`'s existing default, so a failure keeps the OLD behaviour. The direction is
     deliberate: a False leaves a mutant in the work-list where it already was, while a wrong True
     silently REMOVES work from a list whose job is to say what deserves attention."""
-    assert _MT.in_message_call(_SHOW, "", "m.x_foo__mutmut_1") is False          # unreadable source
-    assert _MT.in_message_call("no hunk", _SRC, "m.x_foo__mutmut_1") is False    # no removed line
-    assert _MT.in_message_call(_SHOW, _SRC, "m.x_absent__mutmut_1") is False     # unknown function
+    assert _MT.in_message_call(_SHOW, "", "m.x_foo__mutmut_1") is False  # unreadable source
+    assert _MT.in_message_call("no hunk", _SRC, "m.x_foo__mutmut_1") is False  # no removed line
+    assert _MT.in_message_call(_SHOW, _SRC, "m.x_absent__mutmut_1") is False  # unknown function
     assert _MT.in_message_call(_SHOW, "def broken(:\n", "m.x_foo__mutmut_1") is False  # unparseable
 
 
@@ -435,6 +435,7 @@ def test_module_source_path_resolves_the_MODULE_not_the_interpreter():
 # I moved inside the coverage floor two units earlier, and widening an exclusion to quiet it would be
 # the exact move its own docstring warns about.
 
+
 def test_in_message_call_is_FALSE_for_a_line_that_resolves_but_is_NOT_a_message_line():
     """🔴 KILLS `and` -> `or` in `return line is not None and line in message_call_lines(source)`.
 
@@ -442,8 +443,8 @@ def test_in_message_call_is_FALSE_for_a_line_that_resolves_but_is_NOT_a_message_
     was never observed. `_SHOW` targets `return 1` — file line 7, which resolves perfectly well and is
     NOT inside the `log.info(...)` at 5-6. Under `or` this returns True and a plain `return` statement
     would be triaged as PROSE, i.e. quietly dropped from the work-list."""
-    assert _MT.file_lineno_of(_SHOW, _SRC, "foo") == 7      # it resolves...
-    assert 7 not in _MT.message_call_lines(_SRC)            # ...and is not a message line
+    assert _MT.file_lineno_of(_SHOW, _SRC, "foo") == 7  # it resolves...
+    assert 7 not in _MT.message_call_lines(_SRC)  # ...and is not a message line
     assert _MT.in_message_call(_SHOW, _SRC, "m.x_foo__mutmut_1") is False
 
 
@@ -475,7 +476,9 @@ def test_a_change_inside_an_F_STRING_FIELD_is_a_code_change_not_prose():
     assert classify('    x = f"{a(y)}-{y + 1}"', '    x = f"{a(y)}-{y - 1}"') == (REACHABLE, "code change")
     # text between fields is still text, an escaped `{{...}}` is text, a plain literal's braces are text
     assert classify('    x = f"started {n}"', '    x = f"begun {n}"')[0] == PROSE
-    assert classify('    x = f"{{lit}} {n}"', '    x = f"{{other}} {n}"')[0] == PROSE   # (a case flip would be UNOBSERVABLE first)
+    assert (
+        classify('    x = f"{{lit}} {n}"', '    x = f"{{other}} {n}"')[0] == PROSE
+    )  # (a case flip would be UNOBSERVABLE first)
     assert classify('    x = "{a(y)}"', '    x = "{b(y)}"')[0] == PROSE
 
 
@@ -483,10 +486,9 @@ def test_strip_strings_keeps_an_f_strings_fields_verbatim_and_folds_everything_e
     s = mutation_triage._strip_strings
     assert s('x = "{a}" + f"{b(c)} t {{e}}"') == "x = STR + STR{b(c)}"
     assert s("F'{d[{1: 2}[1]]:{w}}'") == "STR{d[{1: 2}[1]]:{w}}"
-    assert s('f"{a} {b}"') == "STR{a}{b}"                           # two fields stay two fields
-    assert s('f"{{x}} {a}"') == "STR{a}"                              # an escaped brace BEFORE a field
-    assert s('f"{{{a}"') == "STR{a}"                                # `{{` immediately followed by a field
-    assert s('f"{a}}}"') == "STR{a}"                                # a field then an escaped `}}`
-    assert s('f"{d[{1: 2}[1]]} t"') == "STR{d[{1: 2}[1]]}"           # text AFTER a nested field is folded
+    assert s('f"{a} {b}"') == "STR{a}{b}"  # two fields stay two fields
+    assert s('f"{{x}} {a}"') == "STR{a}"  # an escaped brace BEFORE a field
+    assert s('f"{{{a}"') == "STR{a}"  # `{{` immediately followed by a field
+    assert s('f"{a}}}"') == "STR{a}"  # a field then an escaped `}}`
+    assert s('f"{d[{1: 2}[1]]} t"') == "STR{d[{1: 2}[1]]}"  # text AFTER a nested field is folded
     assert s('rf"{a}\\n"') == "STR{a}" and s('"plain"') == "STR" and s('f"no field"') == "STR"
-

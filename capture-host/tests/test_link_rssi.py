@@ -28,7 +28,7 @@ def test_parse_rssi_bare_number_fallback():
 def test_parse_rssi_rejects_junk_and_out_of_range():
     assert link_rssi.parse_rssi("") is None
     assert link_rssi.parse_rssi("Connection timed out") is None
-    assert link_rssi.parse_rssi("RSSI return value: 999") is None   # implausible → None, not a fake reading
+    assert link_rssi.parse_rssi("RSSI return value: 999") is None  # implausible → None, not a fake reading
 
 
 def test_parse_hci_dev_maps_addr_to_hci():
@@ -57,6 +57,7 @@ def _read(monkeypatch, responses, mac="24:AC:AC:02:84:96"):
 
     async def fake_hci(mac_, refresh=False):
         return "hci2"
+
     monkeypatch.setattr(link_rssi, "_run", fake_run)
     monkeypatch.setattr(link_rssi, "resolve_hci", fake_hci)
     monkeypatch.setattr(link_rssi.os.path, "exists", lambda p: True)
@@ -66,7 +67,7 @@ def _read(monkeypatch, responses, mac="24:AC:AC:02:84:96"):
 def test_direct_path_used_when_capabilities_present(monkeypatch):
     monkeypatch.setattr(link_rssi, "_MODE", None)
     val, tried = _read(monkeypatch, {"direct": "RSSI return value: -53"})
-    assert val == -53 and tried == ["direct"]          # never needed sudo
+    assert val == -53 and tried == ["direct"]  # never needed sudo
 
 
 def test_falls_back_to_sudo_when_direct_denied(monkeypatch):
@@ -78,22 +79,24 @@ def test_falls_back_to_sudo_when_direct_denied(monkeypatch):
 def test_working_mode_is_remembered_not_reprobed(monkeypatch):
     monkeypatch.setattr(link_rssi, "_MODE", "sudo")
     val, tried = _read(monkeypatch, {"sudo": "RSSI return value: -70"})
-    assert val == -70 and tried == ["sudo"]            # cached mode tried first, alone
+    assert val == -70 and tried == ["sudo"]  # cached mode tried first, alone
 
 
 def test_both_failing_clears_mode_so_a_later_grant_is_picked_up(monkeypatch):
     monkeypatch.setattr(link_rssi, "_MODE", "sudo")
     val, tried = _read(monkeypatch, {})
     assert val is None and sorted(tried) == ["direct", "sudo"]
-    assert link_rssi._MODE is None                      # re-probes both next call
+    assert link_rssi._MODE is None  # re-probes both next call
 
 
 # ── VIGIL-DEEP-ANALYSIS §1.3 — sysfs adapter resolution (works on Pi 5 where hcitool is absent) ──
 def test_sysfs_hci_maps_controller_mac_to_hci(tmp_path):
     import link_rssi
+
     base = tmp_path / "bluetooth"
     for name, mac in [("hci0", "AC:A7:F1:29:9D:1D"), ("hci1", "58:10:31:F3:2C:30")]:
-        d = base / name; d.mkdir(parents=True)
+        d = base / name
+        d.mkdir(parents=True)
         (d / "address").write_text(mac + "\n")
     got = link_rssi.sysfs_hci(str(base))
     assert got == {"AC:A7:F1:29:9D:1D": "hci0", "58:10:31:F3:2C:30": "hci1"}
@@ -101,12 +104,16 @@ def test_sysfs_hci_maps_controller_mac_to_hci(tmp_path):
 
 def test_sysfs_hci_empty_when_base_absent():
     import link_rssi
+
     assert link_rssi.sysfs_hci("/no/such/path/bluetooth") == {}
 
 
 def test_sysfs_hci_skips_a_garbage_address(tmp_path):
     import link_rssi
-    base = tmp_path / "bt"; d = base / "hci0"; d.mkdir(parents=True)
+
+    base = tmp_path / "bt"
+    d = base / "hci0"
+    d.mkdir(parents=True)
     (d / "address").write_text("not-a-mac")
     assert link_rssi.sysfs_hci(str(base)) == {}
 
@@ -122,8 +129,9 @@ def test_sysfs_hci_skips_a_controller_whose_address_cannot_be_read(tmp_path):
     /sys/class/bluetooth on a developer's machine — so it read as covered locally and was uncovered in
     CI, on a line whose whole job is to survive an unreadable host."""
     base = tmp_path / "bt"
-    (base / "hci0").mkdir(parents=True)                       # listed, but has no `address` file
-    good = base / "hci1"; good.mkdir()
+    (base / "hci0").mkdir(parents=True)  # listed, but has no `address` file
+    good = base / "hci1"
+    good.mkdir()
     (good / "address").write_text("AC:A7:F1:29:9D:1D\n")
     assert link_rssi.sysfs_hci(str(base)) == {"AC:A7:F1:29:9D:1D": "hci1"}
 
@@ -132,6 +140,7 @@ def test_sysfs_hci_skips_a_controller_whose_address_cannot_be_read(tmp_path):
 # BlueZ returns 0 (sometimes a small positive) from HCI_Read_RSSI when it has no valid reading —
 # a stale handle, a link being torn down. The old +20 upper bound admitted those sentinels as real
 # dBm, so a night's LINK sidecar carried impossible values that poison any min/max over the column.
+
 
 def test_zero_and_positive_rssi_are_rejected_as_unknown():
     """Measured on the real 2026-07-25 capture: 0, +1 and +8 dBm reached the LINK sidecar."""

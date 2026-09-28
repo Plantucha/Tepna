@@ -14,6 +14,7 @@ need judging.
 With `errors="replace"` the bad bytes become a row that fails to parse, which is already handled
 honestly and bounded by each function's own minimum-sample floor.
 """
+
 import nightqc
 
 BAD = b"\xff\xfe"
@@ -22,13 +23,13 @@ BAD = b"\xff\xfe"
 def test_ARRIVAL_QUALITY_SURVIVES_INVALID_BYTES(tmp_path):
     p = tmp_path / "2026-08-31_H10-01_PMDARRIVAL.csv"
     p.write_bytes(b"phone_ts;device;meas;ns\n" + BAD + b" torn;H10;ECG;1\n")
-    assert nightqc.arrival_quality(str(tmp_path)) == []      # judged as nothing, not crashed
+    assert nightqc.arrival_quality(str(tmp_path)) == []  # judged as nothing, not crashed
 
 
 def test_MEASURED_HZ_SURVIVES_INVALID_BYTES(tmp_path):
     p = tmp_path / "s.csv"
     p.write_bytes(b"t;ns\n" + BAD + b";1\n" * 3)
-    assert nightqc.measured_hz(str(p)) is None               # refused by the floor, not raised
+    assert nightqc.measured_hz(str(p)) is None  # refused by the floor, not raised
 
 
 def test_RTC_DRIFT_SUMMARY_SURVIVES_INVALID_BYTES(tmp_path):

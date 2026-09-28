@@ -18,6 +18,7 @@ unit-tested against fakes.
 Usage (on the box, daemon stopped per link_guard):
     .venv/bin/python probe_as11_shadow.py [--interval 30] [--count N] [--out SESSIONDETECT.csv]
 """
+
 from __future__ import annotations
 
 import argparse

@@ -7,6 +7,7 @@ coroutine (the daemon owns the radios and pushes samples onto the telemetry bus)
 build that never wired the callable answers 501; only 'start'/'stop' are accepted; a malformed body is
 the shared bad-body 400; whatever the daemon reports is passed straight through (including a gated
 ok:false); and an exception in the op becomes a 500 that never crashes the monitor."""
+
 import os
 import sys
 
@@ -20,6 +21,7 @@ def _post(tmp_path, body, cpap_stream):
     async def go(c):
         r = await c.post("/api/cpap/stream", json=body)
         return r.status, await r.json()
+
     return _serve(app, go)
 
 
@@ -31,6 +33,7 @@ def _recorder(result=None, exc=None):
         if exc is not None:
             raise exc
         return result if result is not None else {"ok": True, "streaming": action == "start"}
+
     return op, calls
 
 
@@ -89,5 +92,6 @@ def test_a_malformed_body_is_the_shared_bad_body_response(tmp_path):
     async def go(c):
         r = await c.post("/api/cpap/stream", data=b"{not json", headers={"content-type": "application/json"})
         return r.status
+
     status = _serve(app, go)
     assert status == 400 and calls == []

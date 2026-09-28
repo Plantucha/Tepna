@@ -12,6 +12,7 @@ The real zero is the case worth naming twice: a declared stream with NO files ge
 nothing, that IS a measurement, and it must not read the same as one that cannot be measured — or a
 dead sensor hides behind the words meant for a missing denominator.
 """
+
 from __future__ import annotations
 
 import json
@@ -27,14 +28,13 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from test_monitor_device_cards import _extract  # noqa: E402
 
 CASES = {
-    "no_basis":      {"coverage_pct": None, "coverage_reason": "no-duration-basis",
-                      "coverage_unmeasured": 1},
-    "unmeasurable":  {"coverage_pct": None, "coverage_reason": None, "coverage_unmeasured": 0},
-    "measured":      {"coverage_pct": 30.6, "coverage_reason": None, "coverage_unmeasured": 0},
-    "partial_one":   {"coverage_pct": 30.6, "coverage_reason": None, "coverage_unmeasured": 1},
-    "partial_many":  {"coverage_pct": 30.6, "coverage_reason": None, "coverage_unmeasured": 3},
-    "real_zero":     {"coverage_pct": 0.0, "coverage_reason": None, "coverage_unmeasured": 0},
-    "whole":         {"coverage_pct": 100.0, "coverage_reason": None, "coverage_unmeasured": 0},
+    "no_basis": {"coverage_pct": None, "coverage_reason": "no-duration-basis", "coverage_unmeasured": 1},
+    "unmeasurable": {"coverage_pct": None, "coverage_reason": None, "coverage_unmeasured": 0},
+    "measured": {"coverage_pct": 30.6, "coverage_reason": None, "coverage_unmeasured": 0},
+    "partial_one": {"coverage_pct": 30.6, "coverage_reason": None, "coverage_unmeasured": 1},
+    "partial_many": {"coverage_pct": 30.6, "coverage_reason": None, "coverage_unmeasured": 3},
+    "real_zero": {"coverage_pct": 0.0, "coverage_reason": None, "coverage_unmeasured": 0},
+    "whole": {"coverage_pct": 100.0, "coverage_reason": None, "coverage_unmeasured": 0},
 }
 
 
@@ -42,16 +42,17 @@ def _render():
     node = shutil.which("node")
     if node is None:
         pytest.skip("node is not installed — the browser-lane extraction cannot run here")
-    prog = ("const CASES = " + json.dumps(CASES) + ";\n"
-            + _extract("coverageText") + "\n"
-            "const out = {};\n"
-            # Each case is evaluated on its OWN, so a case that THROWS is recorded rather than killing
-            # the program and failing every assertion in this file alike. Without this, restoring the
-            # old `coverage_pct.toFixed(1)` render fails even the real-zero control — which that render
-            # got right — and the arm check would have read as three defects where there is one.
-            "for (const k in CASES) { try { out[k] = coverageText(CASES[k]); }\n"
-            "  catch (e) { out[k] = 'THREW: ' + e.message; } }\n"
-            "console.log(JSON.stringify(out));\n")
+    prog = (
+        "const CASES = " + json.dumps(CASES) + ";\n" + _extract("coverageText") + "\n"
+        "const out = {};\n"
+        # Each case is evaluated on its OWN, so a case that THROWS is recorded rather than killing
+        # the program and failing every assertion in this file alike. Without this, restoring the
+        # old `coverage_pct.toFixed(1)` render fails even the real-zero control — which that render
+        # got right — and the arm check would have read as three defects where there is one.
+        "for (const k in CASES) { try { out[k] = coverageText(CASES[k]); }\n"
+        "  catch (e) { out[k] = 'THREW: ' + e.message; } }\n"
+        "console.log(JSON.stringify(out));\n"
+    )
     with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False) as fh:
         fh.write(prog)
         path = fh.name

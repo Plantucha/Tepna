@@ -15,6 +15,7 @@ The second load-bearing rule is "absent means keep, empty-string means clear". T
 even when a destination IS stored (because it is never echoed), so if an omitted field meant "delete",
 merely toggling the checkbox would silently wipe the destination.
 """
+
 import os
 import sys
 
@@ -46,8 +47,15 @@ def _app(tmp_path, alerts_cfg=None, notifier=None):
     cfg = {"root": str(tmp_path), "clock": {"sudo": False}, "devices": []}
     if alerts_cfg is not None:
         cfg["alerts"] = alerts_cfg
-    app = webmon.make_app(telemetry.TelemetryBus(), cfg, str(tmp_path / "config.yaml"),
-                          "AA:AA:AA:AA:AA:AA", {"devices": {}}, None, notifier=notifier)
+    app = webmon.make_app(
+        telemetry.TelemetryBus(),
+        cfg,
+        str(tmp_path / "config.yaml"),
+        "AA:AA:AA:AA:AA:AA",
+        {"devices": {}},
+        None,
+        notifier=notifier,
+    )
     return app, cfg
 
 
@@ -56,6 +64,7 @@ def _get(tmp_path, alerts_cfg=None):
 
     async def go(c):
         return await (await c.get("/api/alerts")).json()
+
     return _serve(app, go)
 
 
@@ -68,11 +77,13 @@ def _post(tmp_path, body, alerts_cfg=None, notifier=None, path="/api/alerts", se
         out["status"] = r.status
         out["json"] = await r.json()
         return out
+
     res = _serve(app, go)
     return res, cfg
 
 
 # ── the secret must never come back ───────────────────────────────────────────────────────────────
+
 
 def test_get_never_returns_the_url_only_whether_and_where(tmp_path):
     body = _get(tmp_path, {"enabled": True, "webhook_url": SECRET})
@@ -108,18 +119,18 @@ def test_an_unconfigured_box_says_so_rather_than_looking_healthy(tmp_path):
 
 # ── absent means keep, "" means clear ─────────────────────────────────────────────────────────────
 
+
 def test_omitting_the_url_keeps_the_stored_one(tmp_path):
     """The field renders empty because it is never echoed, so an omitted URL must NOT clear."""
     (res, cfg) = _post(tmp_path, {"enabled": False}, {"enabled": True, "webhook_url": SECRET})
     assert res["status"] == 200
-    assert cfg["alerts"]["webhook_url"] == SECRET      # still there
-    assert cfg["alerts"]["enabled"] is False           # only the toggle moved
+    assert cfg["alerts"]["webhook_url"] == SECRET  # still there
+    assert cfg["alerts"]["enabled"] is False  # only the toggle moved
     assert res["json"]["configured"] is True
 
 
 def test_an_explicit_empty_string_clears_it(tmp_path):
-    (res, cfg) = _post(tmp_path, {"webhook_url": "", "enabled": False},
-                       {"enabled": True, "webhook_url": SECRET})
+    (res, cfg) = _post(tmp_path, {"webhook_url": "", "enabled": False}, {"enabled": True, "webhook_url": SECRET})
     assert res["status"] == 200
     assert "webhook_url" not in cfg["alerts"]
     assert res["json"] == {"ok": True, "enabled": False, "configured": False, "hint": ""}
@@ -133,13 +144,15 @@ def test_enabled_cannot_survive_without_a_destination(tmp_path):
 
 
 def test_a_new_url_replaces_the_old_one(tmp_path):
-    (res, cfg) = _post(tmp_path, {"webhook_url": "https://ntfy.sh/new", "enabled": True},
-                       {"enabled": True, "webhook_url": SECRET})
+    (res, cfg) = _post(
+        tmp_path, {"webhook_url": "https://ntfy.sh/new", "enabled": True}, {"enabled": True, "webhook_url": SECRET}
+    )
     assert cfg["alerts"]["webhook_url"] == "https://ntfy.sh/new"
     assert res["json"]["hint"] == "https://ntfy.sh"
 
 
 # ── the live notifier is re-pointed without a restart ─────────────────────────────────────────────
+
 
 def test_saving_repoints_the_running_notifier(tmp_path):
     """Restarting to pick up a webhook change would drop every BLE link mid-night."""
@@ -151,8 +164,7 @@ def test_saving_repoints_the_running_notifier(tmp_path):
 
 def test_clearing_disarms_the_running_notifier(tmp_path):
     n = _Spy(url=SECRET, enabled=True)
-    _post(tmp_path, {"webhook_url": "", "enabled": False}, {"enabled": True, "webhook_url": SECRET},
-          notifier=n)
+    _post(tmp_path, {"webhook_url": "", "enabled": False}, {"enabled": True, "webhook_url": SECRET}, notifier=n)
     assert n.url is None and n.enabled is False
 
 
@@ -163,6 +175,7 @@ def test_a_box_with_no_notifier_still_saves(tmp_path):
 
 
 # ── the test button ───────────────────────────────────────────────────────────────────────────────
+
 
 def test_test_alert_goes_through_the_live_notifier(tmp_path):
     n = _Spy(url="https://ntfy.sh/t", enabled=True)
@@ -192,6 +205,7 @@ def test_a_probe_never_500s_the_monitor(tmp_path):
 
     async def boom(*_a, **_k):
         raise RuntimeError("dns")
+
     n.send = boom
     (res, _) = _post(tmp_path, {}, notifier=n, path="/api/alerts/test")
     assert res["status"] == 200 and res["json"]["ok"] is False
@@ -200,11 +214,13 @@ def test_a_probe_never_500s_the_monitor(tmp_path):
 
 # ── malformed requests ────────────────────────────────────────────────────────────────────────────
 
+
 def test_a_bodyless_post_is_a_400_not_a_clear(tmp_path):
     """Same rule as storage_post: an absent body is a broken client, never an instruction to delete."""
     (res, cfg) = _post(tmp_path, None, {"enabled": True, "webhook_url": SECRET}, send_body=False)
     assert res["status"] == 400
     assert cfg["alerts"]["webhook_url"] == SECRET
+
 
 def test_a_non_object_body_is_a_400(tmp_path):
     (res, _) = _post(tmp_path, ["not", "an", "object"])
@@ -215,12 +231,20 @@ def test_a_config_that_cannot_be_written_is_a_500_not_a_silent_success(tmp_path)
     """The operator must not be told "saved" when nothing reached the disk."""
     d = tmp_path / "nodir"
     cfg = {"root": str(tmp_path), "clock": {"sudo": False}, "devices": []}
-    app = webmon.make_app(telemetry.TelemetryBus(), cfg, str(d / "sub" / "config.yaml"),
-                          "AA:AA:AA:AA:AA:AA", {"devices": {}}, None, notifier=None)
+    app = webmon.make_app(
+        telemetry.TelemetryBus(),
+        cfg,
+        str(d / "sub" / "config.yaml"),
+        "AA:AA:AA:AA:AA:AA",
+        {"devices": {}},
+        None,
+        notifier=None,
+    )
     out = {}
 
     async def go(c):
         r = await c.post("/api/alerts", json={"webhook_url": "https://ntfy.sh/t", "enabled": True})
         out["status"] = r.status
         return out
+
     assert _serve(app, go)["status"] == 500

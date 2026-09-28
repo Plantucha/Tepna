@@ -11,6 +11,7 @@ change in the SECOND state — forwarded, never rendered — which is why this f
 SKIP there and CI is their verdict. A skip is not a pass: `_render` skips loudly rather than
 returning an empty result that would let every assertion below vacuously succeed.
 """
+
 import json
 import os
 import shutil
@@ -26,15 +27,27 @@ from test_monitor_device_cards import _extract  # noqa: E402
 CASES = {
     # The state an operator MUST be able to tell from a broken link: the daemon is deliberately not
     # talking to the ring.
-    "held": {"oxy_storm": {"hold_remaining_s": 900, "hold_until": "2026-09-05T22:45:00",
-                           "trips": ["2026-09-05T22:30:00"], "last_trip": "2026-09-05T22:30:00"}},
+    "held": {
+        "oxy_storm": {
+            "hold_remaining_s": 900,
+            "hold_until": "2026-09-05T22:45:00",
+            "trips": ["2026-09-05T22:30:00"],
+            "last_trip": "2026-09-05T22:30:00",
+        }
+    },
     # Hold over, but the night's evidence must still be visible in the morning.
-    "cleared": {"oxy_storm": {"hold_remaining_s": 0, "hold_until": None,
-                              "trips": ["2026-09-05T02:30:00", "2026-09-05T02:51:00"],
-                              "last_trip": "2026-09-05T02:51:00"}},
+    "cleared": {
+        "oxy_storm": {
+            "hold_remaining_s": 0,
+            "hold_until": None,
+            "trips": ["2026-09-05T02:30:00", "2026-09-05T02:51:00"],
+            "last_trip": "2026-09-05T02:51:00",
+        }
+    },
     # A quiet night draws NOTHING — a chip that always renders teaches an operator to ignore it.
-    "quiet": {"oxy_storm": {"hold_remaining_s": 0, "hold_until": None, "trips": [], "last_trip": None,
-                            "restarts_total": 2}},
+    "quiet": {
+        "oxy_storm": {"hold_remaining_s": 0, "hold_until": None, "trips": [], "last_trip": None, "restarts_total": 2}
+    },
     # Devices without the axis (H10, Verity, AirSense) and pre-deploy daemons draw nothing.
     "absent": {"connected": True},
     "xss": {"oxy_storm": {"hold_remaining_s": 0, "trips": ["<b>x</b>"], "last_trip": "<img src=x>"}},
@@ -48,8 +61,7 @@ def _render():
     prog = (
         "const CASES = " + json.dumps(CASES) + ";\n"
         "const esc = s => String(s).replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"
-        "'\"':'&quot;',\"'\":'&#39;'}[c]));\n"
-        + _extract("oxyStormChip") + "\n"
+        "'\"':'&quot;',\"'\":'&#39;'}[c]));\n" + _extract("oxyStormChip") + "\n"
         "const out = {};\n"
         "for (const k in CASES) out[k] = oxyStormChip(CASES[k]);\n"
         "console.log(JSON.stringify(out));\n"

@@ -19,6 +19,7 @@ Two real failures live here, both recorded in the handler's own comments and nei
 
 Neither failure raises, and both look like success in the UI.
 """
+
 import os
 import sys
 
@@ -28,12 +29,14 @@ from tests.test_webmon_api import H10, _mk, _serve  # noqa: E402
 
 
 def _remember(tmp_path, payload, devices=None, spawned=None):
-    app, cfg, _st, cfg_path, _bus = _mk(tmp_path, devices=devices,
-                                        spawn_device=spawned.append if spawned is not None else None)
+    app, cfg, _st, cfg_path, _bus = _mk(
+        tmp_path, devices=devices, spawn_device=spawned.append if spawned is not None else None
+    )
 
     async def go(c):
         r = await c.post("/api/remember", json=payload)
         return r.status, await r.json()
+
     return (*_serve(app, go), cfg, cfg_path)
 
 
@@ -59,8 +62,7 @@ def test_re_remembering_does_not_add_a_second_entry(tmp_path):
 def test_an_established_device_id_wins_over_an_incoming_guess(tmp_path):
     """The id is interpolated into every capture filename, so changing it renames the sensor's whole
     future output and orphans it from its own history. Correcting it is a deliberate config edit."""
-    _s, _b, cfg, _ = _remember(tmp_path, {**H10, "device_id": "AC0C301E"},
-                               devices=[{**H10, "device_id": "0C301E3F"}])
+    _s, _b, cfg, _ = _remember(tmp_path, {**H10, "device_id": "AC0C301E"}, devices=[{**H10, "device_id": "0C301E3F"}])
     assert cfg["devices"][0]["device_id"] == "0C301E3F"
 
 
@@ -73,8 +75,9 @@ def test_a_device_with_no_established_id_accepts_the_incoming_one(tmp_path):
 
 
 def test_a_new_device_is_appended_with_only_the_allowlisted_keys(tmp_path):
-    _s, body, cfg, _ = _remember(tmp_path, {**H10, "address": "11:22:33:44:55:66",
-                                            "root": "/etc", "rates": {"acc": 999}})
+    _s, body, cfg, _ = _remember(
+        tmp_path, {**H10, "address": "11:22:33:44:55:66", "root": "/etc", "rates": {"acc": 999}}
+    )
     assert body["remembered"] == 2
     added = cfg["devices"][-1]
     assert added["address"] == "11:22:33:44:55:66"
@@ -86,11 +89,17 @@ def test_a_new_device_is_appended_with_only_the_allowlisted_keys(tmp_path):
 def test_the_merged_device_is_what_gets_hot_started(tmp_path):
     """`saved`, not `cfg['devices'][-1]`: a merged device keeps its ORIGINAL position, so an index-based
     lookup hot-starts whichever sensor happens to be last — a different device entirely."""
-    other = {"name": "Ring", "vendor": "Wellue", "model": "O2Ring-S", "device_id": "S8AW",
-             "address": "D1:98:62:7C:92:B3", "streams": ["spo2"], "rates": {}}
+    other = {
+        "name": "Ring",
+        "vendor": "Wellue",
+        "model": "O2Ring-S",
+        "device_id": "S8AW",
+        "address": "D1:98:62:7C:92:B3",
+        "streams": ["spo2"],
+        "rates": {},
+    }
     spawned = []
-    _remember(tmp_path, {**H10, "streams": ["ecg", "acc"]},
-              devices=[dict(H10), other], spawned=spawned)
+    _remember(tmp_path, {**H10, "streams": ["ecg", "acc"]}, devices=[dict(H10), other], spawned=spawned)
     assert len(spawned) == 1
     assert spawned[0]["address"] == H10["address"], f"hot-started the wrong device: {spawned[0]}"
     assert spawned[0]["streams"] == ["ecg", "acc"], "and it must carry the merged values"
@@ -107,10 +116,8 @@ def test_a_failed_config_write_is_a_500_and_starts_nothing(tmp_path, monkeypatch
     """Hot-starting a device whose config never reached disk gives a sensor that records tonight and
     vanishes at the next restart — the confusing half-state this ordering avoids."""
     spawned = []
-    monkeypatch.setattr(webmon.os, "replace",
-                        lambda *a, **k: (_ for _ in ()).throw(OSError("ENOSPC")))
-    status, body, _cfg, _ = _remember(tmp_path, {**H10, "address": "11:22:33:44:55:66"},
-                                      spawned=spawned)
+    monkeypatch.setattr(webmon.os, "replace", lambda *a, **k: (_ for _ in ()).throw(OSError("ENOSPC")))
+    status, body, _cfg, _ = _remember(tmp_path, {**H10, "address": "11:22:33:44:55:66"}, spawned=spawned)
     assert status == 500 and body["ok"] is False and "config write failed" in body["error"]
     assert spawned == [], "nothing may be hot-started when the config did not persist"
 

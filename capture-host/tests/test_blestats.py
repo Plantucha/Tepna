@@ -7,6 +7,7 @@ gets this wrong — `successes / max(attempts, 1)` — reports a PERFECT 1.0 for
 contacted once, which is exactly the "zero failures over an unknown denominator" that made #2170's
 rate unrecoverable from the logs.
 """
+
 import os
 import sys
 
@@ -49,28 +50,35 @@ def test_a_measured_zero_is_still_a_number():
 
 def test_the_denominator_includes_the_failures():
     """An attempt counted only on success is not a denominator — it is a success count twice."""
-    blestats.attempt("connect", "D"); blestats.ok("connect", "D")
-    blestats.attempt("connect", "D"); blestats.fail("connect", "D", "timeout")
-    blestats.attempt("connect", "D"); blestats.fail("connect", "D", "timeout")
+    blestats.attempt("connect", "D")
+    blestats.ok("connect", "D")
+    blestats.attempt("connect", "D")
+    blestats.fail("connect", "D", "timeout")
+    blestats.attempt("connect", "D")
+    blestats.fail("connect", "D", "timeout")
     assert blestats.attempts("connect", "D") == 3
     assert blestats.success_rate("connect", "D") == pytest.approx(1 / 3)
 
 
 def test_failure_classes_are_counted_separately():
-    blestats.attempt("connect", "D"); blestats.fail("connect", "D", "timeout")
-    blestats.attempt("connect", "D"); blestats.fail("connect", "D", "not_found")
-    blestats.attempt("connect", "D"); blestats.fail("connect", "D", "timeout")
+    blestats.attempt("connect", "D")
+    blestats.fail("connect", "D", "timeout")
+    blestats.attempt("connect", "D")
+    blestats.fail("connect", "D", "not_found")
+    blestats.attempt("connect", "D")
+    blestats.fail("connect", "D", "timeout")
     assert blestats.failures("connect", "D") == {"timeout": 2, "not_found": 1}
 
 
 def test_counters_are_scoped_per_device_and_per_op():
-    blestats.attempt("connect", "A"); blestats.ok("connect", "A")
+    blestats.attempt("connect", "A")
+    blestats.ok("connect", "A")
     blestats.attempt("connect", "B")
     blestats.attempt("pull", "A")
     assert blestats.success_rate("connect", "A") == 1.0
-    assert blestats.success_rate("connect", "B") == 0.0   # attempted once, no success: a REAL zero
+    assert blestats.success_rate("connect", "B") == 0.0  # attempted once, no success: a REAL zero
     assert blestats.success_rate("pull", "A") == 0.0
-    assert blestats.success_rate("pull", "B") is None     # never attempted: an ABSENCE
+    assert blestats.success_rate("pull", "B") is None  # never attempted: an ABSENCE
 
 
 def test_retries_carry_their_cause():
@@ -82,8 +90,10 @@ def test_retries_carry_their_cause():
 
 
 def test_snapshot_reports_None_rates_and_integer_counts():
-    blestats.attempt("connect", "A"); blestats.ok("connect", "A")
-    blestats.attempt("connect", "B"); blestats.fail("connect", "B", "timeout")
+    blestats.attempt("connect", "A")
+    blestats.ok("connect", "A")
+    blestats.attempt("connect", "B")
+    blestats.fail("connect", "B", "timeout")
     blestats.retried("B", "backoff")
     snap = blestats.snapshot()
     assert snap["ops"]["connect/A"] == {"attempts": 1, "successes": 1, "rate": 1.0, "failures": {}}
@@ -110,10 +120,12 @@ def test_snapshot_rate_is_None_when_only_successes_were_somehow_recorded():
 def test_counting_never_raises_into_the_capture_path(monkeypatch, call):
     """Rule 2. A telemetry defect that takes down a night's recording is worse than the blindness it
     was added to fix, so every entry point swallows."""
+
     def boom(*_a, **_k):
         raise RuntimeError("counter store is broken")
+
     monkeypatch.setattr(blestats, "_bump", boom)
-    call()   # must not raise
+    call()  # must not raise
 
 
 def test_non_string_keys_do_not_explode():

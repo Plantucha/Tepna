@@ -100,7 +100,7 @@ def test_a_SIDECAR_touched_after_the_audit_does_not_re_audit_the_night(tmp_path,
     v = os.path.getmtime(str(d / capture.loss_audit.VERDICT_NAME))
     for marker in (".archived", "Tepna_20260918220000_LINK.csv", "QC-SUMMARY.json"):
         (d / marker).write_text("x")
-        os.utime(str(d / marker), (v + 60, v + 60))      # newer than the audit, and NOT capture data
+        os.utime(str(d / marker), (v + 60, v + 60))  # newer than the audit, and NOT capture data
     capture._STOP = asyncio.Event()
     _stop_after(monkeypatch, 1)
     _run(capture.loss_poller({"loss_audit": {"poll_sec": 1}, "devices": []}, str(tmp_path)))
@@ -123,16 +123,18 @@ def test_a_folder_with_no_capture_file_is_skipped_not_audited(tmp_path, monkeypa
     (d / "Tepna_20260918000000_LINK.csv").write_text("x")
     monkeypatch.setattr(capture.diskguard, "active_nights", lambda c, s: set())
     calls = []
-    monkeypatch.setattr(capture.loss_audit, "write_night",
-                        lambda nd, devices, commit=None: calls.append(nd) or {"status": "UNKNOWN", "at": "x",
-                                                                              "result": {}, "reason": ""})
+    monkeypatch.setattr(
+        capture.loss_audit,
+        "write_night",
+        lambda nd, devices, commit=None: (
+            calls.append(nd) or {"status": "UNKNOWN", "at": "x", "result": {}, "reason": ""}
+        ),
+    )
     capture._STOP = asyncio.Event()
     _stop_after(monkeypatch, 1)
     _run(capture.loss_poller({"loss_audit": {"poll_sec": 1}, "devices": []}, str(tmp_path)))
     assert calls == []
     capture._STOP.clear()
-
-
 
 
 def _audit_writer(calls, write_file=True):
@@ -161,8 +163,11 @@ def test_the_solid_night_verdict_follows_the_audit_and_only_the_audit(tmp_path, 
     monkeypatch.setattr(capture.loss_audit, "write_night", _audit_writer([]))
     composed = []
     real = capture.solid_night.write_night
-    monkeypatch.setattr(capture.solid_night, "write_night",
-                        lambda nd, *a, **k: composed.append(os.path.basename(nd)) or real(nd, *a, **k))
+    monkeypatch.setattr(
+        capture.solid_night,
+        "write_night",
+        lambda nd, *a, **k: composed.append(os.path.basename(nd)) or real(nd, *a, **k),
+    )
     _poll_once(monkeypatch, tmp_path)
     assert composed == ["2026-09-18"] and (d / capture.solid_night.VERDICT_NAME).exists()
     s = capture.STATUS["solid"]
@@ -180,8 +185,7 @@ def test_a_verdict_that_cannot_be_composed_is_logged_and_the_audit_stands(tmp_pa
     monkeypatch.setattr(capture, "STATUS", {})
     monkeypatch.setattr(capture.diskguard, "active_nights", lambda c, s: set())
     monkeypatch.setattr(capture.loss_audit, "write_night", _audit_writer([]))
-    monkeypatch.setattr(capture.solid_night, "write_night",
-                        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom")))
+    monkeypatch.setattr(capture.solid_night, "write_night", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom")))
     with caplog.at_level("WARNING"):
         _poll_once(monkeypatch, tmp_path)
     assert any("solid-night: 2026-09-18 — verdict not written" in r.getMessage() for r in caplog.records)

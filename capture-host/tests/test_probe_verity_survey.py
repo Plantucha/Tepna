@@ -45,12 +45,18 @@ def _fast_settle(monkeypatch):
 
 # ── a Verity that keeps state ───────────────────────────────────────────────────────────────────────
 
-SETTINGS_TLV = (bytes([0x00, 0x01]) + struct.pack("<H", 55) +
-                bytes([0x01, 0x01]) + struct.pack("<H", 22) +
-                bytes([0x04, 0x01, 4]))
+SETTINGS_TLV = (
+    bytes([0x00, 0x01]) + struct.pack("<H", 55) + bytes([0x01, 0x01]) + struct.pack("<H", 22) + bytes([0x04, 0x01, 4])
+)
 
-DIS_VALUES = {"manufacturer": b"Polar Electro Oy", "model": b"INW4J", "serial": b"C1B2A3",
-              "hardware_rev": b"1.0.0", "firmware_rev": b"2.2.1", "software_rev": b"2.2.1"}
+DIS_VALUES = {
+    "manufacturer": b"Polar Electro Oy",
+    "model": b"INW4J",
+    "serial": b"C1B2A3",
+    "hardware_rev": b"1.0.0",
+    "firmware_rev": b"2.2.1",
+    "software_rev": b"2.2.1",
+}
 
 
 class _Verity:
@@ -59,8 +65,7 @@ class _Verity:
     That matters because every claim the survey makes is supposed to be a re-read of the device — a fake
     that just acks would let `recording_confirmed_by_device` pass while proving nothing."""
 
-    def __init__(self, features=b"\x0f\x02", start_status=0x00, silent=(), dis=None,
-                 write_fails=(), stop_works=True):
+    def __init__(self, features=b"\x0f\x02", start_status=0x00, silent=(), dis=None, write_fails=(), stop_works=True):
         self.features, self.start_status = features, start_status
         self.silent, self.write_fails, self.stop_works = set(silent), set(write_fails), stop_works
         self.dis = DIS_VALUES if dis is None else dis
@@ -101,8 +106,7 @@ class _Verity:
         # [0xF0, op, meas, status, moreFlag, <payload>] — the status (0x00 = SUCCESS) and the moreFlag
         # were both missing here, so the payload started two bytes early. It passed only because
         # parse_status_response began reading at the status byte; see polar_pmd.
-        return (bytes([0xF0, 0x05, 0xFF, 0x00, 0x00])
-                + bytes((st << 6) | m for m, st in sorted(self.active.items())))
+        return bytes([0xF0, 0x05, 0xFF, 0x00, 0x00]) + bytes((st << 6) | m for m, st in sorted(self.active.items()))
 
     def _answer(self, data):
         op = data[0]
@@ -126,11 +130,13 @@ class _Verity:
 def _patch_link(monkeypatch, client, found=True):
     async def find(_a, timeout=0):
         return object() if found else None
+
     monkeypatch.setattr(psv.BleakScanner, "find_device_by_address", find)
     monkeypatch.setattr(psv, "BleakClient", lambda dev, **kw: client)
 
 
 # ══ the guard ════════════════════════════════════════════════════════════════════════════════════════
+
 
 def test_the_persistent_trigger_writes_are_refused_at_the_choke_point():
     for op, name in psv.FORBIDDEN.items():
@@ -155,6 +161,7 @@ def test_the_report_says_what_it_refused_to_send(monkeypatch):
 
 
 # ══ Control ══════════════════════════════════════════════════════════════════════════════════════════
+
 
 def test_a_refused_write_is_recorded_as_a_measurement_and_then_raised():
     c = _Verity(write_fails={0x05})
@@ -185,12 +192,14 @@ def test_a_stale_reply_is_drained_so_answers_are_not_attributed_to_the_wrong_com
 
 # ══ the link ═════════════════════════════════════════════════════════════════════════════════════════
 
+
 def test_find_gives_up_after_its_attempts(monkeypatch):
     n = {"i": 0}
 
     async def find(_a, timeout=0):
         n["i"] += 1
         return None
+
     monkeypatch.setattr(psv.BleakScanner, "find_device_by_address", find)
     assert _run(psv._find("AA:BB", attempts=3)) is None
     assert n["i"] == 3
@@ -201,6 +210,7 @@ def test_find_returns_the_first_hit(monkeypatch):
 
     async def find(_a, timeout=0):
         return sentinel
+
     monkeypatch.setattr(psv.BleakScanner, "find_device_by_address", find)
     assert _run(psv._find("AA:BB")) is sentinel
 
@@ -210,6 +220,7 @@ def test_a_device_that_never_advertises_is_named_as_such(monkeypatch):
 
     async def body(_c, _cp):
         raise AssertionError("must not be reached")
+
     with pytest.raises(RuntimeError) as e:
         _run(psv._with_link("AA:BB", None, body))
     assert "device not advertising" in str(e.value)
@@ -224,6 +235,7 @@ def test_a_code_bug_aborts_instead_of_burning_three_ble_windows(monkeypatch):
     async def body(_c, _cp):
         calls["n"] += 1
         raise AttributeError("'NoneType' object has no attribute 'hex'")
+
     with pytest.raises(AttributeError):
         _run(psv._with_link("AA:BB", None, body))
     assert calls["n"] == 1
@@ -238,6 +250,7 @@ def test_a_link_failure_retries_and_keeps_the_traceback(monkeypatch):
     async def body(_c, _cp):
         calls["n"] += 1
         raise RuntimeError("Service Discovery has not been performed yet")
+
     with pytest.raises(RuntimeError) as e:
         _run(psv._with_link("AA:BB", None, body, attempts=2))
     assert calls["n"] == 2
@@ -249,16 +262,20 @@ def test_a_working_link_returns_the_body_result(monkeypatch, capsys):
 
     async def body(_c, cp):
         return (await cp.send(b"\x05")).hex()
+
     assert _run(psv._with_link("AA:BB", None, body)).startswith("f005")
     capsys.readouterr()
 
 
 # ══ the daemon precondition ══════════════════════════════════════════════════════════════════════════
 
+
 def test_an_active_daemon_holds_the_link(monkeypatch):
     class _R:
         stdout = "active\n"
+
     import subprocess
+
     monkeypatch.setattr(subprocess, "run", lambda *a, **k: _R())
     assert psv.daemon_holds_link() is True
 
@@ -268,6 +285,7 @@ def test_no_systemd_is_not_a_held_link(monkeypatch):
 
     def boom(*a, **k):
         raise FileNotFoundError("systemctl")
+
     monkeypatch.setattr(subprocess, "run", boom)
     assert psv.daemon_holds_link() is False
 
@@ -282,6 +300,7 @@ def test_the_survey_stops_at_the_precondition_and_names_the_fix(monkeypatch):
 
 
 # ══ the adapter cycle ════════════════════════════════════════════════════════════════════════════════
+
 
 class _AsyncioShim:
     def __init__(self, **over):
@@ -300,10 +319,12 @@ def test_the_adapter_cycle_is_best_effort_and_says_so(monkeypatch):
         class _P:
             async def wait(self):
                 return 0
+
         return _P()
 
     async def nosleep(_s):
         return None
+
     monkeypatch.setattr(psv, "asyncio", _AsyncioShim(create_subprocess_exec=spawn, sleep=nosleep))
     assert _run(psv._cycle_adapter()) is True
     assert [c[2] for c in seen] == ["off", "on"], "power off then on — bonding survives it"
@@ -312,11 +333,13 @@ def test_the_adapter_cycle_is_best_effort_and_says_so(monkeypatch):
 def test_a_failed_adapter_cycle_reports_false_rather_than_raising(monkeypatch):
     async def boom(*a, **k):
         raise FileNotFoundError("bluetoothctl")
+
     monkeypatch.setattr(psv, "asyncio", _AsyncioShim(create_subprocess_exec=boom))
     assert _run(psv._cycle_adapter()) is False
 
 
 # ══ phase 1 · identity ═══════════════════════════════════════════════════════════════════════════════
+
 
 def test_identity_reads_the_device_and_cross_checks_the_fcc_id(monkeypatch):
     """Polar puts the FCC ID in the model field, so comparing them ties the report to a public filing
@@ -343,6 +366,7 @@ def test_an_unreadable_battery_does_not_cost_the_identity(monkeypatch):
             if uuid == psv.BATTERY:
                 raise RuntimeError("not permitted")
             return await _Verity.read_gatt_char(self, uuid)
+
     _patch_link(monkeypatch, _NoBattery())
     out = {}
     _run(psv.phase_identity("AA:BB", None, out))
@@ -352,10 +376,11 @@ def test_an_unreadable_battery_does_not_cost_the_identity(monkeypatch):
 
 # ══ phase 2 · capability ═════════════════════════════════════════════════════════════════════════════
 
+
 def test_capability_names_the_mode_bits_separately_from_the_streams(monkeypatch):
     """The feature bitmask mixes MEASUREMENTS and MODES. Naming SDK_MODE in pmd.MEAS_NAME would make
     webmon offer three modes to the user as capturable streams, so they are named here instead."""
-    _patch_link(monkeypatch, _Verity(features=b"\x0f\x02\x20"))     # PPG + bit 0x0D
+    _patch_link(monkeypatch, _Verity(features=b"\x0f\x02\x20"))  # PPG + bit 0x0D
     out = {}
     _run(psv.phase_capability("AA:BB", None, out))
     cap = out["capability"]
@@ -368,7 +393,7 @@ def test_capability_names_the_mode_bits_separately_from_the_streams(monkeypatch)
 
 
 def test_an_unrecognised_flag_bit_is_labelled_rather_than_dropped(monkeypatch):
-    _patch_link(monkeypatch, _Verity(features=b"\x0f\x02\x80"))     # bit 15, nothing known
+    _patch_link(monkeypatch, _Verity(features=b"\x0f\x02\x80"))  # bit 15, nothing known
     out = {}
     _run(psv.phase_capability("AA:BB", None, out))
     assert out["capability"]["flag_bits"] == {"0x0f": "unrecognised"}
@@ -384,11 +409,13 @@ def test_a_silent_read_op_is_reported_as_no_reply(monkeypatch):
 def test_a_failed_feature_read_falls_back_to_sweeping_every_known_type(monkeypatch):
     """A GATT READ OF THE CONTROL POINT COSTS THE LINK FOR SUBSEQUENT WRITES, so this phase gives the
     read its own link — and when the read fails anyway the menu sweep must still happen."""
+
     class _NoFeatures(_Verity):
         async def read_gatt_char(self, uuid):
             if uuid == pmd.PMD_CONTROL:
                 raise RuntimeError("Service Discovery has not been performed yet")
             return await _Verity.read_gatt_char(self, uuid)
+
     _patch_link(monkeypatch, _NoFeatures())
     out = {}
     _run(psv.phase_capability("AA:BB", None, out))
@@ -397,6 +424,7 @@ def test_a_failed_feature_read_falls_back_to_sweeping_every_known_type(monkeypat
 
 
 # ══ phase 3 · the recording ══════════════════════════════════════════════════════════════════════════
+
 
 def test_a_recording_is_confirmed_by_the_device_not_by_the_ack(monkeypatch):
     dev = _Verity()
@@ -473,6 +501,7 @@ def test_an_unknown_setting_id_is_still_reported_by_number():
 
 # ══ phase 4 · the flash ══════════════════════════════════════════════════════════════════════════════
 
+
 def _patch_psftp(monkeypatch, recs=None, listing_error=None, pull_error=None):
     async def lst(_a, _ad):
         if listing_error:
@@ -484,6 +513,7 @@ def _patch_psftp(monkeypatch, recs=None, listing_error=None, pull_error=None):
             raise RuntimeError(pull_error)
         os.makedirs(dest, exist_ok=True)
         return {"files": [{"name": "PPG.REC", "bytes": 77434, "ok": True, "extra": "dropped"}]}
+
     monkeypatch.setattr(psv.psftp, "list_recordings", lst)
     monkeypatch.setattr(psv.psftp, "pull_recording", pull)
 
@@ -607,7 +637,7 @@ def test_a_single_frame_file_reports_no_cadence(tmp_path):
 
 def test_an_unreadable_stamp_yields_no_frames_rather_than_a_wild_scan(tmp_path):
     b = bytearray(open(_rec_file(tmp_path), "rb").read())
-    b[0x11:0x11 + 6] = b"\xff\xfe\xfd\xfc\xfb\xfa"
+    b[0x11 : 0x11 + 6] = b"\xff\xfe\xfd\xfc\xfb\xfa"
     p = tmp_path / "bad.REC"
     p.write_bytes(bytes(b))
     got = psv.decode_rec(str(p))
@@ -629,6 +659,7 @@ def test_the_median_of_nothing_is_none():
 
 
 # ── phase_decode ────────────────────────────────────────────────────────────────────────────────────
+
 
 def test_decode_skips_a_missing_pull_dir():
     out = {}
@@ -682,6 +713,7 @@ def test_an_undecodable_file_is_reported_against_its_name(tmp_path, monkeypatch)
 
     def boom(*a, **k):
         raise ValueError("not a container")
+
     monkeypatch.setattr(psv, "decode_rec", boom)
     out = {}
     psv.phase_decode(out, str(tmp_path))
@@ -732,7 +764,9 @@ def test_the_session_match_boundaries_the_mutation_gate_found_open():
     # mutmut_51 (`< 180` -> `<= 180`) and mutmut_52 (`-> < 181`). The window is EXCLUSIVE at 180 s.
     assert psv._session_matches("/pull/U_0_20260803_R_120300", e) is False, "exactly 180 s is outside the window"
     assert psv._session_matches("/pull/U_0_20260803_R_120259", e) is True, "…and 179 s is inside it"
-    assert psv._session_matches("/pull/U_0_20260803_R_115700", e) is False, "the window is symmetric — 180 s early is out too"
+    assert psv._session_matches("/pull/U_0_20260803_R_115700", e) is False, (
+        "the window is symmetric — 180 s early is out too"
+    )
     assert psv._session_matches("/pull/U_0_20260803_R_115701", e) is True, "…and 179 s early is in"
 
 
@@ -741,6 +775,7 @@ def test_the_local_clock_helper_is_a_real_epoch():
 
 
 # ══ the safety net ═══════════════════════════════════════════════════════════════════════════════════
+
 
 def test_whatever_is_running_gets_stopped_and_verified(monkeypatch):
     dev = _Verity()
@@ -764,22 +799,27 @@ def test_a_stop_that_cannot_be_verified_says_so_loudly(monkeypatch):
 
 # ══ the driver ═══════════════════════════════════════════════════════════════════════════════════════
 
+
 def _stub_phases(monkeypatch, failing=()):
     async def mk(name):
         if name in failing:
             raise RuntimeError(f"{name} died")
 
     for name in ("identity", "capability", "record", "flash"):
+
         def make(n):
             async def fn(*a, **k):
                 a[-1][n] = "ran"
                 await mk(n)
+
             return fn
+
         monkeypatch.setattr(psv, f"phase_{name}", make(name))
     monkeypatch.setattr(psv, "daemon_holds_link", lambda: False)
 
     async def stop(_a, _ad, out):
         out["left_clean"] = {"was_active": []}
+
     monkeypatch.setattr(psv, "stop_everything", stop)
 
 
@@ -803,6 +843,7 @@ def test_no_write_skips_the_recording_and_the_stop(monkeypatch):
 def test_main_writes_the_report_and_signals_a_partial_run(monkeypatch, tmp_path, capsys):
     async def fake(*a, **k):
         return {"address": a[0], "phase_errors": {"flash": "boom"}}
+
     monkeypatch.setattr(psv, "survey", fake)
     p = str(tmp_path / "survey.json")
     assert psv.main(["--address", "AA:BB", "--json", p, "--meas", "acc"]) == 1
@@ -816,6 +857,7 @@ def test_main_returns_zero_on_a_clean_run(monkeypatch, capsys):
     async def fake(address, adapter, meas, seconds, pull_dir, do_write):
         seen.update(meas=meas, do_write=do_write, seconds=seconds)
         return {"ok": True}
+
     monkeypatch.setattr(psv, "survey", fake)
     assert psv.main(["--address", "AA:BB", "--no-write", "--record-seconds", "9"]) == 0
     assert "ok" in capsys.readouterr().out
@@ -834,34 +876,35 @@ _OP_STATUS_CODE = psv.pmd._OP_STATUS
 def test_PLANT_a_silent_status_read_does_not_CONFIRM_the_stop(monkeypatch):
     """The dangerous half. `not is_recording({})` is True, so silence used to publish the stop."""
     dev = _Verity(silent={_OP_STATUS_CODE})
-    monkeypatch.setattr(psv, "CP_REPLY_TIMEOUT_S", 0.05)   # else 6 s x every retry
+    monkeypatch.setattr(psv, "CP_REPLY_TIMEOUT_S", 0.05)  # else 6 s x every retry
     _patch_link(monkeypatch, dev)
     out = {}
     _run(psv.phase_record("AA:BB", None, PPG, 0.01, out))
     rec = out["record"]
     assert rec["status_after_answered"] is False, "the device never answered the status read"
     assert rec["stopped_confirmed_by_device"] is None, (
-        "a stop the device never confirmed must not read as confirmed: "
-        f"got {rec['stopped_confirmed_by_device']!r}")
+        f"a stop the device never confirmed must not read as confirmed: got {rec['stopped_confirmed_by_device']!r}"
+    )
 
 
 def test_PLANT_a_silent_status_read_does_not_deny_the_recording_either(monkeypatch):
     """The other half. False here is ALSO a claim about the device, from the same silence."""
     dev = _Verity(silent={_OP_STATUS_CODE})
-    monkeypatch.setattr(psv, "CP_REPLY_TIMEOUT_S", 0.05)   # else 6 s x every retry
+    monkeypatch.setattr(psv, "CP_REPLY_TIMEOUT_S", 0.05)  # else 6 s x every retry
     _patch_link(monkeypatch, dev)
     out = {}
     _run(psv.phase_record("AA:BB", None, PPG, 0.01, out))
     rec = out["record"]
     assert rec["status_during_answered"] is False
     assert rec["recording_confirmed_by_device"] is None, (
-        f"unanswered is not 'not recording': got {rec['recording_confirmed_by_device']!r}")
+        f"unanswered is not 'not recording': got {rec['recording_confirmed_by_device']!r}"
+    )
 
 
 def test_PLANT_left_clean_is_not_claimed_from_a_silent_re_read(monkeypatch):
     """`still_active: []` is the positive claim the backstop exists to make — not from silence."""
     dev = _Verity(silent={_OP_STATUS_CODE})
-    monkeypatch.setattr(psv, "CP_REPLY_TIMEOUT_S", 0.05)   # else 6 s x every retry
+    monkeypatch.setattr(psv, "CP_REPLY_TIMEOUT_S", 0.05)  # else 6 s x every retry
     _patch_link(monkeypatch, dev)
     out = {}
     _run(psv.stop_everything("AA:BB", None, out))

@@ -29,23 +29,30 @@ def _run(coro):
 
 
 # ── recognising a one-sided bond ────────────────────────────────────────────────────────────────────
-@pytest.mark.parametrize("text", [
-    "BleakError('failed to discover services, device disconnected')",   # the observed one
-    "BleakError('Service Discovery has not been performed yet')",
-    "BleakDBusError('org.bluez.Error.AuthenticationFailed', ...)",
-    "insufficient authentication",
-])
+@pytest.mark.parametrize(
+    "text",
+    [
+        "BleakError('failed to discover services, device disconnected')",  # the observed one
+        "BleakError('Service Discovery has not been performed yet')",
+        "BleakDBusError('org.bluez.Error.AuthenticationFailed', ...)",
+        "insufficient authentication",
+    ],
+)
 def test_a_one_sided_bond_is_recognised(text):
     assert bonding.looks_like_a_stale_bond(text) is True
 
 
-@pytest.mark.parametrize("text", [
-    "BleakDeviceNotFoundError('Device with address 24:AC:AC:02:84:96 was not found.')",
-    "BleakDBusError('org.bluez.Error.InProgress', 'Operation already in progress')",
-    "TimeoutError()",
-    "org.bluez.Error.Failed', 'br-connection-canceled'",
-    "", None,
-])
+@pytest.mark.parametrize(
+    "text",
+    [
+        "BleakDeviceNotFoundError('Device with address 24:AC:AC:02:84:96 was not found.')",
+        "BleakDBusError('org.bluez.Error.InProgress', 'Operation already in progress')",
+        "TimeoutError()",
+        "org.bluez.Error.Failed', 'br-connection-canceled'",
+        "",
+        None,
+    ],
+)
 def test_an_absent_or_busy_device_is_NOT_mistaken_for_a_stale_bond(text):
     """Re-pairing costs ~20 s of scripted bluetoothctl and drops the link. A sensor that is merely asleep,
     out of range or mid-contention must never trigger it — that would turn a benign not-worn state into a
@@ -64,6 +71,7 @@ def _stub(monkeypatch, bonded=True, record=None):
         if record is not None:
             record.append(lines)
         return "Pairing successful"
+
     monkeypatch.setattr(bonding, "_btctl", fake_btctl)
     monkeypatch.setattr(bonding, "_delayed_script", fake_delayed)
 
@@ -96,7 +104,7 @@ def test_force_re_pairs_even_though_the_host_says_bonded(monkeypatch):
 # ── the daemon only forces after a REPEAT ───────────────────────────────────────────────────────────
 def test_the_daemon_requires_two_consecutive_hits_before_re_pairing():
     """A single discovery failure is also what an ordinary mid-negotiation drop looks like."""
-    src = module_source("capture.py")   # skips on a mutmut file — see tests/_srcscan.py
+    src = module_source("capture.py")  # skips on a mutmut file — see tests/_srcscan.py
     assert "stale_bond_hits >= 2" in src, "must not re-pair on a single failure"
     assert "force=True" in src, "the recovery must force past the host's stale view"
     assert "stale_bond_hits = 0" in src, "a non-matching error must reset the counter"
@@ -107,6 +115,7 @@ def test_a_writer_that_never_got_a_sample_is_deleted(tmp_path):
     """One junk file set per minute for as long as a device charges, each indistinguishable from a real
     capture until opened, in the directory the Dex ingest walks."""
     from writers import StreamWriter
+
     p = tmp_path / "Polar_VeritySense_X_20260719103029_PPG.txt"
     w = StreamWriter(str(p), "ppg", fsync=False)
     assert w.rows == 0
@@ -120,6 +129,7 @@ def test_a_writer_that_never_got_a_sample_is_deleted(tmp_path):
 
 def test_a_writer_with_data_is_kept(tmp_path):
     from writers import StreamWriter
+
     p = tmp_path / "keep_ECG.txt"
     w = StreamWriter(str(p), "ecg", fsync=False)
     w.write_ecg(dt.datetime(2026, 7, 19, 10, 0, 0), 1_000_000_000, 0.0, 42)
@@ -129,7 +139,7 @@ def test_a_writer_with_data_is_kept(tmp_path):
 
 
 def test_the_teardown_deletes_only_empty_writers():
-    src = module_source("capture.py")   # skips on a mutmut file — see tests/_srcscan.py
+    src = module_source("capture.py")  # skips on a mutmut file — see tests/_srcscan.py
     # 2000, not 1200: the explanatory comment above the loop grew, and a fixed character window that
     # happens to end mid-comment turns a source scan into a test of comment length.
     # ANCHORED ON THE LOOP, not a character count. This window was 1200, then 2000, and was widened
@@ -152,6 +162,7 @@ def test_discarding_an_hr_writer_removes_its_RR_sibling(tmp_path):
     with no partner — 4 of them in the real 2026-07-25 directory alone. The existing gate was
     mutation-blind because it exercised the `ppg` stream, which has no sibling."""
     from writers import StreamWriter
+
     hr = tmp_path / "Polar_H10_02849638_20260725001214_HR.txt"
     w = StreamWriter(str(hr), "hr", fsync=False)
     rr = tmp_path / "Polar_H10_02849638_20260725001214_RR.txt"
@@ -168,6 +179,7 @@ def test_discarding_a_single_file_writer_is_unchanged(tmp_path):
     so the control needs a stream that genuinely has none, and it is DERIVED from the live tables rather
     than named, so the next stream to gain one cannot silently turn this control into a no-op."""
     from writers import RUN_MIN_BY_STREAM, StreamWriter
+
     _bare = sorted(set(StreamWriter.HEADERS) - set(RUN_MIN_BY_STREAM))
     assert _bare, "no sibling-less stream left — this control has no case to test"
     p = tmp_path / f"Polar_H10_02849638_20260725001214_{_bare[0].upper()}.txt"
@@ -244,8 +256,9 @@ def test_the_START_REJECTED_branch_also_refuses_to_delete_a_resumed_set():
     assert "if writers[meas].resumed:" in branch, "the rejected-START branch must check resumed"
     assert "writers[meas].close()" in branch, "a resumed set is closed, never discarded"
     assert "writers[meas].discard()" in branch, "a set this session created must still be pruned"
-    assert branch.index("if writers[meas].resumed:") < branch.index("writers[meas].discard()"), \
+    assert branch.index("if writers[meas].resumed:") < branch.index("writers[meas].discard()"), (
         "the guard must precede the discard, not follow it"
+    )
 
 
 # ── the same branch, EXECUTED — not scanned ─────────────────────────────────────────────────────────
@@ -260,20 +273,23 @@ def test_the_START_REJECTED_branch_also_refuses_to_delete_a_resumed_set():
 _FIXED = dt.datetime(2026, 9, 9, 3, 0, 0)
 # The runners' module-global reset, re-exported so it is autouse HERE too (the live-contract file does the
 # same): `run_polar` leaves `_STOP` set, and conftest's tripwire fails the test that leaks it.
-import test_capture_runners as _T   # noqa: E402  — sits with the drives it serves, not the header
+import test_capture_runners as _T  # noqa: E402  — sits with the drives it serves, not the header
+
 _clean_stop = _T._clean_stop
 _SEED = "Phone timestamp;sensor timestamp [ns];timestamp [ms];ecg [uV]\n2026-09-09T02:59:00.000;1;0;123\n"
 
 
 def _ecg_path_for(tmp_path, dev):
     ndir = writers.night_dir(str(tmp_path), _FIXED)
-    return os.path.join(ndir, writers.capture_filename(dev["vendor"], dev["model"], dev["device_id"],
-                                                       _FIXED, "ecg", "txt"))
+    return os.path.join(
+        ndir, writers.capture_filename(dev["vendor"], dev["model"], dev["device_id"], _FIXED, "ecg", "txt")
+    )
 
 
 def _drive_rejected_start(monkeypatch, tmp_path, dev):
     import capture
     import test_capture_runners as T
+
     monkeypatch.setattr(capture, "_now", lambda: _FIXED)
     T._polar_common(monkeypatch)
     # 0x03 = the "truly unsupported settings" answer — neither transient (0x0C/0x0D) nor NO_ACK, so the
@@ -288,23 +304,27 @@ def _drive_rejected_start(monkeypatch, tmp_path, dev):
 
 def test_a_rejected_START_on_a_RESUMED_set_keeps_the_file_and_says_so(tmp_path, monkeypatch, caplog):
     import test_capture_runners as T
+
     dev = T._pdev(streams=["ecg"])
     p = _ecg_path_for(tmp_path, dev)
     with open(p, "w", newline="\n") as fh:
-        fh.write(_SEED)                       # an earlier session's rows: the thing the branch protects
+        fh.write(_SEED)  # an earlier session's rows: the thing the branch protects
     with caplog.at_level("WARNING", logger="tepna-capture"):
         _drive_rejected_start(monkeypatch, tmp_path, dev)
     assert os.path.exists(p), "a rejected START deleted a set earlier sessions filled"
     with open(p, newline="\n") as fh:
         assert fh.read() == _SEED, "the resumed set must be closed untouched — not truncated, not re-headed"
-    assert any("START rejected on a RESUMED set" in r.getMessage() and os.path.basename(p) in r.getMessage()
-               for r in caplog.records), "keeping the file must be visible at WARNING, naming the file"
+    assert any(
+        "START rejected on a RESUMED set" in r.getMessage() and os.path.basename(p) in r.getMessage()
+        for r in caplog.records
+    ), "keeping the file must be visible at WARNING, naming the file"
 
 
 def test_a_rejected_START_on_a_FRESH_set_still_prunes_it(tmp_path, monkeypatch):
     """The twin: no pre-existing set → `resumed` is False → the header-only file this session created
     is discarded, exactly as before resume existed. Together the pair executes BOTH arms."""
     import test_capture_runners as T
+
     dev = T._pdev(streams=["ecg"])
     p = _ecg_path_for(tmp_path, dev)
     assert not os.path.exists(p)
@@ -325,12 +345,18 @@ def test_a_rejected_START_on_a_FRESH_set_still_prunes_it(tmp_path, monkeypatch):
 _RING_SEED_SPO2 = "Time,Oxygen Level,Pulse Rate,Motion\n17:45:20 12/09/2026,97,61,3\n"
 
 
-@pytest.mark.parametrize("cls, seed", [
-    ("Spo2CsvWriter", _RING_SEED_SPO2),
-    ("RingClockLogWriter", "Phone timestamp;event;rtc_offset_s;battery_state;battery_level;"
-                           "battery_raw2;battery_raw3\n2026-09-12T17:45:20.000;rtc;0.1;0;90;0;0\n"),
-    ("OxyFrameLogWriter", "# seed\nx\n"),
-])
+@pytest.mark.parametrize(
+    "cls, seed",
+    [
+        ("Spo2CsvWriter", _RING_SEED_SPO2),
+        (
+            "RingClockLogWriter",
+            "Phone timestamp;event;rtc_offset_s;battery_state;battery_level;"
+            "battery_raw2;battery_raw3\n2026-09-12T17:45:20.000;rtc;0.1;0;90;0;0\n",
+        ),
+        ("OxyFrameLogWriter", "# seed\nx\n"),
+    ],
+)
 def test_every_ring_prune_tuple_writer_reports_resumed(tmp_path, cls, seed):
     """The SPO2 case is the one that was lost: `Spo2CsvWriter` computed resume state locally (it
     already appended instead of truncating) and threw the value away, so the teardown could not ask."""
@@ -369,14 +395,15 @@ def test_ring_pruner_discards_through_the_writer_when_it_can():
     """A StreamWriter owns sidecars (its RUNS ledger); removing `path` alone orphans them (§C8 shape).
     Where the writer knows its own files, the teardown must ask it."""
     block = _ring_block(module_source("capture.py"), "oxyii")
-    assert '_w.discard()' in block and 'hasattr(_w, "discard")' in block
+    assert "_w.discard()" in block and 'hasattr(_w, "discard")' in block
 
 
 def _ring_path(tmp_path, dev, stream, ext):
     ndir = writers.night_dir(str(tmp_path), _FIXED)
     os.makedirs(ndir, exist_ok=True)
-    return os.path.join(ndir, writers.capture_filename(dev["vendor"], dev["model"], dev["device_id"],
-                                                       _FIXED, stream, ext))
+    return os.path.join(
+        ndir, writers.capture_filename(dev["vendor"], dev["model"], dev["device_id"], _FIXED, stream, ext)
+    )
 
 
 def test_run_oxyii_keeps_a_RESUMED_spo2_and_accraw_that_this_episode_left_empty(tmp_path, monkeypatch, caplog):
@@ -385,7 +412,10 @@ def test_run_oxyii_keeps_a_RESUMED_spo2_and_accraw_that_this_episode_left_empty(
     keep must be named at INFO. This is the drive that was missing on 2026-09-12."""
     import capture
     import test_capture_runners as T
-    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
     monkeypatch.setattr(capture, "_now", lambda: _FIXED)
     dev = T._o2dev(streams=["spo2", "acc"])
     spo2 = _ring_path(tmp_path, dev, "spo2", "csv")
@@ -395,7 +425,7 @@ def test_run_oxyii_keeps_a_RESUMED_spo2_and_accraw_that_this_episode_left_empty(
         fh.write(_RING_SEED_SPO2)
     with open(acc, "w", newline="\n") as fh:
         fh.write(acc_seed)
-    T._inject_connect_scan(monkeypatch, T.FakeGattClient())     # never answers → zero rows
+    T._inject_connect_scan(monkeypatch, T.FakeGattClient())  # never answers → zero rows
     T._stop_after(monkeypatch, 4)
     with caplog.at_level("INFO", logger="tepna-capture"):
         _run(capture.run_oxyii(dev, str(tmp_path)))
@@ -414,14 +444,18 @@ def test_run_viatom_keeps_a_RESUMED_spo2_that_this_episode_left_empty(tmp_path, 
     non-empty file, so a planted name is enough to reach the branch — and enough to lose a file."""
     import capture
     import test_capture_runners as T
-    async def bonded(*a, **k): return True
+
+    async def bonded(*a, **k):
+        return True
+
     monkeypatch.setattr(capture.bonding, "ensure_bonded", bonded)
     monkeypatch.setattr(capture, "_now", lambda: _FIXED)
     dev = T._viatom_dev()
     spo2 = _ring_path(tmp_path, dev, "spo2", "csv")
     with open(spo2, "w", newline="\n") as fh:
         fh.write(_RING_SEED_SPO2)
-    c = T.FakeGattClient(); c.services = [T._ViatomService()]
+    c = T.FakeGattClient()
+    c.services = [T._ViatomService()]
     T._inject_connect(monkeypatch, c)
     T._stop_after(monkeypatch, 1)
     with caplog.at_level("INFO", logger="tepna-capture"):
@@ -429,5 +463,4 @@ def test_run_viatom_keeps_a_RESUMED_spo2_that_this_episode_left_empty(tmp_path, 
     assert os.path.exists(spo2), "a 0-row viatom episode deleted a resumed SPO2 file"
     with open(spo2, newline="\n") as fh:
         assert fh.read() == _RING_SEED_SPO2
-    assert any("keeping RESUMED" in r.getMessage() and os.path.basename(spo2) in r.getMessage()
-               for r in caplog.records)
+    assert any("keeping RESUMED" in r.getMessage() and os.path.basename(spo2) in r.getMessage() for r in caplog.records)

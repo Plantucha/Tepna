@@ -29,8 +29,10 @@ counter) rather than what they resemble. `test_a_duration_step_of_two_is_not_a_m
 assertion that stops this being re-read as loss — which has now happened twice, `frame_gap()` being
 the first.
 """
+
 import capture
 import oxyii
+
 
 # ── The declared count ──────────────────────────────────────────────────────────────────────────────
 def _frame(n_declared: int, n_samples: int | None = None) -> bytes:
@@ -186,8 +188,6 @@ def test_truncation_is_counted_and_is_independent_of_the_duration_steps():
     assert led.declared == 378 and led.delivered == 312
 
 
-
-
 def test_an_empty_ledger_reports_nothing_rather_than_a_clean_bill():
     """A session that decoded no frame must not read as zero loss over zero seconds and be logged as
     healthy — the capture path gates its report on `device_seconds` for this reason."""
@@ -203,8 +203,6 @@ def test_an_empty_ledger_reports_nothing_rather_than_a_clean_bill():
 # `test_capture_runners.py::test_run_oxyii_reports_the_ppg_frame_ledger_at_session_end`, which advances
 # the ring's session second (the sibling PPG runner test holds it CONSTANT, so `device_seconds` never
 # moves and the report never executes) and asserts the real wording, "quantization — not lost frames".
-
-
 
 
 # ── The step-quantization model (FOLLOWUPS §2) ──────────────────────────────────────────────────────

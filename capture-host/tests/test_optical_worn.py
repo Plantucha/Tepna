@@ -17,6 +17,7 @@ THE NUMBERS BELOW ARE MEASURED, NOT CHOSEN. 5730 windows of 30 s across 45 real 
 3795 windows at 1–3, FOUR at 4, and 1931 at 5. The threshold is the geometric midpoint of the widest
 empty interval in the middle 98 % (1993 → 13160), i.e. 5121, rounded to 5000.
 """
+
 import os
 import sys
 
@@ -26,7 +27,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from telemetry import _WORN_AMBIENT_MAX, optical_worn  # noqa: E402
 
 # Real per-window medians, transcribed from the corpus scan.
-WORN_REAL = [-207.0, -188.0, -160.0, -141.0, -129.0, -190.0]        # under skin: dark
+WORN_REAL = [-207.0, -188.0, -160.0, -141.0, -129.0, -190.0]  # under skin: dark
 UNWORN_REAL = [-322929.0, -322944.0, -650655.0, -650701.0, -630467.0]  # on a desk: room light
 
 
@@ -61,10 +62,11 @@ def test_too_little_data_is_UNKNOWN_never_unworn(n):
 def test_the_verdict_is_a_MEDIAN_so_a_burst_cannot_flip_it():
     """A hand passing over the sensor, or a few saturated samples, must not move the answer. Under a
     mean, 20 % room-light samples would drag a worn median of ~190 above any sane threshold."""
-    contaminated = _many(WORN_REAL, 160) + _many(UNWORN_REAL, 40)   # 20 % bright
+    contaminated = _many(WORN_REAL, 160) + _many(UNWORN_REAL, 40)  # 20 % bright
     assert optical_worn(contaminated) is True
-    assert sum(abs(v) for v in contaminated) / len(contaminated) > _WORN_AMBIENT_MAX, \
+    assert sum(abs(v) for v in contaminated) / len(contaminated) > _WORN_AMBIENT_MAX, (
         "…and the mean really would have been fooled, so the median is doing the work"
+    )
 
 
 def test_sign_is_irrelevant():
@@ -85,9 +87,9 @@ def test_an_EVEN_length_buffer_medians_the_two_middle_values():
     """The even branch is the one every other fixture misses — a flat buffer reads the same however the
     middle index is computed, which is how ten mutants lived on the old hand-rolled line. Straddle the
     threshold with two distinct middles so the answer depends on averaging THEM specifically."""
-    lo, hi = _WORN_AMBIENT_MAX - 2000, _WORN_AMBIENT_MAX + 1000    # mean 4500 < 5000 ⇒ worn
+    lo, hi = _WORN_AMBIENT_MAX - 2000, _WORN_AMBIENT_MAX + 1000  # mean 4500 < 5000 ⇒ worn
     assert optical_worn([1.0] * 99 + [lo, hi] + [9e5] * 99) is True
-    lo2, hi2 = _WORN_AMBIENT_MAX - 500, _WORN_AMBIENT_MAX + 3000   # mean 6250 > 5000 ⇒ unworn
+    lo2, hi2 = _WORN_AMBIENT_MAX - 500, _WORN_AMBIENT_MAX + 3000  # mean 6250 > 5000 ⇒ unworn
     assert optical_worn([1.0] * 99 + [lo2, hi2] + [9e5] * 99) is False
 
 
@@ -149,8 +151,7 @@ def _drive(tmp_path, monkeypatch, ambient):
     c = _PpgClient(ambient)
     T._inject_connect(monkeypatch, c)
     T._stop_after(monkeypatch, 1)
-    dev = T._pdev(name="Verity", vendor="Polar", model="VeritySense", streams=["ppg"],
-                  address="24:AC:AC:0C:30:1E")
+    dev = T._pdev(name="Verity", vendor="Polar", model="VeritySense", streams=["ppg"], address="24:AC:AC:0C:30:1E")
     T._run(capture.run_polar(dev, str(tmp_path)))
     return capture.STATUS["devices"]["Verity"]
 
@@ -159,8 +160,9 @@ def test_run_polar_publishes_UNWORN_for_a_desk_signal(tmp_path, monkeypatch):
     st = _drive(tmp_path, monkeypatch, -322929)
     assert st.get("worn") is False, st
     assert "not worn" in (st.get("last_error") or ""), "the reason must say WHY, not just flip a flag"
-    assert "24:AC:AC:0C:30:1E" in capture._WORN_SINCE, \
+    assert "24:AC:AC:0C:30:1E" in capture._WORN_SINCE, (
         "the grace clock must start, or power.drop_not_worn_sec can still never fire"
+    )
 
 
 def test_run_polar_publishes_WORN_for_an_on_body_signal(tmp_path, monkeypatch):
@@ -190,16 +192,16 @@ def test_a_REAL_contact_bit_outranks_the_optical_inference(tmp_path, monkeypatch
     c = _PpgClient(-322929, hr_frame=bytes([0x06, 60]))
     T._inject_connect(monkeypatch, c)
     T._stop_after(monkeypatch, 1)
-    dev = T._pdev(name="Verity", vendor="Polar", model="VeritySense", streams=["ppg", "hr"],
-                  address="24:AC:AC:0C:30:1E")
+    dev = T._pdev(
+        name="Verity", vendor="Polar", model="VeritySense", streams=["ppg", "hr"], address="24:AC:AC:0C:30:1E"
+    )
     T._run(capture.run_polar(dev, str(tmp_path)))
     st = capture.STATUS["devices"]["Verity"]
     assert st.get("worn") is True, f"the contact bit says worn; the inference must not overrule it: {st}"
     assert "24:AC:AC:0C:30:1E" not in capture._WORN_SINCE, "and no power-drop clock may be started"
 
 
-def test_a_CONFLICT_between_the_contact_bit_and_the_optics_is_VISIBLE_not_arbitrated(
-        tmp_path, monkeypatch, caplog):
+def test_a_CONFLICT_between_the_contact_bit_and_the_optics_is_VISIBLE_not_arbitrated(tmp_path, monkeypatch, caplog):
     """THE TEN-HOUR BUG, and the fix is visibility rather than a change of precedence.
 
     `_has_contact_bit` used to suppress the optical branch entirely, so when a Verity on a desk
@@ -216,7 +218,7 @@ def test_a_CONFLICT_between_the_contact_bit_and_the_optics_is_VISIBLE_not_arbitr
     # TWO frames = TWO ambient windows, which is what makes the throttle assertion below mean
     # something. With one window the flag goes False->True once, the suppression arm never runs, and
     # `len(said) == 1` passes vacuously — it was, until branch coverage said so.
-    c = _PpgClient(-322929, frames=2, hr_frame=bytes([0x06, 60]))   # contact supported + detected
+    c = _PpgClient(-322929, frames=2, hr_frame=bytes([0x06, 60]))  # contact supported + detected
     T._inject_connect(monkeypatch, c)
     T._stop_after(monkeypatch, 1)
     # ⚠️ PATCH ONLY THE OPTICAL CALL. A blanket stub used to isolate the optical branch by accident,
@@ -226,18 +228,22 @@ def test_a_CONFLICT_between_the_contact_bit_and_the_optics_is_VISIBLE_not_arbitr
     # The two callers are told apart by their arguments: the optics pass `ambient`, the HR path passes
     # `contact`. The scenario under test is unchanged — optics say not-worn, the contact bit says worn.
     _real_wv = capture.worn_verdict
-    monkeypatch.setattr(capture, "worn_verdict",
-                        lambda **k: (False, "not worn per ambient-stability") if "ambient" in k
-                        else _real_wv(**k))
-    dev = T._pdev(name="Verity", vendor="Polar", model="VeritySense", streams=["ppg", "hr"],
-                  address="24:AC:AC:0C:30:1E")
+    monkeypatch.setattr(
+        capture,
+        "worn_verdict",
+        lambda **k: (False, "not worn per ambient-stability") if "ambient" in k else _real_wv(**k),
+    )
+    dev = T._pdev(
+        name="Verity", vendor="Polar", model="VeritySense", streams=["ppg", "hr"], address="24:AC:AC:0C:30:1E"
+    )
     with caplog.at_level("WARNING"):
         T._run(capture.run_polar(dev, str(tmp_path)))
     st = capture.STATUS["devices"]["Verity"]
     assert st.get("worn") is True, f"the contact bit must KEEP the decision: {st}"
     assert "24:AC:AC:0C:30:1E" not in capture._WORN_SINCE, "and no power-drop clock may start"
     assert st.get("worn_optical") is False, (
-        f"the optical opinion must be published BESIDE it — that is the whole fix: {st}")
+        f"the optical opinion must be published BESIDE it — that is the whole fix: {st}"
+    )
     said = [r.message for r in caplog.records if "contact bit says worn" in r.message]
     assert said, f"the disagreement must be logged; saw: {[r.message[:60] for r in caplog.records]}"
     assert len(said) == 1, f"once per session, not once per PPG window — got {len(said)}"
@@ -253,8 +259,7 @@ def test_a_SECOND_unworn_window_does_not_restart_the_grace_clock(tmp_path, monke
     c = _PpgClient(-322929, frames=3)
     T._inject_connect(monkeypatch, c)
     T._stop_after(monkeypatch, 1)
-    dev = T._pdev(name="Verity", vendor="Polar", model="VeritySense", streams=["ppg"],
-                  address="24:AC:AC:0C:30:1E")
+    dev = T._pdev(name="Verity", vendor="Polar", model="VeritySense", streams=["ppg"], address="24:AC:AC:0C:30:1E")
     T._run(capture.run_polar(dev, str(tmp_path)))
     assert capture.STATUS["devices"]["Verity"].get("worn") is False
     assert "24:AC:AC:0C:30:1E" in capture._WORN_SINCE
@@ -279,8 +284,7 @@ def test_an_UNDECIDABLE_window_publishes_None_and_starts_no_clock(tmp_path, monk
     c = _PpgClient(-322929)
     T._inject_connect(monkeypatch, c)
     T._stop_after(monkeypatch, 1)
-    dev = T._pdev(name="Verity", vendor="Polar", model="VeritySense", streams=["ppg"],
-                  address="24:AC:AC:0C:30:1E")
+    dev = T._pdev(name="Verity", vendor="Polar", model="VeritySense", streams=["ppg"], address="24:AC:AC:0C:30:1E")
     T._run(capture.run_polar(dev, str(tmp_path)))
     st = capture.STATUS["devices"]["Verity"]
     assert st.get("worn") is None, f"an undecidable window must publish no verdict: {st}"
@@ -309,13 +313,11 @@ def test_an_ABSTENTION_CLEARS_a_previous_TRUE_which_is_the_ten_hour_bug(tmp_path
     c = _PpgClient(-322929, frames=4)
     T._inject_connect(monkeypatch, c)
     T._stop_after(monkeypatch, 1)
-    dev = T._pdev(name="Verity", vendor="Polar", model="VeritySense", streams=["ppg"],
-                  address="24:AC:AC:0C:30:1E")
+    dev = T._pdev(name="Verity", vendor="Polar", model="VeritySense", streams=["ppg"], address="24:AC:AC:0C:30:1E")
     T._run(capture.run_polar(dev, str(tmp_path)))
     st = capture.STATUS["devices"]["Verity"]
     assert calls["n"] >= 2, f"the harness must reach a second window for this to test anything: {calls}"
-    assert st.get("worn") is None, (
-        f"an abstention must CLEAR the previous verdict, not leave it standing: {st}")
+    assert st.get("worn") is None, f"an abstention must CLEAR the previous verdict, not leave it standing: {st}"
     assert "24:AC:AC:0C:30:1E" not in capture._WORN_SINCE
 
 
@@ -324,6 +326,7 @@ def test_an_ABSTENTION_CLEARS_a_previous_TRUE_which_is_the_ten_hour_bug(tmp_path
 # `contact_supported: false`; its PPI stream sets skinContactSupported and reports the real thing.
 # Measured 2026-08-10 on one unit: desk contact=0 on 31877/31877 rows, worn contact=1 on 20957/20957.
 from telemetry import ppi_contact  # noqa: E402
+
 
 def test_ppi_contact_reads_the_devices_own_bit():
     assert ppi_contact(0b110) is True, "supported + contact"
@@ -366,8 +369,9 @@ def _drive_ppi(tmp_path, monkeypatch, ambient, flags):
     c = _PpiClient(ambient, flags)
     T._inject_connect(monkeypatch, c)
     T._stop_after(monkeypatch, 1)
-    dev = T._pdev(name="Verity", vendor="Polar", model="VeritySense", streams=["ppg", "ppi"],
-                  address="24:AC:AC:0C:30:1E")
+    dev = T._pdev(
+        name="Verity", vendor="Polar", model="VeritySense", streams=["ppg", "ppi"], address="24:AC:AC:0C:30:1E"
+    )
     T._run(capture.run_polar(dev, str(tmp_path)))
     return capture.STATUS["devices"]["Verity"]
 
@@ -377,8 +381,9 @@ def test_the_PPI_contact_bit_decides_when_it_is_available(tmp_path, monkeypatch)
     that is the whole reason this branch exists, and it is the case a heuristic gets wrong."""
     st = _drive_ppi(tmp_path, monkeypatch, -190, 0b100)
     assert st.get("worn") is False, st
-    assert "ppi-contact" in (st.get("worn_why") or ""), \
+    assert "ppi-contact" in (st.get("worn_why") or ""), (
         "the reason must name WHICH source decided, or the two are indistinguishable in the log"
+    )
     assert "24:AC:AC:0C:30:1E" in capture._WORN_SINCE
 
 
@@ -404,10 +409,11 @@ def test_without_PPI_the_ambient_fallback_still_runs(tmp_path, monkeypatch):
 # 55 Hz "unworn" cluster. Measured 2026-08-10: a worn device showing a 57 bpm pulse was dropped every
 # 90 s. Two changes the same day, neither checked against the other.
 
+
 def test_the_detector_REFUSES_at_a_rate_it_was_never_calibrated_at():
     """None, not False. Both consumers read `worn is False` — the power drop and the CPAP interlock —
     so refusing disables a feature while guessing drops a sensor mid-night."""
-    worn_at_176 = [-650808.0] * 400          # a WORN armband at 176 Hz, from the real capture
+    worn_at_176 = [-650808.0] * 400  # a WORN armband at 176 Hz, from the real capture
     assert optical_worn(worn_at_176, fs=176) is None, "176 Hz is outside the calibrated domain"
     assert optical_worn(worn_at_176, fs=135) is None
     # …and the same samples at the rate it WAS calibrated at still get a verdict (a wrong-looking one,
@@ -420,13 +426,14 @@ def test_the_calibrated_rate_still_works_and_an_UNKNOWN_rate_is_allowed():
     every call site that predates the parameter — the concession is deliberate and documented."""
     assert optical_worn(_many(WORN_REAL), fs=55) is True
     assert optical_worn(_many(UNWORN_REAL), fs=55) is False
-    assert optical_worn(_many(WORN_REAL)) is True             # no fs given → unchanged behaviour
+    assert optical_worn(_many(WORN_REAL)) is True  # no fs given → unchanged behaviour
     assert optical_worn(_many(WORN_REAL), fs=None) is True
 
 
 def test_calibrated_for_is_pure_and_tolerant_of_a_reported_rate_that_wobbles():
     """The box logs 55.0 but a device may report 54.9 — that is the same rate, not a new domain."""
     from telemetry import calibrated_for
+
     assert calibrated_for(55.0) and calibrated_for(54.9) and calibrated_for(55.6)
     assert not calibrated_for(176) and not calibrated_for(135) and not calibrated_for(28)
     assert calibrated_for(None), "an unknown rate is in-domain by design"
@@ -438,6 +445,7 @@ def test_the_tolerance_is_INCLUSIVE_at_exactly_its_edge():
     boundary has to be pinned or the comparison is free to flip. Nothing else here can see it: every
     other case is 0.6 Hz away or 80 Hz away, and both operators agree on those."""
     from telemetry import _WORN_FS_TOL_HZ, calibrated_for
+
     edge = 55.0 + _WORN_FS_TOL_HZ
     assert calibrated_for(edge), f"{edge} Hz is exactly one tolerance out and must still be in-domain"
     assert calibrated_for(55.0 - _WORN_FS_TOL_HZ), "…and symmetric below"
@@ -449,6 +457,7 @@ def test_adding_a_rate_to_the_domain_is_the_ONLY_way_to_widen_it():
     """The domain is data, injectable, so a future re-derivation is a one-line change with its own
     evidence — and so this test can prove the gate is the tuple and not something incidental."""
     from telemetry import calibrated_for
+
     assert not calibrated_for(176)
     assert calibrated_for(176, rates=(55.0, 176.0)), "the tuple IS the domain"
 
@@ -469,7 +478,7 @@ def test_the_daemon_SAYS_when_the_rate_puts_worn_detection_out_of_domain(tmp_pat
     capture._STOP = asyncio.Event()
     T._polar_common(monkeypatch)
     c = T.FlexPolarClient(data_frames=[T._ppg_frame()])
-    c.sdk_mode_on = True                       # widens the fake's menu so PPG lands off 55 Hz
+    c.sdk_mode_on = True  # widens the fake's menu so PPG lands off 55 Hz
     T._inject_connect(monkeypatch, c)
     T._stop_after(monkeypatch, 1)
     dev = T._pdev(streams=["ppg"])
@@ -480,8 +489,7 @@ def test_the_daemon_SAYS_when_the_rate_puts_worn_detection_out_of_domain(tmp_pat
     assert "worn is False" in hits[0], "the operator needs the CONSEQUENCE, not just the fact"
 
 
-def test_the_out_of_domain_warning_does_NOT_fire_at_a_rate_a_detector_DOES_cover(
-        tmp_path, monkeypatch, caplog):
+def test_the_out_of_domain_warning_does_NOT_fire_at_a_rate_a_detector_DOES_cover(tmp_path, monkeypatch, caplog):
     """The other half, and the one that was missing. This warning asked only the LEVEL calibration
     until 2026-08-13, so it fired on every 176 Hz session — announcing that no verdict was coming
     while the STABILITY detector was publishing one. A warning that cries wolf on the configuration
@@ -511,6 +519,7 @@ def test_the_out_of_domain_warning_does_NOT_fire_at_a_rate_a_detector_DOES_cover
 
 # ── the 2026-08-14 charger incident, at the level it actually failed ─────────────────────────────────
 
+
 def test_CHARGING_OVERRULES_THE_HR_CONTACT_BIT_and_starts_the_power_drop_clock(tmp_path, monkeypatch):
     """⚠️ A VETO THAT SHIPPED UNREACHABLE, which is why this test lives here and not beside the unit.
 
@@ -525,18 +534,20 @@ def test_CHARGING_OVERRULES_THE_HR_CONTACT_BIT_and_starts_the_power_drop_clock(t
     and the old code keyed it off the RAW bit, so the 180 s drop could never accumulate however certain
     any other detector was. A verdict nothing acts on is not a fix."""
     T._polar_common(monkeypatch)
-    c = _PpgClient(-322929, frames=1, hr_frame=bytes([0x06, 60]))   # contact SUPPORTED and DETECTED
+    c = _PpgClient(-322929, frames=1, hr_frame=bytes([0x06, 60]))  # contact SUPPORTED and DETECTED
     T._inject_connect(monkeypatch, c)
     T._stop_after(monkeypatch, 1)
-    dev = T._pdev(name="Verity", vendor="Polar", model="VeritySense", streams=["ppg", "hr"],
-                  address="24:AC:AC:0C:30:1E")
+    dev = T._pdev(
+        name="Verity", vendor="Polar", model="VeritySense", streams=["ppg", "hr"], address="24:AC:AC:0C:30:1E"
+    )
     capture.STATUS["devices"].setdefault("Verity", {})["charging"] = True
     T._run(capture.run_polar(dev, str(tmp_path)))
     st = capture.STATUS["devices"]["Verity"]
     assert st.get("worn") is False, f"a docked device is not on a wrist, contact bit or not: {st}"
     assert "on charger" in (st.get("worn_why") or ""), st
     assert "24:AC:AC:0C:30:1E" in capture._WORN_SINCE, (
-        "the power-drop clock MUST start, or the link streams into the dock forever")
+        "the power-drop clock MUST start, or the link streams into the dock forever"
+    )
 
 
 def test_a_contact_bit_that_says_worn_is_still_WORN_when_nothing_says_charging(tmp_path, monkeypatch):
@@ -546,8 +557,9 @@ def test_a_contact_bit_that_says_worn_is_still_WORN_when_nothing_says_charging(t
     c = _PpgClient(-322929, frames=1, hr_frame=bytes([0x06, 60]))
     T._inject_connect(monkeypatch, c)
     T._stop_after(monkeypatch, 1)
-    dev = T._pdev(name="Verity", vendor="Polar", model="VeritySense", streams=["ppg", "hr"],
-                  address="24:AC:AC:0C:30:1E")
+    dev = T._pdev(
+        name="Verity", vendor="Polar", model="VeritySense", streams=["ppg", "hr"], address="24:AC:AC:0C:30:1E"
+    )
     capture.STATUS["devices"].setdefault("Verity", {})["charging"] = False
     T._run(capture.run_polar(dev, str(tmp_path)))
     st = capture.STATUS["devices"]["Verity"]

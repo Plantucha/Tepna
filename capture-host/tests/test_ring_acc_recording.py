@@ -12,6 +12,7 @@ paints, the daemon logs nothing, and the only symptom is a file that does not ex
 runtime state to assert on that differs between the broken and fixed versions short of running a real
 BLE session against hardware.
 """
+
 from __future__ import annotations
 import re
 
@@ -36,7 +37,8 @@ def test_the_acc_push_is_accompanied_by_a_write():
     m = re.search(r'BUS\.push\("acc_o2".*?note_data', CAP, re.S)
     assert m, "the acc_o2 push site has moved — re-read this test before trusting it"
     assert "accrawwr.write_acc(" in m.group(0), (
-        "acc_o2 is pushed to the bus but never written to disk — display-only data")
+        "acc_o2 is pushed to the bus but never written to disk — display-only data"
+    )
 
 
 def test_the_writer_is_gated_on_the_same_key_as_the_push_bit():
@@ -44,10 +46,14 @@ def test_the_writer_is_gated_on_the_same_key_as_the_push_bit():
     gated on anything else, the ring could be asked to push frames that are then dropped — airtime
     spent for nothing — or a writer could open for a stream that never arrives and leave an empty file
     that reads as a failed night."""
-    m = re.search(r"accrawwr\s*=\s*\(StreamWriter\([^)]*\)\s*\n?\s*if\s+(.*?)\s+else\s+None", CAP, re.S)
+    # `\(\s*StreamWriter` — the reformat puts the opening paren and `StreamWriter(` on separate
+    # lines, so a pattern demanding them adjacent matched nothing while the construction was
+    # unchanged. What is asserted is the GATE expression, not its layout.
+    m = re.search(r"accrawwr\s*=\s*\(\s*StreamWriter\([^)]*\)\s*\n?\s*if\s+(.*?)\s+else\s+None", CAP, re.S)
     assert m, "the accrawwr construction has moved or was reshaped"
     assert '"acc" in (dev.get("streams") or [])' in m.group(1), (
-        f"writer gate must match the push-bit gate exactly; got: {m.group(1)!r}")
+        f"writer gate must match the push-bit gate exactly; got: {m.group(1)!r}"
+    )
 
 
 def test_the_writer_is_closed_in_the_finally():
@@ -57,7 +63,8 @@ def test_the_writer_is_closed_in_the_finally():
     m = re.search(r"for _w in \(([^)]*)\):", CAP)
     assert m, "the writer-close loop has moved"
     assert "accrawwr" in m.group(1), (
-        f"accrawwr is not closed in the finally — buffered rows are lost; tuple: {m.group(1)!r}")
+        f"accrawwr is not closed in the finally — buffered rows are lost; tuple: {m.group(1)!r}"
+    )
 
 
 def test_the_ring_acc_header_never_claims_a_calibrated_unit():
@@ -68,4 +75,5 @@ def test_the_ring_acc_header_never_claims_a_calibrated_unit():
     hdr = re.search(r'"accraw":\s*"([^"]+)"', WRI)
     assert hdr, "accraw header not found"
     assert "[raw]" in hdr.group(1) and "[mg]" not in hdr.group(1), (
-        f"the ring's ACC has no measured scale; header claims: {hdr.group(1)!r}")
+        f"the ring's ACC has no measured scale; header claims: {hdr.group(1)!r}"
+    )

@@ -22,17 +22,21 @@ T0 = _dt.datetime(2026, 9, 6, 4, 53, 0)
 
 
 def _rows(path):
-    return [ln.split(";") for ln in open(path).read().splitlines()
-            if ln and not ln.startswith("#") and not ln.startswith("Phone")]
+    return [
+        ln.split(";")
+        for ln in open(path).read().splitlines()
+        if ln and not ln.startswith("#") and not ln.startswith("Phone")
+    ]
 
 
 # ── (b) absence in the ns column is written as absence ────────────────────────────────────────
+
 
 def test_a_stream_with_no_device_clock_writes_the_ns_column_BLANK_not_zero():
     """`0` cannot be told apart from a device that reported the instant zero. Blank is out-of-band:
     `int('')` raises, so every reader parses it as absent rather than as the epoch."""
     assert _ns_col(None) == ""
-    assert _ns_col(0) == "0"          # a REAL zero from a device still writes as zero
+    assert _ns_col(0) == "0"  # a REAL zero from a device still writes as zero
     assert _ns_col(1234) == "1234"
 
 
@@ -64,6 +68,7 @@ def test_a_stream_that_HAS_a_device_clock_is_untouched(tmp_path):
 
 
 # ── (b) the consequence: a span of zero is not a duration ─────────────────────────────────────
+
 
 def _write_ns_file(path, ns_values):
     with open(path, "w") as fh:
@@ -157,7 +162,7 @@ def test_the_held_repeats_are_NOT_recorded_as_absence(tmp_path):
     its runs are length 6 or 7, so a constant-run rule would convict the whole file."""
     p = tmp_path / "R_ACCRAW.txt"
     w = StreamWriter(str(p), "accraw", fsync=False)
-    for r in range(writers.HELD_WARMUP_RUNS + 5):        # 6/7-length runs, as measured
+    for r in range(writers.HELD_WARMUP_RUNS + 5):  # 6/7-length runs, as measured
         for k in range(6 + (r % 2)):
             w.write_acc(T0 + _dt.timedelta(milliseconds=100 * (r * 7 + k)), None, 0.0, r, r, r)
     w.close()

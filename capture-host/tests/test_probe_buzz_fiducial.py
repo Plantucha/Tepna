@@ -38,8 +38,8 @@ def _rt_payload(recs):
 def test_back_time_spreads_records_across_the_span():
     bt = back_time(_recs(5, 0), 100.0, 1.0)
     assert len(bt) == 5
-    assert abs(bt[-1][0] - 100.0) < 1e-9          # last record at arrival
-    assert abs(bt[0][0] - 99.0) < 1e-9            # earliest one span before it
+    assert abs(bt[-1][0] - 100.0) < 1e-9  # last record at arrival
+    assert abs(bt[0][0] - 99.0) < 1e-9  # earliest one span before it
 
 
 def test_back_time_empty_buffer_is_empty():
@@ -127,6 +127,7 @@ def _install(monkeypatch, ring, *, wall_start=1000.0):
 
     async def no_sleep(_s):
         return None
+
     monkeypatch.setattr(probe.asyncio, "sleep", no_sleep)
     # monotonic drives the loop: t0, then one read per iteration. pre=1, post=2 → buzz on the 2nd
     # iteration, break past 3.0.
@@ -138,6 +139,7 @@ def _install(monkeypatch, ring, *, wall_start=1000.0):
     def _wall():
         state["t"] += 0.5
         return state["t"]
+
     monkeypatch.setattr(probe, "wall", _wall)
 
 
@@ -174,8 +176,9 @@ def test_sync_mode_pushes_0xc0_before_the_capture(tmp_path, monkeypatch, capsys)
     _install(monkeypatch, ring)
     assert _run(probe.main("MAC", 1.0, 2.0, str(tmp_path / "b.txt"), sync=True)) == 0
     assert oxyii.OP_SET_TIME in ring.writes
-    assert ring.writes.index(oxyii.OP_SET_TIME) < ring.writes.index(probe.VIBRATE), \
+    assert ring.writes.index(oxyii.OP_SET_TIME) < ring.writes.index(probe.VIBRATE), (
         "the RTC push happens before the buzz, so the .dat carries synced time for the artifact"
+    )
     assert "RTC synced" in capsys.readouterr().out
 
 
@@ -198,11 +201,13 @@ def test_module_has_a_cli_guard():
 def test_a_decoy_frame_is_filtered_not_collected(tmp_path, monkeypatch, capsys):
     """A stray reply for a different opcode (the ring interleaves 0x04 live frames) must not be
     swallowed into the raw-sample stream — the notify filter keeps only 0x05."""
+
     class _Noisy(_Ring):
         async def write_gatt_char(self, _c, frame, response=False):
             if frame[1] == oxyii.OP_RT_PPG and self.notify is not None:
-                self.notify(0, oxyii.encode(oxyii.OP_LIVE, b"\x00" * 24, frame[4]))   # decoy first
+                self.notify(0, oxyii.encode(oxyii.OP_LIVE, b"\x00" * 24, frame[4]))  # decoy first
             await super().write_gatt_char(_c, frame, response)
+
     ring = _Noisy()
     _install(monkeypatch, ring)
     assert _run(probe.main("MAC", 1.0, 2.0, str(tmp_path / "b.txt"))) == 0

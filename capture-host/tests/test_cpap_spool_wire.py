@@ -18,8 +18,7 @@ CREDS = {"masterPairKey": "aa" * 32, "clientId": "tepna", "ble_addr": "AA:BB:CC:
 def test_disabled_is_a_noop_but_SAYS_SO(tmp_path, caplog):
     tasks = []
     with caplog.at_level("INFO"):
-        assert capture._maybe_start_cpap_spool_pull({}, "cfg.yaml", str(tmp_path), object(),
-                                                    tasks) is None
+        assert capture._maybe_start_cpap_spool_pull({}, "cfg.yaml", str(tmp_path), object(), tasks) is None
     assert tasks == []
     # The whole point of the arming line: `autopull_arming` exists because a path that never armed
     # printed NOTHING, and no gate can observe an absent line.
@@ -27,20 +26,19 @@ def test_disabled_is_a_noop_but_SAYS_SO(tmp_path, caplog):
 
 
 def test_a_window_colliding_with_the_harvest_refuses_at_the_WIRING(tmp_path, caplog):
-    cfg = {"cpap": {"enabled": True, "at_hour": 13,
-                    "spool_pull": {"enabled": True, "at_hour": 14}}}
+    cfg = {"cpap": {"enabled": True, "at_hour": 13, "spool_pull": {"enabled": True, "at_hour": 14}}}
     tasks = []
     with caplog.at_level("INFO"):
-        assert capture._maybe_start_cpap_spool_pull(cfg, "cfg.yaml", str(tmp_path), object(),
-                                                    tasks) is None
+        assert capture._maybe_start_cpap_spool_pull(cfg, "cfg.yaml", str(tmp_path), object(), tasks) is None
     assert tasks == [] and "14" in caplog.text
 
 
 def test_armed_without_creds_is_a_noop_and_names_the_reason(tmp_path, caplog):
     tasks = []
     with caplog.at_level("INFO"):
-        r = capture._maybe_start_cpap_spool_pull(ARMED, "cfg.yaml", str(tmp_path), object(), tasks,
-                                                 load_creds=lambda _p: None)
+        r = capture._maybe_start_cpap_spool_pull(
+            ARMED, "cfg.yaml", str(tmp_path), object(), tasks, load_creds=lambda _p: None
+        )
     assert r is None and tasks == [] and "pair the AS11 first" in caplog.text
 
 
@@ -53,7 +51,7 @@ def test_armed_starts_the_task_labels_it_and_logs_the_window(tmp_path, caplog):
     sentinel = object()
 
     def _create_task(coro):
-        coro.close()                     # never run it here; this test is about the WIRING
+        coro.close()  # never run it here; this test is about the WIRING
         made.append(coro)
         return sentinel
 
@@ -62,8 +60,15 @@ def test_armed_starts_the_task_labels_it_and_logs_the_window(tmp_path, caplog):
 
     with caplog.at_level("INFO"):
         r = capture._maybe_start_cpap_spool_pull(
-            ARMED, "cfg.yaml", str(tmp_path), _Ctl(), tasks,
-            load_creds=lambda _p: CREDS, connect_factory=_connect, create_task=_create_task)
+            ARMED,
+            "cfg.yaml",
+            str(tmp_path),
+            _Ctl(),
+            tasks,
+            load_creds=lambda _p: CREDS,
+            connect_factory=_connect,
+            create_task=_create_task,
+        )
 
     assert r is sentinel and tasks == [sentinel]
     assert capture.TASK_LABELS[id(sentinel)] == "CPAP stored-spool pull"
@@ -82,8 +87,7 @@ def test_a_RELATIVE_configured_spool_root_resolves_against_the_box_root():
     /opt/tepna checkout, which then blocked every hourly auto-deploy (tepna-update refuses a dirty
     tree). Both halves of the contract, asserted: relative → joined to the box root; absolute →
     honored verbatim."""
-    assert capture.resolve_spool_root("captures/cpap-spool", "/srv/tepna") \
-        == "/srv/tepna/captures/cpap-spool"
+    assert capture.resolve_spool_root("captures/cpap-spool", "/srv/tepna") == "/srv/tepna/captures/cpap-spool"
     assert capture.resolve_spool_root("/mnt/big/spool", "/srv/tepna") == "/mnt/big/spool"
 
 
@@ -95,9 +99,13 @@ def test_an_absent_spool_root_keeps_the_documented_default():
 def test_the_armed_path_routes_through_the_resolver(tmp_path, caplog):
     """The wiring, not just the pure rule: an armed start with a relative configured root must LOG
     the resolved absolute path — the ARMED line is the one surface an operator checks."""
-    cfg = {"cpap": {"enabled": True, "at_hour": 13,
-                    "spool_pull": {"enabled": True, "at_hour": 10, "window_h": 2,
-                                   "root": "captures/cpap-spool"}}}
+    cfg = {
+        "cpap": {
+            "enabled": True,
+            "at_hour": 13,
+            "spool_pull": {"enabled": True, "at_hour": 10, "window_h": 2, "root": "captures/cpap-spool"},
+        }
+    }
     sentinel = object()
 
     def _create_task(coro):
@@ -109,8 +117,15 @@ def test_the_armed_path_routes_through_the_resolver(tmp_path, caplog):
 
     with caplog.at_level("INFO"):
         capture._maybe_start_cpap_spool_pull(
-            cfg, "cfg.yaml", str(tmp_path), _Ctl(), [],
-            load_creds=lambda _p: CREDS, connect_factory=_connect, create_task=_create_task)
+            cfg,
+            "cfg.yaml",
+            str(tmp_path),
+            _Ctl(),
+            [],
+            load_creds=lambda _p: CREDS,
+            connect_factory=_connect,
+            create_task=_create_task,
+        )
     assert str(tmp_path / "captures" / "cpap-spool") in caplog.text, caplog.text
 
 
@@ -133,11 +148,21 @@ def _drive(*, blocked_by=None, cycle=None, ticks=2, recovering=False):
     if recovering:
         capture._RECOVER.set()
     try:
-        asyncio.run(capture._cpap_spool_loop(
-            at_hour=10, window_h=2, root="/tmp/r", creds=CREDS, connect_factory=None,
-            epoch_start="2026-08-01T00:00:00.000Z", is_capturing=lambda: False,
-            sleep=_sleep, now=lambda: _dt.datetime(2026, 8, 26, 10, 30),
-            cycle=_cycle, st=lambda **kw: states.append(kw)))
+        asyncio.run(
+            capture._cpap_spool_loop(
+                at_hour=10,
+                window_h=2,
+                root="/tmp/r",
+                creds=CREDS,
+                connect_factory=None,
+                epoch_start="2026-08-01T00:00:00.000Z",
+                is_capturing=lambda: False,
+                sleep=_sleep,
+                now=lambda: _dt.datetime(2026, 8, 26, 10, 30),
+                cycle=_cycle,
+                st=lambda **kw: states.append(kw),
+            )
+        )
     finally:
         capture._STOP.clear()
         capture._RECOVER.clear()
@@ -172,8 +197,7 @@ def test_a_failing_pull_is_survived_not_fatal(caplog):
 
 def test_a_nonterminal_stop_is_reported_in_the_line(caplog):
     with caplog.at_level("INFO"):
-        _drive(cycle=lambda: {"rounds_committed": 0, "cursor": "C", "stopped": "data-unavailable"},
-               ticks=2)
+        _drive(cycle=lambda: {"rounds_committed": 0, "cursor": "C", "stopped": "data-unavailable"}, ticks=2)
     assert "stopped=data-unavailable" in caplog.text
 
 
@@ -206,13 +230,13 @@ def _record_supervised_wiring(monkeypatch):
     # coroutine, its body runs on await, and the caller closes it unrun — so `rec` stays empty and the
     # assertions red whether or not the wiring is right. A test that fails in BOTH directions proves
     # nothing; the STATUS-writer test below was written that way first and caught in review.
-    def _loop_spy(**kw):                    # stands in for _cpap_spool_loop; records the kwargs
+    def _loop_spy(**kw):  # stands in for _cpap_spool_loop; records the kwargs
         rec["loop_kwargs"] = kw
-        return _unrun()                     # a real coroutine for the caller to close
+        return _unrun()  # a real coroutine for the caller to close
 
     def _keep_running_spy(make_coro, label, **kw):
         rec["make_coro"], rec["label"] = make_coro, label
-        inner = make_coro()                 # what the supervisor awaits — this is what runs `_loop_spy`
+        inner = make_coro()  # what the supervisor awaits — this is what runs `_loop_spy`
         inner.close()
         return _unrun()
 
@@ -224,10 +248,10 @@ def _record_supervised_wiring(monkeypatch):
 def _assert_supervised(rec):
     """The pull must go through the supervisor, not straight to `create_task`. Started bare, the spy is
     never called, `rec` stays empty and this fires — the same detection the frame read gave."""
-    assert callable(rec.get("make_coro")), \
-        "the spool pull must be started under keep_running (supervised), not bare"
-    assert isinstance(rec.get("label"), str) and rec["label"], \
+    assert callable(rec.get("make_coro")), "the spool pull must be started under keep_running (supervised), not bare"
+    assert isinstance(rec.get("label"), str) and rec["label"], (
         "a supervised task needs its label — TASK_LABELS keys the task table on it"
+    )
 
 
 def test_every_documented_spool_pull_key_is_actually_READ(tmp_path, caplog, monkeypatch):
@@ -244,13 +268,29 @@ def test_every_documented_spool_pull_key_is_actually_READ(tmp_path, caplog, monk
     async def _connect():  # pragma: no cover — injected; the bleak edge is never built
         raise AssertionError
 
-    cfg = {"cpap": {"spool_pull": {"enabled": True, "at_hour": 9, "window_h": 3,
-                                   "spool_type": "Detail", "epoch_start": "2026-01-01T00:00:00.000Z",
-                                   "root": str(tmp_path / "sp")}}}
+    cfg = {
+        "cpap": {
+            "spool_pull": {
+                "enabled": True,
+                "at_hour": 9,
+                "window_h": 3,
+                "spool_type": "Detail",
+                "epoch_start": "2026-01-01T00:00:00.000Z",
+                "root": str(tmp_path / "sp"),
+            }
+        }
+    }
     with caplog.at_level("INFO"):
-        capture._maybe_start_cpap_spool_pull(cfg, "cfg.yaml", str(tmp_path), _Ctl(), [],
-                                             load_creds=lambda _p: CREDS,
-                                             connect_factory=_connect, create_task=_create_task)
+        capture._maybe_start_cpap_spool_pull(
+            cfg,
+            "cfg.yaml",
+            str(tmp_path),
+            _Ctl(),
+            [],
+            load_creds=lambda _p: CREDS,
+            connect_factory=_connect,
+            create_task=_create_task,
+        )
     _assert_supervised(rec)
     kw = rec["loop_kwargs"]
     assert kw["spool_type"] == "Detail", "a documented key the wiring never reads is an inert setting"
@@ -276,13 +316,25 @@ def test_a_loop_started_during_shutdown_does_nothing_at_all():
 
     capture._STOP.set()
     try:
-        asyncio.run(capture._cpap_spool_loop(
-            at_hour=10, window_h=2, root="/tmp/r", creds=CREDS, connect_factory=None,
-            epoch_start="x", is_capturing=lambda: False, sleep=_sleep,
-            now=lambda: _dt.datetime(2026, 8, 26, 10, 30), cycle=_cycle, st=lambda **kw: None))
+        asyncio.run(
+            capture._cpap_spool_loop(
+                at_hour=10,
+                window_h=2,
+                root="/tmp/r",
+                creds=CREDS,
+                connect_factory=None,
+                epoch_start="x",
+                is_capturing=lambda: False,
+                sleep=_sleep,
+                now=lambda: _dt.datetime(2026, 8, 26, 10, 30),
+                cycle=_cycle,
+                st=lambda **kw: None,
+            )
+        )
     finally:
         capture._STOP.clear()
     assert calls == []
+
 
 # ── the PRODUCTION wiring hands the loop a real status writer ────────────────────────────────────────
 # 🔴 THE TESTS ABOVE CANNOT CATCH THIS, AND THAT IS THE POINT. `_drive` injects
@@ -295,7 +347,7 @@ def test_the_production_wiring_hands_the_loop_a_working_STATUS_writer(tmp_path, 
     rec = _record_supervised_wiring(monkeypatch)
 
     def _create_task(coro):
-        coro.close()                       # the supervisor's coroutine; the factory already ran
+        coro.close()  # the supervisor's coroutine; the factory already ran
         return object()
 
     async def _connect():  # pragma: no cover — injected so the bleak edge is never built
@@ -305,25 +357,35 @@ def test_the_production_wiring_hands_the_loop_a_working_STATUS_writer(tmp_path, 
     capture.STATUS.pop("cpap_spool", None)
     try:
         capture._maybe_start_cpap_spool_pull(
-            ARMED, "cfg.yaml", str(tmp_path), _Ctl(), [],
-            load_creds=lambda _p: CREDS, connect_factory=_connect, create_task=_create_task)
+            ARMED,
+            "cfg.yaml",
+            str(tmp_path),
+            _Ctl(),
+            [],
+            load_creds=lambda _p: CREDS,
+            connect_factory=_connect,
+            create_task=_create_task,
+        )
 
         _assert_supervised(rec)
         st = rec["loop_kwargs"].get("st")
         assert callable(st), (
             "the production caller must pass `st` — without it the loop takes its own no-op default "
-            "and every state it publishes is discarded, which is how this shipped")
+            "and every state it publishes is discarded, which is how this shipped"
+        )
 
         st(state="waiting", detail="streaming: H10")
-        assert capture.STATUS.get("cpap_spool", {}).get("state") == "waiting", \
+        assert capture.STATUS.get("cpap_spool", {}).get("state") == "waiting", (
             "the writer must reach STATUS, where webmon can project it"
+        )
         assert capture.STATUS["cpap_spool"]["detail"] == "streaming: H10"
 
         # SEPARATE KEY, asserted. Merging into `cpap` would let the harvest actor's next write hide
         # this one, and "two actors both waiting" — OPERATIONAL-MATURITY-AUDIT §4(1)'s falsification
         # condition — is unobservable from a single shared slot.
-        assert capture.STATUS.get("cpap") == before_cpap, \
+        assert capture.STATUS.get("cpap") == before_cpap, (
             "the spool actor must not write into the harvest actor's block"
+        )
     finally:
         capture.STATUS.pop("cpap_spool", None)
         if before_cpap is not None:

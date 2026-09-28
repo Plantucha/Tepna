@@ -18,8 +18,8 @@ import pytest
 sys.path.insert(0, os.path.dirname(__file__))
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-import polar_pmd as pmd            # noqa: E402
-import wire_replay                 # noqa: E402
+import polar_pmd as pmd  # noqa: E402
+import wire_replay  # noqa: E402
 
 ALL = wire_replay.all_transcripts()
 PAIRS = [(name, s, r) for name, doc in ALL for s, r in wire_replay.exchanges(doc)]
@@ -49,13 +49,15 @@ def test_every_real_reply_carries_the_envelope_the_SDK_describes(name, sent, rep
     assert reply[1] == sent[0], f"{name}: reply echoes op {reply[1]:#04x}, asked {sent[0]:#04x}"
     assert len(reply) >= 4, (
         f"{name}: {reply.hex()} is {len(reply)} bytes — the STATUS lives at index 3, so nothing "
-        f"shorter can be interpreted at all")
+        f"shorter can be interpreted at all"
+    )
     if reply[3] == 0x00:
         assert len(reply) >= 5, (
             f"{name}: {reply.hex()} claims SUCCESS in {len(reply)} bytes, but a successful reply "
             f"carries a moreFlag at [4] and its payload from [5]. A fake emitting this shape puts the "
             f"payload two bytes early — which is precisely how three of them passed against a parser "
-            f"that read from index 3")
+            f"that read from index 3"
+        )
 
 
 @pytest.mark.parametrize("name,sent,reply", PAIRS, ids=[f"{n}:{s.hex()}" for n, s, _ in PAIRS])
@@ -67,7 +69,7 @@ def test_an_ERROR_reply_never_yields_DATA_from_any_parser(name, sent, reply):
     The SDK is explicit that parameters are only populated on SUCCESS
     (`PmdControlPointResponse.kt`), so every parser must return empty on any non-zero status."""
     if reply[3] == 0x00:
-        return                                   # SUCCESS — the payload is real, checked elsewhere
+        return  # SUCCESS — the payload is real, checked elsewhere
     assert pmd.parse_status_response(reply) == {}, f"{name}: {reply.hex()} produced measurement state"
     assert pmd.parse_settings_response(reply) == {}, f"{name}: {reply.hex()} produced settings"
 
@@ -98,8 +100,9 @@ def test_the_H10_transcript_pins_what_that_device_cannot_do():
     h10 = wire_replay.load_transcript("polar-h10-fw5.0.0.json")
     by_cmd = {s: r for s, r in wire_replay.exchanges(h10)}
     assert by_cmd[bytes([0x05])][3] == 0x01, "MEASUREMENT_STATUS is INVALID_OP_CODE on the H10"
-    assert by_cmd[bytes([0x01, pmd.ECG | pmd.OFFLINE_BIT])][3] == 0x02, \
+    assert by_cmd[bytes([0x01, pmd.ECG | pmd.OFFLINE_BIT])][3] == 0x02, (
         "the offline bit is an INVALID MEASUREMENT TYPE to an H10, not a recording flag"
+    )
     assert h10["features"]["supported"] == ["acc", "ecg"], "ECG + ACC and nothing else"
 
 
@@ -107,6 +110,7 @@ def test_the_replay_fake_REFUSES_a_command_the_device_never_answered():
     """The property that makes it a recording rather than a fake: it cannot invent. A test that needs
     an unrecorded command has to go and record it."""
     import asyncio
+
     cp = wire_replay.ReplayControlPoint(wire_replay.load_transcript("polar-h10-fw5.0.0.json"))
     assert asyncio.run(cp(bytes([0x05]))).hex() == "f0050001"
     with pytest.raises(wire_replay.UnrecordedCommand):

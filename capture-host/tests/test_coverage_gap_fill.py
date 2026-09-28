@@ -4,6 +4,7 @@ Every case here is a real failure mode the module already guards against but not
 absent BlueZ, an unmounted backup volume, a filename shape that must be REFUSED, and the CLI's
 nothing-found exit. Grouped in one file because each is a one-branch fill, not a module's worth of work.
 """
+
 import os
 import sys
 
@@ -30,11 +31,14 @@ def test_dbus_hci_returns_empty_when_bluetooth_sysfs_is_absent(monkeypatch):
     """No /sys/class/bluetooth at all — BlueZ not up, or a container without the class. The caller keeps
     whatever hcitool/sysfs already gave it, so this must degrade to {} rather than raising into the
     rssi_poller, whose failure would silently cost the night's link provenance."""
+
     def boom(_p):
         raise OSError("no such directory")
+
     monkeypatch.setattr(link_rssi.os, "listdir", boom)
-    assert link_rssi.asyncio.get_event_loop_policy() is not None      # sanity: module imports clean
+    assert link_rssi.asyncio.get_event_loop_policy() is not None  # sanity: module imports clean
     import asyncio
+
     assert asyncio.run(link_rssi.dbus_hci()) == {}
 
 
@@ -49,6 +53,7 @@ def test_unarchived_nights_keeps_everything_when_the_dest_probe_raises(tmp_path,
 
     def boom(_p):
         raise OSError("stale file handle")
+
     monkeypatch.setattr(nightarchive.os.path, "isdir", boom)
     assert nightarchive.unarchived_nights(str(cap), dest="/mnt/backup") == {"2026-07-25"}
 
@@ -60,10 +65,13 @@ def test_file_device_id_reads_polar_sensor_loggers_split_stamp():
     assert writers.file_device_id("Polar_H10_02849638_20260725_225058_ECG.txt") == "02849638"
 
 
-@pytest.mark.parametrize("fname", [
-    "Polar_H10_02849638_notadate_ECG.txt",       # stamp token is neither DATE14 nor DATE8
-    "Tepna_20260725_LINK.csv",                   # sidecar: no device-id field at all
-])
+@pytest.mark.parametrize(
+    "fname",
+    [
+        "Polar_H10_02849638_notadate_ECG.txt",  # stamp token is neither DATE14 nor DATE8
+        "Tepna_20260725_LINK.csv",  # sidecar: no device-id field at all
+    ],
+)
 def test_file_device_id_refuses_what_it_cannot_prove(fname):
     """Returning a wrong id is worse than returning none: `IDENTITY_FIELDS` attribution is an exact
     field comparison, so a bad id silently orphans every file it touches."""

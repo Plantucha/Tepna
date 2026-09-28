@@ -10,6 +10,7 @@ The daemon is faked — `VIGIL_PY` is a shell script, not python — so nothing 
 real capture.py. It does bind one ephemeral port, because `start`'s success path waits for the web port
 to listen and a fake that never binds would only ever exercise the timeout branch. What is under test is
 the process bookkeeping, which is where all four bugs lived."""
+
 import os
 import pathlib
 import socket
@@ -43,18 +44,21 @@ def box(tmp_path):
     (d / "capture.py").write_text("# fake\n")
     (d / "config.yaml").write_text(f"web:\n  host: 127.0.0.1\n  port: {port}\n")
     py = d / "fakepy"
-    py.write_text("#!/usr/bin/env bash\n"
-                  f"python3 -m http.server {port} --bind 127.0.0.1 >/dev/null 2>&1 &\n"
-                  "sleep 300\n")
+    py.write_text(f"#!/usr/bin/env bash\npython3 -m http.server {port} --bind 127.0.0.1 >/dev/null 2>&1 &\nsleep 300\n")
     py.chmod(0o755)
     return {"dir": d, "pid": tmp_path / "v.pid", "log": tmp_path / "v.log", "py": py, "port": port}
 
 
 def _run(box, *args, timeout=60):
-    env = {**os.environ, "VIGIL_DIR": str(box["dir"]), "VIGIL_CONFIG": str(box["dir"] / "config.yaml"),
-           "VIGIL_PY": str(box["py"]), "VIGIL_PIDFILE": str(box["pid"]), "VIGIL_LOG": str(box["log"])}
-    return subprocess.run(["bash", VIGIL, *args], capture_output=True, text=True, env=env,
-                          timeout=timeout)
+    env = {
+        **os.environ,
+        "VIGIL_DIR": str(box["dir"]),
+        "VIGIL_CONFIG": str(box["dir"] / "config.yaml"),
+        "VIGIL_PY": str(box["py"]),
+        "VIGIL_PIDFILE": str(box["pid"]),
+        "VIGIL_LOG": str(box["log"]),
+    }
+    return subprocess.run(["bash", VIGIL, *args], capture_output=True, text=True, env=env, timeout=timeout)
 
 
 def _procs_on_port(port):
@@ -76,7 +80,7 @@ def _procs_on_port(port):
         try:
             argv = (pathlib.Path("/proc") / name / "cmdline").read_bytes().split(b"\0")
         except OSError:
-            continue        # the process exited between listdir and read — it is not a straggler
+            continue  # the process exited between listdir and read — it is not a straggler
         if b"http.server" in argv and str(port).encode() in argv:
             out.append(int(name))
     return out
@@ -107,22 +111,23 @@ def _kill(box):
     try:
         p = int(box["pid"].read_text().strip())
     except (OSError, ValueError):
-        pass            # no usable pidfile — the leaking case; the port sweep below covers it
+        pass  # no usable pidfile — the leaking case; the port sweep below covers it
     if p is not None:
         for killer in (lambda: os.killpg(os.getpgid(p), 9), lambda: os.kill(p, 9)):
             try:
                 killer()
                 break
             except OSError:
-                continue   # this strategy cannot reach it; the sweep below is the real backstop
+                continue  # this strategy cannot reach it; the sweep below is the real backstop
     for stray in _procs_on_port(box["port"]):
         try:
             os.kill(stray, 9)
         except OSError:
-            pass        # already gone between the scan and the kill — the outcome we wanted anyway
+            pass  # already gone between the scan and the kill — the outcome we wanted anyway
 
 
 # ── the four fixes, one test each ────────────────────────────────────────────────────────────────────
+
 
 def test_start_returns_instead_of_becoming_the_daemons_parent(box):
     """BUG 1 — the foreground-subshell hang. `./vigil.sh start` once sat for 7 minutes with capture.py
@@ -204,16 +209,21 @@ def test_a_stranger_whose_cwd_cannot_be_read_is_NOT_our_daemon(box, tmp_path):
     try:
         nest.rmdir()
         nest.parent.rmdir()
-        assert subprocess.run(["readlink", "-f", f"/proc/{other.pid}/cwd"], capture_output=True, text=True).stdout.strip() == "", \
-            "the plant did not reproduce: the stranger's cwd still resolves"
+        assert (
+            subprocess.run(["readlink", "-f", f"/proc/{other.pid}/cwd"], capture_output=True, text=True).stdout.strip()
+            == ""
+        ), "the plant did not reproduce: the stranger's cwd still resolves"
         box["pid"].write_text(str(other.pid))
         r = _run(box, "status")
-        assert r.returncode == 3 and "not running" in r.stdout.lower(), f"an unreadable cwd was accepted as ours: {r.stdout}"
+        assert r.returncode == 3 and "not running" in r.stdout.lower(), (
+            f"an unreadable cwd was accepted as ours: {r.stdout}"
+        )
     finally:
         other.kill()
 
 
 # ── read-only verbs must not start anything ──────────────────────────────────────────────────────────
+
 
 def test_url_prints_an_address_without_launching_a_daemon(box):
     """`url` is the verb you run to find the address from a phone; it must be inert."""
@@ -231,6 +241,7 @@ def test_status_on_a_cold_box_reports_not_running(box):
 
 # ── the sandbox these tests rely on ──────────────────────────────────────────────────────────────────
 
+
 def test_vigil_sh_has_no_privileged_command():
     """These tests EXECUTE vigil.sh, so `test_no_test_executes_a_deploy_script_that_mutates_host_state
     _unguarded` requires a confirmation that it cannot reach real host state. That confirmation is this
@@ -241,8 +252,19 @@ def test_vigil_sh_has_no_privileged_command():
     must never appear is an address- or link-mutating form, so the check is on the mutating subcommands."""
     body = open(VIGIL, encoding="utf-8").read()
     code = "\n".join(ln for ln in body.splitlines() if not ln.lstrip().startswith("#"))
-    for bad in ("sudo", "systemctl", "udevadm", "install -", "mount ", "chown", "chmod",
-                "ip link", "ip addr", "ip route add", "ip route del"):
+    for bad in (
+        "sudo",
+        "systemctl",
+        "udevadm",
+        "install -",
+        "mount ",
+        "chown",
+        "chmod",
+        "ip link",
+        "ip addr",
+        "ip route add",
+        "ip route del",
+    ):
         assert bad not in code, f"{bad!r} appears in vigil.sh — the test sandbox is no longer sound"
 
 
@@ -269,17 +291,18 @@ def test_the_teardown_reaps_the_stub_when_the_pidfile_is_GONE(box):
     r = _run(box, "start", timeout=30)
     assert r.returncode == 0, f"start failed: {r.stdout}{r.stderr}"
     assert _procs_on_port(box["port"]), "the fixture never started a stub — the test would pass vacuously"
-    box["pid"].unlink()                      # the leaking state, reproduced exactly
+    box["pid"].unlink()  # the leaking state, reproduced exactly
     try:
         _kill(box)
         deadline = time.monotonic() + 5
         while time.monotonic() < deadline and _procs_on_port(box["port"]):
             time.sleep(0.05)
-        assert _procs_on_port(box["port"]) == [], \
+        assert _procs_on_port(box["port"]) == [], (
             "teardown left a stub bound to this box's port — it will outlive the run"
+        )
     finally:
         for stray in _procs_on_port(box["port"]):
             try:
                 os.kill(stray, 9)
             except OSError:
-                pass   # a failing assertion must not itself leak the thing it is complaining about
+                pass  # a failing assertion must not itself leak the thing it is complaining about

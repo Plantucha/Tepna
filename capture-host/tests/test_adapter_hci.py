@@ -41,7 +41,15 @@ def test_row_writes_tri_state_as_empty_for_none_and_round_trips():
     r = H.row(T0 + 0.7, "hci1", "aa:bb:cc:dd:ee:ff", False, None, False, 12.9)
     assert r == f"{T0};hci1;AA:BB:CC:DD:EE:FF;0;;0;12"
     back = H.parse_row(r)
-    assert back == {"probed_ms": T0, "hci": "hci1", "mac": "AA:BB:CC:DD:EE:FF", "pinned": False, "up": None, "responds": False, "probe_ms": 12}
+    assert back == {
+        "probed_ms": T0,
+        "hci": "hci1",
+        "mac": "AA:BB:CC:DD:EE:FF",
+        "pinned": False,
+        "up": None,
+        "responds": False,
+        "probe_ms": 12,
+    }
     assert H.parse_row(H.HEADER) is None and H.parse_row("") is None and H.parse_row("x;y") is None
     assert H.parse_row("abc;hci0;M;1;1;1;1") is None, "a torn line is None, not a crash"
 
@@ -54,15 +62,27 @@ def test_append_rows_writes_the_header_once_and_never_raises(tmp_path, caplog):
     assert H.append_rows("", [H.row(T0, "hci0", PIN, True, True, True, 1)]) is False, "no root, no journal"
     assert H.append_rows(str(tmp_path), []) is False
     import logging
+
     with caplog.at_level("WARNING"):
-        assert H.append_rows(str(tmp_path / "missing" / "dir"), [H.row(T0, "hci0", PIN, True, True, True, 1)], log=logging.getLogger("t")) is False
+        assert (
+            H.append_rows(
+                str(tmp_path / "missing" / "dir"),
+                [H.row(T0, "hci0", PIN, True, True, True, 1)],
+                log=logging.getLogger("t"),
+            )
+            is False
+        )
     assert any("could not append" in r.getMessage() for r in caplog.records)
-    assert H.append_rows(str(tmp_path / "missing" / "dir"), [H.row(T0, "hci0", PIN, True, True, True, 1)]) is False, "no logger: still no raise"
+    assert H.append_rows(str(tmp_path / "missing" / "dir"), [H.row(T0, "hci0", PIN, True, True, True, 1)]) is False, (
+        "no logger: still no raise"
+    )
 
 
 def test_read_rows_filters_to_the_window_and_is_empty_when_the_file_is_absent(tmp_path):
     assert H.read_rows(str(tmp_path), 0, 10**15) == []
-    H.append_rows(str(tmp_path), [H.row(T0 + i * 60_000, "hci0", PIN, True, True, True, 1) for i in range(5)] + ["torn;line"])
+    H.append_rows(
+        str(tmp_path), [H.row(T0 + i * 60_000, "hci0", PIN, True, True, True, 1) for i in range(5)] + ["torn;line"]
+    )
     got = H.read_rows(str(tmp_path), T0 + 60_000, T0 + 180_000)
     assert [r["probed_ms"] for r in got] == [T0 + 60_000, T0 + 120_000, T0 + 180_000]
 
@@ -78,7 +98,12 @@ def test_runs_counts_the_longest_false_run_and_isolated_misses_skipping_none():
 
 
 def test_every_probe_answered_is_PASS_over_every_radio():
-    v = ok(H.verdict_object(_rows([True] * 5) + _rows([True] * 5, mac=OTHER, hci="hci1", pinned=False), night="2026-09-22"), "PASS")
+    v = ok(
+        H.verdict_object(
+            _rows([True] * 5) + _rows([True] * 5, mac=OTHER, hci="hci1", pinned=False), night="2026-09-22"
+        ),
+        "PASS",
+    )
     assert v["population"] == {"checked": 2, "eligible": 2, "excluded": 0}
     assert v["result"]["radios"][PIN]["pinned"] is True and v["result"]["radios"][OTHER]["unanswered"] == 0
     assert "2026-09-22" in v["evidence"]
@@ -108,7 +133,11 @@ def test_a_radio_whose_every_probe_was_undeterminable_is_excluded_and_all_such_i
     v = ok(H.verdict_object(rows), "PASS")
     assert v["population"] == {"checked": 1, "eligible": 2, "excluded": 1}
     v = ok(H.verdict_object(_rows([None, None, None])), "UNKNOWN")
-    assert "no probe was determinable" in v["reason"] and v["population"] == {"checked": 0, "eligible": 1, "excluded": 1}
+    assert "no probe was determinable" in v["reason"] and v["population"] == {
+        "checked": 0,
+        "eligible": 1,
+        "excluded": 1,
+    }
 
 
 def test_no_rows_is_NOT_RUN_never_PASS():
@@ -119,8 +148,17 @@ def test_no_rows_is_NOT_RUN_never_PASS():
 def test_sample_is_the_shortfall_shape_and_the_cli_prints_it(capsys):
     ok(H.verdict_sample(), "SHORTFALL")
     import subprocess
-    r = subprocess.run([sys.executable, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "adapter_hci.py"), "--verdict-sample"],
-                       capture_output=True, text=True, timeout=60)
+
+    r = subprocess.run(
+        [
+            sys.executable,
+            os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "adapter_hci.py"),
+            "--verdict-sample",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
     assert r.returncode == 0 and ok(json.loads(r.stdout), "SHORTFALL")["gate"] == "adapter-hci"
 
 
@@ -165,29 +203,50 @@ def _watchdog_rig(monkeypatch, tmp_path, *, other_responds=False):
         return other_responds
 
     async def adapters():
-        return [{"hci": "hci0", "mac": PIN, "up": True}, {"hci": "hci1", "mac": OTHER, "up": True}, {"hci": "", "mac": "", "up": True}]
+        return [
+            {"hci": "hci0", "mac": PIN, "up": True},
+            {"hci": "hci1", "mac": OTHER, "up": True},
+            {"hci": "", "mac": "", "up": True},
+        ]
 
     monkeypatch.setattr(capture, "adapter_hci", hci)
     monkeypatch.setattr(capture, "_adapter_is_up", is_up)
     monkeypatch.setattr(capture, "_adapter_responds", responds)
     monkeypatch.setattr(capture, "list_adapters", adapters)
-    cfg = {"root": str(tmp_path), "watchdog": {"enabled": True, "interval_sec": 1, "grace_checks": 5, "max_adapter_cycles": 1,
-                                             "recover_checks": 1, "deaf_scan_sec": 0}, "devices": [_dev(name="H10")]}
+    cfg = {
+        "root": str(tmp_path),
+        "watchdog": {
+            "enabled": True,
+            "interval_sec": 1,
+            "grace_checks": 5,
+            "max_adapter_cycles": 1,
+            "recover_checks": 1,
+            "deaf_scan_sec": 0,
+        },
+        "devices": [_dev(name="H10")],
+    }
     capture.STATUS["devices"]["H10"] = {"connected": True, "address": "24:AC:AC:02:84:96", "last_error": None}
     cfg["_probed"] = probed
     return cfg
 
 
-def test_the_recorder_writes_one_row_per_radio_reusing_the_pinned_verdict_and_publishes_status(tmp_path, monkeypatch, caplog):
+def test_the_recorder_writes_one_row_per_radio_reusing_the_pinned_verdict_and_publishes_status(
+    tmp_path, monkeypatch, caplog
+):
     cfg = _watchdog_rig(monkeypatch, tmp_path)
     with caplog.at_level("WARNING"):
         rows = _run(capture._record_adapter_hci(cfg, "hci0", True, True))
-    assert [(r["hci"], r["mac"], r["pinned"], r["responds"]) for r in rows] == [("hci0", PIN, True, True), ("hci1", OTHER, False, False)]
+    assert [(r["hci"], r["mac"], r["pinned"], r["responds"]) for r in rows] == [
+        ("hci0", PIN, True, True),
+        ("hci1", OTHER, False, False),
+    ]
     lines = (tmp_path / H.FILE_NAME).read_text().splitlines()
     assert lines[0] == H.HEADER and len(lines) == 3 and lines[1].split(";")[1:4] == ["hci0", PIN, "1"]
     assert capture.STATUS["adapter_hci"][OTHER] == {"hci": "hci1", "pinned": False, "up": True, "responds": False}
     assert any("REPORTED, not reset" in r.getMessage() and "hci1" in r.getMessage() for r in caplog.records)
-    assert cfg["_probed"] == ["hci1"], "the pinned radio's round trip is taken once by the watchdog, not again by the recorder"
+    assert cfg["_probed"] == ["hci1"], (
+        "the pinned radio's round trip is taken once by the watchdog, not again by the recorder"
+    )
 
 
 def test_a_failed_enumeration_still_writes_the_pinned_radio_s_measured_row(tmp_path, monkeypatch):
@@ -199,7 +258,17 @@ def test_a_failed_enumeration_still_writes_the_pinned_radio_s_measured_row(tmp_p
     monkeypatch.setattr(capture, "list_adapters", boom)
     monkeypatch.setattr(capture, "ADAPTER", PIN)
     rows = _run(capture._record_adapter_hci(cfg, "hci0", False, False))
-    assert rows == [{"probed_ms": rows[0]["probed_ms"], "hci": "hci0", "mac": PIN, "pinned": True, "up": False, "responds": False, "probe_ms": 0.0}]
+    assert rows == [
+        {
+            "probed_ms": rows[0]["probed_ms"],
+            "hci": "hci0",
+            "mac": PIN,
+            "pinned": True,
+            "up": False,
+            "responds": False,
+            "probe_ms": 0.0,
+        }
+    ]
     assert (tmp_path / H.FILE_NAME).read_text().count("\n") == 2
 
 
@@ -210,12 +279,12 @@ def test_no_pinned_radio_and_no_root_records_nothing_and_raises_nothing(tmp_path
     assert [r["mac"] for r in rows] == [PIN, OTHER] and not (tmp_path / H.FILE_NAME).exists()
 
 
-@pytest.mark.sets_capture_events   # `_stop_after` sets _STOP as the scenario's end; the fixture resets it
+@pytest.mark.sets_capture_events  # `_stop_after` sets _STOP as the scenario's end; the fixture resets it
 def test_the_watchdog_calls_the_recorder_every_poll(tmp_path, monkeypatch):
     cfg = _watchdog_rig(monkeypatch, tmp_path, other_responds=True)
     _stop_after(monkeypatch, 3)
     _run(capture.adapter_watchdog(PIN, cfg))
     lines = (tmp_path / H.FILE_NAME).read_text().splitlines()
-    assert len(lines) >= 1 + 2 * 2, lines   # header + (pinned + other) per poll, at least two polls
+    assert len(lines) >= 1 + 2 * 2, lines  # header + (pinned + other) per poll, at least two polls
     v = ok(H.verdict_object(H.read_rows(str(tmp_path), 0, 10**15), night="rig", root=str(tmp_path)), "PASS")
     assert v["population"]["eligible"] == 2

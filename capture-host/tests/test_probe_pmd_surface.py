@@ -32,6 +32,7 @@ def _run(coro):
 
 # ── the allowlist: the safety property ───────────────────────────────────────────────────────────────
 
+
 def test_trigger_writes_are_refused_by_name_and_reason():
     """0x08/0x09 persist across power cycles — the refusal must say so, not just 'denied'."""
     for op in (0x08, 0x09):
@@ -65,6 +66,7 @@ def test_the_offline_bit_is_what_selects_the_offline_menu():
 
 # ── the plan ─────────────────────────────────────────────────────────────────────────────────────────
 
+
 def test_the_scarce_one_shot_queries_are_planned_first():
     """Ordering the per-measurement queries first cost all four unique answers in one window."""
     plan = probe.plan_sweep([pmd.PPG, pmd.ACC])
@@ -85,8 +87,12 @@ def test_an_undocumented_type_is_labelled_by_number_not_crashed_on():
 
 def test_fold_replies_nests_per_measurement_and_decodes_status():
     rows = [
-        ("GET_MEASUREMENT_SETTINGS", "acc", "offline",
-         bytes.fromhex("f00102000000030d001a0034000101100002010800040103")),
+        (
+            "GET_MEASUREMENT_SETTINGS",
+            "acc",
+            "offline",
+            bytes.fromhex("f00102000000030d001a0034000101100002010800040103"),
+        ),
         ("GET_MEASUREMENT_STATUS", "", "", bytes.fromhex("f005ff000002050601030e")),
         ("GET_SDK_MODE_STATUS", "", "", None),
     ]
@@ -115,6 +121,7 @@ def test_an_unnamed_setting_axis_is_kept_under_its_number(monkeypatch):
 
 
 # ── the clock: the distinction that is the whole finding ─────────────────────────────────────────────
+
 
 def test_device_time_converts_from_the_polar_epoch():
     assert probe.device_time(0) == _dt.datetime(2000, 1, 1)
@@ -158,37 +165,48 @@ def test_a_refused_write_concludes_the_clock_is_not_settable():
 
 
 def test_no_stamp_after_the_write_is_inconclusive_not_a_negative():
-    out = {"set_local_time_ack": "accepted", "before": {"device_stamps": "x"},
-           "after": {"device_stamps": None}}
+    out = {"set_local_time_ack": "accepted", "before": {"device_stamps": "x"}, "after": {"device_stamps": None}}
     assert "inconclusive" in probe._clock_conclusion(out)
 
 
 def test_the_measured_case_concludes_the_sample_clock_did_not_follow():
-    out = {"set_local_time_ack": "accepted",
-           "before": {"device_stamps": "2026-08-03T00:09:56"},
-           "after": {"device_stamps": "2026-08-03T00:10:19", "device_reports": "2026-08-02T20:10:05",
-                     "verdict": "device STAMPS UTC — and GET_LOCAL_TIME DISAGREES with the stamps"}}
+    out = {
+        "set_local_time_ack": "accepted",
+        "before": {"device_stamps": "2026-08-03T00:09:56"},
+        "after": {
+            "device_stamps": "2026-08-03T00:10:19",
+            "device_reports": "2026-08-02T20:10:05",
+            "verdict": "device STAMPS UTC — and GET_LOCAL_TIME DISAGREES with the stamps",
+        },
+    }
     assert "does not follow" in probe._clock_conclusion(out)
 
 
 def test_a_sample_clock_that_did_move_is_reported_as_settable():
-    out = {"set_local_time_ack": "accepted",
-           "before": {"device_stamps": "2026-08-03T00:09:56"},
-           "after": {"device_stamps": "2026-08-02T20:10:19", "device_reports": None,
-                     "verdict": "device STAMPS LOCAL CIVIL time"}}
+    out = {
+        "set_local_time_ack": "accepted",
+        "before": {"device_stamps": "2026-08-03T00:09:56"},
+        "after": {
+            "device_stamps": "2026-08-02T20:10:19",
+            "device_reports": None,
+            "verdict": "device STAMPS LOCAL CIVIL time",
+        },
+    }
     assert "settable" in probe._clock_conclusion(out)
 
 
 def test_an_unmoved_clock_falls_through_to_the_observed_verdict():
-    out = {"set_local_time_ack": "accepted",
-           "before": {"device_stamps": "2026-08-03T00:10:19"},
-           "after": {"device_stamps": "2026-08-03T00:10:19", "device_reports": None,
-                     "verdict": "device STAMPS UTC"}}
+    out = {
+        "set_local_time_ack": "accepted",
+        "before": {"device_stamps": "2026-08-03T00:10:19"},
+        "after": {"device_stamps": "2026-08-03T00:10:19", "device_reports": None, "verdict": "device STAMPS UTC"},
+    }
     got = probe._clock_conclusion(out)
     assert "unchanged" in got and "STAMPS UTC" in got
 
 
 # ── the control point ────────────────────────────────────────────────────────────────────────────────
+
 
 class _FakeClient:
     """A control point that answers from a queue. `refuse_after` reproduces the device going deaf.
@@ -243,6 +261,7 @@ def _no_pacing_delay(monkeypatch):
 
     async def quick(d):
         await real(0)
+
     monkeypatch.setattr(probe.asyncio, "sleep", quick)
 
 
@@ -275,11 +294,12 @@ def test_a_stale_reply_is_not_returned_as_the_next_commands_answer():
     c = _FakeClient([b"\xf0\x05\x00"])
     cp = probe.Control(c)
     _run(cp.start())
-    cp.q.put_nowait(b"\xff\xff")                     # leftover from a timed-out command
+    cp.q.put_nowait(b"\xff\xff")  # leftover from a timed-out command
     assert _run(cp.send(b"\x05")) == b"\xf0\x05\x00"
 
 
 # ── link handling ────────────────────────────────────────────────────────────────────────────────────
+
 
 def _patch_scan(monkeypatch, results):
     """results: a list consumed one per scan; an item of None means 'not seen this time'."""
@@ -287,6 +307,7 @@ def _patch_scan(monkeypatch, results):
 
     async def find(_addr, timeout=0):
         return seq.pop(0) if seq else None
+
     monkeypatch.setattr(probe.BleakScanner, "find_device_by_address", find)
 
 
@@ -310,6 +331,7 @@ def test_a_link_that_connects_but_is_already_down_is_retried(monkeypatch):
     async def use():
         async with probe._client("dev", None) as c:
             return c
+
     assert _run(use()) is live
     assert dead.disconnected
 
@@ -318,11 +340,13 @@ def test_a_connect_that_raises_is_retried_then_reported(monkeypatch):
     class _Boom(_FakeClient):
         async def connect(self):
             raise RuntimeError("le-connection-abort-by-local")
+
     monkeypatch.setattr(probe, "BleakClient", lambda dev, **kw: _Boom())
 
     async def use():
         async with probe._client("dev", None):
-            pass                                     # pragma: no cover — the connect never succeeds
+            pass  # pragma: no cover — the connect never succeeds
+
     with pytest.raises(RuntimeError, match="could not hold a link"):
         _run(use())
 
@@ -334,11 +358,13 @@ def test_an_adapter_is_passed_the_supported_way_not_the_deprecated_one(monkeypat
     def make(dev, **kw):
         seen.update(kw)
         return _FakeClient()
+
     monkeypatch.setattr(probe, "BleakClient", make)
 
     async def use():
         async with probe._client("dev", "hci2"):
             pass
+
     _run(use())
     assert seen == {"bluez": {"adapter": "hci2"}}
 
@@ -347,15 +373,18 @@ def test_a_teardown_failure_does_not_mask_the_result(monkeypatch):
     class _BadExit(_FakeClient):
         async def disconnect(self):
             raise RuntimeError("already gone")
+
     monkeypatch.setattr(probe, "BleakClient", lambda dev, **kw: _BadExit())
 
     async def use():
         async with probe._client("dev", None) as c:
             return c
+
     assert _run(use()) is not None
 
 
 # ── identity / features ──────────────────────────────────────────────────────────────────────────────
+
 
 def test_identity_reports_a_missing_characteristic_rather_than_failing_the_run():
     c = _FakeClient(reads={probe.DIS["model"]: b"INW4J\x00"})
@@ -388,6 +417,7 @@ def test_an_unreadable_feature_bitmask_is_an_error_field_not_an_exception():
 
 # ── execute_plan: resumability ───────────────────────────────────────────────────────────────────────
 
+
 def test_a_sweep_resumes_on_a_fresh_link_at_the_command_that_failed(monkeypatch):
     """The property the whole design exists for: a dead link costs one command, not the whole run."""
     first, second = _FakeClient([b"\xf0\x05\x00"], refuse_after=1), _FakeClient([b"\xf0\x06\x00"] * 9)
@@ -395,7 +425,7 @@ def test_a_sweep_resumes_on_a_fresh_link_at_the_command_that_failed(monkeypatch)
     _patch_scan(monkeypatch, ["dev", "dev", "dev"])
     monkeypatch.setattr(probe, "BleakClient", lambda dev, **kw: next(made))
     out: dict = {}
-    plan = probe.plan_sweep([])                      # the four one-shot queries only
+    plan = probe.plan_sweep([])  # the four one-shot queries only
     rows = _run(probe.execute_plan("AA:BB", None, plan, out))
     assert len(rows) == len(plan), "the sweep did not finish on the second link"
     assert out["links_used"] == 2
@@ -430,6 +460,7 @@ def test_a_failed_identity_link_does_not_discard_the_sweep(monkeypatch):
             return next(made)
         except StopIteration:
             raise RuntimeError("link gone") from None
+
     _patch_scan(monkeypatch, ["dev", "dev"])
     monkeypatch.setattr(probe, "BleakClient", make)
     out: dict = {}
@@ -440,8 +471,7 @@ def test_a_failed_identity_link_does_not_discard_the_sweep(monkeypatch):
 
 def test_identity_is_skipped_when_the_device_has_gone(monkeypatch):
     _patch_scan(monkeypatch, ["dev"] + [None] * 6)
-    monkeypatch.setattr(probe, "BleakClient",
-                        lambda dev, **kw: _FakeClient([b"\xf0\x05\x00"] * 9))
+    monkeypatch.setattr(probe, "BleakClient", lambda dev, **kw: _FakeClient([b"\xf0\x05\x00"] * 9))
     out: dict = {}
     _run(probe.execute_plan("AA:BB", None, probe.plan_sweep([]), out))
     assert "identity" not in out
@@ -449,8 +479,10 @@ def test_identity_is_skipped_when_the_device_has_gone(monkeypatch):
 
 # ── the sample stamp ─────────────────────────────────────────────────────────────────────────────────
 
+
 def _acc_frame(sensor_ns: int) -> bytes:
     import struct
+
     return bytes([pmd.ACC]) + struct.pack("<Q", sensor_ns) + b"\x01" + struct.pack("<hhh", 0, 0, 1000)
 
 
@@ -463,6 +495,7 @@ def test_a_sample_stamp_comes_from_the_device_clock_not_the_host(monkeypatch):
     async def notify(char, cb):
         if char == pmd.PMD_DATA:
             asyncio.get_running_loop().call_soon(cb, 0, bytearray(_acc_frame(ns)))
+
     monkeypatch.setattr(c, "start_notify", notify)
     assert _run(probe.sample_stamp("AA:BB", None)) == probe.device_time(ns)
 
@@ -497,6 +530,7 @@ def test_an_empty_frame_yields_no_stamp(monkeypatch):
     async def notify(char, cb):
         if char == pmd.PMD_DATA:
             asyncio.get_running_loop().call_soon(cb, 0, bytearray(_acc_frame(0)))
+
     monkeypatch.setattr(c, "start_notify", notify)
     monkeypatch.setattr(probe.pmd, "decode_frame", lambda *a, **k: (pmd.ACC, []))
     assert _run(probe.sample_stamp("AA:BB", None)) is None
@@ -504,8 +538,10 @@ def test_an_empty_frame_yields_no_stamp(monkeypatch):
 
 # ── the clock experiment: the restore is the point ───────────────────────────────────────────────────
 
+
 class _FakeFs:
     """A PS-FTP session standing in for PolarPsFtp — it owns its own link, so it is patched wholesale."""
+
     calls: list = []
 
     def __init__(self, reported=None, set_raises=None, restore_raises=None):
@@ -535,6 +571,7 @@ def _patch_clock(monkeypatch, fs, stamps):
 
     async def stamp(*a, **k):
         return seq.pop(0) if seq else None
+
     monkeypatch.setattr(probe, "sample_stamp", stamp)
 
 
@@ -558,8 +595,7 @@ def test_the_true_offset_is_written_not_zero(monkeypatch):
 
 
 def test_a_refused_write_is_reported_as_refused_not_as_a_negative_result(monkeypatch):
-    _patch_clock(monkeypatch, _FakeFs(reported=None, set_raises=RuntimeError("PS-FTP error 201")),
-                 [_UTC, _UTC])
+    _patch_clock(monkeypatch, _FakeFs(reported=None, set_raises=RuntimeError("PS-FTP error 201")), [_UTC, _UTC])
     out = _run(probe.clock_experiment("AA:BB", None))
     assert out["set_local_time_ack"].startswith("REFUSED")
     assert "not settable" in out["conclusion"]
@@ -578,6 +614,7 @@ def test_the_device_is_restored_even_when_the_run_fails_after_the_write(monkeypa
         if calls["n"] > 1:
             raise RuntimeError("link dropped after the write")
         return _UTC
+
     monkeypatch.setattr(probe, "sample_stamp", stamp)
     with pytest.raises(RuntimeError):
         _run(probe.clock_experiment("AA:BB", None))
@@ -585,8 +622,7 @@ def test_the_device_is_restored_even_when_the_run_fails_after_the_write(monkeypa
 
 
 def test_a_failed_restore_says_so_loudly(monkeypatch):
-    _patch_clock(monkeypatch, _FakeFs(reported=_LOCAL, restore_raises=RuntimeError("gone")),
-                 [_UTC, _UTC])
+    _patch_clock(monkeypatch, _FakeFs(reported=_LOCAL, restore_raises=RuntimeError("gone")), [_UTC, _UTC])
     out = _run(probe.clock_experiment("AA:BB", None))
     assert "RESTORE FAILED" in out["restored"]
     assert "re-run the daemon's clock sync" in out["restored"]
@@ -602,6 +638,7 @@ def test_the_psftp_wrappers_use_their_own_session(monkeypatch):
 
 
 # ── run() and the CLI ────────────────────────────────────────────────────────────────────────────────
+
 
 def test_a_missing_device_is_reported_rather_than_crashing(monkeypatch):
     _patch_scan(monkeypatch, [None] * 9)
@@ -621,6 +658,7 @@ def test_a_sweep_failure_does_not_cancel_the_clock_experiment(monkeypatch):
 
     async def clock(*a, **k):
         return {"conclusion": "measured anyway"}
+
     monkeypatch.setattr(probe, "_sweep_phase", boom)
     monkeypatch.setattr(probe, "clock_experiment", clock)
     out = _run(probe.run("AA:BB", None, True))
@@ -634,6 +672,7 @@ def test_a_clock_failure_is_recorded_rather_than_raised(monkeypatch):
 
     async def boom(*a, **k):
         raise RuntimeError("no link")
+
     monkeypatch.setattr(probe, "_sweep_phase", ok)
     monkeypatch.setattr(probe, "clock_experiment", boom)
     out = _run(probe.run("AA:BB", None, True))
@@ -645,10 +684,11 @@ def test_clock_only_does_not_spend_the_window_on_the_sweep(monkeypatch):
     called = {"sweep": False}
 
     async def sweep(*a, **k):
-        called["sweep"] = True                       # pragma: no cover — must not run
+        called["sweep"] = True  # pragma: no cover — must not run
 
     async def clock(*a, **k):
         return {"conclusion": "x"}
+
     monkeypatch.setattr(probe, "_sweep_phase", sweep)
     monkeypatch.setattr(probe, "clock_experiment", clock)
     _run(probe.run("AA:BB", None, True, do_sweep=False))
@@ -665,6 +705,7 @@ def test_the_feature_read_is_retried_because_the_plan_is_built_from_it(monkeypat
 
     async def noop(*a, **k):
         return []
+
     monkeypatch.setattr(probe, "execute_plan", noop)
     out: dict = {}
     _run(probe._sweep_phase("AA:BB", None, out, False))
@@ -677,6 +718,7 @@ def test_a_lost_feature_read_falls_back_and_says_that_it_did(monkeypatch):
 
     async def noop(*a, **k):
         return []
+
     monkeypatch.setattr(probe, "execute_plan", noop)
     out: dict = {}
     _run(probe._sweep_phase("AA:BB", None, out, False))
@@ -689,11 +731,13 @@ def test_flag_bits_are_named_by_what_they_are_not_left_as_a_mystery(monkeypatch)
     test already pinned it. The probe reporting them as unknown turned settled knowledge back into an
     open question, which is worse than not having asked."""
     _patch_scan(monkeypatch, ["dev"] * 6)
-    monkeypatch.setattr(probe, "BleakClient",
-                        lambda dev, **kw: _FakeClient(reads={pmd.PMD_CONTROL: bytes.fromhex("0f6e620000")}))
+    monkeypatch.setattr(
+        probe, "BleakClient", lambda dev, **kw: _FakeClient(reads={pmd.PMD_CONTROL: bytes.fromhex("0f6e620000")})
+    )
 
     async def noop(*a, **k):
         return []
+
     monkeypatch.setattr(probe, "execute_plan", noop)
     out: dict = {}
     _run(probe._sweep_phase("AA:BB", None, out, False))
@@ -704,11 +748,13 @@ def test_a_flag_bit_we_cannot_name_is_still_reported(monkeypatch):
     """A future firmware may set a bit this table does not know. Dropping it would hide exactly the
     thing worth noticing."""
     _patch_scan(monkeypatch, ["dev"] * 6)
-    monkeypatch.setattr(probe, "BleakClient",
-                        lambda dev, **kw: _FakeClient(reads={pmd.PMD_CONTROL: bytes.fromhex("0f0080")}))
+    monkeypatch.setattr(
+        probe, "BleakClient", lambda dev, **kw: _FakeClient(reads={pmd.PMD_CONTROL: bytes.fromhex("0f0080")})
+    )
 
     async def noop(*a, **k):
         return []
+
     monkeypatch.setattr(probe, "execute_plan", noop)
     out: dict = {}
     _run(probe._sweep_phase("AA:BB", None, out, False))
@@ -724,11 +770,13 @@ def test_the_flag_names_must_not_leak_into_MEAS_NAME():
 
 def test_undocumented_types_are_only_swept_when_asked_for(monkeypatch):
     _patch_scan(monkeypatch, ["dev"] * 6)
-    monkeypatch.setattr(probe, "BleakClient",
-                        lambda dev, **kw: _FakeClient(reads={pmd.PMD_CONTROL: bytes.fromhex("0f6e620000")}))
+    monkeypatch.setattr(
+        probe, "BleakClient", lambda dev, **kw: _FakeClient(reads={pmd.PMD_CONTROL: bytes.fromhex("0f6e620000")})
+    )
 
     async def noop(*a, **k):
         return []
+
     monkeypatch.setattr(probe, "execute_plan", noop)
     off: dict = {}
     _run(probe._sweep_phase("AA:BB", None, off, False))
@@ -748,6 +796,7 @@ def test_a_device_that_never_appears_stops_the_sweep_phase(monkeypatch):
 def test_main_writes_the_json_and_reports_success(monkeypatch, capsys, tmp_path):
     async def fake(*a, **k):
         return {"control_point": {}}
+
     monkeypatch.setattr(probe, "run", fake)
     path = tmp_path / "out.json"
     assert probe.main(["--address", "AA:BB", "--json", str(path)]) == 0
@@ -758,8 +807,10 @@ def test_main_writes_the_json_and_reports_success(monkeypatch, capsys, tmp_path)
 def test_a_partial_sweep_exits_nonzero(monkeypatch, capsys):
     """`sweep_error` used to leave the status at 0 — a run that collected nothing reported success to
     the shell, which is the one signal an operator actually reads."""
+
     async def fake(*a, **k):
         return {"sweep_error": "link died"}
+
     monkeypatch.setattr(probe, "run", fake)
     assert probe.main(["--address", "AA:BB"]) == 1
     capsys.readouterr()
@@ -772,6 +823,7 @@ def test_a_crash_still_hands_over_what_it_collected(monkeypatch, capsys):
 
     async def boom(*a, **k):
         raise RuntimeError("link died")
+
     monkeypatch.setattr(probe, "run", boom)
     assert probe.main(["--address", "AA:BB"]) == 1
     assert "f00500" in capsys.readouterr().out
@@ -779,10 +831,12 @@ def test_a_crash_still_hands_over_what_it_collected(monkeypatch, capsys):
 
 # ── the last three arms: exhaustion, a doubly-failed teardown, a second frame ────────────────────────
 
+
 def test_a_link_that_is_down_and_will_not_close_is_still_retried(monkeypatch):
     """Both halves fail: the client reports itself disconnected AND refuses to disconnect. Neither may
     abort the retry — the teardown of a link we already know is dead cannot be the thing that stops us
     taking a new one."""
+
     class _Zombie(_FakeClient):
         def __init__(self):
             super().__init__()
@@ -790,11 +844,13 @@ def test_a_link_that_is_down_and_will_not_close_is_still_retried(monkeypatch):
 
         async def disconnect(self):
             raise RuntimeError("already gone")
+
     monkeypatch.setattr(probe, "BleakClient", lambda dev, **kw: _Zombie())
 
     async def use():
         async with probe._client("dev", None, attempts=2):
-            pass                                     # pragma: no cover — never connects
+            pass  # pragma: no cover — never connects
+
     with pytest.raises(RuntimeError, match="already down"):
         _run(use())
 
@@ -824,6 +880,7 @@ def test_only_the_first_frame_is_kept_as_the_sample_stamp(monkeypatch):
             loop = asyncio.get_running_loop()
             loop.call_soon(cb, 0, bytearray(_acc_frame(first)))
             loop.call_soon(cb, 0, bytearray(_acc_frame(second)))
+
     monkeypatch.setattr(c, "start_notify", notify)
     assert _run(probe.sample_stamp("AA:BB", None)) == probe.device_time(first)
 
@@ -834,6 +891,7 @@ def test_only_the_first_frame_is_kept_as_the_sample_stamp(monkeypatch):
 # The shared defect was that the doubles accepted anything, so substituting an argument for `None`,
 # dropping it, or flipping a write from acknowledged to fire-and-forget changed nothing any assertion
 # could see. Coverage cannot find this; only mutation can.
+
 
 def test_every_control_command_is_written_to_the_control_point_with_acknowledgement():
     """`response=True` is not decoration: an unacknowledged control-point write can be dropped by the
@@ -890,11 +948,13 @@ def test_the_clock_leg_addresses_the_device_it_was_asked_about(monkeypatch):
     def make_fs(addr, adapter=None):
         seen["psftp"].append((addr, adapter))
         return fs
+
     monkeypatch.setattr(probe.psftp, "PolarPsFtp", make_fs)
 
     async def stamp(address, adapter, meas=pmd.ACC, timeout=10.0):
         seen["stamp"].append((address, adapter, meas))
         return _UTC
+
     monkeypatch.setattr(probe, "sample_stamp", stamp)
     _run(probe.clock_experiment("AA:BB", "hci7"))
     assert seen["psftp"], "no PS-FTP session was opened"
@@ -906,8 +966,7 @@ def test_the_psftp_wrappers_pass_through_the_address_and_adapter(monkeypatch):
     seen = []
     fs = _FakeFs(reported=_LOCAL)
     _FakeFs.calls = []
-    monkeypatch.setattr(probe.psftp, "PolarPsFtp",
-                        lambda addr, adapter=None: (seen.append((addr, adapter)), fs)[1])
+    monkeypatch.setattr(probe.psftp, "PolarPsFtp", lambda addr, adapter=None: (seen.append((addr, adapter)), fs)[1])
     _run(probe._get_local_time("AA:BB", "hci3"))
     _run(probe._set_local_time("AA:BB", "hci3", _LOCAL, -240))
     assert seen == [("AA:BB", "hci3"), ("AA:BB", "hci3")]
@@ -920,11 +979,11 @@ def test_the_restore_targets_the_same_device_as_the_write(monkeypatch):
     seen = []
     fs = _FakeFs(reported=_LOCAL)
     _FakeFs.calls = []
-    monkeypatch.setattr(probe.psftp, "PolarPsFtp",
-                        lambda addr, adapter=None: (seen.append(addr), fs)[1])
+    monkeypatch.setattr(probe.psftp, "PolarPsFtp", lambda addr, adapter=None: (seen.append(addr), fs)[1])
 
     async def stamp(*a, **k):
         return _UTC
+
     monkeypatch.setattr(probe, "sample_stamp", stamp)
     _run(probe.clock_experiment("AA:BB", None))
     assert set(seen) == {"AA:BB"}
@@ -937,14 +996,17 @@ def test_the_sweep_phase_probes_the_address_it_was_given(monkeypatch):
     async def find(addr, attempts=3, timeout=12.0):
         seen.append(addr)
         return "dev"
+
     monkeypatch.setattr(probe, "_find", find)
-    monkeypatch.setattr(probe, "BleakClient",
-                        lambda dev, **kw: _FakeClient(reads={pmd.PMD_CONTROL: bytes.fromhex("0f6e620000")}))
+    monkeypatch.setattr(
+        probe, "BleakClient", lambda dev, **kw: _FakeClient(reads={pmd.PMD_CONTROL: bytes.fromhex("0f6e620000")})
+    )
     captured = {}
 
     async def plan_exec(address, adapter, plan, out, **kw):
         captured["address"], captured["adapter"] = address, adapter
         return []
+
     monkeypatch.setattr(probe, "execute_plan", plan_exec)
     _run(probe._sweep_phase("CC:DD", "hci5", {}, False))
     assert set(seen) == {"CC:DD"}
@@ -960,6 +1022,7 @@ def test_run_hands_the_clock_leg_the_same_target_it_swept(monkeypatch):
     async def clock(address, adapter):
         seen["clock"] = (address, adapter)
         return {}
+
     monkeypatch.setattr(probe, "_sweep_phase", sweep)
     monkeypatch.setattr(probe, "clock_experiment", clock)
     _run(probe.run("EE:FF", "hci9", True))

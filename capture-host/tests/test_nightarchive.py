@@ -6,7 +6,8 @@ import nightarchive
 
 
 def _night(cap, name, files):
-    d = os.path.join(cap, name); os.makedirs(d, exist_ok=True)
+    d = os.path.join(cap, name)
+    os.makedirs(d, exist_ok=True)
     for fn, content in files.items():
         with open(os.path.join(d, fn), "w") as f:
             f.write(content)
@@ -16,8 +17,8 @@ def _night(cap, name, files):
 def test_pending_nights_excludes_active_and_marked(tmp_path):
     cap = str(tmp_path / "captures")
     _night(cap, "2026-07-17", {"a_b_c_ECG.txt": "x"})
-    _night(cap, "2026-07-18", {"a_b_c_ECG.txt": "x", nightarchive._MARKER: ""})   # already archived
-    _night(cap, "2026-07-19", {"a_b_c_ECG.txt": "x"})                              # still being written
+    _night(cap, "2026-07-18", {"a_b_c_ECG.txt": "x", nightarchive._MARKER: ""})  # already archived
+    _night(cap, "2026-07-19", {"a_b_c_ECG.txt": "x"})  # still being written
     # a bare string is accepted for the single-active-night case
     assert nightarchive.pending_nights(cap, "2026-07-19") == ["2026-07-17"]
 
@@ -26,8 +27,8 @@ def test_pending_nights_protects_every_active_night(tmp_path):
     # a session that ran past midnight leaves TWO in-progress date dirs — both must be skipped
     cap = str(tmp_path / "captures")
     _night(cap, "2026-07-17", {"a_b_c_ECG.txt": "x"})
-    _night(cap, "2026-07-18", {"a_b_c_ECG.txt": "x"})                              # pre-midnight, still active
-    _night(cap, "2026-07-19", {"a_b_c_ECG.txt": "x"})                              # post-midnight, still active
+    _night(cap, "2026-07-18", {"a_b_c_ECG.txt": "x"})  # pre-midnight, still active
+    _night(cap, "2026-07-19", {"a_b_c_ECG.txt": "x"})  # post-midnight, still active
     assert nightarchive.pending_nights(cap, {"2026-07-18", "2026-07-19"}) == ["2026-07-17"]
 
 
@@ -36,12 +37,14 @@ def test_pending_nights_missing_dir_is_empty():
 
 
 def test_archive_night_mirrors_files_and_marks_done(tmp_path):
-    cap = str(tmp_path / "captures"); dest = str(tmp_path / "backup")
-    _night(cap, "2026-07-17", {"Polar_H10_1_ECG.txt": "rows", "QC-SUMMARY.json": "{}",
-                               nightarchive._MARKER: ""})       # a stale marker must be skipped, not copied
-    os.mkdir(os.path.join(cap, "2026-07-17", "subdir"))          # a dir must be skipped (files only)
+    cap = str(tmp_path / "captures")
+    dest = str(tmp_path / "backup")
+    _night(
+        cap, "2026-07-17", {"Polar_H10_1_ECG.txt": "rows", "QC-SUMMARY.json": "{}", nightarchive._MARKER: ""}
+    )  # a stale marker must be skipped, not copied
+    os.mkdir(os.path.join(cap, "2026-07-17", "subdir"))  # a dir must be skipped (files only)
     copied = nightarchive.archive_night(cap, "2026-07-17", dest)
-    assert copied == 2                                           # only the 2 real files; marker not mirrored
+    assert copied == 2  # only the 2 real files; marker not mirrored
     assert not os.path.exists(os.path.join(dest, "2026-07-17", nightarchive._MARKER))
     assert os.path.exists(os.path.join(dest, "2026-07-17", "Polar_H10_1_ECG.txt"))
     assert os.path.exists(os.path.join(cap, "2026-07-17", nightarchive._MARKER))  # marker dropped in source
@@ -50,24 +53,26 @@ def test_archive_night_mirrors_files_and_marks_done(tmp_path):
 
 
 def test_archive_night_is_idempotent_and_resumable(tmp_path):
-    cap = str(tmp_path / "captures"); dest = str(tmp_path / "backup")
+    cap = str(tmp_path / "captures")
+    dest = str(tmp_path / "backup")
     _night(cap, "2026-07-17", {"a.txt": "hello", "b.txt": "world"})
     assert nightarchive.archive_night(cap, "2026-07-17", dest) == 2
     # pre-place one dest file identical → only the differing/new file is (re)copied on a resume
     os.remove(os.path.join(cap, "2026-07-17", nightarchive._MARKER))  # force a re-run
     with open(os.path.join(dest, "2026-07-17", "a.txt")) as f:
-        assert f.read() == "hello"                              # a.txt already there, same size
+        assert f.read() == "hello"  # a.txt already there, same size
     copied = nightarchive.archive_night(cap, "2026-07-17", dest)
-    assert copied == 0                                          # both already mirrored unchanged → skipped
+    assert copied == 0  # both already mirrored unchanged → skipped
 
 
 def test_archive_night_recopies_a_changed_file(tmp_path):
-    cap = str(tmp_path / "captures"); dest = str(tmp_path / "backup")
+    cap = str(tmp_path / "captures")
+    dest = str(tmp_path / "backup")
     _night(cap, "2026-07-17", {"a.txt": "short"})
     nightarchive.archive_night(cap, "2026-07-17", dest)
     os.remove(os.path.join(cap, "2026-07-17", nightarchive._MARKER))
     with open(os.path.join(cap, "2026-07-17", "a.txt"), "w") as f:
-        f.write("a much longer line")                           # size changed → must recopy
+        f.write("a much longer line")  # size changed → must recopy
     assert nightarchive.archive_night(cap, "2026-07-17", dest) == 1
 
 
@@ -117,8 +122,7 @@ def test_a_mirrored_night_is_still_pruned_normally(tmp_path):
     assert blocked == {"2026-07-19"}, "only the unmirrored night is held"
     # keep_nights=1 retains 07-19; 07-17 and 07-18 are both stale AND both have a second copy, so the
     # gate lets both go. It defers deletion, it does not forbid it.
-    assert diskguard.plan_prune(diskguard.list_nights(cap), 1, protect=blocked) == \
-        ["2026-07-17", "2026-07-18"]
+    assert diskguard.plan_prune(diskguard.list_nights(cap), 1, protect=blocked) == ["2026-07-17", "2026-07-18"]
 
 
 def test_unreadable_marker_counts_as_unarchived(tmp_path, monkeypatch):
@@ -126,8 +130,7 @@ def test_unreadable_marker_counts_as_unarchived(tmp_path, monkeypatch):
     delete — the same direction as diskguard.active_nights."""
     cap = str(tmp_path / "captures")
     _night(cap, "2026-07-17", {"a_b_c_ECG.txt": "x", nightarchive._MARKER: ""})
-    monkeypatch.setattr(nightarchive.os.path, "exists",
-                        lambda p: (_ for _ in ()).throw(OSError("EIO")))
+    monkeypatch.setattr(nightarchive.os.path, "exists", lambda p: (_ for _ in ()).throw(OSError("EIO")))
     assert nightarchive.unarchived_nights(cap) == {"2026-07-17"}
 
 
@@ -135,6 +138,7 @@ def test_unreadable_marker_counts_as_unarchived(tmp_path, monkeypatch):
 # `.archived` records that a copy was once MADE. On the real box 2026-07-25, 6 of 10 nights carried
 # the marker while the backup volume was ABSENT — so a marker-only gate would have deleted the on-box
 # copy of a night whose mirror had gone away with the disk, losing both.
+
 
 def test_a_marked_night_whose_mirror_vanished_is_treated_as_unarchived(tmp_path):
     cap = str(tmp_path / "captures")
@@ -146,7 +150,7 @@ def test_a_marked_night_whose_mirror_vanished_is_treated_as_unarchived(tmp_path)
     # source file is present at the destination at the same size. An empty `dest/<night>/` is exactly
     # the premature-archive shape the audit found — it satisfied the old "isdir" test while holding
     # none of the night.
-    _night(dest, "2026-07-17", {"a_b_c_ECG.txt": "x"})     # only THIS one still exists at the dest
+    _night(dest, "2026-07-17", {"a_b_c_ECG.txt": "x"})  # only THIS one still exists at the dest
     assert nightarchive.unarchived_nights(cap, dest) == {"2026-07-18"}
 
 
@@ -155,8 +159,7 @@ def test_an_absent_backup_volume_protects_every_night(tmp_path):
     cap = str(tmp_path / "captures")
     for n in ("2026-07-17", "2026-07-18"):
         _night(cap, n, {"a_b_c_ECG.txt": "x", nightarchive._MARKER: ""})
-    assert nightarchive.unarchived_nights(cap, str(tmp_path / "not-mounted")) == \
-        {"2026-07-17", "2026-07-18"}
+    assert nightarchive.unarchived_nights(cap, str(tmp_path / "not-mounted")) == {"2026-07-17", "2026-07-18"}
 
 
 def test_a_confirmed_mirror_still_allows_the_prune(tmp_path):
@@ -195,22 +198,23 @@ def test_a_night_that_grew_after_the_marker_is_offered_again(tmp_path):
     cap = str(tmp_path / "captures")
     d = _night(cap, "2026-07-20", {"morning_a_b_ECG.txt": "x", nightarchive._MARKER: ""})
     _touch(os.path.join(d, "morning_a_b_ECG.txt"), 1000)
-    _touch(os.path.join(d, nightarchive._MARKER), 2000)          # mirrored after the morning session
+    _touch(os.path.join(d, nightarchive._MARKER), 2000)  # mirrored after the morning session
     assert nightarchive.pending_nights(cap, set()) == [], "nothing has changed yet"
 
     # ...and then the evening session writes into the same folder.
     with open(os.path.join(d, "evening_a_b_ECG.txt"), "w") as f:
         f.write("y" * 100)
     _touch(os.path.join(d, "evening_a_b_ECG.txt"), 3000)
-    assert nightarchive.pending_nights(cap, set()) == ["2026-07-20"], \
+    assert nightarchive.pending_nights(cap, set()) == ["2026-07-20"], (
         "the night grew after it was marked — the mirror is now incomplete"
+    )
 
 
 def test_an_unreadable_night_is_offered_again_rather_than_skipped(tmp_path):
     """Fails SAFE: a re-offer costs only the files that differ (archive_night is idempotent and
     size-diffed), while a wrong skip loses them."""
     cap = str(tmp_path / "captures")
-    _night(cap, "2026-07-20", {"a_b_c_ECG.txt": "x"})            # marker absent entirely
+    _night(cap, "2026-07-20", {"a_b_c_ECG.txt": "x"})  # marker absent entirely
     assert nightarchive.pending_nights(cap, set()) == ["2026-07-20"]
 
 
@@ -221,7 +225,7 @@ def test_a_short_mirror_does_not_release_the_night_to_the_pruner(tmp_path):
     cap = str(tmp_path / "captures")
     dest = str(tmp_path / "backup")
     _night(cap, "2026-07-20", {"a_ECG.txt": "xxxx", "b_ACC.txt": "yyyy", nightarchive._MARKER: ""})
-    _night(dest, "2026-07-20", {"a_ECG.txt": "xxxx"})            # the ACC file never made it
+    _night(dest, "2026-07-20", {"a_ECG.txt": "xxxx"})  # the ACC file never made it
     assert nightarchive.unarchived_nights(cap, dest) == {"2026-07-20"}
 
 
@@ -255,9 +259,11 @@ def test_re_archiving_a_grown_night_copies_only_the_new_files(tmp_path):
 # which released it to `prune_old_nights`. The two functions agreeing was a coincidence of both skipping
 # the same thing, not a property; now they share one enumerator and cannot disagree.
 
+
 def _deep_night(cap, name):
     d = _night(cap, name, {"Polar_H10_1_20260701010101_ECG.txt": "x" * 100})
-    sub = os.path.join(d, "Polar_Offline_1"); os.makedirs(sub, exist_ok=True)
+    sub = os.path.join(d, "Polar_Offline_1")
+    os.makedirs(sub, exist_ok=True)
     with open(os.path.join(sub, "SAMPLES.BPB"), "w") as f:
         f.write("irreplaceable device flash")
     return d
@@ -303,17 +309,19 @@ def test_growth_inside_a_subdirectory_re_offers_the_night(tmp_path):
     old = os.stat(marker).st_mtime
     os.utime(os.path.join(d, "Polar_H10_1_20260701010101_ECG.txt"), (old - 100, old - 100))
     nested = os.path.join(d, "Polar_Offline_1", "SAMPLES.BPB")
-    os.utime(nested, (old + 100, old + 100))            # the ONLY thing newer than the marker
+    os.utime(nested, (old + 100, old + 100))  # the ONLY thing newer than the marker
     assert nightarchive.pending_nights(cap, set()) == ["2026-07-01"]
 
 
 # ── the exposure the archive does NOT cover must be reported, not implied (audit F2) ─────────────────
 
+
 def test_uncovered_subtrees_names_the_data_that_has_only_one_copy(tmp_path):
     cap = str(tmp_path / "captures")
     _night(cap, "2026-07-01", {"a_b_c_20260701010101_ECG.txt": "x"})
     for name, payload in (("stored", "onboard flash"), ("cpap", "edf bytes")):
-        d = os.path.join(cap, name); os.makedirs(d)
+        d = os.path.join(cap, name)
+        os.makedirs(d)
         with open(os.path.join(d, "payload.bin"), "w") as f:
             f.write(payload)
     got = nightarchive.uncovered_subtrees(cap)
@@ -334,9 +342,9 @@ def test_a_night_only_box_reports_no_exposure(tmp_path):
 def test_an_empty_or_hidden_directory_is_not_an_exposure(tmp_path):
     cap = str(tmp_path / "captures")
     _night(cap, "2026-07-01", {"a_b_c_20260701010101_ECG.txt": "x"})
-    os.makedirs(os.path.join(cap, "incoming"))            # ineligible by name, holds nothing
-    os.makedirs(os.path.join(cap, "scratch"))             # eligible by name, but genuinely empty —
-    os.makedirs(os.path.join(cap, "scratch", "sub"))      # ...even with a subdirectory in it
+    os.makedirs(os.path.join(cap, "incoming"))  # ineligible by name, holds nothing
+    os.makedirs(os.path.join(cap, "scratch"))  # eligible by name, but genuinely empty —
+    os.makedirs(os.path.join(cap, "scratch", "sub"))  # ...even with a subdirectory in it
     os.makedirs(os.path.join(cap, ".tmp"))
     with open(os.path.join(cap, ".tmp", "x"), "w") as f:
         f.write("scratch")
@@ -352,7 +360,8 @@ def test_an_unreadable_subtree_is_skipped_not_reported_as_empty(tmp_path):
     be the same fabricated-absence this suite exists to reject."""
     cap = str(tmp_path / "captures")
     _night(cap, "2026-07-01", {"a_b_c_20260701010101_ECG.txt": "x"})
-    bad = os.path.join(cap, "stored"); os.makedirs(bad)
+    bad = os.path.join(cap, "stored")
+    os.makedirs(bad)
     with open(os.path.join(bad, "payload.bin"), "w") as f:
         f.write("data")
     os.chmod(bad, 0o000)
@@ -369,9 +378,11 @@ def test_an_unreadable_subtree_is_skipped_not_reported_as_empty(tmp_path):
 # disk-budget question the exposure was deferred for turned out not to exist. `stored/` is the strong
 # case: the O2Ring's flash is a small FIFO, so once it rotates the box copy is the only one anywhere.
 
+
 def test_a_subtree_is_mirrored_file_for_file(tmp_path):
     cap, dest = str(tmp_path / "captures"), str(tmp_path / "backup")
-    st = os.path.join(cap, "stored"); os.makedirs(st)
+    st = os.path.join(cap, "stored")
+    os.makedirs(st)
     with open(os.path.join(st, "Wellue_O2Ring-S_20260716154350_STORED.dat"), "w") as f:
         f.write("flash bytes")
     os.makedirs(os.path.join(st, "Polar_Offline_1"))
@@ -385,7 +396,8 @@ def test_mirroring_a_subtree_is_size_diffed_so_a_repeat_copies_only_what_is_new(
     """These trees are APPEND-FOREVER, unlike a night — there is no 'finished' moment, so there is no
     `.archived` marker and the diff runs every cycle. It must therefore be cheap and idempotent."""
     cap, dest = str(tmp_path / "captures"), str(tmp_path / "backup")
-    st = os.path.join(cap, "stored"); os.makedirs(st)
+    st = os.path.join(cap, "stored")
+    os.makedirs(st)
     with open(os.path.join(st, "a.dat"), "w") as f:
         f.write("one")
     assert nightarchive.mirror_subtree(cap, "stored", dest) == 1
@@ -402,7 +414,8 @@ def test_a_transient_tree_is_never_eligible_however_it_is_configured(tmp_path):
     """`incoming/` holds partial downloads. A mirrored partial is worse than no mirror: it looks like
     data. This is a code-level refusal, not a default someone can configure away."""
     cap, dest = str(tmp_path / "captures"), str(tmp_path / "backup")
-    inc = os.path.join(cap, "incoming"); os.makedirs(inc)
+    inc = os.path.join(cap, "incoming")
+    os.makedirs(inc)
     with open(os.path.join(inc, "half.dat"), "w") as f:
         f.write("partial")
     assert nightarchive.mirror_subtree(cap, "incoming", dest) == 0
@@ -439,7 +452,8 @@ def test_uncovered_subtrees_stops_reporting_what_is_now_covered(tmp_path):
     actually being mirrored — otherwise it cries wolf forever and stops being read."""
     cap = str(tmp_path / "captures")
     for name in ("stored", "cpap", "surprise"):
-        d = os.path.join(cap, name); os.makedirs(d)
+        d = os.path.join(cap, name)
+        os.makedirs(d)
         with open(os.path.join(d, "x.bin"), "w") as f:
             f.write("data")
     got = [g["name"] for g in nightarchive.uncovered_subtrees(cap, covered=("stored", "cpap"))]
@@ -500,8 +514,9 @@ def test_a_night_that_grew_after_its_marker_is_offered_again(tmp_path):
     with open(os.path.join(d, "b.csv"), "w") as fh:
         fh.write("evening")
     os.utime(os.path.join(d, "b.csv"), (9000, 9000))
-    assert nightarchive.pending_nights(root, active=set()) == ["2026-07-20"], \
+    assert nightarchive.pending_nights(root, active=set()) == ["2026-07-20"], (
         "a night that GREW after its marker must be offered again, or the evening session is lost"
+    )
 
 
 def test_an_active_night_is_skipped_without_abandoning_the_rest(tmp_path):
@@ -512,8 +527,7 @@ def test_an_active_night_is_skipped_without_abandoning_the_rest(tmp_path):
     for n in ("2026-07-18", "2026-07-19", "2026-07-20"):
         _night(root, n, {"a.csv": "x"})
     got = nightarchive.pending_nights(root, active={"2026-07-19"})
-    assert got == ["2026-07-18", "2026-07-20"], \
-        "the active night is skipped and the ones after it are still offered"
+    assert got == ["2026-07-18", "2026-07-20"], "the active night is skipped and the ones after it are still offered"
 
 
 def test_the_marker_is_looked_for_inside_the_night_not_at_the_root(tmp_path):
@@ -522,5 +536,4 @@ def test_the_marker_is_looked_for_inside_the_night_not_at_the_root(tmp_path):
     root = str(tmp_path)
     d = _night(root, "2026-07-21", {"a.csv": "x"})
     open(os.path.join(d, nightarchive._MARKER), "w").close()
-    assert nightarchive.pending_nights(root, active=set()) == [], \
-        "the marker inside the night dir must be found"
+    assert nightarchive.pending_nights(root, active=set()) == [], "the marker inside the night dir must be found"

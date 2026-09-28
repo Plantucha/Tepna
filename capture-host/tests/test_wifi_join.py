@@ -151,7 +151,7 @@ def test_THE_SSID_IS_THE_SALT_SO_THE_SAME_PASSWORD_DIFFERS_PER_NETWORK():
 
 def test_AN_ALREADY_DERIVED_PSK_IS_NOT_DERIVED_AGAIN():
     raw = "A" * 64
-    assert W.derive_psk("AnyNet", raw) == "a" * 64      # passed through, lowercased
+    assert W.derive_psk("AnyNet", raw) == "a" * 64  # passed through, lowercased
 
 
 def test_A_NON_ASCII_PASSPHRASE_DERIVES_WITHOUT_RAISING():
@@ -185,8 +185,10 @@ def test_AN_ESCAPE_INSIDE_A_REAL_NAME_IS_NOT_A_HIDDEN_NETWORK():
     # The opposite failure, and the worse one: a café's non-ASCII name is escaped by wpa_cli too, so a
     # rule that drops anything CONTAINING an escape would hide joinable networks. The check is anchored
     # to the whole field for exactly this reason.
-    scan = ("bssid\tfrequency\tsignal level\tflags\tssid\n"
-            "aa:bb:cc:dd:ee:ff\t2412\t-40\t[ESS]\tCaf" + BS + "xc3" + BS + "xa9 WiFi\n")
+    scan = (
+        "bssid\tfrequency\tsignal level\tflags\tssid\n"
+        "aa:bb:cc:dd:ee:ff\t2412\t-40\t[ESS]\tCaf" + BS + "xc3" + BS + "xa9 WiFi\n"
+    )
     assert [n["ssid"] for n in W.parse_scan_results(scan)] == ["Caf" + BS + "xc3" + BS + "xa9 WiFi"]
 
 
@@ -198,6 +200,5 @@ def test_THE_REAL_SCAN_STILL_COLLAPSES_ONE_NETWORK_ON_TWO_BANDS():
 
 
 def test_AN_SSID_THAT_IS_LITERALLY_THE_WORD_NONE_IS_STILL_A_NAME():
-    scan = ("bssid\tfrequency\tsignal level\tflags\tssid\n"
-            "aa:bb:cc:dd:ee:01\t2412\t-40\t[ESS]\tnone\n")
+    scan = "bssid\tfrequency\tsignal level\tflags\tssid\naa:bb:cc:dd:ee:01\t2412\t-40\t[ESS]\tnone\n"
     assert [n["ssid"] for n in W.parse_scan_results(scan)] == ["none"]

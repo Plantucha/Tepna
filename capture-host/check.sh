@@ -109,10 +109,22 @@ run_gate "unwired"    "$PY" tools/find_unwired.py --check
 # the ratchet was banked: it still read "baseline 99, 2026-09-13" after MYPY_BASELINE moved to
 # 68, and that stale prose was handed between sessions as if it were a reading. A number written
 # twice has one copy that nobody updates; the constant is the only place it may live. The
-# changed-files format check flips after one fleet-notice cycle. A big-bang reformat is FORBIDDEN
+# changed-files format check flips after one fleet-notice cycle — STILL PENDING, so the leg stays
+# advisory here; zero debt is not the stated condition and does not substitute for the notice.
+#
+# ⚠️ THE BIG-BANG PROHIBITION IS DISCHARGED, not ignored. It read "a big-bang reformat is FORBIDDEN
 # by the brief: mutation canaries/journals/equivalence are keyed on line text+numbers, and a
-# 263-file wave orphans that known-answer record at once — format lands file-by-file as files
-# change anyway.
+# 263-file wave orphans that known-answer record at once". The reason was real and was measured
+# before acting: 20 modules, 137 equivalence entries and 114 survivor entries keyed on text that a
+# wave moves. OWNER RULING 2026-09-28 ("one whole-tree `ruff format` PR now") ordered the wave, and
+# it was executed WITH the re-key that makes it safe rather than as the bare reformat the brief
+# forbade: `ruff format` preserves the AST and mutmut's mutation is AST-driven, so every affected
+# entry was mapped from its pre-format key to its post-format one by content, arguments untouched.
+# Measured on that commit: 24 keys moved, 256 entries matching a generated mutant before AND after,
+# 0 NEW orphans, 0 argument fields changed. The debt itself: 423 of 471 files, now 0.
+#
+# What the prohibition was protecting is therefore intact, and the rule it stated is still the rule
+# for anyone doing this WITHOUT the re-key — the wave is safe only when the ledgers travel with it.
 adv_names=(); adv_codes=(); adv_notes=(); adv_states=()
 run_advisory() {                    # run_advisory <label> <note-on-fail> <cmd...>
   local label="$1"; local note="$2"; shift 2

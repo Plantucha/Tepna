@@ -34,6 +34,7 @@ def _clean():
 
 # ---------------------------------------------------------------- the predicate
 
+
 def test_hearing_nothing_twice_is_deaf():
     """The 2026-07-30 state: nothing connected, nothing heard, and it persisted."""
     assert capture.radio_looks_deaf(0, connected_any=False, consecutive_silent=2) is True
@@ -63,6 +64,7 @@ def test_the_threshold_is_configurable_and_binds():
 
 # ---------------------------------------------------------------- the recovery
 
+
 def _run(coro):
     return asyncio.new_event_loop().run_until_complete(coro)
 
@@ -84,8 +86,8 @@ def test_a_successful_restart_reports_true_and_pauses_the_device_tasks(monkeypat
         seen["recover_during"] = capture._RECOVER.is_set()
         return 0, "bluetooth: active"
 
-    real_sleep = asyncio.sleep      # capture BEFORE patching — capture.asyncio IS asyncio, so a lambda
-                                    # calling asyncio.sleep would patch itself into infinite recursion
+    real_sleep = asyncio.sleep  # capture BEFORE patching — capture.asyncio IS asyncio, so a lambda
+    # calling asyncio.sleep would patch itself into infinite recursion
     monkeypatch.setattr(capture.helper_path, "resolve", lambda n: "/bin/sh")
     monkeypatch.setattr(capture, "_run_helper", fake)
     monkeypatch.setattr(capture.asyncio, "sleep", lambda *_a, **_k: real_sleep(0))
@@ -97,6 +99,7 @@ def test_a_successful_restart_reports_true_and_pauses_the_device_tasks(monkeypat
 
 def test_a_failed_restart_reports_false(monkeypatch):
     """The inverse control — otherwise the test above passes on a function that always returns True."""
+
     async def fake(*args, timeout=45):
         return 1, "Failed to restart bluetooth.service"
 
@@ -106,6 +109,7 @@ def test_a_failed_restart_reports_false(monkeypatch):
 
 
 # ---------------------------------------------------------------- wiring
+
 
 def _src():
     return module_source("capture.py")
@@ -124,7 +128,7 @@ def test_the_probe_only_runs_when_nothing_is_connected():
     """Otherwise it contends with the daemon's own connects — and a live link already answers it."""
     src = _src()
     i = src.index('if not h["wedged"]:')
-    seg = src[i:src.index("consecutive += 1", i)]
+    seg = src[i : src.index("consecutive += 1", i)]
     assert "connected_any" in seg
     assert "bonding.scan(" in seg
 
@@ -143,6 +147,7 @@ def test_a_failed_probe_is_not_treated_as_silence():
 
 def test_the_radio_verb_exists_in_the_helper():
     import os
+
     here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     sh = open(os.path.join(here, "tepna-restart.sh"), encoding="utf-8").read()
     assert "radio)" in sh, "tepna-restart.sh must expose the radio verb the watchdog calls"
@@ -155,6 +160,7 @@ def test_the_radio_verb_exists_in_the_helper():
 
 # ---------------------------------------------------------------- driven through the real watchdog
 
+
 def test_the_watchdog_probes_and_restarts_a_deaf_radio(monkeypatch):
     """End to end through `adapter_watchdog`, in the exact 2026-07-30 shape: adapter UP, one worn
     sensor failing with a plain timeout, classifier says NOT wedged — and the scan hears nothing.
@@ -162,12 +168,13 @@ def test_the_watchdog_probes_and_restarts_a_deaf_radio(monkeypatch):
     A predicate nothing reaches saves nobody, and this path sits in the branch that previously just
     logged "adapter healthy again" and continued."""
     from tests.test_capture_coverage_100 import _wedge_rig, _stop_after, _dev
-    _wedge_rig(monkeypatch, adapter_up=True)        # UP RUNNING — the whole point
+
+    _wedge_rig(monkeypatch, adapter_up=True)  # UP RUNNING — the whole point
     calls = {"scans": 0, "restarts": 0}
 
     async def deaf_scan(_adapter=None, seconds=8.0):
         calls["scans"] += 1
-        return []                                   # hears NOTHING, as on the night
+        return []  # hears NOTHING, as on the night
 
     async def fake_restart():
         calls["restarts"] += 1
@@ -175,9 +182,11 @@ def test_the_watchdog_probes_and_restarts_a_deaf_radio(monkeypatch):
 
     monkeypatch.setattr(capture.bonding, "scan", deaf_scan)
     monkeypatch.setattr(capture, "_restart_radio", fake_restart)
-    _stop_after(monkeypatch, 3)                     # enough rounds to clear deaf_rounds=2
-    cfg = {"devices": [_dev(name="H10")],
-           "watchdog": {"interval_sec": 1, "grace_checks": 9, "deaf_rounds": 2, "deaf_scan_sec": 0.1}}
+    _stop_after(monkeypatch, 3)  # enough rounds to clear deaf_rounds=2
+    cfg = {
+        "devices": [_dev(name="H10")],
+        "watchdog": {"interval_sec": 1, "grace_checks": 9, "deaf_rounds": 2, "deaf_scan_sec": 0.1},
+    }
     capture.STATUS["devices"]["H10"] = {"connected": False, "last_error": "TimeoutError('connect timed out')"}
     _run(capture.adapter_watchdog("AA:BB:CC:DD:EE:FF", cfg))
     assert calls["scans"] >= 2, calls
@@ -188,11 +197,12 @@ def test_the_watchdog_does_NOT_restart_a_radio_that_hears_neighbours(monkeypatch
     """The inverse control, and the one that matters most: without it the test above passes on a
     watchdog that restarts bluetooth every minute all night. Our sensors being off is NOT deafness."""
     from tests.test_capture_coverage_100 import _wedge_rig, _stop_after, _dev
+
     _wedge_rig(monkeypatch, adapter_up=True)
     calls = {"restarts": 0}
 
     async def busy_scan(_adapter=None, seconds=8.0):
-        return [object(), object(), object()]       # neighbours heard — the receiver receives
+        return [object(), object(), object()]  # neighbours heard — the receiver receives
 
     async def fake_restart():
         calls["restarts"] += 1
@@ -201,8 +211,10 @@ def test_the_watchdog_does_NOT_restart_a_radio_that_hears_neighbours(monkeypatch
     monkeypatch.setattr(capture.bonding, "scan", busy_scan)
     monkeypatch.setattr(capture, "_restart_radio", fake_restart)
     _stop_after(monkeypatch, 4)
-    cfg = {"devices": [_dev(name="H10")],
-           "watchdog": {"interval_sec": 1, "grace_checks": 9, "deaf_rounds": 2, "deaf_scan_sec": 0.1}}
+    cfg = {
+        "devices": [_dev(name="H10")],
+        "watchdog": {"interval_sec": 1, "grace_checks": 9, "deaf_rounds": 2, "deaf_scan_sec": 0.1},
+    }
     capture.STATUS["devices"]["H10"] = {"connected": False, "last_error": "not found"}
     _run(capture.adapter_watchdog("AA:BB:CC:DD:EE:FF", cfg))
     assert calls["restarts"] == 0, "a radio hearing neighbours must NEVER be restarted"
@@ -212,6 +224,7 @@ def test_a_throwing_probe_never_triggers_a_restart(monkeypatch):
     """A probe that raised tells us about the probe, not the radio. Treating it as silence would let a
     flaky bluetoothctl power-cycle the stack all night."""
     from tests.test_capture_coverage_100 import _wedge_rig, _stop_after, _dev
+
     _wedge_rig(monkeypatch, adapter_up=True)
     calls = {"restarts": 0}
 
@@ -225,8 +238,10 @@ def test_a_throwing_probe_never_triggers_a_restart(monkeypatch):
     monkeypatch.setattr(capture.bonding, "scan", boom)
     monkeypatch.setattr(capture, "_restart_radio", fake_restart)
     _stop_after(monkeypatch, 4)
-    cfg = {"devices": [_dev(name="H10")],
-           "watchdog": {"interval_sec": 1, "grace_checks": 9, "deaf_rounds": 2, "deaf_scan_sec": 0.1}}
+    cfg = {
+        "devices": [_dev(name="H10")],
+        "watchdog": {"interval_sec": 1, "grace_checks": 9, "deaf_rounds": 2, "deaf_scan_sec": 0.1},
+    }
     capture.STATUS["devices"]["H10"] = {"connected": False, "last_error": "not found"}
     _run(capture.adapter_watchdog("AA:BB:CC:DD:EE:FF", cfg))
     assert calls["restarts"] == 0
@@ -256,6 +271,7 @@ def test_an_unresolvable_helper_is_a_clean_no_op_not_a_crash(monkeypatch):
     honest 'cannot restart' as an absent file. A traceback out of `_restart_radio` would propagate into
     `adapter_watchdog` and kill the watchdog outright — losing every OTHER recovery rung too, because
     the radio happened to be unrecoverable."""
+
     def boom(_name):
         raise OSError("permission denied")
 

@@ -9,6 +9,7 @@ strips the padding), a fresh IV per seal, the length-prefixed-zero-pad wire shap
 hard refusal of a wrong-sized key. It is also cross-checked against as11_pull driving a real StreamData
 frame through seal→unseal, so the cipher and the consumer are proven to compose.
 """
+
 import json
 
 import as11_cipher as C
@@ -48,6 +49,7 @@ def test_the_wire_is_iv_plus_length_prefixed_zero_pad_not_pkcs7():
     assert len(wire) == 32 and wire[:16] == b"\x00" * 16
     # decrypt the block ourselves and confirm the plaintext is len-prefixed + zero-padded, not PKCS#7
     from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+
     dec = Cipher(algorithms.AES(KEY), modes.CBC(b"\x00" * 16)).decryptor()
     block = dec.update(wire[16:]) + dec.finalize()
     assert block[:2] == (1).to_bytes(2, "little"), "2-byte LE length prefix"
@@ -95,12 +97,23 @@ def test_composes_with_as11_pull_over_a_real_streamdata_frame():
         async def recv_frame(self):
             return self._f.popleft()
 
-    dev = Dev([
-        enc({"id": 16, "result": {"dataIds": [{"dataId": "PatientFlow", "valid": True}], "streamId": 1}}),
-        enc({"jsonrpc": "2.0", "method": "StreamData", "params": {
-            "data": [{"PatientFlow": [0.1, 0.2, 0.3]}], "intervalMs": 40,
-            "startTime": "2026-08-23T01:30:28.730Z", "streamId": 1}}),
-    ])
+    dev = Dev(
+        [
+            enc({"id": 16, "result": {"dataIds": [{"dataId": "PatientFlow", "valid": True}], "streamId": 1}}),
+            enc(
+                {
+                    "jsonrpc": "2.0",
+                    "method": "StreamData",
+                    "params": {
+                        "data": [{"PatientFlow": [0.1, 0.2, 0.3]}],
+                        "intervalMs": 40,
+                        "startTime": "2026-08-23T01:30:28.730Z",
+                        "streamId": 1,
+                    },
+                }
+            ),
+        ]
+    )
 
     async def go():
         out = []

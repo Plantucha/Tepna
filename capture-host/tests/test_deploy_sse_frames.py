@@ -13,6 +13,7 @@ just been fixed and was working, and reported `0 frames in 9 s`.
 A check that can only fail is worse than no check — the natural response is to stop believing it. So
 these tests drive the real script against a real HTTP server and assert it reports the true count.
 """
+
 import http.server
 import json
 import os
@@ -23,28 +24,28 @@ import time
 
 import pytest
 
-SCRIPT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                      "deploy", "sse-frames.sh")
+SCRIPT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "deploy", "sse-frames.sh")
 
 pytestmark = pytest.mark.skipif(not shutil.which("curl"), reason="curl not installed")
 
 
 class _SseHandler(http.server.BaseHTTPRequestHandler):
     """Emits frames forever, like the real webmon endpoint. Never sends Content-Length, never ends."""
+
     frames_per_sec = 5
 
-    def do_GET(self):                                   # noqa: N802 - stdlib naming
-        if self.path == "/empty":                       # a stream that opens but carries no data
+    def do_GET(self):  # noqa: N802 - stdlib naming
+        if self.path == "/empty":  # a stream that opens but carries no data
             self.send_response(200)
             self.send_header("Content-Type", "text/event-stream")
             self.end_headers()
             try:
                 for _ in range(200):
-                    self.wfile.write(b": keepalive\n\n")   # a comment line, not a data frame
+                    self.wfile.write(b": keepalive\n\n")  # a comment line, not a data frame
                     self.wfile.flush()
                     time.sleep(0.1)
             except (BrokenPipeError, ConnectionResetError):
-                pass   # the client under test hung up — that is the scenario, not a fault
+                pass  # the client under test hung up — that is the scenario, not a fault
             return
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")
@@ -59,9 +60,9 @@ class _SseHandler(http.server.BaseHTTPRequestHandler):
                 i += 1
                 time.sleep(1.0 / self.frames_per_sec)
         except (BrokenPipeError, ConnectionResetError):
-            pass   # the test client closing the stream is the point of this fixture, not a fault
+            pass  # the test client closing the stream is the point of this fixture, not a fault
 
-    def log_message(self, *a):                          # keep pytest output clean
+    def log_message(self, *a):  # keep pytest output clean
         pass
 
 
@@ -74,8 +75,7 @@ def server():
 
 
 def _run(url, secs=3):
-    r = subprocess.run(["bash", SCRIPT, url, str(secs)],
-                       capture_output=True, text=True, timeout=secs + 20)
+    r = subprocess.run(["bash", SCRIPT, url, str(secs)], capture_output=True, text=True, timeout=secs + 20)
     return r
 
 
@@ -111,8 +111,7 @@ def test_a_stream_with_no_data_frames_counts_zero(server):
 
 def test_an_unreachable_url_counts_zero_rather_than_erroring(server):
     """A refused connection is a real failure to report, not a crash to debug."""
-    r = subprocess.run(["bash", SCRIPT, "http://127.0.0.1:1/nope", "2"],
-                       capture_output=True, text=True, timeout=30)
+    r = subprocess.run(["bash", SCRIPT, "http://127.0.0.1:1/nope", "2"], capture_output=True, text=True, timeout=30)
     assert r.stdout.strip() == "0"
     assert r.returncode == 0
 
@@ -130,5 +129,4 @@ def test_the_installer_delegates_to_this_script_instead_of_counting_inline():
     body = open(inst, encoding="utf-8").read()
     after = body.split("systemctl reload caddy")[-1]
     assert "sse-frames.sh" in after, "the installer must use the tested counter"
-    assert "grep -c '^data:'" not in after, (
-        "counting frames inline in the installer reintroduces the pipefail clobber")
+    assert "grep -c '^data:'" not in after, "counting frames inline in the installer reintroduces the pipefail clobber"

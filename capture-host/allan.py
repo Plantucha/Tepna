@@ -151,7 +151,9 @@ def adev_pooled(phase, tau0, sample_times, k=4.0):
     the pooled curve, never extrapolated. Returns `(points, meta)` with
     `meta = {segments, dropped_intervals, pooled}`; `dropped_intervals` counts the gaps cut."""
     x = list(phase or [])
-    runs = segments_by_gap(sample_times, k) if sample_times is not None and len(sample_times) == len(x) else [(0, len(x))]
+    runs = (
+        segments_by_gap(sample_times, k) if sample_times is not None and len(sample_times) == len(x) else [(0, len(x))]
+    )
     if len(runs) <= 1:
         return adev(x, tau0), {"segments": 1, "dropped_intervals": 0, "pooled": False}
     acc = {}
@@ -421,7 +423,7 @@ def mtie(phase, tau0, taus=None):
         m = int(round(tau / tau0))
         if m < 1 or m + 1 > n:
             continue
-        w = m + 1                       # a tau of m intervals spans m+1 samples
+        w = m + 1  # a tau of m intervals spans m+1 samples
         # Largest dyadic block fitting the window. NO GUARD ON `k` BELOW: `w <= n` is enforced above,
         # so k = floor(log2(w)) <= floor(log2(n)) = len(ups) - 1 and the level always exists. A defensive
         # `if k >= len(ups)` here is unreachable, and this file removes unreachable arms rather than
@@ -430,7 +432,7 @@ def mtie(phase, tau0, taus=None):
         hi, lo = ups[w.bit_length() - 1], dns[w.bit_length() - 1]
         worst = 0.0
         for i in range(n - w + 1):
-            j = i + w - blk             # two overlapping blocks cover the window exactly
+            j = i + w - blk  # two overlapping blocks cover the window exactly
             span = max(hi[i], hi[j]) - min(lo[i], lo[j])
             if span > worst:
                 worst = span
@@ -658,7 +660,7 @@ def noise_id(phase, dmax=3):
     """
     x = _clean(phase)
     if len(x) < 32:
-        return None                      # differencing eats samples; a short series identifies nothing
+        return None  # differencing eats samples; a short series identifies nothing
     d = 0
     while True:
         r1 = _lag1_acf(x)
@@ -671,15 +673,19 @@ def noise_id(phase, dmax=3):
                 # away from the labels it is about: add a sixth law to `_ALPHA_NAMES` and this admits it
                 # automatically. `raw_alpha` travels so a reader sees HOW far outside, which is the
                 # difference between "just past the edge" and "this series is not a power law at all".
-                return {"alpha": None, "noise": None, "ok": False,
-                        "reason": "alpha-outside-the-named-power-laws",
-                        "raw_alpha": round(raw, 4),
-                        "differences": d, "rho": round(rho, 4)}
-            return {"alpha": alpha, "noise": _ALPHA_NAMES[alpha],
-                    "differences": d, "rho": round(rho, 4)}
+                return {
+                    "alpha": None,
+                    "noise": None,
+                    "ok": False,
+                    "reason": "alpha-outside-the-named-power-laws",
+                    "raw_alpha": round(raw, 4),
+                    "differences": d,
+                    "rho": round(rho, 4),
+                }
+            return {"alpha": alpha, "noise": _ALPHA_NAMES[alpha], "differences": d, "rho": round(rho, 4)}
         nxt = [x[i + 1] - x[i] for i in range(len(x) - 1)]
         if len(nxt) < 32:
-            return None                  # ran out of samples before it decorrelated
+            return None  # ran out of samples before it decorrelated
         x = nxt
         d += 1
 
@@ -885,8 +891,14 @@ def stability(phase, tau0, tdev_tau=None, sample_times=None, gap_k=4.0):
     # Pre-decided in the brief before this was written; pinned by the test named there.
     flat = all(p["adev"] == 0 for p in pts)
     cls = (
-        {"slope": None, "slope_se": None, "n_tau": len(pts), "noise": None, "candidates": None,
-         "meaning": "no measurable instability — every ADEV is exactly 0 (a constant series); the slope is undefined, not a category"}
+        {
+            "slope": None,
+            "slope_se": None,
+            "n_tau": len(pts),
+            "noise": None,
+            "candidates": None,
+            "meaning": "no measurable instability — every ADEV is exactly 0 (a constant series); the slope is undefined, not a category",
+        }
         if flat
         else classify(sl, se, len(pts))
     )

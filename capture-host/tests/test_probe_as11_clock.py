@@ -68,9 +68,7 @@ def _epochs(start, step_s):
 
 def _device_iso(host_s, ahead_s):
     """The device stamp the AS11 would return: host time + `ahead_s` (device runs fast), UTC-labelled."""
-    return datetime.datetime.fromtimestamp(host_s + ahead_s, datetime.timezone.utc).strftime(
-        "%Y-%m-%dT%H:%M:%SZ"
-    )
+    return datetime.datetime.fromtimestamp(host_s + ahead_s, datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 async def _no_sleep(_s):

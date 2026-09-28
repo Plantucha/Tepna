@@ -26,8 +26,8 @@ _log = logging.getLogger("tepna-capture")
 # Prefer a ROOT-OWNED deployed copy: a NOPASSWD grant must point at a file this user cannot rewrite
 # (this repo sits on a user-writable NTFS mount). See helper_path.py.
 _HELPER = helper_path.resolve("tepna-rssi.sh")
-_HCI_CACHE: dict[str, str] = {}     # adapter BD_ADDR (upper) -> hciN
-_MODE: str | None = None            # 'direct' (ambient caps) | 'sudo' (dev fallback) | None (unknown)
+_HCI_CACHE: dict[str, str] = {}  # adapter BD_ADDR (upper) -> hciN
+_MODE: str | None = None  # 'direct' (ambient caps) | 'sudo' (dev fallback) | None (unknown)
 
 
 def parse_rssi(text: str) -> int | None:
@@ -36,7 +36,7 @@ def parse_rssi(text: str) -> int | None:
         return None
     m = re.search(r"RSSI\s+return\s+value:\s*(-?\d+)", text, re.I)
     if not m:
-        m = re.search(r"(-?\d{1,3})", text.strip())      # helper may print just the number
+        m = re.search(r"(-?\d{1,3})", text.strip())  # helper may print just the number
     if not m:
         return None
     val = int(m.group(1))
@@ -47,7 +47,7 @@ def parse_rssi(text: str) -> int | None:
     # (measured 2026-07-25: 0, +1 and +8 dBm across three devices) that then poison any min/max or
     # threshold computed over the column. Recording "unknown" is the honest answer, and this file's job
     # is to make link quality EVIDENCE — a fabricated -0 dBm is the opposite (VIGIL-PPG-GRID-AUDIT §4).
-    return val if -127 <= val <= -1 else None            # plausible BLE RSSI range; junk → None
+    return val if -127 <= val <= -1 else None  # plausible BLE RSSI range; junk → None
 
 
 def parse_hci_dev(text: str) -> dict[str, str]:
@@ -91,8 +91,7 @@ async def dbus_hci() -> dict[str, str]:
     except OSError:
         return out
     for name in names:
-        txt = await _run(["busctl", "get-property", "org.bluez", f"/org/bluez/{name}",
-                          "org.bluez.Adapter1", "Address"])
+        txt = await _run(["busctl", "get-property", "org.bluez", f"/org/bluez/{name}", "org.bluez.Adapter1", "Address"])
         if not txt:
             continue
         m = re.search(r"([0-9A-Fa-f:]{17})", txt)
@@ -130,8 +129,7 @@ def sysfs_hci(base: str = "/sys/class/bluetooth") -> dict[str, str]:
         except OSError:
             # This adapter is now ABSENT from the address->hci map, so every RSSI reading from it
             # goes unattributed — which looks like a radio that reported nothing.
-            _log.debug("link-rssi: %s has no readable address; it will not be attributed", name,
-                       exc_info=True)
+            _log.debug("link-rssi: %s has no readable address; it will not be attributed", name, exc_info=True)
             continue
         if re.fullmatch(r"[0-9A-F:]{17}", addr):
             out[addr] = name
@@ -141,7 +139,8 @@ def sysfs_hci(base: str = "/sys/class/bluetooth") -> dict[str, str]:
 async def _run(cmd: list[str], timeout: float = 4.0) -> str | None:
     try:
         proc = await asyncio.create_subprocess_exec(
-            *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
+            *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT
+        )
         out, _ = await proc_util.communicate(proc, timeout)
         if proc.returncode != 0:
             return None
@@ -189,7 +188,7 @@ async def resolve_hci(adapter_mac: str | None, refresh: bool = False) -> str | N
     if hci:
         _HCI_CACHE[key] = hci
     elif key in _HCI_CACHE:
-        del _HCI_CACHE[key]          # configured adapter vanished — don't keep serving a stale index
+        del _HCI_CACHE[key]  # configured adapter vanished — don't keep serving a stale index
     return hci
 
 
@@ -219,5 +218,5 @@ async def read_rssi(adapter_mac: str | None, dev_mac: str) -> int | None:
         if val is not None:
             _MODE = mode
             return val
-    _MODE = None                 # both failed — re-probe both next time
+    _MODE = None  # both failed — re-probe both next time
     return None

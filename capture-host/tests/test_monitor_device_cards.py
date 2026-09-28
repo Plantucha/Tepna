@@ -131,17 +131,13 @@ def _render(settings_devs, state_devs=STATE_DEVS):
         "               addEventListener(){ __listeners++; } };\n"
         "const $ = () => __el;\n"
         "const esc = s => String(s).replace(/[&<>\"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"
-        "'\"':'&quot;',\"'\":'&#39;'}[c]));\n"
+        "'\"':'&quot;',\"'\":'&#39;'}[c]));\n" + stub_prelude() + "const lastSampleText=()=>'',\n"
         # Every chip renderRemembered reaches, stubbed from the SAME derivation the scope test uses —
         # a chip added to the template is stubbed here without anyone editing this file
         # (residue 2026-09-05-monitor-chip-registries).
-        + stub_prelude() +
-        "const lastSampleText=()=>'',\n"
         "      recPanelId=a=>'rec-'+a, defaultRate=(d,k,o)=>o[0], rateAdvice=()=>null,\n"
         "      STREAM_LABEL={}, PREF_RATE={}, renderRingRtc=()=>'', ringConfigRow=()=>'',\n"
-        "      fmtSecs=s=>String(s), ringKnob=()=>'', renderRingIdentity=()=>'';\n"
-        + body
-        + "\n"
+        "      fmtSecs=s=>String(s), ringKnob=()=>'', renderRingIdentity=()=>'';\n" + body + "\n"
         f"try{{ renderRemembered({json.dumps(state_devs)}, {json.dumps(settings_devs)});\n"
         "  console.log(JSON.stringify({html: __html})); }\n"
         "catch(e){ console.log(JSON.stringify({err: e.constructor.name + ': ' + e.message})); }\n"

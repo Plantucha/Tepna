@@ -8,6 +8,7 @@ missing the `deploy` verb, a fix that had been MERGED FOR A DAY with CI green wh
 broken. Every test here pins the same principle — an unhappy path must yield `None`, never a zeroed
 record, because zeros read as "nothing has drifted" and that is the one wrong answer available.
 """
+
 import json
 import os
 import sys
@@ -21,8 +22,7 @@ class _Done:
         self.stdout, self.returncode = stdout, returncode
 
 
-_GOOD = {"managed": 11, "drifted": 2, "managedDrifted": 1, "superseded": 1,
-         "ambiguous": 0, "missing": 0}
+_GOOD = {"managed": 11, "drifted": 2, "managedDrifted": 1, "superseded": 1, "ambiguous": 0, "missing": 0}
 
 
 def _script(tmp_path):
@@ -33,8 +33,8 @@ def _script(tmp_path):
 
 def test_it_returns_the_counts_and_the_exit_code(tmp_path):
     got = nightqc.system_file_drift(
-        _script(tmp_path), marker=str(tmp_path),
-        runner=lambda *a, **k: _Done(json.dumps(_GOOD), 1))
+        _script(tmp_path), marker=str(tmp_path), runner=lambda *a, **k: _Done(json.dumps(_GOOD), 1)
+    )
     assert got["managed"] == 11 and got["superseded"] == 1
     assert got["exit"] == 1, "the exit code is recorded even though the counts are the product"
 
@@ -43,8 +43,8 @@ def test_managedDrifted_and_superseded_are_reported_SEPARATELY(tmp_path):
     """They need OPPOSITE responses — `--install` versus a hand `rm` the script never performs — so a
     consumer must not have to infer one from the other. `drifted` already INCLUDES `superseded`."""
     got = nightqc.system_file_drift(
-        _script(tmp_path), marker=str(tmp_path),
-        runner=lambda *a, **k: _Done(json.dumps(_GOOD), 1))
+        _script(tmp_path), marker=str(tmp_path), runner=lambda *a, **k: _Done(json.dumps(_GOOD), 1)
+    )
     assert got["managedDrifted"] + got["superseded"] == got["drifted"]
 
 
@@ -60,31 +60,35 @@ def test_a_missing_script_makes_no_claim(tmp_path):
 def test_a_timeout_makes_no_claim_rather_than_breaking_QC(tmp_path):
     def _boom(*a, **k):
         raise TimeoutError("took too long")
+
     assert nightqc.system_file_drift(_script(tmp_path), marker=str(tmp_path), runner=_boom) is None
 
 
 def test_unparseable_output_makes_no_claim(tmp_path):
-    got = nightqc.system_file_drift(_script(tmp_path), marker=str(tmp_path),
-                                    runner=lambda *a, **k: _Done("not json at all", 1))
+    got = nightqc.system_file_drift(
+        _script(tmp_path), marker=str(tmp_path), runner=lambda *a, **k: _Done("not json at all", 1)
+    )
     assert got is None
 
 
 def test_empty_output_makes_no_claim(tmp_path):
-    assert nightqc.system_file_drift(_script(tmp_path), marker=str(tmp_path),
-                                     runner=lambda *a, **k: _Done("", 0)) is None
+    assert (
+        nightqc.system_file_drift(_script(tmp_path), marker=str(tmp_path), runner=lambda *a, **k: _Done("", 0)) is None
+    )
 
 
 def test_a_json_scalar_is_rejected_not_indexed(tmp_path):
     """`json.loads("7")` succeeds and returns an int; assigning `out["exit"]` to it would raise."""
-    assert nightqc.system_file_drift(_script(tmp_path), marker=str(tmp_path),
-                                     runner=lambda *a, **k: _Done("7", 0)) is None
+    assert (
+        nightqc.system_file_drift(_script(tmp_path), marker=str(tmp_path), runner=lambda *a, **k: _Done("7", 0)) is None
+    )
 
 
 def test_only_the_LAST_line_is_parsed(tmp_path):
     """The script routes its human report to /dev/null under --json, but a stray line must not defeat it."""
     got = nightqc.system_file_drift(
-        _script(tmp_path), marker=str(tmp_path),
-        runner=lambda *a, **k: _Done("some warning\n" + json.dumps(_GOOD), 0))
+        _script(tmp_path), marker=str(tmp_path), runner=lambda *a, **k: _Done("some warning\n" + json.dumps(_GOOD), 0)
+    )
     assert got["managed"] == 11
 
 
@@ -105,22 +109,24 @@ def _git(tmp_path):
 
 
 def test_a_clean_checkout_reports_clean(tmp_path):
-    assert nightqc._checkout_clean(_git(tmp_path),
-                                   runner=lambda *a, **k: _Done("", 0)) is True
+    assert nightqc._checkout_clean(_git(tmp_path), runner=lambda *a, **k: _Done("", 0)) is True
 
 
 def test_a_DIRTY_checkout_reports_dirty(tmp_path):
     """One stray untracked file halts every future deploy; the only outward sign is a failed unit on a
     box nobody logs into. `?? capture-host/vigil.sh` is the shape that actually did it."""
-    assert nightqc._checkout_clean(_git(tmp_path),
-                                   runner=lambda *a, **k: _Done("?? capture-host/vigil.sh\n", 0)) is False
+    assert (
+        nightqc._checkout_clean(_git(tmp_path), runner=lambda *a, **k: _Done("?? capture-host/vigil.sh\n", 0)) is False
+    )
 
 
 def test_a_mode_change_counts_as_dirty(tmp_path):
     """`core.fileMode=true` here, so `chmod +x` on a tracked file IS a modification — fixing an exec bit
     by hand creates the very dirt that blocks the updater."""
-    assert nightqc._checkout_clean(_git(tmp_path),
-                                   runner=lambda *a, **k: _Done(" M capture-host/tepna-update.sh\n", 0)) is False
+    assert (
+        nightqc._checkout_clean(_git(tmp_path), runner=lambda *a, **k: _Done(" M capture-host/tepna-update.sh\n", 0))
+        is False
+    )
 
 
 def test_no_git_dir_makes_no_claim(tmp_path):
@@ -128,20 +134,20 @@ def test_no_git_dir_makes_no_claim(tmp_path):
 
 
 def test_a_failing_git_makes_no_claim(tmp_path):
-    assert nightqc._checkout_clean(_git(tmp_path),
-                                   runner=lambda *a, **k: _Done("", 128)) is None
+    assert nightqc._checkout_clean(_git(tmp_path), runner=lambda *a, **k: _Done("", 128)) is None
 
 
 def test_a_raising_git_makes_no_claim_rather_than_breaking_QC(tmp_path):
     def _boom(*a, **k):
         raise OSError("git not found")
+
     assert nightqc._checkout_clean(_git(tmp_path), runner=_boom) is None
 
 
 def test_the_drift_record_carries_the_clean_flag(tmp_path):
     got = nightqc.system_file_drift(
-        _script(tmp_path), marker=str(tmp_path),
-        runner=lambda *a, **k: _Done(json.dumps(_GOOD), 1))
+        _script(tmp_path), marker=str(tmp_path), runner=lambda *a, **k: _Done(json.dumps(_GOOD), 1)
+    )
     assert "checkout_clean" in got, "a HEAD-only view lags the breakage by up to one merge"
 
 

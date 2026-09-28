@@ -12,6 +12,7 @@ real card, not out of a spec or a guess. Where the card cannot settle something 
 REAL oximetry sample, which no file on that card contains — the test says so instead of inventing a
 value that would pass while proving nothing.
 """
+
 import os
 import sys
 
@@ -34,9 +35,7 @@ def _sig(edf, label):
 
 
 def _decl(edf):
-    return [tuple(str(v).strip() for v in
-                  (s.label, s.dim, s.pmin, s.pmax, s.dmin, s.dmax, s.spr))
-            for s in edf.signals]
+    return [tuple(str(v).strip() for v in (s.label, s.dim, s.pmin, s.pmax, s.dmin, s.dmax, s.spr)) for s in edf.signals]
 
 
 def test_the_dictionary_carries_its_own_evidence():
@@ -64,8 +63,7 @@ def test_a_written_sa2_matches_the_dictionary_declaration():
 
 def test_a_gap_is_filled_with_the_sentinel_not_closed_up():
     """THE defect this API exists to prevent: a dropout must not shift every later sample earlier."""
-    edf = _read(cpap_edf.write_edf(
-        cpap_edf.build_sa2([(0, 97, 64), (30, 95, 66)], (2026, 8, 30, 23, 0, 0), "S")))
+    edf = _read(cpap_edf.write_edf(cpap_edf.build_sa2([(0, 97, 64), (30, 95, 66)], (2026, 8, 30, 23, 0, 0), "S")))
     spo2 = _sig(edf, "SpO2.1s")
     assert spo2.samples[0] == 97
     assert spo2.samples[30] == 95, "the second reading must stay at second 30, not slide to second 1"
@@ -74,8 +72,7 @@ def test_a_gap_is_filled_with_the_sentinel_not_closed_up():
 
 def test_no_reading_never_becomes_a_zero_percent_desaturation():
     """`_num_signal` would clamp -1 to dig_min 0. A fabricated 0 % SpO2 is worse than a gap."""
-    edf = _read(cpap_edf.write_edf(
-        cpap_edf.build_sa2([(0, None, None)], (2026, 8, 30, 23, 0, 0), "S")))
+    edf = _read(cpap_edf.write_edf(cpap_edf.build_sa2([(0, None, None)], (2026, 8, 30, 23, 0, 0), "S")))
     for lab in ("SpO2.1s", "Pulse.1s"):
         sig = _sig(edf, lab)
         assert sig.samples[0] == -1, f"{lab} sentinel was clamped into the declared range"
@@ -83,8 +80,7 @@ def test_no_reading_never_becomes_a_zero_percent_desaturation():
 
 def test_the_tail_pads_with_the_sentinel_too():
     """Zero-padding a short record ends every recording with a burst of 0 % SpO2."""
-    edf = _read(cpap_edf.write_edf(
-        cpap_edf.build_sa2([(0, 97, 64)], (2026, 8, 30, 23, 0, 0), "S")))
+    edf = _read(cpap_edf.write_edf(cpap_edf.build_sa2([(0, 97, 64)], (2026, 8, 30, 23, 0, 0), "S")))
     spo2 = _sig(edf, "SpO2.1s")
     assert len(spo2.samples) == 60, "one 60 s record"
     assert all(v == -1 for v in spo2.samples[1:])
@@ -105,23 +101,23 @@ def test_an_empty_recording_produces_a_header_only_file():
 
 def test_record_count_rounds_up_to_whole_records():
     """61 seconds is two records, not one and a bit."""
-    edf = _read(cpap_edf.write_edf(
-        cpap_edf.build_sa2([(60, 97, 64)], (2026, 8, 30, 23, 0, 0), "S")))
+    edf = _read(cpap_edf.write_edf(cpap_edf.build_sa2([(60, 97, 64)], (2026, 8, 30, 23, 0, 0), "S")))
     assert edf.n_records == 2
 
 
 def test_the_serial_reaches_the_recording_id():
-    edf = _read(cpap_edf.write_edf(
-        cpap_edf.build_sa2([(0, 97, 64)], (2026, 8, 30, 23, 0, 0), "23221590541")))
+    edf = _read(cpap_edf.write_edf(cpap_edf.build_sa2([(0, 97, 64)], (2026, 8, 30, 23, 0, 0), "23221590541")))
     assert "SRN=23221590541" in edf.recording_id
     assert "SRN=UNKNOWN" not in edf.recording_id
 
 
 def test_declaration_matches_names_the_field_that_differs():
     """A bool would not be actionable; the difference has to say which field and both values."""
-    wrong = [("Pulse.1s", "bpm", "0.00", "300.00", "0", "300", "60"),
-             ("SpO2.1s", "%", "0.00", "100.00", "0", "200", "60"),
-             ("Crc16", "", "-32768.0", "32767.00", "-32768", "32767", "1")]
+    wrong = [
+        ("Pulse.1s", "bpm", "0.00", "300.00", "0", "300", "60"),
+        ("SpO2.1s", "%", "0.00", "100.00", "0", "200", "60"),
+        ("Crc16", "", "-32768.0", "32767.00", "-32768", "32767", "1"),
+    ]
     diffs = cpap_edf.declaration_matches("SA2", wrong, cpap_edf_dict.TYPES)
     assert len(diffs) == 1
     assert "SpO2.1s dig_max" in diffs[0] and "'200'" in diffs[0] and "'100'" in diffs[0]
@@ -132,30 +128,34 @@ def test_an_unknown_type_is_reported_not_silently_passed():
     assert diffs and "not in the dictionary" in diffs[0]
 
 
-@pytest.mark.skipif(not os.path.isdir("/srv/tepna/captures/cpap/DATALOG"),
-                    reason="no reference card on this box — the dictionary cannot be re-checked here")
+@pytest.mark.skipif(
+    not os.path.isdir("/srv/tepna/captures/cpap/DATALOG"),
+    reason="no reference card on this box — the dictionary cannot be re-checked here",
+)
 def test_the_dictionary_still_matches_the_real_card():
     """The one test that can catch the table going stale. Skips honestly rather than faking a card."""
     import glob
     import struct  # noqa: F401
+
     checked = 0
     for kind in ("BRP", "PLD", "SA2"):
         hits = glob.glob(f"/srv/tepna/captures/cpap/DATALOG/*/*_{kind}.edf")
         for path in hits[:3]:
             with open(path, "rb") as f:
-                raw = f.read()          # read_edf unpacks every record; a truncated buffer raises
+                raw = f.read()  # read_edf unpacks every record; a truncated buffer raises
             edf = cpap_edf.read_edf(raw)
             assert cpap_edf.declaration_matches(kind, _decl(edf), cpap_edf_dict.TYPES) == [], path
             checked += 1
     assert checked, "the card is present but yielded no files — the glob is wrong, not the card"
 
 
-
 def test_a_wrong_signal_COUNT_is_reported_before_the_field_walk():
     """A file with the right labels but a missing channel must not slip through on a zip() that
     silently stops at the shorter sequence."""
-    short = [("Pulse.1s", "bpm", "0.00", "300.00", "0", "300", "60"),
-             ("SpO2.1s", "%", "0.00", "100.00", "0", "100", "60")]      # Crc16 absent
+    short = [
+        ("Pulse.1s", "bpm", "0.00", "300.00", "0", "300", "60"),
+        ("SpO2.1s", "%", "0.00", "100.00", "0", "100", "60"),
+    ]  # Crc16 absent
     diffs = cpap_edf.declaration_matches("SA2", short, cpap_edf_dict.TYPES)
     assert any("2 signals on disk, 3 in the dictionary" in d for d in diffs)
 
@@ -269,8 +269,9 @@ def test_the_crc_range_starts_PAST_the_bytes_it_writes():
     change the range that produced it. If the range ever moved down, the file would be self-
     invalidating and this test is what says so."""
     assert cpap_edf._CRC1_FROM == 0x19
-    assert cpap_edf._CRC1_FROM >= 8 + len("X X X X FFFF FFFF"), \
+    assert cpap_edf._CRC1_FROM >= 8 + len("X X X X FFFF FFFF"), (
         "the covered range must start past the longest patient string, or writing the CRC breaks it"
+    )
 
 
 def test_stamping_is_IDEMPOTENT_so_a_re_encode_does_not_drift():
@@ -285,7 +286,7 @@ def test_stamping_is_IDEMPOTENT_so_a_re_encode_does_not_drift():
 def test_a_header_only_buffer_is_left_alone_rather_than_crashing():
     """An empty recording has no signal block to hash. It must fail where it already failed, not here."""
     edf = cpap_edf.build_sa2([], (2026, 1, 1, 0, 0, 0), "S3", record_seconds=60)
-    cpap_edf.write_edf(edf)          # must not raise
+    cpap_edf.write_edf(edf)  # must not raise
 
 
 def test_an_edf_with_NO_signals_is_returned_unstamped_rather_than_crashing():
@@ -297,6 +298,7 @@ def test_an_edf_with_NO_signals_is_returned_unstamped_rather_than_crashing():
     found this arc unexercised. A guard nothing drives is a guard nobody knows works."""
     empty = cpap_edf.Edf("0", "X X X X", "rec", "13.06.26", "23.14.33", "EDF", 0, "1.00", [])
     raw = cpap_edf.write_edf(empty)
-    assert raw[8:88].decode("latin1").rstrip() == "X X X X", \
+    assert raw[8:88].decode("latin1").rstrip() == "X X X X", (
         "a zero-signal file must keep the bare patient field — there is nothing to checksum"
+    )
     assert len(raw) == 256, "header only, no signal block"

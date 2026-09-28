@@ -22,6 +22,7 @@ does the opposite, because there the same folding deleted the configured offload
 (CAPTURE-HOST-DEEP-AUDIT §D1). Tolerance is a property of what a handler can damage, not a house style —
 so the values that survive the folding are the thing to pin.
 """
+
 import os
 import sys
 
@@ -37,17 +38,18 @@ def _post(tmp_path, body=None, puller=None, seen=None, raw=None):
         if seen is not None:
             seen.append(which)
         return {"ok": True, "which": which}
+
     app, *_ = _mk(tmp_path, pull_stored=puller or default_puller)
 
     async def go(c):
         if raw is not None:
-            r = await c.post("/api/pull", data=raw,
-                             headers={"Content-Type": "application/json"})
+            r = await c.post("/api/pull", data=raw, headers={"Content-Type": "application/json"})
         elif body is None:
             r = await c.post("/api/pull")
         else:
             r = await c.post("/api/pull", json=body)
         return r.status, await r.json()
+
     return _serve(app, go)
 
 
@@ -108,6 +110,7 @@ def test_a_non_object_body_is_folded_to_the_defaults(tmp_path):
 def test_the_pullers_result_is_returned_as_the_body(tmp_path):
     async def puller(which):
         return {"ok": True, "saved": ["/srv/tepna/captures/stored/x.dat"], "bytes": 4096}
+
     status, body = _post(tmp_path, {}, puller=puller)
     assert status == 200
     assert body == {"ok": True, "saved": ["/srv/tepna/captures/stored/x.dat"], "bytes": 4096}
@@ -116,6 +119,7 @@ def test_the_pullers_result_is_returned_as_the_body(tmp_path):
 def test_a_puller_that_reports_failure_is_not_rewritten_as_success(tmp_path):
     async def puller(which):
         return {"ok": False, "detail": "ring never appeared"}
+
     status, body = _post(tmp_path, {}, puller=puller)
     assert status == 200 and body["ok"] is False and body["detail"] == "ring never appeared"
 
@@ -124,8 +128,10 @@ def test_a_puller_that_reports_failure_is_not_rewritten_as_success(tmp_path):
 def test_a_busy_download_slot_is_a_409_naming_its_holder(tmp_path):
     """One device owns the single download slot at a time. Expected, retryable, and not a fault — so the
     holder is named rather than buried in a 500."""
+
     async def busy(which):
         raise offline_lock.OfflineBusy("H10")
+
     status, body = _post(tmp_path, {}, puller=busy)
     assert status == 409 and body["ok"] is False and body["busy"] == "H10"
 
@@ -136,5 +142,6 @@ def test_the_endpoint_reports_unavailable_when_the_daemon_supplied_no_puller(tmp
     async def go(c):
         r = await c.post("/api/pull", json={})
         return r.status, await r.json()
+
     status, body = _serve(app, go)
     assert status == 400 and body["ok"] is False and "not available" in body["detail"]

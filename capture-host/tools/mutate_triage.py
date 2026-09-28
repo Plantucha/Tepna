@@ -27,6 +27,7 @@ Usage:
   python3 tools/mutate_triage.py <module> --work       # print only the REACHABLE work-list, with diffs
   python3 tools/mutate_triage.py <module> --json       # machine-readable, for a brief's table
 """
+
 from __future__ import annotations
 
 import argparse
@@ -46,7 +47,12 @@ import time
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, _ROOT)
 from mutation_triage import (  # noqa: E402
-    ceiling, classify, concentration, func_of_mutant, in_message_call, module_source_path,
+    ceiling,
+    classify,
+    concentration,
+    func_of_mutant,
+    in_message_call,
+    module_source_path,
 )
 
 
@@ -56,8 +62,9 @@ def newest_scratch(module: str) -> str | None:
 
 
 def mutmut_results(work: str, python: str) -> tuple[list[str], int]:
-    out = subprocess.run([python, "-m", "mutmut", "results"], cwd=work,
-                         capture_output=True, text=True, timeout=600).stdout
+    out = subprocess.run(
+        [python, "-m", "mutmut", "results"], cwd=work, capture_output=True, text=True, timeout=600
+    ).stdout
     surv = [ln.strip().split(":")[0] for ln in out.splitlines() if ln.strip().endswith(": survived")]
     tmo = sum(1 for ln in out.splitlines() if ln.strip().endswith(": timeout"))
     return surv, tmo
@@ -79,8 +86,9 @@ def mutmut_diff(work: str, python: str, mid: str) -> tuple[str, str, str]:
     `log.info(...)` from a statement that merely sits near one. The previous signature kept the two
     changed lines and threw the position away, so `classify`'s `in_message_call` had no way to be
     supplied and every such mutant was judged REACHABLE."""
-    out = subprocess.run([python, "-m", "mutmut", "show", mid], cwd=work,
-                         capture_output=True, text=True, timeout=60).stdout
+    out = subprocess.run(
+        [python, "-m", "mutmut", "show", mid], cwd=work, capture_output=True, text=True, timeout=60
+    ).stdout
     minus = [l[1:] for l in out.splitlines() if l.startswith("-") and not l.startswith("---")]
     plus = [l[1:] for l in out.splitlines() if l.startswith("+") and not l.startswith("+++")]
     return (minus[0] if minus else ""), (plus[0] if plus else ""), out
@@ -92,8 +100,7 @@ def rank_all(py: str) -> int:
     Sorted by the size of the largest reachable cluster, not by how much is left: a dense cluster is
     one fixture, a scattered set of the same size is several.
     """
-    mods = sorted({os.path.basename(os.path.dirname(w))[4:].rsplit("-", 1)[0]
-                   for w in glob.glob("/tmp/mut-*/work")})
+    mods = sorted({os.path.basename(os.path.dirname(w))[4:].rsplit("-", 1)[0] for w in glob.glob("/tmp/mut-*/work")})
     rows = []
     for m in mods:
         work = newest_scratch(m)
@@ -101,7 +108,7 @@ def rank_all(py: str) -> int:
             continue
         try:
             surv, tmo = mutmut_results(work, py)
-        except Exception:                                   # noqa: BLE001 — a half-written scratch
+        except Exception:  # noqa: BLE001 — a half-written scratch
             continue
         if not surv:
             continue
@@ -131,8 +138,9 @@ def main() -> int:
     ap.add_argument("--total", type=int, help="total mutants (from the audit stats); enables the ceiling")
     ap.add_argument("--work", action="store_true", help="print only the REACHABLE work-list, with diffs")
     ap.add_argument("--json", action="store_true")
-    ap.add_argument("--rank", action="store_true",
-                    help="rank every module with a scratch by how cheap its next pass is")
+    ap.add_argument(
+        "--rank", action="store_true", help="rank every module with a scratch by how cheap its next pass is"
+    )
     ap.add_argument("--python", default=".venv/bin/python")
     a = ap.parse_args()
 
@@ -148,8 +156,11 @@ def main() -> int:
 
     surv, tmo = mutmut_results(work, py)
     if not surv:
-        print("mutmut results returned NO survivors — that is a poisoned/mid-run read, not a clean "
-              "sweep. Do not divide by it.", file=sys.stderr)
+        print(
+            "mutmut results returned NO survivors — that is a poisoned/mid-run read, not a clean "
+            "sweep. Do not divide by it.",
+            file=sys.stderr,
+        )
         return 2
 
     # PROGRESS TO STDERR. One `mutmut show` per survivor is ~0.2 s, so 280 survivors is a minute of
@@ -165,11 +176,10 @@ def main() -> int:
         if i == 1 or i % 10 == 0 or i == n:
             el = time.monotonic() - t0
             eta = (el / i) * (n - i) if i else 0.0
-            print(f"\r  triaging {i}/{n}  ({100*i//n}%)  eta {eta:4.0f}s ",
-                  end="", file=sys.stderr, flush=True)
+            print(f"\r  triaging {i}/{n}  ({100 * i // n}%)  eta {eta:4.0f}s ", end="", file=sys.stderr, flush=True)
         m, p, raw = mutmut_diff(work, py, mid)
         bucket, why = classify(m, p, in_message_call=in_message_call(raw, src_text, mid))
-        fn = func_of_mutant(mid)          # NOT a second inline regex — that copy mangled ǁ-methods
+        fn = func_of_mutant(mid)  # NOT a second inline regex — that copy mangled ǁ-methods
         rows.append({"id": mid, "fn": fn, "bucket": bucket, "why": why, "minus": m.strip(), "plus": p.strip()})
     print("\r" + " " * 48 + "\r", end="", file=sys.stderr, flush=True)
 
@@ -184,8 +194,11 @@ def main() -> int:
         counts[r["bucket"]] = counts.get(r["bucket"], 0) + 1
 
     if a.json:
-        print(json.dumps({"module": a.module, "survivors": len(surv), "timeouts": tmo,
-                          "counts": counts, "rows": rows}, indent=2))
+        print(
+            json.dumps(
+                {"module": a.module, "survivors": len(surv), "timeouts": tmo, "counts": counts, "rows": rows}, indent=2
+            )
+        )
         return 0
 
     print(f"{a.module}: {len(surv)} survivors, {tmo} timeouts")
@@ -196,10 +209,14 @@ def main() -> int:
         unobs, reach = counts.get("UNOBSERVABLE", 0), counts.get("REACHABLE", 0)
         c = ceiling(a.total, len(surv), tmo, unobs, reach)
         print(f"\n  now      {c['killed']:>4}/{a.total} = {c['now_pct']:.1f}%")
-        print(f"  CEILING  {c['ceiling']:>4}/{a.total} = {c['ceiling_pct']:.1f}%"
-              f"   ({unobs} unobservable — reachable only by asserting exact wording)")
-        print(f"  if every REACHABLE dies: {c['if_all_reachable']}/{a.total} = "
-              f"{c['if_all_reachable_pct']:.1f}%   ({reach} mutants of real work)")
+        print(
+            f"  CEILING  {c['ceiling']:>4}/{a.total} = {c['ceiling_pct']:.1f}%"
+            f"   ({unobs} unobservable — reachable only by asserting exact wording)"
+        )
+        print(
+            f"  if every REACHABLE dies: {c['if_all_reachable']}/{a.total} = "
+            f"{c['if_all_reachable_pct']:.1f}%   ({reach} mutants of real work)"
+        )
     print("\n  --work for the work-list.  Confirm any EQUIVALENT? with a witness search before dismissing.")
     return 0
 

@@ -7,6 +7,7 @@ ever been observed true (or only ever false), which is the shape a decoder bug h
 skips a malformed slot, the cache that must forget a vanished adapter, the second occurrence that must
 not re-log. Nothing below is a new code path — it is the half of an existing one nothing had run.
 """
+
 import asyncio
 import datetime as dt
 import os
@@ -36,12 +37,15 @@ def test_scan_ignores_an_rssi_line_for_a_device_it_never_saw_announce(monkeypatc
     """bluetoothctl streams [CHG] RSSI updates for devices it already knew from a PREVIOUS scan, which
     never emit a `Device <addr> <name>` announcement in this run. Those must not conjure a Found with no
     name — the RSSI enrichment attaches to discovered devices or is dropped."""
-    out = ("Device AA:BB:CC:DD:EE:01 O2Ring 0123\n"
-           "Device AA:BB:CC:DD:EE:01 RSSI: 0xffffffb2 (-78)\n"
-           "Device 11:22:33:44:55:66 RSSI: 0xffffffc4 (-60)\n")   # never announced
+    out = (
+        "Device AA:BB:CC:DD:EE:01 O2Ring 0123\n"
+        "Device AA:BB:CC:DD:EE:01 RSSI: 0xffffffb2 (-78)\n"
+        "Device 11:22:33:44:55:66 RSSI: 0xffffffc4 (-60)\n"
+    )  # never announced
 
     async def fake_script(_lines):
         return out
+
     monkeypatch.setattr(bonding, "_delayed_script", fake_script)
 
     # `scan` ALSO runs a per-device `info` after the RSSI pass. Left unpatched that spawns a real
@@ -49,6 +53,7 @@ def test_scan_ignores_an_rssi_line_for_a_device_it_never_saw_announce(monkeypatc
     # FileNotFoundError in CI. Nothing in this suite may depend on a binary being installed.
     async def fake_btctl(_script, timeout=8):
         return "Bonded: yes\nConnected: no\n"
+
     monkeypatch.setattr(bonding, "_btctl", fake_btctl)
     found = _run(bonding.scan())
     assert [f.address for f in found] == ["AA:BB:CC:DD:EE:01"]
@@ -60,7 +65,9 @@ def test_kv_skips_lines_that_are_not_assignments():
     """`timedatectl show` is clean key=value, but the same parser reads output that can carry a blank
     line or a warning banner. A line with no `=` must be skipped, not split into a bogus key."""
     assert clockcfg._kv("NTP=yes\n\nWarning: something\nNTPSynchronized=no\n") == {
-        "NTP": "yes", "NTPSynchronized": "no"}
+        "NTP": "yes",
+        "NTPSynchronized": "no",
+    }
 
 
 # ── link_rssi.resolve_hci: the configured adapter vanished ─────────────────────────────────────────
@@ -74,6 +81,7 @@ def test_resolve_hci_forgets_a_cached_index_when_the_adapter_disappears(monkeypa
 
     async def no_dbus():
         return {}
+
     monkeypatch.setattr(link_rssi, "dbus_hci", no_dbus)
     assert _run(link_rssi.resolve_hci(key, refresh=True)) is None
     assert key not in link_rssi._HCI_CACHE, "a vanished adapter must not keep serving a stale index"
@@ -85,6 +93,7 @@ def test_resolve_hci_is_a_no_op_on_a_miss_that_was_never_cached(monkeypatch):
 
     async def no_dbus():
         return {}
+
     monkeypatch.setattr(link_rssi, "dbus_hci", no_dbus)
     link_rssi._HCI_CACHE.pop("99:99:99:99:99:99", None)
     assert _run(link_rssi.resolve_hci("99:99:99:99:99:99", refresh=True)) is None
@@ -96,13 +105,13 @@ def test_parse_file_list_drops_a_slot_the_reply_was_cut_short_in():
     mid-slot must yield the whole sessions it does have, not an index error and not a garbage stamp
     built from the fragment."""
     good = b"20260725020723\x00\x00"
-    payload = bytes([2]) + good + b"2026072503"          # second slot is 10 bytes, not 16
+    payload = bytes([2]) + good + b"2026072503"  # second slot is 10 bytes, not 16
     assert oxyii.parse_file_list(payload) == ["20260725020723"]
 
 
 # ── polar_pmd.build_start: a device that reports no sample-rate option ─────────────────────────────
 def test_build_start_omits_a_setting_the_device_does_not_report():
-    """"Only settings the device actually reports are included." A device offering resolution but no
+    """ "Only settings the device actually reports are included." A device offering resolution but no
     sample-rate list must not have a rate TLV invented for it — the START would then advertise a rate
     the firmware never offered, and it is rejected whole (the 0x05 ERROR_INVALID_PARAMETER class)."""
     assert pmd.build_start(pmd.ECG, {0x01: [14]}) == pmd._start_cmd(pmd.ECG, (0x01, 14))
@@ -117,11 +126,11 @@ def test_a_repeated_shape_breach_is_flagged_every_time_but_logged_only_once(capl
     emitted once — a per-frame log on a corrupt ECG decoder floods the journal off the disk, which is
     the failure mode the once-per-stream guard exists for."""
     bus = telemetry.TelemetryBus()
-    bus.push("ecg", [1.0, 2.0], fs=130)                     # declares 1 channel
+    bus.push("ecg", [1.0, 2.0], fs=130)  # declares 1 channel
     with caplog.at_level("ERROR"):
-        bus.push("ecg", [[1.0, 2.0], [3.0, 4.0]], fs=130)   # breach 1 — logs
+        bus.push("ecg", [[1.0, 2.0], [3.0, 4.0]], fs=130)  # breach 1 — logs
         first = len([r for r in caplog.records if "SHAPE BREACH" in r.getMessage()])
-        bus.push("ecg", [[5.0, 6.0], [7.0, 8.0]], fs=130)   # breach 2 — must NOT log again
+        bus.push("ecg", [[5.0, 6.0], [7.0, 8.0]], fs=130)  # breach 2 — must NOT log again
         second = len([r for r in caplog.records if "SHAPE BREACH" in r.getMessage()])
     assert first == 1 and second == 1
     assert "ecg" in bus.shape_errors(), "the flag stays raised for the monitor either way"
@@ -158,13 +167,14 @@ def test_a_client_without_acquire_mtu_still_connects(monkeypatch):
     versions. Its absence must degrade to the 23-byte default, not raise on connect."""
     c = FakeClient()
     monkeypatch.delattr(FakeClient, "_acquire_mtu")
-    c.mtu_size = None                               # and no negotiated MTU to read either
+    c.mtu_size = None  # and no negotiated MTU to read either
     _install(monkeypatch, c)
 
     async def go():
         async with ps.PolarPsFtp("AA:BB") as fs:
-            assert fs._frame_mtu == 20              # max(20, 23-3)
+            assert fs._frame_mtu == 20  # max(20, 23-3)
             assert fs.mtu is None
+
     _run(go())
 
 
@@ -176,6 +186,7 @@ def test_the_mtu_property_reports_the_negotiated_size(monkeypatch):
     async def go():
         async with ps.PolarPsFtp("AA:BB") as fs:
             assert fs.mtu == 250
+
     _run(go())
 
 
@@ -201,12 +212,13 @@ def test_set_local_time_honours_an_explicit_offset_and_skips_the_system_clock(mo
     async def spy(self, query_id, params=b"", timeout=20.0):
         sent.append(query_id)
         return await real_query(self, query_id, params, timeout)
+
     monkeypatch.setattr(ps.PolarPsFtp, "query", spy)
 
     async def go():
         async with ps.PolarPsFtp("AA:BB") as fs:
-            await fs.set_local_time(dt.datetime(2026, 7, 25, 22, 30), tz_offset_min=-240,
-                                    with_system_time=False)
+            await fs.set_local_time(dt.datetime(2026, 7, 25, 22, 30), tz_offset_min=-240, with_system_time=False)
+
     _run(go())
     assert sent == [ps.SET_LOCAL_TIME], "the H10 path must not send SET_SYSTEM_TIME"
 
@@ -228,7 +240,7 @@ class _CorruptingRing(FakeRing):
 
     def _reply(self, op, payload):
         bad = bytearray(oxyii.encode(op, payload))
-        bad[-1] ^= 0xFF                    # break the CRC only — framing stays valid
+        bad[-1] ^= 0xFF  # break the CRC only — framing stays valid
         self.notify(0, bytes(bad))
         super()._reply(op, payload)
 

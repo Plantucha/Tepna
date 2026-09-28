@@ -4,6 +4,7 @@ The timeline is read from whatever the night left on disk, so every parse here h
 row, an unreadable directory and a filename that is not a capture. The rule throughout is the module's
 own: a value it cannot prove is left absent, never guessed — an invented link state reads as evidence.
 """
+
 import os
 import sys
 
@@ -60,15 +61,17 @@ def test_read_link_samples_skips_an_unlistable_directory(tmp_path):
 def test_read_link_samples_tolerates_short_bad_and_unreadable_rows(tmp_path):
     """One torn row must cost one row, not the file. Rows here: too few columns, an unparseable
     timestamp, a non-numeric RSSI (kept, with rssi absent), and one good row."""
-    body = ("short;row\n"
-            "notatimestamp;H10;1;-60;;;;1;AA\n"
-            "2026-07-25T22:00:05.000;H10;1;notanumber;;;;1;24:AC:AC:02:84:96\n"
-            "2026-07-25T22:00:10.000;H10;1;-61;;;;1;24:AC:AC:02:84:96\n")
+    body = (
+        "short;row\n"
+        "notatimestamp;H10;1;-60;;;;1;AA\n"
+        "2026-07-25T22:00:05.000;H10;1;notanumber;;;;1;24:AC:AC:02:84:96\n"
+        "2026-07-25T22:00:10.000;H10;1;-61;;;;1;24:AC:AC:02:84:96\n"
+    )
     _link(tmp_path, body=body)
     out = timeline.read_link_samples(str(tmp_path))
     samples = [s for v in out.values() for s in v]
-    assert len(samples) == 2, samples                      # the two parseable rows survived
-    assert any(s[2] is None for s in samples)              # bad RSSI became absent, not 0.0
+    assert len(samples) == 2, samples  # the two parseable rows survived
+    assert any(s[2] is None for s in samples)  # bad RSSI became absent, not 0.0
     assert any(s[2] == -61.0 for s in samples)
 
 
@@ -80,6 +83,7 @@ def test_read_link_samples_skips_a_file_it_cannot_open(tmp_path, monkeypatch):
         if str(path).endswith("_LINK.csv"):
             raise OSError("EIO")
         return real(path, *a, **k)
+
     monkeypatch.setattr("builtins.open", boom)
     assert timeline.read_link_samples(str(tmp_path)) == {}
 
@@ -100,6 +104,7 @@ def test_link_adapter_skips_unlistable_dirs_and_unopenable_files(tmp_path, monke
         if str(path).endswith("_LINK.csv"):
             raise OSError("EIO")
         return real(path, *a, **k)
+
     monkeypatch.setattr("builtins.open", boom)
     assert timeline.link_adapter(str(tmp_path)) == {}
 
@@ -122,6 +127,5 @@ def test_wedge_buckets_reports_nothing_before_the_radio_ever_worked():
     """Both devices connected at SOME point — so they pass the two-device gate — but not inside the
     rendered window, leaving no bucket where the radio was demonstrably up. Wedge detection starts only
     after a first confirmed connection, so flagging this stretch would report startup as a fault."""
-    outside = {"H10":    [(1000.0, 1, -60.0)],
-               "Verity": [(1001.0, 1, -55.0)]}
+    outside = {"H10": [(1000.0, 1, -60.0)], "Verity": [(1001.0, 1, -55.0)]}
     assert timeline.wedge_buckets(outside, 0.0, 10.0, 5) == [False] * 5

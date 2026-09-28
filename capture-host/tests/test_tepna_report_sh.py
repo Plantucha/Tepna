@@ -19,16 +19,18 @@ import sys
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SH = os.path.join(HERE, "tepna-report.sh")
-TOKEN = "tk_SECRET_do_not_leak_9f3a"          # distinctive enough that a substring search is decisive
+TOKEN = "tk_SECRET_do_not_leak_9f3a"  # distinctive enough that a substring search is decisive
 
 # `class_b` carries one EXAMINED-and-clean block, not `[]`. An empty list means the producer examined
 # NOTHING (`class_b_quality` skips an unreadable/headerless/short file with `continue`), which reads
 # `unknown` since 2026-09-23 — so an empty fixture would make this test about the refusal instead of
 # about the shell wrapper it is named for.
-SUMMARY = ('{"night":"2026-09-06","devices":[{"name":"Wellue O2Ring-S",'
-           '"streams":{"spo2":34964}}],'
-           '"class_b":[{"stream":"ppg","held":null,"rows":0,"clips":{"ppg":0},'
-           '"file":"Wellue_O2Ring-S_S8AW2100_20260906034935_PPG.txt","columns":1}]}')
+SUMMARY = (
+    '{"night":"2026-09-06","devices":[{"name":"Wellue O2Ring-S",'
+    '"streams":{"spo2":34964}}],'
+    '"class_b":[{"stream":"ppg","held":null,"rows":0,"clips":{"ppg":0},'
+    '"file":"Wellue_O2Ring-S_S8AW2100_20260906034935_PPG.txt","columns":1}]}'
+)
 
 
 def _run(tmp_path, *args, nights=("2026-09-06",), enabled=False, url=None, summary=SUMMARY):
@@ -56,15 +58,19 @@ def _run(tmp_path, *args, nights=("2026-09-06",), enabled=False, url=None, summa
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir(exist_ok=True)
     syslog = tmp_path / "syslog.txt"
-    (bin_dir / "logger").write_text("#!/bin/sh\nshift 2; shift; echo \"$*\" >> \"%s\"\n" % syslog)
+    (bin_dir / "logger").write_text('#!/bin/sh\nshift 2; shift; echo "$*" >> "%s"\n' % syslog)
     (bin_dir / "logger").chmod(0o755)
     # `TEPNA_PYTHON` is this interpreter, not the venv beside the script. Under `mutate_diff.py` the
     # script runs from a mutants tree that has no `.venv`, so the fallback would pick a system python3
     # without `mutmut` and every mutated `night_report.py` would die on import — which the mutation
     # gate reports as "0 tested", not as "all killed". Handing over `sys.executable` is what lets these
     # subprocess tests actually kill mutants.
-    env = {**os.environ, "PATH": "%s:%s" % (bin_dir, os.environ["PATH"]),
-           "TEPNA_CONFIG": str(cfg), "TEPNA_PYTHON": sys.executable}
+    env = {
+        **os.environ,
+        "PATH": "%s:%s" % (bin_dir, os.environ["PATH"]),
+        "TEPNA_CONFIG": str(cfg),
+        "TEPNA_PYTHON": sys.executable,
+    }
     r = subprocess.run(["bash", SH, *args], capture_output=True, text=True, env=env, timeout=120)
     return r, root, (syslog.read_text(encoding="utf-8") if syslog.exists() else "")
 
@@ -76,13 +82,17 @@ def test_the_night_is_found_under_root_SLASH_captures_and_not_under_root(tmp_pat
     base = tmp_path / "srv"
     (base / "captures" / "2026-09-06").mkdir(parents=True)
     (base / "captures" / "2026-09-06" / "QC-SUMMARY.json").write_text(SUMMARY, encoding="utf-8")
-    decoy = base / "2026-09-99"                     # not a real date, and not where nights live
+    decoy = base / "2026-09-99"  # not a real date, and not where nights live
     decoy.mkdir()
     cfg = tmp_path / "config.yaml"
     cfg.write_text("root: %s\nalerts:\n  enabled: false\n" % base, encoding="utf-8")
-    r = subprocess.run(["bash", SH], capture_output=True, text=True, timeout=120,
-                       env={**os.environ, "TEPNA_CONFIG": str(cfg),
-                            "TEPNA_PYTHON": sys.executable})
+    r = subprocess.run(
+        ["bash", SH],
+        capture_output=True,
+        text=True,
+        timeout=120,
+        env={**os.environ, "TEPNA_CONFIG": str(cfg), "TEPNA_PYTHON": sys.executable},
+    )
     assert r.returncode == 0, r.stderr
     assert (base / "captures" / "2026-09-06" / "NIGHT-REPORT.txt").exists()
     assert not (decoy / "NIGHT-REPORT.txt").exists()
@@ -110,8 +120,9 @@ def test_the_webhook_token_appears_in_NOTHING_the_script_produces(tmp_path):
     closed port) so the failure path is the one under test, which is where a careless error message
     would echo the URL."""
     r, root, log = _run(tmp_path, enabled=True, url="http://127.0.0.1:1/%s" % TOKEN)
-    haystack = "\n".join([r.stdout, r.stderr, log,
-                          (root / "2026-09-06" / "NIGHT-REPORT.txt").read_text(encoding="utf-8")])
+    haystack = "\n".join(
+        [r.stdout, r.stderr, log, (root / "2026-09-06" / "NIGHT-REPORT.txt").read_text(encoding="utf-8")]
+    )
     assert TOKEN not in haystack, "the webhook token leaked into the script's own output"
     assert "127.0.0.1:1" not in haystack, "…and neither may the URL it lives in"
 

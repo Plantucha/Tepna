@@ -21,6 +21,7 @@ import nightqc
 import writers
 import datetime as _wrapdt
 
+
 # ── THESE FIXTURES DECLARE THEIR FRAME RATHER THAN HAVING IT INFERRED ──────────────────────────────────
 #
 # They build a file's start from a floating civil stamp and its mtime from `.timestamp()`, so the two are
@@ -44,7 +45,7 @@ def _declared_reader_frame(night):
         try:
             absolute = _wrapdt.datetime.strptime(stamp, "%Y%m%d%H%M%S").timestamp()
         except ValueError:
-            continue            # not a 14-digit stamp — try the next file; a legacy name states no frame
+            continue  # not a 14-digit stamp — try the next file; a legacy name states no frame
         return nightqc.declared_offset(absolute - f["session"])
     return nightqc.declared_offset(0.0)
 
@@ -72,6 +73,7 @@ def _summarize_floating(night, devices, wear=None):
     casts a single vote and cannot state a zone on its own."""
     return nightqc.summarize(night, devices, wear, writer_offset=nightqc.declared_offset(0.0))
 
+
 def test_one_header_then_a_row_per_start_and_the_pid_separates_two_in_one_second(tmp_path):
     _start(tmp_path)
     ok, path = _start(tmp_path, pid=4243)
@@ -79,7 +81,8 @@ def test_one_header_then_a_row_per_start_and_the_pid_separates_two_in_one_second
     lines = open(path, encoding="utf-8").read().splitlines()
     assert len(lines) == 3 and lines[0].startswith("Phone timestamp;pid;git;dirty;adapter")
     assert lines[1].split(";")[1] == "4242" and lines[2].split(";")[1] == "4243", (
-        "two starts inside one second are two rows, told apart by pid")
+        "two starts inside one second are two rows, told apart by pid"
+    )
 
 
 def test_dirty_is_a_TRISTATE_and_unknown_is_blank_never_clean(tmp_path):
@@ -104,6 +107,7 @@ def test_no_root_and_an_unwritable_root_both_return_false_and_never_raise(tmp_pa
 
 # ── the reader: the COUNT and the harm term, together ─────────────────────────────────────────────
 
+
 def _night(tmp_path, stamps, *, rows_in_file=True, span=(5 * 60, 7 * 60)):
     """A night dir with one data file whose span is `span` minutes past midnight, and `stamps`
     (minutes past midnight) as daemon starts."""
@@ -112,8 +116,9 @@ def _night(tmp_path, stamps, *, rows_in_file=True, span=(5 * 60, 7 * 60)):
     base = dt.datetime(2026, 9, 10)
     name = "Polar_VeritySense_0C301E3F_%s_PPG.txt" % (base + dt.timedelta(minutes=span[0])).strftime("%Y%m%d%H%M%S")
     p = night / name
-    p.write_text("Phone timestamp;sensor timestamp [ns];channel 0\n" + ("x;1;2\n" if rows_in_file else ""),
-                 encoding="utf-8")
+    p.write_text(
+        "Phone timestamp;sensor timestamp [ns];channel 0\n" + ("x;1;2\n" if rows_in_file else ""), encoding="utf-8"
+    )
     # FLOATING, like everything else this fixture writes. The filename stamp is civil components and
     # `writers.append_daemon_start` writes `_phone_ts`, which is documented "local civil time, zone-free"
     # — so an mtime from `.timestamp()` put ONE value in the reader's absolute frame and the rest in civil
@@ -122,13 +127,14 @@ def _night(tmp_path, stamps, *, rows_in_file=True, span=(5 * 60, 7 * 60)):
     # or a start 8 h past midnight reads as falling inside a file that stopped at 7 h.
     os.utime(p, (float(calendar.timegm((base + dt.timedelta(minutes=span[1])).timetuple())),) * 2)
     for i, m in enumerate(stamps):
-        writers.append_daemon_start(str(tmp_path), base + dt.timedelta(minutes=m),
-                                    pid=100 + i, git="b89c192", dirty=False, adapter=None)
+        writers.append_daemon_start(
+            str(tmp_path), base + dt.timedelta(minutes=m), pid=100 + i, git="b89c192", dirty=False, adapter=None
+        )
     return str(night)
 
 
 def test_a_start_INSIDE_a_capturing_file_span_is_counted_and_one_outside_is_not(tmp_path):
-    d = _night(tmp_path, [4 * 60, 6 * 60, 8 * 60])       # before · inside · after
+    d = _night(tmp_path, [4 * 60, 6 * 60, 8 * 60])  # before · inside · after
     got = nightqc.daemon_starts(d)
     assert got["starts"] == 3 and got["inside_capture"] == 1
     assert len(got["stamps"]) == 3 and got["stamps"] == sorted(got["stamps"])
@@ -165,6 +171,7 @@ def test_the_summary_carries_it_without_walking_the_night_twice(tmp_path):
 
 # ── the report: the pair in the FILE, never in the one-line digest ────────────────────────────────
 
+
 def test_the_report_renders_the_count_WITH_its_harm_term(tmp_path):
     rep = night_report.build("2026-09-10", {"daemon": {"starts": 9, "inside_capture": 0}}, None)
     assert rep["restarts"] == "9 (0 inside a capture)"
@@ -177,12 +184,13 @@ def test_the_report_renders_the_count_WITH_its_harm_term(tmp_path):
 
 # ── the emitter: a real startup writes one row ────────────────────────────────────────────────────
 
+
 def test_starting_the_daemon_lands_exactly_one_row(tmp_path, monkeypatch):
     from test_capture_runners import _main_with_cfg
+
     cfg = {"root": str(tmp_path), "web": {"enabled": False}, "devices": []}
     _main_with_cfg(tmp_path, monkeypatch, cfg)
-    found = [os.path.join(r, n) for r, _d, ns in os.walk(str(tmp_path)) for n in ns
-             if n == writers.STARTS_NAME]
+    found = [os.path.join(r, n) for r, _d, ns in os.walk(str(tmp_path)) for n in ns if n == writers.STARTS_NAME]
     assert len(found) == 1, f"one row per start, in tonight's night dir: {found}"
     rows = open(found[0], encoding="utf-8").read().splitlines()
     assert len(rows) == 2 and rows[1].split(";")[1] == str(os.getpid())

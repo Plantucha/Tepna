@@ -56,6 +56,7 @@ NOTE: the ring REFUSES FILE_START while WORN (FILE_LIST still answers). Do the
 actual download OFF-body (docked/charging). File-transfer framing below matches
 the vendor BLE codec + the USB [len] wrapper; confirm on your first live pull.
 """
+
 import argparse
 import hashlib
 import json
@@ -80,14 +81,28 @@ OP_FILE_DATA = 0xF3
 OP_FILE_END = 0xF4
 
 # Opcodes that wipe data / power off the ring. NEVER emit these.
-DESTRUCTIVE = {0xE3, 0xEE}   # 0xE3 FACTORY_RESET, 0xEE FACTORY_RESET_ALL
+DESTRUCTIVE = {0xE3, 0xEE}  # 0xE3 FACTORY_RESET, 0xEE FACTORY_RESET_ALL
 
 OP_NAMES = {
-    0x00: "GET_CONFIG", 0x01: "SET_CONFIG", 0x03: "LIVE_PPG_A", 0x04: "LIVE_SAMPLES",
-    0x05: "GET_RT_PPG", 0x10: "SETUP", 0x15: "poll", 0x83: "VIBRATE",
-    0xC0: "SET_UTC_TIME", 0xE0: "hello", 0xE1: "GET_INFO", 0xE3: "FACTORY_RESET",
-    0xE4: "GET_BATTERY", 0xEE: "FACTORY_RESET_ALL", 0xF1: "FILE_LIST",
-    0xF2: "FILE_START", 0xF3: "FILE_DATA", 0xF4: "FILE_END", 0xFF: "AUTH",
+    0x00: "GET_CONFIG",
+    0x01: "SET_CONFIG",
+    0x03: "LIVE_PPG_A",
+    0x04: "LIVE_SAMPLES",
+    0x05: "GET_RT_PPG",
+    0x10: "SETUP",
+    0x15: "poll",
+    0x83: "VIBRATE",
+    0xC0: "SET_UTC_TIME",
+    0xE0: "hello",
+    0xE1: "GET_INFO",
+    0xE3: "FACTORY_RESET",
+    0xE4: "GET_BATTERY",
+    0xEE: "FACTORY_RESET_ALL",
+    0xF1: "FILE_LIST",
+    0xF2: "FILE_START",
+    0xF3: "FILE_DATA",
+    0xF4: "FILE_END",
+    0xFF: "AUTH",
 }
 
 # Read-only / non-mutating probes: (magic, op, payload). Excludes writes (SET_CONFIG,
@@ -95,13 +110,13 @@ OP_NAMES = {
 PROBE_SAFE = [
     (0xA5, OP_HELLO, b""),
     (0xA5, OP_GET_INFO, b""),
-    (0xA5, 0x00, b""),                  # GET_CONFIG
-    (0xA5, 0xE4, b""),                  # GET_BATTERY
+    (0xA5, 0x00, b""),  # GET_CONFIG
+    (0xA5, 0xE4, b""),  # GET_BATTERY
     (0xA5, OP_FILE_LIST, b""),
-    (0xA5, 0x04, b""),                  # LIVE_SAMPLES (read/drain)
-    (0xA5, 0x03, b""),                  # LIVE_PPG_A (read/drain)
+    (0xA5, 0x04, b""),  # LIVE_SAMPLES (read/drain)
+    (0xA5, 0x03, b""),  # LIVE_PPG_A (read/drain)
     (0xA5, 0x05, bytes([0x07, 0x01])),  # GET_RT_PPG (needs these args)
-    (0xAA, 0x15, b""),                  # legacy poll
+    (0xAA, 0x15, b""),  # legacy poll
 ]
 
 
@@ -114,8 +129,7 @@ def crc8_smbus(data: bytes) -> int:
     return crc
 
 
-def encode(op: int, payload: bytes = b"", magic: int = 0xA5, flag: int = 0,
-           seq: int = 0) -> bytes:
+def encode(op: int, payload: bytes = b"", magic: int = 0xA5, flag: int = 0, seq: int = 0) -> bytes:
     """Build a full 64-byte report for one command."""
     n = len(payload)
     body = bytes([magic, op, (~op) & 0xFF, flag, seq, n & 0xFF, (n >> 8) & 0xFF]) + payload
@@ -128,13 +142,12 @@ def encode(op: int, payload: bytes = b"", magic: int = 0xA5, flag: int = 0,
 def decode(report: bytes):
     """Parse a reply report -> dict(op, flag, payload). Reply mirrors the envelope."""
     ln = report[0]
-    body = report[1:1 + ln - 1]         # drop trailing crc
+    body = report[1 : 1 + ln - 1]  # drop trailing crc
     if len(body) < 7:
-        return {"op": None, "flag": None, "payload": body, "raw": report[:1 + ln]}
+        return {"op": None, "flag": None, "payload": body, "raw": report[: 1 + ln]}
     magic, op, _nop, flag, seq, lo, hi = body[:7]
     plen = lo | (hi << 8)
-    return {"magic": magic, "op": op, "flag": flag, "seq": seq,
-            "payload": body[7:7 + plen], "raw": report[:1 + ln]}
+    return {"magic": magic, "op": op, "flag": flag, "seq": seq, "payload": body[7 : 7 + plen], "raw": report[: 1 + ln]}
 
 
 def auth_payload(serial: bytes = b"0000", ts: int | None = None) -> bytes:
@@ -147,8 +160,7 @@ def auth_payload(serial: bytes = b"0000", ts: int | None = None) -> bytes:
     return bytes(a ^ b for a, b in zip(bytes(key), _LEPU))
 
 
-def build_auth(serial: bytes = b"0000", ts: int | None = None,
-               magic: int = 0xA5) -> bytes:
+def build_auth(serial: bytes = b"0000", ts: int | None = None, magic: int = 0xA5) -> bytes:
     return encode(OP_AUTH, auth_payload(serial, ts), magic=magic)
 
 
@@ -156,18 +168,19 @@ def build_auth(serial: bytes = b"0000", ts: int | None = None,
 # Self-contained AES (FIPS-197) so the client stays a single file with no crypto dependency;
 # payloads are <= 512 B so speed is irrelevant. Checked against the FIPS-197 vectors in tests.
 
+
 def _gen_sbox():
     sbox = [0] * 256
     p = q = 1
     while True:
-        p = p ^ ((p << 1) & 0xFF) ^ (0x1B if p & 0x80 else 0)      # p *= 3 in GF(2^8)
+        p = p ^ ((p << 1) & 0xFF) ^ (0x1B if p & 0x80 else 0)  # p *= 3 in GF(2^8)
         q ^= q << 1
         q ^= q << 2
         q ^= q << 4
         q &= 0xFF
         if q & 0x80:
-            q ^= 0x09                                             # q /= 3
-        x = q ^ (q << 1) ^ (q << 2) ^ (q << 3) ^ (q << 4)         # affine transform
+            q ^= 0x09  # q /= 3
+        x = q ^ (q << 1) ^ (q << 2) ^ (q << 3) ^ (q << 4)  # affine transform
         sbox[p] = (x ^ (x >> 8) ^ 0x63) & 0xFF
         if p == 1:
             break
@@ -200,7 +213,7 @@ def _expand_key(key: bytes):
     if nk not in (4, 6, 8) or len(key) % 4:
         raise ValueError("AES key must be 16, 24 or 32 bytes")
     rounds = nk + 6
-    w = [list(key[i * 4:i * 4 + 4]) for i in range(nk)]
+    w = [list(key[i * 4 : i * 4 + 4]) for i in range(nk)]
     rcon = 1
     for i in range(nk, 4 * (rounds + 1)):
         t = list(w[i - 1])
@@ -210,7 +223,7 @@ def _expand_key(key: bytes):
         elif nk > 6 and i % nk == 4:
             t = [_SBOX[b] for b in t]
         w.append([a ^ b for a, b in zip(w[i - nk], t)])
-    return [[b for word in w[r * 4:r * 4 + 4] for b in word] for r in range(rounds + 1)], rounds
+    return [[b for word in w[r * 4 : r * 4 + 4] for b in word] for r in range(rounds + 1)], rounds
 
 
 def _add_round_key(s, k):
@@ -228,17 +241,21 @@ def _inv_shift_rows(s):
 def _mix_columns(s, inv=False):
     out = []
     for c in range(4):
-        a = s[c * 4:c * 4 + 4]
+        a = s[c * 4 : c * 4 + 4]
         if inv:
-            out += [_gmul(a[0], 14) ^ _gmul(a[1], 11) ^ _gmul(a[2], 13) ^ _gmul(a[3], 9),
-                    _gmul(a[0], 9) ^ _gmul(a[1], 14) ^ _gmul(a[2], 11) ^ _gmul(a[3], 13),
-                    _gmul(a[0], 13) ^ _gmul(a[1], 9) ^ _gmul(a[2], 14) ^ _gmul(a[3], 11),
-                    _gmul(a[0], 11) ^ _gmul(a[1], 13) ^ _gmul(a[2], 9) ^ _gmul(a[3], 14)]
+            out += [
+                _gmul(a[0], 14) ^ _gmul(a[1], 11) ^ _gmul(a[2], 13) ^ _gmul(a[3], 9),
+                _gmul(a[0], 9) ^ _gmul(a[1], 14) ^ _gmul(a[2], 11) ^ _gmul(a[3], 13),
+                _gmul(a[0], 13) ^ _gmul(a[1], 9) ^ _gmul(a[2], 14) ^ _gmul(a[3], 11),
+                _gmul(a[0], 11) ^ _gmul(a[1], 13) ^ _gmul(a[2], 9) ^ _gmul(a[3], 14),
+            ]
         else:
-            out += [_gmul(a[0], 2) ^ _gmul(a[1], 3) ^ a[2] ^ a[3],
-                    a[0] ^ _gmul(a[1], 2) ^ _gmul(a[2], 3) ^ a[3],
-                    a[0] ^ a[1] ^ _gmul(a[2], 2) ^ _gmul(a[3], 3),
-                    _gmul(a[0], 3) ^ a[1] ^ a[2] ^ _gmul(a[3], 2)]
+            out += [
+                _gmul(a[0], 2) ^ _gmul(a[1], 3) ^ a[2] ^ a[3],
+                a[0] ^ _gmul(a[1], 2) ^ _gmul(a[2], 3) ^ a[3],
+                a[0] ^ a[1] ^ _gmul(a[2], 2) ^ _gmul(a[3], 3),
+                _gmul(a[0], 3) ^ a[1] ^ a[2] ^ _gmul(a[3], 2),
+            ]
     return out
 
 
@@ -270,13 +287,13 @@ def aes_ecb_encrypt(key: bytes, data: bytes) -> bytes:
     """AES/ECB/PKCS5Padding — exactly what the SDK's javax.crypto call does (empty -> 16 B)."""
     pad = 16 - len(data) % 16
     data = data + bytes([pad]) * pad
-    return b"".join(aes_encrypt_block(key, data[i:i + 16]) for i in range(0, len(data), 16))
+    return b"".join(aes_encrypt_block(key, data[i : i + 16]) for i in range(0, len(data), 16))
 
 
 def aes_ecb_decrypt(key: bytes, data: bytes) -> bytes:
     if not data or len(data) % 16:
         raise ValueError("ciphertext length not a multiple of 16")
-    out = b"".join(aes_decrypt_block(key, data[i:i + 16]) for i in range(0, len(data), 16))
+    out = b"".join(aes_decrypt_block(key, data[i : i + 16]) for i in range(0, len(data), 16))
     pad = out[-1]
     if not 1 <= pad <= 16 or out[-pad:] != bytes([pad]) * pad:
         raise ValueError("bad PKCS5 padding")
@@ -285,7 +302,7 @@ def aes_ecb_decrypt(key: bytes, data: bytes) -> bytes:
 
 # ----------------------------------------------------------- session cipher ----
 
-KEY_TYPE_AES = 0x01   # r[0] of the decoded blob; the SDK defines no other type today
+KEY_TYPE_AES = 0x01  # r[0] of the decoded blob; the SDK defines no other type today
 
 
 def parse_key_reply(payload: bytes):
@@ -306,7 +323,7 @@ def parse_key_reply(payload: bytes):
     klen = r[1]
     if klen not in (16, 24, 32) or 4 + klen > len(r):
         return None
-    return r[4:4 + klen]
+    return r[4 : 4 + klen]
 
 
 class Cipher:
@@ -332,13 +349,15 @@ class Cipher:
         if self.key is None or op == OP_AUTH:
             return payload
         if not payload or len(payload) % 16:
-            return payload            # cannot be AES output — pass through untouched
+            return payload  # cannot be AES output — pass through untouched
         try:
             return aes_ecb_decrypt(self.key, payload)
         except ValueError:
             self.errors += 1
-            print(f"  !! op=0x{op:02x}: {len(payload)} B reply did not decrypt with the session "
-                  "key — passing raw payload through")
+            print(
+                f"  !! op=0x{op:02x}: {len(payload)} B reply did not decrypt with the session "
+                "key — passing raw payload through"
+            )
             return payload
 
 
@@ -347,6 +366,7 @@ SESSION = Cipher()
 
 def open_device():
     import hid
+
     dev = hid.device()
     dev.open(VID, PID)
     dev.set_nonblocking(0)
@@ -380,21 +400,26 @@ def read_reply(dev, want_op=None, timeout_ms=2000, tries=12):
         if not rep:
             continue
         n = rep[0]
-        if n < 7 or rep[1] not in (0xA5, 0xAA):     # marker / 05.. status — not a frame start
+        if n < 7 or rep[1] not in (0xA5, 0xAA):  # marker / 05.. status — not a frame start
             continue
-        buf = bytearray(rep[1:1 + n])
-        while n == 0x3f:                            # continued: append raw payload from next reports
+        buf = bytearray(rep[1 : 1 + n])
+        while n == 0x3F:  # continued: append raw payload from next reports
             cont = read_report(dev, timeout_ms)
             if not cont:
                 break
             n = cont[0]
-            buf += cont[1:1 + n]
+            buf += cont[1 : 1 + n]
         if len(buf) < 7:
             continue
         op = buf[1]
         plen = buf[5] | (buf[6] << 8)
-        msg = {"magic": buf[0], "op": op, "flag": buf[3], "seq": buf[4],
-               "payload": SESSION.unwrap(op, bytes(buf[7:7 + plen]))}
+        msg = {
+            "magic": buf[0],
+            "op": op,
+            "flag": buf[3],
+            "seq": buf[4],
+            "payload": SESSION.unwrap(op, bytes(buf[7 : 7 + plen])),
+        }
         if want_op is None or op == want_op:
             return msg
     return None
@@ -423,8 +448,7 @@ def authenticate(dev, serial=b"0000", timeout_s=90, verbose=True, keyed_grace_s=
     key_reply = None
     while time.time() < end:
         batch = [] if SESSION.key else [a5, aa]
-        batch += [encode(0x15, SESSION.wrap(0x15, b""), magic=0xAA),
-                  encode(OP_HELLO, SESSION.wrap(OP_HELLO, b""))]
+        batch += [encode(0x15, SESSION.wrap(0x15, b""), magic=0xAA), encode(OP_HELLO, SESSION.wrap(OP_HELLO, b""))]
         for f in batch:
             send(dev, f)
         deadline = time.time() + 0.9
@@ -439,17 +463,20 @@ def authenticate(dev, serial=b"0000", timeout_s=90, verbose=True, keyed_grace_s=
                         print(f"AUTH reply is not a key blob: {rep['payload'].hex(' ')}")
                     continue
                 if verbose and key != SESSION.key:
-                    print(f"AUTH reply: encrypted-handshake ring — {len(key) * 8}-bit AES session "
-                          f"key installed (blob {rep['payload'].hex(' ')})")
+                    print(
+                        f"AUTH reply: encrypted-handshake ring — {len(key) * 8}-bit AES session "
+                        f"key installed (blob {rep['payload'].hex(' ')})"
+                    )
                 SESSION.key = key
                 keyed_at = keyed_at or time.time()
                 key_reply = rep
-                send_cmd(dev, OP_HELLO)          # the plaintext HELLO just sent is now unreadable
+                send_cmd(dev, OP_HELLO)  # the plaintext HELLO just sent is now unreadable
                 continue
             if rep["op"] == OP_HELLO:
                 if verbose:
-                    print(f"AUTH OK — hello ack: {rep['payload'].hex(' ')}"
-                          + ("  [AES session]" if SESSION.key else ""))
+                    print(
+                        f"AUTH OK — hello ack: {rep['payload'].hex(' ')}" + ("  [AES session]" if SESSION.key else "")
+                    )
                 return rep
         if keyed_at and time.time() - keyed_at >= keyed_grace_s:
             if verbose:
@@ -474,18 +501,19 @@ def file_list(dev):
     send_cmd(dev, OP_FILE_LIST)
     msg = read_reply(dev, want_op=OP_FILE_LIST)
     if not msg:
-        file_end(dev)                      # clear the stalled file state machine
+        file_end(dev)  # clear the stalled file state machine
         send_cmd(dev, OP_FILE_LIST)
         msg = read_reply(dev, want_op=OP_FILE_LIST)
     if not msg:
         raise RuntimeError(
             "FILE_LIST timed out twice (ring still silent after a FILE_END reset) — "
-            "this is a ring that would not answer, NOT a ring with no recordings")
+            "this is a ring that would not answer, NOT a ring with no recordings"
+        )
     p = msg["payload"]
     count = p[0]
     sessions = []
     for i in range(count):
-        slot = p[1 + i * 16: 1 + i * 16 + 16]
+        slot = p[1 + i * 16 : 1 + i * 16 + 16]
         sid = slot[:14].split(b"\x00")[0].decode("ascii", "replace")
         sessions.append(sid)
     return sessions
@@ -510,7 +538,7 @@ def file_end(dev):
     return read_reply(dev, want_op=OP_FILE_END, timeout_ms=1000)
 
 
-OXY_TRAILER_MAGIC = bytes.fromhex("48125ada")   # at trailer[4:8]; marks a complete file
+OXY_TRAILER_MAGIC = bytes.fromhex("48125ada")  # at trailer[4:8]; marks a complete file
 
 
 def _emit_csv(dat_path: str):
@@ -529,9 +557,11 @@ def _emit_csv(dat_path: str):
     print(f"  CSV: {csv_path}  ({meta['n_samples']} samples @1Hz)")
     if trailer:
         ok, _ = parse_dat.self_consistency(samples, trailer)
-        print(f"  trailer: avg_spo2={trailer['avg_spo2']} min={trailer['min_spo2']} "
-              f"avg_hr={trailer['avg_hr']} dur={trailer['total_seconds']}s  "
-              f"self-consistency={'PASS' if ok else 'CHECK header offset'}")
+        print(
+            f"  trailer: avg_spo2={trailer['avg_spo2']} min={trailer['min_spo2']} "
+            f"avg_hr={trailer['avg_hr']} dur={trailer['total_seconds']}s  "
+            f"self-consistency={'PASS' if ok else 'CHECK header offset'}"
+        )
     # The decision is parse_dat's, so the object is parse_dat's too — printed here, never rebuilt
     # (a second builder over the same bands is the drift §🎫 forbids). One line, after the prose.
     print("  " + json.dumps(parse_dat.consistency_verdict(samples, trailer, dat_path)))
@@ -550,14 +580,14 @@ def pull_session(dev, session_id: str, max_bytes=8 * 1024 * 1024):
         msg = file_data(dev, offset)
         if not msg or not msg["payload"]:
             break
-        chunk = msg["payload"]          # plaintext (read_reply already decrypted): offsets = file bytes
+        chunk = msg["payload"]  # plaintext (read_reply already decrypted): offsets = file bytes
         buf += chunk
         offset += len(chunk)
         if size and offset >= size:
             break
     file_end(dev)
-    data = bytes(buf[:size]) if size else bytes(buf)   # cap at size: over-reading scrambles the trailer
-    complete = len(data) >= 48 and data[-48 + 4:-48 + 8] == OXY_TRAILER_MAGIC
+    data = bytes(buf[:size]) if size else bytes(buf)  # cap at size: over-reading scrambles the trailer
+    complete = len(data) >= 48 and data[-48 + 4 : -48 + 8] == OXY_TRAILER_MAGIC
     print(f"  pulled {len(data)} bytes  complete-trailer={complete}")
     return data
 
@@ -572,8 +602,10 @@ def _probe_one(dev, magic, op, payload, quiet_empty=False):
             print(f"  magic={magic:#04x} op=0x{op:02x} {name:14s} -> (no reply)")
         return
     pl = msg["payload"]
-    print(f"  magic={magic:#04x} op=0x{op:02x} {name:14s} -> flag={msg.get('flag')} "
-          f"len={len(pl)} payload={pl[:32].hex(' ')}")
+    print(
+        f"  magic={magic:#04x} op=0x{op:02x} {name:14s} -> flag={msg.get('flag')} "
+        f"len={len(pl)} payload={pl[:32].hex(' ')}"
+    )
 
 
 def cmd_probe(dev, sweep=False):
@@ -584,8 +616,10 @@ def cmd_probe(dev, sweep=False):
         _probe_one(dev, magic, op, payload)
     if sweep:
         print("=== full opcode sweep 0x00-0xFF (empty payload) ===")
-        print("!! WARNING: blindly probing undocumented opcodes may hit state-changing "
-              "commands. Known destructive ops are skipped, but unknown ones cannot be. !!")
+        print(
+            "!! WARNING: blindly probing undocumented opcodes may hit state-changing "
+            "commands. Known destructive ops are skipped, but unknown ones cannot be. !!"
+        )
         probed = {op for _, op, _ in PROBE_SAFE}
         for op in range(256):
             if op in DESTRUCTIVE:
@@ -601,13 +635,21 @@ def cmd_probe(dev, sweep=False):
 # variants, real device responses) and AES-128 against FIPS-197 C.1. The rule is byte equality, so
 # PASS ⇔ 0 vectors mismatched; there is no band to state.
 SELFTEST_VECTORS = (
-    ("auth aa-variant ts=1788096060", lambda: build_auth(b"0000", ts=1788096060, magic=0xAA),
-     bytes.fromhex("18aaff00000010000068158872091cb098c8c7daf86da199b4")),
-    ("auth a5-variant ts=1788095920", lambda: build_auth(b"0000", ts=1788095920, magic=0xA5),
-     bytes.fromhex("18a5ff00000010000068158872091cb098c8c7da746ea19925")),
-    ("AES-128 FIPS-197 C.1",
-     lambda: aes_encrypt_block(bytes(range(16)), bytes.fromhex("00112233445566778899aabbccddeeff")),
-     bytes.fromhex("69c4e0d86a7b0430d8cdb78070b4c55a")),
+    (
+        "auth aa-variant ts=1788096060",
+        lambda: build_auth(b"0000", ts=1788096060, magic=0xAA),
+        bytes.fromhex("18aaff00000010000068158872091cb098c8c7daf86da199b4"),
+    ),
+    (
+        "auth a5-variant ts=1788095920",
+        lambda: build_auth(b"0000", ts=1788095920, magic=0xA5),
+        bytes.fromhex("18a5ff00000010000068158872091cb098c8c7da746ea19925"),
+    ),
+    (
+        "AES-128 FIPS-197 C.1",
+        lambda: aes_encrypt_block(bytes(range(16)), bytes.fromhex("00112233445566778899aabbccddeeff")),
+        bytes.fromhex("69c4e0d86a7b0430d8cdb78070b4c55a"),
+    ),
 )
 VERDICT_GATE = "o2ring-selftest"
 VERDICT_CRITERION = {"name": "vectors_mismatched", "threshold": 0, "unit": "vectors", "direction": "eq"}
@@ -618,20 +660,27 @@ def selftest_checks() -> list[dict]:
     out = []
     for name, fn, want in SELFTEST_VECTORS:
         got = fn()
-        out.append({"name": name, "ok": got[:len(want)] == want, "got": got[:len(want)].hex(), "want": want.hex()})
+        out.append({"name": name, "ok": got[: len(want)] == want, "got": got[: len(want)].hex(), "want": want.hex()})
     return out
 
 
 def selftest_verdict(checks: list[dict]) -> dict:
     """PASS every vector reproduced · FAIL naming the mismatched ones. Population = the vectors."""
     bad = [c["name"] for c in checks if not c["ok"]]
-    return VD.make(gate=VERDICT_GATE, status="FAIL" if bad else "PASS",
-                   population={"checked": len(checks), "eligible": len(checks), "excluded": 0},
-                   criterion=VERDICT_CRITERION,
-                   result={"vectors": len(checks), "mismatched": len(bad),
-                           "checks": [{k: c[k] for k in ("name", "ok")} for c in checks]},
-                   evidence=["capture-host/o2ring.py"] + [c["name"] for c in checks],
-                   reason=None if not bad else "mismatched: " + ", ".join(bad), tool="capture-host/o2ring.py")
+    return VD.make(
+        gate=VERDICT_GATE,
+        status="FAIL" if bad else "PASS",
+        population={"checked": len(checks), "eligible": len(checks), "excluded": 0},
+        criterion=VERDICT_CRITERION,
+        result={
+            "vectors": len(checks),
+            "mismatched": len(bad),
+            "checks": [{k: c[k] for k in ("name", "ok")} for c in checks],
+        },
+        evidence=["capture-host/o2ring.py"] + [c["name"] for c in checks],
+        reason=None if not bad else "mismatched: " + ", ".join(bad),
+        tool="capture-host/o2ring.py",
+    )
 
 
 def cmd_selftest():  # pragma: no cover  (offline self-demo; the pure halves above are tested)
@@ -656,11 +705,17 @@ def main():
     sub.add_parser("auth")
     sub.add_parser("info")
     sub.add_parser("list")
-    p = sub.add_parser("pull"); p.add_argument("session_id"); p.add_argument("-o", "--out")
-    pa = sub.add_parser("pull-all"); pa.add_argument("-d", "--dir", default=".")
-    m = sub.add_parser("monitor"); m.add_argument("--seconds", type=float, default=10)
-    r = sub.add_parser("replay"); r.add_argument("frame_hex")
-    pr = sub.add_parser("probe"); pr.add_argument("--sweep", action="store_true")
+    p = sub.add_parser("pull")
+    p.add_argument("session_id")
+    p.add_argument("-o", "--out")
+    pa = sub.add_parser("pull-all")
+    pa.add_argument("-d", "--dir", default=".")
+    m = sub.add_parser("monitor")
+    m.add_argument("--seconds", type=float, default=10)
+    r = sub.add_parser("replay")
+    r.add_argument("frame_hex")
+    pr = sub.add_parser("probe")
+    pr.add_argument("--sweep", action="store_true")
     a = ap.parse_args()
     a_serial = b"0000"
 
@@ -674,24 +729,26 @@ def main():
             while time.time() < end:
                 rep = read_report(dev, 500)
                 if rep:
-                    print("IN:", rep[:rep[0] + 1].hex(' '))
+                    print("IN:", rep[: rep[0] + 1].hex(" "))
             return
         if a.cmd == "replay":
             raw = bytes.fromhex(a.frame_hex.replace(" ", "")).ljust(REPORT_LEN, b"\x00")
-            op = raw[2] if len(raw) > 2 else None   # report[0]=len,[1]=magic,[2]=op
+            op = raw[2] if len(raw) > 2 else None  # report[0]=len,[1]=magic,[2]=op
             if op in DESTRUCTIVE:
-                print(f"REFUSED: opcode 0x{op:02x} ({OP_NAMES.get(op, '?')}) is destructive "
-                      "(factory reset / power-off) — not sent.")
+                print(
+                    f"REFUSED: opcode 0x{op:02x} ({OP_NAMES.get(op, '?')}) is destructive "
+                    "(factory reset / power-off) — not sent."
+                )
                 return
-            send(dev, raw)                          # verbatim: never encrypted
+            send(dev, raw)  # verbatim: never encrypted
             r = read_reply(dev)
-            print("reply:", r["payload"].hex(' ') if r else "(none)")
+            print("reply:", r["payload"].hex(" ") if r else "(none)")
             return
         if a.cmd == "probe":
             cmd_probe(dev, sweep=a.sweep)
             return
 
-        authenticate(dev, a_serial)      # every session starts with a fresh auth
+        authenticate(dev, a_serial)  # every session starts with a fresh auth
 
         if a.cmd == "auth":
             return
@@ -699,7 +756,7 @@ def main():
             send_cmd(dev, OP_GET_INFO)
             msg = read_reply(dev, want_op=OP_GET_INFO)
             p = msg["payload"] if msg else b""
-            print("GET_INFO payload:", p.hex(' '))
+            print("GET_INFO payload:", p.hex(" "))
             # RTC at payload[24:31] = year(u16 LE),mon,day,hr,min,sec (local civil)
             if len(p) >= 31:
                 y = p[24] | (p[25] << 8)
@@ -721,8 +778,9 @@ def main():
         # argument, so it is never unset, and every other subcommand returns above — so
         # reaching here means "pull-all". The guard stays because a subcommand added later
         # that does NOT return would otherwise fall into this block silently.
-        if a.cmd == "pull-all":   # pragma: no branch
+        if a.cmd == "pull-all":  # pragma: no branch
             import os
+
             for sid in file_list(dev):
                 print("pulling", sid)
                 data = pull_session(dev, sid)
@@ -733,6 +791,7 @@ def main():
                 _emit_csv(path)
     finally:
         dev.close()
+
 
 if __name__ == "__main__":  # pragma: no cover
     main()

@@ -14,6 +14,7 @@ THE RULE EVERY TEST HERE ENFORCES IS THE SAME ONE: **an ACK is not a state.** Th
 (POLAR-PMD-COMMAND-SURFACE §2.1). So SDK mode is confirmed by asking the device, and a device that does
 not answer yields `None` — never `False`.
 """
+
 import asyncio
 import os
 import sys
@@ -50,15 +51,18 @@ def test_sdk_mode_is_not_a_measurement_and_must_never_be_offered_as_a_stream():
     assert pmd.SDK_MODE == 0x09
 
 
-@pytest.mark.parametrize("reply,expect", [
-    (bytes([0xF0, 0x06, 0x09, 0x00, 0x00, 0x01]), True),    # the real shape, measured
-    (bytes([0xF0, 0x06, 0x09, 0x00, 0x00, 0x00]), False),
-    (bytes([0xF0, 0x06, 0x09, 0x03, 0x00, 0x01]), None),    # non-zero status = an error, not an answer
-    (bytes([0xF0, 0x01, 0x09, 0x00, 0x00, 0x01]), None),    # a different command's reply
-    (bytes([0x01, 0x06, 0x09, 0x00]), None),                # a device PUSH, not a response
-    (bytes([0xF0, 0x06]), None),                            # too short to carry a status
-    (b"", None),                                            # no answer at all
-])
+@pytest.mark.parametrize(
+    "reply,expect",
+    [
+        (bytes([0xF0, 0x06, 0x09, 0x00, 0x00, 0x01]), True),  # the real shape, measured
+        (bytes([0xF0, 0x06, 0x09, 0x00, 0x00, 0x00]), False),
+        (bytes([0xF0, 0x06, 0x09, 0x03, 0x00, 0x01]), None),  # non-zero status = an error, not an answer
+        (bytes([0xF0, 0x01, 0x09, 0x00, 0x00, 0x01]), None),  # a different command's reply
+        (bytes([0x01, 0x06, 0x09, 0x00]), None),  # a device PUSH, not a response
+        (bytes([0xF0, 0x06]), None),  # too short to carry a status
+        (b"", None),  # no answer at all
+    ],
+)
 def test_sdk_mode_status_reports_unknown_as_None_never_as_off(reply, expect):
     """⚠️ `None` IS NOT `False`. A device that said nothing has told us nothing — reporting that as
     "off" makes the daemon re-send the enter command every cycle to a device already in SDK mode, and
@@ -118,21 +122,29 @@ def test_invalid_state_is_warned_about_by_name_because_is_transient_hides_it(cap
     c = _Ctrl(on_start=pmd.INVALID_STATE, status_reply=bytes([0xF0, 0x06, 0x09, 0x00, 0x00, 0x00]))
     with caplog.at_level("WARNING"):
         assert _run(capture._enter_sdk_mode(c, "Verity")) is False
-    assert any("invalid_state" in r.message and "55" in r.message for r in caplog.records), \
+    assert any("invalid_state" in r.message and "55" in r.message for r in caplog.records), (
         "the warning must name the consequence, not just the status code"
+    )
     assert pmd.INVALID_STATE in pmd.TRANSIENT_STATUS, "…which is exactly why it needs its own warning"
 
 
 def test_an_unexpected_refusal_is_warned_about(caplog):
-    c = _Ctrl(on_start=0x03, status_reply=b"")              # not_supported
+    c = _Ctrl(on_start=0x03, status_reply=b"")  # not_supported
     with caplog.at_level("WARNING"):
         _run(capture._enter_sdk_mode(c, "Verity"))
     assert any("not_supported" in r.message for r in caplog.records)
 
 
 # ── the monitor's switch ────────────────────────────────────────────────────────────────────────────
-_VERITY = {"name": "Verity", "vendor": "Polar", "model": "VeritySense", "device_id": "0C301E3F",
-           "address": "24:AC:AC:0C:30:1E", "streams": ["ppg"], "rates": {}}
+_VERITY = {
+    "name": "Verity",
+    "vendor": "Polar",
+    "model": "VeritySense",
+    "device_id": "0C301E3F",
+    "address": "24:AC:AC:0C:30:1E",
+    "streams": ["ppg"],
+    "rates": {},
+}
 _SUPPORTED = ["ppg", "acc", "0x9", "0xd", "0xe"]
 
 
@@ -141,8 +153,8 @@ _SUPPORTED = ["ppg", "acc", "0x9", "0xd", "0xe"]
 # Feature bitmasks as the device actually reports them (`[0x0F, <bits 0-7>, <bits 8-15>]`), because
 # run_polar READS the features off the client and overwrites anything pre-seeded into STATUS — seeding
 # the status dict looked like it worked and did nothing, which is this file's own subject matter.
-FEAT_ECG_ACC = bytes([0x0F, 0x05, 0x00])          # H10: no 0x9
-FEAT_WITH_SDK = bytes([0x0F, 0x05, 0x02])         # bit 9 set
+FEAT_ECG_ACC = bytes([0x0F, 0x05, 0x00])  # H10: no 0x9
+FEAT_WITH_SDK = bytes([0x0F, 0x05, 0x02])  # bit 9 set
 
 
 def _drive_polar(monkeypatch, tmp_path, *, sdk_cfg, features, sdk_on):
@@ -159,6 +171,7 @@ def _drive_polar(monkeypatch, tmp_path, *, sdk_cfg, features, sdk_on):
             if uuid == pmd.PMD_CONTROL:
                 return features
             return await super().read_gatt_char(uuid)
+
     c = _C()
     T._inject_connect(monkeypatch, c)
     T._stop_after(monkeypatch, 1)
@@ -173,17 +186,16 @@ def _drive_polar(monkeypatch, tmp_path, *, sdk_cfg, features, sdk_on):
 def test_switching_sdk_mode_OFF_actually_exits_it_on_the_device(tmp_path, monkeypatch):
     """The bug, end to end: config says off, the device is IN SdK mode, and before this the daemon
     simply never mentioned it again — leaving PPI and HR dead until a manual power cycle."""
-    w = _drive_polar(monkeypatch, tmp_path, sdk_cfg=False,
-                     features=FEAT_WITH_SDK, sdk_on=True)
-    assert pmd.sdk_mode_cmd(False) in w, \
+    w = _drive_polar(monkeypatch, tmp_path, sdk_cfg=False, features=FEAT_WITH_SDK, sdk_on=True)
+    assert pmd.sdk_mode_cmd(False) in w, (
         f"config says sdk_mode off and the device is in it, but no `03 09` was sent: {[x.hex() for x in w]}"
+    )
 
 
 def test_a_device_NOT_in_sdk_mode_is_asked_once_and_left_alone(tmp_path, monkeypatch):
     """Costs one status read and changes nothing — an unconditional exit would churn the control point
     on every negotiation pass of every night."""
-    w = _drive_polar(monkeypatch, tmp_path, sdk_cfg=False,
-                     features=FEAT_WITH_SDK, sdk_on=False)
+    w = _drive_polar(monkeypatch, tmp_path, sdk_cfg=False, features=FEAT_WITH_SDK, sdk_on=False)
     assert pmd.sdk_mode_status_cmd() in w, "it must ASK before deciding"
     assert pmd.sdk_mode_cmd(False) not in w, "nothing to exit — it must not send a pointless STOP"
 
@@ -192,14 +204,15 @@ def test_hardware_without_the_feature_is_never_asked(tmp_path, monkeypatch):
     """An H10 answers op 6 with `invalid_op_code`; asking every pass is noise in the one log an
     operator reads at 07:00."""
     w = _drive_polar(monkeypatch, tmp_path, sdk_cfg=False, features=FEAT_ECG_ACC, sdk_on=False)
-    assert pmd.sdk_mode_status_cmd() not in w, \
+    assert pmd.sdk_mode_status_cmd() not in w, (
         "a device that does not advertise feature 0x9 must not be asked about SDK mode at all"
+    )
 
 
 def test_leaving_sdk_mode_sends_the_stop_and_then_ASKS(caplog):
     """`off` must mean OFF. SDK mode is DEVICE state that outlives the config: not re-entering it left
     a device already in SDK mode there until someone power-cycled the hardware by hand."""
-    c = _Ctrl(status_reply=bytes([0xF0, 0x06, 0x09, 0x00, 0x00, 0x00]))   # reports OFF afterwards
+    c = _Ctrl(status_reply=bytes([0xF0, 0x06, 0x09, 0x00, 0x00, 0x00]))  # reports OFF afterwards
     assert _run(capture._exit_sdk_mode(c, "Verity")) is False
     assert c.sent[0] == pmd.sdk_mode_cmd(False), "it must actually STOP SDK mode, not just stop asking"
     assert pmd.sdk_mode_status_cmd() in c.sent, "…and then ASK, never trust the ack"
@@ -209,18 +222,19 @@ def test_a_device_still_in_sdk_mode_after_the_exit_is_reported_and_WARNED_about(
     """The dangerous answer, and the reason this returns the device's word rather than ours: while it
     is still in SDK mode the Verity serves NO PPI and NO HR (Polar's product doc), so a silent failure
     here is two streams missing all night under a config that says they are on."""
-    c = _Ctrl()                                       # status keeps reporting ON
+    c = _Ctrl()  # status keeps reporting ON
     with caplog.at_level("WARNING"):
         assert _run(capture._exit_sdk_mode(c, "Verity")) is True
     assert any("STILL ON" in r.message for r in caplog.records), caplog.text
-    assert any("power cycle" in r.message for r in caplog.records), \
+    assert any("power cycle" in r.message for r in caplog.records), (
         "the operator needs the remedy, not just the symptom"
+    )
 
 
 def test_a_device_that_will_not_say_is_UNKNOWN_not_off():
     """Same tri-state as entry: None is not False. Publishing False here would claim PPI and HR are
     back when nothing has been confirmed."""
-    c = _Ctrl(status_reply=bytes([0xF0, 0x06, 0x09, 0x01]))     # error reply -> no verdict
+    c = _Ctrl(status_reply=bytes([0xF0, 0x06, 0x09, 0x01]))  # error reply -> no verdict
     assert _run(capture._exit_sdk_mode(c, "Verity")) is None
 
 
@@ -228,8 +242,7 @@ def test_a_REFUSED_exit_is_warned_about_by_status_name(caplog):
     """A device that rejects the STOP is not the same as one that accepts it and stays on, and the
     operator needs the refusal code to tell them apart — `invalid_state` means a stream was still
     running, anything else means the request itself was wrong."""
-    c = _Ctrl(on_start=pmd.INVALID_STATE,
-              status_reply=bytes([0xF0, 0x06, 0x09, 0x00, 0x00, 0x01]))
+    c = _Ctrl(on_start=pmd.INVALID_STATE, status_reply=bytes([0xF0, 0x06, 0x09, 0x00, 0x00, 0x01]))
     with caplog.at_level("WARNING"):
         assert _run(capture._exit_sdk_mode(c, "Verity")) is True
     assert any("SDK mode STOP" in r.message for r in caplog.records), caplog.text
@@ -247,6 +260,7 @@ def _settings(tmp_path, devices, status=None):
 
     async def go(c):
         return await (await c.get("/api/settings")).json()
+
     return _serve(app, go), cfg
 
 
@@ -256,6 +270,7 @@ def _post(tmp_path, body, devices, status=None):
     async def go(c):
         r = await c.post("/api/settings", json=body)
         return r.status, await r.json()
+
     return _serve(app, go), cfg
 
 
@@ -285,16 +300,18 @@ def test_the_page_separates_what_was_ASKED_from_what_the_device_SAID(tmp_path):
 
 
 def test_enabling_it_is_persisted_and_asks_for_a_reconnect(tmp_path):
-    (st, body), cfg = _post(tmp_path, {"sdk_mode": {"24:AC:AC:0C:30:1E": True}}, [_VERITY],
-                            {"Verity": {"pmd_supported": _SUPPORTED}})
+    (st, body), cfg = _post(
+        tmp_path, {"sdk_mode": {"24:AC:AC:0C:30:1E": True}}, [_VERITY], {"Verity": {"pmd_supported": _SUPPORTED}}
+    )
     assert st == 200 and body["ok"] is True
     assert cfg["devices"][0]["sdk_mode"] is True
     assert body["restart_needed"] is True, "the mode is entered during PMD negotiation, i.e. at connect"
 
 
 def test_enabling_it_on_hardware_that_does_not_advertise_it_is_REFUSED(tmp_path):
-    (st, body), cfg = _post(tmp_path, {"sdk_mode": {"24:AC:AC:0C:30:1E": True}}, [_VERITY],
-                            {"Verity": {"pmd_supported": ["ppg", "acc"]}})
+    (st, body), cfg = _post(
+        tmp_path, {"sdk_mode": {"24:AC:AC:0C:30:1E": True}}, [_VERITY], {"Verity": {"pmd_supported": ["ppg", "acc"]}}
+    )
     assert st == 400 and "SDK mode" in body["error"]
     assert "sdk_mode" not in cfg["devices"][0], "a refused save must not half-apply"
 
@@ -302,8 +319,9 @@ def test_enabling_it_on_hardware_that_does_not_advertise_it_is_REFUSED(tmp_path)
 def test_DISABLING_is_always_allowed_even_on_a_device_that_no_longer_advertises_it(tmp_path):
     """Otherwise a flag set against a since-swapped sensor could never be cleared from the UI."""
     dev = {**_VERITY, "sdk_mode": True}
-    (st, _), cfg = _post(tmp_path, {"sdk_mode": {"24:AC:AC:0C:30:1E": False}}, [dev],
-                         {"Verity": {"pmd_supported": ["ppg"]}})
+    (st, _), cfg = _post(
+        tmp_path, {"sdk_mode": {"24:AC:AC:0C:30:1E": False}}, [dev], {"Verity": {"pmd_supported": ["ppg"]}}
+    )
     assert st == 200 and cfg["devices"][0]["sdk_mode"] is False
 
 
@@ -315,8 +333,9 @@ def test_a_never_connected_device_can_still_be_configured(tmp_path):
 
 
 def test_a_non_boolean_is_rejected(tmp_path):
-    (st, body), _ = _post(tmp_path, {"sdk_mode": {"24:AC:AC:0C:30:1E": "yes"}}, [_VERITY],
-                          {"Verity": {"pmd_supported": _SUPPORTED}})
+    (st, body), _ = _post(
+        tmp_path, {"sdk_mode": {"24:AC:AC:0C:30:1E": "yes"}}, [_VERITY], {"Verity": {"pmd_supported": _SUPPORTED}}
+    )
     assert st == 400 and "boolean" in body["error"]
 
 
@@ -329,8 +348,9 @@ def test_an_unchanged_value_is_not_reported_as_a_change(tmp_path):
     """`changed` drives the "reconnect the device to apply" banner. A save that changed nothing must
     not ask the operator to interrupt a running capture."""
     dev = {**_VERITY, "sdk_mode": True}
-    (st, body), _ = _post(tmp_path, {"sdk_mode": {"24:AC:AC:0C:30:1E": True}}, [dev],
-                          {"Verity": {"pmd_supported": _SUPPORTED}})
+    (st, body), _ = _post(
+        tmp_path, {"sdk_mode": {"24:AC:AC:0C:30:1E": True}}, [dev], {"Verity": {"pmd_supported": _SUPPORTED}}
+    )
     assert st == 200 and body["changed"] == []
 
 
@@ -349,8 +369,9 @@ def test_run_polar_enters_sdk_mode_and_negotiates_the_EXTENDED_rate(tmp_path, mo
     T._run(capture.run_polar(T._pdev(sdk_mode=True, rates={"ecg": 176}), str(tmp_path)))
     assert pmd.sdk_mode_cmd(True) in c.writes, "the mode is entered"
     assert capture.STATUS["devices"]["H10"]["sdk_mode"] is True, "…and confirmed FROM THE DEVICE"
-    assert capture.STATUS["devices"]["H10"]["pmd_options"]["ecg"] == [130, 176], \
+    assert capture.STATUS["devices"]["H10"]["pmd_options"]["ecg"] == [130, 176], (
         "the menu published to the monitor is the WIDER one — that is what the mode is for"
+    )
 
 
 def test_run_polar_leaves_sdk_mode_alone_when_it_is_not_configured(tmp_path, monkeypatch):

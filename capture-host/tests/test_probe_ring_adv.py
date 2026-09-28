@@ -15,8 +15,15 @@ RING = "F2:35:00:00:00:01"
 
 
 def _adv(**kw):
-    base = dict(local_name=None, manufacturer_data={}, service_data={}, service_uuids=[], tx_power=None,
-                rssi=-60, platform_data=None)
+    base = dict(
+        local_name=None,
+        manufacturer_data={},
+        service_data={},
+        service_uuids=[],
+        tx_power=None,
+        rssi=-60,
+        platform_data=None,
+    )
     base.update(kw)
     return types.SimpleNamespace(**base)
 
@@ -31,9 +38,9 @@ def _dev(address):
 def test_platform_extras_tolerates_every_shape():
     assert probe.platform_extras(None) == {}
     assert probe.platform_extras(("/org/bluez/hci0/dev_X", {})) == {}
-    assert probe.platform_extras(("/path", 7)) == {}        # an int: `k in 7` would raise, so a dropped
-    assert probe.platform_extras(42) == {}                  # isinstance guard is a TypeError, not a {}
-    assert probe.platform_extras(("/path",)) == {}          # 1-tuple: the length guard, not IndexError
+    assert probe.platform_extras(("/path", 7)) == {}  # an int: `k in 7` would raise, so a dropped
+    assert probe.platform_extras(42) == {}  # isinstance guard is a TypeError, not a {}
+    assert probe.platform_extras(("/path",)) == {}  # 1-tuple: the length guard, not IndexError
 
 
 def test_platform_extras_hex_encodes_raw_ad_structures_and_unwraps_variants():
@@ -63,11 +70,24 @@ def test_platform_extras_hex_encodes_raw_ad_structures_and_unwraps_variants():
 
 
 def test_decode_sighting_is_flat_json_safe_and_tags_hypotheses_without_deciding():
-    adv = _adv(local_name="O2Ring 2100", manufacturer_data={0xF34E: b"\x01\x02", 0x1234: b"\xff"},
-               service_data={"0000180d-0000-1000-8000-00805f9b34fb": b"\x00"}, service_uuids=["180d"],
-               tx_power=4, rssi=-55, platform_data=("/p", {"AddressType": "public"}))
-    row = probe.decode_sighting(RING.lower(), adv, expected_addr=RING, label="button-pressed",
-                                scan_mode="active", host_wall=1_700_000_000.1234567, host_mono=12.3456789)
+    adv = _adv(
+        local_name="O2Ring 2100",
+        manufacturer_data={0xF34E: b"\x01\x02", 0x1234: b"\xff"},
+        service_data={"0000180d-0000-1000-8000-00805f9b34fb": b"\x00"},
+        service_uuids=["180d"],
+        tx_power=4,
+        rssi=-55,
+        platform_data=("/p", {"AddressType": "public"}),
+    )
+    row = probe.decode_sighting(
+        RING.lower(),
+        adv,
+        expected_addr=RING,
+        label="button-pressed",
+        scan_mode="active",
+        host_wall=1_700_000_000.1234567,
+        host_mono=12.3456789,
+    )
     assert row["address"] == RING and row["expected"] is True
     # the decoded radio fields come from THIS advert, each one (a mutant reading them off None
     # survived until these were pinned)
@@ -83,8 +103,15 @@ def test_decode_sighting_is_flat_json_safe_and_tags_hypotheses_without_deciding(
 
 
 def test_decode_sighting_survives_a_bare_advert():
-    row = probe.decode_sighting("AA:BB:CC:DD:EE:FF", types.SimpleNamespace(), expected_addr=RING, label="x",
-                                scan_mode="passive", host_wall=0.0, host_mono=0.0)
+    row = probe.decode_sighting(
+        "AA:BB:CC:DD:EE:FF",
+        types.SimpleNamespace(),
+        expected_addr=RING,
+        label="x",
+        scan_mode="passive",
+        host_wall=0.0,
+        host_mono=0.0,
+    )
     assert row["expected"] is False and row["manufacturer_data"] == {} and row["hypothesis"] == []
     assert row["local_name"] is None and row["rssi"] is None and row["service_uuids"] == []
 
@@ -112,11 +139,11 @@ def test_label_reader_prefers_the_files_first_line_and_falls_back(tmp_path):
     assert probe.label_reader_for("worn", None)() == "worn"
     f = tmp_path / "label"
     read = probe.label_reader_for("worn", str(f))
-    assert read() == "worn"                       # missing file → CLI label
+    assert read() == "worn"  # missing file → CLI label
     f.write_text("\n", encoding="utf-8")
-    assert read() == "worn"                       # empty first line → CLI label
+    assert read() == "worn"  # empty first line → CLI label
     f.write_text("  removed-idle \nsecond line\n", encoding="utf-8")
-    assert read() == "removed-idle"               # first line, stripped, re-read live
+    assert read() == "removed-idle"  # first line, stripped, re-read live
 
 
 # ── sink ───────────────────────────────────────────────────────────────────────────────────────────────
@@ -179,30 +206,40 @@ def _clock(step=1.0):
 def test_run_probe_writes_ring_and_candidates_counts_strangers_and_stops_at_duration():
     log, sink, shown = [], _Sink(), []
     feed = [
-        (RING, _adv(rssi=-50)),                                            # the ring → written
+        (RING, _adv(rssi=-50)),  # the ring → written
         ("11:22:33:44:55:66", _adv(manufacturer_data={0x036F: b"\x00"})),  # hypothesised id → written
-        ("AA:AA:AA:AA:AA:AA", _adv(local_name="Phone")),                   # stranger → counted only
-        ("AA:AA:AA:AA:AA:AA", _adv(local_name="Phone")),                   # same stranger → 1 address
-        ("BB:BB:BB:BB:BB:BB", _adv()),                                     # a second stranger → 2
+        ("AA:AA:AA:AA:AA:AA", _adv(local_name="Phone")),  # stranger → counted only
+        ("AA:AA:AA:AA:AA:AA", _adv(local_name="Phone")),  # same stranger → 1 address
+        ("BB:BB:BB:BB:BB:BB", _adv()),  # a second stranger → 2
         (RING, _adv(rssi=-52)),
     ]
     labels = iter(["worn", "worn", "worn", "removed", "removed", "removed"])
     sleeps, t = [], {"v": 100.0}
 
-    async def sleep(s):             # the only thing that advances the fake clock
+    async def sleep(s):  # the only thing that advances the fake clock
         sleeps.append(s)
         t["v"] += s
 
-    res = asyncio.run(probe.run_probe(
-        scanner_factory=lambda cb: _Scanner(cb, feed, log), expected_addr=RING.lower(), sink=sink,
-        duration_s=3.0, label_reader=lambda: next(labels), scan_mode="active",
-        mono=lambda: t["v"], wall=lambda: 1.0, sleep=sleep, progress=shown.append))
+    res = asyncio.run(
+        probe.run_probe(
+            scanner_factory=lambda cb: _Scanner(cb, feed, log),
+            expected_addr=RING.lower(),
+            sink=sink,
+            duration_s=3.0,
+            label_reader=lambda: next(labels),
+            scan_mode="active",
+            mono=lambda: t["v"],
+            wall=lambda: 1.0,
+            sleep=sleep,
+            progress=shown.append,
+        )
+    )
     assert res == {"written": 3, "dropped": 3, "other_addresses": 2, "expected_seen": 2}
     assert [r["address"] for r in sink.rows] == [RING, "11:22:33:44:55:66", RING]
-    assert [r["label"] for r in sink.rows] == ["worn", "worn", "removed"]   # label read per sighting
+    assert [r["label"] for r in sink.rows] == ["worn", "worn", "removed"]  # label read per sighting
     assert log == ["start", "stop"] and sink.closed
     assert len(shown) == 3 and "rssi=-50" in shown[0]
-    assert sleeps == [1.0, 1.0, 1.0]                                      # bounded by duration, not by feed
+    assert sleeps == [1.0, 1.0, 1.0]  # bounded by duration, not by feed
 
 
 def test_run_probe_keep_all_writes_strangers_and_open_ended_runs_until_cancelled():
@@ -210,26 +247,41 @@ def test_run_probe_keep_all_writes_strangers_and_open_ended_runs_until_cancelled
     feed = [("AA:AA:AA:AA:AA:AA", _adv())]
 
     async def sleep(_s):
-        raise asyncio.CancelledError            # the operator's Ctrl-C, one tick in
+        raise asyncio.CancelledError  # the operator's Ctrl-C, one tick in
 
     async def go():
         try:
-            await probe.run_probe(scanner_factory=lambda cb: _Scanner(cb, feed, log), expected_addr=RING,
-                                  sink=sink, duration_s=None, label_reader=lambda: "x", scan_mode="passive",
-                                  keep_all=True, sleep=sleep)
+            await probe.run_probe(
+                scanner_factory=lambda cb: _Scanner(cb, feed, log),
+                expected_addr=RING,
+                sink=sink,
+                duration_s=None,
+                label_reader=lambda: "x",
+                scan_mode="passive",
+                keep_all=True,
+                sleep=sleep,
+            )
         except asyncio.CancelledError:
             return "cancelled"
 
     assert asyncio.run(go()) == "cancelled"
     assert sink.rows and sink.rows[0]["address"] == "AA:AA:AA:AA:AA:AA" and sink.rows[0]["scan_mode"] == "passive"
-    assert log == ["start", "stop"] and sink.closed   # teardown runs on the cancel path too
+    assert log == ["start", "stop"] and sink.closed  # teardown runs on the cancel path too
 
 
 def test_run_probe_without_progress_callback_stays_silent():
     sink = _Sink()
-    res = asyncio.run(probe.run_probe(scanner_factory=lambda cb: _Scanner(cb, [(RING, _adv())], []),
-                                      expected_addr=RING, sink=sink, duration_s=0.5, label_reader=lambda: "l",
-                                      scan_mode="active", mono=_clock(1.0)))
+    res = asyncio.run(
+        probe.run_probe(
+            scanner_factory=lambda cb: _Scanner(cb, [(RING, _adv())], []),
+            expected_addr=RING,
+            sink=sink,
+            duration_s=0.5,
+            label_reader=lambda: "l",
+            scan_mode="active",
+            mono=_clock(1.0),
+        )
+    )
     assert res["written"] == 1 and sink.closed
 
 
@@ -237,8 +289,16 @@ def test_run_probe_without_progress_callback_stays_silent():
 
 
 def _row(addr, label, mono, rssi=-60, mfr=None, name=None, mode="active", hyp=()):
-    return {"address": addr, "label": label, "host_mono": mono, "rssi": rssi, "scan_mode": mode,
-            "manufacturer_data": mfr or {}, "local_name": name, "hypothesis": list(hyp)}
+    return {
+        "address": addr,
+        "label": label,
+        "host_mono": mono,
+        "rssi": rssi,
+        "scan_mode": mode,
+        "manufacturer_data": mfr or {},
+        "local_name": name,
+        "hypothesis": list(hyp),
+    }
 
 
 def test_summarize_groups_by_address_and_label_with_interval_stats():
@@ -246,7 +306,7 @@ def test_summarize_groups_by_address_and_label_with_interval_stats():
         _row(RING, "worn", 10.0, -50, {"0x036F": "01"}, "O2Ring"),
         _row(RING, "worn", 11.0, -55, {"0x036F": "01"}, "O2Ring"),
         _row(RING, "worn", 13.5, -52, {"0x036F": "02"}, None),
-        _row(RING, "worn", 13.5, -52, {"0x036F": "02"}, None),        # zero gap dropped from intervals
+        _row(RING, "worn", 13.5, -52, {"0x036F": "02"}, None),  # zero gap dropped from intervals
         _row(RING, "removed", 50.0, -70, hyp=["0xF34E: h"], mode="passive"),
         _row("11:22:33:44:55:66", "removed", 51.0, None),
     ]
@@ -263,7 +323,7 @@ def test_summarize_groups_by_address_and_label_with_interval_stats():
     assert removed["n"] == 1 and removed["span_s"] == 0.0 and removed["interval_s"] is None
     assert removed["hypotheses"] == ["0xF34E: h"] and removed["scan_modes"] == ["passive"]
     other = g[("11:22:33:44:55:66", "removed")]
-    assert other["rssi"] is None                                        # a None RSSI is not a number
+    assert other["rssi"] is None  # a None RSSI is not a number
 
 
 def test_summarize_rounds_every_interval_stat_to_milliseconds_and_p90_is_not_the_max():
@@ -290,9 +350,11 @@ def test_summarize_span_of_two_rows_is_their_distance_and_of_one_row_is_zero():
 def test_summarize_payload_identity_ignores_key_order():
     # the same two manufacturer ids in either insertion order are ONE distinct payload — the summary
     # must not report a "new payload" because a dict was built in a different order
-    rows = [_row(RING, "worn", 1.0, mfr={"0xF34E": "aa", "0x036F": "bb"}),
-            _row(RING, "worn", 2.0, mfr={"0x036F": "bb", "0xF34E": "aa"}),
-            _row(RING, "worn", 3.0, mfr={"0x036F": "bb"})]
+    rows = [
+        _row(RING, "worn", 1.0, mfr={"0xF34E": "aa", "0x036F": "bb"}),
+        _row(RING, "worn", 2.0, mfr={"0x036F": "bb", "0xF34E": "aa"}),
+        _row(RING, "worn", 3.0, mfr={"0x036F": "bb"}),
+    ]
     g = probe.summarize(rows)["groups"][0]
     assert g["manufacturer_payloads"] == ['{"0x036F": "bb", "0xF34E": "aa"}', '{"0x036F": "bb"}']
 
@@ -301,15 +363,16 @@ def test_quantile_is_nearest_rank_over_the_sorted_values():
     assert probe._quantile([3.0, 1.0, 2.0], 1.0) == 3.0
     assert probe._quantile([3.0, 1.0, 2.0], 0.0) == 1.0
     assert probe._quantile([5.0], 0.9) == 5.0
-    xs = [float(i) for i in range(10)]                    # rank round(0.9·9)=8 → 8.0, not the max
+    xs = [float(i) for i in range(10)]  # rank round(0.9·9)=8 → 8.0, not the max
     assert probe._quantile(xs, 0.9) == 8.0
-    assert probe._quantile(xs, 0.5) == 4.0                # round(4.5) → 4 (banker's), documented by the test
+    assert probe._quantile(xs, 0.5) == 4.0  # round(4.5) → 4 (banker's), documented by the test
 
 
 def test_load_rows_and_print_summary_round_trip(tmp_path, capsys):
     path = tmp_path / "adv.jsonl"
-    path.write_text(json.dumps(_row(RING, "worn", 1.0)) + "\n\n" + json.dumps(_row(RING, "worn", 2.0)) + "\n",
-                    encoding="utf-8")
+    path.write_text(
+        json.dumps(_row(RING, "worn", 1.0)) + "\n\n" + json.dumps(_row(RING, "worn", 2.0)) + "\n", encoding="utf-8"
+    )
     rows = probe.load_rows(str(path))
     assert len(rows) == 2
     assert probe._print_summary(str(path)) == 0

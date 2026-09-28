@@ -11,6 +11,7 @@ Measured on vigil 2026-09-01 before the fix: 7818 rows over 6.45 days summed to 
 judged against 321 stream min, reported "died-early — the live stream covered 321 of 1272 therapy min
 (25.2 %)". Nothing was wrong with the night.
 """
+
 import datetime as _d
 
 import capture
@@ -24,7 +25,7 @@ def _journal(*days):
     out = ["host_ms;a;b;c;d;trigger;e;reachable;fg_state"]
     for day in days:
         t0 = _d.datetime.combine(day, _d.time(23, 0))
-        for i in range(120):                       # 120 polls x 30 s = 60 min of covered therapy
+        for i in range(120):  # 120 polls x 30 s = 60 min of covered therapy
             ms = (t0 + _d.timedelta(seconds=i * _POLL_S)).timestamp() * 1000.0
             out.append(f"{ms};i;i;;;;;True;Therapy")
     return "\n".join(out)
@@ -55,8 +56,9 @@ def test_A_SINGLE_NIGHT_JOURNAL_READS_THE_SAME_EITHER_WAY(tmp_path):
     pins that scoping does not shrink a journal that was already one night."""
     text = _journal(_d.date(2026, 8, 31))
     since, until = capture._night_window_ms("2026-08-31")
-    assert cpap_stream_watch.therapy_minutes(text, since_ms=since, until_ms=until) == \
-        cpap_stream_watch.therapy_minutes(text)
+    assert cpap_stream_watch.therapy_minutes(text, since_ms=since, until_ms=until) == cpap_stream_watch.therapy_minutes(
+        text
+    )
 
 
 def test_AN_UNPARSEABLE_NIGHT_NAME_KEEPS_THE_WHOLE_JOURNAL(tmp_path):
@@ -74,7 +76,7 @@ def test_AN_OUTAGE_IN_A_PRIOR_NIGHT_CANNOT_REFUSE_TONIGHT():
     that was, in fact, observed."""
     old = _d.datetime.combine(_d.date(2026, 8, 20), _d.time(2, 0))
     rows = ["host_ms;a;b;c;d;trigger;e;reachable;fg_state"]
-    for i in range(2000):                          # a long outage, well before the night we judge
+    for i in range(2000):  # a long outage, well before the night we judge
         rows.append(f"{(old + _d.timedelta(seconds=i * 30)).timestamp() * 1000.0};i;i;;;;;False;")
     rows.append(_journal(_d.date(2026, 8, 31)).split("\n", 1)[1])
     text = "\n".join(rows)
@@ -95,13 +97,14 @@ def test_THE_CALLER_SCOPES_IT_NOT_JUST_THE_PURE_FUNCTION(tmp_path):
     for k in range(7):
         day = _d.date(2026, 8, 25) + _d.timedelta(days=k)
         t0 = _d.datetime.combine(day, _d.time(23, 0))
-        for i in range(120):                       # 60 min covered per night
+        for i in range(120):  # 60 min covered per night
             ms = (t0 + _d.timedelta(seconds=i * 30)).timestamp() * 1000.0
             rows.append(f"{ms};i;i;;;i;f;True;Therapy;0;0;")
     (tmp_path / "SESSIONDETECT.csv").write_text("\n".join(rows))
 
-    got = capture._cpap_stream_watch_row({"cpap": {"ble_stream": {"edf_dir": str(tmp_path / "edf")}}},
-                                         str(tmp_path), "2026-08-31")
+    got = capture._cpap_stream_watch_row(
+        {"cpap": {"ble_stream": {"edf_dir": str(tmp_path / "edf")}}}, str(tmp_path), "2026-08-31"
+    )
     # d-1..d+1 holds 08-30 and 08-31 => ~2 x 60 min. Seven nights would be ~7 x 60.
     assert got["therapy_min"] is not None
     assert got["therapy_min"] < 200, f"the caller is still summing the whole journal: {got}"
@@ -114,7 +117,7 @@ def test_LATER_NIGHTS_IN_THE_JOURNAL_DO_NOT_COUNT_EITHER(tmp_path):
     last week would otherwise credit it with everything recorded since."""
     days = [_d.date(2026, 8, 25) + _d.timedelta(days=k) for k in range(7)]
     text = _journal(*days)
-    since, until = capture._night_window_ms("2026-08-26")     # early night, five nights follow it
+    since, until = capture._night_window_ms("2026-08-26")  # early night, five nights follow it
     scoped = cpap_stream_watch.therapy_minutes(text, since_ms=since, until_ms=until)
     assert scoped is not None and scoped < 200, f"later nights leaked in: {scoped}"
 

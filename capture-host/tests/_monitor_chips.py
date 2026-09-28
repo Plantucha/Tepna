@@ -38,7 +38,7 @@ def _body(src: str, name: str) -> "str | None":
     while True:
         depth += {"{": 1, "}": -1}.get(src[k], 0)
         if depth == 0:
-            return src[j:k + 1]
+            return src[j : k + 1]
         k += 1
 
 

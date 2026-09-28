@@ -50,17 +50,19 @@ _SIDECAR_TAGS = {"LINK", "CLOCK", "OXYFRAME"}
 # ⚠️ COUNTS, NOT THE EXIT CODE. The exit code is a single bit and the two classes need OPPOSITE responses.
 # (It does carry SUPERSEDED, contrary to a first reading — line ~168 increments `drift` as well as
 # `stale_etc`, measured exit 1 — but "something drifted" still cannot say WHICH.)
-_SYSTEM_FILES_SH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                "deploy", "check-system-files.sh")
+_SYSTEM_FILES_SH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "deploy", "check-system-files.sh")
 _SYSTEM_FILES_TIMEOUT_S = 60.0
-_DEPLOYED_MARKER = "/usr/local/lib/tepna"      # helper_path.SYSTEM_DIRS[0]; absent on a dev checkout
-_CHECKOUT_DIR = "/opt/tepna"                   # the tree tepna-update.sh fast-forwards
+_DEPLOYED_MARKER = "/usr/local/lib/tepna"  # helper_path.SYSTEM_DIRS[0]; absent on a dev checkout
+_CHECKOUT_DIR = "/opt/tepna"  # the tree tepna-update.sh fast-forwards
 
 
-def system_file_drift(script: str = _SYSTEM_FILES_SH, *,
-                      timeout: float = _SYSTEM_FILES_TIMEOUT_S,
-                      marker: str = _DEPLOYED_MARKER,
-                      runner=None) -> "dict | None":
+def system_file_drift(
+    script: str = _SYSTEM_FILES_SH,
+    *,
+    timeout: float = _SYSTEM_FILES_TIMEOUT_S,
+    marker: str = _DEPLOYED_MARKER,
+    runner=None,
+) -> "dict | None":
     """Counts from `check-system-files.sh --json`, or `None` when no claim can be made.
 
     `None` for every unhappy path — not a deployed host, script absent, timed out, unparseable — because
@@ -69,17 +71,17 @@ def system_file_drift(script: str = _SYSTEM_FILES_SH, *,
     safe on a schedule.
     """
     if not os.path.isdir(marker):
-        return None                                  # a dev checkout has nothing installed to drift
+        return None  # a dev checkout has nothing installed to drift
     if not os.path.exists(script):
         return None
     run = runner or subprocess.run
     try:
         p = run(["bash", script, "--json"], capture_output=True, text=True, timeout=timeout)
-    except Exception:                                # noqa: BLE001 — a QC extra may never break QC
+    except Exception:  # noqa: BLE001 — a QC extra may never break QC
         return None
     try:
         out = json.loads((p.stdout or "").strip().splitlines()[-1])
-    except Exception:                                # noqa: BLE001
+    except Exception:  # noqa: BLE001
         return None
     if not isinstance(out, dict):
         return None
@@ -110,13 +112,19 @@ def _checkout_clean(checkout: str = _CHECKOUT_DIR, *, runner=None) -> "bool | No
         return None
     run = runner or subprocess.run
     try:
-        p = run(["git", "-C", checkout, "status", "--porcelain"],
-                capture_output=True, text=True, timeout=_SYSTEM_FILES_TIMEOUT_S)
-    except Exception:                                # noqa: BLE001 — a QC extra may never break QC
+        p = run(
+            ["git", "-C", checkout, "status", "--porcelain"],
+            capture_output=True,
+            text=True,
+            timeout=_SYSTEM_FILES_TIMEOUT_S,
+        )
+    except Exception:  # noqa: BLE001 — a QC extra may never break QC
         return None
     if p.returncode != 0:
         return None
     return not (p.stdout or "").strip()
+
+
 _SUMMARY_NAME = "QC-SUMMARY.json"
 
 # A gap this long between two capture SESSIONS starts a new one, so coverage is judged against the CURRENT
@@ -236,12 +244,17 @@ def night_view(session, files) -> "dict | None":
         raw = f.get("span_sec")
         dur = 0.0 if raw is None else float(raw)
         if dur <= 0:
-            rows += f["rows"] if b0 <= st < b1 else 0.0      # unknown or zero span ⇒ a point in time
+            rows += f["rows"] if b0 <= st < b1 else 0.0  # unknown or zero span ⇒ a point in time
             continue
         rows += f["rows"] * _overlap(st, st + dur, b0, b1) / dur
     total = sum(f["rows"] for f in files)
-    return {"begin": round(b0), "end": round(b1), "span_sec": round(span),
-            "rows": round(rows), "row_fraction": (rows / total) if total else None}
+    return {
+        "begin": round(b0),
+        "end": round(b1),
+        "span_sec": round(span),
+        "rows": round(rows),
+        "row_fraction": (rows / total) if total else None,
+    }
 
 
 def floating_stamp_s(stamp: str) -> float | None:
@@ -267,7 +280,7 @@ def floating_stamp_s(stamp: str) -> float | None:
     try:
         return float(calendar.timegm(datetime.strptime(stamp, "%Y%m%d%H%M%S").timetuple()))
     except (ValueError, TypeError):
-        return None                                    # a plausible-year run that is not a real datetime
+        return None  # a plausible-year run that is not a real datetime
 
 
 def _session_of(fname: str) -> float | None:
@@ -373,6 +386,7 @@ def _midnight_of(night_dir: str):
     # first six, so nothing could ever observe what they held.
     return floating_stamp_s(d.strftime("%Y%m%d") + "000000") if d else None
 
+
 # NOMINAL sample rate (Hz) per (model, stream) — the honest denominator for a coverage figure. Mirrors the
 # rates in webmon's _BPS_BY_MODEL (the second tuple element); duplicated rather than imported because
 # nightqc is a pure, dependency-light reporter. A device config's own `rates` override wins over this (the
@@ -381,7 +395,7 @@ def _midnight_of(night_dir: str):
 # joins to `object` — so `_NOMINAL_HZ[model].get(stream)` read as a call on `object`. The values
 # are all rates; float is the honest common type.
 _NOMINAL_HZ: dict[str, dict[str, float]] = {
-    "H10":    {"ecg": 130, "acc": 200, "hr": 1},
+    "H10": {"ecg": 130, "acc": 200, "hr": 1},
     "Verity": {"ppg": 55, "acc": 52, "gyro": 52, "mag": 50, "ppi": 1},
     # O2Ring ppg is the observed ROW rate (~125.7), NOT the 125.000 ADC clock: the file counts one row per
     # sample PLUS one per inserted `156` beat marker, and a coverage figure divides ROW count by span — so
@@ -421,7 +435,7 @@ _DEGRADED_BELOW = 0.5
 #: converts the host side and this constant converts the device side. 946 684 800 000 ms is the
 #: 1970→2000 delta, and it is exactly what was being added to every reading before this was subtracted.
 _POLAR_EPOCH_MS = datetime(2000, 1, 1, tzinfo=timezone.utc).timestamp() * 1000.0
-_MIN_SPAN_SEC = 300.0    # too little elapsed capture to judge a rate — report coverage as unknown, not low
+_MIN_SPAN_SEC = 300.0  # too little elapsed capture to judge a rate — report coverage as unknown, not low
 
 
 def _model_of(dev: dict) -> str:
@@ -487,8 +501,8 @@ def _expected_hz(dev: dict, stream: str):
 # rate is constant within a session, so a few thousand rows settle it — and a 456 MB PPG file must never
 # be read whole just to name its rate.
 _RATE_SAMPLE_ROWS = 4000
-_RATE_MIN_ROWS = 200        # below this the span is too short to divide by
-_RATE_MISMATCH_TOL = 0.10   # 10 % — wider than crystal error, far narrower than a rate SWAP
+_RATE_MIN_ROWS = 200  # below this the span is too short to divide by
+_RATE_MISMATCH_TOL = 0.10  # 10 % — wider than crystal error, far narrower than a rate SWAP
 
 
 def measured_hz(path: str, max_rows: int = _RATE_SAMPLE_ROWS):
@@ -536,7 +550,7 @@ def measured_hz(path: str, max_rows: int = _RATE_SAMPLE_ROWS):
         with open(path, encoding="utf-8", errors="replace") as fh:
             head = fh.readline()
             if "sensor timestamp" not in head:
-                return None                      # not a PMD stream layout — say nothing rather than guess
+                return None  # not a PMD stream layout — say nothing rather than guess
             for i, line in enumerate(fh):
                 if i >= max_rows:
                     break
@@ -546,9 +560,9 @@ def measured_hz(path: str, max_rows: int = _RATE_SAMPLE_ROWS):
                 try:
                     ns.append(int(parts[1]))
                 except ValueError:
-                    continue          # BOUNDED BY A FLOOR, which is why this one stays quiet: if
-                                      # enough rows drop, `len(ns) < _RATE_MIN_ROWS` refuses below
-                                      # and returns None rather than a rate built from scraps
+                    continue  # BOUNDED BY A FLOOR, which is why this one stays quiet: if
+                    # enough rows drop, `len(ns) < _RATE_MIN_ROWS` refuses below
+                    # and returns None rather than a rate built from scraps
     except OSError:
         return None
     if len(ns) < _RATE_MIN_ROWS:
@@ -560,7 +574,7 @@ def measured_hz(path: str, max_rows: int = _RATE_SAMPLE_ROWS):
     deltas = sorted(ns[i] - ns[i - 1] for i in range(1, len(ns)))
     step_ns = deltas[len(deltas) // 2]
     if step_ns <= 0:
-        return None                              # a stalled or drawn counter cannot name a rate
+        return None  # a stalled or drawn counter cannot name a rate
     return 1e9 / step_ns
 
 
@@ -642,7 +656,7 @@ def pmd_negotiations(night_dir: str) -> dict:
     for line in rows[1:]:
         p = line.split(";")
         if len(p) < 9:
-            continue                      # a torn row is skipped, exactly as every sidecar reader does
+            continue  # a torn row is skipped, exactly as every sidecar reader does
         key = (p[1], p[3])
         rec = out.setdefault(key, {"chosen": None, "offered": None, "starts": 0, "_seen": set(), "_menus": set()})
         rec["starts"] += 1
@@ -659,7 +673,7 @@ def pmd_negotiations(night_dir: str) -> dict:
         try:
             rec["_seen"].add(int(p[6]))
         except ValueError:
-            pass                          # a blank or torn rate is an ABSENCE, not a zero
+            pass  # a blank or torn rate is an ABSENCE, not a zero
     for rec in out.values():
         rec["chosen"] = next(iter(rec["_seen"])) if len(rec["_seen"]) == 1 else None
         rec["offered"] = next(iter(rec["_menus"])) if len(rec["_menus"]) == 1 else None
@@ -716,25 +730,27 @@ def rate_reality(night_dir: str, devices: list[dict]) -> list[dict]:
             ok = None
             if got is not None and want:
                 ok = bool(abs(got - want) <= _RATE_MISMATCH_TOL * want)
-            out.append({
-                "device": _rate_key(dev),
-                "stream": stream,
-                "requested_hz": want,
-                "measured_hz": None if got is None else round(got, 2),
-                "matches_config": ok,
-                # Where a device MEASURES more slowly than it emits records, the two rates are reported
-                # side by side and the ratio is named. Without this a reader has only the record rate
-                # and no way to know that 6.4 of every 7 rows repeat the previous value — the ring's
-                # ACC writes ~9.979 Hz records from a 1.5625 Hz sensor. `held_ratio` is records per
-                # measurement: 1.0 (or None) means every record is its own measurement.
-                "measurement_hz": meas,
-                "held_ratio": None if not (meas and want) else round(want / meas, 3),
-                # THE MIDDLE TERM (PMDNEG.csv). `requested_hz` is what the config asked for and
-                # `measured_hz` what the file carries; between them is what the DEVICE agreed to and
-                # the menu it agreed from. Null where the night has no sidecar — an older night, or a
-                # stream that never negotiated — which is an absence, not an agreement.
-                **_negotiated_fields(negotiated.get((dev.get("name"), stream))),
-            })
+            out.append(
+                {
+                    "device": _rate_key(dev),
+                    "stream": stream,
+                    "requested_hz": want,
+                    "measured_hz": None if got is None else round(got, 2),
+                    "matches_config": ok,
+                    # Where a device MEASURES more slowly than it emits records, the two rates are reported
+                    # side by side and the ratio is named. Without this a reader has only the record rate
+                    # and no way to know that 6.4 of every 7 rows repeat the previous value — the ring's
+                    # ACC writes ~9.979 Hz records from a 1.5625 Hz sensor. `held_ratio` is records per
+                    # measurement: 1.0 (or None) means every record is its own measurement.
+                    "measurement_hz": meas,
+                    "held_ratio": None if not (meas and want) else round(want / meas, 3),
+                    # THE MIDDLE TERM (PMDNEG.csv). `requested_hz` is what the config asked for and
+                    # `measured_hz` what the file carries; between them is what the DEVICE agreed to and
+                    # the menu it agreed from. Null where the night has no sidecar — an older night, or a
+                    # stream that never negotiated — which is an absence, not an agreement.
+                    **_negotiated_fields(negotiated.get((dev.get("name"), stream))),
+                }
+            )
     return out
 
 
@@ -817,7 +833,7 @@ def file_span_sec(path: str) -> float | None:
             try:
                 idx = cols.index("sensor timestamp [ns]")
             except ValueError:
-                return None          # HR/RR/PPI and the CSV layouts carry no device clock — say so
+                return None  # HR/RR/PPI and the CSV layouts carry no device clock — say so
             first = _ns_at(fh.readline().decode("utf-8", "replace"), idx)
             if first is None:
                 return None
@@ -886,7 +902,7 @@ def file_host_span_sec(path: str) -> float | None:
             try:
                 idx = cols.index("phone timestamp")
             except ValueError:
-                return None          # no host column either — the file genuinely cannot say
+                return None  # no host column either — the file genuinely cannot say
             first = None
             for _ in range(_HOST_SPAN_SCAN_ROWS):
                 raw_row = fh.readline()
@@ -907,7 +923,7 @@ def file_host_span_sec(path: str) -> float | None:
     for text in reversed(tail):
         last, amb = _host_ms_at(text, idx)
         if amb:
-            return None                     # see the docstring: shortening is worse than refusing
+            return None  # see the docstring: shortening is worse than refusing
         if last is not None and last >= first:
             span = (last - first) / 1000.0
             # Zero is not a duration here either: one row, or every row inside the same millisecond.
@@ -940,7 +956,7 @@ def _host_ms_at(line: str, idx: int) -> tuple[float | None, bool]:
     except ValueError:
         return (None, False)
     if dt.tzinfo is not None:
-        return (dt.timestamp() * 1000.0, False)       # a real zone was carried: nothing to resolve
+        return (dt.timestamp() * 1000.0, False)  # a real zone was carried: nothing to resolve
     a, b = fold_candidates_ms(dt)
     return (a, False) if a == b else (None, True)
 
@@ -1034,7 +1050,7 @@ def file_last_row_floating_s(path: str) -> float | None:
             try:
                 idx = cols.index("phone timestamp")
             except ValueError:
-                return None                     # no host column: this file cannot vote
+                return None  # no host column: this file cannot vote
             size = fh.seek(0, os.SEEK_END)
             fh.seek(max(0, size - (1 << 13)))
             tail = fh.read().decode("utf-8", "replace").split("\n")
@@ -1046,10 +1062,10 @@ def file_last_row_floating_s(path: str) -> float | None:
     for text in reversed(tail):
         parts = text.rstrip("\r\n").split(";")
         if len(parts) <= idx or not parts[idx].strip():
-            continue                    # a torn, blank or comment row — walk past it to an earlier one
+            continue  # a torn, blank or comment row — walk past it to an earlier one
         try:
             dt = datetime.fromisoformat(parts[idx].strip())
-        except ValueError:      # an unparseable stamp is not a wrong one — keep walking back
+        except ValueError:  # an unparseable stamp is not a wrong one — keep walking back
             # There is no end to SHORTEN here, unlike `file_host_span_sec`: only a voter to find or not
             # find, so walking past a bad row costs nothing and refusing the file would cost a vote.
             continue
@@ -1075,92 +1091,100 @@ def declared_offset(offset_sec: float) -> dict:
     claim and a reader must be able to tell them apart: a declared 0.0 is a premise, a recovered 0.0 is a
     measurement with voters behind it. Everything the recovery would have measured is `None` rather than
     0 or an empty tally — §∅, nothing was counted, and "no voters" must not read as "zero agreed"."""
-    return {"offset_sec": float(offset_sec), "basis": "declared", "voters": None,
-            "voters_by_basis": None, "bucket_sec": None, "modal_share": None,
-            "unanimous": None, "outliers": [], "reason": None}
+    return {
+        "offset_sec": float(offset_sec),
+        "basis": "declared",
+        "voters": None,
+        "voters_by_basis": None,
+        "bucket_sec": None,
+        "modal_share": None,
+        "unanimous": None,
+        "outliers": [],
+        "reason": None,
+    }
 
 
 def recover_writer_offset(night_dir: str, files: list[dict]) -> dict:
     """The WRITER's UTC offset for this night, recovered by vote — or a named refusal.
 
-    `{"offset_sec", "basis", "voters", "modal_share", "bucket_sec", "outliers", "reason"}`, where
-    `offset_sec` is **the number that raises a floating stamp into the `mtime` frame** and `basis` is
-    `"recovered"` or None.
+        `{"offset_sec", "basis", "voters", "modal_share", "bucket_sec", "outliers", "reason"}`, where
+        `offset_sec` is **the number that raises a floating stamp into the `mtime` frame** and `basis` is
+        `"recovered"` or None.
 
-    `files` is the night's DATA files — both callers (`summarize`, `timeline.build`) pass a list already
-    filtered of `_SIDECAR_TAGS`, and this does not re-filter. A second guard that no caller can trigger
-    reads as protection while protecting nothing, and its mutants cannot be killed by any input the
-    program admits; the precondition is stated here instead. A sidecar would in fact be a fair witness of
-    the BOX's zone — it is the box talking about itself, which is exactly what is being measured — so if a
-    caller ever wants to widen the population, that is a deliberate change here and not an oversight.
+        `files` is the night's DATA files — both callers (`summarize`, `timeline.build`) pass a list already
+        filtered of `_SIDECAR_TAGS`, and this does not re-filter. A second guard that no caller can trigger
+        reads as protection while protecting nothing, and its mutants cannot be killed by any input the
+        program admits; the precondition is stated here instead. A sidecar would in fact be a fair witness of
+        the BOX's zone — it is the box talking about itself, which is exactly what is being measured — so if a
+        caller ever wants to widen the population, that is a deliberate change here and not an oversight.
 
-    ⚠️ THIS IS AN INFERENCE, BOUNDED AND REFUSABLE — never a recorded fact. The box records no zone
-    anywhere: `writers._phone_ts` is documented "local civil time, zone-free", filenames carry bare
-    components, and `STARTS.csv` the same. `mtime` is the ONLY absolute instant the night contains, so
-    relating a connection-open stamp to a last-write instant REQUIRES the writer's offset and no
-    rearrangement of existing fields avoids it. Recording it per session is the durable fix and is a
-    WRITER change (residue 2026-09-28-writer-records-no-utc-offset); this reads what is already on disk,
-    and prefers a recorded value the day one exists.
+        ⚠️ THIS IS AN INFERENCE, BOUNDED AND REFUSABLE — never a recorded fact. The box records no zone
+        anywhere: `writers._phone_ts` is documented "local civil time, zone-free", filenames carry bare
+        components, and `STARTS.csv` the same. `mtime` is the ONLY absolute instant the night contains, so
+        relating a connection-open stamp to a last-write instant REQUIRES the writer's offset and no
+        rearrangement of existing fields avoids it. Recording it per session is the durable fix and is a
+        WRITER change (residue 2026-09-28-writer-records-no-utc-offset); this reads what is already on disk,
+        and prefers a recorded value the day one exists.
 
-    THE MEASUREMENT. A file's mtime and its last row name nearly the same physical moment — the row
-    arrived, then the buffer flushed — so with `lag = mtime − last_row_instant ≥ 0`:
+        THE MEASUREMENT. A file's mtime and its last row name nearly the same physical moment — the row
+        arrived, then the buffer flushed — so with `lag = mtime − last_row_instant ≥ 0`:
 
-        d = mtime − floating(last row) = −offset_east + lag
+            d = mtime − floating(last row) = −offset_east + lag
 
-    Each data file casts one `d`; the vote is bucketed by `_OFFSET_BUCKET_SEC` and the modal bucket wins.
-    Measured over the corpus: 42 of 47 files vote +14 400 s exactly (the box is UTC−4), and the 5 that do
-    not are files whose mtime sits 5–8 h past their last row — a killed session, exactly the lag term.
+        Each data file casts one `d`; the vote is bucketed by `_OFFSET_BUCKET_SEC` and the modal bucket wins.
+        Measured over the corpus: 42 of 47 files vote +14 400 s exactly (the box is UTC−4), and the 5 that do
+        not are files whose mtime sits 5–8 h past their last row — a killed session, exactly the lag term.
 
-    TWO WAYS TO NAME THAT LAST ROW, in preference order, because the tighter one is not always there:
-      1. `last-row` — the file's final host stamp (`file_last_row_floating_s`). Tightest: `lag` is one
-         flush.
-      2. `extent`   — its start stamp plus its OWN RECORDED DURATION (`span_sec`, else `host_span_sec`).
-         Available with no extra read and for streams with no host column at all, at the cost of a wider
-         `lag`: it also absorbs the connection-setup delay before the first row and any device-clock
-         drift across the file. Both are far inside one bucket, which is why one bucket takes both.
-    `rows / fs` is deliberately NOT a third basis: that rate is today's configured one, and using it here
-    would make the recovered offset depend on a number that goes stale (§A4c).
+        TWO WAYS TO NAME THAT LAST ROW, in preference order, because the tighter one is not always there:
+          1. `last-row` — the file's final host stamp (`file_last_row_floating_s`). Tightest: `lag` is one
+             flush.
+          2. `extent`   — its start stamp plus its OWN RECORDED DURATION (`span_sec`, else `host_span_sec`).
+             Available with no extra read and for streams with no host column at all, at the cost of a wider
+             `lag`: it also absorbs the connection-setup delay before the first row and any device-clock
+             drift across the file. Both are far inside one bucket, which is why one bucket takes both.
+        `rows / fs` is deliberately NOT a third basis: that rate is today's configured one, and using it here
+        would make the recovered offset depend on a number that goes stale (§A4c).
 
-ROUND, NOT FLOOR, AND THE REASON IS THE ONE THAT CAUGHT ME OUT. I first floored `last-row`, arguing
-    that a flush follows its row so `lag ≥ 0` and the true offset is therefore at or below `d`. That
-    argument is sound and its conclusion is still wrong, because of what the quantity IS: every real UTC
-    offset is an exact multiple of `_OFFSET_BUCKET_SEC`, so the true value sits exactly ON a bucket
-    boundary — the one place where flooring is decided by arbitrarily small jitter of either sign.
-    Measured on the real 2026-09-27: two unanimous voters at d = +14,399.999 and +14,389.962 both floored
-    to 13,500, recovering an offset 15 minutes from the truth off a ONE-MILLISECOND shortfall. Rounding
-    puts both at 14,400.
+    ROUND, NOT FLOOR, AND THE REASON IS THE ONE THAT CAUGHT ME OUT. I first floored `last-row`, arguing
+        that a flush follows its row so `lag ≥ 0` and the true offset is therefore at or below `d`. That
+        argument is sound and its conclusion is still wrong, because of what the quantity IS: every real UTC
+        offset is an exact multiple of `_OFFSET_BUCKET_SEC`, so the true value sits exactly ON a bucket
+        boundary — the one place where flooring is decided by arbitrarily small jitter of either sign.
+        Measured on the real 2026-09-27: two unanimous voters at d = +14,399.999 and +14,389.962 both floored
+        to 13,500, recovering an offset 15 minutes from the truth off a ONE-MILLISECOND shortfall. Rounding
+        puts both at 14,400.
 
-    Large nights hid it. With 10–1427 voters the majority absorbed the boundary-flipped files and reported
-    them as `outliers`, so the defect could only surface once a thin night had no majority to outvote them
-    with — the support-floor revision did not introduce this, it revealed it.
+        Large nights hid it. With 10–1427 voters the majority absorbed the boundary-flipped files and reported
+        them as `outliers`, so the defect could only surface once a thin night had no majority to outvote them
+        with — the support-floor revision did not introduce this, it revealed it.
 
-    The cost of rounding is the case flooring was meant to catch: a lag over half a bucket (451 s) rounds
-    to the next bucket. That is a killed session, which is precisely what an outlier IS and what a majority
-    exists to outvote — whereas boundary jitter afflicts every file at once, where no majority can help.
-    One quantizer for both bases, for the same reason.
+        The cost of rounding is the case flooring was meant to catch: a lag over half a bucket (451 s) rounds
+        to the next bucket. That is a killed session, which is precisely what an outlier IS and what a majority
+        exists to outvote — whereas boundary jitter afflicts every file at once, where no majority can help.
+        One quantizer for both bases, for the same reason.
 
-    Every vote is checked against `_OFFSET_MAX_ABS_SEC` BEFORE it is counted.
+        Every vote is checked against `_OFFSET_MAX_ABS_SEC` BEFORE it is counted.
 
-    FLOOR, not ROUND, and the asymmetry is the point: `lag` is one-signed, so the true offset is at or
-    below `d` and flooring recovers it for any lag under a full bucket. Rounding would push a lag of
-    only 451 s into the next bucket and invent a zone 15 minutes away.
+        FLOOR, not ROUND, and the asymmetry is the point: `lag` is one-signed, so the true offset is at or
+        below `d` and flooring recovers it for any lag under a full bucket. Rounding would push a lag of
+        only 451 s into the next bucket and invent a zone 15 minutes away.
 
-    PER NIGHT, not per corpus — the offset is a property of the BOX, but a box moves and DST steps it, so
-    each night votes its own. A night spanning a DST transition holds files from both offsets, which is
-    a genuine two-bucket night: the majority names the offset most of its files were written in and the
-    minority is reported in `outliers` rather than averaged away.
+        PER NIGHT, not per corpus — the offset is a property of the BOX, but a box moves and DST steps it, so
+        each night votes its own. A night spanning a DST transition holds files from both offsets, which is
+        a genuine two-bucket night: the majority names the offset most of its files were written in and the
+        minority is reported in `outliers` rather than averaged away.
 
-    THE REFUSAL. Below the support floor, or without a STRICT majority in the modal bucket, `offset_sec`
-    is None with a reason and every consumer publishes UNKNOWN rather than a guessed span. A tie can
-    therefore never decide: two buckets tied at n of 2n hold exactly half each, so the tie-break that
-    picking a maximum would otherwise perform never reaches the answer. The floor is `_OFFSET_MIN_VOTERS`,
-    or `_OFFSET_MIN_VOTERS_UNANIMOUS` when every voter agrees — those constants carry the reasoning and
-    the provenance of the revision."""
+        THE REFUSAL. Below the support floor, or without a STRICT majority in the modal bucket, `offset_sec`
+        is None with a reason and every consumer publishes UNKNOWN rather than a guessed span. A tie can
+        therefore never decide: two buckets tied at n of 2n hold exactly half each, so the tie-break that
+        picking a maximum would otherwise perform never reaches the answer. The floor is `_OFFSET_MIN_VOTERS`,
+        or `_OFFSET_MIN_VOTERS_UNANIMOUS` when every voter agrees — those constants carry the reasoning and
+        the provenance of the revision."""
     votes: list[tuple[float, str]] = []
     by_basis = {"last-row": 0, "extent": 0}
     for f in files:
         if not f.get("rows"):
-            continue                            # header-only: nothing arrived, so nothing to place
+            continue  # header-only: nothing arrived, so nothing to place
         vote = None
         last = file_last_row_floating_s(os.path.join(night_dir, f["file"]))
         if last is not None:
@@ -1172,20 +1196,28 @@ ROUND, NOT FLOOR, AND THE REASON IS THE ONE THAT CAUGHT ME OUT. I first floored 
             if st is not None and dur:
                 vote, how = _offset_vote(f["mtime"] - (st + float(dur))), "extent"
         if vote is None:
-            continue                            # nothing in range to difference the mtime against
+            continue  # nothing in range to difference the mtime against
         by_basis[how] += 1
         votes.append((vote, f["file"]))
-    out: dict = {"voters": len(votes), "voters_by_basis": by_basis, "bucket_sec": _OFFSET_BUCKET_SEC,
-                 "offset_sec": None, "basis": None, "modal_share": None, "outliers": []}
+    out: dict = {
+        "voters": len(votes),
+        "voters_by_basis": by_basis,
+        "bucket_sec": _OFFSET_BUCKET_SEC,
+        "offset_sec": None,
+        "basis": None,
+        "modal_share": None,
+        "outliers": [],
+    }
     # Unanimity relaxes the COUNT and nothing else; see `_OFFSET_MIN_VOTERS` for why, and note that a
     # unanimous vote passes the majority test below trivially, so the two rules do not interact.
     unanimous = bool(votes) and len({b for b, _n in votes}) == 1
     floor = _OFFSET_MIN_VOTERS_UNANIMOUS if unanimous else _OFFSET_MIN_VOTERS
     if len(votes) < floor:
         out["unanimous"] = unanimous
-        out["reason"] = (f"{len(votes)} of {len(files)} files could vote on the writer's UTC offset; "
-                         f"the floor is {floor}"
-                         + (" for a unanimous vote" if unanimous else ""))
+        out["reason"] = (
+            f"{len(votes)} of {len(files)} files could vote on the writer's UTC offset; "
+            f"the floor is {floor}" + (" for a unanimous vote" if unanimous else "")
+        )
         return out
     tally: dict[float, int] = {}
     for bucket, _name in votes:
@@ -1193,12 +1225,20 @@ ROUND, NOT FLOOR, AND THE REASON IS THE ONE THAT CAUGHT ME OUT. I first floored 
     bucket, got = max(tally.items(), key=lambda kv: kv[1])
     share = got / len(votes)
     if share <= 0.5:
-        out["reason"] = (f"no strict majority among {len(votes)} voters on the writer's UTC offset; "
-                         f"the largest bucket holds {got}")
+        out["reason"] = (
+            f"no strict majority among {len(votes)} voters on the writer's UTC offset; the largest bucket holds {got}"
+        )
         return out
-    out.update({"offset_sec": bucket, "basis": "recovered", "modal_share": round(share, 3),
-                "unanimous": unanimous,
-                "outliers": sorted(name for b, name in votes if b != bucket), "reason": None})
+    out.update(
+        {
+            "offset_sec": bucket,
+            "basis": "recovered",
+            "modal_share": round(share, 3),
+            "unanimous": unanimous,
+            "outliers": sorted(name for b, name in votes if b != bucket),
+            "reason": None,
+        }
+    )
     return out
 
 
@@ -1229,22 +1269,25 @@ def file_interval(f: dict, offset_sec: float | None = 0.0) -> tuple[float, float
     adding an offset to a value that never carried one is the same frame error in the other direction.
     """
     st, mt = f.get("session"), f["mtime"]
-    if offset_sec is None:                                  # floating frame
+    if offset_sec is None:  # floating frame
         if st is None:
-            return None                                     # unstamped: nothing floating to place it by
+            return None  # unstamped: nothing floating to place it by
         dur = f.get("span_sec") or f.get("host_span_sec")
         if dur:
             return (st, st + float(dur), "device-clock" if f.get("span_sec") else "host-stamp")
         return (st, st, "none")
     if st is None:
-        return (mt, mt, "mtime")                            # see the warning above: already an instant
+        return (mt, mt, "mtime")  # see the warning above: already an instant
     start = st + offset_sec
     return (start, max(start, mt), "mtime")
 
 
-def merge_sessions(files: list[dict], gap_sec: float = _SESSION_GAP_SEC,
-                   starts: list[float] | None = None,
-                   offset_sec: float | None = 0.0) -> list[list]:
+def merge_sessions(
+    files: list[dict],
+    gap_sec: float = _SESSION_GAP_SEC,
+    starts: list[float] | None = None,
+    offset_sec: float | None = 0.0,
+) -> list[list]:
     """[[start, end, [files]], …] — the night's capture sessions, by MERGED ACTIVE INTERVAL, oldest first.
 
     Each file was live from when its connection opened (its start stamp) until its last write (mtime), so
@@ -1288,8 +1331,7 @@ def merge_sessions(files: list[dict], gap_sec: float = _SESSION_GAP_SEC,
     bounds = sorted(t for t in (starts or []) if t is not None)
     # `starts` must already be in the frame `offset_sec` selects — `daemon_starts` raises them there for
     # the same reason, since a seam compared against a start in the other frame lands an offset away.
-    placed = [(iv[0], iv[1], f) for f, iv in ((f, file_interval(f, offset_sec)) for f in files)
-              if iv is not None]
+    placed = [(iv[0], iv[1], f) for f, iv in ((f, file_interval(f, offset_sec)) for f in files) if iv is not None]
     for st, en, f in sorted(placed, key=lambda iv: iv[0]):
         # The seam, if any, between the running session's OPENING and this file's: a daemon start there
         # means the two belong to different runs however small the gap between them is.
@@ -1299,7 +1341,7 @@ def merge_sessions(files: list[dict], gap_sec: float = _SESSION_GAP_SEC,
             sessions[-1][2].append(f)
         else:
             if sessions and seam is not None:
-                sessions[-1][1] = min(sessions[-1][1], seam)   # disjoint by construction
+                sessions[-1][1] = min(sessions[-1][1], seam)  # disjoint by construction
             sessions.append([st, en, [f]])
     return sessions
 
@@ -1348,23 +1390,29 @@ def scan_night(night_dir: str) -> list[dict]:
         tag, _ext = parsed
         st = os.stat(path)
         _span = file_span_sec(path)
-        out.append({"file": n, "stream": tag, "rows": count_rows(path),
-                    "bytes": st.st_size, "mtime": st.st_mtime,
-                    "session": _session_of(n),
-                    # What the file says about its OWN duration; None when it carries no device clock.
-                    # Callers must treat None as "unknown", never as zero — see file_span_sec.
-                    "span_sec": _span,
-                    # The HOST-stamp span, and only for a file whose device clock could not answer —
-                    # so a file with a device clock costs exactly the I/O it did before. A different
-                    # quantity from `span_sec` (see file_host_span_sec) and never a substitute for it:
-                    # it exists so a stream with NO nominal rate and NO device clock can still say
-                    # whether it was delivering, instead of being reported as zero.
-                    "host_span_sec": None if _span else file_host_span_sec(path)})
+        out.append(
+            {
+                "file": n,
+                "stream": tag,
+                "rows": count_rows(path),
+                "bytes": st.st_size,
+                "mtime": st.st_mtime,
+                "session": _session_of(n),
+                # What the file says about its OWN duration; None when it carries no device clock.
+                # Callers must treat None as "unknown", never as zero — see file_span_sec.
+                "span_sec": _span,
+                # The HOST-stamp span, and only for a file whose device clock could not answer —
+                # so a file with a device clock costs exactly the I/O it did before. A different
+                # quantity from `span_sec` (see file_host_span_sec) and never a substitute for it:
+                # it exists so a stream with NO nominal rate and NO device clock can still say
+                # whether it was delivering, instead of being reported as zero.
+                "host_span_sec": None if _span else file_host_span_sec(path),
+            }
+        )
     return out
 
 
-def daemon_starts(night_dir: str, files: list[dict] | None = None,
-                  offset_sec: float | None = 0.0) -> dict:
+def daemon_starts(night_dir: str, files: list[dict] | None = None, offset_sec: float | None = 0.0) -> dict:
     """`{"starts": n, "inside_capture": m, "stamps": [...]}` — the night's daemon starts, and how many
     of them landed INSIDE a signal-carrying file's span.
 
@@ -1392,7 +1440,7 @@ def daemon_starts(night_dir: str, files: list[dict] | None = None,
     for line in rows:
         p_ = line.split(";")
         if len(p_) < 5:
-            continue                       # a torn row is skipped, as in every sidecar reader here
+            continue  # a torn row is skipped, as in every sidecar reader here
         t = _parse_phone_ts(p_[0])
         if t is not None:
             stamps.append(t)
@@ -1406,9 +1454,15 @@ def daemon_starts(night_dir: str, files: list[dict] | None = None,
     # capture" in New York than in Tokyo.
     shift = 0.0 if offset_sec is None else offset_sec
     stamps = [t + shift for t in stamps]
-    spans = [iv[:2] for iv in (file_interval(f, offset_sec) for f in (files or [])
-                               if f.get("rows") and f.get("stream") not in _SIDECAR_TAGS)
-             if iv is not None]
+    spans = [
+        iv[:2]
+        for iv in (
+            file_interval(f, offset_sec)
+            for f in (files or [])
+            if f.get("rows") and f.get("stream") not in _SIDECAR_TAGS
+        )
+        if iv is not None
+    ]
     inside = sum(1 for t in stamps if any(a <= t <= b for a, b in spans))
     return {"starts": len(stamps), "inside_capture": inside, "stamps": sorted(stamps)}
 
@@ -1464,7 +1518,6 @@ def newest_data_mtime(night_dir: str) -> float | None:
             log.warning("night-QC: %s is unreadable, so it cannot age this night", p, exc_info=True)
             continue
     return newest
-
 
 
 # The averaging time TDEV is quoted at, in SECONDS, for every stream alike. A fixed tau is the whole
@@ -1568,7 +1621,7 @@ def transport_share(pairs_a, pairs_b, bin_s=_TRANSPORT_BIN_S):
         return None
     corr = at[tau]["gcov"] / (solo_a[0]["adev"] * solo_b[0]["adev"])
     m = max(1, int(round(tau / bin_s)))
-    n_eff = len(xs) // (2 * m + 1)          # non-overlapping second differences; see the docstring
+    n_eff = len(xs) // (2 * m + 1)  # non-overlapping second differences; see the docstring
     return {
         "tau": tau,
         "adev_a": solo_a[0]["adev"],
@@ -1601,10 +1654,10 @@ def _tau0_of(pairs) -> float:
 # device event time, device offset and transport delay without a delay model, a two-way exchange or an
 # independent reference (RFC 5905; IEEE 1588-2019). We have none of the three, so the honest output is an
 # uncertainty attached to the timestamp we do have — NOT a better timestamp.
-_IQR_TO_SIGMA = 1.349          # IQR -> sigma for a normal; robust, and the jitter tail is not normal
-_STAMP_QUANTUM_MS = 1.0        # sidecar `Phone timestamp` is whole milliseconds
-_RING_QUANTUM_MS = 1000.0      # the O2Ring's duration axis is 1 s quantised — see `quantised`
-_UNIFORM_DIVISOR = math.sqrt(12.0)   # GUM 4.3.7: a rectangular half-width a has u = a/sqrt(3), full width w = w/sqrt(12)
+_IQR_TO_SIGMA = 1.349  # IQR -> sigma for a normal; robust, and the jitter tail is not normal
+_STAMP_QUANTUM_MS = 1.0  # sidecar `Phone timestamp` is whole milliseconds
+_RING_QUANTUM_MS = 1000.0  # the O2Ring's duration axis is 1 s quantised — see `quantised`
+_UNIFORM_DIVISOR = math.sqrt(12.0)  # GUM 4.3.7: a rectangular half-width a has u = a/sqrt(3), full width w = w/sqrt(12)
 
 
 def timing_uncertainty(jitter, *, quantised=False, stability=None, tau_s=None):
@@ -1735,8 +1788,7 @@ CK_LATTICE_MIN_CYCLES = 4.0
 CK_LATTICE_MAX_POINTS = 4000
 
 
-def connection_lattice(delays: list[float], *, device_axis_is_clock: bool = True,
-                       min_n: int = 300) -> dict | None:
+def connection_lattice(delays: list[float], *, device_axis_is_clock: bool = True, min_n: int = 300) -> dict | None:
     """Is the host-added delay QUANTISED, and to what period? The BLE connection interval, from data.
 
     A packet can only be delivered on a connection event, so the delivery delay is not a continuous
@@ -1790,7 +1842,7 @@ def connection_lattice(delays: list[float], *, device_axis_is_clock: bool = True
     hi = spread / CK_LATTICE_MIN_CYCLES
     lo = 2.0
     if not (hi > lo):
-        return None                      # too narrow to span several periods: see CK_LATTICE_MIN_CYCLES
+        return None  # too narrow to span several periods: see CK_LATTICE_MIN_CYCLES
     step = max(1, len(x) // CK_LATTICE_MAX_POINTS)
     xs = x[::step]
     n = len(xs)
@@ -1807,7 +1859,7 @@ def connection_lattice(delays: list[float], *, device_axis_is_clock: bool = True
         r = abs(sum(cmath.exp(2j * math.pi * v / s) for v in xs) / n)
         if r > best_r:
             best_r, best_s = r, s
-    for i in range(400):                 # refine +/-1.5 % around the coarse peak
+    for i in range(400):  # refine +/-1.5 % around the coarse peak
         s = best_s * (0.985 + 0.03 * i / 399)
         r = abs(sum(cmath.exp(2j * math.pi * v / s) for v in xs) / n)
         if r > best_r:
@@ -1845,7 +1897,7 @@ def device_epoch_state(pairs, *, quantised: bool, stamp_frozen) -> dict | None:
     2026-08-23 are real instances, where a resync landed mid-night and the same file carries both.
     """
     if not pairs:
-        return None                        # nothing measured ⇒ no claim, not "plausible" (§∅)
+        return None  # nothing measured ⇒ no claim, not "plausible" (§∅)
     bound_ms = clock_offset.CLOCK_IMPLAUSIBLE_S * 1000.0
 
     def _class(diff_ms: float) -> str:
@@ -1861,10 +1913,12 @@ def device_epoch_state(pairs, *, quantised: bool, stamp_frozen) -> dict | None:
     first = classes[0]
     switched = next((i for i, c in enumerate(classes) if c != first), None)
     dev_first = _POLAR_EPOCH_MS + pairs[0][2] / 1e6
-    out = {"state": first,
-           "device_time_first": datetime.fromtimestamp(dev_first / 1000.0, timezone.utc)
-                                        .strftime("%Y-%m-%dT%H:%M:%SZ"),
-           "switched_at": None, "switched_to": None}
+    out = {
+        "state": first,
+        "device_time_first": datetime.fromtimestamp(dev_first / 1000.0, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "switched_at": None,
+        "switched_to": None,
+    }
     if switched is not None:
         out["switched_at"] = _hhmm(pairs[switched][0] / 1000.0)
         out["switched_to"] = classes[switched]
@@ -1945,6 +1999,7 @@ def arrival_quality(night_dir: str) -> list[dict]:
     The ring is unaffected: its writer passes the same `_dur_ns` as both first and last.
     """
     import csv as _csv
+
     out: list = []
     try:
         names = [n for n in sorted(os.listdir(night_dir)) if n.endswith("_PMDARRIVAL.csv")]
@@ -1972,7 +2027,7 @@ def arrival_quality(night_dir: str) -> list[dict]:
                     ts = row.get("Phone timestamp") or ""
                     meas = row.get("meas", "")
                     if not ns or not ts:
-                        continue                      # blank is "absent", never a fabricated 0
+                        continue  # blank is "absent", never a fabricated 0
                     # 🔴 `0` IS ABSENT TOO, AND THE LINE ABOVE USED TO SAY SO WHILE ACCEPTING IT.
                     # `row.get(...)` yields the STRING "0", which is truthy, so `if not ns` let it
                     # through and `host_ms - 0` recorded the whole Unix epoch as an arrival offset.
@@ -2002,8 +2057,9 @@ def arrival_quality(night_dir: str) -> list[dict]:
                             continue
                         # The fall-back hour is decided by host−device continuity, per stream, never
                         # by `fold=0` (residue 2026-09-13-dst-fallback-splits-the-host-axis).
-                        host_ms = folds.setdefault((row.get("device", ""), meas), LocalStampResolver()) \
-                            .resolve_ms(datetime.fromisoformat(ts), dev_ms=_POLAR_EPOCH_MS + dev_ns / 1e6)
+                        host_ms = folds.setdefault((row.get("device", ""), meas), LocalStampResolver()).resolve_ms(
+                            datetime.fromisoformat(ts), dev_ms=_POLAR_EPOCH_MS + dev_ns / 1e6
+                        )
                         # 🔴 SUBTRACT THE DEVICE EPOCH. `host_ms` counts from 1970 and `dev_ns` from
                         # 2000, so differencing them raw added the 946 684 800 000 ms between the two
                         # epochs to every reading — and CERTIFIED it, because nothing downstream
@@ -2017,17 +2073,20 @@ def arrival_quality(night_dir: str) -> list[dict]:
                         # docstring table above, which has carried H10 ecg at -228.7 ms since
                         # 2026-08-11: the code and its own documentation had disagreed by thirty years.
                         device_ms = _POLAR_EPOCH_MS + dev_ns / 1e6
-                        per.setdefault((row.get("device", ""), meas), []).append(
-                            (host_ms, host_ms - device_ms, dev_ns))
+                        per.setdefault((row.get("device", ""), meas), []).append((host_ms, host_ms - device_ms, dev_ns))
                     except (ValueError, TypeError):
-                        continue      # a torn or half-written row is EXPECTED in a live journal and
-                                      # is not evidence about arrival quality; `rows` below reports
-                                      # how many actually survived to be measured
+                        continue  # a torn or half-written row is EXPECTED in a live journal and
+                        # is not evidence about arrival quality; `rows` below reports
+                        # how many actually survived to be measured
         except OSError:
             # A whole arrival file lost: every stream inside it silently vanishes from the report,
             # and an absent stream reads the same as one that was never recorded.
-            log.warning("night-QC: arrival file %s is unreadable, so its streams are absent from "
-                        "this report rather than judged", name, exc_info=True)
+            log.warning(
+                "night-QC: arrival file %s is unreadable, so its streams are absent from "
+                "this report rather than judged",
+                name,
+                exc_info=True,
+            )
             continue
         for (device, meas), pairs in sorted(per.items()):
             quantised = meas.endswith("_DURATION_S")
@@ -2044,45 +2103,51 @@ def arrival_quality(night_dir: str) -> list[dict]:
             # 2026-09-21 over 34 box nights, max_gap ≤ 4× median held on only 22.8 % of the ECG/PPG
             # legs (H10 ecg median 97×), and a compacted hole inflates every ADEV level by the step's
             # size (8× at a 500σ step, slope untouched). Seconds, the unit `_tau0_of` returns.
-            stab = allan.stability(diffs, _tau0_of(pairs), _TDEV_TAU_S, sample_times=[(h - pairs[0][0]) / 1000.0 for h, _, _ in pairs])
+            stab = allan.stability(
+                diffs, _tau0_of(pairs), _TDEV_TAU_S, sample_times=[(h - pairs[0][0]) / 1000.0 for h, _, _ in pairs]
+            )
             # WHICH EPOCH, beside the offset it explains. Named on the refusal too, so a consumer
             # reading only `offset.reason` still learns the cause class rather than just the magnitude.
             epoch_state = device_epoch_state(pairs, quantised=quantised, stamp_frozen=stamp_frozen)
             if isinstance(offset, dict) and offset.get("reason") == "implausible-offset" and epoch_state:
                 offset = {**offset, "cause": epoch_state["state"]}
-            out.append({
-                "file": name, "device": device, "meas": meas, "rows": len(diffs),
-                "quantised": quantised,
+            out.append(
+                {
+                    "file": name,
+                    "device": device,
+                    "meas": meas,
+                    "rows": len(diffs),
+                    "quantised": quantised,
                     # The epoch the device counter read — annotation, not a refusal (§∅).
                     "device_epoch": epoch_state,
                     # Explains the refusal above when it is NOT skew: see device_stamp_constant.
                     "device_stamp_constant": stamp_frozen,
-                "offset": offset,
+                    "offset": offset,
                     "jitter": jit,
-                # THE GRANULARITY BEHIND THAT JITTER: delivery happens on connection events, so
-                # the delay is an integer number of them. See connection_lattice — and note it is
-                # a granularity, NOT a bound; the spread covers many teeth.
-                    "lattice": connection_lattice(
-                        diffs, device_axis_is_clock=not (quantised or bool(stamp_frozen))),
+                    # THE GRANULARITY BEHIND THAT JITTER: delivery happens on connection events, so
+                    # the delay is an integer number of them. See connection_lattice — and note it is
+                    # a granularity, NOT a bound; the spread covers many teeth.
+                    "lattice": connection_lattice(diffs, device_axis_is_clock=not (quantised or bool(stamp_frozen))),
                     # HOW WELL DO WE KNOW *WHEN*? A GUM budget over terms already measured here, so a
                     # consumer gets one number with its parts rather than four diagnostics to weigh.
                     # `tau` is the stability curve's own optimal averaging time — where `adev_min` was
                     # read — so the oscillator term stays self-consistent with the curve it came from.
-                    "u_time": timing_uncertainty(jit, quantised=quantised, stability=stab,
-                                                 tau_s=(stab or {}).get("optimal_tau")),
-                # CLOCK STABILITY AS A CURVE. `arrival - device` is a phase (time-error) series, ADEV's
-                # native input, and the SLOPE names a mechanism where a ppm cannot: measured 2026-08-11,
-                # all four Polar streams are white/flicker PHASE (slope -0.99 to -1.00) averaging to
-                # 0.023-0.094 ms — the clock sits ~100x inside PAT's 10 ms budget and is not the
-                # bottleneck. The ring is white FREQUENCY at 615 ms, four orders worse.
-                # THAT ADEV LABEL IS TWO ANSWERS, and `phase_noise` now separates them: ADEV maps white
-                # PM and flicker PM both to tau^-1 (26 of 27 corpus streams get the joint label), while
-                # MDEV splits them tau^-3/2 vs tau^-1 and resolves 19, refusing 8. The two halves give
-                # opposite advice about a longer window, so the joint label could not be acted on.
-                # `tdev` is quoted at a FIXED tau for the reason `_TDEV_TAU_S` documents.
-                # Reported, gated by NOTHING: the last two arrival diagnostics that shipped with
-                # thresholds both fired on every stream of the first real night. See
-                # ALLAN-DEVIATION-2026-08-12-BRIEF.
+                    "u_time": timing_uncertainty(
+                        jit, quantised=quantised, stability=stab, tau_s=(stab or {}).get("optimal_tau")
+                    ),
+                    # CLOCK STABILITY AS A CURVE. `arrival - device` is a phase (time-error) series, ADEV's
+                    # native input, and the SLOPE names a mechanism where a ppm cannot: measured 2026-08-11,
+                    # all four Polar streams are white/flicker PHASE (slope -0.99 to -1.00) averaging to
+                    # 0.023-0.094 ms — the clock sits ~100x inside PAT's 10 ms budget and is not the
+                    # bottleneck. The ring is white FREQUENCY at 615 ms, four orders worse.
+                    # THAT ADEV LABEL IS TWO ANSWERS, and `phase_noise` now separates them: ADEV maps white
+                    # PM and flicker PM both to tau^-1 (26 of 27 corpus streams get the joint label), while
+                    # MDEV splits them tau^-3/2 vs tau^-1 and resolves 19, refusing 8. The two halves give
+                    # opposite advice about a longer window, so the joint label could not be acted on.
+                    # `tdev` is quoted at a FIXED tau for the reason `_TDEV_TAU_S` documents.
+                    # Reported, gated by NOTHING: the last two arrival diagnostics that shipped with
+                    # thresholds both fired on every stream of the first real night. See
+                    # ALLAN-DEVIATION-2026-08-12-BRIEF.
                     "stability": stab,
                     # IS A SINGLE tau0 EVEN A FAIR LABEL FOR THIS SERIES? `_tau0_of` hands `stability` the MEAN packet
                     # interval, and every estimator in `allan.py` then treats the samples as evenly spaced by it. On the
@@ -2095,15 +2160,16 @@ def arrival_quality(night_dir: str) -> list[dict]:
                     # Reported beside the curve, never applied to it — the unbiased unequal-spacing estimator (Sesia &
                     # Tavella 2008, 10.1088/0026-1394/45/6/S19) is the principled fix and should FOLLOW this measurement.
                     "tau0_uniformity": allan.tau0_uniformity([p[0] for p in pairs]),
-                # Filled below where this device has a second stream to compare against; None means
-                # "no sibling stream", never "nothing shared".
-                "transport": None,
-                "floor_spread_ms": None if spread is None else round(spread, 1),
-                # The verdict a reader should branch on. None where it cannot be judged — an unknown is
-                # not a pass, and the earlier attempt's whole failure was reporting a number that had
-                # not earned one.
-                "floor_ok": None if spread is None else bool(spread < 5.0),
-            })
+                    # Filled below where this device has a second stream to compare against; None means
+                    # "no sibling stream", never "nothing shared".
+                    "transport": None,
+                    "floor_spread_ms": None if spread is None else round(spread, 1),
+                    # The verdict a reader should branch on. None where it cannot be judged — an unknown is
+                    # not a pass, and the earlier attempt's whole failure was reporting a number that had
+                    # not earned one.
+                    "floor_ok": None if spread is None else bool(spread < 5.0),
+                }
+            )
         # SECOND PASS, per device: how much of each stream's ADEV is its own packet-arrival noise.
         # Needs two streams of one device, so it cannot be computed inside the per-stream loop above.
         # `_DURATION_S` is excluded because the ring's axis is 1 s quantised — pairing against it would
@@ -2125,16 +2191,19 @@ def arrival_quality(night_dir: str) -> list[dict]:
                 if rec["file"] == name and rec["device"] == device and rec["meas"] in (first, second):
                     mine = "adev_a" if rec["meas"] == first else "adev_b"
                     rec["transport"] = {
-                        "tau": share["tau"], "n": share["n"], "n_eff": share["n_eff"],
+                        "tau": share["tau"],
+                        "n": share["n"],
+                        "n_eff": share["n_eff"],
                         "gcov": share["gcov"],
                         "partner": second if rec["meas"] == first else first,
-                        "adev": share[mine],           # THIS stream's own, for scale
+                        "adev": share[mine],  # THIS stream's own, for scale
                         # SYMMETRIC by construction: the correlation describes the PAIR, so both records
                         # carry the same value. Only `adev` differs between them.
                         "corr": share["corr"],
                         "ci": share["ci"],
                     }
     return out
+
 
 # ── RING CONTACT FROM THE RAW 0x05 STREAM (PPG2W) ──────────────────────────────────────────────────
 # The O2Ring's `cmd 0x05` two-channel stream (identity still open — O2RING-RAW-DUAL-WAVELENGTH) turns
@@ -2404,8 +2473,9 @@ def held_stream(values, *, near_delta: float = _HELD_NEAR_DELTA):
     `None` when not held. Otherwise the ratio, which is the number a consumer needs: the record rate
     OVERSTATES the measurement rate by exactly this factor.
     """
-    return _held_shape([n for _i, n, _v in constant_runs(values, min_run=2)],
-                       _count_singletons(values), near_delta=near_delta)
+    return _held_shape(
+        [n for _i, n, _v in constant_runs(values, min_run=2)], _count_singletons(values), near_delta=near_delta
+    )
 
 
 def held_columns(columns, *, near_delta: float = _HELD_NEAR_DELTA):
@@ -2441,8 +2511,8 @@ def held_columns(columns, *, near_delta: float = _HELD_NEAR_DELTA):
             if run >= 2:
                 runs.append(run)
             else:
-                singles += 1     # `run` starts at 1 and resets to 1, so the only other case IS 1 —
-            run = 1              # an `elif run == 1` here reads as a guard and is an unreachable branch
+                singles += 1  # `run` starts at 1 and resets to 1, so the only other case IS 1 —
+            run = 1  # an `elif run == 1` here reads as a guard and is an unreachable branch
         i += 1
     return _held_shape(runs, singles, near_delta=near_delta)
 
@@ -2452,7 +2522,7 @@ def _held_shape(runs, singles, *, near_delta: float = _HELD_NEAR_DELTA):
     integers? Called with run lengths and a singleton count, however they were counted."""
     total = len(runs) + singles
     if total < 20:
-        return None                      # too few transitions to have a shape at all
+        return None  # too few transitions to have a shape at all
     best = None
     for a in sorted({n for n in runs}):
         share = (sum(1 for n in runs if n in (a, a + 1)) + (singles if a == 1 else 0)) / total
@@ -2460,17 +2530,16 @@ def _held_shape(runs, singles, *, near_delta: float = _HELD_NEAR_DELTA):
             best = ((a, a + 1), share)
     if best is None or best[1] < near_delta:
         return None
-    return {"held": True, "ratio": (sum(runs) + singles) / total,
-            "lengths": best[0], "share": best[1]}
+    return {"held": True, "ratio": (sum(runs) + singles) / total, "lengths": best[0], "share": best[1]}
 
 
-_ANNOTATION_GAP_MAX = 8         # the longest run of consecutive annotation rows a plateau may be
-                                # merged ACROSS. Measured on 20260905045318, consecutive-`156` run
-                                # lengths are 1:5383 · 2:11 · 3:3 · 4:2 · 5:3 · 6:3 — 99.6 % singletons,
-                                # max 6, 5455 marker rows in 5405 runs. Eight clears that max without
-                                # room to spare being the point: unbounded stepping is safe on THIS
-                                # corpus and would silently merge two plateaus across any future
-                                # marker burst, reporting a span that is mostly annotation.
+_ANNOTATION_GAP_MAX = 8  # the longest run of consecutive annotation rows a plateau may be
+# merged ACROSS. Measured on 20260905045318, consecutive-`156` run
+# lengths are 1:5383 · 2:11 · 3:3 · 4:2 · 5:3 · 6:3 — 99.6 % singletons,
+# max 6, 5455 marker rows in 5405 runs. Eight clears that max without
+# room to spare being the point: unbounded stepping is safe on THIS
+# corpus and would silently merge two plateaus across any future
+# marker burst, reporting a span that is mostly annotation.
 
 
 def _ramp(values, first, n, *, toward_high, ramp=_RAMP_SAMPLES, annotations=()):
@@ -2499,32 +2568,39 @@ def _ramp(values, first, n, *, toward_high, ramp=_RAMP_SAMPLES, annotations=()):
     mono_in = mono_out = False
     beyond = None
     if len(a) == ramp:
-        mono_in = all(a[t + 1] >= a[t] for t in range(ramp - 1)) if toward_high \
+        mono_in = (
+            all(a[t + 1] >= a[t] for t in range(ramp - 1))
+            if toward_high
             else all(a[t + 1] <= a[t] for t in range(ramp - 1))
+        )
         slope = (a[-1] - a[0]) / float(ramp - 1)
         proj = a[-1] + slope * n
         beyond = proj > values[first] if toward_high else proj < values[first]
     if len(b) == ramp:
-        mono_out = all(b[t + 1] <= b[t] for t in range(ramp - 1)) if toward_high \
+        mono_out = (
+            all(b[t + 1] <= b[t] for t in range(ramp - 1))
+            if toward_high
             else all(b[t + 1] >= b[t] for t in range(ramp - 1))
+        )
     return mono_in, mono_out, beyond
 
 
-_RAIL_SCAN_VALUES = 8           # how many OCCUPIED values inward from an edge are considered when
-                                # locating the rail.
-_RAIL_GAP_MAX = 4               # a wider gap than this between occupied values means the edge value
-                                # stands alone, so it IS the rail and no spike search is run.
-_RAIL_SPIKE_MIN = 5             # a rail must OUT-COUNT its nearest occupied neighbour by this factor.
-                                # Measured 2026-09-06 over eight files: real rails run 9.0-43.0x (ring
-                                # floor 34.3-43.0, ring ceiling 16.4-38.4, Verity ceiling 41.0 and 9.0),
-                                # a clean quantised sine reaches only 2.3-2.4x because a smooth signal
-                                # genuinely lingers at its own turning point, and the Verity's lone
-                                # minimum sample scores 1.0x. Five clears clean signal by ~2x and sits
-                                # ~1.8x under the weakest real rail.
+_RAIL_SCAN_VALUES = 8  # how many OCCUPIED values inward from an edge are considered when
+# locating the rail.
+_RAIL_GAP_MAX = 4  # a wider gap than this between occupied values means the edge value
+# stands alone, so it IS the rail and no spike search is run.
+_RAIL_SPIKE_MIN = 5  # a rail must OUT-COUNT its nearest occupied neighbour by this factor.
+# Measured 2026-09-06 over eight files: real rails run 9.0-43.0x (ring
+# floor 34.3-43.0, ring ceiling 16.4-38.4, Verity ceiling 41.0 and 9.0),
+# a clean quantised sine reaches only 2.3-2.4x because a smooth signal
+# genuinely lingers at its own turning point, and the Verity's lone
+# minimum sample scores 1.0x. Five clears clean signal by ~2x and sits
+# ~1.8x under the weakest real rail.
 
 
-def rail_value(values, *, toward_high, scan=_RAIL_SCAN_VALUES, gap_max=_RAIL_GAP_MAX,
-               spike_min: float = _RAIL_SPIKE_MIN):
+def rail_value(
+    values, *, toward_high, scan=_RAIL_SCAN_VALUES, gap_max=_RAIL_GAP_MAX, spike_min: float = _RAIL_SPIKE_MIN
+):
     """The rail is the HISTOGRAM SPIKE NEAREST THE EDGE, not the edge.
 
     🔴 The observed extreme is not the rail, and using it silently drops a whole class. Measured on
@@ -2558,14 +2634,14 @@ def rail_value(values, *, toward_high, scan=_RAIL_SCAN_VALUES, gap_max=_RAIL_GAP
     # `occupied` is sorted outward-edge first, so the first survivor is the NEAREST neighbour inward.
     inward = [v for v in occupied if v < rail] if toward_high else [v for v in occupied if v > rail]
     if not inward:
-        return None                      # the spike sits at the far end of a stream with only a
-                                         # couple of distinct values, so there is nothing inward of it
-                                         # to be a spike ABOVE. That is a flat/binary stream, not a rail.
+        return None  # the spike sits at the far end of a stream with only a
+        # couple of distinct values, so there is nothing inward of it
+        # to be a spike ABOVE. That is a flat/binary stream, not a rail.
     neighbour = inward[0]
     if counts[rail] < spike_min * counts[neighbour]:
-        return None                      # not a spike: a smooth signal lingering at its own turning
-                                         # point, or a lone outlier. This stream has no rail on this
-                                         # side, so it has no clip regions on this side either.
+        return None  # not a spike: a smooth signal lingering at its own turning
+        # point, or a lone outlier. This stream has no rail on this
+        # side, so it has no clip regions on this side either.
     return rail
 
 
@@ -2629,11 +2705,12 @@ def _rail_runs(values, rail, *, toward_high, max_spread, min_run, annotations, a
     return out
 
 
-_NO_SAMPLE = object()   # "the filtered column is empty" — distinct from every value a column can hold
+_NO_SAMPLE = object()  # "the filtered column is empty" — distinct from every value a column can hold
 
 
-def clip_regions(values, *, min_run: int = _CLIP_MIN_RUN, max_spread: int = _PLATEAU_LSB,
-                 ramp: int = _RAMP_SAMPLES, annotations=()):
+def clip_regions(
+    values, *, min_run: int = _CLIP_MIN_RUN, max_spread: int = _PLATEAU_LSB, ramp: int = _RAMP_SAMPLES, annotations=()
+):
     """Plateaus PINNED AT AN OBSERVED EXTREME, at BOTH rails, with their approach shape measured.
 
     Both extremes are read from the data and tested identically, which is what makes the ring's 0 and
@@ -2657,32 +2734,56 @@ def clip_regions(values, *, min_run: int = _CLIP_MIN_RUN, max_spread: int = _PLA
     if len(values) == 0:
         return []
     skip = frozenset(annotations)
+
     # A GENERATOR, NOT A COPY. `rail_value` only iterates, and this list was a second full copy of the
     # column — 5.26 M samples of it on the real 2026-09-21 ring file. Rebuilt per rail because an
     # exhausted iterator would silently hand the second call an empty distribution, which reads as
     # "no rail on this side" — a clean verdict from an examination that never happened (§4b).
     def _real():
         return (v for v in values if v not in skip)
+
     if next(_real(), _NO_SAMPLE) is _NO_SAMPLE:
         return []
     out = []
     for toward_high in (False, True):
         rail = rail_value(_real(), toward_high=toward_high)
         if rail is None:
-            continue                     # no rail on this side — a clean stream has none on either
-        for first, n in _rail_runs(values, rail, toward_high=toward_high, max_spread=max_spread, min_run=min_run,
-                                   annotations=skip, annotation_gap_max=_ANNOTATION_GAP_MAX):
-            mono_in, mono_out, beyond = _ramp(values, first, n, toward_high=toward_high,
-                                              ramp=ramp, annotations=skip)
-            out.append({"first_index": first, "n_samples": n, "rail": rail,
-                        "toward_high": toward_high, "monotone_in": mono_in,
-                        "monotone_out": mono_out, "projects_beyond": beyond})
+            continue  # no rail on this side — a clean stream has none on either
+        for first, n in _rail_runs(
+            values,
+            rail,
+            toward_high=toward_high,
+            max_spread=max_spread,
+            min_run=min_run,
+            annotations=skip,
+            annotation_gap_max=_ANNOTATION_GAP_MAX,
+        ):
+            mono_in, mono_out, beyond = _ramp(values, first, n, toward_high=toward_high, ramp=ramp, annotations=skip)
+            out.append(
+                {
+                    "first_index": first,
+                    "n_samples": n,
+                    "rail": rail,
+                    "toward_high": toward_high,
+                    "monotone_in": mono_in,
+                    "monotone_out": mono_out,
+                    "projects_beyond": beyond,
+                }
+            )
     out.sort(key=lambda r: r["first_index"])
     return out
 
 
-def class_b_runs(records=None, *, columns=None, stream: str, min_run: int = _CLIP_MIN_RUN,
-                 tick_ms: float | None = None, annotations=(), emit=None) -> dict:
+def class_b_runs(
+    records=None,
+    *,
+    columns=None,
+    stream: str,
+    min_run: int = _CLIP_MIN_RUN,
+    tick_ms: float | None = None,
+    annotations=(),
+    emit=None,
+) -> dict:
     """Class-B (QUALITY) signatures for one stream: `clip` regions, or a `held` mark, never both.
 
     Class A is ABSENCE — a value that was not measured, which must reach a consumer as null. Class B is
@@ -2722,9 +2823,20 @@ def class_b_runs(records=None, *, columns=None, stream: str, min_run: int = _CLI
             raise ValueError("columns= must name at least one channel")
     rows = []
     if emit is None:
+
         def emit(stream, value, first_index, n, dur_ms, closed, rule):
-            rows.append({"stream": stream, "value": value, "first_index": first_index,
-                         "n_samples": n, "dur_ms": dur_ms, "closed": closed, "rule": rule})
+            rows.append(
+                {
+                    "stream": stream,
+                    "value": value,
+                    "first_index": first_index,
+                    "n_samples": n,
+                    "dur_ms": dur_ms,
+                    "closed": closed,
+                    "rule": rule,
+                }
+            )
+
     n_records = len(columns[0]) if columns is not None else len(records)
     held = held_columns(columns) if columns is not None else held_stream(records)
     if held is not None:
@@ -2778,7 +2890,7 @@ def rtc_drift_summary(path: str | Sequence[str]) -> dict | None:
         except OSError:  # one torn sidecar of 29 must not null the night — and it is not hidden:
             continue  # `files` counts only what was read, so 28-of-29 lands in the record
         files += 1
-        lines.extend(body[1:])            # each file carries its own header row
+        lines.extend(body[1:])  # each file carries its own header row
     if not files:
         return None
     offsets: list[float] = []
@@ -2798,9 +2910,9 @@ def rtc_drift_summary(path: str | Sequence[str]) -> dict | None:
                 offsets.append(float(p[2]))
                 times.append(p[0])
             except ValueError:
-                continue              # the returned `reads` IS len(offsets), so a dropped row shows
-                                      # up as a smaller read count rather than as a silently
-                                      # narrower drift estimate
+                continue  # the returned `reads` IS len(offsets), so a dropped row shows
+                # up as a smaller read count rather than as a silently
+                # narrower drift estimate
     if not offsets:
         return None
     span_h = None
@@ -2813,15 +2925,21 @@ def rtc_drift_summary(path: str | Sequence[str]) -> dict | None:
         span_h = round((t1 - t0) / 3600, 1)
     except ValueError:
         span_h = None
-    return {"reads": len(offsets), "first_offset_s": offsets[0], "last_offset_s": offsets[-1],
-            "drift_s": round(offsets[-1] - offsets[0], 1), "span_h": span_h,
-            "resets": resets, "pushes": pushes, "files": files}
+    return {
+        "reads": len(offsets),
+        "first_offset_s": offsets[0],
+        "last_offset_s": offsets[-1],
+        "drift_s": round(offsets[-1] - offsets[0], 1),
+        "span_h": span_h,
+        "resets": resets,
+        "pushes": pushes,
+        "files": files,
+    }
 
 
-def dat_timefit_summary(dat_path: str, spo2_path: str,
-                        *, node_bin: str = "node",
-                        tool_path: str | None = None,
-                        timeout_s: float = 30.0) -> dict | None:
+def dat_timefit_summary(
+    dat_path: str, spo2_path: str, *, node_bin: str = "node", tool_path: str | None = None, timeout_s: float = 30.0
+) -> dict | None:
     """Fit the O2Ring's onboard `.dat` clock against a same-night live `_SPO2.csv` and return the
     lag verdict, or None when the tool cannot be run.
 
@@ -2849,7 +2967,10 @@ def dat_timefit_summary(dat_path: str, spo2_path: str,
     try:
         proc = subprocess.run(
             [node_bin, tool_path, "--dat", dat_path, "--spo2", spo2_path, "--json"],
-            capture_output=True, text=True, timeout=timeout_s, check=False,
+            capture_output=True,
+            text=True,
+            timeout=timeout_s,
+            check=False,
         )
     except (FileNotFoundError, OSError, subprocess.TimeoutExpired):
         return None
@@ -2876,8 +2997,7 @@ def dat_timefit_summary(dat_path: str, spo2_path: str,
     }
 
 
-def summarize(night_dir: str, devices: list[dict], wear: dict | None = None,
-              writer_offset: dict | None = None) -> dict:
+def summarize(night_dir: str, devices: list[dict], wear: dict | None = None, writer_offset: dict | None = None) -> dict:
     """Roll the CURRENT capture session up against the configured devices. The session is scoped by
     file-activity (see _SESSION_GAP_SEC) and unified across midnight (see below), NOT the whole date
     folder — so a box that also ran earlier the same day, or an overnight that crossed midnight, is judged
@@ -2943,8 +3063,7 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None,
         _stamped = [f["session"] for f in data if f["session"] is not None]
         earliest = min(_stamped) if _stamped else None
         midnight = _midnight_of(night_dir)
-        _pool = (midnight is not None and earliest is not None
-                 and 0 <= earliest - midnight < _SESSION_GAP_SEC)
+        _pool = midnight is not None and earliest is not None and 0 <= earliest - midnight < _SESSION_GAP_SEC
         if not _pool and earliest is not None and prev_probe_window(earliest, midnight):
             # THE NEAR-MIDNIGHT PROXY IS NOT THE QUESTION. "Did this folder open just after midnight"
             # only ever stood in for "does last night's session continue into this folder", and the two
@@ -2982,8 +3101,9 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None,
                 # zone would extend that unknown across a second folder, so it does not pool and the
                 # `writer_offset` block says why.
                 _prev_last = max(f["mtime"] for f in prev_data)
-                _pool = (_off["offset_sec"] is not None
-                         and (earliest + _off["offset_sec"]) - _prev_last < _SESSION_GAP_SEC)
+                _pool = (
+                    _off["offset_sec"] is not None and (earliest + _off["offset_sec"]) - _prev_last < _SESSION_GAP_SEC
+                )
     else:
         # NO CAPTURE FILES HERE AT ALL. The old gate was `if data:`, so this branch could not run — and
         # it is precisely the 2026-07-28 shape: the midnight sidecar rollover creates tomorrow's folder,
@@ -3061,8 +3181,7 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None,
     # but no session — and `judged_session` then answers None, as its contract says it must. Reading
     # `cur[2]` off that was a crash, caught by the QC poller's own tests: `qc poll failed: TypeError`,
     # which is a night silently losing its whole summary rather than reporting what it could not judge.
-    sessions = merge_sessions(data, starts=_daemon["stamps"],
-                              offset_sec=_off["offset_sec"]) if data else []
+    sessions = merge_sessions(data, starts=_daemon["stamps"], offset_sec=_off["offset_sec"]) if data else []
     if sessions:
         # ⚠️ JUDGE THE SUBSTANTIVE SESSION, NOT THE MOST RECENT ONE.
         #
@@ -3123,20 +3242,24 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None,
                 prev = max(before, key=lambda s: s[1])
                 prior_gap = cur[0] - prev[1]
                 cls = _gap_class(before, b0, b1)
-                line = (f"{_hhmm(prev[1])}->{_hhmm(cur[0])} {round(prior_gap / 60)}min gap; "
-                        f"{len(before)} earlier session(s), "
-                        f"{sum(f['rows'] for s in before for f in s[2])} rows, excluded from coverage"
-                        f" [{cls}]")
+                line = (
+                    f"{_hhmm(prev[1])}->{_hhmm(cur[0])} {round(prior_gap / 60)}min gap; "
+                    f"{len(before)} earlier session(s), "
+                    f"{sum(f['rows'] for s in before for f in s[2])} rows, excluded from coverage"
+                    f" [{cls}]"
+                )
                 gaps.append(line)
                 if cls == "in-night":
                     gaps_in_night.append(line)
             if after:
                 nxt = min(after, key=lambda s: s[0])
                 cls = _gap_class(after, b0, b1)
-                line = (f"{_hhmm(cur[1])}->{_hhmm(nxt[0])} {round((nxt[0] - cur[1]) / 60)}min gap; "
-                        f"{len(after)} later session(s), "
-                        f"{sum(f['rows'] for s in after for f in s[2])} rows, excluded from coverage"
-                        f" [{cls}]")
+                line = (
+                    f"{_hhmm(cur[1])}->{_hhmm(nxt[0])} {round((nxt[0] - cur[1]) / 60)}min gap; "
+                    f"{len(after)} later session(s), "
+                    f"{sum(f['rows'] for s in after for f in s[2])} rows, excluded from coverage"
+                    f" [{cls}]"
+                )
                 gaps.append(line)
                 if cls == "in-night":
                     gaps_in_night.append(line)
@@ -3148,8 +3271,7 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None,
     # Read every stream's ACTUAL rate once, up front: the coverage loop below divides by it, and the
     # same rows are reported as `rates` so a mismatch against the config is visible on its own terms.
     _rate_rows = rate_reality(night_dir, devices)
-    _measured_hz_of = {(r["device"], r["stream"]): r["measured_hz"]
-                       for r in _rate_rows if r.get("measured_hz")}
+    _measured_hz_of = {(r["device"], r["stream"]): r["measured_hz"] for r in _rate_rows if r.get("measured_hz")}
     for d in devices:
         did = d.get("device_id")
         # Every id this device's files may carry — the current one plus any corrected-away
@@ -3157,7 +3279,7 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None,
         # on 2026-07-26 after its id was fixed at 06:51; see writers.device_ids.
         dids = writers.device_ids(d)
         name = d.get("name") or did
-        opt = bool(d.get("optional"))          # a known-but-not-expected backup — its absence is not a fault
+        opt = bool(d.get("optional"))  # a known-but-not-expected backup — its absence is not a fault
         # ── THE DENOMINATOR IS THIS DEVICE'S OWN SPAN, not the session's (2026-09-24) ──────────────
         # Coverage asks, in its own words below, "did we receive the packets the device was SENDING".
         # Dividing by the SESSION span — the union across devices — answers a different question: it
@@ -3193,9 +3315,9 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None,
                 dev_span = None
         # Session end − this device's last write. Published so a reader sees 28.4 min on the Verity
         # rather than "8 % of nothing"; the session end it is measured against is named beside it.
-        stopped_early_s = (round(_cur_end - _dev_end)
-                           if (_cur_end is not None and _dev_end is not None and span is not None)
-                           else None)
+        stopped_early_s = (
+            round(_cur_end - _dev_end) if (_cur_end is not None and _dev_end is not None and span is not None) else None
+        )
         streams: dict[str, int] = {}
         coverage: dict[str, float] = {}
         #: Per stream: "device" when the denominator was this device's own recording extent, "session"
@@ -3220,8 +3342,7 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None,
             # Everything is the CURRENT SESSION (the `current` set, unified across midnight) — so a stream
             # is `missing` only if it produced nothing THIS session, and its row count + coverage reflect
             # the session, never an earlier daytime or previous-night one.
-            rows = sum(f["rows"] for f in current
-                       if writers.file_device_id(f["file"]) in dids and f["stream"] in tags)
+            rows = sum(f["rows"] for f in current if writers.file_device_id(f["file"]) in dids and f["stream"] in tags)
             streams[s] = rows
             if rows == 0:
                 # An OPTIONAL backup device that did not join is EXPECTED, not a gap — it stays out of
@@ -3269,8 +3390,9 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None,
                 scov = round(rows / (hz * span), 2)
                 session_coverage[s] = scov
                 if scov < _DEGRADED_BELOW:
-                    degraded.append(f"{name}:{s} {int(scov * 100)}%"
-                                    + ("" if basis == "measured" else " (rate assumed)"))
+                    degraded.append(
+                        f"{name}:{s} {int(scov * 100)}%" + ("" if basis == "measured" else " (rate assumed)")
+                    )
         # SECONDS SINCE THIS DEVICE LAST WROTE, measured against the night's NEWEST write rather
         # than wall-clock now(). Two reasons: reading an old night back must not report every
         # device as frozen, and the question that matters is always "silent while the others were
@@ -3317,118 +3439,131 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None,
             rtc = rtc_drift_summary(rtc_paths)
         if dat_path and spo2_path:
             datfit = dat_timefit_summary(dat_path, spo2_path)
-        per_device.append({"name": name, "streams": streams, "coverage": coverage,
-                           "coverage_basis": coverage_basis, "span_basis": span_basis,
-                           "session_coverage": session_coverage,
-                           "span_sec": round(dev_span) if dev_span else None,
-                           "stopped_early_s": stopped_early_s,
-                           "session_end": (round(_cur_end)
-                                           if (_cur_end is not None and span is not None) else None),
-                           # WHY it stopped, from `loss_audit.wear_ends`'s `worn_end.reason` — NEVER
-                           # inferred here, and `None` still means "not determined" rather than "no
-                           # reason". Three things this deliberately does not do:
-                           #   · it does not GUESS when no wear block was supplied (`wear=None`, the
-                           #     default, and every caller that has no loss audit to hand);
-                           #   · it does not name a reason for a device that did NOT stop early. A
-                           #     reason for a 0-second early stop would read as a fault where there is
-                           #     none — the H10 that defines the session end is the normal case;
-                           #   · it does not MAP the vocabulary. `quiet-end-unclassified` travels
-                           #     verbatim: it is the wear unit's way of saying it could not tell, and
-                           #     translating it into anything shorter would manufacture a verdict.
-                           "stopped_early_reason": None,
-                           # The wear boundary itself, whether or not the device stopped early — so the
-                           # off-body tail is READABLE rather than inferred. The H10 on 2026-09-23 has
-                           # `stopped_early_s = 0` because it defines the session end, and still came off
-                           # 28 min before its file did; that window held 2,766 of the night's 2,767
-                           # "PVCs" (#3001). Without this field a reader has to join two files to see it.
-                           "worn_end_at": None,
-                           "silent_sec": silent, "rtc": rtc, "datfit": datfit})
-    return attach_wear({
-        "night": os.path.basename(night_dir.rstrip("/")),
-        # Reported beside the capture verdict, never folded into it — see the note on system_file_drift.
-        "system_files": system_file_drift(),
-        "devices": per_device,
-        "missing": missing,
-        "degraded": degraded,
-        "gaps": gaps,
-        # THE SUBSET THAT ACTUALLY BEARS ON THE NIGHT, and the only one `ok` reads. `gaps` stays
-        # complete so nothing is hidden — a daytime sitting is still reported, still labelled, and a
-        # consumer that wants every exclusion reads `gaps` exactly as before.
-        "gaps_in_night": gaps_in_night,
-        "optional_absent": optional_absent,
-        # Every session on this night, oldest first — so `span_sec`/`coverage`/`missing`/`silent_sec`
-        # being CURRENT-session-scoped is visible rather than implied.
-        "sessions": [{"start": round(s[0]), "end": round(s[1]),
-                      "rows": sum(f["rows"] for f in s[2])} for s in sessions],
-        "prior_gap_sec": round(prior_gap) if prior_gap is not None else None,
-        "span_sec": round(span) if span else None,
-        # ∅ WHY there is no span, when there is none — the three cases are different and a bare None
-        # cannot tell them apart: no data at all, a session under the judgeable minimum, or a writer
-        # offset that could not be recovered so no instant exists to measure between.
-        "span_reason": _span_reason,
-        # THE INFERENCE THIS NIGHT'S INSTANTS REST ON, published so a reader can audit it rather than
-        # take it. `basis: "recovered"` with its voter count and modal share, or `null` with a reason —
-        # see `recover_writer_offset`. `frame` names which timeline `sessions` and `judged_session` are
-        # expressed in, because in the refusing case they are floating civil values and not instants.
-        "writer_offset": dict(_off, frame="floating" if _off["offset_sec"] is None else "absolute"),
-        "files": len(scanned),
-        "total_rows": sum(f["rows"] for f in scanned),
-        "total_bytes": sum(f["bytes"] for f in scanned),
-        "sidecars": sorted({f["stream"] for f in scanned if f["stream"] in _SIDECAR_TAGS}),
-        # THE SCOPE THIS VERDICT RESTS ON, REPORTED RATHER THAN IMPLIED. On 2026-07-28 the summary
-        # already carried the tell — `files: 2`, both sidecars — and nothing said what that meant, so a
-        # scope failure read as nine simultaneous device failures. A verdict that cannot be audited
-        # against the ground it was computed from is a claim, not a measurement.
-        "judged_dir": os.path.basename(night_dir.rstrip("/")),
-        # WHICH session the verdict rests on, on the same principle as `judged_dir`/`searched_dirs`
-        # below: a verdict that cannot be audited against the ground it was computed from is a claim.
-        "judged_session": {"start": round(cur[0]), "end": round(cur[1]),
-                           "rows": sum(f["rows"] for f in cur[2])} if cur else None,
-        # WHAT OF THAT SESSION WAS ACTUALLY NIGHT. Published beside the session rather than replacing
-        # it: under continuous recording the judged session runs 16-31 h, so `judged_session.rows` is
-        # not a claim about a night. Reported, gated by NOTHING — see night_view's docstring.
-        "night_window": night_view(cur, cur[2]) if cur else None,
-        "searched_dirs": [os.path.basename(p.rstrip("/")) for p in searched],
-        "data_files": len(data),
-        # NINE INDEPENDENT STREAMS ACROSS THREE VENDORS DO NOT FAIL IN THE SAME SECOND. When the scope
-        # we searched holds no capture file at all, "every stream is missing" is a statement about where
-        # we looked, not about the hardware — and must never be dressed up as the latter. `missing` is
-        # still populated (it is honestly what this scope contains); this flag says do not read it as a
-        # device fault, and it is what any consumer — human or automated — must branch on first.
-        "scope_suspect": bool(devices) and not data,
-        # A hole in the night is a reason to look, exactly like a missing or degraded stream. `ok` is a
-        # claim about THE NIGHT; if half of it was excluded from the judgement, the claim is unsupported.
-        "ok": not missing and not degraded and not gaps_in_night,
-        # THE ARRIVAL SIDECAR IS ONLY WORTH WRITING IF ITS EDGE IS AN EDGE (PAT-PACKET-ARRIVAL §3).
-        # It exists so `min(arrival - device)` recovers the per-connection BLE offset, which works only
-        # because buffering is one-sided. If a night's distribution comes back SMEARED anyway — a wedged
-        # stack, a clock step, a device that batches differently — the number is unusable, and without
-        # this check that would surface weeks later in an analysis rather than the morning after.
-        # Reported, never folded into `ok`: a smeared floor is a defect of the OFFSET measurement, not of
-        # the night's physiology, and conflating the two would make a perfectly good recording read as a
-        # capture failure.
-        "arrival": arrival_quality(night_dir),
-        # RING CONTACT from the raw 0x05 pair — the independent coupling vote (constants + validation
-        # documented at ppg2w_contact). A session list, not a verdict; empty when never captured.
-        "ppg2w_contact": ppg2w_contact_quality(night_dir),
-        # CLASS-B QUALITY — `clip` spans pinned at each stream's own observed rails, and a computed
-        # `held` mark. Whole-night because the rail is not knowable until the night is complete.
-        # Reported, never folded into `ok`: a clipped stretch is a defect of the SIGNAL, not of the
-        # capture, and conflating them would make a good recording read as a capture failure — the
-        # same separation `arrival` above is kept out of `ok` for.
-        "class_b": class_b_quality(night_dir),
-        # OBSERVABILITY (residue 2026-09-10-daemon-restarts-are-idle-gated): the night's daemon
-        # starts and how many fell inside a capture — `scanned` is passed so the night is not walked
-        # a second time for it.
-        "daemon": _daemon,
-        # WHICH DISCRIMINATOR SEGMENTED THIS NIGHT — `daemon-starts` when the sidecar spoke,
-        # `gap-only` when it did not. A night scoped without the evidence must not read as one scoped
-        # with it (§∅: the absence of a record is not a record of absence).
-        "session_basis": _session_basis,
-        # What rate the files ACTUALLY carry, against what was asked for. Coverage notices a rate swap
-        # only as `degraded`, which names it a link fault; this names it a rate fault.
-        "rates": _rate_rows,
-    }, wear)
+        per_device.append(
+            {
+                "name": name,
+                "streams": streams,
+                "coverage": coverage,
+                "coverage_basis": coverage_basis,
+                "span_basis": span_basis,
+                "session_coverage": session_coverage,
+                "span_sec": round(dev_span) if dev_span else None,
+                "stopped_early_s": stopped_early_s,
+                "session_end": (round(_cur_end) if (_cur_end is not None and span is not None) else None),
+                # WHY it stopped, from `loss_audit.wear_ends`'s `worn_end.reason` — NEVER
+                # inferred here, and `None` still means "not determined" rather than "no
+                # reason". Three things this deliberately does not do:
+                #   · it does not GUESS when no wear block was supplied (`wear=None`, the
+                #     default, and every caller that has no loss audit to hand);
+                #   · it does not name a reason for a device that did NOT stop early. A
+                #     reason for a 0-second early stop would read as a fault where there is
+                #     none — the H10 that defines the session end is the normal case;
+                #   · it does not MAP the vocabulary. `quiet-end-unclassified` travels
+                #     verbatim: it is the wear unit's way of saying it could not tell, and
+                #     translating it into anything shorter would manufacture a verdict.
+                "stopped_early_reason": None,
+                # The wear boundary itself, whether or not the device stopped early — so the
+                # off-body tail is READABLE rather than inferred. The H10 on 2026-09-23 has
+                # `stopped_early_s = 0` because it defines the session end, and still came off
+                # 28 min before its file did; that window held 2,766 of the night's 2,767
+                # "PVCs" (#3001). Without this field a reader has to join two files to see it.
+                "worn_end_at": None,
+                "silent_sec": silent,
+                "rtc": rtc,
+                "datfit": datfit,
+            }
+        )
+    return attach_wear(
+        {
+            "night": os.path.basename(night_dir.rstrip("/")),
+            # Reported beside the capture verdict, never folded into it — see the note on system_file_drift.
+            "system_files": system_file_drift(),
+            "devices": per_device,
+            "missing": missing,
+            "degraded": degraded,
+            "gaps": gaps,
+            # THE SUBSET THAT ACTUALLY BEARS ON THE NIGHT, and the only one `ok` reads. `gaps` stays
+            # complete so nothing is hidden — a daytime sitting is still reported, still labelled, and a
+            # consumer that wants every exclusion reads `gaps` exactly as before.
+            "gaps_in_night": gaps_in_night,
+            "optional_absent": optional_absent,
+            # Every session on this night, oldest first — so `span_sec`/`coverage`/`missing`/`silent_sec`
+            # being CURRENT-session-scoped is visible rather than implied.
+            "sessions": [
+                {"start": round(s[0]), "end": round(s[1]), "rows": sum(f["rows"] for f in s[2])} for s in sessions
+            ],
+            "prior_gap_sec": round(prior_gap) if prior_gap is not None else None,
+            "span_sec": round(span) if span else None,
+            # ∅ WHY there is no span, when there is none — the three cases are different and a bare None
+            # cannot tell them apart: no data at all, a session under the judgeable minimum, or a writer
+            # offset that could not be recovered so no instant exists to measure between.
+            "span_reason": _span_reason,
+            # THE INFERENCE THIS NIGHT'S INSTANTS REST ON, published so a reader can audit it rather than
+            # take it. `basis: "recovered"` with its voter count and modal share, or `null` with a reason —
+            # see `recover_writer_offset`. `frame` names which timeline `sessions` and `judged_session` are
+            # expressed in, because in the refusing case they are floating civil values and not instants.
+            "writer_offset": dict(_off, frame="floating" if _off["offset_sec"] is None else "absolute"),
+            "files": len(scanned),
+            "total_rows": sum(f["rows"] for f in scanned),
+            "total_bytes": sum(f["bytes"] for f in scanned),
+            "sidecars": sorted({f["stream"] for f in scanned if f["stream"] in _SIDECAR_TAGS}),
+            # THE SCOPE THIS VERDICT RESTS ON, REPORTED RATHER THAN IMPLIED. On 2026-07-28 the summary
+            # already carried the tell — `files: 2`, both sidecars — and nothing said what that meant, so a
+            # scope failure read as nine simultaneous device failures. A verdict that cannot be audited
+            # against the ground it was computed from is a claim, not a measurement.
+            "judged_dir": os.path.basename(night_dir.rstrip("/")),
+            # WHICH session the verdict rests on, on the same principle as `judged_dir`/`searched_dirs`
+            # below: a verdict that cannot be audited against the ground it was computed from is a claim.
+            "judged_session": {"start": round(cur[0]), "end": round(cur[1]), "rows": sum(f["rows"] for f in cur[2])}
+            if cur
+            else None,
+            # WHAT OF THAT SESSION WAS ACTUALLY NIGHT. Published beside the session rather than replacing
+            # it: under continuous recording the judged session runs 16-31 h, so `judged_session.rows` is
+            # not a claim about a night. Reported, gated by NOTHING — see night_view's docstring.
+            "night_window": night_view(cur, cur[2]) if cur else None,
+            "searched_dirs": [os.path.basename(p.rstrip("/")) for p in searched],
+            "data_files": len(data),
+            # NINE INDEPENDENT STREAMS ACROSS THREE VENDORS DO NOT FAIL IN THE SAME SECOND. When the scope
+            # we searched holds no capture file at all, "every stream is missing" is a statement about where
+            # we looked, not about the hardware — and must never be dressed up as the latter. `missing` is
+            # still populated (it is honestly what this scope contains); this flag says do not read it as a
+            # device fault, and it is what any consumer — human or automated — must branch on first.
+            "scope_suspect": bool(devices) and not data,
+            # A hole in the night is a reason to look, exactly like a missing or degraded stream. `ok` is a
+            # claim about THE NIGHT; if half of it was excluded from the judgement, the claim is unsupported.
+            "ok": not missing and not degraded and not gaps_in_night,
+            # THE ARRIVAL SIDECAR IS ONLY WORTH WRITING IF ITS EDGE IS AN EDGE (PAT-PACKET-ARRIVAL §3).
+            # It exists so `min(arrival - device)` recovers the per-connection BLE offset, which works only
+            # because buffering is one-sided. If a night's distribution comes back SMEARED anyway — a wedged
+            # stack, a clock step, a device that batches differently — the number is unusable, and without
+            # this check that would surface weeks later in an analysis rather than the morning after.
+            # Reported, never folded into `ok`: a smeared floor is a defect of the OFFSET measurement, not of
+            # the night's physiology, and conflating the two would make a perfectly good recording read as a
+            # capture failure.
+            "arrival": arrival_quality(night_dir),
+            # RING CONTACT from the raw 0x05 pair — the independent coupling vote (constants + validation
+            # documented at ppg2w_contact). A session list, not a verdict; empty when never captured.
+            "ppg2w_contact": ppg2w_contact_quality(night_dir),
+            # CLASS-B QUALITY — `clip` spans pinned at each stream's own observed rails, and a computed
+            # `held` mark. Whole-night because the rail is not knowable until the night is complete.
+            # Reported, never folded into `ok`: a clipped stretch is a defect of the SIGNAL, not of the
+            # capture, and conflating them would make a good recording read as a capture failure — the
+            # same separation `arrival` above is kept out of `ok` for.
+            "class_b": class_b_quality(night_dir),
+            # OBSERVABILITY (residue 2026-09-10-daemon-restarts-are-idle-gated): the night's daemon
+            # starts and how many fell inside a capture — `scanned` is passed so the night is not walked
+            # a second time for it.
+            "daemon": _daemon,
+            # WHICH DISCRIMINATOR SEGMENTED THIS NIGHT — `daemon-starts` when the sidecar spoke,
+            # `gap-only` when it did not. A night scoped without the evidence must not read as one scoped
+            # with it (§∅: the absence of a record is not a record of absence).
+            "session_basis": _session_basis,
+            # What rate the files ACTUALLY carry, against what was asked for. Coverage notices a rate swap
+            # only as `degraded`, which names it a link fault; this names it a rate fault.
+            "rates": _rate_rows,
+        },
+        wear,
+    )
 
 
 # ── VERDICTS — one `tepna.verdict/1` object per gate per night (VERDICT-CONTRACT §3b, wave 1) ──────────
@@ -3469,6 +3604,7 @@ def qc_verdict(summary: dict, devices: list[dict], *, night_dir: str = "") -> di
     and "recorded badly" are opposite findings, and only the second is this gate's business.
     """
     import verdict as _v
+
     ev = [_TOOL, os.path.join(night_dir, _SUMMARY_NAME) if night_dir else _SUMMARY_NAME]
     try:
         # ── A SESSION-BASIS COVERAGE IS NOT THIS DEVICE'S COVERAGE (2026-09-25) ────────────────────
@@ -3504,11 +3640,15 @@ def qc_verdict(summary: dict, devices: list[dict], *, night_dir: str = "") -> di
         # is annotated once HERE rather than narrowed at each of its readers. Without it mypy infers
         # a union carrying None and every `set(result["missing"])` downstream reads as a possible
         # crash — noise that hid a REAL one four lines up for a day.
-        result: dict[str, Any] = {"coverage": cov, "coverage_session_basis": cov_session,
-                  "coverage_basis_unknown": cov_unknown, "missing": list(summary.get("missing") or []),
-                  "degraded": list(summary.get("degraded") or []),
-                  "gaps_in_night": list(summary.get("gaps_in_night") or []),
-                  "span_sec": summary.get("span_sec")}
+        result: dict[str, Any] = {
+            "coverage": cov,
+            "coverage_session_basis": cov_session,
+            "coverage_basis_unknown": cov_unknown,
+            "missing": list(summary.get("missing") or []),
+            "degraded": list(summary.get("degraded") or []),
+            "gaps_in_night": list(summary.get("gaps_in_night") or []),
+            "span_sec": summary.get("span_sec"),
+        }
         span = summary.get("span_sec")
         # ── A DEVICE THAT NEVER STARTED IS NOT A DEVICE THAT RECORDED BADLY (2026-09-25) ───────────
         # Measured on SOLID-NIGHT night 1: with the kit on its dock the verdict read FAIL, because every
@@ -3546,11 +3686,14 @@ def qc_verdict(summary: dict, devices: list[dict], *, night_dir: str = "") -> di
         # the population equality (checked + excluded == eligible) carries it rather than dropping it.
         # It is NAMED by what it actually carried, because there is no name to name it by; that is the
         # same "name what arrived" shape #3040 used for the alert path.
-        _unidentified = [d for d in devices
-                         if not d.get("optional") and not (d.get("name") or d.get("device_id"))]
-        _declared = {_k: list(d.get("streams") or [])
-                     for d in devices if not d.get("optional")
-                     for _k in [d.get("name") or d.get("device_id")] if _k}
+        _unidentified = [d for d in devices if not d.get("optional") and not (d.get("name") or d.get("device_id"))]
+        _declared = {
+            _k: list(d.get("streams") or [])
+            for d in devices
+            if not d.get("optional")
+            for _k in [d.get("name") or d.get("device_id")]
+            if _k
+        }
         _miss = set(result["missing"])
         absent = sorted(n for n, ss in _declared.items() if ss and all(f"{n}:{s}" in _miss for s in ss))
         recorded = sorted(n for n, ss in _declared.items() if n not in absent)
@@ -3565,43 +3708,101 @@ def qc_verdict(summary: dict, devices: list[dict], *, night_dir: str = "") -> di
         # simply dropped: checked + excluded == eligible, and a PASS over `checked: 0` is invalid by
         # schema rather than by convention.
         checked = sum(len(ss) for n, ss in _declared.items() if n in recorded)
-        excluded = sum(len(d.get("streams") or []) for d in devices if d.get("optional")) \
-            + sum(len(ss) for n, ss in _declared.items() if n in absent) \
+        excluded = (
+            sum(len(d.get("streams") or []) for d in devices if d.get("optional"))
+            + sum(len(ss) for n, ss in _declared.items() if n in absent)
             + sum(len(d.get("streams") or []) for d in _unidentified)
+        )
         eligible = sum(len(d.get("streams") or []) for d in devices)
         pop = {"checked": checked, "eligible": eligible, "excluded": excluded}
         if eligible == 0:
-            return _v.make(gate=_QC_GATE, status="NOT_RUN", population=pop, criterion=_QC_CRITERION, result=None,
-                           evidence=ev, reason="no device is configured — nothing was declared to judge", tool=_TOOL)
+            return _v.make(
+                gate=_QC_GATE,
+                status="NOT_RUN",
+                population=pop,
+                criterion=_QC_CRITERION,
+                result=None,
+                evidence=ev,
+                reason="no device is configured — nothing was declared to judge",
+                tool=_TOOL,
+            )
         if absent and not recorded:
-            return _v.make(gate=_QC_GATE, status="UNKNOWN", population=pop, criterion=_QC_CRITERION,
-                           result=result, evidence=ev, tool=_TOOL,
-                           reason="no expected device produced a row, and no sibling recorded to witness the "
-                                  "radio — nobody wore the devices and a dead adapter are indistinguishable "
-                                  f"from here: {', '.join(absent)}")
+            return _v.make(
+                gate=_QC_GATE,
+                status="UNKNOWN",
+                population=pop,
+                criterion=_QC_CRITERION,
+                result=result,
+                evidence=ev,
+                tool=_TOOL,
+                reason="no expected device produced a row, and no sibling recorded to witness the "
+                "radio — nobody wore the devices and a dead adapter are indistinguishable "
+                f"from here: {', '.join(absent)}",
+            )
         if checked == 0:
-            return _v.make(gate=_QC_GATE, status="NOT_RUN", population=pop, criterion=_QC_CRITERION, result=None,
-                           evidence=ev, reason="no device is configured — nothing was declared to judge", tool=_TOOL)
+            return _v.make(
+                gate=_QC_GATE,
+                status="NOT_RUN",
+                population=pop,
+                criterion=_QC_CRITERION,
+                result=None,
+                evidence=ev,
+                reason="no device is configured — nothing was declared to judge",
+                tool=_TOOL,
+            )
         # Only the RECORDING devices' faults are judged; an absent device's streams are excluded above,
         # so its `missing` entries must not also convict it here.
         result["missing"] = [m for m in result["missing"] if m.split(":", 1)[0] not in set(absent)]
         if result["missing"] or result["degraded"]:
-            parts = ([f"missing: {', '.join(result['missing'])}"] if result["missing"] else []) + \
-                    ([f"degraded (< {int(_DEGRADED_BELOW * 100)} %): {', '.join(result['degraded'])}"] if result["degraded"] else [])
-            return _v.make(gate=_QC_GATE, status="FAIL", population=pop, criterion=_QC_CRITERION, result=result,
-                           evidence=ev, reason="; ".join(parts), tool=_TOOL)
+            parts = ([f"missing: {', '.join(result['missing'])}"] if result["missing"] else []) + (
+                [f"degraded (< {int(_DEGRADED_BELOW * 100)} %): {', '.join(result['degraded'])}"]
+                if result["degraded"]
+                else []
+            )
+            return _v.make(
+                gate=_QC_GATE,
+                status="FAIL",
+                population=pop,
+                criterion=_QC_CRITERION,
+                result=result,
+                evidence=ev,
+                reason="; ".join(parts),
+                tool=_TOOL,
+            )
         if span is None or span < _MIN_SPAN_SEC:
-            return _v.make(gate=_QC_GATE, status="UNDERPOWERED", population=pop, criterion=_QC_CRITERION,
-                           result=result, evidence=ev, tool=_TOOL,
-                           reason=f"span {span if span is not None else 'unknown'} s is under the {int(_MIN_SPAN_SEC)} s "
-                                  "minimum — coverage is unknown, not low")
+            return _v.make(
+                gate=_QC_GATE,
+                status="UNDERPOWERED",
+                population=pop,
+                criterion=_QC_CRITERION,
+                result=result,
+                evidence=ev,
+                tool=_TOOL,
+                reason=f"span {span if span is not None else 'unknown'} s is under the {int(_MIN_SPAN_SEC)} s "
+                "minimum — coverage is unknown, not low",
+            )
         if result["gaps_in_night"]:
-            return _v.make(gate=_QC_GATE, status="SHORTFALL", population=pop, criterion=_QC_CRITERION,
-                           result=result, evidence=ev, tool=_TOOL,
-                           reason="every stream met coverage, but a capture session inside the night window was "
-                                  "excluded from the judgement: " + "; ".join(result["gaps_in_night"]))
-        return _v.make(gate=_QC_GATE, status="PASS", population=pop, criterion=_QC_CRITERION, result=result,
-                       evidence=ev, reason=None, tool=_TOOL)
+            return _v.make(
+                gate=_QC_GATE,
+                status="SHORTFALL",
+                population=pop,
+                criterion=_QC_CRITERION,
+                result=result,
+                evidence=ev,
+                tool=_TOOL,
+                reason="every stream met coverage, but a capture session inside the night window was "
+                "excluded from the judgement: " + "; ".join(result["gaps_in_night"]),
+            )
+        return _v.make(
+            gate=_QC_GATE,
+            status="PASS",
+            population=pop,
+            criterion=_QC_CRITERION,
+            result=result,
+            evidence=ev,
+            reason=None,
+            tool=_TOOL,
+        )
     except Exception as exc:  # noqa: BLE001 — a crash is not a verdict; it is UNKNOWN with the exception named
         return _v.unknown(gate=_QC_GATE, criterion=_QC_CRITERION, evidence=ev, tool=_TOOL, exc=exc)
 
@@ -3617,6 +3818,7 @@ def backcheck_verdict(night_dir: str, summary: dict) -> dict:
     eligible > 0 with checked == 0 is UNKNOWN, and a night with no class-B file at all is NOT_RUN.
     """
     import verdict as _v
+
     ev = [_TOOL, os.path.join(night_dir, _SUMMARY_NAME)]
     try:
         names = sorted(os.listdir(night_dir)) if os.path.isdir(night_dir) else []
@@ -3636,22 +3838,54 @@ def backcheck_verdict(night_dir: str, summary: dict) -> dict:
             held += 1 if h else 0
         result = {"clip_regions": clips, "held_streams": held, "files": per_file}
         if not eligible_files:
-            return _v.make(gate=_BACKCHECK_GATE, status="NOT_RUN", population=pop, criterion=_BACKCHECK_CRITERION,
-                           result=None, evidence=ev, tool=_TOOL,
-                           reason="the night holds no PPG/PPG2W/ECG capture — nothing to back-check")
+            return _v.make(
+                gate=_BACKCHECK_GATE,
+                status="NOT_RUN",
+                population=pop,
+                criterion=_BACKCHECK_CRITERION,
+                result=None,
+                evidence=ev,
+                tool=_TOOL,
+                reason="the night holds no PPG/PPG2W/ECG capture — nothing to back-check",
+            )
         if checked == 0:
-            return _v.make(gate=_BACKCHECK_GATE, status="UNKNOWN", population=pop, criterion=_BACKCHECK_CRITERION,
-                           result=result, evidence=ev, tool=_TOOL,
-                           reason=f"all {len(eligible_files)} class-B file(s) were skipped by the check "
-                                  "(unreadable, no waveform column, or under the minimum run) — nothing was examined")
+            return _v.make(
+                gate=_BACKCHECK_GATE,
+                status="UNKNOWN",
+                population=pop,
+                criterion=_BACKCHECK_CRITERION,
+                result=result,
+                evidence=ev,
+                tool=_TOOL,
+                reason=f"all {len(eligible_files)} class-B file(s) were skipped by the check "
+                "(unreadable, no waveform column, or under the minimum run) — nothing was examined",
+            )
         if clips or held:
-            bad = [f"{f}: {v['clip_regions']} clip region(s)" + (", held" if v["held"] else "")
-                   for f, v in per_file.items() if v["clip_regions"] or v["held"]]
-            return _v.make(gate=_BACKCHECK_GATE, status="FAIL", population=pop, criterion=_BACKCHECK_CRITERION,
-                           result=result, evidence=ev, tool=_TOOL,
-                           reason=f"{clips} clipped region(s) and {held} held stream(s) over {checked} file(s): " + "; ".join(bad))
-        return _v.make(gate=_BACKCHECK_GATE, status="PASS", population=pop, criterion=_BACKCHECK_CRITERION,
-                       result=result, evidence=ev, reason=None, tool=_TOOL)
+            bad = [
+                f"{f}: {v['clip_regions']} clip region(s)" + (", held" if v["held"] else "")
+                for f, v in per_file.items()
+                if v["clip_regions"] or v["held"]
+            ]
+            return _v.make(
+                gate=_BACKCHECK_GATE,
+                status="FAIL",
+                population=pop,
+                criterion=_BACKCHECK_CRITERION,
+                result=result,
+                evidence=ev,
+                tool=_TOOL,
+                reason=f"{clips} clipped region(s) and {held} held stream(s) over {checked} file(s): " + "; ".join(bad),
+            )
+        return _v.make(
+            gate=_BACKCHECK_GATE,
+            status="PASS",
+            population=pop,
+            criterion=_BACKCHECK_CRITERION,
+            result=result,
+            evidence=ev,
+            reason=None,
+            tool=_TOOL,
+        )
     except Exception as exc:  # noqa: BLE001 — a crash is not a verdict
         return _v.unknown(gate=_BACKCHECK_GATE, criterion=_BACKCHECK_CRITERION, evidence=ev, tool=_TOOL, exc=exc)
 
@@ -3662,6 +3896,7 @@ def adapter_hci_verdict(night_dir: str, summary: dict) -> dict:
     grandparent (`<root>/captures/<night>`); a night with no session window has no rows to read and
     is NOT_RUN by the builder's own rule."""
     import adapter_hci
+
     root = os.path.dirname(os.path.dirname(os.path.abspath(night_dir)))
     night = os.path.basename(night_dir.rstrip("/"))
     sessions = [s for s in (summary.get("sessions") or []) if isinstance(s, dict)]
@@ -3675,8 +3910,14 @@ def adapter_hci_verdict(night_dir: str, summary: dict) -> dict:
         return adapter_hci.verdict_object(rows, night=night, root=root)
     except Exception as exc:  # noqa: BLE001 — a crash is not a verdict
         import verdict as _v
-        return _v.unknown(gate=adapter_hci.GATE, criterion=adapter_hci.CRITERION,
-                          evidence=[adapter_hci.TOOL, os.path.join(root, adapter_hci.FILE_NAME)], tool=adapter_hci.TOOL, exc=exc)
+
+        return _v.unknown(
+            gate=adapter_hci.GATE,
+            criterion=adapter_hci.CRITERION,
+            evidence=[adapter_hci.TOOL, os.path.join(root, adapter_hci.FILE_NAME)],
+            tool=adapter_hci.TOOL,
+            exc=exc,
+        )
 
 
 def attach_wear(summary: dict, wear: dict | None) -> dict:
@@ -3717,9 +3958,12 @@ def write_verdicts(night_dir: str, summary: dict, devices: list[dict]) -> None:
     logged, and the summary write it accompanies must not be lost to it."""
     import adapter_hci
     import verdict as _v
-    for name, obj in ((_QC_VERDICT_NAME, qc_verdict(summary, devices, night_dir=night_dir)),
-                      (_BACKCHECK_VERDICT_NAME, backcheck_verdict(night_dir, summary)),
-                      (adapter_hci.VERDICT_NAME, adapter_hci_verdict(night_dir, summary))):
+
+    for name, obj in (
+        (_QC_VERDICT_NAME, qc_verdict(summary, devices, night_dir=night_dir)),
+        (_BACKCHECK_VERDICT_NAME, backcheck_verdict(night_dir, summary)),
+        (adapter_hci.VERDICT_NAME, adapter_hci_verdict(night_dir, summary)),
+    ):
         try:
             _v.write(os.path.join(night_dir, name), obj)
         except (OSError, ValueError):
@@ -3747,9 +3991,15 @@ _CLASS_B_TAGS = ("PPG", "PPG2W", "ECG")
 # column cannot silently become a waveform. Like `_STREAM_ANNOTATIONS` this is a property of the
 # format knowable in advance, not a value list; and it is a DENYLIST on purpose — a forgotten
 # status column over-flags, whereas a forgotten waveform in an allowlist would go unscanned.
-_NON_WAVEFORM_COLUMNS = frozenset({
-    "Phone timestamp", "sensor timestamp [ns]", "timestamp [ms]", "motion", "beat",
-})
+_NON_WAVEFORM_COLUMNS = frozenset(
+    {
+        "Phone timestamp",
+        "sensor timestamp [ns]",
+        "timestamp [ms]",
+        "motion",
+        "beat",
+    }
+)
 
 
 def _waveform_columns(header: str) -> tuple:
@@ -3794,7 +4044,7 @@ def class_b_quality(night_dir: str, *, emit=None) -> list:
         try:
             with open(os.path.join(night_dir, name), "r", encoding="utf-8", errors="replace") as fh:
                 for line in fh:
-                    if not line.startswith("#"):    # `# timebase=…` precedes the header on box files
+                    if not line.startswith("#"):  # `# timebase=…` precedes the header on box files
                         columns = _waveform_columns(line)
                         width = len(line.rstrip("\n").split(";"))
                         break
@@ -3805,28 +4055,34 @@ def class_b_quality(night_dir: str, *, emit=None) -> list:
                     try:
                         cols = [int(float(parts[i])) for i, _ in columns]
                     except ValueError:
-                        continue      # a torn row is expected at a live file's tail and a repeated
-                                      # mid-file header is a real rotation artifact; the spans are
-                                      # built from the rows that parsed, and `_CLIP_MIN_RUN` plus the
-                                      # rail qualification refuse a verdict built from too few
+                        continue  # a torn row is expected at a live file's tail and a repeated
+                        # mid-file header is a real rotation artifact; the spans are
+                        # built from the rows that parsed, and `_CLIP_MIN_RUN` plus the
+                        # rail qualification refuse a verdict built from too few
                     if not chans:
                         chans = [_array("q") for _ in cols]
                     for ch, v in zip(chans, cols):
                         ch.append(v)
         except OSError:
-            log.warning("night-QC: %s is unreadable, so its class-B quality is ABSENT rather than "
-                        "clean — the two must not read alike", name, exc_info=True)
+            log.warning(
+                "night-QC: %s is unreadable, so its class-B quality is ABSENT rather than "
+                "clean — the two must not read alike",
+                name,
+                exc_info=True,
+            )
             continue
         if width and not columns:
-            log.warning("night-QC: %s names no waveform column in its header, so its class-B quality "
-                        "is ABSENT rather than clean", name)
+            log.warning(
+                "night-QC: %s names no waveform column in its header, so its class-B quality "
+                "is ABSENT rather than clean",
+                name,
+            )
             continue
         if not chans or len(chans[0]) < _CLIP_MIN_RUN:
-            continue        # includes a file with no header yet — a 0-byte open capture (seen on
-                            # the box: a Verity session file 30 s old), which is too few rows, not
-                            # a malformed header, and is not worth a warning per scan
-        block = class_b_runs(columns=chans, stream=tag.lower(),
-                             annotations=_STREAM_ANNOTATIONS.get(tag, ()), emit=emit)
+            continue  # includes a file with no header yet — a 0-byte open capture (seen on
+            # the box: a Verity session file 30 s old), which is too few rows, not
+            # a malformed header, and is not worth a warning per scan
+        block = class_b_runs(columns=chans, stream=tag.lower(), annotations=_STREAM_ANNOTATIONS.get(tag, ()), emit=emit)
         block["file"] = name
         block["columns"] = [n for _, n in columns]
         out.append(block)
@@ -3893,7 +4149,12 @@ def qc_digest(summ) -> str | None:
         # `converged is False` = the two columns did not confirm each other — a single-legged lag is
         # not a measurement (the tool's own #1657 rule), so the digest omits it rather than printing a
         # number a reader will trust. None (older tool without the flag) falls back to trusting `ok`.
-        if isinstance(fit, dict) and fit.get("ok") and fit.get("lag_s") is not None and fit.get("converged") is not False:
+        if (
+            isinstance(fit, dict)
+            and fit.get("ok")
+            and fit.get("lag_s") is not None
+            and fit.get("converged") is not False
+        ):
             seg_dev += f" (.dat {fit['lag_s']:+g}s"
             if isinstance(rtc, dict) and rtc.get("reads") and rtc.get("drift_s") is not None:
                 gap = abs(fit["lag_s"] - rtc["drift_s"])

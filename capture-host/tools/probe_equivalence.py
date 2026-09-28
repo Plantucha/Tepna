@@ -25,6 +25,7 @@ emitted. An unkillable-looking result is only reported when the battery has demo
     python tools/probe_equivalence.py --module polar_pmd.py            # probe + canaries
     python tools/probe_equivalence.py --module polar_pmd.py --selftest # canaries only
 """
+
 from __future__ import annotations
 
 import argparse
@@ -48,11 +49,11 @@ def battery(pmd):
     """(name, meas, frame_type, payload, fs, dprev) tuples. `dprev` = last_ns - prev_last_ns."""
     shapes = [
         ("ECG x4", pmd.ECG, 0x00, b"\x01\x00\x00" * 4, 3),
-        ("ECG x1", pmd.ECG, 0x00, b"\x01\x00\x00", 3),          # ADDED: n == 1 exercises `n > 0`
+        ("ECG x1", pmd.ECG, 0x00, b"\x01\x00\x00", 3),  # ADDED: n == 1 exercises `n > 0`
         ("ECG empty", pmd.ECG, 0x00, b"", 3),
         ("PPG x3", pmd.PPG, 0x00, bytes(12 * 3), 12),
         ("ACC x4", pmd.ACC, 0x01, bytes(6 * 4), 6),
-        ("PPI hi-byte", pmd.PPI, 0x00, _PPI_HI, 6),             # ADDED: non-zero HIGH byte
+        ("PPI hi-byte", pmd.PPI, 0x00, _PPI_HI, 6),  # ADDED: non-zero HIGH byte
         ("PPI zeros", pmd.PPI, 0x00, bytes(6 * 2), 6),
     ]
     for nm, meas, ft, pay, stride in shapes:
@@ -75,7 +76,7 @@ def observe(pmd) -> list:
         label = f"{nm} fs={fs} dprev={dprev}"
         try:
             _m, s = pmd.decode_frame(hdr + pay, _dt.datetime(2026, 7, 16), fs=fs, prev_last_ns=prev)
-        except Exception as e:                              # an exception IS an observable outcome
+        except Exception as e:  # an exception IS an observable outcome
             out.append([label, "EXC:" + type(e).__name__])
             continue
         out.append([label, [[x.sensor_ns, x.phone.isoformat(), list(x.values)] for x in s]])
@@ -87,15 +88,30 @@ def observe(pmd) -> list:
 # battery's own test. `killed_by` names the committed test that kills it, so a canary that stops being
 # killable is visible as a test regression rather than as a silently weaker probe.
 CANARIES = [
-    ("phone=arrival - _dt.timedelta", "phone=arrival + _dt.timedelta",
-     "back-timing sign flip", "test_backtiming_runs_BACKWARD_from_the_frame_last_sample"),
-    ("payload[o + 3] | (payload[o + 4] << 8), payload[o + 5]))",
-     "payload[o + 3] | (payload[o + 4] >> 8), payload[o + 5]))",
-     "PPI ppErrMs high byte", "test_ppi_error_field_reads_its_HIGH_byte"),
-    ("if 0.9 * step_ns <= est <= 1.1 * step_ns:", "if 0.9 * step_ns <= est < 1.1 * step_ns:",
-     "upper plausibility bound", "test_estimate_exactly_on_the_UPPER_bound_is_adopted"),
-    ("elif 0 < est < step_ns:", "elif 1 < est < step_ns:",
-     "clamp lower bound", "test_a_sub_nanosecond_estimate_is_still_clamped_not_refused"),
+    (
+        "phone=arrival - _dt.timedelta",
+        "phone=arrival + _dt.timedelta",
+        "back-timing sign flip",
+        "test_backtiming_runs_BACKWARD_from_the_frame_last_sample",
+    ),
+    (
+        "payload[o + 3] | (payload[o + 4] << 8), payload[o + 5]))",
+        "payload[o + 3] | (payload[o + 4] >> 8), payload[o + 5]))",
+        "PPI ppErrMs high byte",
+        "test_ppi_error_field_reads_its_HIGH_byte",
+    ),
+    (
+        "if 0.9 * step_ns <= est <= 1.1 * step_ns:",
+        "if 0.9 * step_ns <= est < 1.1 * step_ns:",
+        "upper plausibility bound",
+        "test_estimate_exactly_on_the_UPPER_bound_is_adopted",
+    ),
+    (
+        "elif 0 < est < step_ns:",
+        "elif 1 < est < step_ns:",
+        "clamp lower bound",
+        "test_a_sub_nanosecond_estimate_is_still_clamped_not_refused",
+    ),
 ]
 
 
@@ -122,11 +138,15 @@ def _run_variant(module: str, before: str | None, after: str | None) -> list:
             % (str(work), str(HERE / "tools"), module[:-3])
         )
         shim = HERE / "tools" / "probe_shim.py"
-        shim.write_text("from probe_equivalence import observe  # re-exported for the subprocess\n",
-                        encoding="utf-8")
+        shim.write_text("from probe_equivalence import observe  # re-exported for the subprocess\n", encoding="utf-8")
         try:
-            r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True,
-                               cwd=str(HERE), env={"PYTHONPATH": str(HERE / "tools"), "PATH": "/usr/bin:/bin"})
+            r = subprocess.run(
+                [sys.executable, "-c", code],
+                capture_output=True,
+                text=True,
+                cwd=str(HERE),
+                env={"PYTHONPATH": str(HERE / "tools"), "PATH": "/usr/bin:/bin"},
+            )
         finally:
             shim.unlink(missing_ok=True)
         if r.returncode != 0:
@@ -163,12 +183,14 @@ def main() -> int:
     # `mutation_diff.py` for the #1900 equivalences, which had to be done with a bespoke harness.
     # Narrowed rather than given a battery registry: a registry would imply every module gets one,
     # which is more promise than the program needs. To probe another module, write its battery here.
-    ap.add_argument("--module", default="polar_pmd.py",
-                    help="polar_pmd.py, or a module whose API `battery()` actually drives — this is "
-                         "NOT a generic prober; see the note above")
+    ap.add_argument(
+        "--module",
+        default="polar_pmd.py",
+        help="polar_pmd.py, or a module whose API `battery()` actually drives — this is "
+        "NOT a generic prober; see the note above",
+    )
     ap.add_argument("--selftest", action="store_true", help="run the canaries only")
-    ap.add_argument("--probe", nargs=2, metavar=("BEFORE", "AFTER"),
-                    help="one candidate mutation to classify")
+    ap.add_argument("--probe", nargs=2, metavar=("BEFORE", "AFTER"), help="one candidate mutation to classify")
     a = ap.parse_args()
 
     base = _run_variant(a.module, None, None)

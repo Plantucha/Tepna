@@ -35,23 +35,23 @@ from enum import Enum
 import oxy_lifecycle
 from cpap_acq import FailureClass
 
-AXIS = "power"   # the OXYLIFE.csv `axis` column value; blank = LINK, "rec" = RECORDING, "power" = this
+AXIS = "power"  # the OXYLIFE.csv `axis` column value; blank = LINK, "rec" = RECORDING, "power" = this
 
 
 # ── §2 the power states ───────────────────────────────────────────────────────────────────────────
 class PowerState(Enum):
-    RADIO_IDLE = "pw_radio_idle"                 # nothing owns the radio for this ring
-    PASSIVE_SCAN = "pw_passive_scan"             # observing advertisements only
-    DEVICE_DETECTED = "pw_device_detected"       # the ring is in range — presence ≠ ready (§4)
-    HARVEST_CANDIDATE = "pw_harvest_candidate"   # a trigger has justified a link; not yet taken
+    RADIO_IDLE = "pw_radio_idle"  # nothing owns the radio for this ring
+    PASSIVE_SCAN = "pw_passive_scan"  # observing advertisements only
+    DEVICE_DETECTED = "pw_device_detected"  # the ring is in range — presence ≠ ready (§4)
+    HARVEST_CANDIDATE = "pw_harvest_candidate"  # a trigger has justified a link; not yet taken
     CONNECTING = "pw_connecting"
-    CONNECTED_IDLE = "pw_connected_idle"         # link held, no frames / ring not worn
-    ACTIVE_CAPTURE = "pw_active_capture"         # live worn PPG frames flowing — NEVER interrupted (§16)
-    HARVESTING = "pw_harvesting"                 # stored-session pull owns the link
+    CONNECTED_IDLE = "pw_connected_idle"  # link held, no frames / ring not worn
+    ACTIVE_CAPTURE = "pw_active_capture"  # live worn PPG frames flowing — NEVER interrupted (§16)
+    HARVESTING = "pw_harvesting"  # stored-session pull owns the link
     DISCONNECTING = "pw_disconnecting"
-    COOLDOWN = "pw_cooldown"                     # deliberate silence: strikes exhausted or storm hold
-    RESOURCE_WAIT = "pw_resource_wait"           # the radio/slot belongs to someone else (§17)
-    ERROR_BACKOFF = "pw_error_backoff"           # a failure-typed pause before the next attempt (§11)
+    COOLDOWN = "pw_cooldown"  # deliberate silence: strikes exhausted or storm hold
+    RESOURCE_WAIT = "pw_resource_wait"  # the radio/slot belongs to someone else (§17)
+    ERROR_BACKOFF = "pw_error_backoff"  # a failure-typed pause before the next attempt (§11)
 
 
 # Every radio activation has an owner and a REASON (§2). `CPAP_CAPTURE` is in the vocabulary so a CPAP
@@ -66,47 +66,82 @@ class RadioReason(Enum):
 
 
 _S = PowerState
-LEGAL_TRANSITIONS: frozenset[tuple[PowerState, PowerState]] = frozenset({
-    # scanning
-    (_S.RADIO_IDLE, _S.PASSIVE_SCAN), (_S.PASSIVE_SCAN, _S.RADIO_IDLE),
-    (_S.PASSIVE_SCAN, _S.DEVICE_DETECTED), (_S.DEVICE_DETECTED, _S.PASSIVE_SCAN),
-    (_S.DEVICE_DETECTED, _S.RADIO_IDLE), (_S.DEVICE_DETECTED, _S.HARVEST_CANDIDATE),
-    (_S.HARVEST_CANDIDATE, _S.DEVICE_DETECTED), (_S.HARVEST_CANDIDATE, _S.PASSIVE_SCAN),
-    (_S.HARVEST_CANDIDATE, _S.RADIO_IDLE),
-    # taking the link — from idle/scan (live loop) or from a candidate (harvest)
-    (_S.RADIO_IDLE, _S.CONNECTING), (_S.PASSIVE_SCAN, _S.CONNECTING), (_S.DEVICE_DETECTED, _S.CONNECTING),
-    (_S.HARVEST_CANDIDATE, _S.CONNECTING), (_S.ERROR_BACKOFF, _S.CONNECTING),
-    (_S.DISCONNECTING, _S.CONNECTING),
-    (_S.CONNECTING, _S.CONNECTED_IDLE), (_S.CONNECTING, _S.HARVESTING),
-    (_S.CONNECTING, _S.DISCONNECTING), (_S.CONNECTING, _S.ERROR_BACKOFF),
-    # holding the link
-    (_S.CONNECTED_IDLE, _S.ACTIVE_CAPTURE), (_S.ACTIVE_CAPTURE, _S.CONNECTED_IDLE),
-    (_S.CONNECTED_IDLE, _S.HARVESTING), (_S.CONNECTED_IDLE, _S.DISCONNECTING),
-    (_S.ACTIVE_CAPTURE, _S.DISCONNECTING), (_S.HARVESTING, _S.DISCONNECTING),
-    # releasing it
-    (_S.DISCONNECTING, _S.RADIO_IDLE), (_S.DISCONNECTING, _S.PASSIVE_SCAN),
-    (_S.DISCONNECTING, _S.DEVICE_DETECTED), (_S.DISCONNECTING, _S.COOLDOWN),
-    (_S.DISCONNECTING, _S.ERROR_BACKOFF), (_S.DISCONNECTING, _S.RESOURCE_WAIT),
-    # waiting states — each may only leave through RADIO_IDLE (cooldown/backoff over) or a re-scan,
-    # never straight into CONNECTING: that edge is the connect-fail loop §12 forbids.
-    (_S.COOLDOWN, _S.RADIO_IDLE), (_S.COOLDOWN, _S.PASSIVE_SCAN),
-    (_S.ERROR_BACKOFF, _S.RADIO_IDLE), (_S.ERROR_BACKOFF, _S.PASSIVE_SCAN), (_S.ERROR_BACKOFF, _S.COOLDOWN),
-    (_S.RESOURCE_WAIT, _S.RADIO_IDLE), (_S.RESOURCE_WAIT, _S.PASSIVE_SCAN),
-    (_S.RESOURCE_WAIT, _S.DEVICE_DETECTED), (_S.RESOURCE_WAIT, _S.HARVEST_CANDIDATE),
-    # a cooldown / busy slot / backoff can be declared from any non-link state
-    (_S.RADIO_IDLE, _S.COOLDOWN), (_S.PASSIVE_SCAN, _S.COOLDOWN), (_S.DEVICE_DETECTED, _S.COOLDOWN),
-    (_S.HARVEST_CANDIDATE, _S.COOLDOWN),
-    (_S.RADIO_IDLE, _S.RESOURCE_WAIT), (_S.PASSIVE_SCAN, _S.RESOURCE_WAIT),
-    (_S.DEVICE_DETECTED, _S.RESOURCE_WAIT), (_S.HARVEST_CANDIDATE, _S.RESOURCE_WAIT),
-    (_S.RADIO_IDLE, _S.ERROR_BACKOFF), (_S.PASSIVE_SCAN, _S.ERROR_BACKOFF),
-    (_S.DEVICE_DETECTED, _S.ERROR_BACKOFF), (_S.HARVEST_CANDIDATE, _S.ERROR_BACKOFF),
-})
+LEGAL_TRANSITIONS: frozenset[tuple[PowerState, PowerState]] = frozenset(
+    {
+        # scanning
+        (_S.RADIO_IDLE, _S.PASSIVE_SCAN),
+        (_S.PASSIVE_SCAN, _S.RADIO_IDLE),
+        (_S.PASSIVE_SCAN, _S.DEVICE_DETECTED),
+        (_S.DEVICE_DETECTED, _S.PASSIVE_SCAN),
+        (_S.DEVICE_DETECTED, _S.RADIO_IDLE),
+        (_S.DEVICE_DETECTED, _S.HARVEST_CANDIDATE),
+        (_S.HARVEST_CANDIDATE, _S.DEVICE_DETECTED),
+        (_S.HARVEST_CANDIDATE, _S.PASSIVE_SCAN),
+        (_S.HARVEST_CANDIDATE, _S.RADIO_IDLE),
+        # taking the link — from idle/scan (live loop) or from a candidate (harvest)
+        (_S.RADIO_IDLE, _S.CONNECTING),
+        (_S.PASSIVE_SCAN, _S.CONNECTING),
+        (_S.DEVICE_DETECTED, _S.CONNECTING),
+        (_S.HARVEST_CANDIDATE, _S.CONNECTING),
+        (_S.ERROR_BACKOFF, _S.CONNECTING),
+        (_S.DISCONNECTING, _S.CONNECTING),
+        (_S.CONNECTING, _S.CONNECTED_IDLE),
+        (_S.CONNECTING, _S.HARVESTING),
+        (_S.CONNECTING, _S.DISCONNECTING),
+        (_S.CONNECTING, _S.ERROR_BACKOFF),
+        # holding the link
+        (_S.CONNECTED_IDLE, _S.ACTIVE_CAPTURE),
+        (_S.ACTIVE_CAPTURE, _S.CONNECTED_IDLE),
+        (_S.CONNECTED_IDLE, _S.HARVESTING),
+        (_S.CONNECTED_IDLE, _S.DISCONNECTING),
+        (_S.ACTIVE_CAPTURE, _S.DISCONNECTING),
+        (_S.HARVESTING, _S.DISCONNECTING),
+        # releasing it
+        (_S.DISCONNECTING, _S.RADIO_IDLE),
+        (_S.DISCONNECTING, _S.PASSIVE_SCAN),
+        (_S.DISCONNECTING, _S.DEVICE_DETECTED),
+        (_S.DISCONNECTING, _S.COOLDOWN),
+        (_S.DISCONNECTING, _S.ERROR_BACKOFF),
+        (_S.DISCONNECTING, _S.RESOURCE_WAIT),
+        # waiting states — each may only leave through RADIO_IDLE (cooldown/backoff over) or a re-scan,
+        # never straight into CONNECTING: that edge is the connect-fail loop §12 forbids.
+        (_S.COOLDOWN, _S.RADIO_IDLE),
+        (_S.COOLDOWN, _S.PASSIVE_SCAN),
+        (_S.ERROR_BACKOFF, _S.RADIO_IDLE),
+        (_S.ERROR_BACKOFF, _S.PASSIVE_SCAN),
+        (_S.ERROR_BACKOFF, _S.COOLDOWN),
+        (_S.RESOURCE_WAIT, _S.RADIO_IDLE),
+        (_S.RESOURCE_WAIT, _S.PASSIVE_SCAN),
+        (_S.RESOURCE_WAIT, _S.DEVICE_DETECTED),
+        (_S.RESOURCE_WAIT, _S.HARVEST_CANDIDATE),
+        # a cooldown / busy slot / backoff can be declared from any non-link state
+        (_S.RADIO_IDLE, _S.COOLDOWN),
+        (_S.PASSIVE_SCAN, _S.COOLDOWN),
+        (_S.DEVICE_DETECTED, _S.COOLDOWN),
+        (_S.HARVEST_CANDIDATE, _S.COOLDOWN),
+        (_S.RADIO_IDLE, _S.RESOURCE_WAIT),
+        (_S.PASSIVE_SCAN, _S.RESOURCE_WAIT),
+        (_S.DEVICE_DETECTED, _S.RESOURCE_WAIT),
+        (_S.HARVEST_CANDIDATE, _S.RESOURCE_WAIT),
+        (_S.RADIO_IDLE, _S.ERROR_BACKOFF),
+        (_S.PASSIVE_SCAN, _S.ERROR_BACKOFF),
+        (_S.DEVICE_DETECTED, _S.ERROR_BACKOFF),
+        (_S.HARVEST_CANDIDATE, _S.ERROR_BACKOFF),
+    }
+)
 
 # The states in which THIS ring's radio is on. Everything else is radio-off for this ring — the
 # whole point of the axis is that this set is small and every second inside it has an owner.
-RADIO_ON: frozenset[PowerState] = frozenset({
-    _S.PASSIVE_SCAN, _S.CONNECTING, _S.CONNECTED_IDLE, _S.ACTIVE_CAPTURE, _S.HARVESTING, _S.DISCONNECTING,
-})
+RADIO_ON: frozenset[PowerState] = frozenset(
+    {
+        _S.PASSIVE_SCAN,
+        _S.CONNECTING,
+        _S.CONNECTED_IDLE,
+        _S.ACTIVE_CAPTURE,
+        _S.HARVESTING,
+        _S.DISCONNECTING,
+    }
+)
 # Link states: the ones a `harvest_request` must never preempt (§16) are a strict subset.
 LINK_HELD: frozenset[PowerState] = frozenset({_S.CONNECTED_IDLE, _S.ACTIVE_CAPTURE, _S.HARVESTING})
 
@@ -124,6 +159,7 @@ class ScanPolicy:
     `active=False` everywhere: an active scan sends a SCAN_REQ per advert and the sniffer measured
     ~60 % of air packets on the box to be SCAN_REQs (VIGIL-BLUETOOTH-ADAPTERS §F4) — the presence
     observer needs the ADV_IND only."""
+
     name: str
     window_s: float
     interval_s: float
@@ -134,7 +170,7 @@ class ScanPolicy:
         return self.window_s / (self.window_s + self.interval_s)
 
 
-SCAN_LOW = ScanPolicy("low", window_s=10.0, interval_s=110.0)           # ring absent — 8 % duty
+SCAN_LOW = ScanPolicy("low", window_s=10.0, interval_s=110.0)  # ring absent — 8 % duty
 SCAN_MODERATE = ScanPolicy("moderate", window_s=10.0, interval_s=50.0)  # ring present, not ready — 17 %
 SCAN_RESPONSIVE = ScanPolicy("responsive", window_s=10.0, interval_s=10.0)  # sync expected soon — 50 %
 # ⚠️ `SCAN_RESPONSIVE` IS TODAY'S BEHAVIOUR: `_presence_scan_loop` runs a 10 s window then sleeps the
@@ -163,6 +199,7 @@ class Timeouts:
       inventory   `pull_session._wait` (20) — the F1 file-list reply
       transfer_chunk     the per-chunk 0xF2/0xF3 wait (20)
       disconnect  `capture._BLE_DISCONNECT_TIMEOUT_S` (10)"""
+
     discovery_s: float = 25.0
     connect_s: float = 30.0
     auth_s: float = 10.0
@@ -199,8 +236,8 @@ def battery_band(pct) -> BatteryBand:
 
 
 # ── §10–§12 attempts, strikes, failure-typed backoff ─────────────────────────────────────────────
-MAX_ATTEMPTS = 3                       # three strikes per opportunity, then COOLDOWN
-STRIKE_COOLDOWN_S = 1800.0             # after the third strike: half an hour of deliberate silence
+MAX_ATTEMPTS = 3  # three strikes per opportunity, then COOLDOWN
+STRIKE_COOLDOWN_S = 1800.0  # after the third strike: half an hour of deliberate silence
 # §11 — the pause AFTER a failure depends on WHAT failed. A missing ring is not coming back in 30 s; an
 # auth refusal will not be fixed by trying harder; a transport hiccup usually will.
 BACKOFF_S: dict[FailureClass, float] = {
@@ -252,7 +289,7 @@ DEFER = "defer"
 
 @dataclass(frozen=True)
 class Decision:
-    action: str          # ALLOW | DEFER
+    action: str  # ALLOW | DEFER
     reason: str
 
     @property
@@ -263,6 +300,7 @@ class Decision:
 @dataclass(frozen=True)
 class RadioOwner:
     """§17 — who holds this ring's radio, why, since when, and (if bounded) until when."""
+
     owner: str
     reason: RadioReason
     since: float
@@ -272,6 +310,7 @@ class RadioOwner:
 @dataclass(frozen=True)
 class Attempt:
     """§10 — one connection attempt, recorded whether it succeeded or not."""
+
     started: float
     ended: float | None
     trigger: str
@@ -306,9 +345,9 @@ class Counters:
     bytes: int = 0
     retries: int = 0
     cooldowns: int = 0
-    deferrals_live: int = 0        # §16 — a harvest deferred because live worn capture was running
-    deferrals_busy: int = 0        # §17 — the offline slot/radio belonged to someone else
-    deferrals_policy: int = 0      # §12 — inside a cooldown / strikes exhausted
+    deferrals_live: int = 0  # §16 — a harvest deferred because live worn capture was running
+    deferrals_busy: int = 0  # §17 — the offline slot/radio belonged to someone else
+    deferrals_policy: int = 0  # §12 — inside a cooldown / strikes exhausted
 
     def as_dict(self) -> dict:
         d = dict(self.__dict__)
@@ -334,7 +373,7 @@ class RingCache:
     retry_count: int = 0
     cooldown_until: float | None = None
     cooldown_reason: str | None = None
-    backoff_until: float | None = None    # §11 — the failure-typed pause between strikes
+    backoff_until: float | None = None  # §11 — the failure-typed pause between strikes
     synced_this_idle: bool = False
     battery: BatteryBand = BatteryBand.UNKNOWN
     owner: RadioOwner | None = None
@@ -347,8 +386,9 @@ class RingCache:
         d["battery"] = self.battery.value
         d["last_failure"] = self.last_failure.label if self.last_failure else None
         o = self.owner
-        d["owner"] = None if o is None else {"owner": o.owner, "reason": o.reason.value,
-                                             "since": o.since, "until": o.until}
+        d["owner"] = (
+            None if o is None else {"owner": o.owner, "reason": o.reason.value, "since": o.since, "until": o.until}
+        )
         return d
 
 
@@ -363,8 +403,15 @@ class RingPower:
     sites that already exist (presence loop, `_oxy_emit`, `pull_oxyii_session`, the storm hold).
     Nothing here awaits, sleeps or opens a socket."""
 
-    def __init__(self, address: str, *, device_id: str | None = None, session_id: str | None = None,
-                 mono=_time.monotonic, wall=_default_wall):
+    def __init__(
+        self,
+        address: str,
+        *,
+        device_id: str | None = None,
+        session_id: str | None = None,
+        mono=_time.monotonic,
+        wall=_default_wall,
+    ):
         self.state = _S.RADIO_IDLE
         self.cache = RingCache(address=address)
         self.counters = Counters()
@@ -373,7 +420,7 @@ class RingPower:
         self.session_id = session_id
         self._mono = mono
         self._wall = wall
-        self._pending: list = []            # journal rows awaiting a writer (drain())
+        self._pending: list = []  # journal rows awaiting a writer (drain())
         self._link_since: float | None = None
         self._open_attempt: Attempt | None = None
 
@@ -386,9 +433,17 @@ class RingPower:
         if not self.can(new):
             raise InvalidTransition(self.state, new)
         now = self._mono()
-        t = oxy_lifecycle.Transition(prev=self.state, new=new, reason=reason, host_monotonic=now,
-                                     host_wall=self._wall(), device_id=self.device_id,
-                                     session_id=self.session_id, failure=failure, axis=AXIS)
+        t = oxy_lifecycle.Transition(
+            prev=self.state,
+            new=new,
+            reason=reason,
+            host_monotonic=now,
+            host_wall=self._wall(),
+            device_id=self.device_id,
+            session_id=self.session_id,
+            failure=failure,
+            axis=AXIS,
+        )
         self.state = new
         self.cache.last_state_change = now
         self.counters.transitions += 1
@@ -441,7 +496,7 @@ class RingPower:
                 # a NEW appearance: the ring was not being tracked as detected. Inside a link, a
                 # backoff or a cooldown the sighting is just `last_seen` — no generation, no reset.
                 c.generation += 1
-                c.retry_count = 0           # a fresh appearance is a fresh opportunity (§12)
+                c.retry_count = 0  # a fresh appearance is a fresh opportunity (§12)
                 if self.state is _S.RADIO_IDLE:
                     self._try(_S.PASSIVE_SCAN, "presence observer window")
                 self._try(_S.DEVICE_DETECTED, f"ring present (generation {c.generation})")
@@ -469,7 +524,7 @@ class RingPower:
             return False
         if worn is False:
             done = c.rearm_stage == "recording"
-            c.rearm_stage = "idle"          # removed: the chain either completed or is broken
+            c.rearm_stage = "idle"  # removed: the chain either completed or is broken
             if done:
                 c.synced_this_idle = False
                 c.last_safe_sync_at = self._mono()
@@ -477,8 +532,7 @@ class RingPower:
         return False
 
     # ── §16 the one hard rule ──────────────────────────────────────────────────────────────────
-    def harvest_request(self, *, link_state: str | None, worn: bool | None,
-                        strict_idle: bool = True) -> Decision:
+    def harvest_request(self, *, link_state: str | None, worn: bool | None, strict_idle: bool = True) -> Decision:
         """May a stored-session harvest take the link NOW? DEFER while live worn capture is running —
         `link_state` is `OxyState.value` as published (`oxy_lifecycle`), `worn` the ring's own vote.
         Either being 'live'/True is enough: a live link is raw PPG, and raw data outranks a backup (§25).
@@ -512,9 +566,9 @@ class RingPower:
             if now < c.backoff_until:
                 self.counters.deferrals_policy += 1
                 return Decision(DEFER, f"backoff after strike {c.retry_count} until +{c.backoff_until - now:.0f}s")
-            c.backoff_until = None          # strikes are KEPT — the backoff is a pause, not a pardon
+            c.backoff_until = None  # strikes are KEPT — the backoff is a pause, not a pardon
             self.note_backoff_over()
-        if c.retry_count >= MAX_ATTEMPTS:   # pragma: no cover — the third strike always sets a cooldown
+        if c.retry_count >= MAX_ATTEMPTS:  # pragma: no cover — the third strike always sets a cooldown
             self.counters.deferrals_policy += 1
             return Decision(DEFER, "strikes exhausted")
         return Decision(ALLOW, f"attempt {c.retry_count + 1} of {MAX_ATTEMPTS}")
@@ -531,14 +585,16 @@ class RingPower:
         self._try(_S.CONNECTING, f"harvest connect ({trigger})")
         return a
 
-    def attempt_finished(self, now: float, *, ok: bool, failure: FailureClass | None = None,
-                         files: int = 0, bytes: int = 0) -> Attempt:
+    def attempt_finished(
+        self, now: float, *, ok: bool, failure: FailureClass | None = None, files: int = 0, bytes: int = 0
+    ) -> Attempt:
         """Close the open attempt. Success → synced_this_idle, strikes reset, RADIO_IDLE. Failure →
         strike, failure-typed ERROR_BACKOFF, and on the third strike a COOLDOWN (§10/§11/§12)."""
         c = self.cache
         prev = self._open_attempt or Attempt(started=now, ended=None, trigger="?", ok=None, failure=None)
-        a = Attempt(started=prev.started, ended=now, trigger=prev.trigger, ok=ok, failure=failure,
-                    files=files, bytes=bytes)
+        a = Attempt(
+            started=prev.started, ended=now, trigger=prev.trigger, ok=ok, failure=failure, files=files, bytes=bytes
+        )
         self.attempts.append(a)
         self._open_attempt = None
         self.release()
@@ -557,13 +613,19 @@ class RingPower:
         c.last_failure_at, c.last_failure = now, failure
         c.retry_count += 1
         if c.retry_count >= MAX_ATTEMPTS:
-            self._cooldown(now + STRIKE_COOLDOWN_S, f"{MAX_ATTEMPTS} strikes ({failure.label if failure else 'unknown'})",
-                           failure=failure)
+            self._cooldown(
+                now + STRIKE_COOLDOWN_S,
+                f"{MAX_ATTEMPTS} strikes ({failure.label if failure else 'unknown'})",
+                failure=failure,
+            )
         else:
             pause = backoff_for(failure, c.retry_count)
             c.backoff_until = now + pause
-            self._try(_S.ERROR_BACKOFF, f"strike {c.retry_count}: {failure.label if failure else 'unknown'} "
-                                        f"— back off {pause:.0f}s", failure=failure)
+            self._try(
+                _S.ERROR_BACKOFF,
+                f"strike {c.retry_count}: {failure.label if failure else 'unknown'} — back off {pause:.0f}s",
+                failure=failure,
+            )
         return a
 
     def _cooldown(self, until: float, reason: str, *, failure: FailureClass | None = None) -> None:
@@ -596,8 +658,9 @@ class RingPower:
         self._try(_S.RADIO_IDLE, "backoff over")
 
     # ── the LINK axis drives the live half ─────────────────────────────────────────────────────
-    def note_link(self, link_state: "oxy_lifecycle.OxyState", reason: str, now: float, *,
-                  failure: FailureClass | None = None) -> None:
+    def note_link(
+        self, link_state: "oxy_lifecycle.OxyState", reason: str, now: float, *, failure: FailureClass | None = None
+    ) -> None:
         """Fold a LINK-axis transition into the power axis. Called from `capture._oxy_emit`, so the live
         loop needs no second set of emit sites. Counts connect attempts/successes/failures and the
         seconds the link was held; the PULL side is driven by `attempt_*`, so PAUSED_FOR_PULL and
@@ -644,10 +707,14 @@ class RingPower:
             "scan_policy": scan_policy_for(self.state).name,
             "cache": self.cache.as_dict(),
             "counters": self.counters.as_dict(),
-            "last_attempt": None if not self.attempts else {
-                "trigger": self.attempts[-1].trigger, "ok": self.attempts[-1].ok,
+            "last_attempt": None
+            if not self.attempts
+            else {
+                "trigger": self.attempts[-1].trigger,
+                "ok": self.attempts[-1].ok,
                 "failure": self.attempts[-1].failure.label if self.attempts[-1].failure else None,
-                "duration_s": self.attempts[-1].duration_s, "files": self.attempts[-1].files,
+                "duration_s": self.attempts[-1].duration_s,
+                "files": self.attempts[-1].files,
                 "bytes": self.attempts[-1].bytes,
             },
         }

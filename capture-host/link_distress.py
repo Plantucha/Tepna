@@ -81,8 +81,8 @@ def baseline_median(per_night_rates):
         try:
             v = float(r)
         except (TypeError, ValueError):
-            continue   # a MEDIAN over the rates that parsed; the caller is given the count it was
-                       # computed from, so a dropped sample narrows the claim rather than hiding
+            continue  # a MEDIAN over the rates that parsed; the caller is given the count it was
+            # computed from, so a dropped sample narrows the claim rather than hiding
         if v == v and v not in (float("inf"), float("-inf")) and v >= 0:
             vals.append(v)
     if len(vals) < MIN_BASELINE_NIGHTS:
@@ -207,10 +207,10 @@ def adapter_verdict(per_device: dict) -> dict:
             **base,
             "state": UNKNOWN,
             "detail": f"no link carries a usable verdict ({len(unknown)} unknown) — an unjudged "
-                      f"adapter is not a healthy one",
+            f"adapter is not a healthy one",
         }
     if len(bad) >= ADAPTER_CORROBORATION:
-        worst = max(bad.values(), key=lambda v: (v.get("observed") or 0))
+        worst = max(bad.values(), key=lambda v: v.get("observed") or 0)
         return {
             **base,
             "state": DISTRESSED,
@@ -218,16 +218,16 @@ def adapter_verdict(per_device: dict) -> dict:
             # a second lookup — a reasonless adapter verdict would be the half-silent event again.
             "worst": worst,
             "detail": f"{len(bad)} of {len(rated)} rated link(s) distressed together "
-                      f"({', '.join(sorted(bad))}) — adapter-wide, not device-local",
+            f"({', '.join(sorted(bad))}) — adapter-wide, not device-local",
         }
     if bad:
-        (name, v), = bad.items()
+        ((name, v),) = bad.items()
         return {
             **base,
             "state": OK,
             "detail": f"1 of {len(rated)} rated link(s) distressed ({name}: {v.get('detail')}) — "
-                      f"device-local until a second link corroborates; a per-link pathology moves "
-                      f"with the device, not the radio",
+            f"device-local until a second link corroborates; a per-link pathology moves "
+            f"with the device, not the radio",
         }
     return {
         **base,
@@ -236,8 +236,7 @@ def adapter_verdict(per_device: dict) -> dict:
     }
 
 
-def switch_event(*, device, from_mac, to_mac, verdict, cause="reconnect-rate",
-                 reserved=(), preemption=None):
+def switch_event(*, device, from_mac, to_mac, verdict, cause="reconnect-rate", reserved=(), preemption=None):
     """The record a switch emits. PURE.
 
     🔴 IT CARRIES WHICH SIGNAL FIRED AND ITS VALUE, not merely that a switch happened. A switch that
@@ -319,7 +318,7 @@ def night_rates(text):
             t = _dt.datetime.fromisoformat(parts[it]).timestamp()
             ep = int(parts[ie] or 0)
         except (ValueError, TypeError):
-            continue   # a row with no usable timestamp or epoch cannot be placed in a night
+            continue  # a row with no usable timestamp or epoch cannot be placed in a night
         rows.setdefault(parts[idev], []).append((t, parts[ic].strip().lower() in ("1", "true"), ep))
     out = {}
     for dev, rs in rows.items():
@@ -348,8 +347,8 @@ def merge_baselines(prior, adapter, rates, *, keep=14):
         try:
             r = float(rate)
         except (TypeError, ValueError):
-            continue   # merging baselines: an unparseable rate is NOT a zero rate, and folding it
-                       # in as one would drag every merged baseline toward the floor
+            continue  # merging baselines: an unparseable rate is NOT a zero rate, and folding it
+            # in as one would drag every merged baseline toward the floor
         if not math.isfinite(r) or r < 0:
             continue
         slot.setdefault(dev, []).append(round(r, 4))

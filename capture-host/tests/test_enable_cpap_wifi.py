@@ -22,12 +22,13 @@ def _run(tmp_path, *args, fake_default_dev="eno1"):
     bin_dir.mkdir(exist_ok=True)
     ip = bin_dir / "ip"
     ip.write_text(
-        "#!/bin/sh\n"
-        f'if [ "$1" = "route" ]; then echo "default via 192.168.0.1 dev {fake_default_dev} proto dhcp"; fi\n'
+        f'#!/bin/sh\nif [ "$1" = "route" ]; then echo "default via 192.168.0.1 dev {fake_default_dev} proto dhcp"; fi\n'
     )
     ip.chmod(0o755)
-    etc_sd = tmp_path / "etc-systemd"; etc_sd.mkdir(exist_ok=True)
-    etc_nd = tmp_path / "etc-networkd"; etc_nd.mkdir(exist_ok=True)
+    etc_sd = tmp_path / "etc-systemd"
+    etc_sd.mkdir(exist_ok=True)
+    etc_nd = tmp_path / "etc-networkd"
+    etc_nd.mkdir(exist_ok=True)
     env = {
         **os.environ,
         "PATH": f"{bin_dir}:{os.environ['PATH']}",
@@ -90,8 +91,10 @@ def test_the_host_reloads_are_gated_on_the_real_paths():
     `networkctl reload` was really being invoked on the host. That is precisely the §E6 regression
     (14 polkit prompts in 20 minutes, hidden behind 2>/dev/null), and a comment is not a guard."""
     body = open(SH, encoding="utf-8").read()
-    for cmd, gate in (("networkctl reload", '"$NETD" = "/etc/systemd/network"'),
-                      ("systemctl daemon-reload", '"$UNIT" = "/etc/systemd/system"')):
+    for cmd, gate in (
+        ("networkctl reload", '"$NETD" = "/etc/systemd/network"'),
+        ("systemctl daemon-reload", '"$UNIT" = "/etc/systemd/system"'),
+    ):
         assert cmd in body, f"{cmd} disappeared — update this test with the reload that replaced it"
         before = body.split(cmd)[0]
         assert gate in before, f"{cmd} must be gated on {gate} so a redirected run cannot touch the host"

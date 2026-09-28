@@ -13,15 +13,16 @@ Usage (on the box, daemon stopped per link_guard):
     .venv/bin/python ring_config.py --address <MAC> --get
     .venv/bin/python ring_config.py --address <MAC> --set brightness 1
 """
+
 from __future__ import annotations
 import argparse
 import asyncio
 import sys
 
 sys.path.insert(0, ".")
-from link_guard import require_free_link   # noqa: E402
-import oxyii                                # noqa: E402
-from bleak import BleakClient               # noqa: E402
+from link_guard import require_free_link  # noqa: E402
+import oxyii  # noqa: E402
+from bleak import BleakClient  # noqa: E402
 
 
 class Chan:
@@ -34,6 +35,7 @@ class Chan:
         async def on(_s, d):
             for f in self.reasm.feed(bytes(d)):
                 self.q.put_nowait(f)
+
         await self.c.start_notify(oxyii.OXYII_NOTIFY, on)
 
     async def ask_ack(self, want_op: int, timeout: float = 2.0) -> "oxyii.AckResult":
@@ -89,7 +91,10 @@ def judge_write(field: str, value: int, before: bytes, after: bytes) -> tuple[bo
         if cfg.get(rb) != value:
             return False, f"read-back {rb}={cfg.get(rb)!r}, wanted {value} — write did not land"
         if len(changed) != 1:
-            return False, f"{len(changed)} bytes moved (expected exactly 1): {[(o, hex(a), hex(b)) for o, a, b in changed]}"
+            return (
+                False,
+                f"{len(changed)} bytes moved (expected exactly 1): {[(o, hex(a), hex(b)) for o, a, b in changed]}",
+            )
         return True, f"byte[{changed[0][0]}] {changed[0][1]} → {changed[0][2]}"
     # switch fields: bitfields; require every change to sit in the known alarm bytes {0, 4, 5}
     if not changed:
@@ -123,7 +128,7 @@ async def run_get(address: str) -> int:
 
 
 async def run_set(address: str, field: str, value: int) -> int:
-    frame = oxyii.set_config_frame(field, value)      # raises BEFORE any radio work on a bad request
+    frame = oxyii.set_config_frame(field, value)  # raises BEFORE any radio work on a bad request
     async with BleakClient(address, timeout=25.0) as c:
         ch = Chan(c)
         await ch.start()
@@ -140,7 +145,7 @@ async def run_set(address: str, field: str, value: int) -> int:
         # No retry or abort is added here: that would be a behaviour change on its own evidence.
         ack = await ch.ask_ack(oxyii.OP_SET_CONFIG)
         print(f"  SET_CONFIG ack: {ack.value}")
-        await asyncio.sleep(0.6)                       # let the setting persist before the read-back
+        await asyncio.sleep(0.6)  # let the setting persist before the read-back
         after = await ch.ask(oxyii.config_frame(2), oxyii.OP_GET_CONFIG)
         if after is None:
             print("  GET_CONFIG (after): NO REPLY — write state UNKNOWN; re-run --get before trusting it")

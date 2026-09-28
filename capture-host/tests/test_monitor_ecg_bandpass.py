@@ -77,12 +77,15 @@ def test_the_plant_wander_hides_every_beat_from_the_raw_detector_and_the_bandpas
     js = _extract()
     sig, planted = _ecg(wander_amp=4000.0)
     stub = "const _bp = bandpassIIR; bandpassIIR = (s) => s;"  # the same detector with the filter removed
-    out = _run(js, [
-        f"const S = {json.dumps(sig)};",
-        "OUT.push(detectRs(S, %d));" % FS,
-        stub,
-        "OUT.push(detectRs(S, %d));" % FS,
-    ])
+    out = _run(
+        js,
+        [
+            f"const S = {json.dumps(sig)};",
+            "OUT.push(detectRs(S, %d));" % FS,
+            stub,
+            "OUT.push(detectRs(S, %d));" % FS,
+        ],
+    )
     with_filter, without = out
     assert without == [], f"the plant was not seen: the raw detector found {len(without)} beats under wander"
     assert len(with_filter) == len(planted), (with_filter, planted)
@@ -100,12 +103,15 @@ def test_flat_and_low_rate_inputs():
     js = _extract()
     flat = [500.0] * (7 * FS)
     sig, planted = _ecg()
-    flat_out, low_pass, low_beats = _run(js, [
-        f"OUT.push(detectRs({json.dumps(flat)}, {FS}));",
-        # below 4·hi the band would sit against Nyquist: the signal must pass through unfiltered (same object)
-        f"{{ const S={json.dumps(sig[:40])}; OUT.push(bandpassIIR(S, 50) === S); }}",
-        f"OUT.push(detectRs({json.dumps(sig)}, 50).length);",
-    ])
+    flat_out, low_pass, low_beats = _run(
+        js,
+        [
+            f"OUT.push(detectRs({json.dumps(flat)}, {FS}));",
+            # below 4·hi the band would sit against Nyquist: the signal must pass through unfiltered (same object)
+            f"{{ const S={json.dumps(sig[:40])}; OUT.push(bandpassIIR(S, 50) === S); }}",
+            f"OUT.push(detectRs({json.dumps(sig)}, 50).length);",
+        ],
+    )
     assert flat_out == []
     assert low_pass is True
     assert low_beats >= 1  # the unfiltered path still detects on a clean signal
@@ -124,11 +130,14 @@ def test_spikes_and_a_beatless_floor_keep_the_raw_detector_s_validated_behaviour
     for k in (150, 400, 520, 660, 800):
         five[k] += 12000.0
     noise, _ = _ecg(r_amp=0.0)
-    got1, got5, got0 = _run(js, [
-        f"OUT.push(detectRs({json.dumps(one)}, {FS}));",
-        f"OUT.push(detectRs({json.dumps(five)}, {FS}));",
-        f"OUT.push(detectRs({json.dumps(noise)}, {FS}));",
-    ])
+    got1, got5, got0 = _run(
+        js,
+        [
+            f"OUT.push(detectRs({json.dumps(one)}, {FS}));",
+            f"OUT.push(detectRs({json.dumps(five)}, {FS}));",
+            f"OUT.push(detectRs({json.dumps(noise)}, {FS}));",
+        ],
+    )
     for got, spikes in ((got1, 1), (got5, 5)):
         assert all(any(abs(g - p) <= 3 for g in got) for p in planted), (got, planted)
         assert len(got) <= len(planted) + spikes, (got, planted)

@@ -129,8 +129,9 @@ def test_the_probe_can_actually_SEE_a_nested_function():
 
 # ── the derivation itself is under test, or a derivation that sees nothing passes everything ──────
 def _src():
-    return open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                             "monitor.html"), encoding="utf-8").read()
+    return open(
+        os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "monitor.html"), encoding="utf-8"
+    ).read()
 
 
 def test_a_chip_ADDED_to_the_template_is_derived_without_anyone_listing_it():

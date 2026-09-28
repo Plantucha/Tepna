@@ -122,7 +122,7 @@ def parse_hci_event(payload: bytes) -> dict | None:
         return None
     code, plen = payload[0], payload[1]
     params = payload[2:]
-    if len(params) < plen:                      # truncated: the header promises more than we hold
+    if len(params) < plen:  # truncated: the header promises more than we hold
         return None
     params = params[:plen]
     if code == HCI_EVT_VENDOR:
@@ -193,7 +193,7 @@ def parse_acl_pmd(payload: bytes) -> tuple[int, int, int] | None:
     handle_flags, data_len = struct.unpack_from("<HH", payload, 0)
     handle = handle_flags & 0x0FFF
     pb_flag = (handle_flags >> 12) & 0x03
-    if pb_flag not in (0x00, 0x02):             # 0b01 is a continuation: no L2CAP header follows
+    if pb_flag not in (0x00, 0x02):  # 0b01 is a continuation: no L2CAP header follows
         return None
     body = payload[4:]
     if len(body) < data_len:
@@ -205,15 +205,15 @@ def parse_acl_pmd(payload: bytes) -> tuple[int, int, int] | None:
     if cid != L2CAP_CID_ATT:
         return None
     att = body[4:]
-    if len(att) < l2_len:                       # a fragmented ATT PDU; its tail is a continuation
+    if len(att) < l2_len:  # a fragmented ATT PDU; its tail is a continuation
         return None
     att = att[:l2_len]
     if len(att) < 3 or att[0] != ATT_HANDLE_VALUE_NOTIFICATION:
         return None
     value = att[3:]
-    if len(value) < 10:                         # meas u8 + ns u64 + frame_type u8
+    if len(value) < 10:  # meas u8 + ns u64 + frame_type u8
         return None
-    meas = value[0] & 0x3F                      # bits 6–7 are recording-type flags (polar_pmd.py)
+    meas = value[0] & 0x3F  # bits 6–7 are recording-type flags (polar_pmd.py)
     last_sensor_ns = struct.unpack_from("<Q", value, 1)[0]
     return handle, meas, last_sensor_ns
 
@@ -301,8 +301,9 @@ class OffsetTracker:
         return _median([abs(s - centre) for s in self._samples])
 
 
-def associate(pkt_rx_us: float, anchors: list[tuple[int, int]],
-              offset: float | None, jitter: float | None) -> tuple[int | None, int | None]:
+def associate(
+    pkt_rx_us: float, anchors: list[tuple[int, int]], offset: float | None, jitter: float | None
+) -> tuple[int | None, int | None]:
     """Pick the connection event an ACL packet belongs to → `(event_counter, anchor_us)`.
 
     `anchors` is `[(event_counter, anchor_us), …]` for ONE handle, in arrival order. The rule is the
@@ -356,8 +357,7 @@ HCI_CHANNEL_MONITOR = 2
 _MONITOR_HDR = struct.Struct("<HHH")
 MONITOR_HDR_LEN = _MONITOR_HDR.size
 
-SIDECAR_HEADER = ("Phone timestamp;device;meas;last_sensor_ns;conn_handle;event_counter;"
-                  "anchor_us;vs_rx_ns;acl_rx_ns\n")
+SIDECAR_HEADER = "Phone timestamp;device;meas;last_sensor_ns;conn_handle;event_counter;anchor_us;vs_rx_ns;acl_rx_ns\n"
 
 
 def parse_monitor_packet(buf: bytes) -> tuple[int, int, bytes] | None:
@@ -394,6 +394,7 @@ def open_monitor_socket(socket_module=None):
     A missing family is just one more way the capability is unavailable.
     """
     import socket as _socket
+
     sock_mod = socket_module or _socket
     family = getattr(sock_mod, "AF_BLUETOOTH", None)
     proto = getattr(sock_mod, "BTPROTO_HCI", None)
@@ -409,8 +410,9 @@ def open_monitor_socket(socket_module=None):
     return sock
 
 
-def format_row(phone_ts: str, device: str, meas, last_sensor_ns, conn_handle,
-               event_counter, anchor_us, vs_rx_ns, acl_rx_ns) -> str:
+def format_row(
+    phone_ts: str, device: str, meas, last_sensor_ns, conn_handle, event_counter, anchor_us, vs_rx_ns, acl_rx_ns
+) -> str:
     """One sidecar line. **A blank cell is `not measured`; nothing here is ever defaulted to 0.**
 
     `0` is in-band for every numeric column on this row — a microsecond counter, an event counter and
@@ -418,11 +420,26 @@ def format_row(phone_ts: str, device: str, meas, last_sensor_ns, conn_handle,
     from a measurement, forever, to every reader. `writers._ns_col` makes the same argument for the
     vendor streams; this is that rule applied to the sidecar.
     """
+
     def cell(value):
         return "" if value is None else str(value)
 
-    return ";".join([phone_ts, device, cell(meas), cell(last_sensor_ns), cell(conn_handle),
-                     cell(event_counter), cell(anchor_us), cell(vs_rx_ns), cell(acl_rx_ns)]) + "\n"
+    return (
+        ";".join(
+            [
+                phone_ts,
+                device,
+                cell(meas),
+                cell(last_sensor_ns),
+                cell(conn_handle),
+                cell(event_counter),
+                cell(anchor_us),
+                cell(vs_rx_ns),
+                cell(acl_rx_ns),
+            ]
+        )
+        + "\n"
+    )
 
 
 #: HCI Command Complete / Command Status event codes, and the "Unknown HCI Command" status. The
@@ -520,8 +537,9 @@ class Collector:
     ask for reaches the disk.
     """
 
-    def __init__(self, adapter_index: int, devices, offset_window: int = OFFSET_WINDOW,
-                 adapter_address: str | None = None) -> None:
+    def __init__(
+        self, adapter_index: int, devices, offset_window: int = OFFSET_WINDOW, adapter_address: str | None = None
+    ) -> None:
         #: The index is a CACHE and the address is the identity. `hciN` reorders across a reflash or a
         #: replug, so the index is re-resolved whenever the adapter returns and the address is what
         #: that resolution is keyed on. Optional only for back-compat with callers that predate it.
@@ -546,7 +564,7 @@ class Collector:
         acl_rx_ns)` with None for anything not measured — never a zero.
         """
         if index != self.adapter_index:
-            return None                     # another controller's traffic; not ours to record
+            return None  # another controller's traffic; not ours to record
         if opcode == MONITOR_OPCODE_EVENT:
             self._event(payload, host_ns)
             return None
@@ -589,8 +607,9 @@ class Collector:
         address = self.handles.address(handle)
         if address is None or address.upper() not in self.devices:
             return None
-        counter, anchor_us = associate(host_ns / 1000.0, self._anchors.get(handle, []),
-                                       self.offsets.offset, self.offsets.jitter)
+        counter, anchor_us = associate(
+            host_ns / 1000.0, self._anchors.get(handle, []), self.offsets.offset, self.offsets.jitter
+        )
         self.rows += 1
         return (address, meas, last_sensor_ns, handle, counter, anchor_us, None, host_ns)
 
@@ -633,15 +652,15 @@ class SidecarWriter:
         try:
             self._fh.flush()
         except (OSError, ValueError):  # deliberate: a full disk or a closed handle must not raise out
-            pass                            # of a TELEMETRY sidecar and end the night's other work
+            pass  # of a TELEMETRY sidecar and end the night's other work
 
     def close(self) -> None:
         self.flush()
         try:
             self._fh.close()
         except (OSError, ValueError):  # deliberate: by here the rows are written; a failing close is
-            pass                       # ENOSPC on the final flush, and raising would lose nothing but
-                                       # would turn a full disk into a traceback
+            pass  # ENOSPC on the final flush, and raising would lose nothing but
+            # would turn a full disk into a traceback
 
 
 def sidecar_name(stamp: str, address: str) -> str:
@@ -662,10 +681,11 @@ def phone_ts(host_ns: int) -> str:
     import datetime as _dt
 
     import writers
+
     return writers._phone_ts(_dt.datetime.fromtimestamp(host_ns / 1e9))
 
 
-def read_monitor(sock, bufsize: int = 4096):     # pragma: no cover — a raw socket read, nothing else
+def read_monitor(sock, bufsize: int = 4096):  # pragma: no cover — a raw socket read, nothing else
     """Yield `(opcode, index, payload, host_ns)` off a bound monitor socket, forever.
 
     Deliberately the ONLY untested function in this file, and deliberately empty of decisions: it reads
@@ -675,6 +695,7 @@ def read_monitor(sock, bufsize: int = 4096):     # pragma: no cover — a raw so
     unparsable packet must not end the night's telemetry.
     """
     import time as _time
+
     while True:
         try:
             buf = sock.recv(bufsize)
@@ -701,8 +722,9 @@ def parse_new_index(payload: bytes) -> str | None:
     return _address(payload[2:8])
 
 
-def rearm_needed(opcode: int, index: int, payload: bytes, adapter_index: int,
-                 adapter_address: str | None = None) -> bool:
+def rearm_needed(
+    opcode: int, index: int, payload: bytes, adapter_index: int, adapter_address: str | None = None
+) -> bool:
     """Has this packet invalidated the anchor enable on our adapter?
 
     🔴 THE ENABLE IS A RUNTIME COMMAND AND DOES NOT SURVIVE A CONTROLLER RESET. `0xfd1f` is not a build
@@ -731,7 +753,7 @@ def rearm_needed(opcode: int, index: int, payload: bytes, adapter_index: int,
         seen = parse_new_index(payload)
         if adapter_address and seen:
             return seen.upper() == adapter_address.upper()
-        return index == adapter_index          # no address to compare — fall back, and say so upstream
+        return index == adapter_index  # no address to compare — fall back, and say so upstream
     if index != adapter_index:
         return False
     if opcode == MONITOR_OPCODE_OPEN_INDEX:
@@ -757,8 +779,9 @@ def run(packets, collector: Collector, open_writer, flush_every: int = 64, rearm
         for opcode, index, payload, host_ns in packets:
             # BEFORE feeding: an adapter that just came up has no anchors enabled, so the sooner the
             # command goes out the fewer connection events are missed.
-            if rearm is not None and rearm_needed(opcode, index, payload, collector.adapter_index,
-                                                  collector.adapter_address):
+            if rearm is not None and rearm_needed(
+                opcode, index, payload, collector.adapter_index, collector.adapter_address
+            ):
                 rearmed += 1
                 rearm()
             row = collector.feed(opcode, index, payload, host_ns)
@@ -775,10 +798,13 @@ def run(packets, collector: Collector, open_writer, flush_every: int = 64, rearm
     finally:
         for sink in writers_by_device.values():
             sink.close()
-    return {"rows": written, "devices": sorted(writers_by_device),
-            "missed_anchors": collector.missed_anchors,
-            "offset_samples": collector.offsets.n,
-            "rearmed": rearmed}
+    return {
+        "rows": written,
+        "devices": sorted(writers_by_device),
+        "missed_anchors": collector.missed_anchors,
+        "offset_samples": collector.offsets.n,
+        "rearmed": rearmed,
+    }
 
 
 #: Where BlueZ publishes each controller's address. Read rather than assumed, because **BLE identity is
@@ -807,7 +833,7 @@ def adapter_index(address: str | None, sysfs: str = SYSFS_BLUETOOTH) -> int | No
             with open(os.path.join(sysfs, name, "address"), encoding="utf-8") as fh:
                 got = fh.read().strip().upper()
         except OSError:  # deliberate: an entry with no readable address is not the controller we are
-            continue     # looking for, and a sysfs tree we cannot fully read is not an error here
+            continue  # looking for, and a sysfs tree we cannot fully read is not an error here
         if got == want:
             try:
                 return int(name[3:])
@@ -839,7 +865,7 @@ def _command(opcode: int, params: bytes = b"") -> bytes:
     return bytes([HCI_COMMAND_PKT]) + struct.pack("<H", opcode) + bytes([len(params)]) + params
 
 
-def probe_controller(index: int, socket_module=None):   # pragma: no cover — raw HCI command I/O
+def probe_controller(index: int, socket_module=None):  # pragma: no cover — raw HCI command I/O
     """`(manufacturer, enable_status, error)` for controller `index`. The one privileged step.
 
     Measured on vigil 2026-09-07: a vendor-OGF command goes out on a **RAW** HCI socket from an
@@ -855,6 +881,7 @@ def probe_controller(index: int, socket_module=None):   # pragma: no cover — r
     lives in `decide`, which is pure and fully covered.
     """
     import socket as _socket
+
     sock_mod = socket_module or _socket
     family = getattr(sock_mod, "AF_BLUETOOTH", None)
     proto = getattr(sock_mod, "BTPROTO_HCI", None)
@@ -879,7 +906,7 @@ def probe_controller(index: int, socket_module=None):   # pragma: no cover — r
             try:
                 buf = sock.recv(260)
             except OSError:
-                return None                  # timeout: a wedged controller answers nothing at all
+                return None  # timeout: a wedged controller answers nothing at all
             if buf[:1] == bytes([HCI_EVENT_PKT]) and parse_command_complete(buf[1:], opcode) is not None:
                 return buf[1:]
             deadline -= 0.1
@@ -888,11 +915,10 @@ def probe_controller(index: int, socket_module=None):   # pragma: no cover — r
     try:
         version = _ask(HCI_OPCODE_READ_LOCAL_VERSION)
         if version is None:
-            return None, None, None          # no reply at all — the NO REPLY outcome
+            return None, None, None  # no reply at all — the NO REPLY outcome
         params = version[2:]
         if len(params) < 10 or params[3] != HCI_STATUS_SUCCESS:
-            return None, None, "Read Local Version returned status %s" % (
-                params[3] if len(params) > 3 else "nothing",)
+            return None, None, "Read Local Version returned status %s" % (params[3] if len(params) > 3 else "nothing",)
         manufacturer = struct.unpack_from("<H", params, 8)[0]
         if manufacturer != NORDIC_COMPANY_ID:
             return manufacturer, None, None  # not ours to enable; `decide` says so in its own words
@@ -921,8 +947,7 @@ def decide(cfg: dict, sysfs: str = SYSFS_BLUETOOTH, probe=probe_controller):
     index = adapter_index(address, sysfs)
     if index is None:
         return None, [], "no controller with address %r is present" % (address,)
-    devices = [d.get("address") for d in ((cfg or {}).get("devices") or [])
-               if isinstance(d, dict) and d.get("address")]
+    devices = [d.get("address") for d in ((cfg or {}).get("devices") or []) if isinstance(d, dict) and d.get("address")]
     if not devices:
         return None, [], "no devices with addresses are configured — nothing could be recorded"
     try:
@@ -930,16 +955,23 @@ def decide(cfg: dict, sysfs: str = SYSFS_BLUETOOTH, probe=probe_controller):
     except RadioClockUnavailable as exc:
         return None, [], "radio clock unavailable on %s: %s" % (address, exc)
     if manufacturer != NORDIC_COMPANY_ID:
-        return None, [], ("controller %s reports manufacturer %s, not Nordic (%d) — this is the common "
-                          "case, not an error" % (address, manufacturer, NORDIC_COMPANY_ID))
+        return (
+            None,
+            [],
+            (
+                "controller %s reports manufacturer %s, not Nordic (%d) — this is the common "
+                "case, not an error" % (address, manufacturer, NORDIC_COMPANY_ID)
+            ),
+        )
     outcome = describe_enable(status, error)
     if outcome != ENABLE_ENABLED:
         return None, [], "anchor reports not enabled on %s: %s" % (address, outcome)
     return index, devices, None
 
 
-def main(argv: list[str], sysfs: str = SYSFS_BLUETOOTH, probe=probe_controller,
-         socket_module=None, packets=None) -> int:
+def main(
+    argv: list[str], sysfs: str = SYSFS_BLUETOOTH, probe=probe_controller, socket_module=None, packets=None
+) -> int:
     """`radioclock.py --config config.yaml` — the collector's entry point.
 
     🔴 EXIT 0 AND WRITE NOTHING is the answer to every way this box cannot do it. A non-Nordic
@@ -957,6 +989,7 @@ def main(argv: list[str], sysfs: str = SYSFS_BLUETOOTH, probe=probe_controller,
 
     try:
         import yaml  # type: ignore[import-untyped]
+
         with open(args.config, encoding="utf-8") as fh:
             cfg = yaml.safe_load(fh)
     except (OSError, ValueError, ImportError) as exc:
@@ -975,7 +1008,7 @@ def main(argv: list[str], sysfs: str = SYSFS_BLUETOOTH, probe=probe_controller,
     rc_cfg = (cfg or {}).get("radio_clock") or {}
     address = rc_cfg.get("adapter") or cfg.get("adapter")
     collector = Collector(index, devices, adapter_address=address)
-    if packets is None:                      # pragma: no cover — the socket path, exercised on the box
+    if packets is None:  # pragma: no cover — the socket path, exercised on the box
         packets = read_monitor(open_monitor_socket(socket_module))
 
     import datetime as _dt
@@ -984,6 +1017,7 @@ def main(argv: list[str], sysfs: str = SYSFS_BLUETOOTH, probe=probe_controller,
         # The night directory is `writers.night_dir`'s, so the sidecar lands BESIDE the streams it
         # joins to rather than in a tree of its own.
         import writers
+
         night = writers.night_dir(root, _dt.datetime.now())
         stamp = _dt.datetime.now().strftime("%Y%m%dT%H%M%S")
         return SidecarWriter(os.path.join(night, sidecar_name(stamp, address)))
@@ -1000,8 +1034,12 @@ def main(argv: list[str], sysfs: str = SYSFS_BLUETOOTH, probe=probe_controller,
             log.warning("radio clock: %s is not present after the reset — nothing to re-arm", address)
             return
         if now_index != collector.adapter_index:
-            log.info("radio clock: %s moved hci%d → hci%d; following the address, not the index",
-                     address, collector.adapter_index, now_index)
+            log.info(
+                "radio clock: %s moved hci%d → hci%d; following the address, not the index",
+                address,
+                collector.adapter_index,
+                now_index,
+            )
             collector.adapter_index = now_index
         try:
             _m, status, error = probe(now_index)
@@ -1015,12 +1053,18 @@ def main(argv: list[str], sysfs: str = SYSFS_BLUETOOTH, probe=probe_controller,
             log.warning("radio clock: anchors NOT re-enabled after an adapter reset: %s", outcome)
 
     got = run(packets, collector, open_writer, rearm=_rearm)
-    log.info("radio clock: %d row(s) for %s, %d anchor(s) missed (discardable by design), "
-             "%d offset sample(s), %d re-arm(s)", got["rows"], ", ".join(got["devices"]) or "no device",
-             got["missed_anchors"], got["offset_samples"], got["rearmed"])
+    log.info(
+        "radio clock: %d row(s) for %s, %d anchor(s) missed (discardable by design), %d offset sample(s), %d re-arm(s)",
+        got["rows"],
+        ", ".join(got["devices"]) or "no device",
+        got["missed_anchors"],
+        got["offset_samples"],
+        got["rearmed"],
+    )
     return 0
 
 
-if __name__ == "__main__":                   # pragma: no cover — exercised via main(argv)
+if __name__ == "__main__":  # pragma: no cover — exercised via main(argv)
     import sys
+
     raise SystemExit(main(sys.argv[1:]))

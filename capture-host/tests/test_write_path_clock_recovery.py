@@ -17,6 +17,7 @@ formatter was broken, which is precisely the gap being closed.
 
 DETERMINISM. No randomness and no wall clock: every arrival is computed from a fixed base instant.
 """
+
 import datetime as dt
 import struct
 
@@ -45,17 +46,16 @@ def _write_and_recover(tmp_path, ppm: float, minutes: int = 40, hz: float = 130.
     path = str(tmp_path / "Polar_H10_TEST_20260814230000_PMDARRIVAL.csv")
     w = writers.PmdArrivalLogWriter(path, flush_interval=0.0, fsync=False)
     samples_per_frame = 10
-    frame_dt = samples_per_frame / hz                      # seconds of real time per frame
+    frame_dt = samples_per_frame / hz  # seconds of real time per frame
     n_frames = int(minutes * 60 / frame_dt)
-    dev_epoch_ns = 800_000_000_000_000_000                 # arbitrary device epoch, as the wire carries
+    dev_epoch_ns = 800_000_000_000_000_000  # arbitrary device epoch, as the wire carries
     prev_last = None
     for i in range(n_frames):
-        host_elapsed = i * frame_dt                        # true elapsed host seconds
-        dev_elapsed = host_elapsed * (1.0 + ppm / 1e6)     # the device's own, wrong, elapsed time
+        host_elapsed = i * frame_dt  # true elapsed host seconds
+        dev_elapsed = host_elapsed * (1.0 + ppm / 1e6)  # the device's own, wrong, elapsed time
         last_ns = dev_epoch_ns + int(round(dev_elapsed * 1e9))
         arrival = base + dt.timedelta(seconds=host_elapsed)
-        meas, samples = pmd.decode_frame(_ecg_frame(last_ns, samples_per_frame), arrival,
-                                         fs=hz, prev_last_ns=prev_last)
+        meas, samples = pmd.decode_frame(_ecg_frame(last_ns, samples_per_frame), arrival, fs=hz, prev_last_ns=prev_last)
         assert meas == pmd.ECG and samples, "the shipped decoder rejected a well-formed ECG frame"
         prev_last = last_ns
         w.write(arrival, "Polar H10 TEST", "ecg", samples[0].sensor_ns, last_ns, len(samples))

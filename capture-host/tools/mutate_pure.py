@@ -56,7 +56,6 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent.parent
 
 
-
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from mutation_pure import harvest_text  # noqa: E402
 
@@ -69,8 +68,11 @@ def harvest(mutants_file: str, funcs: list[str]) -> dict[str, list[tuple[str, st
     the original as a mutant yields one that survives by construction, i.e. a fabricated test gap."""
     harvested, skipped = harvest_text(Path(mutants_file).read_text(encoding="utf-8"), funcs)
     if skipped:
-        print(f"  note: skipped {len(skipped)} __mutmut_orig definition(s) — the ORIGINAL function is "
-              f"not a mutant and would survive by construction", file=sys.stderr)
+        print(
+            f"  note: skipped {len(skipped)} __mutmut_orig definition(s) — the ORIGINAL function is "
+            f"not a mutant and would survive by construction",
+            file=sys.stderr,
+        )
     return harvested
 
 
@@ -122,14 +124,16 @@ def load_cases(test_files: list[str]) -> tuple[list[tuple[str, Callable[[], Any]
             finally:
                 mp.undo()
                 shutil.rmtree(tmp, ignore_errors=True)
+
         return call
 
     def fn_params(fn):
         return list(inspect.signature(fn).parameters)
+
     for tf in test_files:
         try:
             mod = importlib.import_module(Path(tf).with_suffix("").as_posix().replace("/", "."))
-        except BaseException as e:                       # noqa: BLE001
+        except BaseException as e:  # noqa: BLE001
             # A test module that only imports under pytest (conftest fixtures, plugins, collection
             # hooks) is not a failure of the tool — but it IS coverage this run did not have, so it is
             # reported rather than swallowed.
@@ -169,7 +173,7 @@ def run_all(cases) -> str | None:
     for cid, fn in cases:
         try:
             fn()
-        except BaseException:            # noqa: BLE001 — any raise is a kill, including SystemExit
+        except BaseException:  # noqa: BLE001 — any raise is a kill, including SystemExit
             return cid
     return None
 
@@ -180,8 +184,7 @@ def main(argv=None) -> int:
     ap.add_argument("--module", required=True, help="module under test, e.g. capture")
     ap.add_argument("--funcs", required=True, help="comma-separated function names")
     ap.add_argument("--tests", required=True, help="comma-separated test files")
-    ap.add_argument("--self-check", default=None,
-                    help="a `mutmut results` dump; exit 1 unless every verdict agrees")
+    ap.add_argument("--self-check", default=None, help="a `mutmut results` dump; exit 1 unless every verdict agrees")
     a = ap.parse_args(argv)
 
     funcs = [f.strip() for f in a.funcs.split(",")]
@@ -215,6 +218,7 @@ def main(argv=None) -> int:
         def probe(*args, _o=original, _h=hits, **kw):
             _h.append(1)
             return _o(*args, **kw)
+
         setattr(mod, fn_name, probe)
         try:
             sel = []
@@ -222,7 +226,7 @@ def main(argv=None) -> int:
                 hits.clear()
                 try:
                     fn()
-                except BaseException:      # noqa: BLE001 — a case that fails here still counts if it called us
+                except BaseException:  # noqa: BLE001 — a case that fails here still counts if it called us
                     pass
                 if hits:
                     sel.append((cid, fn))
@@ -251,14 +255,19 @@ def main(argv=None) -> int:
     killed = sum(v == "killed" for v in verdicts.values())
     total = len(verdicts)
     report = {
-        "module": a.module, "funcs": funcs, "mutants": total, "killed": killed,
-        "survived": total - killed, "cases": len(cases), "elapsed_sec": round(elapsed, 2),
+        "module": a.module,
+        "funcs": funcs,
+        "mutants": total,
+        "killed": killed,
+        "survived": total - killed,
+        "cases": len(cases),
+        "elapsed_sec": round(elapsed, 2),
         "rate_per_sec": round(total / elapsed, 1) if elapsed else None,
         "covering_cases": {f: len(covering[f]) for f in funcs},
         "SCOPE": "PURE functions only — see this file's header; not a replacement for tools/mutate.py",
     }
     if skipped:
-        report["tests_not_runnable_here"] = skipped        # loud: these did NOT contribute a verdict
+        report["tests_not_runnable_here"] = skipped  # loud: these did NOT contribute a verdict
     print(json.dumps(report, indent=2))
 
     if a.self_check:
@@ -271,10 +280,12 @@ def main(argv=None) -> int:
                 k, _, v = ln.strip().partition(":")
                 ref[k.strip()] = v.strip()
         mine = {k: v for k, v in verdicts.items() if k in ref or v == "survived"}
-        disagree = [(k, ref.get(k, "killed"), v) for k, v in mine.items()
-                    if ref.get(k, "killed") != v]
-        print(json.dumps({"self_check": {"compared": len(mine), "disagreements": disagree[:20],
-                                         "ok": not disagree}}, indent=2))
+        disagree = [(k, ref.get(k, "killed"), v) for k, v in mine.items() if ref.get(k, "killed") != v]
+        print(
+            json.dumps(
+                {"self_check": {"compared": len(mine), "disagreements": disagree[:20], "ok": not disagree}}, indent=2
+            )
+        )
         return 1 if disagree else 0
     return 0
 

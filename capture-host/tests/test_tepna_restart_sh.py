@@ -32,7 +32,7 @@ def _run(tmp_path, *args, state="active", restart_rc=0):
     sysctl.write_text(
         "#!/bin/sh\n"
         f'echo "systemctl $*" >> "{log}"\n'
-        "case \"$1\" in\n"
+        'case "$1" in\n'
         f"  restart) exit {restart_rc} ;;\n"
         f'  is-active) echo {state}; [ "{state}" = active ] || exit 3 ;;\n'
         '  show) echo "Fri 2026-08-01 09:00:00 CEST" ;;\n'
@@ -52,8 +52,7 @@ def test_the_verb_surface_is_fixed_and_everything_else_is_refused(tmp_path):
     # `stop` joined the surface on 2026-08-02 (a Polar holds ONE BLE link, so the offline-recording
     # probe has to take it off the daemon). It is covered by its own tests below, including the
     # deadman timer that makes it safe; everything NOT on the list is still refused before systemctl.
-    for argv in [[], ["restart", "extra"], ["mask"], ["restart-all"], [""],
-                 ["stop", "5", "extra"]]:
+    for argv in [[], ["restart", "extra"], ["mask"], ["restart-all"], [""], ["stop", "5", "extra"]]:
         r, calls = _run(tmp_path, *argv)
         assert r.returncode == 2, f"{argv!r} was accepted"
         assert "usage:" in r.stderr
@@ -68,7 +67,7 @@ def test_the_unit_is_never_taken_from_argv(tmp_path):
     assert f"systemctl restart {UNIT}" in calls
     assert len([line for line in calls.splitlines() if line.startswith("systemctl restart")]) == 1
     src = open(SH).read()
-    assert 'UNIT=tepna-capture.service' in src
+    assert "UNIT=tepna-capture.service" in src
     assert '"$2"' not in src and "$@" not in src, (
         "the unit must stay a constant — accepting it from argv is what a bare systemctl grant would do"
     )
@@ -124,16 +123,19 @@ def test_radio_fails_when_bluetoothd_does_not_come_back(tmp_path):
 # it at 22:00, get distracted, and the night is simply never recorded. Nothing in the box notices,
 # because "no data" and "sensor not worn" look identical. Hence the deadman, and hence these tests.
 
+
 def _run_stop(tmp_path, *args, systemd_run_rc=0, stop_rc=0):
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir(exist_ok=True)
     log = tmp_path / "calls.log"
     log.write_text("")
     sysctl = bin_dir / "systemctl"
-    sysctl.write_text("#!/bin/sh\n"
-                      f'echo "systemctl $*" >> "{log}"\n'
-                      f'case "$1" in stop) [ "$2" = tepna-capture.service ] && exit {stop_rc} ;; esac\n'
-                      "exit 0\n")
+    sysctl.write_text(
+        "#!/bin/sh\n"
+        f'echo "systemctl $*" >> "{log}"\n'
+        f'case "$1" in stop) [ "$2" = tepna-capture.service ] && exit {stop_rc} ;; esac\n'
+        "exit 0\n"
+    )
     sysctl.chmod(0o755)
     sr = bin_dir / "systemd-run"
     sr.write_text(f'#!/bin/sh\necho "systemd-run $*" >> "{log}"\nexit {systemd_run_rc}\n')

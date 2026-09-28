@@ -76,6 +76,7 @@ def _trailer(total_seconds=3, avg_spo2=97, score=78, avg_hr=64, min_spo2=95):
 
 # ── parse_oxy_dat ────────────────────────────────────────────────────────────────────────────────
 
+
 def test_samples_decode_at_1hz_with_motion_scaled():
     """`sec` is the 1 Hz index and `motion` is the raw byte doubled (the OxyDex CSV scaling)."""
     meta, samples, trailer = parse_dat.parse_oxy_dat(_samples((97, 64, 3), (96, 65, 0)))
@@ -140,6 +141,7 @@ def test_an_absent_o2_score_is_None_not_255():
 
 # ── oxy_start_dt ─────────────────────────────────────────────────────────────────────────────────
 
+
 def test_the_start_instant_comes_from_the_filename_stamp():
     assert parse_dat.oxy_start_dt("/x/20260830132000.dat") == datetime.datetime(2026, 8, 30, 13, 20, 0)
 
@@ -156,6 +158,7 @@ def test_a_14_digit_run_that_is_not_a_date_is_refused():
 
 
 # ── self_consistency ─────────────────────────────────────────────────────────────────────────────
+
 
 def test_consistency_is_undecidable_without_a_trailer():
     ok, notes = parse_dat.self_consistency([{"spo2": 97}], None)
@@ -193,10 +196,10 @@ def test_the_count_tolerance_scales_so_a_long_night_is_not_false_flagged():
 
 # ── write_csv ────────────────────────────────────────────────────────────────────────────────────
 
+
 def test_csv_writes_absolute_times_when_the_start_is_known(tmp_path):
     out = tmp_path / "o.csv"
-    samples = [{"sec": 0, "spo2": 97, "pulse": 64, "motion": 6},
-               {"sec": 1, "spo2": None, "pulse": None, "motion": 0}]
+    samples = [{"sec": 0, "spo2": 97, "pulse": 64, "motion": 6}, {"sec": 1, "spo2": None, "pulse": None, "motion": 0}]
     parse_dat.write_csv(str(out), samples, datetime.datetime(2026, 8, 30, 13, 20, 0))
     rows = out.read_text().strip().split("\n")
     assert rows[0] == "sec,time,spo2,pulse,motion"
@@ -211,6 +214,7 @@ def test_csv_leaves_time_blank_when_the_recording_is_undated(tmp_path):
 
 
 # ── the synthetic builder, and the round trip the module documents ───────────────────────────────
+
 
 def test_the_synthetic_dat_round_trips_through_the_real_parser():
     """This is the module's own regression: build → parse → self-consistency, no golden file."""
@@ -229,7 +233,7 @@ def test_the_synthetic_fixture_cannot_emit_a_reading_the_ring_cannot():
     a recording no O2Ring can write.
     """
     data, _, _ = parse_dat._build_synthetic_dat()
-    body = data[parse_dat.HEADER_LEN:-parse_dat._TRAILER_LEN]
+    body = data[parse_dat.HEADER_LEN : -parse_dat._TRAILER_LEN]
     for i in range(0, len(body) - 2, 3):
         s, h = body[i], body[i + 1]
         if s == 0xFF and h == 0xFF:
@@ -239,6 +243,7 @@ def test_the_synthetic_fixture_cannot_emit_a_reading_the_ring_cannot():
 
 
 # ── main() ───────────────────────────────────────────────────────────────────────────────────────
+
 
 def test_main_decodes_a_file_and_reports_the_trailer(tmp_path, capsys, monkeypatch):
     dat = tmp_path / "20260830132000.dat"
@@ -292,7 +297,9 @@ def test_main_selftest_exits_zero(monkeypatch):
         parse_dat.main()
     assert e.value.code == 0
 
+
 # ── storage_interval: the cadence the file does not record ───────────────────────────────────────
+
 
 def test_a_1hz_file_implies_an_interval_of_one():
     """The ordinary case: 120 samples, 120 s. Nothing to warn about."""
@@ -311,19 +318,22 @@ def test_a_2s_ring_is_detected_from_the_trailer_alone():
     assert parse_dat.looks_like_interval(2.0) is True
 
 
-@pytest.mark.parametrize("ratio,expected", [
-    (None, False),      # no trailer
-    (0.5, False),        # more samples than seconds — not a cadence
-    (1.0, False),        # ordinary
-    (1.4, False),        # below the floor
-    (2.0, True),
-    (4.0, True),
-    (60.0, True),        # the documented ceiling, inclusive
-    (61.0, False),       # just past it
-    (999.0, False),      # a broken file, not a slow recorder
-    (2.06, True),        # 3% high: a recording that dropped a few samples still reads as 2s
-    (2.4, False),        # not near an integer
-])
+@pytest.mark.parametrize(
+    "ratio,expected",
+    [
+        (None, False),  # no trailer
+        (0.5, False),  # more samples than seconds — not a cadence
+        (1.0, False),  # ordinary
+        (1.4, False),  # below the floor
+        (2.0, True),
+        (4.0, True),
+        (60.0, True),  # the documented ceiling, inclusive
+        (61.0, False),  # just past it
+        (999.0, False),  # a broken file, not a slow recorder
+        (2.06, True),  # 3% high: a recording that dropped a few samples still reads as 2s
+        (2.4, False),  # not near an integer
+    ],
+)
 def test_the_cadence_bound_admits_real_intervals_and_refuses_faults(ratio, expected):
     assert parse_dat.looks_like_interval(ratio) is expected
 
@@ -394,7 +404,6 @@ def test_main_says_1hz_is_an_ASSUMPTION_not_a_fact(tmp_path, capsys, monkeypatch
     out = capsys.readouterr().out
     assert "assumed" in out and "the file carries no cadence" in out
     assert "WARNING" not in out
-
 
 
 # ─────────────────────────────────────────────────────────────────────────────────────────────────

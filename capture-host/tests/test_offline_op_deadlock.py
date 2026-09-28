@@ -33,7 +33,6 @@ import capture
 # watchdogs could not help: all three skip while _POLAR_PAUSED is non-empty.
 
 
-
 def _run_async(coro):
     return _aio.run(coro)
 
@@ -48,6 +47,7 @@ def test_offline_op_returns_its_result_and_releases_the_pause(monkeypatch):
 
     async def op():
         return {"ok": True}
+
     assert _run_async(capture.polar_offline_op("AA:BB", op)) == {"ok": True}
     assert capture._POLAR_PAUSED == set(), "the pause must be released on success"
 
@@ -57,6 +57,7 @@ def test_offline_op_releases_the_pause_when_the_op_raises(monkeypatch):
 
     async def op():
         raise RuntimeError("psftp refused")
+
     with pytest.raises(RuntimeError):
         _run_async(capture.polar_offline_op("AA:BB", op))
     assert capture._POLAR_PAUSED == set()
@@ -69,6 +70,7 @@ def test_a_HUNG_offline_op_cannot_wedge_capture_forever(monkeypatch):
 
     async def hangs_forever():
         await _aio.sleep(3600)
+
     with pytest.raises(_aio.TimeoutError):
         _run_async(capture.polar_offline_op("AA:BB", hangs_forever))
     assert capture._POLAR_PAUSED == set(), "a hung op MUST still release the pause"
@@ -99,6 +101,7 @@ def test_the_timeout_is_per_call_not_global(monkeypatch):
 
     async def hangs():
         await _aio.sleep(3600)
+
     with pytest.raises(_aio.TimeoutError):
         _run_async(capture.polar_offline_op("AA:BB", hangs, timeout=0.05))
     assert capture._POLAR_PAUSED == set()
@@ -115,6 +118,7 @@ def test_a_REPEATING_hung_op_logs_ONE_error_and_then_counts(monkeypatch, caplog)
     right reasoning and is kept. After that the count carries the line. The COUNT is incremented before
     any logging decision, so a quieter log can never cost the rate."""
     import blestats
+
     blestats.reset()
     _clear_pause(monkeypatch)
     monkeypatch.setattr(capture, "_OFFLINE_OP_TIMEOUT_S", 0.01)

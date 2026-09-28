@@ -113,8 +113,18 @@ def test_no_journal_seeds_nothing(tmp_path):
 # ── the loop ───────────────────────────────────────────────────────────────────────────────────
 
 
-def _loop(tmp_path, therapy_seq, op_results, *, running=False, ticks=None,
-          running_seq=None, paths=None, unlinked=None, unlink_fn=None):
+def _loop(
+    tmp_path,
+    therapy_seq,
+    op_results,
+    *,
+    running=False,
+    ticks=None,
+    running_seq=None,
+    paths=None,
+    unlinked=None,
+    unlink_fn=None,
+):
     """Drive `_cpap_autostart_loop` for len(therapy_seq) cycles with a fake clock and op.
 
     `running_seq` scripts `is_running()` per tick (holding its last value) so a retention test can
@@ -184,17 +194,23 @@ def test_a_FALSE_START_is_discarded_journalled_and_costs_an_attempt(tmp_path):
     gone = []
     # tick1: start (running False) · tick2: running True · tick3: ended -> judged · tick4+: therapy
     # over, so the (correctly permitted, budget-bounded) retry never re-fires in this fixture
-    calls = _loop(tmp_path, [True, True, True, False, False, False], [{"ok": True}],
-                  running_seq=[False, True, False, False],
-                  paths=["/x/raw.jsonl", "/x/night.edf"], unlinked=gone)
+    calls = _loop(
+        tmp_path,
+        [True, True, True, False, False, False],
+        [{"ok": True}],
+        running_seq=[False, True, False, False],
+        paths=["/x/raw.jsonl", "/x/night.edf"],
+        unlinked=gone,
+    )
     assert calls == ["start"]
     # Both artifacts, and the acquisition-evidence sidecar that rides beside each. The sidecar is
     # written for a false start too and is not a sink, so nothing else can name it: unnamed, it is an
     # orphan describing an acquisition that was deleted. The real `unlink` raises FileNotFoundError
     # for a sidecar that was never written and the caller swallows it; this fake records the attempt,
     # which is what lets the test see that the attempt is made at all.
-    assert gone == ["/x/raw.jsonl", "/x/raw.jsonl.meta.json",
-                    "/x/night.edf", "/x/night.edf.meta.json"], "the fragment must leave no orphan"
+    assert gone == ["/x/raw.jsonl", "/x/raw.jsonl.meta.json", "/x/night.edf", "/x/night.edf.meta.json"], (
+        "the fragment must leave no orphan"
+    )
     rec = json.loads(open(capture._cpap_autostart_path(str(tmp_path))).read())
     assert rec["attempts"] == 1 and rec["last_error"].startswith("false start:")
 
@@ -203,6 +219,7 @@ def test_a_discard_survives_a_missing_file_and_NAMES_a_stubborn_one(tmp_path, ca
     """The two failure arms of the unlink: a file never written (or already gone) is silently fine —
     no orphan either way — while a file that CANNOT be removed is a real orphan the operator must
     hear about by name. Neither may kill the loop."""
+
     def unlink_fn(p):
         if "gone" in p:
             raise FileNotFoundError(p)
@@ -210,9 +227,14 @@ def test_a_discard_survives_a_missing_file_and_NAMES_a_stubborn_one(tmp_path, ca
 
     _in_therapy(tmp_path)
     with caplog.at_level("WARNING"):
-        calls = _loop(tmp_path, [True, True, True, False, False, False], [{"ok": True}],
-                      running_seq=[False, True, False, False],
-                      paths=["/x/gone.edf", "/x/stuck.edf"], unlink_fn=unlink_fn)
+        calls = _loop(
+            tmp_path,
+            [True, True, True, False, False, False],
+            [{"ok": True}],
+            running_seq=[False, True, False, False],
+            paths=["/x/gone.edf", "/x/stuck.edf"],
+            unlink_fn=unlink_fn,
+        )
     assert calls == ["start"]
     assert "could NOT be removed" in caplog.text and "/x/stuck.edf" in caplog.text
     assert "/x/gone.edf" not in caplog.text.split("could NOT")[1], "the missing file is not an orphan"
@@ -226,9 +248,14 @@ def test_a_LONG_session_is_retained_and_spends_nothing(tmp_path):
     _in_therapy(tmp_path)
     gone = []
     # start at tick1; runs for 8 ticks (8*30 s = 240 s ≥ window) before ending
-    calls = _loop(tmp_path, [True] * 12, [{"ok": True}],
-                  running_seq=[False] + [True] * 8 + [False],
-                  paths=["/x/raw.jsonl"], unlinked=gone)
+    calls = _loop(
+        tmp_path,
+        [True] * 12,
+        [{"ok": True}],
+        running_seq=[False] + [True] * 8 + [False],
+        paths=["/x/raw.jsonl"],
+        unlinked=gone,
+    )
     assert calls == ["start"] and gone == []
     rec = json.loads(open(capture._cpap_autostart_path(str(tmp_path))).read())
     assert rec["attempts"] == 0
@@ -411,11 +438,17 @@ def test_a_falsy_path_is_skipped_and_cannot_kill_the_loop(tmp_path):
             raise TypeError(f"unlink() argument must be str, not {type(p).__name__}")
         gone.append(p)
 
-    calls = _loop(tmp_path, [True, True, True, False, False, False], [{"ok": True}],
-                  running_seq=[False, True, False, False],
-                  paths=[None, "/x/real.edf"], unlink_fn=_strict_unlink)
+    calls = _loop(
+        tmp_path,
+        [True, True, True, False, False, False],
+        [{"ok": True}],
+        running_seq=[False, True, False, False],
+        paths=[None, "/x/real.edf"],
+        unlink_fn=_strict_unlink,
+    )
     assert calls == ["start"], "the loop survived the falsy path and completed its session"
-    assert gone == ["/x/real.edf", "/x/real.edf.meta.json"], \
+    assert gone == ["/x/real.edf", "/x/real.edf.meta.json"], (
         "the real fragment is still discarded; the falsy one is skipped, never passed to unlink"
+    )
     rec = json.loads(open(capture._cpap_autostart_path(str(tmp_path))).read())
     assert rec["attempts"] == 1, "the attempt is still recorded — the loop did not die mid-judgement"

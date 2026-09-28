@@ -80,7 +80,10 @@ def child_status(name: str, rc: int) -> tuple[str, str]:
     if rc == 127:
         return "NOT_RUN", "exit 127 — the tool is not installed; nothing was examined"
     if name in UNADOPTED_OURS:
-        return "UNKNOWN", f"exit {rc} — a tool of ours that has not adopted tepna.verdict/1: UNKNOWN by provenance (§3d)"
+        return (
+            "UNKNOWN",
+            f"exit {rc} — a tool of ours that has not adopted tepna.verdict/1: UNKNOWN by provenance (§3d)",
+        )
     if rc == 0:
         return "PASS", "exit 0"
     row = CONTRACTS.get(name, {})
@@ -114,16 +117,48 @@ def aggregate(children: dict[str, int], advisory: dict[str, str] | None = None) 
     detail = lambda names: "; ".join(f"{k}: {rows[k][1]}" for k in names)  # noqa: E731
     ev = [TOOL] + [f"{k} exit {v}" for k, v in children.items()]
     if pop["checked"] == 0:
-        return VD.make(gate=GATE, status="NOT_RUN", population=pop, criterion=CRITERION, result=None, evidence=ev,
-                       tool=TOOL, reason="no child ran to a verdict" + (f" — {detail(not_run)}" if not_run else ""))
+        return VD.make(
+            gate=GATE,
+            status="NOT_RUN",
+            population=pop,
+            criterion=CRITERION,
+            result=None,
+            evidence=ev,
+            tool=TOOL,
+            reason="no child ran to a verdict" + (f" — {detail(not_run)}" if not_run else ""),
+        )
     if failed:
-        return VD.make(gate=GATE, status="FAIL", population=pop, criterion=CRITERION, result=result, evidence=ev,
-                       tool=TOOL, reason=f"{len(failed)} of {n} children failed — {detail(failed)}")
+        return VD.make(
+            gate=GATE,
+            status="FAIL",
+            population=pop,
+            criterion=CRITERION,
+            result=result,
+            evidence=ev,
+            tool=TOOL,
+            reason=f"{len(failed)} of {n} children failed — {detail(failed)}",
+        )
     if unknown or not_run:
-        return VD.make(gate=GATE, status="UNKNOWN", population=pop, criterion=CRITERION, result=result, evidence=ev,
-                       tool=TOOL, reason="a child left the run undecided — " + detail(unknown + not_run))
-    return VD.make(gate=GATE, status="PASS", population=pop, criterion=CRITERION, result=result, evidence=ev,
-                   tool=TOOL, reason=None)
+        return VD.make(
+            gate=GATE,
+            status="UNKNOWN",
+            population=pop,
+            criterion=CRITERION,
+            result=result,
+            evidence=ev,
+            tool=TOOL,
+            reason="a child left the run undecided — " + detail(unknown + not_run),
+        )
+    return VD.make(
+        gate=GATE,
+        status="PASS",
+        population=pop,
+        criterion=CRITERION,
+        result=result,
+        evidence=ev,
+        tool=TOOL,
+        reason=None,
+    )
 
 
 def parse_pairs(pairs: list[str]) -> dict[str, int]:
@@ -141,8 +176,9 @@ def parse_pairs(pairs: list[str]) -> dict[str, int]:
 def verdict_sample() -> dict:
     """The object the adoption gate reads (`--verdict-sample`): a green run of the four children — UNKNOWN,
     because `unwired` has not adopted; the sample is the gate's real shape today, not a flattering one."""
-    return aggregate({"ruff": 0, "shellcheck": 0, "pytest": 0, "unwired": 0},
-                     {"mypy": "AT_BASELINE", "format": "EMPTY_SCOPE"})
+    return aggregate(
+        {"ruff": 0, "shellcheck": 0, "pytest": 0, "unwired": 0}, {"mypy": "AT_BASELINE", "format": "EMPTY_SCOPE"}
+    )
 
 
 def main(argv: list[str]) -> int:
@@ -152,7 +188,9 @@ def main(argv: list[str]) -> int:
         print(json.dumps(verdict_sample(), indent=1))
         return 0
     if len(argv) < 2 or argv[0] != "--write":
-        print("usage: checkverdict.py --verdict-sample | --write <path> [--advisory k=v ...] name=rc ...", file=sys.stderr)
+        print(
+            "usage: checkverdict.py --verdict-sample | --write <path> [--advisory k=v ...] name=rc ...", file=sys.stderr
+        )
         return 2
     path, rest = argv[1], argv[2:]
     advisory: dict[str, str] = {}

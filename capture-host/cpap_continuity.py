@@ -47,6 +47,7 @@ Pure and deterministic: no clock is read, no I/O, no transport. The stamp parser
 Clock Contract §2 — a regex on the device's own shape, never `datetime.fromisoformat` on a vendor string;
 anything else parses to None and the tracker stays honest rather than guessing.
 """
+
 from __future__ import annotations
 
 import re
@@ -98,6 +99,7 @@ class ContinuityTracker:
                         or by RAISING (a drop). Only a drop arms a resume.
       • `note_start`  — a new session is opening; resolves the status the session begins in
     `status` and `gap_ms` are what the surfaces publish. `snapshot()` is the dict form."""
+
     status: Continuity = Continuity.CONTINUOUS
     gap_ms: int | None = None
     # device epoch-ms of the sample the previous session was OWED (last frame's start + its span)

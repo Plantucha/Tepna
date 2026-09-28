@@ -6,6 +6,7 @@ The charter's requirement is a negative one — "an interrupted transfer is re-q
 restarted, NEVER SILENTLY TRUSTED" — so most of these tests are planted controls for states that
 LOOK finished. A restart is the dangerous moment precisely because a killed transfer leaves bytes
 with the right name and a plausible size, and every cheap check says "we have it"."""
+
 import oxy_inventory as inv
 import oxy_restart as rs
 
@@ -150,15 +151,15 @@ def test_every_classified_recording_carries_a_reason():
     empty set. A completeness test that does not construct the states it claims to cover is the
     "check that examined nothing" shape, wearing a for-loop."""
     rows = [
-        _row(inv.COMMITTED),                                # -> intact
-        _row(inv.PARTIAL, OTHER, 40),                       # -> repull
-        _row(inv.VERIFIED, THIRD, 700),                     # -> commit
-        _row(inv.COMMITTED, FOURTH, 900),                   # -> quarantine (size drifts below)
+        _row(inv.COMMITTED),  # -> intact
+        _row(inv.PARTIAL, OTHER, 40),  # -> repull
+        _row(inv.VERIFIED, THIRD, 700),  # -> commit
+        _row(inv.COMMITTED, FOURTH, 900),  # -> quarantine (size drifts below)
     ]
     planned = rs.plan(
         rows,
         {ID: 500, OTHER: 40, THIRD: 700, FOURTH: 950},
-        part_files={FIFTH: 12},                             # -> repull via the .part path
+        part_files={FIFTH: 12},  # -> repull via the .part path
     )
     for a in (rs.INTACT, rs.COMMIT, rs.REPULL, rs.QUARANTINE):
         assert planned[a], f"{a} is empty — this test cannot claim to cover it"

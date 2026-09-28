@@ -27,8 +27,9 @@ def test_the_command_reaches_subprocess_unchanged_with_all_four_arguments(record
     rc, out = ch._sh(["ip", "link", "show", "wlan0"], 10)
 
     assert (rc, out) == (0, "ok")
-    assert recorded_run.last.argv == ["ip", "link", "show", "wlan0"], \
+    assert recorded_run.last.argv == ["ip", "link", "show", "wlan0"], (
         "the argv must arrive intact — not None, and not dropped to a bare keyword call"
+    )
     kw = recorded_run.last.kw
     assert kw["capture_output"] is True, "uncaptured output is no output — the caller parses it"
     assert kw["text"] is True, "bytes would compare unequal to every string the callers test"
@@ -112,5 +113,6 @@ def test_any_other_failure_is_1_and_carries_the_exception(recorded_run):
     recorded_run.reply = lambda argv: PermissionError("nope")
     rc, out = ch._sh(["ip", "addr", "add"], 5, sudo=True)
     assert rc == 1
-    assert "PermissionError" in out and "nope" in out, \
+    assert "PermissionError" in out and "nope" in out, (
         "repr(e), not repr(None) — the arm that catches everything must say what it caught"
+    )

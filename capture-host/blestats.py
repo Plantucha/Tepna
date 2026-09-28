@@ -22,6 +22,7 @@ TWO RULES, and they are the whole module:
   2. COUNTING MUST NEVER BREAK CAPTURE. Every public entry point is exception-safe. A telemetry defect
      that takes down a night's recording is worse than the blindness it was added to fix.
 """
+
 from __future__ import annotations
 
 import threading
@@ -144,7 +145,7 @@ def snapshot() -> dict:
             ops[f"{op}/{dev}"] = {
                 "attempts": attempts(op, dev),
                 "successes": successes(op, dev),
-                "rate": success_rate(op, dev),      # the ONE place the §∅ rule lives
+                "rate": success_rate(op, dev),  # the ONE place the §∅ rule lives
                 "failures": failures(op, dev),
             }
         return {"ops": ops, "retries": {d: retries(d) for d in sorted({k[0] for k in _RETRIES})}}

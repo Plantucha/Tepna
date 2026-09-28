@@ -33,7 +33,7 @@ def wpa(monkeypatch, recorded_run, completed, tmp_path):
 
     monkeypatch.setattr(ch, "_wpa_dir", _dir)
     monkeypatch.setattr(ch.time, "sleep", lambda s: None)
-    monkeypatch.setattr(ch, "associated", lambda iface, **kw: None)   # force the wpa_cli fallback
+    monkeypatch.setattr(ch, "associated", lambda iface, **kw: None)  # force the wpa_cli fallback
     # associate by default: wpa_cli reports COMPLETED, so the happy path exits the wait at once
     recorded_run.reply = lambda argv: completed(0, "bssid=00:11\nwpa_state=COMPLETED\n", "")
     recorded_run.completed = completed
@@ -77,6 +77,7 @@ def test_the_config_carries_the_control_dir_ssid_and_psk(wpa):
         return real_write(fd, data)
 
     import unittest.mock as _m
+
     with _m.patch.object(ch.os, "write", spy):
         ch._wpa_up("wlan0", "ez Share", "88888888", "192.168.4.2/24", 1.0)
 
@@ -160,8 +161,9 @@ def test_a_supplicant_that_never_associates_tears_down_and_reports_false(wpa, mo
 
     assert ch._wpa_up("wlan0", "s", "p", "10.0.0.2/24", 0.0, root="/custom") is False
     assert downs == [("wlan0", "/custom")], "the teardown needs the root it was given"
-    assert wpa.seen_roots and all(r == "/custom" for r in wpa.seen_roots), \
+    assert wpa.seen_roots and all(r == "/custom" for r in wpa.seen_roots), (
         "_wpa_dir must be resolved against the caller's root, not against None"
+    )
 
 
 def test_the_wait_is_bounded_below_by_five_seconds(wpa, monkeypatch):
@@ -172,7 +174,7 @@ def test_the_wait_is_bounded_below_by_five_seconds(wpa, monkeypatch):
     polls = []
 
     def reply(argv):
-        if argv and any("wpa_cli" in a for a in argv):       # only the association polls advance time
+        if argv and any("wpa_cli" in a for a in argv):  # only the association polls advance time
             polls.append(t["now"])
             t["now"] += 1.0
         return wpa.completed(0, "wpa_state=SCANNING\n", "")
@@ -183,8 +185,9 @@ def test_the_wait_is_bounded_below_by_five_seconds(wpa, monkeypatch):
     # deadline = 0 + max(5.0, 0.0) = 5.0, polled once per simulated second, loop EXCLUSIVE of the
     # deadline -> exactly 5 polls at t=0..4. Raising the floor to 6.0 gives 6; making the bound
     # inclusive (`<=`) also gives 6. Counting is what separates them from the correct behaviour.
-    assert polls == [0.0, 1.0, 2.0, 3.0, 4.0], \
+    assert polls == [0.0, 1.0, 2.0, 3.0, 4.0], (
         "a 5.0s floor and an EXCLUSIVE deadline — either change adds a sixth poll"
+    )
 
 
 # ── the teardown warning must be TRUE, not merely loud ───────────────────────────────────────────────
@@ -243,14 +246,16 @@ def test_a_failed_terminate_with_a_LIVE_supplicant_still_warns(monkeypatch, capl
 
 def test_a_failed_terminate_with_NO_supplicant_does_not_cry_wolf(monkeypatch, caplog):
     """The live-box case: no control socket, nothing bound to the interface, nothing to terminate."""
-    monkeypatch.setattr(ch, "_sh", lambda argv, t, sudo=False:
-                        (255, "Failed to connect to non-global ctrl_ifname: wlp1s0"))
+    monkeypatch.setattr(
+        ch, "_sh", lambda argv, t, sudo=False: (255, "Failed to connect to non-global ctrl_ifname: wlp1s0")
+    )
     monkeypatch.setattr(ch, "_live_supplicants", lambda iface: [])
     with caplog.at_level("INFO"):
         ch._wpa_down("wlp1s0", "/tmp/root")
     assert "nothing to terminate" in caplog.text, caplog.text
-    assert not [r for r in caplog.records if r.levelname == "WARNING"], \
+    assert not [r for r in caplog.records if r.levelname == "WARNING"], (
         "no supplicant is bound to the interface — warning about a leak would be false"
+    )
 
 
 def test_the_return_value_still_reports_the_failure(monkeypatch):
@@ -269,10 +274,11 @@ def test_a_process_that_exits_mid_scan_is_skipped_not_fatal(monkeypatch, tmp_pat
 
     def flaky_open(path, *a, **k):
         if str(path) == "/proc/999/cmdline":
-            raise ProcessLookupError("vanished")          # an OSError subclass, as the kernel raises
+            raise ProcessLookupError("vanished")  # an OSError subclass, as the kernel raises
         if str(path) == "/proc/4242/cmdline":
             return real_open(tmp_path / "ours", "rb")
         raise OSError("not interesting")
+
     (tmp_path / "ours").write_bytes(b"/usr/sbin/wpa_supplicant\0-B\0-i\0wlp1s0\0")
     monkeypatch.setattr(ch.os, "listdir", lambda p: ["999", "4242", "self", "cpuinfo"])
     monkeypatch.setattr("builtins.open", flaky_open)
@@ -284,8 +290,10 @@ def test_an_unreadable_proc_claims_NOTHING_rather_than_guessing(monkeypatch):
     logs "nothing to terminate" — the quiet arm — which is the safe direction: a false "no leak" costs
     a missed line in a journal, a false "LEAK, pid N" sends someone hunting a process that never
     existed and teaches them to distrust the warning."""
+
     def boom(_p):
         raise PermissionError("no /proc")
+
     monkeypatch.setattr(ch.os, "listdir", boom)
     assert ch._live_supplicants("wlp1s0") == []
 
@@ -340,12 +348,14 @@ def test_a_crash_is_logged_at_ERROR_and_names_the_kind(monkeypatch, caplog):
 
     class _P:
         returncode, stdout, stderr = 101, "", _PANIC_REAL
+
     monkeypatch.setattr(_sp, "run", lambda *a, **k: _P())
     with caplog.at_level(logging.WARNING):
         rc, _out = ch._sh(["ip", "link"], 5, sudo=True)
     assert rc == 101
-    assert any(r.levelname == "ERROR" for r in caplog.records), \
+    assert any(r.levelname == "ERROR" for r in caplog.records), (
         "a crashed privilege layer must not read as one more warning"
+    )
     assert "[crashed]" in caplog.text, caplog.text
 
 
@@ -355,6 +365,7 @@ def test_an_ordinary_failure_stays_a_WARNING(monkeypatch, caplog):
 
     class _P:
         returncode, stdout, stderr = 255, "", "some failure"
+
     monkeypatch.setattr(_sp, "run", lambda *a, **k: _P())
     with caplog.at_level(logging.WARNING):
         ch._sh(["ip", "link"], 5, sudo=True)

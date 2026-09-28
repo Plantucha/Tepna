@@ -16,6 +16,7 @@ The device fixtures below deliberately separate `verity` from `sense`: the real 
 Sense", which contains BOTH tokens, so a fixture using only the real name cannot tell
 `or` from `and`.
 """
+
 import os
 import sys
 
@@ -30,6 +31,7 @@ def _settings(tmp_path, devices, status=None):
 
     async def go(c):
         return await (await c.get("/api/settings")).json()
+
     return _serve(app, go)
 
 
@@ -40,20 +42,23 @@ def _dev(**kw):
 
 
 # ── the model classifier, through the cost table it selects ─────────────────────────────────────────
-@pytest.mark.parametrize("model,name,expect", [
-    # H10 wins outright, on either field, in either case
-    ("H10", "chest", "H10"),
-    ("", "Polar H10 12345678", "H10"),
-    ("h10", "", "H10"),
-    # `verity` ALONE — the token without "sense"
-    ("Verity", "armband", "Verity"),
-    # `sense` ALONE — the other arm of the same OR, which "Verity Sense" alone cannot distinguish
-    ("", "Sense armband", "Verity"),
-    ("Verity Sense", "Polar Verity Sense", "Verity"),
-    # anything else is the ring
-    ("O2Ring-S", "Ring", "O2Ring"),
-    ("", "", "O2Ring"),
-])
+@pytest.mark.parametrize(
+    "model,name,expect",
+    [
+        # H10 wins outright, on either field, in either case
+        ("H10", "chest", "H10"),
+        ("", "Polar H10 12345678", "H10"),
+        ("h10", "", "H10"),
+        # `verity` ALONE — the token without "sense"
+        ("Verity", "armband", "Verity"),
+        # `sense` ALONE — the other arm of the same OR, which "Verity Sense" alone cannot distinguish
+        ("", "Sense armband", "Verity"),
+        ("Verity Sense", "Polar Verity Sense", "Verity"),
+        # anything else is the ring
+        ("O2Ring-S", "Ring", "O2Ring"),
+        ("", "", "O2Ring"),
+    ],
+)
 def test_the_device_model_selects_its_measured_cost_table(tmp_path, model, name, expect):
     """`_model_of` picks which of the three measured tables applies. Getting it wrong does not raise —
     it quotes another device's byte-rates, and the Verity/H10 confusion is a 4x error on `acc` alone
@@ -70,8 +75,13 @@ def test_the_cost_table_is_published_verbatim_with_its_reference_rates(tmp_path)
     These numbers were measured on this host over real captures — pinned so a re-guess is visible."""
     body = _settings(tmp_path, [_dev(model="H10", name="H10")])
     assert body["bps_by_model"]["H10"] == {"ecg": [7800, 130], "acc": [11400, 200], "hr": [35, 1]}
-    assert body["bps_by_model"]["Verity"] == {"ppg": [3750, 55], "acc": [2950, 52],
-                                              "gyro": [2800, 52], "mag": [2950, 50], "ppi": [30, 1]}
+    assert body["bps_by_model"]["Verity"] == {
+        "ppg": [3750, 55],
+        "acc": [2950, 52],
+        "gyro": [2800, 52],
+        "mag": [2950, 50],
+        "ppi": [30, 1],
+    }
     assert body["bps_by_model"]["O2Ring"] == {"spo2": [60, 1], "ppg": [6200, 125.738]}
     d = body["devices"][0]
     assert d["bps_ref"] == {"ecg": [7800, 130], "acc": [11400, 200], "hr": [35, 1]}
@@ -80,8 +90,7 @@ def test_the_cost_table_is_published_verbatim_with_its_reference_rates(tmp_path)
 
 # ── what the page is allowed to offer ───────────────────────────────────────────────────────────────
 def test_only_streams_the_firmware_advertises_are_offered(tmp_path):
-    body = _settings(tmp_path, [_dev(name="H10", model="H10")],
-                     status={"H10": {"pmd_supported": ["ecg", "acc"]}})
+    body = _settings(tmp_path, [_dev(name="H10", model="H10")], status={"H10": {"pmd_supported": ["ecg", "acc"]}})
     assert body["devices"][0]["supported"] == ["ecg", "acc"]
 
 
@@ -90,8 +99,9 @@ def test_capability_flags_are_not_offered_as_streams(tmp_path):
     OFFLINE_RECORDING, 0xe OFFLINE_HR. polar_pmd names what it can decode and leaves the rest as hex, so
     an unnamed `0x…` entry means exactly "not a stream we can capture". Offering one is a checkbox that
     can never work."""
-    body = _settings(tmp_path, [_dev(name="V", model="Verity")],
-                     status={"V": {"pmd_supported": ["ppg", "0x9", "acc", "0xd", "0xe"]}})
+    body = _settings(
+        tmp_path, [_dev(name="V", model="Verity")], status={"V": {"pmd_supported": ["ppg", "0x9", "acc", "0xd", "0xe"]}}
+    )
     assert body["devices"][0]["supported"] == ["ppg", "acc"]
     # …but 0x9 is exactly what the SDK-mode switch keys off, so the same flag that must NOT become a
     # stream MUST become the capability. The two readings of one bitmask entry are both asserted here
@@ -104,8 +114,7 @@ def test_a_device_that_advertised_nothing_offers_nothing_rather_than_an_empty_me
     supports no streams", and only the first is a state worth waiting through."""
     body = _settings(tmp_path, [_dev(name="H10", model="H10")], status={"H10": {}})
     assert body["devices"][0]["supported"] is None
-    body2 = _settings(tmp_path, [_dev(name="V", model="Verity")],
-                      status={"V": {"pmd_supported": ["0x9", "0xd"]}})
+    body2 = _settings(tmp_path, [_dev(name="V", model="Verity")], status={"V": {"pmd_supported": ["0x9", "0xd"]}})
     assert body2["devices"][0]["supported"] is None, "flags-only is the same as nothing capturable"
 
 
@@ -114,10 +123,12 @@ def test_the_ring_has_a_fixed_capturable_set_because_it_has_no_bitmask(tmp_path,
     """The O2Ring exposes no PMD feature bitmask, so its menu is known rather than read. `ppg` is the
     125 Hz pleth decoded out of the same 0x04 frame as the 1 Hz summary — the second largest stream on
     the box, and it went a long time with no toggle at all."""
-    body = _settings(tmp_path, [_dev(name="Ring", model="O2Ring-S", vendor=vendor)],
-                     status={"Ring": {"pmd_supported": ["ecg"]}})
-    assert body["devices"][0]["supported"] == ["spo2", "ppg", "ppg2w", "acc", "pletha"], \
+    body = _settings(
+        tmp_path, [_dev(name="Ring", model="O2Ring-S", vendor=vendor)], status={"Ring": {"pmd_supported": ["ecg"]}}
+    )
+    assert body["devices"][0]["supported"] == ["spo2", "ppg", "ppg2w", "acc", "pletha"], (
         "the ring's set is fixed, and must not inherit a Polar bitmask"
+    )
 
 
 def test_every_stream_the_RING_CAN_WRITE_is_offerable(tmp_path):
@@ -137,34 +148,52 @@ def test_every_stream_the_RING_CAN_WRITE_is_offerable(tmp_path):
     import re
 
     from tests._srcscan import module_source
+
     src = module_source("capture.py")
     # `ppg2wr = (StreamWriter(...) if "ppg2w" in (dev.get("streams") or []) else None)`
     gated = set(re.findall(r'"([a-z0-9_]+)" in \(dev\.get\("streams"\)', src))
     assert gated, "found no stream gates in capture.py — the scan pattern has drifted, not the code"
-    body = _settings(tmp_path, [_dev(name="Ring", vendor="Wellue", model="O2Ring-S",
-                                     address="CC:DD", streams=["spo2"])])
+    body = _settings(
+        tmp_path, [_dev(name="Ring", vendor="Wellue", model="O2Ring-S", address="CC:DD", streams=["spo2"])]
+    )
     offered = set(body["devices"][0]["supported"])
     missing = sorted(g for g in gated if g not in offered)
     assert not missing, (
         f"capture.py can write {missing} for the ring but the settings page never offers them — they "
-        f"cannot be switched on, and any save wipes them from config.yaml. Offered: {sorted(offered)}")
+        f"cannot be switched on, and any save wipes them from config.yaml. Offered: {sorted(offered)}"
+    )
 
 
 def test_each_device_projects_the_keys_the_settings_page_reads(tmp_path):
-    body = _settings(tmp_path, [_dev(name="H10", model="H10", address="AA:BB", streams=["ecg"],
-                                     rates={"ecg": 130})],
-                     status={"H10": {"pmd_options": {"ecg": [130]}}})
+    body = _settings(
+        tmp_path,
+        [_dev(name="H10", model="H10", address="AA:BB", streams=["ecg"], rates={"ecg": 130})],
+        status={"H10": {"pmd_options": {"ecg": [130]}}},
+    )
     d = body["devices"][0]
-    assert set(d) == {"name", "address", "vendor", "streams", "supported", "bps", "bps_ref",
-                      "rate_options", "rates", "sdk_capable", "sdk_mode", "sdk_mode_actual"}
+    assert set(d) == {
+        "name",
+        "address",
+        "vendor",
+        "streams",
+        "supported",
+        "bps",
+        "bps_ref",
+        "rate_options",
+        "rates",
+        "sdk_capable",
+        "sdk_mode",
+        "sdk_mode_actual",
+    }
     # THREE keys for SDK mode, not one, because they answer different questions: can this hardware do
     # it (feature 0x9), was it asked for (config), and did the device CONFIRM it (null = never said).
     # An H10 advertises no such feature, so the switch is not offered for it at all.
     assert d["sdk_capable"] is False and d["sdk_mode"] is False and d["sdk_mode_actual"] is None
     assert d["name"] == "H10" and d["address"] == "AA:BB" and d["vendor"] == "Polar"
     assert d["streams"] == ["ecg"] and d["rates"] == {"ecg": 130}
-    assert d["rate_options"] == {"ecg": [130]}, \
+    assert d["rate_options"] == {"ecg": [130]}, (
         "the device's own menu of legal rates — a dropdown built from this cannot offer an illegal one"
+    )
 
 
 def test_missing_stream_and_rate_collections_read_as_empty_not_null(tmp_path):

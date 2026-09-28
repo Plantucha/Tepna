@@ -60,8 +60,8 @@ OP_SAMPLES_A = 0x03
 #: same two-byte "give me the buffer" argument. If the ring answers empty for every poll, try `--arg`
 #: before concluding the opcode is unsupported: an empty reply and a wrong argument look identical.
 SAMPLES_A_ARG = bytes([0x07, 0x01])
-REC_CAP = 250                        # §4: u16 count at [4:6], capped at 250 records per reply
-HDR = 6                              # 6-byte header before the 8-bit sample body
+REC_CAP = 250  # §4: u16 count at [4:6], capped at 250 records per reply
+HDR = 6  # 6-byte header before the 8-bit sample body
 #: The inserted beat marker. On 0x04 §7.3 MEASURED it as exactly ONE ROW PER BEAT (ratio 0.986-0.996
 #: over 7 worn sessions, modal gap = 125 x 60/PR + 1), and the same value appears on 0x03 (372
 #: occurrences, "100 % isolated"). It is a MARKER, not a sample: counting it as one inflates the rate,
@@ -172,32 +172,68 @@ VERDICT_CRITERION = {"name": "rate_within_candidate", "threshold": RATE_BAND, "u
 def verdict_object(s: dict) -> dict:
     """PURE over `summarise()`'s dict."""
     r = s.get("rate_unsaturated_hz")
-    pop = {"checked": s["replies_with_records"], "eligible": s["replies"],
-           "excluded": s["replies"] - s["replies_with_records"]}
+    pop = {
+        "checked": s["replies_with_records"],
+        "eligible": s["replies"],
+        "excluded": s["replies"] - s["replies_with_records"],
+    }
     ev = ["capture-host/probe_oxyii_0x03.py"]
     tool = "capture-host/probe_oxyii_0x03.py"
-    keep = ("replies", "replies_with_records", "saturated_replies", "saturated_fraction", "cap",
-            "total_records", "rate_all_hz", "rate_unsaturated_hz", "span_s", "unsaturated_span_s")
+    keep = (
+        "replies",
+        "replies_with_records",
+        "saturated_replies",
+        "saturated_fraction",
+        "cap",
+        "total_records",
+        "rate_all_hz",
+        "rate_unsaturated_hz",
+        "span_s",
+        "unsaturated_span_s",
+    )
     result = {k: s.get(k) for k in keep}
     if s["replies_with_records"] == 0:
-        return VD.make(gate=VERDICT_GATE, status="UNKNOWN", population=pop, criterion=VERDICT_CRITERION,
-                       result=result, evidence=ev, tool=tool,
-                       reason="the ring returned no 0x03 records — an empty reply and a wrong request "
-                              "argument are indistinguishable, so nothing was decided")
+        return VD.make(
+            gate=VERDICT_GATE,
+            status="UNKNOWN",
+            population=pop,
+            criterion=VERDICT_CRITERION,
+            result=result,
+            evidence=ev,
+            tool=tool,
+            reason="the ring returned no 0x03 records — an empty reply and a wrong request "
+            "argument are indistinguishable, so nothing was decided",
+        )
     if r is None:
-        return VD.make(gate=VERDICT_GATE, status="UNDERPOWERED", population=pop, criterion=VERDICT_CRITERION,
-                       result=result, evidence=ev, tool=tool,
-                       reason=f"0 unsaturated reply pairs, minimum 1: {s['saturated_replies']} of "
-                              f"{s['replies_with_records']} replies pinned at the {s['cap']}-record cap — "
-                              "this run measured the polling, not the device")
+        return VD.make(
+            gate=VERDICT_GATE,
+            status="UNDERPOWERED",
+            population=pop,
+            criterion=VERDICT_CRITERION,
+            result=result,
+            evidence=ev,
+            tool=tool,
+            reason=f"0 unsaturated reply pairs, minimum 1: {s['saturated_replies']} of "
+            f"{s['replies_with_records']} replies pinned at the {s['cap']}-record cap — "
+            "this run measured the polling, not the device",
+        )
     matched = [hz for hz in RATE_CANDIDATES_HZ if abs(r - hz) / hz <= RATE_BAND]
     result["matched_hz"] = matched
     result["closest_fraction"] = round(min(abs(r - hz) / hz for hz in RATE_CANDIDATES_HZ), 4)
     ok = len(matched) == 1
-    return VD.make(gate=VERDICT_GATE, status="PASS" if ok else "FAIL", population=pop,
-                   criterion=VERDICT_CRITERION, result=result, evidence=ev, tool=tool,
-                   reason=None if ok else f"{r} Hz is within {RATE_BAND:.0%} of neither "
-                                          f"{RATE_CANDIDATES_HZ[0]} nor {RATE_CANDIDATES_HZ[1]} Hz — a third answer")
+    return VD.make(
+        gate=VERDICT_GATE,
+        status="PASS" if ok else "FAIL",
+        population=pop,
+        criterion=VERDICT_CRITERION,
+        result=result,
+        evidence=ev,
+        tool=tool,
+        reason=None
+        if ok
+        else f"{r} Hz is within {RATE_BAND:.0%} of neither "
+        f"{RATE_CANDIDATES_HZ[0]} nor {RATE_CANDIDATES_HZ[1]} Hz — a third answer",
+    )
 
 
 def verdict_sample() -> dict:
@@ -211,17 +247,23 @@ def verdict(s: dict) -> list[str]:
     112.9 and 125.000, so the honest outcomes are 'one of them', 'neither', and 'cannot tell'."""
     r = s.get("rate_unsaturated_hz")
     if s["replies_with_records"] == 0:
-        return ["VERDICT: the ring returned NO 0x03 records — worn? correct argument? See --arg.",
-                "  An empty reply and a wrong request argument are indistinguishable here."]
+        return [
+            "VERDICT: the ring returned NO 0x03 records — worn? correct argument? See --arg.",
+            "  An empty reply and a wrong request argument are indistinguishable here.",
+        ]
     if r is None:
-        return ["VERDICT: no unsaturated interval — every usable pair had a reply at the cap.",
-                f"  {s['saturated_replies']}/{s['replies_with_records']} replies pinned at {s['cap']}."
-                "  Poll faster (--hz) and re-run; this run measures the POLLING, not the device."]
+        return [
+            "VERDICT: no unsaturated interval — every usable pair had a reply at the cap.",
+            f"  {s['saturated_replies']}/{s['replies_with_records']} replies pinned at {s['cap']}."
+            "  Poll faster (--hz) and re-run; this run measures the POLLING, not the device.",
+        ]
     lines = [f"VERDICT: unsaturated rate {r} Hz over {s.get('unsaturated_span_s')} s"]
     if s["saturated_fraction"]:
-        lines.append(f"  ⚠ {s['saturated_replies']}/{s['replies_with_records']} replies "
-                     f"({s['saturated_fraction']:.1%}) hit the {s['cap']}-record cap — see the warning "
-                     "in this file's header; a high fraction makes even the unsaturated rate suspect.")
+        lines.append(
+            f"  ⚠ {s['saturated_replies']}/{s['replies_with_records']} replies "
+            f"({s['saturated_fraction']:.1%}) hit the {s['cap']}-record cap — see the warning "
+            "in this file's header; a high fraction makes even the unsaturated rate suspect."
+        )
     for name, hz in (("112.9", 112.9), ("125.000", 125.0)):
         if abs(r - hz) / hz <= 0.02:
             lines.append(f"  → consistent with {name} Hz (within 2 %)")
@@ -234,7 +276,8 @@ async def run(address: str, seconds: float, hz: float, arg_hex: str | None) -> d
     arg = bytes.fromhex(arg_hex) if arg_hex else SAMPLES_A_ARG
     # ADDRESS-ONLY (standing ruling): a name filter would connect to a stranger's ring as readily.
     dev = await BleakScanner.find_device_by_filter(
-        lambda d, adv: oxy_presence.is_expected_ring(d.address, address), timeout=25)
+        lambda d, adv: oxy_presence.is_expected_ring(d.address, address), timeout=25
+    )
     if dev is None:
         raise SystemExit("ring not advertising — wear it (finger in), app closed, daemon stopped.")
 
@@ -260,8 +303,10 @@ async def run(address: str, seconds: float, hz: float, arg_hex: str | None) -> d
         for svc in getattr(cl, "services", []) or []:
             for ch in svc.characteristics:
                 u = ch.uuid.lower()
-                if u == oxyii.OXYII_WRITE.lower(): wch = ch
-                if u == oxyii.OXYII_NOTIFY.lower(): nch = ch
+                if u == oxyii.OXYII_WRITE.lower():
+                    wch = ch
+                if u == oxyii.OXYII_NOTIFY.lower():
+                    nch = ch
         if wch is None or nch is None:
             raise SystemExit("ring GATT does not expose the OxyII write/notify pair")
         await cl.start_notify(nch, on_notify)
@@ -284,13 +329,21 @@ async def run(address: str, seconds: float, hz: float, arg_hex: str | None) -> d
                 t, op, payload = got.get_nowait()
                 if op == OP_SAMPLES_A:
                     cnt, blen = parse_counts(payload)
-                    body = payload[HDR:HDR + (cnt or 0)]
+                    body = payload[HDR : HDR + (cnt or 0)]
                     mk, iso = marker_stats(body)
-                    samples.append({"t": t, "count": cnt, "body_len": blen,
-                                    "payload_len": len(payload), "markers": mk, "isolated": iso,
-                                    # Kept so the LAYOUT itself stays checkable after the fact rather
-                                    # than only the numbers derived from it.
-                                    "body_hex": body.hex()})
+                    samples.append(
+                        {
+                            "t": t,
+                            "count": cnt,
+                            "body_len": blen,
+                            "payload_len": len(payload),
+                            "markers": mk,
+                            "isolated": iso,
+                            # Kept so the LAYOUT itself stays checkable after the fact rather
+                            # than only the numbers derived from it.
+                            "body_hex": body.hex(),
+                        }
+                    )
                 elif op == oxyii.OP_LIVE:
                     live = oxyii.parse_live(payload)
                     if live:
@@ -314,8 +367,11 @@ def main(argv=None) -> int:
     ap.add_argument("--hz", type=float, default=5.0, help="poll rate; higher = less saturation risk")
     ap.add_argument("--arg", default=None, help="request-argument hex override, e.g. 0701")
     ap.add_argument("--json", default=None, help="write the full per-reply log here")
-    ap.add_argument("--verdict-sample", action="store_true",
-                    help="print one tepna.verdict/1 object over synthetic replies and exit (the adoption gate reads this)")
+    ap.add_argument(
+        "--verdict-sample",
+        action="store_true",
+        help="print one tepna.verdict/1 object over synthetic replies and exit (the adoption gate reads this)",
+    )
     a = ap.parse_args(argv)
     if a.verdict_sample:
         print(json.dumps(verdict_sample(), indent=1))

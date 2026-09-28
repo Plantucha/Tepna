@@ -97,7 +97,7 @@ def _first_and_last_row(path: str) -> tuple[str, str, int, dict] | None:
     prev_ns = None
     try:
         with open(path, "r", errors="replace") as fh:
-            fh.readline()                       # header
+            fh.readline()  # header
             for line in fh:
                 line = line.rstrip("\n")
                 if not line:
@@ -109,7 +109,7 @@ def _first_and_last_row(path: str) -> tuple[str, str, int, dict] | None:
                 try:
                     ns = int(line.split(";", 2)[1])
                 except (ValueError, IndexError):
-                    continue                    # a torn row must not poison the histogram
+                    continue  # a torn row must not poison the histogram
                 if prev_ns is not None:
                     deltas[ns - prev_ns] = deltas.get(ns - prev_ns, 0) + 1
                 prev_ns = ns
@@ -183,11 +183,17 @@ def scan(root: str) -> list[tuple[str, dict]]:
 
 
 def main(argv=None) -> int:
-    ap = argparse.ArgumentParser(description="Flag O2Ring PPG files whose timeline claims more elapsed "
-                                             "time than really passed (VIGIL-PPG-GRID-AUDIT §1).")
+    ap = argparse.ArgumentParser(
+        description="Flag O2Ring PPG files whose timeline claims more elapsed "
+        "time than really passed (VIGIL-PPG-GRID-AUDIT §1)."
+    )
     ap.add_argument("root", help="captures root (the folder holding the YYYY-MM-DD night dirs)")
-    ap.add_argument("--threshold-pct", type=float, default=DEFAULT_THRESHOLD_PCT,
-                    help=f"flag above this inflation percentage (default {DEFAULT_THRESHOLD_PCT})")
+    ap.add_argument(
+        "--threshold-pct",
+        type=float,
+        default=DEFAULT_THRESHOLD_PCT,
+        help=f"flag above this inflation percentage (default {DEFAULT_THRESHOLD_PCT})",
+    )
     ap.add_argument("--quiet", action="store_true", help="print only the flagged files")
     a = ap.parse_args(argv)
 
@@ -199,40 +205,52 @@ def main(argv=None) -> int:
     tallied = [(p, m, _verdict(m, a.threshold_pct)) for p, m in results]
     flagged = [(p, m) for p, m, v in tallied if v == "inflated"]
     rescalable = [(p, m) for p, m, v in tallied if v == "rate-mismatch"]
-    print(f"{'file':46s} {'rows':>9s} {'wall_s':>8s} {'inflation':>10s} {'rows/wall':>10s} "
-          f"{'gaps':>6s}  verdict")
+    print(f"{'file':46s} {'rows':>9s} {'wall_s':>8s} {'inflation':>10s} {'rows/wall':>10s} {'gaps':>6s}  verdict")
     print("-" * 116)
     for p, m, v in tallied:
         if a.quiet and v not in ("inflated", "rate-mismatch"):
             continue
-        print(f"{p[-46:]:46s} {m['rows']:9d} {m['wall_s']:8.1f} "
-              f"{m['inflation']:+9.3%} {m['rows_per_wall']:10.3f} {m['gaps']:6d}  "
-              + {"inflated": "<-- PHANTOM GAPS (not repairable)",
-                 "rate-mismatch": "<-- UNIFORM RATE ERROR (exactly rescalable)",
-                 "lossy": "lossy link (advance is real)",
-                 "ok": "ok", "unjudgeable": f"span <{MIN_SPAN_S:.0f}s — not judgeable"}[v])
+        print(
+            f"{p[-46:]:46s} {m['rows']:9d} {m['wall_s']:8.1f} "
+            f"{m['inflation']:+9.3%} {m['rows_per_wall']:10.3f} {m['gaps']:6d}  "
+            + {
+                "inflated": "<-- PHANTOM GAPS (not repairable)",
+                "rate-mismatch": "<-- UNIFORM RATE ERROR (exactly rescalable)",
+                "lossy": "lossy link (advance is real)",
+                "ok": "ok",
+                "unjudgeable": f"span <{MIN_SPAN_S:.0f}s — not judgeable",
+            }[v]
+        )
     print("-" * 116)
-    counts = {k: sum(1 for _p, _m, v in tallied if v == k)
-              for k in ("inflated", "rate-mismatch", "lossy", "ok", "unjudgeable")}
+    counts = {
+        k: sum(1 for _p, _m, v in tallied if v == k)
+        for k in ("inflated", "rate-mismatch", "lossy", "ok", "unjudgeable")
+    }
     total_fab = sum(m["fabricated_s"] for _p, m in flagged)
-    print(f"{len(results)} file(s) measured — {counts['inflated']} PHANTOM-GAP, "
-          f"{counts['rate-mismatch']} rate-mismatch, {counts['lossy']} lossy, {counts['ok']} ok, "
-          f"{counts['unjudgeable']} too short to judge")
+    print(
+        f"{len(results)} file(s) measured — {counts['inflated']} PHANTOM-GAP, "
+        f"{counts['rate-mismatch']} rate-mismatch, {counts['lossy']} lossy, {counts['ok']} ok, "
+        f"{counts['unjudgeable']} too short to judge"
+    )
     if flagged:
-        print(f"\nPHANTOM-GAP ({len(flagged)} file(s), {total_fab:+.1f} s fabricated). Measured, not "
-              "assumed: each of these\ncarries non-modal `sensor_ns` deltas, i.e. real inserted gaps. "
-              "Their BEAT TIMELINES are stretched\nat each one. The sample RATE is unaffected (PpgDex "
-              "takes the MEDIAN ns delta), so amplitude and\nmorphology work is fine — but do not trust "
-              "them for HRV. They cannot be repaired: see this\nmodule's header for why the per-frame "
-              "arrival times are unrecoverable from the file.")
+        print(
+            f"\nPHANTOM-GAP ({len(flagged)} file(s), {total_fab:+.1f} s fabricated). Measured, not "
+            "assumed: each of these\ncarries non-modal `sensor_ns` deltas, i.e. real inserted gaps. "
+            "Their BEAT TIMELINES are stretched\nat each one. The sample RATE is unaffected (PpgDex "
+            "takes the MEDIAN ns delta), so amplitude and\nmorphology work is fine — but do not trust "
+            "them for HRV. They cannot be repaired: see this\nmodule's header for why the per-frame "
+            "arrival times are unrecoverable from the file."
+        )
     if rescalable:
         fab = sum(m["fabricated_s"] for _p, m in rescalable)
-        print(f"\nUNIFORM RATE ERROR ({len(rescalable)} file(s), {fab:+.1f} s). These have ZERO inserted "
-              "gaps — one distinct\n`sensor_ns` delta from first row to last — so nothing is stretched "
-              "AT a gap and the wording above\ndoes not apply. The whole grid simply ran at the wrong "
-              "step, which is the mis-calibrated\n`O2PPG_FS` of CAPTURE-HOST-DEEP-AUDIT §A3. This IS "
-              "exactly repairable: the endpoints are anchored\nto the phone clock, so scaling the ns "
-              "column by wall/grid recovers the span with no approximation.")
+        print(
+            f"\nUNIFORM RATE ERROR ({len(rescalable)} file(s), {fab:+.1f} s). These have ZERO inserted "
+            "gaps — one distinct\n`sensor_ns` delta from first row to last — so nothing is stretched "
+            "AT a gap and the wording above\ndoes not apply. The whole grid simply ran at the wrong "
+            "step, which is the mis-calibrated\n`O2PPG_FS` of CAPTURE-HOST-DEEP-AUDIT §A3. This IS "
+            "exactly repairable: the endpoints are anchored\nto the phone clock, so scaling the ns "
+            "column by wall/grid recovers the span with no approximation."
+        )
         for p, m in rescalable[:10]:
             print(f"    {p[-60:]:60s} scale x{m['wall_s'] / m['grid_s']:.6f}")
         if len(rescalable) > 10:
@@ -240,5 +258,5 @@ def main(argv=None) -> int:
     return 1 if flagged or rescalable else 0
 
 
-if __name__ == "__main__":          # pragma: no cover — CLI entry
+if __name__ == "__main__":  # pragma: no cover — CLI entry
     sys.exit(main())

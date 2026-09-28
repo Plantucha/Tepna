@@ -29,14 +29,26 @@
 
 from __future__ import annotations
 
-__all__ = ["WEDGED", "ABSENT", "WATCHING", "UNKNOWN", "wedge_verdict", "restart_allowed",
-           "RETURNED", "NOT_RETURNED", "PENDING", "RECOVERY_WINDOW_S", "recovery_outcome",
-           "fire_row", "parse_fires"]
+__all__ = [
+    "WEDGED",
+    "ABSENT",
+    "WATCHING",
+    "UNKNOWN",
+    "wedge_verdict",
+    "restart_allowed",
+    "RETURNED",
+    "NOT_RETURNED",
+    "PENDING",
+    "RECOVERY_WINDOW_S",
+    "recovery_outcome",
+    "fire_row",
+    "parse_fires",
+]
 
-WEDGED = "wedged"        # seen recently, gone since, radio demonstrably fine ⇒ recovery is warranted
-ABSENT = "absent"        # gone long enough that "the device is not here" is the better explanation
-WATCHING = "watching"    # not yet enough consecutive misses to mean anything
-UNKNOWN = "unknown"      # we cannot tell, and say so rather than guessing
+WEDGED = "wedged"  # seen recently, gone since, radio demonstrably fine ⇒ recovery is warranted
+ABSENT = "absent"  # gone long enough that "the device is not here" is the better explanation
+WATCHING = "watching"  # not yet enough consecutive misses to mean anything
+UNKNOWN = "unknown"  # we cannot tell, and say so rather than guessing
 
 # A device must be missed this many consecutive rounds before absence is evidence of anything. The
 # watchdog polls at `interval_sec` (60 s by default), so 15 rounds ≈ 15 minutes. The deafness rung uses
@@ -53,8 +65,9 @@ MAX_LAST_SEEN_AGE_S = 6 * 3600.0
 MAX_RESTARTS_PER_DAY = 2
 
 
-def wedge_verdict(absent_rounds, radio_healthy, last_seen_age_s,
-                  min_rounds=MIN_ABSENT_ROUNDS, max_age_s=MAX_LAST_SEEN_AGE_S):
+def wedge_verdict(
+    absent_rounds, radio_healthy, last_seen_age_s, min_rounds=MIN_ABSENT_ROUNDS, max_age_s=MAX_LAST_SEEN_AGE_S
+):
     """`(verdict, reason)` — is bluez wedged against ONE device? PURE.
 
     `radio_healthy` must mean *demonstrably* healthy: another device is connected, or a scan returned
@@ -71,10 +84,14 @@ def wedge_verdict(absent_rounds, radio_healthy, last_seen_age_s,
     if absent_rounds < min_rounds:
         return WATCHING, f"missed {absent_rounds}/{min_rounds} consecutive rounds"
     if last_seen_age_s > max_age_s:
-        return ABSENT, (f"last seen {last_seen_age_s / 3600.0:.1f} h ago — beyond the window where "
-                        f"'bluez lost it' beats 'it is not here'")
-    return WEDGED, (f"missed {absent_rounds} consecutive rounds but was seen "
-                    f"{last_seen_age_s / 60.0:.0f} min ago, while the radio serves other links")
+        return ABSENT, (
+            f"last seen {last_seen_age_s / 3600.0:.1f} h ago — beyond the window where "
+            f"'bluez lost it' beats 'it is not here'"
+        )
+    return WEDGED, (
+        f"missed {absent_rounds} consecutive rounds but was seen "
+        f"{last_seen_age_s / 60.0:.0f} min ago, while the radio serves other links"
+    )
 
 
 def restart_allowed(restarts_today, max_per_day=MAX_RESTARTS_PER_DAY):
@@ -84,8 +101,10 @@ def restart_allowed(restarts_today, max_per_day=MAX_RESTARTS_PER_DAY):
     happening, only what we do about it. Folding the two would make a wedged night read as healthy
     once the budget ran out — the honest-absence failure, one level up."""
     if restarts_today >= max_per_day:
-        return False, (f"restart budget spent ({restarts_today}/{max_per_day} today) — a restart that "
-                       f"did not help will not help on the next attempt")
+        return False, (
+            f"restart budget spent ({restarts_today}/{max_per_day} today) — a restart that "
+            f"did not help will not help on the next attempt"
+        )
     return True, f"{restarts_today}/{max_per_day} restarts used today"
 
 
@@ -111,9 +130,9 @@ def restart_allowed(restarts_today, max_per_day=MAX_RESTARTS_PER_DAY):
 # recovery was most violent. Only the FIRE is written; the outcome is a pure function of that
 # timestamp and the observations that follow, so it survives any number of restarts and can be
 # recomputed from the journal forever.
-RETURNED = "returned"          # it was a WEDGE — the intervention worked, so the night stays UNKNOWN
+RETURNED = "returned"  # it was a WEDGE — the intervention worked, so the night stays UNKNOWN
 NOT_RETURNED = "not-returned"  # the machine really was gone — this is what licenses a therapy 0
-PENDING = "pending"            # the window has not elapsed; asking now would answer early
+PENDING = "pending"  # the window has not elapsed; asking now would answer early
 
 # How long to allow. The one observed recovery took 32 s; 10 min is ~19x that, so a slow re-advertise
 # is not mistaken for an absence. Erring long is the safe direction here: a too-short window turns a
@@ -142,7 +161,7 @@ def recovery_outcome(fired_ms, observations, window_s: float = RECOVERY_WINDOW_S
         try:
             ms, ok = float(row[0]), bool(row[1])
         except (TypeError, ValueError, IndexError):
-            continue                      # a torn row is not evidence either way
+            continue  # a torn row is not evidence either way
         if t0 <= ms <= t0 + win:
             inside.append((ms, ok))
     if any(ok for _ms, ok in inside):
@@ -153,16 +172,19 @@ def recovery_outcome(fired_ms, observations, window_s: float = RECOVERY_WINDOW_S
         return PENDING, f"{(t0 + win - now) / 1000.0:.0f}s of the recovery window still to run"
     if not inside:
         return UNKNOWN, "the window elapsed with no poll at all — nobody looked, so nothing is known"
-    return NOT_RETURNED, (f"{len(inside)} poll(s) across {window_s:.0f}s after the restart and the "
-                          f"device answered none of them")
+    return NOT_RETURNED, (
+        f"{len(inside)} poll(s) across {window_s:.0f}s after the restart and the device answered none of them"
+    )
 
 
 def fire_row(fired_ms, device: str, reason: str, error_class=None) -> str:
     """One semicolon row for the fire journal. PURE. Same delimiter as SESSIONDETECT so one reader
     idiom serves both, and every field is squeezed of `;` rather than quoted — a torn field is
     recoverable, a broken column count is not."""
+
     def _f(v):
         return str(v if v is not None else "").replace(";", ",").replace("\n", " ").strip()
+
     return ";".join([str(int(float(fired_ms))), _f(device), _f(reason), _f(error_class)])
 
 
@@ -176,7 +198,6 @@ def parse_fires(text: str) -> list:
         try:
             ms = int(parts[0])
         except ValueError:
-            continue                      # header or torn line
-        out.append({"fired_ms": ms, "device": parts[1], "reason": parts[2],
-                    "error_class": parts[3] or None})
+            continue  # header or torn line
+        out.append({"fired_ms": ms, "device": parts[1], "reason": parts[2], "error_class": parts[3] or None})
     return sorted(out, key=lambda r: r["fired_ms"])

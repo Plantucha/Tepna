@@ -16,6 +16,7 @@ TWO PROPERTIES CARRY THE WHOLE DESIGN, and both are asserted here rather than de
    HTTP layer must answer FIRST and fire afterwards — and it must VALIDATE before answering, or a bad
    request gets a cheerful 200 followed by nothing happening.
 """
+
 import os
 import subprocess
 import sys
@@ -36,7 +37,7 @@ class _Ran:
 
     def __init__(self, rc=0, out="", err=""):
         self.rc, self.out, self.err, self.argv = rc, out, err, None
-        self.kw = None            # the kwargs too — see the HOW-IT-IS-CALLED test below
+        self.kw = None  # the kwargs too — see the HOW-IT-IS-CALLED test below
 
     def __call__(self, argv, **kw):
         self.argv, self.kw = argv, kw
@@ -44,6 +45,7 @@ class _Ran:
 
 
 # ── coerce_minutes ──────────────────────────────────────────────────────────────────────────────────
+
 
 def test_absent_minutes_means_the_default_not_an_error():
     """The button sends no value; `None` is the normal path, not a malformed request."""
@@ -75,6 +77,7 @@ def test_the_range_is_inclusive_at_both_ends_and_REFUSES_beyond_them():
 
 
 # ── build_cmd — the security boundary ───────────────────────────────────────────────────────────────
+
 
 def test_an_unknown_verb_is_REFUSED_and_never_reaches_an_argv():
     with pytest.raises(dc.VerbError):
@@ -112,6 +115,7 @@ def test_a_bad_minutes_makes_the_whole_command_refused():
 
 
 # ── run — operational failures are reported, never raised ───────────────────────────────────────────
+
 
 def test_a_successful_run_reports_ok_and_the_helper_output():
     r = _Ran(0, "tepna-capture.service: active")
@@ -153,6 +157,7 @@ def test_a_failure_with_NO_output_still_says_something():
 def test_no_sudo_on_this_machine_is_reported_as_not_a_capture_host():
     def _boom(*a, **k):
         raise FileNotFoundError("sudo")
+
     got = dc.run("restart", runner=_boom)
     assert got["ok"] is False and "not a capture host" in got["error"]
 
@@ -160,8 +165,10 @@ def test_no_sudo_on_this_machine_is_reported_as_not_a_capture_host():
 def test_a_HUNG_helper_is_bounded_and_says_so():
     """The box has had processes wedged for 18 h in uninterruptible sleep. A control endpoint that can
     hang forever is a control endpoint that stops being usable exactly when it is needed."""
+
     def _hang(*a, **k):
         raise subprocess.TimeoutExpired(cmd="x", timeout=30)
+
     got = dc.run("restart", runner=_hang, timeout=30)
     assert got["ok"] is False and "did not return within 30s" in got["error"]
 
@@ -204,6 +211,7 @@ def test_HOW_the_helper_is_invoked_is_asserted_not_just_THAT_it_is():
 
 # ── reload — re-read unit files after a pull changed them ────────────────────────────────────────────
 
+
 def test_reload_is_a_ZERO_ARITY_verb_and_carries_no_minutes():
     """Arity is per verb. `reload` takes none, so a stray `minutes` must not reach the command line —
     the helper would reject it, but the argv should never have carried it in the first place."""
@@ -236,6 +244,7 @@ def test_reload_reports_the_helpers_real_answer_including_whether_one_was_OWED()
 
 # ── the recovery rungs: radio · rebind · reboot ──────────────────────────────────────────────────────
 
+
 def test_rebind_uses_the_OTHER_helper_and_passes_the_port_as_its_only_argument():
     """tepna-btreset.sh takes a bus-port and no verb word. The two helpers' allowlists are disjoint on
     purpose — btreset may touch ONLY Bluetooth radios, usbreset ONLY a docked Polar — so `rebind` must
@@ -245,8 +254,7 @@ def test_rebind_uses_the_OTHER_helper_and_passes_the_port_as_its_only_argument()
     assert argv[3:] == ["1-2"], f"the port is the whole argument list, with no verb word: {argv}"
 
 
-@pytest.mark.parametrize("bad", ["1-2; rm -rf /", "../../etc/shadow", "", "1-2 3", "1-2\n4",
-                                 None, 12, "-2", "1-"])
+@pytest.mark.parametrize("bad", ["1-2; rm -rf /", "../../etc/shadow", "", "1-2 3", "1-2\n4", None, 12, "-2", "1-"])
 def test_a_usb_port_that_is_not_a_BUS_PORT_never_reaches_the_command_line(bad):
     """The helper re-validates and additionally checks the device CLASS off the hardware — that is the
     real allowlist. This is the near side of the sudo boundary, refusing before the call is made."""
@@ -276,6 +284,7 @@ def test_reboot_ENDS_this_process_and_radio_rebind_do_NOT():
 
 # ── deploy — the one UNPRIVILEGED verb ──────────────────────────────────────────────────────────────
 
+
 def test_deploy_goes_through_the_ROOT_HELPER_to_escape_the_daemons_mount_namespace():
     """⚠️ THIS TEST REPLACES ONE THAT ASSERTED A PROXY AND WOULD HAVE PASSED THROUGH A REAL BUG.
 
@@ -301,7 +310,7 @@ def test_the_helper_runs_the_updater_as_vigil_not_as_root():
     helper's own source. `--uid=vigil` is what keeps a root-executes-freshly-pulled-repo-code path from
     existing; tepna-update.sh's header is explicit that it must never run as root."""
     src = module_source("tepna-restart.sh")
-    arm = src[src.index("  deploy)"):src.index("  radio)")]
+    arm = src[src.index("  deploy)") : src.index("  radio)")]
     # ⚠️ COMMENTS STRIPPED FIRST, and this is not tidiness. This arm's header explains why `--uid=vigil`
     # matters, so a bare `"--uid=vigil" in arm` is satisfied by the PROSE and passes while the command
     # says `--uid=root`. Found by mutating exactly that: the mutant hit the comment, the assertion held,

@@ -45,6 +45,7 @@ def test_the_default_route_is_read_with_exactly_this_command(monkeypatch):
     def fake_run(argv, **kw):
         seen["argv"], seen["kw"] = list(argv), kw
         return P()
+
     monkeypatch.setattr(ch.subprocess, "run", fake_run)
 
     assert ch.default_route_dev() == "eno1"
@@ -57,6 +58,7 @@ def test_the_default_route_is_read_with_exactly_this_command(monkeypatch):
 def test_no_default_route_reads_as_none_not_as_a_crash(monkeypatch):
     class P:
         stdout = ""
+
     monkeypatch.setattr(ch.subprocess, "run", lambda argv, **kw: P())
     assert ch.default_route_dev() is None
 
@@ -78,8 +80,9 @@ def test_the_teardown_runs_three_privileged_commands_in_order(monkeypatch, tmp_p
         ["wpa_cli", "-p", wdir, "-s", wdir, "-i", "wlan9", "terminate"],
         ["ip", "link", "set", "wlan9", "down"],
     ]
-    assert all(c["sudo"] is True for c in rec.calls), \
+    assert all(c["sudo"] is True for c in rec.calls), (
         f"every teardown step is sudo -n: {[(c['argv'][0], c['sudo']) for c in rec.calls]}"
+    )
     # BOUNDED, all three. `_sh` passes this straight to subprocess.run, where None means WAIT FOREVER —
     # and the teardown is the one part of the harvest with a documented history of hanging (wpa_cli
     # could not reach its control socket under ProtectSystem=strict and failed rc=255 for days). An
@@ -102,8 +105,9 @@ def test_the_teardown_talks_to_our_control_directory_not_the_system_one(monkeypa
 
 def test_a_failed_terminate_is_reported_not_swallowed(monkeypatch, tmp_path):
     """A green verdict over a failed teardown is the shape this codebase keeps finding bugs behind."""
-    monkeypatch.setattr(ch, "_sh", Recorder(
-        reply=lambda argv: (255, "Failed to connect") if argv[0] == "wpa_cli" else (0, "")))
+    monkeypatch.setattr(
+        ch, "_sh", Recorder(reply=lambda argv: (255, "Failed to connect") if argv[0] == "wpa_cli" else (0, ""))
+    )
     assert ch._wpa_down("wlan9", str(tmp_path)) is False
 
 
@@ -142,10 +146,21 @@ def test_every_association_parameter_reaches_the_backend_in_order(monkeypatch, t
     def fake_up(*a):
         seen["args"] = a
         return True
+
     monkeypatch.setattr(ch, "_wpa_up", fake_up)
 
-    assert ch.wifi_up("ezshare", timeout=33.0, ssid="ez Share", psk="88888888",
-                      iface="wlan9", addr="192.168.4.2/24", root="/srv/tepna") is True
+    assert (
+        ch.wifi_up(
+            "ezshare",
+            timeout=33.0,
+            ssid="ez Share",
+            psk="88888888",
+            iface="wlan9",
+            addr="192.168.4.2/24",
+            root="/srv/tepna",
+        )
+        is True
+    )
     assert seen["args"] == ("wlan9", "ez Share", "88888888", "192.168.4.2/24", 33.0, "/srv/tepna")
 
 
@@ -170,7 +185,7 @@ def test_a_moved_default_route_tears_down_the_interface_it_brought_up(monkeypatc
     _wpa_backend(monkeypatch, tmp_path)
     monkeypatch.setattr(ch, "default_wifi_iface", lambda: "wlp10s0")
     monkeypatch.setattr(ch, "_wpa_up", lambda *a: True)
-    monkeypatch.setattr(ch, "default_route_dev", lambda: "wlan9")     # the card took the route
+    monkeypatch.setattr(ch, "default_route_dev", lambda: "wlan9")  # the card took the route
     seen = {}
     monkeypatch.setattr(ch, "wifi_down", lambda profile, **kw: seen.update(profile=profile, **kw))
 

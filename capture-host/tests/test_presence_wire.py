@@ -65,11 +65,11 @@ def _run_loop(scans, addresses=(A,)):
         t["v"] += 1.0
         return t["v"]
 
-    capture._PRESENCE.clear()   # the latch is the CALLER's to set — clearing it here silently
-    try:                        # defeated two tests that set it up beforehand
-
-        asyncio.run(capture._presence_scan_loop(
-            addresses=list(addresses), window_s=1.0, scan=_scan, sleep=_sleep, mono=_mono))
+    capture._PRESENCE.clear()  # the latch is the CALLER's to set — clearing it here silently
+    try:  # defeated two tests that set it up beforehand
+        asyncio.run(
+            capture._presence_scan_loop(addresses=list(addresses), window_s=1.0, scan=_scan, sleep=_sleep, mono=_mono)
+        )
     finally:
         capture._STOP.clear()
     return dict(capture._PRESENCE)
@@ -95,8 +95,9 @@ def _run_loop_from_state(scans, addresses, start_mono):
         return t["v"]
 
     try:
-        asyncio.run(capture._presence_scan_loop(
-            addresses=list(addresses), window_s=1.0, scan=_scan, sleep=_sleep, mono=_mono))
+        asyncio.run(
+            capture._presence_scan_loop(addresses=list(addresses), window_s=1.0, scan=_scan, sleep=_sleep, mono=_mono)
+        )
     finally:
         capture._STOP.clear()
 
@@ -117,7 +118,7 @@ def test_a_STILL_PRESENT_ring_does_not_re_arm_the_once_per_session_latch():
     capture._PRESENCE_PULLED.clear()
     capture._PRESENCE_PULLED.add(A)
     try:
-        _run_loop([{A: 1.0}, {A: 2.0}])      # reaches PRESENT
+        _run_loop([{A: 1.0}, {A: 2.0}])  # reaches PRESENT
         assert A in capture._PRESENCE_PULLED, "still present: the pull must not repeat"
     finally:
         capture._PRESENCE_PULLED.clear()
@@ -196,8 +197,7 @@ def test_off_starts_nothing_and_says_off(caplog):
 def test_ENABLED_BUT_NOT_ARMED_is_reported_as_its_OWN_state(caplog):
     """The state that actually exists tonight. Collapsing it into 'off' would hide a configured
     feature that is deliberately not running."""
-    cfg = {"o2ring": {"presence_harvest": {"enabled": True}},
-           "devices": [{"vendor": "Wellue", "address": A}]}
+    cfg = {"o2ring": {"presence_harvest": {"enabled": True}}, "devices": [{"vendor": "Wellue", "address": A}]}
     with caplog.at_level("INFO"):
         r, tasks = _start(cfg)
     assert r is None and tasks == []
@@ -218,7 +218,7 @@ def test_the_device_key_is_address_NOT_addr(caplog):
     `d.get("addr")`. Every Tepna device config uses `address`, so it found ZERO rings, logged
     'nothing to observe', and started nothing — a feature that is armed, silent, and dead. The failure
     is invisible because the log line it prints is a legitimate one."""
-    cfg = dict(ARMED_CFG, devices=[{"vendor": "Wellue", "addr": A}])   # the WRONG key
+    cfg = dict(ARMED_CFG, devices=[{"vendor": "Wellue", "addr": A}])  # the WRONG key
     with caplog.at_level("INFO"):
         r, _ = _start(cfg)
     assert r is None and "nothing to observe" in caplog.text
@@ -239,8 +239,16 @@ def _ring_cfg():
         # device_id + streams are REQUIRED: `missing_identity` filters an incomplete entry out of
         # `devices` entirely, so a hand-built config without them dispatches nothing and the test
         # passes for the wrong reason — it would read as "presence never fires".
-        "devices": [{"name": "Ring", "vendor": "Wellue", "model": "O2Ring-S", "address": A,
-                     "device_id": "12345678", "streams": ["spo2"]}],
+        "devices": [
+            {
+                "name": "Ring",
+                "vendor": "Wellue",
+                "model": "O2Ring-S",
+                "address": A,
+                "device_id": "12345678",
+                "streams": ["spo2"],
+            }
+        ],
     }
 
 
@@ -279,7 +287,7 @@ def _drive_dispatch(monkeypatch, cfg, ticks=3):
         capture._PRESENCE_PULLED.discard(A)
         capture._PRESENCE_PROBED.pop(A, None)
         capture.STATUS["devices"].pop("Ring", None)
-        capture._POWER.pop("Ring", None)          # the power engine is per-process; no strikes leak
+        capture._POWER.pop("Ring", None)  # the power engine is per-process; no strikes leak
     return pulls
 
 
@@ -315,13 +323,13 @@ def test_an_UNARMED_presence_config_dispatches_nothing(monkeypatch):
 def test_the_scan_loop_started_during_shutdown_does_nothing():
     """The `while not _STOP.is_set()` guard evaluated FALSE — the branch every other loop test skips,
     because they all exit through the break after sleep. Same gap the CPAP spool loop had."""
+
     async def _scan(_w):  # pragma: no cover — the guard must refuse before the first scan
         raise AssertionError("scanned instead of refusing to start")
 
     capture._STOP.set()
     try:
-        asyncio.run(capture._presence_scan_loop(
-            addresses=[A], window_s=1.0, scan=_scan, sleep=None, mono=None))
+        asyncio.run(capture._presence_scan_loop(addresses=[A], window_s=1.0, scan=_scan, sleep=None, mono=None))
     finally:
         capture._STOP.clear()
 
@@ -339,7 +347,8 @@ def test_the_ONCE_PER_SESSION_latch_is_load_bearing_with_the_rate_limit_disabled
     _arm_presence()
     pulls = _drive_dispatch(monkeypatch, cfg, ticks=3)
     assert pulls[:1] == [("Ring", "latest", 0)], (
-        "the ring stayed present across three ticks — without the latch this pulls every tick")
+        "the ring stayed present across three ticks — without the latch this pulls every tick"
+    )
 
 
 # ── §19/§20 the witness, published through all three layers ─────────────────
@@ -369,9 +378,8 @@ def test_enabled_and_observer_armed_are_stamped_only_when_the_TASK_starts(tmp_pa
     """Not at config-read time. `enabled` was true at `arming`; `observer_armed` is honest only once
     the observer is about to exist. Stamping earlier makes the chain report progress not yet made."""
     capture._WITNESS.pop(A, None)
-    cfg = {"o2ring": {"presence_harvest": {"enabled": True}},
-           "devices": [{"vendor": "Wellue", "address": A}]}
-    _start(cfg)                       # enabled but NOT armed → no task
+    cfg = {"o2ring": {"presence_harvest": {"enabled": True}}, "devices": [{"vendor": "Wellue", "address": A}]}
+    _start(cfg)  # enabled but NOT armed → no task
     assert A not in capture._WITNESS, "an unarmed observer has not armed"
     _start(ARMED_CFG)
     assert set(capture._WITNESS[A]) == {"enabled", "observer_armed"}

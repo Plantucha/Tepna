@@ -25,14 +25,14 @@ __all__ = ["CallArg", "Fake", "Attribution", "parse_key", "call_argument_of", "s
 
 class CallArg(TypedDict):
     callee: str
-    kind: str          # "pos" | "kw"
-    which: int | str   # positional index or keyword name
+    kind: str  # "pos" | "kw"
+    which: int | str  # positional index or keyword name
 
 
 class Fake(TypedDict):
-    name: str          # the callee the fake stands in for
+    name: str  # the callee the fake stands in for
     line: int
-    shape: str         # "def" | "lambda" | "setattr-lambda" | "setattr-def"
+    shape: str  # "def" | "lambda" | "setattr-lambda" | "setattr-def"
     unused: list[str]  # parameters the body never reads (the swallowed ones)
 
 
@@ -40,8 +40,8 @@ class Attribution(TypedDict):
     survivors: int
     call_argument: int
     attributable: int
-    rows: list[dict]   # one per attributable survivor: module, key, callee, arg, fakes[{test, line, shape, unused}]
-    candidates: dict   # test file → count of swallowing fakes (the grep-shaped population, stated beside)
+    rows: list[dict]  # one per attributable survivor: module, key, callee, arg, fakes[{test, line, shape, unused}]
+    candidates: dict  # test file → count of swallowing fakes (the grep-shaped population, stated beside)
 
 
 def parse_key(key: str) -> tuple[str, str] | None:
@@ -50,10 +50,10 @@ def parse_key(key: str) -> tuple[str, str] | None:
     # ` | ` (a bitwise or, a table row), so a bare ` | ` split would cut the wrong place.
     if not key.startswith("-"):
         return None
-    i = key.find(" | +")   # the FIRST such bar: the before line is one source line and cannot contain it
+    i = key.find(" | +")  # the FIRST such bar: the before line is one source line and cannot contain it
     if i == -1:
         return None
-    return key[1:i], key[i + 4:]
+    return key[1:i], key[i + 4 :]
 
 
 def _parse_line(line: str) -> ast.AST | None:
@@ -61,13 +61,17 @@ def _parse_line(line: str) -> ast.AST | None:
     indented body line) still parses. Four wrappers, tried in order; None when none parses."""
     s = textwrap.dedent(line)
     if s.rstrip().endswith(":"):
-        s = s + "\n    pass"   # a header line (`if …:`, `elif …:`, `def …:`) needs a body to parse
-    for wrap in (s, "def _f():\n    " + s.replace("\n", "\n    "), "async def _f():\n    " + s.replace("\n", "\n    "),
-                 "def _f():\n    if True:\n        pass\n    " + s.replace("\n", "\n    ")):
+        s = s + "\n    pass"  # a header line (`if …:`, `elif …:`, `def …:`) needs a body to parse
+    for wrap in (
+        s,
+        "def _f():\n    " + s.replace("\n", "\n    "),
+        "async def _f():\n    " + s.replace("\n", "\n    "),
+        "def _f():\n    if True:\n        pass\n    " + s.replace("\n", "\n    "),
+    ):
         try:
             return ast.parse(wrap)
         except SyntaxError:
-            continue   # this wrapper did not fit the fragment — the next one may; None only after all four
+            continue  # this wrapper did not fit the fragment — the next one may; None only after all four
     return None
 
 
@@ -99,7 +103,7 @@ def call_argument_of(before: str, after: str) -> CallArg | None:
         if ast.dump(b) == ast.dump(a):
             continue
         if ast.dump(b.func) != ast.dump(a.func):
-            continue   # the CALLEE changed — that is not an argument mutation
+            continue  # the CALLEE changed — that is not an argument mutation
         callee = _callee_name(b.func)
         if callee is None:
             continue
@@ -204,7 +208,7 @@ def attribute(survivors: list[dict], tests_by_module: dict[str, dict[str, str]])
     for s in survivors:
         mod, key = s.get("module"), s.get("key")
         if not isinstance(mod, str) or not isinstance(key, str):
-            continue   # not a gate record — never counted as read
+            continue  # not a gate record — never counted as read
         ident = (mod, key)
         if ident in seen:
             continue
@@ -222,5 +226,19 @@ def attribute(survivors: list[dict], tests_by_module: dict[str, dict[str, str]])
                 if f["name"] == arg["callee"]:
                     hits.append({"test": path, "line": f["line"], "shape": f["shape"], "unused": f["unused"]})
         if hits:
-            rows.append({"module": ident[0], "key": ident[1], "callee": arg["callee"], "arg": f"{arg['kind']}:{arg['which']}", "fakes": hits})
-    return {"survivors": len(seen), "call_argument": n_call, "attributable": len(rows), "rows": rows, "candidates": candidates}
+            rows.append(
+                {
+                    "module": ident[0],
+                    "key": ident[1],
+                    "callee": arg["callee"],
+                    "arg": f"{arg['kind']}:{arg['which']}",
+                    "fakes": hits,
+                }
+            )
+    return {
+        "survivors": len(seen),
+        "call_argument": n_call,
+        "attributable": len(rows),
+        "rows": rows,
+        "candidates": candidates,
+    }

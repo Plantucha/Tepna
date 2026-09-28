@@ -13,6 +13,7 @@ Plus the §18 EXECUTION WITNESS: the envelope is assembled by the real pump on t
 seam (ARMED → TRIGGERED → SIDE EFFECT → ARTIFACT → ACQUISITION EVIDENCE), not merely by calling the
 assembler directly — including on the interrupted path, which is when it matters most.
 """
+
 import asyncio
 import logging
 import collections
@@ -29,16 +30,31 @@ NONCE = bytes.fromhex("00112233445566778899aabbccddeeff")
 
 
 def _facts(**over):
-    f = {"session_id": "20260825T013000Z-abc123", "device_id": "AS11-01",
-         "path": "/tmp/cpap-raw-x.jsonl", "records": 42, "closed": True, "size": 8192,
-         "first_device_start": None}
+    f = {
+        "session_id": "20260825T013000Z-abc123",
+        "device_id": "AS11-01",
+        "path": "/tmp/cpap-raw-x.jsonl",
+        "records": 42,
+        "closed": True,
+        "size": 8192,
+        "first_device_start": None,
+    }
     f.update(over)
     return f
 
 
 def _counters(**over):
-    c = {"frames_ok": 100, "samples_ok": 5000, "foreign_stream": 0, "malformed": 0, "overflow": 0,
-         "stalls": 0, "post_drop_tail": 0, "sink_errors": 0, "total_lost": 0}
+    c = {
+        "frames_ok": 100,
+        "samples_ok": 5000,
+        "foreign_stream": 0,
+        "malformed": 0,
+        "overflow": 0,
+        "stalls": 0,
+        "post_drop_tail": 0,
+        "sink_errors": 0,
+        "total_lost": 0,
+    }
     c.update(over)
     return c
 
@@ -68,8 +84,7 @@ def test_expected_sample_count_is_unknown_without_an_observed_interval():
 
 def test_expected_sample_count_derives_from_the_observed_interval():
     """Derived from the DEVICE's observed interval, never the requested nominal (cpap_stream §2)."""
-    ev = cpap.assemble_live(_facts(), counters=_counters(), observed_duration_s=600,
-                            observed_interval_ms=40)
+    ev = cpap.assemble_live(_facts(), counters=_counters(), observed_duration_s=600, observed_interval_ms=40)
     assert ev.expected_sample_count == 15000
 
 
@@ -134,8 +149,9 @@ def test_an_uncleanly_stopped_session_is_partial():
 def test_device_declared_duration_disagreeing_makes_it_partial():
     """LastTherapyUseDateTime says the device ran 3600 s; only 1800 s streamed. The artifact is whole
     and valid, but it is half the therapy session — PARTIAL, with the disagreement first-class."""
-    ev = cpap.assemble_live(_facts(), counters=_counters(), stopped_cleanly=True,
-                            device_declared_duration_s=3600, observed_duration_s=1800)
+    ev = cpap.assemble_live(
+        _facts(), counters=_counters(), stopped_cleanly=True, device_declared_duration_s=3600, observed_duration_s=1800
+    )
     assert ev.duration_check.delta_s == 1800, "sign convention: stored - observed"
     assert ev.duration_check.agrees is False
     assert (ev.validation, ev.completeness) == (ae.VALID, ae.PARTIAL)
@@ -147,8 +163,7 @@ def test_one_sided_duration_makes_no_comparison():
 
 
 def test_end_time_derives_only_from_an_observed_duration():
-    ev = cpap.assemble_live(_facts(), counters=_counters(), start_time_ms=1000.0,
-                            observed_duration_s=60)
+    ev = cpap.assemble_live(_facts(), counters=_counters(), start_time_ms=1000.0, observed_duration_s=60)
     assert ev.end_time_ms == 61000.0
     assert cpap.assemble_live(_facts(), start_time_ms=1000.0).end_time_ms is None
 
@@ -180,9 +195,14 @@ def test_no_hash_is_invented():
 
 # ── the STORED spool source — never merged with live (§10) ─────────────────────
 def _row(status="NO_MORE_DATA", seq=1, sha="a" * 64, nbytes=100):
-    return {"device": "AS11-01", "session": "s1", "spool_type": "brp",
-            "committed_cursor": "2026-08-25T01:00:00", "round_seq": seq,
-            "round": {"from": "2026-08-25T00:00:00", "bytes": nbytes, "sha256": sha, "status": status}}
+    return {
+        "device": "AS11-01",
+        "session": "s1",
+        "spool_type": "brp",
+        "committed_cursor": "2026-08-25T01:00:00",
+        "round_seq": seq,
+        "round": {"from": "2026-08-25T00:00:00", "bytes": nbytes, "sha256": sha, "status": status},
+    }
 
 
 def test_spool_is_a_distinct_source_from_live():
@@ -239,8 +259,9 @@ def test_spool_identity_falls_back_to_the_ledger_then_honours_an_override():
 # ── cpap_record.acq_facts — the seam the envelope reads ────────────────────────
 def test_acq_facts_reports_a_clean_close(tmp_path):
     p = tmp_path / "rec.jsonl"
-    sink = cpap_record.RawRecordSink(str(p), device_id="AS11-01", session_id="s1",
-                                     provenance={}, wall=lambda: "2026-08-25T00:00:00Z")
+    sink = cpap_record.RawRecordSink(
+        str(p), device_id="AS11-01", session_id="s1", provenance={}, wall=lambda: "2026-08-25T00:00:00Z"
+    )
     sink.open({}, 25.0)
     sink.on_batch({"streamId": 1, "channels": {"PatientFlow": [1.0]}})
     sink.close()
@@ -252,8 +273,7 @@ def test_acq_facts_reports_a_clean_close(tmp_path):
 def test_acq_facts_on_a_never_opened_sink_is_not_closed(tmp_path):
     """_CLOSED is also the never-opened state. Without the explicit flag this reports a clean close for
     a record that was never written — which the envelope would read as VALID."""
-    sink = cpap_record.RawRecordSink(str(tmp_path / "never.jsonl"), device_id="d", session_id="s",
-                                     provenance={})
+    sink = cpap_record.RawRecordSink(str(tmp_path / "never.jsonl"), device_id="d", session_id="s", provenance={})
     f = sink.acq_facts()
     assert f["closed"] is False and f["records"] == 0
     assert f["size"] is None, "an absent file is unknown size, never 0"
@@ -262,8 +282,9 @@ def test_acq_facts_on_a_never_opened_sink_is_not_closed(tmp_path):
 
 def test_acq_facts_mid_session_is_not_closed(tmp_path):
     p = tmp_path / "open.jsonl"
-    sink = cpap_record.RawRecordSink(str(p), device_id="d", session_id="s", provenance={},
-                                     wall=lambda: "2026-08-25T00:00:00Z")
+    sink = cpap_record.RawRecordSink(
+        str(p), device_id="d", session_id="s", provenance={}, wall=lambda: "2026-08-25T00:00:00Z"
+    )
     sink.open({}, 25.0)
     try:
         assert sink.acq_facts()["closed"] is False
@@ -292,15 +313,30 @@ def _handshake():
 
 
 def _ack():
-    return _enc({"id": 16, "result": {
-        "dataIds": [{"dataId": "PatientFlow", "valid": True}, {"dataId": "MaskPressure", "valid": True}],
-        "streamId": 1}})
+    return _enc(
+        {
+            "id": 16,
+            "result": {
+                "dataIds": [{"dataId": "PatientFlow", "valid": True}, {"dataId": "MaskPressure", "valid": True}],
+                "streamId": 1,
+            },
+        }
+    )
 
 
 def _data():
-    return _enc({"jsonrpc": "2.0", "method": "StreamData", "params": {
-        "data": [{"PatientFlow": [0.1, 0.2]}, {"MaskPressure": [5.0, 5.1]}],
-        "intervalMs": 40, "startTime": "2026-08-23T01:30:28.730Z", "streamId": 1}})
+    return _enc(
+        {
+            "jsonrpc": "2.0",
+            "method": "StreamData",
+            "params": {
+                "data": [{"PatientFlow": [0.1, 0.2]}, {"MaskPressure": [5.0, 5.1]}],
+                "intervalMs": 40,
+                "startTime": "2026-08-23T01:30:28.730Z",
+                "streamId": 1,
+            },
+        }
+    )
 
 
 class _FakeDev:
@@ -359,9 +395,19 @@ def test_the_production_pump_emits_the_envelope_after_the_sinks_close():
     got = []
     raw = _FakeRaw()
     dev = _FakeDev(_handshake() + [_ack(), _data(), _data()])
-    n = asyncio.run(CS.stream_to_bus(_FakeBus(), dev.write, dev.recv_frame, PAIR_KEY, "cid",
-                                    cipher_factory=_identity_factory, max_batches=2,
-                                    extra_sinks=[raw, _FakeEdf()], acq_evidence_out=got.append))
+    n = asyncio.run(
+        CS.stream_to_bus(
+            _FakeBus(),
+            dev.write,
+            dev.recv_frame,
+            PAIR_KEY,
+            "cid",
+            cipher_factory=_identity_factory,
+            max_batches=2,
+            extra_sinks=[raw, _FakeEdf()],
+            acq_evidence_out=got.append,
+        )
+    )
     assert n == 2
     assert len(got) == 1, "exactly one envelope per session"
     ev = got[0]
@@ -381,11 +427,20 @@ def test_an_interrupted_session_still_emits_and_is_partial():
     """The control that makes the witness meaningful: a dropped link is exactly when the envelope
     matters, and it must NOT claim a clean stop."""
     got = []
-    dev = _FakeDev(_handshake() + [_ack(), _data()])   # frames run out mid-stream → the link "drops"
+    dev = _FakeDev(_handshake() + [_ack(), _data()])  # frames run out mid-stream → the link "drops"
     try:
-        asyncio.run(CS.stream_to_bus(_FakeBus(), dev.write, dev.recv_frame, PAIR_KEY, "cid",
-                                     cipher_factory=_identity_factory,
-                                     extra_sinks=[_FakeRaw()], acq_evidence_out=got.append))
+        asyncio.run(
+            CS.stream_to_bus(
+                _FakeBus(),
+                dev.write,
+                dev.recv_frame,
+                PAIR_KEY,
+                "cid",
+                cipher_factory=_identity_factory,
+                extra_sinks=[_FakeRaw()],
+                acq_evidence_out=got.append,
+            )
+        )
     except Exception:  # noqa: BLE001 — the drop is the point; the envelope is what we assert on
         pass
     assert len(got) == 1, "an interrupted night still gets its evidence"
@@ -395,21 +450,41 @@ def test_an_interrupted_session_still_emits_and_is_partial():
 
 def test_no_evidence_callback_leaves_the_pump_unchanged():
     dev = _FakeDev(_handshake() + [_ack(), _data()])
-    n = asyncio.run(CS.stream_to_bus(_FakeBus(), dev.write, dev.recv_frame, PAIR_KEY, "cid",
-                                    cipher_factory=_identity_factory, max_batches=1,
-                                    extra_sinks=[_FakeRaw()]))
+    n = asyncio.run(
+        CS.stream_to_bus(
+            _FakeBus(),
+            dev.write,
+            dev.recv_frame,
+            PAIR_KEY,
+            "cid",
+            cipher_factory=_identity_factory,
+            max_batches=1,
+            extra_sinks=[_FakeRaw()],
+        )
+    )
     assert n == 1
 
 
 def test_a_failing_evidence_writer_never_sinks_the_acquisition():
     """The report must not destroy the thing it reports on."""
+
     def _boom(_ev):
         raise RuntimeError("sidecar disk full")
 
     dev = _FakeDev(_handshake() + [_ack(), _data()])
-    n = asyncio.run(CS.stream_to_bus(_FakeBus(), dev.write, dev.recv_frame, PAIR_KEY, "cid",
-                                    cipher_factory=_identity_factory, max_batches=1,
-                                    extra_sinks=[_FakeRaw()], acq_evidence_out=_boom))
+    n = asyncio.run(
+        CS.stream_to_bus(
+            _FakeBus(),
+            dev.write,
+            dev.recv_frame,
+            PAIR_KEY,
+            "cid",
+            cipher_factory=_identity_factory,
+            max_batches=1,
+            extra_sinks=[_FakeRaw()],
+            acq_evidence_out=_boom,
+        )
+    )
     assert n == 1, "the pump still reports its delivered count"
 
 
@@ -418,9 +493,19 @@ def test_no_raw_record_means_no_envelope():
     a fabricated acquisition fact."""
     got = []
     dev = _FakeDev(_handshake() + [_ack(), _data()])
-    asyncio.run(CS.stream_to_bus(_FakeBus(), dev.write, dev.recv_frame, PAIR_KEY, "cid",
-                                cipher_factory=_identity_factory, max_batches=1,
-                                extra_sinks=[_FakeEdf()], acq_evidence_out=got.append))
+    asyncio.run(
+        CS.stream_to_bus(
+            _FakeBus(),
+            dev.write,
+            dev.recv_frame,
+            PAIR_KEY,
+            "cid",
+            cipher_factory=_identity_factory,
+            max_batches=1,
+            extra_sinks=[_FakeEdf()],
+            acq_evidence_out=got.append,
+        )
+    )
     assert got == []
 
 
@@ -490,7 +575,7 @@ def test_a_failing_sidecar_write_is_logged_not_raised(tmp_path):
 
     # a path whose parent does not exist — the open() raises OSError inside the writer
     ev = cpap.assemble_live(_facts(path=str(tmp_path / "absent-dir" / "rec.jsonl")))
-    capture._cpap_acq_evidence_writer()(ev)   # must not raise
+    capture._cpap_acq_evidence_writer()(ev)  # must not raise
 
 
 def test_the_controller_is_armed_with_a_writer_only_when_a_raw_record_exists(tmp_path):
@@ -499,8 +584,8 @@ def test_the_controller_is_armed_with_a_writer_only_when_a_raw_record_exists(tmp
     import capture
 
     armed = capture._build_cpap_controller(
-        object(), {"cpap": {"ble_stream": {"raw_record_dir": str(tmp_path)}}},
-        str(tmp_path / "config.yaml"))
+        object(), {"cpap": {"ble_stream": {"raw_record_dir": str(tmp_path)}}}, str(tmp_path / "config.yaml")
+    )
     assert armed._acq_evidence_out is not None
 
     unarmed = capture._build_cpap_controller(object(), {"cpap": {}}, str(tmp_path / "config.yaml"))
@@ -513,8 +598,9 @@ def test_the_controller_forwards_the_writer_to_the_pump():
     envelope would simply never be emitted in production while every assembler test stayed green."""
     seen = {}
 
-    async def pump(bus, write, recv_frame, pk, cid, *, channels=None, should_stop=None,
-                   extra_sinks=None, acq_evidence_out=None):
+    async def pump(
+        bus, write, recv_frame, pk, cid, *, channels=None, should_stop=None, extra_sinks=None, acq_evidence_out=None
+    ):
         seen["out"] = acq_evidence_out
         seen["called"] = True
 
@@ -527,6 +613,7 @@ def test_the_controller_forwards_the_writer_to_the_pump():
 
         async def disconnect():
             pass
+
         return write, recv_frame, disconnect
 
     def _writer(_ev):
@@ -534,8 +621,13 @@ def test_the_controller_forwards_the_writer_to_the_pump():
 
     async def _drive(out):
         c = CS.LiveStreamController(
-            object(), connect, lambda: {"masterPairKey": "aa" * 32, "clientId": "cid"},
-            dict, pump=pump, acq_evidence_out=out)
+            object(),
+            connect,
+            lambda: {"masterPairKey": "aa" * 32, "clientId": "cid"},
+            dict,
+            pump=pump,
+            acq_evidence_out=out,
+        )
         await c.op("start")
         await asyncio.sleep(0.01)
 
@@ -610,9 +702,17 @@ def test_assemble_live_forwards_every_field_it_is_given():
     describes the wrong acquisition, which is worse than one that refuses."""
     off = ae.ClockOffset(-2520.0, 1.0, "host-stratum1", "GetDateTime")
     ev = cpap.assemble_live(
-        _facts(), counters=_counters(), clock_status="device+host", start_time_ms=1000.0,
-        observed_duration_s=60, artifact_sha256="deadbeef", clock_offset=off, edf_path="/e.edf",
-        observed_interval_ms=40, device_state="Therapy", stopped_cleanly=True,
+        _facts(),
+        counters=_counters(),
+        clock_status="device+host",
+        start_time_ms=1000.0,
+        observed_duration_s=60,
+        artifact_sha256="deadbeef",
+        clock_offset=off,
+        edf_path="/e.edf",
+        observed_interval_ms=40,
+        device_state="Therapy",
+        stopped_cleanly=True,
     )
     assert ev.session_id == "20260825T013000Z-abc123"
     assert ev.device_id == "AS11-01"
@@ -811,8 +911,9 @@ def test_the_raw_sink_captures_the_FIRST_batch_stamp_and_keeps_it(tmp_path):
     """The FIRST batch is the acquisition's start; later batches must not overwrite it, or the envelope
     would report the last stamp seen and drift later as the night ran."""
     p = tmp_path / "rec.jsonl"
-    sink = cpap_record.RawRecordSink(str(p), device_id="d", session_id="s", provenance={},
-                                     wall=lambda: "2026-08-25T00:00:00Z")
+    sink = cpap_record.RawRecordSink(
+        str(p), device_id="d", session_id="s", provenance={}, wall=lambda: "2026-08-25T00:00:00Z"
+    )
     sink.open({}, 25.0)
     try:
         assert sink.acq_facts()["first_device_start"] is None, "nothing streamed yet ⇒ absent, not a date"
@@ -836,9 +937,19 @@ def test_the_pump_actually_passes_the_start_through(monkeypatch):
             return f
 
     dev = _FakeDev(_handshake() + [_ack(), _data()])
-    asyncio.run(CS.stream_to_bus(_FakeBus(), dev.write, dev.recv_frame, PAIR_KEY, "cid",
-                                cipher_factory=_identity_factory, max_batches=1,
-                                extra_sinks=[_RawWithStamp()], acq_evidence_out=got.append))
+    asyncio.run(
+        CS.stream_to_bus(
+            _FakeBus(),
+            dev.write,
+            dev.recv_frame,
+            PAIR_KEY,
+            "cid",
+            cipher_factory=_identity_factory,
+            max_batches=1,
+            extra_sinks=[_RawWithStamp()],
+            acq_evidence_out=got.append,
+        )
+    )
     assert len(got) == 1
     import cpap_edf_writer as w
 
@@ -865,9 +976,13 @@ def test_the_start_conversion_yields_an_ABSOLUTE_ms_value():
 def test_the_record_header_carries_the_provenance_it_was_given(tmp_path):
     """`self._provenance = provenance` mutated to None survived — nothing read the header back."""
     p = tmp_path / "rec.jsonl"
-    sink = cpap_record.RawRecordSink(str(p), device_id="AS11-01", session_id="s1",
-                                     provenance={"unit": "cpap_stream", "wiring": "P1+P3"},
-                                     wall=lambda: "2026-08-25T00:00:00Z")
+    sink = cpap_record.RawRecordSink(
+        str(p),
+        device_id="AS11-01",
+        session_id="s1",
+        provenance={"unit": "cpap_stream", "wiring": "P1+P3"},
+        wall=lambda: "2026-08-25T00:00:00Z",
+    )
     sink.open({}, 25.0)
     sink.close()
     header = json.loads(p.read_text().splitlines()[0])
@@ -886,9 +1001,19 @@ class _RawAndPath(_FakeRaw):
 def test_the_edf_picker_excludes_the_raw_record_even_when_it_exposes_a_path():
     got = []
     dev = _FakeDev(_handshake() + [_ack(), _data()])
-    asyncio.run(CS.stream_to_bus(_FakeBus(), dev.write, dev.recv_frame, PAIR_KEY, "cid",
-                                cipher_factory=_identity_factory, max_batches=1,
-                                extra_sinks=[_RawAndPath(), _FakeEdf()], acq_evidence_out=got.append))
+    asyncio.run(
+        CS.stream_to_bus(
+            _FakeBus(),
+            dev.write,
+            dev.recv_frame,
+            PAIR_KEY,
+            "cid",
+            cipher_factory=_identity_factory,
+            max_batches=1,
+            extra_sinks=[_RawAndPath(), _FakeEdf()],
+            acq_evidence_out=got.append,
+        )
+    )
     assert len(got) == 1
     assert got[0].provenance["edf_artifact"] == "/tmp/night/x_BRP.edf", "the RAW record is never the EDF"
 
@@ -901,9 +1026,19 @@ def test_no_raw_sink_returns_CLEANLY_rather_than_raising_into_the_handler(caplog
     got = []
     dev = _FakeDev(_handshake() + [_ack(), _data()])
     with caplog.at_level(logging.ERROR, logger="tepna.cpap"):
-        asyncio.run(CS.stream_to_bus(_FakeBus(), dev.write, dev.recv_frame, PAIR_KEY, "cid",
-                                    cipher_factory=_identity_factory, max_batches=1,
-                                    extra_sinks=[_FakeEdf()], acq_evidence_out=got.append))
+        asyncio.run(
+            CS.stream_to_bus(
+                _FakeBus(),
+                dev.write,
+                dev.recv_frame,
+                PAIR_KEY,
+                "cid",
+                cipher_factory=_identity_factory,
+                max_batches=1,
+                extra_sinks=[_FakeEdf()],
+                acq_evidence_out=got.append,
+            )
+        )
     assert got == [], "no raw record ⇒ no envelope"
     assert not [r for r in caplog.records if "acquisition-evidence emit failed" in r.message], (
         "a missing raw sink is an expected shape, not a failure to log — it must return, not raise"
@@ -931,7 +1066,7 @@ def test_an_UNMEASURED_gap_category_makes_its_aggregate_UNKNOWN_not_zero():
     assert ev.decode_gaps == 0
 
 
-def test_a_measured_category_beside_an_unmeasured_one_still_reports(): 
+def test_a_measured_category_beside_an_unmeasured_one_still_reports():
     """The bound on the rule above. `overflow` being live must not be erased by `post_drop_tail` being
     absent anywhere the two are not summed together — otherwise the fix would trade one blind spot for
     a wider one."""
@@ -947,7 +1082,12 @@ def test_the_builder_ALWAYS_wires_a_continuity_tracker_regardless_of_config(tmp_
     lands a verdict. A tracker only tests could construct would be `AcqLifecycle` all over again."""
     import capture
     import cpap_continuity
-    for cfg in ({"cpap": {}}, {"cpap": {"ble_stream": {}}}, {"cpap": {"ble_stream": {"raw_record_dir": str(tmp_path)}}}):
+
+    for cfg in (
+        {"cpap": {}},
+        {"cpap": {"ble_stream": {}}},
+        {"cpap": {"ble_stream": {"raw_record_dir": str(tmp_path)}}},
+    ):
         ctl = capture._build_cpap_controller(object(), cfg, str(tmp_path / "config.yaml"))
         assert isinstance(ctl._continuity, cpap_continuity.ContinuityTracker), cfg
         assert ctl.continuity_resume_hint is False, "no root ⇒ no record ⇒ no hint (no claim)"
@@ -960,14 +1100,18 @@ def test_the_builder_reads_the_resume_hint_from_the_real_autostart_record(tmp_pa
     a closed/absent one ⇒ no hint."""
     import json
     import capture
-    root = tmp_path / "root"; (root / "captures").mkdir(parents=True)
+
+    root = tmp_path / "root"
+    (root / "captures").mkdir(parents=True)
     cfgp = str(tmp_path / "config.yaml")
 
     (root / "captures" / "cpap-autostart-session.json").write_text(json.dumps({"session_ms": 1789719792589.3}))
     ctl = capture._build_cpap_controller(object(), {"root": str(root), "cpap": {}}, cfgp)
     assert ctl.continuity_resume_hint is True
 
-    (root / "captures" / "cpap-autostart-session.json").write_text(json.dumps({"session_ms": None, "manual_stop": False}))
+    (root / "captures" / "cpap-autostart-session.json").write_text(
+        json.dumps({"session_ms": None, "manual_stop": False})
+    )
     ctl2 = capture._build_cpap_controller(object(), {"root": str(root), "cpap": {}}, cfgp)
     assert ctl2.continuity_resume_hint is False
 
@@ -979,5 +1123,6 @@ def test_the_builder_reads_the_resume_hint_from_the_real_autostart_record(tmp_pa
 def test_the_envelope_carries_None_not_a_default_when_no_tracker_was_wired():
     """∅ `assemble_live` with no `continuity=` must record absence, never `continuous`."""
     import acq_evidence_cpap
+
     env = acq_evidence_cpap.assemble_live({"session_id": "s", "device_id": "d"}, counters=None)
     assert env.provenance["continuity"] is None

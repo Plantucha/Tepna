@@ -111,7 +111,7 @@ def test_a_response_without_a_status_attribute_is_treated_as_answering(urlopen_s
     says "it answered at all, which is what was asked". A default of None crashes the comparison and a
     default of 201 is a lie about what happened — both turn a reachable card into an unreachable one,
     and the harvest escalates for nothing."""
-    urlopen_spy.reply = _Resp(status=None)          # no .status attribute at all
+    urlopen_spy.reply = _Resp(status=None)  # no .status attribute at all
     assert ch.reachable("http://192.168.4.1") is True
 
 

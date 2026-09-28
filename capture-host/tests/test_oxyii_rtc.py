@@ -37,7 +37,7 @@ def test_359_reconnects_in_one_night_cost_ONE_sync():
         if why:
             writes += 1
             last = t
-        t += _dt.timedelta(seconds=16)      # measured median gap between segments
+        t += _dt.timedelta(seconds=16)  # measured median gap between segments
     assert writes == 1, f"a reconnect storm must cost exactly one clock write, got {writes}"
 
 
@@ -56,8 +56,8 @@ def test_drift_backstop_fires_after_the_interval():
 
 def test_backstop_interval_is_configurable():
     hour_old = NOW - _dt.timedelta(hours=1, seconds=1)
-    assert capture.oxyii_rtc_due(hour_old, NOW, False, SIX_H) is None        # not due at 6 h
-    assert capture.oxyii_rtc_due(hour_old, NOW, False, 3600) is not None     # due at 1 h
+    assert capture.oxyii_rtc_due(hour_old, NOW, False, SIX_H) is None  # not due at 6 h
+    assert capture.oxyii_rtc_due(hour_old, NOW, False, 3600) is not None  # due at 1 h
 
 
 def test_session_restart_survives_a_dropout():
@@ -74,6 +74,7 @@ def test_session_restart_survives_a_dropout():
 
 def test_rtc_resync_sec_is_in_the_settings_schema():
     import settings_schema
+
     assert "o2ring.rtc_resync_sec" in settings_schema.SETTINGS
 
 
@@ -86,8 +87,7 @@ def test_the_clock_write_stays_behind_the_policy():
     # single real call site otherwise, and mutmut reports the whole module as "failed to collect stats".
     # See tests/_srcscan.py for the four scan shapes and which of them break.
     src = module_source("capture.py")
-    calls = [ln.strip() for ln in src.splitlines()
-             if "set_time_frame(" in ln and not ln.strip().startswith("#")]
+    calls = [ln.strip() for ln in src.splitlines() if "set_time_frame(" in ln and not ln.strip().startswith("#")]
     assert len(calls) == 1, f"expected exactly one set_time_frame call site, found {len(calls)}: {calls}"
     # ...and it must sit inside the _rtc_sync helper, which is the only thing that records the write.
     helper = src.split("async def _rtc_sync(")[1].split("\n\n")[0]
@@ -124,7 +124,7 @@ def test_plant_2_the_measured_plaintext_branch_does_not_fire_even_with_DIS_prese
     the constant would fire here on every connect, because a version string never equals a branch."""
     i = oxyii.parse_get_info(_payload("2D010002"))
     assert i["branch_code"] == _capture.O2RING_PLAINTEXT_BRANCH
-    assert "1.13.1.0" != _capture.O2RING_PLAINTEXT_BRANCH   # the comparison that could never be true
+    assert "1.13.1.0" != _capture.O2RING_PLAINTEXT_BRANCH  # the comparison that could never be true
 
 
 def test_plant_3_DIS_ABSENT_and_branch_2D010001_still_fires():

@@ -18,33 +18,89 @@ from typing import Any
 
 SETTINGS: dict[str, tuple] = {
     # link health / RSSI
-    "link.log_enabled":         (bool,  None, None, True,  True, "Write the LINK provenance sidecar (connection/RSSI/battery per night)"),
-    "link.rssi_enabled":        (bool,  None, None, False, True, "Poll connection RSSI (needs the privileged helper)"),
-    "link.rssi_interval_sec":   (float, 5,    600,  False, 25, "How often to read RSSI while it is working"),
-    "link.rssi_retry_sec":      (float, 60,   3600, False, 600, "Slow re-probe when RSSI is unavailable"),
+    "link.log_enabled": (
+        bool,
+        None,
+        None,
+        True,
+        True,
+        "Write the LINK provenance sidecar (connection/RSSI/battery per night)",
+    ),
+    "link.rssi_enabled": (bool, None, None, False, True, "Poll connection RSSI (needs the privileged helper)"),
+    "link.rssi_interval_sec": (float, 5, 600, False, 25, "How often to read RSSI while it is working"),
+    "link.rssi_retry_sec": (float, 60, 3600, False, 600, "Slow re-probe when RSSI is unavailable"),
     # device clocks
-    "time.auto_sync_devices":   (bool,  None, None, False, True, "Set device clocks from the host on connect"),
-    "time.drift_check_sec":     (float, 60,   3600, False, 300, "How often to check for a device-clock jump"),
-    "time.resync_jump_sec":     (float, 5,    600,  False, 30, "Skew change that triggers a re-sync"),
+    "time.auto_sync_devices": (bool, None, None, False, True, "Set device clocks from the host on connect"),
+    "time.drift_check_sec": (float, 60, 3600, False, 300, "How often to check for a device-clock jump"),
+    "time.resync_jump_sec": (float, 5, 600, False, 30, "Skew change that triggers a re-sync"),
     # BLE adapter watchdog
     # The heap probe (#2999). Advertised so the window can be set without editing code, and so its
     # defaults are compared against capture.py by the source scan — the check this section lost when it
     # had to drop its literal to get past the leaf-keyed version of that scan.
-    "heap_probe.enabled":       (bool,  None, None, True,  False, "Trace what accumulates on the heap during a night (owner-armed; costs allocation time)"),
-    "heap_probe.start_after_min": (float, 0,   240,  True,  30, "Minutes to wait AFTER capture starts before tracing — not after boot"),
-    "heap_probe.interval_min":  (float, 1,    240,  True,  60, "Minutes between heap snapshots"),
-    "heap_probe.snapshots":     (int,   1,    12,   True,  2, "How many snapshots to take before stopping"),
-    "heap_probe.top":           (int,   1,    50,   True,  15, "How many growth rows to record per snapshot"),
-    "watchdog.enabled":         (bool,  None, None, False, True, "Auto-recover a wedged BLE controller"),
-    "watchdog.interval_sec":    (float, 15,   600,  False, 60, "Watchdog check interval"),
-    "watchdog.grace_checks":    (int,   1,    10,   False, 2, "Consecutive wedged checks before a power-cycle"),
-    "watchdog.max_adapter_cycles": (int, 1,   10,   False, 3, "Hard cap on controller power-cycles"),
+    "heap_probe.enabled": (
+        bool,
+        None,
+        None,
+        True,
+        False,
+        "Trace what accumulates on the heap during a night (owner-armed; costs allocation time)",
+    ),
+    "heap_probe.start_after_min": (
+        float,
+        0,
+        240,
+        True,
+        30,
+        "Minutes to wait AFTER capture starts before tracing — not after boot",
+    ),
+    "heap_probe.interval_min": (float, 1, 240, True, 60, "Minutes between heap snapshots"),
+    "heap_probe.snapshots": (int, 1, 12, True, 2, "How many snapshots to take before stopping"),
+    "heap_probe.top": (int, 1, 50, True, 15, "How many growth rows to record per snapshot"),
+    "watchdog.enabled": (bool, None, None, False, True, "Auto-recover a wedged BLE controller"),
+    "watchdog.interval_sec": (float, 15, 600, False, 60, "Watchdog check interval"),
+    "watchdog.grace_checks": (int, 1, 10, False, 2, "Consecutive wedged checks before a power-cycle"),
+    "watchdog.max_adapter_cycles": (int, 1, 10, False, 3, "Hard cap on controller power-cycles"),
     # O2Ring
-    "o2ring.ppg_fs":            (float, 100,  200,  True, 125.000,  "O2Ring pleth ADC sample rate (crystal 125.000; the observed ~125.7 row rate is marker-inflated, see capture.O2PPG_FS_DEFAULT)"),
-    "power.drop_not_worn_sec":  (float, 0,    3600, True, 180.0, "Drop a not-worn strap after this many seconds to save its battery (0 = never)"),
-    "power.not_worn_recheck_sec": (float, 30,  1800, True, 90.0, "How often to reconnect and check whether a dropped strap is back on"),
-    "power.reconnect_backoff_cap_sec": (float, 60, 900, True, 180.0, "Ceiling of the reconnect backoff for an absent device (each attempt is a 30 s scan; 180 ≈ 17 attempts/hour)"),
-    "o2ring.rtc_resync_sec":    (float, 60,   604800, True, 21600.0, "O2Ring RTC drift-backstop interval (s); the RTC is otherwise synced only on first contact + each new recording session"),
+    "o2ring.ppg_fs": (
+        float,
+        100,
+        200,
+        True,
+        125.000,
+        "O2Ring pleth ADC sample rate (crystal 125.000; the observed ~125.7 row rate is marker-inflated, see capture.O2PPG_FS_DEFAULT)",
+    ),
+    "power.drop_not_worn_sec": (
+        float,
+        0,
+        3600,
+        True,
+        180.0,
+        "Drop a not-worn strap after this many seconds to save its battery (0 = never)",
+    ),
+    "power.not_worn_recheck_sec": (
+        float,
+        30,
+        1800,
+        True,
+        90.0,
+        "How often to reconnect and check whether a dropped strap is back on",
+    ),
+    "power.reconnect_backoff_cap_sec": (
+        float,
+        60,
+        900,
+        True,
+        180.0,
+        "Ceiling of the reconnect backoff for an absent device (each attempt is a 30 s scan; 180 ≈ 17 attempts/hour)",
+    ),
+    "o2ring.rtc_resync_sec": (
+        float,
+        60,
+        604800,
+        True,
+        21600.0,
+        "O2Ring RTC drift-backstop interval (s); the RTC is otherwise synced only on first contact + each new recording session",
+    ),
 }
 
 
@@ -68,7 +124,7 @@ def coerce(key: str, value):
         v = typ(value)
     except (TypeError, ValueError):
         raise SettingsError(f"{key} expects {typ.__name__}") from None
-    if v != v:                          # NaN — an empty UI field used to arrive here as float('nan')
+    if v != v:  # NaN — an empty UI field used to arrive here as float('nan')
         raise SettingsError(f"{key} got an empty/invalid number")
     if (lo is not None and v < lo) or (hi is not None and v > hi):
         raise SettingsError(f"{key} must be between {lo} and {hi} (got {v})")
@@ -105,8 +161,17 @@ def describe(cfg: dict) -> list[dict]:
     out = []
     for key, (typ, lo, hi, restart, dflt, help_) in SETTINGS.items():
         cur = get_nested(cfg, key)
-        out.append({"key": key, "value": cur if cur is not None else dflt, "default": dflt,
-                    "is_default": cur is None or cur == dflt,
-                    "type": typ.__name__, "min": lo, "max": hi,
-                    "needs_restart": restart, "help": help_})
+        out.append(
+            {
+                "key": key,
+                "value": cur if cur is not None else dflt,
+                "default": dflt,
+                "is_default": cur is None or cur == dflt,
+                "type": typ.__name__,
+                "min": lo,
+                "max": hi,
+                "needs_restart": restart,
+                "help": help_,
+            }
+        )
     return out

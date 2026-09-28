@@ -62,6 +62,7 @@ def sync(root, pull, **kw):
 
 # ── the happy chain ───────────────────────────────────────────────────────────
 
+
 def test_two_rounds_commit_and_the_cursor_walks_the_chain(tmp_path):
     root = str(tmp_path)
     pull = scripted([(b"round-one", True, T1), (b"round-two", False, None)])
@@ -74,7 +75,7 @@ def test_two_rounds_commit_and_the_cursor_walks_the_chain(tmp_path):
     # a NO_MORE round re-arms its OWN cursor for the next sync
     assert rows[1]["committed_cursor"] == T1
     assert pull.calls == [("Summary", T0), ("Summary", T1)]
-    assert [r["round_seq"] for r in rows] == [0, 1]   # increments by exactly one within a pass
+    assert [r["round_seq"] for r in rows] == [0, 1]  # increments by exactly one within a pass
     assert len(committed_files(root)) == 2
 
 
@@ -92,8 +93,8 @@ def test_cursors_are_verbatim_device_stamps_z_included(tmp_path):
     sync(root, scripted([(b"x", False, None)]), max_rounds=1)
     row = sp.read_ledger(root)[0]
     assert row["round"]["from"] == T0 and row["round"]["from"].endswith("Z")
-    assert row["spool_type"] == "Summary"          # stream identity in every row (contract §3a)
-    assert row["file"] in committed_files(root)    # row ⇒ named file exists
+    assert row["spool_type"] == "Summary"  # stream identity in every row (contract §3a)
+    assert row["file"] in committed_files(root)  # row ⇒ named file exists
 
 
 def test_max_rounds_bounds_the_pass(tmp_path):
@@ -105,12 +106,13 @@ def test_max_rounds_bounds_the_pass(tmp_path):
 
 # ── C1 · kill mid-round: the .part stays, no line, re-pull promotes clean ─────
 
+
 def test_C1_kill_mid_round_leaves_part_and_repull_promotes_byte_identical(tmp_path):
     root = str(tmp_path)
     body = b"interrupted-round"
     sha = sp.sha256_bytes(body)
     name = sp.round_filename(T0, sha)
-    sp.write_part(root, name, body)          # staged…
+    sp.write_part(root, name, body)  # staged…
     # …and the process dies here: no promote, no ledger line.
     assert sp.read_ledger(root) == [] and committed_files(root) == []
     assert os.path.exists(os.path.join(root, sp.INCOMPLETE_DIR, name + ".part"))
@@ -123,13 +125,14 @@ def test_C1_kill_mid_round_leaves_part_and_repull_promotes_byte_identical(tmp_pa
 
 # ── C2 · a corrupted round never promotes ─────────────────────────────────────
 
+
 def test_C2_corrupted_part_fails_validation_and_does_not_promote(tmp_path):
     root = str(tmp_path)
     body = b"good-bytes"
     sha = sp.sha256_bytes(body)
     name = sp.round_filename(T0, sha)
     part = sp.write_part(root, name, body)
-    with open(part, "r+b") as fh:            # one flipped byte between stage and promote
+    with open(part, "r+b") as fh:  # one flipped byte between stage and promote
         fh.seek(0)
         fh.write(b"X")
     with pytest.raises(sp.SpoolValidationError):
@@ -150,6 +153,7 @@ def test_C2_length_mismatch_also_refuses(tmp_path):
 
 # ── C3 · crash between promote and ledger append: idempotent, no duplicate ────
 
+
 def test_C3_crash_between_promote_and_ledger_is_idempotent_on_repull(tmp_path):
     root = str(tmp_path)
     body = b"round-bytes"
@@ -161,11 +165,12 @@ def test_C3_crash_between_promote_and_ledger_is_idempotent_on_repull(tmp_path):
     assert committed_files(root) == [name] and sp.read_ledger(root) == []
     s = sync(root, scripted([(body, False, None)]))
     assert s["rounds_committed"] == 1
-    assert committed_files(root) == [name]           # same content-addressed name — adopted, no dup
-    assert len(sp.read_ledger(root)) == 1            # the missing line, appended exactly once
+    assert committed_files(root) == [name]  # same content-addressed name — adopted, no dup
+    assert len(sp.read_ledger(root)) == 1  # the missing line, appended exactly once
 
 
 # ── C4 · committed content is never overwritten ───────────────────────────────
+
 
 def test_C4_same_name_different_bytes_refuses_never_overwrites(tmp_path):
     root = str(tmp_path)
@@ -176,19 +181,19 @@ def test_C4_same_name_different_bytes_refuses_never_overwrites(tmp_path):
     final = sp.promote(root, part, name, expected_sha=sha, expected_len=len(body))
     part2 = sp.write_part(root, name, b"different")  # an attacker/partial wearing the same name
     with pytest.raises(sp.SpoolConflictError):
-        sp.promote(root, part2, name, expected_sha=sp.sha256_bytes(b"different"),
-                   expected_len=len(b"different"))
+        sp.promote(root, part2, name, expected_sha=sp.sha256_bytes(b"different"), expected_len=len(b"different"))
     with open(final, "rb") as fh:
-        assert fh.read() == body                      # the evidence survived
+        assert fh.read() == body  # the evidence survived
 
 
 def test_C4_by_construction_partials_never_reach_committed(tmp_path):
     root = str(tmp_path)
     sp.write_part(root, "x.bin", b"partial")
-    assert committed_files(root) == []               # .part lives only under incomplete/
+    assert committed_files(root) == []  # .part lives only under incomplete/
 
 
 # ── C5 · the device's error terminal stops, it does not loop ──────────────────
+
 
 def test_C5_data_unavailable_is_nonrecoverable_and_called_exactly_once(tmp_path):
     root = str(tmp_path)
@@ -197,12 +202,13 @@ def test_C5_data_unavailable_is_nonrecoverable_and_called_exactly_once(tmp_path)
     s = sync(root, pull, on_transition=lambda st, why: states.append(st))
     assert s["stopped"] == "data-unavailable"
     assert s["failure"] == FailureClass.PROTOCOL_FAILURE.label
-    assert len(pull.calls) == 1                      # no retry loop
+    assert len(pull.calls) == 1  # no retry loop
     assert states[-1] == "ERROR"
     assert sp.read_ledger(root) == [] and committed_files(root) == []
 
 
 # ── transport loss is recoverable and preserves the committed prefix ──────────
+
 
 def test_transport_loss_midsync_keeps_committed_rounds_and_recoverable_class(tmp_path):
     root = str(tmp_path)
@@ -213,10 +219,11 @@ def test_transport_loss_midsync_keeps_committed_rounds_and_recoverable_class(tmp
     assert s["stopped"] == "transport"
     assert s["failure"] == FailureClass.TRANSPORT_FAILURE.label
     assert states[-1] == "RECOVERING"
-    assert sp.last_committed_cursor(root) == T1      # next pass resumes exactly here
+    assert sp.last_committed_cursor(root) == T1  # next pass resumes exactly here
 
 
 # ── steady-state re-poll: no growth, clean stop ───────────────────────────────
+
 
 def test_repolling_a_no_more_cursor_is_a_noop_not_a_leak(tmp_path):
     root = str(tmp_path)
@@ -225,7 +232,7 @@ def test_repolling_a_no_more_cursor_is_a_noop_not_a_leak(tmp_path):
     s2 = sync(root, scripted([(body, False, None)]))
     assert s2["stopped"] == "no-new-data" and s2["rounds_committed"] == 0
     assert len(committed_files(root)) == 1
-    assert len(sp.read_ledger(root)) == 1            # deduped by (cursor, sha)
+    assert len(sp.read_ledger(root)) == 1  # deduped by (cursor, sha)
 
 
 def test_a_reserved_round_carrying_more_advances_instead_of_stalling(tmp_path):
@@ -266,27 +273,38 @@ def test_new_data_at_the_same_cursor_commits_as_a_new_round(tmp_path):
     sync(root, scripted([(b"old-tail", False, None)]))
     s2 = sync(root, scripted([(b"old-tail-plus-new", False, None)]))
     assert s2["rounds_committed"] == 1
-    assert len(committed_files(root)) == 2           # different sha → different name, both kept
+    assert len(committed_files(root)) == 2  # different sha → different name, both kept
     rows = sp.read_ledger(root)
     assert [r["round_seq"] for r in rows] == [0, 1]  # seq continues across passes
 
 
 # ── the between-rounds guard seam (brief §6) ─────────────────────────────────
 
+
 def test_revalidate_hook_sees_every_cursor_the_loop_trusts(tmp_path):
     root = str(tmp_path)
     seen = []
-    sync(root, scripted([(b"a", True, T1), (b"b", False, None)]),
-         revalidate=seen.append)
-    assert seen == [T0, T1]                          # the localized guard point, exercised
+    sync(root, scripted([(b"a", True, T1), (b"b", False, None)]), revalidate=seen.append)
+    assert seen == [T0, T1]  # the localized guard point, exercised
 
 
 # ── ledger mechanics ─────────────────────────────────────────────────────────
 
+
 def test_ledger_lines_are_byte_stable_for_identical_rows(tmp_path):
-    kw = dict(device="d", session="s", spool_type="Summary", cursor_in=T0,
-              committed_cursor=T1, round_seq=0, data=b"x", status=sp.STATUS_MORE,
-              filename="f.bin", wall=lambda: "W", mono=lambda: 1.0)
+    kw = dict(
+        device="d",
+        session="s",
+        spool_type="Summary",
+        cursor_in=T0,
+        committed_cursor=T1,
+        round_seq=0,
+        data=b"x",
+        status=sp.STATUS_MORE,
+        filename="f.bin",
+        wall=lambda: "W",
+        mono=lambda: 1.0,
+    )
     a = json.dumps(sp.make_row(**kw), sort_keys=True)
     b = json.dumps(sp.make_row(**kw), sort_keys=True)
     assert a == b
@@ -296,10 +314,10 @@ def test_torn_ledger_tail_is_skipped_not_fatal(tmp_path):
     root = str(tmp_path)
     sync(root, scripted([(b"a", True, T1)]), max_rounds=1)
     with open(sp.ledger_path(root), "a", encoding="utf-8") as fh:
-        fh.write('{"torn": ')                        # crash mid-append
+        fh.write('{"torn": ')  # crash mid-append
     assert sp.last_committed_cursor(root) == T1
     with open(sp.ledger_path(root), "a", encoding="utf-8") as fh:
-        fh.write("\n\n")                             # blank lines tolerated too
+        fh.write("\n\n")  # blank lines tolerated too
     assert sp.last_committed_cursor(root) == T1
 
 
@@ -310,6 +328,7 @@ def test_empty_store_reports_no_cursor_and_no_rows(tmp_path):
 
 
 # ── names and cursors ────────────────────────────────────────────────────────
+
 
 def test_round_filename_is_content_addressed_and_fs_safe():
     a = sp.round_filename(T1, "a" * 64)
@@ -323,13 +342,22 @@ def test_compact_cursor_strips_only_separators():
 
 
 def test_default_clocks_produce_wall_iso_and_monotonic(tmp_path):
-    row = sp.make_row(device="d", session="s", spool_type="Summary", cursor_in=T0,
-                      committed_cursor=T1, round_seq=0, data=b"x",
-                      status=sp.STATUS_DONE, filename="f.bin")
+    row = sp.make_row(
+        device="d",
+        session="s",
+        spool_type="Summary",
+        cursor_in=T0,
+        committed_cursor=T1,
+        round_seq=0,
+        data=b"x",
+        status=sp.STATUS_DONE,
+        filename="f.bin",
+    )
     assert "T" in row["ts"] and isinstance(row["mono"], float)
 
 
 # ── branch closure: every callback and adopt arm, both ways ──────────────────
+
 
 def test_adopt_with_no_part_file_still_returns_committed(tmp_path):
     root = str(tmp_path)
@@ -359,8 +387,7 @@ def test_transport_loss_without_a_callback_still_classifies(tmp_path):
 def test_happy_path_with_lifecycle_reports_syncing_then_verified(tmp_path):
     root = str(tmp_path)
     states = []
-    s = sync(root, scripted([(b"only", False, None)]),
-             on_transition=lambda st, why: states.append(st))
+    s = sync(root, scripted([(b"only", False, None)]), on_transition=lambda st, why: states.append(st))
     assert s["stopped"] == "no-more-data"
     assert states == ["SYNCING", "VERIFIED"]
 
@@ -378,6 +405,7 @@ def test_a_foreign_valid_json_ledger_row_is_tolerated_not_fatal(tmp_path):
 
 # ── survivor killers: payloads, defaults, and the windows coverage missed ────
 
+
 def test_garbage_mid_ledger_does_not_stop_reading_later_rows(tmp_path):
     root = str(tmp_path)
     sync(root, scripted([(b"a", True, T1)]), max_rounds=1)
@@ -385,7 +413,7 @@ def test_garbage_mid_ledger_does_not_stop_reading_later_rows(tmp_path):
         fh.write("not-json-at-all\n")
     sync(root, scripted([(b"b", False, None)]))
     rows = sp.read_ledger(root)
-    assert len(rows) == 2                       # the row AFTER the garbage was read (continue, not break)
+    assert len(rows) == 2  # the row AFTER the garbage was read (continue, not break)
     assert sp.last_committed_cursor(root) == T1
 
 
@@ -398,12 +426,10 @@ def test_conflict_and_validation_errors_name_the_file_and_lengths(tmp_path):
     sp.promote(root, part, name, expected_sha=sha, expected_len=len(body))
     part2 = sp.write_part(root, name, b"different")
     with pytest.raises(sp.SpoolConflictError, match=name):
-        sp.promote(root, part2, name, expected_sha=sp.sha256_bytes(b"different"),
-                   expected_len=9)
+        sp.promote(root, part2, name, expected_sha=sp.sha256_bytes(b"different"), expected_len=9)
     part3 = sp.write_part(root, "other.bin", b"12345")
     with pytest.raises(sp.SpoolValidationError, match=r"other\.bin.*len 5 vs 6"):
-        sp.promote(root, part3, "other.bin", expected_sha=sp.sha256_bytes(b"12345"),
-                   expected_len=6)
+        sp.promote(root, part3, "other.bin", expected_sha=sp.sha256_bytes(b"12345"), expected_len=6)
 
 
 def test_ledger_rows_carry_the_full_payload_from_a_sync_pass(tmp_path):
@@ -412,26 +438,34 @@ def test_ledger_rows_carry_the_full_payload_from_a_sync_pass(tmp_path):
     rows = sp.read_ledger(root)
     for row in rows:
         assert row["device"] == "AS11-1" and row["session"] == "acq-1"
-        assert row["ts"] == "2026-08-23T22:00:00+00:00"     # the injected wall clock, not a real one
+        assert row["ts"] == "2026-08-23T22:00:00+00:00"  # the injected wall clock, not a real one
         assert row["mono"] == 123.0
     assert rows[0]["round"]["status"] == sp.STATUS_MORE
     assert rows[1]["round"]["status"] == sp.STATUS_DONE
 
 
 def test_default_wall_clock_is_utc_iso(tmp_path):
-    row = sp.make_row(device="d", session="s", spool_type="Summary", cursor_in=T0,
-                      committed_cursor=T1, round_seq=0, data=b"x",
-                      status=sp.STATUS_DONE, filename="f.bin")
-    assert row["ts"].endswith("+00:00")          # timezone-aware UTC, not a naive or local stamp
+    row = sp.make_row(
+        device="d",
+        session="s",
+        spool_type="Summary",
+        cursor_in=T0,
+        committed_cursor=T1,
+        round_seq=0,
+        data=b"x",
+        status=sp.STATUS_DONE,
+        filename="f.bin",
+    )
+    assert row["ts"].endswith("+00:00")  # timezone-aware UTC, not a naive or local stamp
 
 
 def test_in_pass_dedupe_stops_a_device_looping_on_one_cursor(tmp_path):
     root = str(tmp_path)
     body = b"same-round"
-    pull = scripted([(body, True, T0), (body, True, T0)])   # device re-serves the SAME cursor
+    pull = scripted([(body, True, T0), (body, True, T0)])  # device re-serves the SAME cursor
     s = sync(root, pull)
     assert s["stopped"] == "no-new-data"
-    assert len(sp.read_ledger(root)) == 1        # one line, not a duplicate per lap
+    assert len(sp.read_ledger(root)) == 1  # one line, not a duplicate per lap
     assert len(pull.calls) == 2
 
 
@@ -447,7 +481,7 @@ def test_default_max_rounds_is_exactly_64(tmp_path):
     cursors = [f"2026-01-01T00:{i:02d}:{j:02d}Z" for i in range(60) for j in range(60)]
     rounds = [(f"r{i}".encode(), True, cursors[i]) for i in range(70)]
     pull = scripted(rounds)
-    s = sync(root, pull)                          # no max_rounds argument — the default governs
+    s = sync(root, pull)  # no max_rounds argument — the default governs
     assert s["stopped"] == "max-rounds"
     assert s["rounds_committed"] == 64 and len(pull.calls) == 64
 
@@ -456,9 +490,9 @@ def test_blank_line_mid_ledger_does_not_stop_reading(tmp_path):
     root = str(tmp_path)
     sync(root, scripted([(b"a", True, T1)]), max_rounds=1)
     with open(sp.ledger_path(root), "a", encoding="utf-8") as fh:
-        fh.write("\n")                            # a blank line BETWEEN rows, not at the tail
+        fh.write("\n")  # a blank line BETWEEN rows, not at the tail
     sync(root, scripted([(b"b", False, None)]))
-    assert len(sp.read_ledger(root)) == 2         # the row after the blank was read (continue, not break)
+    assert len(sp.read_ledger(root)) == 2  # the row after the blank was read (continue, not break)
 
 
 def test_promote_never_touches_the_process_cwd(tmp_path, monkeypatch):
@@ -474,5 +508,5 @@ def test_promote_never_touches_the_process_cwd(tmp_path, monkeypatch):
     name = sp.round_filename(T0, sha)
     part = sp.write_part(root, name, body)
     sp.promote(root, part, name, expected_sha=sha, expected_len=len(body))
-    assert not (clean_cwd / sp.COMMITTED_DIR).exists()      # nothing leaked into the cwd
+    assert not (clean_cwd / sp.COMMITTED_DIR).exists()  # nothing leaked into the cwd
     assert os.path.exists(os.path.join(root, sp.COMMITTED_DIR, name))

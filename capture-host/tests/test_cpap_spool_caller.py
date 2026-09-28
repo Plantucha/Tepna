@@ -73,8 +73,7 @@ def test_a_window_that_would_never_open_refuses():
 
 
 def test_a_window_overlapping_the_ENABLED_harvest_refuses_and_names_the_hour():
-    a = C.spool_arming({"cpap": {"enabled": True, "at_hour": 13,
-                                 "spool_pull": {"enabled": True, "at_hour": 13}}})
+    a = C.spool_arming({"cpap": {"enabled": True, "at_hour": 13, "spool_pull": {"enabled": True, "at_hour": 13}}})
     assert a["armed"] is False
     assert "13" in a["why"] and "2.4 GHz" in a["why"], "the refusal must say why overlap matters"
 
@@ -82,14 +81,12 @@ def test_a_window_overlapping_the_ENABLED_harvest_refuses_and_names_the_hour():
 def test_the_same_overlap_is_ALLOWED_when_the_harvest_is_disabled():
     # A disabled harvest's at_hour is a dormant number; refusing against it would block a legitimate
     # config for a job that never runs.
-    a = C.spool_arming({"cpap": {"enabled": False, "at_hour": 13,
-                                 "spool_pull": {"enabled": True, "at_hour": 13}}})
+    a = C.spool_arming({"cpap": {"enabled": False, "at_hour": 13, "spool_pull": {"enabled": True, "at_hour": 13}}})
     assert a["armed"] is True
 
 
 def test_a_non_overlapping_window_arms_beside_an_enabled_harvest():
-    a = C.spool_arming({"cpap": {"enabled": True, "at_hour": 13,
-                                 "spool_pull": {"enabled": True, "at_hour": 10}}})
+    a = C.spool_arming({"cpap": {"enabled": True, "at_hour": 13, "spool_pull": {"enabled": True, "at_hour": 10}}})
     assert a["armed"] is True and a["at_hour"] == 10
 
 
@@ -139,7 +136,7 @@ class _Link:
 
     async def __call__(self):
         if self.bad_tuple:
-            return ("write", "recv")           # malformed: two members, not three
+            return ("write", "recv")  # malformed: two members, not three
         return ("write", "recv", self._disc)
 
     async def _disc(self):
@@ -156,10 +153,16 @@ def _cipher(_key):
 
 def _cycle(link, **kw):
     kw.setdefault("sync", _sync_ok)
-    return C.spool_pull_cycle(connect=link, creds=CREDS, root="/tmp/x",
-                              epoch_start=C.SPOOL_EPOCH_START_DEFAULT,
-                              establish=_establish, cipher_factory=_cipher,
-                              pull_round=_never_called, **kw)
+    return C.spool_pull_cycle(
+        connect=link,
+        creds=CREDS,
+        root="/tmp/x",
+        epoch_start=C.SPOOL_EPOCH_START_DEFAULT,
+        establish=_establish,
+        cipher_factory=_cipher,
+        pull_round=_never_called,
+        **kw,
+    )
 
 
 async def _sync_ok(pull_round, root, **kw):
@@ -216,11 +219,19 @@ def test_the_round_closure_hands_pull_spool_round_its_arguments_IN_ORDER():
         return {"body": await pull_round(kw["spool_type"], kw["epoch_start"])}
 
     link = _Link()
-    out = _run(C.spool_pull_cycle(
-        connect=link, creds=CREDS, root="/tmp/x", epoch_start="2026-08-01T00:00:00.000Z",
-        spool_type="Summary", establish=_establish, cipher_factory=_cipher,
-        pull_round=_capture_round, sync=_sync_drives_the_seam))
+    out = _run(
+        C.spool_pull_cycle(
+            connect=link,
+            creds=CREDS,
+            root="/tmp/x",
+            epoch_start="2026-08-01T00:00:00.000Z",
+            spool_type="Summary",
+            establish=_establish,
+            cipher_factory=_cipher,
+            pull_round=_capture_round,
+            sync=_sync_drives_the_seam,
+        )
+    )
 
     assert out["body"] == (b"body", False, None)
-    assert seen["args"] == ("write", "recv", "seal", "unseal",
-                            "Summary", "2026-08-01T00:00:00.000Z")
+    assert seen["args"] == ("write", "recv", "seal", "unseal", "Summary", "2026-08-01T00:00:00.000Z")

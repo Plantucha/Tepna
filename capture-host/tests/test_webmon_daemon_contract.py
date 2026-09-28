@@ -11,6 +11,7 @@ that validates in the DEFERRED half returns a cheerful 200 and then does nothing
 before the answer, so a bad verb or an impossible `minutes` is a 400 and never a silent no-op — the
 same silent-success shape this suite keeps finding in other layers.
 """
+
 import asyncio
 import os
 import sys
@@ -29,12 +30,12 @@ def _post(tmp_path, body, monkeypatch, fired=None):
     app, *_ = _mk(tmp_path, devices=[], status={})
     if fired is not None:
         # The app closes over `_schedule`; patch the module function it calls instead.
-        monkeypatch.setattr(daemon_control, "run",
-                            lambda verb, minutes=None, **kw: fired.append((verb, minutes)))
+        monkeypatch.setattr(daemon_control, "run", lambda verb, minutes=None, **kw: fired.append((verb, minutes)))
 
     async def go(c):
         r = await c.post("/api/daemon", json=body)
         return r.status, await r.json()
+
     return _serve(app, go)
 
 
@@ -61,9 +62,9 @@ def test_a_malformed_body_is_refused_by_the_shared_contract(tmp_path, monkeypatc
     app, *_ = _mk(tmp_path, devices=[], status={})
 
     async def go(c):
-        r = await c.post("/api/daemon", data="not json",
-                         headers={"content-type": "application/json"})
+        r = await c.post("/api/daemon", data="not json", headers={"content-type": "application/json"})
         return r.status, await r.json()
+
     status, body = _serve(app, go)
     assert status == 400 and body["ok"] is False
 
@@ -114,6 +115,7 @@ def test_STATUS_is_answered_INLINE_because_it_does_not_kill_the_server(tmp_path,
     async def go(c):
         r = await c.post("/api/daemon", json={"verb": "status"})
         return r.status, await r.json()
+
     status, body = _serve(app, go)
     assert status == 200 and body["ok"] is True
     assert body["detail"] == "tepna-capture.service: active", "an inline verb returns the REAL output"
@@ -133,15 +135,15 @@ def test_the_DEFERRED_HALF_FIRES_with_the_verb_and_minutes_that_were_ASKED_FOR(t
     So this one lets the timer actually elapse and reads what came out the other side."""
     fired = []
     app, *_ = _mk(tmp_path, devices=[], status={})
-    monkeypatch.setattr(daemon_control, "run",
-                        lambda verb, minutes=None, **kw: fired.append((verb, minutes)))
+    monkeypatch.setattr(daemon_control, "run", lambda verb, minutes=None, **kw: fired.append((verb, minutes)))
 
     async def go(c):
         r = await c.post("/api/daemon", json={"verb": "stop", "minutes": 12})
         body = await r.json()
         assert fired == [], "still answer-then-fire: nothing may have run at response time"
-        await asyncio.sleep(daemon_control.RESTART_DELAY_S + 0.35)   # let call_later come due
+        await asyncio.sleep(daemon_control.RESTART_DELAY_S + 0.35)  # let call_later come due
         return body
+
     _serve(app, go)
     assert fired == [("stop", 12)], f"the deferred call must carry BOTH arguments through: {fired}"
 
@@ -151,13 +153,13 @@ def test_a_deferred_RESTART_fires_the_restart_verb_and_no_other(tmp_path, monkey
     fired `None` would raise inside a timer callback, where nothing is watching."""
     fired = []
     app, *_ = _mk(tmp_path, devices=[], status={})
-    monkeypatch.setattr(daemon_control, "run",
-                        lambda verb, minutes=None, **kw: fired.append((verb, minutes)))
+    monkeypatch.setattr(daemon_control, "run", lambda verb, minutes=None, **kw: fired.append((verb, minutes)))
 
     async def go(c):
         await c.post("/api/daemon", json={"verb": "restart"})
         await asyncio.sleep(daemon_control.RESTART_DELAY_S + 0.35)
         return None
+
     _serve(app, go)
     assert [v for v, _ in fired] == ["restart"], f"exactly the restart verb, once: {fired}"
 
@@ -170,8 +172,7 @@ def test_RELOAD_is_answered_INLINE_with_the_real_output_not_deferred(tmp_path, m
 
     def _fake_run(verb, minutes=None, **kw):
         seen.append((verb, minutes))
-        return {"ok": True, "verb": verb,
-                "detail": "tepna-capture.service: unit files re-read — a reload WAS owed"}
+        return {"ok": True, "verb": verb, "detail": "tepna-capture.service: unit files re-read — a reload WAS owed"}
 
     monkeypatch.setattr(daemon_control, "run", _fake_run)
     app, *_ = _mk(tmp_path, devices=[], status={})
@@ -179,6 +180,7 @@ def test_RELOAD_is_answered_INLINE_with_the_real_output_not_deferred(tmp_path, m
     async def go(c):
         r = await c.post("/api/daemon", json={"verb": "reload"})
         return r.status, await r.json()
+
     status, body = _serve(app, go)
     assert status == 200 and body["ok"] is True
     assert "WAS owed" in body["detail"], "the helper's real answer must reach the caller"
@@ -194,14 +196,15 @@ def test_a_self_killing_verb_is_REFUSED_while_a_sensor_is_ON_BODY_and_names_whic
     a browser confirm: a direct API call is refused too. It NAMES what is on-body under `worn`, because
     "refused" on its own tells the operator nothing about whether to force it."""
     fired = []
-    app, *_ = _mk(tmp_path, devices=[{"name": "H10", "address": "AA"}],
-                  status={"H10": {"connected": True, "worn": True}})
-    monkeypatch.setattr(daemon_control, "run",
-                        lambda v, minutes=None, **kw: fired.append(v))
+    app, *_ = _mk(
+        tmp_path, devices=[{"name": "H10", "address": "AA"}], status={"H10": {"connected": True, "worn": True}}
+    )
+    monkeypatch.setattr(daemon_control, "run", lambda v, minutes=None, **kw: fired.append(v))
 
     async def go(c):
         r = await c.post("/api/daemon", json={"verb": verb})
         return r.status, await r.json()
+
     status_code, body = _serve(app, go)
     assert status_code == 409, "a state conflict, not a malformed request"
     assert body["ok"] is False and body["worn"] == ["H10"]
@@ -216,10 +219,10 @@ def test_a_self_killing_verb_with_force_is_allowed_and_still_answers_before_it_f
     killing verbs answer BEFORE they fire, so `run` has not been called synchronously by the time the
     response is built."""
     fired = []
-    app, *_ = _mk(tmp_path, devices=[{"name": "H10", "address": "AA"}],
-                  status={"H10": {"connected": True, "worn": True}})
-    monkeypatch.setattr(daemon_control, "run",
-                        lambda v, minutes=None, **kw: fired.append(v))
+    app, *_ = _mk(
+        tmp_path, devices=[{"name": "H10", "address": "AA"}], status={"H10": {"connected": True, "worn": True}}
+    )
+    monkeypatch.setattr(daemon_control, "run", lambda v, minutes=None, **kw: fired.append(v))
 
     async def go(c):
         req = {"verb": verb, "force": True}
@@ -227,6 +230,7 @@ def test_a_self_killing_verb_with_force_is_allowed_and_still_answers_before_it_f
             req["minutes"] = 30
         r = await c.post("/api/daemon", json=req)
         return r.status, await r.json()
+
     status_code, body = _serve(app, go)
     assert status_code == 200 and body["ok"] is True
     assert fired == [], "a self-killing verb kills this server — it must be answered first"
@@ -240,8 +244,11 @@ def test_a_CHARGING_sensor_does_NOT_block_a_self_killing_verb(verb, tmp_path, mo
     when ending the daemon is safest, and is how an operator learns to always force. `charging` wins over
     `worn` here on purpose — a charging device cannot be on a body — so even with worn=True it proceeds
     without force."""
-    app, *_ = _mk(tmp_path, devices=[{"name": "H10", "address": "AA"}],
-                  status={"H10": {"connected": True, "charging": True, "worn": True}})
+    app, *_ = _mk(
+        tmp_path,
+        devices=[{"name": "H10", "address": "AA"}],
+        status={"H10": {"connected": True, "charging": True, "worn": True}},
+    )
     monkeypatch.setattr(daemon_control, "run", lambda v, minutes=None, **kw: None)
 
     async def go(c):
@@ -250,6 +257,7 @@ def test_a_CHARGING_sensor_does_NOT_block_a_self_killing_verb(verb, tmp_path, mo
             req["minutes"] = 30
         r = await c.post("/api/daemon", json=req)
         return r.status, await r.json()
+
     status_code, body = _serve(app, go)
     assert status_code == 200 and body["ok"] is True
 
@@ -259,8 +267,11 @@ def test_a_NOT_WORN_or_absent_sensor_does_NOT_block_a_self_killing_verb(verb, tm
     """The mirror image, so the guard cannot fire on everything and train the operator to always force. A
     linked-but-not-worn sensor (worn=False) and a disconnected one (connected=False) each read on_body
     False, so nothing is refused and no force is needed."""
-    app, *_ = _mk(tmp_path, devices=[{"name": "H10", "address": "AA"}, {"name": "Ring", "address": "BB"}],
-                  status={"H10": {"connected": True, "worn": False}, "Ring": {"connected": False}})
+    app, *_ = _mk(
+        tmp_path,
+        devices=[{"name": "H10", "address": "AA"}, {"name": "Ring", "address": "BB"}],
+        status={"H10": {"connected": True, "worn": False}, "Ring": {"connected": False}},
+    )
     monkeypatch.setattr(daemon_control, "run", lambda v, minutes=None, **kw: None)
 
     async def go(c):
@@ -269,6 +280,7 @@ def test_a_NOT_WORN_or_absent_sensor_does_NOT_block_a_self_killing_verb(verb, tm
             req["minutes"] = 30
         r = await c.post("/api/daemon", json=req)
         return r.status, await r.json()
+
     status_code, body = _serve(app, go)
     assert status_code == 200 and body["ok"] is True
 
@@ -277,20 +289,21 @@ def test_a_RECOVERY_verb_is_NOT_worn_guarded_because_the_link_is_already_stuck(t
     """DROPS_LINKS (radio/rebind) is deliberately EXEMPT from the on-body guard: those are the BLE-
     recovery rungs, run precisely when a link is already stuck, so a worn-gate would block the one fix
     that clears it. A sensor reading on-body must NOT refuse a `radio`."""
-    app, *_ = _mk(tmp_path, devices=[{"name": "H10", "address": "AA"}],
-                  status={"H10": {"connected": True, "worn": True}})
+    app, *_ = _mk(
+        tmp_path, devices=[{"name": "H10", "address": "AA"}], status={"H10": {"connected": True, "worn": True}}
+    )
     ran = []
-    monkeypatch.setattr(daemon_control, "run",
-                        lambda v, minutes=None, **kw: (ran.append(v), {"ok": True, "verb": v})[1])
+    monkeypatch.setattr(
+        daemon_control, "run", lambda v, minutes=None, **kw: (ran.append(v), {"ok": True, "verb": v})[1]
+    )
 
     async def go(c):
         r = await c.post("/api/daemon", json={"verb": "radio"})
         return r.status, await r.json()
+
     status_code, body = _serve(app, go)
     assert status_code == 200 and body.get("ok") is True
     assert ran == ["radio"], "a recovery verb runs even with a sensor on-body"
-
-
 
 
 def test_the_USB_PORT_COMES_FROM_CONFIG_and_a_port_in_the_BODY_IS_IGNORED(tmp_path, monkeypatch):
@@ -306,13 +319,18 @@ def test_the_USB_PORT_COMES_FROM_CONFIG_and_a_port_in_the_BODY_IS_IGNORED(tmp_pa
     seen = []
     app, cfg, *_ = _mk(tmp_path, devices=[], status={})
     cfg["watchdog"] = {"usb_path": "1-2"}
-    monkeypatch.setattr(daemon_control, "run",
-                        lambda verb, minutes=None, **kw: seen.append((verb, minutes)) or
-                        {"ok": True, "verb": verb, "detail": "re-bound"})
+    monkeypatch.setattr(
+        daemon_control,
+        "run",
+        lambda verb, minutes=None, **kw: (
+            seen.append((verb, minutes)) or {"ok": True, "verb": verb, "detail": "re-bound"}
+        ),
+    )
 
     async def go(c):
         r = await c.post("/api/daemon", json={"verb": "rebind", "minutes": "9-9"})
         return r.status, await r.json()
+
     status_code, body = _serve(app, go)
     assert status_code == 200 and body["ok"] is True
     assert seen == [("rebind", "1-2")], f"the CONFIG port, never the body's: {seen}"
@@ -323,12 +341,12 @@ def test_rebind_is_REFUSED_when_the_box_has_no_configured_adapter_port(tmp_path,
     fall back to a guess — there is no safe default for "which USB device should I reset as root"."""
     fired = []
     app, *_ = _mk(tmp_path, devices=[], status={})
-    monkeypatch.setattr(daemon_control, "run",
-                        lambda verb, minutes=None, **kw: fired.append(verb))
+    monkeypatch.setattr(daemon_control, "run", lambda verb, minutes=None, **kw: fired.append(verb))
 
     async def go(c):
         r = await c.post("/api/daemon", json={"verb": "rebind"})
         return r.status, await r.json()
+
     status_code, body = _serve(app, go)
     assert status_code == 400 and body["ok"] is False
     assert "usb_path" in body["error"]
@@ -340,14 +358,17 @@ def test_RADIO_is_answered_INLINE_because_it_drops_links_without_killing_this_se
     real output must come back. It is the rung the adapter watchdog structurally cannot fire itself: a
     deaf-but-UP adapter is indistinguishable from nobody wearing the sensors."""
     seen = []
-    monkeypatch.setattr(daemon_control, "run",
-                        lambda verb, minutes=None, **kw: seen.append(verb) or
-                        {"ok": True, "verb": verb, "detail": "bluetooth: active"})
+    monkeypatch.setattr(
+        daemon_control,
+        "run",
+        lambda verb, minutes=None, **kw: seen.append(verb) or {"ok": True, "verb": verb, "detail": "bluetooth: active"},
+    )
     app, *_ = _mk(tmp_path, devices=[], status={})
 
     async def go(c):
         r = await c.post("/api/daemon", json={"verb": "radio"})
         return r.status, await r.json()
+
     status_code, body = _serve(app, go)
     assert status_code == 200 and body["detail"] == "bluetooth: active"
     assert seen == ["radio"], "inline, during the request"
@@ -357,15 +378,22 @@ def test_RADIO_is_answered_INLINE_because_it_drops_links_without_killing_this_se
 def test_DEPLOY_is_answered_INLINE_with_the_report_and_the_restart_flag(tmp_path, monkeypatch):
     """The whole point of the button: it returns what moved and whether the daemon is still on the old
     build. Deferring it would return a cheerful 200 carrying neither."""
-    monkeypatch.setattr(daemon_control, "run",
-                        lambda verb, minutes=None, **kw: {"ok": True, "verb": verb,
-                                                          "detail": "updated abc → def\nRESTART-OWED",
-                                                          "restart_owed": True})
+    monkeypatch.setattr(
+        daemon_control,
+        "run",
+        lambda verb, minutes=None, **kw: {
+            "ok": True,
+            "verb": verb,
+            "detail": "updated abc → def\nRESTART-OWED",
+            "restart_owed": True,
+        },
+    )
     app, *_ = _mk(tmp_path, devices=[], status={})
 
     async def go(c):
         r = await c.post("/api/daemon", json={"verb": "deploy"})
         return r.status, await r.json()
+
     status_code, body = _serve(app, go)
     assert status_code == 200 and body["ok"] is True
     assert body["restart_owed"] is True and "updated" in body["detail"]
@@ -388,6 +416,7 @@ def test_an_inline_verb_gets_ITS_OWN_timeout_not_the_default(tmp_path, monkeypat
         await c.post("/api/daemon", json={"verb": "deploy"})
         await c.post("/api/daemon", json={"verb": "status"})
         return None
+
     _serve(app, go)
     assert seen["deploy"] == daemon_control.DEPLOY_TIMEOUT_S, seen
     assert seen["status"] == 30.0, seen
@@ -415,6 +444,7 @@ def test_a_self_killing_verb_is_REFUSED_while_a_CPAP_HARVEST_is_running(verb, tm
     async def go(c):
         r = await c.post("/api/daemon", json={"verb": verb})
         return r.status, await r.json()
+
     status_code, body = _serve(app, go)
     assert status_code == 409, "a state conflict, not a malformed request"
     assert body["ok"] is False and body["harvesting"] is True
@@ -436,5 +466,6 @@ def test_every_NON_running_cpap_state_still_allows_a_restart(state, tmp_path, mo
     async def go(c):
         r = await c.post("/api/daemon", json={"verb": "restart"})
         return r.status, await r.json()
+
     status_code, body = _serve(app, go)
     assert status_code == 200 and body["ok"] is True

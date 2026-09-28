@@ -7,6 +7,7 @@ Measured on vigil over a 72 h unattended window: 2426 WARNINGs, of which 1992 (8
 polls, 150 Verity timeouts. Normal for a box whose devices are worn only at night, and it buried the
 37 `event loop stalled` and 32 `wpa_cli` failures that were not normal.
 """
+
 import logging
 import os
 import re
@@ -66,8 +67,7 @@ def test_a_WORSENING_streak_keeps_resurfacing(caplog):
     """Quieter must not mean silent: a degrading radio has to come back into view as it degrades."""
     with caplog.at_level(logging.WARNING, logger="capture"):
         _spam(500)
-    seen = [int(m.group(1)) for r in caplog.records
-            if (m := re.search(r"occurrence (\d+)", r.getMessage()))]
+    seen = [int(m.group(1)) for r in caplog.records if (m := re.search(r"occurrence (\d+)", r.getMessage()))]
     for milestone in (25, 100, 500):
         assert milestone in seen, f"occurrence {milestone} must resurface"
 
@@ -95,6 +95,7 @@ def test_PLANT_every_named_site_uses_the_helper():
     """`link_error_text`'s docstring warns that a grep stopping at the first two sites misses one.
     This makes that a gate. Asserted as a NAMED SET — the question is WHICH sites, not how many."""
     from tests._srcscan import module_source
+
     src = module_source("capture.py").split("\n")
     starts = {}
     for i, l in enumerate(src):
@@ -115,6 +116,7 @@ def test_PLANT_every_named_site_uses_the_helper():
 def test_the_count_precedes_the_logging_decision():
     """The load-bearing order, pinned by position rather than a fixed window."""
     from tests._srcscan import module_source
+
     src = module_source("capture.py")
-    body = src[src.index("def _log_link_error"):]
+    body = src[src.index("def _log_link_error") :]
     assert body.index('blestats.fail("link"') < body.index("log.warning")

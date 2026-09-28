@@ -57,8 +57,16 @@ MIN_THERAPY_MIN = 30.0
 MIN_COVER = 0.5
 
 
-def assess(therapy_min, stream_min, *, min_therapy_min: float = MIN_THERAPY_MIN,
-           min_cover: float = MIN_COVER, attempts=None, last_error=None, unreachable=None) -> dict:
+def assess(
+    therapy_min,
+    stream_min,
+    *,
+    min_therapy_min: float = MIN_THERAPY_MIN,
+    min_cover: float = MIN_COVER,
+    attempts=None,
+    last_error=None,
+    unreachable=None,
+) -> dict:
     """`{state, detail, therapy_min, stream_min, cover}` — did the live stream record the session? PURE.
 
     `therapy_min` is None when the detector could not measure it. That is UNKNOWN, not zero: treating
@@ -77,14 +85,18 @@ def assess(therapy_min, stream_min, *, min_therapy_min: float = MIN_THERAPY_MIN,
         why = ""
         if isinstance(unreachable, dict) and unreachable.get("n"):
             if unreachable.get("unanimous_absent"):
-                why = (f" — every one of {unreachable['n']} failed poll(s) reported the machine NOT "
-                       f"FOUND ({unreachable['dominant']}). Consistent with the machine being off, "
-                       f"and equally consistent with a radio that could not hear it all night; "
-                       f"nothing in this journal separates those")
+                why = (
+                    f" — every one of {unreachable['n']} failed poll(s) reported the machine NOT "
+                    f"FOUND ({unreachable['dominant']}). Consistent with the machine being off, "
+                    f"and equally consistent with a radio that could not hear it all night; "
+                    f"nothing in this journal separates those"
+                )
             else:
-                why = (f" — {unreachable['n']} failed poll(s), mostly {unreachable['dominant']}. At "
-                       f"least one blames the RADIO rather than the machine, so this is a capture "
-                       f"fault, not evidence about therapy")
+                why = (
+                    f" — {unreachable['n']} failed poll(s), mostly {unreachable['dominant']}. At "
+                    f"least one blames the RADIO rather than the machine, so this is a capture "
+                    f"fault, not evidence about therapy"
+                )
         return {
             "state": UNKNOWN,
             "therapy_min": None,
@@ -152,7 +164,7 @@ def assess(therapy_min, stream_min, *, min_therapy_min: float = MIN_THERAPY_MIN,
             return {
                 "state": AUTOSTART_FAILED,
                 "therapy_min": round(t, 1),
-            "therapy_observed_min": round(observed, 1),
+                "therapy_observed_min": round(observed, 1),
                 "stream_min": 0.0,
                 "cover": 0.0,
                 "attempts": n,
@@ -183,7 +195,7 @@ def assess(therapy_min, stream_min, *, min_therapy_min: float = MIN_THERAPY_MIN,
     return {
         "state": OK,
         "therapy_min": round(t, 1),
-            "therapy_observed_min": round(observed, 1),
+        "therapy_observed_min": round(observed, 1),
         "stream_min": round(s, 1),
         "cover": round(cover, 3),
         "detail": f"the live stream covered {s:.0f} of {t:.0f} therapy min ({100 * cover:.1f} %)",
@@ -248,18 +260,21 @@ def unreachable_reason(text: str) -> "dict | None":
         try:
             float(parts[0])
         except ValueError:
-            continue                       # header or torn line
+            continue  # header or torn line
         if parts[7].strip().lower() not in ("false", "0"):
-            continue                       # a reachable poll says nothing about why others failed
+            continue  # a reachable poll says nothing about why others failed
         n += 1
         cls = parts[5].strip() or "unknown"
         classes[cls] = classes.get(cls, 0) + 1
     if not n:
         return None
     dominant = max(classes.items(), key=lambda kv: (kv[1], kv[0]))[0]
-    return {"n": n, "classes": classes, "dominant": dominant,
-            "unanimous_absent": bool(classes) and all(
-                c.lower() in _ABSENT_CLASSES for c in classes)}
+    return {
+        "n": n,
+        "classes": classes,
+        "dominant": dominant,
+        "unanimous_absent": bool(classes) and all(c.lower() in _ABSENT_CLASSES for c in classes),
+    }
 
 
 MAX_GAP_S = 120.0
@@ -272,8 +287,9 @@ MAX_GAP_S = 120.0
 MIN_OBSERVED_FRAC = 0.667
 
 
-def therapy_minutes(text: str, *, max_gap_s: float = MAX_GAP_S,
-                    since_ms: float | None = None, until_ms: float | None = None):
+def therapy_minutes(
+    text: str, *, max_gap_s: float = MAX_GAP_S, since_ms: float | None = None, until_ms: float | None = None
+):
     """Minutes of observed Therapy in a SESSIONDETECT journal, or None if it cannot be measured. PURE.
 
     🔴 SCOPE THE WINDOW, OR THIS COUNTS THE WHOLE JOURNAL. `SESSIONDETECT.csv` is ONE append-only
@@ -359,8 +375,8 @@ def stream_minutes(headers):
         try:
             n, dur = float(h[0]), float(h[1])
         except (TypeError, ValueError, IndexError):
-            continue   # an unreadable EDF header contributes no minutes; #2004's `unreachable`
-                       # classification is what distinguishes "no data" from "machine was off"
+            continue  # an unreadable EDF header contributes no minutes; #2004's `unreachable`
+            # classification is what distinguishes "no data" from "machine was off"
         if n > 0 and dur > 0:
             total += n * dur
     return total / 60.0

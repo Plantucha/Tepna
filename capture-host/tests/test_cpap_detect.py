@@ -132,7 +132,9 @@ def _detector(reads, *, writer=None, t0=0.0):
 
 def test_poll_once_starts_session_and_journals():
     writer = _Writer()
-    det, sup = _detector([{"FGState": "Therapy", "MachineMetrics": {"LastTherapyUseDateTime": "2026-08-24T21:00:00Z"}}], writer=writer)
+    det, sup = _detector(
+        [{"FGState": "Therapy", "MachineMetrics": {"LastTherapyUseDateTime": "2026-08-24T21:00:00Z"}}], writer=writer
+    )
     d = _run(det.poll_once())
     assert sup.state == SessionState.ACTIVE
     assert d.transition == "start"

@@ -96,13 +96,16 @@ def _run(coro):
 def _bonded_says(value, expect="AA:BB"):
     """The bond read must be asked about the DEVICE, not about None — `_is_bonded(address)` →
     `_is_bonded(None)` survived until this asserted it."""
+
     async def _f(addr):
         assert addr == expect, f"the bond read must be asked about {expect}, got {addr!r}"
         return value
+
     return _f
 
 
 # ── read-only by default ─────────────────────────────────────────────────────────────────────────────
+
 
 def test_a_bare_run_asks_status_and_writes_nothing_else(monkeypatch):
     c = _FakeClient([_status(acc=pmd.NO_MEASUREMENT)])
@@ -123,8 +126,9 @@ def test_no_advertisement_is_NOT_absence_the_bonded_address_still_connects(monke
     out = _run(probe.run("AA:BB", None, pmd.ACC, force=False, seconds=1))
     assert "error" not in out, f"a reachable bonded device must not be reported as an error: {out}"
     assert out["reached_by"] == "bonded address (no advertisement seen)"
-    assert seen["connected_to"] == "AA:BB", \
+    assert seen["connected_to"] == "AA:BB", (
         "the ADDRESS is what must be connected when no advertisement was seen — that is the fallback"
+    )
     assert out["status_before"]["acc"] == "none", "…and the run proceeds normally"
 
 
@@ -135,8 +139,9 @@ def test_a_device_that_DID_advertise_is_reached_by_the_scanned_object(monkeypatc
     seen = _install(monkeypatch, _FakeClient([_status(acc=pmd.NO_MEASUREMENT)]), found=True)
     out = _run(probe.run("AA:BB", None, pmd.ACC, force=False, seconds=1))
     assert out["reached_by"] == "advertisement"
-    assert seen["connected_to"] is seen["advertised"], \
+    assert seen["connected_to"] is seen["advertised"], (
         "the scanned device object is what carries the resolved path — not the bare address"
+    )
 
 
 def test_an_explicit_adapter_reaches_the_client_and_a_bare_run_does_not_invent_one(monkeypatch):
@@ -147,8 +152,9 @@ def test_an_explicit_adapter_reaches_the_client_and_a_bare_run_does_not_invent_o
     seen = _install(monkeypatch, c)
     _run(probe.run("AA:BB", "hci1", pmd.ACC, force=False, seconds=1))
     assert seen["kwargs"] == {"adapter": "hci1"}
-    assert seen["connected_to"] is seen["advertised"], \
+    assert seen["connected_to"] is seen["advertised"], (
         "naming an adapter must not cost the device — the two branches differ ONLY in the adapter"
+    )
 
     c2 = _FakeClient([_status(acc=pmd.NO_MEASUREMENT)])
     seen2 = _install(monkeypatch, c2)
@@ -173,6 +179,7 @@ def test_a_genuinely_unreachable_device_gets_a_DIAGNOSIS_not_a_traceback(monkeyp
     escape as a stack dump, replacing an actionable sentence. The two states need OPPOSITE actions —
     idle on a wrist (do nothing) vs powered off (press the button) — so the bond state is READ, not
     guessed."""
+
     class _Refuses:
         async def __aenter__(self):
             raise probe.BleakError("Device with address AA:BB was not found.")
@@ -195,16 +202,19 @@ def test_a_genuinely_unreachable_device_gets_a_DIAGNOSIS_not_a_traceback(monkeyp
 
 # ── the forced path ──────────────────────────────────────────────────────────────────────────────────
 
+
 def test_a_confirmed_recording_is_confirmed_by_the_DEVICE_not_by_the_ack(monkeypatch):
-    c = _FakeClient([
-        _status(acc=pmd.NO_MEASUREMENT),                     # status_before
-        _ack(0x00, op=0x03),                                 # pre-stop
-        b"\xf0\x01\x02\x00\x00",                             # get_settings (empty -> fixed START)
-        _ack(0x00),                                          # start
-        _status(acc=pmd.OFFLINE_ACTIVE),                     # status_during — AND the verdict's evidence
-        _ack(0x00, op=0x03),                                 # stop
-        _status(acc=pmd.NO_MEASUREMENT),                     # status_after
-    ])
+    c = _FakeClient(
+        [
+            _status(acc=pmd.NO_MEASUREMENT),  # status_before
+            _ack(0x00, op=0x03),  # pre-stop
+            b"\xf0\x01\x02\x00\x00",  # get_settings (empty -> fixed START)
+            _ack(0x00),  # start
+            _status(acc=pmd.OFFLINE_ACTIVE),  # status_during — AND the verdict's evidence
+            _ack(0x00, op=0x03),  # stop
+            _status(acc=pmd.NO_MEASUREMENT),  # status_after
+        ]
+    )
     _install(monkeypatch, c)
     out = _run(probe.run("AA:BB", None, pmd.ACC, force=True, seconds=0))
     assert out["recording_confirmed_by_device"] is True
@@ -214,11 +224,17 @@ def test_a_confirmed_recording_is_confirmed_by_the_DEVICE_not_by_the_ack(monkeyp
 
 def test_an_ok_ack_without_a_recording_is_not_reported_as_success(monkeypatch):
     """The dangerous false positive: the device accepts the request and records nothing."""
-    c = _FakeClient([
-        _status(acc=pmd.NO_MEASUREMENT), _ack(0x00, op=0x03), b"\xf0\x01\x02\x00\x00", _ack(0x00),
-        _status(acc=pmd.NO_MEASUREMENT),
-        _ack(0x00, op=0x03), _status(acc=pmd.NO_MEASUREMENT),
-    ])
+    c = _FakeClient(
+        [
+            _status(acc=pmd.NO_MEASUREMENT),
+            _ack(0x00, op=0x03),
+            b"\xf0\x01\x02\x00\x00",
+            _ack(0x00),
+            _status(acc=pmd.NO_MEASUREMENT),
+            _ack(0x00, op=0x03),
+            _status(acc=pmd.NO_MEASUREMENT),
+        ]
+    )
     _install(monkeypatch, c)
     out = _run(probe.run("AA:BB", None, pmd.ACC, force=True, seconds=0))
     assert out["recording_confirmed_by_device"] is False
@@ -235,17 +251,25 @@ def test_PLANT_a_silent_status_read_is_not_a_device_saying_no(monkeypatch):
     lines above, has returned `{"error": "no reply to status"}` for exactly this case all along.
     """
     monkeypatch.setattr(probe, "CP_REPLY_TIMEOUT_S", 0.05)
-    c = _FakeClient([
-        _status(acc=pmd.NO_MEASUREMENT), _ack(0x00, op=0x03), b"\xf0\x01\x02\x00\x00", _ack(0x00),
-        None,                                                # the status read goes UNANSWERED
-        _ack(0x00, op=0x03), _status(acc=pmd.NO_MEASUREMENT),
-    ])
+    c = _FakeClient(
+        [
+            _status(acc=pmd.NO_MEASUREMENT),
+            _ack(0x00, op=0x03),
+            b"\xf0\x01\x02\x00\x00",
+            _ack(0x00),
+            None,  # the status read goes UNANSWERED
+            _ack(0x00, op=0x03),
+            _status(acc=pmd.NO_MEASUREMENT),
+        ]
+    )
     _install(monkeypatch, c)
     out = _run(probe.run("AA:BB", None, pmd.ACC, force=True, seconds=0))
     assert out["recording_confirmed_by_device"] is None, (
-        f"unanswered is not the device saying no: got {out['recording_confirmed_by_device']!r}")
+        f"unanswered is not the device saying no: got {out['recording_confirmed_by_device']!r}"
+    )
     assert out["status_during"] == {"error": "no reply to status"}, (
-        "and the published status must show the silence, not an empty reading")
+        "and the published status must show the silence, not an empty reading"
+    )
     assert "does not report recording" not in out["verdict"], out["verdict"]
     assert "NOT established" in out["verdict"], out["verdict"]
 
@@ -255,11 +279,17 @@ def test_PLANT_the_published_status_is_the_evidence_for_the_verdict(monkeypatch)
 
     One read, not two. The status this probe PUBLISHES must be the one the boolean was drawn from —
     it used to send `status_cmd()` twice, so a disagreement between them was unobservable."""
-    c = _FakeClient([
-        _status(acc=pmd.NO_MEASUREMENT), _ack(0x00, op=0x03), b"\xf0\x01\x02\x00\x00", _ack(0x00),
-        _status(acc=pmd.OFFLINE_ACTIVE),                     # the ONLY status read of the forced path
-        _ack(0x00, op=0x03), _status(acc=pmd.NO_MEASUREMENT),
-    ])
+    c = _FakeClient(
+        [
+            _status(acc=pmd.NO_MEASUREMENT),
+            _ack(0x00, op=0x03),
+            b"\xf0\x01\x02\x00\x00",
+            _ack(0x00),
+            _status(acc=pmd.OFFLINE_ACTIVE),  # the ONLY status read of the forced path
+            _ack(0x00, op=0x03),
+            _status(acc=pmd.NO_MEASUREMENT),
+        ]
+    )
     _install(monkeypatch, c)
     out = _run(probe.run("AA:BB", None, pmd.ACC, force=True, seconds=0))
     assert out["recording_confirmed_by_device"] is True
@@ -269,10 +299,16 @@ def test_PLANT_the_published_status_is_the_evidence_for_the_verdict(monkeypatch)
 
 
 def test_in_charger_is_reported_as_a_device_state_not_a_protocol_failure(monkeypatch):
-    c = _FakeClient([
-        _status(acc=pmd.NO_MEASUREMENT), _ack(0x00, op=0x03), b"\xf0\x01\x02\x00\x00", _ack(0x0D),
-        _ack(0x00, op=0x03), _status(acc=pmd.NO_MEASUREMENT),
-    ])
+    c = _FakeClient(
+        [
+            _status(acc=pmd.NO_MEASUREMENT),
+            _ack(0x00, op=0x03),
+            b"\xf0\x01\x02\x00\x00",
+            _ack(0x0D),
+            _ack(0x00, op=0x03),
+            _status(acc=pmd.NO_MEASUREMENT),
+        ]
+    )
     _install(monkeypatch, c)
     out = _run(probe.run("AA:BB", None, pmd.ACC, force=True, seconds=0))
     assert "IN THE CHARGER" in out["verdict"]
@@ -281,11 +317,18 @@ def test_in_charger_is_reported_as_a_device_state_not_a_protocol_failure(monkeyp
 
 
 def test_the_start_command_carries_the_recording_bit(monkeypatch):
-    c = _FakeClient([
-        _status(acc=pmd.NO_MEASUREMENT), _ack(0x00, op=0x03), b"\xf0\x01\x02\x00\x00", _ack(0x00),
-        _status(acc=pmd.OFFLINE_ACTIVE), _status(acc=pmd.OFFLINE_ACTIVE),
-        _ack(0x00, op=0x03), _status(acc=pmd.NO_MEASUREMENT),
-    ])
+    c = _FakeClient(
+        [
+            _status(acc=pmd.NO_MEASUREMENT),
+            _ack(0x00, op=0x03),
+            b"\xf0\x01\x02\x00\x00",
+            _ack(0x00),
+            _status(acc=pmd.OFFLINE_ACTIVE),
+            _status(acc=pmd.OFFLINE_ACTIVE),
+            _ack(0x00, op=0x03),
+            _status(acc=pmd.NO_MEASUREMENT),
+        ]
+    )
     _install(monkeypatch, c)
     out = _run(probe.run("AA:BB", None, pmd.ACC, force=True, seconds=0))
     sent = bytes.fromhex(out["start_cmd"])
@@ -301,14 +344,20 @@ def _assert_stopped_after_starting(c):
     starts = [i for i, w in enumerate(c.writes) if w and w[0] == 0x02]
     stops = [i for i, w in enumerate(c.writes) if w == bytes([0x03, pmd.ACC])]
     assert starts, "no start was issued, so this test is not testing what it says"
-    assert any(i > starts[-1] for i in stops), \
+    assert any(i > starts[-1] for i in stops), (
         "nothing stopped the recording AFTER it started — the flash fills until the device auto-stops"
+    )
 
 
 _FORCED = [
-    _status(acc=pmd.NO_MEASUREMENT), _ack(0x00, op=0x03), b"\xf0\x01\x02\x00\x00", _ack(0x00),
-    _status(acc=pmd.OFFLINE_ACTIVE), _status(acc=pmd.OFFLINE_ACTIVE),
-    _ack(0x00, op=0x03), _status(acc=pmd.NO_MEASUREMENT),
+    _status(acc=pmd.NO_MEASUREMENT),
+    _ack(0x00, op=0x03),
+    b"\xf0\x01\x02\x00\x00",
+    _ack(0x00),
+    _status(acc=pmd.OFFLINE_ACTIVE),
+    _status(acc=pmd.OFFLINE_ACTIVE),
+    _ack(0x00, op=0x03),
+    _status(acc=pmd.NO_MEASUREMENT),
 ]
 
 
@@ -320,6 +369,7 @@ def test_the_hold_is_capped_at_a_minute_however_long_was_asked(monkeypatch):
 
     async def _sleep(s):
         slept.append(s)
+
     monkeypatch.setattr(probe.asyncio, "sleep", _sleep)
 
     _install(monkeypatch, _FakeClient(list(_FORCED)))
@@ -343,29 +393,40 @@ def test_the_start_is_built_for_the_REQUESTED_type_from_the_DEVICE_s_settings(mo
     def spy(meas, settings):
         seen["args"] = (meas, settings)
         return negotiated
+
     monkeypatch.setattr(probe.pmd, "build_start", spy)
     _install(monkeypatch, _FakeClient(list(_FORCED)))
     out = _run(probe.run("AA:BB", None, pmd.ACC, force=True, seconds=0))
-    assert seen["args"] == (pmd.ACC, pmd.parse_settings_response(b"\xf0\x01\x02\x00\x00")), \
+    assert seen["args"] == (pmd.ACC, pmd.parse_settings_response(b"\xf0\x01\x02\x00\x00")), (
         "the start must be built for the requested type, from what the device just answered"
-    assert bytes.fromhex(out["start_cmd"]) == pmd.as_offline(negotiated), \
+    )
+    assert bytes.fromhex(out["start_cmd"]) == pmd.as_offline(negotiated), (
         "the NEGOTIATED command must win over the fixed table"
+    )
 
     monkeypatch.setattr(probe.pmd, "build_start", lambda *a, **k: None)
     _install(monkeypatch, _FakeClient(list(_FORCED)))
     out = _run(probe.run("AA:BB", None, pmd.ACC, force=True, seconds=0))
-    assert bytes.fromhex(out["start_cmd"]) == pmd.as_offline(pmd.START[pmd.ACC]), \
+    assert bytes.fromhex(out["start_cmd"]) == pmd.as_offline(pmd.START[pmd.ACC]), (
         "…and with nothing negotiated it falls back to the fixed command FOR THAT TYPE"
+    )
 
 
 def test_every_stop_written_is_the_bare_type(monkeypatch):
     """Hardware refuses `03 82` with GATT Unlikely Error. Pinned here so the probe can never re-learn
     it the expensive way."""
-    c = _FakeClient([
-        _status(acc=pmd.NO_MEASUREMENT), _ack(0x00, op=0x03), b"\xf0\x01\x02\x00\x00", _ack(0x00),
-        _status(acc=pmd.OFFLINE_ACTIVE), _status(acc=pmd.OFFLINE_ACTIVE),
-        _ack(0x00, op=0x03), _status(acc=pmd.NO_MEASUREMENT),
-    ])
+    c = _FakeClient(
+        [
+            _status(acc=pmd.NO_MEASUREMENT),
+            _ack(0x00, op=0x03),
+            b"\xf0\x01\x02\x00\x00",
+            _ack(0x00),
+            _status(acc=pmd.OFFLINE_ACTIVE),
+            _status(acc=pmd.OFFLINE_ACTIVE),
+            _ack(0x00, op=0x03),
+            _status(acc=pmd.NO_MEASUREMENT),
+        ]
+    )
     _install(monkeypatch, c)
     _run(probe.run("AA:BB", None, pmd.ACC, force=True, seconds=0))
     stops = [w for w in c.writes if w and w[0] == 0x03]
@@ -378,13 +439,19 @@ def test_every_stop_written_is_the_bare_type(monkeypatch):
 def test_the_device_is_stopped_even_when_the_run_raises(monkeypatch):
     """The property that matters most: a probe that starts a recording it cannot stop leaves the flash
     filling until the device auto-stops mid-night."""
-    c = _FakeClient([
-        _status(acc=pmd.NO_MEASUREMENT), _ack(0x00, op=0x03), b"\xf0\x01\x02\x00\x00", _ack(0x00),
-    ])
+    c = _FakeClient(
+        [
+            _status(acc=pmd.NO_MEASUREMENT),
+            _ack(0x00, op=0x03),
+            b"\xf0\x01\x02\x00\x00",
+            _ack(0x00),
+        ]
+    )
     _install(monkeypatch, c)
 
     async def boom(_):
         raise RuntimeError("link dropped mid-recording")
+
     monkeypatch.setattr(probe.asyncio, "sleep", boom)
     with pytest.raises(RuntimeError):
         _run(probe.run("AA:BB", None, pmd.ACC, force=True, seconds=5))
@@ -402,6 +469,7 @@ def test_a_measurement_with_no_start_command_is_refused(monkeypatch):
 
 # ── the small pure helpers ───────────────────────────────────────────────────────────────────────────
 
+
 def test_a_missing_reply_is_no_response_not_a_guess():
     assert probe._ack_status(None) == (pmd.NO_ACK, "no_response")
     assert probe._status_of(None) == {"error": "no reply to status"}
@@ -417,7 +485,7 @@ def test_an_unknown_status_code_is_named_rather_than_hidden():
 
 
 def test_a_control_timeout_yields_none_rather_than_hanging(monkeypatch):
-    c = _FakeClient([])                                   # never answers
+    c = _FakeClient([])  # never answers
     ctl = probe._Control(c)
     _run(ctl.start())
     assert _run(ctl.send(b"\x05", timeout=0.01)) is None
@@ -427,16 +495,18 @@ def test_stale_replies_are_dropped_before_the_next_command(monkeypatch):
     c = _FakeClient([_ack(0x00)])
     ctl = probe._Control(c)
     _run(ctl.start())
-    ctl.q.put_nowait(b"\xff\xff")                          # a leftover from a previous command
+    ctl.q.put_nowait(b"\xff\xff")  # a leftover from a previous command
     got = _run(ctl.send(b"\x05"))
     assert got == _ack(0x00), "a stale reply was returned as this command's answer"
 
 
 # ── CLI ──────────────────────────────────────────────────────────────────────────────────────────────
 
+
 def test_main_prints_the_verdict_and_exits_zero(monkeypatch, capsys):
     async def fake(*a, **k):
         return {"verdict": "FORCED RECORDING CONFIRMED"}
+
     monkeypatch.setattr(probe, "run", fake)
     assert probe.main(["--address", "AA:BB"]) == 0
     assert "CONFIRMED" in capsys.readouterr().out
@@ -445,6 +515,7 @@ def test_main_prints_the_verdict_and_exits_zero(monkeypatch, capsys):
 def test_main_exits_nonzero_when_the_probe_could_not_run(monkeypatch, capsys):
     async def fake(*a, **k):
         return {"error": "device not found"}
+
     monkeypatch.setattr(probe, "run", fake)
     assert probe.main(["--address", "AA:BB"]) == 1
     assert "not found" in capsys.readouterr().out
@@ -457,6 +528,7 @@ def test_the_default_target_is_acc_because_recording_removes_the_live_stream(mon
     async def fake(address, adapter, meas, force, seconds):
         seen["meas"] = meas
         return {"verdict": "x"}
+
     monkeypatch.setattr(probe, "run", fake)
     probe.main(["--address", "AA:BB"])
     assert seen["meas"] == pmd.ACC
@@ -466,6 +538,7 @@ def test_the_default_target_is_acc_because_recording_removes_the_live_stream(mon
 # The tests above monkeypatch `_is_bonded`, so its own body never ran. That body is what decides
 # between "press the button" and "pair it first" — opposite ends of the room for the operator — so it
 # needs its own cases, including the one where bluetoothctl cannot be asked at all.
+
 
 def _bluetoothctl(monkeypatch, *, stdout="", raises=None):
     def _run(cmd, capture_output=False, text=False, timeout=None):
@@ -477,6 +550,7 @@ def _bluetoothctl(monkeypatch, *, stdout="", raises=None):
         if raises:
             raise raises
         return types.SimpleNamespace(stdout=stdout)
+
     monkeypatch.setattr(probe.subprocess, "run", _run)
 
 

@@ -47,8 +47,7 @@ class SubprocessRecorder:
         self.reply = lambda argv: _Completed(0, "", "")
 
     def __call__(self, argv=None, *, capture_output, text, timeout, **rest):
-        self.calls.append(RecordedRun(argv, dict(capture_output=capture_output, text=text,
-                                                 timeout=timeout, **rest)))
+        self.calls.append(RecordedRun(argv, dict(capture_output=capture_output, text=text, timeout=timeout, **rest)))
         r = self.reply(argv)
         if isinstance(r, BaseException):
             raise r
@@ -88,8 +87,9 @@ def recorded_run(monkeypatch):
     import cpap_harvest
 
     rec = SubprocessRecorder()
-    monkeypatch.setattr(cpap_harvest._subprocess if hasattr(cpap_harvest, "_subprocess")
-                        else cpap_harvest.subprocess, "run", rec)
+    monkeypatch.setattr(
+        cpap_harvest._subprocess if hasattr(cpap_harvest, "_subprocess") else cpap_harvest.subprocess, "run", rec
+    )
     return rec
 
 
@@ -189,7 +189,7 @@ class AlertRecorder:
     per poll, and a double that swallows them cannot tell those two behaviours apart."""
 
     def __init__(self, deliver=True):
-        self.calls = []            # [(title, message, kwargs)]
+        self.calls = []  # [(title, message, kwargs)]
         self.deliver = deliver
 
     async def send(self, title, message, **kw):
@@ -357,6 +357,7 @@ def _sample_writer_count_is_not_leaked(request):
     deliberate leftover. The reset is what fixes the contamination; the tripwire is what stops the
     next leak from being invisible until a mutation run orders the tests differently."""
     import writers as _w
+
     _w._open_sample_writers = 0
     yield
     left = _w._open_sample_writers
@@ -426,6 +427,7 @@ def _no_fsync_barrier_spans_tests():
     only guarantees none is still in flight when the next test starts."""
     yield
     import writers
+
     writers._drain_fsync(timeout=5.0)
 
 
@@ -451,6 +453,7 @@ def _capture_clock_anchor_is_not_leaked():
     population is not enumerated here; this fixture closes the clock leak it was written for.
     Snapshot before, restore after — never `_reanchor()` here, which would itself write globals."""
     import capture
+
     keep = {k: getattr(capture, k) for k in ("_anchor_wall", "_anchor_mono", "_anchor_utcoff", "_civil_shift")}
     yield
     for k, v in keep.items():
@@ -470,6 +473,7 @@ def _capture_status_is_not_leaked():
     Snapshot one level deep (each top-level dict copied, so a write into `devices` is undone too) and put it
     back after; nothing is written BEFORE the test, so no test's starting state changes."""
     import capture
+
     keep = {k: (dict(v) if isinstance(v, dict) else v) for k, v in capture.STATUS.items()}
     yield
     capture.STATUS.clear()

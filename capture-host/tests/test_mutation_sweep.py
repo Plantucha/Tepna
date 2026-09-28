@@ -19,6 +19,7 @@ import mutation_sweep as S  # noqa: E402
 
 # ── budget: a FAILED measurement must not become a plausible number ─────────────────────────────
 
+
 def test_a_clean_run_that_DID_NOT_PASS_refuses_instead_of_taking_the_floor():
     """🔴 THE DEFECT THIS UNIT CLOSES. `clean_run_seconds` discarded the subprocess return code, so a
     clean run failing in ~0.2 s (collection error, bad path, missing plugin) produced a budget of
@@ -30,7 +31,7 @@ def test_a_clean_run_that_DID_NOT_PASS_refuses_instead_of_taking_the_floor():
     verdict, budget, why = S.budget_verdict(0.2, measured_ok=False)
     assert verdict == S.BUDGET_REFUSED
     assert budget is None, "a failed measurement produced a number anyway"
-    assert 'measures nothing' in why
+    assert "measures nothing" in why
     # ⚠️ The control that matters: the refusal and the floor must not be the same answer.
     ok_verdict, ok_budget, _ = S.budget_verdict(0.2, measured_ok=True)
     assert ok_verdict == S.BUDGET_OK and ok_budget == 1800
@@ -38,8 +39,8 @@ def test_a_clean_run_that_DID_NOT_PASS_refuses_instead_of_taking_the_floor():
 
 
 def test_a_passing_clean_run_scales_at_300x_with_an_1800s_floor():
-    assert S.budget_verdict(0.2, True)[1] == 1800          # floor dominates a fast module
-    assert S.budget_verdict(21.5, True)[1] == 6450         # webmon: 300x, well above the floor
+    assert S.budget_verdict(0.2, True)[1] == 1800  # floor dominates a fast module
+    assert S.budget_verdict(21.5, True)[1] == 6450  # webmon: 300x, well above the floor
     assert S.budget_verdict(10.0, True)[0] == S.BUDGET_OK
 
 
@@ -48,7 +49,7 @@ def test_an_implausible_duration_refuses_even_when_the_run_passed():
     for bad in (0.0, -1.0):
         verdict, budget, why = S.budget_verdict(bad, True)
         assert verdict == S.BUDGET_REFUSED and budget is None
-        assert 'implausible' in why
+        assert "implausible" in why
 
 
 def test_no_int_convenience_wrapper_survives_without_a_caller():
@@ -56,7 +57,7 @@ def test_no_int_convenience_wrapper_survives_without_a_caller():
     it as referenced only by these tests. The tool needs the REFUSAL and calls `budget_verdict`;
     nothing called the int form. Pinned so it does not get re-added on the same false rationale —
     "back-compat" was carried over from `mutation_diff`, where the wrapper had real prior callers."""
-    assert not hasattr(S, 'budget_for')
+    assert not hasattr(S, "budget_for")
 
 
 # ── selection: an exclusion must be REPORTED, never dropped silently ────────────────────────────
@@ -116,16 +117,16 @@ def test_a_caller_may_override_the_exclusion_set():
 def test_a_node_id_exclusion_KEEPS_the_file():
     """The whole point: the file stays selected, so its other tests still kill mutants."""
     cands = [("tests/test_capture_runners.py", "capture things")]
-    kept, dropped = S.select_tests(cands, "capture",
-                                   excluded=frozenset({"tests/test_capture_runners.py::test_x"}))
+    kept, dropped = S.select_tests(cands, "capture", excluded=frozenset({"tests/test_capture_runners.py::test_x"}))
     assert kept == ["tests/test_capture_runners.py"], "a node id must not drop its file"
     assert dropped == [], "a node id is not a file exclusion"
 
 
 def test_deselect_args_emits_pytest_flags_sorted():
     args = S.deselect_args({"tests/b.py::test_2": "m.py", "tests/a.py::test_1": "m.py"})
-    assert args == ["--deselect", "tests/a.py::test_1", "--deselect", "tests/b.py::test_2"], \
+    assert args == ["--deselect", "tests/a.py::test_1", "--deselect", "tests/b.py::test_2"], (
         "sorted, so the emitted config is stable across runs"
+    )
     assert S.deselect_args({}) == []
 
 
@@ -154,8 +155,9 @@ def test_the_file_part_of_a_CLASS_BASED_node_id_still_matches():
     d = {"tests/test_c.py::TestC::test_m": "capture.py"}
     kept = ["tests/test_c.py"]
     assert S.deselect_notes("capture.py", kept, d) == ["tests/test_c.py::TestC::test_m"]
-    assert S.deselect_notes("capture.py", ["tests/test_c.py::TestC"], d) == [], \
+    assert S.deselect_notes("capture.py", ["tests/test_c.py::TestC"], d) == [], (
         "the file part is the whole first segment, not everything up to the last separator"
+    )
 
 
 def test_a_None_scope_reports_nowhere():
@@ -166,7 +168,9 @@ def test_a_None_scope_reports_nowhere():
     kept = ["tests/test_check_script.py"]
     assert S.deselect_notes("capture.py", kept, d) == []
     assert S.deselect_notes("check_script.py", kept, d) == []
-    assert S.deselect_args(d) == ["--deselect", "tests/test_check_script.py::test_mode"],         "still deselected — silent about cost is not the same as not applied"
+    assert S.deselect_args(d) == ["--deselect", "tests/test_check_script.py::test_mode"], (
+        "still deselected — silent about cost is not the same as not applied"
+    )
 
 
 def test_the_live_entries_are_pinned_with_their_reasons():
@@ -180,8 +184,9 @@ def test_the_live_entries_are_pinned_with_their_reasons():
         "tests/test_vigil_update.py::test_a_unit_that_directly_execs_a_repo_script_requires_the_exec_bit": None,
         "tests/test_cpap_spool_wire.py::test_every_documented_spool_pull_key_is_actually_READ": "capture.py",
     }
-    assert sum(v is None for v in S.DESELECTED_TESTS.values()) == 2, \
+    assert sum(v is None for v in S.DESELECTED_TESTS.values()) == 2, (
         "the free ones assert a committed FILE MODE; mutating a function cannot break that"
+    )
     assert "::" not in "".join(S.SOURCE_SCANNING_TESTS), "file entries stay file-granular"
 
 
@@ -211,7 +216,8 @@ def test_the_driver_bounds_a_SINGLE_mutant_not_just_the_module():
     table = src.split("[tool.mutmut]", 1)[1].split('"""', 1)[0]
     assert "timeout_multiplier = 3.0" in table, (
         "the per-mutant timeout is unset inside [tool.mutmut] — a runaway mutant will hang the whole "
-        f"run behind the module cap, which cannot distinguish it from honest work. Table was:\n{table}")
+        f"run behind the module cap, which cannot distinguish it from honest work. Table was:\n{table}"
+    )
 
 
 def test_the_CLEAN_RUN_applies_the_deselections_too():
@@ -235,14 +241,16 @@ def test_the_CLEAN_RUN_applies_the_deselections_too():
     import ast
 
     src = (HERE / "tools" / "mutate.py").read_text(encoding="utf-8")
-    fn = next((n for n in ast.walk(ast.parse(src))
-               if isinstance(n, ast.FunctionDef) and n.name == "clean_run_seconds"), None)
+    fn = next(
+        (n for n in ast.walk(ast.parse(src)) if isinstance(n, ast.FunctionDef) and n.name == "clean_run_seconds"), None
+    )
     assert fn is not None, "clean_run_seconds is gone — this pin is stale, not passing"
     calls = {ast.unparse(c.func) for c in ast.walk(fn) if isinstance(c, ast.Call)}
     assert "deselect_args" in calls, (
         "clean_run_seconds no longer applies deselect_args(), so the baseline runs a DIFFERENT "
         "selection than the mutants. A test that cannot pass in a scratch tree then fails the clean "
-        "run, and every mutant reports 'no budget' — a harness gap wearing the shape of a finding.")
+        "run, and every mutant reports 'no budget' — a harness gap wearing the shape of a finding."
+    )
 
 
 def test_a_refusing_clean_run_SAYS_WHICH_TEST_FAILED():
@@ -262,15 +270,17 @@ def test_a_refusing_clean_run_SAYS_WHICH_TEST_FAILED():
     import ast
 
     src = (HERE / "tools" / "mutate.py").read_text(encoding="utf-8")
-    fn = next((n for n in ast.walk(ast.parse(src))
-               if isinstance(n, ast.FunctionDef) and n.name == "clean_run_seconds"), None)
+    fn = next(
+        (n for n in ast.walk(ast.parse(src)) if isinstance(n, ast.FunctionDef) and n.name == "clean_run_seconds"), None
+    )
     assert fn is not None, "clean_run_seconds is gone — this pin is stale, not passing"
-    assert any(isinstance(n, ast.Call) and getattr(n.func, "id", "") == "print"
-               for n in ast.walk(fn)), (
+    assert any(isinstance(n, ast.Call) and getattr(n.func, "id", "") == "print" for n in ast.walk(fn)), (
         "clean_run_seconds no longer reports the failure it captured — a refusal that cannot name "
-        "the failing test sends the next reader through the whole diagnosis again")
-    assert any(isinstance(n, ast.If) for n in ast.walk(fn)), \
+        "the failing test sends the next reader through the whole diagnosis again"
+    )
+    assert any(isinstance(n, ast.If) for n in ast.walk(fn)), (
         "the report must be conditional on failure, not printed over a passing run"
+    )
 
 
 def test_the_clean_run_report_includes_the_ASSERTION_BODY_not_just_the_summary():
@@ -290,10 +300,12 @@ def test_the_clean_run_report_includes_the_ASSERTION_BODY_not_just_the_summary()
     import ast
 
     src = (HERE / "tools" / "mutate.py").read_text(encoding="utf-8")
-    fn = next((n for n in ast.walk(ast.parse(src))
-               if isinstance(n, ast.FunctionDef) and n.name == "clean_run_seconds"), None)
+    fn = next(
+        (n for n in ast.walk(ast.parse(src)) if isinstance(n, ast.FunctionDef) and n.name == "clean_run_seconds"), None
+    )
     assert fn is not None, "clean_run_seconds is gone — this pin is stale, not passing"
     consts = {n.value for n in ast.walk(fn) if isinstance(n, ast.Constant) and isinstance(n.value, str)}
     assert any("FAILURES" in c for c in consts), (
         "clean_run_seconds no longer reads pytest's FAILURES section, so a refusal reports only the "
-        "first line of the assertion — the part that says WHAT failed is dropped")
+        "first line of the assertion — the part that says WHAT failed is dropped"
+    )

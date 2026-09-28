@@ -46,6 +46,7 @@ Usage (on the box; the daemon's O2Ring runner must be off the link — link_guar
 Then `--summarize <jsonl>` prints per-address counts, advert intervals (median/p90/max), RSSI range and
 the distinct manufacturer payloads seen under each label — the table the harvest brief will cite.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -88,7 +89,7 @@ def platform_extras(platform_data: Any) -> dict[str, Any]:
         if k not in props:
             continue
         v = props[k]
-        v = getattr(v, "value", v)              # dbus_fast Variant → payload
+        v = getattr(v, "value", v)  # dbus_fast Variant → payload
         if isinstance(v, dict):
             out[k] = {str(t): _hex(p) for t, p in v.items()}
         elif isinstance(v, (bytes, bytearray)):
@@ -103,8 +104,9 @@ def hypotheses_for(manufacturer_data: dict[int, Any]) -> list[str]:
     return [f"0x{cid:04X}: {MFR_HYPOTHESES[cid]}" for cid in sorted(manufacturer_data) if cid in MFR_HYPOTHESES]
 
 
-def decode_sighting(address: str, adv: Any, *, expected_addr: str, label: str, scan_mode: str,
-                    host_wall: float, host_mono: float) -> dict[str, Any]:
+def decode_sighting(
+    address: str, adv: Any, *, expected_addr: str, label: str, scan_mode: str, host_wall: float, host_mono: float
+) -> dict[str, Any]:
     """One advertisement → one flat, JSON-safe row. Pure; `adv` is anything with bleak's
     AdvertisementData attribute names (the fake in the tests is a namespace)."""
     mfr = {int(k): v for k, v in (getattr(adv, "manufacturer_data", None) or {}).items()}
@@ -137,6 +139,7 @@ def label_reader_for(initial: str, path: str | None) -> Callable[[], str]:
     """The current operator label: the CLI value, overridden by the first line of `path` whenever that
     file exists and is non-empty — so a transition can be stamped from a second shell without
     stopping the run."""
+
     def read() -> str:
         if path:
             try:
@@ -147,6 +150,7 @@ def label_reader_for(initial: str, path: str | None) -> Callable[[], str]:
             except OSError:
                 pass  # label file absent/unreadable this instant → the initial label stands; not a failure
         return initial
+
     return read
 
 
@@ -168,10 +172,20 @@ class JsonlSink:
         self._fh.close()
 
 
-async def run_probe(*, scanner_factory, expected_addr: str, sink, duration_s: float | None,
-                    label_reader: Callable[[], str], scan_mode: str, keep_all: bool = False,
-                    mono=time.monotonic, wall=time.time, sleep=asyncio.sleep,
-                    progress: Callable[[str], None] | None = None) -> dict[str, Any]:
+async def run_probe(
+    *,
+    scanner_factory,
+    expected_addr: str,
+    sink,
+    duration_s: float | None,
+    label_reader: Callable[[], str],
+    scan_mode: str,
+    keep_all: bool = False,
+    mono=time.monotonic,
+    wall=time.time,
+    sleep=asyncio.sleep,
+    progress: Callable[[str], None] | None = None,
+) -> dict[str, Any]:
     """The testable orchestration. `scanner_factory(callback)` returns an object with async
     `start()`/`stop()` that calls `callback(device, adv)` per advertisement — bleak's BleakScanner
     shape, faked in the tests. Returns the run's counters (written rows, dropped-other-address
@@ -182,16 +196,25 @@ async def run_probe(*, scanner_factory, expected_addr: str, sink, duration_s: fl
     t_end = None if duration_s is None else mono() + duration_s
 
     def on_adv(device, adv):
-        row = decode_sighting(device.address, adv, expected_addr=expected_addr, label=label_reader(),
-                              scan_mode=scan_mode, host_wall=wall(), host_mono=mono())
+        row = decode_sighting(
+            device.address,
+            adv,
+            expected_addr=expected_addr,
+            label=label_reader(),
+            scan_mode=scan_mode,
+            host_wall=wall(),
+            host_mono=mono(),
+        )
         if row["expected"]:
             counters["expected_seen"] += 1
         if keep_row(row, keep_all=keep_all):
             sink.write(row)
             counters["written"] += 1
             if progress:
-                progress(f"{row['label']} {row['address']} rssi={row['rssi']} "
-                         f"mfr={row['manufacturer_data']} name={row['local_name']!r}")
+                progress(
+                    f"{row['label']} {row['address']} rssi={row['rssi']} "
+                    f"mfr={row['manufacturer_data']} name={row['local_name']!r}"
+                )
         else:
             counters["dropped"] += 1
             others.add(row["address"])
@@ -204,8 +227,12 @@ async def run_probe(*, scanner_factory, expected_addr: str, sink, duration_s: fl
     finally:
         await scanner.stop()
         sink.close()
-    return {"written": counters["written"], "dropped": counters["dropped"],
-            "other_addresses": len(others), "expected_seen": counters["expected_seen"]}
+    return {
+        "written": counters["written"],
+        "dropped": counters["dropped"],
+        "other_addresses": len(others),
+        "expected_seen": counters["expected_seen"],
+    }
 
 
 def _quantile(xs: list[float], q: float) -> float:
@@ -223,28 +250,36 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
     by: dict[tuple[str, str], list[dict[str, Any]]] = {}
     for r in rows:
         by.setdefault((r["address"], r["label"]), []).append(r)
-    out: dict[str, Any] = {"note": "intervals are host-observed (scanner drops included): a LOWER bound on advert rate",
-                           "groups": []}
+    out: dict[str, Any] = {
+        "note": "intervals are host-observed (scanner drops included): a LOWER bound on advert rate",
+        "groups": [],
+    }
     for (addr, label), grp in sorted(by.items()):
         grp.sort(key=lambda r: r["host_mono"])
         monos = [r["host_mono"] for r in grp]
         gaps = [b - a for a, b in zip(monos, monos[1:]) if b > a]
         rssis = [r["rssi"] for r in grp if isinstance(r["rssi"], (int, float))]
         payloads = sorted({json.dumps(r["manufacturer_data"], sort_keys=True) for r in grp})
-        out["groups"].append({
-            "address": addr, "label": label, "n": len(grp),
-            "span_s": round(monos[-1] - monos[0], 3),     # a group is never empty; one row → 0.0
-            "interval_s": None if not gaps else {
-                "median": round(statistics.median(gaps), 3),
-                "p90": round(_quantile(gaps, 0.9), 3),
-                "max": round(max(gaps), 3),
-            },
-            "rssi": None if not rssis else {"min": min(rssis), "max": max(rssis)},
-            "scan_modes": sorted({r["scan_mode"] for r in grp}),
-            "manufacturer_payloads": payloads,
-            "hypotheses": sorted({h for r in grp for h in r["hypothesis"]}),
-            "local_names": sorted({str(r["local_name"]) for r in grp}),
-        })
+        out["groups"].append(
+            {
+                "address": addr,
+                "label": label,
+                "n": len(grp),
+                "span_s": round(monos[-1] - monos[0], 3),  # a group is never empty; one row → 0.0
+                "interval_s": None
+                if not gaps
+                else {
+                    "median": round(statistics.median(gaps), 3),
+                    "p90": round(_quantile(gaps, 0.9), 3),
+                    "max": round(max(gaps), 3),
+                },
+                "rssi": None if not rssis else {"min": min(rssis), "max": max(rssis)},
+                "scan_modes": sorted({r["scan_mode"] for r in grp}),
+                "manufacturer_payloads": payloads,
+                "hypotheses": sorted({h for r in grp for h in r["hypothesis"]}),
+                "local_names": sorted({str(r["local_name"]) for r in grp}),
+            }
+        )
     return out
 
 
@@ -258,8 +293,10 @@ def _or_patterns():  # pragma: no cover - bleak/BlueZ type construction, exercis
     from bleak.assigned_numbers import AdvertisementDataType
 
     # Manufacturer-specific data, company id little-endian at offset 0 — the two hypothesised ids.
-    return [OrPattern(0, AdvertisementDataType.MANUFACTURER_SPECIFIC_DATA, cid.to_bytes(2, "little"))
-            for cid in MFR_HYPOTHESES]
+    return [
+        OrPattern(0, AdvertisementDataType.MANUFACTURER_SPECIFIC_DATA, cid.to_bytes(2, "little"))
+        for cid in MFR_HYPOTHESES
+    ]
 
 
 def make_bleak_scanner_factory(mode: str, adapter: str | None):  # pragma: no cover - bleak I/O edge, CI has no radio
@@ -308,9 +345,13 @@ async def main(argv=None):  # pragma: no cover - CLI wiring over the pragma'd bl
     sink = JsonlSink(args.out)
     result = await run_probe(
         scanner_factory=make_bleak_scanner_factory(args.mode, args.adapter),
-        expected_addr=args.address, sink=sink, duration_s=args.duration,
-        label_reader=label_reader_for(args.label, args.label_file), scan_mode=args.mode,
-        keep_all=args.all, progress=lambda s: print(s, file=sys.stderr),
+        expected_addr=args.address,
+        sink=sink,
+        duration_s=args.duration,
+        label_reader=label_reader_for(args.label, args.label_file),
+        scan_mode=args.mode,
+        keep_all=args.all,
+        progress=lambda s: print(s, file=sys.stderr),
     )
     print(json.dumps(result), file=sys.stderr)
     return 0

@@ -39,10 +39,10 @@ def _code_and_strings(src: str) -> str:
     """Executable text with COMMENTS removed and STRING LITERALS KEPT — see the header."""
     try:
         return " ".join(
-            t.string for t in tokenize.generate_tokens(io.StringIO(src).readline)
-            if t.type != tokenize.COMMENT)
+            t.string for t in tokenize.generate_tokens(io.StringIO(src).readline) if t.type != tokenize.COMMENT
+        )
     except (tokenize.TokenError, IndentationError, SyntaxError):  # pragma: no cover - parse failure
-        return src            # fail toward OVER-reporting: a broken file must not read as compliant
+        return src  # fail toward OVER-reporting: a broken file must not read as compliant
 
 
 @pytest.mark.parametrize("mod", DETECTOR_MODULES)
@@ -52,7 +52,8 @@ def test_the_detector_path_issues_no_device_state_write(mod):
     assert not found, (
         f"{mod} reaches for AS11 state-changing operation(s) {found}. This path is READ-ONLY by "
         "design: it observes a therapy session it must never steer, and the brief's own done-when "
-        "says so. If this is deliberate, the brief and both module headers have to change first.")
+        "says so. If this is deliberate, the brief and both module headers have to change first."
+    )
 
 
 def test_the_scan_FIRES_on_a_planted_write():
@@ -67,6 +68,6 @@ def test_the_scan_does_NOT_fire_on_the_comments_that_promise_the_property():
     verbs in a comment IN ORDER TO promise they are absent; a scan over raw text would fail on the
     promise itself and would have to be silenced — which is how this property would have ended up
     with a test that asserts nothing."""
-    promise = '# READ-ONLY: never Set / EnterTherapy / EnterStandby / SetDateTime.\nx = 1\n'
+    promise = "# READ-ONLY: never Set / EnterTherapy / EnterStandby / SetDateTime.\nx = 1\n"
     assert FORBIDDEN.findall(promise), "the raw comment does contain the verbs"
     assert FORBIDDEN.findall(_code_and_strings(promise)) == [], "stripped, it must contribute nothing"

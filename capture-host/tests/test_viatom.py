@@ -50,7 +50,7 @@ def test_invalid_spo2_becomes_none_not_fabricated():
 
 
 def test_invalid_pulse_rate_becomes_none():
-    assert viatom.decode_packet(_pkt(pr=20))["pr"] is None   # 20 is the exclusive floor
+    assert viatom.decode_packet(_pkt(pr=20))["pr"] is None  # 20 is the exclusive floor
     assert viatom.decode_packet(_pkt(pr=255))["pr"] is None
     assert viatom.decode_packet(_pkt(pr=21))["pr"] == 21
 

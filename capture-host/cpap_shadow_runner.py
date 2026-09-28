@@ -82,9 +82,7 @@ async def poll_cycle(
             obs = Observation(host_ms=host_ms, reachable=False)
         else:
             fg, use, mask = extract_fields(get_result)
-            obs = Observation(
-                host_ms=host_ms, reachable=True, fg_state=fg, last_therapy_use=use, mask_pressure=mask
-            )
+            obs = Observation(host_ms=host_ms, reachable=True, fg_state=fg, last_therapy_use=use, mask_pressure=mask)
         decision = supervisor.observe(obs)
 
         device_epoch = as11_clock.parse_device_epoch_s(device_iso)
@@ -104,7 +102,7 @@ def _notify_unreachable(on_unreachable, exc):
     SUCCESSFUL poll calls `on_cycle`. A poll that ran and FAILED wrote a journal row and then
     `continue`d before `on_cycle`, so STATUS only ever saw successes and could not tell "the machine
     did not answer" from "we did not ask".
-    
+
     Those need opposite responses. Absence-because-we-never-looked is not evidence about the device;
     absence-after-asking is. A wedge detector fed the first would fire every time a wearable streamed.
 
@@ -114,7 +112,7 @@ def _notify_unreachable(on_unreachable, exc):
         return
     try:
         on_unreachable(exc)
-    except Exception:                     # a REPORT about a failure must not become a second failure
+    except Exception:  # a REPORT about a failure must not become a second failure
         log.debug("on_unreachable hook failed", exc_info=True)
 
 
@@ -227,12 +225,11 @@ class UnreachableRow:
             "state": "",
             "transition": "",
             "action": "unreachable",
-            "trigger": self.error,      # the error CLASS, so a persistent fault is identifiable
+            "trigger": self.error,  # the error CLASS, so a persistent fault is identifiable
             "confidence": "",
             "reachable": False,
         }
-        return ";".join("" if cells.get(f) is None else str(cells.get(f, ""))
-                        for f in Decision.ROW_FIELDS)
+        return ";".join("" if cells.get(f) is None else str(cells.get(f, "")) for f in Decision.ROW_FIELDS)
 
 
 class SessionSidecar:
@@ -261,5 +258,4 @@ class SessionSidecar:
             self._fh.flush()
             self._fh.close()
         except (OSError, ValueError):
-            log.warning("cpap shadow decision log did not close cleanly — its tail may be unwritten",
-                         exc_info=True)
+            log.warning("cpap shadow decision log did not close cleanly — its tail may be unwritten", exc_info=True)

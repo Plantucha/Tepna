@@ -9,6 +9,7 @@ not optional: a field that reaches `/api/state` and is rendered by nobody is not
 from monitor.html, under node with only `esc` supplied, so a chip that quietly stops rendering fails
 here rather than on the box.
 """
+
 import json
 import os
 import shutil
@@ -44,8 +45,7 @@ def _render():
     prog = (
         "const CASES = " + json.dumps(CASES) + ";\n"
         "const esc = s => String(s).replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"
-        "'\"':'&quot;',\"'\":'&#39;'}[c]));\n"
-        + _extract("oxyLifeChip", "oxyRecChip") + "\n"
+        "'\"':'&quot;',\"'\":'&#39;'}[c]));\n" + _extract("oxyLifeChip", "oxyRecChip") + "\n"
         "const out = {};\n"
         "for (const k in CASES) out[k] = {life: oxyLifeChip(CASES[k]), rec: oxyRecChip(CASES[k])};\n"
         "console.log(JSON.stringify(out));\n"
@@ -92,6 +92,7 @@ def test_the_state_string_is_escaped():
 
 def test_the_chips_are_composed_into_the_device_row():
     """Defined and never called is the same as not defined (test_monitor_chip_scope's own lesson)."""
-    src = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "monitor.html"),
-               encoding="utf-8").read()
+    src = open(
+        os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "monitor.html"), encoding="utf-8"
+    ).read()
     assert "${oxyLifeChip(d)} ${oxyRecChip(d)}" in src

@@ -34,7 +34,8 @@ def _dur_to_sec(v):
         return int(v) // 1_000_000
     total, found = 0.0, False
     for n, u in _DUR.findall(v):
-        total += int(n) * _UNIT[u]; found = True
+        total += int(n) * _UNIT[u]
+        found = True
     return int(total) if found else None
 
 
@@ -42,14 +43,16 @@ def _kv(text):
     out = {}
     for line in text.splitlines():
         if "=" in line:
-            k, v = line.split("=", 1); out[k.strip()] = v.strip()
+            k, v = line.split("=", 1)
+            out[k.strip()] = v.strip()
     return out
 
 
 async def _run(*args, timeout=12):
     try:
         p = await asyncio.create_subprocess_exec(
-            *args, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
+            *args, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT
+        )
         out, _ = await proc_util.communicate(p, timeout)
         return p.returncode, out.decode(errors="replace")
     except FileNotFoundError:
@@ -64,29 +67,29 @@ async def status() -> dict:
     rc2, s = await _run("timedatectl", "show-timesync", "--all")
     a = _kv(t) if rc1 == 0 else {}
     b = _kv(s) if rc2 == 0 else {}
-    off_sec = _time.localtime().tm_gmtoff          # seconds east of UTC, current (DST-aware)
+    off_sec = _time.localtime().tm_gmtoff  # seconds east of UTC, current (DST-aware)
     off_min = off_sec // 60 if off_sec is not None else None
     servers = (b.get("SystemNTPServers") or b.get("ServerName") or "").split()
     synced = a.get("NTPSynchronized") == "yes"
     tz = a.get("Timezone")
     return {
         "available": rc1 == 0,
-        "ntp_enabled": a.get("NTP") == "yes",       # systemd time sync turned on
+        "ntp_enabled": a.get("NTP") == "yes",  # systemd time sync turned on
         "synchronized": synced,
         "timezone": tz,
         "offset_min": off_min,
-        "host_time": a.get("TimeUSec"),             # human string from timedatectl
+        "host_time": a.get("TimeUSec"),  # human string from timedatectl
         "server_active": b.get("ServerName") or None,
         "servers": servers,
         "fallback": (b.get("FallbackNTPServers") or "").split(),
         "poll_min_sec": _dur_to_sec(b.get("PollIntervalMinUSec")),
         "poll_max_sec": _dur_to_sec(b.get("PollIntervalMaxUSec")),
         "poll_now_sec": _dur_to_sec(b.get("PollIntervalUSec")),
-        "can_write": os.access(_HELPER, os.X_OK),   # helper present; sudoers still required on the box
+        "can_write": os.access(_HELPER, os.X_OK),  # helper present; sudoers still required on the box
         # Clock-Contract health (the box side of CLAUDE.md §🔒):
         "contract": {
-            "synced": synced,                       # stamps trace to real time
-            "tz_set": bool(tz),                     # a local zone is set (contract needs the REAL local zone)
+            "synced": synced,  # stamps trace to real time
+            "tz_set": bool(tz),  # a local zone is set (contract needs the REAL local zone)
             "stamp_format": "local-civil, zone-free",  # how writers.py emits — always compliant by construction
         },
     }

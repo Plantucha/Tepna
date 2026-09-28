@@ -12,6 +12,7 @@ length check can see. That asymmetry is why `pull.resume` defaults OFF, why a re
 verified before commit, and why a failure DISCARDS the `.part` instead of keeping it for the next
 resume to splice onto.
 """
+
 import asyncio
 import hashlib
 import os
@@ -46,7 +47,7 @@ def test_RESUME_OFF_BY_DEFAULT_ALWAYS_OPENS_AT_ZERO(tmp_path, monkeypatch):
     ring = FakeRing([SESSION], _blob())
     _install(monkeypatch, ring)
     part = tmp_path / f"Wellue_O2Ring-S_{SESSION}_STORED.dat.part"
-    part.write_bytes(b"\xff" * 900)                 # a leftover that resume WOULD have used
+    part.write_bytes(b"\xff" * 900)  # a leftover that resume WOULD have used
     _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "all", False, None, "0000"))
 
     starts = [w for w in ring.writes if w[1] == oxyii.OP_FILE_START]
@@ -59,14 +60,16 @@ def test_A_RESUMED_PULL_IS_BYTE_IDENTICAL_TO_A_CLEAN_ONE(tmp_path, monkeypatch):
     same session, and require equality — the only check that can see a splice, because a spliced
     file has the right SIZE."""
     blob = _blob()
-    clean_dir = tmp_path / "clean"; clean_dir.mkdir()
+    clean_dir = tmp_path / "clean"
+    clean_dir.mkdir()
     _install(monkeypatch, FakeRing([SESSION], blob))
     _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(clean_dir), "all", False, None, "0000"))
     clean = clean_dir / f"Wellue_O2Ring-S_{SESSION}_STORED.dat"
     assert clean.exists(), sorted(os.listdir(clean_dir))
 
     # ...now the same session, with a genuine prefix already on disk from an interrupted pull.
-    res_dir = tmp_path / "resumed"; res_dir.mkdir()
+    res_dir = tmp_path / "resumed"
+    res_dir.mkdir()
     part = res_dir / f"Wellue_O2Ring-S_{SESSION}_STORED.dat.part"
     part.write_bytes(blob[:1024])
     _install(monkeypatch, FakeRing([SESSION], blob))
@@ -87,8 +90,7 @@ def test_THE_RING_IS_SEEKED_NOT_JUST_THE_FILE(tmp_path, monkeypatch):
     _install(monkeypatch, ring)
     _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "all", True, None, "0000"))
 
-    offsets = [int.from_bytes(w[7:-1][16:20], "little")
-               for w in ring.writes if w[1] == oxyii.OP_FILE_START]
+    offsets = [int.from_bytes(w[7:-1][16:20], "little") for w in ring.writes if w[1] == oxyii.OP_FILE_START]
     assert 1024 in offsets, f"the ring was never asked to seek; STARTs were {offsets}"
 
 
@@ -110,13 +112,12 @@ def test_A_LONGER_STALE_PART_NEVER_REACHES_THE_SPLICE_AT_ALL(tmp_path, monkeypat
     the byte-identity test cover that one: planting `plan.offset - 1` on the START reds both."""
     blob = _blob()
     part = tmp_path / f"Wellue_O2Ring-S_{SESSION}_STORED.dat.part"
-    part.write_bytes(blob[:1024] + b"\x99" * 4000)   # longer than the declared size
+    part.write_bytes(blob[:1024] + b"\x99" * 4000)  # longer than the declared size
     ring = FakeRing([SESSION], blob)
     _install(monkeypatch, ring)
     _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "all", True, None, "0000"))
 
-    offsets = [int.from_bytes(w[7:-1][16:20], "little")
-               for w in ring.writes if w[1] == oxyii.OP_FILE_START]
+    offsets = [int.from_bytes(w[7:-1][16:20], "little") for w in ring.writes if w[1] == oxyii.OP_FILE_START]
     assert offsets == [0], f"an over-long .part must re-serve, not resume; STARTs were {offsets}"
     out = tmp_path / f"Wellue_O2Ring-S_{SESSION}_STORED.dat"
     assert out.exists() and out.read_bytes() == blob, "the recording differs from the ring's session"
@@ -127,13 +128,12 @@ def test_A_SIZE_COMPLETE_PART_RE_SERVES_RATHER_THAN_RESUMING_FOREVER(tmp_path, m
     append nothing and re-verify the same file forever."""
     blob = _blob()
     part = tmp_path / f"Wellue_O2Ring-S_{SESSION}_STORED.dat.part"
-    part.write_bytes(blob)                            # already the full declared size
+    part.write_bytes(blob)  # already the full declared size
     ring = FakeRing([SESSION], blob)
     _install(monkeypatch, ring)
     _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "all", True, None, "0000"))
 
-    offsets = [int.from_bytes(w[7:-1][16:20], "little")
-               for w in ring.writes if w[1] == oxyii.OP_FILE_START]
+    offsets = [int.from_bytes(w[7:-1][16:20], "little") for w in ring.writes if w[1] == oxyii.OP_FILE_START]
     assert offsets == [0], f"a size-complete .part must re-serve, got STARTs at {offsets}"
 
 
@@ -141,6 +141,7 @@ def test_THE_STRATEGY_IS_STILL_THE_ONLY_PLACE_THE_CHOICE_IS_MADE():
     """G1 §5's invariant, provable by grep and worth keeping: the drop test must flip one function
     body, not a policy scattered through the loop."""
     from _srcscan import module_source
+
     src = module_source("pull_session.py")
     assert "resume_strategy(" in src
     assert src.count("oxy_transfer.RESUME") <= 2, "the RESUME decision is being re-derived inline"
@@ -180,8 +181,7 @@ def test_A_RESUME_START_THE_RING_NEVER_ANSWERS_FALLS_BACK_TO_RE_SERVING(tmp_path
     monkeypatch.setattr(pull_session, "_wait", flaky)
     _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "all", True, None, "0000"))
 
-    offsets = [int.from_bytes(w[7:-1][16:20], "little")
-               for w in ring.writes if w[1] == oxyii.OP_FILE_START]
+    offsets = [int.from_bytes(w[7:-1][16:20], "little") for w in ring.writes if w[1] == oxyii.OP_FILE_START]
     assert refused, "the test never exercised the unanswered-START path"
     assert offsets == [0, 1024, 0], f"expected size-probe, seek, then re-serve from 0, got {offsets}"
     out = tmp_path / f"Wellue_O2Ring-S_{SESSION}_STORED.dat"
@@ -199,7 +199,7 @@ def test_A_RESUMED_FILE_THAT_FAILS_VERIFICATION_IS_DISCARDED_NOT_COMMITTED(tmp_p
     check can see."""
     blob = _blob()
     part = tmp_path / f"Wellue_O2Ring-S_{SESSION}_STORED.dat.part"
-    part.write_bytes(b"\xff" * 1024)            # right length, wrong bytes
+    part.write_bytes(b"\xff" * 1024)  # right length, wrong bytes
     _install(monkeypatch, FakeRing([SESSION], blob))
     _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "all", True, None, "0000"))
 

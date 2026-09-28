@@ -104,11 +104,13 @@ def test_a_clock_field_that_advances_by_the_gap_is_detected(monkeypatch, capsys)
         p[4:8] = (1000 + 10 * (count - 1)).to_bytes(4, "little")  # +10 on the 2nd read == the gap
         return bytes(p)
 
-    ring = _Ring({
-        oxyii.OP_GET_INFO: info,
-        oxyii.OP_GET_CONFIG: _const(bytes(40)),
-        oxyii.OP_GET_BATTERY: _const(bytes([80])),
-    })
+    ring = _Ring(
+        {
+            oxyii.OP_GET_INFO: info,
+            oxyii.OP_GET_CONFIG: _const(bytes(40)),
+            oxyii.OP_GET_BATTERY: _const(bytes([80])),
+        }
+    )
     _install(monkeypatch, ring)
     assert _run(probe.main("MAC", 10.0)) == 0
     out = capsys.readouterr().out
@@ -118,11 +120,13 @@ def test_a_clock_field_that_advances_by_the_gap_is_detected(monkeypatch, capsys)
 
 
 def test_b_all_identical_reads_yield_the_no_rtc_verdict(monkeypatch, capsys):
-    ring = _Ring({
-        oxyii.OP_GET_INFO: _const(bytes(60)),
-        oxyii.OP_GET_CONFIG: _const(bytes(40)),
-        oxyii.OP_GET_BATTERY: _const(bytes([80])),
-    })
+    ring = _Ring(
+        {
+            oxyii.OP_GET_INFO: _const(bytes(60)),
+            oxyii.OP_GET_CONFIG: _const(bytes(40)),
+            oxyii.OP_GET_BATTERY: _const(bytes([80])),
+        }
+    )
     _install(monkeypatch, ring)
     _run(probe.main("MAC", 10.0))
     out = capsys.readouterr().out
@@ -155,11 +159,13 @@ def test_d_ask_loops_past_a_nonmatching_frame(monkeypatch, capsys):
             await self.notify(0, oxyii.encode(oxyii.OP_LIVE, b"\x00", seq))  # decoy, wrong op
             await super()._answer(op, seq)
 
-    ring = _NoisyRing({
-        oxyii.OP_GET_INFO: _const(bytes(60)),
-        oxyii.OP_GET_CONFIG: _const(bytes(40)),
-        oxyii.OP_GET_BATTERY: _const(bytes([80])),
-    })
+    ring = _NoisyRing(
+        {
+            oxyii.OP_GET_INFO: _const(bytes(60)),
+            oxyii.OP_GET_CONFIG: _const(bytes(40)),
+            oxyii.OP_GET_BATTERY: _const(bytes([80])),
+        }
+    )
     _install(monkeypatch, ring)
     _run(probe.main("MAC", 10.0))
     assert "GET_INFO: 60 bytes" in capsys.readouterr().out  # real reply arrived past the decoy
@@ -181,29 +187,34 @@ def _rtc_payload(y, mo, d, h, mi, s):
 def _install_clock(monkeypatch, ring, host):
     """read_clock needs only the client + a pinned host instant; it never reads monotonic()."""
     import datetime as dt
+
     monkeypatch.setattr(probe, "BleakClient", lambda addr, **kw: ring)
 
     async def no_sleep(_s):
         return None
+
     monkeypatch.setattr(probe.asyncio, "sleep", no_sleep)
 
     class _Now(dt.datetime):
         @classmethod
         def now(cls, tz=None):
             return host
+
     monkeypatch.setattr(dt, "datetime", _Now)
 
 
 def test_clock_offset_is_signed_component_arithmetic():
     import datetime as dt
+
     rtc = {"year": 2026, "month": 8, "day": 19, "hour": 19, "minute": 48, "second": 26}
     assert probe.clock_offset_s(rtc, dt.datetime(2026, 8, 19, 19, 48, 26)) == 0
-    assert probe.clock_offset_s(rtc, dt.datetime(2026, 8, 19, 19, 45, 55)) == 151   # the measured free-run drift
-    assert probe.clock_offset_s(rtc, dt.datetime(2026, 8, 19, 19, 49, 0)) == -34    # ring can lag too
+    assert probe.clock_offset_s(rtc, dt.datetime(2026, 8, 19, 19, 45, 55)) == 151  # the measured free-run drift
+    assert probe.clock_offset_s(rtc, dt.datetime(2026, 8, 19, 19, 49, 0)) == -34  # ring can lag too
 
 
 def test_read_clock_reports_ring_vs_host(monkeypatch, capsys):
     import datetime as dt
+
     ring = _Ring({oxyii.OP_GET_INFO: lambda _c: _rtc_payload(2026, 8, 19, 19, 48, 26)})
     _install_clock(monkeypatch, ring, dt.datetime(2026, 8, 19, 19, 48, 21))
     assert _run(probe.read_clock("MAC")) == 0
@@ -214,12 +225,14 @@ def test_read_clock_reports_ring_vs_host(monkeypatch, capsys):
 
 def test_read_clock_no_reply_is_a_failure_not_a_zero(monkeypatch, capsys):
     import datetime as dt
+
     _install_clock(monkeypatch, _Ring({}), dt.datetime(2026, 8, 19, 19, 48, 21))
 
     _real_wait_for = asyncio.wait_for
 
     async def quick(coro, _t):
         return await _real_wait_for(coro, 0.02)
+
     monkeypatch.setattr(probe.asyncio, "wait_for", quick)
     assert _run(probe.read_clock("MAC")) == 1
     assert "NO REPLY" in capsys.readouterr().out
@@ -228,6 +241,7 @@ def test_read_clock_no_reply_is_a_failure_not_a_zero(monkeypatch, capsys):
 def test_read_clock_out_of_range_rtc_is_a_failure(monkeypatch, capsys):
     """An unset RTC region (zeros) must read as 'not a clock', never as year-0 with offset math."""
     import datetime as dt
+
     ring = _Ring({oxyii.OP_GET_INFO: lambda _c: bytes(60)})
     _install_clock(monkeypatch, ring, dt.datetime(2026, 8, 19, 19, 48, 21))
     assert _run(probe.read_clock("MAC")) == 1

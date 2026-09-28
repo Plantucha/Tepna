@@ -7,6 +7,7 @@ loop, a harvest preempting live capture, a battery read as a reason to connect, 
 worn bit re-arming the idle sync, an illegal edge killing the daemon. The clock is injected, so
 every deadline here is exact.
 """
+
 from __future__ import annotations
 
 import json
@@ -193,12 +194,23 @@ def test_scan_window_counters_are_sightings_not_adverts_and_never_negative():
 
 
 # ── §18 battery ───────────────────────────────────────────────────────────────────────────────────
-@pytest.mark.parametrize("pct,band", [
-    (None, P.BatteryBand.UNKNOWN), ("80", P.BatteryBand.UNKNOWN), (True, P.BatteryBand.UNKNOWN),
-    (-1, P.BatteryBand.UNKNOWN), (101, P.BatteryBand.UNKNOWN), (float("nan"), P.BatteryBand.UNKNOWN),
-    (0, P.BatteryBand.CRITICAL), (10, P.BatteryBand.CRITICAL), (11, P.BatteryBand.LOW),
-    (20, P.BatteryBand.LOW), (21, P.BatteryBand.NORMAL), (100, P.BatteryBand.NORMAL),
-])
+@pytest.mark.parametrize(
+    "pct,band",
+    [
+        (None, P.BatteryBand.UNKNOWN),
+        ("80", P.BatteryBand.UNKNOWN),
+        (True, P.BatteryBand.UNKNOWN),
+        (-1, P.BatteryBand.UNKNOWN),
+        (101, P.BatteryBand.UNKNOWN),
+        (float("nan"), P.BatteryBand.UNKNOWN),
+        (0, P.BatteryBand.CRITICAL),
+        (10, P.BatteryBand.CRITICAL),
+        (11, P.BatteryBand.LOW),
+        (20, P.BatteryBand.LOW),
+        (21, P.BatteryBand.NORMAL),
+        (100, P.BatteryBand.NORMAL),
+    ],
+)
 def test_battery_band_unknown_is_first_class_and_edges_are_inclusive(pct, band):
     assert P.battery_band(pct) is band
 
@@ -354,13 +366,13 @@ def test_synced_idle_blocks_a_second_harvest_until_worn_recording_removed():
     pw, _ = _pw()
     pw.cache.synced_this_idle = True
     assert not pw.harvest_request(link_state="disconnected", worn=False).allowed
-    assert pw.note_worn_rec(True, "not_recording") is False        # worn, no session yet
-    assert pw.note_worn_rec(False, "not_recording") is False       # taken off again — chain broken
+    assert pw.note_worn_rec(True, "not_recording") is False  # worn, no session yet
+    assert pw.note_worn_rec(False, "not_recording") is False  # taken off again — chain broken
     assert pw.cache.synced_this_idle is True and pw.cache.rearm_stage == "idle"
     assert pw.note_worn_rec(True, "not_recording") is False
     assert pw.note_worn_rec(True, "recording") is False
     assert pw.note_worn_rec(True, "recording") is False
-    assert pw.note_worn_rec(False, "end_candidate") is True        # REMOVED after RECORDING after WORN
+    assert pw.note_worn_rec(False, "end_candidate") is True  # REMOVED after RECORDING after WORN
     assert pw.cache.synced_this_idle is False
     assert pw.harvest_request(link_state="disconnected", worn=False).allowed
 
@@ -383,10 +395,16 @@ def test_recording_without_worn_first_does_not_start_the_chain():
 # ── the LINK axis folds in ────────────────────────────────────────────────────────────────────────
 def test_live_loop_link_transitions_map_onto_power_states_and_count_connection_seconds():
     pw, _ = _pw()
-    seq = [(L.CONNECTING, S.CONNECTING, 0.0), (L.CONNECTED, S.CONNECTED_IDLE, 5.0),
-           (L.LIVE, S.ACTIVE_CAPTURE, 6.0), (L.IDLE_UNWORN, S.CONNECTED_IDLE, 3000.0),
-           (L.LIVE, S.ACTIVE_CAPTURE, 3010.0), (L.INTERRUPTED, S.DISCONNECTING, 3605.0),
-           (L.DISCONNECTED, S.DISCONNECTING, 3606.0), (L.SHUTTING_DOWN, S.RADIO_IDLE, 3607.0)]
+    seq = [
+        (L.CONNECTING, S.CONNECTING, 0.0),
+        (L.CONNECTED, S.CONNECTED_IDLE, 5.0),
+        (L.LIVE, S.ACTIVE_CAPTURE, 6.0),
+        (L.IDLE_UNWORN, S.CONNECTED_IDLE, 3000.0),
+        (L.LIVE, S.ACTIVE_CAPTURE, 3010.0),
+        (L.INTERRUPTED, S.DISCONNECTING, 3605.0),
+        (L.DISCONNECTED, S.DISCONNECTING, 3606.0),
+        (L.SHUTTING_DOWN, S.RADIO_IDLE, 3607.0),
+    ]
     for link, power, t in seq:
         pw.note_link(link, link.value, t)
         assert pw.state is power, (link, pw.state)
@@ -452,7 +470,15 @@ def test_shutdown_after_the_link_already_dropped_does_not_double_count_or_repeat
 # ── §9 timeouts, classification, snapshot ────────────────────────────────────────────────────────
 def test_seven_distinct_timeouts_are_named_and_positive():
     t = P.TIMEOUTS
-    names = ("discovery_s", "connect_s", "auth_s", "service_discovery_s", "inventory_s", "transfer_chunk_s", "disconnect_s")
+    names = (
+        "discovery_s",
+        "connect_s",
+        "auth_s",
+        "service_discovery_s",
+        "inventory_s",
+        "transfer_chunk_s",
+        "disconnect_s",
+    )
     assert len(names) == 7 and all(getattr(t, n) > 0 for n in names)
     assert t.connect_s == 30.0, "the value bleak applied implicitly, now explicit"
     assert t.discovery_s == 25.0, "pull_session's find_device_by_filter bound"
@@ -484,8 +510,14 @@ def test_snapshot_is_json_serialisable_and_carries_state_policy_counters_and_las
     assert snap["state"] == "pw_error_backoff" and snap["radio_on"] is False
     assert snap["scan_policy"] == "low"
     assert snap["cache"]["last_failure"] == "device_unavailable" and snap["cache"]["generation"] == 1
-    assert snap["last_attempt"] == {"trigger": "charger", "ok": False, "failure": "device_unavailable",
-                                    "duration_s": 1.0, "files": 0, "bytes": 0}
+    assert snap["last_attempt"] == {
+        "trigger": "charger",
+        "ok": False,
+        "failure": "device_unavailable",
+        "duration_s": 1.0,
+        "files": 0,
+        "bytes": 0,
+    }
     assert snap["counters"]["harvest_avg_s"] is None
 
 

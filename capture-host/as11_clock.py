@@ -36,8 +36,16 @@ import logging
 
 _log = logging.getLogger("tepna-capture")
 
-__all__ = ["parse_device_epoch_s", "analyze", "ClockSidecar", "DEVICE_QUANTUM_S", "MIN_RATE_ANCHORS",
-           "offset_for_envelope", "ENVELOPE_REFERENCE", "ENVELOPE_METHOD"]
+__all__ = [
+    "parse_device_epoch_s",
+    "analyze",
+    "ClockSidecar",
+    "DEVICE_QUANTUM_S",
+    "MIN_RATE_ANCHORS",
+    "offset_for_envelope",
+    "ENVELOPE_REFERENCE",
+    "ENVELOPE_METHOD",
+]
 
 # The AS11 GetDateTime reads to the whole second (measured — the RTC probe's ±1 s read quantum).
 DEVICE_QUANTUM_S = 1.0
@@ -67,7 +75,6 @@ def parse_device_epoch_s(raw) -> float | None:
     return float(calendar.timegm((year, month, day, hour, minute, second, 0, 0, 0)))
 
 
-
 class As11ClockResult(TypedDict, total=False):
     """What `analyze` returns.
 
@@ -93,8 +100,9 @@ class As11ClockResult(TypedDict, total=False):
     verdict: str | None
 
 
-def analyze(anchors, *, device_quantum_s: float = DEVICE_QUANTUM_S,
-            min_rate_anchors: int = MIN_RATE_ANCHORS) -> As11ClockResult:
+def analyze(
+    anchors, *, device_quantum_s: float = DEVICE_QUANTUM_S, min_rate_anchors: int = MIN_RATE_ANCHORS
+) -> As11ClockResult:
     """Reduce a session of `(host_epoch_s, device_epoch_s)` anchors to the offset and the rate.
 
     Returns, on success:
@@ -190,9 +198,7 @@ class ClockSidecar:
         def _f(v):
             return "" if v is None else str(v)
 
-        self._fh.write(
-            f"{_f(host_wall)};{_f(host_epoch_s)};{_f(device_iso)};{_f(device_epoch_s)};{_f(offset_s)}\n"
-        )
+        self._fh.write(f"{_f(host_wall)};{_f(host_epoch_s)};{_f(device_iso)};{_f(device_epoch_s)};{_f(offset_s)}\n")
         self.rows += 1
 
     def close(self) -> None:
@@ -204,8 +210,7 @@ class ClockSidecar:
             # flush means the tail of this file never reached the disk while the caller believes it
             # did. Too small for the full _FlushHealth machinery (one close, no periodic flush), but
             # not too small to say so.
-            _log.warning("as11 clock log did not close cleanly — its tail may be unwritten",
-                         exc_info=True)
+            _log.warning("as11 clock log did not close cleanly — its tail may be unwritten", exc_info=True)
 
 
 # ── the envelope join ──────────────────────────────────────────────────────────────────────────
@@ -245,11 +250,11 @@ def offset_for_envelope(text, *, analyze_fn=None):
         try:
             host_s, dev_s = float(parts[1]), float(parts[3])
         except ValueError:
-            continue                      # the header row, a torn line, or a failed device read (blank)
+            continue  # the header row, a torn line, or a failed device read (blank)
         if math.isfinite(host_s) and math.isfinite(dev_s):
             rows.append((host_s, dev_s))
     if len(rows) < 2:
-        return None                       # `analyze` refuses below two anchors; so do we, for its reason
+        return None  # `analyze` refuses below two anchors; so do we, for its reason
     res = (analyze_fn or analyze)(rows)
     if not res.get("ok") or res.get("offset_s") is None:
         return None
@@ -269,5 +274,9 @@ def _host_epoch_to_floating_ms(epoch_s: float) -> float:
     The envelope's other time fields are floating, so a real-UTC value here would be an hour out in
     summer and read as a plausible clock story rather than as a unit error."""
     t = _dt.datetime.fromtimestamp(epoch_s)
-    return float(_dt.datetime(t.year, t.month, t.day, t.hour, t.minute, t.second,
-                              t.microsecond, tzinfo=_dt.timezone.utc).timestamp() * 1000.0)
+    return float(
+        _dt.datetime(
+            t.year, t.month, t.day, t.hour, t.minute, t.second, t.microsecond, tzinfo=_dt.timezone.utc
+        ).timestamp()
+        * 1000.0
+    )

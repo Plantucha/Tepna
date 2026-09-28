@@ -22,19 +22,25 @@ def _d(before, after):
 
 # ── is_string_only — the measured regression ────────────────────────────────────────────────────
 
+
 def test_is_string_only_asks_about_THE_CHANGED_TOKEN_not_the_lines_contents():
     """🔴 THE 2026-08-24 DEFECT, pinned. The old rule asked whether the added line CONTAINED a quote.
 
     These two mutations are IDENTICAL (`encoding="utf-8"` -> `encoding=None`). Under the old rule they
     were handled OPPOSITELY, decided by the unrelated literal `"mutants"` sitting elsewhere on the
     second line. Neither changes a string literal, so BOTH must be required."""
-    plain = _d('        data = json.loads(Path(p).read_text(encoding="utf-8"))',
-               '        data = json.loads(Path(p).read_text(encoding=None))')
-    with_unrelated_literal = _d('        src = (Path(work) / "mutants" / m).read_text(encoding="utf-8")',
-                                '        src = (Path(work) / "mutants" / m).read_text(encoding=None)')
+    plain = _d(
+        '        data = json.loads(Path(p).read_text(encoding="utf-8"))',
+        "        data = json.loads(Path(p).read_text(encoding=None))",
+    )
+    with_unrelated_literal = _d(
+        '        src = (Path(work) / "mutants" / m).read_text(encoding="utf-8")',
+        '        src = (Path(work) / "mutants" / m).read_text(encoding=None)',
+    )
     assert M.is_string_only(plain) is False
     assert M.is_string_only(with_unrelated_literal) is False, (
-        "regression: an unrelated literal elsewhere on the line decided the verdict again")
+        "regression: an unrelated literal elsewhere on the line decided the verdict again"
+    )
 
 
 def test_is_string_only_TRUE_only_when_the_change_lands_inside_a_literal():
@@ -48,27 +54,28 @@ def test_is_string_only_honours_the_mutmut_XX_sentinel():
 
 
 def test_is_string_only_refuses_when_it_cannot_compare():
-    assert M.is_string_only('--- a\n+++ b\n-    x = 1\n') is False        # no added line
-    assert M.is_string_only('--- a\n+++ b\n-    a = 1\n-    b = 2\n+    a = 2\n') is False  # unbalanced
+    assert M.is_string_only("--- a\n+++ b\n-    x = 1\n") is False  # no added line
+    assert M.is_string_only("--- a\n+++ b\n-    a = 1\n-    b = 2\n+    a = 2\n") is False  # unbalanced
     # ⚠️ NOT a refusal: identical lines yield no span, the loop `continue`s, and the function falls
     # through to True — i.e. a no-op diff is EXCLUDED from the gate. Defensible ("nothing to require")
     # but it is the fail-OPEN direction. Pinned as observed behaviour; this unit MOVES the logic and
     # does not change it. Flagged for review rather than silently altered.
-    assert M.is_string_only(_d('    x = 1', '    x = 1')) is True
+    assert M.is_string_only(_d("    x = 1", "    x = 1")) is True
 
 
 # ── changed_span / _string_spans ────────────────────────────────────────────────────────────────
 
+
 def test_changed_span_trims_the_common_prefix_and_suffix():
-    assert M.changed_span('abc', 'abc') is None
-    assert M.changed_span('x = 1', 'x = 2') == (4, 5, 5)
+    assert M.changed_span("abc", "abc") is None
+    assert M.changed_span("x = 1", "x = 2") == (4, 5, 5)
 
 
 def test_string_spans_tracks_the_delimiter_and_honours_escapes():
     assert M._string_spans('a = "hi"') == [(4, 8)]
     assert M._string_spans("a = 'x' + \"y\"") == [(4, 7), (10, 13)]
     assert M._string_spans(r'a = "he\"llo"') == [(4, 13)]
-    assert M._string_spans('a = 1') == []
+    assert M._string_spans("a = 1") == []
     assert M._string_spans('a = "unterminated') == [(4, 17)]
 
 
@@ -84,20 +91,22 @@ def test_functions_covering_names_module_functions_and_methods_the_mutmut_way():
 
 
 def test_functions_covering_yields_nothing_outside_a_function_or_on_bad_source():
-    assert M.functions_covering(_SRC, {1}) == set()          # an import line
+    assert M.functions_covering(_SRC, {1}) == set()  # an import line
     assert M.functions_covering("def broken(:\n", {1}) == set()
-    assert M.functions_covering("", {1}) == set()            # the caller's unreadable-file case
+    assert M.functions_covering("", {1}) == set()  # the caller's unreadable-file case
 
 
 # ── diff_key ────────────────────────────────────────────────────────────────────────────────────
 
+
 def test_diff_key_is_whitespace_normalised_and_index_independent():
-    assert M.diff_key(_d('    x = 1', '    x = 2')) == M.diff_key(_d('  x  =  1', '  x   =   2'))
-    assert '__mutmut_' not in M.diff_key(_d('    x = 1', '    x = 2'))
-    assert M.diff_key('--- a\n+++ b\n context only\n') == ''
+    assert M.diff_key(_d("    x = 1", "    x = 2")) == M.diff_key(_d("  x  =  1", "  x   =   2"))
+    assert "__mutmut_" not in M.diff_key(_d("    x = 1", "    x = 2"))
+    assert M.diff_key("--- a\n+++ b\n context only\n") == ""
 
 
 # ── refusal_reason — the guard against failing OPEN ─────────────────────────────────────────────
+
 
 def test_refusal_reason_is_None_only_when_the_run_could_actually_check_something():
     assert M.refusal_reason(True, 0) is None
@@ -108,12 +117,15 @@ def test_refusal_reason_is_None_only_when_the_run_could_actually_check_something
 
 # ── classify + the moved selftest ───────────────────────────────────────────────────────────────
 
+
 def test_classify_splits_all_five_outcomes():
-    E = [{"key": "a", "class": "no-distinguishing-input"},
-         {"key": "b", "class": "untestable-by-design"},
-         {"key": "c", "class": "real-gap"},
-         {"key": "d", "class": "no-distinguishing-input"},
-         {"key": "e", "class": "no-distinguishing-input"}]
+    E = [
+        {"key": "a", "class": "no-distinguishing-input"},
+        {"key": "b", "class": "untestable-by-design"},
+        {"key": "c", "class": "real-gap"},
+        {"key": "d", "class": "no-distinguishing-input"},
+        {"key": "e", "class": "no-distinguishing-input"},
+    ]
     got = M.classify(E, [{"key": k} for k in ("a", "b", "c", "f")], {"a", "b", "c", "d", "f"})
     assert sorted(x["key"] for x in got["excused"]) == ["a", "b"]
     assert [x["key"] for x in got["real_gap"]] == ["c"]
@@ -140,9 +152,11 @@ def test_the_selftest_RUNS_IN_THE_GATE_now_not_only_when_a_human_types_it():
 # Covering these branches is the point, not a coverage chore: a selftest that cannot fail is the
 # vacuous-green shape — it reports success about something it never really examined.
 
+
 def test_selftest_FAILS_when_classify_buckets_wrongly(monkeypatch):
-    monkeypatch.setattr(M, 'classify', lambda e, s, g: {k: [] for k in
-                        ('excused', 'real_gap', 'refuted', 'orphaned', 'unclassified')})
+    monkeypatch.setattr(
+        M, "classify", lambda e, s, g: {k: [] for k in ("excused", "real_gap", "refuted", "orphaned", "unclassified")}
+    )
     assert M.selftest() != 0
 
 
@@ -151,10 +165,10 @@ def test_selftest_FAILS_when_a_killed_mutant_leaks_into_unclassified(monkeypatch
 
     def leaky(e, s, g):
         out = real(e, s, g)
-        out['unclassified'] = out['unclassified'] + [{'key': 'd'}]
+        out["unclassified"] = out["unclassified"] + [{"key": "d"}]
         return out
 
-    monkeypatch.setattr(M, 'classify', leaky)
+    monkeypatch.setattr(M, "classify", leaky)
     assert M.selftest() != 0
 
 
@@ -162,9 +176,9 @@ def test_selftest_FAILS_if_is_string_only_regresses_in_EITHER_direction(monkeypa
     """Both directions, because the file records both mistakes: the original bug (a keyword change
     read as string-only because the LINE held a quote) and the tempting over-correction (keying on
     mutmut's XX sentinel alone, which starts REQUIRING genuine literal mutations)."""
-    monkeypatch.setattr(M, 'is_string_only', lambda d: True)     # over-broad, the original bug
+    monkeypatch.setattr(M, "is_string_only", lambda d: True)  # over-broad, the original bug
     assert M.selftest() != 0
-    monkeypatch.setattr(M, 'is_string_only', lambda d: False)    # over-narrow, the over-correction
+    monkeypatch.setattr(M, "is_string_only", lambda d: False)  # over-narrow, the over-correction
     assert M.selftest() != 0
 
 
@@ -172,10 +186,10 @@ def test_selftest_FAILS_when_any_span_or_key_helper_regresses(monkeypatch):
     """The remaining selftest guards, each forced. Without these the FAIL branches never execute, so
     the selftest would be trusted for checks that had never once been shown to bite."""
     for name, broken in (
-        ('changed_span', lambda a, b: (0, 0, 0)),
-        ('_string_spans', lambda ln: []),
-        ('diff_key', lambda d: 'constant'),
-        ('refusal_reason', lambda v, rc: None),
+        ("changed_span", lambda a, b: (0, 0, 0)),
+        ("_string_spans", lambda ln: []),
+        ("diff_key", lambda d: "constant"),
+        ("refusal_reason", lambda v, rc: None),
     ):
         with monkeypatch.context() as mp:
             mp.setattr(M, name, broken)
@@ -184,17 +198,18 @@ def test_selftest_FAILS_when_any_span_or_key_helper_regresses(monkeypatch):
 
 # ── 1b: the two exclusions must not be one bucket ───────────────────────────────────────────────
 
+
 def test_a_no_op_diff_is_EMPTY_DIFF_and_never_reported_as_string_only():
     """🔴 THE FAIL-OPEN THIS UNIT CLOSES. Every removed/added pair identical means every
     `changed_span` is None, the loop `continue`s, and the old code fell through to True — so a mutant
     that changes NOTHING was reported as "string-only" and excluded. It may still be excluded (it is
     equivalent by construction) but it is a different FACT, and only one of the two is evidence about
     the code. A gate that cannot tell them apart cannot be audited."""
-    v, why = M.string_only_verdict(_d('    x = 1', '    x = 1'))
+    v, why = M.string_only_verdict(_d("    x = 1", "    x = 1"))
     assert v == M.EMPTY_DIFF, f"a no-op diff came back as {v}"
     assert v != M.STRING_ONLY
-    assert 'identical' in why
-    assert M.is_string_only(_d('    x = 1', '    x = 1')) is True   # still excluded, deliberately
+    assert "identical" in why
+    assert M.is_string_only(_d("    x = 1", "    x = 1")) is True  # still excluded, deliberately
 
 
 def test_a_real_log_mutation_is_STRING_ONLY_not_EMPTY_DIFF():
@@ -208,23 +223,23 @@ def test_a_scan_outside_its_competence_REFUSES_instead_of_guessing(monkeypatch):
     outside them it returns a confident WRONG answer rather than failing — the 2026-08-24 defect one
     level down. Refusing is the only honest verdict, and it must not be silently excludable."""
     tq = chr(34) * 3
-    v, why = M.string_only_verdict(_d('    x = f(1)  # ' + tq, '    x = f(2)  # ' + tq))
+    v, why = M.string_only_verdict(_d("    x = f(1)  # " + tq, "    x = f(2)  # " + tq))
     assert v == M.UNDECIDABLE, f"a triple-quoted line was decided anyway: {v}"
-    assert 'competence' in why
+    assert "competence" in why
     # An unterminated literal is the second detectable case.
     assert M.scan_is_reliable('a = "open') is False
     assert M.scan_is_reliable('a = "closed"') is True
     # An ESCAPED quote must not be mistaken for the terminator — otherwise the scan would call a
     # perfectly readable line unreliable and the gate would start demanding literal mutations.
     assert M.scan_is_reliable('a = "he\\"llo"') is True
-    assert M.scan_is_reliable('a = ' + tq + 'x' + tq) is False
+    assert M.scan_is_reliable("a = " + tq + "x" + tq) is False
 
 
 def test_UNDECIDABLE_fails_CLOSED_through_the_back_compat_bool():
     """A caller still on the bool API must get the SAFE direction: required, never excluded. This is
     the property that makes the refusal harmless to add — the old API cannot start skipping mutants."""
     tq = chr(34) * 3
-    undecidable = _d('    x = f(1)  # ' + tq, '    x = f(2)  # ' + tq)
+    undecidable = _d("    x = f(1)  # " + tq, "    x = f(2)  # " + tq)
     assert M.string_only_verdict(undecidable)[0] == M.UNDECIDABLE
     assert M.is_string_only(undecidable) is False
 
@@ -233,9 +248,14 @@ def test_the_bool_and_the_verdict_can_never_disagree():
     """`is_string_only` is DERIVED from the verdict rather than reimplementing it. Pinned because a
     bool and a verdict drifting apart is precisely the defect class this file keeps producing."""
     tq = chr(34) * 3
-    for diff in (_d('    x = 1', '    x = 2'), _d('    s = "a"', '    s = "b"'),
-                 _d('    x = 1', '    x = 1'), _d('  y = f(1) # ' + tq, '  y = f(2) # ' + tq),
-                 '--- a\n+++ b\n+    s = "XXhiXX"\n', '--- a\n+++ b\n-    x = 1\n'):
+    for diff in (
+        _d("    x = 1", "    x = 2"),
+        _d('    s = "a"', '    s = "b"'),
+        _d("    x = 1", "    x = 1"),
+        _d("  y = f(1) # " + tq, "  y = f(2) # " + tq),
+        '--- a\n+++ b\n+    s = "XXhiXX"\n',
+        "--- a\n+++ b\n-    x = 1\n",
+    ):
         expected = M.string_only_verdict(diff)[0] in (M.STRING_ONLY, M.EMPTY_DIFF)
         assert M.is_string_only(diff) is expected
 
@@ -243,10 +263,9 @@ def test_the_bool_and_the_verdict_can_never_disagree():
 def test_selftest_FAILS_if_the_two_exclusions_collapse_again(monkeypatch):
     """The 1b guard, forced in every direction it can regress. Without this the new selftest checks
     would be trusted having never once been shown to bite."""
-    for broken in (lambda d: (M.STRING_ONLY, 'x'), lambda d: (M.EMPTY_DIFF, 'x'),
-                   lambda d: (M.REQUIRED, 'x')):
+    for broken in (lambda d: (M.STRING_ONLY, "x"), lambda d: (M.EMPTY_DIFF, "x"), lambda d: (M.REQUIRED, "x")):
         with monkeypatch.context() as mp:
-            mp.setattr(M, 'string_only_verdict', broken)
+            mp.setattr(M, "string_only_verdict", broken)
             assert M.selftest() != 0
 
 
@@ -259,6 +278,7 @@ def test_selftest_FAILS_if_the_two_exclusions_collapse_again(monkeypatch):
 # too SHORT or too SIMPLE to observe it: a one-character difference, a literal at the end of the
 # line, a single changed pair. Same family as the single-dot names and the pre-sorted candidate list
 # — a fixture that reaches the right answer without the code having to do its job.
+
 
 def test_changed_span_when_the_difference_is_at_index_ZERO():
     """Kills `i, lo = 0, ...` -> `1`. Every prior case differed later in the string, so starting the
@@ -320,6 +340,7 @@ def test_string_only_verdict_requires_BOTH_sides_readable_not_either():
     assert M.string_only_verdict("--- x\n+++ y\n-    x = f(1)\n+    x = f(2)  # " + tq + "\n")[0] == M.UNDECIDABLE
     assert M.string_only_verdict("--- x\n+++ y\n-    x = f(1)  # " + tq + "\n+    x = f(2)\n")[0] == M.UNDECIDABLE
 
+
 # ── inputs found by DIFFERENTIAL SEARCH, not by guessing (PR #1891 follow-up) ───────────────────
 # My first pass at these was eight hand-picked "adversarial" fixtures. It killed 7 of 30 — I reasoned
 # about what SHOULD discriminate rather than measuring what does, which is the same error as the
@@ -327,6 +348,7 @@ def test_string_only_verdict_requires_BOTH_sides_readable_not_either():
 # line replacement to the real source, exec it, and brute-force a corpus for an input where the
 # original and the mutant disagree. Every one is smaller and stranger than anything I would have
 # written, which is the point.
+
 
 def test_scan_is_reliable_on_a_LONE_quote_and_other_minimal_lines():
     """Found by search. Kills four index-arithmetic mutants at once — each needs a line so short that
@@ -359,8 +381,8 @@ def test_scan_is_reliable_distinguishes_its_TRIPLE_QUOTE_sentinels():
     """Found by search. Kills `chr(39) * 3` -> `chr(40) * 3` (which would test for `(((`) and
     -> `chr(39) * 4`. Neither is observable unless a line carries exactly the sentinel being asked
     about, and no prior fixture contained parentheses or a bare triple-apostrophe inside a literal."""
-    assert M.scan_is_reliable("(((") is True                       # parens are not a quote sentinel
-    assert M.scan_is_reliable(chr(39) * 3) is False                # a real triple-apostrophe
+    assert M.scan_is_reliable("(((") is True  # parens are not a quote sentinel
+    assert M.scan_is_reliable(chr(39) * 3) is False  # a real triple-apostrophe
     assert M.scan_is_reliable(chr(34) + chr(39) * 3 + chr(34)) is False
 
 
@@ -372,16 +394,16 @@ def test_string_only_verdict_when_the_change_STRADDLES_a_literal_boundary():
     assert M.string_only_verdict(straddle)[0] == M.REQUIRED
 
 
-
 # ── the last five survivors (#1891 follow-up) ───────────────────────────────────────────────────
+
 
 def test_functions_covering_includes_the_DEF_LINE_itself():
     """Kills `if any(lo <= ln <= hi)` -> `lo < ln <= hi`. A changed `def` line is the commonest case
     of all — you changed the signature — and every prior fixture pointed at a line in the BODY, where
     the lower bound is never tight."""
     src = "import os\n\n\ndef alpha():\n    return 1\n"
-    assert M.functions_covering(src, {4}) == {"x_alpha"}     # the `def` line
-    assert M.functions_covering(src, {5}) == {"x_alpha"}     # and the body
+    assert M.functions_covering(src, {4}) == {"x_alpha"}  # the `def` line
+    assert M.functions_covering(src, {5}) == {"x_alpha"}  # and the body
 
 
 def test_functions_covering_keeps_the_CLASS_context_through_a_nested_function():
@@ -406,8 +428,7 @@ def test_classify_treats_a_keyless_entry_as_claiming_the_EMPTY_key():
 # ── annotation_only: signature re-annotation leaves scope; behaviour never does ─────────────────
 def test_annotation_only_excludes_pure_signature_widenings():
     """The measured case (#1946): a one-line widening must strip to an identical AST."""
-    ok, why = M.annotation_only("def f(x: float): return x",
-                                "def f(x: float | None): return x")
+    ok, why = M.annotation_only("def f(x: float): return x", "def f(x: float | None): return x")
     assert ok is True and "identical" in why
 
 
@@ -431,8 +452,7 @@ def test_selftest_reds_on_a_lying_annotation_classifier(monkeypatch):
     """The selftest's OWN failure branch must be reachable — a harness whose FAIL print can never
     execute is a harness nobody has seen fail. A classifier that answers 'excluded' for everything
     must turn the selftest red (this is the permanent form of the build-time negative control)."""
-    monkeypatch.setattr(M, "annotation_only",
-                        lambda a, b: (True, "stripped ASTs identical"))
+    monkeypatch.setattr(M, "annotation_only", lambda a, b: (True, "stripped ASTs identical"))
     assert M.selftest() == 1
 
 
@@ -441,6 +461,7 @@ def test_selftest_reds_on_a_lying_annotation_classifier(monkeypatch):
 # function" from "spread across five" — two findings needing opposite responses, and the data was in
 # every mutant name already. These pin both real name shapes; the METHOD form is the one a column-0
 # assumption keeps missing (see mmeta.generated_under_glob).
+
 
 def test_function_of_mutant_reads_a_module_level_function():
     assert M.function_of_mutant("x__floor_by_t__mutmut_12") == "_floor_by_t"
@@ -471,10 +492,10 @@ def test_function_of_mutant_reads_a_METHOD_including_its_class():
 
 def test_function_of_mutant_declines_rather_than_guesses():
     """A wrong attribution sends a reader to the wrong function — worse than naming none."""
-    assert M.function_of_mutant("not_a_mutant") == ""     # no __mutmut_N suffix
+    assert M.function_of_mutant("not_a_mutant") == ""  # no __mutmut_N suffix
     assert M.function_of_mutant("") == ""
-    assert M.function_of_mutant("x__mutmut_1") == ""      # suffix, but no name left after `x_`
-    assert M.function_of_mutant("ǁǁ__mutmut_1") == ""     # separators, no parts
+    assert M.function_of_mutant("x__mutmut_1") == ""  # suffix, but no name left after `x_`
+    assert M.function_of_mutant("ǁǁ__mutmut_1") == ""  # separators, no parts
     # ...and stripping the module qualifier must not turn a decline into a GUESS: a qualified name
     # whose remainder is still unreadable stays unattributed rather than naming the module.
     assert M.function_of_mutant("gattmap.not_a_mutant") == ""
@@ -552,13 +573,15 @@ def test_a_lone_staticmethod_is_mutmuts_OWN_exemption_and_stays_mutatable():
 def test_the_blind_spot_is_WIDER_than_properties():
     """45 properties, but also 4 @asynccontextmanager and 1 @middleware in capture-host — 50 total.
     Reporting only properties left the other five saying "cause not established" for a known cause."""
-    src = ("import contextlib, functools\n"
-           "@contextlib.asynccontextmanager\n"
-           "async def scope():\n    yield 1\n"
-           "@functools.lru_cache()\n"
-           "def cached_fn():\n    return 2\n")
+    src = (
+        "import contextlib, functools\n"
+        "@contextlib.asynccontextmanager\n"
+        "async def scope():\n    yield 1\n"
+        "@functools.lru_cache()\n"
+        "def cached_fn():\n    return 2\n"
+    )
     assert M.unmutatable_decorator(src, "scope") == "asynccontextmanager"
-    assert M.unmutatable_decorator(src, "cached_fn") == "lru_cache"   # the @foo() CALL form counts
+    assert M.unmutatable_decorator(src, "cached_fn") == "lru_cache"  # the @foo() CALL form counts
 
 
 def test_unparseable_source_yields_no_claim_rather_than_raising():
@@ -663,13 +686,29 @@ def test_budget_refusal_names_every_number_it_used():
 def test_verdict_object_maps_every_gate_outcome_onto_the_closed_enum():
     from mutation_diff import VERDICT_STATUSES, verdict_object
 
-    common = dict(result={"generated": 1, "decided": 1, "killed": 1, "survived": 0, "undecided": 0, "excused": 0},
-                  evidence=["capture-host/tools/mutate_diff.py"], commit="abcdef1", at="2026-09-22T00:00:00Z", base="origin/main")
+    common = dict(
+        result={"generated": 1, "decided": 1, "killed": 1, "survived": 0, "undecided": 0, "excused": 0},
+        evidence=["capture-host/tools/mutate_diff.py"],
+        commit="abcdef1",
+        at="2026-09-22T00:00:00Z",
+        base="origin/main",
+    )
     o = verdict_object("PASS", checked=3, eligible=4, reason=None, **common)
     assert o["schema"] == "tepna.verdict/1" and o["gate"] == "mutate-diff" and o["scope"] == "internal"
-    assert o["population"] == {"checked": 3, "eligible": 4, "excluded": 1}, "population is an equality — excluded is derived, never guessed"
-    assert o["criterion"] == {"name": "survivors_on_changed_lines", "threshold": 0, "unit": "mutants", "direction": "lte"}
-    assert o["result"]["killed"] == 1 and o["reason"] is None and o["producedBy"] == {"tool": "capture-host/tools/mutate_diff.py", "commit": "abcdef1"}
+    assert o["population"] == {"checked": 3, "eligible": 4, "excluded": 1}, (
+        "population is an equality — excluded is derived, never guessed"
+    )
+    assert o["criterion"] == {
+        "name": "survivors_on_changed_lines",
+        "threshold": 0,
+        "unit": "mutants",
+        "direction": "lte",
+    }
+    assert (
+        o["result"]["killed"] == 1
+        and o["reason"] is None
+        and o["producedBy"] == {"tool": "capture-host/tools/mutate_diff.py", "commit": "abcdef1"}
+    )
     # the states that read as green to a regex carry result: null and a reason
     for st in ("NOT_RUN", "NOT_APPLICABLE"):
         n = verdict_object(st, checked=0, eligible=0, reason="why", **common)
@@ -745,12 +784,8 @@ def test_clean_run_failures_reads_an_ERROR_at_setup_and_dedups_the_repeated_summ
 
 
 def test_clean_run_failures_ignores_prose_that_merely_quotes_the_tokens():
-    text = (
-        "    # a docstring saying FAILED tests/x.py::y is not a failure\n"
-        "Failed to run clean test\n"
-    )
+    text = "    # a docstring saying FAILED tests/x.py::y is not a failure\nFailed to run clean test\n"
     assert M.clean_run_failures(text) == []
-
 
 
 # ── A FLOAT-THRESHOLD MUTANT IS DISTINGUISHABLE ON A MEASURE-ZERO SET ─────────────────────────────
@@ -759,8 +794,7 @@ def test_clean_run_failures_ignores_prose_that_merely_quotes_the_tokens():
 # lands exactly on the representable 0.05. The fixture anyone reaches for — a clean 0.90/0.95 gap —
 # renders identically under both operators, so a probe built from it reports "no distinguishing
 # input" and the mutant gets ledgered EQUIVALENT. These pin the guard that refuses that entry.
-_K37 = ('- pct = f"{lo * 100:.0f}%" if (hi - lo) < 0.05 else y | '
-        '+ pct = f"{lo * 100:.0f}%" if (hi - lo) <= 0.05 else y')
+_K37 = '- pct = f"{lo * 100:.0f}%" if (hi - lo) < 0.05 else y | + pct = f"{lo * 100:.0f}%" if (hi - lo) <= 0.05 else y'
 
 
 def test_float_boundary_refuses_an_entry_whose_probe_only_sampled():
@@ -901,43 +935,47 @@ def test_a_change_inside_an_F_STRING_FIELD_is_REQUIRED_not_string_only():
     `_string_spans` is a hand scanner and an f-string's fields were text to it. #3098 asked whether
     this tool shared `find_unwired`'s pre-3.12 tokenizer blind spot; it did not — it had this one."""
     want = (M.REQUIRED, "the changed token is inside an f-string field - code, not text")
-    for old, new in (('    x = f"{a(y)}-{y + 1}"', '    x = f"{b(y)}-{y + 1}"'),
-                     ('    x = f"{a(y)}-{y + 1}"', '    x = f"{a(None)}-{y + 1}"'),
-                     ('    x = f"{a(y)}-{y + 1}"', '    x = f"{a(y)}-{y - 1}"'),
-                     ("    x = F'{a(y)}'", "    x = F'{b(y)}'"),                 # upper-case prefix
-                     ('    x = rf"{a(y)}\\n"', '    x = rf"{b(y)}\\n"'),        # combined prefix
-                     ("    x = f\"{d['k']}\"", "    x = f\"{d['j']}\""),          # the OTHER quote nested
-                     ('    x = f"{b}a"', '    x = f"ba"'),                        # a field only on the OLD side
-                     ('    x = f"ba"', '    x = f"{b}a"'),                        # ...and only on the NEW side
-                     ('    x = f"t{a}"', '    x = f"t(a}"'),                      # the `{` itself changed
-                     ('    x = f"{a}t"', '    x = f"{a)t"')):                     # the `}` itself changed
+    for old, new in (
+        ('    x = f"{a(y)}-{y + 1}"', '    x = f"{b(y)}-{y + 1}"'),
+        ('    x = f"{a(y)}-{y + 1}"', '    x = f"{a(None)}-{y + 1}"'),
+        ('    x = f"{a(y)}-{y + 1}"', '    x = f"{a(y)}-{y - 1}"'),
+        ("    x = F'{a(y)}'", "    x = F'{b(y)}'"),  # upper-case prefix
+        ('    x = rf"{a(y)}\\n"', '    x = rf"{b(y)}\\n"'),  # combined prefix
+        ("    x = f\"{d['k']}\"", "    x = f\"{d['j']}\""),  # the OTHER quote nested
+        ('    x = f"{b}a"', '    x = f"ba"'),  # a field only on the OLD side
+        ('    x = f"ba"', '    x = f"{b}a"'),  # ...and only on the NEW side
+        ('    x = f"t{a}"', '    x = f"t(a}"'),  # the `{` itself changed
+        ('    x = f"{a}t"', '    x = f"{a)t"'),
+    ):  # the `}` itself changed
         assert M.string_only_verdict(_d(old, new)) == want, (old, new)
         assert M.is_string_only(_d(old, new)) is False, (old, new)
     # The TEXT of an f-string is still text: a wording change between fields stays string-only, and so
     # does one inside an escaped `{{...}}`, which is not a field. A plain literal's braces are text too.
-    for old, new in (('    x = f"started {n}"', '    x = f"begun {n}"'),
-                     ('    x = f"{{lit}} {n}"', '    x = f"{{LIT}} {n}"'),
-                     ('    x = f"t{a}"', '    x = f"u{a}"'),                      # the character right BEFORE `{`
-                     ('    x = f"{a}t"', '    x = f"{a}u"'),                      # ...and right AFTER `}`
-                     ('    x = "{a(y)}"', '    x = "{b(y)}"')):
+    for old, new in (
+        ('    x = f"started {n}"', '    x = f"begun {n}"'),
+        ('    x = f"{{lit}} {n}"', '    x = f"{{LIT}} {n}"'),
+        ('    x = f"t{a}"', '    x = f"u{a}"'),  # the character right BEFORE `{`
+        ('    x = f"{a}t"', '    x = f"{a}u"'),  # ...and right AFTER `}`
+        ('    x = "{a(y)}"', '    x = "{b(y)}"'),
+    ):
         assert M.string_only_verdict(_d(old, new))[0] == M.STRING_ONLY, (old, new)
 
 
 def test_fstring_expr_spans_are_EXACT_and_run_to_the_literals_end_on_an_unterminated_field():
     f = M._fstring_expr_spans
-    assert f('f"{a(y)}-{y + 1}"') == [(2, 8), (9, 16)]             # `{`…`}` inclusive, exactly
-    assert f('x = "{a}" + f"{b}"') == [(14, 17)]                   # only the f-prefixed literal has fields
-    assert f('rf"{a}" F\'{b}\' fr"{c}" bf"x"') == [(3, 6), (10, 13), (18, 21)]   # any prefix carrying an f
-    assert f('f"{{not}} {yes} {{}}"') == [(10, 15)]                # `{{` / `}}` are text
-    assert f('f"{d[{1: 2}[1]]:{w}}"') == [(2, 20)]                 # nested braces stay inside their field
-    assert f('f"{a"') == [(2, 5)]                                   # unterminated: to the literal\'s end, fail-CLOSED
-    assert f('f"{a}" + x') == [(2, 5)]                             # column 0: the prefix walk stops at 0
-    assert f('if t: s = "{a}"') == []                                # an `f` earlier on the line is not a prefix
-    assert f('f"{{{x}}}"') == [(4, 7)]                               # `{{`, then a field, then `}}`
-    assert f('f"{}{a}"') == [(2, 4), (4, 7)]                       # not valid Python — pins that the scan starts AT the first field char
-    assert f('f"{a}}}"') == [(2, 5)]                                 # a field, then an escaped `}}` — the FIRST `}` closes the field
-    assert f('f"a}{c}"') == [(4, 7)]                                 # a lone `}` at depth 0 is text, not a close
-    assert f('f"{a}"{') == [(2, 5)]                                  # a brace AFTER the literal is not inside it
+    assert f('f"{a(y)}-{y + 1}"') == [(2, 8), (9, 16)]  # `{`…`}` inclusive, exactly
+    assert f('x = "{a}" + f"{b}"') == [(14, 17)]  # only the f-prefixed literal has fields
+    assert f('rf"{a}" F\'{b}\' fr"{c}" bf"x"') == [(3, 6), (10, 13), (18, 21)]  # any prefix carrying an f
+    assert f('f"{{not}} {yes} {{}}"') == [(10, 15)]  # `{{` / `}}` are text
+    assert f('f"{d[{1: 2}[1]]:{w}}"') == [(2, 20)]  # nested braces stay inside their field
+    assert f('f"{a"') == [(2, 5)]  # unterminated: to the literal\'s end, fail-CLOSED
+    assert f('f"{a}" + x') == [(2, 5)]  # column 0: the prefix walk stops at 0
+    assert f('if t: s = "{a}"') == []  # an `f` earlier on the line is not a prefix
+    assert f('f"{{{x}}}"') == [(4, 7)]  # `{{`, then a field, then `}}`
+    assert f('f"{}{a}"') == [(2, 4), (4, 7)]  # not valid Python — pins that the scan starts AT the first field char
+    assert f('f"{a}}}"') == [(2, 5)]  # a field, then an escaped `}}` — the FIRST `}` closes the field
+    assert f('f"a}{c}"') == [(4, 7)]  # a lone `}` at depth 0 is text, not a close
+    assert f('f"{a}"{') == [(2, 5)]  # a brace AFTER the literal is not inside it
     assert f('"{a}"') == [] and f("plain") == []
 
 
@@ -953,7 +991,6 @@ def test_selftest_NAMES_the_f_string_check_that_failed(monkeypatch, capsys):
     monkeypatch.setattr(M, "is_string_only", lambda diff: False)
     assert M.selftest() == 1
     assert "an f-string's TEXT is no longer string-only" in capsys.readouterr().out
-
 
 
 def test_report_only_refusal_note_is_blocking_in_the_gating_modes_words():
@@ -1116,7 +1153,7 @@ def test_an_empty_result_block_names_EVERY_counter_it_lacks():
     assert why and all(k in why for k in ("generated", "decided", "killed", "survived", "undecided")), why
 
 
-def test_the_settled_total_ADDS_its_three_terms(  ):
+def test_the_settled_total_ADDS_its_three_terms():
     """`killed + survived + undecided` — a `-` on the last term would let a run with many undecided
     mutants under-report what it settled and slip past the bound. Undecided is non-zero here ON PURPOSE:
     with `undecided: 0` the sign is unobservable, which is why the shipped-artifact test could not see it."""
@@ -1334,7 +1371,7 @@ def test_a_partly_measured_run_stays_UNKNOWN_and_says_how_much_it_measured():
 
 
 def test_the_budget_verdict_always_names_the_elapsed_time():
-    """"Never a silent timeout" is the property, and the elapsed seconds are the only number that
+    """ "Never a silent timeout" is the property, and the elapsed seconds are the only number that
     distinguishes a budget that ran out from a budget that was mis-set. Both arms, one assertion."""
     for decided in (0, 1, 500):
         _, reason = M.budget_exhaustion_verdict(1, decided, 1234.0)
@@ -1359,8 +1396,8 @@ def test_the_budget_verdict_uses_only_statuses_the_contract_allows():
 def _child(code: str):
     import subprocess as _sp
     import sys as _sys
-    return _sp.Popen([_sys.executable, "-c", code], stdout=_sp.PIPE, stderr=_sp.STDOUT,
-                     text=True, bufsize=1)
+
+    return _sp.Popen([_sys.executable, "-c", code], stdout=_sp.PIPE, stderr=_sp.STDOUT, text=True, bufsize=1)
 
 
 _CHATTY_3S = "import sys, time\nend = time.time() + 3\nwhile time.time() < end:\n    print('working'); sys.stdout.flush(); time.sleep(0.02)\n"
@@ -1373,6 +1410,7 @@ def test_a_child_still_working_at_the_cap_is_KILLED():
     not fire. The child here outlives the cap but not the test: under an unbounded wait it is reaped
     normally at 3 s and `timed_out` comes back False, so the mutant fails instead of hanging."""
     import time as _t
+
     proc = _child(_CHATTY_3S)
     seen: list[str] = []
     t0 = _t.monotonic()
@@ -1388,6 +1426,7 @@ def test_a_SILENT_child_still_working_at_the_cap_is_also_KILLED():
     """The worse half: a child producing NO output. The old read blocked on an empty pipe with nothing
     to count and no heartbeat — the shape a reader calls "wedged" and cannot tell from slow work."""
     import time as _t
+
     proc = _child(_SILENT_3S)
     t0 = _t.monotonic()
     rc, timed_out, _ = M.stream_bounded(proc, 1.0, lambda _l: None, t0=t0)
@@ -1416,6 +1455,7 @@ def test_a_failing_child_inside_the_cap_is_not_reported_as_a_timeout():
 def test_a_pipe_closed_under_the_reader_does_not_take_the_verdict_with_it():
     """The kill can close the pipe while the reader is mid-iteration. A stub rather than a race, so
     the branch is exercised the same way every run: the read dies, the caller still gets its code."""
+
     class _Pipe:
         def __iter__(self):
             raise ValueError("I/O operation on closed file")
@@ -1572,8 +1612,9 @@ class _RecordingProc:
 
     def __init__(self):
         import subprocess as _sp
+
         self._sp, self.killed, self.timeouts = _sp, False, []
-        self.stdout = iter(())          # the reader finishes at once; nothing here is about the read
+        self.stdout = iter(())  # the reader finishes at once; nothing here is about the read
 
     def kill(self):
         self.killed = True
@@ -1590,12 +1631,14 @@ def test_the_wait_is_given_the_caller_s_remaining_budget_as_a_REAL_number():
     from the caller — `tools/mutate.py` measures `t0` before the clean run, so recomputing silently
     hands every module its full budget back after the pre-work is already spent."""
     import time as _t
+
     proc = _RecordingProc()
     M.stream_bounded(proc, 30.0, lambda _l: None, t0=_t.monotonic() - 1000.0)
     assert proc.timeouts[0] is not None, "the wall wait must be bounded, not `timeout=None`"
     assert proc.timeouts[0] == M.CAP_FLOOR_SEC, (
         f"the budget was spent 1000s ago, so only the floor is owed; got {proc.timeouts[0]} — "
-        "a cap that restarts from this call is no cap")
+        "a cap that restarts from this call is no cap"
+    )
 
 
 def test_the_post_kill_reap_is_BOUNDED_too():
@@ -1641,7 +1684,8 @@ def test_the_abandoned_reader_is_a_DAEMON_and_its_join_is_BOUNDED(monkeypatch):
 
     assert made["daemon_kw"] is True, (
         f"the reader must be a daemon; got daemon={made['daemon_kw']!r} — a non-daemon reader stuck "
-        "on a pipe blocks interpreter shutdown")
+        "on a pipe blocks interpreter shutdown"
+    )
     assert made["join_timeout"] is not None, "the join must be bounded, not `join(timeout=None)`"
     assert made["join_timeout"] == 0.3, made
 
@@ -1682,6 +1726,8 @@ def test_ONE_decided_mutant_is_already_a_partly_measured_run():
     so NOT_RUN ("examined nothing") would be false."""
     assert M.budget_exhaustion_verdict(1, 1, 10.0)[0] == "UNKNOWN"
     assert M.budget_exhaustion_verdict(1, 0, 10.0)[0] == "NOT_RUN"
+
+
 # ── SCRATCH OWNERSHIP: a prune must not delete a tree another session is using ──────────────────────
 # Residue 2026-09-25-mutate-prune-closure-unverified. NOT the question test_tmp_basetemp_race.py
 # answers (pytest's basetemp, one level down); this is the mutation scratch, where the deletion is
@@ -1689,7 +1735,7 @@ def test_ONE_decided_mutant_is_already_a_partly_measured_run():
 def test_a_scratch_held_by_a_LIVE_owner_is_never_pruned():
     """THE PLANT. Two sessions sweeping one module at different source hashes were each deleting the
     other's 536 MB tree mid-run."""
-    prune, why = M.scratch_prune_decision(is_current=False, owner_live=True, age_sec=10 ** 9)
+    prune, why = M.scratch_prune_decision(is_current=False, owner_live=True, age_sec=10**9)
     assert prune is False, why
     assert "live" in why
 
@@ -1697,15 +1743,13 @@ def test_a_scratch_held_by_a_LIVE_owner_is_never_pruned():
 def test_a_scratch_whose_owner_is_GONE_and_past_the_floor_is_pruned():
     """The other half of the plant: the cache must still evict, or a tmpfs fills. 153 orphaned
     scratches and 2.6 GB were measured before any pruning existed."""
-    prune, why = M.scratch_prune_decision(is_current=False, owner_live=False,
-                                          age_sec=M.SCRATCH_MIN_AGE_SEC + 1)
+    prune, why = M.scratch_prune_decision(is_current=False, owner_live=False, age_sec=M.SCRATCH_MIN_AGE_SEC + 1)
     assert prune is True, why
     assert "owner is gone" in why
 
 
 def test_a_dead_owner_inside_the_age_floor_is_left_alone():
-    prune, why = M.scratch_prune_decision(is_current=False, owner_live=False,
-                                          age_sec=M.SCRATCH_MIN_AGE_SEC - 1)
+    prune, why = M.scratch_prune_decision(is_current=False, owner_live=False, age_sec=M.SCRATCH_MIN_AGE_SEC - 1)
     assert prune is False and "still exiting" in why, why
 
 
@@ -1713,14 +1757,17 @@ def test_an_UNMARKED_scratch_is_outlived_not_judged():
     """§∅: "no owner file" is not "no owner". An unmarked tree earns the longer floor precisely
     because nothing is known about it — treating unknown as dead is the deletion this prevents."""
     assert M.scratch_prune_decision(is_current=False, owner_live=None, age_sec=3600)[0] is False
-    assert M.scratch_prune_decision(is_current=False, owner_live=None,
-                                    age_sec=M.SCRATCH_UNKNOWN_MIN_AGE_SEC + 1)[0] is True
-    assert M.SCRATCH_UNKNOWN_MIN_AGE_SEC > M.SCRATCH_MIN_AGE_SEC, \
+    assert (
+        M.scratch_prune_decision(is_current=False, owner_live=None, age_sec=M.SCRATCH_UNKNOWN_MIN_AGE_SEC + 1)[0]
+        is True
+    )
+    assert M.SCRATCH_UNKNOWN_MIN_AGE_SEC > M.SCRATCH_MIN_AGE_SEC, (
         "an unknown owner must earn a LONGER grace than one proven gone, not a shorter one"
+    )
 
 
 def test_the_runs_own_scratch_is_never_pruned():
-    assert M.scratch_prune_decision(is_current=True, owner_live=False, age_sec=10 ** 9)[0] is False
+    assert M.scratch_prune_decision(is_current=True, owner_live=False, age_sec=10**9)[0] is False
 
 
 def test_the_owner_record_round_trips_and_survives_PID_REUSE():
@@ -1728,21 +1775,24 @@ def test_the_owner_record_round_trips_and_survives_PID_REUSE():
     the answer about THIS process — without it a recycled PID pins a dead scratch forever (a leak
     dressed as caution) or, worse, a live one reads as dead."""
     import os as _os
+
     me = _os.getpid()
     ticks = M.proc_start_ticks(me)
     assert ticks is not None and ticks > 0
     rec = M.parse_owner_record(M.owner_record(me, ticks))
     assert rec == (me, ticks)
     assert M.owner_is_live(rec, M.proc_start_ticks) is True
-    assert M.owner_is_live((me, ticks + 9999), M.proc_start_ticks) is False, \
+    assert M.owner_is_live((me, ticks + 9999), M.proc_start_ticks) is False, (
         "a PID whose start time does not match is a DIFFERENT process wearing the same number"
+    )
 
 
 def test_an_unreadable_or_absent_owner_record_is_UNKNOWN_and_not_False():
     for text in ("", None, "garbage", "12", "not a pid  nor ticks", "1 2 3", "abc def", "1 x"):
         assert M.parse_owner_record(text) is None, text
-    assert M.owner_is_live(None, M.proc_start_ticks) is None, \
+    assert M.owner_is_live(None, M.proc_start_ticks) is None, (
         "unknown must be its own answer — collapsing it to False is how a live tree gets deleted"
+    )
 
 
 def test_proc_start_ticks_reads_the_field_after_the_last_paren(tmp_path):
@@ -1750,20 +1800,20 @@ def test_proc_start_ticks_reads_the_field_after_the_last_paren(tmp_path):
     Splitting the whole line is the classic way to read the wrong field."""
     d = tmp_path / "4242"
     d.mkdir()
-    fields = " ".join(str(i) for i in range(3, 53))          # fields 3..52; field 22 -> value "22"
+    fields = " ".join(str(i) for i in range(3, 53))  # fields 3..52; field 22 -> value "22"
     (d / "stat").write_text(f"4242 (py (thon) :) x) {fields}\n", encoding="utf-8")
     assert M.proc_start_ticks(4242, proc_root=str(tmp_path)) == 22
     assert M.proc_start_ticks(999999, proc_root=str(tmp_path)) is None
 
 
 # ── MEMORY: refuse before starting, never get reaped mid-run ────────────────────────────────────────
-_GB = 1024 ** 3
+_GB = 1024**3
 
 
 def test_a_projected_budget_over_the_cap_REFUSES_and_names_every_number():
     """THE PLANT, at capture.py's measured shape: a 536 MB mutants file, one worker per core, against
     the box's available memory. One worker measured 8.2 GB RSS, and mutmut spawns a worker per core."""
-    why = M.memory_refusal(536 * 1024 ** 2, 16, 40 * _GB)
+    why = M.memory_refusal(536 * 1024**2, 16, 40 * _GB)
     assert why, "capture.py on 16 cores must not be attempted against 40 GB available"
     # 🔴 THE WHOLE SENTENCE, NOT SUBSTRINGS. `"40.0 GB available"` passed against a mutant that
     # multiplied by a GiB instead of dividing: the mutated number ended ...879040.0, so the fragment
@@ -1778,7 +1828,7 @@ def test_a_projected_budget_over_the_cap_REFUSES_and_names_every_number():
 
 def test_a_projected_budget_UNDER_the_cap_runs():
     """The control: the bound must not refuse work that fits. A 10 MB module on 4 workers is 0.6 GB."""
-    assert M.memory_refusal(10 * 1024 ** 2, 4, 40 * _GB) is None
+    assert M.memory_refusal(10 * 1024**2, 4, 40 * _GB) is None
 
 
 def test_the_cap_is_a_fraction_of_AVAILABLE_and_is_pre_stated():
@@ -1786,19 +1836,20 @@ def test_the_cap_is_a_fraction_of_AVAILABLE_and_is_pre_stated():
     into "whatever is free", which is the other half of the fleet."""
     per_worker = 1.0 * _GB
     mutants = int(per_worker / M.WORKER_RSS_PER_MUTANTS_BYTE)
-    avail = int(4 * per_worker / M.MEM_CAP_FRACTION)          # cap == 4 workers' worth
+    avail = int(4 * per_worker / M.MEM_CAP_FRACTION)  # cap == 4 workers' worth
     assert M.memory_refusal(mutants, 4, avail) is None
     assert M.memory_refusal(mutants, 5, avail), "one worker past the cap must refuse"
-    assert M.MEM_CAP_FRACTION == 0.5 and M.WORKER_RSS_PER_MUTANTS_BYTE == 15.0, \
+    assert M.MEM_CAP_FRACTION == 0.5 and M.WORKER_RSS_PER_MUTANTS_BYTE == 15.0, (
         "both are PRE-STATED; a threshold derived from the data it judges is UNKNOWN (§🧾)"
+    )
 
 
 def test_memory_refusal_says_nothing_when_it_cannot_measure():
     """§∅: an unmeasured input is not a small one. With no mutants file, no worker count or no
     /proc/meminfo, the projection has no basis — refusing on a zero would block every run."""
     assert M.memory_refusal(0, 16, 40 * _GB) is None
-    assert M.memory_refusal(536 * 1024 ** 2, 0, 40 * _GB) is None
-    assert M.memory_refusal(536 * 1024 ** 2, 16, 0) is None
+    assert M.memory_refusal(536 * 1024**2, 0, 40 * _GB) is None
+    assert M.memory_refusal(536 * 1024**2, 16, 0) is None
 
 
 def test_available_is_read_from_MemAvailable_not_MemFree():
@@ -1821,6 +1872,7 @@ def test_a_memory_refusal_that_decided_nothing_is_NOT_RUN():
 def _scratch(root, name, *, owner=None, age_sec=0.0):
     import os as _os
     import time as _t
+
     d = root / name
     (d / "work").mkdir(parents=True)
     if owner is not None:
@@ -1835,14 +1887,15 @@ def test_the_prune_spares_a_LIVE_owners_scratch_and_removes_an_abandoned_one(tmp
     """THE PLANT, end to end on real directories with the real /proc: a peer's live tree survives and
     an abandoned one is reclaimed IN THE SAME SWEEP — so "it kept everything" cannot pass for a fix."""
     import os as _os
+
     me = _os.getpid()
     live = M.owner_record(me, M.proc_start_ticks(me))
-    dead = M.owner_record(999999, 1)                     # no such process
+    dead = M.owner_record(999999, 1)  # no such process
 
-    peer = _scratch(tmp_path, "mut-capture-aaaaaaaaaaaa", owner=live, age_sec=10 ** 6)
-    gone = _scratch(tmp_path, "mut-capture-bbbbbbbbbbbb", owner=dead, age_sec=10 ** 6)
+    peer = _scratch(tmp_path, "mut-capture-aaaaaaaaaaaa", owner=live, age_sec=10**6)
+    gone = _scratch(tmp_path, "mut-capture-bbbbbbbbbbbb", owner=dead, age_sec=10**6)
     mine = _scratch(tmp_path, "mut-capture-cccccccccccc", owner=live)
-    other_module = _scratch(tmp_path, "mut-webmon-dddddddddddd", owner=dead, age_sec=10 ** 6)
+    other_module = _scratch(tmp_path, "mut-webmon-dddddddddddd", owner=dead, age_sec=10**6)
 
     pruned, held = M.prune_scratches(tmp_path, "capture", mine)
 
@@ -1858,9 +1911,10 @@ def test_the_prune_reports_WHY_each_survivor_was_kept(tmp_path):
     """A prune that removed a peer's tree used to print only the name. The reason is the one line
     that could have named the mistake."""
     import os as _os
+
     me = _os.getpid()
     _scratch(tmp_path, "mut-oxy-111111111111", owner=M.owner_record(me, M.proc_start_ticks(me)))
-    _scratch(tmp_path, "mut-oxy-222222222222")                                  # unmarked, young
+    _scratch(tmp_path, "mut-oxy-222222222222")  # unmarked, young
     _scratch(tmp_path, "mut-oxy-333333333333", owner=M.owner_record(999999, 1))  # dead, young
     pruned, held = M.prune_scratches(tmp_path, "oxy", tmp_path / "mut-oxy-current")
     assert pruned == [], pruned
@@ -1888,8 +1942,7 @@ def test_a_name_that_cannot_be_stat_ed_is_skipped_not_crashed_on(tmp_path):
     """A dangling symlink, or a directory a concurrent sweep removed between the glob and the stat.
     Deterministic here via the symlink: `glob` lists it and `stat` follows it to nothing."""
     (tmp_path / "mut-hrv-aaaaaaaaaaaa").symlink_to(tmp_path / "does-not-exist")
-    real = _scratch(tmp_path, "mut-hrv-bbbbbbbbbbbb", owner=M.owner_record(999999, 1),
-                    age_sec=10 ** 6)
+    real = _scratch(tmp_path, "mut-hrv-bbbbbbbbbbbb", owner=M.owner_record(999999, 1), age_sec=10**6)
     pruned, held = M.prune_scratches(tmp_path, "hrv", tmp_path / "mut-hrv-current")
     assert pruned == [real.name], pruned
     assert (tmp_path / "mut-hrv-aaaaaaaaaaaa").is_symlink(), "the dangling name was touched"
@@ -1901,8 +1954,7 @@ def test_a_non_directory_does_not_STOP_the_sweep(tmp_path):
     file, so ending the loop there looked identical to skipping it — the prunable tree must sort
     AFTER the file for the difference to exist at all."""
     (tmp_path / "mut-ppg-aaaaaaaaaaaa").write_text("not a directory", encoding="utf-8")
-    later = _scratch(tmp_path, "mut-ppg-zzzzzzzzzzzz", owner=M.owner_record(999999, 1),
-                     age_sec=10 ** 6)
+    later = _scratch(tmp_path, "mut-ppg-zzzzzzzzzzzz", owner=M.owner_record(999999, 1), age_sec=10**6)
     pruned, _ = M.prune_scratches(tmp_path, "ppg", tmp_path / "mut-ppg-current")
     assert pruned == [later.name], f"the sweep stopped at the file instead of skipping it: {pruned}"
 
@@ -1911,12 +1963,12 @@ def test_the_prune_honours_the_CALLERS_clock_and_reports_the_true_age(tmp_path):
     """Two survivors: `now` recomputed instead of taken from the caller, and the age floored at 1.0
     instead of 0.0. Both are invisible unless the age reaches the reason text."""
     import os as _os
+
     d = _scratch(tmp_path, "mut-cpap-aaaaaaaaaaaa", owner=M.owner_record(999999, 1))
     mtime = _os.stat(d).st_mtime
     # +60, not the mtime itself: with `now` recomputed from the wall clock the age is ~0.00s, which
     # renders as "0s" exactly like the injected value would — the mutant hid inside the format.
-    _pruned, held = M.prune_scratches(tmp_path, "cpap", tmp_path / "mut-cpap-current",
-                                      now=mtime + 60.0)
+    _pruned, held = M.prune_scratches(tmp_path, "cpap", tmp_path / "mut-cpap-current", now=mtime + 60.0)
     assert len(held) == 1
     assert "only 60s old" in held[0], f"the caller's clock was ignored: {held[0]}"
     # And the floor is 0.0, not 1.0: a clock that runs backwards must report no age, not one second.
@@ -1927,8 +1979,7 @@ def test_the_prune_honours_the_CALLERS_clock_and_reports_the_true_age(tmp_path):
 def test_the_current_scratch_is_spared_even_with_NO_live_owner(tmp_path):
     """`is_current=(old_dir == current)` → `is_current=None`. The earlier test's own scratch had a
     LIVE owner, so it was kept for the other reason and the mutation made no difference."""
-    mine = _scratch(tmp_path, "mut-ecg-aaaaaaaaaaaa", owner=M.owner_record(999999, 1),
-                    age_sec=10 ** 6)
+    mine = _scratch(tmp_path, "mut-ecg-aaaaaaaaaaaa", owner=M.owner_record(999999, 1), age_sec=10**6)
     pruned, held = M.prune_scratches(tmp_path, "ecg", mine)
     assert pruned == [] and mine.exists(), "this run deleted its OWN scratch mid-run"
     assert held == [], "the current scratch is not a 'held' survivor; it is simply this run's"
@@ -1943,10 +1994,8 @@ def test_the_prune_can_be_observed_without_deleting_and_ignores_errors(tmp_path)
     def _remove(path, **kw):
         seen.append((path.name, kw))
 
-    doomed = _scratch(tmp_path, "mut-motion-aaaaaaaaaaaa", owner=M.owner_record(999999, 1),
-                      age_sec=10 ** 6)
-    pruned, _ = M.prune_scratches(tmp_path, "motion", tmp_path / "mut-motion-current",
-                                  remove=_remove)
+    doomed = _scratch(tmp_path, "mut-motion-aaaaaaaaaaaa", owner=M.owner_record(999999, 1), age_sec=10**6)
+    pruned, _ = M.prune_scratches(tmp_path, "motion", tmp_path / "mut-motion-current", remove=_remove)
     assert pruned == [doomed.name] and doomed.exists(), "the injected remove was bypassed"
     assert seen == [(doomed.name, {"ignore_errors": True})], seen
 
@@ -1956,18 +2005,17 @@ def test_an_owner_marker_that_is_not_UTF_8_does_not_take_the_sweep_down(tmp_path
     d = _scratch(tmp_path, "mut-glu-aaaaaaaaaaaa")
     (d / M.SCRATCH_OWNER_FILE).write_bytes(b"\xff\xfe not utf-8 \x00")
     import os as _os
-    _old = __import__("time").time() - 10 ** 6      # age the DIR after writing into it: a write to a
-    _os.utime(d, (_old, _old))                      # child updates the parent's mtime and undoes it
+
+    _old = __import__("time").time() - 10**6  # age the DIR after writing into it: a write to a
+    _os.utime(d, (_old, _old))  # child updates the parent's mtime and undoes it
     pruned, _ = M.prune_scratches(tmp_path, "glu", tmp_path / "mut-glu-current")
     assert pruned == [d.name], "an undecodable marker must fall back to the unmarked path"
 
 
 def test_the_age_floors_are_exclusive_at_the_boundary():
     """`age < floor` → `age <= floor`. Exactly AT the floor the grace is over."""
-    assert M.scratch_prune_decision(is_current=False, owner_live=False,
-                                    age_sec=M.SCRATCH_MIN_AGE_SEC)[0] is True
-    assert M.scratch_prune_decision(is_current=False, owner_live=None,
-                                    age_sec=M.SCRATCH_UNKNOWN_MIN_AGE_SEC)[0] is True
+    assert M.scratch_prune_decision(is_current=False, owner_live=False, age_sec=M.SCRATCH_MIN_AGE_SEC)[0] is True
+    assert M.scratch_prune_decision(is_current=False, owner_live=None, age_sec=M.SCRATCH_UNKNOWN_MIN_AGE_SEC)[0] is True
 
 
 def test_proc_start_ticks_NAMES_its_encoding(tmp_path):
@@ -2005,7 +2053,8 @@ def test_proc_start_ticks_NAMES_its_encoding(tmp_path):
     )
     r = subprocess.run(
         [sys.executable, "-X", "warn_default_encoding", "-W", "error::EncodingWarning", "-c", src],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
         cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
     )
     assert r.returncode == 0, r.stderr[-600:]
@@ -2021,9 +2070,9 @@ def test_a_ONE_BYTE_module_against_a_ONE_BYTE_box_still_refuses():
 def test_a_projection_EXACTLY_at_the_cap_fits():
     """`projected <= cap` → `projected < cap`. Only an exact equality separates them, and a boundary
     built by integer division never lands on it."""
-    mutants = 1_000_000                                  # 15 MB per worker, exactly
+    mutants = 1_000_000  # 15 MB per worker, exactly
     per_worker = mutants * M.WORKER_RSS_PER_MUTANTS_BYTE
-    avail = int(4 * per_worker / M.MEM_CAP_FRACTION)      # cap == exactly 4 workers' worth
+    avail = int(4 * per_worker / M.MEM_CAP_FRACTION)  # cap == exactly 4 workers' worth
     assert per_worker * 4 == avail * M.MEM_CAP_FRACTION, "the test must land ON the boundary"
     assert M.memory_refusal(mutants, 4, avail) is None, "exactly at the cap must FIT"
 
@@ -2031,13 +2080,13 @@ def test_a_projection_EXACTLY_at_the_cap_fits():
 def test_ONE_worker_over_the_cap_still_refuses():
     """`workers <= 0` → `workers <= 1` made a single-worker run unmeasurable by the guard, and one
     worker is exactly the 8.2 GB case the fleet's per-process limit is about."""
-    assert M.memory_refusal(536 * 1024 ** 2, 1, 1 * _GB), "one worker over the cap must refuse"
+    assert M.memory_refusal(536 * 1024**2, 1, 1 * _GB), "one worker over the cap must refuse"
 
 
 def test_a_single_BYTE_of_available_memory_is_still_a_measurement():
     """`available_bytes <= 0` → `<= 1`. A box reporting one byte available is absurd but REPORTED,
     and a reported one is not an absence (§∅)."""
-    assert M.memory_refusal(536 * 1024 ** 2, 16, 1), "1 byte available is a measurement, not a gap"
+    assert M.memory_refusal(536 * 1024**2, 16, 1), "1 byte available is a measurement, not a gap"
 
 
 def test_MemAvailable_is_read_even_without_a_unit_suffix():

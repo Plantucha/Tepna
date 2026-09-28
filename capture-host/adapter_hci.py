@@ -66,8 +66,17 @@ def _untri(s: str):
 def row(probed_ms: float, hci: str, mac: str, pinned: bool, up, responds, probe_ms: float) -> str:
     """One CSV row. `up` and `responds` are tri-state and an undeterminable one is written EMPTY, never 0
     (§∅ — absence is not a number)."""
-    return ";".join([str(int(probed_ms)), hci, (mac or "").upper(), "1" if pinned else "0",
-                     _tri(up), _tri(responds), str(int(probe_ms))])
+    return ";".join(
+        [
+            str(int(probed_ms)),
+            hci,
+            (mac or "").upper(),
+            "1" if pinned else "0",
+            _tri(up),
+            _tri(responds),
+            str(int(probe_ms)),
+        ]
+    )
 
 
 def parse_row(line: str) -> dict | None:
@@ -77,8 +86,15 @@ def parse_row(line: str) -> dict | None:
     if len(parts) != 7 or parts[0] == "probed_ms":
         return None
     try:
-        return {"probed_ms": int(parts[0]), "hci": parts[1], "mac": parts[2].upper(), "pinned": parts[3] == "1",
-                "up": _untri(parts[4]), "responds": _untri(parts[5]), "probe_ms": int(parts[6])}
+        return {
+            "probed_ms": int(parts[0]),
+            "hci": parts[1],
+            "mac": parts[2].upper(),
+            "pinned": parts[3] == "1",
+            "up": _untri(parts[4]),
+            "responds": _untri(parts[5]),
+            "probe_ms": int(parts[6]),
+        }
     except ValueError:
         return None
 
@@ -143,26 +159,48 @@ def verdict_object(rows: list[dict], *, night: str = "<night>", root: str = "<ro
     for r in sorted(rows, key=lambda r: r["probed_ms"]):
         by_mac.setdefault(r["mac"], []).append(r)
     if not by_mac:
-        return VD.make(gate=GATE, status="NOT_RUN", population={"checked": 0, "eligible": 0, "excluded": 0},
-                       criterion=CRITERION, result=None, evidence=ev, tool=TOOL,
-                       reason=f"no HCI probe rows fall in the night's window ({FILE_NAME} absent, or the watchdog did not run)")
+        return VD.make(
+            gate=GATE,
+            status="NOT_RUN",
+            population={"checked": 0, "eligible": 0, "excluded": 0},
+            criterion=CRITERION,
+            result=None,
+            evidence=ev,
+            tool=TOOL,
+            reason=f"no HCI probe rows fall in the night's window ({FILE_NAME} absent, or the watchdog did not run)",
+        )
     per: dict[str, dict] = {}
     for mac, rs in by_mac.items():
         flags = [r["responds"] for r in rs]
         longest, isolated, total = _runs(flags)
         det = [r for r in rs if r["responds"] is not None]
         unanswered = [r for r in rs if r["responds"] is False]
-        per[mac] = {"hci": rs[-1]["hci"], "pinned": any(r["pinned"] for r in rs), "polls": len(rs),
-                    "determinable": len(det), "unanswered": total, "longest_run": longest, "isolated_misses": isolated,
-                    "first_unanswered_ms": unanswered[0]["probed_ms"] if unanswered else None,
-                    "last_unanswered_ms": unanswered[-1]["probed_ms"] if unanswered else None}
+        per[mac] = {
+            "hci": rs[-1]["hci"],
+            "pinned": any(r["pinned"] for r in rs),
+            "polls": len(rs),
+            "determinable": len(det),
+            "unanswered": total,
+            "longest_run": longest,
+            "isolated_misses": isolated,
+            "first_unanswered_ms": unanswered[0]["probed_ms"] if unanswered else None,
+            "last_unanswered_ms": unanswered[-1]["probed_ms"] if unanswered else None,
+        }
     checked = sum(1 for p in per.values() if p["determinable"] > 0)
     pop = {"checked": checked, "eligible": len(per), "excluded": len(per) - checked}
     result = {"radios": per, "polls": len(rows)}
     if checked == 0:
-        return VD.make(gate=GATE, status="UNKNOWN", population=pop, criterion=CRITERION, result=result, evidence=ev,
-                       tool=TOOL, reason=f"{len(per)} radio(s) probed {len(rows)} time(s) and no probe was determinable — "
-                                         "hciconfig absent or unparseable all night")
+        return VD.make(
+            gate=GATE,
+            status="UNKNOWN",
+            population=pop,
+            criterion=CRITERION,
+            result=result,
+            evidence=ev,
+            tool=TOOL,
+            reason=f"{len(per)} radio(s) probed {len(rows)} time(s) and no probe was determinable — "
+            "hciconfig absent or unparseable all night",
+        )
     dead = {m: p for m, p in per.items() if p["longest_run"] >= 2}
     missed = {m: p for m, p in per.items() if p["longest_run"] == 1}
 
@@ -170,28 +208,67 @@ def verdict_object(rows: list[dict], *, night: str = "<night>", root: str = "<ro
         return f"{p['hci']} {m}{' (pinned)' if p['pinned'] else ''}"
 
     if dead:
-        return VD.make(gate=GATE, status="FAIL", population=pop, criterion=CRITERION, result=result, evidence=ev, tool=TOOL,
-                       reason="; ".join(f"{_name(m, p)}: {p['unanswered']} of {p['determinable']} polls unanswered, "
-                                        f"longest run {p['longest_run']}, first at {p['first_unanswered_ms']} ms, last at "
-                                        f"{p['last_unanswered_ms']} ms" for m, p in dead.items()))
+        return VD.make(
+            gate=GATE,
+            status="FAIL",
+            population=pop,
+            criterion=CRITERION,
+            result=result,
+            evidence=ev,
+            tool=TOOL,
+            reason="; ".join(
+                f"{_name(m, p)}: {p['unanswered']} of {p['determinable']} polls unanswered, "
+                f"longest run {p['longest_run']}, first at {p['first_unanswered_ms']} ms, last at "
+                f"{p['last_unanswered_ms']} ms"
+                for m, p in dead.items()
+            ),
+        )
     if missed:
-        return VD.make(gate=GATE, status="SHORTFALL", population=pop, criterion=CRITERION, result=result, evidence=ev, tool=TOOL,
-                       reason="; ".join(f"{_name(m, p)}: {p['isolated_misses']} isolated unanswered poll(s) of {p['determinable']}"
-                                        for m, p in missed.items()))
-    return VD.make(gate=GATE, status="PASS", population=pop, criterion=CRITERION, result=result, evidence=ev, tool=TOOL, reason=None)
+        return VD.make(
+            gate=GATE,
+            status="SHORTFALL",
+            population=pop,
+            criterion=CRITERION,
+            result=result,
+            evidence=ev,
+            tool=TOOL,
+            reason="; ".join(
+                f"{_name(m, p)}: {p['isolated_misses']} isolated unanswered poll(s) of {p['determinable']}"
+                for m, p in missed.items()
+            ),
+        )
+    return VD.make(
+        gate=GATE,
+        status="PASS",
+        population=pop,
+        criterion=CRITERION,
+        result=result,
+        evidence=ev,
+        tool=TOOL,
+        reason=None,
+    )
 
 
 def verdict_sample() -> dict:
     """The object the adoption gate reads: a synthetic night on which one radio missed once."""
-    rows = [parse_row(row(1_700_000_000_000 + i * 60_000, "hci0", "00:01:95:CC:53:02", True, True, i != 7, 12)) for i in range(10)]
-    rows += [parse_row(row(1_700_000_000_000 + i * 60_000, "hci1", "28:0C:50:0C:18:FD", False, True, True, 9)) for i in range(10)]
+    rows = [
+        parse_row(row(1_700_000_000_000 + i * 60_000, "hci0", "00:01:95:CC:53:02", True, True, i != 7, 12))
+        for i in range(10)
+    ]
+    rows += [
+        parse_row(row(1_700_000_000_000 + i * 60_000, "hci1", "28:0C:50:0C:18:FD", False, True, True, 9))
+        for i in range(10)
+    ]
     return verdict_object([r for r in rows if r], night="<synthetic>", root="<synthetic>")
 
 
 if __name__ == "__main__":
     import json
     import sys
+
     if sys.argv[1:] == ["--verdict-sample"]:
         print(json.dumps(verdict_sample(), indent=1))
         sys.exit(0)
-    sys.exit("adapter_hci: a library — the watchdog writes the rows, nightqc writes the verdict; --verdict-sample prints a sample")
+    sys.exit(
+        "adapter_hci: a library — the watchdog writes the rows, nightqc writes the verdict; --verdict-sample prints a sample"
+    )

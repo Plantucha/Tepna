@@ -23,9 +23,10 @@ def _lc(**kw):
 
 # ── the happy path + reachability ─────────────────────────────────────────────────────────────────────
 
+
 def test_a_normal_night_walks_connect_to_live_to_pull_and_back():
     lc = _lc()
-    assert lc.state is OxyState.NOT_SEEN            # the daemon starts not having seen the ring
+    assert lc.state is OxyState.NOT_SEEN  # the daemon starts not having seen the ring
     lc.to(OxyState.CONNECTING, "scan")
     lc.to(OxyState.CONNECTED, "auth+setup ok")
     lc.to(OxyState.LIVE, "first frame")
@@ -56,6 +57,7 @@ def test_the_transition_carries_every_required_field():
 
 # ── illegal transitions ───────────────────────────────────────────────────────────────────────────────
 
+
 def test_an_illegal_transition_raises_and_does_not_mutate():
     lc = _lc()
     lc.to(OxyState.CONNECTING, "scan")
@@ -63,42 +65,54 @@ def test_an_illegal_transition_raises_and_does_not_mutate():
     before = lc.state
     with pytest.raises(InvalidTransition, match=r"illegal.*transition.*->") as ei:
         lc.to(OxyState.PULLING, "cannot pull straight from connected")  # not a legal edge
-    assert lc.state is before                       # NOT mutated
-    assert len(lc.history) == 2                      # NO partial record appended
+    assert lc.state is before  # NOT mutated
+    assert len(lc.history) == 2  # NO partial record appended
     assert ei.value.frm is OxyState.CONNECTED and ei.value.to is OxyState.PULLING
 
 
 def test_can_reports_edge_legality():
     lc = _lc()
     assert lc.can(OxyState.CONNECTING) is True
-    assert lc.can(OxyState.LIVE) is False            # NOT_SEEN -> LIVE is not an edge
+    assert lc.can(OxyState.LIVE) is False  # NOT_SEEN -> LIVE is not an edge
 
 
 # ── the failure taxonomy (shared cpap_acq.FailureClass, not forked) ─────────────────────────────────────
 
+
 def test_a_recoverable_failure_during_live_is_an_interruption():
-    lc = _lc(); lc.to(OxyState.CONNECTING, "s"); lc.to(OxyState.CONNECTED, "u"); lc.to(OxyState.LIVE, "f")
+    lc = _lc()
+    lc.to(OxyState.CONNECTING, "s")
+    lc.to(OxyState.CONNECTED, "u")
+    lc.to(OxyState.LIVE, "f")
     t = lc.fail(FailureClass.TRANSPORT_FAILURE, "ring stalled mid-capture")
     assert t.new is OxyState.INTERRUPTED and t.failure is FailureClass.TRANSPORT_FAILURE
     assert lc.state is OxyState.INTERRUPTED
 
 
 def test_a_permanent_failure_during_live_is_an_error():
-    lc = _lc(); lc.to(OxyState.CONNECTING, "s"); lc.to(OxyState.CONNECTED, "u"); lc.to(OxyState.LIVE, "f")
+    lc = _lc()
+    lc.to(OxyState.CONNECTING, "s")
+    lc.to(OxyState.CONNECTED, "u")
+    lc.to(OxyState.LIVE, "f")
     t = lc.fail(FailureClass.PROTOCOL_FAILURE, "unparseable frame")
     assert t.new is OxyState.ERROR and t.failure is FailureClass.PROTOCOL_FAILURE
 
 
 def test_a_failure_outside_live_is_always_an_error_even_if_recoverable():
-    lc = _lc(); lc.to(OxyState.CONNECTING, "s")
-    t = lc.fail(FailureClass.TIMEOUT, "auth timed out")   # recoverable, but not during LIVE
+    lc = _lc()
+    lc.to(OxyState.CONNECTING, "s")
+    t = lc.fail(FailureClass.TIMEOUT, "auth timed out")  # recoverable, but not during LIVE
     assert t.new is OxyState.ERROR
 
 
 # ── as_row (the OXYLIFE.csv sidecar format) ─────────────────────────────────────────────────────────────
 
+
 def test_as_row_is_semicolon_delimited_with_the_failure_label():
-    lc = _lc(); lc.to(OxyState.CONNECTING, "s"); lc.to(OxyState.CONNECTED, "u"); lc.to(OxyState.LIVE, "f")
+    lc = _lc()
+    lc.to(OxyState.CONNECTING, "s")
+    lc.to(OxyState.CONNECTED, "u")
+    lc.to(OxyState.LIVE, "f")
     t = lc.fail(FailureClass.STREAM_STALL, "no frames 30s")
     parts = t.as_row().split(";")
     assert parts[0] == "2026-08-23T22:00:00+00:00" and parts[1] == "12.500000"
@@ -110,10 +124,10 @@ def test_as_row_is_semicolon_delimited_with_the_failure_label():
 
 
 def test_as_row_blanks_absent_fields_never_a_fabricated_zero():
-    lc = OxyLifecycle(mono=lambda: 1.0, wall=lambda: "W")   # no device_id / session_id
-    t = lc.to(OxyState.CONNECTING, "scan")                  # no failure
+    lc = OxyLifecycle(mono=lambda: 1.0, wall=lambda: "W")  # no device_id / session_id
+    t = lc.to(OxyState.CONNECTING, "scan")  # no failure
     parts = t.as_row().split(";")
-    assert parts[5] == "" and parts[6] == "" and parts[7] == ""   # blank, not "None", not "0"
+    assert parts[5] == "" and parts[6] == "" and parts[7] == ""  # blank, not "None", not "0"
 
 
 def test_status_state_is_the_current_label():
@@ -149,17 +163,24 @@ def test_a_pull_or_recovery_before_any_connect_is_legal():
 
 # ── held-link pull resume (DAT-AUTO-HARVEST §8 seam ruling) ───────────────────────────────────────────
 
+
 def test_a_held_link_pull_resumes_without_a_reconnect():
     """§8's close-triggered pull hands the link back directly: PULLING → IDLE_UNWORN (the doff case)
     and PULLING → LIVE (a manual/reconciliation pull while worn) are both legal, with NO CONNECTING
     round-trip. The old table encoded 'a pull costs the link' and raised here."""
-    lc = _lc(); lc.to(OxyState.CONNECTING, "s"); lc.to(OxyState.CONNECTED, "u"); lc.to(OxyState.LIVE, "f")
+    lc = _lc()
+    lc.to(OxyState.CONNECTING, "s")
+    lc.to(OxyState.CONNECTED, "u")
+    lc.to(OxyState.LIVE, "f")
     lc.to(OxyState.PAUSED_FOR_PULL, "close-triggered pull owns the held link")
     lc.to(OxyState.PULLING, "pulling over the held link")
     t = lc.to(OxyState.IDLE_UNWORN, "pull complete — link handed back, ring unworn")
     assert t.new is OxyState.IDLE_UNWORN
 
-    lc2 = _lc(); lc2.to(OxyState.CONNECTING, "s"); lc2.to(OxyState.CONNECTED, "u"); lc2.to(OxyState.LIVE, "f")
+    lc2 = _lc()
+    lc2.to(OxyState.CONNECTING, "s")
+    lc2.to(OxyState.CONNECTED, "u")
+    lc2.to(OxyState.LIVE, "f")
     lc2.to(OxyState.PAUSED_FOR_PULL, "manual pull while worn")
     lc2.to(OxyState.PULLING, "pulling")
     assert lc2.to(OxyState.LIVE, "pull complete — worn, resume live").new is OxyState.LIVE
@@ -168,12 +189,17 @@ def test_a_held_link_pull_resumes_without_a_reconnect():
 def test_abort_before_start_resumes_from_paused_without_pulling():
     """Deadline preempts before the transfer starts: PAUSED_FOR_PULL exits straight to the contact-
     chosen state. The deadline-abort shares the edge with success — the journal reason distinguishes."""
-    lc = _lc(); lc.to(OxyState.CONNECTING, "s"); lc.to(OxyState.CONNECTED, "u"); lc.to(OxyState.LIVE, "f")
+    lc = _lc()
+    lc.to(OxyState.CONNECTING, "s")
+    lc.to(OxyState.CONNECTED, "u")
+    lc.to(OxyState.LIVE, "f")
     lc.to(OxyState.PAUSED_FOR_PULL, "pull queued")
     t = lc.to(OxyState.LIVE, "aborted at deadline before start — .part not created, resume live")
     assert t.new is OxyState.LIVE
 
-    lc2 = _lc(); lc2.to(OxyState.CONNECTING, "s"); lc2.to(OxyState.CONNECTED, "u")
+    lc2 = _lc()
+    lc2.to(OxyState.CONNECTING, "s")
+    lc2.to(OxyState.CONNECTED, "u")
     lc2.to(OxyState.IDLE_UNWORN, "unworn")
     lc2.to(OxyState.PAUSED_FOR_PULL, "pull queued")
     assert lc2.to(OxyState.IDLE_UNWORN, "aborted at deadline — resume idle").new is OxyState.IDLE_UNWORN

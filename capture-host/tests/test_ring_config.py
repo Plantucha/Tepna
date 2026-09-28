@@ -30,8 +30,8 @@ class _Ring:
         self.cfg[1], self.cfg[2], self.cfg[3] = 88, 50, 120
         self.cfg[4], self.cfg[7], self.cfg[8] = 60, 0, 1
         self.ignores = ignores
-        self.collateral = collateral          # an extra offset the (buggy) ring also moves
-        self.switch_byte = switch_byte        # where a switch write lands (bitfield model)
+        self.collateral = collateral  # an extra offset the (buggy) ring also moves
+        self.switch_byte = switch_byte  # where a switch write lands (bitfield model)
         self.notify = None
 
     async def __aenter__(self):
@@ -62,6 +62,7 @@ def _install(monkeypatch, ring):
 
     async def no_sleep(_s):
         return None
+
     monkeypatch.setattr(rc.asyncio, "sleep", no_sleep)
 
 
@@ -74,7 +75,7 @@ def test_struct_diff_lists_every_moved_byte():
 def test_judge_accepts_exactly_the_asked_change():
     before = bytes(40)
     after = bytearray(40)
-    after[7] = 2                                        # brightness read-offset
+    after[7] = 2  # brightness read-offset
     ok, detail = judge_write("brightness", 2, before, bytes(after))
     assert ok and "byte[7]" in detail
 
@@ -90,7 +91,7 @@ def test_judge_rejects_collateral_byte_movement():
     before = bytes(40)
     after = bytearray(40)
     after[7] = 2
-    after[13] = 9                                       # collateral
+    after[13] = 9  # collateral
     ok, detail = judge_write("brightness", 2, before, bytes(after))
     assert not ok and "2 bytes moved" in detail
 
@@ -98,11 +99,11 @@ def test_judge_rejects_collateral_byte_movement():
 def test_judge_switch_fields_accept_only_alarm_bitfield_bytes():
     before = bytes(40)
     inb = bytearray(40)
-    inb[0] = 1                                          # alarm_flags — allowed for a switch
+    inb[0] = 1  # alarm_flags — allowed for a switch
     ok, _ = judge_write("spo2_switch", 1, before, bytes(inb))
     assert ok
     out = bytearray(40)
-    out[13] = 1                                         # not an alarm byte
+    out[13] = 1  # not an alarm byte
     ok, detail = judge_write("spo2_switch", 1, before, bytes(out))
     assert not ok and "outside" in detail
     ok, detail = judge_write("spo2_switch", 1, before, before)
@@ -116,7 +117,7 @@ def test_set_brightness_round_trips(monkeypatch, capsys):
     assert _run(rc.run_set("MAC", "brightness", 1)) == 0
     out = capsys.readouterr().out
     assert "✓ brightness = 1" in out
-    assert "restore with: --set brightness 0" in out   # the before-value is the undo
+    assert "restore with: --set brightness 0" in out  # the before-value is the undo
     assert ring.cfg[7] == 1
 
 
@@ -147,6 +148,7 @@ def test_a_bad_field_raises_before_any_radio_work(monkeypatch):
     class _Boom:
         def __init__(self, *a, **k):
             raise AssertionError("radio touched")
+
     monkeypatch.setattr(rc, "BleakClient", _Boom)
     with pytest.raises(ValueError):
         _run(rc.run_set("MAC", "factory_reset", 1))
@@ -162,13 +164,15 @@ def test_get_dumps_the_struct(monkeypatch, capsys):
 def test_get_no_reply_exits_nonzero(monkeypatch, capsys):
     class _Dead(_Ring):
         async def write_gatt_char(self, _c, frame, response=False):
-            return None                     # never answers anything
+            return None  # never answers anything
+
     _install(monkeypatch, _Dead())
 
     _real_wait_for = asyncio.wait_for
 
     async def quick(coro, _t):
         return await _real_wait_for(coro, 0.02)
+
     monkeypatch.setattr(rc.asyncio, "wait_for", quick)
     assert _run(rc.run_get("MAC")) == 1
     assert "NO REPLY" in capsys.readouterr().out
@@ -176,16 +180,19 @@ def test_get_no_reply_exits_nonzero(monkeypatch, capsys):
 
 def test_set_refuses_to_write_blind(monkeypatch, capsys):
     """No before-read → no write. Writing blind would make the read-back diff meaningless."""
+
     class _Deaf(_Ring):
         async def write_gatt_char(self, _c, frame, response=False):
             if frame[1] == oxyii.OP_SET_CONFIG:
                 raise AssertionError("wrote despite no before-read")
+
     _install(monkeypatch, _Deaf(ignores=True))
 
     _real_wait_for = asyncio.wait_for
 
     async def quick(coro, _t):
         return await _real_wait_for(coro, 0.02)
+
     monkeypatch.setattr(rc.asyncio, "wait_for", quick)
     # _Deaf answers nothing (its GET_CONFIG branch is unreachable: parent method overridden entirely)
     assert _run(rc.run_set("MAC", "brightness", 1)) == 1
@@ -212,11 +219,13 @@ def test_show_handles_an_unparseable_struct(capsys):
 
 def test_ask_skips_a_decoy_frame(monkeypatch, capsys):
     """A stray reply for a different opcode must not satisfy the config read."""
+
     class _Noisy(_Ring):
         async def write_gatt_char(self, _c, frame, response=False):
             if frame[1] == oxyii.OP_GET_CONFIG and self.notify is not None:
-                await self.notify(0, oxyii.encode(oxyii.OP_LIVE, b"\x00", frame[4]))   # decoy first
+                await self.notify(0, oxyii.encode(oxyii.OP_LIVE, b"\x00", frame[4]))  # decoy first
             await super().write_gatt_char(_c, frame, response)
+
     _install(monkeypatch, _Noisy())
     assert _run(rc.run_get("MAC")) == 0
     assert "spo2_low" in capsys.readouterr().out
@@ -225,6 +234,7 @@ def test_ask_skips_a_decoy_frame(monkeypatch, capsys):
 def test_after_read_silence_reports_unknown_state(monkeypatch, capsys):
     """The write went out but the read-back never came: the state is UNKNOWN, and saying so (exit 1)
     beats claiming either success or failure."""
+
     class _DiesAfterWrite(_Ring):
         async def write_gatt_char(self, _c, frame, response=False):
             if frame[1] == oxyii.OP_SET_CONFIG:
@@ -233,12 +243,14 @@ def test_after_read_silence_reports_unknown_state(monkeypatch, capsys):
             if getattr(self, "replies_left", 1) == 0:
                 return
             await super().write_gatt_char(_c, frame, response)
+
     _install(monkeypatch, _DiesAfterWrite())
 
     _real_wait_for = asyncio.wait_for
 
     async def quick(coro, _t):
         return await _real_wait_for(coro, 0.02)
+
     monkeypatch.setattr(rc.asyncio, "wait_for", quick)
     assert _run(rc.run_set("MAC", "brightness", 1)) == 1
     assert "UNKNOWN" in capsys.readouterr().out

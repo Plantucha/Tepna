@@ -57,8 +57,10 @@ def rel_files(night_dir: str, marker: str = _MARKER) -> list[str]:
     `_mirror_matches` would then confirm as fully mirrored. That is the same fail-OPEN this function was
     written to remove, reintroduced one default argument down. Caught by the pre-existing
     `test_mirror_matches_is_false_when_the_source_cannot_be_read`; do not drop it."""
+
     def _raise(err: OSError):
         raise err
+
     out: list[str] = []
     for dirpath, _dirnames, filenames in os.walk(night_dir, onerror=_raise):
         for fn in filenames:
@@ -120,10 +122,10 @@ def pending_nights(captures_dir: str, active: "str | set[str]", marker: str = _M
     out = []
     for n in diskguard.list_nights(captures_dir):
         if n in skip:
-            continue                                   # still being written — not done yet
+            continue  # still being written — not done yet
         nd = os.path.join(captures_dir, n)
         if os.path.exists(os.path.join(nd, marker)) and not _grew_since_marker(nd, marker):
-            continue                                   # mirrored, and unchanged since
+            continue  # mirrored, and unchanged since
         out.append(n)
     return out
 
@@ -156,7 +158,7 @@ def unarchived_nights(captures_dir: str, dest: str | None = None, marker: str = 
     if dest is not None:
         try:
             if not os.path.isdir(dest):
-                return set(nights)             # backup volume unmounted/gone — confirm nothing, keep all
+                return set(nights)  # backup volume unmounted/gone — confirm nothing, keep all
         except OSError:
             return set(nights)
     out: set[str] = set()
@@ -164,9 +166,8 @@ def unarchived_nights(captures_dir: str, dest: str | None = None, marker: str = 
         try:
             if not os.path.exists(os.path.join(captures_dir, n, marker)):
                 out.add(n)
-            elif dest is not None and not _mirror_matches(os.path.join(captures_dir, n),
-                                                          os.path.join(dest, n), marker):
-                out.add(n)                     # the copy is absent, or short of what the source holds
+            elif dest is not None and not _mirror_matches(os.path.join(captures_dir, n), os.path.join(dest, n), marker):
+                out.add(n)  # the copy is absent, or short of what the source holds
         except OSError:
             out.add(n)
     return out
@@ -194,8 +195,7 @@ def _mirror_matches(src: str, dst: str, marker: str) -> bool:
     return True
 
 
-def archive_night(captures_dir: str, night: str, dest: str,
-                  marker: str = _MARKER, _copy=shutil.copy2) -> int:
+def archive_night(captures_dir: str, night: str, dest: str, marker: str = _MARKER, _copy=shutil.copy2) -> int:
     """Mirror one night's files to `dest/<night>/`, then drop the marker. Idempotent: a file already at the
     destination with the same size is skipped, so a re-run after a partial copy only moves what differs.
     Returns the number of files actually copied. `_copy` is injectable for tests."""
@@ -210,11 +210,11 @@ def archive_night(captures_dir: str, night: str, dest: str,
         sp = os.path.join(src, rel)
         dp = os.path.join(dst, rel)
         if os.path.exists(dp) and os.path.getsize(dp) == os.path.getsize(sp):
-            continue                                   # already mirrored, unchanged — resume-safe
+            continue  # already mirrored, unchanged — resume-safe
         os.makedirs(os.path.dirname(dp), exist_ok=True)
         _copy(sp, dp)
         copied += 1
-    open(os.path.join(src, marker), "w").close()       # mark done so this night is not re-scanned
+    open(os.path.join(src, marker), "w").close()  # mark done so this night is not re-scanned
     return copied
 
 
@@ -239,7 +239,7 @@ def mirror_subtree(captures_dir: str, name: str, dest: str, _copy=shutil.copy2) 
         return 0
     src = os.path.join(captures_dir, name)
     if not os.path.isdir(src):
-        return 0                                       # not every box has every subtree
+        return 0  # not every box has every subtree
     dst = os.path.join(dest, name)
     copied = 0
     for rel in rel_files(src, _MARKER):
@@ -284,7 +284,7 @@ def uncovered_subtrees(captures_dir: str, covered: "tuple[str, ...] | set[str]" 
                 files += 1
                 size += os.path.getsize(os.path.join(e.path, rel))
         except OSError:
-            continue                      # unreadable: reporting is best-effort, never a capture risk
+            continue  # unreadable: reporting is best-effort, never a capture risk
         if files:
             out.append({"name": e.name, "files": files, "bytes": size})
     return out

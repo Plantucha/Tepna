@@ -93,7 +93,7 @@ BATTERY = "00002a19-0000-1000-8000-00805f9b34fb"
 # (gate-locked by tests/test_webmon_settings_contract.py). A flag needs a separate table, not a rename.
 FLAG_NAME = {0x09: "SDK_MODE", 0x0D: "OFFLINE_RECORDING", 0x0E: "OFFLINE_HR"}
 
-POLAR_EPOCH = _dt.datetime(2000, 1, 1)          # device stamps are ns since this instant
+POLAR_EPOCH = _dt.datetime(2000, 1, 1)  # device stamps are ns since this instant
 
 # Ops this probe may send. See the header: allowlist, not denylist.
 OP_GET_SETTINGS = 0x01
@@ -138,10 +138,13 @@ def _check_allowed(cmd: bytes) -> bytes:
         raise ValueError(
             f"refusing op {op:#04x} ({PERSISTENT_WRITE_OPS[op]}): it persists across power cycles — "
             "an armed trigger makes the device record by itself on every boot, eating the flash budget "
-            "and removing the live stream. That is a design decision, not a sweep item.")
+            "and removing the live stream. That is a design decision, not a sweep item."
+        )
     if op not in ALLOWED_OPS:
-        raise ValueError(f"refusing op {op:#04x}: not in this probe's read-only allowlist "
-                         f"({sorted(ALLOWED_OPS)}) — an unknown opcode is assumed to write")
+        raise ValueError(
+            f"refusing op {op:#04x}: not in this probe's read-only allowlist "
+            f"({sorted(ALLOWED_OPS)}) — an unknown opcode is assumed to write"
+        )
     return cmd
 
 
@@ -159,8 +162,10 @@ def decode_settings(reply: bytes | None) -> dict:
     rather than being dropped: a menu axis we cannot name is still evidence."""
     if not reply:
         return {}
-    return {pmd.SETTING_NAME.get(sid, f"setting_{sid:#04x}"): vals
-            for sid, vals in pmd.parse_settings_response(reply).items()}
+    return {
+        pmd.SETTING_NAME.get(sid, f"setting_{sid:#04x}"): vals
+        for sid, vals in pmd.parse_settings_response(reply).items()
+    }
 
 
 def device_time(sensor_ns: int) -> _dt.datetime:
@@ -170,9 +175,13 @@ def device_time(sensor_ns: int) -> _dt.datetime:
     return POLAR_EPOCH + _dt.timedelta(microseconds=sensor_ns / 1000)
 
 
-def clock_verdict(reported: _dt.datetime | None, stamped: _dt.datetime | None,
-                  host_local: _dt.datetime, host_utc: _dt.datetime,
-                  tol_s: float = 90.0) -> str:
+def clock_verdict(
+    reported: _dt.datetime | None,
+    stamped: _dt.datetime | None,
+    host_local: _dt.datetime,
+    host_utc: _dt.datetime,
+    tol_s: float = 90.0,
+) -> str:
     """Name which host clock the device's SAMPLE STAMPS agree with, and whether the clock it REPORTS
     agrees with the one it stamps.
 
@@ -189,14 +198,15 @@ def clock_verdict(reported: _dt.datetime | None, stamped: _dt.datetime | None,
     elif d_utc <= tol_s:
         which = "device STAMPS UTC"
     else:
-        which = (f"device stamps neither host clock (local {d_local:+.0f}s, UTC {d_utc:+.0f}s) — "
-                 "unsynced device clock")
+        which = f"device stamps neither host clock (local {d_local:+.0f}s, UTC {d_utc:+.0f}s) — unsynced device clock"
     if reported is None:
         return which
     split = abs((reported - stamped).total_seconds())
     if split > tol_s:
-        which += (f" — and GET_LOCAL_TIME DISAGREES with the stamps by {split:.0f}s: the device answers "
-                  "about one clock and stamps with another, so reading the clock back proves nothing")
+        which += (
+            f" — and GET_LOCAL_TIME DISAGREES with the stamps by {split:.0f}s: the device answers "
+            "about one clock and stamps with another, so reading the clock back proves nothing"
+        )
     return which
 
 
@@ -237,9 +247,8 @@ class Control:
             self.q.get_nowait()
         try:
             await self.client.write_gatt_char(pmd.PMD_CONTROL, cmd, response=True)
-        except Exception as exc:                              # noqa: BLE001
-            self.transcript.append({"sent": cmd.hex(), "reply": None,
-                                    "refused": f"{type(exc).__name__}: {exc}"})
+        except Exception as exc:  # noqa: BLE001
+            self.transcript.append({"sent": cmd.hex(), "reply": None, "refused": f"{type(exc).__name__}: {exc}"})
             self.errors.append(cmd.hex())
             return None
         try:
@@ -278,7 +287,7 @@ async def _client(dev, adapter: str | None, attempts: int = 3):
         c = BleakClient(dev, bluez={"adapter": adapter} if adapter else {})
         try:
             await c.connect()
-        except Exception as exc:                              # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001
             last = f"{type(exc).__name__}: {exc}"
             continue
         if c.is_connected:
@@ -287,13 +296,13 @@ async def _client(dev, adapter: str | None, attempts: int = 3):
             finally:
                 try:
                     await c.disconnect()
-                except Exception:                             # noqa: BLE001 — teardown must not mask
+                except Exception:  # noqa: BLE001 — teardown must not mask
                     pass
             return
         last = "connect() returned but the link was already down"
         try:
             await c.disconnect()
-        except Exception:                                     # noqa: BLE001
+        except Exception:  # noqa: BLE001
             pass
     raise RuntimeError(f"could not hold a link to the device after {attempts} attempts ({last})")
 
@@ -303,7 +312,7 @@ async def _read_char(client, uuid: str) -> str | None:
     firmware, and a missing characteristic must not abort a sweep that has 40 other things to collect."""
     try:
         raw = await client.read_gatt_char(uuid)
-    except Exception as exc:                                  # noqa: BLE001 — any GATT error is "absent"
+    except Exception as exc:  # noqa: BLE001 — any GATT error is "absent"
         return f"unavailable ({type(exc).__name__})"
     try:
         return bytes(raw).decode().strip("\x00").strip()
@@ -315,7 +324,7 @@ async def read_identity(client) -> dict:
     out = {name: await _read_char(client, uuid) for name, uuid in DIS.items()}
     try:
         out["battery_pct"] = (await client.read_gatt_char(BATTERY))[0]
-    except Exception as exc:                                  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001
         out["battery_pct"] = f"unavailable ({type(exc).__name__})"
     return out
 
@@ -325,12 +334,14 @@ async def read_features(client) -> dict:
     device telling us which measurement types the rest of the sweep is even meaningful for."""
     try:
         raw = bytes(await client.read_gatt_char(pmd.PMD_CONTROL))
-    except Exception as exc:                                  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001
         return {"error": f"unavailable ({type(exc).__name__})"}
     feats = pmd.parse_features(raw)
-    return {"raw": raw.hex(),
-            "supported": sorted(pmd.MEAS_NAME.get(f, f"type_{f:#04x}") for f in feats),
-            "supported_ids": sorted(feats)}
+    return {
+        "raw": raw.hex(),
+        "supported": sorted(pmd.MEAS_NAME.get(f, f"type_{f:#04x}") for f in feats),
+        "supported_ids": sorted(feats),
+    }
 
 
 def plan_sweep(meas_types: list[int]) -> list[tuple[str, str, str, bytes]]:
@@ -366,17 +377,20 @@ def fold_replies(rows: list[tuple[str, str, str, bytes | None]]) -> dict:
             # the `raw` key alone makes that assignment read as an error rather than as the shape.
             entry: dict[str, Any] = {"raw": reply.hex() if reply else None}
             if name == "GET_MEASUREMENT_STATUS" and reply:
-                entry["active"] = {pmd.MEAS_NAME[m]: pmd.ACTIVE_NAME.get(st, st)
-                                   for m, st in sorted(pmd.parse_status_response(reply).items())}
+                entry["active"] = {
+                    pmd.MEAS_NAME[m]: pmd.ACTIVE_NAME.get(st, st)
+                    for m, st in sorted(pmd.parse_status_response(reply).items())
+                }
             out[name] = entry
             continue
         out.setdefault(name, {}).setdefault(label, {})[mode] = {
-            "raw": reply.hex() if reply else None, "settings": decode_settings(reply)}
+            "raw": reply.hex() if reply else None,
+            "settings": decode_settings(reply),
+        }
     return out
 
 
-async def execute_plan(address: str, adapter: str | None, plan: list, out: dict,
-                       max_links: int = 6) -> list:
+async def execute_plan(address: str, adapter: str | None, plan: list, out: dict, max_links: int = 6) -> list:
     """Drive the plan, taking a fresh link whenever the device stops accepting writes.
 
     The refusal is the signal to reconnect: once the Verity answers one control-point write with a
@@ -402,14 +416,20 @@ async def execute_plan(address: str, adapter: str | None, plan: list, out: dict,
                 before = len(cp.errors)
                 reply = await cp.send(cmd)
                 if len(cp.errors) > before:
-                    break                                  # link has gone deaf — take a new one
+                    break  # link has gone deaf — take a new one
                 rows.append((name, label, mode, reply))
                 i += 1
             transcript += cp.transcript
             refused += cp.errors
-            out.update({"transcript": transcript, "gatt_refused": refused,
-                        "links_used": link + 1, "commands_completed": f"{i}/{len(plan)}",
-                        "control_point": fold_replies(rows)})
+            out.update(
+                {
+                    "transcript": transcript,
+                    "gatt_refused": refused,
+                    "links_used": link + 1,
+                    "commands_completed": f"{i}/{len(plan)}",
+                    "control_point": fold_replies(rows),
+                }
+            )
     # Identity LAST, on its OWN link. It is the least important thing here and the most destructive to
     # ask for: reading the Device Information Service is what dropped the link in the very first run.
     # Isolating it means a firmware string can never again cost a control-point answer, and gating it on
@@ -420,13 +440,14 @@ async def execute_plan(address: str, adapter: str | None, plan: list, out: dict,
         try:
             async with _client(dev, adapter) as client:
                 out["identity"] = await read_identity(client)
-        except Exception as exc:                              # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001
             out["identity"] = {"error": f"{type(exc).__name__}: {exc}"}
     return rows
 
 
-async def sample_stamp(address: str, adapter: str | None, meas: int = pmd.ACC,
-                       timeout: float = 10.0) -> _dt.datetime | None:
+async def sample_stamp(
+    address: str, adapter: str | None, meas: int = pmd.ACC, timeout: float = 10.0
+) -> _dt.datetime | None:
     """Start ONE live stream, take the first frame's device stamp, stop. This is the half of the clock
     experiment that cannot be faked by asking the device what time it thinks it is.
 
@@ -495,7 +516,8 @@ async def clock_experiment(address: str, adapter: str | None, meas: int = pmd.AC
         out[label] = {
             "device_reports": reported.isoformat() if reported else None,
             "device_stamps": stamped.isoformat() if stamped else None,
-            "host_local": now_local.isoformat(), "host_utc": now_utc.isoformat(),
+            "host_local": now_local.isoformat(),
+            "host_utc": now_utc.isoformat(),
             "verdict": clock_verdict(reported, stamped, now_local, now_utc),
         }
 
@@ -509,7 +531,7 @@ async def clock_experiment(address: str, adapter: str | None, meas: int = pmd.AC
     try:
         await _set_local_time(address, adapter, now_local, offset_min)
         out["set_local_time_ack"] = "accepted"
-    except Exception as exc:                                  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001
         out["set_local_time_ack"] = f"REFUSED: {type(exc).__name__}: {exc}"
     try:
         await observe("after")
@@ -519,11 +541,13 @@ async def clock_experiment(address: str, adapter: str | None, meas: int = pmd.AC
         # local civil shifts every subsequent device stamp by the UTC offset, and a 4 h error in a
         # sleep file is plausible enough to survive review.
         try:
-            await _set_local_time(address, adapter)            # defaults: UTC now, tz_offset 0
+            await _set_local_time(address, adapter)  # defaults: UTC now, tz_offset 0
             out["restored"] = "device returned to the daemon's UTC convention"
-        except Exception as exc:                              # noqa: BLE001
-            out["restored"] = (f"RESTORE FAILED ({type(exc).__name__}: {exc}) — the device may be on "
-                               "local civil time; re-run the daemon's clock sync before capturing")
+        except Exception as exc:  # noqa: BLE001
+            out["restored"] = (
+                f"RESTORE FAILED ({type(exc).__name__}: {exc}) — the device may be on "
+                "local civil time; re-run the daemon's clock sync before capturing"
+            )
     return out
 
 
@@ -533,13 +557,17 @@ def _clock_conclusion(obs: dict) -> str:
         return "SET_LOCAL_TIME is REFUSED by the device — the clock is not settable over this path"
     before, after = obs.get("before", {}), obs.get("after", {})
     if not after.get("device_stamps"):
-        return ("SET_LOCAL_TIME was accepted, but no sample stamp came back afterwards — inconclusive "
-                "about the stamping clock")
+        return (
+            "SET_LOCAL_TIME was accepted, but no sample stamp came back afterwards — inconclusive "
+            "about the stamping clock"
+        )
     moved = before.get("device_stamps") and after["device_stamps"][:16] != before["device_stamps"][:16]
     if after.get("device_reports") and "DISAGREES" in after["verdict"]:
-        return ("SET_LOCAL_TIME is ACCEPTED and GET_LOCAL_TIME echoes it, but the PMD SAMPLE clock does "
-                "not follow — the device answers about a clock it does not stamp with. Reading the "
-                "clock back is not evidence; only a sample stamp is.")
+        return (
+            "SET_LOCAL_TIME is ACCEPTED and GET_LOCAL_TIME echoes it, but the PMD SAMPLE clock does "
+            "not follow — the device answers about a clock it does not stamp with. Reading the "
+            "clock back is not evidence; only a sample stamp is."
+        )
     if moved:
         return "SET_LOCAL_TIME is accepted AND the sample clock followed it — device time is settable"
     return f"SET_LOCAL_TIME accepted; sample clock unchanged. {after['verdict']}"
@@ -550,24 +578,32 @@ def _clock_conclusion(obs: dict) -> str:
 PARTIAL: dict = {}
 
 
-async def run(address: str, adapter: str | None, do_clock: bool, extra_types: bool = False,
-              do_sweep: bool = True) -> dict:
+async def run(
+    address: str, adapter: str | None, do_clock: bool, extra_types: bool = False, do_sweep: bool = True
+) -> dict:
     out: dict = PARTIAL
     out.clear()
-    out.update({"address": address, "probed_at": _dt.datetime.now().isoformat(),
-                "not_sent": {f"{op:#04x}": f"{name} — persists across power cycles"
-                             for op, name in sorted(PERSISTENT_WRITE_OPS.items())}})
+    out.update(
+        {
+            "address": address,
+            "probed_at": _dt.datetime.now().isoformat(),
+            "not_sent": {
+                f"{op:#04x}": f"{name} — persists across power cycles"
+                for op, name in sorted(PERSISTENT_WRITE_OPS.items())
+            },
+        }
+    )
     if do_sweep:
         try:
             await _sweep_phase(address, adapter, out, extra_types)
-        except Exception as exc:                              # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001
             # The clock leg is a SEPARATE experiment on SEPARATE links. A sweep that lost the device
             # must not cancel it — that is two questions abandoned for the price of one.
             out["sweep_error"] = f"{type(exc).__name__}: {exc}"
     if do_clock:
         try:
             out["clock_experiment"] = await clock_experiment(address, adapter)
-        except Exception as exc:                              # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001
             out["clock_experiment"] = {"error": f"{type(exc).__name__}: {exc}"}
     return out
 
@@ -617,26 +653,38 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="Sweep the documented Polar PMD command surface (read-only)")
     ap.add_argument("--address", required=True)
     ap.add_argument("--adapter", default=None)
-    ap.add_argument("--clock-experiment", action="store_true",
-                    help="WRITES the device clock (and restores it) to settle whether local time sticks")
-    ap.add_argument("--include-flag-bits", action="store_true",
-                    help="also ask the documented READ ops about the bitmask's MODE bits "
-                         "(0x09 SDK_MODE, 0x0D OFFLINE_RECORDING, 0x0E OFFLINE_HR) — harmless, and it "
-                         "is how you tell a flag from a stream")
-    ap.add_argument("--clock-only", action="store_true",
-                    help="skip the sweep and run ONLY the clock experiment. The two share a BLE window "
-                         "but not a budget: the sweep needs several links and the clock leg needs six "
-                         "more, and running them in one invocation spent the whole timeout on the "
-                         "sweep and never reached the clock — three windows in a row.")
+    ap.add_argument(
+        "--clock-experiment",
+        action="store_true",
+        help="WRITES the device clock (and restores it) to settle whether local time sticks",
+    )
+    ap.add_argument(
+        "--include-flag-bits",
+        action="store_true",
+        help="also ask the documented READ ops about the bitmask's MODE bits "
+        "(0x09 SDK_MODE, 0x0D OFFLINE_RECORDING, 0x0E OFFLINE_HR) — harmless, and it "
+        "is how you tell a flag from a stream",
+    )
+    ap.add_argument(
+        "--clock-only",
+        action="store_true",
+        help="skip the sweep and run ONLY the clock experiment. The two share a BLE window "
+        "but not a budget: the sweep needs several links and the clock leg needs six "
+        "more, and running them in one invocation spent the whole timeout on the "
+        "sweep and never reached the clock — three windows in a row.",
+    )
     ap.add_argument("--json", dest="json_path", default=None, help="also write the full record here")
     a = ap.parse_args(argv)
     # A CRASH MUST STILL YIELD ITS TRANSCRIPT. Getting the link at all costs a daemon stop, so a run
     # that dies at reply 30 of 40 must hand over the 29 replies it did collect — the first attempt at
     # this printed a traceback and nothing else, which threw the whole window away.
     try:
-        res = asyncio.run(run(a.address, a.adapter, a.clock_experiment or a.clock_only,
-                              a.include_flag_bits, do_sweep=not a.clock_only))
-    except Exception as exc:                                  # noqa: BLE001
+        res = asyncio.run(
+            run(
+                a.address, a.adapter, a.clock_experiment or a.clock_only, a.include_flag_bits, do_sweep=not a.clock_only
+            )
+        )
+    except Exception as exc:  # noqa: BLE001
         res = {"error": f"{type(exc).__name__}: {exc}", "partial": PARTIAL}
     text = json.dumps(res, indent=2, default=str)
     if a.json_path:

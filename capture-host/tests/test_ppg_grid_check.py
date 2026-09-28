@@ -10,6 +10,7 @@ directions. A tool that called every advance fabricated would be as dishonest as
 
 VIGIL-PPG-GRID-AUDIT-2026-07-25-BRIEF §5.1.
 """
+
 import datetime as _dt
 
 import ppg_grid_check as pgc
@@ -64,8 +65,8 @@ def test_a_clean_file_reports_no_inflation(tmp_path):
 def test_an_inflated_grid_with_samples_at_nominal_is_flagged(tmp_path):
     """The shipped defect: the grid claims 1.8% more time while every sample still arrived, and it did
     so by INSERTING GAPS — 20 discrete jumps, i.e. 20 non-modal deltas the file still carries."""
-    n = int(600 * FS)                                  # samples for the REAL 600 s
-    holes = [(i * (n // 21), 68) for i in range(1, 21)]   # 20 jumps x 68 samples ~ 10.8 s
+    n = int(600 * FS)  # samples for the REAL 600 s
+    holes = [(i * (n // 21), 68) for i in range(1, 21)]  # 20 jumps x 68 samples ~ 10.8 s
     f = _write(tmp_path, _name(), rows=n, wall_s=600.0, gaps=holes)
     m = pgc.grid_inflation(f)
     assert m["inflation"] > 0.017
@@ -121,8 +122,7 @@ def test_cli_exit_code_is_nonzero_only_when_something_is_inflated(tmp_path, caps
     n = int(600 * FS)
     _write(night, _name("20260725020723"), rows=n, wall_s=(n - 1) * STEP / 1e9)
     assert pgc.main([str(tmp_path), "--quiet"]) == 0
-    _write(night, _name("20260725031500"), rows=n, wall_s=600.0,
-           gaps=[(i * (n // 21), 68) for i in range(1, 21)])
+    _write(night, _name("20260725031500"), rows=n, wall_s=600.0, gaps=[(i * (n // 21), 68) for i in range(1, 21)])
     assert pgc.main([str(tmp_path), "--quiet"]) == 1
     assert "PHANTOM GAPS" in capsys.readouterr().out
 
@@ -157,9 +157,15 @@ def test_the_two_mechanisms_are_told_apart_at_the_same_inflation(tmp_path):
     uniform = pgc.grid_inflation(_write(tmp_path, _name("20260725020723"), rows=rows, wall_s=wall))
     # same total stretch, delivered as 5 discrete jumps instead of a wrong step
     extra = int(round(0.005 * base * FS))
-    gappy = pgc.grid_inflation(_write(
-        tmp_path, _name("20260725031500"), rows=rows, wall_s=wall,
-        gaps=[(i * (rows // 6), extra // 5) for i in range(1, 6)]))
+    gappy = pgc.grid_inflation(
+        _write(
+            tmp_path,
+            _name("20260725031500"),
+            rows=rows,
+            wall_s=wall,
+            gaps=[(i * (rows // 6), extra // 5) for i in range(1, 6)],
+        )
+    )
     assert abs(uniform["inflation"] - 0.005) < 5e-4 and abs(gappy["inflation"] - 0.010) < 2e-3
     assert pgc._verdict(uniform, 0.2) == "rate-mismatch"
     assert pgc._verdict(gappy, 0.2) == "inflated"

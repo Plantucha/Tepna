@@ -29,12 +29,24 @@ def ok(v, status):
 @pytest.mark.parametrize(
     "name, rc, status",
     [
-        ("ruff", 0, "PASS"), ("ruff", 1, "FAIL"), ("ruff", 2, "UNKNOWN"), ("ruff", 127, "NOT_RUN"),
-        ("shellcheck", 1, "FAIL"), ("shellcheck", 2, "UNKNOWN"), ("shellcheck", 3, "UNKNOWN"), ("shellcheck", 4, "UNKNOWN"),
-        ("pytest", 1, "FAIL"), ("pytest", 2, "UNKNOWN"), ("pytest", 3, "UNKNOWN"), ("pytest", 4, "UNKNOWN"),
-        ("pytest", 5, "UNKNOWN"), ("pytest", 127, "NOT_RUN"),
-        ("unwired", 0, "UNKNOWN"), ("unwired", 1, "UNKNOWN"), ("unwired", 127, "NOT_RUN"),   # ours, unadopted: by provenance
-        ("newchild", 1, "UNKNOWN"),   # no contract row: a code the contract does not name is never a FAIL
+        ("ruff", 0, "PASS"),
+        ("ruff", 1, "FAIL"),
+        ("ruff", 2, "UNKNOWN"),
+        ("ruff", 127, "NOT_RUN"),
+        ("shellcheck", 1, "FAIL"),
+        ("shellcheck", 2, "UNKNOWN"),
+        ("shellcheck", 3, "UNKNOWN"),
+        ("shellcheck", 4, "UNKNOWN"),
+        ("pytest", 1, "FAIL"),
+        ("pytest", 2, "UNKNOWN"),
+        ("pytest", 3, "UNKNOWN"),
+        ("pytest", 4, "UNKNOWN"),
+        ("pytest", 5, "UNKNOWN"),
+        ("pytest", 127, "NOT_RUN"),
+        ("unwired", 0, "UNKNOWN"),
+        ("unwired", 1, "UNKNOWN"),
+        ("unwired", 127, "NOT_RUN"),  # ours, unadopted: by provenance
+        ("newchild", 1, "UNKNOWN"),  # no contract row: a code the contract does not name is never a FAIL
     ],
 )
 def test_every_child_status_comes_off_the_documented_exit_code_contract(name, rc, status):
@@ -56,7 +68,13 @@ def test_all_green_is_UNKNOWN_today_because_unwired_is_ours_and_unadopted_the_le
     assert v["result"]["pass"] == 3 and v["result"]["unknown"] == 1 and v["result"]["statuses"]["unwired"] == "UNKNOWN"
     assert "by provenance" in v["reason"]
     assert v["result"]["advisory"] == {"mypy": "AT_BASELINE", "format": "EMPTY_SCOPE"}
-    assert v["evidence"] == ["capture-host/check.sh", "ruff exit 0", "shellcheck exit 0", "pytest exit 0", "unwired exit 0"]
+    assert v["evidence"] == [
+        "capture-host/check.sh",
+        "ruff exit 0",
+        "shellcheck exit 0",
+        "pytest exit 0",
+        "unwired exit 0",
+    ]
 
 
 def test_the_three_external_children_green_IS_a_PASS_once_no_unadopted_child_is_in_the_run():
@@ -79,7 +97,7 @@ def test_any_FAIL_wins_and_names_the_first_failing_child_and_the_count():
 
 def test_an_UNKNOWN_child_is_never_green_one_level_up_it_is_not_a_vote():
     v = ok(C.aggregate({**GREEN, "pytest": 5}), "UNKNOWN")
-    assert v["result"]["unknown"] == 2 and "vacuous" in v["reason"]   # pytest 5 + the unadopted unwired
+    assert v["result"]["unknown"] == 2 and "vacuous" in v["reason"]  # pytest 5 + the unadopted unwired
 
 
 def test_a_missing_tool_is_NOT_RUN_for_the_child_excluded_and_the_run_is_UNKNOWN_never_PASS():

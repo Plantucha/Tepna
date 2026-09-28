@@ -102,6 +102,7 @@ def test_the_event_survives_a_missing_verdict_without_inventing_values():
 # UB500 losing minutes on wearables and zero on CPAP) — relocating the healthy siblings for it is the
 # category mismatch the report-only comment in capture.py names.
 
+
 def _v(state, observed=None, detail="d"):
     return {"state": state, "observed": observed, "detail": detail}
 
@@ -112,8 +113,7 @@ def test_adapter_fold_needs_TWO_distressed_links_not_one():
     one = D.adapter_verdict({"Ring": _v(D.DISTRESSED, 13.7), "H10": _v(D.OK), "Verity": _v(D.OK)})
     assert one["state"] == D.OK
     assert "Ring" in one["detail"] and "device-local" in one["detail"]
-    two = D.adapter_verdict({"Ring": _v(D.DISTRESSED, 13.7), "H10": _v(D.DISTRESSED, 9.1),
-                             "Verity": _v(D.OK)})
+    two = D.adapter_verdict({"Ring": _v(D.DISTRESSED, 13.7), "H10": _v(D.DISTRESSED, 9.1), "Verity": _v(D.OK)})
     assert two["state"] == D.DISTRESSED
     assert two["distressed"] == ["H10", "Ring"] and "adapter-wide" in two["detail"]
 
@@ -157,6 +157,7 @@ def test_the_corroboration_floor_is_two_and_not_configurable():
 # honest options are REFUSE or PREEMPT-AND-RECORD; "override and log" is neither. Preemption is the
 # option taken (refusing is a data-loss trade), so behaviour is unchanged and only the evidence moves.
 
+
 def _ev(**kw):
     base = dict(device="H10", from_mac="AA:AA", to_mac="BB:BB", verdict={}, cause="wedged")
     base.update(kw)
@@ -166,9 +167,15 @@ def _ev(**kw):
 def test_LEASE_taking_a_reserved_adapter_is_recorded_as_a_decision():
     """Before this, commandeering the CPAP's dedicated radio left only a log line — measured 60/67/65
     times per night on 2026-09-05/06/07, invisible to anything that survives the night."""
-    ev = _ev(to_mac="CC:CC", reserved=("CC:CC",),
-             preemption={"adapter_mac": "CC:CC", "holder": "cpap.ble_stream",
-                         "reason": "no unreserved adapter was available"})
+    ev = _ev(
+        to_mac="CC:CC",
+        reserved=("CC:CC",),
+        preemption={
+            "adapter_mac": "CC:CC",
+            "holder": "cpap.ble_stream",
+            "reason": "no unreserved adapter was available",
+        },
+    )
     assert ev["preemption"]["holder"] == "cpap.ble_stream"
     assert ev["preemption"]["adapter_mac"] == "CC:CC"
     assert ev["reserved_adapters"] == ["CC:CC"]
@@ -178,8 +185,8 @@ def test_LEASE_a_respected_lease_is_DISTINGUISHABLE_from_no_lease_at_all():
     """The reason `reserved_adapters` rides along. Without it, `preemption: null` conflates two
     different facts — "a lease existed and was honoured" and "there was no lease" — and only one of
     those is evidence that the reservation mechanism did anything."""
-    respected = _ev(to_mac="DD:DD", reserved=("CC:CC",))          # a lease existed, spare is not it
-    none_configured = _ev(to_mac="DD:DD")                          # no lease at all
+    respected = _ev(to_mac="DD:DD", reserved=("CC:CC",))  # a lease existed, spare is not it
+    none_configured = _ev(to_mac="DD:DD")  # no lease at all
 
     assert respected["preemption"] is None and none_configured["preemption"] is None
     assert respected["reserved_adapters"] == ["CC:CC"]
@@ -199,8 +206,10 @@ def test_LEASE_the_absence_is_null_never_an_empty_dict_or_False():
 def test_LEASE_the_event_still_carries_the_signal_that_fired():
     """The §1.7 fields are ADDITIVE — the existing contract (which signal fired, and its value) must
     survive, or this trades one half-silent record for another."""
-    ev = _ev(verdict={"observed": 61.0, "band": "red", "median": 1.0, "nights": 7},
-             reserved=("CC:CC",), preemption={"adapter_mac": "CC:CC", "holder": "cpap.ble_stream",
-                                              "reason": "none available"})
+    ev = _ev(
+        verdict={"observed": 61.0, "band": "red", "median": 1.0, "nights": 7},
+        reserved=("CC:CC",),
+        preemption={"adapter_mac": "CC:CC", "holder": "cpap.ble_stream", "reason": "none available"},
+    )
     assert ev["observed_per_h"] == 61.0 and ev["band_per_h"] == "red"
     assert ev["baseline_median_per_h"] == 1.0 and ev["event"] == "radio-failover"

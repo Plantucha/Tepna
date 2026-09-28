@@ -2,33 +2,56 @@
 # Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
 # The adapter watchdog's whole job is to auto-recover a WEDGED radio WITHOUT reacting to the benign
 # 'sensors simply not worn' state — so its classifier is where that distinction must be locked down.
-import capture   # importable with stdlib + local modules only (yaml/bleak/aiohttp are lazy/runtime)
+import capture  # importable with stdlib + local modules only (yaml/bleak/aiohttp are lazy/runtime)
 
 
 def test_not_worn_is_benign():
     # clean 'not found' on every device, no phantom link, no InProgress → NOT a wedge (user took them off)
     devs = [
-        {"name": "H10", "address": "AA", "connected": False,
-         "last_error": "BleakDeviceNotFoundError('... was not found.')", "bluez_connected": False},
-        {"name": "O2Ring", "address": "BB", "connected": False,
-         "last_error": "O2Ring not advertising (wear it finger-in + close the phone app)", "bluez_connected": False},
+        {
+            "name": "H10",
+            "address": "AA",
+            "connected": False,
+            "last_error": "BleakDeviceNotFoundError('... was not found.')",
+            "bluez_connected": False,
+        },
+        {
+            "name": "O2Ring",
+            "address": "BB",
+            "connected": False,
+            "last_error": "O2Ring not advertising (wear it finger-in + close the phone app)",
+            "bluez_connected": False,
+        },
     ]
     h = capture.classify_adapter_health(devs)
     assert h["wedged"] is False and h["reasons"] == [] and h["phantom"] == []
 
 
 def test_inprogress_is_wedge():
-    devs = [{"name": "H10", "address": "AA", "connected": False,
-             "last_error": "BleakDBusError('org.bluez.Error.InProgress', 'Operation already in progress')",
-             "bluez_connected": False}]
+    devs = [
+        {
+            "name": "H10",
+            "address": "AA",
+            "connected": False,
+            "last_error": "BleakDBusError('org.bluez.Error.InProgress', 'Operation already in progress')",
+            "bluez_connected": False,
+        }
+    ]
     h = capture.classify_adapter_health(devs)
     assert h["wedged"] is True and "InProgress" in h["reasons"][0]
 
 
 def test_phantom_link_is_wedge_and_names_address():
     # BlueZ says Connected: yes but our daemon has no link → stale phantom link (blocks re-advertise)
-    devs = [{"name": "O2Ring", "address": "D1:98:62:7C:92:B3", "connected": False,
-             "last_error": None, "bluez_connected": True}]
+    devs = [
+        {
+            "name": "O2Ring",
+            "address": "D1:98:62:7C:92:B3",
+            "connected": False,
+            "last_error": None,
+            "bluez_connected": True,
+        }
+    ]
     h = capture.classify_adapter_health(devs)
     assert h["wedged"] is True and h["phantom"] == ["D1:98:62:7C:92:B3"]
 
@@ -43,8 +66,13 @@ def test_connected_device_not_flagged():
 def test_mixed_one_streaming_one_notworn_is_benign():
     devs = [
         {"name": "H10", "address": "AA", "connected": True, "last_error": None, "bluez_connected": True},
-        {"name": "O2Ring", "address": "BB", "connected": False,
-         "last_error": "not advertising", "bluez_connected": False},
+        {
+            "name": "O2Ring",
+            "address": "BB",
+            "connected": False,
+            "last_error": "not advertising",
+            "bluez_connected": False,
+        },
     ]
     assert capture.classify_adapter_health(devs)["wedged"] is False
 
@@ -60,6 +88,7 @@ def test_import_capture_needs_no_bleak():
     Python 3.12 — so it blocked nothing and passed even with the bug present.)"""
     import subprocess
     import sys
+
     code = (
         "import sys\n"
         "for m in ('bleak', 'bleak.exc', 'bleak.backends', 'aiohttp', 'yaml'):\n"
@@ -78,9 +107,13 @@ def test_inprogress_with_a_live_device_is_NOT_a_wedge():
     device contention, not an adapter wedge: the radio is demonstrably working (it holds the other link)."""
     devs = [
         {"name": "H10", "address": "AA", "connected": True, "last_error": None, "bluez_connected": True},
-        {"name": "O2Ring", "address": "BB", "connected": False,
-         "last_error": "BleakDBusError('org.bluez.Error.InProgress', 'Operation already in progress')",
-         "bluez_connected": False},
+        {
+            "name": "O2Ring",
+            "address": "BB",
+            "connected": False,
+            "last_error": "BleakDBusError('org.bluez.Error.InProgress', 'Operation already in progress')",
+            "bluez_connected": False,
+        },
     ]
     h = capture.classify_adapter_health(devs)
     assert h["wedged"] is False, "a lone InProgress while another device streams must NOT power-cycle"
@@ -91,11 +124,20 @@ def test_inprogress_with_NO_live_device_is_still_a_wedge():
     is a genuine adapter wedge and still triggers recovery — this is the 2026-07-18 saga the signal exists
     for. Only the 'a live link is present' case is downgraded to benign contention."""
     devs = [
-        {"name": "H10", "address": "AA", "connected": False,
-         "last_error": "BleakDBusError('org.bluez.Error.InProgress', 'Operation already in progress')",
-         "bluez_connected": False},
-        {"name": "O2Ring", "address": "BB", "connected": False, "last_error": "not advertising",
-         "bluez_connected": False},
+        {
+            "name": "H10",
+            "address": "AA",
+            "connected": False,
+            "last_error": "BleakDBusError('org.bluez.Error.InProgress', 'Operation already in progress')",
+            "bluez_connected": False,
+        },
+        {
+            "name": "O2Ring",
+            "address": "BB",
+            "connected": False,
+            "last_error": "not advertising",
+            "bluez_connected": False,
+        },
     ]
     assert capture.classify_adapter_health(devs)["wedged"] is True
 
@@ -125,9 +167,9 @@ def test_any_stream_stalled_false_when_all_recently_flowed():
 
 
 def test_any_stream_stalled_off_when_grace_zero_or_empty():
-    assert capture.any_stream_stalled([500.0], 1000.0, 0) is False       # feature disabled
-    assert capture.any_stream_stalled([], 1000.0, 90.0) is False          # nothing started
-    assert capture.any_stream_stalled([None], 1000.0, 90.0) is False      # stream not started yet
+    assert capture.any_stream_stalled([500.0], 1000.0, 0) is False  # feature disabled
+    assert capture.any_stream_stalled([], 1000.0, 90.0) is False  # nothing started
+    assert capture.any_stream_stalled([None], 1000.0, 90.0) is False  # stream not started yet
 
 
 # ── VIGIL-DEEP-ANALYSIS §2D — a connection-ceiling error is diagnosable, not "sensor off" ──
@@ -148,16 +190,16 @@ def test_charger_pull_due_fires_after_the_settle_window():
 
 
 def test_charger_pull_not_due_before_the_settle_window():
-    assert capture.charger_pull_due(True, 1000.0, 1010.0, 15.0, False) is False   # only 10 s on charger
+    assert capture.charger_pull_due(True, 1000.0, 1010.0, 15.0, False) is False  # only 10 s on charger
 
 
 def test_charger_pull_not_due_off_charger_or_not_armed():
     assert capture.charger_pull_due(False, 1000.0, 1020.0, 15.0, False) is False  # off the charger
-    assert capture.charger_pull_due(True, None, 1020.0, 15.0, False) is False     # never went on charger
+    assert capture.charger_pull_due(True, None, 1020.0, 15.0, False) is False  # never went on charger
 
 
 def test_charger_pull_only_once_per_charge_session():
-    assert capture.charger_pull_due(True, 1000.0, 1020.0, 15.0, True) is False    # already pulled this session
+    assert capture.charger_pull_due(True, 1000.0, 1020.0, 15.0, True) is False  # already pulled this session
 
 
 # ── VIGIL-DEEP-ANALYSIS §2D — stronger adapter recovery (hci reset + gated USB rebind), never raises ──
@@ -166,30 +208,46 @@ import asyncio as _aio
 
 def test_adapter_cmd_returns_true_on_success_and_never_raises(monkeypatch):
     class _P:
-        async def wait(self): return 0
-    async def fake_exec(*a, **k): return _P()
+        async def wait(self):
+            return 0
+
+    async def fake_exec(*a, **k):
+        return _P()
+
     monkeypatch.setattr(capture.asyncio, "create_subprocess_exec", fake_exec)
     assert _aio.run(capture._adapter_cmd(["hciconfig", "hci0", "reset"])) is True
 
 
 def test_adapter_cmd_swallows_a_missing_binary(monkeypatch):
-    async def boom(*a, **k): raise FileNotFoundError("hciconfig")
+    async def boom(*a, **k):
+        raise FileNotFoundError("hciconfig")
+
     monkeypatch.setattr(capture.asyncio, "create_subprocess_exec", boom)
-    assert _aio.run(capture._adapter_cmd(["hciconfig", "hci0", "reset"])) is False   # graceful, no raise
+    assert _aio.run(capture._adapter_cmd(["hciconfig", "hci0", "reset"])) is False  # graceful, no raise
 
 
 def test_usb_rebind_writes_unbind_then_bind(monkeypatch):
     writes = []
     import builtins
+
     real_open = builtins.open
+
     def fake_open(path, *a, **k):
         if "/sys/bus/usb/drivers/usb" in str(path):
+
             class _F:
-                def __enter__(s): return s
-                def __exit__(s, *e): return False
-                def write(s, v): writes.append((str(path).rsplit("/", 1)[-1], v))
+                def __enter__(s):
+                    return s
+
+                def __exit__(s, *e):
+                    return False
+
+                def write(s, v):
+                    writes.append((str(path).rsplit("/", 1)[-1], v))
+
             return _F()
         return real_open(path, *a, **k)
+
     monkeypatch.setattr(builtins, "open", fake_open)
     assert _aio.run(capture._usb_rebind("3-1")) is True
     assert writes == [("unbind", "3-1"), ("bind", "3-1")]
@@ -199,17 +257,21 @@ def _deny_sysfs(monkeypatch):
     """Make the direct unbind/bind write fail exactly as it does on the real box: EACCES, because the
     files are `--w------- root root` and the daemon is unprivileged."""
     import builtins
+
     real_open = builtins.open
+
     def deny(path, *a, **k):
-        if "/sys/bus/usb" in str(path): raise PermissionError("EACCES")
+        if "/sys/bus/usb" in str(path):
+            raise PermissionError("EACCES")
         return real_open(path, *a, **k)
+
     monkeypatch.setattr(builtins, "open", deny)
 
 
 def test_usb_rebind_is_graceful_when_sysfs_is_unwritable(monkeypatch):
     _deny_sysfs(monkeypatch)
     monkeypatch.setattr(capture.helper_path, "resolve", lambda n: "/nonexistent/" + n)
-    assert _aio.run(capture._usb_rebind("3-1")) is False   # no raise on a dev box without the caps
+    assert _aio.run(capture._usb_rebind("3-1")) is False  # no raise on a dev box without the caps
 
 
 def test_usb_rebind_falls_back_to_the_root_helper_when_sysfs_is_denied(monkeypatch):
@@ -221,8 +283,11 @@ def test_usb_rebind_falls_back_to_the_root_helper_when_sysfs_is_denied(monkeypat
     calls = []
     monkeypatch.setattr(capture.helper_path, "resolve", lambda n: "/usr/local/lib/tepna/" + n)
     monkeypatch.setattr(capture.os, "access", lambda p, m: True)
+
     async def fake_helper(*args, timeout=45):
-        calls.append(args); return 0, "re-bound: 3-1 (2357:0604)"
+        calls.append(args)
+        return 0, "re-bound: 3-1 (2357:0604)"
+
     monkeypatch.setattr(capture, "_run_helper", fake_helper)
     assert _aio.run(capture._usb_rebind("3-1")) is True
     assert calls == [("sudo", "-n", "/usr/local/lib/tepna/tepna-btreset.sh", "3-1")]
@@ -234,7 +299,10 @@ def test_usb_rebind_reports_a_failing_helper_rather_than_claiming_success(monkey
     _deny_sysfs(monkeypatch)
     monkeypatch.setattr(capture.helper_path, "resolve", lambda n: "/usr/local/lib/tepna/" + n)
     monkeypatch.setattr(capture.os, "access", lambda p, m: True)
-    async def fake_helper(*args, timeout=45): return 4, "cannot write (run as root)"
+
+    async def fake_helper(*args, timeout=45):
+        return 4, "cannot write (run as root)"
+
     monkeypatch.setattr(capture, "_run_helper", fake_helper)
     assert _aio.run(capture._usb_rebind("3-1")) is False
 
@@ -244,7 +312,10 @@ def test_usb_rebind_survives_a_raising_helper_path(monkeypatch):
     traceback out of the watchdog — the same guard, and the same reasoning, as `_restart_radio`'s
     (test_radio_deafness.py). A recovery rung that raises takes the watchdog with it."""
     _deny_sysfs(monkeypatch)
-    def boom(_n): raise RuntimeError("no such deploy root")
+
+    def boom(_n):
+        raise RuntimeError("no such deploy root")
+
     monkeypatch.setattr(capture.helper_path, "resolve", boom)
     assert _aio.run(capture._usb_rebind("3-1")) is False
 
@@ -252,19 +323,32 @@ def test_usb_rebind_survives_a_raising_helper_path(monkeypatch):
 def test_usb_rebind_does_not_call_the_helper_when_the_direct_write_worked(monkeypatch):
     """A box that granted the capability must not pay a subprocess + sudo on every recovery."""
     called = []
+
     async def fake_helper(*args, timeout=45):
-        called.append(args); return 0, ""
+        called.append(args)
+        return 0, ""
+
     monkeypatch.setattr(capture, "_run_helper", fake_helper)
     import builtins
+
     real_open = builtins.open
+
     def ok(path, *a, **k):
         if "/sys/bus/usb/drivers/usb" in str(path):
+
             class _F:
-                def __enter__(s): return s
-                def __exit__(s, *e): return False
-                def write(s, v): pass
+                def __enter__(s):
+                    return s
+
+                def __exit__(s, *e):
+                    return False
+
+                def write(s, v):
+                    pass
+
             return _F()
         return real_open(path, *a, **k)
+
     monkeypatch.setattr(builtins, "open", ok)
     assert _aio.run(capture._usb_rebind("3-1")) is True
     assert called == []
@@ -293,11 +377,14 @@ def test_EVERY_link_error_site_routes_through_the_one_formatter():
     import io
     import tokenize
     from tests._srcscan import module_source
+
     src = module_source("capture.py")
-    code = tokenize.untokenize([t for t in tokenize.generate_tokens(io.StringIO(src).readline)
-                                if t.type != tokenize.COMMENT])
+    code = tokenize.untokenize(
+        [t for t in tokenize.generate_tokens(io.StringIO(src).readline) if t.type != tokenize.COMMENT]
+    )
     assert 'log.warning("%s link error: %r", name, e)' not in code, (
-        "a link-error site is still logging the unclassified form")
+        "a link-error site is still logging the unclassified form"
+    )
     # FOUR since the auto-pull drain's own handler joined them (2026-09-06). ⚠️ Note what this count
     # does and does not buy: it catches a formatter call being REMOVED, and it does not catch a NEW
     # site logging some other unclassified form — only the assertion above does that, and only for
@@ -313,10 +400,11 @@ def test_EVERY_link_error_site_routes_through_the_one_formatter():
     assert code.count("link_error_text(") >= 2, "the formatter must still be reached"
     assert "def _log_link_error(" in code, "the shared reporter must exist"
     import capture as _cap
+
     for site in _cap.LINK_ERROR_SITES:
         i = code.index(f"def {site}(")
         nxt = code.find("\nasync def ", i + 1)
-        body = code[i:nxt if nxt > 0 else len(code)]
+        body = code[i : nxt if nxt > 0 else len(code)]
         assert "_log_link_error(" in body, f"{site} must report through the shared reporter"
 
 
@@ -362,6 +450,7 @@ def test_the_configured_settle_IS_the_effective_settle():
     effective 210 while the config still read 45 — the signature defect in config form. A floor
     reintroduced here would pass every other test in this file."""
     import inspect
+
     src = inspect.getsource(capture.charger_pull_poller)
     assert "doff_settle = _doff_cfg" in src, "the configured value must apply unmodified"
     assert "max(_doff_cfg" not in src, "a silent floor is back — a config reading 45 would run 210"
@@ -403,10 +492,12 @@ def test_on_close_NEVER_INHERITS_unlike_on_doff():
     no behaviour to preserve — and `pull.on_doff` is currently ENABLED on the box for the awake-tail
     measurement, so an inheriting `on_close` would switch the close-triggered harvest on at the next
     daemon restart. That is the silent deployed-behaviour change §7's Done-when forbids."""
-    for cfg in ({"auto": True},
-                {"auto": True, "on_charger": True},
-                {"auto": True, "on_doff": True},
-                {"auto": True, "on_charger": True, "on_doff": True}):
+    for cfg in (
+        {"auto": True},
+        {"auto": True, "on_charger": True},
+        {"auto": True, "on_doff": True},
+        {"auto": True, "on_charger": True, "on_doff": True},
+    ):
         assert capture.autopull_arming(cfg)["close"] is False, cfg
 
 
@@ -506,12 +597,14 @@ def test_notworn_settle_default_clears_the_power_drop_grace():
     # and the clamp the poller applies is strictly above the grace, not merely equal to it
     assert max(10.0, capture._DROP_NOT_WORN_SEC + 30.0) > capture._DROP_NOT_WORN_SEC
 
+
 # ── the adapter lock: the scan must not overlap the connect (2026-08-26) ──────────────────────────
 
 
 def _run_async(coro):
     """Drive one coroutine on a fresh loop (this file has no async fixtures)."""
     import asyncio as _aio
+
     return _aio.new_event_loop().run_until_complete(coro)
 
 
@@ -535,9 +628,9 @@ def test_the_SCAN_runs_under_the_adapter_lock(monkeypatch):
 
     async def _find(*a, **k):
         order.append("scan")
-        await _aio.sleep(0.02)          # a real scan holds the adapter for a while
+        await _aio.sleep(0.02)  # a real scan holds the adapter for a while
         order.append("done")
-        return None                      # not found — the connect never runs, which is fine
+        return None  # not found — the connect never runs, which is fine
 
     class _S:
         find_device_by_filter = staticmethod(_find)
@@ -560,6 +653,7 @@ def test_the_SCAN_runs_under_the_adapter_lock(monkeypatch):
 
     async def _no_kw():
         return {}
+
     monkeypatch.setattr(capture, "adapter_kw", _no_kw)
     monkeypatch.setattr(capture, "_O2_PASSIVE_SCAN", False)
 
@@ -568,15 +662,14 @@ def test_the_SCAN_runs_under_the_adapter_lock(monkeypatch):
             async with capture._connect_scan("AA:BB:CC:DD:EE:FF", timeout=0.05):
                 pass
         except Exception:
-            pass   # the connect is EXPECTED to fail with no radio; what is under test is the
-                   # state the context manager leaves behind, asserted after this block
+            pass  # the connect is EXPECTED to fail with no radio; what is under test is the
+            # state the context manager leaves behind, asserted after this block
 
     async def _both():
         await _aio.gather(_attempt(), _attempt())
 
     _run_async(_both())
     assert order == ["scan", "done", "scan", "done"], f"scans overlapped on the adapter: {order}"
-
 
 
 # ── §7's third done-when: the arming diagnostic must be proven in BOTH directions ─────────────────
@@ -592,8 +685,13 @@ def test_the_SCAN_runs_under_the_adapter_lock(monkeypatch):
 #
 # Paired deliberately. A one-directional test passes just as well against a diagnostic that prints
 # the same string unconditionally, which is the failure mode that would hide a wrongly-armed poller.
-_PULL_DEV = {"name": "Wellue O2Ring-S", "vendor": "Wellue", "model": "O2Ring",
-             "device_id": "S8AW2100", "address": "AA:BB:CC:DD:EE:FF"}
+_PULL_DEV = {
+    "name": "Wellue O2Ring-S",
+    "vendor": "Wellue",
+    "model": "O2Ring",
+    "device_id": "S8AW2100",
+    "address": "AA:BB:CC:DD:EE:FF",
+}
 
 
 def _run_poller_once(cfg, caplog):
@@ -619,12 +717,12 @@ def test_the_autopull_arming_line_fires_when_ARMED(caplog):
 
 def test_the_autopull_arming_line_fires_when_NOT_ARMED(caplog):
     text = _run_poller_once(
-        {"pull": {"auto": True, "on_charger": False, "on_doff": False, "on_close": False},
-         "devices": [_PULL_DEV]},
+        {"pull": {"auto": True, "on_charger": False, "on_doff": False, "on_close": False}, "devices": [_PULL_DEV]},
         caplog,
     )
     assert "auto-pull: NOT armed" in text, f"the NOT-armed half never printed: {text!r}"
     assert "armed —" not in text.replace("NOT armed", ""), "the two halves must be exclusive"
+
 
 # ⚠️ NO THIRD LINE FOR "armed, but nothing eligible" — and this is a DECISION, not an omission.
 # Writing this control I hit that silent path (`if not devices: return`) and started to name it, on

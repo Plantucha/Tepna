@@ -8,6 +8,7 @@ and `_settle_gatt_chars` can only notice when one of TWO hardcoded UUIDs is abse
 characteristics, vendor service absent entirely. A two-UUID heuristic cannot see that as partial except
 by luck. Every plant below is that tree in a different disguise.
 """
+
 import json
 import os
 import sys
@@ -79,10 +80,10 @@ def test_PLANT_a_tree_missing_something_OTHER_than_the_two_hardcoded_uuids_is_st
 def test_None_and_empty_list_are_DIFFERENT_answers():
     """`None` = no oracle for this device (fall back); `[]` = the oracle ran and the tree is complete.
     Collapsing them reinstates the ambiguity devcaps was built to remove one level down."""
-    assert gattmap.missing(ADDR, H, []) is None          # nothing recorded
+    assert gattmap.missing(ADDR, H, []) is None  # nothing recorded
     gattmap.record(ADDR, H, TABLE, source="probe")
-    assert gattmap.missing(ADDR, H, list(TABLE)) == []   # recorded and complete
-    assert gattmap.missing(ADDR, H, []) != []            # recorded and empty tree → not complete
+    assert gattmap.missing(ADDR, H, list(TABLE)) == []  # recorded and complete
+    assert gattmap.missing(ADDR, H, []) != []  # recorded and empty tree → not complete
 
 
 def test_uuid_comparison_is_case_insensitive_both_ways():
@@ -119,7 +120,7 @@ def test_a_device_with_NO_database_hash_is_checkable_against_itself_only():
     assert gattmap.expected(ADDR, None) is not None
     assert gattmap.expected(ADDR, H) is None
     gattmap.record(ADDR, "", TABLE, source="probe")
-    assert gattmap.expected(ADDR, None) is not None      # "" normalises to None, not to a hash
+    assert gattmap.expected(ADDR, None) is not None  # "" normalises to None, not to a hash
 
 
 def test_identity_is_the_ADDRESS_and_it_normalises():
@@ -151,8 +152,8 @@ def test_recorded_at_SURVIVES_a_restart_and_a_later_flush_for_another_unit(tmp_p
     gattmap.configure(str(p))
     gattmap.record(ADDR, H, TABLE, source="probe", now=1000)
     gattmap.reset()
-    gattmap.configure(str(p))                                   # the deploy restart
-    gattmap.record("00:11:22:33:44:55", None, {"2a00": 2}, source="probe", now=2000)   # new unit → flush
+    gattmap.configure(str(p))  # the deploy restart
+    gattmap.record("00:11:22:33:44:55", None, {"2a00": 2}, source="probe", now=2000)  # new unit → flush
     raw = json.loads(p.read_text(encoding="utf-8"))
     assert raw[ADDR]["recorded_at"] == 1000
     assert raw["00:11:22:33:44:55"]["recorded_at"] == 2000
@@ -162,11 +163,16 @@ def test_a_record_written_before_the_stamp_existed_reloads_WITHOUT_one(tmp_path)
     """∅: a pre-#2611 record carries no stamp, and a reload must not invent one from its own clock —
     a bool or a string in that slot is equally not a time and is dropped rather than coerced."""
     p = tmp_path / "gattmap.json"
-    p.write_text(json.dumps({
-        ADDR: {"db_hash": None, "chars": TABLE, "source": "connect-snapshot"},
-        "00:11:22:33:44:55": {"db_hash": None, "chars": TABLE, "source": "x", "recorded_at": True},
-        "00:11:22:33:44:66": {"db_hash": None, "chars": TABLE, "source": "x", "recorded_at": "1000"},
-    }), encoding="utf-8")
+    p.write_text(
+        json.dumps(
+            {
+                ADDR: {"db_hash": None, "chars": TABLE, "source": "connect-snapshot"},
+                "00:11:22:33:44:55": {"db_hash": None, "chars": TABLE, "source": "x", "recorded_at": True},
+                "00:11:22:33:44:66": {"db_hash": None, "chars": TABLE, "source": "x", "recorded_at": "1000"},
+            }
+        ),
+        encoding="utf-8",
+    )
     gattmap.configure(str(p))
     # `snapshot()` does not carry the stamp, so the only witness is the file after a real flush:
     # a new unit rewrites the whole map, and the three loaded records must come back stamp-less.
@@ -249,34 +255,41 @@ def test_snapshot_of_an_empty_store_is_empty():
 def test_recording_never_raises_into_the_capture_path(monkeypatch, tmp_path):
     """A map note must never end a recording. The in-memory table still stands; only its persistence
     was lost — so the oracle keeps working for the rest of the night."""
+
     def boom():
         raise RuntimeError("disk gone")
+
     gattmap.configure(str(tmp_path / "g.json"))
     monkeypatch.setattr(gattmap, "_flush", boom)
     assert gattmap.record(ADDR, H, TABLE, source="probe") == ""
-    assert gattmap.missing(ADDR, H, list(TABLE)) == []      # in-memory table survived the write failure
+    assert gattmap.missing(ADDR, H, list(TABLE)) == []  # in-memory table survived the write failure
 
 
 def test_PLANT_a_failed_write_leaves_no_half_written_map_and_no_tmp_litter(monkeypatch, tmp_path):
     """A half-written map read at the next boot is worse than none — that is why the write is atomic
     and the temp file is removed on failure."""
+
     def boom(*_a, **_k):
         raise RuntimeError("write failed")
+
     p = tmp_path / "g.json"
     gattmap.configure(str(p))
     monkeypatch.setattr(gattmap.json, "dump", boom)
-    assert gattmap.record(ADDR, H, TABLE, source="probe") in ("new", "changed")   # in-memory write succeeded
-    assert not p.exists()                                           # no half-written map
+    assert gattmap.record(ADDR, H, TABLE, source="probe") in ("new", "changed")  # in-memory write succeeded
+    assert not p.exists()  # no half-written map
     assert [f for f in os.listdir(tmp_path) if f.startswith(".gattmap-")] == []
 
 
 def test_even_a_failed_CLEANUP_does_not_reach_the_capture_path(monkeypatch, tmp_path):
     """Read-only volume: the temp file cannot be removed either. The ORIGINAL map is still intact,
     which is the property that matters — and capture continues regardless."""
+
     def bad_dump(*_a, **_k):
         raise RuntimeError("write failed")
+
     def bad_unlink(*_a, **_k):
         raise OSError("read-only")
+
     gattmap.configure(str(tmp_path / "g.json"))
     monkeypatch.setattr(gattmap.json, "dump", bad_dump)
     monkeypatch.setattr(gattmap.os, "unlink", bad_unlink)
@@ -304,6 +317,7 @@ class _Svc:
 
 class _Client:
     """Minimal stand-in: only the surface `_gatt_record_table` actually touches."""
+
     def __init__(self, chars, read=None):
         self._svcs = [_Svc(chars)]
         self._read = read
@@ -334,12 +348,14 @@ def test_recorder_PLANT_unreadable_snapshot_is_not_an_empty_one():
 
 def test_recorder_an_empty_tree_records_nothing():
     import capture
+
     assert _run(capture._gatt_record_table(_Client([]), ADDR)) == ""
     assert gattmap.expected(ADDR, None) is None
 
 
 def test_recorder_records_the_table_and_reads_the_hash_when_the_tree_SHOWS_it():
     import capture
+
     chars = [_Char(capture.GATT_DB_HASH_UUID, 0x0003), _Char("0000fd56-0000-1000-8000-00805f9b34fb", 0x0010)]
     out = _run(capture._gatt_record_table(_Client(chars, read=b"\xde\xad\xbe\xef"), ADDR))
     assert "2 char(s)" in out and "deadbeef" in out
@@ -350,8 +366,8 @@ def test_recorder_NEVER_reads_the_hash_blind():
     """A device that does not publish 0x2B2A is not a failure — it records under a None hash. The read
     must not be attempted at all, so a device that would ERROR on it is unaffected."""
     import capture
-    boom = _Client([_Char("0000fd56-0000-1000-8000-00805f9b34fb", 0x0010)],
-                   read=RuntimeError("must not be called"))
+
+    boom = _Client([_Char("0000fd56-0000-1000-8000-00805f9b34fb", 0x0010)], read=RuntimeError("must not be called"))
     out = _run(capture._gatt_record_table(boom, ADDR))
     assert "db_hash absent" in out
     assert gattmap.expected(ADDR, None) is not None
@@ -359,6 +375,7 @@ def test_recorder_NEVER_reads_the_hash_blind():
 
 def test_recorder_an_unread_hash_is_None_never_a_fabricated_key():
     import capture
+
     chars = [_Char(capture.GATT_DB_HASH_UUID, 0x0003)]
     out = _run(capture._gatt_record_table(_Client(chars, read=RuntimeError("read failed")), ADDR))
     assert "db_hash absent" in out
@@ -368,12 +385,14 @@ def test_recorder_an_unread_hash_is_None_never_a_fabricated_key():
 def test_recorder_is_SILENT_on_an_unchanged_table(monkeypatch):
     """The noise path, at the caller: `same` must produce no phrase, so no INFO line is logged."""
     import capture
+
     monkeypatch.setattr(capture.gattmap, "record", lambda *_a, **_k: "same")
     assert _run(capture._gatt_record_table(_Client([_Char("abcd", 1)]), ADDR)) == ""
 
 
 def test_recorder_ANNOUNCES_a_new_or_changed_table(monkeypatch):
     import capture
+
     monkeypatch.setattr(capture.gattmap, "record", lambda *_a, **_k: "new")
     out = _run(capture._gatt_record_table(_Client([_Char("abcd", 1)]), ADDR))
     assert out.startswith("new — ") and "1 char(s)" in out
@@ -381,6 +400,7 @@ def test_recorder_ANNOUNCES_a_new_or_changed_table(monkeypatch):
 
 def test_recorder_reports_nothing_when_the_map_REFUSES_the_write(monkeypatch):
     import capture
+
     monkeypatch.setattr(capture.gattmap, "record", lambda *_a, **_k: "")
     assert _run(capture._gatt_record_table(_Client([_Char("abcd", 1)]), ADDR)) == ""
 
@@ -397,8 +417,8 @@ def test_wait_hint_IGNORES_the_hash_on_purpose():
     tree, and the tree is what the caller is waiting for. `expected()` stays hash-keyed; this does not."""
     gattmap.record(ADDR, H, TABLE, source="probe")
     assert gattmap.wait_hint(ADDR) == {k.lower() for k in TABLE}
-    assert gattmap.expected(ADDR, "deadbeef") is None      # the hash-keyed accessor still refuses
-    assert gattmap.wait_hint(ADDR) == {k.lower() for k in TABLE}   # the hint does not
+    assert gattmap.expected(ADDR, "deadbeef") is None  # the hash-keyed accessor still refuses
+    assert gattmap.wait_hint(ADDR) == {k.lower() for k in TABLE}  # the hint does not
 
 
 def test_wait_hint_never_returns_an_empty_set(tmp_path):
@@ -429,13 +449,13 @@ def test_PLANT_an_UNCHANGED_table_writes_nothing_and_says_so(tmp_path):
     for _ in range(5):
         assert gattmap.record(ADDR, H, TABLE, source="probe") == "same"
     assert p.read_bytes() == before
-    assert p.stat().st_mtime_ns == mtime      # not merely identical CONTENT — not rewritten at all
+    assert p.stat().st_mtime_ns == mtime  # not merely identical CONTENT — not rewritten at all
 
 
 def test_a_CHANGED_table_is_the_event_the_oracle_cares_about(tmp_path):
     gattmap.configure(str(tmp_path / "g.json"))
     assert gattmap.record(ADDR, H, TABLE, source="probe") == "new"
-    assert gattmap.record(ADDR, "deadbeef", TABLE, source="probe") == "changed"   # hash moved
+    assert gattmap.record(ADDR, "deadbeef", TABLE, source="probe") == "changed"  # hash moved
     assert gattmap.record(ADDR, "deadbeef", {"abcd": 1}, source="probe") == "changed"  # table moved
     assert gattmap.record(ADDR, "deadbeef", {"abcd": 1}, source="probe") == "same"
 
@@ -454,7 +474,7 @@ def test_recorded_at_is_stamped_and_is_NOT_a_last_confirmed_field(tmp_path):
     confirmation."""
     gattmap.configure(str(tmp_path / "g.json"))
     gattmap.record(ADDR, H, TABLE, source="probe", now=1000)
-    gattmap.record(ADDR, H, TABLE, source="probe", now=9999)   # a confirmation
+    gattmap.record(ADDR, H, TABLE, source="probe", now=9999)  # a confirmation
     raw = json.loads((tmp_path / "g.json").read_text(encoding="utf-8"))
     assert raw[ADDR]["recorded_at"] == 1000
     gattmap.record(ADDR, "deadbeef", TABLE, source="probe", now=9999)  # a real change
@@ -489,8 +509,7 @@ def test_every_wearable_RAIL_reaches_the_recorder():
 
     src = _pl.Path(__file__).resolve().parent.parent / "capture.py"
     tree = _ast.parse(src.read_text())
-    bodies = {n.name: n for n in _ast.walk(tree)
-              if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef))}
+    bodies = {n.name: n for n in _ast.walk(tree) if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef))}
 
     # value = the recorder entry point that rail must reach. The wearables go through the
     # `_gatt_record_rail` wrapper; CPAP calls the table recorder directly and is kept here so a
@@ -505,8 +524,7 @@ def test_every_wearable_RAIL_reaches_the_recorder():
     for rail, (entry, why) in RAILS.items():
         fn = bodies.get(rail)
         assert fn is not None, f"{rail} no longer exists — update this test deliberately, not reflexively"
-        calls = {c.func.id for c in _ast.walk(fn)
-                 if isinstance(c, _ast.Call) and isinstance(c.func, _ast.Name)}
+        calls = {c.func.id for c in _ast.walk(fn) if isinstance(c, _ast.Call) and isinstance(c.func, _ast.Name)}
         if entry not in calls:
             missing.append(f"{rail} ({why}) — no call to {entry}")
     assert not missing, "rails that open a link and never record their GATT table: " + "; ".join(missing)
@@ -519,13 +537,15 @@ def test_the_recorder_is_a_NO_OP_on_a_second_call_in_one_connect():
     `_gatt_record_table` returns "" — no write, and nothing logged. Without this property the four call
     sites would risk a false "changed" on a device that never changed."""
     import capture
+
     chars = [_Char(capture.GATT_DB_HASH_UUID, 0x0003), _Char("00002a37-0000-1000-8000-00805f9b34fb", 0x0011)]
     client = _Client(chars, read=b"\x11\x22\x33\x44\x55\x66\x77\x88\x99\xaa\xbb\xcc\xdd\xee\xff\x00")
 
     first = _run(capture._gatt_record_table(client, ADDR))
     assert first and "new" in first, f"the first call must RECORD, got {first!r}"
-    assert _run(capture._gatt_record_table(client, ADDR)) == "", \
+    assert _run(capture._gatt_record_table(client, ADDR)) == "", (
         "a second call in the same connect must be silent — not a write, not a 'changed'"
+    )
 
 
 def test_the_rail_wrapper_logs_ONLY_when_something_was_written(monkeypatch, caplog):

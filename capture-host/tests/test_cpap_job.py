@@ -48,7 +48,7 @@ def test_the_job_id_is_stable_so_a_repeated_end_addresses_ONE_job():
 
 
 def test_an_end_with_no_known_time_still_gets_an_id():
-    """"A session certainly ended and we cannot say when" is a fact worth carrying — the fleet's null
+    """ "A session certainly ended and we cannot say when" is a fact worth carrying — the fleet's null
     rule says write no stamp, not that the fact disappears."""
     j = J.new_job(None, "next_start_inferred", 1.0)
     assert j["job_id"] == "end-unknown" and j["therapy_end_ms"] is None
@@ -198,6 +198,7 @@ def test_blank_lines_are_ignored():
 
 def test_an_unwritable_ledger_warns_and_does_not_raise(monkeypatch, caplog):
     import logging
+
     caplog.set_level(logging.WARNING)
     """A job we could not persist means the next boot may re-harvest. That is the safe direction and
     must never take down the loop that was about to do the work."""
@@ -205,6 +206,7 @@ def test_an_unwritable_ledger_warns_and_does_not_raise(monkeypatch, caplog):
 
     def boom(*a, **k):
         raise OSError("read-only file system")
+
     monkeypatch.setattr(capture.os, "makedirs", boom)
     capture._cpap_write_job(r, J.new_job(1.0, "device_verdict", 1.0))
     assert "could not persist" in caplog.text
@@ -220,21 +222,20 @@ def test_defer_records_the_reason_and_passes_None_through():
 
 def test_boot_requeues_an_interrupted_job_and_returns_it():
     r = _root()
-    capture._cpap_write_job(r, J.transition(J.new_job(1000.0, "device_verdict", 1.0),
-                                            J.HARVEST_ATTEMPTED, 2.0))
+    capture._cpap_write_job(r, J.transition(J.new_job(1000.0, "device_verdict", 1.0), J.HARVEST_ATTEMPTED, 2.0))
     got = capture._cpap_boot_job(r)
     assert got is not None and got["state"] == J.HARVEST_ATTEMPTED
 
 
 def test_boot_returns_None_on_a_completed_job():
     r = _root()
-    capture._cpap_write_job(r, J.transition(J.new_job(1.0, "device_verdict", 1.0),
-                                            J.HARVEST_COMPLETED, 9.0, files=2))
+    capture._cpap_write_job(r, J.transition(J.new_job(1.0, "device_verdict", 1.0), J.HARVEST_COMPLETED, 9.0, files=2))
     assert capture._cpap_boot_job(r) is None
 
 
 def test_boot_returns_None_for_an_unreadable_ledger_but_still_treats_it_as_owed(caplog):
     import logging
+
     caplog.set_level(logging.INFO)
     """`resume_action` says requeue; the loop cannot resume a record it cannot parse, so it returns
     None — and the LOG must say why, or the night looks like it was never owed."""
@@ -264,8 +265,7 @@ def test_migration_is_a_noop_without_a_marker():
 
 def test_boot_does_not_let_a_migration_overwrite_a_REAL_job():
     r = _root()
-    capture._cpap_write_job(r, J.transition(J.new_job(2000.0, "device_verdict", 1.0),
-                                            J.HARVEST_ATTEMPTED, 2.0))
+    capture._cpap_write_job(r, J.transition(J.new_job(2000.0, "device_verdict", 1.0), J.HARVEST_ATTEMPTED, 2.0))
     with open(capture._cpap_fired_marker(r), "w") as fh:
         json.dump({"ended_at_ms": 1.0}, fh)
     got = capture._cpap_boot_job(r)
@@ -292,8 +292,9 @@ def test_a_completion_from_a_PREVIOUS_window_does_not_excuse_todays(tmp_path):
     `now` and the job's `completed_ms` can come from different clocks (a test's fake datetime against
     real `time.time()`), and comparing them is how the first fix silently produced a window that
     skipped forever anyway. A string equality has no clock in it to get wrong."""
-    done = J.transition(J.new_job(1.0, "device_verdict", 1.0), J.HARVEST_COMPLETED, 9.0,
-                        files=3, window_date="2026-09-05")
+    done = J.transition(
+        J.new_job(1.0, "device_verdict", 1.0), J.HARVEST_COMPLETED, 9.0, files=3, window_date="2026-09-05"
+    )
     same, why_same = J.should_reconcile(done, 9.0, "2026-09-05")
     assert same is False and "nothing owed" in why_same, "its OWN window is still excused"
     nxt, why_nxt = J.should_reconcile(done, 9.0, "2026-09-06")
@@ -336,7 +337,7 @@ def test_a_ledger_that_cannot_be_OPENED_is_UNREADABLE_not_absent():
     unreadable sentinel, which is not in STATES and therefore re-queues. A raise here would instead
     kill the CPAP loop outright on a permissions accident."""
     r = _root()
-    os.mkdir(capture._cpap_job_path(r))          # a directory where the ledger should be -> IsADirectoryError
+    os.mkdir(capture._cpap_job_path(r))  # a directory where the ledger should be -> IsADirectoryError
     got = capture._cpap_read_job(r)
     assert got == {"state": "unreadable"}
     assert J.resume_action(got, 9.0)[0] == "requeue"

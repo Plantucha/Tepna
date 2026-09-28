@@ -41,7 +41,7 @@ def test_THE_PSK_TRAVELS_ON_STDIN_AND_NEVER_ON_ARGV():
     assert PSK in call["stdin"]
     assert not any(PSK in a for a in call["args"])
     assert not any(PW in a for a in call["args"])
-    assert PW not in call["stdin"]                 # the plaintext is derived away before it is sent
+    assert PW not in call["stdin"]  # the plaintext is derived away before it is sent
 
 
 def test_THE_PLAINTEXT_IS_NEVER_WHAT_GETS_STORED(tmp_path):
@@ -108,8 +108,9 @@ def test_LEAVE_AND_STATUS_REPORT_CLEANLY():
 
 
 def test_STATUS_PARSES_THE_ASSOCIATED_CASE():
-    st = asyncio.run(U.status(runner=Recorder(
-        out="bssid=aa:bb\nssid=HotelWifi\nwpa_state=COMPLETED\nip_address=10.0.0.9\n")))
+    st = asyncio.run(
+        U.status(runner=Recorder(out="bssid=aa:bb\nssid=HotelWifi\nwpa_state=COMPLETED\nip_address=10.0.0.9\n"))
+    )
     assert st == {"ok": True, "state": "up", "ssid": "HotelWifi", "ip": "10.0.0.9"}
 
 
@@ -156,6 +157,7 @@ def stub_helper(tmp_path, monkeypatch):
         monkeypatch.setattr(U.helper_path, "grant_warning", lambda _p: None)
         monkeypatch.setattr(U, "SUDO", ())
         return script
+
     return _make
 
 
@@ -198,7 +200,8 @@ def test_A_REAL_SCAN_IS_PARSED_END_TO_END(stub_helper):
     stub_helper(
         "printf 'bssid\\tfrequency\\tsignal level\\tflags\\tssid\\n"
         "aa:bb:cc:dd:ee:ff\\t2412\\t-40\\t[WPA2-PSK-CCMP][ESS]\\tHotelWifi\\n"
-        "11:22:33:44:55:66\\t2437\\t-72\\t[ESS]\\tFreeWifi\\n'\n")
+        "11:22:33:44:55:66\\t2437\\t-72\\t[ESS]\\tFreeWifi\\n'\n"
+    )
     out = asyncio.run(U.scan())
     assert out["ok"] is True
     assert [n["ssid"] for n in out["networks"]] == ["HotelWifi", "FreeWifi"]
@@ -255,7 +258,7 @@ def test_THE_UPLINK_COMES_BACK_WITH_THE_STORED_KEY_NOT_A_REDERIVATION(tmp_path):
     resumed, _d = asyncio.run(U.resume_after_harvest(str(tmp_path), True, runner=r))
     assert resumed is True
     join_call = [c for c in r.calls if c["action"] == "join"][0]
-    assert join_call["stdin"].strip() == PSK      # the stored PSK, passed through underived
+    assert join_call["stdin"].strip() == PSK  # the stored PSK, passed through underived
     assert join_call["args"] == [SSID]
 
 
@@ -264,8 +267,7 @@ def test_RESUME_HAPPENS_EVEN_WHEN_THE_HARVEST_FAILED(tmp_path):
     # needs to be reachable. Resuming only on success turns a 90-minute window into an outage.
     U.save_network(str(tmp_path), SSID, PW)
     r = Scripted()
-    resumed, detail = asyncio.run(
-        U.resume_after_harvest(str(tmp_path), True, harvest_ok=False, runner=r))
+    resumed, detail = asyncio.run(U.resume_after_harvest(str(tmp_path), True, harvest_ok=False, runner=r))
     assert resumed is True and "FAILED" in detail
     assert any(c["action"] == "join" for c in r.calls)
 
@@ -276,7 +278,7 @@ def test_NOTHING_IS_DROPPED_WHEN_THERE_IS_NO_WAY_BACK(tmp_path):
     r = Scripted()
     suspended, detail = asyncio.run(U.suspend_for_harvest(str(tmp_path), runner=r))
     assert suspended is False and "no saved network" in detail
-    assert [c["action"] for c in r.calls] == ["status"]      # leave was never called
+    assert [c["action"] for c in r.calls] == ["status"]  # leave was never called
 
 
 def test_A_DOWN_UPLINK_NEEDS_NO_SUSPENDING(tmp_path):
@@ -331,14 +333,16 @@ def test_THE_ADDRESS_IS_READ_FROM_IP_WHEN_THE_SUPPLICANT_DOES_NOT_REPORT_IT():
     # `wpa_cli status` carries `ip_address=` only when the supplicant itself ran DHCP. This box uses an
     # external dhcpcd, so without this fallback a perfectly working uplink renders as "connected, no
     # address" — which reads as a broken link.
-    st = asyncio.run(U.status(runner=Recorder(
-        out="wpa_state=COMPLETED\nssid=HotelWifi\nwlp1s0  UP  192.168.1.42/24 fe80::1/64\n")))
+    st = asyncio.run(
+        U.status(runner=Recorder(out="wpa_state=COMPLETED\nssid=HotelWifi\nwlp1s0  UP  192.168.1.42/24 fe80::1/64\n"))
+    )
     assert st["state"] == "up" and st["ip"] == "192.168.1.42"
 
 
 def test_THE_SUPPLICANTS_OWN_ADDRESS_WINS_WHEN_IT_HAS_ONE():
-    st = asyncio.run(U.status(runner=Recorder(
-        out="wpa_state=COMPLETED\nip_address=10.0.0.9\nwlp1s0  UP  192.168.1.42/24\n")))
+    st = asyncio.run(
+        U.status(runner=Recorder(out="wpa_state=COMPLETED\nip_address=10.0.0.9\nwlp1s0  UP  192.168.1.42/24\n"))
+    )
     assert st["ip"] == "10.0.0.9"
 
 

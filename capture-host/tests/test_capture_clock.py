@@ -22,7 +22,7 @@ class _Clock:
         self.wall = wall
         self.mono = 1000.0
         self.offset = dt.timedelta(hours=offset_h)
-        self.writers_open = 1        # set by _install; see its note
+        self.writers_open = 1  # set by _install; see its note
 
     def tick(self, secs: float, wall_secs: float | None = None) -> None:
         self.mono += secs
@@ -37,8 +37,11 @@ class _Clock:
 
 def _install(monkeypatch, clk: _Clock, writers_open: int = 1) -> None:
     monkeypatch.setattr(capture, "_time", types.SimpleNamespace(monotonic=lambda: clk.mono))
-    monkeypatch.setattr(capture, "_dt", types.SimpleNamespace(
-        datetime=types.SimpleNamespace(now=lambda: clk.wall), timedelta=dt.timedelta))
+    monkeypatch.setattr(
+        capture,
+        "_dt",
+        types.SimpleNamespace(datetime=types.SimpleNamespace(now=lambda: clk.wall), timedelta=dt.timedelta),
+    )
     # The zone seam. Patched so the test asserts the same thing in every CI timezone; `_utcoffset`
     # itself is covered against a real zone by test_utcoffset_tracks_a_real_dst_transition.
     monkeypatch.setattr(capture, "_utcoffset", lambda when: clk.offset)
@@ -73,7 +76,7 @@ def test_sub_threshold_jitter_is_smoothed_not_followed(monkeypatch):
     _install(monkeypatch, clk)
     capture._now()
     clk.tick(1.0)
-    clk.step(1.5)                      # wall nudged forward, still under the threshold
+    clk.step(1.5)  # wall nudged forward, still under the threshold
     assert capture._now() == dt.datetime(2026, 11, 1, 22, 0, 1)
 
 
@@ -83,9 +86,9 @@ def test_genuine_ntp_step_reanchors(monkeypatch):
     _install(monkeypatch, clk)
     capture._now()
     clk.tick(10.0)
-    clk.step(45.0)                     # +45 s correction, no zone change
+    clk.step(45.0)  # +45 s correction, no zone change
     assert capture._now() == dt.datetime(2026, 11, 1, 22, 0, 55)
-    clk.tick(1.0)                      # and it keeps counting from the corrected anchor
+    clk.tick(1.0)  # and it keeps counting from the corrected anchor
     assert capture._now() == dt.datetime(2026, 11, 1, 22, 0, 56)
 
 
@@ -100,13 +103,13 @@ def test_backward_ntp_step_is_ABSORBED_while_a_capture_file_is_open(monkeypatch)
     different mechanism, so it takes the identical treatment. A rewind breaks the strictly-increasing
     guarantee every parser depends on — that is a corrupt recording, not a mislabelled one."""
     clk = _Clock(dt.datetime(2026, 11, 1, 22, 0, 0))
-    _install(monkeypatch, clk)                       # writers_open defaults to 1
+    _install(monkeypatch, clk)  # writers_open defaults to 1
     capture._now()
     clk.tick(10.0)
     before = capture._now()
-    clk.step(-30.0)                    # a backward correction with no zone change
+    clk.step(-30.0)  # a backward correction with no zone change
     assert capture._now() >= before, "an absorbed step must never move the clock backwards"
-    clk.tick(1.0)                      # …and real time must still ADVANCE across it
+    clk.tick(1.0)  # …and real time must still ADVANCE across it
     after = capture._now()
     assert after > before, f"the capture clock rewound {before - after} with a file open"
     assert after == dt.datetime(2026, 11, 1, 22, 0, 11), "it keeps counting in the pre-step frame"
@@ -120,8 +123,9 @@ def test_backward_ntp_step_is_FOLLOWED_when_nothing_is_being_written(monkeypatch
     capture._now()
     clk.tick(10.0)
     clk.step(-30.0)
-    assert capture._now() == dt.datetime(2026, 11, 1, 21, 59, 40), \
+    assert capture._now() == dt.datetime(2026, 11, 1, 21, 59, 40), (
         "with no recording open the backward correction must be applied, not absorbed"
+    )
 
 
 def test_forward_ntp_step_is_still_applied_even_with_a_file_open(monkeypatch):
@@ -143,14 +147,14 @@ def test_dst_fall_back_does_not_rewind_the_night(monkeypatch):
     start = capture._now()
     clk.tick(60.0)
     before = capture._now()
-    clk.step(-3600.0, offset_h=-5.0)   # the fall-back
+    clk.step(-3600.0, offset_h=-5.0)  # the fall-back
     clk.tick(1.0)
     after = capture._now()
     assert after > before, "a fall-back rewound the recording — Clock Contract §monotonic violated"
     assert after == dt.datetime(2026, 11, 1, 2, 0, 1)
     # and elapsed stamp-time still equals elapsed real time across the transition
     assert (after - start).total_seconds() == 61.0
-    clk.tick(30.0)                     # steady state after absorbing it: still monotonic, still 1:1
+    clk.tick(30.0)  # steady state after absorbing it: still monotonic, still 1:1
     assert capture._now() == dt.datetime(2026, 11, 1, 2, 0, 31)
 
 
@@ -191,9 +195,9 @@ def test_ntp_step_after_a_dst_transition_still_reanchors(monkeypatch):
     capture._now()
     clk.tick(60.0)
     clk.step(-3600.0, offset_h=-5.0)
-    capture._now()                     # absorbed
+    capture._now()  # absorbed
     clk.tick(10.0)
-    clk.step(45.0)                     # now a genuine correction, zone unchanged
+    clk.step(45.0)  # now a genuine correction, zone unchanged
     assert capture._now() == dt.datetime(2026, 11, 1, 2, 0, 55)
 
 
@@ -208,7 +212,7 @@ def test_a_step_that_merely_looks_like_an_hour_is_not_excused(monkeypatch):
     _install(monkeypatch, clk, writers_open=0)
     capture._now()
     clk.tick(10.0)
-    clk.step(-3600.0)                  # no offset change
+    clk.step(-3600.0)  # no offset change
     assert capture._now() == dt.datetime(2026, 7, 1, 21, 0, 10)
 
 
@@ -240,6 +244,7 @@ class _ZonedClock:
 
     def __init__(self, epoch: float, zone: str, writers_open: int = 1):
         from zoneinfo import ZoneInfo
+
         self._ZoneInfo = ZoneInfo
         self.epoch = epoch
         self.zone = ZoneInfo(zone)
@@ -274,8 +279,11 @@ class _ZonedClock:
 
 def _install_zoned(monkeypatch, clk: _ZonedClock) -> None:
     monkeypatch.setattr(capture, "_time", types.SimpleNamespace(monotonic=lambda: clk.mono))
-    monkeypatch.setattr(capture, "_dt", types.SimpleNamespace(
-        datetime=types.SimpleNamespace(now=lambda: clk.wall), timedelta=dt.timedelta))
+    monkeypatch.setattr(
+        capture,
+        "_dt",
+        types.SimpleNamespace(datetime=types.SimpleNamespace(now=lambda: clk.wall), timedelta=dt.timedelta),
+    )
     monkeypatch.setattr(capture, "_utcoffset", lambda when: clk.offset)
     monkeypatch.setattr(capture, "_anchor_wall", None)
     monkeypatch.setattr(capture, "_anchor_mono", 0.0)
@@ -295,22 +303,22 @@ def test_a_later_night_is_stamped_in_civil_time_after_a_transition(monkeypatch):
     clk = _ZonedClock(_NY_FALLBACK_EVE, "America/New_York")
     _install_zoned(monkeypatch, clk)
     capture._now()
-    clk.advance(3600)                       # through the fall-back, file still open
+    clk.advance(3600)  # through the fall-back, file still open
     absorbed = capture._now()
     assert absorbed == dt.datetime(2026, 11, 1, 2, 30), "the open recording must not rewind"
     assert clk.wall == dt.datetime(2026, 11, 1, 1, 30), "the zone did fall back"
 
-    clk.writers_open = 0                    # the session ends at dawn
-    capture._now()                          # the absorbed frame expires here
+    clk.writers_open = 0  # the session ends at dawn
+    capture._now()  # the absorbed frame expires here
 
     elapsed = 0
-    for days in (1, 7, 30, 120):            # every later night, out past the spring transition
+    for days in (1, 7, 30, 120):  # every later night, out past the spring transition
         clk.advance(86400 * (days - elapsed))
         elapsed = days
-        clk.writers_open = 1                # the next night starts recording
+        clk.writers_open = 1  # the next night starts recording
         stamp = capture._now()
         assert stamp == clk.wall, f"+{days}d: stamp {stamp} != civil {clk.wall}"
-        clk.writers_open = 0                # and ends
+        clk.writers_open = 0  # and ends
         capture._now()
 
 
@@ -321,7 +329,7 @@ def test_a_deliberate_zone_change_reanchors_instead_of_being_absorbed(monkeypatc
     _install_zoned(monkeypatch, clk)
     capture._now()
     clk.advance(60)
-    clk.set_zone("America/Chicago")         # what /api/clock/tz performs
+    clk.set_zone("America/Chicago")  # what /api/clock/tz performs
     capture.reset_clock_anchor("timezone set to America/Chicago")
     assert capture._now() == clk.wall
     # And it stays right. The box idles between nights, so Chicago's OWN fall-back (02:00 CDT on the
@@ -367,7 +375,7 @@ def test_expiry_does_not_fire_while_any_file_is_still_open(monkeypatch):
     capture._now()
     clk.advance(3600)
     before = capture._now()
-    clk.writers_open = 1                    # one device drops; the other is still writing
+    clk.writers_open = 1  # one device drops; the other is still writing
     clk.advance(30)
     after = capture._now()
     assert after == before + dt.timedelta(seconds=30), "a still-open recording rewound"
@@ -379,7 +387,8 @@ def test_utcoffset_tracks_a_real_dst_transition(monkeypatch):
     # given instant, which is what makes the fall-back distinguishable from an NTP step at all.
     import os
     import time as real_time
-    if not hasattr(real_time, "tzset"):     # Windows: no TZ support in libc
+
+    if not hasattr(real_time, "tzset"):  # Windows: no TZ support in libc
         return
     old = os.environ.get("TZ")
     try:
@@ -405,6 +414,7 @@ def test_utcoffset_tracks_a_real_dst_transition(monkeypatch):
 # the rest of the session, and until this existed NOTHING said so. A night whose absolute time is
 # knowingly wrong is precisely the fact an operator needs before aligning it against another device.
 
+
 def test_the_steady_state_reports_no_absorbed_shift(monkeypatch):
     clk = _Clock(dt.datetime(2026, 11, 1, 22, 0, 0))
     _install(monkeypatch, clk)
@@ -417,13 +427,14 @@ def test_the_steady_state_reports_no_absorbed_shift(monkeypatch):
 def test_an_absorbed_backward_step_is_reported_with_its_size(monkeypatch):
     """The number matters, not just the flag: it is how far off the night's absolute time is."""
     clk = _Clock(dt.datetime(2026, 11, 1, 22, 0, 0))
-    _install(monkeypatch, clk)                      # a writer is open
+    _install(monkeypatch, clk)  # a writer is open
     capture._now()
     clk.tick(10.0)
     clk.step(-30.0)
     capture._now()
-    assert capture.absorbed_shift_sec() == pytest.approx(-30.0, abs=0.01), \
+    assert capture.absorbed_shift_sec() == pytest.approx(-30.0, abs=0.01), (
         "the session is 30 s behind civil time and must say so"
+    )
 
 
 def test_an_absorbed_DST_relabelling_is_reported_too(monkeypatch):
@@ -433,7 +444,7 @@ def test_an_absorbed_DST_relabelling_is_reported_too(monkeypatch):
     _install(monkeypatch, clk)
     capture._now()
     clk.tick(60.0)
-    clk.step(-3600.0, offset_h=-5.0)                # fall back: wall AND zone move together
+    clk.step(-3600.0, offset_h=-5.0)  # fall back: wall AND zone move together
     capture._now()
     assert capture.absorbed_shift_sec() == pytest.approx(-3600.0, abs=0.01)
 
@@ -468,10 +479,11 @@ def test_the_absorbed_shift_REACHES_status_json(monkeypatch):
     # A FRACTIONAL step on purpose: rounding the report to whole seconds would turn a sub-second
     # absorbed shift into "no shift at all", which is the same silent trade in miniature.
     clk.step(-30.25)
-    capture._now()                                  # absorbed: the session is now 30.25 s behind
+    capture._now()  # absorbed: the session is now 30.25 s behind
 
     async def _fake_read_state():
         return {"trust": "ntp", "absolute_ok": True, "reason": "chrony"}
+
     monkeypatch.setattr(capture.host_clock, "read_state", _fake_read_state)
 
     n = {"i": 0}
@@ -479,6 +491,7 @@ def test_the_absorbed_shift_REACHES_status_json(monkeypatch):
     async def _fake_sleep(_s):
         n["i"] += 1
         capture._STOP.set()
+
     monkeypatch.setattr(capture.asyncio, "sleep", _fake_sleep)
     capture._STOP.clear()
     try:
@@ -489,6 +502,7 @@ def test_the_absorbed_shift_REACHES_status_json(monkeypatch):
     hc = capture.STATUS.get("host_clock") or {}
     assert "capture_absorbed_sec" in hc, "the absorbed offset never reached status.json"
     assert hc["capture_absorbed_sec"] == pytest.approx(-30.25, abs=0.01), hc
-    assert hc["capture_absorbed_sec"] != round(hc["capture_absorbed_sec"]), \
+    assert hc["capture_absorbed_sec"] != round(hc["capture_absorbed_sec"]), (
         "sub-second resolution is load-bearing — a rounded report hides a small absorbed shift entirely"
+    )
     assert hc.get("trust") == "ntp", "and it must ride ALONGSIDE the host facts, not replace them"

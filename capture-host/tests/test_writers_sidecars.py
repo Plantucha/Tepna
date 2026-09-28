@@ -13,8 +13,15 @@ import datetime as dt
 
 import pytest
 
-from writers import (HostClockLogWriter, LinkLogWriter, OxyFrameLogWriter, RingClockLogWriter, Spo2CsvWriter,
-                     OXYFRAME_COLUMNS, OXYFRAME_HEADER)
+from writers import (
+    HostClockLogWriter,
+    LinkLogWriter,
+    OxyFrameLogWriter,
+    RingClockLogWriter,
+    Spo2CsvWriter,
+    OXYFRAME_COLUMNS,
+    OXYFRAME_HEADER,
+)
 
 WHEN = dt.datetime(2026, 7, 19, 3, 4, 5, 678000)
 
@@ -32,21 +39,46 @@ def _rows(path):
 def test_oxyframe_header_and_row_layout(tmp_path):
     p = tmp_path / "o.txt"
     w = OxyFrameLogWriter(str(p), fsync=False)
-    w.write(WHEN, {"duration": 900, "pi": 1.4, "motion": 0, "spo2": 96, "pr": 54,
-                   "contact": 1, "batt": 73, "batt_state": 0, "flag": 0})
+    w.write(
+        WHEN,
+        {
+            "duration": 900,
+            "pi": 1.4,
+            "motion": 0,
+            "spo2": 96,
+            "pr": 54,
+            "contact": 1,
+            "batt": 73,
+            "batt_state": 0,
+            "flag": 0,
+        },
+    )
     w.close()
     head, row = _lines(str(p))[0], _rows(str(p))[0]
-    assert head.split(";") == ["Phone timestamp", "duration_s", "pi_pct", "motion", "spo2", "pr",
-                              "contact", "battery_pct", "batt_state", "flag",
-                              "ppg_n", "ppg_dur_step", "ppg_offset", "flag_raw", "alarm_raw",
-                              "run_status"]
+    assert head.split(";") == [
+        "Phone timestamp",
+        "duration_s",
+        "pi_pct",
+        "motion",
+        "spo2",
+        "pr",
+        "contact",
+        "battery_pct",
+        "batt_state",
+        "flag",
+        "ppg_n",
+        "ppg_dur_step",
+        "ppg_offset",
+        "flag_raw",
+        "alarm_raw",
+        "run_status",
+    ]
     cells = row.split(";")
     assert cells[0] == "2026-07-19T03:04:05.678"
     # The appended columns are blank: this caller passed no `ppg`, no `flag_raw` and no `run_status`, and
     # the ORIGINAL ten columns are unmoved — the append-never-insert rule, asserted rather than assumed
     # (O2RING-FRAME-SAMPLE-LOCK, extended by DEVICE-RATE-TRUTH §6.1 and OXYII-PRESENCE-MODEL §5).
-    assert cells[1:] == ["900", "1.4", "0", "96", "54", "1", "73", "0", "0",
-                         "", "", "", "", "", ""]
+    assert cells[1:] == ["900", "1.4", "0", "96", "54", "1", "73", "0", "0", "", "", "", "", "", ""]
     assert len(cells) == len(head.split(";")), "row must have exactly as many cells as the header"
 
 
@@ -67,9 +99,9 @@ def test_oxyframe_records_the_ring_stream_offset_and_the_whole_flag_byte(tmp_pat
     _c = lambda r, name: r[_h.index(name)]  # noqa: E731
     assert _c(rows[0], "ppg_offset") == "0"
     assert _c(rows[1], "ppg_offset") == "126"
-    assert [_c(r, "flag_raw") for r in rows] == ["199", "199"]   # 0xC7, reported as the whole byte
-    assert [_c(r, "alarm_raw") for r in rows] == ["", ""]        # absent from `live` ⇒ blank, never 0
-    assert [_c(r, "run_status") for r in rows] == ["", ""]       # same rule, same reason
+    assert [_c(r, "flag_raw") for r in rows] == ["199", "199"]  # 0xC7, reported as the whole byte
+    assert [_c(r, "alarm_raw") for r in rows] == ["", ""]  # absent from `live` ⇒ blank, never 0
+    assert [_c(r, "run_status") for r in rows] == ["", ""]  # same rule, same reason
 
 
 def test_oxyframe_offset_is_blank_when_the_ppg_stream_is_off(tmp_path):
@@ -78,7 +110,7 @@ def test_oxyframe_offset_is_blank_when_the_ppg_stream_is_off(tmp_path):
     re-learning."""
     p = tmp_path / "o.txt"
     w = OxyFrameLogWriter(str(p), fsync=False)
-    w.write(WHEN, {"duration": 900, "flag": 1, "flag_raw": 0xC7})   # no `ppg` dict at all
+    w.write(WHEN, {"duration": 900, "flag": 1, "flag_raw": 0xC7})  # no `ppg` dict at all
     w.close()
     cells = _rows(str(p))[0].split(";")
     # BY NAME, not by a negative index: the previous form read `cells[-3]`/`cells[-2]`, which silently
@@ -163,10 +195,23 @@ def test_oxyframe_counts_rows(tmp_path):
 def test_host_clock_header_and_bool_rendering(tmp_path):
     p = tmp_path / "c.csv"
     w = HostClockLogWriter(str(p), fsync=False)
-    w.write(WHEN, {"trust": "ntp", "absolute_ok": True, "synchronized": False, "server": "1.2.3.4",
-                   "stratum": 2, "reference": "GPS", "root_dispersion_ms": 3.5, "jitter_us": 120,
-                   "packet_count": 9, "reason": "ok", "chrony_skew_ppm": 0.123,
-                   "timebase": "device-crystal"})
+    w.write(
+        WHEN,
+        {
+            "trust": "ntp",
+            "absolute_ok": True,
+            "synchronized": False,
+            "server": "1.2.3.4",
+            "stratum": 2,
+            "reference": "GPS",
+            "root_dispersion_ms": 3.5,
+            "jitter_us": 120,
+            "packet_count": 9,
+            "reason": "ok",
+            "chrony_skew_ppm": 0.123,
+            "timebase": "device-crystal",
+        },
+    )
     w.close()
     assert _lines(str(p))[0].startswith("Phone timestamp;trust;absolute_ok;synchronized;server;")
     assert _lines(str(p))[0].rstrip().endswith(";chrony_skew_ppm;timebase"), "the timebase decision is the last column"
@@ -223,9 +268,17 @@ def test_link_log_layout_and_connected_flag(tmp_path):
     # link_epoch (E5) and `address` are APPENDED last so a positional reader of the earlier columns is
     # unaffected. `address` was added 2026-07-26 because `device` is a NAME and a name is not an
     # identity — a mid-night rename split one sensor's history in two.
-    assert _lines(str(p))[0].split(";") == ["Phone timestamp", "device", "connected", "rssi_dbm",
-                                            "battery_pct", "frames_dropped", "frames_duplicated",
-                                            "link_epoch", "address"]
+    assert _lines(str(p))[0].split(";") == [
+        "Phone timestamp",
+        "device",
+        "connected",
+        "rssi_dbm",
+        "battery_pct",
+        "frames_dropped",
+        "frames_duplicated",
+        "link_epoch",
+        "address",
+    ]
     up, down = (r.split(";") for r in _rows(str(p)))
     assert up[1:5] == ["Polar H10", "1", "-56", "80"]
     assert up[7] == "1", "the reconnect count is recorded"
@@ -326,6 +379,7 @@ def test_a_zero_flush_interval_forces_data_to_disk_immediately(tmp_path):
 # (parseInt('') -> NaN and 0 < 20 both `continue`), so this changes no downstream number — it stops the
 # FILE asserting a pulse of zero the ring never measured.
 
+
 def test_absent_pulse_rate_is_written_blank_not_zero(tmp_path):
     p = tmp_path / "spo2.csv"
     w = Spo2CsvWriter(str(p), fsync=False)
@@ -360,6 +414,7 @@ def test_a_real_pulse_rate_of_zero_is_impossible_but_would_be_distinguishable(tm
 # 2026-07-25 one re-pair rewrote the Verity's from "Polar Verity Sense" to "Polar Sense 0C301E3F"
 # mid-night, so ONE physical sensor was recorded under TWO keys (3 samples vs 1123) and any per-device
 # aggregate over that night silently split in half. A MAC cannot be edited and cannot collide.
+
 
 def test_link_row_carries_the_address(tmp_path):
     p = tmp_path / "link.csv"
@@ -450,14 +505,15 @@ def test_every_writer_fsyncs_by_default(tmp_path, monkeypatch, cls, kw):
     # otherwise this asserts against a thread that has not been scheduled yet and is a race, not a
     # test. What it pins is unchanged: the DEFAULT is fsync=True and flush() reaches the platform.
     monkeypatch.setattr(_w, "_submit_fsync", lambda dup, health: _w._do_fsync(dup, health))
-    w = cls(str(tmp_path / "x.dat"), **kw)          # no fsync= — the default is the subject
+    w = cls(str(tmp_path / "x.dat"), **kw)  # no fsync= — the default is the subject
     try:
         assert w._fsync is True, "durability is opt-OUT, never opt-in"
         w.flush()
         assert synced, "flush() must actually reach the platform, not just the buffer"
-        assert all(isinstance(fd, int) for fd in synced), \
-            "os.fsync is handed a real descriptor — `os.fsync(None)` raises TypeError past the " \
+        assert all(isinstance(fd, int) for fd in synced), (
+            "os.fsync is handed a real descriptor — `os.fsync(None)` raises TypeError past the "
             "OSError/ValueError the flush catches"
+        )
     finally:
         w._fsync = False
         w.close()
@@ -472,18 +528,55 @@ def test_the_host_clock_row_carries_every_column_it_promises(tmp_path):
     free-ran on its RTC". Every column silently blank is that question becoming unanswerable again."""
     p = tmp_path / "c.csv"
     w = HostClockLogWriter(str(p), fsync=False)
-    w.write(WHEN, {"trust": "ntp", "absolute_ok": True, "synchronized": False,
-                   "server": "192.168.0.61", "stratum": 2, "reference": "PPS",
-                   "root_dispersion_ms": 3.5, "jitter_us": 120, "packet_count": 9,
-                   "reason": "normal", "chrony_skew_ppm": 0.123, "timebase": "host-disciplined"})
+    w.write(
+        WHEN,
+        {
+            "trust": "ntp",
+            "absolute_ok": True,
+            "synchronized": False,
+            "server": "192.168.0.61",
+            "stratum": 2,
+            "reference": "PPS",
+            "root_dispersion_ms": 3.5,
+            "jitter_us": 120,
+            "packet_count": 9,
+            "reason": "normal",
+            "chrony_skew_ppm": 0.123,
+            "timebase": "host-disciplined",
+        },
+    )
     w.close()
     header, row = _lines(str(p))[0], _rows(str(p))[0]
-    assert header.split(";") == ["Phone timestamp", "trust", "absolute_ok", "synchronized", "server",
-                                "stratum", "reference", "root_dispersion_ms", "jitter_us",
-                                "packet_count", "reason", "chrony_skew_ppm", "timebase"]
-    assert row.split(";") == ["2026-07-19T03:04:05.678", "ntp", "1", "0", "192.168.0.61", "2", "PPS",
-                             "3.5", "120", "9", "normal", "0.123", "host-disciplined"], \
-        "every column, in the header's order — a reader keys on position"
+    assert header.split(";") == [
+        "Phone timestamp",
+        "trust",
+        "absolute_ok",
+        "synchronized",
+        "server",
+        "stratum",
+        "reference",
+        "root_dispersion_ms",
+        "jitter_us",
+        "packet_count",
+        "reason",
+        "chrony_skew_ppm",
+        "timebase",
+    ]
+    assert row.split(";") == [
+        "2026-07-19T03:04:05.678",
+        "ntp",
+        "1",
+        "0",
+        "192.168.0.61",
+        "2",
+        "PPS",
+        "3.5",
+        "120",
+        "9",
+        "normal",
+        "0.123",
+        "host-disciplined",
+    ], "every column, in the header's order — a reader keys on position"
 
 
 def test_the_link_row_carries_every_column_it_promises(tmp_path):
@@ -494,10 +587,12 @@ def test_the_link_row_carries_every_column_it_promises(tmp_path):
     w.write(WHEN, "Polar H10", True, -56, 80, link_epoch=3)
     w.close()
     header, row = _lines(str(p))[0], _rows(str(p))[-1]
-    assert row.split(";")[:len(header.split(";"))] == row.split(";"), \
+    assert row.split(";")[: len(header.split(";"))] == row.split(";"), (
         "the row may not carry more fields than the header names"
-    assert len(row.split(";")) == len(header.split(";")), \
+    )
+    assert len(row.split(";")) == len(header.split(";")), (
         "nor fewer — a positional reader cannot tell a short row from a blank field"
+    )
 
 
 def test_the_link_header_records_which_radio_captured_the_night(tmp_path):
@@ -510,8 +605,9 @@ def test_the_link_header_records_which_radio_captured_the_night(tmp_path):
     # the honest half-known case: an adapter was pinned but never resolved to an address
     q = tmp_path / "m.csv"
     LinkLogWriter(str(q), fsync=False, adapter="hci1", hci=None).close()
-    assert _lines(str(q))[0] == "# adapter=hci1 hci=unknown", \
+    assert _lines(str(q))[0] == "# adapter=hci1 hci=unknown", (
         "'unknown' is a deliberate honest value, not a placeholder to restyle"
+    )
     # and no pin at all writes no comment, rather than a comment full of defaults
     r = tmp_path / "n.csv"
     LinkLogWriter(str(r), fsync=False).close()
@@ -531,11 +627,15 @@ def test_a_writer_remembers_the_path_it_opened(tmp_path, cls, kw):
         w.close()
 
 
-@pytest.mark.parametrize("cls,writer", [
-    (HostClockLogWriter, lambda w: w.write(WHEN, {"trust": "ntp"})),
-    (LinkLogWriter, lambda w: w.write(WHEN, "d", True, -50, 90, link_epoch=1)),
-    (Spo2CsvWriter, lambda w: w.write(WHEN, 97, 60, 0)),
-], ids=lambda v: getattr(v, "__name__", ""))
+@pytest.mark.parametrize(
+    "cls,writer",
+    [
+        (HostClockLogWriter, lambda w: w.write(WHEN, {"trust": "ntp"})),
+        (LinkLogWriter, lambda w: w.write(WHEN, "d", True, -50, 90, link_epoch=1)),
+        (Spo2CsvWriter, lambda w: w.write(WHEN, 97, 60, 0)),
+    ],
+    ids=lambda v: getattr(v, "__name__", ""),
+)
 def test_the_row_counter_starts_at_zero_and_counts_one_per_row(tmp_path, cls, writer):
     """`self.rows = 0` → `1`, `rows += 1` → `+= 2` / `-= 1`. Nothing asserted the counter's ORIGIN, so
     an off-by-one that persists for the whole night was invisible. `nightqc` reads it to decide whether
@@ -550,12 +650,16 @@ def test_the_row_counter_starts_at_zero_and_counts_one_per_row(tmp_path, cls, wr
         w.close()
 
 
-@pytest.mark.parametrize("cls,writer", [
-    (HostClockLogWriter, lambda w: w.write(WHEN, {"trust": "ntp"})),
-    (LinkLogWriter, lambda w: w.write(WHEN, "d", True, -50, 90, link_epoch=1)),
-    (OxyFrameLogWriter, lambda w: w.write(WHEN, {"spo2": 97})),
-    (Spo2CsvWriter, lambda w: w.write(WHEN, 97, 60, 0)),
-], ids=lambda v: getattr(v, "__name__", ""))
+@pytest.mark.parametrize(
+    "cls,writer",
+    [
+        (HostClockLogWriter, lambda w: w.write(WHEN, {"trust": "ntp"})),
+        (LinkLogWriter, lambda w: w.write(WHEN, "d", True, -50, 90, link_epoch=1)),
+        (OxyFrameLogWriter, lambda w: w.write(WHEN, {"spo2": 97})),
+        (Spo2CsvWriter, lambda w: w.write(WHEN, 97, 60, 0)),
+    ],
+    ids=lambda v: getattr(v, "__name__", ""),
+)
 def test_the_flush_clock_survives_more_than_one_flush(tmp_path, cls, writer):
     """`self._last_flush = now` → `None`, in four writers. The FIRST flush still works, which is all any
     test exercised; the SECOND write then evaluates `now - None` and raises out of the write path,
@@ -563,19 +667,23 @@ def test_the_flush_clock_survives_more_than_one_flush(tmp_path, cls, writer):
     w = cls(str(tmp_path / "x.csv"), flush_interval=0, fsync=False)
     try:
         writer(w)
-        writer(w)                    # the write after the first flush is where None detonates
+        writer(w)  # the write after the first flush is where None detonates
         writer(w)
     finally:
         w.close()
     assert len(_rows(str(tmp_path / "x.csv"))) == 3, "all three rows survived the flush cadence"
 
 
-@pytest.mark.parametrize("cls,writer", [
-    (HostClockLogWriter, lambda w: w.write(WHEN, {"trust": "ntp"})),
-    (LinkLogWriter, lambda w: w.write(WHEN, "d", True, -50, 90, link_epoch=1)),
-    (OxyFrameLogWriter, lambda w: w.write(WHEN, {"spo2": 97})),
-    (Spo2CsvWriter, lambda w: w.write(WHEN, 97, 60, 0)),
-], ids=lambda v: getattr(v, "__name__", ""))
+@pytest.mark.parametrize(
+    "cls,writer",
+    [
+        (HostClockLogWriter, lambda w: w.write(WHEN, {"trust": "ntp"})),
+        (LinkLogWriter, lambda w: w.write(WHEN, "d", True, -50, 90, link_epoch=1)),
+        (OxyFrameLogWriter, lambda w: w.write(WHEN, {"spo2": 97})),
+        (Spo2CsvWriter, lambda w: w.write(WHEN, 97, 60, 0)),
+    ],
+    ids=lambda v: getattr(v, "__name__", ""),
+)
 def test_a_long_flush_interval_really_does_defer_the_flush(tmp_path, monkeypatch, cls, writer):
     """`now - self._last_flush` → `now + self._last_flush`, in five places. Monotonic time is a large
     positive number, so the sum always clears any interval and every single row is flushed and fsynced
@@ -606,8 +714,9 @@ def test_oxyframe_header_is_the_single_source_the_js_fixture_tracks():
     Asserted from the Python side because this is where the layout is DEFINED — the JS lane is the
     consumer, and a consumer cannot be the authority on its input's shape."""
     import pathlib
+
     js = pathlib.Path(__file__).resolve().parents[2] / "tests" / "dex-tests.js"
-    if not js.exists():                                    # pragma: no cover - capture-host shipped alone
+    if not js.exists():  # pragma: no cover - capture-host shipped alone
         pytest.skip("JS lane not present in this checkout")
     text = js.read_text(encoding="utf-8")
     hdr = [ln for ln in text.splitlines() if "Phone timestamp;duration_s;pi_pct" in ln]
@@ -621,15 +730,25 @@ def test_oxyframe_header_is_the_single_source_the_js_fixture_tracks():
         "dex-tests.js's widest OXYFRAME fixture is stale against writers.OXYFRAME_COLUMNS.\n"
         f"  writers.py: {OXYFRAME_HEADER}\n"
         + "".join(f"  fixture   : {ln.strip()}\n" for ln in hdr)
-        + "APPEND the new column(s) to that fixture's header AND to each of its rows.")
+        + "APPEND the new column(s) to that fixture's header AND to each of its rows."
+    )
 
 
 def test_oxyframe_columns_are_append_only_at_the_known_prefix():
     """The first ten names are the original layout and a positional reader still depends on them. This
     pins the PREFIX, not the length, so appending stays free and reordering does not."""
     assert OXYFRAME_COLUMNS[:10] == (
-        "Phone timestamp", "duration_s", "pi_pct", "motion", "spo2", "pr", "contact", "battery_pct",
-        "batt_state", "flag")
+        "Phone timestamp",
+        "duration_s",
+        "pi_pct",
+        "motion",
+        "spo2",
+        "pr",
+        "contact",
+        "battery_pct",
+        "batt_state",
+        "flag",
+    )
     assert len(set(OXYFRAME_COLUMNS)) == len(OXYFRAME_COLUMNS), "duplicate column name"
 
 
@@ -640,8 +759,14 @@ def test_ring_clock_log_header_and_blank_discipline(tmp_path):
     w = RingClockLogWriter(str(tmp_path / "x_RTCLOG.csv"))
     w.write(dt.datetime(2026, 8, 20, 5, 0, 0), "push")
     w.write(dt.datetime(2026, 8, 20, 5, 0, 2), "read", rtc_offset_s=0.3)
-    w.write(dt.datetime(2026, 8, 20, 5, 0, 3), "battery", battery_state=0, battery_level=100,
-            battery_raw2=242, battery_raw3=16)
+    w.write(
+        dt.datetime(2026, 8, 20, 5, 0, 3),
+        "battery",
+        battery_state=0,
+        battery_level=100,
+        battery_raw2=242,
+        battery_raw3=16,
+    )
     w.close()
     lines = (tmp_path / "x_RTCLOG.csv").read_text().splitlines()
     assert lines[0] == "Phone timestamp;event;rtc_offset_s;battery_state;battery_level;battery_raw2;battery_raw3"
@@ -663,20 +788,24 @@ def test_ring_clock_log_close_is_guarded(tmp_path):
     class _Torn:
         def flush(self):
             raise OSError("gone")
+
         def close(self):
             raise OSError("gone")
+
         def fileno(self):
             raise OSError("gone")
+
     w2 = RingClockLogWriter(str(tmp_path / "y2_RTCLOG.csv"))
     w2._fh.close()
     w2._fh = _Torn()
-    w2.flush()                                   # OSError swallowed
-    w2.close()                                   # OSError swallowed
+    w2.flush()  # OSError swallowed
+    w2.close()  # OSError swallowed
 
 
 def test_ring_clock_log_flush_interval(tmp_path, monkeypatch):
     """Rows inside the interval buffer; a row past it flushes — the same cadence contract as LinkLog."""
     import writers as _writers_mod
+
     t = [1000.0]
     monkeypatch.setattr(_writers_mod._time, "monotonic", lambda: t[0])
     w = RingClockLogWriter(str(tmp_path / "z_RTCLOG.csv"), flush_interval=10, fsync=False)
@@ -689,13 +818,18 @@ def test_ring_clock_log_flush_interval(tmp_path, monkeypatch):
 
 # ── OxyLifeLogWriter (OxyII G4 lifecycle sidecar) ───────────────────────────────────────────────────
 
+
 class _FakeTransition:
-    def __init__(self, row): self._row = row
-    def as_row(self): return self._row
+    def __init__(self, row):
+        self._row = row
+
+    def as_row(self):
+        return self._row
 
 
 def test_oxylife_writer_header_and_rows(tmp_path):
     import writers
+
     p = tmp_path / "OXYLIFE.csv"
     w = writers.OxyLifeLogWriter(str(p), device="O2R-01")
     w.write(_FakeTransition("W;1.0;not_seen;connecting;scan;O2R-01;s1;"))
@@ -718,19 +852,22 @@ def test_oxylife_writer_APPENDS_across_daemon_restarts_instead_of_wiping_the_nig
     non-empty file must CONTINUE it: one preamble, one header, every row from both processes, and the
     writer says which case it is in (`resumed`)."""
     import writers
+
     p = tmp_path / "OXYLIFE.csv"
     w1 = writers.OxyLifeLogWriter(str(p), device="O2R-01")
     assert w1.resumed is False
     w1.write(_FakeTransition("W;1.0;not_seen;connecting;scan;O2R-01;s1;"))
     w1.write(_FakeTransition("W;2.0;connecting;disconnected;session ended;O2R-01;s1;device_unavailable"))
     w1.close()
-    w2 = writers.OxyLifeLogWriter(str(p), device="O2R-01")             # the daemon restarted
+    w2 = writers.OxyLifeLogWriter(str(p), device="O2R-01")  # the daemon restarted
     assert w2.resumed is True
     w2.write(_FakeTransition("W;3.0;not_seen;connecting;scan;O2R-01;s2;"))
     w2.close()
     lines = p.read_text().splitlines()
     assert lines[0] == "# device=O2R-01" and lines[1].startswith("host_wall;")
-    assert sum(ln.startswith("# device=") for ln in lines) == 1 and sum(ln.startswith("host_wall;") for ln in lines) == 1
+    assert (
+        sum(ln.startswith("# device=") for ln in lines) == 1 and sum(ln.startswith("host_wall;") for ln in lines) == 1
+    )
     assert [ln.split(";")[1] for ln in lines[2:]] == ["1.0", "2.0", "3.0"], "all three rows, in order, nothing wiped"
     assert w2.rows == 1, "the counter is per process; the FILE is per night"
 
@@ -739,47 +876,55 @@ def test_oxylife_writer_treats_an_EMPTY_existing_file_as_fresh(tmp_path):
     """A zero-byte file (a crash between open and header) gets the preamble + header, not a headerless
     append — the same rule as `SessionSidecar`'s `fresh` test."""
     import writers
+
     p = tmp_path / "OXYLIFE.csv"
     p.write_text("")
     w = writers.OxyLifeLogWriter(str(p), device="O2R-01")
     assert w.resumed is False
     w.write(_FakeTransition("W;1.0;a;b;r;;;"))
     w.close()
-    assert p.read_text().splitlines()[:2] == ["# device=O2R-01", "host_wall;host_monotonic;prev;new;reason;device;session;failure;axis"]
+    assert p.read_text().splitlines()[:2] == [
+        "# device=O2R-01",
+        "host_wall;host_monotonic;prev;new;reason;device;session;failure;axis",
+    ]
 
 
 def test_oxylife_writer_omits_the_device_comment_when_absent(tmp_path):
     import writers
+
     p = tmp_path / "OXYLIFE.csv"
-    w = writers.OxyLifeLogWriter(str(p))          # no device
+    w = writers.OxyLifeLogWriter(str(p))  # no device
     w.write(_FakeTransition("W;1.0;a;b;r;;;"))
     w.close()
     lines = p.read_text().splitlines()
-    assert lines[0].startswith("host_wall;")      # header first, no device comment line
+    assert lines[0].startswith("host_wall;")  # header first, no device comment line
     assert not any(ln.startswith("# device=") for ln in lines)
 
 
 def test_oxylife_writer_flushes_on_cadence(tmp_path):
     import writers
+
     p = tmp_path / "OXYLIFE.csv"
-    w = writers.OxyLifeLogWriter(str(p), flush_interval=0.0)   # 0 → flush every write (cadence elapsed)
+    w = writers.OxyLifeLogWriter(str(p), flush_interval=0.0)  # 0 → flush every write (cadence elapsed)
     w.write(_FakeTransition("W;1.0;a;b;r;;;"))
-    assert p.read_text().count("\n") >= 2          # header + row already on disk (flushed)
+    assert p.read_text().count("\n") >= 2  # header + row already on disk (flushed)
     w.close()
 
 
 def test_oxylife_writer_close_is_guarded_and_idempotent(tmp_path):
     import writers
+
     p = tmp_path / "OXYLIFE.csv"
     w = writers.OxyLifeLogWriter(str(p))
     w.close()
-    w.close()                                       # double close → guarded, no raise
-    w.flush()                                       # flush after close → guarded, no raise
+    w.close()  # double close → guarded, no raise
+    w.flush()  # flush after close → guarded, no raise
 
 
 def test_oxylife_writer_without_fsync_still_flushes(tmp_path):
     """fsync=False takes the branch that skips os.fsync — the row is still flushed to the OS buffer."""
     import writers
+
     p = tmp_path / "OXYLIFE.csv"
     w = writers.OxyLifeLogWriter(str(p), flush_interval=0.0, fsync=False)
     w.write(_FakeTransition("W;1.0;a;b;r;;;"))
@@ -790,14 +935,18 @@ def test_oxylife_writer_without_fsync_still_flushes(tmp_path):
 def test_oxylife_writer_close_swallows_a_raising_handle(tmp_path):
     """close() is guarded: a handle that raises on close is swallowed, never propagated into a teardown."""
     import writers
+
     w = writers.OxyLifeLogWriter(str(tmp_path / "OXYLIFE.csv"), fsync=False)
 
     class _Boom:
-        def flush(self): pass
-        def close(self): raise ValueError("boom")
+        def flush(self):
+            pass
+
+        def close(self):
+            raise ValueError("boom")
 
     w._fh = _Boom()
-    w.close()          # the except swallows it — no raise
+    w.close()  # the except swallows it — no raise
 
 
 def test_alarm_raw_round_trips_into_the_oxyframe_sidecar(tmp_path):
@@ -806,10 +955,8 @@ def test_alarm_raw_round_trips_into_the_oxyframe_sidecar(tmp_path):
     alarms" on a measurement that never happened."""
     p = tmp_path / "f.txt"
     w = OxyFrameLogWriter(str(p), fsync=False)
-    w.write(WHEN, {"duration": 1, "spo2": 96, "pr": 60, "contact": 1,
-                   "alarm_raw": 0b11_01_10_01, "run_status": 2})
-    w.write(WHEN, {"duration": 2, "spo2": 96, "pr": 60, "contact": 1,
-                   "alarm_raw": None, "run_status": 2})
+    w.write(WHEN, {"duration": 1, "spo2": 96, "pr": 60, "contact": 1, "alarm_raw": 0b11_01_10_01, "run_status": 2})
+    w.write(WHEN, {"duration": 2, "spo2": 96, "pr": 60, "contact": 1, "alarm_raw": None, "run_status": 2})
     w.close()
     lines = _lines(str(p))
     hdr = lines[0].split(";")
@@ -829,11 +976,14 @@ import pytest as _pytest
 import writers as _w
 
 
-@_pytest.mark.parametrize("cls,header_frag", [
-    (_w.Spo2CsvWriter, "Oxygen Level"),
-    (_w.RingClockLogWriter, "rtc_offset_s"),
-    (_w.OxyFrameLogWriter, None),          # header is OXYFRAME_HEADER, matched by first-line identity
-])
+@_pytest.mark.parametrize(
+    "cls,header_frag",
+    [
+        (_w.Spo2CsvWriter, "Oxygen Level"),
+        (_w.RingClockLogWriter, "rtc_offset_s"),
+        (_w.OxyFrameLogWriter, None),  # header is OXYFRAME_HEADER, matched by first-line identity
+    ],
+)
 def test_RING_SIDECAR_WRITERS_APPEND_ONTO_A_RESUMED_FILE_INSTEAD_OF_TRUNCATING_IT(tmp_path, cls, header_frag):
     """🔴 Open "w" here and the resumed set loses everything written before the reconnect.
 
@@ -842,11 +992,11 @@ def test_RING_SIDECAR_WRITERS_APPEND_ONTO_A_RESUMED_FILE_INSTEAD_OF_TRUNCATING_I
     continuing it — strictly worse than the fragmentation it was meant to remove."""
     p = str(tmp_path / "x.csv")
     w1 = cls(p)
-    w1.close()                        # read AFTER close: the header sits in a 64 KB buffer until then
+    w1.close()  # read AFTER close: the header sits in a 64 KB buffer until then
     before = open(p, encoding="utf-8").read()
     assert before.strip(), "the first open must have written a header to resume onto"
 
-    w2 = cls(p)                       # same path == the resumed set
+    w2 = cls(p)  # same path == the resumed set
     w2.close()
     after = open(p, encoding="utf-8").read()
 
@@ -861,5 +1011,6 @@ def test_A_FRESH_PATH_STILL_GETS_ITS_HEADER(tmp_path):
     Without this leg, a writer that never emitted a header at all would pass the resume assertions."""
     for cls in (_w.Spo2CsvWriter, _w.RingClockLogWriter, _w.OxyFrameLogWriter):
         p = str(tmp_path / f"{cls.__name__}.csv")
-        w = cls(p); w.close()
+        w = cls(p)
+        w.close()
         assert _os.path.getsize(p) > 0, f"{cls.__name__} wrote no header to a fresh file"

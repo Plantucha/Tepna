@@ -5,6 +5,7 @@ weeks (`VIGIL-OVERNIGHT-FINDINGS`, the 50- vs 99- udev prefix), and only a daemo
 it. So its own probes must degrade silently on any host that does not look like the box — a self-test
 that raises would keep capture from starting, which is strictly worse than the problem it detects.
 """
+
 import asyncio
 import os
 import sys
@@ -46,8 +47,10 @@ def test_usb_power_control_path_none_for_a_non_usb_adapter(tmp_path, monkeypatch
 
 def test_usb_power_control_path_swallows_a_sysfs_error(monkeypatch):
     """Probing sysfs must never raise into startup."""
+
     def boom(_p):
         raise OSError("EACCES")
+
     monkeypatch.setattr(capture.os.path, "realpath", boom)
     assert capture._usb_power_control_path("hci0") is None
 
@@ -88,14 +91,14 @@ def test_startup_defense_check_uses_ISMOUNT_not_isdir_for_the_archive_dest(tmp_p
     ctrl = tmp_path / "control"
     ctrl.write_text("on\n")
     monkeypatch.setattr(capture, "_usb_power_control_path", lambda _h: str(ctrl))
-    dest = tmp_path / "archive"                 # exists, writable, NOT a mountpoint
+    dest = tmp_path / "archive"  # exists, writable, NOT a mountpoint
     dest.mkdir()
-    cfg = {"watchdog": {"usb_path": "11-1.2"},
-           "archive": {"enabled": True, "dest": str(dest)}}
+    cfg = {"watchdog": {"usb_path": "11-1.2"}, "archive": {"enabled": True, "dest": str(dest)}}
     with caplog.at_level("WARNING"):
         asyncio.run(capture.startup_defense_check("hci0", cfg))
-    assert any("NOT ready (not mounted)" in r.getMessage() for r in caplog.records), \
-        [r.getMessage() for r in caplog.records]
+    assert any("NOT ready (not mounted)" in r.getMessage() for r in caplog.records), [
+        r.getMessage() for r in caplog.records
+    ]
 
 
 def test_startup_defense_check_warns_when_nothing_offloads(tmp_path, monkeypatch, caplog):
@@ -117,7 +120,7 @@ def test_archive_enabled_with_NO_destination_still_counts_as_unconfigured(tmp_pa
     ctrl = tmp_path / "control"
     ctrl.write_text("on\n")
     monkeypatch.setattr(capture, "_usb_power_control_path", lambda _h: str(ctrl))
-    cfg = {"watchdog": {"usb_path": "x"}, "archive": {"enabled": True}}      # no dest, no target
+    cfg = {"watchdog": {"usb_path": "x"}, "archive": {"enabled": True}}  # no dest, no target
     with caplog.at_level("WARNING"):
         asyncio.run(capture.startup_defense_check("hci0", cfg))
     msgs = [r.getMessage() for r in caplog.records]
@@ -134,9 +137,9 @@ def test_an_unprobeable_archive_dest_is_silent_rather_than_alarming(tmp_path, mo
 
     def boom(_p):
         raise OSError("permission denied")
+
     monkeypatch.setattr(capture.os.path, "ismount", boom)
-    cfg = {"watchdog": {"usb_path": "x"},
-           "archive": {"enabled": True, "dest": str(tmp_path / "arch")}}
+    cfg = {"watchdog": {"usb_path": "x"}, "archive": {"enabled": True, "dest": str(tmp_path / "arch")}}
     with caplog.at_level("WARNING"):
         asyncio.run(capture.startup_defense_check("hci0", cfg))
     msgs = [r.getMessage() for r in caplog.records]
@@ -159,13 +162,14 @@ def test_startup_defense_check_without_a_cfg_judges_no_config_defense(tmp_path, 
 def test_startup_defense_check_survives_an_unreadable_control_file(monkeypatch):
     """The path resolved but the read failed. Report what it can, never raise."""
     monkeypatch.setattr(capture, "_usb_power_control_path", lambda _h: "/nonexistent/control")
-    asyncio.run(capture.startup_defense_check("hci0"))          # must not raise
+    asyncio.run(capture.startup_defense_check("hci0"))  # must not raise
 
 
 def test_startup_defense_check_with_no_adapter_pinned(monkeypatch):
     """`hci` is None when no adapter is configured — skip the probe entirely rather than guessing."""
-    monkeypatch.setattr(capture, "_usb_power_control_path",
-                        lambda _h: pytest.fail("must not probe without a pinned adapter"))
+    monkeypatch.setattr(
+        capture, "_usb_power_control_path", lambda _h: pytest.fail("must not probe without a pinned adapter")
+    )
     asyncio.run(capture.startup_defense_check(None))
 
 
@@ -181,8 +185,9 @@ def test_startup_defense_check_survives_an_unreadable_proc_status(tmp_path, monk
         if str(path) == "/proc/self/status":
             raise OSError("EACCES")
         return real(path, *a, **k)
+
     monkeypatch.setattr("builtins.open", boom)
-    asyncio.run(capture.startup_defense_check("hci0"))          # must not raise
+    asyncio.run(capture.startup_defense_check("hci0"))  # must not raise
 
 
 # ── §B2 — the Trusted-sensor tripwire (VIGIL-BLUETOOTH-ADVERSARIAL-AUDIT 2026-09-05) ────────────────
@@ -190,9 +195,9 @@ def test_startup_defense_check_survives_an_unreadable_proc_status(tmp_path, monk
 # the single ACL slot. bond() no longer sets trust, but a flag leaked by the old script is invisible
 # until the race bites — measured live: both Polars `Trusted: yes` months after the untrust shipped.
 
+
 def test_defense_warnings_name_each_trusted_sensor():
-    out = capture.defense_warnings("on", None,
-                                   trusted_sensors=["AA:AA:AA:AA:AA:AA", "BB:BB:BB:BB:BB:BB"])
+    out = capture.defense_warnings("on", None, trusted_sensors=["AA:AA:AA:AA:AA:AA", "BB:BB:BB:BB:BB:BB"])
     hits = [w for w in out if "Trusted on the capture adapter" in w]
     assert len(hits) == 2
     assert "AA:AA:AA:AA:AA:AA" in hits[0] and "untrust AA:AA:AA:AA:AA:AA" in hits[0]
@@ -216,13 +221,15 @@ def test_startup_defense_check_reads_trusted_flags_for_the_configured_sensors(tm
     async def fake(addrs, adapter=None):
         seen["addrs"], seen["adapter"] = list(addrs), adapter
         return ["D1:98:62:7C:92:B3"]
+
     monkeypatch.setattr(capture.bonding, "trusted_flags", fake)
-    cfg = {"adapter": "00:01:95:CC:53:02",
-           "devices": [{"address": "D1:98:62:7C:92:B3"}, {"address": "24:AC:AC:02:84:96"}, {}]}
+    cfg = {
+        "adapter": "00:01:95:CC:53:02",
+        "devices": [{"address": "D1:98:62:7C:92:B3"}, {"address": "24:AC:AC:02:84:96"}, {}],
+    }
     with caplog.at_level("WARNING"):
         asyncio.run(capture.startup_defense_check("hci0", cfg))
-    assert seen == {"addrs": ["D1:98:62:7C:92:B3", "24:AC:AC:02:84:96"],
-                    "adapter": "00:01:95:CC:53:02"}
+    assert seen == {"addrs": ["D1:98:62:7C:92:B3", "24:AC:AC:02:84:96"], "adapter": "00:01:95:CC:53:02"}
     assert any("D1:98:62:7C:92:B3 is Trusted" in r.getMessage() for r in caplog.records)
 
 
@@ -234,10 +241,12 @@ def test_startup_defense_check_survives_a_trusted_flags_failure(tmp_path, monkey
 
     async def boom(addrs, adapter=None):
         raise RuntimeError("no bluetoothctl here")
+
     monkeypatch.setattr(capture.bonding, "trusted_flags", boom)
     with caplog.at_level("WARNING"):
-        asyncio.run(capture.startup_defense_check(
-            "hci0", {"adapter": "X", "devices": [{"address": "AA:AA:AA:AA:AA:AA"}]}))
+        asyncio.run(
+            capture.startup_defense_check("hci0", {"adapter": "X", "devices": [{"address": "AA:AA:AA:AA:AA:AA"}]})
+        )
     assert not any("Trusted" in r.getMessage() for r in caplog.records)
 
 
@@ -254,8 +263,9 @@ def test_usb_path_set_but_ABSENT_from_the_bus_is_reported():
     The file's own comment on the neighbouring check states the principle: "a configured-but-inoperable
     rung is worse than a disabled one: it reads as armed". A stale bus-port reads as armed identically.
     """
-    w = capture.defense_warnings(None, None, usb_path="1-2", usb_path_present=False,
-                                 usb_bus_ports=("1-3", "1-4", "1-5", "1-9"))
+    w = capture.defense_warnings(
+        None, None, usb_path="1-2", usb_path_present=False, usb_bus_ports=("1-3", "1-4", "1-5", "1-9")
+    )
     hits = [x for x in w if "NO SUCH USB DEVICE" in x]
     assert len(hits) == 1, w
     # The ports that ARE present must be named: "wrong" without "here is the right value" is a warning
@@ -265,8 +275,7 @@ def test_usb_path_set_but_ABSENT_from_the_bus_is_reported():
 
 def test_a_usb_path_that_IS_present_says_nothing():
     """The negative control. A check that fires on a healthy box gets switched off."""
-    w = capture.defense_warnings(None, None, usb_path="1-3", usb_path_present=True,
-                                 usb_bus_ports=("1-3",))
+    w = capture.defense_warnings(None, None, usb_path="1-3", usb_path_present=True, usb_bus_ports=("1-3",))
     assert not any("NO SUCH USB DEVICE" in x for x in w), w
 
 
@@ -289,8 +298,10 @@ def test_absent_path_with_NO_readable_radios_still_warns_and_says_so():
 def test_usb_rung_probe_reads_a_real_sysfs_shape(tmp_path):
     """Against a tmp tree shaped like sysfs: the configured port present, and the radios' ports read
     off the realpath's `usbN/<bus-port>/...` segment."""
-    dev = tmp_path / "devices"; (dev / "1-3").mkdir(parents=True)
-    bt = tmp_path / "bluetooth"; bt.mkdir()
+    dev = tmp_path / "devices"
+    (dev / "1-3").mkdir(parents=True)
+    bt = tmp_path / "bluetooth"
+    bt.mkdir()
     for hci, port in (("hci0", "1-3"), ("hci1", "1-9")):
         real = tmp_path / "sys" / "usb1" / port / f"{port}:1.0" / "bluetooth" / hci
         real.mkdir(parents=True)
@@ -302,8 +313,10 @@ def test_usb_rung_probe_reads_a_real_sysfs_shape(tmp_path):
 def test_usb_rung_probe_reports_an_ABSENT_port_while_still_listing_the_radios(tmp_path):
     """The live vigil shape: the configured port is not on the bus, but the radios are readable — which
     is what makes the warning actionable rather than merely alarming."""
-    dev = tmp_path / "devices"; (dev / "1-9").mkdir(parents=True)
-    bt = tmp_path / "bluetooth"; bt.mkdir()
+    dev = tmp_path / "devices"
+    (dev / "1-9").mkdir(parents=True)
+    bt = tmp_path / "bluetooth"
+    bt.mkdir()
     real = tmp_path / "sys" / "usb1" / "1-9" / "1-9:1.0" / "bluetooth" / "hci0"
     real.mkdir(parents=True)
     (bt / "hci0").symlink_to(real)
@@ -314,17 +327,19 @@ def test_usb_rung_probe_reports_an_ABSENT_port_while_still_listing_the_radios(tm
 def test_usb_rung_probe_returns_no_ports_when_the_bluetooth_dir_is_unreadable(tmp_path):
     """An unreadable `/sys/class/bluetooth` must not take the probe down, and must not invent ports.
     `present` is still whatever the devices dir said — the two reads fail independently."""
-    dev = tmp_path / "devices"; (dev / "1-3").mkdir(parents=True)
-    present, ports = capture.usb_rung_probe("1-3", devices_dir=str(dev),
-                                            bt_dir=str(tmp_path / "does-not-exist"))
+    dev = tmp_path / "devices"
+    (dev / "1-3").mkdir(parents=True)
+    present, ports = capture.usb_rung_probe("1-3", devices_dir=str(dev), bt_dir=str(tmp_path / "does-not-exist"))
     assert present is True and ports == (), (present, ports)
 
 
 def test_usb_rung_probe_ignores_a_radio_with_no_usb_segment(tmp_path):
     """A built-in (non-USB) controller has no `usbN/` segment in its realpath. It contributes no port
     rather than an arbitrary path component — the inner loop must fall through, not guess."""
-    dev = tmp_path / "devices"; dev.mkdir()
-    bt = tmp_path / "bluetooth"; bt.mkdir()
+    dev = tmp_path / "devices"
+    dev.mkdir()
+    bt = tmp_path / "bluetooth"
+    bt.mkdir()
     real = tmp_path / "sys" / "platform" / "soc" / "bluetooth" / "hci0"
     real.mkdir(parents=True)
     (bt / "hci0").symlink_to(real)

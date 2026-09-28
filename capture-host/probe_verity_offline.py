@@ -60,11 +60,11 @@ async def _is_bonded(address: str) -> bool | None:
     Read rather than assumed, because it is the whole difference between "press the button" and
     "pair it first", and those send the operator to opposite ends of the room."""
     try:
-        info = subprocess.run(["bluetoothctl", "info", address], capture_output=True, text=True,
-                              timeout=15).stdout
-    except Exception:                                            # noqa: BLE001
+        info = subprocess.run(["bluetoothctl", "info", address], capture_output=True, text=True, timeout=15).stdout
+    except Exception:  # noqa: BLE001
         return None
     return "Bonded: yes" in info
+
 
 _MEAS_BY_NAME = {v: k for k, v in pmd.MEAS_NAME.items()}
 
@@ -90,12 +90,11 @@ class _Control:
         await self.client.start_notify(pmd.PMD_CONTROL, self._on_indication)
 
     async def send(self, cmd: bytes, timeout: float | None = None) -> bytes | None:
-        while not self.q.empty():                      # drop stale replies from a previous command
+        while not self.q.empty():  # drop stale replies from a previous command
             self.q.get_nowait()
         await self.client.write_gatt_char(pmd.PMD_CONTROL, cmd, response=True)
         try:
-            return await asyncio.wait_for(
-                self.q.get(), CP_REPLY_TIMEOUT_S if timeout is None else timeout)
+            return await asyncio.wait_for(self.q.get(), CP_REPLY_TIMEOUT_S if timeout is None else timeout)
         except asyncio.TimeoutError:
             return None
 
@@ -152,12 +151,18 @@ async def run(address: str, adapter: str | None, meas: int, force: bool, seconds
         client = await client_cm.__aenter__()
     except BleakError as exc:
         bonded = await _is_bonded(address)
-        return {**out, "error": f"could not reach the device: {type(exc).__name__}: {exc}",
-                "bonded": bonded,
-                "diagnosis": ("bonded and trusted, but BlueZ has no device object — the sensor is "
-                              "POWERED OFF or out of range. Off the charger is not the same as ON: "
-                              "press its button, then re-run." if bonded else
-                              "not bonded — pair it first (bonding.ensure_bonded / bluetoothctl)")}
+        return {
+            **out,
+            "error": f"could not reach the device: {type(exc).__name__}: {exc}",
+            "bonded": bonded,
+            "diagnosis": (
+                "bonded and trusted, but BlueZ has no device object — the sensor is "
+                "POWERED OFF or out of range. Off the charger is not the same as ON: "
+                "press its button, then re-run."
+                if bonded
+                else "not bonded — pair it first (bonding.ensure_bonded / bluetoothctl)"
+            ),
+        }
     # ⚠️ ALREADY ENTERED ABOVE. An `async with client_cm` here calls `__aenter__` a SECOND time and
     # bleak raises "Client is already connected" — a bug that hides on every failure path (the connect
     # raises first and the second enter is never reached) and appears only when the device is actually
@@ -187,8 +192,10 @@ async def run(address: str, adapter: str | None, meas: int, force: bool, seconds
             code, name = _ack_status(await cp.send(pmd.as_offline(start)))
             out["start_ack"] = name
             if code == 0x0D:
-                out["verdict"] = ("device is IN THE CHARGER — every PMD start is refused while docked. "
-                                  "Take it off the dock and re-run; this is not a protocol failure.")
+                out["verdict"] = (
+                    "device is IN THE CHARGER — every PMD start is refused while docked. "
+                    "Take it off the dock and re-run; this is not a protocol failure."
+                )
                 return out
             await asyncio.sleep(min(seconds, 60.0))
             # ONE status read, and the published `status_during` IS the evidence for the boolean below.
@@ -199,14 +206,16 @@ async def run(address: str, adapter: str | None, meas: int, force: bool, seconds
             # It also read status TWICE, so the status it published could not certify the boolean.
             reply = await cp.send(pmd.status_cmd())
             out["status_during"] = _status_of(reply)
-            recording = (pmd.is_recording(pmd.parse_status_response(reply), meas)
-                         if reply is not None else None)
+            recording = pmd.is_recording(pmd.parse_status_response(reply), meas) if reply is not None else None
             out["recording_confirmed_by_device"] = recording
             out["verdict"] = (
-                "FORCED RECORDING CONFIRMED — the device reports it is recording to flash" if recording
+                "FORCED RECORDING CONFIRMED — the device reports it is recording to flash"
+                if recording
                 else f"start was answered '{name}' but the device did not answer the status query, so "
-                     "whether it is recording was NOT established" if recording is None
-                else f"start was answered '{name}' but the device does not report recording")
+                "whether it is recording was NOT established"
+                if recording is None
+                else f"start was answered '{name}' but the device does not report recording"
+            )
         finally:
             # Always. Even on an exception, even on a timeout — see the header.
             _, stop_name = _ack_status(await cp.send(pmd.stop_cmd(meas)))
@@ -221,8 +230,12 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="Can the Verity be forced to record to flash? (Phase 1)")
     ap.add_argument("--address", required=True)
     ap.add_argument("--adapter", default=None)
-    ap.add_argument("--meas", default="acc", choices=sorted(_MEAS_BY_NAME),
-                    help="ACC by default: recording a type removes its LIVE stream (brief §2)")
+    ap.add_argument(
+        "--meas",
+        default="acc",
+        choices=sorted(_MEAS_BY_NAME),
+        help="ACC by default: recording a type removes its LIVE stream (brief §2)",
+    )
     ap.add_argument("--force-record", action="store_true", help="actually start a recording (writes!)")
     ap.add_argument("--seconds", type=float, default=20.0, help="how long to hold it before stopping")
     a = ap.parse_args(argv)

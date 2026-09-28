@@ -36,10 +36,12 @@ def _run(tmp_path, *args, btmon_body=None, btmon_rc=0):
         f"exit {btmon_rc}\n"
     )
     (bin_dir / "btmon").chmod(0o755)
-    env = dict(os.environ,
-               TEPNA_BTMON_SYSFS=str(sysfs),
-               TEPNA_BTMON_OUTROOT=str(outroot),
-               PATH=f"{bin_dir}:{os.environ['PATH']}")
+    env = dict(
+        os.environ,
+        TEPNA_BTMON_SYSFS=str(sysfs),
+        TEPNA_BTMON_OUTROOT=str(outroot),
+        PATH=f"{bin_dir}:{os.environ['PATH']}",
+    )
     argv = [str(a).replace("@OUT@", str(outroot)) for a in args]
     return subprocess.run(["bash", SH, *argv], capture_output=True, text=True, env=env, timeout=60)
 
@@ -121,15 +123,13 @@ def test_an_empty_capture_is_reported_as_a_failure_not_a_success(tmp_path):
 def test_running_the_full_duration_is_success_not_failure(tmp_path):
     """`timeout` exits 124 when the command ran the whole time — which is the NORMAL outcome for a
     deliberately time-boxed capture. Treating it as an error would make every full run look broken."""
-    r = _run(tmp_path, "hci1", "1", "@OUT@/full.btsnoop",
-             btmon_body='printf "DATA" > "$out"; sleep 5', btmon_rc=0)
+    r = _run(tmp_path, "hci1", "1", "@OUT@/full.btsnoop", btmon_body='printf "DATA" > "$out"; sleep 5', btmon_rc=0)
     assert r.returncode == 0, r.stderr
     assert "captured 4 bytes" in r.stdout
 
 
 def test_a_real_btmon_failure_is_not_reported_as_a_capture(tmp_path):
-    r = _run(tmp_path, "hci1", "1", "@OUT@/bad.btsnoop",
-             btmon_body='printf "x" > "$out"', btmon_rc=7)
+    r = _run(tmp_path, "hci1", "1", "@OUT@/bad.btsnoop", btmon_body='printf "x" > "$out"', btmon_rc=7)
     assert r.returncode == 7 and "btmon failed" in r.stderr
 
 

@@ -13,7 +13,6 @@ global that nothing asserted, and the event emission was added blind. A ladder w
 tested but which was never climbed is the shape this repo keeps finding.
 """
 
-
 import capture
 import pytest
 from test_capture_runners import _dev, _run, _stop_after
@@ -26,7 +25,7 @@ SPARE = "F0:D5:BF:1E:79:21"  # Intel — up, addressable, not pinned
 def _isolate():
     capture._STOP.clear()
     capture._RADIO_EVENTS.clear()
-    capture._SPARE_QUARANTINE.clear()   # a refusal is module state; it must not leak between tests
+    capture._SPARE_QUARANTINE.clear()  # a refusal is module state; it must not leak between tests
     capture.STATUS.pop("radio_switches", None)
     before = capture.ADAPTER
     yield
@@ -54,7 +53,8 @@ def _wedge(monkeypatch, *, spares=((SPARE, True),), bond_ok=True, spare_responds
 
     async def adapters():
         return [{"hci": "hci1", "mac": PINNED, "up": False}] + [
-            {"hci": f"hci{i + 2}", "mac": m, "up": u} for i, (m, u) in enumerate(spares)]
+            {"hci": f"hci{i + 2}", "mac": m, "up": u} for i, (m, u) in enumerate(spares)
+        ]
 
     async def responds(h):
         return None if h == "hci1" else spare_responds
@@ -278,6 +278,7 @@ def test_A_PLAIN_FAILOVER_DOES_NOT_CLAIM_A_RADIO_WAS_COMMANDEERED(monkeypatch, c
 # together), gated behind `watchdog.distress_failover` DEFAULT OFF. Three behaviors, each the
 # inverse of a way this could go wrong.
 
+
 def _healthy(monkeypatch, *, spares=((SPARE, True),)):
     """A clean radio: every poll healthy, a spare on offer. The wedge never fires."""
     bonded = []
@@ -313,8 +314,10 @@ def _distress_scan(monkeypatch, verdicts, *, on_adapter=PINNED):
     bypasses all three and manufactures a ping-pong the production scan cannot produce in one poll
     (measured while writing this test: two opposite switches in four polls). The fake must model the
     keying or it tests a machine that does not exist."""
+
     def fake(adapter_mac, devices, baselines, now_s):
         return dict(verdicts) if adapter_mac == on_adapter else {}
+
     monkeypatch.setattr(capture, "link_distress_scan", fake)
 
 
@@ -328,10 +331,13 @@ def test_ADAPTER_LEVEL_DISTRESS_migrates_the_pin_when_armed(monkeypatch):
     """Two rated links distressed together + the flag on → the same migration the wedge takes, with
     the event naming the cause, the links, and the worst link's numbers."""
     bonded = _healthy(monkeypatch)
-    _distress_scan(monkeypatch, {
-        "Ring": {"state": "distressed", "observed": 13.7, "band": 8.0, "detail": "over band"},
-        "H10": {"state": "distressed", "observed": 9.1, "band": 8.0, "detail": "over band"},
-    })
+    _distress_scan(
+        monkeypatch,
+        {
+            "Ring": {"state": "distressed", "observed": 13.7, "band": 8.0, "detail": "over band"},
+            "H10": {"state": "distressed", "observed": 9.1, "band": 8.0, "detail": "over band"},
+        },
+    )
     _run_healthy_watchdog(monkeypatch, _cfg(distress_failover=True))
     assert capture.ADAPTER == SPARE, "the pin must move on an armed adapter-level verdict"
     assert bonded, "the sensors must be re-bonded on the spare"
@@ -346,11 +352,14 @@ def test_DEFAULT_OFF_means_report_only_however_distressed(monkeypatch):
     """🔴 THE PIN THIS UNIT SHIPS UNDER. Absent flag = report-only: the fold is published (visible in
     /api/state) and NOTHING moves — arming is the owner's, against the brief's pre-stated criterion."""
     _healthy(monkeypatch)
-    _distress_scan(monkeypatch, {
-        "Ring": {"state": "distressed", "observed": 13.7, "detail": "over band"},
-        "H10": {"state": "distressed", "observed": 9.1, "detail": "over band"},
-    })
-    _run_healthy_watchdog(monkeypatch, _cfg())      # no distress_failover key at all — the default
+    _distress_scan(
+        monkeypatch,
+        {
+            "Ring": {"state": "distressed", "observed": 13.7, "detail": "over band"},
+            "H10": {"state": "distressed", "observed": 9.1, "detail": "over band"},
+        },
+    )
+    _run_healthy_watchdog(monkeypatch, _cfg())  # no distress_failover key at all — the default
     assert capture.ADAPTER != SPARE, "an unarmed verdict must not switch"
     assert capture._RADIO_EVENTS == []
     av = capture.STATUS.get("radio_distress_adapter") or {}
@@ -362,10 +371,13 @@ def test_ARMED_DISTRESS_with_NO_SPARE_reports_and_stays_put(monkeypatch):
     stands, because a verdict that evaporates when it cannot act is the silent-healing shape from
     the opposite direction."""
     _healthy(monkeypatch, spares=())
-    _distress_scan(monkeypatch, {
-        "Ring": {"state": "distressed", "observed": 13.7, "detail": "over band"},
-        "H10": {"state": "distressed", "observed": 9.1, "detail": "over band"},
-    })
+    _distress_scan(
+        monkeypatch,
+        {
+            "Ring": {"state": "distressed", "observed": 13.7, "detail": "over band"},
+            "H10": {"state": "distressed", "observed": 9.1, "detail": "over band"},
+        },
+    )
     _run_healthy_watchdog(monkeypatch, _cfg(distress_failover=True))
     assert capture.ADAPTER != SPARE and capture._RADIO_EVENTS == []
     assert (capture.STATUS.get("radio_distress_adapter") or {}).get("state") == "distressed"
@@ -376,10 +388,13 @@ def test_ONE_distressed_link_does_not_switch_even_armed(monkeypatch):
     moves with the device — relocating the healthy siblings for it is the category mismatch the
     per-device verdicts stayed report-only to avoid."""
     _healthy(monkeypatch)
-    _distress_scan(monkeypatch, {
-        "Ring": {"state": "distressed", "observed": 13.7, "detail": "over band"},
-        "H10": {"state": "ok", "observed": 0.2, "detail": "within band"},
-    })
+    _distress_scan(
+        monkeypatch,
+        {
+            "Ring": {"state": "distressed", "observed": 13.7, "detail": "over band"},
+            "H10": {"state": "ok", "observed": 0.2, "detail": "within band"},
+        },
+    )
     _run_healthy_watchdog(monkeypatch, _cfg(distress_failover=True))
     assert capture.ADAPTER != SPARE and capture._RADIO_EVENTS == []
     av = capture.STATUS.get("radio_distress_adapter") or {}

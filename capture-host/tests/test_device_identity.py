@@ -20,11 +20,13 @@ Two defects, fixed together because either alone leaves the split reachable:
     Exact-field matching plus an explicit `device_id_aliases` list makes a corrected id additive
     rather than destructive.
 """
+
 import re
 
 import nightqc
 import writers
 import datetime as _wrapdt
+
 
 # ── THESE FIXTURES DECLARE THEIR FRAME RATHER THAN HAVING IT INFERRED ──────────────────────────────────
 #
@@ -49,14 +51,13 @@ def _declared_reader_frame(night):
         try:
             absolute = _wrapdt.datetime.strptime(stamp, "%Y%m%d%H%M%S").timestamp()
         except ValueError:
-            continue            # not a 14-digit stamp — try the next file; a legacy name states no frame
+            continue  # not a 14-digit stamp — try the next file; a legacy name states no frame
         return nightqc.declared_offset(absolute - f["session"])
     return nightqc.declared_offset(0.0)
 
 
 def _summarize(night, devices, wear=None):
     return nightqc.summarize(night, devices, wear, writer_offset=_declared_reader_frame(night))
-
 
 
 # ── the filename's id FIELD ───────────────────────────────────────────────────────────────────
@@ -98,8 +99,10 @@ def _night(tmp_path, rows=1000):
     d = tmp_path / "2026-07-26"
     d.mkdir()
     hdr = "Phone timestamp;x\n"
-    for name in ("Polar_VeritySense_AC0C301E_20260726041816_PPG.txt",
-                 "Polar_VeritySense_0C301E3F_20260726084644_PPG.txt"):
+    for name in (
+        "Polar_VeritySense_AC0C301E_20260726041816_PPG.txt",
+        "Polar_VeritySense_0C301E3F_20260726084644_PPG.txt",
+    ):
         (d / name).write_text(hdr + "".join("2026-07-26T04:18:16.000;1\n" for _ in range(rows)))
     return str(d)
 
@@ -107,9 +110,15 @@ def _night(tmp_path, rows=1000):
 def test_nightqc_counts_files_written_under_a_previous_device_id(tmp_path):
     """THE regression. Both files are this one armband; QC must see both."""
     night = _night(tmp_path)
-    dev = {"name": "Polar Verity Sense", "vendor": "Polar", "model": "VeritySense",
-           "device_id": "0C301E3F", "device_id_aliases": ["AC0C301E"],
-           "address": "24:AC:AC:0C:30:1E", "streams": ["ppg"]}
+    dev = {
+        "name": "Polar Verity Sense",
+        "vendor": "Polar",
+        "model": "VeritySense",
+        "device_id": "0C301E3F",
+        "device_id_aliases": ["AC0C301E"],
+        "address": "24:AC:AC:0C:30:1E",
+        "streams": ["ppg"],
+    }
     got = _summarize(night, [dev])
     rows = next(d["streams"].get("ppg", 0) for d in got["devices"] if d["name"] == dev["name"])
     assert rows == 2000, f"expected both sessions (2000 rows), got {rows}"
@@ -118,8 +127,14 @@ def test_nightqc_counts_files_written_under_a_previous_device_id(tmp_path):
 def test_nightqc_without_the_alias_sees_only_the_current_id(tmp_path):
     """The control: this is exactly what the box was doing, and why the night read as near-empty."""
     night = _night(tmp_path)
-    dev = {"name": "Polar Verity Sense", "vendor": "Polar", "model": "VeritySense",
-           "device_id": "0C301E3F", "address": "24:AC:AC:0C:30:1E", "streams": ["ppg"]}
+    dev = {
+        "name": "Polar Verity Sense",
+        "vendor": "Polar",
+        "model": "VeritySense",
+        "device_id": "0C301E3F",
+        "address": "24:AC:AC:0C:30:1E",
+        "streams": ["ppg"],
+    }
     got = nightqc.summarize(night, [dev])
     rows = next(d["streams"].get("ppg", 0) for d in got["devices"] if d["name"] == dev["name"])
     assert rows == 1000, "without an alias only the current id is attributable — by design"
@@ -130,8 +145,14 @@ def test_nightqc_does_not_cross_match_a_substring_device_id(tmp_path):
     d = tmp_path / "2026-07-26"
     d.mkdir()
     (d / "Polar_H10_02849638_20260726072555_ECG.txt").write_text("h\n" + "x\n" * 500)
-    dev = {"name": "Other", "vendor": "Polar", "model": "H10", "device_id": "2849638",
-           "address": "AA", "streams": ["ecg"]}
+    dev = {
+        "name": "Other",
+        "vendor": "Polar",
+        "model": "H10",
+        "device_id": "2849638",
+        "address": "AA",
+        "streams": ["ecg"],
+    }
     got = nightqc.summarize(night_dir=str(d), devices=[dev])
     rows = next(x["streams"].get("ecg", 0) for x in got["devices"] if x["name"] == "Other")
     assert rows == 0, "'2849638' must not claim the file belonging to '02849638'"
@@ -141,8 +162,7 @@ def test_nightqc_does_not_cross_match_a_substring_device_id(tmp_path):
 def _name_regex():
     """The regex the SHIPPED monitor uses, extracted from monitor.html rather than re-typed — a
     re-typed copy would only prove the test agrees with itself."""
-    html = open(__file__.replace("tests/test_device_identity.py", "monitor.html"),
-                encoding="utf-8").read()
+    html = open(__file__.replace("tests/test_device_identity.py", "monitor.html"), encoding="utf-8").read()
     line = next((ln for ln in html.splitlines() if "device_id = m[1]" in ln), None)
     assert line, "could not find the device-id extraction line in monitor.html"
     m = re.search(r"\.match\(/(.+?)/\s*\)", line)
@@ -208,8 +228,9 @@ def test_monitor_family_predicates_classify_the_real_stream_keys():
         assert m, f"could not extract {name} from monitor.html"
         src[name] = m.group(1)
 
-    def js_ppg(k):      # /^ppg(_|$)/ — anchored so o2ppg does NOT match
+    def js_ppg(k):  # /^ppg(_|$)/ — anchored so o2ppg does NOT match
         return bool(re.match(r"^ppg(_|$)", k or ""))
+
     assert "/^ppg(_|$)/" in src["isPpgKey"], "isPpgKey must stay anchored: o2ppg is not a Verity pleth"
     assert "isPpgKey(k)" in src["isPulseKey"] and "'o2ppg'" in src["isPulseKey"]
     assert "'ecg'" in src["isBeatKey"] and "isPulseKey(k)" in src["isBeatKey"]
@@ -239,7 +260,7 @@ def test_monitor_resolves_every_o2ring_derived_stream_to_the_ring():
     rule = m.group(1)
     assert "/^o2" in rule, f"must match the o2 PREFIX structurally, not by list: {rule}"
 
-    def resolves(k):                      # mirrors isO2Derived
+    def resolves(k):  # mirrors isO2Derived
         return k in ("pr", "motion") or bool(re.match(r"^o2[a-z0-9]", k))
 
     for k in ("pr", "motion", "o2ppg", "o2ppg2w"):

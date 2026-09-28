@@ -22,10 +22,7 @@ MAC = "24:AC:AC:0C:30:1E"
 
 CON_TEMPLATE = "Connections:\n\t< LE {mac} handle {handle} state 1 lm CENTRAL\n"
 CMD_TEMPLATE = (
-    "< HCI Command: ogf 0x05, ocf 0x0005, plen 2\n"
-    "  0C 00 \n"
-    "> HCI Event: 0x0e plen 7\n"
-    "  01 05 14 00 0C 00 {byte} \n"
+    "< HCI Command: ogf 0x05, ocf 0x0005, plen 2\n  0C 00 \n> HCI Event: 0x0e plen 7\n  01 05 14 00 0C 00 {byte} \n"
 )
 
 
@@ -42,8 +39,8 @@ def _run(tmp_path, *args, con=None, cmd_out=None, cmd_rc=0):
     tool.write_text(
         "#!/bin/sh\n"
         f'echo "hcitool $*" >> "{log}"\n'
-        "shift 2\n"                                  # drop `-i hciN`
-        "case \"$1\" in\n"
+        "shift 2\n"  # drop `-i hciN`
+        'case "$1" in\n'
         f'  con) cat "{con_f}" ;;\n'
         f'  cmd) cat "{cmd_f}"; exit {cmd_rc} ;;\n'
         "esac\n"
@@ -55,6 +52,7 @@ def _run(tmp_path, *args, con=None, cmd_out=None, cmd_rc=0):
 
 
 # ── the privileged-argument surface ──────────────────────────────────────────────────────────────────
+
 
 def test_missing_arguments_print_usage_and_never_reach_hcitool(tmp_path):
     for argv in [[], ["hci0"]]:
@@ -81,6 +79,7 @@ def test_a_bad_mac_is_refused(tmp_path):
 
 
 # ── the handle lookup ────────────────────────────────────────────────────────────────────────────────
+
 
 def test_it_finds_the_handle_for_this_peer_and_asks_for_read_rssi_by_handle(tmp_path):
     r, calls = _run(tmp_path, "hci0", MAC)
@@ -117,6 +116,7 @@ def test_an_unparsable_handle_is_refused_rather_than_sent(tmp_path):
 
 
 # ── the reply: a SIGNED int8 ─────────────────────────────────────────────────────────────────────────
+
 
 def test_a_negative_rssi_is_folded_from_twos_complement(tmp_path):
     """0xAB = 171 unsigned = -85 dBm. Every real link on this box reports a negative value; reading the

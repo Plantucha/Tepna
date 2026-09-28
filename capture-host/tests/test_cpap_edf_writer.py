@@ -36,8 +36,11 @@ def _tz_guard():
 
 
 def _batch(start, flow, press):
-    return {"start_time": start, "interval_ms": 40,
-            "channels": {"PatientFlow": list(flow), "MaskPressure": list(press)}}
+    return {
+        "start_time": start,
+        "interval_ms": 40,
+        "channels": {"PatientFlow": list(flow), "MaskPressure": list(press)},
+    }
 
 
 def _run(sink, n_seconds, start="2026-08-23T22:15:03", flow=0.1, press=5.0):
@@ -55,10 +58,10 @@ def test_an_UNVERIFIED_flow_scale_is_QUARANTINED_outside_the_ingest_root(tmp_pat
     this repo keeps paying for. So the DEFAULT (flow_scale_verified False) writes under a PENDING subtree
     that is NOT under the harvest ingest root — CPAPDex cannot read it as therapy data."""
     out = tmp_path / "cpap-ble"
-    sink = W.EdfSink(str(out), SERIAL)                  # default: unverified
+    sink = W.EdfSink(str(out), SERIAL)  # default: unverified
     _run(sink, 61)
     assert os.path.sep + W.EdfSink.PENDING + os.path.sep in sink.path, "must be under PENDING"
-    ingest_root = str(tmp_path / "captures" / "cpap")   # where the SD-card harvest lands
+    ingest_root = str(tmp_path / "captures" / "cpap")  # where the SD-card harvest lands
     assert not sink.path.startswith(ingest_root), "an unpinned file must not enter the ingest set"
     assert os.path.exists(sink.path)
 
@@ -94,7 +97,7 @@ def test_a_ZONED_UTC_stamp_is_RESOLVED_to_local_civil(tmp_path, monkeypatch):
     """⚠️ THE CLOCK FIX (2026-08-23). The device's live StreamData stamp is UTC ('…Z'), but the SD card and
     OSCAR use local civil — writing UTC verbatim mis-dates the EDF by the offset (measured: 4 h EDT). A
     zoned stamp is converted to the box's local civil time. TZ pinned to UTC-5 → 18:47:42Z becomes 13:47:42."""
-    monkeypatch.setenv("TZ", "XXX5")   # POSIX: std name XXX, 5 h WEST of UTC (fixed, no DST)
+    monkeypatch.setenv("TZ", "XXX5")  # POSIX: std name XXX, 5 h WEST of UTC (fixed, no DST)
     time.tzset()
     sink = W.EdfSink(str(tmp_path / "x"), SERIAL)
     _run(sink, 2, start="2026-08-23T18:47:42.000Z")
@@ -175,7 +178,7 @@ def test_an_off_rate_interval_warns_ONCE_not_per_batch(tmp_path, caplog):
     sink.open({}, 25.0)
     with caplog.at_level(logging.WARNING, logger="tepna.cpap"):
         for _ in range(3):
-            sink.on_batch(_batch_iv("2026-08-23T22:15:03", 20))   # 20 ms = 50 Hz, off the BRP 25 Hz rate
+            sink.on_batch(_batch_iv("2026-08-23T22:15:03", 20))  # 20 ms = 50 Hz, off the BRP 25 Hz rate
         sink.close()
     warns = [r for r in caplog.records if "observed interval" in r.getMessage()]
     assert len(warns) == 1, "the off-rate interval is warned once, not per batch"
@@ -259,7 +262,7 @@ def test_the_default_record_length_is_60_seconds(tmp_path):
 # ── ACCUMULATE → BUILD → ATOMIC WRITE ───────────────────────────────────────────────────────────────────
 def test_two_batches_produce_a_readable_bit_accurate_BRP(tmp_path):
     sink = W.EdfSink(str(tmp_path / "x"), SERIAL)
-    _run(sink, 120)                                    # two whole 60 s records
+    _run(sink, 120)  # two whole 60 s records
     edf = cpap_edf.read_edf(open(sink.path, "rb").read())
     assert [s.label.strip() for s in edf.signals] == ["Flow.40ms", "Press.40ms", "Crc16"]
     assert edf.n_records == 2
@@ -269,7 +272,7 @@ def test_the_flow_conversion_is_injectable_and_applied(tmp_path):
     """The unit factor lives at ONE tap. A /60 conversion (the L/min→L/s hypothesis) must reach the
     written physical samples — this is the seam the pinned factor plugs into."""
     sink = W.EdfSink(str(tmp_path / "x"), SERIAL, flow_to_lps=lambda v: v / 60.0)
-    _run(sink, 60, flow=60.0)                          # 60 L/min in → 1.0 L/s stored
+    _run(sink, 60, flow=60.0)  # 60 L/min in → 1.0 L/s stored
     edf = cpap_edf.read_edf(open(sink.path, "rb").read())
     flow = edf.signals[0]
     # digital→physical round-trip of the first sample; 1.0 L/s within one quantum of the ±2/3 range
@@ -294,7 +297,7 @@ def test_a_double_close_is_a_noop(tmp_path):
     sink = W.EdfSink(str(tmp_path / "x"), SERIAL)
     _run(sink, 2)
     first = os.path.getmtime(sink.path)
-    sink.close()                                       # must not raise or rewrite
+    sink.close()  # must not raise or rewrite
     assert os.path.getmtime(sink.path) == first
 
 
@@ -311,10 +314,12 @@ def test_a_partial_batch_missing_a_channel_does_not_crash_or_desync(tmp_path):
     length only at build time, so a dropped channel never shifts flow and pressure out of lockstep."""
     sink = W.EdfSink(str(tmp_path / "x"), SERIAL)
     sink.open({}, 25.0)
-    sink.on_batch({"start_time": "2026-08-23T22:15:03.000Z", "interval_ms": 40,
-                   "channels": {"PatientFlow": [0.1] * 25}})          # no pressure
-    sink.on_batch({"start_time": "2026-08-23T22:15:04.000Z", "interval_ms": 40,
-                   "channels": {"MaskPressure": [5.0] * 25}})         # no flow
+    sink.on_batch(
+        {"start_time": "2026-08-23T22:15:03.000Z", "interval_ms": 40, "channels": {"PatientFlow": [0.1] * 25}}
+    )  # no pressure
+    sink.on_batch(
+        {"start_time": "2026-08-23T22:15:04.000Z", "interval_ms": 40, "channels": {"MaskPressure": [5.0] * 25}}
+    )  # no flow
     sink.close()
     edf = cpap_edf.read_edf(open(sink.path, "rb").read())
-    assert edf.n_records == 1                                          # padded to one whole record
+    assert edf.n_records == 1  # padded to one whole record

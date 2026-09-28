@@ -6,6 +6,7 @@ The cost of not emitting them is measured: with the true F1 magnitude planted in
 `hostAxis` REFUSES at ±50,000 ppm exactly as designed and `relSec` still spans 2.416e8 s — a 7.66-year
 night downstream while the rate guard reads green.
 """
+
 import datetime as dt
 import os
 import re
@@ -57,8 +58,7 @@ def test_PLANT_a_DROPOUT_is_NOT_a_seam(tmp_path):
 def test_the_bound_matches_the_ECGDex_detector():
     """Parity. If the emitter and the node's detector disagree about what a seam IS, the node's
     cross-check becomes a false-alarm generator rather than a check."""
-    js = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                           "..", "ecgdex-dsp.js")).read()
+    js = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "..", "ecgdex-dsp.js")).read()
     m = re.search(r"ECG_RESYNC_BOUND_MS\s*=\s*(\d+)", js)
     assert m, "ECGDex's bound not found — parity cannot be asserted against nothing"
     assert writers.SEAM_BOUND_MS == int(m.group(1))
@@ -92,7 +92,7 @@ def test_PLANT_every_device_clocked_writer_FEEDS_the_sidecar():
 
     Asserted as a NAMED SET, never a count: a count encodes "eight" as the invariant, when the
     question a reader has is WHICH."""
-    src = module_source("writers.py").split("\n")   # skips on a mutmut file — see tests/_srcscan.py
+    src = module_source("writers.py").split("\n")  # skips on a mutmut file — see tests/_srcscan.py
     starts = {}
     for i, l in enumerate(src):
         m = re.match(r"    def ([a-z_0-9]+)\(", l)
@@ -112,7 +112,7 @@ def test_the_uncovered_paths_are_uncovered_ON_PURPOSE():
     """`feed()` takes only `phone` — no device clock, so a seam is NOT EXPRESSIBLE there, which is a
     different fact from unmeasured. Pinned so that 'add it everywhere' is a deliberate change."""
     assert "feed" not in writers.SEAM_FED_WRITERS
-    src = module_source("writers.py")   # skips on a mutmut file — see tests/_srcscan.py
+    src = module_source("writers.py")  # skips on a mutmut file — see tests/_srcscan.py
     # ⚠️ TWO methods are now named `feed` — `_SeamSidecar.feed(self, phone, sensor_ns)` and
     # `_RunSidecar.feed(self, channel, value, phone)`. A bare `def feed(` search finds whichever comes
     # first in the file and would assert about the wrong one; this test failed exactly that way on its
@@ -130,8 +130,10 @@ def test_a_sidecar_that_cannot_OPEN_does_not_stop_the_recording(tmp_path, monkey
 
     def boom(*_a, **_k):
         raise OSError("read-only file system")
+
     monkeypatch.setattr(writers, "open", boom, raising=False)
     import builtins
+
     monkeypatch.setattr(builtins, "open", boom)
     for i in range(3):
         sc.feed(T0 + dt.timedelta(milliseconds=8 * i), 1_000_000_000 + 8_000_000 * i)
@@ -148,7 +150,8 @@ def test_a_broken_clock_value_does_not_reach_the_capture_path(tmp_path, monkeypa
     class Bad:
         def timestamp(self):
             raise ValueError("not a clock")
-    sc.feed(Bad(), 1_000_000_000 + 8_000_000)   # must not raise
+
+    sc.feed(Bad(), 1_000_000_000 + 8_000_000)  # must not raise
     sc.close()
     assert sc.seams == 0
 
@@ -165,8 +168,9 @@ def test_a_failing_CLOSE_cannot_fail_a_night(tmp_path, monkeypatch):
 
         def close(self):
             raise OSError("and so did the handle")
+
     sc._fh = BadFH()
-    sc.close()          # must not raise
+    sc.close()  # must not raise
     assert sc._fh is None, "the handle is released even when closing it failed"
 
 
@@ -281,12 +285,13 @@ def test_a_torn_last_row_is_skipped_for_the_seed_too(tmp_path):
 # header by design, leaving a sidecar that never says what it is.
 def test_PLANT_a_resumed_PARENT_with_no_sidecar_file_still_writes_the_header(tmp_path):
     import writers
+
     p = str(tmp_path / "Polar_H10_x_20260922223818_ECG.txt")
     w1 = writers.StreamWriter(p, "ecg", fsync=False)
     w1.write_ecg(dt.datetime(2026, 9, 22, 22, 38, 18), 1_000_000_000, 0.0, -20000)
     w1.close()
     seams = p[:-4] + "SEAMS.txt"
-    os.remove(seams)                      # the observed state: parent resumable, sidecar absent
+    os.remove(seams)  # the observed state: parent resumable, sidecar absent
 
     w2 = writers.StreamWriter(p, "ecg", fsync=False)
     assert w2.resumed, "the PARENT is resuming — that is the whole setup"
@@ -301,6 +306,7 @@ def test_PLANT_a_resumed_PARENT_with_no_sidecar_file_still_writes_the_header(tmp
 def test_a_sidecar_resuming_its_OWN_non_empty_file_does_not_re_emit_the_header(tmp_path):
     """The other half: self-detection must still APPEND rather than truncate or duplicate."""
     import writers
+
     p = str(tmp_path / "X_ECG.txt")
     sc = writers._SeamSidecar(p, "ecg")
     sc.feed(dt.datetime(2026, 9, 22, 22, 0, 0), 1_000_000_000)
@@ -308,13 +314,15 @@ def test_a_sidecar_resuming_its_OWN_non_empty_file_does_not_re_emit_the_header(t
     first = open(p[:-4] + "SEAMS.txt").read()
     assert first.count("rule=clock-seam") == 1
 
-    sc2 = writers._SeamSidecar(p, "ecg")          # same path, now non-empty
+    sc2 = writers._SeamSidecar(p, "ecg")  # same path, now non-empty
     sc2.feed(dt.datetime(2026, 9, 22, 23, 0, 0), 2_000_000_000)
     sc2.close()
     body = open(p[:-4] + "SEAMS.txt").read()
     assert body.count("rule=clock-seam") == 1, "the header must not be re-emitted on resume"
     assert body.startswith(first), "the earlier session's bytes must survive verbatim"
     assert body.count("# final") == 2, "one per session"
+
+
 def test_PLANT_a_row_write_that_RAISES_leaves_the_count_equal_to_the_rows(tmp_path):
     """residue 2026-09-27-seam-sidecar-rows-and-finals-agree (which withdraws the row that said the
     opposite could happen).

@@ -36,10 +36,9 @@ STOP_CMD = "sudo -n /usr/local/lib/tepna/tepna-restart.sh stop 30"
 def daemon_holds_link(unit: str = UNIT) -> bool:
     """True when the capture daemon is active and therefore owns the device's single BLE link."""
     try:
-        r = subprocess.run(["systemctl", "is-active", unit],
-                           capture_output=True, text=True, timeout=10)
+        r = subprocess.run(["systemctl", "is-active", unit], capture_output=True, text=True, timeout=10)
         return r.stdout.strip() == "active"
-    except Exception:                                  # noqa: BLE001 — no systemd / not on the box
+    except Exception:  # noqa: BLE001 — no systemd / not on the box
         return False
 
 
@@ -49,9 +48,11 @@ def require_free_link(unit: str = UNIT, exit_code: int = 3) -> None:
     Exits rather than warns: every failure mode downstream of this is confusing, and a probe that runs
     anyway produces a diagnostic about the wrong subsystem."""
     if daemon_holds_link(unit):
-        print(f"REFUSING: {unit} is ACTIVE and holds the device's single BLE link.\n"
-              f"Every call would fail with a message about BlueZ, not about this.\n"
-              f"    {STOP_CMD}\n"
-              f"(deadman-timed — it restarts itself, so a long probe can lose the link mid-run)",
-              file=sys.stderr)
+        print(
+            f"REFUSING: {unit} is ACTIVE and holds the device's single BLE link.\n"
+            f"Every call would fail with a message about BlueZ, not about this.\n"
+            f"    {STOP_CMD}\n"
+            f"(deadman-timed — it restarts itself, so a long probe can lose the link mid-run)",
+            file=sys.stderr,
+        )
         raise SystemExit(exit_code)

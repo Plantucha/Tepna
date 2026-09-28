@@ -173,13 +173,13 @@ import time
 
 import polar_psftp as ps
 
-OUT_REPORT_ID = 0x01          # host -> device, per the decoded descriptor
-IN_REPORT_ID = 0x11           # device -> host
-REPORT_BYTES = 64             # 1 report id + 63 payload
-IDLE_SIZE = 1                 # a size<=1 reply is the device's filler, not an answer
+OUT_REPORT_ID = 0x01  # host -> device, per the decoded descriptor
+IN_REPORT_ID = 0x11  # device -> host
+REPORT_BYTES = 64  # 1 report id + 63 payload
+IDLE_SIZE = 1  # a size<=1 reply is the device's filler, not an answer
 
-_HDR_FIRST = 5                # report id + size/flags + packet num + 2 RFC60 length bytes
-_HDR_REST = 3                 # report id + size/flags + packet num
+_HDR_FIRST = 5  # report id + size/flags + packet num + 2 RFC60 length bytes
+_HDR_REST = 3  # report id + size/flags + packet num
 
 
 def find_device(vid: str = "0da4", pid: str = "0008") -> tuple[str, str] | None:
@@ -191,8 +191,8 @@ def find_device(vid: str = "0da4", pid: str = "0008") -> tuple[str, str] | None:
         try:
             ue = open(os.path.join(node, "device", "uevent"), encoding="utf-8").read()
         except OSError:
-            continue   # a node that vanished mid-walk (hotplug) or exposes no uevent is not a
-                       # candidate; the caller reports finding nothing, which is the honest answer
+            continue  # a node that vanished mid-walk (hotplug) or exposes no uevent is not a
+            # candidate; the caller reports finding nothing, which is the honest answer
         hid_id = next((l.split("=", 1)[1] for l in ue.splitlines() if l.startswith("HID_ID=")), "")
         if vid.lower() in hid_id.lower() and pid.lower() in hid_id.lower():
             uniq = next((l.split("=", 1)[1] for l in ue.splitlines() if l.startswith("HID_UNIQ=")), "")
@@ -240,7 +240,7 @@ def reply_is_end(rep: bytes) -> bool:
 def reply_body(rep: bytes, initial: bool) -> bytes:
     """The first reply packet carries two extra leading bytes the later ones do not."""
     off = _HDR_FIRST if initial else _HDR_REST
-    return rep[off:off + reply_size(rep)]
+    return rep[off : off + reply_size(rep)]
 
 
 def fetch(dev: str, path: str, window: float = 8.0, max_packets: int = 400) -> dict:
@@ -256,7 +256,7 @@ def fetch(dev: str, path: str, window: float = 8.0, max_packets: int = 400) -> d
     except OSError as e:
         return {"ok": False, "error": f"cannot open {dev}: {e.strerror}"}
     try:
-        while select.select([fd], [], [], 0)[0]:            # drain anything stale
+        while select.select([fd], [], [], 0)[0]:  # drain anything stale
             os.read(fd, REPORT_BYTES)
         os.write(fd, build_request(path))
         body, pkt_num, initial, idle, real = bytearray(), 0, True, 0, 0
@@ -284,19 +284,29 @@ def fetch(dev: str, path: str, window: float = 8.0, max_packets: int = 400) -> d
             os.write(fd, build_ack(pkt_num))
             pkt_num = next_ack(pkt_num)
         if not real:
-            return {"ok": False, "idle": idle, "real": 0,
-                    "error": "device answered only 1-byte filler — the sync window is closed; "
-                             "replug the dock (or re-enumerate as root) and retry immediately"}
+            return {
+                "ok": False,
+                "idle": idle,
+                "real": 0,
+                "error": "device answered only 1-byte filler — the sync window is closed; "
+                "replug the dock (or re-enumerate as root) and retry immediately",
+            }
         try:
             entries, truncated = ps._parse_directory_ex(bytes(body))
         except Exception:
             # A non-directory payload must be reported as raw hex, not raised: a crash here would
             # destroy the one piece of evidence that says what the device actually sent.
             entries, truncated = [], False
-        return {"ok": bool(entries), "complete": bool(entries) and not truncated,
-                "truncated": truncated, "idle": idle, "real": real, "bytes": len(body),
-                "entries": entries[:40] if entries else None,
-                "head": None if entries else bytes(body)[:48].hex()}
+        return {
+            "ok": bool(entries),
+            "complete": bool(entries) and not truncated,
+            "truncated": truncated,
+            "idle": idle,
+            "real": real,
+            "bytes": len(body),
+            "entries": entries[:40] if entries else None,
+            "head": None if entries else bytes(body)[:48].hex(),
+        }
     finally:
         os.close(fd)
 
@@ -321,9 +331,11 @@ def main(argv=None) -> int:
         f"⚠️ TRUNCATED — {len(result.get('entries') or [])} complete entries came back and the payload "
         "was cut mid-record. This listing is a SUBSET; the USB pipe caps a reply at one 64-byte report "
         "and flags it END regardless. Use the BLE mirror (polar_mirror.py) for a complete answer."
-        if result.get("truncated") else
-        "PS-FTP works over USB HID — polar_psftp's layer is reusable, only the framing changes"
-        if result.get("ok") else result.get("error", "no answer"))
+        if result.get("truncated")
+        else "PS-FTP works over USB HID — polar_psftp's layer is reusable, only the framing changes"
+        if result.get("ok")
+        else result.get("error", "no answer")
+    )
     print(json.dumps(result, indent=2))
     return 0
 

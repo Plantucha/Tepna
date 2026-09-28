@@ -21,8 +21,8 @@ import jitterfloor
 import localstamp as L
 import nightqc
 
-SEAM_NIGHT = datetime(2026, 11, 1, 0, 59, 58)        # EDT; 01:00–02:00 will repeat
-DEV0_NS = 843_900_000_000_000_000                    # a plausible 2000-epoch device count
+SEAM_NIGHT = datetime(2026, 11, 1, 0, 59, 58)  # EDT; 01:00–02:00 will repeat
+DEV0_NS = 843_900_000_000_000_000  # a plausible 2000-epoch device count
 
 
 @pytest.fixture
@@ -55,6 +55,7 @@ def _night_rows(n=3610, step_s=1.0):
     what the OS clock produces, not a hand-written duplicate."""
     import zoneinfo
     from datetime import timezone
+
     z = zoneinfo.ZoneInfo("America/New_York")
     # ⚠️ Advance in UTC, then convert. Adding a timedelta to an AWARE datetime in the same zone is
     # wall-clock arithmetic and never crosses a transition — a first draft of this rig did that and
@@ -87,7 +88,7 @@ def test_the_old_parse_STEPS_BACKWARDS_at_the_seam_and_the_resolver_does_not(new
 def test_the_ambiguous_count_is_the_repeated_hour_twice(new_york):
     """Both passes through 01:00–02:00 are ambiguous strings — 7200 stamps at 1 Hz — and a rig that
     only counted the second pass would be counting the wrong thing."""
-    rows = _night_rows(n=3 + 7200 + 3)                 # 00:59:57 .. 02:00:02
+    rows = _night_rows(n=3 + 7200 + 3)  # 00:59:57 .. 02:00:02
     r = L.LocalStampResolver()
     for s, ns in rows:
         r.resolve_ms(datetime.strptime(s, "%Y-%m-%dT%H:%M:%S.%f"), dev_ms=ns / 1e6)
@@ -112,8 +113,8 @@ def test_a_file_that_STARTS_inside_the_repeated_hour_takes_fold_0_and_says_so(ne
 def test_device_continuity_OUTRANKS_monotonicity_across_a_gap_longer_than_the_repeat(new_york):
     """After a >1 h gap both folds are 'forward'; only the device offset can decide, and it does."""
     r = L.LocalStampResolver()
-    r.resolve_ms(datetime(2026, 10, 31, 23, 0, 0), dev_ms=0.0)          # establishes the offset
-    dt = datetime(2026, 11, 1, 1, 30, 0)                                 # second pass, 3.5 h later
+    r.resolve_ms(datetime(2026, 10, 31, 23, 0, 0), dev_ms=0.0)  # establishes the offset
+    dt = datetime(2026, 11, 1, 1, 30, 0)  # second pass, 3.5 h later
     got = r.resolve_ms(dt, dev_ms=3.5 * 3600 * 1000.0)
     assert got == dt.replace(fold=1).timestamp() * 1000.0
 
@@ -130,8 +131,11 @@ def test_on_a_zone_without_dst_the_resolver_is_exactly_timestamp(utc):
 # ── the consumers, through their real entry points ────────────────────────────────────────────────
 def test_jitterfloor_parse_pmdarrival_keeps_the_host_axis_continuous_across_the_seam(new_york, tmp_path):
     p = tmp_path / "2026-11-01_PMDARRIVAL.csv"
-    p.write_text("Phone timestamp;device;meas;first_sensor_ns;last_sensor_ns;n_samples\n" + "\n".join(
-        "%s;H10;ecg;%d;%d;73" % (s, ns, ns + 500_000_000) for s, ns in _night_rows()) + "\n")
+    p.write_text(
+        "Phone timestamp;device;meas;first_sensor_ns;last_sensor_ns;n_samples\n"
+        + "\n".join("%s;H10;ecg;%d;%d;73" % (s, ns, ns + 500_000_000) for s, ns in _night_rows())
+        + "\n"
+    )
     streams = jitterfloor.parse_pmdarrival(Path(p))
     hosts = [h for h, _ in streams["H10|ecg"]]
     assert {round(b - a) for a, b in zip(hosts, hosts[1:])} == {1000}, "a −3600 s step survived into the floor"
@@ -172,10 +176,13 @@ def test_nightqc_span_walks_the_series_so_an_endpoint_inside_the_seam_is_resolve
 # sidecars through its own `folds` dict and passes its own device stamp, so neither of those defends
 # this path: both lines are reachable only from here.
 
+
 def _seam_csv(path, rows):
     path.write_text(
         "Phone timestamp;device;meas;first_sensor_ns;last_sensor_ns;n_samples\n"
-        + "\n".join("%s;%s;%s;%d;%d;%d" % r for r in rows) + "\n")
+        + "\n".join("%s;%s;%s;%d;%d;%d" % r for r in rows)
+        + "\n"
+    )
 
 
 def test_nightqc_arrival_quality_resolves_each_stream_on_its_OWN_offset(new_york, tmp_path):
@@ -204,6 +211,7 @@ def _truth_offset_ms(dev_lead_s):
     """The planted host−device offset: every row's host instant is `SEAM_NIGHT + i s` by construction
     and its counter advances the same second, so the difference is a constant the fixture knows."""
     import zoneinfo
+
     z = zoneinfo.ZoneInfo("America/New_York")
     t0_ms = SEAM_NIGHT.replace(tzinfo=z, fold=0).timestamp() * 1000.0
     return t0_ms - nightqc._POLAR_EPOCH_MS - (DEV0_NS / 1e6 + dev_lead_s * 1000.0)
@@ -232,15 +240,24 @@ def test_nightqc_arrival_quality_resolves_the_repeated_hour_by_the_DEVICE_counte
     a null one, a 2000-epoch mirror of it or a scale error puts the whole second pass an hour early."""
     import zoneinfo
     from datetime import timezone
+
     z = zoneinfo.ZoneInfo("America/New_York")
-    t0 = datetime(2026, 11, 1, 3, 0, 0, tzinfo=timezone.utc)        # 23:00 EDT, unambiguous
+    t0 = datetime(2026, 11, 1, 3, 0, 0, tzinfo=timezone.utc)  # 23:00 EDT, unambiguous
     rows = []
-    for phase_s in (0, int(3.5 * 3600)):                            # ... then 01:30 EST, second pass
+    for phase_s in (0, int(3.5 * 3600)):  # ... then 01:30 EST, second pass
         for i in range(150):
             elapsed = phase_s + i
             naive = (t0 + timedelta(seconds=elapsed)).astimezone(z).replace(tzinfo=None)
-            rows.append((naive.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3], "H10", "ecg",
-                         DEV0_NS + elapsed * 10**9, DEV0_NS + elapsed * 10**9 + 1, 73))
+            rows.append(
+                (
+                    naive.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3],
+                    "H10",
+                    "ecg",
+                    DEV0_NS + elapsed * 10**9,
+                    DEV0_NS + elapsed * 10**9 + 1,
+                    73,
+                )
+            )
     assert rows[150][0].startswith("2026-11-01T01:30"), rows[150][0]
     _seam_csv(tmp_path / "g_PMDARRIVAL.csv", rows)
     got = nightqc.arrival_quality(str(tmp_path))[0]
@@ -251,9 +268,11 @@ def test_nightqc_arrival_quality_resolves_the_repeated_hour_by_the_DEVICE_counte
 # ── a HOST-stamp span is a difference, so an ambiguous endpoint is an hour of error ────────────────
 def _raw_host_file(path, *stamps: str, comment: bool = False):
     """A ring raw-buffer file: device clock blank, so only the host stamps state its extent."""
-    path.write_text(("# timebase=host-disciplined\n" if comment else "")
-                    + "Phone timestamp;sensor timestamp [ns];X [raw];Y [raw];Z [raw]\n"
-                    + "".join("%s;;1;2;3\n" % s for s in stamps))
+    path.write_text(
+        ("# timebase=host-disciplined\n" if comment else "")
+        + "Phone timestamp;sensor timestamp [ns];X [raw];Y [raw];Z [raw]\n"
+        + "".join("%s;;1;2;3\n" % s for s in stamps)
+    )
 
 
 def test_file_host_span_sec_REFUSES_a_stamp_inside_the_repeated_hour(new_york, tmp_path):
@@ -267,8 +286,9 @@ def test_file_host_span_sec_REFUSES_a_stamp_inside_the_repeated_hour(new_york, t
     # THREE rows, so the refusal cannot come from the zero-span guard: walking past the ambiguous last
     # row would reach 00:45 and hand back a confident 900 s — a span shortened by the hour it skipped,
     # which reads as a gap that never happened. That is what must not happen.
-    _raw_host_file(p, "2026-11-01T00:30:00.000", "2026-11-01T00:45:00.000",
-                   "2026-11-01T01:30:00.000")                                # 01:30 occurs TWICE
+    _raw_host_file(
+        p, "2026-11-01T00:30:00.000", "2026-11-01T00:45:00.000", "2026-11-01T01:30:00.000"
+    )  # 01:30 occurs TWICE
     assert nightqc.file_host_span_sec(str(p)) is None, "an ambiguous endpoint must refuse, not shorten"
 
 
@@ -291,10 +311,12 @@ def test_file_host_span_sec_walks_past_a_TORN_row_but_not_past_an_ambiguous_one(
     has no stamp at all, and a missing endpoint is not a wrong one, so it is skipped exactly as
     `file_span_sec` skips one. Only ambiguity refuses."""
     p = tmp_path / "Wellue_O2Ring-S_S8AW2100_20261031220000_ACCRAW.txt"
-    p.write_text("Phone timestamp;sensor timestamp [ns];X [raw];Y [raw];Z [raw]\n"
-                 "2026-10-31T22:00:00.000;;1;2;3\n"
-                 "2026-10-31T23:30:00.000;;1;2;3\n"
-                 "2026-10-31T23:3")                      # torn mid-write, no stamp to read
+    p.write_text(
+        "Phone timestamp;sensor timestamp [ns];X [raw];Y [raw];Z [raw]\n"
+        "2026-10-31T22:00:00.000;;1;2;3\n"
+        "2026-10-31T23:30:00.000;;1;2;3\n"
+        "2026-10-31T23:3"
+    )  # torn mid-write, no stamp to read
     assert nightqc.file_host_span_sec(str(p)) == 5400.0
 
 
@@ -312,6 +334,7 @@ def test_file_host_span_sec_reads_past_a_LEADING_COMMENT(new_york, tmp_path):
 # Each is a way `file_host_span_sec` returns None. They are separated because the CALLER publishes
 # "no-duration-basis" for all of them, and a reader of that reason should be able to find which shape
 # produced it here rather than guessing.
+
 
 def test_host_span_refuses_an_empty_file(utc, tmp_path):
     """No header at all — a file created and never written to, which a killed session leaves behind."""
@@ -331,8 +354,10 @@ def test_host_span_refuses_a_file_that_is_ALL_comments(utc, tmp_path):
 def test_host_span_refuses_when_no_row_in_reach_carries_a_stamp(utc, tmp_path):
     """Same bound on the other scan: a header, then more blank-stamp rows than it will look through."""
     p = tmp_path / "Wellue_O2Ring-S_S8AW2100_20261031220000_ACCRAW.txt"
-    p.write_text("Phone timestamp;sensor timestamp [ns];X [raw];Y [raw];Z [raw]\n"
-                 + "".join(";;1;2;3\n" for _ in range(nightqc._HOST_SPAN_SCAN_ROWS + 20)))
+    p.write_text(
+        "Phone timestamp;sensor timestamp [ns];X [raw];Y [raw];Z [raw]\n"
+        + "".join(";;1;2;3\n" for _ in range(nightqc._HOST_SPAN_SCAN_ROWS + 20))
+    )
     assert nightqc.file_host_span_sec(str(p)) is None
 
 
@@ -356,8 +381,7 @@ def test_host_span_refuses_a_file_whose_stamps_RUN_BACKWARDS(utc, tmp_path):
     """An RTC step mid-file leaves every later stamp earlier than the first. There is no span to state:
     the difference would be negative, and clamping it to zero is the fabricated-measurement direction."""
     p = tmp_path / "Wellue_O2Ring-S_S8AW2100_20261031230000_ACCRAW.txt"
-    _raw_host_file(p, "2026-10-31T23:00:00.000", "2026-10-31T22:00:00.000",
-                   "2026-10-31T22:00:01.000")
+    _raw_host_file(p, "2026-10-31T23:00:00.000", "2026-10-31T22:00:00.000", "2026-10-31T22:00:01.000")
     assert nightqc.file_host_span_sec(str(p)) is None
 
 
@@ -365,10 +389,12 @@ def test_host_span_skips_a_row_TRUNCATED_before_the_stamp_column(utc, tmp_path):
     """A row cut short mid-write has fewer fields than the header — no stamp to read, so it is skipped
     like any torn row rather than refusing the file."""
     p = tmp_path / "Wellue_O2Ring-S_S8AW2100_20261031220000_ACCRAW.txt"
-    p.write_text("Phone timestamp;sensor timestamp [ns];X [raw];Y [raw];Z [raw]\n"
-                 "2026-10-31T22:00:00.000;;1;2;3\n"
-                 "2026-10-31T23:30:00.000;;1;2;3\n"
-                 "\n")
+    p.write_text(
+        "Phone timestamp;sensor timestamp [ns];X [raw];Y [raw];Z [raw]\n"
+        "2026-10-31T22:00:00.000;;1;2;3\n"
+        "2026-10-31T23:30:00.000;;1;2;3\n"
+        "\n"
+    )
     assert nightqc.file_host_span_sec(str(p)) == 5400.0
 
 
@@ -388,10 +414,12 @@ def test_host_span_does_not_depend_on_the_stamp_being_the_FIRST_column(utc, tmp_
     moved the stamp would otherwise turn a truncated row into an IndexError inside a whole-night scan,
     which fails the report rather than the row. This is the test that says so."""
     p = tmp_path / "Wellue_O2Ring-S_S8AW2100_20261031220000_ACCRAW.txt"
-    p.write_text("seq;Phone timestamp;sensor timestamp [ns];X [raw]\n"
-                 "1;2026-10-31T22:00:00.000;;1\n"
-                 "2;2026-10-31T23:30:00.000;;1\n"
-                 "3\n")                                  # truncated BEFORE the stamp column
+    p.write_text(
+        "seq;Phone timestamp;sensor timestamp [ns];X [raw]\n"
+        "1;2026-10-31T22:00:00.000;;1\n"
+        "2;2026-10-31T23:30:00.000;;1\n"
+        "3\n"
+    )  # truncated BEFORE the stamp column
     assert nightqc.file_host_span_sec(str(p)) == 5400.0
 
 
@@ -401,9 +429,8 @@ def test_host_span_refuses_when_the_tail_window_holds_only_EARLIER_rows(utc, tmp
     start and there is no span to state. The short version of this returns at the zero-span guard
     instead, because the first row is still inside the window — which is why this one is long."""
     p = tmp_path / "Wellue_O2Ring-S_S8AW2100_20261031230000_ACCRAW.txt"
-    rows = ["2026-10-31T23:00:00.000;;1;2;3"]                      # then the clock steps back an hour
+    rows = ["2026-10-31T23:00:00.000;;1;2;3"]  # then the clock steps back an hour
     rows += ["2026-10-31T22:%02d:%02d.000;;1;2;3" % (m, s) for m in range(20) for s in range(60)]
-    p.write_text("Phone timestamp;sensor timestamp [ns];X [raw];Y [raw];Z [raw]\n"
-                 + "\n".join(rows) + "\n")
+    p.write_text("Phone timestamp;sensor timestamp [ns];X [raw];Y [raw];Z [raw]\n" + "\n".join(rows) + "\n")
     assert p.stat().st_size > (1 << 13), "the plant needs the first row OUTSIDE the tail window"
     assert nightqc.file_host_span_sec(str(p)) is None

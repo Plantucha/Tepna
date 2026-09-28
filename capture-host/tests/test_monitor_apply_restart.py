@@ -11,6 +11,7 @@ like. Reading the source is the only check that can fail against them.
 Each test below was run against the UNFIXED text and observed to FAIL. A test that cannot fail against
 the defect it names is a green that certifies nothing.
 """
+
 from __future__ import annotations
 import pathlib
 import re
@@ -39,8 +40,7 @@ def test_every_daemon_post_sends_verb_not_action():
     bodies = re.findall(r"/api/daemon.*?JSON\.stringify\((\{.*?\})\)", MON, re.S)
     assert bodies, "no /api/daemon POST found — the selector this test scans for has moved"
     for b in bodies:
-        assert "action:" not in b, (
-            f"/api/daemon takes `verb`, never `action` — this body would 400: {b[:80]}")
+        assert "action:" not in b, f"/api/daemon takes `verb`, never `action` — this body would 400: {b[:80]}"
 
 
 def test_the_ids_the_save_path_writes_to_exist_in_the_markup():
@@ -50,7 +50,8 @@ def test_the_ids_the_save_path_writes_to_exist_in_the_markup():
     save made from the Devices panel."""
     for ident in ("setMsg", "devSetMsg", "devApplyBtn"):
         assert re.search(rf"""id=["']{ident}["']""", MON), (
-            f"the script addresses #{ident} but no element declares that id")
+            f"the script addresses #{ident} but no element declares that id"
+        )
 
 
 def test_apply_restart_is_hidden_until_the_server_asks_for_it():
@@ -58,6 +59,8 @@ def test_apply_restart_is_hidden_until_the_server_asks_for_it():
     none, on a daemon that is writing a night. It must be revealed by the server's `restart_needed`
     and by nothing else."""
     assert re.search(r"""id=["']devApplyBtn["'][^>]*style=["'][^"']*display:\s*none""", MON), (
-        "#devApplyBtn must render hidden")
+        "#devApplyBtn must render hidden"
+    )
     assert re.search(r"showApplyRestart\(\s*!!\(\s*r\.ok\s*&&\s*r\.restart_needed\s*\)\s*\)", MON), (
-        "the reveal must be driven by the server's restart_needed, not by a local guess")
+        "the reveal must be driven by the server's restart_needed, not by a local guess"
+    )

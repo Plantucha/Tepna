@@ -13,6 +13,7 @@ Two layers of proof:
   gold standard — decode a GENUINE AirSense 11 file and re-encode it; the bytes must match exactly. That
   is what proves the writer reproduces what the device wrote, checksum and all.
 """
+
 import glob
 import os
 import struct
@@ -50,7 +51,7 @@ def _read_back(edf):
 
 
 def test_build_brp_shape_and_scaling():
-    flow = [0.0, 1.0, -1.0] + [0.0] * 22        # 25 samples = one 1 s record
+    flow = [0.0, 1.0, -1.0] + [0.0] * 22  # 25 samples = one 1 s record
     press = [10.0] * 25
     edf = E.build_brp(flow, press, (2026, 6, 13, 23, 14, 33), "23221590541", record_seconds=1)
     back = _read_back(edf)
@@ -96,12 +97,13 @@ def test_build_pld_empty_is_a_zero_record_file():
 # ── EVE constructor (EDF+ TAL annotations) ───────────────────────────────────────
 def _tal_bytes(edf, r, ann_spr=31):
     ann = next(s for s in edf.signals if "Annotation" in s.label)
-    return struct.pack(f"<{ann_spr}h", *ann.samples[r * ann_spr:(r + 1) * ann_spr]).rstrip(b"\x00")
+    return struct.pack(f"<{ann_spr}h", *ann.samples[r * ann_spr : (r + 1) * ann_spr]).rstrip(b"\x00")
 
 
 def test_build_eve_tal_format_matches_the_device():
-    edf = E.build_eve([(186, 12, "Central Apnea"), (282, 41, "Obstructive Apnea")],
-                      (2026, 6, 13, 23, 14, 33), "23221590541")
+    edf = E.build_eve(
+        [(186, 12, "Central Apnea"), (282, 41, "Obstructive Apnea")], (2026, 6, 13, 23, 14, 33), "23221590541"
+    )
     assert edf.reserved == "EDF+D" and edf.record_duration == "0.00"
     # a 'Recording starts' TAL is prepended, then one event per record
     assert edf.n_records == 3
@@ -136,7 +138,7 @@ def test_read_edf_rejects_a_truncated_header():
 def test_read_edf_rejects_an_inconsistent_header_byte_count():
     edf = E.build_brp([0.0] * 25, [0.0] * 25, (2026, 1, 1, 0, 0, 0), "S1", record_seconds=1)
     raw = bytearray(E.write_edf(edf))
-    raw[184:192] = b"999     "     # corrupt the header-bytes field
+    raw[184:192] = b"999     "  # corrupt the header-bytes field
     with pytest.raises(ValueError, match="header-bytes"):
         E.read_edf(bytes(raw))
 
@@ -179,7 +181,8 @@ def test_reencoding_a_real_file_is_byte_identical(path):
     diff = [i for i in range(len(raw)) if raw[i] != out[i]]
     assert all(8 <= i < 88 for i in diff), (
         f"re-encode diverged OUTSIDE the patient field at {[i for i in diff if not 8 <= i < 88][:8]}: "
-        f"{path} — the de-identification exemption covers bytes 8..87 and nothing else")
+        f"{path} — the de-identification exemption covers bytes 8..87 and nothing else"
+    )
 
 
 # ── exact-field assertions (self-contained; the corpus byte-identity test skips inside the mutation
@@ -194,8 +197,9 @@ def test_constructed_brp_every_header_field_is_exact():
     _pat = b.patient_id.split()
     assert _pat[:4] == ["X", "X", "X", "X"], f"de-identified prefix lost: {b.patient_id!r}"
     assert len(_pat) == 6, f"expected two header CRC tokens, got {b.patient_id!r}"
-    assert all(len(t) == 4 and all(c in "0123456789ABCDEF" for c in t) for t in _pat[4:]), \
+    assert all(len(t) == 4 and all(c in "0123456789ABCDEF" for c in t) for t in _pat[4:]), (
         f"CRC tokens must be 4 upper-case hex digits: {_pat[4:]}"
+    )
     assert b.recording_id.strip() == "Startdate 13-JUN-2026 X X X SRN=23221590541 MID=46 VID=3"
     assert b.startdate == "13.06.26" and b.starttime == "23.14.33"
     assert b.reserved.strip() == "EDF" and b.record_duration.strip() == "1.00" and b.n_records == 1
@@ -204,13 +208,31 @@ def test_constructed_brp_every_header_field_is_exact():
         assert s.transducer == " " * 80, "transducer field must be blank, not None-stringified"
         assert s.prefilter == " " * 80, "prefilter field must be blank"
         assert s.reserved == " " * 32, "signal-reserved field must be blank"
-    assert (flow.label.strip(), flow.dim.strip(), flow.pmin.strip(), flow.pmax.strip(),
-            flow.dmin.strip(), flow.dmax.strip()) == ("Flow.40ms", "L/s", "-2.00", "3.00", "-1000", "1500")
-    assert (press.label.strip(), press.dim.strip(), press.pmin.strip(), press.pmax.strip(),
-            press.dmin.strip(), press.dmax.strip()) == ("Press.40ms", "cmH2O", "0.00", "40.00", "0", "2000")
+    assert (
+        flow.label.strip(),
+        flow.dim.strip(),
+        flow.pmin.strip(),
+        flow.pmax.strip(),
+        flow.dmin.strip(),
+        flow.dmax.strip(),
+    ) == ("Flow.40ms", "L/s", "-2.00", "3.00", "-1000", "1500")
+    assert (
+        press.label.strip(),
+        press.dim.strip(),
+        press.pmin.strip(),
+        press.pmax.strip(),
+        press.dmin.strip(),
+        press.dmax.strip(),
+    ) == ("Press.40ms", "cmH2O", "0.00", "40.00", "0", "2000")
     # Crc16 carries the ASYMMETRIC physical strings verbatim ('-32768.0' one decimal, '32767.00' two)
-    assert (crc.label.strip(), crc.pmin, crc.pmax, crc.dmin.strip(), crc.dmax.strip(), crc.spr) == \
-           ("Crc16", "-32768.0", "32767.00", "-32768", "32767", 1)
+    assert (crc.label.strip(), crc.pmin, crc.pmax, crc.dmin.strip(), crc.dmax.strip(), crc.spr) == (
+        "Crc16",
+        "-32768.0",
+        "32767.00",
+        "-32768",
+        "32767",
+        1,
+    )
 
 
 def test_constructed_brp_uses_the_documented_default_record_length():
@@ -220,8 +242,10 @@ def test_constructed_brp_uses_the_documented_default_record_length():
 
 def test_constructed_pld_specs_are_exact():
     b = E.read_edf(E.write_edf(E.build_pld({"Leak.2s": [0.0]}, (2026, 1, 1, 0, 0, 0), "S1", record_seconds=2)))
-    got = [(s.label.strip(), s.dim.strip(), s.pmin.strip(), s.pmax.strip(), s.dmin.strip(), s.dmax.strip())
-           for s in b.signals]
+    got = [
+        (s.label.strip(), s.dim.strip(), s.pmin.strip(), s.pmax.strip(), s.dmin.strip(), s.dmax.strip())
+        for s in b.signals
+    ]
     assert got == [
         ("MaskPress.2s", "cmH2O", "0.00", "40.00", "0", "2000"),
         ("Press.2s", "cmH2O", "0.00", "50.00", "0", "2500"),
@@ -249,8 +273,18 @@ def test_partial_records_are_padded_with_ZERO_flow_not_one():
 
 def test_read_edf_accepts_a_minimal_zero_signal_header():
     # exactly 256 bytes, ns=0 ⇒ a valid header with no signals. Pins `< 256` (not `<= 256`).
-    hdr = (b"0       " + b" " * 80 + b" " * 80 + b"01.01.26" + b"00.00.00" + b"256     "
-           + b" " * 44 + b"0       " + b"1.00    " + b"0   ")
+    hdr = (
+        b"0       "
+        + b" " * 80
+        + b" " * 80
+        + b"01.01.26"
+        + b"00.00.00"
+        + b"256     "
+        + b" " * 44
+        + b"0       "
+        + b"1.00    "
+        + b"0   "
+    )
     assert len(hdr) == 256
     edf = E.read_edf(hdr)
     assert edf.signals == [] and edf.n_records == 0
@@ -277,7 +311,7 @@ def test_tal_annotation_that_exactly_fills_the_record_is_accepted():
 
 # ── remaining exactness: PLD header, padding, the crc lane value, and the reserved-field offset ─────────
 def test_constructed_pld_header_is_exact():
-    edf = E.build_pld({"Leak.2s": [0.0]}, (2026, 6, 13, 0, 0, 0), "SER7")   # default record_seconds
+    edf = E.build_pld({"Leak.2s": [0.0]}, (2026, 6, 13, 0, 0, 0), "SER7")  # default record_seconds
     assert edf.record_duration == "60.00", "default PLD record is 60 s"
     assert "SRN=SER7 MID=46 VID=3" in edf.recording_id
 
@@ -294,6 +328,7 @@ def test_the_crc_lane_holds_the_computed_checksum_not_a_placeholder():
     """write_edf must RECOMPUTE the Crc16 lane from each record's data bytes — not emit the [0]
     placeholder. Pins that the crc signal is found and filled (a crc_idx=None mutation drops to zeros)."""
     import struct as _s
+
     flow = [0.3, -0.4, 0.5] + [0.1] * 22
     press = [12.0, 13.0, 14.0] + [10.0] * 22
     edf = E.build_brp(flow, press, (2026, 1, 1, 0, 0, 0), "S1", record_seconds=1)

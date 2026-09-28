@@ -64,7 +64,7 @@ def test_THIS_RUNG_DEMANDS_MORE_EVIDENCE_THAN_THE_DEAFNESS_RUNG():
     threshold across would be the reasoning error, not the number itself."""
     from capture import radio_looks_deaf  # the sibling rung, for the comparison this test is about
 
-    deaf_rounds = 2                       # its documented default
+    deaf_rounds = 2  # its documented default
     assert radio_looks_deaf(0, False, deaf_rounds, deaf_rounds) is True
     assert W.MIN_ABSENT_ROUNDS > deaf_rounds, (
         "the partial-wedge rung must require MORE consecutive evidence than the deafness rung, "
@@ -167,8 +167,7 @@ def test_THE_WINDOW_IS_GENEROUS_BECAUSE_ERRING_SHORT_FABRICATES_AN_ABSENCE():
 def test_A_FIRE_ROUND_TRIPS_THROUGH_THE_JOURNAL():
     text = "fired_ms;device;reason;error_class\n" + W.fire_row(T0, "cpap", "missed 20 rounds", "BleakError")
     rows = W.parse_fires(text)
-    assert rows == [{"fired_ms": T0, "device": "cpap", "reason": "missed 20 rounds",
-                     "error_class": "BleakError"}]
+    assert rows == [{"fired_ms": T0, "device": "cpap", "reason": "missed 20 rounds", "error_class": "BleakError"}]
 
 
 def test_A_SEMICOLON_IN_A_REASON_CANNOT_BREAK_THE_COLUMNS():

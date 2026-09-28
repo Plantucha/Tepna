@@ -474,7 +474,7 @@ def test_A_FAILED_POLL_NOTIFIES_THE_CALLER_WITH_THE_EXCEPTION():
 
 
 def test_NO_HOOK_IS_NOT_AN_ERROR():
-    R._notify_unreachable(None, OSError("boom"))     # must simply return
+    R._notify_unreachable(None, OSError("boom"))  # must simply return
 
 
 def test_A_HOOK_THAT_RAISES_DOES_NOT_BECOME_A_SECOND_FAILURE():
@@ -483,4 +483,4 @@ def test_A_HOOK_THAT_RAISES_DOES_NOT_BECOME_A_SECOND_FAILURE():
     def _boom(_exc):
         raise RuntimeError("hook exploded")
 
-    R._notify_unreachable(_boom, OSError("boom"))    # must not raise
+    R._notify_unreachable(_boom, OSError("boom"))  # must not raise

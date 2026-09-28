@@ -13,6 +13,7 @@ CLOSED 2026-09-01: `top_status_keys()` now covers the top-level shape and the re
 enumerated shapes with counts, so the "0 unexplained" carries its filter (see
 `test_find_unwired.py`'s top-shape tests, which plant exactly this class).
 """
+
 import re
 
 from _srcscan import module_source
@@ -31,8 +32,9 @@ def test_THE_MONITOR_DRAWS_IT():
     the part-(a) fold, the SAME rule covers the adapter verdict and the switch events: forwarded
     fields that the renderer is not handed are the dead end reborn one argument over."""
     src = module_source("monitor.html")
-    assert "renderRadioDistress(s.radio_distress, s.radio_distress_adapter, s.radio_switches)" in src, \
+    assert "renderRadioDistress(s.radio_distress, s.radio_distress_adapter, s.radio_switches)" in src, (
         "forwarded but never called with the forwarded fields"
+    )
     assert 'id="rdPill"' in src, "called but no element to write into"
 
 
@@ -42,7 +44,7 @@ def test_AN_UNRUN_SCAN_RENDERS_NOTHING_RATHER_THAN_OK():
     exists to prevent one level down."""
     src = module_source("monitor.html")
     i = src.index("function renderRadioDistress")
-    body = src[i:i + 1600]
+    body = src[i : i + 1600]
     assert "card.hidden = true" in body and "names.length" in body
     assert "never a fake ok" in body
 
@@ -58,9 +60,10 @@ def test_THE_WORST_DEVICE_WINS_AND_UNKNOWN_OUTRANKS_OK():
     together (found 2026-09-01, statically, while wiring the adapter fold). The rank keys are now
     asserted against the module constants, so the two vocabularies cannot drift apart silently."""
     import link_distress as D
+
     src = module_source("monitor.html")
     i = src.index("function renderRadioDistress")
-    body = src[i:i + 2600]
+    body = src[i : i + 2600]
     m = re.search(r"rank\s*=\s*\{([^}]*)\}", body)
     assert m, "no explicit ranking — the worst-device rule must be stated, not implied"
     rank = m.group(1)
@@ -78,7 +81,7 @@ def test_THE_PUBLICATION_SITE_STATES_THE_REAL_CONSTRAINT_AND_THE_ARMING_RULE():
     src = module_source("capture.py")
     assert "SINGLE GLOBAL PIN" in src, "the real reason per-device verdicts stay report-only must be stated"
     i = src.index('STATUS["radio_distress_adapter"]')
-    site = src[i - 2500:i + 2500]
+    site = src[i - 2500 : i + 2500]
     assert "adapter_verdict" in site, "the fold must be computed at the publication site"
     assert "distress_failover" in site, "the arm must be gated on the config flag"
     assert "ARMING IS THE OWNER'S" in site, "the arming rule must be readable at the flag"

@@ -59,9 +59,11 @@ def night_profile(night_dir: str, devices: list[dict]) -> dict:
     # heterogeneous (str · list|None · dict), so its value type is `object`, and indexing an `object`
     # is not a type error the annotation can talk its way out of — it is the annotation being honest.
     dev_rows: dict[str, dict] = {}
-    out: dict[str, object] = {"night": os.path.basename(night_dir.rstrip("/")),
-           "adapter": sorted(set(stamps.values())) or None,
-           "devices": dev_rows}
+    out: dict[str, object] = {
+        "night": os.path.basename(night_dir.rstrip("/")),
+        "adapter": sorted(set(stamps.values())) or None,
+        "devices": dev_rows,
+    }
     for d in devices:
         # A nameless device previously keyed its row under a literal `null` in the emitted JSON. The
         # address is the identity that always exists (`ble-identity-is-address-only`), so it is the
@@ -92,14 +94,23 @@ def compare(a: dict, b: dict) -> dict:
     rows = []
     for name in sorted(set(a["devices"]) | set(b["devices"])):
         da, db = a["devices"].get(name) or {}, b["devices"].get(name) or {}
+
         def d(k):
             x, y = da.get(k), db.get(k)
             return round(y - x, 2) if isinstance(x, (int, float)) and isinstance(y, (int, float)) else None
-        rows.append({"device": name, "a": da, "b": db,
-                     "d_rssi_median": d("rssi_median"), "d_rssi_p10": d("rssi_p10"),
-                     "d_frac_below_85": d("frac_below_85"), "d_reconnects_per_h": d("reconnects_per_h")})
-    return {"a": a["night"], "b": b["night"],
-            "adapter_a": a["adapter"], "adapter_b": b["adapter"], "rows": rows}
+
+        rows.append(
+            {
+                "device": name,
+                "a": da,
+                "b": db,
+                "d_rssi_median": d("rssi_median"),
+                "d_rssi_p10": d("rssi_p10"),
+                "d_frac_below_85": d("frac_below_85"),
+                "d_reconnects_per_h": d("reconnects_per_h"),
+            }
+        )
+    return {"a": a["night"], "b": b["night"], "adapter_a": a["adapter"], "adapter_b": b["adapter"], "rows": rows}
 
 
 def unattributable(*profiles: dict) -> list[str]:
@@ -116,16 +127,22 @@ def render(cmp_: dict) -> str:
     L.append(f"  A: {cmp_['a']}  adapter={cmp_['adapter_a']}")
     L.append(f"  B: {cmp_['b']}  adapter={cmp_['adapter_b']}")
     L.append("")
-    L.append(f"  {'device':22s} {'rssi med A/B':>16s} {'Δmed':>7s} {'p10 A/B':>14s} {'Δp10':>7s} "
-             f"{'<-85dBm A/B':>15s} {'recon/h A/B':>13s}")
+    L.append(
+        f"  {'device':22s} {'rssi med A/B':>16s} {'Δmed':>7s} {'p10 A/B':>14s} {'Δp10':>7s} "
+        f"{'<-85dBm A/B':>15s} {'recon/h A/B':>13s}"
+    )
     for r in cmp_["rows"]:
         a, b = r["a"], r["b"]
+
         def pair(k, f="{}"):
             x, y = a.get(k), b.get(k)
             return f"{'—' if x is None else f.format(x)}/{'—' if y is None else f.format(y)}"
-        L.append(f"  {r['device']:22s} {pair('rssi_median'):>16s} {str(r['d_rssi_median'] or '—'):>7s} "
-                 f"{pair('rssi_p10'):>14s} {str(r['d_rssi_p10'] or '—'):>7s} "
-                 f"{pair('frac_below_85'):>15s} {pair('reconnects_per_h'):>13s}")
+
+        L.append(
+            f"  {r['device']:22s} {pair('rssi_median'):>16s} {str(r['d_rssi_median'] or '—'):>7s} "
+            f"{pair('rssi_p10'):>14s} {str(r['d_rssi_p10'] or '—'):>7s} "
+            f"{pair('frac_below_85'):>15s} {pair('reconnects_per_h'):>13s}"
+        )
     L.append("")
     L.append("  Δ is B − A. Positive Δrssi = B heard the sensor MORE strongly.")
     L.append("  One night vs one night is SUGGESTIVE, not conclusive: body position, room, battery and")

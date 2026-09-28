@@ -12,6 +12,7 @@ read from a key that does not exist.
 None of that raises. A clamp that lost its lower bound renders a timeline with one bucket; a builder
 called with `None` for devices draws an empty chart. Both look like a quiet night.
 """
+
 import os
 import sys
 
@@ -31,14 +32,17 @@ def _app_with_night(tmp_path, devices=None):
 
 def _get(app, query="", capture=None):
     if capture is not None:
+
         def rec(path, devs, buckets):
             capture.append({"path": path, "devices": devs, "buckets": buckets})
             return {"night": NIGHT, "buckets": buckets}
+
         webmon._timeline.build = rec
 
     async def go(c):
         r = await c.get(f"/api/timeline{query}")
         return r.status, await r.json()
+
     return _serve(app, go)
 
 
@@ -52,8 +56,10 @@ def _restore_build():
 # ── the three arguments the builder is given ────────────────────────────────────────────────────────
 def test_the_builder_is_aimed_at_the_night_under_the_configured_root(tmp_path):
     seen = []
-    app = _app_with_night(tmp_path, devices=[{"name": "H10", "vendor": "Polar", "model": "H10",
-                                              "device_id": "1", "address": "A", "rates": {}}])
+    app = _app_with_night(
+        tmp_path,
+        devices=[{"name": "H10", "vendor": "Polar", "model": "H10", "device_id": "1", "address": "A", "rates": {}}],
+    )
     status, _ = _get(app, f"?night={NIGHT}", capture=seen)
     assert status == 200
     assert seen[0]["path"] == os.path.join(str(tmp_path), "captures", NIGHT)
@@ -62,21 +68,23 @@ def test_the_builder_is_aimed_at_the_night_under_the_configured_root(tmp_path):
 def test_the_configured_devices_reach_the_builder(tmp_path):
     """`timeline.build` needs the device list to label and order its lanes. Handed nothing, it still
     returns — with no lanes, which renders as a night on which no sensor recorded."""
-    devs = [{"name": "H10", "vendor": "Polar", "model": "H10", "device_id": "1",
-             "address": "A", "rates": {}}]
+    devs = [{"name": "H10", "vendor": "Polar", "model": "H10", "device_id": "1", "address": "A", "rates": {}}]
     seen = []
     _get(_app_with_night(tmp_path, devices=devs), f"?night={NIGHT}", capture=seen)
     assert seen[0]["devices"] == devs
 
 
 # ── the bucket clamp ────────────────────────────────────────────────────────────────────────────────
-@pytest.mark.parametrize("asked,expect", [
-    ("1", 20),            # below the floor -> floor. A 1-bucket timeline is a single block.
-    ("20", 20),           # the floor itself is ALLOWED, not bumped
-    ("300", 300),         # in range, passed through untouched
-    ("600", 600),         # the ceiling itself is ALLOWED
-    ("100000", 600),      # above the ceiling -> ceiling
-])
+@pytest.mark.parametrize(
+    "asked,expect",
+    [
+        ("1", 20),  # below the floor -> floor. A 1-bucket timeline is a single block.
+        ("20", 20),  # the floor itself is ALLOWED, not bumped
+        ("300", 300),  # in range, passed through untouched
+        ("600", 600),  # the ceiling itself is ALLOWED
+        ("100000", 600),  # above the ceiling -> ceiling
+    ],
+)
 def test_the_bucket_count_is_clamped_to_its_stated_range(tmp_path, asked, expect):
     seen = []
     _get(_app_with_night(tmp_path), f"?night={NIGHT}&buckets={asked}", capture=seen)
@@ -104,11 +112,10 @@ def test_the_night_is_read_from_the_night_query_key(tmp_path):
     caps = tmp_path / "captures"
     (caps / NIGHT).mkdir(parents=True)
     (caps / "2026-07-01").mkdir()
-    os.utime(str(caps / NIGHT), (9_000_000_000, 9_000_000_000))    # newest activity
+    os.utime(str(caps / NIGHT), (9_000_000_000, 9_000_000_000))  # newest activity
     seen = []
     _get(_mk(tmp_path)[0], "?night=2026-07-01", capture=seen)
-    assert seen[0]["path"].endswith("2026-07-01"), \
-        "an explicitly requested night must win over the auto-selected one"
+    assert seen[0]["path"].endswith("2026-07-01"), "an explicitly requested night must win over the auto-selected one"
 
 
 # ── the cache ───────────────────────────────────────────────────────────────────────────────────────
@@ -121,12 +128,14 @@ def test_a_cached_hit_returns_the_stored_PAYLOAD_not_its_timestamp(tmp_path):
     def counted(path, devs, buckets):
         calls["n"] += 1
         return {"night": NIGHT, "marker": "built-once"}
+
     webmon._timeline.build = counted
 
     async def go(c):
         a = await (await c.get(f"/api/timeline?night={NIGHT}")).json()
         b = await (await c.get(f"/api/timeline?night={NIGHT}")).json()
         return a, b
+
     first, second = _serve(app, go)
     assert calls["n"] == 1, "the second request inside the window must not rebuild"
     assert first == second == {"night": NIGHT, "marker": "built-once"}
@@ -141,11 +150,13 @@ def test_a_different_bucket_count_is_a_different_cache_entry(tmp_path):
     def rec(path, devs, buckets):
         seen.append(buckets)
         return {"night": NIGHT, "buckets": buckets}
+
     webmon._timeline.build = rec
 
     async def go(c):
         a = await (await c.get(f"/api/timeline?night={NIGHT}&buckets=100")).json()
         b = await (await c.get(f"/api/timeline?night={NIGHT}&buckets=200")).json()
         return a, b
+
     a, b = _serve(app, go)
     assert seen == [100, 200] and a["buckets"] == 100 and b["buckets"] == 200

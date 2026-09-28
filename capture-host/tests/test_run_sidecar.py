@@ -18,8 +18,16 @@ import os
 import pytest
 
 import writers
-from writers import (HELD_CONFIRM_WINDOWS, HELD_EXIT_SHARE, HELD_TOP2_SHARE, HELD_WARMUP_RUNS, RUN_MIN_BY_STREAM, T_STUCK, StreamWriter,
-                     _RunSidecar)
+from writers import (
+    HELD_CONFIRM_WINDOWS,
+    HELD_EXIT_SHARE,
+    HELD_TOP2_SHARE,
+    HELD_WARMUP_RUNS,
+    RUN_MIN_BY_STREAM,
+    T_STUCK,
+    StreamWriter,
+    _RunSidecar,
+)
 
 T0 = _dt.datetime(2026, 9, 6, 4, 53, 0)
 
@@ -31,8 +39,11 @@ def _phone(i: int, hz: float = 125.0) -> _dt.datetime:
 
 def _rows(path):
     """Data rows only — `#` comments and the header are not rows."""
-    return [ln.split(";") for ln in open(path).read().splitlines()
-            if ln and not ln.startswith("#") and not ln.startswith("Phone")]
+    return [
+        ln.split(";")
+        for ln in open(path).read().splitlines()
+        if ln and not ln.startswith("#") and not ln.startswith("Phone")
+    ]
 
 
 def _sidecar(p):
@@ -47,15 +58,16 @@ def _push(w, v, n, start=0, hz=125.0):
 
 # ── the rule itself ───────────────────────────────────────────────────────────────────────────
 
+
 def test_a_stuck_run_is_reported_and_a_legitimate_plateau_is_not(tmp_path):
     """A 12,411-sample constant baseline is reported; a 48-sample plateau (the measured p99.99 of
     real 8-bit pleth) is not. This is the whole reason the threshold is 200 and not 5: at any low
     threshold, 7.3 % of legitimate non-sentinel runs are >= 5 and the rule flags real signal."""
     p = tmp_path / "X_PPG.txt"
     w = StreamWriter(str(p), "ppg1", fsync=False)
-    i = _push(w, 3, 48)                      # p99.99 plateau — MUST NOT be reported
-    i = _push(w, 100, 12411, start=i)        # the real 97 s baseline hold — MUST be reported
-    i = _push(w, 7, 4, start=i)              # short tail so the long run closes normally
+    i = _push(w, 3, 48)  # p99.99 plateau — MUST NOT be reported
+    i = _push(w, 100, 12411, start=i)  # the real 97 s baseline hold — MUST be reported
+    i = _push(w, 7, 4, start=i)  # short tail so the long run closes normally
     w.close()
 
     rows = _rows(_sidecar(p))
@@ -119,7 +131,7 @@ def test_a_run_straddling_a_flush_is_ONE_run_not_two_pieces(tmp_path):
     for i in range(n):
         w.write_ppg(_phone(i), 0, 0.0, (8,), 0)
         if i == n // 2:
-            w.flush()                        # the event the accumulator must not see
+            w.flush()  # the event the accumulator must not see
     w.write_ppg(_phone(n), 0, 0.0, (9,), 0)
     w.close()
 
@@ -130,6 +142,7 @@ def test_a_run_straddling_a_flush_is_ONE_run_not_two_pieces(tmp_path):
 
 # ── which streams, and the zero-order-hold classifier ─────────────────────────────────────────
 
+
 def test_the_verity_three_column_branch_tracks_each_optical_channel_separately(tmp_path):
     """The Verity goes through the SAME write_ppg (3-column branch), so it gets a sidecar too —
     verified rather than assumed. `ambient` is excluded: a held ambient is not this absence."""
@@ -137,7 +150,7 @@ def test_the_verity_three_column_branch_tracks_each_optical_channel_separately(t
     w = StreamWriter(str(p), "ppg", fsync=False)
     n = T_STUCK + 3
     for i in range(n):
-        w.write_ppg(_phone(i), 0, 0.0, (4, i % 7, 6), 99)   # ch0/ch2 held, ch1 varies, ambient held
+        w.write_ppg(_phone(i), 0, 0.0, (4, i % 7, 6), 99)  # ch0/ch2 held, ch1 varies, ambient held
     w.close()
 
     got = {r[1]: r[4] for r in _rows(_sidecar(p))}
@@ -149,7 +162,7 @@ def test_ppg2w_tracks_both_channels_and_ignores_motion(tmp_path):
     w = StreamWriter(str(p), "ppg2w", fsync=False)
     n = T_STUCK + 2
     for i in range(n):
-        w.write_ppg2w(_phone(i), 0, 11, 22, i)              # motion varies every sample
+        w.write_ppg2w(_phone(i), 0, 11, 22, i)  # motion varies every sample
     w.close()
 
     assert _sidecar(p).endswith("_PPG2WRUNS.txt")
@@ -162,7 +175,7 @@ def test_a_zero_order_hold_stream_is_classified_held_and_emits_no_run_rows(tmp_p
     6 or 7. Those runs are the SAMPLING CADENCE, not absence. The stream is not excluded by name —
     the shape is measured, so a firmware change that ends the hold starts producing rows by itself."""
     sc = _RunSidecar(str(tmp_path / "A_ACC.txt"), "accraw", T_STUCK)
-    for r in range(HELD_WARMUP_RUNS + 5):                  # alternate 6/7-sample runs, as measured
+    for r in range(HELD_WARMUP_RUNS + 5):  # alternate 6/7-sample runs, as measured
         for k in range(6 + (r % 2)):
             sc.feed("X [raw]", r, _phone(r * 7 + k, hz=10.0))
     sc.close()
@@ -179,9 +192,9 @@ def test_a_varying_stream_is_classified_variable_and_its_warmup_rows_are_KEPT(tm
     that occurred at the start of a night."""
     sc = _RunSidecar(str(tmp_path / "B_PPG.txt"), "ppg1", 4)
     sc.feed("channel 0", 5, _phone(0))
-    for k in range(9):                                     # one long run inside the warm-up window
+    for k in range(9):  # one long run inside the warm-up window
         sc.feed("channel 0", 5, _phone(1 + k))
-    for r in range(HELD_WARMUP_RUNS + 2):                  # then varied lengths => not a hold
+    for r in range(HELD_WARMUP_RUNS + 2):  # then varied lengths => not a hold
         for k in range(1 + (r % 5)):
             sc.feed("channel 0", 100 + r, _phone(50 + r * 5 + k))
     sc.close()
@@ -204,12 +217,13 @@ def test_the_class_verdict_is_stamped_with_when_it_was_taken(tmp_path):
 
 # ── the seam, ownership, and failure isolation ────────────────────────────────────────────────
 
+
 def test_emit_run_is_the_ONE_seam_and_names_the_rule_that_found_the_span(tmp_path):
     """A back-check detector (clip/collapse/rail-run) writes through this same call, so every span in
     the corpus lands in ONE file shape with its rule in its own column. A second writer would be a
     second shape to reconcile later."""
     sc = _RunSidecar(str(tmp_path / "D_PPG.txt"), "ppg1", T_STUCK)
-    sc.klass["channel 0"] = "variable"                      # past the warm-up
+    sc.klass["channel 0"] = "variable"  # past the warm-up
     sc.emit_run("channel 0", 199, 40, 900, 7200.0, 1, "clip", T0)
     sc.close()
 
@@ -226,9 +240,9 @@ def test_clip_and_collapse_are_NOT_computed_live(tmp_path):
     and collapse needs a running median — O(window) per sample on the BLE notification path, where
     the failure mode is dropped notifications, i.e. losing the recording to describe it better."""
     src = open(writers.__file__).read()
-    body = src[src.index("class _RunSidecar"):src.index("class StreamWriter")]
+    body = src[src.index("class _RunSidecar") : src.index("class StreamWriter")]
     assert "median" not in body
-    assert "\"clip\"" not in body and "'clip'" not in body
+    assert '"clip"' not in body and "'clip'" not in body
 
 
 def test_the_sidecar_is_in_paths_so_a_pruned_session_cannot_orphan_it(tmp_path):
@@ -258,13 +272,13 @@ def test_a_sidecar_write_failure_is_ISOLATED_from_the_sample_stream_and_COUNTED(
     w._runs._fh = _Boom()
     n = T_STUCK + 2
     for i in range(n):
-        w.write_ppg(_phone(i), 0, 0.0, (1,), 0)            # must not raise
-    w.write_ppg(_phone(n), 0, 0.0, (2,), 0)                # closes the run -> write -> raises
+        w.write_ppg(_phone(i), 0, 0.0, (1,), 0)  # must not raise
+    w.write_ppg(_phone(n), 0, 0.0, (2,), 0)  # closes the run -> write -> raises
     w.close()
 
     assert w._runs.errors > 0, "isolation was silent — a swallowed failure must be counted"
-    assert w.rows == n + 1                                  # the recording itself is untouched
-    assert len(open(p).read().splitlines()) == n + 2         # header + every row
+    assert w.rows == n + 1  # the recording itself is untouched
+    assert len(open(p).read().splitlines()) == n + 2  # header + every row
 
 
 def test_a_sidecar_that_cannot_be_opened_does_not_stop_the_capture(tmp_path, monkeypatch):
@@ -313,12 +327,12 @@ def test_a_HELD_channel_that_gets_stuck_still_reports_it_at_EOF(tmp_path):
     already be classified — and a `held` class must not hide it. The ring's ACC repeats each sample
     6-7x by design; 200 identical samples is 20 s of one triplet, which is the failure."""
     sc = _RunSidecar(str(tmp_path / "E_ACC.txt"), "accraw", T_STUCK)
-    for r in range(HELD_WARMUP_RUNS + 2):                  # establish the hold class first
+    for r in range(HELD_WARMUP_RUNS + 2):  # establish the hold class first
         for k in range(6 + (r % 2)):
             sc.feed("X [raw]", r, _phone(r * 7 + k, hz=10.0))
     assert sc.klass["X [raw]"] == "held"
     base = (HELD_WARMUP_RUNS + 2) * 7
-    for k in range(T_STUCK + 50):                          # then the stream sticks, and never recovers
+    for k in range(T_STUCK + 50):  # then the stream sticks, and never recovers
         sc.feed("X [raw]", 4242, _phone(base + k, hz=10.0))
     sc.close()
 
@@ -332,7 +346,7 @@ def test_emit_run_on_a_closed_sidecar_is_a_no_op(tmp_path):
     """A back-check detector may hold a reference past teardown. Writing there must not raise."""
     sc = _RunSidecar(str(tmp_path / "F_PPG.txt"), "ppg1", T_STUCK)
     sc.close()
-    sc.emit_run("channel 0", 1, 0, 999, 1.0, 1, "pinned", T0)      # must not raise
+    sc.emit_run("channel 0", 1, 0, 999, 1.0, 1, "pinned", T0)  # must not raise
     assert sc._fh is None
 
 
@@ -345,7 +359,7 @@ def test_a_held_channel_still_suppresses_rows_BELOW_the_stuck_threshold(tmp_path
         for k in range(6 + (r % 2)):
             sc.feed("X [raw]", r, _phone(r * 7 + k, hz=10.0))
     assert sc.klass["X [raw]"] == "held"
-    sc.emit_run("X [raw]", 5, 10, 7, 700.0, 1, "pinned", T0)       # cadence-length, from a detector
+    sc.emit_run("X [raw]", 5, 10, 7, 700.0, 1, "pinned", T0)  # cadence-length, from a detector
     sc.close()
     assert [r for r in _rows(sc.path) if r[7] == "pinned"] == []
 
@@ -354,7 +368,7 @@ def test_rows_buffered_before_any_verdict_are_RELEASED_at_close(tmp_path):
     """A channel that never reaches the warm-up count still has its buffered rows written, marked
     `undecided`. Withholding them would silently lose spans on exactly the quietest recordings."""
     sc = _RunSidecar(str(tmp_path / "H_PPG.txt"), "ppg1", T_STUCK)
-    sc.emit_run("channel 0", 7, 3, 40, 320.0, 1, "pinned", T0)     # below T_STUCK, no verdict yet
+    sc.emit_run("channel 0", 7, 3, 40, 320.0, 1, "pinned", T0)  # below T_STUCK, no verdict yet
     assert _rows(sc.path) == [], "row was written before the class was known"
     sc.close()
 
@@ -406,15 +420,15 @@ def test_a_span_split_by_an_isolated_marker_is_ONE_span_not_two_fragments(tmp_pa
     p = tmp_path / "K_PPG.txt"
     w = StreamWriter(str(p), "ppg1", fsync=False)
     i = _push(w, 0, 150)
-    i = _push(w, 156, 1, start=i)            # the isolated marker, mid-span
+    i = _push(w, 156, 1, start=i)  # the isolated marker, mid-span
     i = _push(w, 0, 150, start=i)
-    i = _push(w, 44, 5, start=i)             # a real change of level closes the span
+    i = _push(w, 44, 5, start=i)  # a real change of level closes the span
     w.close()
 
     rows = _rows(_sidecar(p))
     assert len(rows) == 1, f"span was emitted as fragments: {rows}"
     assert rows[0][2] == "0"
-    assert rows[0][3] == "0"                 # the span starts where the FIRST fragment did
+    assert rows[0][3] == "0"  # the span starts where the FIRST fragment did
     assert rows[0][4] == "301", "n must span the whole event including the interrupting sample"
 
 
@@ -429,7 +443,7 @@ def test_a_REAL_sample_inside_a_span_is_never_merged_over(tmp_path):
     p = tmp_path / "L_PPG.txt"
     w = StreamWriter(str(p), "ppg1", fsync=False)
     i = _push(w, 0, 150)
-    i = _push(w, 2, 3, start=i)              # a REAL low sample, not an inserted annotation
+    i = _push(w, 2, 3, start=i)  # a REAL low sample, not an inserted annotation
     i = _push(w, 0, 150, start=i)
     i = _push(w, 44, 5, start=i)
     w.close()
@@ -445,7 +459,7 @@ def test_the_annotation_set_is_a_PARAMETER_not_a_literal_in_the_rule(tmp_path):
     import oxyii
 
     assert ANNOTATIONS_BY_STREAM["ppg1"] == frozenset({oxyii.PPG_BEAT_MARKER})
-    assert ANNOTATIONS_BY_STREAM["ppg"] == frozenset()          # Verity inserts nothing
+    assert ANNOTATIONS_BY_STREAM["ppg"] == frozenset()  # Verity inserts nothing
     assert ANNOTATIONS_BY_STREAM["acc"] == frozenset()
 
     # A stream with an empty annotation set does not merge, even across a marker-shaped interruption.
@@ -474,7 +488,7 @@ def test_an_interruption_LONGER_than_the_bound_does_not_merge(tmp_path):
     p = tmp_path / "M_PPG.txt"
     w = StreamWriter(str(p), "ppg1", fsync=False)
     i = _push(w, 0, 150)
-    i = _push(w, 156, 9, start=i)            # 9 > _ANNOTATION_GAP_MAX = 8
+    i = _push(w, 156, 9, start=i)  # 9 > _ANNOTATION_GAP_MAX = 8
     i = _push(w, 0, 150, start=i)
     i = _push(w, 44, 5, start=i)
     w.close()
@@ -488,7 +502,7 @@ def test_a_short_run_that_does_NOT_resume_the_held_value_is_not_merged_in(tmp_pa
     p = tmp_path / "N_PPG.txt"
     w = StreamWriter(str(p), "ppg1", fsync=False)
     i = _push(w, 0, T_STUCK + 10)
-    i = _push(w, 5, 2, start=i)              # short, but the next value is not 0
+    i = _push(w, 5, 2, start=i)  # short, but the next value is not 0
     i = _push(w, 90, 30, start=i)
     w.close()
 
@@ -502,9 +516,10 @@ def test_a_quantised_clean_sine_yields_ZERO_spans(tmp_path):
     ever emits a row, the rule is flagging physiology — and on real files that failure is invisible,
     because a flagged clean night and a genuinely bad night both just produce rows."""
     import math
+
     p = tmp_path / "O_PPG.txt"
     w = StreamWriter(str(p), "ppg1", fsync=False)
-    for i in range(20000):                   # ~160 s at 125 Hz, 8-bit, ~1.2 Hz pulse on a 100 baseline
+    for i in range(20000):  # ~160 s at 125 Hz, 8-bit, ~1.2 Hz pulse on a 100 baseline
         v = int(round(100 + 8 * math.sin(2 * math.pi * 1.2 * i / 125.0)))
         w.write_ppg(_phone(i), 0, 0.0, (v,), 0)
     w.close()
@@ -517,6 +532,7 @@ def test_the_comment_line_publishes_EVERY_parameter_that_shaped_the_rows(tmp_pat
     PRODUCED them, not whatever the defaults have moved to since. A parameter that changes behaviour
     and is not published is a silent divergence between the file and its re-derivation."""
     from writers import _ANNOTATION_GAP_MAX
+
     p = tmp_path / "P_PPG.txt"
     w = StreamWriter(str(p), "ppg1", fsync=False)
     i = _push(w, 0, 120)
@@ -526,9 +542,14 @@ def test_the_comment_line_publishes_EVERY_parameter_that_shaped_the_rows(tmp_pat
     w.close()
 
     body = open(_sidecar(p)).read()
-    for token in (f"t_stuck={T_STUCK}", f"merge_gap_max={_ANNOTATION_GAP_MAX}",
-                  f"held_warmup={HELD_WARMUP_RUNS}", f"held_top2_share={HELD_TOP2_SHARE}",
-                  f"held_exit_share={HELD_EXIT_SHARE}", f"held_confirm={HELD_CONFIRM_WINDOWS}"):
+    for token in (
+        f"t_stuck={T_STUCK}",
+        f"merge_gap_max={_ANNOTATION_GAP_MAX}",
+        f"held_warmup={HELD_WARMUP_RUNS}",
+        f"held_top2_share={HELD_TOP2_SHARE}",
+        f"held_exit_share={HELD_EXIT_SHARE}",
+        f"held_confirm={HELD_CONFIRM_WINDOWS}",
+    ):
         assert token in body, f"missing {token}"
     assert "merges=1" in body, "the merge count is not reported"
 
@@ -540,7 +561,7 @@ def test_a_recording_that_ends_ON_an_annotation_row_still_reports_the_span(tmp_p
     p = tmp_path / "Q_PPG.txt"
     w = StreamWriter(str(p), "ppg1", fsync=False)
     i = _push(w, 0, T_STUCK + 20)
-    _push(w, 156, 1, start=i)                # recording ends here, mid-merge-decision
+    _push(w, 156, 1, start=i)  # recording ends here, mid-merge-decision
     w.close()
 
     rows = _rows(_sidecar(p))
@@ -554,8 +575,8 @@ def test_a_channel_with_BOTH_buffered_rows_and_runs_is_released_once(tmp_path):
     marked and released exactly once, not twice."""
     sc = _RunSidecar(str(tmp_path / "R_PPG.txt"), "ppg1", T_STUCK)
     sc.feed("channel 0", 1, _phone(0))
-    sc.feed("channel 0", 2, _phone(1))        # a real run, so the channel is in the histogram
-    sc.emit_run("channel 0", 9, 0, 40, 320.0, 1, "pinned", T0)   # and in the buffer
+    sc.feed("channel 0", 2, _phone(1))  # a real run, so the channel is in the histogram
+    sc.emit_run("channel 0", 9, 0, 40, 320.0, 1, "pinned", T0)  # and in the buffer
     sc.close()
 
     body = open(sc.path).read()
@@ -594,10 +615,10 @@ def test_the_write_paths_guard_against_a_stream_that_has_no_sidecar(tmp_path):
     p = tmp_path / f"T_{_no_sidecar[0]}.txt"
     w = StreamWriter(str(p), _no_sidecar[0], fsync=False)
     assert w._runs is None
-    w.write_ppg(_phone(0), 0, 0.0, (1,), 0)           # must not raise
+    w.write_ppg(_phone(0), 0, 0.0, (1,), 0)  # must not raise
     w.write_ppg2w(_phone(1), 0, 11, 22, 3)
-    w.write_acc(_phone(2), None, 0.0, 1, 2, 3)        # ACC feeds the sidecar too, so it needs the guard
-    w.write_ecg(_phone(3), 1_000_000, 0.0, -25)       # and ECG since 2026-09-24, for the same reason
+    w.write_acc(_phone(2), None, 0.0, 1, 2, 3)  # ACC feeds the sidecar too, so it needs the guard
+    w.write_ecg(_phone(3), 1_000_000, 0.0, -25)  # and ECG since 2026-09-24, for the same reason
     w.close()
 
     assert not os.path.exists(_sidecar(p))
@@ -614,8 +635,8 @@ def test_a_failure_DURING_feed_is_isolated_from_the_live_write_path(tmp_path):
     which is why the assertion has to be about WHERE the failure happened, not just that it counted."""
     p = tmp_path / "U_PPG.txt"
     w = StreamWriter(str(p), "ppg1", fsync=False)
-    i = _push(w, 1, T_STUCK + 2)             # a span worth reporting, held pending a merge decision
-    i = _push(w, 2, 5, start=i)              # a short non-annotation run: the span is now flushable
+    i = _push(w, 1, T_STUCK + 2)  # a span worth reporting, held pending a merge decision
+    i = _push(w, 2, 5, start=i)  # a short non-annotation run: the span is now flushable
 
     class _Boom:
         def write(self, *_a, **_k):
@@ -632,12 +653,12 @@ def test_a_failure_DURING_feed_is_isolated_from_the_live_write_path(tmp_path):
     _push(w, 3, writers.BRACKET_WINDOW + 1, start=i)
     assert w._runs.errors > before, "feed's own guard never ran"
 
-    for k in range(10):                      # and the stream keeps recording afterwards
+    for k in range(10):  # and the stream keeps recording afterwards
         w.write_ppg(_phone(500 + k), 0, 0.0, (9,), 0)
     w.close()
 
     assert w.rows == T_STUCK + 2 + 5 + writers.BRACKET_WINDOW + 1 + 10
-    assert len(open(p).read().splitlines()) == w.rows + 1     # header + every sample row
+    assert len(open(p).read().splitlines()) == w.rows + 1  # header + every sample row
 
 
 def test_the_sidecar_publishes_WHAT_IT_EXAMINED_not_only_what_it_found(tmp_path):
@@ -659,7 +680,7 @@ def test_the_sidecar_publishes_WHAT_IT_EXAMINED_not_only_what_it_found(tmp_path)
     StreamWriter(str(never), "accraw", fsync=False).close()
     never_body = open(_sidecar(never)).read()
 
-    assert "runs=0" in fed_body and "runs=0" in never_body      # indistinguishable before this
+    assert "runs=0" in fed_body and "runs=0" in never_body  # indistinguishable before this
     assert "examined=90 channels=3" in fed_body
     assert "examined=0 channels=0" in never_body
     assert fed_body != never_body, "an unfed sidecar is still byte-identical to an examined one"
@@ -681,6 +702,7 @@ def test_each_channel_reports_what_IT_examined(tmp_path):
 # it passes under both the broken and the fixed criterion. That is why the inversion survived: the
 # fixture expressed an idealised hold, while the real one jitters. Every number below is measured.
 
+
 def test_INVERSION_a_never_repeating_stream_is_NOT_held(tmp_path):
     """Verity PPG, 2026-09-15 night: `mean_run=1.00 top2=1,2 share=1.000 class=held` over 1,286,760
     samples per channel — the classifier called the MOST VARIABLE POSSIBLE signal a hold.
@@ -689,7 +711,7 @@ def test_INVERSION_a_never_repeating_stream_is_NOT_held(tmp_path):
     concentrated its run lengths are. `held` would suppress the warm-up spans the sidecar exists for."""
     sc = _RunSidecar(str(tmp_path / "V_PPG.txt"), "ppg", T_STUCK)
     for r in range(HELD_WARMUP_RUNS + 5):
-        sc.feed("channel 0", r, _phone(r, hz=55.0))       # every value differs => every run length 1
+        sc.feed("channel 0", r, _phone(r, hz=55.0))  # every value differs => every run length 1
     sc.close()
 
     body = open(sc.path).read()
@@ -706,7 +728,7 @@ def test_INVERSION_a_real_jittering_hold_IS_held(tmp_path):
     sc = _RunSidecar(str(tmp_path / "A_ACCRAW.txt"), "accraw", T_STUCK)
     n = HELD_WARMUP_RUNS + 5
     for r in range(n):
-        ln = (6 + (r % 2)) if (r % 16) else (5 + 3 * (r % 2))   # ~88% on {6,7}, rest on {5,8}
+        ln = (6 + (r % 2)) if (r % 16) else (5 + 3 * (r % 2))  # ~88% on {6,7}, rest on {5,8}
         for k in range(ln):
             sc.feed("X [raw]", r, _phone(r * 8 + k, hz=10.0))
     sc.close()
@@ -725,7 +747,7 @@ def test_INVERSION_a_mostly_non_repeating_stream_is_NOT_held(tmp_path):
     is 1, so it fails the repetition guard even though its share clears both thresholds."""
     sc = _RunSidecar(str(tmp_path / "H_ACC.txt"), "acc", T_STUCK)
     for r in range(HELD_WARMUP_RUNS + 5):
-        for k in range(1 + (1 if r % 4 == 0 else 0)):     # mostly 1, occasionally 2 => mean ~1.25
+        for k in range(1 + (1 if r % 4 == 0 else 0)):  # mostly 1, occasionally 2 => mean ~1.25
             sc.feed("X [mg]", r, _phone(r * 2 + k, hz=200.0))
     sc.close()
 
@@ -735,6 +757,7 @@ def test_INVERSION_a_mostly_non_repeating_stream_is_NOT_held(tmp_path):
 # ══════════════════════════════════════════════════════════════════════════════════════════════════
 # BRACKETING — owner ruling D5, 2026-09-19: emit the measurement, name nothing (LIVE-TESTS-2026-09-19-PM-RESULT)
 # ══════════════════════════════════════════════════════════════════════════════════════════════════
+
 
 def _pleth(n, seed=7):
     """A varied signal: n samples cycling through >= 20 distinct values (a synthetic pleth)."""
@@ -756,9 +779,9 @@ def test_bracket_side_is_pure_and_distinguishes_UNAVAILABLE_from_FLAT():
     assert writers.bracket_side([100] * (W - 1)) == "unavailable"
     assert writers.bracket_side([100] * W) == "flat"
     assert writers.bracket_side(_pleth(W)) == "varied"
-    assert writers.bracket_side(list(range(19)) * (W // 19 + 1))[:0] == ""      # sanity: callable
-    assert writers.bracket_side([k % 19 for k in range(W)]) == "flat"           # 19 distinct < 20
-    assert writers.bracket_side([k % 20 for k in range(W)]) == "varied"         # 20 distinct = varied
+    assert writers.bracket_side(list(range(19)) * (W // 19 + 1))[:0] == ""  # sanity: callable
+    assert writers.bracket_side([k % 19 for k in range(W)]) == "flat"  # 19 distinct < 20
+    assert writers.bracket_side([k % 20 for k in range(W)]) == "varied"  # 20 distinct = varied
 
 
 def test_a_span_with_pulsatile_signal_on_BOTH_sides_is_varied_varied(tmp_path):
@@ -802,8 +825,10 @@ def test_a_span_that_runs_to_the_END_is_unavailable_after_NOT_flat(tmp_path):
     # The 99-run is itself a reportable span (>= T_STUCK) that ran to EOF, so its own row follows. Its
     # BEFORE window (375 samples) is the 210-sample 100-span plus 165 pleth samples → `varied`, by the
     # definition and not by intent — the window is what it is; its AFTER is EOF → `unavailable`.
-    assert [(r[2], r[4], r[8]) for r in rows2] == [("100", str(T_STUCK + 10), "varied/flat"),
-                                                   ("99", str(W + 5), "varied/unavailable")]
+    assert [(r[2], r[4], r[8]) for r in rows2] == [
+        ("100", str(T_STUCK + 10), "varied/flat"),
+        ("99", str(W + 5), "varied/unavailable"),
+    ]
 
 
 def test_the_row_is_HELD_until_its_after_window_arrives_then_written_from_feed(tmp_path):
@@ -818,7 +843,7 @@ def test_the_row_is_HELD_until_its_after_window_arrives_then_written_from_feed(t
     for k, v in enumerate(tail[:-1]):
         sc.feed("channel 0", v, t0 + _dt.timedelta(milliseconds=8 * k))
     sc._fh.flush()
-    assert [r for r in _rows(sc.path) if r[7] == "stuck"] == []            # one sample short: still held
+    assert [r for r in _rows(sc.path) if r[7] == "stuck"] == []  # one sample short: still held
     sc.feed("channel 0", tail[-1], t0 + _dt.timedelta(seconds=3))
     sc._fh.flush()
     rows = [r for r in _rows(sc.path) if r[7] == "stuck"]
@@ -883,8 +908,10 @@ T0 = _dt.datetime(2026, 9, 19, 18, 40, 49)
 
 def _span_times(before_len, span_len, t0=T0):
     """Host times (start, end) a flat span will occupy when fed at 8 ms/sample after `before_len` samples."""
-    return (t0 + _dt.timedelta(milliseconds=8 * before_len),
-            t0 + _dt.timedelta(milliseconds=8 * (before_len + span_len - 1)))
+    return (
+        t0 + _dt.timedelta(milliseconds=8 * before_len),
+        t0 + _dt.timedelta(milliseconds=8 * (before_len + span_len - 1)),
+    )
 
 
 def _span(sc, before_seq, span_len, after_seq, t0=T0):
@@ -900,7 +927,8 @@ def test_ledger_majority_none_vs_zero_are_DIFFERENT_facts():
     """`none` = no frame overlapped the span; `0` = the device declared lead-off. The two must never
     share a value — the same trap as unavailable/flat, one witness over."""
     L = writers.ContactLedger()
-    a = T0; b = T0 + _dt.timedelta(seconds=3)
+    a = T0
+    b = T0 + _dt.timedelta(seconds=3)
     assert L.majority(a, b) == "none"
     L.note(T0 + _dt.timedelta(seconds=1), 0)
     assert L.majority(a, b) == "0"
@@ -912,21 +940,23 @@ def test_ledger_carries_2_and_3_VERBATIM_never_collapsed_to_worn():
     for k, v in enumerate((2, 2, 3)):
         L.note(T0 + _dt.timedelta(seconds=k), v)
     assert L.majority(T0, T0 + _dt.timedelta(seconds=2)) == "2"
-    L2 = writers.ContactLedger(); L2.note(T0, 3)
+    L2 = writers.ContactLedger()
+    L2.note(T0, 3)
     assert L2.majority(T0, T0) == "3"
-    L3 = writers.ContactLedger(); L3.note(T0, None)                  # a frame with no byte declares nothing
+    L3 = writers.ContactLedger()
+    L3.note(T0, None)  # a frame with no byte declares nothing
     assert L3.majority(T0, T0) == "none"
 
 
 def test_ledger_join_window_is_PLUS_MINUS_2s_and_majority_ties_go_to_the_smaller_value():
     L = writers.ContactLedger()
-    L.note(T0 - _dt.timedelta(seconds=2.5), 0)     # outside: 2.5 s before the span
-    L.note(T0 - _dt.timedelta(seconds=1.9), 1)     # inside
-    L.note(T0 + _dt.timedelta(seconds=4.9), 0)     # inside (span ends at +3 s, +2 s tolerance)
-    L.note(T0 + _dt.timedelta(seconds=5.1), 1)     # outside
-    assert L.majority(T0, T0 + _dt.timedelta(seconds=3)) == "0"    # 1 vs 1 → tie → smaller value (lead-off)
+    L.note(T0 - _dt.timedelta(seconds=2.5), 0)  # outside: 2.5 s before the span
+    L.note(T0 - _dt.timedelta(seconds=1.9), 1)  # inside
+    L.note(T0 + _dt.timedelta(seconds=4.9), 0)  # inside (span ends at +3 s, +2 s tolerance)
+    L.note(T0 + _dt.timedelta(seconds=5.1), 1)  # outside
+    assert L.majority(T0, T0 + _dt.timedelta(seconds=3)) == "0"  # 1 vs 1 → tie → smaller value (lead-off)
     L.note(T0 + _dt.timedelta(seconds=1), 1)
-    assert L.majority(T0, T0 + _dt.timedelta(seconds=3)) == "1"    # 2 vs 1
+    assert L.majority(T0, T0 + _dt.timedelta(seconds=3)) == "1"  # 2 vs 1
 
 
 def test_a_row_carries_BOTH_witnesses_and_they_can_disagree(tmp_path):
@@ -996,14 +1026,16 @@ def test_a_row_whose_after_window_completes_BEFORE_the_warm_up_verdict_waits_in_
     window (D5); if that window completes while the channel's hold-class is still undecided, the row
     goes into the warm-up buffer and is released — or dropped as `held` — when the verdict lands.
     Here the verdict is `variable`, so the row is released with the bracket it earned."""
-    sc = writers._RunSidecar(str(tmp_path / "x_PPG.txt"), "ppg1", 30)     # min_run 30: the span qualifies, the 25-runs do not
-    seq = _pleth(20) + [100] * 30                                          # 20 runs of 1, then the span
-    seq += [v for v in range(200, 215) for _ in range(25)]                 # 15 runs of 25 → after-window done at ~run 36
-    seq += _pleth(40, seed=13)                                             # 40 more length-1 runs → verdict at run 64
+    sc = writers._RunSidecar(
+        str(tmp_path / "x_PPG.txt"), "ppg1", 30
+    )  # min_run 30: the span qualifies, the 25-runs do not
+    seq = _pleth(20) + [100] * 30  # 20 runs of 1, then the span
+    seq += [v for v in range(200, 215) for _ in range(25)]  # 15 runs of 25 → after-window done at ~run 36
+    seq += _pleth(40, seed=13)  # 40 more length-1 runs → verdict at run 64
     _feed_seq(sc, seq)
     sc._fh.flush()
     body = open(sc.path, encoding="utf-8").read()
-    assert "class=variable" in body                                        # the verdict landed
+    assert "class=variable" in body  # the verdict landed
     rows = [r for r in _rows(sc.path) if r[7] == "stuck"]
     assert [(r[2], r[4], r[8]) for r in rows] == [("100", "30", "unavailable/flat")]
     # released AFTER the verdict line, not before it
@@ -1011,11 +1043,11 @@ def test_a_row_whose_after_window_completes_BEFORE_the_warm_up_verdict_waits_in_
     sc.close()
 
 
-
 # ── THE CLASS IS PER WINDOW (residue 2026-09-06-warmup-verdict-goes-stale, 2026-09-22) ──────────────
 # Plants: a stream that HOLDS for one window and then VARIES, and the reverse. Under the old
 # once-per-night verdict the first keeps `held` and suppresses every sub-T_STUCK row for the rest of the
 # recording; the second keeps `variable` and over-reports. Both were verified red on the old code.
+
 
 def _hold_runs(sc, ch, n_runs, r0=0, t0=0, hz=10.0):
     """`n_runs` runs of the 6/7 zero-order-hold cadence; returns (next run value, next sample index)."""
@@ -1045,8 +1077,8 @@ def test_a_hold_that_later_varies_TRANSITIONS_and_its_later_sub_T_STUCK_rows_are
     suppressed to the end of the recording."""
     sc = _RunSidecar(str(tmp_path / "H_ACC.txt"), "accraw", 10)
     ch = "X [raw]"
-    r, t = _hold_runs(sc, ch, HELD_WARMUP_RUNS)                       # window 0: held
-    r, t = _varied_runs(sc, ch, 3 * HELD_WARMUP_RUNS, r, t, stuck_every=16, stuck_len=20)   # windows 1-3: variable
+    r, t = _hold_runs(sc, ch, HELD_WARMUP_RUNS)  # window 0: held
+    r, t = _varied_runs(sc, ch, 3 * HELD_WARMUP_RUNS, r, t, stuck_every=16, stuck_len=20)  # windows 1-3: variable
     sc.close()
     body = open(sc.path).read()
     assert sc.klass[ch] == "variable" and sc.transitions[ch] == 1
@@ -1059,7 +1091,9 @@ def test_a_hold_that_later_varies_TRANSITIONS_and_its_later_sub_T_STUCK_rows_are
     assert "class=variable windows=4 transitions=1 partial=0" in body
     rows = _rows(sc.path)
     assert rows and all(r_[4] == "20" for r_ in rows), rows
-    assert len(rows) == 8, "the 20-sample runs of the windows judged variable (2 of the 3: the first paid the confirm lag)"
+    assert len(rows) == 8, (
+        "the 20-sample runs of the windows judged variable (2 of the 3: the first paid the confirm lag)"
+    )
 
 
 def test_a_variable_stream_that_becomes_a_hold_TRANSITIONS_and_stops_over_reporting(tmp_path):
@@ -1068,8 +1102,8 @@ def test_a_variable_stream_that_becomes_a_hold_TRANSITIONS_and_stops_over_report
     coming (min_run=6 makes every held run a 'span')."""
     sc = _RunSidecar(str(tmp_path / "V_ACC.txt"), "accraw", 6)
     ch = "X [raw]"
-    r, t = _varied_runs(sc, ch, HELD_WARMUP_RUNS, 0, 0, stuck_every=16, stuck_len=20)      # window 0: variable
-    r, t = _hold_runs(sc, ch, 3 * HELD_WARMUP_RUNS, r, t)                                 # windows 1-3: held
+    r, t = _varied_runs(sc, ch, HELD_WARMUP_RUNS, 0, 0, stuck_every=16, stuck_len=20)  # window 0: variable
+    r, t = _hold_runs(sc, ch, 3 * HELD_WARMUP_RUNS, r, t)  # windows 1-3: held
     sc.close()
     body = open(sc.path).read()
     assert sc.klass[ch] == "held" and sc.transitions[ch] == 1
@@ -1088,7 +1122,7 @@ def test_a_stable_hold_writes_ONE_class_line_and_zero_transitions_across_many_wi
     window — only a change of class is a transition."""
     sc = _RunSidecar(str(tmp_path / "S_ACC.txt"), "accraw", T_STUCK)
     ch = "X [raw]"
-    _hold_runs(sc, ch, 5 * HELD_WARMUP_RUNS + 3)                      # five windows and a partial tail
+    _hold_runs(sc, ch, 5 * HELD_WARMUP_RUNS + 3)  # five windows and a partial tail
     sc.close()
     body = open(sc.path).read()
     assert body.count(f"# stream=accraw channel={ch} class=") == 1
@@ -1101,8 +1135,8 @@ def test_a_trailing_partial_window_keeps_the_class_in_force_and_says_so(tmp_path
     in force judges those rows — variable here, so the tail's 20-sample run IS written."""
     sc = _RunSidecar(str(tmp_path / "P_PPG.txt"), "ppg1", 10)
     ch = "channel 0"
-    r, t = _varied_runs(sc, ch, HELD_WARMUP_RUNS, 0, 0)               # window 0: variable
-    _varied_runs(sc, ch, 5, r, t, stuck_every=1, stuck_len=20)        # a partial tail with spans
+    r, t = _varied_runs(sc, ch, HELD_WARMUP_RUNS, 0, 0)  # window 0: variable
+    _varied_runs(sc, ch, 5, r, t, stuck_every=1, stuck_len=20)  # a partial tail with spans
     sc.close()
     body = open(sc.path).read()
     assert "class=variable windows=1 transitions=0 partial=1" in body
@@ -1130,13 +1164,15 @@ def test_an_external_emitter_that_names_no_window_is_judged_by_the_class_in_forc
     in force decides — held drops it, variable writes it, undecided buffers it until close."""
     sc = _RunSidecar(str(tmp_path / "E_ACC.txt"), "accraw", 10)
     ch = "X [raw]"
-    sc.emit_run(ch, 1, 0, 12, 100.0, 1, "rail-run")                   # undecided: buffered
-    _hold_runs(sc, ch, HELD_WARMUP_RUNS)                              # held now
-    sc.emit_run(ch, 2, 0, 12, 100.0, 1, "rail-run")                   # held: dropped
+    sc.emit_run(ch, 1, 0, 12, 100.0, 1, "rail-run")  # undecided: buffered
+    _hold_runs(sc, ch, HELD_WARMUP_RUNS)  # held now
+    sc.emit_run(ch, 2, 0, 12, 100.0, 1, "rail-run")  # held: dropped
     sc.close()
-    assert _rows(sc.path) == [], "the undecided row waited for a verdict; the verdict was held, so it was dropped with the rest"
+    assert _rows(sc.path) == [], (
+        "the undecided row waited for a verdict; the verdict was held, so it was dropped with the rest"
+    )
     sc2 = _RunSidecar(str(tmp_path / "E2_PPG.txt"), "ppg1", 10)
-    _varied_runs(sc2, "channel 0", HELD_WARMUP_RUNS, 0, 0)           # variable now
+    _varied_runs(sc2, "channel 0", HELD_WARMUP_RUNS, 0, 0)  # variable now
     sc2.emit_run("channel 0", 3, 0, 12, 100.0, 1, "rail-run")
     sc2.close()
     assert [r_[7] for r_ in _rows(sc2.path)] == ["rail-run"]
@@ -1148,16 +1184,18 @@ def test_the_exit_band_a_held_window_whose_share_dips_under_the_entry_threshold_
     below entry (0.85), above exit (0.70): no transition. Then two windows at share ≈ 0.5 DO leave."""
     sc = _RunSidecar(str(tmp_path / "B_ACC.txt"), "accraw", T_STUCK)
     ch = "X [raw]"
-    r, t = _hold_runs(sc, ch, HELD_WARMUP_RUNS)                       # window 0: held, share 1.0
-    for i in range(HELD_WARMUP_RUNS):                                 # window 1: 52 cadence runs + 12 of length 3
+    r, t = _hold_runs(sc, ch, HELD_WARMUP_RUNS)  # window 0: held, share 1.0
+    for i in range(HELD_WARMUP_RUNS):  # window 1: 52 cadence runs + 12 of length 3
         n = 3 if i % 5 == 0 else 6 + (i % 2)
         for _ in range(n):
-            sc.feed(ch, r, _phone(t, hz=10.0)); t += 1
+            sc.feed(ch, r, _phone(t, hz=10.0))
+            t += 1
         r += 1
-    for i in range(2 * HELD_WARMUP_RUNS):                             # windows 2-3: half the runs are odd lengths
+    for i in range(2 * HELD_WARMUP_RUNS):  # windows 2-3: half the runs are odd lengths
         n = 3 if i % 2 == 0 else 6
         for _ in range(n):
-            sc.feed(ch, r, _phone(t, hz=10.0)); t += 1
+            sc.feed(ch, r, _phone(t, hz=10.0))
+            t += 1
         r += 1
     sc.close()
     body = open(sc.path).read()
@@ -1175,7 +1213,8 @@ def _window_with_share(sc, ch, r, t, share, hz=10.0):
     for i in range(HELD_WARMUP_RUNS):
         n = 3 if i < n_odd else 6 + (i % 2)
         for _ in range(n):
-            sc.feed(ch, r, _phone(t, hz=hz)); t += 1
+            sc.feed(ch, r, _phone(t, hz=hz))
+            t += 1
         r += 1
     return r, t
 
@@ -1186,7 +1225,7 @@ def test_a_pleth_that_dithers_at_the_band_s_edge_never_flips(tmp_path):
     (above the 0.70 exit) may flip it: ONE class line, ZERO transitions, the cadence silent."""
     sc = _RunSidecar(str(tmp_path / "D_ACC.txt"), "accraw", T_STUCK)
     ch = "X [raw]"
-    r, t = _window_with_share(sc, ch, 0, 0, 0.90)                       # enter: held
+    r, t = _window_with_share(sc, ch, 0, 0, 0.90)  # enter: held
     for i in range(200):
         r, t = _window_with_share(sc, ch, r, t, 0.83 if i % 2 == 0 else 0.87)
     sc.close()
@@ -1223,7 +1262,9 @@ def test_a_transition_at_a_KNOWN_instant_is_stamped_at_that_instant_plus_the_con
     at = line.rsplit(" at=", 1)[1].strip()
     change_ts = _phone(t_change, hz=10.0).isoformat(timespec="milliseconds")
     # the varied windows average 3 samples/run: window k closes at ≈ t_change + k·64·3 samples
-    lag_hi = _phone(t_change + (HELD_CONFIRM_WINDOWS + 1) * HELD_WARMUP_RUNS * 3, hz=10.0).isoformat(timespec="milliseconds")
+    lag_hi = _phone(t_change + (HELD_CONFIRM_WINDOWS + 1) * HELD_WARMUP_RUNS * 3, hz=10.0).isoformat(
+        timespec="milliseconds"
+    )
     assert change_ts < at <= lag_hi, (change_ts, at, lag_hi)
     assert f"confirmed={HELD_CONFIRM_WINDOWS}" in line
 
@@ -1241,12 +1282,13 @@ def _runs_path(p):
 
 def test_a_resumed_PARENT_with_a_MISSING_run_sidecar_still_writes_the_header(tmp_path):
     import writers
+
     p = str(tmp_path / "Wellue_O2Ring-S_x_20260923010000_PPG.txt")
     w1 = writers.StreamWriter(p, "ppg1", fsync=False)
     w1.write_ppg(_dt.datetime(2026, 9, 23, 1, 0, 0), 1_000_000_000, 0.0, (100,), 5)
     w1.close()
     assert os.path.exists(_runs_path(p)), "the run sidecar opens eagerly — setup assumption"
-    os.remove(_runs_path(p))                    # the divergence: parent resumable, sidecar gone
+    os.remove(_runs_path(p))  # the divergence: parent resumable, sidecar gone
 
     w2 = writers.StreamWriter(p, "ppg1", fsync=False)
     assert w2.resumed, "the PARENT is resuming — that is the setup"
@@ -1260,6 +1302,7 @@ def test_an_EMPTY_run_sidecar_is_NOT_a_resume_and_gets_its_header(tmp_path):
     """A crash before the 64 KB buffer flushed leaves the file there and 0 bytes. `os.path.exists`
     alone calls that a resume; only the SIZE separates "a file is there" from "it has something"."""
     import writers
+
     p = str(tmp_path / "Wellue_O2Ring-S_x_20260923010000_PPG.txt")
     w1 = writers.StreamWriter(p, "ppg1", fsync=False)
     w1.write_ppg(_dt.datetime(2026, 9, 23, 1, 0, 0), 1_000_000_000, 0.0, (100,), 5)
@@ -1280,6 +1323,7 @@ def test_an_EMPTY_run_sidecar_is_NOT_a_resume_and_gets_its_header(tmp_path):
 
 def test_a_run_sidecar_resuming_its_OWN_non_empty_file_does_not_re_emit_the_header(tmp_path):
     import writers
+
     p = str(tmp_path / "Wellue_O2Ring-S_x_20260923010000_PPG.txt")
     w1 = writers.StreamWriter(p, "ppg1", fsync=False)
     w1.write_ppg(_dt.datetime(2026, 9, 23, 1, 0, 0), 1_000_000_000, 0.0, (100,), 5)
@@ -1300,6 +1344,7 @@ def test_a_run_sidecar_resuming_its_OWN_non_empty_file_does_not_re_emit_the_head
 # only ever read UNKNOWN — which is what put this unit ahead of the rest of the lane. The threshold is
 # derived from the stream's own distribution over the whole corpus (304 files, 196,172,536 samples); the
 # table and its false-negative statement are in `writers.ECG_RUN_MIN`'s comment.
+
 
 def _push_ecg(w, uv, n, start=0, hz=130.0):
     for k in range(n):
@@ -1323,9 +1368,9 @@ def test_an_ecg_run_at_the_rail_is_reported_and_ordinary_quantization_is_not(tmp
     is exactly what §∅ forbids for this stream: an ECG in µV crosses zero on every beat."""
     p = tmp_path / "H_ECG.txt"
     w = StreamWriter(str(p), "ecg", fsync=False)
-    i = _push_ecg(w, 18, 29)                  # ordinary near-baseline quantization — MUST NOT be reported
-    i = _push_ecg(w, 19164, 30, start=i)      # the shortest length the corpus says is never natural
-    i = _push_ecg(w, -40, 4, start=i)         # a short tail so the long run closes normally
+    i = _push_ecg(w, 18, 29)  # ordinary near-baseline quantization — MUST NOT be reported
+    i = _push_ecg(w, 19164, 30, start=i)  # the shortest length the corpus says is never natural
+    i = _push_ecg(w, -40, 4, start=i)  # a short tail so the long run closes normally
     w.close()
 
     rows = _rows(_sidecar(p))
@@ -1355,7 +1400,7 @@ def test_the_ecg_sidecar_records_what_it_EXAMINED_not_only_what_it_found(tmp_pat
     denominator and not just the finding."""
     p = tmp_path / "H_ECG.txt"
     w = StreamWriter(str(p), "ecg", fsync=False)
-    _push_ecg(w, 5, 12)                       # nothing long enough to report
+    _push_ecg(w, 5, 12)  # nothing long enough to report
     w.close()
 
     text = open(_sidecar(p)).read()
