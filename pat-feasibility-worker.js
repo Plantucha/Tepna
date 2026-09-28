@@ -558,6 +558,16 @@ function threeHat(cAB, cAC, cBC, wAB, wAC, wBC) {
       })
     );
   };
+  /* ADDITIVE (PAT-HAT-DRIFT-DIFFERENCED-2026-09-27): every field above is unchanged. A negative corner now
+     says WHICH kind of negative it is — `underpowered` (its CI reaches 0, as on 2026-09-26) or
+     `independence-failed` (its CI is wholly below 0, with the correlation that would explain it) — and
+     `diff` is the drift-removed estimate, labelled as NOT comparable to this one. */
+  var col = function (k) {
+      return win.map(function (w) {
+        return w[k];
+      });
+    },
+    ci = AnalysisStats.patHatBootstrapCI(col('ab'), col('ac'), col('bc'));
   return {
     ok: true,
     n: win.length,
@@ -566,7 +576,10 @@ function threeHat(cAB, cAC, cBC, wAB, wAC, wBC) {
     pairSd: { ab: sAB, ac: sAC, bc: sBC },
     variance: v2,
     sigma: sigma,
-    windows: win
+    windows: win,
+    ci: ci,
+    corners: AnalysisStats.patHatCornerStatus(v2, ci),
+    diff: AnalysisStats.patDifferencedHat(win, HAT_WIN_MS, { minPairs: HAT_MIN_WINDOWS })
   };
 }
 /* ── THE ARRIVAL-FLOOR AXIS (route-PAT fix, owner-ordered 2026-09-27) ────────────────────────────────────────

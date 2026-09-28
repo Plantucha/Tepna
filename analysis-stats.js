@@ -567,6 +567,163 @@
     return out;
   }
 
+  /* ══ PAT THREE-CORNERED HAT — per-corner CI, a named status, and the drift-removed estimate ══════════
+     (PAT-HAT-DRIFT-DIFFERENCED-2026-09-27). `pat-feasibility-worker.js threeHat` solves the classic hat on
+     the three LEGS' 5-min medians (chest→finger, chest→ankle, finger→ankle); these functions only ADD to what
+     it returns. The corner arithmetic is `threeCorneredHat` above, reused — never a private copy.
+
+     WHY NOT `tchBlockBootstrapCI`. Three reasons, each disqualifying:
+       · it resamples per-SITE series; the PAT hat has only the three legs, which are site DIFFERENCES;
+       · its estimator is plain variance, while `threeHat` uses IQR/1.349. The CI must follow the point
+         estimator (the rule F16 wrote that function for);
+       · it DROPS a replicate whose σ is not real, and a CI conditioned on positivity can never span 0,
+         which is the one question asked here.
+
+     THE QUESTION A NEGATIVE ANSWERS. On 2026-09-26 the hat returned chest σ² = −32 ms² and the page said
+     "the independence assumption failed". Measured: the 95 % CI was [−216, +225] ms², and INDEPENDENT errors
+     in that geometry give a negative corner on 34 % of nights. A negative whose interval spans 0 is a
+     precision limit (`underpowered`), not a finding about independence. */
+  function _patQ(b, q) {
+    // b SORTED ascending; linear interpolation, the same definition as the worker's `quantile`
+    var i = (b.length - 1) * q,
+      lo = Math.floor(i),
+      hi = Math.ceil(i);
+    return lo === hi ? b[lo] : b[lo] + (b[hi] - b[lo]) * (i - lo);
+  }
+  // The worker's dispersion, squared: (IQR / 1.349)².
+  function _patRobustVar(v) {
+    var b = v.slice().sort(function (x, y) {
+      return x - y;
+    });
+    var s = (_patQ(b, 0.75) - _patQ(b, 0.25)) / 1.349;
+    return s * s;
+  }
+  function _patSolve(ab, ac, bc) {
+    var h = threeCorneredHat(_patRobustVar(ab), _patRobustVar(ac), _patRobustVar(bc));
+    return { chest: h.a, finger: h.b, ankle: h.c };
+  }
+  // mulberry32 — SEEDED, so one night always gets one interval.
+  function _patRand(seed) {
+    var a = seed >>> 0;
+    return function () {
+      a = (a + 0x6d2b79f5) >>> 0;
+      var t = a;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  var PAT_CORNERS = ['chest', 'finger', 'ankle'];
+
+  /* Block bootstrap over the WINDOW list: `ab`, `ac`, `bc` are the legs' per-window values, aligned.
+     Blocks of `block` consecutive windows (default 6 = 30 min) keep the series' autocorrelation.
+     EVERY replicate is kept, negative corners included. Returns the 2.5 / 97.5 % points of each
+     corner's solved VARIANCE (ms²). `rand` is injectable; the default is seeded. */
+  function patHatBootstrapCI(ab, ac, bc, opts) {
+    opts = opts || {};
+    var n = ab.length,
+      bl = Math.min(n, opts.block || 6),
+      B = opts.B || 1000,
+      rand = opts.rand || _patRand(opts.seed == null ? 1 : opts.seed);
+    var acc = { chest: [], finger: [], ankle: [] };
+    for (var r = 0; r < B; r++) {
+      var A = [],
+        C = [],
+        D = [];
+      while (A.length < n) {
+        var st = Math.floor(rand() * (n - bl + 1));
+        for (var j = 0; j < bl && A.length < n; j++) {
+          A.push(ab[st + j]);
+          C.push(ac[st + j]);
+          D.push(bc[st + j]);
+        }
+      }
+      var h = _patSolve(A, C, D);
+      for (var k = 0; k < 3; k++) acc[PAT_CORNERS[k]].push(h[PAT_CORNERS[k]]);
+    }
+    var out = { B: B, block: bl };
+    for (var m = 0; m < 3; m++) {
+      var v = acc[PAT_CORNERS[m]].sort(function (x, y) {
+        return x - y;
+      });
+      out[PAT_CORNERS[m]] = { lo: _patQ(v, 0.025), hi: _patQ(v, 0.975) };
+    }
+    return out;
+  }
+
+  /* One status per corner, never a bare REFUSED:
+       solved               variance ≥ 0 — σ is its root; `sigmaCI` from the clipped bounds;
+       underpowered         variance < 0 but the CI reaches 0 — the data cannot place this corner below
+                            `boundMs` (= √hi); not a statement about independence;
+       independence-failed  the whole CI is below 0 — some pair of corners shares error. `explainRho` is the
+                            correlation between the OTHER two corners that yields this variance with this
+                            corner's own error at 0 (σ̂²_A = σ²_A + c_BC, so σ²_B = v_B + v_A,
+                            σ²_C = v_C + v_A); null when that has no real solution. Coarse — see below. */
+  function patHatCornerStatus(variance, ci) {
+    var out = {};
+    for (var k = 0; k < 3; k++) {
+      var c = PAT_CORNERS[k],
+        v = variance[c],
+        iv = ci && ci[c];
+      if (v >= 0) {
+        out[c] = { status: 'solved', sigma: Math.sqrt(v), sigmaCI: iv ? [Math.sqrt(Math.max(iv.lo, 0)), Math.sqrt(Math.max(iv.hi, 0))] : null };
+      } else if (!iv || iv.hi >= 0) {
+        out[c] = { status: 'underpowered', boundMs: iv ? Math.sqrt(iv.hi) : null };
+      } else {
+        var o1 = PAT_CORNERS[(k + 1) % 3],
+          o2 = PAT_CORNERS[(k + 2) % 3],
+          p1 = variance[o1] + v,
+          p2 = variance[o2] + v;
+        var rho = p1 > 0 && p2 > 0 ? v / Math.sqrt(p1 * p2) : null;
+        /* A COARSE point estimate: it names the pair and the sign, not a precise ρ. Measured over 40 planted
+           nights (ρ = −0.8, 200 windows) it spanned −1.30 … −0.45, so it can land beyond ±1; that is
+           published as it is, flagged, never clamped into range. */
+        out[c] = { status: 'independence-failed', pair: [o1, o2], explainRho: rho, rhoOutOfRange: rho != null && Math.abs(rho) > 1 };
+      }
+    }
+    return out;
+  }
+
+  /* THE DRIFT-REMOVED HAT — the same solve on FIRST DIFFERENCES of adjacent windows' medians, each halved:
+     ½·Var(x_{k+1} − x_k) is the Allan variance at τ = one window (Allan 1966, Proc. IEEE,
+     doi:10.1109/PROC.1966.4634), and the hat on it is Gray & Allan 1974 (28th Annual Symposium on Frequency
+     Control, doi:10.1109/FREQ.1974.200027). A drift slower than a window, shared by two sites, is a
+     covariance that moves variance between corners (the classic hat puts it on the THIRD corner — planted:
+     60 ms shared finger+ankle drift reads chest 26.8 ms vs true 8). Differencing removes it.
+     ⚠️ NOT COMPARABLE to the classic σ: it excludes variation slower than τ, so it is usually lower, and that
+     drop is not an instrument improvement. It CANNOT remove drift faster than a window, and a step between
+     two windows counts once. Only windows exactly one step apart are paired. The differences are scaled by
+     1/√2 BEFORE the solve, so the variances and the CI are already halved. */
+  function patDifferencedHat(win, stepMs, opts) {
+    opts = opts || {};
+    var minPairs = opts.minPairs || 12,
+      dab = [],
+      dac = [],
+      dbc = [],
+      r2 = Math.SQRT1_2;
+    for (var i = 0; i + 1 < win.length; i++) {
+      if (Math.abs(win[i + 1].t - win[i].t - stepMs) > 1e-6 * stepMs) continue;
+      dab.push((win[i + 1].ab - win[i].ab) * r2);
+      dac.push((win[i + 1].ac - win[i].ac) * r2);
+      dbc.push((win[i + 1].bc - win[i].bc) * r2);
+    }
+    if (dab.length < minPairs) return { ok: false, reason: dab.length + ' adjacent window pairs (< ' + minPairs + ')', n: dab.length };
+    var v = _patSolve(dab, dac, dbc),
+      ci = patHatBootstrapCI(dab, dac, dbc, opts),
+      sigma = {};
+    for (var k = 0; k < 3; k++) sigma[PAT_CORNERS[k]] = v[PAT_CORNERS[k]] >= 0 ? Math.sqrt(v[PAT_CORNERS[k]]) : null;
+    return {
+      ok: true,
+      n: dab.length,
+      tauMin: stepMs / 60000,
+      variance: v,
+      sigma: sigma,
+      ci: ci,
+      corners: patHatCornerStatus(v, ci),
+      label: 'drift-removed σ at τ = ' + stepMs / 60000 + ' min — not comparable to the classic σ'
+    };
+  }
+
   function tchSigmasPairwise(hh, vv, oo, rho) {
     var dHV = [],
       dHO = [],
@@ -1081,6 +1238,10 @@
     legWeights: legWeights,
     fusedLeg: fusedLeg,
     tchBlockBootstrapCI: tchBlockBootstrapCI,
+    patHatSolve: _patSolve,
+    patHatBootstrapCI: patHatBootstrapCI,
+    patHatCornerStatus: patHatCornerStatus,
+    patDifferencedHat: patDifferencedHat,
     parseDerivedHr: parseDerivedHr,
     confidenceSeries: confidenceSeries,
     tchSigmasPairwise: tchSigmasPairwise,
