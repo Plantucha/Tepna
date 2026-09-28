@@ -425,3 +425,94 @@ def test_hr_beats_reads_the_packet_not_the_bit():
     assert telemetry.hr_beats(None, 0) is None  # no measurement, no vote
     assert telemetry.hr_beats(300, 0) is False  # not a human rate
     assert telemetry.hr_beats(29, 0) is False and telemetry.hr_beats(30, 0) is True
+
+
+# ── ecg_offbody — the H10's off-body noise, which its own HR algorithm reads as a heartbeat ─────────────
+def test_ecg_block_level_is_the_block_standard_deviation():
+    assert telemetry.ecg_block_level([100, -100] * 650) == 100.0
+    assert telemetry.ecg_block_level([5.0]) is None and telemetry.ecg_block_level([]) is None
+
+
+def test_ecg_offbody_separates_the_measured_populations():
+    """Corpus 2026-09-27 (147 sessions): sustained worn max 176 µV, settled off-body min 567 µV."""
+    assert telemetry.ecg_offbody([176.0] * 12) is None
+    assert telemetry.ecg_offbody([567.0] * 12) is True
+    assert telemetry.ecg_offbody([90.0] * 12) is None, "a dry strap is QUIET — the case hr_beats exists for"
+
+
+def test_ecg_offbody_threshold_is_strict_and_is_the_stated_constant():
+    t = telemetry._ECG_OFFBODY_UV
+    assert t == 320.0
+    assert telemetry.ecg_offbody([t] * 12) is None
+    assert telemetry.ecg_offbody([t + 0.1] * 12) is True
+    assert telemetry.ecg_offbody([1000.0] * 12, threshold=2000.0) is None
+
+
+def test_ecg_offbody_needs_seven_of_twelve_loud_blocks():
+    """The worn run on record (2026-09-13 21:35) is six loud 10-s epochs. `median` would average the 6th
+    and 7th and could cross; `median_low` cannot."""
+    six = [5000.0] * 6 + [100.0] * 6
+    assert telemetry.ecg_offbody(six) is None
+    assert telemetry.ecg_offbody([5000.0] * 7 + [100.0] * 5) is True
+    assert telemetry.ecg_offbody([700.0] * 6 + [100.0] * 6) is None  # `median` gives 400 here
+
+
+def test_ecg_offbody_reads_only_the_last_window_and_never_counts_a_gap_as_quiet():
+    assert telemetry.ecg_offbody([5000.0] * 8 + [100.0] * 12) is None, "the removal is over; the strap is back on"
+    assert telemetry.ecg_offbody([100.0] * 8 + [5000.0] * 12) is True
+    assert telemetry.ecg_offbody([5000.0] * 11) is None, "under two minutes is no verdict"
+    assert telemetry.ecg_offbody([5000.0] * 11 + [None]) is None, "an unmeasured block is dropped, not quiet"
+    assert telemetry.ecg_offbody(None) is None and telemetry.ecg_offbody([]) is None
+    assert telemetry.ecg_offbody([5000.0] * 4, n_blocks=4) is True
+
+
+def test_a_beat_read_off_noise_is_withdrawn_and_the_strap_is_not_worn():
+    """THE PLANT, at the combiner: contact absent + a rate in the packet — the dry-strap shape — over an ECG
+    that is electrode noise."""
+    assert telemetry.worn_verdict(contact=False, beats=True, ecg_noise=True) == (
+        False, "not worn per hr-contact-bit, ecg-level")
+    # anti-vacuity: the identical packet without the ECG evidence is the 2026-09-20 dry strap, and stays worn
+    assert telemetry.worn_verdict(contact=False, beats=True, ecg_noise=None) == (True, "worn per hr-beats")
+    assert telemetry.worn_verdict(beats=True, ecg_noise=True) == (False, "not worn per ecg-level")
+
+
+def test_the_ecg_level_cannot_outvote_the_contact_bit():
+    assert telemetry.worn_verdict(contact=True, beats=True, ecg_noise=True) == (True, "worn per hr-contact-bit")
+
+
+def test_a_beat_read_off_noise_does_not_rescue_an_inferred_dock():
+    """The beat is withdrawn before BOTH of its uses: an H10 at a flat 100 % on a desk is not held off the
+    charger verdict by the noise rate its HR algorithm reads."""
+    kw = dict(contact=False, beats=True, charging=True, charging_why="flat-at-full")
+    assert telemetry.worn_verdict(**kw)[0] is True
+    assert telemetry.worn_verdict(**kw, ecg_noise=True)[0] is False
+
+
+# ── the survivors the mutation gate found on the functions this unit touched (2026-09-27) ───────────────
+def test_ecg_block_level_measures_from_two_samples():
+    """Two samples ARE a spread; the refusal is for fewer."""
+    assert telemetry.ecg_block_level([3.0, -3.0]) == 3.0
+
+
+def test_hr_beats_220_bpm_is_the_last_plausible_rate():
+    assert telemetry.hr_beats(220, 0) is True
+    assert telemetry.hr_beats(221, 0) is False
+
+
+def test_each_reason_names_its_detector_exactly():
+    """EQUALITY, not `in`: a reason reading "XXpulse-prominenceXX" CONTAINS "pulse-prominence", so a
+    substring check passed a mangled vote name. The reason string is what the worn record persists and
+    what an operator reads."""
+    assert telemetry.worn_verdict(ambient=[140.0] * 400, fs=55.0) == (True, "worn per ambient-level")
+    assert telemetry.worn_verdict(ppg=_pulse(), fs=176.0) == (True, "worn per pulse-prominence")
+    assert telemetry.worn_verdict(charging=True) == (
+        False, "not worn — on charger (a docked device is not on a wrist)")
+    assert telemetry.worn_verdict() == (None, "no worn detector is available and in domain (PPG rate unknown)")
+
+
+def test_a_worn_reason_counts_the_sources_of_the_WORN_votes_only():
+    """A dissenting vote from the same source must not reach the independence note: contact worn + PPI
+    not-worn is one worn source named once, with no qualifier."""
+    assert telemetry.worn_verdict(contact=True, ppi_flags=0x04) == (True, "worn per hr-contact-bit")
+    assert telemetry.worn_verdict(contact=True, ppi_flags=0x06, beats=True) == (
+        True, "worn per hr-contact-bit, hr-beats, ppi-contact (2 independent source(s): device-contact, device-heartbeat)")
