@@ -490,7 +490,15 @@ function cmdIngest(argv) {
   for (const g of m.regressed) console.log(`  🔴 REGRESSION: ${keyLabel(survivorKey(g))} — ${g.why}`);
   for (const g of m.stale) console.log(`  ⊘ NOT_APPLICABLE: ${keyLabel(survivorKey(g))} — ${g.why}`);
   for (const g of m.unknown) console.log(`  ? UNKNOWN: ${keyLabel(survivorKey(g))} — ${g.why}`);
-  console.log(`open: ${openCount({ entries: m.entries })}`);
+  const nowOpen = openCount({ entries: m.entries });
+  console.log(`open: ${nowOpen}`);
+  // SAY WHAT THE BAR MUST BECOME. The ratchet is two-sided, so an ingest that raises the open count
+  // and does not raise `--expect` in the SAME PR lands a red on main — which is exactly what #3188
+  // did, and nothing in this output told it to. A number that must move with a change belongs in the
+  // output of the thing that moves it.
+  if (nowOpen !== openCount(ledger)) {
+    console.log(`  ⚠ the open count MOVED — set \`ratchet --expect ${nowOpen}\` in package.json IN THIS PR, or main reds`);
+  }
   // Only a REAL regression is worth a red. A stale artifact examined nothing that binds here, and an
   // unresolvable closure is a question, not a finding.
   return m.regressed.length ? 1 : 0;
