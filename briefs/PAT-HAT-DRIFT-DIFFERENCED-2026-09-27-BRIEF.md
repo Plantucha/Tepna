@@ -196,6 +196,15 @@ exactly that output.
   #3180's line "both hat rows rendered REFUSED on every night since #3128" is too broad. The `!h.ok` path returned
   `—` with a real reason, so it was every night the hat SOLVED.
 
+- **A9 · Found on the SERVED page after #3195, from the owner's own click (2026-09-28, driven in a real browser via the
+  monitor's `openNight`).** The fixed handoff passed all five Verity arrival sidecars of 2026-09-26 (07:41, 17:29, 19:15,
+  20:36, 21:11), in that order, and the page kept "the first of each kind". So it paired the night's 21:11 Verity
+  recording with the morning's empty 07:41 sidecar. The corrected row read *"not computed — Verity PPG: 0 `acc` packets in
+  the arrival sidecar"*, and the hat note took its no-correction branch. The fix is PAT Feasibility's own rule
+  (`resolvePair`): the largest ECG anchors, and every other file is the session of its device whose start is nearest
+  (a sidecar or ACC to its OWN device's waveform, an exact stamp match whenever that set is present). The code-level
+  checks after #3195 all passed; only driving the served page found this.
+
 **Done when (audit):**
 - [ ] The monitor hands `'PAT fused'` the same inputs as `'PAT'`, pinned by an executed test that fails on the old
   handoff.
@@ -208,6 +217,7 @@ exactly that output.
 - [ ] The hat states its raw axes and flags a gate-rejected finger leg.
 - [ ] PAT Feasibility's hat cards read `corners`.
 - [ ] `render()` is EXECUTED by a test on a whole result, including `<div>` balance and 41/41 cards badged.
+- [ ] Several sessions per device pair by session, pinned by the live 2026-09-26 handoff order (A9).
 - [ ] The full gate is green.
 
 ## §Not in scope
