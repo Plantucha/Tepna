@@ -828,6 +828,87 @@ async function readComputeHashProbe() {
   };
 }
 
+/* EVERY BUILDER-INLINED SCRIPT BLOCK MUST PARSE — the gate that was missing on 2026-09-28.
+   `oxydex-dsp.js` carries the comment ``only the anchored `$` keeps them apart``, and
+   `build-analysis.mjs` injected its 1.9 MB blob-worker shim with a replacement STRING, so
+   `String.replace` read that ``$` `` as "the text before the match" and spliced the whole document into
+   the middle of a JS string literal. Four analysis tools shipped a SyntaxError; `__mkWorker` was never
+   defined; every one of them hung forever at "booting … realms" and published nothing.
+
+   ⚠️ WHY NOTHING CAUGHT IT. `npm run verify:analysis` compares the built file to what the builder
+   produces — and the builder produced the corrupted file deterministically, so build output matched
+   build output and the check passed. A byte comparison of a generator against itself examines nothing
+   about the artifact. This census asks the only question that would have failed: does it PARSE.
+
+   POPULATION: blocks carrying `data-inline-src`, which is exactly what the builders inline, and which
+   keeps a tag regex out of prose — `cohort-harness.html:39` writes `<script src>` inside an HTML
+   comment, and scanning every tag reported that sentence as unparseable JavaScript.
+   Measured: 481 blocks · 33.6 MB · ~200 ms · ~150 MB RSS, so it runs every time. */
+function readInlineParseCensus() {
+  const vm = require('node:vm');
+  const out = { artifacts: 0, blocks: 0, bytes: 0, skipped: 0, bad: [], files: [], scriptRe: null };
+  const roots = [ROOT, join(ROOT, 'docs')];
+  /* ⚠️ THE END TAG IS THE ONE HTML ACTUALLY ENDS A SCRIPT ON, which is not `</script>`. In the
+     script-data-end-tag-name state the tag name may be followed by whitespace, by `/`, or by
+     attribute-like junk that is a parse error and tolerated — so `</script >`, `</script/>`,
+     `</script foo="bar">` and `</script\t\n bar>` ALL close the element. A regex anchored on `</script>`
+     alone slices PAST such a tag and hands the parser-visible boundary to the wrong block: the census
+     then reports either a SyntaxError that is not there or, worse, nothing at all about a block it never
+     separated. CodeQL's `js/bad-tag-filter` named it on the first push and again on the `\s*` half-fix,
+     and it is right about the consequence both times. This gate exists because a check examined the
+     wrong thing; its own matcher does not get to. All five forms are asserted in the group.
+     The fuller note on the two bypasses CodeQL names is already in `tests/dex-tests.js` at the
+     `rendered text` stripper — read that one, not this one, for the argument. This form is STRICTER
+     than its `<\/script[^>]*>`: the separator is required, so `</scriptfoo>`, which is NOT an end
+     tag, does not match here. */
+  const RE = /<script\b([^>]*)>([\s\S]*?)<\/script(?:[\s/][^>]*)?>/gi;
+  /* published as a SOURCE STRING so the group asserts THIS pattern, never a transcription of it */
+  out.scriptRe = RE.source;
+  for (const r of roots) {
+    let names;
+    try {
+      names = readdirSync(r).filter((n) => n.endsWith('.html'));
+    } catch {
+      continue;
+    }
+    for (const n of names) {
+      const f = join(r, n);
+      let h;
+      try {
+        h = readFileSync(f, 'utf8');
+      } catch {
+        continue;
+      }
+      out.artifacts++;
+      out.files.push(f.slice(ROOT.length + 1));
+      RE.lastIndex = 0;
+      let m;
+      while ((m = RE.exec(h))) {
+        const attrs = m[1],
+          body = m[2];
+        if (!body.trim()) continue;
+        if (!/data-inline-src="/i.test(attrs)) {
+          out.skipped++;
+          continue;
+        }
+        /* a module block is not classic script and `vm.Script` cannot judge it — counted, never guessed at */
+        if (/type\s*=\s*"(?!text\/javascript|application\/javascript)/i.test(attrs)) {
+          out.skipped++;
+          continue;
+        }
+        out.blocks++;
+        out.bytes += body.length;
+        try {
+          new vm.Script(body, { filename: f });
+        } catch (e) {
+          out.bad.push({ file: f.slice(ROOT.length + 1), label: (attrs.match(/data-inline-src="([^"]+)"/) || [undefined, '(unlabelled)'])[1], message: String(e.message).slice(0, 120) });
+        }
+      }
+    }
+  }
+  return out;
+}
+
 /* MEASUREMENT-PROVENANCE-ROADMAP §3 — the SHIPPED bundles' code identity, read off the artifacts by the
    same projection GATE A uses. The `measurement · fixture code identity` group asserts a committed
    OxyDex fixture's `measurement.*.code.computeHash` equals the bundle's — the roadmap's literal done-when
@@ -2904,6 +2985,7 @@ async function main() {
     ManifestGate,
     computeHashProbe: await readComputeHashProbe(),
     bundleCodeIdentity: await readBundleCodeIdentity(), // roadmap §3 — shipped bundles' {manifestHash, computeHash}
+    inlineParseCensus: readInlineParseCensus(), // every builder-inlined block must PARSE (2026-09-28)
     fixtures: readFixtures(),
     equiv: readEquiv(),
     odiPilot: readOdiPilot(),

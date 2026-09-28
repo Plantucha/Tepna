@@ -218,7 +218,16 @@ function bundle(html) {
   if (rw.workers.length) {
     // inject the shim right before the FIRST inlined tool script so __mkWorker exists in time
     const shim = shimBlock(rw.workers);
-    html = html.replace(/(<script\b[^>]*\bdata-inline-src=)/i, shim + '\n$1');
+    /* ⚠️ A REPLACER FUNCTION, NEVER A REPLACEMENT STRING. `shim` is ~1.9 MB of somebody else's source
+       text, and `String.prototype.replace` interprets `$&`, `` $` ``, `$'` and `$n` inside a replacement
+       STRING. `oxydex-dsp.js` carries the comment ``only the anchored `$` keeps them apart`` — perfectly
+       ordinary prose about a regex anchor — and the `` $` `` in it expanded to THE ENTIRE DOCUMENT
+       PREFIX, splicing `<!DOCTYPE html>…` into the middle of the `var __WSRC = {…}` string literal. The
+       literal never closed, the block was a SyntaxError, `__mkWorker` was never defined, and all four
+       tools that inline `oxydex-dsp.js` hung forever at "booting … realms" with `window.<RESULT>` never
+       appearing. Measured 2026-09-28: 4 of 11 blob-worker tools, all spliced at the identical offset.
+       A function replacement receives the groups as arguments and interprets nothing. */
+    html = html.replace(/(<script\b[^>]*\bdata-inline-src=)/i, (_m, p1) => shim + '\n' + p1);
   }
   return html;
 }
