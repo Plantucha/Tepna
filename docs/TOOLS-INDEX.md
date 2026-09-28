@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**222 tools** · 220 with a purpose line · **2 without**
+**223 tools** · 221 with a purpose line · **2 without**
 
 | tool | purpose |
 |---|---|
@@ -21,6 +21,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`analysis-rerun.mjs`](../tools/analysis-rerun.mjs) | Built for `briefs/COHORT-GEN-2.0-PAPER-RERUN-2026-09-15-BRIEF.md`: the six cohort-gen-pinned papers are re-cut under 2.0, and each paper's numbers come from one browser tool. |
 | [`aperiodic-method-compare.mjs`](../tools/aperiodic-method-compare.mjs) | EXTERNAL-METHODS-SURVEY §2's measurement. The question: our aperiodic alignment failed with a correlation/argmax method, and Schranz et al. |
 | [`aperiodic-offset.mjs`](../tools/aperiodic-offset.mjs) | aperiodic-offset — target 1 of KNOWN-CLOCK-ADVERSARIAL-CAPTURE, finally testable. |
+| [`argv-guard.mjs`](../tools/argv-guard.mjs) | REFUSE AN ARGV TOKEN NOBODY READS. Residue `2026-09-28-trio-batch-ignores-an-unknown-flag-so-a-near-miss-writes-the-corpus`. |
 | [`assertion-strength.mjs`](../tools/assertion-strength.mjs) | WHICH ASSERTIONS PIN A DIRECTION WHERE THEY COULD PIN A VALUE |
 | [`beat-capture-recapture.mjs`](../tools/beat-capture-recapture.mjs) | beat-capture-recapture — how many beats did EVERY detector miss? |
 | [`beat-comb-analysis.mjs`](../tools/beat-comb-analysis.mjs) | why two beat trains cannot tell you a clock offset WHY — IBI-ALIGNMENT-LIMIT-2026-08-01-BRIEF measured wrist↔finger beat correspondence with "nearest beat + linear median" and reported a… |
