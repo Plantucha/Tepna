@@ -54,6 +54,18 @@ try {
   DSP_ERR = String((e && e.message) || e);
 }
 
+/* THE RATE AND ITS REASON, IN ONE PLACE. A ppm is a RANGE over a SPAN, so it has two ways to be
+   absent and they are not the same sentence: a night with no overlap has nothing to divide by, while a
+   night with overlap but no bins has no numerator. Collapsing both to `NaN` — which is what shipped
+   until now — hands the page an em-dash and the download a `null` with nothing beside either.
+   Bare `isFinite` is the RIGHT form on both arguments and not the null-admitting one: `driftRange` and
+   `overlapMin` are numbers-or-NaN by construction here, never null. */
+function driftPpmWithReason(driftRange, overlapMin) {
+  if (!(overlapMin > 0)) return { ppm: NaN, reason: 'drift rate not measurable: ' + (isFinite(overlapMin) ? overlapMin.toFixed(1) : 'no') + ' min of ECG∩PPG overlap (≤ 0)' };
+  if (!isFinite(driftRange)) return { ppm: NaN, reason: 'drift rate not measurable: the drift range it divides is absent' };
+  return { ppm: (driftRange / (overlapMin * 60000)) * 1e6, reason: null };
+}
+
 var LAG_SEARCH_MS = 2000,
   LAG_TOL_MS = 90,
   BIN_MIN = 5, // bin WIDTH in minutes — NOT a minimum pair count. See BIN_MATCH_MIN.
@@ -358,6 +370,14 @@ function coupledPAT(rTimes, fTimes, band) {
   var matchRate = pat.length / Math.max(nCoverable, 1);
   var matchRateRaw = pat.length / Math.max(rTimes.length, 1);
   var residIQR = resid.length ? quantile(resid, 0.75) - quantile(resid, 0.25) : NaN;
+  /* §∅ — THE REASON IS WRITTEN WHERE THE ABSENCE IS MADE. Every one of these three quantities used to
+     leave here as a bare NaN, which `JSON.stringify` turns into `null` in the download and the page
+     turns into an em-dash: the reader gets "absent" and never "why". The reason is a SIBLING, computed
+     on the same line as the NaN, so the page and the download cannot disagree about it — there is one
+     source. Shape is outcome-independent (tests/dex-tests.js §"absence is null, not absent"): the key
+     is always present and is `null` when the number IS published, so `'residIQRReason' in cp` can
+     never come to mean "this failed". */
+  var residIQRReason = resid.length ? null : 'beat-to-beat spread not measurable: ' + resid.length + ' residuals (< 1)';
   var t0 = patAtR.length ? patAtR[0].t : 0,
     bins = {};
   for (var p = 0; p < patAtR.length; p++) {
@@ -405,6 +425,7 @@ function coupledPAT(rTimes, fTimes, band) {
      the span, nothing from re-selecting beats, and no covariate (ρ against heart rate runs −0.63…+0.32
      with the sign flipping, and removing the lag~RR fit leaves the range unchanged: 72 → 78). */
   var driftRange = medVals.length ? Math.max.apply(null, medVals) - Math.min.apply(null, medVals) : NaN;
+  var driftRangeReason = medVals.length ? null : 'drift range not measurable: ' + medVals.length + ' bin medians (< 1)';
   /* THE GATED QUANTITY comes from PATGate.driftStats — single-sourced there because this file is in
      no test lane. Absent pat-gate.js the drift fields go undefined and PATGate.verdict falls back to
      `driftRange`, i.e. exactly the pre-2026-08-10 behaviour. */
@@ -450,10 +471,12 @@ function coupledPAT(rTimes, fTimes, band) {
     nCoverable: nCoverable,
     nCoupled: pat.length,
     residIQR: residIQR,
+    residIQRReason: residIQRReason,
     binMed: binMed,
     censoredPct: censoredPct, // GATED: share of beats the PHYS window discards (NaN if too few beats)
     censoredN: censTot,
     driftRange: driftRange, // diagnostic only — duration-dependent, saturates at PHYS_HI − PHYS_LO
+    driftRangeReason: driftRangeReason,
     driftRangeQual: ds.driftRangeQual, // the same range over qualified bins — also diagnostic
     stepP95: ds.stepP95, // GATED: p95 |Δ bin median| between adjacent qualified bins
     nSteps: ds.nSteps,
@@ -884,37 +907,46 @@ self.onmessage = function (e) {
              2026-08-17 — left the gate's clock refusals inert in the one path that ships them. */
           ax = PATGate.worstAxis(ecg.hostAxis, ppg.hostAxis),
           vd = PATGate.verdict(ov, cp, sc, ax);
-        var ppm = ov.min > 0 && isFinite(cp.driftRange) ? (cp.driftRange / (ov.min * 60000)) * 1e6 : NaN;
-        function packCp(c) {
-          return c.ok
-            ? {
-                ok: true,
-                med: c.med,
-                p25: c.p25,
-                p75: c.p75,
-                matchRate: c.matchRate,
-                nCoupled: c.nCoupled,
-                residIQR: c.residIQR,
-                censoredPct: c.censoredPct,
-                censoredN: c.censoredN,
-                driftRange: c.driftRange,
-                driftRangeQual: c.driftRangeQual,
-                stepP95: c.stepP95,
-                nSteps: c.nSteps,
-                binsQualified: c.binsQualified,
-                binsTotal: c.binsTotal,
-                slope: c.slope,
-                linR2: c.linR2,
-                inPhysPct: c.inPhysPct,
-                ppm: ov.min > 0 && isFinite(c.driftRange) ? (c.driftRange / (ov.min * 60000)) * 1e6 : NaN,
-                binMed: c.binMed,
-                /* ADDITIVE 2026-09-26: the surviving coupled pairs, `{t, lag}` per beat — `coupledPAT`
+        /* `ovL` — THE SPAN THIS LEG'S RATE IS DIVIDED BY, now passed in rather than closed over.
+           `packCp` read the outer `ov` (chest→ankle) for every leg, so `cpF`'s rate was the FINGER
+           leg's drift range over the ANKLE leg's span and `cpFA`'s was a range over a span belonging to
+           neither of its two ends. Nothing read those two numbers, which is why it survived — but the
+           refusal sentence added here QUOTES the span in minutes, and a sentence naming the wrong
+           recording would be worse than the silence it replaces. Each call now names its own overlap. */
+        function packCp(c, ovL) {
+          if (!c.ok) return { ok: false, reason: c.reason };
+          var dpr = driftPpmWithReason(c.driftRange, ovL.min);
+          return {
+            ok: true,
+            med: c.med,
+            p25: c.p25,
+            p75: c.p75,
+            matchRate: c.matchRate,
+            nCoupled: c.nCoupled,
+            residIQR: c.residIQR,
+            censoredPct: c.censoredPct,
+            censoredN: c.censoredN,
+            driftRange: c.driftRange,
+            driftRangeQual: c.driftRangeQual,
+            stepP95: c.stepP95,
+            nSteps: c.nSteps,
+            binsQualified: c.binsQualified,
+            binsTotal: c.binsTotal,
+            slope: c.slope,
+            linR2: c.linR2,
+            inPhysPct: c.inPhysPct,
+            ppm: dpr.ppm,
+            ppmReason: dpr.reason,
+            residIQRReason: c.residIQRReason,
+            driftRangeReason: c.driftRangeReason,
+            binMed: c.binMed,
+            /* ADDITIVE 2026-09-26: the surviving coupled pairs, `{t, lag}` per beat — `coupledPAT`
                    has always RETURNED these and `packCp` dropped them. A PAT lag's weight needs both
                    of its ends, and both are derivable from here: the R second is `t`, the foot second
                    is `t + lag`. Keeping the pairs is what lets the weighting live in the CONSUMER, so
                    `coupledPAT` and every number above it stay untouched and a classic column built
                    from this object is PAT Feasibility's own output rather than a reproduction of it. */
-                /* The surviving coupled pairs, `{t, lag}` per beat — `coupledPAT` has always returned
+            /* The surviving coupled pairs, `{t, lag}` per beat — `coupledPAT` has always returned
                    these and `packCp` dropped them. ⚠️ ONLY WHEN `m.detail` IS SET (Wren, 2026-09-26): the
                    batch path packs every leg of every night, and a full `patAtR` is ~23k objects per leg —
                    ×3 legs × N nights across `postMessage` with no reader, which is the dead-cross-boundary
@@ -922,9 +954,8 @@ self.onmessage = function (e) {
                    ⚠️ And note what this list is NOT for: `pack()` DECIMATES it to ~4000 points, so it is
                    for drawing, never for weighting. Every fused number below is computed inside this
                    worker on the FULL accepted set, which is why the weighting lives here at all. */
-                patAtR: m.detail ? c.patAtR : undefined
-              }
-            : { ok: false, reason: c.reason };
+            patAtR: m.detail ? c.patAtR : undefined
+          };
         }
         var out = {
           type: 'result',
@@ -937,7 +968,7 @@ self.onmessage = function (e) {
           vd: vd,
           driftSource: 'raw', // §1.5 — `vd` reflects UNCORRECTED drift; see `vdCorr` for the arrival-floor-corrected gate
 
-          cp: packCp(cp)
+          cp: packCp(cp, ov)
         };
         // ── THIRD SITE: chest→finger, finger→ankle and the hat (only if the O2Ring _PPG.txt was provided) ──
         var cpF = null,
@@ -949,12 +980,13 @@ self.onmessage = function (e) {
               scF = sharedClock(ecg, fin, ovF);
             cpF = coupledPAT(ecg.times, fin.times);
             cpFA = coupledPAT(fin.times, ppg.times, FINGER_ANKLE_BAND);
+            var ovFA = overlap(fin, ppg); // the finger→ankle leg's OWN span — neither end of it is the chest
             out.finger = { t0Ms: fin.t0Ms, fs: fin.fs, n: fin.n, durSec: fin.durSec };
-            out.cpF = packCp(cpF);
+            out.cpF = packCp(cpF, ovF);
             /* the ring's axis is DRAWN (sample index × an assumed rate), so the gate refuses to CERTIFY this leg;
                the lag is still computed and shown, signed NOT CERTIFIED with the gate's own reason */
             out.vdF = PATGate.verdict(ovF, cpF, scF, PATGate.worstAxis(ecg.hostAxis, fin.hostAxis));
-            out.cpFA = packCp(cpFA);
+            out.cpFA = packCp(cpFA, ovFA);
             out.three = threeHat(cpF, cp, cpFA);
             /* ── THE FUSED TWIN, on the FULL accepted set of each leg ──────────────────────────────────
                Corners: A = chest (H10 ECG, `ecg.conf`), B = finger (O2Ring, `fin.conf`), C = ankle
@@ -1020,7 +1052,7 @@ self.onmessage = function (e) {
             var R = floorTimes(devE, ecg.pos, fE),
               F = floorTimes(devP, ppg.feetIdx, fP);
             cpCorr = coupledPAT(R.hostMs, F.hostMs);
-            out.cpCorr = packCp(cpCorr);
+            out.cpCorr = packCp(cpCorr, ov);
             // the same gate, on the corrected coupling; the primary `vd` stays on the raw legs (an owner call)
             out.vdCorr = PATGate.verdict(ov, cpCorr, sc, ax);
             var leg = function (f, tm) {
