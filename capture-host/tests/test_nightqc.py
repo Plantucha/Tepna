@@ -3960,3 +3960,74 @@ def test_the_range_threshold_is_STRICT_at_exactly_five_points(tmp_path):
     assert pct(0.0, 0.05) == "0–5%", "a gap of EXACTLY 0.05 is not 'within 0.05' — strict, so a range"
     # And the pair that does NOT distinguish them, asserted so the trap is pinned rather than described:
     assert pct(0.90, 0.95) == "90%", "0.04999999999999993 is under the threshold either way"
+
+
+# ---------------------------------------------------------------------------------------------------
+# §🔒 §1/§5 — A SPAN MUST NOT DEPEND ON THE ZONE OF THE BOX READING IT.
+# residue 2026-09-24-session-span-resolves-a-floating-stamp-in-the-readers-zone
+#
+# `_session_of` turns the `_YYYYMMDDHHMMSS_` filename stamp — a FLOATING civil time written with no zone
+# — into an epoch through the reader's zone, while the other end of the same subtraction was `mtime`, an
+# ABSOLUTE instant. Measured on the real 2026-09-09 night before the fix: the judged session span read
+# 116,853 s under TZ=UTC, 102,453 s under America/New_York and 149,253 s under Asia/Tokyo — one EDT
+# offset and one JST offset apart, from the same files. The UTC figure is 32.5 h for a single session,
+# which is the tell: the mixed frame inflates the span past anything physical and nothing objected.
+# ---------------------------------------------------------------------------------------------------
+
+def _zone_night(tmp_path, *, stamp="20260909212938", span_s=7200.0, rows=1000):
+    """One capture file whose name carries a floating civil stamp and whose rows cover `span_s`."""
+    d = tmp_path / "captures" / "2026-09-09"
+    d.mkdir(parents=True)
+    p = d / f"Polar_H10_02849638_{stamp}_ECG.txt"
+    hz = rows / span_s
+    _write_stream(str(p), hz, rows=rows)
+    # mtime as an ABSOLUTE instant, which is what a file copied off the box has — the frame mismatch is
+    # the defect, not a fixture artefact. Placed well AFTER the stamp in every zone: an mtime before it
+    # makes `max(session, mtime)` collapse to the stamp and the span read 0 in all three, which is
+    # "identical in every zone" and proves nothing. That vacuous pass is why the twin below pins the
+    # VALUE as well as the stability.
+    import calendar as _cal
+    _utime(str(p), _cal.timegm(_dtmod.datetime.strptime(stamp, "%Y%m%d%H%M%S").timetuple()) + 100_000)
+    return str(d)
+
+
+def _spans_in(zone, night):
+    old = os.environ.get("TZ")
+    os.environ["TZ"] = zone
+    time.tzset()
+    try:
+        files = nightqc.scan_night(night)
+        return [round(e - s, 3) for s, e, _f in nightqc.merge_sessions(files)]
+    finally:
+        if old is None:
+            os.environ.pop("TZ", None)
+        else:
+            os.environ["TZ"] = old
+        time.tzset()
+
+
+def test_PLANT_a_session_span_is_the_same_number_in_every_reader_zone(tmp_path):
+    """THE PLANT. Three zones, one whole-hour each side of UTC and one HALF-hour (Kolkata, which catches
+    a sign error or a rounding that two whole-hour zones agree on). A span is a DURATION: it is the same
+    quantity whoever reads the files, and a reader in Tokyo must not see a different night than CI does.
+    """
+    night = _zone_night(tmp_path)
+    got = {z: _spans_in(z, night) for z in ("UTC", "America/New_York", "Asia/Kolkata", "Asia/Tokyo")}
+    assert len(set(map(tuple, got.values()))) == 1, (
+        "the session span moved with the reader's zone — §🔒 §1: a floating civil stamp resolved through "
+        "the local zone, subtracted from an absolute mtime", got)
+
+
+def test_PLANT_the_span_is_the_files_OWN_recorded_duration(tmp_path):
+    """And it is the right number, not merely a stable one: the session covers what the file recorded.
+    Pinning the value as well as its stability is what stops "identical in every zone" being satisfied by
+    a constant."""
+    rows, nominal = 1000, 7200.0
+    night = _zone_night(tmp_path, span_s=nominal, rows=rows)
+    (span,) = _spans_in("UTC", night)
+    # (n-1)/fs, not n/fs: the recorded span is the distance between the FIRST and LAST row, so 1000 rows
+    # cover 999 intervals. Asserting the nominal instead would be asserting a number the file does not
+    # contain, and would pass only because the tolerance hid the gap.
+    expected = (rows - 1) * (nominal / rows)
+    assert abs(span - expected) < 0.01, ("the session is as long as the data it holds", span, expected)
+    assert span != 100_000.0, "and it is not the distance to the mtime, which is what it used to be"

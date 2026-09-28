@@ -11,6 +11,7 @@
 # every writer emits exactly one header line, so rows = newlines − 1.
 from __future__ import annotations
 
+import calendar
 from array import array as _array
 from typing import Any
 import json
@@ -243,16 +244,47 @@ def night_view(session, files) -> "dict | None":
             "rows": round(rows), "row_fraction": (rows / total) if total else None}
 
 
+def floating_stamp_s(stamp: str) -> float | None:
+    """A `YYYYMMDDHHMMSS` capture stamp as FLOATING seconds, or None — the one conversion, §🔒 §1.
+
+    The stamp is local civil time written by `writers.capture_filename` with NO ZONE, so the only
+    viewer-independent reading of it is the components as written: `timegm` encodes them as if UTC,
+    exactly as the Clock Contract's `Date.UTC(...)` does for `tMs`. `strptime(...).timestamp()` does the
+    opposite — it resolves those components THROUGH THE READER'S ZONE — and that is how the same night
+    came to measure 116,853 s on a UTC box, 102,453 s in New York and 149,253 s in Tokyo, one whole
+    offset apart each time (residue 2026-09-24-...-readers-zone, reproduced on 2026-09-09).
+
+    ⚠️ A FLOATING SECOND IS NOT AN INSTANT and must never be differenced against one. `mtime` is an
+    absolute instant; subtracting a floating stamp from it is the defect above, not a duration. Two
+    floating values may be differenced (the zone cancels), which is what every span here now does.
+
+    Single-sourced because there were two conversions of this one stamp — here and `timeline._stamp_ms`
+    — and a comment in the latter already noted both consumers read what one writer wrote. Two copies of
+    a rule is what put `summarize` and `timeline` on different sessions for 27 of 64 nights.
+    """
+    try:
+        return float(calendar.timegm(datetime.strptime(stamp, "%Y%m%d%H%M%S").timetuple()))
+    except (ValueError, TypeError):
+        return None                                    # a plausible-year run that is not a real datetime
+
+
 def _session_of(fname: str, mtime: float) -> float:
-    """The capture SESSION a file belongs to, as an epoch — the `_YYYYMMDDHHMMSS_` START stamp
-    writers.capture_filename() embeds (the instant the connection opened). Falls back to the file's mtime
-    when the name carries no such stamp, so a legacy/stampless file is simply its own one-file session."""
+    """The capture SESSION a file belongs to — the `_YYYYMMDDHHMMSS_` START stamp
+    writers.capture_filename() embeds, as FLOATING seconds (see `floating_stamp_s`). Falls back to the
+    file's mtime when the name carries no such stamp, so a legacy/stampless file is simply its own
+    one-file session.
+
+    ⚠️ THE FALLBACK IS AN ABSOLUTE INSTANT WHILE THE STAMP IS FLOATING, and that is deliberate rather
+    than overlooked: a file with no stamp has nothing floating to place it by. It is safe because no
+    SPAN is taken across the two any more — `merge_sessions` derives every end from the file's own
+    recorded duration — so the two frames are never differenced. Measured over the corpus, 3 of 10,913
+    scanned files take this path and all three are analysis artifacts (an ECGDex summary, a PulseDex
+    summary, a computed-RR export), none of which defines a capture session."""
     stamp = writers.file_stamp(fname)
     if stamp:
-        try:
-            return datetime.strptime(stamp, "%Y%m%d%H%M%S").timestamp()
-        except ValueError:
-            pass                                       # a plausible-year run that is not a real datetime
+        got = floating_stamp_s(stamp)
+        if got is not None:
+            return got
     return mtime
 
 
@@ -911,6 +943,31 @@ def _ns_at(line: str, idx: int) -> int | None:
         return None
 
 
+def file_interval(f: dict) -> tuple[float, float, str]:
+    """`(start, end, basis)` for one scanned file, both ends in the SAME frame — §🔒 §1.
+
+    The start is the file's session stamp (floating, `floating_stamp_s`). The end is that start plus the
+    file's OWN RECORDED DURATION, and the basis names which clock stated it:
+
+      * `device-clock`  — `span_sec`, the file's own device column. Era-correct: the device wrote it.
+      * `host-stamp`    — `host_span_sec`, for a stream with no device column (the ring's raw buffers).
+      * `none`          — neither; the file is a POINT at its start. Bounded and named, never a
+                          fabricated end, and never `mtime`.
+
+    ⚠️ IT IS NO LONGER `mtime`, and that is a real change of meaning: a session now ends where its DATA
+    ends, not where the last flush landed. That is the right meaning for a verdict input — `mtime` on a
+    killed or still-open session is when the writer last touched the disk — and it is the same
+    preference `timeline.stream_intervals` already states for the same reason. It is also what makes the
+    span viewer-independent: a duration is a difference of two stamps in one frame, so the zone cancels,
+    where `mtime − stamp` mixes an absolute instant with a floating one and moves with the reader.
+    """
+    st = f["session"]
+    dur = f.get("span_sec") or f.get("host_span_sec")
+    if dur:
+        return (st, st + float(dur), "device-clock" if f.get("span_sec") else "host-stamp")
+    return (st, st, "none")
+
+
 def merge_sessions(files: list[dict], gap_sec: float = _SESSION_GAP_SEC,
                    starts: list[float] | None = None) -> list[list]:
     """[[start, end, [files]], …] — the night's capture sessions, by MERGED ACTIVE INTERVAL, oldest first.
@@ -949,8 +1006,7 @@ def merge_sessions(files: list[dict], gap_sec: float = _SESSION_GAP_SEC,
     one import away (CAPTURE-HOST-DEEP-AUDIT §A4a)."""
     sessions: list[list] = []
     bounds = sorted(t for t in (starts or []) if t is not None)
-    for st, en, f in sorted(((f["session"], max(f["session"], f["mtime"]), f) for f in files),
-                            key=lambda iv: iv[0]):
+    for st, en, f in sorted((( *file_interval(f)[:2], f) for f in files), key=lambda iv: iv[0]):
         # The seam, if any, between the running session's OPENING and this file's: a daemon start there
         # means the two belong to different runs however small the gap between them is.
         seam = next((t for t in bounds if sessions and sessions[-1][0] < t <= st), None)
@@ -1057,7 +1113,10 @@ def daemon_starts(night_dir: str, files: list[dict] | None = None) -> dict:
             stamps.append(t)
     if files is None:
         files = scan_night(night_dir)
-    spans = [(f["session"], f["mtime"]) for f in (files or [])
+    # The same interval `merge_sessions` uses, for the same reason: a start is floating and an mtime is
+    # an absolute instant, so `a <= t <= b` across the two asked whether a floating stamp fell inside a
+    # window whose end moved with the reader's zone.
+    spans = [file_interval(f)[:2] for f in (files or [])
              if f.get("rows") and f.get("stream") not in _SIDECAR_TAGS]
     inside = sum(1 for t in stamps if any(a <= t <= b for a, b in spans))
     return {"starts": len(stamps), "inside_capture": inside, "stamps": sorted(stamps)}
