@@ -8319,6 +8319,46 @@ def test_alert_poller_stays_QUIET_for_a_ring_that_powered_off_after_a_completed_
     assert sent == [], "an expected power-off must not alert"
 
 
+def test_alert_poller_names_a_polar_power_off_without_calling_it_a_ring(monkeypatch, caplog):
+    """MEASURED 2026-09-28 04:22:14 on vigil: `Polar H10 02849638: ring powered off — idle timer`, 45 s
+    after the H10's not-worn auto-pull. The poller walks every device, so its line must not carry a device
+    noun: the device's own name says which one it is. The quiet state itself is unchanged."""
+    import logging
+
+    sent = []
+
+    class _N:
+        enabled = True
+
+        async def send(self, title, message, **kw):
+            sent.append(title)
+            return True
+
+    nm = "Polar H10 02849638"
+    cfg = {"alerts": {"poll_sec": 1, "offline_sec": 0}, "devices": [_dev(name=nm)]}
+    capture.STATUS["devices"][nm] = {"connected": False}
+    capture._LAST_DATA.pop(nm, None)
+    capture._IDLE_TIMER_NAMED.discard(nm)
+    capture._LAST_PULL_OK[nm] = 1000.0  # its auto-pull COMPLETED, one minute ago
+    calls = {"n": 0}
+
+    async def fake_sleep(_s):
+        calls["n"] += 1
+        if calls["n"] >= 3:
+            capture._STOP.set()
+
+    monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(capture._time, "monotonic", lambda: 1060.0)
+    with caplog.at_level(logging.INFO):
+        _run(capture.alert_poller(cfg, _N()))
+    capture._LAST_PULL_OK.pop(nm, None)
+    capture._IDLE_TIMER_NAMED.discard(nm)
+    assert sent == [], "an expected power-off must not alert"
+    line = [r.getMessage() for r in caplog.records if "powered off" in r.getMessage()]
+    assert line == [nm + ": powered off — idle timer (expected until re-wear or charger; its stored session was "
+                    "already pulled)"], line
+
+
 def test_alert_poller_STILL_alerts_when_the_pull_did_not_succeed(monkeypatch):
     """The mirror, and the one that matters. Same silence, same doff — but no completed pull, so the
     night is still ON the ring. That is exactly the alert worth having, and licensing the quiet state

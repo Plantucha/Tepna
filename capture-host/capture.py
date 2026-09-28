@@ -8475,8 +8475,12 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
                 if not connected and alerts.powered_off_after_pull(_LAST_PULL_OK.get(name), now):
                     if name not in _IDLE_TIMER_NAMED:
                         _IDLE_TIMER_NAMED.add(name)
+                        # NO DEVICE NOUN: this poller walks EVERY device, and since the Polar auto-pull a
+                        # strap reaches this line too (an H10 switches itself off when unsnapped — not a
+                        # ring's idle timer). `name` already says which device it is; the line used to say
+                        # "ring" for all of them (residue 2026-09-28-powered-off-log-names-every-device-a-ring).
                         log.info(
-                            "%s: ring powered off — idle timer (expected until re-wear or "
+                            "%s: powered off — idle timer (expected until re-wear or "
                             "charger; its stored session was already pulled)",
                             name,
                         )
