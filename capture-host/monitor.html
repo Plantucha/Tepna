@@ -1398,8 +1398,14 @@ function nightFiles(n, node){
   if(node==='PAT') return { files: [...nodeFileList(n,'ECGDex').filter(f=>f.endsWith('_ECG.txt')), ...nodeFileList(n,'PPGDex').filter(f=>/(VeritySense|O2Ring).*_PPG\.txt$/.test(f)),
     ...nodeFileList(n,'MotionDex').filter(f=>/Polar_(H10|VeritySense).*_ACC\.txt$/.test(f)),
     ...(Array.isArray(n && n.arrival) ? n.arrival : [])], reason: null };
+  /* 'PAT fused' gets the SAME optional inputs as 'PAT' — the two devices' ACC and packet-arrival sidecars.
+     It used to get only the three waveforms, so its worker could never build the arrival-floor axis and the
+     page showed the RAW chest→ankle lag (499 ms on 2026-09-26) beside PAT Feasibility's corrected 342 ms for
+     the same night: 156 ms of Verity-vs-H10 link buffering presented as pulse arrival time. */
   if(node==='PAT fused') return { files: [...nodeFileList(n,'ECGDex').filter(f=>f.endsWith('_ECG.txt')),
-    ...nodeFileList(n,'PPGDex').filter(f=>/(VeritySense|O2Ring).*_PPG\.txt$/.test(f))], reason: null };
+    ...nodeFileList(n,'PPGDex').filter(f=>/(VeritySense|O2Ring).*_PPG\.txt$/.test(f)),
+    ...nodeFileList(n,'MotionDex').filter(f=>/Polar_(H10|VeritySense).*_ACC\.txt$/.test(f)),
+    ...(Array.isArray(n && n.arrival) ? n.arrival.filter(f => typeof f === 'string') : [])], reason: null };
   const v = n && n[node];
   if(Array.isArray(v && v.files)){
     /* A LIST THAT HOLDS SOMETHING THAT IS NOT A PATH IS A WRONG SHAPE, NOT AN EMPTY NIGHT. Filtering

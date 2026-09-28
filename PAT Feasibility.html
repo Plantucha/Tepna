@@ -1645,17 +1645,8 @@ function __mkWorker(name){ return new Worker(URL.createObjectURL(new Blob([__WSR
         ['finger', 'O2Ring finger', C.amber],
         ['ankle', 'Verity ankle', '#B98AFF']
       ].forEach(function (r) {
-        var s = h.sigma[r[0]];
-        hc.push(
-          hcard(
-            'σ ' + r[1],
-            s == null ? 'REFUSED' : s.toFixed(1),
-            s == null ? '' : 'ms',
-            s == null ? 'negative variance ' + h.variance[r[0]].toFixed(0) + ' ms² — the independent-error model does not fit this site' : 'from ' + h.n + ' × ' + h.winMin + '-min windows',
-            s == null ? C.mut : r[2],
-            'hat'
-          )
-        );
+        var a = hatSiteArgs(h, r[0], r[1], r[2]);
+        hc.push(hcard(a[0], a[1], a[2], a[3], a[4], 'hat'));
       });
       hc.push(
         hcard(
@@ -1668,6 +1659,8 @@ function __mkWorker(name){ return new Worker(URL.createObjectURL(new Blob([__WSR
         )
       );
       hc.push(hcard('windows solved', String(h.n), '', 'all three legs ≥ 50 beats in the same ' + h.winMin + ' min', C.ink, 'count'));
+      // The axes the hat was solved on, stated beside it (see hatSiteArgs): raw receive stamps, buffering included.
+      hc.push(hcard('timing axes', 'RAW', '', 'phone receive stamps — each σ includes its device’s Bluetooth buffering; a corrected hat needs the ring on an arrival-floor axis, which is not recorded', C.amber, 'hat'));
     } else hc.push(hcard('three-cornered hat', '—', '', h && h.reason ? h.reason : 'not solved', C.mut));
     hb.innerHTML = hc.join('');
     drawThree(h);
@@ -1820,6 +1813,39 @@ function __mkWorker(name){ return new Worker(URL.createObjectURL(new Blob([__WSR
     for (var q = 0; q <= 8; q++) ctx.fillText(String(q * 100), pad + (q * (w - pad - 12)) / 8 - 6, h - pad + 12);
   }
 
+  /* ── ONE SITE'S HAT CARD — the solver's per-corner STATUS, not a bare sign test (PAT-HAT-DRIFT-DIFFERENCED) ──
+     This read `sigma == null ⇒ "REFUSED — the independent-error model does not fit this site"`, the wording
+     #3183 removed from PAT Classic vs Fused and left here. On 2026-09-26 the chest corner's variance was −32 ms²
+     with a 95 % CI of [−226, +206]: consistent with independence, too few windows to resolve — `underpowered`,
+     with a bound. Only a CI wholly below 0 is an independence failure. A result from before `corners` existed
+     keeps the old sign test. Returns the hcard arguments [label, value, unit, sub, tone]. */
+  function hatSiteArgs(h, site, name, tone) {
+    var s = h.sigma ? h.sigma[site] : null,
+      c = h.corners ? h.corners[site] : null,
+      v = h.variance ? h.variance[site] : null,
+      vs = typeof v === 'number' && isFinite(v) ? v.toFixed(0) + ' ms²' : 'a negative variance';
+    var lab = 'σ ' + name;
+    if (typeof s === 'number' && isFinite(s)) return [lab, s.toFixed(1), 'ms', 'from ' + h.n + ' × ' + h.winMin + '-min windows', tone];
+    if (c && c.status === 'underpowered')
+      return [
+        lab,
+        'UNDERPOWERED',
+        '',
+        (typeof c.boundMs === 'number' && isFinite(c.boundMs) ? 'σ < ' + c.boundMs.toFixed(1) + ' ms' : 'no bound resolved') +
+          ' — variance ' + vs + ', but its 95 % CI reaches 0: too few windows to resolve this site, not an independence failure',
+        C.mut
+      ];
+    if (c && c.status === 'independence-failed')
+      return [
+        lab,
+        'REFUSED',
+        '',
+        'variance ' + vs + ' with its whole 95 % CI below 0 — errors shared between ' + (Array.isArray(c.pair) ? c.pair.join(' and ') : 'two sites') +
+          (typeof c.explainRho === 'number' && isFinite(c.explainRho) ? ', ρ ≈ ' + c.explainRho.toFixed(2) + (c.rhoOutOfRange ? ' (beyond ±1, unclamped)' : '') : ''),
+        C.mut
+      ];
+    return [lab, 'REFUSED', '', 'negative variance ' + vs + ' — the independent-error model does not fit this site', C.mut];
+  }
   function hcard(label, val, unit, sub, tone, ev) {
     return (
       '<div class="hcard">' +

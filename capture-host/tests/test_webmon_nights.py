@@ -505,6 +505,47 @@ def _night_files_src(html, projected=True):
     return src
 
 
+def test_pat_fused_is_handed_the_arrival_sidecars_and_acc_the_pat_page_gets(tmp_path):
+    """THE 'PAT fused' HANDOFF DROPPED THE ARRIVAL SIDECARS (owner-ordered audit, 2026-09-28). It passed only the
+    three waveforms, so the page's worker could never build the arrival-floor axis and showed the RAW chest→ankle
+    lag — 499 ms on 2026-09-26 against PAT Feasibility's corrected 342 ms for the same night, 156 ms of link
+    buffering read as pulse arrival. EXECUTED on a night whose index carries both sidecars: 'PAT fused' must
+    receive every input 'PAT' does."""
+    import json
+    import shutil
+    import subprocess
+
+    import pytest
+
+    import nights_index as ni
+
+    node = shutil.which("node")
+    if not node:  # pragma: no cover - ubuntu-latest always has node; a dev box might not
+        pytest.skip("node is not installed")
+    d = _night(tmp_path)  # H10 ECG + ACC, Verity PPG
+    (d / "Polar_VeritySense_0C301E3F_20260919220000_ACC.txt").write_text(ROWS)
+    (d / "Wellue_O2Ring-S_77F1_20260919220000_PPG.txt").write_text(ROWS)
+    for dev in ("Polar_H10_02849638", "Polar_VeritySense_0C301E3F"):
+        (d / f"{dev}_20260919220000_PMDARRIVAL.csv").write_text(ROWS)
+    row = ni.night_entry(str(tmp_path), str(d))
+    assert len(row["arrival"]) == 2, row.get("arrival")  # anti-vacuity: the index must carry both sidecars
+
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    html = open(os.path.join(here, "monitor.html"), encoding="utf-8").read()
+    prog = (
+        _night_files_src(html) + "\nconst n = " + json.dumps(row) + ";\n"
+        "console.log(JSON.stringify({ fused: nightFilesFor(n, 'PAT fused'), pat: nightFilesFor(n, 'PAT') }));"
+    )
+    r = subprocess.run([node, "-e", prog], capture_output=True, text=True, timeout=30)
+    assert r.returncode == 0, r.stderr
+    got = json.loads(r.stdout.strip())
+    fused = got["fused"]
+    for want in ("PMDARRIVAL.csv", "_ACC.txt"):
+        assert sum(f.endswith(want) for f in fused) == 2, (want, fused)
+    assert sorted(fused) == sorted(got["pat"]), ("'PAT fused' and 'PAT' disagree about one night's inputs", got)
+    assert any("O2Ring" in f and f.endswith("_PPG.txt") for f in fused), fused  # the ring's raw pleth still rides
+
+
 def test_no_value_shape_reaching_nightfiles_yields_a_non_array_or_a_throw(tmp_path):
     """THE TRAP IS A TRUTHY VALUE OF THE WRONG SHAPE, NOT AN ABSENT ONE. Every lookup used to be
     `n.X ? n.X.files : []`, which guards absence and admits anything truthy: a DERIVED entry is a BOOLEAN,
@@ -636,5 +677,14 @@ def test_the_shape_guard_changed_no_answer_for_a_well_formed_night(tmp_path):
     old_out = run(_night_files_src(old.stdout, projected=False), "origin/main")
     assert set(new_out) == set(keys) and len(keys) >= 8, (sorted(new_out), keys)  # anti-vacuity
     assert any(v for v in new_out.values()), "every column came back empty — the night fixture resolved nothing"
+    # A handoff this branch changes ON PURPOSE is named here with its reason, and held to a SUPERSET of origin/main's
+    # answer — nothing it used to hand over may be dropped. Every other key stays an exact equality. Once the change is
+    # on origin/main the two sides agree and the entry is inert; it is not a standing exemption from the control.
+    changed_on_purpose = {
+        "PAT fused": "gets the two Polar devices' ACC + arrival sidecars, as 'PAT' does (owner-ordered audit, 2026-09-28)",
+    }
     for k in keys:
+        if k in changed_on_purpose and new_out[k] != old_out[k]:
+            assert isinstance(old_out[k], list) and set(old_out[k]) < set(new_out[k]), (k, changed_on_purpose[k], new_out[k], old_out[k])
+            continue
         assert new_out[k] == old_out[k], (k, new_out[k], old_out[k])
