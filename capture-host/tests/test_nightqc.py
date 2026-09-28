@@ -13,6 +13,7 @@ from datetime import datetime, timedelta
 
 import pytest
 import nightqc
+import writers
 
 
 def _cap(night, name, rows, header="h1;h2\n"):
@@ -41,10 +42,13 @@ _STAMP_0719 = "20260719220000"
 
 
 def _stamp_epoch(stamp=_STAMP_0719):
-    """The epoch a `_YYYYMMDDHHMMSS_` filename stamp resolves to FOR THIS READER — the same naive
-    conversion `_session_of` makes, so a fixture's mtimes stay in a civil-time relationship with its
-    filenames whatever zone the suite runs in."""
-    return nightqc._session_of(f"X_{stamp}_ECG.txt", 0.0)
+    """The FLOATING seconds a `_YYYYMMDDHHMMSS_` filename stamp resolves to — the same one conversion
+    `_session_of` makes, so a fixture's mtimes stay in a civil-time relationship with its filenames.
+
+    It no longer depends on the reader: the value is the components as written, identical in every zone.
+    A fixture that wants an mtime in the ABSOLUTE frame beside it adds the offset the fixture is written
+    to represent, exactly as `nightqc.recover_writer_offset` recovers it from a real night."""
+    return nightqc._session_of(f"X_{stamp}_ECG.txt")
 
 
 def test_parse_capture_name():
@@ -127,11 +131,15 @@ def _utime(p, t):
     os.utime(p, (t, t))
 
 
-def test_session_of_falls_back_when_the_stamp_is_not_a_real_datetime():
-    # a 14-digit run that is not a valid YYYYMMDDHHMMSS (month 99) → strptime raises → use the mtime
-    assert nightqc._session_of("Polar_H10_x_20269999000000_ECG.txt", 123.0) == 123.0
-    # no 14-digit stamp at all → mtime
-    assert nightqc._session_of("a_b_c_ECG.txt", 456.0) == 456.0
+def test_session_of_refuses_when_the_stamp_is_not_a_real_datetime():
+    # A file with no usable start stamp has NO FLOATING START, and that is what it now says. It used to
+    # answer with the file's mtime, which is an absolute instant in a field whose contract is floating —
+    # so whatever `file_interval` did to the field it did to two different frames. `file_interval` reads
+    # the None and uses the mtime AS an instant instead, without raising it by an offset it never carried.
+    # a 14-digit run that is not a valid YYYYMMDDHHMMSS (month 99) → strptime raises → no floating start
+    assert nightqc._session_of("Polar_H10_x_20269999000000_ECG.txt") is None
+    # no 14-digit stamp at all → likewise
+    assert nightqc._session_of("a_b_c_ECG.txt") is None
 
 
 def test_folder_date_helpers_reject_a_non_date_name(tmp_path):
@@ -569,16 +577,19 @@ def test_a_14_digit_device_serial_is_not_read_as_the_session_stamp(tmp_path):
     import nightqc
     # A device whose serial happens to be 14 digits, followed by the real capture stamp.
     fname = "Polar_H10_20250101000000_20260725225058_ECG.txt"
-    got = nightqc._session_of(fname, mtime=1.0)
+    got = nightqc._session_of(fname)
+    import calendar
     from datetime import datetime
-    expect = datetime.strptime("20260725225058", "%Y%m%d%H%M%S").timestamp()
+    # timegm, not `.timestamp()`: the expectation must be the components AS WRITTEN, or this test would
+    # re-encode the reader's zone and pass in one zone while the code it pins is zone-free.
+    expect = float(calendar.timegm(datetime.strptime("20260725225058", "%Y%m%d%H%M%S").timetuple()))
     assert got == expect, "the SERIAL was taken for the stamp — the session key is a different night"
 
 
 def test_a_run_of_digits_that_is_not_a_plausible_year_is_ignored(tmp_path):
     import nightqc
-    assert nightqc._session_of("Polar_H10_99999999999999_ECG.txt", mtime=7.0) == 7.0, (
-        "a 14-digit run with an impossible year must fall back to mtime, not be strptime'd"
+    assert nightqc._session_of("Polar_H10_99999999999999_ECG.txt") is None, (
+        "a 14-digit run with an impossible year must be refused, not strptime'd"
     )
 
 
@@ -1113,7 +1124,15 @@ def _cap_timed(night, name, rows, hz, t0_ns=1_000_000_000_000):
 
     `_cap` writes `i;i` rows with no clock, which is fine for row-count coverage but makes the
     measured rate unsayable — `measured_hz` reads the `sensor timestamp [ns]` column deliberately (the
-    DEVICE clock, not the host stamp, which is back-timed across each packet)."""
+    DEVICE clock, not the host stamp, which is back-timed across each packet).
+
+    ⚠️ THE HOST COLUMN IS A CONSTANT PLACEHOLDER, deliberately left as one. Only the device column is
+    read here, and no real capture file could look like this: a host clock that never moves across 130,000
+    rows is not a clock. It is left because `nightqc.recover_writer_offset` must not believe it — reading
+    this file's last host stamp makes a night vote a writer offset of 5,804,100 s (67 days) with a clean
+    majority behind it, and the defence belongs in production, where `_OFFSET_MAX_ABS_SEC` refuses a vote
+    on its MAGNITUDE. Making the fixture honest instead was measured: it fixed nothing the bound had not
+    already fixed, tripled this suite's runtime and emitted 3.4 M deprecation warnings."""
     p = os.path.join(night, name)
     step = int(round(1e9 / hz))
     with open(p, "w") as fh:
@@ -3313,7 +3332,7 @@ def _end_0923():
     The production data has a civil-time relationship between the two, so the fixture expresses that
     relationship instead of a number: the end is the stamp's own epoch plus the span, which holds in
     any zone. The `_tz` fixture then runs the twin in two of them so this cannot regress silently."""
-    return nightqc._session_of("X_20260923231318_PPG.txt", 0.0) + _SPAN_0923
+    return nightqc._session_of("X_20260923231318_PPG.txt") + _SPAN_0923
 
 
 @pytest.fixture(params=["UTC", "America/New_York", "Asia/Kolkata"])

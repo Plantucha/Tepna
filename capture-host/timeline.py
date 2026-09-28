@@ -33,6 +33,7 @@
 # look broken.
 from __future__ import annotations
 
+import calendar as _cal
 import datetime as _dt
 import os
 
@@ -77,10 +78,14 @@ def covered_seconds(intervals: list[tuple[float, float]]) -> float:
 
 
 def _stamp_ms(name: str) -> float | None:
-    """Session start from the filename stamp → epoch seconds (local civil, per the Clock Contract).
+    """Session start from the filename stamp → FLOATING seconds (§🔒 §1), or None.
 
-    The stamp is `YYYYMMDDHHMMSS` written by writers.capture_filename from a naive local datetime, so it
-    is parsed back the same way — never through a timezone-aware path that would shift it."""
+    The stamp is `YYYYMMDDHHMMSS` written by writers.capture_filename from a naive local datetime, and it
+    is read back as the components AS WRITTEN — `nightqc.floating_stamp_s` is the one conversion, and
+    this delegates to it rather than keeping a second copy. It used `.timestamp()`, which resolves those
+    components through the READER's zone; the module then differenced the result against file mtimes and
+    against `merge_sessions` bounds, so the coverage window moved bodily with the viewer's zone. To reach
+    an instant, add the writer's offset (`nightqc.recover_writer_offset`) — `build` does, once."""
     stamp = writers.file_stamp(name)
     if not stamp:
         return None
@@ -95,13 +100,11 @@ def _stamp_ms(name: str) -> float | None:
     # (`timeline._stamp_ms`, `nightqc._session_of`) read only what that writer wrote.
     # If a NON-strftime producer is ever routed into this path, this clause becomes live and the
     # rejection becomes a real bug — that is the condition that retires this comment.
-    try:
-        return _dt.datetime.strptime(stamp, "%Y%m%d%H%M%S").timestamp()
-    except ValueError:
-        return None
+    return nightqc.floating_stamp_s(stamp)
 
 
-def stream_intervals(files: list[dict], device_id, tag: str, fs: float) -> list[tuple[float, float]]:
+def stream_intervals(files: list[dict], device_id, tag: str, fs: float,
+                     offset_sec: float | None = 0.0) -> list[tuple[float, float]]:
     """[(start_s, end_s)] this stream was writing, from session files alone.
 
     Duration is the file's OWN recorded span (`span_sec`, from its device-clock column) when it has one,
@@ -117,7 +120,8 @@ def stream_intervals(files: list[dict], device_id, tag: str, fs: float) -> list[
 
     `device_id` may be one id or several — a device that had its id corrected still owns the
     files written under the old one (writers.device_ids)."""
-    return sorted((t0, t0 + dur) for t0, dur in _placed(files, device_id, tag, fs) if dur)
+    return sorted((t0, t0 + dur)
+                  for t0, dur in _placed(files, device_id, tag, fs, offset_sec) if dur)
 
 
 def unmeasurable_files(files: list[dict], device_id, tag: str, fs: float) -> int:
@@ -135,8 +139,13 @@ def unmeasurable_files(files: list[dict], device_id, tag: str, fs: float) -> int
     return sum(1 for _t0, dur in _placed(files, device_id, tag, fs) if not dur)
 
 
-def _placed(files: list[dict], device_id, tag: str, fs: float):
+def _placed(files: list[dict], device_id, tag: str, fs: float, offset_sec: float | None = 0.0):
     """`(start_ms, duration_or_None)` for every file of this stream that carries rows.
+
+    `offset_sec` raises the floating start stamp into the caller's frame (see `_stamp_ms`); the duration
+    needs none, being a difference of two stamps in one frame either way. It sits here rather than in the
+    two callers so the start and the duration are decided in the same place — the reason this helper
+    exists at all.
 
     The duration rule lives here, in preference order:
       1. `span_sec` — the file's OWN device clock, era-correct because the device wrote it.
@@ -154,6 +163,9 @@ def _placed(files: list[dict], device_id, tag: str, fs: float):
         t0 = _stamp_ms(f["file"])
         if t0 is None or not f["rows"]:
             continue
+        # The stamp is floating; `offset_sec` raises it into the frame the caller's window is in. 0.0 (the
+        # default) means "already one frame", which is what every synthetic file list in the suite is.
+        t0 += 0.0 if offset_sec is None else offset_sec
         dur = f.get("span_sec") or (f["rows"] / fs if fs > 0 else f.get("host_span_sec"))
         yield (t0, dur or None)
 
@@ -313,7 +325,12 @@ def read_link_samples(
                     dev = p[i_dev].strip() if len(p) > i_dev else ""
                     addr = (p[i_a].strip() if i_a is not None and len(p) > i_a else "") or None
                     try:
-                        ts = _dt.datetime.fromisoformat(p[i_ts]).timestamp()
+                        # FLOATING, like every other stamp the box writes: `writers._phone_ts` is
+                        # documented "local civil time, zone-free", so resolving it through the
+                        # READER's zone (`.timestamp()`, as this did) put it an offset away from the
+                        # session bounds it is drawn against. `build` raises it once, with the rest.
+                        _dtv = _dt.datetime.fromisoformat(p[i_ts])
+                        ts = float(_cal.timegm(_dtv.timetuple())) + _dtv.microsecond / 1e6
                     except ValueError:
                         continue      # NO TIMESTAMP, NO SAMPLE. Every consumer places these on a
                                       # time axis, so a row that cannot be placed has nowhere to go
@@ -435,17 +452,30 @@ def build(night_dir: str, devices: list[dict], buckets: int = DEFAULT_BUCKETS) -
     # night, and the missing hours rendered `idle`, the colour that means "nothing was recording".
     # Same gate nightqc has always used: pool only when THIS folder's earliest session opened just
     # after midnight, so an ordinary daytime session never drags in a whole prior day.
+    # THE WRITER'S UTC OFFSET, recovered over THIS folder's files, for the same reason and with the same
+    # refusal as `nightqc.summarize` (see `nightqc.recover_writer_offset`). Every stamp below is floating
+    # civil; this is the one number that turns them into instants, and where it cannot be recovered the
+    # coverage figures refuse rather than measure against a window built on a guessed zone.
+    _off = nightqc.recover_writer_offset(night_dir, data)
+    _offset = _off["offset_sec"]
+    _shift = 0.0 if _offset is None else _offset
     dirs = [night_dir]
     if data:
         midnight = nightqc._midnight_of(night_dir)
-        earliest = min(f["session"] for f in data)
-        if midnight is not None and 0 <= earliest - midnight < nightqc._SESSION_GAP_SEC:
+        # Both floating, so the zone cancels; None is skipped rather than defaulted (an unstamped file has
+        # no floating start to be the earliest of).
+        _stamped = [f["session"] for f in data if f["session"] is not None]
+        earliest = min(_stamped) if _stamped else None
+        if (midnight is not None and earliest is not None
+                and 0 <= earliest - midnight < nightqc._SESSION_GAP_SEC):
             prev = nightqc._prev_day_dir(night_dir)
             if prev and os.path.isdir(prev):
                 data = [f for f in nightqc.scan_night(prev)
                         if f["stream"] not in nightqc._SIDECAR_TAGS] + data
                 dirs.insert(0, prev)
     link = read_link_samples(dirs)
+    # The sidecar's stamps come back floating; raise them into the same frame as the session bounds.
+    link = {k: [(ts + _shift, c, r) for ts, c, r in v] for k, v in link.items()}
 
     # ── THE COVERAGE WINDOW (CAPTURE-HOST-DEEP-AUDIT §A4) ──────────────────────────────────────────
     # It comes from THE RECORDING, and it used to come from the LINK sidecar. The sidecar rolls per
@@ -459,8 +489,9 @@ def build(night_dir: str, devices: list[dict], buckets: int = DEFAULT_BUCKETS) -
     # this module would merge two daemon runs into one window while `summarize` kept them apart, and the
     # whole reason `merge_sessions` is shared is that the two must not disagree about what "the session"
     # is. `dirs` is exactly the set contributing to `data`, so the union is the right population.
-    _seams = sorted({t for d in dirs for t in nightqc.daemon_starts(d)["stamps"]})
-    sessions = nightqc.merge_sessions(data, starts=_seams) if data else []
+    _seams = sorted({t for d in dirs
+                     for t in nightqc.daemon_starts(d, offset_sec=_offset)["stamps"]})
+    sessions = nightqc.merge_sessions(data, starts=_seams, offset_sec=_offset) if data else []
     spans: list[float] = []
     if sessions:
         # ONE RULE, ONE CALL SITE — `nightqc.judged_session` holds the reasoning and the measurement.
@@ -475,6 +506,7 @@ def build(night_dir: str, devices: list[dict], buckets: int = DEFAULT_BUCKETS) -
             s = _stamp_ms(f["file"])
             if s is None:
                 continue
+            s += _shift                      # floating stamp → the frame `spans` is accumulated in
             spans.append(s)
             # ...and its END. `spans` collected file START stamps only, so the window stopped where the
             # last session BEGAN and `covered` — which does count durations — ran past it: 156.5 % on a
@@ -509,7 +541,7 @@ def build(night_dir: str, devices: list[dict], buckets: int = DEFAULT_BUCKETS) -
         for s in d.get("streams") or []:
             fs = nightqc._expected_hz(d, s) or 0
             ids = writers.device_ids(d)
-            iv = stream_intervals(data, ids, s.upper(), fs)
+            iv = stream_intervals(data, ids, s.upper(), fs, offset_sec=_offset)
             st = apply_link_states(bucket_stream(iv, t0, t1, buckets, fs), conn, wedged)
             covered = covered_seconds(iv)
             # ∅ — A PERCENTAGE OF NOTHING IS NOT ZERO PERCENT. `_expected_hz` returns None for a stream
@@ -526,16 +558,25 @@ def build(night_dir: str, devices: list[dict], buckets: int = DEFAULT_BUCKETS) -
                 "covered_sec": round(covered),
                 # Against the SESSION span, not the wall-clock night: a sensor worn from 22:30 is not
                 # 60 % complete because midnight-to-midnight exists.
+                # ∅ AND AN UNKNOWN FRAME REFUSES TOO. Without a recovered offset the window is built
+                # from floating stamps plus the files' own durations, so `t1 − t0` collapses toward
+                # `covered` and the ratio tends to 1 by construction — a coverage figure that cannot go
+                # down is not a measurement. Refusing names the cause; measuring would hide it.
                 "coverage_pct": (round(100 * covered / (t1 - t0), 1)
-                                 if t1 > t0 and (iv or not unmeasured) else None),
+                                 if t1 > t0 and (iv or not unmeasured) and _offset is not None
+                                 else None),
                 # How many files with rows carry no duration this could be measured from. 0 for every
                 # stream with a rate or a device clock, so a reader sees the qualifier only when it bites.
                 "coverage_unmeasured": unmeasured,
-                "coverage_reason": None if (iv or not unmeasured) else "no-duration-basis",
+                "coverage_reason": ("writer-offset-unrecoverable" if _offset is None
+                                    else None if (iv or not unmeasured) else "no-duration-basis"),
             }
         out_devs.append({"name": d.get("name"), "address": addr, "device_id": did,
                          "rssi": rssi, "streams": streams})
     return {"night": os.path.basename(night_dir.rstrip("/")),
+            # The inference the axis rests on, published as `summarize` publishes it — `frame` says
+            # whether `t0`/`t1` are instants or floating civil values.
+            "writer_offset": dict(_off, frame="floating" if _offset is None else "absolute"),
             "t0": t0, "t1": t1, "buckets": buckets,
             "bucket_sec": round((t1 - t0) / buckets, 1) if buckets else 0,
             "devices": out_devs}
