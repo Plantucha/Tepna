@@ -16,13 +16,45 @@ import nightqc
 import writers
 
 
-def _cap(night, name, rows, header="h1;h2\n"):
-    """Write a capture file with a header line + `rows` data lines."""
+_CLOCKLESS_HEADER = "h1;h2\n"
+
+
+def _cap(night, name, rows, header=None):
+    """Write a capture file with a header line + `rows` data lines.
+
+    BY DEFAULT IT CARRIES A HOST CLOCK, because every real capture file does. `i;i` rows under an
+    `h1;h2` header are not a capture file in any respect, and that stopped being merely unrealistic when
+    `nightqc.recover_writer_offset` began reading the writer's UTC offset out of the files: a night whose
+    files carry no clock at all casts no vote, so it refuses — correctly, but it refuses for a reason the
+    fixture invented rather than one the behaviour under test is about.
+
+ONLY THE LAST ROW CARRIES A STAMP, and `_utime` writes it, because the stamp that matters is the
+    file's CLOSE time and only `_utime` knows it. The rest are blank, which is what keeps this change from
+    cascading into coverage: `file_host_span_sec` scans forward for a first usable row, finds none, and
+    returns None — so these files gain a zone witness and NOT a duration basis, and every coverage figure
+    is computed from exactly what it was before. An earlier attempt wrote a stamp on every row at 1 Hz;
+    that gave an ECG file a 36-hour host span and broke 11 coverage assertions that were right all along.
+
+    The stamp is LOCAL civil time (what `writers._phone_ts` writes: "local civil time, zone-free"), so the
+    fixture emulates a writer in the reader's zone — which is what these fixtures have always tacitly
+    done, since their mtimes come from `.timestamp()`. The recovered offset is therefore the reader's own,
+    and `session + offset` reproduces today's `strptime(stamp).timestamp()` exactly: every span these
+    tests assert is unchanged, by construction rather than by tolerance.
+
+    PASS `header=_CLOCKLESS_HEADER` FOR THE DELIBERATELY CLOCKLESS CASE. It is not a legacy shim: the
+    refusal path (UNKNOWN, a named reason, no guessed span) has to stay exercised, and a file with no
+    clock is the only thing that exercises it. Any explicit `header` likewise suppresses the stamps, so a
+    caller testing a specific column layout still gets exactly the layout it asked for."""
     p = os.path.join(night, name)
     with open(p, "w") as fh:
-        fh.write(header)
-        for i in range(rows):
-            fh.write(f"{i};{i}\n")
+        if header is not None:
+            fh.write(header)
+            for i in range(rows):
+                fh.write(f"{i};{i}\n")
+        else:
+            fh.write("Phone timestamp;v\n")
+            for i in range(rows):
+                fh.write(f";{i}\n")          # blank stamp — `_utime` fills the LAST one, see below
     return p
 
 
@@ -128,6 +160,28 @@ def test_summarize_flags_a_missing_and_header_only_stream(tmp_path, _tz):
 
 
 def _utime(p, t):
+    """Set the file's mtime to `t` — and, if it carries an empty-stamped host column, write the CIVIL time
+    of `t` into its last row.
+
+    THE TWO HAVE TO AGREE. `t` is an absolute instant; the host column is civil time. A night states the
+    writer's UTC offset by the distance between them (`nightqc.recover_writer_offset`), so a fixture whose
+    last row says nothing cannot state its zone, refuses, and publishes no span — failing the test for a
+    reason the fixture invented rather than one the behaviour under test is about.
+
+    Writing it HERE rather than in `_cap` is what makes it right: the close stamp is the mtime, and only
+    this function knows the mtime. The distance it produces is exactly the reader's offset with zero lag,
+    so every file votes the same bucket and the vote is exact rather than merely inside it."""
+    try:
+        with open(p, "r+", encoding="utf-8") as fh:
+            lines = fh.readlines()
+            if lines and lines[0].startswith("Phone timestamp;") and lines[-1].startswith(";"):
+                # `fromtimestamp` IS a zone conversion here, and deliberately: the fixture emulates a
+                # writer in the reader's zone, so the civil time of `t` is what that writer would log.
+                c = _dtmod.datetime.fromtimestamp(t)
+                lines[-1] = f"{c.strftime('%Y-%m-%dT%H:%M:%S.')}{c.microsecond // 1000:03d}" + lines[-1]
+                fh.seek(0); fh.writelines(lines); fh.truncate()
+    except (OSError, UnicodeDecodeError):
+        pass                    # a fixture that is not this shape keeps its bytes; the mtime still lands
     os.utime(p, (t, t))
 
 
