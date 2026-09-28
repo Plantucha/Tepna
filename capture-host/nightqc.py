@@ -3008,6 +3008,11 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None,
     _span_reason = None
     sessions: list[list] = []
     cur = None
+    # The judged session's END, captured where `cur` is known to exist so the per-device block below can
+    # publish it without indexing a maybe-None. It stays None when nothing could be judged, and the
+    # per-device guards test IT rather than `cur` — both arms are reachable, because the device loop runs
+    # over the configured devices whether or not this night had a placeable session.
+    _cur_end: float | None = None
     prior_gap = None
     # SESSIONS THIS SCOPING DISCARDS, AND THE HOLE THAT MADE THEM (CAPTURE-HOST-DEEP-AUDIT §A2).
     # The scoping is deliberate — it stops a daytime sitting diluting tonight's coverage — but the
@@ -3071,6 +3076,7 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None,
         # behaviour for the single-session days it was written for.
         cur = judged_session(sessions)
         current = cur[2]
+        _cur_end = cur[1]
         # ⚠️ NO RECOVERED OFFSET, NO SPAN — and the refusal is the point of the floor, not a shortfall
         # of it. In the floating frame a session's end is its own last stamp plus its own recorded
         # duration, so `end − start` IS that duration: publishing it as the session's ELAPSED time would
@@ -3175,8 +3181,9 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None,
                 dev_span = None
         # Session end − this device's last write. Published so a reader sees 28.4 min on the Verity
         # rather than "8 % of nothing"; the session end it is measured against is named beside it.
-        stopped_early_s = (round(cur[1] - _dev_end)
-                           if (_dev_end is not None and span is not None) else None)
+        stopped_early_s = (round(_cur_end - _dev_end)
+                           if (_cur_end is not None and _dev_end is not None and span is not None)
+                           else None)
         streams: dict[str, int] = {}
         coverage: dict[str, float] = {}
         #: Per stream: "device" when the denominator was this device's own recording extent, "session"
@@ -3303,7 +3310,8 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None,
                            "session_coverage": session_coverage,
                            "span_sec": round(dev_span) if dev_span else None,
                            "stopped_early_s": stopped_early_s,
-                           "session_end": round(cur[1]) if span is not None else None,
+                           "session_end": (round(_cur_end)
+                                           if (_cur_end is not None and span is not None) else None),
                            # WHY it stopped, from `loss_audit.wear_ends`'s `worn_end.reason` — NEVER
                            # inferred here, and `None` still means "not determined" rather than "no
                            # reason". Three things this deliberately does not do:

@@ -4156,6 +4156,60 @@ def _spans_in(zone, night):
         time.tzset()
 
 
+
+# ── `file_last_row_floating_s`: every way a file can decline to vote ───────────────────────────────────
+#
+# It is the ONE reader of the evidence the writer offset is recovered from, so each way it returns None is
+# a way a night loses a voter — and a night that loses enough voters refuses and publishes no span. These
+# are not defensive branches: three of the four are shapes the real corpus contains (an empty file left by
+# a rejected PMD START, a `# timebase=host-disciplined` preamble, a sidecar that vanished under a scan).
+
+def test_a_file_with_no_bytes_casts_no_vote(tmp_path):
+    p = tmp_path / "Polar_H10_02849638_20260909212938_ECG.txt"
+    p.write_text("", encoding="utf-8")
+    assert nightqc.file_last_row_floating_s(str(p)) is None, "an empty file has no last row"
+
+
+def test_a_LEADING_COMMENT_does_not_hide_the_header(tmp_path):
+    """The ring's host-disciplined streams open with `# timebase=host-disciplined`. Reading line 1 as the
+    header made every one of them report "no host column" — measured on the real 2026-09-09 `_PPG2W.txt`,
+    which refused while its sibling `_PLETHA.txt` (no comment line) answered. Same bug, same shape, in a
+    second reader of the same files."""
+    p = tmp_path / "Wellue_O2Ring-S_S8AW_20260909212938_PPG2W.txt"
+    p.write_text("# timebase=host-disciplined\n# device=O2Ring\n"
+                 "Phone timestamp;v\n2026-09-09T21:30:00.500;1\n", encoding="utf-8")
+    got = nightqc.file_last_row_floating_s(str(p))
+    assert got is not None and abs(got - (nightqc.floating_stamp_s("20260909213000") + 0.5)) < 1e-6, got
+
+
+def test_a_file_that_is_ALL_preamble_casts_no_vote(tmp_path):
+    """Bounded, and the bound is the point: without it a large file whose header never arrives would be
+    read whole just to conclude it cannot say. Past the bound the answer is "cannot say", not "keep going"."""
+    p = tmp_path / "Polar_H10_02849638_20260909212938_ECG.txt"
+    p.write_text("".join("# padding\n" for _ in range(nightqc._HOST_SPAN_SCAN_ROWS + 5)), encoding="utf-8")
+    assert nightqc.file_last_row_floating_s(str(p)) is None
+
+
+def test_an_UNREADABLE_path_casts_no_vote_rather_than_raising(tmp_path):
+    """A directory where a file was expected is the reachable case — a scan lists a path, the path changes
+    under it. One unreadable file must not abort a whole night's QC; it costs a vote, and the night's own
+    refusal reports the shortfall by voter count."""
+    d = tmp_path / "Polar_H10_02849638_20260909212938_ECG.txt"
+    d.mkdir()
+    assert nightqc.file_last_row_floating_s(str(d)) is None
+
+
+def test_an_UNSTAMPED_file_is_placed_at_its_mtime_and_NOT_raised_by_the_offset(tmp_path):
+    """§🔒 §1 in the other direction. `_session_of` answers None for a name carrying no start stamp, and
+    that file's mtime is ALREADY an absolute instant — so it is used as one. Adding the writer offset to a
+    value that never carried one is the same frame error mirrored, and it would move such a file by four
+    hours on this box. A stampless file is a one-file session at its own last write."""
+    f = {"file": "a_b_c_ECG.txt", "session": None, "mtime": 1_700_000_000.0, "rows": 7}
+    assert nightqc.file_interval(f, 14400.0) == (1_700_000_000.0, 1_700_000_000.0, "mtime")
+    # ...and in the FLOATING frame it cannot be placed at all, because it has nothing floating to place it
+    # by — which is what `summarize` must survive rather than crash on (see the `sessions` gate there).
+    assert nightqc.file_interval(f, None) is None
+
 def test_PLANT_a_session_span_is_the_same_number_in_every_reader_zone(tmp_path):
     """THE PLANT. Four zones: one whole hour each side of UTC, one HALF-hour (Kolkata, which catches a
     sign error or a rounding that two whole-hour zones agree on), and UTC itself. A span is a DURATION —

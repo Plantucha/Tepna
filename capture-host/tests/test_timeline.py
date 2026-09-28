@@ -772,6 +772,32 @@ def test_the_timeline_renders_the_SUBSTANTIVE_session_not_the_latest_one(tmp_pat
         f"and closes before the charger session begins — t1={t1} charger={charger_start}")
 
 
+
+def test_a_file_with_an_UNREADABLE_stamp_is_skipped_for_the_WINDOW_not_for_the_night(tmp_path):
+    """An unstamped file joins the session at its own mtime but contributes NO bound to the window.
+
+    `_session_of` answers None for a name whose 14-digit run is not a real datetime, so `file_interval`
+    places such a file at its mtime — it is a real one-file session and its rows are real. What it cannot
+    do is bound the coverage WINDOW, because the window is built from start stamps and it has none. The
+    two must not be confused: dropping the file would lose its rows, and inventing a stamp for it would
+    fabricate the axis this suite refuses to fabricate anywhere else.
+    """
+    night = tmp_path / "2026-09-14"; night.mkdir()
+    _capture_file(night, "20260914010000", "ecg", rows=2000, fs=130.0)
+    # Same layout, same device, same session window — but month 99, so the stamp is not a datetime.
+    bad = night / "Polar_H10_02849638_20269999000000_ECG.txt"
+    bad.write_text(_writers.StreamWriter.HEADERS["ecg"] + "\n"
+                   + "\n".join(";".join(["0"] * len(_writers.StreamWriter.HEADERS["ecg"].split(";")))
+                                for _ in range(10)) + "\n")
+    _end = dt.datetime.strptime("20260914010000", "%Y%m%d%H%M%S").timestamp() + 2000 / 130.0
+    _os.utime(bad, (_end, _end))
+
+    devs = [{"name": "Polar H10 02849638", "device_id": "02849638", "address": "AA", "streams": ["ecg"]}]
+    t0, t1 = _timeline_window(str(night), devs)
+    data_start = dt.datetime.strptime("20260914010000", "%Y%m%d%H%M%S").timestamp()
+    assert round(t0) == round(data_start), "the window still opens at the STAMPED file's start"
+    assert t1 > t0, "and it is a window, not a point"
+
 def test_the_timeline_never_draws_its_window_from_a_session_with_no_rows(tmp_path):
     """The zero-row corollary, and the two real nights that forced it (2026-09-14, 2026-09-18): the later
     session carried NO rows and latest-ending selected it anyway, so the coverage window came from a
