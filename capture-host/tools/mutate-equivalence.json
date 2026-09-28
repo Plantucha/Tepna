@@ -4739,6 +4739,48 @@
       "key": "- \"s\": round(r[\"s\"], 1), | + \"s\": round(r[\"s\"], 2),",
       "probe": "tests/test_loss_audit.py::test_a_gap_and_a_delay_are_published_AS_WHOLE_SECONDS asserts every entry of both lists satisfies `float(s).is_integer()`, on a fixture whose host jumps are deliberately fractional (6.01 s between rows 8 ms apart).",
       "why": "A gap's length is a difference of two `nights_index.parse_stamp` values, and that parser is SECOND precision by design — its own docstring names `parse_host_stamp` as the sibling that keeps sub-second digits \"for readers that measure with them\". So `r[\"s\"]` is always a whole number of seconds and one decimal, two decimals and zero are the same value. The identical claim on the `delays` sibling of this line was already recorded; this is its twin for `gaps`. I planted a fractional jump before working this out — the fixture is kept, asserting integrality, so the next reader does not repeat it."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- read_one = False # did ANY file actually get read down its named column? | + read_one = None # did ANY file actually get read down its named column?",
+      "probe": "Hand-applied 2026-09-28 one at a time with PYTHONDONTWRITEBYTECODE=1 and __pycache__ cleared, against the whole of tests/test_loss_audit.py (101 tests), reverted after, file confirmed byte-identical. SURVIVED. POSITIVE CONTROL in the same sweep: the five mutants predicted killable on these same lines (encoding=None, encoding dropped, both `continue`->`break`, and `line.rstrip(\"XX\\nXX\")`) were all KILLED by that run at 1.0x baseline, so the suite sees this class of change and these seven are not a blind spot in it.",
+      "why": "Both values are FALSY and the variable is only ever read through `return False if read_one else None`. It is reassigned to True the moment a column is actually read, so the initial value is consulted ONLY when no file named the column — and there `False if False else None` and `False if None else None` are both None. NOT simplified in code: `False` states that the flag is a boolean answer to 'did any file get read', and `None` would invite a reader to think the flag is itself tri-state like the return."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- with open(f, encoding=\"utf-8\", errors=\"replace\") as fh: | + with open(f, encoding=\"UTF-8\", errors=\"replace\") as fh:",
+      "probe": "Hand-applied 2026-09-28 one at a time with PYTHONDONTWRITEBYTECODE=1 and __pycache__ cleared, against the whole of tests/test_loss_audit.py (101 tests), reverted after, file confirmed byte-identical. SURVIVED. POSITIVE CONTROL in the same sweep: the five mutants predicted killable on these same lines (encoding=None, encoding dropped, both `continue`->`break`, and `line.rstrip(\"XX\\nXX\")`) were all KILLED by that run at 1.0x baseline, so the suite sees this class of change and these seven are not a blind spot in it.",
+      "why": "`\"UTF-8\"` and `\"utf-8\"` name the SAME codec: Python normalises an encoding name (case-folded, punctuation collapsed) before lookup, so `codecs.lookup` returns one object for both and no byte can decode differently. Distinct from the `encoding=None` / dropped mutants on the same line, which ARE killed by test_the_evidence_read_NAMES_its_encoding — the property that line carries is 'an encoding is named', and a case variant still names it."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- cols = [c.strip() for c in re.split(r\"[;,]\", head.rstrip(\"\\n\"))] | + cols = [c.strip() for c in re.split(r\"[;,]\", head.rstrip(None))]",
+      "probe": "Hand-applied 2026-09-28 one at a time with PYTHONDONTWRITEBYTECODE=1 and __pycache__ cleared, against the whole of tests/test_loss_audit.py (101 tests), reverted after, file confirmed byte-identical. SURVIVED. POSITIVE CONTROL in the same sweep: the five mutants predicted killable on these same lines (encoding=None, encoding dropped, both `continue`->`break`, and `line.rstrip(\"XX\\nXX\")`) were all KILLED by that run at 1.0x baseline, so the suite sees this class of change and these seven are not a blind spot in it.",
+      "why": "The header is split on `[;,]` and EVERY field is then `c.strip()`ed, so any change to the header's trailing or leading whitespace is absorbed before the column name is compared. `rstrip(None)` removes trailing whitespace instead of a trailing newline; both are whitespace, and `c.strip()` removes whichever survives."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- cols = [c.strip() for c in re.split(r\"[;,]\", head.rstrip(\"\\n\"))] | + cols = [c.strip() for c in re.split(r\"[;,]\", head.lstrip(\"\\n\"))]",
+      "probe": "Hand-applied 2026-09-28 one at a time with PYTHONDONTWRITEBYTECODE=1 and __pycache__ cleared, against the whole of tests/test_loss_audit.py (101 tests), reverted after, file confirmed byte-identical. SURVIVED. POSITIVE CONTROL in the same sweep: the five mutants predicted killable on these same lines (encoding=None, encoding dropped, both `continue`->`break`, and `line.rstrip(\"XX\\nXX\")`) were all KILLED by that run at 1.0x baseline, so the suite sees this class of change and these seven are not a blind spot in it.",
+      "why": "The header is split on `[;,]` and EVERY field is then `c.strip()`ed, so any change to the header's trailing or leading whitespace is absorbed before the column name is compared. `lstrip` leaves the trailing newline on the LAST field, where `c.strip()` then removes it; a leading newline cannot occur on a line read from a file."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- cols = [c.strip() for c in re.split(r\"[;,]\", head.rstrip(\"\\n\"))] | + cols = [c.strip() for c in re.split(r\"[;,]\", head.rstrip(\"XX\\nXX\"))]",
+      "probe": "Hand-applied 2026-09-28 one at a time with PYTHONDONTWRITEBYTECODE=1 and __pycache__ cleared, against the whole of tests/test_loss_audit.py (101 tests), reverted after, file confirmed byte-identical. SURVIVED. POSITIVE CONTROL in the same sweep: the five mutants predicted killable on these same lines (encoding=None, encoding dropped, both `continue`->`break`, and `line.rstrip(\"XX\\nXX\")`) were all KILLED by that run at 1.0x baseline, so the suite sees this class of change and these seven are not a blind spot in it.",
+      "why": "The header is split on `[;,]` and EVERY field is then `c.strip()`ed, so any change to the header's trailing or leading whitespace is absorbed before the column name is compared. The extra `X` in the strip set can only matter if the LAST header field ends in `X`, and the field being searched for is one of the three shipped specs in WORN_EVIDENCE_BY_MODEL — `\"HR [bpm]\"`, `\"PP-interval [ms]\"`, `\"Oxygen Level\"` — none of which ends in `X`. ⚠️ Stated plainly: a monkeypatched spec whose column name ended in `X` WOULD distinguish them. That is a change to the program, not an input to the function, and the same mutation on the VALUE line — where the content is the device's, not ours — is killed rather than excused (test_a_TORN_value_is_not_evidence_even_when_its_digits_look_worn)."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- parts = re.split(r\"[;,]\", line.rstrip(\"\\n\")) | + parts = re.split(r\"[;,]\", line.rstrip(None))",
+      "probe": "Hand-applied 2026-09-28 one at a time with PYTHONDONTWRITEBYTECODE=1 and __pycache__ cleared, against the whole of tests/test_loss_audit.py (101 tests), reverted after, file confirmed byte-identical. SURVIVED. POSITIVE CONTROL in the same sweep: the five mutants predicted killable on these same lines (encoding=None, encoding dropped, both `continue`->`break`, and `line.rstrip(\"XX\\nXX\")`) were all KILLED by that run at 1.0x baseline, so the suite sees this class of change and these seven are not a blind spot in it.",
+      "why": "The only consumer of these fields is `float(parts[col])`, and `float()` already tolerates surrounding whitespace, so stripping trailing whitespace rather than a trailing newline cannot change any parse. Unlike the `\"XX\\nXX\"` mutant on this same line, no NON-whitespace character is removed, which is exactly what made that one killable and this one not."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- parts = re.split(r\"[;,]\", line.rstrip(\"\\n\")) | + parts = re.split(r\"[;,]\", line.lstrip(\"\\n\"))",
+      "probe": "Hand-applied 2026-09-28 one at a time with PYTHONDONTWRITEBYTECODE=1 and __pycache__ cleared, against the whole of tests/test_loss_audit.py (101 tests), reverted after, file confirmed byte-identical. SURVIVED. POSITIVE CONTROL in the same sweep: the five mutants predicted killable on these same lines (encoding=None, encoding dropped, both `continue`->`break`, and `line.rstrip(\"XX\\nXX\")`) were all KILLED by that run at 1.0x baseline, so the suite sees this class of change and these seven are not a blind spot in it.",
+      "why": "Leaves the trailing newline on the last field; `float(\"72\\n\")` is 72.0, and a leading newline cannot occur on a line iterated from a file handle. No field's VALUE changes."
     }
   ],
   "solid_night_inputs.py": [
