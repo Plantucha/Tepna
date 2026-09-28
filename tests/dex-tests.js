@@ -57955,26 +57955,76 @@
       T.ok('`--flag=value` is REFUSED, because `opt` reads the NEXT token', eq.ok === false, 'accepting a form the tool then ignores is the same defect one layer along');
       T.ok('…and the refusal says where the value goes', /NEXT argument/.test(eq.reason || ''), eq.reason);
 
-      /* ── and the adopter actually declares what it reads ────────────────────────────────────── */
-      var tb = TSg['trio-batch.mjs'] || '';
-      T.ok('trio-batch adopts the guard', /refuseUnknownArgvOrExit\(/.test(tb), 'the guard exists but nothing calls it');
-      var reads = [];
-      var re = /(?:flag|opt|optAll)\('(--[a-z-]+)'/g,
-        m;
-      while ((m = re.exec(tb)) !== null) if (reads.indexOf(m[1]) < 0) reads.push(m[1]);
-      /* Named matches rather than `(m || [, ''])[1]`: that idiom builds a SPARSE array, which biome
-         rejects as a hazard and is right to — a hole in an array is not an empty string, and every
-         reader has to stop and check which one index 1 lands on. */
-      var mValued = tb.match(/valued: \[([^\]]*)\]/),
-        mBool = tb.match(/boolean: \[([^\]]*)\]/);
-      var declared = (mValued ? mValued[1] : '') + (mBool ? mBool[1] : '');
-      var missing = reads.filter(function (f) {
-        return declared.indexOf("'" + f + "'") < 0;
+      /* ── and EVERY adopter declares what it reads, by the tool's OWN helper names ───────────── */
+      /* Derived from tools/ on disk, never a curated list: a tool that adopts the guard is enrolled the
+         moment it does, and one that drops the call fails the floor below rather than leaving silently.
+
+         ⚠ THE HELPER NAMES ARE THE TOOL'S. The first version of this scan knew `flag`/`opt`/`optAll`,
+         which is trio-batch's vocabulary. `pin-coverage.mjs` reads `--dir` and `--limit` through a
+         locally named `many(…)`/`one(…)` pair, so that scan saw a 2-flag tool where there are 4 — and a
+         guard adopted from THAT table would have refused `--dir`, its one required argument. Discover
+         the helpers instead: any `const <name> = (n) => … argv …`. */
+      var adopters = Object.keys(TSg)
+        .filter(function (n) {
+          return /refuseUnknownArgvOrExit\s*\(/.test(TSg[n]) && n !== 'argv-guard.mjs';
+        })
+        .sort();
+      /* A floor, because an adoption that disappears must not read as a pass — the same reason the
+         analysis-tool selftest lane asserts `found >= 10` rather than trusting its own discovery. */
+      T.ok('at least six tools adopt the guard', adopters.length >= 6, adopters.length + ' adopter(s): ' + adopters.join(' '));
+      T.ok('trio-batch is among them', adopters.indexOf('trio-batch.mjs') >= 0, adopters.join(' '));
+
+      /* ARITY IS THE HELPER'S PROPERTY, NOT THE CALL'S. `many('--dir')` is a bare call that still
+         consumes the next token, so deciding arity by "was a second argument passed" puts a valued flag
+         in the boolean bucket — and the guard then reads its value as a stray positional and refuses
+         THAT instead. Classify each helper by what its body does with argv: `includes(n)` tests
+         presence, `indexOf(n)` plus `argv[i + 1]` reads a value. */
+      adopters.forEach(function (name) {
+        var src = TSg[name];
+        var helpers = { flag: 'boolean', opt: 'valued', optAll: 'valued' };
+        var hre = /(?:const|let|var)\s+(\w+)\s*=\s*\([^)]*\)\s*=>/g,
+          hm;
+        while ((hm = hre.exec(src)) !== null) {
+          /* Bound the body at the next declaration: a fixed-width window ran on into the helper below
+             and `flag` inherited `opt`'s `indexOf`, reporting every boolean as valued. */
+          var rest = src.slice(hm.index + 1);
+          var stop = rest.search(/\n(?:const|let|var|function|export|async)\s/);
+          var body = rest.slice(0, stop < 0 ? 400 : stop);
+          if (!/\bargv\b/.test(body)) continue;
+          helpers[hm[1]] = /argv\[\s*\w+\s*\+\s*1\s*\]|indexOf\(/.test(body) ? 'valued' : 'boolean';
+        }
+        var reads = { valued: [], boolean: [] };
+        Object.keys(helpers).forEach(function (h) {
+          var cre = new RegExp('\\b' + h + "\\(\\s*'(--[a-z0-9-]+)'", 'g'),
+            cm;
+          while ((cm = cre.exec(src)) !== null) {
+            var bucket = reads[helpers[h]];
+            if (bucket.indexOf(cm[1]) < 0) bucket.push(cm[1]);
+          }
+        });
+        var mV = src.match(/valued: \[([^\]]*)\]/),
+          mB = src.match(/boolean: \[([^\]]*)\]/);
+        var decV = mV ? mV[1] : '',
+          decB = mB ? mB[1] : '';
+        /* EVERY flag the code READS must be declared, not every flag the HELP documents. trio-batch
+           reads four its header never mentions (--cpap, --only-node, --allow-partial, --child), and
+           --child is passed by its own dispatcher — a spec built from the help would refuse its own
+           children. */
+        var missing = reads.valued
+          .filter(function (f) {
+            return (decV + decB).indexOf("'" + f + "'") < 0;
+          })
+          .concat(
+            reads.boolean.filter(function (f) {
+              return (decV + decB).indexOf("'" + f + "'") < 0;
+            })
+          );
+        T.eq('every flag ' + name + ' READS is declared to the guard', missing, []);
+        var wrongArity = reads.valued.filter(function (f) {
+          return decB.indexOf("'" + f + "'") >= 0;
+        });
+        T.eq('…and a value-reading flag is declared VALUED, not boolean (' + name + ')', wrongArity, []);
       });
-      /* EVERY flag the code READS must be declared, not every flag the HELP documents. trio-batch reads
-         four its header never mentions (--cpap, --only-node, --allow-partial, --child), and --child is
-         passed by its own dispatcher — a spec built from the help would refuse its own children. */
-      T.eq('every flag trio-batch READS is declared to the guard', missing, []);
     });
 
     group('every tool resolves repo code from its OWN checkout (PR #686 class)', 'tools · source-scan · portability', function (T) {

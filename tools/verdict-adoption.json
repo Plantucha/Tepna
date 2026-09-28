@@ -592,6 +592,18 @@
       "status": "exempt",
       "reason": "selftest assertion printer — the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
     },
+    "tools/argv-survey.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/argv-survey.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "the executable answer to residue 2026-09-28-which-tools-refuse-an-unknown-argv-token-is-unmeasured, after a keyword scan of the fleet got it wrong (it called trio-batch a VALIDATOR on the word 'unknown' in an unrelated comment, hours after experiment had proved otherwise). The instrument is the defect's own definition: a token nobody reads is INDISTINGUISHABLE from an absent one, so each tool runs three times — no args, no args again (run-to-run volatility, established before anything is compared), then one bogus token — and IGNORES is PROVEN rather than inferred from an exit code. Pre-stated criterion: the count of tools that consume an unknown token as a PATH must not exceed 5, the count measured 2026-09-28; a tool that eats a bogus flag as an input path is a red with its name. Naming the token in the output is NOT a refusal — all five of the harness's first positives had swallowed it, two crashing with a stack trace and one reporting ENOENT with exit 0 — so REFUSES needs refusal language plus a non-zero exit. Population is bounded by a closure proof (no write, exec or network API anywhere in the transitive local imports), DEX_UPLOADS is scrubbed, every child is bounded, and a timeout is UNDECIDED, never a refusal; a working tree that moves mid-run makes the whole object UNKNOWN. The cmd is a sample object and probes nothing."
+    },
     "tools/aperiodic-offset.mjs": {
       "bin": "word-only",
       "status": "exempt",
