@@ -2253,3 +2253,163 @@ def test_an_unknown_size_is_capped_and_NEVER_the_core_count():
     source hash is the unknown case and that is the case #3202 was."""
     assert M.UNKNOWN_SIZE_WORKERS < 8, "the unknown-size fallback must be small, not a core count"
     assert M.workers_that_fit(0, 14 * 1024 ** 3) == 0, "an unknown size affords nothing to derive from"
+
+
+# ── the 29 survivors #3208's own gate found in the code above ───────────────────────────────────────
+# The gate decided all 204 mutants over these six functions and 29 lived. They were real gaps, not
+# equivalent mutants, and two are findings rather than coverage debt: nothing asserted the committed
+# record's SERIALISATION (an unstable one churns the diff on every write), and nothing asserted that one
+# malformed row does not silently drop every row after it.
+
+
+def test_the_record_SERIALISATION_is_stable_because_the_file_is_committed():
+    """`json.dumps(doc, indent=2) + "\\n"` → `indent=None`, `indent=3`, or no indent at all all survived.
+    For a COMMITTED file that is not cosmetic: an unstable serialisation rewrites the whole file on every
+    `--record-sizes`, so a one-entry measurement lands as a whole-file diff and the next session cannot
+    see what changed."""
+    text = M.merge_mutants_size("", "m.py", "aaa", 100, "2026-09-28", "rig")
+    assert text.endswith("}\n"), "the record must end with exactly one newline — a committed file needs it"
+    assert text.startswith('{\n  "'), f"two-space indent, not compact and not three: {text[:20]!r}"
+    assert '\n  "sizes": {\n    "m.py@aaa": {\n      "generatedBytes": 100' in text, text[:400]
+    # …and the schema and note are part of the record, not decoration: a reader who finds this file needs
+    # to know what wrote it and that hand-editing it destroys its only value.
+    import json as _j
+    doc = _j.loads(text)
+    assert doc["schema"] == "tepna.mutation-sizes/1"
+    assert "NEVER hand-edited" in doc["note"]
+    assert "--record-sizes" in doc["note"], "the note must name the tool that writes it"
+    assert "absent, not a default" in doc["note"], "the note must state that a miss is absence"
+
+
+def test_ONE_malformed_row_does_not_drop_every_row_after_it():
+    """`continue` → `break` survived. For a file whose whole job is remembering sizes, that turns a single
+    bad row into silent amnesia for everything below it — and amnesia reads as "nothing to worry about",
+    which is the §∅ failure this PR exists to fix, one layer along."""
+    rec = M.mutants_size_record('{"sizes": {"aaa-no-at": 5, "good.py@abc123abc123": 7, "zzz.py@def456def456": 9}}')
+    assert rec == {("good.py", "abc123abc123"): 7, ("zzz.py", "def456def456"): 9}, rec
+
+
+def test_the_module_is_everything_before_the_FIRST_at_sign():
+    """`partition` → `rpartition` survived, and the two disagree only on a key with more than one `@`. The
+    documented key is `<module>@<hash>`, so the hash is the LAST field and the module is the first — but a
+    key with two `@` is malformed either way, and what matters is that it does not resolve to a module this
+    tree has. Pinned so the choice is deliberate rather than whichever function was typed."""
+    rec = M.mutants_size_record('{"sizes": {"a@b@c": 5}}')
+    assert rec == {("a", "b@c"): 5}, f"partition semantics: module is before the FIRST @, got {rec}"
+
+
+def test_a_ONE_BYTE_size_is_a_measurement():
+    """`size > 0` → `size > 1` survived. One byte is absurd for a generated module and that is exactly why
+    it must be KEPT: the rule is "absence is absent", not "small values are absent". A guard that silently
+    discards implausible measurements is a guard that decides what the data may say."""
+    assert M.mutants_size_record('{"sizes": {"m.py@abc": 1}}') == {("m.py", "abc"): 1}
+
+
+def test_the_generation_reason_defaults_to_NOTHING_WRITTEN_and_distinguishes_one_byte():
+    """Two survivors here: the `mutants_bytes=0` default (never exercised, because every call passed it)
+    and the `> 0` ternary. A caller that cannot measure the partial file must get "nothing written yet",
+    and one byte must NOT read as nothing."""
+    assert "nothing written yet" in M.generation_timeout_reason(60.0, 61.0), "the default must be the absent case"
+    assert "nothing written yet" not in M.generation_timeout_reason(60.0, 61.0, 1)
+    assert "0 MB of mutants written" in M.generation_timeout_reason(60.0, 61.0, 1)
+
+
+def test_workers_that_fit_boundaries_are_pinned_at_the_EXACT_edge():
+    """Seven survivors were boundary arithmetic: `<= 0` → `< 0` / `<= 1`, `or` → `and`, `//` → `/`. Each
+    needs the value ON the edge, which no test had."""
+    GB = 1024 ** 3
+    # `or` → `and`: one bad input is enough, both are not required.
+    assert M.workers_that_fit(0, 14 * GB) == 0, "no size is enough to refuse on its own"
+    assert M.workers_that_fit(562427047, 0) == 0, "no memory reading is enough to refuse on its own"
+    # `<= 0` → `< 0` and `<= 1`: exactly 0 and exactly 1.
+    assert M.workers_that_fit(1, 14 * GB) > 0, "a 1-byte module is measured, so it must be sized, not refused"
+    assert M.workers_that_fit(-1, 14 * GB) == 0
+    assert M.workers_that_fit(562427047, 1) == 0, "one byte available affords nothing"
+    # `//` → `/`: the count is a WHOLE number of workers. With `/` this returns the same int after the
+    # outer int(), so the discriminating case is one where the quotient's fraction matters to the caller:
+    # assert the type and that a fractional affordance floors rather than rounds up.
+    n = M.workers_that_fit(3 * GB, 14 * GB, rss_factor=1.0)
+    assert isinstance(n, int) and n == 2, f"7 GB cap / 3 GB per worker must FLOOR to 2, got {n!r}"
+
+
+def test_the_PHASE_branch_bounds_its_reap_and_its_remaining_wall_wait():
+    """Three survivors lived in the phase branch's waits: the post-kill `proc.wait(timeout=REAP_SEC)`
+    becoming `rc = None` or `timeout=None`, and the "phase finished, wait out the rest" call becoming
+    `timeout=None`. The UNPHASED path already asserts its `timeout=` arguments (`_RecordingProc` below);
+    adding the branch duplicated the code without duplicating the assertion, which is exactly how a fix
+    reintroduces the bug class it was written for one indent over."""
+    rec = _RecordingProc()
+    M.stream_bounded(rec, 1.0, lambda _l: None, phase_cap_sec=1.0, phase_done=lambda: False)
+    assert rec.killed, "the phase deadline fired but the child was never killed"
+    assert len(rec.timeouts) >= 2, f"expected a bounded wait then a bounded reap, got {rec.timeouts}"
+    assert rec.timeouts[-1] == M.REAP_SEC, (
+        f"the post-kill reap must be bounded by REAP_SEC, got {rec.timeouts[-1]!r} — `timeout=None` here "
+        "hands an unkillable child the power to hang the refusal forever")
+    # …and when the phase DID finish, the remaining wall wait is bounded too, not `timeout=None`.
+    rec2 = _RecordingProc()
+    M.stream_bounded(rec2, 30.0, lambda _l: None, phase_cap_sec=1.0, phase_done=lambda: True)
+    assert all(t is not None for t in rec2.timeouts), (
+        f"every wait must carry a deadline; got {rec2.timeouts} — an unbounded second wait is the original "
+        "unreachable-cap defect, restored in the phase path")
+
+
+def test_a_HALF_DECLARED_phase_falls_through_instead_of_calling_None():
+    """`phase_cap_sec is not None AND phase_done is not None` → `OR` survived. With `or`, declaring only
+    one of the pair enters the phase branch and calls `phase_done()` on `None`, so the guard I added would
+    raise inside the wait instead of behaving like an unphased call. Both half-declared shapes must fall
+    through, and the third member must still come back False."""
+    proc = _child("import sys\nprint('done')\nsys.exit(0)\n")
+    rc, timed_out, phase_timed_out = M.stream_bounded(proc, 60.0, lambda _l: None, phase_cap_sec=1.0)
+    assert (rc, timed_out, phase_timed_out) == (0, False, False), (rc, timed_out, phase_timed_out)
+    proc2 = _child("import sys\nprint('done')\nsys.exit(0)\n")
+    rc2, timed_out2, phase2 = M.stream_bounded(proc2, 60.0, lambda _l: None, phase_done=lambda: False)
+    assert (rc2, timed_out2, phase2) == (0, False, False), (rc2, timed_out2, phase2)
+
+
+def test_the_JOIN_bound_is_a_CONSTANT_because_a_default_cannot_be_mutation_tested():
+    """🔴 `join_sec=10.0` → `11.0` survived an `inspect.signature(...).default == 10.0` assertion, and the
+    reason is mutmut's dispatch, not the assertion: the generated module wraps the function as
+
+        @_mutmut_mutated(mutants_x_stream_bounded__mutmut)
+        def stream_bounded(proc, cap_sec, on_line, t0=None, join_sec=10.0, …)
+
+    — a `def` that keeps the ORIGINAL defaults, dispatching to the mutant dict at CALL time. So signature
+    introspection reads 10.0 under every mutant and CANNOT kill a default-value mutation. Same family as
+    #3181's "survives mutmut's trampoline". The load-bearing number therefore lives as a module constant,
+    which is not decorated and so is visible to mutation; the signature merely references it.
+
+    No behavioural test can separate a 10 s join from an 11 s one without spending the difference in real
+    seconds on every run, which is the trade `cap_remaining`'s tests already record for the deadline."""
+    assert M.JOIN_SEC == 10.0, "the pre-stated join bound moved without a reason"
+    import inspect
+    assert inspect.signature(M.stream_bounded).parameters["join_sec"].default == M.JOIN_SEC, (
+        "the signature must reference the constant, not re-declare the number — a second copy is a second "
+        "thing to mutate, and the signature copy is the one mutation testing cannot see")
+
+
+
+def test_the_distinguishable_workers_that_fit_boundaries_the_probe_FOUND():
+    """I assumed all six surviving boundary mutants were masked by the later guards. An exhaustive probe
+    over 1,980 input combinations refuted three of them, and assuming would have put three KILLABLE
+    mutants into the equivalence ledger — which the ledger reports as REFUTED, but only once someone runs
+    it. Each needs a non-default `rss_factor`/`cap_fraction`, and both are public parameters."""
+    # `available_bytes <= 0` → `<= 1`: distinguished only when ONE byte available still affords a worker,
+    # which needs a per-worker cost at or below it.
+    assert M.workers_that_fit(1, 1, rss_factor=1.0, cap_fraction=1.0) == 1, "1 byte available, 1 byte per worker"
+    # `per_worker <= 0` → `<= 1`: distinguished by a sub-byte per-worker cost.
+    # …and the SAME input kills `//` → `/`: floor, not true division. In binary 1.0/0.001 is 1000.0 while
+    # `1.0 // 0.001` is 999.0, so `/` reports one worker MORE than the cap affords. Over-committing by one
+    # worker is the whole failure this function exists to prevent, so the floor is the behaviour and not a
+    # style choice — and the expected value is READ FROM THE FUNCTION's own arithmetic, which is why this
+    # assertion first failed with my hand-computed 1000 against the real 999.
+    assert M.workers_that_fit(1, 1, rss_factor=0.001, cap_fraction=1.0) == 999
+    assert M.workers_that_fit(1, 1, rss_factor=0.001, cap_fraction=0.5) == 499
+
+
+def test_the_MB_scale_in_the_generation_reason_is_MEBIbytes():
+    """`1024.0 ** 2` → `1025.0 ** 2` survived: the two agree after `:.0f` for almost every size, so the
+    distinguishing input has to be found rather than guessed — 210,501,632 bytes reads 201 MB against
+    1024² and 200 MB against 1025². A reason line that misreports how far a killed run got is a small
+    thing, but it is the only number that survives the kill."""
+    r = M.generation_timeout_reason(60.0, 61.0, 210501632)
+    assert "201 MB of mutants written" in r, r

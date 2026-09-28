@@ -62,6 +62,7 @@ __all__ = [
     "MEM_CAP_FRACTION",
     "WORKER_RSS_PER_MUTANTS_BYTE",
     "SCRATCH_OWNER_FILE",
+    "JOIN_SEC",
     "GENERATION_DONE_RE",
     "GENERATION_CAP_FRACTION",
     "UNKNOWN_SIZE_WORKERS",
@@ -696,6 +697,17 @@ def budget_refusal(module: str, clean_sec: float, n_globs: int, left_sec: float,
 
 CAP_FLOOR_SEC = 1.0      # never wait less than this, however far the budget is already overspent:
                          # a zero or negative wait would kill a child that is about to finish.
+JOIN_SEC = 10.0
+# The bounded join on the reader thread, and it is LOAD-BEARING: with mutmut's worker shape the surviving
+# grandchildren hold the pipe open, so the reader never sees EOF and this is what makes the refusal return
+# in cap + reap + join instead of hanging (measured 13.00 s against a 43 s bound).
+# 🔴 IT IS A CONSTANT RATHER THAN A SIGNATURE DEFAULT BECAUSE A DEFAULT CANNOT BE MUTATION-TESTED HERE.
+# mutmut wraps the function as `@_mutmut_mutated(mutants_x_stream_bounded__mutmut)` over a `def` that
+# keeps the ORIGINAL defaults and dispatches to the mutant dict at CALL time — so
+# `inspect.signature(stream_bounded).parameters["join_sec"].default` reads 10.0 under every mutant, and
+# the `join_sec=10.0 → 11.0` mutant SURVIVED an assertion that would have failed on the real signature.
+# Same family as #3181's "survives mutmut's trampoline". A module constant is not decorated, so mutating
+# it is visible.
 REAP_SEC = 30.0          # bound on the post-kill reap. `None` here would hand an unkillable child
                          # the same unbounded wait this whole function exists to remove.
 
@@ -1057,7 +1069,7 @@ def memory_exhaustion_verdict(n_refused, decided):
                        f"nothing and takes other sessions' gates with it. Not a verdict on the diff.")
 
 
-def stream_bounded(proc, cap_sec, on_line, t0=None, join_sec=10.0,
+def stream_bounded(proc, cap_sec, on_line, t0=None, join_sec=JOIN_SEC,
                    phase_cap_sec=None, phase_done=None):
     """Drain `proc`'s stdout line by line into `on_line`, and KILL the child at `cap_sec`.
     Returns `(returncode, timed_out, phase_timed_out)` — ALWAYS three, never a shape that depends on
