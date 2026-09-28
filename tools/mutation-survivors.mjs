@@ -147,8 +147,11 @@ export function entriesFromVerdict(doc, opts = {}) {
       state: 'open'
     });
   }
+  // ONE mutant listed twice is one finding; two mutants with identical text are two. De-duplicate
+  // by id FIRST, then number what is left — the other order would give a re-listed mutant an ordinal.
+  const { kept, dropped } = dedupeByMutant(entries);
   // Numbered against THIS run's own survivors: twins are only twins within one report.
-  return { entries: withOccurrences(entries), lowerBound, generated, decided, status };
+  return { entries: withOccurrences(kept), lowerBound, generated, decided, status, duplicates: dropped };
 }
 
 /**
@@ -162,6 +165,42 @@ export function entriesFromVerdict(doc, opts = {}) {
 export function positionOfSurvivor(s) {
   const m = /^@@ -(\d+)/m.exec(String((s && s.diff) || ''));
   return m ? Number(m[1]) : null;
+}
+
+/**
+ * Drop survivors that are the SAME MUTANT listed twice, and say how many were dropped.
+ *
+ * 🔴 THIS EXISTS BECAUSE THE ORDINAL REMOVED A MASK. The gate scopes survivors to one glob
+ * (`mutate_diff.py`: `in_glob_scope(name, g)`, the fix in #3167 after one run emitted 26 entries for
+ * 12 distinct mutants), so a duplicate should not reach here. But before the occurrence ordinal, a
+ * duplicate that DID reach here collapsed harmlessly onto the identical key; now it would be
+ * numbered 0 and 1 and become TWO ledger entries for ONE mutant — de-duplication at one layer and
+ * twin-folding at the other are the same collision, and fixing the second unmasked the first.
+ *
+ * The discriminator is the mutant id: one mutant listed twice carries the SAME id, whereas genuine
+ * twins are different mutants (`…__mutmut_55` and `…__mutmut_67`) that merely mutate identical text.
+ * Entries with no id are left alone rather than merged — absent is not equal (§∅).
+ *
+ * Counted, never silently dropped, which is the rule the gate loop this guards states about itself:
+ * a filter that does not publish what it removed is the shape it exists to refuse.
+ */
+export function dedupeByMutant(entries) {
+  const seen = new Set();
+  const kept = [];
+  let dropped = 0;
+  for (const e of entries) {
+    if (!e.mutant) {
+      kept.push(e);
+      continue;
+    }
+    if (seen.has(e.mutant)) {
+      dropped++;
+      continue;
+    }
+    seen.add(e.mutant);
+    kept.push(e);
+  }
+  return { kept, dropped };
 }
 
 /**
@@ -442,6 +481,9 @@ function cmdIngest(argv) {
   const m = mergeEntries(ledger, r.entries, { verdictCommit: vc.commit, mergeShaOfPr, isAncestor });
   writeLedger({ ...ledger, entries: m.entries });
   console.log(`ingested ${r.entries.length} survivor(s): ${m.added.length} new, ${m.unchanged.length} already open`);
+  if (r.duplicates) {
+    console.log(`  ⚠ ${r.duplicates} survivor(s) were the same mutant listed more than once — counted once, not as twins`);
+  }
   if (r.lowerBound) {
     console.log(`  ⚠ LOWER BOUND: ${r.decided} of ${r.generated} mutants reached a verdict — this list is not all of them`);
   }
@@ -726,6 +768,39 @@ function selftest() {
     );
   }
 
+  console.log('\nONE mutant reached twice is one finding; two twins are two');
+  {
+    const dif = (ln) => `@@ -${ln},7 +${ln},7 @@\n-    continue\n+    break\n`;
+    const SAME = { mutant: 'm.x_f__mutmut_55', module: 'm.py', key: '- continue | + break', diff: dif(36) };
+    const doc = (sv) => ({ verdict: { status: 'FAIL', result: { generated: 9, decided: 9 } }, survivors: sv });
+    // A survivor listed by two globs: the SAME id twice.
+    const twice = entriesFromVerdict(doc([SAME, { ...SAME }]), { lane: 'py', pr: 1 });
+    ck('the same mutant listed twice is ONE entry', twice.entries.length, 1);
+    ck('…and the duplicate is REPORTED, not silently dropped', twice.duplicates, 1);
+    ck('…and it does not get an ordinal, which would make it a twin', twice.entries[0].occurrence, 0);
+    // Two genuine twins: different mutants, identical text, different positions.
+    const twins = entriesFromVerdict(
+      doc([
+        { mutant: 'm.x_f__mutmut_55', module: 'm.py', key: '- continue | + break', diff: dif(36) },
+        { mutant: 'm.x_f__mutmut_67', module: 'm.py', key: '- continue | + break', diff: dif(42) }
+      ]),
+      { lane: 'py', pr: 1 }
+    );
+    ck('two genuine twins are TWO entries', twins.entries.length, 2);
+    ck('…with no duplicate reported', twins.duplicates, 0);
+    ck('…and two distinct keys', new Set(twins.entries.map(survivorKey)).size, 2);
+    // The discriminator is the id, not the text or the position.
+    ck('an entry with NO mutant id is never merged into another (§∅)', dedupeByMutant([{ key: 'a' }, { key: 'a' }]).kept.length, 2);
+    ck(
+      '…and de-dup keeps the FIRST occurrence, not the last',
+      dedupeByMutant([
+        { mutant: 'x', file_line: 1 },
+        { mutant: 'x', file_line: 9 }
+      ]).kept[0].file_line,
+      1
+    );
+  }
+
   console.log('\nthe migration may not re-identify a single stored entry');
   {
     const old = [
@@ -806,7 +881,7 @@ function selftest() {
   );
   ck('open counting ignores closed rows', openCount(led), 2);
 
-  console.log(fail ? `${fail} failed of 66` : 'all 66 selftests passed');
+  console.log(fail ? `${fail} failed of 74` : 'all 74 selftests passed');
   return fail ? 1 : 0;
 }
 
