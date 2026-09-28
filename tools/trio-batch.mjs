@@ -75,6 +75,7 @@
  * --max-old-space-size is needed on the command line: the parent sizes each child's heap to the host.
  */
 import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync, statSync, openSync, readSync, closeSync } from 'node:fs';
+import { refuseUnknownArgvOrExit } from './argv-guard.mjs';
 /* t0 from the file's first data row — see tools/trio-anchor.mjs for the rule and why the name is not it. */
 import { anchoredRec, startOf } from './trio-anchor.mjs';
 import { join, dirname, resolve, basename, sep } from 'node:path';
@@ -98,6 +99,20 @@ const DriftReport = createRequire(import.meta.url)('./drift-report.js');
 
 /* ── args ────────────────────────────────────────────────────────────────── */
 const argv = process.argv.slice(2);
+/* REFUSE A TOKEN NOBODY READS, before anything is planned or written — residue
+   2026-09-28-trio-batch-ignores-an-unknown-flag-so-a-near-miss-writes-the-corpus. `--dry` for `--dry-run`
+   was silently ignored and this tool then COMPUTED AND WROTE while its help promised neither. The two lists
+   are what the code actually reads (`flag(`/`opt(`/`optAll(` below), not what the header documents: four of
+   them — `--cpap`, `--only-node`, `--allow-partial`, `--child` — are undocumented, and `--child` is passed
+   by this file's own dispatcher, so a guard built from the help would refuse its own children. */
+refuseUnknownArgvOrExit(
+  argv,
+  {
+    valued: ['--src', '--out', '--night', '--limit', '--min-hours', '--min-overlap', '--night-band', '--jobs', '--cpap', '--only-node'],
+    boolean: ['--keep-daytime', '--skip-existing', '--force', '--dry-run', '--json', '--verdict-sample', '--selftest', '--allow-partial', '--child'],
+  },
+  { tool: 'trio-batch' }
+);
 const flag = (n) => argv.includes(n);
 const opt = (n, d) => {
   const i = argv.indexOf(n);
