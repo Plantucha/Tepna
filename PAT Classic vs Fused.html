@@ -5557,12 +5557,44 @@ function __mkWorker(name){ return new Worker(URL.createObjectURL(new Blob([__WSR
     if (/_PPG\.txt$/i.test(n)) return /wellue|o2ring|viatom|checkme/i.test(n) ? 'ring' : 'verity';
     return null;
   }
+  /* ── ONE SESSION PER DEVICE, CHOSEN BY STAMP — never "the first file of each kind" ─────────────────────────────
+     The capture box writes one file SET per BLE session, so one night's folder holds several sets per device, and the
+     monitor hands over every arrival sidecar the night carries. Measured on the live page, 2026-09-28, for 2026-09-26:
+     five Verity sidecars (07:41, 17:29, 19:15, 20:36, 21:11) arrived in that order, "first per kind" took the 07:41
+     one, and the corrected lag read "not computed — Verity PPG: 0 `acc` packets in the arrival sidecar" for a night
+     whose 21:11 sidecar is complete. The rule is PAT Feasibility's own (`resolvePair`): the ECG is the anchor (the
+     largest, the most R-peaks); every other file is the session of its device whose START is nearest — a sidecar or
+     an ACC to ITS OWN device's waveform, which is an exact stamp match whenever that session's file set is present. */
+  function stampOf(n) {
+    var mo = String(n || '').match(/_(\d{8})_?(\d{6})_[A-Za-z0-9]+\.(txt|csv)$/i);
+    return mo ? Date.UTC(+mo[1].slice(0, 4), +mo[1].slice(4, 6) - 1, +mo[1].slice(6, 8), +mo[2].slice(0, 2), +mo[2].slice(2, 4), +mo[2].slice(4, 6)) : null;
+  }
+  function nearest(c, anchor) {
+    if (!c || !c.length) return null;
+    if (anchor == null) return c[0].file;
+    return c.reduce(function (b, x) {
+      return x.t != null && (b.t == null || Math.abs(x.t - anchor) < Math.abs(b.t - anchor)) ? x : b;
+    }).file;
+  }
   function onPick(files) {
     PICK = { ecg: null, verity: null, ring: null, ecgArr: null, ppgArr: null, ecgAcc: null, ppgAcc: null };
+    var cand = {};
     for (var i = 0; i < files.length; i++) {
       var k = classify(files[i]);
-      if (k && !PICK[k]) PICK[k] = files[i];
+      if (k) (cand[k] || (cand[k] = [])).push({ file: files[i], t: stampOf(files[i].name) });
     }
+    if (cand.ecg)
+      PICK.ecg = cand.ecg.reduce(function (b, x) {
+        return (x.file.size || 0) > (b.file.size || 0) ? x : b;
+      }).file;
+    var tE = PICK.ecg ? stampOf(PICK.ecg.name) : null;
+    PICK.verity = nearest(cand.verity, tE);
+    PICK.ring = nearest(cand.ring, tE);
+    var tV = PICK.verity ? stampOf(PICK.verity.name) : tE;
+    PICK.ecgArr = nearest(cand.ecgArr, tE);
+    PICK.ecgAcc = nearest(cand.ecgAcc, tE);
+    PICK.ppgArr = nearest(cand.ppgArr, tV);
+    PICK.ppgAcc = nearest(cand.ppgAcc, tV);
     var have = Object.keys(PICK).filter(function (k) {
       return PICK[k];
     });
@@ -5621,7 +5653,18 @@ function __mkWorker(name){ return new Worker(URL.createObjectURL(new Blob([__WSR
     });
   if (el('run')) el('run').addEventListener('click', run);
 
-  self.PatCvf = { render: render, EV: EV, classify: classify, onPick: onPick, hatRow: hatRow, run: run, sgn: sgn }; // exposed for the suite's source/behaviour checks
+  self.PatCvf = {
+    render: render,
+    EV: EV,
+    classify: classify,
+    onPick: onPick,
+    hatRow: hatRow,
+    run: run,
+    sgn: sgn,
+    pick: function () {
+      return PICK;
+    }
+  }; // exposed for the suite's source/behaviour checks
 })();
 
 </script>
