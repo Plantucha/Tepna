@@ -1554,3 +1554,208 @@ def test_ONE_decided_mutant_is_already_a_partly_measured_run():
     so NOT_RUN ("examined nothing") would be false."""
     assert M.budget_exhaustion_verdict(1, 1, 10.0)[0] == "UNKNOWN"
     assert M.budget_exhaustion_verdict(1, 0, 10.0)[0] == "NOT_RUN"
+# ── SCRATCH OWNERSHIP: a prune must not delete a tree another session is using ──────────────────────
+# Residue 2026-09-25-mutate-prune-closure-unverified. NOT the question test_tmp_basetemp_race.py
+# answers (pytest's basetemp, one level down); this is the mutation scratch, where the deletion is
+# explicit and unconditional.
+def test_a_scratch_held_by_a_LIVE_owner_is_never_pruned():
+    """THE PLANT. Two sessions sweeping one module at different source hashes were each deleting the
+    other's 536 MB tree mid-run."""
+    prune, why = M.scratch_prune_decision(is_current=False, owner_live=True, age_sec=10 ** 9)
+    assert prune is False, why
+    assert "live" in why
+
+
+def test_a_scratch_whose_owner_is_GONE_and_past_the_floor_is_pruned():
+    """The other half of the plant: the cache must still evict, or a tmpfs fills. 153 orphaned
+    scratches and 2.6 GB were measured before any pruning existed."""
+    prune, why = M.scratch_prune_decision(is_current=False, owner_live=False,
+                                          age_sec=M.SCRATCH_MIN_AGE_SEC + 1)
+    assert prune is True, why
+    assert "owner is gone" in why
+
+
+def test_a_dead_owner_inside_the_age_floor_is_left_alone():
+    prune, why = M.scratch_prune_decision(is_current=False, owner_live=False,
+                                          age_sec=M.SCRATCH_MIN_AGE_SEC - 1)
+    assert prune is False and "still exiting" in why, why
+
+
+def test_an_UNMARKED_scratch_is_outlived_not_judged():
+    """§∅: "no owner file" is not "no owner". An unmarked tree earns the longer floor precisely
+    because nothing is known about it — treating unknown as dead is the deletion this prevents."""
+    assert M.scratch_prune_decision(is_current=False, owner_live=None, age_sec=3600)[0] is False
+    assert M.scratch_prune_decision(is_current=False, owner_live=None,
+                                    age_sec=M.SCRATCH_UNKNOWN_MIN_AGE_SEC + 1)[0] is True
+    assert M.SCRATCH_UNKNOWN_MIN_AGE_SEC > M.SCRATCH_MIN_AGE_SEC, \
+        "an unknown owner must earn a LONGER grace than one proven gone, not a shorter one"
+
+
+def test_the_runs_own_scratch_is_never_pruned():
+    assert M.scratch_prune_decision(is_current=True, owner_live=False, age_sec=10 ** 9)[0] is False
+
+
+def test_the_owner_record_round_trips_and_survives_PID_REUSE():
+    """A bare PID recorded hours ago may now belong to something else. Recording the start time makes
+    the answer about THIS process — without it a recycled PID pins a dead scratch forever (a leak
+    dressed as caution) or, worse, a live one reads as dead."""
+    import os as _os
+    me = _os.getpid()
+    ticks = M.proc_start_ticks(me)
+    assert ticks is not None and ticks > 0
+    rec = M.parse_owner_record(M.owner_record(me, ticks))
+    assert rec == (me, ticks)
+    assert M.owner_is_live(rec, M.proc_start_ticks) is True
+    assert M.owner_is_live((me, ticks + 9999), M.proc_start_ticks) is False, \
+        "a PID whose start time does not match is a DIFFERENT process wearing the same number"
+
+
+def test_an_unreadable_or_absent_owner_record_is_UNKNOWN_and_not_False():
+    for text in ("", None, "garbage", "12", "not a pid  nor ticks", "1 2 3", "abc def", "1 x"):
+        assert M.parse_owner_record(text) is None, text
+    assert M.owner_is_live(None, M.proc_start_ticks) is None, \
+        "unknown must be its own answer — collapsing it to False is how a live tree gets deleted"
+
+
+def test_proc_start_ticks_reads_the_field_after_the_last_paren(tmp_path):
+    """Field 2 of /proc/<pid>/stat is the executable name and may contain spaces and parentheses.
+    Splitting the whole line is the classic way to read the wrong field."""
+    d = tmp_path / "4242"
+    d.mkdir()
+    fields = " ".join(str(i) for i in range(3, 53))          # fields 3..52; field 22 -> value "22"
+    (d / "stat").write_text(f"4242 (py (thon) :) x) {fields}\n", encoding="utf-8")
+    assert M.proc_start_ticks(4242, proc_root=str(tmp_path)) == 22
+    assert M.proc_start_ticks(999999, proc_root=str(tmp_path)) is None
+
+
+# ── MEMORY: refuse before starting, never get reaped mid-run ────────────────────────────────────────
+_GB = 1024 ** 3
+
+
+def test_a_projected_budget_over_the_cap_REFUSES_and_names_every_number():
+    """THE PLANT, at capture.py's measured shape: a 536 MB mutants file, one worker per core, against
+    the box's available memory. One worker measured 8.2 GB RSS, and mutmut spawns a worker per core."""
+    why = M.memory_refusal(536 * 1024 ** 2, 16, 40 * _GB)
+    assert why, "capture.py on 16 cores must not be attempted against 40 GB available"
+    for fragment in ("projected peak", "0.52 GB of generated mutants", "15", "per worker",
+                     "16 worker(s)", "cap", "40.0 GB available"):
+        assert fragment in why, f"the refusal must name {fragment!r}: {why}"
+
+
+def test_a_projected_budget_UNDER_the_cap_runs():
+    """The control: the bound must not refuse work that fits. A 10 MB module on 4 workers is 0.6 GB."""
+    assert M.memory_refusal(10 * 1024 ** 2, 4, 40 * _GB) is None
+
+
+def test_the_cap_is_a_fraction_of_AVAILABLE_and_is_pre_stated():
+    """Exactly at the cap fits; a byte over refuses. Pinning the boundary stops the fraction drifting
+    into "whatever is free", which is the other half of the fleet."""
+    per_worker = 1.0 * _GB
+    mutants = int(per_worker / M.WORKER_RSS_PER_MUTANTS_BYTE)
+    avail = int(4 * per_worker / M.MEM_CAP_FRACTION)          # cap == 4 workers' worth
+    assert M.memory_refusal(mutants, 4, avail) is None
+    assert M.memory_refusal(mutants, 5, avail), "one worker past the cap must refuse"
+    assert M.MEM_CAP_FRACTION == 0.5 and M.WORKER_RSS_PER_MUTANTS_BYTE == 15.0, \
+        "both are PRE-STATED; a threshold derived from the data it judges is UNKNOWN (§🧾)"
+
+
+def test_memory_refusal_says_nothing_when_it_cannot_measure():
+    """§∅: an unmeasured input is not a small one. With no mutants file, no worker count or no
+    /proc/meminfo, the projection has no basis — refusing on a zero would block every run."""
+    assert M.memory_refusal(0, 16, 40 * _GB) is None
+    assert M.memory_refusal(536 * 1024 ** 2, 0, 40 * _GB) is None
+    assert M.memory_refusal(536 * 1024 ** 2, 16, 0) is None
+
+
+def test_available_is_read_from_MemAvailable_not_MemFree():
+    """MemFree excludes reclaimable page cache and would refuse runs that fit comfortably."""
+    text = "MemTotal:       61000000 kB\nMemFree:          500000 kB\nMemAvailable:   40000000 kB\n"
+    assert M.available_bytes_from_meminfo(text) == 40000000 * 1024
+    assert M.available_bytes_from_meminfo("MemTotal: 1 kB\n") is None
+    assert M.available_bytes_from_meminfo("") is None
+    assert M.available_bytes_from_meminfo("MemAvailable:   notanumber kB\n") is None
+
+
+def test_a_memory_refusal_that_decided_nothing_is_NOT_RUN():
+    status, reason = M.memory_exhaustion_verdict(2, 0)
+    assert status == "NOT_RUN" and "examined nothing" in reason
+    assert M.memory_exhaustion_verdict(2, 7)[0] == "UNKNOWN"
+    assert "7 mutant(s) were decided" in M.memory_exhaustion_verdict(2, 7)[1]
+
+
+# ── the prune ON REAL DIRECTORIES (the plant), not just the decision ────────────────────────────────
+def _scratch(root, name, *, owner=None, age_sec=0.0):
+    import os as _os
+    import time as _t
+    d = root / name
+    (d / "work").mkdir(parents=True)
+    if owner is not None:
+        (d / M.SCRATCH_OWNER_FILE).write_text(owner + "\n", encoding="utf-8")
+    if age_sec:
+        old = _t.time() - age_sec
+        _os.utime(d, (old, old))
+    return d
+
+
+def test_the_prune_spares_a_LIVE_owners_scratch_and_removes_an_abandoned_one(tmp_path):
+    """THE PLANT, end to end on real directories with the real /proc: a peer's live tree survives and
+    an abandoned one is reclaimed IN THE SAME SWEEP — so "it kept everything" cannot pass for a fix."""
+    import os as _os
+    me = _os.getpid()
+    live = M.owner_record(me, M.proc_start_ticks(me))
+    dead = M.owner_record(999999, 1)                     # no such process
+
+    peer = _scratch(tmp_path, "mut-capture-aaaaaaaaaaaa", owner=live, age_sec=10 ** 6)
+    gone = _scratch(tmp_path, "mut-capture-bbbbbbbbbbbb", owner=dead, age_sec=10 ** 6)
+    mine = _scratch(tmp_path, "mut-capture-cccccccccccc", owner=live)
+    other_module = _scratch(tmp_path, "mut-webmon-dddddddddddd", owner=dead, age_sec=10 ** 6)
+
+    pruned, held = M.prune_scratches(tmp_path, "capture", mine)
+
+    assert peer.exists(), "a live peer's scratch was deleted — the whole defect"
+    assert mine.exists(), "this run's own scratch was deleted"
+    assert not gone.exists(), "an abandoned scratch was not reclaimed; the cache never evicts"
+    assert other_module.exists(), "the prune reached outside its own module"
+    assert pruned == ["mut-capture-bbbbbbbbbbbb"], pruned
+    assert any("mut-capture-aaaaaaaaaaaa" in h and "live" in h for h in held), held
+
+
+def test_the_prune_reports_WHY_each_survivor_was_kept(tmp_path):
+    """A prune that removed a peer's tree used to print only the name. The reason is the one line
+    that could have named the mistake."""
+    import os as _os
+    me = _os.getpid()
+    _scratch(tmp_path, "mut-oxy-111111111111", owner=M.owner_record(me, M.proc_start_ticks(me)))
+    _scratch(tmp_path, "mut-oxy-222222222222")                                  # unmarked, young
+    _scratch(tmp_path, "mut-oxy-333333333333", owner=M.owner_record(999999, 1))  # dead, young
+    pruned, held = M.prune_scratches(tmp_path, "oxy", tmp_path / "mut-oxy-current")
+    assert pruned == [], pruned
+    assert len(held) == 3
+    assert any("live process" in h for h in held)
+    assert any("no owner marker" in h for h in held)
+    assert any("still exiting" in h for h in held)
+
+
+def test_an_unmarked_scratch_past_the_long_floor_is_finally_reclaimed(tmp_path):
+    """The leak guard: unmarked trees must not accumulate forever. 153 orphaned scratches and 2.6 GB
+    were measured before pruning existed at all."""
+    old = _scratch(tmp_path, "mut-ecg-999999999999", age_sec=M.SCRATCH_UNKNOWN_MIN_AGE_SEC + 60)
+    pruned, held = M.prune_scratches(tmp_path, "ecg", tmp_path / "mut-ecg-current")
+    assert pruned == [old.name] and not old.exists(), (pruned, held)
+
+
+def test_a_file_that_merely_looks_like_a_scratch_is_not_touched(tmp_path):
+    (tmp_path / "mut-ppg-abcabcabcabc").write_text("not a directory", encoding="utf-8")
+    pruned, held = M.prune_scratches(tmp_path, "ppg", tmp_path / "mut-ppg-current")
+    assert (pruned, held) == ([], []) and (tmp_path / "mut-ppg-abcabcabcabc").exists()
+
+
+def test_a_name_that_cannot_be_stat_ed_is_skipped_not_crashed_on(tmp_path):
+    """A dangling symlink, or a directory a concurrent sweep removed between the glob and the stat.
+    Deterministic here via the symlink: `glob` lists it and `stat` follows it to nothing."""
+    (tmp_path / "mut-hrv-aaaaaaaaaaaa").symlink_to(tmp_path / "does-not-exist")
+    real = _scratch(tmp_path, "mut-hrv-bbbbbbbbbbbb", owner=M.owner_record(999999, 1),
+                    age_sec=10 ** 6)
+    pruned, held = M.prune_scratches(tmp_path, "hrv", tmp_path / "mut-hrv-current")
+    assert pruned == [real.name], pruned
+    assert (tmp_path / "mut-hrv-aaaaaaaaaaaa").is_symlink(), "the dangling name was touched"

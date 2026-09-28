@@ -101,6 +101,7 @@ from mutation_diff import (  # noqa: E402
     GATE_BUDGET_SEC,
     budget_refusal,
     budget_exhaustion_verdict,
+    memory_exhaustion_verdict,
     verdict_object,
 )
 
@@ -390,6 +391,7 @@ def main(argv=None) -> int:
     # ── THE RUN BUDGET (mutation_diff.GATE_BUDGET_SEC) — a refusal is a verdict, a SIGTERM is not ──
     _gate_t0 = time.monotonic()
     _refused_budget: list[str] = []
+    _refused_memory: list[str] = []   # projected RSS over the cap — refused before starting
     for module, lines in sorted(changed.items()):
         _msrc = _read_source(HERE / module)   # read ONCE per module; the loop below reuses it
         stems = functions_covering(_msrc, lines)
@@ -442,6 +444,10 @@ def main(argv=None) -> int:
             # comes back with partial counts behind `timed_out`, and the gate refuses on it below.
             r = mut.run_one(module, only=g, clean=_clean, timeout=max(1, _left))
             _secs = time.monotonic() - _t0
+            if r.get("refused_memory"):
+                _refused_memory.append(f"{g}: {r['refused_memory']}")
+                print(f"    ⊘ {_refused_memory[-1]}", flush=True)
+                continue
             if r.get("error"):
                 print(f"    ! {g}: {r['error']}  [{_secs:.0f}s]", flush=True)
                 continue
@@ -817,6 +823,29 @@ def main(argv=None) -> int:
         if not a.report_only:
             return _u
         _refusal = _u
+
+    # ── the MEMORY refusal — same placement and same reasoning as the budget refusal below ───────
+    if _refused_memory:
+        verdict["refused_memory"] = _refused_memory
+        if a.json:
+            Path(a.json).write_text(json.dumps(verdict, indent=2), encoding="utf-8")
+        print(f"\nmutate-diff: REFUSING — {len(_refused_memory)} function(s) were NOT mutated because "
+              f"the projected memory does not fit:")
+        for w in _refused_memory:
+            print(f"  ⊘ {w}")
+        print("  Refused BEFORE starting, on purpose. A run that begins and is reaped under box\n"
+              "  memory pressure reports nothing AND takes other sessions' gates with it. Do NOT\n"
+              "  raise the cap to clear this: measure the RSS factor the refusal printed, or mutate\n"
+              "  a smaller unit.")
+        _note = report_only_refusal_note(a.report_only)
+        if _note:
+            print(_note)
+        _ran_box[0] = _ran
+        _mstatus, _mreason = memory_exhaustion_verdict(len(_refused_memory), _counts["decided"])
+        _mb = emit(_mstatus, _mreason, 2)
+        if not a.report_only:
+            return _mb
+        _refusal = _mb
 
     # ── the budget refusal — after the survivor report has been recorded, before the verdict ─────
     # Whatever DID run is reported above and in the JSON; what did NOT run is named here. A refused

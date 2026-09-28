@@ -88,8 +88,19 @@ from typing import Any
 
 HERE = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(HERE))
-from mutation_diff import (refresh_scratch, resolve_interpreter, root_reads, stage_root_reads,
-                           stream_bounded)  # noqa: E402  (after the sys.path fix above)
+from mutation_diff import (  # noqa: E402  (after the sys.path fix above)
+    SCRATCH_OWNER_FILE,
+    available_bytes_from_meminfo,
+    memory_refusal,
+    owner_record,
+    proc_start_ticks,
+    prune_scratches,
+    refresh_scratch,
+    resolve_interpreter,
+    root_reads,
+    stage_root_reads,
+    stream_bounded,
+)
 from mutation_sweep import (  # noqa: E402
     BUDGET_OK,
     budget_verdict,
@@ -365,13 +376,19 @@ def run_one(module: str, only: str | None = None, tests_override: list[str] | No
     # a CACHE, and a cache without eviction is a leak: one directory per module VERSION, so a module
     # edited ten times during a pass leaves ten. Measured 2026-08-03 before this existed: 153 orphaned
     # scratches, 2.6 GB. Everything for this module that is not the current hash goes.
-    pruned = []
-    for old_dir in Path(tempfile.gettempdir()).glob(f"mut-{module[:-3]}-*"):
-        if old_dir != reusable and old_dir.is_dir():
-            pruned.append(old_dir.name)
-            shutil.rmtree(old_dir, ignore_errors=True)
+    # ⚠️ AND IT PRUNES ONLY WHAT NOBODY IS USING. This loop used to delete every scratch for this
+    # module that was not the current hash, unconditionally — which, with several sessions sweeping
+    # the same module at different source hashes, is each of them deleting the others' live 536 MB
+    # tree mid-run. The owner marker written below makes "in use" answerable; `kill -0` is by NUMERIC
+    # pid read from that file (CLAUDE.md §4: never a pattern), and the start time is compared too so
+    # a recycled PID cannot hold a dead scratch forever.
+    pruned, held = prune_scratches(tempfile.gettempdir(), module[:-3], reusable)
     if pruned:
         plan["pruned_scratches"] = pruned
+    if held:
+        # Recorded AND printed: a scratch that was KEPT is the case that used to be a silent
+        # deletion, and a reader watching disk fill needs to know why it is still there.
+        plan["held_scratches"] = held
     if reuse and (reusable / "work" / "mutants" / module).exists():
         scratch, work = reusable, reusable / "work"
         # REFRESH EVERY SIBLING, not just tests/. The cache key is the MUTATED MODULE's hash alone,
@@ -424,6 +441,21 @@ def run_one(module: str, only: str | None = None, tests_override: list[str] | No
     # `--deselect <nodeid>` rides in the same pytest arg list as the file selection. It is appended
     # HERE rather than inside `tests_for` because that function's result is also counted as "test
     # file(s)" by `--list`, where CLI flags would corrupt the count.
+    # CLAIM THE SCRATCH — before the copy and the generation, not after. Both branches above have
+    # settled `scratch` by here, and this is the earliest point at which a claim is meaningful. Later
+    # would leave a REUSED tree carrying its previous (now dead) owner for the whole copy, which a
+    # concurrent sweep would read as abandoned and delete out from under this run — the same defect
+    # in a smaller window. A fresh tree is unmarked for the few ms before this line, and unmarked
+    # earns the long floor, so that window is safe by construction rather than by luck.
+    # A failure to claim must not fail the run: the marker makes the prune safer, and a run that
+    # cannot write it degrades to being judged as an unmarked tree, which is the cautious side.
+    try:
+        (scratch / SCRATCH_OWNER_FILE).write_text(
+            owner_record(os.getpid(), proc_start_ticks(os.getpid()) or 0) + "\n", encoding="utf-8")
+    except OSError as exc:
+        print(f"  ! could not claim {scratch}: {exc} — it will be judged as an unmarked tree",
+              file=sys.stderr)
+
     selection = list(tests) + deselect_args()
     (work / "pyproject.toml").write_text(CONFIG.format(
         source=module, also_copy=also, tests=", ".join(repr(t) for t in selection)), encoding="utf-8")
@@ -443,6 +475,29 @@ def run_one(module: str, only: str | None = None, tests_override: list[str] | No
     env = {**os.environ}
     env.pop("PYTHONDONTWRITEBYTECODE", None)
     stem = module[:-3]
+    # ── MEMORY, CHECKED AFTER GENERATION AND BEFORE THE FIRST MUTANT RUNS ──────────────────────────
+    # The generated module exists by now, so its size is MEASURED rather than guessed; the RSS factor
+    # it is multiplied by is the stated assumption. Refusing here rather than earlier is deliberate:
+    # this is the first moment the projection rests on a real number.
+    _mutants_file = work / "mutants" / module
+    try:
+        _mutants_bytes = _mutants_file.stat().st_size
+    except OSError:
+        _mutants_bytes = 0
+    try:
+        with open("/proc/meminfo", encoding="utf-8") as _fh:
+            _avail = available_bytes_from_meminfo(_fh.read())
+    except OSError:
+        _avail = None
+    _workers = os.cpu_count() or 1
+    _why_mem = memory_refusal(_mutants_bytes, _workers, _avail or 0)
+    if _why_mem:
+        # NOT an `error`: the caller must be able to tell "could not measure this" from "tried and
+        # broke". A run that starts and gets reaped by the watchdog reports nothing at all AND takes
+        # other sessions' gates with it, so the refusal is the cheaper outcome by a wide margin.
+        return {**plan, "refused_memory": _why_mem, "mutants_bytes": _mutants_bytes,
+                "workers": _workers, "available_bytes": _avail}
+
     t0 = time.monotonic()
     # ⚠️ A CAP THAT IS HIT MUST STILL PRODUCE A MEASUREMENT. Before this, `timeout=` raised
     # TimeoutExpired straight out of run_one and the tool died with a traceback — so the two runs that
