@@ -14295,6 +14295,207 @@
       T.ok('…and the coverage says so rather than reading as complete', lwS.covered < 1, String(lwS.covered));
     });
 
+    group(
+      'PAT hat — a negative corner says WHICH negative, and the drift-removed hat recovers a shared drift (PAT-HAT-DRIFT-DIFFERENCED)',
+      'analysis-stats · pat · hat · known-answer · plant',
+      function (T) {
+        var S = env.AnalysisStats;
+        if (!S) {
+          T.skip('env.AnalysisStats provided to the runner', 'Node-lane only — run-tests.mjs co-loads analysis-stats.js');
+          return;
+        }
+        if (typeof S.patHatSolve !== 'function' || typeof S.patHatBootstrapCI !== 'function' || typeof S.patHatCornerStatus !== 'function' || typeof S.patDifferencedHat !== 'function') {
+          T.ok('AnalysisStats PAT-hat kernel present', false, 'patHatSolve / patHatBootstrapCI / patHatCornerStatus / patDifferencedHat not exported');
+          return;
+        }
+        /* Site-error nights on the 5-min grid. Legs are site DIFFERENCES: ab = finger − chest, ac = ankle − chest,
+         bc = ankle − finger, around 400 / 500 / 100 ms. `drift` is a slow sinusoid (period 2 h) SHARED by
+         finger and ankle; `rhoFA` correlates their jitter. Every bound below was measured over 40–200 seeds
+         BEFORE this group was written (brief §Done when) — none is fitted to the seeds used here. */
+        var STEP = 300000;
+        function rng(seed) {
+          var s = seed >>> 0;
+          return function () {
+            s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
+            return s / 4294967296;
+          };
+        }
+        function gauss(r) {
+          var u = 0;
+          while (!u) u = r();
+          return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * r());
+        }
+        function night(seed, N, sc, sf, sa, drift, rhoFA) {
+          var r = rng(seed),
+            W = [];
+          for (var k = 0; k < N; k++) {
+            var d = (drift || 0) * Math.sin((2 * Math.PI * k * 5) / 120),
+              C = sc * gauss(r),
+              z1 = gauss(r),
+              z2 = gauss(r),
+              rho = rhoFA || 0,
+              F = d + sf * z1,
+              A = d + sa * (rho * z1 + Math.sqrt(1 - rho * rho) * z2);
+            W.push({ t: (k + 0.5) * STEP, ab: 400 + F - C, ac: 500 + A - C, bc: 100 + A - F });
+          }
+          return W;
+        }
+        function legs(W) {
+          return [
+            W.map(function (w) {
+              return w.ab;
+            }),
+            W.map(function (w) {
+              return w.ac;
+            }),
+            W.map(function (w) {
+              return w.bc;
+            })
+          ];
+        }
+        // ── A · THE OWNER'S PLANT: 60 ms pk-pk shared finger+ankle drift, jitter 8 / 9 / 12 ms, 288 windows ──
+        var minChest = Infinity,
+          worst = 0,
+          seed;
+        for (seed = 1; seed <= 10; seed++) {
+          var WA = night(seed, 288, 8, 9, 12, 30, 0),
+            LA = legs(WA),
+            cl = S.patHatSolve(LA[0], LA[1], LA[2]),
+            df = S.patDifferencedHat(WA, STEP);
+          minChest = Math.min(minChest, Math.sqrt(Math.max(cl.chest, 0)));
+          [
+            [df.sigma.chest, 8],
+            [df.sigma.finger, 9],
+            [df.sigma.ankle, 12]
+          ].forEach(function (p) {
+            worst = Math.max(worst, p[0] == null ? Infinity : Math.abs(p[0] - p[1]));
+          });
+        }
+        T.ok('ANTI-VACUITY · the classic hat puts the shared drift on the THIRD corner: chest σ ≥ 16 ms (true 8)', minChest >= 16, 'min over 10 seeds ' + minChest.toFixed(1) + ' ms');
+        T.ok('the drift-removed hat recovers 8 / 9 / 12 ms within ±5 ms on every seed', worst <= 5, 'worst |error| ' + worst.toFixed(2) + ' ms');
+        var WA1 = night(1, 288, 8, 9, 12, 30, 0),
+          d1 = S.patDifferencedHat(WA1, STEP);
+        T.ok(
+          'the drift-removed hat is labelled NOT comparable to the classic σ, at τ = one window',
+          d1.ok && d1.tauMin === 5 && /not comparable/.test(d1.label) && d1.n === 287,
+          JSON.stringify({ tau: d1.tauMin, n: d1.n, label: d1.label })
+        );
+        var gap = WA1.slice(0, 20).concat(WA1.slice(30, 40));
+        T.ok(
+          'only windows exactly one step apart are differenced; too few pairs ⇒ a refusal with its count',
+          S.patDifferencedHat(gap, STEP).n === 28 && S.patDifferencedHat(WA1.slice(0, 12), STEP).ok === false && /11 adjacent window pairs/.test(S.patDifferencedHat(WA1.slice(0, 12), STEP).reason),
+          S.patDifferencedHat(WA1.slice(0, 12), STEP).reason
+        );
+        // ── B · THE NULL: independent errors in the 2026-09-26 geometry (8 / 9 / 25 ms, 98 windows) ──
+        var neg = 0,
+          under = 0,
+          failed = 0;
+        for (seed = 1; seed <= 50; seed++) {
+          var LB = legs(night(seed, 98, 8, 9, 25, 0, 0)),
+            vB = S.patHatSolve(LB[0], LB[1], LB[2]),
+            stB = S.patHatCornerStatus(vB, S.patHatBootstrapCI(LB[0], LB[1], LB[2], { B: 400 }));
+          if (Math.min(vB.chest, vB.finger, vB.ankle) < 0) neg++;
+          ['chest', 'finger', 'ankle'].forEach(function (c) {
+            if (stB[c].status === 'underpowered') under++;
+            if (stB[c].status === 'independence-failed') failed++;
+          });
+        }
+        T.ok('ANTI-VACUITY · independent errors still produce negative corners (≥ 10 of 50 nights)', neg >= 10, neg + ' of 50');
+        T.ok('…and every one reads UNDERPOWERED, none "independence failed"', under === neg && failed === 0, under + ' underpowered, ' + failed + ' independence-failed, of ' + neg + ' negative');
+        var st0 = S.patHatCornerStatus({ chest: -32, finger: 148.8, ankle: 650.6 }, { chest: { lo: -225.6, hi: 206.2 }, finger: { lo: -90.7, hi: 398.3 }, ankle: { lo: 333.4, hi: 891 } });
+        T.ok(
+          'the 2026-09-26 figures read chest underpowered with its bound, never a bare refusal',
+          st0.chest.status === 'underpowered' && Math.abs(st0.chest.boundMs - Math.sqrt(206.2)) < 1e-9 && st0.ankle.status === 'solved' && Math.abs(st0.ankle.sigma - Math.sqrt(650.6)) < 1e-9,
+          JSON.stringify(st0.chest)
+        );
+        // ── C · A GENUINE FAILURE: finger/ankle jitter anti-correlated at ρ = −0.8 (2 / 20 / 20 ms, 200 windows) ──
+        var okC = 0,
+          rhos = [];
+        for (seed = 1; seed <= 10; seed++) {
+          var LC = legs(night(seed, 200, 2, 20, 20, 0, -0.8)),
+            vC = S.patHatSolve(LC[0], LC[1], LC[2]),
+            sc = S.patHatCornerStatus(vC, S.patHatBootstrapCI(LC[0], LC[1], LC[2], { B: 400 })).chest;
+          if (sc.status === 'independence-failed' && sc.pair.join() === 'finger,ankle' && sc.explainRho < 0) okC++;
+          rhos.push(sc.explainRho);
+        }
+        T.ok(
+          'a CI wholly below 0 reads independence-failed, naming the finger–ankle pair and a negative ρ (10 of 10)',
+          okC === 10,
+          okC +
+            ' of 10; ρ ' +
+            rhos
+              .map(function (x) {
+                return x == null ? 'null' : x.toFixed(2);
+              })
+              .join(' ')
+        );
+        var oor = S.patHatCornerStatus({ chest: -300, finger: 320, ankle: 330 }, { chest: { lo: -400, hi: -200 } });
+        T.ok('a ρ beyond ±1 is published as it is and FLAGGED, never clamped', oor.chest.explainRho < -1 && oor.chest.rhoOutOfRange === true, JSON.stringify(oor.chest));
+        // ── D · DETERMINISM + the worker's own hat is this solve ──
+        var LD = legs(night(3, 98, 8, 9, 25, 0, 0)),
+          ci1 = S.patHatBootstrapCI(LD[0], LD[1], LD[2]),
+          ci2 = S.patHatBootstrapCI(LD[0], LD[1], LD[2]);
+        T.ok('the default bootstrap is SEEDED: one night, one interval', JSON.stringify(ci1) === JSON.stringify(ci2) && ci1.B === 1000 && ci1.block === 6, JSON.stringify(ci1.chest));
+        var wsrc = (env.sources && env.sources['pat-feasibility-worker.js']) || '';
+        if (!wsrc || !env.PATGate || !env.PATAlign || !env.DexClock) {
+          T.skip('the worker threeHat ≡ patHatSolve parity', 'worker source / PATGate / PATAlign / DexClock not in env');
+          return;
+        }
+        var Wk = null;
+        try {
+          var shim = { postMessage: function () {} };
+          shim.self = shim;
+          Wk = new Function(
+            'ECGDSP',
+            'PPGDSP',
+            'PATGate',
+            'PATAlign',
+            'DexClock',
+            'AnalysisStats',
+            'self',
+            'importScripts',
+            'XMLHttpRequest',
+            wsrc.replace(/self\.onmessage[\s\S]*$/, '') + '\nreturn { threeHat: threeHat };'
+          )(
+            env.ECGDSP,
+            env.PPGDSP,
+            env.PATGate,
+            env.PATAlign,
+            env.DexClock,
+            S,
+            shim,
+            function () {},
+            function () {}
+          );
+        } catch (e) {
+          T.ok('the worker body EVALUATES', false, e.message);
+          return;
+        }
+        // three legs of ≥ 50 beats in each of 20 windows, built from one site-error night
+        var WN = night(5, 20, 8, 9, 25, 0, 0);
+        function leg(k) {
+          var out = [];
+          WN.forEach(function (w, i) {
+            for (var b = 0; b < 60; b++) out.push({ t: i * STEP + 1000 + b * 4000, lag: w[k] });
+          });
+          return { ok: true, patAtR: out };
+        }
+        var h = Wk.threeHat(leg('ab'), leg('ac'), leg('bc'));
+        var LN = legs(h.windows),
+          ref = S.patHatSolve(LN[0], LN[1], LN[2]);
+        T.ok(
+          "the worker's classic variance IS patHatSolve on its own windows (one dispersion, two sites — pinned equal)",
+          h.ok && h.variance.chest === ref.chest && h.variance.finger === ref.finger && h.variance.ankle === ref.ankle,
+          JSON.stringify({ worker: h.variance, kernel: ref })
+        );
+        T.ok(
+          'the worker publishes ci, corners and the labelled drift-removed hat beside its unchanged fields',
+          h.ci && h.corners && h.corners.chest && h.diff && h.diff.ok && h.sigma && h.pairSd && h.lagMed && h.windows.length === 20,
+          Object.keys(h).join(',')
+        );
+      }
+    );
+
     group('Analysis-page statistics kernels — known-answer (TEST-COVERAGE-ANALYSIS)', 'analysis-stats · statistics · known-answer', function (T) {
       var S = env.AnalysisStats;
       if (!S) {
