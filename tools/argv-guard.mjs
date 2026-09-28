@@ -89,9 +89,7 @@ export function checkArgv(argv, { valued = [], boolean: bools = [], positional =
       const bare = tok.slice(0, tok.indexOf('='));
       return {
         ok: false,
-        reason: known.includes(bare)
-          ? `${tok} — this tool reads a value as the NEXT argument, so write \`${bare} <value>\``
-          : `unknown flag ${tok}`,
+        reason: known.includes(bare) ? `${tok} — this tool reads a value as the NEXT argument, so write \`${bare} <value>\`` : `unknown flag ${tok}`
       };
     }
     if (bools.includes(tok)) continue;

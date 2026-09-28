@@ -109,7 +109,7 @@ refuseUnknownArgvOrExit(
   argv,
   {
     valued: ['--src', '--out', '--night', '--limit', '--min-hours', '--min-overlap', '--night-band', '--jobs', '--cpap', '--only-node'],
-    boolean: ['--keep-daytime', '--skip-existing', '--force', '--dry-run', '--json', '--verdict-sample', '--selftest', '--allow-partial', '--child'],
+    boolean: ['--keep-daytime', '--skip-existing', '--force', '--dry-run', '--json', '--verdict-sample', '--selftest', '--allow-partial', '--child']
   },
   { tool: 'trio-batch' }
 );
