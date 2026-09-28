@@ -1348,6 +1348,14 @@ def test_the_budget_verdict_uses_only_statuses_the_contract_allows():
 
 
 # ── the wall cap must be REACHABLE (the 2 h 41 m stats pass) ─────────────────────────────────────────
+# 🔴 EVERY BLOCKING THING BELOW SELF-TERMINATES, AND THAT IS A MUTATION-GATE REQUIREMENT, NOT TIDINESS.
+# The three defects these tests pin all make `stream_bounded` wait LONGER (`t0` recomputed,
+# `wait(timeout=None)`, `join(timeout=None)`). Written against a child that never exits, each mutant
+# is caught — by hanging — and mutmut reports UNDECIDED (timeout), which is not a kill: the gate
+# refused this very change with "3 mutant(s) UNDECIDED (timeout)". A child that ends on its own turns
+# every one of those hangs into a fast, ordinary assertion failure. Where the deadline is the whole
+# point, it is asserted as the NUMBER REQUESTED rather than the time spent — a clock cannot afford a
+# bound tight enough to see one second, and the arithmetic mutants proved it by surviving one.
 def _child(code: str):
     import subprocess as _sp
     import sys as _sys
@@ -1355,32 +1363,36 @@ def _child(code: str):
                      text=True, bufsize=1)
 
 
-def test_a_child_that_never_exits_is_KILLED_at_the_cap():
+_CHATTY_3S = "import sys, time\nend = time.time() + 3\nwhile time.time() < end:\n    print('working'); sys.stdout.flush(); time.sleep(0.02)\n"
+_SILENT_3S = "import time\ntime.sleep(3)\n"
+
+
+def test_a_child_still_working_at_the_cap_is_KILLED():
     """THE DEFECT, pinned. `for line in proc.stdout:` ends only when the child closes stdout, so the
     `proc.wait(timeout=…)` after it was reached only once the child had already exited — the cap could
-    not fire. A chatty child that never finishes is exactly mutmut's traced stats pass on capture.py,
-    which ran 2 h 41 m against a 7200 s budget and 21 min against a 900 s one, both unbounded."""
+    not fire. The child here outlives the cap but not the test: under an unbounded wait it is reaped
+    normally at 3 s and `timed_out` comes back False, so the mutant fails instead of hanging."""
     import time as _t
-    proc = _child("import sys, time\nwhile True:\n    print('working'); sys.stdout.flush(); time.sleep(0.02)\n")
+    proc = _child(_CHATTY_3S)
     seen: list[str] = []
     t0 = _t.monotonic()
     rc, timed_out = M.stream_bounded(proc, 1.0, seen.append, t0=t0)
     took = _t.monotonic() - t0
-    assert timed_out is True, f"the cap did not fire: rc={rc}"
-    assert took < 20, f"the cap fired {took:.0f}s late — it must bound the READ, not follow it"
+    assert timed_out is True, f"the cap did not fire — the child was allowed to finish: rc={rc}"
+    assert took < 2.5, f"the cap fired {took:.1f}s late — it must bound the READ, not follow it"
     assert seen, "the output must still stream while the deadline runs"
     assert proc.poll() is not None, "the child was left alive after the refusal"
 
 
-def test_a_SILENT_child_that_never_exits_is_also_killed_at_the_cap():
-    """The worse half: a child producing NO output. The old read blocked on an empty pipe forever with
-    nothing to count and no heartbeat — the shape a reader calls "wedged" and cannot distinguish from
-    slow work."""
+def test_a_SILENT_child_still_working_at_the_cap_is_also_KILLED():
+    """The worse half: a child producing NO output. The old read blocked on an empty pipe with nothing
+    to count and no heartbeat — the shape a reader calls "wedged" and cannot tell from slow work."""
     import time as _t
-    proc = _child("import time\ntime.sleep(600)\n")
+    proc = _child(_SILENT_3S)
     t0 = _t.monotonic()
     rc, timed_out = M.stream_bounded(proc, 1.0, lambda _l: None, t0=t0)
-    assert timed_out is True and _t.monotonic() - t0 < 20, (rc, timed_out)
+    assert timed_out is True, rc
+    assert _t.monotonic() - t0 < 2.5
     assert proc.poll() is not None
 
 
@@ -1420,3 +1432,125 @@ def test_a_pipe_closed_under_the_reader_does_not_take_the_verdict_with_it():
 
     rc, timed_out = M.stream_bounded(_Proc(), 60.0, lambda _l: None)
     assert (rc, timed_out) == (0, False), (rc, timed_out)
+
+
+# ── the deadline as a NUMBER, not as elapsed time ───────────────────────────────────────────────────
+class _RecordingProc:
+    """Records every `timeout=` it is waited on with, and never actually waits.
+
+    The deadline is the behaviour here, and it is fully described by the argument. Asserting the
+    argument kills `wait(timeout=None)` and the `t0`-recomputed mutant INSTANTLY, where asserting
+    elapsed time caught them only by taking 30 s — which the gate scores UNDECIDED, not killed."""
+
+    def __init__(self):
+        import subprocess as _sp
+        self._sp, self.killed, self.timeouts = _sp, False, []
+        self.stdout = iter(())          # the reader finishes at once; nothing here is about the read
+
+    def kill(self):
+        self.killed = True
+
+    def wait(self, timeout=None):
+        self.timeouts.append(timeout)
+        if not self.killed:
+            raise self._sp.TimeoutExpired("child", timeout)
+        return -9
+
+
+def test_the_wait_is_given_the_caller_s_remaining_budget_as_a_REAL_number():
+    """Kills two at once: an unbounded `timeout=None`, and a `t0` recomputed here instead of taken
+    from the caller — `tools/mutate.py` measures `t0` before the clean run, so recomputing silently
+    hands every module its full budget back after the pre-work is already spent."""
+    import time as _t
+    proc = _RecordingProc()
+    M.stream_bounded(proc, 30.0, lambda _l: None, t0=_t.monotonic() - 1000.0)
+    assert proc.timeouts[0] is not None, "the wall wait must be bounded, not `timeout=None`"
+    assert proc.timeouts[0] == M.CAP_FLOOR_SEC, (
+        f"the budget was spent 1000s ago, so only the floor is owed; got {proc.timeouts[0]} — "
+        "a cap that restarts from this call is no cap")
+
+
+def test_the_post_kill_reap_is_BOUNDED_too():
+    """`proc.wait(timeout=REAP_SEC)` → `timeout=None` reintroduces this function's own bug class one
+    line below the fix: an unkillable child would hang the refusal forever. Asserted on the argument
+    because the input that separates the two — a child that never reaps after SIGKILL — cannot be
+    told apart in less than REAP_SEC (30 s) of real waiting, every run, forever."""
+    proc = _RecordingProc()
+    M.stream_bounded(proc, 1.0, lambda _l: None)
+    assert proc.killed, "the cap fired but the child was never killed"
+    assert proc.timeouts[-1] is not None, "the post-kill reap must be bounded, not `timeout=None`"
+    assert proc.timeouts[-1] == M.REAP_SEC == 30.0, proc.timeouts
+
+
+def test_the_abandoned_reader_is_a_DAEMON_and_its_join_is_BOUNDED(monkeypatch):
+    """Two properties, both asserted as arguments so neither depends on how long anything took.
+
+    The reader must not outlive the interpreter — `daemon=False`/`None`/omitted all inherit
+    non-daemon from the main thread and would wedge shutdown behind a thread blocked on a pipe — and
+    the join must be BOUNDED: `join(timeout=None)` turns a refusal that just fired into a hang one
+    frame later. The shim is scoped to this module's own `threading` reference."""
+    import threading as _th
+
+    made = {}
+
+    class _RecThread(_th.Thread):
+        def __init__(self, *a, **kw):
+            made["daemon_kw"] = kw.get("daemon", "<omitted>")
+            super().__init__(*a, **kw)
+
+        def join(self, timeout=None):
+            made["join_timeout"] = timeout
+            # Cap the REAL wait so an unbounded join cannot hang this test; the argument above is
+            # what is being asserted, and it has already been recorded.
+            return super().join(0.2 if timeout is None else timeout)
+
+    class _Shim:
+        Thread = _RecThread
+
+    monkeypatch.setattr(M, "threading", _Shim)
+    proc = _RecordingProc()
+    M.stream_bounded(proc, 1.0, lambda _l: None, join_sec=0.3)
+
+    assert made["daemon_kw"] is True, (
+        f"the reader must be a daemon; got daemon={made['daemon_kw']!r} — a non-daemon reader stuck "
+        "on a pipe blocks interpreter shutdown")
+    assert made["join_timeout"] is not None, "the join must be bounded, not `join(timeout=None)`"
+    assert made["join_timeout"] == 0.3, made
+
+
+# ── the deadline ARITHMETIC, asserted as numbers ────────────────────────────────────────────────────
+# Extracted from `stream_bounded` for exactly this reason: `max(1.0, …)` → `max(2.0, …)`,
+# `cap_sec - elapsed` → `+`, and `now - t0` → `now + t0` all survived a wall-clock assertion, because
+# a timing test cannot afford a bound tight enough to see one second without going flaky.
+def test_cap_remaining_counts_from_the_CALLERS_start_not_this_call():
+    """`tools/mutate.py` measures `t0` before the clean baseline run, so a cap that restarted here
+    would hand every module its full budget again after the pre-work was already spent."""
+    assert M.cap_remaining(100.0, 0.0, 40.0) == 60.0
+    assert M.cap_remaining(100.0, 10.0, 40.0) == 70.0, "t0 must be subtracted, not added"
+
+
+def test_cap_remaining_never_returns_less_than_the_floor():
+    """An overspent budget must still give the child a moment to finish, not a zero or negative wait
+    that kills a run one line from its verdict."""
+    assert M.cap_remaining(5.0, 0.0, 1000.0) == M.CAP_FLOOR_SEC
+    assert M.CAP_FLOOR_SEC == 1.0, "the floor is the pre-stated number, not whatever the code says"
+
+
+def test_cap_remaining_shrinks_as_the_budget_is_spent():
+    a = M.cap_remaining(60.0, 0.0, 10.0)
+    b = M.cap_remaining(60.0, 0.0, 30.0)
+    assert a > b, f"remaining must FALL with elapsed time, not rise: {a} then {b}"
+
+
+def test_the_budget_reason_names_the_refused_count_and_the_budget():
+    """`what` carried the only two numbers a reader needs to size the refusal, and dropping it
+    entirely still satisfied an assertion that only looked for the elapsed seconds."""
+    _, reason = M.budget_exhaustion_verdict(3, 0, 10.0)
+    assert f"3 module(s)/function(s) not mutated inside the {M.GATE_BUDGET_SEC}s gate budget" in reason
+
+
+def test_ONE_decided_mutant_is_already_a_partly_measured_run():
+    """The boundary: `decided > 0`, not `> 1`. One decided mutant means the gate examined something,
+    so NOT_RUN ("examined nothing") would be false."""
+    assert M.budget_exhaustion_verdict(1, 1, 10.0)[0] == "UNKNOWN"
+    assert M.budget_exhaustion_verdict(1, 0, 10.0)[0] == "NOT_RUN"

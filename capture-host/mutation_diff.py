@@ -50,6 +50,8 @@ __all__ = [
     "budget_refusal",
     "budget_exhaustion_verdict",
     "stream_bounded",
+    "cap_remaining",
+    "CAP_FLOOR_SEC",
     "verdict_object",
     "VERDICT_STATUSES",
     "EXCUSING",
@@ -602,6 +604,25 @@ def budget_refusal(module: str, clean_sec: float, n_globs: int, left_sec: float,
             f"Scope the change, or run `tools/mutate.py --only` locally on the function(s).")
 
 
+CAP_FLOOR_SEC = 1.0      # never wait less than this, however far the budget is already overspent:
+                         # a zero or negative wait would kill a child that is about to finish.
+REAP_SEC = 30.0          # bound on the post-kill reap. `None` here would hand an unkillable child
+                         # the same unbounded wait this whole function exists to remove.
+
+
+def cap_remaining(cap_sec, t0, now):
+    """Seconds still owed to a child that started at `t0` under a `cap_sec` budget, floored.
+
+    Extracted from `stream_bounded` so the deadline arithmetic can be asserted as NUMBERS. Pinned by
+    a wall-clock test it is only pinned to within the test's own tolerance, and the mutation gate
+    said so: `max(1.0, …)` → `max(2.0, …)`, `cap_sec - elapsed` → `cap_sec + elapsed`, and
+    `now - t0` → `now + t0` all survived a timing assertion that could not afford a tight bound.
+    `t0` is the CALLER's start, not this call's: `tools/mutate.py` measures it before the clean run,
+    so a cap must count from there or the pre-work is free.
+    """
+    return max(CAP_FLOOR_SEC, cap_sec - (now - t0))
+
+
 def stream_bounded(proc, cap_sec, on_line, t0=None, join_sec=10.0):
     """Drain `proc`'s stdout line by line into `on_line`, and KILL the child at `cap_sec`.
     Returns `(returncode, timed_out)`.
@@ -640,11 +661,11 @@ def stream_bounded(proc, cap_sec, on_line, t0=None, join_sec=10.0):
     reader.start()
     timed_out = False
     try:
-        rc = proc.wait(timeout=max(1.0, cap_sec - (time.monotonic() - t0)))
+        rc = proc.wait(timeout=cap_remaining(cap_sec, t0, time.monotonic()))
     except subprocess.TimeoutExpired:
         timed_out = True
         proc.kill()
-        rc = proc.wait(timeout=30)
+        rc = proc.wait(timeout=REAP_SEC)
     # Bounded join: a reader blocked on a pipe the kill did not close must not turn a refusal that
     # fired into a hang one frame later.
     reader.join(timeout=join_sec)

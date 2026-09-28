@@ -4300,6 +4300,12 @@
       "op": "numeric substitution in a triple-quote probe constant",
       "probe": "Ran the probe at 2, 3, 4 and 5 quotes: `*2` → REQUIRED, and `*3`, `*4`, `*5` all → UNDECIDABLE. The constant matters only in being >= 3; above that the scan reports the same incompetence.",
       "why": "`_tq` builds a line the literal scan must refuse to judge. Three quotes open a docstring-like run and so do four, so the probe's verdict is UNDECIDABLE either way. FALSIFY THIS if the scan ever distinguishes a triple quote from a longer run — today it does not, and `*2` is the only value that changes the answer."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "-def stream_bounded(proc, cap_sec, on_line, t0=None, join_sec=10.0): | +def stream_bounded(proc, cap_sec, on_line, t0=None, join_sec=11.0):",
+      "probe": "Hand-applied 2026-09-27 with PYTHONDONTWRITEBYTECODE=1 and __pycache__ cleared, against the whole of tests/test_mutation_diff.py (168 tests): SURVIVED, while the other 14 mutants on the same change were all KILLED by the same run. The only test that reaches the join on a reader still blocked (test_a_reader_left_on_a_stuck_pipe_is_a_DAEMON_and_the_call_still_returns) passes join_sec EXPLICITLY, and the only production caller, tools/mutate.py, omits it.",
+      "why": "A 1-second change to the bound on joining a reader thread that is, in every path a test or the one production caller can construct, ALREADY FINISHED — the join returns at once and the timeout is never consulted. Distinguishing 10.0 from 11.0 needs a reader still blocked at t=10s AND an observer of the extra second; the property that matters (the join is BOUNDED, not unbounded) is pinned separately and lethally by the timeout=None mutant, which that same test kills. Recorded rather than pinned because asserting the literal would test the number, not the behaviour, and the number is a safety margin with no behavioural edge."
     }
   ],
   "mutation_pure.py": [
