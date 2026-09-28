@@ -1420,3 +1420,121 @@ def test_a_pipe_closed_under_the_reader_does_not_take_the_verdict_with_it():
 
     rc, timed_out = M.stream_bounded(_Proc(), 60.0, lambda _l: None)
     assert (rc, timed_out) == (0, False), (rc, timed_out)
+
+
+# ── draining the mutation gate's report on THIS change (survivors on my own new lines) ─────────────
+def test_cap_remaining_counts_from_the_CALLERS_start_not_this_call():
+    """`tools/mutate.py` measures `t0` before the clean baseline run, so a cap that restarted here
+    would hand every module its full budget again after the pre-work was already spent."""
+    assert M.cap_remaining(100.0, 0.0, 40.0) == 60.0
+    assert M.cap_remaining(100.0, 10.0, 40.0) == 70.0, "t0 must be subtracted, not added"
+
+
+def test_cap_remaining_never_returns_less_than_the_floor():
+    """An overspent budget must still give the child a moment to finish, not a zero or negative wait
+    that kills a run one line from its verdict."""
+    assert M.cap_remaining(5.0, 0.0, 1000.0) == M.CAP_FLOOR_SEC
+    assert M.CAP_FLOOR_SEC == 1.0, "the floor is the pre-stated number, not whatever the code says"
+
+
+def test_cap_remaining_shrinks_as_the_budget_is_spent():
+    a = M.cap_remaining(60.0, 0.0, 10.0)
+    b = M.cap_remaining(60.0, 0.0, 30.0)
+    assert a > b, f"remaining must FALL with elapsed time, not rise: {a} then {b}"
+
+
+def test_the_budget_reason_names_the_refused_count_and_the_budget():
+    """`what` carried the only two numbers a reader needs to size the refusal, and dropping it
+    entirely still satisfied an assertion that only looked for the elapsed seconds."""
+    _, reason = M.budget_exhaustion_verdict(3, 0, 10.0)
+    assert f"3 module(s)/function(s) not mutated inside the {M.GATE_BUDGET_SEC}s gate budget" in reason
+
+
+def test_ONE_decided_mutant_is_already_a_partly_measured_run():
+    """The boundary: `decided > 0`, not `> 1`. One decided mutant means the gate examined something,
+    so NOT_RUN ("examined nothing") would be false."""
+    assert M.budget_exhaustion_verdict(1, 1, 10.0)[0] == "UNKNOWN"
+    assert M.budget_exhaustion_verdict(1, 0, 10.0)[0] == "NOT_RUN"
+
+
+class _StuckPipe:
+    """A pipe the kill does not close — the case the bounded join exists for."""
+
+    def __init__(self):
+        self.entered = __import__("threading").Event()
+
+    def __iter__(self):
+        self.entered.set()
+        __import__("time").sleep(10)      # pragma: no cover — the daemon reader is abandoned here
+        return iter(())
+
+
+class _UnreapableProc:
+    """`wait` always times out and `kill` does not reap: an unkillable child."""
+
+    def __init__(self):
+        import subprocess as _sp
+        self._sp, self.stdout, self.killed = _sp, _StuckPipe(), False
+        self.timeouts: list = []          # every `timeout=` this child was waited on with
+
+    def kill(self):
+        self.killed = True
+
+    def wait(self, timeout=None):
+        self.timeouts.append(timeout)
+        if not self.killed:
+            raise self._sp.TimeoutExpired("child", timeout)
+        return -9
+
+
+def test_a_reader_left_on_a_stuck_pipe_is_a_DAEMON_and_the_call_still_returns():
+    """Two survivors in one property. The reader must not outlive the interpreter (`daemon=True`;
+    `daemon=False`/`None`/omitted all inherit non-daemon from the main thread and would wedge
+    shutdown), and the join must be BOUNDED — `join(timeout=None)` turns a refusal that fired into a
+    hang one frame later, which is this whole function's own bug class."""
+    import threading
+    import time as _t
+
+    before = {t.ident for t in threading.enumerate()}
+    proc = _UnreapableProc()
+    t0 = _t.monotonic()
+    rc, timed_out = M.stream_bounded(proc, 1.0, lambda _l: None, join_sec=0.3)
+    took = _t.monotonic() - t0
+
+    assert timed_out is True and proc.killed, (rc, timed_out, proc.killed)
+    assert rc is not None, "the post-kill reap's exit code is the only evidence the child is gone"
+    assert took < 5, f"the bounded join did not bound: {took:.1f}s"
+    left = [t for t in threading.enumerate() if t.ident not in before and t.is_alive()]
+    assert left, "the reader should still be stuck — otherwise this proves nothing"
+    assert all(t.daemon for t in left), \
+        f"a non-daemon reader stuck on a pipe blocks interpreter shutdown: {left}"
+
+
+def test_the_post_kill_reap_is_BOUNDED_too():
+    """`proc.wait(timeout=REAP_SEC)` → `timeout=None` survived, and it reintroduces this function's
+    own bug class one line below the fix: an unkillable child would hang the refusal forever.
+
+    Asserted on the argument rather than the clock ON PURPOSE. Boundedness here is expressed only as
+    that argument, and the input that separates the two — a child that never reaps after SIGKILL —
+    cannot be told apart in less than REAP_SEC (30 s) of real waiting, every run, forever."""
+    proc = _UnreapableProc()
+    M.stream_bounded(proc, 1.0, lambda _l: None, join_sec=0.1)
+    assert proc.timeouts[-1] is not None, "the post-kill reap must be bounded, not `timeout=None`"
+    assert proc.timeouts[-1] == M.REAP_SEC == 30.0, proc.timeouts
+
+
+def test_the_cap_counts_from_the_CALLERS_t0_end_to_end():
+    """`cap_remaining` is pinned as arithmetic above; this pins that `stream_bounded` actually PASSES
+    the caller's `t0` to it. Mutated to recompute `t0` here, the arithmetic stays perfect and every
+    unit assertion above still passes — the budget just silently restarts, which is the whole reason
+    `tools/mutate.py` measures `t0` before the clean run. A wide margin on purpose: 1 s expected,
+    10 s asserted, 30 s under the mutant."""
+    import time as _t
+    proc = _child("import time\ntime.sleep(600)\n")
+    t0 = _t.monotonic() - 1000.0          # the budget is long gone; only the floor is owed
+    start = _t.monotonic()
+    _rc, timed_out = M.stream_bounded(proc, 30.0, lambda _l: None, t0=t0)
+    took = _t.monotonic() - start
+    assert timed_out is True
+    assert took < 10, f"the cap restarted from this call instead of the caller's t0: waited {took:.1f}s"
+    assert proc.poll() is not None
