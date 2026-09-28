@@ -54,7 +54,7 @@
     "verify:commit-shape": "node tools/commit-shape.mjs",
     "verify:seals": "node tools/verify-seals.mjs --vectors",
     "verify:residue-ids": "node tools/residue-ids.mjs --base origin/main",
-    "verify:survivor-ratchet": "node tools/mutation-survivors.mjs ratchet --expect 12"
+    "verify:survivor-ratchet": "node tools/mutation-survivors.mjs ratchet --expect 0"
   },
   "engines": {
     "node": ">=18"

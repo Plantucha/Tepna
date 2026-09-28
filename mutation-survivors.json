@@ -1,5 +1,5 @@
 {
-  "_README": "The mutation survivor ledger. Keyed on lane + module + function + the mutant diff pair \u2014 NEVER __mutmut_N. Written by tools/mutation-survivors.mjs only (rows are never hand-edited); CI READS it for the ratchet and must never write it. See briefs/MUTATION-SURVIVOR-LEDGER-2026-09-28-BRIEF.md.",
+  "_README": "The mutation survivor ledger. Keyed on lane + module + function + the mutant diff pair — NEVER __mutmut_N. Written by tools/mutation-survivors.mjs only (rows are never hand-edited); CI READS it for the ratchet and must never write it. See briefs/MUTATION-SURVIVOR-LEDGER-2026-09-28-BRIEF.md.",
   "entries": [
     {
       "lane": "py",
@@ -12,7 +12,8 @@
       "run_id": "local-rederivation-2026-09-28",
       "merge_sha": null,
       "reported": "2026-09-28",
-      "state": "open"
+      "state": "equivalent",
+      "probe": "hand-applied 2026-09-28, whole test_loss_audit.py (101 tests), reverted byte-identical: SURVIVED; the five predicted-killable mutants on the same lines were KILLED in the same sweep (positive control). Argument in capture-host/tools/mutate-equivalence.json under loss_audit.py."
     },
     {
       "lane": "py",
@@ -25,7 +26,8 @@
       "run_id": "local-rederivation-2026-09-28",
       "merge_sha": null,
       "reported": "2026-09-28",
-      "state": "open"
+      "state": "equivalent",
+      "probe": "hand-applied 2026-09-28, whole test_loss_audit.py (101 tests), reverted byte-identical: SURVIVED; the five predicted-killable mutants on the same lines were KILLED in the same sweep (positive control). Argument in capture-host/tools/mutate-equivalence.json under loss_audit.py."
     },
     {
       "lane": "py",
@@ -38,7 +40,8 @@
       "run_id": "local-rederivation-2026-09-28",
       "merge_sha": null,
       "reported": "2026-09-28",
-      "state": "open"
+      "state": "equivalent",
+      "probe": "hand-applied 2026-09-28, whole test_loss_audit.py (101 tests), reverted byte-identical: SURVIVED; the five predicted-killable mutants on the same lines were KILLED in the same sweep (positive control). Argument in capture-host/tools/mutate-equivalence.json under loss_audit.py."
     },
     {
       "lane": "py",
@@ -51,7 +54,7 @@
       "run_id": "local-rederivation-2026-09-28",
       "merge_sha": null,
       "reported": "2026-09-28",
-      "state": "open"
+      "state": "killed #3187"
     },
     {
       "lane": "py",
@@ -64,7 +67,7 @@
       "run_id": "local-rederivation-2026-09-28",
       "merge_sha": null,
       "reported": "2026-09-28",
-      "state": "open"
+      "state": "killed #3187"
     },
     {
       "lane": "py",
@@ -77,7 +80,8 @@
       "run_id": "local-rederivation-2026-09-28",
       "merge_sha": null,
       "reported": "2026-09-28",
-      "state": "open"
+      "state": "equivalent",
+      "probe": "hand-applied 2026-09-28, whole test_loss_audit.py (101 tests), reverted byte-identical: SURVIVED; the five predicted-killable mutants on the same lines were KILLED in the same sweep (positive control). Argument in capture-host/tools/mutate-equivalence.json under loss_audit.py."
     },
     {
       "lane": "py",
@@ -90,7 +94,7 @@
       "run_id": "local-rederivation-2026-09-28",
       "merge_sha": null,
       "reported": "2026-09-28",
-      "state": "open"
+      "state": "killed #3187"
     },
     {
       "lane": "py",
@@ -103,7 +107,8 @@
       "run_id": "local-rederivation-2026-09-28",
       "merge_sha": null,
       "reported": "2026-09-28",
-      "state": "open"
+      "state": "equivalent",
+      "probe": "hand-applied 2026-09-28, whole test_loss_audit.py (101 tests), reverted byte-identical: SURVIVED; the five predicted-killable mutants on the same lines were KILLED in the same sweep (positive control). Argument in capture-host/tools/mutate-equivalence.json under loss_audit.py."
     },
     {
       "lane": "py",
@@ -116,7 +121,8 @@
       "run_id": "local-rederivation-2026-09-28",
       "merge_sha": null,
       "reported": "2026-09-28",
-      "state": "open"
+      "state": "equivalent",
+      "probe": "hand-applied 2026-09-28, whole test_loss_audit.py (101 tests), reverted byte-identical: SURVIVED; the five predicted-killable mutants on the same lines were KILLED in the same sweep (positive control). Argument in capture-host/tools/mutate-equivalence.json under loss_audit.py."
     },
     {
       "lane": "py",
@@ -129,7 +135,8 @@
       "run_id": "local-rederivation-2026-09-28",
       "merge_sha": null,
       "reported": "2026-09-28",
-      "state": "open"
+      "state": "equivalent",
+      "probe": "hand-applied 2026-09-28, whole test_loss_audit.py (101 tests), reverted byte-identical: SURVIVED; the five predicted-killable mutants on the same lines were KILLED in the same sweep (positive control). Argument in capture-host/tools/mutate-equivalence.json under loss_audit.py."
     },
     {
       "lane": "py",
@@ -142,7 +149,7 @@
       "run_id": "local-rederivation-2026-09-28",
       "merge_sha": null,
       "reported": "2026-09-28",
-      "state": "open"
+      "state": "killed #3187"
     },
     {
       "lane": "py",
@@ -155,7 +162,7 @@
       "run_id": "local-rederivation-2026-09-28",
       "merge_sha": null,
       "reported": "2026-09-28",
-      "state": "open"
+      "state": "killed #3187"
     }
   ]
 }
