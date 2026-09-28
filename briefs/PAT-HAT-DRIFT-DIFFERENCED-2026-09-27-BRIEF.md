@@ -3,7 +3,7 @@ Copyright 2026 Michal Planicka
 SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** PROPOSED (owner-ordered 2026-09-27 20:50 "open the PAT-hat brief"; scope RE-RULED by the owner the same evening after §Findings — "Revised remedy") · **Created:** 2026-09-27
+**Status:** IN-PROGRESS (owner-ordered 2026-09-27 20:50 "open the PAT-hat brief"; scope RE-RULED by the owner the same evening after §Findings — "Revised remedy". Worker half BUILT #3179, page half #3183. The owner's audit of 2026-09-28 — "I don't think it's fully fixed. Verify correct implementation and if everything counted correctly and included all metrics" — found the page incomplete (§Audit); fixed in the audit PR. DONE once verified on the served page.) · **Created:** 2026-09-27 · **Residue:** 2026-09-28-ring-has-no-arrival-floor-axis-so-no-corrected-pat-hat
 
 # PAT-HAT-DRIFT-DIFFERENCED — the PAT three-cornered hat refused for the wrong reason; say which reason, and add the drift-free estimate
 
@@ -127,21 +127,22 @@ Tolerances are pre-stated from a 40–200-seed measurement of the implementation
 were written. The first draft of this list said ±3 ms and ±0.15. The measurement refuted both, and they are
 restated here rather than tuned to one lucky seed.
 
-- [ ] **Plant (F4):** synthetic legs, 288 windows, with a 60 ms pk-pk shared finger+ankle drift and jitter
+- [x] **Plant (F4):** synthetic legs, 288 windows, with a 60 ms pk-pk shared finger+ankle drift and jitter
   8/9/12 ms, on 10 seeds.
   - Classic chest σ ≥ 2× its true 8 ms (anti-vacuity). Measured minimum over 40 seeds: 24.3 ms.
   - Differenced σ within **±5 ms** of 8/9/12. Measured worst over 40 seeds: 4.0 ms.
-- [ ] **Null (F2):** independent errors in the 09-26 geometry (8/9/25 ms, 98 windows), 50 nights.
+- [x] **Null (F2):** independent errors in the 09-26 geometry (8/9/25 ms, 98 windows), 50 nights.
   - Anti-vacuity: at least 10 nights carry a negative corner. Measured: 74 of 200.
   - Every negative reads `underpowered`, and none reads `independence-failed`. Measured: 0 of 200.
-- [ ] **Genuine failure:** finger/ankle errors anti-correlated at ρ = −0.8 (chest 2, finger 20, ankle 20 ms;
+- [x] **Genuine failure:** finger/ankle errors anti-correlated at ρ = −0.8 (chest 2, finger 20, ankle 20 ms;
   200 windows), 10 seeds.
   - Every seed reads chest `independence-failed`, with pair [finger, ankle] and a negative `explainRho`.
   - `explainRho` is COARSE: over 40 seeds it spans −1.30 … −0.45. It names the pair and the sign, not a
     precise ρ. A value beyond ±1 is published with `rhoOutOfRange`, never clamped.
-- [ ] **Controls:** `AnalysisStats.threeCorneredHat` byte-identical (`tch-parity` green); the classic and
+- [x] **Controls:** `AnalysisStats.threeCorneredHat` byte-identical (`tch-parity` green); the classic and
   fused medians, IQRs and every pre-existing `threeHat` field byte-identical on the same input;
   `sensor-trio-night` output unchanged.
+  ⟶ The four items above are **MET #3179**: the `PAT hat` group, 12/12, and the full suite green on its head.
 - [x] **The owner's night before/after** (measured 2026-09-27; every pre-existing field unchanged):
 
   | 09-26 | chest | finger | ankle |
@@ -162,6 +163,52 @@ restated here rather than tuned to one lucky seed.
   worker's own 09-26 output: the page ignored `corners` and rendered *"REFUSED — a negative solved variance
   — the hat's independence assumption failed"* for the chest corner, i.e. it asserted an independence failure
   on a night whose data are consistent with independence. That is the misstatement this half removes.
+
+## §Audit — owner-ordered 2026-09-28: the page was not complete
+
+The owner declined to stamp this brief DONE: *"I don't think it's fully fixed. Verify correct implementation and
+if everything counted correctly and included all metrics."* Measured by running the unchanged worker on
+2026-09-26 WITH the two Polar arrival sidecars (the rig corpus copy), then rendering `pat-classic-vs-fused.js` on
+exactly that output.
+
+- **A1 · The page never received the arrival sidecars.** Its `classify()` took only `_ECG`/`_PPG`, and the monitor's
+  `'PAT fused'` handoff passed only those. So it showed the RAW chest → ankle lag, **499 ms**, where PAT Feasibility
+  shows the corrected `cpCorr` **342 ms** for the same night. The difference, 156 ms, is Verity-vs-H10 link buffering
+  read as pulse arrival. The corrected gate is FEASIBLE (drift 19 ms); the raw one is PROMISING, drift 66 ms, above
+  the gate.
+- **A2 · A leg the gate rejects was shown as a normal lag.** `vdF` = **WINDOW-CENSORED** ("not a transit time") for
+  chest → finger, yet the page printed 407 ms with no verdict and solved the hat on it. None of `vd`, `vdF`, `vdCorr`
+  was rendered.
+- **A3 · The hat is on RAW axes on both pages, unlabelled.** Every corner therefore includes its device's link
+  buffering. A corrected hat does not exist yet. With chest + ankle on their floor axes and the finger left raw,
+  chest → finger reads 471 ms against chest → ankle 342 ms (the ankle pulse "before" the finger one), and
+  finger → ankle couples 571 of 22 655 beats → 0 windows. The ring writes no arrival sidecar (residue
+  `2026-09-28-ring-has-no-arrival-floor-axis-so-no-corrected-pat-hat`).
+- **A4 · Missing:** per-leg match rate, beat-to-beat residual IQR, drift (p95 step, range), censored share; the corrected
+  leg; the FUSED drift-removed row (`threeFused.diff` was computed and never rendered).
+- **A5 · Miscounts:** the drift-removed card said "97 windows" beside a note saying "97 adjacent window pairs" (98
+  windows). The Δ cards printed "−0 ms".
+- **A6 · PAT Feasibility kept the old misstatement:** its hat cards never read `corners`, so 09-26's chest still read
+  "REFUSED — the independent-error model does not fit this site".
+- **A7 · One field measures nothing:** `inPhysPct` is 1 on every night since pairing enforces the physiological window,
+  so it is not rendered (residue `2026-09-28-inphyspct-is-one-by-construction`).
+- **A8 · Why it shipped:** no test executed `render()` in either lane; every page assertion extracted one function.
+  #3180's line "both hat rows rendered REFUSED on every night since #3128" is too broad. The `!h.ok` path returned
+  `—` with a real reason, so it was every night the hat SOLVED.
+
+**Done when (audit):**
+- [ ] The monitor hands `'PAT fused'` the same inputs as `'PAT'`, pinned by an executed test that fails on the old
+  handoff.
+- [ ] The page takes both arrival sidecars (both or neither) and the ACC pair. It shows the corrected chest → ankle
+  lag, the buffering removed and `vdCorr`, or the worker's named reason when absent.
+- [ ] Every leg shows its gate: chest → finger WINDOW-CENSORED with the reason, chest → ankle PROMISING,
+  finger → ankle "NOT GATED".
+- [ ] Every leg shows match rate, residual IQR, drift and censored share.
+- [ ] Both drift-removed rows are shown and counted as pairs. Deltas print 0, never −0.
+- [ ] The hat states its raw axes and flags a gate-rejected finger leg.
+- [ ] PAT Feasibility's hat cards read `corners`.
+- [ ] `render()` is EXECUTED by a test on a whole result, including `<div>` balance and 41/41 cards badged.
+- [ ] The full gate is green.
 
 ## §Not in scope
 
