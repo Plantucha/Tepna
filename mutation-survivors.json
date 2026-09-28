@@ -311,7 +311,10 @@
       "run_id": "36399889018",
       "merge_sha": "4c65b868",
       "reported": "2026-09-28",
-      "state": "open"
+      "state": "killed #3188",
+      "closed_pr": 3188,
+      "closed_commit": "e9f8e897099432cef64ac316d4c6743d21b57ae0",
+      "closed_commit_source": "session HEAD at close (pre-squash)"
     },
     {
       "lane": "py",
@@ -727,7 +730,10 @@
       "run_id": "36399889018",
       "merge_sha": "4c65b868",
       "reported": "2026-09-28",
-      "state": "open"
+      "state": "killed #3188",
+      "closed_pr": 3188,
+      "closed_commit": "e9f8e897099432cef64ac316d4c6743d21b57ae0",
+      "closed_commit_source": "session HEAD at close (pre-squash)"
     },
     {
       "lane": "py",
@@ -923,7 +929,10 @@
       "run_id": "36399889018",
       "merge_sha": "4c65b868",
       "reported": "2026-09-28",
-      "state": "open"
+      "state": "killed #3188",
+      "closed_pr": 3188,
+      "closed_commit": "e9f8e897099432cef64ac316d4c6743d21b57ae0",
+      "closed_commit_source": "session HEAD at close (pre-squash)"
     },
     {
       "lane": "py",
@@ -1372,7 +1381,10 @@
       "run_id": "36399889018",
       "merge_sha": "4c65b868",
       "reported": "2026-09-28",
-      "state": "open"
+      "state": "killed #3188",
+      "closed_pr": 3188,
+      "closed_commit": "e9f8e897099432cef64ac316d4c6743d21b57ae0",
+      "closed_commit_source": "session HEAD at close (pre-squash)"
     },
     {
       "lane": "py",
