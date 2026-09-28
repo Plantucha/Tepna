@@ -8219,14 +8219,52 @@
       }
       function load() {
         var mk = function () {
-          return { innerHTML: '', textContent: '', value: '', disabled: false, addEventListener: function () {}, appendChild: function () {}, querySelector: function () { return mk(); }, querySelectorAll: function () { return []; }, classList: { add: function () {}, remove: function () {} }, style: {} };
+          return {
+            innerHTML: '',
+            textContent: '',
+            value: '',
+            disabled: false,
+            addEventListener: function () {},
+            appendChild: function () {},
+            querySelector: function () {
+              return mk();
+            },
+            querySelectorAll: function () {
+              return [];
+            },
+            classList: { add: function () {}, remove: function () {} },
+            style: {}
+          };
         };
         var els = {},
           posted = [];
-        var doc = { getElementById: function (id) { return els[id] || (els[id] = mk()); }, querySelector: function () { return mk(); }, querySelectorAll: function () { return []; }, addEventListener: function () {}, createElement: function () { return mk(); }, body: mk() };
-        var host = { MetricRegistry: { badge: function (tier) { return '<i class="ev">' + tier + '</i>'; } } };
+        var doc = {
+          getElementById: function (id) {
+            return els[id] || (els[id] = mk());
+          },
+          querySelector: function () {
+            return mk();
+          },
+          querySelectorAll: function () {
+            return [];
+          },
+          addEventListener: function () {},
+          createElement: function () {
+            return mk();
+          },
+          body: mk()
+        };
+        var host = {
+          MetricRegistry: {
+            badge: function (tier) {
+              return '<i class="ev">' + tier + '</i>';
+            }
+          }
+        };
         var W = function () {};
-        W.prototype.postMessage = function (j) { posted.push(j); };
+        W.prototype.postMessage = function (j) {
+          posted.push(j);
+        };
         new Function('self', 'document', 'window', 'Worker', src)(host, doc, host, W);
         return { P: host.PatCvf, els: els, posted: posted };
       }
@@ -8240,8 +8278,18 @@
         for (var k in extra || {}) o[k] = extra[k];
         return o;
       }
-      var corners = { chest: { status: 'underpowered', boundMs: 14.4 }, finger: { status: 'solved', sigma: 12.2, sigmaCI: [0, 20.0] }, ankle: { status: 'solved', sigma: 25.5, sigmaCI: [18.3, 29.8] } };
-      var diff = { ok: true, n: 97, tauMin: 5, label: 'drift-removed σ at τ = 5 min — not comparable to the classic σ', corners: { chest: { status: 'solved', sigma: 10.6, sigmaCI: [0, 15.4] }, finger: { status: 'underpowered', boundMs: 8.3 }, ankle: { status: 'solved', sigma: 24.2 } } };
+      var corners = {
+        chest: { status: 'underpowered', boundMs: 14.4 },
+        finger: { status: 'solved', sigma: 12.2, sigmaCI: [0, 20.0] },
+        ankle: { status: 'solved', sigma: 25.5, sigmaCI: [18.3, 29.8] }
+      };
+      var diff = {
+        ok: true,
+        n: 97,
+        tauMin: 5,
+        label: 'drift-removed σ at τ = 5 min — not comparable to the classic σ',
+        corners: { chest: { status: 'solved', sigma: 10.6, sigmaCI: [0, 15.4] }, finger: { status: 'underpowered', boundMs: 8.3 }, ankle: { status: 'solved', sigma: 24.2 } }
+      };
       function night(o) {
         var m = {
           three: { ok: true, n: 98, windows: new Array(98), corners: corners, diff: diff },
@@ -8254,7 +8302,12 @@
           cpCorr: leg(342, 332, 352, { matchRate: 0.99 }),
           vdCorr: { tier: 'go', label: 'FEASIBLE', why: { driftMs: 19, driftStat: 'stepP95', driftOK: true } },
           floorSync: { available: true, bufferingDiffMs: 156 },
-          fused: { cpF: { ok: true, med: 407.3, p25: 381, p75: 436, nWeighted: 23858, nPairs: 23918, covered: 0.997 }, cp: { ok: true, med: 498.69, p25: 475, p75: 524, nWeighted: 26976, nPairs: 26976, covered: 1 }, cpFA: { ok: true, med: 97, p25: 63, p75: 132, nWeighted: 22600, nPairs: 22655, covered: 0.998 }, corners: { chest: true, finger: true, ankle: true } }
+          fused: {
+            cpF: { ok: true, med: 407.3, p25: 381, p75: 436, nWeighted: 23858, nPairs: 23918, covered: 0.997 },
+            cp: { ok: true, med: 498.69, p25: 475, p75: 524, nWeighted: 26976, nPairs: 26976, covered: 1 },
+            cpFA: { ok: true, med: 97, p25: 63, p75: 132, nWeighted: 22600, nPairs: 22655, covered: 0.998 },
+            corners: { chest: true, finger: true, ankle: true }
+          }
         };
         for (var k in o || {}) m[k] = o[k];
         return m;
@@ -8293,14 +8346,22 @@
         ['chest → ankle', ca],
         ['finger → ankle', fa]
       ].forEach(function (x) {
-        T.ok(x[0] + ' carries match rate, beat-to-beat spread, drift and censored share', /coupled[\s\S]*?%/.test(x[1]) && /beat-to-beat spread/.test(x[1]) && /p95 step between 5-min bins/.test(x[1]) && /censored/.test(x[1]), x[0]);
+        T.ok(
+          x[0] + ' carries match rate, beat-to-beat spread, drift and censored share',
+          /coupled[\s\S]*?%/.test(x[1]) && /beat-to-beat spread/.test(x[1]) && /p95 step between 5-min bins/.test(x[1]) && /censored/.test(x[1]),
+          x[0]
+        );
       });
       T.ok('the tautological in-band share is NOT shown (every coupled lag is inside the window by construction)', !/in physiological band/.test(html), 'a number that cannot fail is on the page');
       // ── the hat: axes, the gated leg, both drift-removed rows, the pair count ──
       T.ok('the hat says it is solved on RAW receive stamps', /Timing axes/.test(html) && /Bluetooth buffering/.test(html), 'the raw-axis caveat is missing');
       T.ok('…and flags that the finger leg under it is gate-rejected', /chest → finger is gate-rejected \(WINDOW-CENSORED\)/.test(html), 'the gated leg is not flagged at the hat');
       var drift = section(html, 'drift-removed hat — a SEPARATE estimate, not a correction of the one above');
-      T.ok('both drift-removed rows are rendered, each naming its basis', /drift-removed σ \(classic\)/.test(drift) && /drift-removed σ \(fused\)/.test(drift), drift.replace(/<[^>]+>/g, ' ').slice(0, 200));
+      T.ok(
+        'both drift-removed rows are rendered, each naming its basis',
+        /drift-removed σ \(classic\)/.test(drift) && /drift-removed σ \(fused\)/.test(drift),
+        drift.replace(/<[^>]+>/g, ' ').slice(0, 200)
+      );
       T.ok('…counted as adjacent window PAIRS, never as windows', /97 adjacent window pairs/.test(drift) && !/97 windows/.test(drift), 'the drift-removed count reads as windows');
       // ── the deltas ──
       T.ok('a delta that rounds to zero prints 0, never −0', !/>-0</.test(html) && /Δ median[\s\S]{0,300}?>0</.test(ca), 'a signed zero reached the page');
@@ -8311,7 +8372,11 @@
       T.ok('every card carries a badge', cards > 30 && cards === badged, cards + ' cards, ' + badged + ' badged');
       // ── ANTI-VACUITY: the same page without a sidecar, and with a passing finger leg ──
       var bare = draw(night({ cpCorr: undefined, vdCorr: undefined, floorSync: { available: false, reason: 'no packet-arrival sidecar for either device' } }));
-      T.ok('without a sidecar the corrected row is REPLACED by the worker’s named reason', !/buffering-corrected \(arrival-floor axis\)/.test(bare) && /not computed — no packet-arrival sidecar for either device/.test(bare), 'the absence is not named');
+      T.ok(
+        'without a sidecar the corrected row is REPLACED by the worker’s named reason',
+        !/buffering-corrected \(arrival-floor axis\)/.test(bare) && /not computed — no packet-arrival sidecar for either device/.test(bare),
+        'the absence is not named'
+      );
       var clean = draw(night({ vdF: { tier: 'go', label: 'FEASIBLE', why: { driftMs: 10, driftStat: 'stepP95', driftOK: true } } }));
       T.ok('a finger leg that PASSES its gate raises no flag at the hat', !/gate-rejected/.test(clean) && /Timing axes/.test(clean), 'the flag fires on a passing leg');
       // ── the intake: sidecars and ACC reach the worker, both or neither ──
@@ -8319,10 +8384,23 @@
         f = function (n) {
           return { name: n };
         };
-      I.P.onPick([f('Polar_H10_1_20260926220910_ECG.txt'), f('Polar_VeritySense_2_20260926211125_PPG.txt'), f('Wellue_O2Ring-S_3_20260926221225_PPG.txt'), f('Polar_H10_1_20260926220910_PMDARRIVAL.csv'), f('Polar_VeritySense_2_20260926211125_PMDARRIVAL.csv'), f('Polar_H10_1_20260926220910_ACC.txt'), f('Polar_VeritySense_2_20260926211125_ACC.txt'), f('Wellue_O2Ring-S_3_20260926074036_PMDARRIVAL.csv')]);
+      I.P.onPick([
+        f('Polar_H10_1_20260926220910_ECG.txt'),
+        f('Polar_VeritySense_2_20260926211125_PPG.txt'),
+        f('Wellue_O2Ring-S_3_20260926221225_PPG.txt'),
+        f('Polar_H10_1_20260926220910_PMDARRIVAL.csv'),
+        f('Polar_VeritySense_2_20260926211125_PMDARRIVAL.csv'),
+        f('Polar_H10_1_20260926220910_ACC.txt'),
+        f('Polar_VeritySense_2_20260926211125_ACC.txt'),
+        f('Wellue_O2Ring-S_3_20260926074036_PMDARRIVAL.csv')
+      ]);
       I.P.run();
       var job = I.posted[0] || {};
-      T.ok('the arrival sidecars reach the worker, each on its own device', job.ecgArrFile && /H10/.test(job.ecgArrFile.name) && job.ppgArrFile && /Verity/.test(job.ppgArrFile.name), JSON.stringify(Object.keys(job)));
+      T.ok(
+        'the arrival sidecars reach the worker, each on its own device',
+        job.ecgArrFile && /H10/.test(job.ecgArrFile.name) && job.ppgArrFile && /Verity/.test(job.ppgArrFile.name),
+        JSON.stringify(Object.keys(job))
+      );
       T.ok('…and the ACC pair with them', job.ecgAccFile && /H10.*_ACC/.test(job.ecgAccFile.name) && job.ppgAccFile && /Verity.*_ACC/.test(job.ppgAccFile.name), JSON.stringify(Object.keys(job)));
       var J = load();
       J.P.onPick([f('Polar_H10_1_x_ECG.txt'), f('Polar_VeritySense_2_x_PPG.txt'), f('Wellue_O2Ring-S_3_x_PPG.txt'), f('Polar_H10_1_x_PMDARRIVAL.csv')]);
@@ -8348,8 +8426,17 @@
       var under = f(Object.assign({ corners: { chest: { status: 'underpowered', boundMs: 14.4 } } }, base), 'chest', 'H10 chest ECG', 'teal');
       T.eq('the 2026-09-26 chest corner reads UNDERPOWERED', under[1], 'UNDERPOWERED');
       T.ok('…with its bound, and it is NOT called an independence failure', /σ < 14\.4 ms/.test(under[3]) && /not an independence failure/.test(under[3]) && !/does not fit/.test(under[3]), under[3]);
-      var failed = f(Object.assign({ corners: { chest: { status: 'independence-failed', pair: ['finger', 'ankle'], explainRho: -1.3, rhoOutOfRange: true } } }, base), 'chest', 'H10 chest ECG', 'teal');
-      T.ok('a CI wholly below 0 reads REFUSED, naming the pair and an unclamped ρ', failed[1] === 'REFUSED' && /finger and ankle/.test(failed[3]) && /-1\.30/.test(failed[3]) && /unclamped/.test(failed[3]), failed[3]);
+      var failed = f(
+        Object.assign({ corners: { chest: { status: 'independence-failed', pair: ['finger', 'ankle'], explainRho: -1.3, rhoOutOfRange: true } } }, base),
+        'chest',
+        'H10 chest ECG',
+        'teal'
+      );
+      T.ok(
+        'a CI wholly below 0 reads REFUSED, naming the pair and an unclamped ρ',
+        failed[1] === 'REFUSED' && /finger and ankle/.test(failed[3]) && /-1\.30/.test(failed[3]) && /unclamped/.test(failed[3]),
+        failed[3]
+      );
       var solved = f(base, 'finger', 'O2Ring finger', 'amber');
       T.ok('a solved corner is its σ in ms', solved[1] === '12.2' && solved[2] === 'ms', solved.join(' | '));
       var legacy = f(base, 'chest', 'H10 chest ECG', 'teal');

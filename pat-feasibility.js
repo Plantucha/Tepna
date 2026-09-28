@@ -754,7 +754,16 @@
       );
       hc.push(hcard('windows solved', String(h.n), '', 'all three legs ≥ 50 beats in the same ' + h.winMin + ' min', C.ink, 'count'));
       // The axes the hat was solved on, stated beside it (see hatSiteArgs): raw receive stamps, buffering included.
-      hc.push(hcard('timing axes', 'RAW', '', 'phone receive stamps — each σ includes its device’s Bluetooth buffering; a corrected hat needs the ring on an arrival-floor axis, which is not recorded', C.amber, 'hat'));
+      hc.push(
+        hcard(
+          'timing axes',
+          'RAW',
+          '',
+          'phone receive stamps — each σ includes its device’s Bluetooth buffering; a corrected hat needs the ring on an arrival-floor axis, which is not recorded',
+          C.amber,
+          'hat'
+        )
+      );
     } else hc.push(hcard('three-cornered hat', '—', '', h && h.reason ? h.reason : 'not solved', C.mut));
     hb.innerHTML = hc.join('');
     drawThree(h);
@@ -926,7 +935,9 @@
         'UNDERPOWERED',
         '',
         (typeof c.boundMs === 'number' && isFinite(c.boundMs) ? 'σ < ' + c.boundMs.toFixed(1) + ' ms' : 'no bound resolved') +
-          ' — variance ' + vs + ', but its 95 % CI reaches 0: too few windows to resolve this site, not an independence failure',
+          ' — variance ' +
+          vs +
+          ', but its 95 % CI reaches 0: too few windows to resolve this site, not an independence failure',
         C.mut
       ];
     if (c && c.status === 'independence-failed')
@@ -934,7 +945,10 @@
         lab,
         'REFUSED',
         '',
-        'variance ' + vs + ' with its whole 95 % CI below 0 — errors shared between ' + (Array.isArray(c.pair) ? c.pair.join(' and ') : 'two sites') +
+        'variance ' +
+          vs +
+          ' with its whole 95 % CI below 0 — errors shared between ' +
+          (Array.isArray(c.pair) ? c.pair.join(' and ') : 'two sites') +
           (typeof c.explainRho === 'number' && isFinite(c.explainRho) ? ', ρ ≈ ' + c.explainRho.toFixed(2) + (c.rhoOutOfRange ? ' (beyond ±1, unclamped)' : '') : ''),
         C.mut
       ];

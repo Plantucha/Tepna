@@ -374,11 +374,22 @@
          that matters most: chest → finger was WINDOW-CENSORED on 2026-09-26 ("not a transit time") and still
          rendered as an ordinary 407 ms lag. finger → ankle has no gate — it is pulse-to-pulse, not a PAT. */
       var vd = L.vd ? m[L.vd] : null;
-      out.push(card('gate', vd ? vd.label : 'NOT GATED', '', vd ? gateWhy(vd) : 'not gated — finger → ankle is pulse-to-pulse, not a PAT', vd ? (vd.tier === 'go' ? C.green : C.amber) : C.mut, 'verdict'));
+      out.push(
+        card('gate', vd ? vd.label : 'NOT GATED', '', vd ? gateWhy(vd) : 'not gated — finger → ankle is pulse-to-pulse, not a PAT', vd ? (vd.tier === 'go' ? C.green : C.amber) : C.mut, 'verdict')
+      );
       out.push(card('coupled', pct(c.matchRate), '%', 'of the beats that could couple', C.ink, 'match'));
       out.push(card('beat-to-beat spread', num(c.residIQR), 'ms', 'IQR of each lag minus its local median', C.ink, 'resid'));
       out.push(card('drift', num(c.stepP95), 'ms', 'p95 step between 5-min bins · range ' + num(c.driftRange) + ' ms', C.ink, 'drift'));
-      out.push(card('censored', typeof c.censoredPct === 'number' && isFinite(c.censoredPct) ? num(c.censoredPct, 1) : '—', typeof c.censoredPct === 'number' && isFinite(c.censoredPct) ? '%' : '', 'beats the physiological window discards', C.ink, 'censored'));
+      out.push(
+        card(
+          'censored',
+          typeof c.censoredPct === 'number' && isFinite(c.censoredPct) ? num(c.censoredPct, 1) : '—',
+          typeof c.censoredPct === 'number' && isFinite(c.censoredPct) ? '%' : '',
+          'beats the physiological window discards',
+          C.ink,
+          'censored'
+        )
+      );
       /* NOT `inPhysPct`: since pairing ENFORCES the physiological window (pat-feasibility-worker.js, the PLO/PHI
          test inside the coupling loop), every coupled lag is inside it by construction, so that field is 1 on every
          night — a number that cannot fail, shown as if it had been checked. `censored` above is the live one. */
@@ -445,7 +456,9 @@
         ? 'picked: ' +
           have.join(', ') +
           (missing.length ? ' · missing: ' + missing.join(', ') : '') +
-          (PICK.ecgArr && PICK.ppgArr ? '' : ' · no arrival sidecar for ' + (!PICK.ecgArr && !PICK.ppgArr ? 'either device' : !PICK.ecgArr ? 'the H10' : 'the Verity') + ' — the buffering-corrected lag will not be computed')
+          (PICK.ecgArr && PICK.ppgArr
+            ? ''
+            : ' · no arrival sidecar for ' + (!PICK.ecgArr && !PICK.ppgArr ? 'either device' : !PICK.ecgArr ? 'the H10' : 'the Verity') + ' — the buffering-corrected lag will not be computed')
         : 'none of these look like an _ECG.txt or a _PPG.txt';
     /* All three are REQUIRED and the button says so rather than running a partial night: the hat needs
        three corners, and two of the three legs touch the ring. A page that ran on two would render a
