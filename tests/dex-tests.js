@@ -13627,6 +13627,128 @@
        `docs/` is deliberately NOT the fix — `rebase-safe` once treated the whole prefix as generated
        and silently reverted an authored spec, which is why the split exists (tools/build-docs.mjs:74).
        Node-lane only (env.docsMdTwins is fs-read); the browser lane SKIPs, mirroring docs-ledger. */
+    /* ════ EVERY BUILDER-INLINED SCRIPT MUST PARSE — and the `$` that made four tools hang ════════
+       2026-09-28. `tools/build-analysis.mjs` injected its ~1.9 MB blob-worker shim with
+
+           html.replace(/(<script\b[^>]*\bdata-inline-src=)/i, shim + '\n$1')
+
+       — a replacement STRING, which `String.prototype.replace` scans for `$&`, `` $` ``, `$'` and `$n`.
+       `oxydex-dsp.js` carries the comment ``only the anchored `$` keeps them apart`` (ordinary prose
+       about a regex anchor), and the `` $` `` in it means "the portion of the subject BEFORE the match",
+       so it expanded to the entire document prefix and spliced `<!DOCTYPE html>…` into the middle of the
+       `var __WSRC = {…}` string literal. The literal never closed → SyntaxError → `__mkWorker` undefined
+       → `new Worker` never ran → four analysis tools hung forever at "booting … realms" and published
+       nothing. Measured: 4 of 11 blob-worker tools, all spliced at the identical offset +213503, which
+       is that one comment. Introduced by #3070 (2026-09-25).
+
+       🔴 AND EVERY GATE STAYED GREEN, which is the more useful half. `npm run verify:analysis` rebuilds
+       and compares byte-for-byte against the committed file — but the builder produced the corruption
+       DETERMINISTICALLY, so build output matched build output and the check passed. A generator compared
+       against itself is not evidence about the artifact; it is evidence that the generator is a function.
+       This group asks the question that would have failed on the day: does the thing we ship PARSE. */
+    group('every builder-inlined script block parses — a generator compared to itself examines nothing', 'cohesion · build · static · regression', function (T) {
+      var C = env.inlineParseCensus;
+      if (!C) {
+        T.skip('env.inlineParseCensus provided to the runner', 'Node-lane only — run-tests.mjs reads every built .html off disk and parses its inlined blocks; the browser suite can do neither');
+        return;
+      }
+
+      /* ── ANTI-VACUITY FIRST, because "0 unparseable" is also what an empty census says ─────────── */
+      T.ok(
+        'ANTI-VACUITY · the census examined a real population',
+        C.artifacts >= 40 && C.blocks >= 300,
+        JSON.stringify({ artifacts: C.artifacts, blocks: C.blocks, mb: +(C.bytes / 1e6).toFixed(1), skipped: C.skipped })
+      );
+      /* The four tools that broke must be IN the population, by name — a census that silently stopped
+         covering them would pass while saying nothing about the only artifacts this gate exists for. */
+      var MUST = ['treatment-response-analysis.html', 'nights-icc-analysis.html', 'hrv-confound-analysis.html', 'cgm-hrv-coupling-analysis.html', 'OxyDex.html', 'Integrator.html'];
+      var absent = MUST.filter(function (f) {
+        return C.files.indexOf(f) < 0;
+      });
+      T.eq(
+        'ANTI-VACUITY · the artifacts this gate exists for are IN the census',
+        absent.join(',') || 'none',
+        'none',
+        absent.length ? 'NOT examined: ' + absent.join(',') : MUST.length + ' named artifacts examined'
+      );
+
+      /* ── THE GATE ────────────────────────────────────────────────────────────────────────────── */
+      T.eq(
+        'no built artifact ships a script block that cannot be parsed',
+        C.bad
+          .map(function (b) {
+            return b.file + ' [' + b.label + ']';
+          })
+          .join(' · ') || 'none',
+        'none',
+        'these blocks are SyntaxErrors in the shipped artifact — the page will not run: ' +
+          C.bad
+            .map(function (b) {
+              return b.file + ' [' + b.label + '] ' + b.message;
+            })
+            .join(' · ') +
+          '. Rebuild with the owning builder; if the block is a builder-injected shim, check that the injection uses a REPLACER FUNCTION and not a replacement string.'
+      );
+      if (!C.bad.length)
+        T.ok(
+          '…over ' + C.blocks + ' blocks and ' + (C.bytes / 1e6).toFixed(1) + ' MB of inlined source',
+          true,
+          C.artifacts + ' artifacts, ' + C.skipped + ' non-classic or unlabelled blocks excluded'
+        );
+
+      /* ── PLANT 1 · the detector must FIRE. Without it, `none` above could be a parser that never
+         reports anything, which reads identically to a clean tree. ────────────────────────────── */
+      var planted = 'var x = "unterminated;\nvar y = 1;';
+      var fired = false;
+      try {
+        new Function(planted);
+      } catch (e) {
+        fired = true;
+      }
+      T.ok(
+        'PLANT · an unparseable block IS reported by the same check the census uses',
+        fired,
+        fired ? 'an unterminated string literal was rejected' : 'the parser accepted a deliberately broken block'
+      );
+
+      /* ── PLANT 2 · THE MECHANISM, not just the symptom. This is the assertion that pins WHY the fix
+         is a replacer function: the two forms are run side by side on the real offending text. If a
+         later edit reverts to a string replacement, this fails with the expansion visible. ─────── */
+      var subject = 'PREFIX<script data-inline-src="first.js">';
+      var payload = 'var S = "only the anchored `$` keeps them apart";';
+      var asString = subject.replace(/(<script\b[^>]*\bdata-inline-src=)/i, payload + '\n$1');
+      var asFunction = subject.replace(/(<script\b[^>]*\bdata-inline-src=)/i, function (_m, p1) {
+        return payload + '\n' + p1;
+      });
+      T.ok(
+        'PLANT · a replacement STRING expands `$` + backtick into the subject prefix — the 2026-09-28 defect',
+        asString.indexOf('PREFIX') !== asString.lastIndexOf('PREFIX'),
+        JSON.stringify(asString)
+      );
+      T.ok(
+        'PLANT · …and a replacer FUNCTION carries the same text through untouched',
+        asFunction.indexOf(payload) >= 0 && asFunction.indexOf('PREFIX') === asFunction.lastIndexOf('PREFIX'),
+        JSON.stringify(asFunction)
+      );
+
+      /* ── AND THE BUILDERS USE THE SAFE FORM. The two plants above prove the difference; this asserts
+         the shipped injection sites are on the right side of it, which no amount of parsing the CURRENT
+         artifacts can establish — a tree can parse today and regress on the next `$` a comment gains. */
+      var SITES = [
+        { file: 'tools/build-analysis.mjs', needle: "html.replace(/(<script\\b[^>]*\\bdata-inline-src=)/i, (_m, p1) => shim + '\\n' + p1)" },
+        { file: 'tools/build-docs.mjs', needle: 'orig.replace(META_RE, () => block' },
+        { file: 'tools/build-docs.mjs', needle: 'html.replace(_VER_FOOTER_RE, () => badge)' }
+      ];
+      SITES.forEach(function (s) {
+        var src = (env.sources && env.sources[s.file]) || '';
+        if (!src) {
+          T.skip('the injection site in ' + s.file + ' is readable', s.file + ' not in env.sources');
+          return;
+        }
+        T.ok('`' + s.file + '` injects through a replacer function, not a replacement string', src.indexOf(s.needle) >= 0, 'expected to find: ' + s.needle);
+      });
+    });
+
     group('served markdown twins are byte-identical to their root originals', 'docs · build-docs · served-copy', function (T) {
       var DT = env.docsMdTwins;
       if (!DT) {
