@@ -140,6 +140,43 @@ export function entriesFromVerdict(doc, opts = {}) {
 }
 
 /**
+ * The entries a `close` label selects: the entry's own `mutant` id when the label names one exactly,
+ * otherwise a substring match over the printed label.
+ *
+ * 🔴 TEXT ALONE CANNOT ADDRESS EVERY ENTRY, which is why the id comes first. Two survivors that
+ * share a one-line mutation — `- continue | + break` is the common one — print the same tail, so a
+ * text label either matches both (refused) or forces the operator to paste the whole function-
+ * qualified line. Measured on capture-host/loss_audit.py: 8 of its 27 functions generate a DUPLICATE
+ * mutation text, 28 distinct colliding texts over 86 of 2141 mutants. The `mutant` id is already on
+ * every entry and is unique within a run, so it is the handle.
+ *
+ * The id is deliberately NOT the stored identity — mutmut renumbers on every generation, which is
+ * why `survivorKey` is content-based. It is a HANDLE for addressing a row today, not a name for it.
+ */
+export function selectForClose(entries, label) {
+  const want = String(label || '').trim();
+  if (!want) return { hits: [], reason: 'an empty label selects nothing' };
+  const byId = entries.filter((e) => e.mutant === want);
+  if (byId.length === 1) return { hits: byId, by: 'mutant id' };
+  if (byId.length > 1) {
+    return { hits: byId, reason: `the mutant id ${want} is on ${byId.length} entries, which should be impossible — the ledger is inconsistent` };
+  }
+  const byText = entries.filter((e) => keyLabel(survivorKey(e)).includes(want));
+  if (byText.length === 1) return { hits: byText, by: 'label text' };
+  if (byText.length === 0) return { hits: [], reason: `no entry matches ${JSON.stringify(want)}` };
+  // NAME THEM, AND SAY BOTH WAYS OUT. "matched 2 entries" told the operator nothing about WHICH
+  // two, and — the actual cause of the only report of this — never mentioned that the label may be
+  // QUALIFIED: `keyLabel` already carries `lane:module::function  key`, so passing the bare key tail
+  // is what made two entries look unaddressable when they were not. Printing each candidate's full
+  // label shows the qualification directly, and the mutant id beside it is the shorter handle.
+  const names = byText.map((e) => `    ${e.mutant || '(no mutant id)'}  ${keyLabel(survivorKey(e))}`).join('\n');
+  return {
+    hits: byText,
+    reason: `${JSON.stringify(want)} matches ${byText.length} entries. Pass a QUALIFIED label (a full line below) or the mutant id:\n${names}`
+  };
+}
+
+/**
  * The commit a closure actually landed on, and how we know.
  *
  * 🔴 THE SESSION HEAD ALONE IS A TRAP IN THIS REPO, and shipping it would have killed the signal it
@@ -377,15 +414,16 @@ function cmdClose(argv) {
   const killed = arg('--killed', argv);
   const equiv = arg('--equivalent', argv);
   if (!label || (!killed && !equiv)) {
-    console.error('close <key-label> --killed N | --equivalent "<probe>"');
+    console.error('close <mutant-id | label text> --killed N | --equivalent "<probe>"');
     return 2;
   }
   const ledger = readLedger();
-  const hits = (ledger.entries || []).filter((e) => keyLabel(survivorKey(e)).includes(label));
-  if (hits.length !== 1) {
-    console.error(`close matched ${hits.length} entries — it must match exactly one`);
+  const sel = selectForClose(ledger.entries || [], label);
+  if (sel.hits.length !== 1) {
+    console.error(`mutation-survivors: REFUSING — ${sel.reason}`);
     return 2;
   }
+  const hits = sel.hits;
   hits[0].state = killed ? `killed #${Number(killed)}` : 'equivalent';
   if (equiv) hits[0].probe = equiv;
   // WHERE the closure was made, so a later run can be placed before or after it. The PR number is
@@ -398,7 +436,7 @@ function cmdClose(argv) {
     hits[0].closed_commit_source = 'session HEAD at close (pre-squash)';
   }
   writeLedger(ledger);
-  console.log(`closed: ${keyLabel(survivorKey(hits[0]))} → ${hits[0].state}`);
+  console.log(`closed by ${sel.by}: ${keyLabel(survivorKey(hits[0]))} → ${hits[0].state}`);
   return 0;
 }
 
@@ -537,6 +575,37 @@ function selftest() {
   ck('a non-sha refuses rather than being compared', !!verdictCommitOf({ verdict: { producedBy: { commit: 'HEAD' } } }).refused, true);
   ck('a real sha is taken', verdictCommitOf({ verdict: { producedBy: { commit: '3c0dbdec' } } }).commit, '3c0dbdec');
 
+  console.log('\na SHARED mutation text is addressable by the mutant id');
+  {
+    const shared = '- continue | + break';
+    const two = [
+      { lane: 'py', module: 'm.py', function: 'scan_night', key: shared, mutant: 'm.x_scan_night__mutmut_38', state: 'open' },
+      { lane: 'py', module: 'm.py', function: 'file_last_row_floating_s', key: shared, mutant: 'm.x_file_last_row_floating_s__mutmut_7', state: 'open' }
+    ];
+    ck('the shared text alone selects BOTH, so it is refused', selectForClose(two, shared).hits.length, 2);
+    ck('…and the refusal NAMES them, which is what the operator needs', /x_scan_night__mutmut_38[\s\S]*x_file_last_row_floating_s__mutmut_7/.test(selectForClose(two, shared).reason), true);
+    ck(
+      '…and says BOTH ways out — qualify the label, or use the id (the bare key tail was the real cause)',
+      /QUALIFIED label/.test(selectForClose(two, shared).reason) && /mutant id/.test(selectForClose(two, shared).reason),
+      true
+    );
+    const one = selectForClose(two, 'm.x_scan_night__mutmut_38');
+    ck('the mutant id selects exactly one', [one.hits.length, one.by], [1, 'mutant id']);
+    ck('…the right one', one.hits[0].function, 'scan_night');
+    ck('the OTHER id selects the other', selectForClose(two, 'm.x_file_last_row_floating_s__mutmut_7').hits[0].function, 'file_last_row_floating_s');
+    // CONTROL: the text path is unchanged wherever it already resolved to one entry.
+    const uniq = selectForClose(two, 'scan_night  - continue');
+    ck('a text label that still matches one entry keeps working', [uniq.hits.length, uniq.by], [1, 'label text']);
+    ck('a label matching nothing says so rather than closing something', selectForClose(two, 'nope').hits.length, 0);
+    ck('an empty label selects nothing', selectForClose(two, '   ').hits.length, 0);
+    // An id must never be ambiguous; if it is, the LEDGER is wrong and the tool says that.
+    const dup = [
+      { mutant: 'x__mutmut_1', key: 'a', state: 'open' },
+      { mutant: 'x__mutmut_1', key: 'b', state: 'open' }
+    ];
+    ck('a duplicated mutant id is reported as an inconsistent ledger, not silently resolved', /should be impossible/.test(selectForClose(dup, 'x__mutmut_1').reason), true);
+  }
+
   console.log('\nthe verdict OBJECT models its population correctly');
   {
     const all = ratchetVerdictObject({ expect: 0, actual: 0, eligible: 12, noPr: 0 });
@@ -570,7 +639,7 @@ function selftest() {
   );
   ck('open counting ignores closed rows', openCount(led), 2);
 
-  console.log(fail ? `${fail} failed of 44` : 'all 44 selftests passed');
+  console.log(fail ? `${fail} failed of 53` : 'all 53 selftests passed');
   return fail ? 1 : 0;
 }
 
