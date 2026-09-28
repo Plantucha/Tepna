@@ -409,6 +409,9 @@ def main(argv=None) -> int:
     _gate_t0 = time.monotonic()
     _refused_budget: list[str] = []
     _refused_memory: list[str] = []   # projected RSS over the cap — refused before starting
+    _prework_sec = 0.0                # clean-baseline time: reported, but not charged to the
+                                      # MUTATION budget (see the comment at its measurement below)
+    _refused_generation: list[str] = []  # generation outlived its phase bound — nothing was examined
     _ast_narrowed = 0        # functions the line scan claimed and the AST cleared; mirrored into
                              # _counts['astNarrowed'] at emit so the verdict OBJECT carries it too
     for module, lines in sorted(changed.items()):
@@ -456,8 +459,15 @@ def main(argv=None) -> int:
         # The clean run is timed ONCE per module and handed to every glob's run_one. Re-timing it per
         # glob was the 2026-09-17 "hang" (capture.py: 936.7 s × 5 globs before any mutant, measured).
         _tests = mut.tests_for(module)
+        # THE BASELINE IS NOT MUTATION, so it is not charged to the mutation budget. Measured on #3202:
+        # the clean run took 1,432 s on the runner (937 s on the rig) and the budget reported "5767s
+        # left" at the moment the first mutant would have started — 20 % of a bound meant to cover
+        # mutation was spent before a mutant existed, and the share grows with a slower runner. The
+        # elapsed time is still REPORTED, so the run's total is visible; it is just not deducted twice.
+        _pre_t0 = time.monotonic()
         _clean = mut.clean_run_seconds(_tests) if _tests else (0.0, False)
-        _left = GATE_BUDGET_SEC - (time.monotonic() - _gate_t0)
+        _prework_sec += time.monotonic() - _pre_t0
+        _left = GATE_BUDGET_SEC - (time.monotonic() - _gate_t0 - _prework_sec)
         _why_budget = budget_refusal(module, _clean[0], len(globs), _left)
         if _why_budget:
             print(f"  ⊘ {_why_budget}", flush=True)
@@ -478,7 +488,7 @@ def main(argv=None) -> int:
             # the whole point is that the log NAMES the function currently being mutated, so a kill
             # mid-run is attributable to one glob instead of to the job.
             _t0 = time.monotonic()
-            _left = int(GATE_BUDGET_SEC - (time.monotonic() - _gate_t0))
+            _left = int(GATE_BUDGET_SEC - (time.monotonic() - _gate_t0 - _prework_sec))
             if _left <= 0:
                 _refused_budget.append(f"{g}: the {GATE_BUDGET_SEC}s gate budget was exhausted before this "
                                        f"function could be mutated — not attempted, not a verdict")
@@ -496,6 +506,14 @@ def main(argv=None) -> int:
                 continue
             if r.get("error"):
                 print(f"    ! {g}: {r['error']}  [{_secs:.0f}s]", flush=True)
+                continue
+            # GENERATION FIRST, because the two outcomes are not the same verdict. A run killed in
+            # generation decided NOTHING (NOT_RUN); a run that generated and then blew the wall cap
+            # measured part of the diff (UNKNOWN). #3202 was the first and reported as neither — it was
+            # cancelled by the runner with no verdict at all.
+            if r.get("generation_timed_out"):
+                _refused_generation.append(f"{g}: {r['generation_timed_out']}")
+                print(f"    ⊘ {_refused_generation[-1]}", flush=True)
                 continue
             if r.get("timed_out"):
                 _refused_budget.append(f"{g}: hit the gate budget after {_secs:.0f}s — partial counts only "
@@ -886,6 +904,35 @@ def main(argv=None) -> int:
         if not a.report_only:
             return _u
         _refusal = _u
+
+    # ── the GENERATION refusal — before the others, because it is the one that examined NOTHING ──
+    if _refused_generation:
+        verdict["refused_generation"] = _refused_generation
+        verdict["prework_sec"] = round(_prework_sec, 1)
+        if a.json:
+            Path(a.json).write_text(json.dumps(verdict, indent=2), encoding="utf-8")
+        print(f"\nmutate-diff: REFUSING — mutant GENERATION did not finish for {len(_refused_generation)} "
+              f"function(s), so no mutant ran:")
+        for w in _refused_generation:
+            print(f"  ⊘ {w}")
+        print("  This is NOT a verdict on the diff and NOT a slow mutation pass — the phase that writes\n"
+              "  the mutants never completed, so nothing was killed and nothing survived. Do NOT raise\n"
+              "  the budget to clear it: mutmut generates the WHOLE module's population before the first\n"
+              "  mutant and takes no name filter, so a one-function diff pays for every function. The\n"
+              "  fix is to scope GENERATION or to mutate a smaller unit.")
+        _note = report_only_refusal_note(a.report_only)
+        if _note:
+            print(_note)
+        _ran_box[0] = _ran
+        # NOT_RUN, not UNKNOWN: §🧾 spells "examined nothing" NOT_RUN, and a generation that never
+        # finished decided exactly zero mutants. `decided > 0` cannot happen on this path (the glob is
+        # skipped before any verdict is banked), and if it ever did the reason would say so.
+        _g = emit("NOT_RUN" if _counts["decided"] == 0 else "UNKNOWN",
+                  f"mutant generation did not finish for {len(_refused_generation)} function(s); "
+                  f"{_counts['decided']} mutant(s) decided", 2)
+        if not a.report_only:
+            return _g
+        _refusal = _g
 
     # ── the MEMORY refusal — same placement and same reasoning as the budget refusal below ───────
     if _refused_memory:

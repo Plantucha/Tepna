@@ -99,7 +99,11 @@ from mutation_diff import (  # noqa: E402  (after the sys.path fix above)
     resolve_interpreter,
     root_reads,
     stage_root_reads,
+    GENERATION_DONE_RE,
+    generation_cap_sec,
+    generation_timeout_reason,
     stream_bounded,
+    workers_that_fit,
 )
 from mutation_sweep import (  # noqa: E402
     BUDGET_OK,
@@ -475,22 +479,53 @@ def run_one(module: str, only: str | None = None, tests_override: list[str] | No
     env = {**os.environ}
     env.pop("PYTHONDONTWRITEBYTECODE", None)
     stem = module[:-3]
-    # ── MEMORY, CHECKED AFTER GENERATION AND BEFORE THE FIRST MUTANT RUNS ──────────────────────────
-    # The generated module exists by now, so its size is MEASURED rather than guessed; the RSS factor
-    # it is multiplied by is the stated assumption. Refusing here rather than earlier is deliberate:
-    # this is the first moment the projection rests on a real number.
+    # ── MEMORY ─────────────────────────────────────────────────────────────────────────────────────
+    # 🔴 THIS CHECK USED TO SIT BEHIND THE PHASE THAT FAILS, and its comment said so without noticing:
+    # "The generated module exists by now" is true only on a REUSED scratch. Generation happens inside
+    # the one `mutmut run` below, and the fresh-scratch copy ignores `mutants/`, so on a first run the
+    # file is absent, the `except OSError` path sets 0, and `memory_refusal(0, …)` returns None for every
+    # worker count. Every CI run is a fresh scratch: the guard was live only where a warm scratch exists
+    # (the box) and dead on the runner it was written to protect. Absence coerced to a NEUTRAL number
+    # makes a threshold unreachable instead of making it fail — §∅ at the guard layer.
+    # Measured 2026-09-28 (#3202): a required job burned 180 minutes and decided ZERO mutants, and the
+    # refusal it should have printed in minute one is
+    #   projected peak 31.5 GB (0.52 GB of generated mutants x 15 assumed RSS factor = 7.9 GB per
+    #   worker, x 4 worker(s)) exceeds the 7.0 GB cap
+    # Two changes, and the size stays MEASURED rather than projected from a ratio (see below):
+    #   1. a KNOWN size — from a reused scratch, or from the size this module generated last time,
+    #      recorded beside the scratch — refuses BEFORE mutmut starts;
+    #   2. the worker count is DERIVED from what the cap affords instead of inherited from
+    #      `os.cpu_count()`, and handed to mutmut as `--max-children`. Inheriting the core count is how
+    #      a 24-core rig and a 4-core hosted runner both over-committed on the same module.
+    # ⚠️ AND IT IS NOT PROJECTED FROM THE SOURCE SIZE. That was the obvious fix and the ratio does not
+    # hold: measured across 11 scratches on this tree, generated/source runs 21.0x (mutation_pure) to
+    # 657.0x (capture.py) — a single factor would under-project capture.py tenfold or throttle every
+    # small module to nothing. Generated size goes as the sum over functions of (mutants x function
+    # length), which a module with a few huge functions explodes. So: measure, remember, or say UNKNOWN.
     _mutants_file = work / "mutants" / module
+    _size_note = scratch / ".mutants-bytes"
     try:
         _mutants_bytes = _mutants_file.stat().st_size
     except OSError:
-        _mutants_bytes = 0
+        # Not generated yet. Fall back to what THIS module generated last time, if anyone recorded it —
+        # a remembered measurement, never a guess from the source.
+        try:
+            _mutants_bytes = int(_size_note.read_text(encoding="utf-8").strip())
+        except (OSError, ValueError):
+            _mutants_bytes = 0
     try:
         with open("/proc/meminfo", encoding="utf-8") as _fh:
             _avail = available_bytes_from_meminfo(_fh.read())
     except OSError:
         _avail = None
-    _workers = os.cpu_count() or 1
-    _why_mem = memory_refusal(_mutants_bytes, _workers, _avail or 0)
+    _cores = os.cpu_count() or 1
+    _fit = workers_that_fit(_mutants_bytes, _avail or 0)
+    # With no size to go on, the count cannot be derived — keep the core count and let the phase bound
+    # and the post-generation re-check below catch it, but SAY which basis was used.
+    _workers = _cores if _mutants_bytes <= 0 else min(_cores, max(1, _fit))
+    plan["workers_basis"] = "cores (mutants size unknown)" if _mutants_bytes <= 0 else f"memory-derived ({_fit} fit, {_cores} cores)"
+    plan["workers"] = _workers
+    _why_mem = memory_refusal(_mutants_bytes, _workers, _avail or 0) if _mutants_bytes > 0 and _fit < 1 else None
     if _why_mem:
         # NOT an `error`: the caller must be able to tell "could not measure this" from "tried and
         # broke". A run that starts and gets reaped by the watchdog reports nothing at all AND takes
@@ -511,7 +546,10 @@ def run_one(module: str, only: str | None = None, tests_override: list[str] | No
     # by the cap left no trace of how far it got. Tee it to stderr (stdout stays the JSON record) and
     # keep the text for `tail`.
     timed_out, rc, buf = False, None, []
-    proc = subprocess.Popen([str(VENV_PY), "-m", "mutmut", "run", only or f"{stem}.*"],
+    # `--max-children` rather than mutmut's default of `os.cpu_count()`: the worker count is a MEMORY
+    # decision, and it bounds GENERATION too (`create_mutants` uses the same pool).
+    proc = subprocess.Popen([str(VENV_PY), "-m", "mutmut", "run", "--max-children", str(_workers),
+                             only or f"{stem}.*"],
                             cwd=work, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                             text=True, env=env, bufsize=1)
     # A PROGRESS FILE, not just a stream. Streaming to stderr only helps someone watching a terminal;
@@ -524,6 +562,9 @@ def run_one(module: str, only: str | None = None, tests_override: list[str] | No
     # Splitting them makes the counters a plain `dict[str, int]` and says which is which.
     seen_ids: "set[str]" = set()
     seen = {"killed": 0, "survived": 0, "timeout": 0, "n": 0}
+    # A set rather than a bool because the reader runs in another thread: `_gen_done.add` from the drain
+    # and `bool(_gen_done)` from the waiter need no lock, where rebinding a name would.
+    _gen_done: "set[bool]" = set()
     # `proc.stdout` is Optional in the stubs; it is not None here because the Popen above is
     # created with stdout=PIPE. Asserting states that rather than guarding a case that cannot arise.
     assert proc.stdout is not None
@@ -541,6 +582,14 @@ def run_one(module: str, only: str | None = None, tests_override: list[str] | No
         # and on cpap_harvest that phase alone is 5-6 minutes with no verdict to count — which is
         # exactly the stretch where a caller most wants to know the difference between "working"
         # and "wedged". It does print a spinner there; counting those gives the phase a pulse.
+        if GENERATION_DONE_RE.search(line):
+            # mutmut's own completion line, and the ONLY thing that means generation finished. Read from
+            # the emitter rather than inferred from a first verdict appearing: a slow first verdict still
+            # means generation is over, and #3202 proved the converse matters — that log carries this
+            # line 0 times against 618 spinner lines, which is how we know it never left this phase.
+            _gen_done.add(True)
+            _beat(f"generation finished at {time.monotonic() - t0:.0f}s — mutants start now")
+            return
         if "Generating mutants" in line:
             _beat(f"generating mutants  {time.monotonic() - t0:.0f}s elapsed  (no verdicts yet)")
             return
@@ -563,7 +612,12 @@ def run_one(module: str, only: str | None = None, tests_override: list[str] | No
     # `proc.wait(timeout=…)` put the deadline behind the read: the iterator ends when the child closes
     # its stdout, so `wait` was reached only after the child had already exited and the timeout could
     # never fire. `stream_bounded` reads in a thread and waits here, where the deadline can fire.
-    rc, timed_out = stream_bounded(proc, cap, _on_line, t0=t0)
+    # …and GENERATION gets its own deadline inside that cap. One opaque bound cannot tell "generated,
+    # then ran slowly" (UNKNOWN — part of the diff was measured) from "never finished generating"
+    # (NOT_RUN — nothing was examined), and #3202 was the second wearing the first's clothes.
+    _gen_cap = generation_cap_sec(cap)
+    rc, timed_out, gen_timed_out = stream_bounded(
+        proc, cap, _on_line, t0=t0, phase_cap_sec=_gen_cap, phase_done=lambda: bool(_gen_done))
     if proc.stdout:
         proc.stdout.close()
     tail = "".join(buf)[-2000:]
@@ -579,8 +633,23 @@ def run_one(module: str, only: str | None = None, tests_override: list[str] | No
     # loudly when a prune destroyed something a previous run may have measured against.
     out = {**plan, "rc": rc, "elapsed_sec": round(elapsed, 1), "timed_out": timed_out,
            "scratch_id": scratch.name, "mutant_generation": src_hash,
+           "generation_finished": bool(_gen_done), "generation_cap_sec": round(_gen_cap, 1),
            "results": res.stdout, "tail": tail, "work": str(work)}
-    _beat(f"FINISHED  rc={rc}  {round(elapsed, 1)}s", final=True)
+    # REMEMBER THE SIZE, so the NEXT run on this module can refuse before generating rather than after.
+    # A measurement carried forward, never a projection from the source: the note is keyed to the scratch,
+    # which is keyed to the module's source hash, so a source change cannot inherit a stale size.
+    try:
+        _grew = _mutants_file.stat().st_size
+        out["mutants_bytes"] = _grew
+        if _grew > 0:
+            _size_note.write_text(f"{_grew}\n", encoding="utf-8")
+    except OSError:
+        pass  # deliberate: the note is an optimisation for the next run, not part of this verdict
+    if gen_timed_out:
+        # NOT `partial`, and not a verdict on the diff: nothing was examined. This is the #3202 case, and
+        # it now says so in the record the gate reads instead of looking like a slow mutation pass.
+        out["generation_timed_out"] = generation_timeout_reason(_gen_cap, elapsed, out.get("mutants_bytes", 0))
+    _beat(f"FINISHED  rc={rc}  {round(elapsed, 1)}s  generated={bool(_gen_done)}", final=True)
     if plan.get("pruned_scratches"):
         out["WARNING"] = (
             f"pruned {len(plan['pruned_scratches'])} older scratch(es) for this module: "

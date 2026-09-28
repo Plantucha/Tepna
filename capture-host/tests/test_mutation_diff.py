@@ -1376,7 +1376,7 @@ def test_a_child_still_working_at_the_cap_is_KILLED():
     proc = _child(_CHATTY_3S)
     seen: list[str] = []
     t0 = _t.monotonic()
-    rc, timed_out = M.stream_bounded(proc, 1.0, seen.append, t0=t0)
+    rc, timed_out, _ = M.stream_bounded(proc, 1.0, seen.append, t0=t0)
     took = _t.monotonic() - t0
     assert timed_out is True, f"the cap did not fire — the child was allowed to finish: rc={rc}"
     assert took < 2.5, f"the cap fired {took:.1f}s late — it must bound the READ, not follow it"
@@ -1390,7 +1390,7 @@ def test_a_SILENT_child_still_working_at_the_cap_is_also_KILLED():
     import time as _t
     proc = _child(_SILENT_3S)
     t0 = _t.monotonic()
-    rc, timed_out = M.stream_bounded(proc, 1.0, lambda _l: None, t0=t0)
+    rc, timed_out, _ = M.stream_bounded(proc, 1.0, lambda _l: None, t0=t0)
     assert timed_out is True, rc
     assert _t.monotonic() - t0 < 2.5
     assert proc.poll() is not None
@@ -1400,7 +1400,7 @@ def test_a_child_that_finishes_inside_the_cap_reports_its_real_exit_code():
     """The control: the bound must not turn a normal run into a refusal, and every line must arrive."""
     proc = _child("for i in range(50):\n    print(i)\n")
     seen: list[str] = []
-    rc, timed_out = M.stream_bounded(proc, 60.0, seen.append)
+    rc, timed_out, _ = M.stream_bounded(proc, 60.0, seen.append)
     assert timed_out is False and rc == 0, (rc, timed_out)
     assert len(seen) == 50, f"lines were dropped by the threaded reader: {len(seen)}"
 
@@ -1408,7 +1408,7 @@ def test_a_child_that_finishes_inside_the_cap_reports_its_real_exit_code():
 def test_a_failing_child_inside_the_cap_is_not_reported_as_a_timeout():
     proc = _child("import sys\nprint('boom')\nsys.exit(3)\n")
     seen: list[str] = []
-    rc, timed_out = M.stream_bounded(proc, 60.0, seen.append)
+    rc, timed_out, _ = M.stream_bounded(proc, 60.0, seen.append)
     assert (rc, timed_out) == (3, False), (rc, timed_out)
     assert seen == ["boom\n"], seen
 
@@ -1430,8 +1430,136 @@ def test_a_pipe_closed_under_the_reader_does_not_take_the_verdict_with_it():
         def kill(self):  # pragma: no cover — this child exits inside the cap
             raise AssertionError
 
-    rc, timed_out = M.stream_bounded(_Proc(), 60.0, lambda _l: None)
+    rc, timed_out, _ = M.stream_bounded(_Proc(), 60.0, lambda _l: None)
     assert (rc, timed_out) == (0, False), (rc, timed_out)
+
+
+# ── #3202: the three plants ─────────────────────────────────────────────────────────────────────────
+# A required context burned a 180-minute job and decided ZERO mutants. The three things that had to be
+# true for that to happen silently are each pinned below.
+
+_GRANDCHILD_HOLDS_THE_PIPE = (
+    "import subprocess, sys, time\n"
+    "subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])\n"   # inherits stdout
+    "[print('spinner', flush=True) for _ in range(50)]\n"
+    "time.sleep(60)\n"
+)
+
+
+def test_the_refusal_STILL_ARRIVES_when_a_grandchild_holds_the_pipe_open():
+    """PLANT 1 — mutmut's worker shape, which the two tests above do not have.
+
+    `proc.kill()` kills the pool PARENT; the workers inherited stdout, so the read end never sees EOF
+    and the reader thread stays blocked in `for line in proc.stdout`. This was my first candidate for
+    #3202's silence and it is REFUTED — measured 13.00 s against a 43 s bound — but the property is now
+    load-bearing for the phase bound below, and nothing was asserting it."""
+    import time as _t
+    proc = _child(_GRANDCHILD_HOLDS_THE_PIPE)
+    seen: list[str] = []
+    t0 = _t.monotonic()
+    rc, timed_out, _ = M.stream_bounded(proc, 1.0, seen.append, t0=t0, join_sec=2.0)
+    took = _t.monotonic() - t0
+    assert timed_out is True, f"the cap did not fire with a grandchild on the pipe: rc={rc}"
+    assert took < 1.0 + M.REAP_SEC + 2.0 + 1.0, f"returned {took:.1f}s — a held pipe must not extend the bound"
+    assert seen, "output before the kill must still reach the caller"
+    assert proc.poll() is not None, "the child was left alive after the refusal"
+
+
+def test_a_GENERATION_phase_that_outlives_its_bound_is_killed_and_named():
+    """PLANT 2 — the #3202 case itself. The child never reports the phase marker, so a wait bounded only
+    by the wall cap would let it run to the cap; the phase bound must fire FIRST and say which phase."""
+    import time as _t
+    proc = _child(_SILENT_3S)
+    t0 = _t.monotonic()
+    rc, timed_out, phase_timed_out = M.stream_bounded(
+        proc, 60.0, lambda _l: None, t0=t0, phase_cap_sec=1.0, phase_done=lambda: False)
+    took = _t.monotonic() - t0
+    assert phase_timed_out is True, "the phase bound did not fire — this is #3202"
+    assert timed_out is True, "a phase kill is also a timeout for the caller's reporting"
+    assert took < 2.5 + M.REAP_SEC, f"the phase bound fired {took:.1f}s in, not at its own deadline"
+    assert proc.poll() is not None
+
+
+def test_a_phase_that_FINISHES_hands_the_rest_of_the_wall_cap_to_the_run():
+    """The control, and the one that matters for not breaking a healthy run: generation completing must
+    not consume the whole budget. The child outlives the PHASE bound but not the wall cap, and reports
+    the marker — so it must be allowed to finish and come back green."""
+    import time as _t
+    proc = _child(_CHATTY_3S)
+    t0 = _t.monotonic()
+    rc, timed_out, phase_timed_out = M.stream_bounded(
+        proc, 60.0, lambda _l: None, t0=t0, phase_cap_sec=1.0, phase_done=lambda: True)
+    assert (phase_timed_out, timed_out, rc) == (False, False, 0), (rc, timed_out, phase_timed_out)
+    assert _t.monotonic() - t0 < 10.0, "the phase bound must not become the wall cap"
+
+
+def test_the_phase_bound_can_never_EXTEND_the_wall_cap():
+    """A phase bound looser than what is left of the wall cap must not buy time. Asserted as the NUMBER
+    requested, not as elapsed seconds — the arithmetic mutants that survived a timing assertion are why
+    the tests below this point stub `wait` and read the `timeout=` they were handed."""
+    import time as _t
+    rec = _RecordingProc()
+    M.stream_bounded(rec, 10.0, lambda _l: None, t0=_t.monotonic() - 9.0,
+                            phase_cap_sec=3600.0, phase_done=lambda: False)
+    assert rec.timeouts, "wait was never called with a deadline"
+    assert rec.timeouts[0] <= 1.0 + 0.5, f"the phase bound extended the wall cap: {rec.timeouts[0]}"
+
+
+def test_the_generation_marker_is_mutmuts_own_line_and_not_a_mutant_verdict():
+    """PLANT 3 — what "the phase finished" is READ from. An absence is only evidence when the emitter is
+    known: `done in …ms (N files mutated…)` is printed by mutmut the instant `create_mutants` returns,
+    and it occurred ZERO times in #3202's log against 618 spinner lines. A mutant verdict must NOT be
+    mistaken for it — a slow first verdict still means generation finished, and conflating the two would
+    put the phase bound on the wrong side of the failure."""
+    assert M.GENERATION_DONE_RE.search("    done in 1342111ms (226 files mutated, 3 ignored, 0 unmodified)")
+    assert M.GENERATION_DONE_RE.search("done in 18ms (1 file mutated, 0 ignored, 0 unmodified)")
+    assert not M.GENERATION_DONE_RE.search("capture.x_alert_poller__mutmut_7: survived")
+    assert not M.GENERATION_DONE_RE.search("Generating mutants")
+    assert not M.GENERATION_DONE_RE.search("done in 12ms")          # no file count = not the marker
+
+
+def test_workers_that_fit_refuses_where_capture_py_cannot_run_and_sizes_where_it_can():
+    """The number handed to mutmut's `--max-children`, which used to be `os.cpu_count()` — and that is
+    how a 24-core rig and a 4-core hosted runner BOTH over-committed on the same module.
+
+    Measured 2026-09-28: the generated capture.py is 562,427,047 bytes. A hosted runner reports ~14 GB
+    available, so the 50 % cap affords ZERO workers; the rig at 33 GB affords 2. Both numbers are the
+    refusal this gate owes, and neither is reachable from `os.cpu_count()`."""
+    GB = 1024 ** 3
+    CAPTURE_GENERATED = 562427047
+    assert M.workers_that_fit(CAPTURE_GENERATED, 14 * GB) == 0, "a hosted runner cannot afford one worker"
+    assert M.workers_that_fit(CAPTURE_GENERATED, 33 * GB) == 2, "the rig affords two, not twenty-four"
+    assert M.workers_that_fit(8892661, 14 * GB) > 8, "a small module must not be throttled to nothing"
+    # §∅ at the arithmetic: an ABSENT measurement is not a permissive one. `memory_refusal` returns None
+    # for a zero size — which is how the guard stayed silent on every fresh scratch — so the sizing
+    # function must answer 0 there rather than inheriting the same hole.
+    assert M.workers_that_fit(0, 14 * GB) == 0, "an unmeasured module must not read as affordable"
+    assert M.workers_that_fit(CAPTURE_GENERATED, 0) == 0
+
+
+def test_the_generation_phase_bound_is_a_SHARE_of_the_wall_cap_with_a_floor():
+    """A share, not an absolute: generation cost tracks the module, so a fixed number is wrong at both
+    ends of the fleet. And it never returns a bound below the floor — a budget already overspent still
+    owes the child a positive deadline, or `wait(timeout=0)` turns the phase check into an instant kill."""
+    assert M.generation_cap_sec(7200.0) == 7200.0 * M.GENERATION_CAP_FRACTION
+    assert M.generation_cap_sec(7200.0, fraction=0.25) == 1800.0
+    assert M.generation_cap_sec(0.0) == M.CAP_FLOOR_SEC, "a zero cap must still hand back the floor"
+    assert M.generation_cap_sec(-5.0) == M.CAP_FLOOR_SEC
+
+
+def test_a_zero_RSS_FACTOR_is_not_permission_to_run_unbounded_workers():
+    """The factor is the one number in the projection that is an assumption, so a caller CAN pass it. If
+    it arrives as 0 the projection says "a worker costs nothing", and the affordable count would be
+    unbounded — the same absence-as-permission hole that made `memory_refusal(0, …)` silent."""
+    assert M.workers_that_fit(562427047, 14 * 1024 ** 3, rss_factor=0) == 0
+
+
+def test_a_generation_timeout_reason_says_no_mutant_ran():
+    r = M.generation_timeout_reason(3600.0, 3612.4, 123456789)
+    assert "GENERATION" in r and "3600s" in r and "3612s" in r
+    assert "118 MB of mutants written" in r, r
+    assert "no mutant ran" in r, "the reason must say the run examined nothing, not that the diff failed"
+    assert "nothing written yet" in M.generation_timeout_reason(60.0, 61.0, 0)
 
 
 # ── the deadline as a NUMBER, not as elapsed time ───────────────────────────────────────────────────

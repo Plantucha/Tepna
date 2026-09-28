@@ -61,7 +61,12 @@ __all__ = [
     "MEM_CAP_FRACTION",
     "WORKER_RSS_PER_MUTANTS_BYTE",
     "SCRATCH_OWNER_FILE",
+    "GENERATION_DONE_RE",
+    "GENERATION_CAP_FRACTION",
+    "generation_cap_sec",
     "available_bytes_from_meminfo",
+    "generation_timeout_reason",
+    "workers_that_fit",
     "memory_refusal",
     "scratch_prune_decision",
     "owner_is_live",
@@ -889,6 +894,74 @@ def memory_refusal(mutants_bytes, workers, available_bytes,
             f"This is a REFUSAL with a reason, not a verdict on the diff.")
 
 
+# ── GENERATION IS A PHASE, AND IT IS THE ONE THAT FAILS ─────────────────────────────────────────────
+# Measured on #3202 (run 36465603809): the required `mutation (diff-scoped)` job spent 9,356 s inside one
+# `mutmut run` and was cancelled by the runner's 180-minute cap having decided ZERO mutants. The proof
+# that it never left generation is an absence with a known emitter — `mutmut/__main__.py:_run` prints
+#
+#     done in {ms}ms ({n} files mutated, {i} ignored, {u} unmodified)
+#
+# the moment `create_mutants` returns, OUTSIDE the suppressed spinner block, and the job's log carries
+# that line 0 times against 618 "Generating mutants" spinner lines. So:
+#
+#   · `memory_refusal` above `stat()`s the file that GENERATION produces, which puts it behind the phase
+#     that fails — unreachable in exactly the case it exists for. On a fresh scratch the size reads 0
+#     (`except OSError: 0`) and the guard returns None for every worker count: absence coerced to a
+#     neutral number makes a threshold unreachable rather than making it fail (§∅).
+#   · one opaque wall bound cannot tell "generation ate everything" from "mutants ran slowly", and those
+#     want different verdicts: the first examined nothing and is NOT_RUN.
+#
+# `create_mutants` walks every source file and takes NO name filter, so a diff scoped to one function
+# still generates the module's whole population (capture.py: 20,021 mutants across 226 functions to run
+# 242). Scoping generation is a separate unit; bounding and ATTRIBUTING it is this one.
+GENERATION_DONE_RE = re.compile(r"done in \d+ms \(\d+ files? mutated")
+# mutmut's own completion line, matched rather than inferred from a mutant verdict appearing: a run whose
+# first mutant verdict is slow to arrive has still finished generating, and the two must not be conflated.
+
+
+def generation_timeout_reason(phase_cap_sec, elapsed_sec, mutants_bytes=0):
+    """Why a generation phase that outlived its own bound is NOT_RUN, with the numbers in it.
+
+    Separate from `budget_refusal` because the STATUS differs: a budget consumed with some functions
+    mutated is UNKNOWN (part of the diff was measured), but a run killed in generation decided nothing
+    at all, and §🧾 spells that NOT_RUN. The partially written mutants file is reported when it exists —
+    "how far it got" is the one thing the killed run can still say."""
+    grew = f", {mutants_bytes / (1024.0 ** 2):.0f} MB of mutants written" if mutants_bytes > 0 else ", nothing written yet"
+    return (f"mutant GENERATION did not finish inside its {phase_cap_sec:.0f}s phase bound "
+            f"(killed at {elapsed_sec:.0f}s{grew}). NOT a verdict on the diff: no mutant ran, so nothing "
+            f"was killed and nothing survived. mutmut generates the WHOLE module's population before the "
+            f"first mutant runs and takes no name filter, so a one-function diff pays for every function.")
+
+
+GENERATION_CAP_FRACTION = 0.5
+# PRE-STATED, and it is a share of the wall cap rather than an absolute: generation cost tracks the
+# module, so a fixed number would be wrong for both ends of the fleet. Half is the honest split for a
+# gate whose job is to RUN mutants — a phase that wants more than half the budget before the first
+# mutant has not earned the second half. Measured for scale: capture.py generates in ~22 min on 24 cores
+# (the reuse path makes it 18 s), and #3202 did not finish it in 156 min on 4.
+
+
+def generation_cap_sec(cap_sec, fraction=GENERATION_CAP_FRACTION):
+    """The share of a run's wall cap that mutant GENERATION may take before it is killed and named."""
+    return max(CAP_FLOOR_SEC, float(cap_sec) * fraction)
+
+
+def workers_that_fit(mutants_bytes, available_bytes, rss_factor=WORKER_RSS_PER_MUTANTS_BYTE,
+                     cap_fraction=MEM_CAP_FRACTION):
+    """How many workers the cap affords for a mutants file of this size. 0 means not even one.
+
+    The companion to `memory_refusal`: that function says "this does not fit", this one says "here is
+    what does", which is the number to hand mutmut's `--max-children`. Inheriting `os.cpu_count()` is
+    how a 24-core rig and a 4-core hosted runner BOTH over-committed on the same module — 24 x 8 GB and
+    4 x 8 GB are both over any cap we have."""
+    if mutants_bytes <= 0 or available_bytes <= 0:
+        return 0
+    per_worker = mutants_bytes * rss_factor
+    if per_worker <= 0:
+        return 0
+    return max(0, int((available_bytes * cap_fraction) // per_worker))
+
+
 def available_bytes_from_meminfo(text):
     """`MemAvailable` in bytes from /proc/meminfo's text, or None if it is not there.
 
@@ -917,9 +990,12 @@ def memory_exhaustion_verdict(n_refused, decided):
                        f"nothing and takes other sessions' gates with it. Not a verdict on the diff.")
 
 
-def stream_bounded(proc, cap_sec, on_line, t0=None, join_sec=10.0):
+def stream_bounded(proc, cap_sec, on_line, t0=None, join_sec=10.0,
+                   phase_cap_sec=None, phase_done=None):
     """Drain `proc`'s stdout line by line into `on_line`, and KILL the child at `cap_sec`.
-    Returns `(returncode, timed_out)`.
+    Returns `(returncode, timed_out, phase_timed_out)` — ALWAYS three, never a shape that depends on
+    whether a phase was declared, because a caller that unpacks by argument value is a caller waiting to
+    break. With no phase declared the third member is always False.
 
     🔴 THE WALL CAP USED TO BE UNREACHABLE, WHICH IS WORSE THAN ABSENT. The caller drained the pipe
     with a bare `for line in proc.stdout:` and only afterwards called
@@ -937,6 +1013,18 @@ def stream_bounded(proc, cap_sec, on_line, t0=None, join_sec=10.0):
 
     Reading in a daemon thread and waiting in the caller puts the deadline on a path that CAN fire,
     and the streamed output (the caller's progress heartbeat) is unchanged.
+
+    WHY A PHASE NEEDS ITS OWN BOUND. One opaque wall cap reports the same thing for two outcomes that
+    deserve different verdicts: a run that generated its mutants and then ran them slowly (UNKNOWN — part
+    of the diff was measured), and a run that never finished GENERATING (NOT_RUN — nothing was examined).
+    #3202 was the second and looked like the first: 9,356 s, zero mutants decided, and the proof is that
+    mutmut's own `done in …ms (N files mutated)` line — printed the instant `create_mutants` returns and
+    outside the suppressed spinner block — occurs ZERO times in the job's log.
+
+    `phase_done()` is polled at the phase deadline rather than subscribed to, because the marker arrives
+    on the stream the reader thread is already draining; the caller decides what "done" means.
+
+    Both bounds hold, and the phase bound can never EXTEND the wall cap — `min` of the two remainings.
     """
     t0 = time.monotonic() if t0 is None else t0
 
@@ -954,16 +1042,32 @@ def stream_bounded(proc, cap_sec, on_line, t0=None, join_sec=10.0):
     reader = threading.Thread(target=_drain, daemon=True)
     reader.start()
     timed_out = False
+    phase_timed_out = False
     try:
-        rc = proc.wait(timeout=cap_remaining(cap_sec, t0, time.monotonic()))
+        if phase_cap_sec is not None and phase_done is not None:
+            deadline = min(cap_remaining(cap_sec, t0, time.monotonic()), cap_remaining(phase_cap_sec, t0, time.monotonic()))
+            try:
+                rc = proc.wait(timeout=deadline)
+            except subprocess.TimeoutExpired:
+                if not phase_done():
+                    # Still in the first phase with its bound spent: this is the NOT_RUN case.
+                    phase_timed_out = timed_out = True
+                    proc.kill()
+                    rc = proc.wait(timeout=REAP_SEC)
+                else:
+                    # The phase finished; the rest of the wall cap is the run's.
+                    rc = proc.wait(timeout=cap_remaining(cap_sec, t0, time.monotonic()))
+        else:
+            rc = proc.wait(timeout=cap_remaining(cap_sec, t0, time.monotonic()))
     except subprocess.TimeoutExpired:
         timed_out = True
         proc.kill()
         rc = proc.wait(timeout=REAP_SEC)
     # Bounded join: a reader blocked on a pipe the kill did not close must not turn a refusal that
-    # fired into a hang one frame later.
+    # fired into a hang one frame later. Measured 2026-09-28 with a planted grandchild that inherits
+    # stdout and outlives the kill — mutmut's worker shape: the call returns in cap + join, never hangs.
     reader.join(timeout=join_sec)
-    return rc, timed_out
+    return rc, timed_out, phase_timed_out
 
 
 def budget_exhaustion_verdict(n_refused: int, decided: int, elapsed_sec: float) -> tuple[str, str]:
