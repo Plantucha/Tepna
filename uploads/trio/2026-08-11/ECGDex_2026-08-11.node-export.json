@@ -9,7 +9,7 @@
     "node": "ECGDex",
     "nodeVersion": "1.0",
     "bus": "ganglior",
-    "generated": "2026-09-22T22:16:30.066Z",
+    "generated": "2026-09-28T17:21:48.766Z",
     "provenance": null,
     "doc": "ECGDex beat-derived events → Ganglior bus. tMs = floating wall-clock ms (UTC getters). null = unknown, never fabricated.",
     "scrubbed": true
@@ -1691,12 +1691,12 @@
   },
   "hrv": {
     "time": {
-      "hr": 52.1,
+      "hr": 52,
       "meanRR": 1135.2,
       "sdnn": 46,
       "rmssd": 34.5,
       "pnn50": 13.1,
-      "sdnnIndex": 66.4,
+      "sdnnIndex": 66.5,
       "wholeRecordHR": 52.9,
       "wholeRecordSDNN": 89.2,
       "wholeRecordRMSSD": 44.5,
@@ -2816,18 +2816,18 @@
       },
       {
         "tMin": 320,
-        "hr": 52.1,
-        "rmssd": 54.2,
-        "sdnn": 67.7,
-        "vlf": 2101,
-        "lf": 1015,
-        "hf": 1042,
-        "totalPower": 4158,
-        "lfhf": 0.974,
-        "resp": 14.6,
+        "hr": 52,
+        "rmssd": 43.6,
+        "sdnn": 62.2,
+        "vlf": 1881,
+        "lf": 910,
+        "hf": 739,
+        "totalPower": 3530,
+        "lfhf": 1.232,
+        "resp": 13.8,
         "hrStat": "rate-of-mean",
-        "sqi": 0.862,
-        "beats": 229,
+        "sqi": 0.861,
+        "beats": 226,
         "motionIndex": 7.6,
         "position": "supine"
       },
@@ -3105,18 +3105,18 @@
       },
       {
         "tMin": 405,
-        "hr": 81.9,
-        "rmssd": 860.9,
-        "sdnn": 561,
-        "vlf": 2588,
-        "lf": 33173,
-        "hf": 121073,
-        "totalPower": 156834,
-        "lfhf": 0.274,
-        "resp": 22.8,
+        "hr": 82.3,
+        "rmssd": 882.1,
+        "sdnn": 574.6,
+        "vlf": 2067,
+        "lf": 33135,
+        "hf": 128486,
+        "totalPower": 163688,
+        "lfhf": 0.258,
+        "resp": 23.9,
         "hrStat": "rate-of-mean",
-        "sqi": 0.203,
-        "beats": 22,
+        "sqi": 0.171,
+        "beats": 21,
         "motionIndex": 0,
         "position": "supine"
       }
@@ -89023,9 +89023,9 @@
     "cvhrHours": 7.82
   },
   "hrvStability": {
-    "sigma_lnRMSSD_slope": 0.078,
-    "var_lnRMSSD_slope": 0.1312,
-    "mean_lnRMSSD_slope": 0.0694,
+    "sigma_lnRMSSD_slope": 0.0767,
+    "var_lnRMSSD_slope": 0.1327,
+    "mean_lnRMSSD_slope": 0.0686,
     "classification": "Rising instability — persistent autonomic instability (glycemic-risk signal)",
     "windows": 14,
     "ref": "Li & Kiyono 2026 Sensors 26(4):1118 [CC BY 4.0]",
@@ -89093,8 +89093,8 @@
       },
       {
         "tMin": 300,
-        "lnSD": 0.174,
-        "lnMean": 3.699,
+        "lnSD": 0.112,
+        "lnMean": 3.663,
         "n": 6
       },
       {
@@ -89111,8 +89111,8 @@
       },
       {
         "tMin": 390,
-        "lnSD": 1.523,
-        "lnMean": 4.474,
+        "lnSD": 1.535,
+        "lnMean": 4.48,
         "n": 4
       }
     ]

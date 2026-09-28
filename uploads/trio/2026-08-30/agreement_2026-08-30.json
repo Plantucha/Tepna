@@ -3,9 +3,9 @@
   "tolBpm": 15,
   "quality": {
     "tolBpm": 3,
-    "flagged": 2,
+    "flagged": 1,
     "compared": 67,
-    "flaggedPct": 3
+    "flaggedPct": 1.5
   },
   "nodes": [
     "PpgDex",

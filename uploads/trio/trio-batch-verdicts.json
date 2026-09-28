@@ -33,9 +33,9 @@
   "reason": null,
   "producedBy": {
    "tool": "tools/trio-batch.mjs",
-   "commit": "a32bace0"
+   "commit": "17e3584f"
   },
-  "at": "2026-09-22T22:41:38Z"
+  "at": "2026-09-28T17:59:31Z"
  },
  "nights": [
   {
@@ -126,9 +126,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "a32bace0"
+    "commit": "17e3584f"
    },
-   "at": "2026-09-22T22:41:38Z",
+   "at": "2026-09-28T17:59:31Z",
    "night": "2026-07-19"
   }
  ]

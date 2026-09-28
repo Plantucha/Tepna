@@ -9,7 +9,7 @@
     "node": "ECGDex",
     "nodeVersion": "1.0",
     "bus": "ganglior",
-    "generated": "2026-09-22T21:52:30.796Z",
+    "generated": "2026-09-28T16:45:13.794Z",
     "provenance": null,
     "doc": "ECGDex beat-derived events → Ganglior bus. tMs = floating wall-clock ms (UTC getters). null = unknown, never fabricated.",
     "scrubbed": true
@@ -1599,17 +1599,17 @@
       {
         "tMin": 0,
         "hr": 55.5,
-        "rmssd": 52.3,
-        "sdnn": 122.7,
-        "vlf": 8415,
-        "lf": 1989,
-        "hf": 1070,
-        "totalPower": 11474,
-        "lfhf": 1.859,
-        "resp": 11,
+        "rmssd": 45.3,
+        "sdnn": 121.8,
+        "vlf": 8539,
+        "lf": 1914,
+        "hf": 1019,
+        "totalPower": 11472,
+        "lfhf": 1.878,
+        "resp": 10.5,
         "hrStat": "rate-of-mean",
         "sqi": 0.806,
-        "beats": 211,
+        "beats": 204,
         "motionIndex": 100,
         "position": "lateral"
       },
@@ -83289,7 +83289,7 @@
   "hrvStability": {
     "sigma_lnRMSSD_slope": -0.0094,
     "var_lnRMSSD_slope": -0.0027,
-    "mean_lnRMSSD_slope": -0.0141,
+    "mean_lnRMSSD_slope": -0.0127,
     "classification": "Flat — no clear nocturnal trend",
     "windows": 14,
     "ref": "Li & Kiyono 2026 Sensors 26(4):1118 [CC BY 4.0]",
@@ -83298,7 +83298,7 @@
       {
         "tMin": 0,
         "lnSD": 0.217,
-        "lnMean": 3.893,
+        "lnMean": 3.869,
         "n": 6
       },
       {

@@ -9,7 +9,7 @@
     "node": "ECGDex",
     "nodeVersion": "1.0",
     "bus": "ganglior",
-    "generated": "2026-09-22T21:50:46.637Z",
+    "generated": "2026-09-28T16:43:08.375Z",
     "provenance": null,
     "doc": "ECGDex beat-derived events → Ganglior bus. tMs = floating wall-clock ms (UTC getters). null = unknown, never fabricated.",
     "scrubbed": true
@@ -21,7 +21,7 @@
     "durSec": 21236.696307752394,
     "endEpochMs": null,
     "offsetMin": null,
-    "events": 69,
+    "events": 68,
     "timingSource": "device",
     "deviceEpoch": {
       "offsetMs": -235343518918,
@@ -564,15 +564,6 @@
         "osaConf": null,
         "deltaSBP": null
       }
-    },
-    {
-      "t": "01:06:12",
-      "tMs": 1781658372325,
-      "impulse": "stage_deep",
-      "node": "ECGDex",
-      "conf": 0.7,
-      "sqi": null,
-      "meta": {}
     },
     {
       "t": "01:11:12",
@@ -1157,7 +1148,7 @@
       "sdnn": 41.4,
       "rmssd": 30.7,
       "pnn50": 8.8,
-      "sdnnIndex": 68.2,
+      "sdnnIndex": 52,
       "wholeRecordHR": 53.9,
       "wholeRecordSDNN": 84.6,
       "wholeRecordRMSSD": 31.3,
@@ -1173,10 +1164,10 @@
       "lf": 568,
       "hf": 247,
       "totalPower": 1398,
-      "lfhf": 2.054,
+      "lfhf": 2.06,
       "window": "epochMedian5min",
       "method": "Lomb–Scargle",
-      "respRate": 14.6,
+      "respRate": 14.7,
       "respRateMethod": "RSA (HF-peak of RR spectrum)",
       "respFromEDR": 15.1,
       "couplingGridGapCells": 82,
@@ -1784,18 +1775,18 @@
       },
       {
         "tMin": 175,
-        "hr": 49.6,
-        "rmssd": 1211.3,
-        "sdnn": 1211,
-        "vlf": 136375,
-        "lf": 378140,
-        "hf": 865985,
-        "totalPower": 1380500,
-        "lfhf": 0.437,
-        "resp": 9,
+        "hr": 52.8,
+        "rmssd": 34.1,
+        "sdnn": 59.1,
+        "vlf": 1118,
+        "lf": 681,
+        "hf": 291,
+        "totalPower": 2090,
+        "lfhf": 2.34,
+        "resp": 18,
         "hrStat": "rate-of-mean",
-        "sqi": 0.828,
-        "beats": 260,
+        "sqi": 0.829,
+        "beats": 259,
         "motionIndex": 0,
         "position": "supine"
       },
@@ -2538,7 +2529,7 @@
       },
       {
         "tMin": 175,
-        "stage": "Deep"
+        "stage": "Light"
       },
       {
         "tMin": 180,
@@ -78939,8 +78930,8 @@
     "stageMinutes": {
       "Wake": 40,
       "REM": 35,
-      "Light": 245,
-      "Deep": 35
+      "Light": 250,
+      "Deep": 30
     }
   },
   "apnea": {
@@ -78961,9 +78952,9 @@
     "cvhrHours": 5.9
   },
   "hrvStability": {
-    "sigma_lnRMSSD_slope": -0.0138,
-    "var_lnRMSSD_slope": -0.0173,
-    "mean_lnRMSSD_slope": 0.0102,
+    "sigma_lnRMSSD_slope": -0.0037,
+    "var_lnRMSSD_slope": -0.0016,
+    "mean_lnRMSSD_slope": 0.0144,
     "classification": "Flat — no clear nocturnal trend",
     "windows": 12,
     "ref": "Li & Kiyono 2026 Sensors 26(4):1118 [CC BY 4.0]",
@@ -79001,8 +78992,8 @@
       },
       {
         "tMin": 150,
-        "lnSD": 1.501,
-        "lnMean": 4.037,
+        "lnSD": 0.062,
+        "lnMean": 3.441,
         "n": 6
       },
       {

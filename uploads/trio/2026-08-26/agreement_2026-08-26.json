@@ -3,9 +3,9 @@
   "tolBpm": 15,
   "quality": {
     "tolBpm": 3,
-    "flagged": 7,
+    "flagged": 5,
     "compared": 105,
-    "flaggedPct": 6.7
+    "flaggedPct": 4.8
   },
   "nodes": [
     "PpgDex",
@@ -13,7 +13,7 @@
     "OxyDex"
   ],
   "compared": 105,
-  "adjudicable": 105,
+  "adjudicable": 104,
   "droppedFragments": 0,
   "flagged": 0,
   "flaggedPct": 0,

@@ -9,7 +9,7 @@
     "node": "ECGDex",
     "nodeVersion": "1.0",
     "bus": "ganglior",
-    "generated": "2026-09-22T22:35:48.118Z",
+    "generated": "2026-09-28T17:50:52.661Z",
     "provenance": null,
     "doc": "ECGDex beat-derived events → Ganglior bus. tMs = floating wall-clock ms (UTC getters). null = unknown, never fabricated.",
     "scrubbed": true
@@ -21,7 +21,7 @@
     "durSec": 24285.93427599576,
     "endEpochMs": 1789359640005,
     "offsetMin": null,
-    "events": 109,
+    "events": 110,
     "hostAxis": {
       "applied": true,
       "anchors": 6314,
@@ -1054,6 +1054,15 @@
       }
     },
     {
+      "t": "02:05:54",
+      "tMs": 1789351554427,
+      "impulse": "stage_deep",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
+    },
+    {
       "t": "02:09:19",
       "tMs": 1789351759427,
       "impulse": "autonomic_surge",
@@ -1836,7 +1845,7 @@
       "sdnn": 51.9,
       "rmssd": 31.6,
       "pnn50": 9.9,
-      "sdnnIndex": 56.9,
+      "sdnnIndex": 56.8,
       "wholeRecordHR": 55.4,
       "wholeRecordSDNN": 73.1,
       "wholeRecordRMSSD": 32.4,
@@ -1855,7 +1864,7 @@
       "lfhf": 1.933,
       "window": "epochMedian5min",
       "method": "Lomb–Scargle",
-      "respRate": 15.8,
+      "respRate": 15.6,
       "respRateMethod": "RSA (HF-peak of RR spectrum)",
       "respFromEDR": 10.3,
       "couplingGridGapCells": 673,
@@ -2397,16 +2406,16 @@
         "tMin": 155,
         "hr": 54.7,
         "rmssd": 32.5,
-        "sdnn": 80.9,
-        "vlf": 5325,
-        "lf": 641,
-        "hf": 465,
-        "totalPower": 6431,
-        "lfhf": 1.38,
-        "resp": 16.5,
+        "sdnn": 79.8,
+        "vlf": 5017,
+        "lf": 663,
+        "hf": 529,
+        "totalPower": 6209,
+        "lfhf": 1.253,
+        "resp": 11.6,
         "hrStat": "rate-of-mean",
         "sqi": 0.837,
-        "beats": 269,
+        "beats": 267,
         "motionIndex": 0,
         "position": "supine"
       },
@@ -2600,17 +2609,17 @@
       {
         "tMin": 215,
         "hr": 57,
-        "rmssd": 37.4,
-        "sdnn": 56.1,
-        "vlf": 1184,
-        "lf": 1018,
-        "hf": 609,
-        "totalPower": 2811,
-        "lfhf": 1.67,
+        "rmssd": 37.1,
+        "sdnn": 55.3,
+        "vlf": 1146,
+        "lf": 996,
+        "hf": 577,
+        "totalPower": 2719,
+        "lfhf": 1.725,
         "resp": 13.7,
         "hrStat": "rate-of-mean",
-        "sqi": 0.841,
-        "beats": 221,
+        "sqi": 0.842,
+        "beats": 219,
         "motionIndex": 39.9,
         "position": "supine"
       },
@@ -2786,18 +2795,18 @@
       },
       {
         "tMin": 270,
-        "hr": 55.5,
-        "rmssd": 82.2,
-        "sdnn": 106.6,
-        "vlf": 2518,
-        "lf": 4601,
-        "hf": 2832,
-        "totalPower": 9951,
-        "lfhf": 1.625,
-        "resp": 10.5,
+        "hr": 55.4,
+        "rmssd": 64.8,
+        "sdnn": 104.6,
+        "vlf": 2577,
+        "lf": 4381,
+        "hf": 2644,
+        "totalPower": 9602,
+        "lfhf": 1.657,
+        "resp": 9,
         "hrStat": "rate-of-mean",
-        "sqi": 0.794,
-        "beats": 256,
+        "sqi": 0.798,
+        "beats": 254,
         "motionIndex": 13,
         "position": "supine"
       },
@@ -2854,18 +2863,18 @@
       },
       {
         "tMin": 290,
-        "hr": 60.3,
-        "rmssd": 42.7,
-        "sdnn": 85.6,
-        "vlf": 3270,
-        "lf": 2290,
-        "hf": 833,
-        "totalPower": 6393,
-        "lfhf": 2.75,
+        "hr": 60.2,
+        "rmssd": 41.1,
+        "sdnn": 84.8,
+        "vlf": 3196,
+        "lf": 2197,
+        "hf": 802,
+        "totalPower": 6195,
+        "lfhf": 2.741,
         "resp": 9.3,
         "hrStat": "rate-of-mean",
-        "sqi": 0.863,
-        "beats": 203,
+        "sqi": 0.864,
+        "beats": 198,
         "motionIndex": 100,
         "position": "supine"
       },
@@ -3463,7 +3472,7 @@
       },
       {
         "tMin": 270,
-        "stage": "Light"
+        "stage": "Deep"
       },
       {
         "tMin": 275,
@@ -92176,8 +92185,8 @@
     "stageMinutes": {
       "Wake": 55,
       "REM": 30,
-      "Light": 290,
-      "Deep": 30
+      "Light": 285,
+      "Deep": 35
     }
   },
   "apnea": {
@@ -92198,9 +92207,9 @@
     "cvhrHours": 6.75
   },
   "hrvStability": {
-    "sigma_lnRMSSD_slope": 0.0018,
-    "var_lnRMSSD_slope": 0.002,
-    "mean_lnRMSSD_slope": 0.0411,
+    "sigma_lnRMSSD_slope": -0.0002,
+    "var_lnRMSSD_slope": 0.0006,
+    "mean_lnRMSSD_slope": 0.0401,
     "classification": "Flat — no clear nocturnal trend",
     "windows": 14,
     "ref": "Li & Kiyono 2026 Sensors 26(4):1118 [CC BY 4.0]",
@@ -92250,8 +92259,8 @@
       },
       {
         "tMin": 210,
-        "lnSD": 0.109,
-        "lnMean": 3.527,
+        "lnSD": 0.108,
+        "lnMean": 3.526,
         "n": 6
       },
       {
@@ -92262,8 +92271,8 @@
       },
       {
         "tMin": 270,
-        "lnSD": 0.401,
-        "lnMean": 3.643,
+        "lnSD": 0.309,
+        "lnMean": 3.597,
         "n": 6
       },
       {

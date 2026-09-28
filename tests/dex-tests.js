@@ -14538,6 +14538,166 @@
        a delegation-parity leg asserts every page actually ROUTES through the tested module (so a future
        edit can't quietly re-inline a divergent private copy). Node-lane only — env.AnalysisStats is loaded
        by run-tests.mjs; the browser suite doesn't co-load it, so this SKIPs there (like docs/release-ledger). */
+    /* ════ PAT worker — AN ABSENT QUANTITY SAYS WHY, AND SAYS IT ONCE ════════════════════════════
+       Three PAT quantities left `coupledPAT` / `packCp` as a bare `NaN` whenever they could not be
+       measured: the beat-to-beat residual IQR, the drift range, and the drift rate. `JSON.stringify`
+       turns each into `null` in the batch download and the page turns each into an em-dash, so a
+       reader got "absent" and never "why" — §∅'s second half (a NAMED reason, never a borrowed one)
+       unmet at the export layer while the first half was already correct.
+
+       ⚠️ THE WORKER'S OWN FUNCTIONS ARE EXECUTED HERE, and the reconstructed-realm rig is not new to
+       this file — `PAT worker — both legs EXECUTE at sub-sample positions` already drives it the same
+       way. What is worth stating is the LINE the rig draws, because the worker's own comment ("a
+       worker's top-level functions can only ever be SOURCE-SCANNED by the suite, never executed") is
+       what sent `pat-align.js` and `analysis-stats.js` out of the file: the claim holds for `packCp`,
+       which is declared INSIDE `self.onmessage` and cannot be reached, and fails for anything at the
+       top level. So the rate was lifted to the top level (`driftPpmWithReason`) for exactly the reason
+       those two modules were extracted — a mechanism that cannot be executed cannot carry the planted
+       known-answer it needs — and it did not have to leave the file to get one.
+
+       THE PLANT AND THE CONTROL ARE THE SAME GENERATOR AT TWO BEAT SPACINGS, which is what makes the
+       pair evidence rather than two unrelated fixtures. Lags alternate 210/640 ms — both inside the
+       PHYS window, so both PAIR. At a 20 s spacing each ±30 s local window holds three beats, the
+       median is the OTHER value, every |residual| is 430 ms > `LAG_TOL_MS` (90) and nothing survives:
+       zero residuals, zero bins, both quantities genuinely unmeasurable. At 31 s the windows hold one
+       beat each, every residual is 0 and both quantities publish. One knob, opposite outcomes. */
+    group('PAT worker — an unmeasurable PAT quantity carries its own reason, and the download ships it (§∅)', 'pat-feasibility-worker · worker · realm · §∅ · known-answer', function (T) {
+      var wsrc = (env.sources && env.sources['pat-feasibility-worker.js']) || '';
+      var psrc = (env.sources && env.sources['pat-feasibility.js']) || '';
+      T.ok('the worker + renderer sources are readable in this lane', !!wsrc && !!psrc, 'worker=' + wsrc.length + 'B renderer=' + psrc.length + 'B — add them to readSources() if 0');
+      if (!wsrc || !psrc) return;
+
+      var selfStub = { postMessage: function () {} },
+        evalErr = '';
+      try {
+        new Function('self', 'importScripts', 'XMLHttpRequest', 'performance', 'navigator', wsrc + '\n; self.__coupledPAT = coupledPAT; self.__driftPpmWithReason = driftPpmWithReason;')(
+          selfStub,
+          function () {},
+          function () {},
+          {
+            now: function () {
+              return 0;
+            }
+          },
+          { hardwareConcurrency: 4 }
+        );
+      } catch (e) {
+        evalErr = e.constructor.name + ': ' + e.message;
+      }
+      T.ok('the worker SOURCE evaluates in a reconstructed realm', !evalErr, evalErr);
+      if (evalErr) return;
+      var coupledPAT = selfStub.__coupledPAT,
+        driftPpmWithReason = selfStub.__driftPpmWithReason;
+      T.ok(
+        'both top-level mechanisms came out of the realm',
+        typeof coupledPAT === 'function' && typeof driftPpmWithReason === 'function',
+        'coupledPAT=' + typeof coupledPAT + ' driftPpmWithReason=' + typeof driftPpmWithReason
+      );
+      if (typeof coupledPAT !== 'function' || typeof driftPpmWithReason !== 'function') return;
+
+      var night = function (gapMs) {
+        var r = [],
+          f = [];
+        for (var i = 0; i < 40; i++) {
+          r.push(i * gapMs);
+          f.push(i * gapMs + (i % 2 ? 210 : 640));
+        }
+        return coupledPAT(r, f);
+      };
+      var plant = night(20000),
+        control = night(31000);
+
+      /* ── ANTI-VACUITY FIRST. Both nights must clear the `lags.length < 20` refusal, or the assertions
+         below would be comparing two objects that never reached the code under test. */
+      T.ok('ANTI-VACUITY · both nights couple far enough to be packed at all', plant.ok === true && control.ok === true, 'plant.ok=' + plant.ok + ' control.ok=' + control.ok);
+      T.eq(
+        'ANTI-VACUITY · the plant night really took the unmeasurable arm',
+        plant.nCoupled,
+        0,
+        'nCoupled=' + plant.nCoupled + ' — the 430 ms residuals were supposed to exceed LAG_TOL_MS and leave nothing'
+      );
+      T.ok('ANTI-VACUITY · …and the control night did not', control.nCoupled > 0 && (control.binMed || []).length > 0, 'nCoupled=' + control.nCoupled + ' bins=' + (control.binMed || []).length);
+
+      // ── PLANT · the two coupledPAT quantities are absent AND say why ─────────────────────────────
+      T.ok('the beat-to-beat IQR is absent on the plant night', !isFinite(plant.residIQR), 'residIQR=' + plant.residIQR);
+      T.ok(
+        '…and names the quantity it could not measure and the bound it missed',
+        /not measurable/.test(plant.residIQRReason || '') && /\(< 1\)/.test(plant.residIQRReason || ''),
+        plant.residIQRReason
+      );
+      T.ok('the drift RANGE is absent on the plant night', !isFinite(plant.driftRange), 'driftRange=' + plant.driftRange);
+      T.ok(
+        '…and names its own bound rather than borrowing the IQR sentence',
+        /bin medians \(< 1\)/.test(plant.driftRangeReason || '') && plant.driftRangeReason !== plant.residIQRReason,
+        plant.driftRangeReason
+      );
+
+      /* ── CONTROL · SHAPE IS OUTCOME-INDEPENDENT ───────────────────────────────────────────────────
+         The keys are PRESENT and null when the number publishes — never absent, never ''. The repo has
+         paid for the other shape once already (a key whose PRESENCE came to mean "a fit happened";
+         §∅ — absence is null, not absent), and a reason field that only EXISTS on failure is that same
+         defect wearing the opposite sign. */
+      T.ok('the control night publishes both numbers', isFinite(control.residIQR) && isFinite(control.driftRange), 'residIQR=' + control.residIQR + ' driftRange=' + control.driftRange);
+      T.ok(
+        '…and both reason keys are PRESENT and null — not absent, not empty strings',
+        'residIQRReason' in control && control.residIQRReason === null && 'driftRangeReason' in control && control.driftRangeReason === null,
+        JSON.stringify({ hasIQR: 'residIQRReason' in control, iqr: control.residIQRReason, hasDrift: 'driftRangeReason' in control, drift: control.driftRangeReason })
+      );
+
+      // ── THE RATE · two ways to be absent, two different sentences ────────────────────────────────
+      var rClean = driftPpmWithReason(100, 300),
+        rNoSpan = driftPpmWithReason(100, 0),
+        rNoNum = driftPpmWithReason(NaN, 300);
+      T.ok('a measurable rate publishes a number and a null reason', isFinite(rClean.ppm) && rClean.reason === null, JSON.stringify(rClean));
+      T.ok('zero overlap refuses the rate and says so in minutes', !isFinite(rNoSpan.ppm) && /not measurable/.test(rNoSpan.reason || '') && /min of/.test(rNoSpan.reason || ''), rNoSpan.reason);
+      T.ok('an absent drift RANGE refuses the rate with a DIFFERENT sentence', !isFinite(rNoNum.ppm) && /not measurable/.test(rNoNum.reason || '') && rNoNum.reason !== rNoSpan.reason, rNoNum.reason);
+
+      /* ── THE DOWNLOAD SHAPE, ROUND-TRIPPED ────────────────────────────────────────────────────────
+         `+(+NaN).toFixed(1)` is NaN and `JSON.stringify` writes NaN as `null`, which is why the batch
+         file already said "absent" correctly and why this fix is a SIBLING rather than a rename. What
+         is asserted here is that the null and its sentence survive the same round-trip TOGETHER, so no
+         reader of the file can reach a 0 where a refusal happened. */
+      var row = JSON.parse(
+        JSON.stringify({
+          beatToBeatIQRms: +(+plant.residIQR).toFixed(1),
+          beatToBeatIQRmsReason: plant.residIQRReason || null,
+          driftRangeMs: +(+plant.driftRange).toFixed(1),
+          driftRangeMsReason: plant.driftRangeReason || null,
+          driftPpm: +(+rNoSpan.ppm).toFixed(1),
+          driftPpmReason: rNoSpan.reason || null
+        })
+      );
+      T.eq('round-tripped · the three numbers are null, never 0', JSON.stringify([row.beatToBeatIQRms, row.driftRangeMs, row.driftPpm]), '[null,null,null]', JSON.stringify(row));
+      T.ok(
+        'round-tripped · each null still has its own sentence beside it',
+        typeof row.beatToBeatIQRmsReason === 'string' && typeof row.driftRangeMsReason === 'string' && typeof row.driftPpmReason === 'string',
+        JSON.stringify(row)
+      );
+      T.eq(
+        'round-tripped · the three sentences are three DIFFERENT sentences',
+        [row.beatToBeatIQRmsReason, row.driftRangeMsReason, row.driftPpmReason].filter(function (v, i, a) {
+          return a.indexOf(v) === i;
+        }).length,
+        3,
+        JSON.stringify(row)
+      );
+
+      /* ── …AND THE SAME SENTENCE REACHES THE PAGE ──────────────────────────────────────────────────
+         Source-scanned, and said so: the renderer builds DOM and this lane cannot execute it. What the
+         scan establishes is that the card's sub-line — the slot that used to hold a static caption for
+         a number that is not there — now reads the worker's key, so page and download cannot drift into
+         two different explanations of one absence. The sentence itself is asserted ABOVE, by execution. */
+      ['residIQRReason', 'driftRangeReason', 'ppmReason'].forEach(function (k) {
+        var hits = (psrc.match(new RegExp('\\.' + k + '\\b', 'g')) || []).length;
+        T.ok('the renderer reads `' + k + '` — page and download share one source', hits > 0, hits + ' read(s) of `.' + k + '` in pat-feasibility.js');
+      });
+      T.ok(
+        'the drift card puts `ppmReason` in the sub-line the em-dash left empty',
+        /escHtml\(cp\.ppmReason/.test(psrc),
+        /escHtml\(cp\.ppmReason/.test(psrc) ? 'rendered into the card sub-line' : 'the rate refusal is computed but never rendered — the page would still show `— ms` with nothing under it'
+      );
+    });
+
     /* ════ PAT classic vs fused — the weighted statistic, and the band on a clean night ═══════════
        The mechanism behind the "PAT — classic vs fused" page. It lives in `analysis-stats.js` rather than
        in `pat-feasibility-worker.js` so that THIS group can execute it: a worker's top-level functions can

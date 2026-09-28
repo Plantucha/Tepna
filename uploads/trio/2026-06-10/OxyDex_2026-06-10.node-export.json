@@ -9,7 +9,7 @@
     "node": "OxyDex",
     "nodeVersion": "1.0",
     "multiNight": false,
-    "generated": "2026-09-22T21:49:31.800Z",
+    "generated": "2026-09-28T16:41:12.205Z",
     "provenance": null,
     "doc": "OxyDex single-night SpO₂/oximetry summary computed headless from a SignalFrame(spo2). Emits ganglior_events[] (desat_event from desatProfile + periodic_breathing from oscillation episodes); OxyDex infers respiration from an SpO₂ proxy, not airflow. tMs = floating wall-clock ms (UTC getters); null = unknown, never fabricated.",
     "scrubbed": true
@@ -51,7 +51,7 @@
       "meta": {
         "depth": 6,
         "duration": 22,
-        "recovery": 0,
+        "recovery": null,
         "nadir": 91,
         "onsetTMs": 1781127394000,
         "endTMs": 1781127416000
@@ -68,7 +68,7 @@
       "meta": {
         "depth": 4,
         "duration": 10,
-        "recovery": 0,
+        "recovery": null,
         "nadir": 93,
         "onsetTMs": 1781127486000,
         "endTMs": 1781127496000
@@ -52134,7 +52134,8 @@
       },
       "hypoxicBurden": {
         "total": 7.9,
-        "rate": 1.1
+        "rate": 1.1,
+        "measuredSec": 25557
       },
       "measurement": {
         "meanSpo2": {
@@ -52347,9 +52348,10 @@
         "auc90Rate": 0,
         "nadir": {
           "count": 7,
+          "recoveredCount": 5,
           "meanDepth": 5,
           "meanDuration": 51,
-          "meanRecovery": 14
+          "meanRecovery": 20
         },
         "events": [
           {
@@ -52372,12 +52374,12 @@
           {
             "depth": 6,
             "duration": 22,
-            "recovery": 0,
+            "recovery": null,
             "startIdx": 1067,
             "nadirIdx": 1076,
             "endIdx": 1089,
             "nadir": 91,
-            "recoverySlope": 0,
+            "recoverySlope": null,
             "onset": 1067,
             "artifact": false,
             "fallRate": 1,
@@ -52389,12 +52391,12 @@
           {
             "depth": 4,
             "duration": 10,
-            "recovery": 0,
+            "recovery": null,
             "startIdx": 1159,
             "nadirIdx": 1159,
             "endIdx": 1169,
             "nadir": 93,
-            "recoverySlope": 0,
+            "recoverySlope": null,
             "onset": 1159,
             "artifact": false,
             "fallRate": 1,
@@ -52493,12 +52495,12 @@
           {
             "depth": 6,
             "duration": 22,
-            "recovery": 0,
+            "recovery": null,
             "startIdx": 1067,
             "nadirIdx": 1076,
             "endIdx": 1089,
             "nadir": 91,
-            "recoverySlope": 0,
+            "recoverySlope": null,
             "onset": 1067,
             "artifact": false,
             "fallRate": 1,
@@ -52510,12 +52512,12 @@
           {
             "depth": 4,
             "duration": 10,
-            "recovery": 0,
+            "recovery": null,
             "startIdx": 1159,
             "nadirIdx": 1159,
             "endIdx": 1169,
             "nadir": 93,
-            "recoverySlope": 0,
+            "recoverySlope": null,
             "onset": 1159,
             "artifact": false,
             "fallRate": 1,
@@ -52633,7 +52635,8 @@
       "composite": {
         "couplingScore": 0,
         "sfi": 0,
-        "nsi": 25
+        "nsi": 25,
+        "nsiComponents": 4
       },
       "sbii": {
         "sbii": 24.966,
@@ -52997,6 +53000,17 @@
             }
           ],
           "readiness": 54,
+          "readinessBasis": {
+            "scored": [
+              "rmssd",
+              "spo2",
+              "sleep",
+              "hrFloor",
+              "hrSlope"
+            ],
+            "weightPresent": 100,
+            "weightTotal": 100
+          },
           "readinessTier": "Low",
           "readinessColor": "warn",
           "recZones": [
@@ -53034,43 +53048,53 @@
         "tIdx": {
           "80": {
             "secs": 0,
-            "pct": 0
+            "pct": 0,
+            "measured": 25557
           },
           "85": {
             "secs": 0,
-            "pct": 0
+            "pct": 0,
+            "measured": 25557
           },
           "88": {
             "secs": 0,
-            "pct": 0
+            "pct": 0,
+            "measured": 25557
           },
           "89": {
             "secs": 0,
-            "pct": 0
+            "pct": 0,
+            "measured": 25557
           },
           "90": {
             "secs": 0,
-            "pct": 0
+            "pct": 0,
+            "measured": 25557
           },
           "91": {
             "secs": 0,
-            "pct": 0
+            "pct": 0,
+            "measured": 25557
           },
           "92": {
             "secs": 47,
-            "pct": 0.18
+            "pct": 0.18,
+            "measured": 25557
           },
           "93": {
             "secs": 135,
-            "pct": 0.53
+            "pct": 0.53,
+            "measured": 25557
           },
           "94": {
             "secs": 294,
-            "pct": 1.15
+            "pct": 1.15,
+            "measured": 25557
           },
           "95": {
             "secs": 752,
-            "pct": 2.94
+            "pct": 2.94,
+            "measured": 25557
           }
         },
         "period": null,

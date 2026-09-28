@@ -9,7 +9,7 @@
     "node": "ECGDex",
     "nodeVersion": "1.0",
     "bus": "ganglior",
-    "generated": "2026-09-22T22:03:17.578Z",
+    "generated": "2026-09-28T17:03:33.608Z",
     "provenance": null,
     "doc": "ECGDex beat-derived events → Ganglior bus. tMs = floating wall-clock ms (UTC getters). null = unknown, never fabricated.",
     "scrubbed": true
@@ -21,7 +21,7 @@
     "durSec": 26061.446503532607,
     "endEpochMs": null,
     "offsetMin": null,
-    "events": 104,
+    "events": 97,
     "timingSource": "device+host",
     "deviceEpoch": {
       "offsetMs": -238626634579,
@@ -412,15 +412,6 @@
       }
     },
     {
-      "t": "21:20:39",
-      "tMs": 1784928039628,
-      "impulse": "stage_light",
-      "node": "ECGDex",
-      "conf": 0.7,
-      "sqi": null,
-      "meta": {}
-    },
-    {
       "t": "21:20:40",
       "tMs": 1784928040628,
       "impulse": "autonomic_surge",
@@ -436,15 +427,6 @@
         "osaConf": null,
         "deltaSBP": null
       }
-    },
-    {
-      "t": "21:30:39",
-      "tMs": 1784928639628,
-      "impulse": "stage_wake",
-      "node": "ECGDex",
-      "conf": 0.7,
-      "sqi": null,
-      "meta": {}
     },
     {
       "t": "21:35:06",
@@ -515,15 +497,6 @@
         ],
         "site": "chest"
       }
-    },
-    {
-      "t": "21:40:39",
-      "tMs": 1784929239628,
-      "impulse": "stage_light",
-      "node": "ECGDex",
-      "conf": 0.7,
-      "sqi": null,
-      "meta": {}
     },
     {
       "t": "21:41:00",
@@ -599,6 +572,15 @@
       }
     },
     {
+      "t": "21:45:39",
+      "tMs": 1784929539628,
+      "impulse": "stage_light",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
+    },
+    {
       "t": "21:50:43",
       "tMs": 1784929843628,
       "impulse": "autonomic_surge",
@@ -647,24 +629,6 @@
       }
     },
     {
-      "t": "22:05:39",
-      "tMs": 1784930739628,
-      "impulse": "stage_deep",
-      "node": "ECGDex",
-      "conf": 0.7,
-      "sqi": null,
-      "meta": {}
-    },
-    {
-      "t": "22:10:39",
-      "tMs": 1784931039628,
-      "impulse": "stage_light",
-      "node": "ECGDex",
-      "conf": 0.7,
-      "sqi": null,
-      "meta": {}
-    },
-    {
       "t": "22:25:39",
       "tMs": 1784931939628,
       "impulse": "stage_deep",
@@ -676,24 +640,6 @@
     {
       "t": "22:35:39",
       "tMs": 1784932539628,
-      "impulse": "stage_light",
-      "node": "ECGDex",
-      "conf": 0.7,
-      "sqi": null,
-      "meta": {}
-    },
-    {
-      "t": "22:50:39",
-      "tMs": 1784933439628,
-      "impulse": "stage_rem",
-      "node": "ECGDex",
-      "conf": 0.7,
-      "sqi": null,
-      "meta": {}
-    },
-    {
-      "t": "22:55:39",
-      "tMs": 1784933739628,
       "impulse": "stage_light",
       "node": "ECGDex",
       "conf": 0.7,
@@ -829,8 +775,8 @@
       }
     },
     {
-      "t": "00:10:39",
-      "tMs": 1784938239628,
+      "t": "00:20:39",
+      "tMs": 1784938839628,
       "impulse": "stage_deep",
       "node": "ECGDex",
       "conf": 0.7,
@@ -838,8 +784,8 @@
       "meta": {}
     },
     {
-      "t": "00:20:39",
-      "tMs": 1784938839628,
+      "t": "00:25:39",
+      "tMs": 1784939139628,
       "impulse": "stage_light",
       "node": "ECGDex",
       "conf": 0.7,
@@ -879,6 +825,24 @@
         "osaConf": null,
         "deltaSBP": null
       }
+    },
+    {
+      "t": "00:35:39",
+      "tMs": 1784939739628,
+      "impulse": "stage_deep",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
+    },
+    {
+      "t": "00:40:39",
+      "tMs": 1784940039628,
+      "impulse": "stage_light",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
     },
     {
       "t": "00:50:39",
@@ -1011,24 +975,6 @@
         "osaConf": null,
         "deltaSBP": null
       }
-    },
-    {
-      "t": "01:25:39",
-      "tMs": 1784942739628,
-      "impulse": "stage_deep",
-      "node": "ECGDex",
-      "conf": 0.7,
-      "sqi": null,
-      "meta": {}
-    },
-    {
-      "t": "01:30:39",
-      "tMs": 1784943039628,
-      "impulse": "stage_light",
-      "node": "ECGDex",
-      "conf": 0.7,
-      "sqi": null,
-      "meta": {}
     },
     {
       "t": "01:39:41",
@@ -1334,6 +1280,15 @@
       }
     },
     {
+      "t": "03:55:39",
+      "tMs": 1784951739628,
+      "impulse": "stage_deep",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
+    },
+    {
       "t": "04:03:13",
       "tMs": 1784952193628,
       "impulse": "autonomic_surge",
@@ -1382,18 +1337,9 @@
       }
     },
     {
-      "t": "04:05:39",
-      "tMs": 1784952339628,
-      "impulse": "stage_deep",
-      "node": "ECGDex",
-      "conf": 0.7,
-      "sqi": null,
-      "meta": {}
-    },
-    {
       "t": "04:10:39",
       "tMs": 1784952639628,
-      "impulse": "stage_light",
+      "impulse": "stage_wake",
       "node": "ECGDex",
       "conf": 0.7,
       "sqi": null,
@@ -1480,15 +1426,6 @@
         "osaConf": null,
         "deltaSBP": null
       }
-    },
-    {
-      "t": "04:15:39",
-      "tMs": 1784952939628,
-      "impulse": "stage_wake",
-      "node": "ECGDex",
-      "conf": 0.7,
-      "sqi": null,
-      "meta": {}
     },
     {
       "t": "04:18:06",
@@ -1649,12 +1586,12 @@
   },
   "hrv": {
     "time": {
-      "hr": 48.4,
+      "hr": 48.7,
       "meanRR": 1215.6,
-      "sdnn": 52.2,
-      "rmssd": 40.3,
-      "pnn50": 19,
-      "sdnnIndex": 2108.7,
+      "sdnn": 50.3,
+      "rmssd": 39.8,
+      "pnn50": 18.3,
+      "sdnnIndex": 64.4,
       "wholeRecordHR": 49.4,
       "wholeRecordSDNN": 107.6,
       "wholeRecordRMSSD": 40.5,
@@ -1666,11 +1603,11 @@
       "windowNote": "sdnn/rmssd/pnn50 here are DISPLAY values = representative 5-min epoch median on overnight recordings (short recs: whole-record). For CROSS-NODE comparison use wholeRecordSDNN/wholeRecordRMSSD."
     },
     "frequency": {
-      "vlf": 1159,
-      "lf": 798,
-      "hf": 466,
-      "totalPower": 2423,
-      "lfhf": 1.558,
+      "vlf": 1090,
+      "lf": 759,
+      "hf": 458,
+      "totalPower": 2307,
+      "lfhf": 1.776,
       "window": "epochMedian5min",
       "method": "Lomb–Scargle",
       "respRate": 14.7,
@@ -1686,52 +1623,52 @@
     "epochs": [
       {
         "tMin": 0,
-        "hr": 43.4,
-        "rmssd": 5051.8,
-        "sdnn": 3569.5,
-        "vlf": 1235934,
-        "lf": 3439410,
-        "hf": 7764689,
-        "totalPower": 12440033,
-        "lfhf": 0.443,
-        "resp": 11,
+        "hr": 53.3,
+        "rmssd": 63.4,
+        "sdnn": 135.3,
+        "vlf": 6698,
+        "lf": 5006,
+        "hf": 2127,
+        "totalPower": 13831,
+        "lfhf": 2.353,
+        "resp": 10.7,
         "hrStat": "rate-of-mean",
         "sqi": 0.782,
-        "beats": 194,
+        "beats": 192,
         "motionIndex": 100,
         "position": "supine"
       },
       {
         "tMin": 5,
-        "hr": 56.7,
-        "rmssd": 52.2,
-        "sdnn": 117.3,
-        "vlf": 8750,
-        "lf": 3077,
-        "hf": 787,
-        "totalPower": 12614,
-        "lfhf": 3.908,
-        "resp": 10.4,
+        "hr": 56.6,
+        "rmssd": 52.1,
+        "sdnn": 117,
+        "vlf": 8708,
+        "lf": 3122,
+        "hf": 775,
+        "totalPower": 12605,
+        "lfhf": 4.029,
+        "resp": 11.4,
         "hrStat": "rate-of-mean",
         "sqi": 0.837,
-        "beats": 252,
+        "beats": 251,
         "motionIndex": 100,
         "position": "supine"
       },
       {
         "tMin": 10,
         "hr": 55,
-        "rmssd": 48.7,
-        "sdnn": 65.6,
-        "vlf": 1679,
-        "lf": 1682,
-        "hf": 762,
-        "totalPower": 4123,
-        "lfhf": 2.206,
-        "resp": 9,
+        "rmssd": 49.6,
+        "sdnn": 66,
+        "vlf": 1690,
+        "lf": 1717,
+        "hf": 774,
+        "totalPower": 4181,
+        "lfhf": 2.219,
+        "resp": 20.4,
         "hrStat": "rate-of-mean",
         "sqi": 0.811,
-        "beats": 153,
+        "beats": 150,
         "motionIndex": 0,
         "position": "lateral"
       },
@@ -1771,18 +1708,18 @@
       },
       {
         "tMin": 25,
-        "hr": 37.1,
-        "rmssd": 12700.8,
-        "sdnn": 8953.3,
-        "vlf": 8058478,
-        "lf": 21642601,
-        "hf": 49296357,
-        "totalPower": 78997436,
-        "lfhf": 0.439,
-        "resp": 13.4,
+        "hr": 64.1,
+        "rmssd": 39.2,
+        "sdnn": 44.6,
+        "vlf": 723,
+        "lf": 744,
+        "hf": 337,
+        "totalPower": 1804,
+        "lfhf": 2.21,
+        "resp": 14.7,
         "hrStat": "rate-of-mean",
-        "sqi": 0.82,
-        "beats": 172,
+        "sqi": 0.822,
+        "beats": 169,
         "motionIndex": 100,
         "position": "lateral"
       },
@@ -1873,18 +1810,18 @@
       },
       {
         "tMin": 55,
-        "hr": 36.8,
-        "rmssd": 6465.6,
-        "sdnn": 4557.6,
-        "vlf": 2025746,
-        "lf": 5628718,
-        "hf": 12845889,
-        "totalPower": 20500353,
-        "lfhf": 0.438,
-        "resp": 23.6,
+        "hr": 46.4,
+        "rmssd": 44,
+        "sdnn": 38.4,
+        "vlf": 206,
+        "lf": 484,
+        "hf": 605,
+        "totalPower": 1295,
+        "lfhf": 0.799,
+        "resp": 14.7,
         "hrStat": "rate-of-mean",
-        "sqi": 0.837,
-        "beats": 184,
+        "sqi": 0.838,
+        "beats": 183,
         "motionIndex": 0,
         "position": "lateral"
       },
@@ -2298,35 +2235,35 @@
       },
       {
         "tMin": 180,
-        "hr": 27,
-        "rmssd": 8373.5,
-        "sdnn": 7942.6,
-        "vlf": 6971296,
-        "lf": 16805169,
-        "hf": 38057428,
-        "totalPower": 61833893,
-        "lfhf": 0.442,
-        "resp": 23.7,
+        "hr": 47.3,
+        "rmssd": 41.4,
+        "sdnn": 57.9,
+        "vlf": 1618,
+        "lf": 918,
+        "hf": 500,
+        "totalPower": 3036,
+        "lfhf": 1.834,
+        "resp": 16.8,
         "hrStat": "rate-of-mean",
-        "sqi": 0.823,
-        "beats": 132,
+        "sqi": 0.826,
+        "beats": 130,
         "motionIndex": 0,
         "position": "lateral"
       },
       {
         "tMin": 185,
-        "hr": 20.1,
-        "rmssd": 12839.6,
-        "sdnn": 9775.5,
-        "vlf": 6862961,
-        "lf": 22576484,
-        "hf": 54411127,
-        "totalPower": 83850572,
-        "lfhf": 0.415,
-        "resp": 14.7,
+        "hr": 46.2,
+        "rmssd": 42.9,
+        "sdnn": 74.5,
+        "vlf": 2297,
+        "lf": 1860,
+        "hf": 787,
+        "totalPower": 4944,
+        "lfhf": 2.364,
+        "resp": 13.8,
         "hrStat": "rate-of-mean",
-        "sqi": 0.811,
-        "beats": 103,
+        "sqi": 0.818,
+        "beats": 100,
         "motionIndex": 0,
         "position": "supine"
       },
@@ -2553,18 +2490,18 @@
       },
       {
         "tMin": 255,
-        "hr": 3,
-        "rmssd": 95313.5,
-        "sdnn": 93391.5,
-        "vlf": 595291083,
-        "lf": 2223762206,
-        "hf": 4563552176,
-        "totalPower": 7382605465,
-        "lfhf": 0.487,
-        "resp": 23.9,
+        "hr": 53.3,
+        "rmssd": 35.7,
+        "sdnn": 58.3,
+        "vlf": 88,
+        "lf": 2175,
+        "hf": 287,
+        "totalPower": 2550,
+        "lfhf": 7.571,
+        "resp": 10.2,
         "hrStat": "rate-of-mean",
-        "sqi": 0.82,
-        "beats": 25,
+        "sqi": 0.828,
+        "beats": 24,
         "motionIndex": null,
         "position": "lateral"
       },
@@ -3165,18 +3102,18 @@
       },
       {
         "tMin": 445,
-        "hr": 11.7,
-        "rmssd": 58506.5,
-        "sdnn": 58349.5,
-        "vlf": 319383161,
-        "lf": 926228450,
-        "hf": 2072993865,
-        "totalPower": 3318605476,
-        "lfhf": 0.447,
-        "resp": 9.3,
+        "hr": 65.3,
+        "rmssd": 37.9,
+        "sdnn": 93.7,
+        "vlf": 1582,
+        "lf": 2513,
+        "hf": 350,
+        "totalPower": 4445,
+        "lfhf": 7.185,
+        "resp": 13.5,
         "hrStat": "rate-of-mean",
-        "sqi": 0.84,
-        "beats": 192,
+        "sqi": 0.841,
+        "beats": 191,
         "motionIndex": 100,
         "position": "lateral"
       },
@@ -3217,17 +3154,17 @@
       {
         "tMin": 460,
         "hr": 51.1,
-        "rmssd": 39.7,
-        "sdnn": 49.4,
-        "vlf": 1423,
-        "lf": 537,
-        "hf": 361,
-        "totalPower": 2321,
-        "lfhf": 1.489,
+        "rmssd": 39.8,
+        "sdnn": 49.6,
+        "vlf": 1434,
+        "lf": 540,
+        "hf": 364,
+        "totalPower": 2338,
+        "lfhf": 1.484,
         "resp": 9.8,
         "hrStat": "rate-of-mean",
         "sqi": 0.842,
-        "beats": 123,
+        "beats": 122,
         "motionIndex": 100,
         "position": "prone"
       }
@@ -3243,11 +3180,11 @@
       },
       {
         "tMin": 10,
-        "stage": "Light"
+        "stage": "Wake"
       },
       {
         "tMin": 15,
-        "stage": "Light"
+        "stage": "Wake"
       },
       {
         "tMin": 20,
@@ -3259,7 +3196,7 @@
       },
       {
         "tMin": 30,
-        "stage": "Light"
+        "stage": "Wake"
       },
       {
         "tMin": 35,
@@ -3279,7 +3216,7 @@
       },
       {
         "tMin": 55,
-        "stage": "Deep"
+        "stage": "Light"
       },
       {
         "tMin": 60,
@@ -3315,7 +3252,7 @@
       },
       {
         "tMin": 100,
-        "stage": "REM"
+        "stage": "Light"
       },
       {
         "tMin": 105,
@@ -3379,15 +3316,15 @@
       },
       {
         "tMin": 180,
-        "stage": "Deep"
+        "stage": "Light"
       },
       {
         "tMin": 185,
-        "stage": "Deep"
+        "stage": "Light"
       },
       {
         "tMin": 190,
-        "stage": "Light"
+        "stage": "Deep"
       },
       {
         "tMin": 195,
@@ -3399,7 +3336,7 @@
       },
       {
         "tMin": 205,
-        "stage": "Light"
+        "stage": "Deep"
       },
       {
         "tMin": 210,
@@ -3439,7 +3376,7 @@
       },
       {
         "tMin": 255,
-        "stage": "Deep"
+        "stage": "Light"
       },
       {
         "tMin": 260,
@@ -3559,11 +3496,11 @@
       },
       {
         "tMin": 405,
-        "stage": "Light"
+        "stage": "Deep"
       },
       {
         "tMin": 410,
-        "stage": "Light"
+        "stage": "Deep"
       },
       {
         "tMin": 415,
@@ -3571,7 +3508,7 @@
       },
       {
         "tMin": 420,
-        "stage": "Light"
+        "stage": "Wake"
       },
       {
         "tMin": 425,
@@ -88256,11 +88193,11 @@
     }
   },
   "sleep": {
-    "totalSleepMin": 415,
+    "totalSleepMin": 395,
     "stageMinutes": {
-      "Wake": 50,
-      "REM": 35,
-      "Light": 335,
+      "Wake": 70,
+      "REM": 30,
+      "Light": 320,
       "Deep": 45
     }
   },
@@ -88282,24 +88219,24 @@
     "cvhrHours": 7.24
   },
   "hrvStability": {
-    "sigma_lnRMSSD_slope": -0.0701,
-    "var_lnRMSSD_slope": -0.0372,
-    "mean_lnRMSSD_slope": -0.0542,
-    "classification": "Stabilizing — progressive autonomic stabilization (favourable)",
+    "sigma_lnRMSSD_slope": 0.002,
+    "var_lnRMSSD_slope": -0.0003,
+    "mean_lnRMSSD_slope": -0.0056,
+    "classification": "Flat — no clear nocturnal trend",
     "windows": 16,
     "ref": "Li & Kiyono 2026 Sensors 26(4):1118 [CC BY 4.0]",
     "interpretation": "slope<0 stabilizing (favourable) · slope>0 rising instability (glycemic-risk signal)",
     "series": [
       {
         "tMin": 0,
-        "lnSD": 2.73,
-        "lnMean": 5.49,
+        "lnSD": 0.243,
+        "lnMean": 3.8,
         "n": 6
       },
       {
         "tMin": 30,
-        "lnSD": 2.048,
-        "lnMean": 4.595,
+        "lnSD": 0.048,
+        "lnMean": 3.763,
         "n": 6
       },
       {
@@ -88328,8 +88265,8 @@
       },
       {
         "tMin": 180,
-        "lnSD": 2.835,
-        "lnMean": 5.591,
+        "lnSD": 0.049,
+        "lnMean": 3.756,
         "n": 6
       },
       {
@@ -88340,8 +88277,8 @@
       },
       {
         "tMin": 240,
-        "lnSD": 3.228,
-        "lnMean": 4.881,
+        "lnSD": 0.135,
+        "lnMean": 3.566,
         "n": 6
       },
       {
@@ -88376,13 +88313,13 @@
       },
       {
         "tMin": 420,
-        "lnSD": 3.585,
-        "lnMean": 5.605,
+        "lnSD": 0.195,
+        "lnMean": 3.77,
         "n": 4
       },
       {
         "tMin": 450,
-        "lnSD": 0.138,
+        "lnSD": 0.139,
         "lnMean": 3.637,
         "n": 3
       }

@@ -9,7 +9,7 @@
     "node": "ECGDex",
     "nodeVersion": "1.0",
     "bus": "ganglior",
-    "generated": "2026-09-22T22:32:30.836Z",
+    "generated": "2026-09-28T17:45:33.266Z",
     "provenance": null,
     "doc": "ECGDex beat-derived events → Ganglior bus. tMs = floating wall-clock ms (UTC getters). null = unknown, never fabricated.",
     "scrubbed": true
@@ -2799,9 +2799,9 @@
       "hr": 64.7,
       "meanRR": 923.9,
       "sdnn": 43.2,
-      "rmssd": 27.1,
+      "rmssd": 27,
       "pnn50": 6.3,
-      "sdnnIndex": 48.5,
+      "sdnnIndex": 48.4,
       "wholeRecordHR": 64.9,
       "wholeRecordSDNN": 67,
       "wholeRecordRMSSD": 27.2,
@@ -3344,17 +3344,17 @@
       {
         "tMin": 150,
         "hr": 63.4,
-        "rmssd": 29.8,
-        "sdnn": 40.8,
-        "vlf": 840,
-        "lf": 338,
+        "rmssd": 29.9,
+        "sdnn": 40.9,
+        "vlf": 837,
+        "lf": 341,
         "hf": 270,
         "totalPower": 1448,
-        "lfhf": 1.252,
+        "lfhf": 1.263,
         "resp": 16.7,
         "hrStat": "rate-of-mean",
         "sqi": 0.834,
-        "beats": 264,
+        "beats": 263,
         "motionIndex": 0,
         "position": "supine"
       },
@@ -3565,17 +3565,17 @@
       {
         "tMin": 215,
         "hr": 65.2,
-        "rmssd": 30.1,
-        "sdnn": 77.6,
-        "vlf": 4898,
-        "lf": 592,
-        "hf": 410,
-        "totalPower": 5900,
-        "lfhf": 1.444,
+        "rmssd": 29.3,
+        "sdnn": 77.3,
+        "vlf": 4860,
+        "lf": 625,
+        "hf": 370,
+        "totalPower": 5855,
+        "lfhf": 1.687,
         "resp": 9.8,
         "hrStat": "rate-of-mean",
         "sqi": 0.822,
-        "beats": 317,
+        "beats": 314,
         "motionIndex": 77.5,
         "position": "supine"
       },
@@ -3904,18 +3904,18 @@
       },
       {
         "tMin": 315,
-        "hr": 77.2,
-        "rmssd": 28.8,
-        "sdnn": 63.3,
-        "vlf": 1187,
-        "lf": 648,
-        "hf": 163,
-        "totalPower": 1998,
-        "lfhf": 3.981,
+        "hr": 77,
+        "rmssd": 20,
+        "sdnn": 60.2,
+        "vlf": 1094,
+        "lf": 623,
+        "hf": 180,
+        "totalPower": 1897,
+        "lfhf": 3.458,
         "resp": 9.8,
         "hrStat": "rate-of-mean",
-        "sqi": 0.817,
-        "beats": 194,
+        "sqi": 0.818,
+        "beats": 193,
         "motionIndex": 90.2,
         "position": "supine"
       }
@@ -86494,10 +86494,10 @@
     "cvhrHours": 5.31
   },
   "hrvStability": {
-    "sigma_lnRMSSD_slope": 0.0144,
-    "var_lnRMSSD_slope": 0.0047,
-    "mean_lnRMSSD_slope": 0.0267,
-    "classification": "Flat — no clear nocturnal trend",
+    "sigma_lnRMSSD_slope": 0.0237,
+    "var_lnRMSSD_slope": 0.0083,
+    "mean_lnRMSSD_slope": 0.0183,
+    "classification": "Rising instability — persistent autonomic instability (glycemic-risk signal)",
     "windows": 11,
     "ref": "Li & Kiyono 2026 Sensors 26(4):1118 [CC BY 4.0]",
     "interpretation": "slope<0 stabilizing (favourable) · slope>0 rising instability (glycemic-risk signal)",
@@ -86534,8 +86534,8 @@
       },
       {
         "tMin": 150,
-        "lnSD": 0.088,
-        "lnMean": 3.298,
+        "lnSD": 0.089,
+        "lnMean": 3.299,
         "n": 6
       },
       {
@@ -86546,8 +86546,8 @@
       },
       {
         "tMin": 210,
-        "lnSD": 0.059,
-        "lnMean": 3.354,
+        "lnSD": 0.055,
+        "lnMean": 3.349,
         "n": 6
       },
       {
@@ -86564,8 +86564,8 @@
       },
       {
         "tMin": 300,
-        "lnSD": 0.137,
-        "lnMean": 3.384,
+        "lnSD": 0.241,
+        "lnMean": 3.293,
         "n": 4
       }
     ]

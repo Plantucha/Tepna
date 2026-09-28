@@ -9,7 +9,7 @@
     "node": "ECGDex",
     "nodeVersion": "1.0",
     "bus": "ganglior",
-    "generated": "2026-09-22T22:36:16.259Z",
+    "generated": "2026-09-28T17:53:07.233Z",
     "provenance": null,
     "doc": "ECGDex beat-derived events → Ganglior bus. tMs = floating wall-clock ms (UTC getters). null = unknown, never fabricated.",
     "scrubbed": true
@@ -1900,17 +1900,17 @@
       {
         "tMin": 230,
         "hr": 60.7,
-        "rmssd": 34.6,
-        "sdnn": 74.9,
-        "vlf": 2097,
-        "lf": 851,
-        "hf": 350,
-        "totalPower": 3298,
-        "lfhf": 2.43,
-        "resp": 16.1,
+        "rmssd": 34.8,
+        "sdnn": 74.1,
+        "vlf": 2046,
+        "lf": 881,
+        "hf": 368,
+        "totalPower": 3295,
+        "lfhf": 2.392,
+        "resp": 16.2,
         "hrStat": "rate-of-mean",
         "sqi": 0.886,
-        "beats": 256,
+        "beats": 254,
         "motionIndex": 61.6,
         "position": "supine"
       }
@@ -55825,9 +55825,9 @@
     "cvhrHours": 3.93
   },
   "hrvStability": {
-    "sigma_lnRMSSD_slope": -0.0231,
+    "sigma_lnRMSSD_slope": -0.0232,
     "var_lnRMSSD_slope": -0.0063,
-    "mean_lnRMSSD_slope": 0.0572,
+    "mean_lnRMSSD_slope": 0.0574,
     "classification": "Stabilizing — progressive autonomic stabilization (favourable)",
     "windows": 8,
     "ref": "Li & Kiyono 2026 Sensors 26(4):1118 [CC BY 4.0]",
@@ -55877,8 +55877,8 @@
       },
       {
         "tMin": 210,
-        "lnSD": 0.087,
-        "lnMean": 3.581,
+        "lnSD": 0.086,
+        "lnMean": 3.582,
         "n": 5
       }
     ]

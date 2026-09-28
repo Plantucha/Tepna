@@ -9,7 +9,7 @@
     "node": "ECGDex",
     "nodeVersion": "1.0",
     "bus": "ganglior",
-    "generated": "2026-09-22T22:20:50.937Z",
+    "generated": "2026-09-28T17:29:38.284Z",
     "provenance": null,
     "doc": "ECGDex beat-derived events → Ganglior bus. tMs = floating wall-clock ms (UTC getters). null = unknown, never fabricated.",
     "scrubbed": true
@@ -21,7 +21,7 @@
     "durSec": 22078.388003126085,
     "endEpochMs": 1787199991128,
     "offsetMin": null,
-    "events": 123,
+    "events": 121,
     "hostAxis": {
       "applied": true,
       "anchors": 5742,
@@ -345,15 +345,6 @@
       }
     },
     {
-      "t": "22:32:10",
-      "tMs": 1787178730493,
-      "impulse": "stage_deep",
-      "node": "ECGDex",
-      "conf": 0.7,
-      "sqi": null,
-      "meta": {}
-    },
-    {
       "t": "22:32:12",
       "tMs": 1787178732243,
       "impulse": "movement_onset",
@@ -408,15 +399,6 @@
         ],
         "site": "chest"
       }
-    },
-    {
-      "t": "22:37:10",
-      "tMs": 1787179030493,
-      "impulse": "stage_wake",
-      "node": "ECGDex",
-      "conf": 0.7,
-      "sqi": null,
-      "meta": {}
     },
     {
       "t": "22:37:31",
@@ -1934,10 +1916,10 @@
     "time": {
       "hr": 48.7,
       "meanRR": 1209.3,
-      "sdnn": 50.8,
+      "sdnn": 50.4,
       "rmssd": 35.6,
       "pnn50": 13.2,
-      "sdnnIndex": 135.9,
+      "sdnnIndex": 62.1,
       "wholeRecordHR": 49.6,
       "wholeRecordSDNN": 92.2,
       "wholeRecordRMSSD": 36.4,
@@ -1949,14 +1931,14 @@
       "windowNote": "sdnn/rmssd/pnn50 here are DISPLAY values = representative 5-min epoch median on overnight recordings (short recs: whole-record). For CROSS-NODE comparison use wholeRecordSDNN/wholeRecordRMSSD."
     },
     "frequency": {
-      "vlf": 1233,
+      "vlf": 1131,
       "lf": 759,
       "hf": 351,
-      "totalPower": 2343,
+      "totalPower": 2241,
       "lfhf": 1.897,
       "window": "epochMedian5min",
       "method": "Lomb–Scargle",
-      "respRate": 14.9,
+      "respRate": 14.8,
       "respRateMethod": "RSA (HF-peak of RR spectrum)",
       "respFromEDR": null,
       "respFromEDRReason": "no dominant EDR period in the 2.5–10 s search band — respiration not recoverable from R-peak amplitude on this record",
@@ -2021,18 +2003,18 @@
       },
       {
         "tMin": 15,
-        "hr": 39.1,
-        "rmssd": 5527.4,
-        "sdnn": 5512.3,
-        "vlf": 2967398,
-        "lf": 8164607,
-        "hf": 18504294,
-        "totalPower": 29636299,
-        "lfhf": 0.441,
-        "resp": 23,
+        "hr": 51.9,
+        "rmssd": 40.9,
+        "sdnn": 49.2,
+        "vlf": 843,
+        "lf": 850,
+        "hf": 685,
+        "totalPower": 2378,
+        "lfhf": 1.24,
+        "resp": 10.8,
         "hrStat": "rate-of-mean",
-        "sqi": 0.851,
-        "beats": 212,
+        "sqi": 0.852,
+        "beats": 211,
         "motionIndex": 18.8,
         "position": "supine"
       },
@@ -3242,7 +3224,7 @@
       },
       {
         "tMin": 15,
-        "stage": "Deep"
+        "stage": "Wake"
       },
       {
         "tMin": 20,
@@ -76599,12 +76581,12 @@
     }
   },
   "sleep": {
-    "totalSleepMin": 330,
+    "totalSleepMin": 325,
     "stageMinutes": {
-      "Wake": 40,
+      "Wake": 45,
       "REM": 40,
       "Light": 225,
-      "Deep": 65
+      "Deep": 60
     }
   },
   "apnea": {
@@ -76625,18 +76607,18 @@
     "cvhrHours": 6.13
   },
   "hrvStability": {
-    "sigma_lnRMSSD_slope": -0.1435,
-    "var_lnRMSSD_slope": -0.3118,
-    "mean_lnRMSSD_slope": -0.0707,
-    "classification": "Stabilizing — progressive autonomic stabilization (favourable)",
+    "sigma_lnRMSSD_slope": 0.0069,
+    "var_lnRMSSD_slope": 0.0016,
+    "mean_lnRMSSD_slope": -0.0078,
+    "classification": "Flat — no clear nocturnal trend",
     "windows": 12,
     "ref": "Li & Kiyono 2026 Sensors 26(4):1118 [CC BY 4.0]",
     "interpretation": "slope<0 stabilizing (favourable) · slope>0 rising instability (glycemic-risk signal)",
     "series": [
       {
         "tMin": 0,
-        "lnSD": 2.019,
-        "lnMean": 4.497,
+        "lnSD": 0.064,
+        "lnMean": 3.68,
         "n": 6
       },
       {
