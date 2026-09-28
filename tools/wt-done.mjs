@@ -160,7 +160,7 @@ function cmdlineOf(pid, procRoot = '/proc') {
   }
 }
 
-export function verdict({ prState, dirtyCount, isMain, inUse, unlanded, pushed }) {
+export function verdict({ prState, dirtyCount, isMain, inUse, unlanded, pushed, landless }) {
   /* Pure decision core, so the refusals are testable without a repo. `inUse` is the result of
      `usersOfPath`: omitted entirely means the caller did not scan (older callers keep working);
      `{ok:false}` means the scan FAILED, which refuses — unknown is not idle. */
@@ -186,7 +186,37 @@ export function verdict({ prState, dirtyCount, isMain, inUse, unlanded, pushed }
       return { ok: true, why: `${prState === 'CLOSED' ? 'PR closed unmerged' : 'no PR'}; every commit is on ${pushed.remote} + tree clean` + (inUse ? ' + idle' : '') };
     }
   }
-  if (prState === null) return { ok: false, why: 'no PR found for branch — cannot prove the work landed (a pushed, PR-less branch: --pushed)' };
+  /* ── A TREE THAT HOLDS NOTHING NEEDS NO FLAG (2026-09-28) ────────────────────────────────────────
+     `landless` is `pushedFor`'s answer computed REGARDLESS of --pushed — the same one decision path, not
+     a twin. Only its `empty` kind is honoured here: 0 commits of its own means a removal cannot be the
+     last copy of anything, so there is no judgement to opt into. `contained` stays behind the flag,
+     because trading a tree for a copy on origin IS a judgement.
+     ⚠️ WHY THIS EXISTS, and it is a naming defect rather than a missing capability: `pushedFor` has
+     handled the empty case since 2026-09-26 (Heron, wt-qcstall-hrn) — but the flag is named for the
+     WEAKER of its two cases, and the refusal below used to hint `--pushed` at every PR-less tree. On
+     2026-09-28 that hint sent a session and its coordinator to remove an empty worktree BY HAND, five
+     commands and an escalation, because the branch had never been pushed so the hint read as "not your
+     case". The capability was complete and its description was wrong. A hint that excludes the case it
+     solves is worse than no hint, so the refusal now NAMES WHAT IT MEASURED and offers the flag only to
+     a tree the flag can actually help. */
+  if (prState === null && landless && landless.ok === true && landless.kind === 'empty') {
+    if (inUse && inUse.ok === false) return { ok: false, why: `cannot prove idle: ${inUse.why}` };
+    if (inUse && inUse.users && inUse.users.length) {
+      const who = inUse.users.map((u) => `PID ${u.pid} (${u.cmd})`).join('; ');
+      return { ok: false, why: `IN USE by ${who} — removing it would destroy that run` };
+    }
+    return {
+      ok: true,
+      why: `no PR and nothing to land — 0 commits ahead of origin/main, tree clean, ${landless.remoteRef ? 'branch on origin' : 'no branch on origin'}` + (inUse ? ' + idle' : '')
+    };
+  }
+  if (prState === null) {
+    /* NAME THE STATE THAT WAS MEASURED. "cannot prove the work landed" alone does not say what work, and
+       the flag hint is only true for a branch that IS on origin. */
+    const st = landless && typeof landless.commitsAhead === 'number' ? ` (${landless.commitsAhead} commit(s) ahead of origin/main; branch ${landless.remoteRef ? 'is' : 'is not'} on origin)` : '';
+    const hint = landless && landless.remoteRef ? ' — a pushed, PR-less branch: --pushed' : '';
+    return { ok: false, why: `no PR found for branch — cannot prove the work landed${st}${hint}` };
+  }
   if (prState !== 'MERGED') return { ok: false, why: `PR is ${prState}, not MERGED` };
   /* MERGED answers "did a PR from this branch merge", NOT "is every commit on this branch landed",
      and under squash nothing in the graph distinguishes them (row 2026-09-22-wt-done-merged-is-not-landed).
@@ -275,25 +305,45 @@ function pushedFor(wtPath, branch) {
      HEAD contained in a freshly fetched origin/main — has nothing to land and nothing to prove; the
      tree was a measurement bench. Checked before the branch fetch so it holds for a branch that was
      never pushed and even for a detached HEAD sitting on main. */
+  /* THE TWO CASES ARE NOT THE SAME TRADE, so they are labelled. `empty` LOSES NOTHING — there are no
+     commits, so there is nothing a removal could be the last copy of. `contained` trades a tree for a
+     copy on origin, which is a judgement and stays opt-in behind --pushed. The caller reads `kind`; it
+     is the reason the no-flag path can be a caller of this function rather than a twin of it.
+     `remoteRef` and `commitsAhead` are published for the REFUSAL TEXT: a refusal that names the state
+     it measured is what was missing (see the header note on the flag's name). */
+  let remoteRef = false;
+  if (branch) {
+    try {
+      remoteRef = run('git', ['ls-remote', '--heads', 'origin', branch]).trim().length > 0;
+    } catch {
+      remoteRef = false;
+    }
+  }
+  /* MEASURE FIRST, DECIDE AFTER — and measure on EVERY path, because the refusal quotes these numbers.
+     A first cut computed `commitsAhead` only inside the success branch, so the commonest refusal (a
+     local branch with commits, never pushed) printed no state at all: exactly the uninformative message
+     this change exists to remove, reintroduced one level down. Caught by running it, not by reading it. */
+  let commitsAhead = null;
   try {
     run('git', ['-C', wtPath, 'fetch', '-q', 'origin', 'main']);
-    run('git', ['-C', wtPath, 'merge-base', '--is-ancestor', 'HEAD', 'refs/remotes/origin/main']);
-    return { ok: true, remote: 'origin/main (no commits of its own)' };
+    commitsAhead = Number(run('git', ['-C', wtPath, 'rev-list', '--count', 'refs/remotes/origin/main..HEAD']).trim());
+    if (!Number.isFinite(commitsAhead)) commitsAhead = null;
   } catch {
-    /* not on main — fall through to the branch proof */
+    commitsAhead = null; // cannot reach origin/main — the refusal says so rather than guessing 0
   }
-  if (!branch) return { ok: false, why: 'detached HEAD not on origin/main — no branch to compare with origin' };
+  if (commitsAhead === 0) return { ok: true, kind: 'empty', remote: 'origin/main (no commits of its own)', commitsAhead, remoteRef };
+  if (!branch) return { ok: false, why: 'detached HEAD not on origin/main — no branch to compare with origin', remoteRef, commitsAhead };
   try {
     run('git', ['-C', wtPath, 'fetch', '-q', 'origin', branch]);
   } catch (e) {
-    return { ok: false, why: `fetch origin ${branch} failed (${String(e.message || e).split('\n')[0]}) — the branch is not on origin` };
+    return { ok: false, why: `fetch origin ${branch} failed (${String(e.message || e).split('\n')[0]}) — the branch is not on origin`, remoteRef, commitsAhead };
   }
   try {
     run('git', ['-C', wtPath, 'merge-base', '--is-ancestor', 'HEAD', `refs/remotes/origin/${branch}`]);
   } catch {
-    return { ok: false, why: `local HEAD is not contained in origin/${branch} — commits exist only in this tree` };
+    return { ok: false, why: `local HEAD is not contained in origin/${branch} — commits exist only in this tree`, remoteRef, commitsAhead };
   }
-  return { ok: true, remote: `origin/${branch}` };
+  return { ok: true, kind: 'contained', remote: `origin/${branch}`, remoteRef, commitsAhead };
 }
 function dirtyCountFor(wtPath) {
   return run('git', ['-C', wtPath, 'status', '--porcelain']).split('\n').filter(Boolean).length;
@@ -351,13 +401,18 @@ function main(argv) {
     } else {
       pr = prFor(w.branch);
     }
+    /* Computed ONCE for both roles below, and only where it can apply: a PR-less or CLOSED-PR tree. */
+    const land = pr.state === null || pr.state === 'CLOSED' ? pushedFor(w.path, w.branch) : undefined;
     const v = verdict({
       prState: pr.state,
       dirtyCount: dirtyCountFor(w.path),
       isMain: w.branch === 'main' || w.branch === 'master',
       inUse: usersOfPath(w.path),
       unlanded: pr.state === 'MERGED' ? unlandedFor(w.path, pr.mergedAt) : undefined,
-      pushed: pushedFlag && (pr.state === null || pr.state === 'CLOSED') ? pushedFor(w.path, w.branch) : undefined
+      /* ONE computation, two roles: `landless` decides the empty case with no flag, `pushed` carries the
+         opt-in containment case. Same function, so the two can never disagree about what it measured. */
+      pushed: pushedFlag ? land : undefined,
+      landless: land
     });
     if (!v.ok) {
       console.error(`✕ REFUSE ${t}: ${v.why}`);
@@ -396,6 +451,29 @@ if (process.argv.includes('--selftest')) {
   assert(!verdict({ prState: 'OPEN', dirtyCount: 0, isMain: false, pushed: { ok: true, remote: 'origin/x' } }).ok, 'an OPEN PR is not a pushed-only branch — stays');
   assert(verdict({ prState: 'CLOSED', dirtyCount: 0, isMain: false, pushed: { ok: true, remote: 'origin/x' } }).ok, 'a CLOSED PR whose commits are on origin may go (the tree is not the only copy)');
   assert(!verdict({ prState: 'CLOSED', dirtyCount: 0, isMain: false }).ok, 'a CLOSED PR without --pushed still refuses');
+
+  /* ── THE EMPTY TREE NEEDS NO FLAG, and the refusal names what it measured (2026-09-28) ───────────
+     `landless` is pushedFor's answer computed regardless of --pushed; only its `empty` kind is honoured
+     without the flag, because an empty tree cannot be the last copy of anything. The wording legs are
+     here because the wording is the defect this fixes: the old refusal hinted `--pushed` at every
+     PR-less tree, including ones the flag cannot help, and that hint cost a manual removal. */
+  const EMPTY = { ok: true, kind: 'empty', commitsAhead: 0, remoteRef: false };
+  const CONTAINED = { ok: true, kind: 'contained', remote: 'origin/x', commitsAhead: 3, remoteRef: true };
+  assert(verdict({ prState: null, dirtyCount: 0, isMain: false, landless: EMPTY }).ok, 'an EMPTY tree passes with no flag');
+  assert(!verdict({ prState: null, dirtyCount: 1, isMain: false, landless: EMPTY }).ok, 'empty never overrides dirty');
+  assert(!verdict({ prState: null, dirtyCount: 0, isMain: false, landless: CONTAINED }).ok, 'a CONTAINED tree still needs --pushed — trading a tree for a remote copy stays a judgement');
+  assert(verdict({ prState: null, dirtyCount: 0, isMain: false, landless: CONTAINED, pushed: CONTAINED }).ok, '…and passes when the flag is given');
+  assert(!verdict({ prState: null, dirtyCount: 0, isMain: false, landless: EMPTY, inUse: { ok: true, users: [{ pid: 7, cmd: 'node x' }] } }).ok, 'an empty tree IN USE still refuses');
+  assert(!verdict({ prState: null, dirtyCount: 0, isMain: false, landless: { ok: false, why: 'fetch failed' } }).ok, 'an unprovable landless state refuses');
+  /* THE WORDING, asserted because it is the thing that was wrong. */
+  const wContained = verdict({ prState: null, dirtyCount: 0, isMain: false, landless: CONTAINED }).why;
+  assert(/3 commit\(s\) ahead of origin\/main/.test(wContained), 'the refusal names the commit count it measured');
+  assert(/branch is on origin/.test(wContained), '…and whether the branch is on origin');
+  assert(/--pushed/.test(wContained), '…and offers the flag to a tree the flag can help');
+  const wLocal = verdict({ prState: null, dirtyCount: 0, isMain: false, landless: { ok: false, why: 'not contained', commitsAhead: 2, remoteRef: false } }).why;
+  assert(/branch is not on origin/.test(wLocal), 'a never-pushed branch is described as such');
+  assert(!/--pushed/.test(wLocal), '…and is NOT offered a flag that cannot help it — the hint that cost a manual removal');
+  assert(/0 commits ahead of origin\/main/.test(verdict({ prState: null, dirtyCount: 0, isMain: false, landless: EMPTY }).why), 'the success prints the measurements it acted on');
   assert(!verdict({ prState: 'CLOSED', dirtyCount: 0, isMain: false, pushed: { ok: false, why: 'not contained' } }).ok, 'a CLOSED PR with commits only here refuses');
   assert(/closed unmerged/.test(verdict({ prState: 'CLOSED', dirtyCount: 0, isMain: false, pushed: { ok: true, remote: 'origin/x' } }).why), 'the pass says the PR was closed, not merged');
   assert(!verdict({ prState: null, dirtyCount: 0, isMain: false, pushed: { ok: true, remote: 'origin/x' }, inUse: { ok: true, users: [{ pid: 7, cmd: 'x' }] } }).ok, 'pushed never overrides in-use');
