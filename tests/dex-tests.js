@@ -38210,6 +38210,54 @@
       T.ok('the fabricating default `(pt.tMin || 0)` is gone from the code', code.indexOf('(pt.tMin || 0)') === -1, 'still present in code (not comment)');
     });
 
+    /* ∅ AN EPOCH OF UNKNOWN TIME IS NOT AN EPOCH AT t=0 (residue 2026-09-28-glucodex-lnrmssd-fallback-isfinite-admits-null)
+       `regressLnRmssd` guarded `isFinite(e.tMin)`, and `isFinite(null)` is TRUE — so a null minute-offset
+       passed, `xs.push(null)` put it in the regression, and arithmetic coerced it to 0: an epoch whose time
+       is unknown regressed as if it sat at ECG start, dragging the fitted slope toward it.
+       ⚠️ THE ASYMMETRY IS THE LESSON. `rm` on the same line is safe — not because its guard is better, but
+       because `null > 0` is false, so its own bound excludes null before the loose `isFinite(rm)` is
+       reached. One guard is protected by an accident of its bound and the one beside it is not, which is
+       why "the file's idiom" was not a safe thing to copy.
+       Executed over the SHIPPED function rather than scanned, for the reason the neighbouring groups
+       record: a comment quoting the defect defeats a text gate, and this comment quotes it. */
+    group('an epoch with no usable time is left out of the lnRMSSD regression', 'glucodex-app · lnrmssd · ∅', function (T) {
+      var src = (env.sources || {})['glucodex-app.js'] || '';
+      if (!src.trim()) {
+        T.skip('glucodex-app.js source', 'sources not provided in this runner');
+        return;
+      }
+      var start = src.indexOf('function regressLnRmssd(');
+      var end = src.indexOf('\n  function ', start + 10);
+      T.ok('regressLnRmssd is extractable', start >= 0 && end > start, 'extraction is testing nothing');
+      if (!(start >= 0 && end > start)) return;
+      var run = new Function('epochs', src.slice(start, end) + '; return regressLnRmssd(epochs);');
+      /* Four epochs at 10/20/30/40 min with a clean downward lnRMSSD trend; the fifth carries a bad tMin.
+         If the bad one is admitted it lands at x=0 and bends the slope — so the assertion is on the FIT,
+         not merely on a count, which is what a reader of this page would actually see. */
+      var good = [
+        { tMin: 10, rmssd: 60 },
+        { tMin: 20, rmssd: 50 },
+        { tMin: 30, rmssd: 42 },
+        { tMin: 40, rmssd: 35 }
+      ];
+      /* It returns the slope PER HOUR as a number (`+(slopePerMin * 60).toFixed(4)`), or null. */
+      var base = run(good.slice());
+      T.ok('the clean four-epoch regression fits', typeof base === 'number' && Number.isFinite(base), JSON.stringify(base));
+      ['null', 'array', 'string', 'nan', 'absent'].forEach(function (kind) {
+        var bad = kind === 'null' ? null : kind === 'array' ? [] : kind === 'string' ? '25' : kind === 'nan' ? NaN : undefined;
+        var withBad = good.concat([{ tMin: bad, rmssd: 45 }]);
+        var got = run(withBad);
+        T.ok('a tMin of ' + kind + ' does not enter the fit', typeof got === 'number' && Math.abs(got - base) < 1e-12, kind + ': slope ' + got + ' vs ' + base);
+      });
+      /* ANTI-VACUITY: the guard must not reject everything — a fifth WELL-FORMED epoch must move the fit,
+         or every assertion above would pass on a function that always returns the same answer. */
+      var withGood = run(good.concat([{ tMin: 50, rmssd: 30 }]));
+      T.ok('a fifth well-formed epoch DOES move the fit', typeof withGood === 'number' && Math.abs(withGood - base) > 1e-12, 'slope ' + withGood + ' vs ' + base);
+      /* And the loose form is gone from the CODE — block-stripped, because this comment quotes it. */
+      var code = src.replace(/\/\*[\s\S]*?\*\//g, '');
+      T.ok('the bare isFinite on tMin is gone from the code', !/[^.\w]isFinite\(e\.tMin\)/.test(code), 'still present in code (not comment)');
+    });
+
     group('GlucoDex §5.1/§5.2 — a truncated grid says so, and the session span cannot overflow', 'glucodex-dsp · truncation · robustness', function (T) {
       var GT = env.GlucoDex || env.GLUDSP;
       var an = (env.GLUDSP && env.GLUDSP.analyze) || (GT && GT.analyze);
