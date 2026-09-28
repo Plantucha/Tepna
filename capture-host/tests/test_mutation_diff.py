@@ -1927,3 +1927,132 @@ def test_ONE_decided_mutant_makes_a_memory_refusal_UNKNOWN_not_NOT_RUN():
     """`decided > 0` → `> 1`, the same boundary the budget verdict has and this one lacked."""
     assert M.memory_exhaustion_verdict(1, 1)[0] == "UNKNOWN"
     assert M.memory_exhaustion_verdict(1, 0)[0] == "NOT_RUN"
+
+
+# ── MUTATION SCOPE FOLLOWS SEMANTIC CHANGE, NOT LINE MOVEMENT ───────────────────────────────────────
+# Sized by the 2026-09-28 whole-tree reformat: 8,859 hunks across 423 files for a change that altered
+# no behaviour, which cannot finish inside the gate budget and so refuses — a required refusal on a
+# PR whose mutants were never in question. Under this rule the same diff scopes to 20 functions.
+_REFORMATTED = '''
+def f(a, b):
+    """Doc."""
+    return (
+        a
+        + b
+    )
+'''
+_ORIGINAL = '''
+def f(a, b):
+    """Doc."""
+    return a + b
+'''
+
+
+def test_a_function_only_REFLOWED_is_not_in_scope():
+    """THE PLANT. Same AST, different text — the formatter moved lines it did not change."""
+    names, why = M.functions_with_changed_ast(_ORIGINAL, _REFORMATTED)
+    assert why is None
+    assert names == set(), f"a reflow put {names} in mutation scope"
+
+
+def test_a_ONE_TOKEN_semantic_edit_IS_in_scope():
+    """THE CONTROL, and the half that makes the plant worth anything: the rule must still catch a
+    real change in the same shape of file. `a + b` → `a - b` is one token."""
+    names, _ = M.functions_with_changed_ast(_ORIGINAL, _REFORMATTED.replace("+ b", "- b"))
+    assert names == {"x_f"}, names
+
+
+def test_a_changed_STRING_is_a_semantic_change():
+    """No blanking. A blanked comparison would scope a changed log line, format string or SQL
+    fragment to NOTHING, which is the hole this rule must not open — a string value is behaviour."""
+    a = 'def g():\n    log("started")\n'
+    b = 'def g():\n    log("stopped")\n'
+    assert M.functions_with_changed_ast(a, b)[0] == {"x_g"}
+
+
+def test_a_re_indented_DOCSTRING_stays_in_scope_deliberately():
+    """It cannot change behaviour, and it is NOT special-cased. The moment the rule starts deciding
+    WHICH string changes matter it is guessing again; scoping it is the safe side. Measured on the
+    reformat: 14 of the 20 functions that scoped were exactly this."""
+    a = 'def h():\n    """Line.\n      indented."""\n    return 1\n'
+    b = 'def h():\n    """Line.\n    indented."""\n    return 1\n'
+    assert M.functions_with_changed_ast(a, b)[0] == {"x_h"}
+
+
+def test_an_UNPARSEABLE_revision_narrows_nothing_and_says_why():
+    """§∅ — a question we cannot answer is not an answer of "no change". An unparseable side must
+    leave scope exactly as the line scan found it, with the reason printed."""
+    names, why = M.functions_with_changed_ast("def f():\n    return 1\n", "def f(:\n")
+    assert names == set() and why and "does not parse" in why, (names, why)
+
+
+def test_a_NEW_function_is_in_scope_and_a_DELETED_one_is_not():
+    """A function only in the head revision changed (it appeared). One only in the base generates no
+    mutants at all, so it is not scope — there is nothing to mutate."""
+    a = "def keep():\n    return 1\n\n\ndef gone():\n    return 2\n"
+    b = "def keep():\n    return 1\n\n\ndef fresh():\n    return 3\n"
+    assert M.functions_with_changed_ast(a, b)[0] == {"x_fresh"}
+
+
+def test_a_method_is_mangled_BY_ITS_CLASS_like_the_line_scan_does():
+    """🔴 THE NAMES MUST MATCH `functions_covering`'s MANGLING or the intersection is silently empty
+    and EVERY function drops out of scope — a gate that reports green on everything. Measured exactly
+    that on the first version: 0 functions scoped where 19 was the right answer."""
+    a = "class A:\n    def m(self):\n        return 1\n\n\nclass B:\n    def m(self):\n        return 2\n"
+    b = "class A:\n    def m(self):\n        return 1\n\n\nclass B:\n    def m(self):\n        return 99\n"
+    assert M.functions_with_changed_ast(a, b)[0] == {"xǁBǁm"}
+
+
+def test_an_ASYNC_function_is_judged_the_same_way():
+    a = "async def go():\n    return 1\n"
+    assert M.functions_with_changed_ast(a, a.replace("1", "2"))[0] == {"x_go"}
+    assert M.functions_with_changed_ast(a, "async def go():\n    return (\n        1\n    )\n")[0] == set()
+
+
+def test_a_def_in_an_EXCEPT_ELSE_or_FINALLY_is_seen_by_BOTH_walkers():
+    """🔴 THE TWIN OF THE MANGLING BUG: the two walkers must agree on MEMBERSHIP, only ever on
+    content. `functions_covering` walks `ast.iter_child_nodes` — every field, including `handlers`,
+    `orelse` and `finalbody` — so a `def` inside `except:`, `else:` or `finally:` is in scope by the
+    line scan. Walking `node.body` alone missed all three, so the intersection dropped genuinely
+    edited functions SILENTLY and with no reason printed. The `except ImportError: def shim(...)`
+    shape is real in this tree (optional-dependency shims)."""
+    old = (
+        "try:\n    import foo\nexcept ImportError:\n    def shim(a): return a + 1\n"
+        "if True: pass\nelse:\n    def alt(b): return b * 2\n"
+        "class K:\n    if True: pass\n    else:\n        def m(self): return 1\n"
+    )
+    new = old.replace("a + 1", "a + 2").replace("b * 2", "b * 3").replace("return 1", "return 9")
+    changed, why = M.functions_with_changed_ast(old, new)
+    assert why is None
+    assert changed == {"x_shim", "x_alt", "x\u01c1K\u01c1m"}, changed
+    # …and the two walkers see the SAME SET, which is the property that makes the intersection safe.
+    assert M.functions_covering(new, set(range(1, new.count("\n") + 2))) == changed
+
+
+def test_a_def_in_a_FINALLY_is_reached_too():
+    old = "def outer():\n    try:\n        pass\n    finally:\n        def inner():\n            return 1\n"
+    assert M.functions_with_changed_ast(old, old.replace("return 1", "return 2"))[0] == {"x_outer", "x_inner"}
+
+
+def test_a_nested_def_inside_a_METHOD_keeps_its_class(sub=None):
+    """`visit(child, cls)` → `visit(child, None)` survived: a function nested inside a method would
+    be named `x_inner` instead of `xǁKǁinner`, so it would never match the stem the line scan hands
+    over and would drop out of scope silently. Asserted against `functions_covering` rather than a
+    literal, because the two agreeing IS the property."""
+    src = "class K:\n    def m(self):\n        def inner():\n            return 1\n        return inner\n"
+    changed, _ = M.functions_with_changed_ast(src, src.replace("return 1", "return 2"))
+    assert changed == {"x\u01c1K\u01c1m", "x\u01c1K\u01c1inner"}, changed
+    assert changed == M.functions_covering(src, set(range(1, 9)))
+
+
+def test_two_defs_under_ONE_stem_are_compared_TOGETHER():
+    """`out.get(stem, "")` → `out.get(None, "")` survived: the accumulation is what makes a stem mean
+    "every body under this name". Without it only the LAST body is compared, so a change to the
+    FIRST of two same-named defs is invisible — and both collapse to one mutant glob, so the gate
+    would mutate a function whose edit this rule said was not there."""
+    dup = "def f():\n    return 1\n\n\ndef f():\n    return 2\n"
+    assert M.functions_covering(dup, set(range(1, 9))) == {"x_f"}
+    assert M.functions_with_changed_ast(dup, dup.replace("return 1", "return 9"))[0] == {"x_f"}, (
+        "a change to the FIRST body under a shared stem was not seen"
+    )
+    assert M.functions_with_changed_ast(dup, dup.replace("return 2", "return 9"))[0] == {"x_f"}

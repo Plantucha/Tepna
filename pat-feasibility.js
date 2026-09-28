@@ -621,13 +621,24 @@
     if (cp.ok) {
       cards.push(hcard('beats coupled', (cp.matchRate * 100).toFixed(0), '%', cp.nCoupled + ' beats (local baseline)', cp.matchRate >= G.COUPLING_MIN ? C.green : C.amber, 'coupling'));
       cards.push(hcard('chest→ankle median lag', cp.med.toFixed(0), 'ms', 'IQR ' + cp.p25.toFixed(0) + '–' + cp.p75.toFixed(0), C.blue, 'lag'));
-      cards.push(hcard('beat-to-beat', isFinite(cp.residIQR) ? cp.residIQR.toFixed(0) : '—', 'ms', 'lag IQR vs local baseline', cp.residIQR <= G.BEAT_IQR_MAX_MS ? C.green : C.amber, 'spread'));
+      cards.push(
+        hcard(
+          'beat-to-beat',
+          isFinite(cp.residIQR) ? cp.residIQR.toFixed(0) : '—',
+          'ms',
+          isFinite(cp.residIQR) ? 'lag IQR vs local baseline' : escHtml(cp.residIQRReason || 'lag IQR vs local baseline'),
+          cp.residIQR <= G.BEAT_IQR_MAX_MS ? C.green : C.amber,
+          'spread'
+        )
+      );
       cards.push(
         hcard(
           'drift',
           isFinite(cp.driftRange) ? cp.driftRange.toFixed(0) : '—',
           'ms',
-          (isFinite(cp.ppm) ? cp.ppm.toFixed(0) + ' ppm' : '') + (isFinite(cp.linR2) ? ' · R²=' + cp.linR2.toFixed(2) : ''),
+          isFinite(cp.driftRange)
+            ? (isFinite(cp.ppm) ? cp.ppm.toFixed(0) + ' ppm' : escHtml(cp.ppmReason || '')) + (isFinite(cp.linR2) ? ' · R²=' + cp.linR2.toFixed(2) : '')
+            : escHtml(cp.driftRangeReason || ''),
           cp.driftRange <= G.DRIFT_MAX_MS ? C.green : C.amber,
           'drift'
         )
@@ -696,7 +707,14 @@
     return (
       hcard(LEG[tag].name + ' median lag', c.med.toFixed(0), 'ms', 'IQR ' + c.p25.toFixed(0) + '–' + c.p75.toFixed(0) + cert, LEG[tag].col, 'lag') +
       hcard(LEG[tag].name + ' coupled', (c.matchRate * 100).toFixed(0), '%', c.nCoupled + ' beats', C.ink, 'coupling') +
-      hcard(LEG[tag].name + ' beat-to-beat', isFinite(c.residIQR) ? c.residIQR.toFixed(0) : '—', 'ms', 'lag IQR vs 30 s local median', C.ink, 'spread')
+      hcard(
+        LEG[tag].name + ' beat-to-beat',
+        isFinite(c.residIQR) ? c.residIQR.toFixed(0) : '—',
+        'ms',
+        isFinite(c.residIQR) ? 'lag IQR vs 30 s local median' : escHtml(c.residIQRReason || 'lag IQR vs 30 s local median'),
+        C.ink,
+        'spread'
+      )
     );
   }
   function renderThree(m) {
@@ -1170,8 +1188,11 @@
                   matchRatePct: +(m.cp.matchRate * 100).toFixed(1),
                   medianLagMs: +m.cp.med.toFixed(1),
                   beatToBeatIQRms: +(+m.cp.residIQR).toFixed(1),
+                  beatToBeatIQRmsReason: m.cp.residIQRReason || null,
                   driftRangeMs: +(+m.cp.driftRange).toFixed(1),
+                  driftRangeMsReason: m.cp.driftRangeReason || null,
                   driftPpm: +(+m.cp.ppm).toFixed(1),
+                  driftPpmReason: m.cp.ppmReason || null,
                   linR2: +(+m.cp.linR2).toFixed(2)
                 }
               : null,
@@ -1182,8 +1203,11 @@
                     matchRatePct: +(m.cpCorr.matchRate * 100).toFixed(1),
                     medianLagMs: +m.cpCorr.med.toFixed(1),
                     beatToBeatIQRms: +(+m.cpCorr.residIQR).toFixed(1),
+                    beatToBeatIQRmsReason: m.cpCorr.residIQRReason || null,
                     driftRangeMs: +(+m.cpCorr.driftRange).toFixed(1),
-                    driftPpm: +(+m.cpCorr.ppm).toFixed(1)
+                    driftRangeMsReason: m.cpCorr.driftRangeReason || null,
+                    driftPpm: +(+m.cpCorr.ppm).toFixed(1),
+                    driftPpmReason: m.cpCorr.ppmReason || null
                   }
                 : null,
             verdict: m.vd.label
