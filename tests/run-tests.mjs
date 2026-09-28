@@ -848,7 +848,13 @@ function readInlineParseCensus() {
   const vm = require('node:vm');
   const out = { artifacts: 0, blocks: 0, bytes: 0, skipped: 0, bad: [], files: [] };
   const roots = [ROOT, join(ROOT, 'docs')];
-  const RE = /<script\b([^>]*)>([\s\S]*?)<\/script>/gi;
+  /* ⚠️ THE END TAG TAKES `\s*` BEFORE THE `>`. CodeQL's `js/bad-tag-filter` named this on the first
+     push and it is right about the consequence, not merely pedantic: an HTML parser ends a script at
+     `</script >` too, so a regex anchored on `</script>` alone slices PAST that end tag and hands the
+     parser-visible boundary to the wrong block — a census that then reports either a SyntaxError that
+     is not there or, worse, nothing at all about a block it never separated. This gate exists because
+     a check examined the wrong thing; its own matcher does not get to. */
+  const RE = /<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi;
   for (const r of roots) {
     let names;
     try {
