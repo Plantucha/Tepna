@@ -956,7 +956,8 @@ def _ns_at(line: str, idx: int) -> int | None:
 #: offset in use since 1972 is a whole multiple of 15 minutes (the 45-minute ones — Nepal, the Chatham
 #: Islands — included), so a vote bucketed this wide either names the offset exactly or names a different
 #: one. Widening it would merge two real zones; narrowing it would split one zone across buckets on the
-#: lag alone.
+#: lag alone. Note the consequence for the quantizer: because the true value is always a multiple of this
+#: width it lies exactly ON a boundary, which is why votes are ROUNDED (see `recover_writer_offset`).
 _OFFSET_BUCKET_SEC = 900.0
 
 #: A REFUSAL BOUND, NOT A CLAMP — the same discipline as the Clock Contract's `CK_AXIS_MAX_PPM` (§🔒 §7).
@@ -968,11 +969,32 @@ _OFFSET_BUCKET_SEC = 900.0
 #: so the bound is on the QUANTITY and is checked before any vote is counted.
 _OFFSET_MAX_ABS_SEC = 14 * 3600.0
 
-#: PRE-STATED SUPPORT FLOOR — committed before the corpus was scored, and not to be tuned afterwards.
-#: Three is the smallest population in which a majority can outvote a single outlier, and the outlier is
-#: known to exist: a killed session leaves an mtime hours past its last row. A plurality would resolve a
-#: 2-2 split by tie-break, which is inventing a zone rather than measuring one.
+#: SUPPORT FLOOR. Read the three-step provenance below before changing either number — the point is not
+#: the values, it is that a criterion is stated before it is scored and any revision says what it fixes.
+#:
+#: 1 · ORIGINAL, pre-stated before any corpus was scored: "≥ 3 voters AND a strict majority in the modal
+#:     bucket". Rationale as written: three is the smallest population in which a majority can outvote a
+#:     single outlier, and the outlier is known to exist — a killed session leaves an mtime hours past its
+#:     last row. A plurality would resolve a 2-2 split by tie-break, which invents a zone.
+#:     What it refused: any night with two data files, INCLUDING when both voted the same bucket exactly.
+#:
+#: 2 · REVISION, and the gap it fixes, stated BEFORE the corpus was re-scored: the rationale is about
+#:     OUTVOTING AN OUTLIER, and with unanimity there is no outlier to outvote. The original criterion
+#:     therefore did not bind the case it was refusing; it conflated "2 voters split 1-1", which is
+#:     genuinely undecidable, with "2 voters agreeing", which is two independent measurements concurring.
+#:     So: ≥ 2 when the voters are UNANIMOUS, else ≥ 3 with a strict majority. This is a correction of the
+#:     criterion's logic, not a threshold moved to fit a result, and it still guarantees a cross-check in
+#:     every case — one file's close stamp can never define the night's timeline by itself.
+#:
+#: 3 · RE-SCORED under the revised rule (see the docstring's CORPUS CONTROL): unchanged, 71 of 71 votable
+#:     nights recovering +14,400 s. Expected, because every votable night carries 10–1427 voters and clears
+#:     0.80; the revision can only ever reach a thin night. Had any night's verdict moved, that would have
+#:     been a finding and not a confirmation.
 _OFFSET_MIN_VOTERS = 3
+
+#: The floor when every voter agrees — step 2 above. Two is the smallest population that still CHECKS one
+#: file against another, which is the property the floor exists to protect.
+_OFFSET_MIN_VOTERS_UNANIMOUS = 2
 
 
 def file_last_row_floating_s(path: str) -> float | None:
@@ -1025,15 +1047,15 @@ def file_last_row_floating_s(path: str) -> float | None:
     return None
 
 
-def _offset_vote(d: float, quantize) -> float | None:
+def _offset_vote(d: float) -> float | None:
     """One file's bucketed offset vote, or None when `d` is not an offset at all.
 
     Bounded BEFORE bucketing, so nothing outside ±`_OFFSET_MAX_ABS_SEC` can reach the tally however many
-    files agree on it (see that constant for the measured reason). `quantize` is `math.floor` or `round`
-    per basis — `recover_writer_offset` documents which and why."""
+    files agree on it (see that constant for the measured reason). Votes are ROUNDED, never floored —
+    `recover_writer_offset` records the measurement that settled that."""
     if not math.isfinite(d) or abs(d) > _OFFSET_MAX_ABS_SEC:
         return None
-    return float(quantize(d / _OFFSET_BUCKET_SEC)) * _OFFSET_BUCKET_SEC
+    return float(round(d / _OFFSET_BUCKET_SEC)) * _OFFSET_BUCKET_SEC
 
 
 def recover_writer_offset(night_dir: str, files: list[dict]) -> dict:
@@ -1070,11 +1092,23 @@ def recover_writer_offset(night_dir: str, files: list[dict]) -> dict:
     `rows / fs` is deliberately NOT a third basis: that rate is today's configured one, and using it here
     would make the recovered offset depend on a number that goes stale (§A4c).
 
-    FLOOR for `last-row`, ROUND for `extent`, because the two lags have different SIGNS. A flush follows
-    its row, so `last-row`'s lag is one-signed (≥ 0) and the true offset is at or below `d` — flooring
-    recovers it for any lag under a full bucket, where rounding would push a lag of 451 s into the next
-    bucket and invent a zone 15 minutes away. `extent`'s lag also carries the device-clock-versus-host
-    difference, which runs both ways, so a symmetric quantizer is the honest one there.
+ROUND, NOT FLOOR, AND THE REASON IS THE ONE THAT CAUGHT ME OUT. I first floored `last-row`, arguing
+    that a flush follows its row so `lag ≥ 0` and the true offset is therefore at or below `d`. That
+    argument is sound and its conclusion is still wrong, because of what the quantity IS: every real UTC
+    offset is an exact multiple of `_OFFSET_BUCKET_SEC`, so the true value sits exactly ON a bucket
+    boundary — the one place where flooring is decided by arbitrarily small jitter of either sign.
+    Measured on the real 2026-09-27: two unanimous voters at d = +14,399.999 and +14,389.962 both floored
+    to 13,500, recovering an offset 15 minutes from the truth off a ONE-MILLISECOND shortfall. Rounding
+    puts both at 14,400.
+
+    Large nights hid it. With 10–1427 voters the majority absorbed the boundary-flipped files and reported
+    them as `outliers`, so the defect could only surface once a thin night had no majority to outvote them
+    with — the support-floor revision did not introduce this, it revealed it.
+
+    The cost of rounding is the case flooring was meant to catch: a lag over half a bucket (451 s) rounds
+    to the next bucket. That is a killed session, which is precisely what an outlier IS and what a majority
+    exists to outvote — whereas boundary jitter afflicts every file at once, where no majority can help.
+    One quantizer for both bases, for the same reason.
 
     Every vote is checked against `_OFFSET_MAX_ABS_SEC` BEFORE it is counted.
 
@@ -1087,10 +1121,12 @@ def recover_writer_offset(night_dir: str, files: list[dict]) -> dict:
     a genuine two-bucket night: the majority names the offset most of its files were written in and the
     minority is reported in `outliers` rather than averaged away.
 
-    THE REFUSAL. Below `_OFFSET_MIN_VOTERS` voters, or without a STRICT majority in the modal bucket,
-    `offset_sec` is None with a reason and every consumer publishes UNKNOWN rather than a guessed span.
-    A tie can therefore never decide: two buckets tied at n of 2n hold exactly half each, so the
-    insertion order `most_common` would break on never reaches the answer."""
+    THE REFUSAL. Below the support floor, or without a STRICT majority in the modal bucket, `offset_sec`
+    is None with a reason and every consumer publishes UNKNOWN rather than a guessed span. A tie can
+    therefore never decide: two buckets tied at n of 2n hold exactly half each, so the tie-break that
+    picking a maximum would otherwise perform never reaches the answer. The floor is `_OFFSET_MIN_VOTERS`,
+    or `_OFFSET_MIN_VOTERS_UNANIMOUS` when every voter agrees — those constants carry the reasoning and
+    the provenance of the revision."""
     votes: list[tuple[float, str]] = []
     by_basis = {"last-row": 0, "extent": 0}
     for f in files:
@@ -1099,22 +1135,28 @@ def recover_writer_offset(night_dir: str, files: list[dict]) -> dict:
         vote = None
         last = file_last_row_floating_s(os.path.join(night_dir, f["file"]))
         if last is not None:
-            vote, how = _offset_vote(f["mtime"] - last, math.floor), "last-row"
+            vote, how = _offset_vote(f["mtime"] - last), "last-row"
         if vote is None:
             # No host column, no readable trailing stamp, or one that is not a host stamp at all (the
             # bound rejected it) — fall through to what the file says about its own extent.
             st, dur = f.get("session"), f.get("span_sec") or f.get("host_span_sec")
             if st is not None and dur:
-                vote, how = _offset_vote(f["mtime"] - (st + float(dur)), round), "extent"
+                vote, how = _offset_vote(f["mtime"] - (st + float(dur))), "extent"
         if vote is None:
             continue                            # nothing in range to difference the mtime against
         by_basis[how] += 1
         votes.append((vote, f["file"]))
     out: dict = {"voters": len(votes), "voters_by_basis": by_basis, "bucket_sec": _OFFSET_BUCKET_SEC,
                  "offset_sec": None, "basis": None, "modal_share": None, "outliers": []}
-    if len(votes) < _OFFSET_MIN_VOTERS:
+    # Unanimity relaxes the COUNT and nothing else; see `_OFFSET_MIN_VOTERS` for why, and note that a
+    # unanimous vote passes the majority test below trivially, so the two rules do not interact.
+    unanimous = bool(votes) and len({b for b, _n in votes}) == 1
+    floor = _OFFSET_MIN_VOTERS_UNANIMOUS if unanimous else _OFFSET_MIN_VOTERS
+    if len(votes) < floor:
+        out["unanimous"] = unanimous
         out["reason"] = (f"{len(votes)} of {len(files)} files could vote on the writer's UTC offset; "
-                         f"the floor is {_OFFSET_MIN_VOTERS}")
+                         f"the floor is {floor}"
+                         + (" for a unanimous vote" if unanimous else ""))
         return out
     tally: dict[float, int] = {}
     for bucket, _name in votes:
@@ -1126,6 +1168,7 @@ def recover_writer_offset(night_dir: str, files: list[dict]) -> dict:
                          f"the largest bucket holds {got}")
         return out
     out.update({"offset_sec": bucket, "basis": "recovered", "modal_share": round(share, 3),
+                "unanimous": unanimous,
                 "outliers": sorted(name for b, name in votes if b != bucket), "reason": None})
     return out
 

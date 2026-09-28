@@ -13,7 +13,6 @@ from datetime import datetime, timedelta
 
 import pytest
 import nightqc
-import writers
 
 
 _CLOCKLESS_HEADER = "h1;h2\n"
