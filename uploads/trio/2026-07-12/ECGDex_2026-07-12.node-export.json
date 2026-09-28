@@ -9,7 +9,7 @@
     "node": "ECGDex",
     "nodeVersion": "1.0",
     "bus": "ganglior",
-    "generated": "2026-09-22T21:57:32.462Z",
+    "generated": "2026-09-28T16:52:24.197Z",
     "provenance": null,
     "doc": "ECGDex beat-derived events → Ganglior bus. tMs = floating wall-clock ms (UTC getters). null = unknown, never fabricated.",
     "scrubbed": true
@@ -40,7 +40,14 @@
     "deviceEpoch": {
       "offsetMs": -237589181430,
       "plausible": false
-    }
+    },
+    "epochsRefused": [
+      {
+        "tMin": 405,
+        "n": 2,
+        "reason": "too-few-beats"
+      }
+    ]
   },
   "measurement": {
     "hr": {
@@ -1866,9 +1873,9 @@
     },
     "frequency": {
       "vlf": 689,
-      "lf": 577,
+      "lf": 579,
       "hf": 303,
-      "totalPower": 1569,
+      "totalPower": 1571,
       "lfhf": 1.611,
       "window": "epochMedian5min",
       "method": "Lomb–Scargle",
@@ -2805,17 +2812,17 @@
       {
         "tMin": 270,
         "hr": 49.2,
-        "rmssd": 39,
-        "sdnn": 41.5,
-        "vlf": 537,
-        "lf": 577,
-        "hf": 490,
-        "totalPower": 1604,
+        "rmssd": 38.7,
+        "sdnn": 41.6,
+        "vlf": 540,
+        "lf": 579,
+        "hf": 492,
+        "totalPower": 1611,
         "lfhf": 1.176,
         "resp": 14.6,
         "hrStat": "rate-of-mean",
         "sqi": 0.83,
-        "beats": 202,
+        "beats": 201,
         "motionIndex": 68.3,
         "position": "supine"
       },
@@ -3076,18 +3083,18 @@
       },
       {
         "tMin": 350,
-        "hr": 50.1,
-        "rmssd": 41.7,
-        "sdnn": 69.8,
-        "vlf": 1509,
-        "lf": 1159,
-        "hf": 487,
-        "totalPower": 3155,
-        "lfhf": 2.377,
-        "resp": 13.4,
+        "hr": 50.2,
+        "rmssd": 40.1,
+        "sdnn": 69.4,
+        "vlf": 1463,
+        "lf": 1182,
+        "hf": 470,
+        "totalPower": 3115,
+        "lfhf": 2.514,
+        "resp": 13.7,
         "hrStat": "rate-of-mean",
         "sqi": 0.826,
-        "beats": 202,
+        "beats": 201,
         "motionIndex": 21.4,
         "position": "supine"
       },
@@ -85980,9 +85987,9 @@
     "cvhrHours": 6.75
   },
   "hrvStability": {
-    "sigma_lnRMSSD_slope": 0.0107,
-    "var_lnRMSSD_slope": 0.0039,
-    "mean_lnRMSSD_slope": 0.0113,
+    "sigma_lnRMSSD_slope": 0.0103,
+    "var_lnRMSSD_slope": 0.0037,
+    "mean_lnRMSSD_slope": 0.011,
     "classification": "Flat — no clear nocturnal trend",
     "windows": 14,
     "ref": "Li & Kiyono 2026 Sensors 26(4):1118 [CC BY 4.0]",
@@ -86044,8 +86051,8 @@
       },
       {
         "tMin": 270,
-        "lnSD": 0.136,
-        "lnMean": 3.411,
+        "lnSD": 0.133,
+        "lnMean": 3.41,
         "n": 6
       },
       {
@@ -86056,8 +86063,8 @@
       },
       {
         "tMin": 330,
-        "lnSD": 0.296,
-        "lnMean": 3.391,
+        "lnSD": 0.287,
+        "lnMean": 3.384,
         "n": 6
       },
       {

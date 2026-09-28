@@ -9,7 +9,7 @@
     "node": "ECGDex",
     "nodeVersion": "1.0",
     "bus": "ganglior",
-    "generated": "2026-09-22T21:59:20.295Z",
+    "generated": "2026-09-28T16:56:18.161Z",
     "provenance": null,
     "doc": "ECGDex beat-derived events → Ganglior bus. tMs = floating wall-clock ms (UTC getters). null = unknown, never fabricated.",
     "scrubbed": true
@@ -21,7 +21,7 @@
     "durSec": 37046.85407429811,
     "endEpochMs": null,
     "offsetMin": null,
-    "events": 253,
+    "events": 260,
     "timingSource": "device+host",
     "deviceEpoch": {
       "offsetMs": -238146059030,
@@ -552,6 +552,15 @@
       "meta": {}
     },
     {
+      "t": "23:08:39",
+      "tMs": 1784416119926,
+      "impulse": "stage_light",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
+    },
+    {
       "t": "23:11:30",
       "tMs": 1784416290926,
       "impulse": "autonomic_surge",
@@ -598,6 +607,15 @@
         "osaConf": null,
         "deltaSBP": null
       }
+    },
+    {
+      "t": "23:18:39",
+      "tMs": 1784416719926,
+      "impulse": "stage_rem",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
     },
     {
       "t": "23:28:39",
@@ -900,6 +918,15 @@
       }
     },
     {
+      "t": "00:33:39",
+      "tMs": 1784421219926,
+      "impulse": "stage_deep",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
+    },
+    {
       "t": "00:34:10",
       "tMs": 1784421250176,
       "impulse": "movement_onset",
@@ -971,24 +998,6 @@
         ],
         "site": "chest"
       }
-    },
-    {
-      "t": "00:43:39",
-      "tMs": 1784421819926,
-      "impulse": "stage_deep",
-      "node": "ECGDex",
-      "conf": 0.7,
-      "sqi": null,
-      "meta": {}
-    },
-    {
-      "t": "00:48:39",
-      "tMs": 1784422119926,
-      "impulse": "stage_light",
-      "node": "ECGDex",
-      "conf": 0.7,
-      "sqi": null,
-      "meta": {}
     },
     {
       "t": "00:53:39",
@@ -1549,6 +1558,15 @@
       }
     },
     {
+      "t": "02:18:39",
+      "tMs": 1784427519926,
+      "impulse": "stage_light",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
+    },
+    {
       "t": "02:20:33",
       "tMs": 1784427633926,
       "impulse": "autonomic_surge",
@@ -1595,6 +1613,24 @@
         "osaConf": null,
         "deltaSBP": null
       }
+    },
+    {
+      "t": "02:33:39",
+      "tMs": 1784428419926,
+      "impulse": "stage_rem",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
+    },
+    {
+      "t": "02:38:39",
+      "tMs": 1784428719926,
+      "impulse": "stage_deep",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
     },
     {
       "t": "02:39:16",
@@ -2039,6 +2075,15 @@
       }
     },
     {
+      "t": "04:23:39",
+      "tMs": 1784435019926,
+      "impulse": "stage_wake",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
+    },
+    {
       "t": "04:27:29",
       "tMs": 1784435249926,
       "impulse": "autonomic_surge",
@@ -2288,7 +2333,7 @@
     {
       "t": "05:08:39",
       "tMs": 1784437719926,
-      "impulse": "stage_light",
+      "impulse": "stage_wake",
       "node": "ECGDex",
       "conf": 0.7,
       "sqi": null,
@@ -2338,6 +2383,15 @@
         "osaConf": null,
         "deltaSBP": null
       }
+    },
+    {
+      "t": "05:13:39",
+      "tMs": 1784438019926,
+      "impulse": "stage_light",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
     },
     {
       "t": "05:20:45",
@@ -2442,6 +2496,15 @@
         ],
         "site": "chest"
       }
+    },
+    {
+      "t": "05:28:39",
+      "tMs": 1784438919926,
+      "impulse": "stage_wake",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
     },
     {
       "t": "05:29:31",
@@ -2631,6 +2694,15 @@
         "osaConf": null,
         "deltaSBP": null
       }
+    },
+    {
+      "t": "05:38:39",
+      "tMs": 1784439519926,
+      "impulse": "stage_light",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
     },
     {
       "t": "05:40:08",
@@ -2917,6 +2989,15 @@
       }
     },
     {
+      "t": "06:08:39",
+      "tMs": 1784441319926,
+      "impulse": "stage_wake",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
+    },
+    {
       "t": "06:09:50",
       "tMs": 1784441390676,
       "impulse": "movement_onset",
@@ -3067,6 +3148,15 @@
         ],
         "site": "chest"
       }
+    },
+    {
+      "t": "06:23:39",
+      "tMs": 1784442219926,
+      "impulse": "stage_light",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
     },
     {
       "t": "06:24:02",
@@ -3288,15 +3378,6 @@
       }
     },
     {
-      "t": "06:48:39",
-      "tMs": 1784443719926,
-      "impulse": "stage_deep",
-      "node": "ECGDex",
-      "conf": 0.7,
-      "sqi": null,
-      "meta": {}
-    },
-    {
       "t": "06:50:32",
       "tMs": 1784443832676,
       "impulse": "movement_onset",
@@ -3309,15 +3390,6 @@
         ],
         "site": "chest"
       }
-    },
-    {
-      "t": "06:53:39",
-      "tMs": 1784444019926,
-      "impulse": "stage_light",
-      "node": "ECGDex",
-      "conf": 0.7,
-      "sqi": null,
-      "meta": {}
     },
     {
       "t": "06:54:18",
@@ -3658,15 +3730,6 @@
     {
       "t": "07:28:39",
       "tMs": 1784446119926,
-      "impulse": "stage_light",
-      "node": "ECGDex",
-      "conf": 0.7,
-      "sqi": null,
-      "meta": {}
-    },
-    {
-      "t": "07:33:39",
-      "tMs": 1784446419926,
       "impulse": "stage_wake",
       "node": "ECGDex",
       "conf": 0.7,
@@ -3743,12 +3806,12 @@
   },
   "hrv": {
     "time": {
-      "hr": 53.4,
+      "hr": 53.5,
       "meanRR": 1115.9,
-      "sdnn": 54.3,
-      "rmssd": 37,
+      "sdnn": 51.2,
+      "rmssd": 36.5,
       "pnn50": 14.3,
-      "sdnnIndex": 768.9,
+      "sdnnIndex": 56.7,
       "wholeRecordHR": 53.8,
       "wholeRecordSDNN": 83.9,
       "wholeRecordRMSSD": 36.4,
@@ -3760,14 +3823,14 @@
       "windowNote": "sdnn/rmssd/pnn50 here are DISPLAY values = representative 5-min epoch median on overnight recordings (short recs: whole-record). For CROSS-NODE comparison use wholeRecordSDNN/wholeRecordRMSSD."
     },
     "frequency": {
-      "vlf": 1191,
-      "lf": 690,
-      "hf": 407,
-      "totalPower": 2288,
-      "lfhf": 1.702,
+      "vlf": 1055,
+      "lf": 634,
+      "hf": 402,
+      "totalPower": 2091,
+      "lfhf": 1.705,
       "window": "epochMedian5min",
       "method": "Lomb–Scargle",
-      "respRate": 15.5,
+      "respRate": 15.3,
       "respRateMethod": "RSA (HF-peak of RR spectrum)",
       "respFromEDR": 16.8,
       "couplingGridGapCells": 11384,
@@ -3882,18 +3945,18 @@
       },
       {
         "tMin": 30,
-        "hr": 55.4,
-        "rmssd": 31.9,
-        "sdnn": 75.9,
-        "vlf": 4336,
-        "lf": 936,
-        "hf": 407,
-        "totalPower": 5679,
-        "lfhf": 2.3,
+        "hr": 55.3,
+        "rmssd": 32,
+        "sdnn": 75.6,
+        "vlf": 4364,
+        "lf": 856,
+        "hf": 418,
+        "totalPower": 5638,
+        "lfhf": 2.049,
         "resp": 11.6,
         "hrStat": "rate-of-mean",
         "sqi": 0.799,
-        "beats": 267,
+        "beats": 266,
         "motionIndex": 12.4,
         "position": "supine"
       },
@@ -4036,17 +4099,17 @@
       {
         "tMin": 75,
         "hr": 56.3,
-        "rmssd": 37.8,
-        "sdnn": 113.6,
-        "vlf": 10915,
-        "lf": 1113,
-        "hf": 611,
-        "totalPower": 12639,
-        "lfhf": 1.822,
-        "resp": 14.7,
+        "rmssd": 37.4,
+        "sdnn": 113,
+        "vlf": 10863,
+        "lf": 1122,
+        "hf": 543,
+        "totalPower": 12528,
+        "lfhf": 2.066,
+        "resp": 9.2,
         "hrStat": "rate-of-mean",
         "sqi": 0.816,
-        "beats": 233,
+        "beats": 232,
         "motionIndex": 100,
         "position": "lateral"
       },
@@ -4427,17 +4490,17 @@
       {
         "tMin": 190,
         "hr": 54.4,
-        "rmssd": 25.6,
-        "sdnn": 40.5,
-        "vlf": 450,
-        "lf": 715,
-        "hf": 235,
-        "totalPower": 1400,
-        "lfhf": 3.045,
-        "resp": 15.5,
+        "rmssd": 24,
+        "sdnn": 37.1,
+        "vlf": 334,
+        "lf": 590,
+        "hf": 249,
+        "totalPower": 1173,
+        "lfhf": 2.371,
+        "resp": 15.3,
         "hrStat": "rate-of-mean",
         "sqi": 0.826,
-        "beats": 242,
+        "beats": 241,
         "motionIndex": 0,
         "position": "supine"
       },
@@ -4767,51 +4830,51 @@
       {
         "tMin": 290,
         "hr": 51.9,
-        "rmssd": 49.3,
+        "rmssd": 47.3,
         "sdnn": 51.9,
-        "vlf": 931,
-        "lf": 996,
-        "hf": 678,
-        "totalPower": 2605,
-        "lfhf": 1.469,
+        "vlf": 910,
+        "lf": 1005,
+        "hf": 702,
+        "totalPower": 2617,
+        "lfhf": 1.431,
         "resp": 15.6,
         "hrStat": "rate-of-mean",
         "sqi": 0.819,
-        "beats": 231,
+        "beats": 230,
         "motionIndex": 4,
         "position": "supine"
       },
       {
         "tMin": 295,
-        "hr": 26.4,
-        "rmssd": 13320.3,
-        "sdnn": 9353.3,
-        "vlf": 8837753,
-        "lf": 23588375,
-        "hf": 53352766,
-        "totalPower": 85778894,
-        "lfhf": 0.442,
-        "resp": 23.3,
+        "hr": 51,
+        "rmssd": 45.9,
+        "sdnn": 39.1,
+        "vlf": 305,
+        "lf": 455,
+        "hf": 707,
+        "totalPower": 1467,
+        "lfhf": 0.643,
+        "resp": 15.2,
         "hrStat": "rate-of-mean",
-        "sqi": 0.806,
-        "beats": 73,
+        "sqi": 0.809,
+        "beats": 72,
         "motionIndex": 0,
         "position": "supine"
       },
       {
         "tMin": 300,
-        "hr": 32.5,
-        "rmssd": 9556.2,
-        "sdnn": 9536.3,
-        "vlf": 8971605,
-        "lf": 24441689,
-        "hf": 55336456,
-        "totalPower": 88749750,
-        "lfhf": 0.442,
-        "resp": 23.9,
+        "hr": 50.5,
+        "rmssd": 44.5,
+        "sdnn": 38.4,
+        "vlf": 306,
+        "lf": 487,
+        "hf": 630,
+        "totalPower": 1423,
+        "lfhf": 0.773,
+        "resp": 16.1,
         "hrStat": "rate-of-mean",
-        "sqi": 0.813,
-        "beats": 208,
+        "sqi": 0.814,
+        "beats": 206,
         "motionIndex": 0,
         "position": "supine"
       },
@@ -4851,18 +4914,18 @@
       },
       {
         "tMin": 315,
-        "hr": 34.3,
-        "rmssd": 11708.2,
-        "sdnn": 8258.5,
-        "vlf": 6576165,
-        "lf": 18349332,
-        "hf": 41641371,
-        "totalPower": 66566868,
-        "lfhf": 0.441,
-        "resp": 9,
+        "hr": 53.5,
+        "rmssd": 45.9,
+        "sdnn": 108.8,
+        "vlf": 9160,
+        "lf": 1080,
+        "hf": 1426,
+        "totalPower": 11666,
+        "lfhf": 0.757,
+        "resp": 16.8,
         "hrStat": "rate-of-mean",
-        "sqi": 0.804,
-        "beats": 174,
+        "sqi": 0.805,
+        "beats": 173,
         "motionIndex": 0,
         "position": "lateral"
       },
@@ -4885,35 +4948,35 @@
       },
       {
         "tMin": 330,
-        "hr": 11.6,
-        "rmssd": 48356.8,
-        "sdnn": 48183.4,
-        "vlf": 224229167,
-        "lf": 617716671,
-        "hf": 1400065855,
-        "totalPower": 2242011693,
-        "lfhf": 0.441,
-        "resp": 10.4,
+        "hr": 55,
+        "rmssd": 23,
+        "sdnn": 33.7,
+        "vlf": 536,
+        "lf": 387,
+        "hf": 130,
+        "totalPower": 1053,
+        "lfhf": 2.989,
+        "resp": 14.4,
         "hrStat": "rate-of-mean",
-        "sqi": 0.816,
-        "beats": 140,
+        "sqi": 0.818,
+        "beats": 139,
         "motionIndex": 1.8,
         "position": "supine"
       },
       {
         "tMin": 335,
         "hr": 53.2,
-        "rmssd": 44.7,
-        "sdnn": 62.1,
-        "vlf": 778,
-        "lf": 1204,
-        "hf": 625,
-        "totalPower": 2607,
-        "lfhf": 1.926,
-        "resp": 16.5,
+        "rmssd": 44.3,
+        "sdnn": 62.2,
+        "vlf": 757,
+        "lf": 1150,
+        "hf": 670,
+        "totalPower": 2577,
+        "lfhf": 1.718,
+        "resp": 15.6,
         "hrStat": "rate-of-mean",
         "sqi": 0.819,
-        "beats": 207,
+        "beats": 206,
         "motionIndex": 7.7,
         "position": "supine"
       },
@@ -4988,34 +5051,34 @@
       {
         "tMin": 360,
         "hr": 54.3,
-        "rmssd": 38.3,
-        "sdnn": 93.2,
-        "vlf": 6209,
-        "lf": 1492,
-        "hf": 463,
-        "totalPower": 8164,
-        "lfhf": 3.222,
+        "rmssd": 38.4,
+        "sdnn": 93.4,
+        "vlf": 6233,
+        "lf": 1501,
+        "hf": 465,
+        "totalPower": 8199,
+        "lfhf": 3.231,
         "resp": 15.3,
         "hrStat": "rate-of-mean",
         "sqi": 0.812,
-        "beats": 223,
+        "beats": 222,
         "motionIndex": 5.6,
         "position": "supine"
       },
       {
         "tMin": 365,
-        "hr": 51,
-        "rmssd": 53.2,
-        "sdnn": 55.2,
-        "vlf": 1028,
-        "lf": 946,
-        "hf": 1004,
-        "totalPower": 2978,
-        "lfhf": 0.942,
+        "hr": 51.1,
+        "rmssd": 53.3,
+        "sdnn": 54.9,
+        "vlf": 1055,
+        "lf": 920,
+        "hf": 988,
+        "totalPower": 2963,
+        "lfhf": 0.932,
         "resp": 14.7,
         "hrStat": "rate-of-mean",
         "sqi": 0.791,
-        "beats": 261,
+        "beats": 260,
         "motionIndex": 0,
         "position": "supine"
       },
@@ -5073,17 +5136,17 @@
       {
         "tMin": 385,
         "hr": 51.8,
-        "rmssd": 41,
+        "rmssd": 39.6,
         "sdnn": 37.2,
-        "vlf": 482,
-        "lf": 170,
-        "hf": 557,
-        "totalPower": 1209,
+        "vlf": 485,
+        "lf": 171,
+        "hf": 559,
+        "totalPower": 1215,
         "lfhf": 0.306,
         "resp": 14.9,
         "hrStat": "rate-of-mean",
-        "sqi": 0.811,
-        "beats": 204,
+        "sqi": 0.813,
+        "beats": 203,
         "motionIndex": 0,
         "position": "supine"
       },
@@ -5124,17 +5187,17 @@
       {
         "tMin": 400,
         "hr": 52.5,
-        "rmssd": 56.3,
-        "sdnn": 144.7,
-        "vlf": 14035,
-        "lf": 1665,
-        "hf": 1200,
-        "totalPower": 16900,
-        "lfhf": 1.388,
+        "rmssd": 52.6,
+        "sdnn": 144.2,
+        "vlf": 14161,
+        "lf": 1547,
+        "hf": 1160,
+        "totalPower": 16868,
+        "lfhf": 1.334,
         "resp": 10.4,
         "hrStat": "rate-of-mean",
         "sqi": 0.79,
-        "beats": 204,
+        "beats": 200,
         "motionIndex": 18.2,
         "position": "supine"
       },
@@ -5192,17 +5255,17 @@
       {
         "tMin": 420,
         "hr": 50.7,
-        "rmssd": 37,
-        "sdnn": 35.7,
-        "vlf": 457,
-        "lf": 335,
-        "hf": 441,
-        "totalPower": 1233,
-        "lfhf": 0.759,
+        "rmssd": 37.1,
+        "sdnn": 35.5,
+        "vlf": 447,
+        "lf": 337,
+        "hf": 437,
+        "totalPower": 1221,
+        "lfhf": 0.77,
         "resp": 15.5,
         "hrStat": "rate-of-mean",
         "sqi": 0.802,
-        "beats": 206,
+        "beats": 205,
         "motionIndex": 7.5,
         "position": "supine"
       },
@@ -5226,34 +5289,34 @@
       {
         "tMin": 430,
         "hr": 53.7,
-        "rmssd": 37.2,
-        "sdnn": 62.4,
-        "vlf": 1205,
-        "lf": 834,
-        "hf": 407,
-        "totalPower": 2446,
-        "lfhf": 2.047,
-        "resp": 16.1,
+        "rmssd": 35.9,
+        "sdnn": 62.5,
+        "vlf": 1204,
+        "lf": 847,
+        "hf": 402,
+        "totalPower": 2453,
+        "lfhf": 2.11,
+        "resp": 16.5,
         "hrStat": "rate-of-mean",
         "sqi": 0.81,
-        "beats": 162,
+        "beats": 160,
         "motionIndex": 5.5,
         "position": "supine"
       },
       {
         "tMin": 435,
         "hr": 55.2,
-        "rmssd": 46,
-        "sdnn": 51.7,
-        "vlf": 1410,
-        "lf": 515,
-        "hf": 535,
-        "totalPower": 2460,
-        "lfhf": 0.963,
+        "rmssd": 44.8,
+        "sdnn": 51.2,
+        "vlf": 1379,
+        "lf": 504,
+        "hf": 544,
+        "totalPower": 2427,
+        "lfhf": 0.926,
         "resp": 17.3,
         "hrStat": "rate-of-mean",
-        "sqi": 0.784,
-        "beats": 218,
+        "sqi": 0.785,
+        "beats": 216,
         "motionIndex": 11.8,
         "position": "upright"
       },
@@ -5379,17 +5442,17 @@
       {
         "tMin": 475,
         "hr": 56.1,
-        "rmssd": 43.8,
-        "sdnn": 81,
-        "vlf": 2155,
-        "lf": 1992,
-        "hf": 592,
-        "totalPower": 4739,
-        "lfhf": 3.367,
+        "rmssd": 43.7,
+        "sdnn": 81.1,
+        "vlf": 2166,
+        "lf": 1999,
+        "hf": 594,
+        "totalPower": 4759,
+        "lfhf": 3.365,
         "resp": 9.5,
         "hrStat": "rate-of-mean",
         "sqi": 0.837,
-        "beats": 226,
+        "beats": 225,
         "motionIndex": 21.4,
         "position": "supine"
       },
@@ -5482,16 +5545,16 @@
         "tMin": 505,
         "hr": 58.5,
         "rmssd": 38.9,
-        "sdnn": 100.5,
-        "vlf": 5879,
-        "lf": 2507,
-        "hf": 421,
-        "totalPower": 8807,
-        "lfhf": 5.955,
+        "sdnn": 100.3,
+        "vlf": 5817,
+        "lf": 2534,
+        "hf": 435,
+        "totalPower": 8786,
+        "lfhf": 5.829,
         "resp": 9.5,
         "hrStat": "rate-of-mean",
-        "sqi": 0.828,
-        "beats": 283,
+        "sqi": 0.829,
+        "beats": 282,
         "motionIndex": 56,
         "position": "supine"
       },
@@ -5532,17 +5595,17 @@
       {
         "tMin": 520,
         "hr": 53.6,
-        "rmssd": 48.9,
-        "sdnn": 59.5,
-        "vlf": 1736,
-        "lf": 717,
-        "hf": 727,
-        "totalPower": 3180,
-        "lfhf": 0.986,
+        "rmssd": 49.2,
+        "sdnn": 59.2,
+        "vlf": 1735,
+        "lf": 718,
+        "hf": 693,
+        "totalPower": 3146,
+        "lfhf": 1.035,
         "resp": 10.1,
         "hrStat": "rate-of-mean",
         "sqi": 0.847,
-        "beats": 241,
+        "beats": 238,
         "motionIndex": 6.5,
         "position": "supine"
       },
@@ -5617,17 +5680,17 @@
       {
         "tMin": 545,
         "hr": 57.5,
-        "rmssd": 36.6,
-        "sdnn": 86.2,
-        "vlf": 4467,
-        "lf": 1174,
-        "hf": 471,
-        "totalPower": 6112,
-        "lfhf": 2.494,
+        "rmssd": 36.3,
+        "sdnn": 85.8,
+        "vlf": 4388,
+        "lf": 1244,
+        "hf": 439,
+        "totalPower": 6071,
+        "lfhf": 2.837,
         "resp": 9.5,
         "hrStat": "rate-of-mean",
         "sqi": 0.804,
-        "beats": 266,
+        "beats": 264,
         "motionIndex": 17.7,
         "position": "supine"
       },
@@ -5650,52 +5713,52 @@
       },
       {
         "tMin": 555,
-        "hr": 56,
-        "rmssd": 39.2,
-        "sdnn": 66.4,
-        "vlf": 1191,
-        "lf": 814,
-        "hf": 339,
-        "totalPower": 2344,
-        "lfhf": 2.403,
+        "hr": 55.9,
+        "rmssd": 38.2,
+        "sdnn": 65.8,
+        "vlf": 1187,
+        "lf": 809,
+        "hf": 341,
+        "totalPower": 2337,
+        "lfhf": 2.375,
         "resp": 10.7,
         "hrStat": "rate-of-mean",
         "sqi": 0.824,
-        "beats": 202,
+        "beats": 201,
         "motionIndex": 3.4,
         "position": "lateral"
       },
       {
         "tMin": 560,
-        "hr": 58.5,
-        "rmssd": 46.3,
-        "sdnn": 101.6,
-        "vlf": 6909,
-        "lf": 2181,
-        "hf": 769,
-        "totalPower": 9859,
-        "lfhf": 2.837,
+        "hr": 58.4,
+        "rmssd": 46.5,
+        "sdnn": 101.5,
+        "vlf": 6678,
+        "lf": 2313,
+        "hf": 817,
+        "totalPower": 9808,
+        "lfhf": 2.83,
         "resp": 12,
         "hrStat": "rate-of-mean",
-        "sqi": 0.779,
-        "beats": 145,
+        "sqi": 0.778,
+        "beats": 142,
         "motionIndex": 0,
         "position": "supine"
       },
       {
         "tMin": 565,
         "hr": 56.2,
-        "rmssd": 39.4,
-        "sdnn": 87.1,
-        "vlf": 5176,
-        "lf": 1182,
-        "hf": 453,
-        "totalPower": 6811,
-        "lfhf": 2.609,
+        "rmssd": 39.6,
+        "sdnn": 87.2,
+        "vlf": 5180,
+        "lf": 1192,
+        "hf": 450,
+        "totalPower": 6822,
+        "lfhf": 2.648,
         "resp": 11.7,
         "hrStat": "rate-of-mean",
         "sqi": 0.817,
-        "beats": 242,
+        "beats": 241,
         "motionIndex": 9.6,
         "position": "supine"
       },
@@ -5719,17 +5782,17 @@
       {
         "tMin": 575,
         "hr": 56.1,
-        "rmssd": 38.7,
-        "sdnn": 70.9,
-        "vlf": 3211,
-        "lf": 1071,
-        "hf": 372,
-        "totalPower": 4654,
-        "lfhf": 2.878,
-        "resp": 14.6,
+        "rmssd": 38.8,
+        "sdnn": 71,
+        "vlf": 3206,
+        "lf": 1078,
+        "hf": 378,
+        "totalPower": 4662,
+        "lfhf": 2.849,
+        "resp": 17.9,
         "hrStat": "rate-of-mean",
         "sqi": 0.816,
-        "beats": 258,
+        "beats": 257,
         "motionIndex": 8.7,
         "position": "lateral"
       },
@@ -5752,35 +5815,35 @@
       },
       {
         "tMin": 585,
-        "hr": 26.1,
-        "rmssd": 15440.4,
-        "sdnn": 15394.3,
-        "vlf": 22377516,
-        "lf": 62588931,
-        "hf": 145119658,
-        "totalPower": 230086105,
-        "lfhf": 0.431,
-        "resp": 23.6,
+        "hr": 53.7,
+        "rmssd": 43.3,
+        "sdnn": 60,
+        "vlf": 2135,
+        "lf": 857,
+        "hf": 539,
+        "totalPower": 3531,
+        "lfhf": 1.59,
+        "resp": 14.4,
         "hrStat": "rate-of-mean",
-        "sqi": 0.807,
-        "beats": 169,
+        "sqi": 0.808,
+        "beats": 168,
         "motionIndex": 6.1,
         "position": "supine"
       },
       {
         "tMin": 590,
-        "hr": 56.4,
-        "rmssd": 39.3,
-        "sdnn": 83.7,
-        "vlf": 2487,
-        "lf": 1895,
-        "hf": 701,
-        "totalPower": 5083,
-        "lfhf": 2.704,
-        "resp": 19.1,
+        "hr": 56.3,
+        "rmssd": 37.4,
+        "sdnn": 82.1,
+        "vlf": 2238,
+        "lf": 1924,
+        "hf": 781,
+        "totalPower": 4943,
+        "lfhf": 2.464,
+        "resp": 22.4,
         "hrStat": "rate-of-mean",
-        "sqi": 0.797,
-        "beats": 199,
+        "sqi": 0.796,
+        "beats": 194,
         "motionIndex": 21.4,
         "position": "lateral"
       },
@@ -5804,34 +5867,34 @@
       {
         "tMin": 600,
         "hr": 56.5,
-        "rmssd": 45.8,
-        "sdnn": 108.1,
-        "vlf": 9695,
-        "lf": 1127,
-        "hf": 461,
-        "totalPower": 11283,
-        "lfhf": 2.447,
-        "resp": 21.9,
+        "rmssd": 43.9,
+        "sdnn": 107.5,
+        "vlf": 9608,
+        "lf": 1109,
+        "hf": 452,
+        "totalPower": 11169,
+        "lfhf": 2.452,
+        "resp": 10.8,
         "hrStat": "rate-of-mean",
         "sqi": 0.825,
-        "beats": 214,
+        "beats": 212,
         "motionIndex": 100,
         "position": "lateral"
       },
       {
         "tMin": 605,
         "hr": 54.7,
-        "rmssd": 48.5,
-        "sdnn": 57,
+        "rmssd": 48.3,
+        "sdnn": 56.9,
         "vlf": 1252,
-        "lf": 1120,
-        "hf": 749,
-        "totalPower": 3121,
-        "lfhf": 1.495,
+        "lf": 1127,
+        "hf": 744,
+        "totalPower": 3123,
+        "lfhf": 1.515,
         "resp": 21.6,
         "hrStat": "rate-of-mean",
         "sqi": 0.846,
-        "beats": 220,
+        "beats": 219,
         "motionIndex": 10.1,
         "position": "supine"
       },
@@ -5922,18 +5985,18 @@
       },
       {
         "tMin": 635,
-        "hr": 70.6,
-        "rmssd": 44.6,
-        "sdnn": 54.3,
-        "vlf": 952,
-        "lf": 1174,
-        "hf": 434,
-        "totalPower": 2560,
-        "lfhf": 2.707,
+        "hr": 70.5,
+        "rmssd": 45.3,
+        "sdnn": 54.6,
+        "vlf": 966,
+        "lf": 1211,
+        "hf": 442,
+        "totalPower": 2619,
+        "lfhf": 2.741,
         "resp": 10.4,
         "hrStat": "rate-of-mean",
-        "sqi": 0.818,
-        "beats": 67,
+        "sqi": 0.817,
+        "beats": 65,
         "motionIndex": 100,
         "position": "lateral"
       }
@@ -6041,11 +6104,11 @@
       },
       {
         "tMin": 125,
-        "stage": "REM"
+        "stage": "Light"
       },
       {
         "tMin": 130,
-        "stage": "REM"
+        "stage": "Light"
       },
       {
         "tMin": 135,
@@ -6109,11 +6172,11 @@
       },
       {
         "tMin": 210,
-        "stage": "Light"
+        "stage": "Deep"
       },
       {
         "tMin": 215,
-        "stage": "Light"
+        "stage": "Deep"
       },
       {
         "tMin": 220,
@@ -6121,7 +6184,7 @@
       },
       {
         "tMin": 225,
-        "stage": "Light"
+        "stage": "Deep"
       },
       {
         "tMin": 230,
@@ -6193,15 +6256,15 @@
       },
       {
         "tMin": 315,
-        "stage": "Deep"
+        "stage": "Light"
       },
       {
         "tMin": 320,
-        "stage": "Deep"
+        "stage": "Light"
       },
       {
         "tMin": 330,
-        "stage": "Deep"
+        "stage": "REM"
       },
       {
         "tMin": 335,
@@ -6289,7 +6352,7 @@
       },
       {
         "tMin": 440,
-        "stage": "Light"
+        "stage": "Wake"
       },
       {
         "tMin": 445,
@@ -6325,7 +6388,7 @@
       },
       {
         "tMin": 485,
-        "stage": "Light"
+        "stage": "Wake"
       },
       {
         "tMin": 490,
@@ -6341,11 +6404,11 @@
       },
       {
         "tMin": 505,
-        "stage": "Light"
+        "stage": "Wake"
       },
       {
         "tMin": 510,
-        "stage": "Light"
+        "stage": "Wake"
       },
       {
         "tMin": 515,
@@ -6373,15 +6436,15 @@
       },
       {
         "tMin": 545,
-        "stage": "Light"
+        "stage": "Wake"
       },
       {
         "tMin": 550,
-        "stage": "Light"
+        "stage": "Wake"
       },
       {
         "tMin": 555,
-        "stage": "Light"
+        "stage": "Wake"
       },
       {
         "tMin": 560,
@@ -6405,7 +6468,7 @@
       },
       {
         "tMin": 585,
-        "stage": "Deep"
+        "stage": "Light"
       },
       {
         "tMin": 590,
@@ -6437,7 +6500,7 @@
       },
       {
         "tMin": 625,
-        "stage": "Light"
+        "stage": "Wake"
       },
       {
         "tMin": 630,
@@ -134246,12 +134309,12 @@
     }
   },
   "sleep": {
-    "totalSleepMin": 605,
+    "totalSleepMin": 565,
     "stageMinutes": {
-      "Wake": 35,
-      "REM": 80,
-      "Light": 430,
-      "Deep": 95
+      "Wake": 75,
+      "REM": 75,
+      "Light": 405,
+      "Deep": 85
     }
   },
   "apnea": {
@@ -134272,10 +134335,10 @@
     "cvhrHours": 10.29
   },
   "hrvStability": {
-    "sigma_lnRMSSD_slope": 0.0564,
-    "var_lnRMSSD_slope": 0.1461,
-    "mean_lnRMSSD_slope": 0.0567,
-    "classification": "Rising instability — persistent autonomic instability (glycemic-risk signal)",
+    "sigma_lnRMSSD_slope": 0.0002,
+    "var_lnRMSSD_slope": -0.0001,
+    "mean_lnRMSSD_slope": 0.0324,
+    "classification": "Flat — no clear nocturnal trend",
     "windows": 21,
     "ref": "Li & Kiyono 2026 Sensors 26(4):1118 [CC BY 4.0]",
     "interpretation": "slope<0 stabilizing (favourable) · slope>0 rising instability (glycemic-risk signal)",
@@ -134288,14 +134351,14 @@
       },
       {
         "tMin": 30,
-        "lnSD": 0.065,
-        "lnMean": 3.384,
+        "lnSD": 0.066,
+        "lnMean": 3.385,
         "n": 6
       },
       {
         "tMin": 60,
-        "lnSD": 0.18,
-        "lnMean": 3.458,
+        "lnSD": 0.178,
+        "lnMean": 3.456,
         "n": 6
       },
       {
@@ -134318,8 +134381,8 @@
       },
       {
         "tMin": 180,
-        "lnSD": 0.196,
-        "lnMean": 3.397,
+        "lnSD": 0.207,
+        "lnMean": 3.386,
         "n": 6
       },
       {
@@ -134336,38 +134399,38 @@
       },
       {
         "tMin": 270,
-        "lnSD": 2.363,
-        "lnMean": 4.678,
+        "lnSD": 0.093,
+        "lnMean": 3.726,
         "n": 6
       },
       {
         "tMin": 300,
-        "lnSD": 3.077,
-        "lnMean": 5.898,
+        "lnSD": 0.102,
+        "lnMean": 3.715,
         "n": 5
       },
       {
         "tMin": 330,
-        "lnSD": 2.944,
-        "lnMean": 4.789,
+        "lnSD": 0.263,
+        "lnMean": 3.512,
         "n": 6
       },
       {
         "tMin": 360,
-        "lnSD": 0.118,
-        "lnMean": 3.754,
+        "lnSD": 0.121,
+        "lnMean": 3.749,
         "n": 6
       },
       {
         "tMin": 390,
-        "lnSD": 0.195,
-        "lnMean": 3.714,
+        "lnSD": 0.174,
+        "lnMean": 3.703,
         "n": 6
       },
       {
         "tMin": 420,
-        "lnSD": 0.152,
-        "lnMean": 3.568,
+        "lnSD": 0.141,
+        "lnMean": 3.558,
         "n": 6
       },
       {
@@ -134384,26 +134447,26 @@
       },
       {
         "tMin": 510,
-        "lnSD": 0.111,
-        "lnMean": 3.774,
+        "lnSD": 0.112,
+        "lnMean": 3.775,
         "n": 6
       },
       {
         "tMin": 540,
-        "lnSD": 0.084,
-        "lnMean": 3.71,
+        "lnSD": 0.09,
+        "lnMean": 3.706,
         "n": 6
       },
       {
         "tMin": 570,
-        "lnSD": 2.433,
-        "lnMean": 4.682,
+        "lnSD": 0.091,
+        "lnMean": 3.694,
         "n": 6
       },
       {
         "tMin": 600,
-        "lnSD": 0.132,
-        "lnMean": 3.711,
+        "lnSD": 0.124,
+        "lnMean": 3.703,
         "n": 6
       }
     ]

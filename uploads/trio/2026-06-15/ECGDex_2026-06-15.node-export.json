@@ -9,7 +9,7 @@
     "node": "ECGDex",
     "nodeVersion": "1.0",
     "bus": "ganglior",
-    "generated": "2026-09-22T21:50:34.710Z",
+    "generated": "2026-09-28T16:43:01.770Z",
     "provenance": null,
     "doc": "ECGDex beat-derived events → Ganglior bus. tMs = floating wall-clock ms (UTC getters). null = unknown, never fabricated.",
     "scrubbed": true
@@ -3446,17 +3446,17 @@
       {
         "tMin": 410,
         "hr": 56.8,
-        "rmssd": 36.6,
-        "sdnn": 91.8,
-        "vlf": 5069,
-        "lf": 1429,
-        "hf": 449,
-        "totalPower": 6947,
+        "rmssd": 36.2,
+        "sdnn": 91.9,
+        "vlf": 5099,
+        "lf": 1422,
+        "hf": 446,
+        "totalPower": 6967,
         "lfhf": 3.184,
         "resp": 18.6,
         "hrStat": "rate-of-mean",
         "sqi": 0.814,
-        "beats": 271,
+        "beats": 270,
         "motionIndex": 40.2,
         "position": "supine"
       },
@@ -92642,9 +92642,9 @@
     "cvhrHours": 7.43
   },
   "hrvStability": {
-    "sigma_lnRMSSD_slope": -0.0075,
+    "sigma_lnRMSSD_slope": -0.0074,
     "var_lnRMSSD_slope": -0.0024,
-    "mean_lnRMSSD_slope": -0.0043,
+    "mean_lnRMSSD_slope": -0.0044,
     "classification": "Flat — no clear nocturnal trend",
     "windows": 15,
     "ref": "Li & Kiyono 2026 Sensors 26(4):1118 [CC BY 4.0]",
@@ -92730,8 +92730,8 @@
       },
       {
         "tMin": 390,
-        "lnSD": 0.104,
-        "lnMean": 3.68,
+        "lnSD": 0.106,
+        "lnMean": 3.678,
         "n": 6
       },
       {

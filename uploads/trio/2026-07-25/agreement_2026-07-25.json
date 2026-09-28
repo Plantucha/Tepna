@@ -3,9 +3,9 @@
   "tolBpm": 15,
   "quality": {
     "tolBpm": 3,
-    "flagged": 7,
+    "flagged": 4,
     "compared": 101,
-    "flaggedPct": 6.9
+    "flaggedPct": 4
   },
   "nodes": [
     "PpgDex",
@@ -15,11 +15,11 @@
   "compared": 101,
   "adjudicable": 96,
   "droppedFragments": 1,
-  "flagged": 2,
-  "flaggedPct": 2,
+  "flagged": 1,
+  "flaggedPct": 1,
   "fault": {
     "PpgDex": 0,
-    "ECGDex": 1,
+    "ECGDex": 0,
     "OxyDex": 1
   },
   "epochs": [
@@ -43,27 +43,6 @@
       "spreadBpm": 30.4,
       "adjudicated": true,
       "outlier": "OxyDex"
-    },
-    {
-      "tMs": 1785020615000,
-      "sources": [
-        {
-          "node": "PpgDex",
-          "hr": 65
-        },
-        {
-          "node": "ECGDex",
-          "hr": 36.4
-        },
-        {
-          "node": "OxyDex",
-          "hr": 65
-        }
-      ],
-      "median": 65,
-      "spreadBpm": 28.6,
-      "adjudicated": true,
-      "outlier": "ECGDex"
     }
   ]
 }
