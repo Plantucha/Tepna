@@ -113,7 +113,13 @@ if (process.argv.includes('--selftest') || process.argv.includes('--self-test'))
   eq(!stripScripts(`<scr${'ipt'}>href=${q}#'+t+'${q}</scr${'ipt'}>`).includes("'+t+'"), 'runtime-built href is NOT read as markup');
   eq(!stripScripts(`<scr${'ipt'}>href=${q}#'+t+'${q}</scr${'ipt'} >`).includes("'+t+'"), 'SPACED closing tag </script > is still stripped');
   eq(!stripScripts(`<scr${'ipt'}>href=${q}#'+t+'${q}</scr${'ipt'} foo>`).includes("'+t+'"), 'ATTRIBUTED closing tag </script foo> is stripped');
-  eq(stripSelfTest() === 12, "the shared scanner's own 12 legs pass");
+  /* 12 → 27 when `elementBlocks` and the `</scriptable>`-in-a-body leg were added (2026-09-28). The
+     count is pinned HERE, in a consumer, so it is bumped deliberately rather than loosened — but note
+     the coupling: every leg added to the shared module reds this file, and `strip-markup --selftest` is
+     already enrolled in `selftest-all` and CI's discovery loop, so a shrinking suite there is visible at
+     the source without a second copy of the number. Left as a pin because narrowing someone else's
+     deliberate assertion is not this unit's call. */
+  eq(stripSelfTest() === 27, "the shared scanner's own 27 legs pass");
   eq(!stripScripts(`<a href=${q}#s${q}></a><scr${'ipt'}>href=${q}#'+t+'${q}`).includes("'+t+'"), 'UNCLOSED script truncates rather than leaking its tail');
   eq(stripScripts(`<a href=${q}#s${q}></a><scr${'ipt'}>x</scr${'ipt'}>`).includes('#s'), 'real markup before a script survives');
   eq(decodeKey('SpO\\u2082') === 'SpO₂', 'backslash-u decoded');
