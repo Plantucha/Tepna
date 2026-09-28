@@ -26,6 +26,17 @@ capture. It reproduces the page: chest→ankle 499, chest→finger 407, finger�
 all three legs coupled. Per-window analysis and simulations in a scratch script (Wren's session notes, not
 committed — no box night enters the repository).
 
+**F0 · The page's REFUSED was also a rendering defect — found by Magpie after this brief was opened.**
+`pat-classic-vs-fused.js hatRow` read `h.h10 / h.verity / h.o2`, fields `threeHat` has never returned; its
+values live at `h.sigma.chest / finger / ankle`. So `neg` was true for EVERY input, and the page rendered
+REFUSED with "the independence assumption failed" unconditionally since #3128. It is fixed separately, in
+Magpie's page PR. **The findings below are unaffected:** they read the worker's output directly, not the
+page. On 2026-09-26 the hat did return a genuinely negative chest corner in both columns (classic −32.0,
+fused −27.6 ms²), so with the mapping fixed that night still refuses. What the old wording cannot say is
+that the refusal is UNDERPOWERED rather than an independence failure (F2). The owner's observation was
+therefore two things at once: a page that could not show anything else, and a night whose small corners
+are genuinely unresolved.
+
 **F1 · The negative corner is CHEST, and which corner goes negative depends on the dispersion estimator.**
 
 | estimator over the 98 window medians | chest σ² | finger σ² | ankle σ² |
