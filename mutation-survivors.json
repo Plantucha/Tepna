@@ -13,7 +13,9 @@
       "merge_sha": null,
       "reported": "2026-09-28",
       "state": "equivalent",
-      "probe": "hand-applied 2026-09-28, whole test_loss_audit.py (101 tests), reverted byte-identical: SURVIVED; the five predicted-killable mutants on the same lines were KILLED in the same sweep (positive control). Argument in capture-host/tools/mutate-equivalence.json under loss_audit.py."
+      "probe": "hand-applied 2026-09-28, whole test_loss_audit.py (101 tests), reverted byte-identical: SURVIVED; the five predicted-killable mutants on the same lines were KILLED in the same sweep (positive control). Argument in capture-host/tools/mutate-equivalence.json under loss_audit.py.",
+      "closed_pr": 3187,
+      "closed_commit_source": "backfilled: closed in #3187, before the tool recorded a commit"
     },
     {
       "lane": "py",
@@ -27,7 +29,9 @@
       "merge_sha": null,
       "reported": "2026-09-28",
       "state": "equivalent",
-      "probe": "hand-applied 2026-09-28, whole test_loss_audit.py (101 tests), reverted byte-identical: SURVIVED; the five predicted-killable mutants on the same lines were KILLED in the same sweep (positive control). Argument in capture-host/tools/mutate-equivalence.json under loss_audit.py."
+      "probe": "hand-applied 2026-09-28, whole test_loss_audit.py (101 tests), reverted byte-identical: SURVIVED; the five predicted-killable mutants on the same lines were KILLED in the same sweep (positive control). Argument in capture-host/tools/mutate-equivalence.json under loss_audit.py.",
+      "closed_pr": 3187,
+      "closed_commit_source": "backfilled: closed in #3187, before the tool recorded a commit"
     },
     {
       "lane": "py",
@@ -41,7 +45,9 @@
       "merge_sha": null,
       "reported": "2026-09-28",
       "state": "equivalent",
-      "probe": "hand-applied 2026-09-28, whole test_loss_audit.py (101 tests), reverted byte-identical: SURVIVED; the five predicted-killable mutants on the same lines were KILLED in the same sweep (positive control). Argument in capture-host/tools/mutate-equivalence.json under loss_audit.py."
+      "probe": "hand-applied 2026-09-28, whole test_loss_audit.py (101 tests), reverted byte-identical: SURVIVED; the five predicted-killable mutants on the same lines were KILLED in the same sweep (positive control). Argument in capture-host/tools/mutate-equivalence.json under loss_audit.py.",
+      "closed_pr": 3187,
+      "closed_commit_source": "backfilled: closed in #3187, before the tool recorded a commit"
     },
     {
       "lane": "py",
@@ -54,7 +60,9 @@
       "run_id": "local-rederivation-2026-09-28",
       "merge_sha": null,
       "reported": "2026-09-28",
-      "state": "killed #3187"
+      "state": "killed #3187",
+      "closed_pr": 3187,
+      "closed_commit_source": "backfilled: closed in #3187, before the tool recorded a commit"
     },
     {
       "lane": "py",
@@ -67,7 +75,9 @@
       "run_id": "local-rederivation-2026-09-28",
       "merge_sha": null,
       "reported": "2026-09-28",
-      "state": "killed #3187"
+      "state": "killed #3187",
+      "closed_pr": 3187,
+      "closed_commit_source": "backfilled: closed in #3187, before the tool recorded a commit"
     },
     {
       "lane": "py",
@@ -81,7 +91,9 @@
       "merge_sha": null,
       "reported": "2026-09-28",
       "state": "equivalent",
-      "probe": "hand-applied 2026-09-28, whole test_loss_audit.py (101 tests), reverted byte-identical: SURVIVED; the five predicted-killable mutants on the same lines were KILLED in the same sweep (positive control). Argument in capture-host/tools/mutate-equivalence.json under loss_audit.py."
+      "probe": "hand-applied 2026-09-28, whole test_loss_audit.py (101 tests), reverted byte-identical: SURVIVED; the five predicted-killable mutants on the same lines were KILLED in the same sweep (positive control). Argument in capture-host/tools/mutate-equivalence.json under loss_audit.py.",
+      "closed_pr": 3187,
+      "closed_commit_source": "backfilled: closed in #3187, before the tool recorded a commit"
     },
     {
       "lane": "py",
@@ -94,7 +106,9 @@
       "run_id": "local-rederivation-2026-09-28",
       "merge_sha": null,
       "reported": "2026-09-28",
-      "state": "killed #3187"
+      "state": "killed #3187",
+      "closed_pr": 3187,
+      "closed_commit_source": "backfilled: closed in #3187, before the tool recorded a commit"
     },
     {
       "lane": "py",
@@ -108,7 +122,9 @@
       "merge_sha": null,
       "reported": "2026-09-28",
       "state": "equivalent",
-      "probe": "hand-applied 2026-09-28, whole test_loss_audit.py (101 tests), reverted byte-identical: SURVIVED; the five predicted-killable mutants on the same lines were KILLED in the same sweep (positive control). Argument in capture-host/tools/mutate-equivalence.json under loss_audit.py."
+      "probe": "hand-applied 2026-09-28, whole test_loss_audit.py (101 tests), reverted byte-identical: SURVIVED; the five predicted-killable mutants on the same lines were KILLED in the same sweep (positive control). Argument in capture-host/tools/mutate-equivalence.json under loss_audit.py.",
+      "closed_pr": 3187,
+      "closed_commit_source": "backfilled: closed in #3187, before the tool recorded a commit"
     },
     {
       "lane": "py",
@@ -122,7 +138,9 @@
       "merge_sha": null,
       "reported": "2026-09-28",
       "state": "equivalent",
-      "probe": "hand-applied 2026-09-28, whole test_loss_audit.py (101 tests), reverted byte-identical: SURVIVED; the five predicted-killable mutants on the same lines were KILLED in the same sweep (positive control). Argument in capture-host/tools/mutate-equivalence.json under loss_audit.py."
+      "probe": "hand-applied 2026-09-28, whole test_loss_audit.py (101 tests), reverted byte-identical: SURVIVED; the five predicted-killable mutants on the same lines were KILLED in the same sweep (positive control). Argument in capture-host/tools/mutate-equivalence.json under loss_audit.py.",
+      "closed_pr": 3187,
+      "closed_commit_source": "backfilled: closed in #3187, before the tool recorded a commit"
     },
     {
       "lane": "py",
@@ -136,7 +154,9 @@
       "merge_sha": null,
       "reported": "2026-09-28",
       "state": "equivalent",
-      "probe": "hand-applied 2026-09-28, whole test_loss_audit.py (101 tests), reverted byte-identical: SURVIVED; the five predicted-killable mutants on the same lines were KILLED in the same sweep (positive control). Argument in capture-host/tools/mutate-equivalence.json under loss_audit.py."
+      "probe": "hand-applied 2026-09-28, whole test_loss_audit.py (101 tests), reverted byte-identical: SURVIVED; the five predicted-killable mutants on the same lines were KILLED in the same sweep (positive control). Argument in capture-host/tools/mutate-equivalence.json under loss_audit.py.",
+      "closed_pr": 3187,
+      "closed_commit_source": "backfilled: closed in #3187, before the tool recorded a commit"
     },
     {
       "lane": "py",
@@ -149,7 +169,9 @@
       "run_id": "local-rederivation-2026-09-28",
       "merge_sha": null,
       "reported": "2026-09-28",
-      "state": "killed #3187"
+      "state": "killed #3187",
+      "closed_pr": 3187,
+      "closed_commit_source": "backfilled: closed in #3187, before the tool recorded a commit"
     },
     {
       "lane": "py",
@@ -162,7 +184,9 @@
       "run_id": "local-rederivation-2026-09-28",
       "merge_sha": null,
       "reported": "2026-09-28",
-      "state": "killed #3187"
+      "state": "killed #3187",
+      "closed_pr": 3187,
+      "closed_commit_source": "backfilled: closed in #3187, before the tool recorded a commit"
     }
   ]
 }

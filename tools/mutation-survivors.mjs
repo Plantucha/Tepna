@@ -25,6 +25,7 @@
  * workflow edit held out of scope by the brief. CI only READS the committed ledger (`ratchet`).
  */
 
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
@@ -139,16 +140,76 @@ export function entriesFromVerdict(doc, opts = {}) {
 }
 
 /**
+ * The commit a closure actually landed on, and how we know.
+ *
+ * 🔴 THE SESSION HEAD ALONE IS A TRAP IN THIS REPO, and shipping it would have killed the signal it
+ * is meant to sharpen. Closures are made on a branch; the branch is SQUASH-merged, so the recorded
+ * branch sha is never an ancestor of any later `main`. Every entry closed that way would read
+ * "stale" forever and no regression would ever be reported again — silently, and worse than the
+ * false alarms this whole change exists to remove. The PR number survives the squash (`… (#N)` is
+ * the merge subject), so it is resolved FIRST and the branch sha is only the fallback before that
+ * PR has landed.
+ */
+export function resolveClosingCommit(entry, mergeShaOfPr) {
+  if (entry.closed_pr) {
+    const merged = mergeShaOfPr(entry.closed_pr);
+    if (merged) return { commit: merged, source: `merge of #${entry.closed_pr}` };
+  }
+  if (entry.closed_commit) return { commit: entry.closed_commit, source: entry.closed_commit_source || 'recorded at close' };
+  return { commit: null, source: null };
+}
+
+/**
+ * What a re-appearing CLOSED mutant means, given the commit the verdict was produced at.
+ *
+ * `regression` — the run's code CONTAINS the closure and the mutant survived anyway: the kill
+ *                stopped working, which is the fact worth interrupting someone for.
+ * `stale`      — the run predates the closure, so it says nothing about whether the closure holds.
+ *                NOT_APPLICABLE: examined, and the rule does not bind (§🧾). This is the whole
+ *                residue row — the old code reported these as regressions because it compared
+ *                CONTENT and never recency.
+ * `unknown`    — the closing commit cannot be resolved (the closing PR has not landed and no branch
+ *                sha was recorded). §∅: a question we cannot answer is not answered either way, and
+ *                it is certainly not a regression.
+ *
+ * ⚠️ A run on a branch cut from an OLD main also reads `stale`, and that is correct rather than a
+ * limitation: its code predates the closure, so a survivor there is evidence about the old code.
+ */
+export function classifyReingest(entry, verdictCommit, { closingCommit, source, isAncestor }) {
+  if (!closingCommit) {
+    return { kind: 'unknown', reason: `no closing commit recorded for an entry closed as ${entry.state} — cannot tell a stale run from a real regression, so neither is claimed` };
+  }
+  if (isAncestor(closingCommit, verdictCommit)) {
+    return { kind: 'regression', reason: `was ${entry.state} and survives again at ${verdictCommit.slice(0, 8)}, which contains ${source}` };
+  }
+  return {
+    kind: 'stale',
+    reason: `stale artifact: verdict from ${verdictCommit.slice(0, 8)} predates ${source} (${String(closingCommit).slice(0, 8)}) — it cannot speak to a closure it does not contain`
+  };
+}
+
+/** The verdict's own commit, or a REFUSAL naming the field. Never "assume current" (§∅). */
+export function verdictCommitOf(doc) {
+  const pb = ((doc || {}).verdict || {}).producedBy || {};
+  if (typeof pb.commit === 'string' && /^[0-9a-f]{7,40}$/.test(pb.commit)) return { commit: pb.commit };
+  const why = pb.commit === null ? `producedBy.commit is null (${pb.commitReason || 'no reason given'})` : 'producedBy.commit is absent';
+  return { refused: `${why} — a verdict that does not say which code it judged cannot be placed against a closure, and assuming "current" would manufacture the answer` };
+}
+
+/**
  * Fold new entries into the ledger. Idempotent on re-ingest of the same run, and a re-appearing
  * CLOSED key is a REGRESSION that is reported rather than silently reopened or silently dropped:
  * a mutant recorded `killed #N` that survives again means that kill stopped working, which is a
  * louder fact than a new survivor and must not be absorbed by an upsert.
  */
-export function mergeEntries(ledger, incoming) {
+export function mergeEntries(ledger, incoming, opts = {}) {
+  const { verdictCommit = null, mergeShaOfPr = () => null, isAncestor = () => false } = opts;
   const rows = (ledger && ledger.entries) || [];
   const index = new Map(rows.map((e) => [survivorKey(e), e]));
   const added = [];
   const regressed = [];
+  const stale = [];
+  const unknown = [];
   const unchanged = [];
   for (const e of incoming) {
     const k = survivorKey(e);
@@ -157,12 +218,18 @@ export function mergeEntries(ledger, incoming) {
       index.set(k, e);
       added.push(e);
     } else if (prev.state !== 'open') {
-      regressed.push({ ...prev, seen_again_pr: e.pr });
+      // A closed entry seen again is only a REGRESSION if the run's code contains the closure.
+      const { commit, source } = resolveClosingCommit(prev, mergeShaOfPr);
+      const c = classifyReingest(prev, verdictCommit, { closingCommit: commit, source, isAncestor });
+      const row = { ...prev, seen_again_pr: e.pr, why: c.reason };
+      if (c.kind === 'regression') regressed.push(row);
+      else if (c.kind === 'stale') stale.push(row);
+      else unknown.push(row);
     } else {
       unchanged.push(prev);
     }
   }
-  return { entries: [...index.values()], added, regressed, unchanged };
+  return { entries: [...index.values()], added, regressed, stale, unknown, unchanged };
 }
 
 /** Entries still awaiting an answer. The number the ratchet is about. */
@@ -207,6 +274,34 @@ const EMPTY = {
   entries: []
 };
 
+function git(args) {
+  try {
+    return (
+      execFileSync('git', args, {
+        cwd: path.join(HERE, '..'),
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore']
+      }).trim() || null
+    );
+  } catch {
+    return null; // not a checkout, or the ref is unknown — the caller treats that as "cannot tell"
+  }
+}
+
+/** The squash-merge commit of PR N on main, found by the `… (#N)` subject this repo merges with. */
+export const mergeShaOfPr = (n) => git(['log', '--format=%H', '-1', `--grep=(#${Number(n)})$`, 'origin/main']);
+
+/** Is `a` an ancestor of `b`? False when either ref is unknown here — never an assumed yes. */
+export function isAncestor(a, b) {
+  if (a == null || b == null) return false;
+  try {
+    execFileSync('git', ['merge-base', '--is-ancestor', a, b], { cwd: path.join(HERE, '..'), stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function readLedger(p = LEDGER_PATH) {
   try {
     return JSON.parse(fs.readFileSync(p, 'utf8'));
@@ -234,7 +329,8 @@ function cmdIngest(argv) {
     return 2;
   }
   const prRaw = arg('--pr', argv);
-  const r = entriesFromVerdict(JSON.parse(fs.readFileSync(file, 'utf8')), {
+  const doc = JSON.parse(fs.readFileSync(file, 'utf8'));
+  const r = entriesFromVerdict(doc, {
     pr: prRaw == null ? null : Number(prRaw),
     lane: arg('--lane', argv),
     runId: arg('--run-id', argv),
@@ -245,17 +341,24 @@ function cmdIngest(argv) {
     console.error(`mutation-survivors: REFUSING — ${r.refused}`);
     return 2;
   }
+  const vc = verdictCommitOf(doc);
+  if (vc.refused) {
+    console.error(`mutation-survivors: NOT_RUN — ${vc.refused}`);
+    return 2;
+  }
   const ledger = readLedger();
-  const m = mergeEntries(ledger, r.entries);
+  const m = mergeEntries(ledger, r.entries, { verdictCommit: vc.commit, mergeShaOfPr, isAncestor });
   writeLedger({ ...ledger, entries: m.entries });
   console.log(`ingested ${r.entries.length} survivor(s): ${m.added.length} new, ${m.unchanged.length} already open`);
   if (r.lowerBound) {
     console.log(`  ⚠ LOWER BOUND: ${r.decided} of ${r.generated} mutants reached a verdict — this list is not all of them`);
   }
-  for (const g of m.regressed) {
-    console.log(`  🔴 REGRESSION: ${keyLabel(survivorKey(g))} was ${g.state} and survives again (seen on #${g.seen_again_pr})`);
-  }
+  for (const g of m.regressed) console.log(`  🔴 REGRESSION: ${keyLabel(survivorKey(g))} — ${g.why}`);
+  for (const g of m.stale) console.log(`  ⊘ NOT_APPLICABLE: ${keyLabel(survivorKey(g))} — ${g.why}`);
+  for (const g of m.unknown) console.log(`  ? UNKNOWN: ${keyLabel(survivorKey(g))} — ${g.why}`);
   console.log(`open: ${openCount({ entries: m.entries })}`);
+  // Only a REAL regression is worth a red. A stale artifact examined nothing that binds here, and an
+  // unresolvable closure is a question, not a finding.
   return m.regressed.length ? 1 : 0;
 }
 
@@ -285,6 +388,15 @@ function cmdClose(argv) {
   }
   hits[0].state = killed ? `killed #${Number(killed)}` : 'equivalent';
   if (equiv) hits[0].probe = equiv;
+  // WHERE the closure was made, so a later run can be placed before or after it. The PR number is
+  // what survives a squash merge; the branch sha is only the fallback until that PR lands.
+  const closedPr = Number(killed || arg('--pr', argv)) || null;
+  if (closedPr) hits[0].closed_pr = closedPr;
+  const head = git(['rev-parse', 'HEAD']);
+  if (head) {
+    hits[0].closed_commit = head;
+    hits[0].closed_commit_source = 'session HEAD at close (pre-squash)';
+  }
   writeLedger(ledger);
   console.log(`closed: ${keyLabel(survivorKey(hits[0]))} → ${hits[0].state}`);
   return 0;
@@ -394,10 +506,36 @@ function selftest() {
   ck('first ingest adds one', [once.added.length, once.entries.length], [1, 1]);
   const twice = mergeEntries({ entries: once.entries }, e1);
   ck('re-ingesting the same run adds nothing', [twice.added.length, twice.entries.length], [0, 1]);
-  const closed = once.entries.map((e) => ({ ...e, state: 'killed #8' }));
-  const again = mergeEntries({ entries: closed }, e1);
-  ck('a killed mutant that survives again is reported, not reopened silently', [again.added.length, again.regressed.length], [0, 1]);
+  const closed = once.entries.map((e) => ({ ...e, state: 'killed #8', closed_pr: 8, closed_commit: 'cccccccc' }));
+  const AT_OR_AFTER = { verdictCommit: 'vvvvvvvv', mergeShaOfPr: () => 'mmmmmmmm', isAncestor: () => true };
+  const again = mergeEntries({ entries: closed }, e1, AT_OR_AFTER);
+  ck('a killed mutant that survives again IN CODE THAT CONTAINS THE CLOSURE is a regression', [again.added.length, again.regressed.length], [0, 1]);
   ck('…and the ledger is not quietly rewritten to open', again.entries[0].state, 'killed #8');
+
+  console.log('\na STALE artifact is not a regression — it examined code without the closure');
+  const BEFORE = { verdictCommit: 'oldoldold', mergeShaOfPr: () => 'mmmmmmmm', isAncestor: () => false };
+  const old = mergeEntries({ entries: closed }, e1, BEFORE);
+  ck('a verdict predating the closure reports STALE, never REGRESSION', [old.regressed.length, old.stale.length], [0, 1]);
+  ck('…and says which closure it predates', /predates merge of #8/.test(old.stale[0].why), true);
+  ck('…and still does not reopen the entry', old.entries[0].state, 'killed #8');
+  const NOCLOSE = { verdictCommit: 'vvvvvvvv', mergeShaOfPr: () => null, isAncestor: () => true };
+  const orphanClose = mergeEntries({ entries: once.entries.map((e) => ({ ...e, state: 'equivalent' })) }, e1, NOCLOSE);
+  ck('an entry with NO closing commit is UNKNOWN, not a regression', [orphanClose.regressed.length, orphanClose.unknown.length], [0, 1]);
+
+  console.log('\nthe closing commit survives a SQUASH merge');
+  ck('the PR number wins over the pre-squash branch sha', resolveClosingCommit({ closed_pr: 8, closed_commit: 'branchsha' }, () => 'squashed1').commit, 'squashed1');
+  ck('…and the branch sha is the fallback until that PR lands', resolveClosingCommit({ closed_pr: 8, closed_commit: 'branchsha' }, () => null).commit, 'branchsha');
+  ck('…and with neither there is no closing commit to compare against', resolveClosingCommit({}, () => null).commit, null);
+
+  console.log('\na verdict that does not say which code it judged is REFUSED');
+  ck('an absent producedBy.commit refuses', !!verdictCommitOf({ verdict: {} }).refused, true);
+  ck(
+    'a null commit refuses AND repeats its own stated reason',
+    /not a checkout/.test(verdictCommitOf({ verdict: { producedBy: { commit: null, commitReason: 'not a checkout' } } }).refused || ''),
+    true
+  );
+  ck('a non-sha refuses rather than being compared', !!verdictCommitOf({ verdict: { producedBy: { commit: 'HEAD' } } }).refused, true);
+  ck('a real sha is taken', verdictCommitOf({ verdict: { producedBy: { commit: '3c0dbdec' } } }).commit, '3c0dbdec');
 
   console.log('\nthe verdict OBJECT models its population correctly');
   {
@@ -432,7 +570,7 @@ function selftest() {
   );
   ck('open counting ignores closed rows', openCount(led), 2);
 
-  console.log(fail ? `${fail} failed of 32` : 'all 32 selftests passed');
+  console.log(fail ? `${fail} failed of 44` : 'all 44 selftests passed');
   return fail ? 1 : 0;
 }
 
