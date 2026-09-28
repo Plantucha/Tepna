@@ -57892,6 +57892,91 @@
      THE INVARIANT: a tool that loads repo code must derive its root from its OWN location. Measured
      before it was written — 22 tools reference `build-core.js` and all 22 satisfy it, so this ships
      with ZERO exemptions and zero grandfathering. Scope is read from `tools/` on disk, never curated. */
+    group('argv-guard — a token nobody reads REFUSES, and a valued flag still passes', 'tools · argv · known-answer', function (T) {
+      /* Residue 2026-09-28-trio-batch-ignores-an-unknown-flag-so-a-near-miss-writes-the-corpus.
+         `--dry` (for `--dry-run`) was silently ignored and trio-batch then COMPUTED AND WROTE, because
+         `flag = (n) => argv.includes(n)` looks up only the names it knows: a token nobody looks up is
+         indistinguishable from an absent one, and the default it falls back to is the WRITING branch.
+
+         THE REAL MODULE, evaluated, not a regex over its text. `checkArgv` is pure, so a vm realm is
+         enough and the assertions are about behaviour rather than about the source containing a word —
+         which is the distinction that made my own keyword survey of 167 tools worthless (it called
+         trio-batch a validator on the strength of the word "unknown" in an unrelated comment). */
+      var TSg = env.toolSources;
+      if (!TSg) {
+        T.skip('env.toolSources provided to the runner', 'Node-lane only (run-tests.mjs readToolSources) — the browser lane cannot list tools/');
+        return;
+      }
+      var srcText = TSg['argv-guard.mjs'];
+      T.ok('tools/argv-guard.mjs exists', !!srcText, 'the guard module is missing');
+      if (!srcText) return;
+      var vmG = typeof require === 'function' ? require('node:vm') : null;
+      if (!vmG) {
+        T.skip('node:vm available', 'realm-loading is Node-lane only');
+        return;
+      }
+      /* `export ` stripped because this suite is CJS (run-tests.mjs loads it through createRequire) and
+         cannot await an ESM import. The functions are pure, so the realm needs nothing else. */
+      var realm = { module: { exports: {} } };
+      realm.exports = realm.module.exports;
+      vmG.createContext(realm);
+      vmG.runInContext(srcText.replace(/^export /gm, '') + '\n;exports.checkArgv = checkArgv; exports.nearestFlag = nearestFlag;', realm);
+      var checkArgv = realm.exports.checkArgv,
+        nearestFlag = realm.exports.nearestFlag;
+      var SPEC = { valued: ['--src', '--out', '--night'], boolean: ['--dry-run', '--force'] };
+
+      /* ── THE PLANT: the measured slip ──────────────────────────────────────────────────────── */
+      var dry = checkArgv(['--src', '/x', '--dry'], SPEC);
+      T.ok('PLANT · `--dry` alone is REFUSED', dry.ok === false, 'the token nobody reads was accepted, which is the defect');
+      T.ok('PLANT · …and the refusal names the token', /--dry\b/.test(dry.reason || ''), dry.reason);
+      T.ok(
+        'PLANT · …and suggests `--dry-run`, not a closer-by-edit-distance wrong answer',
+        /--dry-run/.test(dry.reason || ''),
+        dry.reason + ' — `--dry` is edit-distance 2 from `--src` and 4 from `--dry-run`, so a pure-distance suggestion answers the wrong flag for the ONE slip this exists to catch'
+      );
+      T.eq('PLANT · the prefix rule picks the shortest completion', nearestFlag('--dry', ['--dry-run', '--dry-run-verbose', '--src']), '--dry-run');
+
+      /* ── THE CONTROL: arity. A guard that refused a VALUE would be unusable ─────────────────── */
+      T.ok('CONTROL · a valued flag and its value PASS', checkArgv(['--night', '2026-06-20'], SPEC).ok === true, "a documented flag's VALUE was read as a token");
+      T.ok('CONTROL · a path value passes too', checkArgv(['--out', 'uploads/trio'], SPEC).ok === true, 'a non-flag value must not be refused');
+      T.ok('CONTROL · a repeated valued flag passes', checkArgv(['--night', 'a', '--night', 'b'], SPEC).ok === true, '--night is repeatable');
+      T.ok('CONTROL · booleans need no value', checkArgv(['--dry-run', '--force'], SPEC).ok === true, 'a boolean must not demand a value');
+      T.ok('CONTROL · an empty argv passes', checkArgv([], SPEC).ok === true, 'nothing to refuse');
+
+      /* ── a valued flag with NOTHING after it is itself a mistake worth catching ─────────────── */
+      var bare = checkArgv(['--src', '/x', '--night'], SPEC);
+      T.ok('a bare valued flag is REFUSED', bare.ok === false, '`opt` would silently hand back its default');
+      T.ok('…and the refusal says a value is needed', /needs a value/.test(bare.reason || ''), bare.reason);
+      var swallow = checkArgv(['--night', '--force'], SPEC);
+      T.ok('a valued flag does not SWALLOW the next flag as its value', swallow.ok === false, 'otherwise `--night --force` silently loses --force and takes it as a date');
+
+      /* ── the `=` form is refused rather than silently ignored ───────────────────────────────── */
+      var eq = checkArgv(['--out=uploads/trio'], SPEC);
+      T.ok('`--flag=value` is REFUSED, because `opt` reads the NEXT token', eq.ok === false, 'accepting a form the tool then ignores is the same defect one layer along');
+      T.ok('…and the refusal says where the value goes', /NEXT argument/.test(eq.reason || ''), eq.reason);
+
+      /* ── and the adopter actually declares what it reads ────────────────────────────────────── */
+      var tb = TSg['trio-batch.mjs'] || '';
+      T.ok('trio-batch adopts the guard', /refuseUnknownArgvOrExit\(/.test(tb), 'the guard exists but nothing calls it');
+      var reads = [];
+      var re = /(?:flag|opt|optAll)\('(--[a-z-]+)'/g,
+        m;
+      while ((m = re.exec(tb)) !== null) if (reads.indexOf(m[1]) < 0) reads.push(m[1]);
+      /* Named matches rather than `(m || [, ''])[1]`: that idiom builds a SPARSE array, which biome
+         rejects as a hazard and is right to — a hole in an array is not an empty string, and every
+         reader has to stop and check which one index 1 lands on. */
+      var mValued = tb.match(/valued: \[([^\]]*)\]/),
+        mBool = tb.match(/boolean: \[([^\]]*)\]/);
+      var declared = (mValued ? mValued[1] : '') + (mBool ? mBool[1] : '');
+      var missing = reads.filter(function (f) {
+        return declared.indexOf("'" + f + "'") < 0;
+      });
+      /* EVERY flag the code READS must be declared, not every flag the HELP documents. trio-batch reads
+         four its header never mentions (--cpap, --only-node, --allow-partial, --child), and --child is
+         passed by its own dispatcher — a spec built from the help would refuse its own children. */
+      T.eq('every flag trio-batch READS is declared to the guard', missing, []);
+    });
+
     group('every tool resolves repo code from its OWN checkout (PR #686 class)', 'tools · source-scan · portability', function (T) {
       var TS = env.toolSources;
       if (!TS) {
