@@ -295,19 +295,26 @@ function cmdClose(argv) {
  * exactly the partial adoption `verdict-adoption` exists to catch. */
 export function ratchetVerdictObject({ expect, actual, eligible, noPr }) {
   const v = ratchetVerdict(expect, actual, noPr);
-  // Built through the shared emitter, not by hand: it supplies `scope` and the commit provenance the
-  // contract requires and VALIDATES the result, so a malformed verdict throws here rather than
-  // shipping as a green-looking object nothing checked.
+  // 🔴 THE POPULATION IS EVERY ENTRY, NOT THE OPEN ONES. It was `checked: actual` (the open count),
+  // which is a modelling error the verdict contract caught the first time a drain answered ALL of
+  // them: `checked` fell to 0 and `makeVerdict` refused a PASS over the examined-nothing shape. Every
+  // entry IS examined to decide whether it is open — the open count is the RESULT, not the population.
+  // And an EMPTY ledger genuinely examines nothing, so it is NOT_APPLICABLE with a reason rather than
+  // a green over zero (§🧾: examined and the rule does not bind).
+  const status = eligible === 0 ? 'NOT_APPLICABLE' : v.status;
+  const reason = eligible === 0 ? 'the ledger holds no entries — there is nothing to ratchet' : v.reason;
   return makeVerdict({
     gate: 'mutation-survivor-ratchet',
     tool: 'tools/mutation-survivors.mjs',
-    status: v.status,
+    status,
     scope: 'internal',
-    population: { checked: actual, eligible, excluded: eligible - actual },
+    population: { checked: eligible, eligible, excluded: 0 },
     criterion: { name: 'open_survivors', threshold: expect, unit: 'entries', direction: 'lte' },
-    result: { open: actual, expected: expect },
+    // NOT_APPLICABLE carries result: null — the criterion does not bind, so there IS no result.
+    // (The contract refused this too; both refusals are the type system doing the reviewing.)
+    result: eligible === 0 ? null : { open: actual, expected: expect, answered: eligible - actual },
     evidence: ['mutation-survivors.json'],
-    reason: v.reason
+    reason
   });
 }
 
@@ -392,6 +399,15 @@ function selftest() {
   ck('a killed mutant that survives again is reported, not reopened silently', [again.added.length, again.regressed.length], [0, 1]);
   ck('…and the ledger is not quietly rewritten to open', again.entries[0].state, 'killed #8');
 
+  console.log('\nthe verdict OBJECT models its population correctly');
+  {
+    const all = ratchetVerdictObject({ expect: 0, actual: 0, eligible: 12, noPr: 0 });
+    ck('every entry answered is still a PASS over a real population — not examined-nothing', [all.status, all.population.checked, all.result.open, all.result.answered], ['PASS', 12, 0, 12]);
+    const none = ratchetVerdictObject({ expect: 0, actual: 0, eligible: 0, noPr: 0 });
+    ck('an EMPTY ledger examines nothing, so it does not report a green', none.status, 'NOT_APPLICABLE');
+    ck('…and says why', /nothing to ratchet/.test(none.reason), true);
+  }
+
   console.log('\nthe ratchet is TWO-SIDED');
   ck('equal passes', ratchetVerdict(5, 5).status, 'PASS');
   ck('shrinking passes', ratchetVerdict(5, 3).status, 'PASS');
@@ -416,7 +432,7 @@ function selftest() {
   );
   ck('open counting ignores closed rows', openCount(led), 2);
 
-  console.log(fail ? `${fail} failed of 29` : 'all 29 selftests passed');
+  console.log(fail ? `${fail} failed of 32` : 'all 32 selftests passed');
   return fail ? 1 : 0;
 }
 
@@ -428,7 +444,7 @@ if (process.argv[1] && process.argv[1].endsWith('mutation-survivors.mjs')) {
   if (argv.includes('--verdict-sample')) {
     // A SAMPLE, not a measurement: it reports on a two-entry stand-in, never on the committed
     // ledger, so running it can neither pass nor fail the real ratchet.
-    console.log(JSON.stringify(ratchetVerdictObject({ expect: 2, actual: 2, eligible: 3, noPr: 0 })));
+    console.log(JSON.stringify(ratchetVerdictObject({ expect: 0, actual: 0, eligible: 3, noPr: 0 })));
     process.exit(0);
   }
   const fn = CMDS[argv[0]];
