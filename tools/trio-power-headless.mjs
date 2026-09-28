@@ -28,6 +28,18 @@
  *      → **amd/rdna-3**, the real device. So this tool ASSERTS the adapter is not
  *      swiftshader unless `--allow-software`; a silent software fallback is the failure
  *      mode most likely to waste an hour.
+ *   2b. ⚠️ AND `navigator.gpu` NEEDS A SECURE CONTEXT — the flags are not the whole story, and this
+ *      cost a residue row (`2026-09-13-webgpu-absent-on-rig`, withdrawn 2026-09-27). `about:blank` is
+ *      NOT a trustworthy origin, so `!!navigator.gpu` is FALSE there on any box, with any driver, with
+ *      every flag above set. Measured 2026-09-27 on this box, same launch, two contexts:
+ *      `about:blank` → `isSecureContext:false, gpu:false`; `file:///…/OxyDex.html` →
+ *      `isSecureContext:true, gpu:true`. That row probed a blank page in three configurations, read the
+ *      three agreeing `false`s as corroboration of a dead driver, and concluded the GPU lane was gone
+ *      and a shipped 5 M-trial result was unreproducible. It reproduces in 2 s.
+ *      **Probe the page the consumer loads, never a blank one**, and give a capability probe a positive
+ *      control in that same context — a context-gated API reads absent for a reason that has nothing to
+ *      do with the capability. This tool navigates to `file://` + PAGE below, which is why it sees the
+ *      real adapter.
  *   3. POLL WITH `evaluate`, NOT `waitForFunction`. The page ships a CSP without
  *      `'unsafe-eval'` (deliberately — it is the no-network invariant, browser-enforced).
  *      Playwright's `waitForFunction` polling evaluates a STRING and is refused outright.
@@ -51,6 +63,8 @@ import { launch } from './pw-launch.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const PAGE = join(ROOT, 'sensor-trio-power-analysis.html');
+import { makeVerdict } from './verdict-emit.mjs';
+
 const argv = process.argv.slice(2);
 const flag = (n) => argv.includes(n);
 const opt = (n, d) => {
@@ -62,6 +76,116 @@ const TRIALS = Number(opt('--trials', '20000'));
 const WANT_CPU = flag('--cpu');
 const ALLOW_SW = flag('--allow-software');
 const AS_JSON = flag('--json');
+const VERDICT_SAMPLE = flag('--verdict-sample');
+
+/* ── §🧾 THE VERDICT, PURE, SO THE SAMPLE AND THE REAL RUN CANNOT DIVERGE ─────────────────────────
+   What this tool decides is whether the power table reached its PRE-STATED precision target, and on
+   WHICH BASIS. The basis is the point: `requestAdapter()` returning nothing leaves `lane: 'cpu-pool'`,
+   and a CPU table printed under a GPU-comparison tool is a result about a different machine than the
+   one the reader thinks they are looking at. So `result.basis` is always named, never implied.
+   Criterion is the paper's ±0.15 CI half-width (#1092), pre-stated and independent of this run.
+   Status map, fixed here rather than at the call site:
+     NOT_RUN   the GPU was intended and no adapter was granted — nothing was measured on the intended
+               backend, and the tool refuses rather than quietly substituting the CPU pool
+     FAIL      a SOFTWARE rasteriser was granted without --allow-software (the existing refusal)
+     SHORTFALL the table ran but some device never reaches ±0.15 inside the N grid
+     PASS      every device reaches the target, with the basis named
+   `--cpu` is NOT a shortfall: the caller asked for the worker pool, so the criterion still applies and
+   the basis says `cpu-pool`. A software adapter accepted via --allow-software rides as PASS/SHORTFALL
+   with `basis: 'webgpu-software:<adapter>'`, because the number is real and the machine is named. */
+export function gateVerdict(f) {
+  const basis = f.lane === 'webgpu' ? 'webgpu:' + (f.adapter || 'granted') : f.lane === 'cpu-pool' ? (f.wantCpu ? 'cpu-pool (forced by --cpu)' : 'cpu-pool') : String(f.lane);
+  const devices = f.minN ? Object.keys(f.minN) : [];
+  const unmet = devices.filter((d) => !Number.isFinite(f.minN[d]));
+  let status, reason, result;
+  if (f.absentBackend) {
+    status = 'NOT_RUN';
+    result = null;
+    reason =
+      'no WebGPU adapter was granted, so nothing was measured on the intended backend — requestAdapter() returned ' +
+      JSON.stringify(f.adapter) +
+      (f.why ? ' (' + f.why + ')' : '') +
+      ". Re-run with --cpu to measure the worker-pool lane deliberately; a CPU table is not this tool's GPU answer. NOTE: navigator.gpu is exposed only in a SECURE CONTEXT, so a probe on about:blank sees it absent on any box (see §2).";
+  } else if (f.softwareRefused) {
+    status = 'FAIL';
+    result = { basis: basis, adapter: f.adapter || null };
+    reason = 'WebGPU resolved to the SOFTWARE rasteriser ' + JSON.stringify(f.adapter) + ', which reports lane:webgpu and is no faster than the CPU pool — refused without --allow-software';
+  } else if (unmet.length) {
+    status = 'SHORTFALL';
+    result = { basis: basis, minN: f.minN, trials: f.trials, wallSec: f.wallSec };
+    reason = unmet.join(', ') + ' never reach a ±' + f.target + ' half-width inside the N grid (max N=' + f.maxN + ')';
+  } else {
+    status = 'PASS';
+    result = { basis: basis, minN: f.minN, trials: f.trials, wallSec: f.wallSec };
+    reason = null;
+  }
+  return makeVerdict({
+    gate: 'trio-power-headless',
+    status: status,
+    population: f.absentBackend ? { checked: 0, eligible: devices.length || 3, excluded: devices.length || 3 } : { checked: devices.length, eligible: devices.length, excluded: 0 },
+    criterion: { name: 'ci_half_width', threshold: f.target, unit: 'sigma', direction: 'lte' },
+    result: result,
+    evidence: ['tools/trio-power-headless.mjs'],
+    reason: reason,
+    tool: 'tools/trio-power-headless.mjs',
+    commit: f.commit,
+    at: f.at
+  });
+}
+
+if (flag('--selftest')) {
+  /* The STATUS MAP, over synthetic result sets — no browser, no GPU. Each leg is a state this tool can
+     actually reach, and the two that matter most are the ones that used to be silent: an absent backend
+     (which continued onto the CPU pool) and a cpu-pool run (which printed under a GPU tool's name). */
+  const fails = [];
+  const ok = (c, m) => {
+    if (!c) fails.push(m);
+  };
+  const base = { minN: { o2: 3, h10: 5, verity: 2 }, trials: 200, wallSec: 2, target: 0.15, maxN: 20, commit: 'deadbeef', at: '2026-09-27T00:00:00Z' };
+
+  const gpu = gateVerdict({ ...base, lane: 'webgpu', adapter: 'amd/rdna-3' });
+  ok(gpu.status === 'PASS', `a real adapter meeting the target is PASS, got ${gpu.status}`);
+  ok(gpu.result.basis === 'webgpu:amd/rdna-3', `the basis names the adapter, got ${gpu.result.basis}`);
+  ok(gpu.reason === null, 'a PASS carries no reason');
+
+  /* ABSENT BACKEND — nothing was measured on the intended backend. */
+  const none = gateVerdict({ ...base, absentBackend: true, lane: 'cpu-pool', adapter: null, why: 'no adapter' });
+  ok(none.status === 'NOT_RUN', `an absent backend is NOT_RUN, got ${none.status}`);
+  ok(none.result === null, 'NOT_RUN reports no result — it measured nothing');
+  ok(none.population.checked === 0 && none.population.excluded === none.population.eligible, JSON.stringify(none.population));
+  ok(/adapter/i.test(none.reason) && /secure context/i.test(none.reason), `the reason names what it tried and the secure-context gate, got ${none.reason}`);
+
+  /* A CPU RUN IS NAMED AS THE BASIS, never as the GPU lane — and it is not a shortfall. */
+  const cpu = gateVerdict({ ...base, lane: 'cpu-pool', adapter: null, wantCpu: true });
+  ok(cpu.status === 'PASS', `--cpu meeting the target is PASS, got ${cpu.status}`);
+  ok(/cpu-pool/.test(cpu.result.basis) && !/webgpu/.test(cpu.result.basis), `the basis says cpu-pool and never webgpu, got ${cpu.result.basis}`);
+
+  /* A SOFTWARE rasteriser refused. */
+  const sw = gateVerdict({ ...base, softwareRefused: true, lane: 'webgpu', adapter: 'google/swiftshader' });
+  ok(sw.status === 'FAIL', `a refused software adapter is FAIL, got ${sw.status}`);
+  ok(/swiftshader/.test(sw.reason), 'the FAIL reason names the adapter');
+
+  /* A device that never reaches the target inside the grid. */
+  const short = gateVerdict({ ...base, lane: 'webgpu', adapter: 'amd/rdna-3', minN: { o2: 3, h10: null, verity: 2 } });
+  ok(short.status === 'SHORTFALL', `an unmet device is SHORTFALL, got ${short.status}`);
+  ok(/h10/.test(short.reason) && /0.15/.test(short.reason), `the reason names the device and the target, got ${short.reason}`);
+  ok(short.population.checked === 3, 'a shortfall still examined every device');
+
+  /* The criterion is PRE-STATED — the same for every leg, never taken from the numbers it judges. */
+  ok(
+    [gpu, none, cpu, sw, short].every((v) => v.criterion.threshold === 0.15 && v.criterion.direction === 'lte'),
+    'the criterion is identical across every status'
+  );
+
+  console.log(fails.length ? `SELFTEST FAIL (${fails.length})\n  ${fails.join('\n  ')}` : 'all 15 selftests passed');
+  process.exit(fails.length ? 1 : 0);
+}
+
+if (VERDICT_SAMPLE) {
+  /* A synthetic result set, so the census can RUN this without a GPU or a browser. */
+  console.log(JSON.stringify(gateVerdict({ lane: 'webgpu', adapter: 'amd/rdna-3', minN: { o2: 3, h10: 5, verity: 2 }, trials: 200, wallSec: 2, target: 0.15, maxN: 20 }), null, 2));
+  process.exit(0);
+}
 
 /* The flag set that reaches the DISCRETE adapter. Dropping any of the last three drops
    you to swiftshader, which still reports lane:webgpu — see §2 above. */
@@ -108,9 +232,29 @@ const lane = await page.evaluate(async (wantCpu) => {
   return { lane: ok ? 'webgpu' : 'cpu-pool', why: window.TrioGPU.why, adapter };
 }, WANT_CPU);
 
+/* ── NO BACKEND, NO GPU ANSWER (§🧾 + §∅) ─────────────────────────────────────────────────────────
+   `requestAdapter()` returning nothing leaves `lane: 'cpu-pool'`, and the run used to CONTINUE — printing
+   a worker-pool table under a tool whose entire purpose is the GPU comparison, with the substitution
+   visible only to a reader who noticed the lane line. That is an output about a different machine than
+   the one the reader thinks they are looking at, so it refuses and says what it tried.
+   ⚠️ Measured 2026-09-27 (residue `2026-09-13-webgpu-absent-on-rig`, withdrawn): `navigator.gpu` is
+   exposed ONLY IN A SECURE CONTEXT. `about:blank` is not one, so a bare probe reports it absent on any
+   box with any driver — which is why three "independent" configurations agreed. This tool navigates to a
+   `file://` page (a trustworthy origin), which is why it sees the real adapter where that probe could
+   not: `isSecureContext` false/true is the whole difference. Probe a real page, never a blank one. */
+if (!WANT_CPU && lane.lane !== 'webgpu') {
+  console.log(JSON.stringify(gateVerdict({ absentBackend: true, lane: lane.lane, adapter: lane.adapter, why: lane.why, target: 0.15, maxN: 20 })));
+  console.error(`NOT_RUN: no WebGPU adapter was granted (requestAdapter -> ${JSON.stringify(lane.adapter)}${lane.why ? ', ' + lane.why : ''}).`);
+  console.error('Nothing was measured on the intended backend. Pass --cpu to measure the worker-pool lane');
+  console.error('deliberately; navigator.gpu needs a SECURE CONTEXT, so a blank-page probe never sees it.');
+  await browser.close();
+  process.exit(1);
+}
+
 /* A software adapter is the failure this tool exists to make loud: it satisfies every
    "is the GPU on?" check and buys nothing. Refuse unless asked. */
 if (!WANT_CPU && !ALLOW_SW && /swiftshader|lavapipe|llvmpipe/i.test(String(lane.adapter))) {
+  console.log(JSON.stringify(gateVerdict({ softwareRefused: true, lane: lane.lane, adapter: lane.adapter, why: lane.why, target: 0.15, maxN: 20 })));
   console.error(`REFUSING: WebGPU resolved to a SOFTWARE adapter (${lane.adapter}).`);
   console.error('It reports lane:webgpu and is no faster than the CPU pool. Fix the driver/flags,');
   console.error('or pass --allow-software if you genuinely want it.');
@@ -215,8 +359,29 @@ if (!Object.values(res.negRate).some((row) => Object.values(row).some((v) => v !
   console.error('negative-variance grid came back empty — rhoSweep shape changed; refusing to report it');
   process.exit(2);
 }
+/* §🧾 ONE object beside the prose. `minN` is read at the PRE-STATED target rather than at whatever the
+   grid happened to resolve — a threshold taken from the data it judges would be UNKNOWN, not a PASS. */
+const TARGET = 0.15;
+const minNAt = Object.fromEntries(
+  Object.keys(res.minN && res.minN.dynamic ? res.minN.dynamic : {}).map((k) => {
+    const v = res.minN.dynamic[k][String(TARGET)];
+    return [k, typeof v === 'number' && Number.isFinite(v) ? v : null];
+  })
+);
+const verdict = gateVerdict({
+  lane: res.lane,
+  adapter: res.adapter,
+  why: res.why,
+  wantCpu: WANT_CPU,
+  minN: minNAt,
+  trials: res.trials,
+  wallSec: res.wallSec,
+  target: TARGET,
+  maxN: Math.max(...(res.nGrid || [20]))
+});
+
 if (AS_JSON) {
-  console.log(JSON.stringify(res, null, 2));
+  console.log(JSON.stringify({ ...res, verdict }, null, 2));
   process.exit(0);
 }
 
@@ -253,3 +418,6 @@ for (const k of ['o2', 'h10', 'verity']) {
   );
 }
 console.log('');
+
+/* The object LAST, after the tables it summarises — prose explains, the object is the API. */
+console.log('\n' + JSON.stringify(verdict));
