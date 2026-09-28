@@ -928,7 +928,20 @@ import './glucodex-profile.js';
       ys = [];
     for (const e of epochs) {
       const rm = e.rmssd;
-      if (rm > 0 && isFinite(rm) && isFinite(e.tMin)) {
+      /* ── `Number.isFinite` FOR THE TIME, and the asymmetry here is the point (row 2026-09-28-…-admits-null) ──
+         `rm` is already safe by accident of its own bound: `null > 0` is false, so a null RMSSD never
+         reaches the loose `isFinite(rm)` beside it. `e.tMin` has no such bound, and `isFinite(null)` is
+         TRUE — so a null minute-offset passed, `xs.push(null)` put it in the regression, and arithmetic
+         coerced it to **0**: an epoch of unknown time regressed as if it sat at ECG start. Same defect as
+         #3197 one function away, and the reason the loose form cannot be the idiom in this file.
+         ⚠️ This also rejects a NUMERIC STRING (`isFinite('12')` true, `Number.isFinite('12')` false), and
+         that is intended rather than collateral: `tMin` is produced by `ecgdex-dsp.js` as
+         `+(w0 / 60).toFixed(1)`, always a number, so a string here means a malformed import and a silent
+         coercion would hide it. (That is why this is the right call HERE and why a blanket sweep of the
+         repo's ~430 bare guards is NOT — elsewhere a numeric string may be a legitimate input.)
+         ⚠️ PREVENTIVE: today's epochs carry a finite `tMin` from that same producer, so no shipped input
+         reaches this. It closes the door before a producer can open it, exactly as #3197 did. */
+      if (rm > 0 && isFinite(rm) && Number.isFinite(e.tMin)) {
         xs.push(e.tMin);
         ys.push(Math.log(rm));
       }
