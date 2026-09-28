@@ -763,8 +763,11 @@ def prune_scratches(tmp_root, stem, current, now=None, start_ticks_of=proc_start
             continue
         try:
             marker = (old_dir / SCRATCH_OWNER_FILE).read_text(encoding="utf-8")
-        except OSError:
-            marker = ""          # unreadable is UNKNOWN, which the decision below treats as such
+        except (OSError, ValueError):
+            # ValueError covers UnicodeDecodeError: a marker holding non-UTF-8 bytes would otherwise
+            # raise straight out of the sweep and take the whole run with it, over a file whose only
+            # job is to be advisory. Unreadable for ANY reason is UNKNOWN, which earns the long floor.
+            marker = ""
         age = max(0.0, now - st.st_mtime)
         do_prune, why = scratch_prune_decision(
             is_current=(old_dir == pathlib.Path(current)),
