@@ -50,19 +50,30 @@ export const LANES = ['py', 'js'];
  * The `key` field is `mutation_diff.diff_key`'s output verbatim, so a survivor entry and an
  * equivalence entry for the same mutant carry the SAME string and can be read against each other.
  */
-export function survivorKey({ lane, module: mod, fn, function: fname, key }) {
+export function survivorKey({ lane, module: mod, fn, function: fname, key, occurrence }) {
   // BOTH SPELLINGS, deliberately. A ledger row stores `function`; the ingest path and the tests
   // build `fn`. Reading only one of them is not a style slip — it silently produces a key with
   // `undefined` in it, which matches nothing, so EVERY committed entry reads as orphaned and the
   // ledger quietly empties itself. The selftest below caught exactly that.
   const name = fn ?? fname;
-  return [lane, mod, name, String(key || '').trim()].join('\u0000');
+  const base = [lane, mod, name, String(key || '').trim()].join('\u0000');
+  // THE OCCURRENCE ORDINAL, and why zero adds NOTHING to the string. Content alone could not
+  // separate two identical statements in one function — measured on loss_audit.py: 8 of 27 functions
+  // generate a duplicate key, 86 of 2141 mutants, and the second of each pair was folded into the
+  // first and reported "already open", i.e. as the same finding rather than a lost one.
+  // Appending only when n > 0 means every entry written before this existed keys IDENTICALLY, so the
+  // ledger migrates without re-identifying a single row.
+  const n = Number(occurrence) || 0;
+  return n > 0 ? `${base}\u0000#${n}` : base;
 }
 
 /** The human-readable form of a key, for `list` and for `close <key>`. */
 export function keyLabel(k) {
-  const [lane, mod, fn, key] = String(k).split('\u0000');
-  return `${lane}:${mod}::${fn}  ${key}`;
+  const [lane, mod, fn, key, ord] = String(k).split('\u0000');
+  // The ordinal is SHOWN when there is one. Twins print an identical line otherwise, and a list an
+  // operator cannot tell apart is a list they have to close by guesswork — which is the failure this
+  // whole change is about, moved from the key to the screen.
+  return `${lane}:${mod}::${fn}  ${key}${ord ? `  [occurrence ${ord.slice(1)}]` : ''}`;
 }
 
 /**
@@ -128,7 +139,7 @@ export function entriesFromVerdict(doc, opts = {}) {
       function: fn,
       key: String(s.key || '').trim(),
       mutant: s.mutant || null,
-      file_line: s.file_line || null,
+      file_line: s.file_line ?? positionOfSurvivor(s),
       pr,
       run_id: runId,
       merge_sha: mergeSha,
@@ -136,7 +147,51 @@ export function entriesFromVerdict(doc, opts = {}) {
       state: 'open'
     });
   }
-  return { entries, lowerBound, generated, decided, status };
+  // Numbered against THIS run's own survivors: twins are only twins within one report.
+  return { entries: withOccurrences(entries), lowerBound, generated, decided, status };
+}
+
+/**
+ * The mutated line's position WITHIN ITS FUNCTION, read from the survivor's own unified diff.
+ *
+ * mutmut discards it: `position.start.line` is computed in `mutation/file_mutation.py` only to
+ * filter on pragmas and coverage, `mutmut-stats.json` carries no line, and the mutant NUMBER is not
+ * a source-ordered substitute — measured, monotonic in 23 of 27 functions, not 27. But the gate's
+ * artifact already diffs each mutant against its original, so the hunk header carries it.
+ */
+export function positionOfSurvivor(s) {
+  const m = /^@@ -(\d+)/m.exec(String((s && s.diff) || ''));
+  return m ? Number(m[1]) : null;
+}
+
+/**
+ * Number each survivor among its OWN twins — same lane, module, function and mutation text — in
+ * position order, and leave everything else at 0.
+ *
+ * 🔴 THE ORDINAL, NOT THE RAW LINE, GOES IN THE KEY, and the difference is the whole point of
+ * keying on content in the first place. A line index shifts whenever anything above it inside the
+ * function changes, so putting it in the key would orphan every entry on the next unrelated edit —
+ * re-creating, from the other side, the instability that made `__mutmut_N` unusable as a name. The
+ * ordinal moves only when a TWIN is added or removed, which is the one event that genuinely changes
+ * which occurrence is which. The line is still recorded, as `file_line`, because it is what a reader
+ * needs to find the thing; it is a breadcrumb, never the identity.
+ *
+ * A survivor with no readable position sorts last and keeps a deterministic ordinal, because a
+ * missing position must not silently merge it into a twin (§∅).
+ */
+export function withOccurrences(entries) {
+  const groups = new Map();
+  for (const e of entries) {
+    const g = [e.lane, e.module, e.fn ?? e.function, String(e.key || '').trim()].join('\u0000');
+    if (!groups.has(g)) groups.set(g, []);
+    groups.get(g).push(e);
+  }
+  const out = [];
+  for (const g of groups.values()) {
+    const ranked = g.map((e, i) => ({ e, i, pos: e.file_line == null ? Number.POSITIVE_INFINITY : Number(e.file_line) })).sort((a, b) => a.pos - b.pos || a.i - b.i);
+    ranked.forEach((r, n) => out.push({ ...r.e, occurrence: n }));
+  }
+  return out;
 }
 
 /**
@@ -468,6 +523,49 @@ export function ratchetVerdictObject({ expect, actual, eligible, noPr }) {
   });
 }
 
+/**
+ * Give every stored entry an occurrence ordinal, and REFUSE if that would re-identify any of them.
+ *
+ * The safety property is the whole migration: an entry written before ordinals existed must key
+ * EXACTLY as it did, or the ledger silently forgets what it had answered. Ordinal 0 contributes
+ * nothing to the key string, so a ledger with no twins migrates to a byte-identical key set — and
+ * this checks that rather than assuming it, because "it should be unchanged" is the assumption that
+ * loses data quietly.
+ */
+export function migrateOccurrences(entries) {
+  const before = entries.map((e) => survivorKey(e));
+  const after = withOccurrences(entries);
+  const afterKeys = after.map((e) => survivorKey(e));
+  const moved = [];
+  for (let i = 0; i < before.length; i++) {
+    const still = afterKeys.includes(before[i]);
+    if (!still) moved.push({ entry: entries[i], from: before[i] });
+  }
+  const dupes = afterKeys.length - new Set(afterKeys).size;
+  return { entries: after, moved, dupes, changed: after.filter((e) => (e.occurrence || 0) > 0).length };
+}
+
+function cmdMigrate(argv) {
+  const ledger = readLedger();
+  const m = migrateOccurrences(ledger.entries || []);
+  if (m.moved.length) {
+    console.error(`mutation-survivors: REFUSING — ${m.moved.length} existing entr(ies) would change identity:`);
+    for (const x of m.moved) console.error(`    ${keyLabel(x.from)}`);
+    return 2;
+  }
+  if (m.dupes) {
+    console.error(`mutation-survivors: REFUSING — ${m.dupes} duplicate key(s) remain after numbering`);
+    return 2;
+  }
+  if (argv.includes('--check')) {
+    console.log(`migrate --check: ${m.entries.length} entries, ${m.changed} would take a non-zero ordinal, 0 re-identified`);
+    return 0;
+  }
+  writeLedger({ ...ledger, entries: m.entries });
+  console.log(`migrated ${m.entries.length} entries — ${m.changed} took a non-zero ordinal, none re-identified`);
+  return 0;
+}
+
 function cmdRatchet(argv) {
   const expect = Number(arg('--expect', argv));
   if (!Number.isInteger(expect)) {
@@ -575,6 +673,75 @@ function selftest() {
   ck('a non-sha refuses rather than being compared', !!verdictCommitOf({ verdict: { producedBy: { commit: 'HEAD' } } }).refused, true);
   ck('a real sha is taken', verdictCommitOf({ verdict: { producedBy: { commit: '3c0dbdec' } } }).commit, '3c0dbdec');
 
+  console.log('\nCONTENT + POSITION — twins in one function are separate findings');
+  {
+    const dif = (ln) => `--- m.py\n+++ m.py\n@@ -${ln},7 +${ln},7 @@\n-    continue\n+    break\n`;
+    ck("the position comes from the survivor's own diff", positionOfSurvivor({ diff: dif(36) }), 36);
+    ck('…and a survivor without one says so rather than guessing 0', positionOfSurvivor({ diff: '' }), null);
+    const twins = [
+      { lane: 'py', module: 'm.py', function: 'read_journal', key: '- continue | + break', file_line: 44 },
+      { lane: 'py', module: 'm.py', function: 'read_journal', key: '- continue | + break', file_line: 36 },
+      { lane: 'py', module: 'm.py', function: 'read_journal', key: '- continue | + break', file_line: 42 }
+    ];
+    const n = withOccurrences(twins);
+    ck(
+      'twins are numbered in POSITION order, not arrival order',
+      n.map((e) => [e.file_line, e.occurrence]),
+      [
+        [36, 0],
+        [42, 1],
+        [44, 2]
+      ]
+    );
+    ck('…so three real twins are three keys, not one', new Set(n.map(survivorKey)).size, 3);
+    ck(
+      'the FIRST twin keys exactly as it did before ordinals existed',
+      survivorKey(n.find((e) => e.occurrence === 0)),
+      survivorKey({ lane: 'py', module: 'm.py', function: 'read_journal', key: '- continue | + break' })
+    );
+    const lone = withOccurrences([{ lane: 'py', module: 'm.py', function: 'f', key: '- a | + b', file_line: 9 }]);
+    ck('a mutation with no twin takes ordinal 0 and is untouched', lone[0].occurrence, 0);
+    const noPos = withOccurrences([
+      { lane: 'py', module: 'm.py', function: 'f', key: '- a | + b', file_line: null },
+      { lane: 'py', module: 'm.py', function: 'f', key: '- a | + b', file_line: null }
+    ]);
+    ck('two twins with NO position stay two findings — a missing line must not merge them (§∅)', new Set(noPos.map(survivorKey)).size, 2);
+    ck(
+      '…and a positioned twin sorts before an unpositioned one',
+      withOccurrences([
+        { lane: 'py', module: 'm.py', function: 'f', key: '- a | + b', file_line: null },
+        { lane: 'py', module: 'm.py', function: 'f', key: '- a | + b', file_line: 5 }
+      ]).find((e) => e.occurrence === 0).file_line,
+      5
+    );
+    ck(
+      'a different mutation on the SAME line is a different key already',
+      survivorKey({ lane: 'py', module: 'm.py', function: 'f', key: '- x | + y', occurrence: 0 }) !== survivorKey({ lane: 'py', module: 'm.py', function: 'f', key: '- x | + z', occurrence: 0 }),
+      true
+    );
+    ck(
+      'the label shows an ordinal when there is one, and hides it when there is not',
+      [keyLabel(survivorKey(n[1])).includes('[occurrence 1]'), keyLabel(survivorKey(n[0])).includes('occurrence')],
+      [true, false]
+    );
+  }
+
+  console.log('\nthe migration may not re-identify a single stored entry');
+  {
+    const old = [
+      { lane: 'py', module: 'm.py', function: 'f', key: '- a | + b', state: 'killed #1' },
+      { lane: 'py', module: 'm.py', function: 'g', key: '- c | + d', state: 'equivalent' }
+    ];
+    const m = migrateOccurrences(old);
+    ck('a ledger with no twins migrates to a byte-identical key set', [m.moved.length, m.changed, m.dupes], [0, 0, 0]);
+    ck('…and every state survives', m.entries.map((e) => e.state).sort(), ['equivalent', 'killed #1']);
+    const withTwins = migrateOccurrences([
+      { lane: 'py', module: 'm.py', function: 'f', key: '- a | + b', file_line: 3 },
+      { lane: 'py', module: 'm.py', function: 'f', key: '- a | + b', file_line: 9 }
+    ]);
+    ck('twins already in the ledger separate WITHOUT the first one moving', [withTwins.moved.length, withTwins.changed, withTwins.dupes], [0, 1, 0]);
+  }
+
   console.log('\na SHARED mutation text is addressable by the mutant id');
   {
     const shared = '- continue | + break';
@@ -639,11 +806,11 @@ function selftest() {
   );
   ck('open counting ignores closed rows', openCount(led), 2);
 
-  console.log(fail ? `${fail} failed of 53` : 'all 53 selftests passed');
+  console.log(fail ? `${fail} failed of 66` : 'all 66 selftests passed');
   return fail ? 1 : 0;
 }
 
-const CMDS = { ingest: cmdIngest, list: cmdList, close: cmdClose, ratchet: cmdRatchet };
+const CMDS = { ingest: cmdIngest, list: cmdList, close: cmdClose, ratchet: cmdRatchet, migrate: cmdMigrate };
 
 if (process.argv[1] && process.argv[1].endsWith('mutation-survivors.mjs')) {
   const argv = process.argv.slice(2);
@@ -656,7 +823,7 @@ if (process.argv[1] && process.argv[1].endsWith('mutation-survivors.mjs')) {
   }
   const fn = CMDS[argv[0]];
   if (!fn) {
-    console.error('usage: mutation-survivors.mjs ingest <verdict.json> --pr N --lane py|js | list | close | ratchet --expect N | --selftest');
+    console.error('usage: mutation-survivors.mjs ingest <verdict.json> --pr N --lane py|js | list | close | ratchet --expect N | migrate [--check] | --selftest');
     process.exit(2);
   }
   process.exit(fn(argv));
