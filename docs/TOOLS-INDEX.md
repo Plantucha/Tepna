@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**221 tools** · 219 with a purpose line · **2 without**
+**222 tools** · 220 with a purpose line · **2 without**
 
 | tool | purpose |
 |---|---|
@@ -102,6 +102,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`mutation-reach.mjs`](../tools/mutation-reach.mjs) | A mutant on a line NO test executes cannot be killed. Running it is guaranteed waste, and reporting the result as "survived" fuses two findings that have OPPOSITE fixes: |
 | [`mutation-suite.mjs`](../tools/mutation-suite.mjs) | THIS TOOL REUSES; IT DOES NOT REPLACE. `mutate.mjs` (2032 lines) already does the hard part — mutant generation, the worker pool, the journal, `--resume` with jammed-mutant quarantine, the… |
 | [`mutation-summary.mjs`](../tools/mutation-summary.mjs) | `mutation.yml` used to render the gate's EXIT CODE: `0 → **PASS**`. |
+| [`mutation-survivors.mjs`](../tools/mutation-survivors.mjs) | THE SURVIVOR LEDGER — brief: briefs/MUTATION-SURVIVOR-LEDGER-2026-09-28-BRIEF.md Residue: 2026-09-24-mutation-survivors-outlive-the-pr-that-reported-them |
 | [`mutation-worklist.mjs`](../tools/mutation-worklist.mjs) | The target is 99 % OF DISTINGUISHABLE (owner-ratified 2026-08-11, raised from 90 %). |
 | [`nearest-advocate.mjs`](../tools/nearest-advocate.mjs) | EVENT-BASED time-shift estimation, for the case where cross-correlation is known to fail. |
 | [`new-changeset.mjs`](../tools/new-changeset.mjs) | write a changeset whose `brief:` RESOLVES, at write time. WHY THIS EXISTS. |

@@ -53,7 +53,8 @@
     "pseudo:baseline": "node tools/extreme-mutate.mjs --write-baseline --file",
     "verify:commit-shape": "node tools/commit-shape.mjs",
     "verify:seals": "node tools/verify-seals.mjs --vectors",
-    "verify:residue-ids": "node tools/residue-ids.mjs --base origin/main"
+    "verify:residue-ids": "node tools/residue-ids.mjs --base origin/main",
+    "verify:survivor-ratchet": "node tools/mutation-survivors.mjs ratchet --expect 12"
   },
   "engines": {
     "node": ">=18"

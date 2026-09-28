@@ -1525,6 +1525,18 @@
       "bin": "word-only",
       "status": "exempt",
       "reason": "the only verdict word it prints is its OWN --selftest result line (\"SELFTEST FAIL\"); it decides nothing about the lane. It serves the checkout in-process, sets BASE_URL and FORWARDS tests/browser-gates.mjs's exit code unchanged — and that gate is `decides`/adopted with its own --verdict-sample, so the lane's verdict is already an object with a producer behind it. Emitting a second object here would claim an authorship this process does not have: per VERDICT-CONTRACT §3d a runner's status is an aggregation of its children, and this one has exactly one child whose verdict it relays rather than aggregates. It adds an origin and an exit code, not a decision."
+    },
+    "tools/mutation-survivors.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/mutation-survivors.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "the survivor ledger's two-sided open-count ratchet (brief MUTATION-SURVIVOR-LEDGER-2026-09-28; residue 2026-09-24-mutation-survivors-outlive-the-pr-that-reported-them) — PASS on equal-or-shrinking, FAIL when an unanswered survivor raises the count or an entry names no PR"
     }
   }
 }
