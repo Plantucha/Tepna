@@ -37,6 +37,7 @@ next reader does not treat a screen as a verdict.
 from __future__ import annotations
 
 import ast
+import copy
 import fnmatch
 import pathlib
 import re
@@ -446,8 +447,9 @@ def functions_with_changed_ast(old_src: str, new_src: str) -> tuple[set[str], st
     except SyntaxError as exc:
         return set(), f"a revision does not parse ({exc.__class__.__name__}: {exc}) — scope is not narrowed"
 
-    def by_stem(tree: ast.AST) -> dict[str, str]:
+    def by_stem(tree: ast.AST) -> tuple[dict[str, str], dict[str, ast.AST]]:
         out: dict[str, str] = {}
+        bare: dict[str, str] = {}
 
         def visit(node, cls: str | None) -> None:
             # 🔴 `ast.iter_child_nodes`, THE SAME WALK `functions_covering` USES — not `node.body`.
@@ -464,6 +466,10 @@ def functions_with_changed_ast(old_src: str, new_src: str) -> tuple[set[str], st
                     # reached twice). Concatenate so "changed" means "any body under this stem
                     # changed" — the conservative reading, and the one a mutant glob matches.
                     out[stem] = out.get(stem, "") + ast.dump(child)
+                    # The same accumulation with the docstring statement removed. Parallel by
+                    # construction, so a stem covering SEVERAL defs is judged over all of them —
+                    # keeping only the first node let a change in the SECOND read as docstring-only.
+                    bare[stem] = bare.get(stem, "") + ast.dump(_strip_docstring(child))
                     visit(child, cls)
                 elif isinstance(child, ast.ClassDef):
                     visit(child, child.name)
@@ -471,10 +477,45 @@ def functions_with_changed_ast(old_src: str, new_src: str) -> tuple[set[str], st
                     visit(child, cls)
 
         visit(tree, None)
-        return out
+        return out, bare
 
-    old_fns, new_fns = by_stem(old_tree), by_stem(new_tree)
-    return {n for n, d in new_fns.items() if old_fns.get(n) != d}, None
+    old_fns, old_bare = by_stem(old_tree)
+    new_fns, new_bare = by_stem(new_tree)
+    changed = {n for n, d in new_fns.items() if old_fns.get(n) != d}
+    # ── A CHANGE CONFINED TO A DOCSTRING HAS NOTHING TO MUTATE ──────────────────────────────────
+    # MEASURED, not assumed (mutmut 3.8): a function of [docstring + `return 1`] generates exactly
+    # ONE mutant, `return 2`, and ZERO mutants touch the docstring node. So a function whose only
+    # difference from base is its docstring contributes no mutant the diff could be responsible for,
+    # and scoping it re-mutates a body that did not change. That is not free: on the 2026-09-28
+    # reformat, 14 docstring re-indents pulled in capture.py (163 functions, 20,021 mutants, ~22 min
+    # to GENERATE on 24 cores) and the job was cancelled at the 180-minute runner timeout.
+    #
+    # This is a SYNTACTIC distinction — "the one node with no mutants behind it" — not a judgement
+    # about which strings matter. A changed log line, format string or SQL fragment still scopes,
+    # because it is not the docstring statement.
+    # Docstring-only iff the FULL dumps differ (already true for everything in `changed`) while the
+    # dumps with every docstring statement stripped are identical.
+    return {n for n in changed if old_bare.get(n) != new_bare.get(n)}, None
+
+
+def _strip_docstring(node):
+    """A copy of `node` with its docstring STATEMENT removed.
+
+    No `node is None` guard: the only caller walks real `FunctionDef` children, so the branch would
+    be unreachable padding — and an untestable guard standing in for a case that cannot arise is the
+    same shape as a zero standing in for an absent measurement."""
+    clone = copy.deepcopy(node)
+    body = getattr(clone, "body", None)
+    if (
+        body
+        and isinstance(body[0], ast.Expr)
+        and isinstance(body[0].value, ast.Constant)
+        and isinstance(body[0].value.value, str)
+    ):
+        clone.body = body[1:] or [ast.Pass()]
+    return clone
+
+
 
 
 def annotation_only(old_src: str, new_src: str) -> tuple[bool, str]:
