@@ -406,7 +406,7 @@ def test_build_pools_the_previous_day_when_the_night_crossed_midnight(tmp_path):
     t = tmp_path / "2026-07-26"; t.mkdir()
     _sess(y, "Polar_H10_02849638_20260725222627_HR.txt", 3600)     # 22:26, yesterday's folder
     _sess(t, "Polar_H10_02849638_20260726000100_HR.txt", 3600)     # 00:01, today's
-    out = timeline.build(str(t), [{"name": "H10", "device_id": "02849638", "vendor": "Polar",
+    out = _build(str(t), [{"name": "H10", "device_id": "02849638", "vendor": "Polar",
                                    "model": "H10", "address": "AA", "streams": ["hr"]}], buckets=48)
     st = out["devices"][0]["streams"]["hr"]
     assert st["covered_sec"] >= 7000, f"both halves must count, got {st['covered_sec']}s"
@@ -455,6 +455,41 @@ import os as _os
 
 import nightqc as _nightqc
 import writers as _writers
+import datetime as _wrapdt
+
+# ── THESE FIXTURES DECLARE THEIR FRAME RATHER THAN HAVING IT INFERRED ──────────────────────────────────
+#
+# They build a file's start from a floating civil stamp and its mtime from `.timestamp()`, so the two are
+# already in ONE frame — the reader's — by construction. `nightqc.summarize` otherwise RECOVERS the
+# writer's UTC offset from the files (`recover_writer_offset`), and a synthetic file carrying no usable
+# clock casts no vote, so the night refuses and publishes no span: a failure the fixture invented rather
+# than one the behaviour under test is about.
+#
+# Declaring it states the premise instead of making the module re-derive it from invented file contents,
+# and it is PUBLISHED as `basis: "declared"` so a reader can never mistake it for a measurement. The tests
+# that exercise the recovery and the refusal themselves call `nightqc.summarize` / `timeline.build`
+# directly and must keep doing so.
+def _declared_reader_frame(night):
+    """`declared_offset(...)` for the reader's own UTC offset at this night — the frame these fixtures
+    build in. Read off a real filename stamp rather than from `time.timezone`, so it is the offset in
+    force ON THAT DATE and a fixture dated across a DST boundary stays correct."""
+    import nightqc                      # this module imports it locally; keep that convention
+    for f in nightqc.scan_night(night):
+        if f.get("session") is None:
+            continue
+        stamp = f["file"].split("_")[-2]
+        try:
+            absolute = _wrapdt.datetime.strptime(stamp, "%Y%m%d%H%M%S").timestamp()
+        except ValueError:
+            continue            # not a 14-digit stamp — try the next file; a legacy name states no frame
+        return nightqc.declared_offset(absolute - f["session"])
+    return nightqc.declared_offset(0.0)
+
+
+def _build(night, devices, buckets=None):
+    kw = {} if buckets is None else {"buckets": buckets}
+    return timeline.build(night, devices, writer_offset=_declared_reader_frame(night), **kw)
+
 
 
 def _capture_file(tmp_path, stamp: str, stream: str, rows: int, fs: float,
@@ -496,7 +531,7 @@ def test_a_flawless_night_is_not_diluted_by_the_link_sidecars_calendar_day(tmp_p
     _capture_file(tmp_path, "20260710020000", "ecg", 130 * 60, 130)
     _link_csv(tmp_path, ["2026-07-10T00:00:05.000;H10;1;-60;80;;;1;AA\n",
                          "2026-07-10T23:59:25.000;H10;1;-60;80;;;1;AA\n"])
-    out = timeline.build(str(tmp_path), [_dev(["ecg"])], buckets=12)
+    out = _build(str(tmp_path), [_dev(["ecg"])], buckets=12)
     pct = out["devices"][0]["streams"]["ecg"]["coverage_pct"]
     assert pct == 100.0, f"a zero-loss recording must read 100 %, got {pct} %"
     assert round(out["t1"] - out["t0"]) == 60, "the window is the RECORDING, not the sidecar's day"
@@ -520,7 +555,7 @@ def test_an_old_night_is_measured_by_its_own_clock_not_todays_configured_rate(tm
     re-negotiated and corrected, so an older night is measured against a number it never ran at —
     196.7 % on the real 2026-07-16 H10 ACC, 134.6 % on the 2026-07-20 Verity ACC."""
     _capture_file(tmp_path, "20260716220000", "acc", 208 * 100, 208)       # the night ran at 208 Hz
-    out = timeline.build(str(tmp_path), [_dev(["acc"], rates={"acc": 104})], buckets=12)
+    out = _build(str(tmp_path), [_dev(["acc"], rates={"acc": 104})], buckets=12)
     pct = out["devices"][0]["streams"]["acc"]["coverage_pct"]
     assert pct == 100.0, f"config says 104 Hz, the file says 208 Hz — the FILE is the era-correct one ({pct} %)"
 
@@ -681,7 +716,11 @@ def test_the_columns_are_found_by_NAME_not_by_position(tmp_path):
     assert list(got) == ["AA:BB:CC:DD:EE:FF"], "the address column was found by name"
     (ts, c, r), = got["AA:BB:CC:DD:EE:FF"]
     assert c == 1 and r == -55.0, "connected and rssi too"
-    assert _dt.datetime.fromtimestamp(ts).strftime("%H:%M:%S") == "22:00:00", "and the timestamp"
+    # READ A FLOATING SECOND WITH UTC ACCESSORS (§🔒 §5). `read_link_samples` returns the sidecar's stamp
+    # as floating civil time — the components as the box wrote them — so `fromtimestamp`, which resolves
+    # through the reader's zone, showed 18:00 for a 22:00 row on a UTC−4 box. The stamp is not an instant.
+    assert (_dt.datetime(1970, 1, 1) + _dt.timedelta(seconds=ts)).strftime("%H:%M:%S") == "22:00:00", \
+        "and the timestamp"
 
 
 def test_a_legacy_header_that_names_nothing_reads_at_the_documented_positions(tmp_path):
@@ -709,7 +748,10 @@ def test_a_legacy_header_that_names_nothing_reads_at_the_documented_positions(tm
 # Both now call `nightqc.judged_session`, which holds the rule and the measurement behind it.
 
 def _timeline_window(night, devs):
-    out = timeline.build(night, devs)
+    """The window, with the frame DECLARED — these fixtures compute their expectations with
+    `.timestamp()`, so they are in the reader's frame and say so rather than making `build` recover it
+    from files whose mtimes they never set (see `_declared_reader_frame`)."""
+    out = _build(night, devs)
     return out["t0"], out["t1"]
 
 
@@ -729,6 +771,32 @@ def test_the_timeline_renders_the_SUBSTANTIVE_session_not_the_latest_one(tmp_pat
     assert t1 <= charger_start, (
         f"and closes before the charger session begins — t1={t1} charger={charger_start}")
 
+
+
+def test_a_file_with_an_UNREADABLE_stamp_is_skipped_for_the_WINDOW_not_for_the_night(tmp_path):
+    """An unstamped file joins the session at its own mtime but contributes NO bound to the window.
+
+    `_session_of` answers None for a name whose 14-digit run is not a real datetime, so `file_interval`
+    places such a file at its mtime — it is a real one-file session and its rows are real. What it cannot
+    do is bound the coverage WINDOW, because the window is built from start stamps and it has none. The
+    two must not be confused: dropping the file would lose its rows, and inventing a stamp for it would
+    fabricate the axis this suite refuses to fabricate anywhere else.
+    """
+    night = tmp_path / "2026-09-14"; night.mkdir()
+    _capture_file(night, "20260914010000", "ecg", rows=2000, fs=130.0)
+    # Same layout, same device, same session window — but month 99, so the stamp is not a datetime.
+    bad = night / "Polar_H10_02849638_20269999000000_ECG.txt"
+    bad.write_text(_writers.StreamWriter.HEADERS["ecg"] + "\n"
+                   + "\n".join(";".join(["0"] * len(_writers.StreamWriter.HEADERS["ecg"].split(";")))
+                                for _ in range(10)) + "\n")
+    _end = dt.datetime.strptime("20260914010000", "%Y%m%d%H%M%S").timestamp() + 2000 / 130.0
+    _os.utime(bad, (_end, _end))
+
+    devs = [{"name": "Polar H10 02849638", "device_id": "02849638", "address": "AA", "streams": ["ecg"]}]
+    t0, t1 = _timeline_window(str(night), devs)
+    data_start = dt.datetime.strptime("20260914010000", "%Y%m%d%H%M%S").timestamp()
+    assert round(t0) == round(data_start), "the window still opens at the STAMPED file's start"
+    assert t1 > t0, "and it is a window, not a point"
 
 def test_the_timeline_never_draws_its_window_from_a_session_with_no_rows(tmp_path):
     """The zero-row corollary, and the two real nights that forced it (2026-09-14, 2026-09-18): the later
@@ -810,7 +878,7 @@ def test_a_raw_stream_with_no_rate_and_no_device_clock_reports_its_HOST_span(tmp
     and coverage ("did this stream keep delivering across the window") is a host-side question anyway.
     """
     _ring_raw_file(tmp_path, "20260926221200", "accraw", 6000, 10.0)      # 600 s of rows at 10 Hz
-    out = timeline.build(str(tmp_path), [_ring_dev(["accraw"])], buckets=12)
+    out = _build(str(tmp_path), [_ring_dev(["accraw"])], buckets=12)
     st = out["devices"][0]["streams"]["accraw"]
     assert st["coverage_pct"] is not None, "the whole defect: an absent denominator read as a measurement"
     assert st["coverage_pct"] != 0.0, st
@@ -840,7 +908,7 @@ def test_a_stream_that_captured_NOTHING_still_reads_zero_percent(tmp_path):
     genuinely 0 % captured — that IS a measurement, and turning it into `null` would hide a sensor that
     never recorded behind the same text as one that cannot be measured. The two must not converge."""
     _capture_file(tmp_path, "20260926221200", "ecg", 130 * 600, 130)
-    out = timeline.build(str(tmp_path), [_dev(["ecg", "acc"])], buckets=12)
+    out = _build(str(tmp_path), [_dev(["ecg", "acc"])], buckets=12)
     acc = out["devices"][0]["streams"]["acc"]
     assert acc["coverage_pct"] == 0.0, ("no files is zero, not unmeasurable", acc)
     assert acc["coverage_reason"] is None and acc["coverage_unmeasured"] == 0, acc
@@ -850,7 +918,7 @@ def test_a_device_clock_stream_carries_the_new_fields_QUIET(tmp_path):
     """The control on the added fields: a stream measured the established way says so by carrying no
     qualifier at all, so the annotation appears only where it bites."""
     _capture_file(tmp_path, "20260716220000", "acc", 208 * 100, 208)
-    out = timeline.build(str(tmp_path), [_dev(["acc"], rates={"acc": 104})], buckets=12)
+    out = _build(str(tmp_path), [_dev(["acc"], rates={"acc": 104})], buckets=12)
     acc = out["devices"][0]["streams"]["acc"]
     assert acc["coverage_pct"] == 100.0, acc
     assert acc["coverage_unmeasured"] == 0 and acc["coverage_reason"] is None, acc

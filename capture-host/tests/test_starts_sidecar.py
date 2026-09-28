@@ -11,6 +11,7 @@
 # had to re-derive it from journalctl. So the count now ships — and it never ships alone, because a
 # bare count is exactly what misled. Every assertion below pins the pair, not the number.
 
+import calendar
 import datetime as dt
 import os
 
@@ -18,6 +19,39 @@ import capture
 import night_report
 import nightqc
 import writers
+import datetime as _wrapdt
+
+# ── THESE FIXTURES DECLARE THEIR FRAME RATHER THAN HAVING IT INFERRED ──────────────────────────────────
+#
+# They build a file's start from a floating civil stamp and its mtime from `.timestamp()`, so the two are
+# already in ONE frame — the reader's — by construction. `nightqc.summarize` otherwise RECOVERS the
+# writer's UTC offset from the files (`recover_writer_offset`), and a synthetic file carrying no usable
+# clock casts no vote, so the night refuses and publishes no span: a failure the fixture invented rather
+# than one the behaviour under test is about.
+#
+# Declaring it states the premise instead of making the module re-derive it from invented file contents,
+# and it is PUBLISHED as `basis: "declared"` so a reader can never mistake it for a measurement. The tests
+# that exercise the recovery and the refusal themselves call `nightqc.summarize` / `timeline.build`
+# directly and must keep doing so.
+def _declared_reader_frame(night):
+    """`declared_offset(...)` for the reader's own UTC offset at this night — the frame these fixtures
+    build in. Read off a real filename stamp rather than from `time.timezone`, so it is the offset in
+    force ON THAT DATE and a fixture dated across a DST boundary stays correct."""
+    for f in nightqc.scan_night(night):
+        if f.get("session") is None:
+            continue
+        stamp = f["file"].split("_")[-2]
+        try:
+            absolute = _wrapdt.datetime.strptime(stamp, "%Y%m%d%H%M%S").timestamp()
+        except ValueError:
+            continue            # not a 14-digit stamp — try the next file; a legacy name states no frame
+        return nightqc.declared_offset(absolute - f["session"])
+    return nightqc.declared_offset(0.0)
+
+
+def _summarize(night, devices, wear=None):
+    return nightqc.summarize(night, devices, wear, writer_offset=_declared_reader_frame(night))
+
 
 WHEN = dt.datetime(2026, 9, 10, 5, 12, 39)
 
@@ -30,6 +64,13 @@ def _start(tmp_path, **over):
 
 
 # ── the writer ────────────────────────────────────────────────────────────────────────────────────
+
+
+def _summarize_floating(night, devices, wear=None):
+    """`_night` builds every stamp AND its mtime as floating civil time (see the `os.utime` note there),
+    so the writer offset is 0 by construction and is declared rather than recovered — a one-file night
+    casts a single vote and cannot state a zone on its own."""
+    return nightqc.summarize(night, devices, wear, writer_offset=nightqc.declared_offset(0.0))
 
 def test_one_header_then_a_row_per_start_and_the_pid_separates_two_in_one_second(tmp_path):
     _start(tmp_path)
@@ -73,7 +114,13 @@ def _night(tmp_path, stamps, *, rows_in_file=True, span=(5 * 60, 7 * 60)):
     p = night / name
     p.write_text("Phone timestamp;sensor timestamp [ns];channel 0\n" + ("x;1;2\n" if rows_in_file else ""),
                  encoding="utf-8")
-    os.utime(p, ((base + dt.timedelta(minutes=span[1])).timestamp(),) * 2)
+    # FLOATING, like everything else this fixture writes. The filename stamp is civil components and
+    # `writers.append_daemon_start` writes `_phone_ts`, which is documented "local civil time, zone-free"
+    # — so an mtime from `.timestamp()` put ONE value in the reader's absolute frame and the rest in civil
+    # time. It only ever agreed because the reader resolved the sidecar back through the same zone,
+    # cancelling the error; now that stamps are read as written (§🔒 §1) the fixture has to be consistent,
+    # or a start 8 h past midnight reads as falling inside a file that stopped at 7 h.
+    os.utime(p, (float(calendar.timegm((base + dt.timedelta(minutes=span[1])).timetuple())),) * 2)
     for i, m in enumerate(stamps):
         writers.append_daemon_start(str(tmp_path), base + dt.timedelta(minutes=m),
                                     pid=100 + i, git="b89c192", dirty=False, adapter=None)
@@ -112,7 +159,7 @@ def test_a_torn_row_and_an_unparseable_stamp_are_dropped_not_dated_now(tmp_path)
 
 def test_the_summary_carries_it_without_walking_the_night_twice(tmp_path):
     d = _night(tmp_path, [6 * 60])
-    summ = nightqc.summarize(d, [])
+    summ = _summarize_floating(d, [])
     assert summ["daemon"]["starts"] == 1 and summ["daemon"]["inside_capture"] == 1
 
 
