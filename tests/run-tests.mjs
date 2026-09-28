@@ -22,6 +22,7 @@ import { classify as rebaseClassify, parsePorcelain as rebaseParsePorcelain, cla
 import { decide as landDecide } from '../tools/land-pr.mjs';
 import { classify as qdClassify, pick as qdPick, IDLE_MIN as QD_IDLE_MIN, STARVED_MIN as QD_STARVED_MIN } from '../tools/queue-doctor.mjs';
 import { classify as commitShape } from '../tools/commit-shape.mjs';
+import { elementBlocks } from '../tools/strip-markup.mjs';
 import * as captureRecapture from '../tools/capture-recapture.mjs';
 import { estimate as beatCrEstimate, estSummary as beatCrSummary } from '../tools/beat-capture-recapture.mjs';
 import { attenuateAndRecover, buildTemplate as beatBuildTemplate } from '../tools/beat-injection-recovery.mjs';
@@ -846,24 +847,16 @@ async function readComputeHashProbe() {
    Measured: 481 blocks · 33.6 MB · ~200 ms · ~150 MB RSS, so it runs every time. */
 function readInlineParseCensus() {
   const vm = require('node:vm');
-  const out = { artifacts: 0, blocks: 0, bytes: 0, skipped: 0, bad: [], files: [], scriptRe: null };
+  const out = { artifacts: 0, blocks: 0, bytes: 0, skipped: 0, bad: [], files: [] };
   const roots = [ROOT, join(ROOT, 'docs')];
-  /* ⚠️ THE END TAG IS THE ONE HTML ACTUALLY ENDS A SCRIPT ON, which is not `</script>`. In the
-     script-data-end-tag-name state the tag name may be followed by whitespace, by `/`, or by
-     attribute-like junk that is a parse error and tolerated — so `</script >`, `</script/>`,
-     `</script foo="bar">` and `</script\t\n bar>` ALL close the element. A regex anchored on `</script>`
-     alone slices PAST such a tag and hands the parser-visible boundary to the wrong block: the census
-     then reports either a SyntaxError that is not there or, worse, nothing at all about a block it never
-     separated. CodeQL's `js/bad-tag-filter` named it on the first push and again on the `\s*` half-fix,
-     and it is right about the consequence both times. This gate exists because a check examined the
-     wrong thing; its own matcher does not get to. All five forms are asserted in the group.
-     The fuller note on the two bypasses CodeQL names is already in `tests/dex-tests.js` at the
-     `rendered text` stripper — read that one, not this one, for the argument. This form is STRICTER
-     than its `<\/script[^>]*>`: the separator is required, so `</scriptfoo>`, which is NOT an end
-     tag, does not match here. */
-  const RE = /<script\b([^>]*)>([\s\S]*?)<\/script(?:[\s/][^>]*)?>/gi;
-  /* published as a SOURCE STRING so the group asserts THIS pattern, never a transcription of it */
-  out.scriptRe = RE.source;
+  /* ⚠️ THE SCAN IS `strip-markup.mjs`'s, NOT A REGEX OF OUR OWN — and that module's header is the
+     reason. It records three regex attempts at this exact problem, each closing the end-tag spelling the
+     previous CodeQL alert named and leaving the class open, and concludes: "that is the tell that the
+     TOOL was wrong rather than the pattern — a third variant would have been a third patch." This gate
+     shipped the third variant before the search surfaced that file. `elementBlocks` is the index scan,
+     extended there to hand back the OPEN tag's attributes (which `stripElement` discards and which this
+     census needs for `data-inline-src` and `type`), so the repo keeps ONE answer to "where does an
+     element end" instead of four. */
   for (const r of roots) {
     let names;
     try {
@@ -881,11 +874,7 @@ function readInlineParseCensus() {
       }
       out.artifacts++;
       out.files.push(f.slice(ROOT.length + 1));
-      RE.lastIndex = 0;
-      let m;
-      while ((m = RE.exec(h))) {
-        const attrs = m[1],
-          body = m[2];
+      for (const { attrs, body } of elementBlocks(h, 'script')) {
         if (!body.trim()) continue;
         if (!/data-inline-src="/i.test(attrs)) {
           out.skipped++;
@@ -2986,6 +2975,7 @@ async function main() {
     computeHashProbe: await readComputeHashProbe(),
     bundleCodeIdentity: await readBundleCodeIdentity(), // roadmap §3 — shipped bundles' {manifestHash, computeHash}
     inlineParseCensus: readInlineParseCensus(), // every builder-inlined block must PARSE (2026-09-28)
+    elementBlocks, // strip-markup's index scan — the group drives it over every end-tag spelling
     fixtures: readFixtures(),
     equiv: readEquiv(),
     odiPilot: readOdiPilot(),

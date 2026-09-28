@@ -13696,20 +13696,20 @@
           C.artifacts + ' artifacts, ' + C.skipped + ' non-classic or unlabelled blocks excluded'
         );
 
-      /* ── THE MATCHER FINDS THE BOUNDARY A BROWSER FINDS ──────────────────────────────────────────
-         `</script>` is not the only way HTML closes a script: in the script-data-end-tag-name state the
-         name may be followed by whitespace, by `/`, or by attribute-like junk that is a parse error and
-         tolerated. A matcher that misses those slices PAST the real end tag, and then the census reports
-         a SyntaxError that is not there — or nothing at all about a block it never separated. Asserted
-         against the census's OWN pattern, published as a source string, so this can never drift into
-         testing a transcription. */
-      var ENDS = ['</script>', '</script >', '</script\t\n bar>', '</script/>', '</script foo="bar">'];
-      T.ok('the census publishes the pattern it actually used', typeof C.scriptRe === 'string' && C.scriptRe.length > 0, String(C.scriptRe));
-      if (typeof C.scriptRe === 'string') {
+      /* ── THE SCAN FINDS THE BOUNDARY A BROWSER FINDS, and it is the REPO'S scan ────────────────
+         `</script>` is not the only way HTML closes a script: the name may be followed by whitespace, by
+         `/`, or by attribute-like junk that is a parse error and tolerated. `tools/strip-markup.mjs`
+         exists because three regex attempts at this each closed the spelling the previous CodeQL alert
+         named and left the class open — "a third variant would have been a third patch" — so the census
+         calls that module's index scan rather than carrying a fourth pattern. Driven HERE over every
+         spelling, because a shared scan the consumer never exercises is a shared assumption. */
+      var EB = env.elementBlocks;
+      T.ok('the shared element scan is wired into this lane', typeof EB === 'function', typeof EB);
+      if (typeof EB === 'function') {
+        var ENDS = ['</script>', '</script >', '</script\t\n bar>', '</script/>', '</script foo="bar">', '</SCRIPT>'];
         var missed = ENDS.filter(function (e) {
-          var re = new RegExp(C.scriptRe, 'gi');
-          var m = re.exec('<script data-inline-src="a.js">var x=1;' + e);
-          return !m || m[2] !== 'var x=1;';
+          var b = EB('<script data-inline-src="a.js">var x=1;' + e, 'script');
+          return b.length !== 1 || b[0].body !== 'var x=1;';
         });
         T.eq(
           'every end-tag form HTML closes a script on is found',
@@ -13720,14 +13720,18 @@
             .join(' · ') || 'none',
           'none',
           missed.length
-            ? 'these forms close a script element in a browser and the census does not see them, so it slices past the real boundary: ' +
+            ? 'these forms close a script element in a browser and the scan does not see them, so it runs past the real boundary: ' +
                 missed
                   .map(function (e) {
                     return JSON.stringify(e);
                   })
                   .join(' · ')
-            : ENDS.length + ' end-tag forms matched, including `</script/>` and attribute-bearing end tags'
+            : ENDS.length + ' end-tag spellings matched, including `</script/>`, an attribute-bearing end tag and an uppercase one'
         );
+        /* Both directions of the name rule, since over-matching is the other way to mis-slice. */
+        T.eq('`<scriptable>` is not a script block', EB('<scriptable>keep</scriptable>', 'script').length, 0);
+        T.eq('…and `</scriptable>` inside a body does not end one', EB('<script>var s = "</scriptable>";</script>', 'script')[0].body, 'var s = "</scriptable>";');
+        T.eq('an unterminated element yields no block rather than a guessed one', EB('<script>unterminated', 'script').length, 0);
       }
 
       /* ── PLANT 1 · the detector must FIRE. Without it, `none` above could be a parser that never
