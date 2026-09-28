@@ -1341,3 +1341,42 @@ def test_a_single_row_has_no_delta_and_therefore_no_drawn_share(tmp_path):
     p = _resid(tmp_path, ["2026-09-20T23:10:00.000;1000000;1\n"])
     got = si.residual_scan(p, None, None)
     assert got["drawn_share"] is None and got["reason"] is None, got
+
+
+def test_PLANT_a_sidecar_whose_rows_and_own_TOTALS_disagree_is_refused(tmp_path):
+    """residue 2026-09-27-seam-sidecar-rows-and-finals-agree — the tripwire, not a measurement.
+
+    One writer instance writes both a seam row and the final line that counts it, and since #3170 the
+    count follows the row, so they cannot disagree. If a reader ever finds them disagreeing, one of the
+    two is describing a file it did not write and NEITHER can be trusted to answer "was the clock
+    compared on this night" — so it refuses by name rather than picking a side.
+
+    Measured 2026-09-27 over 132 sidecars (66 on the rig, 66 on the box): none disagree. This fires on
+    nothing today and exists to notice the day it does.
+    """
+    _seam_rows(tmp_path, [(1000, 90000.0)], examined=5)                  # one row, final says seams=1
+    assert si.clocks(str(tmp_path), "H10")["status"] == "PASS", "the agreeing case still passes"
+
+    p = tmp_path / f"{BASE}_ECGSEAMS.txt"
+    p.write_text(p.read_text().replace("seams=1 examined=5", "seams=0 examined=5"))
+    got = si.clocks(str(tmp_path), "H10")
+    assert got["status"] == "UNKNOWN", ("a sidecar contradicting itself is refused, not believed", got)
+    assert "disagree" in got["reason"] and "ECGSEAMS" in got["reason"], got["reason"]
+
+
+def test_a_sidecar_with_SEVERAL_sessions_sums_their_totals_rather_than_taking_one(tmp_path):
+    """The real multi-session shape, and why the tripwire counts across the whole file. A resumed
+    file-set writes one `# final` per writer instance — the 2026-09-24 H10 carries three, `seams=0`,
+    `seams=1`, `seams=0`, for one row — so a reader comparing any single total against the file's rows
+    would read a disagreement that is not there. Summing is what makes the check true of the file."""
+    lines = ["# stream=ecg rule=clock-seam bound_ms=60000 unit=ms basis=device-minus-host",
+             "phone_ts;idx;device_step_ms;phone_delta_ms;residual_ms;host_offset_ms;at_rel_ms",
+             "# final stream=ecg seams=0 examined=74605",
+             f"{T0.strftime('%Y-%m-%dT%H:%M:%S.')}000;1;90000.000;0.000;90000.000;0.000;0.000",
+             "# final stream=ecg seams=1 examined=3577",
+             "",                                    # a blank line: a torn flush, or a trailing newline
+             "# final stream=ecg seams=0 examined=3727891"]
+    (tmp_path / f"{BASE}_ECGSEAMS.txt").write_text("\n".join(lines) + "\n")
+    assert si.clocks(str(tmp_path), "H10")["status"] == "PASS", "three totals summing to one row agree"
+    # the blank line above is not a row: counting it would make every file with a trailing newline
+    # contradict its own totals, which would turn the tripwire into noise on its first night

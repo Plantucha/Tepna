@@ -100,7 +100,7 @@ TB_WIN = 21  # CK_AXIS_WIN — running-median width, odd so the median is a real
 _SENSOR_NS_COL = "sensor timestamp [ns]"
 
 _PMD_RATE = re.compile(r"^# pmd stream=\S+ negotiated=yes rate=(\d+(?:\.\d+)?)\b")
-_EXAMINED = re.compile(r"^# final stream=\S+ seams=\d+ examined=(\d+)")
+_FINAL = re.compile(r"^# final stream=\S+ seams=(\d+) examined=(\d+)")
 _MIN_RUN = re.compile(r"\bmin_run=(\d+)\b")
 _DECLARED_HZ = re.compile(r"@(\d+(?:\.\d+)?)Hz$")
 
@@ -284,11 +284,29 @@ def clocks(night_dir: str, model: str) -> dict:
     """§3.4 clocks: the device clock was compared with the host on this night."""
     prefix = MODELS[model]["prefix"]
     for seams in sorted(glob.glob(os.path.join(night_dir, f"{prefix}*SEAMS.txt"))):
+        rows = claimed = 0
+        examined = 0
         with open(seams, encoding="utf-8", errors="replace") as fh:
             for line in fh:
-                m = _EXAMINED.match(line)
-                if m and int(m.group(1)) > 0:
-                    return _decision("PASS")
+                m = _FINAL.match(line)
+                if m:
+                    claimed += int(m.group(1))
+                    examined += int(m.group(2))
+                elif line.startswith("#") or line.startswith("phone_ts"):
+                    continue
+                elif line.strip():
+                    rows += 1
+        # A TRIPWIRE, not a measurement. The final lines COUNT the rows above them — one writer instance
+        # writes both, and since the count now follows the row it cannot run ahead of them. If a reader
+        # ever finds them disagreeing, one of the two is describing a file it did not write, and neither
+        # can be trusted to answer "was the clock compared": refuse by name rather than pick a side.
+        # Measured 2026-09-27 over 132 sidecars (66 rig + 66 box): none disagree, so this fires on
+        # nothing today and exists to notice the day it does.
+        if claimed != rows:
+            return _decision("UNKNOWN", f"`{os.path.basename(seams)}` claims {claimed} seam(s) over "
+                                        f"{rows} row(s) — its rows and its own totals disagree")
+        if examined > 0:
+            return _decision("PASS")
     for rtc in sorted(glob.glob(os.path.join(night_dir, f"{prefix}*_RTCLOG.csv"))):
         with open(rtc, encoding="utf-8", errors="replace") as fh:
             for line in fh:

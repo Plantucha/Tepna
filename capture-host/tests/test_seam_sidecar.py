@@ -314,3 +314,43 @@ def test_a_sidecar_resuming_its_OWN_non_empty_file_does_not_re_emit_the_header(t
     assert body.count("rule=clock-seam") == 1, "the header must not be re-emitted on resume"
     assert body.startswith(first), "the earlier session's bytes must survive verbatim"
     assert body.count("# final") == 2, "one per session"
+
+
+def test_PLANT_a_row_write_that_RAISES_leaves_the_count_equal_to_the_rows(tmp_path):
+    """residue 2026-09-27-seam-sidecar-rows-and-finals-agree (which withdraws the row that said the
+    opposite could happen).
+
+    `feed`'s body sits inside a `try` whose handler deliberately swallows — an annotation must never end
+    a recording. The seam count used to be incremented BEFORE the row was written, so a write that raised
+    left `seams` one ahead of the rows and the final line claimed a seam the file does not show. Now the
+    count follows the row, so the final line's agreement with the rows holds BY CONSTRUCTION.
+
+    The plant is a file handle whose `write` raises exactly once, on the seam row — the shape a full
+    disk or a revoked handle produces mid-night.
+    """
+    sc = _sc(tmp_path)
+    for i in range(4):
+        sc.feed(T0 + dt.timedelta(milliseconds=8 * i), 1_000_000_000 + 8_000_000 * i)
+
+    real = sc._fh
+
+    class _RaiseOnce:
+        def __init__(self):
+            self.raised = False
+
+        def write(self, s):
+            if not self.raised and ";" in s:          # a data row, not a comment
+                self.raised = True
+                raise OSError("ENOSPC")
+            return real.write(s)
+
+        def __getattr__(self, n):
+            return getattr(real, n)
+
+    sc._fh = _RaiseOnce()
+    sc.feed(T0 + dt.timedelta(milliseconds=32), 1_000_000_000 + 400_000_000_000)   # the seam
+    sc._fh = real
+    sc.close()
+    assert sc.seams == len(_rows(sc)), (
+        "the final line must not claim a seam the file does not carry", sc.seams, _rows(sc))
+    assert sc.seams == 0, "the row never reached the file, so there is nothing to count"
