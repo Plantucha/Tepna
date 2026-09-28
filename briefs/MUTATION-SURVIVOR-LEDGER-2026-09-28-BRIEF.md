@@ -81,6 +81,39 @@ Note the residual honesty: an entry whose function is renamed *will* orphan, and
 as orphaned rather than silently dropped — the same rule `mutate_diff` already applies to orphaned
 equivalence entries ("it excuses nothing until re-verified").
 
+### 2a-bis · The key is CONTENT **plus POSITION**, and neither alone is enough
+
+Content alone was the original design, and it lost findings. Two distinct survivors in the same
+function whose mutation text is identical share `lane + module + function + diff_key`, so the second
+was folded into the first and reported *"already open"* — as the same finding rather than a lost one.
+Measured on `capture-host/loss_audit.py`: **8 of its 27 functions generate a duplicate `diff_key`**,
+28 distinct colliding texts over **86 of 2141 mutants (4.0 %)**, and the recurring shape is
+`- continue | + break`. Ingesting three real twins (`x_read_journal` 55/67/76) gave
+`3 survivor(s): 1 new, 2 already open`.
+
+Position alone is no better, and it fails the other way: a line index shifts whenever anything above
+it inside the function changes, so a key carrying one orphans on the next unrelated edit — which is
+exactly the instability that made `__mutmut_N` unusable as a name (§2a).
+
+So the key is content **plus** an **occurrence ordinal**, and the ordinal rather than the raw line is
+the deliberate part:
+
+| | changes when | in the key? |
+|---|---|---|
+| `diff_key` (content) | the mutated text changes — i.e. when the finding genuinely no longer applies | **yes** |
+| occurrence ordinal | a TWIN is added or removed — the one event that changes which occurrence is which | **yes** |
+| `file_line` (position) | any edit above it in the function | **no** — recorded as a breadcrumb, because it is what a reader needs to FIND the thing |
+
+Ordinal `0` contributes nothing to the key string, so every entry written before ordinals existed
+keys identically and the ledger migrates without re-identifying a row — checked by `migrate`, which
+refuses rather than assuming it.
+
+**Where the position comes from.** mutmut discards it — `position.start.line` is computed in
+`mutation/file_mutation.py` only to filter on pragmas and coverage, `mutmut-stats.json` carries no
+line, and the mutant NUMBER is not a source-ordered substitute (measured: monotonic in **23 of 27**
+functions). But the gate's artifact already diffs each mutant against its original, so the hunk
+header carries it and `positionOfSurvivor` reads it there. Nothing is needed from mutmut.
+
 ### 2b · The entry
 
 ```json
