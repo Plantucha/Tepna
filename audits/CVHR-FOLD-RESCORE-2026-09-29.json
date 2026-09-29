@@ -1,0 +1,905 @@
+{
+  "schema": "tepna.cvhr-fold-rescore/1",
+  "criterion": {
+    "preStated": "fraction of overlap on the UNION of fragments, not the largest-file pair; Spearman rho with n; GAP_S at the shipped 10 s",
+    "control": "/home/michal/wt-cvhrfold-mg/audits/GAP-S-SWEEP-2026-09-22.json"
+  },
+  "tree": "/srv/data/tepna-corpus/uploads/vigil-archive/captures",
+  "nights": [
+    {
+      "night": "2026-08-24",
+      "ecgFragments": 2,
+      "ppgFragments": 2,
+      "unionHours": {
+        "ecg": 8.79,
+        "ppg": 10.64,
+        "both": 8.7,
+        "either": 10.73
+      },
+      "fraction": 0.8114,
+      "ecg": {
+        "index": 4.9,
+        "events": 43,
+        "denomSec": 31457.9,
+        "coveredHours": 8.74,
+        "scored": 2,
+        "refused": 0,
+        "refusals": [],
+        "reason": null
+      },
+      "ppg": {
+        "index": 6.1,
+        "events": 44,
+        "denomSec": 26177.7,
+        "coveredHours": 7.27,
+        "scored": 2,
+        "refused": 0,
+        "refusals": [],
+        "reason": null
+      },
+      "wallMs": 17121
+    },
+    {
+      "night": "2026-08-25",
+      "ecgFragments": 1,
+      "ppgFragments": 1,
+      "unionHours": {
+        "ecg": 10.69,
+        "ppg": 9.07,
+        "both": 8.7,
+        "either": 11.06
+      },
+      "fraction": 0.7869,
+      "ecg": {
+        "index": 6.5,
+        "events": 69,
+        "denomSec": 38074.2,
+        "coveredHours": 10.58,
+        "scored": 1,
+        "refused": 0,
+        "refusals": [],
+        "reason": null
+      },
+      "ppg": {
+        "index": 5.2,
+        "events": 46,
+        "denomSec": 32004.2,
+        "coveredHours": 8.89,
+        "scored": 1,
+        "refused": 0,
+        "refusals": [],
+        "reason": null
+      },
+      "wallMs": 20479
+    },
+    {
+      "night": "2026-08-26",
+      "ecgFragments": 1,
+      "ppgFragments": 2,
+      "unionHours": {
+        "ecg": 8.78,
+        "ppg": 10.69,
+        "both": 8.74,
+        "either": 10.72
+      },
+      "fraction": 0.8151,
+      "ecg": {
+        "index": 8.4,
+        "events": 73,
+        "denomSec": 31471.1,
+        "coveredHours": 8.74,
+        "scored": 1,
+        "refused": 0,
+        "refusals": [],
+        "reason": null
+      },
+      "ppg": {
+        "index": 5.9,
+        "events": 63,
+        "denomSec": 38323.6,
+        "coveredHours": 10.65,
+        "scored": 2,
+        "refused": 0,
+        "refusals": [],
+        "reason": null
+      },
+      "wallMs": 19803
+    },
+    {
+      "night": "2026-08-28",
+      "ecgFragments": 2,
+      "ppgFragments": 2,
+      "unionHours": {
+        "ecg": 6.95,
+        "ppg": 13.49,
+        "both": 6.93,
+        "either": 13.5
+      },
+      "fraction": 0.5136,
+      "ecg": {
+        "index": 6.9,
+        "events": 45,
+        "denomSec": 23513.6,
+        "coveredHours": 6.53,
+        "scored": 2,
+        "refused": 0,
+        "refusals": [],
+        "reason": null
+      },
+      "ppg": {
+        "index": 7.2,
+        "events": 70,
+        "denomSec": 35043.3,
+        "coveredHours": 9.73,
+        "scored": 2,
+        "refused": 0,
+        "refusals": [],
+        "reason": null
+      },
+      "wallMs": 16448
+    },
+    {
+      "night": "2026-08-29",
+      "ecgFragments": 3,
+      "ppgFragments": 1,
+      "unionHours": {
+        "ecg": 7.2,
+        "ppg": 6.19,
+        "both": 0.71,
+        "either": 12.68
+      },
+      "fraction": 0.0562,
+      "ecg": {
+        "index": 12.1,
+        "events": 78,
+        "denomSec": 23282.9,
+        "coveredHours": 6.47,
+        "scored": 3,
+        "refused": 0,
+        "refusals": [],
+        "reason": null
+      },
+      "ppg": {
+        "index": 5.5,
+        "events": 34,
+        "denomSec": 22235.4,
+        "coveredHours": 6.18,
+        "scored": 1,
+        "refused": 0,
+        "refusals": [],
+        "reason": null
+      },
+      "wallMs": 13356
+    },
+    {
+      "night": "2026-08-30",
+      "ecgFragments": 2,
+      "ppgFragments": 2,
+      "unionHours": {
+        "ecg": 8.33,
+        "ppg": 3.32,
+        "both": 2.98,
+        "either": 8.67
+      },
+      "fraction": 0.3437,
+      "ecg": {
+        "index": 5.5,
+        "events": 45,
+        "denomSec": 29614.5,
+        "coveredHours": 8.23,
+        "scored": 2,
+        "refused": 0,
+        "refusals": [],
+        "reason": null
+      },
+      "ppg": {
+        "index": 6.1,
+        "events": 18,
+        "denomSec": 10686.6,
+        "coveredHours": 2.97,
+        "scored": 2,
+        "refused": 0,
+        "refusals": [],
+        "reason": null
+      },
+      "wallMs": 11414
+    },
+    {
+      "night": "2026-08-31",
+      "ecgFragments": 2,
+      "ppgFragments": 3,
+      "unionHours": {
+        "ecg": 7.33,
+        "ppg": 8.04,
+        "both": 7.31,
+        "either": 8.07
+      },
+      "fraction": 0.9068,
+      "ecg": {
+        "index": 8.8,
+        "events": 64,
+        "denomSec": 26248,
+        "coveredHours": 7.29,
+        "scored": 2,
+        "refused": 0,
+        "refusals": [],
+        "reason": null
+      },
+      "ppg": {
+        "index": 5.6,
+        "events": 44,
+        "denomSec": 28390.5,
+        "coveredHours": 7.89,
+        "scored": 2,
+        "refused": 1,
+        "refusals": [
+          {
+            "fragment": "/srv/data/tepna-corpus/uploads/vigil-archive/captures/2026-08-31/Polar_VeritySense_0C301E3F_20260831121928_PPG.txt",
+            "reason": "threw: No PPG samples parsed — expected Polar Sense `*_PPG.txt` (Phone timestamp;sensor ns;ch0;ch1;ch2;ambi"
+          }
+        ],
+        "reason": null
+      },
+      "wallMs": 17724
+    },
+    {
+      "night": "2026-09-03",
+      "ecgFragments": 2,
+      "ppgFragments": 2,
+      "unionHours": {
+        "ecg": 8.18,
+        "ppg": 10.61,
+        "both": 7.81,
+        "either": 10.97
+      },
+      "fraction": 0.7125,
+      "ecg": {
+        "index": 10,
+        "events": 63,
+        "denomSec": 22594.6,
+        "coveredHours": 6.28,
+        "scored": 2,
+        "refused": 0,
+        "refusals": [],
+        "reason": null
+      },
+      "ppg": {
+        "index": 9.5,
+        "events": 97,
+        "denomSec": 36855,
+        "coveredHours": 10.24,
+        "scored": 2,
+        "refused": 0,
+        "refusals": [],
+        "reason": null
+      },
+      "wallMs": 18416
+    },
+    {
+      "night": "2026-09-04",
+      "ecgFragments": 2,
+      "ppgFragments": 1,
+      "unionHours": {
+        "ecg": 3.45,
+        "ppg": 6.26,
+        "both": 3.4,
+        "either": 6.31
+      },
+      "fraction": 0.538,
+      "ecg": {
+        "index": 7.9,
+        "events": 20,
+        "denomSec": 9062.7,
+        "coveredHours": 2.52,
+        "scored": 2,
+        "refused": 0,
+        "refusals": [],
+        "reason": null
+      },
+      "ppg": {
+        "index": 5.6,
+        "events": 34,
+        "denomSec": 22052.7,
+        "coveredHours": 6.13,
+        "scored": 1,
+        "refused": 0,
+        "refusals": [],
+        "reason": null
+      },
+      "wallMs": 9475
+    },
+    {
+      "night": "2026-09-05",
+      "ecgFragments": 2,
+      "ppgFragments": 3,
+      "unionHours": {
+        "ecg": 10.42,
+        "ppg": 7.44,
+        "both": 7.44,
+        "either": 10.43
+      },
+      "fraction": 0.713,
+      "ecg": {
+        "index": 9.3,
+        "events": 85,
+        "denomSec": 32882.9,
+        "coveredHours": 9.13,
+        "scored": 2,
+        "refused": 0,
+        "refusals": [],
+        "reason": null
+      },
+      "ppg": {
+        "index": 9.7,
+        "events": 67,
+        "denomSec": 24915.9,
+        "coveredHours": 6.92,
+        "scored": 2,
+        "refused": 1,
+        "refusals": [
+          {
+            "fragment": "/srv/data/tepna-corpus/uploads/vigil-archive/captures/2026-09-05/Polar_VeritySense_0C301E3F_20260905114917_PPG.txt",
+            "reason": "threw: No PPG samples parsed — expected Polar Sense `*_PPG.txt` (Phone timestamp;sensor ns;ch0;ch1;ch2;ambi"
+          }
+        ],
+        "reason": null
+      },
+      "wallMs": 17637
+    },
+    {
+      "night": "2026-09-06",
+      "ecgFragments": 2,
+      "ppgFragments": 2,
+      "unionHours": {
+        "ecg": 11.35,
+        "ppg": 12.86,
+        "both": 11.35,
+        "either": 12.86
+      },
+      "fraction": 0.8827,
+      "ecg": {
+        "index": 6.1,
+        "events": 60,
+        "denomSec": 35461.9,
+        "coveredHours": 9.85,
+        "scored": 2,
+        "refused": 0,
+        "refusals": [],
+        "reason": null
+      },
+      "ppg": {
+        "index": 6.8,
+        "events": 85,
+        "denomSec": 45101,
+        "coveredHours": 12.53,
+        "scored": 2,
+        "refused": 0,
+        "refusals": [],
+        "reason": null
+      },
+      "wallMs": 22671
+    },
+    {
+      "night": "2026-09-07",
+      "ecgFragments": 2,
+      "ppgFragments": 2,
+      "unionHours": {
+        "ecg": 7.43,
+        "ppg": 6.26,
+        "both": 6.26,
+        "either": 7.43
+      },
+      "fraction": 0.8432,
+      "ecg": {
+        "index": 5.7,
+        "events": 40,
+        "denomSec": 25267.2,
+        "coveredHours": 7.02,
+        "scored": 2,
+        "refused": 0,
+        "refusals": [],
+        "reason": null
+      },
+      "ppg": {
+        "index": 5.6,
+        "events": 35,
+        "denomSec": 22437.7,
+        "coveredHours": 6.23,
+        "scored": 2,
+        "refused": 0,
+        "refusals": [],
+        "reason": null
+      },
+      "wallMs": 14192
+    },
+    {
+      "night": "2026-09-08",
+      "ecgFragments": 1,
+      "ppgFragments": 1,
+      "unionHours": {
+        "ecg": 5.3,
+        "ppg": 5.35,
+        "both": 5.3,
+        "either": 5.35
+      },
+      "fraction": 0.9908,
+      "ecg": {
+        "index": 7.7,
+        "events": 41,
+        "denomSec": 19068.9,
+        "coveredHours": 5.3,
+        "scored": 1,
+        "refused": 0,
+        "refusals": [],
+        "reason": null
+      },
+      "ppg": {
+        "index": 8.1,
+        "events": 43,
+        "denomSec": 19221,
+        "coveredHours": 5.34,
+        "scored": 1,
+        "refused": 0,
+        "refusals": [],
+        "reason": null
+      },
+      "wallMs": 12480
+    },
+    {
+      "night": "2026-09-09",
+      "ecgFragments": 2,
+      "ppgFragments": 1,
+      "unionHours": {
+        "ecg": 3.26,
+        "ppg": 6.96,
+        "both": 3.25,
+        "either": 6.98
+      },
+      "fraction": 0.4652,
+      "ecg": {
+        "index": 4.6,
+        "events": 15,
+        "denomSec": 11720.9,
+        "coveredHours": 3.26,
+        "scored": 2,
+        "refused": 0,
+        "refusals": [],
+        "reason": null
+      },
+      "ppg": {
+        "index": 9.6,
+        "events": 67,
+        "denomSec": 25027.3,
+        "coveredHours": 6.95,
+        "scored": 1,
+        "refused": 0,
+        "refusals": [],
+        "reason": null
+      },
+      "wallMs": 11053
+    },
+    {
+      "night": "2026-09-10",
+      "ecgFragments": 4,
+      "ppgFragments": 3,
+      "unionHours": {
+        "ecg": 8.05,
+        "ppg": 6.76,
+        "both": 4.32,
+        "either": 10.49
+      },
+      "fraction": 0.4121,
+      "ecg": {
+        "index": 8.4,
+        "events": 63,
+        "denomSec": 26951.8,
+        "coveredHours": 7.49,
+        "scored": 4,
+        "refused": 0,
+        "refusals": [],
+        "reason": null
+      },
+      "ppg": {
+        "index": 7.2,
+        "events": 48,
+        "denomSec": 24048.9,
+        "coveredHours": 6.68,
+        "scored": 3,
+        "refused": 0,
+        "refusals": [],
+        "reason": null
+      },
+      "wallMs": 16865
+    },
+    {
+      "night": "2026-09-11",
+      "ecgFragments": 3,
+      "ppgFragments": 3,
+      "unionHours": {
+        "ecg": 9.94,
+        "ppg": 7.75,
+        "both": 7.53,
+        "either": 10.16
+      },
+      "fraction": 0.7414,
+      "ecg": {
+        "index": 7.5,
+        "events": 66,
+        "denomSec": 31603,
+        "coveredHours": 8.78,
+        "scored": 3,
+        "refused": 0,
+        "refusals": [],
+        "reason": null
+      },
+      "ppg": {
+        "index": 7.5,
+        "events": 57,
+        "denomSec": 27436.9,
+        "coveredHours": 7.62,
+        "scored": 3,
+        "refused": 0,
+        "refusals": [],
+        "reason": null
+      },
+      "wallMs": 20399
+    },
+    {
+      "night": "2026-09-12",
+      "ecgFragments": 3,
+      "ppgFragments": 2,
+      "unionHours": {
+        "ecg": 18.65,
+        "ppg": 16.28,
+        "both": 15.62,
+        "either": 19.31
+      },
+      "fraction": 0.8088,
+      "ecg": {
+        "index": 6.1,
+        "events": 104,
+        "denomSec": 61440.5,
+        "coveredHours": 17.07,
+        "scored": 3,
+        "refused": 0,
+        "refusals": [],
+        "reason": null
+      },
+      "ppg": {
+        "index": 6.4,
+        "events": 89,
+        "denomSec": 49923.8,
+        "coveredHours": 13.87,
+        "scored": 2,
+        "refused": 0,
+        "refusals": [],
+        "reason": null
+      },
+      "wallMs": 31705
+    },
+    {
+      "night": "2026-09-13",
+      "ecgFragments": 1,
+      "ppgFragments": 1,
+      "unionHours": {
+        "ecg": 6.75,
+        "ppg": 6.79,
+        "both": 6.74,
+        "either": 6.8
+      },
+      "fraction": 0.9908,
+      "ecg": {
+        "index": 7.9,
+        "events": 53,
+        "denomSec": 24285.9,
+        "coveredHours": 6.75,
+        "scored": 1,
+        "refused": 0,
+        "refusals": [],
+        "reason": null
+      },
+      "ppg": {
+        "index": 7.8,
+        "events": 53,
+        "denomSec": 24432.1,
+        "coveredHours": 6.79,
+        "scored": 1,
+        "refused": 0,
+        "refusals": [],
+        "reason": null
+      },
+      "wallMs": 13959
+    },
+    {
+      "night": "2026-09-15",
+      "ecgFragments": 2,
+      "ppgFragments": 2,
+      "unionHours": {
+        "ecg": 10.39,
+        "ppg": 10.39,
+        "both": 10.35,
+        "either": 10.43
+      },
+      "fraction": 0.9922,
+      "ecg": {
+        "index": 5.8,
+        "events": 60,
+        "denomSec": 37420,
+        "coveredHours": 10.39,
+        "scored": 2,
+        "refused": 0,
+        "refusals": [],
+        "reason": null
+      },
+      "ppg": {
+        "index": 6.5,
+        "events": 67,
+        "denomSec": 37316.8,
+        "coveredHours": 10.37,
+        "scored": 2,
+        "refused": 0,
+        "refusals": [],
+        "reason": null
+      },
+      "wallMs": 22797
+    },
+    {
+      "night": "2026-09-16",
+      "ecgFragments": 2,
+      "ppgFragments": 1,
+      "unionHours": {
+        "ecg": 6.94,
+        "ppg": 5.89,
+        "both": 5.88,
+        "either": 6.94
+      },
+      "fraction": 0.8472,
+      "ecg": {
+        "index": 14.2,
+        "events": 93,
+        "denomSec": 23579.8,
+        "coveredHours": 6.55,
+        "scored": 2,
+        "refused": 0,
+        "refusals": [],
+        "reason": null
+      },
+      "ppg": {
+        "index": 6.6,
+        "events": 39,
+        "denomSec": 21142.5,
+        "coveredHours": 5.87,
+        "scored": 1,
+        "refused": 0,
+        "refusals": [],
+        "reason": null
+      },
+      "wallMs": 14799
+    },
+    {
+      "night": "2026-09-17",
+      "ecgFragments": 1,
+      "ppgFragments": 1,
+      "unionHours": {
+        "ecg": 6.14,
+        "ppg": 6.18,
+        "both": 6.12,
+        "either": 6.2
+      },
+      "fraction": 0.9877,
+      "ecg": {
+        "index": 6,
+        "events": 37,
+        "denomSec": 22112.9,
+        "coveredHours": 6.14,
+        "scored": 1,
+        "refused": 0,
+        "refusals": [],
+        "reason": null
+      },
+      "ppg": {
+        "index": 6.5,
+        "events": 40,
+        "denomSec": 22224.6,
+        "coveredHours": 6.17,
+        "scored": 1,
+        "refused": 0,
+        "refusals": [],
+        "reason": null
+      },
+      "wallMs": 12526
+    },
+    {
+      "night": "2026-09-19",
+      "ecgFragments": 2,
+      "ppgFragments": 5,
+      "unionHours": {
+        "ecg": 1.16,
+        "ppg": 16.11,
+        "both": 1.11,
+        "either": 16.16
+      },
+      "fraction": 0.0686,
+      "ecg": {
+        "index": 6.9,
+        "events": 8,
+        "denomSec": 4150.3,
+        "coveredHours": 1.15,
+        "scored": 2,
+        "refused": 0,
+        "refusals": [],
+        "reason": null
+      },
+      "ppg": {
+        "index": 5.2,
+        "events": 83,
+        "denomSec": 57561.3,
+        "coveredHours": 15.99,
+        "scored": 4,
+        "refused": 1,
+        "refusals": [
+          {
+            "fragment": "/srv/data/tepna-corpus/uploads/vigil-archive/captures/2026-09-19/Polar_VeritySense_0C301E3F_20260919183724_PPG.txt",
+            "reason": "refused with no reason given"
+          }
+        ],
+        "reason": null
+      },
+      "wallMs": 18850
+    },
+    {
+      "night": "2026-09-20",
+      "ecgFragments": 1,
+      "ppgFragments": 2,
+      "unionHours": {
+        "ecg": 6.12,
+        "ppg": 6.16,
+        "both": 6.12,
+        "either": 6.16
+      },
+      "fraction": 0.9931,
+      "ecg": {
+        "index": 10.5,
+        "events": 26,
+        "denomSec": 8943.1,
+        "coveredHours": 2.48,
+        "scored": 1,
+        "refused": 0,
+        "refusals": [],
+        "reason": null
+      },
+      "ppg": {
+        "index": 5.2,
+        "events": 32,
+        "denomSec": 22133.3,
+        "coveredHours": 6.15,
+        "scored": 1,
+        "refused": 1,
+        "refusals": [
+          {
+            "fragment": "/srv/data/tepna-corpus/uploads/vigil-archive/captures/2026-09-20/Polar_VeritySense_0C301E3F_20260920130539_PPG.txt",
+            "reason": "threw: No PPG samples parsed — expected Polar Sense `*_PPG.txt` (Phone timestamp;sensor ns;ch0;ch1;ch2;ambi"
+          }
+        ],
+        "reason": null
+      },
+      "wallMs": 10249
+    }
+  ],
+  "rho": {
+    "rho": -0.0139,
+    "n": 23,
+    "reason": null
+  },
+  "refusals": {
+    "nights": 0,
+    "detail": [],
+    "fragments": {
+      "ecg": {
+        "scored": 45,
+        "refused": 0
+      },
+      "ppg": {
+        "scored": 41,
+        "refused": 4
+      },
+      "reasons": {
+        "threw: No PPG samples parsed — expected Polar Sense `*_PPG.txt` (Phone timestamp;sensor ns;ch0;ch1;ch2;ambi": 3,
+        "refused with no reason given": 1
+      }
+    }
+  },
+  "coverageShortfall": [
+    {
+      "night": "2026-08-24",
+      "stream": "ppg",
+      "unionHours": 10.64,
+      "coveredHours": 7.27
+    },
+    {
+      "night": "2026-08-28",
+      "stream": "ppg",
+      "unionHours": 13.49,
+      "coveredHours": 9.73
+    },
+    {
+      "night": "2026-09-03",
+      "stream": "ecg",
+      "unionHours": 8.18,
+      "coveredHours": 6.28
+    },
+    {
+      "night": "2026-09-05",
+      "stream": "ecg",
+      "unionHours": 10.42,
+      "coveredHours": 9.13
+    },
+    {
+      "night": "2026-09-06",
+      "stream": "ecg",
+      "unionHours": 11.35,
+      "coveredHours": 9.85
+    },
+    {
+      "night": "2026-09-11",
+      "stream": "ecg",
+      "unionHours": 9.94,
+      "coveredHours": 8.78
+    },
+    {
+      "night": "2026-09-12",
+      "stream": "ecg",
+      "unionHours": 18.65,
+      "coveredHours": 17.07
+    },
+    {
+      "night": "2026-09-12",
+      "stream": "ppg",
+      "unionHours": 16.28,
+      "coveredHours": 13.87
+    },
+    {
+      "night": "2026-09-20",
+      "stream": "ecg",
+      "unionHours": 6.12,
+      "coveredHours": 2.48
+    }
+  ],
+  "verdict": {
+    "schema": "tepna.verdict/1",
+    "gate": "cvhr-fold-rescore",
+    "status": "PASS",
+    "population": {
+      "checked": 23,
+      "eligible": 23,
+      "excluded": 0
+    },
+    "criterion": {
+      "name": "spearman_rho_on_fold_selection",
+      "threshold": null,
+      "unit": "rho",
+      "direction": "report"
+    },
+    "result": {
+      "rho": -0.0139,
+      "n": 23,
+      "sweepRestrictedRho": 0.255,
+      "sweepN": 17,
+      "fragmentsRefused": 4,
+      "fragmentsScored": 86
+    },
+    "evidence": [
+      "tools/cvhr-fold-rescore.mjs",
+      "/home/michal/wt-cvhrfold-mg/audits/GAP-S-SWEEP-2026-09-22.json"
+    ],
+    "reason": null,
+    "producedBy": {
+      "tool": "tools/cvhr-fold-rescore.mjs"
+    },
+    "at": "2026-09-29T05:14:24.216Z"
+  },
+  "producedBy": {
+    "tool": "tools/cvhr-fold-rescore.mjs"
+  },
+  "at": "2026-09-29T05:14:24.217Z"
+}

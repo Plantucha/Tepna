@@ -57,8 +57,8 @@ export function patchConstant(src, decl, value, name) {
   return src.replace(decl, (m, ws) => `${ws}const ${name} = ${value};`);
 }
 
-const ECG_FILES = ['kernel-constants.js', 'clock.js', 'signal-frame.js', 'dex-export.js', 'metric-registry.js', 'ecgdex-registry.js', 'ecgdex-dsp.js', 'ecgdex-morph.js'];
-const PPG_FILES = [
+export const ECG_FILES = ['kernel-constants.js', 'clock.js', 'signal-frame.js', 'dex-export.js', 'metric-registry.js', 'ecgdex-registry.js', 'ecgdex-dsp.js', 'ecgdex-morph.js'];
+export const PPG_FILES = [
   'kernel-constants.js',
   'clock.js',
   'signal-frame.js',
@@ -112,7 +112,11 @@ function sandbox() {
   ctx.__DEX_NAMESPACED__ = true;
   return ctx;
 }
-function realm(files, patchFile, decl, name, value) {
+/* EXPORTED for `tools/cvhr-fold-rescore.mjs`, which needs the SHIPPED realm rather than a swept one:
+   pass `patchFile = null` and no declaration is substituted, so the constants are the ones that ship.
+   Exported rather than copied — a second vm sandbox with its own globals list is how two tools come to
+   score in two slightly different realms and compare the results as if they were one measurement. */
+export function realm(files, patchFile, decl, name, value) {
   const DexBuild = req(join(ROOT, 'tools', 'build-core.js'));
   const ctx = sandbox();
   for (const f of files) {
