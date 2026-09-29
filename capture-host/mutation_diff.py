@@ -1187,15 +1187,42 @@ def kill_process_group(proc, grace_sec=GROUP_GRACE_SEC, reap_sec=REAP_SEC):
     (`getpgid(pid) == pid`); otherwise this falls back to killing the child alone, which is strictly no
     worse than the behaviour it replaces."""
     pid = getattr(proc, "pid", None)
+    # 🔴 A PID OF 0 IS NOT "NO PID" — IT IS "EVERYONE HERE". `os.killpg(0, sig)` and `os.kill(0, sig)`
+    # both address the CALLER's own process group, so a 0 arriving from a double, a half-built proc
+    # object or a mutated flag does not fail safe: it reaps the gate and every sibling the caller owns.
+    # Measured 2026-09-29 on this function's own mutants: four of them leave the leader flag set past
+    # the `if`, and with a `pid=0` test double each one SIGTERMed the mutmut worker's process group —
+    # pytest died mid-run with no summary line, mutmut's counter stalled at 7 of 33, and the remaining
+    # 23 came back `not_checked`. That is how a mutant kills the runner that is judging it.
+    # So the pid is checked for being a REAL, POSITIVE pid, and checked again at the call site below,
+    # where the cost of being wrong is paid.
+    positive_pid = isinstance(pid, int) and not isinstance(pid, bool) and pid > 0
     leader = False
-    if pid:
+    if positive_pid:
         try:
-            leader = os.getpgid(pid) == pid
+            pgid = os.getpgid(pid)
+            # TWO INDEPENDENT CONDITIONS, and the second one is load-bearing twice over. The child must
+            # LEAD the group (`pgid == pid`) — otherwise `killpg` reaches whatever group it was born
+            # into, which for a child started without `start_new_session=True` is OURS. And the group
+            # must not be ours even so.
+            #
+            # 🔴 THE SECOND CLAUSE IS WHY THIS FUNCTION IS MUTATION-TESTABLE AT ALL. Measured on
+            # #3237's own CI run: with `pgid == pid` alone, a mutant that inverted it made the gate
+            # `killpg` its OWN process group — the mutmut runner died at mutant 7 of 30 (the job log
+            # shows the counter stop at `6/2202`) and the remaining 23 came back `not_checked`, i.e.
+            # UNMEASURED, which `mutate_diff` correctly refuses. A mutant that kills the runner cannot
+            # be killed BY the runner. With both clauses no SINGLE mutation can signal our group
+            # (inverting either one leaves the other blocking), so the mutants became decidable — and
+            # the belt-and-braces is worth having on its own account.
+            leader = pgid == pid and pgid != os.getpgrp()
         except (ProcessLookupError, OSError):
             leader = False
     for sig, wait_s in ((signal.SIGTERM, grace_sec), (signal.SIGKILL, reap_sec)):
         try:
-            if leader:
+            if leader and positive_pid:
+                # The second half is not redundant: `leader` is derived state and a single edit can
+                # leave it true, while this reads the pid itself. Belt and braces on the one operation
+                # in this file whose worst case is killing the caller.
                 os.killpg(pid, sig)
             else:
                 proc.send_signal(sig)
