@@ -32,6 +32,13 @@ LEDGER = os.path.join(str(HERE), "tools", "mutate-equivalence.json")
 # solid_night_inputs.py went 24 -> 23 on 2026-10-03: #3243 DELETED the entry excusing
 # `rstrip("\\n")` -> `lstrip("\\n")` because the gate refuted it — cell 7 is compared as a string
 # to "ok", so the surviving newline skips the row. A refuted claim is removed, not softened.
+# solid_night_inputs.py went 23 -> 34 on 2026-10-03 (#3245) and that NET RISE hides a second deletion
+# the count cannot show: the SIBLING entry excusing `cols = header.rstrip("\\n")` -> `lstrip` in
+# `residual_scan` was refuted the same way and removed — `_SENSOR_NS_COL not in cols` is a STRING
+# membership test, which `float`'s whitespace tolerance never touches, so with `lstrip` a two-clock
+# stream reports no device clock at all. Twelve §A5 entries were added. The third sibling, for
+# `recorded_seams`, was re-measured (5,040 sidecars, 0 distinguishing) and KEPT with a reason about
+# that site's own two consumers rather than the one that had now been refuted twice.
 RATCHET = {
     "acq_evidence_cpap.py": 1,
     "ble_visibility.py": 4,
@@ -61,7 +68,8 @@ RATCHET = {
     "probe_oxyii_0x03.py": 1,
     "probe_ring_adv.py": 4,
     "pulsedex-dsp.js": 43,
-    "solid_night_inputs.py": 23,
+    "solid_night.py": 1,
+    "solid_night_inputs.py": 34,
     "telemetry.py": 1,
     "writers.py": 2,
 }

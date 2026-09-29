@@ -248,7 +248,13 @@ their validity from their parent waveform, as they take completeness under A2.
 **A5 · An unrecorded clock step is a TRIPWIRE, not a scored FAIL — and persistence needs two guards**
 (2026-09-24, measured over 36 clean nights; **revised the same day**, after a trajectory showed the only
 remaining positive was a false one). Supersedes §3.4's "a step > 1000 ms that is not a recorded seam" and
-specifies A3's measure.
+specifies A3's measure. ✅ **BUILT 2026-09-29 (Magpie)** — `solid_night_inputs.unrecorded_shift` with the
+record set in `clock_records`, every number below as a pre-stated constant, over the journal's clock-event
+lines that `loss_audit.read_clock_events` persists into `LOSS-AUDIT.json` (its own unit, #3247 — the
+verdict side has no journal of its own and journald rotates). This is the term that was blocking the programme: until it
+ran the timebase band read UNKNOWN by construction on every night, so the 14-night run could never start.
+Three record-set absences are kept apart — the key missing (an audit older than the record), `null`
+(journalctl unavailable) and `[]` (read, nothing happened) — and only the last lets the tripwire fire.
 
 - **Sign convention — binding.** Residual = **host ARRIVAL time − device time**, one value per BATCH anchor.
   The Polar `Phone timestamp` is synthesised per row (batch arrival + k/fs, rounded to 1 ms), so anchors
@@ -259,8 +265,11 @@ specifies A3's measure.
 - **The measure.** Split the anchors at re-anchors > 60 s (the capture's own seam bound). Take a width-21
   running median. **Persistence = the median level 60–120 s after a candidate minus the level 30–90 s
   before it.**
-- **The TRIPWIRE:** |persistence| ≥ **1 s**, passing **both guards below**, with **no record** in the seam
-  sidecar, the journal, or `CLOCKSYNC.csv` (`synced` / `resynced`). When it fires it **reds the tripwire**,
+- **The TRIPWIRE:** |persistence| ≥ **1 s** (inclusive — exactly 1.000 s is a candidate), passing **both
+  guards below**, with **no record** in the seam sidecar, the journal, or `CLOCKSYNC.csv`
+  (`synced` / `resynced`); all three are filtered by the DEVICE NAME and by the worn interval, both of
+  which the band must forward (#3245 — a basename passed where a device name was expected silently
+  emptied two of the three sources). When it fires it **reds the tripwire**,
   and the night's timebase is **UNKNOWN `unrecorded-shift-candidate`**, flagged for review. **It is not a
   FAIL:** the clean corpus holds **zero** true unrecorded steps (below), so the detector has never been
   validated against the thing it would convict. **The journal's record set is every clock-event line for
