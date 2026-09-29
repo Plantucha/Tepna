@@ -3126,16 +3126,16 @@ class _SigShim:
 
     SIG_DFL = "DFL"
 
-    def __init__(self, raise_on_install=False):
+    def __init__(self, raise_on_install=False, raise_after=None):
         import signal as _s
 
         self.SIGTERM, self.SIGINT, self.SIGHUP = _s.SIGTERM, _s.SIGINT, _s.SIGHUP
         self.SIGKILL = _s.SIGKILL  # `kill_process_group` runs under this shim too; it escalates for real
         self.installs, self.raise_on_install = [], raise_on_install
-        self.handlers = {}
+        self.raise_after, self.handlers = raise_after, {}
 
     def signal(self, sig, handler):
-        if self.raise_on_install:
+        if self.raise_on_install or (self.raise_after is not None and len(self.installs) >= self.raise_after):
             raise ValueError("signal only works in main thread")
         self.installs.append((sig, handler))
         prev = self.handlers.get(sig, "PREVIOUS")
@@ -3241,3 +3241,16 @@ def test_a_handler_for_a_signal_that_was_NEVER_INSTALLED_falls_back_to_the_defau
     guard._on_signal(_sig.SIGINT, None)
     assert osh.killed[-1] == (777, _sig.SIGINT), osh.killed
     assert [s.name for s in proc.signals] == ["SIGTERM", "SIGKILL"], proc.signals
+
+
+def test_a_RESTORE_that_fails_does_not_raise_out_of_teardown(monkeypatch):
+    """`__exit__`'s swallow, driven. The restore is a courtesy to whoever installed the previous
+    handler; if the interpreter refuses it (the guard was entered on the main thread and exited from
+    somewhere else), raising here would replace the caller's own outcome with a teardown failure."""
+    shim = _SigShim(raise_after=len(M.REAP_SIGNALS))  # installs succeed, every restore refuses
+    monkeypatch.setattr(M, "signal", shim)
+    with M.reap_group_on_signal(_RecordingProc(pid=0)):
+        pass
+    assert len(shim.installs) == len(M.REAP_SIGNALS), (
+        f"the three arms must still have been installed; got {shim.installs}"
+    )

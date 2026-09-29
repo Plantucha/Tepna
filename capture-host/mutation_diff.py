@@ -1206,7 +1206,10 @@ def kill_process_group(proc, grace_sec=GROUP_GRACE_SEC, reap_sec=REAP_SEC):
         except subprocess.TimeoutExpired:
             continue  # the grace expired; escalate to SIGKILL on the next pass
         except (ValueError, OSError):
-            break
+            # deliberate: the proc object cannot be waited on at all (never started, or a closed
+            # handle), so escalating a second signal against nothing would be a loop over a broken
+            # object. Stop and report whatever returncode it knows — which may be None (§∅).
+            break  # deliberate: an unwaitable proc, reported as its own returncode rather than retried
     return getattr(proc, "returncode", None)
 
 
@@ -1252,7 +1255,9 @@ class reap_group_on_signal:
         try:
             signal.signal(sig, prev if prev is not None else signal.SIG_DFL)
         except (ValueError, OSError):
-            pass
+            # deliberate: nothing was hidden that matters — the restore is a courtesy to whoever
+            # installed the previous handler, and this process is about to take the signal anyway.
+            pass  # deliberate: the signal is re-raised on the next line either way
         os.kill(os.getpid(), sig)  # re-raise: the sender decides this process's fate, not this handler
 
     def __exit__(self, *_exc):
@@ -1260,7 +1265,10 @@ class reap_group_on_signal:
             try:
                 signal.signal(sig, prev)
             except (ValueError, OSError):
-                pass
+                # deliberate: teardown must not raise. A restore that fails leaves OUR handler in
+                # place, which reaps an already-dead proc on the next signal — a no-op that still
+                # re-raises — so nothing is hidden except the failure of the courtesy itself.
+                pass  # deliberate: teardown must not replace the caller's outcome with its own
         return False  # never swallow: teardown does not get to decide the caller's exception
 
 
