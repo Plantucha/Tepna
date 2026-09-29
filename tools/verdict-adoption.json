@@ -269,6 +269,11 @@
       "bin": "test",
       "status": "exempt"
     },
+    "capture-host/tests/test_loss_poller.py": {
+      "bin": "test",
+      "status": "exempt",
+      "reason": "a TEST file; its verdict words are the ones `capture._solid_pending` publishes to `STATUS[\"solid\"]` for a night that has not settled — the assertion compares against `solid_night.NOT_SETTLED` and the literal status word the surface must show, so rewording either would stop the test checking what the operator reads"
+    },
     "capture-host/tests/test_monitor_apply_restart.py": {
       "bin": "test",
       "status": "exempt"
