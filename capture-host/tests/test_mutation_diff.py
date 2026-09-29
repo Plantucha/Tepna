@@ -2571,3 +2571,151 @@ def test_the_MB_scale_in_the_generation_reason_is_MEBIbytes():
     thing, but it is the only number that survives the kill."""
     r = M.generation_timeout_reason(60.0, 61.0, 210501632)
     assert "201 MB of mutants written" in r, r
+
+
+# ── A ZERO THAT WAS NEVER A MEASUREMENT ───────────────────────────────────────────────────────────
+# `unmeasured_zero` is the third statement of one rule, after `zero_population_verdict` (a PASS over
+# checked 0 is not a pass) and `result_inconsistency` (a verdict whose counters disagree cannot vouch
+# for itself). Those two guard the VERDICT; this guards the counts it is assembled from, which is
+# where the failure has actually shipped — twice, in the same three-line function.
+#
+# The control is the point of the whole design and is asserted first: a function with no mutable
+# operator genuinely counts 0, and refusing there would red a rename, a docstring edit or a reformat.
+def test_a_clean_zero_over_a_population_that_WAS_examined_is_not_refused():
+    """THE CONTROL. This is why a bare zero was ever trusted, and it must keep working."""
+    scan = {
+        "helper": "generated_under_glob",
+        "glob": "m.x_identity__mutmut_*",
+        "matched": 0,
+        "corroborated": 0,
+        "examined": 138,  # the file HAS mutants — 138 of them, for other functions
+        "registered": 138,
+        "sourceBytes": 40000,
+    }
+    assert M.unmeasured_zero(scan) is None, (
+        "a function with no mutable operator counts 0 over a file that was read — benign, and the "
+        "measured 2026-08-24 case (oxy_inventory.identity) that refusing here would have redded"
+    )
+
+
+def test_a_healthy_nonzero_count_is_not_refused():
+    scan = {
+        "helper": "generated_under_glob",
+        "glob": "m.x_f__mutmut_*",
+        "matched": 44,
+        "corroborated": 44,
+        "examined": 399,
+        "registered": 399,
+        "sourceBytes": 407771,
+    }
+    assert M.unmeasured_zero(scan) is None
+
+
+def test_PLANT_the_construct_is_present_and_the_scan_cannot_see_it():
+    """The historical bug, in the shape it actually had: 44 mutants registered, 0 counted.
+
+    Pre-#3214 this returned 0 for every coroutine and the caller read it as "nothing to mutate". The
+    integer was indistinguishable from the control above; only the corroboration separates them."""
+    scan = {
+        "helper": "generated_under_glob",
+        "glob": "wifi_uplink.x__run__mutmut_*",
+        "matched": 0,
+        "corroborated": 44,
+        "examined": 355,
+        "registered": 399,
+        "sourceBytes": 407771,
+    }
+    why = M.unmeasured_zero(scan)
+    assert why is not None
+    assert "0" in why and "44" in why and "disagree" in why
+    assert "generated_under_glob" in why, "the refusal names the helper, not just the symptom"
+
+
+def test_the_disagreement_is_checked_in_BOTH_directions():
+    """A definition scan finding MORE than mutmut registered is equally a miscount. "Ours is higher so
+    we are fine" is the reasoning that keeps a blind spot — there is no safe direction to be wrong in."""
+    scan = {
+        "helper": "generated_under_glob",
+        "glob": "m.x_f__mutmut_*",
+        "matched": 9,
+        "corroborated": 4,
+        "examined": 20,
+        "registered": 15,
+        "sourceBytes": 900,
+    }
+    assert M.unmeasured_zero(scan) is not None
+
+
+def test_PLANT_the_scan_read_nothing_at_all():
+    """An absent mutants file. A crash BEFORE generation writes neither mutants nor meta, so every
+    count is 0 and the benign arm reports "nothing to mutate" — a coverage claim over a file that
+    does not exist."""
+    scan = {
+        "helper": "generated_under_glob",
+        "glob": "m.x_f__mutmut_*",
+        "matched": 0,
+        "corroborated": 0,
+        "examined": 0,
+        "registered": 0,
+        "sourceBytes": 0,
+    }
+    why = M.unmeasured_zero(scan)
+    assert why is not None and "absent or empty" in why
+    assert "generated_under_glob" in why
+
+
+def test_an_EMPTY_POPULATION_refuses_even_when_the_file_had_bytes():
+    """The file was read and contained no mutant definitions at all. Not the same as an absent file —
+    a truncated or half-written mutants file has bytes and no population — and equally not a count."""
+    scan = {
+        "helper": "generated_under_glob",
+        "glob": "m.x_f__mutmut_*",
+        "matched": 0,
+        "corroborated": 0,
+        "examined": 0,
+        "registered": 0,
+        "sourceBytes": 120,
+    }
+    assert "examined an empty population" in (M.unmeasured_zero(scan) or "")
+
+
+def test_a_scan_without_corroboration_still_gets_the_population_checks():
+    """`decided_scan` has no independent second count — the meta is the only record — so it carries
+    `examined` and no `corroborated`, and the disagreement rule must not fire on its absence."""
+    assert (
+        M.unmeasured_zero(
+            {"helper": "decided_under_glob", "glob": "m.x_f__mutmut_*", "matched": 0, "underGlob": 2, "examined": 3}
+        )
+        is None
+    )
+    why = M.unmeasured_zero(
+        {"helper": "decided_under_glob", "glob": "m.x_f__mutmut_*", "matched": 0, "underGlob": 0, "examined": 0}
+    )
+    assert why is not None and "decided_under_glob" in why
+
+
+def test_the_refusal_reason_is_a_sentence_a_reader_can_act_on():
+    """Every non-PASS carries a reason (§🧾), and a reason naming only the symptom sends the reader to
+    the wrong file. These name the HELPER, so the next person starts where the defect is."""
+    for scan in (
+        {
+            "helper": "generated_under_glob",
+            "glob": "g",
+            "matched": 0,
+            "corroborated": 3,
+            "examined": 10,
+            "registered": 13,
+            "sourceBytes": 50,
+        },
+        {
+            "helper": "generated_under_glob",
+            "glob": "g",
+            "matched": 0,
+            "corroborated": 0,
+            "examined": 0,
+            "registered": 0,
+            "sourceBytes": 0,
+        },
+    ):
+        why = M.unmeasured_zero(scan)
+        assert why and why[0].islower() and scan["helper"] in why and len(why) > 40

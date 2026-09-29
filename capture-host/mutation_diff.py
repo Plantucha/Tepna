@@ -1381,6 +1381,54 @@ def zero_population_verdict(status: str, checked: int, reason: str | None) -> tu
     return status, reason
 
 
+def unmeasured_zero(scan: dict) -> str | None:
+    """Is this counting helper's ZERO a measurement, or the absence of one? Returns a reason, or None.
+
+    PURE. Third statement of one rule, after `zero_population_verdict` (a PASS over `checked: 0` is not
+    a pass) and `result_inconsistency` (a verdict whose own counters disagree cannot vouch for itself).
+    Both of those guard a verdict. This guards the COUNTS the verdict is assembled from, which is where
+    the same failure has actually shipped: `mmeta.generated_under_glob` returned `0` for every coroutine
+    for five weeks, and for every indented method for weeks before that, and in both cases `0` is also
+    the correct answer for a function with no mutable operator. Nothing downstream could tell them
+    apart, so the crash guard took the benign arm across 16 % of the tree.
+
+    A count is a measurement only if the scan that produced it examined something and can be checked
+    against an independent observation of the same fact:
+
+      · `sourceBytes == 0` / `examined == 0` — the scan read nothing. Its zero describes the reader,
+        not the code. This is the absent-mutants-file case that let a crash BEFORE generation report
+        "nothing to mutate", and the absent-or-malformed meta that `read_exit_codes` flattens to `{}`.
+      · `matched != corroborated` — two independent observations of the same count disagree, so at
+        least one of them cannot see its subject. This is the shape of both historical bugs, and it
+        fires on them retrospectively against real scratch trees (see `mmeta.registered_under_glob`).
+        It is checked in BOTH directions: a definition scan that finds MORE than mutmut registered is
+        equally a miscount, and "ours is higher so we are fine" is the reasoning that keeps blind spots.
+
+    What is deliberately NOT a refusal: `matched == 0` over a population that WAS examined and agrees
+    with its corroboration. A function with no mutable operator genuinely generates nothing, and
+    refusing there would red a rename, a docstring edit or a reformat — the safest diffs there are.
+    That case is the reason a bare zero was ever trusted, and the fix is to make the benign zero PROVE
+    it read the file, not to stop believing zeros.
+    """
+    helper = scan.get("helper", "a counting helper")
+    glob = scan.get("glob")
+    where = f" for {glob}" if glob else ""
+    if scan.get("sourceBytes") == 0 and "sourceBytes" in scan:
+        return (
+            f"{helper}{where} read an absent or empty mutants file — its 0 is not a count of mutants, "
+            "it is the absence of anything to count"
+        )
+    if scan.get("examined") == 0:
+        return f"{helper}{where} examined an empty population — nothing was scanned, so 0 says nothing about the code"
+    if "corroborated" in scan and scan.get("matched") != scan.get("corroborated"):
+        return (
+            f"{helper}{where} counted {scan.get('matched')} by definition scan while mutmut registered "
+            f"{scan.get('corroborated')} — two independent counts of the same mutants disagree, so at "
+            "least one of them cannot see its subject"
+        )
+    return None
+
+
 def result_inconsistency(result: dict, survivors_len: int, undecided_len: int) -> str | None:
     """Why this verdict's own numbers cannot all be true — or None when they can.
 

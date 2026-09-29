@@ -90,6 +90,7 @@ from mutation_diff import (  # noqa: E402
     source_function_of_glob,
     undecided_by_function,
     unmutatable_decorator,
+    unmeasured_zero,
     functions_covering,
     functions_with_changed_ast,
     refusal_reason,
@@ -418,6 +419,10 @@ def main(argv=None) -> int:
     # THIS TOOL CANNOT MUTATE ONE, so it was never examined. Counted apart so the summary can say so.
     _unexaminable: list = []
     _out_of_scope: int = 0  # undecided mutants belonging to functions the diff never touched
+    # §3c — a glob whose COUNT could not be trusted: the scan read nothing, or two independent
+    # counts of the same mutants disagreed. Neither "crashed" (something did run) nor "nothing to
+    # mutate" (that claims a fact about the code); the honest word is that this tool cannot say.
+    _unmeasured: list[str] = []
     # ── THE RUN BUDGET (mutation_diff.GATE_BUDGET_SEC) — a refusal is a verdict, a SIGTERM is not ──
     _gate_t0 = time.monotonic()
     _refused_budget: list[str] = []
@@ -551,12 +556,44 @@ def main(argv=None) -> int:
             # as the preflight does, rather than banking an empty survivor list as a pass.
             _tested = mmeta.tested_count(work, module, g)
             if _tested == 0:
+                # ⚠️ AND THE SAME QUESTION ONE LAYER UP, BEFORE THE TWO CAUSES BELOW. `read_exit_codes`
+                # returns `{}` for a meta that is absent, unreadable, malformed OR empty, and says so
+                # deliberately — "either way, nothing was measured". Right for CREDITING and wrong
+                # here: with no meta at all the branches below diagnose a CRASH AFTER GENERATION, and
+                # if the meta is present and simply did not parse, that diagnosis is a statement about
+                # mutmut when the failure is ours. `exit_codes_scan` keeps the two apart.
+                _escan = mmeta.exit_codes_scan(work / "mutants" / f"{module}.meta")
+                if _escan["present"] and not _escan["parsed"]:
+                    _why_meta = (
+                        "read_exit_codes read a meta it could not parse — 0 decided is this tool "
+                        "failing to read mutmut's output, not mutmut failing to test"
+                    )
+                    print(f"    ⊘ {g}: NOT MEASURED — {_why_meta}  [{_secs:.0f}s]", flush=True)
+                    _ran -= 1
+                    _unmeasured.append(f"{g}: {_why_meta}")
+                    continue
                 # ⚠️ 0-tested has TWO causes and only one is a failure. A function with no mutable
                 # operator generates nothing, and mutmut signals that by crashing rather than saying
                 # so — refusing on it reds a rename or a docstring edit. Ask the mutants file which
                 # case this is before deciding. (Measured: oxy_inventory.identity, 138 mutants in the
                 # file, 0 under its glob, whole run refused.)
-                if mmeta.generated_count(work, module, g) == 0:
+                # ⚠️ ASK WHETHER THE ZERO IS A MEASUREMENT BEFORE READING IT AS ONE. `generated_count`
+                # returns 0 for a function with no mutable operator (benign), for a mutants file that
+                # was never written (nothing was read), and for a file it read and could not recognise
+                # the construct in — and for five weeks the third case was every coroutine in the tree,
+                # taking the benign arm below. The scan carries the population it examined and mutmut's
+                # own registration table as an independent count; `unmeasured_zero` reads both.
+                _gscan = mmeta.generated_scan(_read_source(work / "mutants" / module), g)
+                _why_unmeasured = unmeasured_zero(_gscan)
+                if _why_unmeasured:
+                    print(
+                        f"    ⊘ {g}: NOT MEASURED — {_why_unmeasured}  [{_secs:.0f}s]",
+                        flush=True,
+                    )
+                    _ran -= 1
+                    _unmeasured.append(f"{g}: {_why_unmeasured}")
+                    continue
+                if _gscan["matched"] == 0:
                     # ⚠️ THE MESSAGE STATES WHAT IS KNOWN, NOT AN INFERRED CAUSE. mutmut generated
                     # nothing under this glob; WHY is not established here, and the two known causes
                     # are different findings. A function with no mutable operator is genuinely nothing
@@ -624,9 +661,16 @@ def main(argv=None) -> int:
                         flush=True,
                     )
                 else:
+                    # SAY HOW MANY, because "all null" over 2 keys and over 900 are different findings
+                    # and the phrase alone does not separate them. `decided_scan` carries the population
+                    # the zero was taken over: keys under this glob, and keys in the meta at all — the
+                    # second distinguishes "mutmut tested nothing for this function" from "mutmut wrote
+                    # a meta that has never heard of it".
+                    _dscan = mmeta.decided_scan(mmeta.read_exit_codes(work / "mutants" / f"{module}.meta"), g)
                     print(
                         f"    ! {g}: mutants were generated but 0 tested — a crash after generation, not "
-                        f"a clean run (the meta's exit codes are all null under this glob)  [{_secs:.0f}s]",
+                        f"a clean run ({_dscan['underGlob']} key(s) under this glob, all null; "
+                        f"{_dscan['examined']} in the meta)  [{_secs:.0f}s]",
                         flush=True,
                     )
                 _ran -= 1
@@ -733,6 +777,27 @@ def main(argv=None) -> int:
     # listed as covered and its survivors read empty, which is the exact false green this measures
     # against. Refuse if ANY glob did this, even when others ran cleanly — the mixed case the all-failed
     # check below cannot see (it fires only when NOTHING ran).
+    # §3c — A COUNT THAT WAS NOT A MEASUREMENT. Refused before `_crashed` because it is the more
+    # fundamental failure: `_crashed` at least knows that mutmut ran and tested nothing, while this
+    # says the tool cannot trust its own arithmetic about what exists. UNKNOWN, not FAIL — there may
+    # be no defect here at all — and not PASS, which is the arm this class of bug has always taken.
+    if _unmeasured:
+        print(f"\nmutate-diff: REFUSING — {len(_unmeasured)} glob(s) produced a count this tool cannot stand behind:")
+        for _u in _unmeasured[:8]:
+            print(f"      {_u}")
+        if len(_unmeasured) > 8:
+            print(f"      … and {len(_unmeasured) - 8} more")
+        print(
+            "  A zero that was reached without examining anything, or that disagrees with mutmut's own\n"
+            "  registration table, is the absence of a measurement and not the measurement of an absence."
+        )
+        _ran_box[0] = _ran
+        return emit(
+            "UNKNOWN",
+            f"{len(_unmeasured)} glob(s) produced an unmeasured count: {_unmeasured[0].split(': ', 1)[-1]}",
+            2,
+        )
+
     if _crashed:
         print(
             f"\nmutate-diff: REFUSING — {len(_crashed)} glob(s) recorded 0 tested mutants "
