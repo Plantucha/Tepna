@@ -882,11 +882,35 @@
            string reference (O(1), no parse on the hot path). */
         if (prevNsB !== null) {
           const devDeltaMs = Number(b - prevNsB) / 1e6;
-          if (devDeltaMs > PPG_RESYNC_BOUND_MS) {
+          /* ── A BACKWARD STEP IS A SEAM TOO, AND IT NEEDS NO DISCRIMINATOR ────────────────────────
+             The test above was `devDeltaMs > BOUND` only, so a counter that RESTARTS never entered
+             it. Measured on 2026-09-28's ring night: the ring reconnected at 04:23:30.872 and resumed
+             into the SAME `_PPG.txt` with its counter reset, 24 449 332 942 372 ns → 0 — a step of
+             −24 449.3 s that this branch could not see. `clockResyncs` stayed null, so no anchors were
+             dropped, and `hostAxis` then measured the 84.6 s tail against the night's first minute:
+             ok:true, 6040 anchors, ppm −3575.15, maxStepMs 24 398 420, fs 126.31. Downstream, 76 of
+             23 659 feet landed more than 2 s from their own row stamp, the worst by 401.9 minutes,
+             with 43 order inversions. A green axis over two different oscillator states.
+
+             THE FORWARD TEST NEEDS THE HOST COLUMN BECAUSE A DROPOUT LOOKS LIKE A STEP — through a
+             real gap BOTH clocks keep ticking, so only a disagreement between them separates the two,
+             and MotionDex's census found 137 files whose worst forward step is a genuine dropout
+             against 3 real resyncs. THAT CONFOUND DOES NOT EXIST BACKWARDS. A monotonic device
+             counter cannot run backwards through a dropout, because the host advancing is exactly
+             what a dropout consists of. So a backward step beyond the bound IS the seam, and
+             requiring the host to corroborate it would be requiring evidence of something that
+             cannot happen — which, on a night whose seam row happens to carry an unparseable stamp,
+             would silently re-admit the whole defect.
+
+             Wren's same measurement names the four forward steps in that file that are NOT seams —
+             +19.2 s, +12.9 s, +47.6 s, +89.9 s, all with the host advancing in step — and the
+             discriminator above correctly leaves every one of them alone. */
+          const backward = devDeltaMs < -PPG_RESYNC_BOUND_MS;
+          if (backward || devDeltaMs > PPG_RESYNC_BOUND_MS) {
             const curTs = parseTimestamp(p[0]);
             const prvTs = prevPhoneRaw != null ? parseTimestamp(prevPhoneRaw) : null;
             const phoneDeltaMs = curTs && curTs.tMs != null && prvTs && prvTs.tMs != null ? Math.max(0, curTs.tMs - prvTs.tMs) : null;
-            if (phoneDeltaMs != null ? devDeltaMs - phoneDeltaMs > PPG_RESYNC_BOUND_MS : devDeltaMs > PPG_GAP_CEIL_MS) {
+            if (backward || (phoneDeltaMs != null ? devDeltaMs - phoneDeltaMs > PPG_RESYNC_BOUND_MS : devDeltaMs > PPG_GAP_CEIL_MS)) {
               /* RE-ANCHOR ON THE HOST, NOT BY SUBTRACTING THE STEP — ONE DEVICE CLOCK PER AXIS
                  (Clock Contract §7). The counter before the sync is a different oscillator state,
                  not merely a shifted one, so imposing the host delta alone would carry the pre-seam
@@ -1045,7 +1069,21 @@
     // host-disciplined, it must become samples per HOST second or `1/fs` no longer matches the spacing
     // of the very axis it indexes. ≤0.03 % on a Polar, 0.16 % on the O2Ring — small, but a self-
     // inconsistent rec is the kind of thing that is only ever found much later, in something else.
-    const hostAx = typeof DexClock !== 'undefined' && DexClock.hostAxis ? DexClock.hostAxis(axisAnchors, {}) : { ok: false };
+    /* ⚠️ THE SURVIVING SEGMENT MUST BE ABLE TO CARRY AN AXIS, AND PpgDex MUST SAY SO ITSELF.
+       `DexClock.hostAxis` refuses below three anchors, but `clock.js` is not inlined in this bundle
+       (CLAUDE.md §✅), so in the shipped app that refusal does not exist and the `{ ok: false }`
+       fallback below says nothing about why. After a seam the pre-resync anchors are dropped, so what
+       remains is one segment — and a segment of one or two anchors is not a short measurement, it is
+       not a measurement. Naming the count here keeps the two cases apart in the export: "this bundle
+       has no clock spine" and "this night's post-seam segment was too short to measure a rate over"
+       are different facts and both used to read as a bare `ok:false`. */
+    const CK_AXIS_MIN_ANCHORS = 3; // clock.js's own floor, restated because it is not inlined here
+    const hostAx =
+      axisAnchors.length < CK_AXIS_MIN_ANCHORS
+        ? { ok: false, reason: `post-resync segment carries ${axisAnchors.length} anchor(s), below the ${CK_AXIS_MIN_ANCHORS} an axis needs` }
+        : typeof DexClock !== 'undefined' && DexClock.hostAxis
+          ? DexClock.hostAxis(axisAnchors, {})
+          : { ok: false, reason: 'no clock spine in this bundle' };
     if (hostAx.ok && isFinite(hostAx.ppm)) fs = fs / (1 + hostAx.ppm / 1e6);
     fs = Math.round(fs * 100) / 100;
     /* `timingSource` is the field a consumer should actually branch on, and the reason this is computed
@@ -3161,9 +3199,17 @@
         if (ns0 === null) ns0 = b;
         if (prevNsB !== null) {
           const devDeltaMs = Number(b - prevNsB) / 1e6;
-          if (devDeltaMs > PPG_RESYNC_BOUND_MS) {
+          /* Backward steps here too, for the reason spelled out at the PPG site: a monotonic counter
+             cannot run backwards through a dropout, so the host discriminator the forward test needs
+             is not merely unnecessary backwards, it is unsatisfiable. Both parsers read the same
+             device column of the same reconnecting device; a seam visible in one is visible in both,
+             and fixing only the one the night happened to expose is how the next night finds the
+             other. This parser keeps no axis, so the seam is RECORDED and `relNs` re-anchored; there
+             are no anchors to drop. */
+          const backward = devDeltaMs < -PPG_RESYNC_BOUND_MS;
+          if (backward || devDeltaMs > PPG_RESYNC_BOUND_MS) {
             const phoneDeltaMs = ts && ts.tMs != null && prevRowTMs != null ? Math.max(0, ts.tMs - prevRowTMs) : null;
-            if (phoneDeltaMs != null ? devDeltaMs - phoneDeltaMs > PPG_RESYNC_BOUND_MS : devDeltaMs > PPG_GAP_CEIL_MS) {
+            if (backward || (phoneDeltaMs != null ? devDeltaMs - phoneDeltaMs > PPG_RESYNC_BOUND_MS : devDeltaMs > PPG_GAP_CEIL_MS)) {
               segBaseNs = firstRowTMs != null && ts && ts.tMs != null ? (ts.tMs - firstRowTMs) * 1e6 : isFinite(prevRelNs) ? prevRelNs : Number(b - ns0);
               segNs0 = b;
               resyncs.push({

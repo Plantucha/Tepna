@@ -61645,7 +61645,10 @@
         var HZ = 135,
           T0 = Date.UTC(2026, 7, 27, 23, 24, 42),
           STEP_S = 241586764; // the real 2026-08-27 magnitude
-        function ppg(nBefore, nAfter, gapSec, stepSec) {
+        /* `resetToZero` is LAST and OPTIONAL, so every existing caller is untouched (CLAUDE.md's
+           back-compatible-signature rule). It models the 2026-09-28 ring night: the device counter
+           does not step forward, it RESTARTS. */
+        function ppg(nBefore, nAfter, gapSec, stepSec, resetToZero) {
           var rows = ['Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;ambient'];
           var ns = 599616005396855516,
             ms = 0,
@@ -61688,7 +61691,8 @@
             ns += Math.round(1e9 / HZ);
           }
           ms += gapSec * 1000;
-          ns += Math.round(stepSec * 1e9);
+          if (resetToZero) ns = 0;
+          else ns += Math.round(stepSec * 1e9);
           for (var j = 0; j < nAfter; j++) {
             emit();
             ms += 1000 / HZ;
@@ -61791,6 +61795,61 @@
           true,
           'census 2026-09-02 — 84 real dropouts, 0 resyncs; the H10 firmware step cannot reach a Verity PPG stream. Fixed anyway because §7 requires the detection, and the fix is byte-inert on all 3674'
         );
+        /* ── A BACKWARD STEP: THE 2026-09-28 RING NIGHT ────────────────────────────────────────────
+           Every leg above plants a FORWARD step, which is why the detector only ever tested for one.
+           Measured by Wren on /srv/tepna/captures/2026-09-28: 3 019 795 rows at 125 Hz, and at data-row
+           3 009 471 (04:23:30.872) the ring reconnected into the SAME file with its counter reset,
+           24 449 332 942 372 ns -> 0. `clockResyncs` came back null, no anchors were dropped, and the
+           axis was then measured across two oscillator states: ok:true, 6040 anchors, ppm -3575.15,
+           maxStepMs 24 398 420, fs 126.31 — with 76 of 23 659 feet landing over 2 s from their own row
+           stamp, the worst by 401.9 minutes. */
+        var reset = P.parsePPG(ppg(2000, 20000, 86, 0, true), undefined);
+        var _rs = reset.clockResyncs || [];
+        T.ok(
+          'ANTI-VACUITY · the reset plant really does carry a BACKWARD device step',
+          /;0;/.test(ppg(3, 3, 86, 0, true).split('\n')[4] || ''),
+          'row 4 of the post-reset segment restarts the counter at 0'
+        );
+        T.eq('A COUNTER RESET IS A SEAM · one resync recorded, where the old detector saw none', _rs.length, 1);
+        T.ok('THE SIGN IS RECORDED · deviceStepMs is NEGATIVE, so a reader can tell a restart from a jump', _rs.length === 1 && _rs[0].deviceStepMs < 0, JSON.stringify(_rs[0] || null));
+        T.ok(
+          'and the pre-seam anchors are dropped for a BACKWARD seam exactly as for a forward one',
+          !!(reset.hostAxis && reset.hostAxis.anchorsDroppedPreResync > 0),
+          JSON.stringify(reset.hostAxis && { ok: reset.hostAxis.ok, anchors: reset.hostAxis.anchors, dropped: reset.hostAxis.anchorsDroppedPreResync })
+        );
+        T.ok('THE SPAN IS THE RECORDING · a reset no longer publishes a negative or absurd relSec span', spanOf(reset) > 100 && spanOf(reset) < 400, 'span ' + (spanOf(reset) || 0).toFixed(1) + ' s');
+
+        /* ── THE CONTROL, and it is the reason the forward test keeps its host discriminator ────────
+           The same real file carries FOUR forward steps over 10 s that are NOT seams — +19.2 s,
+           +12.9 s, +47.6 s and +89.9 s, all with the host advancing in step, i.e. ordinary dropouts
+           the capture advanced over. MotionDex's census found the same ratio at scale: 137 files whose
+           worst forward step is a genuine dropout against 3 real resyncs. A backward-step rule that
+           also loosened the forward one would re-anchor every one of them and corrupt working
+           recordings. Each is planted at its real magnitude with the host gap to match. */
+        var _dropouts = [19.2, 12.9, 47.6, 89.9];
+        for (var _d = 0; _d < _dropouts.length; _d++) {
+          var _g = _dropouts[_d];
+          var _drop = P.parsePPG(ppg(2000, 2000, _g, _g), undefined);
+          T.ok(
+            'CONTROL · a +' + _g + ' s dropout with the host advancing in step is NOT a seam',
+            !(_drop.clockResyncs && _drop.clockResyncs.length),
+            JSON.stringify((_drop.clockResyncs || []).slice(0, 1))
+          );
+        }
+
+        /* ── A SEGMENT TOO SHORT TO CARRY AN AXIS REFUSES, AND SAYS SO ──────────────────────────────
+           Dropping the pre-seam anchors is only half the rule. What remains is ONE segment, and a
+           segment of one or two anchors is not a short measurement — it is not a measurement. The
+           refusal lives in this node because `clock.js` is not inlined in the PpgDex bundle
+           (CLAUDE.md §✅), so `DexClock`'s own three-anchor floor does not exist in the shipped app and
+           a bare `ok:false` could not say which of the two reasons applied. */
+        var _short = P.parsePPG(ppg(2000, 200, 86, 0, true), undefined);
+        T.ok(
+          'A POST-SEAM SEGMENT BELOW THREE ANCHORS IS REFUSED, not merged with the night it cannot speak for',
+          !!(_short.hostAxis && _short.hostAxis.ok === false && /below the 3/.test(String(_short.hostAxis.reason))),
+          JSON.stringify(_short.hostAxis && { ok: _short.hostAxis.ok, reason: _short.hostAxis.reason })
+        );
+
         /* ONE CONSTANT, THREE NODES. All three read the same step in the same device's several files, so
          a second constant would eventually disagree with the first. Asserted on the CONSTANTS, never by
          holding the three implementations byte-equal — a parity assertion over two copies read as

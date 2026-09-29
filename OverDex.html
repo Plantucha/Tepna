@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="a2c6b7dc971f" data-compute-hash="3a5ee39b4e69"><head>
+<html lang="en" data-manifest-hash="28ed2db9087e" data-compute-hash="940b5658cdc6"><head>
 <!--
   OverDex.html — Tepna
   Copyright 2026 Michal Planicka
@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/Z7I3UUPEYVbJqKiogd2GpJzq5ymayoEqgifMJjbfTY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-16Xd/c0X0lr96BN2eY6WONJJeAPrp5j+T2zKzY6WITg=' 'sha256-1NjVgPcRTkBPQrlQfjhzm8x2la7DMgftMA1/hkg3K7E=' 'sha256-58O6BxAcjgCbtJyPkzKKtexLOYodIHAExwfRPPPFcOI=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-E3YweNbXEzR2hxsyCYFg7YorFc/MkJstnsNeUtVxMFA=' 'sha256-FRmXwVeLmk/oKNu5BL8gBiQVUsH88GJmm92tz4RR/9M=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GMmPvLCp12nTB2A3edxKqYW9nOEcn4mUbSDIB8uSFEI=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-ImXhwPIaDzYWwBLhYV5EP9qZSwmnbfkURTE4m6HTvqU=' 'sha256-K6Ew7pkxxVb/RqSGtD1UEcHPe/FR49HrsZSaJkWaUeY=' 'sha256-ODnkG6Le8Cqp/r9bOK9FrS3Denl+Kbxh6Auu8u0rZoE=' 'sha256-ONhQxMbNveeyQ6BVEpavaVYJBnYDKDUBrbbimkOfeew=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-X7slrDpgX5Esbtr3HuxhWugLi1NKTWDvb+K060kXk9U=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-cMs4L/sAniGsWhN0yT84vREUkHMfFButr5W0ljondW4=' 'sha256-cemiQMQwTXR+318vY1wXwQgOyMRh2KLdUGfPVh4TQjE=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-ezr3pk0/xocfAgnipgsvcGdSUCk1HsVz8lWlhkl9Rfw=' 'sha256-fJnV5W2XQ9trfLmB6Z/j1/okJF0+geeCapmteSAVrf8=' 'sha256-fOxAcG4FGOYjHtLk+7Sbd1mzABUQSzPGmybpbJk9b6c=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-i4zZKqqUFx4Smi1oI0/x3h2nIQUfUoASR9+8YYOl+Fg=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-j6cQKZ+pO2jEtsJTv7AnKR0NQLc+TgayeSSCB4yBUJs=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-xsp63O3KsGRyNwA0HiyNZ9rfZ/CjJ8/+KFtXEXV2zTc='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/Z7I3UUPEYVbJqKiogd2GpJzq5ymayoEqgifMJjbfTY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-16Xd/c0X0lr96BN2eY6WONJJeAPrp5j+T2zKzY6WITg=' 'sha256-1NjVgPcRTkBPQrlQfjhzm8x2la7DMgftMA1/hkg3K7E=' 'sha256-58O6BxAcjgCbtJyPkzKKtexLOYodIHAExwfRPPPFcOI=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-E3YweNbXEzR2hxsyCYFg7YorFc/MkJstnsNeUtVxMFA=' 'sha256-FRmXwVeLmk/oKNu5BL8gBiQVUsH88GJmm92tz4RR/9M=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GMmPvLCp12nTB2A3edxKqYW9nOEcn4mUbSDIB8uSFEI=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-ImXhwPIaDzYWwBLhYV5EP9qZSwmnbfkURTE4m6HTvqU=' 'sha256-K6Ew7pkxxVb/RqSGtD1UEcHPe/FR49HrsZSaJkWaUeY=' 'sha256-ODnkG6Le8Cqp/r9bOK9FrS3Denl+Kbxh6Auu8u0rZoE=' 'sha256-ONhQxMbNveeyQ6BVEpavaVYJBnYDKDUBrbbimkOfeew=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-Vs/OFb+RWy/Pe+bbAB4csPXDbHRExWE3l3evTxY+a/U=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-X7slrDpgX5Esbtr3HuxhWugLi1NKTWDvb+K060kXk9U=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-cMs4L/sAniGsWhN0yT84vREUkHMfFButr5W0ljondW4=' 'sha256-cemiQMQwTXR+318vY1wXwQgOyMRh2KLdUGfPVh4TQjE=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-ezr3pk0/xocfAgnipgsvcGdSUCk1HsVz8lWlhkl9Rfw=' 'sha256-fJnV5W2XQ9trfLmB6Z/j1/okJF0+geeCapmteSAVrf8=' 'sha256-fOxAcG4FGOYjHtLk+7Sbd1mzABUQSzPGmybpbJk9b6c=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-j6cQKZ+pO2jEtsJTv7AnKR0NQLc+TgayeSSCB4yBUJs=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-xsp63O3KsGRyNwA0HiyNZ9rfZ/CjJ8/+KFtXEXV2zTc='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -27740,11 +27740,35 @@ __exports.GlucoDex = window.GlucoDex;
            string reference (O(1), no parse on the hot path). */
         if (prevNsB !== null) {
           const devDeltaMs = Number(b - prevNsB) / 1e6;
-          if (devDeltaMs > PPG_RESYNC_BOUND_MS) {
+          /* ── A BACKWARD STEP IS A SEAM TOO, AND IT NEEDS NO DISCRIMINATOR ────────────────────────
+             The test above was `devDeltaMs > BOUND` only, so a counter that RESTARTS never entered
+             it. Measured on 2026-09-28's ring night: the ring reconnected at 04:23:30.872 and resumed
+             into the SAME `_PPG.txt` with its counter reset, 24 449 332 942 372 ns → 0 — a step of
+             −24 449.3 s that this branch could not see. `clockResyncs` stayed null, so no anchors were
+             dropped, and `hostAxis` then measured the 84.6 s tail against the night's first minute:
+             ok:true, 6040 anchors, ppm −3575.15, maxStepMs 24 398 420, fs 126.31. Downstream, 76 of
+             23 659 feet landed more than 2 s from their own row stamp, the worst by 401.9 minutes,
+             with 43 order inversions. A green axis over two different oscillator states.
+
+             THE FORWARD TEST NEEDS THE HOST COLUMN BECAUSE A DROPOUT LOOKS LIKE A STEP — through a
+             real gap BOTH clocks keep ticking, so only a disagreement between them separates the two,
+             and MotionDex's census found 137 files whose worst forward step is a genuine dropout
+             against 3 real resyncs. THAT CONFOUND DOES NOT EXIST BACKWARDS. A monotonic device
+             counter cannot run backwards through a dropout, because the host advancing is exactly
+             what a dropout consists of. So a backward step beyond the bound IS the seam, and
+             requiring the host to corroborate it would be requiring evidence of something that
+             cannot happen — which, on a night whose seam row happens to carry an unparseable stamp,
+             would silently re-admit the whole defect.
+
+             Wren's same measurement names the four forward steps in that file that are NOT seams —
+             +19.2 s, +12.9 s, +47.6 s, +89.9 s, all with the host advancing in step — and the
+             discriminator above correctly leaves every one of them alone. */
+          const backward = devDeltaMs < -PPG_RESYNC_BOUND_MS;
+          if (backward || devDeltaMs > PPG_RESYNC_BOUND_MS) {
             const curTs = parseTimestamp(p[0]);
             const prvTs = prevPhoneRaw != null ? parseTimestamp(prevPhoneRaw) : null;
             const phoneDeltaMs = curTs && curTs.tMs != null && prvTs && prvTs.tMs != null ? Math.max(0, curTs.tMs - prvTs.tMs) : null;
-            if (phoneDeltaMs != null ? devDeltaMs - phoneDeltaMs > PPG_RESYNC_BOUND_MS : devDeltaMs > PPG_GAP_CEIL_MS) {
+            if (backward || (phoneDeltaMs != null ? devDeltaMs - phoneDeltaMs > PPG_RESYNC_BOUND_MS : devDeltaMs > PPG_GAP_CEIL_MS)) {
               /* RE-ANCHOR ON THE HOST, NOT BY SUBTRACTING THE STEP — ONE DEVICE CLOCK PER AXIS
                  (Clock Contract §7). The counter before the sync is a different oscillator state,
                  not merely a shifted one, so imposing the host delta alone would carry the pre-seam
@@ -27903,7 +27927,21 @@ __exports.GlucoDex = window.GlucoDex;
     // host-disciplined, it must become samples per HOST second or `1/fs` no longer matches the spacing
     // of the very axis it indexes. ≤0.03 % on a Polar, 0.16 % on the O2Ring — small, but a self-
     // inconsistent rec is the kind of thing that is only ever found much later, in something else.
-    const hostAx = typeof DexClock !== 'undefined' && DexClock.hostAxis ? DexClock.hostAxis(axisAnchors, {}) : { ok: false };
+    /* ⚠️ THE SURVIVING SEGMENT MUST BE ABLE TO CARRY AN AXIS, AND PpgDex MUST SAY SO ITSELF.
+       `DexClock.hostAxis` refuses below three anchors, but `clock.js` is not inlined in this bundle
+       (CLAUDE.md §✅), so in the shipped app that refusal does not exist and the `{ ok: false }`
+       fallback below says nothing about why. After a seam the pre-resync anchors are dropped, so what
+       remains is one segment — and a segment of one or two anchors is not a short measurement, it is
+       not a measurement. Naming the count here keeps the two cases apart in the export: "this bundle
+       has no clock spine" and "this night's post-seam segment was too short to measure a rate over"
+       are different facts and both used to read as a bare `ok:false`. */
+    const CK_AXIS_MIN_ANCHORS = 3; // clock.js's own floor, restated because it is not inlined here
+    const hostAx =
+      axisAnchors.length < CK_AXIS_MIN_ANCHORS
+        ? { ok: false, reason: `post-resync segment carries ${axisAnchors.length} anchor(s), below the ${CK_AXIS_MIN_ANCHORS} an axis needs` }
+        : typeof DexClock !== 'undefined' && DexClock.hostAxis
+          ? DexClock.hostAxis(axisAnchors, {})
+          : { ok: false, reason: 'no clock spine in this bundle' };
     if (hostAx.ok && isFinite(hostAx.ppm)) fs = fs / (1 + hostAx.ppm / 1e6);
     fs = Math.round(fs * 100) / 100;
     /* `timingSource` is the field a consumer should actually branch on, and the reason this is computed
@@ -30019,9 +30057,17 @@ __exports.GlucoDex = window.GlucoDex;
         if (ns0 === null) ns0 = b;
         if (prevNsB !== null) {
           const devDeltaMs = Number(b - prevNsB) / 1e6;
-          if (devDeltaMs > PPG_RESYNC_BOUND_MS) {
+          /* Backward steps here too, for the reason spelled out at the PPG site: a monotonic counter
+             cannot run backwards through a dropout, so the host discriminator the forward test needs
+             is not merely unnecessary backwards, it is unsatisfiable. Both parsers read the same
+             device column of the same reconnecting device; a seam visible in one is visible in both,
+             and fixing only the one the night happened to expose is how the next night finds the
+             other. This parser keeps no axis, so the seam is RECORDED and `relNs` re-anchored; there
+             are no anchors to drop. */
+          const backward = devDeltaMs < -PPG_RESYNC_BOUND_MS;
+          if (backward || devDeltaMs > PPG_RESYNC_BOUND_MS) {
             const phoneDeltaMs = ts && ts.tMs != null && prevRowTMs != null ? Math.max(0, ts.tMs - prevRowTMs) : null;
-            if (phoneDeltaMs != null ? devDeltaMs - phoneDeltaMs > PPG_RESYNC_BOUND_MS : devDeltaMs > PPG_GAP_CEIL_MS) {
+            if (backward || (phoneDeltaMs != null ? devDeltaMs - phoneDeltaMs > PPG_RESYNC_BOUND_MS : devDeltaMs > PPG_GAP_CEIL_MS)) {
               segBaseNs = firstRowTMs != null && ts && ts.tMs != null ? (ts.tMs - firstRowTMs) * 1e6 : isFinite(prevRelNs) ? prevRelNs : Number(b - ns0);
               segNs0 = b;
               resyncs.push({
