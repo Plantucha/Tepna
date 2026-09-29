@@ -447,7 +447,12 @@ def functions_with_changed_ast(old_src: str, new_src: str) -> tuple[set[str], st
         return set(), f"a revision does not parse ({exc.__class__.__name__}: {exc}) — scope is not narrowed"
 
     def by_stem(tree: ast.AST) -> dict[str, str]:
-        out: dict[str, str] = {}
+        # ONE map, of dumps with the docstring statement removed. A full-dump map was computed
+        # beside it and then re-checked by the same comparison, so it decided nothing: if the full
+        # dumps differ the stripped ones differ too, UNLESS the difference is exactly the docstring —
+        # which is the case being exempted. A mutation of the redundant line survived every test,
+        # which is how the redundancy was found rather than reasoned about.
+        bare: dict[str, str] = {}
 
         def visit(node, cls: str | None) -> None:
             # 🔴 `ast.iter_child_nodes`, THE SAME WALK `functions_covering` USES — not `node.body`.
@@ -463,7 +468,10 @@ def functions_with_changed_ast(old_src: str, new_src: str) -> tuple[set[str], st
                     # One stem can cover several definitions (a redefinition, or the same method name
                     # reached twice). Concatenate so "changed" means "any body under this stem
                     # changed" — the conservative reading, and the one a mutant glob matches.
-                    out[stem] = out.get(stem, "") + ast.dump(child)
+                    # Accumulated per stem, so a stem covering SEVERAL defs is judged over all of
+                    # them — keeping only the first let a change in the SECOND read as
+                    # docstring-only and be dropped.
+                    bare[stem] = bare.get(stem, "") + _dump_without_docstring(child)
                     visit(child, cls)
                 elif isinstance(child, ast.ClassDef):
                     visit(child, child.name)
@@ -471,10 +479,52 @@ def functions_with_changed_ast(old_src: str, new_src: str) -> tuple[set[str], st
                     visit(child, cls)
 
         visit(tree, None)
-        return out
+        return bare
 
-    old_fns, new_fns = by_stem(old_tree), by_stem(new_tree)
-    return {n for n, d in new_fns.items() if old_fns.get(n) != d}, None
+    old_bare, new_bare = by_stem(old_tree), by_stem(new_tree)
+    # ── A CHANGE CONFINED TO A DOCSTRING HAS NOTHING TO MUTATE ──────────────────────────────────
+    # MEASURED, not assumed (mutmut 3.8): a function of [docstring + `return 1`] generates exactly
+    # ONE mutant, `return 2`, and ZERO mutants touch the docstring node. So a function whose only
+    # difference from base is its docstring contributes no mutant the diff could be responsible for,
+    # and scoping it re-mutates a body that did not change. That is not free: on the 2026-09-28
+    # reformat, 14 docstring re-indents pulled in capture.py (163 functions, 20,021 mutants, ~22 min
+    # to GENERATE on 24 cores) and the job was cancelled at the 180-minute runner timeout.
+    #
+    # This is a SYNTACTIC distinction — "the one node with no mutants behind it" — not a judgement
+    # about which strings matter. A changed log line, format string or SQL fragment still scopes,
+    # because it is not the docstring statement.
+    return {n for n, d in new_bare.items() if old_bare.get(n) != d}, None
+
+
+def _dump_without_docstring(node) -> str:
+    """`ast.dump` of a function with its docstring STATEMENT left out.
+
+    NO COPY. The first version `deepcopy`d the node to blank it, which is both wasteful — this runs
+    for every function of every changed module, and capture.py has 163 — and needless: the dump can
+    simply skip the statement. Two mutants survived on that copy (`deepcopy` → `copy`, and a
+    `getattr` default that could not be missing), which is what prompted looking at it; neither line
+    exists now.
+
+    🔴 NEVER `ast.get_docstring()` HERE. It defaults to `clean=True`, which normalises leading
+    whitespace, so a RE-INDENTED docstring compares EQUAL through it — it reported "no difference"
+    for all four real cases before that was caught. Believing it would scope NOTHING anywhere,
+    silently. The docstring is identified structurally instead, and its RAW text is what is dropped.
+    """
+    body = node.body
+    if (
+        body
+        and isinstance(body[0], ast.Expr)
+        and isinstance(body[0].value, ast.Constant)
+        and isinstance(body[0].value.value, str)
+    ):
+        body = body[1:]
+    return "|".join(
+        [node.name, ast.dump(node.args)]
+        + [ast.dump(d) for d in node.decorator_list]
+        + [ast.dump(st) for st in body]
+    )
+
+
 
 
 def annotation_only(old_src: str, new_src: str) -> tuple[bool, str]:
