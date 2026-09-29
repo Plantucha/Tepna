@@ -318,3 +318,41 @@ def test_COVER_IS_A_FRACTION_NOT_AN_UNBOUNDED_RATIO():
     # have been 429/1.7 = 252. A "fraction covered" above 1 is a sign the denominator is wrong.
     assert W.assess(therapy_min=1.7, stream_min=429.0)["cover"] <= 1.0
     assert W.assess(therapy_min=0.5, stream_min=600.0)["cover"] <= 1.0
+
+
+def test_the_detail_line_NAMES_THE_WINDOW_its_two_halves_were_summed_over():
+    """2026-09-28: the line read "the live stream covered 775 of 776 therapy min (99.8 %)" beside a
+    6.75 h EDF. 776 min is 12.9 h — roughly two nights — and THE NUMBER WAS RIGHT: `capture.py` scopes
+    both halves to the night ±1 day precisely so numerator and denominator describe the same stretch,
+    mirroring the EDF walk over DATALOG/<d-1|d0|d+1>. Only the label claimed otherwise, and a reader
+    comparing it against one night could not tell a correct ratio from a broken counter."""
+    note = "the ±1-day window that mirrors the EDF DATALOG walk"
+    ok = W.assess(1.0, 775.0, window_note=note)
+    assert "across " + note in ok["detail"]
+    assert "775 of 776 therapy min" in ok["detail"], "the numbers are untouched — only the words moved"
+    assert "(99.9 %)" in ok["detail"] or "(99.8 %)" in ok["detail"]
+
+
+def test_the_died_early_line_names_it_too_because_that_is_the_one_a_reader_doubts():
+    note = "the ±1-day window that mirrors the EDF DATALOG walk"
+    bad = W.assess(676.0, 100.0, window_note=note)
+    assert bad["state"] == W.DIED_EARLY
+    assert "across " + note in bad["detail"] and "opened and stopped early" in bad["detail"]
+
+
+def test_a_caller_that_does_not_say_gets_the_sentence_UNCHANGED():
+    """The window is the CALLER's fact. `assess` receives two minute counts and nothing about the span
+    they cover, so with no note it must claim nothing rather than assert a default — a hardcoded
+    "±1 day" here would keep asserting it for a future caller that passed a different window."""
+    plain = W.assess(1.0, 775.0)
+    assert "across" not in plain["detail"]
+    assert plain["detail"].startswith("the live stream covered 775 of 776 therapy min (")
+    assert W.assess(1.0, 775.0, window_note="")["detail"] == plain["detail"], "an empty note is no note"
+
+
+def test_the_numbers_and_the_state_are_IDENTICAL_with_and_without_the_note():
+    """ANTI-REGRESSION: this change is wording only. Every field but `detail` must be untouched."""
+    note = "the ±1-day window that mirrors the EDF DATALOG walk"
+    a = W.assess(1.0, 775.0, window_note=note)
+    b = W.assess(1.0, 775.0)
+    assert {k: v for k, v in a.items() if k != "detail"} == {k: v for k, v in b.items() if k != "detail"}

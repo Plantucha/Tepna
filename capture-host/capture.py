@@ -8692,6 +8692,12 @@ def _cpap_stream_watch_row(cfg, root, night_name):
         attempts=attempts,
         last_error=last_error,
         unreachable=unreachable,
+        # THE WINDOW BOTH HALVES WERE SUMMED OVER, said in the sentence a person reads. This caller
+        # is the one that knows: `_night_window_ms` fixed the bounds just above, and it fixed them
+        # to mirror the EDF walk over DATALOG/<d-1|d0|d+1> so numerator and denominator describe the
+        # same stretch. Without these words "775 of 776 therapy min" beside a 6.75 h EDF reads as a
+        # broken counter rather than a correct ratio over a wider span (measured 2026-09-28).
+        window_note="the ±1-day window that mirrors the EDF DATALOG walk",
     )
     out["wedge_recoveries"] = recoveries
     return out
