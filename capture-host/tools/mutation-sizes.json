@@ -1,0 +1,66 @@
+{
+  "schema": "tepna.mutation-sizes/1",
+  "note": "Generated-mutants size per (module, source sha256[:12]), written by tools/mutate.py --record-sizes. NEVER hand-edited: a typed number here is indistinguishable from a measured one. A hash miss is absent, not a default.",
+  "sizes": {
+    "alerts.py@a57348a4af86": {
+      "generatedBytes": 729084,
+      "measuredAt": "2026-09-28",
+      "host": "rig-x870"
+    },
+    "capture.py@7cf809a4bbf4": {
+      "generatedBytes": 562427047,
+      "measuredAt": "2026-09-28",
+      "host": "rig-x870"
+    },
+    "clock_offset.py@232b2016b424": {
+      "generatedBytes": 1049475,
+      "measuredAt": "2026-09-28",
+      "host": "rig-x870"
+    },
+    "loss_audit.py@54cacbcf505b": {
+      "generatedBytes": 8892661,
+      "measuredAt": "2026-09-28",
+      "host": "rig-x870"
+    },
+    "mmeta.py@7de3fed2f948": {
+      "generatedBytes": 362016,
+      "measuredAt": "2026-09-28",
+      "host": "rig-x870"
+    },
+    "mutation_diff.py@9e5cd1afd61e": {
+      "generatedBytes": 9073144,
+      "measuredAt": "2026-09-28",
+      "host": "rig-x870"
+    },
+    "mutation_diff.py@bc49ad0d0738": {
+      "generatedBytes": 8637530,
+      "measuredAt": "2026-09-28",
+      "host": "rig-x870"
+    },
+    "mutation_pure.py@2b4fc0db5a56": {
+      "generatedBytes": 82780,
+      "measuredAt": "2026-09-28",
+      "host": "rig-x870"
+    },
+    "mutation_pure.py@95350b4c7ea5": {
+      "generatedBytes": 82781,
+      "measuredAt": "2026-09-28",
+      "host": "rig-x870"
+    },
+    "night_report.py@b5053c46bcd2": {
+      "generatedBytes": 1070002,
+      "measuredAt": "2026-09-28",
+      "host": "rig-x870"
+    },
+    "solid_night_inputs.py@7e4cd329b389": {
+      "generatedBytes": 3688680,
+      "measuredAt": "2026-09-28",
+      "host": "rig-x870"
+    },
+    "writers.py@f01709fdb834": {
+      "generatedBytes": 8056208,
+      "measuredAt": "2026-09-28",
+      "host": "rig-x870"
+    }
+  }
+}
