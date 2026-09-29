@@ -7,6 +7,8 @@
 # brief's rule: run it against the real failure before believing it.
 import json
 
+import pytest
+
 import mmeta
 
 
@@ -484,3 +486,29 @@ def test_the_three_sync_shapes_are_unchanged_by_the_async_widening():
     assert mmeta.generated_under_glob(_MUTSRC, "m.x_a__mutmut_*") == 2
     assert mmeta.generated_under_glob(_MUTSRC, "m.x_b__mutmut_*") == 1
     assert mmeta.generated_under_glob(_MUTSRC_METHOD, "m.xǁCǁscaled__mutmut_*") == 2
+
+
+# ── the glob's own shape ──────────────────────────────────────────────────────────────────────────
+# `fn = stem.split(".", 1)[1] if "." in stem else stem` was UNOBSERVABLE: every glob carries exactly
+# one dot, and on a one-dot string `split`, `rsplit`, maxsplit 2 and maxsplit-absent all agree, so
+# three mutants of that line survived with no possible test to kill them. Recording them as equivalent
+# would have preserved the real problem — on an unexpected shape the line picked a middle segment and
+# the count silently came back 0, which is the identical failure this module was just fixed for.
+def test_a_BARE_mangled_stem_with_no_module_qualifier_still_counts():
+    """The dotless branch, which nothing exercised — `("." in stem) or True` survived on it."""
+    assert mmeta.generated_under_glob(_MUTSRC, "x_a__mutmut_*") == 2
+    assert mmeta.generated_under_glob(_MUTSRC_ASYNC, "x_run__mutmut_*") == 3
+
+
+def test_a_glob_with_TWO_dots_is_REFUSED_not_guessed():
+    """The shape the old line answered wrongly and silently. There is no correct segment to pick, and
+    a wrong pick returns 0 — indistinguishable from "this function has no mutants"."""
+    with pytest.raises(ValueError, match="exactly one dot"):
+        mmeta.generated_under_glob(_MUTSRC, "pkg.m.x_a__mutmut_*")
+
+
+def test_the_ONE_DOT_shape_that_is_actually_built_is_unchanged():
+    """tools/mutate_diff.py builds `f"{stem_mod}.{s}__mutmut_*"` and nothing else does."""
+    assert mmeta.generated_under_glob(_MUTSRC, "m.x_a__mutmut_*") == 2
+    assert mmeta.generated_under_glob(_MUTSRC_METHOD, "m.xǁCǁscaled__mutmut_*") == 2
+    assert mmeta.generated_under_glob(_MUTSRC_ASYNC_METHOD, "m.xǁCǁfetch__mutmut_*") == 2

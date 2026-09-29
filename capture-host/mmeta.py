@@ -141,7 +141,24 @@ def generated_under_glob(mutants_src: str, glob: str) -> int:
     method.
     """
     stem = glob.rstrip("*")
-    fn = stem.split(".", 1)[1] if "." in stem else stem
+    # The glob is built in exactly one place — `f"{stem_mod}.{s}__mutmut_*"` in tools/mutate_diff.py —
+    # so it carries EXACTLY ONE dot: a module stem that cannot contain one, and a mangled name that
+    # uses `ǁ` (U+01C1) for class qualification, never `.`. That made `split(".", 1)[1]` unobservable:
+    # `rsplit`, maxsplit 2 and maxsplit-absent all agree on a one-dot string, so three mutants of this
+    # line survived with nothing able to kill them (measured 2026-09-28).
+    #
+    # They are not recorded as equivalent, because the reason they agree is the reason the line was
+    # wrong: on a shape it does not expect it would pick a MIDDLE segment, the regex would then match
+    # nothing, and the count would come back 0 — the same silent zero for an unseen shape that this
+    # whole function was just fixed for. So the shape is now a stated contract rather than a guess,
+    # which is also what makes the line killable.
+    head, dot, tail = stem.partition(".")
+    if not dot:
+        fn = stem  # a bare mangled stem, already unqualified
+    elif "." in tail:
+        raise ValueError(f"unexpected mutant glob {glob!r}: a module-qualified glob has exactly one dot")
+    else:
+        fn = tail
     return len(re.findall(r"^\s*(?:async\s+)?def " + re.escape(fn) + r"\d+\(", mutants_src or "", re.M))
 
 
