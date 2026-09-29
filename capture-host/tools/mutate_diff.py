@@ -305,7 +305,7 @@ def main(argv=None) -> int:
         "nothing was mutated". Caught by running the plant and a real diff and reading both outputs."""
         return min(_pop["eligible"], max(_pop["checked"], _ran_box[0]))
 
-    def emit(status, reason, code, evidence=None):
+    def emit(status, reason, code, evidence=None, phase=None):
         _pop["checked"] = _checked()
         _counts["astNarrowed"] = _narrow_box[0]
         _counts["survived"] = len(verdict.get("survivors", []))
@@ -338,6 +338,12 @@ def main(argv=None) -> int:
             at=_now_utc(),
             base=a.base,
         )
+        # WHICH PHASE ate the budget, as a field and not only inside the prose reason. Three phases can
+        # each end a run having decided nothing — generation, the mutant pass, the results read — and a
+        # reader deciding what to make smaller needs to know which without parsing English. Absent when
+        # no phase is implicated, never a placeholder (§∅).
+        if phase is not None:
+            obj["phase"] = phase
         verdict["verdict"] = obj
         if a.json:
             Path(a.json).write_text(json.dumps(verdict, indent=2), encoding="utf-8")
@@ -440,6 +446,7 @@ def main(argv=None) -> int:
     _prework_sec = 0.0  # clean-baseline time: reported, but not charged to the
     # MUTATION budget (see the comment at its measurement below)
     _refused_generation: list[str] = []  # generation outlived its phase bound — nothing was examined
+    _refused_results: list[str] = []  # the mutants ran; their outcomes were never READ — also nothing examined
     _ast_narrowed = 0  # functions the line scan claimed and the AST cleared; mirrored into
     # _counts['astNarrowed'] at emit so the verdict OBJECT carries it too
     for module, lines in sorted(changed.items()):
@@ -548,6 +555,13 @@ def main(argv=None) -> int:
             if r.get("generation_timed_out"):
                 _refused_generation.append(f"{g}: {r['generation_timed_out']}")
                 print(f"    ⊘ {_refused_generation[-1]}", flush=True)
+                continue
+            if r.get("results_timed_out"):
+                # THE THIRD WAY TO EXAMINE NOTHING, and the one that looked most like a pass: the run
+                # finished, the mutants have outcomes on disk, and the pass that READS them did not
+                # return. Before this it was an uncaught TimeoutExpired that discarded the whole record.
+                _refused_results.append(f"{g}: {r['results_timed_out']}")
+                print(f"    ⊘ {_refused_results[-1]}", flush=True)
                 continue
             if r.get("timed_out"):
                 _refused_budget.append(
@@ -1113,10 +1127,45 @@ def main(argv=None) -> int:
             f"mutant generation did not finish for {len(_refused_generation)} function(s); "
             f"{_counts['decided']} mutant(s) decided",
             2,
+            phase="generation",
         )
         if not a.report_only:
             return _g
         _refusal = _g
+
+    # ── the RESULTS refusal — the mutants ran and nobody read them, which is still examined-nothing ──
+    if _refused_results:
+        verdict["refused_results"] = _refused_results
+        verdict["prework_sec"] = round(_prework_sec, 1)
+        if a.json:
+            Path(a.json).write_text(json.dumps(verdict, indent=2), encoding="utf-8")
+        print(
+            f"\nmutate-diff: REFUSING — the mutants ran but `mutmut results` never returned for "
+            f"{len(_refused_results)} function(s), so no outcome was read:"
+        )
+        for w in _refused_results:
+            print(f"  ⊘ {w}")
+        print(
+            "  This is NOT a verdict on the diff. The per-mutant outcomes are on disk and were never\n"
+            "  read, so this run cannot say a mutant was killed OR that one survived. Unlike the\n"
+            "  generation refusal there is nothing to scope down: a results read is a file walk, so a\n"
+            "  bound this pass cannot meet means the scratch is unreadable or something is still\n"
+            "  writing to it — check for an orphan before raising the cap."
+        )
+        _note = report_only_refusal_note(a.report_only)
+        if _note:
+            print(_note)
+        _ran_box[0] = _ran
+        _r = emit(
+            "NOT_RUN" if _counts["decided"] == 0 else "UNKNOWN",
+            f"`mutmut results` did not return for {len(_refused_results)} function(s); "
+            f"{_counts['decided']} mutant(s) decided",
+            2,
+            phase="results",
+        )
+        if not a.report_only:
+            return _r
+        _refusal = _r
 
     # ── the MEMORY refusal — same placement and same reasoning as the budget refusal below ───────
     if _refused_memory:

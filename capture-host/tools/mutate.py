@@ -104,11 +104,18 @@ from mutation_diff import (  # noqa: E402  (after the sys.path fix above)
     UNKNOWN_SIZE_WORKERS,
     generation_cap_sec,
     generation_timeout_reason,
+    results_timeout_reason,
     merge_mutants_size,
     mutants_size_record,
+    reap_group_on_signal,
     stream_bounded,
     workers_that_fit,
 )
+
+RESULTS_CAP_SEC = 300.0
+# The bound on the `mutmut results` READ, unchanged in value from the `timeout=300` it replaces — this
+# fix is about catching it and reaping the group, not about retuning it. Reading a finished run's
+# per-mutant outcomes is a file walk; 300 s is already orders above its measured cost.
 
 SIZES_FILE = "mutation-sizes.json"
 # The COMMITTED generated-size record, beside this tool. Read on every fresh scratch — which is every CI
@@ -624,6 +631,14 @@ def run_one(
         text=True,
         env=env,
         bufsize=1,
+        # 🔴 ITS OWN SESSION, so a deadline can reap the whole JOB and not just this pid. `mutmut run`
+        # RE-SPAWNS ITSELF: measured 2026-09-29 reproducing #3202, the pid started here had a child of
+        # the same command line, `proc.kill()` reaped only the parent, and the child was re-parented to
+        # systemd and kept generating for 2 h 32 m at 19.4 GB RSS while holding the stdout it inherited.
+        # `TOOL-BUILD-STANDARD` §2.3 requires the opposite ("no orphan writing to it after death"), and
+        # `mutation_diff.kill_process_group` can only honour it if this child LEADS a group — otherwise
+        # killpg would reach the gate itself and every sibling the caller owns. #3234 is the JS half.
+        start_new_session=True,
     )
     # A PROGRESS FILE, not just a stream. Streaming to stderr only helps someone watching a terminal;
     # a run launched in the background surfaces nothing until it exits, so a 26-minute cpap_harvest run
@@ -695,16 +710,42 @@ def run_one(
     # then ran slowly" (UNKNOWN — part of the diff was measured) from "never finished generating"
     # (NOT_RUN — nothing was examined), and #3202 was the second wearing the first's clothes.
     _gen_cap = generation_cap_sec(cap)
-    rc, timed_out, gen_timed_out = stream_bounded(
-        proc, cap, _on_line, t0=t0, phase_cap_sec=_gen_cap, phase_done=lambda: bool(_gen_done)
-    )
+    # AND THE SIGNAL GETS PASSED DOWN. `start_new_session=True` above is what lets the deadline reap the
+    # whole job; it also takes mutmut out of THIS process's group, so a runner's job-timeout kill would
+    # no longer reach it. Handing the signal on keeps both properties (see `reap_group_on_signal`).
+    with reap_group_on_signal(proc):
+        rc, timed_out, gen_timed_out = stream_bounded(
+            proc, cap, _on_line, t0=t0, phase_cap_sec=_gen_cap, phase_done=lambda: bool(_gen_done)
+        )
     if proc.stdout:
         proc.stdout.close()
     tail = "".join(buf)[-2000:]
     elapsed = time.monotonic() - t0
-    res = subprocess.run(
-        [str(VENV_PY), "-m", "mutmut", "results"], cwd=work, capture_output=True, text=True, env=env, timeout=300
+    # THE THIRD PHASE IS A PHASE TOO, and its bound must produce a record like the other two. This was
+    # `subprocess.run(..., timeout=300)`: bounded, but the TimeoutExpired was UNCAUGHT, so it propagated
+    # out of run_one and took the whole record with it — the same "a cap that is hit must still produce a
+    # measurement" defect the wall cap above was fixed for, one statement later. Worse on CPython: on
+    # timeout `run()` kills the child and then calls `communicate()` with NO timeout, so a grandchild
+    # holding the pipe (mutmut's shape, measured above) makes the cleanup itself unbounded.
+    # Streaming it through the same reaper fixes both: one bound, a group kill, and a `phase: results`
+    # NOT_RUN instead of a traceback. The mutants' own verdicts are on disk either way; what this phase
+    # produces is the READING of them, and an unread results pass decided nothing.
+    _res_buf: list[str] = []
+    res_proc = subprocess.Popen(
+        [str(VENV_PY), "-m", "mutmut", "results"],
+        cwd=work,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        env=env,
+        bufsize=1,
+        start_new_session=True,
     )
+    with reap_group_on_signal(res_proc):
+        _res_rc, res_timed_out, _ = stream_bounded(res_proc, RESULTS_CAP_SEC, _res_buf.append)
+    if res_proc.stdout:
+        res_proc.stdout.close()
+    _results_text = "".join(_res_buf)
     # ⚠️ THE SCRATCH ID IS PART OF THE RESULT, because MUTANT IDS ARE ONLY COMPARABLE WITHIN ONE
     # GENERATION. mutmut numbers mutants positionally per function, so `x_f__mutmut_34` in one scratch
     # and another are the same NAME and not necessarily the same MUTATION. Diffing survivor sets across
@@ -721,7 +762,7 @@ def run_one(
         "mutant_generation": src_hash,
         "generation_finished": bool(_gen_done),
         "generation_cap_sec": round(_gen_cap, 1),
-        "results": res.stdout,
+        "results": _results_text,
         "tail": tail,
         "work": str(work),
     }
@@ -735,6 +776,11 @@ def run_one(
             _size_note.write_text(f"{_grew}\n", encoding="utf-8")
     except OSError:
         pass  # deliberate: the note is an optimisation for the next run, not part of this verdict
+    if res_timed_out:
+        # Ordered BEFORE the generation reason only in the record, not in priority: the two cannot both
+        # be true (a run killed in generation never reaches this pass), and the gate reads whichever is
+        # present. Both mean NOT_RUN; they differ in which phase to make smaller.
+        out["results_timed_out"] = results_timeout_reason(RESULTS_CAP_SEC, out.get("mutants_bytes", 0))
     if gen_timed_out:
         # NOT `partial`, and not a verdict on the diff: nothing was examined. This is the #3202 case, and
         # it now says so in the record the gate reads instead of looking like a slow mutation pass.
