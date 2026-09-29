@@ -1315,8 +1315,24 @@ function nFig(n, c){
   const part = cov!=null && cov < 0.6;
   const cls = 'nfig'+(part?' partial':'')+(v.loadable?'':' static');
   const attrs = v.loadable ? ` data-night="${n.night}" data-node="${c}" title="open ${c} with this night loaded"` : ` title="${NIGHT_WHY_NOT[c]||'shown, not offered'}"`;
+  /* A COUNT CARRIES ITS BOUND AND ITS MAGNITUDE, or it reads as damage it is not.
+     `fragments` counts row-to-row holes wider than `gap_s` IN ONE FILE. QC's `gaps_in_night` is a
+     different question over the judged session, and on 2026-09-28 the two disagreed in the way that
+     matters: QC read `gaps_in_night: []` while ECGDex read `2 fragments`, and nothing on either surface
+     said they measure different things. The percentage did not help — `coverage` is `1 - gaps/span`
+     rounded to 3 dp, so the night's real 2.8 s hole in 24,367 s rounded to `1.0` and printed as 100 %.
+     A reader saw "2 fragments · 100 %" and could only conclude one half was lying. Neither was.
+     So the chip now states the threshold it counted above and the seconds it actually lost, both from
+     `stream_stats` (`gap_s`, `gaps_s`) — `2 fragments · gaps > 2.0 s · 2.8 s of 6.8 h` reads as the
+     0.01 % non-finding it is. The percentage stays for the case where it says something: when the loss
+     is large enough to survive the rounding. Residue 2026-09-29-two-gap-measures-one-surface. */
+  const nSecs = (x) => x==null ? null : (x < 90 ? `${+x.toFixed(1)} s` : `${+(x/60).toFixed(1)} min`);
+  const fragWhy = v.gap_s!=null ? ` · gaps > ${+v.gap_s.toFixed(1)} s` : '';
+  const fragLost = v.gaps_s!=null && v.gaps_s > 0
+    ? ` · ${nSecs(v.gaps_s)}${v.span_s!=null && v.span_s > 0 ? ` of ${nHrs(v.span_s/3600)}` : ''}`
+    : v.gaps_s===0 ? ' · none lost' : (v.coverage!=null ? ` · ${Math.round(100*v.coverage)} %` : '');
   const frag = v.pending ? '<span class="nfr">…</span>'
-             : v.fragments!=null ? `<span class="nfr${part?' bad':''}">${v.fragments} fragment${v.fragments===1?'':'s'} · ${Math.round(100*v.coverage)} %</span>`
+             : v.fragments!=null ? `<span class="nfr${part?' bad':''}">${v.fragments} fragment${v.fragments===1?'':'s'}${fragWhy}${fragLost}</span>`
              : '';
   const pct = cov==null ? 0 : Math.round(100*cov);
   return `<button type="button" class="${cls}"${attrs}><span class="ncov ${NIGHT_GROUP[c]}"><span><span class="mb">${nMB(v.bytes)}</span> <span class="h">/ ${nHrs(v.hours)}</span></span>${frag}<span class="bar"><i class="${part?'short':''}" style="width:${pct}%"></i></span></span></button>`;
