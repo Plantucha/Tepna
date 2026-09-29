@@ -15751,6 +15751,157 @@
        "not a function" and original matched mutant BY CONSTRUCTION. A probe that never runs the
        subject is indistinguishable from one that finds everything equivalent. That is why the group
        below asserts distinct outcomes per case rather than only "did it change". */
+    /* ════ THE PINNED YIELD — and WHICH of the two inputs moved ═══════════════════════════════════
+       Residue `2026-09-22-cohort-gen-yield-moved-again`: at the paper's stated `nSubj 900, minN 10`
+       the qualifying cohort read 269 intervention / 317 flat-control on 2026-09-16/17 and 233 / 239
+       on 2026-09-22 — same configuration, same generator version, different answer, and the only
+       thing that noticed was a re-cut six days later. Five OxyDex commits landed in between and were
+       named as candidates, NOT verified as the cause.
+
+       WHAT MAKES THIS MORE THAN A GOLDEN is that the page reaches its counts in two stages with
+       different owners, and the pin keeps them apart:
+         1 · SELECTION — the profile scan in `treatment-response-analysis.js`, pure generator, no
+             detector, deterministic, ~100 ms. Replayed HERE, every run.
+         2 · SURVIVAL — the real detectors in a worker realm; `measureFromResults` drops a patient on
+             any gap or non-finite value. Not replayable here (it is the 838 s cut) — so what is
+             checked is that the CODE is the code the counts were measured under.
+       So a moved yield is attributable: selection moved ⇒ the generator; selection held and the
+       closure moved ⇒ the detectors. That is the question the residue row left open, and a single
+       committed count could not have answered it.
+
+       ⚠️ THE FAILURE IS THE FEATURE. A detector edit reds this group AT the edit rather than at the
+       next re-cut, which is the whole remedy the row asks for. It fails in the conservative direction
+       — a comment-only edit to `oxydex-dsp.js` reds too — so the message NAMES the files that moved,
+       and disposing of an inert edit is a re-cut or a re-stamp with that evidence, not a guess. */
+    group('treatment-response · pinned yield — a moved cohort names which of the two inputs moved', 'treatment-response · pin · cohort-gen · regression', function (T) {
+      var pin = env.treatmentYieldPin;
+      var digests = env.detectorRealmDigests;
+      var CG = env.CohortGen;
+      var YieldPin = env.YieldPin;
+      var psrc = (env.sources && env.sources['treatment-response-analysis.js']) || '';
+      if (!pin || !digests || !CG || !YieldPin) {
+        T.skip(
+          'the pin, the detector closure and CohortGen are all available',
+          'Node-lane only — run-tests.mjs reads analysis/treatment-response-yield-pin.json and hashes the cohort-worker realms; the browser suite loads neither'
+        );
+        return;
+      }
+
+      /* ── THE PIN IS WELL-FORMED, and its two stages are actually separable ───────────────────── */
+      T.eq('the pin declares its schema', pin.schema, 'tepna.yield-pin/1');
+      T.eq('…at the paper\u2019s stated configuration', JSON.stringify([pin.config.nSubj, pin.config.minN]), JSON.stringify([900, 10]), JSON.stringify(pin.config));
+      T.ok(
+        'the pin carries both stages, so a move is attributable rather than merely visible',
+        pin.generator && pin.generator.txCandidates != null && pin.yield && pin.yield.nIntervention != null && pin.detector && pin.detector.oxy && pin.detector.pulse,
+        JSON.stringify({ gen: !!pin.generator, yield: !!pin.yield, oxy: !!(pin.detector || {}).oxy, pulse: !!(pin.detector || {}).pulse })
+      );
+      T.ok(
+        'the skipped counts are the difference and are stated, not left to the reader',
+        pin.yield.txSkipped === pin.generator.txCandidates - pin.yield.nIntervention && pin.yield.flatSkipped === pin.generator.flatCandidates - pin.yield.nFlatControl,
+        JSON.stringify(pin.yield)
+      );
+      T.ok(
+        'the earlier yields travel with the pin — a number that replaced another leaves a record',
+        Array.isArray(pin.history) && pin.history.length >= 2 && pin.history[0].nIntervention === 269 && pin.history[1].nIntervention === 233,
+        JSON.stringify(
+          (pin.history || []).map(function (h) {
+            return h.nIntervention + '/' + h.nFlatControl;
+          })
+        )
+      );
+
+      /* ── STAGE 1 · THE GENERATOR, REPLAYED — this is the assertion that can exonerate it ─────── */
+      var sel = YieldPin.selectionCounts(CG, { nSubj: pin.config.nSubj, minN: pin.config.minN, seedCap: pin.config.seedCap });
+      T.eq(
+        'SELECTION is unchanged — the generator is not what moved',
+        JSON.stringify([sel.txCandidates, sel.flatCandidates, sel.seedsScanned]),
+        JSON.stringify([pin.generator.txCandidates, pin.generator.flatCandidates, pin.generator.seedsScanned]),
+        'the profile scan now yields ' +
+          sel.txCandidates +
+          ' tx / ' +
+          sel.flatCandidates +
+          ' flat from ' +
+          sel.seedsScanned +
+          ' seeds, against a pin of ' +
+          pin.generator.txCandidates +
+          ' / ' +
+          pin.generator.flatCandidates +
+          ' from ' +
+          pin.generator.seedsScanned +
+          '. THE GENERATOR MOVED (cohort-gen.js or the page\u2019s selection rule). The committed yield ' +
+          pin.yield.nIntervention +
+          '/' +
+          pin.yield.nFlatControl +
+          ' was measured over a different candidate set and is no longer evidence — re-cut and re-stamp the pin.'
+      );
+      T.eq('…and the generator version it was pinned under', CG.VERSION, pin.generator.version);
+      /* ANTI-VACUITY. A selection stage that did not FILL its target would make the two arms' counts a
+         property of the seed cap rather than of the generator, and every equality above would still
+         pass while meaning something else. Measured 2026-09-28: 900/900 from 18,291 seeds of 2,000,000. */
+      T.ok(
+        'ANTI-VACUITY · selection FILLS the target, so the counts are the generator and not the cap',
+        sel.filledTarget === true && sel.txCandidates === pin.config.nSubj && sel.seedsScanned < pin.config.seedCap,
+        JSON.stringify(sel)
+      );
+
+      /* ── THE REPLAY IS STILL THE PAGE'S OWN RULE ─────────────────────────────────────────────── */
+      /* The selection predicate is transcribed into the tool. A page edit that changes the rule would
+         leave this replay quietly measuring a different cohort and every equality above still green —
+         the exact shape of "success reported about something never examined". */
+      T.ok('the renderer source is readable, or the transcription cannot be checked', !!psrc, 'treatment-response-analysis.js not in env.sources');
+      if (psrc) {
+        var predicate = ["pf.arc === 'intervention'", 'pf.nNights >= minNights', 'pf.interventionNight >= 2', 'pf.interventionNight <= pf.nNights - 2', "pf.arc === 'flat'"];
+        var missing = predicate.filter(function (t) {
+          return psrc.indexOf(t) < 0;
+        });
+        T.eq(
+          'the page still selects by the rule this group replays',
+          missing.join(' · ') || 'none',
+          'none',
+          missing.length
+            ? 'these clauses are no longer in treatment-response-analysis.js, so `YieldPin.selectionCounts` is replaying a rule the page has stopped using: ' + missing.join(' · ')
+            : predicate.length + ' selection clauses still present in the page'
+        );
+      }
+
+      /* ── STAGE 2 · THE DETECTOR CLOSURE ──────────────────────────────────────────────────────── */
+      var moved = YieldPin.movedFiles(pin.detector, digests);
+      T.eq(
+        'the detector closure is the one the yield was measured under',
+        moved.join(' · ') || 'none',
+        'none',
+        moved.length
+          ? 'the code behind the ' +
+              pin.yield.nIntervention +
+              '/' +
+              pin.yield.nFlatControl +
+              ' yield has changed: ' +
+              moved.join(' · ') +
+              '. SELECTION is unchanged, so this is the DETECTOR half — the committed counts were measured under different code and no longer describe this tree. ' +
+              'Re-cut (`node tools/analysis-rerun.mjs --only treatment-response-analysis.html --paper-scale --out <rerun.json>`, ~1005 s measured 2026-09-28) and re-stamp ' +
+              '(`node tools/treatment-response-yield-pin.mjs --rerun <rerun.json>`). If the edit is provably inert, re-stamp on the SAME counts and say so in the PR — never edit a digest by hand.'
+          : Object.keys(pin.detector.oxy).length + Object.keys(pin.detector.pulse).length + ' realm source digests match the pin'
+      );
+      /* ANTI-VACUITY for the closure half: the comparison must be over a non-empty, realm-derived set,
+         or `moved.length === 0` means "nothing was compared" rather than "nothing changed". */
+      T.ok(
+        'ANTI-VACUITY · the closure compared is non-empty and covers both realms',
+        digests.oxy && digests.pulse && Object.keys(digests.oxy).length >= 5 && Object.keys(digests.pulse).length >= 3,
+        JSON.stringify({ oxy: Object.keys(digests.oxy || {}).length, pulse: Object.keys(digests.pulse || {}).length })
+      );
+      T.ok(
+        'ANTI-VACUITY · the detector the row is about is IN the compared closure',
+        !!(digests.oxy && digests.oxy['oxydex-dsp.js']) && !!(digests.pulse && digests.pulse['pulsedex-dsp.js']),
+        JSON.stringify(Object.keys(digests.oxy || {}))
+      );
+      /* PLANT · the detector leg must FIRE. Without this the `none` above could be a comparator that
+         never reports anything, which is the same green a correct tree gives. */
+      var planted = JSON.parse(JSON.stringify(digests));
+      planted.oxy['oxydex-dsp.js'] = 'planted00000';
+      var pm = YieldPin.movedFiles(pin.detector, planted);
+      T.ok('PLANT · a changed oxydex-dsp.js is reported, and by name', pm.length === 1 && pm[0].indexOf('oxy/oxydex-dsp.js') === 0 && pm[0].indexOf('planted00000') > 0, JSON.stringify(pm));
+    });
+
     group('PpgDex loadOwnExport — whose export is this, and how many nights', 'ppgdex-dsp · known-answer · mutation-pinned', function (T) {
       var P = env.PpgDex || env.PPGDSP;
       if (!P || typeof P.loadOwnExport !== 'function') {

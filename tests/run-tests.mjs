@@ -23,6 +23,7 @@ import { decide as landDecide } from '../tools/land-pr.mjs';
 import { classify as qdClassify, pick as qdPick, IDLE_MIN as QD_IDLE_MIN, STARVED_MIN as QD_STARVED_MIN } from '../tools/queue-doctor.mjs';
 import { classify as commitShape } from '../tools/commit-shape.mjs';
 import { elementBlocks } from '../tools/strip-markup.mjs';
+import * as YieldPin from '../tools/treatment-response-yield-pin.mjs';
 import * as captureRecapture from '../tools/capture-recapture.mjs';
 import { estimate as beatCrEstimate, estSummary as beatCrSummary } from '../tools/beat-capture-recapture.mjs';
 import { attenuateAndRecover, buildTemplate as beatBuildTemplate } from '../tools/beat-injection-recovery.mjs';
@@ -827,6 +828,57 @@ async function readComputeHashProbe() {
     render: await of(mk('compute(1)', 'paint(2)')), // display-only edit
     dsp: await of(mk('compute(2)', 'paint(1)')) // compute-path edit
   };
+}
+
+/* A committed JSON artifact, or null when it is absent or unparseable — the two are the same thing to
+   a consumer that must SKIP by name rather than pass over a file it never read. */
+function readJsonOrNull(path) {
+  try {
+    return JSON.parse(readFileSync(path, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+/* TREATMENT-RESPONSE YIELD PIN — the SHA of every source the page's detector realms actually load.
+   The realm list is DERIVED from `cohort-worker.js`'s own `SCRIPTS` table, never hand-copied: the pin
+   exists because the qualifying cohort moved twice under a stable configuration, and a hand-listed
+   closure that silently stopped covering a new realm file would reproduce exactly that blindness one
+   layer up. Node lane only (it reads files); the browser lane gets null and the group SKIPs by name. */
+function readDetectorRealmDigests(realms) {
+  const crypto = require('node:crypto');
+  const sha12 = (t) => crypto.createHash('sha256').update(t, 'utf8').digest('hex').slice(0, 12);
+  const wf = join(ROOT, 'cohort-worker.js');
+  if (!existsSync(wf)) return null;
+  let src;
+  try {
+    src = readFileSync(wf, 'utf8');
+  } catch {
+    return null;
+  }
+  const out = {};
+  for (const realm of realms) {
+    /* The table entry as written, e.g. `oxy: ['synth-gen.js', …],` — a miss returns null for that
+       realm rather than an empty object, so "the table moved" and "the realm has no files" cannot
+       arrive at the assertion wearing the same shape. */
+    const m = src.match(new RegExp('\\b' + realm + ':\\s*\\[([^\\]]*)\\]'));
+    if (!m) {
+      out[realm] = null;
+      continue;
+    }
+    const files = (m[1].match(/'[^']+'/g) || []).map((x) => x.slice(1, -1));
+    if (!files.length) {
+      out[realm] = null;
+      continue;
+    }
+    const d = {};
+    for (const f of files) {
+      const fp = join(ROOT, f);
+      d[f] = existsSync(fp) ? sha12(readFileSync(fp, 'utf8')) : null;
+    }
+    out[realm] = d;
+  }
+  return out;
 }
 
 /* EVERY BUILDER-INLINED SCRIPT BLOCK MUST PARSE — the gate that was missing on 2026-09-28.
@@ -2975,6 +3027,9 @@ async function main() {
     computeHashProbe: await readComputeHashProbe(),
     bundleCodeIdentity: await readBundleCodeIdentity(), // roadmap §3 — shipped bundles' {manifestHash, computeHash}
     inlineParseCensus: readInlineParseCensus(), // every builder-inlined block must PARSE (2026-09-28)
+    detectorRealmDigests: readDetectorRealmDigests(['oxy', 'pulse']), // treatment-response yield pin — the detector closure, derived from cohort-worker.js SCRIPTS
+    treatmentYieldPin: readJsonOrNull(join(ROOT, 'analysis', 'treatment-response-yield-pin.json')),
+    YieldPin, // the pin's own selection replay + closure comparator, executed by the suite rather than re-implemented
     elementBlocks, // strip-markup's index scan — the group drives it over every end-tag spelling
     fixtures: readFixtures(),
     equiv: readEquiv(),

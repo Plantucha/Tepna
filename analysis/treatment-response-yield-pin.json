@@ -1,0 +1,60 @@
+{
+  "schema": "tepna.yield-pin/1",
+  "config": {
+    "page": "treatment-response-analysis.html",
+    "nSubj": 900,
+    "minN": 10,
+    "seedCap": 2000000,
+    "minNightsObserved": 10
+  },
+  "generator": {
+    "version": "cohort-gen/2.0",
+    "txCandidates": 900,
+    "flatCandidates": 900,
+    "seedsScanned": 18291,
+    "filledTarget": true
+  },
+  "detector": {
+    "oxy": {
+      "synth-gen.js": "5da30a5e5fcd",
+      "cohort-gen.js": "b9cf56d095c9",
+      "kernel-constants.js": "0050ad3f9dc7",
+      "clock.js": "6c46d9671f95",
+      "oxydex-util.js": "7decb779be74",
+      "oxydex-profile.js": "58ae9452aadb",
+      "oxydex-dsp.js": "c363035a29d6"
+    },
+    "pulse": {
+      "synth-gen.js": "5da30a5e5fcd",
+      "cohort-gen.js": "b9cf56d095c9",
+      "kernel-constants.js": "0050ad3f9dc7",
+      "clock.js": "6c46d9671f95",
+      "pulsedex-dsp.js": "5eb659b167b7"
+    }
+  },
+  "yield": {
+    "nIntervention": 233,
+    "nFlatControl": 239,
+    "txSkipped": 667,
+    "flatSkipped": 661
+  },
+  "history": [
+    {
+      "measured": "2026-09-16",
+      "nIntervention": 269,
+      "nFlatControl": 317,
+      "source": "residue 2026-09-17-treatment-response-gap-is-not-the-generator (identical under cohort-gen 1.9 and 2.0)"
+    },
+    {
+      "measured": "2026-09-22",
+      "nIntervention": 233,
+      "nFlatControl": 239,
+      "source": "#2825 analysis/published-numbers/treatment-response-2026-09-22.json"
+    }
+  ],
+  "measuredAt": "2026-09-29T00:15:30.473Z",
+  "producedBy": {
+    "tool": "tools/treatment-response-yield-pin.mjs",
+    "commit": "5ea46e9d"
+  }
+}
