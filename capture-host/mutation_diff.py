@@ -1236,6 +1236,14 @@ class reap_group_on_signal:
     `signal.signal` only works on the main thread; a call from anywhere else raises ValueError, which
     this treats as "no handler installed" and leaves the deadline as the only bound — degraded, honest,
     and not a crash in teardown.
+
+    **SIG_IGN is honoured, never overridden** — see `__enter__`. A signal the launcher disabled keeps
+    its disposition and the deadline stays its only bound.
+
+    **A second signal during the grace re-enters `_on_signal` before the restore, and that is FINE** —
+    the second `killpg` lands on a group that is already dying (`ProcessLookupError`, suppressed) and
+    the second re-raise is what the second sender asked for. Do NOT "fix" it by guarding with a flag
+    that swallows the second signal: that would make the process ignore a stop it was told twice.
     """
 
     def __init__(self, proc, signals=REAP_SIGNALS):
@@ -1244,6 +1252,19 @@ class reap_group_on_signal:
     def __enter__(self):
         for sig in self.signals:
             try:
+                # 🔴 AN IGNORED SIGNAL STAYS IGNORED. Installing over SIG_IGN converts a signal the
+                # launcher deliberately disabled into a handler that reaps the child and then re-raises
+                # into a no-op — so the run CONTINUES with its job dead and reports `phase: results`
+                # NOT_RUN for an event it was supposed to ignore. Measured 2026-09-29 on this box, and
+                # both live shapes are ones this repo actually uses:
+                #   `setsid nohup <gate> &`  (CLAUDE.md §4c's recipe for anything over ~100 s, and how
+                #                             the crawl and the drains run) → SIGHUP  = SIG_IGN
+                #   `bash -c '<gate> &'`     (a plain background job, no job control)
+                #                                                          → SIGINT, SIGQUIT = SIG_IGN
+                # So this is not a SIGHUP special case: any arm may arrive already ignored, and the
+                # deadline remains the bound for it. Read the disposition first and leave it alone.
+                if signal.getsignal(sig) is signal.SIG_IGN:
+                    continue  # deliberate: honouring SIG_IGN is the point — nothing is being hidden
                 self._prev[sig] = signal.signal(sig, self._on_signal)
             except (ValueError, OSError):
                 pass  # not the main thread, or a signal this platform does not have

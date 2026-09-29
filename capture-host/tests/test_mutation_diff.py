@@ -3125,6 +3125,7 @@ class _SigShim:
     keeps the real module out of a test that must not actually catch SIGTERM."""
 
     SIG_DFL = "DFL"
+    SIG_IGN = "IGN"
 
     def __init__(self, raise_on_install=False, raise_after=None):
         import signal as _s
@@ -3133,6 +3134,10 @@ class _SigShim:
         self.SIGKILL = _s.SIGKILL  # `kill_process_group` runs under this shim too; it escalates for real
         self.installs, self.raise_on_install = [], raise_on_install
         self.raise_after, self.handlers = raise_after, {}
+        self.dispositions: dict = {}
+
+    def getsignal(self, sig):
+        return self.dispositions.get(sig, self.SIG_DFL)
 
     def signal(self, sig, handler):
         if self.raise_on_install or (self.raise_after is not None and len(self.installs) >= self.raise_after):
@@ -3254,3 +3259,71 @@ def test_a_RESTORE_that_fails_does_not_raise_out_of_teardown(monkeypatch):
     assert len(shim.installs) == len(M.REAP_SIGNALS), (
         f"the three arms must still have been installed; got {shim.installs}"
     )
+
+
+def test_PLANT_a_signal_that_was_already_IGNORED_stays_ignored_and_the_child_LIVES(tmp_path):
+    """🔴 A REAL SIGHUP UNDER `nohup`'s DISPOSITION, with a real child. Measured on this box
+    2026-09-29: `setsid nohup <gate> &` — CLAUDE.md §4c's own recipe for anything over ~100 s, and how
+    the crawl and the drains run — leaves SIGHUP as SIG_IGN, and `bash -c '<gate> &'` leaves SIGINT and
+    SIGQUIT as SIG_IGN. Installing over that turns a signal the launcher disabled into "reap the job,
+    restore SIG_IGN, re-raise into nothing, carry on" — the run continues with its child dead and
+    reports NOT_RUN for an event it was supposed to ignore.
+
+    This sends the REAL signal to this process, which is safe precisely because it is ignored: if the
+    guard installs anyway the child dies and the assertion below fails, rather than the test dying."""
+    import signal as _sig
+    import subprocess as _sp
+    import sys as _sys
+    import time as _t
+
+    prev = _sig.getsignal(_sig.SIGHUP)
+    proc = _sp.Popen([_sys.executable, "-c", "import time; time.sleep(30)"], start_new_session=True)
+    try:
+        _sig.signal(_sig.SIGHUP, _sig.SIG_IGN)  # the disposition `nohup` leaves behind
+        # Polled, because between fork and exec the child's `/proc/<pid>/cmdline` is EMPTY — a freshly
+        # spawned process reads as "not running" for a few ms, which is the same shape this file uses to
+        # mean dead. Waiting for the argv to appear is what makes "alive" and "dead" distinguishable.
+        _end = _t.monotonic() + 5.0
+        was = _cmdline(proc.pid)
+        while was is None and _t.monotonic() < _end:
+            _t.sleep(0.02)
+            was = _cmdline(proc.pid)
+        assert was, "the plant's child never reached exec; the test proves nothing"
+        with M.reap_group_on_signal(proc) as guard:
+            assert _sig.SIGHUP not in guard._prev, (
+                "SIGHUP was SIG_IGN and a handler was installed over it — a stray HUP now reaps the job "
+                "and re-raises into a no-op, so the run continues with its child dead"
+            )
+            os.kill(os.getpid(), _sig.SIGHUP)  # ignored: execution must simply continue past this line
+            _t.sleep(0.3)
+            assert _cmdline(proc.pid) == was, (
+                f"the child was reaped by a signal this process was told to ignore (pid {proc.pid})"
+            )
+        assert _sig.getsignal(_sig.SIGHUP) is _sig.SIG_IGN, "the ignored disposition must be left as it was"
+    finally:
+        _sig.signal(_sig.SIGHUP, prev)
+        M.kill_process_group(proc)
+    assert _gone(proc.pid, was), "the plant's own child outlived the test"
+
+
+def test_CONTROL_a_signal_at_SIG_DFL_still_gets_the_handler(monkeypatch):
+    """The control for the plant above: skipping SIG_IGN must not become skipping everything. With the
+    default disposition all three arms are installed, which is what the order test then exercises."""
+    shim = _SigShim()
+    monkeypatch.setattr(M, "signal", shim)
+    with M.reap_group_on_signal(_RecordingProc(pid=0)) as guard:
+        assert set(guard._prev) == set(M.REAP_SIGNALS), guard._prev
+    assert [s for s, _h in shim.installs[: len(M.REAP_SIGNALS)]] == list(M.REAP_SIGNALS), shim.installs
+
+
+def test_only_the_IGNORED_arm_is_skipped_not_its_neighbours(monkeypatch):
+    """A mixed disposition is the real shape (`bash -c '… &'` ignores SIGINT and SIGQUIT but not
+    SIGTERM): the ignored arm is left alone and every other arm is still guarded."""
+    import signal as _sig
+
+    shim = _SigShim()
+    shim.dispositions[_sig.SIGINT] = shim.SIG_IGN
+    monkeypatch.setattr(M, "signal", shim)
+    with M.reap_group_on_signal(_RecordingProc(pid=0)) as guard:
+        assert _sig.SIGINT not in guard._prev, guard._prev
+        assert {_sig.SIGTERM, _sig.SIGHUP} <= set(guard._prev), guard._prev
