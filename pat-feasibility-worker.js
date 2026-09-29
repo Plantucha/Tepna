@@ -260,7 +260,29 @@ var sharedClock =
    to every caller before 2026-09-26. The finger→ankle leg passes its own band: the ankle foot follows the finger
    foot by ~100 ms (measured 96–99 ms on 2026-09-25), far below PHYS_LO, and both bands stay under one RR, which
    is what keeps beat slip structurally impossible (see the note in the loop). */
-function coupledPAT(rTimes, fTimes, band) {
+/* ── TIME ORDER IS A PRECONDITION, CHECKED — never assumed, never sorted silently ────────────────────────────
+   The pairing below walks both lists forward with one shared cursor, so it is only correct on ascending times.
+   A handful of out-of-order stamps at the head is enough to strand the cursor for the whole night: measured on
+   2026-09-28, the ring's first 76 feet were placed up to 402 min late by a broken axis (43 inversions), and the
+   finger legs "coupled" 6 and 12 beats out of ~23 600 — reported as "no overlap or detection failed", which was
+   wrong on both counts. The inversions are a DEFECT UPSTREAM (the axis that produced them), so the honest answer
+   is a refusal that names them, not a sort that would pair beats to times that are hours wrong. */
+function orderFault(t, what) {
+  var inv = 0,
+    first = -1;
+  for (var i = 1; i < t.length; i++) {
+    if (t[i] < t[i - 1]) {
+      inv++;
+      if (first < 0) first = i;
+    }
+  }
+  return inv ? what + ' times are not in time order — ' + inv + ' inversion(s), the first at index ' + first + '; the axis that produced them is broken, and pairing assumes order' : null;
+}
+/* `names` (optional, { start, end }): what the two time lists ARE, for the refusal's wording. Omitted ⇒ R-peak →
+   pulse-foot; the finger → ankle leg passes its own, because its first list is finger feet, not R-peaks. */
+function coupledPAT(rTimes, fTimes, band, names) {
+  var fault = orderFault(rTimes, (names && names.start) || 'R-peak') || orderFault(fTimes, (names && names.end) || 'pulse-foot');
+  if (fault) return { ok: false, reason: fault };
   var PLO = band ? band.lo : PHYS_LO,
     PHI = band ? band.hi : PHYS_HI;
   var lags = [],
@@ -521,7 +543,20 @@ var HAT_WIN_MS = 300000,
    median is the WEIGHTED median of the same pairs, and the solve below is unchanged. One hat solver;
    `tch-parity` reds any page that grows a private one. */
 function threeHat(cAB, cAC, cBC, wAB, wAC, wBC) {
-  if (!(cAB && cAB.ok && cAC && cAC.ok && cBC && cBC.ok)) return { ok: false, reason: 'a leg did not couple' };
+  /* Name WHICH leg refused and why — "a leg did not couple" hid an axis defect behind a coupling word. */
+  var legs = [
+      ['chest → finger', cAB],
+      ['chest → ankle', cAC],
+      ['finger → ankle', cBC]
+    ].filter(function (l) {
+      return !(l[1] && l[1].ok);
+    }),
+    why = legs
+      .map(function (l) {
+        return l[0] + ': ' + ((l[1] && l[1].reason) || 'not coupled');
+      })
+      .join(' · ');
+  if (legs.length) return { ok: false, reason: 'a leg did not couple — ' + why };
   function bucket(c, ws) {
     var o = {};
     for (var i = 0; i < c.patAtR.length; i++) {
@@ -979,7 +1014,7 @@ self.onmessage = function (e) {
               ovF = overlap(ecg, fin),
               scF = sharedClock(ecg, fin, ovF);
             cpF = coupledPAT(ecg.times, fin.times);
-            cpFA = coupledPAT(fin.times, ppg.times, FINGER_ANKLE_BAND);
+            cpFA = coupledPAT(fin.times, ppg.times, FINGER_ANKLE_BAND, { start: 'finger-foot', end: 'ankle-foot' });
             var ovFA = overlap(fin, ppg); // the finger→ankle leg's OWN span — neither end of it is the chest
             out.finger = { t0Ms: fin.t0Ms, fs: fin.fs, n: fin.n, durSec: fin.durSec };
             out.cpF = packCp(cpF, ovF);
