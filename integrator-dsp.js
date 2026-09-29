@@ -558,6 +558,12 @@ function adaptEnvelopeNode(json, node, filename) {
       // `cvhrIndex` (ECGDex/OxyDex/CPAPDex only), so a separate name keeps that consensus + its fixtures
       // byte-identical while fuseCvhrCorroboration corroborates this against the ECGDex cardiac CVHR.
       summary.cvhrIndexWave = _dig(json, ['apnea', 'cvhrIndex']);
+      /* …and WHY, when there is no index. PpgDex names its CVHR refusal since #3220 (`beats 42 < 60`,
+         `span 99 s < 120 s`, `tt/nn length mismatch …`, `clock-seam`, `implausible-span`) and attaches
+         `apnea.cvhrReason` exactly when `apnea.cvhrIndex` is null. Without this line the fusion below
+         cannot tell a refused finger leg from an absent one, because it would be reading a null with
+         nothing beside it — the same shape #3220 removed one node upstream. */
+      summary.cvhrWaveReason = _dig(json, ['apnea', 'cvhrReason']);
       // FU §2: 3-LED optical consensus (% of kept beats where ≥2/3 channels agree) — a whole-
       // record optical trust axis folded into the HRV-consensus gate alongside the per-event floor.
       summary.ledAgreementPct = _dig(json, ['quality', 'ledAgreementPct']);
@@ -3391,6 +3397,7 @@ function fuseHrvResource(recs) {
 var CVHR_AGREE_PER_H = 5.0; // events/h — CVHR indices within this band corroborate (mirrors PB_CVHR_MIN scale)
 function fuseCvhrCorroboration(recs) {
   var wave = /** @type {any} */ (null),
+    refusedWave = /** @type {any} */ (null),
     hasOxy = false;
   var corroborators = [];
   recs.forEach(function (r) {
@@ -3399,12 +3406,53 @@ function fuseCvhrCorroboration(recs) {
     if (r.node === 'PpgDex' && s.site === 'finger' && s.cvhrIndexWave != null && isFinite(s.cvhrIndexWave) && s.cvhrIndexWave >= 0 && !wave) {
       wave = { node: r.node, cvhrIndex: +Number(s.cvhrIndexWave).toFixed(1) };
     }
+    /* A finger leg that was PRESENT and produced no index, WITH a reason. `cvhrIndexWave == null` alone
+       is not enough — an old export predating #3220 carries a null and no reason, and that is
+       indistinguishable from absence, so it stays absence rather than becoming a refusal with an empty
+       explanation. */
+    if (r.node === 'PpgDex' && s.site === 'finger' && s.cvhrIndexWave == null && s.cvhrWaveReason && !refusedWave) {
+      refusedWave = { node: r.node, reason: String(s.cvhrWaveReason) };
+    }
     if (r.node === 'OxyDex') hasOxy = true;
     // any OTHER node carrying a cardiac CVHR index (ECGDex today) is a corroborator — NOT the finger leg
     if (r.node !== 'PpgDex' && s.cvhrIndex != null && isFinite(s.cvhrIndex) && s.cvhrIndex >= 0) {
       corroborators.push({ node: r.node, cvhrIndex: +Number(s.cvhrIndex).toFixed(1), channel: r.node === 'ECGDex' ? 'cardiac CVHR (ECG R-R)' : 'CVHR' });
     }
   });
+  /* ── AN ABSENT NODE IS NOT A REFUSED METRIC ──────────────────────────────────────────────────────
+     `return null` used to answer both "no finger PpgDex this night" and "a finger PpgDex that could not
+     compute an index", and the export attaches the block only when non-null — so a refusal vanished from
+     the bus exactly as an absence does, and no consumer could tell them apart. §∅: the absence was right,
+     the NAMED REASON was missing, one layer above #3220.
+     Only the second case gains a shape. A night with no PpgDex leg still returns null and still omits the
+     key, which is what keeps every fixture without a finger leg byte-identical — the property the suite
+     pins, now split into two tests rather than weakened. The refusal needs the reason to BE one: a null
+     index with nothing beside it is indistinguishable from the absence and is left as null. */
+  if (!wave && refusedWave && hasOxy) {
+    return {
+      reference: 'waveform',
+      source: 'finger PPI (PpgDex) — the O2Ring’s own single-channel pleth, whole-record Hayano CVHR',
+      cvhrIndex: null,
+      reason: refusedWave.reason,
+      unit: 'events/h',
+      tier: 'emerging',
+      corroborators: corroborators.map(function (c) {
+        return { node: c.node, channel: c.channel, cvhrIndex: c.cvhrIndex, gapPerH: null, agree: null };
+      }),
+      agreeThresholdPerH: CVHR_AGREE_PER_H,
+      ahiPublished: false,
+      ahiOwner: 'OxyDex.ahiEst',
+      /* The corroborators are carried WITHOUT a gap: there is no finger reading to measure them against,
+         and a gap computed from a missing reference would be the fabrication this block exists to avoid.
+         `agree: null` says "not assessed", never "disagrees". */
+      note:
+        'Finger-PPI CVHR was NOT measured this night — ' +
+        refusedWave.reason +
+        '. No index is published and none is inferred' +
+        (corroborators.length ? '; ' + corroborators.length + ' other CVHR source(s) were recorded but cannot be corroborated against a reference that does not exist. ' : '. ') +
+        'No AHI is published here — the only AHI is OxyDex’s ahiEst (§3.1 owner decision b).'
+    };
+  }
   if (!wave || !hasOxy) return null;
   // agreement vs each corroborator (events/h). The finger PPI is the reference; we report the gap.
   var checked = corroborators.map(function (c) {
