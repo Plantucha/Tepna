@@ -1236,6 +1236,45 @@ def stream_bounded(proc, cap_sec, on_line, t0=None, join_sec=JOIN_SEC, phase_cap
     return rc, timed_out, phase_timed_out
 
 
+def crash_refusal_verdict(n_crashed: int, decided: int) -> tuple[str, str]:
+    """The status a §3 crash refusal deserves — the fourth statement of ONE split, not a new rule.
+
+    PURE. A glob that returned no error and tested zero mutants dropped out silently: mutmut crashed
+    AFTER generation (a collection failure, a bad conftest), so its empty survivor list means "not
+    checked", never "all killed". That refusal was the one terminal in `main()` that returned an exit
+    code without emitting a verdict at all, so a consumer reading the artifact saw the PREVIOUS run's
+    object or none.
+
+    The status follows the same split its three siblings already use — `memory_exhaustion_verdict`,
+    `budget_exhaustion_verdict`, and the generation refusal's inline
+    `"NOT_RUN" if _counts["decided"] == 0 else "UNKNOWN"`:
+
+        decided > 0   UNKNOWN   part of the diff WAS measured; the crashed globs are unmeasured,
+                                not failed — exactly what an undecided mutant is
+        decided == 0  NOT_RUN   not one mutant was decided anywhere, so the run examined nothing
+
+    ⚠️ AND THE MIXED CASE IS THE COMMON ONE, WHICH IS WHY THIS IS NOT A FLAT `NOT_RUN`. The driver
+    refuses if ANY glob crashed "even when others ran cleanly" — its own words — so a run that fully
+    mutated six functions and lost a seventh is the shape this fires on most. Calling that NOT_RUN
+    would report "examined nothing" about a run that examined six, which is the same class of
+    misreport as the silent zero: a status that describes the reader's ignorance rather than the run.
+
+    `decided` is mutants and `population` is FUNCTIONS — `verdict_object` derives
+    `excluded = eligible - checked` itself, so the mutant counts belong in the reason, where a reader
+    with only the object can still see that generation ran and testing did not.
+    """
+    what = f"{n_crashed} glob(s) recorded 0 tested mutants — mutmut crashed AFTER generation"
+    if decided > 0:
+        return "UNKNOWN", (
+            f"{what}; {decided} mutant(s) were decided elsewhere in this run, so part of the diff "
+            "was measured and the crashed glob(s) are unmeasured, not killed"
+        )
+    return "NOT_RUN", (
+        f"{what}, and NOT ONE mutant was decided anywhere in this run — it examined nothing. "
+        "An empty survivor list here means 'not checked', not 'all killed'."
+    )
+
+
 def budget_exhaustion_verdict(n_refused: int, decided: int, elapsed_sec: float) -> tuple[str, str]:
     """The status a budget refusal deserves, and the reason with the numbers already in it.
 
